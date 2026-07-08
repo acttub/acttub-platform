@@ -1,10 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getAppConfig } from "@/lib/config/env";
-import {
-  TERMS_COOKIE_NAME,
-  recordTermsAcceptance,
-  requireApiAuthenticatedUser,
-} from "@/server/services/auth-context";
+import { TERMS_COOKIE_NAME, persistTermsAcceptance, requireAuthenticatedUser } from "@/server/services/auth-context";
 
 type AcceptTermsBody = {
   termsVersion?: unknown;
@@ -26,7 +22,7 @@ async function readBody(request: NextRequest): Promise<AcceptTermsBody> {
 }
 
 export async function POST(request: NextRequest) {
-  const auth = await requireApiAuthenticatedUser();
+  const auth = await requireAuthenticatedUser();
 
   const config = getAppConfig();
   const body = await readBody(request);
@@ -40,6 +36,8 @@ export async function POST(request: NextRequest) {
       { status: 400 },
     );
   }
+
+  await persistTermsAcceptance(auth);
 
   const acceptsHtml = request.headers.get("accept")?.includes("text/html");
   await recordTermsAcceptance(auth);

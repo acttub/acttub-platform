@@ -1,355 +1,292 @@
--- Acttub Slice 1 Supabase schema/RLS/storage policies.
--- Purpose: durable MVP state for question-based acting practice sessions.
--- Product guardrails encoded here:
--- - no score/rating/verdict columns
--- - rejected observations are blocked from later question grounding
--- - final session output is actor-authored text, not an AI conclusion card
-
 begin;
+
+-- Acttub Slice 1 Supabase schema, RLS, and private Storage policy artifact.
+-- Apply through Supabase migrations after review in a project with auth + storage schemas.
+-- Product invariants:
+-- 1. Practice videos live only in a private bucket.
+-- 2. Browser JWT can INSERT only the exact object path from an active upload intent.
+-- 3. Browser JWT has no SELECT/UPDATE/DELETE policy for practice videos in Slice 1.
+-- 4. Playback must use the server signed-url endpoint after ownership checks.
 
 create extension if not exists pgcrypto;
 
-create schema if not exists acttub;
+create or replace function public.current_acttub_terms_version()
+returns text
+language sql
+stable
+as $$
+  select '2026-07-mvp'::text;
+$$;
 
-create type acttub.coach_session_status as enum (
-  'draft',
-  'analyzing',
-  'awaiting_observation_confirmation',
-  'questioning',
-  'summarizing',
-  'completed',
-  'abandoned'
+create or replace function public.is_active_acttub_profile(profile_user_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1
+    from public.profiles p
+    where p.id = profile_user_id
+      and p.status = 'active'
+      and p.terms_accepted_at is not null
+      and p.privacy_accepted_at is not null
+      and p.internal_review_consent_at is not null
+      and p.consent_version = public.current_acttub_terms_version()
+  );
+$$;
+
+create table if not exists public.profiles (
+  id uuid primary key references auth.users(id) on delete cascade,
+  email text,
+  status text not null default 'pending_terms'
+    check (status in ('pending_terms', 'active', 'suspended')),
+  terms_accepted_at timestamptz,
+  privacy_accepted_at timestamptz,
+  internal_review_consent_at timestamptz,
+  consent_version text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint active_profile_requires_current_consent check (
+    status <> 'active'
+    or (
+      terms_accepted_at is not null
+      and privacy_accepted_at is not null
+      and internal_review_consent_at is not null
+      and consent_version = public.current_acttub_terms_version()
+    )
+  )
 );
 
-create type acttub.take_analysis_status as enum (
-  'pending',
-  'processing',
-  'succeeded',
-  'failed'
-);
-
-create type acttub.observation_confirmation_state as enum (
-  'unasked',
-  'accepted',
-  'rejected',
-  'unsure'
-);
-
-create type acttub.turn_speaker as enum (
-  'actor',
-  'assistant'
-);
-
-create type acttub.turn_state as enum (
-  'question',
-  'answer',
-  'hint',
-  'redirect',
-  'summary_prompt'
-);
-
-create type acttub.question_focus as enum (
-  'surface',
-  'intention',
-  'motivation',
-  'situation_emotion',
-  'emotion_intensity',
-  'expression_intent',
-  'gap',
-  'missing_context',
-  'boundary_redirect'
-);
-
-create table acttub.coach_sessions (
+create table if not exists public.upload_intents (
   id uuid primary key default gen_random_uuid(),
-  actor_id uuid references auth.users(id) on delete set null,
-  anonymous_token text,
-  status acttub.coach_session_status not null default 'draft',
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  session_id uuid not null default gen_random_uuid(),
+  status text not null default 'created'
+    check (status in ('created', 'finalized', 'expired', 'cleanup_failed')),
+  expected_storage_bucket text not null default 'practice-videos',
+  expected_storage_path text not null unique,
+  expected_mime_type text not null check (expected_mime_type in ('video/mp4', 'video/quicktime')),
+  expected_size_bytes bigint not null check (expected_size_bytes > 0 and expected_size_bytes <= 314572800),
+  consent_version text not null default public.current_acttub_terms_version(),
+  expires_at timestamptz not null default (now() + interval '2 hours'),
+  finalized_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (id, user_id),
+  unique (session_id, user_id),
+  constraint upload_intent_path_shape check (
+    expected_storage_path = 'users/' || user_id::text || '/practice-sessions/' || session_id::text || '/take.' ||
+      case expected_mime_type
+        when 'video/mp4' then 'mp4'
+        when 'video/quicktime' then 'mov'
+      end
+  )
+);
+
+create table if not exists public.practice_sessions (
+  id uuid primary key,
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  upload_intent_id uuid not null,
+  status text not null default 'observations_pending'
+    check (status in ('observations_pending', 'questioning', 'completed')),
   medium text not null,
   genre text not null,
   situation text not null,
   character_context text not null,
   subtext text,
   final_actor_sentence text,
-  completed_at timestamptz,
+  hidden_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
-  constraint coach_sessions_owner_required check (actor_id is not null or anonymous_token is not null),
-  constraint coach_sessions_context_not_blank check (
-    length(btrim(medium)) > 0
-    and length(btrim(genre)) > 0
-    and length(btrim(situation)) > 0
-    and length(btrim(character_context)) > 0
-  ),
-  constraint coach_sessions_final_sentence_not_blank check (
-    final_actor_sentence is null or length(btrim(final_actor_sentence)) > 0
+  unique (id, user_id),
+  foreign key (upload_intent_id, user_id) references public.upload_intents(id, user_id),
+  constraint final_sentence_required_when_completed check (
+    status <> 'completed' or nullif(trim(final_actor_sentence), '') is not null
   )
 );
 
-create table acttub.coach_takes (
+create table if not exists public.practice_takes (
   id uuid primary key default gen_random_uuid(),
-  session_id uuid not null references acttub.coach_sessions(id) on delete cascade,
-  storage_bucket text not null default 'coach-takes',
-  storage_key text not null,
-  duration_ms integer,
-  content_type text,
-  analysis_status acttub.take_analysis_status not null default 'pending',
+  session_id uuid not null,
+  user_id uuid not null,
+  storage_bucket text not null default 'practice-videos',
+  storage_path text not null unique,
+  mime_type text not null check (mime_type in ('video/mp4', 'video/quicktime')),
+  size_bytes bigint not null check (size_bytes > 0 and size_bytes <= 314572800),
+  duration_ms integer check (duration_ms is null or duration_ms > 0),
+  analysis_status text not null default 'mocked'
+    check (analysis_status in ('mocked', 'failed')),
   analysis_error text,
   created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now(),
-  constraint coach_takes_duration_positive check (duration_ms is null or duration_ms > 0),
-  constraint coach_takes_storage_key_not_blank check (length(btrim(storage_key)) > 0),
-  unique (storage_bucket, storage_key)
+  unique (id, user_id),
+  foreign key (session_id, user_id) references public.practice_sessions(id, user_id) on delete cascade
 );
 
-create table acttub.coach_observations (
+create table if not exists public.observations (
   id uuid primary key default gen_random_uuid(),
-  take_id uuid not null references acttub.coach_takes(id) on delete cascade,
-  timestamp_start_ms integer not null,
-  timestamp_end_ms integer,
+  session_id uuid not null,
+  take_id uuid not null,
+  user_id uuid not null,
+  timestamp_start_ms integer not null check (timestamp_start_ms >= 0),
+  timestamp_end_ms integer check (timestamp_end_ms is null or timestamp_end_ms >= timestamp_start_ms),
   observation_text text not null,
-  confidence numeric(4,3) not null,
-  confirmation_state acttub.observation_confirmation_state not null default 'unasked',
+  confidence numeric(4,3) not null check (confidence >= 0 and confidence <= 1),
+  confirmation_state text not null default 'unasked'
+    check (confirmation_state in ('unasked', 'accepted', 'rejected', 'unsure')),
   blocked_for_questioning boolean not null default false,
   source_payload jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now(),
-  constraint coach_observations_timestamp_valid check (
-    timestamp_start_ms >= 0
-    and (timestamp_end_ms is null or timestamp_end_ms >= timestamp_start_ms)
-  ),
-  constraint coach_observations_confidence_valid check (confidence >= 0 and confidence <= 1),
-  constraint coach_observations_text_not_blank check (length(btrim(observation_text)) > 0),
-  constraint coach_observations_rejected_blocked check (
+  foreign key (session_id, user_id) references public.practice_sessions(id, user_id) on delete cascade,
+  foreign key (take_id, user_id) references public.practice_takes(id, user_id) on delete cascade,
+  constraint rejected_observations_are_blocked check (
     confirmation_state <> 'rejected' or blocked_for_questioning = true
   ),
-  constraint coach_observations_groundable_only_when_not_blocked check (
-    not (confirmation_state = 'accepted' and blocked_for_questioning = true)
+  constraint accepted_observations_are_not_blocked check (
+    confirmation_state <> 'accepted' or blocked_for_questioning = false
   )
 );
 
-create table acttub.coach_turns (
+create table if not exists public.question_turns (
   id uuid primary key default gen_random_uuid(),
-  session_id uuid not null references acttub.coach_sessions(id) on delete cascade,
-  speaker acttub.turn_speaker not null,
+  session_id uuid not null,
+  user_id uuid not null,
+  speaker text not null check (speaker in ('actor', 'acttub')),
   content text not null,
-  question_focus acttub.question_focus,
+  question_focus text,
   source_observation_ids uuid[] not null default '{}',
-  turn_state acttub.turn_state not null,
+  turn_state text not null default 'open' check (turn_state in ('open', 'answered', 'summary')),
   created_at timestamptz not null default now(),
-  constraint coach_turns_content_not_blank check (length(btrim(content)) > 0),
-  constraint coach_turns_assistant_question_focus check (
-    speaker <> 'assistant' or turn_state <> 'question' or question_focus is not null
-  )
+  foreign key (session_id, user_id) references public.practice_sessions(id, user_id) on delete cascade
 );
 
-create table acttub.validation_events (
+create table if not exists public.session_results (
+  session_id uuid primary key,
+  user_id uuid not null,
+  actor_authored_sentence text not null check (length(trim(actor_authored_sentence)) > 0),
+  question_to_revisit text,
+  created_at timestamptz not null default now(),
+  foreign key (session_id, user_id) references public.practice_sessions(id, user_id) on delete cascade
+);
+
+create table if not exists public.validation_events (
   id uuid primary key default gen_random_uuid(),
-  session_id uuid references acttub.coach_sessions(id) on delete cascade,
+  session_id uuid not null,
+  user_id uuid not null,
   event_type text not null,
   payload jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default now(),
-  constraint validation_events_type_not_blank check (length(btrim(event_type)) > 0)
+  foreign key (session_id, user_id) references public.practice_sessions(id, user_id) on delete cascade
 );
 
-create index coach_sessions_actor_id_created_at_idx on acttub.coach_sessions (actor_id, created_at desc);
-create index coach_sessions_anonymous_token_created_at_idx on acttub.coach_sessions (anonymous_token, created_at desc);
-create index coach_takes_session_id_idx on acttub.coach_takes (session_id);
-create index coach_observations_take_id_state_idx on acttub.coach_observations (take_id, confirmation_state, blocked_for_questioning);
-create index coach_turns_session_id_created_at_idx on acttub.coach_turns (session_id, created_at asc);
-create index validation_events_session_id_created_at_idx on acttub.validation_events (session_id, created_at asc);
+alter table public.profiles enable row level security;
+alter table public.upload_intents enable row level security;
+alter table public.practice_sessions enable row level security;
+alter table public.practice_takes enable row level security;
+alter table public.observations enable row level security;
+alter table public.question_turns enable row level security;
+alter table public.session_results enable row level security;
+alter table public.validation_events enable row level security;
 
-create or replace function acttub.set_updated_at()
-returns trigger
-language plpgsql
-as $$
-begin
-  new.updated_at = now();
-  return new;
-end;
-$$;
+create policy "profiles owner select"
+  on public.profiles for select
+  to authenticated
+  using (id = auth.uid());
 
-create trigger coach_sessions_set_updated_at
-before update on acttub.coach_sessions
-for each row execute function acttub.set_updated_at();
+create policy "profiles owner update terms"
+  on public.profiles for update
+  to authenticated
+  using (id = auth.uid())
+  with check (id = auth.uid());
 
-create trigger coach_takes_set_updated_at
-before update on acttub.coach_takes
-for each row execute function acttub.set_updated_at();
+create policy "upload intents owner select active"
+  on public.upload_intents for select
+  to authenticated
+  using (user_id = auth.uid());
 
-create trigger coach_observations_set_updated_at
-before update on acttub.coach_observations
-for each row execute function acttub.set_updated_at();
+create policy "practice sessions owner select visible"
+  on public.practice_sessions for select
+  to authenticated
+  using (user_id = auth.uid() and hidden_at is null);
 
-create or replace function acttub.observation_belongs_to_actor(observation_id uuid, user_id uuid)
-returns boolean
-language sql
-stable
-security definer
-set search_path = acttub, public
-as $$
-  select exists (
-    select 1
-    from acttub.coach_observations o
-    join acttub.coach_takes t on t.id = o.take_id
-    join acttub.coach_sessions s on s.id = t.session_id
-    where o.id = observation_id
-      and s.actor_id = user_id
-  );
-$$;
+create policy "practice sessions owner soft hide"
+  on public.practice_sessions for update
+  to authenticated
+  using (user_id = auth.uid() and public.is_active_acttub_profile(auth.uid()))
+  with check (user_id = auth.uid() and public.is_active_acttub_profile(auth.uid()));
 
-create or replace function acttub.enforce_turn_source_observations_groundable()
-returns trigger
-language plpgsql
-security definer
-set search_path = acttub, public
-as $$
-declare
-  unsafe_count integer;
-begin
-  if coalesce(array_length(new.source_observation_ids, 1), 0) = 0 then
-    return new;
-  end if;
-
-  select count(*) into unsafe_count
-  from unnest(new.source_observation_ids) as source_id
-  left join acttub.coach_observations o on o.id = source_id
-  left join acttub.coach_takes t on t.id = o.take_id
-  where o.id is null
-    or t.session_id <> new.session_id
-    or o.confirmation_state <> 'accepted'
-    or o.blocked_for_questioning = true;
-
-  if unsafe_count > 0 then
-    raise exception 'assistant turn source observations must belong to the session and be accepted/non-blocked';
-  end if;
-
-  return new;
-end;
-$$;
-
-create trigger coach_turns_enforce_source_observations_groundable
-before insert or update of session_id, source_observation_ids on acttub.coach_turns
-for each row execute function acttub.enforce_turn_source_observations_groundable();
-
-alter table acttub.coach_sessions enable row level security;
-alter table acttub.coach_takes enable row level security;
-alter table acttub.coach_observations enable row level security;
-alter table acttub.coach_turns enable row level security;
-alter table acttub.validation_events enable row level security;
-
-create policy coach_sessions_actor_select on acttub.coach_sessions
-  for select using (actor_id = auth.uid());
-create policy coach_sessions_actor_insert on acttub.coach_sessions
-  for insert with check (actor_id = auth.uid());
-create policy coach_sessions_actor_update on acttub.coach_sessions
-  for update using (actor_id = auth.uid()) with check (actor_id = auth.uid());
-
-create policy coach_takes_actor_all on acttub.coach_takes
-  for all using (
-    exists (
-      select 1 from acttub.coach_sessions s
-      where s.id = session_id and s.actor_id = auth.uid()
-    )
-  ) with check (
-    exists (
-      select 1 from acttub.coach_sessions s
-      where s.id = session_id and s.actor_id = auth.uid()
+create policy "practice takes owner select visible session"
+  on public.practice_takes for select
+  to authenticated
+  using (
+    user_id = auth.uid()
+    and exists (
+      select 1 from public.practice_sessions s
+      where s.id = practice_takes.session_id
+        and s.user_id = auth.uid()
+        and s.hidden_at is null
     )
   );
 
-create policy coach_observations_actor_all on acttub.coach_observations
-  for all using (
-    exists (
-      select 1
-      from acttub.coach_takes t
-      join acttub.coach_sessions s on s.id = t.session_id
-      where t.id = take_id and s.actor_id = auth.uid()
-    )
-  ) with check (
-    exists (
-      select 1
-      from acttub.coach_takes t
-      join acttub.coach_sessions s on s.id = t.session_id
-      where t.id = take_id and s.actor_id = auth.uid()
-    )
-  );
+create policy "observations owner crud"
+  on public.observations for all
+  to authenticated
+  using (user_id = auth.uid() and public.is_active_acttub_profile(auth.uid()))
+  with check (user_id = auth.uid() and public.is_active_acttub_profile(auth.uid()));
 
-create policy coach_turns_actor_all on acttub.coach_turns
-  for all using (
-    exists (
-      select 1 from acttub.coach_sessions s
-      where s.id = session_id and s.actor_id = auth.uid()
-    )
-  ) with check (
-    exists (
-      select 1 from acttub.coach_sessions s
-      where s.id = session_id and s.actor_id = auth.uid()
-    )
-  );
+create policy "question turns owner crud"
+  on public.question_turns for all
+  to authenticated
+  using (user_id = auth.uid() and public.is_active_acttub_profile(auth.uid()))
+  with check (user_id = auth.uid() and public.is_active_acttub_profile(auth.uid()));
 
-create policy validation_events_actor_insert on acttub.validation_events
-  for insert with check (
-    session_id is null
-    or exists (
-      select 1 from acttub.coach_sessions s
-      where s.id = session_id and s.actor_id = auth.uid()
-    )
-  );
-create policy validation_events_actor_select on acttub.validation_events
-  for select using (
-    session_id is null
-    or exists (
-      select 1 from acttub.coach_sessions s
-      where s.id = session_id and s.actor_id = auth.uid()
-    )
-  );
+create policy "session results owner crud"
+  on public.session_results for all
+  to authenticated
+  using (user_id = auth.uid() and public.is_active_acttub_profile(auth.uid()))
+  with check (user_id = auth.uid() and public.is_active_acttub_profile(auth.uid()));
 
--- Service-role-only operational access is intentionally not represented as RLS policies.
--- Supabase service role bypasses RLS for server-side analysis jobs and Spring Boot migration workers.
+create policy "validation events owner insert select"
+  on public.validation_events for all
+  to authenticated
+  using (user_id = auth.uid() and public.is_active_acttub_profile(auth.uid()))
+  with check (user_id = auth.uid() and public.is_active_acttub_profile(auth.uid()));
 
+-- Private bucket setup. Supabase Storage buckets are private by default, but the flag is explicit here.
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
-values (
-  'coach-takes',
-  'coach-takes',
-  false,
-  314572800,
-  array['video/mp4', 'video/quicktime']
-)
-on conflict (id) do update set
-  public = excluded.public,
-  file_size_limit = excluded.file_size_limit,
-  allowed_mime_types = excluded.allowed_mime_types;
+values ('practice-videos', 'practice-videos', false, 314572800, array['video/mp4', 'video/quicktime'])
+on conflict (id) do update
+set public = false,
+    file_size_limit = excluded.file_size_limit,
+    allowed_mime_types = excluded.allowed_mime_types;
 
-create policy coach_takes_storage_actor_read on storage.objects
-  for select using (
-    bucket_id = 'coach-takes'
-    and owner = auth.uid()
+-- Browser upload authority: INSERT only, exact path only, active/current consent only, unexpired intent only.
+create policy "practice videos insert via active upload intent"
+  on storage.objects for insert
+  to authenticated
+  with check (
+    bucket_id = 'practice-videos'
+    and (storage.foldername(name))[1] = 'users'
+    and (storage.foldername(name))[2] = auth.uid()::text
+    and (storage.foldername(name))[3] = 'practice-sessions'
+    and (storage.filename(name) in ('take.mp4', 'take.mov'))
+    and public.is_active_acttub_profile(auth.uid())
+    and exists (
+      select 1
+      from public.upload_intents ui
+      where ui.user_id = auth.uid()
+        and ui.status = 'created'
+        and ui.consent_version = public.current_acttub_terms_version()
+        and ui.expected_storage_bucket = storage.objects.bucket_id
+        and ui.expected_storage_path = storage.objects.name
+        and ui.expires_at > now()
+    )
   );
 
-create policy coach_takes_storage_actor_insert on storage.objects
-  for insert with check (
-    bucket_id = 'coach-takes'
-    and owner = auth.uid()
-    and (storage.foldername(name))[1] = auth.uid()::text
-  );
-
-create policy coach_takes_storage_actor_update on storage.objects
-  for update using (
-    bucket_id = 'coach-takes'
-    and owner = auth.uid()
-    and (storage.foldername(name))[1] = auth.uid()::text
-  ) with check (
-    bucket_id = 'coach-takes'
-    and owner = auth.uid()
-    and (storage.foldername(name))[1] = auth.uid()::text
-  );
-
-create policy coach_takes_storage_actor_delete on storage.objects
-  for delete using (
-    bucket_id = 'coach-takes'
-    and owner = auth.uid()
-    and (storage.foldername(name))[1] = auth.uid()::text
-  );
+-- Intentionally absent in Slice 1:
+-- - no storage.objects SELECT policy for practice-videos (no browser download/list/signing path)
+-- - no storage.objects UPDATE policy (no browser upsert/move)
+-- - no storage.objects DELETE policy (cleanup is server-only via service role Storage API)
 
 commit;

@@ -5,6 +5,8 @@ import { getAuthSession, type AuthSessionResponse } from "@/lib/api/auth";
 import {
   createPracticeSession,
   createPracticeSummary,
+  createPracticeUploadIntent,
+  finalizePracticeUploadIntent,
   createPracticeTurn,
   updatePracticeObservation,
 } from "@/lib/api/sessions";
@@ -119,9 +121,34 @@ export function PracticeFlow() {
     setApiError(null);
 
     try {
+      let uploadSessionFields: Pick<CreateSessionRequest, "sessionId" | "uploadIntentId" | "storagePath" | "videoUrl" | "durationMs"> = {};
+
+      if (scene.medium === "upload_url") {
+        const intentResult = await createPracticeUploadIntent({
+          fileMetadata: {
+            fileName: "practice-take.mp4",
+            mimeType: "video/mp4",
+            sizeBytes: 1,
+            durationMs: scene.durationMs,
+          },
+        });
+        const finalized = await finalizePracticeUploadIntent(intentResult.uploadIntent.uploadIntentId, {
+          storagePath: intentResult.uploadIntent.storagePath,
+          durationMs: scene.durationMs,
+        });
+        uploadSessionFields = {
+          sessionId: intentResult.uploadIntent.sessionId,
+          uploadIntentId: intentResult.uploadIntent.uploadIntentId,
+          storagePath: finalized.storagePath,
+          videoUrl: finalized.videoUrl,
+          durationMs: finalized.durationMs ?? undefined,
+        };
+      }
+
       const result = await createPracticeSession({
         ...scene,
-        videoUrl: scene.videoUrl?.trim() || undefined,
+        ...uploadSessionFields,
+        videoUrl: uploadSessionFields.videoUrl ?? scene.videoUrl?.trim() || undefined,
         subtext: scene.subtext?.trim() || undefined,
       });
       setPracticeSession(result.session);

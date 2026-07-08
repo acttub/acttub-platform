@@ -1,6 +1,6 @@
+import { requireApiTermsAccepted } from "@/server/services/api-auth";
 import { coachSessionService } from "@/server/services/coach-session-service";
-import { requireTermsAccepted } from "@/server/services/auth-context";
-import { handleApiError, jsonResponse } from "../../http";
+import { handleApiError, jsonResponse } from "../../../http";
 
 type RouteContext = {
   params: Promise<{
@@ -10,7 +10,7 @@ type RouteContext = {
 
 export async function POST(request: Request, context: RouteContext) {
   try {
-    const auth = await requireTermsAccepted();
+    const auth = await requireApiTermsAccepted();
     const { uploadIntentId } = await context.params;
     const payload = await request.json();
     const result = coachSessionService.finalizeUploadIntent(uploadIntentId, payload, auth.userId);
