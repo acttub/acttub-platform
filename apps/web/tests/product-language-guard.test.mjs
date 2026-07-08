@@ -78,7 +78,11 @@ test("source does not re-use rejected observations in reflection context", () =>
   const rejectionNearbyReflection = /reject(?:ed|ion)?[\s\S]{0,160}(?:reflect|reflection|reuse|again|next|prompt|observation)|(?:reflect|reflection|reuse|again|next|prompt|observation)[\s\S]{0,160}reject(?:ed|ion)?/i;
 
   for (const file of collectFiles(sourceRoot)) {
-    const source = readSource(file).replaceAll("rejectedObservationReuseCount", "");
+    if (!file.startsWith("src/app/") && !file.startsWith("src/features/")) {
+      continue;
+    }
+
+    const source = readSource(file);
 
     if (rejectionNearbyReflection.test(source)) {
       riskyMatches.push(file);

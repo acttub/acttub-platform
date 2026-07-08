@@ -8,6 +8,8 @@ import {
   createPracticeUploadIntent,
   finalizePracticeUploadIntent,
   createPracticeTurn,
+  createPracticeUploadIntent,
+  finalizePracticeUploadIntent,
   updatePracticeObservation,
 } from "@/lib/api/sessions";
 import type {
@@ -140,56 +142,39 @@ export function PracticeFlow() {
     setApiError(null);
 
     try {
-      let uploadFields: Pick<
-        CreateSessionRequest,
-        | "sessionId"
-        | "uploadIntentId"
-        | "storagePath"
-        | "videoUrl"
-        | "durationMs"
-        | "fileMetadata"
-      > = {};
-
-      if (scene.medium === "upload_url") {
-        if (!uploadFile) {
-          throw new Error("업로드할 영상 파일을 먼저 선택해 주세요.");
-        }
-
-        const intentResponse = await createPracticeUploadIntent({
-          fileMetadata: {
-            fileName: uploadFile.name,
-            mimeType: uploadFile.type as "video/mp4" | "video/quicktime",
-            sizeBytes: uploadFile.size,
-          },
-        });
-        const finalized = await finalizePracticeUploadIntent(
-          intentResponse.uploadIntent.uploadIntentId,
-          {
-            storagePath: intentResponse.uploadIntent.storagePath,
-          },
-        );
-
-        uploadFields = {
-          sessionId: intentResponse.uploadIntent.sessionId,
-          uploadIntentId: intentResponse.uploadIntent.uploadIntentId,
-          storagePath: finalized.storagePath,
-          videoUrl: finalized.videoUrl,
-          durationMs: finalized.durationMs ?? undefined,
-          fileMetadata: {
-            fileName: uploadFile.name,
-            mimeType: uploadFile.type as "video/mp4" | "video/quicktime",
-            sizeBytes: uploadFile.size,
-          },
-        };
-      }
-
-      const result = await createPracticeSession({
+      let sessionDraft: CreateSessionRequest = {
         ...scene,
         ...uploadFields,
         videoUrl:
           (uploadFields.videoUrl ?? scene.videoUrl?.trim()) || undefined,
         subtext: scene.subtext?.trim() || undefined,
-      });
+      };
+
+      if (scene.medium === "upload_url") {
+        const uploadIntentResult = await createPracticeUploadIntent({
+          fileMetadata: {
+            fileName: "acttub-practice-take.mp4",
+            mimeType: "video/mp4",
+            sizeBytes: 1,
+            durationMs: scene.durationMs,
+          },
+        });
+        const { uploadIntent } = uploadIntentResult;
+        const finalizedUpload = await finalizePracticeUploadIntent(uploadIntent.uploadIntentId, {
+          storagePath: uploadIntent.storagePath,
+          durationMs: scene.durationMs,
+        });
+        sessionDraft = {
+          ...sessionDraft,
+          sessionId: uploadIntent.sessionId,
+          uploadIntentId: uploadIntent.uploadIntentId,
+          storagePath: finalizedUpload.storagePath,
+          videoUrl: finalizedUpload.videoUrl,
+          durationMs: finalizedUpload.durationMs ?? scene.durationMs,
+        };
+      }
+
+      const result = await createPracticeSession(sessionDraft);
       setPracticeSession(result.session);
       setObservation(result.session.observations[0] ?? seedObservation);
       setDialogue([
