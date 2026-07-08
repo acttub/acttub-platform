@@ -10,7 +10,6 @@ import type {
   SignedVideoUrlResponse,
   TakeDto,
   TurnDto,
-  ValidationMetricsDto,
 } from "@/lib/api/types";
 import { mockCoachSessionRepository } from "@/server/repositories/mock-coach-session-repository";
 
@@ -127,7 +126,7 @@ const buildValidationMetrics = (value: unknown, session?: CoachSessionDto): Vali
   };
   const numberFields = [
     "feltHelpedFindGap1To7",
-    "feltScored1To7",
+    "feltJudged1To7",
     "rejectionSafety1To7",
     "answerability1To7",
     "reuseIntent1To7",
@@ -162,7 +161,7 @@ const fileExtensionForMime = (mimeType: string): "mp4" | "mov" =>
   mimeType === "video/quicktime" ? "mov" : "mp4";
 
 export const coachSessionService = {
-  createUploadIntent(payload: unknown, userId = "local-dev-actor"): { uploadIntent: PracticeUploadIntentDto } {
+  createUploadIntent(payload: unknown, userId = "local-dev-actor"): PracticeUploadIntentDto {
     const input = payload as Partial<CreateUploadIntentRequest>;
     const metadata = input.fileMetadata;
 
@@ -194,7 +193,8 @@ export const coachSessionService = {
     const uploadIntent: PracticeUploadIntentDto = {
       uploadIntentId,
       sessionId,
-      storageBucket: "practice-videos",
+      storageBucket: "local-dev",
+      uploadUrl: `/api/v1/practice-upload-intents/${uploadIntentId}/local-dev-upload`,
       storagePath: `users/${userId}/practice-sessions/${sessionId}/take.${extension}`,
       uploadUrl: `/api/v1/practice-upload-intents/${uploadIntentId}/finalize`,
       constraints: {
@@ -205,7 +205,19 @@ export const coachSessionService = {
     };
 
     void fileName;
-    return { uploadIntent: mockCoachSessionRepository.saveUploadIntent(uploadIntent) };
+    return mockCoachSessionRepository.saveUploadIntent(uploadIntent);
+  },
+
+  finalizeUploadIntent(payload: unknown) {
+    const input = payload as { storagePath?: unknown; durationMs?: unknown };
+    const storagePath = requiredText(input.storagePath, "storagePath");
+    const durationMs = typeof input.durationMs === "number" && Number.isFinite(input.durationMs) ? input.durationMs : null;
+
+    return {
+      videoUrl: `local-dev://${storagePath}`,
+      storagePath,
+      durationMs,
+    };
   },
 
   listSessions(): { sessions: CoachSessionDto[] } {
@@ -432,7 +444,7 @@ export const coachSessionService = {
     return withCoachTurn ? { session: withCoachTurn, actorTurn, coachTurn } : null;
   },
 
-  getSignedVideoUrl(sessionId: string): { videoUrl: string | null; expiresAt: string } | null {
+  getSignedVideoUrl(sessionId: string): SignedVideoUrlResponse | null {
     const session = mockCoachSessionRepository.findById(sessionId);
 
     if (!session) {
@@ -479,7 +491,16 @@ export const coachSessionService = {
       return null;
     }
 
-    const validationMetrics = buildValidationMetrics(payload, session);
+    const validationMetrics = validateMetrics(payload) ?? {
+      feltHelpedFindGap1To7: null,
+      feltJudged1To7: null,
+      rejectionSafety1To7: null,
+      answerability1To7: null,
+      reuseIntent1To7: null,
+      rejectedObservationReuseCount: 0,
+      forbiddenLanguageCount: 0,
+      finalSentenceResult: session.finalActorSentence ? "saved" : "empty",
+    };
     const updatedSession = mockCoachSessionRepository.update({
       ...session,
       validationMetrics,

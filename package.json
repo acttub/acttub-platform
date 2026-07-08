@@ -9,6 +9,8 @@
     "lint": "pnpm lint:web",
     "dev:web": "pnpm --filter web dev",
     "build:web": "pnpm --filter web build",
-    "lint:web": "pnpm --filter web lint"
+    "lint:web": "pnpm --filter web lint",
+    "typecheck": "pnpm typecheck:web",
+    "typecheck:web": "pnpm --filter web typecheck"
   }
 }

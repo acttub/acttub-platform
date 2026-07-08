@@ -50,13 +50,13 @@ export type TakeDto = {
 
 export type ValidationMetricsDto = {
   feltHelpedFindGap1To7: number | null;
-  feltScored1To7: number | null;
+  feltJudged1To7: number | null;
   rejectionSafety1To7: number | null;
   answerability1To7: number | null;
   reuseIntent1To7: number | null;
   rejectedObservationReuseCount: number;
   forbiddenLanguageCount: number;
-  finalSentenceResult: "empty" | "saved";
+  finalSentenceResult: "empty" | "saved" | "skipped";
 };
 
 export type CoachSessionDto = {
@@ -172,6 +172,10 @@ export type CreateSummaryResponse = {
   nextReflectionQuestion: string;
 };
 
+export type SoftHideSessionResponse = {
+  session: CoachSessionDto;
+};
+
 export type SignedVideoUrlResponse = {
   signedUrl: string | null;
   expiresAt: string;
@@ -186,9 +190,7 @@ export type UpdateSessionVisibilityResponse = {
   session: CoachSessionDto;
 };
 
-export type SaveValidationMetricsRequest = Partial<
-  Omit<ValidationMetricsDto, "finalSentenceResult">
->;
+export type SaveValidationMetricsRequest = Partial<ValidationMetricsDto>;
 
 export type SaveValidationMetricsResponse = {
   session: CoachSessionDto;
