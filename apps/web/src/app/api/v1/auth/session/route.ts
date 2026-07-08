@@ -1,4 +1,3 @@
-import { NextResponse } from "next/server";
 import {
   getAuthContext,
   toAuthSessionDto,
@@ -6,5 +5,5 @@ import {
 
 export async function GET() {
   const context = await getAuthContext();
-  return NextResponse.json(toAuthSessionDto(context));
+  return jsonResponse(toAuthSessionDto(context));
 }
