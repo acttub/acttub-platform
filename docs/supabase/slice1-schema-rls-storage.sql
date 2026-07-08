@@ -192,6 +192,11 @@ create policy "profiles owner select"
   to authenticated
   using (id = auth.uid());
 
+create policy "profiles owner insert self"
+  on public.profiles for insert
+  to authenticated
+  with check (id = auth.uid());
+
 create policy "profiles owner update terms"
   on public.profiles for update
   to authenticated
