@@ -78,7 +78,10 @@ test("mock persistence keeps owner scope out of public DTOs", () => {
 
   assert.match(repository, /ownerId: string/);
   assert.match(repository, /session\.ownerId === ownerId/);
-  assert.match(repository, /const \{ ownerId: _ownerId, \.\.\.dto \}/);
+  assert.match(
+    repository,
+    /delete \(dto as Partial<MockCoachSessionRecord>\)\.ownerId/,
+  );
 });
 
 test("executable migration matches private practice-videos upload-intent contract", () => {

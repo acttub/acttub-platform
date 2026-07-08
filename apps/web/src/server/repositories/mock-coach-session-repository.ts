@@ -128,12 +128,10 @@ export const mockCoachSessionRepository = {
     });
     repositoryState.uploadIntents.set(uploadIntentId, updated);
 
-    const {
-      ownerId: _ownerId,
-      status: _status,
-      finalizedAt: _finalizedAt,
-      ...dto
-    } = updated;
+    const dto = cloneUploadIntent(updated);
+    delete (dto as Partial<MockUploadIntentRecord>).ownerId;
+    delete (dto as Partial<MockUploadIntentRecord>).status;
+    delete (dto as Partial<MockUploadIntentRecord>).finalizedAt;
     return dto;
   },
 
