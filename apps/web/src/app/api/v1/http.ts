@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { ApiErrorResponse } from "@/lib/api/types";
 import { privateNoStoreHeaders } from "@/server/http/cache";
+import { ApiAuthError } from "@/server/services/api-auth";
 import { ApiValidationError } from "@/server/services/coach-session-service";
 import { ApiAuthError } from "@/server/services/auth-context";
 

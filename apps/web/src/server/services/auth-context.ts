@@ -53,62 +53,82 @@ export type AuthSessionDto = {
   };
 };
 
-type ProfileConsentRow = {
-  status: string | null;
-  terms_accepted_at: string | null;
-  privacy_accepted_at: string | null;
-  internal_review_consent_at: string | null;
-  consent_version: string | null;
-};
-
-async function hasLocalTermsCookie(): Promise<boolean> {
+async function hasAcceptedTermsCookie(): Promise<boolean> {
   const config = getAppConfig();
   const cookieStore = await cookies();
   return cookieStore.get(TERMS_COOKIE_NAME)?.value === config.termsVersion;
 }
 
-function isCurrentAcceptedProfile(
-  profile: ProfileConsentRow | null,
-  termsVersion: string,
-): boolean {
-  return Boolean(
-    profile &&
-    profile.status === "active" &&
-    profile.terms_accepted_at &&
-    profile.privacy_accepted_at &&
-    profile.internal_review_consent_at &&
-    profile.consent_version === termsVersion,
-  );
-}
+async function hasPersistedTermsAcceptance(userId: string): Promise<boolean> {
+  const config = getAppConfig();
+  const supabase = createSupabaseAdminClient();
 
-async function getSupabaseProfileConsent(
-  userId: string,
-): Promise<ProfileConsentRow | null> {
-  const supabase = await createSupabaseServerClient();
-  const { data, error } = await supabase!
+  if (!supabase) {
+    return false;
+  }
+
+  const { data, error } = await supabase
     .from("profiles")
-    .select(
-      "status, terms_accepted_at, privacy_accepted_at, internal_review_consent_at, consent_version",
-    )
+    .select("status, consent_version, terms_accepted_at, privacy_accepted_at, internal_review_consent_at")
     .eq("id", userId)
     .maybeSingle();
 
-  if (error) {
-    return null;
+  if (error || !data) {
+    return false;
   }
 
-  return data as ProfileConsentRow | null;
+  return (
+    data.status === "active"
+    && data.consent_version === config.termsVersion
+    && Boolean(data.terms_accepted_at)
+    && Boolean(data.privacy_accepted_at)
+    && Boolean(data.internal_review_consent_at)
+  );
+}
+
+export async function persistTermsAcceptance(context: AuthContext): Promise<void> {
+  const config = getAppConfig();
+
+  if (context.mode !== "supabase") {
+    return;
+  }
+
+  const supabase = createSupabaseAdminClient();
+
+  if (!supabase) {
+    return;
+  }
+
+  const acceptedAt = new Date().toISOString();
+  const { error } = await supabase.from("profiles").upsert(
+    {
+      id: context.userId,
+      email: context.email,
+      status: "active",
+      terms_accepted_at: acceptedAt,
+      privacy_accepted_at: acceptedAt,
+      internal_review_consent_at: acceptedAt,
+      consent_version: config.termsVersion,
+      updated_at: acceptedAt,
+    },
+    { onConflict: "id" },
+  );
+
+  if (error) {
+    throw error;
+  }
 }
 
 export async function getAuthContext(): Promise<AuthContext | null> {
   const config = getAppConfig();
+  const termsCookieAccepted = await hasAcceptedTermsCookie();
 
   if (!config.supabase.isConfigured) {
     return {
       mode: "local-dev",
       userId: "local-dev-actor",
       email: "local-dev@acttub.invalid",
-      termsAccepted: await hasLocalTermsCookie(),
+      termsAccepted: termsCookieAccepted,
       termsVersion: config.termsVersion,
     };
   }
@@ -126,7 +146,7 @@ export async function getAuthContext(): Promise<AuthContext | null> {
     mode: "supabase",
     userId: data.user.id,
     email: data.user.email ?? null,
-    termsAccepted: isCurrentAcceptedProfile(profile, config.termsVersion),
+    termsAccepted: termsCookieAccepted || await hasPersistedTermsAcceptance(data.user.id),
     termsVersion: config.termsVersion,
   };
 }
