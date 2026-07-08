@@ -197,7 +197,6 @@ export const coachSessionService = {
       storageBucket: "practice-videos",
       uploadUrl: `/api/v1/practice-upload-intents/${uploadIntentId}/finalize`,
       storagePath: `users/${userId}/practice-sessions/${sessionId}/take.${extension}`,
-      uploadUrl: `/api/v1/practice-upload-intents/${uploadIntentId}/local-dev-upload`,
       constraints: {
         maxUploadBytes,
         allowedMimeTypes: Array.from(allowedUploadMimeTypes),
