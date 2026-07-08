@@ -10,7 +10,7 @@ import type {
   GetSessionResponse,
   ListSessionsResponse,
   SignedVideoUrlResponse,
-  SoftHideSessionResponse,
+  UpdateSessionVisibilityResponse,
   UpdateObservationRequest,
   UpdateObservationResponse,
 } from "./types";
@@ -82,14 +82,14 @@ export async function getPracticeSession(sessionId: string): Promise<GetSessionR
 
 export async function softHidePracticeSession(
   sessionId: string,
-): Promise<SoftHideSessionResponse> {
+): Promise<UpdateSessionVisibilityResponse> {
   const response = await fetch(`/api/v1/practice-sessions/${sessionId}/visibility`, {
     method: "PATCH",
     headers: jsonHeaders,
     body: JSON.stringify({ hidden: true }),
   });
 
-  return parseJsonResponse<SoftHideSessionResponse>(response);
+  return parseJsonResponse<UpdateSessionVisibilityResponse>(response);
 }
 
 export async function createPracticeSignedVideoUrl(

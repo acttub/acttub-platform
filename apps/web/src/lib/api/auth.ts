@@ -22,10 +22,16 @@ export type AcceptTermsResponse = {
 };
 
 async function parseJsonResponse<T>(response: Response): Promise<T> {
-  const payload = (await response.json()) as T | { error: string };
+  const payload = (await response.json()) as unknown;
 
   if (!response.ok) {
-    const message = "error" in payload ? payload.error : "요청을 처리하지 못했어요.";
+    const message =
+      typeof payload === "object" &&
+      payload !== null &&
+      "error" in payload &&
+      typeof payload.error === "string"
+        ? payload.error
+        : "요청을 처리하지 못했어요.";
     throw new Error(message);
   }
 
