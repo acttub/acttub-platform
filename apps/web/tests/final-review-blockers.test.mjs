@@ -72,7 +72,7 @@ test("upload sessions must flow through a finalized owner-bound upload intent", 
 
   assert.match(service, /Upload sessions must be created from a finalized upload intent/);
   assert.match(service, /Upload intent must be finalized before session creation/);
-  assert.match(service, /Must match the active upload intent storage path/);
+  assert.match(service, /Must match the upload intent storage path/);
   assert.match(service, /findUploadIntent\(input\.uploadIntentId, ownerId\)/);
   assert.match(
     finalizeRoute,
@@ -86,11 +86,11 @@ test("mock persistence keeps owner scope on sessions and upload intents", () => 
   const repository = read("apps/web/src/server/repositories/mock-coach-session-repository.ts");
 
   assert.match(repository, /sessionOwners: Map<string, string>/);
-  assert.match(repository, /uploadIntents: Map<string, UploadIntentRecord>/);
-  assert.match(repository, /ownsSession\(sessionId, ownerId\)/);
-  assert.match(repository, /ownsUploadIntent\(uploadIntentId, ownerId\)/);
-  assert.match(repository, /saveUploadIntent\(uploadIntent: PracticeUploadIntentDto, ownerId: string\)/);
-  assert.match(repository, /finalizeUploadIntent\([\s\S]*ownerId: string/);
+  assert.match(repository, /uploadIntents: Map<string, StoredUploadIntentRecord>/);
+  assert.match(repository, /sessionOwners\.get\(sessionId\) === ownerId/);
+  assert.match(repository, /uploadIntent\.userId !== ownerUserId/);
+  assert.match(repository, /saveUploadIntent\([\s\S]*ownerUserId: string/);
+  assert.match(repository, /markUploadIntentFinalized\([\s\S]*ownerUserId: string/);
 });
 
 test("executable migration and web upload contract use one private insert-only policy", () => {
