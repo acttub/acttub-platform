@@ -311,12 +311,12 @@ export function PracticeFlow() {
 
 function SceneForm({
   scene,
-  submitting = false,
+  submitting,
   onChange,
   onSubmit,
 }: {
   scene: SceneDraft;
-  submitting?: boolean;
+  submitting: boolean;
   onChange: <K extends keyof SceneDraft>(key: K, value: SceneDraft[K]) => void;
   onSubmit: () => void | Promise<void>;
 }) {
@@ -367,7 +367,7 @@ function SceneForm({
         disabled={!ready || submitting}
         className="h-14 w-full rounded-2xl bg-[#3182f6] px-5 text-base font-semibold text-white transition hover:bg-[#1b64da] disabled:cursor-not-allowed disabled:bg-[#b0d2ff]"
       >
-        {submitting ? "준비 중이에요" : "관찰 확인으로 이동하기"}
+        {submitting ? "자료 준비 중이에요" : "관찰 확인으로 이동하기"}
       </button>
     </form>
   );
@@ -390,12 +390,12 @@ function UploadProgress({ scene }: { scene: SceneDraft }) {
 
 function ObservationPanel({
   observation,
-  submitting = false,
+  submitting,
   onConfirm,
 }: {
   observation: ObservationDto;
-  submitting?: boolean;
-  onConfirm: (state: ConfirmationState) => void | Promise<void>;
+  submitting: boolean;
+  onConfirm: (state: ConfirmationState) => void;
 }) {
   return (
     <div className="space-y-5">
@@ -421,7 +421,7 @@ function DialoguePanel({
   onAnswerChange,
   onSubmit,
   onFinish,
-  submitting = false,
+  submitting,
 }: {
   latestQuestion: string;
   answer: string;
@@ -429,7 +429,7 @@ function DialoguePanel({
   onAnswerChange: (value: string) => void;
   onSubmit: () => void | Promise<void>;
   onFinish: () => void;
-  submitting?: boolean;
+  submitting: boolean;
 }) {
   return (
     <div className="space-y-5">
@@ -453,10 +453,10 @@ function DialoguePanel({
         className="min-h-32 w-full rounded-3xl border border-[#d1d6db] p-4 outline-none focus:border-[#3182f6]"
       />
       <div className="grid gap-3 sm:grid-cols-2">
-        <button type="button" onClick={onSubmit} disabled={submitting} className="h-13 rounded-2xl bg-[#3182f6] font-semibold text-white disabled:bg-[#b0d2ff]">
+        <button type="button" disabled={submitting} onClick={onSubmit} className="h-13 rounded-2xl bg-[#3182f6] font-semibold text-white disabled:bg-[#b0d2ff]">
           {submitting ? "기록 중이에요" : "답하고 다음 질문 보기"}
         </button>
-        <button type="button" onClick={onFinish} className="h-13 rounded-2xl border border-[#d1d6db] font-semibold text-[#4e5968]">
+        <button type="button" disabled={submitting} onClick={onFinish} className="h-13 rounded-2xl border border-[#d1d6db] font-semibold text-[#4e5968] disabled:text-[#b0b8c1]">
           마지막 문장 쓰기
         </button>
       </div>
@@ -469,9 +469,9 @@ function SummaryPanel({
   onFinalSentenceChange,
   scene,
   dialogue,
-  nextReflectionQuestion = "",
+  nextReflectionQuestion,
   hidden,
-  submitting = false,
+  submitting,
   onSave,
   onToggleHidden,
 }: {
@@ -479,10 +479,10 @@ function SummaryPanel({
   onFinalSentenceChange: (value: string) => void;
   scene: SceneDraft;
   dialogue: DialogueEntry[];
-  nextReflectionQuestion?: string;
+  nextReflectionQuestion: string;
   hidden: boolean;
-  submitting?: boolean;
-  onSave?: () => void | Promise<void>;
+  submitting: boolean;
+  onSave: () => void;
   onToggleHidden: () => void;
 }) {
   return (
@@ -500,10 +500,10 @@ function SummaryPanel({
         <p className="mt-2">장르: {scene.genre || "아직 없음"}</p>
         <p>질문 흐름: {dialogue.length}개 기록</p>
         <p>마지막 문장: {finalSentence || "작성 전"}</p>
-        {nextReflectionQuestion ? <p>다음에 다시 볼 질문: {nextReflectionQuestion}</p> : null}
+        {nextReflectionQuestion ? <p>다음에 붙잡을 질문: {nextReflectionQuestion}</p> : null}
       </div>
-      <button type="button" onClick={onSave} disabled={!finalSentence.trim() || submitting} className="h-13 w-full rounded-2xl bg-[#3182f6] font-semibold text-white disabled:bg-[#b0d2ff]">
-        {submitting ? "저장 중이에요" : "문장 저장하기"}
+      <button type="button" disabled={submitting || !finalSentence.trim()} onClick={onSave} className="h-13 w-full rounded-2xl bg-[#3182f6] font-semibold text-white disabled:bg-[#b0d2ff]">
+        {submitting ? "저장 중이에요" : "마지막 문장 저장하기"}
       </button>
       <button type="button" onClick={onToggleHidden} className="h-13 w-full rounded-2xl border border-[#d1d6db] font-semibold text-[#4e5968]">
         {hidden ? "목록에 다시 보이기" : "목록에서 잠시 숨기기"}
@@ -599,9 +599,9 @@ function TextArea({ label, value, onChange, required }: { label: string; value: 
   );
 }
 
-function ChoiceButton({ children, disabled = false, onClick }: { children: React.ReactNode; disabled?: boolean; onClick: () => void }) {
+function ChoiceButton({ children, disabled, onClick }: { children: React.ReactNode; disabled?: boolean; onClick: () => void }) {
   return (
-    <button type="button" disabled={disabled} onClick={onClick} className="min-h-13 rounded-2xl border border-[#d1d6db] px-4 py-3 font-semibold text-[#4e5968] transition hover:border-[#3182f6] hover:text-[#1b64da]">
+    <button type="button" disabled={disabled} onClick={onClick} className="min-h-13 rounded-2xl border border-[#d1d6db] px-4 py-3 font-semibold text-[#4e5968] transition hover:border-[#3182f6] hover:text-[#1b64da] disabled:text-[#b0b8c1]">
       {children}
     </button>
   );
