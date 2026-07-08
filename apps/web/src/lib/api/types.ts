@@ -82,10 +82,6 @@ export type FileMetadataDto = {
   mimeType: "video/mp4" | "video/quicktime";
   sizeBytes: number;
   durationMs?: number;
-  sessionId?: string;
-  uploadIntentId?: string;
-  storagePath?: string;
-  fileMetadata?: FileMetadataDto;
 };
 
 export type PracticeUploadIntentDto = {
@@ -116,6 +112,10 @@ export type CreateSessionRequest = {
   subtext?: string;
   videoUrl?: string;
   durationMs?: number;
+  sessionId?: string;
+  uploadIntentId?: string;
+  storagePath?: string;
+  fileMetadata?: FileMetadataDto;
 };
 
 export type CreateSessionResponse = {
