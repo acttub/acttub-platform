@@ -50,7 +50,8 @@ test("upload intent finalize uses path parameter and stored intent validation", 
   assert.match(service, /findUploadIntent\(uploadIntentId, userId\)/);
   assert.match(service, /storagePath !== uploadIntent\.storagePath/);
   assert.match(service, /Upload intent must be finalized before session creation/);
-  assert.match(service, /validatedMedium === "upload_url" && !input\.uploadIntentId/);
+  assert.match(service, /validatedMedium !== "upload_url"/);
+  assert.match(service, /if \(!input\.uploadIntentId\)/);
 });
 
 test("mock persistence keeps owner metadata outside public DTOs", () => {

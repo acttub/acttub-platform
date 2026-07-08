@@ -13,6 +13,7 @@ import type {
   ValidationMetricsDto,
 } from "@/lib/api/types";
 import { getAppConfig } from "@/lib/config/env";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { mockCoachSessionRepository } from "@/server/repositories/mock-coach-session-repository";
 
 export class ApiValidationError extends Error {
@@ -184,6 +185,94 @@ const buildValidationMetrics = (
 const fileExtensionForMime = (mimeType: string): "mp4" | "mov" =>
   mimeType === "video/quicktime" ? "mov" : "mp4";
 
+const isSupabaseVideoMode = (): boolean => {
+  const config = getAppConfig();
+  return config.supabase.isConfigured && config.video.bucket === "practice-videos";
+};
+
+const validateExpectedStoragePath = (
+  uploadIntent: PracticeUploadIntentDto,
+  storagePath: string,
+  userId: string,
+): void => {
+  const expectedPrefix = `users/${userId}/practice-sessions/${uploadIntent.sessionId}/`;
+  const allowedNames = new Set(["take.mp4", "take.mov"]);
+  const fileName = storagePath.split("/").pop() ?? "";
+
+  if (uploadIntent.storageBucket !== getAppConfig().video.bucket) {
+    throw new ApiValidationError("Request validation failed", {
+      storageBucket: "Upload intent bucket must match the configured video bucket.",
+    });
+  }
+
+  if (storagePath !== uploadIntent.storagePath || !storagePath.startsWith(expectedPrefix) || !allowedNames.has(fileName)) {
+    throw new ApiValidationError("Request validation failed", {
+      storagePath: "Must match the upload intent storage path.",
+    });
+  }
+};
+
+const verifySupabaseStorageObject = async (
+  uploadIntent: PracticeUploadIntentDto,
+): Promise<void> => {
+  if (!isSupabaseVideoMode()) return;
+
+  const admin = createSupabaseAdminClient();
+  if (!admin) {
+    throw new ApiValidationError("Request validation failed", {
+      storageObject: "Supabase storage verification is required before finalization.",
+    });
+  }
+
+  const pathParts = uploadIntent.storagePath.split("/");
+  const fileName = pathParts.pop();
+  const directory = pathParts.join("/");
+
+  if (!fileName || !directory) {
+    throw new ApiValidationError("Request validation failed", {
+      storagePath: "Must be a complete storage object path.",
+    });
+  }
+
+  const { data, error } = await admin.storage
+    .from(uploadIntent.storageBucket)
+    .list(directory, { limit: 100, search: fileName });
+
+  if (error || !data?.some((object) => object.name === fileName)) {
+    throw new ApiValidationError("Request validation failed", {
+      storageObject: "Uploaded storage object was not verified at the expected bucket/path.",
+    });
+  }
+};
+
+const videoRefForUploadIntent = (uploadIntent: PracticeUploadIntentDto): string =>
+  isSupabaseVideoMode()
+    ? `supabase://${uploadIntent.storageBucket}/${uploadIntent.storagePath}`
+    : `local-dev://${uploadIntent.storagePath}`;
+
+const storagePathFromVideoRef = (videoRef: string): string | null => {
+  const config = getAppConfig();
+  const supabasePrefix = `supabase://${config.video.bucket}/`;
+
+  if (videoRef.startsWith(supabasePrefix)) {
+    return videoRef.slice(supabasePrefix.length);
+  }
+
+  if (videoRef.startsWith("local-dev://")) {
+    return videoRef.slice("local-dev://".length);
+  }
+
+  return null;
+};
+
+const assertSessionMutable = (session: CoachSessionDto, action: string): void => {
+  if (session.status === "END") {
+    throw new ApiValidationError("Request validation failed", {
+      session: `Completed sessions cannot ${action}.`,
+    });
+  }
+};
+
 export const coachSessionService = {
   createUploadIntent(payload: unknown, userId = defaultUserId): PracticeUploadIntentDto {
     const input = payload as Partial<CreateUploadIntentRequest>;
@@ -240,11 +329,11 @@ export const coachSessionService = {
     return { sessions: mockCoachSessionRepository.listVisible(userId) };
   },
 
-  finalizeUploadIntent(
+  async finalizeUploadIntent(
     uploadIntentId: string,
     payload: unknown,
     userId: string,
-  ): { videoUrl: string; storagePath: string; durationMs: number | null } {
+  ): Promise<{ videoUrl: string; storagePath: string; durationMs: number | null }> {
     const uploadIntent = mockCoachSessionRepository.findUploadIntent(uploadIntentId, userId);
     if (!uploadIntent) {
       throw new ApiValidationError("Request validation failed", {
@@ -269,11 +358,8 @@ export const coachSessionService = {
     const storagePath = requiredText(input.storagePath, "storagePath");
     const durationMs = typeof input.durationMs === "number" && Number.isFinite(input.durationMs) && input.durationMs > 0 ? input.durationMs : null;
 
-    if (storagePath !== uploadIntent.storagePath) {
-      throw new ApiValidationError("Request validation failed", {
-        storagePath: "Must match the upload intent storage path.",
-      });
-    }
+    validateExpectedStoragePath(uploadIntent, storagePath, userId);
+    await verifySupabaseStorageObject(uploadIntent);
 
     const finalizedIntent = mockCoachSessionRepository.markUploadIntentFinalized(uploadIntentId, userId);
 
@@ -284,7 +370,7 @@ export const coachSessionService = {
     }
 
     return {
-      videoUrl: `local-dev://${storagePath}`,
+      videoUrl: videoRefForUploadIntent(finalizedIntent),
       storagePath,
       durationMs,
     };
@@ -301,6 +387,12 @@ export const coachSessionService = {
     }
 
     const validatedMedium = medium as Medium;
+
+    if (validatedMedium !== "upload_url") {
+      throw new ApiValidationError("Request validation failed", {
+        medium: "Slice 1 requires medium to be upload_url.",
+      });
+    }
     const genre = requiredText(input.genre, "genre");
     const situation = requiredText(input.situation, "situation");
     const characterContext = requiredText(input.characterContext, "characterContext");
@@ -315,7 +407,7 @@ export const coachSessionService = {
         : null;
     let sessionId = typeof input.sessionId === "string" && input.sessionId.trim() ? input.sessionId.trim() : createId("session");
 
-    if (validatedMedium === "upload_url" && !input.uploadIntentId) {
+    if (!input.uploadIntentId) {
       throw new ApiValidationError("Request validation failed", {
         uploadIntentId: "Upload sessions must be created from a finalized upload intent.",
       });
@@ -349,12 +441,12 @@ export const coachSessionService = {
         });
       }
       sessionId = uploadIntent.sessionId;
-      videoUrl = videoUrl ?? `local-dev://${uploadIntent.storagePath}`;
+      videoUrl = videoRefForUploadIntent(uploadIntent);
     }
 
-    if (validatedMedium !== "text_only" && !videoUrl) {
+    if (!videoUrl) {
       throw new ApiValidationError("Request validation failed", {
-        videoUrl: "Must be provided when medium is youtube_url or upload_url.",
+        videoUrl: "Must be provided for an upload session.",
       });
     }
 
@@ -437,7 +529,7 @@ export const coachSessionService = {
     return session ? { session } : null;
   },
 
-  createSignedVideoUrl(sessionId: string, userId: string): SignedVideoUrlResponse | null {
+  async createSignedVideoUrl(sessionId: string, userId: string): Promise<SignedVideoUrlResponse | null> {
     const config = getAppConfig();
     const session = mockCoachSessionRepository.findById(sessionId, userId);
 
@@ -445,10 +537,40 @@ export const coachSessionService = {
       return null;
     }
 
+    const expiresInSeconds = config.video.signedUrlExpiresInSeconds || signedUrlExpiresInSeconds;
+    const expiresAt = new Date(Date.now() + expiresInSeconds * 1000).toISOString();
+
+    if (!isSupabaseVideoMode()) {
+      return {
+        signedUrl: `/api/v1/practice-sessions/${sessionId}/video-url/mock-playback?token=${encodeURIComponent(crypto.randomUUID())}`,
+        expiresAt,
+        expiresInSeconds,
+      };
+    }
+
+    const storagePath = storagePathFromVideoRef(session.take.videoUrl);
+    const admin = createSupabaseAdminClient();
+
+    if (!storagePath || !admin) {
+      throw new ApiValidationError("Request validation failed", {
+        storageObject: "Supabase signed playback requires verified private storage.",
+      });
+    }
+
+    const { data, error } = await admin.storage
+      .from(config.video.bucket)
+      .createSignedUrl(storagePath, expiresInSeconds);
+
+    if (error || !data?.signedUrl) {
+      throw new ApiValidationError("Request validation failed", {
+        storageObject: "Could not create a private signed video URL.",
+      });
+    }
+
     return {
-      signedUrl: `/api/v1/practice-sessions/${sessionId}/video-url/mock-playback?token=${encodeURIComponent(crypto.randomUUID())}`,
-      expiresAt: new Date(Date.now() + config.video.signedUrlExpiresInSeconds * 1000).toISOString(),
-      expiresInSeconds: config.video.signedUrlExpiresInSeconds || signedUrlExpiresInSeconds,
+      signedUrl: data.signedUrl,
+      expiresAt,
+      expiresInSeconds,
     };
   },
 
@@ -465,6 +587,10 @@ export const coachSessionService = {
         confirmationState: "Must be one of unasked, accepted, rejected, unsure.",
       });
     }
+
+    const existingSession = mockCoachSessionRepository.findById(sessionId, userId);
+    if (!existingSession) return null;
+    assertSessionMutable(existingSession, "update observations");
 
     const session = mockCoachSessionRepository.updateObservationState(
       sessionId,
@@ -488,6 +614,7 @@ export const coachSessionService = {
     const session = mockCoachSessionRepository.findById(sessionId, userId);
 
     if (!session) return null;
+    assertSessionMutable(session, "create new turns");
 
     const actorTurn: TurnDto = {
       id: createId("turn"),
@@ -518,15 +645,8 @@ export const coachSessionService = {
     return withCoachTurn ? { session: withCoachTurn, actorTurn, coachTurn } : null;
   },
 
-  getSignedVideoUrl(sessionId: string, userId: string): SignedVideoUrlResponse | null {
-    const session = mockCoachSessionRepository.findById(sessionId, userId);
-    if (!session) return null;
-
-    return {
-      signedUrl: session.take.videoUrl,
-      expiresAt: new Date(Date.now() + signedUrlExpiresInSeconds * 1000).toISOString(),
-      expiresInSeconds: signedUrlExpiresInSeconds,
-    };
+  async getSignedVideoUrl(sessionId: string, userId: string): Promise<SignedVideoUrlResponse | null> {
+    return this.createSignedVideoUrl(sessionId, userId);
   },
 
   updateVisibility(sessionId: string, userId: string, payload: unknown): { session: CoachSessionDto } | null {
@@ -553,6 +673,7 @@ export const coachSessionService = {
   ): { session: CoachSessionDto; validationMetrics: ValidationMetricsDto } | null {
     const session = mockCoachSessionRepository.findById(sessionId, userId);
     if (!session) return null;
+    assertSessionMutable(session, "mutate validation metrics");
 
     const validationMetrics = buildValidationMetrics(payload, session);
     const updatedSession = mockCoachSessionRepository.update({ ...session, validationMetrics }, userId);
@@ -568,6 +689,7 @@ export const coachSessionService = {
     const session = mockCoachSessionRepository.findById(sessionId, userId);
 
     if (!session) return null;
+    assertSessionMutable(session, "create duplicate results");
 
     const validationMetrics = buildValidationMetrics((payload as { validationMetrics?: unknown }).validationMetrics, {
       ...session,

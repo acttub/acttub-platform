@@ -41,11 +41,51 @@ const cloneUploadIntent = (uploadIntent: StoredUploadIntentRecord): StoredUpload
 const ownsSession = (sessionId: string, ownerId: string): boolean =>
   repositoryState.sessionOwners.get(sessionId) === ownerId;
 
+const maxMockSessionRecords = 100;
+const maxMockUploadIntentRecords = 200;
+
+const pruneMockSessions = (): void => {
+  const overflow = repositoryState.sessions.size - maxMockSessionRecords;
+  if (overflow <= 0) return;
+
+  const staleSessionIds = Array.from(repositoryState.sessions.values())
+    .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+    .slice(0, overflow)
+    .map((session) => session.id);
+
+  for (const sessionId of staleSessionIds) {
+    repositoryState.sessions.delete(sessionId);
+    repositoryState.sessionOwners.delete(sessionId);
+  }
+};
+
+const pruneMockUploadIntents = (): void => {
+  const now = Date.now();
+  for (const [uploadIntentId, uploadIntent] of repositoryState.uploadIntents) {
+    if (Date.parse(uploadIntent.expiresAt) <= now) {
+      repositoryState.uploadIntents.delete(uploadIntentId);
+    }
+  }
+
+  const overflow = repositoryState.uploadIntents.size - maxMockUploadIntentRecords;
+  if (overflow <= 0) return;
+
+  const staleUploadIntentIds = Array.from(repositoryState.uploadIntents.values())
+    .sort((a, b) => a.expiresAt.localeCompare(b.expiresAt))
+    .slice(0, overflow)
+    .map((uploadIntent) => uploadIntent.uploadIntentId);
+
+  for (const uploadIntentId of staleUploadIntentIds) {
+    repositoryState.uploadIntents.delete(uploadIntentId);
+  }
+};
+
 
 export const mockCoachSessionRepository = {
   create(session: MockCoachSessionRecord, ownerUserId: string): MockCoachSessionRecord {
     repositoryState.sessions.set(session.id, cloneSession(session));
     repositoryState.sessionOwners.set(session.id, ownerUserId);
+    pruneMockSessions();
     return cloneSession(session);
   },
 
@@ -92,6 +132,7 @@ export const mockCoachSessionRepository = {
       intent: structuredClone(uploadIntent),
     };
     repositoryState.uploadIntents.set(uploadIntent.uploadIntentId, storedIntent);
+    pruneMockUploadIntents();
     return structuredClone(uploadIntent);
   },
 

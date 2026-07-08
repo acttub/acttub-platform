@@ -15,7 +15,6 @@ import type {
   CoachSessionDto,
   ConfirmationState,
   CreateSessionRequest,
-  Medium,
   ObservationDto,
   TurnDto,
 } from "@/lib/api/types";
@@ -59,7 +58,7 @@ export function PracticeFlow() {
   const [practiceSession, setPracticeSession] =
     useState<CoachSessionDto | null>(null);
   const [scene, setScene] = useState<SceneDraft>({
-    medium: "youtube_url",
+    medium: "upload_url",
     genre: "",
     situation: "",
     characterContext: "",
@@ -371,7 +370,7 @@ export function PracticeFlow() {
               onSubmit={startUpload}
             />
           ) : null}
-          {step === "upload" ? <UploadProgress scene={scene} /> : null}
+          {step === "upload" ? <UploadProgress /> : null}
           {step === "observe" ? (
             <ObservationPanel
               observation={observation}
@@ -438,7 +437,7 @@ function SceneForm({
     scene.genre.trim() &&
     scene.situation.trim() &&
     scene.characterContext.trim() &&
-    (scene.medium !== "upload_url" || Boolean(uploadFile));
+    Boolean(uploadFile);
 
   return (
     <form
@@ -454,34 +453,13 @@ function SceneForm({
           장면과 영상 정보를 적어 주세요.
         </h2>
         <p className="mt-2 leading-7 text-[#4e5968]">
-          YouTube 링크, 텍스트, 또는 검증된 업로드 의도 흐름으로 질문 단계를
-          시작합니다.
+          검증된 업로드 의도 흐름으로 질문 단계를 시작합니다.
         </p>
       </div>
 
+      <input type="hidden" value="upload_url" readOnly />
+
       <label className="block">
-        <span className="text-sm font-semibold">영상 방식</span>
-        <select
-          value={scene.medium}
-          onChange={(event) => onChange("medium", event.target.value as Medium)}
-          className="mt-2 h-12 w-full rounded-2xl border border-[#d1d6db] bg-white px-4 outline-none focus:border-[#3182f6]"
-        >
-          <option value="youtube_url">YouTube 링크</option>
-          <option value="upload_url">업로드 링크</option>
-          <option value="text_only">텍스트로 먼저 시작</option>
-        </select>
-      </label>
-
-      {scene.medium !== "upload_url" ? (
-        <TextField
-          label="영상 링크"
-          value={scene.videoUrl ?? ""}
-          onChange={(value) => onChange("videoUrl", value)}
-        />
-      ) : null}
-
-      {scene.medium === "upload_url" ? (
-        <label className="block">
           <span className="text-sm font-semibold">업로드할 영상 파일</span>
           <input
             type="file"
@@ -497,7 +475,6 @@ function SceneForm({
             완료 확인 흐름만 검증합니다.
           </p>
         </label>
-      ) : null}
 
       <TextField
         label="장르"
@@ -534,7 +511,7 @@ function SceneForm({
   );
 }
 
-function UploadProgress({ scene }: { scene: SceneDraft }) {
+function UploadProgress() {
   return (
     <div className="space-y-5">
       <p className="text-sm font-semibold text-[#3182f6]">영상 준비</p>
@@ -545,11 +522,7 @@ function UploadProgress({ scene }: { scene: SceneDraft }) {
         <div className="h-full w-3/4 rounded-full bg-[#3182f6]" />
       </div>
       <p className="leading-7 text-[#4e5968]">
-        {scene.medium === "upload_url"
-          ? "업로드 의도와 비공개 저장 경로를 확인하는 중이에요."
-          : scene.videoUrl
-            ? "입력한 링크와 장면 메모를 연결하는 중이에요."
-            : "텍스트 맥락으로 먼저 질문 흐름을 엽니다."}
+        업로드 의도와 비공개 저장 경로를 확인하는 중이에요.
       </p>
     </div>
   );

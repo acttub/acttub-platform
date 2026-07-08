@@ -99,7 +99,7 @@ export async function updatePracticeObservation(
   observationId: string,
   body: UpdateObservationRequest,
 ): Promise<UpdateObservationResponse> {
-  const response = await fetch(`/api/v1/sessions/${sessionId}/observations/${observationId}`, {
+  const response = await fetch(`/api/v1/practice-sessions/${sessionId}/observations/${observationId}`, {
     method: "PATCH",
     headers: {
       Accept: "application/json",
@@ -115,7 +115,7 @@ export async function createPracticeTurn(
   sessionId: string,
   body: CreateTurnRequest,
 ): Promise<CreateTurnResponse> {
-  const response = await fetch(`/api/v1/sessions/${sessionId}/turns`, {
+  const response = await fetch(`/api/v1/practice-sessions/${sessionId}/turns`, {
     method: "POST",
     headers: {
       Accept: "application/json",
@@ -131,7 +131,7 @@ export async function createPracticeSummary(
   sessionId: string,
   body: CreateSummaryRequest,
 ): Promise<CreateSummaryResponse> {
-  const response = await fetch(`/api/v1/sessions/${sessionId}/summary`, {
+  const response = await fetch(`/api/v1/practice-sessions/${sessionId}/result`, {
     method: "POST",
     headers: {
       Accept: "application/json",

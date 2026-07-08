@@ -31,7 +31,8 @@ test("finalize service rejects missing, expired, and mismatched-path intents bef
 
 test("upload_url session creation requires finalized matching upload intent", () => {
   const source = service();
-  assert.match(source, /validatedMedium === "upload_url" && !input\.uploadIntentId/);
+  assert.match(source, /validatedMedium !== "upload_url"/);
+  assert.match(source, /if \(!input\.uploadIntentId\)/);
   assert.match(source, /uploadIntent\.status !== "finalized" \|\| !uploadIntent\.finalizedAt/);
   assert.match(source, /Must match the upload intent sessionId/);
   assert.match(source, /Must match the upload intent storage path/);

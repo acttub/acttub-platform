@@ -13,7 +13,7 @@ export async function POST(request: Request, context: RouteContext) {
     const auth = await requireApiTermsAccepted();
     const { uploadIntentId } = await context.params;
     const payload = await request.json();
-    const result = coachSessionService.finalizeUploadIntent(uploadIntentId, payload, auth.userId);
+    const result = await coachSessionService.finalizeUploadIntent(uploadIntentId, payload, auth.userId);
     return jsonResponse(result);
   } catch (error) {
     return handleApiError(error);
