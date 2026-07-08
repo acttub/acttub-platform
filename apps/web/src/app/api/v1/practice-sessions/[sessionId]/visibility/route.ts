@@ -1,5 +1,5 @@
 import { coachSessionService } from "@/server/services/coach-session-service";
-import { requireApiTermsAccepted } from "@/server/services/auth-context";
+import { requireTermsAccepted } from "@/server/services/auth-context";
 import { handleApiError, jsonError, jsonResponse } from "../../../http";
 
 type RouteContext = {
@@ -8,7 +8,7 @@ type RouteContext = {
 
 export async function PATCH(request: Request, context: RouteContext) {
   try {
-    const auth = await requireApiTermsAccepted();
+    const auth = await requireTermsAccepted();
     const { sessionId } = await context.params;
     const body = (await request.json().catch(() => ({ hidden: true }))) as {
       hidden?: unknown;

@@ -1,16 +1,15 @@
 import { coachSessionService } from "@/server/services/coach-session-service";
-import { requireApiTermsAccepted } from "@/server/services/auth-context";
-import { handleApiError, jsonError, jsonResponse } from "../../../http";
+import { requireTermsAccepted } from "@/server/services/auth-context";
+import { jsonError, jsonResponse } from "../../../http";
 
 type RouteContext = {
   params: Promise<{ sessionId: string }>;
 };
 
 export async function POST(_request: Request, context: RouteContext) {
-  try {
-    const auth = await requireApiTermsAccepted();
-    const { sessionId } = await context.params;
-    const result = coachSessionService.softHideSession(sessionId, auth.userId);
+  const auth = await requireTermsAccepted();
+  const { sessionId } = await context.params;
+  const result = coachSessionService.softHideSession(sessionId, auth.userId);
 
     if (!result) {
       return jsonError(404, "session_not_found", "Session was not found.");

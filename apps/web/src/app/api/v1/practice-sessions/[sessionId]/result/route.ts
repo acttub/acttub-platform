@@ -1,5 +1,5 @@
 import { coachSessionService } from "@/server/services/coach-session-service";
-import { requireApiTermsAccepted } from "@/server/services/auth-context";
+import { requireTermsAccepted } from "@/server/services/auth-context";
 import { handleApiError, jsonError, jsonResponse } from "../../../http";
 
 type RouteContext = {
@@ -8,14 +8,10 @@ type RouteContext = {
 
 export async function POST(request: Request, context: RouteContext) {
   try {
-    const auth = await requireApiTermsAccepted();
+    const auth = await requireTermsAccepted();
     const { sessionId } = await context.params;
     const payload = await request.json();
-    const result = coachSessionService.createSummary(
-      sessionId,
-      payload,
-      auth.userId,
-    );
+    const result = coachSessionService.createSummary(sessionId, payload, auth.userId);
 
     if (!result) {
       return jsonError(404, "session_not_found", "Session was not found.");
