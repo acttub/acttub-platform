@@ -42,7 +42,7 @@ One uploaded acting video for a session.
 
 Key fields:
 
-- `storage_bucket`: defaults to `coach-takes`.
+- `storage_bucket`: defaults to `practice-videos`.
 - `storage_key`: private Supabase Storage object path.
 - `analysis_status`: one-time video analysis state.
 - `analysis_error`: operational failure detail, not user-facing judgment.

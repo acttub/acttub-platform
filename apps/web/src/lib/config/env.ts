@@ -42,7 +42,7 @@ export function getAppConfig(): AppConfig {
       isConfigured: Boolean(supabaseUrl && supabaseAnonKey),
     },
     video: {
-      bucket: process.env.NEXT_PUBLIC_SUPABASE_VIDEO_BUCKET ?? "coach-takes",
+      bucket: process.env.NEXT_PUBLIC_SUPABASE_VIDEO_BUCKET ?? "practice-videos",
       maxUploadBytes: numberFromEnv(
         process.env.NEXT_PUBLIC_ACTTUB_MAX_VIDEO_BYTES,
         300 * 1024 * 1024,

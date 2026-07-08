@@ -220,7 +220,7 @@ export const coachSessionService = {
     const uploadIntent: PracticeUploadIntentDto = {
       uploadIntentId,
       sessionId,
-      storageBucket: "coach-takes",
+      storageBucket: "practice-videos",
       uploadUrl: `/api/v1/practice-upload-intents/${uploadIntentId}/finalize`,
       status: "created",
       finalizedAt: null,

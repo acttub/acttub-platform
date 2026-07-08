@@ -107,15 +107,12 @@ create table if not exists public.practice_sessions (
 
 create table if not exists public.practice_takes (
   id uuid primary key default gen_random_uuid(),
-  session_id uuid not null,
-  user_id uuid not null,
+  session_id uuid not null references acttub.coach_sessions(id) on delete cascade,
   storage_bucket text not null default 'practice-videos',
-  storage_path text not null unique,
-  mime_type text not null check (mime_type in ('video/mp4', 'video/quicktime')),
-  size_bytes bigint not null check (size_bytes > 0 and size_bytes <= 314572800),
-  duration_ms integer check (duration_ms is null or duration_ms > 0),
-  analysis_status text not null default 'mocked'
-    check (analysis_status in ('mocked', 'failed')),
+  storage_key text not null,
+  duration_ms integer,
+  content_type text,
+  analysis_status acttub.take_analysis_status not null default 'pending',
   analysis_error text,
   created_at timestamptz not null default now(),
   unique (id, user_id),
@@ -258,36 +255,23 @@ create policy "validation events owner insert select"
 
 -- Private bucket setup. Supabase Storage buckets are private by default, but the flag is explicit here.
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
-values ('practice-videos', 'practice-videos', false, 314572800, array['video/mp4', 'video/quicktime'])
-on conflict (id) do update
-set public = false,
-    file_size_limit = excluded.file_size_limit,
-    allowed_mime_types = excluded.allowed_mime_types;
+values (
+  'practice-videos',
+  'practice-videos',
+  false,
+  314572800,
+  array['video/mp4', 'video/quicktime']
+)
+on conflict (id) do update set
+  public = excluded.public,
+  file_size_limit = excluded.file_size_limit,
+  allowed_mime_types = excluded.allowed_mime_types;
 
--- Browser upload authority: INSERT only, exact path only, active/current consent only, unexpired intent only.
-create policy "practice videos insert via active upload intent"
-  on storage.objects for insert
-  to authenticated
-  with check (
+create policy practice_videos_storage_actor_insert on storage.objects
+  for insert with check (
     bucket_id = 'practice-videos'
-    and (storage.foldername(name))[1] = 'users'
-    and (storage.foldername(name))[2] = auth.uid()::text
-    and (storage.foldername(name))[3] = 'practice-sessions'
-    and (storage.filename(name) in ('take.mp4', 'take.mov'))
-    and public.is_active_acttub_profile(auth.uid())
-    and exists (
-      select 1
-      from public.upload_intents ui
-      where ui.user_id = auth.uid()
-        and ui.status = 'created'
-        and ui.consent_version = public.current_acttub_terms_version()
-        and ui.expected_storage_bucket = storage.objects.bucket_id
-        and ui.expected_storage_path = storage.objects.name
-        and ui.expires_at > now()
-    )
+    and owner = auth.uid()
+    and (storage.foldername(name))[1] = auth.uid()::text
   );
 
--- Intentionally absent in Slice 1:
--- - no storage.objects SELECT policy for practice-videos (no browser download/list/signing path)
--- - no storage.objects UPDATE policy (no browser upsert/move)
--- - no storage.objects DELETE policy (cleanup is server-only via service role Storage API)
+commit;

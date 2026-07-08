@@ -77,7 +77,7 @@ Recommended server behavior:
 1. Run migrations outside request handling via the deployment pipeline.
 2. Use a server-side Supabase service credential only in backend configuration.
 3. Generate short-lived signed upload/read URLs for `practice-videos` storage objects.
-4. Keep object keys under `users/{actorId}/practice-sessions/{sessionId}/take.mp4|take.mov` for authenticated users.
+4. Keep object keys under `{actorId}/{sessionId}/{takeId}.{extension}` for authenticated users.
 5. For anonymous alpha sessions, mediate all table and storage access server-side; do not open anonymous RLS table access directly.
 
 ## Service Invariants to Port
