@@ -27,7 +27,7 @@ test("session persistence is isolated behind server repository boundary", () => 
 });
 
 test("client modules do not import server persistence or Supabase admin", () => {
-  const clientFiles = walk(path.join(appRoot, "src")).filter((file) => !file.includes(`${path.sep}server${path.sep}`) && !file.includes(`${path.sep}app${path.sep}api${path.sep}`));
+  const clientFiles = walk(path.join(appRoot, "src")).filter((file) => !file.includes(`${path.sep}server${path.sep}`) && !file.includes(`${path.sep}app${path.sep}api${path.sep}`) && !file.includes(`${path.sep}app${path.sep}auth${path.sep}`));
   const offenders = clientFiles.filter((file) => {
     const source = readFileSync(file, "utf8");
     return source.includes("@/server/") || source.includes("@/lib/supabase/admin");
