@@ -4,9 +4,18 @@ import path from "node:path";
 import { test } from "node:test";
 
 const repoRoot = path.resolve(import.meta.dirname, "../../..");
-const readRepo = (relativePath) => readFileSync(path.join(repoRoot, relativePath), "utf8");
-const migration = () => readRepo("supabase/migrations/001_acttub_slice1_schema.sql");
-const docs = () => readRepo("docs/supabase/slice1-schema-rls-storage.sql");
+
+function readRepo(relativePath) {
+  return readFileSync(path.join(repoRoot, relativePath), "utf8");
+}
+
+function migration() {
+  return readRepo("supabase/migrations/001_acttub_slice1_schema.sql");
+}
+
+function docs() {
+  return readRepo("docs/supabase/slice1-schema-rls-storage.sql");
+}
 
 test("executable migration and docs agree on practice-videos bucket contract", () => {
   for (const source of [migration(), docs()]) {
