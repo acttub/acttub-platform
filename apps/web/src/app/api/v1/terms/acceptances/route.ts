@@ -89,6 +89,8 @@ export async function POST(request: NextRequest) {
   await persistTermsAcceptance(auth.userId, auth.email);
 
   const acceptsHtml = request.headers.get("accept")?.includes("text/html");
+  await recordTermsAcceptance(auth);
+
   const response = acceptsHtml
     ? NextResponse.redirect(new URL("/practice", request.url), { status: 303 })
     : NextResponse.json({
