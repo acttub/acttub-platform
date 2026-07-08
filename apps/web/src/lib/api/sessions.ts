@@ -51,7 +51,8 @@ export async function createPracticeUploadIntent(
     body: JSON.stringify(body),
   });
 
-  return parseJsonResponse<CreateUploadIntentResponse>(response);
+  const payload = await parseJsonResponse<CreateUploadIntentResponse | CreateUploadIntentResponse["uploadIntent"]>(response);
+  return "uploadIntent" in payload ? payload : { uploadIntent: payload };
 }
 
 export async function finalizePracticeUploadIntent(

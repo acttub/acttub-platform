@@ -5,13 +5,12 @@ import { getAuthSession, type AuthSessionResponse } from "@/lib/api/auth";
 import {
   createPracticeSession,
   createPracticeSummary,
-  createPracticeUploadIntent,
-  finalizePracticeUploadIntent,
   createPracticeTurn,
   createPracticeUploadIntent,
   finalizePracticeUploadIntent,
   updatePracticeObservation,
 } from "@/lib/api/sessions";
+import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import type {
   CoachSessionDto,
   ConfirmationState,
@@ -43,6 +42,8 @@ const seedObservation: ObservationDto = {
 };
 
 const excludedObservationState = ("rej" + "ected") as ConfirmationState;
+const allowedUploadMimeTypes = new Set(["video/mp4", "video/quicktime"]);
+const maxUploadBytes = 300 * 1024 * 1024;
 
 const focusQuestions = [
   "그 숨을 고르는 순간, 인물은 무엇을 숨기고 싶었나요?",
@@ -144,22 +145,44 @@ export function PracticeFlow() {
     try {
       let sessionDraft: CreateSessionRequest = {
         ...scene,
-        ...uploadFields,
-        videoUrl:
-          (uploadFields.videoUrl ?? scene.videoUrl?.trim()) || undefined,
+        videoUrl: scene.videoUrl?.trim() || undefined,
         subtext: scene.subtext?.trim() || undefined,
       };
 
       if (scene.medium === "upload_url") {
-        const uploadIntentResult = await createPracticeUploadIntent({
+        if (!uploadFile) {
+          throw new Error("업로드할 영상 파일을 선택해 주세요.");
+        }
+        if (!allowedUploadMimeTypes.has(uploadFile.type)) {
+          throw new Error("MP4 또는 MOV 파일만 업로드할 수 있어요.");
+        }
+        if (uploadFile.size <= 0 || uploadFile.size > maxUploadBytes) {
+          throw new Error("300MB 이하의 영상 파일을 선택해 주세요.");
+        }
+
+        const { uploadIntent } = await createPracticeUploadIntent({
           fileMetadata: {
-            fileName: "acttub-practice-take.mp4",
-            mimeType: "video/mp4",
-            sizeBytes: 1,
+            fileName: uploadFile.name,
+            mimeType: uploadFile.type as "video/mp4" | "video/quicktime",
+            sizeBytes: uploadFile.size,
             durationMs: scene.durationMs,
           },
         });
-        const { uploadIntent } = uploadIntentResult;
+
+        const supabase = getSupabaseBrowserClient();
+        if (supabase) {
+          const { error } = await supabase.storage
+            .from(uploadIntent.storageBucket)
+            .upload(uploadIntent.storagePath, uploadFile, {
+              contentType: uploadFile.type,
+              upsert: false,
+            });
+
+          if (error) {
+            throw new Error(error.message);
+          }
+        }
+
         const finalizedUpload = await finalizePracticeUploadIntent(uploadIntent.uploadIntentId, {
           storagePath: uploadIntent.storagePath,
           durationMs: scene.durationMs,
@@ -446,7 +469,7 @@ function SceneForm({
     scene.genre.trim() &&
     scene.situation.trim() &&
     scene.characterContext.trim() &&
-    (scene.medium !== "upload_url" || uploadFile);
+    (scene.medium !== "upload_url" || Boolean(uploadFile));
 
   return (
     <form
@@ -500,8 +523,9 @@ function SceneForm({
             className="mt-2 block w-full rounded-2xl border border-[#d1d6db] bg-white px-4 py-3 text-sm outline-none file:mr-4 file:rounded-xl file:border-0 file:bg-[#e8f3ff] file:px-4 file:py-2 file:text-sm file:font-semibold file:text-[#1b64da] focus:border-[#3182f6]"
           />
           <p className="mt-2 text-sm text-[#8b95a1]">
-            선택한 파일은 업로드 의도 생성과 경로 검증을 거친 뒤 연습 세션에
-            연결됩니다.
+            MP4 또는 MOV, 300MB 이하. Supabase가 설정된 환경에서는 비공개
+            Storage 경로로 직접 업로드하고, 로컬 개발에서는 같은 업로드 의도와
+            완료 확인 흐름만 검증합니다.
           </p>
         </label>
       ) : null}
@@ -552,9 +576,11 @@ function UploadProgress({ scene }: { scene: SceneDraft }) {
         <div className="h-full w-3/4 rounded-full bg-[#3182f6]" />
       </div>
       <p className="leading-7 text-[#4e5968]">
-        {scene.videoUrl
-          ? "입력한 링크와 장면 메모를 연결하는 중이에요."
-          : "텍스트 맥락으로 먼저 질문 흐름을 엽니다."}
+        {scene.medium === "upload_url"
+          ? "업로드 의도와 비공개 저장 경로를 확인하는 중이에요."
+          : scene.videoUrl
+            ? "입력한 링크와 장면 메모를 연결하는 중이에요."
+            : "텍스트 맥락으로 먼저 질문 흐름을 엽니다."}
       </p>
     </div>
   );
