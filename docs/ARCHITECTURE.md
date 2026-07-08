@@ -130,7 +130,7 @@ apps/web/src/
 ```text
 coach_sessions
 - id
-- actor_id or anonymous_token
+- user_id
 - status
 - medium
 - genre

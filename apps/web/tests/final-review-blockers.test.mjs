@@ -189,6 +189,9 @@ test("docs stay aligned to executable Slice 1 Supabase and API contracts", () =>
   const architecture = readRepo("docs/ARCHITECTURE.md");
   const harness = readRepo("docs/HARNESS.md");
   assert.match(architecture, /current canonical session API is `\/api\/v1\/practice-sessions\/\*`/);
+  assert.match(architecture, /- user_id/);
+  assert.doesNotMatch(architecture, /actor_id or anonymous_token/);
+  assert.doesNotMatch(architecture, /`actor_id`|`anonymous_token`/);
   assert.doesNotMatch(architecture, /POST \/api\/v1\/sessions/);
   assert.doesNotMatch(architecture, /GET \/api\/v1\/sessions\/\{sessionId\}/);
   assert.match(harness, /canonical `\/api\/v1\/practice-sessions\/\*` DTO/);
