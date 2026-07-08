@@ -1,7 +1,11 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getAppConfig } from "@/lib/config/env";
-import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import { TERMS_COOKIE_NAME, requireAuthenticatedUser } from "@/server/services/auth-context";
+import { handleApiError, jsonResponse } from "../../http";
+import {
+  TERMS_COOKIE_NAME,
+  recordTermsAcceptance,
+  requireApiAuthenticatedUser,
+} from "@/server/services/auth-context";
 
 type AcceptTermsBody = {
   termsVersion?: unknown;
