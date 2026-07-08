@@ -146,3 +146,28 @@ test("migration SQL has balanced structural delimiters", () => {
   assert.equal(parenDepth, 0, "SQL has unbalanced parentheses");
   assert.match(sql.trimEnd(), /;$/);
 });
+
+test("security definer RPCs are execute-restricted to service role only", () => {
+  const migration = read("supabase/migrations/001_acttub_slice1_schema.sql");
+  const docs = read("docs/supabase/slice1-schema-rls-storage.sql");
+  const sources = [migration, docs];
+  const functions = [
+    "public.acttub_create_session_from_upload_intent(uuid, uuid, uuid, uuid, uuid, uuid, text, text, text, text, text, integer, text, numeric, integer, integer, text, text, uuid[], timestamptz)",
+    "public.acttub_append_turn_pair(uuid, uuid, uuid, text, text, uuid, text, text, uuid[], timestamptz)",
+    "public.acttub_complete_session(uuid, uuid, text, jsonb, text)",
+  ];
+
+  for (const source of sources) {
+    for (const functionSignature of functions) {
+      const escapedSignature = functionSignature.replace(/[()[\]]/g, "\\$&");
+      assert.match(
+        source,
+        new RegExp(`revoke execute on function ${escapedSignature} from public, anon, authenticated;`),
+      );
+      assert.match(
+        source,
+        new RegExp(`grant execute on function ${escapedSignature} to service_role;`),
+      );
+    }
+  }
+});

@@ -19,14 +19,16 @@ test("executable migration and docs agree on practice-videos bucket contract", (
 });
 
 test("browser storage policy is insert-only through active upload intent", () => {
-  const source = migration();
-  assert.match(source, /create policy "practice videos insert via active upload intent"/);
-  assert.match(source, /ui\.status = 'created'/);
-  assert.match(source, /ui\.expires_at > now\(\)/);
-  assert.match(source, /public\.is_active_acttub_profile\(auth\.uid\(\)\)/);
-  assert.doesNotMatch(source, /practice videos .* for select/i);
-  assert.doesNotMatch(source, /practice videos .* for update/i);
-  assert.doesNotMatch(source, /practice videos .* for delete/i);
+  for (const source of [migration(), docs()]) {
+    assert.match(source, /create policy "practice videos insert via active upload intent"/);
+    assert.match(source, /owner = auth\.uid\(\)/);
+    assert.match(source, /ui\.status = 'created'/);
+    assert.match(source, /ui\.expires_at > now\(\)/);
+    assert.match(source, /public\.is_active_acttub_profile\(auth\.uid\(\)\)/);
+    assert.doesNotMatch(source, /practice videos .* for select/i);
+    assert.doesNotMatch(source, /practice videos .* for update/i);
+    assert.doesNotMatch(source, /practice videos .* for delete/i);
+  }
 });
 
 test("RLS tables and observation blocking constraints are present", () => {

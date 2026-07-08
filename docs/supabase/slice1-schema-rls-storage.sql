@@ -439,6 +439,16 @@ begin
 end;
 $$;
 
+
+revoke execute on function public.acttub_create_session_from_upload_intent(uuid, uuid, uuid, uuid, uuid, uuid, text, text, text, text, text, integer, text, numeric, integer, integer, text, text, uuid[], timestamptz) from public, anon, authenticated;
+grant execute on function public.acttub_create_session_from_upload_intent(uuid, uuid, uuid, uuid, uuid, uuid, text, text, text, text, text, integer, text, numeric, integer, integer, text, text, uuid[], timestamptz) to service_role;
+
+revoke execute on function public.acttub_append_turn_pair(uuid, uuid, uuid, text, text, uuid, text, text, uuid[], timestamptz) from public, anon, authenticated;
+grant execute on function public.acttub_append_turn_pair(uuid, uuid, uuid, text, text, uuid, text, text, uuid[], timestamptz) to service_role;
+
+revoke execute on function public.acttub_complete_session(uuid, uuid, text, jsonb, text) from public, anon, authenticated;
+grant execute on function public.acttub_complete_session(uuid, uuid, text, jsonb, text) to service_role;
+
 alter table public.profiles enable row level security;
 alter table public.upload_intents enable row level security;
 alter table public.practice_sessions enable row level security;
@@ -519,11 +529,17 @@ create policy "validation events owner insert select"
 
 -- Private bucket setup. Supabase Storage buckets are private by default, but the flag is explicit here.
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
-values ('practice-videos', 'practice-videos', false, 314572800, array['video/mp4', 'video/quicktime'])
-on conflict (id) do update
-set public = false,
-    file_size_limit = excluded.file_size_limit,
-    allowed_mime_types = excluded.allowed_mime_types;
+values (
+  'practice-videos',
+  'practice-videos',
+  false,
+  314572800,
+  array['video/mp4', 'video/quicktime']
+)
+on conflict (id) do update set
+  public = excluded.public,
+  file_size_limit = excluded.file_size_limit,
+  allowed_mime_types = excluded.allowed_mime_types;
 
 -- Browser upload authority: INSERT only, exact path only, active/current consent only, unexpired intent only.
 create policy "practice videos insert via active upload intent"
@@ -531,6 +547,7 @@ create policy "practice videos insert via active upload intent"
   to authenticated
   with check (
     bucket_id = 'practice-videos'
+    and owner = auth.uid()
     and (storage.foldername(name))[1] = 'users'
     and (storage.foldername(name))[2] = auth.uid()::text
     and (storage.foldername(name))[3] = 'practice-sessions'
@@ -552,3 +569,5 @@ create policy "practice videos insert via active upload intent"
 -- - no storage.objects SELECT policy for practice-videos (no browser download/list/signing path)
 -- - no storage.objects UPDATE policy (no browser upsert/move)
 -- - no storage.objects DELETE policy (cleanup is server-only via service role Storage API)
+
+commit;

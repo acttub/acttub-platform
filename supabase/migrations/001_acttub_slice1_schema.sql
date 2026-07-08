@@ -6,14 +6,6 @@
 -- 3. Browser JWT has no SELECT/UPDATE/DELETE policy for practice videos in Slice 1.
 -- 4. Playback must use the server signed-url endpoint after ownership checks.
 
--- Acttub Slice 1 Supabase schema, RLS, and private Storage policy artifact.
--- Apply through Supabase migrations after review in a project with auth + storage schemas.
--- Product invariants:
--- 1. Practice videos live only in a private bucket.
--- 2. Browser JWT can INSERT only the exact object path from an active upload intent.
--- 3. Browser JWT has no SELECT/UPDATE/DELETE policy for practice videos in Slice 1.
--- 4. Playback must use the server signed-url endpoint after ownership checks.
-
 create extension if not exists pgcrypto;
 
 create or replace function public.current_acttub_terms_version()
@@ -446,6 +438,16 @@ begin
   return query select p_session_id;
 end;
 $$;
+
+
+revoke execute on function public.acttub_create_session_from_upload_intent(uuid, uuid, uuid, uuid, uuid, uuid, text, text, text, text, text, integer, text, numeric, integer, integer, text, text, uuid[], timestamptz) from public, anon, authenticated;
+grant execute on function public.acttub_create_session_from_upload_intent(uuid, uuid, uuid, uuid, uuid, uuid, text, text, text, text, text, integer, text, numeric, integer, integer, text, text, uuid[], timestamptz) to service_role;
+
+revoke execute on function public.acttub_append_turn_pair(uuid, uuid, uuid, text, text, uuid, text, text, uuid[], timestamptz) from public, anon, authenticated;
+grant execute on function public.acttub_append_turn_pair(uuid, uuid, uuid, text, text, uuid, text, text, uuid[], timestamptz) to service_role;
+
+revoke execute on function public.acttub_complete_session(uuid, uuid, text, jsonb, text) from public, anon, authenticated;
+grant execute on function public.acttub_complete_session(uuid, uuid, text, jsonb, text) to service_role;
 
 alter table public.profiles enable row level security;
 alter table public.upload_intents enable row level security;

@@ -40,7 +40,7 @@ One practice flow. Required MVP context is stored directly on the session so a f
 Key fields:
 
 - `user_id`: Supabase Auth user id and owner. Slice 1 executable schema uses this field as the owner key.
-- `upload_intent_id`: owner-aligned reference to the finalized upload intent used to create the session.
+- `upload_intent_id`: owner-aligned reference to the upload intent consumed by atomic session creation; in configured Supabase mode the database marks that intent `finalized` inside `public.acttub_create_session_from_upload_intent`.
 - `status`: persistence lifecycle (`observations_pending`, `questioning`, `completed`). The web DTO may map these to current UI states such as observation review, conversation, and end/result, but the database status values remain these three strings.
 - `medium`, `genre`, `situation`, `character_context`, `subtext`: scene context from the input step.
 - `final_actor_sentence`: actor-authored filled-thought sentence saved at completion.
@@ -54,7 +54,7 @@ Key fields:
 
 - `storage_bucket`: defaults to `practice-videos`.
 - `storage_path`: private Supabase Storage object path.
-- `mime_type`, `size_bytes`: copied from the finalized upload intent after server verification.
+- `mime_type`, `size_bytes`: copied from the upload intent after API upload verification and database-side finalization during session creation.
 - `analysis_status`: one-time mock analysis state (`mocked`, `failed`).
 - `analysis_error`: operational failure detail, not user-facing judgment.
 
@@ -115,7 +115,7 @@ users/{userId}/practice-sessions/{sessionId}/take.mp4|take.mov
 
 The server persists that path as `practice_takes.storage_path`. Playback signed URLs are short-lived and generated server-side from the owner-checked canonical endpoint `GET /api/v1/practice-sessions/{sessionId}/signed-video-url`.
 
-Slice 1 keeps the browser upload path dependency-free: the current MVP uses Supabase Storage standard `.upload()` direct storage, then server finalization verifies owner, path, MIME type, size, and object existence under the existing 300 MB bucket limit. Supabase documents standard uploads at https://supabase.com/docs/guides/storage/uploads/standard-uploads and recommends TUS/resumable uploads for files above 6 MB at https://supabase.com/docs/guides/storage/uploads/resumable-uploads. Production hardening should add a TUS-capable client for large/mobile/unreliable-network uploads, but Slice 1 intentionally does not add a new TUS dependency.
+Slice 1 keeps the browser upload path dependency-free: the current MVP uses Supabase Storage standard `.upload()` direct storage, then the `/finalize` API verification step checks owner, path, MIME type, size, and object existence under the existing 300 MB bucket limit. Supabase documents standard uploads at https://supabase.com/docs/guides/storage/uploads/standard-uploads and recommends TUS/resumable uploads for files above 6 MB at https://supabase.com/docs/guides/storage/uploads/resumable-uploads. Production hardening should add a TUS-capable client for large/mobile/unreliable-network uploads, but Slice 1 intentionally does not add a new TUS dependency.
 
 ## RLS Policy Model
 
@@ -128,8 +128,8 @@ Slice 1 does not open anonymous table or Storage access through RLS. Server-side
 The canonical REST surface uses `/api/v1/practice-sessions/*`. `/api/v1/sessions/*` remains only as a compatibility alias for legacy callers during migration.
 
 - `POST /api/v1/practice-upload-intents` creates the owner-bound upload intent.
-- `POST /api/v1/practice-upload-intents/{id}/finalize` validates owner/path/expiry/object metadata and finalizes the intent.
-- `POST /api/v1/practice-sessions` creates `practice_sessions`, links one `practice_takes` row, starts mock analysis, and returns session state.
+- `POST /api/v1/practice-upload-intents/{id}/finalize` verifies owner/path/expiry/object metadata for the uploaded object and returns the verified upload reference; in configured Supabase mode it does not create the session or mark the database row finalized.
+- `POST /api/v1/practice-sessions` consumes the verified upload intent, atomically marks `upload_intents.status = 'finalized'` inside `public.acttub_create_session_from_upload_intent`, creates `practice_sessions`, links one `practice_takes` row, starts mock analysis, and returns session state.
 - `GET /api/v1/practice-sessions` lists visible sessions.
 - `GET /api/v1/practice-sessions/{sessionId}` reads session/take/observation/turn/result state.
 - `GET /api/v1/practice-sessions/{sessionId}/signed-video-url` returns a short-lived private playback URL. Do not add a client `POST /video-url` call path.

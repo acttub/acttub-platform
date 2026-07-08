@@ -185,6 +185,14 @@ test("docs stay aligned to executable Slice 1 Supabase and API contracts", () =>
   assert.match(docs, /canonical paths are `\/api\/v1\/practice-sessions\/\*`/);
   assert.match(docs, /Legacy `\/api\/v1\/sessions\/\*` routes may remain only as compatibility aliases/);
   assert.match(docs, /GET \/api\/v1\/practice-sessions\/\{sessionId\}\/signed-video-url/);
+  assert.match(schema, /`\/finalize` API verification step checks owner, path, MIME type, size, and object existence/);
+  assert.match(schema, /does not create the session or mark the database row finalized/);
+  assert.match(schema, /atomically marks `upload_intents\.status = 'finalized'` inside `public\.acttub_create_session_from_upload_intent`/);
+  assert.match(spring, /keeps database status `created` until session creation consumes it/);
+  assert.match(spring, /atomically mark it `finalized` in the database/);
+  assert.doesNotMatch(`${schema}\n${spring}`, /from a finalized upload intent/i);
+  assert.doesNotMatch(`${schema}\n${spring}`, /finalizes the intent/i);
+  assert.doesNotMatch(`${schema}\n${spring}`, /before finalizing the intent/i);
 
   const architecture = readRepo("docs/ARCHITECTURE.md");
   const harness = readRepo("docs/HARNESS.md");
