@@ -1,10 +1,6 @@
 import Link from "next/link";
-import { getAuthContext } from "@/server/services/auth-context";
 
-export default async function Home() {
-  const context = await getAuthContext();
-  const nextPath = context?.termsAccepted ? "/practice" : context ? "/terms" : "/auth/login";
-
+export default function Home() {
   return (
     <main className="min-h-dvh bg-[#f9fafb] px-6 py-10 text-[#191f28]">
       <section className="mx-auto flex w-full max-w-3xl flex-col justify-center rounded-[32px] bg-white px-6 py-10 sm:px-10 sm:py-14">
@@ -18,17 +14,17 @@ export default async function Home() {
         </p>
         <div className="mt-9 flex flex-col gap-3 sm:flex-row">
           <Link
-            href={nextPath}
+            href="/practice"
             className="inline-flex h-14 items-center justify-center rounded-2xl bg-[#3182f6] px-6 text-base font-semibold text-white transition hover:bg-[#1b64da]"
           >
             연습 시작하기
           </Link>
-          <a
-            href="#how-it-works"
+          <Link
+            href="/terms"
             className="inline-flex h-14 items-center justify-center rounded-2xl border border-[#d1d6db] px-6 text-base font-semibold text-[#333d4b]"
           >
-            흐름 보기
-          </a>
+            안전 약속 보기
+          </Link>
         </div>
       </section>
 
