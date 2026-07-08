@@ -1,5 +1,5 @@
 const DEFAULT_APP_URL = "http://localhost:3000";
-const DEFAULT_TERMS_VERSION = "2026-07-08.slice1";
+const DEFAULT_TERMS_VERSION = "2026-07-mvp";
 
 export type SupabasePublicConfig = {
   url: string;
