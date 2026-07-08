@@ -46,9 +46,7 @@ export async function POST(request: NextRequest) {
 
     const acceptsHtml = request.headers.get("accept")?.includes("text/html");
     const response = acceptsHtml
-      ? NextResponse.redirect(new URL("/practice", request.url), {
-          status: 303,
-        })
+      ? NextResponse.redirect(new URL("/practice", request.url), { status: 303 })
       : jsonResponse({
           accepted: true,
           termsVersion: config.termsVersion,

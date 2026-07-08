@@ -54,7 +54,7 @@ export const mockCoachSessionRepository = {
     return cloneSession(session);
   },
 
-  findById(sessionId: string, ownerUserId?: string): MockCoachSessionRecord | null {
+  findById(sessionId: string, userId: string): MockCoachSessionRecord | null {
     const session = repositoryState.sessions.get(sessionId);
     if (!session || session.hiddenAt) {
       return null;
@@ -80,10 +80,9 @@ export const mockCoachSessionRepository = {
     return cloneSession(session);
   },
 
-  listVisible(ownerUserId?: string): MockCoachSessionRecord[] {
+  listVisible(userId: string): MockCoachSessionRecord[] {
     return Array.from(repositoryState.sessions.values())
-      .filter((session) => !session.hiddenAt)
-      .filter((session) => !ownerUserId || repositoryState.sessionOwners.get(session.id) === ownerUserId)
+      .filter((session) => session.userId === userId && !session.hiddenAt)
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
       .map(cloneSession);
   },
@@ -210,7 +209,7 @@ export const mockCoachSessionRepository = {
 
   updateObservationState(
     sessionId: string,
-    ownerUserId: string,
+    userId: string,
     observationId: string,
     confirmationState: ConfirmationState,
     _legacyOwnerUserId?: string,
@@ -234,9 +233,7 @@ export const mockCoachSessionRepository = {
       };
     });
 
-    if (!found) {
-      return null;
-    }
+    if (!found) return null;
 
     return this.update(
       {
@@ -244,7 +241,7 @@ export const mockCoachSessionRepository = {
         status: confirmationState === "accepted" ? "PROBE_LOOP" : session.status,
         observations,
       },
-      ownerUserId,
+      userId,
     );
   },
 };
