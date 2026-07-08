@@ -115,12 +115,15 @@ create table if not exists public.practice_sessions (
 
 create table if not exists public.practice_takes (
   id uuid primary key default gen_random_uuid(),
-  session_id uuid not null references acttub.coach_sessions(id) on delete cascade,
+  session_id uuid not null,
+  user_id uuid not null,
   storage_bucket text not null default 'practice-videos',
-  storage_key text not null,
-  duration_ms integer,
-  content_type text,
-  analysis_status acttub.take_analysis_status not null default 'pending',
+  storage_path text not null unique,
+  mime_type text not null check (mime_type in ('video/mp4', 'video/quicktime')),
+  size_bytes bigint not null check (size_bytes > 0 and size_bytes <= 314572800),
+  duration_ms integer check (duration_ms is null or duration_ms > 0),
+  analysis_status text not null default 'mocked'
+    check (analysis_status in ('mocked', 'failed')),
   analysis_error text,
   created_at timestamptz not null default now(),
   unique (id, user_id),

@@ -12,6 +12,7 @@ test("executable migration and docs agree on practice-videos bucket contract", (
   for (const source of [migration(), docs()]) {
     assert.match(source, /'practice-videos',\s*'practice-videos',\s*false,\s*314572800/);
     assert.match(source, /array\['video\/mp4', 'video\/quicktime'\]/);
+    assert.doesNotMatch(source, /\bacttub\./);
     assert.doesNotMatch(source, /coach-takes/);
     assert.doesNotMatch(source, /video\/webm/);
   }
