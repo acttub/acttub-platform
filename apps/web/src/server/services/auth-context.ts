@@ -96,9 +96,8 @@ export async function recordTermsAcceptance(context: AuthContext): Promise<void>
 
 export async function getAuthContext(): Promise<AuthContext | null> {
   const config = getAppConfig();
-  const termsCookieAccepted = await hasAcceptedTermsCookie();
-
   if (!config.supabase.isConfigured) {
+    const termsCookieAccepted = await hasAcceptedTermsCookie();
     return {
       mode: "local-dev",
       userId: "local-dev-actor",
@@ -117,7 +116,7 @@ export async function getAuthContext(): Promise<AuthContext | null> {
     mode: "supabase",
     userId: data.user.id,
     email: data.user.email ?? null,
-    termsAccepted: termsCookieAccepted || (await hasPersistedTermsAcceptance(data.user.id)),
+    termsAccepted: await hasPersistedTermsAcceptance(data.user.id),
     termsVersion: config.termsVersion,
   };
 }

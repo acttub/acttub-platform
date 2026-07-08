@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { NextResponse, type NextRequest } from "next/server";
 import { getAppConfig } from "@/lib/config/env";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { sanitizeOAuthNextPath } from "../oauth-next";
 
 export async function GET(request: NextRequest) {
   const config = getAppConfig();
@@ -12,7 +13,7 @@ export async function GET(request: NextRequest) {
 
   const supabase = await createSupabaseServerClient();
   const redirectTo = new URL("/auth/callback", request.url).toString();
-  const next = request.nextUrl.searchParams.get("next") ?? "/practice";
+  const next = sanitizeOAuthNextPath(request.nextUrl.searchParams.get("next"));
 
   const { data, error } = await supabase!.auth.signInWithOAuth({
     provider: "google",

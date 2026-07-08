@@ -59,3 +59,12 @@ test("terms acceptance persists Supabase profile consent when admin client exist
   assert.match(authContext, /internal_review_consent_at/);
   assert.match(authContext, /status: "active"/);
 });
+
+
+test("Supabase API terms gate does not trust the local terms cookie", () => {
+  const authContext = read("src/server/services/auth-context.ts");
+
+  assert.match(authContext, /if \(!config\.supabase\.isConfigured\) {[\s\S]*hasAcceptedTermsCookie\(\)/);
+  assert.match(authContext, /mode: "supabase"[\s\S]*termsAccepted: await hasPersistedTermsAcceptance\(data\.user\.id\)/);
+  assert.doesNotMatch(authContext, /termsAccepted: termsCookieAccepted \|\|/);
+});
