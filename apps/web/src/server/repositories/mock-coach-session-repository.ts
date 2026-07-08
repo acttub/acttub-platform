@@ -63,6 +63,15 @@ const publicSession = (session: MockCoachSessionRecord): CoachSessionDto => {
   return dto;
 };
 
+const cloneUploadIntentRecord = (record: UploadIntentRecord): UploadIntentRecord =>
+  structuredClone(record);
+
+const ownsSession = (sessionId: string, ownerId: string): boolean =>
+  repositoryState.sessionOwners.get(sessionId) === ownerId;
+
+const ownsUploadIntent = (uploadIntentId: string, ownerId: string): boolean =>
+  repositoryState.uploadIntents.get(uploadIntentId)?.ownerId === ownerId;
+
 export const mockCoachSessionRepository = {
   create(session: CoachSessionDto, ownerId: string): CoachSessionDto {
     repositoryState.sessions.set(
