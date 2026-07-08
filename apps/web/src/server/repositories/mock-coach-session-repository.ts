@@ -49,7 +49,8 @@ const cloneUploadIntent = (
 ): MockUploadIntentRecord => structuredClone(uploadIntent);
 
 const publicSession = (session: MockCoachSessionRecord): CoachSessionDto => {
-  const { ownerId: _ownerId, ...dto } = cloneSession(session);
+  const dto = cloneSession(session);
+  delete (dto as Partial<MockCoachSessionRecord>).ownerId;
   return dto;
 };
 

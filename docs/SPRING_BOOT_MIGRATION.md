@@ -76,8 +76,8 @@ Recommended server behavior:
 
 1. Run migrations outside request handling via the deployment pipeline.
 2. Use a server-side Supabase service credential only in backend configuration.
-3. Generate short-lived signed upload/read URLs for `coach-takes` storage objects.
-4. Keep object keys under `{actorId}/{sessionId}/{takeId}.{extension}` for authenticated users.
+3. Generate short-lived signed upload/read URLs for `practice-videos` storage objects.
+4. Keep object keys under `users/{actorId}/practice-sessions/{sessionId}/take.mp4|take.mov` for authenticated users.
 5. For anonymous alpha sessions, mediate all table and storage access server-side; do not open anonymous RLS table access directly.
 
 ## Service Invariants to Port
@@ -127,3 +127,7 @@ The backend should reject or regenerate assistant text containing evaluator-styl
 - Rejected observations cannot be referenced by new assistant turns.
 - Web UI can complete a full Slice 1 flow through the Spring Boot API without changing user-visible copy.
 - No new public API field reintroduces scores, ratings, verdicts, strengths, weaknesses, or diagnosis framing.
+
+## Current Next.js compatibility boundary
+
+The temporary Next.js handlers now enforce API auth/terms checks before every practice/session/upload operation and pass the authenticated owner id into the service/repository layer. Spring Boot must preserve these route-level semantics while replacing local mock persistence with Supabase-backed transactions.

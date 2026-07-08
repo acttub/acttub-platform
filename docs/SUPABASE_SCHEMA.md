@@ -1,6 +1,6 @@
 # Supabase Schema and Policy Notes for Acttub Slice 1
 
-This document records the Supabase persistence contract for the Slice 1 MVP. The executable SQL lives in `supabase/migrations/001_acttub_slice1_schema.sql`.
+This document records the Supabase persistence contract for the Slice 1 MVP. The executable SQL lives in `supabase/migrations/001_acttub_slice1_schema.sql` and mirrors `docs/supabase/slice1-schema-rls-storage.sql`.
 
 ## Scope
 
@@ -16,7 +16,15 @@ Out of scope for this migration:
 
 ## Tables
 
-### `acttub.coach_sessions`
+### `public.profiles`
+
+One row per Supabase user. Slice 1 API access requires an active profile with current consent timestamps and `consent_version`. Local development may use cookie-backed consent only when Supabase is not configured.
+
+### `public.upload_intents`
+
+Pre-session upload authority. Each row binds a user, future session id, exact private Storage bucket/path, MIME type, size, consent version, expiry, and finalization status.
+
+### `public.practice_sessions`
 
 One practice flow. Required MVP context is stored directly on the session so a future Spring Boot API can serve `/api/v1/sessions/{sessionId}` without reconstructing state from client memory.
 
@@ -28,7 +36,7 @@ Key fields:
 - `medium`, `genre`, `situation`, `character_context`, `subtext`: scene context from the input step.
 - `final_actor_sentence`: actor-authored filled-thought sentence saved at completion.
 
-### `acttub.coach_takes`
+### `public.practice_takes`
 
 One uploaded acting video for a session.
 
@@ -39,7 +47,7 @@ Key fields:
 - `analysis_status`: one-time video analysis state.
 - `analysis_error`: operational failure detail, not user-facing judgment.
 
-### `acttub.coach_observations`
+### `public.observations`
 
 Timestamped observations produced by the one-time analysis pass.
 
@@ -54,7 +62,7 @@ Key fields:
 
 Important invariant: rejected observations cannot be reused as question grounds. This is enforced by the `coach_observations_rejected_blocked` check and by the `coach_turns_source_observations_groundable` check.
 
-### `acttub.coach_turns`
+### `public.question_turns`
 
 Conversation log. Each assistant question is one turn and should contain one question only; generation code must enforce the one-question rule before insert.
 
@@ -74,7 +82,7 @@ Low-level validation/audit events for alpha learning, including rejected-observa
 
 The migration creates a private bucket:
 
-- bucket id/name: `coach-takes`
+- bucket id/name: `practice-videos`
 - public: `false`
 - max size: `314572800` bytes
 - allowed MIME types: `video/mp4`, `video/quicktime`
@@ -82,14 +90,14 @@ The migration creates a private bucket:
 Authenticated actor upload paths must begin with the user id:
 
 ```text
-{auth.uid()}/{sessionId}/{takeId}.{extension}
+users/{auth.uid()}/practice-sessions/{sessionId}/take.mp4|take.mov
 ```
 
-The server should persist that path as `coach_takes.storage_key`. Signed URLs should be short-lived and generated server-side.
+The server should persist that path as `practice_takes.storage_path`. Signed URLs should be short-lived and generated server-side.
 
 ## RLS Policy Model
 
-Authenticated actors can select/insert/update their own sessions and nested rows. Nested rows are authorized through `coach_sessions.actor_id = auth.uid()`.
+Authenticated actors can select visible own rows and mutate rows only when `public.is_active_acttub_profile(auth.uid())` is true. Nested rows denormalize `user_id` and are authorized through composite owner-alignment foreign keys.
 
 Anonymous alpha access is intentionally not opened directly through RLS. If the UI supports anonymous tokens before full auth, the Next.js route handler or future Spring Boot API must mediate those requests with a server credential and validate `anonymous_token` itself.
 
@@ -99,7 +107,7 @@ Server-side analysis jobs and migration backfills should use the Supabase servic
 
 The schema maps to the planned REST surface:
 
-- `POST /api/v1/sessions` creates `coach_sessions`, uploads/links one `coach_takes` row, starts analysis, and returns session state.
+- `POST /api/v1/practice-upload-intents` creates the owner-bound upload intent; `POST /api/v1/practice-upload-intents/{id}/finalize` validates owner/path/expiry; `POST /api/v1/sessions` or `/api/v1/practice-sessions` creates `practice_sessions`, links one `practice_takes` row, starts mock analysis, and returns session state.
 - `GET /api/v1/sessions/{sessionId}` reads session/take/observation/turn/summary state.
 - `GET /api/v1/sessions/{sessionId}/observations` returns observations that need confirmation.
 - `PATCH /api/v1/sessions/{sessionId}/observations/{observationId}` updates `confirmation_state`; `rejected` must set `blocked_for_questioning=true`.

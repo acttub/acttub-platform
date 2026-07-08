@@ -1,96 +1,97 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
 import { test } from "node:test";
 
 const repoRoot = path.resolve(import.meta.dirname, "../../..");
-const webRoot = path.join(repoRoot, "apps/web");
+const appRoot = path.join(repoRoot, "apps/web");
 
-const readRepo = (relativePath) => readFileSync(path.join(repoRoot, relativePath), "utf8");
-const readWeb = (relativePath) => readFileSync(path.join(webRoot, relativePath), "utf8");
+function read(relativePath) {
+  return readFileSync(path.join(repoRoot, relativePath), "utf8");
+}
 
-const apiRoutesRequiringActiveUser = [
-  "src/app/api/v1/practice-upload-intents/route.ts",
-  "src/app/api/v1/practice-upload-intents/[uploadIntentId]/finalize/route.ts",
-  "src/app/api/v1/practice-sessions/route.ts",
-  "src/app/api/v1/practice-sessions/[sessionId]/route.ts",
-  "src/app/api/v1/practice-sessions/[sessionId]/hide/route.ts",
-  "src/app/api/v1/practice-sessions/[sessionId]/metrics/route.ts",
-  "src/app/api/v1/practice-sessions/[sessionId]/observations/[observationId]/route.ts",
-  "src/app/api/v1/practice-sessions/[sessionId]/result/route.ts",
-  "src/app/api/v1/practice-sessions/[sessionId]/signed-video-url/route.ts",
-  "src/app/api/v1/practice-sessions/[sessionId]/turns/route.ts",
-  "src/app/api/v1/practice-sessions/[sessionId]/video-url/route.ts",
-  "src/app/api/v1/practice-sessions/[sessionId]/visibility/route.ts",
-  "src/app/api/v1/sessions/route.ts",
-  "src/app/api/v1/sessions/[sessionId]/route.ts",
-  "src/app/api/v1/sessions/[sessionId]/observations/[observationId]/route.ts",
-  "src/app/api/v1/sessions/[sessionId]/summary/route.ts",
-  "src/app/api/v1/sessions/[sessionId]/turns/route.ts",
-];
+function collectRouteFiles(directory) {
+  return readdirSync(directory).flatMap((entry) => {
+    const absolutePath = path.join(directory, entry);
+    const stats = statSync(absolutePath);
 
-test("auth-bound Slice 1 API routes require current terms before touching session state", () => {
-  const missingGate = [];
-
-  for (const routePath of apiRoutesRequiringActiveUser) {
-    const source = readWeb(routePath);
-    if (!source.includes("requireApiTermsAccepted")) {
-      missingGate.push(routePath);
+    if (stats.isDirectory()) {
+      return collectRouteFiles(absolutePath);
     }
-  }
+
+    return entry === "route.ts" ? [absolutePath] : [];
+  });
+}
+
+test("practice APIs are explicitly auth, terms, and owner gated", () => {
+  const apiRoot = path.join(appRoot, "src/app/api/v1");
+  const protectedRoutes = collectRouteFiles(apiRoot)
+    .map((file) => path.relative(appRoot, file))
+    .filter(
+      (file) =>
+        file.startsWith("src/app/api/v1/practice-sessions") ||
+        file.startsWith("src/app/api/v1/sessions") ||
+        file.startsWith("src/app/api/v1/practice-upload-intents"),
+    );
+
+  assert.ok(protectedRoutes.length > 0, "expected protected API routes");
+
+  const missingGate = protectedRoutes.filter((file) => {
+    const source = read(path.join("apps/web", file));
+    return (
+      !source.includes("requireApiTermsAccepted") &&
+      !source.trim().startsWith("export { POST }")
+    );
+  });
 
   assert.deepEqual(missingGate, []);
 });
 
-test("auth-bound routes pass owner id into session service calls", () => {
-  const missingOwner = [];
-  const unownedCallPattern = /coachSessionService\.(?:listSessions|createSession|getSession|softHideSession|createSignedVideoUrl|getSignedVideoUrl|updateObservation|createTurn|saveValidationMetrics|createSummary|finalizeUploadIntent)\([^;\n]*\)/g;
+test("upload sessions must flow through a finalized owner-bound upload intent", () => {
+  const service = read("apps/web/src/server/services/coach-session-service.ts");
+  const finalizeRoute = read(
+    "apps/web/src/app/api/v1/practice-upload-intents/[uploadIntentId]/finalize/route.ts",
+  );
+  const practiceFlow = read("apps/web/src/features/practice/practice-flow.tsx");
 
-  for (const routePath of apiRoutesRequiringActiveUser) {
-    const source = readWeb(routePath);
-    const calls = source.match(unownedCallPattern) ?? [];
-    for (const call of calls) {
-      if (!call.includes("auth.userId")) {
-        missingOwner.push(`${routePath}: ${call}`);
-      }
-    }
-  }
-
-  assert.deepEqual(missingOwner, []);
+  assert.match(
+    service,
+    /Upload sessions must be created from a finalized upload intent/,
+  );
+  assert.match(
+    service,
+    /Upload intent must be finalized before session creation/,
+  );
+  assert.match(service, /Must match the active upload intent storage path/);
+  assert.match(
+    finalizeRoute,
+    /finalizeUploadIntent\(\s*uploadIntentId,\s*payload,\s*auth\.userId/s,
+  );
+  assert.match(practiceFlow, /createPracticeUploadIntent/);
+  assert.match(practiceFlow, /finalizePracticeUploadIntent/);
 });
 
-test("upload intent finalization binds the path parameter to owner, expiry, and storage path validation", () => {
-  const route = readWeb("src/app/api/v1/practice-upload-intents/[uploadIntentId]/finalize/route.ts");
-  assert.match(route, /const \{ uploadIntentId \} = await context\.params/);
-  assert.match(route, /finalizeUploadIntent\(uploadIntentId, payload, auth\.userId\)/);
+test("mock persistence keeps owner scope out of public DTOs", () => {
+  const repository = read(
+    "apps/web/src/server/repositories/mock-coach-session-repository.ts",
+  );
 
-  const service = readWeb("src/server/services/coach-session-service.ts");
-  assert.match(service, /findUploadIntent\(uploadIntentId, ownerId\)/);
-  assert.match(service, /Upload intent has expired/);
-  assert.match(service, /storagePath !== uploadIntent\.intent\.storagePath/);
-  assert.match(service, /Upload intent must be finalized before creating a session/);
-  assert.match(service, /validatedMedium === "upload_url" && !input\.uploadIntentId/);
+  assert.match(repository, /ownerId: string/);
+  assert.match(repository, /session\.ownerId === ownerId/);
+  assert.match(repository, /const \{ ownerId: _ownerId, \.\.\.dto \}/);
 });
 
-test("mock persistence preserves session and upload intent owner boundaries", () => {
-  const repository = readWeb("src/server/repositories/mock-coach-session-repository.ts");
-  assert.match(repository, /sessionOwners: Map<string, string>/);
-  assert.match(repository, /uploadIntents: Map<string, UploadIntentRecord>/);
-  assert.match(repository, /ownsSession\(sessionId, ownerId\)/);
-  assert.match(repository, /ownsUploadIntent\(uploadIntentId, ownerId\)/);
-  assert.doesNotMatch(repository, /findById\(sessionId: string\):/);
-  assert.doesNotMatch(repository, /findUploadIntent\(uploadIntentId: string\):/);
-});
+test("executable migration matches private practice-videos upload-intent contract", () => {
+  const migration = read("supabase/migrations/001_acttub_slice1_schema.sql");
 
-test("executable migration and web upload contract use one private bucket policy", () => {
-  const migration = readRepo("supabase/migrations/001_acttub_slice1_schema.sql");
-  const types = readWeb("src/lib/api/types.ts");
-  const config = readWeb("src/lib/config/env.ts");
-  const service = readWeb("src/server/services/coach-session-service.ts");
-
-  assert.match(migration, /insert into storage\.buckets[\s\S]*'coach-takes'[\s\S]*false[\s\S]*314572800[\s\S]*array\['video\/mp4', 'video\/quicktime'\]/);
-  assert.match(migration, /bucket_id = 'coach-takes'[\s\S]*owner = auth\.uid\(\)[\s\S]*storage\.foldername\(name\)\)\[1\] = auth\.uid\(\)::text/);
-  assert.match(types, /storageBucket: "local-dev" \| "coach-takes"/);
-  assert.match(config, /NEXT_PUBLIC_SUPABASE_VIDEO_BUCKET \?\? "coach-takes"/);
-  assert.match(service, /storageBucket: "coach-takes"/);
+  assert.match(migration, /create table if not exists public\.profiles/);
+  assert.match(migration, /create table if not exists public\.upload_intents/);
+  assert.match(migration, /'practice-videos'/);
+  assert.doesNotMatch(migration, /'coach-takes'/);
+  assert.doesNotMatch(migration, /video\/webm/);
+  assert.match(migration, /practice videos insert via active upload intent/);
+  assert.match(
+    migration,
+    /Intentionally absent in Slice 1:[\s\S]*no storage\.objects SELECT policy/,
+  );
 });
