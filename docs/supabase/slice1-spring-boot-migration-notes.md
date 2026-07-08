@@ -38,7 +38,7 @@ Vary: Cookie, Authorization
 
 ## Storage contract
 
-- Bucket: `practice-videos`.
+- Bucket: `coach-takes`.
 - Bucket visibility: private.
 - Browser object path shape: `users/{userId}/practice-sessions/{sessionId}/take.mp4|take.mov`.
 - Max object size: `314572800` bytes.
