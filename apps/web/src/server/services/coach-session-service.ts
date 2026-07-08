@@ -282,6 +282,15 @@ export const coachSessionService = {
       finalizedAt: nowIso(),
     });
 
+    if (storagePath !== uploadIntent.intent.storagePath) {
+      throw new ApiValidationError("Request validation failed", {
+        storagePath: "Must match the upload intent storage path.",
+      });
+    }
+
+    const videoUrl = `local-dev://${storagePath}`;
+    mockCoachSessionRepository.finalizeUploadIntent(uploadIntentId, ownerId, { videoUrl, durationMs });
+
     return {
       videoUrl,
       storagePath,
