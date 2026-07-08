@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type { ApiErrorResponse } from "@/lib/api/types";
 import { privateNoStoreHeaders } from "@/server/http/cache";
 import { ApiValidationError } from "@/server/services/coach-session-service";
+import { ApiAuthError } from "@/server/services/auth-context";
 
 export const jsonResponse = <T>(body: T, init: ResponseInit = {}): NextResponse<T> =>
   NextResponse.json(body, {
@@ -36,6 +37,10 @@ export const handleApiError = (error: unknown): NextResponse<ApiErrorResponse> =
 
   if (error instanceof ApiValidationError) {
     return jsonError(400, "validation_error", error.message, error.details);
+  }
+
+  if (error instanceof ApiAuthError) {
+    return jsonError(error.status, error.code, error.message);
   }
 
   console.error(error);
