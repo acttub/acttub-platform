@@ -36,6 +36,8 @@ const repositoryState =
     uploadIntents: new Map<string, UploadIntentRecord>(),
   };
 
+repositoryState.sessionOwners ??= new Map<string, string>();
+
 globalForRepository.__acttubMockCoachSessionRepository = repositoryState;
 
 const cloneSession = (
