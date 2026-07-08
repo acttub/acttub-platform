@@ -14,6 +14,15 @@ export const jsonResponse = <T>(body: T, init: ResponseInit = {}): NextResponse<
     },
   });
 
+export const jsonResponse = <T>(body: T, init: ResponseInit = {}): NextResponse<T> =>
+  NextResponse.json(body, {
+    ...init,
+    headers: {
+      ...privateNoStoreHeaders,
+      ...init.headers,
+    },
+  });
+
 export const jsonError = (
   status: number,
   code: string,
