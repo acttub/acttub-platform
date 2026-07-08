@@ -183,6 +183,9 @@ validation_events
 이 모델은 목표 구조다. MVP 초기에 mock persistence를 쓰더라도 위 필드와 의미가 무너지지 않게 DTO를 설계한다.
 
 ## 데이터 흐름
+
+> API path note: the current canonical session API is `/api/v1/practice-sessions/*`. Older `/api/v1/sessions/*` routes are compatibility aliases only and should not be used as the primary contract in new work.
+
 세션 생성 및 첫 질문:
 
 ```text
@@ -192,7 +195,7 @@ validation_events
   ▼
 apps/web UI
   │
-  │ 2. POST /api/v1/sessions
+  │ 2. POST /api/v1/practice-sessions
   ▼
 Next Route Handler
   │
@@ -218,7 +221,7 @@ apps/web UI
 ```text
 UI
   │
-  │ GET /api/v1/sessions/{sessionId}
+  │ GET /api/v1/practice-sessions/{sessionId}
   ▼
 API
   │
@@ -232,7 +235,7 @@ UI
 ```text
 사용자 답변
   │
-  │ POST /api/v1/sessions/{sessionId}/turns
+  │ POST /api/v1/practice-sessions/{sessionId}/turns
   ▼
 Route Handler
   │
@@ -256,7 +259,7 @@ UI
 ```text
 UI: 맞음 / 아님 / 모르겠음
   │
-  │ PATCH /api/v1/sessions/{sessionId}/observations/{observationId}
+  │ PATCH /api/v1/practice-sessions/{sessionId}/observations/{observationId}
   ▼
 API
   │
@@ -274,7 +277,7 @@ Question Service
 ```text
 UI
   │
-  │ POST /api/v1/sessions/{sessionId}/summary
+  │ POST /api/v1/practice-sessions/{sessionId}/summary
   ▼
 API
   │

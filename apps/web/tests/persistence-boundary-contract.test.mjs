@@ -72,8 +72,19 @@ test("Supabase configured mode verifies DB upload intent but leaves finalization
   assert.match(repository, /finalizeUploadIntent\(uploadIntent: PracticeUploadIntentDto\)[\s\S]*\.from\("upload_intents"\)[\s\S]*\.select\("id"\)[\s\S]*\.eq\("id", uploadIntent\.uploadIntentId\)[\s\S]*\.eq\("user_id", uploadIntent\.userId\)[\s\S]*\.eq\("expected_storage_path", uploadIntent\.storagePath\)[\s\S]*\.eq\("status", "created"\)/s);
   assert.doesNotMatch(repository, /finalizeUploadIntent[\s\S]*\.update\(\{[\s\S]*status: "finalized"/s);
   assert.match(service, /await verifySupabaseStorageObject\(uploadIntent\);[\s\S]*supabaseCoachSessionRepository\.finalizeUploadIntent\(uploadIntent\.intent\)[\s\S]*markUploadIntentFinalized\(uploadIntentId, userId\)/);
+  assert.match(service, /const supabaseUploadIntent = await supabaseCoachSessionRepository\.findUploadIntent\(uploadIntentId, userId\);[\s\S]*return supabaseUploadIntent \?\? localUploadIntent;/);
+  assert.doesNotMatch(service, /localUploadIntent\?\.status === "finalized"\) return localUploadIntent/);
   assert.match(migration, /create or replace function public\.acttub_create_session_from_upload_intent[\s\S]*for update[\s\S]*update public\.upload_intents[\s\S]*status = 'finalized'[\s\S]*insert into public\.practice_sessions/s);
   assert.match(service, /error instanceof SupabaseCoachSessionPersistenceError[\s\S]*throw new ApiValidationError\("Request validation failed"/);
+});
+
+test("Supabase configured mode creates sessions from durable created intents without mock finalized proof", () => {
+  const service = readApp("src/server/services/coach-session-service.ts");
+
+  assert.match(service, /const supabaseUploadIntent = await supabaseCoachSessionRepository\.findUploadIntent\(uploadIntentId, userId\);[\s\S]*return supabaseUploadIntent \?\? localUploadIntent;/);
+  assert.doesNotMatch(service, /localUploadIntent\?\.status === "finalized"\) return localUploadIntent/);
+  assert.match(service, /if \(supabaseCoachSessionRepository\.isConfigured\(\)\) \{[\s\S]*if \(uploadIntent\.status !== "created"\)[\s\S]*Upload intent is not available for session creation\.[\s\S]*\} else if \(uploadIntent\.status !== "finalized" \|\| !uploadIntent\.finalizedAt\)/);
+  assert.match(service, /if \(supabaseCoachSessionRepository\.isConfigured\(\)\) \{[\s\S]*await verifySupabaseStorageObject\(uploadIntent\.intent\);[\s\S]*\}[\s\S]*supabaseCoachSessionRepository\.createSession\(\{[\s\S]*uploadIntent: uploadIntentForSession\.intent/);
 });
 
 test("Supabase configured mode atomically creates initial session rows before mock session mirroring", () => {
@@ -90,7 +101,7 @@ test("Supabase configured mode atomically creates initial session rows before mo
   }
   assert.match(service, /const takeId = createUuid\(\);[\s\S]*const observationId = createUuid\(\);/);
   assert.match(service, /const firstQuestion = makeCoachTurn\([\s\S]*"observation_confirmation",[\s\S]*createUuid\(\),[\s\S]*\);/);
-  assert.match(service, /supabaseCoachSessionRepository\.isConfigured\(\)[\s\S]*supabaseCoachSessionRepository\.createSession\(\{[\s\S]*uploadIntent: finalizedUploadIntent\.intent[\s\S]*firstQuestion[\s\S]*\}\)[\s\S]*const session = mockCoachSessionRepository\.create/s);
+  assert.match(service, /supabaseCoachSessionRepository\.isConfigured\(\)[\s\S]*supabaseCoachSessionRepository\.createSession\(\{[\s\S]*uploadIntent: uploadIntentForSession\.intent[\s\S]*firstQuestion[\s\S]*\}\)[\s\S]*const session = mockCoachSessionRepository\.create/s);
 });
 
  test("Supabase configured lifecycle reads and mutations source Supabase before mock mirroring", () => {

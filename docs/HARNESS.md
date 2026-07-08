@@ -100,7 +100,7 @@ Acttub step 분리 예시:
 
 - `web-shell`: 기본 레이아웃, 토큰, 폰트, 앱 metadata 정리
 - `session-input`: 영상 업로드 UI와 장면 맥락 입력 폼
-- `api-contract`: `/api/v1/sessions` DTO와 임시 route handler
+- `api-contract`: canonical `/api/v1/practice-sessions/*` DTO와 임시 route handler (`/api/v1/sessions/*`는 compatibility alias only)
 - `observation-confirmation`: 관찰 확인 상태 UI와 API
 - `question-dialogue`: 질문 turn UI와 turn 생성 API 연결
 - `session-summary`: 배우 자기 정리 입력과 종료 화면

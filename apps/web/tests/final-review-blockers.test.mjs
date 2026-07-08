@@ -64,13 +64,16 @@ test("practice APIs are explicitly auth, terms, and owner gated", () => {
   assert.deepEqual(missingOwner, []);
 });
 
-test("upload sessions flow through a finalized owner-bound upload intent", () => {
+test("upload sessions flow through an owner-bound upload intent with configured-mode durable handoff", () => {
   const service = readWeb("src/server/services/coach-session-service.ts");
   const finalizeRoute = readWeb("src/app/api/v1/practice-upload-intents/[uploadIntentId]/finalize/route.ts");
   const practiceFlow = readWeb("src/features/practice/practice-flow.tsx");
 
   assert.match(service, /Upload sessions must be created from a finalized upload intent/);
   assert.match(service, /Upload intent must be finalized before session creation/);
+  assert.match(service, /Upload intent is not available for session creation/);
+  assert.match(service, /if \(supabaseCoachSessionRepository\.isConfigured\(\)\) \{[\s\S]*uploadIntent\.status !== "created"[\s\S]*\} else if \(uploadIntent\.status !== "finalized" \|\| !uploadIntent\.finalizedAt\)/);
+  assert.match(service, /await verifySupabaseStorageObject\(uploadIntent\.intent\);[\s\S]*supabaseCoachSessionRepository\.createSession\(\{[\s\S]*uploadIntent: uploadIntentForSession\.intent/s);
   assert.match(service, /Must match the upload intent storage path/);
   assert.match(service, /readUploadIntentForOwner\(input\.uploadIntentId, userId\)/);
   assert.match(
@@ -182,6 +185,14 @@ test("docs stay aligned to executable Slice 1 Supabase and API contracts", () =>
   assert.match(docs, /canonical paths are `\/api\/v1\/practice-sessions\/\*`/);
   assert.match(docs, /Legacy `\/api\/v1\/sessions\/\*` routes may remain only as compatibility aliases/);
   assert.match(docs, /GET \/api\/v1\/practice-sessions\/\{sessionId\}\/signed-video-url/);
+
+  const architecture = readRepo("docs/ARCHITECTURE.md");
+  const harness = readRepo("docs/HARNESS.md");
+  assert.match(architecture, /current canonical session API is `\/api\/v1\/practice-sessions\/\*`/);
+  assert.doesNotMatch(architecture, /POST \/api\/v1\/sessions/);
+  assert.doesNotMatch(architecture, /GET \/api\/v1\/sessions\/\{sessionId\}/);
+  assert.match(harness, /canonical `\/api\/v1\/practice-sessions\/\*` DTO/);
+  assert.match(harness, /`\/api\/v1\/sessions\/\*`는 compatibility alias only/);
 
   assert.doesNotMatch(schema, /`actor_id`:/);
   assert.doesNotMatch(schema, /`anonymous_token`:/);

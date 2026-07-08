@@ -368,7 +368,6 @@ const readUploadIntentForOwner = async (
   if (!supabaseCoachSessionRepository.isConfigured()) return localUploadIntent;
 
   const supabaseUploadIntent = await supabaseCoachSessionRepository.findUploadIntent(uploadIntentId, userId);
-  if (localUploadIntent?.status === "finalized") return localUploadIntent;
   return supabaseUploadIntent ?? localUploadIntent;
 };
 
@@ -535,7 +534,7 @@ export const coachSessionService = {
       durationMs = metadataDuration;
     }
     let sessionId = typeof input.sessionId === "string" && input.sessionId.trim() ? input.sessionId.trim() : createId("session");
-    let finalizedUploadIntent: ReturnType<typeof mockCoachSessionRepository.findUploadIntent> = null;
+    let uploadIntentForSession: ReturnType<typeof mockCoachSessionRepository.findUploadIntent> = null;
 
     if (!input.uploadIntentId) {
       throw new ApiValidationError("Request validation failed", {
@@ -555,7 +554,13 @@ export const coachSessionService = {
           uploadIntentId: "Upload intent has expired.",
         });
       }
-      if (uploadIntent.status !== "finalized" || !uploadIntent.finalizedAt) {
+      if (supabaseCoachSessionRepository.isConfigured()) {
+        if (uploadIntent.status !== "created") {
+          throw new ApiValidationError("Request validation failed", {
+            uploadIntentId: "Upload intent is not available for session creation.",
+          });
+        }
+      } else if (uploadIntent.status !== "finalized" || !uploadIntent.finalizedAt) {
         throw new ApiValidationError("Request validation failed", {
           uploadIntentId: "Upload intent must be finalized before session creation.",
         });
@@ -570,9 +575,12 @@ export const coachSessionService = {
           storagePath: "Must match the upload intent storage path.",
         });
       }
+      if (supabaseCoachSessionRepository.isConfigured()) {
+        await verifySupabaseStorageObject(uploadIntent.intent);
+      }
       sessionId = uploadIntent.sessionId;
       videoUrl = videoRefForUploadIntent(uploadIntent);
-      finalizedUploadIntent = uploadIntent;
+      uploadIntentForSession = uploadIntent;
     }
 
     if (!videoUrl) {
@@ -641,7 +649,7 @@ export const coachSessionService = {
       "observation_confirmation",
       createUuid(),
     );
-    if (!finalizedUploadIntent) {
+    if (!uploadIntentForSession) {
       throw new ApiValidationError("Request validation failed", {
         uploadIntentId: "Upload intent must be finalized before session creation.",
       });
@@ -654,7 +662,7 @@ export const coachSessionService = {
 
     if (supabaseCoachSessionRepository.isConfigured()) {
       sessionForResponse = await supabaseCoachSessionRepository.createSession({
-        uploadIntent: finalizedUploadIntent.intent,
+        uploadIntent: uploadIntentForSession.intent,
         session: sessionForResponse,
         take,
         observation,
@@ -663,7 +671,7 @@ export const coachSessionService = {
     } else {
       await requireSupabasePersistence(async () => {
         await supabaseCoachSessionRepository.createSession({
-          uploadIntent: finalizedUploadIntent.intent,
+          uploadIntent: uploadIntentForSession.intent,
           session: sessionForResponse,
           take,
           observation,
