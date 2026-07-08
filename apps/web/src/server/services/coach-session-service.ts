@@ -185,12 +185,7 @@ const fileExtensionForMime = (mimeType: string): "mp4" | "mov" =>
   mimeType === "video/quicktime" ? "mov" : "mp4";
 
 export const coachSessionService = {
-  createUploadIntent(
-    payload: unknown,
-    userId: string,
-  ): PracticeUploadIntentDto {
-    const config = getAppConfig();
-    const maxUploadBytes = config.video.maxUploadBytes || defaultMaxUploadBytes;
+  createUploadIntent(payload: unknown, userId: string): PracticeUploadIntentDto {
     const input = payload as Partial<CreateUploadIntentRequest>;
     const metadata = input.fileMetadata;
 
@@ -243,7 +238,7 @@ export const coachSessionService = {
   },
 
   listSessions(userId: string): { sessions: CoachSessionDto[] } {
-    return { sessions: mockCoachSessionRepository.listVisible(userId) };
+    return { sessions: mockCoachSessionRepository.listVisibleForOwner(userId) };
   },
 
   finalizeUploadIntent(
@@ -251,20 +246,10 @@ export const coachSessionService = {
     payload: unknown,
     userId: string,
   ): { videoUrl: string; storagePath: string; durationMs: number | null } {
-    const uploadIntent = mockCoachSessionRepository.findUploadIntent(
-      uploadIntentId,
-      userId,
-    );
-
+    const uploadIntent = mockCoachSessionRepository.findUploadIntentForOwner(uploadIntentId, userId);
     if (!uploadIntent) {
       throw new ApiValidationError("Request validation failed", {
-        uploadIntentId: "Upload intent was not found for the current owner.",
-      });
-    }
-
-    if (uploadIntent.status !== "created") {
-      throw new ApiValidationError("Request validation failed", {
-        uploadIntentId: "Upload intent is no longer active.",
+        uploadIntentId: "Upload intent was not found.",
       });
     }
 
@@ -303,6 +288,14 @@ export const coachSessionService = {
     const videoUrl = `local-dev://${storagePath}`;
     mockCoachSessionRepository.finalizeUploadIntent(uploadIntentId, ownerId, { videoUrl, durationMs });
 
+    if (storagePath !== uploadIntent.storagePath) {
+      throw new ApiValidationError("Request validation failed", {
+        storagePath: "Must match the upload intent storage path.",
+      });
+    }
+
+    mockCoachSessionRepository.markUploadIntentFinalized(uploadIntentId, userId);
+
     return {
       videoUrl,
       storagePath,
@@ -310,10 +303,7 @@ export const coachSessionService = {
     };
   },
 
-  createSession(
-    payload: unknown,
-    userId: string,
-  ): { session: CoachSessionDto; firstQuestion: TurnDto } {
+  createSession(payload: unknown, userId: string): { session: CoachSessionDto; firstQuestion: TurnDto } {
     const input = payload as Partial<CreateSessionRequest>;
     const medium = input.medium;
 
@@ -349,10 +339,7 @@ export const coachSessionService = {
           : null;
 
     if (input.uploadIntentId) {
-      const uploadIntent = mockCoachSessionRepository.findUploadIntent(
-        input.uploadIntentId,
-        userId,
-      );
+      const uploadIntent = mockCoachSessionRepository.findUploadIntentForOwner(input.uploadIntentId, userId);
       if (!uploadIntent) {
         throw new ApiValidationError("Request validation failed", {
           uploadIntentId: "Upload intent was not found for the current owner.",
@@ -389,9 +376,14 @@ export const coachSessionService = {
           storagePath: "Must match the upload intent storage path.",
         });
       }
-      if (videoUrl && videoUrl !== uploadIntent.finalizedVideoUrl) {
+      if (Date.parse(uploadIntent.expiresAt) <= Date.now()) {
         throw new ApiValidationError("Request validation failed", {
-          videoUrl: "Must match the finalized upload intent video URL.",
+          uploadIntentId: "Upload intent has expired.",
+        });
+      }
+      if (!mockCoachSessionRepository.isUploadIntentFinalized(input.uploadIntentId, userId)) {
+        throw new ApiValidationError("Request validation failed", {
+          uploadIntentId: "Upload intent must be finalized before creating a session.",
         });
       }
     }
@@ -470,35 +462,25 @@ export const coachSessionService = {
       [observationId],
       "observation_confirmation",
     );
-    const session = mockCoachSessionRepository.create(
-      {
-        ...baseSession,
-        turns: [firstQuestion],
-      },
-      userId,
-    );
+    const session = mockCoachSessionRepository.create({
+      ...baseSession,
+      turns: [firstQuestion],
+    }, userId);
 
     return { session, firstQuestion };
   },
 
   getSession(sessionId: string, userId: string): CoachSessionDto | null {
-    return mockCoachSessionRepository.findById(sessionId, userId);
+    return mockCoachSessionRepository.findByIdForOwner(sessionId, userId);
   },
 
-  softHideSession(
-    sessionId: string,
-    userId: string,
-  ): { session: CoachSessionDto } | null {
+  softHideSession(sessionId: string, userId: string): { session: CoachSessionDto } | null {
     const session = mockCoachSessionRepository.softHide(sessionId, userId);
     return session ? { session } : null;
   },
 
-  createSignedVideoUrl(
-    sessionId: string,
-    userId: string,
-  ): SignedVideoUrlResponse | null {
-    const config = getAppConfig();
-    const session = mockCoachSessionRepository.findById(sessionId, userId);
+  createSignedVideoUrl(sessionId: string, userId: string): SignedVideoUrlResponse | null {
+    const session = mockCoachSessionRepository.findByIdForOwner(sessionId, userId);
 
     if (!session || !session.take.videoUrl) {
       return null;
@@ -520,6 +502,7 @@ export const coachSessionService = {
 
   updateObservation(
     sessionId: string,
+    userId: string,
     observationId: string,
     payload: unknown,
     userId: string,
@@ -554,18 +537,11 @@ export const coachSessionService = {
 
   createTurn(
     sessionId: string,
-    payload: unknown,
     userId: string,
-  ): {
-    session: CoachSessionDto;
-    actorTurn: TurnDto;
-    coachTurn: TurnDto;
-  } | null {
-    const actorAnswer = requiredText(
-      (payload as { actorAnswer?: unknown }).actorAnswer,
-      "actorAnswer",
-    );
-    const session = mockCoachSessionRepository.findById(sessionId, userId);
+    payload: unknown,
+  ): { session: CoachSessionDto; actorTurn: TurnDto; coachTurn: TurnDto } | null {
+    const actorAnswer = requiredText((payload as { actorAnswer?: unknown }).actorAnswer, "actorAnswer");
+    const session = mockCoachSessionRepository.findByIdForOwner(sessionId, userId);
 
     if (!session) {
       return null;
@@ -596,11 +572,7 @@ export const coachSessionService = {
       acceptedObservationIds,
       acceptedObservationIds.length > 0 ? "subtext_probe" : "missing_context",
     );
-    const withActorTurn = mockCoachSessionRepository.addTurn(
-      sessionId,
-      userId,
-      actorTurn,
-    );
+    const withActorTurn = mockCoachSessionRepository.addTurn(sessionId, userId, actorTurn);
     const withCoachTurn = withActorTurn
       ? mockCoachSessionRepository.addTurn(sessionId, userId, coachTurn)
       : null;
@@ -610,11 +582,8 @@ export const coachSessionService = {
       : null;
   },
 
-  getSignedVideoUrl(
-    sessionId: string,
-    userId: string,
-  ): SignedVideoUrlResponse | null {
-    const session = mockCoachSessionRepository.findById(sessionId, userId);
+  getSignedVideoUrl(sessionId: string): SignedVideoUrlResponse | null {
+    const session = mockCoachSessionRepository.findByIdForOwner(sessionId, userId);
 
     if (!session) {
       return null;
@@ -627,11 +596,7 @@ export const coachSessionService = {
     };
   },
 
-  updateVisibility(
-    sessionId: string,
-    payload: unknown,
-    userId: string,
-  ): { session: CoachSessionDto } | null {
+  updateVisibility(sessionId: string, userId: string, payload: unknown): { session: CoachSessionDto } | null {
     const hidden = (payload as { hidden?: unknown }).hidden;
 
     if (typeof hidden !== "boolean") {
@@ -640,32 +605,26 @@ export const coachSessionService = {
       });
     }
 
-    const session = mockCoachSessionRepository.findById(sessionId, userId);
+    const session = mockCoachSessionRepository.findByIdForOwner(sessionId, userId);
 
     if (!session) {
       return null;
     }
 
     return {
-      session: mockCoachSessionRepository.update(
-        {
-          ...session,
-          hiddenAt: hidden ? nowIso() : null,
-        },
-        userId,
-      ),
+      session: mockCoachSessionRepository.update({
+        ...session,
+        hiddenAt: hidden ? nowIso() : null,
+      }, userId),
     };
   },
 
   saveValidationMetrics(
     sessionId: string,
-    payload: unknown,
     userId: string,
-  ): {
-    session: CoachSessionDto;
-    validationMetrics: ValidationMetricsDto;
-  } | null {
-    const session = mockCoachSessionRepository.findById(sessionId, userId);
+    payload: unknown,
+  ): { session: CoachSessionDto; validationMetrics: ValidationMetricsDto } | null {
+    const session = mockCoachSessionRepository.findByIdForOwner(sessionId, userId);
 
     if (!session) {
       return null;
@@ -681,48 +640,35 @@ export const coachSessionService = {
       forbiddenLanguageCount: 0,
       finalSentenceResult: session.finalActorSentence ? "saved" : "empty",
     };
-    const updatedSession = mockCoachSessionRepository.update(
-      {
-        ...session,
-        validationMetrics,
-      },
-      userId,
-    );
+    const updatedSession = mockCoachSessionRepository.update({
+      ...session,
+      validationMetrics,
+    }, userId);
 
     return updatedSession ? { session: updatedSession, validationMetrics } : null;
   },
 
-  createSummary(
-    sessionId: string,
-    payload: unknown,
-    userId: string,
-  ): { session: CoachSessionDto; nextReflectionQuestion: string } | null {
+  createSummary(sessionId: string, userId: string, payload: unknown): { session: CoachSessionDto; nextReflectionQuestion: string } | null {
     const finalActorSentence = requiredText(
       (payload as { finalActorSentence?: unknown }).finalActorSentence,
       "finalActorSentence",
     );
-    const session = mockCoachSessionRepository.findById(sessionId, userId);
+    const session = mockCoachSessionRepository.findByIdForOwner(sessionId, userId);
 
     if (!session) {
       return null;
     }
 
-    const validationMetrics = buildValidationMetrics(
-      (payload as { validationMetrics?: unknown }).validationMetrics,
-      {
-        ...session,
-        finalActorSentence,
-      },
-    );
-    const updatedSession = mockCoachSessionRepository.update(
-      {
-        ...session,
-        status: "END",
-        finalActorSentence,
-        validationMetrics,
-      },
-      userId,
-    );
+    const validationMetrics = buildValidationMetrics((payload as { validationMetrics?: unknown }).validationMetrics, {
+      ...session,
+      finalActorSentence,
+    });
+    const updatedSession = mockCoachSessionRepository.update({
+      ...session,
+      status: "END",
+      finalActorSentence,
+      validationMetrics,
+    }, userId);
 
     return {
       session: updatedSession,
