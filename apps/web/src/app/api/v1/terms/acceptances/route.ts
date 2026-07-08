@@ -15,7 +15,7 @@ async function readBody(request: NextRequest): Promise<AcceptTermsBody> {
   const contentType = request.headers.get("content-type") ?? "";
 
   if (contentType.includes("application/json")) {
-    return (await request.json().catch(() => ({}))) as AcceptTermsBody;
+    return (await request.json()) as AcceptTermsBody;
   }
 
   if (contentType.includes("application/x-www-form-urlencoded")) {

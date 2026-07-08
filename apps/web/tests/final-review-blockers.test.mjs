@@ -141,3 +141,14 @@ test("visibility PATCH requires valid JSON while POST hide remains bodyless", ()
   assert.doesNotMatch(hideRoute, /_request\.json\(\)/);
   assert.match(hideRoute, /softHideSession\(sessionId, auth\.userId\)/);
 });
+
+test("terms acceptance rejects invalid JSON but preserves form and empty body paths", () => {
+  const route = readWeb("src/app/api/v1/terms/acceptances/route.ts");
+
+  assert.match(route, /contentType\.includes\("application\/json"\)[\s\S]*return \(await request\.json\(\)\) as AcceptTermsBody/);
+  assert.doesNotMatch(route, /request\.json\(\)\.catch/);
+  assert.match(route, /contentType\.includes\("application\/x-www-form-urlencoded"\)[\s\S]*await request\.formData\(\)/);
+  assert.match(route, /return \{ termsVersion: formData\.get\("termsVersion"\) \}/);
+  assert.match(route, /return \{\};/);
+  assert.match(route, /handleApiError\(error\)/);
+});
