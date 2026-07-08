@@ -1,12 +1,13 @@
-import { NextResponse } from "next/server";
 import { coachSessionService } from "@/server/services/coach-session-service";
-import { handleApiError } from "./http";
+import { requireApiTermsAccepted } from "@/server/services/auth-context";
+import { handleApiError, jsonResponse } from "./http";
 
 export async function POST(request: Request) {
   try {
+    const auth = await requireApiTermsAccepted();
     const payload = await request.json();
-    const result = coachSessionService.createSession(payload);
-    return NextResponse.json(result, { status: 201 });
+    const result = coachSessionService.createSession(payload, auth.userId);
+    return jsonResponse(result, { status: 201 });
   } catch (error) {
     return handleApiError(error);
   }

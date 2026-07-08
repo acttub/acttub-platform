@@ -1,6 +1,6 @@
-import { NextResponse } from "next/server";
 import { coachSessionService } from "@/server/services/coach-session-service";
-import { handleApiError, jsonError } from "../../../http";
+import { requireApiTermsAccepted } from "@/server/services/auth-context";
+import { handleApiError, jsonError, jsonResponse } from "../../../http";
 
 type RouteContext = {
   params: Promise<{
@@ -14,15 +14,16 @@ export async function PATCH(
   context: RouteContext,
 ) {
   try {
+    const auth = await requireApiTermsAccepted();
     const { sessionId, observationId } = await context.params;
     const payload = await request.json();
-    const result = coachSessionService.updateObservation(sessionId, observationId, payload);
+    const result = coachSessionService.updateObservation(sessionId, observationId, payload, auth.userId);
 
     if (!result) {
       return jsonError(404, "observation_not_found", "Session or observation was not found.");
     }
 
-    return NextResponse.json(result);
+    return jsonResponse(result);
   } catch (error) {
     return handleApiError(error);
   }

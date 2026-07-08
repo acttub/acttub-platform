@@ -1,4 +1,5 @@
 import { coachSessionService } from "@/server/services/coach-session-service";
+import { requireApiTermsAccepted } from "@/server/services/auth-context";
 import { handleApiError, jsonError, jsonResponse } from "../../../http";
 
 type RouteContext = {
@@ -7,6 +8,7 @@ type RouteContext = {
 
 export async function PATCH(request: Request, context: RouteContext) {
   try {
+    const auth = await requireApiTermsAccepted();
     const { sessionId } = await context.params;
     const body = (await request.json().catch(() => ({ hidden: true }))) as { hidden?: unknown };
 
@@ -14,7 +16,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       return jsonError(400, "validation_error", "Only hidden=true is supported for Slice 1 soft-hide.");
     }
 
-    const result = coachSessionService.softHideSession(sessionId);
+    const result = coachSessionService.softHideSession(sessionId, auth.userId);
 
     if (!result) {
       return jsonError(404, "session_not_found", "Session was not found.");
