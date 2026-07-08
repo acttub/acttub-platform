@@ -1,4 +1,3 @@
-import { requireApiTermsAccepted } from "@/server/services/api-auth";
 import { coachSessionService } from "@/server/services/coach-session-service";
 import { handleApiError, jsonError, jsonResponse } from "../../../http";
 
