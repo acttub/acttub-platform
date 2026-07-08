@@ -11,8 +11,7 @@ export const TERMS_COOKIE_NAME = "acttub_terms_version";
 export class ApiAuthError extends Error {
   constructor(
     readonly status: 401 | 403,
-    readonly code:
-      "unauthenticated" | "terms_required" | "terms_persistence_unavailable",
+    readonly code: "unauthenticated" | "terms_required",
     message: string,
   ) {
     super(message);
@@ -27,18 +26,6 @@ export type AuthContext = {
   termsAccepted: boolean;
   termsVersion: string;
 };
-
-
-export class ApiAuthError extends Error {
-  constructor(
-    readonly status: 401 | 403,
-    readonly code: "unauthenticated" | "terms_required",
-    message: string,
-  ) {
-    super(message);
-    this.name = "ApiAuthError";
-  }
-}
 
 export type AuthSessionDto = {
   authenticated: boolean;
@@ -61,46 +48,36 @@ async function hasAcceptedTermsCookie(): Promise<boolean> {
 
 async function hasPersistedTermsAcceptance(userId: string): Promise<boolean> {
   const config = getAppConfig();
-  const supabase = createSupabaseAdminClient();
+  const admin = createSupabaseAdminClient();
 
-  if (!supabase) {
-    return false;
-  }
+  if (!admin) return false;
 
-  const { data, error } = await supabase
+  const { data, error } = await admin
     .from("profiles")
     .select("status, consent_version, terms_accepted_at, privacy_accepted_at, internal_review_consent_at")
     .eq("id", userId)
     .maybeSingle();
 
-  if (error || !data) {
-    return false;
-  }
+  if (error || !data) return false;
 
   return (
-    data.status === "active"
-    && data.consent_version === config.termsVersion
-    && Boolean(data.terms_accepted_at)
-    && Boolean(data.privacy_accepted_at)
-    && Boolean(data.internal_review_consent_at)
+    data.status === "active" &&
+    data.consent_version === config.termsVersion &&
+    Boolean(data.terms_accepted_at) &&
+    Boolean(data.privacy_accepted_at) &&
+    Boolean(data.internal_review_consent_at)
   );
 }
 
-export async function persistTermsAcceptance(context: AuthContext): Promise<void> {
+export async function recordTermsAcceptance(context: AuthContext): Promise<void> {
+  if (context.mode !== "supabase") return;
+
   const config = getAppConfig();
-
-  if (context.mode !== "supabase") {
-    return;
-  }
-
-  const supabase = createSupabaseAdminClient();
-
-  if (!supabase) {
-    return;
-  }
+  const admin = createSupabaseAdminClient();
+  if (!admin) return;
 
   const acceptedAt = new Date().toISOString();
-  const { error } = await supabase.from("profiles").upsert(
+  const { error } = await admin.from("profiles").upsert(
     {
       id: context.userId,
       email: context.email,
@@ -114,9 +91,7 @@ export async function persistTermsAcceptance(context: AuthContext): Promise<void
     { onConflict: "id" },
   );
 
-  if (error) {
-    throw error;
-  }
+  if (error) throw error;
 }
 
 export async function getAuthContext(): Promise<AuthContext | null> {
@@ -136,62 +111,21 @@ export async function getAuthContext(): Promise<AuthContext | null> {
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase!.auth.getUser();
 
-  if (error || !data.user) {
-    return null;
-  }
-
-  const profile = await getSupabaseProfileConsent(data.user.id);
+  if (error || !data.user) return null;
 
   return {
     mode: "supabase",
     userId: data.user.id,
     email: data.user.email ?? null,
-    termsAccepted: termsCookieAccepted || await hasPersistedTermsAcceptance(data.user.id),
+    termsAccepted: termsCookieAccepted || (await hasPersistedTermsAcceptance(data.user.id)),
     termsVersion: config.termsVersion,
   };
-}
-
-export async function recordTermsAcceptance(
-  context: AuthContext,
-): Promise<void> {
-  const config = getAppConfig();
-
-  if (context.mode === "local-dev") {
-    return;
-  }
-
-  const timestamp = new Date().toISOString();
-  const profile = {
-    id: context.userId,
-    email: context.email,
-    status: "active",
-    terms_accepted_at: timestamp,
-    privacy_accepted_at: timestamp,
-    internal_review_consent_at: timestamp,
-    consent_version: config.termsVersion,
-    updated_at: timestamp,
-  };
-  const admin = createSupabaseAdminClient();
-  const client = admin ?? (await createSupabaseServerClient());
-  const { error } = await client!
-    .from("profiles")
-    .upsert(profile, { onConflict: "id" });
-
-  if (error) {
-    throw new ApiAuthError(
-      403,
-      "terms_persistence_unavailable",
-      "약관 동의 저장소를 준비하지 못했어요. 관리자에게 문의해 주세요.",
-    );
-  }
 }
 
 export async function requireAuthenticatedUser(): Promise<AuthContext> {
   const context = await getAuthContext();
 
-  if (!context) {
-    redirect("/auth/login");
-  }
+  if (!context) redirect("/auth/login");
 
   return context;
 }
@@ -199,9 +133,7 @@ export async function requireAuthenticatedUser(): Promise<AuthContext> {
 export async function requireTermsAccepted(): Promise<AuthContext> {
   const context = await requireAuthenticatedUser();
 
-  if (!context.termsAccepted) {
-    redirect("/terms");
-  }
+  if (!context.termsAccepted) redirect("/terms");
 
   return context;
 }
@@ -231,9 +163,7 @@ export function toAuthSessionDto(context: AuthContext | null): AuthSessionDto {
 
   return {
     authenticated: Boolean(context),
-    mode:
-      context?.mode ??
-      (config.supabase.isConfigured ? "supabase" : "local-dev"),
+    mode: context?.mode ?? (config.supabase.isConfigured ? "supabase" : "local-dev"),
     user: context
       ? {
           id: context.userId,

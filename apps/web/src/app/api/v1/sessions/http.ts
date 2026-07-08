@@ -3,7 +3,6 @@ import type { ApiErrorResponse } from "@/lib/api/types";
 import { privateNoStoreHeaders } from "@/server/http/cache";
 import { ApiValidationError } from "@/server/services/coach-session-service";
 import { ApiAuthError } from "@/server/services/auth-context";
-import { privateNoStoreHeaders } from "@/server/http/cache";
 
 export const jsonResponse = <T>(body: T, init: ResponseInit = {}): NextResponse<T> =>
   NextResponse.json(body, {
