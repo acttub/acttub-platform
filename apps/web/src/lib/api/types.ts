@@ -88,8 +88,7 @@ export type FileMetadataDto = {
 export type PracticeUploadIntentDto = {
   uploadIntentId: string;
   sessionId: string;
-  userId: string;
-  storageBucket: "local-dev" | "practice-videos";
+  storageBucket: "local-dev" | "coach-takes";
   storagePath: string;
   uploadUrl: string;
   status: "created" | "finalized" | "expired";

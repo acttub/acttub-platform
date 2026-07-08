@@ -313,8 +313,8 @@ values (
   'coach-takes',
   'coach-takes',
   false,
-  524288000,
-  array['video/mp4', 'video/quicktime', 'video/webm']
+  314572800,
+  array['video/mp4', 'video/quicktime']
 )
 on conflict (id) do update set
   public = excluded.public,

@@ -63,7 +63,7 @@ create table if not exists public.upload_intents (
   session_id uuid not null default gen_random_uuid(),
   status text not null default 'created'
     check (status in ('created', 'finalized', 'expired', 'cleanup_failed')),
-  expected_storage_bucket text not null default 'practice-videos',
+  expected_storage_bucket text not null default 'coach-takes',
   expected_storage_path text not null unique,
   expected_mime_type text not null check (expected_mime_type in ('video/mp4', 'video/quicktime')),
   expected_size_bytes bigint not null check (expected_size_bytes > 0 and expected_size_bytes <= 314572800),
@@ -109,7 +109,7 @@ create table if not exists public.practice_takes (
   id uuid primary key default gen_random_uuid(),
   session_id uuid not null,
   user_id uuid not null,
-  storage_bucket text not null default 'practice-videos',
+  storage_bucket text not null default 'coach-takes',
   storage_path text not null unique,
   mime_type text not null check (mime_type in ('video/mp4', 'video/quicktime')),
   size_bytes bigint not null check (size_bytes > 0 and size_bytes <= 314572800),
@@ -253,7 +253,7 @@ create policy "validation events owner insert select"
 
 -- Private bucket setup. Supabase Storage buckets are private by default, but the flag is explicit here.
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
-values ('practice-videos', 'practice-videos', false, 314572800, array['video/mp4', 'video/quicktime'])
+values ('coach-takes', 'coach-takes', false, 314572800, array['video/mp4', 'video/quicktime'])
 on conflict (id) do update
 set public = false,
     file_size_limit = excluded.file_size_limit,
@@ -264,7 +264,7 @@ create policy "practice videos insert via active upload intent"
   on storage.objects for insert
   to authenticated
   with check (
-    bucket_id = 'practice-videos'
+    bucket_id = 'coach-takes'
     and (storage.foldername(name))[1] = 'users'
     and (storage.foldername(name))[2] = auth.uid()::text
     and (storage.foldername(name))[3] = 'practice-sessions'
@@ -283,6 +283,6 @@ create policy "practice videos insert via active upload intent"
   );
 
 -- Intentionally absent in Slice 1:
--- - no storage.objects SELECT policy for practice-videos (no browser download/list/signing path)
+-- - no storage.objects SELECT policy for coach-takes (no browser download/list/signing path)
 -- - no storage.objects UPDATE policy (no browser upsert/move)
 -- - no storage.objects DELETE policy (cleanup is server-only via service role Storage API)

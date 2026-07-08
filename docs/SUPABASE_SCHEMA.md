@@ -76,8 +76,8 @@ The migration creates a private bucket:
 
 - bucket id/name: `coach-takes`
 - public: `false`
-- max size: `524288000` bytes
-- allowed MIME types: `video/mp4`, `video/quicktime`, `video/webm`
+- max size: `314572800` bytes
+- allowed MIME types: `video/mp4`, `video/quicktime`
 
 Authenticated actor upload paths must begin with the user id:
 
