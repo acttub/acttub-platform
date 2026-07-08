@@ -28,25 +28,27 @@ globalForRepository.__acttubMockCoachSessionRepository = repositoryState;
 const cloneSession = (session: MockCoachSessionRecord): MockCoachSessionRecord =>
   structuredClone(session);
 
+const belongsToUser = (record: { userId: string }, userId: string): boolean => record.userId === userId;
+
 export const mockCoachSessionRepository = {
   create(session: MockCoachSessionRecord): MockCoachSessionRecord {
     repositoryState.sessions.set(session.id, cloneSession(session));
     return cloneSession(session);
   },
 
-  findById(sessionId: string): MockCoachSessionRecord | null {
+  findById(sessionId: string, userId: string): MockCoachSessionRecord | null {
     const session = repositoryState.sessions.get(sessionId);
-    return session && !session.hiddenAt ? cloneSession(session) : null;
+    return session && !session.hiddenAt && belongsToUser(session, userId) ? cloneSession(session) : null;
   },
 
-  findByIdIncludingHidden(sessionId: string): MockCoachSessionRecord | null {
+  findByIdIncludingHidden(sessionId: string, userId: string): MockCoachSessionRecord | null {
     const session = repositoryState.sessions.get(sessionId);
-    return session ? cloneSession(session) : null;
+    return session && belongsToUser(session, userId) ? cloneSession(session) : null;
   },
 
-  listVisible(): MockCoachSessionRecord[] {
+  listVisible(userId: string): MockCoachSessionRecord[] {
     return Array.from(repositoryState.sessions.values())
-      .filter((session) => !session.hiddenAt)
+      .filter((session) => !session.hiddenAt && belongsToUser(session, userId))
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
       .map(cloneSession);
   },
@@ -56,9 +58,14 @@ export const mockCoachSessionRepository = {
     return structuredClone(uploadIntent);
   },
 
-  findUploadIntent(uploadIntentId: string): PracticeUploadIntentDto | null {
+  findUploadIntent(uploadIntentId: string, userId: string): PracticeUploadIntentDto | null {
     const uploadIntent = repositoryState.uploadIntents.get(uploadIntentId);
-    return uploadIntent ? structuredClone(uploadIntent) : null;
+    return uploadIntent && belongsToUser(uploadIntent, userId) ? structuredClone(uploadIntent) : null;
+  },
+
+  updateUploadIntent(uploadIntent: PracticeUploadIntentDto): PracticeUploadIntentDto {
+    repositoryState.uploadIntents.set(uploadIntent.uploadIntentId, structuredClone(uploadIntent));
+    return structuredClone(uploadIntent);
   },
 
   update(session: MockCoachSessionRecord): MockCoachSessionRecord {
@@ -71,9 +78,9 @@ export const mockCoachSessionRepository = {
     return cloneSession(updatedSession);
   },
 
-  softHide(sessionId: string): MockCoachSessionRecord | null {
+  softHide(sessionId: string, userId: string): MockCoachSessionRecord | null {
     const session = repositoryState.sessions.get(sessionId);
-    if (!session) {
+    if (!session || !belongsToUser(session, userId)) {
       return null;
     }
 
@@ -83,9 +90,9 @@ export const mockCoachSessionRepository = {
     });
   },
 
-  addTurn(sessionId: string, turn: TurnDto): MockCoachSessionRecord | null {
+  addTurn(sessionId: string, userId: string, turn: TurnDto): MockCoachSessionRecord | null {
     const session = repositoryState.sessions.get(sessionId);
-    if (!session) {
+    if (!session || !belongsToUser(session, userId)) {
       return null;
     }
 
@@ -97,11 +104,12 @@ export const mockCoachSessionRepository = {
 
   updateObservationState(
     sessionId: string,
+    userId: string,
     observationId: string,
     confirmationState: ConfirmationState,
   ): MockCoachSessionRecord | null {
     const session = repositoryState.sessions.get(sessionId);
-    if (!session) {
+    if (!session || !belongsToUser(session, userId)) {
       return null;
     }
 
