@@ -38,14 +38,11 @@ const cloneSession = (session: MockCoachSessionRecord): MockCoachSessionRecord =
 const cloneUploadIntent = (uploadIntent: StoredUploadIntentRecord): StoredUploadIntentRecord =>
   structuredClone(uploadIntent);
 
-const cloneUploadIntentRecord = (record: UploadIntentRecord): UploadIntentRecord =>
-  structuredClone(record);
-
 const ownsSession = (sessionId: string, ownerId: string): boolean =>
   repositoryState.sessionOwners.get(sessionId) === ownerId;
 
 const ownsUploadIntent = (uploadIntentId: string, ownerId: string): boolean =>
-  repositoryState.uploadIntents.get(uploadIntentId)?.ownerId === ownerId;
+  repositoryState.uploadIntents.get(uploadIntentId)?.userId === ownerId;
 
 export const mockCoachSessionRepository = {
   create(session: MockCoachSessionRecord, ownerUserId: string): MockCoachSessionRecord {
@@ -59,7 +56,7 @@ export const mockCoachSessionRepository = {
     if (!session || session.hiddenAt) {
       return null;
     }
-    if (ownerUserId && repositoryState.sessionOwners.get(sessionId) !== ownerUserId) {
+    if (!ownsSession(sessionId, userId)) {
       return null;
     }
     return cloneSession(session);
@@ -174,7 +171,7 @@ export const mockCoachSessionRepository = {
   },
 
   softHide(sessionId: string, ownerUserId: string): MockCoachSessionRecord | null {
-    const session = this.findById(sessionId, ownerUserId);
+    const session = this.findById(sessionId, userId);
     if (!session) {
       return null;
     }
@@ -214,7 +211,7 @@ export const mockCoachSessionRepository = {
     confirmationState: ConfirmationState,
     _legacyOwnerUserId?: string,
   ): MockCoachSessionRecord | null {
-    const session = this.findById(sessionId, ownerUserId);
+    const session = this.findById(sessionId, userId);
     if (!session) {
       return null;
     }
