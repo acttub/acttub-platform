@@ -13,12 +13,12 @@ const forbiddenProductLanguage = [
   /\bscore(?:s|d|ing)?\b/i,
   /\bverdicts?\b/i,
   /\bgrade(?:s|d|ing)?\b/i,
-  /\bjudg(?:e|es|ed|ing|ment)\b/i,
+  /\bjudg(?:e|es|ed|ing|ment|ement)\b/i,
   /\brate(?:s|d|ing)?\b/i,
-  /점수/g,
-  /판정/g,
-  /채점/g,
-  /등급/g,
+  /점수/,
+  /판정/,
+  /채점/,
+  /등급/,
 ];
 
 function collectFiles(directory) {
