@@ -23,9 +23,10 @@ function collectRouteFiles(directory) {
   });
 }
 
-test("practice APIs are explicitly auth, terms, and owner gated", () => {
+function protectedRouteFiles() {
   const apiRoot = path.join(appRoot, "src/app/api/v1");
-  const protectedRoutes = collectRouteFiles(apiRoot)
+
+  return collectRouteFiles(apiRoot)
     .map((file) => path.relative(appRoot, file))
     .filter(
       (file) =>
@@ -33,18 +34,33 @@ test("practice APIs are explicitly auth, terms, and owner gated", () => {
         file.startsWith("src/app/api/v1/sessions") ||
         file.startsWith("src/app/api/v1/practice-upload-intents"),
     );
+}
 
-  assert.ok(protectedRoutes.length > 0, "expected protected API routes");
+test("practice APIs are explicitly auth, terms, and owner gated", () => {
+  const routes = protectedRouteFiles();
+  assert.ok(routes.length > 0, "expected protected API routes");
 
-  const missingGate = protectedRoutes.filter((file) => {
+  const missingGate = [];
+  const missingOwner = [];
+  const serviceCallPattern =
+    /coachSessionService\.(?:listSessions|createSession|getSession|softHideSession|createSignedVideoUrl|getSignedVideoUrl|updateObservation|createTurn|saveValidationMetrics|createSummary|finalizeUploadIntent)\([^;\n]*\)/g;
+
+  for (const file of routes) {
     const source = read(path.join("apps/web", file));
-    return (
-      !source.includes("requireApiTermsAccepted") &&
-      !source.trim().startsWith("export { POST }")
-    );
-  });
+
+    if (!source.includes("requireApiTermsAccepted") && !source.trim().startsWith("export { POST }")) {
+      missingGate.push(file);
+    }
+
+    for (const call of source.match(serviceCallPattern) ?? []) {
+      if (!call.includes("auth.userId")) {
+        missingOwner.push(`${file}: ${call}`);
+      }
+    }
+  }
 
   assert.deepEqual(missingGate, []);
+  assert.deepEqual(missingOwner, []);
 });
 
 test("upload sessions must flow through a finalized owner-bound upload intent", () => {
@@ -54,15 +70,10 @@ test("upload sessions must flow through a finalized owner-bound upload intent", 
   );
   const practiceFlow = read("apps/web/src/features/practice/practice-flow.tsx");
 
-  assert.match(
-    service,
-    /Upload sessions must be created from a finalized upload intent/,
-  );
-  assert.match(
-    service,
-    /Upload intent must be finalized before session creation/,
-  );
+  assert.match(service, /Upload sessions must be created from a finalized upload intent/);
+  assert.match(service, /Upload intent must be finalized before session creation/);
   assert.match(service, /Must match the active upload intent storage path/);
+  assert.match(service, /findUploadIntent\(input\.uploadIntentId, ownerId\)/);
   assert.match(
     finalizeRoute,
     /finalizeUploadIntent\(\s*uploadIntentId,\s*payload,\s*auth\.userId/s,
@@ -71,44 +82,44 @@ test("upload sessions must flow through a finalized owner-bound upload intent", 
   assert.match(practiceFlow, /finalizePracticeUploadIntent/);
 });
 
-test("mock persistence keeps owner scope out of public DTOs", () => {
-  const repository = read(
-    "apps/web/src/server/repositories/mock-coach-session-repository.ts",
-  );
+test("mock persistence keeps owner scope on sessions and upload intents", () => {
+  const repository = read("apps/web/src/server/repositories/mock-coach-session-repository.ts");
 
-  assert.match(repository, /ownerId: string/);
-  assert.match(repository, /session\.ownerId === ownerId/);
-  assert.match(
-    repository,
-    /delete \(dto as Partial<MockCoachSessionRecord>\)\.ownerId/,
-  );
+  assert.match(repository, /sessionOwners: Map<string, string>/);
+  assert.match(repository, /uploadIntents: Map<string, UploadIntentRecord>/);
+  assert.match(repository, /ownsSession\(sessionId, ownerId\)/);
+  assert.match(repository, /ownsUploadIntent\(uploadIntentId, ownerId\)/);
+  assert.match(repository, /saveUploadIntent\(uploadIntent: PracticeUploadIntentDto, ownerId: string\)/);
+  assert.match(repository, /finalizeUploadIntent\([\s\S]*ownerId: string/);
 });
 
-test("executable migration matches private practice-videos upload-intent contract", () => {
+test("executable migration and web upload contract use one private insert-only policy", () => {
   const migration = read("supabase/migrations/001_acttub_slice1_schema.sql");
+  const types = read("apps/web/src/lib/api/types.ts");
+  const config = read("apps/web/src/lib/config/env.ts");
+  const service = read("apps/web/src/server/services/coach-session-service.ts");
 
-test("executable migration and web upload contract use one private bucket policy", () => {
-  const migration = readRepo("supabase/migrations/001_acttub_slice1_schema.sql");
-  const types = readWeb("src/lib/api/types.ts");
-  const config = readWeb("src/lib/config/env.ts");
-  const service = readWeb("src/server/services/coach-session-service.ts");
-
-  assert.match(migration, /insert into storage\.buckets[\s\S]*'practice-videos'[\s\S]*false[\s\S]*314572800[\s\S]*array\['video\/mp4', 'video\/quicktime'\]/);
-  assert.match(migration, /bucket_id = 'practice-videos'[\s\S]*owner = auth\.uid\(\)[\s\S]*storage\.foldername\(name\)\)\[1\] = auth\.uid\(\)::text/);
-  assert.match(types, /storageBucket: "local-dev" \| "practice-videos"/);
-  assert.match(config, /NEXT_PUBLIC_SUPABASE_VIDEO_BUCKET \?\? "practice-videos"/);
-  assert.match(service, /storageBucket: "practice-videos"/);
+  assert.match(
+    migration,
+    /insert into storage\.buckets[\s\S]*'practice-videos'[\s\S]*false[\s\S]*314572800[\s\S]*array\['video\/mp4', 'video\/quicktime'\]/,
+  );
+  assert.match(
+    migration,
+    /for insert with check \([\s\S]*bucket_id = 'practice-videos'[\s\S]*owner = auth\.uid\(\)[\s\S]*storage\.foldername\(name\)\)\[1\] = auth\.uid\(\)::text/,
+  );
   assert.doesNotMatch(migration, /storage_actor_(?:read|update|delete)/);
   assert.doesNotMatch(migration, /for select using \(\s*bucket_id = 'practice-videos'/);
   assert.doesNotMatch(migration, /for update using \(\s*bucket_id = 'practice-videos'/);
   assert.doesNotMatch(migration, /for delete using \(\s*bucket_id = 'practice-videos'/);
+  assert.match(types, /storageBucket: "local-dev" \| "practice-videos"/);
+  assert.match(config, /NEXT_PUBLIC_SUPABASE_VIDEO_BUCKET \?\? "practice-videos"/);
+  assert.match(service, /storageBucket: config\.video\.bucket as PracticeUploadIntentDto\["storageBucket"\]/);
 });
 
-
 test("upload intent API response and client paths stay on the intent/finalize contract", () => {
-  const createRoute = readWeb("src/app/api/v1/practice-upload-intents/route.ts");
-  const sessionClient = readWeb("src/lib/api/sessions.ts");
-  const practiceClient = readWeb("src/lib/api/practice.ts");
+  const createRoute = read("apps/web/src/app/api/v1/practice-upload-intents/route.ts");
+  const sessionClient = read("apps/web/src/lib/api/sessions.ts");
+  const practiceClient = read("apps/web/src/lib/api/practice.ts");
 
   assert.match(createRoute, /jsonResponse\(\{ uploadIntent: result \}, \{ status: 201 \}\)/);
   assert.match(sessionClient, /fetch\("\/api\/v1\/practice-upload-intents"/);
