@@ -2,6 +2,7 @@ import type {
   CoachSessionDto,
   ConfirmationState,
   ObservationDto,
+  PracticeUploadIntentDto,
   TurnDto,
 } from "@/lib/api/types";
 
@@ -9,6 +10,7 @@ export type MockCoachSessionRecord = CoachSessionDto;
 
 type RepositoryState = {
   sessions: Map<string, MockCoachSessionRecord>;
+  uploadIntents: Map<string, PracticeUploadIntentDto>;
 };
 
 const globalForRepository = globalThis as typeof globalThis & {
@@ -18,6 +20,7 @@ const globalForRepository = globalThis as typeof globalThis & {
 const repositoryState =
   globalForRepository.__acttubMockCoachSessionRepository ?? {
     sessions: new Map<string, MockCoachSessionRecord>(),
+    uploadIntents: new Map<string, PracticeUploadIntentDto>(),
   };
 
 globalForRepository.__acttubMockCoachSessionRepository = repositoryState;
@@ -33,7 +36,29 @@ export const mockCoachSessionRepository = {
 
   findById(sessionId: string): MockCoachSessionRecord | null {
     const session = repositoryState.sessions.get(sessionId);
+    return session && !session.hiddenAt ? cloneSession(session) : null;
+  },
+
+  findByIdIncludingHidden(sessionId: string): MockCoachSessionRecord | null {
+    const session = repositoryState.sessions.get(sessionId);
     return session ? cloneSession(session) : null;
+  },
+
+  listVisible(): MockCoachSessionRecord[] {
+    return Array.from(repositoryState.sessions.values())
+      .filter((session) => !session.hiddenAt)
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+      .map(cloneSession);
+  },
+
+  saveUploadIntent(uploadIntent: PracticeUploadIntentDto): PracticeUploadIntentDto {
+    repositoryState.uploadIntents.set(uploadIntent.uploadIntentId, structuredClone(uploadIntent));
+    return structuredClone(uploadIntent);
+  },
+
+  findUploadIntent(uploadIntentId: string): PracticeUploadIntentDto | null {
+    const uploadIntent = repositoryState.uploadIntents.get(uploadIntentId);
+    return uploadIntent ? structuredClone(uploadIntent) : null;
   },
 
   update(session: MockCoachSessionRecord): MockCoachSessionRecord {
@@ -44,6 +69,18 @@ export const mockCoachSessionRepository = {
 
     repositoryState.sessions.set(updatedSession.id, cloneSession(updatedSession));
     return cloneSession(updatedSession);
+  },
+
+  softHide(sessionId: string): MockCoachSessionRecord | null {
+    const session = repositoryState.sessions.get(sessionId);
+    if (!session) {
+      return null;
+    }
+
+    return this.update({
+      ...session,
+      hiddenAt: new Date().toISOString(),
+    });
   },
 
   addTurn(sessionId: string, turn: TurnDto): MockCoachSessionRecord | null {

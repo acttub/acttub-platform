@@ -2,10 +2,14 @@ import type {
   CoachSessionDto,
   ConfirmationState,
   CreateSessionRequest,
+  CreateUploadIntentRequest,
   Medium,
   ObservationDto,
+  PracticeUploadIntentDto,
   SessionStatus,
+  SignedVideoUrlResponse,
   TakeDto,
+  ValidationMetricsDto,
   TurnDto,
 } from "@/lib/api/types";
 import { mockCoachSessionRepository } from "@/server/repositories/mock-coach-session-repository";
@@ -21,6 +25,10 @@ export class ApiValidationError extends Error {
 }
 
 const mediumValues = new Set<Medium>(["youtube_url", "upload_url", "text_only"]);
+const allowedUploadMimeTypes = new Set(["video/mp4", "video/quicktime"]);
+const maxUploadBytes = 300 * 1024 * 1024;
+const uploadIntentTtlMs = 2 * 60 * 60 * 1000;
+const signedUrlExpiresInSeconds = 10 * 60;
 const confirmationStateValues = new Set<ConfirmationState>([
   "unasked",
   "accepted",
@@ -47,6 +55,7 @@ const optionalText = (value: unknown): string => {
 };
 
 const createId = (prefix: string): string => `${prefix}_${crypto.randomUUID()}`;
+const createUuid = (): string => crypto.randomUUID();
 
 const nowIso = (): string => new Date().toISOString();
 
@@ -85,7 +94,105 @@ const makeCoachTurn = (
   createdAt: nowIso(),
 });
 
+const validateMetrics = (value: unknown): ValidationMetricsDto | null => {
+  if (value === undefined || value === null) {
+    return null;
+  }
+
+  if (typeof value !== "object") {
+    throw new ApiValidationError("Request validation failed", {
+      validationMetrics: "Must be an object when provided.",
+    });
+  }
+
+  const input = value as Record<string, unknown>;
+  const metrics: ValidationMetricsDto = {};
+  const numberFields = [
+    "feltHelpedFindGap1To7",
+    "feltScored1To7",
+    "rejectionSafety1To7",
+    "answerability1To7",
+    "reuseIntent1To7",
+    "rejectedObservationReuseCount",
+    "forbiddenLanguageCount",
+  ] as const;
+
+  for (const field of numberFields) {
+    const metricValue = input[field];
+    if (metricValue === undefined) continue;
+    if (typeof metricValue !== "number" || !Number.isFinite(metricValue)) {
+      throw new ApiValidationError("Request validation failed", {
+        [`validationMetrics.${field}`]: "Must be a finite number.",
+      });
+    }
+    metrics[field] = metricValue;
+  }
+
+  if (input.finalSentenceResult !== undefined) {
+    if (input.finalSentenceResult !== "saved" && input.finalSentenceResult !== "skipped") {
+      throw new ApiValidationError("Request validation failed", {
+        "validationMetrics.finalSentenceResult": "Must be saved or skipped.",
+      });
+    }
+    metrics.finalSentenceResult = input.finalSentenceResult;
+  }
+
+  return metrics;
+};
+
+const fileExtensionForMime = (mimeType: string): "mp4" | "mov" =>
+  mimeType === "video/quicktime" ? "mov" : "mp4";
+
 export const coachSessionService = {
+  createUploadIntent(payload: unknown, userId = "local-dev-actor"): { uploadIntent: PracticeUploadIntentDto } {
+    const input = payload as Partial<CreateUploadIntentRequest>;
+    const metadata = input.fileMetadata;
+
+    if (!metadata || typeof metadata !== "object") {
+      throw new ApiValidationError("Request validation failed", {
+        fileMetadata: "Must be provided.",
+      });
+    }
+
+    const fileName = requiredText(metadata.fileName, "fileMetadata.fileName");
+    const mimeType = metadata.mimeType;
+    const sizeBytes = metadata.sizeBytes;
+
+    if (!allowedUploadMimeTypes.has(mimeType)) {
+      throw new ApiValidationError("Request validation failed", {
+        "fileMetadata.mimeType": "Must be video/mp4 or video/quicktime.",
+      });
+    }
+
+    if (typeof sizeBytes !== "number" || !Number.isFinite(sizeBytes) || sizeBytes <= 0 || sizeBytes > maxUploadBytes) {
+      throw new ApiValidationError("Request validation failed", {
+        "fileMetadata.sizeBytes": "Must be greater than 0 and at most 300MB.",
+      });
+    }
+
+    const sessionId = createUuid();
+    const uploadIntentId = createUuid();
+    const extension = fileExtensionForMime(mimeType);
+    const uploadIntent: PracticeUploadIntentDto = {
+      uploadIntentId,
+      sessionId,
+      storageBucket: "practice-videos",
+      storagePath: `users/${userId}/practice-sessions/${sessionId}/take.${extension}`,
+      constraints: {
+        maxUploadBytes,
+        allowedMimeTypes: Array.from(allowedUploadMimeTypes),
+      },
+      expiresAt: new Date(Date.now() + uploadIntentTtlMs).toISOString(),
+    };
+
+    void fileName;
+    return { uploadIntent: mockCoachSessionRepository.saveUploadIntent(uploadIntent) };
+  },
+
+  listSessions(): { sessions: CoachSessionDto[] } {
+    return { sessions: mockCoachSessionRepository.listVisible() };
+  },
+
   createSession(payload: unknown): { session: CoachSessionDto; firstQuestion: TurnDto } {
     const input = payload as Partial<CreateSessionRequest>;
     const medium = input.medium;
@@ -101,8 +208,33 @@ export const coachSessionService = {
     const situation = requiredText(input.situation, "situation");
     const characterContext = requiredText(input.characterContext, "characterContext");
     const subtext = optionalText(input.subtext);
-    const videoUrl = typeof input.videoUrl === "string" && input.videoUrl.trim() ? input.videoUrl.trim() : null;
-    const durationMs = typeof input.durationMs === "number" && Number.isFinite(input.durationMs) ? input.durationMs : null;
+    const storagePath = typeof input.storagePath === "string" && input.storagePath.trim() ? input.storagePath.trim() : null;
+    const videoUrl = typeof input.videoUrl === "string" && input.videoUrl.trim() ? input.videoUrl.trim() : storagePath;
+    const metadataDuration = input.fileMetadata?.durationMs;
+    const durationMs = typeof input.durationMs === "number" && Number.isFinite(input.durationMs)
+      ? input.durationMs
+      : typeof metadataDuration === "number" && Number.isFinite(metadataDuration)
+        ? metadataDuration
+        : null;
+
+    if (input.uploadIntentId) {
+      const uploadIntent = mockCoachSessionRepository.findUploadIntent(input.uploadIntentId);
+      if (!uploadIntent) {
+        throw new ApiValidationError("Request validation failed", {
+          uploadIntentId: "Upload intent was not found.",
+        });
+      }
+      if (input.sessionId && input.sessionId !== uploadIntent.sessionId) {
+        throw new ApiValidationError("Request validation failed", {
+          sessionId: "Must match the upload intent sessionId.",
+        });
+      }
+      if (storagePath && storagePath !== uploadIntent.storagePath) {
+        throw new ApiValidationError("Request validation failed", {
+          storagePath: "Must match the upload intent storage path.",
+        });
+      }
+    }
 
     if (validatedMedium !== "text_only" && !videoUrl) {
       throw new ApiValidationError("Request validation failed", {
@@ -111,7 +243,7 @@ export const coachSessionService = {
     }
 
     const timestamp = nowIso();
-    const sessionId = createId("session");
+    const sessionId = typeof input.sessionId === "string" && input.sessionId.trim() ? input.sessionId.trim() : createId("session");
     const takeId = createId("take");
     const observationId = createId("observation");
 
@@ -154,6 +286,8 @@ export const coachSessionService = {
       characterContext,
       subtext,
       finalActorSentence: null,
+      hiddenAt: null,
+      validationMetrics: null,
       createdAt: timestamp,
       updatedAt: timestamp,
       take,
@@ -177,6 +311,25 @@ export const coachSessionService = {
 
   getSession(sessionId: string): CoachSessionDto | null {
     return mockCoachSessionRepository.findById(sessionId);
+  },
+
+  softHideSession(sessionId: string): { session: CoachSessionDto } | null {
+    const session = mockCoachSessionRepository.softHide(sessionId);
+    return session ? { session } : null;
+  },
+
+  createSignedVideoUrl(sessionId: string): SignedVideoUrlResponse | null {
+    const session = mockCoachSessionRepository.findById(sessionId);
+
+    if (!session || !session.take.videoUrl) {
+      return null;
+    }
+
+    return {
+      signedUrl: `/api/v1/practice-sessions/${sessionId}/video-url/mock-playback?token=${encodeURIComponent(crypto.randomUUID())}`,
+      expiresAt: new Date(Date.now() + signedUrlExpiresInSeconds * 1000).toISOString(),
+      expiresInSeconds: signedUrlExpiresInSeconds,
+    };
   },
 
   updateObservation(
@@ -259,10 +412,12 @@ export const coachSessionService = {
       return null;
     }
 
+    const validationMetrics = validateMetrics((payload as { validationMetrics?: unknown }).validationMetrics);
     const updatedSession = mockCoachSessionRepository.update({
       ...session,
       status: "END",
       finalActorSentence,
+      validationMetrics,
     });
 
     return {
