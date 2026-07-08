@@ -1,17 +1,15 @@
-import { NextResponse } from "next/server";
 import { coachSessionService } from "@/server/services/coach-session-service";
-import { handleApiError } from "../sessions/http";
+import { handleApiError, jsonResponse } from "../http";
 
 export async function GET() {
-  const sessions = coachSessionService.listSessions();
-  return NextResponse.json({ sessions });
+  return jsonResponse(coachSessionService.listSessions());
 }
 
 export async function POST(request: Request) {
   try {
     const payload = await request.json();
     const result = coachSessionService.createSession(payload);
-    return NextResponse.json(result, { status: 201 });
+    return jsonResponse(result, { status: 201 });
   } catch (error) {
     return handleApiError(error);
   }

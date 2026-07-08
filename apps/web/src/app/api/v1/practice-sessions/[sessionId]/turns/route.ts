@@ -5,22 +5,17 @@ type RouteContext = {
   params: Promise<{ sessionId: string }>;
 };
 
-export async function PATCH(request: Request, context: RouteContext) {
+export async function POST(request: Request, context: RouteContext) {
   try {
     const { sessionId } = await context.params;
-    const body = (await request.json().catch(() => ({ hidden: true }))) as { hidden?: unknown };
-
-    if (body.hidden !== true) {
-      return jsonError(400, "validation_error", "Only hidden=true is supported for Slice 1 soft-hide.");
-    }
-
-    const result = coachSessionService.softHideSession(sessionId);
+    const payload = await request.json();
+    const result = coachSessionService.createTurn(sessionId, payload);
 
     if (!result) {
       return jsonError(404, "session_not_found", "Session was not found.");
     }
 
-    return jsonResponse(result);
+    return jsonResponse(result, { status: 201 });
   } catch (error) {
     return handleApiError(error);
   }
