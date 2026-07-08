@@ -6,8 +6,12 @@ import { test } from "node:test";
 const repoRoot = path.resolve(import.meta.dirname, "../../..");
 const appRoot = path.join(repoRoot, "apps/web");
 
-function read(relativePath) {
+function readRepo(relativePath) {
   return readFileSync(path.join(repoRoot, relativePath), "utf8");
+}
+
+function readWeb(relativePath) {
+  return readRepo(path.join("apps/web", relativePath));
 }
 
 function collectRouteFiles(directory) {
@@ -15,10 +19,7 @@ function collectRouteFiles(directory) {
     const absolutePath = path.join(directory, entry);
     const stats = statSync(absolutePath);
 
-    if (stats.isDirectory()) {
-      return collectRouteFiles(absolutePath);
-    }
-
+    if (stats.isDirectory()) return collectRouteFiles(absolutePath);
     return entry === "route.ts" ? [absolutePath] : [];
   });
 }
@@ -63,12 +64,10 @@ test("practice APIs are explicitly auth, terms, and owner gated", () => {
   assert.deepEqual(missingOwner, []);
 });
 
-test("upload sessions must flow through a finalized owner-bound upload intent", () => {
-  const service = read("apps/web/src/server/services/coach-session-service.ts");
-  const finalizeRoute = read(
-    "apps/web/src/app/api/v1/practice-upload-intents/[uploadIntentId]/finalize/route.ts",
-  );
-  const practiceFlow = read("apps/web/src/features/practice/practice-flow.tsx");
+test("upload sessions flow through a finalized owner-bound upload intent", () => {
+  const service = readWeb("src/server/services/coach-session-service.ts");
+  const finalizeRoute = readWeb("src/app/api/v1/practice-upload-intents/[uploadIntentId]/finalize/route.ts");
+  const practiceFlow = readWeb("src/features/practice/practice-flow.tsx");
 
   assert.match(service, /Upload sessions must be created from a finalized upload intent/);
   assert.match(service, /Upload intent must be finalized before session creation/);
@@ -80,6 +79,7 @@ test("upload sessions must flow through a finalized owner-bound upload intent", 
   );
   assert.match(practiceFlow, /createPracticeUploadIntent/);
   assert.match(practiceFlow, /finalizePracticeUploadIntent/);
+  assert.match(practiceFlow, /getSupabaseBrowserClient/);
 });
 
 test("mock persistence keeps owner scope on sessions and upload intents", () => {

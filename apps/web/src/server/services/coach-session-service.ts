@@ -315,7 +315,7 @@ export const coachSessionService = {
     const storagePath = typeof input.storagePath === "string" && input.storagePath.trim() ? input.storagePath.trim() : null;
     let videoUrl = typeof input.videoUrl === "string" && input.videoUrl.trim() ? input.videoUrl.trim() : storagePath;
     const metadataDuration = input.fileMetadata?.durationMs;
-    let durationMs = typeof input.durationMs === "number" && Number.isFinite(input.durationMs) && input.durationMs > 0
+    const durationMs = typeof input.durationMs === "number" && Number.isFinite(input.durationMs) && input.durationMs > 0
       ? input.durationMs
       : typeof metadataDuration === "number" && Number.isFinite(metadataDuration) && metadataDuration > 0
         ? metadataDuration
