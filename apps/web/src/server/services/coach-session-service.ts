@@ -275,20 +275,13 @@ export const coachSessionService = {
       });
     }
 
-    mockCoachSessionRepository.updateUploadIntent({
-      ...uploadIntent,
-      status: "finalized",
-      finalizedAt: nowIso(),
-    });
+    const finalizedIntent = mockCoachSessionRepository.markUploadIntentFinalized(uploadIntentId, userId);
 
-    if (storagePath !== uploadIntent.intent.storagePath) {
+    if (!finalizedIntent) {
       throw new ApiValidationError("Request validation failed", {
-        storagePath: "Must match the upload intent storage path.",
+        uploadIntentId: "Upload intent was not found for the authenticated user.",
       });
     }
-
-    const videoUrl = `local-dev://${storagePath}`;
-    mockCoachSessionRepository.finalizeUploadIntent(uploadIntentId, ownerId, { videoUrl, durationMs });
 
     return {
       videoUrl: `local-dev://${storagePath}`,
@@ -324,21 +317,7 @@ export const coachSessionService = {
 
     if (validatedMedium === "upload_url" && !input.uploadIntentId) {
       throw new ApiValidationError("Request validation failed", {
-        uploadIntentId: "Must be provided when medium is upload_url.",
-      });
-    }
-
-    if (validatedMedium === "upload_url" && !input.uploadIntentId) {
-      throw new ApiValidationError("Request validation failed", {
-        uploadIntentId:
-          "Upload sessions must be created from a finalized upload intent.",
-      });
-    }
-
-    if (validatedMedium === "upload_url" && !input.uploadIntentId) {
-      throw new ApiValidationError("Request validation failed", {
-        uploadIntentId:
-          "Upload sessions must be created from a finalized upload intent.",
+        uploadIntentId: "Upload sessions must be created from a finalized upload intent.",
       });
     }
 
