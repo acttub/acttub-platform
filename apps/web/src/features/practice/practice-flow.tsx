@@ -174,7 +174,12 @@ export function PracticeFlow() {
         };
       }
 
-      const result = await createPracticeSession(sessionDraft);
+      const result = await createPracticeSession({
+        ...scene,
+        ...uploadSessionFields,
+        videoUrl: uploadSessionFields.videoUrl ?? (scene.videoUrl?.trim() || undefined),
+        subtext: scene.subtext?.trim() || undefined,
+      });
       setPracticeSession(result.session);
       setObservation(result.session.observations[0] ?? seedObservation);
       setDialogue([
