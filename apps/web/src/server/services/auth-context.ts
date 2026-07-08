@@ -11,7 +11,8 @@ export const TERMS_COOKIE_NAME = "acttub_terms_version";
 export class ApiAuthError extends Error {
   constructor(
     readonly status: 401 | 403,
-    readonly code: "unauthenticated" | "terms_required" | "terms_persistence_unavailable",
+    readonly code:
+      "unauthenticated" | "terms_required" | "terms_persistence_unavailable",
     message: string,
   ) {
     super(message);
@@ -65,22 +66,29 @@ async function hasLocalTermsCookie(): Promise<boolean> {
   return cookieStore.get(TERMS_COOKIE_NAME)?.value === config.termsVersion;
 }
 
-function isCurrentAcceptedProfile(profile: ProfileConsentRow | null, termsVersion: string): boolean {
+function isCurrentAcceptedProfile(
+  profile: ProfileConsentRow | null,
+  termsVersion: string,
+): boolean {
   return Boolean(
     profile &&
-      profile.status === "active" &&
-      profile.terms_accepted_at &&
-      profile.privacy_accepted_at &&
-      profile.internal_review_consent_at &&
-      profile.consent_version === termsVersion,
+    profile.status === "active" &&
+    profile.terms_accepted_at &&
+    profile.privacy_accepted_at &&
+    profile.internal_review_consent_at &&
+    profile.consent_version === termsVersion,
   );
 }
 
-async function getSupabaseProfileConsent(userId: string): Promise<ProfileConsentRow | null> {
+async function getSupabaseProfileConsent(
+  userId: string,
+): Promise<ProfileConsentRow | null> {
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase!
     .from("profiles")
-    .select("status, terms_accepted_at, privacy_accepted_at, internal_review_consent_at, consent_version")
+    .select(
+      "status, terms_accepted_at, privacy_accepted_at, internal_review_consent_at, consent_version",
+    )
     .eq("id", userId)
     .maybeSingle();
 
@@ -122,7 +130,9 @@ export async function getAuthContext(): Promise<AuthContext | null> {
   };
 }
 
-export async function recordTermsAcceptance(context: AuthContext): Promise<void> {
+export async function recordTermsAcceptance(
+  context: AuthContext,
+): Promise<void> {
   const config = getAppConfig();
 
   if (context.mode === "local-dev") {
@@ -194,7 +204,9 @@ export function toAuthSessionDto(context: AuthContext | null): AuthSessionDto {
 
   return {
     authenticated: Boolean(context),
-    mode: context?.mode ?? (config.supabase.isConfigured ? "supabase" : "local-dev"),
+    mode:
+      context?.mode ??
+      (config.supabase.isConfigured ? "supabase" : "local-dev"),
     user: context
       ? {
           id: context.userId,

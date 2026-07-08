@@ -38,18 +38,13 @@ const repositoryState =
 
 globalForRepository.__acttubMockCoachSessionRepository = repositoryState;
 
-const stripSessionOwner = (session: OwnedCoachSessionRecord): MockCoachSessionRecord => {
-  const { ownerUserId: _ownerUserId, ...dto } = session;
-  return structuredClone(dto);
-};
+const cloneSession = (
+  session: MockCoachSessionRecord,
+): MockCoachSessionRecord => structuredClone(session);
 
-const stripUploadIntentOwner = (uploadIntent: OwnedUploadIntentRecord): PracticeUploadIntentDto => {
-  const { ownerUserId: _ownerUserId, finalizedAt: _finalizedAt, ...dto } = uploadIntent;
-  return structuredClone(dto);
-};
-
-const cloneUploadIntent = (uploadIntent: MockUploadIntentRecord): MockUploadIntentRecord =>
-  structuredClone(uploadIntent);
+const cloneUploadIntent = (
+  uploadIntent: MockUploadIntentRecord,
+): MockUploadIntentRecord => structuredClone(uploadIntent);
 
 const publicSession = (session: MockCoachSessionRecord): CoachSessionDto => {
   const { ownerId: _ownerId, ...dto } = cloneSession(session);
@@ -57,26 +52,29 @@ const publicSession = (session: MockCoachSessionRecord): CoachSessionDto => {
 };
 
 export const mockCoachSessionRepository = {
-  create(session: MockCoachSessionRecord, ownerUserId: string): MockCoachSessionRecord {
-    repositoryState.sessions.set(session.id, cloneSession(session));
-    repositoryState.sessionOwners.set(session.id, ownerUserId);
-    return cloneSession(session);
+  create(session: CoachSessionDto, ownerId: string): CoachSessionDto {
+    repositoryState.sessions.set(
+      session.id,
+      cloneSession({ ...session, ownerId }),
+    );
+    return publicSession(repositoryState.sessions.get(session.id)!);
   },
 
   findById(sessionId: string, ownerUserId?: string): MockCoachSessionRecord | null {
     const session = repositoryState.sessions.get(sessionId);
-    if (!session || session.hiddenAt) {
-      return null;
-    }
-    if (ownerUserId && repositoryState.sessionOwners.get(sessionId) !== ownerUserId) {
-      return null;
-    }
-    return cloneSession(session);
+    return session && session.ownerId === ownerId && !session.hiddenAt
+      ? publicSession(session)
+      : null;
   },
 
-  findByIdIncludingHidden(sessionId: string): MockCoachSessionRecord | null {
+  findByIdIncludingHidden(
+    sessionId: string,
+    ownerId: string,
+  ): CoachSessionDto | null {
     const session = repositoryState.sessions.get(sessionId);
-    return session ? cloneSession(session) : null;
+    return session && session.ownerId === ownerId
+      ? publicSession(session)
+      : null;
   },
 
   listVisible(ownerUserId?: string): MockCoachSessionRecord[] {
@@ -87,27 +85,36 @@ export const mockCoachSessionRepository = {
       .map(stripSessionOwner);
   },
 
-  saveUploadIntent(uploadIntent: PracticeUploadIntentDto, ownerUserId: string): PracticeUploadIntentDto {
-    repositoryState.uploadIntents.set(uploadIntent.uploadIntentId, {
-      ...structuredClone(uploadIntent),
-      ownerUserId,
-      finalizedAt: null,
-    });
+  saveUploadIntent(
+    uploadIntent: PracticeUploadIntentDto,
+    ownerId: string,
+  ): PracticeUploadIntentDto {
+    repositoryState.uploadIntents.set(
+      uploadIntent.uploadIntentId,
+      cloneUploadIntent({
+        ...uploadIntent,
+        ownerId,
+        status: "created",
+        finalizedAt: null,
+      }),
+    );
     return structuredClone(uploadIntent);
   },
 
-  findUploadIntent(uploadIntentId: string, ownerUserId?: string): UploadIntentRecord | null {
+  findUploadIntent(
+    uploadIntentId: string,
+    ownerId: string,
+  ): MockUploadIntentRecord | null {
     const uploadIntent = repositoryState.uploadIntents.get(uploadIntentId);
-    if (!uploadIntent) {
-      return null;
-    }
-    if (ownerUserId && uploadIntent.ownerUserId !== ownerUserId) {
-      return null;
-    }
-    return structuredClone(uploadIntent);
+    return uploadIntent && uploadIntent.ownerId === ownerId
+      ? cloneUploadIntent(uploadIntent)
+      : null;
   },
 
-  finalizeUploadIntent(uploadIntentId: string, ownerUserId: string): UploadIntentRecord | null {
+  markUploadIntentFinalized(
+    uploadIntentId: string,
+    ownerId: string,
+  ): PracticeUploadIntentDto | null {
     const uploadIntent = repositoryState.uploadIntents.get(uploadIntentId);
     if (!uploadIntent || uploadIntent.ownerUserId !== ownerUserId) {
       return null;
@@ -116,9 +123,16 @@ export const mockCoachSessionRepository = {
     const finalizedIntent = {
       ...uploadIntent,
       finalizedAt: new Date().toISOString(),
-    } satisfies UploadIntentRecord;
-    repositoryState.uploadIntents.set(uploadIntentId, finalizedIntent);
-    return structuredClone(finalizedIntent);
+    });
+    repositoryState.uploadIntents.set(uploadIntentId, updated);
+
+    const {
+      ownerId: _ownerId,
+      status: _status,
+      finalizedAt: _finalizedAt,
+      ...dto
+    } = updated;
+    return dto;
   },
 
   isUploadIntentFinalized(uploadIntentId: string, ownerUserId: string): boolean {
@@ -142,8 +156,10 @@ export const mockCoachSessionRepository = {
 
   update(session: MockCoachSessionRecord, ownerUserId: string): MockCoachSessionRecord {
     const existing = repositoryState.sessions.get(session.id);
-    if (!existing || existing.ownerUserId !== ownerUserId) {
-      throw new Error("Cannot update a session owned by another actor.");
+    if (!existing || existing.ownerId !== ownerId) {
+      throw new Error(
+        "Cannot update a session outside the current owner scope.",
+      );
     }
 
     const updatedSession = {
@@ -152,8 +168,11 @@ export const mockCoachSessionRepository = {
       updatedAt: new Date().toISOString(),
     } satisfies OwnedCoachSessionRecord;
 
-    repositoryState.sessions.set(updatedSession.id, structuredClone(updatedSession));
-    return stripSessionOwner(updatedSession);
+    repositoryState.sessions.set(
+      updatedSession.id,
+      cloneSession(updatedSession),
+    );
+    return publicSession(updatedSession);
   },
 
   softHide(sessionId: string, ownerUserId?: string): MockCoachSessionRecord | null {
@@ -171,7 +190,11 @@ export const mockCoachSessionRepository = {
     );
   },
 
-  addTurn(sessionId: string, turn: TurnDto, ownerUserId?: string): MockCoachSessionRecord | null {
+  addTurn(
+    sessionId: string,
+    ownerId: string,
+    turn: TurnDto,
+  ): CoachSessionDto | null {
     const session = repositoryState.sessions.get(sessionId);
     if (!session || (ownerUserId && repositoryState.sessionOwners.get(sessionId) !== ownerUserId)) {
       return null;
@@ -199,18 +222,20 @@ export const mockCoachSessionRepository = {
     }
 
     let found = false;
-    const observations: ObservationDto[] = session.observations.map((observation) => {
-      if (observation.id !== observationId) {
-        return observation;
-      }
+    const observations: ObservationDto[] = session.observations.map(
+      (observation) => {
+        if (observation.id !== observationId) {
+          return observation;
+        }
 
-      found = true;
-      return {
-        ...observation,
-        confirmationState,
-        blockedForQuestioning: confirmationState !== "accepted",
-      };
-    });
+        found = true;
+        return {
+          ...observation,
+          confirmationState,
+          blockedForQuestioning: confirmationState !== "accepted",
+        };
+      },
+    );
 
     if (!found) {
       return null;
@@ -218,8 +243,9 @@ export const mockCoachSessionRepository = {
 
     return this.update(
       {
-        ...stripSessionOwner(session),
-        status: confirmationState === "accepted" ? "PROBE_LOOP" : session.status,
+        ...publicSession(session),
+        status:
+          confirmationState === "accepted" ? "PROBE_LOOP" : session.status,
         observations,
       },
       ownerUserId,
