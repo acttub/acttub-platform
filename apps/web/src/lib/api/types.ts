@@ -48,6 +48,17 @@ export type TakeDto = {
   createdAt: string;
 };
 
+export type ValidationMetricsDto = {
+  feltHelpedFindGap1To7?: number;
+  feltScored1To7?: number;
+  rejectionSafety1To7?: number;
+  answerability1To7?: number;
+  reuseIntent1To7?: number;
+  rejectedObservationReuseCount?: number;
+  forbiddenLanguageCount?: number;
+  finalSentenceResult?: "saved" | "skipped";
+};
+
 export type CoachSessionDto = {
   id: string;
   status: SessionStatus;
@@ -57,11 +68,44 @@ export type CoachSessionDto = {
   characterContext: string;
   subtext: string;
   finalActorSentence: string | null;
+  hiddenAt: string | null;
+  validationMetrics: ValidationMetricsDto | null;
   createdAt: string;
   updatedAt: string;
   take: TakeDto;
   observations: ObservationDto[];
   turns: TurnDto[];
+};
+
+export type FileMetadataDto = {
+  fileName: string;
+  mimeType: "video/mp4" | "video/quicktime";
+  sizeBytes: number;
+  durationMs?: number;
+  sessionId?: string;
+  uploadIntentId?: string;
+  storagePath?: string;
+  fileMetadata?: FileMetadataDto;
+};
+
+export type PracticeUploadIntentDto = {
+  uploadIntentId: string;
+  sessionId: string;
+  storageBucket: string;
+  storagePath: string;
+  constraints: {
+    maxUploadBytes: number;
+    allowedMimeTypes: string[];
+  };
+  expiresAt: string;
+};
+
+export type CreateUploadIntentRequest = {
+  fileMetadata: FileMetadataDto;
+};
+
+export type CreateUploadIntentResponse = {
+  uploadIntent: PracticeUploadIntentDto;
 };
 
 export type CreateSessionRequest = {
@@ -81,6 +125,10 @@ export type CreateSessionResponse = {
 
 export type GetSessionResponse = {
   session: CoachSessionDto;
+};
+
+export type ListSessionsResponse = {
+  sessions: CoachSessionDto[];
 };
 
 export type CreateTurnRequest = {
@@ -104,11 +152,22 @@ export type UpdateObservationResponse = {
 
 export type CreateSummaryRequest = {
   finalActorSentence: string;
+  validationMetrics?: ValidationMetricsDto;
 };
 
 export type CreateSummaryResponse = {
   session: CoachSessionDto;
   nextReflectionQuestion: string;
+};
+
+export type SoftHideSessionResponse = {
+  session: CoachSessionDto;
+};
+
+export type SignedVideoUrlResponse = {
+  signedUrl: string;
+  expiresAt: string;
+  expiresInSeconds: number;
 };
 
 export type ApiErrorResponse = {
