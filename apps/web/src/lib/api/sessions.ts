@@ -39,20 +39,21 @@ async function parseJsonResponse<T>(response: Response): Promise<T> {
   return payload as T;
 }
 
+const jsonHeaders = {
+  Accept: "application/json",
+  "Content-Type": "application/json",
+};
+
 export async function createPracticeUploadIntent(
   body: CreateUploadIntentRequest,
 ): Promise<CreateUploadIntentResponse> {
   const response = await fetch("/api/v1/practice-upload-intents", {
     method: "POST",
-    headers: {
-      Accept: "application/json",
-      "Content-Type": "application/json",
-    },
+    headers: jsonHeaders,
     body: JSON.stringify(body),
   });
 
-  const payload = await parseJsonResponse<CreateUploadIntentResponse | CreateUploadIntentResponse["uploadIntent"]>(response);
-  return "uploadIntent" in payload ? payload : { uploadIntent: payload };
+  return parseJsonResponse<CreateUploadIntentResponse>(response);
 }
 
 export async function finalizePracticeUploadIntent(
@@ -61,10 +62,7 @@ export async function finalizePracticeUploadIntent(
 ): Promise<FinalizeUploadIntentResponse> {
   const response = await fetch(`/api/v1/practice-upload-intents/${uploadIntentId}/finalize`, {
     method: "POST",
-    headers: {
-      Accept: "application/json",
-      "Content-Type": "application/json",
-    },
+    headers: jsonHeaders,
     body: JSON.stringify(body),
   });
 
@@ -84,10 +82,7 @@ export async function createPracticeSession(
 ): Promise<CreateSessionResponse> {
   const response = await fetch("/api/v1/practice-sessions", {
     method: "POST",
-    headers: {
-      Accept: "application/json",
-      "Content-Type": "application/json",
-    },
+    headers: jsonHeaders,
     body: JSON.stringify(body),
   });
 
@@ -101,10 +96,7 @@ export async function updatePracticeObservation(
 ): Promise<UpdateObservationResponse> {
   const response = await fetch(`/api/v1/practice-sessions/${sessionId}/observations/${observationId}`, {
     method: "PATCH",
-    headers: {
-      Accept: "application/json",
-      "Content-Type": "application/json",
-    },
+    headers: jsonHeaders,
     body: JSON.stringify(body),
   });
 
@@ -117,10 +109,7 @@ export async function createPracticeTurn(
 ): Promise<CreateTurnResponse> {
   const response = await fetch(`/api/v1/practice-sessions/${sessionId}/turns`, {
     method: "POST",
-    headers: {
-      Accept: "application/json",
-      "Content-Type": "application/json",
-    },
+    headers: jsonHeaders,
     body: JSON.stringify(body),
   });
 
@@ -133,10 +122,7 @@ export async function createPracticeSummary(
 ): Promise<CreateSummaryResponse> {
   const response = await fetch(`/api/v1/practice-sessions/${sessionId}/result`, {
     method: "POST",
-    headers: {
-      Accept: "application/json",
-      "Content-Type": "application/json",
-    },
+    headers: jsonHeaders,
     body: JSON.stringify(body),
   });
 
@@ -149,10 +135,7 @@ export async function updatePracticeSessionVisibility(
 ): Promise<UpdateSessionVisibilityResponse> {
   const response = await fetch(`/api/v1/practice-sessions/${sessionId}/visibility`, {
     method: "PATCH",
-    headers: {
-      Accept: "application/json",
-      "Content-Type": "application/json",
-    },
+    headers: jsonHeaders,
     body: JSON.stringify(body),
   });
 
@@ -175,10 +158,7 @@ export async function savePracticeValidationMetrics(
 ): Promise<SaveValidationMetricsResponse> {
   const response = await fetch(`/api/v1/practice-sessions/${sessionId}/metrics`, {
     method: "POST",
-    headers: {
-      Accept: "application/json",
-      "Content-Type": "application/json",
-    },
+    headers: jsonHeaders,
     body: JSON.stringify(body),
   });
 

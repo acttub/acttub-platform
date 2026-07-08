@@ -124,6 +124,8 @@ test("upload intent API response and client paths stay on the intent/finalize co
   assert.match(createRoute, /jsonResponse\(\{ uploadIntent: result \}, \{ status: 201 \}\)/);
   assert.match(sessionClient, /fetch\("\/api\/v1\/practice-upload-intents"/);
   assert.match(sessionClient, /fetch\(`\/api\/v1\/practice-upload-intents\/\$\{uploadIntentId\}\/finalize`/);
+  assert.doesNotMatch(sessionClient, /CreateUploadIntentResponse \|/);
+  assert.doesNotMatch(sessionClient, /"uploadIntent" in payload/);
   assert.match(practiceClient, /fetch\("\/api\/v1\/practice-upload-intents"/);
 });
 
