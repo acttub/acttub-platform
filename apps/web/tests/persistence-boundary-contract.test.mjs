@@ -35,8 +35,16 @@ test("client modules do not import server persistence or Supabase admin", () => 
   assert.deepEqual(offenders, []);
 });
 
-test("Supabase admin client remains server-only", () => {
-  assert.match(readApp("src/lib/supabase/admin.ts"), /import "server-only"/);
+test("Supabase service-role access is isolated to the server-only admin module", () => {
+  const config = readApp("src/lib/config/env.ts");
+  const admin = readApp("src/lib/supabase/admin.ts");
+
+  assert.doesNotMatch(config, /SUPABASE_SERVICE_ROLE_KEY/);
+  assert.doesNotMatch(config, /getSupabaseServiceRoleKey/);
+  assert.match(admin, /import "server-only"/);
+  assert.match(admin, /process\.env\.SUPABASE_SERVICE_ROLE_KEY/);
+  assert.match(admin, /function getSupabaseServiceRoleKey\(\): string \| null/);
+  assert.doesNotMatch(admin, /import \{ getAppConfig, getSupabaseServiceRoleKey \} from "@\/lib\/config\/env"/);
 });
 
 test("Supabase configured mode persists upload intents before mock mirroring", () => {

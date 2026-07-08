@@ -55,6 +55,3 @@ export function getAppConfig(): AppConfig {
   };
 }
 
-export function getSupabaseServiceRoleKey(): string | null {
-  return process.env.SUPABASE_SERVICE_ROLE_KEY || null;
-}

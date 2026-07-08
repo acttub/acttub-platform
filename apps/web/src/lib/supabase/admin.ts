@@ -2,7 +2,11 @@ import "server-only";
 
 import { createClient } from "@supabase/supabase-js";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { getAppConfig, getSupabaseServiceRoleKey } from "@/lib/config/env";
+import { getAppConfig } from "@/lib/config/env";
+
+function getSupabaseServiceRoleKey(): string | null {
+  return process.env.SUPABASE_SERVICE_ROLE_KEY || null;
+}
 
 export function createSupabaseAdminClient(): SupabaseClient | null {
   const config = getAppConfig();
