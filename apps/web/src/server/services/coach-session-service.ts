@@ -10,6 +10,7 @@ import type {
   SignedVideoUrlResponse,
   TakeDto,
   TurnDto,
+  ValidationMetricsDto,
 } from "@/lib/api/types";
 import { mockCoachSessionRepository } from "@/server/repositories/mock-coach-session-repository";
 
@@ -126,7 +127,7 @@ const buildValidationMetrics = (value: unknown, session?: CoachSessionDto): Vali
   };
   const numberFields = [
     "feltHelpedFindGap1To7",
-    "feltJudged1To7",
+    "feltScored1To7",
     "rejectionSafety1To7",
     "answerability1To7",
     "reuseIntent1To7",
@@ -193,8 +194,7 @@ export const coachSessionService = {
     const uploadIntent: PracticeUploadIntentDto = {
       uploadIntentId,
       sessionId,
-      storageBucket: "local-dev",
-      uploadUrl: `/api/v1/practice-upload-intents/${uploadIntentId}/local-dev-upload`,
+      storageBucket: "practice-videos",
       storagePath: `users/${userId}/practice-sessions/${sessionId}/take.${extension}`,
       uploadUrl: `/api/v1/practice-upload-intents/${uploadIntentId}/finalize`,
       constraints: {
@@ -224,17 +224,6 @@ export const coachSessionService = {
     return { sessions: mockCoachSessionRepository.listVisible() };
   },
 
-  finalizeUploadIntent(payload: unknown): { videoUrl: string; storagePath: string; durationMs: number | null } {
-    const input = payload as { storagePath?: unknown; durationMs?: unknown };
-    const storagePath = requiredText(input.storagePath, "storagePath");
-    const durationMs = typeof input.durationMs === "number" && Number.isFinite(input.durationMs) ? input.durationMs : null;
-
-    return {
-      videoUrl: storagePath,
-      storagePath,
-      durationMs,
-    };
-  },
 
   createSession(payload: unknown): { session: CoachSessionDto; firstQuestion: TurnDto } {
     const input = payload as Partial<CreateSessionRequest>;
@@ -491,16 +480,7 @@ export const coachSessionService = {
       return null;
     }
 
-    const validationMetrics = validateMetrics(payload) ?? {
-      feltHelpedFindGap1To7: null,
-      feltJudged1To7: null,
-      rejectionSafety1To7: null,
-      answerability1To7: null,
-      reuseIntent1To7: null,
-      rejectedObservationReuseCount: 0,
-      forbiddenLanguageCount: 0,
-      finalSentenceResult: session.finalActorSentence ? "saved" : "empty",
-    };
+    const validationMetrics = buildValidationMetrics(payload, session);
     const updatedSession = mockCoachSessionRepository.update({
       ...session,
       validationMetrics,

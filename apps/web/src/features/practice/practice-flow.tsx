@@ -311,12 +311,14 @@ export function PracticeFlow() {
 
 function SceneForm({
   scene,
+  submitting = false,
   onChange,
   onSubmit,
 }: {
   scene: SceneDraft;
+  submitting?: boolean;
   onChange: <K extends keyof SceneDraft>(key: K, value: SceneDraft[K]) => void;
-  onSubmit: () => void;
+  onSubmit: () => void | Promise<void>;
 }) {
   const ready = scene.genre.trim() && scene.situation.trim() && scene.characterContext.trim();
 
@@ -362,10 +364,10 @@ function SceneForm({
 
       <button
         type="submit"
-        disabled={!ready}
+        disabled={!ready || submitting}
         className="h-14 w-full rounded-2xl bg-[#3182f6] px-5 text-base font-semibold text-white transition hover:bg-[#1b64da] disabled:cursor-not-allowed disabled:bg-[#b0d2ff]"
       >
-        관찰 확인으로 이동하기
+        {submitting ? "준비 중이에요" : "관찰 확인으로 이동하기"}
       </button>
     </form>
   );
@@ -388,10 +390,12 @@ function UploadProgress({ scene }: { scene: SceneDraft }) {
 
 function ObservationPanel({
   observation,
+  submitting = false,
   onConfirm,
 }: {
   observation: ObservationDto;
-  onConfirm: (state: ConfirmationState) => void;
+  submitting?: boolean;
+  onConfirm: (state: ConfirmationState) => void | Promise<void>;
 }) {
   return (
     <div className="space-y-5">
@@ -402,9 +406,9 @@ function ObservationPanel({
         <p className="mt-3 text-sm text-[#8b95a1]">{Math.round(observation.timestampStartMs / 1000)}초 부근</p>
       </div>
       <div className="grid gap-3 sm:grid-cols-3">
-        <ChoiceButton onClick={() => onConfirm("accepted")}>맞아요</ChoiceButton>
-        <ChoiceButton onClick={() => onConfirm("unsure")}>조금 다르게 볼래요</ChoiceButton>
-        <ChoiceButton onClick={() => onConfirm(excludedObservationState)}>아니에요</ChoiceButton>
+        <ChoiceButton disabled={submitting} onClick={() => onConfirm("accepted")}>맞아요</ChoiceButton>
+        <ChoiceButton disabled={submitting} onClick={() => onConfirm("unsure")}>조금 다르게 볼래요</ChoiceButton>
+        <ChoiceButton disabled={submitting} onClick={() => onConfirm(excludedObservationState)}>아니에요</ChoiceButton>
       </div>
     </div>
   );
@@ -417,13 +421,15 @@ function DialoguePanel({
   onAnswerChange,
   onSubmit,
   onFinish,
+  submitting = false,
 }: {
   latestQuestion: string;
   answer: string;
   dialogue: DialogueEntry[];
   onAnswerChange: (value: string) => void;
-  onSubmit: () => void;
+  onSubmit: () => void | Promise<void>;
   onFinish: () => void;
+  submitting?: boolean;
 }) {
   return (
     <div className="space-y-5">
@@ -447,8 +453,8 @@ function DialoguePanel({
         className="min-h-32 w-full rounded-3xl border border-[#d1d6db] p-4 outline-none focus:border-[#3182f6]"
       />
       <div className="grid gap-3 sm:grid-cols-2">
-        <button type="button" onClick={onSubmit} className="h-13 rounded-2xl bg-[#3182f6] font-semibold text-white">
-          답하고 다음 질문 보기
+        <button type="button" onClick={onSubmit} disabled={submitting} className="h-13 rounded-2xl bg-[#3182f6] font-semibold text-white disabled:bg-[#b0d2ff]">
+          {submitting ? "기록 중이에요" : "답하고 다음 질문 보기"}
         </button>
         <button type="button" onClick={onFinish} className="h-13 rounded-2xl border border-[#d1d6db] font-semibold text-[#4e5968]">
           마지막 문장 쓰기
@@ -463,14 +469,20 @@ function SummaryPanel({
   onFinalSentenceChange,
   scene,
   dialogue,
+  nextReflectionQuestion = "",
   hidden,
+  submitting = false,
+  onSave,
   onToggleHidden,
 }: {
   finalSentence: string;
   onFinalSentenceChange: (value: string) => void;
   scene: SceneDraft;
   dialogue: DialogueEntry[];
+  nextReflectionQuestion?: string;
   hidden: boolean;
+  submitting?: boolean;
+  onSave?: () => void | Promise<void>;
   onToggleHidden: () => void;
 }) {
   return (
@@ -488,7 +500,11 @@ function SummaryPanel({
         <p className="mt-2">장르: {scene.genre || "아직 없음"}</p>
         <p>질문 흐름: {dialogue.length}개 기록</p>
         <p>마지막 문장: {finalSentence || "작성 전"}</p>
+        {nextReflectionQuestion ? <p>다음에 다시 볼 질문: {nextReflectionQuestion}</p> : null}
       </div>
+      <button type="button" onClick={onSave} disabled={!finalSentence.trim() || submitting} className="h-13 w-full rounded-2xl bg-[#3182f6] font-semibold text-white disabled:bg-[#b0d2ff]">
+        {submitting ? "저장 중이에요" : "문장 저장하기"}
+      </button>
       <button type="button" onClick={onToggleHidden} className="h-13 w-full rounded-2xl border border-[#d1d6db] font-semibold text-[#4e5968]">
         {hidden ? "목록에 다시 보이기" : "목록에서 잠시 숨기기"}
       </button>
@@ -583,9 +599,9 @@ function TextArea({ label, value, onChange, required }: { label: string; value: 
   );
 }
 
-function ChoiceButton({ children, onClick }: { children: React.ReactNode; onClick: () => void }) {
+function ChoiceButton({ children, disabled = false, onClick }: { children: React.ReactNode; disabled?: boolean; onClick: () => void }) {
   return (
-    <button type="button" onClick={onClick} className="min-h-13 rounded-2xl border border-[#d1d6db] px-4 py-3 font-semibold text-[#4e5968] transition hover:border-[#3182f6] hover:text-[#1b64da]">
+    <button type="button" disabled={disabled} onClick={onClick} className="min-h-13 rounded-2xl border border-[#d1d6db] px-4 py-3 font-semibold text-[#4e5968] transition hover:border-[#3182f6] hover:text-[#1b64da]">
       {children}
     </button>
   );
