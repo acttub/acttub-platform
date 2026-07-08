@@ -347,6 +347,31 @@ const storagePathFromVideoRef = (videoRef: string): string | null => {
   return null;
 };
 
+
+const mirrorSupabaseSessionToMock = (session: CoachSessionDto, userId: string): CoachSessionDto => {
+  const existing = mockCoachSessionRepository.findByIdIncludingHidden(session.id, userId);
+  return existing
+    ? mockCoachSessionRepository.update(session, userId)
+    : mockCoachSessionRepository.create(session, userId);
+};
+
+const readSessionForOwner = async (sessionId: string, userId: string): Promise<CoachSessionDto | null> =>
+  supabaseCoachSessionRepository.isConfigured()
+    ? supabaseCoachSessionRepository.findById(sessionId, userId)
+    : mockCoachSessionRepository.findById(sessionId, userId);
+
+const readUploadIntentForOwner = async (
+  uploadIntentId: string,
+  userId: string,
+): Promise<ReturnType<typeof mockCoachSessionRepository.findUploadIntent>> => {
+  const localUploadIntent = mockCoachSessionRepository.findUploadIntent(uploadIntentId, userId);
+  if (!supabaseCoachSessionRepository.isConfigured()) return localUploadIntent;
+
+  const supabaseUploadIntent = await supabaseCoachSessionRepository.findUploadIntent(uploadIntentId, userId);
+  if (localUploadIntent?.status === "finalized") return localUploadIntent;
+  return supabaseUploadIntent ?? localUploadIntent;
+};
+
 const assertSessionMutable = (session: CoachSessionDto, action: string): void => {
   if (session.status === "END") {
     throw new ApiValidationError("Request validation failed", {
@@ -417,7 +442,11 @@ export const coachSessionService = {
     return mockCoachSessionRepository.saveUploadIntent(uploadIntent, userId);
   },
 
-  listSessions(userId: string): { sessions: CoachSessionDto[] } {
+  async listSessions(userId: string): Promise<{ sessions: CoachSessionDto[] }> {
+    if (supabaseCoachSessionRepository.isConfigured()) {
+      return { sessions: await supabaseCoachSessionRepository.listVisible(userId) };
+    }
+
     return { sessions: mockCoachSessionRepository.listVisible(userId) };
   },
 
@@ -426,7 +455,7 @@ export const coachSessionService = {
     payload: unknown,
     userId: string,
   ): Promise<{ videoUrl: string; storagePath: string; durationMs: number | null }> {
-    const uploadIntent = mockCoachSessionRepository.findUploadIntent(uploadIntentId, userId);
+    const uploadIntent = await readUploadIntentForOwner(uploadIntentId, userId);
     if (!uploadIntent) {
       throw new ApiValidationError("Request validation failed", {
         uploadIntentId: "Upload intent was not found for the authenticated user.",
@@ -456,6 +485,9 @@ export const coachSessionService = {
       supabaseCoachSessionRepository.finalizeUploadIntent(uploadIntent.intent),
     );
 
+    if (!mockCoachSessionRepository.findUploadIntent(uploadIntentId, userId)) {
+      mockCoachSessionRepository.saveUploadIntent(uploadIntent.intent, userId);
+    }
     const finalizedIntent = mockCoachSessionRepository.markUploadIntentFinalized(uploadIntentId, userId);
 
     if (!finalizedIntent) {
@@ -512,7 +544,7 @@ export const coachSessionService = {
     }
 
     if (input.uploadIntentId) {
-      const uploadIntent = mockCoachSessionRepository.findUploadIntent(input.uploadIntentId, userId);
+      const uploadIntent = await readUploadIntentForOwner(input.uploadIntentId, userId);
       if (!uploadIntent) {
         throw new ApiValidationError("Request validation failed", {
           uploadIntentId: "Upload intent was not found for the current user.",
@@ -615,42 +647,56 @@ export const coachSessionService = {
       });
     }
 
-    await requireSupabasePersistence(() =>
-      supabaseCoachSessionRepository.createSession({
+    let sessionForResponse = {
+      ...baseSession,
+      turns: [firstQuestion],
+    };
+
+    if (supabaseCoachSessionRepository.isConfigured()) {
+      sessionForResponse = await supabaseCoachSessionRepository.createSession({
         uploadIntent: finalizedUploadIntent.intent,
-        session: {
-          ...baseSession,
-          turns: [firstQuestion],
-        },
+        session: sessionForResponse,
         take,
         observation,
         firstQuestion,
-      }),
-    );
+      });
+    } else {
+      await requireSupabasePersistence(async () => {
+        await supabaseCoachSessionRepository.createSession({
+          uploadIntent: finalizedUploadIntent.intent,
+          session: sessionForResponse,
+          take,
+          observation,
+          firstQuestion,
+        });
+      });
+    }
 
     const session = mockCoachSessionRepository.create(
-      {
-        ...baseSession,
-        turns: [firstQuestion],
-      },
+      sessionForResponse,
       userId,
     );
 
     return { session, firstQuestion };
   },
 
-  getSession(sessionId: string, userId: string): CoachSessionDto | null {
-    return mockCoachSessionRepository.findById(sessionId, userId);
+  async getSession(sessionId: string, userId: string): Promise<CoachSessionDto | null> {
+    return readSessionForOwner(sessionId, userId);
   },
 
-  softHideSession(sessionId: string, userId: string): { session: CoachSessionDto } | null {
+  async softHideSession(sessionId: string, userId: string): Promise<{ session: CoachSessionDto } | null> {
+    if (supabaseCoachSessionRepository.isConfigured()) {
+      const session = await supabaseCoachSessionRepository.updateVisibility(sessionId, userId, true);
+      return session ? { session: mirrorSupabaseSessionToMock(session, userId) } : null;
+    }
+
     const session = mockCoachSessionRepository.softHide(sessionId, userId);
     return session ? { session } : null;
   },
 
   async createSignedVideoUrl(sessionId: string, userId: string): Promise<SignedVideoUrlResponse | null> {
     const config = getAppConfig();
-    const session = mockCoachSessionRepository.findById(sessionId, userId);
+    const session = await readSessionForOwner(sessionId, userId);
 
     if (!session || !session.take.videoUrl) {
       return null;
@@ -693,12 +739,12 @@ export const coachSessionService = {
     };
   },
 
-  updateObservation(
+  async updateObservation(
     sessionId: string,
     userId: string,
     observationId: string,
     payload: unknown,
-  ): { session: CoachSessionDto; observation: ObservationDto } | null {
+  ): Promise<{ session: CoachSessionDto; observation: ObservationDto } | null> {
     const confirmationState = (payload as { confirmationState?: unknown }).confirmationState;
 
     if (!confirmationStateValues.has(confirmationState as ConfirmationState)) {
@@ -707,30 +753,40 @@ export const coachSessionService = {
       });
     }
 
-    const existingSession = mockCoachSessionRepository.findById(sessionId, userId);
+    const existingSession = await readSessionForOwner(sessionId, userId);
     if (!existingSession) return null;
     assertSessionMutable(existingSession, "update observations");
 
-    const session = mockCoachSessionRepository.updateObservationState(
-      sessionId,
-      userId,
-      observationId,
-      confirmationState as ConfirmationState,
-    );
+    const session = supabaseCoachSessionRepository.isConfigured()
+      ? await supabaseCoachSessionRepository.updateObservationState(
+          sessionId,
+          userId,
+          observationId,
+          confirmationState as ConfirmationState,
+        )
+      : mockCoachSessionRepository.updateObservationState(
+          sessionId,
+          userId,
+          observationId,
+          confirmationState as ConfirmationState,
+        );
 
     if (!session) return null;
 
-    const observation = session.observations.find((item) => item.id === observationId);
-    return observation ? { session, observation } : null;
+    const mirroredSession = supabaseCoachSessionRepository.isConfigured()
+      ? mirrorSupabaseSessionToMock(session, userId)
+      : session;
+    const observation = mirroredSession.observations.find((item) => item.id === observationId);
+    return observation ? { session: mirroredSession, observation } : null;
   },
 
-  createTurn(
+  async createTurn(
     sessionId: string,
     userId: string,
     payload: unknown,
-  ): { session: CoachSessionDto; actorTurn: TurnDto; coachTurn: TurnDto } | null {
+  ): Promise<{ session: CoachSessionDto; actorTurn: TurnDto; coachTurn: TurnDto } | null> {
     const actorAnswer = requiredText((payload as { actorAnswer?: unknown }).actorAnswer, "actorAnswer");
-    const session = mockCoachSessionRepository.findById(sessionId, userId);
+    const session = await readSessionForOwner(sessionId, userId);
 
     if (!session) return null;
     assertSessionMutable(session, "create new turns");
@@ -756,19 +812,27 @@ export const coachSessionService = {
       acceptedObservationIds,
       acceptedObservationIds.length > 0 ? "subtext_probe" : "missing_context",
     );
-    const withActorTurn = mockCoachSessionRepository.addTurn(sessionId, userId, actorTurn);
-    const withCoachTurn = withActorTurn
-      ? mockCoachSessionRepository.addTurn(sessionId, userId, coachTurn)
-      : null;
+    const withCoachTurn = supabaseCoachSessionRepository.isConfigured()
+      ? await supabaseCoachSessionRepository.addTurnPair(sessionId, userId, actorTurn, coachTurn)
+      : (() => {
+          const withActorTurn = mockCoachSessionRepository.addTurn(sessionId, userId, actorTurn);
+          return withActorTurn
+            ? mockCoachSessionRepository.addTurn(sessionId, userId, coachTurn)
+            : null;
+        })();
 
-    return withCoachTurn ? { session: withCoachTurn, actorTurn, coachTurn } : null;
+    const mirroredSession = withCoachTurn && supabaseCoachSessionRepository.isConfigured()
+      ? mirrorSupabaseSessionToMock(withCoachTurn, userId)
+      : withCoachTurn;
+
+    return mirroredSession ? { session: mirroredSession, actorTurn, coachTurn } : null;
   },
 
   async getSignedVideoUrl(sessionId: string, userId: string): Promise<SignedVideoUrlResponse | null> {
     return this.createSignedVideoUrl(sessionId, userId);
   },
 
-  updateVisibility(sessionId: string, userId: string, payload: unknown): { session: CoachSessionDto } | null {
+  async updateVisibility(sessionId: string, userId: string, payload: unknown): Promise<{ session: CoachSessionDto } | null> {
     const hidden = (payload as { hidden?: unknown }).hidden;
 
     if (typeof hidden !== "boolean") {
@@ -777,35 +841,48 @@ export const coachSessionService = {
       });
     }
 
-    const session = mockCoachSessionRepository.findById(sessionId, userId);
+    const session = await readSessionForOwner(sessionId, userId);
     if (!session) return null;
+
+    if (supabaseCoachSessionRepository.isConfigured()) {
+      const updatedSession = await supabaseCoachSessionRepository.updateVisibility(sessionId, userId, hidden);
+      return updatedSession ? { session: mirrorSupabaseSessionToMock(updatedSession, userId) } : null;
+    }
 
     return {
       session: mockCoachSessionRepository.update({ ...session, hiddenAt: hidden ? nowIso() : null }, userId),
     };
   },
 
-  saveValidationMetrics(
+  async saveValidationMetrics(
     sessionId: string,
     userId: string,
     payload: unknown,
-  ): { session: CoachSessionDto; validationMetrics: ValidationMetricsDto } | null {
-    const session = mockCoachSessionRepository.findById(sessionId, userId);
+  ): Promise<{ session: CoachSessionDto; validationMetrics: ValidationMetricsDto } | null> {
+    const session = await readSessionForOwner(sessionId, userId);
     if (!session) return null;
     assertSessionMutable(session, "mutate validation metrics");
 
     const validationMetrics = buildValidationMetrics(payload, session);
-    const updatedSession = mockCoachSessionRepository.update({ ...session, validationMetrics }, userId);
+    const updatedSession = supabaseCoachSessionRepository.isConfigured()
+      ? await supabaseCoachSessionRepository.saveValidationMetrics(sessionId, userId, validationMetrics)
+      : mockCoachSessionRepository.update({ ...session, validationMetrics }, userId);
 
-    return { session: updatedSession, validationMetrics };
+    if (!updatedSession) return null;
+    return {
+      session: supabaseCoachSessionRepository.isConfigured()
+        ? mirrorSupabaseSessionToMock(updatedSession, userId)
+        : updatedSession,
+      validationMetrics,
+    };
   },
 
-  createSummary(sessionId: string, userId: string, payload: unknown): { session: CoachSessionDto; nextReflectionQuestion: string } | null {
+  async createSummary(sessionId: string, userId: string, payload: unknown): Promise<{ session: CoachSessionDto; nextReflectionQuestion: string } | null> {
     const finalActorSentence = requiredText(
       (payload as { finalActorSentence?: unknown }).finalActorSentence,
       "finalActorSentence",
     );
-    const session = mockCoachSessionRepository.findById(sessionId, userId);
+    const session = await readSessionForOwner(sessionId, userId);
 
     if (!session) return null;
     assertSessionMutable(session, "create duplicate results");
@@ -814,18 +891,29 @@ export const coachSessionService = {
       ...session,
       finalActorSentence,
     });
-    const updatedSession = mockCoachSessionRepository.update(
-      {
-        ...session,
-        status: "END",
-        finalActorSentence,
-        validationMetrics,
-      },
-      userId,
-    );
+    const updatedSession = supabaseCoachSessionRepository.isConfigured()
+      ? await supabaseCoachSessionRepository.createSummary(
+          sessionId,
+          userId,
+          finalActorSentence,
+          validationMetrics,
+        )
+      : mockCoachSessionRepository.update(
+          {
+            ...session,
+            status: "END",
+            finalActorSentence,
+            validationMetrics,
+          },
+          userId,
+        );
+
+    if (!updatedSession) return null;
 
     return {
-      session: updatedSession,
+      session: supabaseCoachSessionRepository.isConfigured()
+        ? mirrorSupabaseSessionToMock(updatedSession, userId)
+        : updatedSession,
       nextReflectionQuestion: "다음 연습에서 이 문장을 다시 떠올리게 할 질문은 무엇인가요?",
     };
   },

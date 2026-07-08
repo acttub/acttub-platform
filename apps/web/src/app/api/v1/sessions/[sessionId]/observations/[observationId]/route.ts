@@ -9,7 +9,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     const auth = await requireApiTermsAccepted();
     const { sessionId, observationId } = await context.params;
     const payload = await request.json();
-    const result = coachSessionService.updateObservation(
+    const result = await coachSessionService.updateObservation(
       sessionId,
       auth.userId,
       observationId,

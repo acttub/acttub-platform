@@ -9,7 +9,7 @@ export async function POST(request: Request, context: RouteContext) {
     const auth = await requireApiTermsAccepted();
     const { sessionId } = await context.params;
     const payload = await request.json();
-    const result = coachSessionService.createTurn(sessionId, auth.userId, payload);
+    const result = await coachSessionService.createTurn(sessionId, auth.userId, payload);
 
     if (!result) return jsonError(404, "session_not_found", "Session was not found.");
     return jsonResponse(result, { status: 201 });

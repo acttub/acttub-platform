@@ -8,7 +8,7 @@ export async function GET(_request: Request, context: RouteContext) {
   try {
     const auth = await requireApiTermsAccepted();
     const { sessionId } = await context.params;
-    const session = coachSessionService.getSession(sessionId, auth.userId);
+    const session = await coachSessionService.getSession(sessionId, auth.userId);
 
     if (!session) return jsonError(404, "session_not_found", "Session was not found.");
     return jsonResponse({ session });

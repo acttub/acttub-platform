@@ -178,6 +178,267 @@ create table if not exists public.validation_events (
   foreign key (session_id, user_id) references public.practice_sessions(id, user_id) on delete cascade
 );
 
+
+create or replace function public.acttub_create_session_from_upload_intent(
+  p_upload_intent_id uuid,
+  p_user_id uuid,
+  p_session_id uuid,
+  p_take_id uuid,
+  p_observation_id uuid,
+  p_first_question_id uuid,
+  p_medium text,
+  p_genre text,
+  p_situation text,
+  p_character_context text,
+  p_subtext text,
+  p_duration_ms integer,
+  p_observation_text text,
+  p_observation_confidence numeric,
+  p_observation_timestamp_start_ms integer,
+  p_observation_timestamp_end_ms integer,
+  p_first_question_content text,
+  p_first_question_focus text,
+  p_first_question_source_observation_ids uuid[],
+  p_created_at timestamptz default now()
+)
+returns table(session_id uuid)
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_upload_intent public.upload_intents%rowtype;
+begin
+  select * into v_upload_intent
+  from public.upload_intents ui
+  where ui.id = p_upload_intent_id
+    and ui.user_id = p_user_id
+    and ui.session_id = p_session_id
+    and ui.status = 'created'
+    and ui.expires_at > now()
+  for update;
+
+  if not found then
+    raise exception 'Upload intent is not available for atomic session creation.'
+      using errcode = 'P0001';
+  end if;
+
+  update public.upload_intents
+  set status = 'finalized',
+      finalized_at = coalesce(finalized_at, p_created_at),
+      updated_at = p_created_at
+  where id = p_upload_intent_id
+    and user_id = p_user_id;
+
+  insert into public.practice_sessions (
+    id,
+    user_id,
+    upload_intent_id,
+    status,
+    medium,
+    genre,
+    situation,
+    character_context,
+    subtext,
+    final_actor_sentence,
+    hidden_at,
+    created_at,
+    updated_at
+  ) values (
+    p_session_id,
+    p_user_id,
+    p_upload_intent_id,
+    'observations_pending',
+    p_medium,
+    p_genre,
+    p_situation,
+    p_character_context,
+    nullif(p_subtext, ''),
+    null,
+    null,
+    p_created_at,
+    p_created_at
+  );
+
+  insert into public.practice_takes (
+    id,
+    session_id,
+    user_id,
+    storage_bucket,
+    storage_path,
+    mime_type,
+    size_bytes,
+    duration_ms,
+    analysis_status,
+    analysis_error,
+    created_at
+  ) values (
+    p_take_id,
+    p_session_id,
+    p_user_id,
+    v_upload_intent.expected_storage_bucket,
+    v_upload_intent.expected_storage_path,
+    v_upload_intent.expected_mime_type,
+    v_upload_intent.expected_size_bytes,
+    p_duration_ms,
+    'mocked',
+    null,
+    p_created_at
+  );
+
+  insert into public.observations (
+    id,
+    session_id,
+    take_id,
+    user_id,
+    timestamp_start_ms,
+    timestamp_end_ms,
+    observation_text,
+    confidence,
+    confirmation_state,
+    blocked_for_questioning,
+    source_payload,
+    created_at
+  ) values (
+    p_observation_id,
+    p_session_id,
+    p_take_id,
+    p_user_id,
+    p_observation_timestamp_start_ms,
+    p_observation_timestamp_end_ms,
+    p_observation_text,
+    p_observation_confidence,
+    'unasked',
+    false,
+    '{"source":"mock-analysis"}'::jsonb,
+    p_created_at
+  );
+
+  insert into public.question_turns (
+    id,
+    session_id,
+    user_id,
+    speaker,
+    content,
+    question_focus,
+    source_observation_ids,
+    turn_state,
+    created_at
+  ) values (
+    p_first_question_id,
+    p_session_id,
+    p_user_id,
+    'acttub',
+    p_first_question_content,
+    p_first_question_focus,
+    p_first_question_source_observation_ids,
+    'open',
+    p_created_at
+  );
+
+  return query select p_session_id;
+end;
+$$;
+
+create or replace function public.acttub_append_turn_pair(
+  p_session_id uuid,
+  p_user_id uuid,
+  p_actor_turn_id uuid,
+  p_actor_content text,
+  p_actor_question_focus text,
+  p_coach_turn_id uuid,
+  p_coach_content text,
+  p_coach_question_focus text,
+  p_coach_source_observation_ids uuid[],
+  p_created_at timestamptz default now()
+)
+returns table(session_id uuid)
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  perform 1
+  from public.practice_sessions s
+  where s.id = p_session_id
+    and s.user_id = p_user_id
+    and s.hidden_at is null
+    and s.status <> 'completed'
+  for update;
+
+  if not found then
+    raise exception 'Session is not available for turn append.' using errcode = 'P0001';
+  end if;
+
+  insert into public.question_turns (
+    id, session_id, user_id, speaker, content, question_focus, source_observation_ids, turn_state, created_at
+  ) values (
+    p_actor_turn_id, p_session_id, p_user_id, 'actor', p_actor_content, p_actor_question_focus, '{}', 'answered', p_created_at
+  );
+
+  insert into public.question_turns (
+    id, session_id, user_id, speaker, content, question_focus, source_observation_ids, turn_state, created_at
+  ) values (
+    p_coach_turn_id, p_session_id, p_user_id, 'acttub', p_coach_content, p_coach_question_focus, p_coach_source_observation_ids, 'open', p_created_at
+  );
+
+  update public.practice_sessions
+  set status = 'questioning', updated_at = p_created_at
+  where id = p_session_id and user_id = p_user_id;
+
+  return query select p_session_id;
+end;
+$$;
+
+create or replace function public.acttub_complete_session(
+  p_session_id uuid,
+  p_user_id uuid,
+  p_final_actor_sentence text,
+  p_validation_metrics jsonb,
+  p_question_to_revisit text
+)
+returns table(session_id uuid)
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_completed_at timestamptz := now();
+begin
+  perform 1
+  from public.practice_sessions s
+  where s.id = p_session_id
+    and s.user_id = p_user_id
+    and s.hidden_at is null
+    and s.status <> 'completed'
+  for update;
+
+  if not found then
+    raise exception 'Session is not available for completion.' using errcode = 'P0001';
+  end if;
+
+  update public.practice_sessions
+  set status = 'completed',
+      final_actor_sentence = p_final_actor_sentence,
+      updated_at = v_completed_at
+  where id = p_session_id and user_id = p_user_id;
+
+  insert into public.session_results (
+    session_id, user_id, actor_authored_sentence, question_to_revisit, created_at
+  ) values (
+    p_session_id, p_user_id, p_final_actor_sentence, p_question_to_revisit, v_completed_at
+  );
+
+  insert into public.validation_events (
+    session_id, user_id, event_type, payload, created_at
+  ) values (
+    p_session_id, p_user_id, 'validation_metrics', p_validation_metrics, v_completed_at
+  );
+
+  return query select p_session_id;
+end;
+$$;
+
 alter table public.profiles enable row level security;
 alter table public.upload_intents enable row level security;
 alter table public.practice_sessions enable row level security;

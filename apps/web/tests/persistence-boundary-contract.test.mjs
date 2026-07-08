@@ -61,32 +61,52 @@ test("Supabase configured mode persists upload intents before mock mirroring", (
   assert.match(types, /export type PracticeUploadIntentDto = \{[\s\S]*fileMetadata: FileMetadataDto;/);
 });
 
-test("Supabase configured mode finalizes DB upload intent after storage verification and fails closed", () => {
+test("Supabase configured mode verifies DB upload intent but leaves finalization to atomic session RPC", () => {
   const service = readApp("src/server/services/coach-session-service.ts");
   const repository = readApp("src/server/repositories/supabase-coach-session-repository.ts");
+  const migration = readFileSync(path.join(repoRoot, "supabase/migrations/001_acttub_slice1_schema.sql"), "utf8");
 
   assert.match(repository, /class SupabaseCoachSessionPersistenceError/);
   assert.match(repository, /Supabase service-role persistence is required in configured mode/);
   assert.match(repository, /Could not finalize Supabase upload intent/);
-  assert.match(repository, /finalizeUploadIntent\(uploadIntent: PracticeUploadIntentDto\)[\s\S]*if \(!configuredForSupabasePersistence\(\)\) return;[\s\S]*requireSupabaseAdminClient\(\)[\s\S]*\.from\("upload_intents"\)[\s\S]*\.update\(\{[\s\S]*status: "finalized"[\s\S]*finalized_at: finalizedAt[\s\S]*\.eq\("id", uploadIntent\.uploadIntentId\)[\s\S]*\.eq\("user_id", uploadIntent\.userId\)[\s\S]*\.eq\("expected_storage_path", uploadIntent\.storagePath\)[\s\S]*\.eq\("status", "created"/s);
-  assert.match(service, /await verifySupabaseStorageObject\(uploadIntent\);[\s\S]*await requireSupabasePersistence\(\(\) =>[\s\S]*supabaseCoachSessionRepository\.finalizeUploadIntent\(uploadIntent\.intent\)[\s\S]*\);[\s\S]*markUploadIntentFinalized\(uploadIntentId, userId\)/);
+  assert.match(repository, /finalizeUploadIntent\(uploadIntent: PracticeUploadIntentDto\)[\s\S]*\.from\("upload_intents"\)[\s\S]*\.select\("id"\)[\s\S]*\.eq\("id", uploadIntent\.uploadIntentId\)[\s\S]*\.eq\("user_id", uploadIntent\.userId\)[\s\S]*\.eq\("expected_storage_path", uploadIntent\.storagePath\)[\s\S]*\.eq\("status", "created"\)/s);
+  assert.doesNotMatch(repository, /finalizeUploadIntent[\s\S]*\.update\(\{[\s\S]*status: "finalized"/s);
+  assert.match(service, /await verifySupabaseStorageObject\(uploadIntent\);[\s\S]*supabaseCoachSessionRepository\.finalizeUploadIntent\(uploadIntent\.intent\)[\s\S]*markUploadIntentFinalized\(uploadIntentId, userId\)/);
+  assert.match(migration, /create or replace function public\.acttub_create_session_from_upload_intent[\s\S]*for update[\s\S]*update public\.upload_intents[\s\S]*status = 'finalized'[\s\S]*insert into public\.practice_sessions/s);
   assert.match(service, /error instanceof SupabaseCoachSessionPersistenceError[\s\S]*throw new ApiValidationError\("Request validation failed"/);
 });
 
-test("Supabase configured mode persists initial session read-model rows before mock session mirroring", () => {
+test("Supabase configured mode atomically creates initial session rows before mock session mirroring", () => {
+  const service = readApp("src/server/services/coach-session-service.ts");
+  const repository = readApp("src/server/repositories/supabase-coach-session-repository.ts");
+  const migration = readFileSync(path.join(repoRoot, "supabase/migrations/001_acttub_slice1_schema.sql"), "utf8");
+
+  assert.match(repository, /createSession\(input: \{[\s\S]*uploadIntent: PracticeUploadIntentDto[\s\S]*session: CoachSessionDto[\s\S]*take: TakeDto[\s\S]*observation: ObservationDto[\s\S]*firstQuestion: TurnDto[\s\S]*if \(!configuredForSupabasePersistence\(\)\) return input\.session;/s);
+  assert.match(repository, /\.rpc\("acttub_create_session_from_upload_intent", \{[\s\S]*p_upload_intent_id: uploadIntent\.uploadIntentId[\s\S]*p_take_id: take\.id[\s\S]*p_observation_id: observation\.id[\s\S]*p_first_question_id: firstQuestion\.id/s);
+  assert.doesNotMatch(repository, /createSession\(input:[\s\S]*\.from\("practice_sessions"\)[\s\S]*\.from\("practice_takes"\)[\s\S]*\.from\("observations"\)[\s\S]*\.from\("question_turns"/s);
+  const atomicFunction = migration.slice(migration.indexOf("acttub_create_session_from_upload_intent"));
+  for (const table of ["practice_sessions", "practice_takes", "observations", "question_turns"]) {
+    assert.ok(atomicFunction.includes(`insert into public.${table}`));
+  }
+  assert.match(service, /const takeId = createUuid\(\);[\s\S]*const observationId = createUuid\(\);/);
+  assert.match(service, /const firstQuestion = makeCoachTurn\([\s\S]*"observation_confirmation",[\s\S]*createUuid\(\),[\s\S]*\);/);
+  assert.match(service, /supabaseCoachSessionRepository\.isConfigured\(\)[\s\S]*supabaseCoachSessionRepository\.createSession\(\{[\s\S]*uploadIntent: finalizedUploadIntent\.intent[\s\S]*firstQuestion[\s\S]*\}\)[\s\S]*const session = mockCoachSessionRepository\.create/s);
+});
+
+ test("Supabase configured lifecycle reads and mutations source Supabase before mock mirroring", () => {
   const service = readApp("src/server/services/coach-session-service.ts");
   const repository = readApp("src/server/repositories/supabase-coach-session-repository.ts");
 
-  for (const table of ["practice_sessions", "practice_takes", "observations", "question_turns"]) {
-    assert.match(repository, new RegExp(`\\.from\\("${table}"\\)`));
+  for (const method of ["listVisible", "findById", "updateObservationState", "addTurnPair", "saveValidationMetrics", "createSummary", "updateVisibility"]) {
+    assert.ok(repository.includes(`${method}(`));
   }
-
-  assert.match(repository, /createSession\(input: \{[\s\S]*uploadIntent: PracticeUploadIntentDto[\s\S]*session: CoachSessionDto[\s\S]*take: TakeDto[\s\S]*observation: ObservationDto[\s\S]*firstQuestion: TurnDto[\s\S]*if \(!configuredForSupabasePersistence\(\)\) return;/s);
-  assert.match(repository, /\.from\("practice_sessions"\)[\s\S]*upload_intent_id: uploadIntent\.uploadIntentId[\s\S]*status: "observations_pending"/s);
-  assert.match(repository, /\.from\("practice_takes"\)[\s\S]*storage_bucket: uploadIntent\.storageBucket[\s\S]*storage_path: uploadIntent\.storagePath[\s\S]*mime_type: uploadIntent\.fileMetadata\.mimeType[\s\S]*size_bytes: uploadIntent\.fileMetadata\.sizeBytes/s);
-  assert.match(repository, /\.from\("observations"\)[\s\S]*observation_text: observation\.observationText[\s\S]*source_payload: \{ source: "mock-analysis" \}/s);
-  assert.match(repository, /\.from\("question_turns"\)[\s\S]*speaker: "acttub"[\s\S]*content: firstQuestion\.content[\s\S]*source_observation_ids: firstQuestion\.sourceObservationIds/s);
-  assert.match(service, /const takeId = createUuid\(\);[\s\S]*const observationId = createUuid\(\);/);
-  assert.match(service, /const firstQuestion = makeCoachTurn\([\s\S]*"observation_confirmation",[\s\S]*createUuid\(\),[\s\S]*\);/);
-  assert.match(service, /await requireSupabasePersistence\(\(\) =>[\s\S]*supabaseCoachSessionRepository\.createSession\(\{[\s\S]*uploadIntent: finalizedUploadIntent\.intent[\s\S]*firstQuestion[\s\S]*\}\)[\s\S]*\);[\s\S]*const session = mockCoachSessionRepository\.create/s);
+  assert.match(repository, /const mapSession = \(row: JsonRecord\): CoachSessionDto =>/);
+  assert.match(repository, /const mapDbStatus = \(status: unknown\): SessionStatus =>/);
+  assert.match(repository, /speaker = asString\(row\.speaker\) === "actor" \? "actor" : "coach"/);
+  assert.match(service, /async listSessions\(userId: string\)[\s\S]*supabaseCoachSessionRepository\.listVisible\(userId\)/);
+  assert.match(service, /const readSessionForOwner = async[\s\S]*supabaseCoachSessionRepository\.findById\(sessionId, userId\)/);
+  assert.match(service, /updateObservationState\([\s\S]*mirrorSupabaseSessionToMock\(session, userId\)/);
+  assert.match(service, /addTurnPair\([\s\S]*mirrorSupabaseSessionToMock\(withCoachTurn, userId\)/);
+  assert.match(service, /saveValidationMetrics\([\s\S]*supabaseCoachSessionRepository\.saveValidationMetrics\([\s\S]*mirrorSupabaseSessionToMock\(updatedSession, userId\)/);
+  assert.match(service, /createSummary\([\s\S]*supabaseCoachSessionRepository\.createSummary\([\s\S]*mirrorSupabaseSessionToMock\(updatedSession, userId\)/);
 });

@@ -8,7 +8,7 @@ export async function POST(_request: Request, context: RouteContext) {
   try {
     const auth = await requireApiTermsAccepted();
     const { sessionId } = await context.params;
-    const result = coachSessionService.softHideSession(sessionId, auth.userId);
+    const result = await coachSessionService.softHideSession(sessionId, auth.userId);
 
     if (!result) return jsonError(404, "session_not_found", "Session was not found.");
     return jsonResponse(result);

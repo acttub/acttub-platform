@@ -9,7 +9,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     const auth = await requireApiTermsAccepted();
     const { sessionId, observationId } = await context.params;
     const payload = await request.json();
-    const result = coachSessionService.updateObservation(sessionId, auth.userId, observationId, payload);
+    const result = await coachSessionService.updateObservation(sessionId, auth.userId, observationId, payload);
 
     if (!result) return jsonError(404, "observation_not_found", "Session or observation was not found.");
     return jsonResponse(result);

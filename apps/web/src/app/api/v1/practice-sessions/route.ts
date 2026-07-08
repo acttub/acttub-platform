@@ -5,7 +5,7 @@ import { handleApiError, jsonResponse } from "../http";
 export async function GET() {
   try {
     const auth = await requireApiTermsAccepted();
-    return jsonResponse(coachSessionService.listSessions(auth.userId));
+    return jsonResponse(await coachSessionService.listSessions(auth.userId));
   } catch (error) {
     return handleApiError(error);
   }
