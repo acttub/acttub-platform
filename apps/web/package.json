@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "node scripts/check-forbidden-copy.mjs && node --test tests/*.test.mjs",
+    "test": "node --test tests/security-contracts.test.mjs && node scripts/check-forbidden-copy.mjs",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

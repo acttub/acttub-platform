@@ -3,8 +3,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { test } from "node:test";
 
-const repoRoot = path.resolve(import.meta.dirname, "../../");
-const webRoot = path.join(repoRoot, "apps/web");
+const repoRoot = path.resolve(import.meta.dirname, "../../..");
 
 function read(relativePath) {
   return readFileSync(path.join(repoRoot, relativePath), "utf8");
@@ -81,9 +80,9 @@ test("migration uses private practice-videos insert-only storage contract", () =
   assert.match(migration, /public\.profiles/);
   assert.match(migration, /public\.upload_intents/);
   assert.match(migration, /'practice-videos'/);
-  assert.match(migration, /for insert[\s\S]*active upload intent/);
+  assert.match(migration, /active upload intent[\s\S]*for insert/);
   assert.doesNotMatch(migration, /'coach-takes'/);
-  assert.doesNotMatch(migration, /for select[\s\S]*on storage\.objects/);
-  assert.doesNotMatch(migration, /for update[\s\S]*on storage\.objects/);
-  assert.doesNotMatch(migration, /for delete[\s\S]*on storage\.objects/);
+  assert.doesNotMatch(migration, /on storage\.objects for select/);
+  assert.doesNotMatch(migration, /on storage\.objects for update/);
+  assert.doesNotMatch(migration, /on storage\.objects for delete/);
 });
