@@ -41,8 +41,6 @@ const cloneUploadIntent = (uploadIntent: StoredUploadIntentRecord): StoredUpload
 const ownsSession = (sessionId: string, ownerId: string): boolean =>
   repositoryState.sessionOwners.get(sessionId) === ownerId;
 
-const ownsUploadIntent = (uploadIntentId: string, ownerId: string): boolean =>
-  repositoryState.uploadIntents.get(uploadIntentId)?.userId === ownerId;
 
 export const mockCoachSessionRepository = {
   create(session: MockCoachSessionRecord, ownerUserId: string): MockCoachSessionRecord {
@@ -209,7 +207,6 @@ export const mockCoachSessionRepository = {
     userId: string,
     observationId: string,
     confirmationState: ConfirmationState,
-    _legacyOwnerUserId?: string,
   ): MockCoachSessionRecord | null {
     const session = this.findById(sessionId, userId);
     if (!session) {
