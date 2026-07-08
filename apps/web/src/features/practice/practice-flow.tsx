@@ -179,7 +179,33 @@ export function PracticeFlow() {
         ...uploadSessionFields,
         videoUrl: uploadSessionFields.videoUrl ?? (scene.videoUrl?.trim() || undefined),
         subtext: scene.subtext?.trim() || undefined,
-      });
+      };
+
+      if (scene.medium === "upload_url") {
+        const uploadIntentResult = await createPracticeUploadIntent({
+          fileMetadata: {
+            fileName: "acttub-practice-take.mp4",
+            mimeType: "video/mp4",
+            sizeBytes: 1,
+            durationMs: scene.durationMs,
+          },
+        });
+        const { uploadIntent } = uploadIntentResult;
+        const finalizedUpload = await finalizePracticeUploadIntent(uploadIntent.uploadIntentId, {
+          storagePath: uploadIntent.storagePath,
+          durationMs: scene.durationMs,
+        });
+        sessionDraft = {
+          ...sessionDraft,
+          sessionId: uploadIntent.sessionId,
+          uploadIntentId: uploadIntent.uploadIntentId,
+          storagePath: finalizedUpload.storagePath,
+          videoUrl: finalizedUpload.videoUrl,
+          durationMs: finalizedUpload.durationMs ?? scene.durationMs,
+        };
+      }
+
+      const result = await createPracticeSession(sessionDraft);
       setPracticeSession(result.session);
       setObservation(result.session.observations[0] ?? seedObservation);
       setDialogue([
