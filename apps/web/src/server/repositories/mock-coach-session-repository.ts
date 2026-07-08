@@ -6,27 +6,17 @@ import type {
   TurnDto,
 } from "@/lib/api/types";
 
-export type MockCoachSessionRecord = CoachSessionDto & {
-  ownerId: string;
-};
-
-export type MockUploadIntentRecord = PracticeUploadIntentDto & {
-  ownerId: string;
-  status: "created" | "finalized";
+type OwnedCoachSessionRecord = CoachSessionDto & { ownerUserId: string };
+type OwnedUploadIntentRecord = PracticeUploadIntentDto & {
+  ownerUserId: string;
   finalizedAt: string | null;
 };
 
-type UploadIntentRecord = {
-  intent: PracticeUploadIntentDto;
-  ownerId: string;
-  finalizedAt: string | null;
-  finalizedVideoUrl: string | null;
-  finalizedDurationMs: number | null;
-};
+export type MockCoachSessionRecord = CoachSessionDto;
 
 type RepositoryState = {
-  sessions: Map<string, MockCoachSessionRecord>;
-  uploadIntents: Map<string, MockUploadIntentRecord>;
+  sessions: Map<string, OwnedCoachSessionRecord>;
+  uploadIntents: Map<string, OwnedUploadIntentRecord>;
 };
 
 const globalForRepository = globalThis as typeof globalThis & {
@@ -35,14 +25,21 @@ const globalForRepository = globalThis as typeof globalThis & {
 
 const repositoryState =
   globalForRepository.__acttubMockCoachSessionRepository ?? {
-    sessions: new Map<string, MockCoachSessionRecord>(),
-    uploadIntents: new Map<string, MockUploadIntentRecord>(),
+    sessions: new Map<string, OwnedCoachSessionRecord>(),
+    uploadIntents: new Map<string, OwnedUploadIntentRecord>(),
   };
 
 globalForRepository.__acttubMockCoachSessionRepository = repositoryState;
 
-const cloneSession = (session: MockCoachSessionRecord): MockCoachSessionRecord =>
-  structuredClone(session);
+const stripSessionOwner = (session: OwnedCoachSessionRecord): MockCoachSessionRecord => {
+  const { ownerUserId: _ownerUserId, ...dto } = session;
+  return structuredClone(dto);
+};
+
+const stripUploadIntentOwner = (uploadIntent: OwnedUploadIntentRecord): PracticeUploadIntentDto => {
+  const { ownerUserId: _ownerUserId, finalizedAt: _finalizedAt, ...dto } = uploadIntent;
+  return structuredClone(dto);
+};
 
 const cloneUploadIntent = (uploadIntent: MockUploadIntentRecord): MockUploadIntentRecord =>
   structuredClone(uploadIntent);
@@ -53,112 +50,112 @@ const publicSession = (session: MockCoachSessionRecord): CoachSessionDto => {
 };
 
 export const mockCoachSessionRepository = {
-  create(session: CoachSessionDto, ownerId: string): CoachSessionDto {
-    repositoryState.sessions.set(session.id, cloneSession({ ...session, ownerId }));
-    return publicSession(repositoryState.sessions.get(session.id)!);
+  create(session: MockCoachSessionRecord, ownerUserId: string): MockCoachSessionRecord {
+    const ownedSession = { ...session, ownerUserId } satisfies OwnedCoachSessionRecord;
+    repositoryState.sessions.set(session.id, structuredClone(ownedSession));
+    return stripSessionOwner(ownedSession);
   },
 
-  findById(sessionId: string, ownerId: string): CoachSessionDto | null {
+  findByIdForOwner(sessionId: string, ownerUserId: string): MockCoachSessionRecord | null {
     const session = repositoryState.sessions.get(sessionId);
-    return session && session.ownerId === ownerId && !session.hiddenAt ? publicSession(session) : null;
+    return session && !session.hiddenAt && session.ownerUserId === ownerUserId ? stripSessionOwner(session) : null;
   },
 
-  findByIdIncludingHidden(sessionId: string, ownerId: string): CoachSessionDto | null {
-    const session = repositoryState.sessions.get(sessionId);
-    return session && session.ownerId === ownerId ? publicSession(session) : null;
-  },
-
-  listVisible(ownerId: string): CoachSessionDto[] {
+  listVisibleForOwner(ownerUserId: string): MockCoachSessionRecord[] {
     return Array.from(repositoryState.sessions.values())
-      .filter((session) => session.ownerId === ownerId && !session.hiddenAt)
+      .filter((session) => session.ownerUserId === ownerUserId && !session.hiddenAt)
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
-      .map(publicSession);
+      .map(stripSessionOwner);
   },
 
-  saveUploadIntent(uploadIntent: PracticeUploadIntentDto, ownerId: string): PracticeUploadIntentDto {
-    repositoryState.uploadIntents.set(
-      uploadIntent.uploadIntentId,
-      cloneUploadIntent({ ...uploadIntent, ownerId, status: "created", finalizedAt: null }),
-    );
-    return structuredClone(uploadIntent);
+  saveUploadIntent(uploadIntent: PracticeUploadIntentDto, ownerUserId: string): PracticeUploadIntentDto {
+    const ownedUploadIntent = {
+      ...uploadIntent,
+      ownerUserId,
+      finalizedAt: null,
+    } satisfies OwnedUploadIntentRecord;
+    repositoryState.uploadIntents.set(uploadIntent.uploadIntentId, structuredClone(ownedUploadIntent));
+    return stripUploadIntentOwner(ownedUploadIntent);
   },
 
-  findUploadIntent(uploadIntentId: string, ownerId: string): MockUploadIntentRecord | null {
+  findUploadIntentForOwner(uploadIntentId: string, ownerUserId: string): PracticeUploadIntentDto | null {
     const uploadIntent = repositoryState.uploadIntents.get(uploadIntentId);
-    return uploadIntent && uploadIntent.ownerId === ownerId ? cloneUploadIntent(uploadIntent) : null;
+    return uploadIntent && uploadIntent.ownerUserId === ownerUserId ? stripUploadIntentOwner(uploadIntent) : null;
   },
 
-  markUploadIntentFinalized(uploadIntentId: string, ownerId: string): PracticeUploadIntentDto | null {
+  isUploadIntentFinalized(uploadIntentId: string, ownerUserId: string): boolean {
     const uploadIntent = repositoryState.uploadIntents.get(uploadIntentId);
-    if (!uploadIntent || uploadIntent.ownerId !== ownerId) {
+    return Boolean(uploadIntent && uploadIntent.ownerUserId === ownerUserId && uploadIntent.finalizedAt);
+  },
+
+  markUploadIntentFinalized(uploadIntentId: string, ownerUserId: string): PracticeUploadIntentDto | null {
+    const uploadIntent = repositoryState.uploadIntents.get(uploadIntentId);
+    if (!uploadIntent || uploadIntent.ownerUserId !== ownerUserId) {
       return null;
     }
 
-    const updated = cloneUploadIntent({
+    const finalizedIntent = {
       ...uploadIntent,
-      status: "finalized",
       finalizedAt: new Date().toISOString(),
-    });
-    repositoryState.uploadIntents.set(uploadIntentId, updated);
-
-    const { ownerId: _ownerId, status: _status, finalizedAt: _finalizedAt, ...dto } = updated;
-    return dto;
+    } satisfies OwnedUploadIntentRecord;
+    repositoryState.uploadIntents.set(uploadIntentId, structuredClone(finalizedIntent));
+    return stripUploadIntentOwner(finalizedIntent);
   },
 
-  update(session: CoachSessionDto, ownerId: string): CoachSessionDto {
+  update(session: MockCoachSessionRecord, ownerUserId: string): MockCoachSessionRecord {
     const existing = repositoryState.sessions.get(session.id);
-    if (!existing || existing.ownerId !== ownerId) {
-      throw new Error("Cannot update a session outside the current owner scope.");
+    if (!existing || existing.ownerUserId !== ownerUserId) {
+      throw new Error("Cannot update a session owned by another actor.");
     }
 
     const updatedSession = {
       ...session,
-      ownerId,
+      ownerUserId,
       updatedAt: new Date().toISOString(),
-    } satisfies MockCoachSessionRecord;
+    } satisfies OwnedCoachSessionRecord;
 
-    repositoryState.sessions.set(updatedSession.id, cloneSession(updatedSession));
-    return publicSession(updatedSession);
+    repositoryState.sessions.set(updatedSession.id, structuredClone(updatedSession));
+    return stripSessionOwner(updatedSession);
   },
 
-  softHide(sessionId: string, ownerId: string): CoachSessionDto | null {
+  softHide(sessionId: string, ownerUserId: string): MockCoachSessionRecord | null {
     const session = repositoryState.sessions.get(sessionId);
-    if (!session || session.ownerId !== ownerId) {
+    if (!session || session.ownerUserId !== ownerUserId) {
       return null;
     }
 
     return this.update(
       {
-        ...publicSession(session),
+        ...stripSessionOwner(session),
         hiddenAt: new Date().toISOString(),
       },
-      ownerId,
+      ownerUserId,
     );
   },
 
-  addTurn(sessionId: string, ownerId: string, turn: TurnDto): CoachSessionDto | null {
+  addTurn(sessionId: string, ownerUserId: string, turn: TurnDto): MockCoachSessionRecord | null {
     const session = repositoryState.sessions.get(sessionId);
-    if (!session || session.ownerId !== ownerId) {
+    if (!session || session.ownerUserId !== ownerUserId) {
       return null;
     }
 
     return this.update(
       {
-        ...publicSession(session),
+        ...stripSessionOwner(session),
         turns: [...session.turns, turn],
       },
-      ownerId,
+      ownerUserId,
     );
   },
 
   updateObservationState(
     sessionId: string,
-    ownerId: string,
+    ownerUserId: string,
     observationId: string,
     confirmationState: ConfirmationState,
   ): CoachSessionDto | null {
     const session = repositoryState.sessions.get(sessionId);
-    if (!session || session.ownerId !== ownerId) {
+    if (!session || session.ownerUserId !== ownerUserId) {
       return null;
     }
 
@@ -182,11 +179,11 @@ export const mockCoachSessionRepository = {
 
     return this.update(
       {
-        ...publicSession(session),
+        ...stripSessionOwner(session),
         status: confirmationState === "accepted" ? "PROBE_LOOP" : session.status,
         observations,
       },
-      ownerId,
+      ownerUserId,
     );
   },
 };
