@@ -47,7 +47,7 @@ test("practice APIs are explicitly auth, terms, and owner gated", () => {
     /coachSessionService\.(?:listSessions|createSession|getSession|softHideSession|createSignedVideoUrl|getSignedVideoUrl|updateObservation|createTurn|saveValidationMetrics|createSummary|finalizeUploadIntent)\([^;\n]*\)/g;
 
   for (const file of routes) {
-    const source = read(path.join("apps/web", file));
+    const source = readWeb(file);
 
     if (!source.includes("requireApiTermsAccepted") && !source.trim().startsWith("export { POST }")) {
       missingGate.push(file);
@@ -72,7 +72,7 @@ test("upload sessions flow through a finalized owner-bound upload intent", () =>
   assert.match(service, /Upload sessions must be created from a finalized upload intent/);
   assert.match(service, /Upload intent must be finalized before session creation/);
   assert.match(service, /Must match the upload intent storage path/);
-  assert.match(service, /findUploadIntent\(input\.uploadIntentId, ownerId\)/);
+  assert.match(service, /findUploadIntent\(input\.uploadIntentId, userId\)/);
   assert.match(
     finalizeRoute,
     /finalizeUploadIntent\(\s*uploadIntentId,\s*payload,\s*auth\.userId/s,
@@ -83,7 +83,7 @@ test("upload sessions flow through a finalized owner-bound upload intent", () =>
 });
 
 test("mock persistence keeps owner scope on sessions and upload intents", () => {
-  const repository = read("apps/web/src/server/repositories/mock-coach-session-repository.ts");
+  const repository = readWeb("src/server/repositories/mock-coach-session-repository.ts");
 
   assert.match(repository, /sessionOwners: Map<string, string>/);
   assert.match(repository, /uploadIntents: Map<string, StoredUploadIntentRecord>/);
@@ -94,10 +94,10 @@ test("mock persistence keeps owner scope on sessions and upload intents", () => 
 });
 
 test("executable migration and web upload contract use one private insert-only policy", () => {
-  const migration = read("supabase/migrations/001_acttub_slice1_schema.sql");
-  const types = read("apps/web/src/lib/api/types.ts");
-  const config = read("apps/web/src/lib/config/env.ts");
-  const service = read("apps/web/src/server/services/coach-session-service.ts");
+  const migration = readRepo("supabase/migrations/001_acttub_slice1_schema.sql");
+  const types = readWeb("src/lib/api/types.ts");
+  const config = readWeb("src/lib/config/env.ts");
+  const service = readWeb("src/server/services/coach-session-service.ts");
 
   assert.match(
     migration,
@@ -117,9 +117,9 @@ test("executable migration and web upload contract use one private insert-only p
 });
 
 test("upload intent API response and client paths stay on the intent/finalize contract", () => {
-  const createRoute = read("apps/web/src/app/api/v1/practice-upload-intents/route.ts");
-  const sessionClient = read("apps/web/src/lib/api/sessions.ts");
-  const practiceClient = read("apps/web/src/lib/api/practice.ts");
+  const createRoute = readWeb("src/app/api/v1/practice-upload-intents/route.ts");
+  const sessionClient = readWeb("src/lib/api/sessions.ts");
+  const practiceClient = readWeb("src/lib/api/practice.ts");
 
   assert.match(createRoute, /jsonResponse\(\{ uploadIntent: result \}, \{ status: 201 \}\)/);
   assert.match(sessionClient, /fetch\("\/api\/v1\/practice-upload-intents"/);
