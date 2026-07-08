@@ -32,7 +32,8 @@ const seedObservation: ObservationDto = {
   takeId: "local-take-1",
   timestampStartMs: 18000,
   timestampEndMs: 26000,
-  observationText: "상대의 말을 들은 뒤 바로 답하지 않고 숨을 고르는 순간이 보여요.",
+  observationText:
+    "상대의 말을 들은 뒤 바로 답하지 않고 숨을 고르는 순간이 보여요.",
   confidence: 0.72,
   confirmationState: "unasked",
   blockedForQuestioning: false,
@@ -50,8 +51,10 @@ const focusQuestions = [
 export function PracticeFlow() {
   const [session, setSession] = useState<AuthSessionResponse | null>(null);
   const [step, setStep] = useState<Step>("gate");
-  const [loadingMessage, setLoadingMessage] = useState("연습 공간을 준비하는 중이에요.");
-  const [practiceSession, setPracticeSession] = useState<CoachSessionDto | null>(null);
+  const [loadingMessage, setLoadingMessage] =
+    useState("연습 공간을 준비하는 중이에요.");
+  const [practiceSession, setPracticeSession] =
+    useState<CoachSessionDto | null>(null);
   const [scene, setScene] = useState<SceneDraft>({
     medium: "youtube_url",
     genre: "",
@@ -61,7 +64,8 @@ export function PracticeFlow() {
     videoUrl: "",
     durationMs: undefined,
   });
-  const [observation, setObservation] = useState<ObservationDto>(seedObservation);
+  const [observation, setObservation] =
+    useState<ObservationDto>(seedObservation);
   const [answer, setAnswer] = useState("");
   const [dialogue, setDialogue] = useState<DialogueEntry[]>([
     {
@@ -75,6 +79,7 @@ export function PracticeFlow() {
   const [hidden, setHidden] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [nextReflectionQuestion, setNextReflectionQuestion] = useState("");
 
   useEffect(() => {
@@ -96,7 +101,11 @@ export function PracticeFlow() {
       })
       .catch((error: unknown) => {
         if (!mounted) return;
-        setLoadingMessage(error instanceof Error ? error.message : "연습 공간을 준비하지 못했어요.");
+        setLoadingMessage(
+          error instanceof Error
+            ? error.message
+            : "연습 공간을 준비하지 못했어요.",
+        );
       });
 
     return () => {
@@ -104,15 +113,25 @@ export function PracticeFlow() {
     };
   }, []);
 
-  const actorAnswers = useMemo(() => dialogue.filter((entry) => entry.speaker === "actor"), [dialogue]);
-  const latestQuestion = [...dialogue].reverse().find((entry) => entry.speaker === "coach");
+  const actorAnswers = useMemo(
+    () => dialogue.filter((entry) => entry.speaker === "actor"),
+    [dialogue],
+  );
+  const latestQuestion = [...dialogue]
+    .reverse()
+    .find((entry) => entry.speaker === "coach");
 
-  function updateScene<K extends keyof SceneDraft>(key: K, value: SceneDraft[K]) {
+  function updateScene<K extends keyof SceneDraft>(
+    key: K,
+    value: SceneDraft[K],
+  ) {
     setScene((current) => ({ ...current, [key]: value }));
   }
 
   function handleApiError(error: unknown) {
-    setApiError(error instanceof Error ? error.message : "요청을 처리하지 못했어요.");
+    setApiError(
+      error instanceof Error ? error.message : "요청을 처리하지 못했어요.",
+    );
   }
 
   async function startUpload() {
@@ -121,34 +140,54 @@ export function PracticeFlow() {
     setApiError(null);
 
     try {
-      let uploadSessionFields: Pick<CreateSessionRequest, "sessionId" | "uploadIntentId" | "storagePath" | "videoUrl" | "durationMs"> = {};
+      let uploadFields: Pick<
+        CreateSessionRequest,
+        | "sessionId"
+        | "uploadIntentId"
+        | "storagePath"
+        | "videoUrl"
+        | "durationMs"
+        | "fileMetadata"
+      > = {};
 
       if (scene.medium === "upload_url") {
-        const intentResult = await createPracticeUploadIntent({
+        if (!uploadFile) {
+          throw new Error("업로드할 영상 파일을 먼저 선택해 주세요.");
+        }
+
+        const intentResponse = await createPracticeUploadIntent({
           fileMetadata: {
-            fileName: "practice-take.mp4",
-            mimeType: "video/mp4",
-            sizeBytes: 1,
-            durationMs: scene.durationMs,
+            fileName: uploadFile.name,
+            mimeType: uploadFile.type as "video/mp4" | "video/quicktime",
+            sizeBytes: uploadFile.size,
           },
         });
-        const finalized = await finalizePracticeUploadIntent(intentResult.uploadIntent.uploadIntentId, {
-          storagePath: intentResult.uploadIntent.storagePath,
-          durationMs: scene.durationMs,
-        });
-        uploadSessionFields = {
-          sessionId: intentResult.uploadIntent.sessionId,
-          uploadIntentId: intentResult.uploadIntent.uploadIntentId,
+        const finalized = await finalizePracticeUploadIntent(
+          intentResponse.uploadIntent.uploadIntentId,
+          {
+            storagePath: intentResponse.uploadIntent.storagePath,
+          },
+        );
+
+        uploadFields = {
+          sessionId: intentResponse.uploadIntent.sessionId,
+          uploadIntentId: intentResponse.uploadIntent.uploadIntentId,
           storagePath: finalized.storagePath,
           videoUrl: finalized.videoUrl,
           durationMs: finalized.durationMs ?? undefined,
+          fileMetadata: {
+            fileName: uploadFile.name,
+            mimeType: uploadFile.type as "video/mp4" | "video/quicktime",
+            sizeBytes: uploadFile.size,
+          },
         };
       }
 
       const result = await createPracticeSession({
         ...scene,
-        ...uploadSessionFields,
-        videoUrl: uploadSessionFields.videoUrl ?? scene.videoUrl?.trim() || undefined,
+        ...uploadFields,
+        videoUrl:
+          (uploadFields.videoUrl ?? scene.videoUrl?.trim()) || undefined,
         subtext: scene.subtext?.trim() || undefined,
       });
       setPracticeSession(result.session);
@@ -177,7 +216,11 @@ export function PracticeFlow() {
     setApiError(null);
 
     try {
-      const result = await updatePracticeObservation(practiceSession.id, observation.id, { confirmationState });
+      const result = await updatePracticeObservation(
+        practiceSession.id,
+        observation.id,
+        { confirmationState },
+      );
       setPracticeSession(result.session);
       setObservation(result.observation);
       setDialogue((current) => [
@@ -189,7 +232,10 @@ export function PracticeFlow() {
             confirmationState === excludedObservationState
               ? "그 관찰은 질문 근거에서 제외할게요. 대신 장면에서 꼭 붙잡고 싶은 순간은 어디였나요?"
               : focusQuestions[0],
-          questionFocus: confirmationState === excludedObservationState ? "missing_context" : "subtext_probe",
+          questionFocus:
+            confirmationState === excludedObservationState
+              ? "missing_context"
+              : "subtext_probe",
         },
       ]);
       setStep("dialogue");
@@ -212,7 +258,9 @@ export function PracticeFlow() {
     setApiError(null);
 
     try {
-      const result = await createPracticeTurn(practiceSession.id, { actorAnswer: trimmed });
+      const result = await createPracticeTurn(practiceSession.id, {
+        actorAnswer: trimmed,
+      });
       setPracticeSession(result.session);
       setDialogue((current) => [
         ...current,
@@ -226,7 +274,10 @@ export function PracticeFlow() {
           id: result.coachTurn.id,
           speaker: result.coachTurn.speaker,
           content: result.coachTurn.content,
-          questionFocus: answerCount >= 1 ? "summary_reflection" : result.coachTurn.questionFocus,
+          questionFocus:
+            answerCount >= 1
+              ? "summary_reflection"
+              : result.coachTurn.questionFocus,
         },
       ]);
       setAnswer("");
@@ -251,7 +302,9 @@ export function PracticeFlow() {
     setApiError(null);
 
     try {
-      const result = await createPracticeSummary(practiceSession.id, { finalActorSentence: trimmed });
+      const result = await createPracticeSummary(practiceSession.id, {
+        finalActorSentence: trimmed,
+      });
       setPracticeSession(result.session);
       setFinalSentence(result.session.finalActorSentence ?? trimmed);
       setNextReflectionQuestion(result.nextReflectionQuestion);
@@ -265,7 +318,9 @@ export function PracticeFlow() {
   if (step === "gate" || !session) {
     return (
       <main className="mx-auto flex min-h-dvh w-full max-w-3xl flex-col justify-center px-6 py-10">
-        <p className="rounded-3xl bg-white p-6 text-[#4e5968] shadow-sm">{loadingMessage}</p>
+        <p className="rounded-3xl bg-white p-6 text-[#4e5968] shadow-sm">
+          {loadingMessage}
+        </p>
       </main>
     );
   }
@@ -274,13 +329,15 @@ export function PracticeFlow() {
     <main className="mx-auto flex min-h-dvh w-full max-w-5xl flex-col px-5 py-8 text-[#191f28] sm:px-8">
       <header className="flex flex-col gap-4 rounded-[2rem] bg-white p-6 shadow-sm sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="text-sm font-semibold text-[#3182f6]">Acttub 연습 공간</p>
+          <p className="text-sm font-semibold text-[#3182f6]">
+            Acttub 연습 공간
+          </p>
           <h1 className="mt-3 max-w-2xl text-3xl font-bold tracking-[-0.04em] sm:text-4xl">
             영상을 올리고, 한 번에 하나씩 장면의 생각을 붙잡아요.
           </h1>
           <p className="mt-4 max-w-2xl leading-7 text-[#4e5968]">
-            질문은 사용자가 남긴 맥락과 확인한 관찰만 바탕으로 이어집니다. 마지막 문장은 사용자가 직접
-            작성해요.
+            질문은 사용자가 남긴 맥락과 확인한 관찰만 바탕으로 이어집니다.
+            마지막 문장은 사용자가 직접 작성해요.
           </p>
         </div>
         <div className="rounded-2xl bg-[#f2f4f6] px-4 py-3 text-sm text-[#4e5968]">
@@ -292,14 +349,27 @@ export function PracticeFlow() {
       <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_360px]">
         <section className="rounded-[2rem] bg-white p-6 shadow-sm">
           {apiError ? (
-            <p className="mb-4 rounded-2xl bg-red-50 px-4 py-3 text-sm font-semibold text-red-600">{apiError}</p>
+            <p className="mb-4 rounded-2xl bg-red-50 px-4 py-3 text-sm font-semibold text-red-600">
+              {apiError}
+            </p>
           ) : null}
           {step === "scene" ? (
-            <SceneForm scene={scene} submitting={submitting} onChange={updateScene} onSubmit={startUpload} />
+            <SceneForm
+              scene={scene}
+              uploadFile={uploadFile}
+              submitting={submitting}
+              onChange={updateScene}
+              onUploadFileChange={setUploadFile}
+              onSubmit={startUpload}
+            />
           ) : null}
           {step === "upload" ? <UploadProgress scene={scene} /> : null}
           {step === "observe" ? (
-            <ObservationPanel observation={observation} submitting={submitting} onConfirm={confirmObservation} />
+            <ObservationPanel
+              observation={observation}
+              submitting={submitting}
+              onConfirm={confirmObservation}
+            />
           ) : null}
           {step === "dialogue" ? (
             <DialoguePanel
@@ -329,7 +399,12 @@ export function PracticeFlow() {
 
         <aside className="space-y-4">
           <ProgressCard step={step} />
-          <SessionCard scene={scene} observation={observation} answerCount={actorAnswers.length} hidden={hidden} />
+          <SessionCard
+            scene={scene}
+            observation={observation}
+            answerCount={actorAnswers.length}
+            hidden={hidden}
+          />
         </aside>
       </div>
     </main>
@@ -338,16 +413,24 @@ export function PracticeFlow() {
 
 function SceneForm({
   scene,
+  uploadFile,
   submitting,
   onChange,
+  onUploadFileChange,
   onSubmit,
 }: {
   scene: SceneDraft;
+  uploadFile: File | null;
   submitting: boolean;
   onChange: <K extends keyof SceneDraft>(key: K, value: SceneDraft[K]) => void;
+  onUploadFileChange: (file: File | null) => void;
   onSubmit: () => void | Promise<void>;
 }) {
-  const ready = scene.genre.trim() && scene.situation.trim() && scene.characterContext.trim();
+  const ready =
+    scene.genre.trim() &&
+    scene.situation.trim() &&
+    scene.characterContext.trim() &&
+    (scene.medium !== "upload_url" || uploadFile);
 
   return (
     <form
@@ -359,9 +442,12 @@ function SceneForm({
     >
       <div>
         <p className="text-sm font-semibold text-[#3182f6]">새 연습</p>
-        <h2 className="mt-2 text-2xl font-bold tracking-[-0.03em]">장면과 영상 정보를 적어 주세요.</h2>
+        <h2 className="mt-2 text-2xl font-bold tracking-[-0.03em]">
+          장면과 영상 정보를 적어 주세요.
+        </h2>
         <p className="mt-2 leading-7 text-[#4e5968]">
-          링크만 있어도 시작할 수 있어요. 업로드 연결 전에는 로컬 흐름으로 질문 단계를 확인합니다.
+          YouTube 링크, 텍스트, 또는 검증된 업로드 의도 흐름으로 질문 단계를
+          시작합니다.
         </p>
       </div>
 
@@ -378,16 +464,55 @@ function SceneForm({
         </select>
       </label>
 
-      <TextField label="영상 링크" value={scene.videoUrl ?? ""} onChange={(value) => onChange("videoUrl", value)} />
-      <TextField label="장르" value={scene.genre} onChange={(value) => onChange("genre", value)} required />
-      <TextArea label="상황" value={scene.situation} onChange={(value) => onChange("situation", value)} required />
+      {scene.medium !== "upload_url" ? (
+        <TextField
+          label="영상 링크"
+          value={scene.videoUrl ?? ""}
+          onChange={(value) => onChange("videoUrl", value)}
+        />
+      ) : null}
+
+      {scene.medium === "upload_url" ? (
+        <label className="block">
+          <span className="text-sm font-semibold">업로드할 영상 파일</span>
+          <input
+            type="file"
+            accept="video/mp4,video/quicktime"
+            onChange={(event) =>
+              onUploadFileChange(event.target.files?.[0] ?? null)
+            }
+            className="mt-2 block w-full rounded-2xl border border-[#d1d6db] bg-white px-4 py-3 text-sm outline-none file:mr-4 file:rounded-xl file:border-0 file:bg-[#e8f3ff] file:px-4 file:py-2 file:text-sm file:font-semibold file:text-[#1b64da] focus:border-[#3182f6]"
+          />
+          <p className="mt-2 text-sm text-[#8b95a1]">
+            선택한 파일은 업로드 의도 생성과 경로 검증을 거친 뒤 연습 세션에
+            연결됩니다.
+          </p>
+        </label>
+      ) : null}
+
+      <TextField
+        label="장르"
+        value={scene.genre}
+        onChange={(value) => onChange("genre", value)}
+        required
+      />
+      <TextArea
+        label="상황"
+        value={scene.situation}
+        onChange={(value) => onChange("situation", value)}
+        required
+      />
       <TextArea
         label="인물 맥락"
         value={scene.characterContext}
         onChange={(value) => onChange("characterContext", value)}
         required
       />
-      <TextArea label="숨은 생각 메모" value={scene.subtext ?? ""} onChange={(value) => onChange("subtext", value)} />
+      <TextArea
+        label="숨은 생각 메모"
+        value={scene.subtext ?? ""}
+        onChange={(value) => onChange("subtext", value)}
+      />
 
       <button
         type="submit"
@@ -404,12 +529,16 @@ function UploadProgress({ scene }: { scene: SceneDraft }) {
   return (
     <div className="space-y-5">
       <p className="text-sm font-semibold text-[#3182f6]">영상 준비</p>
-      <h2 className="text-2xl font-bold tracking-[-0.03em]">연습 자료를 정리하고 있어요.</h2>
+      <h2 className="text-2xl font-bold tracking-[-0.03em]">
+        연습 자료를 정리하고 있어요.
+      </h2>
       <div className="h-3 overflow-hidden rounded-full bg-[#e5e8eb]">
         <div className="h-full w-3/4 rounded-full bg-[#3182f6]" />
       </div>
       <p className="leading-7 text-[#4e5968]">
-        {scene.videoUrl ? "입력한 링크와 장면 메모를 연결하는 중이에요." : "텍스트 맥락으로 먼저 질문 흐름을 엽니다."}
+        {scene.videoUrl
+          ? "입력한 링크와 장면 메모를 연결하는 중이에요."
+          : "텍스트 맥락으로 먼저 질문 흐름을 엽니다."}
       </p>
     </div>
   );
@@ -427,15 +556,31 @@ function ObservationPanel({
   return (
     <div className="space-y-5">
       <p className="text-sm font-semibold text-[#3182f6]">관찰 확인</p>
-      <h2 className="text-2xl font-bold tracking-[-0.03em]">이 관찰을 질문 근거로 써도 될까요?</h2>
+      <h2 className="text-2xl font-bold tracking-[-0.03em]">
+        이 관찰을 질문 근거로 써도 될까요?
+      </h2>
       <div className="rounded-3xl bg-[#f9fafb] p-5">
         <p className="text-lg leading-8">“{observation.observationText}”</p>
-        <p className="mt-3 text-sm text-[#8b95a1]">{Math.round(observation.timestampStartMs / 1000)}초 부근</p>
+        <p className="mt-3 text-sm text-[#8b95a1]">
+          {Math.round(observation.timestampStartMs / 1000)}초 부근
+        </p>
       </div>
       <div className="grid gap-3 sm:grid-cols-3">
-        <ChoiceButton disabled={submitting} onClick={() => onConfirm("accepted")}>맞아요</ChoiceButton>
-        <ChoiceButton disabled={submitting} onClick={() => onConfirm("unsure")}>조금 다르게 볼래요</ChoiceButton>
-        <ChoiceButton disabled={submitting} onClick={() => onConfirm(excludedObservationState)}>아니에요</ChoiceButton>
+        <ChoiceButton
+          disabled={submitting}
+          onClick={() => onConfirm("accepted")}
+        >
+          맞아요
+        </ChoiceButton>
+        <ChoiceButton disabled={submitting} onClick={() => onConfirm("unsure")}>
+          조금 다르게 볼래요
+        </ChoiceButton>
+        <ChoiceButton
+          disabled={submitting}
+          onClick={() => onConfirm(excludedObservationState)}
+        >
+          아니에요
+        </ChoiceButton>
       </div>
     </div>
   );
@@ -461,14 +606,18 @@ function DialoguePanel({
   return (
     <div className="space-y-5">
       <p className="text-sm font-semibold text-[#3182f6]">한 번에 하나씩</p>
-      <h2 className="text-2xl font-bold tracking-[-0.03em]">{latestQuestion}</h2>
+      <h2 className="text-2xl font-bold tracking-[-0.03em]">
+        {latestQuestion}
+      </h2>
       <div className="max-h-72 space-y-3 overflow-auto rounded-3xl bg-[#f9fafb] p-4">
         {dialogue.map((entry) => (
           <div
             key={entry.id}
             className={`rounded-2xl p-4 ${entry.speaker === "coach" ? "bg-white text-[#191f28]" : "bg-[#3182f6] text-white"}`}
           >
-            <p className="text-xs font-semibold opacity-70">{entry.speaker === "coach" ? "질문" : "내 답"}</p>
+            <p className="text-xs font-semibold opacity-70">
+              {entry.speaker === "coach" ? "질문" : "내 답"}
+            </p>
             <p className="mt-1 leading-7">{entry.content}</p>
           </div>
         ))}
@@ -480,10 +629,20 @@ function DialoguePanel({
         className="min-h-32 w-full rounded-3xl border border-[#d1d6db] p-4 outline-none focus:border-[#3182f6]"
       />
       <div className="grid gap-3 sm:grid-cols-2">
-        <button type="button" disabled={submitting} onClick={onSubmit} className="h-13 rounded-2xl bg-[#3182f6] font-semibold text-white disabled:bg-[#b0d2ff]">
+        <button
+          type="button"
+          disabled={submitting}
+          onClick={onSubmit}
+          className="h-13 rounded-2xl bg-[#3182f6] font-semibold text-white disabled:bg-[#b0d2ff]"
+        >
           {submitting ? "기록 중이에요" : "답하고 다음 질문 보기"}
         </button>
-        <button type="button" disabled={submitting} onClick={onFinish} className="h-13 rounded-2xl border border-[#d1d6db] font-semibold text-[#4e5968] disabled:text-[#b0b8c1]">
+        <button
+          type="button"
+          disabled={submitting}
+          onClick={onFinish}
+          className="h-13 rounded-2xl border border-[#d1d6db] font-semibold text-[#4e5968] disabled:text-[#b0b8c1]"
+        >
           마지막 문장 쓰기
         </button>
       </div>
@@ -515,7 +674,9 @@ function SummaryPanel({
   return (
     <div className="space-y-5">
       <p className="text-sm font-semibold text-[#3182f6]">마무리</p>
-      <h2 className="text-2xl font-bold tracking-[-0.03em]">인물의 생각을 내 문장으로 남겨 주세요.</h2>
+      <h2 className="text-2xl font-bold tracking-[-0.03em]">
+        인물의 생각을 내 문장으로 남겨 주세요.
+      </h2>
       <textarea
         value={finalSentence}
         onChange={(event) => onFinalSentenceChange(event.target.value)}
@@ -527,12 +688,23 @@ function SummaryPanel({
         <p className="mt-2">장르: {scene.genre || "아직 없음"}</p>
         <p>질문 흐름: {dialogue.length}개 기록</p>
         <p>마지막 문장: {finalSentence || "작성 전"}</p>
-        {nextReflectionQuestion ? <p>다음에 붙잡을 질문: {nextReflectionQuestion}</p> : null}
+        {nextReflectionQuestion ? (
+          <p>다음에 붙잡을 질문: {nextReflectionQuestion}</p>
+        ) : null}
       </div>
-      <button type="button" disabled={submitting || !finalSentence.trim()} onClick={onSave} className="h-13 w-full rounded-2xl bg-[#3182f6] font-semibold text-white disabled:bg-[#b0d2ff]">
+      <button
+        type="button"
+        disabled={submitting || !finalSentence.trim()}
+        onClick={onSave}
+        className="h-13 w-full rounded-2xl bg-[#3182f6] font-semibold text-white disabled:bg-[#b0d2ff]"
+      >
         {submitting ? "저장 중이에요" : "마지막 문장 저장하기"}
       </button>
-      <button type="button" onClick={onToggleHidden} className="h-13 w-full rounded-2xl border border-[#d1d6db] font-semibold text-[#4e5968]">
+      <button
+        type="button"
+        onClick={onToggleHidden}
+        className="h-13 w-full rounded-2xl border border-[#d1d6db] font-semibold text-[#4e5968]"
+      >
         {hidden ? "목록에 다시 보이기" : "목록에서 잠시 숨기기"}
       </button>
     </div>
@@ -553,7 +725,10 @@ function ProgressCard({ step }: { step: Step }) {
       <h2 className="font-bold">진행 흐름</h2>
       <ol className="mt-4 space-y-3">
         {steps.map((item) => (
-          <li key={item.id} className={`rounded-2xl px-4 py-3 text-sm ${item.id === step ? "bg-[#e8f3ff] text-[#1b64da]" : "bg-[#f9fafb] text-[#6b7684]"}`}>
+          <li
+            key={item.id}
+            className={`rounded-2xl px-4 py-3 text-sm ${item.id === step ? "bg-[#e8f3ff] text-[#1b64da]" : "bg-[#f9fafb] text-[#6b7684]"}`}
+          >
             {item.label}
           </li>
         ))}
@@ -583,7 +758,9 @@ function SessionCard({
         </div>
         <div>
           <dt className="font-semibold text-[#191f28]">관찰 상태</dt>
-          <dd>{observation.confirmationState === "unasked" ? "확인 전" : "확인됨"}</dd>
+          <dd>
+            {observation.confirmationState === "unasked" ? "확인 전" : "확인됨"}
+          </dd>
         </div>
         <div>
           <dt className="font-semibold text-[#191f28]">내 답변</dt>
@@ -598,7 +775,17 @@ function SessionCard({
   );
 }
 
-function TextField({ label, value, onChange, required }: { label: string; value: string; onChange: (value: string) => void; required?: boolean }) {
+function TextField({
+  label,
+  value,
+  onChange,
+  required,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  required?: boolean;
+}) {
   return (
     <label className="block">
       <span className="text-sm font-semibold">{label}</span>
@@ -612,7 +799,17 @@ function TextField({ label, value, onChange, required }: { label: string; value:
   );
 }
 
-function TextArea({ label, value, onChange, required }: { label: string; value: string; onChange: (value: string) => void; required?: boolean }) {
+function TextArea({
+  label,
+  value,
+  onChange,
+  required,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  required?: boolean;
+}) {
   return (
     <label className="block">
       <span className="text-sm font-semibold">{label}</span>
@@ -626,9 +823,22 @@ function TextArea({ label, value, onChange, required }: { label: string; value: 
   );
 }
 
-function ChoiceButton({ children, disabled, onClick }: { children: React.ReactNode; disabled?: boolean; onClick: () => void }) {
+function ChoiceButton({
+  children,
+  disabled,
+  onClick,
+}: {
+  children: React.ReactNode;
+  disabled?: boolean;
+  onClick: () => void;
+}) {
   return (
-    <button type="button" disabled={disabled} onClick={onClick} className="min-h-13 rounded-2xl border border-[#d1d6db] px-4 py-3 font-semibold text-[#4e5968] transition hover:border-[#3182f6] hover:text-[#1b64da] disabled:text-[#b0b8c1]">
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      className="min-h-13 rounded-2xl border border-[#d1d6db] px-4 py-3 font-semibold text-[#4e5968] transition hover:border-[#3182f6] hover:text-[#1b64da] disabled:text-[#b0b8c1]"
+    >
       {children}
     </button>
   );

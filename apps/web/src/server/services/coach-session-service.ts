@@ -328,6 +328,13 @@ export const coachSessionService = {
       });
     }
 
+    if (validatedMedium === "upload_url" && !input.uploadIntentId) {
+      throw new ApiValidationError("Request validation failed", {
+        uploadIntentId:
+          "Upload sessions must be created from a finalized upload intent.",
+      });
+    }
+
     if (input.uploadIntentId) {
       const uploadIntent = mockCoachSessionRepository.findUploadIntent(input.uploadIntentId, userId);
       if (!uploadIntent) {
