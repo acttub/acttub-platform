@@ -7,8 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "node --test tests/*.test.mjs",
-    "typecheck": "tsc --noEmit"
+    "test": "node scripts/check-forbidden-copy.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.0",

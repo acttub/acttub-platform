@@ -1,65 +1,49 @@
-import Image from "next/image";
+import Link from "next/link";
+import { getAuthContext } from "@/server/services/auth-context";
 
-export default function Home() {
+export default async function Home() {
+  const context = await getAuthContext();
+  const nextPath = context?.termsAccepted ? "/practice" : context ? "/terms" : "/auth/login";
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+    <main className="min-h-dvh bg-[#f9fafb] px-6 py-10 text-[#191f28]">
+      <section className="mx-auto flex w-full max-w-3xl flex-col justify-center rounded-[32px] bg-white px-6 py-10 sm:px-10 sm:py-14">
+        <p className="text-sm font-semibold text-[#3182f6]">Acttub</p>
+        <h1 className="mt-4 text-4xl font-bold tracking-[-0.04em] sm:text-5xl">
+          영상을 올리고, 장면을 한 질문씩 다시 생각해요.
+        </h1>
+        <p className="mt-6 max-w-2xl text-lg leading-8 text-[#4e5968]">
+          Acttub은 배우가 자기 연기 영상과 장면 맥락을 바탕으로 놓쳤던
+          생각, 관계, 목표를 스스로 정리하도록 돕는 질문 기반 연습 도구입니다.
+        </p>
+        <div className="mt-9 flex flex-col gap-3 sm:flex-row">
+          <Link
+            href={nextPath}
+            className="inline-flex h-14 items-center justify-center rounded-2xl bg-[#3182f6] px-6 text-base font-semibold text-white transition hover:bg-[#1b64da]"
           >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
+            연습 시작하기
+          </Link>
           <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+            href="#how-it-works"
+            className="inline-flex h-14 items-center justify-center rounded-2xl border border-[#d1d6db] px-6 text-base font-semibold text-[#333d4b]"
           >
-            Documentation
+            흐름 보기
           </a>
         </div>
-      </main>
-    </div>
+      </section>
+
+      <section id="how-it-works" className="mx-auto mt-6 grid w-full max-w-3xl gap-3 sm:grid-cols-3">
+        {[
+          ["1", "영상과 장면 맥락을 준비해요"],
+          ["2", "확인한 단서만 질문의 바탕으로 삼아요"],
+          ["3", "마지막 문장은 배우가 직접 남겨요"],
+        ].map(([step, text]) => (
+          <div key={step} className="rounded-3xl bg-white p-5">
+            <p className="text-sm font-bold text-[#3182f6]">{step}</p>
+            <p className="mt-3 font-semibold leading-7 text-[#333d4b]">{text}</p>
+          </div>
+        ))}
+      </section>
+    </main>
   );
 }

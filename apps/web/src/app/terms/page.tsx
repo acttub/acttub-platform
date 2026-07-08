@@ -22,7 +22,7 @@ export default async function TermsPage() {
       </h1>
       <div className="mt-8 rounded-3xl border border-[#e5e8eb] bg-white p-6 text-base leading-7 text-[#4e5968]">
         <p>
-          Acttub은 연기 결과를 판정하지 않고, 사용자가 직접 장면의 생각과
+          Acttub은 결론을 대신 내리지 않고, 사용자가 직접 장면의 생각과
           선택을 정리하도록 질문을 건네는 연습 도구입니다.
         </p>
         <ul className="mt-5 list-disc space-y-2 pl-5">
