@@ -23,7 +23,7 @@ This note preserves the backend contract that the temporary Next.js route handle
 | `POST /api/v1/practice-sessions` | Finalize an uploaded video into DB state | active user | Creates session/take/mock observations only after object existence validation. |
 | `GET /api/v1/practice-sessions` | List visible sessions | active user | Excludes `hidden_at is not null`. |
 | `GET /api/v1/practice-sessions/{sessionId}` | Fetch session state | owner only | Return `403` or `404` for non-owner without leaking existence. |
-| `POST /api/v1/practice-sessions/{sessionId}/video-url` | Issue playback signed URL | owner + visible session | 600 second expiry, never public URL. |
+| `GET /api/v1/practice-sessions/{sessionId}/signed-video-url` | Issue playback signed URL | owner + visible session | 600 second expiry, never public URL. `POST /video-url` is legacy-only compatibility and must not be used by clients. |
 | `PATCH /api/v1/practice-sessions/{sessionId}/observations/{observationId}` | Confirm/reject/unsure observation | owner only | `rejected` must set `blocked_for_questioning=true`. |
 | `POST /api/v1/practice-sessions/{sessionId}/turns` | Submit answer / get one next question | owner only | Source observations must exclude rejected/blocked observations. |
 | `POST /api/v1/practice-sessions/{sessionId}/result` | Save actor-authored final sentence + validation metrics | owner only | Final sentence is required and user-authored. |
@@ -51,7 +51,16 @@ Vary: Cookie, Authorization
 - Server/service-role responsibilities:
   - validate upload intent, owner, object path, MIME, and size before finalization;
   - issue short-lived signed playback URLs after ownership checks;
-  - remove orphan objects after finalization failure or abandoned intents.
+  - remove orphan objects after finalization failure or expired intents.
+
+
+## Upload implementation boundary
+
+- Slice 1 uses Supabase Storage standard `.upload()` direct storage from the browser without adding a TUS dependency.
+- Server finalization remains bounded by the active upload intent plus bucket/object checks: owner, exact path, MIME type, size, expiry, and the 300 MB bucket limit.
+- Supabase standard upload docs: https://supabase.com/docs/guides/storage/uploads/standard-uploads
+- Supabase recommends TUS/resumable uploads for files larger than 6 MB: https://supabase.com/docs/guides/storage/uploads/resumable-uploads
+- Production Spring Boot hardening should add a TUS-capable client for large/mobile/unreliable-network uploads; Slice 1 intentionally stays dependency-free.
 
 ## Data integrity invariants
 
@@ -67,4 +76,4 @@ Vary: Cookie, Authorization
 - Keep DTO names and fields aligned with `apps/web/src/lib/api/*` so the frontend can switch base URLs without changing call sites.
 - Use the Supabase service role only in backend infrastructure components. Never return it or derive client credentials from it.
 - Wrap finalization in a DB transaction. If the transaction fails after object upload, call the Storage API remove operation and log `orphan_cleanup_attempted` with the result.
-- Preserve the current product language rules in backend generated content: the final result centers the actor-authored sentence and avoids score/verdict/diagnosis/prescriptive framing.
+- Preserve the current product language rules in backend generated content: the final result centers the actor-authored sentence and avoids score/verdict/evaluation/diagnosis/prescriptive-correction framing.

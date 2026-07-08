@@ -72,7 +72,7 @@ test("upload sessions flow through a finalized owner-bound upload intent", () =>
   assert.match(service, /Upload sessions must be created from a finalized upload intent/);
   assert.match(service, /Upload intent must be finalized before session creation/);
   assert.match(service, /Must match the upload intent storage path/);
-  assert.match(service, /findUploadIntent\(input\.uploadIntentId, userId\)/);
+  assert.match(service, /readUploadIntentForOwner\(input\.uploadIntentId, userId\)/);
   assert.match(
     finalizeRoute,
     /finalizeUploadIntent\(\s*uploadIntentId,\s*payload,\s*auth\.userId/s,
@@ -151,4 +151,54 @@ test("terms acceptance rejects invalid JSON but preserves form and empty body pa
   assert.match(route, /return \{ termsVersion: formData\.get\("termsVersion"\) \}/);
   assert.match(route, /return \{\};/);
   assert.match(route, /handleApiError\(error\)/);
+});
+
+test("signed video playback clients use canonical GET endpoint only", () => {
+  const sessionClient = readWeb("src/lib/api/sessions.ts");
+  const practiceClient = readWeb("src/lib/api/practice.ts");
+
+  for (const source of [sessionClient, practiceClient]) {
+    assert.match(source, /\/api\/v1\/practice-sessions\/\$\{sessionId\}\/signed-video-url/);
+    assert.doesNotMatch(source, /\/api\/v1\/practice-sessions\/\$\{sessionId\}\/video-url/);
+    assert.doesNotMatch(source, /method:\s*"POST"[\s\S]{0,120}video-url/);
+  }
+
+  assert.match(practiceClient, /createPracticeSignedVideoUrl[\s\S]*fetch\(`\/api\/v1\/practice-sessions\/\$\{sessionId\}\/signed-video-url`, \{[\s\S]*headers: \{ Accept: "application\/json" \}[\s\S]*\}\)/);
+});
+
+test("docs stay aligned to executable Slice 1 Supabase and API contracts", () => {
+  const schema = readRepo("docs/SUPABASE_SCHEMA.md");
+  const spring = readRepo("docs/SPRING_BOOT_MIGRATION.md");
+  const notes = readRepo("docs/supabase/slice1-spring-boot-migration-notes.md");
+  const docs = `${schema}\n${spring}\n${notes}`;
+
+  assert.match(schema, /`user_id`: Supabase Auth user id/);
+  assert.match(docs, /public\.validation_events/);
+  assert.match(docs, /users\/\{userId\}\/practice-sessions\/\{sessionId\}\/take\.mp4\|take\.mov/);
+  assert.match(docs, /observations_pending`, `questioning`, and `completed`/);
+  assert.match(docs, /DTO mapping to UI labels\/states must be explicit/);
+  assert.match(docs, /canonical paths are `\/api\/v1\/practice-sessions\/\*`/);
+  assert.match(docs, /Legacy `\/api\/v1\/sessions\/\*` routes may remain only as compatibility aliases/);
+  assert.match(docs, /GET \/api\/v1\/practice-sessions\/\{sessionId\}\/signed-video-url/);
+
+  assert.doesNotMatch(schema, /`actor_id`:/);
+  assert.doesNotMatch(schema, /`anonymous_token`:/);
+  assert.doesNotMatch(docs, /acttub\.validation_events/);
+  assert.doesNotMatch(schema, /awaiting_observation_confirmation|summarizing|abandoned/);
+  assert.doesNotMatch(spring, /awaiting_observation_confirmation|summarizing|abandoned/);
+});
+
+test("docs capture bounded direct upload fallback and future TUS hardening", () => {
+  const schema = readRepo("docs/SUPABASE_SCHEMA.md");
+  const spring = readRepo("docs/SPRING_BOOT_MIGRATION.md");
+  const notes = readRepo("docs/supabase/slice1-spring-boot-migration-notes.md");
+  const docs = `${schema}\n${spring}\n${notes}`;
+
+  assert.match(docs, /standard `\.upload\(\)` direct storage/);
+  assert.match(docs, /without adding a TUS dependency/);
+  assert.match(docs, /300 MB bucket limit|300MB bucket\/server-finalization checks/);
+  assert.match(docs, /recommends TUS\/resumable uploads for files (?:above|larger than) 6 MB/);
+  assert.match(docs, /https:\/\/supabase\.com\/docs\/guides\/storage\/uploads\/standard-uploads/);
+  assert.match(docs, /https:\/\/supabase\.com\/docs\/guides\/storage\/uploads\/resumable-uploads/);
+  assert.match(docs, /Production .*should add a TUS-capable client/);
 });

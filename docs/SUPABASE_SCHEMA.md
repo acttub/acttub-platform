@@ -4,11 +4,11 @@ This document records the Supabase persistence contract for the Slice 1 MVP. The
 
 ## Scope
 
-The schema supports the current product invariant: Acttub is a question-based acting practice partner, not an evaluator. The database stores session state, a single uploaded take, analysis observations, question turns, actor-authored summary text, and validation events.
+The schema supports the current product invariant: Acttub is a question-based acting practice partner, not an evaluator. The database stores session state, one uploaded take, analysis observations, question turns, actor-authored result text, and validation events.
 
-Out of scope for this migration:
+Out of scope for executable schema and user-facing contracts:
 
-- score, rating, grade, verdict, strength, weakness, or diagnosis fields
+- score, rating, grade, verdict, strength/weakness cards, diagnosis fields, or prescriptive correction fields
 - before/after comparison state
 - retake workflows
 - long-term progress reports
@@ -22,19 +22,29 @@ One row per Supabase user. Slice 1 API access requires an active profile with cu
 
 ### `public.upload_intents`
 
-Pre-session upload authority. Each row binds a user, future session id, exact private Storage bucket/path, MIME type, size, consent version, expiry, and finalization status.
-
-### `public.practice_sessions`
-
-One practice flow. Required MVP context is stored directly on the session so a future Spring Boot API can serve `/api/v1/sessions/{sessionId}` without reconstructing state from client memory.
+Pre-session upload authority. Each row binds a `user_id`, future `session_id`, exact private Storage bucket/path, MIME type, size, consent version, expiry, and finalization status.
 
 Key fields:
 
-- `actor_id`: Supabase auth user id when authenticated.
-- `anonymous_token`: fallback owner token for non-authenticated alpha flows. RLS policies currently protect authenticated rows; anonymous-token access must stay server-mediated.
-- `status`: session lifecycle (`draft`, `analyzing`, `awaiting_observation_confirmation`, `questioning`, `summarizing`, `completed`, `abandoned`).
+- `user_id`: Supabase Auth user id and owner for the future session and object path.
+- `session_id`: future practice session id; also embedded in the Storage path.
+- `status`: upload lifecycle (`created`, `finalized`, `expired`, `cleanup_failed`).
+- `expected_storage_bucket`: defaults to `practice-videos`.
+- `expected_storage_path`: exact browser upload path, constrained to `users/{userId}/practice-sessions/{sessionId}/take.mp4|take.mov`.
+- `expected_mime_type`, `expected_size_bytes`: finalization checks; size is bounded by the 300 MB bucket policy.
+
+### `public.practice_sessions`
+
+One practice flow. Required MVP context is stored directly on the session so a future Spring Boot API can serve `/api/v1/practice-sessions/{sessionId}` without reconstructing state from client memory.
+
+Key fields:
+
+- `user_id`: Supabase Auth user id and owner. Slice 1 executable schema uses this field as the owner key.
+- `upload_intent_id`: owner-aligned reference to the finalized upload intent used to create the session.
+- `status`: persistence lifecycle (`observations_pending`, `questioning`, `completed`). The web DTO may map these to current UI states such as observation review, conversation, and end/result, but the database status values remain these three strings.
 - `medium`, `genre`, `situation`, `character_context`, `subtext`: scene context from the input step.
 - `final_actor_sentence`: actor-authored filled-thought sentence saved at completion.
+- `hidden_at`: soft-hide marker for visible session lists.
 
 ### `public.practice_takes`
 
@@ -43,8 +53,9 @@ One uploaded acting video for a session.
 Key fields:
 
 - `storage_bucket`: defaults to `practice-videos`.
-- `storage_key`: private Supabase Storage object path.
-- `analysis_status`: one-time video analysis state.
+- `storage_path`: private Supabase Storage object path.
+- `mime_type`, `size_bytes`: copied from the finalized upload intent after server verification.
+- `analysis_status`: one-time mock analysis state (`mocked`, `failed`).
 - `analysis_error`: operational failure detail, not user-facing judgment.
 
 ### `public.observations`
@@ -60,7 +71,7 @@ Key fields:
 - `blocked_for_questioning`: must be `true` when `confirmation_state = 'rejected'`.
 - `source_payload`: raw/provider metadata for server-side audit.
 
-Important invariant: rejected observations cannot be reused as question grounds. This is enforced by the `coach_observations_rejected_blocked` check and by the `coach_turns_source_observations_groundable` check.
+Important invariant: rejected observations cannot be reused as question grounds. This is enforced by the `rejected_observations_are_blocked` check and by service/repository filtering before question generation.
 
 ### `public.question_turns`
 
@@ -68,17 +79,26 @@ Conversation log. Each assistant question is one turn and should contain one que
 
 Key fields:
 
-- `speaker`: `actor` or `assistant`.
+- `speaker`: `actor` or `acttub`.
 - `content`: turn text.
 - `question_focus`: focus axis for assistant questions.
 - `source_observation_ids`: accepted, non-blocked observations used as grounds.
-- `turn_state`: `question`, `answer`, `hint`, `redirect`, or `summary_prompt`.
+- `turn_state`: `open`, `answered`, or `summary`.
 
-### `acttub.validation_events`
+### `public.session_results`
+
+Final result row for the completed session.
+
+Key fields:
+
+- `actor_authored_sentence`: required final sentence written by the actor.
+- `question_to_revisit`: optional actor-centered prompt for reflection.
+
+### `public.validation_events`
 
 Low-level validation/audit events for alpha learning, including rejected-observation reuse checks and forbidden-language checks.
 
-## Storage
+## Storage and upload contract
 
 The migration creates a private bucket:
 
@@ -87,42 +107,45 @@ The migration creates a private bucket:
 - max size: `314572800` bytes
 - allowed MIME types: `video/mp4`, `video/quicktime`
 
-Authenticated actor upload paths must begin with the user id:
+Authenticated actor upload paths must be exactly:
 
 ```text
-users/{auth.uid()}/practice-sessions/{sessionId}/take.mp4|take.mov
+users/{userId}/practice-sessions/{sessionId}/take.mp4|take.mov
 ```
 
-The server should persist that path as `practice_takes.storage_path`. Signed URLs should be short-lived and generated server-side.
+The server persists that path as `practice_takes.storage_path`. Playback signed URLs are short-lived and generated server-side from the owner-checked canonical endpoint `GET /api/v1/practice-sessions/{sessionId}/signed-video-url`.
+
+Slice 1 keeps the browser upload path dependency-free: the current MVP uses Supabase Storage standard `.upload()` direct storage, then server finalization verifies owner, path, MIME type, size, and object existence under the existing 300 MB bucket limit. Supabase documents standard uploads at https://supabase.com/docs/guides/storage/uploads/standard-uploads and recommends TUS/resumable uploads for files above 6 MB at https://supabase.com/docs/guides/storage/uploads/resumable-uploads. Production hardening should add a TUS-capable client for large/mobile/unreliable-network uploads, but Slice 1 intentionally does not add a new TUS dependency.
 
 ## RLS Policy Model
 
 Authenticated actors can select visible own rows and mutate rows only when `public.is_active_acttub_profile(auth.uid())` is true. Nested rows denormalize `user_id` and are authorized through composite owner-alignment foreign keys.
 
-Anonymous alpha access is intentionally not opened directly through RLS. If the UI supports anonymous tokens before full auth, the Next.js route handler or future Spring Boot API must mediate those requests with a server credential and validate `anonymous_token` itself.
-
-Server-side analysis jobs and migration backfills should use the Supabase service role or database owner role. Do not expose service-role keys to the browser.
+Slice 1 does not open anonymous table or Storage access through RLS. Server-side analysis jobs, finalization checks, signed playback, and migration backfills should use the Supabase service role or database owner role. Do not expose service-role keys to the browser.
 
 ## API Contract Mapping
 
-The schema maps to the planned REST surface:
+The canonical REST surface uses `/api/v1/practice-sessions/*`. `/api/v1/sessions/*` remains only as a compatibility alias for legacy callers during migration.
 
-- `POST /api/v1/practice-upload-intents` creates the owner-bound upload intent; `POST /api/v1/practice-upload-intents/{id}/finalize` validates owner/path/expiry; `POST /api/v1/sessions` or `/api/v1/practice-sessions` creates `practice_sessions`, links one `practice_takes` row, starts mock analysis, and returns session state.
-- `GET /api/v1/sessions/{sessionId}` reads session/take/observation/turn/summary state.
-- `GET /api/v1/sessions/{sessionId}/observations` returns observations that need confirmation.
-- `PATCH /api/v1/sessions/{sessionId}/observations/{observationId}` updates `confirmation_state`; `rejected` must set `blocked_for_questioning=true`.
-- `POST /api/v1/sessions/{sessionId}/turns` records the actor answer and the next assistant question/hint/redirect.
-- `PUT /api/v1/sessions/{sessionId}/summary` stores `final_actor_sentence` and moves the session to `completed`.
+- `POST /api/v1/practice-upload-intents` creates the owner-bound upload intent.
+- `POST /api/v1/practice-upload-intents/{id}/finalize` validates owner/path/expiry/object metadata and finalizes the intent.
+- `POST /api/v1/practice-sessions` creates `practice_sessions`, links one `practice_takes` row, starts mock analysis, and returns session state.
+- `GET /api/v1/practice-sessions` lists visible sessions.
+- `GET /api/v1/practice-sessions/{sessionId}` reads session/take/observation/turn/result state.
+- `GET /api/v1/practice-sessions/{sessionId}/signed-video-url` returns a short-lived private playback URL. Do not add a client `POST /video-url` call path.
+- `PATCH /api/v1/practice-sessions/{sessionId}/observations/{observationId}` updates `confirmation_state`; `rejected` must set `blocked_for_questioning=true`.
+- `POST /api/v1/practice-sessions/{sessionId}/turns` records the actor answer and the next assistant question/hint/redirect.
+- `POST /api/v1/practice-sessions/{sessionId}/result` stores `actor_authored_sentence`/`final_actor_sentence` and moves the session to `completed`.
+- `PATCH /api/v1/practice-sessions/{sessionId}/visibility` soft-hides the session.
 
 ## Product Safety Checks Backed by Schema
 
 - No evaluator-style result columns exist.
 - Rejected observations are blocked at observation state level.
 - Assistant turns cannot cite rejected or unsure observations through `source_observation_ids`.
-- Final session output is an actor-authored sentence on `coach_sessions`, not an AI-authored conclusion table.
+- Final session output centers an actor-authored sentence, not an AI-authored conclusion table.
 
 ## Open Implementation Notes
 
-- The current repository may still use mock persistence for early UI/API slices. Keep DTO names and meanings aligned with this schema even while the storage implementation is temporary.
-- If auth is not part of Slice 1 UI, use server-mediated anonymous-token access rather than browser-direct table access.
-- If future analysis jobs require async queues, add job tables in a separate migration instead of overloading `coach_takes.analysis_status` with provider-specific workflow details.
+- The current repository may still use mock persistence for local development. Keep DTO names and meanings aligned with this schema even while persistence can be mocked.
+- If future analysis jobs require async queues, add job tables in a separate migration instead of overloading `practice_takes.analysis_status` with provider-specific workflow details.

@@ -95,8 +95,7 @@ export async function softHidePracticeSession(
 export async function createPracticeSignedVideoUrl(
   sessionId: string,
 ): Promise<SignedVideoUrlResponse> {
-  const response = await fetch(`/api/v1/practice-sessions/${sessionId}/video-url`, {
-    method: "POST",
+  const response = await fetch(`/api/v1/practice-sessions/${sessionId}/signed-video-url`, {
     headers: { Accept: "application/json" },
   });
 
