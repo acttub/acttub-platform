@@ -61,6 +61,7 @@ export type ValidationMetricsDto = {
 
 export type CoachSessionDto = {
   id: string;
+  userId: string;
   status: SessionStatus;
   medium: Medium;
   genre: string;
@@ -87,9 +88,12 @@ export type FileMetadataDto = {
 export type PracticeUploadIntentDto = {
   uploadIntentId: string;
   sessionId: string;
+  userId: string;
   storageBucket: "local-dev" | "practice-videos";
   storagePath: string;
   uploadUrl: string;
+  status: "created" | "finalized" | "expired";
+  finalizedAt: string | null;
   constraints: {
     maxUploadBytes: number;
     allowedMimeTypes: string[];
