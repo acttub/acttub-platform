@@ -126,3 +126,18 @@ test("upload intent API response and client paths stay on the intent/finalize co
   assert.match(sessionClient, /fetch\(`\/api\/v1\/practice-upload-intents\/\$\{uploadIntentId\}\/finalize`/);
   assert.match(practiceClient, /fetch\("\/api\/v1\/practice-upload-intents"/);
 });
+
+test("visibility PATCH requires valid JSON while POST hide remains bodyless", () => {
+  const visibilityRoute = readWeb("src/app/api/v1/practice-sessions/[sessionId]/visibility/route.ts");
+  const hideRoute = readWeb("src/app/api/v1/practice-sessions/[sessionId]/hide/route.ts");
+
+  assert.match(visibilityRoute, /await request\.json\(\)/);
+  assert.doesNotMatch(visibilityRoute, /request\.json\(\)\.catch/);
+  assert.doesNotMatch(visibilityRoute, /\{\s*hidden:\s*true\s*\}/);
+  assert.match(visibilityRoute, /body\.hidden !== true/);
+  assert.match(visibilityRoute, /handleApiError\(error\)/);
+
+  assert.match(hideRoute, /POST\(_request: Request/);
+  assert.doesNotMatch(hideRoute, /_request\.json\(\)/);
+  assert.match(hideRoute, /softHideSession\(sessionId, auth\.userId\)/);
+});

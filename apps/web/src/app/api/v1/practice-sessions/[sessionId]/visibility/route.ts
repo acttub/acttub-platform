@@ -8,7 +8,7 @@ export async function PATCH(request: Request, context: RouteContext) {
   try {
     const auth = await requireApiTermsAccepted();
     const { sessionId } = await context.params;
-    const body = (await request.json().catch(() => ({ hidden: true }))) as {
+    const body = (await request.json()) as {
       hidden?: unknown;
     };
 
