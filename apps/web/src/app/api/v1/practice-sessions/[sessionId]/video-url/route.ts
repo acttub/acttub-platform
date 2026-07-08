@@ -10,10 +10,17 @@ export async function POST(_request: Request, context: RouteContext) {
   try {
     const auth = await requireApiTermsAccepted();
     const { sessionId } = await context.params;
-    const result = coachSessionService.createSignedVideoUrl(sessionId, auth.userId);
+    const result = coachSessionService.createSignedVideoUrl(
+      sessionId,
+      auth.userId,
+    );
 
     if (!result) {
-      return jsonError(404, "video_not_found", "Session video was not found or is unavailable.");
+      return jsonError(
+        404,
+        "video_not_found",
+        "Session video was not found or is unavailable.",
+      );
     }
 
     return jsonResponse(result);

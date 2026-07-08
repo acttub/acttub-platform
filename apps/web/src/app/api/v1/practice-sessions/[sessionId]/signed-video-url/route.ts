@@ -1,5 +1,5 @@
-import { coachSessionService } from "@/server/services/coach-session-service";
 import { requireApiTermsAccepted } from "@/server/services/auth-context";
+import { coachSessionService } from "@/server/services/coach-session-service";
 import { handleApiError, jsonError, jsonResponse } from "../../../http";
 
 type RouteContext = {
@@ -12,7 +12,10 @@ export async function GET(_request: Request, context: RouteContext) {
   try {
     const auth = await requireApiTermsAccepted();
     const { sessionId } = await context.params;
-    const result = coachSessionService.getSignedVideoUrl(sessionId, auth.userId);
+    const result = coachSessionService.getSignedVideoUrl(
+      sessionId,
+      auth.userId,
+    );
 
     if (!result) {
       return jsonError(404, "session_not_found", "Session was not found.");

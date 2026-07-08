@@ -5,7 +5,10 @@ import { ApiAuthError } from "@/server/services/api-auth";
 import { ApiValidationError } from "@/server/services/coach-session-service";
 import { ApiAuthError } from "@/server/services/auth-context";
 
-export const jsonResponse = <T>(body: T, init: ResponseInit = {}): NextResponse<T> =>
+export const jsonResponse = <T>(
+  body: T,
+  init: ResponseInit = {},
+): NextResponse<T> =>
   NextResponse.json(body, {
     ...init,
     headers: {
@@ -31,7 +34,9 @@ export const jsonError = (
     { status },
   );
 
-export const handleApiError = (error: unknown): NextResponse<ApiErrorResponse> => {
+export const handleApiError = (
+  error: unknown,
+): NextResponse<ApiErrorResponse> => {
   if (error instanceof SyntaxError) {
     return jsonError(400, "invalid_json", "Request body must be valid JSON.");
   }

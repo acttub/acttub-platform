@@ -1,6 +1,10 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getAppConfig } from "@/lib/config/env";
-import { TERMS_COOKIE_NAME, requireAuthenticatedUser } from "@/server/services/auth-context";
+import {
+  TERMS_COOKIE_NAME,
+  recordTermsAcceptance,
+  requireApiAuthenticatedUser,
+} from "@/server/services/auth-context";
 
 type AcceptTermsBody = {
   termsVersion?: unknown;
@@ -22,7 +26,7 @@ async function readBody(request: NextRequest): Promise<AcceptTermsBody> {
 }
 
 export async function POST(request: NextRequest) {
-  await requireAuthenticatedUser();
+  const auth = await requireApiAuthenticatedUser();
 
   const config = getAppConfig();
   const body = await readBody(request);
@@ -38,6 +42,8 @@ export async function POST(request: NextRequest) {
   }
 
   const acceptsHtml = request.headers.get("accept")?.includes("text/html");
+  await recordTermsAcceptance(auth);
+
   const response = acceptsHtml
     ? NextResponse.redirect(new URL("/practice", request.url), { status: 303 })
     : NextResponse.json({
