@@ -53,6 +53,14 @@ const stripUploadIntentOwner = (uploadIntent: OwnedUploadIntentRecord): Practice
   return dto as PracticeUploadIntentDto;
 };
 
+const cloneUploadIntent = (uploadIntent: MockUploadIntentRecord): MockUploadIntentRecord =>
+  structuredClone(uploadIntent);
+
+const publicSession = (session: MockCoachSessionRecord): CoachSessionDto => {
+  const { ownerId: _ownerId, ...dto } = cloneSession(session);
+  return dto;
+};
+
 export const mockCoachSessionRepository = {
   create(session: CoachSessionDto, ownerId: string): CoachSessionDto {
     repositoryState.sessions.set(
