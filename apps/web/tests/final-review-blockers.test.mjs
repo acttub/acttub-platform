@@ -105,7 +105,7 @@ test("executable migration and web upload contract use one private insert-only p
   );
   assert.match(
     migration,
-    /for insert with check \([\s\S]*bucket_id = 'practice-videos'[\s\S]*owner = auth\.uid\(\)[\s\S]*storage\.foldername\(name\)\)\[1\] = auth\.uid\(\)::text/,
+    /create policy "practice videos insert via active upload intent"[\s\S]*for insert[\s\S]*to authenticated[\s\S]*bucket_id = 'practice-videos'[\s\S]*owner = auth\.uid\(\)[\s\S]*\(storage\.foldername\(name\)\)\[1\] = 'users'[\s\S]*\(storage\.foldername\(name\)\)\[2\] = auth\.uid\(\)::text[\s\S]*\(storage\.foldername\(name\)\)\[3\] = 'practice-sessions'[\s\S]*storage\.filename\(name\) in \('take\.mp4', 'take\.mov'\)[\s\S]*public\.is_active_acttub_profile\(auth\.uid\(\)\)[\s\S]*exists \([\s\S]*from public\.upload_intents ui[\s\S]*ui\.user_id = auth\.uid\(\)[\s\S]*ui\.status = 'created'[\s\S]*ui\.expected_storage_bucket = storage\.objects\.bucket_id[\s\S]*ui\.expected_storage_path = storage\.objects\.name[\s\S]*ui\.expires_at > now\(\)/,
   );
   assert.doesNotMatch(migration, /storage_actor_(?:read|update|delete)/);
   assert.doesNotMatch(migration, /for select using \(\s*bucket_id = 'practice-videos'/);

@@ -275,11 +275,33 @@ on conflict (id) do update set
   file_size_limit = excluded.file_size_limit,
   allowed_mime_types = excluded.allowed_mime_types;
 
-create policy practice_videos_storage_actor_insert on storage.objects
-  for insert with check (
+-- Browser upload authority: INSERT only, exact path only, active/current consent only, unexpired intent only.
+create policy "practice videos insert via active upload intent"
+  on storage.objects for insert
+  to authenticated
+  with check (
     bucket_id = 'practice-videos'
     and owner = auth.uid()
-    and (storage.foldername(name))[1] = auth.uid()::text
+    and (storage.foldername(name))[1] = 'users'
+    and (storage.foldername(name))[2] = auth.uid()::text
+    and (storage.foldername(name))[3] = 'practice-sessions'
+    and (storage.filename(name) in ('take.mp4', 'take.mov'))
+    and public.is_active_acttub_profile(auth.uid())
+    and exists (
+      select 1
+      from public.upload_intents ui
+      where ui.user_id = auth.uid()
+        and ui.status = 'created'
+        and ui.consent_version = public.current_acttub_terms_version()
+        and ui.expected_storage_bucket = storage.objects.bucket_id
+        and ui.expected_storage_path = storage.objects.name
+        and ui.expires_at > now()
+    )
   );
+
+-- Intentionally absent in Slice 1:
+-- - no storage.objects SELECT policy for practice-videos (no browser download/list/signing path)
+-- - no storage.objects UPDATE policy (no browser upsert/move)
+-- - no storage.objects DELETE policy (cleanup is server-only via service role Storage API)
 
 commit;
