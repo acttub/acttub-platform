@@ -230,6 +230,54 @@ const validateExpectedStoragePath = (
   }
 };
 
+const asRecord = (value: unknown): Record<string, unknown> | null =>
+  typeof value === "object" && value !== null ? value as Record<string, unknown> : null;
+
+const firstMetadataValue = (
+  object: Record<string, unknown>,
+  keys: string[],
+): unknown => {
+  const metadata = asRecord(object.metadata);
+
+  for (const key of keys) {
+    if (metadata?.[key] !== undefined) return metadata[key];
+    if (object[key] !== undefined) return object[key];
+  }
+
+  return undefined;
+};
+
+const storageObjectMimeType = (object: Record<string, unknown>): string | null => {
+  const mimeType = firstMetadataValue(object, [
+    "mimetype",
+    "mimeType",
+    "contentType",
+    "content_type",
+    "mime_type",
+  ]);
+
+  return typeof mimeType === "string" && mimeType.trim().length > 0
+    ? mimeType.trim()
+    : null;
+};
+
+const storageObjectSizeBytes = (object: Record<string, unknown>): number | null => {
+  const size = firstMetadataValue(object, [
+    "size",
+    "sizeBytes",
+    "size_bytes",
+  ]);
+
+  if (typeof size === "number" && Number.isFinite(size)) return size;
+
+  if (typeof size === "string" && size.trim().length > 0) {
+    const parsedSize = Number(size);
+    return Number.isFinite(parsedSize) ? parsedSize : null;
+  }
+
+  return null;
+};
+
 const verifySupabaseStorageObject = async (
   uploadIntent: PracticeUploadIntentDto,
 ): Promise<void> => {
@@ -256,9 +304,25 @@ const verifySupabaseStorageObject = async (
     .from(uploadIntent.storageBucket)
     .list(directory, { limit: 100, search: fileName });
 
-  if (error || !data?.some((object) => object.name === fileName)) {
+  const storageObject = data
+    ?.map((object) => asRecord(object))
+    .find((object) => object?.name === fileName);
+
+  if (error || !storageObject) {
     throw new ApiValidationError("Request validation failed", {
       storageObject: "Uploaded storage object was not verified at the expected bucket/path.",
+    });
+  }
+
+  const actualMimeType = storageObjectMimeType(storageObject);
+  const actualSizeBytes = storageObjectSizeBytes(storageObject);
+
+  if (
+    actualMimeType !== uploadIntent.fileMetadata.mimeType ||
+    actualSizeBytes !== uploadIntent.fileMetadata.sizeBytes
+  ) {
+    throw new ApiValidationError("Request validation failed", {
+      storageObject: "Uploaded storage object metadata does not match the upload intent.",
     });
   }
 };

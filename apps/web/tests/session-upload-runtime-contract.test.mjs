@@ -28,7 +28,16 @@ test("upload finalization verifies exact storage object semantics and fails clos
   assert.match(source, /createSupabaseAdminClient\(\)/);
   assert.match(source, /Supabase storage verification is required before finalization/);
   assert.match(source, /\.from\(uploadIntent\.storageBucket\)[\s\S]*\.list\(directory, \{ limit: 100, search: fileName \}\)/);
-  assert.match(source, /object\.name === fileName/);
+  assert.match(source, /object\?\.name === fileName/);
+  assert.match(source, /const storageObjectMimeType = \(object: Record<string, unknown>\): string \| null =>/);
+  assert.match(source, /const storageObjectSizeBytes = \(object: Record<string, unknown>\): number \| null =>/);
+  assert.match(source, /metadata\?\.\[key\] !== undefined[\s\S]*object\[key\] !== undefined/);
+  assert.match(source, /"mimetype",[\s\S]*"mimeType",[\s\S]*"contentType",[\s\S]*"content_type",[\s\S]*"mime_type"/);
+  assert.match(source, /"size",[\s\S]*"sizeBytes",[\s\S]*"size_bytes"/);
+  assert.match(source, /const parsedSize = Number\(size\)/);
+  assert.match(source, /actualMimeType !== uploadIntent\.fileMetadata\.mimeType/);
+  assert.match(source, /actualSizeBytes !== uploadIntent\.fileMetadata\.sizeBytes/);
+  assert.match(source, /Uploaded storage object metadata does not match the upload intent/);
   assert.match(source, /validateExpectedStoragePath\(uploadIntent, storagePath, userId\)/);
   assert.match(source, /await verifySupabaseStorageObject\(uploadIntent\)/);
   assert.match(source, /storagePath !== uploadIntent\.storagePath \|\| !storagePath\.startsWith\(expectedPrefix\) \|\| !allowedNames\.has\(fileName\)/);
