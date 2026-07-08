@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import type { CreateSummaryResponse } from "@/lib/api/types";
 import { coachSessionService } from "@/server/services/coach-session-service";
 import { handleApiError, jsonError } from "../../http";
 
@@ -12,7 +11,7 @@ type RouteContext = {
 export async function POST(
   request: Request,
   context: RouteContext,
-): Promise<NextResponse<CreateSummaryResponse>> {
+) {
   try {
     const { sessionId } = await context.params;
     const payload = await request.json();

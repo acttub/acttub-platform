@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import type { GetSessionResponse } from "@/lib/api/types";
 import { coachSessionService } from "@/server/services/coach-session-service";
 import { jsonError } from "../http";
 
@@ -12,7 +11,7 @@ type RouteContext = {
 export async function GET(
   _request: Request,
   context: RouteContext,
-): Promise<NextResponse<GetSessionResponse>> {
+) {
   const { sessionId } = await context.params;
   const session = coachSessionService.getSession(sessionId);
 

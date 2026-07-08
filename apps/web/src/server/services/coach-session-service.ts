@@ -95,6 +95,7 @@ export const coachSessionService = {
       });
     }
 
+    const validatedMedium = medium as Medium;
     const genre = requiredText(input.genre, "genre");
     const situation = requiredText(input.situation, "situation");
     const characterContext = requiredText(input.characterContext, "characterContext");
@@ -102,7 +103,7 @@ export const coachSessionService = {
     const videoUrl = typeof input.videoUrl === "string" && input.videoUrl.trim() ? input.videoUrl.trim() : null;
     const durationMs = typeof input.durationMs === "number" && Number.isFinite(input.durationMs) ? input.durationMs : null;
 
-    if (medium !== "text_only" && !videoUrl) {
+    if (validatedMedium !== "text_only" && !videoUrl) {
       throw new ApiValidationError("Request validation failed", {
         videoUrl: "Must be provided when medium is youtube_url or upload_url.",
       });
@@ -129,7 +130,7 @@ export const coachSessionService = {
       timestampStartMs: 0,
       timestampEndMs: durationMs ?? 4500,
       observationText: buildMockObservationText({
-        medium,
+        medium: validatedMedium,
         genre,
         situation,
         characterContext,
@@ -146,7 +147,7 @@ export const coachSessionService = {
     const baseSession: CoachSessionDto = {
       id: sessionId,
       status: "OBSERVE_CONFIRM" satisfies SessionStatus,
-      medium,
+      medium: validatedMedium,
       genre,
       situation,
       characterContext,

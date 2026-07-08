@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import type { UpdateObservationResponse } from "@/lib/api/types";
 import { coachSessionService } from "@/server/services/coach-session-service";
 import { handleApiError, jsonError } from "../../../http";
 
@@ -13,7 +12,7 @@ type RouteContext = {
 export async function PATCH(
   request: Request,
   context: RouteContext,
-): Promise<NextResponse<UpdateObservationResponse>> {
+) {
   try {
     const { sessionId, observationId } = await context.params;
     const payload = await request.json();
