@@ -11,6 +11,7 @@ import type {
   TakeDto,
   ValidationMetricsDto,
   TurnDto,
+  ValidationMetricsDto,
 } from "@/lib/api/types";
 import { mockCoachSessionRepository } from "@/server/repositories/mock-coach-session-repository";
 
@@ -399,6 +400,61 @@ export const coachSessionService = {
       : null;
 
     return withCoachTurn ? { session: withCoachTurn, actorTurn, coachTurn } : null;
+  },
+
+  getSignedVideoUrl(sessionId: string): { videoUrl: string | null; expiresAt: string } | null {
+    const session = mockCoachSessionRepository.findById(sessionId);
+
+    if (!session) {
+      return null;
+    }
+
+    return {
+      videoUrl: session.take.videoUrl,
+      expiresAt: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
+    };
+  },
+
+  updateVisibility(sessionId: string, payload: unknown): { session: CoachSessionDto } | null {
+    const hidden = (payload as { hidden?: unknown }).hidden;
+
+    if (typeof hidden !== "boolean") {
+      throw new ApiValidationError("Request validation failed", {
+        hidden: "Must be a boolean.",
+      });
+    }
+
+    const session = mockCoachSessionRepository.findById(sessionId);
+
+    if (!session) {
+      return null;
+    }
+
+    return {
+      session: mockCoachSessionRepository.update({
+        ...session,
+        hiddenAt: hidden ? nowIso() : null,
+      }),
+    };
+  },
+
+  saveValidationMetrics(
+    sessionId: string,
+    payload: unknown,
+  ): { session: CoachSessionDto; validationMetrics: ValidationMetricsDto } | null {
+    const session = mockCoachSessionRepository.findById(sessionId);
+
+    if (!session) {
+      return null;
+    }
+
+    const validationMetrics = buildValidationMetrics(payload, session);
+    const updatedSession = mockCoachSessionRepository.update({
+      ...session,
+      validationMetrics,
+    });
+
+    return { session: updatedSession, validationMetrics };
   },
 
   createSummary(sessionId: string, payload: unknown): { session: CoachSessionDto; nextReflectionQuestion: string } | null {

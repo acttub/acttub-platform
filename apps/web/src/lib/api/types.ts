@@ -49,14 +49,14 @@ export type TakeDto = {
 };
 
 export type ValidationMetricsDto = {
-  feltHelpedFindGap1To7?: number;
-  feltScored1To7?: number;
-  rejectionSafety1To7?: number;
-  answerability1To7?: number;
-  reuseIntent1To7?: number;
-  rejectedObservationReuseCount?: number;
-  forbiddenLanguageCount?: number;
-  finalSentenceResult?: "saved" | "skipped";
+  feltHelpedFindGap1To7: number | null;
+  feltScored1To7: number | null;
+  rejectionSafety1To7: number | null;
+  answerability1To7: number | null;
+  reuseIntent1To7: number | null;
+  rejectedObservationReuseCount: number;
+  forbiddenLanguageCount: number;
+  finalSentenceResult: "empty" | "saved";
 };
 
 export type CoachSessionDto = {
@@ -86,9 +86,9 @@ export type FileMetadataDto = {
 
 export type PracticeUploadIntentDto = {
   uploadIntentId: string;
-  sessionId: string;
-  storageBucket: string;
+  storageBucket: "local-dev";
   storagePath: string;
+  uploadUrl: string;
   constraints: {
     maxUploadBytes: number;
     allowedMimeTypes: string[];
@@ -102,6 +102,17 @@ export type CreateUploadIntentRequest = {
 
 export type CreateUploadIntentResponse = {
   uploadIntent: PracticeUploadIntentDto;
+};
+
+export type FinalizeUploadIntentRequest = {
+  storagePath: string;
+  durationMs?: number;
+};
+
+export type FinalizeUploadIntentResponse = {
+  videoUrl: string;
+  storagePath: string;
+  durationMs: number | null;
 };
 
 export type CreateSessionRequest = {
@@ -123,12 +134,12 @@ export type CreateSessionResponse = {
   firstQuestion: TurnDto;
 };
 
-export type GetSessionResponse = {
-  session: CoachSessionDto;
-};
-
 export type ListSessionsResponse = {
   sessions: CoachSessionDto[];
+};
+
+export type GetSessionResponse = {
+  session: CoachSessionDto;
 };
 
 export type CreateTurnRequest = {
@@ -152,7 +163,7 @@ export type UpdateObservationResponse = {
 
 export type CreateSummaryRequest = {
   finalActorSentence: string;
-  validationMetrics?: ValidationMetricsDto;
+  validationMetrics?: SaveValidationMetricsRequest;
 };
 
 export type CreateSummaryResponse = {
@@ -160,14 +171,27 @@ export type CreateSummaryResponse = {
   nextReflectionQuestion: string;
 };
 
-export type SoftHideSessionResponse = {
+export type SignedVideoUrlResponse = {
+  signedUrl: string | null;
+  expiresAt: string;
+  expiresInSeconds: number;
+};
+
+export type UpdateSessionVisibilityRequest = {
+  hidden: boolean;
+};
+
+export type UpdateSessionVisibilityResponse = {
   session: CoachSessionDto;
 };
 
-export type SignedVideoUrlResponse = {
-  signedUrl: string;
-  expiresAt: string;
-  expiresInSeconds: number;
+export type SaveValidationMetricsRequest = Partial<
+  Omit<ValidationMetricsDto, "finalSentenceResult">
+>;
+
+export type SaveValidationMetricsResponse = {
+  session: CoachSessionDto;
+  validationMetrics: ValidationMetricsDto;
 };
 
 export type ApiErrorResponse = {
