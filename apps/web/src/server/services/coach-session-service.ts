@@ -9,7 +9,6 @@ import type {
   SessionStatus,
   SignedVideoUrlResponse,
   TakeDto,
-  ValidationMetricsDto,
   TurnDto,
   ValidationMetricsDto,
 } from "@/lib/api/types";
@@ -95,9 +94,18 @@ const makeCoachTurn = (
   createdAt: nowIso(),
 });
 
-const validateMetrics = (value: unknown): ValidationMetricsDto | null => {
+const buildValidationMetrics = (value: unknown, session?: CoachSessionDto): ValidationMetricsDto => {
   if (value === undefined || value === null) {
-    return null;
+    return {
+      feltHelpedFindGap1To7: null,
+      feltScored1To7: null,
+      rejectionSafety1To7: null,
+      answerability1To7: null,
+      reuseIntent1To7: null,
+      rejectedObservationReuseCount: session?.observations.filter((observation) => observation.confirmationState === "rejected").length ?? 0,
+      forbiddenLanguageCount: 0,
+      finalSentenceResult: session?.finalActorSentence ? "saved" : "empty",
+    };
   }
 
   if (typeof value !== "object") {
@@ -107,7 +115,16 @@ const validateMetrics = (value: unknown): ValidationMetricsDto | null => {
   }
 
   const input = value as Record<string, unknown>;
-  const metrics: ValidationMetricsDto = {};
+  const metrics: ValidationMetricsDto = {
+    feltHelpedFindGap1To7: null,
+    feltScored1To7: null,
+    rejectionSafety1To7: null,
+    answerability1To7: null,
+    reuseIntent1To7: null,
+    rejectedObservationReuseCount: session?.observations.filter((observation) => observation.confirmationState === "rejected").length ?? 0,
+    forbiddenLanguageCount: 0,
+    finalSentenceResult: session?.finalActorSentence ? "saved" : "empty",
+  };
   const numberFields = [
     "feltHelpedFindGap1To7",
     "feltScored1To7",
@@ -130,9 +147,9 @@ const validateMetrics = (value: unknown): ValidationMetricsDto | null => {
   }
 
   if (input.finalSentenceResult !== undefined) {
-    if (input.finalSentenceResult !== "saved" && input.finalSentenceResult !== "skipped") {
+    if (input.finalSentenceResult !== "saved" && input.finalSentenceResult !== "empty") {
       throw new ApiValidationError("Request validation failed", {
-        "validationMetrics.finalSentenceResult": "Must be saved or skipped.",
+        "validationMetrics.finalSentenceResult": "Must be saved or empty.",
       });
     }
     metrics.finalSentenceResult = input.finalSentenceResult;
@@ -179,6 +196,7 @@ export const coachSessionService = {
       sessionId,
       storageBucket: "practice-videos",
       storagePath: `users/${userId}/practice-sessions/${sessionId}/take.${extension}`,
+      uploadUrl: `/api/v1/practice-upload-intents/${uploadIntentId}/finalize`,
       constraints: {
         maxUploadBytes,
         allowedMimeTypes: Array.from(allowedUploadMimeTypes),
@@ -192,6 +210,18 @@ export const coachSessionService = {
 
   listSessions(): { sessions: CoachSessionDto[] } {
     return { sessions: mockCoachSessionRepository.listVisible() };
+  },
+
+  finalizeUploadIntent(payload: unknown): { videoUrl: string; storagePath: string; durationMs: number | null } {
+    const input = payload as { storagePath?: unknown; durationMs?: unknown };
+    const storagePath = requiredText(input.storagePath, "storagePath");
+    const durationMs = typeof input.durationMs === "number" && Number.isFinite(input.durationMs) ? input.durationMs : null;
+
+    return {
+      videoUrl: storagePath,
+      storagePath,
+      durationMs,
+    };
   },
 
   createSession(payload: unknown): { session: CoachSessionDto; firstQuestion: TurnDto } {
@@ -469,7 +499,10 @@ export const coachSessionService = {
       return null;
     }
 
-    const validationMetrics = validateMetrics((payload as { validationMetrics?: unknown }).validationMetrics);
+    const validationMetrics = buildValidationMetrics((payload as { validationMetrics?: unknown }).validationMetrics, {
+      ...session,
+      finalActorSentence,
+    });
     const updatedSession = mockCoachSessionRepository.update({
       ...session,
       status: "END",
