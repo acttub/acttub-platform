@@ -73,12 +73,13 @@ const makeCoachTurn = (
   sessionId: string,
   content: string,
   sourceObservationIds: string[],
+  questionFocus: TurnDto["questionFocus"],
 ): TurnDto => ({
   id: createId("turn"),
   sessionId,
   speaker: "coach",
   content,
-  questionFocus: sourceObservationIds.length > 0 ? "subtext_probe" : "observation_confirmation",
+  questionFocus,
   sourceObservationIds,
   turnState: "generated",
   createdAt: nowIso(),
@@ -160,7 +161,12 @@ export const coachSessionService = {
       turns: [],
     };
 
-    const firstQuestion = makeCoachTurn(sessionId, buildCoachQuestion(baseSession), [observationId]);
+    const firstQuestion = makeCoachTurn(
+      sessionId,
+      buildCoachQuestion(baseSession),
+      [observationId],
+      "observation_confirmation",
+    );
     const session = mockCoachSessionRepository.create({
       ...baseSession,
       turns: [firstQuestion],
@@ -228,7 +234,12 @@ export const coachSessionService = {
       )
       .map((observation) => observation.id);
 
-    const coachTurn = makeCoachTurn(sessionId, buildCoachQuestion(session), acceptedObservationIds);
+    const coachTurn = makeCoachTurn(
+      sessionId,
+      buildCoachQuestion(session),
+      acceptedObservationIds,
+      acceptedObservationIds.length > 0 ? "subtext_probe" : "missing_context",
+    );
     const withActorTurn = mockCoachSessionRepository.addTurn(sessionId, actorTurn);
     const withCoachTurn = withActorTurn
       ? mockCoachSessionRepository.addTurn(sessionId, coachTurn)
