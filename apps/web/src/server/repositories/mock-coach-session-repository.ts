@@ -171,7 +171,7 @@ export const mockCoachSessionRepository = {
   },
 
   softHide(sessionId: string, ownerUserId: string): MockCoachSessionRecord | null {
-    const session = this.findById(sessionId, userId);
+    const session = this.findById(sessionId, ownerUserId);
     if (!session) {
       return null;
     }
