@@ -48,10 +48,6 @@ export const handleApiError = (
     return jsonError(400, "validation_error", error.message, error.details);
   }
 
-  if (error instanceof ApiAuthError) {
-    return jsonError(error.status, error.code, error.message);
-  }
-
   console.error(error);
   return jsonError(500, "internal_error", "Unexpected server error.");
 };

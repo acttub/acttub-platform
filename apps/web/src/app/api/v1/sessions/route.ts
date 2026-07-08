@@ -1,7 +1,6 @@
 import { coachSessionService } from "@/server/services/coach-session-service";
 import { requireApiTermsAccepted } from "@/server/services/auth-context";
-import { handleApiError } from "./http";
-import { jsonResponse } from "../http";
+import { handleApiError, jsonResponse } from "../http";
 
 export async function POST(request: Request) {
   try {

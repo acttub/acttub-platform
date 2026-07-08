@@ -1,7 +1,6 @@
 import { requireApiTermsAccepted } from "@/server/services/auth-context";
 import { coachSessionService } from "@/server/services/coach-session-service";
-import { handleApiError, jsonError } from "../../../http";
-import { jsonResponse } from "../../../../http";
+import { handleApiError, jsonError, jsonResponse } from "../../../../http";
 
 type RouteContext = { params: Promise<{ sessionId: string; observationId: string }> };
 
