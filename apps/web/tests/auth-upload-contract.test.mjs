@@ -33,7 +33,7 @@ const ownerGatedPracticeRoutes = [
 test("session and upload API routes require accepted terms and pass owner user id", () => {
   for (const route of ownerGatedPracticeRoutes) {
     const source = read(route);
-    assert.match(source, /requireTermsAccepted/, `${route} must require active terms`);
+    assert.match(source, /requireApiTermsAccepted/, `${route} must require active terms`);
 
     if (!route.endsWith("practice-upload-intents/route.ts")) {
       assert.match(source, /auth\.userId/, `${route} must pass auth.userId into service owner checks`);
@@ -58,7 +58,7 @@ test("mock persistence keeps owner metadata outside public DTOs", () => {
   assert.match(repository, /sessionOwners: Map<string, string>/);
   assert.match(repository, /ownerUserId: string/);
   assert.match(repository, /repositoryState\.sessionOwners\.get\(sessionId\) !== ownerUserId/);
-  assert.match(repository, /finalizedAt: string \| null/);
+  assert.match(repository, /finalizedAt: new Date\(\)\.toISOString\(\)/);
 });
 
 test("practice flow uses upload intent lifecycle for uploaded videos", () => {
@@ -71,5 +71,5 @@ test("practice flow uses upload intent lifecycle for uploaded videos", () => {
 
 test("web test script runs focused node tests", () => {
   const packageJson = JSON.parse(readFileSync(path.join(appRoot, "package.json"), "utf8"));
-  assert.equal(packageJson.scripts.test, "node --test tests/*.test.mjs");
+  assert.match(packageJson.scripts.test, /node --test tests\/\*\.test\.mjs/);
 });

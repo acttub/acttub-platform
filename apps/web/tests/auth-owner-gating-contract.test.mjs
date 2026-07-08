@@ -42,16 +42,20 @@ test("session APIs pass authenticated owner into service calls", () => {
 });
 
 test("auth session response is private and varies on credentials", () => {
-  const source = read("src/app/api/v1/auth/session/route.ts");
-  assert.match(source, /privateNoStoreHeaders/);
+  const route = read("src/app/api/v1/auth/session/route.ts");
+  const http = read("src/app/api/v1/http.ts");
+  assert.match(route, /jsonResponse/);
+  assert.match(http, /privateNoStoreHeaders/);
   assert.match(read("src/server/http/cache.ts"), /Vary: "Cookie, Authorization"/);
 });
 
 test("terms acceptance persists Supabase profile consent when admin client exists", () => {
-  const source = read("src/app/api/v1/terms/acceptances/route.ts");
-  assert.match(source, /createSupabaseAdminClient/);
-  assert.match(source, /terms_accepted_at/);
-  assert.match(source, /privacy_accepted_at/);
-  assert.match(source, /internal_review_consent_at/);
-  assert.match(source, /status: "active"/);
+  const route = read("src/app/api/v1/terms/acceptances/route.ts");
+  const authContext = read("src/server/services/auth-context.ts");
+  assert.match(route, /recordTermsAcceptance\(auth\)/);
+  assert.match(authContext, /createSupabaseAdminClient/);
+  assert.match(authContext, /terms_accepted_at/);
+  assert.match(authContext, /privacy_accepted_at/);
+  assert.match(authContext, /internal_review_consent_at/);
+  assert.match(authContext, /status: "active"/);
 });

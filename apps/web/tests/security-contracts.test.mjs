@@ -37,7 +37,7 @@ test("practice APIs require API terms auth and pass owner identity to services",
   assert.match(service, /status !== "finalized"/);
 
   const repository = read("apps/web/src/server/repositories/mock-coach-session-repository.ts");
-  assert.match(repository, /belongsToUser/);
+  assert.match(repository, /ownsSession/);
   assert.match(repository, /listVisible\(userId: string\)/);
   assert.match(repository, /findById\(sessionId: string, userId: string\)/);
 });
@@ -53,7 +53,8 @@ test("legacy sessions routes cannot bypass hardened practice route handlers", ()
 
   for (const alias of aliases) {
     const source = read(alias);
-    assert.match(source, /practice-sessions/, `${alias} should re-export the hardened practice handler`);
+    assert.match(source, /requireApiTermsAccepted/, `${alias} must enforce the API terms gate`);
+    assert.match(source, /auth\.userId/, `${alias} must pass auth.userId into service owner checks`);
   }
 });
 
@@ -71,8 +72,8 @@ test("upload UI goes through create intent and finalize before creating upload s
   const flow = read("apps/web/src/features/practice/practice-flow.tsx");
   assert.match(flow, /createPracticeUploadIntent/);
   assert.match(flow, /finalizePracticeUploadIntent/);
-  assert.match(flow, /uploadIntentId: intentResult\.uploadIntent\.uploadIntentId/);
-  assert.match(flow, /storagePath: finalized\.storagePath/);
+  assert.match(flow, /uploadIntentId: uploadIntent\.uploadIntentId/);
+  assert.match(flow, /storagePath: finalizedUpload\.storagePath/);
 });
 
 test("migration uses private practice-videos insert-only storage contract", () => {

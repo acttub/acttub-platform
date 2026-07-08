@@ -22,7 +22,7 @@ test("finalize route binds path uploadIntentId to auth owner", () => {
 
 test("finalize service rejects missing, expired, and mismatched-path intents before marking finalized", () => {
   const source = service();
-  assert.match(source, /findUploadIntentForOwner\(uploadIntentId, userId\)/);
+  assert.match(source, /findUploadIntent\(uploadIntentId, userId\)/);
   assert.match(source, /Upload intent was not found/);
   assert.match(source, /Upload intent has expired/);
   assert.match(source, /storagePath !== uploadIntent\.storagePath/);
@@ -32,7 +32,7 @@ test("finalize service rejects missing, expired, and mismatched-path intents bef
 test("upload_url session creation requires finalized matching upload intent", () => {
   const source = service();
   assert.match(source, /validatedMedium === "upload_url" && !input\.uploadIntentId/);
-  assert.match(source, /isUploadIntentFinalized\(input\.uploadIntentId, userId\)/);
+  assert.match(source, /uploadIntent\.status !== "finalized" \|\| !uploadIntent\.finalizedAt/);
   assert.match(source, /Must match the upload intent sessionId/);
   assert.match(source, /Must match the upload intent storage path/);
 });
