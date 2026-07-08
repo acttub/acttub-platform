@@ -1,7 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getAppConfig } from "@/lib/config/env";
 import { TERMS_COOKIE_NAME, requireAuthenticatedUser } from "@/server/services/auth-context";
-import { privateNoStoreHeaders } from "@/server/http/cache";
 
 type AcceptTermsBody = {
   termsVersion?: unknown;
@@ -34,21 +33,18 @@ export async function POST(request: NextRequest) {
         error: "현재 약관 버전으로 다시 확인해 주세요.",
         requiredVersion: config.termsVersion,
       },
-      { status: 400, headers: privateNoStoreHeaders },
+      { status: 400 },
     );
   }
 
   const acceptsHtml = request.headers.get("accept")?.includes("text/html");
   const response = acceptsHtml
     ? NextResponse.redirect(new URL("/practice", request.url), { status: 303 })
-    : NextResponse.json(
-        {
-          accepted: true,
-          termsVersion: config.termsVersion,
-          nextPath: "/practice",
-        },
-        { headers: privateNoStoreHeaders },
-      );
+    : NextResponse.json({
+        accepted: true,
+        termsVersion: config.termsVersion,
+        nextPath: "/practice",
+      });
 
   response.cookies.set(TERMS_COOKIE_NAME, config.termsVersion, {
     httpOnly: true,
