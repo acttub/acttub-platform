@@ -5,6 +5,7 @@ export default async function Home() {
   const context = await getAuthContext();
   const nextPath = context?.termsAccepted ? "/practice" : context ? "/terms" : "/auth/login";
 
+export default function Home() {
   return (
     <main className="min-h-dvh bg-[#f9fafb] px-6 py-10 text-[#191f28]">
       <section className="mx-auto flex w-full max-w-3xl flex-col justify-center rounded-[32px] bg-white px-6 py-10 sm:px-10 sm:py-14">
