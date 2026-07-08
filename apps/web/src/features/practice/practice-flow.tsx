@@ -2,7 +2,20 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { getAuthSession, type AuthSessionResponse } from "@/lib/api/auth";
-import type { ConfirmationState, CreateSessionRequest, Medium, ObservationDto, TurnDto } from "@/lib/api/types";
+import {
+  createPracticeSession,
+  createPracticeSummary,
+  createPracticeTurn,
+  updatePracticeObservation,
+} from "@/lib/api/sessions";
+import type {
+  CoachSessionDto,
+  ConfirmationState,
+  CreateSessionRequest,
+  Medium,
+  ObservationDto,
+  TurnDto,
+} from "@/lib/api/types";
 
 type Step = "gate" | "scene" | "upload" | "observe" | "dialogue" | "summary";
 
@@ -36,6 +49,7 @@ export function PracticeFlow() {
   const [session, setSession] = useState<AuthSessionResponse | null>(null);
   const [step, setStep] = useState<Step>("gate");
   const [loadingMessage, setLoadingMessage] = useState("연습 공간을 준비하는 중이에요.");
+  const [practiceSession, setPracticeSession] = useState<CoachSessionDto | null>(null);
   const [scene, setScene] = useState<SceneDraft>({
     medium: "youtube_url",
     genre: "",
@@ -57,6 +71,9 @@ export function PracticeFlow() {
   ]);
   const [finalSentence, setFinalSentence] = useState("");
   const [hidden, setHidden] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [apiError, setApiError] = useState<string | null>(null);
+  const [nextReflectionQuestion, setNextReflectionQuestion] = useState("");
 
   useEffect(() => {
     let mounted = true;
@@ -92,57 +109,129 @@ export function PracticeFlow() {
     setScene((current) => ({ ...current, [key]: value }));
   }
 
-  function startUpload() {
+  function handleApiError(error: unknown) {
+    setApiError(error instanceof Error ? error.message : "요청을 처리하지 못했어요.");
+  }
+
+  async function startUpload() {
     setStep("upload");
-    window.setTimeout(() => setStep("observe"), 650);
+    setSubmitting(true);
+    setApiError(null);
+
+    try {
+      const result = await createPracticeSession({
+        ...scene,
+        videoUrl: scene.videoUrl?.trim() || undefined,
+        subtext: scene.subtext?.trim() || undefined,
+      });
+      setPracticeSession(result.session);
+      setObservation(result.session.observations[0] ?? seedObservation);
+      setDialogue([
+        {
+          id: result.firstQuestion.id,
+          speaker: result.firstQuestion.speaker,
+          content: result.firstQuestion.content,
+          questionFocus: result.firstQuestion.questionFocus,
+        },
+      ]);
+      setStep("observe");
+    } catch (error) {
+      handleApiError(error);
+      setStep("scene");
+    } finally {
+      setSubmitting(false);
+    }
   }
 
-  function confirmObservation(confirmationState: ConfirmationState) {
-    setObservation((current) => ({
-      ...current,
-      confirmationState,
-      blockedForQuestioning: confirmationState === excludedObservationState,
-    }));
-    setDialogue([
-      {
-        id: "coach-1",
-        speaker: "coach",
-        content:
-          confirmationState === excludedObservationState
-            ? "그 관찰은 질문 근거에서 제외할게요. 대신 장면에서 꼭 붙잡고 싶은 순간은 어디였나요?"
-            : focusQuestions[0],
-        questionFocus: confirmationState === excludedObservationState ? "missing_context" : "observation_confirmation",
-      },
-    ]);
-    setStep("dialogue");
+  async function confirmObservation(confirmationState: ConfirmationState) {
+    if (!practiceSession) return;
+
+    setSubmitting(true);
+    setApiError(null);
+
+    try {
+      const result = await updatePracticeObservation(practiceSession.id, observation.id, { confirmationState });
+      setPracticeSession(result.session);
+      setObservation(result.observation);
+      setDialogue((current) => [
+        ...current,
+        {
+          id: `coach-observation-${result.observation.id}`,
+          speaker: "coach",
+          content:
+            confirmationState === excludedObservationState
+              ? "그 관찰은 질문 근거에서 제외할게요. 대신 장면에서 꼭 붙잡고 싶은 순간은 어디였나요?"
+              : focusQuestions[0],
+          questionFocus: confirmationState === excludedObservationState ? "missing_context" : "subtext_probe",
+        },
+      ]);
+      setStep("dialogue");
+    } catch (error) {
+      handleApiError(error);
+    } finally {
+      setSubmitting(false);
+    }
   }
 
-  function submitAnswer() {
+  async function submitAnswer() {
+    if (!practiceSession) return;
+
     const trimmed = answer.trim();
     if (!trimmed) return;
 
     const answerCount = actorAnswers.length;
-    const nextQuestion = focusQuestions[Math.min(answerCount + 1, focusQuestions.length - 1)];
 
-    setDialogue((current) => [
-      ...current,
-      {
-        id: `actor-${answerCount + 1}`,
-        speaker: "actor",
-        content: trimmed,
-        questionFocus: "subtext_probe",
-      },
-      {
-        id: `coach-${answerCount + 2}`,
-        speaker: "coach",
-        content: nextQuestion,
-        questionFocus: answerCount >= 1 ? "summary_reflection" : "subtext_probe",
-      },
-    ]);
-    setAnswer("");
+    setSubmitting(true);
+    setApiError(null);
 
-    if (answerCount >= 1) {
-      setStep("summary");
+    try {
+      const result = await createPracticeTurn(practiceSession.id, { actorAnswer: trimmed });
+      setPracticeSession(result.session);
+      setDialogue((current) => [
+        ...current,
+        {
+          id: result.actorTurn.id,
+          speaker: result.actorTurn.speaker,
+          content: result.actorTurn.content,
+          questionFocus: result.actorTurn.questionFocus,
+        },
+        {
+          id: result.coachTurn.id,
+          speaker: result.coachTurn.speaker,
+          content: result.coachTurn.content,
+          questionFocus: answerCount >= 1 ? "summary_reflection" : result.coachTurn.questionFocus,
+        },
+      ]);
+      setAnswer("");
+
+      if (answerCount >= 1) {
+        setStep("summary");
+      }
+    } catch (error) {
+      handleApiError(error);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function saveSummary() {
+    if (!practiceSession) return;
+
+    const trimmed = finalSentence.trim();
+    if (!trimmed) return;
+
+    setSubmitting(true);
+    setApiError(null);
+
+    try {
+      const result = await createPracticeSummary(practiceSession.id, { finalActorSentence: trimmed });
+      setPracticeSession(result.session);
+      setFinalSentence(result.session.finalActorSentence ?? trimmed);
+      setNextReflectionQuestion(result.nextReflectionQuestion);
+    } catch (error) {
+      handleApiError(error);
+    } finally {
+      setSubmitting(false);
     }
   }
 
@@ -175,11 +264,16 @@ export function PracticeFlow() {
 
       <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_360px]">
         <section className="rounded-[2rem] bg-white p-6 shadow-sm">
+          {apiError ? (
+            <p className="mb-4 rounded-2xl bg-red-50 px-4 py-3 text-sm font-semibold text-red-600">{apiError}</p>
+          ) : null}
           {step === "scene" ? (
-            <SceneForm scene={scene} onChange={updateScene} onSubmit={startUpload} />
+            <SceneForm scene={scene} submitting={submitting} onChange={updateScene} onSubmit={startUpload} />
           ) : null}
           {step === "upload" ? <UploadProgress scene={scene} /> : null}
-          {step === "observe" ? <ObservationPanel observation={observation} onConfirm={confirmObservation} /> : null}
+          {step === "observe" ? (
+            <ObservationPanel observation={observation} submitting={submitting} onConfirm={confirmObservation} />
+          ) : null}
           {step === "dialogue" ? (
             <DialoguePanel
               latestQuestion={latestQuestion?.content ?? focusQuestions[0]}
@@ -188,6 +282,7 @@ export function PracticeFlow() {
               onAnswerChange={setAnswer}
               onSubmit={submitAnswer}
               onFinish={() => setStep("summary")}
+              submitting={submitting}
             />
           ) : null}
           {step === "summary" ? (
@@ -196,7 +291,10 @@ export function PracticeFlow() {
               onFinalSentenceChange={setFinalSentence}
               scene={scene}
               dialogue={dialogue}
+              nextReflectionQuestion={nextReflectionQuestion}
               hidden={hidden}
+              submitting={submitting}
+              onSave={saveSummary}
               onToggleHidden={() => setHidden((value) => !value)}
             />
           ) : null}
