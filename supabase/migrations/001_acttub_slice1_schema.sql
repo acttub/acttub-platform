@@ -1,3 +1,6 @@
+-- Executable migration aligned with docs/supabase/slice1-schema-rls-storage.sql.
+-- Keep this file and the docs artifact in lockstep for Slice 1 Supabase deployment.
+
 begin;
 
 -- Acttub Slice 1 Supabase schema, RLS, and private Storage policy artifact.

@@ -1,11 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getAppConfig } from "@/lib/config/env";
-import { handleApiError, jsonResponse } from "../http";
-import {
-  TERMS_COOKIE_NAME,
-  recordTermsAcceptance,
-  requireApiAuthenticatedUser,
-} from "@/server/services/auth-context";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { TERMS_COOKIE_NAME, requireAuthenticatedUser } from "@/server/services/auth-context";
 
 type AcceptTermsBody = {
   termsVersion?: unknown;
@@ -26,9 +22,26 @@ async function readBody(request: NextRequest): Promise<AcceptTermsBody> {
   return {};
 }
 
+async function persistTermsAcceptance(userId: string, email: string | null) {
+  const admin = createSupabaseAdminClient();
+  if (!admin) return;
+
+  const acceptedAt = new Date().toISOString();
+  const { error } = await admin.from("profiles").upsert({
+    id: userId,
+    email,
+    status: "active",
+    terms_accepted_at: acceptedAt,
+    privacy_accepted_at: acceptedAt,
+    internal_review_consent_at: acceptedAt,
+    consent_version: getAppConfig().termsVersion,
+  });
+
+  if (error) throw error;
+}
+
 export async function POST(request: NextRequest) {
-  try {
-    const auth = await requireApiAuthenticatedUser();
+  const auth = await requireAuthenticatedUser();
 
     const config = getAppConfig();
     const body = await readBody(request);
@@ -68,4 +81,25 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     return handleApiError(error);
   }
+
+  await persistTermsAcceptance(auth.userId, auth.email);
+
+  const acceptsHtml = request.headers.get("accept")?.includes("text/html");
+  const response = acceptsHtml
+    ? NextResponse.redirect(new URL("/practice", request.url), { status: 303 })
+    : NextResponse.json({
+        accepted: true,
+        termsVersion: config.termsVersion,
+        nextPath: "/practice",
+      });
+
+  response.cookies.set(TERMS_COOKIE_NAME, config.termsVersion, {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+    maxAge: 60 * 60 * 24 * 365,
+  });
+
+  return response;
 }

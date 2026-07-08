@@ -1,6 +1,6 @@
 import { requireApiTermsAccepted } from "@/server/services/api-auth";
 import { coachSessionService } from "@/server/services/coach-session-service";
-import { requireTermsAccepted } from "@/server/services/auth-context";
+import { requireApiTermsAccepted } from "@/server/services/auth-context";
 import { handleApiError, jsonResponse } from "../http";
 
 export async function GET() {

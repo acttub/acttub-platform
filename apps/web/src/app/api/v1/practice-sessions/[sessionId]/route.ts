@@ -1,10 +1,9 @@
 import { requireApiTermsAccepted } from "@/server/services/api-auth";
 import { coachSessionService } from "@/server/services/coach-session-service";
+import { requireApiTermsAccepted } from "@/server/services/auth-context";
 import { handleApiError, jsonError, jsonResponse } from "../../http";
 
-type RouteContext = {
-  params: Promise<{ sessionId: string }>;
-};
+type RouteContext = { params: Promise<{ sessionId: string }> };
 
 export async function GET(_request: Request, context: RouteContext) {
   try {
@@ -12,10 +11,7 @@ export async function GET(_request: Request, context: RouteContext) {
     const { sessionId } = await context.params;
     const session = coachSessionService.getSession(sessionId, auth.userId);
 
-    if (!session) {
-      return jsonError(404, "session_not_found", "Session was not found.");
-    }
-
+    if (!session) return jsonError(404, "session_not_found", "Session was not found.");
     return jsonResponse({ session });
   } catch (error) {
     return handleApiError(error);
