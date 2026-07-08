@@ -410,8 +410,9 @@ export const coachSessionService = {
     }
 
     return {
-      videoUrl: session.take.videoUrl,
+      signedUrl: session.take.videoUrl,
       expiresAt: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
+      expiresInSeconds: 600,
     };
   },
 

@@ -5,8 +5,18 @@ import type {
   CreateSummaryResponse,
   CreateTurnRequest,
   CreateTurnResponse,
+  CreateUploadIntentRequest,
+  CreateUploadIntentResponse,
+  FinalizeUploadIntentRequest,
+  FinalizeUploadIntentResponse,
+  ListSessionsResponse,
+  SaveValidationMetricsRequest,
+  SaveValidationMetricsResponse,
+  SignedVideoUrlResponse,
   UpdateObservationRequest,
   UpdateObservationResponse,
+  UpdateSessionVisibilityRequest,
+  UpdateSessionVisibilityResponse,
 } from "./types";
 
 async function parseJsonResponse<T>(response: Response): Promise<T> {
@@ -29,10 +39,49 @@ async function parseJsonResponse<T>(response: Response): Promise<T> {
   return payload as T;
 }
 
+export async function createPracticeUploadIntent(
+  body: CreateUploadIntentRequest,
+): Promise<CreateUploadIntentResponse> {
+  const response = await fetch("/api/v1/practice-upload-intents", {
+    method: "POST",
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+
+  return parseJsonResponse<CreateUploadIntentResponse>(response);
+}
+
+export async function finalizePracticeUploadIntent(
+  uploadIntentId: string,
+  body: FinalizeUploadIntentRequest,
+): Promise<FinalizeUploadIntentResponse> {
+  const response = await fetch(`/api/v1/practice-upload-intents/${uploadIntentId}/finalize`, {
+    method: "POST",
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+
+  return parseJsonResponse<FinalizeUploadIntentResponse>(response);
+}
+
+export async function listPracticeSessions(): Promise<ListSessionsResponse> {
+  const response = await fetch("/api/v1/practice-sessions", {
+    headers: { Accept: "application/json" },
+  });
+
+  return parseJsonResponse<ListSessionsResponse>(response);
+}
+
 export async function createPracticeSession(
   body: CreateSessionRequest,
 ): Promise<CreateSessionResponse> {
-  const response = await fetch("/api/v1/sessions", {
+  const response = await fetch("/api/v1/practice-sessions", {
     method: "POST",
     headers: {
       Accept: "application/json",
@@ -91,4 +140,46 @@ export async function createPracticeSummary(
   });
 
   return parseJsonResponse<CreateSummaryResponse>(response);
+}
+
+export async function updatePracticeSessionVisibility(
+  sessionId: string,
+  body: UpdateSessionVisibilityRequest,
+): Promise<UpdateSessionVisibilityResponse> {
+  const response = await fetch(`/api/v1/practice-sessions/${sessionId}/visibility`, {
+    method: "PATCH",
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+
+  return parseJsonResponse<UpdateSessionVisibilityResponse>(response);
+}
+
+export async function getPracticeSignedVideoUrl(
+  sessionId: string,
+): Promise<SignedVideoUrlResponse> {
+  const response = await fetch(`/api/v1/practice-sessions/${sessionId}/signed-video-url`, {
+    headers: { Accept: "application/json" },
+  });
+
+  return parseJsonResponse<SignedVideoUrlResponse>(response);
+}
+
+export async function savePracticeValidationMetrics(
+  sessionId: string,
+  body: SaveValidationMetricsRequest,
+): Promise<SaveValidationMetricsResponse> {
+  const response = await fetch(`/api/v1/practice-sessions/${sessionId}/metrics`, {
+    method: "POST",
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+
+  return parseJsonResponse<SaveValidationMetricsResponse>(response);
 }
