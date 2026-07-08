@@ -92,6 +92,7 @@ export type PracticeUploadIntentDto = {
   storageBucket: "local-dev" | "practice-videos";
   storagePath: string;
   uploadUrl: string;
+  fileMetadata: FileMetadataDto;
   status: "created" | "finalized" | "expired";
   finalizedAt: string | null;
   constraints: {

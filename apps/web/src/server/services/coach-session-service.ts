@@ -15,6 +15,10 @@ import type {
 import { getAppConfig } from "@/lib/config/env";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { mockCoachSessionRepository } from "@/server/repositories/mock-coach-session-repository";
+import {
+  SupabaseCoachSessionPersistenceError,
+  supabaseCoachSessionRepository,
+} from "@/server/repositories/supabase-coach-session-repository";
 
 export class ApiValidationError extends Error {
   constructor(
@@ -63,6 +67,19 @@ const optionalText = (value: unknown): string => {
 const createId = (prefix: string): string => `${prefix}_${crypto.randomUUID()}`;
 const createUuid = (): string => crypto.randomUUID();
 
+const requireSupabasePersistence = async (operation: () => Promise<void>): Promise<void> => {
+  try {
+    await operation();
+  } catch (error) {
+    if (error instanceof SupabaseCoachSessionPersistenceError) {
+      throw new ApiValidationError("Request validation failed", {
+        [error.field]: error.message,
+      });
+    }
+    throw error;
+  }
+};
+
 const nowIso = (): string => new Date().toISOString();
 
 const buildMockObservationText = (input: CreateSessionRequest): string =>
@@ -95,8 +112,9 @@ const makeCoachTurn = (
   content: string,
   sourceObservationIds: string[],
   questionFocus: TurnDto["questionFocus"],
+  id = createId("turn"),
 ): TurnDto => ({
-  id: createId("turn"),
+  id,
   sessionId,
   speaker: "coach",
   content,
@@ -274,7 +292,7 @@ const assertSessionMutable = (session: CoachSessionDto, action: string): void =>
 };
 
 export const coachSessionService = {
-  createUploadIntent(payload: unknown, userId = defaultUserId): PracticeUploadIntentDto {
+  async createUploadIntent(payload: unknown, userId = defaultUserId): Promise<PracticeUploadIntentDto> {
     const input = payload as Partial<CreateUploadIntentRequest>;
     const metadata = input.fileMetadata;
     const config = getAppConfig();
@@ -311,6 +329,14 @@ export const coachSessionService = {
       userId,
       storageBucket: config.video.bucket as PracticeUploadIntentDto["storageBucket"],
       uploadUrl: `/api/v1/practice-upload-intents/${uploadIntentId}/finalize`,
+      fileMetadata: {
+        fileName,
+        mimeType,
+        sizeBytes,
+        ...(typeof metadata.durationMs === "number" && Number.isFinite(metadata.durationMs) && metadata.durationMs > 0
+          ? { durationMs: metadata.durationMs }
+          : {}),
+      },
       status: "created",
       finalizedAt: null,
       storagePath: `users/${userId}/practice-sessions/${sessionId}/take.${extension}`,
@@ -321,7 +347,9 @@ export const coachSessionService = {
       expiresAt: new Date(Date.now() + uploadIntentTtlMs).toISOString(),
     };
 
-    void fileName;
+    await requireSupabasePersistence(() =>
+      supabaseCoachSessionRepository.createUploadIntent(uploadIntent),
+    );
     return mockCoachSessionRepository.saveUploadIntent(uploadIntent, userId);
   },
 
@@ -360,6 +388,9 @@ export const coachSessionService = {
 
     validateExpectedStoragePath(uploadIntent, storagePath, userId);
     await verifySupabaseStorageObject(uploadIntent);
+    await requireSupabasePersistence(() =>
+      supabaseCoachSessionRepository.finalizeUploadIntent(uploadIntent.intent),
+    );
 
     const finalizedIntent = mockCoachSessionRepository.markUploadIntentFinalized(uploadIntentId, userId);
 
@@ -376,7 +407,7 @@ export const coachSessionService = {
     };
   },
 
-  createSession(payload: unknown, userId = defaultUserId): { session: CoachSessionDto; firstQuestion: TurnDto } {
+  async createSession(payload: unknown, userId = defaultUserId): Promise<{ session: CoachSessionDto; firstQuestion: TurnDto }> {
     const input = payload as Partial<CreateSessionRequest>;
     const medium = input.medium;
 
@@ -406,6 +437,7 @@ export const coachSessionService = {
         ? metadataDuration
         : null;
     let sessionId = typeof input.sessionId === "string" && input.sessionId.trim() ? input.sessionId.trim() : createId("session");
+    let finalizedUploadIntent: ReturnType<typeof mockCoachSessionRepository.findUploadIntent> = null;
 
     if (!input.uploadIntentId) {
       throw new ApiValidationError("Request validation failed", {
@@ -442,6 +474,7 @@ export const coachSessionService = {
       }
       sessionId = uploadIntent.sessionId;
       videoUrl = videoRefForUploadIntent(uploadIntent);
+      finalizedUploadIntent = uploadIntent;
     }
 
     if (!videoUrl) {
@@ -451,8 +484,8 @@ export const coachSessionService = {
     }
 
     const timestamp = nowIso();
-    const takeId = createId("take");
-    const observationId = createId("observation");
+    const takeId = createUuid();
+    const observationId = createUuid();
 
     const take: TakeDto = {
       id: takeId,
@@ -508,7 +541,27 @@ export const coachSessionService = {
       buildCoachQuestion(baseSession),
       [observationId],
       "observation_confirmation",
+      createUuid(),
     );
+    if (!finalizedUploadIntent) {
+      throw new ApiValidationError("Request validation failed", {
+        uploadIntentId: "Upload intent must be finalized before session creation.",
+      });
+    }
+
+    await requireSupabasePersistence(() =>
+      supabaseCoachSessionRepository.createSession({
+        uploadIntent: finalizedUploadIntent.intent,
+        session: {
+          ...baseSession,
+          turns: [firstQuestion],
+        },
+        take,
+        observation,
+        firstQuestion,
+      }),
+    );
+
     const session = mockCoachSessionRepository.create(
       {
         ...baseSession,
