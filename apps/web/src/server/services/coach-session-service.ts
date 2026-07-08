@@ -495,11 +495,13 @@ export const coachSessionService = {
     const storagePath = typeof input.storagePath === "string" && input.storagePath.trim() ? input.storagePath.trim() : null;
     let videoUrl = typeof input.videoUrl === "string" && input.videoUrl.trim() ? input.videoUrl.trim() : storagePath;
     const metadataDuration = input.fileMetadata?.durationMs;
-    const durationMs = typeof input.durationMs === "number" && Number.isFinite(input.durationMs) && input.durationMs > 0
-      ? input.durationMs
-      : typeof metadataDuration === "number" && Number.isFinite(metadataDuration) && metadataDuration > 0
-        ? metadataDuration
-        : null;
+    let durationMs: number | null = null;
+
+    if (typeof input.durationMs === "number" && Number.isFinite(input.durationMs) && input.durationMs > 0) {
+      durationMs = input.durationMs;
+    } else if (typeof metadataDuration === "number" && Number.isFinite(metadataDuration) && metadataDuration > 0) {
+      durationMs = metadataDuration;
+    }
     let sessionId = typeof input.sessionId === "string" && input.sessionId.trim() ? input.sessionId.trim() : createId("session");
     let finalizedUploadIntent: ReturnType<typeof mockCoachSessionRepository.findUploadIntent> = null;
 

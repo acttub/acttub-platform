@@ -433,11 +433,12 @@ function SceneForm({
   onUploadFileChange: (file: File | null) => void;
   onSubmit: () => void | Promise<void>;
 }) {
-  const ready =
+  const ready = Boolean(
     scene.genre.trim() &&
-    scene.situation.trim() &&
-    scene.characterContext.trim() &&
-    Boolean(uploadFile);
+      scene.situation.trim() &&
+      scene.characterContext.trim() &&
+      uploadFile,
+  );
 
   return (
     <form
@@ -460,21 +461,21 @@ function SceneForm({
       <input type="hidden" value="upload_url" readOnly />
 
       <label className="block">
-          <span className="text-sm font-semibold">업로드할 영상 파일</span>
-          <input
-            type="file"
-            accept="video/mp4,video/quicktime"
-            onChange={(event) =>
-              onUploadFileChange(event.target.files?.[0] ?? null)
-            }
-            className="mt-2 block w-full rounded-2xl border border-[#d1d6db] bg-white px-4 py-3 text-sm outline-none file:mr-4 file:rounded-xl file:border-0 file:bg-[#e8f3ff] file:px-4 file:py-2 file:text-sm file:font-semibold file:text-[#1b64da] focus:border-[#3182f6]"
-          />
-          <p className="mt-2 text-sm text-[#8b95a1]">
-            MP4 또는 MOV, 300MB 이하. Supabase가 설정된 환경에서는 비공개
-            Storage 경로로 직접 업로드하고, 로컬 개발에서는 같은 업로드 의도와
-            완료 확인 흐름만 검증합니다.
-          </p>
-        </label>
+        <span className="text-sm font-semibold">업로드할 영상 파일</span>
+        <input
+          type="file"
+          accept="video/mp4,video/quicktime"
+          onChange={(event) =>
+            onUploadFileChange(event.target.files?.[0] ?? null)
+          }
+          className="mt-2 block w-full rounded-2xl border border-[#d1d6db] bg-white px-4 py-3 text-sm outline-none file:mr-4 file:rounded-xl file:border-0 file:bg-[#e8f3ff] file:px-4 file:py-2 file:text-sm file:font-semibold file:text-[#1b64da] focus:border-[#3182f6]"
+        />
+        <p className="mt-2 text-sm text-[#8b95a1]">
+          MP4 또는 MOV, 300MB 이하. Supabase가 설정된 환경에서는 비공개
+          Storage 경로로 직접 업로드하고, 로컬 개발에서는 같은 업로드 의도와
+          완료 확인 흐름만 검증합니다.
+        </p>
+      </label>
 
       <TextField
         label="장르"
