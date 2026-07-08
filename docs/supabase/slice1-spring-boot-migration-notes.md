@@ -75,5 +75,6 @@ Vary: Cookie, Authorization
 - Put auth/consent checks in a request filter plus service-level owner checks; do not rely on frontend route guards.
 - Keep DTO names and fields aligned with `apps/web/src/lib/api/*` so the frontend can switch base URLs without changing call sites.
 - Use the Supabase service role only in backend infrastructure components. Never return it or derive client credentials from it.
+- Preserve the lifecycle write boundary: browser-authenticated clients may directly insert only the Storage object authorized by an active upload intent; lifecycle table inserts, updates, and deletes stay behind route handlers, the service role, or restricted RPCs.
 - Wrap finalization in a DB transaction. If the transaction fails after object upload, call the Storage API remove operation and log `orphan_cleanup_attempted` with the result.
 - Preserve the current product language rules in backend generated content: the final result centers the actor-authored sentence and avoids score/verdict/evaluation/diagnosis/prescriptive-correction framing.

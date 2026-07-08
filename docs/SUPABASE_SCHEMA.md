@@ -119,9 +119,9 @@ Slice 1 keeps the browser upload path dependency-free: the current MVP uses Supa
 
 ## RLS Policy Model
 
-Authenticated actors can select visible own rows and mutate rows only when `public.is_active_acttub_profile(auth.uid())` is true. Nested rows denormalize `user_id` and are authorized through composite owner-alignment foreign keys.
+Authenticated actors can select visible own lifecycle rows only when `public.is_active_acttub_profile(auth.uid())` is true. Browser-authenticated users do not get direct `INSERT`, `UPDATE`, or `DELETE` policies on `upload_intents`, `practice_sessions`, `practice_takes`, `observations`, `question_turns`, `session_results`, or `validation_events`; those lifecycle writes must flow through Next route handlers that use the Supabase service role or the restricted database RPCs. Nested rows denormalize `user_id` and are authorized for reads through composite owner-alignment foreign keys plus visible-session checks.
 
-Slice 1 does not open anonymous table or Storage access through RLS. Server-side analysis jobs, finalization checks, signed playback, and migration backfills should use the Supabase service role or database owner role. Do not expose service-role keys to the browser.
+Profile self select/insert/update remains available only for the authenticated user's own profile so the auth and terms lifecycle can complete without broadening practice-data write access. Slice 1 does not open anonymous table or Storage access through RLS. Browser Storage authority is limited to direct `INSERT` into the private `practice-videos` object path backed by an active upload intent; playback, mutation, cleanup, analysis jobs, finalization checks, signed URLs, and migration backfills should use the Supabase service role or database owner role. Do not expose service-role keys to the browser.
 
 ## API Contract Mapping
 

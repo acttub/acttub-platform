@@ -474,27 +474,45 @@ create policy "profiles owner update terms"
   using (id = auth.uid())
   with check (id = auth.uid());
 
+-- Lifecycle table writes are server-only. Browser-authenticated users may read visible
+-- owner rows, but INSERT/UPDATE/DELETE must flow through route handlers that use the
+-- service role or restricted database RPCs.
+revoke insert, update, delete on
+  public.upload_intents,
+  public.practice_sessions,
+  public.practice_takes,
+  public.observations,
+  public.question_turns,
+  public.session_results,
+  public.validation_events
+from anon, authenticated;
+
+grant select on
+  public.upload_intents,
+  public.practice_sessions,
+  public.practice_takes,
+  public.observations,
+  public.question_turns,
+  public.session_results,
+  public.validation_events
+  to authenticated;
+
 create policy "upload intents owner select active"
   on public.upload_intents for select
   to authenticated
-  using (user_id = auth.uid());
+  using (user_id = auth.uid() and public.is_active_acttub_profile(auth.uid()));
 
 create policy "practice sessions owner select visible"
   on public.practice_sessions for select
   to authenticated
-  using (user_id = auth.uid() and hidden_at is null);
-
-create policy "practice sessions owner soft hide"
-  on public.practice_sessions for update
-  to authenticated
-  using (user_id = auth.uid() and public.is_active_acttub_profile(auth.uid()))
-  with check (user_id = auth.uid() and public.is_active_acttub_profile(auth.uid()));
+  using (user_id = auth.uid() and hidden_at is null and public.is_active_acttub_profile(auth.uid()));
 
 create policy "practice takes owner select visible session"
   on public.practice_takes for select
   to authenticated
   using (
     user_id = auth.uid()
+    and public.is_active_acttub_profile(auth.uid())
     and exists (
       select 1 from public.practice_sessions s
       where s.id = practice_takes.session_id
@@ -503,29 +521,61 @@ create policy "practice takes owner select visible session"
     )
   );
 
-create policy "observations owner crud"
-  on public.observations for all
+create policy "observations owner select visible session"
+  on public.observations for select
   to authenticated
-  using (user_id = auth.uid() and public.is_active_acttub_profile(auth.uid()))
-  with check (user_id = auth.uid() and public.is_active_acttub_profile(auth.uid()));
+  using (
+    user_id = auth.uid()
+    and public.is_active_acttub_profile(auth.uid())
+    and exists (
+      select 1 from public.practice_sessions s
+      where s.id = observations.session_id
+        and s.user_id = auth.uid()
+        and s.hidden_at is null
+    )
+  );
 
-create policy "question turns owner crud"
-  on public.question_turns for all
+create policy "question turns owner select visible session"
+  on public.question_turns for select
   to authenticated
-  using (user_id = auth.uid() and public.is_active_acttub_profile(auth.uid()))
-  with check (user_id = auth.uid() and public.is_active_acttub_profile(auth.uid()));
+  using (
+    user_id = auth.uid()
+    and public.is_active_acttub_profile(auth.uid())
+    and exists (
+      select 1 from public.practice_sessions s
+      where s.id = question_turns.session_id
+        and s.user_id = auth.uid()
+        and s.hidden_at is null
+    )
+  );
 
-create policy "session results owner crud"
-  on public.session_results for all
+create policy "session results owner select visible session"
+  on public.session_results for select
   to authenticated
-  using (user_id = auth.uid() and public.is_active_acttub_profile(auth.uid()))
-  with check (user_id = auth.uid() and public.is_active_acttub_profile(auth.uid()));
+  using (
+    user_id = auth.uid()
+    and public.is_active_acttub_profile(auth.uid())
+    and exists (
+      select 1 from public.practice_sessions s
+      where s.id = session_results.session_id
+        and s.user_id = auth.uid()
+        and s.hidden_at is null
+    )
+  );
 
-create policy "validation events owner insert select"
-  on public.validation_events for all
+create policy "validation events owner select visible session"
+  on public.validation_events for select
   to authenticated
-  using (user_id = auth.uid() and public.is_active_acttub_profile(auth.uid()))
-  with check (user_id = auth.uid() and public.is_active_acttub_profile(auth.uid()));
+  using (
+    user_id = auth.uid()
+    and public.is_active_acttub_profile(auth.uid())
+    and exists (
+      select 1 from public.practice_sessions s
+      where s.id = validation_events.session_id
+        and s.user_id = auth.uid()
+        and s.hidden_at is null
+    )
+  );
 
 -- Private bucket setup. Supabase Storage buckets are private by default, but the flag is explicit here.
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)

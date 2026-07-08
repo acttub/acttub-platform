@@ -89,7 +89,7 @@ Recommended server behavior:
 3. Persist and query `public.validation_events` for guardrail/audit events.
 4. Keep object keys under `users/{userId}/practice-sessions/{sessionId}/take.mp4|take.mov`.
 5. Generate short-lived signed playback URLs from the private `practice-videos` bucket through `GET /api/v1/practice-sessions/{sessionId}/signed-video-url`.
-6. Keep all table and storage access owner-checked server-side; do not open anonymous RLS table access directly.
+6. Keep lifecycle table writes owner-checked server-side through the service role/RPC boundary; do not add browser-authenticated insert/update/delete RLS policies for practice lifecycle tables or open anonymous RLS table access directly.
 
 ## Upload Hardening Boundary
 
@@ -142,7 +142,7 @@ The backend should reject or regenerate assistant text containing evaluator-styl
 ## Verification Checklist
 
 - Database migration applies cleanly to a fresh Supabase/Postgres project.
-- RLS prevents authenticated users from reading another user's sessions and storage objects.
+- RLS lets authenticated users read only visible own lifecycle rows, and does not let browser-authenticated users insert/update/delete practice lifecycle rows directly.
 - Rejected observations cannot be referenced by new assistant turns.
 - Web UI can complete a full Slice 1 flow through the Spring Boot API without changing user-visible copy.
 - No new public API field reintroduces scores, ratings, verdicts, strengths, weaknesses, diagnosis framing, evaluation framing, or prescriptive corrections.
