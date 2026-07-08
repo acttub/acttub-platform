@@ -40,18 +40,17 @@ repositoryState.sessionOwners ??= new Map<string, string>();
 
 globalForRepository.__acttubMockCoachSessionRepository = repositoryState;
 
-const cloneSession = (
-  session: MockCoachSessionRecord,
-): MockCoachSessionRecord => structuredClone(session);
+const stripSessionOwner = (session: OwnedCoachSessionRecord): MockCoachSessionRecord => {
+  const dto = structuredClone(session) as Partial<OwnedCoachSessionRecord>;
+  delete dto.ownerUserId;
+  return dto as MockCoachSessionRecord;
+};
 
-const cloneUploadIntent = (
-  uploadIntent: MockUploadIntentRecord,
-): MockUploadIntentRecord => structuredClone(uploadIntent);
-
-const publicSession = (session: MockCoachSessionRecord): CoachSessionDto => {
-  const dto = cloneSession(session);
-  delete (dto as Partial<MockCoachSessionRecord>).ownerId;
-  return dto;
+const stripUploadIntentOwner = (uploadIntent: OwnedUploadIntentRecord): PracticeUploadIntentDto => {
+  const dto = structuredClone(uploadIntent) as Partial<OwnedUploadIntentRecord>;
+  delete dto.ownerUserId;
+  delete dto.finalizedAt;
+  return dto as PracticeUploadIntentDto;
 };
 
 export const mockCoachSessionRepository = {
