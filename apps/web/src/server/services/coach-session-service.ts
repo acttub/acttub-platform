@@ -127,7 +127,7 @@ const buildValidationMetrics = (value: unknown, session?: CoachSessionDto): Vali
   };
   const numberFields = [
     "feltHelpedFindGap1To7",
-    "feltScored1To7",
+    "feltJudged1To7",
     "rejectionSafety1To7",
     "answerability1To7",
     "reuseIntent1To7",
