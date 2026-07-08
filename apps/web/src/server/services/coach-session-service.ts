@@ -98,7 +98,7 @@ const buildValidationMetrics = (value: unknown, session?: CoachSessionDto): Vali
   if (value === undefined || value === null) {
     return {
       feltHelpedFindGap1To7: null,
-      feltScored1To7: null,
+      feltJudged1To7: null,
       rejectionSafety1To7: null,
       answerability1To7: null,
       reuseIntent1To7: null,
@@ -117,7 +117,7 @@ const buildValidationMetrics = (value: unknown, session?: CoachSessionDto): Vali
   const input = value as Record<string, unknown>;
   const metrics: ValidationMetricsDto = {
     feltHelpedFindGap1To7: null,
-    feltScored1To7: null,
+    feltJudged1To7: null,
     rejectionSafety1To7: null,
     answerability1To7: null,
     reuseIntent1To7: null,
@@ -196,7 +196,6 @@ export const coachSessionService = {
       sessionId,
       storageBucket: "practice-videos",
       storagePath: `users/${userId}/practice-sessions/${sessionId}/take.${extension}`,
-      uploadUrl: `/api/v1/practice-upload-intents/${uploadIntentId}/finalize`,
       constraints: {
         maxUploadBytes,
         allowedMimeTypes: Array.from(allowedUploadMimeTypes),
@@ -208,7 +207,11 @@ export const coachSessionService = {
     return mockCoachSessionRepository.saveUploadIntent(uploadIntent);
   },
 
-  finalizeUploadIntent(payload: unknown) {
+  listSessions(): { sessions: CoachSessionDto[] } {
+    return { sessions: mockCoachSessionRepository.listVisible() };
+  },
+
+  finalizeUploadIntent(payload: unknown): { videoUrl: string; storagePath: string; durationMs: number | null } {
     const input = payload as { storagePath?: unknown; durationMs?: unknown };
     const storagePath = requiredText(input.storagePath, "storagePath");
     const durationMs = typeof input.durationMs === "number" && Number.isFinite(input.durationMs) ? input.durationMs : null;
@@ -219,11 +222,6 @@ export const coachSessionService = {
       durationMs,
     };
   },
-
-  listSessions(): { sessions: CoachSessionDto[] } {
-    return { sessions: mockCoachSessionRepository.listVisible() };
-  },
-
 
   createSession(payload: unknown): { session: CoachSessionDto; firstQuestion: TurnDto } {
     const input = payload as Partial<CreateSessionRequest>;
@@ -480,7 +478,16 @@ export const coachSessionService = {
       return null;
     }
 
-    const validationMetrics = buildValidationMetrics(payload, session);
+    const validationMetrics = buildValidationMetrics(payload, session) ?? {
+      feltHelpedFindGap1To7: null,
+      feltJudged1To7: null,
+      rejectionSafety1To7: null,
+      answerability1To7: null,
+      reuseIntent1To7: null,
+      rejectedObservationReuseCount: 0,
+      forbiddenLanguageCount: 0,
+      finalSentenceResult: session.finalActorSentence ? "saved" : "empty",
+    };
     const updatedSession = mockCoachSessionRepository.update({
       ...session,
       validationMetrics,
