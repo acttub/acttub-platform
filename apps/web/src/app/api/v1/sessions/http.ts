@@ -1,9 +1,18 @@
 import { NextResponse } from "next/server";
 import type { ApiErrorResponse } from "@/lib/api/types";
-import { ApiAuthError } from "@/server/services/api-auth";
+import { privateNoStoreHeaders } from "@/server/http/cache";
 import { ApiValidationError } from "@/server/services/coach-session-service";
 import { ApiAuthError } from "@/server/services/auth-context";
 import { privateNoStoreHeaders } from "@/server/http/cache";
+
+export const jsonResponse = <T>(body: T, init: ResponseInit = {}): NextResponse<T> =>
+  NextResponse.json(body, {
+    ...init,
+    headers: {
+      ...privateNoStoreHeaders,
+      ...init.headers,
+    },
+  });
 
 export const jsonError = (
   status: number,
@@ -11,7 +20,7 @@ export const jsonError = (
   message: string,
   details?: Record<string, string>,
 ): NextResponse<ApiErrorResponse> =>
-  NextResponse.json(
+  jsonResponse(
     {
       error: {
         code,
