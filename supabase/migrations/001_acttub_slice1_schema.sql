@@ -6,6 +6,14 @@
 -- 3. Browser JWT has no SELECT/UPDATE/DELETE policy for practice videos in Slice 1.
 -- 4. Playback must use the server signed-url endpoint after ownership checks.
 
+-- Acttub Slice 1 Supabase schema, RLS, and private Storage policy artifact.
+-- Apply through Supabase migrations after review in a project with auth + storage schemas.
+-- Product invariants:
+-- 1. Practice videos live only in a private bucket.
+-- 2. Browser JWT can INSERT only the exact object path from an active upload intent.
+-- 3. Browser JWT has no SELECT/UPDATE/DELETE policy for practice videos in Slice 1.
+-- 4. Playback must use the server signed-url endpoint after ownership checks.
+
 create extension if not exists pgcrypto;
 
 create or replace function public.current_acttub_terms_version()
