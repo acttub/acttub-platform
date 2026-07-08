@@ -28,10 +28,11 @@ export type AuthContext = {
   termsVersion: string;
 };
 
+
 export class ApiAuthError extends Error {
   constructor(
     readonly status: 401 | 403,
-    readonly code: "authentication_required" | "terms_required",
+    readonly code: "unauthenticated" | "terms_required",
     message: string,
   ) {
     super(message);
@@ -185,15 +186,21 @@ export async function requireTermsAccepted(): Promise<AuthContext> {
   return context;
 }
 
-export async function requireApiTermsAccepted(): Promise<AuthContext> {
+export async function requireApiAuthenticatedUser(): Promise<AuthContext> {
   const context = await getAuthContext();
 
   if (!context) {
-    throw new ApiAuthError(401, "authentication_required", "Authentication is required.");
+    throw new ApiAuthError(401, "unauthenticated", "Authentication is required.");
   }
 
+  return context;
+}
+
+export async function requireApiTermsAccepted(): Promise<AuthContext> {
+  const context = await requireApiAuthenticatedUser();
+
   if (!context.termsAccepted) {
-    throw new ApiAuthError(403, "terms_required", "Current terms must be accepted before using this API.");
+    throw new ApiAuthError(403, "terms_required", "Current terms acceptance is required.");
   }
 
   return context;

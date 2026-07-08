@@ -583,7 +583,7 @@ export const coachSessionService = {
   },
 
   getSignedVideoUrl(sessionId: string, userId: string): SignedVideoUrlResponse | null {
-    const session = mockCoachSessionRepository.findById(sessionId, userId);
+    const session = mockCoachSessionRepository.findByIdForOwner(sessionId, userId);
 
     if (!session) {
       return null;

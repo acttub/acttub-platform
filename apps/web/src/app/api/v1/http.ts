@@ -35,6 +35,10 @@ export const handleApiError = (error: unknown): NextResponse<ApiErrorResponse> =
     return jsonError(400, "invalid_json", "Request body must be valid JSON.");
   }
 
+  if (error instanceof ApiAuthError) {
+    return jsonError(error.status, error.code, error.message);
+  }
+
   if (error instanceof ApiValidationError) {
     return jsonError(400, "validation_error", error.message, error.details);
   }

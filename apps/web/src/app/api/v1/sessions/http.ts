@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type { ApiErrorResponse } from "@/lib/api/types";
 import { ApiValidationError } from "@/server/services/coach-session-service";
 import { ApiAuthError } from "@/server/services/auth-context";
+import { privateNoStoreHeaders } from "@/server/http/cache";
 
 export const jsonError = (
   status: number,
@@ -17,12 +18,16 @@ export const jsonError = (
         ...(details ? { details } : {}),
       },
     },
-    { status },
+    { status, headers: privateNoStoreHeaders },
   );
 
 export const handleApiError = (error: unknown): NextResponse<ApiErrorResponse> => {
   if (error instanceof SyntaxError) {
     return jsonError(400, "invalid_json", "Request body must be valid JSON.");
+  }
+
+  if (error instanceof ApiAuthError) {
+    return jsonError(error.status, error.code, error.message);
   }
 
   if (error instanceof ApiValidationError) {
