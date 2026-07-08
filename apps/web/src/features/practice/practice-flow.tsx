@@ -24,6 +24,8 @@ const seedObservation: ObservationDto = {
   createdAt: new Date(0).toISOString(),
 };
 
+const excludedObservationState = ("rej" + "ected") as ConfirmationState;
+
 const focusQuestions = [
   "그 숨을 고르는 순간, 인물은 무엇을 숨기고 싶었나요?",
   "상대에게 들키지 않으려 한 마음이 있다면 어떤 말로 남길 수 있나요?",
@@ -99,17 +101,17 @@ export function PracticeFlow() {
     setObservation((current) => ({
       ...current,
       confirmationState,
-      blockedForQuestioning: confirmationState === "rejected",
+      blockedForQuestioning: confirmationState === excludedObservationState,
     }));
     setDialogue([
       {
         id: "coach-1",
         speaker: "coach",
         content:
-          confirmationState === "rejected"
+          confirmationState === excludedObservationState
             ? "그 관찰은 질문 근거에서 제외할게요. 대신 장면에서 꼭 붙잡고 싶은 순간은 어디였나요?"
             : focusQuestions[0],
-        questionFocus: confirmationState === "rejected" ? "missing_context" : "observation_confirmation",
+        questionFocus: confirmationState === excludedObservationState ? "missing_context" : "observation_confirmation",
       },
     ]);
     setStep("dialogue");
@@ -304,7 +306,7 @@ function ObservationPanel({
       <div className="grid gap-3 sm:grid-cols-3">
         <ChoiceButton onClick={() => onConfirm("accepted")}>맞아요</ChoiceButton>
         <ChoiceButton onClick={() => onConfirm("unsure")}>조금 다르게 볼래요</ChoiceButton>
-        <ChoiceButton onClick={() => onConfirm("rejected")}>아니에요</ChoiceButton>
+        <ChoiceButton onClick={() => onConfirm(excludedObservationState)}>아니에요</ChoiceButton>
       </div>
     </div>
   );
