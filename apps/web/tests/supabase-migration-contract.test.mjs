@@ -61,7 +61,8 @@ test("app and executable migration share upload bucket and path convention", () 
   const service = read("apps/web/src/server/services/coach-session-service.ts");
   const env = read("apps/web/src/lib/config/env.ts");
 
-  assert.match(service, /storageBucket: config\.video\.bucket as PracticeUploadIntentDto\["storageBucket"\]/);
+  assert.match(service, /config\.video\.bucket !== "practice-videos"/);
+  assert.match(service, /storageBucket: "practice-videos"/);
   assert.match(env, /"practice-videos"/);
   assert.match(service, /users\/\$\{userId\}\/practice-sessions\/\$\{sessionId\}\/take\.\$\{extension\}/);
   assert.match(sql, /'users\/' \|\| user_id::text \|\| '\/practice-sessions\/' \|\| session_id::text \|\| '\/take\.'/);
@@ -82,7 +83,7 @@ test("practice_takes is executable and owner-aligned with documented Slice 1 con
   assert.match(practiceTakes, /storage_path text not null unique/);
   assert.match(practiceTakes, /mime_type text not null check \(mime_type in \('video\/mp4', 'video\/quicktime'\)\)/);
   assert.match(practiceTakes, /size_bytes bigint not null check \(size_bytes > 0 and size_bytes <= 314572800\)/);
-  assert.match(practiceTakes, /analysis_status text not null default 'mocked'\s+check \(analysis_status in \('mocked', 'failed'\)\)/);
+  assert.match(practiceTakes, /analysis_status text not null default 'generated'\s+check \(analysis_status in \('generated', 'failed'\)\)/);
   assert.equal(normalizeSql(practiceTakes), normalizeSql(extractCreateTable(docs, "public.practice_takes")));
 });
 

@@ -57,7 +57,12 @@ function readSource(relativePath) {
   return readFileSync(path.join(appRoot, relativePath), "utf8");
 }
 
-const internalContractFiles = new Set(["src/lib/api/types.ts", "src/server/services/coach-session-service.ts", "src/server/repositories/supabase-coach-session-repository.ts"]);
+const internalContractFiles = new Set([
+  "src/lib/api/types.ts",
+  "src/server/services/coach-session-service.ts",
+  "src/server/services/gemini-question-service.ts",
+  "src/server/repositories/supabase-coach-session-repository.ts",
+]);
 
 test("user-facing source avoids score or verdict product language", () => {
   const matches = [];

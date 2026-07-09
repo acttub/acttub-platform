@@ -89,7 +89,7 @@ export type PracticeUploadIntentDto = {
   uploadIntentId: string;
   sessionId: string;
   userId: string;
-  storageBucket: "local-dev" | "practice-videos";
+  storageBucket: "practice-videos";
   storagePath: string;
   uploadUrl: string;
   fileMetadata: FileMetadataDto;

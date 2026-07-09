@@ -14,7 +14,7 @@ The canonical paths are `/api/v1/practice-sessions/*`. Legacy `/api/v1/sessions/
 | --- | --- | --- |
 | `POST` | `/api/v1/practice-upload-intents` | Create an owner-bound upload authority for a future session and exact Storage path. |
 | `POST` | `/api/v1/practice-upload-intents/{uploadIntentId}/finalize` | Verify owner, exact path, object existence, MIME type, and size for the uploaded object; configured Supabase mode keeps database status `created` until session creation consumes it. |
-| `POST` | `/api/v1/practice-sessions` | Consume the verified upload intent, atomically mark it `finalized` in the database, create a practice session, link one take, and start one-time mock analysis. |
+| `POST` | `/api/v1/practice-sessions` | Consume the verified upload intent, atomically mark it `finalized` in the database, create a practice session, link one take, and start one-time Gemini question seed generation. |
 | `GET` | `/api/v1/practice-sessions` | List visible sessions for the authenticated owner. |
 | `GET` | `/api/v1/practice-sessions/{sessionId}` | Return session state, take status, observations, turns, and final actor sentence. |
 | `GET` | `/api/v1/practice-sessions/{sessionId}/signed-video-url` | Return a short-lived private playback signed URL after owner checks. |
@@ -149,4 +149,4 @@ The backend should reject or regenerate assistant text containing evaluator-styl
 
 ## Current Next.js compatibility boundary
 
-The temporary Next.js handlers now enforce API auth/terms checks before every practice/session/upload operation and pass the authenticated `user_id` owner into the service/repository layer. Spring Boot must preserve these route-level semantics while replacing local mock persistence with Supabase-backed transactions.
+The temporary Next.js handlers now enforce API auth/terms checks before every practice/session/upload operation and pass the authenticated `user_id` owner into the service/repository layer. Spring Boot must preserve these route-level semantics while replacing local Supabase persistence with Supabase-backed transactions.

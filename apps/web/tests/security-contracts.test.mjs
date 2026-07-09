@@ -31,15 +31,15 @@ test("practice APIs require API terms auth and pass owner identity to services",
 
   const service = read("apps/web/src/server/services/coach-session-service.ts");
   assert.match(service, /listSessions\(userId: string\)/);
-  assert.match(service, /createSession\(payload: unknown, userId/);
+  assert.match(service, /createSession\(\s*payload: unknown,\s*userId: string/);
   assert.match(service, /finalizeUploadIntent\([\s\S]*uploadIntentId: string,[\s\S]*userId: string/);
   assert.match(service, /findUploadIntent\(uploadIntentId, userId\)/);
-  assert.match(service, /status !== "finalized"/);
+  assert.match(service, /status !== "created"/);
 
-  const repository = read("apps/web/src/server/repositories/mock-coach-session-repository.ts");
-  assert.match(repository, /ownsSession/);
+  const repository = read("apps/web/src/server/repositories/supabase-coach-session-repository.ts");
   assert.match(repository, /listVisible\(userId: string\)/);
   assert.match(repository, /findById\(sessionId: string, userId: string\)/);
+  assert.match(repository, /\.eq\("user_id", userId\)/);
 });
 
 test("legacy sessions routes cannot bypass hardened practice route handlers", () => {

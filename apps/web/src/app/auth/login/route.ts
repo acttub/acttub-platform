@@ -2,18 +2,30 @@ import { redirect } from "next/navigation";
 import { NextResponse, type NextRequest } from "next/server";
 import { getAppConfig } from "@/lib/config/env";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getAuthContext } from "@/server/services/auth-context";
 import { sanitizeOAuthNextPath } from "../oauth-next";
 
 export async function GET(request: NextRequest) {
   const config = getAppConfig();
+  const next = sanitizeOAuthNextPath(request.nextUrl.searchParams.get("next"));
 
   if (!config.supabase.isConfigured) {
-    redirect("/terms");
+    return NextResponse.json(
+      {
+        error:
+          "Google login is not configured. Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY.",
+      },
+      { status: 503 },
+    );
+  }
+
+  const existingContext = await getAuthContext();
+  if (existingContext) {
+    redirect(existingContext.termsAccepted ? next : "/terms");
   }
 
   const supabase = await createSupabaseServerClient();
   const redirectTo = new URL("/auth/callback", request.url).toString();
-  const next = sanitizeOAuthNextPath(request.nextUrl.searchParams.get("next"));
 
   const { data, error } = await supabase!.auth.signInWithOAuth({
     provider: "google",

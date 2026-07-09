@@ -20,20 +20,22 @@ test("finalize route binds path uploadIntentId to auth owner", () => {
   assert.match(source, /finalizeUploadIntent\(uploadIntentId, payload, auth\.userId\)/);
 });
 
-test("finalize service rejects missing, expired, and mismatched-path intents before marking finalized", () => {
+test("verification service rejects missing, expired, and mismatched-path intents before session creation", () => {
   const source = service();
   assert.match(source, /findUploadIntent\(uploadIntentId, userId\)/);
   assert.match(source, /Upload intent was not found/);
   assert.match(source, /Upload intent has expired/);
   assert.match(source, /storagePath !== uploadIntent\.storagePath/);
-  assert.match(source, /markUploadIntentFinalized\(uploadIntentId, userId\)/);
+  assert.match(source, /supabaseCoachSessionRepository\.finalizeUploadIntent\(uploadIntent\.intent\)/);
+  assert.doesNotMatch(source, /markUploadIntentFinalized|status: "finalized"/);
 });
 
-test("upload_url session creation requires finalized matching upload intent", () => {
+test("upload_url session creation requires matching created Supabase upload intent", () => {
   const source = service();
   assert.match(source, /validatedMedium !== "upload_url"/);
   assert.match(source, /if \(!input\.uploadIntentId\)/);
-  assert.match(source, /uploadIntent\.status !== "finalized" \|\| !uploadIntent\.finalizedAt/);
+  assert.match(source, /uploadIntent\.status !== "created"/);
   assert.match(source, /Must match the upload intent sessionId/);
   assert.match(source, /Must match the upload intent storage path/);
+  assert.match(source, /await verifySupabaseStorageObject\(uploadIntent\.intent\)/);
 });

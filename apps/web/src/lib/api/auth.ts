@@ -1,6 +1,6 @@
 export type AuthSessionResponse = {
   authenticated: boolean;
-  mode: "local-dev" | "supabase";
+  mode: "supabase";
   user: {
     id: string;
     email: string | null;
@@ -25,13 +25,24 @@ async function parseJsonResponse<T>(response: Response): Promise<T> {
   const payload = (await response.json()) as unknown;
 
   if (!response.ok) {
-    const message =
+    const apiError =
       typeof payload === "object" &&
+      payload !== null &&
+      "error" in payload &&
+      typeof payload.error === "object" &&
+      payload.error !== null &&
+      "message" in payload.error &&
+      typeof payload.error.message === "string"
+        ? payload.error.message
+        : null;
+    const message =
+      apiError ??
+      (typeof payload === "object" &&
       payload !== null &&
       "error" in payload &&
       typeof payload.error === "string"
         ? payload.error
-        : "요청을 처리하지 못했어요.";
+        : "요청을 처리하지 못했어요.");
     throw new Error(message);
   }
 

@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import type { ApiErrorResponse } from "@/lib/api/types";
 import { privateNoStoreHeaders } from "@/server/http/cache";
-import { ApiValidationError } from "@/server/services/coach-session-service";
+import {
+  ApiConfigurationError,
+  ApiUpstreamError,
+  ApiValidationError,
+} from "@/server/services/coach-session-service";
 import { ApiAuthError } from "@/server/services/auth-context";
 
 export const jsonResponse = <T>(
@@ -46,6 +50,14 @@ export const handleApiError = (
 
   if (error instanceof ApiValidationError) {
     return jsonError(400, "validation_error", error.message, error.details);
+  }
+
+  if (error instanceof ApiConfigurationError) {
+    return jsonError(503, "configuration_error", error.message, error.details);
+  }
+
+  if (error instanceof ApiUpstreamError) {
+    return jsonError(502, "upstream_error", error.message, error.details);
   }
 
   console.error(error);

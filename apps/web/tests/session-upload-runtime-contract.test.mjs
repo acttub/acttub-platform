@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { test } from "node:test";
 
@@ -7,13 +7,13 @@ const appRoot = path.resolve(import.meta.dirname, "..");
 const read = (relativePath) => readFileSync(path.join(appRoot, relativePath), "utf8");
 const service = () => read("src/server/services/coach-session-service.ts");
 
-test("Slice 1 session creation rejects every non-upload bypass and requires a finalized intent", () => {
+test("Slice 1 session creation rejects every non-upload bypass and requires a verified Supabase intent", () => {
   const source = service();
 
   assert.match(source, /if \(validatedMedium !== "upload_url"\) \{[\s\S]*Slice 1 requires medium to be upload_url/);
-  assert.match(source, /if \(!input\.uploadIntentId\) \{[\s\S]*Upload sessions must be created from a finalized upload intent/);
-  assert.match(source, /uploadIntent\.status !== "finalized" \|\| !uploadIntent\.finalizedAt/);
-  assert.match(source, /videoUrl = videoRefForUploadIntent\(uploadIntent\)/);
+  assert.match(source, /if \(!input\.uploadIntentId\) \{[\s\S]*Upload sessions must be created from a verified Supabase upload intent/);
+  assert.match(source, /uploadIntent\.status !== "created"/);
+  assert.match(source, /const videoUrl = videoRefForUploadIntent\(uploadIntent\.intent\)/);
 
   const flow = read("src/features/practice/practice-flow.tsx");
   assert.match(flow, /medium: "upload_url"/);
@@ -21,27 +21,27 @@ test("Slice 1 session creation rejects every non-upload bypass and requires a fi
   assert.doesNotMatch(flow, /<option value="text_only">/);
 });
 
-test("upload finalization verifies exact storage object semantics and fails closed for Supabase", () => {
+test("upload verification checks exact storage object semantics and fails closed for Supabase", () => {
   const source = service();
 
   assert.match(source, /const verifySupabaseStorageObject = async/);
   assert.match(source, /createSupabaseAdminClient\(\)/);
-  assert.match(source, /Supabase storage verification is required before finalization/);
+  assert.match(source, /Supabase storage verification requires SUPABASE_SERVICE_ROLE_KEY/);
   assert.match(source, /\.from\(uploadIntent\.storageBucket\)[\s\S]*\.list\(directory, \{ limit: 100, search: fileName \}\)/);
   assert.match(source, /object\?\.name === fileName/);
   assert.match(source, /const storageObjectMimeType = \(object: Record<string, unknown>\): string \| null =>/);
   assert.match(source, /const storageObjectSizeBytes = \(object: Record<string, unknown>\): number \| null =>/);
   assert.match(source, /metadata\?\.\[key\] !== undefined[\s\S]*object\[key\] !== undefined/);
   assert.match(source, /"mimetype",[\s\S]*"mimeType",[\s\S]*"contentType",[\s\S]*"content_type",[\s\S]*"mime_type"/);
-  assert.match(source, /"size",[\s\S]*"sizeBytes",[\s\S]*"size_bytes"/);
+  assert.match(source, /"size", "sizeBytes", "size_bytes"/);
   assert.match(source, /const parsedSize = Number\(size\)/);
   assert.match(source, /actualMimeType !== uploadIntent\.fileMetadata\.mimeType/);
   assert.match(source, /actualSizeBytes !== uploadIntent\.fileMetadata\.sizeBytes/);
   assert.match(source, /Uploaded storage object metadata does not match the upload intent/);
-  assert.match(source, /validateExpectedStoragePath\(uploadIntent, storagePath, userId\)/);
-  assert.match(source, /await verifySupabaseStorageObject\(uploadIntent\)/);
-  assert.match(source, /storagePath !== uploadIntent\.storagePath \|\| !storagePath\.startsWith\(expectedPrefix\) \|\| !allowedNames\.has\(fileName\)/);
-  assert.doesNotMatch(source, /return \{\s*videoUrl: `local-dev:\/\/\$\{storagePath\}`/);
+  assert.match(source, /validateExpectedStoragePath\(uploadIntent\.intent, storagePath, userId\)/);
+  assert.match(source, /await verifySupabaseStorageObject\(uploadIntent\.intent\)/);
+  assert.match(source, /storagePath !== uploadIntent\.storagePath\s*\|\|[\s\S]*!storagePath\.startsWith\(expectedPrefix\)[\s\S]*!allowedNames\.has\(fileName\)/);
+  assert.doesNotMatch(source, new RegExp("local" + "-dev:\\/\\/"));
 });
 
 test("private video playback uses owner-checked admin signed URLs, never raw stored refs", () => {
@@ -85,14 +85,7 @@ test("legacy observation alias preserves service argument order and clients use 
   assert.match(sessionClient, /\/api\/v1\/practice-sessions\/\$\{sessionId\}\/result/);
 });
 
-
-test("mock local-dev persistence prunes bounded session and upload-intent state", () => {
-  const repository = read("src/server/repositories/mock-coach-session-repository.ts");
-
-  assert.match(repository, /const maxMockSessionRecords = 100/);
-  assert.match(repository, /const maxMockUploadIntentRecords = 200/);
-  assert.match(repository, /const pruneMockSessions = \(\): void =>/);
-  assert.match(repository, /const pruneMockUploadIntents = \(\): void =>/);
-  assert.match(repository, /pruneMockSessions\(\)/);
-  assert.match(repository, /pruneMockUploadIntents\(\)/);
+test("local in-memory practice persistence is not present", () => {
+  assert.equal(existsSync(path.join(appRoot, "src/server/repositories/" + "mo" + "ck-coach-session-repository.ts")), false);
+  assert.doesNotMatch(service(), new RegExp("mo" + "ckCoachSessionRepository|local" + "-dev:\\/\\/"));
 });

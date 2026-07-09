@@ -26,7 +26,7 @@
   3. typed JSON 응답 반환.
 - 임시 비즈니스 로직은 `src/server/services`에 둡니다.
 - 임시 데이터 접근 코드는 `src/server/repositories` 또는 `src/server/db`에 둡니다.
-- persistence가 mock이라면 임시 구현임을 명확히 표시합니다.
+- practice/session persistence는 실제 Supabase service-role repository를 정본으로 사용하고 in-memory fallback을 두지 않습니다.
 
 ## 이전 메모
 

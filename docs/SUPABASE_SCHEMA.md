@@ -55,7 +55,7 @@ Key fields:
 - `storage_bucket`: defaults to `practice-videos`.
 - `storage_path`: private Supabase Storage object path.
 - `mime_type`, `size_bytes`: copied from the upload intent after API upload verification and database-side finalization during session creation.
-- `analysis_status`: one-time mock analysis state (`mocked`, `failed`).
+- `analysis_status`: one-time Gemini question seed generation state (`generated`, `failed`).
 - `analysis_error`: operational failure detail, not user-facing judgment.
 
 ### `public.observations`
@@ -129,7 +129,7 @@ The canonical REST surface uses `/api/v1/practice-sessions/*`. `/api/v1/sessions
 
 - `POST /api/v1/practice-upload-intents` creates the owner-bound upload intent.
 - `POST /api/v1/practice-upload-intents/{id}/finalize` verifies owner/path/expiry/object metadata for the uploaded object and returns the verified upload reference; in configured Supabase mode it does not create the session or mark the database row finalized.
-- `POST /api/v1/practice-sessions` consumes the verified upload intent, atomically marks `upload_intents.status = 'finalized'` inside `public.acttub_create_session_from_upload_intent`, creates `practice_sessions`, links one `practice_takes` row, starts mock analysis, and returns session state.
+- `POST /api/v1/practice-sessions` consumes the verified upload intent, atomically marks `upload_intents.status = 'finalized'` inside `public.acttub_create_session_from_upload_intent`, creates `practice_sessions`, links one `practice_takes` row, starts Gemini question seed generation, and returns session state.
 - `GET /api/v1/practice-sessions` lists visible sessions.
 - `GET /api/v1/practice-sessions/{sessionId}` reads session/take/observation/turn/result state.
 - `GET /api/v1/practice-sessions/{sessionId}/signed-video-url` returns a short-lived private playback URL. Do not add a client `POST /video-url` call path.
@@ -147,5 +147,5 @@ The canonical REST surface uses `/api/v1/practice-sessions/*`. `/api/v1/sessions
 
 ## Open Implementation Notes
 
-- The current repository may still use mock persistence for local development. Keep DTO names and meanings aligned with this schema even while persistence can be mocked.
+- The current repository uses Supabase persistence as the source of truth. DTO names and meanings must stay aligned with this schema for the future Spring Boot migration.
 - If future analysis jobs require async queues, add job tables in a separate migration instead of overloading `practice_takes.analysis_status` with provider-specific workflow details.

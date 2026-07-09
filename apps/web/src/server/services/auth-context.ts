@@ -1,6 +1,5 @@
 import "server-only";
 
-import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { getAppConfig } from "@/lib/config/env";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
@@ -20,7 +19,7 @@ export class ApiAuthError extends Error {
 }
 
 export type AuthContext = {
-  mode: "local-dev" | "supabase";
+  mode: "supabase";
   userId: string;
   email: string | null;
   termsAccepted: boolean;
@@ -40,19 +39,17 @@ export type AuthSessionDto = {
   };
 };
 
-async function hasAcceptedTermsCookie(): Promise<boolean> {
-  const config = getAppConfig();
-  const cookieStore = await cookies();
-  return cookieStore.get(TERMS_COOKIE_NAME)?.value === config.termsVersion;
+async function getProfileClient() {
+  return createSupabaseAdminClient() ?? (await createSupabaseServerClient());
 }
 
 async function hasPersistedTermsAcceptance(userId: string): Promise<boolean> {
   const config = getAppConfig();
-  const admin = createSupabaseAdminClient();
+  const client = await getProfileClient();
 
-  if (!admin) return false;
+  if (!client) return false;
 
-  const { data, error } = await admin
+  const { data, error } = await client
     .from("profiles")
     .select("status, consent_version, terms_accepted_at, privacy_accepted_at, internal_review_consent_at")
     .eq("id", userId)
@@ -69,15 +66,42 @@ async function hasPersistedTermsAcceptance(userId: string): Promise<boolean> {
   );
 }
 
-export async function recordTermsAcceptance(context: AuthContext): Promise<void> {
-  if (context.mode !== "supabase") return;
+function isDuplicateProfileError(error: { code?: string; message?: string }) {
+  return (
+    error.code === "23505" ||
+    error.message?.toLowerCase().includes("duplicate key")
+  );
+}
 
+export async function ensurePendingProfile(
+  user: Pick<AuthContext, "userId" | "email">,
+): Promise<void> {
   const config = getAppConfig();
-  const admin = createSupabaseAdminClient();
-  if (!admin) return;
+  if (!config.supabase.isConfigured) return;
+
+  const client = await getProfileClient();
+  if (!client) return;
+
+  const now = new Date().toISOString();
+  const { error } = await client.from("profiles").insert({
+    id: user.userId,
+    email: user.email,
+    status: "pending_terms",
+    updated_at: now,
+  });
+
+  if (error && !isDuplicateProfileError(error)) {
+    throw error;
+  }
+}
+
+export async function recordTermsAcceptance(context: AuthContext): Promise<void> {
+  const config = getAppConfig();
+  const client = await getProfileClient();
+  if (!client) return;
 
   const acceptedAt = new Date().toISOString();
-  const { error } = await admin.from("profiles").upsert(
+  const { error } = await client.from("profiles").upsert(
     {
       id: context.userId,
       email: context.email,
@@ -96,21 +120,17 @@ export async function recordTermsAcceptance(context: AuthContext): Promise<void>
 
 export async function getAuthContext(): Promise<AuthContext | null> {
   const config = getAppConfig();
-  if (!config.supabase.isConfigured) {
-    const termsCookieAccepted = await hasAcceptedTermsCookie();
-    return {
-      mode: "local-dev",
-      userId: "local-dev-actor",
-      email: "local-dev@acttub.invalid",
-      termsAccepted: termsCookieAccepted,
-      termsVersion: config.termsVersion,
-    };
-  }
+  if (!config.supabase.isConfigured) return null;
 
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase!.auth.getUser();
 
   if (error || !data.user) return null;
+
+  await ensurePendingProfile({
+    userId: data.user.id,
+    email: data.user.email ?? null,
+  });
 
   return {
     mode: "supabase",
@@ -162,7 +182,7 @@ export function toAuthSessionDto(context: AuthContext | null): AuthSessionDto {
 
   return {
     authenticated: Boolean(context),
-    mode: context?.mode ?? (config.supabase.isConfigured ? "supabase" : "local-dev"),
+    mode: "supabase",
     user: context
       ? {
           id: context.userId,

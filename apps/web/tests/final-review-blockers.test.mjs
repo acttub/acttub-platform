@@ -64,16 +64,15 @@ test("practice APIs are explicitly auth, terms, and owner gated", () => {
   assert.deepEqual(missingOwner, []);
 });
 
-test("upload sessions flow through an owner-bound upload intent with configured-mode durable handoff", () => {
+test("upload sessions flow through an owner-bound Supabase upload intent", () => {
   const service = readWeb("src/server/services/coach-session-service.ts");
   const finalizeRoute = readWeb("src/app/api/v1/practice-upload-intents/[uploadIntentId]/finalize/route.ts");
   const practiceFlow = readWeb("src/features/practice/practice-flow.tsx");
 
-  assert.match(service, /Upload sessions must be created from a finalized upload intent/);
-  assert.match(service, /Upload intent must be finalized before session creation/);
+  assert.match(service, /Upload sessions must be created from a verified Supabase upload intent/);
   assert.match(service, /Upload intent is not available for session creation/);
-  assert.match(service, /if \(supabaseCoachSessionRepository\.isConfigured\(\)\) \{[\s\S]*uploadIntent\.status !== "created"[\s\S]*\} else if \(uploadIntent\.status !== "finalized" \|\| !uploadIntent\.finalizedAt\)/);
-  assert.match(service, /await verifySupabaseStorageObject\(uploadIntent\.intent\);[\s\S]*supabaseCoachSessionRepository\.createSession\(\{[\s\S]*uploadIntent: uploadIntentForSession\.intent/s);
+  assert.match(service, /uploadIntent\.status !== "created"/);
+  assert.match(service, /await verifySupabaseStorageObject\(uploadIntent\.intent\);[\s\S]*supabaseCoachSessionRepository\.createSession\(\{[\s\S]*uploadIntent: uploadIntent\.intent/s);
   assert.match(service, /Must match the upload intent storage path/);
   assert.match(service, /readUploadIntentForOwner\(input\.uploadIntentId, userId\)/);
   assert.match(
@@ -85,15 +84,14 @@ test("upload sessions flow through an owner-bound upload intent with configured-
   assert.match(practiceFlow, /getSupabaseBrowserClient/);
 });
 
-test("mock persistence keeps owner scope on sessions and upload intents", () => {
-  const repository = readWeb("src/server/repositories/mock-coach-session-repository.ts");
+test("practice persistence has no local in-memory repository", () => {
+  const service = readWeb("src/server/services/coach-session-service.ts");
+  const repository = readWeb("src/server/repositories/supabase-coach-session-repository.ts");
 
-  assert.match(repository, /sessionOwners: Map<string, string>/);
-  assert.match(repository, /uploadIntents: Map<string, StoredUploadIntentRecord>/);
-  assert.match(repository, /sessionOwners\.get\(sessionId\) === ownerId/);
-  assert.match(repository, /uploadIntent\.userId !== ownerUserId/);
-  assert.match(repository, /saveUploadIntent\([\s\S]*ownerUserId: string/);
-  assert.match(repository, /markUploadIntentFinalized\([\s\S]*ownerUserId: string/);
+  assert.match(service, /requireSupabaseConfigured/);
+  assert.match(service, /supabaseCoachSessionRepository/);
+  assert.match(repository, /\.eq\("user_id", userId\)/);
+  assert.doesNotMatch(service, new RegExp("mo" + "ckCoachSessionRepository|globalThis\\.__acttub"));
 });
 
 test("executable migration and web upload contract use one private insert-only policy", () => {
@@ -114,9 +112,9 @@ test("executable migration and web upload contract use one private insert-only p
   assert.doesNotMatch(migration, /for select using \(\s*bucket_id = 'practice-videos'/);
   assert.doesNotMatch(migration, /for update using \(\s*bucket_id = 'practice-videos'/);
   assert.doesNotMatch(migration, /for delete using \(\s*bucket_id = 'practice-videos'/);
-  assert.match(types, /storageBucket: "local-dev" \| "practice-videos"/);
+  assert.match(types, /storageBucket: "practice-videos"/);
   assert.match(config, /NEXT_PUBLIC_SUPABASE_VIDEO_BUCKET \?\? "practice-videos"/);
-  assert.match(service, /storageBucket: config\.video\.bucket as PracticeUploadIntentDto\["storageBucket"\]/);
+  assert.match(service, /storageBucket: "practice-videos"/);
 });
 
 test("upload intent API response and client paths stay on the intent/finalize contract", () => {

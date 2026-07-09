@@ -20,7 +20,7 @@ This note preserves the backend contract that the temporary Next.js route handle
 | `GET /api/v1/auth/session` | Current user + terms state | optional auth | Must stay non-cacheable. |
 | `POST /api/v1/terms/acceptances` | Record current consent version | authenticated | Writes all three consent timestamps atomically. |
 | `POST /api/v1/practice-upload-intents` | Create pre-session upload authority | active user | Returns future `sessionId`, exact Storage path, constraints, expiry. |
-| `POST /api/v1/practice-sessions` | Finalize an uploaded video into DB state | active user | Creates session/take/mock observations only after object existence validation. |
+| `POST /api/v1/practice-sessions` | Finalize an uploaded video into DB state | active user | Creates session/take/Gemini-generated context observations only after object existence validation. |
 | `GET /api/v1/practice-sessions` | List visible sessions | active user | Excludes `hidden_at is not null`. |
 | `GET /api/v1/practice-sessions/{sessionId}` | Fetch session state | owner only | Return `403` or `404` for non-owner without leaking existence. |
 | `GET /api/v1/practice-sessions/{sessionId}/signed-video-url` | Issue playback signed URL | owner + visible session | 600 second expiry, never public URL. `POST /video-url` is legacy-only compatibility and must not be used by clients. |

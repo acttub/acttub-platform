@@ -49,17 +49,19 @@ test("upload intent finalize uses path parameter and stored intent validation", 
   const service = read("apps/web/src/server/services/coach-session-service.ts");
   assert.match(service, /findUploadIntent\(uploadIntentId, userId\)/);
   assert.match(service, /storagePath !== uploadIntent\.storagePath/);
-  assert.match(service, /Upload intent must be finalized before session creation/);
+  assert.match(service, /Upload sessions must be created from a verified Supabase upload intent/);
   assert.match(service, /validatedMedium !== "upload_url"/);
   assert.match(service, /if \(!input\.uploadIntentId\)/);
 });
 
-test("mock persistence keeps owner metadata outside public DTOs", () => {
-  const repository = read("apps/web/src/server/repositories/mock-coach-session-repository.ts");
-  assert.match(repository, /sessionOwners: Map<string, string>/);
-  assert.match(repository, /ownerUserId: string/);
-  assert.match(repository, /repositoryState\.sessionOwners\.get\(sessionId\) !== ownerUserId/);
-  assert.match(repository, /finalizedAt: new Date\(\)\.toISOString\(\)/);
+test("practice persistence uses Supabase repository without in-memory fallback", () => {
+  const service = read("apps/web/src/server/services/coach-session-service.ts");
+  const repository = read("apps/web/src/server/repositories/supabase-coach-session-repository.ts");
+
+  assert.match(service, /requireSupabaseConfigured/);
+  assert.match(service, /supabaseCoachSessionRepository/);
+  assert.match(repository, /import "server-only"/);
+  assert.doesNotMatch(service, new RegExp("mo" + "ckCoachSessionRepository|globalThis\\.__acttub"));
 });
 
 test("practice flow uses upload intent lifecycle for uploaded videos", () => {

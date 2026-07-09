@@ -60,11 +60,55 @@ test("terms acceptance persists Supabase profile consent when admin client exist
   assert.match(authContext, /status: "active"/);
 });
 
-
-test("Supabase API terms gate does not trust the local terms cookie", () => {
+test("Google OAuth sign-in creates a pending profile without overwriting existing users", () => {
+  const login = read("src/app/auth/login/route.ts");
+  const callback = read("src/app/auth/callback/route.ts");
   const authContext = read("src/server/services/auth-context.ts");
 
-  assert.match(authContext, /if \(!config\.supabase\.isConfigured\) {[\s\S]*hasAcceptedTermsCookie\(\)/);
+  assert.match(login, /getAuthContext/);
+  assert.match(login, /existingContext\.termsAccepted \? next : "\/terms"/);
+  assert.match(login, /NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY/);
+  assert.match(login, /status: 503/);
+  assert.doesNotMatch(login, /if \(!config\.supabase\.isConfigured\) \{\s*redirect\("\/terms"\)/);
+  assert.match(callback, /const context = await getAuthContext\(\)/);
+  assert.match(authContext, /export async function ensurePendingProfile/);
+  assert.match(authContext, /\.from\("profiles"\)\.insert/);
+  assert.match(authContext, /status: "pending_terms"/);
+  assert.match(authContext, /isDuplicateProfileError/);
+  assert.match(authContext, /await ensurePendingProfile\({[\s\S]*userId: data\.user\.id/);
+});
+
+test("Supabase public key accepts current publishable-key env name with anon fallback", () => {
+  const env = read("src/lib/config/env.ts");
+
+  assert.match(env, /NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY/);
+  assert.match(env, /NEXT_PUBLIC_SUPABASE_ANON_KEY/);
+  assert.match(env, /process\.env\.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY[\s\S]*process\.env\.NEXT_PUBLIC_SUPABASE_ANON_KEY/);
+});
+
+test("practice entrypoints require authentication before use", () => {
+  const landing = read("src/app/page.tsx");
+  const proxy = read("src/lib/supabase/proxy.ts");
+  const practiceFlow = read("src/features/practice/practice-flow.tsx");
+  const termsGate = read("src/features/practice/terms-gate.tsx");
+
+  assert.match(landing, /const practiceLoginHref = "\/auth\/login\?next=\/practice"/);
+  assert.doesNotMatch(landing, /href="\/practice"/);
+  assert.match(proxy, /isProtectedPracticePath\(request\.nextUrl\.pathname\)/);
+  assert.match(proxy, /supabase\.auth\.getClaims\(\)/);
+  assert.match(proxy, /if \(!config\.supabase\.isConfigured\) \{[\s\S]*redirectToLogin\(request\)/);
+  assert.match(proxy, /return redirectToLogin\(request\)/);
+  assert.match(practiceFlow, /window\.location\.href = "\/auth\/login\?next=\/practice"/);
+  assert.match(termsGate, /window\.location\.href = "\/auth\/login\?next=\/practice"/);
+});
+
+
+test("Supabase API terms gate fails closed without local auth bypass", () => {
+  const authContext = read("src/server/services/auth-context.ts");
+  const proxy = read("src/lib/supabase/proxy.ts");
+
+  assert.doesNotMatch(authContext, new RegExp("ACTTUB_ENABLE_LOCAL_DEV_AUTH_BYPASS|" + "local" + "-dev|hasAcceptedTermsCookie"));
+  assert.match(authContext, /if \(!config\.supabase\.isConfigured\) return null/);
   assert.match(authContext, /mode: "supabase"[\s\S]*termsAccepted: await hasPersistedTermsAcceptance\(data\.user\.id\)/);
-  assert.doesNotMatch(authContext, /termsAccepted: termsCookieAccepted \|\|/);
+  assert.match(proxy, /if \(!config\.supabase\.isConfigured\) \{[\s\S]*return shouldRequireLogin \? redirectToLogin\(request\) : response/);
 });

@@ -180,7 +180,7 @@ validation_events
 - created_at
 ```
 
-이 모델은 목표 구조다. MVP 초기에 mock persistence를 쓰더라도 위 필드와 의미가 무너지지 않게 DTO를 설계한다.
+이 모델은 목표 구조다. MVP 초기에 Supabase persistence를 쓰더라도 위 필드와 의미가 무너지지 않게 DTO를 설계한다.
 
 ## 데이터 흐름
 

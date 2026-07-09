@@ -16,25 +16,6 @@ as $$
   select '2026-07-mvp'::text;
 $$;
 
-create or replace function public.is_active_acttub_profile(profile_user_id uuid)
-returns boolean
-language sql
-stable
-security definer
-set search_path = public
-as $$
-  select exists (
-    select 1
-    from public.profiles p
-    where p.id = profile_user_id
-      and p.status = 'active'
-      and p.terms_accepted_at is not null
-      and p.privacy_accepted_at is not null
-      and p.internal_review_consent_at is not null
-      and p.consent_version = public.current_acttub_terms_version()
-  );
-$$;
-
 create table if not exists public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   email text,
@@ -56,6 +37,25 @@ create table if not exists public.profiles (
     )
   )
 );
+
+create or replace function public.is_active_acttub_profile(profile_user_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1
+    from public.profiles p
+    where p.id = profile_user_id
+      and p.status = 'active'
+      and p.terms_accepted_at is not null
+      and p.privacy_accepted_at is not null
+      and p.internal_review_consent_at is not null
+      and p.consent_version = public.current_acttub_terms_version()
+  );
+$$;
 
 create table if not exists public.upload_intents (
   id uuid primary key default gen_random_uuid(),
@@ -114,8 +114,8 @@ create table if not exists public.practice_takes (
   mime_type text not null check (mime_type in ('video/mp4', 'video/quicktime')),
   size_bytes bigint not null check (size_bytes > 0 and size_bytes <= 314572800),
   duration_ms integer check (duration_ms is null or duration_ms > 0),
-  analysis_status text not null default 'mocked'
-    check (analysis_status in ('mocked', 'failed')),
+  analysis_status text not null default 'generated'
+    check (analysis_status in ('generated', 'failed')),
   analysis_error text,
   created_at timestamptz not null default now(),
   unique (id, user_id),
@@ -281,7 +281,7 @@ begin
     v_upload_intent.expected_mime_type,
     v_upload_intent.expected_size_bytes,
     p_duration_ms,
-    'mocked',
+    'generated',
     null,
     p_created_at
   );
@@ -310,7 +310,7 @@ begin
     p_observation_confidence,
     'unasked',
     false,
-    '{"source":"mock-analysis"}'::jsonb,
+    '{"source":"gemini-question-service"}'::jsonb,
     p_created_at
   );
 

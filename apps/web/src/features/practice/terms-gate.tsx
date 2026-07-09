@@ -19,7 +19,7 @@ export function TermsGate() {
       .then((session) => {
         if (!mounted) return;
         if (!session.authenticated) {
-          window.location.href = "/auth/login";
+          window.location.href = "/auth/login?next=/practice";
           return;
         }
         if (session.terms.accepted) {

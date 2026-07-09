@@ -322,14 +322,28 @@ export const supabaseCoachSessionRepository = {
     assertNoPersistenceError(
       error,
       "uploadIntentId",
-      "Could not finalize Supabase upload intent",
+      "Could not verify Supabase upload intent",
     );
     if (!data) {
       throw new SupabaseCoachSessionPersistenceError(
         "uploadIntentId",
-        "Could not finalize Supabase upload intent: matching created intent was not found.",
+        "Could not verify Supabase upload intent: matching created intent was not found.",
       );
     }
+  },
+
+  async expireUploadIntent(uploadIntentId: string, userId: string): Promise<void> {
+    if (!configuredForSupabasePersistence()) return;
+
+    const admin = requireSupabaseAdminClient();
+    const { error } = await admin
+      .from("upload_intents")
+      .update({ status: "expired", updated_at: new Date().toISOString() })
+      .eq("id", uploadIntentId)
+      .eq("user_id", userId)
+      .eq("status", "created");
+
+    assertNoPersistenceError(error, "uploadIntentId", "Could not expire Supabase upload intent");
   },
 
   async createSession(input: {
@@ -455,6 +469,47 @@ export const supabaseCoachSessionRepository = {
     return hydrateSession(sessionId, userId);
   },
 
+  async addCoachTurn(
+    sessionId: string,
+    userId: string,
+    coachTurn: TurnDto,
+  ): Promise<CoachSessionDto | null> {
+    if (!configuredForSupabasePersistence()) return null;
+
+    const admin = requireSupabaseAdminClient();
+    const { data, error } = await admin
+      .from("question_turns")
+      .insert({
+        id: coachTurn.id,
+        session_id: sessionId,
+        user_id: userId,
+        speaker: "acttub",
+        content: coachTurn.content,
+        question_focus: coachTurn.questionFocus,
+        source_observation_ids: coachTurn.sourceObservationIds,
+        turn_state: "open",
+        created_at: coachTurn.createdAt,
+      })
+      .select("id")
+      .single();
+
+    assertNoPersistenceError(error, "turnId", "Could not append Supabase coach turn");
+    if (!data) return null;
+
+    const sessionUpdate = await admin
+      .from("practice_sessions")
+      .update({ status: "questioning", updated_at: coachTurn.createdAt })
+      .eq("id", sessionId)
+      .eq("user_id", userId)
+      .is("hidden_at", null)
+      .select("id")
+      .maybeSingle();
+    assertNoPersistenceError(sessionUpdate.error, "sessionId", "Could not update Supabase session status");
+    if (!sessionUpdate.data) return null;
+
+    return hydrateSession(sessionId, userId);
+  },
+
   async addTurnPair(
     sessionId: string,
     userId: string,
@@ -510,6 +565,7 @@ export const supabaseCoachSessionRepository = {
     userId: string,
     finalActorSentence: string,
     validationMetrics: ValidationMetricsDto,
+    questionToRevisit: string,
   ): Promise<CoachSessionDto | null> {
     if (!configuredForSupabasePersistence()) return null;
 
@@ -519,7 +575,7 @@ export const supabaseCoachSessionRepository = {
       p_user_id: userId,
       p_final_actor_sentence: finalActorSentence,
       p_validation_metrics: validationMetrics,
-      p_question_to_revisit: "다음 연습에서 이 문장을 다시 떠올리게 할 질문은 무엇인가요?",
+      p_question_to_revisit: questionToRevisit,
     });
 
     assertNoPersistenceError(error, "finalActorSentence", "Could not complete Supabase practice session");
