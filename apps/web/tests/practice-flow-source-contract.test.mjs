@@ -15,16 +15,12 @@ test("practice routes use explicit entry flow and legacy route redirects home", 
 
 test("practice flow keeps the required steps and actor-authored summary", () => {
   const source = read("src/features/practice/practice-flow.tsx");
-  const submitAnswer = source.match(
-    /async function submitAnswer\(\)[\s\S]*?(?=\n  async function saveSummary)/,
-  )?.[0];
 
   assert.match(source, /type Step =[\s\S]*"home"[\s\S]*"video"[\s\S]*"context"[\s\S]*"upload"[\s\S]*"observe"[\s\S]*"dialogue"[\s\S]*"summary"/);
   assert.doesNotMatch(source, /\| "scene"/);
   assert.match(source, /const genreOptions = \["연극", "영화", "뮤지컬", "드라마", "기타"\] as const/);
-  assert.ok(submitAnswer, "expected submitAnswer function");
-  assert.match(submitAnswer, /result\.dialogueComplete/);
-  assert.doesNotMatch(submitAnswer, /createPracticeSummary/);
+  assert.match(source, /submitPipelineAnswer/);
+  assert.match(source, /expectedSubstantiveAnswerCount: pipelineSession\.substantiveAnswerCount/);
   assert.match(source, /createPracticeSummary\(practiceSession\.id, \{[\s\S]*finalActorSentence/);
   assert.match(source, /AI 정리/);
   assert.match(source, /연습 노트/);
@@ -51,13 +47,15 @@ test("selected video preview keeps a live blob URL until replacement or unmount"
   assert.match(source, /이 브라우저에서 선택한 영상을 재생할 수 없어요/);
 });
 
-test("dialogue is a chat room with explicit manual completion", () => {
+test("dialogue follows the canonical server interview state", () => {
   const source = read("src/features/practice/practice-flow.tsx");
 
   assert.match(source, /role="log"/);
   assert.match(source, /aria-live="polite"/);
-  assert.match(source, /AI 코치와 나눈 대화/);
-  assert.match(source, /대화 종료하기/);
+  assert.match(source, /startPipelineInterview/);
+  assert.match(source, /stopPipelineInterview/);
+  assert.match(source, /resumePipelineInterview/);
+  assert.match(source, /모르겠어요/);
   assert.match(source, /MIN_DIALOGUE_ANSWER_COUNT/);
   assert.match(source, /MAX_DIALOGUE_ANSWER_COUNT/);
   assert.doesNotMatch(source, /summaryAnswerThreshold/);
