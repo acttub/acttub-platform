@@ -365,6 +365,52 @@
             "$ref": "#/components/responses/ConfigurationError"
           }
         }
+      },
+      "delete": {
+        "tags": [
+          "AI 파이프라인"
+        ],
+        "summary": "세션 영구 삭제",
+        "operationId": "deletePipelineSession",
+        "description": "저장소 삭제 후 데이터 행을 삭제합니다.",
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "삭제 처리 상태입니다.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
       }
     },
     "/api/v1/practice-sessions/{sessionId}/signed-video-url": {
@@ -1134,6 +1180,396 @@
           },
           "503": {
             "$ref": "#/components/responses/ConfigurationError"
+          }
+        }
+      }
+    },
+    "/api/v1/practice-sessions/{sessionId}/observations/{observationId}/confirmation": {
+      "post": {
+        "tags": [
+          "AI 파이프라인"
+        ],
+        "summary": "관찰 확인 상태 저장",
+        "operationId": "confirmPipelineObservation",
+        "description": "관찰 확인 상태 저장 요청입니다. 현재 동의와 소유권을 서버에서 확인합니다.",
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "observationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "요청 결과입니다.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/practice-sessions/{sessionId}/interview/start": {
+      "post": {
+        "tags": [
+          "AI 파이프라인"
+        ],
+        "summary": "인터뷰 시작",
+        "operationId": "startPipelineInterview",
+        "description": "인터뷰 시작 요청입니다. 현재 동의와 소유권을 서버에서 확인합니다.",
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "요청 결과입니다.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/practice-sessions/{sessionId}/interview/turns": {
+      "post": {
+        "tags": [
+          "AI 파이프라인"
+        ],
+        "summary": "인터뷰 답변 저장",
+        "operationId": "appendPipelineInterviewTurn",
+        "description": "인터뷰 답변 저장 요청입니다. 현재 동의와 소유권을 서버에서 확인합니다.",
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "요청 결과입니다.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/practice-sessions/{sessionId}/interview/stop": {
+      "post": {
+        "tags": [
+          "AI 파이프라인"
+        ],
+        "summary": "인터뷰 수동 종료",
+        "operationId": "stopPipelineInterview",
+        "description": "인터뷰 수동 종료 요청입니다. 현재 동의와 소유권을 서버에서 확인합니다.",
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "요청 결과입니다.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/practice-sessions/{sessionId}/interview/resume": {
+      "post": {
+        "tags": [
+          "AI 파이프라인"
+        ],
+        "summary": "인터뷰 재개",
+        "operationId": "resumePipelineInterview",
+        "description": "인터뷰 재개 요청입니다. 현재 동의와 소유권을 서버에서 확인합니다.",
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "요청 결과입니다.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/practice-sessions/{sessionId}/report": {
+      "get": {
+        "tags": [
+          "AI 파이프라인"
+        ],
+        "summary": "완료된 리포트 조회",
+        "operationId": "getPipelineReport",
+        "description": "완료된 리포트 조회 요청입니다. 현재 동의와 소유권을 서버에서 확인합니다.",
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "요청 결과입니다.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/practice-sessions/{sessionId}/report/retry": {
+      "post": {
+        "tags": [
+          "AI 파이프라인"
+        ],
+        "summary": "실패한 리포트 재시도",
+        "operationId": "retryPipelineReport",
+        "description": "실패한 리포트 재시도 요청입니다. 현재 동의와 소유권을 서버에서 확인합니다.",
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "요청 결과입니다.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/practice-sessions/{sessionId}/deletion/{requestId}": {
+      "get": {
+        "tags": [
+          "AI 파이프라인"
+        ],
+        "summary": "삭제 상태 조회",
+        "operationId": "getPipelineDeletionStatus",
+        "description": "삭제 후 남은 소유자 묘비 상태를 조회합니다.",
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "requestId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "삭제 상태입니다.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
           }
         }
       }

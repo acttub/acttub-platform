@@ -1,6 +1,7 @@
 import { coachSessionService } from "@/server/services/coach-session-service";
 import { requireApiTermsAccepted } from "@/server/services/auth-context";
 import { handleApiError, jsonError, jsonResponse } from "../../http";
+import { aiPipelineService } from "@/server/services/ai-pipeline-service";
 
 type RouteContext = { params: Promise<{ sessionId: string }> };
 
@@ -16,3 +17,5 @@ export async function GET(_request: Request, context: RouteContext) {
     return handleApiError(error);
   }
 }
+
+export async function DELETE(request:Request,context:RouteContext){try{const auth=await requireApiTermsAccepted();const {sessionId}=await context.params;const requestId=aiPipelineService.validateRequestId(request.headers.get("Idempotency-Key"));return jsonResponse(await aiPipelineService.deleteSession(sessionId,auth.userId,requestId),{status:202});}catch(error){return handleApiError(error)}}

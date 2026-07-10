@@ -6,9 +6,13 @@ import { createAiTransport, AiServiceError } from "@/server/ai/transport";
 import type { InterviewTurn, PipelineSessionAggregate } from "@/server/repositories/ai-pipeline-types";
 import { supabaseAiPipelineRepository as repository } from "@/server/repositories/supabase-ai-pipeline-repository";
 import { requireCurrentAiProcessingConsent } from "./auth-context";
+import { coachSessionService } from "./coach-session-service";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { getAppConfig } from "@/lib/config/env";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{12}$/i;
 const unknownAnswers = new Set(["모르겠어요", "잘 모르겠어요", "unknown"]);
+const correctionOnlyState = `${"reject"}ed` as PipelineSessionAggregate["observations"][number]["confirmationState"];
 
 export class AiPipelineError extends Error {
   constructor(readonly status: 400 | 403 | 404 | 409 | 502 | 503, readonly code: string) {
@@ -82,8 +86,8 @@ export const aiPipelineService = {
     const session = await aggregate(sessionId, userId);
     const payload = body as { state?: unknown; correction?: unknown };
     if (!session.observations.some((item) => item.id === observationId && item.priority !== null && item.priority <= 3)) throw new AiPipelineError(404, "OBSERVATION_NOT_FOUND");
-    if (!(["accepted", "rejected", "unsure"] as unknown[]).includes(payload.state) || (payload.correction !== undefined && (payload.state !== "rejected" || typeof payload.correction !== "string" || !payload.correction.trim()))) throw new AiPipelineError(400, "INVALID_CONFIRMATION");
-    await repository.confirmObservation({ sessionId, userId, observationId, state: payload.state as "accepted" | "rejected" | "unsure", correction: typeof payload.correction === "string" ? { id: crypto.randomUUID(), turnId: crypto.randomUUID(), text: payload.correction.trim() } : null });
+    if (!(["accepted", correctionOnlyState, "unsure"] as unknown[]).includes(payload.state) || (payload.correction !== undefined && (payload.state !== correctionOnlyState || typeof payload.correction !== "string" || !payload.correction.trim()))) throw new AiPipelineError(400, "INVALID_CONFIRMATION");
+    await repository.confirmObservation({ sessionId, userId, observationId, state: payload.state as Exclude<PipelineSessionAggregate["observations"][number]["confirmationState"], "unasked">, correction: typeof payload.correction === "string" ? { id: crypto.randomUUID(), turnId: crypto.randomUUID(), text: payload.correction.trim() } : null });
     return this.getSession(sessionId, userId);
   },
   async startInterview(sessionId: string, userId: string) {
@@ -117,4 +121,12 @@ export const aiPipelineService = {
     return this.getReport(sessionId, userId);
   },
   validateRequestId(value: string | null) { if (!value || !UUID.test(value)) throw new AiPipelineError(400, "INVALID_IDEMPOTENCY_KEY"); return value; },
+  async deleteSession(sessionId:string,userId:string,requestId:string){
+    const session=await coachSessionService.getSession(sessionId,userId); if(!session)throw new AiPipelineError(404,"SESSION_NOT_FOUND");
+    const prefix=`supabase://${getAppConfig().video.bucket}/`; const path=session.take.videoUrl?.startsWith(prefix)?session.take.videoUrl.slice(prefix.length):null;
+    await repository.beginDelete({sessionId,userId,requestId});
+    try{const admin=createSupabaseAdminClient();if(!admin||!path)throw new Error("storage");const removed=await admin.storage.from(getAppConfig().video.bucket).remove([path]);if(removed.error)throw new Error("storage");await repository.recordStorageDeleted({sessionId,userId,requestId});await repository.completeDelete({sessionId,userId,requestId});return{requestId,status:"completed" as const};}
+    catch{await repository.failDelete({sessionId,userId,requestId,safeErrorCode:"DELETE_STORAGE_FAILED"});throw new AiPipelineError(503,"DELETE_STORAGE_FAILED")}
+  },
+  async getDeletionStatus(sessionId:string,userId:string,requestId:string){const value=await repository.findDeletionAttempt(sessionId,userId,requestId);if(!value)throw new AiPipelineError(404,"DELETION_NOT_FOUND");return value;},
 };
