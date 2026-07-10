@@ -66,7 +66,8 @@ const failRun = async (sessionId: string, userId: string, runId: string, error: 
 const callAgent = async (session: PipelineSessionAggregate, userId: string, input: CurrentInput, actorTurn: InterviewTurn | null) => {
   await requireCurrentAiProcessingConsent(userId);
   const runId = crypto.randomUUID();
-  await repository.claimRun({ sessionId: session.sessionId, userId, stage: "agent", runId, idempotencyKey: `${input.command}:${actorTurn?.id ?? session.substantiveAnswerCount}`, maxAttempts: 1, requestSchemaVersion: "agent-turn.v1", model: "agent", promptVersion: "agent-turn.v1" });
+  const claimed = await repository.claimRun({ sessionId: session.sessionId, userId, stage: "agent", runId, idempotencyKey: `${input.command}:${actorTurn?.id ?? session.substantiveAnswerCount}`, maxAttempts: 1, requestSchemaVersion: "agent-turn.v1", model: "agent", promptVersion: "agent-turn.v1" });
+  if (claimed.id !== runId || claimed.status !== "running") throw new AiPipelineError(409, "AI_RUN_ALREADY_CLAIMED");
   const requestSession = actorTurn ? { ...session, transcript: [...session.transcript, actorTurn], substantiveAnswerCount: session.substantiveAnswerCount + 1 } : session;
   const request = agentRequest(requestSession, runId, input);
   let response: Record<string, unknown>;
@@ -78,7 +79,7 @@ const callAgent = async (session: PipelineSessionAggregate, userId: string, inpu
   if (actorTurn) actorTurn.reportEvidenceSelected = actorTurn.kind === "answer" && evidence.answerTurnIds.includes(actorTurn.id);
   const agentTurn: InterviewTurn = { id: crypto.randomUUID(), sequence: session.transcript.length + (actorTurn ? 1 : 0), role: "agent", kind: done ? "closing" : "question", content: String(response.utterance), questionFocus: action, groundingStartMs: null, groundingEndMs: null, sourceObservationIds: (response.evidence as { observationIds: string[] }).observationIds, reportEvidenceSelected: false };
   await repository.appendPipelineTurn({ sessionId: session.sessionId, userId, agentRunId: runId, expectedSubstantiveAnswerCount: session.substantiveAnswerCount, actorTurn, agentTurn, currentInput: input, reportEvidence: evidence });
-  if (done) await repository.completeInterview({ sessionId: session.sessionId, userId, status: response.reportReady ? "completed" : action === "pause" ? "paused" : "completed_without_report", completionReason: response.completionReason as never, observationIds: evidence.observationIds, answerTurnIds: evidence.answerTurnIds });
+  if (done || action === "pause") await repository.completeInterview({ sessionId: session.sessionId, userId, status: response.reportReady ? "completed" : action === "pause" ? "paused" : "completed_without_report", completionReason: response.completionReason as never, observationIds: evidence.observationIds, answerTurnIds: evidence.answerTurnIds });
   return { actorTurn, agentTurn, done, completionReason: response.completionReason, reportReady: response.reportReady, reportEvidence: evidence };
 };
 
@@ -114,7 +115,7 @@ export const aiPipelineService = {
     if (session.report) return session.report;
     const failed = session.runs.filter((run) => run.stage === "report" && run.status === "failed" && run.retryable).at(-1);
     if (!failed || !session.summary || !session.completionReason?.endsWith("_report_ready")) throw new AiPipelineError(409, "REPORT_NOT_RETRYABLE");
-    const runId = crypto.randomUUID(); await repository.claimRun({ sessionId, userId, stage: "report", runId, idempotencyKey: failed.idempotencyKey, maxAttempts: failed.maxAttempts, requestSchemaVersion: "report-request.v1", model: "report", promptVersion: "acting-report.prompt.v2" });
+    const runId = crypto.randomUUID(); const claimed=await repository.claimRun({ sessionId, userId, stage: "report", runId, idempotencyKey: failed.idempotencyKey, maxAttempts: failed.maxAttempts, requestSchemaVersion: "report-request.v1", model: "report", promptVersion: "acting-report.prompt.v2" });if(claimed.id!==runId||claimed.status!=="running")throw new AiPipelineError(409,"AI_RUN_ALREADY_CLAIMED");
     const confirmed = session.observations.filter((item) => session.reportEvidenceObservationIds.includes(item.id));
     const request: ReportRequest = { schemaVersion: "report-request.v1", sessionId, runId, normalizedSummary: session.summary.normalizedSummary, confirmedObservations: confirmed.map((item) => ({ observationId: item.id, sourceCandidateId: item.candidateId!, segment: { startMs: item.startMs, endMs: item.endMs }, text: item.text, dimension: item.dimension! })), actorCorrections: session.corrections.map((item) => ({ correctionId: item.id, correctsObservationId: item.correctsObservationId, segment: item.segment, text: item.text, actorTurnId: item.correctionByTurnId })), transcript: session.transcript.map((item) => ({ turnId: item.id, speaker: item.role, content: item.content, kind: item.kind })), completionReason: session.completionReason as ReportRequest["completionReason"], selectedEvidence: { observationIds: session.reportEvidenceObservationIds, answerTurnIds: session.reportEvidenceAnswerTurnIds } };
     let response: Record<string, unknown>; try { response = await createAiTransport(loadAiServiceConfig()).report(request); } catch (error) { return failRun(sessionId, userId, runId, error); }
