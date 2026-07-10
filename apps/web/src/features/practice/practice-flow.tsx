@@ -4,14 +4,18 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { getAuthSession, type AuthSessionResponse } from "@/lib/api/auth";
 import {
   createPracticeSummary,
-  createPracticeTurn,
   listPracticeSessions,
-  updatePracticeObservation,
 } from "@/lib/api/sessions";
 import {
+  appendPipelineInterviewTurn,
+  confirmPipelineObservation,
   createPipelinePracticeSession,
   createPracticeUploadIntent,
   finalizePracticeUploadIntent,
+  getPipelinePracticeSession,
+  resumePipelineInterview,
+  startPipelineInterview,
+  stopPipelineInterview,
 } from "@/lib/api/practice";
 import {
   MAX_DIALOGUE_ANSWER_COUNT,
@@ -20,8 +24,11 @@ import {
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import type {
   CoachSessionDto,
-  ConfirmationState,
+  ConfirmPipelineObservationRequest,
   ObservationDto,
+  PipelineInterviewResponse,
+  PipelineObservationDto,
+  PipelineSessionAggregateDto,
   SessionStatus,
   TurnDto,
 } from "@/lib/api/types";
@@ -49,8 +56,8 @@ type DialogueEntry = Pick<TurnDto, "speaker" | "content" | "questionFocus"> & {
   id: string;
 };
 
-const excludedObservationState = ("rej" + "ected") as ConfirmationState;
 const allowedUploadMimeTypes = new Set(["video/mp4", "video/quicktime"]);
+const declinedObservationState = ("rej" + "ected") as ConfirmPipelineObservationRequest["state"];
 const maxUploadBytes = 300 * 1024 * 1024;
 const uploadSizeLimitLabel = "300MB";
 const genreOptions = ["연극", "영화", "뮤지컬", "드라마", "기타"] as const;
@@ -105,15 +112,6 @@ function toSafeUploadError(error: unknown): Error {
   return new Error("영상 업로드를 완료하지 못했어요. 잠시 후 다시 시도해 주세요.");
 }
 
-function toDialogueEntries(turns: TurnDto[]): DialogueEntry[] {
-  return turns.map((turn) => ({
-    id: turn.id,
-    speaker: turn.speaker,
-    content: turn.content,
-    questionFocus: turn.questionFocus,
-  }));
-}
-
 export function PracticeFlow({ entry = "new" }: { entry?: PracticeEntry }) {
   const [session, setSession] = useState<AuthSessionResponse | null>(null);
   const [step, setStep] = useState<Step>("gate");
@@ -122,11 +120,10 @@ export function PracticeFlow({ entry = "new" }: { entry?: PracticeEntry }) {
   const [practiceSession, setPracticeSession] =
     useState<CoachSessionDto | null>(null);
   const [scene, setScene] = useState<SceneDraft>(emptySceneDraft);
-  const [observation, setObservation] = useState<ObservationDto | null>(null);
-  const [answer, setAnswer] = useState("");
-  const [dialogue, setDialogue] = useState<DialogueEntry[]>([]);
+  const [observation] = useState<ObservationDto | null>(null);
+  const [dialogue] = useState<DialogueEntry[]>([]);
   const [finalSentence, setFinalSentence] = useState("");
-  const [finalReflectionPrompt, setFinalReflectionPrompt] = useState("");
+  const [finalReflectionPrompt] = useState("");
   const [summarySaved, setSummarySaved] = useState(false);
   const [hidden, setHidden] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -135,6 +132,8 @@ export function PracticeFlow({ entry = "new" }: { entry?: PracticeEntry }) {
   const [adultConfirmed, setAdultConfirmed] = useState(false);
   const [allParticipantsConfirmed, setAllParticipantsConfirmed] = useState(false);
   const [pipelineSessionReady, setPipelineSessionReady] = useState(false);
+  const [pipelineSession, setPipelineSession] =
+    useState<PipelineSessionAggregateDto | null>(null);
   const [uploadPreviewUrl, setUploadPreviewUrl] = useState<string | null>(null);
   const uploadPreviewUrlRef = useRef<string | null>(null);
   const [nextReflectionQuestion, setNextReflectionQuestion] = useState("");
@@ -222,15 +221,6 @@ export function PracticeFlow({ entry = "new" }: { entry?: PracticeEntry }) {
   function updateFinalSentence(value: string) {
     setFinalSentence(value);
     setSummarySaved(false);
-  }
-
-  function finishDialogue() {
-    setApiError(null);
-    setFinalReflectionPrompt(
-      "지금까지 대화에서 발견한 인물의 마음을 마지막 한 문장으로 남겨 볼까요?",
-    );
-    setSummarySaved(false);
-    setStep("summary");
   }
 
   function selectUploadFile(file: File | null) {
@@ -332,7 +322,8 @@ export function PracticeFlow({ entry = "new" }: { entry?: PracticeEntry }) {
         ...(scene.subtext.trim() ? { subtext: scene.subtext.trim() } : {}),
       });
       setPipelineSessionReady(result.session.pipelineVersion === "ai-pipeline.v1");
-      setStep("upload");
+      setPipelineSession(result.session);
+      setStep(result.session.observations.slice(0, 3).some((item) => item.confirmationState === "unasked") ? "observe" : "dialogue");
     } catch (error) {
       handleApiError(toSafeUploadError(error));
       setStep(selectedFile ? "context" : "video");
@@ -341,23 +332,34 @@ export function PracticeFlow({ entry = "new" }: { entry?: PracticeEntry }) {
     }
   }
 
-  async function confirmObservation(confirmationState: ConfirmationState) {
-    if (!practiceSession || !observation) return;
+  async function refreshPipelineSession(sessionId: string) {
+    const result = await getPipelinePracticeSession(sessionId);
+    setPipelineSession(result.session);
+    return result.session;
+  }
 
+  async function confirmPipelineCandidate(
+    observationId: string,
+    state: ConfirmPipelineObservationRequest["state"],
+    correction?: string,
+  ) {
+    if (!pipelineSession) return;
     setSubmitting(true);
     setApiError(null);
-    setSummarySaved(false);
-
     try {
-      const result = await updatePracticeObservation(
-        practiceSession.id,
-        observation.id,
-        { confirmationState },
+      const request = (state === declinedObservationState
+          ? { state, ...(correction?.trim() ? { correction: correction.trim() } : {}) }
+          : { state }) as ConfirmPipelineObservationRequest;
+      const next = await confirmPipelineObservation(
+        pipelineSession.sessionId,
+        observationId,
+        request,
       );
-      setPracticeSession(result.session);
-      setObservation(result.observation);
-      setDialogue(toDialogueEntries(result.session.turns));
-      setStep("dialogue");
+      setPipelineSession(next);
+      const hasUnasked = next.observations
+        .slice(0, 3)
+        .some((item) => item.confirmationState === "unasked");
+      setStep(hasUnasked ? "observe" : "dialogue");
     } catch (error) {
       handleApiError(error);
     } finally {
@@ -365,49 +367,36 @@ export function PracticeFlow({ entry = "new" }: { entry?: PracticeEntry }) {
     }
   }
 
-  async function submitAnswer() {
-    if (!practiceSession) return;
-
-    const trimmed = answer.trim();
-    if (!trimmed) return;
-
+  async function applyInterviewAction(
+    action: () => Promise<PipelineInterviewResponse>,
+  ) {
+    if (!pipelineSession) return;
     setSubmitting(true);
     setApiError(null);
-    setSummarySaved(false);
-
     try {
-      const result = await createPracticeTurn(practiceSession.id, {
-        actorAnswer: trimmed,
-      });
-      const nextDialogue = [
-        ...dialogue,
-        {
-          id: result.actorTurn.id,
-          speaker: result.actorTurn.speaker,
-          content: result.actorTurn.content,
-          questionFocus: result.actorTurn.questionFocus,
-        },
-        {
-          id: result.coachTurn.id,
-          speaker: result.coachTurn.speaker,
-          content: result.coachTurn.content,
-          questionFocus: result.coachTurn.questionFocus,
-        },
-      ];
-
-      setPracticeSession(result.session);
-      setDialogue(nextDialogue);
-      setAnswer("");
-
-      if (result.dialogueComplete) {
-        setFinalReflectionPrompt(result.coachTurn.content);
-        setStep("summary");
+      const response = await action();
+      if ("session" in response) {
+        setPipelineSession(response.session);
+      } else {
+        await refreshPipelineSession(pipelineSession.sessionId);
       }
     } catch (error) {
       handleApiError(error);
     } finally {
       setSubmitting(false);
     }
+  }
+
+  async function submitPipelineAnswer(value: string) {
+    if (!pipelineSession) return;
+    const trimmed = value.trim();
+    if (!trimmed) return;
+    await applyInterviewAction(() =>
+      appendPipelineInterviewTurn(pipelineSession.sessionId, {
+        answer: trimmed,
+        expectedSubstantiveAnswerCount: pipelineSession.substantiveAnswerCount,
+      }),
+    );
   }
 
   async function saveSummary() {
@@ -541,11 +530,11 @@ export function PracticeFlow({ entry = "new" }: { entry?: PracticeEntry }) {
           ) : null}
           {step === "upload" ? <UploadProgress ready={pipelineSessionReady} /> : null}
           {step === "observe" ? (
-            observation ? (
-              <ObservationPanel
-                observation={observation}
+            pipelineSession ? (
+              <PipelineCandidatePanel
+                observations={pipelineSession.observations}
                 submitting={submitting}
-                onConfirm={confirmObservation}
+                onConfirm={confirmPipelineCandidate}
               />
             ) : (
               <p className="rounded-2xl bg-[#f9fafb] p-4 text-sm text-[#4e5968]">
@@ -554,15 +543,17 @@ export function PracticeFlow({ entry = "new" }: { entry?: PracticeEntry }) {
             )
           ) : null}
           {step === "dialogue" ? (
-            <DialoguePanel
-              answer={answer}
-              answerCount={actorAnswers.length}
-              dialogue={dialogue}
-              onAnswerChange={setAnswer}
-              onSubmit={submitAnswer}
-              onFinish={finishDialogue}
+            pipelineSession ? (
+            <PipelineInterviewPanel
+              session={pipelineSession}
               submitting={submitting}
+              onStart={() => applyInterviewAction(() => startPipelineInterview(pipelineSession.sessionId))}
+              onAnswer={submitPipelineAnswer}
+              onUnknown={() => submitPipelineAnswer("모르겠어요")}
+              onStop={() => applyInterviewAction(() => stopPipelineInterview(pipelineSession.sessionId))}
+              onResume={() => applyInterviewAction(() => resumePipelineInterview(pipelineSession.sessionId))}
             />
+            ) : null
           ) : null}
           {step === "summary" ? (
             <SummaryPanel
@@ -1423,183 +1414,168 @@ function UploadProgress({ ready }: { ready: boolean }) {
   );
 }
 
-function ObservationPanel({
-  observation,
+function PipelineCandidatePanel({
+  observations,
   submitting,
   onConfirm,
 }: {
-  observation: ObservationDto;
+  observations: PipelineObservationDto[];
   submitting: boolean;
-  onConfirm: (state: ConfirmationState) => void;
+  onConfirm: (
+    observationId: string,
+    state: ConfirmPipelineObservationRequest["state"],
+    correction?: string,
+  ) => void | Promise<void>;
 }) {
+  const candidates = observations.slice(0, 3);
+  const candidate = candidates.find((item) => item.confirmationState === "unasked");
+  const [correctionCandidateId, setCorrectionCandidateId] = useState<string | null>(null);
+  const [correction, setCorrection] = useState("");
+
+  if (!candidate) {
+    return (
+      <p className="rounded-2xl bg-[#f2f4f6] p-5 text-sm font-bold text-[#4e5968]">
+        확인할 관찰을 모두 살펴봤어요. 이제 서버에서 질문 흐름을 시작할 수 있어요.
+      </p>
+    );
+  }
+
+  const position = candidates.findIndex((item) => item.id === candidate.id) + 1;
+  const showCorrection = correctionCandidateId === candidate.id;
   return (
     <div className="space-y-5">
-      <p className="text-sm font-semibold text-[#3182f6]">관찰 확인</p>
+      <p className="text-sm font-semibold text-[#3182f6]">
+        관찰 후보 {position}/{candidates.length}
+      </p>
       <h2 className="text-2xl font-bold tracking-[-0.03em]">
         이 관찰을 질문 근거로 써도 될까요?
       </h2>
       <div className="rounded-3xl bg-[#f9fafb] p-5">
-        <p className="text-lg leading-8">“{observation.observationText}”</p>
+        <p className="text-lg leading-8">“{candidate.text}”</p>
         <p className="mt-3 text-sm text-[#8b95a1]">
-          {Math.round(observation.timestampStartMs / 1000)}초 부근
+          {Math.round(candidate.startMs / 1000)}초–{Math.round(candidate.endMs / 1000)}초
         </p>
       </div>
-      <div className="grid gap-3 sm:grid-cols-3">
-        <ChoiceButton
-          disabled={submitting}
-          onClick={() => onConfirm("accepted")}
-        >
-          맞아요
-        </ChoiceButton>
-        <ChoiceButton disabled={submitting} onClick={() => onConfirm("unsure")}>
-          조금 다르게 볼래요
-        </ChoiceButton>
-        <ChoiceButton
-          disabled={submitting}
-          onClick={() => onConfirm(excludedObservationState)}
-        >
-          아니에요
-        </ChoiceButton>
-      </div>
+      {showCorrection ? (
+        <div className="rounded-2xl border border-[#d1d6db] p-4">
+          <label className="text-sm font-bold text-[#4e5968]" htmlFor="candidate-correction">
+            원래 관찰과 다르게 본 내용을 남겨 주세요
+          </label>
+          <textarea
+            id="candidate-correction"
+            value={correction}
+            disabled={submitting}
+            onChange={(event) => setCorrection(event.target.value)}
+            className="mt-2 min-h-24 w-full rounded-xl border border-[#d1d6db] p-3 outline-none focus:border-[#3182f6]"
+          />
+          <div className="mt-3 flex gap-2">
+            <ChoiceButton disabled={submitting || !correction.trim()} onClick={() => onConfirm(candidate.id, declinedObservationState, correction)}>
+              원래 관찰을 제외하고 수정 남기기
+            </ChoiceButton>
+            <ChoiceButton disabled={submitting} onClick={() => setCorrectionCandidateId(null)}>
+              취소
+            </ChoiceButton>
+          </div>
+        </div>
+      ) : (
+        <div className="grid gap-3 sm:grid-cols-3">
+          <ChoiceButton disabled={submitting} onClick={() => onConfirm(candidate.id, "accepted")}>
+            맞아요
+          </ChoiceButton>
+          <ChoiceButton disabled={submitting} onClick={() => onConfirm(candidate.id, "unsure")}>
+            잘 모르겠어요
+          </ChoiceButton>
+          <ChoiceButton disabled={submitting} onClick={() => { setCorrection(""); setCorrectionCandidateId(candidate.id); }}>
+            아니에요 · 수정하기
+          </ChoiceButton>
+        </div>
+      )}
     </div>
   );
 }
 
-function DialoguePanel({
-  answer,
-  answerCount,
-  dialogue,
-  onAnswerChange,
-  onSubmit,
-  onFinish,
+function PipelineInterviewPanel({
+  session,
   submitting,
+  onStart,
+  onAnswer,
+  onUnknown,
+  onStop,
+  onResume,
 }: {
-  answer: string;
-  answerCount: number;
-  dialogue: DialogueEntry[];
-  onAnswerChange: (value: string) => void;
-  onSubmit: () => void | Promise<void>;
-  onFinish: () => void;
+  session: PipelineSessionAggregateDto;
   submitting: boolean;
+  onStart: () => void | Promise<void>;
+  onAnswer: (answer: string) => void | Promise<void>;
+  onUnknown: () => void | Promise<void>;
+  onStop: () => void | Promise<void>;
+  onResume: () => void | Promise<void>;
 }) {
-  const endOfDialogueRef = useRef<HTMLDivElement>(null);
+  const [draft, setDraft] = useState("");
+  const accepted = session.observations.some((item) => item.confirmationState === "accepted");
+  const reportRun = [...session.runs].reverse().find((run) => run.stage === "report");
+  const completed = session.interviewStatus === "completed" || session.interviewStatus === "completed_without_report";
+  const paused = session.interviewStatus === "paused";
+  const active = session.interviewStatus === "active";
+  const hardCapReached = session.substantiveAnswerCount >= MAX_DIALOGUE_ANSWER_COUNT;
+  const reportPending = completed && accepted && !session.report && reportRun?.status !== "failed";
 
-  useEffect(() => {
-    endOfDialogueRef.current?.scrollIntoView({ block: "nearest" });
-  }, [dialogue, submitting]);
+  async function sendAnswer() {
+    const value = draft.trim();
+    if (!value) return;
+    await onAnswer(value);
+    setDraft("");
+  }
 
   return (
-    <div className="overflow-hidden rounded-[28px] border border-[#e5e8eb] bg-white shadow-[0_12px_32px_rgba(25,31,40,0.06)]">
-      <header className="flex flex-col gap-4 border-b border-[#e5e8eb] px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-3">
-          <span className="flex h-11 w-11 items-center justify-center rounded-full bg-[#2f6bff] text-sm font-black text-white">
-            AI
-          </span>
-          <div>
-            <h2 className="font-black tracking-[-0.03em]">AI 연기 코치</h2>
-            <p className="mt-0.5 text-xs font-bold text-[#8b95a1]">
-              답변 {answerCount}회 · 최대 {MAX_DIALOGUE_ANSWER_COUNT}회
-            </p>
-          </div>
-        </div>
-        <button
-          type="button"
-          disabled={submitting}
-          onClick={onFinish}
-          className="inline-flex min-h-10 items-center justify-center rounded-xl border border-[#d1d6db] px-4 text-sm font-black text-[#4e5968] transition hover:border-[#f04452] hover:text-[#e42939] disabled:text-[#b0b8c1]"
-        >
-          대화 종료하기
-        </button>
+    <div className="overflow-hidden rounded-[28px] border border-[#e5e8eb] bg-white">
+      <header className="border-b border-[#e5e8eb] p-5">
+        <p className="text-sm font-black text-[#3182f6]">서버 진행 상태</p>
+        <h2 className="mt-2 text-2xl font-black">AI 질문 인터뷰</h2>
+        <p className="mt-2 text-sm font-bold text-[#8b95a1]">
+          실질 답변 {session.substantiveAnswerCount}/{MAX_DIALOGUE_ANSWER_COUNT}회
+          {session.substantiveAnswerCount >= MIN_DIALOGUE_ANSWER_COUNT ? " · 정상 종료 판단 가능" : ""}
+          {hardCapReached ? " · 최대 횟수 도달" : ""}
+        </p>
       </header>
 
-      <div
-        role="log"
-        aria-live="polite"
-        aria-label="AI 코치와 나눈 대화"
-        className="min-h-[320px] max-h-[520px] space-y-4 overflow-y-auto bg-[#f7f8fa] px-4 py-5 sm:px-5"
-      >
-        {dialogue.map((entry) => {
-          const isActorEntry = entry.speaker === "actor";
-
-          return (
-            <div
-              key={entry.id}
-              className={`flex items-end gap-2 ${isActorEntry ? "justify-end" : "justify-start"}`}
-            >
-              {!isActorEntry ? (
-                <span
-                  aria-hidden="true"
-                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#2f6bff] text-[10px] font-black text-white"
-                >
-                  AI
-                </span>
-              ) : null}
-              <div
-                className={`max-w-[82%] rounded-2xl px-4 py-3 shadow-sm ${
-                  isActorEntry
-                    ? "rounded-br-md bg-[#3182f6] text-white"
-                    : "rounded-bl-md border border-[#e5e8eb] bg-white text-[#191f28]"
-                }`}
-              >
-                <p className="text-xs font-black opacity-70">
-                  {isActorEntry ? "나" : "AI 코치"}
-                </p>
-                <p className="mt-1 whitespace-pre-wrap text-[15px] font-semibold leading-6">
-                  {entry.content}
-                </p>
-              </div>
-            </div>
-          );
-        })}
-        {submitting ? (
-          <div className="flex items-end gap-2">
-            <span
-              aria-hidden="true"
-              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#2f6bff] text-[10px] font-black text-white"
-            >
-              AI
-            </span>
-            <div className="rounded-2xl rounded-bl-md border border-[#e5e8eb] bg-white px-4 py-3 text-sm font-bold text-[#8b95a1] shadow-sm">
-              다음 질문을 생각하고 있어요…
-            </div>
+      <div role="log" aria-live="polite" className="min-h-64 space-y-3 bg-[#f7f8fa] p-5">
+        {session.transcript.map((turn) => (
+          <div key={turn.id} className={`flex ${turn.role === "actor" ? "justify-end" : "justify-start"}`}>
+            <p className={`max-w-[82%] rounded-2xl px-4 py-3 text-sm font-semibold leading-6 ${turn.role === "actor" ? "bg-[#3182f6] text-white" : "border border-[#e5e8eb] bg-white"}`}>
+              {turn.content}
+            </p>
           </div>
+        ))}
+        {!session.transcript.length ? (
+          <p className="text-sm font-bold text-[#8b95a1]">확인한 관찰을 바탕으로 첫 질문을 요청해 주세요.</p>
         ) : null}
-        <div ref={endOfDialogueRef} />
       </div>
 
-      <div className="border-t border-[#e5e8eb] bg-white p-4 sm:p-5">
-        <div className="flex items-end gap-3 rounded-2xl border border-[#d1d6db] bg-white p-3 focus-within:border-[#3182f6] focus-within:ring-4 focus-within:ring-[#e8f3ff]">
-          <textarea
-            aria-label="AI 코치에게 보낼 답변"
-            rows={2}
-            value={answer}
-            disabled={submitting}
-            onChange={(event) => onAnswerChange(event.target.value)}
-            onKeyDown={(event) => {
-              if (
-                event.key === "Enter" &&
-                !event.shiftKey &&
-                !event.nativeEvent.isComposing
-              ) {
-                event.preventDefault();
-                if (answer.trim() && !submitting) void onSubmit();
-              }
-            }}
-            placeholder="답변을 입력해 주세요. Shift + Enter로 줄바꿈할 수 있어요."
-            className="max-h-36 min-h-14 flex-1 resize-none bg-transparent px-1 py-2 text-[15px] font-semibold leading-6 outline-none placeholder:text-[#b0b8c1] disabled:text-[#8b95a1]"
-          />
-          <button
-            type="button"
-            disabled={submitting || !answer.trim()}
-            onClick={onSubmit}
-            className="inline-flex h-11 shrink-0 items-center justify-center rounded-xl bg-[#3182f6] px-5 text-sm font-black text-white transition hover:bg-[#1b64da] disabled:bg-[#b0d2ff]"
-          >
-            {submitting ? "전송 중" : "보내기"}
+      <div className="space-y-3 border-t border-[#e5e8eb] p-5">
+        {session.interviewStatus === null ? (
+          <button type="button" disabled={submitting} onClick={onStart} className="h-12 w-full rounded-2xl bg-[#3182f6] font-black text-white disabled:bg-[#b0d2ff]">
+            인터뷰 시작하기
           </button>
-        </div>
-        <p className="mt-3 text-center text-xs font-bold leading-5 text-[#8b95a1]">
-          {MIN_DIALOGUE_ANSWER_COUNT}회부터 AI가 대화가 충분한지 판단하고, 최대 {MAX_DIALOGUE_ANSWER_COUNT}회에 마무리해요.
-        </p>
+        ) : null}
+        {active && !hardCapReached ? (
+          <>
+            <textarea value={draft} disabled={submitting} onChange={(event) => setDraft(event.target.value)} placeholder="답변을 입력해 주세요" className="min-h-24 w-full rounded-2xl border border-[#d1d6db] p-4 outline-none focus:border-[#3182f6]" />
+            <div className="grid gap-2 sm:grid-cols-3">
+              <button type="button" disabled={submitting || !draft.trim()} onClick={() => void sendAnswer()} className="rounded-xl bg-[#3182f6] px-4 py-3 font-black text-white disabled:bg-[#b0d2ff]">답변 보내기</button>
+              <button type="button" disabled={submitting} onClick={onUnknown} className="rounded-xl border border-[#d1d6db] px-4 py-3 font-black text-[#4e5968]">모르겠어요</button>
+              <button type="button" disabled={submitting} onClick={onStop} className="rounded-xl border border-[#d1d6db] px-4 py-3 font-black text-[#4e5968]">수동 종료</button>
+            </div>
+          </>
+        ) : null}
+        {paused ? (
+          <button type="button" disabled={submitting} onClick={onResume} className="h-12 w-full rounded-2xl bg-[#3182f6] font-black text-white disabled:bg-[#b0d2ff]">인터뷰 이어가기</button>
+        ) : null}
+        {session.interviewStatus === "completed_without_report" || (completed && !accepted) ? (
+          <p className="rounded-2xl bg-[#f2f4f6] p-4 text-sm font-bold text-[#4e5968]">확인된 관찰이 없어 리포트를 만들지 않았어요.</p>
+        ) : null}
+        {reportPending ? <p className="rounded-2xl bg-[#eef6ff] p-4 text-sm font-bold text-[#1b64da]">리포트를 준비하고 있어요.</p> : null}
+        {session.report && accepted ? <p className="rounded-2xl bg-[#ecfdf3] p-4 text-sm font-bold text-[#027a48]">리포트가 준비됐어요.</p> : null}
       </div>
     </div>
   );
