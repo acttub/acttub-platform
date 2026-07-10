@@ -1,7 +1,7 @@
 # AI 파이프라인 통합 결정
 
-> 상태: 구현 전 승인 완료  
-> 결정일: 2026-07-11  
+> 상태: 구현 전 승인 완료
+> 결정일: 2026-07-11
 > 적용 범위: `acttub-platform`, `acttub-ai-summary`, `acttub-ai-agent`, `acttub-ai-report`
 
 ## 1. 목표
