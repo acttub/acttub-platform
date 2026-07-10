@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 const migration = await readFile(new URL("../../../supabase/migrations/004_ai_pipeline_data_plane.sql", import.meta.url), "utf8");
+const migration007 = await readFile(new URL("../../../supabase/migrations/007_ai_pipeline_unknown_turn_count.sql", import.meta.url), "utf8");
 const repository = await readFile(new URL("../src/server/repositories/supabase-ai-pipeline-repository.ts", import.meta.url), "utf8");
 const types = await readFile(new URL("../src/server/repositories/ai-pipeline-types.ts", import.meta.url), "utf8");
 
@@ -82,4 +83,9 @@ test("late audit rejects malformed deep summary values and accepts typed answer 
   assert.match(repository,/anomaly\.boolean/);
   assert.match(repository,/anomaly\.intentImpact/);
   assert.match(repository,/anomaly\[\$\{i\}\]\.noSubtext/);
+});
+
+test("forward migration preserves unknown actor turns without incrementing substantive answers", () => {
+  assert.match(migration007, /create or replace function public\.acttub_append_pipeline_turn/);
+  assert.match(migration007, /if actor->>'kind'='answer' then expected:=expected\+1; end if; end if;/);
 });
