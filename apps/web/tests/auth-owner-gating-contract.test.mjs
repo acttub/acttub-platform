@@ -118,3 +118,39 @@ test("Supabase API terms gate fails closed without local auth bypass", () => {
   assert.match(authContext, /mode: "supabase"[\s\S]*termsAccepted: await hasPersistedTermsAcceptance\(data\.user\.id\)/);
   assert.match(proxy, /if \(!config\.supabase\.isConfigured\) \{[\s\S]*return shouldRequireLogin \? redirectToLogin\(request\) : response/);
 });
+
+test("signed video URLs require current AI consent at the reusable service boundary", () => {
+  const authContext = read("src/server/services/auth-context.ts");
+  const service = read("src/server/services/coach-session-service.ts");
+  const canonicalRoute = read(
+    "src/app/api/v1/practice-sessions/[sessionId]/signed-video-url/route.ts",
+  );
+  const compatibilityRoute = read(
+    "src/app/api/v1/practice-sessions/[sessionId]/video-url/route.ts",
+  );
+
+  assert.match(authContext, /export async function requireCurrentAiProcessingConsent/);
+  assert.match(authContext, /current_acttub_terms_version/);
+  assert.match(authContext, /current_acttub_ai_processing_consent_version/);
+  assert.match(authContext, /status, required_consent_version, required_consent_at, ai_processing_consent_version, ai_processing_consent_at/);
+  assert.match(authContext, /profile\?\.status === "active"/);
+  assert.match(authContext, /profile\.required_consent_version === termsVersionResult\.data/);
+  assert.match(authContext, /Boolean\(profile\.required_consent_at\)/);
+  assert.match(authContext, /profile\.ai_processing_consent_version === aiConsentVersionResult\.data/);
+  assert.match(authContext, /Boolean\(profile\.ai_processing_consent_at\)/);
+  const currentConsentGate = authContext.slice(
+    authContext.indexOf("export async function requireCurrentAiProcessingConsent"),
+    authContext.indexOf("function isDuplicateProfileError"),
+  );
+  assert.doesNotMatch(
+    currentConsentGate,
+    /\bconsent_version\b|terms_accepted_at|privacy_accepted_at|internal_review_consent_at/,
+  );
+
+  const ownerRead = service.indexOf("const session = await readSessionForOwner(sessionId, userId)");
+  const consentGate = service.indexOf("await requireCurrentAiProcessingConsent(userId)", ownerRead);
+  const signedUrlCreation = service.indexOf(".createSignedUrl(storagePath, expiresInSeconds)", consentGate);
+  assert.ok(ownerRead >= 0 && consentGate > ownerRead && signedUrlCreation > consentGate);
+  assert.match(canonicalRoute, /getSignedVideoUrl\(sessionId, auth\.userId\)/);
+  assert.match(compatibilityRoute, /createSignedVideoUrl\(sessionId, auth\.userId\)/);
+});

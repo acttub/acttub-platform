@@ -27,6 +27,7 @@ import {
   SupabaseCoachSessionPersistenceError,
   supabaseCoachSessionRepository,
 } from "@/server/repositories/supabase-coach-session-repository";
+import { requireCurrentAiProcessingConsent } from "@/server/services/auth-context";
 
 export class ApiValidationError extends Error {
   constructor(
@@ -743,6 +744,8 @@ export const coachSessionService = {
     if (!session || !session.take.videoUrl) {
       return null;
     }
+
+    await requireCurrentAiProcessingConsent(userId);
 
     const expiresInSeconds =
       config.video.signedUrlExpiresInSeconds || signedUrlExpiresInSeconds;
