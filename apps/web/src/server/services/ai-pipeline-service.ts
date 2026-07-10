@@ -84,6 +84,7 @@ const generateReport = async (
   const confirmed = session.observations.filter((item) => session.reportEvidenceObservationIds.includes(item.id));
   const request: ReportRequest = { schemaVersion: "report-request.v1", sessionId: session.sessionId, runId: claimed.id, normalizedSummary: session.summary.normalizedSummary, confirmedObservations: confirmed.map((item) => ({ observationId: item.id, sourceCandidateId: item.candidateId!, segment: { startMs: item.startMs, endMs: item.endMs }, text: item.text, dimension: item.dimension! })), actorCorrections: session.corrections.map((item) => ({ correctionId: item.id, correctsObservationId: item.correctsObservationId, segment: item.segment, text: item.text, actorTurnId: item.correctionByTurnId })), transcript: session.transcript.map((item) => ({ turnId: item.id, speaker: item.role, content: item.content, kind: item.kind })), completionReason: session.completionReason as ReportRequest["completionReason"], selectedEvidence: { observationIds: session.reportEvidenceObservationIds, answerTurnIds: session.reportEvidenceAnswerTurnIds } };
   let response: Record<string, unknown>;
+  await requireCurrentAiProcessingConsent(userId);
   try { response = await createAiTransport(loadAiServiceConfig()).report(request); }
   catch (error) { return failRun(session.sessionId, userId, claimed.id, error); }
   await repository.completeReportRun({ sessionId: session.sessionId, userId, runId: claimed.id, report: { schemaVersion: "report.v1", sections: response.sections as never } });
@@ -100,6 +101,7 @@ const callAgent = async (session: PipelineSessionAggregate, userId: string, inpu
   const requestSession = actorTurn ? { ...session, transcript: [...session.transcript, actorTurn], substantiveAnswerCount: session.substantiveAnswerCount + 1 } : session;
   const request = agentRequest(requestSession, runId, input);
   let response: Record<string, unknown>;
+  await requireCurrentAiProcessingConsent(userId);
   try { response = await createAiTransport(loadAiServiceConfig()).agent(request); }
   catch (error) { return failRun(session.sessionId, userId, runId, error); }
   const action = String(response.action);
@@ -123,9 +125,9 @@ export const aiPipelineService = {
     const takeId=crypto.randomUUID();await repository.createPipelineSession({uploadIntentId,userId,sessionId,takeId,payload:{medium:"upload_url",genre,situation,characterContext,subtext}});
     const proposedRunId=crypto.randomUUID(),claimed=await repository.claimRun({sessionId,userId,stage:"summary",runId:proposedRunId,idempotencyKey:`summary:${uploadIntentId}`,maxAttempts:1,requestSchemaVersion:"summary-request.v1",model:"summary",promptVersion:"acting-summary.prompt.v2"});
     if(claimed.status==="completed")return{session:publicAggregate(await aggregate(sessionId,userId)),summaryRun:claimed};if(claimed.id!==proposedRunId||claimed.status!=="running")throw new AiPipelineError(409,"AI_RUN_ALREADY_CLAIMED");
-    const admin=createSupabaseAdminClient();if(!admin)throw new AiPipelineError(503,"SIGNED_VIDEO_UNAVAILABLE");const signed=await admin.storage.from(upload.storageBucket).createSignedUrl(upload.storagePath,getAppConfig().video.signedUrlExpiresInSeconds);if(signed.error||!signed.data?.signedUrl)return failRun(sessionId,userId,claimed.id,new AiServiceError("summary","NETWORK_ERROR",null,true));
+    await requireCurrentAiProcessingConsent(userId);const admin=createSupabaseAdminClient();if(!admin)throw new AiPipelineError(503,"SIGNED_VIDEO_UNAVAILABLE");const signed=await admin.storage.from(upload.storageBucket).createSignedUrl(upload.storagePath,getAppConfig().video.signedUrlExpiresInSeconds);if(signed.error||!signed.data?.signedUrl)return failRun(sessionId,userId,claimed.id,new AiServiceError("summary","NETWORK_ERROR",null,true));
     const request:SummaryRequest={schemaVersion:"summary-request.v1",sessionId,runId:claimed.id,signedVideoUrl:signed.data.signedUrl,storageBucket:upload.storageBucket,storagePath:upload.storagePath,durationMs:upload.durationMs,sceneContext:{genre,situation,characterContext,subtext}};
-    let response:Record<string,unknown>;try{response=await createAiTransport(loadAiServiceConfig()).summary(request)}catch(error){return failRun(sessionId,userId,claimed.id,error)}
+    let response:Record<string,unknown>;await requireCurrentAiProcessingConsent(userId);try{response=await createAiTransport(loadAiServiceConfig()).summary(request)}catch(error){return failRun(sessionId,userId,claimed.id,error)}
     const candidates=(response.observationCandidates as Array<Record<string,unknown>>).map((item)=>({id:String(item.candidateId),startMs:Number(item.timestampStartMs),endMs:Number(item.timestampEndMs),text:String(item.observationText),priority:Number(item.priority),dimension:String(item.dimension),severity:item.severity as "high"|"mid"|"low"|null}));
     await repository.completeSummaryRun({sessionId,userId,runId:claimed.id,normalizedSummary:response.normalizedSummary as never,candidates});return{session:publicAggregate(await aggregate(sessionId,userId)),summaryRun:{...claimed,status:"completed" as const}};
   },

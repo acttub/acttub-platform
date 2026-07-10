@@ -45,12 +45,24 @@ const jsonHeaders = {
 };
 
 export async function createPracticeUploadIntent(
-  body: CreateUploadIntentRequest,
+  body: Omit<CreateUploadIntentRequest, "adultConfirmed" | "allParticipantsConfirmed"> & {
+    adultConfirmed?: boolean;
+    allParticipantsConfirmed?: boolean;
+    fileMetadata: CreateUploadIntentRequest["fileMetadata"] & { durationMs?: number };
+  },
 ): Promise<CreateUploadIntentResponse> {
   const response = await fetch("/api/v1/practice-upload-intents", {
     method: "POST",
     headers: jsonHeaders,
-    body: JSON.stringify(body),
+    body: JSON.stringify({
+      fileMetadata: {
+        fileName: body.fileMetadata.fileName,
+        mimeType: body.fileMetadata.mimeType,
+        sizeBytes: body.fileMetadata.sizeBytes,
+      },
+      adultConfirmed: body.adultConfirmed === true,
+      allParticipantsConfirmed: body.allParticipantsConfirmed === true,
+    }),
   });
 
   return parseJsonResponse<CreateUploadIntentResponse>(response);
@@ -58,12 +70,12 @@ export async function createPracticeUploadIntent(
 
 export async function finalizePracticeUploadIntent(
   uploadIntentId: string,
-  body: FinalizeUploadIntentRequest,
+  body: FinalizeUploadIntentRequest & { durationMs?: number },
 ): Promise<FinalizeUploadIntentResponse> {
   const response = await fetch(`/api/v1/practice-upload-intents/${uploadIntentId}/finalize`, {
     method: "POST",
     headers: jsonHeaders,
-    body: JSON.stringify(body),
+    body: JSON.stringify({ storagePath: body.storagePath } satisfies FinalizeUploadIntentRequest),
   });
 
   return parseJsonResponse<FinalizeUploadIntentResponse>(response);

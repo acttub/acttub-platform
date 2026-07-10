@@ -41,12 +41,24 @@ const jsonHeaders = {
 };
 
 export async function createPracticeUploadIntent(
-  body: CreateUploadIntentRequest,
+  body: Omit<CreateUploadIntentRequest, "adultConfirmed" | "allParticipantsConfirmed"> & {
+    adultConfirmed?: boolean;
+    allParticipantsConfirmed?: boolean;
+    fileMetadata: CreateUploadIntentRequest["fileMetadata"] & { durationMs?: number };
+  },
 ): Promise<CreateUploadIntentResponse> {
   const response = await fetch("/api/v1/practice-upload-intents", {
     method: "POST",
     headers: jsonHeaders,
-    body: JSON.stringify(body),
+    body: JSON.stringify({
+      fileMetadata: {
+        fileName: body.fileMetadata.fileName,
+        mimeType: body.fileMetadata.mimeType,
+        sizeBytes: body.fileMetadata.sizeBytes,
+      },
+      adultConfirmed: body.adultConfirmed === true,
+      allParticipantsConfirmed: body.allParticipantsConfirmed === true,
+    }),
   });
 
   return parseJsonResponse<CreateUploadIntentResponse>(response);

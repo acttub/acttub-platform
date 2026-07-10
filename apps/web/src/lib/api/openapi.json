@@ -138,8 +138,8 @@
         ],
         "summary": "영상 업로드 인텐트 생성",
         "operationId": "createPracticeUploadIntent",
-        "description": "동일 출처의 Supabase 브라우저 세션, 현재 약관 동의 및 리소스 소유권이 필요합니다. Swagger UI는 이 출처에 이미 설정된 브라우저 쿠키를 사용합니다.",
-        "x-acttub-auth": "supabase-session-cookie+current-terms",
+        "description": "현재 필수 서비스 및 외부 AI 처리 동의와 성인·전체 참여자 확인이 필요합니다. 동의 버전과 확인 시각은 서버가 기록합니다.",
+        "x-acttub-auth": "supabase-session-cookie+current-required-and-ai-consent",
         "requestBody": {
           "required": true,
           "content": {
@@ -186,8 +186,8 @@
         ],
         "summary": "영상 업로드 인텐트 완료 처리",
         "operationId": "finalizePracticeUploadIntent",
-        "description": "동일 출처의 Supabase 브라우저 세션, 현재 약관 동의 및 리소스 소유권이 필요합니다. Swagger UI는 이 출처에 이미 설정된 브라우저 쿠키를 사용합니다. 완료 처리 전에 스토리지 객체 메타데이터와 소유자 범위의 스토리지 경로를 검증합니다.",
-        "x-acttub-auth": "supabase-session-cookie+current-terms",
+        "description": "현재 필수 서비스 및 외부 AI 처리 동의를 다시 확인하고, 소유자 범위의 객체와 서버가 판독한 영상 길이만 사용합니다.",
+        "x-acttub-auth": "supabase-session-cookie+current-required-and-ai-consent",
         "parameters": [
           {
             "$ref": "#/components/parameters/UploadIntentId"
@@ -272,8 +272,8 @@
         ],
         "summary": "연습 세션 생성",
         "operationId": "createPracticeSession",
-        "description": "동일 출처의 Supabase 브라우저 세션, 현재 약관 동의 및 리소스 소유권이 필요합니다. Swagger UI는 이 출처에 이미 설정된 브라우저 쿠키를 사용합니다. 현재 구현은 저장 상태가 `created`인 검증된 업로드 인텐트만 허용하며, `medium`은 `upload_url`이어야 합니다.",
-        "x-acttub-auth": "supabase-session-cookie+current-terms",
+        "description": "현재 필수 서비스 및 외부 AI 처리 동의와 성인·전체 참여자 확인이 유지된 finalized 업로드만 허용합니다. 영상 길이는 서버 메타데이터만 사용합니다.",
+        "x-acttub-auth": "supabase-session-cookie+current-required-and-ai-consent",
         "requestBody": {
           "required": true,
           "content": {
@@ -287,7 +287,9 @@
                 "situation": "시각장애인이 사랑하는 마음을 숨기는 장면",
                 "characterContext": "상대에게 감정을 들키지 않으려는 인물",
                 "subtext": "사랑하지만 부담을 주고 싶지 않다.",
-                "uploadIntentId": "8e8ec275-8f2c-4cd8-8ea1-4aa6af3aa6df"
+                "uploadIntentId": "8e8ec275-8f2c-4cd8-8ea1-4aa6af3aa6df",
+                "sessionId": "7f7a5bc0-8abc-4d2c-9c8c-503ebf8eebf3",
+                "storagePath": "users/00000000-0000-4000-8000-000000000001/practice-sessions/7f7a5bc0-8abc-4d2c-9c8c-503ebf8eebf3/take.mp4"
               }
             }
           }
@@ -320,6 +322,9 @@
           },
           "503": {
             "$ref": "#/components/responses/ConfigurationError"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
           }
         }
       }
@@ -528,7 +533,7 @@
         ],
         "summary": "배우 답변을 제출하고 다음 코치 대화 생성",
         "operationId": "createPracticeTurn",
-        "description": "동일 출처의 Supabase 브라우저 세션, 현재 약관 동의 및 리소스 소유권이 필요합니다. 저장된 배우 답변 수를 기준으로 1~4회는 계속하고, 5~9회는 Gemini의 충분성 판단을 적용하며, 10회에는 반드시 대화를 끝냅니다. 완료 응답은 요약이나 결과를 자동 생성하지 않습니다. 마지막 코치 턴이 `summary_reflection`이거나 이미 배우 답변이 10개이면 추가 턴 요청을 거절합니다. Swagger UI는 이 출처에 이미 설정된 브라우저 쿠키를 사용합니다.",
+        "description": "동일 출처의 Supabase 브라우저 세션, 현재 약관 동의 및 리소스 소유권이 필요합니다. 저장된 배우 답변 수를 기준으로 1~4회는 계속하고, 5~9회는 Gemini의 충분성 판단을 적용하며, 10회에는 반드시 대화를 끝냅니다. 리포트 준비 완료 응답은 서버에서 불변 리포트를 자동 생성합니다. 마지막 코치 턴이 `summary_reflection`이거나 이미 배우 답변이 10개이면 추가 턴 요청을 거절합니다. Swagger UI는 이 출처에 이미 설정된 브라우저 쿠키를 사용합니다.",
         "x-acttub-auth": "supabase-session-cookie+current-terms",
         "parameters": [
           {
@@ -1067,7 +1072,7 @@
     "/api/v1/sessions/{sessionId}/turns": {
       "post": {
         "deprecated": true,
-        "description": "호환용 별칭입니다. 새 클라이언트는 `/api/v1/practice-sessions/{sessionId}/turns`를 사용해야 합니다. 저장된 배우 답변 수를 기준으로 최소 5회, 최대 10회의 같은 완료 정책을 적용하며 완료 시에도 요약이나 결과를 자동 생성하지 않습니다. 동일 출처의 Supabase 브라우저 세션, 현재 약관 동의 및 리소스 소유권이 필요합니다. Swagger UI는 이 출처에 이미 설정된 브라우저 쿠키를 사용합니다.",
+        "description": "호환용 별칭입니다. 새 클라이언트는 `/api/v1/practice-sessions/{sessionId}/turns`를 사용해야 합니다. 저장된 배우 답변 수를 기준으로 최소 5회, 최대 10회의 같은 완료 정책을 적용하며 리포트 준비 완료 시 서버에서 불변 리포트를 자동 생성합니다. 동일 출처의 Supabase 브라우저 세션, 현재 약관 동의 및 리소스 소유권이 필요합니다. Swagger UI는 이 출처에 이미 설정된 브라우저 쿠키를 사용합니다.",
         "tags": [
           "호환 API"
         ],
@@ -1649,7 +1654,9 @@
           "authenticated",
           "mode",
           "user",
-          "terms"
+          "terms",
+          "aiProcessingConsent",
+          "internalReviewConsent"
         ],
         "properties": {
           "authenticated": {
@@ -1701,18 +1708,58 @@
                 "type": "boolean"
               }
             }
+          },
+          "aiProcessingConsent": {
+            "type": "object",
+            "required": [
+              "requiredVersion",
+              "accepted"
+            ],
+            "properties": {
+              "requiredVersion": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "accepted": {
+                "type": "boolean"
+              }
+            }
+          },
+          "internalReviewConsent": {
+            "type": "object",
+            "required": [
+              "accepted"
+            ],
+            "properties": {
+              "accepted": {
+                "type": "boolean"
+              }
+            }
           }
         }
       },
       "AcceptTermsRequest": {
         "type": "object",
+        "additionalProperties": false,
         "required": [
-          "termsVersion"
+          "requiredConsentAccepted",
+          "aiProcessingConsentAccepted"
         ],
         "properties": {
-          "termsVersion": {
-            "type": "string",
-            "minLength": 1
+          "requiredConsentAccepted": {
+            "const": true,
+            "description": "필수 서비스 약관 동의입니다."
+          },
+          "aiProcessingConsentAccepted": {
+            "const": true,
+            "description": "외부 AI 처리 목적 동의입니다."
+          },
+          "internalReviewConsent": {
+            "type": "boolean",
+            "default": false,
+            "description": "선택 내부 검토 동의이며 서비스와 AI 사용을 제한하지 않습니다."
           }
         }
       },
@@ -1720,15 +1767,23 @@
         "type": "object",
         "required": [
           "accepted",
-          "termsVersion",
+          "requiredConsentAccepted",
+          "aiProcessingConsentAccepted",
+          "internalReviewConsent",
           "nextPath"
         ],
         "properties": {
           "accepted": {
             "const": true
           },
-          "termsVersion": {
-            "type": "string"
+          "requiredConsentAccepted": {
+            "const": true
+          },
+          "aiProcessingConsentAccepted": {
+            "const": true
+          },
+          "internalReviewConsent": {
+            "type": "boolean"
           },
           "nextPath": {
             "const": "/home"
@@ -1772,21 +1827,29 @@
           "sizeBytes": {
             "type": "number",
             "exclusiveMinimum": 0
-          },
-          "durationMs": {
-            "type": "number",
-            "exclusiveMinimum": 0
           }
-        }
+        },
+        "additionalProperties": false
       },
       "CreateUploadIntentRequest": {
         "type": "object",
+        "additionalProperties": false,
         "required": [
-          "fileMetadata"
+          "fileMetadata",
+          "adultConfirmed",
+          "allParticipantsConfirmed"
         ],
         "properties": {
           "fileMetadata": {
             "$ref": "#/components/schemas/FileMetadata"
+          },
+          "adultConfirmed": {
+            "const": true,
+            "description": "업로드 주체가 성인임을 확인합니다."
+          },
+          "allParticipantsConfirmed": {
+            "const": true,
+            "description": "모든 참여자의 업로드 및 외부 AI 처리 동의를 확인합니다."
           }
         }
       },
@@ -1890,12 +1953,9 @@
           "storagePath": {
             "type": "string",
             "minLength": 1
-          },
-          "durationMs": {
-            "type": "number",
-            "exclusiveMinimum": 0
           }
-        }
+        },
+        "additionalProperties": false
       },
       "FinalizeUploadIntentResponse": {
         "type": "object",
@@ -2251,7 +2311,9 @@
           "genre",
           "situation",
           "characterContext",
-          "uploadIntentId"
+          "sessionId",
+          "uploadIntentId",
+          "storagePath"
         ],
         "properties": {
           "medium": {
@@ -2272,14 +2334,6 @@
           "subtext": {
             "type": "string"
           },
-          "videoUrl": {
-            "type": "string",
-            "deprecated": true,
-            "description": "호환성을 위해 DTO에 남아 있지만 현재 업로드 전용 구현에서는 사용하지 않습니다."
-          },
-          "durationMs": {
-            "type": "number"
-          },
           "sessionId": {
             "type": "string"
           },
@@ -2289,11 +2343,9 @@
           },
           "storagePath": {
             "type": "string"
-          },
-          "fileMetadata": {
-            "$ref": "#/components/schemas/FileMetadata"
           }
-        }
+        },
+        "additionalProperties": false
       },
       "CreateSessionResponse": {
         "type": "object",
