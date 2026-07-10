@@ -62,7 +62,7 @@ test("repository deeply checks summary report and run invariants", () => {
 
 test("late audit gates current consent and immutable successful retries",()=>{
   assert.match(migration,/acttub_claim_ai_run[\s\S]*s\.required_consent_version_snapshot=public\.current_acttub_terms_version\(\)[\s\S]*exists\(select 1 from public\.profiles p/);
-  assert.match(migration,/acttub_create_pipeline_session[\s\S]*exists\(select 1 from public\.profiles p where p\.id=p_user_id and p\.status='active'/);
+  assert.match(migration,/acttub_create_pipeline_session[\s\S]*exists\(select 1 from public\.profiles p where p\.id=p_user_id and p\.status='active'[\s\S]*p\.required_consent_at is not null[\s\S]*p\.ai_processing_consent_at is not null/);
   assert.match(migration,/complete_summary_run[\s\S]*if found then return \(select jsonb_build_object\('sessionId'[\s\S]*perform 1 from public\.ai_runs/);
   assert.match(migration,/complete_report_run[\s\S]*if found then return jsonb_build_object\('schemaVersion',existing\.schema_version/);
   assert.doesNotMatch(migration,/existing\.source_run_id<>p_run_id then raise exception 'report_idempotency_conflict'/);
