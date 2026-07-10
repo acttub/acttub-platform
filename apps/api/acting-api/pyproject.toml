@@ -1,0 +1,29 @@
+[project]
+name = "acting-api"
+version = "0.1.0"
+description = "acting-summary / acting-agent / acting-report 통합 게이트웨이 API"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn>=0.34",
+    "python-dotenv>=1.0",
+    "acting-summary",
+    "acting-agent",
+    "acting-report",
+]
+
+[tool.uv.sources]
+acting-summary = { path = "../acting-summary", editable = true }
+acting-agent = { path = "../acting_agent", editable = true }
+acting-report = { path = "../acting-report", editable = true }
+
+[build-system]
+requires = ["uv_build>=0.11.23,<0.12.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+    "httpx>=0.27",
+]
