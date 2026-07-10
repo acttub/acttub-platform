@@ -4,4 +4,3 @@ export default async function PracticeHistorySessionPage({ params }: { params: P
   const { sessionId } = await params;
   return <PipelineSessionDetail sessionId={sessionId} />;
 }
-

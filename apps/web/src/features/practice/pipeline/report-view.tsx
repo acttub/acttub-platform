@@ -50,4 +50,3 @@ export function ReportView({ report, onSeek }: { report: ImmutablePipelineReport
     </section>
   );
 }
-
