@@ -4,8 +4,8 @@ import { handleApiError, jsonResponse } from "../../http";
 
 export async function POST() {
   try {
-    await requireApiTermsAccepted();
-    const result = await aiPipelineService.reconcileDeletionAttempts(25);
+    const auth = await requireApiTermsAccepted();
+    const result = await aiPipelineService.reconcileDeletionAttempts(auth.userId, 25);
     return jsonResponse({ processed: result.processed });
   } catch (error) {
     return handleApiError(error);
