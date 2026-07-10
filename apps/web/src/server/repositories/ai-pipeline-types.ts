@@ -21,6 +21,7 @@ export interface AiRun {
 }
 export interface PipelineObservation {
   id: string; candidateId: string | null; confirmationState: ObservationConfirmation;
+  sourceRunId: string | null;
   blockedForQuestioning: boolean; priority: number | null; startMs: number; endMs: number;
   text: string; dimension: string | null; severity: "high" | "mid" | "low" | null;
 }
@@ -48,7 +49,7 @@ export interface PipelineSessionAggregate {
   requiredConsentVersionSnapshot: string; aiProcessingConsentVersionSnapshot: string;
   interviewStatus: InterviewStatus | null; completionReason: CompletionReason | null;
   substantiveAnswerCount: number; reportEvidenceObservationIds: string[]; reportEvidenceAnswerTurnIds: string[];
-  summary: { normalizedSummary: NormalizedSummary } | null;
+  summary: { sourceRunId: string; normalizedSummary: NormalizedSummary } | null;
   observations: PipelineObservation[]; corrections: ActorCorrection[]; transcript: InterviewTurn[];
   runs: AiRun[]; report: ImmutableAiReport | null;
 }
