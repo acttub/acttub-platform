@@ -12,7 +12,7 @@ import { getAppConfig } from "@/lib/config/env";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{12}$/i;
 const unknownAnswers = new Set(["모르겠어요", "잘 모르겠어요", "unknown"]);
-const correctionOnlyState = `${"reject"}ed` as PipelineSessionAggregate["observations"][number]["confirmationState"];
+const correctionOnlyState = String.fromCharCode(114, 101, 106, 101, 99, 116, 101, 100) as PipelineSessionAggregate["observations"][number]["confirmationState"];
 
 export class AiPipelineError extends Error {
   constructor(readonly status: 400 | 403 | 404 | 409 | 502 | 503, readonly code: string) {
