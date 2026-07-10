@@ -16,7 +16,8 @@ test("Slice 1 session creation rejects every non-upload bypass and requires a ve
   assert.match(source, /const videoUrl = videoRefForUploadIntent\(uploadIntent\.intent\)/);
 
   const flow = read("src/features/practice/practice-flow.tsx");
-  assert.match(flow, /medium: "upload_url"/);
+  assert.match(flow, /createPipelinePracticeSession/);
+  assert.match(flow, /storagePath: finalizedUpload\.storagePath/);
   assert.doesNotMatch(flow, /<option value="youtube_url">/);
   assert.doesNotMatch(flow, /<option value="text_only">/);
 });

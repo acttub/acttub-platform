@@ -11,6 +11,9 @@ type LoadState =
 export function TermsGate() {
   const [state, setState] = useState<LoadState>({ kind: "loading" });
   const [submitting, setSubmitting] = useState(false);
+  const [serviceConsent, setServiceConsent] = useState(false);
+  const [aiProcessingConsent, setAiProcessingConsent] = useState(false);
+  const [internalReviewConsent, setInternalReviewConsent] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -43,10 +46,16 @@ export function TermsGate() {
 
   async function handleAccept() {
     if (state.kind !== "ready") return;
+    if (!serviceConsent || !aiProcessingConsent) return;
 
     setSubmitting(true);
     try {
-      const response = await acceptTerms({ termsVersion: state.session.terms.requiredVersion });
+      const response = await acceptTerms({
+        termsVersion: state.session.terms.requiredVersion,
+        requiredConsentAccepted: true,
+        aiProcessingConsentAccepted: true,
+        internalReviewConsent,
+      });
       window.location.href = response.nextPath;
     } catch (error) {
       setState({
@@ -76,6 +85,22 @@ export function TermsGate() {
         </ul>
       </div>
 
+      {state.kind === "ready" ? (
+        <fieldset className="mt-6 space-y-3 rounded-3xl border border-[#e5e8eb] bg-white p-6">
+          <legend className="px-2 text-base font-bold text-[#191f28]">동의 항목</legend>
+          <ConsentCheckbox checked={serviceConsent} onChange={setServiceConsent} required>
+            서비스 이용 및 영상 처리에 동의합니다.
+          </ConsentCheckbox>
+          <ConsentCheckbox checked={aiProcessingConsent} onChange={setAiProcessingConsent} required>
+            장면 맥락과 영상을 외부 AI가 질문 생성 목적으로 처리하는 데 동의합니다.
+          </ConsentCheckbox>
+          <ConsentCheckbox checked={internalReviewConsent} onChange={setInternalReviewConsent}>
+            품질 개선을 위한 내부 검토에 동의합니다. (선택 · 기본 꺼짐)
+          </ConsentCheckbox>
+          <p className="text-sm leading-6 text-[#8b95a1]">선택 동의는 꺼진 상태여도 서비스를 이용할 수 있어요.</p>
+        </fieldset>
+      ) : null}
+
       {state.kind === "loading" ? (
         <p className="mt-6 rounded-2xl bg-[#f2f4f6] p-4 text-sm text-[#4e5968]">확인 정보를 불러오는 중이에요.</p>
       ) : null}
@@ -86,7 +111,7 @@ export function TermsGate() {
 
       <button
         type="button"
-        disabled={state.kind !== "ready" || submitting}
+        disabled={state.kind !== "ready" || submitting || !serviceConsent || !aiProcessingConsent}
         onClick={handleAccept}
         className="mt-8 h-14 w-full rounded-2xl bg-[#3182f6] px-5 text-base font-semibold text-white transition hover:bg-[#1b64da] disabled:cursor-not-allowed disabled:bg-[#b0d2ff]"
       >
@@ -96,5 +121,25 @@ export function TermsGate() {
         <p className="mt-4 text-sm text-[#8b95a1]">약관 버전: {state.session.terms.requiredVersion}</p>
       ) : null}
     </main>
+  );
+}
+
+function ConsentCheckbox({ checked, children, onChange, required = false }: {
+  checked: boolean;
+  children: React.ReactNode;
+  onChange: (checked: boolean) => void;
+  required?: boolean;
+}) {
+  return (
+    <label className="flex cursor-pointer items-start gap-3 text-sm font-semibold leading-6 text-[#4e5968]">
+      <input
+        type="checkbox"
+        checked={checked}
+        required={required}
+        onChange={(event) => onChange(event.target.checked)}
+        className="mt-1 h-5 w-5 accent-[#3182f6]"
+      />
+      <span>{children} {required ? <strong className="text-[#3182f6]">(필수)</strong> : null}</span>
+    </label>
   );
 }

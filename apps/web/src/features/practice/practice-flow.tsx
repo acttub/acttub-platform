@@ -3,14 +3,16 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { getAuthSession, type AuthSessionResponse } from "@/lib/api/auth";
 import {
-  createPracticeSession,
   createPracticeSummary,
   createPracticeTurn,
-  createPracticeUploadIntent,
-  finalizePracticeUploadIntent,
   listPracticeSessions,
   updatePracticeObservation,
 } from "@/lib/api/sessions";
+import {
+  createPipelinePracticeSession,
+  createPracticeUploadIntent,
+  finalizePracticeUploadIntent,
+} from "@/lib/api/practice";
 import {
   MAX_DIALOGUE_ANSWER_COUNT,
   MIN_DIALOGUE_ANSWER_COUNT,
@@ -19,7 +21,6 @@ import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import type {
   CoachSessionDto,
   ConfirmationState,
-  CreateSessionRequest,
   ObservationDto,
   SessionStatus,
   TurnDto,
@@ -36,7 +37,12 @@ type Step =
   | "dialogue"
   | "summary";
 
-type SceneDraft = CreateSessionRequest;
+type SceneDraft = {
+  genre: string;
+  situation: string;
+  characterContext: string;
+  subtext: string;
+};
 type PracticeEntry = "home" | "new" | "history";
 
 type DialogueEntry = Pick<TurnDto, "speaker" | "content" | "questionFocus"> & {
@@ -59,13 +65,10 @@ const entryInitialStep: Record<PracticeEntry, Step> = {
   history: "history",
 };
 const emptySceneDraft: SceneDraft = {
-  medium: "upload_url",
   genre: "",
   situation: "",
   characterContext: "",
   subtext: "",
-  videoUrl: "",
-  durationMs: undefined,
 };
 const practiceExample: SceneDraft = {
   ...emptySceneDraft,
@@ -86,6 +89,20 @@ function validateUploadFile(file: File | null): asserts file is File {
   if (file.size <= 0 || file.size > maxUploadBytes) {
     throw new Error(`${uploadSizeLimitLabel} 이하의 영상 파일을 선택해 주세요.`);
   }
+}
+
+function toSafeUploadError(error: unknown): Error {
+  const message = error instanceof Error ? error.message : "";
+  if (/duration|5\s*minute|300000|too[_ -]?long/i.test(message)) {
+    return new Error("영상은 5분 이내여야 해요. 더 짧은 영상을 선택해 주세요.");
+  }
+  if (/consent|stale|eligib|동의|약관/i.test(message)) {
+    return new Error("동의 정보가 최신 상태가 아니에요. 다시 확인한 뒤 시도해 주세요.");
+  }
+  if (/metadata|iso.?bmff|unreadable|invalid.*media|parse/i.test(message)) {
+    return new Error("영상 정보를 읽을 수 없어요. 재생 가능한 MP4 또는 MOV 파일을 선택해 주세요.");
+  }
+  return new Error("영상 업로드를 완료하지 못했어요. 잠시 후 다시 시도해 주세요.");
 }
 
 function toDialogueEntries(turns: TurnDto[]): DialogueEntry[] {
@@ -115,6 +132,9 @@ export function PracticeFlow({ entry = "new" }: { entry?: PracticeEntry }) {
   const [submitting, setSubmitting] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
   const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [adultConfirmed, setAdultConfirmed] = useState(false);
+  const [allParticipantsConfirmed, setAllParticipantsConfirmed] = useState(false);
+  const [pipelineSessionReady, setPipelineSessionReady] = useState(false);
   const [uploadPreviewUrl, setUploadPreviewUrl] = useState<string | null>(null);
   const uploadPreviewUrlRef = useRef<string | null>(null);
   const [nextReflectionQuestion, setNextReflectionQuestion] = useState("");
@@ -264,77 +284,57 @@ export function PracticeFlow({ entry = "new" }: { entry?: PracticeEntry }) {
       if (!genre || !situation || !characterContext) {
         throw new Error("장르, 상황, 인물 맥락을 먼저 입력해 주세요.");
       }
+      if (!adultConfirmed || !allParticipantsConfirmed) {
+        throw new Error("성인 확인과 모든 영상 참여자의 동의를 확인해 주세요.");
+      }
 
       setUploadFile(selectedFile);
       setStep("upload");
 
-      let sessionDraft: CreateSessionRequest = {
-        ...scene,
+      const { uploadIntent } = await createPracticeUploadIntent({
+        fileMetadata: {
+          fileName: selectedFile.name,
+          mimeType: selectedFile.type as "video/mp4" | "video/quicktime",
+          sizeBytes: selectedFile.size,
+        },
+        adultConfirmed: true,
+        allParticipantsConfirmed: true,
+      });
+
+      const supabase = getSupabaseBrowserClient();
+      if (!supabase) {
+        throw new Error("업로드를 시작하지 못했어요.");
+      }
+
+      const { error } = await supabase.storage
+        .from(uploadIntent.storageBucket)
+        .upload(uploadIntent.storagePath, selectedFile, {
+          contentType: selectedFile.type,
+          upsert: false,
+        });
+
+      if (error) {
+        throw new Error("비공개 영상 업로드를 완료하지 못했어요.");
+      }
+
+      const finalizedUpload = await finalizePracticeUploadIntent(
+        uploadIntent.uploadIntentId,
+        { storagePath: uploadIntent.storagePath },
+      );
+
+      const result = await createPipelinePracticeSession({
+        sessionId: uploadIntent.sessionId,
+        uploadIntentId: uploadIntent.uploadIntentId,
+        storagePath: finalizedUpload.storagePath,
         genre,
         situation,
         characterContext,
-        videoUrl: scene.videoUrl?.trim() || undefined,
-        subtext: scene.subtext?.trim() || undefined,
-      };
-
-      if (scene.medium === "upload_url") {
-        const { uploadIntent } = await createPracticeUploadIntent({
-          fileMetadata: {
-            fileName: selectedFile.name,
-            mimeType: selectedFile.type as "video/mp4" | "video/quicktime",
-            sizeBytes: selectedFile.size,
-            durationMs: scene.durationMs,
-          },
-        });
-
-        const supabase = getSupabaseBrowserClient();
-        if (!supabase) {
-          throw new Error("Supabase 브라우저 클라이언트 설정이 필요해요.");
-        }
-
-        const { error } = await supabase.storage
-          .from(uploadIntent.storageBucket)
-          .upload(uploadIntent.storagePath, selectedFile, {
-            contentType: selectedFile.type,
-            upsert: false,
-          });
-
-        if (error) {
-          throw new Error(error.message);
-        }
-
-        const finalizedUpload = await finalizePracticeUploadIntent(
-          uploadIntent.uploadIntentId,
-          {
-            storagePath: uploadIntent.storagePath,
-            durationMs: scene.durationMs,
-          },
-        );
-        sessionDraft = {
-          ...sessionDraft,
-          sessionId: uploadIntent.sessionId,
-          uploadIntentId: uploadIntent.uploadIntentId,
-          storagePath: finalizedUpload.storagePath,
-          videoUrl: finalizedUpload.videoUrl,
-          durationMs: finalizedUpload.durationMs ?? scene.durationMs,
-        };
-      }
-
-      const result = await createPracticeSession(sessionDraft);
-      setPracticeHistory((current) => [
-        result.session,
-        ...current.filter((item) => item.id !== result.session.id),
-      ]);
-      setPracticeSession(result.session);
-      setObservation(result.session.observations[0] ?? null);
-      setDialogue(toDialogueEntries(result.session.turns));
-      setFinalSentence(result.session.finalActorSentence ?? "");
-      setFinalReflectionPrompt("");
-      setNextReflectionQuestion("");
-      setSummarySaved(false);
-      setStep(result.session.observations[0] ? "observe" : "dialogue");
+        ...(scene.subtext.trim() ? { subtext: scene.subtext.trim() } : {}),
+      });
+      setPipelineSessionReady(result.session.pipelineVersion === "ai-pipeline.v1");
+      setStep("upload");
     } catch (error) {
-      handleApiError(error);
+      handleApiError(toSafeUploadError(error));
       setStep(selectedFile ? "context" : "video");
     } finally {
       setSubmitting(false);
@@ -494,6 +494,10 @@ export function PracticeFlow({ entry = "new" }: { entry?: PracticeEntry }) {
         uploadPreviewUrl={uploadPreviewUrl}
         onBack={returnToUploadSelection}
         onSceneChange={updateScene}
+        adultConfirmed={adultConfirmed}
+        allParticipantsConfirmed={allParticipantsConfirmed}
+        onAdultConfirmedChange={setAdultConfirmed}
+        onAllParticipantsConfirmedChange={setAllParticipantsConfirmed}
         onSubmit={() => startUpload(uploadFile)}
       />
     );
@@ -535,7 +539,7 @@ export function PracticeFlow({ entry = "new" }: { entry?: PracticeEntry }) {
               {apiError}
             </p>
           ) : null}
-          {step === "upload" ? <UploadProgress /> : null}
+          {step === "upload" ? <UploadProgress ready={pipelineSessionReady} /> : null}
           {step === "observe" ? (
             observation ? (
               <ObservationPanel
@@ -773,15 +777,21 @@ function PracticeHistoryScreen({
 
 function PracticeContextScreen({
   apiError,
+  adultConfirmed,
+  allParticipantsConfirmed,
   scene,
   submitting,
   uploadFile,
   uploadPreviewUrl,
   onBack,
   onSceneChange,
+  onAdultConfirmedChange,
+  onAllParticipantsConfirmedChange,
   onSubmit,
 }: {
   apiError: string | null;
+  adultConfirmed: boolean;
+  allParticipantsConfirmed: boolean;
   scene: SceneDraft;
   submitting: boolean;
   uploadFile: File | null;
@@ -791,6 +801,8 @@ function PracticeContextScreen({
     key: K,
     value: SceneDraft[K],
   ) => void;
+  onAdultConfirmedChange: (checked: boolean) => void;
+  onAllParticipantsConfirmedChange: (checked: boolean) => void;
   onSubmit: () => void | Promise<void>;
 }) {
   return (
@@ -857,6 +869,35 @@ function PracticeContextScreen({
             onSceneChange={onSceneChange}
           />
 
+          <fieldset className="mt-6 rounded-[24px] border border-[#e5e8eb] bg-white p-5 sm:p-6">
+            <legend className="px-2 text-base font-black text-[#191f28]">영상 참여 확인</legend>
+            <p className="mt-1 text-sm font-bold leading-6 text-[#8b95a1]">
+              확인 내용은 이 업로드 세션의 자격 확인에만 사용됩니다.
+            </p>
+            <label className="mt-4 flex cursor-pointer items-start gap-3 text-sm font-bold leading-6 text-[#4e5968]">
+              <input
+                type="checkbox"
+                checked={adultConfirmed}
+                disabled={submitting}
+                required
+                onChange={(event) => onAdultConfirmedChange(event.target.checked)}
+                className="mt-1 h-5 w-5 accent-[#2f6bff]"
+              />
+              업로드하는 사람은 성인입니다. <RequiredBadge />
+            </label>
+            <label className="mt-3 flex cursor-pointer items-start gap-3 text-sm font-bold leading-6 text-[#4e5968]">
+              <input
+                type="checkbox"
+                checked={allParticipantsConfirmed}
+                disabled={submitting}
+                required
+                onChange={(event) => onAllParticipantsConfirmedChange(event.target.checked)}
+                className="mt-1 h-5 w-5 accent-[#2f6bff]"
+              />
+              영상에 나온 모든 참여자에게 업로드와 AI 처리 동의를 받았습니다. <RequiredBadge />
+            </label>
+          </fieldset>
+
           <div className="mt-6 grid gap-3 sm:grid-cols-[1fr_2fr]">
             <button
               type="button"
@@ -868,7 +909,7 @@ function PracticeContextScreen({
             </button>
             <button
               type="submit"
-              disabled={submitting || !uploadFile}
+              disabled={submitting || !uploadFile || !adultConfirmed || !allParticipantsConfirmed}
               className="min-h-13 rounded-2xl bg-[#2f6bff] px-5 py-3 font-black text-white shadow-[0_10px_20px_rgba(49,130,246,0.18)] transition hover:bg-[#1b64da] disabled:bg-[#b0d2ff]"
             >
               {submitting ? "업로드 준비 중이에요" : "입력 완료하고 질문 받기"}
@@ -1027,7 +1068,7 @@ function SceneContextForm({
             서브텍스트 <OptionalBadge />
           </span>
           <textarea
-            value={scene.subtext ?? ""}
+            value={scene.subtext}
             disabled={submitting}
             onChange={(event) => onSceneChange("subtext", event.target.value)}
             placeholder="아직 정하지 않았다면 비워 두세요"
@@ -1363,18 +1404,20 @@ function formatSessionStatus(status: SessionStatus): string {
   return labels[status];
 }
 
-function UploadProgress() {
+function UploadProgress({ ready }: { ready: boolean }) {
   return (
     <div className="space-y-5">
       <p className="text-sm font-semibold text-[#3182f6]">영상 준비</p>
       <h2 className="text-2xl font-bold tracking-[-0.03em]">
-        연습 자료를 정리하고 있어요.
+        {ready ? "영상과 장면 맥락이 안전하게 준비됐어요." : "연습 자료를 정리하고 있어요."}
       </h2>
       <div className="h-3 overflow-hidden rounded-full bg-[#e5e8eb]">
-        <div className="h-full w-3/4 rounded-full bg-[#3182f6]" />
+        <div className={`h-full rounded-full bg-[#3182f6] ${ready ? "w-full" : "w-3/4"}`} />
       </div>
       <p className="leading-7 text-[#4e5968]">
-        업로드 의도와 비공개 저장 경로를 확인하는 중이에요.
+        {ready
+          ? "서버가 영상 길이와 형식을 확인했습니다. 다음 질문을 준비하고 있어요."
+          : "업로드 의도와 비공개 저장 경로를 확인하는 중이에요."}
       </p>
     </div>
   );

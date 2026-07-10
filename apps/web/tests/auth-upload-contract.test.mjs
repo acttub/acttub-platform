@@ -68,8 +68,14 @@ test("practice flow uses upload intent lifecycle for uploaded videos", () => {
   const source = read("apps/web/src/features/practice/practice-flow.tsx");
   assert.match(source, /createPracticeUploadIntent/);
   assert.match(source, /finalizePracticeUploadIntent/);
-  assert.match(source, /scene\.medium === "upload_url"/);
+  assert.match(source, /createPipelinePracticeSession/);
   assert.match(source, /uploadIntentId: uploadIntent\.uploadIntentId/);
+  assert.match(source, /adultConfirmed: true/);
+  assert.match(source, /allParticipantsConfirmed: true/);
+  const uploadFlow = source.match(/async function startUpload[\s\S]*?(?=\n  async function confirmObservation)/)?.[0];
+  assert.ok(uploadFlow);
+  assert.doesNotMatch(uploadFlow, /durationMs:|videoUrl:|termsVersion:|consentVersion:|finalizedAt:/);
+  assert.match(uploadFlow, /finalizePracticeUploadIntent\([\s\S]*\{ storagePath: uploadIntent\.storagePath \}/);
 });
 
 test("web test script runs focused node tests", () => {
