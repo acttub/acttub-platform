@@ -8,7 +8,7 @@ export type CompletionReason =
   | "hard_limit_report_ready"
   | "insufficient_confirmed_evidence"
   | "insufficient_interview_evidence";
-export type ObservationConfirmation = "unasked" | "accepted" | "rejected" | "unsure";
+export type ObservationConfirmation = AgentObservation["confirmationState"];
 export type TranscriptRole = "agent" | "actor";
 export type TranscriptKind = "question" | "closing" | "answer" | "unknown" | "observation_confirmation" | "actor_correction" | "optional_note";
 
@@ -61,4 +61,4 @@ export interface PipelineTurnInput { sessionId:string; userId:string; expectedSu
 export interface CompleteInterviewInput { sessionId:string; userId:string; status:InterviewStatus; completionReason:CompletionReason; observationIds:string[]; answerTurnIds:string[] }
 export interface CompleteReportInput { sessionId:string; userId:string; runId:string; report:Omit<ImmutableAiReport,"createdAt"> }
 export interface DeleteInput { sessionId:string; userId:string; requestId:string }
-import type { NormalizedSummary, Segment } from "@/server/ai/contracts";
+import type { AgentObservation, NormalizedSummary, Segment } from "@/server/ai/contracts";
