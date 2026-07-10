@@ -236,3 +236,27 @@ test("additive privilege closure migration revokes anon and session-deletion aut
     /revoke select on public\.(?:ai_session_summaries|ai_runs|actor_corrections|interview_turns|ai_reports) from authenticated;/,
   );
 });
+
+test("pipeline security hardening migration alters only function settings and invoker mode", () => {
+  const hardening = read("supabase/migrations/006_pipeline_security_advisor_hardening.sql");
+  const terms = read("supabase/migrations/001_acttub_slice1_schema.sql");
+  const pipeline = read("supabase/migrations/004_ai_pipeline_data_plane.sql");
+
+  assert.match(hardening, /alter function public\.current_acttub_terms_version\(\) set search_path = public;/);
+  assert.match(
+    hardening,
+    /alter function public\.current_acttub_ai_processing_consent_version\(\) set search_path = public;/,
+  );
+  assert.match(hardening, /alter function public\.is_active_acttub_profile\(uuid\) security invoker;/);
+  assert.doesNotMatch(hardening, /\bgrant\b|\brevoke\b|\bpolicy\b/i);
+
+  assert.match(terms, /create or replace function public\.current_acttub_terms_version\(\)/);
+  assert.match(terms, /create or replace function public\.is_active_acttub_profile\(profile_user_id uuid\)[\s\S]*security definer[\s\S]*set search_path = public/);
+  assert.match(pipeline, /create or replace function public\.current_acttub_ai_processing_consent_version\(\) returns text language sql immutable as \$\$ select 'ai-processing\.v1'::text \$\$/);
+
+  assert.match(terms, /public\.is_active_acttub_profile\(auth\.uid\(\)\)/);
+  assert.match(pipeline, /public\.current_acttub_terms_version\(\)/);
+  assert.match(pipeline, /public\.current_acttub_ai_processing_consent_version\(\)/);
+  assert.match(terms, /public\.is_active_acttub_profile\(auth\.uid\(\)\)/);
+  assert.doesNotMatch(hardening, /security definer/i);
+});
