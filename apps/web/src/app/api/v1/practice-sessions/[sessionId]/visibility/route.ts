@@ -12,8 +12,11 @@ export async function PATCH(request: Request, context: RouteContext) {
       hidden?: unknown;
     };
 
-    if (body.hidden !== true) return jsonError(400, "validation_error", "Only hidden=true is supported for Slice 1 soft-hide.");
-    const result = await coachSessionService.softHideSession(sessionId, auth.userId);
+    const result = await coachSessionService.updateVisibility(
+      sessionId,
+      auth.userId,
+      body,
+    );
 
     if (!result) return jsonError(404, "session_not_found", "Session was not found.");
     return jsonResponse(result);
