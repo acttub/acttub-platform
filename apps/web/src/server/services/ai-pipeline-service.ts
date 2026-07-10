@@ -5,7 +5,7 @@ import type { AgentRequest, CurrentInput, ReportRequest, SummaryRequest } from "
 import { createAiTransport, AiServiceError } from "@/server/ai/transport";
 import type { InterviewTurn, PipelineSessionAggregate } from "@/server/repositories/ai-pipeline-types";
 import { supabaseAiPipelineRepository as repository } from "@/server/repositories/supabase-ai-pipeline-repository";
-import { requireCurrentAiProcessingConsent } from "./auth-context";
+import { getCurrentConsentVersions, requireCurrentAiProcessingConsent } from "./auth-context";
 import { coachSessionService } from "./coach-session-service";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { getAppConfig } from "@/lib/config/env";
@@ -119,7 +119,7 @@ export const aiPipelineService = {
   async createSession(body:unknown,userId:string){
     const input=body as Record<string,unknown>;const required=(key:string)=>{const value=input[key];if(typeof value!=="string"||!value.trim())throw new AiPipelineError(400,"INVALID_PIPELINE_SESSION");return value.trim()};
     const sessionId=required("sessionId"),uploadIntentId=required("uploadIntentId"),storagePath=required("storagePath"),genre=required("genre"),situation=required("situation"),characterContext=required("characterContext"),subtext=typeof input.subtext==="string"&&input.subtext.trim()?input.subtext.trim():null;
-    await requireCurrentAiProcessingConsent(userId);const upload=await repository.findEligibleUpload(uploadIntentId,userId);if(!upload||upload.sessionId!==sessionId||upload.storagePath!==storagePath)throw new AiPipelineError(409,"UPLOAD_NOT_AI_ELIGIBLE");
+    await requireCurrentAiProcessingConsent(userId);const consent=await getCurrentConsentVersions();const upload=await repository.findEligibleUpload(uploadIntentId,userId);if(!upload||upload.sessionId!==sessionId||upload.storagePath!==storagePath||upload.requiredConsentVersionSnapshot!==consent.requiredConsentVersion||upload.aiProcessingConsentVersionSnapshot!==consent.aiProcessingConsentVersion)throw new AiPipelineError(409,"UPLOAD_NOT_AI_ELIGIBLE");
     const takeId=crypto.randomUUID();await repository.createPipelineSession({uploadIntentId,userId,sessionId,takeId,payload:{medium:"upload_url",genre,situation,characterContext,subtext}});
     const proposedRunId=crypto.randomUUID(),claimed=await repository.claimRun({sessionId,userId,stage:"summary",runId:proposedRunId,idempotencyKey:`summary:${uploadIntentId}`,maxAttempts:1,requestSchemaVersion:"summary-request.v1",model:"summary",promptVersion:"acting-summary.prompt.v2"});
     if(claimed.status==="completed")return{session:publicAggregate(await aggregate(sessionId,userId)),summaryRun:claimed};if(claimed.id!==proposedRunId||claimed.status!=="running")throw new AiPipelineError(409,"AI_RUN_ALREADY_CLAIMED");
