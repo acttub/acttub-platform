@@ -1,0 +1,103 @@
+- main [ref=e2]:
+  - navigation [ref=e4]:
+    - link "Acttub" [ref=e5] [cursor=pointer]:
+      - /url: /
+    - generic [ref=e6]:
+      - link "서비스 흐름" [ref=e7] [cursor=pointer]:
+        - /url: "#flow"
+      - link "결과물" [ref=e8] [cursor=pointer]:
+        - /url: "#result"
+      - link "안전 약속" [ref=e9] [cursor=pointer]:
+        - /url: /terms
+    - link "질문 받기" [ref=e10] [cursor=pointer]:
+      - /url: /auth/login?next=/practice/new
+  - generic [ref=e15]:
+    - paragraph [ref=e16]: 연기 영상 기반 질문 연습
+    - heading "내 연기 영상을 올리면 장면 질문이 도착해요" [level=1] [ref=e17]: 내 연기 영상을 올리면장면 질문이 도착해요
+    - paragraph [ref=e18]: Acttub은 영상과 장면 맥락에서 확인한 단서만 질문으로 바꿔요. 배우는 답을 쌓아 연습 노트와 다음 테이크 문장을 남깁니다.
+    - generic [ref=e19]:
+      - generic [ref=e20]:
+        - paragraph [ref=e21]: 대상
+        - paragraph [ref=e22]: 배우 · 연기자
+      - generic [ref=e23]:
+        - paragraph [ref=e24]: 입력
+        - paragraph [ref=e25]: 연기 영상 + 장면 맥락
+      - generic [ref=e26]:
+        - paragraph [ref=e27]: 결과
+        - paragraph [ref=e28]: 질문 카드 + 연습 노트
+    - generic [ref=e29]:
+      - link "내 장면으로 질문 받기" [ref=e30] [cursor=pointer]:
+        - /url: /auth/login?next=/practice/new
+      - link "어떻게 쓰는지 보기" [ref=e31] [cursor=pointer]:
+        - /url: "#flow"
+    - generic [ref=e33]:
+      - generic [ref=e34]:
+        - paragraph [ref=e35]: 영상 업로드
+        - heading "오늘 연습한 장면" [level=3] [ref=e36]
+        - generic [ref=e37]:
+          - generic [ref=e38]: take_03.mov
+          - generic [ref=e39]:
+            - generic [ref=e40]: "상황: 오디션 독백"
+            - generic [ref=e41]: "목표: 상대의 확인을 얻기"
+      - generic [ref=e42]: →
+      - generic [ref=e44]:
+        - generic [ref=e46]:
+          - paragraph [ref=e47]: 질문 04
+          - paragraph [ref=e48]: 이 침묵에서 인물은 무엇을 기대했나요?
+        - generic [ref=e49]:
+          - generic [ref=e50]:
+            - paragraph [ref=e51]: 관찰
+            - paragraph [ref=e52]: 상대의 말을 들은 뒤 숨을 고르는 순간이 보여요.
+          - generic [ref=e53]:
+            - paragraph [ref=e54]: 질문
+            - paragraph [ref=e55]: 그 침묵에서 인물은 무엇을 얻고 싶었나요?
+          - generic [ref=e56]:
+            - paragraph [ref=e57]: 노트
+            - paragraph [ref=e58]: 확신보다 확인을 원했다.
+      - generic [ref=e59]: →
+      - generic [ref=e61]:
+        - paragraph [ref=e62]: 연습 노트
+        - heading "다음 테이크 문장" [level=3] [ref=e63]
+        - generic [ref=e64]:
+          - paragraph [ref=e65]: 오늘 남긴 문장
+          - paragraph [ref=e66]: “나는 확신보다 확인을 원했다.”
+          - generic [ref=e67]: "다음 연습: 대답 전 2초를 더 듣기"
+  - generic [ref=e69]:
+    - paragraph [ref=e70]: 서비스 흐름
+    - heading "처음 와도 바로 이해되는 3단계 연기 복기" [level=2] [ref=e71]: 처음 와도 바로 이해되는3단계 연기 복기
+    - generic [ref=e72]:
+      - article [ref=e73]:
+        - paragraph [ref=e74]: 입력
+        - heading "연기 영상 업로드" [level=3] [ref=e75]
+        - paragraph [ref=e76]: MP4/MOV 영상과 장면의 상황, 인물, 숨은 의도를 적어요.
+      - article [ref=e77]:
+        - paragraph [ref=e78]: 질문
+        - heading "확인된 단서로 질문" [level=3] [ref=e79]
+        - paragraph [ref=e80]: 보이는 관찰을 먼저 확인하고, 단정하지 않는 질문으로 이어가요.
+      - article [ref=e81]:
+        - paragraph [ref=e82]: 결과
+        - heading "내 연습 노트 완성" [level=3] [ref=e83]
+        - paragraph [ref=e84]: 답변을 모아 다음 테이크에서 붙잡을 한 문장으로 정리해요.
+  - generic [ref=e86]:
+    - generic [ref=e87]:
+      - paragraph [ref=e88]: 결과물
+      - heading "질문을 넘기면 연습 노트가 남아요" [level=2] [ref=e89]: 질문을 넘기면연습 노트가 남아요
+      - paragraph [ref=e90]: Acttub은 장면을 단정하지 않아요. 확인한 관찰만 질문의 근거로 삼고, 마지막 문장은 배우가 직접 선택하게 합니다.
+      - link "안전한 질문 원칙 보기" [ref=e91] [cursor=pointer]:
+        - /url: /terms
+    - generic [ref=e92]:
+      - article [ref=e93]:
+        - heading "놓친 순간" [level=3] [ref=e94]
+        - paragraph [ref=e95]: 영상 속 작은 멈춤과 반응을 다시 보게 해요.
+      - article [ref=e96]:
+        - heading "장면 의도" [level=3] [ref=e97]
+        - paragraph [ref=e98]: 인물의 목표와 상대에게 기대한 것을 말로 붙잡아요.
+      - article [ref=e99]:
+        - heading "다음 액션" [level=3] [ref=e100]
+        - paragraph [ref=e101]: 다음 테이크에서 바로 시도할 연습 문장을 남겨요.
+  - generic [ref=e103]:
+    - generic [ref=e104]:
+      - paragraph [ref=e105]: Ready to practice
+      - heading "오늘 찍은 장면으로 바로 질문을 받아보세요" [level=2] [ref=e106]: 오늘 찍은 장면으로바로 질문을 받아보세요
+    - link "내 장면으로 질문 받기" [ref=e107] [cursor=pointer]:
+      - /url: /auth/login?next=/practice/new
