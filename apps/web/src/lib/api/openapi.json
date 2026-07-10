@@ -1577,6 +1577,45 @@
           }
         }
       }
+    },
+    "/api/v1/practice-sessions/deletion-reconciliation": {
+      "post": {
+        "operationId": "reconcilePipelineSessionDeletions",
+        "summary": "중단된 세션 삭제 작업을 제한된 개수만큼 재조정합니다.",
+        "responses": {
+          "200": {
+            "description": "재조정 실행 결과",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "processed"
+                  ],
+                  "properties": {
+                    "processed": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 25
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        },
+        "tags": [
+          "연습 세션"
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ]
+      }
     }
   },
   "components": {
