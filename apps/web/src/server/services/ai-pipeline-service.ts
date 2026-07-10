@@ -66,7 +66,7 @@ const failRun = async (sessionId: string, userId: string, runId: string, error: 
 const callAgent = async (session: PipelineSessionAggregate, userId: string, input: CurrentInput, actorTurn: InterviewTurn | null) => {
   await requireCurrentAiProcessingConsent(userId);
   const runId = crypto.randomUUID();
-  const claimed = await repository.claimRun({ sessionId: session.sessionId, userId, stage: "agent", runId, idempotencyKey: `${input.command}:${actorTurn?.id ?? session.substantiveAnswerCount}`, maxAttempts: 1, requestSchemaVersion: "agent-turn.v1", model: "agent", promptVersion: "agent-turn.v1" });
+  const claimed = await repository.claimRun({ sessionId: session.sessionId, userId, stage: "agent", runId, idempotencyKey: `${input.command}:${session.substantiveAnswerCount}`, maxAttempts: 1, requestSchemaVersion: "agent-turn.v1", model: "agent", promptVersion: "agent-turn.v1" });
   if (claimed.id !== runId || claimed.status !== "running") throw new AiPipelineError(409, "AI_RUN_ALREADY_CLAIMED");
   const requestSession = actorTurn ? { ...session, transcript: [...session.transcript, actorTurn], substantiveAnswerCount: session.substantiveAnswerCount + 1 } : session;
   const request = agentRequest(requestSession, runId, input);
