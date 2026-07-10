@@ -9,6 +9,11 @@ export type AuthSessionResponse = {
     requiredVersion: string;
     accepted: boolean;
   };
+  aiProcessingConsent: {
+    requiredVersion: string | null;
+    accepted: boolean;
+  };
+  internalReviewConsent: { accepted: boolean };
 };
 
 export type AcceptTermsRequest = {
@@ -17,7 +22,9 @@ export type AcceptTermsRequest = {
 
 export type AcceptTermsResponse = {
   accepted: true;
-  termsVersion: string;
+  requiredConsentAccepted: true;
+  aiProcessingConsentAccepted: true;
+  internalReviewConsent: boolean;
   nextPath: string;
 };
 
@@ -60,13 +67,18 @@ export async function getAuthSession(): Promise<AuthSessionResponse> {
 export async function acceptTerms(
   body: AcceptTermsRequest,
 ): Promise<AcceptTermsResponse> {
+  void body;
   const response = await fetch("/api/v1/terms/acceptances", {
     method: "POST",
     headers: {
       Accept: "application/json",
       "Content-Type": "application/json",
     },
-    body: JSON.stringify(body),
+    body: JSON.stringify({
+      requiredConsentAccepted: true,
+      aiProcessingConsentAccepted: true,
+      internalReviewConsent: false,
+    }),
   });
 
   return parseJsonResponse<AcceptTermsResponse>(response);

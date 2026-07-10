@@ -105,7 +105,9 @@ export type PracticeUploadIntentDto = {
 };
 
 export type CreateUploadIntentRequest = {
-  fileMetadata: FileMetadataDto;
+  fileMetadata: Omit<FileMetadataDto, "durationMs">;
+  adultConfirmed: true;
+  allParticipantsConfirmed: true;
 };
 
 export type CreateUploadIntentResponse = {
@@ -114,7 +116,6 @@ export type CreateUploadIntentResponse = {
 
 export type FinalizeUploadIntentRequest = {
   storagePath: string;
-  durationMs?: number;
 };
 
 export type FinalizeUploadIntentResponse = {
