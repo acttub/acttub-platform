@@ -150,6 +150,7 @@ create or replace function public.acttub_confirm_observation(p_session_id uuid,p
 returns setof public.observations language plpgsql security definer set search_path=public as $$ declare seq integer; begin
  perform 1 from public.practice_sessions where id=p_session_id and user_id=p_user_id and deletion_status='active' for update; if not found then raise exception 'session_not_found'; end if;
  if p_state not in ('accepted','rejected','unsure') or (p_correction is not null and (p_state<>'rejected' or length(trim(p_correction))=0)) then raise exception 'invalid_confirmation'; end if;
+ if p_state='accepted' and exists(select 1 from public.observations where session_id=p_session_id and user_id=p_user_id and confirmation_state='accepted' and id<>p_observation_id) then raise exception 'accepted_observation_exists'; end if;
  if p_correction is not null then select coalesce(max(sequence)+1,0) into seq from public.interview_turns where session_id=p_session_id;
  insert into public.interview_turns(id,session_id,user_id,sequence,role,kind,content) values(p_turn_id,p_session_id,p_user_id,seq,'actor','actor_correction',p_correction);
  insert into public.actor_corrections(id,session_id,user_id,observation_id,content,correction_by_turn_id) values(p_correction_id,p_session_id,p_user_id,p_observation_id,p_correction,p_turn_id);

@@ -151,6 +151,7 @@ export const aiPipelineService = {
   },
   validateRequestId(value: string | null) { if (!value || !UUID.test(value)) throw new AiPipelineError(400, "INVALID_IDEMPOTENCY_KEY"); return value; },
   async deleteSession(sessionId:string,userId:string,requestId:string){
+    const previous=await repository.findDeletionAttempt(sessionId,userId,requestId);if(previous?.status==="completed")return{requestId,status:"completed" as const};
     const session=await coachSessionService.getSession(sessionId,userId); if(!session)throw new AiPipelineError(404,"SESSION_NOT_FOUND");
     const prefix=`supabase://${getAppConfig().video.bucket}/`; const path=session.take.videoUrl?.startsWith(prefix)?session.take.videoUrl.slice(prefix.length):null;
     await repository.beginDelete({sessionId,userId,requestId});
