@@ -2299,14 +2299,48 @@
         "type": "object",
         "required": [
           "session",
-          "firstQuestion"
+          "summaryRun"
         ],
         "properties": {
           "session": {
-            "$ref": "#/components/schemas/CoachSession"
+            "type": "object",
+            "description": "첫 세 개 관찰 후보만 노출하는 공개 ai-pipeline.v1 집계입니다.",
+            "additionalProperties": true
           },
-          "firstQuestion": {
-            "$ref": "#/components/schemas/Turn"
+          "summaryRun": {
+            "type": "object",
+            "required": [
+              "id",
+              "sessionId",
+              "stage",
+              "status",
+              "idempotencyKey"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "sessionId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "stage": {
+                "type": "string",
+                "enum": [
+                  "summary"
+                ]
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "completed"
+                ]
+              },
+              "idempotencyKey": {
+                "type": "string"
+              }
+            }
           }
         }
       },
