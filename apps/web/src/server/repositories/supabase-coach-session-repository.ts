@@ -305,19 +305,16 @@ export const supabaseCoachSessionRepository = {
     return data ? mapUploadIntent(asRecord(data)) : null;
   },
 
-  async finalizeUploadIntent(uploadIntent: PracticeUploadIntentDto): Promise<void> {
+  async finalizeUploadIntent(uploadIntent: PracticeUploadIntentDto, durationMs: number): Promise<void> {
     if (!configuredForSupabasePersistence()) return;
 
     const admin = requireSupabaseAdminClient();
-    const { data, error } = await admin
-      .from("upload_intents")
-      .select("id")
-      .eq("id", uploadIntent.uploadIntentId)
-      .eq("user_id", uploadIntent.userId)
-      .eq("expected_storage_bucket", uploadIntent.storageBucket)
-      .eq("expected_storage_path", uploadIntent.storagePath)
-      .eq("status", "created")
-      .maybeSingle();
+    const { data, error } = await admin.rpc("acttub_finalize_ai_upload", {
+      p_upload_intent_id: uploadIntent.uploadIntentId,
+      p_user_id: uploadIntent.userId,
+      p_duration_ms: durationMs,
+      p_media_metadata_version: "iso-bmff-duration.v1",
+    });
 
     assertNoPersistenceError(
       error,

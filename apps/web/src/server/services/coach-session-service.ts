@@ -28,6 +28,10 @@ import {
   supabaseCoachSessionRepository,
 } from "@/server/repositories/supabase-coach-session-repository";
 import { requireCurrentAiProcessingConsent } from "@/server/services/auth-context";
+import {
+  parseIsoBmffDurationMs,
+  validateVideoDurationMs,
+} from "@/server/media/iso-bmff-duration";
 
 export class ApiValidationError extends Error {
   constructor(
@@ -360,6 +364,30 @@ const verifySupabaseStorageObject = async (
   }
 };
 
+const readAuthoritativeVideoDuration = async (
+  uploadIntent: PracticeUploadIntentDto,
+): Promise<number> => {
+  const admin = createSupabaseAdminClient();
+  if (!admin) throw new ApiConfigurationError("Supabase storage verification is unavailable.");
+  const { data, error } = await admin.storage
+    .from(uploadIntent.storageBucket)
+    .download(uploadIntent.storagePath);
+  if (error || !data) {
+    throw new ApiValidationError("Request validation failed", {
+      storageObject: "Uploaded media could not be inspected.",
+    });
+  }
+  try {
+    return validateVideoDurationMs(
+      parseIsoBmffDurationMs(new Uint8Array(await data.arrayBuffer())),
+    );
+  } catch {
+    throw new ApiValidationError("Request validation failed", {
+      storageObject: "Uploaded media has invalid or unsupported ISO-BMFF metadata.",
+    });
+  }
+};
+
 const videoRefForUploadIntent = (uploadIntent: PracticeUploadIntentDto): string =>
   `supabase://${uploadIntent.storageBucket}/${uploadIntent.storagePath}`;
 
@@ -524,19 +552,14 @@ export const coachSessionService = {
       });
     }
 
-    const input = payload as { storagePath?: unknown; durationMs?: unknown };
+    const input = payload as { storagePath?: unknown };
     const storagePath = requiredText(input.storagePath, "storagePath");
-    const durationMs =
-      typeof input.durationMs === "number" &&
-      Number.isFinite(input.durationMs) &&
-      input.durationMs > 0
-        ? input.durationMs
-        : null;
 
     validateExpectedStoragePath(uploadIntent.intent, storagePath, userId);
     await verifySupabaseStorageObject(uploadIntent.intent);
+    const durationMs = await readAuthoritativeVideoDuration(uploadIntent.intent);
     await requireSupabasePersistence(() =>
-      supabaseCoachSessionRepository.finalizeUploadIntent(uploadIntent.intent),
+      supabaseCoachSessionRepository.finalizeUploadIntent(uploadIntent.intent, durationMs),
     );
 
     return {

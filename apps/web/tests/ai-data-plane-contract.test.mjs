@@ -68,6 +68,11 @@ test("late audit gates current consent and immutable successful retries",()=>{
   assert.doesNotMatch(migration,/existing\.source_run_id<>p_run_id then raise exception 'report_idempotency_conflict'/);
 });
 
+test("run claims require adult participant and authoritative media eligibility",()=>{
+  assert.match(migration,/acttub_claim_ai_run[\s\S]*s\.adult_confirmed_at is not null[\s\S]*s\.all_participants_confirmed_at is not null/);
+  assert.match(migration,/acttub_claim_ai_run[\s\S]*exists\(select 1 from public\.practice_takes t[\s\S]*t\.duration_ms between 1 and 300000[\s\S]*t\.media_metadata_version='iso-bmff-duration\.v1'/);
+});
+
 test("late audit rejects malformed deep summary values and accepts typed answer or unknown turns",()=>{
   assert.match(migration,/invalid_summary_nullable/);
   assert.match(migration,/jsonb_typeof\(a->'overlapsKeyMoment'\) not in \('null','boolean'\)/);

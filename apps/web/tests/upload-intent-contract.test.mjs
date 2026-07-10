@@ -26,7 +26,9 @@ test("verification service rejects missing, expired, and mismatched-path intents
   assert.match(source, /Upload intent was not found/);
   assert.match(source, /Upload intent has expired/);
   assert.match(source, /storagePath !== uploadIntent\.storagePath/);
-  assert.match(source, /supabaseCoachSessionRepository\.finalizeUploadIntent\(uploadIntent\.intent\)/);
+  assert.match(source, /supabaseCoachSessionRepository\.finalizeUploadIntent\(uploadIntent\.intent, durationMs\)/);
+  assert.match(source, /parseIsoBmffDurationMs/);
+  assert.match(source, /\.download\(uploadIntent\.storagePath\)/);
   assert.doesNotMatch(source, /markUploadIntentFinalized|status: "finalized"/);
 });
 
