@@ -1,5 +1,7 @@
 # 아키텍처
 
+> 2026-07-11 승인된 AI Summary → Agent → Report 목표 구조와 구현 전 결정은 `docs/AI_PIPELINE_INTEGRATION.md`를 우선한다. 이 문서의 기존 흐름은 통합 전 현재 구조를 설명하며 구현과 함께 갱신한다.
+
 이 문서는 `acttub-platform`의 현재 구현 구조와 목표 제품 구조를 함께 기록한다. 현재 저장소는 pnpm 모노레포이며, 활성 개발 대상은 `apps/web`의 Next.js 웹 앱이다. 장기적으로는 `apps/api`에 Spring Boot 백엔드, `apps/mobile`에 React Native 앱이 들어올 수 있다.
 
 제품 구조의 핵심은 “영상을 한 번 분석하고, 저장된 관찰과 대화 이력을 바탕으로 질문을 이어가는 세션 시스템”이다. 대화 내용과 세션 상태는 DB가 정본이어야 하며, 서버는 매 turn마다 DB에서 필요한 상태를 다시 읽어 새로고침/이어하기에 안전해야 한다.
