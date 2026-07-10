@@ -9,12 +9,12 @@ alter table public.profiles
 
 alter table public.profiles drop constraint if exists active_profile_requires_current_consent;
 alter table public.profiles add constraint active_profile_requires_current_consent check (
-  not is_active or (required_consent_version is not null and required_consent_at is not null
+  status <> 'active' or (required_consent_version is not null and required_consent_at is not null
     and ai_processing_consent_version is not null and ai_processing_consent_at is not null)
 ) not valid;
 create or replace function public.is_active_acttub_profile(profile_user_id uuid)
 returns boolean language sql stable security definer set search_path = public as $$
-  select exists(select 1 from public.profiles p where p.user_id=profile_user_id and p.is_active
+  select exists(select 1 from public.profiles p where p.id=profile_user_id and p.status='active'
     and p.required_consent_version is not null and p.required_consent_at is not null
     and p.ai_processing_consent_version is not null and p.ai_processing_consent_at is not null)
 $$;
@@ -66,15 +66,16 @@ create table public.ai_runs (
  status text not null check(status in ('pending','running','completed','failed')), idempotency_key text not null, attempt integer not null default 0 check(attempt>=0),
  max_attempts integer not null check(max_attempts between 1 and 5), request_schema_version text, response_schema_version text, model text, prompt_version text,
  safe_error_code text, retryable boolean not null default false, started_at timestamptz, completed_at timestamptz, created_at timestamptz not null default now(), updated_at timestamptz not null default now(),
- unique(session_id,stage,idempotency_key), foreign key(session_id,user_id) references public.practice_sessions(id,user_id) on delete cascade,
+ unique(session_id,stage,idempotency_key), unique(id,session_id,user_id), foreign key(session_id,user_id) references public.practice_sessions(id,user_id) on delete cascade,
  check(status<>'running' or started_at is not null), check(status not in ('completed','failed') or completed_at is not null),
  check(status<>'completed' or safe_error_code is null), check(status<>'failed' or safe_error_code is not null)
 );
 create table public.ai_session_summaries (
  session_id uuid primary key, user_id uuid not null, take_id uuid not null, schema_version text not null check(schema_version='scene-summary.v1'),
- subtext_status text not null check(subtext_status in ('provided','not_provided')), normalized_summary jsonb not null, source_run_id uuid not null unique references public.ai_runs(id), created_at timestamptz not null default now(),
+ subtext_status text not null check(subtext_status in ('provided','not_provided')), normalized_summary jsonb not null, source_run_id uuid not null unique, created_at timestamptz not null default now(),
  unique(session_id,user_id), foreign key(session_id,user_id) references public.practice_sessions(id,user_id) on delete cascade,
- foreign key(take_id,session_id,user_id) references public.practice_takes(id,session_id,user_id) on delete cascade
+ foreign key(take_id,session_id,user_id) references public.practice_takes(id,session_id,user_id) on delete cascade,
+ foreign key(source_run_id,session_id,user_id) references public.ai_runs(id,session_id,user_id) on delete cascade
 );
 create table public.interview_turns (
  id uuid primary key, session_id uuid not null, user_id uuid not null, sequence integer not null check(sequence>=0), role text not null check(role in ('agent','actor')),
@@ -89,9 +90,9 @@ create table public.actor_corrections (
  foreign key(correction_by_turn_id,session_id,user_id) references public.interview_turns(id,session_id,user_id) on delete cascade
 );
 create table public.ai_reports (
- session_id uuid primary key, user_id uuid not null, source_run_id uuid not null unique references public.ai_runs(id), schema_version text not null check(schema_version='report.v1'), completion_reason text not null,
+ session_id uuid primary key, user_id uuid not null, source_run_id uuid not null unique, schema_version text not null check(schema_version='report.v1'), completion_reason text not null,
  one_line_summary jsonb not null, primary_review_point jsonb not null, confirmed_evidence jsonb not null, actor_discovery jsonb not null, grounded_encouragement jsonb not null, next_practice_step jsonb not null,
- created_at timestamptz not null default now(), foreign key(session_id,user_id) references public.practice_sessions(id,user_id) on delete cascade,
+ created_at timestamptz not null default now(), foreign key(session_id,user_id) references public.practice_sessions(id,user_id) on delete cascade, foreign key(source_run_id,session_id,user_id) references public.ai_runs(id,session_id,user_id),
  check(one_line_summary->>'status'='confirmed' and length(trim(one_line_summary->>'content'))>0),
  check(primary_review_point->>'status'='confirmed' and length(trim(primary_review_point->>'content'))>0),
  check(confirmed_evidence->>'status'='confirmed' and length(trim(confirmed_evidence->>'content'))>0)
@@ -103,7 +104,7 @@ create table public.session_deletion_attempts (
  check(status<>'completed' or (storage_deleted and rows_deleted and safe_error_code is null))
 );
 
-alter table public.observations add constraint observations_source_run_fk foreign key(source_run_id) references public.ai_runs(id) on delete cascade;
+alter table public.observations add constraint observations_source_run_fk foreign key(source_run_id,session_id,user_id) references public.ai_runs(id,session_id,user_id) on delete cascade;
 create unique index observations_one_accepted_uidx on public.observations(session_id) where confirmation_state='accepted';
 create unique index observations_session_candidate_uidx on public.observations(session_id,candidate_id) where candidate_id is not null;
 create unique index ai_runs_one_active_stage_uidx on public.ai_runs(session_id,stage) where status in ('pending','running');
@@ -131,13 +132,13 @@ create policy practice_takes_pipeline_active_select on public.practice_takes as 
 create policy observations_pipeline_active_select on public.observations as restrictive for select to authenticated using (exists(select 1 from public.practice_sessions s where s.id=session_id and s.deletion_status='active'));
 
 -- All mutation functions are service-role transaction boundaries. Each locks and owner-checks the session.
-create or replace function public.acttub_claim_ai_run(p_session_id uuid,p_user_id uuid,p_stage text,p_run_id uuid,p_idempotency_key text,p_max_attempts integer)
+create or replace function public.acttub_claim_ai_run(p_session_id uuid,p_user_id uuid,p_stage text,p_run_id uuid,p_idempotency_key text,p_max_attempts integer,p_request_schema_version text,p_model text,p_prompt_version text)
 returns setof public.ai_runs language plpgsql security definer set search_path=public as $$ declare existing public.ai_runs; begin
  perform 1 from public.practice_sessions where id=p_session_id and user_id=p_user_id and pipeline_version='ai-pipeline.v1' and deletion_status='active' for update; if not found then raise exception 'pipeline_session_not_found'; end if;
  select * into existing from public.ai_runs where session_id=p_session_id and stage=p_stage and idempotency_key=p_idempotency_key for update;
  if found then if existing.status in ('completed','running','pending') then return next existing; return; end if; if not existing.retryable or existing.attempt>=existing.max_attempts then raise exception 'run_not_retryable'; end if;
  return query update public.ai_runs set id=p_run_id,status='running',attempt=attempt+1,safe_error_code=null,retryable=false,started_at=now(),completed_at=null,updated_at=now() where ai_runs.id=existing.id returning *; return; end if;
- return query insert into public.ai_runs(id,session_id,user_id,stage,status,idempotency_key,attempt,max_attempts,started_at) values(p_run_id,p_session_id,p_user_id,p_stage,'running',p_idempotency_key,1,p_max_attempts,now()) returning *;
+ return query insert into public.ai_runs(id,session_id,user_id,stage,status,idempotency_key,attempt,max_attempts,request_schema_version,model,prompt_version,started_at) values(p_run_id,p_session_id,p_user_id,p_stage,'running',p_idempotency_key,1,p_max_attempts,p_request_schema_version,p_model,p_prompt_version,now()) returning *;
 end $$;
 create or replace function public.acttub_fail_ai_run(p_session_id uuid,p_user_id uuid,p_run_id uuid,p_safe_error_code text,p_retryable boolean)
 returns setof public.ai_runs language plpgsql security definer set search_path=public as $$ begin
@@ -179,7 +180,7 @@ returns jsonb language plpgsql security definer set search_path=public as $$ dec
  insert into public.practice_sessions(id,user_id,upload_intent_id,status,medium,genre,situation,character_context,subtext,pipeline_version,required_consent_version_snapshot,ai_processing_consent_version_snapshot,adult_confirmed_at,all_participants_confirmed_at,interview_status,substantive_answer_count)
  values(p_session_id,p_user_id,p_upload_intent_id,'observations_pending',coalesce(p_payload->>'medium','upload_url'),p_payload->>'genre',p_payload->>'situation',p_payload->>'characterContext',p_payload->>'subtext','ai-pipeline.v1',u.required_consent_version_snapshot,u.ai_processing_consent_version_snapshot,u.adult_confirmed_at,u.all_participants_confirmed_at,'active',0);
  insert into public.practice_takes(id,session_id,user_id,storage_bucket,storage_path,mime_type,size_bytes,duration_ms,media_metadata_version,analysis_status) values(p_take_id,p_session_id,p_user_id,u.expected_storage_bucket,u.expected_storage_path,u.expected_mime_type,u.expected_size_bytes,u.authoritative_duration_ms,u.media_metadata_version,'generated');
- update public.upload_intents set status='consumed',updated_at=now() where id=p_upload_intent_id; return jsonb_build_object('session_id',p_session_id,'take_id',p_take_id); end $$;
+ update public.upload_intents set updated_at=now() where id=p_upload_intent_id; return jsonb_build_object('session_id',p_session_id,'take_id',p_take_id); end $$;
 create or replace function public.acttub_complete_summary_run(p_session_id uuid,p_user_id uuid,p_run_id uuid,p_summary jsonb,p_candidates jsonb)
 returns jsonb language plpgsql security definer set search_path=public as $$ declare c jsonb; take uuid; begin
  perform 1 from public.ai_runs where id=p_run_id and session_id=p_session_id and user_id=p_user_id and stage='summary' and status='running' for update; if not found then raise exception 'run_not_running'; end if;
@@ -191,10 +192,13 @@ returns jsonb language plpgsql security definer set search_path=public as $$ dec
 create or replace function public.acttub_append_pipeline_turn(p_session_id uuid,p_user_id uuid,p_payload jsonb)
 returns jsonb language plpgsql security definer set search_path=public as $$ declare expected integer; actor jsonb; agent jsonb; begin
  select substantive_answer_count into expected from public.practice_sessions where id=p_session_id and user_id=p_user_id and interview_status in ('active','paused') and deletion_status='active' for update; if not found or expected<>(p_payload->>'expectedSubstantiveAnswerCount')::integer or expected>=10 then raise exception 'turn_conflict'; end if;
- actor:=p_payload->'actorTurn'; agent:=p_payload->'agentTurn'; if actor is not null and actor<>'null'::jsonb then insert into public.interview_turns(id,session_id,user_id,sequence,role,kind,content,source_observation_ids,report_evidence_selected) values((actor->>'id')::uuid,p_session_id,p_user_id,(actor->>'sequence')::integer,'actor',actor->>'kind',actor->>'content',array(select jsonb_array_elements_text(actor->'sourceObservationIds'))::uuid[],coalesce((actor->>'reportEvidenceSelected')::boolean,false)); expected:=expected+1; end if;
+ actor:=p_payload->'actorTurn'; agent:=p_payload->'agentTurn';
+ if (p_payload->'currentInput'->>'command')='answer' and (actor is null or actor='null'::jsonb or p_payload->'currentInput'->>'answerTurnId'<>actor->>'id' or p_payload->'currentInput'->>'answer'<>actor->>'content') then raise exception 'current_input_mismatch'; end if;
+ if actor is not null and actor<>'null'::jsonb then if actor->>'kind' not in ('answer','unknown') or (actor->>'sequence')::integer<>(select coalesce(max(sequence)+1,0) from public.interview_turns where session_id=p_session_id) then raise exception 'invalid_actor_turn'; end if; insert into public.interview_turns(id,session_id,user_id,sequence,role,kind,content,source_observation_ids,report_evidence_selected) values((actor->>'id')::uuid,p_session_id,p_user_id,(actor->>'sequence')::integer,'actor',actor->>'kind',actor->>'content',array(select jsonb_array_elements_text(actor->'sourceObservationIds'))::uuid[],coalesce((actor->>'reportEvidenceSelected')::boolean,false)); expected:=expected+1; end if;
+ if (agent->>'sequence')::integer<>(select coalesce(max(sequence)+1,0) from public.interview_turns where session_id=p_session_id) or agent->>'kind' not in ('question','closing') then raise exception 'invalid_agent_turn'; end if;
  if exists(select 1 from jsonb_array_elements_text(agent->'sourceObservationIds') x where not exists(select 1 from public.observations o where o.id=x::uuid and o.session_id=p_session_id and o.user_id=p_user_id and o.confirmation_state='accepted' and not o.blocked_for_questioning)) then raise exception 'invalid_source_observation'; end if;
  insert into public.interview_turns(id,session_id,user_id,sequence,role,kind,content,question_focus,source_observation_ids) values((agent->>'id')::uuid,p_session_id,p_user_id,(agent->>'sequence')::integer,'agent',agent->>'kind',agent->>'content',agent->>'questionFocus',array(select jsonb_array_elements_text(agent->'sourceObservationIds'))::uuid[]);
- update public.practice_sessions set substantive_answer_count=expected,interview_status='active',updated_at=now() where id=p_session_id; return jsonb_build_object('substantive_answer_count',expected); end $$;
+ update public.practice_sessions set substantive_answer_count=expected,interview_status='active',report_evidence_observation_ids=array(select jsonb_array_elements_text(p_payload->'reportEvidence'->'observationIds'))::uuid[],report_evidence_answer_turn_ids=array(select jsonb_array_elements_text(p_payload->'reportEvidence'->'answerTurnIds'))::uuid[],updated_at=now() where id=p_session_id; update public.ai_runs set status='completed',response_schema_version='agent-turn.v1',completed_at=now(),updated_at=now() where id=(p_payload->>'agentRunId')::uuid and session_id=p_session_id and user_id=p_user_id and stage='agent' and status='running'; if not found then raise exception 'agent_run_not_running'; end if; return jsonb_build_object('substantive_answer_count',expected); end $$;
 create or replace function public.acttub_complete_interview(p_session_id uuid,p_user_id uuid,p_payload jsonb)
 returns jsonb language plpgsql security definer set search_path=public as $$ declare reason text:=p_payload->>'completionReason'; stat text:=p_payload->>'status'; obs uuid[]:=array(select jsonb_array_elements_text(p_payload->'observationIds'))::uuid[]; turns uuid[]:=array(select jsonb_array_elements_text(p_payload->'answerTurnIds'))::uuid[]; begin
  perform 1 from public.practice_sessions where id=p_session_id and user_id=p_user_id and deletion_status='active' for update; if not found then raise exception 'session_not_mutable'; end if;
@@ -202,14 +206,16 @@ returns jsonb language plpgsql security definer set search_path=public as $$ dec
  if stat='completed' and (cardinality(obs)=0 or cardinality(turns)=0 or exists(select 1 from unnest(obs) x where not exists(select 1 from public.observations o where o.id=x and o.session_id=p_session_id and o.user_id=p_user_id and o.confirmation_state='accepted' and not o.blocked_for_questioning)) or exists(select 1 from unnest(turns) x where not exists(select 1 from public.interview_turns t where t.id=x and t.session_id=p_session_id and t.user_id=p_user_id and t.role='actor' and t.kind='answer' and length(trim(t.content))>0))) then raise exception 'invalid_report_evidence'; end if;
  update public.practice_sessions set interview_status=stat,completion_reason=reason,report_evidence_observation_ids=obs,report_evidence_answer_turn_ids=turns,updated_at=now() where id=p_session_id; return jsonb_build_object('status',stat,'completion_reason',reason); end $$;
 create or replace function public.acttub_complete_report_run(p_session_id uuid,p_user_id uuid,p_run_id uuid,p_report jsonb)
-returns jsonb language plpgsql security definer set search_path=public as $$ declare sec jsonb:=p_report->'sections'; begin
+returns jsonb language plpgsql security definer set search_path=public as $$ declare sec jsonb:=p_report->'sections'; existing_run uuid; begin
+ select source_run_id into existing_run from public.ai_reports where session_id=p_session_id and user_id=p_user_id; if found then if existing_run<>p_run_id then raise exception 'report_idempotency_conflict'; end if; return p_report; end if;
  perform 1 from public.ai_runs r join public.practice_sessions s on s.id=r.session_id and s.user_id=r.user_id where r.id=p_run_id and r.session_id=p_session_id and r.user_id=p_user_id and r.stage='report' and r.status='running' and s.interview_status='completed' and s.completion_reason in ('interview_complete_report_ready','manual_stop_report_ready','hard_limit_report_ready') for update; if not found then raise exception 'report_not_ready'; end if;
- if p_report->>'schemaVersion'<>'report.v1' or (select count(*) from jsonb_object_keys(sec))<>6 or exists(select 1 from jsonb_each(sec) e where (e.value->>'status')='confirmed' and (length(trim(e.value->>'content'))=0 or jsonb_array_length(e.value->'observationEvidenceIds')+jsonb_array_length(e.value->'turnEvidenceIds')=0)) or (sec->'oneLineSummary'->>'status')<>'confirmed' or (sec->'primaryReviewPoint'->>'status')<>'confirmed' or (sec->'confirmedEvidence'->>'status')<>'confirmed' then raise exception 'invalid_report'; end if;
+ if p_report->>'schemaVersion'<>'report.v1' or (select count(*) from jsonb_object_keys(sec))<>6 or exists(select 1 from jsonb_each(sec) e where (select array_agg(k order by k) from jsonb_object_keys(e.value) k)<>array['content','observationEvidenceIds','status','timestampRange','turnEvidenceIds'] or e.value->>'status' not in ('confirmed','not_confirmed') or ((e.value->>'status')='confirmed' and (length(trim(e.value->>'content'))=0 or jsonb_array_length(e.value->'observationEvidenceIds')+jsonb_array_length(e.value->'turnEvidenceIds')=0)) or ((e.value->>'status')='not_confirmed' and (e.value->'content'<>'null'::jsonb or jsonb_array_length(e.value->'observationEvidenceIds')<>0 or jsonb_array_length(e.value->'turnEvidenceIds')<>0 or e.value->'timestampRange'<>'null'::jsonb))) or (sec->'oneLineSummary'->>'status')<>'confirmed' or (sec->'primaryReviewPoint'->>'status')<>'confirmed' or (sec->'confirmedEvidence'->>'status')<>'confirmed' then raise exception 'invalid_report'; end if;
+ if exists(select 1 from jsonb_each(sec) e cross join lateral jsonb_array_elements_text(e.value->'observationEvidenceIds') x where not exists(select 1 from public.practice_sessions s join public.observations o on o.session_id=s.id and o.user_id=s.user_id where s.id=p_session_id and o.id=x::uuid and o.confirmation_state='accepted' and not o.blocked_for_questioning and o.id=any(s.report_evidence_observation_ids))) or exists(select 1 from jsonb_each(sec) e cross join lateral jsonb_array_elements_text(e.value->'turnEvidenceIds') x where not exists(select 1 from public.practice_sessions s join public.interview_turns t on t.session_id=s.id and t.user_id=s.user_id where s.id=p_session_id and t.id=x::uuid and (t.id=any(s.report_evidence_answer_turn_ids) or t.kind='actor_correction'))) then raise exception 'invalid_report_evidence'; end if;
  insert into public.ai_reports(session_id,user_id,source_run_id,schema_version,completion_reason,one_line_summary,primary_review_point,confirmed_evidence,actor_discovery,grounded_encouragement,next_practice_step) select p_session_id,p_user_id,p_run_id,'report.v1',completion_reason,sec->'oneLineSummary',sec->'primaryReviewPoint',sec->'confirmedEvidence',sec->'actorDiscovery',sec->'groundedEncouragement',sec->'nextPracticeStep' from public.practice_sessions where id=p_session_id on conflict(session_id) do nothing;
  update public.ai_runs set status='completed',response_schema_version='report.v1',completed_at=now(),updated_at=now() where id=p_run_id; return p_report; end $$;
 
 revoke execute on function public.acttub_finalize_ai_upload(uuid,uuid,integer,text) from public,anon,authenticated; grant execute on function public.acttub_finalize_ai_upload(uuid,uuid,integer,text) to service_role;
 
--- Exact overload-independent privilege boundary for all pipeline functions created by this migration.
-revoke execute on all functions in schema public from anon,authenticated;
-grant execute on function public.acttub_create_pipeline_session(uuid,uuid,uuid,uuid,jsonb), public.acttub_claim_ai_run(uuid,uuid,text,uuid,text,integer), public.acttub_complete_summary_run(uuid,uuid,uuid,jsonb,jsonb), public.acttub_confirm_observation(uuid,uuid,uuid,text,text,uuid,uuid), public.acttub_append_pipeline_turn(uuid,uuid,jsonb), public.acttub_complete_interview(uuid,uuid,jsonb), public.acttub_complete_report_run(uuid,uuid,uuid,jsonb), public.acttub_fail_ai_run(uuid,uuid,uuid,text,boolean), public.acttub_begin_session_delete(uuid,uuid,uuid), public.acttub_record_storage_deleted(uuid,uuid,uuid), public.acttub_complete_session_delete(uuid,uuid,uuid), public.acttub_fail_session_delete(uuid,uuid,uuid,text) to service_role;
+-- Exact signature privilege boundary for every pipeline function.
+revoke execute on function public.acttub_create_pipeline_session(uuid,uuid,uuid,uuid,jsonb), public.acttub_claim_ai_run(uuid,uuid,text,uuid,text,integer,text,text,text), public.acttub_complete_summary_run(uuid,uuid,uuid,jsonb,jsonb), public.acttub_confirm_observation(uuid,uuid,uuid,text,text,uuid,uuid), public.acttub_append_pipeline_turn(uuid,uuid,jsonb), public.acttub_complete_interview(uuid,uuid,jsonb), public.acttub_complete_report_run(uuid,uuid,uuid,jsonb), public.acttub_fail_ai_run(uuid,uuid,uuid,text,boolean), public.acttub_begin_session_delete(uuid,uuid,uuid), public.acttub_record_storage_deleted(uuid,uuid,uuid), public.acttub_complete_session_delete(uuid,uuid,uuid), public.acttub_fail_session_delete(uuid,uuid,uuid,text) from public,anon,authenticated;
+grant execute on function public.acttub_create_pipeline_session(uuid,uuid,uuid,uuid,jsonb), public.acttub_claim_ai_run(uuid,uuid,text,uuid,text,integer,text,text,text), public.acttub_complete_summary_run(uuid,uuid,uuid,jsonb,jsonb), public.acttub_confirm_observation(uuid,uuid,uuid,text,text,uuid,uuid), public.acttub_append_pipeline_turn(uuid,uuid,jsonb), public.acttub_complete_interview(uuid,uuid,jsonb), public.acttub_complete_report_run(uuid,uuid,uuid,jsonb), public.acttub_fail_ai_run(uuid,uuid,uuid,text,boolean), public.acttub_begin_session_delete(uuid,uuid,uuid), public.acttub_record_storage_deleted(uuid,uuid,uuid), public.acttub_complete_session_delete(uuid,uuid,uuid), public.acttub_fail_session_delete(uuid,uuid,uuid,text) to service_role;
