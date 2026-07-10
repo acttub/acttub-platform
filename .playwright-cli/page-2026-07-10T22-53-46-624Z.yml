@@ -1,0 +1,121 @@
+- generic [ref=e4]:
+  - generic [ref=e7]:
+    - generic [ref=e10]:
+      - img "Google" [ref=e12]
+      - generic [ref=e13]: Google 계정으로 로그인
+    - generic [ref=e14]:
+      - generic [ref=e16]:
+        - heading "로그인" [level=1] [ref=e17]
+        - paragraph [ref=e18]:
+          - button "gjuumldkxoymdnombvjq.supabase.co" [ref=e19] [cursor=pointer]
+          - text: (으)로 이동
+      - generic [ref=e22]:
+        - generic [ref=e25]:
+          - generic [ref=e30]:
+            - textbox "이메일 또는 휴대전화" [active] [ref=e31]
+            - generic: 이메일 또는 휴대전화
+          - paragraph [ref=e32]:
+            - link "이메일을 잊으셨나요?" [ref=e33] [cursor=pointer]:
+              - /url: /signin/v2/usernamerecovery?app_domain=https://gjuumldkxoymdnombvjq.supabase.co&client_id=462651930952-625pcnhrjib79r7990fqsdqhsterdij2.apps.googleusercontent.com&continue=https://accounts.google.com/signin/oauth/legacy/consent?authuser%3Dunknown%26part%3DAJi8hANYP1sKSTgCrikBTk3d1s4PT6DsAMwW7q_9gW-MttAvt42JxUHitasPwUOfa3_LFdimbnZt_IC9v22KqTcYtXwMPRHCO1uDSjQstlz3QOnW-OFZ56cBdmmBrg4i1f3nDqwn17dE2f7S0w4NqwPznOEbI85LfvOYOi3ll-Q1Q-Uih3QTWOAxmpjbNzkPOiObecMD1ZmC4X2_RyyNk5Zcl4mSWQL5AdUyY6rv1Is87q9HsFIzIwP6-OBSVoM6t5zjr8A6QeR3COGWfutdvj2JxD4CQsZWQ4PAdr4lPZHilJNlxfV54jvEFGUqXATCnm4OvEcsN-GwMYVnZsEfzW9DSTixFraLtyIVGbM9R5Jpcg8OjO1Y3XaGW7_AgiAN4KxMaTUBrlIloT7XNqV0GNvEhTVvS8I8id848NGJKdEo6eb7Yf1KKnjne8_r43TOMakjf3zSdrAOh7tmUSobwd_qqaODsHXtNVGeyNnnBiYTlu_whRmFKnc%26flowName%3DGeneralOAuthFlow%26as%3DS555896962%253A1783724026210345%26client_id%3D462651930952-625pcnhrjib79r7990fqsdqhsterdij2.apps.googleusercontent.com%23&dsh=S555896962:1783724026210345&flowName=GeneralOAuthLite&o2v=2&opparams=%253Fredirect_to%253Dhttp%25253A%25252F%25252Flocalhost%25253A3000%25252Fauth%25252Fcallback%25253Fnext%25253D%2525252Fpractice%2525252Fnew&rart=ANgoxcdKxmvXy0ocRrZM_r6nLaqTJsEQuxjOUV-xE3wFnRBXysHQH8VmJ-ltxzESsFVHoCBcrgbHhz5nXnxL7C6GyJ0aHJgyOk0dlfddmKmLl78n-lITQNg&redirect_uri=https://gjuumldkxoymdnombvjq.supabase.co/auth/v1/callback&response_type=code&scope=email+profile&service=lso&state=e2205cf0-fe34-4f27-b719-a92ff193a36c
+        - generic [ref=e35]:
+          - button "다음" [ref=e37]
+          - link "계정 만들기" [ref=e39] [cursor=pointer]:
+            - /url: /lifecycle/flows/signup?app_domain=https://gjuumldkxoymdnombvjq.supabase.co&client_id=462651930952-625pcnhrjib79r7990fqsdqhsterdij2.apps.googleusercontent.com&continue=https://accounts.google.com/signin/oauth/legacy/consent?authuser%3Dunknown%26part%3DAJi8hANYP1sKSTgCrikBTk3d1s4PT6DsAMwW7q_9gW-MttAvt42JxUHitasPwUOfa3_LFdimbnZt_IC9v22KqTcYtXwMPRHCO1uDSjQstlz3QOnW-OFZ56cBdmmBrg4i1f3nDqwn17dE2f7S0w4NqwPznOEbI85LfvOYOi3ll-Q1Q-Uih3QTWOAxmpjbNzkPOiObecMD1ZmC4X2_RyyNk5Zcl4mSWQL5AdUyY6rv1Is87q9HsFIzIwP6-OBSVoM6t5zjr8A6QeR3COGWfutdvj2JxD4CQsZWQ4PAdr4lPZHilJNlxfV54jvEFGUqXATCnm4OvEcsN-GwMYVnZsEfzW9DSTixFraLtyIVGbM9R5Jpcg8OjO1Y3XaGW7_AgiAN4KxMaTUBrlIloT7XNqV0GNvEhTVvS8I8id848NGJKdEo6eb7Yf1KKnjne8_r43TOMakjf3zSdrAOh7tmUSobwd_qqaODsHXtNVGeyNnnBiYTlu_whRmFKnc%26flowName%3DGeneralOAuthFlow%26as%3DS555896962%253A1783724026210345%26client_id%3D462651930952-625pcnhrjib79r7990fqsdqhsterdij2.apps.googleusercontent.com%23&dsh=S555896962:1783724026210345&flowEntry=SignUp&flowName=GlifWebSignIn&o2v=2&opparams=%253Fredirect_to%253Dhttp%25253A%25252F%25252Flocalhost%25253A3000%25252Fauth%25252Fcallback%25253Fnext%25253D%2525252Fpractice%2525252Fnew&rart=ANgoxcdKxmvXy0ocRrZM_r6nLaqTJsEQuxjOUV-xE3wFnRBXysHQH8VmJ-ltxzESsFVHoCBcrgbHhz5nXnxL7C6GyJ0aHJgyOk0dlfddmKmLl78n-lITQNg&redirect_uri=https://gjuumldkxoymdnombvjq.supabase.co/auth/v1/callback&response_type=code&scope=email+profile&service=lso&signInUrl=https://accounts.google.com/signin/oauth?app_domain%3Dhttps://gjuumldkxoymdnombvjq.supabase.co%26client_id%3D462651930952-625pcnhrjib79r7990fqsdqhsterdij2.apps.googleusercontent.com%26continue%3Dhttps://accounts.google.com/signin/oauth/legacy/consent?authuser%253Dunknown%2526part%253DAJi8hANYP1sKSTgCrikBTk3d1s4PT6DsAMwW7q_9gW-MttAvt42JxUHitasPwUOfa3_LFdimbnZt_IC9v22KqTcYtXwMPRHCO1uDSjQstlz3QOnW-OFZ56cBdmmBrg4i1f3nDqwn17dE2f7S0w4NqwPznOEbI85LfvOYOi3ll-Q1Q-Uih3QTWOAxmpjbNzkPOiObecMD1ZmC4X2_RyyNk5Zcl4mSWQL5AdUyY6rv1Is87q9HsFIzIwP6-OBSVoM6t5zjr8A6QeR3COGWfutdvj2JxD4CQsZWQ4PAdr4lPZHilJNlxfV54jvEFGUqXATCnm4OvEcsN-GwMYVnZsEfzW9DSTixFraLtyIVGbM9R5Jpcg8OjO1Y3XaGW7_AgiAN4KxMaTUBrlIloT7XNqV0GNvEhTVvS8I8id848NGJKdEo6eb7Yf1KKnjne8_r43TOMakjf3zSdrAOh7tmUSobwd_qqaODsHXtNVGeyNnnBiYTlu_whRmFKnc%2526flowName%253DGeneralOAuthFlow%2526as%253DS555896962%25253A1783724026210345%2526client_id%253D462651930952-625pcnhrjib79r7990fqsdqhsterdij2.apps.googleusercontent.com%2523%26dsh%3DS555896962:1783724026210345%26flowName%3DGeneralOAuthLite%26o2v%3D2%26opparams%3D%25253Fredirect_to%25253Dhttp%2525253A%2525252F%2525252Flocalhost%2525253A3000%2525252Fauth%2525252Fcallback%2525253Fnext%2525253D%252525252Fpractice%252525252Fnew%26rart%3DANgoxcdKxmvXy0ocRrZM_r6nLaqTJsEQuxjOUV-xE3wFnRBXysHQH8VmJ-ltxzESsFVHoCBcrgbHhz5nXnxL7C6GyJ0aHJgyOk0dlfddmKmLl78n-lITQNg%26redirect_uri%3Dhttps://gjuumldkxoymdnombvjq.supabase.co/auth/v1/callback%26response_type%3Dcode%26scope%3Demail%2Bprofile%26service%3Dlso%26state%3De2205cf0-fe34-4f27-b719-a92ff193a36c&state=e2205cf0-fe34-4f27-b719-a92ff193a36c
+  - contentinfo [ref=e40]:
+    - combobox [ref=e43] [cursor=pointer]:
+      - option "繁體中文"
+      - option "日本語"
+      - option "中文（香港）"
+      - option "한국어" [selected]
+      - option "简体中文"
+      - option "Afrikaans"
+      - option "azərbaycan"
+      - option "bosanski"
+      - option "català"
+      - option "Čeština"
+      - option "Cymraeg"
+      - option "Dansk"
+      - option "Deutsch"
+      - option "eesti"
+      - option "English (United Kingdom)"
+      - option "English (United States)"
+      - option "Español (España)"
+      - option "Español (Latinoamérica)"
+      - option "euskara"
+      - option "Filipino"
+      - option "Français (Canada)"
+      - option "Français (France)"
+      - option "Gaeilge"
+      - option "galego"
+      - option "Hrvatski"
+      - option "Indonesia"
+      - option "isiZulu"
+      - option "íslenska"
+      - option "Italiano"
+      - option "Kiswahili"
+      - option "latviešu"
+      - option "lietuvių"
+      - option "magyar"
+      - option "Melayu"
+      - option "Nederlands"
+      - option "norsk"
+      - option "o‘zbek"
+      - option "polski"
+      - option "Português (Brasil)"
+      - option "Português (Portugal)"
+      - option "română"
+      - option "shqip"
+      - option "Slovenčina"
+      - option "slovenščina"
+      - option "srpski (latinica)"
+      - option "Suomi"
+      - option "Svenska"
+      - option "Tiếng Việt"
+      - option "Türkçe"
+      - option "Ελληνικά"
+      - option "беларуская"
+      - option "български"
+      - option "кыргызча"
+      - option "қазақ тілі"
+      - option "македонски"
+      - option "монгол"
+      - option "Русский"
+      - option "српски (ћирилица)"
+      - option "Українська"
+      - option "ქართული"
+      - option "հայերեն"
+      - option "‫עברית‬‎"
+      - option "‫اردو‬‎"
+      - option "‫العربية‬‎"
+      - option "‫فارسی‬‎"
+      - option "አማርኛ"
+      - option "नेपाली"
+      - option "मराठी"
+      - option "हिन्दी"
+      - option "অসমীয়া"
+      - option "বাংলা"
+      - option "ਪੰਜਾਬੀ"
+      - option "ગુજરાતી"
+      - option "ଓଡ଼ିଆ"
+      - option "தமிழ்"
+      - option "తెలుగు"
+      - option "ಕನ್ನಡ"
+      - option "മലയാളം"
+      - option "සිංහල"
+      - option "ไทย"
+      - option "ລາວ"
+      - option "မြန်မာ"
+      - option "ខ្មែរ"
+    - list [ref=e44]:
+      - listitem [ref=e45]:
+        - link "Google 계정 고객센터 열기(외부, 새 창에서 열림)" [ref=e46] [cursor=pointer]:
+          - /url: https://support.google.com/accounts?hl=ko&p=account_iph
+          - text: 도움말
+      - listitem [ref=e47]:
+        - link "개인정보처리방침(외부, 새 창에서 열림)" [ref=e48] [cursor=pointer]:
+          - /url: https://accounts.google.com/TOS?loc=KR&hl=ko&privacy=true
+          - text: 개인정보처리방침
+      - listitem [ref=e49]:
+        - link "Google 서비스 약관(외부, 새 창에서 열림)" [ref=e50] [cursor=pointer]:
+          - /url: https://accounts.google.com/TOS?loc=KR&hl=ko
+          - text: 약관
