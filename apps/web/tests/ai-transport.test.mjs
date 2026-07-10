@@ -40,10 +40,32 @@ test("rejects deeply malformed Summary, Agent, and Report success bodies", async
 });
 
 test("accepts all ordered Summary candidates and enforces Report evidence semantics", async () => {
+  const anomalies=Array.from({length:4},()=>({start:"00:00",end:"00:01",dimension:"tempo",what:"x",whyOdd:null,likelyCause:null,impactOnIntent:null,overlapsKeyMoment:null,onKeyDimension:null,intentImpact:null,severity:null,severityReason:null}));
   const candidates=Array.from({length:4},(_,index)=>({candidateId:`00000000-0000-4000-8000-00000000000${index}`,timestampStartMs:0,timestampEndMs:1,observationText:"x",confidence:null,priority:index+1,dimension:"tempo",severity:null}));
-  await createAiTransport(config,async()=>response({...summaryResponse,observationCandidates:candidates})).summary(summaryRequest);
+  await createAiTransport(config,async()=>response({...summaryResponse,normalizedSummary:{...normalizedSummary,anomalies},observationCandidates:candidates})).summary(summaryRequest);
   const bad={...reportResponse,sections:{...reportResponse.sections,primaryReviewPoint:{...review,timestampRange:{startMs:0,endMs:2}}}};
   await assert.rejects(createAiTransport(config,async()=>response(bad)).report(reportRequest),error=>error instanceof AiServiceError&&error.code==="INVALID_RESPONSE");
+});
+
+test("binds Summary candidates and subtext branch exactly to request and anomalies", async () => {
+  const anomaly={start:"00:00",end:"00:01",dimension:"tempo",what:"fact",whyOdd:null,likelyCause:null,impactOnIntent:null,overlapsKeyMoment:null,onKeyDimension:null,intentImpact:null,severity:null,severityReason:null};
+  const candidate={candidateId:observationId,timestampStartMs:0,timestampEndMs:1,observationText:"fact",confidence:null,priority:1,dimension:"tempo",severity:null};
+  const valid={...summaryResponse,normalizedSummary:{...normalizedSummary,anomalies:[anomaly]},observationCandidates:[candidate]};
+  for(const body of [{...valid,normalizedSummary:{...valid.normalizedSummary,subtextStatus:"provided"}},{...valid,observationCandidates:[]},{...valid,observationCandidates:[{...candidate,observationText:"invented"}]},{...valid,observationCandidates:[{...candidate,timestampEndMs:2}]}]){
+    await assert.rejects(createAiTransport(config,async()=>response(body)).summary(summaryRequest),error=>error instanceof AiServiceError&&error.code==="INVALID_RESPONSE");
+  }
+});
+
+test("enforces Agent action reasons, unique readiness core, and referenced evidence segments", async () => {
+  const request={...agentRequest,observations:[{observationId,segment:{startMs:0,endMs:1},text:"x",confirmationState:"accepted",blocked:false,confidence:null,priority:1,dimension:"tempo",severity:null}]};
+  const active={...agentResponse,action:"ask_question",done:false,completionReason:null,evidence:{...agentResponse.evidence,observationIds:[observationId],segment:{startMs:0,endMs:1}}};
+  await createAiTransport(config,async()=>response(active)).agent(request);
+  for(const body of [{...active,evidence:{...active.evidence,segment:{startMs:0,endMs:2}}},{...active,evidence:{...active.evidence,observationIds:[],segment:{startMs:0,endMs:1}}},{...agentResponse,completionReason:null},{...active,completionReason:"manual_stop_paused"}]){
+    await assert.rejects(createAiTransport(config,async()=>response(body)).agent(request),error=>error instanceof AiServiceError&&error.code==="INVALID_RESPONSE");
+  }
+  const ready={...agentResponse,completionReason:"manual_stop_report_ready",reportReady:true,reportEvidence:{observationIds:[observationId],answerTurnIds:[turnId],coreItems:["one_line_summary","review_point","evidence","evidence"]}};
+  const readyRequest={...request,transcript:[{turnId,speaker:"actor",content:"a",kind:"answer"}]};
+  await assert.rejects(createAiTransport(config,async()=>response(ready)).agent(readyRequest),error=>error instanceof AiServiceError&&error.code==="INVALID_RESPONSE");
 });
 
 test("rejects every Report section-specific evidence invariant violation", async () => {
@@ -64,6 +86,10 @@ test("rejects every Report section-specific evidence invariant violation", async
     const body={...reportResponse,sections:{...reportResponse.sections,...changed}};
     await assert.rejects(createAiTransport(config,async()=>response(body)).report(reportRequest),error=>error instanceof AiServiceError&&error.code==="INVALID_RESPONSE");
   }
+  const correctionId="77777777-7777-4777-8777-777777777777",correctionTurnId="88888888-8888-4888-8888-888888888888";
+  const correctionRequest={...reportRequest,actorCorrections:[{correctionId,correctsObservationId:observationId,segment:{startMs:2,endMs:3},text:"c",actorTurnId:correctionTurnId}],transcript:[...reportRequest.transcript,{turnId:correctionTurnId,speaker:"actor",content:"c",kind:"actor_correction"}]};
+  const correctionOnlyTimestamp={...reportResponse,sections:{...reportResponse.sections,primaryReviewPoint:{...review,turnEvidenceIds:[correctionTurnId],timestampRange:{startMs:2,endMs:3}}}};
+  await assert.rejects(createAiTransport(config,async()=>response(correctionOnlyTimestamp)).report(correctionRequest),error=>error instanceof AiServiceError&&error.code==="INVALID_RESPONSE");
 });
 
 test("calls each exact endpoint once and validates versions and correlation", async () => {
