@@ -2735,6 +2735,16 @@
             }
           }
         }
+      },
+      "Conflict": {
+        "description": "현재 동의 또는 업로드 적격 상태가 변경되어 요청을 계속할 수 없습니다.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ApiError"
+            }
+          }
+        }
       }
     }
   },
