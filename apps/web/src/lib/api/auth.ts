@@ -1,3 +1,5 @@
+import { jsonHeaders, parseApiResponse } from "./practice";
+
 export type AuthSessionResponse = {
   authenticated: boolean;
   mode: "supabase";
@@ -28,40 +30,12 @@ export type AcceptTermsResponse = {
   nextPath: string;
 };
 
-async function parseJsonResponse<T>(response: Response): Promise<T> {
-  const payload = (await response.json()) as unknown;
-
-  if (!response.ok) {
-    const apiError =
-      typeof payload === "object" &&
-      payload !== null &&
-      "error" in payload &&
-      typeof payload.error === "object" &&
-      payload.error !== null &&
-      "message" in payload.error &&
-      typeof payload.error.message === "string"
-        ? payload.error.message
-        : null;
-    const message =
-      apiError ??
-      (typeof payload === "object" &&
-      payload !== null &&
-      "error" in payload &&
-      typeof payload.error === "string"
-        ? payload.error
-        : "요청을 처리하지 못했어요.");
-    throw new Error(message);
-  }
-
-  return payload as T;
-}
-
 export async function getAuthSession(): Promise<AuthSessionResponse> {
   const response = await fetch("/api/v1/auth/session", {
     headers: { Accept: "application/json" },
   });
 
-  return parseJsonResponse<AuthSessionResponse>(response);
+  return parseApiResponse<AuthSessionResponse>(response);
 }
 
 export async function acceptTerms(
@@ -70,10 +44,7 @@ export async function acceptTerms(
   void body;
   const response = await fetch("/api/v1/terms/acceptances", {
     method: "POST",
-    headers: {
-      Accept: "application/json",
-      "Content-Type": "application/json",
-    },
+    headers: jsonHeaders,
     body: JSON.stringify({
       requiredConsentAccepted: true,
       aiProcessingConsentAccepted: true,
@@ -81,5 +52,5 @@ export async function acceptTerms(
     }),
   });
 
-  return parseJsonResponse<AcceptTermsResponse>(response);
+  return parseApiResponse<AcceptTermsResponse>(response);
 }
