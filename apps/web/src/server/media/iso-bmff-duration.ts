@@ -90,8 +90,9 @@ const durationFromMovieHeader = (bytes: Uint8Array, box: Box): number => {
 
   if (timescale === 0) invalid("Media timescale must be positive.");
   const scale = BigInt(timescale);
+  const durationInMilliseconds = duration * BigInt(1000);
   const milliseconds =
-    (duration * BigInt(1000) + scale / BigInt(2)) / scale;
+    (durationInMilliseconds + scale - BigInt(1)) / scale;
   if (milliseconds > BigInt(Number.MAX_SAFE_INTEGER)) invalid();
   return Number(milliseconds);
 };
@@ -100,14 +101,22 @@ export const parseIsoBmffDurationMs = (input: Uint8Array | ArrayBuffer): number 
   const bytes = input instanceof Uint8Array ? input : new Uint8Array(input);
   if (bytes.byteLength < 8) invalid();
 
+  let movieBox: Box | undefined;
   for (const box of readBoxes(bytes, 0, bytes.byteLength)) {
     if (box.type !== "moov") continue;
-    for (const child of readBoxes(bytes, box.payloadStart, box.end)) {
-      if (child.type === "mvhd") return durationFromMovieHeader(bytes, child);
-    }
-    invalid("Movie header metadata is missing.");
+    if (movieBox) invalid("Movie metadata is ambiguous.");
+    movieBox = box;
   }
-  return invalid("Movie metadata is missing.");
+  if (!movieBox) return invalid("Movie metadata is missing.");
+
+  let movieHeader: Box | undefined;
+  for (const child of readBoxes(bytes, movieBox.payloadStart, movieBox.end)) {
+    if (child.type !== "mvhd") continue;
+    if (movieHeader) invalid("Movie header metadata is ambiguous.");
+    movieHeader = child;
+  }
+  if (!movieHeader) return invalid("Movie header metadata is missing.");
+  return durationFromMovieHeader(bytes, movieHeader);
 };
 
 export const validateVideoDurationMs = (

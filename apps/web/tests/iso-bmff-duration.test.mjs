@@ -16,6 +16,7 @@ const box = (name, payload, extended = false) => new Uint8Array(
     ? [...u32(1), ...type(name), ...u64(payload.length + 16), ...payload]
     : [...u32(payload.length + 8), ...type(name), ...payload],
 );
+const sizeZeroBox = (name, payload) => new Uint8Array([...u32(0), ...type(name), ...payload]);
 const concat = (...parts) => {
   const output = new Uint8Array(parts.reduce((sum, part) => sum + part.length, 0));
   let offset = 0;
@@ -45,9 +46,39 @@ test("parses mvhd version one and extended-size containers safely", () => {
   assert.equal(parseIsoBmffDurationMs(bytes), 1500);
 });
 
-test("rounds canonical milliseconds and rejects durations over the limit", () => {
-  assert.equal(parseIsoBmffDurationMs(movie(mvhd({ timescale: 3, duration: 1n }))), 333);
+test("rounds canonical milliseconds upward and rejects durations over the limit", () => {
+  assert.equal(parseIsoBmffDurationMs(movie(mvhd({ timescale: 3, duration: 1n }))), 334);
   assert.throws(() => validateVideoDurationMs(300001), (error) => error.code === "VIDEO_DURATION_EXCEEDED");
+});
+
+test("ceil conversion rejects any fractional duration above five minutes", () => {
+  const exact = parseIsoBmffDurationMs(movie(mvhd({ timescale: 10000, duration: 3000000n })));
+  const fractionalOver = parseIsoBmffDurationMs(movie(mvhd({ timescale: 10000, duration: 3000004n })));
+  assert.equal(exact, 300000);
+  assert.equal(validateVideoDurationMs(exact), MAX_VIDEO_DURATION_MS);
+  assert.equal(fractionalOver, 300001);
+  assert.throws(() => validateVideoDurationMs(fractionalOver), (error) => error.code === "VIDEO_DURATION_EXCEEDED");
+});
+
+test("rejects duplicate movie and movie-header metadata", () => {
+  rejectsWith(movie(concat(mvhd({ duration: 1000n }), mvhd({ duration: 600000n }))), "INVALID_MEDIA_METADATA");
+  rejectsWith(concat(movie(mvhd({ duration: 1000n })), movie(mvhd({ duration: 600000n }))), "INVALID_MEDIA_METADATA");
+});
+
+test("supports a size-zero movie box through the end of the file", () => {
+  const bytes = concat(box("ftyp", [0, 0, 0, 0]), sizeZeroBox("moov", mvhd({ duration: 1500n })));
+  assert.equal(parseIsoBmffDurationMs(bytes), 1500);
+});
+
+test("rejects malformed extended headers and truncated extended payloads", () => {
+  rejectsWith(new Uint8Array([...u32(1), ...type("moov"), 0, 0, 0]), "INVALID_MEDIA_METADATA");
+  const declaredLarge = new Uint8Array([...u32(1), ...type("moov"), ...u64(64), ...mvhd()]);
+  rejectsWith(declaredLarge, "INVALID_MEDIA_METADATA");
+});
+
+test("rejects unsafe large unsigned durations without numeric overflow", () => {
+  const unsafeDuration = (BigInt(Number.MAX_SAFE_INTEGER) + 1n) * 1000n;
+  rejectsWith(movie(mvhd({ version: 1, timescale: 1000, duration: unsafeDuration })), "INVALID_MEDIA_METADATA");
 });
 
 test("rejects truncated, missing, invalid, unsupported, and zero-timescale metadata", () => {
