@@ -151,7 +151,8 @@ test("terms acceptance rejects invalid JSON but preserves form and empty body pa
   assert.match(route, /contentType\.includes\("application\/json"\)[\s\S]*return \(await request\.json\(\)\) as AcceptTermsBody/);
   assert.doesNotMatch(route, /request\.json\(\)\.catch/);
   assert.match(route, /contentType\.includes\("application\/x-www-form-urlencoded"\)[\s\S]*await request\.formData\(\)/);
-  assert.match(route, /return \{ termsVersion: formData\.get\("termsVersion"\) \}/);
+  assert.match(route, /requiredConsentAccepted: formData\.get\("requiredConsentAccepted"\) === "true"/);
+  assert.match(route, /aiProcessingConsentAccepted: formData\.get\("aiProcessingConsentAccepted"\) === "true"/);
   assert.match(route, /return \{\};/);
   assert.match(route, /handleApiError\(error\)/);
 });

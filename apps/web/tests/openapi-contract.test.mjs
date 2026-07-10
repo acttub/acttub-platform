@@ -175,7 +175,7 @@ test("documented runtime edge cases match the current services", () => {
     openApiDocument.paths["/api/v1/practice-sessions"].post;
   assert.match(
     createSession.description,
-    /저장 상태가 `created`인 검증된 업로드 인텐트/,
+    /finalized 업로드만 허용/,
   );
 
   const signedVideoOperations = [

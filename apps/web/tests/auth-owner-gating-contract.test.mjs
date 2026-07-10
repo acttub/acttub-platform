@@ -52,11 +52,14 @@ test("auth session response is private and varies on credentials", () => {
 test("terms acceptance persists Supabase profile consent when admin client exists", () => {
   const route = read("src/app/api/v1/terms/acceptances/route.ts");
   const authContext = read("src/server/services/auth-context.ts");
-  assert.match(route, /recordTermsAcceptance\(auth\)/);
+  assert.match(route, /recordTermsAcceptance\(auth, body\.internalReviewConsent === true\)/);
   assert.match(authContext, /createSupabaseAdminClient/);
   assert.match(authContext, /terms_accepted_at/);
   assert.match(authContext, /privacy_accepted_at/);
   assert.match(authContext, /internal_review_consent_at/);
+  assert.match(authContext, /required_consent_version/);
+  assert.match(authContext, /ai_processing_consent_version/);
+  assert.doesNotMatch(authContext, /Boolean\(data\.internal_review_consent_at\)/);
   assert.match(authContext, /status: "active"/);
 });
 
