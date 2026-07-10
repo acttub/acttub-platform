@@ -30,3 +30,32 @@ test("repository exposes exact typed transitions and fail-closed row readers",()
   assert.match(types,/NormalizedSummary/);
   assert.match(types,/correctsObservationId: string; segment: Segment; text: string; correctionByTurnId/);
 });
+
+test("final audit defects are guarded fail closed", () => {
+  assert.match(migration, /required_consent_version_snapshot=public\.current_acttub_terms_version\(\)/);
+  assert.match(migration, /ai_processing_consent_version_snapshot=public\.current_acttub_ai_processing_consent_version\(\)/);
+  assert.match(migration, /summary_idempotency_conflict/);
+  assert.match(migration, /jsonb_array_length\(p_candidates\)<>jsonb_array_length\(p_summary->'anomalies'\)/);
+  assert.match(migration, /summary_subtext_mismatch/);
+  assert.match(migration, /expected_start:=least/);
+  assert.match(migration, /invalid_current_input/);
+  assert.match(migration, /duplicate_report_evidence/);
+  assert.match(migration, /invalid_completion_count/);
+  assert.match(migration, /evidence_not_allowed/);
+  assert.match(migration, /report_idempotency_conflict/);
+  assert.match(migration, /return jsonb_build_object\('schemaVersion',existing\.schema_version/);
+  assert.match(migration, /invalid_unconfirmed_section/);
+  assert.match(migration, /invalid_report_timestamp/);
+  assert.match(migration, /DELETE_VERIFICATION_FAILED/);
+  assert.match(migration, /delete_orphan_detected/);
+  assert.match(migration, /where session_deletion_attempts\.session_id=p_session_id/);
+});
+
+test("repository deeply checks summary report and run invariants", () => {
+  assert.match(repository, /normalizedSummary\.observation\.extra/);
+  assert.match(repository, /normalizedSummary\.noSubtext/);
+  assert.match(repository, /timestampOrder/);
+  assert.match(repository, /notConfirmed/);
+  assert.match(repository, /run\.invariants/);
+  assert.match(repository, /report\.invariants/);
+});
