@@ -154,7 +154,9 @@ export const aiPipelineService = {
     const session=await coachSessionService.getSession(sessionId,userId); if(!session)throw new AiPipelineError(404,"SESSION_NOT_FOUND");
     const prefix=`supabase://${getAppConfig().video.bucket}/`; const path=session.take.videoUrl?.startsWith(prefix)?session.take.videoUrl.slice(prefix.length):null;
     await repository.beginDelete({sessionId,userId,requestId});
-    let storageDeleted=false;
+    const existingAttempt=await repository.findDeletionAttempt(sessionId,userId,requestId);
+    let storageDeleted=existingAttempt?.storageDeleted===true;
+    if(storageDeleted){try{await repository.completeDelete({sessionId,userId,requestId});return{requestId,status:"completed" as const}}catch{await repository.failDelete({sessionId,userId,requestId,safeErrorCode:"DELETE_ROWS_FAILED"});throw new AiPipelineError(503,"DELETE_ROWS_FAILED")}}
     try{const admin=createSupabaseAdminClient();if(!admin||!path)throw new Error("storage");const bucket=admin.storage.from(getAppConfig().video.bucket);const removed=await bucket.remove([path]);if(removed.error)throw new Error("storage");const parts=path.split("/"),name=parts.pop(),directory=parts.join("/");const verification=await bucket.list(directory,{limit:100,search:name});if(verification.error||verification.data?.some((item)=>item.name===name)){await repository.failDelete({sessionId,userId,requestId,safeErrorCode:"DELETE_VERIFICATION_FAILED"});throw new AiPipelineError(503,"DELETE_VERIFICATION_FAILED")}await repository.recordStorageDeleted({sessionId,userId,requestId});storageDeleted=true;await repository.completeDelete({sessionId,userId,requestId});return{requestId,status:"completed" as const};}
     catch(error){if(error instanceof AiPipelineError)throw error;const code=storageDeleted?"DELETE_ROWS_FAILED":"DELETE_STORAGE_FAILED";await repository.failDelete({sessionId,userId,requestId,safeErrorCode:code});throw new AiPipelineError(503,code)}
   },
