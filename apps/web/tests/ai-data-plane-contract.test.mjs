@@ -68,11 +68,11 @@ test("late audit gates current consent and immutable successful retries",()=>{
   assert.doesNotMatch(migration,/existing\.source_run_id<>p_run_id then raise exception 'report_idempotency_conflict'/);
 });
 
-test("late audit rejects malformed deep summary values and unknown answer commands",()=>{
+test("late audit rejects malformed deep summary values and accepts typed answer or unknown turns",()=>{
   assert.match(migration,/invalid_summary_nullable/);
   assert.match(migration,/jsonb_typeof\(a->'overlapsKeyMoment'\) not in \('null','boolean'\)/);
   assert.match(migration,/invalid_summary_anomaly_range/);
-  assert.match(migration,/actor->>'kind'<>'answer'/);
+  assert.match(migration,/actor->>'kind' not in \('answer','unknown'\)/);
   assert.match(repository,/anomaly\[\$\{i\}\]\.range/);
   assert.match(repository,/anomaly\.boolean/);
   assert.match(repository,/anomaly\.intentImpact/);
