@@ -46,6 +46,26 @@ test("accepts all ordered Summary candidates and enforces Report evidence semant
   await assert.rejects(createAiTransport(config,async()=>response(bad)).report(reportRequest),error=>error instanceof AiServiceError&&error.code==="INVALID_RESPONSE");
 });
 
+test("rejects every Report section-specific evidence invariant violation", async () => {
+  const unknownId="66666666-6666-4666-8666-666666666666";
+  const confirmedNoEvidence={status:"confirmed",content:"x",observationEvidenceIds:[],turnEvidenceIds:[],timestampRange:null};
+  const cases=[
+    {oneLineSummary:confirmedNoEvidence},
+    {oneLineSummary:empty},
+    {oneLineSummary:{...confirmed,turnEvidenceIds:[]}},
+    {primaryReviewPoint:{...review,timestampRange:null}},
+    {confirmedEvidence:{...confirmed,turnEvidenceIds:[]}},
+    {actorDiscovery:{...confirmed,turnEvidenceIds:[]}},
+    {groundedEncouragement:{...confirmed,observationEvidenceIds:[],turnEvidenceIds:[turnId]}},
+    {nextPracticeStep:{...confirmed,observationEvidenceIds:[unknownId]}},
+    {nextPracticeStep:{...confirmed,timestampRange:{startMs:0,endMs:2}}},
+  ];
+  for (const changed of cases) {
+    const body={...reportResponse,sections:{...reportResponse.sections,...changed}};
+    await assert.rejects(createAiTransport(config,async()=>response(body)).report(reportRequest),error=>error instanceof AiServiceError&&error.code==="INVALID_RESPONSE");
+  }
+});
+
 test("calls each exact endpoint once and validates versions and correlation", async () => {
   const calls=[]; const bodies=[summaryResponse,agentResponse,reportResponse];
   const fetcher=async (url, init) => { calls.push({url,init}); return response(bodies.shift()); };
