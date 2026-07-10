@@ -1,6 +1,7 @@
 import { coachSessionService } from "@/server/services/coach-session-service";
 import { requireApiTermsAccepted } from "@/server/services/auth-context";
 import { handleApiError, jsonResponse } from "../http";
+import { aiPipelineService } from "@/server/services/ai-pipeline-service";
 
 export async function GET() {
   try {
@@ -15,7 +16,7 @@ export async function POST(request: Request) {
   try {
     const auth = await requireApiTermsAccepted();
     const payload = await request.json();
-    const result = await coachSessionService.createSession(payload, auth.userId);
+    const result = await aiPipelineService.createSession(payload, auth.userId);
     return jsonResponse(result, { status: 201 });
   } catch (error) {
     return handleApiError(error);

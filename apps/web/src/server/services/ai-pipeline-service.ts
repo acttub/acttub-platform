@@ -1,7 +1,7 @@
 import "server-only";
 
 import { loadAiServiceConfig } from "@/server/ai/config";
-import type { AgentRequest, CurrentInput, ReportRequest } from "@/server/ai/contracts";
+import type { AgentRequest, CurrentInput, ReportRequest, SummaryRequest } from "@/server/ai/contracts";
 import { createAiTransport, AiServiceError } from "@/server/ai/transport";
 import type { InterviewTurn, PipelineSessionAggregate } from "@/server/repositories/ai-pipeline-types";
 import { supabaseAiPipelineRepository as repository } from "@/server/repositories/supabase-ai-pipeline-repository";
@@ -116,6 +116,19 @@ const callAgent = async (session: PipelineSessionAggregate, userId: string, inpu
 };
 
 export const aiPipelineService = {
+  async createSession(body:unknown,userId:string){
+    const input=body as Record<string,unknown>;const required=(key:string)=>{const value=input[key];if(typeof value!=="string"||!value.trim())throw new AiPipelineError(400,"INVALID_PIPELINE_SESSION");return value.trim()};
+    const sessionId=required("sessionId"),uploadIntentId=required("uploadIntentId"),storagePath=required("storagePath"),genre=required("genre"),situation=required("situation"),characterContext=required("characterContext"),subtext=typeof input.subtext==="string"&&input.subtext.trim()?input.subtext.trim():null;
+    await requireCurrentAiProcessingConsent(userId);const upload=await repository.findEligibleUpload(uploadIntentId,userId);if(!upload||upload.sessionId!==sessionId||upload.storagePath!==storagePath)throw new AiPipelineError(409,"UPLOAD_NOT_AI_ELIGIBLE");
+    const takeId=crypto.randomUUID();await repository.createPipelineSession({uploadIntentId,userId,sessionId,takeId,payload:{medium:"upload_url",genre,situation,characterContext,subtext}});
+    const proposedRunId=crypto.randomUUID(),claimed=await repository.claimRun({sessionId,userId,stage:"summary",runId:proposedRunId,idempotencyKey:`summary:${uploadIntentId}`,maxAttempts:1,requestSchemaVersion:"summary-request.v1",model:"summary",promptVersion:"acting-summary.prompt.v2"});
+    if(claimed.status==="completed")return{session:publicAggregate(await aggregate(sessionId,userId)),summaryRun:claimed};if(claimed.id!==proposedRunId||claimed.status!=="running")throw new AiPipelineError(409,"AI_RUN_ALREADY_CLAIMED");
+    const admin=createSupabaseAdminClient();if(!admin)throw new AiPipelineError(503,"SIGNED_VIDEO_UNAVAILABLE");const signed=await admin.storage.from(upload.storageBucket).createSignedUrl(upload.storagePath,getAppConfig().video.signedUrlExpiresInSeconds);if(signed.error||!signed.data?.signedUrl)return failRun(sessionId,userId,claimed.id,new AiServiceError("summary","NETWORK_ERROR",null,true));
+    const request:SummaryRequest={schemaVersion:"summary-request.v1",sessionId,runId:claimed.id,signedVideoUrl:signed.data.signedUrl,storageBucket:upload.storageBucket,storagePath:upload.storagePath,durationMs:upload.durationMs,sceneContext:{genre,situation,characterContext,subtext}};
+    let response:Record<string,unknown>;try{response=await createAiTransport(loadAiServiceConfig()).summary(request)}catch(error){return failRun(sessionId,userId,claimed.id,error)}
+    const candidates=(response.observationCandidates as Array<Record<string,unknown>>).map((item)=>({id:String(item.candidateId),startMs:Number(item.timestampStartMs),endMs:Number(item.timestampEndMs),text:String(item.observationText),priority:Number(item.priority),dimension:String(item.dimension),severity:item.severity as "high"|"mid"|"low"|null}));
+    await repository.completeSummaryRun({sessionId,userId,runId:claimed.id,normalizedSummary:response.normalizedSummary as never,candidates});return{session:publicAggregate(await aggregate(sessionId,userId)),summaryRun:{...claimed,status:"completed" as const}};
+  },
   async getSession(sessionId: string, userId: string) { return publicAggregate(await aggregate(sessionId, userId)); },
   async confirmObservation(sessionId: string, observationId: string, userId: string, body: unknown) {
     const session = await aggregate(sessionId, userId);
