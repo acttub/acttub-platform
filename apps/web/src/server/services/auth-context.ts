@@ -66,6 +66,45 @@ async function hasPersistedTermsAcceptance(userId: string): Promise<boolean> {
   );
 }
 
+export async function requireCurrentAiProcessingConsent(
+  userId: string,
+): Promise<void> {
+  const client = createSupabaseAdminClient();
+
+  if (!client) {
+    throw new ApiAuthError(403, "terms_required", "Current terms acceptance is required.");
+  }
+
+  const [termsVersionResult, aiConsentVersionResult, profileResult] = await Promise.all([
+    client.rpc("current_acttub_terms_version"),
+    client.rpc("current_acttub_ai_processing_consent_version"),
+    client
+      .from("profiles")
+      .select(
+        "status, required_consent_version, required_consent_at, ai_processing_consent_version, ai_processing_consent_at",
+      )
+      .eq("id", userId)
+      .maybeSingle(),
+  ]);
+
+  const profile = profileResult.data;
+  const hasCurrentConsent =
+    !termsVersionResult.error &&
+    !aiConsentVersionResult.error &&
+    !profileResult.error &&
+    typeof termsVersionResult.data === "string" &&
+    typeof aiConsentVersionResult.data === "string" &&
+    profile?.status === "active" &&
+    profile.required_consent_version === termsVersionResult.data &&
+    Boolean(profile.required_consent_at) &&
+    profile.ai_processing_consent_version === aiConsentVersionResult.data &&
+    Boolean(profile.ai_processing_consent_at);
+
+  if (!hasCurrentConsent) {
+    throw new ApiAuthError(403, "terms_required", "Current terms acceptance is required.");
+  }
+}
+
 function isDuplicateProfileError(error: { code?: string; message?: string }) {
   return (
     error.code === "23505" ||
