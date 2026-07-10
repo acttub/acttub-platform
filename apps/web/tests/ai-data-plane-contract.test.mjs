@@ -34,7 +34,7 @@ test("repository exposes exact typed transitions and fail-closed row readers",()
 test("final audit defects are guarded fail closed", () => {
   assert.match(migration, /required_consent_version_snapshot=public\.current_acttub_terms_version\(\)/);
   assert.match(migration, /ai_processing_consent_version_snapshot=public\.current_acttub_ai_processing_consent_version\(\)/);
-  assert.match(migration, /summary_idempotency_conflict/);
+  assert.match(migration, /complete_summary_run[\s\S]*normalizedSummary[\s\S]*observationCandidates/);
   assert.match(migration, /jsonb_array_length\(p_candidates\)<>jsonb_array_length\(p_summary->'anomalies'\)/);
   assert.match(migration, /summary_subtext_mismatch/);
   assert.match(migration, /expected_start:=least/);
@@ -42,7 +42,7 @@ test("final audit defects are guarded fail closed", () => {
   assert.match(migration, /duplicate_report_evidence/);
   assert.match(migration, /invalid_completion_count/);
   assert.match(migration, /evidence_not_allowed/);
-  assert.match(migration, /report_idempotency_conflict/);
+  assert.doesNotMatch(migration, /report_idempotency_conflict/);
   assert.match(migration, /return jsonb_build_object\('schemaVersion',existing\.schema_version/);
   assert.match(migration, /invalid_unconfirmed_section/);
   assert.match(migration, /invalid_report_timestamp/);
@@ -58,4 +58,23 @@ test("repository deeply checks summary report and run invariants", () => {
   assert.match(repository, /notConfirmed/);
   assert.match(repository, /run\.invariants/);
   assert.match(repository, /report\.invariants/);
+});
+
+test("late audit gates current consent and immutable successful retries",()=>{
+  assert.match(migration,/acttub_claim_ai_run[\s\S]*s\.required_consent_version_snapshot=public\.current_acttub_terms_version\(\)[\s\S]*exists\(select 1 from public\.profiles p/);
+  assert.match(migration,/acttub_create_pipeline_session[\s\S]*exists\(select 1 from public\.profiles p where p\.id=p_user_id and p\.status='active'/);
+  assert.match(migration,/complete_summary_run[\s\S]*if found then return \(select jsonb_build_object\('sessionId'[\s\S]*perform 1 from public\.ai_runs/);
+  assert.match(migration,/complete_report_run[\s\S]*if found then return jsonb_build_object\('schemaVersion',existing\.schema_version/);
+  assert.doesNotMatch(migration,/existing\.source_run_id<>p_run_id then raise exception 'report_idempotency_conflict'/);
+});
+
+test("late audit rejects malformed deep summary values and unknown answer commands",()=>{
+  assert.match(migration,/invalid_summary_nullable/);
+  assert.match(migration,/jsonb_typeof\(a->'overlapsKeyMoment'\) not in \('null','boolean'\)/);
+  assert.match(migration,/invalid_summary_anomaly_range/);
+  assert.match(migration,/actor->>'kind'<>'answer'/);
+  assert.match(repository,/anomaly\[\$\{i\}\]\.range/);
+  assert.match(repository,/anomaly\.boolean/);
+  assert.match(repository,/anomaly\.intentImpact/);
+  assert.match(repository,/anomaly\[\$\{i\}\]\.noSubtext/);
 });
