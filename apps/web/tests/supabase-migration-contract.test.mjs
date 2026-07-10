@@ -221,3 +221,18 @@ test("turn append migration serializes and rejects stale or completed dialogue a
   assert.ok(maxGuard < expectedGuard);
   assert.ok(expectedGuard < firstInsert);
 });
+
+test("additive privilege closure migration revokes anon and session-deletion authenticated select", () => {
+  const closure = read("supabase/migrations/005_close_ai_table_select_privilege_gaps.sql");
+
+  assert.match(
+    closure,
+    /revoke select on public\.ai_session_summaries, public\.ai_runs, public\.actor_corrections, public\.interview_turns, public\.ai_reports, public\.session_deletion_attempts from anon;/,
+  );
+  assert.match(closure, /revoke select on public\.session_deletion_attempts from authenticated;/);
+  assert.doesNotMatch(closure, /grant select/i);
+  assert.doesNotMatch(
+    closure,
+    /revoke select on public\.(?:ai_session_summaries|ai_runs|actor_corrections|interview_turns|ai_reports) from authenticated;/,
+  );
+});
