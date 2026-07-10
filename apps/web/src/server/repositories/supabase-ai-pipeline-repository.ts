@@ -19,7 +19,6 @@ const enumValue=<T extends string>(v:unknown,values:readonly T[],op:string,f:str
 const idList=(v:unknown,op:string,f:string):string[]=>{const values=list(v,op,f).map((x,i)=>uuid(x,op,`${f}[${i}]`));if(new Set(values).size!==values.length)fail(op,`${f}.duplicates`);return values};
 const sequential=<T extends {id:string;sequence:number}>(values:T[],op:string):T[]=>{if(new Set(values.map(v=>v.id)).size!==values.length||values.some((v,i)=>v.sequence!==i))fail(op,"transcript.sequence");return values};
 const exact=(r:Row,keys:readonly string[],op:string,f:string)=>{if(Object.keys(r).length!==keys.length||Object.keys(r).some(k=>!keys.includes(k)))fail(op,`${f}.keys`)};
-const nullable=(v:unknown,op:string,f:string):string|null=>v===null?null:text(v,op,f);
 const admin=()=>{const c=createSupabaseAdminClient();if(!c)throw new AiPipelinePersistenceError("configuration","adminClient");return c};
 const checked=<T>(error:{message?:string}|null,data:T,op:string):T=>{if(error)fail(op,"database");return data};
 const rpcData=(v:unknown,op:string):Row=>object(Array.isArray(v)?v[0]:v,op,"result");
