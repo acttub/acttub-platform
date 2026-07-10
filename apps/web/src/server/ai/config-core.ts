@@ -13,7 +13,7 @@ export const loadAiServiceConfig = (env: NodeJS.ProcessEnv = process.env): AiSer
     if (!raw) throw new Error("AI_SERVICE_CONFIGURATION_ERROR");
     let parsed: URL;
     try { parsed = new URL(raw); } catch { throw new Error("AI_SERVICE_CONFIGURATION_ERROR"); }
-    if (parsed.username || parsed.password || parsed.search || parsed.hash) throw new Error("AI_SERVICE_CONFIGURATION_ERROR");
+    if (parsed.username || parsed.password || parsed.pathname !== "/" || parsed.search || parsed.hash) throw new Error("AI_SERVICE_CONFIGURATION_ERROR");
     if (production ? parsed.protocol !== "https:" || loopback(parsed.hostname) : parsed.protocol !== "https:" && !(parsed.protocol === "http:" && loopback(parsed.hostname))) throw new Error("AI_SERVICE_CONFIGURATION_ERROR");
     urls[stage] = parsed.toString().replace(/\/$/, "");
   }

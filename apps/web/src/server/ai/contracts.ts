@@ -1,73 +1,51 @@
 export type AiStage = "summary" | "agent" | "report";
-export type JsonObject = Record<string, unknown>;
+export type CompletionReason = "interview_complete_report_ready" | "manual_stop_report_ready" | "manual_stop_paused" | "hard_limit_report_ready" | "insufficient_confirmed_evidence" | "insufficient_interview_evidence";
+export type ReportReadyReason = Extract<CompletionReason, `${string}_report_ready`>;
+export type Severity = "high" | "mid" | "low";
+export type IntentImpact = "반전" | "약화" | "국소";
 
-export interface CorrelatedRequest extends JsonObject {
-  schemaVersion: string;
-  sessionId: string;
-  runId: string;
-}
+export interface CorrelatedRequest { schemaVersion: string; sessionId: string; runId: string }
+export interface Segment { startMs: number; endMs: number }
+export interface SceneContext { genre: string; situation: string; characterContext: string; subtext: string | null }
+export interface ObservationExtra { name: string; observation: string }
+export interface SceneObservation { timeline: string; dialogue: string; tempo: string; pitch: string; movement: string; expression: string; emotion: string; extra: ObservationExtra[] }
+export interface SceneAnomaly { start: string; end: string; dimension: string; what: string; whyOdd: string | null; likelyCause: string | null; impactOnIntent: string | null; overlapsKeyMoment: boolean | null; onKeyDimension: boolean | null; intentImpact: IntentImpact | null; severity: Severity | null; severityReason: string | null }
+export interface NormalizedSummary { schemaVersion: "scene-summary.v1"; subtextStatus: "provided" | "not_provided"; observation: SceneObservation; summary: string; intentAlignment: string | null; keyMoment: string | null; keyDimension: string | null; anomalies: SceneAnomaly[] }
+export interface SummaryRequest extends CorrelatedRequest { schemaVersion: "summary-request.v1"; signedVideoUrl: string; storageBucket: "practice-videos"; storagePath: string; durationMs: number; sceneContext: SceneContext }
+export interface AgentObservation { observationId: string; segment: Segment; text: string; confirmationState: "unasked" | "accepted" | "rejected" | "unsure"; blocked: boolean; confidence: null; priority: number; dimension: string; severity: Severity | null }
+export interface ActorCorrection { correctionId: string; correctsObservationId: string; segment: Segment; text: string; actorTurnId: string }
+export interface TranscriptTurn { turnId: string; speaker: "agent" | "actor"; content: string; kind: "question" | "closing" | "answer" | "unknown" | "observation_confirmation" | "actor_correction" | "optional_note" }
+export interface CurrentInput { command: "start" | "observation_update" | "answer" | "manual_stop" | "resume"; answer: string | null; answerTurnId: string | null; observationId: string | null }
+export interface AgentRequest extends CorrelatedRequest { schemaVersion: "agent-turn.v1"; normalizedSummary: NormalizedSummary; observations: AgentObservation[]; actorCorrections: ActorCorrection[]; transcript: TranscriptTurn[]; substantiveAnswerCount: number; currentInput: CurrentInput }
+export interface ConfirmedObservation { observationId: string; sourceCandidateId: string; segment: Segment; text: string; dimension: string }
+export interface SelectedEvidence { observationIds: string[]; answerTurnIds: string[] }
+export interface ReportRequest extends CorrelatedRequest { schemaVersion: "report-request.v1"; normalizedSummary: NormalizedSummary; confirmedObservations: ConfirmedObservation[]; actorCorrections: ActorCorrection[]; transcript: TranscriptTurn[]; completionReason: ReportReadyReason; selectedEvidence: SelectedEvidence }
 
-export interface SummaryRequest extends CorrelatedRequest {
-  schemaVersion: "summary-request.v1";
-  signedVideoUrl: string;
-  storageBucket: "practice-videos";
-  storagePath: string;
-  durationMs: number;
-  sceneContext: JsonObject;
-}
-export interface AgentRequest extends CorrelatedRequest { schemaVersion: "agent-turn.v1"; normalizedSummary: JsonObject; observations: unknown[]; actorCorrections: unknown[]; transcript: unknown[]; substantiveAnswerCount: number; currentInput: JsonObject }
-export interface ReportRequest extends CorrelatedRequest { schemaVersion: "report-request.v1"; normalizedSummary: JsonObject; confirmedObservations: unknown[]; actorCorrections: unknown[]; transcript: unknown[]; completionReason: string; selectedEvidence: JsonObject }
+type JsonObject = Record<string, unknown>;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const TIME = /^\d{2,}:[0-5]\d$/;
+const object = (value: unknown): JsonObject => { if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("invalid"); return value as JsonObject };
+const exact = (value: JsonObject, keys: readonly string[]) => { if (Object.keys(value).length !== keys.length || Object.keys(value).some((key) => !keys.includes(key))) throw new Error("invalid") };
+const text = (value: unknown) => { if (typeof value !== "string" || !value.trim()) throw new Error("invalid"); return value };
+const uuid = (value: unknown) => { const result = text(value); if (!UUID.test(result)) throw new Error("invalid"); return result };
+const bool = (value: unknown) => { if (typeof value !== "boolean") throw new Error("invalid"); return value };
+const integer = (value: unknown) => { if (!Number.isSafeInteger(value) || (value as number) < 0) throw new Error("invalid"); return value as number };
+const list = (value: unknown) => { if (!Array.isArray(value)) throw new Error("invalid"); return value };
+const nullableText = (value: unknown) => { if (value !== null) text(value) };
+const nullableEnum = (value: unknown, values: readonly string[]) => { if (value !== null && !values.includes(String(value))) throw new Error("invalid") };
+const stringList = (value: unknown, ids = false) => { const values=list(value); values.forEach((item) => ids ? uuid(item) : text(item)); if(new Set(values).size!==values.length) throw new Error("invalid") };
+const segment = (input: unknown) => { const value=object(input); exact(value,["startMs","endMs"]); const start=integer(value.startMs), end=integer(value.endMs); if(end<start) throw new Error("invalid") };
+const correlated = (value: JsonObject, version: string, prompt: string | null, request: CorrelatedRequest) => { if (value.schemaVersion !== version) throw new Error("invalid"); uuid(value.sessionId); uuid(value.runId); if (value.sessionId !== request.sessionId || value.runId !== request.runId) throw new Error("correlation"); if (prompt !== null) { text(value.model); if(value.promptVersion !== prompt) throw new Error("invalid") } };
 
-const object = (value: unknown): JsonObject => {
-  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("invalid");
-  return value as JsonObject;
-};
-const string = (value: unknown) => { if (typeof value !== "string" || !value) throw new Error("invalid"); return value; };
-const bool = (value: unknown) => { if (typeof value !== "boolean") throw new Error("invalid"); return value; };
-const array = (value: unknown) => { if (!Array.isArray(value)) throw new Error("invalid"); return value; };
-const exactKeys = (value: JsonObject, keys: string[]) => {
-  if (Object.keys(value).some((key) => !keys.includes(key))) throw new Error("invalid");
-};
-const correlated = (value: JsonObject, version: string, request: CorrelatedRequest) => {
-  if (value.schemaVersion !== version) throw new Error("invalid");
-  if (value.sessionId !== request.sessionId || value.runId !== request.runId) throw new Error("correlation");
-  string(value.model); string(value.promptVersion);
-};
+const timeMs = (value: string) => { const [minutes,seconds]=value.split(":").map(Number); return (minutes*60+seconds)*1000 };
+const anomaly = (input: unknown, noIntent: boolean) => { const v=object(input); exact(v,["start","end","dimension","what","whyOdd","likelyCause","impactOnIntent","overlapsKeyMoment","onKeyDimension","intentImpact","severity","severityReason"]); const start=text(v.start),end=text(v.end);if(!TIME.test(start)||!TIME.test(end)||timeMs(end)<timeMs(start)) throw new Error("invalid"); text(v.dimension); text(v.what); nullableText(v.whyOdd); nullableText(v.likelyCause); nullableText(v.impactOnIntent); if(v.overlapsKeyMoment!==null) bool(v.overlapsKeyMoment); if(v.onKeyDimension!==null) bool(v.onKeyDimension); nullableEnum(v.intentImpact,["반전","약화","국소"]); nullableEnum(v.severity,["high","mid","low"]); nullableText(v.severityReason);if(noIntent&&[v.whyOdd,v.likelyCause,v.impactOnIntent,v.overlapsKeyMoment,v.onKeyDimension,v.intentImpact,v.severity,v.severityReason].some(x=>x!==null))throw new Error("invalid") };
+const normalized = (input: unknown) => { const v=object(input); exact(v,["schemaVersion","subtextStatus","observation","summary","intentAlignment","keyMoment","keyDimension","anomalies"]); if(v.schemaVersion!=="scene-summary.v1"||!["provided","not_provided"].includes(String(v.subtextStatus))) throw new Error("invalid"); const o=object(v.observation); exact(o,["timeline","dialogue","tempo","pitch","movement","expression","emotion","extra"]); [o.timeline,o.dialogue,o.tempo,o.pitch,o.movement,o.expression,o.emotion].forEach(text); list(o.extra).forEach((x)=>{const e=object(x);exact(e,["name","observation"]);text(e.name);text(e.observation)}); text(v.summary); nullableText(v.intentAlignment);nullableText(v.keyMoment);nullableText(v.keyDimension);const noIntent=v.subtextStatus==="not_provided";if(noIntent&&[v.intentAlignment,v.keyMoment,v.keyDimension].some(x=>x!==null))throw new Error("invalid");list(v.anomalies).forEach(x=>anomaly(x,noIntent)) };
 
-export const assertSummaryResponse = (input: unknown, request: SummaryRequest) => {
-  const value = object(input);
-  exactKeys(value, ["schemaVersion", "sessionId", "runId", "model", "promptVersion", "normalizedSummary", "observationCandidates"]);
-  correlated(value, "summary-response.v1", request);
-  const summary = object(value.normalizedSummary);
-  if (summary.schemaVersion !== "scene-summary.v1" || !["provided", "not_provided"].includes(String(summary.subtextStatus))) throw new Error("invalid");
-  object(summary.observation); string(summary.summary); array(summary.anomalies); array(value.observationCandidates);
-  return value;
-};
+export const assertSummaryResponse = (input: unknown, request: SummaryRequest) => { const v=object(input); exact(v,["schemaVersion","sessionId","runId","model","promptVersion","normalizedSummary","observationCandidates"]); correlated(v,"summary-response.v1","acting-summary.prompt.v2",request); normalized(v.normalizedSummary); const candidates=list(v.observationCandidates); candidates.forEach((x,index)=>{const c=object(x);exact(c,["candidateId","timestampStartMs","timestampEndMs","observationText","confidence","priority","dimension","severity"]);uuid(c.candidateId);const start=integer(c.timestampStartMs),end=integer(c.timestampEndMs);if(end<start||end>request.durationMs||c.confidence!==null||c.priority!==index+1)throw new Error("invalid");text(c.observationText);text(c.dimension);nullableEnum(c.severity,["high","mid","low"])}); return v };
 
-export const assertAgentResponse = (input: unknown, request: AgentRequest) => {
-  const value = object(input);
-  exactKeys(value, ["schemaVersion", "sessionId", "runId", "action", "utterance", "evidence", "done", "completionReason", "reportReady", "reportEvidence"]);
-  correlated({ ...value, model: "agent", promptVersion: "agent-turn.v1" }, "agent-turn.v1", request);
-  if (!["confirm_observation", "ask_question", "close", "pause"].includes(String(value.action))) throw new Error("invalid");
-  string(value.utterance); object(value.evidence); bool(value.done); bool(value.reportReady); object(value.reportEvidence);
-  return value;
-};
+const completionReasons: CompletionReason[]=["interview_complete_report_ready","manual_stop_report_ready","manual_stop_paused","hard_limit_report_ready","insufficient_confirmed_evidence","insufficient_interview_evidence"];
+export const assertAgentResponse = (input: unknown, request: AgentRequest) => { const v=object(input); exact(v,["schemaVersion","sessionId","runId","action","utterance","evidence","done","completionReason","reportReady","reportEvidence"]); correlated(v,"agent-turn.v1",null,request); const action=String(v.action);if(!["confirm_observation","ask_question","close","pause"].includes(action))throw new Error("invalid");text(v.utterance);bool(v.done);bool(v.reportReady);nullableEnum(v.completionReason,completionReasons);const eligibleObservations=new Set(request.observations.filter(x=>!x.blocked&&!(["rejected","unsure"] as string[]).includes(x.confirmationState)).map(x=>x.observationId));const acceptedObservations=new Set(request.observations.filter(x=>!x.blocked&&x.confirmationState==="accepted").map(x=>x.observationId));const corrections=new Set(request.actorCorrections.map(x=>x.correctionId));const turns=new Set(request.transcript.map(x=>x.turnId));const answers=new Set(request.transcript.filter(x=>x.speaker==="actor"&&x.kind==="answer"&&x.content.trim()).map(x=>x.turnId));const e=object(v.evidence);exact(e,["observationIds","actorCorrectionIds","turnIds","segment"]);stringList(e.observationIds,true);stringList(e.actorCorrectionIds,true);stringList(e.turnIds,true);if((e.observationIds as string[]).some(x=>!eligibleObservations.has(x))||(e.actorCorrectionIds as string[]).some(x=>!corrections.has(x))||(e.turnIds as string[]).some(x=>!turns.has(x)))throw new Error("invalid");if(e.segment!==null)segment(e.segment);const r=object(v.reportEvidence);exact(r,["observationIds","answerTurnIds","coreItems"]);stringList(r.observationIds,true);stringList(r.answerTurnIds,true);if((r.observationIds as string[]).some(x=>!acceptedObservations.has(x))||(r.answerTurnIds as string[]).some(x=>!answers.has(x)))throw new Error("invalid");list(r.coreItems).forEach(x=>{if(!["one_line_summary","review_point","evidence"].includes(String(x)))throw new Error("invalid")}); const readyReasons=new Set(["interview_complete_report_ready","manual_stop_report_ready","hard_limit_report_ready"]); if(action==="close" ? v.done!==true : v.done!==false)throw new Error("invalid");if(action==="pause" ? v.completionReason!=="manual_stop_paused"||v.reportReady!==false : action!=="close"&&v.completionReason!==null)throw new Error("invalid");if(v.reportReady!==readyReasons.has(String(v.completionReason)))throw new Error("invalid");if(v.reportReady&&(list(r.observationIds).length<1||list(r.answerTurnIds).length<1||new Set(r.coreItems as string[]).size!==3))throw new Error("invalid");if(!v.reportReady&&(list(r.observationIds).length||list(r.answerTurnIds).length||list(r.coreItems).length))throw new Error("invalid");return v };
 
-const section = (input: unknown) => {
-  const value = object(input);
-  exactKeys(value, ["status", "content", "observationEvidenceIds", "turnEvidenceIds", "timestampRange"]);
-  if (!["confirmed", "not_confirmed"].includes(String(value.status))) throw new Error("invalid");
-  if (value.content !== null && typeof value.content !== "string") throw new Error("invalid");
-  array(value.observationEvidenceIds); array(value.turnEvidenceIds);
-  if (value.timestampRange !== null) object(value.timestampRange);
-};
-export const assertReportResponse = (input: unknown, request: ReportRequest) => {
-  const value = object(input);
-  exactKeys(value, ["schemaVersion", "sessionId", "runId", "model", "promptVersion", "sections"]);
-  correlated(value, "report.v1", request);
-  const sections = object(value.sections);
-  const keys = ["oneLineSummary", "primaryReviewPoint", "confirmedEvidence", "actorDiscovery", "groundedEncouragement", "nextPracticeStep"];
-  exactKeys(sections, keys); if (Object.keys(sections).length !== keys.length) throw new Error("invalid");
-  keys.forEach((key) => section(sections[key]));
-  return value;
-};
+const sameSegment = (left: JsonObject, right: Segment) => left.startMs===right.startMs&&left.endMs===right.endMs;
+const reportSection = (input: unknown, key: string, request: ReportRequest) => { const v=object(input);exact(v,["status","content","observationEvidenceIds","turnEvidenceIds","timestampRange"]);if(!["confirmed","not_confirmed"].includes(String(v.status)))throw new Error("invalid");const observations=list(v.observationEvidenceIds) as string[], turns=list(v.turnEvidenceIds) as string[];stringList(observations,true);stringList(turns,true);const selectedObservations=new Set(request.selectedEvidence.observationIds), selectedTurns=new Set(request.selectedEvidence.answerTurnIds), correctionTurns=new Set(request.actorCorrections.map(x=>x.actorTurnId));if(observations.some(x=>!selectedObservations.has(x))||turns.some(x=>!selectedTurns.has(x)&&!correctionTurns.has(x)))throw new Error("invalid");const core=["oneLineSummary","primaryReviewPoint","confirmedEvidence"].includes(key);if(v.status==="not_confirmed"){if(core||v.content!==null||observations.length||turns.length||v.timestampRange!==null)throw new Error("invalid");return}text(v.content);if(!observations.length&&!turns.length)throw new Error("invalid");if(key==="oneLineSummary"||key==="confirmedEvidence"){if(!observations.length||!turns.some(x=>selectedTurns.has(x)))throw new Error("invalid")}if(key==="primaryReviewPoint"&&(!observations.length||v.timestampRange===null))throw new Error("invalid");if(key==="actorDiscovery"&&!turns.length)throw new Error("invalid");if(key==="groundedEncouragement"&&!observations.length)throw new Error("invalid");if(v.timestampRange!==null){segment(v.timestampRange);const range=object(v.timestampRange);const sourceSegments=[...request.confirmedObservations.filter(x=>observations.includes(x.observationId)).map(x=>x.segment),...request.actorCorrections.filter(x=>turns.includes(x.actorTurnId)).map(x=>x.segment)];if(!sourceSegments.some(x=>sameSegment(range,x)))throw new Error("invalid")} };
+export const assertReportResponse = (input: unknown, request: ReportRequest) => { const v=object(input);exact(v,["schemaVersion","sessionId","runId","model","promptVersion","sections"]);correlated(v,"report.v1","acting-report.prompt.v2",request);const sections=object(v.sections);const keys=["oneLineSummary","primaryReviewPoint","confirmedEvidence","actorDiscovery","groundedEncouragement","nextPracticeStep"] as const;exact(sections,keys);keys.forEach((key)=>reportSection(sections[key],key,request));return v };

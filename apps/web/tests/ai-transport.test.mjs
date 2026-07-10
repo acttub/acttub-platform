@@ -5,14 +5,19 @@ import { loadAiServiceConfig } from "../src/server/ai/config-core.ts";
 import { AiServiceError, createAiTransport } from "../src/server/ai/transport-core.ts";
 
 const config = { urls: { summary: "http://127.0.0.1:1", agent: "http://127.0.0.1:2", report: "http://127.0.0.1:3" }, timeoutMs: 100 };
-const base = { sessionId: "session-1", runId: "run-1" };
-const summaryRequest = { ...base, schemaVersion:"summary-request.v1", signedVideoUrl:"redacted", storageBucket:"practice-videos", storagePath:"x", durationMs:1, sceneContext:{} };
-const agentRequest = { ...base, schemaVersion:"agent-turn.v1", normalizedSummary:{}, observations:[], actorCorrections:[], transcript:[], substantiveAnswerCount:0, currentInput:{} };
-const reportRequest = { ...base, schemaVersion:"report-request.v1", normalizedSummary:{}, confirmedObservations:[], actorCorrections:[], transcript:[], completionReason:"manual_stop_report_ready", selectedEvidence:{} };
-const summaryResponse = { ...base, schemaVersion:"summary-response.v1", model:"m", promptVersion:"acting-summary.prompt.v2", normalizedSummary:{schemaVersion:"scene-summary.v1",subtextStatus:"not_provided",observation:{},summary:"s",anomalies:[]}, observationCandidates:[] };
-const agentResponse = { ...base, schemaVersion:"agent-turn.v1", action:"close", utterance:"마칠게요.", evidence:{}, done:true, completionReason:"insufficient_confirmed_evidence", reportReady:false, reportEvidence:{} };
+const base = { sessionId: "11111111-1111-4111-8111-111111111111", runId: "22222222-2222-4222-8222-222222222222" };
+const observationId="33333333-3333-4333-8333-333333333333", turnId="44444444-4444-4444-8444-444444444444";
+const observation={timeline:"t",dialogue:"d",tempo:"t",pitch:"p",movement:"m",expression:"e",emotion:"e",extra:[]};
+const normalizedSummary={schemaVersion:"scene-summary.v1",subtextStatus:"not_provided",observation,summary:"s",intentAlignment:null,keyMoment:null,keyDimension:null,anomalies:[]};
+const summaryRequest = { ...base, schemaVersion:"summary-request.v1", signedVideoUrl:"redacted", storageBucket:"practice-videos", storagePath:"x", durationMs:1, sceneContext:{genre:"g",situation:"s",characterContext:"c",subtext:null} };
+const agentRequest = { ...base, schemaVersion:"agent-turn.v1", normalizedSummary, observations:[], actorCorrections:[], transcript:[], substantiveAnswerCount:0, currentInput:{command:"start",answer:null,answerTurnId:null,observationId:null} };
+const reportRequest = { ...base, schemaVersion:"report-request.v1", normalizedSummary, confirmedObservations:[{observationId,sourceCandidateId:observationId,segment:{startMs:0,endMs:1},text:"x",dimension:"tempo"}], actorCorrections:[], transcript:[{turnId,speaker:"actor",content:"a",kind:"answer"}], completionReason:"manual_stop_report_ready", selectedEvidence:{observationIds:[observationId],answerTurnIds:[turnId]} };
+const summaryResponse = { ...base, schemaVersion:"summary-response.v1", model:"m", promptVersion:"acting-summary.prompt.v2", normalizedSummary, observationCandidates:[] };
+const agentResponse = { ...base, schemaVersion:"agent-turn.v1", action:"close", utterance:"마칠게요.", evidence:{observationIds:[],actorCorrectionIds:[],turnIds:[],segment:null}, done:true, completionReason:"insufficient_confirmed_evidence", reportReady:false, reportEvidence:{observationIds:[],answerTurnIds:[],coreItems:[]} };
 const empty = {status:"not_confirmed",content:null,observationEvidenceIds:[],turnEvidenceIds:[],timestampRange:null};
-const reportResponse = { ...base, schemaVersion:"report.v1", model:"m", promptVersion:"acting-report.prompt.v2", sections:{oneLineSummary:empty,primaryReviewPoint:empty,confirmedEvidence:empty,actorDiscovery:empty,groundedEncouragement:empty,nextPracticeStep:empty} };
+const confirmed = {status:"confirmed",content:"근거",observationEvidenceIds:[observationId],turnEvidenceIds:[turnId],timestampRange:null};
+const review = {...confirmed,turnEvidenceIds:[],timestampRange:{startMs:0,endMs:1}};
+const reportResponse = { ...base, schemaVersion:"report.v1", model:"m", promptVersion:"acting-report.prompt.v2", sections:{oneLineSummary:confirmed,primaryReviewPoint:review,confirmedEvidence:confirmed,actorDiscovery:empty,groundedEncouragement:empty,nextPracticeStep:empty} };
 const response = (body, status=200) => new Response(typeof body === "string" ? body : JSON.stringify(body), {status, headers:{"content-type":"application/json"}});
 
 test("loads explicit loopback development config and fails closed in production", () => {
@@ -20,6 +25,25 @@ test("loads explicit loopback development config and fails closed in production"
   assert.equal(loadAiServiceConfig(env).timeoutMs, 500);
   assert.throws(() => loadAiServiceConfig({...env,NODE_ENV:"production"}), /AI_SERVICE_CONFIGURATION_ERROR/);
   assert.throws(() => loadAiServiceConfig({NODE_ENV:"production"}), /AI_SERVICE_CONFIGURATION_ERROR/);
+  assert.throws(() => loadAiServiceConfig({...env,ACTTUB_AI_REPORT_URL:"https://ai.example.test/base"}), /AI_SERVICE_CONFIGURATION_ERROR/);
+});
+
+test("rejects deeply malformed Summary, Agent, and Report success bodies", async () => {
+  const malformedSummary={...summaryResponse,promptVersion:"wrong",normalizedSummary:{...normalizedSummary,observation:{},anomalies:[42]},observationCandidates:Array(4).fill({bad:true})};
+  const malformedAgent={...agentResponse,action:"ask_question",done:true,completionReason:99,reportReady:true,evidence:{bad:true},reportEvidence:{bad:true}};
+  const badSection={status:"not_confirmed",content:"must be null",observationEvidenceIds:[9],turnEvidenceIds:[{}],timestampRange:{bad:true}};
+  const malformedReport={...reportResponse,promptVersion:"wrong",sections:Object.fromEntries(Object.keys(reportResponse.sections).map(key=>[key,badSection]))};
+  for (const [method,request,body] of [["summary",summaryRequest,malformedSummary],["agent",agentRequest,malformedAgent],["report",reportRequest,malformedReport]]) {
+    const ai=createAiTransport(config,async()=>response(body));
+    await assert.rejects(ai[method](request), error=>error instanceof AiServiceError&&error.code==="INVALID_RESPONSE");
+  }
+});
+
+test("accepts all ordered Summary candidates and enforces Report evidence semantics", async () => {
+  const candidates=Array.from({length:4},(_,index)=>({candidateId:`00000000-0000-4000-8000-00000000000${index}`,timestampStartMs:0,timestampEndMs:1,observationText:"x",confidence:null,priority:index+1,dimension:"tempo",severity:null}));
+  await createAiTransport(config,async()=>response({...summaryResponse,observationCandidates:candidates})).summary(summaryRequest);
+  const bad={...reportResponse,sections:{...reportResponse.sections,primaryReviewPoint:{...review,timestampRange:{startMs:0,endMs:2}}}};
+  await assert.rejects(createAiTransport(config,async()=>response(bad)).report(reportRequest),error=>error instanceof AiServiceError&&error.code==="INVALID_RESPONSE");
 });
 
 test("calls each exact endpoint once and validates versions and correlation", async () => {
@@ -32,7 +56,7 @@ test("calls each exact endpoint once and validates versions and correlation", as
 });
 
 test("rejects malformed JSON, schema drift, and correlation mismatch", async () => {
-  for (const [body,code] of [["{","INVALID_RESPONSE"],[{...summaryResponse,extra:true},"INVALID_RESPONSE"],[{...summaryResponse,runId:"other"},"CORRELATION_MISMATCH"]]) {
+  for (const [body,code] of [["{","INVALID_RESPONSE"],[{...summaryResponse,extra:true},"INVALID_RESPONSE"],[{...summaryResponse,runId:"55555555-5555-4555-8555-555555555555"},"CORRELATION_MISMATCH"]]) {
     const ai=createAiTransport(config,async()=>response(body));
     await assert.rejects(ai.summary(summaryRequest), error => error instanceof AiServiceError && error.code===code);
   }
