@@ -119,9 +119,10 @@ export type FinalizeUploadIntentRequest = {
 };
 
 export type FinalizeUploadIntentResponse = {
-  videoUrl: string;
+  uploadIntentId: string;
   storagePath: string;
-  durationMs: number | null;
+  durationMs: number;
+  mediaMetadataVersion: "iso-bmff-duration.v1";
 };
 
 export type CreateSessionRequest = {
@@ -139,7 +140,6 @@ export type CreateSessionRequest = {
 };
 
 export type CreatePipelineSessionRequest = {
-  medium: "upload_url";
   sessionId: string;
   uploadIntentId: string;
   storagePath: string;

@@ -1,5 +1,6 @@
 import type {
   CreateSessionRequest,
+  CreatePipelineSessionRequest,
   CreateSessionResponse,
   CreateSummaryRequest,
   CreateSummaryResponse,
@@ -71,14 +72,18 @@ export async function createPracticeUploadIntent(
 export async function finalizePracticeUploadIntent(
   uploadIntentId: string,
   body: FinalizeUploadIntentRequest & { durationMs?: number },
-): Promise<FinalizeUploadIntentResponse> {
+): Promise<FinalizeUploadIntentResponse & { videoUrl: string }> {
   const response = await fetch(`/api/v1/practice-upload-intents/${uploadIntentId}/finalize`, {
     method: "POST",
     headers: jsonHeaders,
     body: JSON.stringify({ storagePath: body.storagePath } satisfies FinalizeUploadIntentRequest),
   });
 
-  return parseJsonResponse<FinalizeUploadIntentResponse>(response);
+  const finalized = await parseJsonResponse<FinalizeUploadIntentResponse>(response);
+  return {
+    ...finalized,
+    videoUrl: `supabase://practice-videos/${finalized.storagePath}`,
+  };
 }
 
 export async function listPracticeSessions(): Promise<ListSessionsResponse> {
@@ -95,7 +100,15 @@ export async function createPracticeSession(
   const response = await fetch("/api/v1/practice-sessions", {
     method: "POST",
     headers: jsonHeaders,
-    body: JSON.stringify(body),
+    body: JSON.stringify({
+      sessionId: body.sessionId,
+      uploadIntentId: body.uploadIntentId,
+      storagePath: body.storagePath,
+      genre: body.genre,
+      situation: body.situation,
+      characterContext: body.characterContext,
+      ...(body.subtext ? { subtext: body.subtext } : {}),
+    } satisfies Partial<CreatePipelineSessionRequest>),
   });
 
   return parseJsonResponse<CreateSessionResponse>(response);

@@ -1,5 +1,6 @@
 import type {
   CreateSessionRequest,
+  CreatePipelineSessionRequest,
   CreateSessionResponse,
   CreateSummaryRequest,
   CreateSummaryResponse,
@@ -78,7 +79,15 @@ export async function finalizePracticeSession(
   const response = await fetch("/api/v1/practice-sessions", {
     method: "POST",
     headers: jsonHeaders,
-    body: JSON.stringify(body),
+    body: JSON.stringify({
+      sessionId: body.sessionId,
+      uploadIntentId: body.uploadIntentId,
+      storagePath: body.storagePath,
+      genre: body.genre,
+      situation: body.situation,
+      characterContext: body.characterContext,
+      ...(body.subtext ? { subtext: body.subtext } : {}),
+    } satisfies Partial<CreatePipelineSessionRequest>),
   });
 
   return parseJsonResponse<CreateSessionResponse>(response);

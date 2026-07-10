@@ -282,7 +282,6 @@
                 "$ref": "#/components/schemas/CreateSessionRequest"
               },
               "example": {
-                "medium": "upload_url",
                 "genre": "연극",
                 "situation": "시각장애인이 사랑하는 마음을 숨기는 장면",
                 "characterContext": "상대에게 감정을 들키지 않으려는 인물",
@@ -1959,24 +1958,29 @@
       },
       "FinalizeUploadIntentResponse": {
         "type": "object",
+        "additionalProperties": false,
         "required": [
-          "videoUrl",
+          "uploadIntentId",
           "storagePath",
-          "durationMs"
+          "durationMs",
+          "mediaMetadataVersion"
         ],
         "properties": {
-          "videoUrl": {
+          "uploadIntentId": {
             "type": "string",
-            "description": "내부 `supabase://` 영상 참조입니다. 재생하기 전에 서명된 URL을 요청해야 합니다."
+            "format": "uuid"
           },
           "storagePath": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1
           },
           "durationMs": {
-            "type": [
-              "number",
-              "null"
-            ]
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 300000
+          },
+          "mediaMetadataVersion": {
+            "const": "iso-bmff-duration.v1"
           }
         }
       },
@@ -2307,18 +2311,14 @@
       "CreateSessionRequest": {
         "type": "object",
         "required": [
-          "medium",
-          "genre",
-          "situation",
-          "characterContext",
           "sessionId",
           "uploadIntentId",
-          "storagePath"
+          "storagePath",
+          "genre",
+          "situation",
+          "characterContext"
         ],
         "properties": {
-          "medium": {
-            "const": "upload_url"
-          },
           "genre": {
             "type": "string",
             "minLength": 1

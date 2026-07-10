@@ -30,6 +30,8 @@ test("finalize and pipeline reject browser authority and stale eligibility",()=>
   const pipeline=read("src/server/services/ai-pipeline-service.ts");
   const repo=read("src/server/repositories/supabase-ai-pipeline-repository.ts");
   assert.match(service,/Object\.keys\(input\)\.some\(\(key\) => key !== "storagePath"\)/);
+  assert.match(service,/uploadIntentId,[\s\S]*mediaMetadataVersion: "iso-bmff-duration\.v1"/);
+  assert.doesNotMatch(service,/return \{[\s\S]{0,120}videoUrl: videoRefForUploadIntent/);
   assert.match(repo,/adult_confirmed_at,all_participants_confirmed_at,ai_eligible_at/);
   assert.match(pipeline,/upload\.requiredConsentVersionSnapshot!==consent\.requiredConsentVersion/);
   assert.match(pipeline,/upload\.aiProcessingConsentVersionSnapshot!==consent\.aiProcessingConsentVersion/);
@@ -45,5 +47,11 @@ test("OpenAPI exposes confirmations and forbids browser duration and consent evi
   assert.equal(create.additionalProperties,false);
   assert.equal("durationMs" in create.properties.fileMetadata,false);
   assert.equal("durationMs" in doc.components.schemas.FileMetadata.properties,false);
-  assert.deepEqual(doc.components.schemas.CreateSessionRequest.required,["medium","genre","situation","characterContext","sessionId","uploadIntentId","storagePath"]);
+  assert.deepEqual(doc.components.schemas.CreateSessionRequest.required,["sessionId","uploadIntentId","storagePath","genre","situation","characterContext"]);
+  assert.equal("medium" in doc.components.schemas.CreateSessionRequest.properties,false);
+  const finalized=doc.components.schemas.FinalizeUploadIntentResponse;
+  assert.deepEqual(finalized.required,["uploadIntentId","storagePath","durationMs","mediaMetadataVersion"]);
+  assert.equal("videoUrl" in finalized.properties,false);
+  assert.deepEqual(finalized.properties.durationMs,{type:"integer",minimum:1,maximum:300000});
+  assert.equal(finalized.properties.mediaMetadataVersion.const,"iso-bmff-duration.v1");
 });

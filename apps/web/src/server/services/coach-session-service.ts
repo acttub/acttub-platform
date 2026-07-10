@@ -556,7 +556,12 @@ export const coachSessionService = {
     uploadIntentId: string,
     payload: unknown,
     userId: string,
-  ): Promise<{ videoUrl: string; storagePath: string; durationMs: number | null }> {
+  ): Promise<{
+    uploadIntentId: string;
+    storagePath: string;
+    durationMs: number;
+    mediaMetadataVersion: "iso-bmff-duration.v1";
+  }> {
     await requireCurrentAiProcessingConsent(userId);
     const uploadIntent = await readUploadIntentForOwner(uploadIntentId, userId);
     if (!uploadIntent) {
@@ -596,9 +601,10 @@ export const coachSessionService = {
     );
 
     return {
-      videoUrl: videoRefForUploadIntent(uploadIntent.intent),
+      uploadIntentId,
       storagePath,
       durationMs,
+      mediaMetadataVersion: "iso-bmff-duration.v1",
     };
   },
 
