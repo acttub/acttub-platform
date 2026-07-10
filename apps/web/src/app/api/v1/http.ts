@@ -7,6 +7,7 @@ import {
   ApiValidationError,
 } from "@/server/services/coach-session-service";
 import { ApiAuthError } from "@/server/services/auth-context";
+import { AiPipelineError } from "@/server/services/ai-pipeline-service";
 
 export const jsonResponse = <T>(
   body: T,
@@ -46,6 +47,10 @@ export const handleApiError = (
 
   if (error instanceof ApiAuthError) {
     return jsonError(error.status, error.code, error.message);
+  }
+
+  if (error instanceof AiPipelineError) {
+    return jsonError(error.status, error.code, "The AI pipeline request could not be completed.");
   }
 
   if (error instanceof ApiValidationError) {
