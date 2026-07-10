@@ -1,5 +1,4 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { getAppConfig } from "@/lib/config/env";
 import { handleApiError, jsonResponse } from "../../http";
 import {
   TERMS_COOKIE_NAME,
@@ -8,7 +7,9 @@ import {
 } from "@/server/services/auth-context";
 
 type AcceptTermsBody = {
-  termsVersion?: unknown;
+  requiredConsentAccepted?: unknown;
+  aiProcessingConsentAccepted?: unknown;
+  internalReviewConsent?: unknown;
 };
 
 async function readBody(request: NextRequest): Promise<AcceptTermsBody> {
@@ -20,7 +21,11 @@ async function readBody(request: NextRequest): Promise<AcceptTermsBody> {
 
   if (contentType.includes("application/x-www-form-urlencoded")) {
     const formData = await request.formData();
-    return { termsVersion: formData.get("termsVersion") };
+    return {
+      requiredConsentAccepted: formData.get("requiredConsentAccepted") === "true",
+      aiProcessingConsentAccepted: formData.get("aiProcessingConsentAccepted") === "true",
+      internalReviewConsent: formData.get("internalReviewConsent") === "true",
+    };
   }
 
   return {};
@@ -29,31 +34,36 @@ async function readBody(request: NextRequest): Promise<AcceptTermsBody> {
 export async function POST(request: NextRequest) {
   try {
     const auth = await requireApiAuthenticatedUser();
-    const config = getAppConfig();
     const body = await readBody(request);
 
-    if (body.termsVersion !== config.termsVersion) {
+    if (
+      body.requiredConsentAccepted !== true ||
+      body.aiProcessingConsentAccepted !== true ||
+      (body.internalReviewConsent !== undefined &&
+        typeof body.internalReviewConsent !== "boolean")
+    ) {
       return jsonResponse(
         {
-          error: "현재 약관 버전으로 다시 확인해 주세요.",
-          requiredVersion: config.termsVersion,
+          error: "필수 서비스 약관과 외부 AI 처리 목적에 모두 동의해 주세요.",
         },
         { status: 400 },
       );
     }
 
-    await recordTermsAcceptance(auth);
+    await recordTermsAcceptance(auth, body.internalReviewConsent === true);
 
     const acceptsHtml = request.headers.get("accept")?.includes("text/html");
     const response = acceptsHtml
       ? NextResponse.redirect(new URL("/home", request.url), { status: 303 })
       : jsonResponse({
           accepted: true,
-          termsVersion: config.termsVersion,
+          requiredConsentAccepted: true,
+          aiProcessingConsentAccepted: true,
+          internalReviewConsent: body.internalReviewConsent === true,
           nextPath: "/home",
         });
 
-    response.cookies.set(TERMS_COOKIE_NAME, config.termsVersion, {
+    response.cookies.set(TERMS_COOKIE_NAME, auth.termsVersion, {
       httpOnly: true,
       sameSite: "lax",
       secure: process.env.NODE_ENV === "production",

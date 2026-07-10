@@ -258,7 +258,14 @@ export const supabaseCoachSessionRepository = {
     return configuredForSupabasePersistence();
   },
 
-  async createUploadIntent(uploadIntent: PracticeUploadIntentDto): Promise<void> {
+  async createUploadIntent(
+    uploadIntent: PracticeUploadIntentDto,
+    consent: {
+      requiredConsentVersion: string;
+      aiProcessingConsentVersion: string;
+      confirmedAt: string;
+    },
+  ): Promise<void> {
     if (!configuredForSupabasePersistence()) return;
 
     const admin = requireSupabaseAdminClient();
@@ -274,6 +281,10 @@ export const supabaseCoachSessionRepository = {
         expected_mime_type: uploadIntent.fileMetadata.mimeType,
         expected_size_bytes: uploadIntent.fileMetadata.sizeBytes,
         consent_version: getAppConfig().termsVersion,
+        required_consent_version_snapshot: consent.requiredConsentVersion,
+        ai_processing_consent_version_snapshot: consent.aiProcessingConsentVersion,
+        adult_confirmed_at: consent.confirmedAt,
+        all_participants_confirmed_at: consent.confirmedAt,
         expires_at: uploadIntent.expiresAt,
       })
       .select("id")

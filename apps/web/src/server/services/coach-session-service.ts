@@ -27,7 +27,10 @@ import {
   SupabaseCoachSessionPersistenceError,
   supabaseCoachSessionRepository,
 } from "@/server/repositories/supabase-coach-session-repository";
-import { requireCurrentAiProcessingConsent } from "@/server/services/auth-context";
+import {
+  getCurrentConsentVersions,
+  requireCurrentAiProcessingConsent,
+} from "@/server/services/auth-context";
 import {
   parseIsoBmffDurationMs,
   validateVideoDurationMs,
@@ -447,6 +450,32 @@ export const coachSessionService = {
     const config = getAppConfig();
     const maxUploadBytes = config.video.maxUploadBytes;
 
+    if (input.adultConfirmed !== true || input.allParticipantsConfirmed !== true) {
+      throw new ApiValidationError("Request validation failed", {
+        confirmations: "adultConfirmed and allParticipantsConfirmed must both be true.",
+      });
+    }
+    const forbidden = [
+      "requiredConsentVersion",
+      "aiProcessingConsentVersion",
+      "requiredConsentAt",
+      "aiProcessingConsentAt",
+      "adultConfirmedAt",
+      "allParticipantsConfirmedAt",
+      "durationMs",
+    ];
+    if (
+      forbidden.some((key) => Object.prototype.hasOwnProperty.call(input, key)) ||
+      (metadata && Object.prototype.hasOwnProperty.call(metadata, "durationMs"))
+    ) {
+      throw new ApiValidationError("Request validation failed", {
+        authority: "Consent versions, timestamps, and duration are server-authoritative.",
+      });
+    }
+
+    await requireCurrentAiProcessingConsent(userId);
+    const consent = await getCurrentConsentVersions();
+
     if (config.video.bucket !== "practice-videos") {
       throw new ApiConfigurationError(
         "The practice-videos Supabase bucket is required for upload persistence.",
@@ -494,11 +523,6 @@ export const coachSessionService = {
         fileName,
         mimeType,
         sizeBytes,
-        ...(typeof metadata.durationMs === "number" &&
-        Number.isFinite(metadata.durationMs) &&
-        metadata.durationMs > 0
-          ? { durationMs: metadata.durationMs }
-          : {}),
       },
       status: "created",
       finalizedAt: null,
@@ -511,7 +535,10 @@ export const coachSessionService = {
     };
 
     await requireSupabasePersistence(() =>
-      supabaseCoachSessionRepository.createUploadIntent(uploadIntent),
+      supabaseCoachSessionRepository.createUploadIntent(uploadIntent, {
+        ...consent,
+        confirmedAt: nowIso(),
+      }),
     );
 
     return uploadIntent;
@@ -530,6 +557,7 @@ export const coachSessionService = {
     payload: unknown,
     userId: string,
   ): Promise<{ videoUrl: string; storagePath: string; durationMs: number | null }> {
+    await requireCurrentAiProcessingConsent(userId);
     const uploadIntent = await readUploadIntentForOwner(uploadIntentId, userId);
     if (!uploadIntent) {
       throw new ApiValidationError("Request validation failed", {
@@ -552,7 +580,12 @@ export const coachSessionService = {
       });
     }
 
-    const input = payload as { storagePath?: unknown };
+    const input = payload as Record<string, unknown>;
+    if (Object.keys(input).some((key) => key !== "storagePath")) {
+      throw new ApiValidationError("Request validation failed", {
+        authority: "Duration and consent evidence are server-authoritative.",
+      });
+    }
     const storagePath = requiredText(input.storagePath, "storagePath");
 
     validateExpectedStoragePath(uploadIntent.intent, storagePath, userId);
