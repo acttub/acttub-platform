@@ -68,6 +68,26 @@ test("enforces Agent action reasons, unique readiness core, and referenced evide
   await assert.rejects(createAiTransport(config,async()=>response(ready)).agent(readyRequest),error=>error instanceof AiServiceError&&error.code==="INVALID_RESPONSE");
 });
 
+test("enforces action-specific Agent observation selection and mandatory source segments", async () => {
+  const secondId="99999999-9999-4999-8999-999999999999";
+  const first={observationId,segment:{startMs:0,endMs:1},text:"first",confirmationState:"unasked",blocked:false,confidence:null,priority:1,dimension:"tempo",severity:null};
+  const second={...first,observationId:secondId,segment:{startMs:2,endMs:3},text:"second",priority:2};
+  const request={...agentRequest,observations:[second,first]};
+  const confirmation={...agentResponse,action:"confirm_observation",done:false,completionReason:null,evidence:{observationIds:[observationId],actorCorrectionIds:[],turnIds:[],segment:first.segment}};
+  await createAiTransport(config,async()=>response(confirmation)).agent(request);
+  for(const body of [
+    {...confirmation,evidence:{...confirmation.evidence,observationIds:[secondId],segment:second.segment}},
+    {...confirmation,evidence:{...confirmation.evidence,observationIds:[observationId,secondId]}},
+    {...confirmation,evidence:{...confirmation.evidence,segment:null}},
+    {...confirmation,evidence:{...confirmation.evidence,observationIds:[],segment:first.segment}},
+  ]) await assert.rejects(createAiTransport(config,async()=>response(body)).agent(request),error=>error instanceof AiServiceError&&error.code==="INVALID_RESPONSE");
+  const acceptedRequest={...request,observations:[{...first,confirmationState:"accepted"},second]};
+  await assert.rejects(createAiTransport(config,async()=>response(confirmation)).agent(acceptedRequest),error=>error instanceof AiServiceError&&error.code==="INVALID_RESPONSE");
+  const question={...confirmation,action:"ask_question",evidence:{...confirmation.evidence,observationIds:[observationId]}};
+  await createAiTransport(config,async()=>response(question)).agent(acceptedRequest);
+  await assert.rejects(createAiTransport(config,async()=>response({...question,evidence:{...question.evidence,observationIds:[secondId],segment:second.segment}})).agent(acceptedRequest),error=>error instanceof AiServiceError&&error.code==="INVALID_RESPONSE");
+});
+
 test("rejects every Report section-specific evidence invariant violation", async () => {
   const unknownId="66666666-6666-4666-8666-666666666666";
   const confirmedNoEvidence={status:"confirmed",content:"x",observationEvidenceIds:[],turnEvidenceIds:[],timestampRange:null};
