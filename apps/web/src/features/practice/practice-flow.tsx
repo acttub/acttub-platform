@@ -1,17 +1,21 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { getAuthSession, type AuthSessionResponse } from "@/lib/api/auth";
 import {
   createPracticeSummary,
   listPracticeSessions,
+  updatePracticeSessionVisibility,
 } from "@/lib/api/sessions";
 import {
   appendPipelineInterviewTurn,
   confirmPipelineObservation,
   createPipelinePracticeSession,
   createPracticeUploadIntent,
+  deletePipelinePracticeSession,
   finalizePracticeUploadIntent,
+  getPipelineDeletionStatus,
   getPipelinePracticeSession,
   resumePipelineInterview,
   startPipelineInterview,
@@ -138,6 +142,9 @@ export function PracticeFlow({ entry = "new" }: { entry?: PracticeEntry }) {
   const uploadPreviewUrlRef = useRef<string | null>(null);
   const [nextReflectionQuestion, setNextReflectionQuestion] = useState("");
   const [practiceHistory, setPracticeHistory] = useState<CoachSessionDto[]>([]);
+  const [pipelineHistoryIds, setPipelineHistoryIds] = useState<Set<string>>(
+    () => new Set(),
+  );
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState<string | null>(null);
 
@@ -163,6 +170,25 @@ export function PracticeFlow({ entry = "new" }: { entry?: PracticeEntry }) {
             if (!mounted) return;
             setPracticeHistory(sessions);
             setHistoryError(null);
+            void Promise.allSettled(
+              sessions.map(async (historySession) => {
+                const result = await getPipelinePracticeSession(historySession.id);
+                return "pipelineVersion" in result.session
+                  ? historySession.id
+                  : null;
+              }),
+            ).then((results) => {
+              if (!mounted) return;
+              setPipelineHistoryIds(
+                new Set(
+                  results.flatMap((result) =>
+                    result.status === "fulfilled" && result.value
+                      ? [result.value]
+                      : [],
+                  ),
+                ),
+              );
+            });
           })
           .catch((error: unknown) => {
             if (!mounted) return;
@@ -448,6 +474,19 @@ export function PracticeFlow({ entry = "new" }: { entry?: PracticeEntry }) {
         historyError={historyError}
         historyLoading={historyLoading}
         historySessions={practiceHistory}
+        pipelineHistoryIds={pipelineHistoryIds}
+        onHistorySessionChange={(updatedSession) =>
+          setPracticeHistory((current) =>
+            current.map((item) =>
+              item.id === updatedSession.id ? updatedSession : item,
+            ),
+          )
+        }
+        onHistorySessionDeleted={(sessionId) =>
+          setPracticeHistory((current) =>
+            current.filter((item) => item.id !== sessionId),
+          )
+        }
       />
     );
   }
@@ -459,6 +498,19 @@ export function PracticeFlow({ entry = "new" }: { entry?: PracticeEntry }) {
         error={historyError}
         loading={historyLoading}
         sessions={practiceHistory}
+        pipelineHistoryIds={pipelineHistoryIds}
+        onSessionChange={(updatedSession) =>
+          setPracticeHistory((current) =>
+            current.map((item) =>
+              item.id === updatedSession.id ? updatedSession : item,
+            ),
+          )
+        }
+        onSessionDeleted={(sessionId) =>
+          setPracticeHistory((current) =>
+            current.filter((item) => item.id !== sessionId),
+          )
+        }
       />
     );
   }
@@ -512,12 +564,12 @@ export function PracticeFlow({ entry = "new" }: { entry?: PracticeEntry }) {
             <p>{session.user?.email ?? session.user?.id ?? "Supabase 사용자"}</p>
             <p className="mt-1 text-[#8b95a1]">{session.mode}</p>
           </div>
-          <a
+          <Link
             href="/auth/logout"
             className="inline-flex h-11 items-center justify-center rounded-2xl border border-[#d1d6db] px-4 text-sm font-semibold text-[#4e5968] transition hover:border-[#3182f6] hover:text-[#1b64da]"
           >
             로그아웃
-          </a>
+          </Link>
         </div>
       </header>
 
@@ -591,11 +643,17 @@ function PracticeHome({
   historyError,
   historyLoading,
   historySessions,
+  pipelineHistoryIds,
+  onHistorySessionChange,
+  onHistorySessionDeleted,
 }: {
   displayName: string;
   historyError: string | null;
   historyLoading: boolean;
   historySessions: CoachSessionDto[];
+  pipelineHistoryIds: Set<string>;
+  onHistorySessionChange: (session: CoachSessionDto) => void;
+  onHistorySessionDeleted: (sessionId: string) => void;
 }) {
   const hasHistory = historySessions.length > 0;
   let description =
@@ -627,26 +685,26 @@ function PracticeHome({
                 {description}
               </p>
             </div>
-            <a
+            <Link
               href="/auth/logout"
               className="inline-flex h-11 shrink-0 items-center justify-center rounded-2xl border border-[#d1d6db] bg-white px-4 text-sm font-black text-[#4e5968] transition hover:border-[#3182f6] hover:text-[#1b64da]"
             >
               로그아웃
-            </a>
+            </Link>
           </div>
           <div className="mt-7 flex flex-col gap-3 sm:flex-row">
-            <a
+            <Link
               href="/practice/new"
               className="inline-flex min-h-13 items-center justify-center rounded-2xl bg-[#2f6bff] px-6 py-3 text-base font-black text-white shadow-[0_10px_20px_rgba(49,130,246,0.18)] transition hover:bg-[#1b64da]"
             >
               새 연습 시작하기
-            </a>
-            <a
+            </Link>
+            <Link
               href="/practice/history"
               className="inline-flex min-h-13 items-center justify-center rounded-2xl bg-white px-6 py-3 text-base font-black text-[#2f6bff] shadow-sm transition hover:text-[#1b64da]"
             >
               전체 보기
-            </a>
+            </Link>
           </div>
         </header>
 
@@ -654,6 +712,9 @@ function PracticeHome({
           error={historyError}
           loading={historyLoading}
           sessions={historySessions}
+          pipelineHistoryIds={pipelineHistoryIds}
+          onSessionChange={onHistorySessionChange}
+          onSessionDeleted={onHistorySessionDeleted}
         />
       </div>
     </main>
@@ -687,12 +748,12 @@ function PracticeNewScreen({
               파일을 고른 뒤 장르, 상황, 인물 맥락을 적으면 질문 흐름이 시작돼요.
             </p>
           </div>
-          <a
+          <Link
             href="/home"
             className="inline-flex h-11 shrink-0 items-center justify-center rounded-2xl border border-[#d1d6db] px-4 text-sm font-black text-[#4e5968] transition hover:border-[#3182f6] hover:text-[#1b64da]"
           >
             홈으로
-          </a>
+          </Link>
         </header>
 
         {apiError ? (
@@ -715,11 +776,17 @@ function PracticeHistoryScreen({
   error,
   loading,
   sessions,
+  pipelineHistoryIds,
+  onSessionChange,
+  onSessionDeleted,
 }: {
   displayName: string;
   error: string | null;
   loading: boolean;
   sessions: CoachSessionDto[];
+  pipelineHistoryIds: Set<string>;
+  onSessionChange: (session: CoachSessionDto) => void;
+  onSessionDeleted: (sessionId: string) => void;
 }) {
   return (
     <main className="min-h-dvh bg-white px-4 py-6 text-[#191f28] sm:px-6 lg:px-8">
@@ -740,18 +807,18 @@ function PracticeHistoryScreen({
             </p>
           </div>
           <div className="flex gap-2">
-            <a
+            <Link
               href="/home"
               className="inline-flex h-11 items-center justify-center rounded-2xl border border-[#d1d6db] px-4 text-sm font-black text-[#4e5968] transition hover:border-[#3182f6] hover:text-[#1b64da]"
             >
               홈
-            </a>
-            <a
+            </Link>
+            <Link
               href="/practice/new"
               className="inline-flex h-11 items-center justify-center rounded-2xl bg-[#2f6bff] px-4 text-sm font-black text-white transition hover:bg-[#1b64da]"
             >
               새 연습
-            </a>
+            </Link>
           </div>
         </header>
 
@@ -759,6 +826,9 @@ function PracticeHistoryScreen({
           error={error}
           loading={loading}
           sessions={sessions}
+          pipelineHistoryIds={pipelineHistoryIds}
+          onSessionChange={onSessionChange}
+          onSessionDeleted={onSessionDeleted}
           variant="full"
         />
       </div>
@@ -1185,11 +1255,17 @@ function RecentPracticeSection({
   error,
   loading,
   sessions,
+  pipelineHistoryIds,
+  onSessionChange,
+  onSessionDeleted,
   variant = "recent",
 }: {
   error: string | null;
   loading: boolean;
   sessions: CoachSessionDto[];
+  pipelineHistoryIds: Set<string>;
+  onSessionChange: (session: CoachSessionDto) => void;
+  onSessionDeleted: (sessionId: string) => void;
   variant?: "recent" | "full";
 }) {
   const visibleSessions = variant === "full" ? sessions : sessions.slice(0, 3);
@@ -1200,12 +1276,12 @@ function RecentPracticeSection({
       <header className="flex items-center justify-between gap-4">
         <h2 className="text-2xl font-black tracking-[-0.05em]">{title}</h2>
         {variant === "recent" && sessions.length > 0 ? (
-          <a
+          <Link
             href="/practice/history"
             className="text-base font-black text-[#2f6bff] transition hover:text-[#1b64da]"
           >
             전체 보기
-          </a>
+          </Link>
         ) : null}
       </header>
       {loading ? (
@@ -1224,18 +1300,26 @@ function RecentPracticeSection({
           <p className="mt-2 text-sm font-bold leading-6 text-[#8b95a1]">
             첫 영상을 올리면 이곳에 연습 노트와 질문 흐름이 쌓입니다.
           </p>
-          <a
+          <Link
             href="/practice/new"
             className="mt-5 inline-flex min-h-12 items-center justify-center rounded-2xl bg-[#2f6bff] px-5 py-3 text-sm font-black text-white transition hover:bg-[#1b64da]"
           >
             첫 연습 시작하기
-          </a>
+          </Link>
         </div>
       ) : null}
       {!loading && !error && visibleSessions.length > 0 ? (
         <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {visibleSessions.map((session) => (
-            <PracticeHistoryCard key={session.id} session={session} />
+            <PracticeHistoryCard
+              key={session.id}
+              session={session}
+              pipelineVersion={
+                pipelineHistoryIds.has(session.id) ? "ai-pipeline.v1" : null
+              }
+              onSessionChange={onSessionChange}
+              onSessionDeleted={onSessionDeleted}
+            />
           ))}
         </div>
       ) : null}
@@ -1243,8 +1327,96 @@ function RecentPracticeSection({
   );
 }
 
-function PracticeHistoryCard({ session }: { session: CoachSessionDto }) {
+type HistoryDeletionState = "idle" | "deleting" | "delete_failed";
+
+function PracticeHistoryCard({
+  session,
+  pipelineVersion,
+  onSessionChange,
+  onSessionDeleted,
+}: {
+  session: CoachSessionDto;
+  pipelineVersion: "ai-pipeline.v1" | null;
+  onSessionChange: (session: CoachSessionDto) => void;
+  onSessionDeleted: (sessionId: string) => void;
+}) {
   const badge = getPracticeCardBadge(session);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [visibilityPending, setVisibilityPending] = useState(false);
+  const [deletionState, setDeletionState] =
+    useState<HistoryDeletionState>("idle");
+  const deletionRequestIdRef = useRef<string | null>(null);
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  async function toggleVisibility() {
+    setVisibilityPending(true);
+    setActionError(null);
+    try {
+      const result = await updatePracticeSessionVisibility(session.id, {
+        hidden: !session.hiddenAt,
+      });
+      if (mountedRef.current) onSessionChange(result.session);
+    } catch {
+      if (mountedRef.current) {
+        setActionError("공개 상태를 바꾸지 못했어요. 잠시 후 다시 시도해 주세요.");
+      }
+    } finally {
+      if (mountedRef.current) setVisibilityPending(false);
+    }
+  }
+
+  async function pollDeletion(requestId: string) {
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      await new Promise((resolve) => window.setTimeout(resolve, 750));
+      if (!mountedRef.current) return;
+      try {
+        const deletion = await getPipelineDeletionStatus(session.id, requestId);
+        if (deletion.status === "completed") {
+          onSessionDeleted(session.id);
+          return;
+        }
+        if (deletion.status === "failed") {
+          setDeletionState("delete_failed");
+          setActionError("기록 삭제를 마치지 못했어요. 다시 시도해 주세요.");
+          return;
+        }
+      } catch {
+        setDeletionState("delete_failed");
+        setActionError("삭제 상태를 확인하지 못했어요. 다시 시도해 주세요.");
+        return;
+      }
+    }
+    setDeletionState("delete_failed");
+    setActionError("삭제 처리가 지연되고 있어요. 다시 확인해 주세요.");
+  }
+
+  async function deleteSession() {
+    const requestId = deletionRequestIdRef.current ?? crypto.randomUUID();
+    deletionRequestIdRef.current = requestId;
+    setDeletionState("deleting");
+    setActionError(null);
+    try {
+      const deletion = await deletePipelinePracticeSession(session.id, requestId);
+      if (!mountedRef.current) return;
+      if (deletion.status === "completed") {
+        onSessionDeleted(session.id);
+        return;
+      }
+      await pollDeletion(requestId);
+    } catch {
+      if (mountedRef.current) {
+        setDeletionState("delete_failed");
+        setActionError("기록을 삭제하지 못했어요. 다시 시도해 주세요.");
+      }
+    }
+  }
 
   return (
     <article className="overflow-hidden rounded-[20px] border border-[#e5e8eb] bg-white shadow-[0_8px_24px_rgba(25,31,40,0.045)]">
@@ -1285,6 +1457,45 @@ function PracticeHistoryCard({ session }: { session: CoachSessionDto }) {
         <p className="mt-4 text-sm font-bold text-[#b0b8c1]">
           {formatRelativePracticeDate(session.updatedAt)}
         </p>
+        <p className="mt-2 text-xs font-bold text-[#8b95a1]">
+          {pipelineVersion === "ai-pipeline.v1" ? "AI 연습 기록" : "이전 연습 기록"}
+          {session.hiddenAt ? " · 숨김" : ""}
+        </p>
+        {actionError ? (
+          <p className="mt-3 rounded-xl bg-red-50 px-3 py-2 text-xs font-bold text-red-600">
+            {actionError}
+          </p>
+        ) : null}
+        <div className="mt-4 flex flex-wrap gap-2">
+          {pipelineVersion === "ai-pipeline.v1" ? (
+            <Link
+              href={`/practice/history/${session.id}`}
+              className="inline-flex min-h-10 items-center justify-center rounded-xl bg-[#eef4ff] px-3 text-sm font-black text-[#1b64da]"
+            >
+              자세히 보기
+            </Link>
+          ) : null}
+          <button
+            type="button"
+            disabled={visibilityPending || deletionState === "deleting"}
+            onClick={() => void toggleVisibility()}
+            className="inline-flex min-h-10 items-center justify-center rounded-xl border border-[#d1d6db] px-3 text-sm font-black text-[#4e5968] disabled:opacity-50"
+          >
+            {visibilityPending ? "처리 중" : session.hiddenAt ? "숨김 해제" : "숨기기"}
+          </button>
+          <button
+            type="button"
+            disabled={deletionState === "deleting"}
+            onClick={() => void deleteSession()}
+            className="inline-flex min-h-10 items-center justify-center rounded-xl border border-red-200 px-3 text-sm font-black text-red-600 disabled:opacity-50"
+          >
+            {deletionState === "deleting"
+              ? "삭제 중"
+              : deletionState === "delete_failed"
+                ? "삭제 다시 시도"
+                : "삭제"}
+          </button>
+        </div>
       </div>
     </article>
   );
@@ -1658,18 +1869,18 @@ function SummaryPanel({
         </p>
       ) : null}
       <div className="grid gap-3 sm:grid-cols-2">
-        <a
+        <Link
           href="/home"
           className="inline-flex h-13 items-center justify-center rounded-2xl border border-[#d1d6db] font-semibold text-[#4e5968] transition hover:border-[#3182f6] hover:text-[#1b64da]"
         >
           홈으로
-        </a>
-        <a
+        </Link>
+        <Link
           href="/practice/history"
           className="inline-flex h-13 items-center justify-center rounded-2xl border border-[#d1d6db] font-semibold text-[#4e5968] transition hover:border-[#3182f6] hover:text-[#1b64da]"
         >
           기록 보기
-        </a>
+        </Link>
       </div>
       <button
         type="button"
