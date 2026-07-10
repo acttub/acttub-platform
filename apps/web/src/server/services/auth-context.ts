@@ -282,7 +282,7 @@ export function toAuthSessionDto(context: AuthContext | null): AuthSessionDto {
         }
       : null,
     terms: {
-      requiredVersion: config.termsVersion,
+      requiredVersion: context?.termsVersion ?? config.termsVersion,
       accepted: Boolean(context?.termsAccepted),
     },
     aiProcessingConsent: {

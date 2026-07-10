@@ -138,6 +138,17 @@ export type CreateSessionRequest = {
   fileMetadata?: FileMetadataDto;
 };
 
+export type CreatePipelineSessionRequest = {
+  medium: "upload_url";
+  sessionId: string;
+  uploadIntentId: string;
+  storagePath: string;
+  genre: string;
+  situation: string;
+  characterContext: string;
+  subtext?: string;
+};
+
 export type CreateSessionResponse = {
   session: CoachSessionDto;
   firstQuestion: TurnDto;
