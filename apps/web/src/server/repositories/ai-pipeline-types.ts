@@ -50,6 +50,8 @@ export interface PipelineSessionAggregate {
   interviewStatus: InterviewStatus | null; completionReason: CompletionReason | null;
   substantiveAnswerCount: number; reportEvidenceObservationIds: string[]; reportEvidenceAnswerTurnIds: string[];
   summary: { sourceRunId: string; normalizedSummary: NormalizedSummary } | null;
+  sceneContext: { genre:string; situation:string; characterContext:string; subtext:string|null };
+  take: { id:string; storageBucket:"practice-videos"; storagePath:string; durationMs:number; mediaMetadataVersion:"iso-bmff-duration.v1" };
   observations: PipelineObservation[]; corrections: ActorCorrection[]; transcript: InterviewTurn[];
   runs: AiRun[]; report: ImmutableAiReport | null;
 }
