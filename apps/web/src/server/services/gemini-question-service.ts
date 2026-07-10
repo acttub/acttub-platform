@@ -6,10 +6,17 @@ import type {
   ObservationDto,
   TurnDto,
 } from "@/lib/api/types";
+import {
+  MAX_DIALOGUE_ANSWER_COUNT,
+  MIN_DIALOGUE_ANSWER_COUNT,
+  matchesRequiredDialogueSufficiency,
+  requiredDialogueSufficiencyForAnswerCount,
+} from "@/lib/practice/dialogue-completion-policy";
 
 const GEMINI_INTERACTIONS_ENDPOINT =
   "https://generativelanguage.googleapis.com/v1beta/interactions";
 const DEFAULT_GEMINI_MODEL = "gemini-3-flash-preview";
+const MAX_RECENT_DIALOGUE_TURNS = MAX_DIALOGUE_ANSWER_COUNT * 2 + 2;
 
 const bannedQuestionLanguage = [
   new RegExp(
@@ -57,9 +64,13 @@ type InitialQuestionResult = {
   questionFocus: Extract<GeminiQuestionFocus, "observation_confirmation" | "missing_context">;
 };
 
-type NextQuestionResult = {
+type GeneratedQuestionResult = {
   question: string;
   questionFocus: GeminiQuestionFocus;
+};
+
+type NextQuestionResult = GeneratedQuestionResult & {
+  dialogueSufficient: boolean;
 };
 
 export class GeminiQuestionServiceError extends Error {
@@ -171,6 +182,20 @@ function getRequiredText(
   return value.trim();
 }
 
+function getRequiredBoolean(
+  payload: Record<string, unknown>,
+  field: string,
+): boolean {
+  const value = payload[field];
+  if (typeof value !== "boolean") {
+    throw new GeminiQuestionServiceError(
+      `Gemini response field ${field} must be a boolean.`,
+    );
+  }
+
+  return value;
+}
+
 function getConfidence(payload: Record<string, unknown>): number {
   const value = payload.confidence;
   if (typeof value === "number" && Number.isFinite(value)) {
@@ -276,7 +301,9 @@ function baseSessionContext(session: CoachSessionDto) {
           observation.blockedForQuestioning,
       )
       .map((observation) => ({ id: observation.id, confirmationState: observation.confirmationState })),
-    recentTurns: session.turns.slice(-8).map(publicTurnShape),
+    recentTurns: session.turns
+      .slice(-MAX_RECENT_DIALOGUE_TURNS)
+      .map(publicTurnShape),
   };
 }
 
@@ -288,6 +315,19 @@ function normalizeQuestionFocus(
   return typeof value === "string" && allowed.includes(value as GeminiQuestionFocus)
     ? (value as GeminiQuestionFocus)
     : fallback;
+}
+
+function getRequiredQuestionFocus(
+  value: unknown,
+  allowed: GeminiQuestionFocus[],
+): GeminiQuestionFocus {
+  if (typeof value !== "string" || !allowed.includes(value as GeminiQuestionFocus)) {
+    throw new GeminiQuestionServiceError(
+      "Gemini response questionFocus did not match dialogueSufficient.",
+    );
+  }
+
+  return value as GeminiQuestionFocus;
 }
 
 export const geminiQuestionService = {
@@ -328,7 +368,7 @@ export const geminiQuestionService = {
   async createObservationFollowUp(
     session: CoachSessionDto,
     confirmationState: string,
-  ): Promise<NextQuestionResult> {
+  ): Promise<GeneratedQuestionResult> {
     const acceptedObservationIds = session.observations
       .filter(
         (observation) =>
@@ -364,21 +404,14 @@ export const geminiQuestionService = {
   ): Promise<NextQuestionResult> {
     const nextActorAnswerCount =
       session.turns.filter((turn) => turn.speaker === "actor").length + 1;
-    const acceptedObservationCount = session.observations.filter(
-      (observation) =>
-        observation.confirmationState === "accepted" &&
-        !observation.blockedForQuestioning,
-    ).length;
-    const fallbackFocus: GeminiQuestionFocus =
-      nextActorAnswerCount >= 2
-        ? "summary_reflection"
-        : acceptedObservationCount > 0
-          ? "subtext_probe"
-          : "missing_context";
     const payload = await callGemini(
       [
         "사용자의 방금 답변 다음에 이어질 질문 하나를 만들어라.",
-        "반환 JSON schema: {\"question\": string, \"questionFocus\": \"missing_context\" | \"subtext_probe\" | \"summary_reflection\"}",
+        "dialogueSufficient는 현재까지의 답변만으로 인물의 당장 원하는 것, 숨기는 생각이나 감정, 관계의 갈등, 선택하려는 행동을 지어내지 않고 정리할 만큼 구체적인 경우에만 true인 JSON boolean으로 반환한다.",
+        `nextActorAnswerCount가 ${MIN_DIALOGUE_ANSWER_COUNT}보다 작으면 dialogueSufficient는 반드시 false이고 부족한 한 지점을 묻는 계속 질문을 만든다.`,
+        `nextActorAnswerCount가 ${MIN_DIALOGUE_ANSWER_COUNT} 이상 ${MAX_DIALOGUE_ANSWER_COUNT}보다 작으면 답변 내용의 충분성을 판단하고, true이면 사용자가 자기 말로 정리하도록 돕는 마지막 성찰 질문을 만든다.`,
+        `nextActorAnswerCount가 ${MAX_DIALOGUE_ANSWER_COUNT} 이상이면 dialogueSufficient는 반드시 true이고 마지막 성찰 질문을 만든다.`,
+        "반환 JSON schema: {\"question\": string, \"questionFocus\": \"missing_context\" | \"subtext_probe\" | \"summary_reflection\", \"dialogueSufficient\": boolean}",
         safeJsonForPrompt({
           actorAnswer,
           nextActorAnswerCount,
@@ -386,14 +419,34 @@ export const geminiQuestionService = {
         }),
       ].join("\n\n"),
     );
+    const dialogueSufficient = getRequiredBoolean(
+      payload,
+      "dialogueSufficient",
+    );
+    const requiredDialogueSufficiency =
+      requiredDialogueSufficiencyForAnswerCount(nextActorAnswerCount);
+
+    if (
+      !matchesRequiredDialogueSufficiency(
+        nextActorAnswerCount,
+        dialogueSufficient,
+      )
+    ) {
+      throw new GeminiQuestionServiceError(
+        `Gemini response field dialogueSufficient must be ${requiredDialogueSufficiency} at answer ${nextActorAnswerCount}.`,
+      );
+    }
+    const allowedQuestionFocus: GeminiQuestionFocus[] = dialogueSufficient
+      ? ["summary_reflection"]
+      : ["missing_context", "subtext_probe"];
 
     return {
       question: ensureSafeSingleQuestion(getRequiredText(payload, "question")),
-      questionFocus: normalizeQuestionFocus(
+      questionFocus: getRequiredQuestionFocus(
         payload.questionFocus,
-        ["missing_context", "subtext_probe", "summary_reflection"],
-        fallbackFocus,
+        allowedQuestionFocus,
       ),
+      dialogueSufficient,
     };
   },
 

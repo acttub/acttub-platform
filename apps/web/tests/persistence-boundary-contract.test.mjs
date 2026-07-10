@@ -17,6 +17,10 @@ function walk(directory) {
   });
 }
 
+function hasUseClientDirective(source) {
+  return /^\s*["']use client["']\s*;?/.test(source);
+}
+
 test("practice persistence is isolated behind the Supabase server repository", () => {
   const service = readApp("src/server/services/coach-session-service.ts");
   const repository = readApp("src/server/repositories/supabase-coach-session-repository.ts");
@@ -30,7 +34,26 @@ test("practice persistence is isolated behind the Supabase server repository", (
 });
 
 test("client modules do not import server persistence, Supabase admin, or Gemini service", () => {
-  const clientFiles = walk(path.join(appRoot, "src")).filter((file) => !file.includes(`${path.sep}server${path.sep}`) && !file.includes(`${path.sep}app${path.sep}api${path.sep}`) && !file.includes(`${path.sep}app${path.sep}auth${path.sep}`));
+  const clientFiles = walk(path.join(appRoot, "src")).filter((file) => {
+    if (
+      file.includes(`${path.sep}server${path.sep}`) ||
+      file.includes(`${path.sep}app${path.sep}api${path.sep}`) ||
+      file.includes(`${path.sep}app${path.sep}auth${path.sep}`)
+    ) {
+      return false;
+    }
+
+    if (file.includes(`${path.sep}app${path.sep}`)) {
+      return hasUseClientDirective(readFileSync(file, "utf8"));
+    }
+
+    return true;
+  });
+  const relativeClientFiles = clientFiles.map((file) => path.relative(repoRoot, file));
+  assert.equal(relativeClientFiles.includes("apps/web/src/app/page.tsx"), false);
+  assert.equal(relativeClientFiles.includes("apps/web/src/features/practice/practice-flow.tsx"), true);
+  assert.equal(relativeClientFiles.includes("apps/web/src/features/practice/terms-gate.tsx"), true);
+
   const offenders = clientFiles.filter((file) => {
     const source = readFileSync(file, "utf8");
     return source.includes("@/server/") || source.includes("@/lib/supabase/admin") || source.includes("geminiQuestionService");

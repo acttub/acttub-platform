@@ -2,19 +2,32 @@ import { createServerClient } from "@supabase/ssr";
 import { type NextRequest, NextResponse } from "next/server";
 import { getAppConfig } from "@/lib/config/env";
 
-const PROTECTED_PRACTICE_PATH_PREFIX = "/practice";
-const PRACTICE_LOGIN_NEXT_PATH = "/practice";
+const PROTECTED_ROUTE_PATHS = ["/home", "/practice/new", "/practice/history"] as const;
 
 function isProtectedPracticePath(pathname: string): boolean {
-  return (
-    pathname === PROTECTED_PRACTICE_PATH_PREFIX ||
-    pathname.startsWith(`${PROTECTED_PRACTICE_PATH_PREFIX}/`)
+  return PROTECTED_ROUTE_PATHS.some(
+    (path) => pathname === path || pathname.startsWith(`${path}/`),
   );
+}
+
+function getProtectedNextPath(pathname: string): string {
+  if (pathname === "/practice") return "/home";
+
+  for (const path of PROTECTED_ROUTE_PATHS) {
+    if (pathname === path || pathname.startsWith(`${path}/`)) {
+      return pathname;
+    }
+  }
+
+  return "/home";
 }
 
 function redirectToLogin(request: NextRequest): NextResponse {
   const loginUrl = new URL("/auth/login", request.url);
-  loginUrl.searchParams.set("next", PRACTICE_LOGIN_NEXT_PATH);
+  loginUrl.searchParams.set(
+    "next",
+    getProtectedNextPath(request.nextUrl.pathname),
+  );
   return NextResponse.redirect(loginUrl);
 }
 

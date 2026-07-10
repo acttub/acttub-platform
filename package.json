@@ -10,7 +10,13 @@
     "dev:web": "pnpm --filter web dev",
     "build:web": "pnpm --filter web build",
     "lint:web": "pnpm --filter web lint",
+    "perf": "pnpm build:web && pnpm perf:web",
+    "perf:web": "lhci autorun --config=apps/web/lighthouserc.cjs",
+    "perf:healthcheck": "lhci healthcheck --fatal --config=apps/web/lighthouserc.cjs",
     "typecheck": "pnpm typecheck:web",
     "typecheck:web": "pnpm --filter web typecheck"
+  },
+  "devDependencies": {
+    "@lhci/cli": "0.15.1"
   }
 }

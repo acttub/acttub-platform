@@ -24,8 +24,9 @@ function loadOAuthNextHelper() {
 test("OAuth next sanitizer preserves only allowlisted same-origin relative practice paths", () => {
   const { sanitizeOAuthNextPath } = loadOAuthNextHelper();
 
-  assert.equal(sanitizeOAuthNextPath(null), "/practice");
-  assert.equal(sanitizeOAuthNextPath("/practice"), "/practice");
+  assert.equal(sanitizeOAuthNextPath(null), "/home");
+  assert.equal(sanitizeOAuthNextPath("/home"), "/home");
+  assert.equal(sanitizeOAuthNextPath("/practice/new"), "/practice/new");
   assert.equal(sanitizeOAuthNextPath("/practice/history?tab=mine#latest"), "/practice/history?tab=mine#latest");
 
   for (const unsafe of [
@@ -33,6 +34,7 @@ test("OAuth next sanitizer preserves only allowlisted same-origin relative pract
     "//evil.example/phish",
     "/\\evil.example/phish",
     "/practice\\..\\auth",
+    "/practice",
     "javascript:alert(1)",
     "http:evil.example",
     "\\\\evil.example\\phish",
@@ -41,7 +43,7 @@ test("OAuth next sanitizer preserves only allowlisted same-origin relative pract
     "/auth/callback?next=https://evil.example",
     "/terms",
   ]) {
-    assert.equal(sanitizeOAuthNextPath(unsafe), "/practice", `${unsafe} must not round-trip`);
+    assert.equal(sanitizeOAuthNextPath(unsafe), "/home", `${unsafe} must not round-trip`);
   }
 });
 
@@ -51,6 +53,6 @@ test("OAuth login and callback routes sanitize next before using it", () => {
 
   assert.match(login, /sanitizeOAuthNextPath\(request\.nextUrl\.searchParams\.get\("next"\)\)/);
   assert.match(callback, /sanitizeOAuthNextPath\(requestUrl\.searchParams\.get\("next"\)\)/);
-  assert.doesNotMatch(login, /searchParams\.get\("next"\) \?\? "\/practice"/);
-  assert.doesNotMatch(callback, /searchParams\.get\("next"\) \?\? "\/practice"/);
+  assert.doesNotMatch(login, /searchParams\.get\("next"\) \?\? "\/home"/);
+  assert.doesNotMatch(callback, /searchParams\.get\("next"\) \?\? "\/home"/);
 });

@@ -19,7 +19,7 @@ The canonical paths are `/api/v1/practice-sessions/*`. Legacy `/api/v1/sessions/
 | `GET` | `/api/v1/practice-sessions/{sessionId}` | Return session state, take status, observations, turns, and final actor sentence. |
 | `GET` | `/api/v1/practice-sessions/{sessionId}/signed-video-url` | Return a short-lived private playback signed URL after owner checks. |
 | `PATCH` | `/api/v1/practice-sessions/{sessionId}/observations/{observationId}` | Accept/reject/mark unsure. Rejection must block future question grounding. |
-| `POST` | `/api/v1/practice-sessions/{sessionId}/turns` | Store actor answer and produce one next assistant question/hint/redirect. |
+| `POST` | `/api/v1/practice-sessions/{sessionId}/turns` | Store one actor answer and one coach turn, then return the persisted answer count and the 5-to-10-answer dialogue completion decision. |
 | `POST` | `/api/v1/practice-sessions/{sessionId}/result` | Store the actor-authored filled-thought sentence and complete the session. |
 | `PATCH` | `/api/v1/practice-sessions/{sessionId}/visibility` | Soft-hide the session for owner-visible lists. |
 
@@ -76,11 +76,13 @@ Spring Boot DTOs should preserve these meanings from the Next.js MVP:
 - User-facing DTOs must not expose score/rating/verdict/evaluation/diagnosis/prescriptive-correction fields.
 - A rejected observation must update both `confirmationState='rejected'` and `blockedForQuestioning=true`.
 - A turn-generation request must produce at most one assistant question.
+- `CreateTurnResponse` keeps `actorTurn`, `coachTurn`, and `session`, and adds required `dialogueComplete`, `answerCount`, and nullable `completionReason` (`ai_sufficient` or `max_questions_reached`).
+- Dialogue completion does not create a summary/result or mark the practice session completed; the actor-authored result remains a separate request.
 - `finalActorSentence` is written by the actor; the service must not replace it with an AI conclusion.
 
 ## Supabase Integration Assumptions
 
-Use `supabase/migrations/001_acttub_slice1_schema.sql` as the database baseline.
+Apply the ordered SQL files in `supabase/migrations/`; `001_acttub_slice1_schema.sql` is the baseline and `003_atomic_dialogue_turn_append.sql` replaces the original turn-pair RPC with the concurrency-safe signature.
 
 Recommended server behavior:
 
@@ -120,6 +122,32 @@ Before storing an assistant question with `sourceObservationIds`, load every cit
 
 If no safe observation exists, ask from explicit missing context or use a boundary redirect. Do not cite rejected/unsure observations.
 
+### Dialogue completion
+
+Treat the database count of persisted actor turns as authoritative. The Next service reads that count for generation and passes it to the RPC as `p_expected_actor_answer_count`. In one owner-checked transaction, the RPC locks the session, recounts actor turns, and rejects an append when the latest persisted coach turn has `questionFocus='summary_reflection'`, the existing actor-answer count is already 10, or the expected count is stale. It returns the post-insert count, which the repository validates and exposes as `CreateTurnResponse.answerCount`.
+
+Gemini must return `dialogueSufficient` as a JSON boolean; strings, numbers, missing values, and null are invalid upstream responses. The Gemini adapter requires `false` for answers 1~4, leaves answers 5~9 advisory, and requires `true` for answer 10. A forced-boundary disagreement or a `questionFocus` that disagrees with sufficiency fails as an upstream error before persistence. The service independently evaluates the policy and also rejects any disagreement between completion, sufficiency, and `summary_reflection` focus:
+
+```text
+answerCount = persistedActorAnswerCount + 1
+if answerCount < 5:
+  require dialogueSufficient == false
+  dialogueComplete = false
+  completionReason = null
+else if answerCount < 10 and dialogueSufficient:
+  dialogueComplete = true
+  completionReason = ai_sufficient
+else if answerCount >= 10:
+  require dialogueSufficient == true
+  dialogueComplete = true
+  completionReason = max_questions_reached
+else:
+  dialogueComplete = false
+  completionReason = null
+```
+
+When `dialogueComplete=true`, persist the required coach turn with `questionFocus='summary_reflection'`. This closes only the question loop; do not auto-create `session_results`, a final actor sentence, or a summary.
+
 ### Product language guard
 
 The backend should reject or regenerate assistant text containing evaluator-style product language such as score, grade, verdict, strength/weakness cards, diagnosis result, or prescriptive coaching framed as an answer. Store guardrail failures in `public.validation_events`.
@@ -135,7 +163,7 @@ The backend should reject or regenerate assistant text containing evaluator-styl
    - session creation
    - owner-checked signed playback URL generation
    - observation rejection non-reuse
-   - one-question turn generation
+   - one-question turn generation and 4/5/9/10-answer completion boundaries
    - final actor sentence persistence
    - forbidden evaluator-language guard events
 
@@ -144,6 +172,8 @@ The backend should reject or regenerate assistant text containing evaluator-styl
 - Database migration applies cleanly to a fresh Supabase/Postgres project.
 - RLS lets authenticated users read only visible own lifecycle rows, and does not let browser-authenticated users insert/update/delete practice lifecycle rows directly.
 - Rejected observations cannot be referenced by new assistant turns.
+- Turn creation rejects a persisted last `summary_reflection` and never stores an 11th actor answer.
+- Completed dialogue responses always carry a `summary_reflection` coach turn without auto-creating a result.
 - Web UI can complete a full Slice 1 flow through the Spring Boot API without changing user-visible copy.
 - No new public API field reintroduces scores, ratings, verdicts, strengths, weaknesses, diagnosis framing, evaluation framing, or prescriptive corrections.
 

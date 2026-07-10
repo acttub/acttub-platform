@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
+import { getAuthContext } from "@/server/services/auth-context";
 
 const heroSignals = [
   ["대상", "배우 · 연기자"],
@@ -36,9 +38,15 @@ const outcomes = [
   ["다음 액션", "다음 테이크에서 바로 시도할 연습 문장을 남겨요."],
 ];
 
-const practiceLoginHref = "/auth/login?next=/practice";
+const practiceLoginHref = "/auth/login?next=/practice/new";
 
-export default function Home() {
+export default async function Home() {
+  const auth = await getAuthContext();
+
+  if (auth) {
+    redirect(auth.termsAccepted ? "/home" : "/terms");
+  }
+
   return (
     <main className="min-h-dvh overflow-hidden bg-white text-[#191f28]">
       <header className="sticky top-0 z-20 border-b border-[#edf0f3]/80 bg-white/90 px-5 backdrop-blur-xl">
@@ -59,6 +67,7 @@ export default function Home() {
           </div>
           <Link
             href={practiceLoginHref}
+            prefetch={false}
             className="inline-flex h-10 items-center justify-center rounded-full bg-[#3182f6] px-4 text-sm font-bold text-white shadow-[0_8px_20px_rgba(49,130,246,0.24)] transition hover:bg-[#1b64da]"
           >
             질문 받기
@@ -101,6 +110,7 @@ export default function Home() {
           <div className="mt-10 flex w-full max-w-lg flex-col gap-3 sm:flex-row sm:justify-center">
             <Link
               href={practiceLoginHref}
+              prefetch={false}
               className="inline-flex h-14 items-center justify-center rounded-2xl bg-[#191f28] px-7 text-base font-black text-white shadow-[0_18px_40px_rgba(25,31,40,0.18)] transition hover:-translate-y-0.5 hover:bg-[#333d4b]"
             >
               내 장면으로 질문 받기
@@ -243,6 +253,7 @@ export default function Home() {
           </div>
           <Link
             href={practiceLoginHref}
+            prefetch={false}
             className="inline-flex h-16 items-center justify-center rounded-2xl bg-white px-8 text-lg font-black text-[#191f28] transition hover:-translate-y-0.5"
           >
             내 장면으로 질문 받기

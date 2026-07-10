@@ -1,3 +1,5 @@
+import type { DialogueCompletionReason } from "@/lib/practice/dialogue-completion-policy";
+
 export type SessionStatus =
   | "ANALYZING"
   | "OBSERVE_CONFIRM"
@@ -156,6 +158,9 @@ export type CreateTurnResponse = {
   actorTurn: TurnDto;
   coachTurn: TurnDto;
   session: CoachSessionDto;
+  dialogueComplete: boolean;
+  answerCount: number;
+  completionReason: DialogueCompletionReason;
 };
 
 export type UpdateObservationRequest = {

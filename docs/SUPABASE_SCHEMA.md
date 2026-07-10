@@ -1,6 +1,6 @@
 # Supabase Schema and Policy Notes for Acttub Slice 1
 
-This document records the Supabase persistence contract for the Slice 1 MVP. The executable SQL lives in `supabase/migrations/001_acttub_slice1_schema.sql` and mirrors `docs/supabase/slice1-schema-rls-storage.sql`.
+This document records the Supabase persistence contract for the Slice 1 MVP. Apply the executable SQL files in `supabase/migrations/` in order. Migration `001_acttub_slice1_schema.sql` mirrors the baseline snapshot in `docs/supabase/slice1-schema-rls-storage.sql`; later migrations evolve that baseline.
 
 ## Scope
 
@@ -134,7 +134,7 @@ The canonical REST surface uses `/api/v1/practice-sessions/*`. `/api/v1/sessions
 - `GET /api/v1/practice-sessions/{sessionId}` reads session/take/observation/turn/result state.
 - `GET /api/v1/practice-sessions/{sessionId}/signed-video-url` returns a short-lived private playback URL. Do not add a client `POST /video-url` call path.
 - `PATCH /api/v1/practice-sessions/{sessionId}/observations/{observationId}` updates `confirmation_state`; `rejected` must set `blocked_for_questioning=true`.
-- `POST /api/v1/practice-sessions/{sessionId}/turns` records the actor answer and the next assistant question/hint/redirect.
+- `POST /api/v1/practice-sessions/{sessionId}/turns` records the actor answer and next assistant question atomically through `acttub_append_turn_pair`. The RPC locks the session, rejects a stale expected actor-answer count, a prior `summary_reflection`, or an 11th answer, and returns the persisted post-insert answer count.
 - `POST /api/v1/practice-sessions/{sessionId}/result` stores `actor_authored_sentence`/`final_actor_sentence` and moves the session to `completed`.
 - `PATCH /api/v1/practice-sessions/{sessionId}/visibility` soft-hides the session.
 

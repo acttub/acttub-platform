@@ -25,7 +25,7 @@ This note preserves the backend contract that the temporary Next.js route handle
 | `GET /api/v1/practice-sessions/{sessionId}` | Fetch session state | owner only | Return `403` or `404` for non-owner without leaking existence. |
 | `GET /api/v1/practice-sessions/{sessionId}/signed-video-url` | Issue playback signed URL | owner + visible session | 600 second expiry, never public URL. `POST /video-url` is legacy-only compatibility and must not be used by clients. |
 | `PATCH /api/v1/practice-sessions/{sessionId}/observations/{observationId}` | Confirm/reject/unsure observation | owner only | `rejected` must set `blocked_for_questioning=true`. |
-| `POST /api/v1/practice-sessions/{sessionId}/turns` | Submit answer / get one next question | owner only | Source observations must exclude rejected/blocked observations. |
+| `POST /api/v1/practice-sessions/{sessionId}/turns` | Submit answer / get one next question | owner only | Source observations exclude rejected/blocked observations. Response adds `dialogueComplete`, persisted `answerCount`, and nullable `completionReason`; completion is allowed only from answer 5 and forced at answer 10. |
 | `POST /api/v1/practice-sessions/{sessionId}/result` | Save actor-authored final sentence + validation metrics | owner only | Final sentence is required and user-authored. |
 | `PATCH /api/v1/practice-sessions/{sessionId}/visibility` | Soft-hide session | owner only | Sets `hidden_at`; UI must not frame this as permanent deletion. |
 
@@ -69,6 +69,8 @@ Vary: Cookie, Authorization
 - Child rows denormalize `user_id` and enforce composite owner-alignment FKs with `(session_id, user_id)`.
 - `observations.confirmation_state = 'rejected'` requires `blocked_for_questioning = true`.
 - Questions, final text, and validation output must not use rejected/blocked observations as source material.
+- The persisted actor-turn count is the completion-policy source of truth: answers 1~4 require Gemini `dialogueSufficient=false` and continue, answers 5~9 honor a strictly boolean Gemini sufficiency decision, and answer 10 requires `true` and completes with `max_questions_reached`. A forced-boundary disagreement is an upstream failure and is not persisted.
+- A persisted latest coach `summary_reflection` or 10 existing actor answers blocks another turn pair. A completed dialogue writes the required coach turn as `summary_reflection` but does not create `session_results` or a final actor sentence.
 
 ## Spring Boot implementation hints
 
@@ -77,4 +79,5 @@ Vary: Cookie, Authorization
 - Use the Supabase service role only in backend infrastructure components. Never return it or derive client credentials from it.
 - Preserve the lifecycle write boundary: browser-authenticated clients may directly insert only the Storage object authorized by an active upload intent; lifecycle table inserts, updates, and deletes stay behind route handlers, the service role, or restricted RPCs.
 - Wrap finalization in a DB transaction. If the transaction fails after object upload, call the Storage API remove operation and log `orphan_cleanup_attempted` with the result.
+- Apply `003_atomic_dialogue_turn_append.sql`. Pass the count observed for generation as `p_expected_actor_answer_count`; lock and recount persisted actor turns in the RPC, reject a stale expected count, and return the post-insert count so concurrent requests cannot bypass the 10-answer limit or append after `summary_reflection`.
 - Preserve the current product language rules in backend generated content: the final result centers the actor-authored sentence and avoids score/verdict/evaluation/diagnosis/prescriptive-correction framing.

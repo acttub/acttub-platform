@@ -172,3 +172,52 @@ test("security definer RPCs are execute-restricted to service role only", () => 
     }
   }
 });
+
+test("turn append migration serializes and rejects stale or completed dialogue appends", () => {
+  const sql = read("supabase/migrations/003_atomic_dialogue_turn_append.sql");
+  const newSignature =
+    "public.acttub_append_turn_pair(uuid, uuid, integer, uuid, text, text, uuid, text, text, uuid[], timestamptz)";
+  const normalized = normalizeSql(sql);
+
+  assert.match(
+    normalized,
+    /drop function if exists public\.acttub_append_turn_pair\( uuid, uuid, uuid, text, text, uuid, text, text, uuid\[\], timestamptz \);/,
+  );
+  assert.match(sql, /p_expected_actor_answer_count integer/);
+  assert.match(sql, /returns table\(session_id uuid, actor_answer_count integer\)/);
+  assert.match(
+    normalized,
+    /from public\.practice_sessions s .* for update;/,
+  );
+  assert.match(sql, /select count\(\*\)::integer[\s\S]*qt\.speaker = 'actor'/);
+  assert.match(sql, /qt\.speaker = 'acttub'[\s\S]*order by qt\.created_at desc, qt\.id desc/);
+  assert.match(sql, /v_latest_coach_question_focus = 'summary_reflection'/);
+  assert.match(sql, /v_actor_answer_count >= 10/);
+  assert.match(
+    sql,
+    /v_actor_answer_count is distinct from p_expected_actor_answer_count/,
+  );
+  assert.match(sql, /return query select p_session_id, v_actor_answer_count/);
+
+  const escapedSignature = newSignature.replace(/[()[\]]/g, "\\$&");
+  assert.match(
+    sql,
+    new RegExp(
+      `revoke execute on function ${escapedSignature} from public, anon, authenticated;`,
+    ),
+  );
+  assert.match(
+    sql,
+    new RegExp(`grant execute on function ${escapedSignature} to service_role;`),
+  );
+
+  const summaryGuard = sql.indexOf("v_latest_coach_question_focus = 'summary_reflection'");
+  const maxGuard = sql.indexOf("v_actor_answer_count >= 10");
+  const expectedGuard = sql.indexOf(
+    "v_actor_answer_count is distinct from p_expected_actor_answer_count",
+  );
+  const firstInsert = sql.indexOf("insert into public.question_turns");
+  assert.ok(summaryGuard < maxGuard);
+  assert.ok(maxGuard < expectedGuard);
+  assert.ok(expectedGuard < firstInsert);
+});

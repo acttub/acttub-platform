@@ -1,5 +1,5 @@
-import { PracticeFlow } from "@/features/practice/practice-flow";
+import { redirect } from "next/navigation";
 
-export default function PracticePage() {
-  return <PracticeFlow />;
+export default function LegacyPracticePage() {
+  redirect("/home");
 }

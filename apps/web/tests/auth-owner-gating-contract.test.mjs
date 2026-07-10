@@ -92,14 +92,20 @@ test("practice entrypoints require authentication before use", () => {
   const practiceFlow = read("src/features/practice/practice-flow.tsx");
   const termsGate = read("src/features/practice/terms-gate.tsx");
 
-  assert.match(landing, /const practiceLoginHref = "\/auth\/login\?next=\/practice"/);
+  assert.match(landing, /import \{ redirect \} from "next\/navigation"/);
+  assert.match(landing, /import \{ getAuthContext \} from "@\/server\/services\/auth-context"/);
+  assert.match(landing, /const auth = await getAuthContext\(\)/);
+  assert.match(landing, /redirect\(auth\.termsAccepted \? "\/home" : "\/terms"\)/);
+  assert.match(landing, /const practiceLoginHref = "\/auth\/login\?next=\/practice\/new"/);
   assert.doesNotMatch(landing, /href="\/practice"/);
   assert.match(proxy, /isProtectedPracticePath\(request\.nextUrl\.pathname\)/);
+  assert.match(proxy, /PROTECTED_ROUTE_PATHS = \["\/home", "\/practice\/new", "\/practice\/history"\]/);
   assert.match(proxy, /supabase\.auth\.getClaims\(\)/);
   assert.match(proxy, /if \(!config\.supabase\.isConfigured\) \{[\s\S]*redirectToLogin\(request\)/);
   assert.match(proxy, /return redirectToLogin\(request\)/);
-  assert.match(practiceFlow, /window\.location\.href = "\/auth\/login\?next=\/practice"/);
-  assert.match(termsGate, /window\.location\.href = "\/auth\/login\?next=\/practice"/);
+  assert.match(practiceFlow, /encodeURIComponent\(entryPath\[entry\]\)/);
+  assert.match(termsGate, /window\.location\.href = "\/auth\/login\?next=\/home"/);
+  assert.match(termsGate, /window\.location\.href = "\/home"/);
 });
 
 

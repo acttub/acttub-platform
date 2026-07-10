@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { getAuthSession, type AuthSessionResponse } from "@/lib/api/auth";
 import {
   createPracticeSession,
@@ -11,6 +11,10 @@ import {
   listPracticeSessions,
   updatePracticeObservation,
 } from "@/lib/api/sessions";
+import {
+  MAX_DIALOGUE_ANSWER_COUNT,
+  MIN_DIALOGUE_ANSWER_COUNT,
+} from "@/lib/practice/dialogue-completion-policy";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import type {
   CoachSessionDto,
@@ -44,7 +48,6 @@ const allowedUploadMimeTypes = new Set(["video/mp4", "video/quicktime"]);
 const maxUploadBytes = 300 * 1024 * 1024;
 const uploadSizeLimitLabel = "300MB";
 const genreOptions = ["연극", "영화", "뮤지컬", "드라마", "기타"] as const;
-const summaryAnswerThreshold = 2;
 const entryPath: Record<PracticeEntry, string> = {
   home: "/home",
   new: "/practice/new",
@@ -63,6 +66,14 @@ const emptySceneDraft: SceneDraft = {
   subtext: "",
   videoUrl: "",
   durationMs: undefined,
+};
+const practiceExample: SceneDraft = {
+  ...emptySceneDraft,
+  genre: "연극",
+  situation: "시각장애인이 사랑하는 마음을 숨기는 상황",
+  characterContext:
+    "시각장애가 있는 인물이 오래 사랑해 온 상대와 단둘이 있다. 지금의 관계를 잃을까 두려워 자신의 마음을 숨기려 한다.",
+  subtext: "좋아한다고 말하고 싶지만 지금의 관계도 잃고 싶지 않다.",
 };
 
 function validateUploadFile(file: File | null): asserts file is File {
@@ -86,7 +97,7 @@ function toDialogueEntries(turns: TurnDto[]): DialogueEntry[] {
   }));
 }
 
-export function PracticeFlow() {
+export function PracticeFlow({ entry = "new" }: { entry?: PracticeEntry }) {
   const [session, setSession] = useState<AuthSessionResponse | null>(null);
   const [step, setStep] = useState<Step>("gate");
   const [loadingMessage, setLoadingMessage] =
@@ -98,10 +109,14 @@ export function PracticeFlow() {
   const [answer, setAnswer] = useState("");
   const [dialogue, setDialogue] = useState<DialogueEntry[]>([]);
   const [finalSentence, setFinalSentence] = useState("");
+  const [finalReflectionPrompt, setFinalReflectionPrompt] = useState("");
+  const [summarySaved, setSummarySaved] = useState(false);
   const [hidden, setHidden] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
   const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [uploadPreviewUrl, setUploadPreviewUrl] = useState<string | null>(null);
+  const uploadPreviewUrlRef = useRef<string | null>(null);
   const [nextReflectionQuestion, setNextReflectionQuestion] = useState("");
   const [practiceHistory, setPracticeHistory] = useState<CoachSessionDto[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
@@ -114,7 +129,7 @@ export function PracticeFlow() {
       .then((authSession) => {
         if (!mounted) return;
         if (!authSession.authenticated) {
-          window.location.href = "/auth/login?next=/practice";
+          window.location.href = `/auth/login?next=${encodeURIComponent(entryPath[entry])}`;
           return;
         }
         if (!authSession.terms.accepted) {
@@ -122,7 +137,7 @@ export function PracticeFlow() {
           return;
         }
         setSession(authSession);
-        setStep("scene");
+        setStep(entryInitialStep[entry]);
         setHistoryLoading(true);
         listPracticeSessions()
           .then(({ sessions }) => {
@@ -155,15 +170,21 @@ export function PracticeFlow() {
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [entry]);
+
+  useEffect(
+    () => () => {
+      if (uploadPreviewUrlRef.current) {
+        URL.revokeObjectURL(uploadPreviewUrlRef.current);
+      }
+    },
+    [],
+  );
 
   const actorAnswers = useMemo(
     () => dialogue.filter((entry) => entry.speaker === "actor"),
     [dialogue],
   );
-  const latestQuestion = [...dialogue]
-    .reverse()
-    .find((entry) => entry.speaker === "coach");
 
   function updateScene<K extends keyof SceneDraft>(
     key: K,
@@ -178,23 +199,55 @@ export function PracticeFlow() {
     );
   }
 
+  function updateFinalSentence(value: string) {
+    setFinalSentence(value);
+    setSummarySaved(false);
+  }
+
+  function finishDialogue() {
+    setApiError(null);
+    setFinalReflectionPrompt(
+      "지금까지 대화에서 발견한 인물의 마음을 마지막 한 문장으로 남겨 볼까요?",
+    );
+    setSummarySaved(false);
+    setStep("summary");
+  }
+
   function selectUploadFile(file: File | null) {
     try {
       validateUploadFile(file);
+      const nextPreviewUrl = URL.createObjectURL(file);
+
+      if (uploadPreviewUrlRef.current) {
+        URL.revokeObjectURL(uploadPreviewUrlRef.current);
+      }
+
+      uploadPreviewUrlRef.current = nextPreviewUrl;
+      setUploadPreviewUrl(nextPreviewUrl);
       setUploadFile(file);
       setApiError(null);
       setStep("context");
     } catch (error) {
+      if (uploadPreviewUrlRef.current) {
+        URL.revokeObjectURL(uploadPreviewUrlRef.current);
+        uploadPreviewUrlRef.current = null;
+      }
+      setUploadPreviewUrl(null);
       setUploadFile(null);
       handleApiError(error);
-      setStep("scene");
+      setStep("video");
     }
   }
 
   function returnToUploadSelection() {
+    if (uploadPreviewUrlRef.current) {
+      URL.revokeObjectURL(uploadPreviewUrlRef.current);
+      uploadPreviewUrlRef.current = null;
+    }
+    setUploadPreviewUrl(null);
     setUploadFile(null);
     setApiError(null);
-    setStep("scene");
+    setStep("video");
   }
 
   async function startUpload(selectedFile = uploadFile) {
@@ -250,10 +303,13 @@ export function PracticeFlow() {
           throw new Error(error.message);
         }
 
-        const finalizedUpload = await finalizePracticeUploadIntent(uploadIntent.uploadIntentId, {
-          storagePath: uploadIntent.storagePath,
-          durationMs: scene.durationMs,
-        });
+        const finalizedUpload = await finalizePracticeUploadIntent(
+          uploadIntent.uploadIntentId,
+          {
+            storagePath: uploadIntent.storagePath,
+            durationMs: scene.durationMs,
+          },
+        );
         sessionDraft = {
           ...sessionDraft,
           sessionId: uploadIntent.sessionId,
@@ -272,10 +328,14 @@ export function PracticeFlow() {
       setPracticeSession(result.session);
       setObservation(result.session.observations[0] ?? null);
       setDialogue(toDialogueEntries(result.session.turns));
+      setFinalSentence(result.session.finalActorSentence ?? "");
+      setFinalReflectionPrompt("");
+      setNextReflectionQuestion("");
+      setSummarySaved(false);
       setStep(result.session.observations[0] ? "observe" : "dialogue");
     } catch (error) {
       handleApiError(error);
-      setStep(selectedFile ? "context" : "scene");
+      setStep(selectedFile ? "context" : "video");
     } finally {
       setSubmitting(false);
     }
@@ -286,6 +346,7 @@ export function PracticeFlow() {
 
     setSubmitting(true);
     setApiError(null);
+    setSummarySaved(false);
 
     try {
       const result = await updatePracticeObservation(
@@ -310,18 +371,16 @@ export function PracticeFlow() {
     const trimmed = answer.trim();
     if (!trimmed) return;
 
-    const answerCount = actorAnswers.length;
-
     setSubmitting(true);
     setApiError(null);
+    setSummarySaved(false);
 
     try {
       const result = await createPracticeTurn(practiceSession.id, {
         actorAnswer: trimmed,
       });
-      setPracticeSession(result.session);
-      setDialogue((current) => [
-        ...current,
+      const nextDialogue = [
+        ...dialogue,
         {
           id: result.actorTurn.id,
           speaker: result.actorTurn.speaker,
@@ -334,10 +393,14 @@ export function PracticeFlow() {
           content: result.coachTurn.content,
           questionFocus: result.coachTurn.questionFocus,
         },
-      ]);
+      ];
+
+      setPracticeSession(result.session);
+      setDialogue(nextDialogue);
       setAnswer("");
 
-      if (answerCount >= 1) {
+      if (result.dialogueComplete) {
+        setFinalReflectionPrompt(result.coachTurn.content);
         setStep("summary");
       }
     } catch (error) {
@@ -350,7 +413,10 @@ export function PracticeFlow() {
   async function saveSummary() {
     if (!practiceSession) return;
 
-    const trimmed = finalSentence.trim();
+    const latestActorAnswer = [...dialogue]
+      .reverse()
+      .find((entry) => entry.speaker === "actor")?.content;
+    const trimmed = finalSentence.trim() || latestActorAnswer?.trim();
     if (!trimmed) return;
 
     setSubmitting(true);
@@ -368,6 +434,7 @@ export function PracticeFlow() {
       );
       setFinalSentence(result.session.finalActorSentence ?? trimmed);
       setNextReflectionQuestion(result.nextReflectionQuestion);
+      setSummarySaved(true);
     } catch (error) {
       handleApiError(error);
     } finally {
@@ -385,14 +452,32 @@ export function PracticeFlow() {
     );
   }
 
-  if (step === "scene") {
+  if (step === "home") {
     return (
       <PracticeHome
-        apiError={apiError}
         displayName={formatDisplayName(session)}
         historyError={historyError}
         historyLoading={historyLoading}
         historySessions={practiceHistory}
+      />
+    );
+  }
+
+  if (step === "history") {
+    return (
+      <PracticeHistoryScreen
+        displayName={formatDisplayName(session)}
+        error={historyError}
+        loading={historyLoading}
+        sessions={practiceHistory}
+      />
+    );
+  }
+
+  if (step === "video") {
+    return (
+      <PracticeNewScreen
+        apiError={apiError}
         submitting={submitting}
         onUploadFileSelect={selectUploadFile}
       />
@@ -406,6 +491,7 @@ export function PracticeFlow() {
         scene={scene}
         submitting={submitting}
         uploadFile={uploadFile}
+        uploadPreviewUrl={uploadPreviewUrl}
         onBack={returnToUploadSelection}
         onSceneChange={updateScene}
         onSubmit={() => startUpload(uploadFile)}
@@ -465,22 +551,24 @@ export function PracticeFlow() {
           ) : null}
           {step === "dialogue" ? (
             <DialoguePanel
-              latestQuestion={latestQuestion?.content ?? "다음 질문을 준비하고 있어요."}
               answer={answer}
+              answerCount={actorAnswers.length}
               dialogue={dialogue}
               onAnswerChange={setAnswer}
               onSubmit={submitAnswer}
-              onFinish={() => setStep("summary")}
+              onFinish={finishDialogue}
               submitting={submitting}
             />
           ) : null}
           {step === "summary" ? (
             <SummaryPanel
               finalSentence={finalSentence}
-              onFinalSentenceChange={setFinalSentence}
+              finalReflectionPrompt={finalReflectionPrompt}
+              onFinalSentenceChange={updateFinalSentence}
               scene={scene}
               dialogue={dialogue}
               nextReflectionQuestion={nextReflectionQuestion}
+              summarySaved={summarySaved}
               hidden={hidden}
               submitting={submitting}
               onSave={saveSummary}
@@ -504,45 +592,112 @@ export function PracticeFlow() {
 }
 
 function PracticeHome({
-  apiError,
   displayName,
   historyError,
   historyLoading,
   historySessions,
-  submitting,
-  onUploadFileSelect,
 }: {
-  apiError: string | null;
   displayName: string;
   historyError: string | null;
   historyLoading: boolean;
   historySessions: CoachSessionDto[];
-  submitting: boolean;
-  onUploadFileSelect: (file: File) => void;
 }) {
   const hasHistory = historySessions.length > 0;
-  const description = historyLoading
-    ? "연습 기록을 불러오는 중이에요. 곧 이어서 볼 수 있는 장면을 정리해둘게요."
-    : hasHistory
-      ? "최근 연습을 이어서 확인하거나, 새 영상을 먼저 올린 뒤 장면 맥락을 붙여보세요."
-      : "아직 연습 기록이 비어 있어요. 첫 영상을 올리면 다음 화면에서 장면 맥락을 받을게요.";
+  let description =
+    "아직 연습 기록이 비어 있어요. 첫 영상을 올리면 장면 맥락과 함께 질문을 받을 수 있어요.";
+
+  if (historyLoading) {
+    description =
+      "연습 기록을 불러오는 중이에요. 곧 이어서 볼 수 있는 장면을 정리해둘게요.";
+  } else if (hasHistory) {
+    description = "최근 연습을 확인하거나 새 영상을 올려 다음 질문을 받아보세요.";
+  }
 
   return (
     <main className="min-h-dvh bg-white px-4 py-6 text-[#191f28] sm:px-6 lg:px-8">
       <div className="mx-auto w-full max-w-[1280px]">
-        <header>
-          <div className="flex items-center gap-3">
-            <AppLogoMark />
-            <p className="text-base font-black tracking-[-0.03em] text-[#2f6bff] sm:text-lg">
-              AI 연기 코치
+        <header className="rounded-[32px] bg-[#f7faff] p-6 shadow-sm sm:p-8">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <div className="flex items-center gap-3">
+                <AppLogoMark />
+                <p className="text-base font-black tracking-[-0.03em] text-[#2f6bff] sm:text-lg">
+                  AI 연기 코치
+                </p>
+              </div>
+              <h1 className="mt-5 text-3xl font-black leading-tight tracking-[-0.05em] sm:text-4xl lg:text-[40px]">
+                {displayName}님, 환영해요
+              </h1>
+              <p className="mt-3 max-w-3xl text-base font-bold leading-7 tracking-[-0.02em] text-[#8b95a1] sm:text-lg sm:leading-8 lg:text-xl">
+                {description}
+              </p>
+            </div>
+            <a
+              href="/auth/logout"
+              className="inline-flex h-11 shrink-0 items-center justify-center rounded-2xl border border-[#d1d6db] bg-white px-4 text-sm font-black text-[#4e5968] transition hover:border-[#3182f6] hover:text-[#1b64da]"
+            >
+              로그아웃
+            </a>
+          </div>
+          <div className="mt-7 flex flex-col gap-3 sm:flex-row">
+            <a
+              href="/practice/new"
+              className="inline-flex min-h-13 items-center justify-center rounded-2xl bg-[#2f6bff] px-6 py-3 text-base font-black text-white shadow-[0_10px_20px_rgba(49,130,246,0.18)] transition hover:bg-[#1b64da]"
+            >
+              새 연습 시작하기
+            </a>
+            <a
+              href="/practice/history"
+              className="inline-flex min-h-13 items-center justify-center rounded-2xl bg-white px-6 py-3 text-base font-black text-[#2f6bff] shadow-sm transition hover:text-[#1b64da]"
+            >
+              전체 보기
+            </a>
+          </div>
+        </header>
+
+        <RecentPracticeSection
+          error={historyError}
+          loading={historyLoading}
+          sessions={historySessions}
+        />
+      </div>
+    </main>
+  );
+}
+
+function PracticeNewScreen({
+  apiError,
+  submitting,
+  onUploadFileSelect,
+}: {
+  apiError: string | null;
+  submitting: boolean;
+  onUploadFileSelect: (file: File) => void;
+}) {
+  return (
+    <main className="min-h-dvh bg-white px-4 py-6 text-[#191f28] sm:px-6 lg:px-8">
+      <div className="mx-auto w-full max-w-[960px]">
+        <header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <div className="flex items-center gap-3">
+              <AppLogoMark />
+              <p className="text-base font-black tracking-[-0.03em] text-[#2f6bff] sm:text-lg">
+                새 연습
+              </p>
+            </div>
+            <h1 className="mt-5 text-3xl font-black leading-tight tracking-[-0.05em] sm:text-4xl">
+              오늘의 연기 영상을 올려 주세요
+            </h1>
+            <p className="mt-3 max-w-2xl text-base font-bold leading-7 text-[#8b95a1]">
+              파일을 고른 뒤 장르, 상황, 인물 맥락을 적으면 질문 흐름이 시작돼요.
             </p>
           </div>
-          <h1 className="mt-5 text-3xl font-black leading-tight tracking-[-0.05em] sm:text-4xl lg:text-[40px]">
-            {displayName}님, 환영해요
-          </h1>
-          <p className="mt-3 max-w-3xl text-base font-bold leading-7 tracking-[-0.02em] text-[#8b95a1] sm:text-lg sm:leading-8 lg:text-xl">
-            {description}
-          </p>
+          <a
+            href="/home"
+            className="inline-flex h-11 shrink-0 items-center justify-center rounded-2xl border border-[#d1d6db] px-4 text-sm font-black text-[#4e5968] transition hover:border-[#3182f6] hover:text-[#1b64da]"
+          >
+            홈으로
+          </a>
         </header>
 
         {apiError ? (
@@ -555,11 +710,61 @@ function PracticeHome({
           submitting={submitting}
           onUploadFileSelect={onUploadFileSelect}
         />
+      </div>
+    </main>
+  );
+}
+
+function PracticeHistoryScreen({
+  displayName,
+  error,
+  loading,
+  sessions,
+}: {
+  displayName: string;
+  error: string | null;
+  loading: boolean;
+  sessions: CoachSessionDto[];
+}) {
+  return (
+    <main className="min-h-dvh bg-white px-4 py-6 text-[#191f28] sm:px-6 lg:px-8">
+      <div className="mx-auto w-full max-w-[1280px]">
+        <header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <div className="flex items-center gap-3">
+              <AppLogoMark />
+              <p className="text-base font-black tracking-[-0.03em] text-[#2f6bff] sm:text-lg">
+                연습 기록
+              </p>
+            </div>
+            <h1 className="mt-5 text-3xl font-black leading-tight tracking-[-0.05em] sm:text-4xl">
+              {displayName}님의 전체 연습
+            </h1>
+            <p className="mt-3 max-w-2xl text-base font-bold leading-7 text-[#8b95a1]">
+              완료한 연습 노트와 이어서 볼 질문 흐름을 한곳에 모았어요.
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <a
+              href="/home"
+              className="inline-flex h-11 items-center justify-center rounded-2xl border border-[#d1d6db] px-4 text-sm font-black text-[#4e5968] transition hover:border-[#3182f6] hover:text-[#1b64da]"
+            >
+              홈
+            </a>
+            <a
+              href="/practice/new"
+              className="inline-flex h-11 items-center justify-center rounded-2xl bg-[#2f6bff] px-4 text-sm font-black text-white transition hover:bg-[#1b64da]"
+            >
+              새 연습
+            </a>
+          </div>
+        </header>
 
         <RecentPracticeSection
-          error={historyError}
-          loading={historyLoading}
-          sessions={historySessions}
+          error={error}
+          loading={loading}
+          sessions={sessions}
+          variant="full"
         />
       </div>
     </main>
@@ -571,6 +776,7 @@ function PracticeContextScreen({
   scene,
   submitting,
   uploadFile,
+  uploadPreviewUrl,
   onBack,
   onSceneChange,
   onSubmit,
@@ -579,8 +785,12 @@ function PracticeContextScreen({
   scene: SceneDraft;
   submitting: boolean;
   uploadFile: File | null;
+  uploadPreviewUrl: string | null;
   onBack: () => void;
-  onSceneChange: <K extends keyof SceneDraft>(key: K, value: SceneDraft[K]) => void;
+  onSceneChange: <K extends keyof SceneDraft>(
+    key: K,
+    value: SceneDraft[K],
+  ) => void;
   onSubmit: () => void | Promise<void>;
 }) {
   return (
@@ -612,21 +822,27 @@ function PracticeContextScreen({
           </p>
         ) : null}
 
-        <section className="mt-6 flex items-center gap-4 rounded-[24px] border border-[#e5e8eb] bg-white p-5 shadow-sm">
-          <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[18px] bg-[#eaf2ff] text-[#2f6bff]">
-            <UploadIcon />
-          </span>
-          <div className="min-w-0">
-            <p className="text-sm font-black text-[#8b95a1]">선택된 영상</p>
-            <p className="mt-1 truncate text-lg font-black tracking-[-0.04em]">
-              {uploadFile?.name ?? "파일을 다시 선택해 주세요"}
-            </p>
-            {uploadFile ? (
-              <p className="mt-1 text-sm font-bold text-[#b0b8c1]">
-                {formatFileSize(uploadFile.size)}
+        <section className="mt-6 grid gap-4 rounded-[24px] border border-[#e5e8eb] bg-white p-5 shadow-sm lg:grid-cols-[minmax(0,1fr)_280px] lg:items-center">
+          <div className="flex items-center gap-4">
+            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[18px] bg-[#eaf2ff] text-[#2f6bff]">
+              <UploadIcon />
+            </span>
+            <div className="min-w-0">
+              <p className="text-sm font-black text-[#8b95a1]">선택된 영상</p>
+              <p className="mt-1 truncate text-lg font-black tracking-[-0.04em]">
+                {uploadFile?.name ?? "파일을 다시 선택해 주세요"}
               </p>
-            ) : null}
+              {uploadFile ? (
+                <p className="mt-1 text-sm font-bold text-[#b0b8c1]">
+                  {formatFileSize(uploadFile.size)}
+                </p>
+              ) : null}
+            </div>
           </div>
+          <SelectedUploadPreview
+            file={uploadFile}
+            previewUrl={uploadPreviewUrl}
+          />
         </section>
 
         <form
@@ -664,6 +880,48 @@ function PracticeContextScreen({
   );
 }
 
+function SelectedUploadPreview({
+  file,
+  previewUrl,
+}: {
+  file: File | null;
+  previewUrl: string | null;
+}) {
+  const [previewError, setPreviewError] = useState(false);
+
+  if (!file || !previewUrl) {
+    return (
+      <div className="flex aspect-video items-center justify-center rounded-2xl bg-[#f2f4f6] text-sm font-bold text-[#8b95a1]">
+        미리보기 대기
+      </div>
+    );
+  }
+
+  if (previewError) {
+    return (
+      <div className="flex aspect-video flex-col items-center justify-center rounded-2xl bg-[#fff4f4] px-5 text-center text-sm font-bold leading-6 text-[#e42939]">
+        <span>이 브라우저에서 선택한 영상을 재생할 수 없어요.</span>
+        <span className="mt-1 text-[#8b95a1]">
+          MP4(H.264) 형식으로 변환한 뒤 다시 시도해 주세요.
+        </span>
+      </div>
+    );
+  }
+
+  return (
+    <video
+      key={previewUrl}
+      controls
+      preload="metadata"
+      className="aspect-video w-full rounded-2xl bg-[#111827] object-contain"
+      src={previewUrl}
+      onError={() => setPreviewError(true)}
+    >
+      선택한 영상을 미리 볼 수 없어요.
+    </video>
+  );
+}
+
 function AppLogoMark() {
   return (
     <span className="flex h-11 w-11 items-center justify-center rounded-full bg-[#2f6bff] text-white shadow-[0_8px_20px_rgba(49,130,246,0.2)]">
@@ -681,34 +939,66 @@ function SceneContextForm({
 }: {
   scene: SceneDraft;
   submitting: boolean;
-  onSceneChange: <K extends keyof SceneDraft>(key: K, value: SceneDraft[K]) => void;
+  onSceneChange: <K extends keyof SceneDraft>(
+    key: K,
+    value: SceneDraft[K],
+  ) => void;
 }) {
+  function applyPracticeExample() {
+    onSceneChange("genre", practiceExample.genre);
+    onSceneChange("situation", practiceExample.situation);
+    onSceneChange("characterContext", practiceExample.characterContext);
+    onSceneChange("subtext", practiceExample.subtext);
+  }
+
   return (
     <section className="mt-8 rounded-[24px] border border-[#e5e8eb] bg-[#fbfcfd] p-5 sm:p-6">
-      <div>
-        <p className="text-sm font-black text-[#2f6bff]">장면 맥락</p>
-        <h2 className="mt-2 text-2xl font-black tracking-[-0.05em]">
-          질문이 실제 장면에 기대도록 맥락을 적어 주세요
-        </h2>
-        <p className="mt-2 text-sm font-bold leading-6 text-[#8b95a1]">
-          입력한 맥락과 Supabase에 저장된 세션 기록만 서버 질문 생성에 전달됩니다.
-        </p>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <p className="text-sm font-black text-[#2f6bff]">장면 맥락</p>
+          <h2 className="mt-2 text-2xl font-black tracking-[-0.05em]">
+            질문이 실제 장면에 기대도록 맥락을 적어 주세요
+          </h2>
+          <p className="mt-2 text-sm font-bold leading-6 text-[#8b95a1]">
+            입력한 맥락과 Supabase에 저장된 세션 기록만 서버 질문 생성에 전달됩니다.
+          </p>
+        </div>
+        <button
+          type="button"
+          disabled={submitting}
+          onClick={applyPracticeExample}
+          className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-2xl border border-[#b0d2ff] bg-white px-4 py-2 text-sm font-black text-[#2f6bff] transition hover:border-[#3182f6] hover:bg-[#f7faff] disabled:border-[#e5e8eb] disabled:text-[#b0b8c1]"
+        >
+          테스트 예시 채우기
+        </button>
       </div>
 
       <div className="mt-5 grid gap-4 lg:grid-cols-3">
         <label className="block">
-          <span className="text-sm font-bold text-[#4e5968]">장르 / 작품 유형</span>
-          <input
+          <span className="flex items-center gap-2 text-sm font-bold text-[#4e5968]">
+            장르 / 작품 유형 <RequiredBadge />
+          </span>
+          <select
             value={scene.genre}
             disabled={submitting}
+            required
             onChange={(event) => onSceneChange("genre", event.target.value)}
-            placeholder="예: 현대극, 독백, 오디션 장면"
             className="mt-2 h-12 w-full rounded-2xl border border-[#d1d6db] bg-white px-4 text-sm font-semibold outline-none focus:border-[#3182f6] disabled:bg-[#f2f4f6]"
-          />
+          >
+            <option value="">선택해 주세요</option>
+            {genreOptions.map((genre) => (
+              <option key={genre} value={genre}>
+                {genre}
+              </option>
+            ))}
+          </select>
         </label>
         <label className="block lg:col-span-2">
-          <span className="text-sm font-bold text-[#4e5968]">상황</span>
+          <span className="flex items-center gap-2 text-sm font-bold text-[#4e5968]">
+            상황 <RequiredBadge />
+          </span>
           <input
+            required
             value={scene.situation}
             disabled={submitting}
             onChange={(event) => onSceneChange("situation", event.target.value)}
@@ -720,8 +1010,11 @@ function SceneContextForm({
 
       <div className="mt-4 grid gap-4 lg:grid-cols-2">
         <label className="block">
-          <span className="text-sm font-bold text-[#4e5968]">인물 맥락</span>
+          <span className="flex items-center gap-2 text-sm font-bold text-[#4e5968]">
+            인물 맥락 <RequiredBadge />
+          </span>
           <textarea
+            required
             value={scene.characterContext}
             disabled={submitting}
             onChange={(event) => onSceneChange("characterContext", event.target.value)}
@@ -730,7 +1023,9 @@ function SceneContextForm({
           />
         </label>
         <label className="block">
-          <span className="text-sm font-bold text-[#4e5968]">서브텍스트 선택 입력</span>
+          <span className="flex items-center gap-2 text-sm font-bold text-[#4e5968]">
+            서브텍스트 <OptionalBadge />
+          </span>
           <textarea
             value={scene.subtext ?? ""}
             disabled={submitting}
@@ -741,6 +1036,22 @@ function SceneContextForm({
         </label>
       </div>
     </section>
+  );
+}
+
+function RequiredBadge() {
+  return (
+    <span className="rounded-full bg-[#eaf2ff] px-2 py-0.5 text-xs font-black text-[#2f6bff]">
+      필수
+    </span>
+  );
+}
+
+function OptionalBadge() {
+  return (
+    <span className="rounded-full bg-[#f2f4f6] px-2 py-0.5 text-xs font-black text-[#8b95a1]">
+      선택
+    </span>
   );
 }
 
@@ -842,20 +1153,23 @@ function RecentPracticeSection({
   error,
   loading,
   sessions,
+  variant = "recent",
 }: {
   error: string | null;
   loading: boolean;
   sessions: CoachSessionDto[];
+  variant?: "recent" | "full";
 }) {
-  const visibleSessions = sessions.slice(0, 3);
+  const visibleSessions = variant === "full" ? sessions : sessions.slice(0, 3);
+  const title = variant === "full" ? "전체 연습 기록" : "최근 연습";
 
   return (
     <section id="recent-practices" className="mt-10 pb-10">
       <header className="flex items-center justify-between gap-4">
-        <h2 className="text-2xl font-black tracking-[-0.05em]">최근 연습</h2>
-        {visibleSessions.length > 0 ? (
+        <h2 className="text-2xl font-black tracking-[-0.05em]">{title}</h2>
+        {variant === "recent" && sessions.length > 0 ? (
           <a
-            href="#recent-practices"
+            href="/practice/history"
             className="text-base font-black text-[#2f6bff] transition hover:text-[#1b64da]"
           >
             전체 보기
@@ -872,14 +1186,24 @@ function RecentPracticeSection({
           {error}
         </p>
       ) : null}
+      {!loading && !error && visibleSessions.length === 0 ? (
+        <div className="mt-5 rounded-[24px] border border-dashed border-[#c8d9f7] bg-[#f7faff] p-8 text-center">
+          <p className="text-xl font-black tracking-[-0.04em]">아직 연습 기록이 없어요</p>
+          <p className="mt-2 text-sm font-bold leading-6 text-[#8b95a1]">
+            첫 영상을 올리면 이곳에 연습 노트와 질문 흐름이 쌓입니다.
+          </p>
+          <a
+            href="/practice/new"
+            className="mt-5 inline-flex min-h-12 items-center justify-center rounded-2xl bg-[#2f6bff] px-5 py-3 text-sm font-black text-white transition hover:bg-[#1b64da]"
+          >
+            첫 연습 시작하기
+          </a>
+        </div>
+      ) : null}
       {!loading && !error && visibleSessions.length > 0 ? (
         <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {visibleSessions.map((session, index) => (
-            <PracticeHistoryCard
-              key={session.id}
-              index={index}
-              session={session}
-            />
+          {visibleSessions.map((session) => (
+            <PracticeHistoryCard key={session.id} session={session} />
           ))}
         </div>
       ) : null}
@@ -887,13 +1211,7 @@ function RecentPracticeSection({
   );
 }
 
-function PracticeHistoryCard({
-  index,
-  session,
-}: {
-  index: number;
-  session: CoachSessionDto;
-}) {
+function PracticeHistoryCard({ session }: { session: CoachSessionDto }) {
   const badge = getPracticeCardBadge(session);
 
   return (
@@ -909,7 +1227,7 @@ function PracticeHistoryCard({
           <PlayIcon />
         </span>
         <span className="absolute bottom-3 right-3 rounded-lg bg-[#0f1724]/90 px-2.5 py-1 text-sm font-black text-white">
-          {formatDuration(session.take.durationMs, index)}
+          {formatDuration(session.take.durationMs)}
         </span>
       </div>
       <div className="px-5 py-5">
@@ -1014,9 +1332,7 @@ function formatRelativePracticeDate(value: string): string {
   }).format(date);
 }
 
-function formatDuration(durationMs: number | null, index: number): string {
-  void index;
-
+function formatDuration(durationMs: number | null): string {
   if (!durationMs || durationMs <= 0) {
     return "--:--";
   }
@@ -1107,64 +1423,140 @@ function ObservationPanel({
 }
 
 function DialoguePanel({
-  latestQuestion,
   answer,
+  answerCount,
   dialogue,
   onAnswerChange,
   onSubmit,
   onFinish,
   submitting,
 }: {
-  latestQuestion: string;
   answer: string;
+  answerCount: number;
   dialogue: DialogueEntry[];
   onAnswerChange: (value: string) => void;
   onSubmit: () => void | Promise<void>;
   onFinish: () => void;
   submitting: boolean;
 }) {
+  const endOfDialogueRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    endOfDialogueRef.current?.scrollIntoView({ block: "nearest" });
+  }, [dialogue, submitting]);
+
   return (
-    <div className="space-y-5">
-      <p className="text-sm font-semibold text-[#3182f6]">한 번에 하나씩</p>
-      <h2 className="text-2xl font-bold tracking-[-0.03em]">
-        {latestQuestion}
-      </h2>
-      <div className="max-h-72 space-y-3 overflow-auto rounded-3xl bg-[#f9fafb] p-4">
-        {dialogue.map((entry) => (
-          <div
-            key={entry.id}
-            className={`rounded-2xl p-4 ${entry.speaker === "coach" ? "bg-white text-[#191f28]" : "bg-[#3182f6] text-white"}`}
-          >
-            <p className="text-xs font-semibold opacity-70">
-              {entry.speaker === "coach" ? "질문" : "내 답"}
+    <div className="overflow-hidden rounded-[28px] border border-[#e5e8eb] bg-white shadow-[0_12px_32px_rgba(25,31,40,0.06)]">
+      <header className="flex flex-col gap-4 border-b border-[#e5e8eb] px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-3">
+          <span className="flex h-11 w-11 items-center justify-center rounded-full bg-[#2f6bff] text-sm font-black text-white">
+            AI
+          </span>
+          <div>
+            <h2 className="font-black tracking-[-0.03em]">AI 연기 코치</h2>
+            <p className="mt-0.5 text-xs font-bold text-[#8b95a1]">
+              답변 {answerCount}회 · 최대 {MAX_DIALOGUE_ANSWER_COUNT}회
             </p>
-            <p className="mt-1 leading-7">{entry.content}</p>
           </div>
-        ))}
-      </div>
-      <textarea
-        value={answer}
-        onChange={(event) => onAnswerChange(event.target.value)}
-        placeholder="떠오른 생각을 한두 문장으로 적어 주세요."
-        className="min-h-32 w-full rounded-3xl border border-[#d1d6db] p-4 outline-none focus:border-[#3182f6]"
-      />
-      <div className="grid gap-3 sm:grid-cols-2">
-        <button
-          type="button"
-          disabled={submitting}
-          onClick={onSubmit}
-          className="h-13 rounded-2xl bg-[#3182f6] font-semibold text-white disabled:bg-[#b0d2ff]"
-        >
-          {submitting ? "기록 중이에요" : "답하고 다음 질문 보기"}
-        </button>
+        </div>
         <button
           type="button"
           disabled={submitting}
           onClick={onFinish}
-          className="h-13 rounded-2xl border border-[#d1d6db] font-semibold text-[#4e5968] disabled:text-[#b0b8c1]"
+          className="inline-flex min-h-10 items-center justify-center rounded-xl border border-[#d1d6db] px-4 text-sm font-black text-[#4e5968] transition hover:border-[#f04452] hover:text-[#e42939] disabled:text-[#b0b8c1]"
         >
-          마지막 문장 쓰기
+          대화 종료하기
         </button>
+      </header>
+
+      <div
+        role="log"
+        aria-live="polite"
+        aria-label="AI 코치와 나눈 대화"
+        className="min-h-[320px] max-h-[520px] space-y-4 overflow-y-auto bg-[#f7f8fa] px-4 py-5 sm:px-5"
+      >
+        {dialogue.map((entry) => {
+          const isActorEntry = entry.speaker === "actor";
+
+          return (
+            <div
+              key={entry.id}
+              className={`flex items-end gap-2 ${isActorEntry ? "justify-end" : "justify-start"}`}
+            >
+              {!isActorEntry ? (
+                <span
+                  aria-hidden="true"
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#2f6bff] text-[10px] font-black text-white"
+                >
+                  AI
+                </span>
+              ) : null}
+              <div
+                className={`max-w-[82%] rounded-2xl px-4 py-3 shadow-sm ${
+                  isActorEntry
+                    ? "rounded-br-md bg-[#3182f6] text-white"
+                    : "rounded-bl-md border border-[#e5e8eb] bg-white text-[#191f28]"
+                }`}
+              >
+                <p className="text-xs font-black opacity-70">
+                  {isActorEntry ? "나" : "AI 코치"}
+                </p>
+                <p className="mt-1 whitespace-pre-wrap text-[15px] font-semibold leading-6">
+                  {entry.content}
+                </p>
+              </div>
+            </div>
+          );
+        })}
+        {submitting ? (
+          <div className="flex items-end gap-2">
+            <span
+              aria-hidden="true"
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#2f6bff] text-[10px] font-black text-white"
+            >
+              AI
+            </span>
+            <div className="rounded-2xl rounded-bl-md border border-[#e5e8eb] bg-white px-4 py-3 text-sm font-bold text-[#8b95a1] shadow-sm">
+              다음 질문을 생각하고 있어요…
+            </div>
+          </div>
+        ) : null}
+        <div ref={endOfDialogueRef} />
+      </div>
+
+      <div className="border-t border-[#e5e8eb] bg-white p-4 sm:p-5">
+        <div className="flex items-end gap-3 rounded-2xl border border-[#d1d6db] bg-white p-3 focus-within:border-[#3182f6] focus-within:ring-4 focus-within:ring-[#e8f3ff]">
+          <textarea
+            aria-label="AI 코치에게 보낼 답변"
+            rows={2}
+            value={answer}
+            disabled={submitting}
+            onChange={(event) => onAnswerChange(event.target.value)}
+            onKeyDown={(event) => {
+              if (
+                event.key === "Enter" &&
+                !event.shiftKey &&
+                !event.nativeEvent.isComposing
+              ) {
+                event.preventDefault();
+                if (answer.trim() && !submitting) void onSubmit();
+              }
+            }}
+            placeholder="답변을 입력해 주세요. Shift + Enter로 줄바꿈할 수 있어요."
+            className="max-h-36 min-h-14 flex-1 resize-none bg-transparent px-1 py-2 text-[15px] font-semibold leading-6 outline-none placeholder:text-[#b0b8c1] disabled:text-[#8b95a1]"
+          />
+          <button
+            type="button"
+            disabled={submitting || !answer.trim()}
+            onClick={onSubmit}
+            className="inline-flex h-11 shrink-0 items-center justify-center rounded-xl bg-[#3182f6] px-5 text-sm font-black text-white transition hover:bg-[#1b64da] disabled:bg-[#b0d2ff]"
+          >
+            {submitting ? "전송 중" : "보내기"}
+          </button>
+        </div>
+        <p className="mt-3 text-center text-xs font-bold leading-5 text-[#8b95a1]">
+          {MIN_DIALOGUE_ANSWER_COUNT}회부터 AI가 대화가 충분한지 판단하고, 최대 {MAX_DIALOGUE_ANSWER_COUNT}회에 마무리해요.
+        </p>
       </div>
     </div>
   );
@@ -1172,20 +1564,24 @@ function DialoguePanel({
 
 function SummaryPanel({
   finalSentence,
+  finalReflectionPrompt,
   onFinalSentenceChange,
   scene,
   dialogue,
   nextReflectionQuestion,
+  summarySaved,
   hidden,
   submitting,
   onSave,
   onToggleHidden,
 }: {
   finalSentence: string;
+  finalReflectionPrompt: string;
   onFinalSentenceChange: (value: string) => void;
   scene: SceneDraft;
   dialogue: DialogueEntry[];
   nextReflectionQuestion: string;
+  summarySaved: boolean;
   hidden: boolean;
   submitting: boolean;
   onSave: () => void;
@@ -1193,33 +1589,69 @@ function SummaryPanel({
 }) {
   return (
     <div className="space-y-5">
-      <p className="text-sm font-semibold text-[#3182f6]">마무리</p>
+      <p className="text-sm font-semibold text-[#3182f6]">AI 정리</p>
       <h2 className="text-2xl font-bold tracking-[-0.03em]">
-        인물의 생각을 내 문장으로 남겨 주세요.
+        연습 노트로 마무리해요.
       </h2>
+      <div className="flex items-end gap-2 rounded-3xl bg-[#f7f8fa] p-4">
+        <span
+          aria-hidden="true"
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#2f6bff] text-[10px] font-black text-white"
+        >
+          AI
+        </span>
+        <p className="rounded-2xl rounded-bl-md border border-[#e5e8eb] bg-white px-4 py-3 text-sm font-semibold leading-6 text-[#333d4b] shadow-sm">
+          {finalReflectionPrompt ||
+            "지금까지 대화에서 발견한 인물의 마음을 마지막 한 문장으로 남겨 볼까요?"}
+        </p>
+      </div>
       <textarea
         value={finalSentence}
+        disabled={submitting || summarySaved}
         onChange={(event) => onFinalSentenceChange(event.target.value)}
         placeholder="예: 지금은 물러서지만, 이 마음을 끝까지 숨기지는 않겠다."
-        className="min-h-32 w-full rounded-3xl border border-[#d1d6db] p-4 outline-none focus:border-[#3182f6]"
+        className="min-h-32 w-full rounded-3xl border border-[#d1d6db] p-4 outline-none focus:border-[#3182f6] disabled:bg-[#f2f4f6] disabled:text-[#6b7684]"
       />
       <div className="rounded-3xl bg-[#f9fafb] p-5 leading-7 text-[#4e5968]">
-        <p className="font-semibold text-[#191f28]">세션 요약</p>
+        <p className="font-semibold text-[#191f28]">연습 노트</p>
         <p className="mt-2">장르: {scene.genre || "아직 없음"}</p>
         <p>질문 흐름: {dialogue.length}개 기록</p>
-        <p>마지막 문장: {finalSentence || "작성 전"}</p>
+        <p>마무리 문장: {finalSentence || "작성 전"}</p>
         {nextReflectionQuestion ? (
           <p>다음에 붙잡을 질문: {nextReflectionQuestion}</p>
         ) : null}
       </div>
       <button
         type="button"
-        disabled={submitting || !finalSentence.trim()}
+        disabled={submitting || summarySaved || !finalSentence.trim()}
         onClick={onSave}
         className="h-13 w-full rounded-2xl bg-[#3182f6] font-semibold text-white disabled:bg-[#b0d2ff]"
       >
-        {submitting ? "저장 중이에요" : "마지막 문장 저장하기"}
+        {submitting
+          ? "저장 중이에요"
+          : summarySaved
+            ? "연습 노트 저장 완료"
+            : "연습 노트 저장하기"}
       </button>
+      {summarySaved ? (
+        <p className="rounded-2xl bg-[#e5f8ef] px-4 py-3 text-sm font-semibold text-[#008a4e]">
+          연습 노트가 저장됐어요.
+        </p>
+      ) : null}
+      <div className="grid gap-3 sm:grid-cols-2">
+        <a
+          href="/home"
+          className="inline-flex h-13 items-center justify-center rounded-2xl border border-[#d1d6db] font-semibold text-[#4e5968] transition hover:border-[#3182f6] hover:text-[#1b64da]"
+        >
+          홈으로
+        </a>
+        <a
+          href="/practice/history"
+          className="inline-flex h-13 items-center justify-center rounded-2xl border border-[#d1d6db] font-semibold text-[#4e5968] transition hover:border-[#3182f6] hover:text-[#1b64da]"
+        >
+          기록 보기
+        </a>
+      </div>
       <button
         type="button"
         onClick={onToggleHidden}
@@ -1233,7 +1665,7 @@ function SummaryPanel({
 
 function ProgressCard({ step }: { step: Step }) {
   const steps: Array<{ id: Step; label: string }> = [
-    { id: "scene", label: "영상 선택" },
+    { id: "video", label: "영상 선택" },
     { id: "context", label: "맥락 입력" },
     { id: "upload", label: "자료 준비" },
     { id: "observe", label: "관찰 확인" },
@@ -1269,6 +1701,14 @@ function SessionCard({
   answerCount: number;
   hidden: boolean;
 }) {
+  let observationLabel = "불러오는 중";
+
+  if (observation?.confirmationState === "unasked") {
+    observationLabel = "확인 전";
+  } else if (observation) {
+    observationLabel = "확인됨";
+  }
+
   return (
     <section className="rounded-[2rem] bg-white p-5 shadow-sm">
       <h2 className="font-bold">현재 세션</h2>
@@ -1279,13 +1719,7 @@ function SessionCard({
         </div>
         <div>
           <dt className="font-semibold text-[#191f28]">관찰 상태</dt>
-          <dd>
-            {!observation
-              ? "불러오는 중"
-              : observation.confirmationState === "unasked"
-                ? "확인 전"
-                : "확인됨"}
-          </dd>
+          <dd>{observationLabel}</dd>
         </div>
         <div>
           <dt className="font-semibold text-[#191f28]">내 답변</dt>

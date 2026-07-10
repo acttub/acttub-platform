@@ -1,5 +1,5 @@
-const DEFAULT_OAUTH_NEXT_PATH = "/practice";
-const ALLOWED_OAUTH_NEXT_PATH_PREFIXES = ["/practice"];
+const DEFAULT_OAUTH_NEXT_PATH = "/home";
+const ALLOWED_OAUTH_NEXT_PATH_PREFIXES = ["/home", "/practice/new", "/practice/history"];
 const LOCAL_ORIGIN = "https://acttub.local";
 const ENCODED_SLASH_OR_BACKSLASH = /%(?:2f|5c)/i;
 const CONTROL_OR_BACKSLASH = /[\\\u0000-\u001F\u007F]/;

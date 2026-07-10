@@ -515,13 +515,18 @@ export const supabaseCoachSessionRepository = {
     userId: string,
     actorTurn: TurnDto,
     coachTurn: TurnDto,
-  ): Promise<CoachSessionDto | null> {
+    expectedActorAnswerCount: number,
+  ): Promise<{
+    session: CoachSessionDto;
+    actorAnswerCount: number;
+  } | null> {
     if (!configuredForSupabasePersistence()) return null;
 
     const admin = requireSupabaseAdminClient();
     const { data, error } = await admin.rpc("acttub_append_turn_pair", {
       p_session_id: sessionId,
       p_user_id: userId,
+      p_expected_actor_answer_count: expectedActorAnswerCount,
       p_actor_turn_id: actorTurn.id,
       p_actor_content: actorTurn.content,
       p_actor_question_focus: actorTurn.questionFocus,
@@ -533,8 +538,29 @@ export const supabaseCoachSessionRepository = {
     });
 
     assertNoPersistenceError(error, "turnId", "Could not append Supabase actor/coach turn pair");
-    const updatedSessionId = asString(asRecord(Array.isArray(data) ? data[0] : data).session_id, sessionId);
-    return hydrateSession(updatedSessionId, userId);
+    const result = asRecord(Array.isArray(data) ? data[0] : data);
+    const updatedSessionId = asString(result.session_id, sessionId);
+    const actorAnswerCount = asNumber(result.actor_answer_count, Number.NaN);
+
+    if (
+      !Number.isInteger(actorAnswerCount) ||
+      actorAnswerCount !== expectedActorAnswerCount + 1
+    ) {
+      throw new SupabaseCoachSessionPersistenceError(
+        "turnId",
+        "Supabase returned an invalid actor-answer count after turn append.",
+      );
+    }
+
+    const session = await hydrateSession(updatedSessionId, userId);
+    if (!session) {
+      throw new SupabaseCoachSessionPersistenceError(
+        "sessionId",
+        "Could not hydrate Supabase practice session after turn append.",
+      );
+    }
+
+    return { session, actorAnswerCount };
   },
 
   async saveValidationMetrics(

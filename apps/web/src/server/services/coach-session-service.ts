@@ -2,6 +2,7 @@ import type {
   CoachSessionDto,
   ConfirmationState,
   CreateSessionRequest,
+  CreateTurnResponse,
   CreateUploadIntentRequest,
   Medium,
   ObservationDto,
@@ -13,6 +14,10 @@ import type {
   ValidationMetricsDto,
 } from "@/lib/api/types";
 import { getAppConfig } from "@/lib/config/env";
+import {
+  MAX_DIALOGUE_ANSWER_COUNT,
+  evaluateDialogueCompletionPolicy,
+} from "@/lib/practice/dialogue-completion-policy";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import {
   GeminiQuestionServiceError,
@@ -836,7 +841,7 @@ export const coachSessionService = {
     sessionId: string,
     userId: string,
     payload: unknown,
-  ): Promise<{ session: CoachSessionDto; actorTurn: TurnDto; coachTurn: TurnDto } | null> {
+  ): Promise<CreateTurnResponse | null> {
     const actorAnswer = requiredText(
       (payload as { actorAnswer?: unknown }).actorAnswer,
       "actorAnswer",
@@ -845,6 +850,27 @@ export const coachSessionService = {
 
     if (!session) return null;
     assertSessionMutable(session, "create new turns");
+
+    const existingAnswerCount = session.turns.filter(
+      (turn) => turn.speaker === "actor",
+    ).length;
+    const latestCoachTurn = session.turns
+      .filter((turn) => turn.speaker === "coach")
+      .at(-1);
+
+    if (latestCoachTurn?.questionFocus === "summary_reflection") {
+      throw new ApiValidationError("Request validation failed", {
+        dialogue: "Dialogue already ended with a summary reflection.",
+      });
+    }
+
+    if (existingAnswerCount >= MAX_DIALOGUE_ANSWER_COUNT) {
+      throw new ApiValidationError("Request validation failed", {
+        actorAnswer: `Dialogue cannot exceed ${MAX_DIALOGUE_ANSWER_COUNT} actor answers.`,
+      });
+    }
+
+    const answerCount = existingAnswerCount + 1;
 
     const timestamp = nowIso();
     const actorTurn: TurnDto = {
@@ -861,24 +887,58 @@ export const coachSessionService = {
     const generatedQuestion = await requireGeminiQuestion(() =>
       geminiQuestionService.createNextQuestion(session, actorAnswer),
     );
+    const completion = evaluateDialogueCompletionPolicy(
+      answerCount,
+      generatedQuestion.dialogueSufficient,
+    );
+
+    if (
+      completion.dialogueComplete !== generatedQuestion.dialogueSufficient ||
+      (generatedQuestion.questionFocus === "summary_reflection") !==
+        completion.dialogueComplete
+    ) {
+      throw new ApiUpstreamError(
+        "Gemini dialogue decision did not match the bounded dialogue policy.",
+        {
+          gemini: "Dialogue sufficiency, question focus, and service completion must agree.",
+        },
+      );
+    }
+
+    const questionFocus = generatedQuestion.questionFocus;
     const sourceObservationIds =
-      generatedQuestion.questionFocus === "subtext_probe"
+      questionFocus === "subtext_probe"
         ? acceptedSourceObservationIds(session)
         : [];
     const coachTurn = makeCoachTurn(
       sessionId,
       generatedQuestion.question,
       sourceObservationIds,
-      generatedQuestion.questionFocus,
+      questionFocus,
       createUuid(),
     );
     coachTurn.createdAt = timestamp;
 
-    const withCoachTurn = await requireSupabasePersistence(() =>
-      supabaseCoachSessionRepository.addTurnPair(sessionId, userId, actorTurn, coachTurn),
+    const persistedTurnPair = await requireSupabasePersistence(() =>
+      supabaseCoachSessionRepository.addTurnPair(
+        sessionId,
+        userId,
+        actorTurn,
+        coachTurn,
+        existingAnswerCount,
+      ),
     );
 
-    return withCoachTurn ? { session: withCoachTurn, actorTurn, coachTurn } : null;
+    return persistedTurnPair
+      ? {
+          session: persistedTurnPair.session,
+          actorTurn,
+          coachTurn,
+          dialogueComplete: completion.dialogueComplete,
+          answerCount: persistedTurnPair.actorAnswerCount,
+          completionReason: completion.completionReason,
+        }
+      : null;
   },
 
   async getSignedVideoUrl(
