@@ -332,3 +332,16 @@ test("createSession recovers an exact committed Summary after persistence respon
   assert.equal(result.summaryRun.requestPayloadFingerprint,undefined); assert.equal(result.summaryRun.responsePayload,undefined); assert.equal(result.summaryRun.updatedAt,undefined);
   assert.equal(result.session.summary.sourceRunId,result.summaryRun.id);
 });
+
+test("retryReport observes a fresh running exact Report claim without invoking provider", async () => {
+  const session=baseSession(); session.interviewStatus="completed"; session.completionReason="manual_stop_report_ready";
+  const terminalId="00000000-0000-4000-8000-000000000150", reportId="00000000-0000-4000-8000-000000000151";
+  const reportEvidence={observationIds:[],answerTurnIds:[]};
+  session.runs.push({id:terminalId,stage:"agent",status:"completed",responseSchemaVersion:"agent-turn.v1",model:"agent-model",promptVersion:"acting-agent.prompt.v2",completedAt:"2026-01-01T00:00:00Z",attempt:1,responsePayload:{actorTurn:null,agentTurn:{id:"00000000-0000-4000-8000-000000000152",sequence:0,role:"agent",kind:"closing",content:"done",questionFocus:null,groundingStartMs:null,groundingEndMs:null,sourceObservationIds:[],reportEvidenceSelected:false},done:true,completionReason:"manual_stop_report_ready",reportReady:true,reportEvidence}});
+  const running={id:reportId,stage:"report",status:"running",idempotencyKey:`report:${terminalId}`,attempt:1,maxAttempts:2,startedAt:new Date().toISOString(),safeErrorCode:null}; session.runs.push(running);
+  let providerCalls=0,claimCalls=0;
+  const repository={async findPipelineSessionForOwner(){return structuredClone(session)},async claimRun(){claimCalls+=1;return{owned:false,run:structuredClone(running)}}};
+  const service=createAiPipelineService({repository,createAiTransport:()=>({report:async()=>{providerCalls+=1;throw new Error("provider must not run")}}),loadAiServiceConfig:()=>({}),requireCurrentAiProcessingConsent:async()=>{},getCurrentConsentVersions:async()=>({}),coachSessionService:{},createSupabaseAdminClient:()=>null,getAppConfig:()=>({video:{bucket:"practice-videos"}})});
+  await assert.rejects(service.retryReport(ids.session,ids.user),error=>error?.status===409);
+  assert.equal(claimCalls,1); assert.equal(providerCalls,0);
+});
