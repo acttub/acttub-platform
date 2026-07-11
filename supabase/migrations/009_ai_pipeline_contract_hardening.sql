@@ -250,7 +250,7 @@ revoke execute on function public.acttub_complete_report_run(uuid,uuid,uuid,json
 create or replace function public.acttub_fail_ai_run(p_session_id uuid,p_user_id uuid,p_run_id uuid,p_safe_error_code text,p_retryable boolean)
 returns setof public.ai_runs language plpgsql security definer set search_path=public as $$
 begin
- if p_safe_error_code not in ('AI_UNAVAILABLE','AI_INVALID_RESPONSE','TURN_PERSISTENCE_FAILED','SUMMARY_PERSISTENCE_FAILED','REPORT_PERSISTENCE_FAILED','REPORT_LEASE_EXPIRED') then raise exception 'invalid_safe_error_code'; end if;
+ if p_safe_error_code not in ('AI_TIMEOUT','AI_UNAVAILABLE','AI_INVALID_RESPONSE','AI_INTERNAL','TURN_PERSISTENCE_FAILED','SUMMARY_PERSISTENCE_FAILED','REPORT_PERSISTENCE_FAILED','REPORT_LEASE_EXPIRED') then raise exception 'invalid_safe_error_code'; end if;
  return query update public.ai_runs r set status='failed',safe_error_code=p_safe_error_code,retryable=p_retryable,completed_at=now(),updated_at=now() where r.id=p_run_id and r.session_id=p_session_id and r.user_id=p_user_id and r.status='running' returning r.*;
  if not found then raise exception 'run_not_running'; end if;
 end $$;

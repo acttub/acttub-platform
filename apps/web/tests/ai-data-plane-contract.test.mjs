@@ -105,6 +105,7 @@ test("migration 009 replays under lock, expires stale reports, and removes weak 
   assert.match(migration009, /from public,anon,authenticated,service_role;[\s\S]*drop function public\.acttub_claim_ai_run\(uuid,uuid,text,uuid,text,integer,text,text,text\)/);
   assert.match(migration009, /'sessionId',p_session_id,'runId',p_run_id/);
   assert.match(migration009, /invalid_claim_contract/);
+  assert.match(migration009, /'AI_TIMEOUT','AI_UNAVAILABLE','AI_INVALID_RESPONSE','AI_INTERNAL','TURN_PERSISTENCE_FAILED','SUMMARY_PERSISTENCE_FAILED','REPORT_PERSISTENCE_FAILED','REPORT_LEASE_EXPIRED'/);
   assert.match(migration009, /p_stage='agent' and \(p_max_attempts<>2/);
   assert.match(migration009, /coalesce\(\(select jsonb_agg/);
   assert.match(migration009, /invalid_tenth_completion/);

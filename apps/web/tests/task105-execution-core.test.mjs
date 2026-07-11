@@ -30,9 +30,6 @@ test("owner session scope helper applies public and deletion filters", () => {
   const deletionQuery = new FakeQuery();
   applyOwnerSessionScope(deletionQuery, { sessionId: "00000000-0000-4000-8000-000000000003", userId: "00000000-0000-4000-8000-000000000004", visibility: "deletion" });
   assert.deepEqual(deletionQuery.calls, [["eq", "id", "00000000-0000-4000-8000-000000000003"], ["eq", "user_id", "00000000-0000-4000-8000-000000000004"]]);
-  const internalQuery = new FakeQuery();
-  applyOwnerSessionScope(internalQuery, { sessionId: "00000000-0000-4000-8000-000000000005", userId: "00000000-0000-4000-8000-000000000006", visibility: "internal" });
-  assert.deepEqual(internalQuery.calls, [["eq", "id", "00000000-0000-4000-8000-000000000005"], ["eq", "user_id", "00000000-0000-4000-8000-000000000006"], ["eq", "deletion_status", "active"]]);
 });
 
 test("execution core replays completed claims and only invokes the provider for owned running runs", async () => {

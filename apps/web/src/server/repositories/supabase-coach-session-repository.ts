@@ -244,7 +244,7 @@ async function hydrateSession(sessionId: string, userId: string, includeHidden =
   const baseQuery = admin
     .from("practice_sessions")
     .select(sessionSelect);
-  const query = applyOwnerSessionScope(baseQuery, { sessionId, userId, visibility: includeHidden ? "internal" : "public" });
+  const query = applyOwnerSessionScope(baseQuery, { sessionId, userId, visibility: includeHidden ? "deletion" : "public" });
 
   const { data, error } = await query.maybeSingle();
   assertNoPersistenceError(error, "sessionId", "Could not read Supabase practice session");
@@ -629,7 +629,8 @@ export const supabaseCoachSessionRepository = {
     const mutation = admin
       .from("practice_sessions")
       .update({ hidden_at: hiddenAt, updated_at: new Date().toISOString() });
-    const { data, error } = await applyOwnerSessionScope(mutation, { sessionId, userId, visibility: "internal" })
+    const { data, error } = await applyOwnerSessionScope(mutation, { sessionId, userId, visibility: "deletion" })
+      .eq("deletion_status", "active")
       .select("id")
       .maybeSingle();
 

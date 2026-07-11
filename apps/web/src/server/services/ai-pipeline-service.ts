@@ -331,7 +331,10 @@ const generateReport = async (
       return null;
     },
     providerFailure: async (error, run) => {
-      if (error instanceof AiPipelineError) throw error;
+      if (error instanceof AiPipelineError) {
+        await deps.repository.failRun({ sessionId: session.sessionId, userId, runId: run.id, safeErrorCode: "AI_INVALID_RESPONSE", retryable: false });
+        throw error;
+      }
       return failRun(session.sessionId, userId, run.id, error);
     },
     persistenceFailure: async (_error, run) => {
@@ -441,7 +444,10 @@ const callAgent = async (session: PipelineSessionAggregate, userId: string, inpu
       return null;
     },
     providerFailure: async (error, run) => {
-      if (error instanceof AiPipelineError) throw error;
+      if (error instanceof AiPipelineError) {
+        await deps.repository.failRun({ sessionId: session.sessionId, userId, runId: run.id, safeErrorCode: "AI_INVALID_RESPONSE", retryable: false });
+        throw error;
+      }
       return failRun(session.sessionId, userId, run.id, error);
     },
     persistenceFailure: async (_error, run) => {
