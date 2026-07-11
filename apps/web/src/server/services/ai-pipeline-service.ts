@@ -137,10 +137,10 @@ const callAgent = async (session: PipelineSessionAggregate, userId: string, inpu
   const action = String(response.action);
   const done = response.done === true;
   const evidence = response.reportEvidence as { observationIds: string[]; answerTurnIds: string[] };
+  const completionStatus = done || action === "pause" ? (response.reportReady ? "completed" : action === "pause" ? "paused" : "completed_without_report") : null;
   if (actorTurn) actorTurn.reportEvidenceSelected = actorTurn.kind === "answer" && evidence.answerTurnIds.includes(actorTurn.id);
   const agentTurn: InterviewTurn = { id: crypto.randomUUID(), sequence: session.transcript.length + (actorTurn ? 1 : 0), role: "agent", kind: done ? "closing" : "question", content: String(response.utterance), questionFocus: action, groundingStartMs: null, groundingEndMs: null, sourceObservationIds: (response.evidence as { observationIds: string[] }).observationIds, reportEvidenceSelected: false };
-  await repository.appendPipelineTurn({ sessionId: session.sessionId, userId, agentRunId: runId, requestId: requestId ?? runId, expectedSubstantiveAnswerCount: session.substantiveAnswerCount, expectedTotalConversationCount, actorTurn, agentTurn, model: String(response.model), promptVersion: String(response.promptVersion), currentInput: input, reportEvidence: evidence });
-  if (done || action === "pause") await repository.completeInterview({ sessionId: session.sessionId, userId, status: response.reportReady ? "completed" : action === "pause" ? "paused" : "completed_without_report", completionReason: response.completionReason as never, observationIds: evidence.observationIds, answerTurnIds: evidence.answerTurnIds, agentRunId: runId, model: String(response.model), promptVersion: String(response.promptVersion) });
+  await repository.appendPipelineTurn({ sessionId: session.sessionId, userId, agentRunId: runId, requestId: requestId ?? runId, expectedSubstantiveAnswerCount: session.substantiveAnswerCount, expectedTotalConversationCount, actorTurn, agentTurn, model: String(response.model), promptVersion: String(response.promptVersion), currentInput: input, reportEvidence: evidence, completionStatus, completionReason: completionStatus ? response.completionReason as never : null });
   const report = response.reportReady
     ? await generateReport(await aggregate(session.sessionId, userId), userId, `report:${runId}`, 2)
     : null;
