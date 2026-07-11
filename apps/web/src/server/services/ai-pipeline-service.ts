@@ -122,48 +122,17 @@ const summaryClaimPayload = (session: PipelineSessionAggregate) => ({
 const agentClaimPayload = (
   session: PipelineSessionAggregate,
   input: CurrentInput,
-  actorTurn: InterviewTurn | null,
+  requestId: string,
+  expectedSubstantiveAnswerCount: number,
   expectedTotalConversationCount: number,
 ) => ({
   schemaVersion: "agent-turn.v1",
   sessionId: session.sessionId,
-  summarySourceRunId: session.summary?.sourceRunId ?? null,
-  normalizedSummary: session.summary?.normalizedSummary ?? null,
-  observations: session.observations.map((item) => ({
-    candidateId: item.candidateId,
-    confirmationState: item.confirmationState,
-    blocked: item.blockedForQuestioning,
-    priority: item.priority,
-    startMs: item.startMs,
-    endMs: item.endMs,
-    text: item.text,
-    dimension: item.dimension,
-    severity: item.severity,
-  })),
-  actorCorrections: session.corrections.map((item) => ({
-    correctsObservationId: item.correctsObservationId,
-    segment: item.segment,
-    text: item.text,
-  })),
-  substantiveAnswerCount: session.substantiveAnswerCount,
-  currentInput: {
-    command: input.command,
-    answer: input.answer,
-    observationId: input.observationId,
-  },
-  actorTurn: actorTurn
-    ? {
-        sequence: actorTurn.sequence,
-        role: actorTurn.role,
-        kind: actorTurn.kind,
-        content: actorTurn.content,
-        questionFocus: actorTurn.questionFocus,
-        groundingStartMs: actorTurn.groundingStartMs,
-        groundingEndMs: actorTurn.groundingEndMs,
-        sourceObservationIds: actorTurn.sourceObservationIds,
-        reportEvidenceSelected: actorTurn.reportEvidenceSelected,
-      }
-    : null,
+  command: input.command,
+  requestId,
+  answer: input.answer,
+  observationId: input.observationId,
+  expectedSubstantiveAnswerCount,
   expectedTotalConversationCount,
 });
 
@@ -241,12 +210,12 @@ const generateReport = async (
   userId: string,
   idempotencyKey: string,
   maxAttempts: number,
-  proposedRunId = crypto.randomUUID(),
 ) => {
   await deps.requireCurrentAiProcessingConsent(userId);
   if (session.report) return session.report;
   if (!session.summary || !session.completionReason?.endsWith("_report_ready")) throw new AiPipelineError(409, "REPORT_NOT_READY");
   const summary = session.summary;
+  const proposedRunId = crypto.randomUUID();
   const core = executionCoreFor(deps, session.sessionId, userId);
   const result = await core.run({
     claim: async () => claimRun({
@@ -283,11 +252,10 @@ const generateReport = async (
       await deps.repository.completeReportRun({ sessionId: session.sessionId, userId, runId: run.id, report: { schemaVersion: "report.v1", sections: response.sections as never }, model: String(response.model), promptVersion: String(response.promptVersion) });
     },
     replay: (run) => reportExecutionResult(session.report, run.responsePayload as ReportTransportResponse | null),
-    recover: async () => {
+    recover: async (_error, run) => {
       const committed = await aggregate(session.sessionId, userId);
-      if (committed.report) return reportExecutionResult(committed.report);
-      const existing = await deps.repository.findImmutableReport(session.sessionId, userId);
-      if (existing) return reportExecutionResult(existing);
+      const committedRun = committed.runs.find((item) => item.id === run.id && item.stage === "report" && item.status === "completed");
+      if (committedRun && committed.report?.sourceRunId === run.id) return reportExecutionResult(committed.report);
       return null;
     },
     providerFailure: async (error, run) => failRun(session.sessionId, userId, run.id, error),
@@ -319,12 +287,15 @@ type AgentTransportResponse = Record<string, unknown> & {
 
 type AgentExecutionResult = ReturnType<typeof replayCommittedAgentOutcome> & {
   transportResponse: AgentTransportResponse | null;
+  claimedRunId: string;
+  persistedInput: CurrentInput;
 };
 
-const callAgent = async (session: PipelineSessionAggregate, userId: string, input: CurrentInput, actorTurn: InterviewTurn | null, expectedTotalConversationCount = actorTurnCount(session), requestId: string | null = null) => {
+const callAgent = async (session: PipelineSessionAggregate, userId: string, input: CurrentInput, expectedSubstantiveAnswerCount = session.substantiveAnswerCount, expectedTotalConversationCount = actorTurnCount(session), requestId = crypto.randomUUID()) => {
   await deps.requireCurrentAiProcessingConsent(userId);
+  if (!UUID.test(requestId) || !Number.isInteger(expectedSubstantiveAnswerCount) || expectedSubstantiveAnswerCount < 0 || !Number.isInteger(expectedTotalConversationCount) || expectedTotalConversationCount < 0 || expectedSubstantiveAnswerCount > expectedTotalConversationCount || expectedTotalConversationCount > 10) throw new AiPipelineError(400, "INVALID_INTERVIEW_TURN");
   const runId = crypto.randomUUID();
-  const requestPayload = agentClaimPayload(session, input, actorTurn, expectedTotalConversationCount);
+  const requestPayload = agentClaimPayload(session, input, requestId, expectedSubstantiveAnswerCount, expectedTotalConversationCount);
   const core = executionCoreFor(deps, session.sessionId, userId);
   const result = await core.run<AgentExecutionResult>({
     claim: async () => claimRun({
@@ -340,7 +311,12 @@ const callAgent = async (session: PipelineSessionAggregate, userId: string, inpu
       promptVersion: "acting-agent.prompt.v2",
     }),
     invoke: async (run) => {
+      if (session.substantiveAnswerCount !== expectedSubstantiveAnswerCount || actorTurnCount(session) !== expectedTotalConversationCount) throw new AiPipelineError(409, "STALE_INTERVIEW_PROGRESS");
       if (expectedTotalConversationCount >= 10) throw new AiPipelineError(409, "SESSION_NOT_MUTABLE");
+      const actorTurn: InterviewTurn | null = input.command === "answer" && input.answer
+        ? { id: crypto.randomUUID(), sequence: session.transcript.length, role: "actor", kind: unknownAnswers.has(input.answer) ? "unknown" : "answer", content: input.answer, questionFocus: null, groundingStartMs: null, groundingEndMs: null, sourceObservationIds: [], reportEvidenceSelected: false }
+        : null;
+      const persistedInput = actorTurn ? { ...input, answerTurnId: actorTurn.id } : input;
       const requestSession = actorTurn
         ? {
             ...session,
@@ -348,7 +324,7 @@ const callAgent = async (session: PipelineSessionAggregate, userId: string, inpu
             substantiveAnswerCount: session.substantiveAnswerCount + (actorTurn.kind === "answer" ? 1 : 0),
           }
         : session;
-      const request = agentRequest(requestSession, run.id, input);
+      const request = agentRequest(requestSession, run.id, persistedInput);
       await deps.requireCurrentAiProcessingConsent(userId);
       const response = await deps.createAiTransport(deps.loadAiServiceConfig()).agent(request);
       const action = String(response.action);
@@ -359,32 +335,32 @@ const callAgent = async (session: PipelineSessionAggregate, userId: string, inpu
       if (actorTurn) actorTurn.reportEvidenceSelected = actorTurn.kind === "answer" && reportEvidence.answerTurnIds.includes(actorTurn.id);
       const agentTurn: InterviewTurn = { id: crypto.randomUUID(), sequence: session.transcript.length + (actorTurn ? 1 : 0), role: "agent", kind: done ? "closing" : "question", content: String(response.utterance), questionFocus: action, groundingStartMs: null, groundingEndMs: null, sourceObservationIds: (response.evidence as { observationIds: string[] }).observationIds, reportEvidenceSelected: false };
       const responsePayload: AgentReplayPayload = { actorTurn, agentTurn, done, completionReason, reportReady, reportEvidence };
-      return { report: null, response: responsePayload, transportResponse: response as AgentTransportResponse, actorTurn, agentTurn, done, completionReason, reportReady, reportEvidence };
+      return { report: null, response: responsePayload, transportResponse: response as AgentTransportResponse, claimedRunId: run.id, persistedInput, actorTurn, agentTurn, done, completionReason, reportReady, reportEvidence };
     },
     persist: async (invoked, run) => {
       await deps.repository.appendPipelineTurn({
         sessionId: session.sessionId,
         userId,
         agentRunId: run.id,
-        requestId: requestId ?? run.id,
-        expectedSubstantiveAnswerCount: session.substantiveAnswerCount,
+        requestId,
+        expectedSubstantiveAnswerCount,
         expectedTotalConversationCount,
         actorTurn: invoked.actorTurn,
         agentTurn: invoked.agentTurn,
         responsePayload: { actorTurn: invoked.actorTurn, agentTurn: invoked.agentTurn, done: invoked.done, completionReason: invoked.completionReason, reportReady: invoked.reportReady, reportEvidence: invoked.reportEvidence },
         model: String(invoked.transportResponse?.model),
         promptVersion: String(invoked.transportResponse?.promptVersion),
-        currentInput: input,
+        currentInput: invoked.persistedInput,
         reportEvidence: invoked.reportEvidence,
         completionStatus: invoked.done || String(invoked.transportResponse?.action) === "pause" ? (invoked.reportReady ? "completed" : String(invoked.transportResponse?.action) === "pause" ? "paused" : "completed_without_report") : null,
         completionReason: invoked.done || String(invoked.transportResponse?.action) === "pause" ? invoked.completionReason : null,
       });
     },
-    replay: (run) => ({ ...replayCommittedAgentOutcome(session, run), transportResponse: null }),
-    recover: async () => {
+    replay: (run) => ({ ...replayCommittedAgentOutcome(session, run), transportResponse: null, claimedRunId: run.id, persistedInput: input }),
+    recover: async (_error, claimedRun) => {
       const committed = await aggregate(session.sessionId, userId);
-      const committedRun = committed.runs.find((run) => run.stage === "agent" && run.status === "completed" && run.responseSchemaVersion === "agent-turn.v1");
-      if (committedRun) return { ...replayCommittedAgentOutcome(committed, committedRun), transportResponse: null };
+      const committedRun = committed.runs.find((run) => run.id === claimedRun.id && run.stage === "agent" && run.status === "completed" && run.responseSchemaVersion === "agent-turn.v1");
+      if (committedRun) return { ...replayCommittedAgentOutcome(committed, committedRun), transportResponse: null, claimedRunId: committedRun.id, persistedInput: input };
       return null;
     },
     providerFailure: async (error, run) => failRun(session.sessionId, userId, run.id, error),
@@ -393,9 +369,9 @@ const callAgent = async (session: PipelineSessionAggregate, userId: string, inpu
       throw new AiPipelineError(503, "TURN_PERSISTENCE_FAILED");
     },
   });
-  const { transportResponse: _transportResponse, ...publicResult } = result;
+  const { transportResponse: _transportResponse, claimedRunId, persistedInput: _persistedInput, ...publicResult } = result;
   if (publicResult.reportReady && !publicResult.report) {
-    const report = await generateReport(await aggregate(session.sessionId, userId), userId, `report:${runId}`, 2);
+    const report = await generateReport(await aggregate(session.sessionId, userId), userId, `report:${claimedRunId}`, 2);
     return { ...publicResult, report };
   }
   return publicResult;
@@ -433,18 +409,17 @@ return {
   async startInterview(sessionId: string, userId: string) {
     const session = await aggregate(sessionId, userId);
     if (!session.observations.some((item) => item.confirmationState === "accepted" && !item.blockedForQuestioning)) { await deps.repository.completeInterview({ sessionId, userId, status: "completed_without_report", completionReason: "insufficient_confirmed_evidence", observationIds: [], answerTurnIds: [] }); return { done: true, completionReason: "insufficient_confirmed_evidence", reportReady: false }; }
-    return callAgent(session, userId, currentInput("start"), null);
+    return callAgent(session, userId, currentInput("start"));
   },
   async addTurn(sessionId: string, userId: string, body: unknown) {
     const payload = body as { answer?: unknown; requestId?: unknown; expectedSubstantiveAnswerCount?: unknown; expectedTotalConversationCount?: unknown };
     if (typeof payload.answer !== "string" || !payload.answer.trim() || !Number.isInteger(payload.expectedSubstantiveAnswerCount) || !Number.isInteger(payload.expectedTotalConversationCount) || typeof payload.requestId !== "string" || !UUID.test(payload.requestId)) throw new AiPipelineError(400, "INVALID_INTERVIEW_TURN");
     const session = await aggregate(sessionId, userId);
     const answer = payload.answer.trim();
-    const actorTurn: InterviewTurn = { id: crypto.randomUUID(), sequence: session.transcript.length, role: "actor", kind: unknownAnswers.has(answer) ? "unknown" : "answer", content: answer, questionFocus: null, groundingStartMs: null, groundingEndMs: null, sourceObservationIds: [], reportEvidenceSelected: false };
-    return callAgent(session, userId, currentInput("answer", { answer, answerTurnId: actorTurn.id }), actorTurn, payload.expectedTotalConversationCount, payload.requestId);
+    return callAgent(session, userId, currentInput("answer", { answer }), Number(payload.expectedSubstantiveAnswerCount), Number(payload.expectedTotalConversationCount), payload.requestId);
   },
-  async stopInterview(sessionId: string, userId: string) { const session = await aggregate(sessionId, userId); return callAgent(session, userId, currentInput("manual_stop"), null); },
-  async resumeInterview(sessionId: string, userId: string) { const session = await aggregate(sessionId, userId); if (session.interviewStatus !== "paused") throw new AiPipelineError(409, "INTERVIEW_NOT_PAUSED"); return callAgent(session, userId, currentInput("resume"), null); },
+  async stopInterview(sessionId: string, userId: string) { const session = await aggregate(sessionId, userId); return callAgent(session, userId, currentInput("manual_stop")); },
+  async resumeInterview(sessionId: string, userId: string) { const session = await aggregate(sessionId, userId); if (session.interviewStatus !== "paused") throw new AiPipelineError(409, "INTERVIEW_NOT_PAUSED"); return callAgent(session, userId, currentInput("resume")); },
   async getReport(sessionId: string, userId: string) { const session = await aggregate(sessionId, userId); if (!session.report) throw new AiPipelineError(404, "REPORT_NOT_FOUND"); return session.report; },
   async retryReport(sessionId: string, userId: string) {
     const session = await aggregate(sessionId, userId);
@@ -453,7 +428,7 @@ return {
     const running = [...session.runs].filter((run) => run.stage === "report" && run.status === "running").sort((a,b)=>(a.startedAt??"").localeCompare(b.startedAt??"")||a.attempt-b.attempt||a.id.localeCompare(b.id)).at(-1);
     const terminalAgentRun = latestCompletedAgentRun(session);
     if (!session.summary || !session.completionReason?.endsWith("_report_ready") || (!failed && !running && !terminalAgentRun)) throw new AiPipelineError(409, "REPORT_NOT_RETRYABLE");
-    return generateReport(session, userId, failed?.idempotencyKey ?? running?.idempotencyKey ?? `report:${terminalAgentRun!.id}`, failed?.maxAttempts ?? running?.maxAttempts ?? 2, failed?.id ?? running?.id ?? crypto.randomUUID());
+    return generateReport(session, userId, failed?.idempotencyKey ?? running?.idempotencyKey ?? `report:${terminalAgentRun!.id}`, failed?.maxAttempts ?? running?.maxAttempts ?? 2);
   },
   validateRequestId(value: string | null) { if (!value || !UUID.test(value)) throw new AiPipelineError(400, "INVALID_IDEMPOTENCY_KEY"); return value; },
   async deleteSession(sessionId:string,userId:string,requestId:string){
