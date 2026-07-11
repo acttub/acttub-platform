@@ -6,7 +6,7 @@ import { isLowerHex64 } from "@/server/ai-pipeline-fingerprint.js";
 import type { NormalizedSummary } from "@/server/ai/contracts";
 import { CONFIRMATION_VALUES } from "./ai-pipeline-values";
 import type { AgentReplayPayload, AiRun, ClaimRunInput, ClaimRunResult, CompleteInterviewInput, CompleteReportInput, ConfirmObservationInput, DeleteInput, FailRunInput, ImmutableAiReport, PipelineSessionAggregate, PipelineTurnInput, ReportReplayPayload, ReportSection, SummaryCompletionInput, SummaryReplayPayload } from "./ai-pipeline-types";
-import { validateReportSectionLineage } from "../report-lineage.js";
+import { validateReportSessionLineage } from "../report-session-lineage.js";
 
 type Row=Record<string,unknown>; const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 type ReplayStage = "summary" | "agent" | "report" | "delete";
@@ -39,50 +39,7 @@ type ReportSessionContext = Pick<PipelineSessionAggregate,"sessionId"|"completio
 const report=(r:Row,op:string):ImmutableAiReport=>{if(r.schema_version!=="report.v1")fail(op,"report.schemaVersion");const mapped:ImmutableAiReport={sessionId:uuid(r.session_id,op,"report.sessionId"),sourceRunId:uuid(r.source_run_id,op,"report.sourceRunId"),schemaVersion:"report.v1",completionReason:enumValue(r.completion_reason,["interview_complete_report_ready","manual_stop_report_ready","manual_stop_paused","hard_limit_report_ready","insufficient_confirmed_evidence","insufficient_interview_evidence"],op,"report.completionReason"),oneLineSummary:section(r.one_line_summary,op,"oneLineSummary"),primaryReviewPoint:section(r.primary_review_point,op,"primaryReviewPoint"),confirmedEvidence:section(r.confirmed_evidence,op,"confirmedEvidence"),actorDiscovery:section(r.actor_discovery,op,"actorDiscovery"),groundedEncouragement:section(r.grounded_encouragement,op,"groundedEncouragement"),nextPracticeStep:section(r.next_practice_step,op,"nextPracticeStep"),createdAt:text(r.created_at,op,"report.createdAt")};if(mapped.oneLineSummary.status!=="confirmed"||mapped.primaryReviewPoint.status!=="confirmed"||mapped.confirmedEvidence.status!=="confirmed"||mapped.completionReason==="manual_stop_paused"||mapped.completionReason.startsWith("insufficient_"))fail(op,"report.invariants");return mapped};
 const reportForSession = (r: Row, op: string, session: ReportSessionContext): ImmutableAiReport => {
   const mapped = report(r, op);
-  if (mapped.sessionId !== session.sessionId || mapped.completionReason !== session.completionReason) fail(op, "report.session");
-  const summaryRunId = session.summary?.sourceRunId ?? fail(op, "report.summaryRun");
-  const summaryRun = session.runs.find((run) => run.id === summaryRunId && run.stage === "summary" && run.status === "completed" && run.responseSchemaVersion === "summary-response.v1") ?? fail(op, "report.summaryRun");
-  const reportRun = session.runs.find((run) => run.id === mapped.sourceRunId && run.stage === "report" && run.status === "completed" && run.responseSchemaVersion === "report.v1" && Boolean(run.model?.trim()) && run.promptVersion === "acting-report.prompt.v2") ?? fail(op, "report.sourceRun");
-  const reportPayload = reportRun.responsePayload;
-  if (!reportPayload || !("runId" in reportPayload) || reportPayload.runId !== mapped.sourceRunId || !("sessionId" in reportPayload) || reportPayload.sessionId !== session.sessionId) fail(op, "report.sourceRun");
-  const currentSelectedObservationIds = new Set(session.observations.filter((item) => item.confirmationState === "accepted" && !item.blockedForQuestioning && item.sourceRunId === summaryRun.id).map((item) => item.id));
-  const currentSelectedAnswerTurnIds = new Set(session.transcript.filter((turn) => turn.role === "actor" && turn.kind === "answer" && turn.reportEvidenceSelected).map((turn) => turn.id));
-  const currentCorrectionTurnIds = new Set(session.transcript.filter((turn) => turn.role === "actor" && turn.kind === "actor_correction").map((turn) => turn.id));
-  const selectedObservationIds = new Set(session.reportEvidenceObservationIds);
-  const selectedAnswerIds = new Set(session.reportEvidenceAnswerTurnIds);
-  const selectedAnswerTurnIds = new Set(session.transcript.filter((turn) => turn.role === "actor" && turn.kind === "answer" && turn.reportEvidenceSelected).map((turn) => turn.id));
-  const correctionTurnIds = new Set(session.corrections.map((item) => item.correctionByTurnId));
-  const observationSegments = new Map(session.observations.map((item) => [item.id, { startMs: item.startMs, endMs: item.endMs }] as const));
-  const correctionSegments = new Map(session.corrections.map((item) => [item.correctionByTurnId, item.segment] as const));
-  const transcriptTurns = new Map(session.transcript.map((item) => [item.id, item] as const));
-  if (session.reportEvidenceObservationIds.some((id) => !currentSelectedObservationIds.has(id))) fail(op, "report.selectedEvidence");
-  if (session.reportEvidenceAnswerTurnIds.some((id) => !currentSelectedAnswerTurnIds.has(id))) fail(op, "report.selectedEvidence");
-  if (session.corrections.some((item) => !currentCorrectionTurnIds.has(item.correctionByTurnId))) fail(op, "report.selectedEvidence");
-  if (session.reportEvidenceAnswerTurnIds.some((id) => !selectedAnswerTurnIds.has(id))) fail(op, "report.selectedEvidence");
-  for (const correction of session.corrections) {
-    const turn = transcriptTurns.get(correction.correctionByTurnId);
-    const source = session.observations.find((item) => item.id === correction.correctsObservationId);
-    if (!turn || turn.role !== "actor" || turn.kind !== "actor_correction" || turn.content !== correction.text || !source || source.confirmationState !== "rejected" || !source.blockedForQuestioning || source.sourceRunId !== summaryRun.id) fail(op, "report.correctionTranscript");
-  }
-  if (!session.completionReason?.endsWith("_report_ready")) fail(op, "report.completionReason");
-  const validate = (section: ReportSection, key: string) => validateReportSectionLineage({
-    key,
-    section,
-    selectedObservationIds,
-    selectedAnswerIds,
-    selectedAnswerTurnIds,
-    correctionTurnIds,
-    observationSegments,
-    correctionSegments,
-    fail: (code) => fail(op, code),
-  });
-  validate(mapped.oneLineSummary, "oneLineSummary");
-  validate(mapped.primaryReviewPoint, "primaryReviewPoint");
-  validate(mapped.confirmedEvidence, "confirmedEvidence");
-  validate(mapped.actorDiscovery, "actorDiscovery");
-  validate(mapped.groundedEncouragement, "groundedEncouragement");
-  validate(mapped.nextPracticeStep, "nextPracticeStep");
-  return mapped;
+  return validateReportSessionLineage({ report: mapped, session, fail: (code) => fail(op, code) });
 };
 
 
