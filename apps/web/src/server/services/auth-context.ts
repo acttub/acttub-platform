@@ -25,6 +25,7 @@ export type AuthContext = {
   termsAccepted: boolean;
   termsVersion: string;
   aiProcessingConsentVersion: string;
+  internalReviewConsent: boolean;
 };
 
 export type CurrentConsentVersions = {
@@ -69,7 +70,7 @@ async function hasPersistedTermsAcceptance(userId: string): Promise<boolean> {
   }
   const { data, error } = await client
     .from("profiles")
-    .select("status, required_consent_version, required_consent_at, ai_processing_consent_version, ai_processing_consent_at")
+    .select("status, required_consent_version, required_consent_at, ai_processing_consent_version, ai_processing_consent_at, internal_review_consent")
     .eq("id", userId)
     .maybeSingle();
 
@@ -223,6 +224,15 @@ export async function getAuthContext(): Promise<AuthContext | null> {
     };
   }
 
+  const client = await getProfileClient();
+  const profileResult = client
+    ? await client
+        .from("profiles")
+        .select("internal_review_consent")
+        .eq("id", data.user.id)
+        .maybeSingle()
+    : { data: null, error: null };
+
   return {
     mode: "supabase",
     userId: data.user.id,
@@ -230,6 +240,7 @@ export async function getAuthContext(): Promise<AuthContext | null> {
     termsAccepted: await hasPersistedTermsAcceptance(data.user.id),
     termsVersion: versions.requiredConsentVersion,
     aiProcessingConsentVersion: versions.aiProcessingConsentVersion,
+    internalReviewConsent: Boolean(profileResult.data?.internal_review_consent),
   };
 }
 
@@ -290,7 +301,7 @@ export function toAuthSessionDto(context: AuthContext | null): AuthSessionDto {
       accepted: Boolean(context?.termsAccepted),
     },
     internalReviewConsent: {
-      accepted: false,
+      accepted: Boolean(context?.internalReviewConsent),
     },
   };
 }
