@@ -63,6 +63,7 @@ const internalContractFiles = new Set([
   "src/server/services/coach-session-service.ts",
   "src/server/services/gemini-question-service.ts",
   "src/server/repositories/supabase-coach-session-repository.ts",
+  "src/server/repositories/supabase-ai-pipeline-repository.ts",
 ]);
 
 test("user-facing source avoids score or verdict product language", () => {

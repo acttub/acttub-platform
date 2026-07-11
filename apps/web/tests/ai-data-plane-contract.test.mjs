@@ -27,12 +27,13 @@ test("migration preserves legacy consent and enforces isolation/idempotency",()=
   assert.match(migration,/storage_not_verified/);
   assert.match(migration,/as restrictive[\s\S]*deletion_status='active'/);
   assert.match(migration,/grant execute on function public\.acttub_create_pipeline_session\(uuid,uuid,uuid,uuid,jsonb\)/);
+  assert.match(repository,/from\("session_deletion_attempts"\)\.select\("request_id,session_id,user_id,status,storage_deleted,rows_deleted,safe_error_code,attempt,updated_at"\)/);
 });
 
 test("repository exposes exact typed transitions and fail-closed row readers",()=>{
   assert.doesNotMatch(repository,/call\(operation|Record<string, unknown>\): Promise/);
   for(const method of ["claimRun","completeSummaryRun","confirmObservation","appendPipelineTurn","completeInterview","completeReportRun","failRun","beginDelete","recordStorageDeleted","completeDelete","failDelete"]) assert.match(repository,new RegExp(`${method}\\(`));
-  assert.match(repository,/claimRun\(input:ClaimRunInput\)\{return mapRun\(await rpc\("acttub_claim_ai_run"/);
+  assert.match(repository,/claimRun\(input:ClaimRunInput\)\{if\(!isLowerHex64\(input\.requestPayloadFingerprint\)\)throw new AiPipelinePersistenceError\("claimRun","requestPayloadFingerprint"\);return mapRun\(await rpc\("acttub_claim_ai_run"/);
   assert.match(repository,/Invalid AI pipeline persistence result/);
   assert.match(types,/NormalizedSummary/);
   assert.match(types,/correctsObservationId: string; segment: Segment; text: string; correctionByTurnId/);
@@ -80,6 +81,14 @@ test("late audit gates current consent and immutable successful retries",()=>{
   assert.match(migration,/complete_summary_run[\s\S]*if found then return \(select jsonb_build_object\('sessionId'[\s\S]*perform 1 from public\.ai_runs/);
   assert.match(migration,/complete_report_run[\s\S]*if found then return jsonb_build_object\('schemaVersion',existing\.schema_version/);
   assert.doesNotMatch(migration,/existing\.source_run_id<>p_run_id then raise exception 'report_idempotency_conflict'/);
+});
+
+test("claim replay hardens on canonical request fingerprint and current summary provenance", () => {
+  assert.match(migration009, /create or replace function public\.acttub_claim_ai_run\(p_session_id uuid,p_user_id uuid,p_stage text,p_run_id uuid,p_idempotency_key text,p_max_attempts integer,p_request_schema_version text,p_request_payload_fingerprint text,p_model text,p_prompt_version text\)/);
+  assert.match(migration009, /request_payload_conflict/);
+  assert.match(repository, /source\.sourceRunId !== sourceRun\.id/);
+  assert.match(service, /requestPayloadFingerprint:\s*fingerprintJson\(requestPayload\)/);
+  assert.match(service, /requestPayloadFingerprint:\s*fingerprintJson\(reportClaimPayload\(session\)\)/);
 });
 
 test("run claims require adult participant and authoritative media eligibility",()=>{
