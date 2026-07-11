@@ -1,4 +1,4 @@
-import { fingerprintJson } from "@/server/ai-pipeline-fingerprint.js";
+import { fingerprintJson } from "./ai-pipeline-fingerprint.js";
 import { countReportableActorTurns } from "./ai-pipeline-runtime-rules.js";
 
 const defaultFail = (code) => {
