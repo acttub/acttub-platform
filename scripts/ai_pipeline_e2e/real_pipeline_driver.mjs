@@ -8,9 +8,11 @@ const SETTINGS_FD = 3;
 const MEDIA_FD = 4;
 const MAC_KEY_FD = 5;
 const RECEIPT_FD = 6;
-const HANDOFF_FD = 7;
-const HANDOFF_ACK_FD = 8;
+const MAIN_LOCATOR_FD = 7;
+const PROVIDER_RECEIPT_FD = 8;
 const CLEANUP_FD = 9;
+const BROWSER_HANDOFF_FD = 10;
+const BROWSER_HANDOFF_ACK_FD = 11;
 
 export const MAX_SETTINGS_BYTES = 128 * 1024;
 export const MAX_MEDIA_BYTES = 300 * 1024 * 1024;
@@ -18,26 +20,32 @@ export const MAX_HTTP_BYTES = 2 * 1024 * 1024;
 export const MAX_JSON_DEPTH = 16;
 export const MAX_JSON_ITEMS = 8192;
 export const SETTINGS_SCHEMA = "real-pipeline-settings.v1";
-export const RECEIPT_SCHEMA = "real-pipeline-receipt.v1";
 export const HANDOFF_SCHEMA = "browser-session-handoff.v1";
 export const HANDOFF_ACK_SCHEMA = "browser-session-handoff-receipt.v1";
 export const CLEANUP_PLAN_SCHEMA = "cleanup-plan.v1";
 export const CLEANUP_PLAN_ACK_SCHEMA = "cleanup-plan-ack.v1";
 export const CLEANUP_COMPLETE_SCHEMA = "cleanup-complete.v1";
 export const CLEANUP_COMPLETE_ACK_SCHEMA = "cleanup-complete-ack.v1";
+export const PROVIDER_PHASE_RECEIPT_SCHEMA = "real-pipeline-provider-phase-receipt.v1";
+export const ISOLATED_DATA_PHASE_RECEIPT_SCHEMA = "isolated-data-phase-receipt.v1";
+export const BROWSER_AUTH_PHASE_RECEIPT_SCHEMA = "browser-auth-phase-receipt.v1";
 
 const HMAC_PATTERN = /^hmac-sha256:[a-f0-9]{64}$/u;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
 const NONCE_PATTERN = /^[a-f0-9]{64}$/u;
 const TEMPORARY_EMAIL_PREFIX = "acttub-e2e-";
 const MEDIA_DOMAIN = Buffer.from("acttub-platform-media.v1\0", "ascii");
-const RECEIPT_DOMAIN = Buffer.from("acttub-real-pipeline-receipt.v1\0", "ascii");
 const LINEAGE_DOMAIN = Buffer.from("acttub-real-pipeline-lineage.v1\0", "ascii");
 const REPORT_DOMAIN = Buffer.from("acttub-real-pipeline-report.v1\0", "ascii");
 const BROWSER_BINDING_DOMAIN = Buffer.from("acttub-browser-binding.v1\0", "ascii");
 const HANDOFF_RECEIPT_DOMAIN = Buffer.from("acttub-browser-session-handoff-receipt.v1\0", "ascii");
 const HANDOFF_NONCE_DOMAIN = Buffer.from("acttub-browser-session-handoff-nonce.v1\0", "ascii");
 const HANDOFF_TARGET_DOMAIN = Buffer.from("acttub-browser-session-handoff-target.v1\0", "ascii");
+const PROVIDER_PHASE_RECEIPT_DOMAIN = Buffer.from("acttub-real-pipeline-provider-phase-receipt.v1\0", "ascii");
+const ISOLATED_DATA_PHASE_RECEIPT_DOMAIN = Buffer.from("acttub-isolated-data-phase-receipt.v1\0", "ascii");
+const BROWSER_AUTH_PHASE_RECEIPT_DOMAIN = Buffer.from("acttub-browser-auth-phase-receipt.v1\0", "ascii");
+const MAIN_LOCATOR_DOMAIN = Buffer.from("acttub-real-pipeline-main-locator.v1\0", "ascii");
+const RETENTION_CANDIDATE_DOMAIN = Buffer.from("acttub-real-pipeline-retention-candidate.v1\0", "ascii");
 const SAFE_CODES = new Set([
   "REAL_PIPELINE_BAD_INPUT",
   "REAL_PIPELINE_AUTH_FAILED",
@@ -264,6 +272,16 @@ function readPrivateRegular(fd, maximum) {
   return output;
 }
 
+function readPrivateJsonRecord(fd, maximum = MAX_SETTINGS_BYTES) {
+  const raw = readPrivateRegular(fd, maximum);
+  try {
+    if (raw.length < 2 || raw[raw.length - 1] !== 0x0a || raw.subarray(0, -1).includes(0x0a)) {
+      reject("REAL_PIPELINE_BAD_INPUT");
+    }
+    return parseUniqueJson(raw.subarray(0, -1), maximum);
+  } finally { raw.fill(0); }
+}
+
 function writablePrivateFd(fd, { optional = false, streamOnly = false } = {}) {
   if (!Number.isInteger(fd) || fd <= 2) {
     if (optional) return null;
@@ -323,8 +341,10 @@ function readPrivateStreamJson(fd, maximum = MAX_SETTINGS_BYTES, timeoutMs = 30_
       if (settled) return;
       settled = true;
       if (timer) clearTimeout(timer);
-      stream.pause();
       stream.removeAllListeners();
+      stream.on("error", () => {});
+      stream.destroy();
+      try { fs.closeSync(fd); } catch { /* one-shot descriptor already closed */ }
       for (const chunk of chunks) chunk.fill(0);
       if (failed) rejectPromise(new RealPipelineFailure("REAL_PIPELINE_AUTH_FAILED"));
       else resolvePromise(value);
@@ -392,6 +412,26 @@ function readSettings(fd, key) {
       }
     }
     return Object.freeze({ ...item, platformOrigin: platform.origin, supabaseUrl: supabase.origin });
+  } finally { raw.fill(0); }
+}
+
+function readMainLocator(fd, key, expectedHmac) {
+  const raw = readPrivateRegular(fd, MAX_SETTINGS_BYTES);
+  try {
+    const item = exactObject(parseUniqueJson(raw, MAX_SETTINGS_BYTES), [
+      "uploadIntentId", "sessionId", "storagePath",
+    ], "REAL_PIPELINE_BAD_INPUT");
+    requireUuid(item.uploadIntentId);
+    requireUuid(item.sessionId);
+    const storagePath = requireText(item.storagePath, 2048);
+    const match = storagePath.match(/^users\/([0-9a-f-]{36})\/practice-sessions\/([0-9a-f-]{36})\/take\.(mp4|mov)$/iu);
+    if (match === null || !UUID_PATTERN.test(match[1]) || !timingEqual(match[2].toLowerCase(), item.sessionId.toLowerCase())) {
+      reject("REAL_PIPELINE_BAD_INPUT");
+    }
+    if (!HMAC_PATTERN.test(expectedHmac) || !timingEqual(hmacJson(key, MAIN_LOCATOR_DOMAIN, item), expectedHmac)) {
+      reject("REAL_PIPELINE_AUTH_FAILED");
+    }
+    return Object.freeze({ ...item });
   } finally { raw.fill(0); }
 }
 
@@ -472,18 +512,112 @@ function validateLineage(session, report) {
   };
 }
 
-function validateReceipt(value) {
-  const item = exactObject(value, [
-    "schemaVersion", "completed", "mainSessionCount", "substantiveAnswerCount", "reportSectionCount",
-    "acceptedObservationCount", "crossUserDenied", "crossUserDeniedOperationCount", "replayVerified",
-    "immutableReportVerified", "browserHandoffAcknowledged",
-    "deletionLifecycleVerified", "temporaryUserDeleted", "mediaByteCount", "mediaHmac", "lineageHmac",
-    "reportHmac", "browserBindingHmac", "resultHmac",
+function validateProviderPhaseSemantic(value) {
+  const safeCore = exactObject(value, [
+    "schemaVersion", "completed", "mainSessionCount", "substantiveAnswerCount",
+    "reportSectionCount", "acceptedObservationCount", "replayVerified", "immutableReportVerified",
+    "retentionCandidateCount", "mediaByteCount", "mediaHmac", "lineageHmac", "reportHmac",
+    "browserBindingHmac", "mainLocatorHmac", "cleanupPlanHmac", "retentionCandidateHmac",
   ]);
-  if (item.schemaVersion !== RECEIPT_SCHEMA || item.completed !== true || item.mainSessionCount !== 1 || item.reportSectionCount !== 6 || item.acceptedObservationCount < 1 || item.crossUserDenied !== true || item.crossUserDeniedOperationCount !== 3 || item.replayVerified !== true || item.immutableReportVerified !== true || typeof item.browserHandoffAcknowledged !== "boolean" || item.deletionLifecycleVerified !== true || item.temporaryUserDeleted !== true) reject();
-  if (!Number.isSafeInteger(item.substantiveAnswerCount) || item.substantiveAnswerCount < 5 || item.substantiveAnswerCount > 10 || !Number.isSafeInteger(item.mediaByteCount) || item.mediaByteCount < 1 || item.mediaByteCount > MAX_MEDIA_BYTES) reject();
-  for (const field of ["mediaHmac", "lineageHmac", "reportHmac", "browserBindingHmac", "resultHmac"]) if (!HMAC_PATTERN.test(item[field])) reject();
+  if (
+    safeCore.schemaVersion !== PROVIDER_PHASE_RECEIPT_SCHEMA ||
+    safeCore.completed !== true ||
+    safeCore.mainSessionCount !== 1 ||
+    !Number.isSafeInteger(safeCore.substantiveAnswerCount) ||
+    safeCore.substantiveAnswerCount < 5 ||
+    safeCore.substantiveAnswerCount > 10 ||
+    safeCore.reportSectionCount !== REPORT_SECTION_KEYS.length ||
+    !Number.isSafeInteger(safeCore.acceptedObservationCount) ||
+    safeCore.acceptedObservationCount < 1 ||
+    safeCore.replayVerified !== true ||
+    safeCore.immutableReportVerified !== true ||
+    safeCore.retentionCandidateCount !== 1 ||
+    !Number.isSafeInteger(safeCore.mediaByteCount) ||
+    safeCore.mediaByteCount < 1 ||
+    safeCore.mediaByteCount > MAX_MEDIA_BYTES
+  ) reject();
+  for (const field of [
+    "mediaHmac", "lineageHmac", "reportHmac", "browserBindingHmac", "mainLocatorHmac",
+    "cleanupPlanHmac", "retentionCandidateHmac",
+  ]) {
+    if (!HMAC_PATTERN.test(safeCore[field])) reject();
+  }
+  return safeCore;
+}
+
+function buildProviderPhaseReceipt(key, value) {
+  const safeCore = validateProviderPhaseSemantic(value);
+  return { ...safeCore, resultHmac: hmacJson(key, PROVIDER_PHASE_RECEIPT_DOMAIN, safeCore) };
+}
+
+function validateProviderPhaseReceipt(value, key) {
+  const item = exactObject(value, [...[
+    "schemaVersion", "completed", "mainSessionCount", "substantiveAnswerCount",
+    "reportSectionCount", "acceptedObservationCount", "replayVerified", "immutableReportVerified",
+    "retentionCandidateCount", "mediaByteCount", "mediaHmac", "lineageHmac", "reportHmac",
+    "browserBindingHmac", "mainLocatorHmac", "cleanupPlanHmac", "retentionCandidateHmac",
+  ], "resultHmac"], "REAL_PIPELINE_AUTH_FAILED");
+  if (!HMAC_PATTERN.test(item.resultHmac)) reject("REAL_PIPELINE_AUTH_FAILED");
+  const semantic = { ...item };
+  delete semantic.resultHmac;
+  try { validateProviderPhaseSemantic(semantic); }
+  catch { reject("REAL_PIPELINE_AUTH_FAILED"); }
+  if (!timingEqual(item.resultHmac, hmacJson(key, PROVIDER_PHASE_RECEIPT_DOMAIN, semantic))) {
+    reject("REAL_PIPELINE_AUTH_FAILED");
+  }
   return item;
+}
+
+function buildIsolatedDataPhaseReceipt(key, value) {
+  const safeCore = exactObject(value, [
+    "schemaVersion", "completed", "crossUserDenied", "crossUserDeniedOperationCount",
+    "temporaryUserDeleted", "deletionLifecycleVerified", "transientSessionCount",
+    "transientSessionsRetained", "storageOrphanCount", "dependentRowOrphanCount", "aiRunOrphanCount",
+    "providerResultHmac", "browserBindingHmac",
+  ]);
+  if (
+    safeCore.schemaVersion !== ISOLATED_DATA_PHASE_RECEIPT_SCHEMA || safeCore.completed !== true ||
+    safeCore.crossUserDenied !== true || safeCore.crossUserDeniedOperationCount !== 3 ||
+    safeCore.temporaryUserDeleted !== true || safeCore.deletionLifecycleVerified !== true ||
+    safeCore.transientSessionCount !== 1 || safeCore.transientSessionsRetained !== 0 ||
+    safeCore.storageOrphanCount !== 0 || safeCore.dependentRowOrphanCount !== 0 ||
+    safeCore.aiRunOrphanCount !== 0 || !HMAC_PATTERN.test(safeCore.providerResultHmac) ||
+    !HMAC_PATTERN.test(safeCore.browserBindingHmac)
+  ) reject();
+  return { ...safeCore, resultHmac: hmacJson(key, ISOLATED_DATA_PHASE_RECEIPT_DOMAIN, safeCore) };
+}
+
+function validateIsolatedDataPhaseReceipt(value, key, provider) {
+  const item = exactObject(value, [
+    "schemaVersion", "completed", "crossUserDenied", "crossUserDeniedOperationCount",
+    "temporaryUserDeleted", "deletionLifecycleVerified", "transientSessionCount",
+    "transientSessionsRetained", "storageOrphanCount", "dependentRowOrphanCount", "aiRunOrphanCount",
+    "providerResultHmac", "browserBindingHmac", "resultHmac",
+  ], "REAL_PIPELINE_AUTH_FAILED");
+  const semantic = { ...item };
+  delete semantic.resultHmac;
+  if (
+    !HMAC_PATTERN.test(item.resultHmac) ||
+    !timingEqual(item.providerResultHmac, provider.resultHmac) ||
+    !timingEqual(item.browserBindingHmac, provider.browserBindingHmac) ||
+    !timingEqual(item.resultHmac, hmacJson(key, ISOLATED_DATA_PHASE_RECEIPT_DOMAIN, semantic))
+  ) reject("REAL_PIPELINE_AUTH_FAILED");
+  try { buildIsolatedDataPhaseReceipt(key, semantic); }
+  catch { reject("REAL_PIPELINE_AUTH_FAILED"); }
+  return item;
+}
+
+function buildBrowserAuthPhaseReceipt(key, value) {
+  const safeCore = exactObject(value, [
+    "schemaVersion", "completed", "providerResultHmac", "isolatedResultHmac",
+    "browserBindingHmac", "handoffResultHmac",
+  ]);
+  if (
+    safeCore.schemaVersion !== BROWSER_AUTH_PHASE_RECEIPT_SCHEMA || safeCore.completed !== true ||
+    !HMAC_PATTERN.test(safeCore.providerResultHmac) || !HMAC_PATTERN.test(safeCore.isolatedResultHmac) ||
+    !HMAC_PATTERN.test(safeCore.browserBindingHmac) || !HMAC_PATTERN.test(safeCore.handoffResultHmac)
+  ) reject();
+  return { ...safeCore, resultHmac: hmacJson(key, BROWSER_AUTH_PHASE_RECEIPT_DOMAIN, safeCore) };
 }
 
 function validateHandoffAck(value, key, expected) {
@@ -874,18 +1008,58 @@ async function cleanupArtifact(adapter, primary, artifact) {
   }
 }
 
-export async function runRealPipeline({
+function validateDescriptorSet(values) {
+  if (
+    !Array.isArray(values) || values.length < 1 ||
+    values.some((fd) => !Number.isInteger(fd) || fd <= 2) ||
+    new Set(values).size !== values.length
+  ) reject("REAL_PIPELINE_BAD_INPUT");
+}
+
+function requireAdapter(adapter, methods) {
+  if (!adapter || typeof adapter !== "object" || !Array.isArray(methods)) reject();
+  for (const method of methods) if (typeof adapter[method] !== "function") reject();
+  return adapter;
+}
+
+function artifactLocator(artifact) {
+  if (
+    artifact === null || artifact.uploadIntentId === null || artifact.sessionId === null ||
+    artifact.storagePath === null
+  ) reject();
+  return {
+    uploadIntentId: requireUuid(artifact.uploadIntentId),
+    sessionId: requireUuid(artifact.sessionId),
+    storagePath: requireText(artifact.storagePath, 2048),
+  };
+}
+
+function readPhaseMedia(mediaFd, settings, key, providerReceipt = null) {
+  const media = readPrivateRegular(mediaFd, settings.maximumMediaBytes);
+  const mediaHmac = hmacBytes(key, MEDIA_DOMAIN, media);
+  if (
+    !timingEqual(mediaHmac, settings.expectedMediaHmac) ||
+    (providerReceipt !== null && (
+      media.length !== providerReceipt.mediaByteCount || !timingEqual(mediaHmac, providerReceipt.mediaHmac)
+    ))
+  ) {
+    media.fill(0);
+    reject("REAL_PIPELINE_BAD_INPUT");
+  }
+  return { media, mediaHmac };
+}
+
+export async function runRealProviderPhase({
   settingsFd = SETTINGS_FD,
   mediaFd = MEDIA_FD,
   macKeyFd = MAC_KEY_FD,
   receiptFd = RECEIPT_FD,
-  handoffFd = null,
-  handoffAckFd = null,
   cleanupFd = null,
   cleanupTimeoutMs = 30_000,
   adapterFactory = defaultAdapterFactory,
 } = {}) {
   if (typeof adapterFactory !== "function" || cleanupFd === null) reject("REAL_PIPELINE_BAD_INPUT");
+  validateDescriptorSet([settingsFd, mediaFd, macKeyFd, receiptFd, cleanupFd]);
   validateEmptyReceiptFd(receiptFd);
   const key = readPrivateRegular(macKeyFd, 4096);
   if (key.length < 32) { key.fill(0); reject("REAL_PIPELINE_BAD_INPUT"); }
@@ -895,29 +1069,19 @@ export async function runRealPipeline({
   let media = null;
   let adapter = null;
   let primary = null;
-  let temporaryCreated = false;
-  let temporaryDeleted = false;
   const mainArtifact = emptyArtifact();
-  const deletionArtifact = emptyArtifact();
   let keepMain = false;
-  let browserHandoffAcknowledged = false;
   let failure = null;
   let receipt = null;
   let receiptWritten = false;
   const temporaryEmail = `${TEMPORARY_EMAIL_PREFIX}${crypto.randomBytes(16).toString("hex")}@example.com`;
-  let temporaryPlanReceiptHmac = null;
-  let temporaryPlanCompleted = false;
   try {
     const settings = readSettings(settingsFd, key);
-    const handoffRequested = settings.browserHandoff !== null;
-    if ((handoffFd !== null) !== handoffRequested || (handoffAckFd !== null) !== handoffRequested) reject("REAL_PIPELINE_BAD_INPUT");
-    media = readPrivateRegular(mediaFd, settings.maximumMediaBytes);
-    const mediaHmac = hmacBytes(key, MEDIA_DOMAIN, media);
-    if (!timingEqual(mediaHmac, settings.expectedMediaHmac)) reject("REAL_PIPELINE_BAD_INPUT");
-    adapter = await adapterFactory(settings, { temporaryEmail });
-    if (!adapter || typeof adapter !== "object") reject("REAL_PIPELINE_CONTRACT_FAILED");
-    for (const method of ["establishExistingPrimary", "createTemporaryUserSession", "deleteTemporaryUser", "uploadMedia", "removeMedia", "mediaExists", "cleanupSessionBundle", "api"]) if (typeof adapter[method] !== "function") reject();
-
+    const mediaResult = readPhaseMedia(mediaFd, settings, key);
+    media = mediaResult.media;
+    adapter = requireAdapter(await adapterFactory(settings, { phase: "real-provider", temporaryEmail }), [
+      "establishExistingPrimary", "uploadMedia", "removeMedia", "mediaExists", "cleanupSessionBundle", "api",
+    ]);
     primary = requireSession(await adapter.establishExistingPrimary());
     const accepted = await api(adapter, primary, "POST", "/api/v1/terms/acceptances", {
       requiredConsentAccepted: true,
@@ -942,12 +1106,12 @@ export async function runRealPipeline({
     for (let index = 0; index < SCENARIO_ANSWERS.length; index += 1) {
       const snapshot = await api(adapter, primary, "GET", `/api/v1/practice-sessions/${mainSessionId}`, null, [200]);
       session = snapshot.session;
-      const progress = actorProgress(session);
+      const current = actorProgress(session);
       const request = {
         answer: SCENARIO_ANSWERS[index],
         requestId: crypto.randomUUID(),
-        expectedSubstantiveAnswerCount: progress.substantive,
-        expectedTotalConversationCount: progress.total,
+        expectedSubstantiveAnswerCount: current.substantive,
+        expectedTotalConversationCount: current.total,
       };
       const response = await api(adapter, primary, "POST", `/api/v1/practice-sessions/${mainSessionId}/interview/turns`, request, [200]);
       if (response.done === true) {
@@ -978,87 +1142,163 @@ export async function runRealPipeline({
     const refreshedReport = validateReport(await api(adapter, primary, "GET", `/api/v1/practice-sessions/${mainSessionId}/report`, null, [200]));
     if (hmacJson(key, REPORT_DOMAIN, retryReport) !== reportHmac || hmacJson(key, REPORT_DOMAIN, refreshedReport) !== reportHmac) reject();
     const lineage = validateLineage(replaySnapshot.session, report);
+    const locator = artifactLocator(mainArtifact);
+    const mainLocatorHmac = hmacJson(key, MAIN_LOCATOR_DOMAIN, locator);
+    const retentionCandidateHmac = hmacJson(key, RETENTION_CANDIDATE_DOMAIN, [
+      mainLocatorHmac,
+      mainArtifact.planReceiptHmac,
+      browserBindingHmac,
+    ]);
+    receipt = buildProviderPhaseReceipt(key, {
+      schemaVersion: PROVIDER_PHASE_RECEIPT_SCHEMA,
+      completed: true,
+      mainSessionCount: 1,
+      substantiveAnswerCount: progress.substantive,
+      reportSectionCount: REPORT_SECTION_KEYS.length,
+      acceptedObservationCount: lineage.acceptedObservationIds.length,
+      replayVerified: true,
+      immutableReportVerified: true,
+      retentionCandidateCount: 1,
+      mediaByteCount: media.length,
+      mediaHmac: mediaResult.mediaHmac,
+      lineageHmac: hmacJson(key, LINEAGE_DOMAIN, lineage),
+      reportHmac,
+      browserBindingHmac,
+      mainLocatorHmac,
+      cleanupPlanHmac: mainArtifact.planReceiptHmac,
+      retentionCandidateHmac,
+    });
+    writePrivateJson(receiptFd, receipt);
+    receiptWritten = true;
+    keepMain = true;
+  } catch (error) {
+    failure = error instanceof RealPipelineFailure ? error : new RealPipelineFailure();
+  } finally {
+    if (adapter !== null && !keepMain && mainArtifact.planReceiptHmac !== null && !mainArtifact.planCompleted) {
+      try {
+        await cleanupArtifact(adapter, primary, mainArtifact);
+        await completeCleanup(cleanupChannel, "run-session-bundle", mainArtifact.planReceiptHmac, "absent");
+        mainArtifact.planCompleted = true;
+      } catch { failure = new RealPipelineFailure("REAL_PIPELINE_CLEANUP_FAILED"); }
+    }
+    if (failure !== null && receiptWritten && !keepMain && !clearPrivateReceipt(receiptFd)) {
+      failure = new RealPipelineFailure("REAL_PIPELINE_CLEANUP_FAILED");
+    }
+    if (media !== null) media.fill(0);
+    if (primary !== null) { primary.accessToken = ""; primary.refreshToken = ""; }
+    key.fill(0);
+    cleanupChannel.close();
+  }
+  if (failure !== null) throw failure;
+  if (!keepMain || receipt === null) reject("REAL_PIPELINE_CLEANUP_FAILED");
+  return receipt;
+}
+
+export async function runIsolatedDataPhase({
+  settingsFd = SETTINGS_FD,
+  mediaFd = MEDIA_FD,
+  macKeyFd = MAC_KEY_FD,
+  receiptFd = RECEIPT_FD,
+  mainLocatorFd = null,
+  providerReceiptFd = null,
+  cleanupFd = null,
+  cleanupTimeoutMs = 30_000,
+  adapterFactory = defaultAdapterFactory,
+} = {}) {
+  if (
+    typeof adapterFactory !== "function" || mainLocatorFd === null ||
+    providerReceiptFd === null || cleanupFd === null
+  ) reject("REAL_PIPELINE_BAD_INPUT");
+  validateDescriptorSet([settingsFd, mediaFd, macKeyFd, receiptFd, mainLocatorFd, providerReceiptFd, cleanupFd]);
+  validateEmptyReceiptFd(receiptFd);
+  const key = readPrivateRegular(macKeyFd, 4096);
+  if (key.length < 32) { key.fill(0); reject("REAL_PIPELINE_BAD_INPUT"); }
+  let cleanupChannel;
+  try { cleanupChannel = new CleanupChannel(cleanupFd, cleanupTimeoutMs); }
+  catch (error) { key.fill(0); throw error; }
+  let media = null;
+  let adapter = null;
+  let primary = null;
+  let temporaryCreated = false;
+  let temporaryDeleted = false;
+  const deletionArtifact = emptyArtifact();
+  let temporaryPlanReceiptHmac = null;
+  let temporaryPlanCompleted = false;
+  let failure = null;
+  let receipt = null;
+  const temporaryEmail = `${TEMPORARY_EMAIL_PREFIX}${crypto.randomBytes(16).toString("hex")}@example.com`;
+  try {
+    const settings = readSettings(settingsFd, key);
+    const providerReceipt = validateProviderPhaseReceipt(readPrivateJsonRecord(providerReceiptFd), key);
+    const mainLocator = readMainLocator(mainLocatorFd, key, providerReceipt.mainLocatorHmac);
+    const mediaResult = readPhaseMedia(mediaFd, settings, key, providerReceipt);
+    media = mediaResult.media;
+    adapter = requireAdapter(await adapterFactory(settings, { phase: "isolated-data", temporaryEmail }), [
+      "establishExistingPrimary", "createTemporaryUserSession", "deleteTemporaryUser", "uploadMedia",
+      "removeMedia", "mediaExists", "cleanupSessionBundle", "api",
+    ]);
+    primary = requireSession(await adapter.establishExistingPrimary());
+    const ownerBefore = await api(adapter, primary, "GET", `/api/v1/practice-sessions/${mainLocator.sessionId}`, null, [200]);
+    if (ownerBefore.session?.sessionId !== mainLocator.sessionId) reject();
+    const ownerReport = validateReport(ownerBefore.session.report);
+    if (
+      ownerReport.sessionId !== mainLocator.sessionId ||
+      !timingEqual(hmacJson(key, REPORT_DOMAIN, ownerReport), providerReceipt.reportHmac) ||
+      !timingEqual(
+        hmacJson(key, BROWSER_BINDING_DOMAIN, [mainLocator.sessionId, ownerReport.sourceRunId]),
+        providerReceipt.browserBindingHmac,
+      )
+    ) reject("REAL_PIPELINE_AUTH_FAILED");
 
     await createPreparedSession(adapter, primary, settings, media, deletionArtifact, cleanupChannel);
+    const deletionLocator = artifactLocator(deletionArtifact);
     await deleteCreatedSession(adapter, primary, deletionArtifact);
+    const orphanCheck = await adapter.cleanupSessionBundle(primary, { ...deletionLocator, userId: primary.userId });
+    if (!orphanCheck || orphanCheck.absent !== true) reject("REAL_PIPELINE_CLEANUP_FAILED");
     await completeCleanup(cleanupChannel, "run-session-bundle", deletionArtifact.planReceiptHmac, "deleted");
     deletionArtifact.planCompleted = true;
 
     temporaryPlanReceiptHmac = await planCleanup(cleanupChannel, "temporary-rls-account", { email: temporaryEmail }, ["deleted", "absent", "not_created"]);
     temporaryCreated = true;
     const temporary = requireSession(await adapter.createTemporaryUserSession(temporaryEmail));
-    const temporaryAcceptance = await api(adapter, temporary, "POST", "/api/v1/terms/acceptances", {
+    const acceptance = await api(adapter, temporary, "POST", "/api/v1/terms/acceptances", {
       requiredConsentAccepted: true,
       aiProcessingConsentAccepted: true,
       internalReviewConsent: false,
     }, [200]);
-    if (temporaryAcceptance.accepted !== true) reject();
-    const deniedSession = await adapter.api(temporary, { method: "GET", path: `/api/v1/practice-sessions/${mainSessionId}`, body: null, headers: {} });
-    const deniedReport = await adapter.api(temporary, { method: "GET", path: `/api/v1/practice-sessions/${mainSessionId}/report`, body: null, headers: {} });
-    const deniedDelete = await adapter.api(temporary, { method: "DELETE", path: `/api/v1/practice-sessions/${mainSessionId}`, body: null, headers: { "Idempotency-Key": crypto.randomUUID() } });
+    if (acceptance.accepted !== true) reject();
+    const deniedSession = await adapter.api(temporary, { method: "GET", path: `/api/v1/practice-sessions/${mainLocator.sessionId}`, body: null, headers: {} });
+    const deniedReport = await adapter.api(temporary, { method: "GET", path: `/api/v1/practice-sessions/${mainLocator.sessionId}/report`, body: null, headers: {} });
+    const deniedDelete = await adapter.api(temporary, { method: "DELETE", path: `/api/v1/practice-sessions/${mainLocator.sessionId}`, body: null, headers: { "Idempotency-Key": crypto.randomUUID() } });
     if (![deniedSession, deniedReport, deniedDelete].every((result) => result?.status === 404)) reject();
-    const ownerStillReads = await api(adapter, primary, "GET", `/api/v1/practice-sessions/${mainSessionId}`, null, [200]);
-    if (ownerStillReads.session?.sessionId !== mainSessionId || hmacJson(key, REPORT_DOMAIN, ownerStillReads.session.report) !== reportHmac) reject();
+    const ownerAfter = await api(adapter, primary, "GET", `/api/v1/practice-sessions/${mainLocator.sessionId}`, null, [200]);
+    if (
+      ownerAfter.session?.sessionId !== mainLocator.sessionId ||
+      !timingEqual(hmacJson(key, REPORT_DOMAIN, validateReport(ownerAfter.session.report)), providerReceipt.reportHmac)
+    ) reject("REAL_PIPELINE_AUTH_FAILED");
     const deleted = await adapter.deleteTemporaryUser();
-    if (!deleted || deleted.deleted !== true || !Number.isSafeInteger(deleted.deletedCount) || deleted.deletedCount !== 1) reject("REAL_PIPELINE_CLEANUP_FAILED");
+    if (!deleted || deleted.deleted !== true || deleted.deletedCount !== 1) reject("REAL_PIPELINE_CLEANUP_FAILED");
     temporaryCreated = false;
     temporaryDeleted = true;
     await completeCleanup(cleanupChannel, "temporary-rls-account", temporaryPlanReceiptHmac, "deleted");
     temporaryPlanCompleted = true;
 
-    if (handoffRequested) {
-      const browser = settings.browserHandoff;
-      if (browser === null || handoffFd === null || handoffAckFd === null) reject("REAL_PIPELINE_BAD_INPUT");
-      const targetPath = `/practice/history/${mainSessionId}`;
-      const handoff = {
-        schemaVersion: HANDOFF_SCHEMA,
-        supabaseUrl: settings.supabaseUrl,
-        publishableKey: settings.publishableKey,
-        accessToken: primary.accessToken,
-        refreshToken: primary.refreshToken,
-        nonce: browser.nonce,
-        brokerPort: browser.brokerPort,
-        targetPort: browser.targetPort,
-        targetPath,
-        developmentTargetHmac: settings.developmentTargetHmac,
-      };
-      try { writePrivateJson(handoffFd, handoff, { streamOnly: true }); }
-      finally { handoff.accessToken = ""; handoff.refreshToken = ""; }
-      validateHandoffAck(await readPrivateStreamJson(handoffAckFd), key, {
-        nonce: browser.nonce,
-        targetPort: browser.targetPort,
-        targetPath,
-        developmentTargetHmac: settings.developmentTargetHmac,
-      });
-      browserHandoffAcknowledged = true;
-      primary.accessToken = "";
-      primary.refreshToken = "";
-    }
-
-    const safeCore = {
-      schemaVersion: RECEIPT_SCHEMA,
+    receipt = buildIsolatedDataPhaseReceipt(key, {
+      schemaVersion: ISOLATED_DATA_PHASE_RECEIPT_SCHEMA,
       completed: true,
-      mainSessionCount: 1,
-      substantiveAnswerCount: progress.substantive,
-      reportSectionCount: REPORT_SECTION_KEYS.length,
-      acceptedObservationCount: lineage.acceptedObservationIds.length,
       crossUserDenied: true,
       crossUserDeniedOperationCount: 3,
-      replayVerified: true,
-      immutableReportVerified: true,
-      browserHandoffAcknowledged,
-      deletionLifecycleVerified: true,
       temporaryUserDeleted: true,
-      mediaByteCount: media.length,
-      mediaHmac,
-      lineageHmac: hmacJson(key, LINEAGE_DOMAIN, lineage),
-      reportHmac,
-      browserBindingHmac,
-    };
-    receipt = validateReceipt({ ...safeCore, resultHmac: hmacJson(key, RECEIPT_DOMAIN, safeCore) });
+      deletionLifecycleVerified: true,
+      transientSessionCount: 1,
+      transientSessionsRetained: 0,
+      storageOrphanCount: 0,
+      dependentRowOrphanCount: 0,
+      aiRunOrphanCount: 0,
+      providerResultHmac: providerReceipt.resultHmac,
+      browserBindingHmac: providerReceipt.browserBindingHmac,
+    });
     writePrivateJson(receiptFd, receipt);
-    receiptWritten = true;
-    keepMain = true;
   } catch (error) {
     failure = error instanceof RealPipelineFailure ? error : new RealPipelineFailure();
   } finally {
@@ -1071,23 +1311,14 @@ export async function runRealPipeline({
           await completeCleanup(cleanupChannel, "temporary-rls-account", temporaryPlanReceiptHmac, deleted.deletedCount === 0 ? "absent" : "deleted");
           temporaryPlanCompleted = true;
         }
-      } catch { if (failure === null) failure = new RealPipelineFailure("REAL_PIPELINE_CLEANUP_FAILED"); }
+      } catch { failure = new RealPipelineFailure("REAL_PIPELINE_CLEANUP_FAILED"); }
     }
-    if (adapter !== null) {
-      for (const artifact of [deletionArtifact, ...(keepMain ? [] : [mainArtifact])]) {
-        if (artifact.planReceiptHmac === null || artifact.planCompleted) continue;
-        try {
-          await cleanupArtifact(adapter, primary, artifact);
-          if (artifact.planReceiptHmac !== null && !artifact.planCompleted) {
-            await completeCleanup(cleanupChannel, "run-session-bundle", artifact.planReceiptHmac, artifact.pipelineCreated || artifact.mediaUploaded ? "deleted" : "absent");
-            artifact.planCompleted = true;
-          }
-        }
-        catch { failure = new RealPipelineFailure("REAL_PIPELINE_CLEANUP_FAILED"); }
-      }
-    }
-    if (failure !== null && receiptWritten && !keepMain && !clearPrivateReceipt(receiptFd)) {
-      failure = new RealPipelineFailure("REAL_PIPELINE_CLEANUP_FAILED");
+    if (adapter !== null && deletionArtifact.planReceiptHmac !== null && !deletionArtifact.planCompleted) {
+      try {
+        await cleanupArtifact(adapter, primary, deletionArtifact);
+        await completeCleanup(cleanupChannel, "run-session-bundle", deletionArtifact.planReceiptHmac, "absent");
+        deletionArtifact.planCompleted = true;
+      } catch { failure = new RealPipelineFailure("REAL_PIPELINE_CLEANUP_FAILED"); }
     }
     if (media !== null) media.fill(0);
     if (primary !== null) { primary.accessToken = ""; primary.refreshToken = ""; }
@@ -1096,6 +1327,102 @@ export async function runRealPipeline({
   }
   if (failure !== null) throw failure;
   if (!temporaryDeleted || receipt === null) reject("REAL_PIPELINE_CLEANUP_FAILED");
+  return receipt;
+}
+
+export async function runBrowserAuthPhase({
+  settingsFd = SETTINGS_FD,
+  macKeyFd = MAC_KEY_FD,
+  receiptFd = RECEIPT_FD,
+  mainLocatorFd = null,
+  providerReceiptFd = null,
+  isolatedDataReceiptFd = null,
+  handoffFd = null,
+  handoffAckFd = null,
+  adapterFactory = defaultAdapterFactory,
+} = {}) {
+  if (
+    typeof adapterFactory !== "function" || mainLocatorFd === null || providerReceiptFd === null ||
+    isolatedDataReceiptFd === null || handoffFd === null || handoffAckFd === null
+  ) reject("REAL_PIPELINE_BAD_INPUT");
+  validateDescriptorSet([
+    settingsFd, macKeyFd, receiptFd, mainLocatorFd, providerReceiptFd,
+    isolatedDataReceiptFd, handoffFd, handoffAckFd,
+  ]);
+  validateEmptyReceiptFd(receiptFd);
+  writablePrivateFd(handoffFd, { streamOnly: true });
+  writablePrivateFd(handoffAckFd, { streamOnly: true });
+  const key = readPrivateRegular(macKeyFd, 4096);
+  if (key.length < 32) { key.fill(0); reject("REAL_PIPELINE_BAD_INPUT"); }
+  let primary = null;
+  let failure = null;
+  let receipt = null;
+  const temporaryEmail = `${TEMPORARY_EMAIL_PREFIX}${crypto.randomBytes(16).toString("hex")}@example.com`;
+  try {
+    const settings = readSettings(settingsFd, key);
+    const browser = settings.browserHandoff;
+    if (browser === null) reject("REAL_PIPELINE_BAD_INPUT");
+    const providerReceipt = validateProviderPhaseReceipt(readPrivateJsonRecord(providerReceiptFd), key);
+    const isolatedReceipt = validateIsolatedDataPhaseReceipt(
+      readPrivateJsonRecord(isolatedDataReceiptFd), key, providerReceipt,
+    );
+    const mainLocator = readMainLocator(mainLocatorFd, key, providerReceipt.mainLocatorHmac);
+    const adapter = requireAdapter(await adapterFactory(settings, { phase: "browser-auth", temporaryEmail }), [
+      "establishExistingPrimary", "api",
+    ]);
+    primary = requireSession(await adapter.establishExistingPrimary());
+    const report = validateReport(await api(
+      adapter, primary, "GET", `/api/v1/practice-sessions/${mainLocator.sessionId}/report`, null, [200],
+    ));
+    if (
+      report.sessionId !== mainLocator.sessionId ||
+      !timingEqual(hmacJson(key, REPORT_DOMAIN, report), providerReceipt.reportHmac) ||
+      !timingEqual(
+        hmacJson(key, BROWSER_BINDING_DOMAIN, [mainLocator.sessionId, report.sourceRunId]),
+        providerReceipt.browserBindingHmac,
+      )
+    ) reject("REAL_PIPELINE_AUTH_FAILED");
+
+    const targetPath = `/practice/history/${mainLocator.sessionId}`;
+    const handoff = {
+      schemaVersion: HANDOFF_SCHEMA,
+      supabaseUrl: settings.supabaseUrl,
+      publishableKey: settings.publishableKey,
+      accessToken: primary.accessToken,
+      refreshToken: primary.refreshToken,
+      nonce: browser.nonce,
+      brokerPort: browser.brokerPort,
+      targetPort: browser.targetPort,
+      targetPath,
+      developmentTargetHmac: settings.developmentTargetHmac,
+    };
+    try { writePrivateJson(handoffFd, handoff, { streamOnly: true }); }
+    finally { handoff.accessToken = ""; handoff.refreshToken = ""; }
+    const handoffReceipt = validateHandoffAck(await readPrivateStreamJson(handoffAckFd), key, {
+      nonce: browser.nonce,
+      targetPort: browser.targetPort,
+      targetPath,
+      developmentTargetHmac: settings.developmentTargetHmac,
+    });
+    primary.accessToken = "";
+    primary.refreshToken = "";
+    receipt = buildBrowserAuthPhaseReceipt(key, {
+      schemaVersion: BROWSER_AUTH_PHASE_RECEIPT_SCHEMA,
+      completed: true,
+      providerResultHmac: providerReceipt.resultHmac,
+      isolatedResultHmac: isolatedReceipt.resultHmac,
+      browserBindingHmac: providerReceipt.browserBindingHmac,
+      handoffResultHmac: handoffReceipt.resultHmac,
+    });
+    writePrivateJson(receiptFd, receipt);
+  } catch (error) {
+    failure = error instanceof RealPipelineFailure ? error : new RealPipelineFailure();
+  } finally {
+    if (primary !== null) { primary.accessToken = ""; primary.refreshToken = ""; }
+    key.fill(0);
+  }
+  if (failure !== null) throw failure;
+  if (receipt === null) reject();
   return receipt;
 }
 
@@ -1113,19 +1440,32 @@ const invokedDirectly = process.argv[1] && import.meta.url === pathToFileURL(pro
 if (invokedDirectly && process.argv.length === 2) {
   process.exitCode = 0;
 } else if (invokedDirectly) {
-  if (process.argv.length !== 3 || process.argv[2] !== "--live") {
+  const mode = process.argv.length === 3 ? process.argv[2] : null;
+  if (!new Set(["--live-provider", "--live-isolated-data", "--live-browser-auth"]).has(mode)) {
     process.exitCode = 70;
   } else {
     clearInheritedEnvironment();
     const executeDirect = async () => {
       try {
-        const handoffFd = directStreamFd(HANDOFF_FD);
-        const handoffAckFd = directStreamFd(HANDOFF_ACK_FD);
-        await runRealPipeline({ handoffFd, handoffAckFd, cleanupFd: directStreamFd(CLEANUP_FD) });
+        if (mode === "--live-provider") {
+          await runRealProviderPhase({ cleanupFd: directStreamFd(CLEANUP_FD) });
+        } else if (mode === "--live-isolated-data") {
+          await runIsolatedDataPhase({
+            mainLocatorFd: MAIN_LOCATOR_FD,
+            providerReceiptFd: PROVIDER_RECEIPT_FD,
+            cleanupFd: directStreamFd(CLEANUP_FD),
+          });
+        } else {
+          await runBrowserAuthPhase({
+            mainLocatorFd: MAIN_LOCATOR_FD,
+            providerReceiptFd: PROVIDER_RECEIPT_FD,
+            isolatedDataReceiptFd: CLEANUP_FD,
+            handoffFd: directStreamFd(BROWSER_HANDOFF_FD),
+            handoffAckFd: directStreamFd(BROWSER_HANDOFF_ACK_FD),
+          });
+        }
         return 0;
-      } catch (error) {
-        const safeCode = error instanceof RealPipelineFailure ? error.safeCode : "REAL_PIPELINE_CONTRACT_FAILED";
-        try { writePrivateJson(RECEIPT_FD, { safeCode }); } catch { /* fixed silent exit */ }
+      } catch {
         return 70;
       }
     };

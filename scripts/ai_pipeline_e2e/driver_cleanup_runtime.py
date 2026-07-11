@@ -95,6 +95,16 @@ class DriverCleanupRuntime:
         except DriverCleanupRejected:
             _reject()
 
+    def copy_pending_locator(self, *, plan_receipt_hmac: str, output_fd: int) -> None:
+        """Copy one pending locator only through a caller-owned private descriptor."""
+
+        if not self._served or self._closed or type(output_fd) is not int or output_fd <= 2:
+            _reject()
+        try:
+            self._broker.copy_pending_locator(plan_receipt_hmac, output_fd)
+        except (DriverCleanupRejected, OSError):
+            _reject()
+
     def commit_single_retained(
         self,
         *,

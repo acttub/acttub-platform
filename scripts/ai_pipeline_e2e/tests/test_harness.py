@@ -12,7 +12,13 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from scripts.ai_pipeline_e2e import controller, sanitizer, secure_state, service_bootstrap
+from scripts.ai_pipeline_e2e import (
+    controller,
+    development_target_approval,
+    sanitizer,
+    secure_state,
+    service_bootstrap,
+)
 
 
 HEX_A = "a" * 64
@@ -332,6 +338,8 @@ def case_record_event(
     event: dict[str, object] = {"type": "CASE_RECORDED", "evidence": evidence, "evidenceHash": entry["hash"]}
     if case_id == "REAL-01":
         event.update({"realAttestation": real_attestation, "macKeyFd": mac_key_fd})
+    if case_id == "UI-01":
+        event["browserEntry"] = browser_chain_fixture()[0]
     return event
 
 
@@ -402,6 +410,7 @@ class SecureStateTests(unittest.TestCase):
             set(secure_state.PRIVATE_FILE_LAYOUT),
             {
                 "run-mac-key",
+                "development-target-approval",
                 "state",
                 "manifest",
                 "mcp-attestations",
@@ -491,7 +500,7 @@ class SecureStateTests(unittest.TestCase):
                     "run-rejected1",
                     repository_roots=(str(Path.cwd()),),
                 )
-        with self.assertRaises(ValueError):
+        with self.assertRaises((TypeError, ValueError)):
             secure_state.initialize_private_state(
                 self.run.parent,
                 "run-rejected2",
@@ -1137,6 +1146,7 @@ class ControllerContractTests(unittest.TestCase):
             cleanup_vault_complete=True,
             retention_verified=True,
             transition_sequence=70,
+            browser_attestation_hash=str(browser_entries[0]["hash"]),
             provider_attestation_hmac=str(attestation["providerAttestationHmac"]),
             media_attestation_hmac=str(attestation["mediaAttestationHmac"]),
         )
@@ -1169,32 +1179,54 @@ class ControllerContractTests(unittest.TestCase):
             self.assertTrue(verified["verified"])
 
     def test_boolean_values_are_rejected_for_exact_count_contracts(self) -> None:
-        target_entry = mcp_entry_fixture(
-            0,
-            "0" * 64,
-            operation="list_projects",
-            postcondition_hmac=HMAC_A,
-        )
-        proof: dict[str, object] = {
-            "source": "supabase_mcp",
-            "environment": "development",
-            "expectedProjectHmac": HMAC_A,
-            "urlDerivedProjectHmac": HMAC_A,
-            "inventoryProjectHmac": HMAC_A,
-            "productionProjectHmac": HMAC_B,
-            "inventoryProjectCount": 1,
-            "deniedOtherProjectCount": 0,
-            "productionActionCount": 0,
-            "mcpAttestationHash": target_entry["hash"],
-        }
-        for field, value in (
-            ("inventoryProjectCount", True),
-            ("deniedOtherProjectCount", False),
-            ("productionActionCount", False),
-        ):
-            with self.subTest(development_count=field):
-                with self.assertRaises(ValueError):
-                    controller.assert_development_target({**proof, field: value}, (target_entry,))
+        run = PrivateRun()
+        try:
+            target_url = b"https://abcdefghijklmnopqrst.supabase.co"
+            with tempfile.TemporaryFile() as target_file:
+                target_file.write(target_url)
+                target_file.flush()
+                approval = development_target_approval.pin_authorized_development_target(
+                    approval_fd=run.state.file_fd("development-target-approval"),
+                    target_url_fd=target_file.fileno(),
+                    mac_key_fd=run.state.file_fd("run-mac-key"),
+                    manifest_digest="sha256:" + HEX_A,
+                    controller_state_hash="sha256:" + HEX_B,
+                    controller_state_sequence=2,
+                )
+            target_entry = mcp_entry_fixture(
+                0,
+                "0" * 64,
+                operation="list_projects",
+                postcondition_hmac=approval["targetHmac"],
+            )
+            proof: dict[str, object] = {
+                "source": "supabase_mcp",
+                "environment": "development",
+                "approvalMac": approval["approvalMac"],
+                "inventoryProjectHmac": approval["targetHmac"],
+                "inventoryResultHmac": HMAC_A,
+                "inventoryProjectCount": 1,
+                "deniedOtherProjectCount": 0,
+                "productionActionCount": 0,
+                "mcpAttestationHash": target_entry["hash"],
+            }
+            for field, value in (
+                ("inventoryProjectCount", True),
+                ("deniedOtherProjectCount", False),
+                ("productionActionCount", False),
+            ):
+                with self.subTest(development_count=field):
+                    with self.assertRaises(ValueError):
+                        controller.assert_development_target(
+                            {**proof, field: value},
+                            (target_entry,),
+                            approval_fd=run.state.file_fd("development-target-approval"),
+                            mac_key_fd=run.state.file_fd("run-mac-key"),
+                            expected_manifest_digest="sha256:" + HEX_A,
+                            expected_approved_target_hmac=approval["targetHmac"],
+                        )
+        finally:
+            run.close()
 
         mcp_target = {
             "operation": "target",
@@ -1754,9 +1786,23 @@ class ControllerContractTests(unittest.TestCase):
             },
         )
         self.assertEqual(state.phase, "ui_case_running")
-        for case_id in sanitizer.CASE_IDS[controller.ISOLATED_DATA_CASE_END :]:
-            state = controller_step(state, case_record_event(state, case_id))
+        self.assertEqual(sanitizer.CASE_IDS[controller.ISOLATED_DATA_CASE_END :], ("UI-01",))
+        ui_event = case_record_event(state, "UI-01")
+        with self.assertRaises((TypeError, ValueError)):
+            controller.transition(
+                state,
+                {key: value for key, value in ui_event.items() if key != "browserEntry"},
+            )
+        mismatched_browser = chain_entry(
+            0,
+            "0" * 64,
+            {**browser_chain_fixture()[0]["payload"], "resultHmac": HMAC_B},
+        )
+        with self.assertRaisesRegex(ValueError, "browser_attestation_evidence_binding_invalid"):
+            controller.transition(state, {**ui_event, "browserEntry": mismatched_browser})
+        state = controller_step(state, ui_event)
         self.assertEqual(state.phase, "cleanup_pending")
+        self.assertEqual(state.browser_attestation_hash, browser_chain_fixture()[0]["hash"])
         self.assertEqual(state.completed_cases, sanitizer.CASE_IDS)
         self.assertEqual(state.next_case_index, 25)
         self.assertTrue(state.scripted_phase_cleaned)
@@ -1967,36 +2013,52 @@ class ControllerContractTests(unittest.TestCase):
                 "scripts/ai_pipeline_e2e/browser_probe_runner.mjs",
                 "scripts/ai_pipeline_e2e/browser_probe_source.mjs",
                 "scripts/ai_pipeline_e2e/browser_session_broker.mjs",
+                "scripts/ai_pipeline_e2e/case_evidence.py",
                 "scripts/ai_pipeline_e2e/cases.json",
                 "scripts/ai_pipeline_e2e/controller.py",
+                "scripts/ai_pipeline_e2e/development_target_approval.py",
                 "scripts/ai_pipeline_e2e/development_target.mjs",
                 "scripts/ai_pipeline_e2e/driver_cleanup_broker.py",
                 "scripts/ai_pipeline_e2e/driver_cleanup_runtime.py",
+                "scripts/ai_pipeline_e2e/live_coordinator.py",
+                "scripts/ai_pipeline_e2e/live_process_orchestrator.py",
                 "scripts/ai_pipeline_e2e/live_runner.py",
+                "scripts/ai_pipeline_e2e/live_session.py",
                 "scripts/ai_pipeline_e2e/mcp_bridge.py",
                 "scripts/ai_pipeline_e2e/mcp_queries.py",
                 "scripts/ai_pipeline_e2e/platform_bootstrap.mjs",
+                "scripts/ai_pipeline_e2e/protected_process.py",
                 "scripts/ai_pipeline_e2e/provider_attestation.py",
+                "scripts/ai_pipeline_e2e/provider_cleanup_runtime.py",
                 "scripts/ai_pipeline_e2e/real_pipeline_driver.mjs",
                 "scripts/ai_pipeline_e2e/repository_gate.py",
                 "scripts/ai_pipeline_e2e/sanitizer.py",
+                "scripts/ai_pipeline_e2e/scripted_case_driver.mjs",
                 "scripts/ai_pipeline_e2e/secure_state.py",
                 "scripts/ai_pipeline_e2e/service_bootstrap.py",
                 "scripts/ai_pipeline_e2e/tests/test_bridge_protocol.py",
                 "scripts/ai_pipeline_e2e/tests/test_browser_probe_runner.py",
                 "scripts/ai_pipeline_e2e/tests/test_browser_probe_source.py",
                 "scripts/ai_pipeline_e2e/tests/test_browser_session_broker.py",
+                "scripts/ai_pipeline_e2e/tests/test_case_evidence.py",
                 "scripts/ai_pipeline_e2e/tests/test_development_target.py",
+                "scripts/ai_pipeline_e2e/tests/test_development_target_approval.py",
                 "scripts/ai_pipeline_e2e/tests/test_driver_cleanup_broker.py",
                 "scripts/ai_pipeline_e2e/tests/test_driver_cleanup_runtime.py",
                 "scripts/ai_pipeline_e2e/tests/test_harness.py",
+                "scripts/ai_pipeline_e2e/tests/test_live_coordinator.py",
+                "scripts/ai_pipeline_e2e/tests/test_live_process_orchestrator.py",
                 "scripts/ai_pipeline_e2e/tests/test_live_runner.py",
+                "scripts/ai_pipeline_e2e/tests/test_live_session.py",
                 "scripts/ai_pipeline_e2e/tests/test_mcp_architect_regressions.py",
                 "scripts/ai_pipeline_e2e/tests/test_mcp_bridge.py",
                 "scripts/ai_pipeline_e2e/tests/test_mcp_queries.py",
                 "scripts/ai_pipeline_e2e/tests/test_provider_attestation.py",
+                "scripts/ai_pipeline_e2e/tests/test_protected_process.py",
+                "scripts/ai_pipeline_e2e/tests/test_provider_cleanup_runtime.py",
                 "scripts/ai_pipeline_e2e/tests/test_real_pipeline_driver.py",
                 "scripts/ai_pipeline_e2e/tests/test_repository_gate.py",
+                "scripts/ai_pipeline_e2e/tests/test_scripted_case_driver.py",
             }
         )
         self.assertEqual(controller.REQUIRED_HARNESS_FILES, expected_files)

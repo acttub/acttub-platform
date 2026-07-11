@@ -35,6 +35,7 @@ _HMAC = re.compile(r"^hmac-sha256:[a-f0-9]{64}$")
 
 PRIVATE_FILE_LAYOUT: Mapping[str, tuple[str, bytes]] = {
     "run-mac-key": ("run-mac.key", b""),
+    "development-target-approval": ("development-target-approval.json", b""),
     "state": ("state.json", b""),
     "manifest": ("hash-manifest.json", b""),
     "mcp-attestations": ("mcp-attestations.jsonl", b""),
@@ -175,6 +176,76 @@ class PrivateState:
         if alias not in self.files:
             raise KeyError("private_file_alias_invalid")
         return _require_private_regular_fd(self.files[alias])
+
+    def validate_external_fds(
+        self,
+        *,
+        read_fds: tuple[int, ...] = (),
+        write_fds: tuple[int, ...] = (),
+        private_rw_fds: tuple[int, ...] = (),
+    ) -> None:
+        """Require external request descriptors to be safe and state-disjoint.
+
+        Descriptor numbers alone are not an ownership boundary: ``dup`` keeps
+        the same open file description and inode.  Validate both the numeric
+        descriptor and its stable ``fstat`` identity before any request input
+        is read or any output is truncated.
+        """
+
+        groups = (read_fds, write_fds, private_rw_fds)
+        if any(
+            not isinstance(group, tuple)
+            or any(type(fd) is not int or fd <= 2 for fd in group)
+            for group in groups
+        ):
+            raise TypeError("external_fd_contract_invalid")
+        external = (*read_fds, *write_fds, *private_rw_fds)
+        if len(external) != len(set(external)):
+            raise ValueError("external_fd_alias_invalid")
+
+        owned = (self.root_fd, self.temp_fd, *self.files.values())
+        if any(type(fd) is not int or fd <= 2 for fd in owned):
+            raise ValueError("private_state_fd_invalid")
+        if set(external) & set(owned):
+            raise ValueError("external_fd_alias_invalid")
+
+        try:
+            owned_identities = {
+                (info.st_dev, info.st_ino, stat.S_IFMT(info.st_mode))
+                for info in (os.fstat(fd) for fd in owned)
+            }
+            identities: set[tuple[int, int, int]] = set()
+            for fd in external:
+                info = os.fstat(fd)
+                identity = (info.st_dev, info.st_ino, stat.S_IFMT(info.st_mode))
+                if identity in owned_identities or identity in identities:
+                    raise ValueError("external_fd_alias_invalid")
+                identities.add(identity)
+                flags = fcntl.fcntl(fd, fcntl.F_GETFD)
+                status = fcntl.fcntl(fd, fcntl.F_GETFL)
+                regular = stat.S_ISREG(info.st_mode)
+                fifo = stat.S_ISFIFO(info.st_mode)
+                if (
+                    not (regular or fifo)
+                    or info.st_uid != os.geteuid()
+                    or stat.S_IMODE(info.st_mode) & 0o077
+                    or not flags & fcntl.FD_CLOEXEC
+                    or (regular and info.st_nlink not in {0, 1})
+                ):
+                    raise ValueError("external_fd_security_invalid")
+                access = status & os.O_ACCMODE
+                if fd in read_fds and access == os.O_WRONLY:
+                    raise ValueError("external_fd_access_invalid")
+                if fd in write_fds and access == os.O_RDONLY:
+                    raise ValueError("external_fd_access_invalid")
+                if fd in private_rw_fds and (
+                    not regular
+                    or stat.S_IMODE(info.st_mode) != FILE_MODE
+                    or access != os.O_RDWR
+                ):
+                    raise ValueError("external_fd_access_invalid")
+        except OSError as error:
+            raise ValueError("external_fd_security_invalid") from error
 
     def close(self) -> None:
         for fd in tuple(self.files.values()) + (self.temp_fd, self.root_fd):
@@ -520,6 +591,35 @@ class _HashChain:
         fcntl.flock(self._fd, fcntl.LOCK_SH)
         try:
             return tuple(self._entries_unlocked())
+        finally:
+            fcntl.flock(self._fd, fcntl.LOCK_UN)
+
+    def preview(self, payloads: tuple[Any, ...]) -> tuple[dict[str, Any], ...]:
+        """Return the exact entries a later append sequence must produce."""
+
+        if not isinstance(payloads, tuple) or not payloads:
+            raise TypeError("hash_chain_preview_payloads_invalid")
+        clean_payloads = tuple(self._sanitize(payload) for payload in payloads)
+        fcntl.flock(self._fd, fcntl.LOCK_SH)
+        try:
+            entries = self._entries_unlocked()
+            sequence = len(entries)
+            previous = entries[-1]["hash"] if entries else GENESIS_HASH
+            previewed: list[dict[str, Any]] = []
+            for payload in clean_payloads:
+                core = {
+                    "sequence": sequence,
+                    "previousHash": previous,
+                    "payload": payload,
+                }
+                entry = {
+                    **core,
+                    "hash": hashlib.sha256(canonical_json(core).encode("ascii")).hexdigest(),
+                }
+                previewed.append(entry)
+                sequence += 1
+                previous = entry["hash"]
+            return tuple(previewed)
         finally:
             fcntl.flock(self._fd, fcntl.LOCK_UN)
 
@@ -1722,13 +1822,33 @@ class CleanupVault(_HashChain):
         if type(output_fd) is not int or output_fd <= 2:
             raise TypeError("cleanup_vault_output_fd_invalid")
         output_info = os.fstat(output_fd)
+        vault_info = os.fstat(self._fd)
+        if output_fd == self._fd or (
+            output_info.st_dev,
+            output_info.st_ino,
+            stat.S_IFMT(output_info.st_mode),
+        ) == (
+            vault_info.st_dev,
+            vault_info.st_ino,
+            stat.S_IFMT(vault_info.st_mode),
+        ):
+            raise ValueError("cleanup_vault_output_fd_alias")
         private_regular = (
             stat.S_ISREG(output_info.st_mode)
             and stat.S_IMODE(output_info.st_mode) == FILE_MODE
             and output_info.st_nlink in {0, 1}
             and output_info.st_uid == os.geteuid()
+            and fcntl.fcntl(output_fd, fcntl.F_GETFD) & fcntl.FD_CLOEXEC
+            and fcntl.fcntl(output_fd, fcntl.F_GETFL) & os.O_ACCMODE != os.O_RDONLY
         )
-        if not stat.S_ISFIFO(output_info.st_mode) and not private_regular:
+        private_fifo = (
+            stat.S_ISFIFO(output_info.st_mode)
+            and output_info.st_uid == os.geteuid()
+            and stat.S_IMODE(output_info.st_mode) & 0o077 == 0
+            and fcntl.fcntl(output_fd, fcntl.F_GETFD) & fcntl.FD_CLOEXEC
+            and fcntl.fcntl(output_fd, fcntl.F_GETFL) & os.O_ACCMODE != os.O_RDONLY
+        )
+        if not private_fifo and not private_regular:
             raise ValueError("cleanup_vault_output_fd_not_private")
         entries = self.entries()
         plans = {entry["hash"]: entry["payload"] for entry in entries if entry["payload"]["kind"] == "plan"}
@@ -1736,7 +1856,12 @@ class CleanupVault(_HashChain):
         match = plans.get(plan_hash)
         if match is None or plan_hash in completed:
             raise ValueError("cleanup_vault_plan_missing")
+        if private_regular:
+            os.lseek(output_fd, 0, os.SEEK_SET)
+            os.ftruncate(output_fd, 0)
         _write_all(output_fd, bytes.fromhex(match["locatorHex"]))
+        if private_regular:
+            os.fsync(output_fd)
 
     def complete(self, plan_hash: str, outcome: str) -> str:
         entries = self.entries()

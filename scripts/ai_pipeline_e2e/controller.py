@@ -12,8 +12,16 @@ from pathlib import PurePosixPath
 from typing import Any, Callable, Mapping
 
 try:
+    from .development_target_approval import (
+        verify_development_target_approval,
+        verify_pinned_development_target_approval,
+    )
     from .sanitizer import CASE_IDS, canonical_json, require_sha256, sanitize_evidence
 except ImportError:  # pragma: no cover - direct script import fallback
+    from development_target_approval import (
+        verify_development_target_approval,
+        verify_pinned_development_target_approval,
+    )
     from sanitizer import CASE_IDS, canonical_json, require_sha256, sanitize_evidence
 
 REPOSITORY_NAMES = ("platform", "summary", "agent", "report")
@@ -64,36 +72,52 @@ REQUIRED_HARNESS_FILES = frozenset(
         "scripts/ai_pipeline_e2e/browser_probe_runner.mjs",
         "scripts/ai_pipeline_e2e/browser_probe_source.mjs",
         "scripts/ai_pipeline_e2e/browser_session_broker.mjs",
+        "scripts/ai_pipeline_e2e/case_evidence.py",
         "scripts/ai_pipeline_e2e/cases.json",
         "scripts/ai_pipeline_e2e/controller.py",
+        "scripts/ai_pipeline_e2e/development_target_approval.py",
         "scripts/ai_pipeline_e2e/development_target.mjs",
         "scripts/ai_pipeline_e2e/driver_cleanup_broker.py",
         "scripts/ai_pipeline_e2e/driver_cleanup_runtime.py",
+        "scripts/ai_pipeline_e2e/live_coordinator.py",
+        "scripts/ai_pipeline_e2e/live_process_orchestrator.py",
         "scripts/ai_pipeline_e2e/live_runner.py",
+        "scripts/ai_pipeline_e2e/live_session.py",
         "scripts/ai_pipeline_e2e/mcp_bridge.py",
         "scripts/ai_pipeline_e2e/mcp_queries.py",
         "scripts/ai_pipeline_e2e/platform_bootstrap.mjs",
+        "scripts/ai_pipeline_e2e/protected_process.py",
         "scripts/ai_pipeline_e2e/provider_attestation.py",
+        "scripts/ai_pipeline_e2e/provider_cleanup_runtime.py",
         "scripts/ai_pipeline_e2e/real_pipeline_driver.mjs",
         "scripts/ai_pipeline_e2e/repository_gate.py",
         "scripts/ai_pipeline_e2e/sanitizer.py",
+        "scripts/ai_pipeline_e2e/scripted_case_driver.mjs",
         "scripts/ai_pipeline_e2e/secure_state.py",
         "scripts/ai_pipeline_e2e/service_bootstrap.py",
         "scripts/ai_pipeline_e2e/tests/test_bridge_protocol.py",
         "scripts/ai_pipeline_e2e/tests/test_browser_probe_runner.py",
         "scripts/ai_pipeline_e2e/tests/test_browser_probe_source.py",
         "scripts/ai_pipeline_e2e/tests/test_browser_session_broker.py",
+        "scripts/ai_pipeline_e2e/tests/test_case_evidence.py",
         "scripts/ai_pipeline_e2e/tests/test_development_target.py",
+        "scripts/ai_pipeline_e2e/tests/test_development_target_approval.py",
         "scripts/ai_pipeline_e2e/tests/test_driver_cleanup_broker.py",
         "scripts/ai_pipeline_e2e/tests/test_driver_cleanup_runtime.py",
         "scripts/ai_pipeline_e2e/tests/test_harness.py",
+        "scripts/ai_pipeline_e2e/tests/test_live_coordinator.py",
+        "scripts/ai_pipeline_e2e/tests/test_live_process_orchestrator.py",
         "scripts/ai_pipeline_e2e/tests/test_live_runner.py",
+        "scripts/ai_pipeline_e2e/tests/test_live_session.py",
         "scripts/ai_pipeline_e2e/tests/test_mcp_architect_regressions.py",
         "scripts/ai_pipeline_e2e/tests/test_mcp_bridge.py",
         "scripts/ai_pipeline_e2e/tests/test_mcp_queries.py",
         "scripts/ai_pipeline_e2e/tests/test_provider_attestation.py",
+        "scripts/ai_pipeline_e2e/tests/test_protected_process.py",
+        "scripts/ai_pipeline_e2e/tests/test_provider_cleanup_runtime.py",
         "scripts/ai_pipeline_e2e/tests/test_real_pipeline_driver.py",
         "scripts/ai_pipeline_e2e/tests/test_repository_gate.py",
+        "scripts/ai_pipeline_e2e/tests/test_scripted_case_driver.py",
     }
 )
 
@@ -253,16 +277,29 @@ def verify_hash_manifest(actual: Any, pinned: Any) -> dict[str, Any]:
     return {"matches": True, "digest": actual_digest}
 
 
-def assert_development_target(metadata: Any, mcp_chain_entries: Any) -> dict[str, Any]:
+def assert_development_target(
+    metadata: Any,
+    mcp_chain_entries: Any,
+    *,
+    approval_fd: int,
+    mac_key_fd: int,
+    expected_manifest_digest: str,
+    expected_approved_target_hmac: str,
+) -> dict[str, Any]:
+    approval = verify_pinned_development_target_approval(
+        approval_fd=approval_fd,
+        mac_key_fd=mac_key_fd,
+        expected_manifest_digest=expected_manifest_digest,
+        expected_target_hmac=expected_approved_target_hmac,
+    )
     item = _exact_mapping(
         metadata,
         {
             "source",
             "environment",
-            "expectedProjectHmac",
-            "urlDerivedProjectHmac",
+            "approvalMac",
             "inventoryProjectHmac",
-            "productionProjectHmac",
+            "inventoryResultHmac",
             "inventoryProjectCount",
             "deniedOtherProjectCount",
             "productionActionCount",
@@ -270,12 +307,7 @@ def assert_development_target(metadata: Any, mcp_chain_entries: Any) -> dict[str
         },
         "development_target",
     )
-    for key in (
-        "expectedProjectHmac",
-        "urlDerivedProjectHmac",
-        "inventoryProjectHmac",
-        "productionProjectHmac",
-    ):
+    for key in ("approvalMac", "inventoryProjectHmac", "inventoryResultHmac"):
         if not isinstance(item[key], str) or _HMAC.fullmatch(item[key]) is None:
             raise ValueError("development_target_hmac_invalid")
     if not isinstance(mcp_chain_entries, (tuple, list)) or not mcp_chain_entries:
@@ -287,8 +319,7 @@ def assert_development_target(metadata: Any, mcp_chain_entries: Any) -> dict[str
         or not isinstance(latest.get("payload"), Mapping)
         or latest["payload"].get("operation") != "list_projects"
         or latest["payload"].get("targetHmac") != item["inventoryProjectHmac"]
-        or not isinstance(latest["payload"].get("responseHmac"), str)
-        or _HMAC.fullmatch(latest["payload"]["responseHmac"]) is None
+        or latest["payload"].get("responseHmac") != item["inventoryResultHmac"]
         or latest["payload"].get("success") is not True
         or latest["payload"].get("productionAction") is not False
     ):
@@ -297,14 +328,13 @@ def assert_development_target(metadata: Any, mcp_chain_entries: Any) -> dict[str
         item["source"] != "supabase_mcp"
         or item["environment"] != "development"
         or type(item["inventoryProjectCount"]) is not int
-        or item["inventoryProjectCount"] < 1
+        or item["inventoryProjectCount"] < 2
         or type(item["deniedOtherProjectCount"]) is not int
         or item["deniedOtherProjectCount"] != item["inventoryProjectCount"] - 1
         or type(item["productionActionCount"]) is not int
         or item["productionActionCount"] != 0
-        or not hmac.compare_digest(item["expectedProjectHmac"], item["urlDerivedProjectHmac"])
-        or not hmac.compare_digest(item["urlDerivedProjectHmac"], item["inventoryProjectHmac"])
-        or hmac.compare_digest(item["inventoryProjectHmac"], item["productionProjectHmac"])
+        or not hmac.compare_digest(item["approvalMac"], approval["approvalMac"])
+        or not hmac.compare_digest(item["inventoryProjectHmac"], approval["targetHmac"])
     ):
         raise ValueError("development_target_not_proven")
     return {
@@ -315,6 +345,7 @@ def assert_development_target(metadata: Any, mcp_chain_entries: Any) -> dict[str
         "mcpSequence": latest["sequence"],
         "targetHmac": item["inventoryProjectHmac"],
         "targetCapabilityHmac": latest["payload"]["responseHmac"],
+        "approvalMac": approval["approvalMac"],
     }
 
 
@@ -601,10 +632,8 @@ def verify_mcp_chain(entries: Any) -> dict[str, Any]:
     }
 
 
-def verify_browser_chain(entries: Any, evidence_entries: Any) -> dict[str, Any]:
-    if not isinstance(entries, (list, tuple)) or len(entries) != 1:
-        raise ValueError("browser_chain_count_invalid")
-    item = _exact_mapping(entries[0], {"sequence", "previousHash", "payload", "hash"}, "browser_chain_entry")
+def _validate_browser_entry(entry: Any) -> dict[str, Any]:
+    item = _exact_mapping(entry, {"sequence", "previousHash", "payload", "hash"}, "browser_chain_entry")
     payload = _exact_mapping(
         item["payload"],
         {
@@ -636,6 +665,14 @@ def verify_browser_chain(entries: Any, evidence_entries: Any) -> dict[str, Any]:
     expected_hash = _sha256(canonical_json(core).encode("ascii"))
     if item["sequence"] != 0 or item["previousHash"] != _GENESIS_HASH or item["hash"] != expected_hash:
         raise ValueError("browser_chain_entry_invalid")
+    return {**core, "hash": expected_hash}
+
+
+def verify_browser_chain(entries: Any, evidence_entries: Any) -> dict[str, Any]:
+    if not isinstance(entries, (list, tuple)) or len(entries) != 1:
+        raise ValueError("browser_chain_count_invalid")
+    item = _validate_browser_entry(entries[0])
+    payload = item["payload"]
     evidence = verify_evidence_chain(evidence_entries)
     ui_payload = evidence_entries[-1]["payload"]
     ui_hmac = next(
@@ -648,7 +685,7 @@ def verify_browser_chain(entries: Any, evidence_entries: Any) -> dict[str, Any]:
     )
     if ui_hmac != payload["resultHmac"] or evidence["entryCount"] != len(CASE_IDS):
         raise ValueError("browser_chain_evidence_binding_invalid")
-    return {"entryCount": 1, "tailHash": expected_hash, "verified": True}
+    return {"entryCount": 1, "tailHash": item["hash"], "verified": True}
 
 
 def validate_migration_ledger(phase: str, applied: Any) -> dict[str, Any]:
@@ -959,6 +996,7 @@ _CONTROLLER_PHASES = frozenset(
         "created",
         "offline_verified",
         "private_state_ready",
+        "dev_target_approved",
         "dev_target_verified",
         "migration_009_prepare_required",
         "migration_009_prepared",
@@ -1134,9 +1172,12 @@ def restore_controller_state(value: Any) -> ControllerState:
         raise ValueError("controller_state_mcp_tail_invalid")
     if (item["mcpSequence"] == -1) != (item["mcpTailHash"] == _GENESIS_HASH):
         raise ValueError("controller_state_mcp_chain_invalid")
-    if (item["developmentTargetHmac"] is None) != (
-        item["developmentTargetCapabilityHmac"] is None
-    ):
+    target_present = item["developmentTargetHmac"] is not None
+    capability_present = item["developmentTargetCapabilityHmac"] is not None
+    if item["phase"] == "dev_target_approved":
+        if not target_present or capability_present:
+            raise ValueError("controller_state_target_approval_invariant_failed")
+    elif target_present != capability_present:
         raise ValueError("controller_state_target_capability_invariant_failed")
     if item["phase"] != "created" and (item["manifestVerified"] is not True or item["manifestDigest"] is None):
         raise ValueError("controller_state_manifest_invariant_failed")
@@ -1144,7 +1185,8 @@ def restore_controller_state(value: Any) -> ControllerState:
         item["cleanupVaultComplete"] is not True or item["retentionVerified"] is not True
     ):
         raise ValueError("controller_state_cleanup_invariant_failed")
-    if item["phase"] in {"evidence_sealed", "completed"} and item["browserAttestationHash"] is None:
+    browser_bound_phases = {"cleanup_pending", "cleanup_verified", "evidence_sealed", "completed"}
+    if (item["phase"] in browser_bound_phases) != (item["browserAttestationHash"] is not None):
         raise ValueError("controller_state_browser_invariant_failed")
     if item["nextCaseIndex"] > CASE_IDS.index("REAL-01") and (
         item["actualGeminiObserved"] is not True or item["actualMediaObserved"] is not True
@@ -1240,8 +1282,44 @@ def transition(state: ControllerState, event: Any) -> ControllerState:
         return replace(state, phase="private_state_ready")
 
     if state.phase == "private_state_ready":
-        item = _event(event, {"proof", "mcpEntries"}, "DEV_TARGET_VERIFIED")
-        proof = assert_development_target(item["proof"], item["mcpEntries"])
+        item = _event(
+            event,
+            {"approvalFd", "macKeyFd"},
+            "DEV_TARGET_APPROVED",
+        )
+        if state.manifest_digest is None:
+            raise ValueError("development_target_manifest_missing")
+        approval = verify_development_target_approval(
+            approval_fd=item["approvalFd"],
+            mac_key_fd=item["macKeyFd"],
+            expected_manifest_digest=state.manifest_digest,
+            expected_controller_state_hash=controller_state_digest(state),
+            expected_controller_state_sequence=state.transition_sequence,
+        )
+        if approval["approved"] is not True or approval["pinnedBeforeNetwork"] is not True:
+            raise ValueError("development_target_approval_not_verified")
+        return replace(
+            state,
+            phase="dev_target_approved",
+            development_target_hmac=approval["targetHmac"],
+        )
+
+    if state.phase == "dev_target_approved":
+        item = _event(
+            event,
+            {"proof", "mcpEntries", "approvalFd", "macKeyFd"},
+            "DEV_TARGET_VERIFIED",
+        )
+        if state.manifest_digest is None or state.development_target_hmac is None:
+            raise ValueError("development_target_approval_missing")
+        proof = assert_development_target(
+            item["proof"],
+            item["mcpEntries"],
+            approval_fd=item["approvalFd"],
+            mac_key_fd=item["macKeyFd"],
+            expected_manifest_digest=state.manifest_digest,
+            expected_approved_target_hmac=state.development_target_hmac,
+        )
         target_hmac = proof["targetHmac"]
         target_capability_hmac = proof["targetCapabilityHmac"]
         if len(item["mcpEntries"]) != 1:
@@ -1702,6 +1780,8 @@ def transition(state: ControllerState, event: Any) -> ControllerState:
         event_keys = {"evidence", "evidenceHash"}
         if expected_case_id == "REAL-01":
             event_keys.update({"realAttestation", "macKeyFd"})
+        if expected_case_id == "UI-01":
+            event_keys.add("browserEntry")
         item = _event(event, event_keys, "CASE_RECORDED")
         clean = sanitize_evidence(item["evidence"])
         expected_mode = EXPECTED_CASE_MODES[expected_case_id]
@@ -1731,6 +1811,7 @@ def transition(state: ControllerState, event: Any) -> ControllerState:
         media = state.actual_media_observed
         provider_attestation_hmac = state.provider_attestation_hmac
         media_attestation_hmac = state.media_attestation_hmac
+        browser_attestation_hash = state.browser_attestation_hash
         if clean["caseId"] == "REAL-01":
             assertion_values = {assertion["id"]: assertion for assertion in clean["assertions"]}
             gemini = assertion_values["actual_gemini_observed"]["passed"]
@@ -1743,6 +1824,16 @@ def transition(state: ControllerState, event: Any) -> ControllerState:
                 or assertion_values["media_attestation_hmac"]["hmac"] != media_attestation_hmac
             ):
                 raise ValueError("real_attestation_evidence_binding_invalid")
+        if clean["caseId"] == "UI-01":
+            browser_entry = _validate_browser_entry(item["browserEntry"])
+            assertion_values = {assertion["id"]: assertion for assertion in clean["assertions"]}
+            if (
+                browser_attestation_hash is not None
+                or assertion_values["ui_result_hmac"]["hmac"]
+                != browser_entry["payload"]["resultHmac"]
+            ):
+                raise ValueError("browser_attestation_evidence_binding_invalid")
+            browser_attestation_hash = browser_entry["hash"]
         next_index = state.next_case_index + 1
         if next_index == SCRIPTED_CASE_COUNT:
             next_phase = "scripted_cleanup_pending"
@@ -1764,6 +1855,7 @@ def transition(state: ControllerState, event: Any) -> ControllerState:
             actual_media_observed=media,
             provider_attestation_hmac=provider_attestation_hmac,
             media_attestation_hmac=media_attestation_hmac,
+            browser_attestation_hash=browser_attestation_hash,
         )
 
     if state.phase == "real_provider_cleanup_pending":
@@ -1855,10 +1947,11 @@ def transition(state: ControllerState, event: Any) -> ControllerState:
             or mcp["entryCount"] != state.mcp_sequence + 1
             or mcp["tailHash"] != state.mcp_tail_hash
             or browser["entryCount"] != 1
+            or browser["tailHash"] != state.browser_attestation_hash
             or pinned_manifest_digest != state.manifest_digest
         ):
             raise ValueError("evidence_not_sealed")
-        return replace(state, phase="evidence_sealed", browser_attestation_hash=browser["tailHash"])
+        return replace(state, phase="evidence_sealed")
 
     if state.phase == "evidence_sealed":
         _event(event, set(), "COMPLETE")

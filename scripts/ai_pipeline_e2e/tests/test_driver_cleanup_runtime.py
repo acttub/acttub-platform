@@ -116,6 +116,33 @@ class DriverCleanupRuntimeTests(unittest.TestCase):
         finally:
             runtime.close()
 
+    def test_pending_locator_copy_requires_authenticated_receipt_and_private_fd(self) -> None:
+        runtime, child = self.runtime_and_child()
+        try:
+            acknowledgement = self.plan_main(child)
+            child.close()
+            runtime.finish(timeout_seconds=2)
+            with tempfile.TemporaryFile() as locator_file:
+                os.fchmod(locator_file.fileno(), 0o600)
+                runtime.copy_pending_locator(
+                    plan_receipt_hmac=str(acknowledgement["planReceiptHmac"]),
+                    output_fd=locator_file.fileno(),
+                )
+                os.lseek(locator_file.fileno(), 0, os.SEEK_SET)
+                self.assertEqual(json.loads(locator_file.read().decode("ascii")), SESSION_LOCATOR)
+                with self.assertRaises(driver_cleanup_runtime.DriverCleanupRuntimeRejected):
+                    runtime.copy_pending_locator(
+                        plan_receipt_hmac="hmac-sha256:" + "0" * 64,
+                        output_fd=locator_file.fileno(),
+                    )
+            with self.assertRaises(driver_cleanup_runtime.DriverCleanupRuntimeRejected):
+                runtime.copy_pending_locator(
+                    plan_receipt_hmac=str(acknowledgement["planReceiptHmac"]),
+                    output_fd=1,
+                )
+        finally:
+            runtime.close()
+
     def test_recovery_rejects_retained_outcome(self) -> None:
         runtime, child = self.runtime_and_child()
         try:
