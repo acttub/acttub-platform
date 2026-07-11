@@ -122,6 +122,8 @@ test("migration 009 replays under lock, expires stale reports, and removes weak 
   assert.match(migration009, /completion_status_value is null\)<>\(completion_reason_value is null\)[\s\S]*completion_status_value not in \('completed','paused','completed_without_report'\)/);
   assert.match(migration009, /jsonb_typeof\(p_summary\) is distinct from 'object'/);
   assert.match(migration009, /jsonb_typeof\(c->'id'\) is distinct from 'string'[\s\S]*invalid_summary_candidate/);
+  assert.match(migration009, /c->>'priority' !~ '\^\[1-9\]\[0-9\]\{0,9\}\$' or \(c->>'priority'\)::numeric>2147483647/);
+  assert.doesNotMatch(migration009, /c->>'priority' !~ '\^\(0\|\[1-9\]\|10\)\$'/);
   assert.match(migration009, /r\.status='running' returning r\.\*/);
   assert.match(migration009, /'reportReady',coalesce\(completion_status_value='completed',false\)/);
   assert.match(migration009, /jsonb_typeof\(agent\) is distinct from 'object'[\s\S]*invalid_agent_turn/);
