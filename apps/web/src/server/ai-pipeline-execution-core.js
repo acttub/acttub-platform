@@ -59,12 +59,11 @@ export const assertExpectedInterviewProgress = ({ actual, expectedSubstantiveAns
 
 export const assertTerminalAtConversationLimit = ({ actual, completionReason = null, done = null, fail = defaultFail }) => {
   if (actual.totalReportableActorCount < 10) return;
+  if (done !== true) fail("nonterminal_tenth_turn");
   if (completionReason === "hard_limit_report_ready") {
-    if (done !== true) fail("invalid_completion_count");
     return;
   }
   if (completionReason === "insufficient_interview_evidence") {
-    if (done !== false) fail("nonterminal_tenth_turn");
     return;
   }
   fail("invalid_completion_count");
