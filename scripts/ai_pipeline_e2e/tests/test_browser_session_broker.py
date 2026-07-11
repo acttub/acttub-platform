@@ -25,6 +25,7 @@ ACCESS_TOKEN = "offline-access-token-canary.AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
 REFRESH_TOKEN = "offline-refresh-token-canary-BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"
 PUBLISHABLE_KEY = "offline-publishable-key-canary-CCCCCCCCCCCCCCCCCCCCCCCCCCCC"
 NONCE = "d" * 64
+READINESS_FRAME = b'{"ready":true,"schemaVersion":"browser-session-broker-readiness.v1"}\n'
 
 
 def unused_loopback_port() -> int:
@@ -34,24 +35,66 @@ def unused_loopback_port() -> int:
 
 
 class BrokerProcess:
-    def __init__(self, process: subprocess.Popen[bytes], receipt: socket.socket) -> None:
+    def __init__(
+        self,
+        process: subprocess.Popen[bytes],
+        receipt: socket.socket,
+        readiness: socket.socket | None,
+        readiness_file: Any | None,
+    ) -> None:
         self.process = process
         self.receipt = receipt
+        self.readiness = readiness
+        self.readiness_file = readiness_file
+        self._readiness: bytes | None = None
 
-    def collect(self, *, timeout: float = 5) -> tuple[bytes, bytes, bytes]:
-        stdout, stderr = self.process.communicate(timeout=timeout)
-        self.receipt.settimeout(1)
+    @staticmethod
+    def _read_socket(
+        channel: socket.socket,
+        *,
+        timeout: float,
+        require_eof: bool = False,
+    ) -> bytes:
+        channel.settimeout(timeout)
         chunks: list[bytes] = []
+        reached_eof = False
         while True:
             try:
-                chunk = self.receipt.recv(4096)
+                chunk = channel.recv(4096)
             except socket.timeout:
                 break
             if not chunk:
+                reached_eof = True
                 break
             chunks.append(chunk)
-        self.receipt.close()
-        return stdout, stderr, b"".join(chunks)
+        channel.close()
+        if require_eof and not reached_eof:
+            raise AssertionError("readiness_stream_not_closed")
+        return b"".join(chunks)
+
+    def wait_ready(self, *, timeout: float = 2) -> bytes:
+        if self._readiness is not None:
+            return self._readiness
+        if self.readiness is None:
+            raise AssertionError("readiness_stream_unavailable")
+        self._readiness = self._read_socket(self.readiness, timeout=timeout, require_eof=True)
+        self.readiness = None
+        return self._readiness
+
+    def collect(self, *, timeout: float = 5) -> tuple[bytes, bytes, bytes, bytes]:
+        stdout, stderr = self.process.communicate(timeout=timeout)
+        raw_receipt = self._read_socket(self.receipt, timeout=1)
+        if self._readiness is None:
+            if self.readiness is not None:
+                self._readiness = self._read_socket(self.readiness, timeout=1)
+                self.readiness = None
+            elif self.readiness_file is not None:
+                self.readiness_file.seek(0)
+                self._readiness = self.readiness_file.read()
+        if self.readiness_file is not None:
+            self.readiness_file.close()
+            self.readiness_file = None
+        return stdout, stderr, raw_receipt, self._readiness or b""
 
 
 class BrowserSessionBrokerTests(unittest.TestCase):
@@ -67,15 +110,15 @@ class BrowserSessionBrokerTests(unittest.TestCase):
         access_token: str = ACCESS_TOKEN,
         refresh_token: str = REFRESH_TOKEN,
     ) -> dict[str, object]:
-        hostname = b"offlineproject.supabase.co"
+        project_ref = b"abcdefghijklmnopqrst"
         target_hmac = "hmac-sha256:" + hmac.new(
             self.key,
-            b"acttub-platform-development-target.v1\0" + hostname,
+            b"acttub-protected-supabase-project-ref.v1\0" + project_ref,
             hashlib.sha256,
         ).hexdigest()
         return {
             "schemaVersion": "browser-session-handoff.v1",
-            "supabaseUrl": "https://offlineproject.supabase.co",
+            "supabaseUrl": "https://abcdefghijklmnopqrst.supabase.co",
             "publishableKey": PUBLISHABLE_KEY,
             "accessToken": access_token,
             "refreshToken": refresh_token,
@@ -87,7 +130,13 @@ class BrowserSessionBrokerTests(unittest.TestCase):
         }
 
     @staticmethod
-    def wrapper(input_fd: int, key_fd: int, receipt_fd: int, timeout_ms: int) -> bytes:
+    def wrapper(
+        input_fd: int,
+        key_fd: int,
+        receipt_fd: int,
+        readiness_fd: int,
+        timeout_ms: int,
+    ) -> bytes:
         source = f"""
           import crypto from "node:crypto";
           import {{ serveBrowserSessionBroker }} from {json.dumps(BROKER.as_uri())};
@@ -123,6 +172,7 @@ class BrowserSessionBrokerTests(unittest.TestCase):
               inputFd: {input_fd},
               macKeyFd: {key_fd},
               receiptFd: {receipt_fd},
+              readinessFd: {readiness_fd},
               timeoutMs: {timeout_ms},
               dependencyLoader,
             }});
@@ -140,9 +190,19 @@ class BrowserSessionBrokerTests(unittest.TestCase):
         raw_input: bytes | None = None,
         timeout_ms: int = 1500,
         regular_input_file: bool = False,
+        regular_readiness_file: bool = False,
     ) -> BrokerProcess:
         key_parent, key_child = socket.socketpair()
         receipt_parent, receipt_child = socket.socketpair()
+        readiness_parent: socket.socket | None = None
+        readiness_child: socket.socket | None = None
+        readiness_file: Any | None = None
+        if regular_readiness_file:
+            readiness_file = tempfile.TemporaryFile()
+            readiness_fd = readiness_file.fileno()
+        else:
+            readiness_parent, readiness_child = socket.socketpair()
+            readiness_fd = readiness_child.fileno()
         input_parent: socket.socket | None = None
         input_file: Any | None = None
         if regular_input_file:
@@ -154,7 +214,7 @@ class BrowserSessionBrokerTests(unittest.TestCase):
             input_parent, input_child = socket.socketpair()
             input_fd = input_child.fileno()
 
-        pass_fds = [input_fd, key_child.fileno(), receipt_child.fileno()]
+        pass_fds = [input_fd, key_child.fileno(), receipt_child.fileno(), readiness_fd]
         process = subprocess.Popen(
             (NODE, "--input-type=module"),
             stdin=subprocess.PIPE,
@@ -165,10 +225,20 @@ class BrowserSessionBrokerTests(unittest.TestCase):
             env={"PATH": os.defpath},
         )
         assert process.stdin is not None
-        process.stdin.write(self.wrapper(input_fd, key_child.fileno(), receipt_child.fileno(), timeout_ms))
+        process.stdin.write(
+            self.wrapper(
+                input_fd,
+                key_child.fileno(),
+                receipt_child.fileno(),
+                readiness_fd,
+                timeout_ms,
+            )
+        )
         process.stdin.close()
         key_child.close()
         receipt_child.close()
+        if readiness_child is not None:
+            readiness_child.close()
         key_parent.sendall(self.key)
         key_parent.shutdown(socket.SHUT_WR)
         key_parent.close()
@@ -179,7 +249,7 @@ class BrowserSessionBrokerTests(unittest.TestCase):
             input_parent.close()
         if input_file is not None:
             input_file.close()
-        return BrokerProcess(process, receipt_parent)
+        return BrokerProcess(process, receipt_parent, readiness_parent, readiness_file)
 
     @staticmethod
     def request(
@@ -219,13 +289,16 @@ class BrowserSessionBrokerTests(unittest.TestCase):
         settings = self.settings()
         broker = self.launch(settings)
         route = f"/__acttub_session/{NONCE}"
+        raw_readiness = broker.wait_ready()
+        self.assertEqual(raw_readiness, READINESS_FRAME)
         broker.receipt.settimeout(0.05)
         with self.assertRaises(socket.timeout):
             broker.receipt.recv(1)
-        status, headers = self.request(int(settings["brokerPort"]), "GET", route)
-        stdout, stderr, raw_receipt = broker.collect()
+        status, headers = self.request(int(settings["brokerPort"]), "GET", route, retries=1)
+        stdout, stderr, raw_receipt, collected_readiness = broker.collect()
 
         self.assertEqual(status, 302)
+        self.assertEqual(collected_readiness, READINESS_FRAME)
         self.assertEqual(broker.process.returncode, 0)
         self.assertEqual(stdout, b"")
         self.assertEqual(stderr, b"")
@@ -236,12 +309,58 @@ class BrowserSessionBrokerTests(unittest.TestCase):
         self.assertEqual(len(header_map["set-cookie"]), 2)
         self.assertEqual(header_map["cache-control"], ["no-store, max-age=0"])
         receipt = json.loads(raw_receipt)
-        self.assertEqual(set(receipt), {"schemaVersion", "operation", "success", "resultHmac"})
+        self.assertEqual(set(receipt), {
+            "schemaVersion", "operation", "success", "cookieCount",
+            "cookieHeadersHmac", "nonceHmac", "targetHmac",
+            "developmentTargetHmac", "resultHmac",
+        })
         self.assertEqual(receipt["schemaVersion"], "browser-session-handoff-receipt.v1")
         self.assertEqual(receipt["operation"], "browser_session_handoff")
         self.assertIs(receipt["success"], True)
-        self.assertRegex(receipt["resultHmac"], r"^hmac-sha256:[a-f0-9]{64}$")
-        self.assert_no_secret_artifacts(route, headers, raw_receipt, stdout, stderr, broker.process.args, {"PATH": os.defpath})
+        self.assertEqual(receipt["cookieCount"], 2)
+        expected_hmac = lambda domain, value: "hmac-sha256:" + hmac.new(
+            self.key, domain + value, hashlib.sha256
+        ).hexdigest()
+        self.assertEqual(
+            receipt["cookieHeadersHmac"],
+            expected_hmac(
+                b"acttub-browser-session-handoff-cookies.v1\0",
+                "\0".join(header_map["set-cookie"]).encode("utf-8"),
+            ),
+        )
+        self.assertEqual(
+            receipt["nonceHmac"],
+            expected_hmac(
+                b"acttub-browser-session-handoff-nonce.v1\0", NONCE.encode("ascii")
+            ),
+        )
+        self.assertEqual(
+            receipt["targetHmac"],
+            expected_hmac(
+                b"acttub-browser-session-handoff-target.v1\0",
+                f"127.0.0.1\0{settings['targetPort']}\0{settings['targetPath']}".encode("ascii"),
+            ),
+        )
+        self.assertEqual(receipt["developmentTargetHmac"], settings["developmentTargetHmac"])
+        semantic = dict(receipt)
+        result_hmac = semantic.pop("resultHmac")
+        self.assertEqual(
+            result_hmac,
+            expected_hmac(
+                b"acttub-browser-session-handoff-receipt.v1\0",
+                json.dumps(semantic, sort_keys=True, separators=(",", ":")).encode("ascii"),
+            ),
+        )
+        self.assert_no_secret_artifacts(
+            route,
+            headers,
+            raw_receipt,
+            raw_readiness,
+            stdout,
+            stderr,
+            broker.process.args,
+            {"PATH": os.defpath},
+        )
 
         with self.assertRaises((ConnectionError, OSError, AssertionError)):
             self.request(int(settings["brokerPort"]), "GET", route, retries=2)
@@ -255,13 +374,16 @@ class BrowserSessionBrokerTests(unittest.TestCase):
                 refresh_token=REFRESH_TOKEN + suffix,
             )
             broker = self.launch(settings)
+            self.assertEqual(broker.wait_ready(), READINESS_FRAME)
             status, headers = self.request(
                 int(settings["brokerPort"]),
                 "GET",
                 f"/__acttub_session/{NONCE}",
+                retries=1,
             )
-            stdout, stderr, raw_receipt = broker.collect()
+            stdout, stderr, raw_receipt, raw_readiness = broker.collect()
             self.assertEqual((status, broker.process.returncode, stdout, stderr), (302, 0, b"", b""))
+            self.assertEqual(raw_readiness, READINESS_FRAME)
             receipts.append(json.loads(raw_receipt)["resultHmac"])
             cookies.append([value for name, value in headers if name.casefold() == "set-cookie"])
             self.assert_no_secret_artifacts(headers, raw_receipt, stdout, stderr)
@@ -279,19 +401,22 @@ class BrowserSessionBrokerTests(unittest.TestCase):
             with self.subTest(label=label):
                 settings = self.settings()
                 broker = self.launch(settings)
+                self.assertEqual(broker.wait_ready(), READINESS_FRAME)
                 expected_host = f"{host}:{settings['brokerPort']}" if host else None
                 status, headers = self.request(
                     int(settings["brokerPort"]),
                     method,
                     route,
                     host=expected_host,
+                    retries=1,
                 )
-                stdout, stderr, raw_receipt = broker.collect()
+                stdout, stderr, raw_receipt, raw_readiness = broker.collect()
                 self.assertEqual(status, 404)
                 self.assertEqual(broker.process.returncode, 70)
                 self.assertEqual(stdout, b"")
                 self.assertEqual(stderr, b"")
                 self.assertEqual(raw_receipt, b"")
+                self.assertEqual(raw_readiness, READINESS_FRAME)
                 self.assertFalse(any(name.casefold() in {"set-cookie", "location"} for name, _value in headers))
                 self.assert_no_secret_artifacts(route, headers, raw_receipt, stdout, stderr, broker.process.args)
 
@@ -315,26 +440,77 @@ class BrowserSessionBrokerTests(unittest.TestCase):
                     regular_input_file=regular_file,
                     timeout_ms=200,
                 )
-                stdout, stderr, raw_receipt = broker.collect()
+                stdout, stderr, raw_receipt, raw_readiness = broker.collect()
                 self.assertEqual(broker.process.returncode, 70)
                 self.assertEqual(stdout, b"")
                 self.assertEqual(stderr, b"")
                 self.assertEqual(raw_receipt, b"")
-                self.assert_no_secret_artifacts(raw_receipt, stdout, stderr, broker.process.args)
+                self.assertEqual(raw_readiness, b"")
+                self.assert_no_secret_artifacts(raw_receipt, raw_readiness, stdout, stderr, broker.process.args)
 
-    def test_unused_broker_expires_quickly_without_a_receipt_or_output(self) -> None:
+    def test_readiness_wait_eliminates_connection_refused_without_request_retries(self) -> None:
+        for iteration in range(5):
+            with self.subTest(iteration=iteration):
+                settings = self.settings()
+                broker = self.launch(settings)
+                raw_readiness = broker.wait_ready()
+                self.assertEqual(raw_readiness, READINESS_FRAME)
+                self.assertEqual(raw_readiness.count(b"\n"), 1)
+                self.assertEqual(
+                    json.loads(raw_readiness),
+                    {
+                        "schemaVersion": "browser-session-broker-readiness.v1",
+                        "ready": True,
+                    },
+                )
+                status, _headers = self.request(
+                    int(settings["brokerPort"]),
+                    "GET",
+                    f"/__acttub_session/{NONCE}",
+                    retries=1,
+                )
+                stdout, stderr, raw_receipt, collected_readiness = broker.collect()
+                self.assertEqual(status, 302)
+                self.assertEqual((broker.process.returncode, stdout, stderr), (0, b"", b""))
+                self.assertNotEqual(raw_receipt, b"")
+                self.assertEqual(collected_readiness, READINESS_FRAME)
+
+    def test_listen_failure_emits_no_readiness_or_receipt(self) -> None:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as occupied:
+            occupied.bind(("127.0.0.1", 0))
+            occupied.listen(1)
+            settings = self.settings(broker_port=int(occupied.getsockname()[1]))
+            broker = self.launch(settings, timeout_ms=300)
+            stdout, stderr, raw_receipt, raw_readiness = broker.collect(timeout=3)
+        self.assertEqual((broker.process.returncode, stdout, stderr), (70, b"", b""))
+        self.assertEqual(raw_receipt, b"")
+        self.assertEqual(raw_readiness, b"")
+
+    def test_regular_readiness_fd_is_rejected_without_a_frame(self) -> None:
+        settings = self.settings()
+        broker = self.launch(settings, regular_readiness_file=True, timeout_ms=300)
+        stdout, stderr, raw_receipt, raw_readiness = broker.collect(timeout=3)
+        self.assertEqual((broker.process.returncode, stdout, stderr), (70, b"", b""))
+        self.assertEqual(raw_receipt, b"")
+        self.assertEqual(raw_readiness, b"")
+
+    def test_unused_broker_expires_quickly_without_a_receipt(self) -> None:
         settings = self.settings()
         broker = self.launch(settings, timeout_ms=150)
-        stdout, stderr, raw_receipt = broker.collect(timeout=3)
+        self.assertEqual(broker.wait_ready(), READINESS_FRAME)
+        stdout, stderr, raw_receipt, raw_readiness = broker.collect(timeout=3)
         self.assertEqual(broker.process.returncode, 70)
         self.assertEqual(stdout, b"")
         self.assertEqual(stderr, b"")
         self.assertEqual(raw_receipt, b"")
-        self.assert_no_secret_artifacts(raw_receipt, stdout, stderr, broker.process.args)
+        self.assertEqual(raw_readiness, READINESS_FRAME)
+        self.assert_no_secret_artifacts(raw_receipt, raw_readiness, stdout, stderr, broker.process.args)
 
     def test_import_is_inert_and_source_has_no_secret_or_artifact_channels(self) -> None:
         source = BROKER.read_text(encoding="utf-8")
         self.assert_no_secret_artifacts(source)
+        self.assertIn("const READINESS_FD = 6;", source)
+        self.assertIn("readinessFd = READINESS_FD", source)
         for forbidden in (
             "console.",
             "process.env",

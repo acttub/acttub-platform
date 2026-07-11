@@ -7,9 +7,31 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from contextlib import contextmanager
 from pathlib import Path
 
-from scripts.ai_pipeline_e2e import mcp_bridge, mcp_queries
+from scripts.ai_pipeline_e2e import mcp_bridge, mcp_queries, secure_state
+
+
+@contextmanager
+def private_regular_fd():
+    with tempfile.TemporaryDirectory() as directory:
+        os.chmod(directory, 0o700)
+        path = Path(directory) / "ledger"
+        fd = os.open(
+            path,
+            os.O_RDWR
+            | os.O_CREAT
+            | os.O_EXCL
+            | getattr(os, "O_CLOEXEC", 0)
+            | getattr(os, "O_NOFOLLOW", 0),
+            0o600,
+        )
+        try:
+            os.chmod(path, 0o600)
+            yield fd
+        finally:
+            os.close(fd)
 
 
 class McpBridgeTests(unittest.TestCase):
@@ -343,21 +365,191 @@ class McpBridgeTests(unittest.TestCase):
 
     def test_adapter_envelope_and_public_writer_never_emit_raw_fields(self) -> None:
         call_tool_result = json.loads(self.call_tool_result({"success": True}))
-        envelope = {
-            "schemaVersion": mcp_bridge.ADAPTER_SCHEMA_VERSION,
-            "step": "apply_migration_010",
-            "targetProjectHmac": self.target_hmac,
-            "callToolResult": call_tool_result,
-        }
-        with tempfile.TemporaryFile() as input_file, tempfile.TemporaryFile() as key_file:
-            input_file.write(json.dumps(envelope, separators=(",", ":")).encode())
+        capability = "hmac-sha256:" + hashlib.sha256(b"inventory-capability").hexdigest()
+        state_hash = hashlib.sha256(b"controller-state").hexdigest()
+        idempotency_hmac = "hmac-sha256:" + hashlib.sha256(b"idempotency").hexdigest()
+        with (
+            private_regular_fd() as ledger_fd,
+            tempfile.TemporaryFile() as input_file,
+            tempfile.TemporaryFile() as key_file,
+            tempfile.TemporaryFile() as project_file,
+        ):
             key_file.write(self.key)
-            input_file.flush()
+            project_file.write(self.development_ref.encode("ascii"))
             key_file.flush()
-            safe = mcp_bridge.broker_adapter_envelope(
-                input_fd=input_file.fileno(), mac_key_fd=key_file.fileno()
+            project_file.flush()
+            ledger = secure_state.MutationPermitLedger(ledger_fd)
+            permit_hash = ledger.issue(
+                operation="apply_migration",
+                action="apply_migration_010",
+                development_target_hmac=self.target_hmac,
+                development_target_capability_hmac=capability,
+                payload_sha256=mcp_queries.MIGRATIONS["010"].sha256,
+                case_id="DB-02",
+                idempotency_hmac=idempotency_hmac,
+                required_state="migration_010_prepared",
+                controller_state_hash=state_hash,
+                controller_state_sequence=12,
+                ttl_ns=60_000_000_000,
+                mac_key_fd=key_file.fileno(),
             )
+            consume_hash = ledger.consume(
+                permit_hash,
+                operation="apply_migration",
+                action="apply_migration_010",
+                development_target_hmac=self.target_hmac,
+                development_target_capability_hmac=capability,
+                payload_sha256=mcp_queries.MIGRATIONS["010"].sha256,
+                case_id="DB-02",
+                idempotency_hmac=idempotency_hmac,
+                controller_state="migration_010_prepared",
+                controller_state_hash=state_hash,
+                controller_state_sequence=12,
+                mac_key_fd=key_file.fileno(),
+            )
+            with self.assertRaisesRegex(ValueError, "mutation_outcome_unavailable"):
+                ledger.record_outcome(
+                    consume_hash,
+                    "attested",
+                    dispatch_hash="f" * 64,
+                    safe_receipt_hmac="hmac-sha256:" + "f" * 64,
+                    mac_key_fd=key_file.fileno(),
+                )
+            with self.assertRaisesRegex(mcp_bridge.BridgeRejected, "MCP_TARGET_MISMATCH"):
+                mcp_bridge.authorize_private_mutation_request(
+                    "apply_migration_010",
+                    project_ref_fd=project_file.fileno(),
+                    mac_key_fd=key_file.fileno(),
+                    permit_ledger_fd=ledger_fd,
+                    expected_target_hmac="hmac-sha256:" + "f" * 64,
+                    target_capability_hmac=capability,
+                    consume_hash=consume_hash,
+                    permit_hash=permit_hash,
+                    case_id="DB-02",
+                    idempotency_hmac=idempotency_hmac,
+                    controller_state="migration_010_prepared",
+                    controller_state_hash=state_hash,
+                    controller_state_sequence=12,
+                )
+            request = mcp_bridge.authorize_private_mutation_request(
+                "apply_migration_010",
+                project_ref_fd=project_file.fileno(),
+                mac_key_fd=key_file.fileno(),
+                permit_ledger_fd=ledger_fd,
+                expected_target_hmac=self.target_hmac,
+                target_capability_hmac=capability,
+                consume_hash=consume_hash,
+                permit_hash=permit_hash,
+                case_id="DB-02",
+                idempotency_hmac=idempotency_hmac,
+                controller_state="migration_010_prepared",
+                controller_state_hash=state_hash,
+                controller_state_sequence=12,
+            )
+            self.assertEqual(
+                set(request["unknownReceipt"]),
+                {
+                    "safeCode",
+                    "productionActionCount",
+                    "targetProjectHmac",
+                    "developmentTargetHmac",
+                    "targetCapabilityHmac",
+                    "permitHash",
+                    "consumeHash",
+                    "dispatchHash",
+                    "payloadSha256",
+                    "resultHmac",
+                },
+            )
+            self.assertEqual(request["unknownReceipt"]["safeCode"], "MCP_ACTION_UNKNOWN")
+            self.assertEqual(
+                request["unknownReceipt"]["dispatchHash"],
+                "sha256:" + request["dispatchHash"],
+            )
+            with self.assertRaises(mcp_bridge.BridgeRejected):
+                mcp_bridge.authorize_private_mutation_request(
+                    "apply_migration_010",
+                    project_ref_fd=project_file.fileno(),
+                    mac_key_fd=key_file.fileno(),
+                    permit_ledger_fd=ledger_fd,
+                    expected_target_hmac=self.target_hmac,
+                    target_capability_hmac=capability,
+                    consume_hash=consume_hash,
+                    permit_hash=permit_hash,
+                    case_id="DB-02",
+                    idempotency_hmac=idempotency_hmac,
+                    controller_state="migration_010_prepared",
+                    controller_state_hash=state_hash,
+                    controller_state_sequence=12,
+                )
+            authorization_keys = {
+                "action",
+                "permitHash",
+                "consumeHash",
+                "dispatchHash",
+                "payloadSha256",
+                "developmentTargetHmac",
+                "targetCapabilityHmac",
+            }
+            envelope = {
+                "schemaVersion": request["schemaVersion"],
+                "step": request["step"],
+                "targetProjectHmac": request["targetProjectHmac"],
+                "targetCapabilityHmac": request["targetCapabilityHmac"],
+                "callToolResult": call_tool_result,
+                "authorization": {
+                    key: request[key] for key in authorization_keys
+                },
+            }
+            input_file.write(json.dumps(envelope, separators=(",", ":")).encode())
+            input_file.flush()
+            safe = mcp_bridge.broker_adapter_envelope(
+                input_fd=input_file.fileno(),
+                mac_key_fd=key_file.fileno(),
+                expected_target_capability_hmac=capability,
+                permit_ledger_fd=ledger_fd,
+            )
+            post_authorization_attacks = (
+                {**envelope, "schemaVersion": "invalid"},
+                {**envelope, "unexpected": True},
+                {key: value for key, value in envelope.items() if key != "callToolResult"},
+            )
+            unknowns = []
+            for attack in post_authorization_attacks:
+                with tempfile.TemporaryFile() as unknown_input:
+                    unknown_input.write(
+                        json.dumps(attack, separators=(",", ":")).encode()
+                    )
+                    unknown_input.flush()
+                    unknowns.append(
+                        mcp_bridge.broker_adapter_envelope(
+                            input_fd=unknown_input.fileno(),
+                            mac_key_fd=key_file.fileno(),
+                            expected_target_capability_hmac=capability,
+                            permit_ledger_fd=ledger_fd,
+                        )
+                    )
+            attacks = (
+                {**envelope, "authorization": {**envelope["authorization"], "dispatchHash": "f" * 64}},
+                {key: value for key, value in envelope.items() if key != "authorization"},
+                {**envelope, "targetCapabilityHmac": "hmac-sha256:" + "e" * 64},
+            )
+            for attack in attacks:
+                with self.subTest(attack_keys=len(attack)), tempfile.TemporaryFile() as bad_input:
+                    bad_input.write(json.dumps(attack, separators=(",", ":")).encode())
+                    bad_input.flush()
+                    with self.assertRaises(mcp_bridge.BridgeRejected):
+                        mcp_bridge.broker_adapter_envelope(
+                            input_fd=bad_input.fileno(),
+                            mac_key_fd=key_file.fileno(),
+                            expected_target_capability_hmac=capability,
+                            permit_ledger_fd=ledger_fd,
+                        )
         self.assertEqual(safe["migrationOrdinal"], 10)
+        self.assertEqual(safe["developmentTargetHmac"], self.target_hmac)
+        self.assertEqual(safe["targetCapabilityHmac"], capability)
+        self.assertEqual(safe["dispatchHash"], "sha256:" + request["dispatchHash"])
+        self.assertEqual(unknowns, [request["unknownReceipt"]] * len(unknowns))
         with tempfile.TemporaryFile() as output_file:
             mcp_bridge.write_public_result(output_file.fileno(), safe)
             output_file.seek(0)
@@ -372,18 +564,243 @@ class McpBridgeTests(unittest.TestCase):
                 with self.assertRaises(mcp_bridge.BridgeRejected):
                     mcp_bridge.write_public_result(output_file.fileno(), unsafe)
 
+    def test_reopen_recovers_dispatch_crash_before_session_write_once_and_replays_receipt(self) -> None:
+        capability = "hmac-sha256:" + hashlib.sha256(b"recovery-capability").hexdigest()
+        state_hash = hashlib.sha256(b"recovery-controller-state").hexdigest()
+        idempotency_hmac = "hmac-sha256:" + hashlib.sha256(b"recovery-idempotency").hexdigest()
+        payload_sha256 = mcp_queries.MIGRATIONS["009"].sha256
+        create_flags = os.O_RDWR | os.O_CREAT | os.O_EXCL
+        create_flags |= getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0)
+        with (
+            tempfile.TemporaryDirectory() as directory,
+            tempfile.TemporaryFile() as key_file,
+            tempfile.TemporaryFile() as wrong_key_file,
+            tempfile.TemporaryFile() as project_file,
+            tempfile.TemporaryFile() as authorization_file,
+            tempfile.TemporaryFile() as request_file,
+            tempfile.TemporaryFile() as response_file,
+        ):
+            os.chmod(directory, 0o700)
+            ledger_path = Path(directory) / "mutation.wal"
+            ledger_fd = os.open(ledger_path, create_flags, 0o600)
+            os.chmod(ledger_path, 0o600)
+            key_file.write(self.key)
+            wrong_key_file.write(hashlib.sha256(b"wrong-recovery-key").digest())
+            project_file.write(self.development_ref.encode("ascii"))
+            for stream in (key_file, wrong_key_file, project_file):
+                stream.flush()
+            ledger = secure_state.MutationPermitLedger(ledger_fd)
+            permit_hash = ledger.issue(
+                operation="apply_migration",
+                action="apply_migration_009",
+                development_target_hmac=self.target_hmac,
+                development_target_capability_hmac=capability,
+                payload_sha256=payload_sha256,
+                case_id="DB-02",
+                idempotency_hmac=idempotency_hmac,
+                required_state="migration_009_prepared",
+                controller_state_hash=state_hash,
+                controller_state_sequence=8,
+                ttl_ns=60_000_000_000,
+                mac_key_fd=key_file.fileno(),
+            )
+            consume_hash = ledger.consume(
+                permit_hash,
+                operation="apply_migration",
+                action="apply_migration_009",
+                development_target_hmac=self.target_hmac,
+                development_target_capability_hmac=capability,
+                payload_sha256=payload_sha256,
+                case_id="DB-02",
+                idempotency_hmac=idempotency_hmac,
+                controller_state="migration_009_prepared",
+                controller_state_hash=state_hash,
+                controller_state_sequence=8,
+                mac_key_fd=key_file.fileno(),
+            )
+            authorization_file.write(
+                json.dumps(
+                    {
+                        "action": "apply_migration_009",
+                        "expectedTargetHmac": self.target_hmac,
+                        "targetCapabilityHmac": capability,
+                        "consumeHash": consume_hash,
+                        "permitHash": permit_hash,
+                        "caseId": "DB-02",
+                        "idempotencyHmac": idempotency_hmac,
+                        "controllerState": "migration_009_prepared",
+                        "controllerStateHash": state_hash,
+                        "controllerStateSequence": 8,
+                    },
+                    separators=(",", ":"),
+                ).encode("ascii")
+            )
+            authorization_file.flush()
+            request_file.write(b"apply_migration_009\n")
+            request_file.flush()
+            request_file.seek(0)
+
+            child = os.fork()
+            if child == 0:  # pragma: no cover - assertions run in the parent
+                mcp_bridge._write_session_line = lambda _fd, _value: os._exit(86)
+                try:
+                    mcp_bridge.serve_private_mutation_request_once(
+                        project_ref_fd=project_file.fileno(),
+                        mac_key_fd=key_file.fileno(),
+                        permit_ledger_fd=ledger_fd,
+                        authorization_fd=authorization_file.fileno(),
+                        input_fd=request_file.fileno(),
+                        output_fd=response_file.fileno(),
+                    )
+                except BaseException:
+                    os._exit(87)
+                os._exit(88)
+            _pid, status = os.waitpid(child, 0)
+            self.assertEqual(os.waitstatus_to_exitcode(status), 86)
+            self.assertEqual(os.fstat(response_file.fileno()).st_size, 0)
+            os.close(ledger_fd)
+
+            reopened_fd = os.open(
+                ledger_path,
+                os.O_RDWR
+                | getattr(os, "O_CLOEXEC", 0)
+                | getattr(os, "O_NOFOLLOW", 0),
+            )
+            try:
+                reopened = secure_state.MutationPermitLedger(reopened_fd)
+                dispatches = reopened.recovery_dispatches(mac_key_fd=key_file.fileno())
+                self.assertEqual(len(dispatches), 1)
+                self.assertIsNone(dispatches[0]["outcome"])
+                self.assertEqual(
+                    reopened.pending_dispatches(mac_key_fd=key_file.fileno()),
+                    dispatches,
+                )
+                self.assertEqual(
+                    [entry["payload"]["kind"] for entry in reopened.entries()],
+                    ["issue", "consume", "dispatch"],
+                )
+                recovery = {
+                    "step": "apply_migration_009",
+                    "mac_key_fd": key_file.fileno(),
+                    "permit_ledger_fd": reopened_fd,
+                    "expected_target_hmac": self.target_hmac,
+                    "target_capability_hmac": capability,
+                    "consume_hash": consume_hash,
+                    "permit_hash": permit_hash,
+                    "payload_sha256": payload_sha256,
+                    "case_id": "DB-02",
+                    "idempotency_hmac": idempotency_hmac,
+                    "controller_state": "migration_009_prepared",
+                    "controller_state_hash": state_hash,
+                    "controller_state_sequence": 8,
+                }
+
+                def wrong_hash(value: str) -> str:
+                    return ("0" if value[0] != "0" else "1") + value[1:]
+
+                alternate_hmac = "hmac-sha256:" + "f" * 64
+                for mismatch in (
+                    {"permit_hash": wrong_hash(permit_hash)},
+                    {"consume_hash": wrong_hash(consume_hash)},
+                    {"target_capability_hmac": alternate_hmac},
+                    {"payload_sha256": mcp_queries.MIGRATIONS["010"].sha256},
+                    {"expected_target_hmac": alternate_hmac},
+                    {"mac_key_fd": wrong_key_file.fileno()},
+                ):
+                    with self.subTest(mismatch=tuple(mismatch)):
+                        with self.assertRaises(mcp_bridge.BridgeRejected):
+                            mcp_bridge.recover_pending_mutation_dispatch(
+                                **{**recovery, **mismatch}
+                            )
+                        self.assertEqual(len(reopened.entries()), 3)
+
+                dispatch_snapshot = b"".join(
+                    (secure_state.canonical_json(entry) + "\n").encode("ascii")
+                    for entry in reopened.entries()
+                )
+                attested_path = Path(directory) / "attested.wal"
+                attested_fd = os.open(attested_path, create_flags, 0o600)
+                try:
+                    os.write(attested_fd, dispatch_snapshot)
+                    os.fsync(attested_fd)
+                    attested = secure_state.MutationPermitLedger(attested_fd)
+                    attested.record_outcome(
+                        consume_hash,
+                        "attested",
+                        dispatch_hash=dispatches[0]["dispatchHash"],
+                        safe_receipt_hmac=alternate_hmac,
+                        mac_key_fd=key_file.fileno(),
+                    )
+                    with self.assertRaises(mcp_bridge.BridgeRejected):
+                        mcp_bridge.recover_pending_mutation_dispatch(
+                            **{**recovery, "permit_ledger_fd": attested_fd}
+                        )
+                    self.assertTrue(
+                        attested.verify_outcome(
+                            consume_hash,
+                            "attested",
+                            mac_key_fd=key_file.fileno(),
+                        )["verified"]
+                    )
+                finally:
+                    os.close(attested_fd)
+
+                receipt = mcp_bridge.recover_pending_mutation_dispatch(**recovery)
+                self.assertEqual(
+                    set(receipt),
+                    {
+                        "safeCode",
+                        "productionActionCount",
+                        "targetProjectHmac",
+                        "developmentTargetHmac",
+                        "targetCapabilityHmac",
+                        "permitHash",
+                        "consumeHash",
+                        "dispatchHash",
+                        "payloadSha256",
+                        "resultHmac",
+                    },
+                )
+                self.assertEqual(receipt["safeCode"], "MCP_ACTION_UNKNOWN")
+                self.assertEqual(
+                    receipt["dispatchHash"], "sha256:" + dispatches[0]["dispatchHash"]
+                )
+                self.assertEqual(
+                    mcp_bridge.recover_pending_mutation_dispatch(**recovery), receipt
+                )
+                self.assertEqual(
+                    [entry["payload"]["kind"] for entry in reopened.entries()],
+                    ["issue", "consume", "dispatch", "outcome"],
+                )
+                recovered = reopened.recovery_dispatches(mac_key_fd=key_file.fileno())
+                self.assertEqual(recovered[0]["outcome"], "unknown")
+                self.assertEqual(recovered[0]["safeReceiptHmac"], receipt["resultHmac"])
+                self.assertEqual(
+                    reopened.pending_dispatches(mac_key_fd=key_file.fileno()), ()
+                )
+            finally:
+                os.close(reopened_fd)
+
     def test_cli_is_silent_and_writes_only_sanitized_receipt_or_safe_code(self) -> None:
         module_path = Path(mcp_bridge.__file__).resolve()
-        valid_call = json.loads(self.call_tool_result({"success": True}))
-        invalid_call = json.loads(self.call_tool_result({"success": True, "raw": "private"}))
+        projects = [
+            self.project(self.development_ref, "development"),
+            self.project(self.production_ref, "production"),
+        ]
+        valid_call = json.loads(self.call_tool_result(projects))
+        invalid_call = json.loads(
+            self.call_tool_result([{**projects[0], "raw": "private"}, projects[1]])
+        )
         for label, call, expected_status, expected_keys in (
             (
                 "success",
                 valid_call,
                 0,
                 {
-                    "effectPresent",
-                    "migrationOrdinal",
+                    "developmentVerified",
+                    "productionNegativeVerified",
+                    "inventoryProjectCount",
+                    "deniedOtherProjectCount",
                     "productionActionCount",
                     "targetProjectHmac",
                     "resultHmac",
@@ -393,7 +810,7 @@ class McpBridgeTests(unittest.TestCase):
         ):
             envelope = {
                 "schemaVersion": mcp_bridge.ADAPTER_SCHEMA_VERSION,
-                "step": "apply_migration_009",
+                "step": "inventory_projects",
                 "targetProjectHmac": self.target_hmac,
                 "callToolResult": call,
             }

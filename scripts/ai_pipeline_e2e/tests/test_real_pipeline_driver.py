@@ -8,6 +8,7 @@ import shutil
 import socket
 import subprocess
 import tempfile
+import threading
 import unittest
 from pathlib import Path
 from typing import BinaryIO
@@ -21,7 +22,8 @@ if NODE is None:
 
 MEDIA = b"offline-real-pipeline-media"
 KEY = hashlib.sha256(b"offline-real-pipeline-key").digest()
-HOST = "offlinerealpipeline.supabase.co"
+PROJECT_REF = "offlinerealpipeline0"
+HOST = f"{PROJECT_REF}.supabase.co"
 
 
 def mac(domain: bytes, value: bytes) -> str:
@@ -40,7 +42,8 @@ def settings(*, browser: bool) -> dict[str, object]:
         "maximumMediaBytes": len(MEDIA),
         "expectedMediaHmac": mac(b"acttub-platform-media.v1\0", MEDIA),
         "developmentTargetHmac": mac(
-            b"acttub-platform-development-target.v1\0", HOST.encode("ascii")
+            b"acttub-protected-supabase-project-ref.v1\0",
+            PROJECT_REF.encode("ascii"),
         ),
         "browserHandoff": (
             {
@@ -62,10 +65,12 @@ def fake_wrapper(
     receipt_fd: int,
     handoff_fd: int | None,
     ack_fd: int | None,
+    cleanup_fd: int,
     failure_mode: str | None,
 ) -> bytes:
     source = f"""
       import crypto from "node:crypto";
+      import fs from "node:fs";
       import {{ runRealPipeline, canonicalJson }} from {json.dumps(DRIVER.as_uri())};
       const failureMode = {json.dumps(failure_mode)};
       let externalCalls = 0;
@@ -88,6 +93,7 @@ def fake_wrapper(
       let temporaryDeleteCount = 0;
       let lifecycleDeleteCount = 0;
       let removeCount = 0;
+      let bundleCleanupCount = 0;
 
       const reportSection = (observationId, answerId, kind) => ({{
         status: "confirmed",
@@ -130,6 +136,7 @@ def fake_wrapper(
           completionReason: null,
           report: null,
           storagePath: body.storagePath,
+          uploadIntentId: body.uploadIntentId,
         }};
       }};
       const sessionFromPath = (path) => {{
@@ -143,6 +150,7 @@ def fake_wrapper(
           if (!temporaryPresent) return {{ deleted: true, deletedCount: 0 }};
           temporaryPresent = false;
           temporaryDeleteCount += 1;
+          if (failureMode === "receipt-write") fs.closeSync({receipt_fd});
           return {{ deleted: true, deletedCount: 1 }};
         }},
         async uploadMedia(_session, storagePath, media) {{
@@ -152,11 +160,21 @@ def fake_wrapper(
         }},
         async removeMedia(storagePath) {{ storage.delete(storagePath); removeCount += 1; return {{ removed: true }}; }},
         async mediaExists(storagePath) {{ return {{ exists: storage.has(storagePath) }}; }},
+        async cleanupSessionBundle(actor, bundle) {{
+          const session = sessions.get(bundle.sessionId);
+          if (session && session.userId !== actor.userId) throw new Error("stub");
+          sessions.delete(bundle.sessionId);
+          if (storage.delete(bundle.storagePath)) removeCount += 1;
+          intents.delete(bundle.uploadIntentId);
+          bundleCleanupCount += 1;
+          if (sessions.has(bundle.sessionId) || storage.has(bundle.storagePath) || intents.has(bundle.uploadIntentId)) throw new Error("stub");
+          return {{ absent: true }};
+        }},
         async api(actor, request) {{
           const {{ method, path, body, headers }} = request;
           if (method === "POST" && path === "/api/v1/terms/acceptances") return {{ status: 200, data: {{ accepted: true, requiredConsentAccepted: true, aiProcessingConsentAccepted: true }} }};
           if (method === "POST" && path === "/api/v1/practice-upload-intents") {{
-            const uploadIntentId = id(), sessionId = id(), storagePath = `${{actor.userId}}/${{sessionId}}/${{id()}}.mp4`;
+            const uploadIntentId = body.uploadIntentId, sessionId = body.sessionId, storagePath = `users/${{actor.userId}}/practice-sessions/${{sessionId}}/take.mp4`;
             intents.set(uploadIntentId, {{ sessionId, storagePath }});
             return {{ status: 201, data: {{ uploadIntent: {{ uploadIntentId, sessionId, storagePath, storageBucket: "practice-videos" }} }} }};
           }}
@@ -170,6 +188,7 @@ def fake_wrapper(
             const session = makeSession(body);
             sessions.set(session.sessionId, session);
             if (mainSessionId === null) mainSessionId = session.sessionId;
+            if (failureMode === "session-response-lost") return {{ status: 599, data: {{ safeCode: "offline" }} }};
             return {{ status: 201, data: {{ session: clone(session), summaryRun: clone(session.runs[0]) }} }};
           }}
           const confirmation = path.match(/^\\/api\\/v1\\/practice-sessions\\/([0-9a-f-]{{36}})\\/observations\\/([0-9a-f-]{{36}})\\/confirmation$/u);
@@ -219,6 +238,7 @@ def fake_wrapper(
             const sessionId = path.split("/").at(-1), requestId = headers["Idempotency-Key"], session = sessions.get(sessionId);
             if (!session || actor.userId !== session.userId) return {{ status: 404, data: {{ safeCode: "not_found" }} }};
             storage.delete(session.storagePath);
+            intents.delete(session.uploadIntentId);
             sessions.delete(sessionId);
             lifecycleDeleteCount += 1;
             deletions.set(`${{sessionId}}:${{requestId}}`, {{ requestId, status: "completed", storageDeleted: true, rowsDeleted: true }});
@@ -241,7 +261,8 @@ def fake_wrapper(
         result = await runRealPipeline({{
           settingsFd: {settings_fd}, mediaFd: {media_fd}, macKeyFd: {key_fd}, receiptFd: {receipt_fd},
           handoffFd: {"null" if handoff_fd is None else handoff_fd},
-          handoffAckFd: {"null" if ack_fd is None else ack_fd}, adapterFactory,
+          handoffAckFd: {"null" if ack_fd is None else ack_fd}, cleanupFd: {cleanup_fd},
+          cleanupTimeoutMs: failureMode === "cleanup-silent" ? 100 : 30000, adapterFactory,
         }});
       }} catch (error) {{ caught = error; }}
       let valid = externalCalls === 0;
@@ -256,6 +277,17 @@ def fake_wrapper(
         valid = valid && caught?.safeCode === "REAL_PIPELINE_HTTP_FAILED" && sessions.size === 0 && storage.size === 0 && removeCount === 1;
       }} else if (failureMode === "report") {{
         valid = valid && caught?.safeCode === "REAL_PIPELINE_CONTRACT_FAILED" && sessions.size === 0 && storage.size === 0 && lifecycleDeleteCount === 1;
+      }} else if (failureMode === "session-response-lost") {{
+        valid = valid && caught?.safeCode === "REAL_PIPELINE_HTTP_FAILED" && sessions.size === 0 && storage.size === 0 && intents.size === 0;
+        valid = valid && lifecycleDeleteCount === 0 && bundleCleanupCount === 1;
+      }} else if (failureMode === "handoff-ack") {{
+        valid = valid && caught?.safeCode === "REAL_PIPELINE_AUTH_FAILED" && sessions.size === 0 && storage.size === 0 && intents.size === 0;
+      }} else if (failureMode === "receipt-write") {{
+        valid = valid && caught?.safeCode === "REAL_PIPELINE_BAD_INPUT" && sessions.size === 0 && storage.size === 0 && intents.size === 0;
+      }} else if (failureMode === "cleanup-ack") {{
+        valid = valid && caught?.safeCode === "REAL_PIPELINE_CLEANUP_FAILED" && sessions.size === 0 && storage.size === 0;
+      }} else if (failureMode === "cleanup-silent") {{
+        valid = valid && caught?.safeCode === "REAL_PIPELINE_CLEANUP_FAILED" && sessions.size === 0 && storage.size === 0 && intents.size === 0;
       }} else {{ valid = false; }}
       primary.accessToken = ""; primary.refreshToken = ""; temporary.accessToken = ""; temporary.refreshToken = "";
       process.exitCode = valid ? 0 : 90;
@@ -264,14 +296,14 @@ def fake_wrapper(
 
 
 def input_failure_wrapper(
-    *, settings_fd: int, media_fd: int, key_fd: int, receipt_fd: int
+    *, settings_fd: int, media_fd: int, key_fd: int, receipt_fd: int, cleanup_fd: int
 ) -> bytes:
     source = f"""
       import {{ runRealPipeline }} from {json.dumps(DRIVER.as_uri())};
       let calls = 0, caught = null;
       try {{
         await runRealPipeline({{
-          settingsFd: {settings_fd}, mediaFd: {media_fd}, macKeyFd: {key_fd}, receiptFd: {receipt_fd},
+          settingsFd: {settings_fd}, mediaFd: {media_fd}, macKeyFd: {key_fd}, receiptFd: {receipt_fd}, cleanupFd: {cleanup_fd},
           adapterFactory: async () => {{ calls += 1; throw new Error("must-not-run"); }},
         }});
       }} catch (error) {{ caught = error; }}
@@ -298,14 +330,50 @@ class RealPipelineDriverTests(unittest.TestCase):
             private_file(raw_settings),
             private_file(MEDIA),
             private_file(KEY),
-            private_file(b" "),
+            private_file(b""),
         ]
         handoff_parent: socket.socket | None = None
         ack_parent: socket.socket | None = None
         handoff_child: socket.socket | None = None
         ack_child: socket.socket | None = None
+        cleanup_parent, cleanup_child = socket.socketpair()
+        cleanup_frames: list[dict[str, object]] = []
+        cleanup_error: list[BaseException] = []
+
+        def cleanup_broker() -> None:
+            pending = b""
+            try:
+                while chunk := cleanup_parent.recv(4096):
+                    pending += chunk
+                    while b"\n" in pending:
+                        raw, pending = pending.split(b"\n", 1)
+                        frame = json.loads(raw)
+                        cleanup_frames.append(frame)
+                        if failure_mode == "cleanup-silent":
+                            continue
+                        if frame["operation"] == "plan":
+                            cleanup_parent.sendall(json.dumps({
+                                "schemaVersion": "cleanup-plan-ack.invalid" if failure_mode == "cleanup-ack" else "cleanup-plan-ack.v1",
+                                "operation": "plan",
+                                "resourceAlias": frame["resourceAlias"],
+                                "planReceiptHmac": "hmac-sha256:" + hashlib.sha256(raw).hexdigest(),
+                            }, separators=(",", ":")).encode("ascii") + b"\n")
+                        elif frame["operation"] == "complete":
+                            cleanup_parent.sendall(json.dumps({
+                                "schemaVersion": "cleanup-complete-ack.v1",
+                                "operation": "complete",
+                                "resourceAlias": frame["resourceAlias"],
+                                "planReceiptHmac": frame["planReceiptHmac"],
+                                "outcome": frame["outcome"],
+                            }, separators=(",", ":")).encode("ascii") + b"\n")
+            except (OSError, BaseException) as error:
+                if not isinstance(error, OSError):
+                    cleanup_error.append(error)
+
+        broker_thread = threading.Thread(target=cleanup_broker, daemon=True)
+        broker_thread.start()
         try:
-            pass_fds = [item.fileno() for item in files]
+            pass_fds = [item.fileno() for item in files] + [cleanup_child.fileno()]
             if browser:
                 handoff_parent, handoff_child = socket.socketpair()
                 ack_parent, ack_child = socket.socketpair()
@@ -328,6 +396,7 @@ class RealPipelineDriverTests(unittest.TestCase):
                     receipt_fd=files[3].fileno(),
                     handoff_fd=handoff_child.fileno() if handoff_child else None,
                     ack_fd=ack_child.fileno() if ack_child else None,
+                    cleanup_fd=cleanup_child.fileno(),
                     failure_mode=failure_mode,
                 )
             )
@@ -336,6 +405,7 @@ class RealPipelineDriverTests(unittest.TestCase):
                 handoff_child.close()
             if ack_child:
                 ack_child.close()
+            cleanup_child.close()
             handoff: dict[str, object] | None = None
             if browser:
                 assert handoff_parent is not None and ack_parent is not None
@@ -345,29 +415,73 @@ class RealPipelineDriverTests(unittest.TestCase):
                     chunks.append(handoff_parent.recv(4096))
                 raw_handoff = b"".join(chunks)
                 handoff = json.loads(raw_handoff)
+                target = (
+                    f"127.0.0.1\0{handoff['targetPort']}\0{handoff['targetPath']}"
+                ).encode("ascii")
+                semantic = {
+                    "schemaVersion": "browser-session-handoff-receipt.v1",
+                    "operation": "browser_session_handoff",
+                    "success": True,
+                    "cookieCount": 2,
+                    "cookieHeadersHmac": mac(
+                        b"acttub-browser-session-handoff-cookies.v1\0",
+                        b"offline-cookie-headers",
+                    ),
+                    "nonceHmac": mac(
+                        b"acttub-browser-session-handoff-nonce.v1\0",
+                        str(handoff["nonce"]).encode("ascii"),
+                    ),
+                    "targetHmac": mac(
+                        b"acttub-browser-session-handoff-target.v1\0", target
+                    ),
+                    "developmentTargetHmac": handoff["developmentTargetHmac"],
+                }
+                if failure_mode == "handoff-ack":
+                    semantic["nonceHmac"] = "hmac-sha256:" + "0" * 64
+                ack = {
+                    **semantic,
+                    "resultHmac": mac(
+                        b"acttub-browser-session-handoff-receipt.v1\0",
+                        json.dumps(
+                            semantic,
+                            sort_keys=True,
+                            separators=(",", ":"),
+                            ensure_ascii=True,
+                        ).encode("ascii"),
+                    ),
+                }
                 ack_parent.sendall(
-                    json.dumps(
-                        {
-                            "schemaVersion": "browser-session-handoff-receipt.v1",
-                            "operation": "browser_session_handoff",
-                            "success": True,
-                            "resultHmac": "hmac-sha256:" + "a" * 64,
-                        },
-                        separators=(",", ":"),
-                    ).encode("ascii")
-                    + b"\n"
+                    json.dumps(ack, separators=(",", ":")).encode("ascii") + b"\n"
                 )
                 ack_parent.shutdown(socket.SHUT_WR)
             stdout, stderr = process.communicate(timeout=10)
             self.assertEqual(stdout, b"")
             self.assertEqual(stderr, b"")
             self.assertEqual(process.returncode, 0)
+            try:
+                cleanup_parent.shutdown(socket.SHUT_RDWR)
+            except OSError:
+                pass
+            broker_thread.join(timeout=2)
+            self.assertFalse(cleanup_error)
+            plans = [frame for frame in cleanup_frames if frame["operation"] == "plan"]
+            completes = [frame for frame in cleanup_frames if frame["operation"] == "complete"]
+            if failure_mode in {"cleanup-ack", "cleanup-silent"}:
+                self.assertEqual((len(plans), len(completes)), (1, 0))
+            elif failure_mode is None:
+                self.assertEqual(len(completes), len(plans) - 1)
+                self.assertFalse(any(frame["outcome"] == "retained" for frame in completes))
+            else:
+                self.assertEqual(len(completes), len(plans))
+                self.assertTrue(all(cleanup_frames.index(plan) < cleanup_frames.index(completes[index]) for index, plan in enumerate(plans)))
             files[3].seek(0)
             receipt_raw = files[3].read()
+            if failure_mode is not None:
+                self.assertEqual(receipt_raw, b"")
             receipt = json.loads(receipt_raw) if failure_mode is None else None
             return receipt, handoff
         finally:
-            for item in (handoff_parent, ack_parent, handoff_child, ack_child):
+            for item in (handoff_parent, ack_parent, handoff_child, ack_child, cleanup_parent, cleanup_child):
                 if item is not None:
                     item.close()
             for item in files:
@@ -414,7 +528,7 @@ class RealPipelineDriverTests(unittest.TestCase):
             "browser-auth-handoff.v1",
         ):
             self.assertNotIn(forbidden, source)
-        self.assertIn('targetPath: `/practice/history/${mainSessionId}`', source)
+        self.assertIn('const targetPath = `/practice/history/${mainSessionId}`', source)
 
     def test_offline_pipeline_receipt_and_deletion_lifecycle(self) -> None:
         receipt, handoff = self.run_stub()
@@ -484,12 +598,50 @@ class RealPipelineDriverTests(unittest.TestCase):
         )
         self.assertNotIn("targetPath", settings(browser=True)["browserHandoff"])
 
+    def test_tampered_browser_handoff_ack_deletes_main_session(self) -> None:
+        receipt, handoff = self.run_stub(browser=True, failure_mode="handoff-ack")
+        self.assertIsNone(receipt)
+        self.assertIsNotNone(handoff)
+
     def test_failure_cleanup_removes_uploaded_or_created_artifacts(self) -> None:
-        for mode in ("finalize", "report"):
+        for mode in ("finalize", "report", "session-response-lost", "receipt-write"):
             with self.subTest(mode=mode):
                 receipt, handoff = self.run_stub(failure_mode=mode)
                 self.assertIsNone(receipt)
                 self.assertIsNone(handoff)
+
+    def test_cleanup_broker_rejects_hostile_ack_before_session_mutation(self) -> None:
+        receipt, handoff = self.run_stub(failure_mode="cleanup-ack")
+        self.assertIsNone(receipt)
+        self.assertIsNone(handoff)
+
+    def test_silent_cleanup_broker_fails_bounded_before_session_mutation(self) -> None:
+        started = __import__("time").monotonic()
+        receipt, handoff = self.run_stub(failure_mode="cleanup-silent")
+        self.assertLess(__import__("time").monotonic() - started, 2)
+        self.assertIsNone(receipt)
+        self.assertIsNone(handoff)
+
+    def test_cleanup_protocol_is_strict_ordered_and_silent(self) -> None:
+        source = DRIVER.read_text(encoding="utf-8")
+        for required in (
+            '"cleanup-plan.v1"',
+            '"cleanup-plan-ack.v1"',
+            '"cleanup-complete.v1"',
+            '"cleanup-complete-ack.v1"',
+            '"run-session-bundle"',
+            '"temporary-rls-account"',
+            "await planCleanup",
+            "await completeCleanup",
+        ):
+            self.assertIn(required, source)
+        self.assertNotIn("console.", source)
+        self.assertLess(source.index("await planCleanup(cleanupChannel, \"run-session-bundle\""), source.index('"/api/v1/practice-upload-intents"'))
+        self.assertLess(source.index("validateEmptyReceiptFd(receiptFd)"), source.index("await adapterFactory(settings"))
+        self.assertLess(source.index("writePrivateJson(receiptFd, receipt)"), source.index("keepMain = true"))
+        self.assertNotIn('completeCleanup(cleanupChannel, "run-session-bundle", mainArtifact.planReceiptHmac, "retained")', source)
+        for table in ("practice_sessions", "practice_takes", "observations", "ai_runs", "ai_reports", "upload_intents"):
+            self.assertIn(f'"{table}"', source)
 
     def test_duplicate_tampered_and_non_private_inputs_fail_before_adapter(self) -> None:
         good = json.dumps(settings(browser=False), separators=(",", ":")).encode("utf-8")
@@ -500,14 +652,16 @@ class RealPipelineDriverTests(unittest.TestCase):
         off_target_item = settings(browser=False)
         off_target_item["platformOrigin"] = "https://127.0.0.1:31415"
         off_target = json.dumps(off_target_item, separators=(",", ":")).encode("utf-8")
-        for label, raw, public_mode in (
-            ("duplicate", duplicate, False),
-            ("media-hmac", tampered, False),
-            ("off-target", off_target, False),
-            ("public-mode", good, True),
+        for label, raw, public_mode, receipt_contents in (
+            ("duplicate", duplicate, False, b""),
+            ("media-hmac", tampered, False, b""),
+            ("off-target", off_target, False, b""),
+            ("public-mode", good, True, b""),
+            ("nonempty-receipt", good, False, b"preexisting"),
         ):
             with self.subTest(label=label):
-                files = [private_file(raw), private_file(MEDIA), private_file(KEY), private_file(b" ")]
+                files = [private_file(raw), private_file(MEDIA), private_file(KEY), private_file(receipt_contents)]
+                cleanup_parent, cleanup_child = socket.socketpair()
                 try:
                     if public_mode:
                         os.fchmod(files[0].fileno(), 0o644)
@@ -518,15 +672,18 @@ class RealPipelineDriverTests(unittest.TestCase):
                             media_fd=files[1].fileno(),
                             key_fd=files[2].fileno(),
                             receipt_fd=files[3].fileno(),
+                            cleanup_fd=cleanup_child.fileno(),
                         ),
                         stdout=subprocess.PIPE,
                         stderr=subprocess.PIPE,
-                        pass_fds=tuple(item.fileno() for item in files),
+                        pass_fds=tuple(item.fileno() for item in files) + (cleanup_child.fileno(),),
                         check=False,
                         env={"PATH": os.defpath},
                     )
                     self.assertEqual((process.returncode, process.stdout, process.stderr), (0, b"", b""))
                 finally:
+                    cleanup_parent.close()
+                    cleanup_child.close()
                     for item in files:
                         item.close()
 

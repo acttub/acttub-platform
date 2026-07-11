@@ -19,6 +19,8 @@ export function createPracticeUploadIntent(body: Omit<CreateUploadIntentRequest,
     method: "POST", headers: jsonHeaders, body: JSON.stringify({
       fileMetadata: { fileName: body.fileMetadata.fileName, mimeType: body.fileMetadata.mimeType, sizeBytes: body.fileMetadata.sizeBytes },
       adultConfirmed: body.adultConfirmed === true, allParticipantsConfirmed: body.allParticipantsConfirmed === true,
+      ...(body.uploadIntentId !== undefined ? { uploadIntentId: body.uploadIntentId } : {}),
+      ...(body.sessionId !== undefined ? { sessionId: body.sessionId } : {}),
     }),
   }).then(parseApiResponse<CreateUploadIntentResponse>);
 }

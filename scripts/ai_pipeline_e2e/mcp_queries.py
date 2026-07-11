@@ -181,6 +181,23 @@ CATALOG = MappingProxyType(
     }
 )
 
+RECONCILIATION_STEPS = MappingProxyType(
+    {
+        "009": MappingProxyType(
+            {
+                False: ("postcondition_009", "migration_ledger_pre"),
+                True: ("postcondition_009", "migration_ledger_after_009"),
+            }
+        ),
+        "010": MappingProxyType(
+            {
+                False: ("postcondition_010", "migration_ledger_after_009"),
+                True: ("postcondition_010", "migration_ledger_post"),
+            }
+        ),
+    }
+)
+
 
 class CatalogRejected(ValueError):
     """Fixed rejection that never includes a project reference, path, or query."""
@@ -263,3 +280,60 @@ def expected_ledger(step: str) -> tuple[str, ...]:
     if spec is None or spec.expected_ledger is None:
         raise CatalogRejected()
     return spec.expected_ledger
+
+
+def build_reconciliation_requests(
+    version: str,
+    project_id: str,
+    *,
+    effect_present: bool,
+) -> tuple[PrivateToolRequest, PrivateToolRequest]:
+    """Build the exact read-only postcondition and ledger probes after UNKNOWN."""
+
+    return (
+        build_reconciliation_postcondition_request(version, project_id),
+        build_reconciliation_ledger_request(
+            version,
+            project_id,
+            effect_present=effect_present,
+        ),
+    )
+
+
+def _reconciliation_steps(version: str, effect_present: bool) -> tuple[str, str]:
+    if type(effect_present) is not bool:
+        raise CatalogRejected("MCP_RECONCILIATION_INVALID")
+    by_effect = RECONCILIATION_STEPS.get(version)
+    if by_effect is None:
+        raise CatalogRejected("MCP_RECONCILIATION_INVALID")
+    return by_effect[effect_present]
+
+
+def build_reconciliation_postcondition_request(
+    version: str,
+    project_id: str,
+) -> PrivateToolRequest:
+    """Build the first read-only probe used to determine UNKNOWN effect state."""
+
+    postcondition_step, alternate = _reconciliation_steps(version, False)
+    if postcondition_step != _reconciliation_steps(version, True)[0] or alternate == postcondition_step:
+        raise CatalogRejected("MCP_RECONCILIATION_INVALID")
+    request = build_private_request(postcondition_step, project_id)
+    if CATALOG[request.step].mutation or request.tool != "execute_sql":
+        raise CatalogRejected("MCP_RECONCILIATION_INVALID")
+    return request
+
+
+def build_reconciliation_ledger_request(
+    version: str,
+    project_id: str,
+    *,
+    effect_present: bool,
+) -> PrivateToolRequest:
+    """Build the second read-only ledger probe selected from the observed effect."""
+
+    _postcondition_step, ledger_step = _reconciliation_steps(version, effect_present)
+    request = build_private_request(ledger_step, project_id)
+    if CATALOG[request.step].mutation or request.tool != "list_migrations":
+        raise CatalogRejected("MCP_RECONCILIATION_INVALID")
+    return request

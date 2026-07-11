@@ -8,6 +8,7 @@ boundary.
 
 from __future__ import annotations
 
+import fcntl
 import hashlib
 import hmac
 import importlib.util
@@ -47,11 +48,12 @@ SAFE_CODES = frozenset(
     }
 )
 FORBIDDEN_CANARY = "ACTTUB_PROTECTED_E2E_FORBIDDEN_CANARY_V1"
-ADAPTER_SCHEMA_VERSION = "acttub-mcp-functions-exec.v1"
+ADAPTER_SCHEMA_VERSION = "acttub-mcp-functions-exec.v2"
 
 _MAC_DOMAIN = b"acttub-protected-mcp-bridge.v2\0"
 _PROJECT_DOMAIN = b"acttub-protected-supabase-project-ref.v1\0"
 _HMAC = re.compile(r"^hmac-sha256:[a-f0-9]{64}$")
+_SHA256 = re.compile(r"^[a-f0-9]{64}$")
 _PROJECT_REF = re.compile(r"^[a-z0-9]{20}$")
 _PROVIDER_MIGRATION_VERSION = re.compile(r"^[0-9]{1,20}$")
 _UNTRUSTED_TAG = re.compile(r"^untrusted-data-[a-f0-9-]{1,64}$")
@@ -169,6 +171,31 @@ def _read_bounded(fd: int, maximum: int) -> bytes:
     return b"".join(chunks)
 
 
+def _read_one_line(fd: int, maximum: int) -> bytes:
+    if type(fd) is not int or fd < 0 or type(maximum) is not int or maximum < 1:
+        _reject()
+    chunks: list[bytes] = []
+    total = 0
+    try:
+        while total <= maximum:
+            chunk = os.read(fd, min(16 * 1024, maximum + 2 - total))
+            if not chunk:
+                _reject()
+            chunks.append(chunk)
+            total += len(chunk)
+            raw = b"".join(chunks)
+            if b"\n" in raw:
+                line, separator, trailing = raw.partition(b"\n")
+                if separator != b"\n" or trailing or not line or len(line) > maximum:
+                    _reject()
+                return line
+    except BridgeRejected:
+        raise
+    except (OSError, OverflowError, ValueError):
+        _reject()
+    _reject()
+
+
 def _read_mac_key(fd: int) -> bytes:
     if type(fd) is not int or fd <= 2:
         _reject()
@@ -203,6 +230,186 @@ def project_ref_hmac(key: bytes, project_ref: str) -> str:
         _reject()
     digest = hmac.new(key, _PROJECT_DOMAIN + project_ref.encode("ascii"), hashlib.sha256).hexdigest()
     return "hmac-sha256:" + digest
+
+
+def _require_private_regular_fd(fd: int) -> int:
+    if type(fd) is not int or fd <= 2:
+        _reject()
+    try:
+        info = os.fstat(fd)
+        if (
+            not stat.S_ISREG(info.st_mode)
+            or info.st_uid != os.geteuid()
+            or stat.S_IMODE(info.st_mode) & 0o077
+            or info.st_nlink not in {0, 1}
+            or not fcntl.fcntl(fd, fcntl.F_GETFD) & fcntl.FD_CLOEXEC
+        ):
+            _reject()
+    except (OSError, ValueError):
+        _reject()
+    return fd
+
+
+def _read_private_project_ref(fd: int) -> str:
+    _require_private_regular_fd(fd)
+    raw = _read_bounded(fd, 20)
+    try:
+        project_ref = raw.decode("ascii")
+    except UnicodeDecodeError:
+        _reject()
+    if _PROJECT_REF.fullmatch(project_ref) is None:
+        _reject()
+    return project_ref
+
+
+def authorize_private_mutation_request(
+    step: str,
+    *,
+    project_ref_fd: int,
+    mac_key_fd: int,
+    permit_ledger_fd: int,
+    expected_target_hmac: str,
+    target_capability_hmac: str,
+    consume_hash: str,
+    permit_hash: str,
+    case_id: str,
+    idempotency_hmac: str,
+    controller_state: str,
+    controller_state_hash: str,
+    controller_state_sequence: int,
+) -> dict[str, Any]:
+    """Build one private mutation request only after durable dispatch authorization."""
+
+    spec = mcp_queries.CATALOG.get(step)
+    if spec is None or spec.tool != "apply_migration" or spec.migration_version not in mcp_queries.MIGRATIONS:
+        _reject()
+    expected_target_hmac = _require_hmac(expected_target_hmac)
+    target_capability_hmac = _require_hmac(target_capability_hmac)
+    if not isinstance(consume_hash, str) or _SHA256.fullmatch(consume_hash) is None:
+        _reject()
+    if not isinstance(permit_hash, str) or _SHA256.fullmatch(permit_hash) is None:
+        _reject()
+    key = _read_mac_key(mac_key_fd)
+    project_ref = _read_private_project_ref(project_ref_fd)
+    if not hmac.compare_digest(project_ref_hmac(key, project_ref), expected_target_hmac):
+        _reject("MCP_TARGET_MISMATCH")
+    payload_sha256 = mcp_queries.MIGRATIONS[spec.migration_version].sha256
+    try:
+        from .secure_state import MutationPermitLedger
+    except ImportError:  # pragma: no cover - direct script import fallback
+        from secure_state import MutationPermitLedger
+    try:
+        authorization = MutationPermitLedger(permit_ledger_fd).authorize_dispatch(
+            consume_hash,
+            permit_hash=permit_hash,
+            operation="apply_migration",
+            action=step,
+            development_target_hmac=expected_target_hmac,
+            development_target_capability_hmac=target_capability_hmac,
+            payload_sha256=payload_sha256,
+            case_id=case_id,
+            idempotency_hmac=idempotency_hmac,
+            controller_state=controller_state,
+            controller_state_hash=controller_state_hash,
+            controller_state_sequence=controller_state_sequence,
+            mac_key_fd=mac_key_fd,
+        )
+    except (TypeError, ValueError, OSError):
+        _reject()
+    request = {
+        "schemaVersion": ADAPTER_SCHEMA_VERSION,
+        "step": step,
+        "projectId": project_ref,
+        "targetProjectHmac": expected_target_hmac,
+        "targetCapabilityHmac": target_capability_hmac,
+        "action": step,
+        "permitHash": permit_hash,
+        "consumeHash": consume_hash,
+        "dispatchHash": authorization["dispatchHash"],
+        "payloadSha256": payload_sha256,
+        "developmentTargetHmac": expected_target_hmac,
+    }
+    request["unknownReceipt"] = _bind_mutation_receipt(
+        {"safeCode": "MCP_ACTION_UNKNOWN"},
+        request,
+        key,
+        step,
+        expected_target_hmac,
+    )
+    return request
+
+
+def _read_private_mutation_authorization(fd: int) -> dict[str, Any]:
+    _require_private_regular_fd(fd)
+    item = _exact_mapping(
+        _loads_unique(_read_bounded(fd, 4096)),
+        {
+            "action",
+            "expectedTargetHmac",
+            "targetCapabilityHmac",
+            "consumeHash",
+            "permitHash",
+            "caseId",
+            "idempotencyHmac",
+            "controllerState",
+            "controllerStateHash",
+            "controllerStateSequence",
+        },
+    )
+    return item
+
+
+def _write_session_line(fd: int, value: Any) -> None:
+    if type(fd) is not int or fd < 1:
+        _reject()
+    encoded = (_canonical_json(value) + "\n").encode("ascii")
+    try:
+        offset = 0
+        while offset < len(encoded):
+            written = os.write(fd, encoded[offset:])
+            if written <= 0:
+                _reject()
+            offset += written
+    except BridgeRejected:
+        raise
+    except OSError:
+        _reject()
+
+
+def serve_private_mutation_request_once(
+    *,
+    project_ref_fd: int,
+    mac_key_fd: int,
+    permit_ledger_fd: int,
+    authorization_fd: int,
+    input_fd: int = 0,
+    output_fd: int = 1,
+) -> None:
+    """Serve exactly one trusted request-session frame and then return."""
+
+    authorization = _read_private_mutation_authorization(authorization_fd)
+    try:
+        step = _read_one_line(input_fd, 64).decode("ascii")
+    except UnicodeDecodeError:
+        _reject()
+    if step != authorization["action"]:
+        _reject()
+    request = authorize_private_mutation_request(
+        step,
+        project_ref_fd=project_ref_fd,
+        mac_key_fd=mac_key_fd,
+        permit_ledger_fd=permit_ledger_fd,
+        expected_target_hmac=authorization["expectedTargetHmac"],
+        target_capability_hmac=authorization["targetCapabilityHmac"],
+        consume_hash=authorization["consumeHash"],
+        permit_hash=authorization["permitHash"],
+        case_id=authorization["caseId"],
+        idempotency_hmac=authorization["idempotencyHmac"],
+        controller_state=authorization["controllerState"],
+        controller_state_hash=authorization["controllerStateHash"],
+        controller_state_sequence=authorization["controllerStateSequence"],
+    )
+    _write_session_line(output_fd, request)
 
 
 def _attestation_hmac(
@@ -456,23 +663,339 @@ def broker_call_tool_result(
     return _validate_public_result(result)
 
 
-def broker_adapter_envelope(*, input_fd: int = 0, mac_key_fd: int) -> dict[str, Any]:
-    """Sanitize the exact envelope emitted by the functions.exec adapter."""
+def _verify_mutation_authorization(
+    authorization: Any,
+    *,
+    step: str,
+    target_project_hmac: str,
+    target_capability_hmac: str,
+    permit_ledger_fd: int,
+    mac_key_fd: int,
+) -> dict[str, str]:
+    item = _exact_mapping(
+        authorization,
+        {
+            "action",
+            "permitHash",
+            "consumeHash",
+            "dispatchHash",
+            "payloadSha256",
+            "developmentTargetHmac",
+            "targetCapabilityHmac",
+        },
+    )
+    spec = mcp_queries.CATALOG.get(step)
+    if spec is None or spec.tool != "apply_migration" or spec.migration_version not in mcp_queries.MIGRATIONS:
+        _reject()
+    if (
+        item["action"] != step
+        or item["developmentTargetHmac"] != target_project_hmac
+        or item["targetCapabilityHmac"] != target_capability_hmac
+        or item["payloadSha256"] != mcp_queries.MIGRATIONS[spec.migration_version].sha256
+        or any(
+            not isinstance(item[field], str) or _SHA256.fullmatch(item[field]) is None
+            for field in ("permitHash", "consumeHash", "dispatchHash")
+        )
+    ):
+        _reject()
+    try:
+        from .secure_state import MutationPermitLedger
+    except ImportError:  # pragma: no cover - direct script import fallback
+        from secure_state import MutationPermitLedger
+    try:
+        verification = MutationPermitLedger(permit_ledger_fd).verify_dispatch(
+            item["dispatchHash"],
+            consume_hash=item["consumeHash"],
+            permit_hash=item["permitHash"],
+            operation="apply_migration",
+            action=step,
+            development_target_hmac=target_project_hmac,
+            development_target_capability_hmac=target_capability_hmac,
+            payload_sha256=item["payloadSha256"],
+            mac_key_fd=mac_key_fd,
+        )
+    except (TypeError, ValueError, OSError):
+        _reject()
+    if verification.get("verified") is not True:
+        _reject()
+    return dict(item)
+
+
+def _bind_mutation_receipt(
+    result: dict[str, Any],
+    authorization: Mapping[str, str],
+    key: bytes,
+    step: str,
+    target_project_hmac: str,
+) -> dict[str, Any]:
+    safe_authorization = {
+        "permitHash": "sha256:" + authorization["permitHash"],
+        "consumeHash": "sha256:" + authorization["consumeHash"],
+        "dispatchHash": "sha256:" + authorization["dispatchHash"],
+        "payloadSha256": "sha256:" + authorization["payloadSha256"],
+        "targetCapabilityHmac": authorization["targetCapabilityHmac"],
+        "developmentTargetHmac": authorization["developmentTargetHmac"],
+    }
+    binding = {
+        "targetProjectHmac": target_project_hmac,
+        **safe_authorization,
+    }
+    if set(result) == {"safeCode"}:
+        if result["safeCode"] != "MCP_ACTION_UNKNOWN":
+            _reject()
+        receipt = {
+            "safeCode": "MCP_ACTION_UNKNOWN",
+            "productionActionCount": 0,
+            **binding,
+        }
+        return {
+            **receipt,
+            "resultHmac": _attestation_hmac(
+                key,
+                step,
+                target_project_hmac,
+                receipt,
+            ),
+        }
+    return {
+        **result,
+        **binding,
+        "resultHmac": _attestation_hmac(
+            key,
+            step,
+            target_project_hmac,
+            {
+                "providerResultHmac": result["resultHmac"],
+                **binding,
+            },
+        ),
+    }
+
+
+def recover_pending_mutation_dispatch(
+    step: str,
+    *,
+    mac_key_fd: int,
+    permit_ledger_fd: int,
+    expected_target_hmac: str,
+    target_capability_hmac: str,
+    consume_hash: str,
+    permit_hash: str,
+    payload_sha256: str,
+    case_id: str,
+    idempotency_hmac: str,
+    controller_state: str,
+    controller_state_hash: str,
+    controller_state_sequence: int,
+) -> dict[str, Any]:
+    """Recover or replay one crash-stranded dispatch as a bound UNKNOWN receipt."""
+
+    spec = mcp_queries.CATALOG.get(step)
+    if (
+        spec is None
+        or spec.tool != "apply_migration"
+        or spec.migration_version not in mcp_queries.MIGRATIONS
+        or not isinstance(payload_sha256, str)
+        or _SHA256.fullmatch(payload_sha256) is None
+        or payload_sha256 != mcp_queries.MIGRATIONS[spec.migration_version].sha256
+        or not isinstance(consume_hash, str)
+        or _SHA256.fullmatch(consume_hash) is None
+        or not isinstance(permit_hash, str)
+        or _SHA256.fullmatch(permit_hash) is None
+        or not isinstance(controller_state_hash, str)
+        or _SHA256.fullmatch(controller_state_hash) is None
+        or type(controller_state_sequence) is not int
+        or controller_state_sequence < 0
+    ):
+        _reject()
+    expected_target_hmac = _require_hmac(expected_target_hmac)
+    target_capability_hmac = _require_hmac(target_capability_hmac)
+    idempotency_hmac = _require_hmac(idempotency_hmac)
+    key = _read_mac_key(mac_key_fd)
+    try:
+        from .secure_state import MutationPermitLedger
+    except ImportError:  # pragma: no cover - direct script import fallback
+        from secure_state import MutationPermitLedger
+    try:
+        ledger = MutationPermitLedger(permit_ledger_fd)
+        dispatches = ledger.recovery_dispatches(mac_key_fd=mac_key_fd)
+    except (TypeError, ValueError, OSError):
+        _reject()
+    pending = [dispatch for dispatch in dispatches if dispatch["outcome"] is None]
+    matches = [
+        dispatch for dispatch in dispatches if dispatch["consumeHash"] == consume_hash
+    ]
+    if len(pending) > 1 or len(matches) != 1:
+        _reject()
+    dispatch = matches[0]
+    if pending and pending[0]["dispatchHash"] != dispatch["dispatchHash"]:
+        _reject()
+    expected = {
+        "consumeHash": consume_hash,
+        "permitHash": permit_hash,
+        "operation": "apply_migration",
+        "action": step,
+        "developmentTargetHmac": expected_target_hmac,
+        "developmentTargetCapabilityHmac": target_capability_hmac,
+        "payloadSha256": payload_sha256,
+        "caseId": case_id,
+        "idempotencyHmac": idempotency_hmac,
+        "controllerState": controller_state,
+        "controllerStateHash": controller_state_hash,
+        "controllerStateSequence": controller_state_sequence,
+    }
+    if any(dispatch[name] != value for name, value in expected.items()):
+        _reject()
+    if dispatch["outcome"] not in {None, "unknown"}:
+        _reject()
+    authorization = {
+        "action": step,
+        "permitHash": permit_hash,
+        "consumeHash": consume_hash,
+        "dispatchHash": dispatch["dispatchHash"],
+        "payloadSha256": payload_sha256,
+        "developmentTargetHmac": expected_target_hmac,
+        "targetCapabilityHmac": target_capability_hmac,
+    }
+    receipt = _bind_mutation_receipt(
+        {"safeCode": "MCP_ACTION_UNKNOWN"},
+        authorization,
+        key,
+        step,
+        expected_target_hmac,
+    )
+    if dispatch["safeReceiptHmac"] is not None and not hmac.compare_digest(
+        dispatch["safeReceiptHmac"], receipt["resultHmac"]
+    ):
+        _reject()
+    try:
+        recovery = ledger.recover_unknown_outcome(
+            dispatch_hash=dispatch["dispatchHash"],
+            consume_hash=consume_hash,
+            permit_hash=permit_hash,
+            operation="apply_migration",
+            action=step,
+            development_target_hmac=expected_target_hmac,
+            development_target_capability_hmac=target_capability_hmac,
+            payload_sha256=payload_sha256,
+            case_id=case_id,
+            idempotency_hmac=idempotency_hmac,
+            controller_state=controller_state,
+            controller_state_hash=controller_state_hash,
+            controller_state_sequence=controller_state_sequence,
+            safe_receipt_hmac=receipt["resultHmac"],
+            mac_key_fd=mac_key_fd,
+        )
+    except (TypeError, ValueError, OSError):
+        _reject()
+    if (
+        recovery.get("verified") is not True
+        or recovery.get("dispatchHash") != dispatch["dispatchHash"]
+        or recovery.get("consumeHash") != consume_hash
+        or recovery.get("safeReceiptHmac") != receipt["resultHmac"]
+    ):
+        _reject()
+    return _validate_public_result(receipt)
+
+
+def broker_adapter_envelope(
+    *,
+    input_fd: int = 0,
+    mac_key_fd: int,
+    expected_target_capability_hmac: str | None = None,
+    permit_ledger_fd: int | None = None,
+) -> dict[str, Any]:
+    """Sanitize one adapter envelope against controller-established authority."""
 
     key = _read_mac_key(mac_key_fd)
     raw = _read_bounded(input_fd, MAX_CALL_TOOL_RESULT_BYTES)
-    envelope = _exact_mapping(
-        _loads_unique(raw),
-        {"schemaVersion", "step", "targetProjectHmac", "callToolResult"},
-    )
-    if envelope["schemaVersion"] != ADAPTER_SCHEMA_VERSION:
+    parsed = _loads_unique(raw)
+    if not isinstance(parsed, Mapping) or not isinstance(parsed.get("step"), str):
         _reject()
-    result = _sanitize_call_tool_result(
-        envelope["step"],
-        envelope["callToolResult"],
-        key,
-        envelope["targetProjectHmac"],
-    )
+    step = parsed["step"]
+    spec = mcp_queries.CATALOG.get(step)
+    if spec is None:
+        _reject()
+    if step == "inventory_projects":
+        envelope = _exact_mapping(
+            parsed,
+            {"schemaVersion", "step", "targetProjectHmac", "callToolResult"},
+        )
+        if expected_target_capability_hmac is not None or permit_ledger_fd is not None:
+            _reject()
+        authorization = None
+    else:
+        expected_target_capability_hmac = _require_hmac(expected_target_capability_hmac)
+        keys = {
+            "schemaVersion",
+            "step",
+            "targetProjectHmac",
+            "targetCapabilityHmac",
+            "callToolResult",
+        }
+        if spec.tool == "apply_migration":
+            keys.add("authorization")
+            if type(permit_ledger_fd) is not int:
+                _reject()
+            target_project_hmac = _require_hmac(parsed.get("targetProjectHmac"))
+            target_capability_hmac = _require_hmac(parsed.get("targetCapabilityHmac"))
+            if target_capability_hmac != expected_target_capability_hmac:
+                _reject("MCP_TARGET_MISMATCH")
+            authorization = _verify_mutation_authorization(
+                parsed.get("authorization"),
+                step=step,
+                target_project_hmac=target_project_hmac,
+                target_capability_hmac=expected_target_capability_hmac,
+                permit_ledger_fd=permit_ledger_fd,
+                mac_key_fd=mac_key_fd,
+            )
+            try:
+                envelope = _exact_mapping(parsed, keys)
+            except BridgeRejected:
+                return _validate_public_result(
+                    _bind_mutation_receipt(
+                        {"safeCode": "MCP_ACTION_UNKNOWN"},
+                        authorization,
+                        key,
+                        step,
+                        target_project_hmac,
+                    )
+                )
+        else:
+            envelope = _exact_mapping(parsed, keys)
+            if envelope["targetCapabilityHmac"] != expected_target_capability_hmac:
+                _reject("MCP_TARGET_MISMATCH")
+            if permit_ledger_fd is not None:
+                _reject()
+            authorization = None
+    if authorization is not None:
+        try:
+            if envelope["schemaVersion"] != ADAPTER_SCHEMA_VERSION:
+                _reject()
+            result = _sanitize_call_tool_result(
+                step,
+                envelope["callToolResult"],
+                key,
+                envelope["targetProjectHmac"],
+            )
+        except BridgeRejected:
+            result = {"safeCode": "MCP_ACTION_UNKNOWN"}
+        result = _bind_mutation_receipt(
+            result,
+            authorization,
+            key,
+            step,
+            envelope["targetProjectHmac"],
+        )
+    else:
+        if envelope["schemaVersion"] != ADAPTER_SCHEMA_VERSION:
+            _reject()
+        result = _sanitize_call_tool_result(
+            step,
+            envelope["callToolResult"],
+            key,
+            envelope["targetProjectHmac"],
+        )
     return _validate_public_result(result)
 
 
@@ -517,6 +1040,35 @@ def _validate_public_result(value: Any) -> dict[str, Any]:
         frozenset(
             {
                 "effectPresent",
+                "migrationOrdinal",
+                "productionActionCount",
+                "targetProjectHmac",
+                "developmentTargetHmac",
+                "targetCapabilityHmac",
+                "permitHash",
+                "consumeHash",
+                "dispatchHash",
+                "payloadSha256",
+                "resultHmac",
+            }
+        ),
+        frozenset(
+            {
+                "safeCode",
+                "productionActionCount",
+                "targetProjectHmac",
+                "developmentTargetHmac",
+                "targetCapabilityHmac",
+                "permitHash",
+                "consumeHash",
+                "dispatchHash",
+                "payloadSha256",
+                "resultHmac",
+            }
+        ),
+        frozenset(
+            {
+                "effectPresent",
                 "checkCount",
                 "productionActionCount",
                 "targetProjectHmac",
@@ -540,17 +1092,35 @@ def _validate_public_result(value: Any) -> dict[str, Any]:
         "ledgerExact",
         "effectPresent",
     }
-    hmac_keys = {"targetProjectHmac", "resultHmac"}
+    hmac_keys = {
+        "targetProjectHmac",
+        "developmentTargetHmac",
+        "targetCapabilityHmac",
+        "resultHmac",
+    }
+    sha256_keys = {"permitHash", "consumeHash", "dispatchHash", "payloadSha256"}
     for field_name, field in item.items():
         if field_name in count_keys and type(field) is int and 0 <= field <= 1_000_000:
             continue
         if field_name in boolean_keys and type(field) is bool:
             continue
+        if field_name == "safeCode" and field == "MCP_ACTION_UNKNOWN":
+            continue
         if field_name in hmac_keys and isinstance(field, str) and _HMAC.fullmatch(field) is not None:
+            continue
+        if (
+            field_name in sha256_keys
+            and isinstance(field, str)
+            and re.fullmatch(r"sha256:[a-f0-9]{64}", field) is not None
+        ):
             continue
         _reject()
     if item["productionActionCount"] != 0:
         _reject()
+    if "developmentTargetHmac" in item and not hmac.compare_digest(
+        item["developmentTargetHmac"], item["targetProjectHmac"]
+    ):
+        _reject("MCP_TARGET_MISMATCH")
     if "developmentVerified" in item and (
         item["developmentVerified"] is not True
         or item["productionNegativeVerified"] is not True
@@ -655,57 +1225,97 @@ def render_functions_exec_adapter(
         if version not in mcp_queries.MIGRATIONS:
             _reject()
         mutation_request_check = f"""
-  const requestKeys = ["action","consumeHash","developmentTargetHmac","payloadSha256","permitHash","projectId","schemaVersion","step","targetProjectHmac"];
+  const unknownKeys = ["consumeHash","developmentTargetHmac","dispatchHash","payloadSha256","permitHash","productionActionCount","resultHmac","safeCode","targetCapabilityHmac","targetProjectHmac"];
+  const candidateUnknown = request && request.unknownReceipt;
+  if (!candidateUnknown || typeof candidateUnknown !== "object" || Array.isArray(candidateUnknown) || Object.keys(candidateUnknown).sort().join(",") !== unknownKeys.join(",")) throw new Error("request");
+  if (candidateUnknown.safeCode !== "MCP_ACTION_UNKNOWN" || candidateUnknown.productionActionCount !== 0 || !/^hmac-sha256:[a-f0-9]{{64}}$/.test(candidateUnknown.resultHmac)) throw new Error("request");
+  if (candidateUnknown.permitHash !== "sha256:" + request.permitHash || candidateUnknown.consumeHash !== "sha256:" + request.consumeHash || candidateUnknown.dispatchHash !== "sha256:" + request.dispatchHash || candidateUnknown.payloadSha256 !== "sha256:" + request.payloadSha256 || candidateUnknown.targetCapabilityHmac !== request.targetCapabilityHmac || candidateUnknown.targetProjectHmac !== request.targetProjectHmac || candidateUnknown.developmentTargetHmac !== request.developmentTargetHmac) throw new Error("request");
+  unknownReceipt = JSON.stringify(candidateUnknown);
+  const requestKeys = ["action","consumeHash","developmentTargetHmac","dispatchHash","payloadSha256","permitHash","projectId","schemaVersion","step","targetCapabilityHmac","targetProjectHmac","unknownReceipt"];
   if (Object.keys(request).sort().join(",") !== requestKeys.join(",")) throw new Error("request");
   if (request.action !== STEP || request.developmentTargetHmac !== request.targetProjectHmac) throw new Error("request");
-  if (!/^[a-f0-9]{{64}}$/.test(request.permitHash) || !/^[a-f0-9]{{64}}$/.test(request.consumeHash)) throw new Error("request");
+  if (!/^[a-f0-9]{{64}}$/.test(request.permitHash) || !/^[a-f0-9]{{64}}$/.test(request.consumeHash) || !/^[a-f0-9]{{64}}$/.test(request.dispatchHash)) throw new Error("request");
+  if (!/^hmac-sha256:[a-f0-9]{{64}}$/.test(request.targetCapabilityHmac)) throw new Error("request");
   if (request.payloadSha256 !== {json.dumps(mcp_queries.MIGRATIONS[version].sha256)}) throw new Error("request");
 """
-        broker_authorization = ",authorization:{action:request.action,permitHash:request.permitHash,consumeHash:request.consumeHash,payloadSha256:request.payloadSha256,developmentTargetHmac:request.developmentTargetHmac}"
+        broker_capability = ",targetCapabilityHmac:request.targetCapabilityHmac"
+        broker_authorization = ",authorization:{action:request.action,permitHash:request.permitHash,consumeHash:request.consumeHash,dispatchHash:request.dispatchHash,payloadSha256:request.payloadSha256,developmentTargetHmac:request.developmentTargetHmac,targetCapabilityHmac:request.targetCapabilityHmac}"
+        safe_receipt_check = """
+    const successKeys = ["consumeHash","developmentTargetHmac","dispatchHash","effectPresent","migrationOrdinal","payloadSha256","permitHash","productionActionCount","resultHmac","targetCapabilityHmac","targetProjectHmac"];
+    const receiptKeys = safe && safe.safeCode === "MCP_ACTION_UNKNOWN" ? unknownKeys : successKeys;
+    if (!safe || typeof safe !== "object" || Array.isArray(safe) || Object.keys(safe).sort().join(",") !== receiptKeys.join(",")) throw new Error("broker");
+    if (safe.permitHash !== "sha256:" + request.permitHash || safe.consumeHash !== "sha256:" + request.consumeHash || safe.dispatchHash !== "sha256:" + request.dispatchHash || safe.payloadSha256 !== "sha256:" + request.payloadSha256 || safe.targetCapabilityHmac !== request.targetCapabilityHmac || safe.targetProjectHmac !== request.targetProjectHmac || safe.developmentTargetHmac !== request.developmentTargetHmac || safe.productionActionCount !== 0 || !/^hmac-sha256:[a-f0-9]{64}$/.test(safe.resultHmac)) throw new Error("broker");
+    if (safe.safeCode === "MCP_ACTION_UNKNOWN") {
+      if (JSON.stringify(safe) !== unknownReceipt) throw new Error("broker");
+    } else if (safe.effectPresent !== true || ![9,10].includes(safe.migrationOrdinal)) throw new Error("broker");
+"""
     else:
-        mutation_request_check = """
+        if step == "inventory_projects":
+            mutation_request_check = """
   if (Object.keys(request).sort().join(",") !== "projectId,schemaVersion,step,targetProjectHmac") throw new Error("request");
 """
+            broker_capability = ""
+        else:
+            mutation_request_check = """
+  if (Object.keys(request).sort().join(",") !== "projectId,schemaVersion,step,targetCapabilityHmac,targetProjectHmac") throw new Error("request");
+  if (!/^hmac-sha256:[a-f0-9]{64}$/.test(request.targetCapabilityHmac)) throw new Error("request");
+"""
+            broker_capability = ",targetCapabilityHmac:request.targetCapabilityHmac"
         broker_authorization = ""
-    unknown_literal = json.dumps("MCP_ACTION_UNKNOWN" if mutation else "MCP_OPERATION_FAILED")
+        safe_receipt_check = ""
+    request_returned_marker = "dispatchStarted = true;" if mutation else ""
     return f"""const STEP = {json.dumps(step)};
 const SCHEMA = {json.dumps(ADAPTER_SCHEMA_VERSION)};
 const FAILED = '{{"safeCode":"MCP_OPERATION_FAILED"}}';
 const UNKNOWN = '{{"safeCode":"MCP_ACTION_UNKNOWN"}}';
-const fail = (safeCode) => text(safeCode === "MCP_ACTION_UNKNOWN" ? UNKNOWN : FAILED);
 let dispatchStarted = false;
+let unknownReceipt = null;
+const fail = () => text(dispatchStarted ? (unknownReceipt || UNKNOWN) : FAILED);
 try {{
   const requestReply = await tools.write_stdin({{session_id:{request_session_id},chars:STEP + "\\n",yield_time_ms:30000,max_output_tokens:2000}});
+  {request_returned_marker}
   const requestLines = requestReply.output.trim().split("\\n");
   if (requestLines.length !== 1) throw new Error("request");
   const request = JSON.parse(requestLines[0]);
   {mutation_request_check}
   if (request.schemaVersion !== SCHEMA || request.step !== STEP || !/^hmac-sha256:[a-f0-9]{{64}}$/.test(request.targetProjectHmac)) throw new Error("request");
   {project_check}
-  dispatchStarted = true;
   const rawResult = {call_source};
-  const brokerInput = JSON.stringify({{schemaVersion:SCHEMA,step:STEP,targetProjectHmac:request.targetProjectHmac,callToolResult:rawResult{broker_authorization}}}) + "\\n";
+  const brokerInput = JSON.stringify({{schemaVersion:SCHEMA,step:STEP,targetProjectHmac:request.targetProjectHmac{broker_capability},callToolResult:rawResult{broker_authorization}}}) + "\\n";
   const brokerReply = await tools.write_stdin({{session_id:{broker_session_id},chars:brokerInput,yield_time_ms:30000,max_output_tokens:2000}});
   const safeLines = brokerReply.output.trim().split("\\n");
   if (safeLines.length !== 1) throw new Error("broker");
   const safe = JSON.parse(safeLines[0]);
+  {safe_receipt_check}
   const serialized = JSON.stringify(safe);
   if (serialized.length > 2000 || !serialized.startsWith("{{") || !serialized.endsWith("}}") || /projectId|content|raw|token|secret|credential|https?:/i.test(serialized)) throw new Error("broker");
   text(serialized);
-}} catch (_error) {{ fail(dispatchStarted ? {unknown_literal} : "MCP_OPERATION_FAILED"); }}"""
+}} catch (_error) {{ fail(); }}"""
 
 
 def _main(argv: list[str]) -> int:
-    if len(argv) != 3:
+    if len(argv) not in {3, 5}:
         return 70
     try:
         mac_key_fd = int(argv[1], 10)
         output_fd = int(argv[2], 10)
-    except (TypeError, ValueError):
+        permit_ledger_fd = None
+        expected_target_capability_hmac = None
+        if len(argv) == 5:
+            raw_ledger_fd = int(argv[3], 10)
+            capability_fd = int(argv[4], 10)
+            permit_ledger_fd = raw_ledger_fd if raw_ledger_fd > 2 else None
+            expected_target_capability_hmac = _read_bounded(capability_fd, 80).decode("ascii")
+    except (TypeError, ValueError, UnicodeDecodeError):
         return 70
     status = 0
     try:
-        result = broker_adapter_envelope(input_fd=0, mac_key_fd=mac_key_fd)
+        result = broker_adapter_envelope(
+            input_fd=0,
+            mac_key_fd=mac_key_fd,
+            expected_target_capability_hmac=expected_target_capability_hmac,
+            permit_ledger_fd=permit_ledger_fd,
+        )
         if "safeCode" in result:
             status = 70
     except BridgeRejected as error:

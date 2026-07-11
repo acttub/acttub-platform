@@ -14,6 +14,31 @@ test("upload intent creation validates MIME, size, and owner-scoped path", () =>
   assert.match(source, /storagePath: `users\/\$\{userId\}\/practice-sessions\/\$\{sessionId\}\/take\.\$\{extension\}`/);
 });
 
+test("upload intent creation accepts only a complete valid deterministic UUID pair", () => {
+  const source = service();
+  assert.match(source, /const uuidPattern = \/\^\[0-9a-f\]/);
+  assert.match(source, /optionalUuid\(input\.uploadIntentId, "uploadIntentId"\)/);
+  assert.match(source, /optionalUuid\(input\.sessionId, "sessionId"\)/);
+  assert.match(source, /uploadIntentId and sessionId must be supplied together/);
+  assert.match(source, /const sessionId = suppliedSessionId \?\? createUuid\(\)/);
+  assert.match(source, /const uploadIntentId = suppliedUploadIntentId \?\? createUuid\(\)/);
+  assert.match(source, /Object\.keys\(input\)\.some\(\(key\) => !allowedInputKeys\.has\(key\)\)/);
+});
+
+test("upload intent request schema exposes optional paired UUIDs and stays closed", () => {
+  const document = JSON.parse(read("src/lib/api/openapi.json"));
+  const schema = document.components.schemas.CreateUploadIntentRequest;
+  assert.equal(schema.additionalProperties, false);
+  assert.equal(schema.properties.uploadIntentId.format, "uuid");
+  assert.equal(schema.properties.sessionId.format, "uuid");
+  assert.equal(schema.required.includes("uploadIntentId"), false);
+  assert.equal(schema.required.includes("sessionId"), false);
+  assert.deepEqual(schema.dependentRequired, {
+    uploadIntentId: ["sessionId"],
+    sessionId: ["uploadIntentId"],
+  });
+});
+
 test("finalize route binds path uploadIntentId to auth owner", () => {
   const source = read("src/app/api/v1/practice-upload-intents/[uploadIntentId]/finalize/route.ts");
   assert.match(source, /const \{ uploadIntentId \} = await context\.params/);

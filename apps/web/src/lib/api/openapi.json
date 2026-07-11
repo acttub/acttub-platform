@@ -1936,6 +1936,14 @@
       "CreateUploadIntentRequest": {
         "type": "object",
         "additionalProperties": false,
+        "dependentRequired": {
+          "uploadIntentId": [
+            "sessionId"
+          ],
+          "sessionId": [
+            "uploadIntentId"
+          ]
+        },
         "required": [
           "fileMetadata",
           "adultConfirmed",
@@ -1952,6 +1960,16 @@
           "allParticipantsConfirmed": {
             "const": true,
             "description": "모든 참여자의 업로드 및 외부 AI 처리 동의를 확인합니다."
+          },
+          "uploadIntentId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "보호된 E2E 호출자가 sessionId와 함께 제공할 수 있는 결정적 업로드 인텐트 ID입니다. 일반 클라이언트에서는 생략합니다."
+          },
+          "sessionId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "보호된 E2E 호출자가 uploadIntentId와 함께 제공할 수 있는 결정적 세션 ID입니다. 일반 클라이언트에서는 생략합니다."
           }
         }
       },

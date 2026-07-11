@@ -3,13 +3,16 @@ import fs from "node:fs";
 import http from "node:http";
 import { createRequire } from "node:module";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { assertDevelopmentTarget } from "./development_target.mjs";
 
 const INPUT_FD = 3;
 const MAC_KEY_FD = 4;
 const RECEIPT_FD = 5;
+const READINESS_FD = 6;
 const LOOPBACK_HOST = "127.0.0.1";
 const INPUT_SCHEMA = "browser-session-handoff.v1";
 const RECEIPT_SCHEMA = "browser-session-handoff-receipt.v1";
+const READINESS_SCHEMA = "browser-session-broker-readiness.v1";
 const OPERATION = "browser_session_handoff";
 const MAX_INPUT_BYTES = 64 * 1024;
 const MAX_KEY_BYTES = 4096;
@@ -23,7 +26,6 @@ const RECEIPT_DOMAIN = Buffer.from("acttub-browser-session-handoff-receipt.v1\0"
 const COOKIE_DOMAIN = Buffer.from("acttub-browser-session-handoff-cookies.v1\0", "ascii");
 const NONCE_DOMAIN = Buffer.from("acttub-browser-session-handoff-nonce.v1\0", "ascii");
 const TARGET_DOMAIN = Buffer.from("acttub-browser-session-handoff-target.v1\0", "ascii");
-const DEVELOPMENT_TARGET_DOMAIN = Buffer.from("acttub-platform-development-target.v1\0", "ascii");
 
 class BrokerFailure extends Error {
   constructor() {
@@ -191,6 +193,29 @@ function writeAll(fd, value) {
   }
 }
 
+function closeStreamFd(fd) {
+  try {
+    fs.closeSync(fd);
+  } catch {
+    // The descriptor is parent-observable only through its bounded frame or EOF.
+  }
+}
+
+function publishReadiness(fd) {
+  ensurePrivateStreamFd(fd);
+  const frame = Buffer.from(`${canonicalJson({ schemaVersion: READINESS_SCHEMA, ready: true })}\n`, "ascii");
+  try {
+    const count = fs.writeSync(fd, frame, 0, frame.length, null);
+    if (count !== frame.length) reject();
+  } catch (error) {
+    if (error instanceof BrokerFailure) throw error;
+    reject();
+  } finally {
+    frame.fill(0);
+    closeStreamFd(fd);
+  }
+}
+
 function canonicalJson(value) {
   if (value === null) return "null";
   if (typeof value === "boolean") return value ? "true" : "false";
@@ -209,13 +234,6 @@ function hmacBytes(key, domain, value) {
 
 function hmacValue(key, domain, value) {
   return hmacBytes(key, domain, Buffer.from(canonicalJson(value), "ascii"));
-}
-
-function timingSafeAscii(left, right) {
-  if (typeof left !== "string" || typeof right !== "string") return false;
-  const first = Buffer.from(left, "ascii");
-  const second = Buffer.from(right, "ascii");
-  return first.length === second.length && crypto.timingSafeEqual(first, second);
 }
 
 function privateSettings(fd, key) {
@@ -255,20 +273,8 @@ function privateSettings(fd, key) {
     item.targetPath.includes(item.accessToken) ||
     item.targetPath.includes(item.refreshToken)
   ) reject();
-  let endpoint;
-  try {
-    endpoint = new URL(item.supabaseUrl);
-  } catch {
-    reject();
-  }
-  if (
-    endpoint.protocol !== "https:" ||
-    !/^[a-z0-9]+\.supabase\.co$/u.test(endpoint.hostname) ||
-    endpoint.username || endpoint.password || endpoint.search || endpoint.hash ||
-    (endpoint.pathname !== "/" && endpoint.pathname !== "")
-  ) reject();
-  const expectedTarget = hmacBytes(key, DEVELOPMENT_TARGET_DOMAIN, Buffer.from(endpoint.hostname, "ascii"));
-  if (!timingSafeAscii(item.developmentTargetHmac, expectedTarget)) reject();
+  try { assertDevelopmentTarget(key, item.supabaseUrl, item.developmentTargetHmac); }
+  catch { reject(); }
   return item;
 }
 
@@ -350,23 +356,31 @@ function safeReceipt(key, settings, cookieHeaders) {
     cookieHeadersHmac: hmacBytes(key, COOKIE_DOMAIN, Buffer.from(cookieHeaders.join("\0"), "utf8")),
     nonceHmac: hmacBytes(key, NONCE_DOMAIN, Buffer.from(settings.nonce, "ascii")),
     targetHmac: hmacBytes(key, TARGET_DOMAIN, target),
+    developmentTargetHmac: settings.developmentTargetHmac,
   };
-  return {
-    schemaVersion: RECEIPT_SCHEMA,
-    operation: OPERATION,
-    success: true,
-    resultHmac: hmacValue(key, RECEIPT_DOMAIN, semantic),
-  };
+  return { ...semantic, resultHmac: hmacValue(key, RECEIPT_DOMAIN, semantic) };
 }
 
 function validateReceipt(value) {
-  const item = exactObject(value, ["schemaVersion", "operation", "success", "resultHmac"]);
-  if (item.schemaVersion !== RECEIPT_SCHEMA || item.operation !== OPERATION || item.success !== true || !HMAC_PATTERN.test(item.resultHmac)) reject();
+  const item = exactObject(value, [
+    "schemaVersion", "operation", "success", "cookieCount", "cookieHeadersHmac",
+    "nonceHmac", "targetHmac", "developmentTargetHmac", "resultHmac",
+  ]);
+  if (item.schemaVersion !== RECEIPT_SCHEMA || item.operation !== OPERATION || item.success !== true || !Number.isSafeInteger(item.cookieCount) || item.cookieCount < 1 || item.cookieCount > MAX_COOKIE_COUNT) reject();
+  for (const field of ["cookieHeadersHmac", "nonceHmac", "targetHmac", "developmentTargetHmac", "resultHmac"]) {
+    if (!HMAC_PATTERN.test(item[field])) reject();
+  }
   return item;
 }
 
-function serveOnce({ settings, cookieHeaders, key, receiptFd, timeoutMs, createServer }) {
-  if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 100 || timeoutMs > MAX_TIMEOUT_MS || typeof createServer !== "function") reject();
+function serveOnce({ settings, cookieHeaders, key, receiptFd, publishReady, timeoutMs, createServer }) {
+  if (
+    !Number.isSafeInteger(timeoutMs) ||
+    timeoutMs < 100 ||
+    timeoutMs > MAX_TIMEOUT_MS ||
+    typeof createServer !== "function" ||
+    typeof publishReady !== "function"
+  ) reject();
   const expectedRoute = `/__acttub_session/${settings.nonce}`;
   const expectedHost = `${LOOPBACK_HOST}:${settings.brokerPort}`;
   const redirectLocation = `http://${LOOPBACK_HOST}:${settings.targetPort}${settings.targetPath}`;
@@ -446,7 +460,12 @@ function serveOnce({ settings, cookieHeaders, key, receiptFd, timeoutMs, createS
           fail();
           return;
         }
-        timer = setTimeout(fail, timeoutMs);
+        try {
+          publishReady();
+          timer = setTimeout(fail, timeoutMs);
+        } catch {
+          fail();
+        }
       });
     } catch {
       fail();
@@ -458,26 +477,44 @@ export async function serveBrowserSessionBroker({
   inputFd = INPUT_FD,
   macKeyFd = MAC_KEY_FD,
   receiptFd = RECEIPT_FD,
+  readinessFd = READINESS_FD,
   timeoutMs = DEFAULT_TIMEOUT_MS,
   dependencyLoader = defaultDependencyLoader,
   createServer = http.createServer,
 } = {}) {
-  if (typeof dependencyLoader !== "function") reject();
-  const key = readBounded(macKeyFd, MAX_KEY_BYTES);
-  if (key.length < 32) {
-    key.fill(0);
-    reject();
-  }
+  let readinessValidated = false;
+  let readinessReleased = false;
+  let key = null;
   let settings;
   try {
+    if (
+      typeof dependencyLoader !== "function" ||
+      new Set([inputFd, macKeyFd, receiptFd, readinessFd]).size !== 4
+    ) reject();
+    ensurePrivateStreamFd(readinessFd);
+    readinessValidated = true;
+    key = readBounded(macKeyFd, MAX_KEY_BYTES);
+    if (key.length < 32) reject();
     settings = privateSettings(inputFd, key);
     const cookieHeaders = await sessionCookieHeaders(settings, dependencyLoader);
     settings.supabaseUrl = "";
     settings.publishableKey = "";
     settings.accessToken = "";
     settings.refreshToken = "";
-    return await serveOnce({ settings, cookieHeaders, key, receiptFd, timeoutMs, createServer });
+    return await serveOnce({
+      settings,
+      cookieHeaders,
+      key,
+      receiptFd,
+      timeoutMs,
+      createServer,
+      publishReady: () => {
+        publishReadiness(readinessFd);
+        readinessReleased = true;
+      },
+    });
   } finally {
+    if (readinessValidated && !readinessReleased) closeStreamFd(readinessFd);
     if (settings) {
       settings.supabaseUrl = "";
       settings.publishableKey = "";
@@ -486,7 +523,7 @@ export async function serveBrowserSessionBroker({
       settings.nonce = "";
       settings.targetPath = "";
     }
-    key.fill(0);
+    if (key !== null) key.fill(0);
   }
 }
 

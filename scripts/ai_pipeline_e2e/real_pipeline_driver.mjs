@@ -1,6 +1,8 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
+import net from "node:net";
 import { pathToFileURL } from "node:url";
+import { assertDevelopmentTarget } from "./development_target.mjs";
 
 const SETTINGS_FD = 3;
 const MEDIA_FD = 4;
@@ -8,6 +10,7 @@ const MAC_KEY_FD = 5;
 const RECEIPT_FD = 6;
 const HANDOFF_FD = 7;
 const HANDOFF_ACK_FD = 8;
+const CLEANUP_FD = 9;
 
 export const MAX_SETTINGS_BYTES = 128 * 1024;
 export const MAX_MEDIA_BYTES = 300 * 1024 * 1024;
@@ -18,18 +21,23 @@ export const SETTINGS_SCHEMA = "real-pipeline-settings.v1";
 export const RECEIPT_SCHEMA = "real-pipeline-receipt.v1";
 export const HANDOFF_SCHEMA = "browser-session-handoff.v1";
 export const HANDOFF_ACK_SCHEMA = "browser-session-handoff-receipt.v1";
+export const CLEANUP_PLAN_SCHEMA = "cleanup-plan.v1";
+export const CLEANUP_PLAN_ACK_SCHEMA = "cleanup-plan-ack.v1";
+export const CLEANUP_COMPLETE_SCHEMA = "cleanup-complete.v1";
+export const CLEANUP_COMPLETE_ACK_SCHEMA = "cleanup-complete-ack.v1";
 
 const HMAC_PATTERN = /^hmac-sha256:[a-f0-9]{64}$/u;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
-const PROJECT_HOST_PATTERN = /^[a-z0-9]+\.supabase\.co$/u;
 const NONCE_PATTERN = /^[a-f0-9]{64}$/u;
 const TEMPORARY_EMAIL_PREFIX = "acttub-e2e-";
-const TARGET_DOMAIN = Buffer.from("acttub-platform-development-target.v1\0", "ascii");
 const MEDIA_DOMAIN = Buffer.from("acttub-platform-media.v1\0", "ascii");
 const RECEIPT_DOMAIN = Buffer.from("acttub-real-pipeline-receipt.v1\0", "ascii");
 const LINEAGE_DOMAIN = Buffer.from("acttub-real-pipeline-lineage.v1\0", "ascii");
 const REPORT_DOMAIN = Buffer.from("acttub-real-pipeline-report.v1\0", "ascii");
 const BROWSER_BINDING_DOMAIN = Buffer.from("acttub-browser-binding.v1\0", "ascii");
+const HANDOFF_RECEIPT_DOMAIN = Buffer.from("acttub-browser-session-handoff-receipt.v1\0", "ascii");
+const HANDOFF_NONCE_DOMAIN = Buffer.from("acttub-browser-session-handoff-nonce.v1\0", "ascii");
+const HANDOFF_TARGET_DOMAIN = Buffer.from("acttub-browser-session-handoff-target.v1\0", "ascii");
 const SAFE_CODES = new Set([
   "REAL_PIPELINE_BAD_INPUT",
   "REAL_PIPELINE_AUTH_FAILED",
@@ -65,6 +73,19 @@ const REPORT_SECTION_KEYS = Object.freeze([
   "actorDiscovery",
   "groundedEncouragement",
   "nextPracticeStep",
+]);
+
+const SESSION_DEPENDENT_TABLES = Object.freeze([
+  "practice_takes",
+  "observations",
+  "question_turns",
+  "session_results",
+  "validation_events",
+  "ai_runs",
+  "ai_session_summaries",
+  "interview_turns",
+  "actor_corrections",
+  "ai_reports",
 ]);
 
 export class RealPipelineFailure extends Error {
@@ -276,6 +297,19 @@ function writePrivateJson(fd, value, { optional = false, streamOnly = false } = 
   return true;
 }
 
+function validateEmptyReceiptFd(fd) {
+  const info = writablePrivateFd(fd);
+  if (!info.isFile() || info.size !== 0) reject("REAL_PIPELINE_BAD_INPUT");
+  try { fs.ftruncateSync(fd, 0); fs.fsyncSync(fd); }
+  catch { reject("REAL_PIPELINE_BAD_INPUT"); }
+}
+
+function clearPrivateReceipt(fd) {
+  try { fs.ftruncateSync(fd, 0); fs.fsyncSync(fd); }
+  catch { return false; }
+  return true;
+}
+
 function readPrivateStreamJson(fd, maximum = MAX_SETTINGS_BYTES, timeoutMs = 30_000) {
   writablePrivateFd(fd, { streamOnly: true });
   if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 100 || timeoutMs > 120_000) reject("REAL_PIPELINE_BAD_INPUT");
@@ -345,12 +379,11 @@ function readSettings(fd, key) {
     let supabase;
     try { platform = new URL(item.platformOrigin); supabase = new URL(item.supabaseUrl); } catch { reject("REAL_PIPELINE_BAD_INPUT"); }
     if (platform.protocol !== "http:" || !new Set(["127.0.0.1", "::1", "localhost"]).has(platform.hostname) || platform.username || platform.password || platform.search || platform.hash || !["", "/"].includes(platform.pathname)) reject("REAL_PIPELINE_BAD_INPUT");
-    if (supabase.protocol !== "https:" || !PROJECT_HOST_PATTERN.test(supabase.hostname) || supabase.username || supabase.password || supabase.search || supabase.hash || !["", "/"].includes(supabase.pathname)) reject("REAL_PIPELINE_BAD_INPUT");
+    try { assertDevelopmentTarget(key, supabase.origin, item.developmentTargetHmac); }
+    catch { reject("REAL_PIPELINE_BAD_INPUT"); }
     if (item.storageBucket !== "practice-videos" || !new Set(["video/mp4", "video/quicktime"]).has(item.mimeType)) reject("REAL_PIPELINE_BAD_INPUT");
     if (!Number.isSafeInteger(item.maximumMediaBytes) || item.maximumMediaBytes < 1 || item.maximumMediaBytes > MAX_MEDIA_BYTES) reject("REAL_PIPELINE_BAD_INPUT");
     if (!HMAC_PATTERN.test(item.expectedMediaHmac) || !HMAC_PATTERN.test(item.developmentTargetHmac)) reject("REAL_PIPELINE_BAD_INPUT");
-    const actualTarget = hmacBytes(key, TARGET_DOMAIN, Buffer.from(supabase.hostname, "ascii"));
-    if (!timingEqual(actualTarget, item.developmentTargetHmac)) reject("REAL_PIPELINE_BAD_INPUT");
     if (item.browserHandoff !== null) {
       const handoff = exactObject(item.browserHandoff, ["nonce", "brokerPort", "targetPort"], "REAL_PIPELINE_BAD_INPUT");
       if (!NONCE_PATTERN.test(handoff.nonce)) reject("REAL_PIPELINE_BAD_INPUT");
@@ -453,10 +486,109 @@ function validateReceipt(value) {
   return item;
 }
 
-function validateHandoffAck(value) {
-  const item = exactObject(value, ["schemaVersion", "operation", "success", "resultHmac"], "REAL_PIPELINE_AUTH_FAILED");
-  if (item.schemaVersion !== HANDOFF_ACK_SCHEMA || item.operation !== "browser_session_handoff" || item.success !== true || !HMAC_PATTERN.test(item.resultHmac)) reject("REAL_PIPELINE_AUTH_FAILED");
+function validateHandoffAck(value, key, expected) {
+  const item = exactObject(value, [
+    "schemaVersion", "operation", "success", "cookieCount", "cookieHeadersHmac",
+    "nonceHmac", "targetHmac", "developmentTargetHmac", "resultHmac",
+  ], "REAL_PIPELINE_AUTH_FAILED");
+  if (item.schemaVersion !== HANDOFF_ACK_SCHEMA || item.operation !== "browser_session_handoff" || item.success !== true || !Number.isSafeInteger(item.cookieCount) || item.cookieCount < 1 || item.cookieCount > 16) reject("REAL_PIPELINE_AUTH_FAILED");
+  for (const field of ["cookieHeadersHmac", "nonceHmac", "targetHmac", "developmentTargetHmac", "resultHmac"]) {
+    if (!HMAC_PATTERN.test(item[field])) reject("REAL_PIPELINE_AUTH_FAILED");
+  }
+  const target = Buffer.from(`127.0.0.1\0${expected.targetPort}\0${expected.targetPath}`, "ascii");
+  try {
+    if (!timingEqual(item.nonceHmac, hmacBytes(key, HANDOFF_NONCE_DOMAIN, Buffer.from(expected.nonce, "ascii"))) ||
+        !timingEqual(item.targetHmac, hmacBytes(key, HANDOFF_TARGET_DOMAIN, target)) ||
+        !timingEqual(item.developmentTargetHmac, expected.developmentTargetHmac)) reject("REAL_PIPELINE_AUTH_FAILED");
+    const semantic = { ...item };
+    delete semantic.resultHmac;
+    if (!timingEqual(item.resultHmac, hmacJson(key, HANDOFF_RECEIPT_DOMAIN, semantic))) reject("REAL_PIPELINE_AUTH_FAILED");
+  } finally { target.fill(0); }
   return item;
+}
+
+function validateCleanupPlanAck(value, resourceAlias) {
+  const item = exactObject(value, ["schemaVersion", "operation", "resourceAlias", "planReceiptHmac"], "REAL_PIPELINE_CLEANUP_FAILED");
+  if (item.schemaVersion !== CLEANUP_PLAN_ACK_SCHEMA || item.operation !== "plan" || item.resourceAlias !== resourceAlias || !HMAC_PATTERN.test(item.planReceiptHmac)) reject("REAL_PIPELINE_CLEANUP_FAILED");
+  return item;
+}
+
+async function planCleanup(cleanupChannel, resourceAlias, locator, outcomePolicy) {
+  if (!Array.isArray(outcomePolicy) || outcomePolicy.length < 1) reject("REAL_PIPELINE_CLEANUP_FAILED");
+  return validateCleanupPlanAck(await cleanupChannel.exchange({ schemaVersion: CLEANUP_PLAN_SCHEMA, operation: "plan", resourceAlias, locator, outcomePolicy }), resourceAlias).planReceiptHmac;
+}
+
+class CleanupChannel {
+  constructor(fd, timeoutMs) {
+    const info = writablePrivateFd(fd, { streamOnly: true });
+    if (!info?.isSocket() || !Number.isSafeInteger(timeoutMs) || timeoutMs < 100 || timeoutMs > 30_000) reject("REAL_PIPELINE_BAD_INPUT");
+    this.socket = new net.Socket({ fd, readable: true, writable: true });
+    this.timeoutMs = timeoutMs;
+    this.poisoned = false;
+    this.active = false;
+  }
+
+  poison() {
+    this.poisoned = true;
+    this.socket.destroy();
+  }
+
+  async exchange(value) {
+    if (this.poisoned || this.active) reject("REAL_PIPELINE_CLEANUP_FAILED");
+    this.active = true;
+    const request = Buffer.from(`${canonicalJson(value)}\n`, "ascii");
+    if (request.length > MAX_SETTINGS_BYTES) { request.fill(0); this.poison(); reject("REAL_PIPELINE_CLEANUP_FAILED"); }
+    const chunks = [];
+    let total = 0;
+    try {
+      return await new Promise((resolvePromise, rejectPromise) => {
+        let settled = false;
+        const finish = (result, failed) => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timer);
+          this.socket.off("data", onData);
+          this.socket.off("error", onFailure);
+          this.socket.off("end", onFailure);
+          for (const chunk of chunks) chunk.fill(0);
+          if (failed) { this.poison(); rejectPromise(new RealPipelineFailure("REAL_PIPELINE_CLEANUP_FAILED")); }
+          else resolvePromise(result);
+        };
+        const onFailure = () => finish(null, true);
+        const onData = (value) => {
+          const chunk = Buffer.from(value);
+          total += chunk.length;
+          if (total > MAX_SETTINGS_BYTES) { chunk.fill(0); finish(null, true); return; }
+          chunks.push(chunk);
+          const combined = Buffer.concat(chunks, total);
+          const newline = combined.indexOf(0x0a);
+          if (newline < 0) { combined.fill(0); return; }
+          if (newline < 1 || newline !== combined.length - 1) { combined.fill(0); finish(null, true); return; }
+          let parsed;
+          try { parsed = parseUniqueJson(combined.subarray(0, newline), MAX_SETTINGS_BYTES); }
+          catch { combined.fill(0); finish(null, true); return; }
+          combined.fill(0);
+          finish(parsed, false);
+        };
+        const timer = setTimeout(() => finish(null, true), this.timeoutMs);
+        this.socket.on("data", onData);
+        this.socket.once("error", onFailure);
+        this.socket.once("end", onFailure);
+        this.socket.write(request, (error) => {
+          request.fill(0);
+          if (error) finish(null, true);
+        });
+      });
+    } finally { request.fill(0); this.active = false; }
+  }
+
+  close() { this.socket.destroy(); }
+}
+
+async function completeCleanup(cleanupChannel, resourceAlias, planReceiptHmac, outcome) {
+  if (!HMAC_PATTERN.test(planReceiptHmac) || !new Set(["retained", "deleted", "absent", "not_created"]).has(outcome)) reject("REAL_PIPELINE_CLEANUP_FAILED");
+  const ack = exactObject(await cleanupChannel.exchange({ schemaVersion: CLEANUP_COMPLETE_SCHEMA, operation: "complete", resourceAlias, planReceiptHmac, outcome }), ["schemaVersion", "operation", "resourceAlias", "planReceiptHmac", "outcome"], "REAL_PIPELINE_CLEANUP_FAILED");
+  if (ack.schemaVersion !== CLEANUP_COMPLETE_ACK_SCHEMA || ack.operation !== "complete" || ack.resourceAlias !== resourceAlias || !timingEqual(ack.planReceiptHmac, planReceiptHmac) || ack.outcome !== outcome) reject("REAL_PIPELINE_CLEANUP_FAILED");
 }
 
 class CookieJar {
@@ -503,7 +635,7 @@ async function readResponseBody(response) {
   return parseUniqueJson(Buffer.concat(chunks, total), MAX_HTTP_BYTES);
 }
 
-async function defaultAdapterFactory(settings) {
+async function defaultAdapterFactory(settings, { temporaryEmail }) {
   let supabaseModule;
   let ssrModule;
   try {
@@ -513,7 +645,6 @@ async function defaultAdapterFactory(settings) {
   if (typeof supabaseModule.createClient !== "function" || typeof ssrModule.createServerClient !== "function") reject("REAL_PIPELINE_AUTH_FAILED");
   const options = { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } };
   const admin = supabaseModule.createClient(settings.supabaseUrl, settings.serviceRoleKey, options);
-  const temporaryEmail = `${TEMPORARY_EMAIL_PREFIX}${crypto.randomBytes(16).toString("hex")}@example.com`;
   let temporaryUserId = null;
 
   const checked = (result, code = "REAL_PIPELINE_AUTH_FAILED") => {
@@ -568,7 +699,8 @@ async function defaultAdapterFactory(settings) {
       const user = await findPrimaryUser();
       return authenticateEmail(user.email, user.id);
     },
-    async createTemporaryUserSession() {
+    async createTemporaryUserSession(expectedEmail) {
+      if (expectedEmail !== temporaryEmail) reject("REAL_PIPELINE_AUTH_FAILED");
       if (temporaryUserId !== null) reject("REAL_PIPELINE_AUTH_FAILED");
       const created = checked(await admin.auth.admin.createUser({ email: temporaryEmail, email_confirm: true }));
       if (!created?.user?.id) reject("REAL_PIPELINE_AUTH_FAILED");
@@ -605,6 +737,31 @@ async function defaultAdapterFactory(settings) {
       if (!Array.isArray(data)) reject("REAL_PIPELINE_CLEANUP_FAILED");
       return { exists: data.some((item) => item?.name === name) };
     },
+    async cleanupSessionBundle(session, bundle) {
+      if (!bundle || bundle.userId !== session.userId) reject("REAL_PIPELINE_CLEANUP_FAILED");
+      const countSessionRows = async (table, idColumn = "session_id") => {
+        const query = await admin.from(table).select(idColumn, { count: "exact", head: true }).eq(idColumn, bundle.sessionId).eq("user_id", session.userId);
+        if (query.error || !Number.isSafeInteger(query.count) || query.count < 0) reject("REAL_PIPELINE_CLEANUP_FAILED");
+        return query.count;
+      };
+      const sessionCount = await countSessionRows("practice_sessions", "id");
+      if (sessionCount > 1) reject("REAL_PIPELINE_CLEANUP_FAILED");
+      if (sessionCount === 1) {
+        checked(await admin.from("practice_sessions").delete().eq("id", bundle.sessionId).eq("user_id", session.userId), "REAL_PIPELINE_CLEANUP_FAILED");
+      }
+      if (await countSessionRows("practice_sessions", "id") !== 0) reject("REAL_PIPELINE_CLEANUP_FAILED");
+      for (const table of SESSION_DEPENDENT_TABLES) {
+        if (await countSessionRows(table) !== 0) reject("REAL_PIPELINE_CLEANUP_FAILED");
+      }
+      checked(await admin.from("upload_intents").delete().eq("id", bundle.uploadIntentId).eq("session_id", bundle.sessionId).eq("user_id", session.userId), "REAL_PIPELINE_CLEANUP_FAILED");
+      const remainingIntent = await admin.from("upload_intents").select("id", { count: "exact", head: true }).eq("id", bundle.uploadIntentId).eq("session_id", bundle.sessionId).eq("user_id", session.userId);
+      if (remainingIntent.error || remainingIntent.count !== 0) reject("REAL_PIPELINE_CLEANUP_FAILED");
+      const storage = await this.mediaExists(bundle.storagePath);
+      if (storage.exists) await this.removeMedia(bundle.storagePath);
+      const verified = await this.mediaExists(bundle.storagePath);
+      if (verified.exists) reject("REAL_PIPELINE_CLEANUP_FAILED");
+      return { absent: true };
+    },
     async api(session, { method, path, body = null, headers = {} }) {
       if (!/^\/api\/v1\/[A-Za-z0-9_./-]+$/u.test(path) || !new Set(["GET", "POST", "DELETE"]).has(method)) reject("REAL_PIPELINE_HTTP_FAILED");
       const url = new URL(path, settings.platformOrigin);
@@ -630,20 +787,27 @@ async function api(adapter, session, method, path, body, statuses, headers = {})
 }
 
 function emptyArtifact() {
-  return { sessionId: null, storagePath: null, mediaUploaded: false, pipelineCreated: false };
+  return { uploadIntentId: null, sessionId: null, storagePath: null, mediaUploaded: false, sessionCreateAttempted: false, pipelineCreated: false, planReceiptHmac: null, planCompleted: false };
 }
 
-async function createPreparedSession(adapter, primary, settings, media, artifact) {
+async function createPreparedSession(adapter, primary, settings, media, artifact, cleanupChannel) {
+  artifact.uploadIntentId = crypto.randomUUID();
+  artifact.sessionId = crypto.randomUUID();
+  artifact.storagePath = `users/${primary.userId}/practice-sessions/${artifact.sessionId}/take.${settings.mimeType === "video/quicktime" ? "mov" : "mp4"}`;
+  artifact.planReceiptHmac = await planCleanup(cleanupChannel, "run-session-bundle", {
+    uploadIntentId: artifact.uploadIntentId, sessionId: artifact.sessionId, storagePath: artifact.storagePath,
+  }, ["retained", "deleted", "absent", "not_created"]);
   const intentResponse = await api(adapter, primary, "POST", "/api/v1/practice-upload-intents", {
     adultConfirmed: true,
     allParticipantsConfirmed: true,
+    uploadIntentId: artifact.uploadIntentId,
+    sessionId: artifact.sessionId,
     fileMetadata: { fileName: "protected-e2e-source.mp4", mimeType: settings.mimeType, sizeBytes: media.length },
   }, [201]);
   const intent = intentResponse.uploadIntent;
   if (!intent || typeof intent !== "object" || intent.storageBucket !== settings.storageBucket) reject();
   const uploadIntentId = requireUuid(intent.uploadIntentId);
-  artifact.sessionId = requireUuid(intent.sessionId);
-  artifact.storagePath = requireText(intent.storagePath, 2048);
+  if (uploadIntentId !== artifact.uploadIntentId || requireUuid(intent.sessionId) !== artifact.sessionId || requireText(intent.storagePath, 2048) !== artifact.storagePath) reject();
   if (artifact.storagePath.startsWith("/") || artifact.storagePath.split("/").some((part) => !part || part === "." || part === "..")) reject();
 
   const uploaded = await adapter.uploadMedia(primary, artifact.storagePath, media);
@@ -652,6 +816,7 @@ async function createPreparedSession(adapter, primary, settings, media, artifact
   const finalized = await api(adapter, primary, "POST", `/api/v1/practice-upload-intents/${uploadIntentId}/finalize`, { storagePath: artifact.storagePath }, [200]);
   if (finalized.uploadIntentId !== uploadIntentId || finalized.storagePath !== artifact.storagePath || finalized.mediaMetadataVersion !== "iso-bmff-duration.v1" || !Number.isSafeInteger(finalized.durationMs) || finalized.durationMs < 1 || finalized.durationMs > 300_000) reject();
 
+  artifact.sessionCreateAttempted = true;
   const created = await api(adapter, primary, "POST", "/api/v1/practice-sessions", {
     sessionId: artifact.sessionId,
     uploadIntentId,
@@ -686,13 +851,18 @@ async function deleteCreatedSession(adapter, primary, artifact) {
   if (!storage || storage.exists !== false) reject("REAL_PIPELINE_CLEANUP_FAILED");
   artifact.pipelineCreated = false;
   artifact.mediaUploaded = false;
-  artifact.sessionId = null;
-  artifact.storagePath = null;
 }
 
 async function cleanupArtifact(adapter, primary, artifact) {
   if (artifact.pipelineCreated) {
     await deleteCreatedSession(adapter, primary, artifact);
+  }
+  if (artifact.uploadIntentId !== null && artifact.sessionId !== null && artifact.storagePath !== null) {
+    const cleaned = await adapter.cleanupSessionBundle(primary, { uploadIntentId: artifact.uploadIntentId, sessionId: artifact.sessionId, storagePath: artifact.storagePath, userId: primary.userId });
+    if (!cleaned || cleaned.absent !== true) reject("REAL_PIPELINE_CLEANUP_FAILED");
+    artifact.pipelineCreated = false;
+    artifact.mediaUploaded = false;
+    artifact.sessionCreateAttempted = false;
     return;
   }
   if (artifact.mediaUploaded && artifact.storagePath !== null) {
@@ -711,11 +881,17 @@ export async function runRealPipeline({
   receiptFd = RECEIPT_FD,
   handoffFd = null,
   handoffAckFd = null,
+  cleanupFd = null,
+  cleanupTimeoutMs = 30_000,
   adapterFactory = defaultAdapterFactory,
 } = {}) {
-  if (typeof adapterFactory !== "function") reject("REAL_PIPELINE_BAD_INPUT");
+  if (typeof adapterFactory !== "function" || cleanupFd === null) reject("REAL_PIPELINE_BAD_INPUT");
+  validateEmptyReceiptFd(receiptFd);
   const key = readPrivateRegular(macKeyFd, 4096);
   if (key.length < 32) { key.fill(0); reject("REAL_PIPELINE_BAD_INPUT"); }
+  let cleanupChannel;
+  try { cleanupChannel = new CleanupChannel(cleanupFd, cleanupTimeoutMs); }
+  catch (error) { key.fill(0); throw error; }
   let media = null;
   let adapter = null;
   let primary = null;
@@ -727,6 +903,10 @@ export async function runRealPipeline({
   let browserHandoffAcknowledged = false;
   let failure = null;
   let receipt = null;
+  let receiptWritten = false;
+  const temporaryEmail = `${TEMPORARY_EMAIL_PREFIX}${crypto.randomBytes(16).toString("hex")}@example.com`;
+  let temporaryPlanReceiptHmac = null;
+  let temporaryPlanCompleted = false;
   try {
     const settings = readSettings(settingsFd, key);
     const handoffRequested = settings.browserHandoff !== null;
@@ -734,9 +914,9 @@ export async function runRealPipeline({
     media = readPrivateRegular(mediaFd, settings.maximumMediaBytes);
     const mediaHmac = hmacBytes(key, MEDIA_DOMAIN, media);
     if (!timingEqual(mediaHmac, settings.expectedMediaHmac)) reject("REAL_PIPELINE_BAD_INPUT");
-    adapter = await adapterFactory(settings);
+    adapter = await adapterFactory(settings, { temporaryEmail });
     if (!adapter || typeof adapter !== "object") reject("REAL_PIPELINE_CONTRACT_FAILED");
-    for (const method of ["establishExistingPrimary", "createTemporaryUserSession", "deleteTemporaryUser", "uploadMedia", "removeMedia", "mediaExists", "api"]) if (typeof adapter[method] !== "function") reject();
+    for (const method of ["establishExistingPrimary", "createTemporaryUserSession", "deleteTemporaryUser", "uploadMedia", "removeMedia", "mediaExists", "cleanupSessionBundle", "api"]) if (typeof adapter[method] !== "function") reject();
 
     primary = requireSession(await adapter.establishExistingPrimary());
     const accepted = await api(adapter, primary, "POST", "/api/v1/terms/acceptances", {
@@ -746,7 +926,7 @@ export async function runRealPipeline({
     }, [200]);
     if (accepted.accepted !== true || accepted.requiredConsentAccepted !== true || accepted.aiProcessingConsentAccepted !== true) reject();
 
-    const created = await createPreparedSession(adapter, primary, settings, media, mainArtifact);
+    const created = await createPreparedSession(adapter, primary, settings, media, mainArtifact, cleanupChannel);
     let session = created.session;
     const mainSessionId = mainArtifact.sessionId;
     if (mainSessionId === null) reject();
@@ -799,11 +979,14 @@ export async function runRealPipeline({
     if (hmacJson(key, REPORT_DOMAIN, retryReport) !== reportHmac || hmacJson(key, REPORT_DOMAIN, refreshedReport) !== reportHmac) reject();
     const lineage = validateLineage(replaySnapshot.session, report);
 
-    await createPreparedSession(adapter, primary, settings, media, deletionArtifact);
+    await createPreparedSession(adapter, primary, settings, media, deletionArtifact, cleanupChannel);
     await deleteCreatedSession(adapter, primary, deletionArtifact);
+    await completeCleanup(cleanupChannel, "run-session-bundle", deletionArtifact.planReceiptHmac, "deleted");
+    deletionArtifact.planCompleted = true;
 
+    temporaryPlanReceiptHmac = await planCleanup(cleanupChannel, "temporary-rls-account", { email: temporaryEmail }, ["deleted", "absent", "not_created"]);
     temporaryCreated = true;
-    const temporary = requireSession(await adapter.createTemporaryUserSession());
+    const temporary = requireSession(await adapter.createTemporaryUserSession(temporaryEmail));
     const temporaryAcceptance = await api(adapter, temporary, "POST", "/api/v1/terms/acceptances", {
       requiredConsentAccepted: true,
       aiProcessingConsentAccepted: true,
@@ -820,10 +1003,13 @@ export async function runRealPipeline({
     if (!deleted || deleted.deleted !== true || !Number.isSafeInteger(deleted.deletedCount) || deleted.deletedCount !== 1) reject("REAL_PIPELINE_CLEANUP_FAILED");
     temporaryCreated = false;
     temporaryDeleted = true;
+    await completeCleanup(cleanupChannel, "temporary-rls-account", temporaryPlanReceiptHmac, "deleted");
+    temporaryPlanCompleted = true;
 
     if (handoffRequested) {
       const browser = settings.browserHandoff;
       if (browser === null || handoffFd === null || handoffAckFd === null) reject("REAL_PIPELINE_BAD_INPUT");
+      const targetPath = `/practice/history/${mainSessionId}`;
       const handoff = {
         schemaVersion: HANDOFF_SCHEMA,
         supabaseUrl: settings.supabaseUrl,
@@ -833,12 +1019,17 @@ export async function runRealPipeline({
         nonce: browser.nonce,
         brokerPort: browser.brokerPort,
         targetPort: browser.targetPort,
-        targetPath: `/practice/history/${mainSessionId}`,
+        targetPath,
         developmentTargetHmac: settings.developmentTargetHmac,
       };
       try { writePrivateJson(handoffFd, handoff, { streamOnly: true }); }
       finally { handoff.accessToken = ""; handoff.refreshToken = ""; }
-      validateHandoffAck(await readPrivateStreamJson(handoffAckFd));
+      validateHandoffAck(await readPrivateStreamJson(handoffAckFd), key, {
+        nonce: browser.nonce,
+        targetPort: browser.targetPort,
+        targetPath,
+        developmentTargetHmac: settings.developmentTargetHmac,
+      });
       browserHandoffAcknowledged = true;
       primary.accessToken = "";
       primary.refreshToken = "";
@@ -866,6 +1057,7 @@ export async function runRealPipeline({
     };
     receipt = validateReceipt({ ...safeCore, resultHmac: hmacJson(key, RECEIPT_DOMAIN, safeCore) });
     writePrivateJson(receiptFd, receipt);
+    receiptWritten = true;
     keepMain = true;
   } catch (error) {
     failure = error instanceof RealPipelineFailure ? error : new RealPipelineFailure();
@@ -875,18 +1067,32 @@ export async function runRealPipeline({
         const deleted = await adapter.deleteTemporaryUser();
         if (!deleted || deleted.deleted !== true) throw new Error("cleanup");
         temporaryDeleted = true;
+        if (temporaryPlanReceiptHmac !== null && !temporaryPlanCompleted) {
+          await completeCleanup(cleanupChannel, "temporary-rls-account", temporaryPlanReceiptHmac, deleted.deletedCount === 0 ? "absent" : "deleted");
+          temporaryPlanCompleted = true;
+        }
       } catch { if (failure === null) failure = new RealPipelineFailure("REAL_PIPELINE_CLEANUP_FAILED"); }
     }
     if (adapter !== null) {
       for (const artifact of [deletionArtifact, ...(keepMain ? [] : [mainArtifact])]) {
-        if (!artifact.pipelineCreated && !artifact.mediaUploaded) continue;
-        try { await cleanupArtifact(adapter, primary, artifact); }
+        if (artifact.planReceiptHmac === null || artifact.planCompleted) continue;
+        try {
+          await cleanupArtifact(adapter, primary, artifact);
+          if (artifact.planReceiptHmac !== null && !artifact.planCompleted) {
+            await completeCleanup(cleanupChannel, "run-session-bundle", artifact.planReceiptHmac, artifact.pipelineCreated || artifact.mediaUploaded ? "deleted" : "absent");
+            artifact.planCompleted = true;
+          }
+        }
         catch { failure = new RealPipelineFailure("REAL_PIPELINE_CLEANUP_FAILED"); }
       }
+    }
+    if (failure !== null && receiptWritten && !keepMain && !clearPrivateReceipt(receiptFd)) {
+      failure = new RealPipelineFailure("REAL_PIPELINE_CLEANUP_FAILED");
     }
     if (media !== null) media.fill(0);
     if (primary !== null) { primary.accessToken = ""; primary.refreshToken = ""; }
     key.fill(0);
+    cleanupChannel.close();
   }
   if (failure !== null) throw failure;
   if (!temporaryDeleted || receipt === null) reject("REAL_PIPELINE_CLEANUP_FAILED");
@@ -915,7 +1121,7 @@ if (invokedDirectly && process.argv.length === 2) {
       try {
         const handoffFd = directStreamFd(HANDOFF_FD);
         const handoffAckFd = directStreamFd(HANDOFF_ACK_FD);
-        await runRealPipeline({ handoffFd, handoffAckFd });
+        await runRealPipeline({ handoffFd, handoffAckFd, cleanupFd: directStreamFd(CLEANUP_FD) });
         return 0;
       } catch (error) {
         const safeCode = error instanceof RealPipelineFailure ? error.safeCode : "REAL_PIPELINE_CONTRACT_FAILED";

@@ -100,6 +100,19 @@ const optionalText = (value: unknown): string => {
 };
 
 const createUuid = (): string => crypto.randomUUID();
+const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+const optionalUuid = (value: unknown, field: string): string | undefined => {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (typeof value !== "string" || !uuidPattern.test(value)) {
+    throw new ApiValidationError("Request validation failed", {
+      [field]: "Must be a valid UUID.",
+    });
+  }
+  return value;
+};
 
 const nowIso = (): string => new Date().toISOString();
 
@@ -453,6 +466,11 @@ export const coachSessionService = {
   ): Promise<PracticeUploadIntentDto> {
     requireSupabaseConfigured();
 
+    if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+      throw new ApiValidationError("Request validation failed", {
+        request: "Must be a JSON object.",
+      });
+    }
     const input = payload as Partial<CreateUploadIntentRequest>;
     const metadata = input.fileMetadata;
     const config = getAppConfig();
@@ -463,6 +481,13 @@ export const coachSessionService = {
         confirmations: "adultConfirmed and allParticipantsConfirmed must both be true.",
       });
     }
+    const allowedInputKeys = new Set([
+      "fileMetadata",
+      "adultConfirmed",
+      "allParticipantsConfirmed",
+      "uploadIntentId",
+      "sessionId",
+    ]);
     const forbidden = [
       "requiredConsentVersion",
       "aiProcessingConsentVersion",
@@ -473,8 +498,13 @@ export const coachSessionService = {
       "durationMs",
     ];
     if (
+      Object.keys(input).some((key) => !allowedInputKeys.has(key)) ||
       forbidden.some((key) => Object.prototype.hasOwnProperty.call(input, key)) ||
-      (metadata && Object.prototype.hasOwnProperty.call(metadata, "durationMs"))
+      (metadata &&
+        (Object.prototype.hasOwnProperty.call(metadata, "durationMs") ||
+          Object.keys(metadata).some(
+            (key) => !new Set(["fileName", "mimeType", "sizeBytes"]).has(key),
+          )))
     ) {
       throw new ApiValidationError("Request validation failed", {
         authority: "Consent versions, timestamps, and duration are server-authoritative.",
@@ -518,8 +548,15 @@ export const coachSessionService = {
       });
     }
 
-    const sessionId = createUuid();
-    const uploadIntentId = createUuid();
+    const suppliedUploadIntentId = optionalUuid(input.uploadIntentId, "uploadIntentId");
+    const suppliedSessionId = optionalUuid(input.sessionId, "sessionId");
+    if ((suppliedUploadIntentId === undefined) !== (suppliedSessionId === undefined)) {
+      throw new ApiValidationError("Request validation failed", {
+        identifiers: "uploadIntentId and sessionId must be supplied together.",
+      });
+    }
+    const sessionId = suppliedSessionId ?? createUuid();
+    const uploadIntentId = suppliedUploadIntentId ?? createUuid();
     const extension = fileExtensionForMime(mimeType);
     const uploadIntent: PracticeUploadIntentDto = {
       uploadIntentId,

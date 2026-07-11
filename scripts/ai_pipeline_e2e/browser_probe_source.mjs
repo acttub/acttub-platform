@@ -3,7 +3,10 @@ import fs from "node:fs";
 
 const MAX_KEY_BYTES = 4096;
 const HMAC_PATTERN = /^hmac-sha256:[a-f0-9]{64}$/u;
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
 const RECEIPT_DOMAIN = Buffer.from("acttub-protected-browser-result.v1\0", "ascii");
+const BINDING_DOMAIN = Buffer.from("acttub-browser-binding.v1\0", "ascii");
+const PROBE_SUBKEY_DOMAIN = Buffer.from("acttub-protected-browser-probe-subkey.v1\0", "ascii");
 
 export const SELECTORS = Object.freeze({
   reportRoot: '[data-testid="pipeline-report"]',
@@ -76,6 +79,16 @@ export const VIDEO_TIME_SOURCE = String.raw`() => {
   };
 }`;
 
+export const BINDING_IDENTIFIERS_SOURCE = String.raw`() => {
+  const roots = document.querySelectorAll('[data-testid="pipeline-report"]');
+  const root = roots.length === 1 ? roots[0] : null;
+  return {
+    schemaVersion: "protected-browser-binding-identifiers.v1",
+    sessionId: root?.getAttribute("data-report-session-id") ?? "",
+    sourceRunId: root?.getAttribute("data-report-source-run-id") ?? "",
+  };
+}`;
+
 class ProbeFailure extends Error {
   constructor() {
     super("BROWSER_PROBE_FAILED");
@@ -105,6 +118,50 @@ function canonicalJson(value) {
     return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${canonicalJson(value[key])}`).join(",")}}`;
   }
   reject();
+}
+
+function timingSafeAscii(left, right) {
+  if (typeof left !== "string" || typeof right !== "string") return false;
+  const first = Buffer.from(left, "ascii");
+  const second = Buffer.from(right, "ascii");
+  return first.length === second.length && crypto.timingSafeEqual(first, second);
+}
+
+function probeKeyContext(value) {
+  const item = exactObject(value, [
+    "schemaVersion",
+    "developmentTargetHmac",
+    "browserTargetHmac",
+    "expectedBindingHmac",
+  ]);
+  if (
+    item.schemaVersion !== "protected-browser-probe-key-context.v1" ||
+    !HMAC_PATTERN.test(item.developmentTargetHmac) ||
+    !HMAC_PATTERN.test(item.browserTargetHmac) ||
+    !HMAC_PATTERN.test(item.expectedBindingHmac)
+  ) reject();
+  return item;
+}
+
+export function deriveBrowserProbeKey(masterKey, context) {
+  if (!Buffer.isBuffer(masterKey) || masterKey.length < 32 || masterKey.length > MAX_KEY_BYTES) reject();
+  const item = probeKeyContext(context);
+  const semantic = [item.developmentTargetHmac, item.browserTargetHmac, item.expectedBindingHmac];
+  return crypto.createHmac("sha256", masterKey).update(PROBE_SUBKEY_DOMAIN).update(canonicalJson(semantic), "ascii").digest();
+}
+
+function bindingIdentifiers(value) {
+  const item = exactObject(value, ["schemaVersion", "sessionId", "sourceRunId"]);
+  if (
+    item.schemaVersion !== "protected-browser-binding-identifiers.v1" ||
+    !UUID_PATTERN.test(item.sessionId) ||
+    !UUID_PATTERN.test(item.sourceRunId)
+  ) reject();
+  return item;
+}
+
+function bindingHmac(key, identifiers) {
+  return `hmac-sha256:${crypto.createHmac("sha256", key).update(BINDING_DOMAIN).update(canonicalJson([identifiers.sessionId, identifiers.sourceRunId]), "ascii").digest("hex")}`;
 }
 
 function readKey(fd) {
@@ -202,54 +259,74 @@ function validateAttestation(value) {
   return item;
 }
 
-export function createBrowserAttestation({ before, after, seekAction, video, expectedBindingHmac, macKeyFd }) {
+export function createBrowserAttestation({
+  before,
+  after,
+  seekAction,
+  video,
+  binding,
+  expectedBindingHmac,
+  probeContext,
+  macKeyFd,
+}) {
   const first = observation(before);
   const second = observation(after);
   const activated = action(seekAction);
   const videoResult = videoTime(video);
-  const confirmedAndNotConfirmedRendered =
-    first.reportRootCount === 1 &&
-    second.reportRootCount === 1 &&
-    first.reportSectionCount === 6 &&
-    second.reportSectionCount === 6 &&
-    first.confirmedCount > 0 &&
-    first.notConfirmedCount > 0 &&
-    second.confirmedCount === first.confirmedCount &&
-    second.notConfirmedCount === first.notConfirmedCount &&
-    first.confirmedCount + first.notConfirmedCount === 6;
-  const timestampSeekVerified =
-    activated.activated === true &&
-    videoResult.available === true &&
-    first.timestampSeekControlCount > 0 &&
-    first.seekTargetMs >= 0 &&
-    Math.abs(videoResult.currentTimeMs - first.seekTargetMs) <= 1500;
-  const refreshResultStable =
-    second.contentHmac === first.contentHmac &&
-    second.bindingHmac === first.bindingHmac &&
-    second.timestampSeekControlCount === first.timestampSeekControlCount &&
-    second.seekTargetMs === first.seekTargetMs;
-  if (
-    !HMAC_PATTERN.test(expectedBindingHmac) ||
-    first.bindingHmac !== expectedBindingHmac ||
-    !confirmedAndNotConfirmedRendered ||
-    !timestampSeekVerified ||
-    !refreshResultStable
-  ) reject();
-
-  const semanticResult = {
-    reportSectionCount: first.reportSectionCount,
-    capturedVisualArtifactCount: 0,
-    confirmedAndNotConfirmedRendered,
-    timestampSeekVerified,
-    refreshResultStable,
-    beforeContentHmac: first.contentHmac,
-    afterContentHmac: second.contentHmac,
-    bindingHmac: first.bindingHmac,
-    seekTargetMs: first.seekTargetMs,
-    observedVideoTimeMs: videoResult.currentTimeMs,
-  };
+  const identifiers = bindingIdentifiers(binding);
+  const context = probeKeyContext(probeContext);
+  if (!timingSafeAscii(context.expectedBindingHmac, expectedBindingHmac)) reject();
   const key = readKey(macKeyFd);
+  let probeKey = null;
   try {
+    probeKey = deriveBrowserProbeKey(key, context);
+    const expectedMasterBinding = bindingHmac(key, identifiers);
+    const expectedProbeBinding = bindingHmac(probeKey, identifiers);
+    if (
+      !timingSafeAscii(expectedMasterBinding, expectedBindingHmac) ||
+      !timingSafeAscii(first.bindingHmac, expectedProbeBinding) ||
+      !timingSafeAscii(second.bindingHmac, expectedProbeBinding)
+    ) reject();
+    const confirmedAndNotConfirmedRendered =
+      first.reportRootCount === 1 &&
+      second.reportRootCount === 1 &&
+      first.reportSectionCount === 6 &&
+      second.reportSectionCount === 6 &&
+      first.confirmedCount > 0 &&
+      first.notConfirmedCount > 0 &&
+      second.confirmedCount === first.confirmedCount &&
+      second.notConfirmedCount === first.notConfirmedCount &&
+      first.confirmedCount + first.notConfirmedCount === 6;
+    const timestampSeekVerified =
+      activated.activated === true &&
+      videoResult.available === true &&
+      first.timestampSeekControlCount > 0 &&
+      first.seekTargetMs >= 0 &&
+      Math.abs(videoResult.currentTimeMs - first.seekTargetMs) <= 1500;
+    const refreshResultStable =
+      second.contentHmac === first.contentHmac &&
+      second.bindingHmac === first.bindingHmac &&
+      second.timestampSeekControlCount === first.timestampSeekControlCount &&
+      second.seekTargetMs === first.seekTargetMs;
+    if (
+      !HMAC_PATTERN.test(expectedBindingHmac) ||
+      !confirmedAndNotConfirmedRendered ||
+      !timestampSeekVerified ||
+      !refreshResultStable
+    ) reject();
+
+    const semanticResult = {
+      reportSectionCount: first.reportSectionCount,
+      capturedVisualArtifactCount: 0,
+      confirmedAndNotConfirmedRendered,
+      timestampSeekVerified,
+      refreshResultStable,
+      beforeContentHmac: first.contentHmac,
+      afterContentHmac: second.contentHmac,
+      bindingHmac: first.bindingHmac,
+      seekTargetMs: first.seekTargetMs,
+      observedVideoTimeMs: videoResult.currentTimeMs,
+    };
     const resultHmac = `hmac-sha256:${crypto.createHmac("sha256", key).update(RECEIPT_DOMAIN).update(canonicalJson(semanticResult), "ascii").digest("hex")}`;
     return validateAttestation({
       schemaVersion: "protected-browser-attestation.v1",
@@ -261,6 +338,7 @@ export function createBrowserAttestation({ before, after, seekAction, video, exp
       capturedArtifacts: 0,
     });
   } finally {
+    if (probeKey !== null) probeKey.fill(0);
     key.fill(0);
   }
 }

@@ -34,6 +34,7 @@ _RUN_NAME = re.compile(r"^run-[a-z0-9][a-z0-9-]{7,63}$")
 _HMAC = re.compile(r"^hmac-sha256:[a-f0-9]{64}$")
 
 PRIVATE_FILE_LAYOUT: Mapping[str, tuple[str, bytes]] = {
+    "run-mac-key": ("run-mac.key", b""),
     "state": ("state.json", b""),
     "manifest": ("hash-manifest.json", b""),
     "mcp-attestations": ("mcp-attestations.jsonl", b""),
@@ -47,6 +48,8 @@ PRIVATE_FILE_LAYOUT: Mapping[str, tuple[str, bytes]] = {
     "receipt": ("receipt.json", b""),
 }
 
+RUN_MAC_KEY_BYTES = 32
+
 SENSITIVE_FD_ALIASES = frozenset(
     {"media", "platform-settings", "summary-settings", "agent-settings", "report-settings"}
 )
@@ -59,6 +62,7 @@ CLEANUP_PLAN_TYPES: Mapping[str, tuple[str, str]] = {
     "run-storage-object": ("storage_object", "delete_storage_object"),
     "run-deletion-request": ("deletion_request", "reconcile_deletion_request"),
     "run-ai-run": ("ai_run", "delete_ai_run"),
+    "run-session-bundle": ("session_bundle", "reconcile_session_bundle"),
 }
 RESOURCE_ALIASES = frozenset(CLEANUP_PLAN_TYPES)
 RESOURCE_KINDS = frozenset(kind for kind, _action in CLEANUP_PLAN_TYPES.values())
@@ -71,6 +75,7 @@ CLEANUP_ALLOWED_OUTCOMES: Mapping[str, frozenset[str]] = {
     "delete_upload_intent": frozenset({"deleted", "absent", "not_created"}),
     "delete_ai_run": frozenset({"deleted", "absent", "not_created"}),
     "reconcile_deletion_request": frozenset({"reconciled", "absent"}),
+    "reconcile_session_bundle": frozenset({"retained", "deleted", "absent", "not_created"}),
     "retain_session": frozenset({"retained"}),
 }
 CLEANUP_OUTCOMES = frozenset(
@@ -97,6 +102,8 @@ MUTATION_OUTCOMES = frozenset({"attested", "unknown"})
 MIN_MUTATION_PERMIT_TTL_NS = 1_000_000
 MAX_MUTATION_PERMIT_TTL_NS = 300_000_000_000
 _MUTATION_PERMIT_MAC_DOMAIN = b"acttub-protected-mutation-permit.v1\0"
+_MUTATION_DISPATCH_MAC_DOMAIN = b"acttub-protected-mutation-dispatch.v1\0"
+_MUTATION_OUTCOME_MAC_DOMAIN = b"acttub-protected-mutation-outcome.v1\0"
 
 
 def _mode(fd: int) -> int:
@@ -269,7 +276,11 @@ def initialize_private_state(
             if not fcntl.fcntl(fd, fcntl.F_GETFD) & fcntl.FD_CLOEXEC:
                 os.close(fd)
                 raise ValueError("private_file_cloexec_missing")
-            _write_all(fd, initial)
+            content = os.urandom(RUN_MAC_KEY_BYTES) if alias == "run-mac-key" else initial
+            if alias == "run-mac-key" and len(content) != RUN_MAC_KEY_BYTES:
+                os.close(fd)
+                raise ValueError("run_mac_key_generation_failed")
+            _write_all(fd, content)
             os.fsync(fd)
             file_fds[alias] = fd
         fcntl.flock(file_fds["lock"], fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -404,6 +415,9 @@ def reopen_private_state(
                 continue
             fd = os.open(filename, os.O_RDWR | os.O_NOFOLLOW | os.O_CLOEXEC, dir_fd=root_fd)
             _require_private_regular_fd(fd)
+            if alias == "run-mac-key" and os.fstat(fd).st_size != RUN_MAC_KEY_BYTES:
+                os.close(fd)
+                raise ValueError("run_mac_key_invalid")
             files[alias] = fd
         return PrivateState(root_fd=root_fd, temp_fd=temp_fd, files=files)
     except BaseException:
@@ -543,6 +557,9 @@ def _sanitize_mcp_attestation(value: Any) -> dict[str, Any]:
         "operation",
         "targetHmac",
         "permitHash",
+        "consumeHash",
+        "dispatchHash",
+        "safeReceiptHmac",
         "requestHash",
         "responseHmac",
         "preconditionHash",
@@ -556,7 +573,7 @@ def _sanitize_mcp_attestation(value: Any) -> dict[str, Any]:
     if not isinstance(value, Mapping) or set(value) != keys:
         raise TypeError("mcp_attestation_keys_invalid")
     if (
-        value["schemaVersion"] != "protected-mcp-attestation.v1"
+        value["schemaVersion"] != "protected-mcp-attestation.v2"
         or value["operation"] not in MCP_OPERATIONS
         or not isinstance(value["targetHmac"], str)
         or _HMAC.fullmatch(value["targetHmac"]) is None
@@ -576,10 +593,25 @@ def _sanitize_mcp_attestation(value: Any) -> dict[str, Any]:
     require_sha256(value["requestHash"], "mcp_request_hash")
     if value["permitHash"] is not None:
         require_sha256(value["permitHash"], "mcp_permit_hash")
-    if value["operation"] == "apply_migration" and value["permitHash"] is None:
-        raise ValueError("mcp_mutation_permit_missing")
-    if value["operation"] != "apply_migration" and value["permitHash"] is not None:
-        raise ValueError("mcp_read_only_permit_forbidden")
+    mutation_bindings = (
+        value["permitHash"],
+        value["consumeHash"],
+        value["dispatchHash"],
+        value["safeReceiptHmac"],
+    )
+    if value["operation"] == "apply_migration":
+        if any(binding is None for binding in mutation_bindings):
+            raise ValueError("mcp_mutation_binding_missing")
+        require_sha256(value["consumeHash"], "mcp_consume_hash")
+        require_sha256(value["dispatchHash"], "mcp_dispatch_hash")
+        if (
+            not isinstance(value["safeReceiptHmac"], str)
+            or _HMAC.fullmatch(value["safeReceiptHmac"]) is None
+            or not hmac.compare_digest(value["safeReceiptHmac"], value["responseHmac"])
+        ):
+            raise ValueError("mcp_mutation_receipt_invalid")
+    elif any(binding is not None for binding in mutation_bindings):
+        raise ValueError("mcp_read_only_mutation_binding_forbidden")
     if value["success"]:
         if value["schemaValid"] is not True or value["developmentMatch"] is not True or value["safeCode"] is not None:
             raise ValueError("mcp_success_attestation_invalid")
@@ -628,7 +660,13 @@ class BrowserAttestationChain(_HashChain):
 
 
 def _sanitize_mutation_permit_record(value: Any) -> dict[str, Any]:
-    if not isinstance(value, Mapping) or value.get("kind") not in {"issue", "consume", "outcome", "reconcile"}:
+    if not isinstance(value, Mapping) or value.get("kind") not in {
+        "issue",
+        "consume",
+        "dispatch",
+        "outcome",
+        "reconcile",
+    }:
         raise TypeError("mutation_permit_record_invalid")
     kind = value["kind"]
     if kind == "issue":
@@ -637,6 +675,7 @@ def _sanitize_mutation_permit_record(value: Any) -> dict[str, Any]:
             "operation",
             "action",
             "developmentTargetHmac",
+            "developmentTargetCapabilityHmac",
             "payloadSha256",
             "caseId",
             "idempotencyHmac",
@@ -657,6 +696,8 @@ def _sanitize_mutation_permit_record(value: Any) -> dict[str, Any]:
             or value["action"].removeprefix("apply_migration_") not in value["requiredState"]
             or not isinstance(value["developmentTargetHmac"], str)
             or _HMAC.fullmatch(value["developmentTargetHmac"]) is None
+            or not isinstance(value["developmentTargetCapabilityHmac"], str)
+            or _HMAC.fullmatch(value["developmentTargetCapabilityHmac"]) is None
             or not isinstance(value["idempotencyHmac"], str)
             or _HMAC.fullmatch(value["idempotencyHmac"]) is None
             or type(value["controllerStateSequence"]) is not int
@@ -682,6 +723,7 @@ def _sanitize_mutation_permit_record(value: Any) -> dict[str, Any]:
             "operation",
             "action",
             "developmentTargetHmac",
+            "developmentTargetCapabilityHmac",
             "payloadSha256",
             "caseId",
             "idempotencyHmac",
@@ -701,6 +743,8 @@ def _sanitize_mutation_permit_record(value: Any) -> dict[str, Any]:
             or value["action"].removeprefix("apply_migration_") not in value["controllerState"]
             or not isinstance(value["developmentTargetHmac"], str)
             or _HMAC.fullmatch(value["developmentTargetHmac"]) is None
+            or not isinstance(value["developmentTargetCapabilityHmac"], str)
+            or _HMAC.fullmatch(value["developmentTargetCapabilityHmac"]) is None
             or not isinstance(value["idempotencyHmac"], str)
             or _HMAC.fullmatch(value["idempotencyHmac"]) is None
             or type(value["controllerStateSequence"]) is not int
@@ -712,13 +756,72 @@ def _sanitize_mutation_permit_record(value: Any) -> dict[str, Any]:
         require_sha256(value["payloadSha256"], "mutation_payload")
         require_sha256(value["controllerStateHash"], "mutation_controller_state")
         return dict(value)
+    if kind == "dispatch":
+        if set(value) != {
+            "kind",
+            "consumeHash",
+            "permitHash",
+            "operation",
+            "action",
+            "developmentTargetHmac",
+            "developmentTargetCapabilityHmac",
+            "payloadSha256",
+            "caseId",
+            "idempotencyHmac",
+            "controllerState",
+            "controllerStateHash",
+            "controllerStateSequence",
+            "dispatchedMonotonicNs",
+            "authorizationMac",
+        }:
+            raise TypeError("mutation_permit_dispatch_keys_invalid")
+        if (
+            not isinstance(value["consumeHash"], str)
+            or re.fullmatch(r"[a-f0-9]{64}", value["consumeHash"]) is None
+            or not isinstance(value["permitHash"], str)
+            or re.fullmatch(r"[a-f0-9]{64}", value["permitHash"]) is None
+            or value["operation"] not in MUTATION_OPERATIONS
+            or value["action"] not in MUTATION_ACTIONS
+            or value["caseId"] not in MUTATION_CASE_IDS
+            or value["controllerState"] not in MUTATION_STATES
+            or value["action"].removeprefix("apply_migration_") not in value["controllerState"]
+            or not isinstance(value["developmentTargetHmac"], str)
+            or _HMAC.fullmatch(value["developmentTargetHmac"]) is None
+            or not isinstance(value["developmentTargetCapabilityHmac"], str)
+            or _HMAC.fullmatch(value["developmentTargetCapabilityHmac"]) is None
+            or not isinstance(value["idempotencyHmac"], str)
+            or _HMAC.fullmatch(value["idempotencyHmac"]) is None
+            or type(value["controllerStateSequence"]) is not int
+            or value["controllerStateSequence"] < 0
+            or type(value["dispatchedMonotonicNs"]) is not int
+            or value["dispatchedMonotonicNs"] < 0
+            or not isinstance(value["authorizationMac"], str)
+            or _HMAC.fullmatch(value["authorizationMac"]) is None
+        ):
+            raise ValueError("mutation_permit_dispatch_invalid")
+        require_sha256(value["payloadSha256"], "mutation_payload")
+        require_sha256(value["controllerStateHash"], "mutation_controller_state")
+        return dict(value)
     if kind == "outcome":
-        if set(value) != {"kind", "consumeHash", "outcome"}:
+        if set(value) != {
+            "kind",
+            "consumeHash",
+            "dispatchHash",
+            "safeReceiptHmac",
+            "outcome",
+            "outcomeMac",
+        }:
             raise TypeError("mutation_permit_outcome_keys_invalid")
         if (
             not isinstance(value["consumeHash"], str)
             or re.fullmatch(r"[a-f0-9]{64}", value["consumeHash"]) is None
+            or not isinstance(value["dispatchHash"], str)
+            or re.fullmatch(r"[a-f0-9]{64}", value["dispatchHash"]) is None
+            or not isinstance(value["safeReceiptHmac"], str)
+            or _HMAC.fullmatch(value["safeReceiptHmac"]) is None
             or value["outcome"] not in MUTATION_OUTCOMES
+            or not isinstance(value["outcomeMac"], str)
+            or _HMAC.fullmatch(value["outcomeMac"]) is None
         ):
             raise ValueError("mutation_permit_outcome_invalid")
         return dict(value)
@@ -734,7 +837,7 @@ def _sanitize_mutation_permit_record(value: Any) -> dict[str, Any]:
 
 
 class MutationPermitLedger(_HashChain):
-    """Issue and durably consume short-lived, MAC-authenticated mutation permits."""
+    """Issue, consume, and dispatch short-lived MAC-authenticated mutation permits."""
 
     def __init__(self, fd: int) -> None:
         super().__init__(fd, _sanitize_mutation_permit_record)
@@ -768,6 +871,36 @@ class MutationPermitLedger(_HashChain):
         return f"hmac-sha256:{digest}"
 
     @staticmethod
+    def _dispatch_mac(key: bytes, payload: Mapping[str, Any]) -> str:
+        binding = {
+            "schemaVersion": "protected-mutation-dispatch.v1",
+            "dispatch": {
+                name: field for name, field in payload.items() if name != "authorizationMac"
+            },
+        }
+        digest = hmac.new(
+            key,
+            _MUTATION_DISPATCH_MAC_DOMAIN + canonical_json(binding).encode("ascii"),
+            hashlib.sha256,
+        ).hexdigest()
+        return f"hmac-sha256:{digest}"
+
+    @staticmethod
+    def _outcome_mac(key: bytes, payload: Mapping[str, Any]) -> str:
+        binding = {
+            "schemaVersion": "protected-mutation-outcome.v1",
+            "outcome": {
+                name: field for name, field in payload.items() if name != "outcomeMac"
+            },
+        }
+        digest = hmac.new(
+            key,
+            _MUTATION_OUTCOME_MAC_DOMAIN + canonical_json(binding).encode("ascii"),
+            hashlib.sha256,
+        ).hexdigest()
+        return f"hmac-sha256:{digest}"
+
+    @staticmethod
     def _append_unlocked(fd: int, entries: list[dict[str, Any]], payload: dict[str, Any]) -> dict[str, Any]:
         core = {
             "sequence": len(entries),
@@ -780,12 +913,90 @@ class MutationPermitLedger(_HashChain):
         os.fsync(fd)
         return entry
 
+    @classmethod
+    def _verify_consumption_entries(
+        cls,
+        entries: tuple[dict[str, Any], ...] | list[dict[str, Any]],
+        key: bytes,
+        consume_hash: str,
+        *,
+        operation: str,
+        action: str,
+        development_target_hmac: str,
+        development_target_capability_hmac: str,
+        payload_sha256: str,
+        case_id: str,
+        idempotency_hmac: str,
+        controller_state: str,
+        controller_state_hash: str,
+        controller_state_sequence: int,
+    ) -> dict[str, Any]:
+        entry_by_hash = {entry["hash"]: entry for entry in entries}
+        consume = entry_by_hash.get(consume_hash)
+        if consume is None or consume["payload"].get("kind") != "consume":
+            raise ValueError("mutation_permit_consume_missing")
+        payload = consume["payload"]
+        expected = {
+            "kind": "consume",
+            "permitHash": payload["permitHash"],
+            "operation": operation,
+            "action": action,
+            "developmentTargetHmac": development_target_hmac,
+            "developmentTargetCapabilityHmac": development_target_capability_hmac,
+            "payloadSha256": f"sha256:{require_sha256(payload_sha256, 'mutation_payload')}",
+            "caseId": case_id,
+            "idempotencyHmac": idempotency_hmac,
+            "controllerState": controller_state,
+            "controllerStateHash": f"sha256:{require_sha256(controller_state_hash, 'mutation_controller_state')}",
+            "controllerStateSequence": controller_state_sequence,
+            "consumedMonotonicNs": payload["consumedMonotonicNs"],
+        }
+        if payload != expected:
+            raise ValueError("mutation_permit_consume_binding_mismatch")
+        issue = entry_by_hash.get(payload["permitHash"])
+        if issue is None or issue["payload"].get("kind") != "issue":
+            raise ValueError("mutation_permit_issue_missing")
+        issued = issue["payload"]
+        expected_issue_fields = {
+            "operation": operation,
+            "action": action,
+            "developmentTargetHmac": development_target_hmac,
+            "developmentTargetCapabilityHmac": development_target_capability_hmac,
+            "payloadSha256": expected["payloadSha256"],
+            "caseId": case_id,
+            "idempotencyHmac": idempotency_hmac,
+            "requiredState": controller_state,
+            "controllerStateHash": expected["controllerStateHash"],
+            "controllerStateSequence": controller_state_sequence,
+        }
+        if any(issued[name] != value for name, value in expected_issue_fields.items()):
+            raise ValueError("mutation_permit_issue_binding_mismatch")
+        if not issued["issuedMonotonicNs"] <= payload["consumedMonotonicNs"] < issued["expiresMonotonicNs"]:
+            raise ValueError("mutation_permit_consumption_time_invalid")
+        expected_mac = cls._mac(
+            key,
+            issued,
+            wal_sequence=issue["sequence"],
+            wal_previous_hash=issue["previousHash"],
+        )
+        if not hmac.compare_digest(expected_mac, issued["permitMac"]):
+            raise ValueError("mutation_permit_mac_invalid")
+        return {
+            "verified": True,
+            "permitHash": payload["permitHash"],
+            "consumeHash": consume_hash,
+            "controllerStateSequence": controller_state_sequence,
+            "consumePayload": payload,
+            "expiresMonotonicNs": issued["expiresMonotonicNs"],
+        }
+
     def issue(
         self,
         *,
         operation: str,
         action: str,
         development_target_hmac: str,
+        development_target_capability_hmac: str,
         payload_sha256: str,
         case_id: str,
         idempotency_hmac: str,
@@ -807,6 +1018,7 @@ class MutationPermitLedger(_HashChain):
             "operation": operation,
             "action": action,
             "developmentTargetHmac": development_target_hmac,
+            "developmentTargetCapabilityHmac": development_target_capability_hmac,
             "payloadSha256": f"sha256:{require_sha256(payload_sha256, 'mutation_payload')}",
             "caseId": case_id,
             "idempotencyHmac": idempotency_hmac,
@@ -846,6 +1058,7 @@ class MutationPermitLedger(_HashChain):
         operation: str,
         action: str,
         development_target_hmac: str,
+        development_target_capability_hmac: str,
         payload_sha256: str,
         case_id: str,
         idempotency_hmac: str,
@@ -863,6 +1076,7 @@ class MutationPermitLedger(_HashChain):
                 "operation": operation,
                 "action": action,
                 "developmentTargetHmac": development_target_hmac,
+                "developmentTargetCapabilityHmac": development_target_capability_hmac,
                 "payloadSha256": f"sha256:{require_sha256(payload_sha256, 'mutation_payload')}",
                 "caseId": case_id,
                 "idempotencyHmac": idempotency_hmac,
@@ -885,6 +1099,9 @@ class MutationPermitLedger(_HashChain):
                 "operation": consume_payload["operation"],
                 "action": consume_payload["action"],
                 "developmentTargetHmac": consume_payload["developmentTargetHmac"],
+                "developmentTargetCapabilityHmac": consume_payload[
+                    "developmentTargetCapabilityHmac"
+                ],
                 "payloadSha256": consume_payload["payloadSha256"],
                 "caseId": consume_payload["caseId"],
                 "idempotencyHmac": consume_payload["idempotencyHmac"],
@@ -915,6 +1132,7 @@ class MutationPermitLedger(_HashChain):
         operation: str,
         action: str,
         development_target_hmac: str,
+        development_target_capability_hmac: str,
         payload_sha256: str,
         case_id: str,
         idempotency_hmac: str,
@@ -925,70 +1143,400 @@ class MutationPermitLedger(_HashChain):
     ) -> dict[str, Any]:
         key = self._read_mac_key(mac_key_fd)
         entries = self.entries()
-        entry_by_hash = {entry["hash"]: entry for entry in entries}
-        consume = entry_by_hash.get(consume_hash)
-        if consume is None or consume["payload"].get("kind") != "consume":
-            raise ValueError("mutation_permit_consume_missing")
-        payload = consume["payload"]
-        expected = {
-            "kind": "consume",
-            "permitHash": payload["permitHash"],
+        verified = self._verify_consumption_entries(
+            entries,
+            key,
+            consume_hash,
+            operation=operation,
+            action=action,
+            development_target_hmac=development_target_hmac,
+            development_target_capability_hmac=development_target_capability_hmac,
+            payload_sha256=payload_sha256,
+            case_id=case_id,
+            idempotency_hmac=idempotency_hmac,
+            controller_state=controller_state,
+            controller_state_hash=controller_state_hash,
+            controller_state_sequence=controller_state_sequence,
+        )
+        return {name: verified[name] for name in ("verified", "permitHash", "consumeHash", "controllerStateSequence")}
+
+    def authorize_dispatch(
+        self,
+        consume_hash: str,
+        *,
+        permit_hash: str,
+        operation: str,
+        action: str,
+        development_target_hmac: str,
+        development_target_capability_hmac: str,
+        payload_sha256: str,
+        case_id: str,
+        idempotency_hmac: str,
+        controller_state: str,
+        controller_state_hash: str,
+        controller_state_sequence: int,
+        mac_key_fd: int,
+    ) -> dict[str, Any]:
+        """Durably authorize exactly one external mutation dispatch."""
+
+        key = self._read_mac_key(mac_key_fd)
+        dispatched_at = time.monotonic_ns()
+        fcntl.flock(self._fd, fcntl.LOCK_EX)
+        try:
+            entries = self._entries_unlocked()
+            if any(
+                entry["payload"].get("kind") == "dispatch"
+                and entry["payload"].get("consumeHash") == consume_hash
+                for entry in entries
+            ):
+                raise ValueError("mutation_dispatch_unavailable")
+            verified = self._verify_consumption_entries(
+                entries,
+                key,
+                consume_hash,
+                operation=operation,
+                action=action,
+                development_target_hmac=development_target_hmac,
+                development_target_capability_hmac=development_target_capability_hmac,
+                payload_sha256=payload_sha256,
+                case_id=case_id,
+                idempotency_hmac=idempotency_hmac,
+                controller_state=controller_state,
+                controller_state_hash=controller_state_hash,
+                controller_state_sequence=controller_state_sequence,
+            )
+            if verified["permitHash"] != permit_hash:
+                raise ValueError("mutation_dispatch_permit_mismatch")
+            consumed_at = verified["consumePayload"]["consumedMonotonicNs"]
+            if not consumed_at <= dispatched_at < verified["expiresMonotonicNs"]:
+                raise ValueError("mutation_dispatch_time_invalid")
+            dispatch_payload = {
+                "kind": "dispatch",
+                "consumeHash": consume_hash,
+                "permitHash": permit_hash,
+                "operation": operation,
+                "action": action,
+                "developmentTargetHmac": development_target_hmac,
+                "developmentTargetCapabilityHmac": development_target_capability_hmac,
+                "payloadSha256": f"sha256:{require_sha256(payload_sha256, 'mutation_payload')}",
+                "caseId": case_id,
+                "idempotencyHmac": idempotency_hmac,
+                "controllerState": controller_state,
+                "controllerStateHash": f"sha256:{require_sha256(controller_state_hash, 'mutation_controller_state')}",
+                "controllerStateSequence": controller_state_sequence,
+                "dispatchedMonotonicNs": dispatched_at,
+            }
+            dispatch_payload["authorizationMac"] = self._dispatch_mac(key, dispatch_payload)
+            clean_payload = _sanitize_mutation_permit_record(dispatch_payload)
+            dispatch = self._append_unlocked(self._fd, entries, clean_payload)
+            return {
+                "verified": True,
+                "permitHash": permit_hash,
+                "consumeHash": consume_hash,
+                "dispatchHash": dispatch["hash"],
+                "developmentTargetCapabilityHmac": development_target_capability_hmac,
+            }
+        finally:
+            fcntl.flock(self._fd, fcntl.LOCK_UN)
+
+    def verify_dispatch(
+        self,
+        dispatch_hash: str,
+        *,
+        consume_hash: str,
+        permit_hash: str,
+        operation: str,
+        action: str,
+        development_target_hmac: str,
+        development_target_capability_hmac: str,
+        payload_sha256: str,
+        mac_key_fd: int,
+    ) -> dict[str, Any]:
+        key = self._read_mac_key(mac_key_fd)
+        entries = self.entries()
+        payload = self._verify_dispatch_entries(entries, key, dispatch_hash)
+        expected_public_binding = {
+            "consumeHash": consume_hash,
+            "permitHash": permit_hash,
             "operation": operation,
             "action": action,
             "developmentTargetHmac": development_target_hmac,
+            "developmentTargetCapabilityHmac": development_target_capability_hmac,
             "payloadSha256": f"sha256:{require_sha256(payload_sha256, 'mutation_payload')}",
+        }
+        if any(payload[name] != value for name, value in expected_public_binding.items()):
+            raise ValueError("mutation_dispatch_binding_mismatch")
+        return {
+            "verified": True,
+            "permitHash": permit_hash,
+            "consumeHash": consume_hash,
+            "dispatchHash": dispatch_hash,
+            "developmentTargetCapabilityHmac": development_target_capability_hmac,
+        }
+
+    @classmethod
+    def _verify_dispatch_entries(
+        cls,
+        entries: tuple[dict[str, Any], ...] | list[dict[str, Any]],
+        key: bytes,
+        dispatch_hash: str,
+    ) -> dict[str, Any]:
+        entry_by_hash = {entry["hash"]: entry for entry in entries}
+        dispatch = entry_by_hash.get(dispatch_hash)
+        if dispatch is None or dispatch["payload"].get("kind") != "dispatch":
+            raise ValueError("mutation_dispatch_missing")
+        payload = dispatch["payload"]
+        verified_consumption = cls._verify_consumption_entries(
+            entries,
+            key,
+            payload["consumeHash"],
+            operation=payload["operation"],
+            action=payload["action"],
+            development_target_hmac=payload["developmentTargetHmac"],
+            development_target_capability_hmac=payload["developmentTargetCapabilityHmac"],
+            payload_sha256=payload["payloadSha256"],
+            case_id=payload["caseId"],
+            idempotency_hmac=payload["idempotencyHmac"],
+            controller_state=payload["controllerState"],
+            controller_state_hash=payload["controllerStateHash"],
+            controller_state_sequence=payload["controllerStateSequence"],
+        )
+        if not (
+            verified_consumption["consumePayload"]["consumedMonotonicNs"]
+            <= payload["dispatchedMonotonicNs"]
+            < verified_consumption["expiresMonotonicNs"]
+        ):
+            raise ValueError("mutation_dispatch_time_invalid")
+        if not hmac.compare_digest(cls._dispatch_mac(key, payload), payload["authorizationMac"]):
+            raise ValueError("mutation_dispatch_mac_invalid")
+        return payload
+
+    @classmethod
+    def _recovery_dispatches_unlocked(
+        cls,
+        entries: tuple[dict[str, Any], ...] | list[dict[str, Any]],
+        key: bytes,
+    ) -> tuple[dict[str, Any], ...]:
+        outcomes: dict[str, tuple[dict[str, Any], dict[str, Any]]] = {}
+        for entry in entries:
+            payload = entry["payload"]
+            if payload.get("kind") != "outcome":
+                continue
+            consume_hash = payload["consumeHash"]
+            if consume_hash in outcomes:
+                raise ValueError("mutation_recovery_outcome_ambiguous")
+            dispatch = cls._verify_dispatch_entries(entries, key, payload["dispatchHash"])
+            if (
+                dispatch["consumeHash"] != consume_hash
+                or not hmac.compare_digest(cls._outcome_mac(key, payload), payload["outcomeMac"])
+            ):
+                raise ValueError("mutation_recovery_outcome_invalid")
+            outcomes[consume_hash] = (entry, payload)
+
+        dispatches: list[dict[str, Any]] = []
+        seen_consumptions: set[str] = set()
+        for entry in entries:
+            payload = entry["payload"]
+            if payload.get("kind") != "dispatch":
+                continue
+            dispatch_hash = entry["hash"]
+            verified = cls._verify_dispatch_entries(entries, key, dispatch_hash)
+            consume_hash = verified["consumeHash"]
+            if consume_hash in seen_consumptions:
+                raise ValueError("mutation_recovery_dispatch_ambiguous")
+            seen_consumptions.add(consume_hash)
+            outcome_record = outcomes.get(consume_hash)
+            if outcome_record is None:
+                outcome_entry = None
+                outcome = None
+            else:
+                outcome_entry, outcome = outcome_record
+            if outcome is not None and outcome["dispatchHash"] != dispatch_hash:
+                raise ValueError("mutation_recovery_outcome_dispatch_mismatch")
+            dispatches.append(
+                {
+                    "dispatchHash": dispatch_hash,
+                    "consumeHash": consume_hash,
+                    "permitHash": verified["permitHash"],
+                    "operation": verified["operation"],
+                    "action": verified["action"],
+                    "developmentTargetHmac": verified["developmentTargetHmac"],
+                    "developmentTargetCapabilityHmac": verified[
+                        "developmentTargetCapabilityHmac"
+                    ],
+                    "payloadSha256": require_sha256(
+                        verified["payloadSha256"], "mutation_payload"
+                    ),
+                    "caseId": verified["caseId"],
+                    "idempotencyHmac": verified["idempotencyHmac"],
+                    "controllerState": verified["controllerState"],
+                    "controllerStateHash": require_sha256(
+                        verified["controllerStateHash"], "mutation_controller_state"
+                    ),
+                    "controllerStateSequence": verified["controllerStateSequence"],
+                    "outcome": None if outcome is None else outcome["outcome"],
+                    "outcomeHash": None if outcome_entry is None else outcome_entry["hash"],
+                    "safeReceiptHmac": None
+                    if outcome is None
+                    else outcome["safeReceiptHmac"],
+                }
+            )
+        if not set(outcomes).issubset(seen_consumptions):
+            raise ValueError("mutation_recovery_orphan_outcome")
+        return tuple(dispatches)
+
+    def recovery_dispatches(self, *, mac_key_fd: int) -> tuple[dict[str, Any], ...]:
+        """Enumerate MAC-verified dispatches and their exact durable outcome state."""
+
+        key = self._read_mac_key(mac_key_fd)
+        fcntl.flock(self._fd, fcntl.LOCK_SH)
+        try:
+            return self._recovery_dispatches_unlocked(self._entries_unlocked(), key)
+        finally:
+            fcntl.flock(self._fd, fcntl.LOCK_UN)
+
+    def pending_dispatches(self, *, mac_key_fd: int) -> tuple[dict[str, Any], ...]:
+        """Enumerate only MAC-verified dispatches without a durable outcome."""
+
+        return tuple(
+            dispatch
+            for dispatch in self.recovery_dispatches(mac_key_fd=mac_key_fd)
+            if dispatch["outcome"] is None
+        )
+
+    def recover_unknown_outcome(
+        self,
+        *,
+        dispatch_hash: str,
+        consume_hash: str,
+        permit_hash: str,
+        operation: str,
+        action: str,
+        development_target_hmac: str,
+        development_target_capability_hmac: str,
+        payload_sha256: str,
+        case_id: str,
+        idempotency_hmac: str,
+        controller_state: str,
+        controller_state_hash: str,
+        controller_state_sequence: int,
+        safe_receipt_hmac: str,
+        mac_key_fd: int,
+    ) -> dict[str, Any]:
+        """Durably record or replay one exact UNKNOWN dispatch outcome."""
+
+        key = self._read_mac_key(mac_key_fd)
+        expected = {
+            "dispatchHash": require_sha256(dispatch_hash, "mutation_dispatch"),
+            "consumeHash": require_sha256(consume_hash, "mutation_consume"),
+            "permitHash": require_sha256(permit_hash, "mutation_permit"),
+            "operation": operation,
+            "action": action,
+            "developmentTargetHmac": development_target_hmac,
+            "developmentTargetCapabilityHmac": development_target_capability_hmac,
+            "payloadSha256": require_sha256(payload_sha256, "mutation_payload"),
             "caseId": case_id,
             "idempotencyHmac": idempotency_hmac,
             "controllerState": controller_state,
-            "controllerStateHash": f"sha256:{require_sha256(controller_state_hash, 'mutation_controller_state')}",
-            "controllerStateSequence": controller_state_sequence,
-            "consumedMonotonicNs": payload["consumedMonotonicNs"],
-        }
-        if payload != expected:
-            raise ValueError("mutation_permit_consume_binding_mismatch")
-        issue = entry_by_hash.get(payload["permitHash"])
-        if issue is None or issue["payload"].get("kind") != "issue":
-            raise ValueError("mutation_permit_issue_missing")
-        issued = issue["payload"]
-        expected_issue_fields = {
-            "operation": operation,
-            "action": action,
-            "developmentTargetHmac": development_target_hmac,
-            "payloadSha256": expected["payloadSha256"],
-            "caseId": case_id,
-            "idempotencyHmac": idempotency_hmac,
-            "requiredState": controller_state,
-            "controllerStateHash": expected["controllerStateHash"],
+            "controllerStateHash": require_sha256(
+                controller_state_hash, "mutation_controller_state"
+            ),
             "controllerStateSequence": controller_state_sequence,
         }
-        if any(issued[name] != value for name, value in expected_issue_fields.items()):
-            raise ValueError("mutation_permit_issue_binding_mismatch")
-        if not issued["issuedMonotonicNs"] <= payload["consumedMonotonicNs"] < issued["expiresMonotonicNs"]:
-            raise ValueError("mutation_permit_consumption_time_invalid")
-        expected_mac = self._mac(
-            key,
-            issued,
-            wal_sequence=issue["sequence"],
-            wal_previous_hash=issue["previousHash"],
-        )
-        if not hmac.compare_digest(expected_mac, issued["permitMac"]):
-            raise ValueError("mutation_permit_mac_invalid")
-        return {
-            "verified": True,
-            "permitHash": payload["permitHash"],
+        raw_outcome = {
+            "kind": "outcome",
+            "consumeHash": expected["consumeHash"],
+            "dispatchHash": expected["dispatchHash"],
+            "safeReceiptHmac": safe_receipt_hmac,
+            "outcome": "unknown",
+        }
+        raw_outcome["outcomeMac"] = self._outcome_mac(key, raw_outcome)
+        outcome_payload = _sanitize_mutation_permit_record(raw_outcome)
+        fcntl.flock(self._fd, fcntl.LOCK_EX)
+        try:
+            entries = self._entries_unlocked()
+            dispatches = self._recovery_dispatches_unlocked(entries, key)
+            matches = [
+                dispatch
+                for dispatch in dispatches
+                if dispatch["dispatchHash"] == expected["dispatchHash"]
+            ]
+            if len(matches) != 1:
+                raise ValueError("mutation_recovery_dispatch_unavailable")
+            dispatch = matches[0]
+            if any(dispatch[name] != value for name, value in expected.items()):
+                raise ValueError("mutation_recovery_binding_mismatch")
+            if dispatch["outcome"] is not None:
+                if (
+                    dispatch["outcome"] != "unknown"
+                    or dispatch["safeReceiptHmac"] != safe_receipt_hmac
+                    or dispatch["outcomeHash"] is None
+                ):
+                    raise ValueError("mutation_recovery_already_finalized")
+                return {
+                    "verified": True,
+                    "dispatchHash": dispatch["dispatchHash"],
+                    "consumeHash": dispatch["consumeHash"],
+                    "outcomeHash": dispatch["outcomeHash"],
+                    "safeReceiptHmac": dispatch["safeReceiptHmac"],
+                    "replayed": True,
+                }
+            outcome_entry = self._append_unlocked(self._fd, entries, outcome_payload)
+            return {
+                "verified": True,
+                "dispatchHash": dispatch["dispatchHash"],
+                "consumeHash": dispatch["consumeHash"],
+                "outcomeHash": outcome_entry["hash"],
+                "safeReceiptHmac": safe_receipt_hmac,
+                "replayed": False,
+            }
+        finally:
+            fcntl.flock(self._fd, fcntl.LOCK_UN)
+
+    def record_outcome(
+        self,
+        consume_hash: str,
+        outcome: str,
+        *,
+        dispatch_hash: str,
+        safe_receipt_hmac: str,
+        mac_key_fd: int,
+    ) -> str:
+        key = self._read_mac_key(mac_key_fd)
+        raw_outcome = {
+            "kind": "outcome",
             "consumeHash": consume_hash,
-            "controllerStateSequence": controller_state_sequence,
+            "dispatchHash": dispatch_hash,
+            "safeReceiptHmac": safe_receipt_hmac,
+            "outcome": outcome,
         }
+        raw_outcome["outcomeMac"] = self._outcome_mac(key, raw_outcome)
+        outcome_payload = _sanitize_mutation_permit_record(raw_outcome)
+        fcntl.flock(self._fd, fcntl.LOCK_EX)
+        try:
+            entries = self._entries_unlocked()
+            try:
+                dispatch = self._verify_dispatch_entries(entries, key, dispatch_hash)
+            except (TypeError, ValueError):
+                raise ValueError("mutation_outcome_unavailable") from None
+            outcomes = {
+                entry["payload"]["consumeHash"]
+                for entry in entries
+                if entry["payload"]["kind"] == "outcome"
+            }
+            if dispatch["consumeHash"] != consume_hash or consume_hash in outcomes:
+                raise ValueError("mutation_outcome_unavailable")
+            return self._append_unlocked(self._fd, entries, outcome_payload)["hash"]
+        finally:
+            fcntl.flock(self._fd, fcntl.LOCK_UN)
 
-    def record_outcome(self, consume_hash: str, outcome: str) -> str:
-        entries = self.entries()
-        consumes = {entry["hash"] for entry in entries if entry["payload"]["kind"] == "consume"}
-        outcomes = {entry["payload"]["consumeHash"] for entry in entries if entry["payload"]["kind"] == "outcome"}
-        if consume_hash not in consumes or consume_hash in outcomes:
-            raise ValueError("mutation_outcome_unavailable")
-        return self.append({"kind": "outcome", "consumeHash": consume_hash, "outcome": outcome})["hash"]
-
-    def verify_outcome(self, consume_hash: str, expected_outcome: str) -> dict[str, Any]:
+    def verify_outcome(
+        self,
+        consume_hash: str,
+        expected_outcome: str,
+        *,
+        mac_key_fd: int,
+    ) -> dict[str, Any]:
         if expected_outcome not in MUTATION_OUTCOMES:
             raise ValueError("mutation_outcome_invalid")
         entries = self.entries()
@@ -1000,7 +1548,21 @@ class MutationPermitLedger(_HashChain):
         ]
         if len(matches) != 1 or matches[0]["payload"]["outcome"] != expected_outcome:
             raise ValueError("mutation_outcome_not_verified")
-        return {"verified": True, "outcomeHash": matches[0]["hash"], "outcome": expected_outcome}
+        payload = matches[0]["payload"]
+        key = self._read_mac_key(mac_key_fd)
+        dispatch = self._verify_dispatch_entries(entries, key, payload["dispatchHash"])
+        if (
+            dispatch["consumeHash"] != consume_hash
+            or not hmac.compare_digest(self._outcome_mac(key, payload), payload["outcomeMac"])
+        ):
+            raise ValueError("mutation_outcome_not_verified")
+        return {
+            "verified": True,
+            "outcomeHash": matches[0]["hash"],
+            "outcome": expected_outcome,
+            "dispatchHash": payload["dispatchHash"],
+            "safeReceiptHmac": payload["safeReceiptHmac"],
+        }
 
     def reconcile(self, consume_hash: str, *, effect_present: bool) -> str:
         entries = self.entries()
@@ -1014,8 +1576,18 @@ class MutationPermitLedger(_HashChain):
             raise ValueError("mutation_reconciliation_unavailable")
         return self.append({"kind": "reconcile", "consumeHash": consume_hash, "effectPresent": effect_present})["hash"]
 
-    def verify_reconciliation(self, consume_hash: str, *, effect_present: bool) -> dict[str, Any]:
-        self.verify_outcome(consume_hash, "unknown")
+    def verify_reconciliation(
+        self,
+        consume_hash: str,
+        *,
+        effect_present: bool,
+        mac_key_fd: int,
+    ) -> dict[str, Any]:
+        outcome = self.verify_outcome(
+            consume_hash,
+            "unknown",
+            mac_key_fd=mac_key_fd,
+        )
         entries = self.entries()
         matches = [
             entry
@@ -1025,7 +1597,13 @@ class MutationPermitLedger(_HashChain):
         ]
         if len(matches) != 1 or matches[0]["payload"]["effectPresent"] is not effect_present:
             raise ValueError("mutation_reconciliation_not_verified")
-        return {"verified": True, "reconciliationHash": matches[0]["hash"], "effectPresent": effect_present}
+        return {
+            "verified": True,
+            "reconciliationHash": matches[0]["hash"],
+            "effectPresent": effect_present,
+            "dispatchHash": outcome["dispatchHash"],
+            "safeReceiptHmac": outcome["safeReceiptHmac"],
+        }
 
 
 def _read_external_fd(fd: int, maximum: int) -> bytes:

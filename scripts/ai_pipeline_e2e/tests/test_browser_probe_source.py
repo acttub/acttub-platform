@@ -47,14 +47,26 @@ class BrowserProbeSourceTests(unittest.TestCase):
                 OBSERVE_SOURCE,
                 ACTIVATE_SEEK_SOURCE,
                 VIDEO_TIME_SOURCE,
+                BINDING_IDENTIFIERS_SOURCE,
                 createBrowserAttestation,
+                deriveBrowserProbeKey,
                 writeBrowserAttestation,
               }} from {json.dumps(PROBE.as_uri())};
               const rawMarker = {json.dumps(RAW_CONTENT)};
               const suffix = {json.dumps(section_suffix)};
               const sessionId = {json.dumps(session_id)};
               const sourceRunId = {json.dumps(source_run_id)};
-              const macKeyHex = {json.dumps(self.key.hex())};
+              const masterKey = Buffer.from({json.dumps(self.key.hex())}, "hex");
+              const expectedBindingHmac = {json.dumps("hmac-sha256:" + "0" * 64 if wrong_binding else binding_hmac)};
+              const probeContext = {{
+                schemaVersion: "protected-browser-probe-key-context.v1",
+                developmentTargetHmac: "hmac-sha256:" + "d".repeat(64),
+                browserTargetHmac: "hmac-sha256:" + "e".repeat(64),
+                expectedBindingHmac,
+              }};
+              const probeKey = deriveBrowserProbeKey(masterKey, probeContext);
+              const macKeyHex = probeKey.toString("hex");
+              if (macKeyHex === masterKey.toString("hex")) throw new Error("probe");
               let seekClicks = 0;
               let changed = false;
               const section = (index) => ({{
@@ -97,6 +109,7 @@ class BrowserProbeSourceTests(unittest.TestCase):
               let status = 0;
               try {{
                 const before = await evaluate(OBSERVE_SOURCE, macKeyHex);
+                const binding = await evaluate(BINDING_IDENTIFIERS_SOURCE);
                 const seekAction = await evaluate(ACTIVATE_SEEK_SOURCE);
                 const videoResult = await evaluate(VIDEO_TIME_SOURCE);
                 changed = {str(mutate_after).lower()};
@@ -108,12 +121,17 @@ class BrowserProbeSourceTests(unittest.TestCase):
                   after,
                   seekAction,
                   video: videoResult,
-                  expectedBindingHmac: {json.dumps("hmac-sha256:" + "0" * 64 if wrong_binding else binding_hmac)},
+                  binding,
+                  expectedBindingHmac,
+                  probeContext,
                   macKeyFd: {key_file.fileno()},
                 }});
                 writeBrowserAttestation({output_file.fileno()}, result);
               }} catch {{
                 status = 70;
+              }} finally {{
+                probeKey.fill(0);
+                masterKey.fill(0);
               }}
               process.exitCode = status;
             """
@@ -185,6 +203,7 @@ class BrowserProbeSourceTests(unittest.TestCase):
             'data-testid="pipeline-report-section"',
             'data-testid="pipeline-report-seek"',
             'data-testid="pipeline-private-video"',
+            "protected-browser-binding-identifiers.v1",
         ):
             self.assertIn(selector, source)
         for forbidden in (

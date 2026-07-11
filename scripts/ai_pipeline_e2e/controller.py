@@ -61,10 +61,14 @@ REQUIRED_HARNESS_FILES = frozenset(
         "docs/AI_PIPELINE_E2E_RUNBOOK.md",
         "scripts/ai_pipeline_e2e/__init__.py",
         "scripts/ai_pipeline_e2e/bridge_protocol.py",
+        "scripts/ai_pipeline_e2e/browser_probe_runner.mjs",
         "scripts/ai_pipeline_e2e/browser_probe_source.mjs",
         "scripts/ai_pipeline_e2e/browser_session_broker.mjs",
         "scripts/ai_pipeline_e2e/cases.json",
         "scripts/ai_pipeline_e2e/controller.py",
+        "scripts/ai_pipeline_e2e/development_target.mjs",
+        "scripts/ai_pipeline_e2e/driver_cleanup_broker.py",
+        "scripts/ai_pipeline_e2e/driver_cleanup_runtime.py",
         "scripts/ai_pipeline_e2e/live_runner.py",
         "scripts/ai_pipeline_e2e/mcp_bridge.py",
         "scripts/ai_pipeline_e2e/mcp_queries.py",
@@ -76,8 +80,12 @@ REQUIRED_HARNESS_FILES = frozenset(
         "scripts/ai_pipeline_e2e/secure_state.py",
         "scripts/ai_pipeline_e2e/service_bootstrap.py",
         "scripts/ai_pipeline_e2e/tests/test_bridge_protocol.py",
+        "scripts/ai_pipeline_e2e/tests/test_browser_probe_runner.py",
         "scripts/ai_pipeline_e2e/tests/test_browser_probe_source.py",
         "scripts/ai_pipeline_e2e/tests/test_browser_session_broker.py",
+        "scripts/ai_pipeline_e2e/tests/test_development_target.py",
+        "scripts/ai_pipeline_e2e/tests/test_driver_cleanup_broker.py",
+        "scripts/ai_pipeline_e2e/tests/test_driver_cleanup_runtime.py",
         "scripts/ai_pipeline_e2e/tests/test_harness.py",
         "scripts/ai_pipeline_e2e/tests/test_live_runner.py",
         "scripts/ai_pipeline_e2e/tests/test_mcp_architect_regressions.py",
@@ -279,6 +287,8 @@ def assert_development_target(metadata: Any, mcp_chain_entries: Any) -> dict[str
         or not isinstance(latest.get("payload"), Mapping)
         or latest["payload"].get("operation") != "list_projects"
         or latest["payload"].get("targetHmac") != item["inventoryProjectHmac"]
+        or not isinstance(latest["payload"].get("responseHmac"), str)
+        or _HMAC.fullmatch(latest["payload"]["responseHmac"]) is None
         or latest["payload"].get("success") is not True
         or latest["payload"].get("productionAction") is not False
     ):
@@ -304,6 +314,7 @@ def assert_development_target(metadata: Any, mcp_chain_entries: Any) -> dict[str
         "mcpAttestationHash": item["mcpAttestationHash"],
         "mcpSequence": latest["sequence"],
         "targetHmac": item["inventoryProjectHmac"],
+        "targetCapabilityHmac": latest["payload"]["responseHmac"],
     }
 
 
@@ -315,7 +326,11 @@ def _validate_mcp_entry(
     operation: str,
     postcondition_hash: str,
     target_hmac: str,
+    precondition_hash: str | None = None,
     permit_hash: str | None = None,
+    consume_hash: str | None = None,
+    dispatch_hash: str | None = None,
+    safe_receipt_hmac: str | None = None,
     expected_success: bool = True,
     expected_safe_code: str | None = None,
 ) -> dict[str, Any]:
@@ -327,6 +342,9 @@ def _validate_mcp_entry(
             "operation",
             "targetHmac",
             "permitHash",
+            "consumeHash",
+            "dispatchHash",
+            "safeReceiptHmac",
             "requestHash",
             "responseHmac",
             "preconditionHash",
@@ -339,16 +357,26 @@ def _validate_mcp_entry(
         },
         "mcp_chain_payload",
     )
+    mutation_bindings = (permit_hash, consume_hash, dispatch_hash, safe_receipt_hmac)
+    if operation == "apply_migration" and any(binding is None for binding in mutation_bindings):
+        raise ValueError("mcp_chain_mutation_binding_missing")
+    if operation != "apply_migration" and any(binding is not None for binding in mutation_bindings):
+        raise ValueError("mcp_chain_read_only_mutation_binding_forbidden")
     if (
-        payload["schemaVersion"] != "protected-mcp-attestation.v1"
+        payload["schemaVersion"] != "protected-mcp-attestation.v2"
         or payload["operation"] != operation
         or payload["targetHmac"] != target_hmac
         or payload["permitHash"] != (None if permit_hash is None else "sha256:" + require_sha256(permit_hash, "mcp_permit_hash"))
+        or payload["consumeHash"] != (None if consume_hash is None else "sha256:" + require_sha256(consume_hash, "mcp_consume_hash"))
+        or payload["dispatchHash"] != (None if dispatch_hash is None else "sha256:" + require_sha256(dispatch_hash, "mcp_dispatch_hash"))
+        or payload["safeReceiptHmac"] != safe_receipt_hmac
         or not isinstance(payload["requestHash"], str)
         or not isinstance(payload["responseHmac"], str)
         or _HMAC.fullmatch(payload["responseHmac"]) is None
+        or (safe_receipt_hmac is not None and not hmac.compare_digest(payload["responseHmac"], safe_receipt_hmac))
         or not isinstance(payload["preconditionHash"], str)
         or _HMAC.fullmatch(payload["preconditionHash"]) is None
+        or (precondition_hash is not None and payload["preconditionHash"] != precondition_hash)
         or payload["postconditionHash"] != postcondition_hash
         or type(payload["success"]) is not bool
         or payload["success"] is not expected_success
@@ -385,7 +413,7 @@ def verify_evidence_chain(entries: Any) -> dict[str, Any]:
 
 
 def verify_mcp_chain(entries: Any) -> dict[str, Any]:
-    if not isinstance(entries, (list, tuple)) or not 8 <= len(entries) <= 20:
+    if not isinstance(entries, (list, tuple)) or not 9 <= len(entries) <= 20:
         raise ValueError("mcp_chain_count_invalid")
     previous = _GENESIS_HASH
     target_hmac: str | None = None
@@ -399,6 +427,9 @@ def verify_mcp_chain(entries: Any) -> dict[str, Any]:
                 "operation",
                 "targetHmac",
                 "permitHash",
+                "consumeHash",
+                "dispatchHash",
+                "safeReceiptHmac",
                 "requestHash",
                 "responseHmac",
                 "preconditionHash",
@@ -412,7 +443,7 @@ def verify_mcp_chain(entries: Any) -> dict[str, Any]:
             "mcp_chain_payload",
         )
         if (
-            payload["schemaVersion"] != "protected-mcp-attestation.v1"
+            payload["schemaVersion"] != "protected-mcp-attestation.v2"
             or payload["operation"] not in {"list_projects", "inspect_migrations", "apply_migration", "sql_check"}
             or not isinstance(payload["targetHmac"], str)
             or _HMAC.fullmatch(payload["targetHmac"]) is None
@@ -434,11 +465,25 @@ def verify_mcp_chain(entries: Any) -> dict[str, Any]:
             raise ValueError("mcp_chain_target_changed")
         require_sha256(payload["requestHash"], "mcp_request_hash")
         if payload["operation"] == "apply_migration":
-            if payload["permitHash"] is None:
-                raise ValueError("mcp_chain_mutation_permit_missing")
+            if any(
+                payload[field] is None
+                for field in ("permitHash", "consumeHash", "dispatchHash", "safeReceiptHmac")
+            ):
+                raise ValueError("mcp_chain_mutation_binding_missing")
             require_sha256(payload["permitHash"], "mcp_permit_hash")
-        elif payload["permitHash"] is not None:
-            raise ValueError("mcp_chain_read_only_permit_forbidden")
+            require_sha256(payload["consumeHash"], "mcp_consume_hash")
+            require_sha256(payload["dispatchHash"], "mcp_dispatch_hash")
+            if (
+                not isinstance(payload["safeReceiptHmac"], str)
+                or _HMAC.fullmatch(payload["safeReceiptHmac"]) is None
+                or not hmac.compare_digest(payload["safeReceiptHmac"], payload["responseHmac"])
+            ):
+                raise ValueError("mcp_chain_mutation_receipt_invalid")
+        elif any(
+            payload[field] is not None
+            for field in ("permitHash", "consumeHash", "dispatchHash", "safeReceiptHmac")
+        ):
+            raise ValueError("mcp_chain_read_only_mutation_binding_forbidden")
         if payload["success"]:
             if payload["safeCode"] is not None:
                 raise ValueError("mcp_chain_success_code_invalid")
@@ -459,8 +504,17 @@ def verify_mcp_chain(entries: Any) -> dict[str, Any]:
         or payloads[-1]["success"] is not True
     ):
         raise ValueError("mcp_chain_operation_order_invalid")
+    target_capability_hmac = payloads[0]["responseHmac"]
+    if any(
+        not hmac.compare_digest(payload["preconditionHash"], target_capability_hmac)
+        for payload in payloads[1:]
+    ):
+        raise ValueError("mcp_chain_target_capability_mismatch")
     cursor = 2
     mutation_permits: list[str] = []
+    mutation_consumptions: list[str] = []
+    mutation_dispatches: list[str] = []
+    mutation_receipts: list[str] = []
     mutation_requests: list[str] = []
     version_bindings: list[str] = []
     ledger_bindings: list[str] = []
@@ -477,6 +531,9 @@ def verify_mcp_chain(entries: Any) -> dict[str, Any]:
             elif mutation["postconditionHash"] != version_binding:
                 raise ValueError("mcp_chain_retry_binding_changed")
             mutation_permits.append(mutation["permitHash"])
+            mutation_consumptions.append(mutation["consumeHash"])
+            mutation_dispatches.append(mutation["dispatchHash"])
+            mutation_receipts.append(mutation["safeReceiptHmac"])
             mutation_requests.append(mutation["requestHash"])
             cursor += 1
             if mutation["success"] is not True and mutation["safeCode"] != "MCP_ACTION_UNKNOWN":
@@ -514,10 +571,22 @@ def verify_mcp_chain(entries: Any) -> dict[str, Any]:
         if version_binding is None:
             raise ValueError("mcp_chain_migration_binding_missing")
         version_bindings.append(version_binding)
-    if cursor != len(payloads):
-        raise ValueError("mcp_chain_trailing_operation_invalid")
+    if cursor != len(payloads) - 1:
+        raise ValueError("mcp_chain_postflight_count_invalid")
+    postflight = payloads[cursor]
+    if (
+        postflight["operation"] != "inspect_migrations"
+        or postflight["success"] is not True
+        or postflight["safeCode"] is not None
+        or not ledger_bindings
+        or postflight["postconditionHash"] != ledger_bindings[-1]
+    ):
+        raise ValueError("mcp_chain_postflight_invalid")
     if (
         len(set(mutation_permits)) != len(mutation_permits)
+        or len(set(mutation_consumptions)) != len(mutation_consumptions)
+        or len(set(mutation_dispatches)) != len(mutation_dispatches)
+        or len(set(mutation_receipts)) != len(mutation_receipts)
         or len(set(mutation_requests)) != len(mutation_requests)
         or len(set(version_bindings)) != 2
         or len(set(ledger_bindings)) != len(ledger_bindings)
@@ -867,6 +936,7 @@ class ControllerState:
     consumed_permit_hashes: tuple[str, ...] = ()
     migration_attestation_hashes: tuple[str, ...] = ()
     development_target_hmac: str | None = None
+    development_target_capability_hmac: str | None = None
     mcp_sequence: int = -1
     mcp_tail_hash: str = _GENESIS_HASH
     prepared_payload_binding_hmac: str | None = None
@@ -940,6 +1010,7 @@ _CONTROLLER_STATE_KEYS = frozenset(
         "consumedPermitHashes",
         "migrationAttestationHashes",
         "developmentTargetHmac",
+        "developmentTargetCapabilityHmac",
         "mcpSequence",
         "mcpTailHash",
         "preparedPayloadBindingHmac",
@@ -978,6 +1049,7 @@ def controller_state_record(state: ControllerState) -> dict[str, Any]:
         "consumedPermitHashes": list(state.consumed_permit_hashes),
         "migrationAttestationHashes": list(state.migration_attestation_hashes),
         "developmentTargetHmac": state.development_target_hmac,
+        "developmentTargetCapabilityHmac": state.development_target_capability_hmac,
         "mcpSequence": state.mcp_sequence,
         "mcpTailHash": state.mcp_tail_hash,
         "preparedPayloadBindingHmac": state.prepared_payload_binding_hmac,
@@ -1033,7 +1105,12 @@ def restore_controller_state(value: Any) -> ControllerState:
     for key in optional_hash_keys:
         if item[key] is not None and (not isinstance(item[key], str) or _HASH.fullmatch(item[key]) is None):
             raise ValueError("controller_state_hash_invalid")
-    for key in ("preparedTargetHmac", "developmentTargetHmac", "preparedPayloadBindingHmac"):
+    for key in (
+        "preparedTargetHmac",
+        "developmentTargetHmac",
+        "developmentTargetCapabilityHmac",
+        "preparedPayloadBindingHmac",
+    ):
         if item[key] is not None and (not isinstance(item[key], str) or _HMAC.fullmatch(item[key]) is None):
             raise ValueError("controller_state_hmac_invalid")
     for key in ("providerAttestationHmac", "mediaAttestationHmac"):
@@ -1057,6 +1134,10 @@ def restore_controller_state(value: Any) -> ControllerState:
         raise ValueError("controller_state_mcp_tail_invalid")
     if (item["mcpSequence"] == -1) != (item["mcpTailHash"] == _GENESIS_HASH):
         raise ValueError("controller_state_mcp_chain_invalid")
+    if (item["developmentTargetHmac"] is None) != (
+        item["developmentTargetCapabilityHmac"] is None
+    ):
+        raise ValueError("controller_state_target_capability_invariant_failed")
     if item["phase"] != "created" and (item["manifestVerified"] is not True or item["manifestDigest"] is None):
         raise ValueError("controller_state_manifest_invariant_failed")
     if item["phase"] in {"cleanup_verified", "evidence_sealed", "completed"} and (
@@ -1098,6 +1179,7 @@ def restore_controller_state(value: Any) -> ControllerState:
         consumed_permit_hashes=tuple(item["consumedPermitHashes"]),
         migration_attestation_hashes=tuple(item["migrationAttestationHashes"]),
         development_target_hmac=item["developmentTargetHmac"],
+        development_target_capability_hmac=item["developmentTargetCapabilityHmac"],
         mcp_sequence=item["mcpSequence"],
         mcp_tail_hash=item["mcpTailHash"],
         prepared_payload_binding_hmac=item["preparedPayloadBindingHmac"],
@@ -1161,6 +1243,7 @@ def transition(state: ControllerState, event: Any) -> ControllerState:
         item = _event(event, {"proof", "mcpEntries"}, "DEV_TARGET_VERIFIED")
         proof = assert_development_target(item["proof"], item["mcpEntries"])
         target_hmac = proof["targetHmac"]
+        target_capability_hmac = proof["targetCapabilityHmac"]
         if len(item["mcpEntries"]) != 1:
             raise ValueError("development_target_mcp_chain_count_invalid")
         mcp_entry = _validate_mcp_entry(
@@ -1177,6 +1260,8 @@ def transition(state: ControllerState, event: Any) -> ControllerState:
             or proof["productionActionCount"] != 0
             or not isinstance(target_hmac, str)
             or _HMAC.fullmatch(target_hmac) is None
+            or not isinstance(target_capability_hmac, str)
+            or _HMAC.fullmatch(target_capability_hmac) is None
         ):
             raise ValueError("development_target_not_verified")
         return replace(
@@ -1185,6 +1270,7 @@ def transition(state: ControllerState, event: Any) -> ControllerState:
             production_negative_verified=True,
             development_mcp_attestation_hash=mcp_entry["hash"],
             development_target_hmac=target_hmac,
+            development_target_capability_hmac=target_capability_hmac,
             mcp_sequence=0,
             mcp_tail_hash=mcp_entry["hash"],
         )
@@ -1203,6 +1289,7 @@ def transition(state: ControllerState, event: Any) -> ControllerState:
             operation="inspect_migrations",
             postcondition_hash=item["ledgerHmac"],
             target_hmac=state.development_target_hmac,
+            precondition_hash=state.development_target_capability_hmac,
         )
         if (
             ledger["exact"] is not True
@@ -1282,6 +1369,7 @@ def transition(state: ControllerState, event: Any) -> ControllerState:
             operation="apply_migration",
             action=item["action"],
             development_target_hmac=item["targetHmac"],
+            development_target_capability_hmac=state.development_target_capability_hmac,
             payload_sha256=item["payloadSha256"],
             case_id=item["caseId"],
             idempotency_hmac=item["idempotencyHmac"],
@@ -1317,14 +1405,27 @@ def transition(state: ControllerState, event: Any) -> ControllerState:
         if isinstance(event, Mapping) and event.get("type") == "MIGRATION_UNKNOWN":
             item = _event(
                 event,
-                {"version", "consumeHash", "reconciliationRequired", "mcpEntry", "permitLedgerFd"},
+                {
+                    "version",
+                    "consumeHash",
+                    "dispatchHash",
+                    "safeReceiptHmac",
+                    "reconciliationRequired",
+                    "mcpEntry",
+                    "permitLedgerFd",
+                    "macKeyFd",
+                },
                 "MIGRATION_UNKNOWN",
             )
             try:
                 from .secure_state import MutationPermitLedger
             except ImportError:  # pragma: no cover - direct script import fallback
                 from secure_state import MutationPermitLedger
-            outcome = MutationPermitLedger(item["permitLedgerFd"]).verify_outcome(item["consumeHash"], "unknown")
+            outcome = MutationPermitLedger(item["permitLedgerFd"]).verify_outcome(
+                item["consumeHash"],
+                "unknown",
+                mac_key_fd=item["macKeyFd"],
+            )
             mcp_entry = _validate_mcp_entry(
                 item["mcpEntry"],
                 sequence=state.mcp_sequence + 1,
@@ -1332,7 +1433,11 @@ def transition(state: ControllerState, event: Any) -> ControllerState:
                 operation="apply_migration",
                 postcondition_hash=state.prepared_payload_binding_hmac,
                 target_hmac=state.development_target_hmac,
+                precondition_hash=state.development_target_capability_hmac,
                 permit_hash=state.current_permit_hash,
+                consume_hash=state.current_consume_hash,
+                dispatch_hash=item["dispatchHash"],
+                safe_receipt_hmac=item["safeReceiptHmac"],
                 expected_success=False,
                 expected_safe_code="MCP_ACTION_UNKNOWN",
             )
@@ -1340,6 +1445,8 @@ def transition(state: ControllerState, event: Any) -> ControllerState:
                 item["version"] != version
                 or item["consumeHash"] != state.current_consume_hash
                 or outcome["verified"] is not True
+                or outcome["dispatchHash"] != item["dispatchHash"]
+                or outcome["safeReceiptHmac"] != item["safeReceiptHmac"]
                 or item["reconciliationRequired"] is not True
             ):
                 raise ValueError("migration_unknown_invalid")
@@ -1354,6 +1461,8 @@ def transition(state: ControllerState, event: Any) -> ControllerState:
             {
                 "version",
                 "consumeHash",
+                "dispatchHash",
+                "safeReceiptHmac",
                 "targetHmac",
                 "applyMcpEntry",
                 "postconditionMcpEntry",
@@ -1364,6 +1473,7 @@ def transition(state: ControllerState, event: Any) -> ControllerState:
                 "targetMatched",
                 "payloadMatched",
                 "permitLedgerFd",
+                "macKeyFd",
                 "productionActionCount",
             },
             "MIGRATION_ATTESTED",
@@ -1375,7 +1485,11 @@ def transition(state: ControllerState, event: Any) -> ControllerState:
             operation="apply_migration",
             postcondition_hash=state.prepared_payload_binding_hmac,
             target_hmac=state.development_target_hmac,
+            precondition_hash=state.development_target_capability_hmac,
             permit_hash=state.current_permit_hash,
+            consume_hash=state.current_consume_hash,
+            dispatch_hash=item["dispatchHash"],
+            safe_receipt_hmac=item["safeReceiptHmac"],
         )
         postcondition_entry = _validate_mcp_entry(
             item["postconditionMcpEntry"],
@@ -1384,6 +1498,7 @@ def transition(state: ControllerState, event: Any) -> ControllerState:
             operation="sql_check",
             postcondition_hash=state.prepared_payload_binding_hmac,
             target_hmac=state.development_target_hmac,
+            precondition_hash=state.development_target_capability_hmac,
         )
         ledger = validate_migration_ledger(
             "post" if version == "010" else "after_009",
@@ -1396,12 +1511,17 @@ def transition(state: ControllerState, event: Any) -> ControllerState:
             operation="inspect_migrations",
             postcondition_hash=item["ledgerHmac"],
             target_hmac=state.development_target_hmac,
+            precondition_hash=state.development_target_capability_hmac,
         )
         try:
             from .secure_state import MutationPermitLedger
         except ImportError:  # pragma: no cover - direct script import fallback
             from secure_state import MutationPermitLedger
-        outcome = MutationPermitLedger(item["permitLedgerFd"]).verify_outcome(item["consumeHash"], "attested")
+        outcome = MutationPermitLedger(item["permitLedgerFd"]).verify_outcome(
+            item["consumeHash"],
+            "attested",
+            mac_key_fd=item["macKeyFd"],
+        )
         if (
             item["version"] != version
             or item["consumeHash"] != state.current_consume_hash
@@ -1411,6 +1531,8 @@ def transition(state: ControllerState, event: Any) -> ControllerState:
             or not isinstance(item["ledgerHmac"], str)
             or _HMAC.fullmatch(item["ledgerHmac"]) is None
             or outcome["verified"] is not True
+            or outcome["dispatchHash"] != item["dispatchHash"]
+            or outcome["safeReceiptHmac"] != item["safeReceiptHmac"]
             or type(item["productionActionCount"]) is not int
             or item["productionActionCount"] != 0
         ):
@@ -1432,6 +1554,8 @@ def transition(state: ControllerState, event: Any) -> ControllerState:
             {
                 "version",
                 "consumeHash",
+                "dispatchHash",
+                "safeReceiptHmac",
                 "targetHmac",
                 "postconditionMcpEntry",
                 "ledgerMcpEntry",
@@ -1439,6 +1563,7 @@ def transition(state: ControllerState, event: Any) -> ControllerState:
                 "ledger",
                 "ledgerHmac",
                 "permitLedgerFd",
+                "macKeyFd",
                 "productionActionCount",
             },
             "MIGRATION_RECONCILED",
@@ -1450,6 +1575,7 @@ def transition(state: ControllerState, event: Any) -> ControllerState:
             operation="sql_check",
             postcondition_hash=state.prepared_payload_binding_hmac,
             target_hmac=state.development_target_hmac,
+            precondition_hash=state.development_target_capability_hmac,
         )
         expected_ledger = (
             MIGRATION_AFTER_009_LEDGER
@@ -1471,6 +1597,7 @@ def transition(state: ControllerState, event: Any) -> ControllerState:
             operation="inspect_migrations",
             postcondition_hash=item["ledgerHmac"],
             target_hmac=state.development_target_hmac,
+            precondition_hash=state.development_target_capability_hmac,
         )
         try:
             from .secure_state import MutationPermitLedger
@@ -1479,6 +1606,7 @@ def transition(state: ControllerState, event: Any) -> ControllerState:
         reconciliation = MutationPermitLedger(item["permitLedgerFd"]).verify_reconciliation(
             item["consumeHash"],
             effect_present=item["effectPresent"],
+            mac_key_fd=item["macKeyFd"],
         )
         if (
             item["version"] != version
@@ -1486,6 +1614,8 @@ def transition(state: ControllerState, event: Any) -> ControllerState:
             or item["targetHmac"] != state.development_target_hmac
             or type(item["effectPresent"]) is not bool
             or reconciliation["verified"] is not True
+            or reconciliation["dispatchHash"] != item["dispatchHash"]
+            or reconciliation["safeReceiptHmac"] != item["safeReceiptHmac"]
             or type(item["productionActionCount"]) is not int
             or item["productionActionCount"] != 0
         ):
@@ -1519,6 +1649,7 @@ def transition(state: ControllerState, event: Any) -> ControllerState:
             operation="inspect_migrations",
             postcondition_hash=item["ledgerHmac"],
             target_hmac=state.development_target_hmac,
+            precondition_hash=state.development_target_capability_hmac,
         )
         if (
             ledger["exact"] is not True

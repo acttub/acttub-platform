@@ -20,6 +20,7 @@
 - 실제 media, 플랫폼 설정, Summary/Agent/Report 설정은 고정 별칭의 이미 열린 FD로만 전달한다.
 - secret, token, signed URL, media와 그 경로를 파일·argv·환경변수·로그·Git에 기록하지 않는다.
 - private state에도 settings, provider key, token, signed URL, media를 저장하지 않는다.
+- 재시작 검증에 사용하는 32-byte 내부 run MAC key만 owner-only `0600` private state에 생성·fsync하며 값과 경로는 외부 receipt나 로그에 노출하지 않는다.
 - crash cleanup에 필요한 resource locator만 보호된 cleanup vault에 두며 evidence에는 HMAC만 남긴다.
 - child 환경은 빈 map에서 allowlist로 만들고 proxy, `PYTHONPATH`, `NODE_OPTIONS`, 인증·AI·Supabase 변수를 상속하지 않는다.
 - 설정 FD가 연결되는 고정 stdin 외에는 child 입력을 허용하지 않고, stdout/stderr와 access log는 폐기한다.
@@ -45,7 +46,7 @@ pnpm preflight:ai-pipeline-e2e-harness
 8. scripted process를 완전히 종료한 뒤 explicit `Settings + create_app` real 서비스를 별도 process/port로 실행한다.
 9. 실제 media와 Gemini로 성공 세션 하나를 만들고 lineage, replay, UI를 검증한다.
 10. UI adapter는 boolean, count, HMAC만 반환하며 screenshot, HAR, trace, console, DOM/accessibility snapshot을 저장하지 않는다.
-11. cleanup WAL과 vault로 transient session, 임시 Auth 사용자, Storage/DB/AI run orphan을 정리한다.
+11. cleanup WAL과 vault로 transient session, 임시 Auth 사용자, Storage/DB/AI run orphan을 정리한다. 실제 성공 세션의 `retained` 완료는 child가 아니라 검증된 real receipt, UI attestation, controller state 지속화가 모두 끝난 뒤 parent coordinator만 확정한다.
 12. exact 25-case evidence chain의 순서·count·tail과 manifest digest를 receipt에 봉인한다.
 
 ## Migration 복구

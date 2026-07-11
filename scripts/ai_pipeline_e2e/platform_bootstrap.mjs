@@ -1,17 +1,24 @@
+import crypto from "node:crypto";
 import fs from "node:fs";
 
 const MAX_SETTINGS_BYTES = 64 * 1024;
 const ALLOWED_KEYS = new Set([
+  "ACTTUB_DEVELOPMENT_TARGET_HMAC",
   "ACTTUB_AI_AGENT_URL",
   "ACTTUB_AI_REPORT_URL",
   "ACTTUB_AI_SUMMARY_URL",
   "ACTTUB_AI_TIMEOUT_MS",
+  "ACTTUB_PLATFORM_TARGET_KEY_HEX",
+  "ACTTUB_PLATFORM_TARGET_PROOF_HMAC",
   "NEXT_PUBLIC_APP_URL",
   "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY",
   "NEXT_PUBLIC_SUPABASE_URL",
   "NODE_ENV",
   "SUPABASE_SERVICE_ROLE_KEY",
 ]);
+const PLATFORM_TARGET_PROOF_DOMAIN = Buffer.from("acttub-protected-platform-target-proof.v1\0", "ascii");
+const PROJECT_HOST_PATTERN = /^([a-z0-9]{20})\.supabase\.co$/u;
+const HMAC_PATTERN = /^hmac-sha256:[a-f0-9]{64}$/u;
 
 function fail() {
   process.exitCode = 70;
@@ -123,10 +130,33 @@ function readSettings() {
   }
   if (
     supabase.protocol !== "https:" ||
-    !/^[a-z0-9]+\.supabase\.co$/u.test(supabase.hostname) ||
+    PROJECT_HOST_PATTERN.exec(supabase.hostname) === null ||
     supabase.username || supabase.password || supabase.search || supabase.hash ||
     (supabase.pathname !== "/" && supabase.pathname !== "")
   ) fail();
+  const projectRef = PROJECT_HOST_PATTERN.exec(supabase.hostname)?.[1];
+  const keyHex = value.ACTTUB_PLATFORM_TARGET_KEY_HEX;
+  const expectedProofHmac = value.ACTTUB_PLATFORM_TARGET_PROOF_HMAC;
+  const expectedTargetHmac = value.ACTTUB_DEVELOPMENT_TARGET_HMAC;
+  if (
+    projectRef === undefined ||
+    !/^[a-f0-9]{64}$/u.test(keyHex) ||
+    !HMAC_PATTERN.test(expectedProofHmac) ||
+    !HMAC_PATTERN.test(expectedTargetHmac)
+  ) fail();
+  const platformKey = Buffer.from(keyHex, "hex");
+  try {
+    const actual = `hmac-sha256:${crypto.createHmac("sha256", platformKey).update(PLATFORM_TARGET_PROOF_DOMAIN).update(expectedTargetHmac, "ascii").update("\0", "ascii").update(projectRef, "ascii").digest("hex")}`;
+    if (!crypto.timingSafeEqual(Buffer.from(actual, "ascii"), Buffer.from(expectedProofHmac, "ascii"))) fail();
+  } finally {
+    platformKey.fill(0);
+    value.ACTTUB_PLATFORM_TARGET_KEY_HEX = "";
+    value.ACTTUB_PLATFORM_TARGET_PROOF_HMAC = "";
+    value.ACTTUB_DEVELOPMENT_TARGET_HMAC = "";
+  }
+  delete value.ACTTUB_PLATFORM_TARGET_KEY_HEX;
+  delete value.ACTTUB_PLATFORM_TARGET_PROOF_HMAC;
+  delete value.ACTTUB_DEVELOPMENT_TARGET_HMAC;
   for (const [key, item] of Object.entries(value)) process.env[key] = item;
 }
 

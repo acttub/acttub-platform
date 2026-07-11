@@ -108,7 +108,10 @@ export type CreateUploadIntentRequest = {
   fileMetadata: Omit<FileMetadataDto, "durationMs">;
   adultConfirmed: true;
   allParticipantsConfirmed: true;
-};
+} & (
+  | { uploadIntentId?: never; sessionId?: never }
+  | { uploadIntentId: string; sessionId: string }
+);
 
 export type CreateUploadIntentResponse = {
   uploadIntent: PracticeUploadIntentDto;

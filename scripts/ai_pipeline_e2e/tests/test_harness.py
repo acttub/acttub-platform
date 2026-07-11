@@ -160,18 +160,31 @@ def mcp_entry_fixture(
     *,
     operation: str,
     permit_hash: str | None = None,
+    consume_hash: str | None = None,
+    dispatch_hash: str | None = None,
+    safe_receipt_hmac: str | None = None,
     postcondition_hmac: str = HMAC_A,
     request_hash: str = HEX_A,
     success: bool = True,
     safe_code: str | None = None,
 ) -> dict[str, object]:
+    mutation = operation == "apply_migration"
+    if mutation:
+        consume_hash = (consume_hash or request_hash).removeprefix("sha256:")
+        dispatch_hash = (dispatch_hash or request_hash).removeprefix("sha256:")
+        safe_receipt_hmac = safe_receipt_hmac or (
+            "hmac-sha256:" + request_hash.removeprefix("sha256:")
+        )
     payload: dict[str, object] = {
-        "schemaVersion": "protected-mcp-attestation.v1",
+        "schemaVersion": "protected-mcp-attestation.v2",
         "operation": operation,
         "targetHmac": HMAC_A,
         "permitHash": None if permit_hash is None else "sha256:" + permit_hash.removeprefix("sha256:"),
+        "consumeHash": None if consume_hash is None else "sha256:" + consume_hash,
+        "dispatchHash": None if dispatch_hash is None else "sha256:" + dispatch_hash,
+        "safeReceiptHmac": safe_receipt_hmac,
         "requestHash": "sha256:" + request_hash.removeprefix("sha256:"),
-        "responseHmac": HMAC_A,
+        "responseHmac": safe_receipt_hmac or HMAC_A,
         "preconditionHash": HMAC_A,
         "postconditionHash": postcondition_hmac,
         "success": success,
@@ -192,6 +205,7 @@ def mcp_chain_fixture() -> tuple[dict[str, object], ...]:
         ("inspect_migrations", None, HEX_A, HMAC_C),
         ("apply_migration", HEX_B, HEX_B, HMAC_B),
         ("sql_check", None, HEX_A, HMAC_B),
+        ("inspect_migrations", None, HEX_A, HMAC_D),
         ("inspect_migrations", None, HEX_A, HMAC_D),
     )
     previous_hash = "0" * 64
@@ -222,6 +236,7 @@ def mcp_retry_chain_fixture() -> tuple[dict[str, object], ...]:
         ("inspect_migrations", None, HEX_A, HMAC_D, True, None),
         ("apply_migration", HEX_C, HEX_C, HMAC_B, True, None),
         ("sql_check", None, HEX_A, HMAC_B, True, None),
+        ("inspect_migrations", None, HEX_A, HMAC_E, True, None),
         ("inspect_migrations", None, HEX_A, HMAC_E, True, None),
     )
     previous_hash = "0" * 64
@@ -386,6 +401,7 @@ class SecureStateTests(unittest.TestCase):
         self.assertEqual(
             set(secure_state.PRIVATE_FILE_LAYOUT),
             {
+                "run-mac-key",
                 "state",
                 "manifest",
                 "mcp-attestations",
@@ -415,6 +431,40 @@ class SecureStateTests(unittest.TestCase):
                 fcntl.flock(competing, fcntl.LOCK_EX | fcntl.LOCK_NB)
         finally:
             os.close(competing)
+
+    def test_run_mac_key_is_private_random_and_stable_across_reopen(self) -> None:
+        key_fd = self.run.state.file_fd("run-mac-key")
+        first_digest = hashlib.sha256(os.pread(key_fd, secure_state.RUN_MAC_KEY_BYTES, 0)).digest()
+        self.assertEqual(os.fstat(key_fd).st_size, secure_state.RUN_MAC_KEY_BYTES)
+        self.run.state.close()
+        resumed = secure_state.reopen_private_state(
+            self.run.parent,
+            self.run.run_name,
+            repository_roots=(str(Path.cwd()),),
+        )
+        self.run.state = resumed
+        resumed_fd = resumed.file_fd("run-mac-key")
+        second_digest = hashlib.sha256(os.pread(resumed_fd, secure_state.RUN_MAC_KEY_BYTES, 0)).digest()
+        self.assertEqual(first_digest, second_digest)
+
+    def test_reopen_rejects_truncated_run_mac_key(self) -> None:
+        self.run.state.close()
+        key_path = self.run.root / secure_state.PRIVATE_FILE_LAYOUT["run-mac-key"][0]
+        key_path.write_bytes(b"short")
+        key_path.chmod(0o600)
+        with self.assertRaisesRegex(ValueError, "run_mac_key_invalid"):
+            secure_state.reopen_private_state(
+                self.run.parent,
+                self.run.run_name,
+                repository_roots=(str(Path.cwd()),),
+            )
+        key_path.write_bytes(b"k" * secure_state.RUN_MAC_KEY_BYTES)
+        key_path.chmod(0o600)
+        self.run.state = secure_state.reopen_private_state(
+            self.run.parent,
+            self.run.run_name,
+            repository_roots=(str(Path.cwd()),),
+        )
 
     def test_active_run_cannot_be_reopened_then_closed_run_can_resume(self) -> None:
         with self.assertRaises(BlockingIOError):
@@ -642,6 +692,7 @@ class SecureStateTests(unittest.TestCase):
             "run-storage-object": ("storage_object", "delete_storage_object"),
             "run-deletion-request": ("deletion_request", "reconcile_deletion_request"),
             "run-ai-run": ("ai_run", "delete_ai_run"),
+            "run-session-bundle": ("session_bundle", "reconcile_session_bundle"),
         }
         expected_outcomes = {
             "delete_auth_user": frozenset({"deleted", "absent", "not_created"}),
@@ -651,6 +702,9 @@ class SecureStateTests(unittest.TestCase):
             "delete_upload_intent": frozenset({"deleted", "absent", "not_created"}),
             "delete_ai_run": frozenset({"deleted", "absent", "not_created"}),
             "reconcile_deletion_request": frozenset({"reconciled", "absent"}),
+            "reconcile_session_bundle": frozenset(
+                {"retained", "deleted", "absent", "not_created"}
+            ),
             "retain_session": frozenset({"retained"}),
         }
         self.assertEqual(dict(secure_state.CLEANUP_PLAN_TYPES), expected_plan_types)
@@ -729,6 +783,7 @@ class SecureStateTests(unittest.TestCase):
                     operation="apply_migration",
                     action="apply_migration_009",
                     development_target_hmac=HMAC_A,
+                    development_target_capability_hmac=HMAC_A,
                     payload_sha256=HEX_A,
                     case_id="DB-02",
                     idempotency_hmac=idempotency_hmac,
@@ -761,6 +816,7 @@ class SecureStateTests(unittest.TestCase):
                     operation="apply_migration",
                     action="apply_migration_009",
                     development_target_hmac=HMAC_A,
+                    development_target_capability_hmac=HMAC_A,
                     payload_sha256=HEX_A,
                     case_id="DB-02",
                     idempotency_hmac=idempotency_hmac,
@@ -776,6 +832,7 @@ class SecureStateTests(unittest.TestCase):
                     operation="apply_migration",
                     action="apply_migration_009",
                     development_target_hmac=HMAC_A,
+                    development_target_capability_hmac=HMAC_A,
                     payload_sha256=HEX_A,
                     case_id="DB-02",
                     idempotency_hmac=idempotency_hmac,
@@ -784,7 +841,51 @@ class SecureStateTests(unittest.TestCase):
                     controller_state_sequence=7,
                     mac_key_fd=key_file.fileno(),
                 )
-        permits.record_outcome(consume_hash, "unknown")
+            with mock.patch.object(
+                secure_state.time, "monotonic_ns", return_value=issued_at + 2
+            ):
+                dispatch = permits.authorize_dispatch(
+                    consume_hash,
+                    permit_hash=permit_hash,
+                    operation="apply_migration",
+                    action="apply_migration_009",
+                    development_target_hmac=HMAC_A,
+                    development_target_capability_hmac=HMAC_A,
+                    payload_sha256=HEX_A,
+                    case_id="DB-02",
+                    idempotency_hmac=idempotency_hmac,
+                    controller_state="migration_009_prepared",
+                    controller_state_hash=HEX_B,
+                    controller_state_sequence=7,
+                    mac_key_fd=key_file.fileno(),
+                )
+                self.assertRegex(dispatch["dispatchHash"], r"^[a-f0-9]{64}$")
+                with self.assertRaisesRegex(ValueError, "mutation_dispatch_unavailable"):
+                    permits.authorize_dispatch(
+                        consume_hash,
+                        permit_hash=permit_hash,
+                        operation="apply_migration",
+                        action="apply_migration_009",
+                        development_target_hmac=HMAC_A,
+                        development_target_capability_hmac=HMAC_A,
+                        payload_sha256=HEX_A,
+                        case_id="DB-02",
+                        idempotency_hmac=idempotency_hmac,
+                        controller_state="migration_009_prepared",
+                        controller_state_hash=HEX_B,
+                        controller_state_sequence=7,
+                        mac_key_fd=key_file.fileno(),
+                    )
+        with tempfile.TemporaryFile() as outcome_key_file:
+            outcome_key_file.write(key)
+            outcome_key_file.flush()
+            permits.record_outcome(
+                consume_hash,
+                "unknown",
+                dispatch_hash=dispatch["dispatchHash"],
+                safe_receipt_hmac=HMAC_A,
+                mac_key_fd=outcome_key_file.fileno(),
+            )
         permits.reconcile(consume_hash, effect_present=False)
 
     def test_mutation_permit_rejects_every_binding_mismatch(self) -> None:
@@ -803,6 +904,7 @@ class SecureStateTests(unittest.TestCase):
                     operation="apply_migration",
                     action="apply_migration_009",
                     development_target_hmac=HMAC_A,
+                    development_target_capability_hmac=HMAC_A,
                     payload_sha256=HEX_A,
                     case_id="DB-02",
                     idempotency_hmac=idempotency_hmac,
@@ -816,6 +918,7 @@ class SecureStateTests(unittest.TestCase):
                 "operation": "apply_migration",
                 "action": "apply_migration_009",
                 "development_target_hmac": HMAC_A,
+                "development_target_capability_hmac": HMAC_A,
                 "payload_sha256": HEX_A,
                 "case_id": "DB-02",
                 "idempotency_hmac": idempotency_hmac,
@@ -828,6 +931,7 @@ class SecureStateTests(unittest.TestCase):
                 {"operation": "sql_check"},
                 {"action": "apply_migration_010", "controller_state": "migration_010_prepared"},
                 {"development_target_hmac": "hmac-sha256:" + HEX_B},
+                {"development_target_capability_hmac": "hmac-sha256:" + HEX_B},
                 {"payload_sha256": HEX_B},
                 {"case_id": "DB-01"},
                 {"idempotency_hmac": "hmac-sha256:" + ("c" * 64)},
@@ -851,6 +955,7 @@ class SecureStateTests(unittest.TestCase):
             "operation": "apply_migration",
             "action": "apply_migration_009",
             "development_target_hmac": HMAC_A,
+            "development_target_capability_hmac": HMAC_A,
             "payload_sha256": HEX_A,
             "case_id": "DB-02",
             "idempotency_hmac": "hmac-sha256:" + HEX_B,
@@ -884,6 +989,9 @@ class SecureStateTests(unittest.TestCase):
                 "operation": issue_args["operation"],
                 "action": issue_args["action"],
                 "development_target_hmac": issue_args["development_target_hmac"],
+                "development_target_capability_hmac": issue_args[
+                    "development_target_capability_hmac"
+                ],
                 "payload_sha256": issue_args["payload_sha256"],
                 "case_id": issue_args["case_id"],
                 "idempotency_hmac": issue_args["idempotency_hmac"],
@@ -1021,6 +1129,7 @@ class ControllerContractTests(unittest.TestCase):
             consumed_permit_hashes=(HEX_A, HEX_B, HEX_C),
             migration_attestation_hashes=(str(mcp_entries[7]["hash"]), str(mcp_entries[10]["hash"])),
             development_target_hmac=HMAC_A,
+            development_target_capability_hmac=HMAC_A,
             mcp_sequence=len(mcp_entries) - 1,
             mcp_tail_hash=str(mcp_entries[-1]["hash"]),
             scripted_phase_cleaned=True,
@@ -1104,6 +1213,7 @@ class ControllerContractTests(unittest.TestCase):
             production_negative_verified=True,
             manifest_digest="sha256:" + HEX_A,
             development_target_hmac=HMAC_A,
+            development_target_capability_hmac=HMAC_A,
         )
         prepare_event = {
             "type": "MIGRATION_PREPARED",
@@ -1133,6 +1243,7 @@ class ControllerContractTests(unittest.TestCase):
                 current_permit_hash=HEX_B,
                 consumed_permit_hashes=(HEX_B,),
                 development_target_hmac=HMAC_A,
+                development_target_capability_hmac=HMAC_A,
                 mcp_sequence=1,
                 mcp_tail_hash=HEX_A,
                 prepared_payload_binding_hmac=HMAC_B,
@@ -1142,6 +1253,9 @@ class ControllerContractTests(unittest.TestCase):
                 HEX_A,
                 operation="apply_migration",
                 permit_hash=HEX_B,
+                consume_hash=HEX_A,
+                dispatch_hash=HEX_C,
+                safe_receipt_hmac=HMAC_D,
                 postcondition_hmac=HMAC_B,
                 request_hash=HEX_B,
             )
@@ -1163,6 +1277,8 @@ class ControllerContractTests(unittest.TestCase):
                 "type": "MIGRATION_ATTESTED",
                 "version": "009",
                 "consumeHash": HEX_A,
+                "dispatchHash": HEX_C,
+                "safeReceiptHmac": HMAC_D,
                 "targetHmac": HMAC_A,
                 "applyMcpEntry": attested_entry,
                 "postconditionMcpEntry": attested_postcondition,
@@ -1173,15 +1289,28 @@ class ControllerContractTests(unittest.TestCase):
                 "targetMatched": True,
                 "payloadMatched": True,
                 "permitLedgerFd": ledger_fd,
+                "macKeyFd": ledger_fd,
                 "productionActionCount": 0,
             }
             with mock.patch.object(
                 secure_state.MutationPermitLedger,
                 "verify_outcome",
-                return_value={"verified": True},
+                return_value={
+                    "verified": True,
+                    "dispatchHash": HEX_C,
+                    "safeReceiptHmac": HMAC_D,
+                },
             ):
                 with self.assertRaises(ValueError):
                     controller.transition(in_flight, {**attested_event, "productionActionCount": False})
+                for mismatch in (
+                    {"consumeHash": HEX_D},
+                    {"dispatchHash": HEX_D},
+                    {"safeReceiptHmac": HMAC_E},
+                ):
+                    with self.subTest(mismatch=tuple(mismatch)):
+                        with self.assertRaises(ValueError):
+                            controller.transition(in_flight, {**attested_event, **mismatch})
                 self.assertEqual(controller.transition(in_flight, attested_event).phase, "migration_009_attested")
 
             unknown = controller.ControllerState(
@@ -1208,6 +1337,8 @@ class ControllerContractTests(unittest.TestCase):
                 "type": "MIGRATION_RECONCILED",
                 "version": "009",
                 "consumeHash": HEX_A,
+                "dispatchHash": HEX_C,
+                "safeReceiptHmac": HMAC_D,
                 "targetHmac": HMAC_A,
                 "postconditionMcpEntry": reconciled_entry,
                 "ledgerMcpEntry": reconciled_ledger,
@@ -1215,12 +1346,17 @@ class ControllerContractTests(unittest.TestCase):
                 "ledger": controller.MIGRATION_PRE_LEDGER,
                 "ledgerHmac": HMAC_C,
                 "permitLedgerFd": ledger_fd,
+                "macKeyFd": ledger_fd,
                 "productionActionCount": 0,
             }
             with mock.patch.object(
                 secure_state.MutationPermitLedger,
                 "verify_reconciliation",
-                return_value={"verified": True},
+                return_value={
+                    "verified": True,
+                    "dispatchHash": HEX_C,
+                    "safeReceiptHmac": HMAC_D,
+                },
             ):
                 with self.assertRaises(ValueError):
                     controller.transition(unknown, {**reconciled_event, "productionActionCount": False})
@@ -1291,6 +1427,7 @@ class ControllerContractTests(unittest.TestCase):
                 production_negative_verified=True,
                 manifest_digest="sha256:" + HEX_A,
                 development_target_hmac=HMAC_A,
+                development_target_capability_hmac=HMAC_A,
                 prepared_version="009",
                 prepared_target_hmac=HMAC_A,
                 prepared_payload_sha256="sha256:" + HEX_A,
@@ -1329,6 +1466,7 @@ class ControllerContractTests(unittest.TestCase):
                     operation="apply_migration",
                     action="apply_migration_009",
                     development_target_hmac=HMAC_A,
+                    development_target_capability_hmac=HMAC_A,
                     payload_sha256=HEX_A,
                     case_id="DB-02",
                     idempotency_hmac=wrong_idempotency,
@@ -1343,6 +1481,7 @@ class ControllerContractTests(unittest.TestCase):
                     operation="apply_migration",
                     action="apply_migration_009",
                     development_target_hmac=HMAC_A,
+                    development_target_capability_hmac=HMAC_A,
                     payload_sha256=HEX_A,
                     case_id="DB-02",
                     idempotency_hmac=wrong_idempotency,
@@ -1360,6 +1499,7 @@ class ControllerContractTests(unittest.TestCase):
                     operation="apply_migration",
                     action="apply_migration_009",
                     development_target_hmac=HMAC_A,
+                    development_target_capability_hmac=HMAC_A,
                     payload_sha256=HEX_A,
                     case_id="DB-02",
                     idempotency_hmac=idempotency_hmac,
@@ -1374,6 +1514,7 @@ class ControllerContractTests(unittest.TestCase):
                     operation="apply_migration",
                     action="apply_migration_009",
                     development_target_hmac=HMAC_A,
+                    development_target_capability_hmac=HMAC_A,
                     payload_sha256=HEX_A,
                     case_id="DB-02",
                     idempotency_hmac=idempotency_hmac,
@@ -1388,12 +1529,36 @@ class ControllerContractTests(unittest.TestCase):
                 in_flight = controller_step(prepared, permit_event(consume_hash, key_file.fileno(), idempotency_hmac))
                 self.assertEqual(in_flight.phase, "migration_009_in_flight")
                 self.assertEqual(in_flight.current_permit_hash, permit_hash)
-                ledger.record_outcome(consume_hash, "unknown")
+                dispatch = ledger.authorize_dispatch(
+                    consume_hash,
+                    permit_hash=permit_hash,
+                    operation="apply_migration",
+                    action="apply_migration_009",
+                    development_target_hmac=HMAC_A,
+                    development_target_capability_hmac=HMAC_A,
+                    payload_sha256=HEX_A,
+                    case_id="DB-02",
+                    idempotency_hmac=idempotency_hmac,
+                    controller_state=prepared.phase,
+                    controller_state_hash=state_digest,
+                    controller_state_sequence=prepared.transition_sequence,
+                    mac_key_fd=key_file.fileno(),
+                )
+                ledger.record_outcome(
+                    consume_hash,
+                    "unknown",
+                    dispatch_hash=dispatch["dispatchHash"],
+                    safe_receipt_hmac=HMAC_A,
+                    mac_key_fd=key_file.fileno(),
+                )
                 unknown_mcp = mcp_entry_fixture(
                     in_flight.mcp_sequence + 1,
                     in_flight.mcp_tail_hash,
                     operation="apply_migration",
                     permit_hash=permit_hash,
+                    consume_hash=consume_hash,
+                    dispatch_hash=dispatch["dispatchHash"],
+                    safe_receipt_hmac=HMAC_A,
                     postcondition_hmac=in_flight.prepared_payload_binding_hmac,
                     success=False,
                     safe_code="MCP_ACTION_UNKNOWN",
@@ -1404,9 +1569,12 @@ class ControllerContractTests(unittest.TestCase):
                         "type": "MIGRATION_UNKNOWN",
                         "version": "009",
                         "consumeHash": consume_hash,
+                        "dispatchHash": dispatch["dispatchHash"],
+                        "safeReceiptHmac": HMAC_A,
                         "reconciliationRequired": True,
                         "mcpEntry": unknown_mcp,
                         "permitLedgerFd": ledger_fd,
+                        "macKeyFd": key_file.fileno(),
                     },
                 )
                 self.assertEqual(unknown.phase, "migration_009_unknown")
@@ -1432,6 +1600,8 @@ class ControllerContractTests(unittest.TestCase):
                         "type": "MIGRATION_RECONCILED",
                         "version": "009",
                         "consumeHash": consume_hash,
+                        "dispatchHash": dispatch["dispatchHash"],
+                        "safeReceiptHmac": HMAC_A,
                         "targetHmac": HMAC_A,
                         "postconditionMcpEntry": reconciliation_mcp,
                         "ledgerMcpEntry": reconciliation_ledger,
@@ -1439,6 +1609,7 @@ class ControllerContractTests(unittest.TestCase):
                         "ledger": controller.MIGRATION_PRE_LEDGER,
                         "ledgerHmac": HMAC_C,
                         "permitLedgerFd": ledger_fd,
+                        "macKeyFd": key_file.fileno(),
                         "productionActionCount": 0,
                     },
                 )
@@ -1461,6 +1632,7 @@ class ControllerContractTests(unittest.TestCase):
                     operation="apply_migration",
                     action="apply_migration_009",
                     development_target_hmac=HMAC_A,
+                    development_target_capability_hmac=HMAC_A,
                     payload_sha256=HEX_A,
                     case_id="DB-02",
                     idempotency_hmac=fresh_idempotency,
@@ -1475,6 +1647,7 @@ class ControllerContractTests(unittest.TestCase):
                     operation="apply_migration",
                     action="apply_migration_009",
                     development_target_hmac=HMAC_A,
+                    development_target_capability_hmac=HMAC_A,
                     payload_sha256=HEX_A,
                     case_id="DB-02",
                     idempotency_hmac=fresh_idempotency,
@@ -1681,6 +1854,7 @@ class ControllerContractTests(unittest.TestCase):
             consumed_permit_hashes=(HEX_A, HEX_B),
             migration_attestation_hashes=(str(mcp_entries[2]["hash"]), str(mcp_entries[3]["hash"])),
             development_target_hmac=HMAC_A,
+            development_target_capability_hmac=HMAC_A,
             mcp_sequence=len(mcp_entries) - 1,
             mcp_tail_hash=str(mcp_entries[-1]["hash"]),
             scripted_phase_cleaned=True,
@@ -1790,10 +1964,14 @@ class ControllerContractTests(unittest.TestCase):
                 "docs/AI_PIPELINE_E2E_RUNBOOK.md",
                 "scripts/ai_pipeline_e2e/__init__.py",
                 "scripts/ai_pipeline_e2e/bridge_protocol.py",
+                "scripts/ai_pipeline_e2e/browser_probe_runner.mjs",
                 "scripts/ai_pipeline_e2e/browser_probe_source.mjs",
                 "scripts/ai_pipeline_e2e/browser_session_broker.mjs",
                 "scripts/ai_pipeline_e2e/cases.json",
                 "scripts/ai_pipeline_e2e/controller.py",
+                "scripts/ai_pipeline_e2e/development_target.mjs",
+                "scripts/ai_pipeline_e2e/driver_cleanup_broker.py",
+                "scripts/ai_pipeline_e2e/driver_cleanup_runtime.py",
                 "scripts/ai_pipeline_e2e/live_runner.py",
                 "scripts/ai_pipeline_e2e/mcp_bridge.py",
                 "scripts/ai_pipeline_e2e/mcp_queries.py",
@@ -1805,8 +1983,12 @@ class ControllerContractTests(unittest.TestCase):
                 "scripts/ai_pipeline_e2e/secure_state.py",
                 "scripts/ai_pipeline_e2e/service_bootstrap.py",
                 "scripts/ai_pipeline_e2e/tests/test_bridge_protocol.py",
+                "scripts/ai_pipeline_e2e/tests/test_browser_probe_runner.py",
                 "scripts/ai_pipeline_e2e/tests/test_browser_probe_source.py",
                 "scripts/ai_pipeline_e2e/tests/test_browser_session_broker.py",
+                "scripts/ai_pipeline_e2e/tests/test_development_target.py",
+                "scripts/ai_pipeline_e2e/tests/test_driver_cleanup_broker.py",
+                "scripts/ai_pipeline_e2e/tests/test_driver_cleanup_runtime.py",
                 "scripts/ai_pipeline_e2e/tests/test_harness.py",
                 "scripts/ai_pipeline_e2e/tests/test_live_runner.py",
                 "scripts/ai_pipeline_e2e/tests/test_mcp_architect_regressions.py",
