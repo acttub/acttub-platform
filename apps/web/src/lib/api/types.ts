@@ -290,9 +290,12 @@ export type PipelineSessionAggregateDto = {
   observations: PipelineObservationDto[];
   corrections: PipelineActorCorrectionDto[];
   transcript: PipelineTranscriptTurnDto[];
+  optionalNote: string | null;
   runs: PipelineAiRunDto[];
   report: ImmutablePipelineReportDto | null;
 };
+export type SavePipelineOptionalNoteRequest = { content: string | null };
+export type SavePipelineOptionalNoteResponse = { optionalNote: string | null };
 
 export type CreatePipelineSessionResponse = { session: PipelineSessionAggregateDto; summaryRun: PipelineAiRunDto };
 export type GetPipelineSessionResponse = { session: PipelineSessionAggregateDto };

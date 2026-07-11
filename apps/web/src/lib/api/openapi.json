@@ -1616,6 +1616,54 @@
           }
         ]
       }
+    },
+    "/api/v1/practice-sessions/{sessionId}/optional-note": {
+      "put": {
+        "tags": [
+          "AI 파이프라인"
+        ],
+        "summary": "내 문장 저장 또는 지우기",
+        "operationId": "savePipelineOptionalNote",
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SavePipelineOptionalNoteRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "저장된 내 문장",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SavePipelineOptionalNoteResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -2700,6 +2748,38 @@
           },
           "validationMetrics": {
             "$ref": "#/components/schemas/ValidationMetrics"
+          }
+        }
+      },
+      "SavePipelineOptionalNoteRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "content"
+        ],
+        "properties": {
+          "content": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 1000
+          }
+        }
+      },
+      "SavePipelineOptionalNoteResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "optionalNote"
+        ],
+        "properties": {
+          "optionalNote": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 1000
           }
         }
       }

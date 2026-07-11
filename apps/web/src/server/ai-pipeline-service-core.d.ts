@@ -27,6 +27,7 @@ export interface AiPipelineServiceDependencies {
 export interface AiPipelineService {
   createSession(body: unknown, userId: string): Promise<unknown>;
   getSession(sessionId: string, userId: string): Promise<unknown>;
+  saveOptionalNote(sessionId: string, userId: string, body: unknown): Promise<unknown>;
   confirmObservation(sessionId: string, observationId: string, userId: string, body: unknown): Promise<unknown>;
   startInterview(sessionId: string, userId: string): Promise<unknown>;
   addTurn(sessionId: string, userId: string, body: unknown): Promise<unknown>;

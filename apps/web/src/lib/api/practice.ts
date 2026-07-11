@@ -19,6 +19,8 @@ import type {
   PipelineInterviewResponse,
   PipelineInterviewTurnRequest,
   SignedVideoUrlResponse,
+  SavePipelineOptionalNoteRequest,
+  SavePipelineOptionalNoteResponse,
   UpdateSessionVisibilityResponse,
   UpdateObservationRequest,
   UpdateObservationResponse,
@@ -43,7 +45,7 @@ export async function parseApiResponse<T>(response: Response): Promise<T> {
 }
 
 const get = <T>(path: string) => fetch(path, { headers: { Accept: "application/json" } }).then(parseApiResponse<T>);
-const send = <T>(path: string, method: "POST" | "PATCH" | "DELETE", body?: unknown, headers?: HeadersInit) =>
+const send = <T>(path: string, method: "POST" | "PUT" | "PATCH" | "DELETE", body?: unknown, headers?: HeadersInit) =>
   fetch(path, { method, headers: { ...jsonHeaders, ...headers }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) }).then(parseApiResponse<T>);
 
 export async function createPracticeUploadIntent(body: CreateUploadIntentRequest): Promise<CreateUploadIntentResponse> {
@@ -94,6 +96,9 @@ export function getPipelineReport(sessionId: string): Promise<ImmutablePipelineR
 
 export function retryPipelineReport(sessionId: string): Promise<ImmutablePipelineReportDto> {
   return send(`/api/v1/practice-sessions/${sessionId}/report/retry`, "POST");
+}
+export function savePipelineOptionalNote(sessionId:string, body:SavePipelineOptionalNoteRequest):Promise<SavePipelineOptionalNoteResponse>{
+  return send(`/api/v1/practice-sessions/${sessionId}/optional-note`, "PUT", body);
 }
 
 export function deletePipelinePracticeSession(sessionId: string, requestId: string): Promise<DeletePipelineSessionResponse> {

@@ -53,10 +53,14 @@ export const createAiPipelineService = (incomingDeps) => {
             throw new AiPipelineError(404, "PIPELINE_SESSION_NOT_FOUND");
         return value;
     };
-    const publicAggregate = (value) => sanitizePublicAiPipelineAggregate({
-        ...value,
+    const publicAggregate = (value) => {
+        if (!(value.optionalNote === null || typeof value.optionalNote === "string"))
+            throw new AiPipelineError(503, "OPTIONAL_NOTE_PROJECTION_INVALID");
+        return sanitizePublicAiPipelineAggregate({
+        ...value, optionalNote: value.optionalNote,
         observations: value.observations.filter((item) => item.priority !== null && item.priority <= 3),
-    });
+        });
+    };
     const currentInput = (command, extras = {}) => ({
         command,
         answer: null,
@@ -65,6 +69,9 @@ export const createAiPipelineService = (incomingDeps) => {
         ...extras,
     });
     const actorTurnCount = (session) => countReportableActorTurns(session.transcript);
+    const providerTranscript = (session) => session.transcript
+        .filter((item) => item.kind !== "optional_note")
+        .map((item) => ({ turnId: item.id, speaker: item.role, content: item.content, kind: item.kind }));
     const sortedCorrections = (session) => [...session.corrections].sort((left, right) => left.correctionByTurnId.localeCompare(right.correctionByTurnId) || left.id.localeCompare(right.id));
     const ensureMutableInterviewSession = (session) => {
         if (session.interviewStatus === "completed" || session.interviewStatus === "completed_without_report")
@@ -82,7 +89,7 @@ export const createAiPipelineService = (incomingDeps) => {
                 .filter((item) => item.priority !== null && item.priority <= 3)
                 .map((item) => ({ observationId: item.id, segment: { startMs: item.startMs, endMs: item.endMs }, text: item.text, confirmationState: item.confirmationState, blocked: item.blockedForQuestioning, confidence: null, priority: item.priority ?? 3, dimension: item.dimension ?? "general", severity: item.severity })),
             actorCorrections: session.corrections.map((item) => ({ correctionId: item.id, correctsObservationId: item.correctsObservationId, segment: item.segment, text: item.text, actorTurnId: item.correctionByTurnId })),
-            transcript: session.transcript.map((item) => ({ turnId: item.id, speaker: item.role, content: item.content, kind: item.kind })),
+            transcript: providerTranscript(session),
             substantiveAnswerCount: session.substantiveAnswerCount,
             currentInput: input,
         };
@@ -190,12 +197,7 @@ export const createAiPipelineService = (incomingDeps) => {
             text: item.text,
             actorTurnId: item.correctionByTurnId,
         })),
-        transcript: session.transcript.map((item) => ({
-            turnId: item.id,
-            speaker: item.role,
-            content: item.content,
-            kind: item.kind,
-        })),
+        transcript: providerTranscript(session),
         completionReason: session.completionReason,
         selectedEvidence: {
             observationIds: session.reportEvidenceObservationIds,
@@ -257,7 +259,7 @@ export const createAiPipelineService = (incomingDeps) => {
                         return { observationId: item.id, sourceCandidateId: item.candidateId, segment: { startMs: item.startMs, endMs: item.endMs }, text: item.text, dimension: item.dimension };
                     }),
                     actorCorrections: sortedCorrections(session).map((item) => ({ correctionId: item.id, correctsObservationId: item.correctsObservationId, segment: item.segment, text: item.text, actorTurnId: item.correctionByTurnId })),
-                    transcript: session.transcript.map((item) => ({ turnId: item.id, speaker: item.role, content: item.content, kind: item.kind })),
+                    transcript: providerTranscript(session),
                     completionReason: isReportReadyReason(session.completionReason) ? session.completionReason : (() => { throw new AiPipelineError(409, "REPORT_NOT_READY"); })(),
                     selectedEvidence: { observationIds: session.reportEvidenceObservationIds, answerTurnIds: session.reportEvidenceAnswerTurnIds },
                 };
@@ -491,6 +493,24 @@ export const createAiPipelineService = (incomingDeps) => {
             return { session: publicAggregate(refreshed), summaryRun: sanitizePublicAiPipelineAggregate(summaryRun) };
         },
         async getSession(sessionId, userId) { return publicAggregate(await aggregate(sessionId, userId)); },
+        async saveOptionalNote(sessionId, userId, body) {
+            const payload = requestBody(body);
+            if (Object.keys(payload).length !== 1 || !("content" in payload) || !(payload.content === null || typeof payload.content === "string"))
+                throw new AiPipelineError(400, "INVALID_OPTIONAL_NOTE");
+            const session = await aggregate(sessionId, userId);
+            const terminal = (session.interviewStatus === "completed" && ["interview_complete_report_ready", "manual_stop_report_ready", "hard_limit_report_ready"].includes(session.completionReason))
+                || (session.interviewStatus === "completed_without_report" && ["insufficient_confirmed_evidence", "insufficient_interview_evidence"].includes(session.completionReason));
+            if (!terminal)
+                throw new AiPipelineError(409, "OPTIONAL_NOTE_NOT_ALLOWED");
+            const content = typeof payload.content === "string" ? payload.content.trim() || null : null;
+            if (content !== null && content.length > 1000)
+                throw new AiPipelineError(400, "INVALID_OPTIONAL_NOTE");
+            await deps.repository.saveOptionalNote({ sessionId, userId, turnId: crypto.randomUUID(), content });
+            const refreshed = await aggregate(sessionId, userId);
+            if (!(refreshed.optionalNote === null || typeof refreshed.optionalNote === "string"))
+                throw new AiPipelineError(503, "OPTIONAL_NOTE_PROJECTION_INVALID");
+            return { optionalNote: refreshed.optionalNote };
+        },
         async confirmObservation(sessionId, observationId, userId, body) {
             const session = await aggregate(sessionId, userId);
             const payload = requestBody(body);

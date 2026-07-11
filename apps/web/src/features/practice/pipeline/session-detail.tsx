@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { getPipelinePracticeSession, retryPipelineReport } from "@/lib/api/practice";
+import { getPipelinePracticeSession, retryPipelineReport, savePipelineOptionalNote } from "@/lib/api/practice";
 import type { PipelineSessionAggregateDto } from "@/lib/api/types";
 import { PrivateVideo, type PrivateVideoHandle } from "./private-video";
 import { ReportView } from "./report-view";
@@ -12,12 +12,14 @@ export function PipelineSessionDetail({ sessionId }: { sessionId: string }) {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [retrying, setRetrying] = useState(false);
+  const [optionalNote, setOptionalNote] = useState("");
+  const [savingNote, setSavingNote] = useState(false);
   const videoRef = useRef<PrivateVideoHandle>(null);
 
   const reload = useCallback(async () => {
     setLoading(true);
     setError(null);
-    try { setSession((await getPipelinePracticeSession(sessionId)).session); }
+    try { const next=(await getPipelinePracticeSession(sessionId)).session;setSession(next);setOptionalNote(next.optionalNote??""); }
     catch (reason) { setError(reason instanceof Error ? reason.message : "연습 기록을 불러오지 못했어요."); }
     finally { setLoading(false); }
   }, [sessionId]);
@@ -25,7 +27,7 @@ export function PipelineSessionDetail({ sessionId }: { sessionId: string }) {
   useEffect(() => {
     let active = true;
     getPipelinePracticeSession(sessionId).then(
-      ({ session: persistedSession }) => { if (active) setSession(persistedSession); },
+      ({ session: persistedSession }) => { if (active) {setSession(persistedSession);setOptionalNote(persistedSession.optionalNote??"");} },
       (reason: unknown) => { if (active) setError(reason instanceof Error ? reason.message : "연습 기록을 불러오지 못했어요."); },
     ).finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
@@ -43,6 +45,7 @@ export function PipelineSessionDetail({ sessionId }: { sessionId: string }) {
     catch (reason) { setError(reason instanceof Error ? reason.message : "리포트를 다시 만들지 못했어요."); }
     finally { setRetrying(false); }
   }
+  async function persistOptionalNote(content:string|null){setSavingNote(true);setError(null);try{const saved=await savePipelineOptionalNote(sessionId,{content});setOptionalNote(saved.optionalNote??"");setSession(current=>current?{...current,optionalNote:saved.optionalNote}:current);}catch(reason){setError(reason instanceof Error?reason.message:"내 문장을 저장하지 못했어요.");}finally{setSavingNote(false)}}
 
   return (
     <main className="mx-auto w-full max-w-5xl px-5 py-8 md:py-12">
@@ -58,6 +61,7 @@ export function PipelineSessionDetail({ sessionId }: { sessionId: string }) {
             <section className="rounded-2xl bg-white p-5"><h2 className="font-semibold">진행 상태</h2><p className="mt-2 text-sm text-slate-600">{session.interviewStatus === "paused" ? "인터뷰가 일시 정지되었어요." : session.interviewStatus === "completed_without_report" ? "인터뷰는 끝났지만 확인된 근거가 충분하지 않아 리포트가 없어요." : session.report ? "리포트가 완료되었어요." : "리포트를 준비하고 있어요."}</p>
               {retryableReportFailure ? <button type="button" onClick={() => void retryReport()} disabled={retrying} className="mt-4 rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">{retrying ? "다시 만드는 중" : "리포트 다시 만들기"}</button> : null}
             </section>
+            {session.interviewStatus==="completed"||session.interviewStatus==="completed_without_report"?<section className="rounded-2xl bg-white p-5"><label htmlFor="optional-note" className="font-semibold">내 문장 남기기</label><textarea id="optional-note" value={optionalNote} maxLength={1000} onChange={event=>setOptionalNote(event.target.value)} disabled={savingNote} className="mt-3 min-h-28 w-full rounded-xl border border-slate-300 p-3" aria-describedby="optional-note-count"/><p id="optional-note-count" className="mt-1 text-right text-xs text-slate-500">{optionalNote.length}/1000</p><div className="mt-3 flex gap-2"><button type="button" onClick={()=>void persistOptionalNote(optionalNote)} disabled={savingNote} className="rounded-full bg-slate-900 px-4 py-2 text-sm text-white disabled:opacity-50">{savingNote?"저장 중":"저장"}</button><button type="button" onClick={()=>void persistOptionalNote(null)} disabled={savingNote||(!session.optionalNote&&!optionalNote)} className="rounded-full border border-slate-300 px-4 py-2 text-sm disabled:opacity-50">지우기</button></div></section>:null}
           </div>
           {session.report ? <ReportView report={session.report} onSeek={(startMs) => videoRef.current?.seekTo(startMs)} /> : <section className="rounded-3xl bg-white p-8"><h2 className="text-xl font-bold">리포트가 아직 없어요</h2><p className="mt-3 text-slate-600">진행 상태를 확인한 뒤 새로고침해 주세요.</p></section>}
         </div>

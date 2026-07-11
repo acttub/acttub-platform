@@ -78,6 +78,7 @@ export interface PipelineSessionAggregate {
   sceneContext: { genre:string; situation:string; characterContext:string; subtext:string|null };
   take: { id:string; storageBucket:"practice-videos"; storagePath:string; durationMs:number; mediaMetadataVersion:"iso-bmff-duration.v1" };
   observations: PipelineObservation[]; corrections: ActorCorrection[]; transcript: InterviewTurn[];
+  optionalNote: string | null;
   runs: AiRun[]; report: ImmutableAiReport | null;
 }
 
@@ -90,4 +91,5 @@ export interface PipelineTurnInput { sessionId:string; userId:string; agentRunId
 export interface CompleteInterviewInput { sessionId:string; userId:string; status:InterviewStatus; completionReason:CompletionReason; observationIds:string[]; answerTurnIds:string[]; agentRunId?: string | null; agentResponse?: AgentReplayPayload | null; model?: string | null; promptVersion?: string | null }
 export interface CompleteReportInput { sessionId:string; userId:string; runId:string; report:{schemaVersion:"report.v1";sections:{oneLineSummary:ReportSection;primaryReviewPoint:ReportSection;confirmedEvidence:ReportSection;actorDiscovery:ReportSection;groundedEncouragement:ReportSection;nextPracticeStep:ReportSection}}; model:string; promptVersion:string }
 export interface DeleteInput { sessionId:string; userId:string; requestId:string }
+export interface SaveOptionalNoteInput { sessionId:string; userId:string; turnId:string; content:string|null }
 import type { AgentObservation, NormalizedSummary, Segment } from "@/server/ai/contracts";
