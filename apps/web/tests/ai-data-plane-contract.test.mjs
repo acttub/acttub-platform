@@ -7,6 +7,7 @@ const migration = await readFile(new URL("../../../supabase/migrations/004_ai_pi
 const migration007 = await readFile(new URL("../../../supabase/migrations/007_ai_pipeline_unknown_turn_count.sql", import.meta.url), "utf8");
 const migration008 = await readFile(new URL("../../../supabase/migrations/008_ai_pipeline_session_delete_upload_intent_cleanup.sql", import.meta.url), "utf8");
 const migration009 = await readFile(new URL("../../../supabase/migrations/009_ai_pipeline_contract_hardening.sql", import.meta.url), "utf8");
+const runtimeRules = await readFile(new URL("../src/server/ai-pipeline-runtime-rules.js", import.meta.url), "utf8");
 const service = await readFile(new URL("../src/server/services/ai-pipeline-service.ts", import.meta.url), "utf8");
 const repository = await readFile(new URL("../src/server/repositories/supabase-ai-pipeline-repository.ts", import.meta.url), "utf8");
 const types = await readFile(new URL("../src/server/repositories/ai-pipeline-types.ts", import.meta.url), "utf8");
@@ -65,6 +66,8 @@ test("repository deeply checks summary report and run invariants", () => {
   assert.match(repository, /report\.invariants/);
   assert.match(repository, /reportForSession/);
   assert.match(repository, /report\.selectedEvidence/);
+  assert.match(repository, /currentSelectedObservationIds/);
+  assert.match(repository, /currentSelectedAnswerTurnIds/);
   assert.match(repository, /actorDiscovery[\s\S]*correctionByTurnId/);
   assert.match(repository, /validateReportSectionLineage/);
   assert.doesNotMatch(repository, /recordRunModel\(/);
@@ -126,6 +129,7 @@ test("late audit rejects malformed deep summary values and accepts typed answer 
 test("forward migration preserves unknown actor turns without incrementing substantive answers", () => {
   assert.match(migration007, /create or replace function public\.acttub_append_pipeline_turn/);
   assert.match(migration007, /if actor->>'kind'='answer' then expected:=expected\+1; end if; end if;/);
+  assert.match(runtimeRules, /countReportableActorTurns = \(transcript\)/);
   assert.match(service, /unknownAnswers\.has\(answer\) \? "unknown" : "answer"/);
   assert.match(service, /countReportableActorTurns\(session\.transcript\)/);
   assert.match(service, /substantiveAnswerCount: session\.substantiveAnswerCount \+ \(actorTurn\.kind === "answer" \? 1 : 0\)/);
@@ -170,7 +174,7 @@ test("runtime helpers fail closed on report lineage, timestamps, and correction 
   assert.doesNotThrow(() => validateReportSectionLineage({ key: "nextPracticeStep", section: { status: "confirmed", content: "ok", observationEvidenceIds: [], turnEvidenceIds: ["cor-1"], timestampRange: { startMs: 300, endMs: 350 } }, selectedObservationIds, selectedAnswerIds, selectedAnswerTurnIds, correctionTurnIds, observationSegments, correctionSegments }));
   assert.throws(() => validateReportSectionLineage({ key: "nextPracticeStep", section: { status: "confirmed", content: "ok", observationEvidenceIds: [], turnEvidenceIds: ["cor-2"], timestampRange: null }, selectedObservationIds, selectedAnswerIds, selectedAnswerTurnIds, correctionTurnIds, observationSegments, correctionSegments }), /invalid_report_evidence/);
   assert.throws(() => validateReportSectionLineage({ key: "nextPracticeStep", section: { status: "confirmed", content: "ok", observationEvidenceIds: ["obs-1"], turnEvidenceIds: [], timestampRange: { startMs: 1, endMs: 2 } }, selectedObservationIds, selectedAnswerIds, selectedAnswerTurnIds, correctionTurnIds, observationSegments, correctionSegments }), /invalid_report_timestamp/);
-  assert.throws(() => validateReportSectionLineage({ key: "actorDiscovery", section: { status: "confirmed", content: "ok", observationEvidenceIds: [], turnEvidenceIds: ["answer-1"], timestampRange: null }, selectedObservationIds, selectedAnswerIds: new Set(["answer-1"]), selectedAnswerTurnIds: new Set(), correctionTurnIds, observationSegments, correctionSegments }), /invalid_report_evidence/);
+  assert.throws(() => validateReportSectionLineage({ key: "actorDiscovery", section: { status: "confirmed", content: "ok", observationEvidenceIds: [], turnEvidenceIds: ["answer-2"], timestampRange: null }, selectedObservationIds, selectedAnswerIds, selectedAnswerTurnIds, correctionTurnIds, observationSegments, correctionSegments }), /invalid_report_evidence/);
 });
 
 test("forward migration repairs deletion by removing the orphan upload intent and fail-closes the full deletion surface", () => {
