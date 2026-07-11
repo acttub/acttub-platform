@@ -2517,7 +2517,14 @@
         ],
         "properties": {
           "session": {
-            "$ref": "#/components/schemas/CoachSession"
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/CoachSession"
+              },
+              {
+                "$ref": "#/components/schemas/PipelineSessionAggregate"
+              }
+            ]
           }
         }
       },
@@ -2794,6 +2801,32 @@
               "null"
             ],
             "maxLength": 1000
+          }
+        }
+      },
+      "PipelineSessionAggregate": {
+        "type": "object",
+        "required": [
+          "sessionId",
+          "pipelineVersion",
+          "optionalNote"
+        ],
+        "properties": {
+          "sessionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "pipelineVersion": {
+            "type": "string",
+            "const": "ai-pipeline.v1"
+          },
+          "optionalNote": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 1000,
+            "description": "종료 후 사용자가 선택적으로 저장한 내 문장입니다."
           }
         }
       }

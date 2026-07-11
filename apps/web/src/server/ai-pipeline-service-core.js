@@ -2,6 +2,7 @@ import { createAiPipelineExecutionCore, AiPipelineCoreError, assertTerminalAtCon
 import { fingerprintJson } from "./ai-pipeline-fingerprint.js";
 import { countReportableActorTurns, validateInterviewCompletionCount } from "./ai-pipeline-runtime-rules.js";
 import { settleAgentClaimProgress } from "./agent-claim-settlement.js";
+import { normalizeOptionalNote, optionalNoteLength } from "../lib/optional-note.js";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const unknownAnswers = new Set(["모르겠어요", "잘 모르겠어요", "unknown"]);
@@ -502,8 +503,8 @@ export const createAiPipelineService = (incomingDeps) => {
                 || (session.interviewStatus === "completed_without_report" && ["insufficient_confirmed_evidence", "insufficient_interview_evidence"].includes(session.completionReason));
             if (!terminal)
                 throw new AiPipelineError(409, "OPTIONAL_NOTE_NOT_ALLOWED");
-            const content = typeof payload.content === "string" ? payload.content.trim() || null : null;
-            if (content !== null && content.length > 1000)
+            const content = typeof payload.content === "string" ? normalizeOptionalNote(payload.content) : null;
+            if (content !== null && optionalNoteLength(content) > 1000)
                 throw new AiPipelineError(400, "INVALID_OPTIONAL_NOTE");
             await deps.repository.saveOptionalNote({ sessionId, userId, turnId: crypto.randomUUID(), content });
             const refreshed = await aggregate(sessionId, userId);
