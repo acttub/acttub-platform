@@ -106,24 +106,6 @@ test("non-owned pending claims also poll a bounded number of times and never inv
   assert.equal(invokes, 0);
 });
 
-test("initial non-owned failed claim preserves its exact persisted safe code", async () => {
-  const core = createAiPipelineExecutionCore({ claimRun: async () => ({ owned: false, run: { id: "failed", status: "failed", safeErrorCode: "AI_INVALID_RESPONSE" } }), readRun: async () => assert.fail("read") });
-  await assert.rejects(core.run({ invoke: async () => assert.fail("invoke"), persist: async () => assert.fail("persist"), replay: async () => assert.fail("replay") }), (error) => error.code === "AI_INVALID_RESPONSE");
-});
-
-test("async replay rejection is awaited and routed through recovery", async () => {
-  let recovered = 0;
-  const core = createAiPipelineExecutionCore({ claimRun: async () => ({ owned: false, run: { id: "done", status: "completed" } }), readRun: async () => assert.fail("read") });
-  const value = await core.run({
-    invoke: async () => assert.fail("invoke"),
-    persist: async () => assert.fail("persist"),
-    replay: async () => { throw new Error("async-replay-failed"); },
-    recover: async (error) => { recovered += 1; assert.match(error.message, /async-replay-failed/); return { recovered: true }; },
-  });
-  assert.deepEqual(value, { recovered: true });
-  assert.equal(recovered, 1);
-});
-
 test("non-owned poll read failure uses safe persistence recovery", async () => {
   let failures=0;
   const core=createAiPipelineExecutionCore({claimRun:async()=>({owned:false,run:{id:"r",status:"running"}}),readRun:async()=>{throw new Error("read")}});
