@@ -415,7 +415,6 @@ test("tenth substantive answer completes hard_limit_report_ready and generates t
   session.substantiveAnswerCount=9;
   const calls={agentClaim:0,agentProvider:0,append:0,reportClaim:0,reportProvider:0,reportComplete:0,failRun:0};
   let appended=null;
-  const reportEvidence={observationIds:[observationId],answerTurnIds:[selectedAnswerId]};
   const evidenceSection={status:"confirmed",content:"grounded",observationEvidenceIds:[observationId],turnEvidenceIds:[selectedAnswerId],timestampRange:null};
   const sections={oneLineSummary:evidenceSection,primaryReviewPoint:{...evidenceSection,turnEvidenceIds:[],timestampRange:{startMs:0,endMs:1000}},confirmedEvidence:evidenceSection,actorDiscovery:{...evidenceSection,observationEvidenceIds:[]},groundedEncouragement:{...evidenceSection,turnEvidenceIds:[]},nextPracticeStep:evidenceSection};
   const repository={
