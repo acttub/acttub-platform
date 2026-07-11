@@ -122,7 +122,9 @@ export const createAiPipelineExecutionCore = ({ claimRun, readRun, sleep: sleepI
       }
       if (!claimed.owned) {
         if ((run.status === "pending" || run.status === "running") && readRun) {
-          const observed = await waitForTerminal(run.id);
+          let observed;
+          try { observed = await waitForTerminal(run.id); }
+          catch (error) { return tryRecover(error); }
           if (observed?.run.status === "completed") {
             try {
               return replay(observed.run, observed);

@@ -106,6 +106,13 @@ test("non-owned pending claims also poll a bounded number of times and never inv
   assert.equal(invokes, 0);
 });
 
+test("non-owned poll read failure uses safe persistence recovery", async () => {
+  let failures=0;
+  const core=createAiPipelineExecutionCore({claimRun:async()=>({owned:false,run:{id:"r",status:"running"}}),readRun:async()=>{throw new Error("read")}});
+  await assert.rejects(core.run({invoke:async()=>assert.fail("invoke"),persist:async()=>{},replay:()=>assert.fail("replay"),persistenceFailure:async()=>{failures+=1;throw new Error("safe")}}),/safe/);
+  assert.equal(failures,1);
+});
+
 test("owned persistence never returns provider output without an observed exact commit", async () => {
   for (const readRun of [async () => null, async () => ({ owned: false, run: { id: "run", status: "running" } })]) {
     let failed = 0;
