@@ -178,3 +178,29 @@ test("same request key with changed answer or either expected count rejects fing
     assert.equal(providerCalls, 0);
   }
 });
+
+test("deletion retry preserves hidden deleting-session lookup and does not delete storage twice", async () => {
+  const createAiPipelineService = await loadServiceFactory();
+  let attempt = null;
+  let removeCalls = 0;
+  let completeCalls = 0;
+  const repository = {
+    async findDeletionAttempt() { return attempt ? structuredClone(attempt) : null; },
+    async beginDelete({ sessionId, requestId }) { attempt = attempt ? { ...attempt, status: "running" } : { sessionId, requestId, status: "running", storageDeleted: false }; },
+    async recordStorageDeleted() { attempt.storageDeleted = true; },
+    async completeDelete() { completeCalls += 1; if (completeCalls === 1) throw new Error("rows failed"); attempt.status = "completed"; },
+    async failDelete({ safeErrorCode }) { attempt.status = "failed"; attempt.safeErrorCode = safeErrorCode; },
+  };
+  const deps = {
+    repository, createAiTransport: () => ({}), loadAiServiceConfig: () => ({}), requireCurrentAiProcessingConsent: async () => {}, getCurrentConsentVersions: async () => ({}),
+    coachSessionService: { async getSessionIncludingHidden() { return { take: { videoUrl: "supabase://practice-videos/u/s/video.mp4" } }; } },
+    createSupabaseAdminClient: () => ({ storage: { from: () => ({ async remove() { removeCalls += 1; return { error: null }; }, async list() { return { error: null, data: [] }; } }) } }),
+    getAppConfig: () => ({ video: { bucket: "practice-videos" } }),
+  };
+  const service = createAiPipelineService(deps);
+  await assert.rejects(service.deleteSession(ids.session, ids.user, ids.request), (error) => error?.code === "DELETE_ROWS_FAILED");
+  assert.equal(attempt.storageDeleted, true);
+  assert.deepEqual(await service.deleteSession(ids.session, ids.user, ids.request), { requestId: ids.request, status: "completed" });
+  assert.equal(removeCalls, 1);
+  assert.equal(completeCalls, 2);
+});
