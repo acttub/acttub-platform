@@ -152,10 +152,10 @@ export const createAiPipelineExecutionCore = ({ claimRun, readRun, sleep: sleepI
             return tryRecover(error);
           }
         }
+        return tryRecover(new AiPipelineCoreError("AI_RUN_COMMIT_NOT_OBSERVED", 503));
       } catch (error) {
         return tryRecover(error);
       }
-      return invoked;
     },
   };
 };
