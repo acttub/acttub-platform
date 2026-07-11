@@ -377,6 +377,7 @@ unsure
 
 현재 구현 상태:
 
-- `apps/web`은 Next.js 기본 화면 상태다.
-- 실제 세션, 업로드, AI, DB, API 구현은 아직 없다.
-- 따라서 이 문서는 목표 아키텍처와 구현 시 지켜야 할 계약을 먼저 정의한다.
+- `apps/web`에는 versioned `/api/v1/*` 계약, Supabase repository, 세션·업로드·동의·삭제·재시도 흐름과 결과 UI가 구현되어 있다.
+- 플랫폼 DB를 단일 정본으로 사용하는 Summary → Agent → Report 경계와 stateless AI 서비스 계약이 네 저장소에 구현되어 있다.
+- 개발 migration 파일과 보호된 E2E 하네스의 offline foundation은 구현되어 있지만, 개발 Supabase의 migration 009/010 적용과 실제 Gemini·브라우저·RLS·영구 삭제 E2E는 아직 완료 증거를 만들지 않았다.
+- production 배포와 production migration은 이 작업 범위에 포함하지 않는다.
