@@ -190,6 +190,35 @@ test("authoritative stale substantive and total counts reject as 409 before prov
   }
 });
 
+test("stale progress recovers a lost failRun response only after observing the claimed run terminal", async () => {
+  const createAiPipelineService = await loadServiceFactory();
+  const initial = baseSession();
+  const authoritative = baseSession();
+  authoritative.substantiveAnswerCount = 1;
+  let claimedRun;
+  let reads = 0;
+  const repository = {
+    async findPipelineSessionForOwner() {
+      reads += 1;
+      const value = structuredClone(reads === 1 ? initial : authoritative);
+      if (reads >= 3) value.runs = [{ ...claimedRun, status: "failed", safeErrorCode: "AI_INTERNAL" }];
+      return value;
+    },
+    async claimRun(input) {
+      claimedRun = { id: input.runId, stage: "agent", status: "running", safeErrorCode: null };
+      return { owned: true, run: structuredClone(claimedRun) };
+    },
+    async failRun(input) {
+      assert.equal(input.runId, claimedRun.id);
+      assert.equal(input.safeErrorCode, "AI_INTERNAL");
+      assert.equal(input.retryable, false);
+      throw new Error("response lost after commit");
+    },
+  };
+  const service = createAiPipelineService({ repository, createAiTransport: () => ({ agent: async () => { throw new Error("provider must not run"); } }), loadAiServiceConfig: () => ({}), requireCurrentAiProcessingConsent: async () => {}, getCurrentConsentVersions: async () => ({}), coachSessionService: {}, createSupabaseAdminClient: () => null, getAppConfig: () => ({ video: { bucket: "practice-videos" } }) });
+  await assert.rejects(service.addTurn(ids.session, ids.user, { answer: "answer", requestId: ids.request, expectedSubstantiveAnswerCount: 0, expectedTotalConversationCount: 0 }), (error) => error?.status === 409 && error?.code === "STALE_INTERVIEW_PROGRESS");
+});
+
 test("same request key with changed answer or either expected count rejects fingerprint conflict before provider", async () => {
   const createAiPipelineService = await loadServiceFactory();
   for (const changed of [
