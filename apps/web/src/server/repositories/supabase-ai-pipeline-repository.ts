@@ -41,7 +41,10 @@ const reportForSession = (r: Row, op: string, session: ReportSessionContext): Im
   if (mapped.sessionId !== session.sessionId || mapped.completionReason !== session.completionReason) fail(op, "report.session");
   const summaryRunId = session.summary?.sourceRunId ?? fail(op, "report.summaryRun");
   const summaryRun = session.runs.find((run) => run.id === summaryRunId && run.stage === "summary" && run.status === "completed" && run.responseSchemaVersion === "summary-response.v1") ?? fail(op, "report.summaryRun");
-  const currentSelectedObservationIds = new Set(session.observations.filter((item) => item.confirmationState === "accepted" && !item.blockedForQuestioning).map((item) => item.id));
+  const reportRun = session.runs.find((run) => run.id === mapped.sourceRunId && run.stage === "report" && run.status === "completed" && run.responseSchemaVersion === "report.v1" && Boolean(run.model?.trim()) && run.promptVersion === "acting-report.prompt.v2") ?? fail(op, "report.sourceRun");
+  const reportPayload = reportRun.responsePayload;
+  if (!reportPayload || !("runId" in reportPayload) || reportPayload.runId !== mapped.sourceRunId || !("sessionId" in reportPayload) || reportPayload.sessionId !== session.sessionId) fail(op, "report.sourceRun");
+  const currentSelectedObservationIds = new Set(session.observations.filter((item) => item.confirmationState === "accepted" && !item.blockedForQuestioning && item.sourceRunId === summaryRun.id).map((item) => item.id));
   const currentSelectedAnswerTurnIds = new Set(session.transcript.filter((turn) => turn.role === "actor" && turn.kind === "answer" && turn.reportEvidenceSelected).map((turn) => turn.id));
   const currentCorrectionTurnIds = new Set(session.transcript.filter((turn) => turn.role === "actor" && turn.kind === "actor_correction").map((turn) => turn.id));
   const selectedObservationIds = new Set(session.reportEvidenceObservationIds);

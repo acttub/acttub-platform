@@ -86,7 +86,7 @@ const agentRequest = (session: PipelineSessionAggregate, runId: string, input: C
     normalizedSummary: session.summary.normalizedSummary,
     observations: session.observations
       .filter((item) => item.priority !== null && item.priority <= 3)
-      .map((item) => ({ observationId: item.id, segment: { startMs: item.startMs, endMs: item.endMs }, text: item.text, confirmationState: item.confirmationState, blocked: item.blockedForQuestioning, confidence: null, priority: item.priority!, dimension: item.dimension ?? "general", severity: item.severity })),
+      .map((item) => ({ observationId: item.id, segment: { startMs: item.startMs, endMs: item.endMs }, text: item.text, confirmationState: item.confirmationState, blocked: item.blockedForQuestioning, confidence: null, priority: item.priority ?? 3, dimension: item.dimension ?? "general", severity: item.severity })),
     actorCorrections: session.corrections.map((item) => ({ correctionId: item.id, correctsObservationId: item.correctsObservationId, segment: item.segment, text: item.text, actorTurnId: item.correctionByTurnId })),
     transcript: session.transcript.map((item) => ({ turnId: item.id, speaker: item.role, content: item.content, kind: item.kind })),
     substantiveAnswerCount: session.substantiveAnswerCount,
@@ -303,7 +303,10 @@ const generateReport = async (
         sessionId: session.sessionId,
         runId: run.id,
         normalizedSummary: summary.normalizedSummary,
-        confirmedObservations: confirmed.map((item) => ({ observationId: item.id, sourceCandidateId: item.candidateId!, segment: { startMs: item.startMs, endMs: item.endMs }, text: item.text, dimension: item.dimension! })),
+        confirmedObservations: confirmed.map((item) => {
+          if (!item.candidateId || !item.dimension) throw new AiPipelineError(409, "REPORT_EVIDENCE_INVALID");
+          return { observationId: item.id, sourceCandidateId: item.candidateId, segment: { startMs: item.startMs, endMs: item.endMs }, text: item.text, dimension: item.dimension };
+        }),
         actorCorrections: session.corrections.map((item) => ({ correctionId: item.id, correctsObservationId: item.correctsObservationId, segment: item.segment, text: item.text, actorTurnId: item.correctionByTurnId })),
         transcript: session.transcript.map((item) => ({ turnId: item.id, speaker: item.role, content: item.content, kind: item.kind })),
         completionReason: isReportReadyReason(session.completionReason) ? session.completionReason : (() => { throw new AiPipelineError(409, "REPORT_NOT_READY"); })(),
@@ -327,7 +330,10 @@ const generateReport = async (
       if (committedRun && committed.report?.sourceRunId === run.id) return reportExecutionResult(committed.report);
       return null;
     },
-    providerFailure: async (error, run) => failRun(session.sessionId, userId, run.id, error),
+    providerFailure: async (error, run) => {
+      if (error instanceof AiPipelineError) throw error;
+      return failRun(session.sessionId, userId, run.id, error);
+    },
     persistenceFailure: async (_error, run) => {
       await deps.repository.failRun({ sessionId: session.sessionId, userId, runId: run.id, safeErrorCode: "REPORT_PERSISTENCE_FAILED", retryable: true });
       throw new AiPipelineError(503, "REPORT_PERSISTENCE_FAILED");
@@ -434,7 +440,10 @@ const callAgent = async (session: PipelineSessionAggregate, userId: string, inpu
       if (committedRun) return { ...replayCommittedAgentOutcome(committed, committedRun), transportResponse: null, claimedRunId: committedRun.id, persistedInput: input };
       return null;
     },
-    providerFailure: async (error, run) => failRun(session.sessionId, userId, run.id, error),
+    providerFailure: async (error, run) => {
+      if (error instanceof AiPipelineError) throw error;
+      return failRun(session.sessionId, userId, run.id, error);
+    },
     persistenceFailure: async (_error, run) => {
       await deps.repository.failRun({ sessionId: session.sessionId, userId, runId: run.id, safeErrorCode: "TURN_PERSISTENCE_FAILED", retryable: true });
       throw new AiPipelineError(503, "TURN_PERSISTENCE_FAILED");
@@ -505,7 +514,9 @@ return Object.freeze({
     const running = [...session.runs].filter((run) => run.stage === "report" && run.status === "running").sort((a,b)=>(a.startedAt??"").localeCompare(b.startedAt??"")||a.attempt-b.attempt||a.id.localeCompare(b.id)).at(-1);
     const terminalAgentRun = latestCompletedAgentRun(session);
     if (!session.summary || !session.completionReason?.endsWith("_report_ready") || (!failed && !running && !terminalAgentRun)) throw new AiPipelineError(409, "REPORT_NOT_RETRYABLE");
-    return generateReport(session, userId, failed?.idempotencyKey ?? running?.idempotencyKey ?? `report:${terminalAgentRun!.id}`, failed?.maxAttempts ?? running?.maxAttempts ?? 2);
+    const idempotencyKey = failed?.idempotencyKey ?? running?.idempotencyKey ?? (terminalAgentRun ? `report:${terminalAgentRun.id}` : null);
+    if (!idempotencyKey) throw new AiPipelineError(409, "REPORT_NOT_RETRYABLE");
+    return generateReport(session, userId, idempotencyKey, failed?.maxAttempts ?? running?.maxAttempts ?? 2);
   },
   validateRequestId(value: string | null) { if (!value || !UUID.test(value)) throw new AiPipelineError(400, "INVALID_IDEMPOTENCY_KEY"); return value; },
   async deleteSession(sessionId:string,userId:string,requestId:string){

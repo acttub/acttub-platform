@@ -112,6 +112,16 @@ test("non-owned running claims poll a bounded number of times and never invoke",
   assert.equal(invokes, 0);
 });
 
+test("non-owned pending claims also poll a bounded number of times and never invoke", async () => {
+  let reads = 0;
+  let invokes = 0;
+  const run = { id: "pending-run", status: "pending", safeErrorCode: null };
+  const core = createAiPipelineExecutionCore({ claimRun: async () => ({ owned: false, run }), readRun: async () => { reads += 1; return { owned: false, run }; }, sleep: async () => {}, waitAttempts: 1, waitDelayMs: 1 });
+  await assert.rejects(core.run({ invoke: async () => { invokes += 1; }, persist: async () => {}, replay: () => null, recover: async () => null }), /AI_RUN_ALREADY_CLAIMED/);
+  assert.equal(reads, 2);
+  assert.equal(invokes, 0);
+});
+
 test("owned persistence never returns provider output without an observed exact commit", async () => {
   for (const readRun of [async () => null, async () => ({ owned: false, run: { id: "run", status: "running" } })]) {
     let failed = 0;

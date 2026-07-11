@@ -125,3 +125,27 @@ test("repeated start stop and resume replay stable completed command claims with
     assert.equal(providerCalls, 0);
   }
 });
+
+test("authoritative stale substantive and total counts reject as 409 before provider without misclassified failRun", async () => {
+  const createAiPipelineService = await loadServiceFactory();
+  for (const mutation of [
+    (session) => { session.substantiveAnswerCount = 1; },
+    (session) => { session.transcript.push({ id: "00000000-0000-4000-8000-000000000120", sequence: 0, role: "actor", kind: "unknown", content: "unknown", questionFocus: null, groundingStartMs: null, groundingEndMs: null, sourceObservationIds: [], reportEvidenceSelected: false }); },
+  ]) {
+    const initial = baseSession();
+    const authoritative = baseSession();
+    mutation(authoritative);
+    let reads = 0;
+    let providerCalls = 0;
+    let failCalls = 0;
+    const repository = {
+      async findPipelineSessionForOwner() { reads += 1; return structuredClone(reads === 1 ? initial : authoritative); },
+      async claimRun(input) { return { owned: true, run: { id: input.runId, status: "running", safeErrorCode: null } }; },
+      async failRun() { failCalls += 1; },
+    };
+    const service = createAiPipelineService({ repository, createAiTransport: () => ({ agent: async () => { providerCalls += 1; throw new Error("provider must not run"); } }), loadAiServiceConfig: () => ({}), requireCurrentAiProcessingConsent: async () => {}, getCurrentConsentVersions: async () => ({}), coachSessionService: {}, createSupabaseAdminClient: () => null, getAppConfig: () => ({ video: { bucket: "practice-videos" } }) });
+    await assert.rejects(service.addTurn(ids.session, ids.user, { answer: "answer", requestId: ids.request, expectedSubstantiveAnswerCount: 0, expectedTotalConversationCount: 0 }), (error) => error?.status === 409 && error?.code === "STALE_INTERVIEW_PROGRESS");
+    assert.equal(providerCalls, 0);
+    assert.equal(failCalls, 0);
+  }
+});
