@@ -27,7 +27,7 @@ const baseSession = () => ({
   reportEvidenceObservationIds: [], reportEvidenceAnswerTurnIds: [],
   sceneContext: { genre: "drama", situation: "scene", characterContext: "actor", subtext: null },
   take: { id: ids.take, storageBucket: "practice-videos", storagePath: "u/s/video.mp4", durationMs: 1000, mediaMetadataVersion: "iso-bmff-duration.v1" },
-  summary: { sourceRunId: ids.summaryRun, normalizedSummary: { schemaVersion: "scene-summary.v1", summary: { synopsis: "x", actorObjective: "y", relationship: "z", turningPoint: "t", emotionalArc: "e" }, observation: { primary: "p", supporting: [] }, anomalies: [] } },
+  summary: { sourceRunId: ids.summaryRun, normalizedSummary: { schemaVersion: "scene-summary.v1", subtextStatus: "not_provided", observation: { timeline: "t", dialogue: "d", tempo: "t", pitch: "p", movement: "m", expression: "e", emotion: "e", extra: [] }, summary: "s", intentAlignment: null, keyMoment: null, keyDimension: null, anomalies: [] } },
   observations: [], corrections: [], transcript: [], runs: [], report: null,
 });
 
