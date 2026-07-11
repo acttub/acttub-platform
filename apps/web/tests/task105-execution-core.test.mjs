@@ -91,6 +91,24 @@ test("execution core recovers exact payload on persistence failure and fails clo
   }), /commit-failed/);
 });
 
+test("agent claim fingerprints bind answer and both expected counts", () => {
+  const base = { schemaVersion: "agent-turn.v1", sessionId: "00000000-0000-4000-8000-000000000001", command: "answer", requestId: "00000000-0000-4000-8000-000000000002", answer: "a", observationId: null, expectedSubstantiveAnswerCount: 2, expectedTotalConversationCount: 3 };
+  const digest = fingerprintAgentClaim(buildAgentClaimPayload(base));
+  for (const changed of [{ ...base, answer: "b" }, { ...base, expectedSubstantiveAnswerCount: 1 }, { ...base, expectedTotalConversationCount: 4 }]) {
+    assert.notEqual(fingerprintAgentClaim(buildAgentClaimPayload(changed)), digest);
+  }
+});
+
+test("non-owned running claims poll a bounded number of times and never invoke", async () => {
+  let reads = 0;
+  let invokes = 0;
+  const run = { id: "00000000-0000-4000-8000-000000000020", status: "running", safeErrorCode: null };
+  const core = createAiPipelineExecutionCore({ claimRun: async () => ({ owned: false, run }), readRun: async () => { reads += 1; return { owned: false, run }; }, sleep: async () => {}, waitAttempts: 2, waitDelayMs: 1 });
+  await assert.rejects(core.run({ invoke: async () => { invokes += 1; return null; }, persist: async () => {}, replay: () => null, recover: async () => null }), /AI_RUN_ALREADY_CLAIMED/);
+  assert.equal(reads, 3);
+  assert.equal(invokes, 0);
+});
+
 test("interview progress helpers enforce exact substantive and reportable counts", () => {
   const transcript = [
     { role: "actor", kind: "answer" },
