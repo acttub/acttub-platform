@@ -111,9 +111,12 @@ test("rejects every Report section-specific evidence invariant violation", async
     await assert.rejects(createAiTransport(config,async()=>response(body)).report(reportRequest),error=>error instanceof AiServiceError&&error.code==="INVALID_RESPONSE");
   }
   const correctionRequest={...reportRequest,actorCorrections:[{correctionId,correctsObservationId:observationId,segment:{startMs:2,endMs:3},text:"c",actorTurnId:correctionTurnId}],transcript:[...reportRequest.transcript,{turnId:correctionTurnId,speaker:"actor",content:"c",kind:"actor_correction"}]};
-  await createAiTransport(config,async()=>response({...reportResponse,sections:{...reportResponse.sections,actorDiscovery:{...confirmed,observationEvidenceIds:[],turnEvidenceIds:[correctionTurnId],timestampRange:{startMs:2,endMs:3}}}})).report(correctionRequest);
-  await createAiTransport(config,async()=>response({...reportResponse,sections:{...reportResponse.sections,actorDiscovery:{...confirmed,observationEvidenceIds:[],turnEvidenceIds:[correctionTurnId],timestampRange:null}}})).report(correctionRequest);
-  await createAiTransport(config,async()=>response({...reportResponse,sections:{...reportResponse.sections,groundedEncouragement:{status:"confirmed",content:"근거",observationEvidenceIds:[observationId],turnEvidenceIds:[],timestampRange:null},nextPracticeStep:{status:"confirmed",content:"다음",observationEvidenceIds:[observationId],turnEvidenceIds:[],timestampRange:null}}}})).report(reportRequest);
+  const actorDiscoveryWithCorrectionTimestamp={...reportResponse.sections,actorDiscovery:{...confirmed,observationEvidenceIds:[],turnEvidenceIds:[correctionTurnId],timestampRange:{startMs:2,endMs:3}}};
+  const actorDiscoveryWithoutTimestamp={...reportResponse.sections,actorDiscovery:{...confirmed,observationEvidenceIds:[],turnEvidenceIds:[correctionTurnId],timestampRange:null}};
+  const optionalNonPrimarySections={...reportResponse.sections,groundedEncouragement:{status:"confirmed",content:"근거",observationEvidenceIds:[observationId],turnEvidenceIds:[],timestampRange:null},nextPracticeStep:{status:"confirmed",content:"다음",observationEvidenceIds:[observationId],turnEvidenceIds:[],timestampRange:null}};
+  await createAiTransport(config,async()=>response({...reportResponse,sections:actorDiscoveryWithCorrectionTimestamp})).report(correctionRequest);
+  await createAiTransport(config,async()=>response({...reportResponse,sections:actorDiscoveryWithoutTimestamp})).report(correctionRequest);
+  await createAiTransport(config,async()=>response({...reportResponse,sections:optionalNonPrimarySections})).report(reportRequest);
   const correctionOnlyTimestamp={...reportResponse,sections:{...reportResponse.sections,primaryReviewPoint:{...review,turnEvidenceIds:[correctionTurnId],timestampRange:{startMs:2,endMs:3}}}};
   await assert.rejects(createAiTransport(config,async()=>response(correctionOnlyTimestamp)).report(correctionRequest),error=>error instanceof AiServiceError&&error.code==="INVALID_RESPONSE");
 });

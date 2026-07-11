@@ -24,9 +24,6 @@ export const validateInterviewCompletionCount = ({
   }
 };
 
-const segmentSet = (items, pick) =>
-  new Map(items.map((item) => [pick(item), item.segment ?? { startMs: item.startMs, endMs: item.endMs } ]));
-
 const matchTimestamp = (range, segments) =>
   segments.some((segment) => segment.startMs === range.startMs && segment.endMs === range.endMs);
 
@@ -63,6 +60,7 @@ export const validateReportSectionLineage = ({
   const selectedAnswers = selectedAnswerIds instanceof Set ? selectedAnswerIds : new Set(selectedAnswerIds);
   const selectedAnswerTurns = selectedAnswerTurnIds instanceof Set ? selectedAnswerTurnIds : new Set(selectedAnswerTurnIds);
   const corrections = correctionTurnIds instanceof Set ? correctionTurnIds : new Set(correctionTurnIds);
+  if ([...selectedAnswers].some((id) => !selectedAnswerTurns.has(id))) fail("invalid_report_evidence");
   const obsIds = section.observationEvidenceIds ?? [];
   const turnIds = section.turnEvidenceIds ?? [];
 
@@ -99,8 +97,4 @@ export const validateReportSectionLineage = ({
   if (key === "primaryReviewPoint" && section.timestampRange === null) fail("timestampRequired");
   validateTimestampRange({ key, section, observationIds: obsIds, turnIds, observationSegments, correctionSegments, fail });
 
-  // Keeps the selected-answer lineage strict even if the section is corrected later.
-  if (key === "oneLineSummary" || key === "confirmedEvidence" || key === "actorDiscovery" || key === "groundedEncouragement" || key === "nextPracticeStep") {
-    if (turnIds.some((id) => selectedAnswerTurns.has(id) && !selectedAnswers.has(id) && !corrections.has(id))) fail("invalid_report_evidence");
-  }
 };
