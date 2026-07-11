@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import test from "node:test";
 
-const source = readFileSync(path.resolve(import.meta.dirname, "../src/server/services/ai-pipeline-service.ts"), "utf8");
+const source = readFileSync(path.resolve(import.meta.dirname, "../src/server/ai-pipeline-service-core.js"), "utf8");
 
 test("terminal agent turns are committed through the append pipeline transaction", () => {
   const callAgent = source.slice(source.indexOf("const callAgent"), source.lastIndexOf("\nreturn Object.freeze({\n"));
