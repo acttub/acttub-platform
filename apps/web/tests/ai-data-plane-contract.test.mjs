@@ -4,6 +4,7 @@ import test from "node:test";
 
 const migration = await readFile(new URL("../../../supabase/migrations/004_ai_pipeline_data_plane.sql", import.meta.url), "utf8");
 const migration007 = await readFile(new URL("../../../supabase/migrations/007_ai_pipeline_unknown_turn_count.sql", import.meta.url), "utf8");
+const migration008 = await readFile(new URL("../../../supabase/migrations/008_ai_pipeline_session_delete_upload_intent_cleanup.sql", import.meta.url), "utf8");
 const repository = await readFile(new URL("../src/server/repositories/supabase-ai-pipeline-repository.ts", import.meta.url), "utf8");
 const types = await readFile(new URL("../src/server/repositories/ai-pipeline-types.ts", import.meta.url), "utf8");
 
@@ -88,4 +89,19 @@ test("late audit rejects malformed deep summary values and accepts typed answer 
 test("forward migration preserves unknown actor turns without incrementing substantive answers", () => {
   assert.match(migration007, /create or replace function public\.acttub_append_pipeline_turn/);
   assert.match(migration007, /if actor->>'kind'='answer' then expected:=expected\+1; end if; end if;/);
+});
+
+test("forward migration repairs deletion by removing the orphan upload intent and fail-closes the full deletion surface", () => {
+  assert.match(migration008, /create or replace function public\.acttub_complete_session_delete/);
+  assert.match(migration008, /security definer set search_path=public/);
+  assert.match(migration008, /delete from public\.practice_sessions where id=p_session_id and user_id=p_user_id returning upload_intent_id into v_upload_intent_id;/);
+  assert.match(migration008, /select id into v_upload_intent_id from public\.upload_intents where session_id=p_session_id and user_id=p_user_id;/);
+  assert.match(migration008, /exists\(select 1 from public\.ai_session_summaries where session_id=p_session_id\)/);
+  assert.match(migration008, /exists\(select 1 from public\.actor_corrections where session_id=p_session_id\)/);
+  assert.match(migration008, /exists\(select 1 from public\.upload_intents where session_id=p_session_id and user_id=p_user_id\)/);
+  assert.match(migration008, /delete from public\.upload_intents where id=v_upload_intent_id and user_id=p_user_id and session_id=p_session_id;/);
+  assert.match(migration008, /return query update public\.session_deletion_attempts set status='completed',rows_deleted=true,safe_error_code=null,updated_at=now\(\) where request_id=p_request_id and session_id=p_session_id and user_id=p_user_id returning \*;/);
+  assert.match(migration008, /revoke execute on function public\.acttub_complete_session_delete\(uuid,uuid,uuid\) from public,anon,authenticated;/);
+  assert.match(migration008, /grant execute on function public\.acttub_complete_session_delete\(uuid,uuid,uuid\) to service_role;/);
+  assert.match(migration008, /delete_orphan_detected/);
 });
