@@ -111,6 +111,7 @@ test("migration 009 replays under lock, expires stale reports, and removes weak 
   assert.match(migration009, /existing\.status<>'failed'[\s\S]*session_row\.deletion_status<>'active'[\s\S]*return query update public\.ai_runs/);
   assert.match(migration009, /'AI_TIMEOUT','AI_UNAVAILABLE','AI_INVALID_RESPONSE','AI_INTERNAL','TURN_PERSISTENCE_FAILED','SUMMARY_PERSISTENCE_FAILED','REPORT_PERSISTENCE_FAILED','REPORT_LEASE_EXPIRED'/);
   assert.match(migration009, /p_stage='agent' and \(p_max_attempts<>2/);
+  assert.match(migration009, /p_stage='summary' and \(p_max_attempts<>2/);
   assert.match(migration009, /coalesce\(\(select jsonb_agg/);
   assert.match(migration009, /invalid_tenth_completion/);
   assert.match(migration009, /invalid_agent_completion_payload/);
@@ -135,6 +136,9 @@ test("service reloads owned Agent progress and sanitizes Summary run output", ()
   assert.match(service, /const authoritativeSession = await aggregate\(session\.sessionId, userId\)/);
   assert.match(service, /authoritativeSession\.substantiveAnswerCount !== expectedSubstantiveAnswerCount/);
   assert.match(service, /summaryRun:sanitizePublicAiPipelineAggregate\(summaryRun\)/);
+  assert.match(service, /stage:"summary"[\s\S]*maxAttempts:2/);
+  assert.match(service, /validateInterviewCompletionCount/);
+  assert.match(service, /new AiPipelineError\(502, "AI_INVALID_RESPONSE"\)/);
   assert.match(service, /run\.promptVersion === "acting-agent\.prompt\.v2"/);
   assert.match(service, /isAgentReplayPayload\(run\.responsePayload\)[\s\S]*run\.responsePayload\.done[\s\S]*run\.responsePayload\.reportReady/);
 });
