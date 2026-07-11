@@ -17,9 +17,9 @@ export const validateInterviewCompletionCount = ({
   fail = defaultFail,
 }) => {
   if (
-    (reason === "interview_complete_report_ready" && substantiveAnswerCount < 5) ||
+    (reason === "interview_complete_report_ready" && substantiveAnswerCount < 5 && !(lastTwoReportableKinds.length === 2 && lastTwoReportableKinds.every((kind) => kind === "unknown"))) ||
     (reason === "hard_limit_report_ready" && reportableActorCount !== 10) ||
-    (reason === "insufficient_interview_evidence" && reportableActorCount !== 10 && !(lastTwoReportableKinds.length === 2 && lastTwoReportableKinds.every((kind) => kind === "unknown")))
+    (reason === "insufficient_interview_evidence" && reportableActorCount !== 10 && substantiveAnswerCount < 5 && !(lastTwoReportableKinds.length === 2 && lastTwoReportableKinds.every((kind) => kind === "unknown")))
   ) {
     fail("invalid_completion_count");
   }
