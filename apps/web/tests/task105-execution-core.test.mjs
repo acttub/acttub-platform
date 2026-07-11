@@ -106,7 +106,8 @@ test("interview progress helpers enforce exact substantive and reportable counts
   assert.throws(() => assertExpectedInterviewProgress({ actual: progress, expectedSubstantiveAnswerCount: 2, expectedTotalConversationCount: 2 }), /invalid_progress/);
   assert.doesNotThrow(() => assertTerminalAtConversationLimit({ actual: { ...progress, totalReportableActorCount: 9 } }));
   assert.throws(() => assertTerminalAtConversationLimit({ actual: { ...progress, totalReportableActorCount: 10 }, done: false, completionReason: "manual_stop_report_ready" }), /nonterminal_tenth_turn/);
-  assert.doesNotThrow(() => assertTerminalAtConversationLimit({ actual: { ...progress, totalReportableActorCount: 10 }, done: true, completionReason: "hard_limit_report_ready" }));
+  assert.doesNotThrow(() => assertTerminalAtConversationLimit({ actual: { ...progress, totalReportableActorCount: 10 }, done: true, reportReady: true, completionReason: "hard_limit_report_ready" }));
+  assert.doesNotThrow(() => assertTerminalAtConversationLimit({ actual: { ...progress, totalReportableActorCount: 10 }, done: true, reportReady: false, completionReason: "insufficient_interview_evidence" }));
 });
 
 test("public sanitizer strips internal run fields recursively", () => {
