@@ -169,6 +169,17 @@ const replayCommittedAgentOutcome = async (sessionId: string, userId: string) =>
   };
 };
 
+const recoverCommittedReportOrFailRun = async (sessionId: string, userId: string, runId: string, safeErrorCode: "REPORT_PERSISTENCE_FAILED" | "TURN_PERSISTENCE_FAILED") => {
+  try {
+    const committed = await aggregate(sessionId, userId);
+    if (committed.report) return committed.report;
+  } catch {
+    // Reload failures are retried through the owned run failure below.
+  }
+  await aiPipelineServiceDeps.repository.failRun({ sessionId, userId, runId, safeErrorCode, retryable: true });
+  throw new AiPipelineError(503, safeErrorCode);
+};
+
 const reportClaimPayload = (session: PipelineSessionAggregate) => ({
   schemaVersion: "report-request.v1",
   sessionId: session.sessionId,
@@ -227,11 +238,14 @@ const generateReport = async (
     promptVersion: "acting-report.prompt.v2",
   });
   if (claimed.status === "completed") {
+    return recoverCommittedReportOrFailRun(session.sessionId, userId, claimed.id, "REPORT_PERSISTENCE_FAILED");
+  }
+  if (claimed.status === "running" && claimed.id !== proposedRunId) {
     const committed = await aggregate(session.sessionId, userId);
     if (committed.report) return committed.report;
     const existing = await aiPipelineServiceDeps.repository.findImmutableReport(session.sessionId, userId);
     if (existing) return existing;
-    throw new AiPipelineError(503, "REPORT_PERSISTENCE_FAILED");
+    return recoverCommittedReportOrFailRun(session.sessionId, userId, claimed.id, "REPORT_PERSISTENCE_FAILED");
   }
   if (claimed.id !== proposedRunId || claimed.status !== "running")
     throw new AiPipelineError(409, "AI_RUN_ALREADY_CLAIMED");
@@ -241,15 +255,14 @@ const generateReport = async (
   await aiPipelineServiceDeps.requireCurrentAiProcessingConsent(userId);
   try { response = await aiPipelineServiceDeps.createAiTransport(aiPipelineServiceDeps.loadAiServiceConfig()).report(request); }
   catch (error) { return failRun(session.sessionId, userId, claimed.id, error); }
-  await aiPipelineServiceDeps.repository.completeReportRun({ sessionId: session.sessionId, userId, runId: claimed.id, report: { schemaVersion: "report.v1", sections: response.sections as never }, model: String(response.model), promptVersion: String(response.promptVersion) });
-  const report = await aiPipelineServiceDeps.repository.findImmutableReport(session.sessionId, userId);
-  if (!report) {
-    const committed = await aggregate(session.sessionId, userId);
-    if (committed.report) return committed.report;
-    await aiPipelineServiceDeps.repository.failRun({ sessionId: session.sessionId, userId, runId: claimed.id, safeErrorCode: "REPORT_PERSISTENCE_FAILED", retryable: true });
-    throw new AiPipelineError(503, "REPORT_PERSISTENCE_FAILED");
+  try {
+    await aiPipelineServiceDeps.repository.completeReportRun({ sessionId: session.sessionId, userId, runId: claimed.id, report: { schemaVersion: "report.v1", sections: response.sections as never }, model: String(response.model), promptVersion: String(response.promptVersion) });
+    const report = await aiPipelineServiceDeps.repository.findImmutableReport(session.sessionId, userId);
+    if (report) return report;
+  } catch {
+    return recoverCommittedReportOrFailRun(session.sessionId, userId, claimed.id, "REPORT_PERSISTENCE_FAILED");
   }
-  return report;
+  return recoverCommittedReportOrFailRun(session.sessionId, userId, claimed.id, "REPORT_PERSISTENCE_FAILED");
 };
 
 const latestCompletedAgentRun = (session: PipelineSessionAggregate) =>
@@ -274,8 +287,9 @@ const callAgent = async (session: PipelineSessionAggregate, userId: string, inpu
     model: "agent",
     promptVersion: "acting-agent.prompt.v2",
   });
-  if (claimed.status === "completed") return { run: claimed, session: publicAggregate(await aggregate(session.sessionId, userId)) };
+  if (claimed.status === "completed") return replayCommittedAgentOutcome(session.sessionId, userId);
   if (claimed.id !== runId || claimed.status !== "running") throw new AiPipelineError(409, "AI_RUN_ALREADY_CLAIMED");
+  if (expectedTotalConversationCount >= 10) throw new AiPipelineError(409, "SESSION_NOT_MUTABLE");
   const requestSession = actorTurn
     ? {
         ...session,
@@ -294,7 +308,14 @@ const callAgent = async (session: PipelineSessionAggregate, userId: string, inpu
   const completionStatus = done || action === "pause" ? (response.reportReady ? "completed" : action === "pause" ? "paused" : "completed_without_report") : null;
   if (actorTurn) actorTurn.reportEvidenceSelected = actorTurn.kind === "answer" && evidence.answerTurnIds.includes(actorTurn.id);
   const agentTurn: InterviewTurn = { id: crypto.randomUUID(), sequence: session.transcript.length + (actorTurn ? 1 : 0), role: "agent", kind: done ? "closing" : "question", content: String(response.utterance), questionFocus: action, groundingStartMs: null, groundingEndMs: null, sourceObservationIds: (response.evidence as { observationIds: string[] }).observationIds, reportEvidenceSelected: false };
-  await aiPipelineServiceDeps.repository.appendPipelineTurn({ sessionId: session.sessionId, userId, agentRunId: runId, requestId: requestId ?? runId, expectedSubstantiveAnswerCount: session.substantiveAnswerCount, expectedTotalConversationCount, actorTurn, agentTurn, model: String(response.model), promptVersion: String(response.promptVersion), currentInput: input, reportEvidence: evidence, completionStatus, completionReason: completionStatus ? response.completionReason as never : null });
+  try {
+    await aiPipelineServiceDeps.repository.appendPipelineTurn({ sessionId: session.sessionId, userId, agentRunId: runId, requestId: requestId ?? runId, expectedSubstantiveAnswerCount: session.substantiveAnswerCount, expectedTotalConversationCount, actorTurn, agentTurn, model: String(response.model), promptVersion: String(response.promptVersion), currentInput: input, reportEvidence: evidence, completionStatus, completionReason: completionStatus ? response.completionReason as never : null });
+  } catch (error) {
+    const committed = await aggregate(session.sessionId, userId);
+    if (committed.report) return { actorTurn, agentTurn, done, completionReason: response.completionReason, reportReady: response.reportReady, reportEvidence: evidence, report: committed.report };
+    await aiPipelineServiceDeps.repository.failRun({ sessionId: session.sessionId, userId, runId, safeErrorCode: "TURN_PERSISTENCE_FAILED", retryable: true });
+    throw new AiPipelineError(503, "TURN_PERSISTENCE_FAILED");
+  }
   const report = response.reportReady
     ? await generateReport(await aggregate(session.sessionId, userId), userId, `report:${runId}`, 2)
     : null;
