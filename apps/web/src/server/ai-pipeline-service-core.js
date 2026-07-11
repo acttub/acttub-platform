@@ -387,7 +387,7 @@ export const createAiPipelineService = (incomingDeps) => {
                 const reportEvidence = requireReportEvidence(response.reportEvidence);
                 if (actorTurn)
                     actorTurn.reportEvidenceSelected = actorTurn.kind === "answer" && reportEvidence.answerTurnIds.includes(actorTurn.id);
-                const agentTurn = { id: crypto.randomUUID(), sequence: authoritativeSession.transcript.length + (actorTurn ? 1 : 0), role: "agent", kind: done ? "closing" : "question", content: String(response.utterance), questionFocus: action, groundingStartMs: null, groundingEndMs: null, sourceObservationIds: requireObservationIds(response.evidence), reportEvidenceSelected: false };
+                const agentTurn = { id: crypto.randomUUID(), sequence: authoritativeSession.transcript.length + (actorTurn ? 1 : 0), role: "agent", kind: done ? "closing" : "question", content: String(response.utterance), questionFocus: done ? null : action, groundingStartMs: null, groundingEndMs: null, sourceObservationIds: requireObservationIds(response.evidence), reportEvidenceSelected: false };
                 const responsePayload = { actorTurn, agentTurn, done, completionReason, reportReady, reportEvidence };
                 return { report: null, response: responsePayload, transportResponse: requireAgentTransportResponse(response), claimedRunId: run.id, persistedInput, actorTurn, agentTurn, done, completionReason, reportReady, reportEvidence };
             },
