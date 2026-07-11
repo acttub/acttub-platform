@@ -4,7 +4,7 @@ import { loadAiServiceConfig } from "@/server/ai/config";
 import type { AgentRequest, CurrentInput, ReportRequest, SummaryRequest } from "@/server/ai/contracts";
 import { createAiTransport, AiServiceError } from "@/server/ai/transport";
 import { fingerprintJson } from "@/server/ai-pipeline-fingerprint.js";
-import { createAiPipelineExecutionCore, sanitizePublicAiPipelineAggregate } from "@/server/ai-pipeline-execution-core.js";
+import { assertTerminalAtConversationLimit, createAiPipelineExecutionCore, interviewProgress, sanitizePublicAiPipelineAggregate } from "@/server/ai-pipeline-execution-core.js";
 import type { AgentReplayPayload, AiRun, CompletionReason, ImmutableAiReport, InterviewTurn, PipelineSessionAggregate } from "@/server/repositories/ai-pipeline-types";
 import { AiPipelinePersistenceError, supabaseAiPipelineRepository as repository } from "@/server/repositories/supabase-ai-pipeline-repository";
 import { getCurrentConsentVersions, requireCurrentAiProcessingConsent } from "./auth-context";
@@ -331,6 +331,7 @@ const callAgent = async (session: PipelineSessionAggregate, userId: string, inpu
       const done = response.done === true;
       const completionReason = (response.completionReason === null ? null : String(response.completionReason)) as CompletionReason | null;
       const reportReady = response.reportReady === true;
+      assertTerminalAtConversationLimit({ actual: interviewProgress(requestSession.transcript), done, reportReady, completionReason, fail: (code) => { throw new AiPipelineError(409, code); } });
       const reportEvidence = response.reportEvidence as { observationIds: string[]; answerTurnIds: string[] };
       if (actorTurn) actorTurn.reportEvidenceSelected = actorTurn.kind === "answer" && reportEvidence.answerTurnIds.includes(actorTurn.id);
       const agentTurn: InterviewTurn = { id: crypto.randomUUID(), sequence: session.transcript.length + (actorTurn ? 1 : 0), role: "agent", kind: done ? "closing" : "question", content: String(response.utterance), questionFocus: action, groundingStartMs: null, groundingEndMs: null, sourceObservationIds: (response.evidence as { observationIds: string[] }).observationIds, reportEvidenceSelected: false };

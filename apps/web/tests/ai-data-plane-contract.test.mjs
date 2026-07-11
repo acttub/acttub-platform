@@ -154,7 +154,7 @@ test("forward migration preserves unknown actor turns without incrementing subst
   assert.match(migration007, /create or replace function public\.acttub_append_pipeline_turn/);
   assert.match(migration007, /if actor->>'kind'='answer' then expected:=expected\+1; end if; end if;/);
   assert.match(runtimeRules, /countReportableActorTurns = \(transcript\)/);
-  assert.match(service, /unknownAnswers\.has\(answer\) \? "unknown" : "answer"/);
+  assert.match(service, /unknownAnswers\.has\(input\.answer\) \? "unknown" : "answer"/);
   assert.match(service, /countReportableActorTurns\(session\.transcript\)/);
   assert.match(service, /substantiveAnswerCount: session\.substantiveAnswerCount \+ \(actorTurn\.kind === "answer" \? 1 : 0\)/);
   assert.match(service, /ensureMutableInterviewSession\(session\)/);
