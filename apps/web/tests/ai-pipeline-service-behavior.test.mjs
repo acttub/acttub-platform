@@ -5,7 +5,7 @@ import test from "node:test";
 import ts from "typescript";
 import { createAiPipelineExecutionCore, assertTerminalAtConversationLimit, interviewProgress, sanitizePublicAiPipelineAggregate } from "../src/server/ai-pipeline-execution-core.js";
 import { fingerprintJson } from "../src/server/ai-pipeline-fingerprint.js";
-import { countReportableActorTurns } from "../src/server/ai-pipeline-runtime-rules.js";
+import { countReportableActorTurns, validateInterviewCompletionCount } from "../src/server/ai-pipeline-runtime-rules.js";
 
 class FakePersistenceError extends Error {
   constructor(field) { super(field); this.field = field; }
@@ -19,12 +19,12 @@ const loadServiceFactory = async () => {
   const outputPath = path.resolve(import.meta.dirname, ".ai-pipeline-service.behavior.generated.mjs");
   const source = (await readFile(sourcePath, "utf8")).replace(/^import[^;]+;\s*$/gm, "");
   const preamble = `
-const { createAiPipelineExecutionCore, assertTerminalAtConversationLimit, interviewProgress, sanitizePublicAiPipelineAggregate, fingerprintJson, countReportableActorTurns } = globalThis.__task105ServiceImports;
+const { createAiPipelineExecutionCore, assertTerminalAtConversationLimit, interviewProgress, sanitizePublicAiPipelineAggregate, fingerprintJson, countReportableActorTurns, validateInterviewCompletionCount } = globalThis.__task105ServiceImports;
 const AiServiceError = globalThis.__task105ServiceImports.AiServiceError;
 const AiPipelinePersistenceError = globalThis.__task105ServiceImports.AiPipelinePersistenceError;
 const repository = {}, createAiTransport = () => ({}), loadAiServiceConfig = () => ({}), requireCurrentAiProcessingConsent = async () => {}, getCurrentConsentVersions = async () => ({}), coachSessionService = {}, createSupabaseAdminClient = () => null, getAppConfig = () => ({ video: { bucket: "practice-videos" } });
 `;
-  globalThis.__task105ServiceImports = { createAiPipelineExecutionCore, assertTerminalAtConversationLimit, interviewProgress, sanitizePublicAiPipelineAggregate, fingerprintJson, countReportableActorTurns, AiPipelinePersistenceError: FakePersistenceError, AiServiceError: FakeAiServiceError };
+  globalThis.__task105ServiceImports = { createAiPipelineExecutionCore, assertTerminalAtConversationLimit, interviewProgress, sanitizePublicAiPipelineAggregate, fingerprintJson, countReportableActorTurns, validateInterviewCompletionCount, AiPipelinePersistenceError: FakePersistenceError, AiServiceError: FakeAiServiceError };
   const compiled = ts.transpileModule(preamble + source, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 } }).outputText;
   await writeFile(outputPath, compiled);
   try {
@@ -119,6 +119,20 @@ test("provider failures preserve timeout unavailable invalid and internal safe c
     assert.equal(failed.safeErrorCode, expectedCode);
     assert.equal(failed.retryable, retryable);
   }
+});
+
+test("early invalid completion count is AI_INVALID_RESPONSE and never appends", async () => {
+  const createAiPipelineService = await loadServiceFactory();
+  const session=baseSession(); let appendCalls=0; const failures=[];
+  const repository={
+    async findPipelineSessionForOwner(){return structuredClone(session)},
+    async claimRun(input){const run={id:input.runId,stage:"agent",status:"running",safeErrorCode:null};session.runs=[run];return{owned:true,run}},
+    async appendPipelineTurn(){appendCalls+=1},
+    async failRun(input){failures.push(input);session.runs=[{...session.runs[0],status:"failed",safeErrorCode:input.safeErrorCode}]},
+  };
+  const service=createAiPipelineService({repository,createAiTransport:()=>({agent:async()=>({action:"close",utterance:"done",evidence:{observationIds:[]},reportEvidence:{observationIds:[],answerTurnIds:[]},done:true,completionReason:"insufficient_interview_evidence",reportReady:false,model:"agent-model",promptVersion:"acting-agent.prompt.v2"})}),loadAiServiceConfig:()=>({}),requireCurrentAiProcessingConsent:async()=>{},getCurrentConsentVersions:async()=>({}),coachSessionService:{},createSupabaseAdminClient:()=>null,getAppConfig:()=>({video:{bucket:"practice-videos"}})});
+  await assert.rejects(service.addTurn(ids.session,ids.user,{answer:"answer",requestId:ids.request,expectedSubstantiveAnswerCount:0,expectedTotalConversationCount:0}),error=>error?.status===502&&error?.code==="AI_INVALID_RESPONSE");
+  assert.equal(appendCalls,0); assert.equal(failures.length,1); assert.equal(failures[0].safeErrorCode,"AI_INVALID_RESPONSE"); assert.equal(failures[0].retryable,false);
 });
 
 test("production service freezes its API and snapshots caller-owned dependencies", async () => {
