@@ -6,7 +6,7 @@ import { isLowerHex64 } from "@/server/ai-pipeline-fingerprint.js";
 import type { NormalizedSummary } from "@/server/ai/contracts";
 import { CONFIRMATION_VALUES } from "./ai-pipeline-values";
 import type { AgentReplayPayload, AiRun, ClaimRunInput, ClaimRunResult, CompleteInterviewInput, CompleteReportInput, ConfirmObservationInput, DeleteInput, FailRunInput, ImmutableAiReport, PipelineSessionAggregate, PipelineTurnInput, ReportReplayPayload, ReportSection, SummaryCompletionInput, SummaryReplayPayload } from "./ai-pipeline-types";
-import { validateReportSectionLineage } from "../ai-pipeline-runtime-rules.js";
+import { validateReportSectionLineage } from "../report-lineage.js";
 
 type Row=Record<string,unknown>; const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 type ReplayStage = "summary" | "agent" | "report" | "delete";
@@ -85,10 +85,6 @@ const reportForSession = (r: Row, op: string, session: ReportSessionContext): Im
   return mapped;
 };
 
-export const aiPipelineRepositoryTestHooks = {
-  reportForSession,
-  report,
-};
 
 const rpc=async(op:string,args:Record<string,unknown>):Promise<Row>=>{const {data,error}=await admin().rpc(op,args);return rpcData(checked(error,data,op),op)};
 

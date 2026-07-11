@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
-import { countReportableActorTurns, validateInterviewCompletionCount, validateReportSectionLineage } from "../src/server/ai-pipeline-runtime-rules.js";
+import { countReportableActorTurns, validateInterviewCompletionCount } from "../src/server/ai-pipeline-runtime-rules.js";
+import { validateReportSectionLineage } from "../src/server/report-lineage.js";
 
 const migration = await readFile(new URL("../../../supabase/migrations/004_ai_pipeline_data_plane.sql", import.meta.url), "utf8");
 const migration007 = await readFile(new URL("../../../supabase/migrations/007_ai_pipeline_unknown_turn_count.sql", import.meta.url), "utf8");
