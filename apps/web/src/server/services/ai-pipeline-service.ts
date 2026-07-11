@@ -12,6 +12,7 @@ import { coachSessionService } from "./coach-session-service";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { getAppConfig } from "@/lib/config/env";
 import { countReportableActorTurns, validateInterviewCompletionCount } from "../ai-pipeline-runtime-rules.js";
+import { settleAgentClaimProgress } from "../agent-claim-settlement.js";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const unknownAnswers = new Set(["모르겠어요", "잘 모르겠어요", "unknown"]);
@@ -381,7 +382,7 @@ const callAgent = async (session: PipelineSessionAggregate, userId: string, inpu
   const requestPayload = agentClaimPayload(session, input, requestId, expectedSubstantiveAnswerCount, expectedTotalConversationCount);
   const core = executionCoreFor(deps, session.sessionId, userId);
   const result = await core.run<AgentExecutionResult>({
-    claim: async () => claimRun({
+    claim: async () => settleAgentClaimProgress({ claimed: await claimRun({
       sessionId: session.sessionId,
       userId,
       stage: "agent",
@@ -392,7 +393,7 @@ const callAgent = async (session: PipelineSessionAggregate, userId: string, inpu
       requestPayloadFingerprint: fingerprintJson(requestPayload),
       model: "agent",
       promptVersion: "acting-agent.prompt.v2",
-    }),
+    }), readAggregate:()=>aggregate(session.sessionId,userId), failRun:(claimedRunId)=>deps.repository.failRun({sessionId:session.sessionId,userId,runId:claimedRunId,safeErrorCode:"AI_INTERNAL",retryable:false}), expectedSubstantiveAnswerCount, expectedTotalConversationCount, actorTurnCount, staleError:()=>new AiPipelineError(409,"STALE_INTERVIEW_PROGRESS"), persistenceError:()=>new AiPipelineError(503,"TURN_PERSISTENCE_FAILED") }),
     invoke: async (run) => {
       const authoritativeSession = await aggregate(session.sessionId, userId);
       if (authoritativeSession.substantiveAnswerCount !== expectedSubstantiveAnswerCount || actorTurnCount(authoritativeSession) !== expectedTotalConversationCount) {

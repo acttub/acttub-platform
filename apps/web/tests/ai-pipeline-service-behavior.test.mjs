@@ -5,6 +5,7 @@ import test from "node:test";
 import ts from "typescript";
 import { createAiPipelineExecutionCore, assertTerminalAtConversationLimit, interviewProgress, sanitizePublicAiPipelineAggregate } from "../src/server/ai-pipeline-execution-core.js";
 import { fingerprintJson } from "../src/server/ai-pipeline-fingerprint.js";
+import { settleAgentClaimProgress } from "../src/server/agent-claim-settlement.js";
 import { countReportableActorTurns, validateInterviewCompletionCount } from "../src/server/ai-pipeline-runtime-rules.js";
 
 class FakePersistenceError extends Error {
@@ -19,12 +20,12 @@ const loadServiceFactory = async () => {
   const outputPath = path.resolve(import.meta.dirname, ".ai-pipeline-service.behavior.generated.mjs");
   const source = (await readFile(sourcePath, "utf8")).replace(/^import[^;]+;\s*$/gm, "");
   const preamble = `
-const { createAiPipelineExecutionCore, assertTerminalAtConversationLimit, interviewProgress, sanitizePublicAiPipelineAggregate, fingerprintJson, countReportableActorTurns, validateInterviewCompletionCount } = globalThis.__task105ServiceImports;
+const { createAiPipelineExecutionCore, assertTerminalAtConversationLimit, interviewProgress, sanitizePublicAiPipelineAggregate, fingerprintJson, countReportableActorTurns, validateInterviewCompletionCount, settleAgentClaimProgress } = globalThis.__task105ServiceImports;
 const AiServiceError = globalThis.__task105ServiceImports.AiServiceError;
 const AiPipelinePersistenceError = globalThis.__task105ServiceImports.AiPipelinePersistenceError;
 const repository = {}, createAiTransport = () => ({}), loadAiServiceConfig = () => ({}), requireCurrentAiProcessingConsent = async () => {}, getCurrentConsentVersions = async () => ({}), coachSessionService = {}, createSupabaseAdminClient = () => null, getAppConfig = () => ({ video: { bucket: "practice-videos" } });
 `;
-  globalThis.__task105ServiceImports = { createAiPipelineExecutionCore, assertTerminalAtConversationLimit, interviewProgress, sanitizePublicAiPipelineAggregate, fingerprintJson, countReportableActorTurns, validateInterviewCompletionCount, AiPipelinePersistenceError: FakePersistenceError, AiServiceError: FakeAiServiceError };
+  globalThis.__task105ServiceImports = { createAiPipelineExecutionCore, assertTerminalAtConversationLimit, interviewProgress, sanitizePublicAiPipelineAggregate, fingerprintJson, countReportableActorTurns, validateInterviewCompletionCount, settleAgentClaimProgress, AiPipelinePersistenceError: FakePersistenceError, AiServiceError: FakeAiServiceError };
   const compiled = ts.transpileModule(preamble + source, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 } }).outputText;
   await writeFile(outputPath, compiled);
   try {
@@ -189,10 +190,11 @@ test("authoritative stale substantive and total counts reject as 409 before prov
     let reads = 0;
     let providerCalls = 0;
     const failedRuns = [];
+    let claimedRun;
     const repository = {
       async findPipelineSessionForOwner() { reads += 1; return structuredClone(reads === 1 ? initial : authoritative); },
-      async claimRun(input) { return { owned: true, run: { id: input.runId, status: "running", safeErrorCode: null } }; },
-      async failRun(input) { failedRuns.push(input); },
+      async claimRun(input) { claimedRun={ id: input.runId, stage:"agent", status:"running", safeErrorCode:null }; return { owned:true, run:structuredClone(claimedRun) }; },
+      async failRun(input) { failedRuns.push(input); authoritative.runs=[{...claimedRun,status:"failed",safeErrorCode:input.safeErrorCode}]; },
     };
     const service = createAiPipelineService({ repository, createAiTransport: () => ({ agent: async () => { providerCalls += 1; throw new Error("provider must not run"); } }), loadAiServiceConfig: () => ({}), requireCurrentAiProcessingConsent: async () => {}, getCurrentConsentVersions: async () => ({}), coachSessionService: {}, createSupabaseAdminClient: () => null, getAppConfig: () => ({ video: { bucket: "practice-videos" } }) });
     await assert.rejects(service.addTurn(ids.session, ids.user, { answer: "answer", requestId: ids.request, expectedSubstantiveAnswerCount: 0, expectedTotalConversationCount: 0 }), (error) => error?.status === 409 && error?.code === "STALE_INTERVIEW_PROGRESS");

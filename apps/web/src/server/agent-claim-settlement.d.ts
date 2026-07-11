@@ -1,0 +1,2 @@
+import type { AiRun, ClaimRunResult, PipelineSessionAggregate } from "./repositories/ai-pipeline-types";
+export function settleAgentClaimProgress(input:{claimed:ClaimRunResult;readAggregate:()=>Promise<PipelineSessionAggregate>;failRun:(runId:string)=>Promise<unknown>;expectedSubstantiveAnswerCount:number;expectedTotalConversationCount:number;actorTurnCount:(session:PipelineSessionAggregate)=>number;staleError:()=>Error;persistenceError:()=>Error;attempts?:number}):Promise<ClaimRunResult>;
