@@ -14,3 +14,5 @@ services:
         sync: false
       - key: RATE_LIMIT_PER_MIN
         value: "10"
+      - key: KEEP_ALIVE_URL
+        value: "https://acting-api.onrender.com"
