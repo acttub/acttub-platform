@@ -96,6 +96,7 @@ test("production service seam deduplicates concurrent exact addTurn and replays 
 test("production service freezes its API and snapshots caller-owned dependencies", async () => {
   const createAiPipelineService = await loadServiceFactory();
   const session = baseSession();
+  session.runs.push({ id: "00000000-0000-4000-8000-000000000130", stage: "agent", requestPayloadFingerprint: "secret", responsePayload: { done: false }, updatedAt: "internal" });
   const repository = { async findPipelineSessionForOwner() { return structuredClone(session); } };
   const deps = {
     repository,
@@ -104,7 +105,11 @@ test("production service freezes its API and snapshots caller-owned dependencies
   const service = createAiPipelineService(deps);
   deps.repository = { async findPipelineSessionForOwner() { throw new Error("mutated caller dependency"); } };
   assert.equal(Object.isFrozen(service), true);
-  assert.equal((await service.getSession(ids.session, ids.user)).sessionId, ids.session);
+  const publicSession = await service.getSession(ids.session, ids.user);
+  assert.equal(publicSession.sessionId, ids.session);
+  assert.equal(publicSession.runs[0].requestPayloadFingerprint, undefined);
+  assert.equal(publicSession.runs[0].responsePayload, undefined);
+  assert.equal(publicSession.runs[0].updatedAt, undefined);
 });
 
 test("repeated start stop and resume replay stable completed command claims without provider calls", async () => {
