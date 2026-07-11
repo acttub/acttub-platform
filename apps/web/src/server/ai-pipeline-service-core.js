@@ -291,7 +291,10 @@ export const createAiPipelineService = (incomingDeps) => {
                 return failRun(session.sessionId, userId, run.id, error);
             },
             persistenceFailure: async (_error, run) => {
-                await deps.repository.failRun({ sessionId: session.sessionId, userId, runId: run.id, safeErrorCode: "REPORT_PERSISTENCE_FAILED", retryable: true });
+                try {
+                    await deps.repository.failRun({ sessionId: session.sessionId, userId, runId: run.id, safeErrorCode: "REPORT_PERSISTENCE_FAILED", retryable: true });
+                }
+                catch { /* a committed run rejects running-only cleanup */ }
                 throw new AiPipelineError(503, "REPORT_PERSISTENCE_FAILED");
             },
         });
@@ -428,7 +431,10 @@ export const createAiPipelineService = (incomingDeps) => {
                 return failRun(session.sessionId, userId, run.id, error);
             },
             persistenceFailure: async (_error, run) => {
-                await deps.repository.failRun({ sessionId: session.sessionId, userId, runId: run.id, safeErrorCode: "TURN_PERSISTENCE_FAILED", retryable: true });
+                try {
+                    await deps.repository.failRun({ sessionId: session.sessionId, userId, runId: run.id, safeErrorCode: "TURN_PERSISTENCE_FAILED", retryable: true });
+                }
+                catch { /* a committed run rejects running-only cleanup */ }
                 throw new AiPipelineError(503, "TURN_PERSISTENCE_FAILED");
             },
         });
@@ -469,7 +475,10 @@ export const createAiPipelineService = (incomingDeps) => {
                 replay: () => { throw new AiPipelineError(503, "SUMMARY_RELOAD_REQUIRED"); },
                 recover: async (_error, run) => { const committed = await aggregate(sessionId, userId); const summaryRun = committed.runs.find(item => item.id === run.id && item.stage === "summary" && item.status === "completed"); return summaryRun && committed.summary?.sourceRunId === run.id ? { session: committed, summaryRun, response: null } : null; },
                 providerFailure: (error, run) => failRun(sessionId, userId, run.id, error),
-                persistenceFailure: async (_error, run) => { await deps.repository.failRun({ sessionId, userId, runId: run.id, safeErrorCode: "SUMMARY_PERSISTENCE_FAILED", retryable: true }); throw new AiPipelineError(503, "SUMMARY_PERSISTENCE_FAILED"); },
+                persistenceFailure: async (_error, run) => { try {
+                    await deps.repository.failRun({ sessionId, userId, runId: run.id, safeErrorCode: "SUMMARY_PERSISTENCE_FAILED", retryable: true });
+                }
+                catch { /* a committed run rejects running-only cleanup */ } throw new AiPipelineError(503, "SUMMARY_PERSISTENCE_FAILED"); },
             });
             const refreshed = result.response ? await aggregate(sessionId, userId) : result.session;
             const summaryRun = refreshed.runs.find(run => run.id === result.summaryRun.id) ?? result.summaryRun;
