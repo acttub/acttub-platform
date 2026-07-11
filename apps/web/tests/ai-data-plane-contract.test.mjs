@@ -173,6 +173,8 @@ test("forward migration hardens AI run metadata persistence and mutable confirma
   assert.match(migration009, /create or replace function public\.acttub_append_pipeline_turn\(p_session_id uuid,p_user_id uuid,p_payload jsonb\)/);
   assert.match(migration009, /select count\(\*\) into conversation_count from public\.interview_turns where session_id=p_session_id and user_id=p_user_id and role='actor' and kind in \('answer','unknown'\)/);
   assert.match(migration009, /jsonb_typeof\(p_payload->'expectedSubstantiveAnswerCount'\) is distinct from 'number'[\s\S]*jsonb_typeof\(p_payload->'expectedTotalConversationCount'\) is distinct from 'number'/);
+  assert.match(migration009, /expectedSubstantiveAnswerCount'\) !~ '\^\(0\|\[1-9\]\|10\)\$'[\s\S]*expectedTotalConversationCount'\) !~ '\^\(0\|\[1-9\]\|10\)\$'/);
+  assert.match(migration009, /expectedSubstantiveAnswerCount'\)::integer>\(p_payload->>'expectedTotalConversationCount'\)::integer/);
   assert.match(migration009, /expected is distinct from \(p_payload->>'expectedSubstantiveAnswerCount'\)::integer/);
   assert.match(migration009, /conversation_count is distinct from \(p_payload->>'expectedTotalConversationCount'\)::integer/);
   assert.match(migration009, /if conversation_count>=10 then raise exception 'turn_conflict'; end if;/);

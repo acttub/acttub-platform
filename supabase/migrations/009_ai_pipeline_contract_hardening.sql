@@ -93,7 +93,7 @@ declare
  last_two_kinds text[];
 begin
  if (completion_status_value is null)<>(completion_reason_value is null) then raise exception 'invalid_completion'; end if;
- if jsonb_typeof(p_payload->'expectedSubstantiveAnswerCount') is distinct from 'number' or (p_payload->>'expectedSubstantiveAnswerCount') !~ '^(0|[1-9][0-9]*)$' or jsonb_typeof(p_payload->'expectedTotalConversationCount') is distinct from 'number' or (p_payload->>'expectedTotalConversationCount') !~ '^(0|[1-9][0-9]*)$' then raise exception 'turn_conflict'; end if;
+ if jsonb_typeof(p_payload->'expectedSubstantiveAnswerCount') is distinct from 'number' or (p_payload->>'expectedSubstantiveAnswerCount') !~ '^(0|[1-9]|10)$' or jsonb_typeof(p_payload->'expectedTotalConversationCount') is distinct from 'number' or (p_payload->>'expectedTotalConversationCount') !~ '^(0|[1-9]|10)$' or (p_payload->>'expectedSubstantiveAnswerCount')::integer>(p_payload->>'expectedTotalConversationCount')::integer then raise exception 'turn_conflict'; end if;
  select substantive_answer_count into expected
  from public.practice_sessions s
  where s.id=p_session_id
