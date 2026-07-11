@@ -35,7 +35,7 @@ test("owner session visibility scopes enforce executable row semantics", () => {
   const rows = [
     { id: "active", user_id: userId, hidden_at: null, deletion_status: "active" },
     { id: "hidden", user_id: userId, hidden_at: "2026-01-01T00:00:00.000Z", deletion_status: "active" },
-    { id: "deleting", user_id: userId, hidden_at: "2026-01-01T00:00:00.000Z", deletion_status: "deleting" },
+    { id: "deleting", user_id: userId, hidden_at: null, deletion_status: "deleting" },
     { id: "other-owner", user_id: "00000000-0000-4000-8000-000000000099", hidden_at: null, deletion_status: "active" },
   ];
   const read = (sessionId, visibility) => applyOwnerSessionScope(
