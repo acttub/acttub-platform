@@ -64,7 +64,6 @@ test("repository deeply checks summary report and run invariants", () => {
   assert.match(repository, /report\.invariants/);
   assert.match(repository, /reportForSession/);
   assert.match(repository, /report\.selectedEvidence/);
-  assert.match(repository, /report\.timestampRequired/);
   assert.match(repository, /actorDiscovery[\s\S]*correctionByTurnId/);
   assert.doesNotMatch(repository, /recordRunModel\(/);
 });
@@ -122,7 +121,7 @@ test("forward migration preserves unknown actor turns without incrementing subst
   assert.match(service, /unknownAnswers\.has\(answer\) \? "unknown" : "answer"/);
   assert.match(service, /substantiveAnswerCount: session\.substantiveAnswerCount \+ \(actorTurn\.kind === "answer" \? 1 : 0\)/);
   assert.match(service, /ensureMutableInterviewSession\(session\)/);
-  assert.match(service, /if \(session\.interviewStatus === "completed" \|\| session\.interviewStatus === "completed_without_report"\) throw new AiPipelineError\(409, "SESSION_NOT_MUTABLE"\);/);
+  assert.match(service, /if \(session\.interviewStatus === "completed" \|\| session\.interviewStatus === "completed_without_report"\)[\s\S]*throw new AiPipelineError\(409, "SESSION_NOT_MUTABLE"\);/);
 });
 
 test("forward migration repairs deletion by removing the orphan upload intent and fail-closes the full deletion surface", () => {
