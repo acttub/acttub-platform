@@ -12,6 +12,55 @@ const deps=repository=>({repository,createAiTransport:()=>({}),loadAiServiceConf
 
 test("optional note service trims, saves, replays, clears, reloads and exposes no turn id",async()=>{const session=aggregate();session.runs=[{id:id(20),stage:"agent",status:"completed"}];session.report={sourceRunId:id(21),digest:"immutable"};const invariant=()=>structuredClone({interviewStatus:session.interviewStatus,completionReason:session.completionReason,substantiveAnswerCount:session.substantiveAnswerCount,reportEvidenceObservationIds:session.reportEvidenceObservationIds,reportEvidenceAnswerTurnIds:session.reportEvidenceAnswerTurnIds,runs:session.runs,report:session.report});const before=invariant();const writes=[];const repository={async findPipelineSessionForOwner(){return structuredClone(session)},async saveOptionalNote(input){writes.push(structuredClone(input));session.optionalNote=input.content;session.transcript=input.content?[{id:writes[0].turnId,sequence:0,role:"actor",kind:"optional_note",content:input.content,questionFocus:null,groundingStartMs:null,groundingEndMs:null,sourceObservationIds:[],reportEvidenceSelected:false}]:[]}};const service=createAiPipelineService(deps(repository));assert.deepEqual(await service.saveOptionalNote(id(1),id(2),{content:"  기억할 문장  "}),{optionalNote:"기억할 문장"});assert.match(writes[0].turnId,/^[0-9a-f-]{36}$/);const originalId=writes[0].turnId;assert.deepEqual(await service.saveOptionalNote(id(1),id(2),{content:"기억할 문장"}),{optionalNote:"기억할 문장"});assert.notEqual(writes[1].turnId,originalId);assert.deepEqual(await service.getSession(id(1),id(2)),session);assert.deepEqual(await service.saveOptionalNote(id(1),id(2),{content:"   "}),{optionalNote:null});assert.deepEqual(await service.saveOptionalNote(id(1),id(2),{content:null}),{optionalNote:null});assert.equal("turnId" in (await service.saveOptionalNote(id(1),id(2),{content:null})),false);assert.deepEqual(invariant(),before);});
 
+test("optional note update preserves row identity and same-value replay is a no-op", async () => {
+  const session = aggregate();
+  let row = null;
+  let mutationCount = 0;
+  const repository = {
+    async findPipelineSessionForOwner() { return structuredClone(session); },
+    async saveOptionalNote(input) {
+      if (input.content === null) {
+        if (row !== null) { row = null; mutationCount += 1; }
+      } else if (row === null) {
+        row = { id: input.turnId, sequence: 0, content: input.content };
+        mutationCount += 1;
+      } else if (row.content !== input.content) {
+        row = { ...row, content: input.content };
+        mutationCount += 1;
+      }
+      session.optionalNote = row?.content ?? null;
+      session.transcript = row === null ? [] : [{
+        id: row.id, sequence: row.sequence, role: "actor", kind: "optional_note",
+        content: row.content, questionFocus: null, groundingStartMs: null,
+        groundingEndMs: null, sourceObservationIds: [], reportEvidenceSelected: false,
+      }];
+      return { optionalNote: session.optionalNote };
+    },
+  };
+  const service = createAiPipelineService(deps(repository));
+
+  await service.saveOptionalNote(id(1), id(2), { content: "문장 A" });
+  const inserted = structuredClone(row);
+  assert.equal(mutationCount, 1);
+
+  await service.saveOptionalNote(id(1), id(2), { content: "문장 B" });
+  assert.deepEqual({ id: row.id, sequence: row.sequence, content: row.content }, {
+    id: inserted.id, sequence: inserted.sequence, content: "문장 B",
+  });
+  assert.equal(mutationCount, 2);
+
+  await service.saveOptionalNote(id(1), id(2), { content: "문장 B" });
+  assert.equal(mutationCount, 2);
+  assert.equal(row.id, inserted.id);
+  assert.equal(row.sequence, inserted.sequence);
+
+  await service.saveOptionalNote(id(1), id(2), { content: null });
+  assert.equal(mutationCount, 3);
+  assert.equal(row, null);
+  await service.saveOptionalNote(id(1), id(2), { content: null });
+  assert.equal(mutationCount, 3);
+});
+
 test("optional note validation and malformed projection fail closed",async()=>{const session=aggregate();const repository={async findPipelineSessionForOwner(){return structuredClone(session)},async saveOptionalNote(){}};const service=createAiPipelineService(deps(repository));await assert.rejects(service.saveOptionalNote(id(1),id(2),{content:1}),e=>e.code==="INVALID_OPTIONAL_NOTE");await assert.rejects(service.saveOptionalNote(id(1),id(2),{content:"x".repeat(1001)}),e=>e.code==="INVALID_OPTIONAL_NOTE");assert.equal(optionalNoteLength("😀".repeat(1000)),1000);await assert.doesNotReject(service.saveOptionalNote(id(1),id(2),{content:"😀".repeat(1000)}));await assert.rejects(service.saveOptionalNote(id(1),id(2),{content:"😀".repeat(1001)}),e=>e.code==="INVALID_OPTIONAL_NOTE");delete session.optionalNote;await assert.rejects(service.getSession(id(1),id(2)),e=>e.code==="OPTIONAL_NOTE_PROJECTION_INVALID");});
 
 test("optional note exact body visibility and terminal pairing fail closed",async()=>{let session=aggregate();const repository={async findPipelineSessionForOwner(){return session?structuredClone(session):null},async saveOptionalNote(){throw new Error("must not write")}};const service=createAiPipelineService(deps(repository));for(const body of [{},{content:null,extra:true}])await assert.rejects(service.saveOptionalNote(id(1),id(2),body),e=>e.status===400);session.interviewStatus="active";session.completionReason=null;await assert.rejects(service.saveOptionalNote(id(1),id(2),{content:"x"}),e=>e.status===409);session.interviewStatus="paused";session.completionReason="manual_stop_paused";await assert.rejects(service.saveOptionalNote(id(1),id(2),{content:"x"}),e=>e.status===409);session.interviewStatus="completed";session.completionReason="insufficient_interview_evidence";await assert.rejects(service.saveOptionalNote(id(1),id(2),{content:"x"}),e=>e.status===409);session=null;for(const boundary of ["hidden","deleting","nonowner"]){const denied=createAiPipelineService(deps({async findPipelineSessionForOwner(){return null},async saveOptionalNote(){throw new Error(boundary)}}));await assert.rejects(denied.saveOptionalNote(id(1),id(2),{content:"x"}),e=>e.status===404);}});
