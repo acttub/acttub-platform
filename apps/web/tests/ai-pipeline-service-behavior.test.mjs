@@ -314,3 +314,21 @@ test("Report claim fingerprint is stable when persisted corrections arrive in di
 });
 
 function idFor(value) { return `00000000-0000-4000-8000-${String(value).padStart(12, "0")}`; }
+
+test("createSession recovers an exact committed Summary after persistence response loss and sanitizes output", async () => {
+  const session=baseSession(); session.summary=null; session.runs=[]; let providerCalls=0,completeCalls=0;
+  const repository={
+    async findEligibleUpload(){return{sessionId:ids.session,storagePath:"u/s/video.mp4",requiredConsentVersionSnapshot:"v1",aiProcessingConsentVersionSnapshot:"v1"}},
+    async createPipelineSession(){},
+    async findPipelineSessionForOwner(){return structuredClone(session)},
+    async claimRun(input){const run={id:input.runId,sessionId:ids.session,userId:ids.user,stage:"summary",status:"running",requestPayloadFingerprint:input.requestPayloadFingerprint,responsePayload:null,updatedAt:"internal"};session.runs=[run];return{owned:true,run:structuredClone(run)}},
+    async completeSummaryRun(input){completeCalls+=1;session.summary={sourceRunId:input.runId,normalizedSummary:structuredClone(input.normalizedSummary)};session.runs=[{...session.runs[0],status:"completed",responseSchemaVersion:"summary-response.v1",model:input.model,promptVersion:input.promptVersion,responsePayload:{secret:true},updatedAt:"internal"}];throw new Error("commit response lost")},
+    async failRun(){throw new Error("committed Summary must recover without failRun")},
+  };
+  const normalized=baseSession().summary.normalizedSummary;
+  const service=createAiPipelineService({repository,createAiTransport:()=>({summary:async()=>{providerCalls+=1;return{normalizedSummary:normalized,observationCandidates:[],model:"summary-model",promptVersion:"acting-summary.prompt.v2"}}}),loadAiServiceConfig:()=>({}),requireCurrentAiProcessingConsent:async()=>{},getCurrentConsentVersions:async()=>({requiredConsentVersion:"v1",aiProcessingConsentVersion:"v1"}),coachSessionService:{},createSupabaseAdminClient:()=>({storage:{from:()=>({createSignedUrl:async()=>({data:{signedUrl:"https://signed.invalid"},error:null})})}}),getAppConfig:()=>({video:{bucket:"practice-videos",signedUrlExpiresInSeconds:60}}),createSummaryNetworkError:()=>new Error("network")});
+  const result=await service.createSession({sessionId:ids.session,uploadIntentId:"00000000-0000-4000-8000-000000000140",storagePath:"u/s/video.mp4",genre:"drama",situation:"scene",characterContext:"actor",subtext:null},ids.user);
+  assert.equal(providerCalls,1); assert.equal(completeCalls,1); assert.equal(result.summaryRun.status,"completed");
+  assert.equal(result.summaryRun.requestPayloadFingerprint,undefined); assert.equal(result.summaryRun.responsePayload,undefined); assert.equal(result.summaryRun.updatedAt,undefined);
+  assert.equal(result.session.summary.sourceRunId,result.summaryRun.id);
+});
