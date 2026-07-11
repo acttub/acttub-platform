@@ -128,6 +128,11 @@ test("migration 009 replays under lock, expires stale reports, and removes weak 
   assert.match(migration009, /stat='paused' and agent_turn->>'kind'<>'question'/);
   assert.match(migration009, /stat<>'paused' and agent_turn->>'kind'<>'closing'/);
   assert.match(migration009, /insert into public\.interview_turns[\s\S]*next_sequence,'agent',agent_turn->>'kind'/);
+  assert.match(migration009, /jsonb_typeof\(agent_turn->'sequence'\)<>'number'/);
+  assert.match(migration009, /jsonb_typeof\(agent_turn->'reportEvidenceSelected'\)<>'boolean'/);
+  assert.match(migration009, /confirmation_state='accepted' and not o\.blocked_for_questioning/);
+  assert.match(migration009, /array\(select jsonb_array_elements_text\(agent_turn->'sourceObservationIds'\)\)::uuid\[\]/);
+  assert.match(migration009, /case when agent_turn->'questionFocus'='null'::jsonb then null else agent_turn->>'questionFocus' end/);
   assert.match(migration009, /correction_lineage_conflict/);
   assert.match(migration009, /summary_lineage_conflict/);
 });
