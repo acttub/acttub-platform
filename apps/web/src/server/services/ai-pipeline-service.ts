@@ -294,16 +294,10 @@ const generateReport = async (
       return reportExecutionResult(null, response);
     },
     persist: async (invoked, run) => {
-      const response = invoked.response as { sections: ReportRequest["sections"]; model: unknown; promptVersion: unknown };
+      const response = invoked.response ?? (() => { throw new AiPipelineError(503, "REPORT_RESPONSE_MISSING"); })();
       await deps.repository.completeReportRun({ sessionId: session.sessionId, userId, runId: run.id, report: { schemaVersion: "report.v1", sections: response.sections as never }, model: String(response.model), promptVersion: String(response.promptVersion) });
     },
-    replay: () => {
-      const committed = session.report;
-      if (committed) return reportExecutionResult(committed);
-      const existing = null;
-      if (existing) return reportExecutionResult(existing);
-      throw new AiPipelineError(404, "REPORT_NOT_FOUND");
-    },
+    replay: (run) => reportExecutionResult(session.report, run.responsePayload as ReportTransportResponse | null),
     recover: async () => {
       const committed = await aggregate(session.sessionId, userId);
       if (committed.report) return reportExecutionResult(committed.report);
@@ -389,11 +383,12 @@ const callAgent = async (session: PipelineSessionAggregate, userId: string, inpu
         completionReason: invoked.done || String(invoked.response.action) === "pause" ? invoked.response.completionReason as never : null,
       });
     },
-    replay: async () => replayCommittedAgentOutcome(session.sessionId, userId),
+    replay: (run) => replayCommittedAgentOutcome(session, run),
     recover: async () => {
       const committed = await aggregate(session.sessionId, userId);
-      if (committed.runs.some((run) => run.stage === "agent" && run.status === "completed")) return replayCommittedAgentOutcome(session.sessionId, userId);
-      if (committed.report) return replayCommittedAgentOutcome(session.sessionId, userId);
+      const committedRun = committed.runs.find((run) => run.stage === "agent" && run.status === "completed" && run.responseSchemaVersion === "agent-turn.v1");
+      if (committedRun) return replayCommittedAgentOutcome(committed, committedRun);
+      if (committed.report) return replayCommittedAgentOutcome(committed, committed.runs[0] ?? { responsePayload: null } as AiRun);
       return null;
     },
     providerFailure: async (error, run) => failRun(session.sessionId, userId, run.id, error),
