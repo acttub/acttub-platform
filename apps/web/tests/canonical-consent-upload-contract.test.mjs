@@ -28,7 +28,7 @@ test("upload intent requires confirmations and persists only server authority",(
 
 test("finalize and pipeline reject browser authority and stale eligibility",()=>{
   const service=read("src/server/services/coach-session-service.ts");
-  const pipeline=read("src/server/services/ai-pipeline-service.ts");
+  const pipeline=read("src/server/ai-pipeline-service-core.js");
   const repo=read("src/server/repositories/supabase-ai-pipeline-repository.ts");
   assert.match(service,/Object\.keys\(input\)\.some\(\(key\) => key !== "storagePath"\)/);
   assert.match(service,/uploadIntentId,[\s\S]*mediaMetadataVersion: "iso-bmff-duration\.v1"/);
