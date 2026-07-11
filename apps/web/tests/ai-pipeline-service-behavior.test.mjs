@@ -197,11 +197,13 @@ test("stale progress recovers a lost failRun response only after observing the c
   authoritative.substantiveAnswerCount = 1;
   let claimedRun;
   let reads = 0;
+  let failCalls = 0;
+  let cleaned = false;
   const repository = {
     async findPipelineSessionForOwner() {
       reads += 1;
       const value = structuredClone(reads === 1 ? initial : authoritative);
-      if (reads >= 3) value.runs = [{ ...claimedRun, status: "failed", safeErrorCode: "AI_INTERNAL" }];
+      if (reads >= 3) value.runs = [{ ...claimedRun, status: cleaned ? "failed" : "running", safeErrorCode: cleaned ? "AI_INTERNAL" : null }];
       return value;
     },
     async claimRun(input) {
@@ -209,14 +211,17 @@ test("stale progress recovers a lost failRun response only after observing the c
       return { owned: true, run: structuredClone(claimedRun) };
     },
     async failRun(input) {
+      failCalls += 1;
       assert.equal(input.runId, claimedRun.id);
       assert.equal(input.safeErrorCode, "AI_INTERNAL");
       assert.equal(input.retryable, false);
-      throw new Error("response lost after commit");
+      if (failCalls === 1) throw new Error("precommit cleanup failure");
+      cleaned = true;
     },
   };
   const service = createAiPipelineService({ repository, createAiTransport: () => ({ agent: async () => { throw new Error("provider must not run"); } }), loadAiServiceConfig: () => ({}), requireCurrentAiProcessingConsent: async () => {}, getCurrentConsentVersions: async () => ({}), coachSessionService: {}, createSupabaseAdminClient: () => null, getAppConfig: () => ({ video: { bucket: "practice-videos" } }) });
   await assert.rejects(service.addTurn(ids.session, ids.user, { answer: "answer", requestId: ids.request, expectedSubstantiveAnswerCount: 0, expectedTotalConversationCount: 0 }), (error) => error?.status === 409 && error?.code === "STALE_INTERVIEW_PROGRESS");
+  assert.equal(failCalls, 2);
 });
 
 test("same request key with changed answer or either expected count rejects fingerprint conflict before provider", async () => {

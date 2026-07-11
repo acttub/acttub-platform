@@ -397,21 +397,21 @@ const callAgent = async (session: PipelineSessionAggregate, userId: string, inpu
       const authoritativeSession = await aggregate(session.sessionId, userId);
       if (authoritativeSession.substantiveAnswerCount !== expectedSubstantiveAnswerCount || actorTurnCount(authoritativeSession) !== expectedTotalConversationCount) {
         const stale = new AiPipelineError(409, "STALE_INTERVIEW_PROGRESS");
-        try {
-          await deps.repository.failRun({ sessionId: session.sessionId, userId, runId: run.id, safeErrorCode: "AI_INTERNAL", retryable: false });
-          throw stale;
-        } catch (error) {
-          if (error === stale) throw stale;
+        const cleanup = { sessionId: session.sessionId, userId, runId: run.id, safeErrorCode: "AI_INTERNAL", retryable: false } as const;
+        const terminalObserved = async () => {
           try {
             const observed = await aggregate(session.sessionId, userId);
             const observedRun = observed.runs.find((candidate) => candidate.id === run.id);
-            if (observedRun && observedRun.status !== "running" && observedRun.status !== "pending") throw stale;
-          } catch (reloadError) {
-            if (reloadError === stale) throw stale;
-          }
-          throw new AiPipelineError(503, "TURN_PERSISTENCE_FAILED");
+            return Boolean(observedRun && observedRun.status !== "running" && observedRun.status !== "pending");
+          } catch { return false; }
+        };
+        try { await deps.repository.failRun(cleanup); throw stale; } catch (error) {
+          if (error === stale || await terminalObserved()) throw stale;
         }
-      }
+        try { await deps.repository.failRun(cleanup); } catch { /* authoritative reload below decides whether cleanup committed */ }
+        if (await terminalObserved()) throw stale;
+        throw new AiPipelineError(503, "TURN_PERSISTENCE_FAILED");
+        }
       if (expectedTotalConversationCount >= 10) throw new AiPipelineError(409, "SESSION_NOT_MUTABLE");
       const actorTurn: InterviewTurn | null = input.command === "answer" && input.answer
         ? { id: crypto.randomUUID(), sequence: authoritativeSession.transcript.length, role: "actor", kind: unknownAnswers.has(input.answer) ? "unknown" : "answer", content: input.answer, questionFocus: null, groundingStartMs: null, groundingEndMs: null, sourceObservationIds: [], reportEvidenceSelected: false }
