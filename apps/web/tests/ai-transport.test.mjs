@@ -90,13 +90,14 @@ test("enforces action-specific Agent observation selection and mandatory source 
 
 test("rejects every Report section-specific evidence invariant violation", async () => {
   const unknownId="66666666-6666-4666-8666-666666666666";
+  const correctionId="77777777-7777-4777-8777-777777777777",correctionTurnId="88888888-8888-4888-8888-888888888888";
   const confirmedNoEvidence={status:"confirmed",content:"x",observationEvidenceIds:[],turnEvidenceIds:[],timestampRange:null};
   const cases=[
     {oneLineSummary:confirmedNoEvidence},
     {oneLineSummary:empty},
-    {oneLineSummary:{...confirmed,turnEvidenceIds:[]}},
-    {primaryReviewPoint:{...review,timestampRange:null}},
-    {confirmedEvidence:{...confirmed,turnEvidenceIds:[]}},
+    {oneLineSummary:{...confirmed,turnEvidenceIds:[correctionTurnId]}},
+    {primaryReviewPoint:{...review,turnEvidenceIds:[turnId],timestampRange:{startMs:0,endMs:1}}},
+    {confirmedEvidence:{...confirmed,turnEvidenceIds:[correctionTurnId]}},
     {actorDiscovery:{...confirmed,turnEvidenceIds:[]}},
     {groundedEncouragement:{...confirmed,observationEvidenceIds:[],turnEvidenceIds:[turnId]}},
     {nextPracticeStep:{...confirmed,observationEvidenceIds:[unknownId]}},
@@ -106,8 +107,8 @@ test("rejects every Report section-specific evidence invariant violation", async
     const body={...reportResponse,sections:{...reportResponse.sections,...changed}};
     await assert.rejects(createAiTransport(config,async()=>response(body)).report(reportRequest),error=>error instanceof AiServiceError&&error.code==="INVALID_RESPONSE");
   }
-  const correctionId="77777777-7777-4777-8777-777777777777",correctionTurnId="88888888-8888-4888-8888-888888888888";
   const correctionRequest={...reportRequest,actorCorrections:[{correctionId,correctsObservationId:observationId,segment:{startMs:2,endMs:3},text:"c",actorTurnId:correctionTurnId}],transcript:[...reportRequest.transcript,{turnId:correctionTurnId,speaker:"actor",content:"c",kind:"actor_correction"}]};
+  await createAiTransport(config,async()=>response({...reportResponse,sections:{...reportResponse.sections,actorDiscovery:{...confirmed,observationEvidenceIds:[],turnEvidenceIds:[correctionTurnId],timestampRange:{startMs:2,endMs:3}}}})).report(correctionRequest);
   const correctionOnlyTimestamp={...reportResponse,sections:{...reportResponse.sections,primaryReviewPoint:{...review,turnEvidenceIds:[correctionTurnId],timestampRange:{startMs:2,endMs:3}}}};
   await assert.rejects(createAiTransport(config,async()=>response(correctionOnlyTimestamp)).report(correctionRequest),error=>error instanceof AiServiceError&&error.code==="INVALID_RESPONSE");
 });
