@@ -1,11 +1,11 @@
 import "server-only";
 
 import { loadAiServiceConfig } from "@/server/ai/config";
-import type { AgentRequest, CurrentInput, ReportRequest, SummaryRequest } from "@/server/ai/contracts";
+import type { AgentRequest, CurrentInput, NormalizedSummary, ReportRequest, SummaryRequest } from "@/server/ai/contracts";
 import { createAiTransport, AiServiceError } from "@/server/ai/transport";
 import { fingerprintJson } from "@/server/ai-pipeline-fingerprint.js";
 import { assertTerminalAtConversationLimit, createAiPipelineExecutionCore, interviewProgress, sanitizePublicAiPipelineAggregate } from "@/server/ai-pipeline-execution-core.js";
-import type { AgentReplayPayload, AiRun, CompletionReason, ImmutableAiReport, InterviewTurn, PipelineSessionAggregate } from "@/server/repositories/ai-pipeline-types";
+import type { AgentReplayPayload, AiRun, CompletionReason, ImmutableAiReport, InterviewTurn, PipelineSessionAggregate, ReportSection } from "@/server/repositories/ai-pipeline-types";
 import { AiPipelinePersistenceError, supabaseAiPipelineRepository as repository } from "@/server/repositories/supabase-ai-pipeline-repository";
 import { getCurrentConsentVersions, requireCurrentAiProcessingConsent } from "./auth-context";
 import { coachSessionService } from "./coach-session-service";
@@ -136,8 +136,17 @@ const agentClaimPayload = (
   expectedTotalConversationCount,
 });
 
+const isAgentReplayPayload = (value: AiRun["responsePayload"]): value is AgentReplayPayload =>
+  value !== null && "actorTurn" in value && "agentTurn" in value && "done" in value && "reportEvidence" in value;
+
+const isReportSection = (value: unknown): value is ReportSection =>
+  typeof value === "object" && value !== null && "status" in value && "content" in value && "observationEvidenceIds" in value && "turnEvidenceIds" in value && "timestampRange" in value;
+
+const isNormalizedSummary = (value: unknown): value is NormalizedSummary =>
+  typeof value === "object" && value !== null && "schemaVersion" in value && value.schemaVersion === "scene-summary.v1" && "summary" in value && "observation" in value && "anomalies" in value;
+
 const replayCommittedAgentOutcome = (session: PipelineSessionAggregate, committedRun: AiRun) => {
-  const response = (committedRun.responsePayload as AgentReplayPayload | null) ?? null;
+  const response = isAgentReplayPayload(committedRun.responsePayload) ? committedRun.responsePayload : null;
   if (!response) throw new AiPipelineError(503, "AGENT_RESPONSE_PAYLOAD_MISSING");
   return {
     report: session.report,
@@ -198,6 +207,24 @@ type ReportTransportResponse = {
   promptVersion: unknown;
 };
 
+const requireReportTransportResponse = (value: Record<string, unknown>): ReportTransportResponse => {
+  if (typeof value.sections !== "object" || value.sections === null) throw new AiPipelineError(502, "AI_INVALID_RESPONSE");
+  const sections = value.sections;
+  if (!("oneLineSummary" in sections) || !isReportSection(sections.oneLineSummary) || !("primaryReviewPoint" in sections) || !isReportSection(sections.primaryReviewPoint) || !("confirmedEvidence" in sections) || !isReportSection(sections.confirmedEvidence) || !("actorDiscovery" in sections) || !isReportSection(sections.actorDiscovery) || !("groundedEncouragement" in sections) || !isReportSection(sections.groundedEncouragement) || !("nextPracticeStep" in sections) || !isReportSection(sections.nextPracticeStep)) throw new AiPipelineError(502, "AI_INVALID_RESPONSE");
+  return {
+    sections: {
+      oneLineSummary: sections.oneLineSummary,
+      primaryReviewPoint: sections.primaryReviewPoint,
+      confirmedEvidence: sections.confirmedEvidence,
+      actorDiscovery: sections.actorDiscovery,
+      groundedEncouragement: sections.groundedEncouragement,
+      nextPracticeStep: sections.nextPracticeStep,
+    },
+    model: value.model,
+    promptVersion: value.promptVersion,
+  };
+};
+
 type ReportExecutionResult = {
   report: ImmutableAiReport | null;
   response: ReportTransportResponse | null;
@@ -245,11 +272,11 @@ const generateReport = async (
       };
       await deps.requireCurrentAiProcessingConsent(userId);
       const response = await deps.createAiTransport(deps.loadAiServiceConfig()).report(request);
-      return reportExecutionResult(null, response as unknown as ReportTransportResponse);
+      return reportExecutionResult(null, requireReportTransportResponse(response));
     },
     persist: async (invoked, run) => {
       const response = invoked.response ?? (() => { throw new AiPipelineError(503, "REPORT_RESPONSE_MISSING"); })();
-      await deps.repository.completeReportRun({ sessionId: session.sessionId, userId, runId: run.id, report: { schemaVersion: "report.v1", sections: response.sections as never }, model: String(response.model), promptVersion: String(response.promptVersion) });
+      await deps.repository.completeReportRun({ sessionId: session.sessionId, userId, runId: run.id, report: { schemaVersion: "report.v1", sections: response.sections }, model: String(response.model), promptVersion: String(response.promptVersion) });
     },
     replay: (run) => reportExecutionResult(session.report, run.responsePayload as ReportTransportResponse | null),
     recover: async (_error, run) => {
@@ -391,7 +418,7 @@ return {
     const result=await core.run<{session:PipelineSessionAggregate;summaryRun:AiRun;response:Record<string,unknown>|null}>({
       claim:()=>claimRun({sessionId,userId,stage:"summary",runId:proposedRunId,idempotencyKey:`summary:${uploadIntentId}`,maxAttempts:1,requestSchemaVersion:"summary-request.v1",requestPayloadFingerprint:fingerprintJson(summaryClaimPayload(persisted)),model:"summary",promptVersion:"acting-summary.prompt.v2"}),
       invoke:async(run)=>{await deps.requireCurrentAiProcessingConsent(userId);const admin=deps.createSupabaseAdminClient();if(!admin)throw new AiPipelineError(503,"SIGNED_VIDEO_UNAVAILABLE");const signed=await admin.storage.from(persisted.take.storageBucket).createSignedUrl(persisted.take.storagePath,deps.getAppConfig().video.signedUrlExpiresInSeconds);if(signed.error||!signed.data?.signedUrl)throw new AiServiceError("summary","NETWORK_ERROR",null,true);const request:SummaryRequest={schemaVersion:"summary-request.v1",sessionId,runId:run.id,signedVideoUrl:signed.data.signedUrl,storageBucket:persisted.take.storageBucket,storagePath:persisted.take.storagePath,durationMs:persisted.take.durationMs,sceneContext:persisted.sceneContext};await deps.requireCurrentAiProcessingConsent(userId);return{session:persisted,summaryRun:run,response:await deps.createAiTransport(deps.loadAiServiceConfig()).summary(request)}} ,
-      persist:async(invoked,run)=>{const response=invoked.response;if(!response||!Array.isArray(response.observationCandidates)||typeof response.normalizedSummary!=="object"||response.normalizedSummary===null)throw new AiPipelineError(502,"AI_INVALID_RESPONSE");const candidates=response.observationCandidates.map((value)=>{if(typeof value!=="object"||value===null)throw new AiPipelineError(502,"AI_INVALID_RESPONSE");const item=Object.fromEntries(Object.entries(value));const severity:"high"|"mid"|"low"|null=item.severity===null?null:item.severity==="high"||item.severity==="mid"||item.severity==="low"?item.severity:(()=>{throw new AiPipelineError(502,"AI_INVALID_RESPONSE")})();return{id:String(item.candidateId),startMs:Number(item.timestampStartMs),endMs:Number(item.timestampEndMs),text:String(item.observationText),priority:Number(item.priority),dimension:String(item.dimension),severity}});await deps.repository.completeSummaryRun({sessionId,userId,runId:run.id,normalizedSummary:response.normalizedSummary as Parameters<typeof deps.repository.completeSummaryRun>[0]["normalizedSummary"],candidates,model:String(response.model),promptVersion:String(response.promptVersion)})},
+      persist:async(invoked,run)=>{const response=invoked.response;if(!response||!Array.isArray(response.observationCandidates)||!isNormalizedSummary(response.normalizedSummary))throw new AiPipelineError(502,"AI_INVALID_RESPONSE");const candidates=response.observationCandidates.map((value)=>{if(typeof value!=="object"||value===null)throw new AiPipelineError(502,"AI_INVALID_RESPONSE");const item=Object.fromEntries(Object.entries(value));const severity:"high"|"mid"|"low"|null=item.severity===null?null:item.severity==="high"||item.severity==="mid"||item.severity==="low"?item.severity:(()=>{throw new AiPipelineError(502,"AI_INVALID_RESPONSE")})();return{id:String(item.candidateId),startMs:Number(item.timestampStartMs),endMs:Number(item.timestampEndMs),text:String(item.observationText),priority:Number(item.priority),dimension:String(item.dimension),severity}});await deps.repository.completeSummaryRun({sessionId,userId,runId:run.id,normalizedSummary:response.normalizedSummary,candidates,model:String(response.model),promptVersion:String(response.promptVersion)})},
       replay:run=>({session:persisted,summaryRun:run,response:null}),
       recover:async(_error,run)=>{const committed=await aggregate(sessionId,userId);const summaryRun=committed.runs.find(item=>item.id===run.id&&item.stage==="summary"&&item.status==="completed");return summaryRun&&committed.summary?.sourceRunId===run.id?{session:committed,summaryRun,response:null}:null},
       providerFailure:(error,run)=>failRun(sessionId,userId,run.id,error),
