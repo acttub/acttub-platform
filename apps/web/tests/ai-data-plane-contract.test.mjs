@@ -32,6 +32,7 @@ test("migration preserves legacy consent and enforces isolation/idempotency",()=
 test("repository exposes exact typed transitions and fail-closed row readers",()=>{
   assert.doesNotMatch(repository,/call\(operation|Record<string, unknown>\): Promise/);
   for(const method of ["claimRun","completeSummaryRun","confirmObservation","appendPipelineTurn","completeInterview","completeReportRun","failRun","beginDelete","recordStorageDeleted","completeDelete","failDelete"]) assert.match(repository,new RegExp(`${method}\\(`));
+  assert.match(repository,/claimRun\(input:ClaimRunInput\)\{return mapRun\(await rpc\("acttub_claim_ai_run"/);
   assert.match(repository,/Invalid AI pipeline persistence result/);
   assert.match(types,/NormalizedSummary/);
   assert.match(types,/correctsObservationId: string; segment: Segment; text: string; correctionByTurnId/);
