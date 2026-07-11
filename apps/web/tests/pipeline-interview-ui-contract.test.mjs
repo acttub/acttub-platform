@@ -17,6 +17,7 @@ test("interview transitions are server driven with persisted counts", () => {
     assert.match(source, new RegExp(client));
   }
   assert.match(source, /expectedSubstantiveAnswerCount: pipelineSession\.substantiveAnswerCount/);
+  assert.match(source, /expectedTotalConversationCount: pipelineSession\.transcript\.filter\(\(item\) => item\.role === "actor" && \(item\.kind === "answer" \|\| item\.kind === "unknown"\)\)\.length/);
   assert.match(source, /session\.interviewStatus === "paused"/);
   assert.match(source, /session\.interviewStatus === "completed_without_report"/);
   assert.match(source, /session\.substantiveAnswerCount >= MAX_DIALOGUE_ANSWER_COUNT/);

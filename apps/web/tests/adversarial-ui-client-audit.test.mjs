@@ -34,7 +34,7 @@ test("candidate and interview state are sequential, provenance-aware and server 
   assert.match(flow, /find\(\(item\) => item\.confirmationState === "unasked"\)/);
   assert.match(flow, /state === declinedObservationState[\s\S]*correction: correction\.trim\(\)/);
   assert.match(flow, /onUnknown=\{\(\) => submitPipelineAnswer\("모르겠어요"\)\}/);
-  assert.match(flow, /appendPipelineInterviewTurn\([\s\S]*answer: trimmed,[\s\S]*expectedSubstantiveAnswerCount: pipelineSession\.substantiveAnswerCount/);
+  assert.match(flow, /appendPipelineInterviewTurn\([\s\S]*answer: trimmed,[\s\S]*expectedSubstantiveAnswerCount: pipelineSession\.substantiveAnswerCount,[\s\S]*expectedTotalConversationCount: pipelineSession\.transcript\.filter\(\(item\) => item\.role === "actor" && \(item\.kind === "answer" \|\| item\.kind === "unknown"\)\)\.length/);
   for (const action of ["startPipelineInterview", "stopPipelineInterview", "resumePipelineInterview"]) assert.match(flow, new RegExp(action));
   assert.match(flow, /MIN_DIALOGUE_ANSWER_COUNT/);
   assert.match(flow, /substantiveAnswerCount >= MAX_DIALOGUE_ANSWER_COUNT/);
