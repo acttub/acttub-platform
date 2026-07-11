@@ -3,6 +3,7 @@ import tempfile
 from pathlib import Path
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from starlette.concurrency import run_in_threadpool
 
 from acting_summary import summarizer as summarizer_mod
 from acting_summary.config import Settings
@@ -25,8 +26,13 @@ def build_router(*, client, settings: Settings) -> APIRouter:
         try:
             tmp.write(await video.read())
             tmp.close()
-            return summarizer_mod.summarize(
-                tmp.name, subtext_obj, client=client, model=settings.model
+            # 동기 Gemini 파이프라인을 워커 스레드로 — 이벤트 루프 블로킹 방지
+            return await run_in_threadpool(
+                summarizer_mod.summarize,
+                tmp.name,
+                subtext_obj,
+                client=client,
+                model=settings.model,
             )
         except summarizer_mod.FileActiveTimeout as exc:
             raise HTTPException(status_code=504, detail=str(exc))

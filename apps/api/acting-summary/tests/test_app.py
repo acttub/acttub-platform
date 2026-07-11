@@ -1,3 +1,5 @@
+import threading
+
 from fastapi.testclient import TestClient
 
 from acting_summary import summarizer as summarizer_mod
@@ -66,6 +68,48 @@ def test_summarize_endpoint(monkeypatch):
     assert r.json()["summary"] == "s"
     assert r.json()["anomalies"][0]["start"] == "00:01"
     assert r.json()["anomalies"][0]["end"] == "00:02"
+
+
+def test_summarize_does_not_block_event_loop(monkeypatch):
+    # summarize가 도는 동안에도 /health가 응답해야 한다 (이벤트 루프 비블로킹)
+    started = threading.Event()
+    release = threading.Event()
+
+    def slow_summarize(video_path, subtext, *, client, model, **kw):
+        started.set()
+        assert release.wait(timeout=10), "release never set"
+        return FAKE
+
+    monkeypatch.setattr(summarizer_mod, "summarize", slow_summarize)
+    with TestClient(_app()) as c:
+        post_result = {}
+
+        def do_post():
+            post_result["r"] = c.post(
+                "/summarize",
+                data={"situation": "a", "character": "b", "subtext": "c"},
+                files={"video": ("t.mp4", b"bytes", "video/mp4")},
+            )
+
+        post_thread = threading.Thread(target=do_post, daemon=True)
+        post_thread.start()
+        assert started.wait(timeout=10), "summarize never started"
+
+        health_result = {}
+
+        def do_health():
+            health_result["r"] = c.get("/health")
+
+        health_thread = threading.Thread(target=do_health, daemon=True)
+        health_thread.start()
+        health_thread.join(timeout=3)
+        health_ok = "r" in health_result and health_result["r"].status_code == 200
+
+        release.set()
+        post_thread.join(timeout=10)
+
+    assert health_ok, "/health did not respond while summarize was in flight"
+    assert post_result["r"].status_code == 200
 
 
 def test_summarize_missing_video_422():
