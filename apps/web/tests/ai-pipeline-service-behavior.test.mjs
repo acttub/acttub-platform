@@ -73,6 +73,8 @@ test("production service seam deduplicates concurrent exact addTurn and replays 
   assert.equal(left.response, undefined);
   assert.equal(left.actorTurn.id, session.transcript[0].id);
   assert.equal(left.agentTurn.id, session.transcript[1].id);
+  assert.equal(left.agentTurn.kind, "question");
+  assert.equal(left.agentTurn.questionFocus, "ask_followup");
 });
 
 test("provider failures preserve timeout unavailable invalid and internal safe codes", async () => {
