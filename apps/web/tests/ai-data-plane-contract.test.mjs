@@ -100,6 +100,8 @@ test("run claims require adult participant and authoritative media eligibility",
 
 test("forward migration hardens AI run metadata persistence and mutable confirmations", () => {
   assert.match(migration009, /create or replace function public\.acttub_confirm_observation\(p_session_id uuid,p_user_id uuid,p_observation_id uuid,p_state text,p_correction text default null,p_correction_id uuid default null,p_turn_id uuid default null\)/);
+  assert.match(migration009, /add column if not exists request_payload_fingerprint text/);
+  assert.match(migration009, /add column if not exists response_payload jsonb/);
   assert.match(migration009, /deletion_status='active' and \(interview_status is null or interview_status in \('active','paused'\)\)/);
   assert.match(migration009, /session_not_mutable/);
   assert.match(migration009, /create or replace function public\.acttub_complete_summary_run\(p_session_id uuid,p_user_id uuid,p_run_id uuid,p_summary jsonb,p_candidates jsonb,p_model text,p_prompt_version text\)/);
@@ -111,10 +113,12 @@ test("forward migration hardens AI run metadata persistence and mutable confirma
   assert.match(migration009, /completionStatus/);
   assert.match(migration009, /completionReason/);
   assert.match(migration009, /interview_status=completion_status_value,completion_reason=completion_reason_value,report_evidence_observation_ids=obs,report_evidence_answer_turn_ids=turns/);
-  assert.match(migration009, /update public\.ai_runs set status='completed',response_schema_version='agent-turn\.v1',model=coalesce\(nullif\(trim\(p_payload->>'model'\),''\),model\),prompt_version=coalesce\(nullif\(trim\(p_payload->>'promptVersion'\),''\),prompt_version\),completed_at=coalesce\(completed_at,now\(\)\),updated_at=now\(\)/);
+  assert.doesNotMatch(migration009, /model=coalesce\(nullif\(trim\(p_payload->>'model'\),''\),model\)/);
+  assert.match(migration009, /update public\.ai_runs set status='completed',response_schema_version='agent-turn\.v1',model=trim\(p_payload->>'model'\),prompt_version=p_payload->>'promptVersion',completed_at=now\(\),updated_at=now\(\)/);
   assert.match(migration009, /create or replace function public\.acttub_complete_interview\(p_session_id uuid,p_user_id uuid,p_payload jsonb\)/);
   assert.match(migration009, /agentRunId/);
-  assert.match(migration009, /status in \('running','completed'\)/);
+  assert.match(migration009, /status='running'/);
+  assert.doesNotMatch(migration009, /status in \('running','completed'\)/);
   assert.match(migration009, /create or replace function public\.acttub_complete_report_run\(p_session_id uuid,p_user_id uuid,p_run_id uuid,p_report jsonb,p_model text,p_prompt_version text\)/);
   assert.match(migration009, /update public\.ai_runs set status='completed',response_schema_version='report\.v1',model=p_model,prompt_version=p_prompt_version,completed_at=now\(\),updated_at=now\(\)/);
   assert.match(migration009, /role='actor' and kind in \('answer','unknown'\)/);
@@ -132,6 +136,7 @@ test("forward migration hardens AI run metadata persistence and mutable confirma
   assert.match(migration009, /report_run_conflict/);
   assert.match(migration009, /grant execute on function public\.acttub_complete_summary_run\(uuid,uuid,uuid,jsonb,jsonb,text,text\) to service_role/);
   assert.match(migration009, /grant execute on function public\.acttub_complete_report_run\(uuid,uuid,uuid,jsonb,text,text\) to service_role/);
+  assert.doesNotMatch(migration009, /coalesce\(nullif\(trim\(p_payload->>'promptVersion'\),''\),prompt_version\)/);
 });
 
 test("late audit rejects malformed deep summary values and accepts typed answer or unknown turns",()=>{
