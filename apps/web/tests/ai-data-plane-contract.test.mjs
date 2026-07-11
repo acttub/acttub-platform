@@ -86,7 +86,7 @@ test("late audit gates current consent and immutable successful retries",()=>{
 test("claim replay hardens on canonical request fingerprint and current summary provenance", () => {
   assert.match(migration009, /create or replace function public\.acttub_claim_ai_run\(p_session_id uuid,p_user_id uuid,p_stage text,p_run_id uuid,p_idempotency_key text,p_max_attempts integer,p_request_schema_version text,p_request_payload_fingerprint text,p_model text,p_prompt_version text\)/);
   assert.match(migration009, /request_payload_conflict/);
-  assert.match(repository, /source\.sourceRunId !== sourceRun\.id/);
+  assert.match(repository, /source\.sourceRunId !== summaryRun\.id/);
   assert.match(service, /requestPayloadFingerprint:\s*fingerprintJson\(requestPayload\)/);
   assert.match(service, /requestPayloadFingerprint:\s*fingerprintJson\(reportClaimPayload\(session\)\)/);
 });

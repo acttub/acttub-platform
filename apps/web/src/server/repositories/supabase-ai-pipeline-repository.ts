@@ -33,7 +33,8 @@ const report=(r:Row,op:string):ImmutableAiReport=>{if(r.schema_version!=="report
 const reportForSession = (r: Row, op: string, session: ReportSessionContext): ImmutableAiReport => {
   const mapped = report(r, op);
   if (mapped.sessionId !== session.sessionId || mapped.completionReason !== session.completionReason) fail(op, "report.session");
-  const sourceRun = session.runs.find((run) => run.id === mapped.sourceRunId && run.stage === "report" && run.status === "completed" && run.responseSchemaVersion === "report.v1") ?? fail(op, "report.sourceRun");
+  const summaryRunId = session.summary?.sourceRunId ?? fail(op, "report.summaryRun");
+  const summaryRun = session.runs.find((run) => run.id === summaryRunId && run.stage === "summary" && run.status === "completed" && run.responseSchemaVersion === "summary-response.v1") ?? fail(op, "report.summaryRun");
   const currentSelectedObservationIds = new Set(session.observations.filter((item) => item.confirmationState === "accepted" && !item.blockedForQuestioning).map((item) => item.id));
   const currentSelectedAnswerTurnIds = new Set(session.transcript.filter((turn) => turn.role === "actor" && turn.kind === "answer" && turn.reportEvidenceSelected).map((turn) => turn.id));
   const currentCorrectionTurnIds = new Set(session.transcript.filter((turn) => turn.role === "actor" && turn.kind === "actor_correction").map((turn) => turn.id));
@@ -51,7 +52,7 @@ const reportForSession = (r: Row, op: string, session: ReportSessionContext): Im
   for (const correction of session.corrections) {
     const turn = transcriptTurns.get(correction.correctionByTurnId);
     const source = session.observations.find((item) => item.id === correction.correctsObservationId);
-    if (!turn || turn.role !== "actor" || turn.kind !== "actor_correction" || turn.content !== correction.text || !source || source.confirmationState !== "rejected" || !source.blockedForQuestioning || source.sourceRunId !== sourceRun.id) fail(op, "report.correctionTranscript");
+    if (!turn || turn.role !== "actor" || turn.kind !== "actor_correction" || turn.content !== correction.text || !source || source.confirmationState !== "rejected" || !source.blockedForQuestioning || source.sourceRunId !== summaryRun.id) fail(op, "report.correctionTranscript");
   }
   if (!session.completionReason?.endsWith("_report_ready")) fail(op, "report.completionReason");
   const validate = (section: ReportSection, key: string) => validateReportSectionLineage({
@@ -72,6 +73,11 @@ const reportForSession = (r: Row, op: string, session: ReportSessionContext): Im
   validate(mapped.groundedEncouragement, "groundedEncouragement");
   validate(mapped.nextPracticeStep, "nextPracticeStep");
   return mapped;
+};
+
+export const aiPipelineRepositoryTestHooks = {
+  reportForSession,
+  report,
 };
 
 const rpc=async(op:string,args:Record<string,unknown>):Promise<Row>=>{const {data,error}=await admin().rpc(op,args);return rpcData(checked(error,data,op),op)};
