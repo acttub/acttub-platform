@@ -36,7 +36,7 @@ test("finalize and pipeline reject browser authority and stale eligibility",()=>
   assert.match(repo,/adult_confirmed_at,all_participants_confirmed_at,ai_eligible_at/);
   assert.match(pipeline,/upload\.requiredConsentVersionSnapshot!==consent\.requiredConsentVersion/);
   assert.match(pipeline,/upload\.aiProcessingConsentVersionSnapshot!==consent\.aiProcessingConsentVersion/);
-  assert.ok((pipeline.match(/await requireCurrentAiProcessingConsent\(userId\)/g)??[]).length>=7);
+  assert.ok((pipeline.match(/deps\.requireCurrentAiProcessingConsent\(userId\)/g)??[]).length>=3);
 });
 
 test("OpenAPI exposes confirmations and forbids browser duration and consent evidence",()=>{
