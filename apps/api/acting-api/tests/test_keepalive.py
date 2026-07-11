@@ -94,8 +94,9 @@ def _app(tmp_path, *, keep_alive_url=None, keep_alive_client=None):
 
 def test_task_not_started_without_url(tmp_path):
     app = _app(tmp_path)
-    with TestClient(app):
+    with TestClient(app) as c:
         assert app.state.keep_alive_task is None
+        assert c.get("/health").json()["keep_alive"] is False
 
 
 def test_task_started_and_cancelled_with_url(tmp_path):
@@ -104,8 +105,9 @@ def test_task_started_and_cancelled_with_url(tmp_path):
         keep_alive_url="https://x.example",
         keep_alive_client=FakeHttp(),
     )
-    with TestClient(app):
+    with TestClient(app) as c:
         task = app.state.keep_alive_task
         assert task is not None
         assert not task.done()
+        assert c.get("/health").json()["keep_alive"] is True
     assert task.cancelled()

@@ -107,6 +107,7 @@ def create_app(
             "status": "ok",
             "services": ["summary", "coach", "report"],
             "model": summary_settings.model,
+            "keep_alive": bool(gateway_settings.keep_alive_url),
         }
 
     app.include_router(build_summary_router(client=client, settings=summary_settings))
