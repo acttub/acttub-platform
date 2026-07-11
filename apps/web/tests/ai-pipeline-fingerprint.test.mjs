@@ -14,4 +14,7 @@ test("canonical fingerprinting is key-order stable and lower-hex validated", () 
   assert.throws(() => fingerprintJson(new Date()), /invalid_fingerprint_payload/);
   assert.throws(() => fingerprintJson(NaN), /invalid_fingerprint_payload/);
   assert.throws(() => fingerprintJson(Infinity), /invalid_fingerprint_payload/);
+  const sparse = []; sparse.length = 1;
+  assert.throws(() => fingerprintJson(sparse), /invalid_fingerprint_payload/);
+  assert.throws(() => fingerprintJson([undefined]), /invalid_fingerprint_payload/);
 });

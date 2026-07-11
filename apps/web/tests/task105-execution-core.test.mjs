@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { fingerprintJson } from "../src/server/ai-pipeline-fingerprint.js";
 import { applyOwnerSessionScope } from "../src/server/session-visibility.js";
 import { createAiPipelineExecutionCore, fingerprintAgentClaim, buildAgentClaimPayload, interviewProgress, assertExpectedInterviewProgress, assertTerminalAtConversationLimit, sanitizePublicAiPipelineAggregate } from "../src/server/ai-pipeline-execution-core.js";
 
@@ -9,22 +8,6 @@ class FakeQuery {
   eq(key, value) { this.calls.push(["eq", key, value]); return this; }
   is(key, value) { this.calls.push(["is", key, value]); return this; }
 }
-
-test("fingerprint module canonicalizes plain JSON and rejects unsafe inputs", () => {
-  const left = { b: 2, a: { y: [3, { c: 4, a: 1 }], x: "z" }, c: null };
-  const right = { c: null, a: { x: "z", y: [3, { a: 1, c: 4 }] }, b: 2 };
-  const digest = fingerprintJson(left);
-  assert.equal(digest, fingerprintJson(right));
-  assert.match(digest, /^[0-9a-f]{64}$/);
-  assert.ok(!/[A-F]/.test(digest));
-  for (const bad of [undefined, () => {}, new Date(), NaN, Infinity, { x: undefined }, { x: Symbol("x") }]) {
-    assert.throws(() => fingerprintJson(bad), /invalid_fingerprint_payload/);
-  }
-  const sparse = []; sparse.length = 1;
-  assert.throws(() => fingerprintJson(sparse), /invalid_fingerprint_payload/);
-  assert.throws(() => fingerprintJson([undefined]), /invalid_fingerprint_payload/);
-  assert.equal(fingerprintAgentClaim(buildAgentClaimPayload({ schemaVersion: "agent-turn.v1", sessionId: "00000000-0000-4000-8000-000000000001", command: "start", requestId: "00000000-0000-4000-8000-000000000002", answer: null, observationId: null, expectedSubstantiveAnswerCount: 0, expectedTotalConversationCount: 0 })), fingerprintAgentClaim(buildAgentClaimPayload({ schemaVersion: "agent-turn.v1", sessionId: "00000000-0000-4000-8000-000000000001", command: "start", requestId: "00000000-0000-4000-8000-000000000002", answer: null, observationId: null, expectedSubstantiveAnswerCount: 0, expectedTotalConversationCount: 0 })));
-});
 
 test("owner session scope helper applies public and deletion filters", () => {
   const publicQuery = new FakeQuery();
