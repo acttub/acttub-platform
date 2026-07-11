@@ -1,0 +1,30 @@
+{
+  "schemaVersion": "protected-e2e-cases.v1",
+  "cases": [
+    {"id":"SAFE-01","allowedModes":["scripted"],"assertions":[{"id":"production_actions","kind":"count","equals":0},{"id":"forbidden_artifacts","kind":"count","equals":0},{"id":"sanitizer_canary_blocked","kind":"boolean"}]},
+    {"id":"SRC-01","allowedModes":["scripted"],"assertions":[{"id":"four_repository_heads_clean","kind":"boolean"},{"id":"pinned_sources_match","kind":"boolean"},{"id":"acceptance_digests_match","kind":"boolean"}]},
+    {"id":"DB-01","allowedModes":["scripted"],"assertions":[{"id":"migration_preflight_exact","kind":"boolean"},{"id":"development_target_verified","kind":"boolean"},{"id":"production_negative_verified","kind":"boolean"}]},
+    {"id":"DB-02","allowedModes":["scripted"],"assertions":[{"id":"migration_postflight_exact","kind":"boolean"},{"id":"optional_note_concurrency_atomic","kind":"boolean"},{"id":"optional_note_rows","kind":"count","equals":1}]},
+    {"id":"GUARD-01","allowedModes":["scripted"],"assertions":[{"id":"required_consent_missing_blocked","kind":"boolean"},{"id":"provider_calls","kind":"count","equals":0}]},
+    {"id":"GUARD-02","allowedModes":["scripted"],"assertions":[{"id":"adult_attestation_missing_blocked","kind":"boolean"},{"id":"provider_calls","kind":"count","equals":0}]},
+    {"id":"GUARD-03","allowedModes":["scripted"],"assertions":[{"id":"participant_consent_missing_blocked","kind":"boolean"},{"id":"provider_calls","kind":"count","equals":0}]},
+    {"id":"MEDIA-01","allowedModes":["scripted","real"],"assertions":[{"id":"duration_300_seconds_allowed","kind":"boolean"}]},
+    {"id":"MEDIA-02","allowedModes":["scripted"],"assertions":[{"id":"duration_over_300_seconds_blocked","kind":"boolean"},{"id":"provider_calls","kind":"count","equals":0}]},
+    {"id":"MEDIA-03","allowedModes":["scripted"],"assertions":[{"id":"unreadable_metadata_blocked","kind":"boolean"},{"id":"provider_calls","kind":"count","equals":0}]},
+    {"id":"LEGACY-01","allowedModes":["scripted"],"assertions":[{"id":"legacy_backfill_absent","kind":"boolean"},{"id":"legacy_delete_allowed","kind":"boolean"}]},
+    {"id":"BLOCKED-01","allowedModes":["scripted"],"assertions":[{"id":"all_observations_blocked","kind":"boolean"},{"id":"report_not_created","kind":"boolean"}]},
+    {"id":"PAUSE-01","allowedModes":["scripted"],"assertions":[{"id":"manual_stop_paused","kind":"boolean"},{"id":"report_not_created","kind":"boolean"}]},
+    {"id":"MANUAL-01","allowedModes":["scripted"],"assertions":[{"id":"manual_stop_report_ready","kind":"boolean"},{"id":"reports_created","kind":"count","equals":1}]},
+    {"id":"BOUNDARY-05","allowedModes":["scripted"],"assertions":[{"id":"no_normal_completion_before_five","kind":"boolean"},{"id":"fifth_answer_boundary_valid","kind":"boolean"}]},
+    {"id":"BOUNDARY-10R","allowedModes":["scripted"],"assertions":[{"id":"tenth_answer_terminal","kind":"boolean"},{"id":"report_ready","kind":"boolean"},{"id":"reports_created","kind":"count","equals":1}]},
+    {"id":"BOUNDARY-10N","allowedModes":["scripted"],"assertions":[{"id":"tenth_answer_terminal","kind":"boolean"},{"id":"insufficient_interview_evidence","kind":"boolean"},{"id":"reports_created","kind":"count","equals":0}]},
+    {"id":"COUNT-01","allowedModes":["scripted"],"assertions":[{"id":"answer_count_exact","kind":"boolean"},{"id":"unknown_counts_only_toward_cap","kind":"boolean"},{"id":"optional_note_excluded","kind":"boolean"}]},
+    {"id":"REPORT-01","allowedModes":["scripted"],"assertions":[{"id":"successful_report_immutable","kind":"boolean"},{"id":"failed_report_retry_reuses_inputs","kind":"boolean"},{"id":"successful_report_rows","kind":"count","equals":1}]},
+    {"id":"REAL-01","allowedModes":["real"],"assertions":[{"id":"actual_gemini_observed","kind":"boolean"},{"id":"provider_attestation_hmac","kind":"hmac"},{"id":"actual_media_observed","kind":"boolean"},{"id":"media_attestation_hmac","kind":"hmac"},{"id":"retained_real_successes","kind":"count","equals":1},{"id":"retained_session_hmac","kind":"hmac"}]},
+    {"id":"LINEAGE-01","allowedModes":["real"],"assertions":[{"id":"summary_used_by_agent","kind":"boolean"},{"id":"terminal_transcript_used_by_report","kind":"boolean"},{"id":"evidence_references_valid","kind":"boolean"}]},
+    {"id":"REPLAY-01","allowedModes":["real"],"assertions":[{"id":"refresh_result_stable","kind":"boolean"},{"id":"completed_runs_not_reinvoked","kind":"boolean"},{"id":"duplicate_rows","kind":"count","equals":0}]},
+    {"id":"RLS-01","allowedModes":["scripted"],"assertions":[{"id":"cross_user_access_blocked","kind":"boolean"},{"id":"temporary_auth_user_deleted","kind":"boolean"}]},
+    {"id":"DELETE-01","allowedModes":["scripted"],"assertions":[{"id":"permanent_delete_completed","kind":"boolean"},{"id":"storage_orphans","kind":"count","equals":0},{"id":"dependent_row_orphans","kind":"count","equals":0},{"id":"ai_run_orphans","kind":"count","equals":0}]},
+    {"id":"UI-01","allowedModes":["real"],"assertions":[{"id":"report_sections","kind":"count","equals":6},{"id":"confirmed_and_not_confirmed_rendered","kind":"boolean"},{"id":"timestamp_seek_verified","kind":"boolean"},{"id":"refresh_result_stable","kind":"boolean"},{"id":"captured_visual_artifacts","kind":"count","equals":0},{"id":"ui_result_hmac","kind":"hmac"}]}
+  ]
+}

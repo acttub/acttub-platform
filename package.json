@@ -14,7 +14,9 @@
     "perf:web": "lhci autorun --config=apps/web/lighthouserc.cjs",
     "perf:healthcheck": "lhci healthcheck --fatal --config=apps/web/lighthouserc.cjs",
     "typecheck": "pnpm typecheck:web",
-    "typecheck:web": "pnpm --filter web typecheck"
+    "typecheck:web": "pnpm --filter web typecheck",
+    "test:ai-pipeline-e2e-harness": "PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s scripts/ai_pipeline_e2e/tests -p 'test_*.py'",
+    "preflight:ai-pipeline-e2e-harness": "pnpm test:ai-pipeline-e2e-harness && git diff --check"
   },
   "devDependencies": {
     "@lhci/cli": "0.15.1"
