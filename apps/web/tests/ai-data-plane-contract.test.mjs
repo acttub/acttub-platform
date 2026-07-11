@@ -122,11 +122,17 @@ test("migration 009 replays under lock, expires stale reports, and removes weak 
   assert.match(migration009, /completion_status_value is null\)<>\(completion_reason_value is null\)[\s\S]*completion_status_value not in \('completed','paused','completed_without_report'\)/);
   assert.match(migration009, /jsonb_typeof\(p_summary\) is distinct from 'object'/);
   assert.match(migration009, /jsonb_typeof\(c->'id'\) is distinct from 'string'[\s\S]*invalid_summary_candidate/);
-  assert.match(migration009, /r\.status in \('pending','running'\) returning r\.\*/);
+  assert.match(migration009, /r\.status='running' returning r\.\*/);
   assert.match(migration009, /'reportReady',coalesce\(completion_status_value='completed',false\)/);
   assert.match(migration009, /jsonb_typeof\(agent\) is distinct from 'object'[\s\S]*invalid_agent_turn/);
   assert.match(migration009, /jsonb_typeof\(actor\) is distinct from 'object'[\s\S]*invalid_actor_turn/);
   assert.match(migration009, /jsonb_typeof\(p_payload->'reportEvidence'\) is distinct from 'object'/);
+  assert.match(migration009, /jsonb_typeof\(p_payload->'currentInput'\) is distinct from 'object'[\s\S]*array\['answer','answerTurnId','command','observationId'\]/);
+  assert.match(migration009, /response_payload_mismatch/);
+  assert.match(migration009, /jsonb_array_length\(actor->'sourceObservationIds'\)<>\(select count\(distinct/);
+  assert.match(migration009, /jsonb_array_length\(agent->'sourceObservationIds'\)<>\(select count\(distinct/);
+  assert.match(migration009, /jsonb_array_length\(e\.value->'observationEvidenceIds'\)<>\(select count\(distinct/);
+  assert.match(migration009, /jsonb_typeof\(range->'startMs'\) is distinct from 'number'[\s\S]*\(range->>'startMs'\)::integer>300000/);
   assert.match(migration009, /invalid_agent_completion_payload/);
   assert.match(migration009, /stage='agent' and status='running' and request_schema_version='agent-turn\.v1'/);
   assert.match(migration009, /invalid_agent_completion_contract/);
