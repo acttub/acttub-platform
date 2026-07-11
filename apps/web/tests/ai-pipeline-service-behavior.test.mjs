@@ -401,8 +401,48 @@ test("tenth insufficient-evidence Agent persists a closing turn with null questi
 });
 
 test("tenth reportable turn rejects a nonterminal provider response before append", async () => {
-  const session=baseSession();session.substantiveAnswerCount=9;session.transcript=Array.from({length:9},(_,i)=>({id:`00000000-0000-4000-8000-${String(300+i).padStart(12,"0")}`,sequence:i,role:"actor",kind:"answer",content:"answer",questionFocus:null,groundingStartMs:null,groundingEndMs:null,sourceObservationIds:[],reportEvidenceSelected:false}));let appends=0,failures=[];
-  const repository={async findPipelineSessionForOwner(){return structuredClone(session)},async claimRun(input){const run={id:input.runId,stage:"agent",status:"running",safeErrorCode:null};session.runs=[run];return{owned:true,run:structuredClone(run)}},async appendPipelineTurn(){appends+=1},async failRun(input){failures.push(input);session.runs=[{...session.runs[0],status:"failed",safeErrorCode:input.safeErrorCode}]}};
-  const service=createAiPipelineService({repository,createAiTransport:()=>({agent:async()=>({action:"ask_followup",utterance:"more",evidence:{observationIds:[]},reportEvidence:{observationIds:[],answerTurnIds:[]},done:false,completionReason:null,reportReady:false,model:"agent-model",promptVersion:"acting-agent.prompt.v2"})}),loadAiServiceConfig:()=>({}),requireCurrentAiProcessingConsent:async()=>{},getCurrentConsentVersions:async()=>({}),coachSessionService:{},createSupabaseAdminClient:()=>null,getAppConfig:()=>({video:{bucket:"practice-videos"}})});
-  await assert.rejects(service.addTurn(ids.session,ids.user,{answer:"tenth",requestId:ids.request,expectedSubstantiveAnswerCount:9,expectedTotalConversationCount:9}),error=>error?.status===502&&error?.code==="AI_INVALID_RESPONSE");assert.equal(appends,0);assert.equal(failures.length,1);assert.equal(failures[0].safeErrorCode,"AI_INVALID_RESPONSE");assert.equal(failures[0].retryable,false);
+  const session=baseSession();session.substantiveAnswerCount=9;session.transcript=Array.from({length:9},(_,i)=>({id:`00000000-0000-4000-8000-${String(300+i).padStart(12,"0")}`,sequence:i,role:"actor",kind:"answer",content:"answer",questionFocus:null,groundingStartMs:null,groundingEndMs:null,sourceObservationIds:[],reportEvidenceSelected:false}));let appends=0,failures=[],providerCalls=0,claimedRunId=null;
+  const repository={async findPipelineSessionForOwner(){return structuredClone(session)},async claimRun(input){claimedRunId=input.runId;const run={id:input.runId,stage:"agent",status:"running",safeErrorCode:null};session.runs=[run];return{owned:true,run:structuredClone(run)}},async appendPipelineTurn(){appends+=1},async failRun(input){failures.push(input);session.runs=[{...session.runs[0],status:"failed",safeErrorCode:input.safeErrorCode}]}};
+  const service=createAiPipelineService({repository,createAiTransport:()=>({agent:async()=>{providerCalls+=1;return {action:"ask_followup",utterance:"more",evidence:{observationIds:[]},reportEvidence:{observationIds:[],answerTurnIds:[]},done:false,completionReason:null,reportReady:false,model:"agent-model",promptVersion:"acting-agent.prompt.v2"};}}),loadAiServiceConfig:()=>({}),requireCurrentAiProcessingConsent:async()=>{},getCurrentConsentVersions:async()=>({}),coachSessionService:{},createSupabaseAdminClient:()=>null,getAppConfig:()=>({video:{bucket:"practice-videos"}})});
+  await assert.rejects(service.addTurn(ids.session,ids.user,{answer:"tenth",requestId:ids.request,expectedSubstantiveAnswerCount:9,expectedTotalConversationCount:9}),error=>error?.status===502&&error?.code==="AI_INVALID_RESPONSE");assert.equal(appends,0);assert.equal(failures.length,1);assert.equal(providerCalls,1);assert.equal(failures[0].runId,claimedRunId);assert.equal(failures[0].safeErrorCode,"AI_INVALID_RESPONSE");assert.equal(failures[0].retryable,false);
+});
+
+test("tenth substantive answer completes hard_limit_report_ready and generates the exact Report once", async () => {
+  const session=baseSession();
+  const observationId=idFor(400),selectedAnswerId=idFor(401);
+  session.observations=[{id:observationId,candidateId:observationId,sourceRunId:ids.summaryRun,confirmationState:"accepted",blockedForQuestioning:false,priority:1,startMs:0,endMs:1000,text:"grounded evidence",dimension:"voice",severity:"mid"}];
+  session.transcript=Array.from({length:9},(_,i)=>({id:i===0?selectedAnswerId:idFor(402+i),sequence:i,role:"actor",kind:"answer",content:`answer ${i+1}`,questionFocus:null,groundingStartMs:null,groundingEndMs:null,sourceObservationIds:[],reportEvidenceSelected:i===0}));
+  session.substantiveAnswerCount=9;
+  const calls={agentClaim:0,agentProvider:0,append:0,reportClaim:0,reportProvider:0,reportComplete:0,failRun:0};
+  let appended=null;
+  const reportEvidence={observationIds:[observationId],answerTurnIds:[selectedAnswerId]};
+  const evidenceSection={status:"confirmed",content:"grounded",observationEvidenceIds:[observationId],turnEvidenceIds:[selectedAnswerId],timestampRange:null};
+  const sections={oneLineSummary:evidenceSection,primaryReviewPoint:{...evidenceSection,turnEvidenceIds:[],timestampRange:{startMs:0,endMs:1000}},confirmedEvidence:evidenceSection,actorDiscovery:{...evidenceSection,observationEvidenceIds:[]},groundedEncouragement:{...evidenceSection,turnEvidenceIds:[]},nextPracticeStep:evidenceSection};
+  const repository={
+    async findPipelineSessionForOwner(){return structuredClone(session)},
+    async claimRun(input){
+      calls[input.stage==="agent"?"agentClaim":"reportClaim"]+=1;
+      const run={id:input.runId,stage:input.stage,status:"running",idempotencyKey:input.idempotencyKey,attempt:1,maxAttempts:input.maxAttempts,safeErrorCode:null};
+      session.runs.push(run);return{owned:true,run:structuredClone(run)};
+    },
+    async appendPipelineTurn(input){
+      calls.append+=1;appended=structuredClone(input);session.transcript.push(input.actorTurn,input.agentTurn);session.substantiveAnswerCount=10;
+      session.interviewStatus=input.completionStatus;session.completionReason=input.completionReason;session.reportEvidenceObservationIds=[...input.reportEvidence.observationIds];session.reportEvidenceAnswerTurnIds=[...input.reportEvidence.answerTurnIds];
+      const run=session.runs.find(item=>item.id===input.agentRunId);Object.assign(run,{status:"completed",responseSchemaVersion:"agent-turn.v1",model:input.model,promptVersion:input.promptVersion,responsePayload:structuredClone(input.responsePayload),completedAt:"2026-01-01T00:00:00Z"});
+    },
+    async completeReportRun(input){
+      calls.reportComplete+=1;const run=session.runs.find(item=>item.id===input.runId);Object.assign(run,{status:"completed",responseSchemaVersion:"report.v1",model:input.model,promptVersion:input.promptVersion,responsePayload:{schemaVersion:"report.v1",sessionId:ids.session,runId:input.runId,model:input.model,promptVersion:input.promptVersion,sections:structuredClone(input.report.sections)}});
+      session.report={sourceRunId:input.runId,schemaVersion:"report.v1",sections:structuredClone(input.report.sections)};
+    },
+    async findImmutableReport(){return structuredClone(session.report)},
+    async failRun(){calls.failRun+=1},
+  };
+  const service=createAiPipelineService({repository,createAiTransport:()=>({
+    agent:async request=>{calls.agentProvider+=1;return{action:"close",utterance:"complete",evidence:{observationIds:[observationId]},reportEvidence:{observationIds:[observationId],answerTurnIds:[selectedAnswerId,request.transcript.at(-1).turnId]},done:true,completionReason:"hard_limit_report_ready",reportReady:true,model:"agent-model",promptVersion:"acting-agent.prompt.v2"}},
+    report:async request=>{calls.reportProvider+=1;return{schemaVersion:"report.v1",sessionId:ids.session,runId:request.runId,model:"report-model",promptVersion:"acting-report.prompt.v2",sections}},
+  }),loadAiServiceConfig:()=>({}),requireCurrentAiProcessingConsent:async()=>{},getCurrentConsentVersions:async()=>({}),coachSessionService:{},createSupabaseAdminClient:()=>null,getAppConfig:()=>({video:{bucket:"practice-videos"}})});
+  const result=await service.addTurn(ids.session,ids.user,{answer:"tenth answer",requestId:ids.request,expectedSubstantiveAnswerCount:9,expectedTotalConversationCount:9});
+  assert.deepEqual(calls,{agentClaim:1,agentProvider:1,append:1,reportClaim:1,reportProvider:1,reportComplete:1,failRun:0});
+  assert.equal(appended.agentTurn.kind,"closing");assert.equal(appended.agentTurn.questionFocus,null);assert.equal(appended.completionStatus,"completed");assert.equal(appended.completionReason,"hard_limit_report_ready");
+  assert.equal(result.done,true);assert.equal(result.reportReady,true);assert.equal(result.completionReason,"hard_limit_report_ready");assert.deepEqual(result.report,session.report);
 });
