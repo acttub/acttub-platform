@@ -923,7 +923,7 @@ export const coachSessionService = {
       (payload as { actorAnswer?: unknown }).actorAnswer,
       "actorAnswer",
     );
-    const session = await readSessionForDeletion(sessionId, userId);
+    const session = await readSessionForOwner(sessionId, userId);
 
     if (!session) return null;
     assertSessionMutable(session, "create new turns");
@@ -1037,9 +1037,6 @@ export const coachSessionService = {
         hidden: "Must be a boolean.",
       });
     }
-
-    const session = await readSessionForOwner(sessionId, userId);
-    if (!session) return null;
 
     const updatedSession = await requireSupabasePersistence(() =>
       supabaseCoachSessionRepository.updateVisibility(sessionId, userId, hidden),

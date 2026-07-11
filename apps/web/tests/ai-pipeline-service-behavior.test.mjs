@@ -102,6 +102,8 @@ test("provider failures preserve timeout unavailable invalid and internal safe c
   for (const [error, expectedCode, retryable] of [
     [new FakeAiServiceError("agent", "TIMEOUT", null, true), "AI_TIMEOUT", true],
     [new FakeAiServiceError("agent", "NETWORK_ERROR", null, true), "AI_UNAVAILABLE", true],
+    [new FakeAiServiceError("agent", "HTTP_ERROR", 500, true), "AI_UNAVAILABLE", true],
+    [new FakeAiServiceError("agent", "HTTP_ERROR", 400, false), "AI_INTERNAL", false],
     [new FakeAiServiceError("agent", "INVALID_RESPONSE", 200, false), "AI_INVALID_RESPONSE", false],
     [new Error("internal"), "AI_INTERNAL", false],
   ]) {
@@ -172,16 +174,19 @@ test("authoritative stale substantive and total counts reject as 409 before prov
     mutation(authoritative);
     let reads = 0;
     let providerCalls = 0;
-    let failCalls = 0;
+    const failedRuns = [];
     const repository = {
       async findPipelineSessionForOwner() { reads += 1; return structuredClone(reads === 1 ? initial : authoritative); },
       async claimRun(input) { return { owned: true, run: { id: input.runId, status: "running", safeErrorCode: null } }; },
-      async failRun() { failCalls += 1; },
+      async failRun(input) { failedRuns.push(input); },
     };
     const service = createAiPipelineService({ repository, createAiTransport: () => ({ agent: async () => { providerCalls += 1; throw new Error("provider must not run"); } }), loadAiServiceConfig: () => ({}), requireCurrentAiProcessingConsent: async () => {}, getCurrentConsentVersions: async () => ({}), coachSessionService: {}, createSupabaseAdminClient: () => null, getAppConfig: () => ({ video: { bucket: "practice-videos" } }) });
     await assert.rejects(service.addTurn(ids.session, ids.user, { answer: "answer", requestId: ids.request, expectedSubstantiveAnswerCount: 0, expectedTotalConversationCount: 0 }), (error) => error?.status === 409 && error?.code === "STALE_INTERVIEW_PROGRESS");
     assert.equal(providerCalls, 0);
-    assert.equal(failCalls, 1);
+    assert.equal(failedRuns.length, 1);
+    assert.equal(failedRuns[0].safeErrorCode, "AI_INTERNAL");
+    assert.equal(failedRuns[0].retryable, false);
+    assert.match(failedRuns[0].runId, /^[0-9a-f-]{36}$/i);
   }
 });
 

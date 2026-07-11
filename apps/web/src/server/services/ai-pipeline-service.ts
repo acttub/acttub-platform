@@ -97,7 +97,7 @@ const agentRequest = (session: PipelineSessionAggregate, runId: string, input: C
 
 const failRun = async (sessionId: string, userId: string, runId: string, error: unknown) => {
   const safeErrorCode = error instanceof AiServiceError
-    ? error.code === "TIMEOUT" ? "AI_TIMEOUT" : error.code === "INVALID_RESPONSE" || error.code === "CORRELATION_MISMATCH" ? "AI_INVALID_RESPONSE" : "AI_UNAVAILABLE"
+    ? error.code === "TIMEOUT" ? "AI_TIMEOUT" : error.code === "INVALID_RESPONSE" || error.code === "CORRELATION_MISMATCH" ? "AI_INVALID_RESPONSE" : error.retryable ? "AI_UNAVAILABLE" : "AI_INTERNAL"
     : "AI_INTERNAL";
   const retryable = safeErrorCode === "AI_TIMEOUT" || safeErrorCode === "AI_UNAVAILABLE";
   await deps.repository.failRun({ sessionId, userId, runId, safeErrorCode, retryable });
@@ -336,6 +336,7 @@ const generateReport = async (
     },
     providerFailure: async (error, run) => {
       if (error instanceof AiPipelineError) {
+        if (error.code === "STALE_INTERVIEW_PROGRESS" || error.code === "TURN_PERSISTENCE_FAILED") throw error;
         await deps.repository.failRun({ sessionId: session.sessionId, userId, runId: run.id, safeErrorCode: "AI_INVALID_RESPONSE", retryable: false });
         throw error;
       }
@@ -394,7 +395,23 @@ const callAgent = async (session: PipelineSessionAggregate, userId: string, inpu
     }),
     invoke: async (run) => {
       const authoritativeSession = await aggregate(session.sessionId, userId);
-      if (authoritativeSession.substantiveAnswerCount !== expectedSubstantiveAnswerCount || actorTurnCount(authoritativeSession) !== expectedTotalConversationCount) throw new AiPipelineError(409, "STALE_INTERVIEW_PROGRESS");
+      if (authoritativeSession.substantiveAnswerCount !== expectedSubstantiveAnswerCount || actorTurnCount(authoritativeSession) !== expectedTotalConversationCount) {
+        const stale = new AiPipelineError(409, "STALE_INTERVIEW_PROGRESS");
+        try {
+          await deps.repository.failRun({ sessionId: session.sessionId, userId, runId: run.id, safeErrorCode: "AI_INTERNAL", retryable: false });
+          throw stale;
+        } catch (error) {
+          if (error === stale) throw stale;
+          try {
+            const observed = await aggregate(session.sessionId, userId);
+            const observedRun = observed.runs.find((candidate) => candidate.id === run.id);
+            if (observedRun && observedRun.status !== "running" && observedRun.status !== "pending") throw stale;
+          } catch (reloadError) {
+            if (reloadError === stale) throw stale;
+          }
+          throw new AiPipelineError(503, "TURN_PERSISTENCE_FAILED");
+        }
+      }
       if (expectedTotalConversationCount >= 10) throw new AiPipelineError(409, "SESSION_NOT_MUTABLE");
       const actorTurn: InterviewTurn | null = input.command === "answer" && input.answer
         ? { id: crypto.randomUUID(), sequence: authoritativeSession.transcript.length, role: "actor", kind: unknownAnswers.has(input.answer) ? "unknown" : "answer", content: input.answer, questionFocus: null, groundingStartMs: null, groundingEndMs: null, sourceObservationIds: [], reportEvidenceSelected: false }
@@ -449,6 +466,7 @@ const callAgent = async (session: PipelineSessionAggregate, userId: string, inpu
     },
     providerFailure: async (error, run) => {
       if (error instanceof AiPipelineError) {
+        if (error.code === "STALE_INTERVIEW_PROGRESS" || error.code === "TURN_PERSISTENCE_FAILED") throw error;
         await deps.repository.failRun({ sessionId: session.sessionId, userId, runId: run.id, safeErrorCode: "AI_INVALID_RESPONSE", retryable: false });
         throw error;
       }
