@@ -22,5 +22,5 @@ export const aiPipelineService = Object.freeze(createAiPipelineService({
   getAppConfig,
   isAiServiceError: (error) => error instanceof AiServiceError,
   isPersistenceError: (error) => error instanceof AiPipelinePersistenceError,
-  createServiceError: (stage, code, status, retryable) => new AiServiceError(stage, code, status, retryable),
+  createSummaryNetworkError: () => new AiServiceError("summary", "NETWORK_ERROR", null, true),
 }));

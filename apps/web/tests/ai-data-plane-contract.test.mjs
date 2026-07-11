@@ -9,8 +9,12 @@ const migration007 = await readFile(new URL("../../../supabase/migrations/007_ai
 const migration008 = await readFile(new URL("../../../supabase/migrations/008_ai_pipeline_session_delete_upload_intent_cleanup.sql", import.meta.url), "utf8");
 const migration009 = await readFile(new URL("../../../supabase/migrations/009_ai_pipeline_contract_hardening.sql", import.meta.url), "utf8");
 const runtimeRules = await readFile(new URL("../src/server/ai-pipeline-runtime-rules.js", import.meta.url), "utf8");
-const service = await readFile(new URL("../src/server/services/ai-pipeline-service.ts", import.meta.url), "utf8");
-const repository = await readFile(new URL("../src/server/repositories/supabase-ai-pipeline-repository.ts", import.meta.url), "utf8");
+const service = await readFile(new URL("../src/server/ai-pipeline-service-core.js", import.meta.url), "utf8");
+const repository = (await Promise.all([
+  readFile(new URL("../src/server/repositories/supabase-ai-pipeline-repository.ts", import.meta.url), "utf8"),
+  readFile(new URL("../src/server/report-session-lineage.js", import.meta.url), "utf8"),
+  readFile(new URL("../src/server/report-lineage.js", import.meta.url), "utf8"),
+])).join("\n");
 const types = await readFile(new URL("../src/server/repositories/ai-pipeline-types.ts", import.meta.url), "utf8");
 
 test("migration implements every transaction boundary instead of payload-only stubs", () => {
@@ -145,8 +149,8 @@ test("migration 009 replays under lock, expires stale reports, and removes weak 
 test("service reloads owned Agent progress and sanitizes Summary run output", () => {
   assert.match(service, /const authoritativeSession = await aggregate\(session\.sessionId, userId\)/);
   assert.match(service, /authoritativeSession\.substantiveAnswerCount !== expectedSubstantiveAnswerCount/);
-  assert.match(service, /summaryRun:sanitizePublicAiPipelineAggregate\(summaryRun\)/);
-  assert.match(service, /stage:"summary"[\s\S]*maxAttempts:2/);
+  assert.match(service, /summaryRun:\s*sanitizePublicAiPipelineAggregate\(summaryRun\)/);
+  assert.match(service, /stage:\s*"summary"[\s\S]*maxAttempts:\s*2/);
   assert.match(service, /validateInterviewCompletionCount/);
   assert.match(service, /new AiPipelineError\(502, "AI_INVALID_RESPONSE"\)/);
   assert.match(service, /run\.promptVersion === "acting-agent\.prompt\.v2"/);
@@ -168,7 +172,9 @@ test("forward migration hardens AI run metadata persistence and mutable confirma
   assert.match(migration009, /update public\.ai_runs set status='completed',response_schema_version='summary-response\.v1',model=p_model,prompt_version=p_prompt_version,safe_error_code=null,completed_at=now\(\),updated_at=now\(\)/);
   assert.match(migration009, /create or replace function public\.acttub_append_pipeline_turn\(p_session_id uuid,p_user_id uuid,p_payload jsonb\)/);
   assert.match(migration009, /select count\(\*\) into conversation_count from public\.interview_turns where session_id=p_session_id and user_id=p_user_id and role='actor' and kind in \('answer','unknown'\)/);
-  assert.match(migration009, /if conversation_count<>\(p_payload->>'expectedTotalConversationCount'\)::integer then raise exception 'turn_conflict'; end if;/);
+  assert.match(migration009, /jsonb_typeof\(p_payload->'expectedSubstantiveAnswerCount'\) is distinct from 'number'[\s\S]*jsonb_typeof\(p_payload->'expectedTotalConversationCount'\) is distinct from 'number'/);
+  assert.match(migration009, /expected is distinct from \(p_payload->>'expectedSubstantiveAnswerCount'\)::integer/);
+  assert.match(migration009, /conversation_count is distinct from \(p_payload->>'expectedTotalConversationCount'\)::integer/);
   assert.match(migration009, /if conversation_count>=10 then raise exception 'turn_conflict'; end if;/);
   assert.match(migration009, /completionStatus/);
   assert.match(migration009, /completionReason/);
@@ -176,6 +182,7 @@ test("forward migration hardens AI run metadata persistence and mutable confirma
   assert.doesNotMatch(migration009, /model=coalesce\(nullif\(trim\(p_payload->>'model'\),''\),model\)/);
   assert.match(migration009, /update public\.ai_runs set status='completed',response_schema_version='agent-turn\.v1',model=trim\(p_payload->>'model'\),prompt_version=p_payload->>'promptVersion',completed_at=now\(\),updated_at=now\(\)/);
   assert.match(migration009, /create or replace function public\.acttub_complete_interview\(p_session_id uuid,p_user_id uuid,p_payload jsonb\)/);
+  assert.match(migration009, /stat not in \('completed','paused','completed_without_report'\)/);
   assert.match(migration009, /agentRunId/);
   assert.match(migration009, /status='running'/);
   assert.doesNotMatch(migration009, /status in \('running','completed'\)/);

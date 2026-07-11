@@ -1,6 +1,4 @@
 import type { createAiTransport } from "./ai/transport";
-import type { AiStage } from "./ai/contracts";
-import type { AiErrorCode } from "./ai/transport-core";
 import type { loadAiServiceConfig } from "./ai/config";
 import type { supabaseAiPipelineRepository } from "./repositories/supabase-ai-pipeline-repository";
 import type { coachSessionService } from "./services/coach-session-service";
@@ -24,7 +22,7 @@ export interface AiPipelineServiceDependencies {
   getAppConfig: typeof getAppConfig;
   isAiServiceError?: (error: unknown) => boolean;
   isPersistenceError?: (error: unknown) => boolean;
-  createServiceError?: (stage: AiStage, code: AiErrorCode, status: number | null, retryable: boolean) => Error;
+  createSummaryNetworkError?: () => Error;
 }
 export interface AiPipelineService {
   createSession(body: unknown, userId: string): Promise<unknown>;
