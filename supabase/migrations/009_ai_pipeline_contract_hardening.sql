@@ -50,11 +50,14 @@ returns jsonb language plpgsql security definer set search_path=public as $$ dec
 end $$;
 
 create or replace function public.acttub_complete_interview(p_session_id uuid,p_user_id uuid,p_payload jsonb)
-returns jsonb language plpgsql security definer set search_path=public as $$ declare reason text:=p_payload->>'completionReason'; stat text:=p_payload->>'status'; obs uuid[]:=array(select jsonb_array_elements_text(p_payload->'observationIds'))::uuid[]; turns uuid[]:=array(select jsonb_array_elements_text(p_payload->'answerTurnIds'))::uuid[]; n integer; conversation_count integer; agent_run_id text:=p_payload->>'agentRunId'; begin
+returns jsonb language plpgsql security definer set search_path=public as $$ declare reason text:=p_payload->>'completionReason'; stat text:=p_payload->>'status'; obs uuid[]:=array(select jsonb_array_elements_text(p_payload->'observationIds'))::uuid[]; turns uuid[]:=array(select jsonb_array_elements_text(p_payload->'answerTurnIds'))::uuid[]; n integer; conversation_count integer; last_two_kinds text[]; agent_run_id text:=p_payload->>'agentRunId'; begin
  select substantive_answer_count into n from public.practice_sessions where id=p_session_id and user_id=p_user_id and deletion_status='active' and interview_status in ('active','paused') for update; if not found then raise exception 'session_not_mutable'; end if;
  select count(*) into conversation_count from public.interview_turns where session_id=p_session_id and user_id=p_user_id and role='actor' and kind in ('answer','unknown');
+ select array_agg(kind order by sequence desc) into last_two_kinds from (select kind,sequence from public.interview_turns where session_id=p_session_id and user_id=p_user_id and role='actor' and kind in ('answer','unknown') order by sequence desc limit 2) counted;
  if (stat='completed' and reason not in ('interview_complete_report_ready','manual_stop_report_ready','hard_limit_report_ready')) or (stat='paused' and reason<>'manual_stop_paused') or (stat='completed_without_report' and reason not in ('insufficient_confirmed_evidence','insufficient_interview_evidence')) then raise exception 'invalid_completion'; end if;
- if reason='interview_complete_report_ready' and n<5 or reason in ('hard_limit_report_ready','insufficient_interview_evidence') and conversation_count<>10 then raise exception 'invalid_completion_count'; end if;
+ if reason='interview_complete_report_ready' and n<5 and not (coalesce(array_length(last_two_kinds,1),0)=2 and last_two_kinds[1]='unknown' and last_two_kinds[2]='unknown') then raise exception 'invalid_completion_count'; end if;
+ if reason='hard_limit_report_ready' and conversation_count<>10 then raise exception 'invalid_completion_count'; end if;
+ if reason='insufficient_interview_evidence' and conversation_count<>10 and n<5 and not (coalesce(array_length(last_two_kinds,1),0)=2 and last_two_kinds[1]='unknown' and last_two_kinds[2]='unknown') then raise exception 'invalid_completion_count'; end if;
  if cardinality(obs)<>cardinality(array(select distinct x from unnest(obs) x)) or cardinality(turns)<>cardinality(array(select distinct x from unnest(turns) x)) then raise exception 'duplicate_report_evidence'; end if;
  if stat='completed' then if cardinality(obs)=0 or cardinality(turns)=0 or exists(select 1 from unnest(obs) x where not exists(select 1 from public.observations o where o.id=x and o.session_id=p_session_id and o.user_id=p_user_id and o.confirmation_state='accepted' and not o.blocked_for_questioning)) or exists(select 1 from unnest(turns) x where not exists(select 1 from public.interview_turns t where t.id=x and t.session_id=p_session_id and t.user_id=p_user_id and t.role='actor' and t.kind='answer' and length(trim(t.content))>0 and t.report_evidence_selected)) then raise exception 'invalid_report_evidence'; end if; else if cardinality(obs)<>0 or cardinality(turns)<>0 then raise exception 'evidence_not_allowed'; end if; end if;
  update public.practice_sessions set interview_status=stat,completion_reason=reason,report_evidence_observation_ids=obs,report_evidence_answer_turn_ids=turns,updated_at=now() where id=p_session_id;
@@ -70,16 +73,49 @@ returns jsonb language plpgsql security definer set search_path=public as $$ dec
  select * into existing from public.ai_reports where session_id=p_session_id and user_id=p_user_id for update; if found then return jsonb_build_object('schemaVersion',existing.schema_version,'sections',jsonb_build_object('oneLineSummary',existing.one_line_summary,'primaryReviewPoint',existing.primary_review_point,'confirmedEvidence',existing.confirmed_evidence,'actorDiscovery',existing.actor_discovery,'groundedEncouragement',existing.grounded_encouragement,'nextPracticeStep',existing.next_practice_step)); end if;
  perform 1 from public.ai_runs r join public.practice_sessions s on s.id=r.session_id and s.user_id=r.user_id where r.id=p_run_id and r.session_id=p_session_id and r.user_id=p_user_id and r.stage='report' and r.status='running' and s.interview_status='completed' and s.completion_reason in ('interview_complete_report_ready','manual_stop_report_ready','hard_limit_report_ready') and s.required_consent_version_snapshot=public.current_acttub_terms_version() and s.ai_processing_consent_version_snapshot=public.current_acttub_ai_processing_consent_version() and exists(select 1 from public.profiles p where p.id=p_user_id and p.status='active' and p.required_consent_version=public.current_acttub_terms_version() and p.required_consent_at is not null and p.ai_processing_consent_version=public.current_acttub_ai_processing_consent_version() and p.ai_processing_consent_at is not null) for update; if not found then raise exception 'report_not_ready'; end if;
  if (select array_agg(k order by k) from jsonb_object_keys(p_report) k)<>array['schemaVersion','sections'] or p_report->>'schemaVersion'<>'report.v1' or (select array_agg(k order by k) from jsonb_object_keys(sec) k)<>array['actorDiscovery','confirmedEvidence','groundedEncouragement','nextPracticeStep','oneLineSummary','primaryReviewPoint'] then raise exception 'invalid_report'; end if;
- for e in select key,value from jsonb_each(sec) loop
+ for e in select key, value from jsonb_each(sec) loop
   if (select array_agg(k order by k) from jsonb_object_keys(e.value) k)<>array['content','observationEvidenceIds','status','timestampRange','turnEvidenceIds'] or e.value->>'status' not in ('confirmed','not_confirmed') then raise exception 'invalid_report_section'; end if;
   if e.value->>'status'='not_confirmed' then
    if e.key in ('oneLineSummary','primaryReviewPoint','confirmedEvidence') or e.value->'content'<>'null'::jsonb or e.value->'timestampRange'<>'null'::jsonb or jsonb_array_length(e.value->'observationEvidenceIds')<>0 or jsonb_array_length(e.value->'turnEvidenceIds')<>0 then raise exception 'invalid_unconfirmed_section'; end if;
   else
    if length(trim(e.value->>'content'))=0 then raise exception 'invalid_confirmed_section'; end if;
-   if exists(select 1 from jsonb_array_elements_text(e.value->'observationEvidenceIds') x where not exists(select 1 from public.practice_sessions s join public.observations o on o.session_id=s.id and o.user_id=s.user_id where s.id=p_session_id and o.id=x::uuid and o.confirmation_state='accepted' and not o.blocked_for_questioning and o.id=any(s.report_evidence_observation_ids)))) then raise exception 'invalid_report_evidence'; end if;
-   if exists(select 1 from jsonb_array_elements_text(e.value->'turnEvidenceIds') x where not exists(select 1 from public.practice_sessions s join public.interview_turns t on t.session_id=s.id and t.user_id=s.user_id where s.id=p_session_id and t.id=x::uuid and ((t.role='actor' and t.kind='answer' and t.report_evidence_selected and t.id=any(s.report_evidence_answer_turn_ids)) or (t.role='actor' and t.kind='actor_correction' and exists(select 1 from public.actor_corrections c where c.session_id=p_session_id and c.user_id=p_user_id and c.correction_by_turn_id=t.id)))))) then raise exception 'invalid_report_evidence'; end if;
+   if exists(
+    select 1
+    from jsonb_array_elements_text(e.value->'observationEvidenceIds') x
+    where not exists(
+     select 1
+     from public.practice_sessions s
+     join public.observations o on o.session_id=s.id and o.user_id=s.user_id
+     where s.id=p_session_id
+       and o.id=x::uuid
+       and o.confirmation_state='accepted'
+       and not o.blocked_for_questioning
+       and o.id=any(s.report_evidence_observation_ids)
+    )
+   ) then raise exception 'invalid_report_evidence'; end if;
+   if exists(
+    select 1
+    from jsonb_array_elements_text(e.value->'turnEvidenceIds') x
+    where not exists(
+     select 1
+     from public.practice_sessions s
+     join public.interview_turns t on t.session_id=s.id and t.user_id=s.user_id
+     where s.id=p_session_id
+       and t.id=x::uuid
+       and (
+        (t.role='actor' and t.kind='answer' and t.report_evidence_selected and t.id=any(s.report_evidence_answer_turn_ids))
+        or (t.role='actor' and t.kind='actor_correction' and exists(select 1 from public.actor_corrections c where c.session_id=p_session_id and c.user_id=p_user_id and c.correction_by_turn_id=t.id))
+       )
+    )
+   ) then raise exception 'invalid_report_evidence'; end if;
    if e.key in ('oneLineSummary','confirmedEvidence') then
-    if jsonb_array_length(e.value->'observationEvidenceIds')=0 or jsonb_array_length(e.value->'turnEvidenceIds')=0 or not exists(select 1 from jsonb_array_elements_text(e.value->'turnEvidenceIds') x join public.practice_sessions s on s.id=p_session_id join public.interview_turns t on t.session_id=s.id and t.user_id=s.user_id where t.id=x::uuid and t.role='actor' and t.kind='answer' and t.report_evidence_selected and t.id=any(s.report_evidence_answer_turn_ids)) then raise exception 'invalid_report_evidence'; end if;
+    if jsonb_array_length(e.value->'observationEvidenceIds')=0 or jsonb_array_length(e.value->'turnEvidenceIds')=0 or not exists(
+     select 1
+     from jsonb_array_elements_text(e.value->'turnEvidenceIds') x
+     join public.practice_sessions s on s.id=p_session_id
+     join public.interview_turns t on t.session_id=s.id and t.user_id=s.user_id
+     where t.id=x::uuid and t.role='actor' and t.kind='answer' and t.report_evidence_selected and t.id=any(s.report_evidence_answer_turn_ids)
+    ) then raise exception 'invalid_report_evidence'; end if;
    elsif e.key='primaryReviewPoint' then
     if jsonb_array_length(e.value->'observationEvidenceIds')=0 or e.value->'timestampRange'='null'::jsonb then raise exception 'invalid_report_evidence'; end if;
    elsif e.key='actorDiscovery' then
@@ -89,7 +125,24 @@ returns jsonb language plpgsql security definer set search_path=public as $$ dec
    elsif e.key='nextPracticeStep' then
     if jsonb_array_length(e.value->'observationEvidenceIds')+jsonb_array_length(e.value->'turnEvidenceIds')=0 then raise exception 'invalid_report_evidence'; end if;
    end if;
-   range:=e.value->'timestampRange'; if range<>'null'::jsonb then if (select array_agg(k order by k) from jsonb_object_keys(range) k)<>array['endMs','startMs'] or (range->>'endMs')::integer<(range->>'startMs')::integer then raise exception 'invalid_report_timestamp'; end if; if not exists(select 1 from jsonb_array_elements_text(e.value->'observationEvidenceIds') x join public.observations o on o.id=x::uuid and o.session_id=p_session_id where o.timestamp_start_ms=(range->>'startMs')::integer and o.timestamp_end_ms=(range->>'endMs')::integer) and not exists(select 1 from jsonb_array_elements_text(e.value->'turnEvidenceIds') x join public.actor_corrections c on c.correction_by_turn_id=x::uuid and c.session_id=p_session_id join public.observations o on o.id=c.observation_id where o.timestamp_start_ms=(range->>'startMs')::integer and o.timestamp_end_ms=(range->>'endMs')::integer) then raise exception 'invalid_report_timestamp'; end if; elsif e.key='primaryReviewPoint' then raise exception 'invalid_report_timestamp'; end if;
+   range:=e.value->'timestampRange';
+   if range<>'null'::jsonb then
+    if (select array_agg(k order by k) from jsonb_object_keys(range) k)<>array['endMs','startMs'] or (range->>'endMs')::integer<(range->>'startMs')::integer then raise exception 'invalid_report_timestamp'; end if;
+    if not exists(
+     select 1
+     from jsonb_array_elements_text(e.value->'observationEvidenceIds') x
+     join public.observations o on o.id=x::uuid and o.session_id=p_session_id
+     where o.timestamp_start_ms=(range->>'startMs')::integer and o.timestamp_end_ms=(range->>'endMs')::integer
+    ) and not exists(
+     select 1
+     from jsonb_array_elements_text(e.value->'turnEvidenceIds') x
+     join public.actor_corrections c on c.correction_by_turn_id=x::uuid and c.session_id=p_session_id
+     join public.observations o on o.id=c.observation_id
+     where o.timestamp_start_ms=(range->>'startMs')::integer and o.timestamp_end_ms=(range->>'endMs')::integer
+    ) then raise exception 'invalid_report_timestamp'; end if;
+   elsif e.key='primaryReviewPoint' then
+    raise exception 'invalid_report_timestamp';
+   end if;
   end if;
  end loop;
  insert into public.ai_reports(session_id,user_id,source_run_id,schema_version,completion_reason,one_line_summary,primary_review_point,confirmed_evidence,actor_discovery,grounded_encouragement,next_practice_step) select p_session_id,p_user_id,p_run_id,'report.v1',completion_reason,sec->'oneLineSummary',sec->'primaryReviewPoint',sec->'confirmedEvidence',sec->'actorDiscovery',sec->'groundedEncouragement',sec->'nextPracticeStep' from public.practice_sessions where id=p_session_id;

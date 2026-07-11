@@ -96,7 +96,6 @@ test("rejects every Report section-specific evidence invariant violation", async
     {oneLineSummary:confirmedNoEvidence},
     {oneLineSummary:empty},
     {oneLineSummary:{...confirmed,turnEvidenceIds:[correctionTurnId]}},
-    {primaryReviewPoint:{...review,turnEvidenceIds:[turnId],timestampRange:{startMs:0,endMs:1}}},
     {confirmedEvidence:{...confirmed,turnEvidenceIds:[correctionTurnId]}},
     {actorDiscovery:{...confirmed,turnEvidenceIds:[]}},
     {actorDiscovery:{...confirmed,turnEvidenceIds:[unknownId]}},
@@ -111,6 +110,8 @@ test("rejects every Report section-specific evidence invariant violation", async
     await assert.rejects(createAiTransport(config,async()=>response(body)).report(reportRequest),error=>error instanceof AiServiceError&&error.code==="INVALID_RESPONSE");
   }
   const correctionRequest={...reportRequest,actorCorrections:[{correctionId,correctsObservationId:observationId,segment:{startMs:2,endMs:3},text:"c",actorTurnId:correctionTurnId}],transcript:[...reportRequest.transcript,{turnId:correctionTurnId,speaker:"actor",content:"c",kind:"actor_correction"}]};
+  const primaryReviewPointWithSelectedAnswer={...reportResponse.sections,primaryReviewPoint:{...review,turnEvidenceIds:[turnId],timestampRange:{startMs:0,endMs:1}}};
+  await createAiTransport(config,async()=>response({...reportResponse,sections:primaryReviewPointWithSelectedAnswer})).report(reportRequest);
   const actorDiscoveryWithCorrectionTimestamp={...reportResponse.sections,actorDiscovery:{...confirmed,observationEvidenceIds:[],turnEvidenceIds:[correctionTurnId],timestampRange:{startMs:2,endMs:3}}};
   const actorDiscoveryWithoutTimestamp={...reportResponse.sections,actorDiscovery:{...confirmed,observationEvidenceIds:[],turnEvidenceIds:[correctionTurnId],timestampRange:null}};
   const optionalNonPrimarySections={...reportResponse.sections,groundedEncouragement:{status:"confirmed",content:"근거",observationEvidenceIds:[observationId],turnEvidenceIds:[],timestampRange:null},nextPracticeStep:{status:"confirmed",content:"다음",observationEvidenceIds:[observationId],turnEvidenceIds:[],timestampRange:null}};

@@ -103,7 +103,9 @@ test("forward migration hardens AI run metadata persistence and mutable confirma
   assert.match(migration009, /create or replace function public\.acttub_complete_report_run\(p_session_id uuid,p_user_id uuid,p_run_id uuid,p_report jsonb,p_model text,p_prompt_version text\)/);
   assert.match(migration009, /update public\.ai_runs set status='completed',response_schema_version='report\.v1',model=p_model,prompt_version=p_prompt_version,completed_at=now\(\),updated_at=now\(\)/);
   assert.match(migration009, /role='actor' and kind in \('answer','unknown'\)/);
-  assert.match(migration009, /reason in \('hard_limit_report_ready','insufficient_interview_evidence'\) and conversation_count<>10/);
+  assert.match(migration009, /reason='interview_complete_report_ready' and n<5 and not \(coalesce\(array_length\(last_two_kinds,1\),0\)=2 and last_two_kinds\[1\]='unknown' and last_two_kinds\[2\]='unknown'\)/);
+  assert.match(migration009, /reason='hard_limit_report_ready' and conversation_count<>10/);
+  assert.match(migration009, /reason='insufficient_interview_evidence' and conversation_count<>10 and n<5 and not \(coalesce\(array_length\(last_two_kinds,1\),0\)=2 and last_two_kinds\[1\]='unknown' and last_two_kinds\[2\]='unknown'\)/);
   assert.match(migration009, /t\.kind='actor_correction'/);
   assert.match(migration009, /primaryReviewPoint[\s\S]*timestampRange'='null'::jsonb/);
   assert.match(migration009, /oneLineSummary[\s\S]*t\.kind='answer'[\s\S]*t\.report_evidence_selected/);
@@ -153,8 +155,9 @@ test("runtime helpers enforce interview completion thresholds on reportable and 
   assert.doesNotThrow(() => validateInterviewCompletionCount({ reason: "interview_complete_report_ready", substantiveAnswerCount: 5, reportableActorCount: 9 }));
   assert.doesNotThrow(() => validateInterviewCompletionCount({ reason: "hard_limit_report_ready", substantiveAnswerCount: 7, reportableActorCount: 10 }));
   assert.throws(() => validateInterviewCompletionCount({ reason: "hard_limit_report_ready", substantiveAnswerCount: 7, reportableActorCount: 9 }), /invalid_completion_count/);
-  assert.throws(() => validateInterviewCompletionCount({ reason: "insufficient_interview_evidence", substantiveAnswerCount: 7, reportableActorCount: 9 }), /invalid_completion_count/);
+  assert.doesNotThrow(() => validateInterviewCompletionCount({ reason: "insufficient_interview_evidence", substantiveAnswerCount: 7, reportableActorCount: 9 }));
   assert.throws(() => validateInterviewCompletionCount({ reason: "interview_complete_report_ready", substantiveAnswerCount: 4, reportableActorCount: 10 }), /invalid_completion_count/);
+  assert.doesNotThrow(() => validateInterviewCompletionCount({ reason: "interview_complete_report_ready", substantiveAnswerCount: 4, reportableActorCount: 9, lastTwoReportableKinds: ["unknown", "unknown"] }));
   assert.doesNotThrow(() => validateInterviewCompletionCount({ reason: "insufficient_interview_evidence", substantiveAnswerCount: 4, reportableActorCount: 9, lastTwoReportableKinds: ["unknown", "unknown"] }));
 });
 
