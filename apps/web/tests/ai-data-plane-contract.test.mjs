@@ -5,6 +5,7 @@ import test from "node:test";
 const migration = await readFile(new URL("../../../supabase/migrations/004_ai_pipeline_data_plane.sql", import.meta.url), "utf8");
 const migration007 = await readFile(new URL("../../../supabase/migrations/007_ai_pipeline_unknown_turn_count.sql", import.meta.url), "utf8");
 const migration008 = await readFile(new URL("../../../supabase/migrations/008_ai_pipeline_session_delete_upload_intent_cleanup.sql", import.meta.url), "utf8");
+const migration009 = await readFile(new URL("../../../supabase/migrations/009_ai_pipeline_contract_hardening.sql", import.meta.url), "utf8");
 const repository = await readFile(new URL("../src/server/repositories/supabase-ai-pipeline-repository.ts", import.meta.url), "utf8");
 const types = await readFile(new URL("../src/server/repositories/ai-pipeline-types.ts", import.meta.url), "utf8");
 
@@ -27,7 +28,7 @@ test("migration preserves legacy consent and enforces isolation/idempotency",()=
 
 test("repository exposes exact typed transitions and fail-closed row readers",()=>{
   assert.doesNotMatch(repository,/call\(operation|Record<string, unknown>\): Promise/);
-  for(const method of ["claimRun","completeSummaryRun","confirmObservation","appendPipelineTurn","completeInterview","completeReportRun","failRun","beginDelete","recordStorageDeleted","completeDelete","failDelete"]) assert.match(repository,new RegExp(`${method}\\(`));
+  for(const method of ["claimRun","completeSummaryRun","recordRunModel","confirmObservation","appendPipelineTurn","completeInterview","completeReportRun","failRun","beginDelete","recordStorageDeleted","completeDelete","failDelete"]) assert.match(repository,new RegExp(`${method}\\(`));
   assert.match(repository,/Invalid AI pipeline persistence result/);
   assert.match(types,/NormalizedSummary/);
   assert.match(types,/correctsObservationId: string; segment: Segment; text: string; correctionByTurnId/);
@@ -73,6 +74,21 @@ test("late audit gates current consent and immutable successful retries",()=>{
 test("run claims require adult participant and authoritative media eligibility",()=>{
   assert.match(migration,/acttub_claim_ai_run[\s\S]*s\.adult_confirmed_at is not null[\s\S]*s\.all_participants_confirmed_at is not null/);
   assert.match(migration,/acttub_claim_ai_run[\s\S]*exists\(select 1 from public\.practice_takes t[\s\S]*t\.duration_ms between 1 and 300000[\s\S]*t\.media_metadata_version='iso-bmff-duration\.v1'/);
+});
+
+test("forward migration hardens AI run metadata persistence and mutable confirmations", () => {
+  assert.match(migration009, /create or replace function public\.acttub_record_ai_run_model\(p_session_id uuid,p_user_id uuid,p_run_id uuid,p_model text\)/);
+  assert.match(migration009, /update public\.ai_runs set model=p_model,updated_at=now\(\) where id=p_run_id and session_id=p_session_id and user_id=p_user_id returning \*/);
+  assert.match(migration009, /create or replace function public\.acttub_confirm_observation\(p_session_id uuid,p_user_id uuid,p_observation_id uuid,p_state text,p_correction text default null,p_correction_id uuid default null,p_turn_id uuid default null\)/);
+  assert.match(migration009, /deletion_status='active' and interview_status in \('active','paused'\)/);
+  assert.match(migration009, /session_not_mutable/);
+  assert.match(migration009, /create or replace function public\.acttub_complete_summary_run\(p_session_id uuid,p_user_id uuid,p_run_id uuid,p_summary jsonb,p_candidates jsonb,p_model text,p_prompt_version text\)/);
+  assert.match(migration009, /update public\.ai_runs set status='completed',response_schema_version='summary-response\.v1',model=p_model,prompt_version=p_prompt_version,safe_error_code=null,completed_at=now\(\),updated_at=now\(\)/);
+  assert.match(migration009, /create or replace function public\.acttub_complete_report_run\(p_session_id uuid,p_user_id uuid,p_run_id uuid,p_report jsonb,p_model text,p_prompt_version text\)/);
+  assert.match(migration009, /update public\.ai_runs set status='completed',response_schema_version='report\.v1',model=p_model,prompt_version=p_prompt_version,completed_at=now\(\),updated_at=now\(\)/);
+  assert.match(migration009, /grant execute on function public\.acttub_record_ai_run_model\(uuid,uuid,uuid,text\) to service_role/);
+  assert.match(migration009, /grant execute on function public\.acttub_complete_summary_run\(uuid,uuid,uuid,jsonb,jsonb,text,text\) to service_role/);
+  assert.match(migration009, /grant execute on function public\.acttub_complete_report_run\(uuid,uuid,uuid,jsonb,text,text\) to service_role/);
 });
 
 test("late audit rejects malformed deep summary values and accepts typed answer or unknown turns",()=>{

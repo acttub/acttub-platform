@@ -13,6 +13,7 @@ test("canonical consent is current, dual-purpose, and internal review never gate
   assert.match(auth,/ai_processing_consent_version === versions\.aiProcessingConsentVersion/);
   assert.doesNotMatch(auth,/Boolean\(data\.internal_review_consent_at\)/);
   assert.match(auth,/internal_review_consent: internalReviewConsent/);
+  assert.match(auth,/internalReviewConsent:\s*\{\s*accepted: Boolean\(context\?\.internalReviewConsent\)/);
 });
 
 test("upload intent requires confirmations and persists only server authority",()=>{
