@@ -421,6 +421,7 @@ export function PracticeFlow({ entry = "new" }: { entry?: PracticeEntry }) {
       appendPipelineInterviewTurn(pipelineSession.sessionId, {
         answer: trimmed,
         expectedSubstantiveAnswerCount: pipelineSession.substantiveAnswerCount,
+        expectedTotalConversationCount: pipelineSession.transcript.filter((item) => item.role === "actor" && (item.kind === "answer" || item.kind === "unknown")).length,
       }),
     );
   }

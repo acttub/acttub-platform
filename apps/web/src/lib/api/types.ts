@@ -299,7 +299,7 @@ export type GetPipelineSessionResponse = { session: PipelineSessionAggregateDto 
 export type ConfirmPipelineObservationRequest =
   | { state: "accepted" | "unsure"; correction?: never }
   | { state: "rejected"; correction?: string };
-export type PipelineInterviewTurnRequest = { answer: string; expectedSubstantiveAnswerCount: number };
+export type PipelineInterviewTurnRequest = { answer: string; expectedSubstantiveAnswerCount: number; expectedTotalConversationCount: number };
 export type PipelineReportEvidenceDto = { observationIds: string[]; answerTurnIds: string[] };
 export type PipelineInterviewResponse =
   | { done: true; completionReason: "insufficient_confirmed_evidence"; reportReady: false }
