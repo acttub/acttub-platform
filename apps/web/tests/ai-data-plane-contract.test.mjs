@@ -117,11 +117,16 @@ test("migration 009 replays under lock, expires stale reports, and removes weak 
   assert.match(migration009, /stage='agent' and status='running' and request_schema_version='agent-turn\.v1'/);
   assert.match(migration009, /invalid_agent_completion_contract/);
   assert.match(migration009, /agent_run_id is null and \(p_payload \? 'agentResponse' or p_payload \? 'model' or p_payload \? 'promptVersion'\)/);
-  assert.match(migration009, /jsonb_typeof\(p_payload->'agentResponse'->'done'\)<>'boolean'/);
-  assert.match(migration009, /jsonb_typeof\(p_payload->'agentResponse'->'reportReady'\)<>'boolean'/);
+  assert.match(migration009, /jsonb_typeof\(agent_response->'done'\)<>'boolean'/);
+  assert.match(migration009, /jsonb_typeof\(agent_response->'reportReady'\)<>'boolean'/);
   assert.match(migration009, /agent_run_id !~\* '\^\[0-9a-f\]/);
   assert.match(migration009, /response_schema_version='agent-turn\.v1',response_payload=p_payload->'agentResponse',model=trim\(p_payload->>'model'\),prompt_version=p_payload->>'promptVersion'/);
   assert.match(migration009, /where id=agent_run_id::uuid and session_id=p_session_id and user_id=p_user_id and stage='agent' and status='running'/);
+  assert.match(migration009, /agent_response->'actorTurn'<>'null'::jsonb/);
+  assert.match(migration009, /agent_turn->>'role'<>'agent'/);
+  assert.match(migration009, /stat='paused' and agent_turn->>'kind'<>'question'/);
+  assert.match(migration009, /stat<>'paused' and agent_turn->>'kind'<>'closing'/);
+  assert.match(migration009, /insert into public\.interview_turns[\s\S]*next_sequence,'agent',agent_turn->>'kind'/);
   assert.match(migration009, /correction_lineage_conflict/);
   assert.match(migration009, /summary_lineage_conflict/);
 });
