@@ -13,15 +13,21 @@ returns setof public.observations language plpgsql security definer set search_p
  return query update public.observations set confirmation_state=p_state,blocked_for_questioning=(p_state<>'accepted') where id=p_observation_id and session_id=p_session_id and user_id=p_user_id returning *;
 end $$;
 
-create or replace function public.acttub_claim_ai_run(p_session_id uuid,p_user_id uuid,p_stage text,p_run_id uuid,p_idempotency_key text,p_max_attempts integer,p_request_schema_version text,p_model text,p_prompt_version text)
+create or replace function public.acttub_claim_ai_run(p_session_id uuid,p_user_id uuid,p_stage text,p_run_id uuid,p_idempotency_key text,p_max_attempts integer,p_request_schema_version text,p_request_payload_fingerprint text,p_model text,p_prompt_version text)
 returns setof public.ai_runs language plpgsql security definer set search_path=public as $$ declare existing public.ai_runs; total_count integer; begin
+ if p_request_payload_fingerprint !~ '^[0-9a-f]{64}$' then raise exception 'request_payload_conflict'; end if;
+ select * into existing from public.ai_runs where session_id=p_session_id and stage=p_stage and idempotency_key=p_idempotency_key for update;
+ if found then
+  if existing.request_payload_fingerprint is not null and existing.request_payload_fingerprint<>p_request_payload_fingerprint then raise exception 'request_payload_conflict'; end if;
+  if existing.status in ('completed','running','pending') then return next existing; return; end if;
+  if not existing.retryable or existing.attempt>=existing.max_attempts then raise exception 'run_not_retryable'; end if;
+  return query update public.ai_runs set id=p_run_id,status='running',attempt=attempt+1,safe_error_code=null,retryable=false,started_at=now(),completed_at=null,updated_at=now(),request_payload_fingerprint=p_request_payload_fingerprint where ai_runs.id=existing.id returning *; return;
+ end if;
  perform 1 from public.practice_sessions s where s.id=p_session_id and s.user_id=p_user_id and s.pipeline_version='ai-pipeline.v1' and s.deletion_status='active' and s.required_consent_version_snapshot=public.current_acttub_terms_version() and s.ai_processing_consent_version_snapshot=public.current_acttub_ai_processing_consent_version() and s.adult_confirmed_at is not null and s.all_participants_confirmed_at is not null and exists(select 1 from public.practice_takes t where t.session_id=s.id and t.user_id=p_user_id and t.duration_ms between 1 and 300000 and t.media_metadata_version='iso-bmff-duration.v1') and exists(select 1 from public.profiles p where p.id=p_user_id and p.status='active' and p.required_consent_version=public.current_acttub_terms_version() and p.required_consent_at is not null and p.ai_processing_consent_version=public.current_acttub_ai_processing_consent_version() and p.ai_processing_consent_at is not null) and ((p_stage='agent' and s.interview_status in ('active','paused')) or (p_stage='report' and s.interview_status='completed' and s.completion_reason in ('interview_complete_report_ready','manual_stop_report_ready','hard_limit_report_ready')) or p_stage not in ('agent','report')) for update; if not found then raise exception 'pipeline_session_not_found'; end if;
  select count(*) into total_count from public.interview_turns where session_id=p_session_id and user_id=p_user_id and role='actor' and kind in ('answer','unknown');
- select * into existing from public.ai_runs where session_id=p_session_id and stage=p_stage and idempotency_key=p_idempotency_key for update;
- if found then if existing.status in ('completed','running','pending') then return next existing; return; end if; if not existing.retryable or existing.attempt>=existing.max_attempts then raise exception 'run_not_retryable'; end if; return query update public.ai_runs set id=p_run_id,status='running',attempt=attempt+1,safe_error_code=null,retryable=false,started_at=now(),completed_at=null,updated_at=now() where ai_runs.id=existing.id returning *; return; end if;
  if p_stage='agent' and total_count>=10 then raise exception 'pipeline_session_not_found'; end if;
  if p_stage='report' and exists(select 1 from public.ai_reports where session_id=p_session_id and user_id=p_user_id) then raise exception 'report_run_conflict'; end if;
- return query insert into public.ai_runs(id,session_id,user_id,stage,status,idempotency_key,attempt,max_attempts,request_schema_version,model,prompt_version,started_at) values(p_run_id,p_session_id,p_user_id,p_stage,'running',p_idempotency_key,1,p_max_attempts,p_request_schema_version,p_model,p_prompt_version,now()) returning *;
+ return query insert into public.ai_runs(id,session_id,user_id,stage,status,idempotency_key,attempt,max_attempts,request_schema_version,request_payload_fingerprint,model,prompt_version,started_at) values(p_run_id,p_session_id,p_user_id,p_stage,'running',p_idempotency_key,1,p_max_attempts,p_request_schema_version,p_request_payload_fingerprint,p_model,p_prompt_version,now()) returning *;
 end $$;
 
 create or replace function public.acttub_complete_summary_run(p_session_id uuid,p_user_id uuid,p_run_id uuid,p_summary jsonb,p_candidates jsonb,p_model text,p_prompt_version text)
@@ -211,3 +217,6 @@ revoke execute on function public.acttub_complete_report_run(uuid,uuid,uuid,json
 grant execute on function public.acttub_complete_report_run(uuid,uuid,uuid,jsonb,text,text) to service_role;
 revoke execute on function public.acttub_complete_summary_run(uuid,uuid,uuid,jsonb,jsonb) from public,anon,authenticated;
 revoke execute on function public.acttub_complete_report_run(uuid,uuid,uuid,jsonb) from public,anon,authenticated;
+
+revoke execute on function public.acttub_claim_ai_run(uuid,uuid,text,uuid,text,integer,text,text,text,text) from public,anon,authenticated;
+grant execute on function public.acttub_claim_ai_run(uuid,uuid,text,uuid,text,integer,text,text,text,text) to service_role;
