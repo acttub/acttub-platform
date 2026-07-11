@@ -9,6 +9,7 @@ import { getCurrentConsentVersions, requireCurrentAiProcessingConsent } from "./
 import { coachSessionService } from "./coach-session-service";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { getAppConfig } from "@/lib/config/env";
+import { countReportableActorTurns } from "../ai-pipeline-runtime-rules.js";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{12}$/i;
 const unknownAnswers = new Set(["모르겠어요", "잘 모르겠어요", "unknown"]);
@@ -40,8 +41,7 @@ const currentInput = (command: CurrentInput["command"], extras: Partial<CurrentI
   ...extras,
 });
 
-const actorTurnCount = (session: PipelineSessionAggregate) =>
-  session.transcript.filter((item) => item.role === "actor" && (item.kind === "answer" || item.kind === "unknown")).length;
+const actorTurnCount = (session: PipelineSessionAggregate) => countReportableActorTurns(session.transcript);
 
 const ensureMutableInterviewSession = (session: PipelineSessionAggregate) => {
   if (session.interviewStatus === "completed" || session.interviewStatus === "completed_without_report")
