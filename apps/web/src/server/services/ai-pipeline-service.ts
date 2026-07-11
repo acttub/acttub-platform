@@ -41,7 +41,7 @@ const currentInput = (command: CurrentInput["command"], extras: Partial<CurrentI
 });
 
 const actorTurnCount = (session: PipelineSessionAggregate) =>
-  session.transcript.filter((item) => item.role === "actor").length;
+  session.transcript.filter((item) => item.role === "actor" && (item.kind === "answer" || item.kind === "unknown")).length;
 
 const ensureMutableInterviewSession = (session: PipelineSessionAggregate) => {
   if (session.interviewStatus === "completed" || session.interviewStatus === "completed_without_report")

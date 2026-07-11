@@ -28,14 +28,48 @@ const compareRuns=(a:AiRun,b:AiRun)=>((a.completedAt??a.startedAt??"").localeCom
 const section=(v:unknown,op:string,name:string):ReportSection=>{const r=object(v,op,name);exact(r,["status","content","observationEvidenceIds","turnEvidenceIds","timestampRange"],op,name);const status=enumValue(r.status,["confirmed","not_confirmed"] as const,op,`${name}.status`),content=nullableText(r.content,op,`${name}.content`),observationEvidenceIds=idList(r.observationEvidenceIds,op,`${name}.observationEvidenceIds`),turnEvidenceIds=idList(r.turnEvidenceIds,op,`${name}.turnEvidenceIds`),range=r.timestampRange===null?null:object(r.timestampRange,op,`${name}.timestampRange`);if(status==="confirmed"&&(!content?.trim()||observationEvidenceIds.length+turnEvidenceIds.length===0))fail(op,`${name}.confirmed`);if(status==="not_confirmed"&&(content!==null||observationEvidenceIds.length||turnEvidenceIds.length||range!==null))fail(op,`${name}.notConfirmed`);let timestampRange:null|{startMs:number;endMs:number}=null;if(range){exact(range,["startMs","endMs"],op,`${name}.timestampRange`);const startMs=integer(range.startMs,op,`${name}.startMs`),endMs=integer(range.endMs,op,`${name}.endMs`);if(endMs<startMs)fail(op,`${name}.timestampOrder`);timestampRange={startMs,endMs}}return{status,content,observationEvidenceIds,turnEvidenceIds,timestampRange}};
 type ReportSessionContext = Pick<PipelineSessionAggregate,"reportEvidenceObservationIds"|"reportEvidenceAnswerTurnIds"|"observations"|"corrections"|"transcript">;
 const report=(r:Row,op:string):ImmutableAiReport=>{if(r.schema_version!=="report.v1")fail(op,"report.schemaVersion");const mapped:ImmutableAiReport={sessionId:uuid(r.session_id,op,"report.sessionId"),sourceRunId:uuid(r.source_run_id,op,"report.sourceRunId"),schemaVersion:"report.v1",completionReason:enumValue(r.completion_reason,["interview_complete_report_ready","manual_stop_report_ready","manual_stop_paused","hard_limit_report_ready","insufficient_confirmed_evidence","insufficient_interview_evidence"],op,"report.completionReason"),oneLineSummary:section(r.one_line_summary,op,"oneLineSummary"),primaryReviewPoint:section(r.primary_review_point,op,"primaryReviewPoint"),confirmedEvidence:section(r.confirmed_evidence,op,"confirmedEvidence"),actorDiscovery:section(r.actor_discovery,op,"actorDiscovery"),groundedEncouragement:section(r.grounded_encouragement,op,"groundedEncouragement"),nextPracticeStep:section(r.next_practice_step,op,"nextPracticeStep"),createdAt:text(r.created_at,op,"report.createdAt")};if(mapped.oneLineSummary.status!=="confirmed"||mapped.primaryReviewPoint.status!=="confirmed"||mapped.confirmedEvidence.status!=="confirmed"||mapped.completionReason==="manual_stop_paused"||mapped.completionReason.startsWith("insufficient_"))fail(op,"report.invariants");return mapped};
-const reportForSession=(r:Row,op:string,session:ReportSessionContext):ImmutableAiReport=>{const mapped=report(r,op),selectedObservationIds=new Set(session.reportEvidenceObservationIds),selectedAnswerIds=new Set(session.reportEvidenceAnswerTurnIds),selectedAnswerTurnIds=new Set(session.transcript.filter((turn)=>turn.role==="actor"&&turn.kind==="answer"&&turn.reportEvidenceSelected).map((turn)=>turn.id)),correctionTurnIds=new Set(session.corrections.map((item)=>item.correctionByTurnId)),observationSegments=new Map(session.observations.map((item)=>[item.id,{startMs:item.startMs,endMs:item.endMs}] as const)),correctionSegments=new Map(session.corrections.map((item)=>[item.correctionByTurnId,item.segment] as const));if(session.reportEvidenceAnswerTurnIds.some((id)=>!selectedAnswerTurnIds.has(id)))fail(op,"report.selectedEvidence");const validate=(section:ReportSection,key:string)=>{if(section.status==="not_confirmed"){if(section.content!==null||section.observationEvidenceIds.length||section.turnEvidenceIds.length||section.timestampRange!==null)fail(op,`${key}.notConfirmed`);return}const turnIds=section.turnEvidenceIds,observationIds=section.observationEvidenceIds;const turnSources=(key==="oneLineSummary"||key==="confirmedEvidence")?turnIds.every((id)=>selectedAnswerIds.has(id)):turnIds.every((id)=>selectedAnswerIds.has(id)||correctionTurnIds.has(id));if(observationIds.some((id)=>!selectedObservationIds.has(id))||!turnSources)fail(op,`${key}.evidence`);const sourceSegments=[...observationIds.map((id)=>observationSegments.get(id)),...((key==="oneLineSummary"||key==="confirmedEvidence")?[]:turnIds.filter((id)=>correctionSegments.has(id)).map((id)=>correctionSegments.get(id)))].filter((value):value is {startMs:number;endMs:number}=>Boolean(value));if((sourceSegments.length===0?section.timestampRange!==null:section.timestampRange===null))fail(op,`${key}.timestampRequired`);if(key==="primaryReviewPoint"&&turnIds.length)fail(op,`${key}.turnEvidence`);if((key==="oneLineSummary"||key==="confirmedEvidence")&&(turnIds.length===0||observationIds.length===0))fail(op,`${key}.selectedEvidence`);if(key==="primaryReviewPoint"&&observationIds.length===0)fail(op,`${key}.selectedEvidence`);if(key==="actorDiscovery"&&turnIds.length===0)fail(op,`${key}.selectedEvidence`);if(key==="groundedEncouragement"&&observationIds.length===0)fail(op,`${key}.selectedEvidence`);if(key==="oneLineSummary"||key==="confirmedEvidence"){if(turnIds.some((id)=>!selectedAnswerIds.has(id)))fail(op,`${key}.turnEvidence`);if(!sourceSegments.some((segment)=>segment.startMs===section.timestampRange!.startMs&&segment.endMs===section.timestampRange!.endMs))fail(op,`${key}.timestampRange`);return}if(key==="primaryReviewPoint"){if(!sourceSegments.some((segment)=>segment.startMs===section.timestampRange!.startMs&&segment.endMs===section.timestampRange!.endMs))fail(op,`${key}.timestampRange`);return}const turnSegments=turnIds.flatMap((id)=>correctionSegments.has(id)?[correctionSegments.get(id)!]:[]);if(![...observationIds.map((id)=>observationSegments.get(id)),...turnSegments].filter((value):value is {startMs:number;endMs:number}=>Boolean(value)).some((segment)=>segment.startMs===section.timestampRange!.startMs&&segment.endMs===section.timestampRange!.endMs))fail(op,`${key}.timestampRange`)};
-validate(mapped.oneLineSummary,"oneLineSummary");
-validate(mapped.primaryReviewPoint,"primaryReviewPoint");
-validate(mapped.confirmedEvidence,"confirmedEvidence");
-validate(mapped.actorDiscovery,"actorDiscovery");
-validate(mapped.groundedEncouragement,"groundedEncouragement");
-validate(mapped.nextPracticeStep,"nextPracticeStep");
-return mapped};
+const reportForSession = (r: Row, op: string, session: ReportSessionContext): ImmutableAiReport => {
+  const mapped = report(r, op);
+  const selectedObservationIds = new Set(session.reportEvidenceObservationIds);
+  const selectedAnswerIds = new Set(session.reportEvidenceAnswerTurnIds);
+  const selectedAnswerTurnIds = new Set(session.transcript.filter((turn) => turn.role === "actor" && turn.kind === "answer" && turn.reportEvidenceSelected).map((turn) => turn.id));
+  const correctionTurnIds = new Set(session.corrections.map((item) => item.correctionByTurnId));
+  const observationSegments = new Map(session.observations.map((item) => [item.id, { startMs: item.startMs, endMs: item.endMs }] as const));
+  const correctionSegments = new Map(session.corrections.map((item) => [item.correctionByTurnId, item.segment] as const));
+  if (session.reportEvidenceAnswerTurnIds.some((id) => !selectedAnswerTurnIds.has(id))) fail(op, "report.selectedEvidence");
+  const validate = (section: ReportSection, key: string) => {
+    if (section.status === "not_confirmed") {
+      if (section.content !== null || section.observationEvidenceIds.length || section.turnEvidenceIds.length || section.timestampRange !== null) fail(op, `${key}.notConfirmed`);
+      return;
+    }
+    const turnIds = section.turnEvidenceIds;
+    const observationIds = section.observationEvidenceIds;
+    const turnSources = key === "oneLineSummary" || key === "confirmedEvidence"
+      ? turnIds.every((id) => selectedAnswerIds.has(id))
+      : turnIds.every((id) => selectedAnswerIds.has(id) || correctionTurnIds.has(id));
+    if (observationIds.some((id) => !selectedObservationIds.has(id)) || !turnSources) fail(op, `${key}.evidence`);
+    if (key === "oneLineSummary" || key === "confirmedEvidence") {
+      if (turnIds.length === 0 || observationIds.length === 0) fail(op, `${key}.selectedEvidence`);
+    } else if (key === "primaryReviewPoint") {
+      if (observationIds.length === 0 || turnIds.length) fail(op, `${key}.selectedEvidence`);
+    } else if (key === "actorDiscovery") {
+      if (turnIds.length === 0) fail(op, `${key}.selectedEvidence`);
+    } else if (key === "groundedEncouragement") {
+      if (observationIds.length === 0) fail(op, `${key}.selectedEvidence`);
+    }
+    const sourceSegments = [...observationIds.map((id) => observationSegments.get(id)), ...((key === "oneLineSummary" || key === "confirmedEvidence") ? [] : turnIds.map((id) => correctionSegments.get(id))).filter((value): value is { startMs: number; endMs: number } => Boolean(value))].filter((value): value is { startMs: number; endMs: number } => Boolean(value));
+    if (key === "primaryReviewPoint" && section.timestampRange === null) fail(op, `${key}.timestampRequired`);
+    if (section.timestampRange !== null && !sourceSegments.some((segment) => segment.startMs === section.timestampRange!.startMs && segment.endMs === section.timestampRange!.endMs)) fail(op, `${key}.timestampRange`);
+  };
+  validate(mapped.oneLineSummary, "oneLineSummary");
+  validate(mapped.primaryReviewPoint, "primaryReviewPoint");
+  validate(mapped.confirmedEvidence, "confirmedEvidence");
+  validate(mapped.actorDiscovery, "actorDiscovery");
+  validate(mapped.groundedEncouragement, "groundedEncouragement");
+  validate(mapped.nextPracticeStep, "nextPracticeStep");
+  return mapped;
+};
+
 const rpc=async(op:string,args:Record<string,unknown>):Promise<Row>=>{const {data,error}=await admin().rpc(op,args);return rpcData(checked(error,data,op),op)};
 
 export const supabaseAiPipelineRepository={
