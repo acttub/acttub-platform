@@ -7,8 +7,8 @@ const source = readFileSync(path.resolve(import.meta.dirname, "../src/server/ser
 
 test("terminal agent turns are committed through the append pipeline transaction", () => {
   const callAgent = source.slice(source.indexOf("const callAgent"), source.lastIndexOf("\nreturn {\n"));
-  assert.match(callAgent, /completionStatus:\s*invoked\.done \|\| String\(invoked\.response\.action\) === "pause" \? \(invoked\.reportReady \? "completed" : String\(invoked\.response\.action\) === "pause" \? "paused" : "completed_without_report"\) : null/);
-  assert.match(callAgent, /deps\.repository\.appendPipelineTurn\(\{[\s\S]*completionStatus:[\s\S]*completionReason:\s*invoked\.done \|\| String\(invoked\.response\.action\) === "pause"/);
+  assert.match(callAgent, /completionStatus:\s*invoked\.done \|\| String\(invoked\.transportResponse\?\.action\) === "pause" \? \(invoked\.reportReady \? "completed" : String\(invoked\.transportResponse\?\.action\) === "pause" \? "paused" : "completed_without_report"\) : null/);
+  assert.match(callAgent, /deps\.repository\.appendPipelineTurn\(\{[\s\S]*completionStatus:[\s\S]*completionReason:\s*invoked\.done \|\| String\(invoked\.transportResponse\?\.action\) === "pause"/);
   assert.doesNotMatch(callAgent, /completeInterview\(\{/);
 });
 
