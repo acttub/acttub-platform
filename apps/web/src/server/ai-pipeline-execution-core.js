@@ -115,19 +115,20 @@ export const createAiPipelineExecutionCore = ({ claimRun, readRun, sleep: sleepI
       };
       if (run.status === "completed") {
         try {
-          return replay(run, claimed);
+          return await replay(run, claimed);
         } catch (error) {
           return tryRecover(error);
         }
       }
       if (!claimed.owned) {
+        if (run.status === "failed") throw new AiPipelineCoreError(run.safeErrorCode ?? "AI_RUN_FAILED");
         if ((run.status === "pending" || run.status === "running") && readRun) {
           let observed;
           try { observed = await waitForTerminal(run.id); }
           catch (error) { return tryRecover(error); }
           if (observed?.run.status === "completed") {
             try {
-              return replay(observed.run, observed);
+              return await replay(observed.run, observed);
             } catch (error) {
               return tryRecover(error);
             }
@@ -154,7 +155,7 @@ export const createAiPipelineExecutionCore = ({ claimRun, readRun, sleep: sleepI
         const committed = await readRun(run.id);
         if (committed?.run.status === "completed") {
           try {
-            return replay(committed.run, committed);
+            return await replay(committed.run, committed);
           } catch (error) {
             return tryRecover(error);
           }
