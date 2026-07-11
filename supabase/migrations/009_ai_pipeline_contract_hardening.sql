@@ -1,6 +1,8 @@
 -- Forward-only contract hardening for the AI pipeline.
 -- This migration tightens source-only invariants without widening the privilege surface.
 
+alter table public.ai_runs add column if not exists request_payload_fingerprint text;
+
 create or replace function public.acttub_confirm_observation(p_session_id uuid,p_user_id uuid,p_observation_id uuid,p_state text,p_correction text default null,p_correction_id uuid default null,p_turn_id uuid default null)
 returns setof public.observations language plpgsql security definer set search_path=public as $$ declare seq integer; begin
  perform 1 from public.practice_sessions where id=p_session_id and user_id=p_user_id and deletion_status='active' and (interview_status is null or interview_status in ('active','paused')) for update; if not found then raise exception 'session_not_mutable'; end if;
@@ -90,7 +92,7 @@ begin
  insert into public.interview_turns(id,session_id,user_id,sequence,role,kind,content,question_focus,source_observation_ids)
   values((agent->>'id')::uuid,p_session_id,p_user_id,(agent->>'sequence')::integer,'agent',agent->>'kind',agent->>'content',agent->>'questionFocus',array(select jsonb_array_elements_text(agent->'sourceObservationIds'))::uuid[]);
  update public.practice_sessions set substantive_answer_count=expected,interview_status='active',report_evidence_observation_ids=array(select jsonb_array_elements_text(p_payload->'reportEvidence'->'observationIds'))::uuid[],report_evidence_answer_turn_ids=array(select jsonb_array_elements_text(p_payload->'reportEvidence'->'answerTurnIds'))::uuid[],updated_at=now() where id=p_session_id;
- update public.ai_runs set status='completed',response_schema_version='agent-turn.v1',model=coalesce(nullif(trim(p_payload->>'model'),''),model),prompt_version=coalesce(nullif(trim(p_payload->>'promptVersion'),''),prompt_version),completed_at=coalesce(completed_at,now()),updated_at=now() where id=(p_payload->>'agentRunId')::uuid and session_id=p_session_id and user_id=p_user_id and stage='agent' and status in ('running','completed');
+ update public.ai_runs set status='completed',response_schema_version='agent-turn.v1',model=trim(p_payload->>'model'),prompt_version=p_payload->>'promptVersion',completed_at=now(),updated_at=now() where id=(p_payload->>'agentRunId')::uuid and session_id=p_session_id and user_id=p_user_id and stage='agent' and status='running' and length(trim(p_payload->>'model'))>0 and p_payload->>'promptVersion'='acting-agent.prompt.v2';
  if not found then raise exception 'agent_run_not_running'; end if;
  if completion_status_value is not null then
   select array_agg(kind order by sequence desc) into last_two_kinds
@@ -123,7 +125,7 @@ returns jsonb language plpgsql security definer set search_path=public as $$ dec
  if stat='completed' then if cardinality(obs)=0 or cardinality(turns)=0 or exists(select 1 from unnest(obs) x where not exists(select 1 from public.observations o where o.id=x and o.session_id=p_session_id and o.user_id=p_user_id and o.confirmation_state='accepted' and not o.blocked_for_questioning)) or exists(select 1 from unnest(turns) x where not exists(select 1 from public.interview_turns t where t.id=x and t.session_id=p_session_id and t.user_id=p_user_id and t.role='actor' and t.kind='answer' and length(trim(t.content))>0 and t.report_evidence_selected)) then raise exception 'invalid_report_evidence'; end if; else if cardinality(obs)<>0 or cardinality(turns)<>0 then raise exception 'evidence_not_allowed'; end if; end if;
  update public.practice_sessions set interview_status=stat,completion_reason=reason,report_evidence_observation_ids=obs,report_evidence_answer_turn_ids=turns,updated_at=now() where id=p_session_id;
  if agent_run_id is not null and length(trim(agent_run_id))>0 then
-  update public.ai_runs set status='completed',response_schema_version='agent-turn.v1',model=coalesce(nullif(trim(p_payload->>'model'),''),model),prompt_version=coalesce(nullif(trim(p_payload->>'promptVersion'),''),prompt_version),completed_at=coalesce(completed_at,now()),updated_at=now() where id=agent_run_id::uuid and session_id=p_session_id and user_id=p_user_id and stage='agent' and status in ('running','completed');
+  update public.ai_runs set status='completed',response_schema_version='agent-turn.v1',model=trim(p_payload->>'model'),prompt_version=p_payload->>'promptVersion',completed_at=now(),updated_at=now() where id=agent_run_id::uuid and session_id=p_session_id and user_id=p_user_id and stage='agent' and status='running' and length(trim(p_payload->>'model'))>0 and p_payload->>'promptVersion'='acting-agent.prompt.v2';
   if not found then raise exception 'agent_run_not_running'; end if;
  end if;
  return jsonb_build_object('status',stat,'completion_reason',reason);
@@ -207,7 +209,7 @@ returns jsonb language plpgsql security definer set search_path=public as $$ dec
   end if;
  end loop;
  insert into public.ai_reports(session_id,user_id,source_run_id,schema_version,completion_reason,one_line_summary,primary_review_point,confirmed_evidence,actor_discovery,grounded_encouragement,next_practice_step) select p_session_id,p_user_id,p_run_id,'report.v1',completion_reason,sec->'oneLineSummary',sec->'primaryReviewPoint',sec->'confirmedEvidence',sec->'actorDiscovery',sec->'groundedEncouragement',sec->'nextPracticeStep' from public.practice_sessions where id=p_session_id;
- update public.ai_runs set status='completed',response_schema_version='report.v1',model=p_model,prompt_version=p_prompt_version,completed_at=now(),updated_at=now() where id=p_run_id and session_id=p_session_id and user_id=p_user_id and status='running'; if not found then raise exception 'report_run_conflict'; end if;
+ update public.ai_runs set status='completed',response_schema_version='report.v1',model=p_model,prompt_version=p_prompt_version,completed_at=now(),updated_at=now() where id=p_run_id and session_id=p_session_id and user_id=p_user_id and status='running' and length(trim(p_model))>0 and p_prompt_version='acting-report.prompt.v2'; if not found then raise exception 'report_run_conflict'; end if;
  return p_report;
 end $$;
 
@@ -220,3 +222,6 @@ revoke execute on function public.acttub_complete_report_run(uuid,uuid,uuid,json
 
 revoke execute on function public.acttub_claim_ai_run(uuid,uuid,text,uuid,text,integer,text,text,text,text) from public,anon,authenticated;
 grant execute on function public.acttub_claim_ai_run(uuid,uuid,text,uuid,text,integer,text,text,text,text) to service_role;
+revoke execute on function public.acttub_claim_ai_run(uuid,uuid,text,uuid,text,integer,text,text,text) from public,anon,authenticated;
+revoke execute on function public.acttub_complete_summary_run(uuid,uuid,uuid,jsonb,jsonb) from public,anon,authenticated;
+revoke execute on function public.acttub_complete_report_run(uuid,uuid,uuid,jsonb) from public,anon,authenticated;
