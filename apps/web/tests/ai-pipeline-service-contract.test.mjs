@@ -6,7 +6,7 @@ import test from "node:test";
 const source = readFileSync(path.resolve(import.meta.dirname, "../src/server/services/ai-pipeline-service.ts"), "utf8");
 
 test("terminal agent turns are committed through the append pipeline transaction", () => {
-  const callAgent = source.slice(source.indexOf("const callAgent"), source.indexOf("return {"));
+  const callAgent = source.slice(source.indexOf("const callAgent"), source.lastIndexOf("\nreturn {\n"));
   assert.match(callAgent, /completionStatus = done \|\| action === "pause" \? \(response\.reportReady \? "completed" : action === "pause" \? "paused" : "completed_without_report"\) : null/);
   assert.match(callAgent, /deps\.repository\.appendPipelineTurn\(\{[\s\S]*completionStatus,[\s\S]*completionReason: completionStatus \? response\.completionReason as never : null/);
   assert.doesNotMatch(callAgent, /completeInterview\(\{/);

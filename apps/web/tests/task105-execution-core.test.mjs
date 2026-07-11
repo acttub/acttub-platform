@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { fingerprintJson } from "../src/server/ai-pipeline-fingerprint.js";
 import { applyOwnerSessionScope } from "../src/server/session-visibility.js";
-import { createAiPipelineExecutionCore, fingerprintAgentClaim, fingerprintJson, buildAgentClaimPayload, interviewProgress, assertExpectedInterviewProgress, assertTerminalAtConversationLimit, sanitizePublicAiPipelineAggregate } from "../src/server/ai-pipeline-execution-core.js";
+import { createAiPipelineExecutionCore, fingerprintAgentClaim, buildAgentClaimPayload, interviewProgress, assertExpectedInterviewProgress, assertTerminalAtConversationLimit, sanitizePublicAiPipelineAggregate } from "../src/server/ai-pipeline-execution-core.js";
 
 class FakeQuery {
   constructor(calls = []) { this.calls = calls; }
@@ -15,7 +16,7 @@ test("fingerprint module canonicalizes plain JSON and rejects unsafe inputs", ()
   const digest = fingerprintJson(left);
   assert.equal(digest, fingerprintJson(right));
   assert.match(digest, /^[0-9a-f]{64}$/);
-  assert.ok(!digest.toUpperCase().match(/^[0-9A-F]{64}$/));
+  assert.ok(!/[A-F]/.test(digest));
   for (const bad of [undefined, () => {}, new Date(), NaN, Infinity, { x: undefined }, { x: Symbol("x") }]) {
     assert.throws(() => fingerprintJson(bad), /invalid_fingerprint_payload/);
   }

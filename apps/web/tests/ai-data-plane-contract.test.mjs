@@ -125,11 +125,11 @@ test("forward migration hardens AI run metadata persistence and mutable confirma
   assert.match(migration009, /reason='interview_complete_report_ready' and n<5 and not \(coalesce\(array_length\(last_two_kinds,1\),0\)=2 and last_two_kinds\[1\]='unknown' and last_two_kinds\[2\]='unknown'\)/);
   assert.match(migration009, /reason='hard_limit_report_ready' and conversation_count<>10/);
   assert.match(migration009, /reason='insufficient_interview_evidence' and conversation_count<>10 and n<5 and not \(coalesce\(array_length\(last_two_kinds,1\),0\)=2 and last_two_kinds\[1\]='unknown' and last_two_kinds\[2\]='unknown'\)/);
-  assert.match(migration009, /t\.kind='actor_correction'/);
+  assert.doesNotMatch(migration009, /t\.kind='actor_correction'/);
   assert.match(migration009, /primaryReviewPoint[\s\S]*timestampRange'='null'::jsonb/);
   assert.match(migration009, /oneLineSummary[\s\S]*t\.kind='answer'[\s\S]*t\.report_evidence_selected/);
   assert.match(migration009, /actorDiscovery/);
-  assert.match(migration009, /groundedEncouragement[\s\S]*actor_correction/);
+  assert.doesNotMatch(migration009, /groundedEncouragement[\s\S]*actor_correction/);
   assert.match(migration009, /nextPracticeStep[\s\S]*jsonb_array_length\(e\.value->'observationEvidenceIds'\)\+jsonb_array_length\(e\.value->'turnEvidenceIds'\)=0/);
   assert.match(migration009, /primaryReviewPoint[\s\S]*timestampRange'='null'::jsonb/);
   assert.match(migration009, /oneLineSummary[\s\S]*jsonb_array_length\(e\.value->'turnEvidenceIds'\)=0/);
