@@ -43,13 +43,7 @@ const validateTimestampRange = ({ key, section, observationIds, turnIds, observa
   }
   const range = section.timestampRange;
   if (typeof range.startMs !== "number" || typeof range.endMs !== "number" || range.endMs < range.startMs) fail("invalid_report_timestamp");
-  const sourceSegments =
-    key === "primaryReviewPoint"
-      ? observationIds.map((id) => observationSegments.get(id)).filter(Boolean)
-      : [
-          ...observationIds.map((id) => observationSegments.get(id)).filter(Boolean),
-          ...turnIds.map((id) => correctionSegments.get(id)).filter(Boolean),
-        ];
+  const sourceSegments = observationIds.map((id) => observationSegments.get(id)).filter(Boolean);
   if (!matchTimestamp(range, sourceSegments)) fail("invalid_report_timestamp");
 };
 
@@ -71,7 +65,7 @@ export const validateReportSectionLineage = ({
   if ([...selectedAnswers].some((id) => !selectedAnswerTurns.has(id))) fail("invalid_report_evidence");
   const obsIds = section.observationEvidenceIds ?? [];
   const turnIds = section.turnEvidenceIds ?? [];
-  const allowedTurnIds = new Set([...selectedAnswerTurns, ...corrections]);
+  const allowedTurnIds = new Set(selectedAnswerTurns);
   const hasSelectedAnswer = turnIds.some((id) => selectedAnswerTurns.has(id));
   const allTurnRefsAllowed = turnIds.every((id) => allowedTurnIds.has(id));
   const hasSelectedAnswerOutsideEvidence = turnIds.some((id) => selectedAnswerTurns.has(id) && !selectedAnswers.has(id));
