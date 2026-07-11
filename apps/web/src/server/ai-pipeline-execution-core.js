@@ -59,7 +59,15 @@ export const assertExpectedInterviewProgress = ({ actual, expectedSubstantiveAns
 
 export const assertTerminalAtConversationLimit = ({ actual, completionReason = null, done = null, fail = defaultFail }) => {
   if (actual.totalReportableActorCount < 10) return;
-  if (done !== true) fail(completionReason === "hard_limit_report_ready" ? "invalid_completion_count" : "nonterminal_tenth_turn");
+  if (completionReason === "hard_limit_report_ready") {
+    if (done !== true) fail("invalid_completion_count");
+    return;
+  }
+  if (completionReason === "insufficient_interview_evidence") {
+    if (done !== false) fail("nonterminal_tenth_turn");
+    return;
+  }
+  fail("invalid_completion_count");
 };
 
 export const sanitizePublicAiPipelineAggregate = (value) => {
@@ -90,33 +98,62 @@ export const createAiPipelineExecutionCore = ({ claimRun, readRun, sleep: sleepI
     async run({ claim, invoke, persist, replay, recover, providerFailure, persistenceFailure }) {
       const claimed = claim ? await claim() : await claimRun();
       const run = claimed.run;
-      if (run.status === "completed") return replay(run, claimed);
+      const tryRecover = async (error) => {
+        if (recover) {
+          const recovered = await recover(error, run, claimed);
+          if (recovered !== null && recovered !== undefined) return recovered;
+        }
+        if (persistenceFailure) return persistenceFailure(error, run, claimed);
+        throw error;
+      };
+      if (run.status === "completed") {
+        try {
+          return replay(run, claimed);
+        } catch (error) {
+          return tryRecover(error);
+        }
+      }
       if (!claimed.owned) {
         if (run.status === "running" && readRun) {
           const observed = await waitForTerminal(run.id);
-          if (observed?.run.status === "completed") return replay(observed.run, observed);
+          if (observed?.run.status === "completed") {
+            try {
+              return replay(observed.run, observed);
+            } catch (error) {
+              return tryRecover(error);
+            }
+          }
           if (observed?.run.status === "failed") throw new AiPipelineCoreError(observed.run.safeErrorCode ?? "AI_RUN_ALREADY_CLAIMED");
         }
         throw new AiPipelineCoreError("AI_RUN_ALREADY_CLAIMED");
       }
       if (run.status !== "running") throw new AiPipelineCoreError(run.status === "failed" ? (run.safeErrorCode ?? "AI_RUN_FAILED") : "AI_RUN_NOT_RUNNING");
+      let invoked;
       try {
-        const invoked = await invoke(run, claimed);
-        try {
-          await persist(invoked, run, claimed);
-        } catch (error) {
-          const recovered = await recover(error, run, claimed);
-          if (recovered !== null && recovered !== undefined) return replay(recovered, claimed);
-          if (persistenceFailure) return persistenceFailure(error, run, claimed);
-          throw error;
-        }
-        const committed = readRun ? await readRun(run.id) : null;
-        if (committed?.run.status === "completed") return replay(committed.run, committed);
-        return invoked;
+        invoked = await invoke(run, claimed);
       } catch (error) {
         if (providerFailure) return providerFailure(error, run, claimed);
         throw error;
       }
+      try {
+        await persist(invoked, run, claimed);
+      } catch (error) {
+        return tryRecover(error);
+      }
+      if (!readRun) return invoked;
+      try {
+        const committed = await readRun(run.id);
+        if (committed?.run.status === "completed") {
+          try {
+            return replay(committed.run, committed);
+          } catch (error) {
+            return tryRecover(error);
+          }
+        }
+      } catch (error) {
+        return tryRecover(error);
+      }
+      return invoked;
     },
   };
 };
