@@ -97,6 +97,9 @@ test("forward migration hardens AI run metadata persistence and mutable confirma
   assert.match(migration009, /select count\(\*\) into conversation_count from public\.interview_turns where session_id=p_session_id and user_id=p_user_id and role='actor' and kind in \('answer','unknown'\)/);
   assert.match(migration009, /if conversation_count<>\(p_payload->>'expectedTotalConversationCount'\)::integer then raise exception 'turn_conflict'; end if;/);
   assert.match(migration009, /if conversation_count>=10 then raise exception 'turn_conflict'; end if;/);
+  assert.match(migration009, /completionStatus/);
+  assert.match(migration009, /completionReason/);
+  assert.match(migration009, /interview_status=completion_status_value,completion_reason=completion_reason_value,report_evidence_observation_ids=obs,report_evidence_answer_turn_ids=turns/);
   assert.match(migration009, /update public\.ai_runs set status='completed',response_schema_version='agent-turn\.v1',model=coalesce\(nullif\(trim\(p_payload->>'model'\),''\),model\),prompt_version=coalesce\(nullif\(trim\(p_payload->>'promptVersion'\),''\),prompt_version\),completed_at=coalesce\(completed_at,now\(\)\),updated_at=now\(\)/);
   assert.match(migration009, /create or replace function public\.acttub_complete_interview\(p_session_id uuid,p_user_id uuid,p_payload jsonb\)/);
   assert.match(migration009, /agentRunId/);
