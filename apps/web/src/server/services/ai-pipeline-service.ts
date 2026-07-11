@@ -360,7 +360,7 @@ type AgentExecutionResult = ReturnType<typeof replayCommittedAgentOutcome> & {
   persistedInput: CurrentInput;
 };
 
-const callAgent = async (session: PipelineSessionAggregate, userId: string, input: CurrentInput, expectedSubstantiveAnswerCount = session.substantiveAnswerCount, expectedTotalConversationCount = actorTurnCount(session), requestId = crypto.randomUUID()) => {
+const callAgent = async (session: PipelineSessionAggregate, userId: string, input: CurrentInput, expectedSubstantiveAnswerCount = session.substantiveAnswerCount, expectedTotalConversationCount = actorTurnCount(session), requestId = session.sessionId) => {
   await deps.requireCurrentAiProcessingConsent(userId);
   if (!UUID.test(requestId) || !Number.isInteger(expectedSubstantiveAnswerCount) || expectedSubstantiveAnswerCount < 0 || !Number.isInteger(expectedTotalConversationCount) || expectedTotalConversationCount < 0 || expectedSubstantiveAnswerCount > expectedTotalConversationCount || expectedTotalConversationCount > 10) throw new AiPipelineError(400, "INVALID_INTERVIEW_TURN");
   const runId = crypto.randomUUID();
@@ -484,6 +484,7 @@ return Object.freeze({
   },
   async startInterview(sessionId: string, userId: string) {
     const session = await aggregate(sessionId, userId);
+    if (session.interviewStatus === "completed_without_report" && session.completionReason === "insufficient_confirmed_evidence") return { done: true, completionReason: "insufficient_confirmed_evidence", reportReady: false };
     if (!session.observations.some((item) => item.confirmationState === "accepted" && !item.blockedForQuestioning)) { await deps.repository.completeInterview({ sessionId, userId, status: "completed_without_report", completionReason: "insufficient_confirmed_evidence", observationIds: [], answerTurnIds: [] }); return { done: true, completionReason: "insufficient_confirmed_evidence", reportReady: false }; }
     return callAgent(session, userId, currentInput("start"));
   },
@@ -495,7 +496,7 @@ return Object.freeze({
     return callAgent(session, userId, currentInput("answer", { answer }), Number(payload.expectedSubstantiveAnswerCount), Number(payload.expectedTotalConversationCount), payload.requestId);
   },
   async stopInterview(sessionId: string, userId: string) { const session = await aggregate(sessionId, userId); return callAgent(session, userId, currentInput("manual_stop")); },
-  async resumeInterview(sessionId: string, userId: string) { const session = await aggregate(sessionId, userId); if (session.interviewStatus !== "paused") throw new AiPipelineError(409, "INTERVIEW_NOT_PAUSED"); return callAgent(session, userId, currentInput("resume")); },
+  async resumeInterview(sessionId: string, userId: string) { const session = await aggregate(sessionId, userId); return callAgent(session, userId, currentInput("resume")); },
   async getReport(sessionId: string, userId: string) { const session = await aggregate(sessionId, userId); if (!session.report) throw new AiPipelineError(404, "REPORT_NOT_FOUND"); return session.report; },
   async retryReport(sessionId: string, userId: string) {
     const session = await aggregate(sessionId, userId);

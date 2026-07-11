@@ -102,3 +102,26 @@ test("production service freezes its API and snapshots caller-owned dependencies
   assert.equal(Object.isFrozen(service), true);
   assert.equal((await service.getSession(ids.session, ids.user)).sessionId, ids.session);
 });
+
+test("repeated start stop and resume replay stable completed command claims without provider calls", async () => {
+  const createAiPipelineService = await loadServiceFactory();
+  for (const command of ["start", "manual_stop", "resume"]) {
+    const session = baseSession();
+    session.observations.push({ id: "00000000-0000-4000-8000-000000000110", candidateId: "00000000-0000-4000-8000-000000000111", sourceRunId: ids.summaryRun, confirmationState: "accepted", blockedForQuestioning: false, priority: 1, startMs: 0, endMs: 100, text: "evidence", dimension: "voice", severity: "mid" });
+    const responsePayload = { actorTurn: null, agentTurn: { id: "00000000-0000-4000-8000-000000000112", sequence: 0, role: "agent", kind: "question", content: "next", questionFocus: "ask_followup", groundingStartMs: null, groundingEndMs: null, sourceObservationIds: [], reportEvidenceSelected: false }, done: false, completionReason: null, reportReady: false, reportEvidence: { observationIds: [], answerTurnIds: [] } };
+    const run = { id: "00000000-0000-4000-8000-000000000113", sessionId: ids.session, userId: ids.user, stage: "agent", status: "completed", idempotencyKey: `${command}:0:0`, attempt: 1, maxAttempts: 2, requestSchemaVersion: "agent-turn.v1", responseSchemaVersion: "agent-turn.v1", requestPayloadFingerprint: "a".repeat(64), responsePayload, model: "agent-model", promptVersion: "acting-agent.prompt.v2", safeErrorCode: null, retryable: false, startedAt: "2026-01-01T00:00:00Z", completedAt: "2026-01-01T00:00:01Z", updatedAt: "2026-01-01T00:00:01Z" };
+    session.runs.push(run);
+    let providerCalls = 0;
+    let fingerprint = null;
+    const repository = {
+      async findPipelineSessionForOwner() { return structuredClone(session); },
+      async claimRun(input) { fingerprint ??= input.requestPayloadFingerprint; assert.equal(input.requestPayloadFingerprint, fingerprint); return { owned: false, run: structuredClone(run) }; },
+    };
+    const service = createAiPipelineService({ repository, createAiTransport: () => ({ agent: async () => { providerCalls += 1; throw new Error("provider must not run"); } }), loadAiServiceConfig: () => ({}), requireCurrentAiProcessingConsent: async () => {}, getCurrentConsentVersions: async () => ({}), coachSessionService: {}, createSupabaseAdminClient: () => null, getAppConfig: () => ({ video: { bucket: "practice-videos" } }) });
+    const invoke = command === "start" ? () => service.startInterview(ids.session, ids.user) : command === "manual_stop" ? () => service.stopInterview(ids.session, ids.user) : () => service.resumeInterview(ids.session, ids.user);
+    const first = await invoke();
+    const second = await invoke();
+    assert.deepEqual(second, first);
+    assert.equal(providerCalls, 0);
+  }
+});

@@ -13,6 +13,7 @@ import type {
 } from "@/lib/api/types";
 import { getAppConfig } from "@/lib/config/env";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { applyOwnerSessionScope } from "@/server/session-visibility.js";
 
 export class SupabaseCoachSessionPersistenceError extends Error {
   constructor(
@@ -240,13 +241,10 @@ const mapUploadIntent = (row: JsonRecord): StoredUploadIntentRecord => {
 
 async function hydrateSession(sessionId: string, userId: string, includeHidden = false): Promise<CoachSessionDto | null> {
   const admin = requireSupabaseAdminClient();
-  let query = admin
+  const baseQuery = admin
     .from("practice_sessions")
-    .select(sessionSelect)
-    .eq("id", sessionId)
-    .eq("user_id", userId);
-
-  if (!includeHidden) query = query.is("hidden_at", null).eq("deletion_status", "active");
+    .select(sessionSelect);
+  const query = applyOwnerSessionScope(baseQuery, { sessionId, userId, visibility: includeHidden ? "internal" : "public" });
 
   const { data, error } = await query.maybeSingle();
   assertNoPersistenceError(error, "sessionId", "Could not read Supabase practice session");
@@ -628,11 +626,10 @@ export const supabaseCoachSessionRepository = {
 
     const admin = requireSupabaseAdminClient();
     const hiddenAt = hidden ? new Date().toISOString() : null;
-    const { data, error } = await admin
+    const mutation = admin
       .from("practice_sessions")
-      .update({ hidden_at: hiddenAt, updated_at: new Date().toISOString() })
-      .eq("id", sessionId)
-      .eq("user_id", userId)
+      .update({ hidden_at: hiddenAt, updated_at: new Date().toISOString() });
+    const { data, error } = await applyOwnerSessionScope(mutation, { sessionId, userId, visibility: "internal" })
       .select("id")
       .maybeSingle();
 
