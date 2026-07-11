@@ -9,6 +9,7 @@ const defaultFail = (code) => {
 export const countReportableActorTurns = (transcript) =>
   transcript.filter((item) => item.role === "actor" && reportableActorKinds.has(item.kind)).length;
 
+/** @param {{reason:string|null,substantiveAnswerCount:number,reportableActorCount:number,lastTwoReportableKinds?:string[],fail?:(code:string)=>void}} input */
 export const validateInterviewCompletionCount = ({
   reason,
   substantiveAnswerCount,

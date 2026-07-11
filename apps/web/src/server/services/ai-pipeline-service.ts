@@ -11,7 +11,7 @@ import { getCurrentConsentVersions, requireCurrentAiProcessingConsent } from "./
 import { coachSessionService } from "./coach-session-service";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { getAppConfig } from "@/lib/config/env";
-import { countReportableActorTurns } from "../ai-pipeline-runtime-rules.js";
+import { countReportableActorTurns, validateInterviewCompletionCount } from "../ai-pipeline-runtime-rules.js";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const unknownAnswers = new Set(["모르겠어요", "잘 모르겠어요", "unknown"]);
@@ -431,7 +431,10 @@ const callAgent = async (session: PipelineSessionAggregate, userId: string, inpu
       const done = response.done === true;
       const completionReason = response.completionReason === null ? null : isCompletionReason(response.completionReason) ? response.completionReason : (() => { throw new AiPipelineError(502, "AI_INVALID_RESPONSE"); })();
       const reportReady = response.reportReady === true;
-      assertTerminalAtConversationLimit({ actual: interviewProgress(requestSession.transcript), done, reportReady, completionReason, fail: (code) => { throw new AiPipelineError(409, code); } });
+      const progress = interviewProgress(requestSession.transcript);
+      const lastTwoReportableKinds = requestSession.transcript.filter((turn) => turn.role === "actor" && (turn.kind === "answer" || turn.kind === "unknown")).slice(-2).map((turn) => turn.kind);
+      validateInterviewCompletionCount({ reason: completionReason, substantiveAnswerCount: progress.substantiveAnswerCount, reportableActorCount: progress.totalReportableActorCount, lastTwoReportableKinds, fail: () => { throw new AiPipelineError(502, "AI_INVALID_RESPONSE"); } });
+      assertTerminalAtConversationLimit({ actual: progress, done, reportReady, completionReason, fail: () => { throw new AiPipelineError(502, "AI_INVALID_RESPONSE"); } });
       const reportEvidence = requireReportEvidence(response.reportEvidence);
       if (actorTurn) actorTurn.reportEvidenceSelected = actorTurn.kind === "answer" && reportEvidence.answerTurnIds.includes(actorTurn.id);
       const agentTurn: InterviewTurn = { id: crypto.randomUUID(), sequence: authoritativeSession.transcript.length + (actorTurn ? 1 : 0), role: "agent", kind: done ? "closing" : "question", content: String(response.utterance), questionFocus: action, groundingStartMs: null, groundingEndMs: null, sourceObservationIds: requireObservationIds(response.evidence), reportEvidenceSelected: false };
@@ -496,7 +499,7 @@ return Object.freeze({
     const proposedRunId=crypto.randomUUID();
     const core=executionCoreFor(deps,sessionId,userId);
     const result=await core.run<{session:PipelineSessionAggregate;summaryRun:AiRun;response:Record<string,unknown>|null}>({
-      claim:()=>claimRun({sessionId,userId,stage:"summary",runId:proposedRunId,idempotencyKey:`summary:${uploadIntentId}`,maxAttempts:1,requestSchemaVersion:"summary-request.v1",requestPayloadFingerprint:fingerprintJson(summaryClaimPayload(persisted)),model:"summary",promptVersion:"acting-summary.prompt.v2"}),
+      claim:()=>claimRun({sessionId,userId,stage:"summary",runId:proposedRunId,idempotencyKey:`summary:${uploadIntentId}`,maxAttempts:2,requestSchemaVersion:"summary-request.v1",requestPayloadFingerprint:fingerprintJson(summaryClaimPayload(persisted)),model:"summary",promptVersion:"acting-summary.prompt.v2"}),
       invoke:async(run)=>{await deps.requireCurrentAiProcessingConsent(userId);const admin=deps.createSupabaseAdminClient();if(!admin)throw new AiPipelineError(503,"SIGNED_VIDEO_UNAVAILABLE");const signed=await admin.storage.from(persisted.take.storageBucket).createSignedUrl(persisted.take.storagePath,deps.getAppConfig().video.signedUrlExpiresInSeconds);if(signed.error||!signed.data?.signedUrl)throw new AiServiceError("summary","NETWORK_ERROR",null,true);const request:SummaryRequest={schemaVersion:"summary-request.v1",sessionId,runId:run.id,signedVideoUrl:signed.data.signedUrl,storageBucket:persisted.take.storageBucket,storagePath:persisted.take.storagePath,durationMs:persisted.take.durationMs,sceneContext:persisted.sceneContext};await deps.requireCurrentAiProcessingConsent(userId);return{session:persisted,summaryRun:run,response:await deps.createAiTransport(deps.loadAiServiceConfig()).summary(request)}} ,
       persist:async(invoked,run)=>{const response=invoked.response;if(!response||!Array.isArray(response.observationCandidates)||!isNormalizedSummary(response.normalizedSummary))throw new AiPipelineError(502,"AI_INVALID_RESPONSE");const candidates=response.observationCandidates.map((value)=>{if(typeof value!=="object"||value===null)throw new AiPipelineError(502,"AI_INVALID_RESPONSE");const item=Object.fromEntries(Object.entries(value));const severity:"high"|"mid"|"low"|null=item.severity===null?null:item.severity==="high"||item.severity==="mid"||item.severity==="low"?item.severity:(()=>{throw new AiPipelineError(502,"AI_INVALID_RESPONSE")})();return{id:String(item.candidateId),startMs:Number(item.timestampStartMs),endMs:Number(item.timestampEndMs),text:String(item.observationText),priority:Number(item.priority),dimension:String(item.dimension),severity}});await deps.repository.completeSummaryRun({sessionId,userId,runId:run.id,normalizedSummary:response.normalizedSummary,candidates,model:String(response.model),promptVersion:String(response.promptVersion)})},
       replay:()=>{throw new AiPipelineError(503,"SUMMARY_RELOAD_REQUIRED")},
