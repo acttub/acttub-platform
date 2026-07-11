@@ -5,7 +5,7 @@ import type { AgentRequest, CurrentInput, ReportRequest, SummaryRequest } from "
 import { createAiTransport, AiServiceError } from "@/server/ai/transport";
 import { fingerprintJson } from "@/server/ai-pipeline-fingerprint.js";
 import { createAiPipelineExecutionCore, sanitizePublicAiPipelineAggregate } from "@/server/ai-pipeline-execution-core.js";
-import type { AiRun, ClaimRunResult, ImmutableAiReport, InterviewTurn, PipelineSessionAggregate } from "@/server/repositories/ai-pipeline-types";
+import type { AgentReplayPayload, AiRun, ClaimRunResult, ImmutableAiReport, InterviewTurn, PipelineSessionAggregate } from "@/server/repositories/ai-pipeline-types";
 import { AiPipelinePersistenceError, supabaseAiPipelineRepository as repository } from "@/server/repositories/supabase-ai-pipeline-repository";
 import { getCurrentConsentVersions, requireCurrentAiProcessingConsent } from "./auth-context";
 import { coachSessionService } from "./coach-session-service";
@@ -167,23 +167,34 @@ const agentClaimPayload = (
   expectedTotalConversationCount,
 });
 
-const replayCommittedAgentOutcome = async (sessionId: string, userId: string) => {
-  const committed = await aggregate(sessionId, userId);
-  const committedRun = [...committed.runs].reverse().find((run) => run.stage === "agent" && run.status === "completed" && run.responseSchemaVersion === "agent-turn.v1") ?? null;
-  if (committedRun?.responsePayload) return committedRun.responsePayload;
-  const actorTurn = [...committed.transcript].reverse().find((turn) => turn.role === "actor") ?? null;
-  const agentTurn = [...committed.transcript].reverse().find((turn) => turn.role === "agent") ?? null;
+const replayCommittedAgentOutcome = (session: PipelineSessionAggregate, committedRun: AiRun) => {
+  const response = (committedRun.responsePayload as AgentReplayPayload | null) ?? null;
+  if (response) {
+    return {
+      report: session.report,
+      response,
+      actorTurn: response.actorTurn,
+      agentTurn: response.agentTurn,
+      done: response.done,
+      completionReason: response.completionReason,
+      reportReady: response.reportReady,
+      reportEvidence: response.reportEvidence,
+    };
+  }
+  const actorTurn = [...session.transcript].reverse().find((turn) => turn.role === "actor") ?? null;
+  const agentTurn = [...session.transcript].reverse().find((turn) => turn.role === "agent") ?? null;
   return {
+    report: session.report,
+    response: null,
     actorTurn,
     agentTurn,
-    done: committed.interviewStatus === "completed" || committed.interviewStatus === "completed_without_report",
-    completionReason: committed.completionReason,
-    reportReady: committed.report !== null,
+    done: session.interviewStatus === "completed" || session.interviewStatus === "completed_without_report",
+    completionReason: session.completionReason,
+    reportReady: session.report !== null,
     reportEvidence: {
-      observationIds: committed.reportEvidenceObservationIds,
-      answerTurnIds: committed.reportEvidenceAnswerTurnIds,
+      observationIds: session.reportEvidenceObservationIds,
+      answerTurnIds: session.reportEvidenceAnswerTurnIds,
     },
-    report: committed.report,
   };
 };
 
@@ -221,12 +232,25 @@ const reportClaimPayload = (session: PipelineSessionAggregate) => ({
   },
 });
 
-type ReportExecutionResult = {
-  report: ImmutableAiReport | null;
-  response: Record<string, unknown>;
+type ReportTransportResponse = {
+  sections: {
+    oneLineSummary: ImmutableAiReport["oneLineSummary"];
+    primaryReviewPoint: ImmutableAiReport["primaryReviewPoint"];
+    confirmedEvidence: ImmutableAiReport["confirmedEvidence"];
+    actorDiscovery: ImmutableAiReport["actorDiscovery"];
+    groundedEncouragement: ImmutableAiReport["groundedEncouragement"];
+    nextPracticeStep: ImmutableAiReport["nextPracticeStep"];
+  };
+  model: unknown;
+  promptVersion: unknown;
 };
 
-const reportExecutionResult = (report: ImmutableAiReport | null, response: Record<string, unknown> = {}) => ({ report, response });
+type ReportExecutionResult = {
+  report: ImmutableAiReport | null;
+  response: ReportTransportResponse | null;
+};
+
+const reportExecutionResult = (report: ImmutableAiReport | null, response: ReportTransportResponse | null = null): ReportExecutionResult => ({ report, response });
 
 const generateReport = async (
   session: PipelineSessionAggregate,
