@@ -7,6 +7,10 @@ import { createAiPipelineExecutionCore, assertTerminalAtConversationLimit, inter
 import { fingerprintJson } from "../src/server/ai-pipeline-fingerprint.js";
 import { countReportableActorTurns } from "../src/server/ai-pipeline-runtime-rules.js";
 
+class FakePersistenceError extends Error {
+  constructor(field) { super(field); this.field = field; }
+}
+
 const loadServiceFactory = async () => {
   const sourcePath = path.resolve(import.meta.dirname, "../src/server/services/ai-pipeline-service.ts");
   const outputPath = path.resolve(import.meta.dirname, ".ai-pipeline-service.behavior.generated.mjs");
@@ -14,10 +18,10 @@ const loadServiceFactory = async () => {
   const preamble = `
 const { createAiPipelineExecutionCore, assertTerminalAtConversationLimit, interviewProgress, sanitizePublicAiPipelineAggregate, fingerprintJson, countReportableActorTurns } = globalThis.__task105ServiceImports;
 class AiServiceError extends Error { constructor(message, retryable = false) { super(message); this.retryable = retryable; } }
-class AiPipelinePersistenceError extends Error { constructor(field) { super(field); this.field = field; } }
+const AiPipelinePersistenceError = globalThis.__task105ServiceImports.AiPipelinePersistenceError;
 const repository = {}, createAiTransport = () => ({}), loadAiServiceConfig = () => ({}), requireCurrentAiProcessingConsent = async () => {}, getCurrentConsentVersions = async () => ({}), coachSessionService = {}, createSupabaseAdminClient = () => null, getAppConfig = () => ({ video: { bucket: "practice-videos" } });
 `;
-  globalThis.__task105ServiceImports = { createAiPipelineExecutionCore, assertTerminalAtConversationLimit, interviewProgress, sanitizePublicAiPipelineAggregate, fingerprintJson, countReportableActorTurns };
+  globalThis.__task105ServiceImports = { createAiPipelineExecutionCore, assertTerminalAtConversationLimit, interviewProgress, sanitizePublicAiPipelineAggregate, fingerprintJson, countReportableActorTurns, AiPipelinePersistenceError: FakePersistenceError };
   const compiled = ts.transpileModule(preamble + source, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 } }).outputText;
   await writeFile(outputPath, compiled);
   try {
@@ -147,5 +151,25 @@ test("authoritative stale substantive and total counts reject as 409 before prov
     await assert.rejects(service.addTurn(ids.session, ids.user, { answer: "answer", requestId: ids.request, expectedSubstantiveAnswerCount: 0, expectedTotalConversationCount: 0 }), (error) => error?.status === 409 && error?.code === "STALE_INTERVIEW_PROGRESS");
     assert.equal(providerCalls, 0);
     assert.equal(failCalls, 1);
+  }
+});
+
+test("same request key with changed answer or either expected count rejects fingerprint conflict before provider", async () => {
+  const createAiPipelineService = await loadServiceFactory();
+  for (const changed of [
+    { answer: "changed", requestId: ids.request, expectedSubstantiveAnswerCount: 0, expectedTotalConversationCount: 0 },
+    { answer: "answer", requestId: ids.request, expectedSubstantiveAnswerCount: 1, expectedTotalConversationCount: 1 },
+    { answer: "answer", requestId: ids.request, expectedSubstantiveAnswerCount: 0, expectedTotalConversationCount: 1 },
+  ]) {
+    const session = baseSession();
+    const expectedFingerprint = fingerprintJson({ schemaVersion: "agent-turn.v1", sessionId: ids.session, command: "answer", requestId: ids.request, answer: "answer", observationId: null, expectedSubstantiveAnswerCount: 0, expectedTotalConversationCount: 0 });
+    let providerCalls = 0;
+    const repository = {
+      async findPipelineSessionForOwner() { return structuredClone(session); },
+      async claimRun(input) { if (input.requestPayloadFingerprint !== expectedFingerprint) throw new FakePersistenceError("request_payload_conflict"); throw new Error("unexpected exact claim"); },
+    };
+    const service = createAiPipelineService({ repository, createAiTransport: () => ({ agent: async () => { providerCalls += 1; } }), loadAiServiceConfig: () => ({}), requireCurrentAiProcessingConsent: async () => {}, getCurrentConsentVersions: async () => ({}), coachSessionService: {}, createSupabaseAdminClient: () => null, getAppConfig: () => ({ video: { bucket: "practice-videos" } }) });
+    await assert.rejects(service.addTurn(ids.session, ids.user, changed), (error) => error?.status === 409 && error?.code === "REQUEST_PAYLOAD_CONFLICT");
+    assert.equal(providerCalls, 0);
   }
 });
