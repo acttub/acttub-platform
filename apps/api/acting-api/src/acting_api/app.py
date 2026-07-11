@@ -1,8 +1,9 @@
 import secrets
 import time
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Security
 from fastapi.responses import JSONResponse
+from fastapi.security import APIKeyHeader
 from google import genai
 
 from acting_agent.config import load_settings as load_agent_settings
@@ -16,6 +17,9 @@ from acting_summary.config import load_settings as load_summary_settings
 from acting_summary.router import build_router as build_summary_router
 
 EXEMPT_PATHS = {"/health", "/docs", "/openapi.json", "/redoc"}
+
+# Swagger UI Authorize 버튼용 스펙 선언 — 실제 검증은 미들웨어가 담당
+api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 
 
 def _key_valid(key: str | None, api_keys: tuple[str, ...]) -> bool:
@@ -45,6 +49,7 @@ def create_app(
     app = FastAPI(
         title="acting-api",
         description="연기 영상 요약(/summarize) → 코치 대화(/coach/*) → 진단 리포트(/report) 통합 API. 모든 요청에 X-API-Key 헤더 필요.",
+        dependencies=[Security(api_key_header)],
     )
 
     @app.middleware("http")
