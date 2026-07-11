@@ -21,6 +21,7 @@ test("practice flow keeps the required steps and actor-authored summary", () => 
   assert.match(source, /const genreOptions = \["연극", "영화", "뮤지컬", "드라마", "기타"\] as const/);
   assert.match(source, /submitPipelineAnswer/);
   assert.match(source, /expectedSubstantiveAnswerCount: pipelineSession\.substantiveAnswerCount/);
+  assert.match(source, /expectedTotalConversationCount: pipelineSession\.transcript\.filter\(\(item\) => item\.role === "actor" && \(item\.kind === "answer" \|\| item\.kind === "unknown"\)\)\.length/);
   assert.match(source, /createPracticeSummary\(practiceSession\.id, \{[\s\S]*finalActorSentence/);
   assert.match(source, /AI 정리/);
   assert.match(source, /연습 노트/);
