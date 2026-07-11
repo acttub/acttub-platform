@@ -146,8 +146,8 @@ test("migration 009 replays under lock, expires stale reports, and removes weak 
   assert.match(migration009, /where id=agent_run_id::uuid and session_id=p_session_id and user_id=p_user_id and stage='agent' and status='running'/);
   assert.match(migration009, /agent_response->'actorTurn'<>'null'::jsonb/);
   assert.match(migration009, /agent_turn->>'role'<>'agent'/);
-  assert.match(migration009, /stat='paused' and agent_turn->>'kind'<>'question'/);
-  assert.match(migration009, /stat<>'paused' and agent_turn->>'kind'<>'closing'/);
+  assert.match(migration009, /stat='paused' and \(agent_turn->>'kind'<>'question' or jsonb_typeof\(agent_turn->'questionFocus'\)<>'string'/);
+  assert.match(migration009, /stat<>'paused' and \(agent_turn->>'kind'<>'closing' or agent_turn->'questionFocus'<>'null'::jsonb\)/);
   assert.match(migration009, /insert into public\.interview_turns[\s\S]*next_sequence,'agent',agent_turn->>'kind'/);
   assert.match(migration009, /jsonb_typeof\(agent_turn->'sequence'\)<>'number'/);
   assert.match(migration009, /agent_turn->'id' is null or jsonb_typeof\(agent_turn->'id'\)<>'string'/);
