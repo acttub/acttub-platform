@@ -37,3 +37,17 @@ test("visibility route accepts both hide and unhide through the owner-scoped ser
   assert.match(source, /coachSessionService\.updateVisibility\([\s\S]*sessionId,[\s\S]*auth\.userId,[\s\S]*body/);
   assert.doesNotMatch(source, /hidden !== true|softHideSession/);
 });
+
+test("immutable report exposes only stable semantic selectors for the protected browser probe", () => {
+  const report = read("src/features/practice/pipeline/report-view.tsx");
+  const video = read("src/features/practice/pipeline/private-video.tsx");
+  assert.match(report, /data-testid="pipeline-report"/);
+  assert.match(report, /data-report-session-id=\{report\.sessionId\}/);
+  assert.match(report, /data-report-source-run-id=\{report\.sourceRunId\}/);
+  assert.match(report, /data-testid="pipeline-report-section"/);
+  assert.match(report, /data-report-section=\{key\}/);
+  assert.match(report, /data-report-status=\{section\.status\}/);
+  assert.match(report, /data-testid="pipeline-report-seek"/);
+  assert.match(report, /data-seek-start-ms=\{section\.timestampRange\.startMs\}/);
+  assert.match(video, /data-testid="pipeline-private-video"/);
+});

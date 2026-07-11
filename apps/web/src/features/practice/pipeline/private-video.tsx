@@ -44,7 +44,7 @@ export const PrivateVideo = forwardRef<PrivateVideoHandle, { sessionId: string }
             {loading ? "불러오는 중" : "영상 링크 새로고침"}
           </button>
         </div>
-        {signedUrl ? <video ref={videoRef} controls preload="metadata" src={signedUrl} className="aspect-video w-full rounded-2xl bg-black" /> : <p className="p-8 text-center text-sm text-white/70">{error ?? "안전한 영상 링크를 준비하고 있어요."}</p>}
+        {signedUrl ? <video ref={videoRef} data-testid="pipeline-private-video" controls preload="metadata" src={signedUrl} className="aspect-video w-full rounded-2xl bg-black" /> : <p className="p-8 text-center text-sm text-white/70">{error ?? "안전한 영상 링크를 준비하고 있어요."}</p>}
       </section>
     );
   },

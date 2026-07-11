@@ -5,6 +5,7 @@ import hashlib
 import hmac
 import json
 import os
+import socket
 import stat
 import tempfile
 import unittest
@@ -17,9 +18,13 @@ from scripts.ai_pipeline_e2e import controller, sanitizer, secure_state, service
 HEX_A = "a" * 64
 HEX_B = "b" * 64
 HEX_C = "c" * 64
+HEX_D = "d" * 64
+HEX_E = "e" * 64
 HMAC_A = "hmac-sha256:" + HEX_A
 HMAC_B = "hmac-sha256:" + HEX_B
 HMAC_C = "hmac-sha256:" + HEX_C
+HMAC_D = "hmac-sha256:" + HEX_D
+HMAC_E = "hmac-sha256:" + HEX_E
 REAL_ATTESTATION_KEY = hashlib.sha256(b"offline-real-attestation-fixture-key").digest()
 REAL_PROVIDER_MAC_DOMAIN = b"acttub-protected-real-provider.v1\0"
 REAL_MEDIA_MAC_DOMAIN = b"acttub-protected-real-media.v1\0"
@@ -58,22 +63,31 @@ def real_attestation_fixture(
     provider_call_count: int = 3,
     media_byte_count: int = 1_048_576,
 ) -> dict[str, object]:
+    provider_event_count = provider_call_count + 3
+    provider_event_tail_hmac = HMAC_B
+    provider_event_aggregate_hmac = HMAC_C
+    media_content_hmac = HMAC_A
     provider_core: dict[str, object] = {
         "schemaVersion": "protected-real-attestation.v1",
         "serviceModes": {"summary": "real", "agent": "real", "report": "real"},
         "providerCredentialFdOnly": True,
         "providerCallCount": provider_call_count,
         "providerStagesObserved": ["summary", "agent", "report"],
+        "providerEventCount": provider_event_count,
+        "providerEventTailHmac": provider_event_tail_hmac,
+        "providerEventAggregateHmac": provider_event_aggregate_hmac,
     }
     media_core: dict[str, object] = {
         "schemaVersion": "protected-real-attestation.v1",
         "mediaReadFromFd": True,
         "mediaByteCount": media_byte_count,
+        "mediaContentHmac": media_content_hmac,
     }
     return {
         **provider_core,
         "mediaReadFromFd": True,
         "mediaByteCount": media_byte_count,
+        "mediaContentHmac": media_content_hmac,
         "providerAttestationHmac": "hmac-sha256:"
         + hmac.new(
             key,
@@ -174,8 +188,11 @@ def mcp_chain_fixture() -> tuple[dict[str, object], ...]:
         ("list_projects", None, HEX_A, HMAC_A),
         ("inspect_migrations", None, HEX_A, HMAC_A),
         ("apply_migration", HEX_A, HEX_A, HMAC_A),
+        ("sql_check", None, HEX_A, HMAC_A),
+        ("inspect_migrations", None, HEX_A, HMAC_C),
         ("apply_migration", HEX_B, HEX_B, HMAC_B),
-        ("inspect_migrations", None, HEX_A, HMAC_A),
+        ("sql_check", None, HEX_A, HMAC_B),
+        ("inspect_migrations", None, HEX_A, HMAC_D),
     )
     previous_hash = "0" * 64
     entries: list[dict[str, object]] = []
@@ -199,9 +216,13 @@ def mcp_retry_chain_fixture() -> tuple[dict[str, object], ...]:
         ("inspect_migrations", None, HEX_A, HMAC_A, True, None),
         ("apply_migration", HEX_A, HEX_A, HMAC_A, False, "MCP_ACTION_UNKNOWN"),
         ("sql_check", None, HEX_A, HMAC_A, True, None),
+        ("inspect_migrations", None, HEX_A, HMAC_C, True, None),
         ("apply_migration", HEX_B, HEX_B, HMAC_A, True, None),
+        ("sql_check", None, HEX_A, HMAC_A, True, None),
+        ("inspect_migrations", None, HEX_A, HMAC_D, True, None),
         ("apply_migration", HEX_C, HEX_C, HMAC_B, True, None),
-        ("inspect_migrations", None, HEX_A, HMAC_A, True, None),
+        ("sql_check", None, HEX_A, HMAC_B, True, None),
+        ("inspect_migrations", None, HEX_A, HMAC_E, True, None),
     )
     previous_hash = "0" * 64
     entries: list[dict[str, object]] = []
@@ -368,7 +389,9 @@ class SecureStateTests(unittest.TestCase):
                 "state",
                 "manifest",
                 "mcp-attestations",
+                "provider-attestations",
                 "browser-attestations",
+                "bridge-wal",
                 "cleanup-vault",
                 "mutation-permits",
                 "evidence",
@@ -517,6 +540,27 @@ class SecureStateTests(unittest.TestCase):
         recovered.complete(plan_hash, "deleted")
         recovered.assert_complete()
 
+    def test_every_hash_chain_recovers_only_an_unterminated_crash_tail(self) -> None:
+        chain_specs = (
+            ("evidence", secure_state.EvidenceChain),
+            ("mcp-attestations", secure_state.McpAttestationChain),
+            ("browser-attestations", secure_state.BrowserAttestationChain),
+            ("mutation-permits", secure_state.MutationPermitLedger),
+            ("cleanup-vault", secure_state.CleanupVault),
+        )
+        for alias, chain_type in chain_specs:
+            with self.subTest(alias=alias):
+                fd = self.run.state.file_fd(alias)
+                os.lseek(fd, 0, os.SEEK_END)
+                os.write(fd, b'{"crashTail"')
+                recovered = chain_type(fd)
+                self.assertEqual(recovered.entries(), ())
+
+                os.lseek(fd, 0, os.SEEK_END)
+                os.write(fd, b'{}\n')
+                with self.assertRaises((TypeError, ValueError)):
+                    chain_type(fd)
+
     def test_cleanup_vault_rejects_unsafe_ingress_and_accepts_typed_storage_locator(self) -> None:
         vault = secure_state.CleanupVault(self.run.state.file_fd("cleanup-vault"))
         key = b"cleanup-boundary-key-material-32b"
@@ -591,6 +635,7 @@ class SecureStateTests(unittest.TestCase):
     def test_cleanup_vault_enforces_exact_plan_cross_products_and_action_outcomes(self) -> None:
         expected_plan_types = {
             "temporary-rls-account": ("auth_user", "delete_auth_user"),
+            "run-provider-file": ("provider_file", "delete_provider_file"),
             "real-success-session": ("practice_session", "retain_session"),
             "transient-session": ("practice_session", "delete_session"),
             "run-upload-intent": ("upload_intent", "delete_upload_intent"),
@@ -600,6 +645,7 @@ class SecureStateTests(unittest.TestCase):
         }
         expected_outcomes = {
             "delete_auth_user": frozenset({"deleted", "absent", "not_created"}),
+            "delete_provider_file": frozenset({"deleted", "absent", "not_created"}),
             "delete_session": frozenset({"deleted", "absent", "not_created"}),
             "delete_storage_object": frozenset({"deleted", "absent", "not_created"}),
             "delete_upload_intent": frozenset({"deleted", "absent", "not_created"}),
@@ -924,7 +970,7 @@ class ControllerContractTests(unittest.TestCase):
         for field in ("permitHash", "requestHash", "postconditionHash"):
             with self.subTest(reused_field=field):
                 reused = [dict(payload) for payload in payloads]
-                reused[3][field] = reused[2][field]
+                reused[5][field] = reused[2][field]
                 with self.assertRaises(ValueError):
                     controller.verify_mcp_chain(rechain(reused))
 
@@ -943,17 +989,17 @@ class ControllerContractTests(unittest.TestCase):
 
         payloads = [dict(entry["payload"]) for entry in mcp_entries]
         changed_retry_binding = [dict(payload) for payload in payloads]
-        changed_retry_binding[4]["postconditionHash"] = HMAC_C
+        changed_retry_binding[5]["postconditionHash"] = HMAC_C
         with self.assertRaises(ValueError):
             controller.verify_mcp_chain(rechain(changed_retry_binding))
 
         changed_reconciliation_binding = [dict(payload) for payload in payloads]
         changed_reconciliation_binding[3]["postconditionHash"] = HMAC_C
-        with self.assertRaisesRegex(ValueError, "mcp_chain_reconciliation_invalid"):
+        with self.assertRaisesRegex(ValueError, "mcp_chain_postcondition_invalid"):
             controller.verify_mcp_chain(rechain(changed_reconciliation_binding))
 
         duplicate_retry_permit = [dict(payload) for payload in payloads]
-        duplicate_retry_permit[4]["permitHash"] = duplicate_retry_permit[2]["permitHash"]
+        duplicate_retry_permit[5]["permitHash"] = duplicate_retry_permit[2]["permitHash"]
         with self.assertRaisesRegex(ValueError, "mcp_chain_migration_binding_reused"):
             controller.verify_mcp_chain(rechain(duplicate_retry_permit))
 
@@ -973,7 +1019,7 @@ class ControllerContractTests(unittest.TestCase):
             manifest_digest=controller.manifest_digest(manifest),
             development_mcp_attestation_hash=str(mcp_entries[0]["hash"]),
             consumed_permit_hashes=(HEX_A, HEX_B, HEX_C),
-            migration_attestation_hashes=(str(mcp_entries[4]["hash"]), str(mcp_entries[5]["hash"])),
+            migration_attestation_hashes=(str(mcp_entries[7]["hash"]), str(mcp_entries[10]["hash"])),
             development_target_hmac=HMAC_A,
             mcp_sequence=len(mcp_entries) - 1,
             mcp_tail_hash=str(mcp_entries[-1]["hash"]),
@@ -1099,13 +1145,31 @@ class ControllerContractTests(unittest.TestCase):
                 postcondition_hmac=HMAC_B,
                 request_hash=HEX_B,
             )
+            attested_postcondition = mcp_entry_fixture(
+                3,
+                str(attested_entry["hash"]),
+                operation="sql_check",
+                postcondition_hmac=HMAC_B,
+                request_hash=HEX_C,
+            )
+            attested_ledger = mcp_entry_fixture(
+                4,
+                str(attested_postcondition["hash"]),
+                operation="inspect_migrations",
+                postcondition_hmac=HMAC_C,
+                request_hash=HEX_D,
+            )
             attested_event = {
                 "type": "MIGRATION_ATTESTED",
                 "version": "009",
                 "consumeHash": HEX_A,
                 "targetHmac": HMAC_A,
-                "mcpEntry": attested_entry,
+                "applyMcpEntry": attested_entry,
+                "postconditionMcpEntry": attested_postcondition,
+                "ledgerMcpEntry": attested_ledger,
                 "effectPresent": True,
+                "ledger": controller.MIGRATION_AFTER_009_LEDGER,
+                "ledgerHmac": HMAC_C,
                 "targetMatched": True,
                 "payloadMatched": True,
                 "permitLedgerFd": ledger_fd,
@@ -1133,13 +1197,23 @@ class ControllerContractTests(unittest.TestCase):
                 postcondition_hmac=HMAC_B,
                 request_hash=HEX_B,
             )
+            reconciled_ledger = mcp_entry_fixture(
+                3,
+                str(reconciled_entry["hash"]),
+                operation="inspect_migrations",
+                postcondition_hmac=HMAC_C,
+                request_hash=HEX_C,
+            )
             reconciled_event = {
                 "type": "MIGRATION_RECONCILED",
                 "version": "009",
                 "consumeHash": HEX_A,
                 "targetHmac": HMAC_A,
-                "mcpEntry": reconciled_entry,
+                "postconditionMcpEntry": reconciled_entry,
+                "ledgerMcpEntry": reconciled_ledger,
                 "effectPresent": False,
+                "ledger": controller.MIGRATION_PRE_LEDGER,
+                "ledgerHmac": HMAC_C,
                 "permitLedgerFd": ledger_fd,
                 "productionActionCount": 0,
             }
@@ -1344,6 +1418,13 @@ class ControllerContractTests(unittest.TestCase):
                     operation="sql_check",
                     postcondition_hmac=unknown.prepared_payload_binding_hmac,
                 )
+                reconciliation_ledger = mcp_entry_fixture(
+                    unknown.mcp_sequence + 2,
+                    str(reconciliation_mcp["hash"]),
+                    operation="inspect_migrations",
+                    postcondition_hmac=HMAC_C,
+                    request_hash=HEX_C,
+                )
                 self.assertIsNone(reconciliation_mcp["payload"]["permitHash"])
                 retry_required = controller_step(
                     unknown,
@@ -1352,8 +1433,11 @@ class ControllerContractTests(unittest.TestCase):
                         "version": "009",
                         "consumeHash": consume_hash,
                         "targetHmac": HMAC_A,
-                        "mcpEntry": reconciliation_mcp,
+                        "postconditionMcpEntry": reconciliation_mcp,
+                        "ledgerMcpEntry": reconciliation_ledger,
                         "effectPresent": False,
+                        "ledger": controller.MIGRATION_PRE_LEDGER,
+                        "ledgerHmac": HMAC_C,
                         "permitLedgerFd": ledger_fd,
                         "productionActionCount": 0,
                     },
@@ -1701,7 +1785,40 @@ class ControllerContractTests(unittest.TestCase):
                 )
 
     def test_harness_tree_requires_the_exact_tracked_file_set(self) -> None:
-        entries = {name: name.encode("ascii") for name in controller.REQUIRED_HARNESS_FILES}
+        expected_files = frozenset(
+            {
+                "docs/AI_PIPELINE_E2E_RUNBOOK.md",
+                "scripts/ai_pipeline_e2e/__init__.py",
+                "scripts/ai_pipeline_e2e/bridge_protocol.py",
+                "scripts/ai_pipeline_e2e/browser_probe_source.mjs",
+                "scripts/ai_pipeline_e2e/browser_session_broker.mjs",
+                "scripts/ai_pipeline_e2e/cases.json",
+                "scripts/ai_pipeline_e2e/controller.py",
+                "scripts/ai_pipeline_e2e/live_runner.py",
+                "scripts/ai_pipeline_e2e/mcp_bridge.py",
+                "scripts/ai_pipeline_e2e/mcp_queries.py",
+                "scripts/ai_pipeline_e2e/platform_bootstrap.mjs",
+                "scripts/ai_pipeline_e2e/provider_attestation.py",
+                "scripts/ai_pipeline_e2e/real_pipeline_driver.mjs",
+                "scripts/ai_pipeline_e2e/repository_gate.py",
+                "scripts/ai_pipeline_e2e/sanitizer.py",
+                "scripts/ai_pipeline_e2e/secure_state.py",
+                "scripts/ai_pipeline_e2e/service_bootstrap.py",
+                "scripts/ai_pipeline_e2e/tests/test_bridge_protocol.py",
+                "scripts/ai_pipeline_e2e/tests/test_browser_probe_source.py",
+                "scripts/ai_pipeline_e2e/tests/test_browser_session_broker.py",
+                "scripts/ai_pipeline_e2e/tests/test_harness.py",
+                "scripts/ai_pipeline_e2e/tests/test_live_runner.py",
+                "scripts/ai_pipeline_e2e/tests/test_mcp_architect_regressions.py",
+                "scripts/ai_pipeline_e2e/tests/test_mcp_bridge.py",
+                "scripts/ai_pipeline_e2e/tests/test_mcp_queries.py",
+                "scripts/ai_pipeline_e2e/tests/test_provider_attestation.py",
+                "scripts/ai_pipeline_e2e/tests/test_real_pipeline_driver.py",
+                "scripts/ai_pipeline_e2e/tests/test_repository_gate.py",
+            }
+        )
+        self.assertEqual(controller.REQUIRED_HARNESS_FILES, expected_files)
+        entries = {name: name.encode("ascii") for name in expected_files}
         digest = controller.hash_harness_tree(entries)
         self.assertRegex(digest, r"^[a-f0-9]{64}$")
         missing = dict(entries)
@@ -1804,28 +1921,253 @@ class ControllerContractTests(unittest.TestCase):
 
 
 class ServiceBootstrapTests(unittest.TestCase):
+    class BootstrapRejected(Exception):
+        pass
+
+    @classmethod
+    def bootstrap_namespace(cls) -> dict[str, object]:
+        definitions = service_bootstrap.EXPLICIT_SETTINGS_BOOTSTRAP.split("def main():", 1)[0]
+        namespace: dict[str, object] = {}
+        exec(compile(definitions, "<protected-bootstrap-definitions>", "exec"), namespace)
+
+        def reject() -> None:
+            raise cls.BootstrapRejected("rejected")
+
+        namespace["fail"] = reject
+        return namespace
+
+    @staticmethod
+    def cleanup_channel(events: list[tuple[object, ...]]):
+        acknowledgement = b'{"ok":true}'
+        replies = bytearray(len(acknowledgement).to_bytes(4, "big") + acknowledgement)
+
+        class CleanupChannel:
+            def sendall(self, encoded: bytes) -> None:
+                size = int.from_bytes(encoded[:4], "big")
+                value = json.loads(encoded[4:])
+                if size != len(encoded) - 4:
+                    raise AssertionError("bad_test_frame")
+                events.append(("cleanup", value["kind"], value["locator"]))
+                replies.extend(len(acknowledgement).to_bytes(4, "big") + acknowledgement)
+
+            def recv(self, size: int) -> bytes:
+                result = bytes(replies[:size])
+                del replies[:size]
+                return result
+
+        return CleanupChannel()
+
     def test_real_bootstrap_is_explicit_and_never_uses_default_loaders(self) -> None:
         source = service_bootstrap.EXPLICIT_SETTINGS_BOOTSTRAP
         compile(source, "<protected-bootstrap>", "exec")
         self.assertIn("Settings(", source)
-        self.assertIn("create_app(settings=settings)", source)
+        self.assertIn("create_app(client=client, settings=settings)", source)
+        self.assertIn("class AttestedClient", source)
+        self.assertIn("class CanonicalOnlyApp", source)
+        self.assertIn('self._emit("files_upload"', source)
         self.assertIn("access_log=False", source)
         self.assertIn("log_config=None", source)
         self.assertNotIn("load_settings", source)
         self.assertNotIn("load_dotenv", source)
         self.assertNotIn("create_demo_app", source)
 
+    def test_provider_file_cleanup_plan_is_acked_before_exact_named_upload_and_complete_follows_delete(self) -> None:
+        namespace = self.bootstrap_namespace()
+        key = hashlib.sha256(b"offline-provider-file-plan-key").digest()
+        payload = b"offline-provider-file-media"
+        expected_media_hmac = "hmac-sha256:" + hmac.new(
+            key,
+            b"acttub-protected-media-content.v1\0" + payload,
+            hashlib.sha256,
+        ).hexdigest()
+        expected_locator = "files/" + hmac.new(
+            key,
+            b"acttub-protected-provider-file-name.v1\0" + expected_media_hmac.encode("ascii"),
+            hashlib.sha256,
+        ).hexdigest()[:40]
+        events: list[tuple[object, ...]] = []
+
+        class Response:
+            name = expected_locator
+
+        class Delegate:
+            def upload(self, **kwargs):
+                events.append(("delegate", "upload", kwargs))
+                return Response()
+
+            def delete(self, **kwargs):
+                events.append(("delegate", "delete", kwargs))
+                return object()
+
+        def emit(operation, *_args):
+            events.append(("emit", operation))
+
+        with tempfile.TemporaryDirectory(prefix="provider-file-plan-") as temporary:
+            media = Path(temporary) / "media.bin"
+            media.write_bytes(payload)
+            files = namespace["AttestedFiles"](
+                Delegate(),
+                emit,
+                self.cleanup_channel(events),
+                key,
+                expected_media_hmac,
+            )
+            response = files.upload(file=str(media))
+            self.assertEqual(response.name, expected_locator)
+            files.delete(name=response.name)
+
+        self.assertRegex(expected_locator, r"^files/[a-f0-9]{40}$")
+        self.assertEqual(events[0], ("cleanup", "plan", expected_locator))
+        self.assertEqual(
+            events[1],
+            (
+                "delegate",
+                "upload",
+                {"file": str(media), "config": {"name": expected_locator}},
+            ),
+        )
+        self.assertEqual(events[2], ("emit", "files_upload"))
+        self.assertEqual(events[3], ("delegate", "delete", {"name": expected_locator}))
+        self.assertEqual(events[4], ("cleanup", "complete", expected_locator))
+        self.assertEqual(events[5], ("emit", "files_delete"))
+
+    def test_provider_file_upload_rejects_positional_or_caller_config_before_delegate(self) -> None:
+        namespace = self.bootstrap_namespace()
+        key = hashlib.sha256(b"offline-provider-file-argument-key").digest()
+        payload = b"offline-provider-file-argument-media"
+        expected_media_hmac = "hmac-sha256:" + hmac.new(
+            key,
+            b"acttub-protected-media-content.v1\0" + payload,
+            hashlib.sha256,
+        ).hexdigest()
+
+        class Delegate:
+            def upload(self, **_kwargs):
+                raise AssertionError("delegate_must_not_run")
+
+        with tempfile.TemporaryDirectory(prefix="provider-file-arguments-") as temporary:
+            media = Path(temporary) / "media.bin"
+            media.write_bytes(payload)
+            for label, invoke in (
+                ("positional", lambda files: files.upload(str(media))),
+                ("config", lambda files: files.upload(file=str(media), config={})),
+                ("unknown", lambda files: files.upload(file=str(media), unknown=True)),
+            ):
+                with self.subTest(label=label):
+                    events: list[tuple[object, ...]] = []
+                    files = namespace["AttestedFiles"](
+                        Delegate(),
+                        lambda *_args: events.append(("emit",)),
+                        self.cleanup_channel(events),
+                        key,
+                        expected_media_hmac,
+                    )
+                    with self.assertRaises(self.BootstrapRejected):
+                        invoke(files)
+                    self.assertEqual(events, [])
+
+    def test_provider_file_response_name_mismatch_fails_after_durable_plan_without_emit(self) -> None:
+        namespace = self.bootstrap_namespace()
+        key = hashlib.sha256(b"offline-provider-file-mismatch-key").digest()
+        payload = b"offline-provider-file-mismatch-media"
+        expected_media_hmac = "hmac-sha256:" + hmac.new(
+            key,
+            b"acttub-protected-media-content.v1\0" + payload,
+            hashlib.sha256,
+        ).hexdigest()
+        expected_locator = namespace["provider_file_locator"](key, expected_media_hmac)
+        events: list[tuple[object, ...]] = []
+
+        class Delegate:
+            def upload(self, **kwargs):
+                events.append(("delegate", kwargs))
+                return type("Response", (), {"name": "files/" + "f" * 40})()
+
+        with tempfile.TemporaryDirectory(prefix="provider-file-mismatch-") as temporary:
+            media = Path(temporary) / "media.bin"
+            media.write_bytes(payload)
+            files = namespace["AttestedFiles"](
+                Delegate(),
+                lambda *_args: events.append(("emit",)),
+                self.cleanup_channel(events),
+                key,
+                expected_media_hmac,
+            )
+            with self.assertRaises(self.BootstrapRejected):
+                files.upload(file=str(media))
+
+        self.assertEqual(events[0], ("cleanup", "plan", expected_locator))
+        self.assertEqual(events[1][0], "delegate")
+        self.assertEqual(events[1][1]["config"], {"name": expected_locator})
+        self.assertNotIn(("emit",), events)
+
+    def test_provider_event_is_one_pipe_buf_bounded_write_and_partial_or_oversize_fails(self) -> None:
+        namespace = self.bootstrap_namespace()
+        client_type = namespace["AttestedClient"]
+        key = hashlib.sha256(b"offline-provider-event-atomic-key").digest()
+
+        class FakeOs:
+            def __init__(self, *, partial: bool = False) -> None:
+                self.partial = partial
+                self.calls: list[tuple[int, bytes]] = []
+
+            def write(self, fd: int, encoded: bytes) -> int:
+                self.calls.append((fd, encoded))
+                return len(encoded) - 1 if self.partial else len(encoded)
+
+        def client():
+            instance = object.__new__(client_type)
+            instance._service = "summary"
+            instance._event_fd = 91
+            instance._key = key
+            instance._ordinal = 0
+            return instance
+
+        normal_os = FakeOs()
+        namespace["os"] = normal_os
+        client()._emit("files_upload", (), object(), HMAC_A, 123)
+        self.assertEqual(len(normal_os.calls), 1)
+        self.assertLessEqual(len(normal_os.calls[0][1]), namespace["select"].PIPE_BUF)
+        self.assertTrue(normal_os.calls[0][1].endswith(b"\n"))
+
+        partial_os = FakeOs(partial=True)
+        namespace["os"] = partial_os
+        with self.assertRaises(self.BootstrapRejected):
+            client()._emit("files_upload", (), object(), HMAC_A, 123)
+        self.assertEqual(len(partial_os.calls), 1)
+
+        oversized_os = FakeOs()
+        namespace["os"] = oversized_os
+        with self.assertRaises(self.BootstrapRejected):
+            client()._emit("x" * (namespace["select"].PIPE_BUF + 1), (), object(), None, 0)
+        self.assertEqual(oversized_os.calls, [])
+
     def test_real_plan_contains_only_fd_alias_and_discards_all_output(self) -> None:
-        with tempfile.TemporaryFile() as settings_file:
-            settings_file.write(b'{"not":"executed"}')
-            settings_file.flush()
-            plan = service_bootstrap.build_real_service_plan("summary", settings_fd=settings_file.fileno(), port=43101)
-            self.assertEqual(plan.mode, "real")
-            self.assertEqual(plan.output_disposition, "discard")
-            self.assertFalse(plan.access_logs)
-            command = " ".join(plan.command)
-            self.assertNotIn("not executed", command)
-            self.assertNotIn("GEMINI_API_KEY=", command)
+        read_fd, write_fd = os.pipe()
+        parent_socket, child_socket = socket.socketpair()
+        try:
+            with tempfile.TemporaryFile() as settings_file:
+                settings_file.write(b'{"not":"executed"}')
+                settings_file.flush()
+                plan = service_bootstrap.build_real_service_plan(
+                    "summary",
+                    settings_fd=settings_file.fileno(),
+                    port=43101,
+                    attestation_fd=write_fd,
+                    cleanup_fd=child_socket.fileno(),
+                )
+                self.assertEqual(plan.mode, "real")
+                self.assertEqual(plan.output_disposition, "discard")
+                self.assertFalse(plan.access_logs)
+                self.assertEqual(plan.pass_fds, (write_fd, child_socket.fileno()))
+                command = " ".join(plan.command)
+                self.assertNotIn("not executed", command)
+                self.assertNotIn("GEMINI_API_KEY=", command)
+        finally:
+            os.close(read_fd)
+            os.close(write_fd)
+            parent_socket.close()
+            child_socket.close()
 
     def test_scripted_config_is_fd_only_request_digest_bound_and_not_started(self) -> None:
         body = b'{"safe":"request"}'
@@ -1851,16 +2193,31 @@ class ServiceBootstrapTests(unittest.TestCase):
             self.assertEqual(plan.mode, "scripted")
 
     def test_spawn_contract_rejects_secret_environment_and_uses_fixed_stdin_fd_alias(self) -> None:
-        with tempfile.TemporaryFile() as settings_file:
-            plan = service_bootstrap.build_real_service_plan("report", settings_fd=settings_file.fileno(), port=43103)
-            self.assertEqual(plan.pass_fds, ())
-            with self.assertRaises((TypeError, ValueError)):
-                service_bootstrap.subprocess_options(plan, {"GEMINI_API_KEY": "forbidden"})
-            clean = controller.build_allowlisted_environment({"PATH": "trusted-tool-path"})
-            options = service_bootstrap.subprocess_options(plan, clean)
-            self.assertEqual(options["stdin"], settings_file.fileno())
-            self.assertEqual(options["stdout"], service_bootstrap.subprocess.DEVNULL)
-            self.assertEqual(options["stderr"], service_bootstrap.subprocess.DEVNULL)
+        read_fd, write_fd = os.pipe()
+        parent_socket, child_socket = socket.socketpair()
+        try:
+            with tempfile.TemporaryFile() as settings_file:
+                plan = service_bootstrap.build_real_service_plan(
+                    "report",
+                    settings_fd=settings_file.fileno(),
+                    port=43103,
+                    attestation_fd=write_fd,
+                    cleanup_fd=child_socket.fileno(),
+                )
+                self.assertEqual(plan.pass_fds, (write_fd, child_socket.fileno()))
+                with self.assertRaises((TypeError, ValueError)):
+                    service_bootstrap.subprocess_options(plan, {"GEMINI_API_KEY": "forbidden"})
+                clean = controller.build_allowlisted_environment({"PATH": "trusted-tool-path"})
+                options = service_bootstrap.subprocess_options(plan, clean)
+                self.assertEqual(options["stdin"], settings_file.fileno())
+                self.assertEqual(options["stdout"], service_bootstrap.subprocess.DEVNULL)
+                self.assertEqual(options["stderr"], service_bootstrap.subprocess.DEVNULL)
+                self.assertEqual(options["pass_fds"], (write_fd, child_socket.fileno()))
+        finally:
+            os.close(read_fd)
+            os.close(write_fd)
+            parent_socket.close()
+            child_socket.close()
 
     def test_platform_bootstrap_contract_exists_without_launching(self) -> None:
         self.assertTrue(hasattr(service_bootstrap, "build_platform_plan"))

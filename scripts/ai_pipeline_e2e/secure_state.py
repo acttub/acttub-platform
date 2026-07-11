@@ -37,7 +37,9 @@ PRIVATE_FILE_LAYOUT: Mapping[str, tuple[str, bytes]] = {
     "state": ("state.json", b""),
     "manifest": ("hash-manifest.json", b""),
     "mcp-attestations": ("mcp-attestations.jsonl", b""),
+    "provider-attestations": ("provider-attestations.jsonl", b""),
     "browser-attestations": ("browser-attestations.jsonl", b""),
+    "bridge-wal": ("bridge.wal", b""),
     "cleanup-vault": ("cleanup.vault", b""),
     "mutation-permits": ("mutation.wal", b""),
     "evidence": ("evidence.jsonl", b""),
@@ -50,6 +52,7 @@ SENSITIVE_FD_ALIASES = frozenset(
 )
 CLEANUP_PLAN_TYPES: Mapping[str, tuple[str, str]] = {
     "temporary-rls-account": ("auth_user", "delete_auth_user"),
+    "run-provider-file": ("provider_file", "delete_provider_file"),
     "real-success-session": ("practice_session", "retain_session"),
     "transient-session": ("practice_session", "delete_session"),
     "run-upload-intent": ("upload_intent", "delete_upload_intent"),
@@ -62,6 +65,7 @@ RESOURCE_KINDS = frozenset(kind for kind, _action in CLEANUP_PLAN_TYPES.values()
 CLEANUP_ACTIONS = frozenset(action for _kind, action in CLEANUP_PLAN_TYPES.values())
 CLEANUP_ALLOWED_OUTCOMES: Mapping[str, frozenset[str]] = {
     "delete_auth_user": frozenset({"deleted", "absent", "not_created"}),
+    "delete_provider_file": frozenset({"deleted", "absent", "not_created"}),
     "delete_session": frozenset({"deleted", "absent", "not_created"}),
     "delete_storage_object": frozenset({"deleted", "absent", "not_created"}),
     "delete_upload_intent": frozenset({"deleted", "absent", "not_created"}),
@@ -458,6 +462,21 @@ class _HashChain:
     def __init__(self, fd: int, sanitizer: Callable[[Any], dict[str, Any]]) -> None:
         self._fd = _require_private_regular_fd(fd)
         self._sanitize = sanitizer
+        self._recover_partial_tail()
+
+    def _recover_partial_tail(self) -> None:
+        """Drop only a non-newline-terminated crash tail, then verify the chain."""
+
+        fcntl.flock(self._fd, fcntl.LOCK_EX)
+        try:
+            raw = _read_all(self._fd)
+            if raw and not raw.endswith(b"\n"):
+                boundary = raw.rfind(b"\n") + 1
+                os.ftruncate(self._fd, boundary)
+                os.fsync(self._fd)
+            self._entries_unlocked()
+        finally:
+            fcntl.flock(self._fd, fcntl.LOCK_UN)
 
     def _entries_unlocked(self) -> list[dict[str, Any]]:
         raw = _read_all(self._fd)
@@ -1089,19 +1108,6 @@ class CleanupVault(_HashChain):
 
     def __init__(self, fd: int) -> None:
         super().__init__(fd, _sanitize_cleanup_vault_payload)
-        self._recover_partial_tail()
-
-    def _recover_partial_tail(self) -> None:
-        fcntl.flock(self._fd, fcntl.LOCK_EX)
-        try:
-            raw = _read_all(self._fd)
-            if raw and not raw.endswith(b"\n"):
-                boundary = raw.rfind(b"\n") + 1
-                os.ftruncate(self._fd, boundary)
-                os.fsync(self._fd)
-            self._entries_unlocked()
-        finally:
-            fcntl.flock(self._fd, fcntl.LOCK_UN)
 
     def plan(
         self,

@@ -12,6 +12,7 @@ import json
 import os
 import re
 import shutil
+import socket
 import socketserver
 import stat
 import subprocess
@@ -47,11 +48,29 @@ _CHILD_ENV_KEYS = frozenset(
 )
 
 EXPLICIT_SETTINGS_BOOTSTRAP = r'''
+import hashlib
+import hmac
 import json
 import os
 import re
+import select
+import socket
+import stat
+import struct
 import sys
 from pathlib import Path
+
+EVENT_SCHEMA = "protected-provider-event.v1"
+EVENT_DOMAIN = b"acttub-protected-provider-event.v1\0"
+MEDIA_DOMAIN = b"acttub-protected-media-content.v1\0"
+FILE_NAME_DOMAIN = b"acttub-protected-provider-file-name.v1\0"
+MAX_FINGERPRINT_BYTES = 1024 * 1024
+MAX_MEDIA_BYTES = 8 * 1024 * 1024 * 1024
+SERVICE_PATHS = {
+    "summary": "/v1/summaries/generate",
+    "agent": "/v1/agent/turn",
+    "report": "/v1/reports/generate",
+}
 
 def fail():
     try:
@@ -63,6 +82,188 @@ def exact(value, keys):
     if not isinstance(value, dict) or set(value) != set(keys):
         fail()
     return value
+
+def write_event(fd, data):
+    if not data or len(data) > select.PIPE_BUF:
+        fail()
+    try:
+        written = os.write(fd, data)
+    except OSError:
+        fail()
+    if written != len(data):
+        fail()
+
+def canonical(value):
+    return json.dumps(value, ensure_ascii=True, allow_nan=False, separators=(",", ":"), sort_keys=True)
+
+def fingerprint(key, domain, value):
+    try:
+        encoded = repr(value).encode("utf-8", "replace")
+    except BaseException:
+        encoded = type(value).__name__.encode("ascii", "replace")
+    length = len(encoded)
+    encoded = encoded[:MAX_FINGERPRINT_BYTES]
+    return "hmac-sha256:" + hmac.new(
+        key,
+        EVENT_DOMAIN + domain.encode("ascii") + b"\0" + str(length).encode("ascii") + b"\0" + encoded,
+        hashlib.sha256,
+    ).hexdigest()
+
+def file_hmac(key, filename):
+    digest = hmac.new(key, MEDIA_DOMAIN, hashlib.sha256)
+    count = 0
+    with open(filename, "rb", buffering=0) as source:
+        while True:
+            chunk = source.read(1024 * 1024)
+            if not chunk:
+                break
+            count += len(chunk)
+            if count > MAX_MEDIA_BYTES:
+                fail()
+            digest.update(chunk)
+    return "hmac-sha256:" + digest.hexdigest(), count
+
+def provider_file_locator(key, expected_media_hmac):
+    if not isinstance(key, bytes) or len(key) != 32:
+        fail()
+    if not isinstance(expected_media_hmac, str) or re.fullmatch(r"hmac-sha256:[a-f0-9]{64}", expected_media_hmac) is None:
+        fail()
+    opaque_id = hmac.new(
+        key,
+        FILE_NAME_DOMAIN + expected_media_hmac.encode("ascii"),
+        hashlib.sha256,
+    ).hexdigest()[:40]
+    return "files/" + opaque_id
+
+def send_frame(channel, value):
+    encoded = canonical(value).encode("utf-8")
+    if not encoded or len(encoded) > 16384:
+        fail()
+    channel.sendall(struct.pack("!I", len(encoded)) + encoded)
+
+def recv_exact(channel, size):
+    chunks = []
+    total = 0
+    while total < size:
+        chunk = channel.recv(size - total)
+        if not chunk:
+            fail()
+        chunks.append(chunk)
+        total += len(chunk)
+    return b"".join(chunks)
+
+def recv_frame(channel):
+    size = struct.unpack("!I", recv_exact(channel, 4))[0]
+    if not 1 <= size <= 4096:
+        fail()
+    try:
+        value = json.loads(recv_exact(channel, size))
+    except Exception:
+        fail()
+    if value != {"ok": True}:
+        fail()
+
+class AttestedModels:
+    def __init__(self, delegate, emit):
+        self._delegate = delegate
+        self._emit = emit
+
+    def generate_content(self, *args, **kwargs):
+        response = self._delegate.generate_content(*args, **kwargs)
+        self._emit("generate_content", (args, kwargs), response, None, 0)
+        return response
+
+    def __getattr__(self, name):
+        return getattr(self._delegate, name)
+
+class AttestedFiles:
+    def __init__(self, delegate, emit, cleanup, key, expected_media_hmac):
+        self._delegate = delegate
+        self._emit = emit
+        self._cleanup = cleanup
+        self._key = key
+        self._expected_media_hmac = expected_media_hmac
+        self._planned_locator = None
+
+    def upload(self, *args, **kwargs):
+        if args or set(kwargs) != {"file"} or self._planned_locator is not None:
+            fail()
+        filename = kwargs["file"]
+        if not isinstance(filename, str) or not filename:
+            fail()
+        media_hmac, byte_count = file_hmac(self._key, filename)
+        if not hmac.compare_digest(media_hmac, self._expected_media_hmac):
+            fail()
+        locator = provider_file_locator(self._key, self._expected_media_hmac)
+        self._planned_locator = locator
+        send_frame(self._cleanup, {"kind": "plan", "locator": locator})
+        recv_frame(self._cleanup)
+        delegated_kwargs = {"file": filename, "config": {"name": locator}}
+        response = self._delegate.upload(**delegated_kwargs)
+        if getattr(response, "name", None) != locator:
+            fail()
+        self._emit("files_upload", ((), delegated_kwargs), response, media_hmac, byte_count)
+        return response
+
+    def get(self, *args, **kwargs):
+        response = self._delegate.get(*args, **kwargs)
+        self._emit("files_get", (args, kwargs), response, None, 0)
+        return response
+
+    def delete(self, *args, **kwargs):
+        if args or set(kwargs) != {"name"} or kwargs["name"] != self._planned_locator:
+            fail()
+        response = self._delegate.delete(*args, **kwargs)
+        locator = kwargs["name"]
+        send_frame(self._cleanup, {"kind": "complete", "locator": locator})
+        recv_frame(self._cleanup)
+        self._emit("files_delete", (args, kwargs), response, None, 0)
+        return response
+
+    def __getattr__(self, name):
+        return getattr(self._delegate, name)
+
+class AttestedClient:
+    def __init__(self, delegate, service, event_fd, cleanup, key, expected_media_hmac):
+        self._delegate = delegate
+        self._service = service
+        self._event_fd = event_fd
+        self._key = key
+        self._ordinal = 0
+        self.models = AttestedModels(delegate.models, self._emit)
+        self.files = AttestedFiles(delegate.files, self._emit, cleanup, key, expected_media_hmac) if service == "summary" else delegate.files
+
+    def _emit(self, operation, request, response, media_hmac, media_byte_count):
+        event = {
+            "schemaVersion": EVENT_SCHEMA,
+            "service": self._service,
+            "ordinal": self._ordinal,
+            "operation": operation,
+            "success": True,
+            "requestHmac": fingerprint(self._key, self._service + ":" + operation + ":request", request),
+            "responseHmac": fingerprint(self._key, self._service + ":" + operation + ":response", response),
+            "mediaHmac": media_hmac,
+            "mediaByteCount": media_byte_count,
+        }
+        self._ordinal += 1
+        encoded = (canonical(event) + "\n").encode("ascii")
+        write_event(self._event_fd, encoded)
+
+    def __getattr__(self, name):
+        return getattr(self._delegate, name)
+
+class CanonicalOnlyApp:
+    def __init__(self, app, service):
+        self._app = app
+        self._allowed = {"/health", SERVICE_PATHS[service]}
+
+    async def __call__(self, scope, receive, send):
+        if scope.get("type") == "http" and scope.get("path") not in self._allowed:
+            body = b'{"error":{"code":"NOT_FOUND","message":"Not found."}}'
+            await send({"type": "http.response.start", "status": 404, "headers": [(b"content-type", b"application/json"), (b"content-length", str(len(body)).encode("ascii"))]})
+            await send({"type": "http.response.body", "body": body})
+            return
+        await self._app(scope, receive, send)
 
 def read_fd(fd):
     try:
@@ -93,15 +294,33 @@ def read_fd(fd):
         fail()
 
 def main():
-    if len(sys.argv) != 3:
+    if len(sys.argv) != 5:
         fail()
     service = sys.argv[1]
     fd = 0
     port = int(sys.argv[2])
+    event_fd = int(sys.argv[3])
+    cleanup_fd = int(sys.argv[4])
     if service not in {"summary", "agent", "report"} or not 1024 <= port <= 65535:
         fail()
+    for extra_fd, expected in ((event_fd, "fifo"), (cleanup_fd, "socket")):
+        if extra_fd <= 2:
+            fail()
+        mode = os.fstat(extra_fd).st_mode
+        if (expected == "fifo" and not stat.S_ISFIFO(mode)) or (expected == "socket" and not stat.S_ISSOCK(mode)):
+            fail()
     data = read_fd(fd)
     if not isinstance(data, dict) or not isinstance(data.get("apiKey"), str) or not data["apiKey"] or not isinstance(data.get("model"), str) or not data["model"]:
+        fail()
+    key_hex = data.pop("attestationKeyHex", None)
+    expected_media_hmac = data.pop("expectedMediaHmac", None)
+    if not isinstance(key_hex, str) or re.fullmatch(r"[a-f0-9]{64}", key_hex) is None:
+        fail()
+    key = bytes.fromhex(key_hex)
+    if service == "summary":
+        if not isinstance(expected_media_hmac, str) or re.fullmatch(r"hmac-sha256:[a-f0-9]{64}", expected_media_hmac) is None:
+            fail()
+    elif expected_media_hmac is not None:
         fail()
     if service == "summary":
         data = exact(data, {"apiKey", "model", "allowedSupabaseHosts", "storageBucket", "maxVideoDurationMs", "maxDownloadBytes", "downloadTimeoutSeconds"})
@@ -139,7 +358,10 @@ def main():
         from acting_report.app import create_app
         from acting_report.config import Settings
         settings = Settings(api_key=data["apiKey"], model=data["model"], store_path=Path(os.devnull))
-    app = create_app(settings=settings)
+    from google import genai
+    cleanup = socket.socket(fileno=cleanup_fd)
+    client = AttestedClient(genai.Client(api_key=settings.api_key), service, event_fd, cleanup, key, expected_media_hmac)
+    app = CanonicalOnlyApp(create_app(client=client, settings=settings), service)
     import uvicorn
     uvicorn.run(app, host="127.0.0.1", port=port, access_log=False, log_config=None)
 
@@ -161,6 +383,8 @@ class ProcessPlan:
     input_fd: int
     fd_mappings: tuple[tuple[int, int], ...]
     pass_fds: tuple[int, ...]
+    attestation_fd: int | None = None
+    cleanup_fd: int | None = None
     output_disposition: str = "discard"
     access_logs: bool = False
 
@@ -172,6 +396,16 @@ def _validate_inheritable_source_fd(fd: Any) -> int:
     if not (stat.S_ISREG(info.st_mode) or stat.S_ISFIFO(info.st_mode)):
         raise ValueError("service_input_fd_type_invalid")
     return fd
+
+
+def _validate_provider_fds(attestation_fd: Any, cleanup_fd: Any, settings_fd: int) -> tuple[int, int]:
+    if type(attestation_fd) is not int or type(cleanup_fd) is not int:
+        raise TypeError("provider_attestation_fd_invalid")
+    if len({settings_fd, attestation_fd, cleanup_fd}) != 3 or min(attestation_fd, cleanup_fd) <= 2:
+        raise ValueError("provider_attestation_fd_invalid")
+    if not stat.S_ISFIFO(os.fstat(attestation_fd).st_mode) or not stat.S_ISSOCK(os.fstat(cleanup_fd).st_mode):
+        raise ValueError("provider_attestation_fd_type_invalid")
+    return attestation_fd, cleanup_fd
 
 
 def _validate_service_port(service: str, port: Any) -> int:
@@ -193,11 +427,19 @@ def _resolve_executable(name: str) -> str:
     return resolved
 
 
-def build_real_service_plan(service: str, *, settings_fd: int, port: int) -> ProcessPlan:
+def build_real_service_plan(
+    service: str,
+    *,
+    settings_fd: int,
+    port: int,
+    attestation_fd: int,
+    cleanup_fd: int,
+) -> ProcessPlan:
     """Construct an explicit Settings/create_app command; never use dotenv or an app factory."""
 
     port = _validate_service_port(service, port)
     settings_fd = _validate_inheritable_source_fd(settings_fd)
+    attestation_fd, cleanup_fd = _validate_provider_fds(attestation_fd, cleanup_fd, settings_fd)
     return ProcessPlan(
         service=service,
         mode="real",
@@ -212,10 +454,14 @@ def build_real_service_plan(service: str, *, settings_fd: int, port: int) -> Pro
             EXPLICIT_SETTINGS_BOOTSTRAP,
             service,
             str(port),
+            str(attestation_fd),
+            str(cleanup_fd),
         ),
         input_fd=settings_fd,
         fd_mappings=((settings_fd, 0),),
-        pass_fds=(),
+        pass_fds=(attestation_fd, cleanup_fd),
+        attestation_fd=attestation_fd,
+        cleanup_fd=cleanup_fd,
     )
 
 
@@ -273,8 +519,17 @@ def subprocess_options(plan: ProcessPlan, clean_environment: Mapping[str, str]) 
         or plan.output_disposition != "discard"
         or plan.access_logs
         or plan.fd_mappings != ((plan.input_fd, 0),)
-        or plan.pass_fds
     ):
+        raise ValueError("unsafe_process_plan")
+    if plan.mode == "real":
+        if (
+            plan.attestation_fd is None
+            or plan.cleanup_fd is None
+            or plan.pass_fds != (plan.attestation_fd, plan.cleanup_fd)
+        ):
+            raise ValueError("unsafe_process_plan")
+        _validate_provider_fds(plan.attestation_fd, plan.cleanup_fd, plan.input_fd)
+    elif plan.pass_fds or plan.attestation_fd is not None or plan.cleanup_fd is not None:
         raise ValueError("unsafe_process_plan")
     if not isinstance(clean_environment, Mapping) or not all(
         isinstance(key, str) and isinstance(value, str) for key, value in clean_environment.items()

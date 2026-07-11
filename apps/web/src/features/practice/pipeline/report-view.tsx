@@ -21,7 +21,12 @@ function formatRange(section: PipelineReportSectionDto) {
 
 export function ReportView({ report, onSeek }: { report: ImmutablePipelineReportDto; onSeek: (startMs: number) => void }) {
   return (
-    <section aria-labelledby="report-title">
+    <section
+      aria-labelledby="report-title"
+      data-testid="pipeline-report"
+      data-report-session-id={report.sessionId}
+      data-report-source-run-id={report.sourceRunId}
+    >
       <div className="mb-5">
         <p className="text-sm font-medium text-blue-600">저장된 연습 리포트</p>
         <h2 id="report-title" className="text-2xl font-bold">이번 연습에서 확인한 여섯 가지</h2>
@@ -33,14 +38,28 @@ export function ReportView({ report, onSeek }: { report: ImmutablePipelineReport
           const range = formatRange(section);
           const evidenceCount = section.observationEvidenceIds.length + section.turnEvidenceIds.length;
           return (
-            <li key={key} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <li
+              key={key}
+              data-testid="pipeline-report-section"
+              data-report-section={key}
+              data-report-status={section.status}
+              className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
+            >
               <p className="text-xs font-semibold text-slate-400">{index + 1} / 6</p>
               <h3 className="mt-1 font-semibold">{title}</h3>
               <p className="mt-3 whitespace-pre-wrap leading-7 text-slate-700">{section.status === "not_confirmed" || section.content === null ? REPORT_FALLBACK : section.content}</p>
               <div className="mt-4 flex flex-wrap items-center gap-2 text-xs text-slate-500">
                 <span>연결된 근거 {evidenceCount}개</span>
                 {range && section.timestampRange ? (
-                  <button type="button" onClick={() => onSeek(section.timestampRange!.startMs)} className="rounded-full bg-blue-50 px-3 py-1.5 font-medium text-blue-700">영상 {range} 보기</button>
+                  <button
+                    type="button"
+                    data-testid="pipeline-report-seek"
+                    data-seek-start-ms={section.timestampRange.startMs}
+                    onClick={() => onSeek(section.timestampRange!.startMs)}
+                    className="rounded-full bg-blue-50 px-3 py-1.5 font-medium text-blue-700"
+                  >
+                    영상 {range} 보기
+                  </button>
                 ) : null}
               </div>
             </li>

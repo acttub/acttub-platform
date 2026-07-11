@@ -39,6 +39,7 @@ MIGRATION_POST_LEDGER = MIGRATION_PRE_LEDGER + (
     "009_ai_pipeline_contract_hardening",
     "010_ai_pipeline_optional_note",
 )
+MIGRATION_AFTER_009_LEDGER = MIGRATION_POST_LEDGER[:-1]
 _HEAD = re.compile(r"^[a-f0-9]{40}$")
 _HMAC = re.compile(r"^hmac-sha256:[a-f0-9]{64}$")
 _HASH = re.compile(r"^[a-f0-9]{64}$")
@@ -59,13 +60,32 @@ REQUIRED_HARNESS_FILES = frozenset(
     {
         "docs/AI_PIPELINE_E2E_RUNBOOK.md",
         "scripts/ai_pipeline_e2e/__init__.py",
+        "scripts/ai_pipeline_e2e/bridge_protocol.py",
+        "scripts/ai_pipeline_e2e/browser_probe_source.mjs",
+        "scripts/ai_pipeline_e2e/browser_session_broker.mjs",
         "scripts/ai_pipeline_e2e/cases.json",
         "scripts/ai_pipeline_e2e/controller.py",
+        "scripts/ai_pipeline_e2e/live_runner.py",
+        "scripts/ai_pipeline_e2e/mcp_bridge.py",
+        "scripts/ai_pipeline_e2e/mcp_queries.py",
         "scripts/ai_pipeline_e2e/platform_bootstrap.mjs",
+        "scripts/ai_pipeline_e2e/provider_attestation.py",
+        "scripts/ai_pipeline_e2e/real_pipeline_driver.mjs",
+        "scripts/ai_pipeline_e2e/repository_gate.py",
         "scripts/ai_pipeline_e2e/sanitizer.py",
         "scripts/ai_pipeline_e2e/secure_state.py",
         "scripts/ai_pipeline_e2e/service_bootstrap.py",
+        "scripts/ai_pipeline_e2e/tests/test_bridge_protocol.py",
+        "scripts/ai_pipeline_e2e/tests/test_browser_probe_source.py",
+        "scripts/ai_pipeline_e2e/tests/test_browser_session_broker.py",
         "scripts/ai_pipeline_e2e/tests/test_harness.py",
+        "scripts/ai_pipeline_e2e/tests/test_live_runner.py",
+        "scripts/ai_pipeline_e2e/tests/test_mcp_architect_regressions.py",
+        "scripts/ai_pipeline_e2e/tests/test_mcp_bridge.py",
+        "scripts/ai_pipeline_e2e/tests/test_mcp_queries.py",
+        "scripts/ai_pipeline_e2e/tests/test_provider_attestation.py",
+        "scripts/ai_pipeline_e2e/tests/test_real_pipeline_driver.py",
+        "scripts/ai_pipeline_e2e/tests/test_repository_gate.py",
     }
 )
 
@@ -365,7 +385,7 @@ def verify_evidence_chain(entries: Any) -> dict[str, Any]:
 
 
 def verify_mcp_chain(entries: Any) -> dict[str, Any]:
-    if not isinstance(entries, (list, tuple)) or not 5 <= len(entries) <= 13:
+    if not isinstance(entries, (list, tuple)) or not 8 <= len(entries) <= 20:
         raise ValueError("mcp_chain_count_invalid")
     previous = _GENESIS_HASH
     target_hmac: str | None = None
@@ -443,10 +463,11 @@ def verify_mcp_chain(entries: Any) -> dict[str, Any]:
     mutation_permits: list[str] = []
     mutation_requests: list[str] = []
     version_bindings: list[str] = []
+    ledger_bindings: list[str] = []
     for _version in ("009", "010"):
         version_binding: str | None = None
         for attempt in range(3):
-            if cursor >= len(payloads) - 1:
+            if cursor + 2 >= len(payloads):
                 raise ValueError("mcp_chain_migration_missing")
             mutation = payloads[cursor]
             if mutation["operation"] != "apply_migration":
@@ -458,23 +479,31 @@ def verify_mcp_chain(entries: Any) -> dict[str, Any]:
             mutation_permits.append(mutation["permitHash"])
             mutation_requests.append(mutation["requestHash"])
             cursor += 1
-            if mutation["success"] is True:
-                if mutation["safeCode"] is not None:
-                    raise ValueError("mcp_chain_migration_success_invalid")
-                break
-            if mutation["safeCode"] != "MCP_ACTION_UNKNOWN" or cursor >= len(payloads) - 1:
+            if mutation["success"] is not True and mutation["safeCode"] != "MCP_ACTION_UNKNOWN":
                 raise ValueError("mcp_chain_migration_failure_invalid")
-            reconciliation = payloads[cursor]
+            postcondition = payloads[cursor]
             if (
-                reconciliation["operation"] != "sql_check"
-                or reconciliation["success"] is not True
-                or reconciliation["safeCode"] is not None
-                or reconciliation["postconditionHash"] != version_binding
+                postcondition["operation"] != "sql_check"
+                or postcondition["success"] is not True
+                or postcondition["safeCode"] is not None
+                or postcondition["postconditionHash"] != version_binding
             ):
-                raise ValueError("mcp_chain_reconciliation_invalid")
+                raise ValueError("mcp_chain_postcondition_invalid")
             cursor += 1
+            ledger = payloads[cursor]
+            if (
+                ledger["operation"] != "inspect_migrations"
+                or ledger["success"] is not True
+                or ledger["safeCode"] is not None
+                or ledger["postconditionHash"] == version_binding
+            ):
+                raise ValueError("mcp_chain_ledger_invalid")
+            ledger_bindings.append(ledger["postconditionHash"])
+            cursor += 1
+            if mutation["success"] is True:
+                break
             retry_follows = (
-                cursor < len(payloads) - 1
+                cursor < len(payloads)
                 and payloads[cursor]["operation"] == "apply_migration"
                 and payloads[cursor]["postconditionHash"] == version_binding
             )
@@ -485,12 +514,14 @@ def verify_mcp_chain(entries: Any) -> dict[str, Any]:
         if version_binding is None:
             raise ValueError("mcp_chain_migration_binding_missing")
         version_bindings.append(version_binding)
-    if cursor != len(payloads) - 1:
+    if cursor != len(payloads):
         raise ValueError("mcp_chain_trailing_operation_invalid")
     if (
         len(set(mutation_permits)) != len(mutation_permits)
         or len(set(mutation_requests)) != len(mutation_requests)
         or len(set(version_bindings)) != 2
+        or len(set(ledger_bindings)) != len(ledger_bindings)
+        or any(binding in set(version_bindings) for binding in ledger_bindings)
     ):
         raise ValueError("mcp_chain_migration_binding_reused")
     return {
@@ -552,9 +583,13 @@ def verify_browser_chain(entries: Any, evidence_entries: Any) -> dict[str, Any]:
 
 
 def validate_migration_ledger(phase: str, applied: Any) -> dict[str, Any]:
-    if phase not in {"pre", "post"} or not isinstance(applied, (list, tuple)) or not all(isinstance(item, str) for item in applied):
+    if phase not in {"pre", "after_009", "post"} or not isinstance(applied, (list, tuple)) or not all(isinstance(item, str) for item in applied):
         raise TypeError("migration_ledger_input_invalid")
-    expected = MIGRATION_PRE_LEDGER if phase == "pre" else MIGRATION_POST_LEDGER
+    expected = {
+        "pre": MIGRATION_PRE_LEDGER,
+        "after_009": MIGRATION_AFTER_009_LEDGER,
+        "post": MIGRATION_POST_LEDGER,
+    }[phase]
     if tuple(applied) != expected:
         raise ValueError(f"migration_{phase}_ledger_mismatch")
     return {"phase": phase, "exact": True, "count": len(expected)}
@@ -735,8 +770,12 @@ def validate_real_attestation(value: Any, mac_key_fd: int) -> dict[str, str]:
             "providerCredentialFdOnly",
             "providerCallCount",
             "providerStagesObserved",
+            "providerEventCount",
+            "providerEventTailHmac",
+            "providerEventAggregateHmac",
             "mediaReadFromFd",
             "mediaByteCount",
+            "mediaContentHmac",
             "providerAttestationHmac",
             "mediaAttestationHmac",
         },
@@ -752,9 +791,17 @@ def validate_real_attestation(value: Any, mac_key_fd: int) -> dict[str, str]:
         or item["providerCallCount"] < 3
         or not isinstance(stages, list)
         or stages != ["summary", "agent", "report"]
+        or type(item["providerEventCount"]) is not int
+        or item["providerEventCount"] < item["providerCallCount"] + 3
+        or not isinstance(item["providerEventTailHmac"], str)
+        or _HMAC.fullmatch(item["providerEventTailHmac"]) is None
+        or not isinstance(item["providerEventAggregateHmac"], str)
+        or _HMAC.fullmatch(item["providerEventAggregateHmac"]) is None
         or item["mediaReadFromFd"] is not True
         or type(item["mediaByteCount"]) is not int
         or not 0 < item["mediaByteCount"] <= 8 * 1024 * 1024 * 1024
+        or not isinstance(item["mediaContentHmac"], str)
+        or _HMAC.fullmatch(item["mediaContentHmac"]) is None
         or not isinstance(item["providerAttestationHmac"], str)
         or _HMAC.fullmatch(item["providerAttestationHmac"]) is None
         or not isinstance(item["mediaAttestationHmac"], str)
@@ -767,11 +814,15 @@ def validate_real_attestation(value: Any, mac_key_fd: int) -> dict[str, str]:
         "providerCredentialFdOnly": True,
         "providerCallCount": item["providerCallCount"],
         "providerStagesObserved": list(stages),
+        "providerEventCount": item["providerEventCount"],
+        "providerEventTailHmac": item["providerEventTailHmac"],
+        "providerEventAggregateHmac": item["providerEventAggregateHmac"],
     }
     media_core = {
         "schemaVersion": item["schemaVersion"],
         "mediaReadFromFd": True,
         "mediaByteCount": item["mediaByteCount"],
+        "mediaContentHmac": item["mediaContentHmac"],
     }
     key = _read_mac_key(mac_key_fd)
     expected_provider = "hmac-sha256:" + hmac.new(
@@ -1304,8 +1355,12 @@ def transition(state: ControllerState, event: Any) -> ControllerState:
                 "version",
                 "consumeHash",
                 "targetHmac",
-                "mcpEntry",
+                "applyMcpEntry",
+                "postconditionMcpEntry",
+                "ledgerMcpEntry",
                 "effectPresent",
+                "ledger",
+                "ledgerHmac",
                 "targetMatched",
                 "payloadMatched",
                 "permitLedgerFd",
@@ -1313,14 +1368,34 @@ def transition(state: ControllerState, event: Any) -> ControllerState:
             },
             "MIGRATION_ATTESTED",
         )
-        mcp_entry = _validate_mcp_entry(
-            item["mcpEntry"],
+        apply_entry = _validate_mcp_entry(
+            item["applyMcpEntry"],
             sequence=state.mcp_sequence + 1,
             previous_hash=state.mcp_tail_hash,
             operation="apply_migration",
             postcondition_hash=state.prepared_payload_binding_hmac,
             target_hmac=state.development_target_hmac,
             permit_hash=state.current_permit_hash,
+        )
+        postcondition_entry = _validate_mcp_entry(
+            item["postconditionMcpEntry"],
+            sequence=apply_entry["sequence"] + 1,
+            previous_hash=apply_entry["hash"],
+            operation="sql_check",
+            postcondition_hash=state.prepared_payload_binding_hmac,
+            target_hmac=state.development_target_hmac,
+        )
+        ledger = validate_migration_ledger(
+            "post" if version == "010" else "after_009",
+            item["ledger"],
+        )
+        ledger_entry = _validate_mcp_entry(
+            item["ledgerMcpEntry"],
+            sequence=postcondition_entry["sequence"] + 1,
+            previous_hash=postcondition_entry["hash"],
+            operation="inspect_migrations",
+            postcondition_hash=item["ledgerHmac"],
+            target_hmac=state.development_target_hmac,
         )
         try:
             from .secure_state import MutationPermitLedger
@@ -1332,6 +1407,9 @@ def transition(state: ControllerState, event: Any) -> ControllerState:
             or item["consumeHash"] != state.current_consume_hash
             or item["targetHmac"] != state.development_target_hmac
             or any(item[key] is not True for key in ("effectPresent", "targetMatched", "payloadMatched"))
+            or ledger["exact"] is not True
+            or not isinstance(item["ledgerHmac"], str)
+            or _HMAC.fullmatch(item["ledgerHmac"]) is None
             or outcome["verified"] is not True
             or type(item["productionActionCount"]) is not int
             or item["productionActionCount"] != 0
@@ -1340,9 +1418,9 @@ def transition(state: ControllerState, event: Any) -> ControllerState:
         return replace(
             state,
             phase=f"migration_{version}_attested",
-            migration_attestation_hashes=state.migration_attestation_hashes + (mcp_entry["hash"],),
-            mcp_sequence=mcp_entry["sequence"],
-            mcp_tail_hash=mcp_entry["hash"],
+            migration_attestation_hashes=state.migration_attestation_hashes + (ledger_entry["hash"],),
+            mcp_sequence=ledger_entry["sequence"],
+            mcp_tail_hash=ledger_entry["hash"],
             current_consume_hash=None,
             current_permit_hash=None,
         )
@@ -1351,15 +1429,47 @@ def transition(state: ControllerState, event: Any) -> ControllerState:
         version = state.phase.split("_")[1]
         item = _event(
             event,
-            {"version", "consumeHash", "targetHmac", "mcpEntry", "effectPresent", "permitLedgerFd", "productionActionCount"},
+            {
+                "version",
+                "consumeHash",
+                "targetHmac",
+                "postconditionMcpEntry",
+                "ledgerMcpEntry",
+                "effectPresent",
+                "ledger",
+                "ledgerHmac",
+                "permitLedgerFd",
+                "productionActionCount",
+            },
             "MIGRATION_RECONCILED",
         )
-        mcp_entry = _validate_mcp_entry(
-            item["mcpEntry"],
+        postcondition_entry = _validate_mcp_entry(
+            item["postconditionMcpEntry"],
             sequence=state.mcp_sequence + 1,
             previous_hash=state.mcp_tail_hash,
             operation="sql_check",
             postcondition_hash=state.prepared_payload_binding_hmac,
+            target_hmac=state.development_target_hmac,
+        )
+        expected_ledger = (
+            MIGRATION_AFTER_009_LEDGER
+            if version == "009"
+            else MIGRATION_POST_LEDGER
+        ) if item["effectPresent"] else (
+            MIGRATION_PRE_LEDGER
+            if version == "009"
+            else MIGRATION_AFTER_009_LEDGER
+        )
+        if tuple(item["ledger"]) != expected_ledger:
+            raise ValueError("migration_reconciliation_ledger_mismatch")
+        if not isinstance(item["ledgerHmac"], str) or _HMAC.fullmatch(item["ledgerHmac"]) is None:
+            raise ValueError("migration_reconciliation_ledger_hmac_invalid")
+        ledger_entry = _validate_mcp_entry(
+            item["ledgerMcpEntry"],
+            sequence=postcondition_entry["sequence"] + 1,
+            previous_hash=postcondition_entry["hash"],
+            operation="inspect_migrations",
+            postcondition_hash=item["ledgerHmac"],
             target_hmac=state.development_target_hmac,
         )
         try:
@@ -1384,9 +1494,9 @@ def transition(state: ControllerState, event: Any) -> ControllerState:
             return replace(
                 state,
                 phase=f"migration_{version}_attested",
-                migration_attestation_hashes=state.migration_attestation_hashes + (mcp_entry["hash"],),
-                mcp_sequence=mcp_entry["sequence"],
-                mcp_tail_hash=mcp_entry["hash"],
+                migration_attestation_hashes=state.migration_attestation_hashes + (ledger_entry["hash"],),
+                mcp_sequence=ledger_entry["sequence"],
+                mcp_tail_hash=ledger_entry["hash"],
                 current_consume_hash=None,
                 current_permit_hash=None,
             )
@@ -1395,8 +1505,8 @@ def transition(state: ControllerState, event: Any) -> ControllerState:
             phase=f"migration_{version}_retry_required",
             current_consume_hash=None,
             current_permit_hash=None,
-            mcp_sequence=mcp_entry["sequence"],
-            mcp_tail_hash=mcp_entry["hash"],
+            mcp_sequence=ledger_entry["sequence"],
+            mcp_tail_hash=ledger_entry["hash"],
         )
 
     if state.phase == "migration_010_attested":
