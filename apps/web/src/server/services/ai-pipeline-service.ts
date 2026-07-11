@@ -15,7 +15,7 @@ import { countReportableActorTurns } from "../ai-pipeline-runtime-rules.js";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const unknownAnswers = new Set(["모르겠어요", "잘 모르겠어요", "unknown"]);
-const correctionOnlyState = String.fromCharCode(114, 101, 106, 101, 99, 116, 101, 100) as PipelineSessionAggregate["observations"][number]["confirmationState"];
+const correctionOnlyState = "rejected";
 
 const defaultAiPipelineServiceDeps = Object.freeze({
   repository,
@@ -49,7 +49,8 @@ export class AiPipelineError extends Error {
   }
 }
 
-export const createAiPipelineService = (deps = defaultAiPipelineServiceDeps) => {
+export const createAiPipelineService = (incomingDeps = defaultAiPipelineServiceDeps) => {
+const deps = Object.freeze({ ...incomingDeps });
 const aggregate = async (sessionId: string, userId: string) => {
   const value = await deps.repository.findPipelineSessionForOwner(sessionId, userId);
   if (!value) throw new AiPipelineError(404, "PIPELINE_SESSION_NOT_FOUND");
@@ -154,6 +155,27 @@ const requireObservationIds = (value: unknown): string[] => {
   }
   return value.observationIds;
 };
+
+const isRecord = (value: unknown): value is { [key: string]: unknown } => typeof value === "object" && value !== null && !Array.isArray(value);
+
+const requestBody = (value: unknown): { [key: string]: unknown } => {
+  if (!isRecord(value)) throw new AiPipelineError(400, "INVALID_REQUEST_BODY");
+  return value;
+};
+
+const isCompletionReason = (value: unknown): value is CompletionReason =>
+  typeof value === "string" && ["interview_complete_report_ready", "manual_stop_report_ready", "manual_stop_paused", "hard_limit_report_ready", "insufficient_confirmed_evidence", "insufficient_interview_evidence"].includes(value);
+
+const isAgentTransportResponse = (value: { [key: string]: unknown }): value is AgentTransportResponse =>
+  "action" in value && "completionReason" in value && "model" in value && "promptVersion" in value;
+
+const requireAgentTransportResponse = (value: { [key: string]: unknown }): AgentTransportResponse => {
+  if (!isAgentTransportResponse(value)) throw new AiPipelineError(502, "AI_INVALID_RESPONSE");
+  return value;
+};
+
+const isReportReadyReason = (value: CompletionReason | null): value is ReportRequest["completionReason"] =>
+  value === "interview_complete_report_ready" || value === "manual_stop_report_ready" || value === "hard_limit_report_ready";
 
 const requireReportEvidence = (value: unknown): AgentReplayPayload["reportEvidence"] => {
   if (typeof value !== "object" || value === null || !("observationIds" in value) || !("answerTurnIds" in value) || !Array.isArray(value.observationIds) || !Array.isArray(value.answerTurnIds) || !value.observationIds.every((item) => typeof item === "string") || !value.answerTurnIds.every((item) => typeof item === "string")) {
@@ -284,7 +306,7 @@ const generateReport = async (
         confirmedObservations: confirmed.map((item) => ({ observationId: item.id, sourceCandidateId: item.candidateId!, segment: { startMs: item.startMs, endMs: item.endMs }, text: item.text, dimension: item.dimension! })),
         actorCorrections: session.corrections.map((item) => ({ correctionId: item.id, correctsObservationId: item.correctsObservationId, segment: item.segment, text: item.text, actorTurnId: item.correctionByTurnId })),
         transcript: session.transcript.map((item) => ({ turnId: item.id, speaker: item.role, content: item.content, kind: item.kind })),
-        completionReason: session.completionReason as ReportRequest["completionReason"],
+        completionReason: isReportReadyReason(session.completionReason) ? session.completionReason : (() => { throw new AiPipelineError(409, "REPORT_NOT_READY"); })(),
         selectedEvidence: { observationIds: session.reportEvidenceObservationIds, answerTurnIds: session.reportEvidenceAnswerTurnIds },
       };
       await deps.requireCurrentAiProcessingConsent(userId);
@@ -377,14 +399,14 @@ const callAgent = async (session: PipelineSessionAggregate, userId: string, inpu
       const response = await deps.createAiTransport(deps.loadAiServiceConfig()).agent(request);
       const action = String(response.action);
       const done = response.done === true;
-      const completionReason = (response.completionReason === null ? null : String(response.completionReason)) as CompletionReason | null;
+      const completionReason = response.completionReason === null ? null : isCompletionReason(response.completionReason) ? response.completionReason : (() => { throw new AiPipelineError(502, "AI_INVALID_RESPONSE"); })();
       const reportReady = response.reportReady === true;
       assertTerminalAtConversationLimit({ actual: interviewProgress(requestSession.transcript), done, reportReady, completionReason, fail: (code) => { throw new AiPipelineError(409, code); } });
       const reportEvidence = requireReportEvidence(response.reportEvidence);
       if (actorTurn) actorTurn.reportEvidenceSelected = actorTurn.kind === "answer" && reportEvidence.answerTurnIds.includes(actorTurn.id);
       const agentTurn: InterviewTurn = { id: crypto.randomUUID(), sequence: authoritativeSession.transcript.length + (actorTurn ? 1 : 0), role: "agent", kind: done ? "closing" : "question", content: String(response.utterance), questionFocus: action, groundingStartMs: null, groundingEndMs: null, sourceObservationIds: requireObservationIds(response.evidence), reportEvidenceSelected: false };
       const responsePayload: AgentReplayPayload = { actorTurn, agentTurn, done, completionReason, reportReady, reportEvidence };
-      return { report: null, response: responsePayload, transportResponse: response as AgentTransportResponse, claimedRunId: run.id, persistedInput, actorTurn, agentTurn, done, completionReason, reportReady, reportEvidence };
+      return { report: null, response: responsePayload, transportResponse: requireAgentTransportResponse(response), claimedRunId: run.id, persistedInput, actorTurn, agentTurn, done, completionReason, reportReady, reportEvidence };
     },
     persist: async (invoked, run) => {
       await deps.repository.appendPipelineTurn({
@@ -426,9 +448,9 @@ const callAgent = async (session: PipelineSessionAggregate, userId: string, inpu
   return publicResult;
 };
 
-return {
+return Object.freeze({
   async createSession(body:unknown,userId:string){
-    const input=body as Record<string,unknown>;const required=(key:string)=>{const value=input[key];if(typeof value!=="string"||!value.trim())throw new AiPipelineError(400,"INVALID_PIPELINE_SESSION");return value.trim()};
+    const input=requestBody(body);const required=(key:string)=>{const value=input[key];if(typeof value!=="string"||!value.trim())throw new AiPipelineError(400,"INVALID_PIPELINE_SESSION");return value.trim()};
     const allowed=new Set(["sessionId","uploadIntentId","storagePath","genre","situation","characterContext","subtext"]);if(Object.keys(input).some((key)=>!allowed.has(key)))throw new AiPipelineError(400,"INVALID_PIPELINE_SESSION");
     const sessionId=required("sessionId"),uploadIntentId=required("uploadIntentId"),storagePath=required("storagePath"),genre=required("genre"),situation=required("situation"),characterContext=required("characterContext"),subtext=typeof input.subtext==="string"&&input.subtext.trim()?input.subtext.trim():null;
     await deps.requireCurrentAiProcessingConsent(userId);const consent=await deps.getCurrentConsentVersions();const upload=await deps.repository.findEligibleUpload(uploadIntentId,userId);if(!upload||upload.sessionId!==sessionId||upload.storagePath!==storagePath||upload.requiredConsentVersionSnapshot!==consent.requiredConsentVersion||upload.aiProcessingConsentVersionSnapshot!==consent.aiProcessingConsentVersion)throw new AiPipelineError(409,"UPLOAD_NOT_AI_ELIGIBLE");
@@ -452,11 +474,12 @@ return {
   async getSession(sessionId: string, userId: string) { return publicAggregate(await aggregate(sessionId, userId)); },
   async confirmObservation(sessionId: string, observationId: string, userId: string, body: unknown) {
     const session = await aggregate(sessionId, userId);
-    const payload = body as { state?: unknown; correction?: unknown };
+    const payload = requestBody(body);
     if (!session.observations.some((item) => item.id === observationId && item.priority !== null && item.priority <= 3)) throw new AiPipelineError(404, "OBSERVATION_NOT_FOUND");
     ensureMutableInterviewSession(session);
-    if (!(["accepted", correctionOnlyState, "unsure"] as unknown[]).includes(payload.state) || (payload.correction !== undefined && (payload.state !== correctionOnlyState || typeof payload.correction !== "string" || !payload.correction.trim()))) throw new AiPipelineError(400, "INVALID_CONFIRMATION");
-    await deps.repository.confirmObservation({ sessionId, userId, observationId, state: payload.state as Exclude<PipelineSessionAggregate["observations"][number]["confirmationState"], "unasked">, correction: typeof payload.correction === "string" ? { id: crypto.randomUUID(), turnId: crypto.randomUUID(), text: payload.correction.trim() } : null });
+    if (payload.state !== "accepted" && payload.state !== correctionOnlyState && payload.state !== "unsure") throw new AiPipelineError(400, "INVALID_CONFIRMATION");
+    if (payload.correction !== undefined && (payload.state !== correctionOnlyState || typeof payload.correction !== "string" || !payload.correction.trim())) throw new AiPipelineError(400, "INVALID_CONFIRMATION");
+    await deps.repository.confirmObservation({ sessionId, userId, observationId, state: payload.state, correction: typeof payload.correction === "string" ? { id: crypto.randomUUID(), turnId: crypto.randomUUID(), text: payload.correction.trim() } : null });
     return this.getSession(sessionId, userId);
   },
   async startInterview(sessionId: string, userId: string) {
@@ -465,7 +488,7 @@ return {
     return callAgent(session, userId, currentInput("start"));
   },
   async addTurn(sessionId: string, userId: string, body: unknown) {
-    const payload = body as { answer?: unknown; requestId?: unknown; expectedSubstantiveAnswerCount?: unknown; expectedTotalConversationCount?: unknown };
+    const payload = requestBody(body);
     if (typeof payload.answer !== "string" || !payload.answer.trim() || !Number.isInteger(payload.expectedSubstantiveAnswerCount) || !Number.isInteger(payload.expectedTotalConversationCount) || typeof payload.requestId !== "string" || !UUID.test(payload.requestId)) throw new AiPipelineError(400, "INVALID_INTERVIEW_TURN");
     const session = await aggregate(sessionId, userId);
     const answer = payload.answer.trim();
@@ -497,6 +520,6 @@ return {
   },
   async reconcileDeletionAttempts(userId:string,limit=25){const bounded=Math.max(1,Math.min(100,Math.trunc(limit)));const candidates=(await deps.repository.listDeletionReconciliationCandidates(userId)).slice(0,bounded);const results=[];for(const item of candidates){try{results.push(await this.deleteSession(item.sessionId,userId,item.requestId))}catch{results.push({requestId:item.requestId,status:"failed" as const})}}return{processed:results.length,results}},
   async getDeletionStatus(sessionId:string,userId:string,requestId:string){const value=await deps.repository.findDeletionAttempt(sessionId,userId,requestId);if(!value)throw new AiPipelineError(404,"DELETION_NOT_FOUND");return value;},
+});
 };
-};
-export const aiPipelineService = createAiPipelineService();
+export const aiPipelineService = Object.freeze(createAiPipelineService());

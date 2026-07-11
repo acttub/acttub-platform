@@ -88,3 +88,17 @@ test("production service seam deduplicates concurrent exact addTurn and replays 
   assert.equal(left.actorTurn.id, session.transcript[0].id);
   assert.equal(left.agentTurn.id, session.transcript[1].id);
 });
+
+test("production service freezes its API and snapshots caller-owned dependencies", async () => {
+  const createAiPipelineService = await loadServiceFactory();
+  const session = baseSession();
+  const repository = { async findPipelineSessionForOwner() { return structuredClone(session); } };
+  const deps = {
+    repository,
+    createAiTransport: () => ({}), loadAiServiceConfig: () => ({}), requireCurrentAiProcessingConsent: async () => {}, getCurrentConsentVersions: async () => ({}), coachSessionService: {}, createSupabaseAdminClient: () => null, getAppConfig: () => ({ video: { bucket: "practice-videos" } }),
+  };
+  const service = createAiPipelineService(deps);
+  deps.repository = { async findPipelineSessionForOwner() { throw new Error("mutated caller dependency"); } };
+  assert.equal(Object.isFrozen(service), true);
+  assert.equal((await service.getSession(ids.session, ids.user)).sessionId, ids.session);
+});

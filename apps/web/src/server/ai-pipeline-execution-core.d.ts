@@ -35,14 +35,14 @@ export interface RunCallbacks<TRun = unknown, TResult = unknown> {
   persist: (result: TResult, run: TRun, claim: ClaimResult<TRun>) => Promise<void>;
   replay: (run: TRun, claim: ClaimResult<TRun>) => TResult;
   recover: (error: unknown, run: TRun, claim: ClaimResult<TRun>) => Promise<TResult | null | undefined>;
-  providerFailure?: (error: unknown, run: TRun, claim: ClaimResult<TRun>) => never | TResult | Promise<never | TResult>;
-  persistenceFailure?: (error: unknown, run: TRun, claim: ClaimResult<TRun>) => never | TResult | Promise<never | TResult>;
+  providerFailure?: (error: unknown, run: TRun, claim: ClaimResult<TRun>) => TResult | Promise<TResult>;
+  persistenceFailure?: (error: unknown, run: TRun, claim: ClaimResult<TRun>) => TResult | Promise<TResult>;
 }
 export declare const buildAgentClaimPayload: (input: AgentClaimPayload) => AgentClaimPayload;
 export declare const fingerprintAgentClaim: (payload: unknown) => string;
 export declare const interviewProgress: (transcript: Array<{ role: string; kind: string }>) => InterviewProgress;
-export declare const assertExpectedInterviewProgress: (input: { actual: InterviewProgress; expectedSubstantiveAnswerCount: number; expectedTotalConversationCount: number; fail?: (code: string) => never }) => void;
-export declare const assertTerminalAtConversationLimit: (input: { actual: InterviewProgress; completionReason?: string | null; done?: boolean | null; reportReady?: boolean | null; fail?: (code: string) => never }) => void;
+export declare const assertExpectedInterviewProgress: (input: { actual: InterviewProgress; expectedSubstantiveAnswerCount: number; expectedTotalConversationCount: number; fail?: (code: string) => void }) => void;
+export declare const assertTerminalAtConversationLimit: (input: { actual: InterviewProgress; completionReason?: string | null; done?: boolean | null; reportReady?: boolean | null; fail?: (code: string) => void }) => void;
 export declare const sanitizePublicAiPipelineAggregate: (value: unknown) => unknown;
 export declare const createAiPipelineExecutionCore: <TRun = unknown>(args: CreateExecutionCoreArgs<TRun>) => {
   claimRun: () => Promise<ClaimResult<TRun>>;
