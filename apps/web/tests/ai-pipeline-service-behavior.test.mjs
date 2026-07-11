@@ -345,3 +345,13 @@ test("retryReport observes a fresh running exact Report claim without invoking p
   await assert.rejects(service.retryReport(ids.session,ids.user),error=>error?.status===409);
   assert.equal(claimCalls,1); assert.equal(providerCalls,0);
 });
+
+test("createSession replays an exact completed Summary deeply equal with zero provider calls", async () => {
+  const session=baseSession(); const run={id:ids.summaryRun,sessionId:ids.session,userId:ids.user,stage:"summary",status:"completed",responseSchemaVersion:"summary-response.v1",model:"summary-model",promptVersion:"acting-summary.prompt.v2",requestPayloadFingerprint:"secret",responsePayload:{secret:true},updatedAt:"internal"}; session.runs=[run];
+  let providerCalls=0,claimCalls=0;
+  const repository={async findEligibleUpload(){return{sessionId:ids.session,storagePath:"u/s/video.mp4",requiredConsentVersionSnapshot:"v1",aiProcessingConsentVersionSnapshot:"v1"}},async createPipelineSession(){},async findPipelineSessionForOwner(){return structuredClone(session)},async claimRun(){claimCalls+=1;return{owned:false,run:structuredClone(run)}},async failRun(){throw new Error("completed replay must not fail")}};
+  const service=createAiPipelineService({repository,createAiTransport:()=>({summary:async()=>{providerCalls+=1;throw new Error("provider must not run")}}),loadAiServiceConfig:()=>({}),requireCurrentAiProcessingConsent:async()=>{},getCurrentConsentVersions:async()=>({requiredConsentVersion:"v1",aiProcessingConsentVersion:"v1"}),coachSessionService:{},createSupabaseAdminClient:()=>null,getAppConfig:()=>({video:{bucket:"practice-videos"}}),createSummaryNetworkError:()=>new Error("network")});
+  const body={sessionId:ids.session,uploadIntentId:"00000000-0000-4000-8000-000000000140",storagePath:"u/s/video.mp4",genre:"drama",situation:"scene",characterContext:"actor",subtext:null};
+  const first=await service.createSession(body,ids.user),second=await service.createSession(body,ids.user);
+  assert.deepEqual(second,first); assert.equal(claimCalls,2); assert.equal(providerCalls,0); assert.equal(first.summaryRun.requestPayloadFingerprint,undefined); assert.equal(first.summaryRun.responsePayload,undefined);
+});
