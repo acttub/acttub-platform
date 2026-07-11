@@ -43,6 +43,11 @@ const currentInput = (command: CurrentInput["command"], extras: Partial<CurrentI
 const actorTurnCount = (session: PipelineSessionAggregate) =>
   session.transcript.filter((item) => item.role === "actor").length;
 
+const ensureMutableInterviewSession = (session: PipelineSessionAggregate) => {
+  if (session.interviewStatus === "completed" || session.interviewStatus === "completed_without_report")
+    throw new AiPipelineError(409, "SESSION_NOT_MUTABLE");
+};
+
 const agentRequest = (session: PipelineSessionAggregate, runId: string, input: CurrentInput): AgentRequest => {
   if (!session.summary) throw new AiPipelineError(409, "SUMMARY_NOT_READY");
   return {
@@ -101,7 +106,13 @@ const callAgent = async (session: PipelineSessionAggregate, userId: string, inpu
   const runId = crypto.randomUUID();
   const claimed = await repository.claimRun({ sessionId: session.sessionId, userId, stage: "agent", runId, idempotencyKey: `${input.command}:${session.substantiveAnswerCount}:${actorTurnCount(session)}`, maxAttempts: 1, requestSchemaVersion: "agent-turn.v1", model: "agent", promptVersion: "agent-turn.v1" });
   if (claimed.id !== runId || claimed.status !== "running") return { run: claimed, session: publicAggregate(await aggregate(session.sessionId, userId)) };
-  const requestSession = actorTurn ? { ...session, transcript: [...session.transcript, actorTurn], substantiveAnswerCount: session.substantiveAnswerCount + 1 } : session;
+  const requestSession = actorTurn
+    ? {
+        ...session,
+        transcript: [...session.transcript, actorTurn],
+        substantiveAnswerCount: session.substantiveAnswerCount + (actorTurn.kind === "answer" ? 1 : 0),
+      }
+    : session;
   const request = agentRequest(requestSession, runId, input);
   let response: Record<string, unknown>;
   await requireCurrentAiProcessingConsent(userId);
@@ -144,13 +155,14 @@ export const aiPipelineService = {
     const session = await aggregate(sessionId, userId);
     const payload = body as { state?: unknown; correction?: unknown };
     if (!session.observations.some((item) => item.id === observationId && item.priority !== null && item.priority <= 3)) throw new AiPipelineError(404, "OBSERVATION_NOT_FOUND");
-    if (session.interviewStatus === "completed" || session.interviewStatus === "completed_without_report") throw new AiPipelineError(409, "SESSION_NOT_MUTABLE");
+    ensureMutableInterviewSession(session);
     if (!(["accepted", correctionOnlyState, "unsure"] as unknown[]).includes(payload.state) || (payload.correction !== undefined && (payload.state !== correctionOnlyState || typeof payload.correction !== "string" || !payload.correction.trim()))) throw new AiPipelineError(400, "INVALID_CONFIRMATION");
     await repository.confirmObservation({ sessionId, userId, observationId, state: payload.state as Exclude<PipelineSessionAggregate["observations"][number]["confirmationState"], "unasked">, correction: typeof payload.correction === "string" ? { id: crypto.randomUUID(), turnId: crypto.randomUUID(), text: payload.correction.trim() } : null });
     return this.getSession(sessionId, userId);
   },
   async startInterview(sessionId: string, userId: string) {
     const session = await aggregate(sessionId, userId);
+    ensureMutableInterviewSession(session);
     if (!session.observations.some((item) => item.confirmationState === "accepted" && !item.blockedForQuestioning)) { await repository.completeInterview({ sessionId, userId, status: "completed_without_report", completionReason: "insufficient_confirmed_evidence", observationIds: [], answerTurnIds: [] }); return { done: true, completionReason: "insufficient_confirmed_evidence", reportReady: false }; }
     return callAgent(session, userId, currentInput("start"), null);
   },
@@ -158,13 +170,14 @@ export const aiPipelineService = {
     const payload = body as { answer?: unknown; expectedSubstantiveAnswerCount?: unknown };
     if (typeof payload.answer !== "string" || !payload.answer.trim() || !Number.isInteger(payload.expectedSubstantiveAnswerCount)) throw new AiPipelineError(400, "INVALID_INTERVIEW_TURN");
     const session = await aggregate(sessionId, userId);
+    ensureMutableInterviewSession(session);
     if (payload.expectedSubstantiveAnswerCount !== session.substantiveAnswerCount) throw new AiPipelineError(409, "INTERVIEW_TURN_CONFLICT");
     const answer = payload.answer.trim();
     const actorTurn: InterviewTurn = { id: crypto.randomUUID(), sequence: session.transcript.length, role: "actor", kind: unknownAnswers.has(answer) ? "unknown" : "answer", content: answer, questionFocus: null, groundingStartMs: null, groundingEndMs: null, sourceObservationIds: [], reportEvidenceSelected: false };
     return callAgent(session, userId, currentInput("answer", { answer, answerTurnId: actorTurn.id }), actorTurn);
   },
-  async stopInterview(sessionId: string, userId: string) { const session = await aggregate(sessionId, userId); return callAgent(session, userId, currentInput("manual_stop"), null); },
-  async resumeInterview(sessionId: string, userId: string) { const session = await aggregate(sessionId, userId); if (session.interviewStatus !== "paused") throw new AiPipelineError(409, "INTERVIEW_NOT_PAUSED"); return callAgent(session, userId, currentInput("resume"), null); },
+  async stopInterview(sessionId: string, userId: string) { const session = await aggregate(sessionId, userId); ensureMutableInterviewSession(session); return callAgent(session, userId, currentInput("manual_stop"), null); },
+  async resumeInterview(sessionId: string, userId: string) { const session = await aggregate(sessionId, userId); ensureMutableInterviewSession(session); if (session.interviewStatus !== "paused") throw new AiPipelineError(409, "INTERVIEW_NOT_PAUSED"); return callAgent(session, userId, currentInput("resume"), null); },
   async getReport(sessionId: string, userId: string) { const session = await aggregate(sessionId, userId); if (!session.report) throw new AiPipelineError(404, "REPORT_NOT_FOUND"); return session.report; },
   async retryReport(sessionId: string, userId: string) {
     const session = await aggregate(sessionId, userId);

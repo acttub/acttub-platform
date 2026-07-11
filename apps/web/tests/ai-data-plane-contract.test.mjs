@@ -6,6 +6,7 @@ const migration = await readFile(new URL("../../../supabase/migrations/004_ai_pi
 const migration007 = await readFile(new URL("../../../supabase/migrations/007_ai_pipeline_unknown_turn_count.sql", import.meta.url), "utf8");
 const migration008 = await readFile(new URL("../../../supabase/migrations/008_ai_pipeline_session_delete_upload_intent_cleanup.sql", import.meta.url), "utf8");
 const migration009 = await readFile(new URL("../../../supabase/migrations/009_ai_pipeline_contract_hardening.sql", import.meta.url), "utf8");
+const service = await readFile(new URL("../src/server/services/ai-pipeline-service.ts", import.meta.url), "utf8");
 const repository = await readFile(new URL("../src/server/repositories/supabase-ai-pipeline-repository.ts", import.meta.url), "utf8");
 const types = await readFile(new URL("../src/server/repositories/ai-pipeline-types.ts", import.meta.url), "utf8");
 
@@ -61,6 +62,11 @@ test("repository deeply checks summary report and run invariants", () => {
   assert.match(repository, /notConfirmed/);
   assert.match(repository, /run\.invariants/);
   assert.match(repository, /report\.invariants/);
+  assert.match(repository, /reportForSession/);
+  assert.match(repository, /report\.selectedEvidence/);
+  assert.match(repository, /report\.timestampRequired/);
+  assert.match(repository, /actorDiscovery[\s\S]*correctionByTurnId/);
+  assert.doesNotMatch(repository, /recordRunModel\(/);
 });
 
 test("late audit gates current consent and immutable successful retries",()=>{
@@ -84,7 +90,7 @@ test("forward migration hardens AI run metadata persistence and mutable confirma
   assert.match(migration009, /update public\.ai_runs set status='completed',response_schema_version='summary-response\.v1',model=p_model,prompt_version=p_prompt_version,safe_error_code=null,completed_at=now\(\),updated_at=now\(\)/);
   assert.match(migration009, /create or replace function public\.acttub_append_pipeline_turn\(p_session_id uuid,p_user_id uuid,p_payload jsonb\)/);
   assert.match(migration009, /select count\(\*\) into actor_count from public\.interview_turns where session_id=p_session_id and user_id=p_user_id and role='actor'/);
-  assert.doesNotMatch(migration009, /update public\.ai_runs set status='completed',response_schema_version='agent-turn\.v1'/);
+  assert.match(migration009, /if actor_count>=10 then raise exception 'turn_conflict'; end if;/);
   assert.match(migration009, /create or replace function public\.acttub_complete_interview\(p_session_id uuid,p_user_id uuid,p_payload jsonb\)/);
   assert.match(migration009, /agentRunId/);
   assert.match(migration009, /status in \('running','completed'\)/);
@@ -113,6 +119,10 @@ test("late audit rejects malformed deep summary values and accepts typed answer 
 test("forward migration preserves unknown actor turns without incrementing substantive answers", () => {
   assert.match(migration007, /create or replace function public\.acttub_append_pipeline_turn/);
   assert.match(migration007, /if actor->>'kind'='answer' then expected:=expected\+1; end if; end if;/);
+  assert.match(service, /unknownAnswers\.has\(answer\) \? "unknown" : "answer"/);
+  assert.match(service, /substantiveAnswerCount: session\.substantiveAnswerCount \+ \(actorTurn\.kind === "answer" \? 1 : 0\)/);
+  assert.match(service, /ensureMutableInterviewSession\(session\)/);
+  assert.match(service, /if \(session\.interviewStatus === "completed" \|\| session\.interviewStatus === "completed_without_report"\) throw new AiPipelineError\(409, "SESSION_NOT_MUTABLE"\);/);
 });
 
 test("forward migration repairs deletion by removing the orphan upload intent and fail-closes the full deletion surface", () => {
