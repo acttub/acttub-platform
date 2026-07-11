@@ -1659,10 +1659,23 @@
           "400": {
             "$ref": "#/components/responses/BadRequest"
           },
-          "500": {
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/TermsRequired"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "503": {
             "$ref": "#/components/responses/InternalError"
           }
-        }
+        },
+        "description": "종료된 연습에서 선택적인 내 문장을 저장·수정합니다. content가 공백 문자열이거나 null이면 기존 문장을 지웁니다."
       }
     }
   },
@@ -2763,7 +2776,8 @@
               "string",
               "null"
             ],
-            "maxLength": 1000
+            "maxLength": 1000,
+            "description": "공백 문자열 또는 null을 보내면 저장된 내 문장을 지웁니다."
           }
         }
       },

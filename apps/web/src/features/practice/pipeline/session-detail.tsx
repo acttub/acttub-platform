@@ -14,6 +14,7 @@ export function PipelineSessionDetail({ sessionId }: { sessionId: string }) {
   const [retrying, setRetrying] = useState(false);
   const [optionalNote, setOptionalNote] = useState("");
   const [savingNote, setSavingNote] = useState(false);
+  const [noteStatus, setNoteStatus] = useState("");
   const videoRef = useRef<PrivateVideoHandle>(null);
 
   const reload = useCallback(async () => {
@@ -45,7 +46,7 @@ export function PipelineSessionDetail({ sessionId }: { sessionId: string }) {
     catch (reason) { setError(reason instanceof Error ? reason.message : "리포트를 다시 만들지 못했어요."); }
     finally { setRetrying(false); }
   }
-  async function persistOptionalNote(content:string|null){setSavingNote(true);setError(null);try{const saved=await savePipelineOptionalNote(sessionId,{content});setOptionalNote(saved.optionalNote??"");setSession(current=>current?{...current,optionalNote:saved.optionalNote}:current);}catch(reason){setError(reason instanceof Error?reason.message:"내 문장을 저장하지 못했어요.");}finally{setSavingNote(false)}}
+  async function persistOptionalNote(content:string|null){setSavingNote(true);setError(null);setNoteStatus("");try{const saved=await savePipelineOptionalNote(sessionId,{content});setOptionalNote(saved.optionalNote??"");setSession(current=>current?{...current,optionalNote:saved.optionalNote}:current);setNoteStatus(saved.optionalNote===null?"내 문장을 지웠어요.":"내 문장을 저장했어요.");}catch(reason){setError(reason instanceof Error?reason.message:"내 문장을 저장하지 못했어요.");}finally{setSavingNote(false)}}
 
   return (
     <main className="mx-auto w-full max-w-5xl px-5 py-8 md:py-12">
@@ -56,14 +57,16 @@ export function PipelineSessionDetail({ sessionId }: { sessionId: string }) {
       {error ? <p role="alert" className="mb-5 rounded-2xl bg-red-50 p-4 text-sm text-red-700">{error}</p> : null}
       {loading && !session ? <p className="py-20 text-center text-slate-500">저장된 연습 기록을 불러오고 있어요.</p> : null}
       {session ? (
+        <div className="space-y-8">
+          {session.interviewStatus==="completed"||session.interviewStatus==="completed_without_report"?<section className="rounded-2xl bg-white p-5"><label htmlFor="optional-note" className="font-semibold">내 문장 남기기 (선택)</label><textarea id="optional-note" value={optionalNote} maxLength={1000} onChange={event=>{setOptionalNote(event.target.value);setNoteStatus("");}} disabled={savingNote} className="mt-3 min-h-28 w-full rounded-xl border border-slate-300 p-3" aria-describedby="optional-note-count optional-note-status"/><p id="optional-note-count" className="mt-1 text-right text-xs text-slate-500">{optionalNote.length}/1000</p><p id="optional-note-status" aria-live="polite" className="mt-2 min-h-5 text-sm text-emerald-700">{noteStatus}</p><div className="mt-3 flex gap-2"><button type="button" onClick={()=>void persistOptionalNote(optionalNote)} disabled={savingNote} className="rounded-full bg-slate-900 px-4 py-2 text-sm text-white disabled:opacity-50">{savingNote?"저장 중":"저장"}</button><button type="button" onClick={()=>void persistOptionalNote(null)} disabled={savingNote||(!session.optionalNote&&!optionalNote)} className="rounded-full border border-slate-300 px-4 py-2 text-sm disabled:opacity-50">지우기</button></div></section>:null}
         <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
           <div className="space-y-4"><PrivateVideo ref={videoRef} sessionId={sessionId} />
             <section className="rounded-2xl bg-white p-5"><h2 className="font-semibold">진행 상태</h2><p className="mt-2 text-sm text-slate-600">{session.interviewStatus === "paused" ? "인터뷰가 일시 정지되었어요." : session.interviewStatus === "completed_without_report" ? "인터뷰는 끝났지만 확인된 근거가 충분하지 않아 리포트가 없어요." : session.report ? "리포트가 완료되었어요." : "리포트를 준비하고 있어요."}</p>
               {retryableReportFailure ? <button type="button" onClick={() => void retryReport()} disabled={retrying} className="mt-4 rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">{retrying ? "다시 만드는 중" : "리포트 다시 만들기"}</button> : null}
             </section>
-            {session.interviewStatus==="completed"||session.interviewStatus==="completed_without_report"?<section className="rounded-2xl bg-white p-5"><label htmlFor="optional-note" className="font-semibold">내 문장 남기기</label><textarea id="optional-note" value={optionalNote} maxLength={1000} onChange={event=>setOptionalNote(event.target.value)} disabled={savingNote} className="mt-3 min-h-28 w-full rounded-xl border border-slate-300 p-3" aria-describedby="optional-note-count"/><p id="optional-note-count" className="mt-1 text-right text-xs text-slate-500">{optionalNote.length}/1000</p><div className="mt-3 flex gap-2"><button type="button" onClick={()=>void persistOptionalNote(optionalNote)} disabled={savingNote} className="rounded-full bg-slate-900 px-4 py-2 text-sm text-white disabled:opacity-50">{savingNote?"저장 중":"저장"}</button><button type="button" onClick={()=>void persistOptionalNote(null)} disabled={savingNote||(!session.optionalNote&&!optionalNote)} className="rounded-full border border-slate-300 px-4 py-2 text-sm disabled:opacity-50">지우기</button></div></section>:null}
           </div>
           {session.report ? <ReportView report={session.report} onSeek={(startMs) => videoRef.current?.seekTo(startMs)} /> : <section className="rounded-3xl bg-white p-8"><h2 className="text-xl font-bold">리포트가 아직 없어요</h2><p className="mt-3 text-slate-600">진행 상태를 확인한 뒤 새로고침해 주세요.</p></section>}
+        </div>
         </div>
       ) : null}
     </main>
