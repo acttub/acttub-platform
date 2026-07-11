@@ -6,7 +6,7 @@ import { isLowerHex64 } from "@/server/ai-pipeline-fingerprint.js";
 import type { NormalizedSummary } from "@/server/ai/contracts";
 import { CONFIRMATION_VALUES } from "./ai-pipeline-values";
 import type { AgentReplayPayload, AiRun, ClaimRunInput, ClaimRunResult, CompleteInterviewInput, CompleteReportInput, ConfirmObservationInput, DeleteInput, FailRunInput, ImmutableAiReport, PipelineSessionAggregate, PipelineTurnInput, ReportReplayPayload, ReportSection, SummaryCompletionInput, SummaryReplayPayload } from "./ai-pipeline-types";
-import { validateReportSectionLineage } from "../report-lineage.js";
+import { validateReportSessionLineage } from "../report-session-lineage.js";
 
 type Row=Record<string,unknown>; const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 type ReplayStage = "summary" | "agent" | "report" | "delete";
