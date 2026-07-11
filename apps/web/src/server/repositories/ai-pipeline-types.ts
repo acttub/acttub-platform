@@ -16,8 +16,8 @@ export interface AiRun {
   id: string; sessionId: string; userId: string; stage: AiStage; status: AiRunStatus;
   idempotencyKey: string; attempt: number; maxAttempts: number;
   requestSchemaVersion: string | null; responseSchemaVersion: string | null;
-  requestPayloadFingerprint: string | null; model: string | null; promptVersion: string | null; safeErrorCode: string | null;
-  retryable: boolean; startedAt: string | null; completedAt: string | null;
+  requestPayloadFingerprint: string | null; responsePayload: AgentReplayPayload | null; model: string | null; promptVersion: string | null; safeErrorCode: string | null;
+  retryable: boolean; startedAt: string | null; completedAt: string | null; updatedAt: string | null;
 }
 export interface PipelineObservation {
   id: string; candidateId: string | null; confirmationState: ObservationConfirmation;
@@ -44,6 +44,14 @@ export interface ImmutableAiReport {
   actorDiscovery: ReportSection; groundedEncouragement: ReportSection; nextPracticeStep: ReportSection;
   createdAt: string;
 }
+export interface AgentReplayPayload {
+  actorTurn: InterviewTurn | null;
+  agentTurn: InterviewTurn;
+  done: boolean;
+  completionReason: CompletionReason | null;
+  reportReady: boolean;
+  reportEvidence: { observationIds: string[]; answerTurnIds: string[] };
+}
 export interface PipelineSessionAggregate {
   sessionId: string; userId: string; pipelineVersion: "ai-pipeline.v1";
   requiredConsentVersionSnapshot: string; aiProcessingConsentVersionSnapshot: string;
@@ -57,10 +65,11 @@ export interface PipelineSessionAggregate {
 }
 
 export interface ClaimRunInput { sessionId:string; userId:string; stage:AiStage; runId:string; idempotencyKey:string; maxAttempts:number; requestSchemaVersion:string; requestPayloadFingerprint:string; model:string; promptVersion:string }
+export interface ClaimRunResult { run: AiRun; owned: boolean }
 export interface FailRunInput { sessionId:string; userId:string; runId:string; safeErrorCode:string; retryable:boolean }
 export interface ConfirmObservationInput { sessionId:string; userId:string; observationId:string; state:Exclude<ObservationConfirmation,"unasked">; correction:null|{id:string;turnId:string;text:string} }
 export interface SummaryCompletionInput { sessionId:string; userId:string; runId:string; normalizedSummary:NormalizedSummary; candidates:Array<{id:string;startMs:number;endMs:number;text:string;priority:number;dimension:string;severity:"high"|"mid"|"low"|null}>; model:string; promptVersion:string }
-export interface PipelineTurnInput { sessionId:string; userId:string; agentRunId:string; requestId:string; expectedSubstantiveAnswerCount:number; expectedTotalConversationCount:number; actorTurn:InterviewTurn|null; agentTurn:InterviewTurn; model:string; promptVersion:string; currentInput:{command:"start"|"observation_update"|"answer"|"manual_stop"|"resume";answer:string|null;answerTurnId:string|null;observationId:string|null}; reportEvidence:{observationIds:string[];answerTurnIds:string[]}; completionStatus?: InterviewStatus | null; completionReason?: CompletionReason | null }
+export interface PipelineTurnInput { sessionId:string; userId:string; agentRunId:string; requestId:string; expectedSubstantiveAnswerCount:number; expectedTotalConversationCount:number; actorTurn:InterviewTurn|null; agentTurn:InterviewTurn; responsePayload?: AgentReplayPayload | null; model:string; promptVersion:string; currentInput:{command:"start"|"observation_update"|"answer"|"manual_stop"|"resume";answer:string|null;answerTurnId:string|null;observationId:string|null}; reportEvidence:{observationIds:string[];answerTurnIds:string[]}; completionStatus?: InterviewStatus | null; completionReason?: CompletionReason | null }
 export interface CompleteInterviewInput { sessionId:string; userId:string; status:InterviewStatus; completionReason:CompletionReason; observationIds:string[]; answerTurnIds:string[]; agentRunId?: string | null; model?: string | null; promptVersion?: string | null }
 export interface CompleteReportInput { sessionId:string; userId:string; runId:string; report:{schemaVersion:"report.v1";sections:{oneLineSummary:ReportSection;primaryReviewPoint:ReportSection;confirmedEvidence:ReportSection;actorDiscovery:ReportSection;groundedEncouragement:ReportSection;nextPracticeStep:ReportSection}}; model:string; promptVersion:string }
 export interface DeleteInput { sessionId:string; userId:string; requestId:string }
