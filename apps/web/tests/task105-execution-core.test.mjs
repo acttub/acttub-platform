@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 import { applyOwnerSessionScope } from "../src/server/session-visibility.js";
 import { createAiPipelineExecutionCore, fingerprintAgentClaim, buildAgentClaimPayload, interviewProgress, assertExpectedInterviewProgress, assertTerminalAtConversationLimit, sanitizePublicAiPipelineAggregate } from "../src/server/ai-pipeline-execution-core.js";
@@ -9,6 +10,16 @@ class FakeQuery {
   is(key, value) { this.calls.push(["is", key, value]); return this; }
 }
 
+class FakeRowQuery {
+  constructor(rows) { this.rows = rows; }
+  eq(key, value) { this.rows = this.rows.filter((row) => row[key] === value); return this; }
+  is(key, value) { this.rows = this.rows.filter((row) => row[key] === value); return this; }
+  maybeSingle() {
+    assert.ok(this.rows.length <= 1, "owner scope must resolve at most one row");
+    return { data: this.rows[0] ?? null, error: null };
+  }
+}
+
 test("owner session scope helper applies public and deletion filters", () => {
   const publicQuery = new FakeQuery();
   applyOwnerSessionScope(publicQuery, { sessionId: "00000000-0000-4000-8000-000000000001", userId: "00000000-0000-4000-8000-000000000002", visibility: "public" });
@@ -17,6 +28,54 @@ test("owner session scope helper applies public and deletion filters", () => {
   applyOwnerSessionScope(deletionQuery, { sessionId: "00000000-0000-4000-8000-000000000003", userId: "00000000-0000-4000-8000-000000000004", visibility: "deletion" });
   assert.deepEqual(deletionQuery.calls, [["eq", "id", "00000000-0000-4000-8000-000000000003"], ["eq", "user_id", "00000000-0000-4000-8000-000000000004"]]);
   assert.throws(() => applyOwnerSessionScope(new FakeQuery(), { sessionId: "s", userId: "u", visibility: "internal" }), /invalid_visibility/);
+});
+
+test("owner session visibility scopes enforce executable row semantics", () => {
+  const userId = "00000000-0000-4000-8000-000000000002";
+  const rows = [
+    { id: "active", user_id: userId, hidden_at: null, deletion_status: "active" },
+    { id: "hidden", user_id: userId, hidden_at: "2026-01-01T00:00:00.000Z", deletion_status: "active" },
+    { id: "deleting", user_id: userId, hidden_at: "2026-01-01T00:00:00.000Z", deletion_status: "deleting" },
+    { id: "other-owner", user_id: "00000000-0000-4000-8000-000000000099", hidden_at: null, deletion_status: "active" },
+  ];
+  const read = (sessionId, visibility) => applyOwnerSessionScope(
+    new FakeRowQuery(structuredClone(rows)),
+    { sessionId, userId, visibility },
+  ).maybeSingle().data;
+
+  assert.equal(read("active", "public")?.id, "active");
+  assert.equal(read("hidden", "public"), null);
+  assert.equal(read("deleting", "public"), null);
+  assert.equal(read("hidden", "deletion")?.id, "hidden");
+  assert.equal(read("deleting", "deletion")?.id, "deleting");
+  assert.equal(read("other-owner", "deletion"), null);
+
+  const activeMutation = applyOwnerSessionScope(
+    new FakeRowQuery(structuredClone(rows)),
+    { sessionId: "active", userId, visibility: "deletion" },
+  ).eq("deletion_status", "active").maybeSingle().data;
+  const deletingMutation = applyOwnerSessionScope(
+    new FakeRowQuery(structuredClone(rows)),
+    { sessionId: "deleting", userId, visibility: "deletion" },
+  ).eq("deletion_status", "active").maybeSingle().data;
+  assert.equal(activeMutation?.id, "active");
+  assert.equal(deletingMutation, null);
+});
+
+test("public reads, deletion reads, and visibility mutation stay bound to their scopes", () => {
+  const coachRepository = readFileSync(new URL("../src/server/repositories/supabase-coach-session-repository.ts", import.meta.url), "utf8");
+  const pipelineRepository = readFileSync(new URL("../src/server/repositories/supabase-ai-pipeline-repository.ts", import.meta.url), "utf8");
+  const coachService = readFileSync(new URL("../src/server/services/coach-session-service.ts", import.meta.url), "utf8");
+  const pipelineService = readFileSync(new URL("../src/server/ai-pipeline-service-core.js", import.meta.url), "utf8");
+
+  assert.match(pipelineRepository, /findPipelineSessionForOwner[\s\S]*?visibility:"public"/);
+  assert.match(coachRepository, /hydrateSession[\s\S]{0,600}visibility: includeHidden \? "deletion" : "public"/);
+  assert.match(coachRepository, /updateVisibility[\s\S]{0,900}visibility: "deletion"[\s\S]{0,120}\.eq\("deletion_status", "active"\)/);
+  assert.match(coachService, /createSignedVideoUrl[\s\S]{0,500}readSessionForOwner\(sessionId, userId\)/);
+  assert.match(coachService, /getSessionIncludingHidden[\s\S]{0,200}readSessionForDeletion\(sessionId, userId\)/);
+  assert.match(pipelineService, /async getSession\(sessionId, userId\)[\s\S]{0,120}aggregate\(sessionId, userId\)/);
+  assert.match(pipelineService, /async getReport\(sessionId, userId\)[\s\S]{0,120}aggregate\(sessionId, userId\)/);
+  assert.match(pipelineService, /async deleteSession\(sessionId, userId, requestId\)[\s\S]{0,500}getSessionIncludingHidden\(sessionId, userId\)/);
 });
 
 test("execution core replays completed claims and only invokes the provider for owned running runs", async () => {
