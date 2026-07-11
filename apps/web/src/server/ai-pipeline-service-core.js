@@ -300,13 +300,19 @@ export const createAiPipelineService = (incomingDeps) => {
         });
         if (result?.report)
             return result.report;
-        const committed = await aggregate(session.sessionId, userId);
-        if (committed.report)
-            return committed.report;
-        const existing = await deps.repository.findImmutableReport(session.sessionId, userId);
-        if (existing)
-            return existing;
-        throw new AiPipelineError(404, "REPORT_NOT_FOUND");
+        try {
+            const committed = await aggregate(session.sessionId, userId);
+            if (committed.report)
+                return committed.report;
+        }
+        catch { /* immutable report fallback below */ }
+        try {
+            const existing = await deps.repository.findImmutableReport(session.sessionId, userId);
+            if (existing)
+                return existing;
+        }
+        catch { /* safe persistence boundary below */ }
+        throw new AiPipelineError(503, "REPORT_PERSISTENCE_FAILED");
     };
     const latestCompletedAgentRun = (session) => [...session.runs]
         .filter((run) => run.stage === "agent" && run.status === "completed" && run.responseSchemaVersion === "agent-turn.v1" && Boolean(run.model?.trim()) && run.promptVersion === "acting-agent.prompt.v2" && isAgentReplayPayload(run.responsePayload) && run.responsePayload.done && run.responsePayload.reportReady && run.responsePayload.completionReason !== null && run.responsePayload.completionReason.endsWith("_report_ready"))
