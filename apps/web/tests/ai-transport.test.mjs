@@ -119,7 +119,7 @@ test("rejects every Report section-specific evidence invariant violation", async
   await createAiTransport(config,async()=>response({...reportResponse,sections:actorDiscoveryWithoutTimestamp})).report(correctionRequest);
   await createAiTransport(config,async()=>response({...reportResponse,sections:optionalNonPrimarySections})).report(reportRequest);
   const correctionOnlyTimestamp={...reportResponse,sections:{...reportResponse.sections,primaryReviewPoint:{...review,turnEvidenceIds:[correctionTurnId],timestampRange:{startMs:2,endMs:3}}}};
-  await createAiTransport(config,async()=>response(correctionOnlyTimestamp)).report(correctionRequest);
+  await assert.rejects(createAiTransport(config,async()=>response(correctionOnlyTimestamp)).report(correctionRequest),error=>error instanceof AiServiceError&&error.code==="INVALID_RESPONSE");
 });
 
 test("accepts optional report timestamps on non-primary sections and requires primaryReviewPoint", async () => {

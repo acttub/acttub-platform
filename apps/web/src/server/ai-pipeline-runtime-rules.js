@@ -43,18 +43,13 @@ const validateTimestampRange = ({ key, section, observationIds, turnIds, observa
   }
   const range = section.timestampRange;
   if (typeof range.startMs !== "number" || typeof range.endMs !== "number" || range.endMs < range.startMs) fail("invalid_report_timestamp");
-  if (key === "primaryReviewPoint") {
-    const sourceSegments = [
-      ...observationIds.map((id) => observationSegments.get(id)).filter(Boolean),
-      ...turnIds.map((id) => correctionSegments.get(id)).filter(Boolean),
-    ];
-    if (!matchTimestamp(range, sourceSegments)) fail("invalid_report_timestamp");
-    return;
-  }
-  const sourceSegments = [
-    ...observationIds.map((id) => observationSegments.get(id)).filter(Boolean),
-    ...turnIds.map((id) => correctionSegments.get(id)).filter(Boolean),
-  ];
+  const sourceSegments =
+    key === "primaryReviewPoint"
+      ? observationIds.map((id) => observationSegments.get(id)).filter(Boolean)
+      : [
+          ...observationIds.map((id) => observationSegments.get(id)).filter(Boolean),
+          ...turnIds.map((id) => correctionSegments.get(id)).filter(Boolean),
+        ];
   if (!matchTimestamp(range, sourceSegments)) fail("invalid_report_timestamp");
 };
 
