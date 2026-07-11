@@ -103,7 +103,6 @@ begin
    and exists(select 1 from public.profiles p where p.id=p_user_id and p.status='active' and p.required_consent_version=public.current_acttub_terms_version() and p.required_consent_at is not null and p.ai_processing_consent_version=public.current_acttub_ai_processing_consent_version() and p.ai_processing_consent_at is not null)
  for update;
  if not found or expected<>(p_payload->>'expectedSubstantiveAnswerCount')::integer or expected>=10 then raise exception 'turn_conflict'; end if;
- if stat is null or reason is null then raise exception 'invalid_completion'; end if;
  select count(*) into conversation_count from public.interview_turns where session_id=p_session_id and user_id=p_user_id and role='actor' and kind in ('answer','unknown');
  if conversation_count>=10 then raise exception 'turn_conflict'; end if;
  if conversation_count<>(p_payload->>'expectedTotalConversationCount')::integer then raise exception 'turn_conflict'; end if;
@@ -147,6 +146,7 @@ end $$;
 
 create or replace function public.acttub_complete_interview(p_session_id uuid,p_user_id uuid,p_payload jsonb)
 returns jsonb language plpgsql security definer set search_path=public as $$ declare reason text:=p_payload->>'completionReason'; stat text:=p_payload->>'status'; obs uuid[]:=array(select jsonb_array_elements_text(p_payload->'observationIds'))::uuid[]; turns uuid[]:=array(select jsonb_array_elements_text(p_payload->'answerTurnIds'))::uuid[]; n integer; conversation_count integer; next_sequence integer; last_two_kinds text[]; agent_run_id text:=p_payload->>'agentRunId'; agent_response jsonb:=p_payload->'agentResponse'; agent_turn jsonb:=p_payload->'agentResponse'->'agentTurn'; begin
+ if stat is null or reason is null then raise exception 'invalid_completion'; end if;
  select substantive_answer_count into n from public.practice_sessions where id=p_session_id and user_id=p_user_id and deletion_status='active' and interview_status in ('active','paused') for update; if not found then raise exception 'session_not_mutable'; end if;
  select count(*) into conversation_count from public.interview_turns where session_id=p_session_id and user_id=p_user_id and role='actor' and kind in ('answer','unknown');
  select array_agg(kind order by sequence desc) into last_two_kinds from (select kind,sequence from public.interview_turns where session_id=p_session_id and user_id=p_user_id and role='actor' and kind in ('answer','unknown') order by sequence desc limit 2) counted;
