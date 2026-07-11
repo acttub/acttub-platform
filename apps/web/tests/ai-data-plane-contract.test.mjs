@@ -111,7 +111,9 @@ test("migration 009 replays under lock, expires stale reports, and removes weak 
   assert.match(migration009, /p_stage='agent' and \(p_max_attempts<>2/);
   assert.match(migration009, /coalesce\(\(select jsonb_agg/);
   assert.match(migration009, /invalid_tenth_completion/);
-  assert.match(migration009, /agent_completion_requires_append/);
+  assert.match(migration009, /invalid_agent_completion_payload/);
+  assert.match(migration009, /stage='agent' and status='running' and request_schema_version='agent-turn\.v1'/);
+  assert.match(migration009, /response_schema_version='agent-turn\.v1',response_payload=p_payload->'agentResponse'/);
   assert.match(migration009, /correction_lineage_conflict/);
   assert.match(migration009, /summary_lineage_conflict/);
 });
