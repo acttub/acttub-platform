@@ -92,6 +92,7 @@ declare
  turns uuid[] := array(select jsonb_array_elements_text(p_payload->'reportEvidence'->'answerTurnIds'))::uuid[];
  last_two_kinds text[];
 begin
+ if (completion_status_value is null)<>(completion_reason_value is null) then raise exception 'invalid_completion'; end if;
  select substantive_answer_count into expected
  from public.practice_sessions s
  where s.id=p_session_id
