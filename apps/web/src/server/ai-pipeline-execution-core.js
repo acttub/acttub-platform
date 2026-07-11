@@ -57,13 +57,15 @@ export const assertExpectedInterviewProgress = ({ actual, expectedSubstantiveAns
   }
 };
 
-export const assertTerminalAtConversationLimit = ({ actual, completionReason = null, done = null, fail = defaultFail }) => {
+export const assertTerminalAtConversationLimit = ({ actual, completionReason = null, done = null, reportReady = null, fail = defaultFail }) => {
   if (actual.totalReportableActorCount < 10) return;
   if (done !== true) fail("nonterminal_tenth_turn");
   if (completionReason === "hard_limit_report_ready") {
+    if (reportReady !== true) fail("invalid_completion_count");
     return;
   }
   if (completionReason === "insufficient_interview_evidence") {
+    if (reportReady !== false) fail("invalid_completion_count");
     return;
   }
   fail("invalid_completion_count");
@@ -80,11 +82,12 @@ export const sanitizePublicAiPipelineAggregate = (value) => {
   return result;
 };
 
-export const createAiPipelineExecutionCore = ({ claimRun, readRun, sleep: sleepImpl = sleep, waitAttempts = 0, waitDelayMs = 0 }) => {
+export const createAiPipelineExecutionCore = ({ claimRun, readRun, sleep: sleepImpl = sleep, waitAttempts = 3, waitDelayMs = 25 }) => {
   const waitForTerminal = async (runId) => {
     let last = null;
     for (let attempt = 0; attempt <= waitAttempts; attempt += 1) {
       last = await readRun(runId);
+      if (!last) continue;
       if (last.run.status === "completed" || last.run.status === "failed") return last;
       if (attempt < waitAttempts) await sleepImpl(waitDelayMs);
     }

@@ -42,7 +42,7 @@ export declare const buildAgentClaimPayload: (input: AgentClaimPayload) => Agent
 export declare const fingerprintAgentClaim: (payload: unknown) => string;
 export declare const interviewProgress: (transcript: Array<{ role: string; kind: string }>) => InterviewProgress;
 export declare const assertExpectedInterviewProgress: (input: { actual: InterviewProgress; expectedSubstantiveAnswerCount: number; expectedTotalConversationCount: number; fail?: (code: string) => never }) => void;
-export declare const assertTerminalAtConversationLimit: (input: { actual: InterviewProgress; completionReason?: string | null; done?: boolean | null; fail?: (code: string) => never }) => void;
+export declare const assertTerminalAtConversationLimit: (input: { actual: InterviewProgress; completionReason?: string | null; done?: boolean | null; reportReady?: boolean | null; fail?: (code: string) => never }) => void;
 export declare const sanitizePublicAiPipelineAggregate: (value: unknown) => unknown;
 export declare const createAiPipelineExecutionCore: <TRun = unknown>(args: CreateExecutionCoreArgs<TRun>) => {
   claimRun: () => Promise<ClaimResult<TRun>>;

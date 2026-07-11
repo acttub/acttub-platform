@@ -510,6 +510,7 @@ export const supabaseCoachSessionRepository = {
       .update({ status: "questioning", updated_at: coachTurn.createdAt })
       .eq("id", sessionId)
       .eq("user_id", userId)
+      .eq("deletion_status", "active")
       .is("hidden_at", null)
       .select("id")
       .maybeSingle();
