@@ -16,7 +16,7 @@ export interface AiRun {
   id: string; sessionId: string; userId: string; stage: AiStage; status: AiRunStatus;
   idempotencyKey: string; attempt: number; maxAttempts: number;
   requestSchemaVersion: string | null; responseSchemaVersion: string | null;
-  requestPayloadFingerprint: string | null; responsePayload: AgentReplayPayload | null; model: string | null; promptVersion: string | null; safeErrorCode: string | null;
+  requestPayloadFingerprint: string | null; responsePayload: SummaryReplayPayload | AgentReplayPayload | ReportReplayPayload | null; model: string | null; promptVersion: string | null; safeErrorCode: string | null;
   retryable: boolean; startedAt: string | null; completedAt: string | null; updatedAt: string | null;
 }
 export interface PipelineObservation {
@@ -38,6 +38,15 @@ export interface ReportSection {
   observationEvidenceIds: string[]; turnEvidenceIds: string[];
   timestampRange: { startMs: number; endMs: number } | null;
 }
+export interface SummaryReplayPayload {
+  schemaVersion: "summary-response.v1";
+  sessionId: string;
+  runId: string;
+  model: string;
+  promptVersion: string;
+  normalizedSummary: NormalizedSummary;
+  observationCandidates: Array<{ candidateId: string; timestampStartMs: number; timestampEndMs: number; observationText: string; confidence: null; priority: number; dimension: string; severity: "high" | "mid" | "low" | null }>;
+}
 export interface ImmutableAiReport {
   sessionId: string; sourceRunId: string; schemaVersion: "report.v1"; completionReason: CompletionReason;
   oneLineSummary: ReportSection; primaryReviewPoint: ReportSection; confirmedEvidence: ReportSection;
@@ -51,6 +60,14 @@ export interface AgentReplayPayload {
   completionReason: CompletionReason | null;
   reportReady: boolean;
   reportEvidence: { observationIds: string[]; answerTurnIds: string[] };
+}
+export interface ReportReplayPayload {
+  schemaVersion: "report.v1";
+  sessionId: string;
+  runId: string;
+  model: string;
+  promptVersion: string;
+  sections: { oneLineSummary: ReportSection; primaryReviewPoint: ReportSection; confirmedEvidence: ReportSection; actorDiscovery: ReportSection; groundedEncouragement: ReportSection; nextPracticeStep: ReportSection };
 }
 export interface PipelineSessionAggregate {
   sessionId: string; userId: string; pipelineVersion: "ai-pipeline.v1";
