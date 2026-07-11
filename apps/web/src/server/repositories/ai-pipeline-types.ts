@@ -16,7 +16,7 @@ export interface AiRun {
   id: string; sessionId: string; userId: string; stage: AiStage; status: AiRunStatus;
   idempotencyKey: string; attempt: number; maxAttempts: number;
   requestSchemaVersion: string | null; responseSchemaVersion: string | null;
-  model: string | null; promptVersion: string | null; safeErrorCode: string | null;
+  requestPayloadFingerprint: string | null; model: string | null; promptVersion: string | null; safeErrorCode: string | null;
   retryable: boolean; startedAt: string | null; completedAt: string | null;
 }
 export interface PipelineObservation {
@@ -56,7 +56,7 @@ export interface PipelineSessionAggregate {
   runs: AiRun[]; report: ImmutableAiReport | null;
 }
 
-export interface ClaimRunInput { sessionId:string; userId:string; stage:AiStage; runId:string; idempotencyKey:string; maxAttempts:number; requestSchemaVersion:string; model:string; promptVersion:string }
+export interface ClaimRunInput { sessionId:string; userId:string; stage:AiStage; runId:string; idempotencyKey:string; maxAttempts:number; requestSchemaVersion:string; requestPayloadFingerprint:string; model:string; promptVersion:string }
 export interface FailRunInput { sessionId:string; userId:string; runId:string; safeErrorCode:string; retryable:boolean }
 export interface ConfirmObservationInput { sessionId:string; userId:string; observationId:string; state:Exclude<ObservationConfirmation,"unasked">; correction:null|{id:string;turnId:string;text:string} }
 export interface SummaryCompletionInput { sessionId:string; userId:string; runId:string; normalizedSummary:NormalizedSummary; candidates:Array<{id:string;startMs:number;endMs:number;text:string;priority:number;dimension:string;severity:"high"|"mid"|"low"|null}>; model:string; promptVersion:string }

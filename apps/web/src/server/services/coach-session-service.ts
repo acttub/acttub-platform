@@ -413,6 +413,14 @@ const readSessionForOwner = async (
     supabaseCoachSessionRepository.findById(sessionId, userId),
   );
 
+const readSessionForDeletion = async (
+  sessionId: string,
+  userId: string,
+): Promise<CoachSessionDto | null> =>
+  requireSupabasePersistence(() =>
+    supabaseCoachSessionRepository.findByIdIncludingHidden(sessionId, userId),
+  );
+
 const readUploadIntentForOwner = async (
   uploadIntentId: string,
   userId: string,
@@ -782,6 +790,10 @@ export const coachSessionService = {
 
   async getSession(sessionId: string, userId: string): Promise<CoachSessionDto | null> {
     return readSessionForOwner(sessionId, userId);
+  },
+
+  async getSessionIncludingHidden(sessionId: string, userId: string): Promise<CoachSessionDto | null> {
+    return readSessionForDeletion(sessionId, userId);
   },
 
   async softHideSession(

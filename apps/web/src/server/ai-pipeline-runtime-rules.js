@@ -74,6 +74,7 @@ export const validateReportSectionLineage = ({
   const allowedTurnIds = new Set([...selectedAnswerTurns, ...corrections]);
   const hasSelectedAnswer = turnIds.some((id) => selectedAnswerTurns.has(id));
   const allTurnRefsAllowed = turnIds.every((id) => allowedTurnIds.has(id));
+  const hasSelectedAnswerOutsideEvidence = turnIds.some((id) => selectedAnswerTurns.has(id) && !selectedAnswers.has(id));
 
   if (section.status === "not_confirmed") {
     if (section.content !== null || obsIds.length || turnIds.length || section.timestampRange !== null) fail("invalid_unconfirmed_section");
@@ -81,7 +82,7 @@ export const validateReportSectionLineage = ({
   }
 
   if (typeof section.content !== "string" || !section.content.trim()) fail("invalid_confirmed_section");
-  if (obsIds.some((id) => !selectedObs.has(id)) || !allTurnRefsAllowed) fail("invalid_report_evidence");
+  if (obsIds.some((id) => !selectedObs.has(id)) || !allTurnRefsAllowed || hasSelectedAnswerOutsideEvidence) fail("invalid_report_evidence");
 
   if (key === "oneLineSummary" || key === "confirmedEvidence") {
     if (obsIds.length === 0 || !hasSelectedAnswer) fail("invalid_report_evidence");

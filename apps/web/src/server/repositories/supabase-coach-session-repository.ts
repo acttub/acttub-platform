@@ -246,7 +246,7 @@ async function hydrateSession(sessionId: string, userId: string, includeHidden =
     .eq("id", sessionId)
     .eq("user_id", userId);
 
-  if (!includeHidden) query = query.is("hidden_at", null);
+  if (!includeHidden) query = query.is("hidden_at", null).eq("deletion_status", "active");
 
   const { data, error } = await query.maybeSingle();
   assertNoPersistenceError(error, "sessionId", "Could not read Supabase practice session");
@@ -415,6 +415,7 @@ export const supabaseCoachSessionRepository = {
       .select(sessionSelect)
       .eq("user_id", userId)
       .is("hidden_at", null)
+      .eq("deletion_status", "active")
       .order("created_at", { ascending: false });
 
     assertNoPersistenceError(error, "userId", "Could not list Supabase practice sessions");
