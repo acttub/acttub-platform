@@ -34,8 +34,8 @@ test("finalize and pipeline reject browser authority and stale eligibility",()=>
   assert.match(service,/uploadIntentId,[\s\S]*mediaMetadataVersion: "iso-bmff-duration\.v1"/);
   assert.doesNotMatch(service,/return \{[\s\S]{0,120}videoUrl: videoRefForUploadIntent/);
   assert.match(repo,/adult_confirmed_at,all_participants_confirmed_at,ai_eligible_at/);
-  assert.match(pipeline,/upload\.requiredConsentVersionSnapshot!==consent\.requiredConsentVersion/);
-  assert.match(pipeline,/upload\.aiProcessingConsentVersionSnapshot!==consent\.aiProcessingConsentVersion/);
+  assert.match(pipeline,/upload\.requiredConsentVersionSnapshot !== consent\.requiredConsentVersion/);
+  assert.match(pipeline,/upload\.aiProcessingConsentVersionSnapshot !== consent\.aiProcessingConsentVersion/);
   assert.ok((pipeline.match(/deps\.requireCurrentAiProcessingConsent\(userId\)/g)??[]).length>=3);
 });
 
