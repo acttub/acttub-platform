@@ -119,7 +119,10 @@ test("migration 009 replays under lock, expires stale reports, and removes weak 
   assert.match(migration009, /p_stage='summary' and \(p_max_attempts<>2/);
   assert.match(migration009, /coalesce\(\(select jsonb_agg/);
   assert.match(migration009, /invalid_tenth_completion/);
-  assert.match(migration009, /if \(completion_status_value is null\)<>\(completion_reason_value is null\) then raise exception 'invalid_completion'/);
+  assert.match(migration009, /completion_status_value is null\)<>\(completion_reason_value is null\)[\s\S]*completion_status_value not in \('completed','paused','completed_without_report'\)/);
+  assert.match(migration009, /jsonb_typeof\(p_summary\) is distinct from 'object'/);
+  assert.match(migration009, /jsonb_typeof\(c->'id'\) is distinct from 'string'[\s\S]*invalid_summary_candidate/);
+  assert.match(migration009, /r\.status in \('pending','running'\) returning r\.\*/);
   assert.match(migration009, /'reportReady',coalesce\(completion_status_value='completed',false\)/);
   assert.match(migration009, /invalid_agent_completion_payload/);
   assert.match(migration009, /stage='agent' and status='running' and request_schema_version='agent-turn\.v1'/);
