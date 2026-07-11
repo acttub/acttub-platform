@@ -104,6 +104,20 @@ test("migration 009 replays under lock, expires stale reports, and removes weak 
   assert.match(migration009, /existing\.source_run_id is distinct from p_run_id/);
   assert.match(migration009, /from public,anon,authenticated,service_role;[\s\S]*drop function public\.acttub_claim_ai_run\(uuid,uuid,text,uuid,text,integer,text,text,text\)/);
   assert.match(migration009, /'sessionId',p_session_id,'runId',p_run_id/);
+  assert.match(migration009, /invalid_claim_contract/);
+  assert.match(migration009, /coalesce\(\(select jsonb_agg/);
+  assert.match(migration009, /invalid_tenth_completion/);
+  assert.match(migration009, /agent_completion_requires_append/);
+  assert.match(migration009, /correction_lineage_conflict/);
+  assert.match(migration009, /summary_lineage_conflict/);
+});
+
+test("service reloads owned Agent progress and sanitizes Summary run output", () => {
+  assert.match(service, /const authoritativeSession = await aggregate\(session\.sessionId, userId\)/);
+  assert.match(service, /authoritativeSession\.substantiveAnswerCount !== expectedSubstantiveAnswerCount/);
+  assert.match(service, /summaryRun:sanitizePublicAiPipelineAggregate\(summaryRun\)/);
+  assert.match(service, /run\.promptVersion === "acting-agent\.prompt\.v2"/);
+  assert.match(service, /isAgentReplayPayload\(run\.responsePayload\)[\s\S]*run\.responsePayload\.done[\s\S]*run\.responsePayload\.reportReady/);
 });
 
 test("run claims require adult participant and authoritative media eligibility",()=>{

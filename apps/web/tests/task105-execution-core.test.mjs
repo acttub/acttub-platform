@@ -109,6 +109,15 @@ test("non-owned running claims poll a bounded number of times and never invoke",
   assert.equal(invokes, 0);
 });
 
+test("owned persistence never returns provider output without an observed exact commit", async () => {
+  for (const readRun of [async () => null, async () => ({ owned: false, run: { id: "run", status: "running" } })]) {
+    let failed = 0;
+    const core = createAiPipelineExecutionCore({ claimRun: async () => ({ owned: true, run: { id: "run", status: "running" } }), readRun });
+    await assert.rejects(core.run({ invoke: async () => ({ unsafe: "provider-only" }), persist: async () => {}, replay: () => ({ committed: true }), recover: async () => null, persistenceFailure: async (error) => { failed += 1; throw error; } }), /AI_RUN_COMMIT_NOT_OBSERVED/);
+    assert.equal(failed, 1);
+  }
+});
+
 test("interview progress helpers enforce exact substantive and reportable counts", () => {
   const transcript = [
     { role: "actor", kind: "answer" },
