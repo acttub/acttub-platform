@@ -11,7 +11,7 @@ import { validateReportSectionLineage } from "../ai-pipeline-runtime-rules.js";
 type Row=Record<string,unknown>; const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 type ReplayStage = "summary" | "agent" | "report" | "delete";
 export class AiPipelinePersistenceError extends Error { constructor(readonly operation:string,readonly field="row"){super(`Invalid AI pipeline persistence result (${operation}:${field}).`);this.name="AiPipelinePersistenceError"} }
-const fail=(op:string,field:string):never=>{throw new AiPipelinePersistenceError(op,field)};
+const fail=(op:string,field:string)=>{throw new AiPipelinePersistenceError(op,field)};
 const object=(v:unknown,op:string,f:string):Row=>v!==null&&typeof v==="object"&&!Array.isArray(v)?v as Row:fail(op,f);
 const list=(v:unknown,op:string,f:string):unknown[]=>Array.isArray(v)?v:fail(op,f);
 const text=(v:unknown,op:string,f:string):string=>typeof v==="string"&&v.length>0?v:fail(op,f);
