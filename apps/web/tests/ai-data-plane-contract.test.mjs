@@ -93,6 +93,19 @@ test("claim replay hardens on canonical request fingerprint and current summary 
   assert.match(service, /requestPayloadFingerprint:\s*fingerprintJson\(reportClaimPayload\(session\)\)/);
 });
 
+test("migration 009 replays under lock, expires stale reports, and removes weak overloads", () => {
+  const lock = migration009.indexOf("for update;");
+  const replay = migration009.indexOf("select r.* into existing");
+  const stageGate = migration009.indexOf("if p_stage='summary'");
+  assert.ok(lock >= 0 && replay > lock && stageGate > replay);
+  assert.match(migration009, /interval '15 minutes'/);
+  assert.match(migration009, /REPORT_LEASE_EXPIRED/);
+  assert.match(migration009, /existing_run is distinct from p_run_id/);
+  assert.match(migration009, /existing\.source_run_id is distinct from p_run_id/);
+  assert.match(migration009, /from public,anon,authenticated,service_role;[\s\S]*drop function public\.acttub_claim_ai_run\(uuid,uuid,text,uuid,text,integer,text,text,text\)/);
+  assert.match(migration009, /'sessionId',p_session_id,'runId',p_run_id/);
+});
+
 test("run claims require adult participant and authoritative media eligibility",()=>{
   assert.match(migration,/acttub_claim_ai_run[\s\S]*s\.adult_confirmed_at is not null[\s\S]*s\.all_participants_confirmed_at is not null/);
   assert.match(migration,/acttub_claim_ai_run[\s\S]*exists\(select 1 from public\.practice_takes t[\s\S]*t\.duration_ms between 1 and 300000[\s\S]*t\.media_metadata_version='iso-bmff-duration\.v1'/);
