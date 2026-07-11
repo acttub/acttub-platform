@@ -184,4 +184,9 @@ test("public sanitizer strips internal run fields recursively", () => {
   assert.equal(output.runs[0].requestPayloadFingerprint, undefined);
   assert.equal(output.runs[0].responsePayload, undefined);
   assert.equal(output.runs[0].updatedAt, undefined);
+  assert.deepEqual(output, {
+    sessionId: "s",
+    summaryRun: { id: "r1", safeErrorCode: null },
+    runs: [{ id: "r2", stage: "agent" }],
+  });
 });
