@@ -506,7 +506,14 @@ export const createAiPipelineService = (incomingDeps) => {
             const content = typeof payload.content === "string" ? normalizeOptionalNote(payload.content) : null;
             if (content !== null && optionalNoteLength(content) > 1000)
                 throw new AiPipelineError(400, "INVALID_OPTIONAL_NOTE");
-            await deps.repository.saveOptionalNote({ sessionId, userId, turnId: crypto.randomUUID(), content });
+            try {
+                await deps.repository.saveOptionalNote({ sessionId, userId, turnId: crypto.randomUUID(), content });
+            }
+            catch (error) {
+                if (isPersistenceError(error))
+                    throw new AiPipelineError(503, "OPTIONAL_NOTE_PERSISTENCE_FAILED");
+                throw error;
+            }
             const refreshed = await aggregate(sessionId, userId);
             if (!(refreshed.optionalNote === null || typeof refreshed.optionalNote === "string"))
                 throw new AiPipelineError(503, "OPTIONAL_NOTE_PROJECTION_INVALID");
