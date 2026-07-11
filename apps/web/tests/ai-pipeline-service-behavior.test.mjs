@@ -34,6 +34,7 @@ const baseSession = () => ({
 test("production service seam deduplicates concurrent exact addTurn and replays persisted IDs", async () => {
   const createAiPipelineService = await loadServiceFactory();
   const session = baseSession();
+  session.observations.push({ id: "00000000-0000-4000-8000-000000000118", sourceRunId: ids.summaryRun, confirmationState: "accepted", blockedForQuestioning: false, priority: 1, startMs: 0, endMs: 1, text: "evidence", dimension: "voice", severity: "mid" });
   const claims = new Map();
   let providerCalls = 0;
   let appendCalls = 0;
@@ -152,6 +153,21 @@ test("repeated start stop and resume replay stable completed command claims with
     assert.deepEqual(second, first);
     assert.equal(providerCalls, 0);
   }
+});
+
+test("persisted failed Agent safe codes map to their public HTTP boundary", async () => {
+  const session = baseSession();
+  session.observations.push({ id: "00000000-0000-4000-8000-000000000117", sourceRunId: ids.summaryRun, confirmationState: "accepted", blockedForQuestioning: false, priority: 1, startMs: 0, endMs: 1, text: "evidence", dimension: "voice", severity: "mid" });
+  const run = { id: "00000000-0000-4000-8000-000000000119", stage: "agent", status: "failed", safeErrorCode: "AI_INVALID_RESPONSE" };
+  let providerCalls = 0;
+  const repository = {
+    async findPipelineSessionForOwner() { return structuredClone(session); },
+    async claimRun() { return { owned: false, run: structuredClone(run) }; },
+    async completeInterview() {},
+  };
+  const service = createAiPipelineService({ repository, createAiTransport: () => ({ agent: async () => { providerCalls += 1; } }), loadAiServiceConfig: () => ({}), requireCurrentAiProcessingConsent: async () => {}, getCurrentConsentVersions: async () => ({}), coachSessionService: {}, createSupabaseAdminClient: () => null, getAppConfig: () => ({ video: { bucket: "practice-videos" } }) });
+  await assert.rejects(service.startInterview(ids.session, ids.user), (error) => error.status === 502 && error.code === "AI_INVALID_RESPONSE");
+  assert.equal(providerCalls, 0);
 });
 
 test("authoritative stale substantive and total counts reject as 409 before provider without misclassified failRun", async () => {

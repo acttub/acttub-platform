@@ -38,7 +38,12 @@ export const createAiPipelineService = (incomingDeps) => {
     const runExecution = async (core, input) => {
         try { return await core.run(input); }
         catch (error) {
-            if (error instanceof AiPipelineCoreError) throw new AiPipelineError(error.status === 503 ? 503 : error.status === 502 ? 502 : 409, error.code);
+            if (error instanceof AiPipelineCoreError) {
+                const status = error.code === "AI_INVALID_RESPONSE" ? 502
+                    : ["AI_TIMEOUT", "AI_UNAVAILABLE", "AI_INTERNAL", "TURN_PERSISTENCE_FAILED", "SUMMARY_PERSISTENCE_FAILED", "REPORT_PERSISTENCE_FAILED", "AI_RUN_COMMIT_NOT_OBSERVED"].includes(error.code) ? 503
+                    : error.status === 503 ? 503 : error.status === 502 ? 502 : 409;
+                throw new AiPipelineError(status, error.code);
+            }
             throw error;
         }
     };
