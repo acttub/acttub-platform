@@ -105,6 +105,7 @@ test("migration 009 replays under lock, expires stale reports, and removes weak 
   assert.match(migration009, /from public,anon,authenticated,service_role;[\s\S]*drop function public\.acttub_claim_ai_run\(uuid,uuid,text,uuid,text,integer,text,text,text\)/);
   assert.match(migration009, /'sessionId',p_session_id,'runId',p_run_id/);
   assert.match(migration009, /invalid_claim_contract/);
+  assert.match(migration009, /p_stage='agent' and \(p_max_attempts<>2/);
   assert.match(migration009, /coalesce\(\(select jsonb_agg/);
   assert.match(migration009, /invalid_tenth_completion/);
   assert.match(migration009, /agent_completion_requires_append/);
@@ -156,7 +157,7 @@ test("forward migration hardens AI run metadata persistence and mutable confirma
   assert.match(migration009, /primaryReviewPoint[\s\S]*timestampRange'='null'::jsonb/);
   assert.match(migration009, /oneLineSummary[\s\S]*t\.kind='answer'[\s\S]*t\.report_evidence_selected/);
   assert.match(migration009, /actorDiscovery/);
-  assert.doesNotMatch(migration009, /groundedEncouragement[\s\S]*actor_correction/);
+  assert.match(migration009, /groundedEncouragement[\s\S]*jsonb_array_length\(e\.value->'turnEvidenceIds'\)=0/);
   assert.match(migration009, /nextPracticeStep[\s\S]*jsonb_array_length\(e\.value->'observationEvidenceIds'\)\+jsonb_array_length\(e\.value->'turnEvidenceIds'\)=0/);
   assert.match(migration009, /primaryReviewPoint[\s\S]*timestampRange'='null'::jsonb/);
   assert.match(migration009, /oneLineSummary[\s\S]*jsonb_array_length\(e\.value->'turnEvidenceIds'\)=0/);
@@ -183,7 +184,7 @@ test("forward migration preserves unknown actor turns without incrementing subst
   assert.match(runtimeRules, /countReportableActorTurns = \(transcript\)/);
   assert.match(service, /unknownAnswers\.has\(input\.answer\) \? "unknown" : "answer"/);
   assert.match(service, /countReportableActorTurns\(session\.transcript\)/);
-  assert.match(service, /substantiveAnswerCount: session\.substantiveAnswerCount \+ \(actorTurn\.kind === "answer" \? 1 : 0\)/);
+  assert.match(service, /substantiveAnswerCount: authoritativeSession\.substantiveAnswerCount \+ \(actorTurn\.kind === "answer" \? 1 : 0\)/);
   assert.match(service, /ensureMutableInterviewSession\(session\)/);
   assert.match(service, /if \(session\.interviewStatus === "completed" \|\| session\.interviewStatus === "completed_without_report"\)[\s\S]*throw new AiPipelineError\(409, "SESSION_NOT_MUTABLE"\);/);
 });

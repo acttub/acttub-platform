@@ -118,6 +118,26 @@ test("owned persistence never returns provider output without an observed exact 
   }
 });
 
+test("recovery callback failure is routed through the safe persistence failure path", async () => {
+  let persistenceFailureCount = 0;
+  const core = createAiPipelineExecutionCore({
+    claimRun: async () => ({ owned: true, run: { id: "run", status: "running" } }),
+    readRun: async () => { throw new Error("reload-failed"); },
+  });
+  await assert.rejects(core.run({
+    invoke: async () => ({ unsafe: "provider-only" }),
+    persist: async () => {},
+    replay: () => ({ committed: true }),
+    recover: async () => { throw new Error("recovery-reload-failed"); },
+    persistenceFailure: async (error) => {
+      persistenceFailureCount += 1;
+      assert.match(error.message, /recovery-reload-failed/);
+      throw new Error("safe-persistence-failure");
+    },
+  }), /safe-persistence-failure/);
+  assert.equal(persistenceFailureCount, 1);
+});
+
 test("interview progress helpers enforce exact substantive and reportable counts", () => {
   const transcript = [
     { role: "actor", kind: "answer" },

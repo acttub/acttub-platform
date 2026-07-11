@@ -148,6 +148,20 @@ const isReportSection = (value: unknown): value is ReportSection =>
 const isNormalizedSummary = (value: unknown): value is NormalizedSummary =>
   typeof value === "object" && value !== null && "schemaVersion" in value && value.schemaVersion === "scene-summary.v1" && "summary" in value && "observation" in value && "anomalies" in value;
 
+const requireObservationIds = (value: unknown): string[] => {
+  if (typeof value !== "object" || value === null || !("observationIds" in value) || !Array.isArray(value.observationIds) || !value.observationIds.every((item) => typeof item === "string")) {
+    throw new AiPipelineError(502, "AI_INVALID_RESPONSE");
+  }
+  return value.observationIds;
+};
+
+const requireReportEvidence = (value: unknown): AgentReplayPayload["reportEvidence"] => {
+  if (typeof value !== "object" || value === null || !("observationIds" in value) || !("answerTurnIds" in value) || !Array.isArray(value.observationIds) || !Array.isArray(value.answerTurnIds) || !value.observationIds.every((item) => typeof item === "string") || !value.answerTurnIds.every((item) => typeof item === "string")) {
+    throw new AiPipelineError(502, "AI_INVALID_RESPONSE");
+  }
+  return { observationIds: value.observationIds, answerTurnIds: value.answerTurnIds };
+};
+
 const replayCommittedAgentOutcome = (session: PipelineSessionAggregate, committedRun: AiRun) => {
   const response = isAgentReplayPayload(committedRun.responsePayload) ? committedRun.responsePayload : null;
   if (!response) throw new AiPipelineError(503, "AGENT_RESPONSE_PAYLOAD_MISSING");
@@ -337,7 +351,7 @@ const callAgent = async (session: PipelineSessionAggregate, userId: string, inpu
       stage: "agent",
       runId,
       idempotencyKey: input.command === "answer" && requestId ? `answer:${requestId}` : `${input.command}:${session.substantiveAnswerCount}:${expectedTotalConversationCount}`,
-      maxAttempts: 1,
+      maxAttempts: 2,
       requestSchemaVersion: "agent-turn.v1",
       requestPayloadFingerprint: fingerprintJson(requestPayload),
       model: "agent",
@@ -366,9 +380,9 @@ const callAgent = async (session: PipelineSessionAggregate, userId: string, inpu
       const completionReason = (response.completionReason === null ? null : String(response.completionReason)) as CompletionReason | null;
       const reportReady = response.reportReady === true;
       assertTerminalAtConversationLimit({ actual: interviewProgress(requestSession.transcript), done, reportReady, completionReason, fail: (code) => { throw new AiPipelineError(409, code); } });
-      const reportEvidence = response.reportEvidence as { observationIds: string[]; answerTurnIds: string[] };
+      const reportEvidence = requireReportEvidence(response.reportEvidence);
       if (actorTurn) actorTurn.reportEvidenceSelected = actorTurn.kind === "answer" && reportEvidence.answerTurnIds.includes(actorTurn.id);
-      const agentTurn: InterviewTurn = { id: crypto.randomUUID(), sequence: authoritativeSession.transcript.length + (actorTurn ? 1 : 0), role: "agent", kind: done ? "closing" : "question", content: String(response.utterance), questionFocus: action, groundingStartMs: null, groundingEndMs: null, sourceObservationIds: (response.evidence as { observationIds: string[] }).observationIds, reportEvidenceSelected: false };
+      const agentTurn: InterviewTurn = { id: crypto.randomUUID(), sequence: authoritativeSession.transcript.length + (actorTurn ? 1 : 0), role: "agent", kind: done ? "closing" : "question", content: String(response.utterance), questionFocus: action, groundingStartMs: null, groundingEndMs: null, sourceObservationIds: requireObservationIds(response.evidence), reportEvidenceSelected: false };
       const responsePayload: AgentReplayPayload = { actorTurn, agentTurn, done, completionReason, reportReady, reportEvidence };
       return { report: null, response: responsePayload, transportResponse: response as AgentTransportResponse, claimedRunId: run.id, persistedInput, actorTurn, agentTurn, done, completionReason, reportReady, reportEvidence };
     },

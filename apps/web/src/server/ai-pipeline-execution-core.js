@@ -101,12 +101,17 @@ export const createAiPipelineExecutionCore = ({ claimRun, readRun, sleep: sleepI
       const claimed = claim ? await claim() : await claimRun();
       const run = claimed.run;
       const tryRecover = async (error) => {
+        let recoveryError = error;
         if (recover) {
-          const recovered = await recover(error, run, claimed);
-          if (recovered !== null && recovered !== undefined) return recovered;
+          try {
+            const recovered = await recover(error, run, claimed);
+            if (recovered !== null && recovered !== undefined) return recovered;
+          } catch (caught) {
+            recoveryError = caught;
+          }
         }
-        if (persistenceFailure) return persistenceFailure(error, run, claimed);
-        throw error;
+        if (persistenceFailure) return persistenceFailure(recoveryError, run, claimed);
+        throw recoveryError;
       };
       if (run.status === "completed") {
         try {
