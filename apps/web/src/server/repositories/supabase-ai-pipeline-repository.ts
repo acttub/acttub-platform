@@ -4,6 +4,7 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import type { NormalizedSummary } from "@/server/ai/contracts";
 import { CONFIRMATION_VALUES } from "./ai-pipeline-values";
 import type { AiRun, ClaimRunInput, CompleteInterviewInput, CompleteReportInput, ConfirmObservationInput, DeleteInput, FailRunInput, ImmutableAiReport, PipelineSessionAggregate, PipelineTurnInput, ReportSection, SummaryCompletionInput } from "./ai-pipeline-types";
+import { validateReportSectionLineage } from "../ai-pipeline-runtime-rules.js";
 
 type Row=Record<string,unknown>; const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 export class AiPipelinePersistenceError extends Error { constructor(readonly operation:string,readonly field="row"){super(`Invalid AI pipeline persistence result (${operation}:${field}).`);this.name="AiPipelinePersistenceError"} }
@@ -37,30 +38,17 @@ const reportForSession = (r: Row, op: string, session: ReportSessionContext): Im
   const observationSegments = new Map(session.observations.map((item) => [item.id, { startMs: item.startMs, endMs: item.endMs }] as const));
   const correctionSegments = new Map(session.corrections.map((item) => [item.correctionByTurnId, item.segment] as const));
   if (session.reportEvidenceAnswerTurnIds.some((id) => !selectedAnswerTurnIds.has(id))) fail(op, "report.selectedEvidence");
-  const validate = (section: ReportSection, key: string) => {
-    if (section.status === "not_confirmed") {
-      if (section.content !== null || section.observationEvidenceIds.length || section.turnEvidenceIds.length || section.timestampRange !== null) fail(op, `${key}.notConfirmed`);
-      return;
-    }
-    const turnIds = section.turnEvidenceIds;
-    const observationIds = section.observationEvidenceIds;
-    const turnSources = key === "oneLineSummary" || key === "confirmedEvidence"
-      ? turnIds.every((id) => selectedAnswerIds.has(id))
-      : turnIds.every((id) => selectedAnswerIds.has(id) || correctionTurnIds.has(id));
-    if (observationIds.some((id) => !selectedObservationIds.has(id)) || !turnSources) fail(op, `${key}.evidence`);
-    if (key === "oneLineSummary" || key === "confirmedEvidence") {
-      if (turnIds.length === 0 || observationIds.length === 0) fail(op, `${key}.selectedEvidence`);
-    } else if (key === "primaryReviewPoint") {
-      if (observationIds.length === 0 || turnIds.length) fail(op, `${key}.selectedEvidence`);
-    } else if (key === "actorDiscovery") {
-      if (turnIds.length === 0) fail(op, `${key}.selectedEvidence`);
-    } else if (key === "groundedEncouragement") {
-      if (observationIds.length === 0) fail(op, `${key}.selectedEvidence`);
-    }
-    const sourceSegments = [...observationIds.map((id) => observationSegments.get(id)), ...((key === "oneLineSummary" || key === "confirmedEvidence") ? [] : turnIds.map((id) => correctionSegments.get(id))).filter((value): value is { startMs: number; endMs: number } => Boolean(value))].filter((value): value is { startMs: number; endMs: number } => Boolean(value));
-    if (key === "primaryReviewPoint" && section.timestampRange === null) fail(op, `${key}.timestampRequired`);
-    if (section.timestampRange !== null && !sourceSegments.some((segment) => segment.startMs === section.timestampRange!.startMs && segment.endMs === section.timestampRange!.endMs)) fail(op, `${key}.timestampRange`);
-  };
+  const validate = (section: ReportSection, key: string) => validateReportSectionLineage({
+    key,
+    section,
+    selectedObservationIds,
+    selectedAnswerIds,
+    selectedAnswerTurnIds,
+    correctionTurnIds,
+    observationSegments,
+    correctionSegments,
+    fail: (code) => fail(op, code),
+  });
   validate(mapped.oneLineSummary, "oneLineSummary");
   validate(mapped.primaryReviewPoint, "primaryReviewPoint");
   validate(mapped.confirmedEvidence, "confirmedEvidence");
