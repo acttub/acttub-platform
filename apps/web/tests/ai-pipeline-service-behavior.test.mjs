@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createAiPipelineService } from "../src/server/ai-pipeline-service-core.js";
 import { fingerprintJson } from "../src/server/ai-pipeline-fingerprint.js";
+import { settleAgentClaimProgress } from "../src/server/agent-claim-settlement.js";
+import { countReportableActorTurns, validateInterviewCompletionCount } from "../src/server/ai-pipeline-runtime-rules.js";
 
 class FakePersistenceError extends Error {
   constructor(field) { super(field); this.field = field; }
@@ -10,7 +12,26 @@ class FakeAiServiceError extends Error {
   constructor(stage, code, status, retryable) { super(code); this.stage = stage; this.code = code; this.status = status; this.retryable = retryable; }
 }
 
-const loadServiceFactory = async () => createAiPipelineService;
+const loadServiceFactory = async () => {
+  const sourcePath = path.resolve(import.meta.dirname, "../src/server/services/ai-pipeline-service.ts");
+  const outputPath = path.resolve(import.meta.dirname, ".ai-pipeline-service.behavior.generated.mjs");
+  const source = (await readFile(sourcePath, "utf8")).replace(/^import[^;]+;\s*$/gm, "");
+  const preamble = `
+const { createAiPipelineExecutionCore, assertTerminalAtConversationLimit, interviewProgress, sanitizePublicAiPipelineAggregate, fingerprintJson, countReportableActorTurns, validateInterviewCompletionCount, settleAgentClaimProgress } = globalThis.__task105ServiceImports;
+const AiServiceError = globalThis.__task105ServiceImports.AiServiceError;
+const AiPipelinePersistenceError = globalThis.__task105ServiceImports.AiPipelinePersistenceError;
+const repository = {}, createAiTransport = () => ({}), loadAiServiceConfig = () => ({}), requireCurrentAiProcessingConsent = async () => {}, getCurrentConsentVersions = async () => ({}), coachSessionService = {}, createSupabaseAdminClient = () => null, getAppConfig = () => ({ video: { bucket: "practice-videos" } });
+`;
+  globalThis.__task105ServiceImports = { createAiPipelineExecutionCore, assertTerminalAtConversationLimit, interviewProgress, sanitizePublicAiPipelineAggregate, fingerprintJson, countReportableActorTurns, validateInterviewCompletionCount, settleAgentClaimProgress, AiPipelinePersistenceError: FakePersistenceError, AiServiceError: FakeAiServiceError };
+  const compiled = ts.transpileModule(preamble + source, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 } }).outputText;
+  await writeFile(outputPath, compiled);
+  try {
+    return (await import(`${path.toNamespacedPath(outputPath)}?v=${Date.now()}`)).createAiPipelineService;
+  } finally {
+    await rm(outputPath, { force: true });
+    delete globalThis.__task105ServiceImports;
+  }
+};
 
 const ids = {
   session: "00000000-0000-4000-8000-000000000101",
