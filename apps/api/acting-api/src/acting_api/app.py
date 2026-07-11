@@ -1,6 +1,9 @@
+import asyncio
 import secrets
 import time
+from contextlib import asynccontextmanager
 
+import httpx
 from fastapi import FastAPI, Security
 from fastapi.responses import JSONResponse
 from fastapi.security import APIKeyHeader
@@ -9,6 +12,7 @@ from google import genai
 from acting_agent.config import load_settings as load_agent_settings
 from acting_agent.router import build_router as build_coach_router
 from acting_api.config import load_gateway_settings
+from acting_api.keepalive import keep_alive_loop
 from acting_api.ratelimit import RateLimiter
 from acting_report.config import load_settings as load_report_settings
 from acting_report.router import build_router as build_report_router
@@ -37,6 +41,7 @@ def create_app(
     report_settings=None,
     report_store=None,
     clock=time.monotonic,
+    keep_alive_client=None,
 ) -> FastAPI:
     gateway_settings = gateway_settings or load_gateway_settings()
     summary_settings = summary_settings or load_summary_settings()
@@ -46,10 +51,35 @@ def create_app(
     report_store = report_store or FileReportStore(report_settings.store_path)
     limiter = RateLimiter(gateway_settings.rate_limit_per_min, clock=clock)
 
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):
+        task = None
+        owned_client = None
+        if gateway_settings.keep_alive_url:
+            ping_client = keep_alive_client
+            if ping_client is None:
+                ping_client = owned_client = httpx.AsyncClient(timeout=30)
+            task = asyncio.create_task(
+                keep_alive_loop(
+                    gateway_settings.keep_alive_url,
+                    gateway_settings.keep_alive_interval_sec,
+                    ping_client,
+                )
+            )
+        app.state.keep_alive_task = task
+        try:
+            yield
+        finally:
+            if task:
+                task.cancel()
+            if owned_client:
+                await owned_client.aclose()
+
     app = FastAPI(
         title="acting-api",
         description="연기 영상 요약(/summarize) → 코치 대화(/coach/*) → 진단 리포트(/report) 통합 API. 모든 요청에 X-API-Key 헤더 필요.",
         dependencies=[Security(api_key_header)],
+        lifespan=lifespan,
     )
 
     @app.middleware("http")

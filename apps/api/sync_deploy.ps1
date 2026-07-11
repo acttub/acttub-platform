@@ -1,4 +1,4 @@
-# 원본 프로젝트 -> deploy repo 동기화 스크립트
+﻿# 원본 프로젝트 -> deploy repo 동기화 스크립트
 # 사용: 이 repo 루트에서 .\sync_deploy.ps1  ->  git diff 확인  ->  commit/push하면 Render 자동 재배포
 $src = "C:\Users\RJS\Desktop\project"
 $dst = $PSScriptRoot
