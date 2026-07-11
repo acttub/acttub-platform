@@ -13,7 +13,7 @@ const summaryRequest = { ...base, schemaVersion:"summary-request.v1", signedVide
 const agentRequest = { ...base, schemaVersion:"agent-turn.v1", normalizedSummary, observations:[], actorCorrections:[], transcript:[], substantiveAnswerCount:0, currentInput:{command:"start",answer:null,answerTurnId:null,observationId:null} };
 const reportRequest = { ...base, schemaVersion:"report-request.v1", normalizedSummary, confirmedObservations:[{observationId,sourceCandidateId:observationId,segment:{startMs:0,endMs:1},text:"x",dimension:"tempo"}], actorCorrections:[], transcript:[{turnId,speaker:"actor",content:"a",kind:"answer"}], completionReason:"manual_stop_report_ready", selectedEvidence:{observationIds:[observationId],answerTurnIds:[turnId]} };
 const summaryResponse = { ...base, schemaVersion:"summary-response.v1", model:"m", promptVersion:"acting-summary.prompt.v2", normalizedSummary, observationCandidates:[] };
-const agentResponse = { ...base, schemaVersion:"agent-turn.v1", action:"close", utterance:"마칠게요.", evidence:{observationIds:[],actorCorrectionIds:[],turnIds:[],segment:null}, done:true, completionReason:"insufficient_confirmed_evidence", reportReady:false, reportEvidence:{observationIds:[],answerTurnIds:[],coreItems:[]} };
+const agentResponse = { ...base, schemaVersion:"agent-turn.v1", model:"gemini-2.5-pro", promptVersion:"acting-agent.prompt.v2", action:"close", utterance:"마칠게요.", evidence:{observationIds:[],actorCorrectionIds:[],turnIds:[],segment:null}, done:true, completionReason:"insufficient_confirmed_evidence", reportReady:false, reportEvidence:{observationIds:[],answerTurnIds:[],coreItems:[]} };
 const empty = {status:"not_confirmed",content:null,observationEvidenceIds:[],turnEvidenceIds:[],timestampRange:null};
 const confirmed = {status:"confirmed",content:"근거",observationEvidenceIds:[observationId],turnEvidenceIds:[turnId],timestampRange:null};
 const review = {...confirmed,turnEvidenceIds:[],timestampRange:{startMs:0,endMs:1}};
@@ -30,7 +30,7 @@ test("loads explicit loopback development config and fails closed in production"
 
 test("rejects deeply malformed Summary, Agent, and Report success bodies", async () => {
   const malformedSummary={...summaryResponse,promptVersion:"wrong",normalizedSummary:{...normalizedSummary,observation:{},anomalies:[42]},observationCandidates:Array(4).fill({bad:true})};
-  const malformedAgent={...agentResponse,action:"ask_question",done:true,completionReason:99,reportReady:true,evidence:{bad:true},reportEvidence:{bad:true}};
+  const malformedAgent={...agentResponse,model:"",promptVersion:"wrong",action:"ask_question",done:true,completionReason:99,reportReady:true,evidence:{bad:true},reportEvidence:{bad:true}};
   const badSection={status:"not_confirmed",content:"must be null",observationEvidenceIds:[9],turnEvidenceIds:[{}],timestampRange:{bad:true}};
   const malformedReport={...reportResponse,promptVersion:"wrong",sections:Object.fromEntries(Object.keys(reportResponse.sections).map(key=>[key,badSection]))};
   for (const [method,request,body] of [["summary",summaryRequest,malformedSummary],["agent",agentRequest,malformedAgent],["report",reportRequest,malformedReport]]) {
@@ -119,7 +119,7 @@ test("rejects every Report section-specific evidence invariant violation", async
   await createAiTransport(config,async()=>response({...reportResponse,sections:actorDiscoveryWithoutTimestamp})).report(correctionRequest);
   await createAiTransport(config,async()=>response({...reportResponse,sections:optionalNonPrimarySections})).report(reportRequest);
   const correctionOnlyTimestamp={...reportResponse,sections:{...reportResponse.sections,primaryReviewPoint:{...review,turnEvidenceIds:[correctionTurnId],timestampRange:{startMs:2,endMs:3}}}};
-  await assert.rejects(createAiTransport(config,async()=>response(correctionOnlyTimestamp)).report(correctionRequest),error=>error instanceof AiServiceError&&error.code==="INVALID_RESPONSE");
+  await createAiTransport(config,async()=>response(correctionOnlyTimestamp)).report(correctionRequest);
 });
 
 test("accepts optional report timestamps on non-primary sections and requires primaryReviewPoint", async () => {

@@ -417,9 +417,11 @@ export function PracticeFlow({ entry = "new" }: { entry?: PracticeEntry }) {
     if (!pipelineSession) return;
     const trimmed = value.trim();
     if (!trimmed) return;
+    const requestId = crypto.randomUUID();
     await applyInterviewAction(() =>
       appendPipelineInterviewTurn(pipelineSession.sessionId, {
         answer: trimmed,
+        requestId,
         expectedSubstantiveAnswerCount: pipelineSession.substantiveAnswerCount,
         expectedTotalConversationCount: pipelineSession.transcript.filter((item) => item.role === "actor" && (item.kind === "answer" || item.kind === "unknown")).length,
       }),
