@@ -15,7 +15,14 @@ export const canonicalizeFingerprintValue = (value) => {
     if (!Number.isFinite(value)) throw new Error("invalid_fingerprint_payload");
     return value;
   }
-  if (Array.isArray(value)) return value.map(canonicalizeFingerprintValue);
+  if (Array.isArray(value)) {
+    const result = [];
+    for (let index = 0; index < value.length; index += 1) {
+      if (!Object.prototype.hasOwnProperty.call(value, index) || value[index] === undefined) throw new Error("invalid_fingerprint_payload");
+      result.push(canonicalizeFingerprintValue(value[index]));
+    }
+    return result;
+  }
   if (!isPlainObject(value)) throw new Error("invalid_fingerprint_payload");
   if (Object.getOwnPropertySymbols(value).length > 0) throw new Error("invalid_fingerprint_payload");
   const result = {};

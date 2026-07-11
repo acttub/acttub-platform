@@ -23,7 +23,7 @@ returns table(id uuid,session_id uuid,user_id uuid,stage text,status text,idempo
 language plpgsql security definer set search_path=public as $$
 declare existing public.ai_runs; session_row public.practice_sessions; total_count integer;
 begin
- if p_stage not in ('summary','agent','report') or p_max_attempts<1 or length(trim(p_request_schema_version))=0 or length(trim(p_model))=0 or length(trim(p_prompt_version))=0 then raise exception 'invalid_claim'; end if;
+ if p_stage not in ('summary','agent','report') or p_max_attempts<1 or p_request_schema_version is null or p_model is null or p_prompt_version is null or length(trim(p_request_schema_version))=0 or length(trim(p_model))=0 or length(trim(p_prompt_version))=0 then raise exception 'invalid_claim'; end if;
  if (p_stage='summary' and (p_max_attempts<>1 or p_request_schema_version<>'summary-request.v1' or p_model<>'summary' or p_prompt_version<>'acting-summary.prompt.v2')) or (p_stage='agent' and (p_max_attempts<>2 or p_request_schema_version<>'agent-turn.v1' or p_model<>'agent' or p_prompt_version<>'acting-agent.prompt.v2')) or (p_stage='report' and (p_max_attempts<>2 or p_request_schema_version<>'report-request.v1' or p_model<>'report' or p_prompt_version<>'acting-report.prompt.v2')) then raise exception 'invalid_claim_contract'; end if;
  if p_request_payload_fingerprint is null or p_request_payload_fingerprint !~ '^[0-9a-f]{64}$' then raise exception 'request_payload_conflict'; end if;
  select s.* into session_row from public.practice_sessions s
@@ -45,6 +45,11 @@ begin
    return query select existing.id,existing.session_id,existing.user_id,existing.stage,existing.status,existing.idempotency_key,existing.attempt,existing.max_attempts,existing.request_schema_version,existing.response_schema_version,existing.request_payload_fingerprint,existing.response_payload,existing.model,existing.prompt_version,existing.safe_error_code,existing.retryable,existing.started_at,existing.completed_at,existing.updated_at,false; return;
   end if;
   if existing.status<>'failed' or not existing.retryable or existing.attempt>=existing.max_attempts or p_run_id=existing.id then raise exception 'run_not_retryable'; end if;
+  if session_row.deletion_status<>'active' then raise exception 'pipeline_session_not_found'; end if;
+  select count(*) into total_count from public.interview_turns t where t.session_id=p_session_id and t.user_id=p_user_id and t.role='actor' and t.kind in ('answer','unknown');
+  if p_stage='summary' and not (session_row.interview_status='active' and session_row.substantive_answer_count=0 and not exists(select 1 from public.ai_session_summaries s where s.session_id=p_session_id and s.user_id=p_user_id) and total_count=0) then raise exception 'pipeline_session_not_found'; end if;
+  if p_stage='agent' and not (session_row.interview_status in ('active','paused') and exists(select 1 from public.ai_session_summaries s where s.session_id=p_session_id and s.user_id=p_user_id) and total_count<10) then raise exception 'pipeline_session_not_found'; end if;
+  if p_stage='report' and not (session_row.interview_status='completed' and session_row.completion_reason in ('interview_complete_report_ready','manual_stop_report_ready','hard_limit_report_ready') and not exists(select 1 from public.ai_reports r where r.session_id=p_session_id and r.user_id=p_user_id)) then raise exception 'pipeline_session_not_found'; end if;
   return query update public.ai_runs r set id=p_run_id,status='running',attempt=r.attempt+1,safe_error_code=null,retryable=false,started_at=now(),completed_at=null,updated_at=now(),request_payload_fingerprint=p_request_payload_fingerprint,response_payload=null where r.id=existing.id
    returning r.id,r.session_id,r.user_id,r.stage,r.status,r.idempotency_key,r.attempt,r.max_attempts,r.request_schema_version,r.response_schema_version,r.request_payload_fingerprint,r.response_payload,r.model,r.prompt_version,r.safe_error_code,r.retryable,r.started_at,r.completed_at,r.updated_at,true; return;
  end if;

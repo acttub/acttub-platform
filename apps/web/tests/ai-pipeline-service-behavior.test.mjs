@@ -10,6 +10,9 @@ import { countReportableActorTurns } from "../src/server/ai-pipeline-runtime-rul
 class FakePersistenceError extends Error {
   constructor(field) { super(field); this.field = field; }
 }
+class FakeAiServiceError extends Error {
+  constructor(stage, code, status, retryable) { super(code); this.stage = stage; this.code = code; this.status = status; this.retryable = retryable; }
+}
 
 const loadServiceFactory = async () => {
   const sourcePath = path.resolve(import.meta.dirname, "../src/server/services/ai-pipeline-service.ts");
@@ -17,11 +20,11 @@ const loadServiceFactory = async () => {
   const source = (await readFile(sourcePath, "utf8")).replace(/^import[^;]+;\s*$/gm, "");
   const preamble = `
 const { createAiPipelineExecutionCore, assertTerminalAtConversationLimit, interviewProgress, sanitizePublicAiPipelineAggregate, fingerprintJson, countReportableActorTurns } = globalThis.__task105ServiceImports;
-class AiServiceError extends Error { constructor(message, retryable = false) { super(message); this.retryable = retryable; } }
+const AiServiceError = globalThis.__task105ServiceImports.AiServiceError;
 const AiPipelinePersistenceError = globalThis.__task105ServiceImports.AiPipelinePersistenceError;
 const repository = {}, createAiTransport = () => ({}), loadAiServiceConfig = () => ({}), requireCurrentAiProcessingConsent = async () => {}, getCurrentConsentVersions = async () => ({}), coachSessionService = {}, createSupabaseAdminClient = () => null, getAppConfig = () => ({ video: { bucket: "practice-videos" } });
 `;
-  globalThis.__task105ServiceImports = { createAiPipelineExecutionCore, assertTerminalAtConversationLimit, interviewProgress, sanitizePublicAiPipelineAggregate, fingerprintJson, countReportableActorTurns, AiPipelinePersistenceError: FakePersistenceError };
+  globalThis.__task105ServiceImports = { createAiPipelineExecutionCore, assertTerminalAtConversationLimit, interviewProgress, sanitizePublicAiPipelineAggregate, fingerprintJson, countReportableActorTurns, AiPipelinePersistenceError: FakePersistenceError, AiServiceError: FakeAiServiceError };
   const compiled = ts.transpileModule(preamble + source, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 } }).outputText;
   await writeFile(outputPath, compiled);
   try {
@@ -89,8 +92,31 @@ test("production service seam deduplicates concurrent exact addTurn and replays 
   assert.equal(providerCalls, 1);
   assert.equal(appendCalls, 1);
   assert.deepEqual(left, right);
+  assert.equal(left.response, undefined);
   assert.equal(left.actorTurn.id, session.transcript[0].id);
   assert.equal(left.agentTurn.id, session.transcript[1].id);
+});
+
+test("provider failures preserve timeout unavailable invalid and internal safe codes", async () => {
+  const createAiPipelineService = await loadServiceFactory();
+  for (const [error, expectedCode, retryable] of [
+    [new FakeAiServiceError("agent", "TIMEOUT", null, true), "AI_TIMEOUT", true],
+    [new FakeAiServiceError("agent", "NETWORK_ERROR", null, true), "AI_UNAVAILABLE", true],
+    [new FakeAiServiceError("agent", "INVALID_RESPONSE", 200, false), "AI_INVALID_RESPONSE", false],
+    [new Error("internal"), "AI_INTERNAL", false],
+  ]) {
+    const session = baseSession();
+    let failed = null;
+    const repository = {
+      async findPipelineSessionForOwner() { return structuredClone(session); },
+      async claimRun(input) { return { owned: true, run: { id: input.runId, status: "running", safeErrorCode: null } }; },
+      async failRun(input) { failed = input; },
+    };
+    const service = createAiPipelineService({ repository, createAiTransport: () => ({ agent: async () => { throw error; } }), loadAiServiceConfig: () => ({}), requireCurrentAiProcessingConsent: async () => {}, getCurrentConsentVersions: async () => ({}), coachSessionService: {}, createSupabaseAdminClient: () => null, getAppConfig: () => ({ video: { bucket: "practice-videos" } }) });
+    await assert.rejects(service.addTurn(ids.session, ids.user, { answer: "answer", requestId: ids.request, expectedSubstantiveAnswerCount: 0, expectedTotalConversationCount: 0 }), (caught) => caught?.code === expectedCode);
+    assert.equal(failed.safeErrorCode, expectedCode);
+    assert.equal(failed.retryable, retryable);
+  }
 });
 
 test("production service freezes its API and snapshots caller-owned dependencies", async () => {
@@ -204,3 +230,25 @@ test("deletion retry preserves hidden deleting-session lookup and does not delet
   assert.equal(removeCalls, 1);
   assert.equal(completeCalls, 2);
 });
+
+test("Report claim fingerprint is stable when persisted corrections arrive in different row order", async () => {
+  const createAiPipelineService = await loadServiceFactory();
+  const fingerprints = [];
+  for (const reverse of [false, true]) {
+    const session = baseSession();
+    session.interviewStatus = "completed";
+    session.completionReason = "hard_limit_report_ready";
+    session.runs.push({ id: idFor(140), stage: "agent", status: "completed", responseSchemaVersion: "agent-turn.v1", model: "agent-model", promptVersion: "acting-agent.prompt.v2", responsePayload: { actorTurn: null, agentTurn: { id: idFor(141) }, done: true, completionReason: "hard_limit_report_ready", reportReady: true, reportEvidence: { observationIds: [], answerTurnIds: [] } }, completedAt: "2026-01-01T00:00:00Z", attempt: 1 });
+    const corrections = [
+      { id: idFor(142), correctionByTurnId: idFor(144), correctsObservationId: idFor(146), segment: { startMs: 1, endMs: 2 }, text: "a" },
+      { id: idFor(143), correctionByTurnId: idFor(145), correctsObservationId: idFor(147), segment: { startMs: 3, endMs: 4 }, text: "b" },
+    ];
+    session.corrections = reverse ? corrections.reverse() : corrections;
+    const repository = { async findPipelineSessionForOwner() { return structuredClone(session); }, async claimRun(input) { fingerprints.push(input.requestPayloadFingerprint); throw new Error("captured"); } };
+    const service = createAiPipelineService({ repository, createAiTransport: () => ({}), loadAiServiceConfig: () => ({}), requireCurrentAiProcessingConsent: async () => {}, getCurrentConsentVersions: async () => ({}), coachSessionService: {}, createSupabaseAdminClient: () => null, getAppConfig: () => ({ video: { bucket: "practice-videos" } }) });
+    await assert.rejects(service.retryReport(ids.session, ids.user), /captured/);
+  }
+  assert.equal(fingerprints[0], fingerprints[1]);
+});
+
+function idFor(value) { return `00000000-0000-4000-8000-${String(value).padStart(12, "0")}`; }

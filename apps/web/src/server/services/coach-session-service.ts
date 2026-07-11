@@ -923,7 +923,7 @@ export const coachSessionService = {
       (payload as { actorAnswer?: unknown }).actorAnswer,
       "actorAnswer",
     );
-    const session = await readSessionForOwner(sessionId, userId);
+    const session = await readSessionForDeletion(sessionId, userId);
 
     if (!session) return null;
     assertSessionMutable(session, "create new turns");

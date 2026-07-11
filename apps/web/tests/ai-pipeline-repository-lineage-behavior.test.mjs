@@ -62,8 +62,12 @@ test("repository report mapper accepts exact lineage and rejects Report run or S
     (value) => { value.session.observations[0].sourceRunId = id("99"); },
     (value) => { value.row.source_run_id = id("98"); },
     (value) => { value.session.corrections[0].text = "different"; },
+    (value) => { value.session.observations[1].confirmationState = "accepted"; },
     (value) => { value.session.observations[1].blockedForQuestioning = false; },
     (value) => { value.session.observations[1].sourceRunId = id("97"); },
+    (value) => { value.session.transcript = value.session.transcript.filter((turn) => turn.id !== value.session.corrections[0].correctionByTurnId); },
+    (value) => { value.session.transcript[1].role = "agent"; },
+    (value) => { value.session.transcript[1].kind = "answer"; },
     (value) => { const unselected = id("96"); value.session.transcript.push({ id: unselected, role: "actor", kind: "answer", reportEvidenceSelected: false, content: "unselected" }); value.row.actor_discovery.turnEvidenceIds = [unselected]; },
     (value) => { value.row.next_practice_step.turnEvidenceIds = [value.session.corrections[0].correctionByTurnId]; },
   ]) {

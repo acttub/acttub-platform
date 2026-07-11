@@ -20,6 +20,9 @@ test("fingerprint module canonicalizes plain JSON and rejects unsafe inputs", ()
   for (const bad of [undefined, () => {}, new Date(), NaN, Infinity, { x: undefined }, { x: Symbol("x") }]) {
     assert.throws(() => fingerprintJson(bad), /invalid_fingerprint_payload/);
   }
+  const sparse = []; sparse.length = 1;
+  assert.throws(() => fingerprintJson(sparse), /invalid_fingerprint_payload/);
+  assert.throws(() => fingerprintJson([undefined]), /invalid_fingerprint_payload/);
   assert.equal(fingerprintAgentClaim(buildAgentClaimPayload({ schemaVersion: "agent-turn.v1", sessionId: "00000000-0000-4000-8000-000000000001", command: "start", requestId: "00000000-0000-4000-8000-000000000002", answer: null, observationId: null, expectedSubstantiveAnswerCount: 0, expectedTotalConversationCount: 0 })), fingerprintAgentClaim(buildAgentClaimPayload({ schemaVersion: "agent-turn.v1", sessionId: "00000000-0000-4000-8000-000000000001", command: "start", requestId: "00000000-0000-4000-8000-000000000002", answer: null, observationId: null, expectedSubstantiveAnswerCount: 0, expectedTotalConversationCount: 0 })));
 });
 
@@ -30,6 +33,7 @@ test("owner session scope helper applies public and deletion filters", () => {
   const deletionQuery = new FakeQuery();
   applyOwnerSessionScope(deletionQuery, { sessionId: "00000000-0000-4000-8000-000000000003", userId: "00000000-0000-4000-8000-000000000004", visibility: "deletion" });
   assert.deepEqual(deletionQuery.calls, [["eq", "id", "00000000-0000-4000-8000-000000000003"], ["eq", "user_id", "00000000-0000-4000-8000-000000000004"]]);
+  assert.throws(() => applyOwnerSessionScope(new FakeQuery(), { sessionId: "s", userId: "u", visibility: "internal" }), /invalid_visibility/);
 });
 
 test("execution core replays completed claims and only invokes the provider for owned running runs", async () => {
