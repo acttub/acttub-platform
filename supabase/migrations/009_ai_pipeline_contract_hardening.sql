@@ -42,21 +42,65 @@ returns jsonb language plpgsql security definer set search_path=public as $$ dec
 end $$;
 
 create or replace function public.acttub_append_pipeline_turn(p_session_id uuid,p_user_id uuid,p_payload jsonb)
-returns jsonb language plpgsql security definer set search_path=public as $$ declare expected integer; actor jsonb; agent jsonb; conversation_count integer; begin
- select substantive_answer_count into expected from public.practice_sessions s where s.id=p_session_id and s.user_id=p_user_id and s.interview_status in ('active','paused') and s.deletion_status='active' and s.required_consent_version_snapshot=public.current_acttub_terms_version() and s.ai_processing_consent_version_snapshot=public.current_acttub_ai_processing_consent_version() and exists(select 1 from public.profiles p where p.id=p_user_id and p.status='active' and p.required_consent_version=public.current_acttub_terms_version() and p.required_consent_at is not null and p.ai_processing_consent_version=public.current_acttub_ai_processing_consent_version() and p.ai_processing_consent_at is not null) for update; if not found or expected<>(p_payload->>'expectedSubstantiveAnswerCount')::integer or expected>=10 then raise exception 'turn_conflict'; end if;
- select count(*) into conversation_count from public.interview_turns where session_id=p_session_id and user_id=p_user_id and role='actor' and kind in ('answer','unknown'); if conversation_count>=10 then raise exception 'turn_conflict'; end if;
+returns jsonb language plpgsql security definer set search_path=public as $$
+declare
+ expected integer;
+ actor jsonb;
+ agent jsonb;
+ conversation_count integer;
+ completion_status_value text := nullif(trim(p_payload->>'completionStatus'), '');
+ completion_reason_value text := nullif(trim(p_payload->>'completionReason'), '');
+ obs uuid[] := array(select jsonb_array_elements_text(p_payload->'reportEvidence'->'observationIds'))::uuid[];
+ turns uuid[] := array(select jsonb_array_elements_text(p_payload->'reportEvidence'->'answerTurnIds'))::uuid[];
+ last_two_kinds text[];
+begin
+ select substantive_answer_count into expected
+ from public.practice_sessions s
+ where s.id=p_session_id
+   and s.user_id=p_user_id
+   and s.interview_status in ('active','paused')
+   and s.deletion_status='active'
+   and s.required_consent_version_snapshot=public.current_acttub_terms_version()
+   and s.ai_processing_consent_version_snapshot=public.current_acttub_ai_processing_consent_version()
+   and exists(select 1 from public.profiles p where p.id=p_user_id and p.status='active' and p.required_consent_version=public.current_acttub_terms_version() and p.required_consent_at is not null and p.ai_processing_consent_version=public.current_acttub_ai_processing_consent_version() and p.ai_processing_consent_at is not null)
+ for update;
+ if not found or expected<>(p_payload->>'expectedSubstantiveAnswerCount')::integer or expected>=10 then raise exception 'turn_conflict'; end if;
+ select count(*) into conversation_count from public.interview_turns where session_id=p_session_id and user_id=p_user_id and role='actor' and kind in ('answer','unknown');
+ if conversation_count>=10 then raise exception 'turn_conflict'; end if;
  if conversation_count<>(p_payload->>'expectedTotalConversationCount')::integer then raise exception 'turn_conflict'; end if;
- actor:=p_payload->'actorTurn'; agent:=p_payload->'agentTurn';
+ actor:=p_payload->'actorTurn';
+ agent:=p_payload->'agentTurn';
  if p_payload->'currentInput'->>'command' not in ('start','observation_update','answer','manual_stop','resume') or ((p_payload->'currentInput'->>'command') in ('start','observation_update','manual_stop','resume') and actor<>'null'::jsonb) or ((p_payload->'currentInput'->>'command')='resume' and not exists(select 1 from public.practice_sessions where id=p_session_id and interview_status='paused')) then raise exception 'invalid_current_input'; end if;
  if jsonb_array_length(p_payload->'reportEvidence'->'observationIds')<>(select count(distinct x) from jsonb_array_elements_text(p_payload->'reportEvidence'->'observationIds') x) or jsonb_array_length(p_payload->'reportEvidence'->'answerTurnIds')<>(select count(distinct x) from jsonb_array_elements_text(p_payload->'reportEvidence'->'answerTurnIds') x) or exists(select 1 from jsonb_array_elements_text(p_payload->'reportEvidence'->'observationIds') x where not exists(select 1 from public.observations o where o.id=x::uuid and o.session_id=p_session_id and o.user_id=p_user_id and o.confirmation_state='accepted' and not o.blocked_for_questioning)) or exists(select 1 from jsonb_array_elements_text(p_payload->'reportEvidence'->'answerTurnIds') x where not exists(select 1 from public.interview_turns t where t.id=x::uuid and t.session_id=p_session_id and t.user_id=p_user_id and t.role='actor' and t.kind='answer' and t.report_evidence_selected) and not (actor is not null and actor<>'null'::jsonb and actor->>'id'=x and actor->>'kind'='answer' and coalesce((actor->>'reportEvidenceSelected')::boolean,false))) then raise exception 'invalid_report_evidence'; end if;
  if (p_payload->'currentInput'->>'command')='answer' and (actor is null or actor='null'::jsonb or actor->>'kind' not in ('answer','unknown') or p_payload->'currentInput'->>'answerTurnId'<>actor->>'id' or p_payload->'currentInput'->>'answer'<>actor->>'content') then raise exception 'current_input_mismatch'; end if;
- if actor is not null and actor<>'null'::jsonb then if actor->>'kind' not in ('answer','unknown') or (actor->>'sequence')::integer<>(select coalesce(max(sequence)+1,0) from public.interview_turns where session_id=p_session_id) then raise exception 'invalid_actor_turn'; end if; insert into public.interview_turns(id,session_id,user_id,sequence,role,kind,content,source_observation_ids,report_evidence_selected) values((actor->>'id')::uuid,p_session_id,p_user_id,(actor->>'sequence')::integer,'actor',actor->>'kind',actor->>'content',array(select jsonb_array_elements_text(actor->'sourceObservationIds'))::uuid[],coalesce((actor->>'reportEvidenceSelected')::boolean,false)); if actor->>'kind'='answer' then expected:=expected+1; end if; end if;
+ if actor is not null and actor<>'null'::jsonb then
+  if actor->>'kind' not in ('answer','unknown') or (actor->>'sequence')::integer<>(select coalesce(max(sequence)+1,0) from public.interview_turns where session_id=p_session_id) then raise exception 'invalid_actor_turn'; end if;
+  insert into public.interview_turns(id,session_id,user_id,sequence,role,kind,content,source_observation_ids,report_evidence_selected)
+   values((actor->>'id')::uuid,p_session_id,p_user_id,(actor->>'sequence')::integer,'actor',actor->>'kind',actor->>'content',array(select jsonb_array_elements_text(actor->'sourceObservationIds'))::uuid[],coalesce((actor->>'reportEvidenceSelected')::boolean,false));
+  if actor->>'kind'='answer' then expected:=expected+1; end if;
+ end if;
  if (agent->>'sequence')::integer<>(select coalesce(max(sequence)+1,0) from public.interview_turns where session_id=p_session_id) or agent->>'kind' not in ('question','closing') then raise exception 'invalid_agent_turn'; end if;
  if exists(select 1 from jsonb_array_elements_text(agent->'sourceObservationIds') x where not exists(select 1 from public.observations o where o.id=x::uuid and o.session_id=p_session_id and o.user_id=p_user_id and o.confirmation_state='accepted' and not o.blocked_for_questioning)) then raise exception 'invalid_source_observation'; end if;
- insert into public.interview_turns(id,session_id,user_id,sequence,role,kind,content,question_focus,source_observation_ids) values((agent->>'id')::uuid,p_session_id,p_user_id,(agent->>'sequence')::integer,'agent',agent->>'kind',agent->>'content',agent->>'questionFocus',array(select jsonb_array_elements_text(agent->'sourceObservationIds'))::uuid[]);
+ insert into public.interview_turns(id,session_id,user_id,sequence,role,kind,content,question_focus,source_observation_ids)
+  values((agent->>'id')::uuid,p_session_id,p_user_id,(agent->>'sequence')::integer,'agent',agent->>'kind',agent->>'content',agent->>'questionFocus',array(select jsonb_array_elements_text(agent->'sourceObservationIds'))::uuid[]);
  update public.practice_sessions set substantive_answer_count=expected,interview_status='active',report_evidence_observation_ids=array(select jsonb_array_elements_text(p_payload->'reportEvidence'->'observationIds'))::uuid[],report_evidence_answer_turn_ids=array(select jsonb_array_elements_text(p_payload->'reportEvidence'->'answerTurnIds'))::uuid[],updated_at=now() where id=p_session_id;
  update public.ai_runs set status='completed',response_schema_version='agent-turn.v1',model=coalesce(nullif(trim(p_payload->>'model'),''),model),prompt_version=coalesce(nullif(trim(p_payload->>'promptVersion'),''),prompt_version),completed_at=coalesce(completed_at,now()),updated_at=now() where id=(p_payload->>'agentRunId')::uuid and session_id=p_session_id and user_id=p_user_id and stage='agent' and status in ('running','completed');
  if not found then raise exception 'agent_run_not_running'; end if;
+ if completion_status_value is not null then
+  select array_agg(kind order by sequence desc) into last_two_kinds
+  from (select kind,sequence from public.interview_turns where session_id=p_session_id and user_id=p_user_id and role='actor' and kind in ('answer','unknown') order by sequence desc limit 2) counted;
+  select count(*) into conversation_count from public.interview_turns where session_id=p_session_id and user_id=p_user_id and role='actor' and kind in ('answer','unknown');
+  if (completion_status_value='completed' and completion_reason_value not in ('interview_complete_report_ready','manual_stop_report_ready','hard_limit_report_ready')) or (completion_status_value='paused' and completion_reason_value<>'manual_stop_paused') or (completion_status_value='completed_without_report' and completion_reason_value not in ('insufficient_confirmed_evidence','insufficient_interview_evidence')) then raise exception 'invalid_completion'; end if;
+  if completion_reason_value='interview_complete_report_ready' and expected<5 and not (coalesce(array_length(last_two_kinds,1),0)=2 and last_two_kinds[1]='unknown' and last_two_kinds[2]='unknown') then raise exception 'invalid_completion_count'; end if;
+  if completion_reason_value='hard_limit_report_ready' and conversation_count<>10 then raise exception 'invalid_completion_count'; end if;
+  if completion_reason_value='insufficient_interview_evidence' and conversation_count<>10 and expected<5 and not (coalesce(array_length(last_two_kinds,1),0)=2 and last_two_kinds[1]='unknown' and last_two_kinds[2]='unknown') then raise exception 'invalid_completion_count'; end if;
+  if completion_status_value='completed' then
+   if cardinality(obs)=0 or cardinality(turns)=0 or exists(select 1 from unnest(obs) x where not exists(select 1 from public.observations o where o.id=x and o.session_id=p_session_id and o.user_id=p_user_id and o.confirmation_state='accepted' and not o.blocked_for_questioning)) or exists(select 1 from unnest(turns) x where not exists(select 1 from public.interview_turns t where t.id=x and t.session_id=p_session_id and t.user_id=p_user_id and t.role='actor' and t.kind='answer' and length(trim(t.content))>0 and t.report_evidence_selected)) then raise exception 'invalid_report_evidence'; end if;
+  else
+   if cardinality(obs)<>0 or cardinality(turns)<>0 then raise exception 'evidence_not_allowed'; end if;
+  end if;
+  update public.practice_sessions set interview_status=completion_status_value,completion_reason=completion_reason_value,report_evidence_observation_ids=obs,report_evidence_answer_turn_ids=turns,updated_at=now() where id=p_session_id;
+ end if;
  return jsonb_build_object('substantive_answer_count',expected);
 end $$;
 
