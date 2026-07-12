@@ -34,7 +34,9 @@ export type ActingClaimState =
   | "outcome_unknown";
 
 export type ActingRpcResult = JsonRecord & {
+  kind?: ActingClaimState;
   operationId?: string;
+  leaseToken?: string;
   claimState?: ActingClaimState;
 };
 
@@ -120,6 +122,28 @@ const callActingRpc = async (name: string, input: ActingRpcInput): Promise<Actin
   const { data, error } = await admin.rpc(name, input);
   assertNoPersistenceError(error, "operation", `Could not execute ${name}`);
   return mapActingRpcResult(data);
+};
+
+const normalizeClaim = (
+  value: ActingRpcResult,
+  input: { operationId: string; leaseToken: string },
+): ActingRpcResult => {
+  const kind = value.claimState;
+  return {
+    ...value,
+    kind,
+    operationId: value.operationId ?? input.operationId,
+    leaseToken: kind === "claimed" ? input.leaseToken : undefined,
+    sessionId: asNullableString(value.session_id) ?? undefined,
+    runId: asNullableString(value.run_id) ?? undefined,
+    actorTurnId: asNullableString(value.actor_turn_id) ?? undefined,
+    privateActingSessionId: asNullableString(value.acting_session_id) ?? undefined,
+    source: value.analysis_source ?? (value.actor_text ? { actorText: value.actor_text } : undefined),
+    summaryPayload: value.summary_payload,
+    coachContext: value.coach_context,
+    reportPayload: value.coach_session_payload,
+    result: value.response_payload,
+  };
 };
 
 const mapDbStatus = (status: unknown): SessionStatus => {
@@ -458,7 +482,7 @@ export const supabaseCoachSessionRepository = {
     medium: string; genre: string; situation: string; characterContext: string; subtext: string;
     leaseSeconds: number; createdAt?: string;
   }): Promise<ActingRpcResult> {
-    return callActingRpc("acttub_create_acting_session", {
+    return normalizeClaim(await callActingRpc("acttub_create_acting_session", {
       p_upload_intent_id: input.uploadIntentId, p_user_id: input.userId,
       p_session_id: input.sessionId, p_take_id: input.takeId, p_request_id: input.requestId,
       p_request_fingerprint: input.requestFingerprint, p_operation_id: input.operationId,
@@ -466,18 +490,18 @@ export const supabaseCoachSessionRepository = {
       p_situation: input.situation, p_character_context: input.characterContext,
       p_subtext: input.subtext, p_lease_seconds: input.leaseSeconds,
       p_created_at: input.createdAt ?? new Date().toISOString(),
-    });
+    }), input);
   },
 
   async claimAnalysisRetry(input: {
     sessionId: string; userId: string; requestId: string; requestFingerprint: string;
     operationId: string; leaseToken: string; leaseSeconds: number;
   }): Promise<ActingRpcResult> {
-    return callActingRpc("acttub_claim_analysis_retry", {
+    return normalizeClaim(await callActingRpc("acttub_claim_analysis_retry", {
       p_session_id: input.sessionId, p_user_id: input.userId, p_request_id: input.requestId,
       p_request_fingerprint: input.requestFingerprint, p_operation_id: input.operationId,
       p_lease_token: input.leaseToken, p_lease_seconds: input.leaseSeconds,
-    });
+    }), input);
   },
 
   async completeAnalysis(input: {
@@ -506,12 +530,12 @@ export const supabaseCoachSessionRepository = {
     sessionId: string; userId: string; requestId: string; requestFingerprint: string;
     operationId: string; runId: string; leaseToken: string; leaseSeconds: number; restart: boolean;
   }): Promise<ActingRpcResult> {
-    return callActingRpc("acttub_claim_coach_start", {
+    return normalizeClaim(await callActingRpc("acttub_claim_coach_start", {
       p_session_id: input.sessionId, p_user_id: input.userId, p_request_id: input.requestId,
       p_request_fingerprint: input.requestFingerprint, p_operation_id: input.operationId,
       p_run_id: input.runId, p_lease_token: input.leaseToken,
       p_lease_seconds: input.leaseSeconds, p_restart: input.restart,
-    });
+    }), input);
   },
 
   async claimCoachReply(input: {
@@ -519,13 +543,13 @@ export const supabaseCoachSessionRepository = {
     requestFingerprint: string; operationId: string; actorTurnId: string; actorText: string;
     retryActorTurnId?: string | null; leaseToken: string; leaseSeconds: number;
   }): Promise<ActingRpcResult> {
-    return callActingRpc("acttub_claim_coach_reply", {
+    return normalizeClaim(await callActingRpc("acttub_claim_coach_reply", {
       p_session_id: input.sessionId, p_user_id: input.userId, p_run_id: input.runId,
       p_request_id: input.requestId, p_request_fingerprint: input.requestFingerprint,
       p_operation_id: input.operationId, p_actor_turn_id: input.actorTurnId,
       p_actor_text: input.actorText, p_retry_actor_turn_id: input.retryActorTurnId ?? null,
       p_lease_token: input.leaseToken, p_lease_seconds: input.leaseSeconds,
-    });
+    }), input);
   },
 
   async completeCoachTurn(input: {
@@ -569,11 +593,11 @@ export const supabaseCoachSessionRepository = {
     sessionId: string; userId: string; requestId: string; requestFingerprint: string;
     operationId: string; leaseToken: string; leaseSeconds: number;
   }): Promise<ActingRpcResult> {
-    return callActingRpc("acttub_claim_report", {
+    return normalizeClaim(await callActingRpc("acttub_claim_report", {
       p_session_id: input.sessionId, p_user_id: input.userId, p_request_id: input.requestId,
       p_request_fingerprint: input.requestFingerprint, p_operation_id: input.operationId,
       p_lease_token: input.leaseToken, p_lease_seconds: input.leaseSeconds,
-    });
+    }), input);
   },
 
   async completeReport(input: {
