@@ -110,7 +110,7 @@ export async function createPracticeUploadIntent(
 
 export async function finalizePracticeUploadIntent(
   uploadIntentId: string,
-  body: FinalizeUploadIntentRequest,
+  body: FinalizeUploadIntentRequest | { storagePath: string; durationMs?: number },
 ): Promise<FinalizeUploadIntentResponse> {
   const response = await fetch(`/api/v1/practice-upload-intents/${uploadIntentId}/finalize`, {
     method: "POST",
