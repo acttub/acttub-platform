@@ -60,7 +60,7 @@ export type ActingCoachSessionDto = {
   hiddenAt: string | null;
   createdAt: string;
   updatedAt: string;
-  take: TakeDto & { analysisStatus: ActingAnalysisStatus; analysisRetryable: boolean };
+  take: Omit<TakeDto, "analysisStatus"> & { analysisStatus: ActingAnalysisStatus; analysisRetryable: boolean };
   sceneSummary: SceneSummaryDto | null;
   currentRun: {
     runId: string;
