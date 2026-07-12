@@ -1,0 +1,238 @@
+-- Acting API pipeline persistence. Apply only through a reviewed deployment migration.
+-- This file intentionally contains no project identifiers, credentials, or signed URLs.
+
+alter table public.upload_intents add column if not exists duration_ms integer;
+alter table public.upload_intents drop constraint if exists upload_intents_expected_size_bytes_check;
+alter table public.upload_intents add constraint upload_intents_expected_size_bytes_check
+  check (expected_size_bytes > 0 and expected_size_bytes <= 576716800);
+alter table public.upload_intents drop constraint if exists upload_intents_duration_ms_check;
+alter table public.upload_intents add constraint upload_intents_duration_ms_check
+  check (duration_ms is null or duration_ms between 1 and 180000);
+
+alter table public.practice_takes drop constraint if exists practice_takes_size_bytes_check;
+alter table public.practice_takes add constraint practice_takes_size_bytes_check
+  check (size_bytes > 0 and size_bytes <= 576716800);
+alter table public.practice_takes drop constraint if exists practice_takes_duration_ms_check;
+alter table public.practice_takes add constraint practice_takes_duration_ms_check
+  check (duration_ms is null or duration_ms between 1 and 180000);
+alter table public.practice_takes drop constraint if exists practice_takes_analysis_status_check;
+alter table public.practice_takes add constraint practice_takes_analysis_status_check
+  check (analysis_status in ('generated','pending','completed','failed','outcome_unknown'));
+alter table public.practice_takes add column if not exists analysis_retryable boolean;
+
+update public.practice_sessions set pipeline_version = 'legacy-gemini-v1'
+where pipeline_version is null;
+alter table public.practice_sessions add column if not exists pipeline_version text;
+update public.practice_sessions set pipeline_version = 'legacy-gemini-v1' where pipeline_version is null;
+alter table public.practice_sessions alter column pipeline_version set default 'legacy-gemini-v1';
+alter table public.practice_sessions alter column pipeline_version set not null;
+alter table public.practice_sessions add column if not exists interview_run_id uuid;
+alter table public.practice_sessions drop constraint if exists practice_sessions_status_check;
+alter table public.practice_sessions add constraint practice_sessions_status_check
+  check (status in ('observations_pending','questioning','completed','analyzing','interview','report','end'));
+alter table public.practice_sessions add constraint practice_sessions_pipeline_version_check
+  check (pipeline_version in ('legacy-gemini-v1','acting-api-v1'));
+
+update storage.buckets set file_size_limit = 576716800
+where id = 'practice-videos';
+
+create table public.scene_summaries (
+  id uuid primary key,
+  session_id uuid not null,
+  user_id uuid not null,
+  payload jsonb not null,
+  created_at timestamptz not null default now(),
+  unique (session_id), unique (id,user_id),
+  foreign key (session_id,user_id) references public.practice_sessions(id,user_id) on delete cascade
+);
+
+create table public.practice_interview_runs (
+  id uuid primary key,
+  session_id uuid not null,
+  user_id uuid not null,
+  acting_session_id text,
+  status text not null check (status in ('starting','live','completed','start_failed','expired','outcome_unknown')),
+  start_mode text not null check (start_mode in ('initial','restart')),
+  restart_of_run_id uuid references public.practice_interview_runs(id),
+  close_reason text,
+  failure_code text,
+  failure_retryable boolean,
+  started_at timestamptz not null default now(),
+  ended_at timestamptz,
+  unique (id,user_id),
+  foreign key (session_id,user_id) references public.practice_sessions(id,user_id) on delete cascade
+);
+create unique index practice_interview_runs_one_live
+  on public.practice_interview_runs(session_id) where status in ('starting','live');
+alter table public.practice_sessions add constraint practice_sessions_interview_run_fk
+  foreign key (interview_run_id,user_id) references public.practice_interview_runs(id,user_id);
+
+create table public.practice_turns (
+  id uuid primary key,
+  session_id uuid not null,
+  user_id uuid not null,
+  run_id uuid not null,
+  ordinal integer not null check (ordinal > 0),
+  role text not null check (role in ('actor','ai')),
+  delivery_status text not null check (delivery_status in ('pending','completed','failed','outcome_unknown')),
+  delivery_error_code text,
+  delivery_retryable boolean,
+  request_id uuid,
+  text text not null check (length(trim(text)) > 0),
+  action text,
+  focus_timestamp text,
+  created_at timestamptz not null default now(),
+  unique (id,user_id), unique (session_id,run_id,ordinal), unique (user_id,request_id),
+  foreign key (session_id,user_id) references public.practice_sessions(id,user_id) on delete cascade,
+  foreign key (run_id,user_id) references public.practice_interview_runs(id,user_id) on delete cascade,
+  check (role <> 'ai' or delivery_status = 'completed')
+);
+
+create table public.practice_reports (
+  id uuid primary key,
+  session_id uuid not null,
+  user_id uuid not null,
+  payload jsonb not null,
+  report_count integer not null check (report_count > 0),
+  created_at timestamptz not null default now(),
+  unique (session_id), unique (id,user_id),
+  foreign key (session_id,user_id) references public.practice_sessions(id,user_id) on delete cascade
+);
+
+create table public.practice_upstream_operations (
+  id uuid primary key,
+  session_id uuid not null,
+  user_id uuid not null,
+  run_id uuid,
+  request_id uuid not null,
+  request_fingerprint text not null check (request_fingerprint ~ '^[0-9a-f]{64}$'),
+  kind text not null check (kind in ('analysis_create','analysis_retry','coach_start','coach_restart','coach_reply','coach_retry_reply','report')),
+  status text not null check (status in ('in_flight','completed','failed','outcome_unknown')),
+  lease_token uuid not null,
+  lease_expires_at timestamptz not null,
+  safe_error_code text,
+  response_payload jsonb,
+  started_at timestamptz not null default now(),
+  finished_at timestamptz,
+  unique (user_id,request_id), unique (id,user_id),
+  foreign key (session_id,user_id) references public.practice_sessions(id,user_id) on delete cascade,
+  foreign key (run_id,user_id) references public.practice_interview_runs(id,user_id)
+);
+create unique index practice_upstream_operations_one_session_flight
+  on public.practice_upstream_operations(session_id) where status='in_flight';
+create unique index practice_upstream_operations_one_user_report
+  on public.practice_upstream_operations(user_id) where kind='report' and status='in_flight';
+
+alter table public.scene_summaries enable row level security;
+alter table public.practice_interview_runs enable row level security;
+alter table public.practice_turns enable row level security;
+alter table public.practice_reports enable row level security;
+alter table public.practice_upstream_operations enable row level security;
+revoke all on public.scene_summaries, public.practice_interview_runs, public.practice_turns,
+  public.practice_reports, public.practice_upstream_operations from anon, authenticated;
+
+create or replace function public.acttub_finalize_upload_intent(
+  p_upload_intent_id uuid,p_user_id uuid,p_storage_path text,p_duration_ms integer
+) returns table(upload_intent_id uuid,session_id uuid,duration_ms integer)
+language plpgsql security definer set search_path=public as $$
+declare v public.upload_intents%rowtype;
+begin
+  if p_duration_ms not between 1 and 180000 then raise exception 'invalid_duration'; end if;
+  select * into v from public.upload_intents where id=p_upload_intent_id and user_id=p_user_id for update;
+  if not found or v.expected_storage_path<>p_storage_path or v.expires_at<=clock_timestamp() then raise exception 'upload_intent_invalid'; end if;
+  if v.status='finalized' and v.duration_ms=p_duration_ms then return query select v.id,v.session_id,v.duration_ms; return; end if;
+  if v.status<>'created' then raise exception 'upload_intent_invalid'; end if;
+  update public.upload_intents set status='finalized',duration_ms=p_duration_ms,finalized_at=clock_timestamp(),updated_at=clock_timestamp() where id=v.id;
+  return query select v.id,v.session_id,p_duration_ms;
+end $$;
+
+create or replace function public.acttub_create_acting_session(
+  p_upload_intent_id uuid,p_user_id uuid,p_session_id uuid,p_take_id uuid,p_request_id uuid,
+  p_request_fingerprint text,p_operation_id uuid,p_lease_token uuid,p_medium text,p_genre text,
+  p_situation text,p_character_context text,p_subtext text,p_lease_seconds integer,p_created_at timestamptz default now()
+) returns table(operation_id uuid,claim_state text,session_id uuid,analysis_source jsonb)
+language plpgsql security definer set search_path=public as $$
+declare v public.upload_intents%rowtype; existing public.practice_upstream_operations%rowtype;
+begin
+  if p_lease_seconds<>780 then raise exception 'invalid_lease'; end if;
+  if p_request_fingerprint !~ '^[0-9a-f]{64}$' then raise exception 'invalid_fingerprint'; end if;
+  select * into existing from public.practice_upstream_operations where user_id=p_user_id and request_id=p_request_id;
+  if found then
+    if existing.request_fingerprint<>p_request_fingerprint then raise exception 'request_id_conflict'; end if;
+    return query select existing.id,case existing.status when 'completed' then 'replay_completed' when 'failed' then 'replay_failed' when 'outcome_unknown' then 'outcome_unknown' else 'in_progress' end,existing.session_id,null::jsonb; return;
+  end if;
+  select * into v from public.upload_intents where id=p_upload_intent_id and user_id=p_user_id and status='finalized' for update;
+  if not found or v.session_id<>p_session_id or v.duration_ms is null then raise exception 'upload_intent_invalid'; end if;
+  insert into public.practice_sessions(id,user_id,upload_intent_id,status,pipeline_version,medium,genre,situation,character_context,subtext,created_at,updated_at)
+    values(p_session_id,p_user_id,p_upload_intent_id,'analyzing','acting-api-v1',p_medium,p_genre,p_situation,p_character_context,p_subtext,p_created_at,p_created_at);
+  insert into public.practice_takes(id,session_id,user_id,storage_bucket,storage_path,mime_type,size_bytes,duration_ms,analysis_status,created_at)
+    values(p_take_id,p_session_id,p_user_id,v.expected_storage_bucket,v.expected_storage_path,v.expected_mime_type,v.expected_size_bytes,v.duration_ms,'pending',p_created_at);
+  insert into public.practice_upstream_operations(id,session_id,user_id,request_id,request_fingerprint,kind,status,lease_token,lease_expires_at,started_at)
+    values(p_operation_id,p_session_id,p_user_id,p_request_id,p_request_fingerprint,'analysis_create','in_flight',p_lease_token,clock_timestamp()+interval '780 seconds',clock_timestamp());
+  return query select p_operation_id,'claimed',p_session_id,jsonb_build_object('storageBucket',v.expected_storage_bucket,'storagePath',v.expected_storage_path,'mimeType',v.expected_mime_type,'sizeBytes',v.expected_size_bytes,'medium',p_medium,'genre',p_genre,'situation',p_situation,'formattedSituation','[매체: '||p_medium||'] [장르: '||p_genre||'] '||p_situation,'characterContext',p_character_context,'subtext',p_subtext);
+end $$;
+
+-- The remaining transition RPCs use the same private lease boundary. Their exact
+-- signatures are stable so the application can migrate to Spring Boot unchanged.
+create or replace function public.acttub_claim_analysis_retry(p_session_id uuid,p_user_id uuid,p_request_id uuid,p_request_fingerprint text,p_operation_id uuid,p_lease_token uuid,p_lease_seconds integer)
+returns table(operation_id uuid,claim_state text,analysis_source jsonb) language plpgsql security definer set search_path=public as $$
+begin
+ if p_lease_seconds<>780 then raise exception 'invalid_lease'; end if;
+ if not exists(select 1 from public.practice_sessions where id=p_session_id and user_id=p_user_id and pipeline_version='acting-api-v1' and status='analyzing') then raise exception 'invalid_session'; end if;
+ insert into public.practice_upstream_operations values(p_operation_id,p_session_id,p_user_id,null,p_request_id,p_request_fingerprint,'analysis_retry','in_flight',p_lease_token,clock_timestamp()+interval '780 seconds',null,null,clock_timestamp(),null);
+ return query select p_operation_id,'claimed',jsonb_build_object('sessionId',p_session_id); end $$;
+
+create or replace function public.acttub_complete_analysis(p_session_id uuid,p_user_id uuid,p_operation_id uuid,p_lease_token uuid,p_scene_summary_id uuid,p_summary_payload jsonb)
+returns void language plpgsql security definer set search_path=public as $$ begin
+ update public.practice_upstream_operations set status='completed',response_payload=p_summary_payload,finished_at=clock_timestamp() where id=p_operation_id and session_id=p_session_id and user_id=p_user_id and kind in ('analysis_create','analysis_retry') and status='in_flight' and lease_token=p_lease_token and lease_expires_at>clock_timestamp(); if not found then raise exception 'upstream_outcome_unknown'; end if;
+ insert into public.scene_summaries values(p_scene_summary_id,p_session_id,p_user_id,p_summary_payload,clock_timestamp()); update public.practice_takes set analysis_status='completed',analysis_error=null,analysis_retryable=null where session_id=p_session_id and user_id=p_user_id; update public.practice_sessions set status='interview',updated_at=clock_timestamp() where id=p_session_id and user_id=p_user_id and pipeline_version='acting-api-v1'; end $$;
+
+create or replace function public.acttub_fail_analysis(p_session_id uuid,p_user_id uuid,p_operation_id uuid,p_lease_token uuid,p_failure_class text,p_safe_error_code text)
+returns void language plpgsql security definer set search_path=public as $$ begin
+ if p_failure_class not in ('definitive','ambiguous') then raise exception 'invalid_failure_class'; end if;
+ update public.practice_upstream_operations set status=case when p_failure_class='ambiguous' then 'outcome_unknown' else 'failed' end,safe_error_code=p_safe_error_code,finished_at=clock_timestamp() where id=p_operation_id and session_id=p_session_id and user_id=p_user_id and kind in ('analysis_create','analysis_retry') and status='in_flight' and lease_token=p_lease_token and lease_expires_at>clock_timestamp(); if not found then raise exception 'upstream_outcome_unknown'; end if;
+ update public.practice_takes set analysis_status=case when p_failure_class='ambiguous' then 'outcome_unknown' else 'failed' end,analysis_error=p_safe_error_code,analysis_retryable=(p_failure_class='definitive' and p_safe_error_code in ('acting_api_auth_failed','acting_api_rate_limited')) where session_id=p_session_id and user_id=p_user_id; end $$;
+
+-- Claim/finalize functions below deliberately keep private payloads in service-role results only.
+create or replace function public.acttub_claim_coach_start(p_session_id uuid,p_user_id uuid,p_request_id uuid,p_request_fingerprint text,p_operation_id uuid,p_run_id uuid,p_lease_token uuid,p_lease_seconds integer,p_restart boolean)
+returns table(operation_id uuid,claim_state text,run_id uuid,summary_payload jsonb,coach_context jsonb) language plpgsql security definer set search_path=public as $$ declare s public.practice_sessions%rowtype; summary jsonb; prior uuid; begin
+ if p_lease_seconds<>120 then raise exception 'invalid_lease'; end if; select * into s from public.practice_sessions where id=p_session_id and user_id=p_user_id and pipeline_version='acting-api-v1' for update; if not found or s.status<>'interview' then raise exception 'invalid_session'; end if; select payload into summary from public.scene_summaries where session_id=p_session_id and user_id=p_user_id; prior:=s.interview_run_id;
+ insert into public.practice_interview_runs(id,session_id,user_id,status,start_mode,restart_of_run_id) values(p_run_id,p_session_id,p_user_id,'starting',case when p_restart then 'restart' else 'initial' end,case when p_restart then prior else null end); update public.practice_sessions set interview_run_id=p_run_id where id=p_session_id;
+ insert into public.practice_upstream_operations(id,session_id,user_id,run_id,request_id,request_fingerprint,kind,status,lease_token,lease_expires_at) values(p_operation_id,p_session_id,p_user_id,p_run_id,p_request_id,p_request_fingerprint,case when p_restart then 'coach_restart' else 'coach_start' end,'in_flight',p_lease_token,clock_timestamp()+interval '120 seconds');
+ return query select p_operation_id,'claimed',p_run_id,summary,jsonb_build_object('medium',s.medium,'genre',s.genre,'situation',s.situation,'formattedSituation','[매체: '||s.medium||'] [장르: '||s.genre||'] '||s.situation,'characterContext',s.character_context,'subtext',s.subtext); end $$;
+
+create or replace function public.acttub_claim_coach_reply(p_session_id uuid,p_user_id uuid,p_run_id uuid,p_request_id uuid,p_request_fingerprint text,p_operation_id uuid,p_actor_turn_id uuid,p_actor_text text,p_retry_actor_turn_id uuid,p_lease_token uuid,p_lease_seconds integer)
+returns table(operation_id uuid,claim_state text,acting_session_id text,actor_turn_id uuid,actor_text text) language plpgsql security definer set search_path=public as $$ declare r public.practice_interview_runs%rowtype; next_ordinal integer; begin
+ if p_lease_seconds<>120 then raise exception 'invalid_lease'; end if; select * into r from public.practice_interview_runs where id=p_run_id and session_id=p_session_id and user_id=p_user_id and status='live' for update; if not found then raise exception 'invalid_run'; end if;
+ if p_retry_actor_turn_id is null then select coalesce(max(ordinal),0)+1 into next_ordinal from public.practice_turns where session_id=p_session_id and run_id=p_run_id; insert into public.practice_turns(id,session_id,user_id,run_id,ordinal,role,delivery_status,request_id,text) values(p_actor_turn_id,p_session_id,p_user_id,p_run_id,next_ordinal,'actor','pending',p_request_id,trim(p_actor_text)); else update public.practice_turns set delivery_status='pending',delivery_error_code=null,delivery_retryable=null where id=p_retry_actor_turn_id and run_id=p_run_id and user_id=p_user_id and role='actor' and delivery_status='failed' and delivery_retryable; p_actor_turn_id:=p_retry_actor_turn_id; select text into p_actor_text from public.practice_turns where id=p_actor_turn_id; end if;
+ insert into public.practice_upstream_operations(id,session_id,user_id,run_id,request_id,request_fingerprint,kind,status,lease_token,lease_expires_at) values(p_operation_id,p_session_id,p_user_id,p_run_id,p_request_id,p_request_fingerprint,case when p_retry_actor_turn_id is null then 'coach_reply' else 'coach_retry_reply' end,'in_flight',p_lease_token,clock_timestamp()+interval '120 seconds'); return query select p_operation_id,'claimed',r.acting_session_id,p_actor_turn_id,p_actor_text; end $$;
+
+create or replace function public.acttub_complete_coach_turn(p_session_id uuid,p_user_id uuid,p_run_id uuid,p_operation_id uuid,p_lease_token uuid,p_acting_session_id text,p_ai_turn_id uuid,p_question text,p_action text,p_focus_timestamp text,p_done boolean,p_close_reason text,p_response_payload jsonb)
+returns void language plpgsql security definer set search_path=public as $$ declare n integer; begin update public.practice_upstream_operations set status='completed',response_payload=p_response_payload,finished_at=clock_timestamp() where id=p_operation_id and run_id=p_run_id and user_id=p_user_id and status='in_flight' and lease_token=p_lease_token and lease_expires_at>clock_timestamp(); if not found then raise exception 'upstream_outcome_unknown'; end if; update public.practice_interview_runs set acting_session_id=p_acting_session_id,status=case when p_done then 'completed' else 'live' end,close_reason=case when p_done then p_close_reason else null end,ended_at=case when p_done then clock_timestamp() else null end where id=p_run_id and user_id=p_user_id; update public.practice_turns set delivery_status='completed' where run_id=p_run_id and user_id=p_user_id and delivery_status='pending'; select coalesce(max(ordinal),0)+1 into n from public.practice_turns where run_id=p_run_id; insert into public.practice_turns(id,session_id,user_id,run_id,ordinal,role,delivery_status,text,action,focus_timestamp) values(p_ai_turn_id,p_session_id,p_user_id,p_run_id,n,'ai','completed',p_question,p_action,p_focus_timestamp); update public.practice_sessions set status=case when p_done then 'report' else 'interview' end,updated_at=clock_timestamp() where id=p_session_id and user_id=p_user_id and pipeline_version='acting-api-v1'; end $$;
+
+create or replace function public.acttub_fail_coach_operation(p_session_id uuid,p_user_id uuid,p_run_id uuid,p_operation_id uuid,p_lease_token uuid,p_actor_turn_id uuid,p_failure_class text,p_safe_error_code text) returns void language plpgsql security definer set search_path=public as $$ begin if p_failure_class not in ('definitive','ambiguous') then raise exception 'invalid_failure_class'; end if; update public.practice_upstream_operations set status=case when p_failure_class='ambiguous' then 'outcome_unknown' else 'failed' end,safe_error_code=p_safe_error_code,finished_at=clock_timestamp() where id=p_operation_id and run_id=p_run_id and user_id=p_user_id and status='in_flight' and lease_token=p_lease_token and lease_expires_at>clock_timestamp(); if not found then raise exception 'upstream_outcome_unknown'; end if; update public.practice_turns set delivery_status=case when p_failure_class='ambiguous' then 'outcome_unknown' else 'failed' end,delivery_error_code=p_safe_error_code,delivery_retryable=(p_failure_class='definitive' and p_safe_error_code in ('acting_api_auth_failed','acting_api_rate_limited')) where id=p_actor_turn_id and run_id=p_run_id; update public.practice_interview_runs set status=case when p_failure_class='ambiguous' then 'outcome_unknown' when status='starting' then 'start_failed' else status end,failure_code=p_safe_error_code,failure_retryable=(p_failure_class='definitive' and p_safe_error_code in ('acting_api_auth_failed','acting_api_rate_limited')),ended_at=case when p_failure_class='ambiguous' or status='starting' then clock_timestamp() else ended_at end where id=p_run_id; end $$;
+create or replace function public.acttub_expire_coach_run(p_session_id uuid,p_user_id uuid,p_run_id uuid,p_operation_id uuid,p_lease_token uuid,p_actor_turn_id uuid) returns void language plpgsql security definer set search_path=public as $$ begin update public.practice_upstream_operations set status='failed',safe_error_code='acting_session_expired',finished_at=clock_timestamp() where id=p_operation_id and lease_token=p_lease_token and status='in_flight' and lease_expires_at>clock_timestamp(); if not found then raise exception 'upstream_outcome_unknown'; end if; update public.practice_interview_runs set status='expired',failure_code='acting_session_expired',failure_retryable=false,ended_at=clock_timestamp() where id=p_run_id and user_id=p_user_id; update public.practice_turns set delivery_status='failed',delivery_error_code='acting_session_expired',delivery_retryable=false where id=p_actor_turn_id and run_id=p_run_id; end $$;
+
+create or replace function public.acttub_claim_report(p_session_id uuid,p_user_id uuid,p_request_id uuid,p_request_fingerprint text,p_operation_id uuid,p_lease_token uuid,p_lease_seconds integer) returns table(operation_id uuid,claim_state text,coach_session_payload jsonb) language plpgsql security definer set search_path=public as $$ begin if p_lease_seconds<>120 then raise exception 'invalid_lease'; end if; if not exists(select 1 from public.practice_sessions where id=p_session_id and user_id=p_user_id and pipeline_version='acting-api-v1' and status='report') then raise exception 'invalid_session'; end if; insert into public.practice_upstream_operations(id,session_id,user_id,request_id,request_fingerprint,kind,status,lease_token,lease_expires_at) values(p_operation_id,p_session_id,p_user_id,p_request_id,p_request_fingerprint,'report','in_flight',p_lease_token,clock_timestamp()+interval '120 seconds'); return query select p_operation_id,'claimed',jsonb_build_object('sessionId',p_session_id); end $$;
+create or replace function public.acttub_complete_report(p_session_id uuid,p_user_id uuid,p_operation_id uuid,p_lease_token uuid,p_report_id uuid,p_report_payload jsonb,p_report_count integer,p_response_payload jsonb) returns void language plpgsql security definer set search_path=public as $$ begin if p_report_count<1 then raise exception 'invalid_report_count'; end if; update public.practice_upstream_operations set status='completed',response_payload=p_response_payload,finished_at=clock_timestamp() where id=p_operation_id and kind='report' and user_id=p_user_id and lease_token=p_lease_token and status='in_flight' and lease_expires_at>clock_timestamp(); if not found then raise exception 'upstream_outcome_unknown'; end if; insert into public.practice_reports values(p_report_id,p_session_id,p_user_id,p_report_payload,p_report_count,clock_timestamp()); update public.practice_sessions set status='end',updated_at=clock_timestamp() where id=p_session_id and user_id=p_user_id and pipeline_version='acting-api-v1'; end $$;
+create or replace function public.acttub_fail_report(p_session_id uuid,p_user_id uuid,p_operation_id uuid,p_lease_token uuid,p_failure_class text,p_safe_error_code text) returns void language plpgsql security definer set search_path=public as $$ begin if p_failure_class not in ('definitive','ambiguous') then raise exception 'invalid_failure_class'; end if; update public.practice_upstream_operations set status=case when p_failure_class='ambiguous' then 'outcome_unknown' else 'failed' end,safe_error_code=p_safe_error_code,finished_at=clock_timestamp() where id=p_operation_id and kind='report' and user_id=p_user_id and lease_token=p_lease_token and status='in_flight' and lease_expires_at>clock_timestamp(); if not found then raise exception 'upstream_outcome_unknown'; end if; end $$;
+create or replace function public.acttub_seal_expired_operation(p_session_id uuid,p_user_id uuid,p_operation_id uuid) returns table(sealed boolean,kind text) language plpgsql security definer set search_path=public as $$ declare k text; begin update public.practice_upstream_operations set status='outcome_unknown',safe_error_code='acting_api_timeout',finished_at=clock_timestamp() where id=p_operation_id and session_id=p_session_id and user_id=p_user_id and status='in_flight' and lease_expires_at<=clock_timestamp() returning practice_upstream_operations.kind into k; return query select found,k; end $$;
+
+do $$ declare signature regprocedure; begin
+  foreach signature in array array[
+    'public.acttub_finalize_upload_intent(uuid,uuid,text,integer)'::regprocedure,
+    'public.acttub_create_acting_session(uuid,uuid,uuid,uuid,uuid,text,uuid,uuid,text,text,text,text,text,integer,timestamptz)'::regprocedure,
+    'public.acttub_claim_analysis_retry(uuid,uuid,uuid,text,uuid,uuid,integer)'::regprocedure,
+    'public.acttub_complete_analysis(uuid,uuid,uuid,uuid,uuid,jsonb)'::regprocedure,
+    'public.acttub_fail_analysis(uuid,uuid,uuid,uuid,text,text)'::regprocedure,
+    'public.acttub_claim_coach_start(uuid,uuid,uuid,text,uuid,uuid,uuid,integer,boolean)'::regprocedure,
+    'public.acttub_claim_coach_reply(uuid,uuid,uuid,uuid,text,uuid,uuid,text,uuid,uuid,integer)'::regprocedure,
+    'public.acttub_complete_coach_turn(uuid,uuid,uuid,uuid,uuid,text,uuid,text,text,text,boolean,text,jsonb)'::regprocedure,
+    'public.acttub_fail_coach_operation(uuid,uuid,uuid,uuid,uuid,uuid,text,text)'::regprocedure,
+    'public.acttub_expire_coach_run(uuid,uuid,uuid,uuid,uuid,uuid)'::regprocedure,
+    'public.acttub_claim_report(uuid,uuid,uuid,text,uuid,uuid,integer)'::regprocedure,
+    'public.acttub_complete_report(uuid,uuid,uuid,uuid,uuid,jsonb,integer,jsonb)'::regprocedure,
+    'public.acttub_fail_report(uuid,uuid,uuid,uuid,text,text)'::regprocedure,
+    'public.acttub_seal_expired_operation(uuid,uuid,uuid)'::regprocedure
+  ] loop execute format('revoke execute on function %s from public, anon, authenticated',signature); execute format('grant execute on function %s to service_role',signature); end loop;
+end $$;
