@@ -417,7 +417,6 @@ begin
  return query select true,op.kind;
 end $$;
 
-create or replace function public.acttub_create_session_from_upload_intent
 create or replace function public.acttub_create_session_from_upload_intent(
   p_upload_intent_id uuid,
   p_user_id uuid,
@@ -721,6 +720,7 @@ $$;
 
 do $$ declare signature regprocedure; begin
   foreach signature in array array[
+    'public.acttub_error_replay_payload(text,text,text,uuid)'::regprocedure,
     'public.acttub_preflight_operation(uuid,uuid,boolean)'::regprocedure,
     'public.acttub_operation_claim_state(uuid,uuid,text)'::regprocedure,
     'public.acttub_finalize_upload_intent(uuid,uuid,text,integer)'::regprocedure,
