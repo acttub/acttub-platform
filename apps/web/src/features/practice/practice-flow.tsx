@@ -8,6 +8,7 @@ import {
   createPracticeSession,
   createPracticeUploadIntent,
   finalizePracticeUploadIntent,
+  getPracticeSession,
   listPracticeSessions,
   mutatePracticeTurn,
   retryPracticeAnalysis,
@@ -88,7 +89,7 @@ export function PracticeFlow({ entry = "new" }: { entry?: Entry }) {
         .upload(uploadIntent.storagePath, file, { contentType: file.type, upsert: false });
       if (uploadError) throw uploadError;
       await finalizePracticeUploadIntent(uploadIntent.uploadIntentId, { storagePath: uploadIntent.storagePath, durationMs });
-      const { session } = await createPracticeSession({
+      const session = await createPracticeSession({
         requestId: crypto.randomUUID(), uploadIntentId: uploadIntent.uploadIntentId,
         medium, genre, situation: situation.trim(), characterContext: characterContext.trim(), subtext: subtext.trim(),
       });
@@ -100,7 +101,7 @@ export function PracticeFlow({ entry = "new" }: { entry?: Entry }) {
     if (!active) return;
     setBusy(true); setError(null);
     try {
-      const { session } = await mutatePracticeTurn(active.id, { operation: kind, requestId: crypto.randomUUID() });
+      const session = await mutatePracticeTurn(active.id, { operation: kind, requestId: crypto.randomUUID() });
       setActive(session); setRestartRequired(false);
     } catch (reason) { setError(errorMessage(reason)); } finally { setBusy(false); }
   }
@@ -110,7 +111,7 @@ export function PracticeFlow({ entry = "new" }: { entry?: Entry }) {
     if (!active?.currentRun || !text) return;
     setBusy(true); setError(null);
     try {
-      const { session } = await mutatePracticeTurn(active.id, {
+      const session = await mutatePracticeTurn(active.id, {
         operation: "reply", runId: active.currentRun.runId, requestId: crypto.randomUUID(), text,
       });
       setActive(session); setAnswer("");
@@ -127,7 +128,7 @@ export function PracticeFlow({ entry = "new" }: { entry?: Entry }) {
   async function retryAnalysis() {
     if (!active) return;
     setBusy(true); setError(null);
-    try { setActive((await retryPracticeAnalysis(active.id)).session); }
+    try { setActive(await retryPracticeAnalysis(active.id)); }
     catch (reason) { setError(errorMessage(reason)); } finally { setBusy(false); }
   }
 
@@ -135,8 +136,10 @@ export function PracticeFlow({ entry = "new" }: { entry?: Entry }) {
     if (!active) return;
     setBusy(true); setError(null);
     try {
-      const result = await createPracticeReport(active.id);
-      setActive({ ...result.session, report: result.report ?? result.session.report });
+      await createPracticeReport(active.id);
+      const { session } = await getPracticeSession(active.id);
+      if (session.legacy) throw new Error("완료된 연습 리포트를 불러오지 못했어요.");
+      setActive(session);
     } catch (reason) { setError(errorMessage(reason)); } finally { setBusy(false); }
   }
 
