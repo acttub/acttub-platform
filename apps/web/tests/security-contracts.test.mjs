@@ -73,7 +73,8 @@ test("upload UI goes through create intent and finalize before creating upload s
   assert.match(flow, /createPracticeUploadIntent/);
   assert.match(flow, /finalizePracticeUploadIntent/);
   assert.match(flow, /uploadIntentId: uploadIntent\.uploadIntentId/);
-  assert.match(flow, /storagePath: finalizedUpload\.storagePath/);
+  assert.match(flow, /finalizePracticeUploadIntent\(uploadIntent\.uploadIntentId, \{ storagePath: uploadIntent\.storagePath, durationMs \}\)/);
+  assert.match(flow, /createPracticeSession\([\s\S]*uploadIntentId: uploadIntent\.uploadIntentId/);
 });
 
 test("migration uses private practice-videos insert-only storage contract", () => {

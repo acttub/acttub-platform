@@ -64,13 +64,6 @@ test("practice persistence uses Supabase repository without in-memory fallback",
   assert.doesNotMatch(service, new RegExp("mo" + "ckCoachSessionRepository|globalThis\\.__acttub"));
 });
 
-test("practice flow uses upload intent lifecycle for uploaded videos", () => {
-  const source = read("apps/web/src/features/practice/practice-flow.tsx");
-  assert.match(source, /createPracticeUploadIntent/);
-  assert.match(source, /finalizePracticeUploadIntent/);
-  assert.match(source, /scene\.medium === "upload_url"/);
-  assert.match(source, /uploadIntentId: uploadIntent\.uploadIntentId/);
-});
 
 test("web test script runs focused node tests", () => {
   const packageJson = JSON.parse(readFileSync(path.join(appRoot, "package.json"), "utf8"));

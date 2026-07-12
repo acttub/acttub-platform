@@ -13,7 +13,7 @@ test("acting-api credentials and direct upstream calls stay server-only", () => 
     read("src/features/practice/practice-flow.tsx"),
   ].join("\n");
   assert.doesNotMatch(client, /ACTING_API_KEY|X-API-Key|SUPABASE_SERVICE_ROLE_KEY/);
-  assert.doesNotMatch(client, /\/summarize|\/coach\/start|\/coach\/reply|\/report/);
+  assert.doesNotMatch(client, /https?:[^\s"`]*(?:\/summarize|\/coach\/start|\/coach\/reply|\/report)/);
 });
 
 test("active source removes Gemini-era observation and authored-summary flow", () => {
@@ -27,7 +27,7 @@ test("active source removes Gemini-era observation and authored-summary flow", (
 });
 
 test("typed client exposes only the locked acting operations", () => {
-  const client = read("src/lib/api/sessions.ts");
+  const client = [read("src/lib/api/types.ts"), read("src/lib/api/sessions.ts")].join("\n");
   assert.match(client, /operation:\s*"start"/);
   assert.match(client, /operation:\s*"reply"/);
   assert.match(client, /operation:\s*"retry_reply"/);

@@ -103,7 +103,7 @@ test("practice entrypoints require authentication before use", () => {
   assert.match(proxy, /supabase\.auth\.getClaims\(\)/);
   assert.match(proxy, /if \(!config\.supabase\.isConfigured\) \{[\s\S]*redirectToLogin\(request\)/);
   assert.match(proxy, /return redirectToLogin\(request\)/);
-  assert.match(practiceFlow, /encodeURIComponent\(entryPath\[entry\]\)/);
+  assert.match(practiceFlow, /location\.href = `\/auth\/login\?next=\/practice\/\$\{entry === "history" \? "history" : "new"\}`/);
   assert.match(termsGate, /window\.location\.href = "\/auth\/login\?next=\/home"/);
   assert.match(termsGate, /window\.location\.href = "\/home"/);
 });

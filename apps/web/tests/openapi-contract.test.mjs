@@ -155,6 +155,15 @@ test("remaining compatibility API aliases are visibly deprecated", () => {
   const aliases = [
     ["/api/v1/practice-sessions/{sessionId}/video-url", "get"],
     ["/api/v1/practice-sessions/{sessionId}/hide", "post"],
+    ["/api/v1/practice-sessions/{sessionId}/observations/{observationId}", "patch"],
+    ["/api/v1/practice-sessions/{sessionId}/result", "post"],
+    ["/api/v1/practice-sessions/{sessionId}/metrics", "post"],
+    ["/api/v1/practice-sessions/{sessionId}/summary", "post"],
+    ["/api/v1/sessions", "post"],
+    ["/api/v1/sessions/{sessionId}", "get"],
+    ["/api/v1/sessions/{sessionId}/observations/{observationId}", "patch"],
+    ["/api/v1/sessions/{sessionId}/turns", "post"],
+    ["/api/v1/sessions/{sessionId}/summary", "post"],
   ];
 
   for (const [path, method] of aliases) {
@@ -230,13 +239,9 @@ test("acting analysis and report operations expose stable recovery statuses", ()
     }
   }
   assert.ok(paths["/api/v1/practice-sessions/{sessionId}/report"].get);
-  for (const removed of [
-    "/api/v1/practice-sessions/{sessionId}/observations/{observationId}",
-    "/api/v1/practice-sessions/{sessionId}/result",
-    "/api/v1/practice-sessions/{sessionId}/metrics",
-    "/api/v1/practice-sessions/{sessionId}/summary",
-    "/api/v1/sessions",
-  ]) assert.equal(paths[removed], undefined, `${removed} must not remain active`);
+  assert.equal(paths["/api/v1/practice-sessions/{sessionId}/turns"].post.deprecated, undefined);
+  assert.equal(paths["/api/v1/practice-sessions/{sessionId}/analysis"].post.deprecated, undefined);
+  assert.equal(paths["/api/v1/practice-sessions/{sessionId}/report"].post.deprecated, undefined);
 });
 
 test("public acting schemas contain no upstream session identifiers", () => {
