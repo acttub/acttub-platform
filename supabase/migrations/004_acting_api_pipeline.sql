@@ -169,6 +169,16 @@ begin
     update public.practice_upstream_operations set status='outcome_unknown',safe_error_code='acting_api_timeout',finished_at=clock_timestamp()
       where id=existing.id and status='in_flight' and lease_expires_at<=clock_timestamp();
     existing.status:='outcome_unknown';
+    if existing.kind in ('analysis_create','analysis_retry') then
+      update public.practice_takes set analysis_status='outcome_unknown',analysis_retryable=false,
+        analysis_error='acting_api_timeout' where session_id=existing.session_id and user_id=existing.user_id;
+    elsif existing.kind in ('coach_start','coach_restart','coach_reply','coach_retry_reply') then
+      update public.practice_interview_runs set status='outcome_unknown',failure_code='acting_api_timeout',
+        failure_retryable=false,ended_at=clock_timestamp()
+        where id=existing.run_id and user_id=existing.user_id and status in ('starting','live');
+      update public.practice_turns set delivery_status='outcome_unknown',delivery_error_code='acting_api_timeout',
+        delivery_retryable=false where run_id=existing.run_id and user_id=existing.user_id and delivery_status='pending';
+    end if;
   end if;
   return query select true,existing.id,existing.session_id,existing.run_id,
     case existing.status when 'completed' then 'replay_completed' when 'failed' then 'replay_failed'
@@ -212,6 +222,11 @@ begin
   select * into existing from public.practice_upstream_operations where user_id=p_user_id and request_id=p_request_id;
   if found then
     if existing.request_fingerprint<>p_request_fingerprint then raise exception 'request_id_conflict'; end if;
+    if existing.status='in_flight' and existing.lease_expires_at<=clock_timestamp() then
+      update public.practice_upstream_operations set status='outcome_unknown',safe_error_code='acting_api_timeout',finished_at=clock_timestamp() where id=existing.id and status='in_flight';
+      update public.practice_takes set analysis_status='outcome_unknown',analysis_retryable=false,analysis_error='acting_api_timeout' where session_id=existing.session_id and user_id=existing.user_id;
+      existing.status:='outcome_unknown';
+    end if;
     return query select existing.id,case existing.status when 'completed' then 'replay_completed' when 'failed' then 'replay_failed' when 'outcome_unknown' then 'outcome_unknown' else 'in_progress' end,existing.session_id,null::jsonb; return;
   end if;
   select * into v from public.upload_intents where id=p_upload_intent_id and user_id=p_user_id and status='finalized' for update;
