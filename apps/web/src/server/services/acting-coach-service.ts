@@ -1,6 +1,6 @@
 import "server-only";
 import { createHash } from "node:crypto";
-import type { ActingCoachSessionDto, ActingReportDto, ActingTurnRequest, CreateActingSessionRequest, RetryAnalysisRequest, SceneGenre, SceneMedium } from "@/lib/api/types";
+import type { ActingCoachSessionDto, ActingTurnRequest, CreateActingSessionRequest, RetryAnalysisRequest, SceneGenre, SceneMedium } from "@/lib/api/types";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { actingApiClient } from "@/server/acting-api/client";
 import { getActingApiConfig } from "@/server/acting-api/config";
