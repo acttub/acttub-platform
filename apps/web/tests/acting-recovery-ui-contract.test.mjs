@@ -21,4 +21,8 @@ test("UI distinguishes start, reply, and terminal analysis recovery", () => {
   assert.match(flow, /onRetryReply\(retryableActorTurn\.id\)/);
   assert.match(flow, /analysisStatus === "failed" && !session\.take\.analysisRetryable/);
   assert.match(flow, /새 연습 세션을 시작해 주세요/);
+  assert.match(flow, /acting_api_auth_failed/);
+  assert.match(flow, /acting_api_rate_limited/);
+  assert.match(flow, /acting_api_rejected/);
+  assert.match(flow, /status === "start_failed" && !session\.currentRun\.failureRetryable/);
 });
