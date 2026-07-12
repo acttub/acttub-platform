@@ -480,6 +480,7 @@ async function runAnalysisClaim(
   sessionId: string,
 ): Promise<ActingCoachSessionDto> {
   const source = claim.source ?? {};
+  let localCommitStarted = false;
 
   try {
     const admin = createSupabaseAdminClient();
@@ -510,6 +511,7 @@ async function runAnalysisClaim(
       await parseUpstreamResponse(response, "analysis"),
     );
     const sceneSummaryId = crypto.randomUUID();
+    localCommitStarted = true;
     await retryLocalCommit(() =>
       repository.completeAnalysis({
         userId,
@@ -523,6 +525,7 @@ async function runAnalysisClaim(
     return ownedSession(userId, sessionId);
   } catch (error) {
     const mapped = mapOperationError(error, "analysis");
+    if (localCommitStarted) throw knownRepositoryError(error, "analysis") ?? mapped;
     try {
       await repository.failAnalysis({
         userId,
@@ -539,6 +542,29 @@ async function runAnalysisClaim(
   }
 }
 
+const completedSessionKeys = ["id", "userId", "pipelineVersion", "legacy", "status", "medium", "genre", "situation", "characterContext", "subtext", "hiddenAt", "createdAt", "updatedAt", "take", "sceneSummary", "currentRun", "turns", "report"] as const;
+const completedReportKeys = ["headline", "biggestProblem", "evidence", "selfDiscovery", "encouragement", "nextStep", "comparison", "reportCount"] as const;
+const privateReplayKeys = new Set(["actingSessionId", "privateActingSessionId", "leaseToken", "storagePath", "storageBucket", "signedUrl", "operationId"]);
+
+function requireCompletedResult<T>(value: unknown, keys: readonly string[]): T {
+  const result = asRecord(value);
+  if (!keys.every((key) => key in result) || Object.keys(result).some((key) => !keys.includes(key))) {
+    throw new ActingServiceError(500, "internal_error", "Invalid completed replay result.");
+  }
+  const stack: unknown[] = [result];
+  while (stack.length) {
+    const current = stack.pop();
+    if (Array.isArray(current)) stack.push(...current);
+    else if (current && typeof current === "object") {
+      for (const [key, nested] of Object.entries(current)) {
+        if (privateReplayKeys.has(key)) throw new ActingServiceError(500, "internal_error", "Unsafe completed replay result.");
+        stack.push(nested);
+      }
+    }
+  }
+  return result as T;
+}
+
 const replaySession = async (
   claim: Claim,
   phase: "analysis" | "coach",
@@ -546,7 +572,7 @@ const replaySession = async (
   sessionId: string,
   runId?: string,
 ): Promise<ActingCoachSessionDto> => {
-  if (claim.kind === "replay_completed") return ownedSession(userId, sessionId);
+  if (claim.kind === "replay_completed") return requireCompletedResult<ActingCoachSessionDto>(claim.result, completedSessionKeys);
   return replayError(claim, phase, runId);
 };
 
@@ -714,6 +740,7 @@ export const actingCoachService = {
         return replaySession(claim, "coach", userId, sid, claimedRunId);
       }
 
+      let localCommitStarted = false;
       try {
         const response = requireCoachResponse(
           await parseUpstreamResponse(
@@ -730,6 +757,7 @@ export const actingCoachService = {
           ),
         );
         const aiTurnId = crypto.randomUUID();
+        localCommitStarted = true;
         await retryLocalCommit(() =>
           repository.completeCoachTurn({
             userId,
@@ -750,6 +778,7 @@ export const actingCoachService = {
         return ownedSession(userId, sid);
       } catch (error) {
         const mapped = mapOperationError(error, "coach", claimedRunId);
+        if (localCommitStarted) throw knownRepositoryError(error, "coach", claimedRunId) ?? mapped;
         try {
           if (mapped.code === "acting_session_expired") {
             await repository.expireCoachRun({
@@ -815,6 +844,7 @@ export const actingCoachService = {
     }
 
     const storedText = requireStoredReply(claim.source?.actorText ?? text);
+    let localCommitStarted = false;
     try {
       const response = requireCoachResponse(
         await parseUpstreamResponse(
@@ -828,6 +858,7 @@ export const actingCoachService = {
         claim.privateActingSessionId,
       );
       const aiTurnId = crypto.randomUUID();
+      localCommitStarted = true;
       await retryLocalCommit(() =>
         repository.completeCoachTurn({
           userId,
@@ -848,6 +879,7 @@ export const actingCoachService = {
       return ownedSession(userId, sid);
     } catch (error) {
       const mapped = mapOperationError(error, "coach", runId);
+      if (localCommitStarted) throw knownRepositoryError(error, "coach", runId) ?? mapped;
       try {
         if (mapped.code === "acting_session_expired") {
           await repository.expireCoachRun({
@@ -903,11 +935,12 @@ export const actingCoachService = {
     );
     if (claim.kind !== "claimed") {
       if (claim.kind === "replay_completed") {
-        return { value: await this.getReport(sid, userId), replayed: true };
+        return { value: requireCompletedResult<ActingReportDto>(claim.result, completedReportKeys), replayed: true };
       }
       replayError(claim, "report");
     }
 
+    let localCommitStarted = false;
     try {
       const response = requireReportResponse(
         await parseUpstreamResponse(
@@ -917,6 +950,7 @@ export const actingCoachService = {
         userId,
       );
       const reportId = crypto.randomUUID();
+      localCommitStarted = true;
       await retryLocalCommit(() =>
         repository.completeReport({
           userId,
@@ -932,6 +966,7 @@ export const actingCoachService = {
       return { value: await this.getReport(sid, userId), replayed: false };
     } catch (error) {
       const mapped = mapOperationError(error, "report");
+      if (localCommitStarted) throw knownRepositoryError(error, "report") ?? mapped;
       try {
         await repository.failReport({
           userId,
