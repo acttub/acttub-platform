@@ -6,6 +6,7 @@ import { actingApiClient } from "@/server/acting-api/client";
 import { getActingApiConfig } from "@/server/acting-api/config";
 import { requireCoachResponse, requireRecord, requireReportResponse } from "@/server/acting-api/response-guards";
 import { supabaseCoachSessionRepository, type ActingRpcResult } from "@/server/repositories/supabase-coach-session-repository";
+import { coachSessionService } from "@/server/services/coach-session-service";
 
 type Claim = { kind: "claimed" | "replay_completed" | "replay_failed" | "in_progress" | "outcome_unknown"; operationId: string; leaseToken: string; sessionId: string; runId: string; actorTurnId: string; privateActingSessionId: string; safeErrorCode?: string; source?: Record<string, unknown>; summaryPayload?: unknown; coachContext?: Record<string, unknown>; reportPayload?: unknown; result?: unknown };
 const repository = supabaseCoachSessionRepository;
@@ -85,11 +86,20 @@ async function runAnalysisClaim(claim: Claim, userId: string) {
 }
 
 export const actingCoachService = {
+  async finalizeUploadIntent(uploadIntentId: string, payload: unknown, userId: string) {
+    const input = payload as { storagePath?: unknown; durationMs?: unknown };
+    if (typeof input.durationMs !== "number" || !Number.isInteger(input.durationMs) || input.durationMs < 1 || input.durationMs > 180_000) throw new ActingServiceError(400, "validation_error", "durationMs must be an integer from 1 to 180000.");
+    const verified = await coachSessionService.finalizeUploadIntent(uploadIntentId, payload, userId);
+    await repository.finalizeActingUploadIntent({ uploadIntentId, userId, storagePath: verified.storagePath, durationMs: input.durationMs });
+    return { ...verified, durationMs: input.durationMs };
+  },
   async createSession(payload: unknown, userId: string) {
     const input = payload as CreateActingSessionRequest;
     requireActingConfig();
     const uploadIntentId = uuid(input.uploadIntentId, "uploadIntentId"); const medium = exactEnum(input.medium, "medium", sceneMediums); const genre = exactEnum(input.genre, "genre", sceneGenres); const situation = normalizeContext(input.situation, "situation"); const characterContext = normalizeContext(input.characterContext, "characterContext"); const subtext = normalizeContext(input.subtext, "subtext");
-    const claim = normalizeClaim(await repository.createAnalysisClaim({ ...operationInput(userId, input.requestId, ["create", uploadIntentId, medium, genre, situation, characterContext, subtext]), uploadIntentId, sessionId: crypto.randomUUID(), takeId: crypto.randomUUID(), medium, genre, situation, characterContext, subtext, leaseSeconds: 780 }));
+    const intent = await repository.findUploadIntent(uploadIntentId, userId);
+    if (!intent || intent.status !== "finalized") throw new ActingServiceError(409, "invalid_session_state", "Upload intent must be finalized.");
+    const claim = normalizeClaim(await repository.createAnalysisClaim({ ...operationInput(userId, input.requestId, ["create", uploadIntentId, medium, genre, situation, characterContext, subtext]), uploadIntentId, sessionId: intent.sessionId, takeId: crypto.randomUUID(), medium, genre, situation, characterContext, subtext, leaseSeconds: 780 }));
     if (claim.kind !== "claimed") return replay(claim, "analysis_outcome_unknown") as ActingCoachSessionDto;
     return runAnalysisClaim(claim, userId);
   },
