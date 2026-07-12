@@ -1,5 +1,7 @@
 # Harness 워크플로우
 
+> **방향 전환 (2026-07-13)**: 제품 방향이 외부 acting-api 기반으로 변경되었다 (`docs/API.md`, ADR-014~015). 이 문서에서 관찰 확인, rejected observation, 자기 정리 문장을 전제하는 부분은 이전 방향 기준이며, 코드 마이그레이션과 함께 갱신 예정이다.
+
 이 문서는 Acttub 프로젝트에서 구현 작업을 작은 phase step으로 나누어 계획하고 실행하기 위한 공통 원본이다. Claude Code wrapper와 Codex skill은 워크플로우를 복제하지 말고 이 문서를 참조한다.
 
 Acttub 적용 기준:

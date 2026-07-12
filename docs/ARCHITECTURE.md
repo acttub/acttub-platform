@@ -1,42 +1,17 @@
 # 아키텍처
 
-이 문서는 `acttub-platform`의 현재 구현 구조와 목표 제품 구조를 함께 기록한다. 현재 저장소는 pnpm 모노레포이며, 활성 개발 대상은 `apps/web`의 Next.js 웹 앱이다. 장기적으로는 `apps/api`에 Spring Boot 백엔드, `apps/mobile`에 React Native 앱이 들어올 수 있다.
+## 시스템 구조
 
-제품 구조의 핵심은 “영상을 한 번 분석하고, 저장된 관찰과 대화 이력을 바탕으로 질문을 이어가는 세션 시스템”이다. 대화 내용과 세션 상태는 DB가 정본이어야 하며, 서버는 매 turn마다 DB에서 필요한 상태를 다시 읽어 새로고침/이어하기에 안전해야 한다.
-
-## 디렉토리 구조
-현재 저장소 구조:
-
-```text
-acttub-platform/
-├── AGENTS.md
-├── README.md
-├── docs/
-│   ├── ADR.md
-│   ├── ARCHITECTURE.md
-│   ├── HARNESS.md
-│   ├── PRD.md
-│   ├── UI_GUIDE.md
-│   └── Toss-DESIGN.md
-├── apps/
-│   ├── web/
-│   │   ├── AGENTS.md
-│   │   ├── package.json
-│   │   └── src/
-│   │       └── app/
-│   │           ├── api/
-│   │           │   └── AGENTS.md
-│   │           ├── globals.css
-│   │           ├── layout.tsx
-│   │           └── page.tsx
-│   ├── api/       # 예정: Spring Boot backend
-│   └── mobile/    # 예정: React Native app
-├── packages/
-│   └── README.md
-├── package.json
-├── pnpm-lock.yaml
-└── pnpm-workspace.yaml
 ```
+acttub-platform/            # pnpm 모노레포 — 제품과 상태의 정본
+├── apps/web/               # Next.js 웹 앱 (현재 유일한 활성 개발 대상)
+├── apps/api/               # 향후 Spring Boot 백엔드 자리 (현재 비움)
+├── apps/mobile/            # 향후 React Native 앱 자리 (현재 비움)
+├── packages/               # 두 번째 사용처가 생긴 뒤에만 분리하는 공유 패키지
+└── docs/                   # PRD, ADR, API 계약, 디자인 레퍼런스
+```
+
+AI 기능(연기 연습 분석, AI 인터뷰, 리포트)은 플랫폼이 만들지 않는다. 외부 서비스인 acting-api를 호출해 사용하며, 엔드포인트·스키마·제한·에러는 `API.md`가 정본이다.
 
 `apps/web` 목표 소스 구조:
 
@@ -48,21 +23,19 @@ apps/web/src/
 │   ├── globals.css
 │   └── api/
 │       └── v1/
-│           ├── sessions/
-│           │   └── route.ts
-│           └── sessions/[sessionId]/
-│               ├── route.ts
-│               ├── observations/route.ts
-│               ├── turns/route.ts
-│               └── summary/route.ts
+│           └── practice-sessions/
+│               ├── route.ts                  # 세션 생성 (영상 + 장면 맥락 → 분석)
+│               └── [sessionId]/
+│                   ├── route.ts              # 세션 상태 조회
+│                   ├── turns/route.ts        # 인터뷰 turn 진행
+│                   └── report/route.ts       # 리포트 생성·조회
 ├── components/
 │   ├── ui/
 │   └── layout/
 ├── features/
 │   ├── session-input/
-│   ├── observation-confirmation/
-│   ├── question-dialogue/
-│   └── session-summary/
+│   ├── interview/
+│   └── report/
 ├── lib/
 │   ├── api/
 │   │   ├── client.ts
@@ -72,8 +45,7 @@ apps/web/src/
 └── server/
     ├── services/
     ├── repositories/
-    ├── ai/
-    └── validation/
+    └── acting-api/          # acting-api HTTP 클라이언트 (X-API-Key 보관)
 ```
 
 구조 규칙:
@@ -82,53 +54,88 @@ apps/web/src/
 - UI와 feature 코드는 `src/lib/api/*`를 통해서만 API를 호출한다.
 - UI는 route handler, `src/server/*`, DB 구현을 직접 import하지 않는다.
 - `src/app/api/**/route.ts`는 얇게 유지한다. 요청 파싱, service 호출, typed JSON 응답 반환만 담당한다.
-- 임시 서버 로직은 `src/server/services`, 임시 데이터 접근은 `src/server/repositories` 또는 `src/server/db`에 둔다.
+- 임시 서버 로직은 `src/server/services`, 임시 데이터 접근은 `src/server/repositories`에 둔다.
 - 공통 패키지는 실제 두 번째 사용처가 생긴 뒤에만 `packages/*`로 분리한다.
 
 ## 패턴
-사용하는 기본 패턴:
 
-- pnpm workspace 기반 모노레포
-- Next.js App Router
-- TypeScript
-- Tailwind CSS
-- 기본 Server Component, 필요할 때만 Client Component
-- versioned REST API 계약: `/api/v1/*`
-- 얇은 route handler + service/repository 분리
-- DTO 명시와 HTTP 계약 안정화
-- 향후 Spring Boot 이전을 고려한 프론트엔드/API 경계
+- **직렬 AI 파이프라인**: 분석 → 인터뷰 → 리포트 순서로만 진행하며, PRD 핵심 기능 2~4와 1:1로 대응한다.
+- **API 키는 서버 측에만**: acting-api 호출은 서버 측(Route Handler / Server Action)에서만 하고, `X-API-Key`를 브라우저에 노출하지 않는다.
+- **분석은 세션 시작 시 1회**: 인터뷰·리포트 단계에서 영상을 다시 보내거나 재분석하지 않는다.
+- **휘발성 데이터의 플랫폼 복제 저장**: acting-api가 인메모리/휘발성 파일에 두는 대화 turn과 리포트는 생성 즉시 플랫폼 DB에 복제 저장한다 (ADR-015).
+- versioned REST API 계약: `/api/v1/*`, 얇은 route handler + service/repository 분리, DTO 명시. 향후 Spring Boot 이전을 고려해 HTTP 계약을 안정적으로 유지한다.
 
-제품 도메인 패턴:
+## 데이터 흐름
 
-- 세션 중심 모델
-  - 하나의 연습 흐름은 `session`으로 묶는다.
-  - 세션은 입력 맥락, 진행 상태, 영상 take, 관찰, 질문 turn, 종료 자기 정리를 가진다.
+```
+영상 업로드 + 장면 맥락 입력 (platform)
+        ↓
+연기 연습 분석 (1회)
+        ↓
+AI 인터뷰 (API가 알려주는 종료 조건까지 반복)
+        ↓
+리포트 생성 · 이전 리포트 열람
+```
 
-- 영상 분석 1회 원칙
-  - 영상은 세션 시작 시 한 번 분석한다.
-  - 이후 turn은 저장된 관찰과 대화 이력을 사용한다.
-  - 대화 turn마다 전체 영상을 다시 분석하지 않는다.
+각 단계의 acting-api 요청/응답 상세는 `API.md`를 따른다.
 
-- DB source of truth
-  - 세션 상태, 관찰 상태, turn 로그, 종료 문장은 DB가 정본이다.
-  - 서버 메모리, React state, AI provider response는 정본이 아니다.
-  - 새로고침, 재접속, 이어하기가 가능해야 한다.
+세션 생성 및 분석:
 
-- 관찰 상태 관리
-  - 관찰은 `unasked`, `accepted`, `rejected`, `unsure` 상태를 가진다.
-  - `accepted`만 grounded question의 근거가 될 수 있다.
-  - `rejected`는 후속 질문 근거에서 제외한다.
-  - `unsure`는 확정 근거로 쓰지 않고 추가 확인 또는 다른 질문 경로로 돌린다.
+```text
+UI → POST /api/v1/practice-sessions
+   → route handler → session service
+     ├─ 영상을 Supabase Storage에 저장
+     ├─ session/take 레코드 저장
+     ├─ acting-api POST /summarize 호출 (수 분 소요 가능 — 타임아웃 넉넉히)
+     └─ SceneSummary를 플랫폼 DB에 저장
+   → session 상태 반환 → UI
+```
 
-- 질문 단위 생성
-  - 한 turn은 질문 하나만 생성한다.
-  - 질문은 accepted observation, explicit missing context, boundary redirect 중 하나를 근거로 가진다.
-  - guardrail checker는 점수/평가/처방/복수질문/금지 표현을 검사한다.
+인터뷰 한 turn:
+
+```text
+사용자 답변 → POST /api/v1/practice-sessions/{sessionId}/turns
+   → route handler → interview service
+     ├─ acting-api POST /coach/start (첫 turn) 또는 /coach/reply 호출
+     ├─ AI 발화와 배우 답변을 플랫폼 DB에 turn으로 복제 저장
+     └─ done=true면 세션을 리포트 단계로 전환
+   → 응답 DTO 반환 → UI
+   (acting-api가 404를 주면 인메모리 세션 소멸 — 인터뷰를 처음부터 재시작)
+```
+
+리포트:
+
+```text
+UI → POST /api/v1/practice-sessions/{sessionId}/report
+   → report service
+     ├─ acting-api POST /report 호출
+     └─ 리포트를 플랫폼 DB에 저장
+   → 리포트 반환 → UI
+
+이전 리포트 목록은 acting-api /report/history가 아니라
+플랫폼 DB에 복제 저장된 리포트에서 조회한다 (acting-api 이력은 휘발성).
+```
+
+## 상태 관리
+
+- 플랫폼이 소유(정본): 사용자(Supabase Auth), 업로드 영상(Supabase Storage), 세션 메타·SceneSummary·대화 turn 복제본·리포트(Postgres). Supabase RLS는 user_id 기준으로 켠다.
+- acting-api가 소유: 인터뷰 라이브 세션(인메모리, 재배포 시 소멸). 플랫폼에 복제된 turn은 기록 보존용이며, 소멸된 인메모리 세션을 복원하는 데는 사용할 수 없다.
+- acting-api의 리포트 `comparison`은 acting-api 내부 이력에 의존하므로, acting-api 재배포 후에는 비교가 비어 있을 수 있다 (알려진 제한, ADR-015 트레이드오프).
+
+세션 상태 후보:
+
+```text
+INPUT       # 영상과 필수 맥락이 아직 제출되지 않았다
+ANALYZING   # /summarize 진행 중
+INTERVIEW   # /coach 대화 진행 중
+REPORT      # 인터뷰 종료, 리포트 생성/열람
+END         # 세션 종료
+```
 
 목표 데이터 모델 후보:
 
 ```text
-coach_sessions
+practice_sessions
 - id
 - user_id
 - status
@@ -137,244 +144,49 @@ coach_sessions
 - situation
 - character_context
 - subtext
-- final_actor_sentence
+- acting_session_id      # acting-api session_id (휘발성 참조)
+- close_reason
 - created_at
 - updated_at
 
-coach_takes
+practice_takes
 - id
 - session_id
-- video_url or storage_key
+- storage_key
 - duration_ms
 - analysis_status
 - analysis_error
 - created_at
 
-coach_observations
-- id
-- take_id
-- timestamp_start_ms
-- timestamp_end_ms
-- observation_text
-- confidence
-- confirmation_state
-- blocked_for_questioning
-- source_payload
-- created_at
-
-coach_turns
+scene_summaries
 - id
 - session_id
-- speaker
-- content
-- question_focus
-- source_observation_ids
-- turn_state
+- payload                # SceneSummary JSON (API.md 계약)
 - created_at
 
-validation_events
+practice_turns
 - id
 - session_id
-- event_type
-- payload
+- role                   # ai | actor
+- text
+- action                 # probe_intent | dig_cause | deflect | close
+- focus_timestamp
+- created_at
+
+practice_reports
+- id
+- session_id
+- user_id
+- payload                # ActingReport JSON (API.md 계약)
 - created_at
 ```
 
-이 모델은 목표 구조다. MVP 초기에 Supabase persistence를 쓰더라도 위 필드와 의미가 무너지지 않게 DTO를 설계한다.
+이 모델은 목표 구조다. 구현 시 필드와 의미가 무너지지 않게 DTO를 설계하고, acting-api 스키마 변경은 `API.md` 갱신과 함께 반영한다.
 
-## 데이터 흐름
+## 기술 스택
 
-> API path note: the current canonical session API is `/api/v1/practice-sessions/*`. Older `/api/v1/sessions/*` routes are compatibility aliases only and should not be used as the primary contract in new work.
-
-세션 생성 및 첫 질문:
-
-```text
-사용자
-  │
-  │ 1. 영상 + 장면 맥락 제출
-  ▼
-apps/web UI
-  │
-  │ 2. POST /api/v1/practice-sessions
-  ▼
-Next Route Handler
-  │
-  │ 3. 입력 검증, session 생성 요청
-  ▼
-Session Service
-  │
-  ├─ 4. 영상 저장
-  ├─ 5. session/take 저장
-  ├─ 6. AI 분석 요청
-  ├─ 7. observation 저장
-  └─ 8. 첫 확인 질문 또는 첫 질문 생성
-  ▼
-DB / Storage / AI Provider
-  │
-  │ 9. session 상태 반환
-  ▼
-apps/web UI
-```
-
-분석 대기:
-
-```text
-UI
-  │
-  │ GET /api/v1/practice-sessions/{sessionId}
-  ▼
-API
-  │
-  │ session.status, analysis_status, first_question 확인
-  ▼
-UI
-```
-
-한 turn:
-
-```text
-사용자 답변
-  │
-  │ POST /api/v1/practice-sessions/{sessionId}/turns
-  ▼
-Route Handler
-  │
-  │ request DTO 검증
-  ▼
-Question Service
-  │
-  ├─ DB에서 session, observations, turns 로드
-  ├─ rejected observation 제외
-  ├─ 다음 질문 초점 선택
-  ├─ AI provider로 질문 후보 생성
-  ├─ guardrail checker 실행
-  ├─ question turn 저장
-  └─ response DTO 반환
-  ▼
-UI
-```
-
-관찰 확인:
-
-```text
-UI: 맞음 / 아님 / 모르겠음
-  │
-  │ PATCH /api/v1/practice-sessions/{sessionId}/observations/{observationId}
-  ▼
-API
-  │
-  │ confirmation_state 업데이트
-  ▼
-DB
-  │
-  │ accepted만 질문 후보 근거로 허용
-  ▼
-Question Service
-```
-
-세션 종료:
-
-```text
-UI
-  │
-  │ POST /api/v1/practice-sessions/{sessionId}/summary
-  ▼
-API
-  │
-  │ actor-authored filled-thought sentence 저장
-  ▼
-DB
-  │
-  │ validation event 저장
-  ▼
-UI: 자기 정리 + 다시 볼 질문
-```
-
-YouTube 참고 영상이 들어올 경우:
-
-```text
-UI
-  │
-  │ videoId/URL metadata 요청
-  ▼
-API
-  │
-  │ 공식 embed 가능 metadata만 저장
-  ▼
-UI: YouTube iframe 또는 IFrame Player API
-```
-
-금지:
-
-- YouTube 원본 영상, 오디오, 프레임, 자막 다운로드
-- YouTube 콘텐츠 RAG 인덱싱
-- 임베드 제한 우회
-
-## 상태 관리
-클라이언트 상태:
-
-- 입력 폼 상태: 로컬 component state 또는 form library가 도입되면 feature 내부에서 관리한다.
-- 업로드 진행률, pending 버튼, optimistic UI처럼 화면 상호작용에만 필요한 상태는 클라이언트에 둘 수 있다.
-- 서버 정본과 충돌할 수 있는 세션 상태는 클라이언트에만 보관하지 않는다.
-
-서버 상태:
-
-- `session.status`는 DB가 정본이다.
-- `take.analysis_status`는 DB가 정본이다.
-- `observation.confirmation_state`는 DB가 정본이다.
-- `turns`는 append-only에 가깝게 다룬다. 수정이 필요하면 상태 필드나 새 이벤트로 남긴다.
-
-세션 상태 후보:
-
-```text
-INPUT
-ANALYZING
-OBSERVE_CONFIRM
-PROBE_LOOP
-HINT
-INSIGHT
-SAFE_EXIT
-END
-```
-
-상태 의미:
-
-- `INPUT`: 영상과 필수 맥락이 아직 제출되지 않았다.
-- `ANALYZING`: 영상 분석과 초기 관찰 저장이 진행 중이다.
-- `OBSERVE_CONFIRM`: 불확실하거나 해석 위험이 있는 관찰을 사용자에게 확인한다.
-- `PROBE_LOOP`: accepted 관찰과 입력 맥락을 바탕으로 질문을 이어간다.
-- `HINT`: 사용자가 막혔을 때 정답 대신 생각의 발판을 준다.
-- `INSIGHT`: 사용자가 의도와 실제 간극을 자기 말로 정리한다.
-- `SAFE_EXIT`: 질문 상한, 반복 막힘, 사용자 종료 등으로 안전하게 마무리한다.
-- `END`: 세션이 종료되어 결과가 잠긴다.
-
-관찰 상태 후보:
-
-```text
-unasked
-accepted
-rejected
-unsure
-```
-
-질문 생성 불변 조건:
-
-- 질문은 한 번에 하나만 생성한다.
-- 질문에는 source가 있어야 한다.
-- source는 accepted observation, explicit missing context, boundary redirect 중 하나다.
-- rejected observation은 질문 source가 될 수 없다.
-- low/medium confidence 관찰은 사용자 확인 없이 확정 근거로 쓰지 않는다.
-- 금지 표현이 포함된 질문은 사용자에게 노출하지 않는다.
-
-검증 상태:
-
-- `felt_scored_1_7`이 높게 나오면 UI/카피가 평가처럼 느껴졌다는 신호다.
-- `rejected_observation_reuse_count` 목표는 0이다.
-- `forbidden_language_count` 목표는 0이다.
-- `final_sentence_result`는 통과, 부분 통과, 실패, 안전 종료로 기록한다.
-
-현재 구현 상태:
-
-- `apps/web`은 Next.js 기본 화면 상태다.
-- 실제 세션, 업로드, AI, DB, API 구현은 아직 없다.
-- 따라서 이 문서는 목표 아키텍처와 구현 시 지켜야 할 계약을 먼저 정의한다.
+| 영역 | 스택 |
+|---|---|
+| Platform | Next.js App Router, TypeScript, pnpm, Supabase (Auth/Postgres/Storage), Vercel |
+| AI | 외부 acting-api (계약은 `API.md`, 내부 구현은 플랫폼 관심사 아님) |
+| 향후 | `apps/api` Spring Boot 이전 — HTTP path와 DTO는 `/api/v1/*` REST 계약으로 안정 유지, `apps/mobile` React Native |

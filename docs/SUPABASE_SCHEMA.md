@@ -1,5 +1,7 @@
 # Supabase Schema and Policy Notes for Acttub Slice 1
 
+> **방향 전환 (2026-07-13)**: 이 문서는 현재 구현된 Slice 1 스키마(관찰 확인, 자기 정리 문장 포함)를 기록한다. 제품 방향은 외부 acting-api 기반으로 변경되었으므로 (`docs/API.md`, ADR-014~015), 목표 데이터 모델은 `docs/ARCHITECTURE.md`를 따르고 이 스키마는 마이그레이션 전까지의 현행 기준이다.
+
 This document records the Supabase persistence contract for the Slice 1 MVP. Apply the executable SQL files in `supabase/migrations/` in order. Migration `001_acttub_slice1_schema.sql` mirrors the baseline snapshot in `docs/supabase/slice1-schema-rls-storage.sql`; later migrations evolve that baseline.
 
 ## Scope
