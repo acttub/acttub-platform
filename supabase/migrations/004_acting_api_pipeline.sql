@@ -180,7 +180,8 @@ begin
 end $$;
 
 create or replace function public.acttub_preflight_operation(p_session_id uuid,p_user_id uuid,p_report boolean) returns void language plpgsql security definer set search_path=public as $$
-begin
+declare op record; begin
+ for op in select id,session_id,user_id from public.practice_upstream_operations where status='in_flight' and lease_expires_at<=clock_timestamp() and (session_id=p_session_id or (p_report and user_id=p_user_id and kind='report')) loop perform public.acttub_seal_expired_operation(op.session_id,op.user_id,op.id); end loop;
  if exists(select 1 from public.practice_upstream_operations where status='in_flight' and lease_expires_at>clock_timestamp() and (session_id=p_session_id or (p_report and user_id=p_user_id and kind='report'))) then raise exception 'operation_in_progress'; end if;
 end $$;
 
@@ -601,6 +602,7 @@ $$;
 
 do $$ declare signature regprocedure; begin
   foreach signature in array array[
+    'public.acttub_preflight_operation(uuid,uuid,boolean)'::regprocedure,
     'public.acttub_operation_claim_state(uuid,uuid,text)'::regprocedure,
     'public.acttub_finalize_upload_intent(uuid,uuid,text,integer)'::regprocedure,
     'public.acttub_create_acting_session(uuid,uuid,uuid,uuid,uuid,text,uuid,uuid,text,text,text,text,text,integer,timestamptz)'::regprocedure,
