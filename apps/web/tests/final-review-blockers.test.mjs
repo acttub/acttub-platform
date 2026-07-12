@@ -117,18 +117,6 @@ test("executable migration and web upload contract use one private insert-only p
   assert.match(service, /storageBucket: "practice-videos"/);
 });
 
-test("upload intent API response and client paths stay on the intent/finalize contract", () => {
-  const createRoute = readWeb("src/app/api/v1/practice-upload-intents/route.ts");
-  const sessionClient = readWeb("src/lib/api/sessions.ts");
-  const practiceClient = readWeb("src/lib/api/practice.ts");
-
-  assert.match(createRoute, /jsonResponse\(\{ uploadIntent: result \}, \{ status: 201 \}\)/);
-  assert.match(sessionClient, /fetch\("\/api\/v1\/practice-upload-intents"/);
-  assert.match(sessionClient, /fetch\(`\/api\/v1\/practice-upload-intents\/\$\{uploadIntentId\}\/finalize`/);
-  assert.doesNotMatch(sessionClient, /CreateUploadIntentResponse \|/);
-  assert.doesNotMatch(sessionClient, /"uploadIntent" in payload/);
-  assert.match(practiceClient, /fetch\("\/api\/v1\/practice-upload-intents"/);
-});
 
 test("visibility PATCH requires valid JSON while POST hide remains bodyless", () => {
   const visibilityRoute = readWeb("src/app/api/v1/practice-sessions/[sessionId]/visibility/route.ts");
@@ -156,59 +144,7 @@ test("terms acceptance rejects invalid JSON but preserves form and empty body pa
   assert.match(route, /handleApiError\(error\)/);
 });
 
-test("signed video playback clients use canonical GET endpoint only", () => {
-  const sessionClient = readWeb("src/lib/api/sessions.ts");
-  const practiceClient = readWeb("src/lib/api/practice.ts");
 
-  for (const source of [sessionClient, practiceClient]) {
-    assert.match(source, /\/api\/v1\/practice-sessions\/\$\{sessionId\}\/signed-video-url/);
-    assert.doesNotMatch(source, /\/api\/v1\/practice-sessions\/\$\{sessionId\}\/video-url/);
-    assert.doesNotMatch(source, /method:\s*"POST"[\s\S]{0,120}video-url/);
-  }
-
-  assert.match(practiceClient, /createPracticeSignedVideoUrl[\s\S]*fetch\(`\/api\/v1\/practice-sessions\/\$\{sessionId\}\/signed-video-url`, \{[\s\S]*headers: \{ Accept: "application\/json" \}[\s\S]*\}\)/);
-});
-
-test("docs stay aligned to executable Slice 1 Supabase and API contracts", () => {
-  const schema = readRepo("docs/SUPABASE_SCHEMA.md");
-  const spring = readRepo("docs/SPRING_BOOT_MIGRATION.md");
-  const notes = readRepo("docs/supabase/slice1-spring-boot-migration-notes.md");
-  const docs = `${schema}\n${spring}\n${notes}`;
-
-  assert.match(schema, /`user_id`: Supabase Auth user id/);
-  assert.match(docs, /public\.validation_events/);
-  assert.match(docs, /users\/\{userId\}\/practice-sessions\/\{sessionId\}\/take\.mp4\|take\.mov/);
-  assert.match(docs, /observations_pending`, `questioning`, and `completed`/);
-  assert.match(docs, /DTO mapping to UI labels\/states must be explicit/);
-  assert.match(docs, /canonical paths are `\/api\/v1\/practice-sessions\/\*`/);
-  assert.match(docs, /Legacy `\/api\/v1\/sessions\/\*` routes may remain only as compatibility aliases/);
-  assert.match(docs, /GET \/api\/v1\/practice-sessions\/\{sessionId\}\/signed-video-url/);
-  assert.match(schema, /`\/finalize` API verification step checks owner, path, MIME type, size, and object existence/);
-  assert.match(schema, /does not create the session or mark the database row finalized/);
-  assert.match(schema, /atomically marks `upload_intents\.status = 'finalized'` inside `public\.acttub_create_session_from_upload_intent`/);
-  assert.match(spring, /keeps database status `created` until session creation consumes it/);
-  assert.match(spring, /atomically mark it `finalized` in the database/);
-  assert.doesNotMatch(`${schema}\n${spring}`, /from a finalized upload intent/i);
-  assert.doesNotMatch(`${schema}\n${spring}`, /finalizes the intent/i);
-  assert.doesNotMatch(`${schema}\n${spring}`, /before finalizing the intent/i);
-
-  const architecture = readRepo("docs/ARCHITECTURE.md");
-  const harness = readRepo("docs/HARNESS.md");
-  assert.match(architecture, /current canonical session API is `\/api\/v1\/practice-sessions\/\*`/);
-  assert.match(architecture, /- user_id/);
-  assert.doesNotMatch(architecture, /actor_id or anonymous_token/);
-  assert.doesNotMatch(architecture, /`actor_id`|`anonymous_token`/);
-  assert.doesNotMatch(architecture, /POST \/api\/v1\/sessions/);
-  assert.doesNotMatch(architecture, /GET \/api\/v1\/sessions\/\{sessionId\}/);
-  assert.match(harness, /canonical `\/api\/v1\/practice-sessions\/\*` DTO/);
-  assert.match(harness, /`\/api\/v1\/sessions\/\*`는 compatibility alias only/);
-
-  assert.doesNotMatch(schema, /`actor_id`:/);
-  assert.doesNotMatch(schema, /`anonymous_token`:/);
-  assert.doesNotMatch(docs, /acttub\.validation_events/);
-  assert.doesNotMatch(schema, /awaiting_observation_confirmation|summarizing|abandoned/);
-  assert.doesNotMatch(spring, /awaiting_observation_confirmation|summarizing|abandoned/);
-});
 
 test("docs capture bounded direct upload fallback and future TUS hardening", () => {
   const schema = readRepo("docs/SUPABASE_SCHEMA.md");

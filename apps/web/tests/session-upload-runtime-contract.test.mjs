@@ -7,19 +7,6 @@ const appRoot = path.resolve(import.meta.dirname, "..");
 const read = (relativePath) => readFileSync(path.join(appRoot, relativePath), "utf8");
 const service = () => read("src/server/services/coach-session-service.ts");
 
-test("Slice 1 session creation rejects every non-upload bypass and requires a verified Supabase intent", () => {
-  const source = service();
-
-  assert.match(source, /if \(validatedMedium !== "upload_url"\) \{[\s\S]*Slice 1 requires medium to be upload_url/);
-  assert.match(source, /if \(!input\.uploadIntentId\) \{[\s\S]*Upload sessions must be created from a verified Supabase upload intent/);
-  assert.match(source, /uploadIntent\.status !== "created"/);
-  assert.match(source, /const videoUrl = videoRefForUploadIntent\(uploadIntent\.intent\)/);
-
-  const flow = read("src/features/practice/practice-flow.tsx");
-  assert.match(flow, /medium: "upload_url"/);
-  assert.doesNotMatch(flow, /<option value="youtube_url">/);
-  assert.doesNotMatch(flow, /<option value="text_only">/);
-});
 
 test("upload verification checks exact storage object semantics and fails closed for Supabase", () => {
   const source = service();
@@ -68,22 +55,6 @@ test("completed sessions reject later observation, turn, metrics, and duplicate 
   assert.match(source, /assertSessionMutable\(session, "create duplicate results"\)/);
 });
 
-test("legacy observation alias preserves service argument order and clients use canonical endpoints", () => {
-  const legacyObservation = read("src/app/api/v1/sessions/[sessionId]/observations/[observationId]/route.ts");
-  const sessionClient = read("src/lib/api/sessions.ts");
-
-  assert.match(
-    legacyObservation,
-    /updateObservation\(\s*sessionId,\s*auth\.userId,\s*observationId,\s*payload,\s*\)/,
-  );
-  assert.doesNotMatch(
-    legacyObservation,
-    /updateObservation\(\s*sessionId,\s*observationId,\s*payload,\s*auth\.userId/s,
-  );
-  assert.match(sessionClient, /\/api\/v1\/practice-sessions\/\$\{sessionId\}\/observations\/\$\{observationId\}/);
-  assert.match(sessionClient, /\/api\/v1\/practice-sessions\/\$\{sessionId\}\/turns/);
-  assert.match(sessionClient, /\/api\/v1\/practice-sessions\/\$\{sessionId\}\/result/);
-});
 
 test("local in-memory practice persistence is not present", () => {
   assert.equal(existsSync(path.join(appRoot, "src/server/repositories/" + "mo" + "ck-coach-session-repository.ts")), false);

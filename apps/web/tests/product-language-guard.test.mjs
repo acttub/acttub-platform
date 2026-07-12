@@ -60,6 +60,7 @@ function readSource(relativePath) {
 const internalContractFiles = new Set([
   "src/lib/api/types.ts",
   "src/server/services/coach-session-service.ts",
+  "src/server/services/acting-coach-service.ts",
   "src/server/services/gemini-question-service.ts",
   "src/server/repositories/supabase-coach-session-repository.ts",
 ]);
