@@ -151,16 +151,10 @@ test("OpenAPI operation IDs and local references are valid", () => {
   }
 });
 
-test("compatibility API aliases are visibly deprecated", () => {
+test("remaining compatibility API aliases are visibly deprecated", () => {
   const aliases = [
-    ["/api/v1/practice-sessions/{sessionId}/summary", "post"],
     ["/api/v1/practice-sessions/{sessionId}/video-url", "get"],
     ["/api/v1/practice-sessions/{sessionId}/hide", "post"],
-    ["/api/v1/sessions", "post"],
-    ["/api/v1/sessions/{sessionId}", "get"],
-    ["/api/v1/sessions/{sessionId}/observations/{observationId}", "patch"],
-    ["/api/v1/sessions/{sessionId}/turns", "post"],
-    ["/api/v1/sessions/{sessionId}/summary", "post"],
   ];
 
   for (const [path, method] of aliases) {
@@ -170,12 +164,97 @@ test("compatibility API aliases are visibly deprecated", () => {
   }
 });
 
+test("acting and legacy sessions use an exact public discriminator", () => {
+  const schemas = openApiDocument.components.schemas;
+  assert.deepEqual(schemas.CoachSession.oneOf, [
+    { $ref: "#/components/schemas/ActingCoachSession" },
+    { $ref: "#/components/schemas/LegacyCoachSession" },
+  ]);
+  assert.equal(schemas.CoachSession.discriminator.propertyName, "pipelineVersion");
+  assert.equal(schemas.ActingCoachSession.properties.pipelineVersion.const, "acting-api-v1");
+  assert.equal(schemas.ActingCoachSession.properties.legacy.const, false);
+  assert.deepEqual(schemas.ActingCoachSession.properties.status.enum, [
+    "ANALYZING", "INTERVIEW", "REPORT", "END",
+  ]);
+  assert.equal(schemas.LegacyCoachSession.properties.pipelineVersion.const, "legacy-gemini-v1");
+  assert.equal(schemas.LegacyCoachSession.properties.legacy.const, true);
+  assert.deepEqual(schemas.LegacyCoachSession.properties.status.enum, [
+    "LEGACY_OBSERVATIONS_PENDING", "LEGACY_QUESTIONING", "LEGACY_COMPLETED",
+  ]);
+  assert.deepEqual(schemas.LegacyCoachSession.properties.sceneSummary, { type: "null" });
+  assert.deepEqual(schemas.LegacyCoachSession.properties.currentRun, { type: "null" });
+  assert.deepEqual(schemas.LegacyCoachSession.properties.report, { type: "null" });
+  assert.equal(schemas.LegacyCoachSession.properties.turns.maxItems, 0);
+});
+
+test("acting mutations document the locked discriminated requests", () => {
+  const schemas = openApiDocument.components.schemas;
+  assert.deepEqual(schemas.CreateSessionRequest.required, [
+    "requestId", "uploadIntentId", "medium", "genre", "situation", "characterContext", "subtext",
+  ]);
+  assert.deepEqual(schemas.SceneMedium.enum, ["연극", "영화", "TV 드라마", "웹드라마", "뮤지컬", "기타"]);
+  assert.deepEqual(schemas.SceneGenre.enum, ["드라마", "코미디", "로맨스", "스릴러", "액션", "판타지", "기타"]);
+  assert.equal(schemas.CreateSessionRequest.additionalProperties, false);
+  assert.equal(schemas.FinalizeUploadIntentRequest.properties.durationMs.minimum, 1);
+  assert.equal(schemas.FinalizeUploadIntentRequest.properties.durationMs.maximum, 180000);
+  assert.ok(schemas.FinalizeUploadIntentRequest.required.includes("durationMs"));
+  assert.deepEqual(
+    schemas.CreateTurnRequest.oneOf.map(({ $ref }) => $ref),
+    [
+      "#/components/schemas/StartTurnRequest",
+      "#/components/schemas/ReplyTurnRequest",
+      "#/components/schemas/RetryReplyTurnRequest",
+      "#/components/schemas/RestartTurnRequest",
+    ],
+  );
+  assert.deepEqual(
+    schemas.CreateTurnRequest.oneOf.map(({ $ref }) => {
+      const name = $ref.split("/").at(-1);
+      return schemas[name].properties.operation.const;
+    }),
+    ["start", "reply", "retry_reply", "restart"],
+  );
+});
+
+test("acting analysis and report operations expose stable recovery statuses", () => {
+  const paths = openApiDocument.paths;
+  const operations = [
+    paths["/api/v1/practice-sessions"].post,
+    paths["/api/v1/practice-sessions/{sessionId}/analysis"].post,
+    paths["/api/v1/practice-sessions/{sessionId}/turns"].post,
+    paths["/api/v1/practice-sessions/{sessionId}/report"].post,
+  ];
+  for (const operation of operations) {
+    for (const status of ["409", "429", "502", "503"]) {
+      assert.ok(operation.responses[status], `${operation.operationId} omits ${status}`);
+    }
+  }
+  assert.ok(paths["/api/v1/practice-sessions/{sessionId}/report"].get);
+  for (const removed of [
+    "/api/v1/practice-sessions/{sessionId}/observations/{observationId}",
+    "/api/v1/practice-sessions/{sessionId}/result",
+    "/api/v1/practice-sessions/{sessionId}/metrics",
+    "/api/v1/practice-sessions/{sessionId}/summary",
+    "/api/v1/sessions",
+  ]) assert.equal(paths[removed], undefined, `${removed} must not remain active`);
+});
+
+test("public acting schemas contain no upstream session identifiers", () => {
+  const publicSchemaSource = JSON.stringify({
+    ActingCoachSession: openApiDocument.components.schemas.ActingCoachSession,
+    PracticeTurn: openApiDocument.components.schemas.PracticeTurn,
+    ActingReport: openApiDocument.components.schemas.ActingReport,
+  });
+  assert.doesNotMatch(publicSchemaSource, /acting[_-]?session[_-]?id/i);
+  assert.doesNotMatch(publicSchemaSource, /signed[_-]?url|lease[_-]?token|response[_-]?payload/i);
+});
+
 test("documented runtime edge cases match the current services", () => {
   const createSession =
     openApiDocument.paths["/api/v1/practice-sessions"].post;
   assert.match(
     createSession.description,
-    /저장 상태가 `created`인 검증된 업로드 인텐트/,
+    /완료된 업로드 인텐트/,
   );
 
   const signedVideoOperations = [
