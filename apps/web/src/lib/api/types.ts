@@ -26,9 +26,9 @@ export type PracticeTurnDto = {
   role: "ai" | "actor";
   text: string;
   deliveryStatus: "pending" | "completed" | "failed" | "outcome_unknown";
-  deliveryErrorCode: string | null;
-  action: CoachAction | null;
-  focusTimestamp: string | null;
+  deliveryErrorCode?: string | null;
+  action?: CoachAction | null;
+  focusTimestamp?: string | null;
   createdAt: string;
 };
 
@@ -41,6 +41,15 @@ export type ActingReportDto = {
   nextStep: string;
   comparison: string;
   reportCount: number;
+};
+
+export type ActingTakeDto = {
+  id: string;
+  durationMs: number;
+  analysisStatus: ActingAnalysisStatus;
+  analysisRetryable: boolean;
+  analysisError: string | null;
+  createdAt: string;
 };
 
 export type ActingCoachSessionDto = {
@@ -57,7 +66,7 @@ export type ActingCoachSessionDto = {
   hiddenAt: string | null;
   createdAt: string;
   updatedAt: string;
-  take: Omit<TakeDto, "sessionId" | "videoUrl" | "analysisStatus"> & { analysisStatus: ActingAnalysisStatus; analysisRetryable: boolean };
+  take: ActingTakeDto;
   sceneSummary: SceneSummaryDto | null;
   currentRun: {
     runId: string;
@@ -68,7 +77,7 @@ export type ActingCoachSessionDto = {
     recoveryAction: "start" | "restart" | null;
   } | null;
   turns: PracticeTurnDto[];
-  report?: ActingReportDto | null;
+  report: ActingReportDto | null;
 };
 
 
@@ -175,6 +184,6 @@ export type ApiErrorResponse = {
   error: {
     code: string;
     message: string;
-    details?: Record<string, string>;
+    details?: Record<string, unknown>;
   };
 };

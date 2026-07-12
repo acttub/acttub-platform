@@ -25,7 +25,7 @@ export const jsonError = (
   status: number,
   code: string,
   message: string,
-  details?: Record<string, string>,
+  details?: Record<string, unknown>,
 ): NextResponse<ApiErrorResponse> =>
   jsonResponse(
     {
@@ -50,7 +50,7 @@ export const handleApiError = (
   }
 
   if (error instanceof ActingServiceError) {
-    return jsonError(error.status, error.code, error.message, error.details as Record<string, string> | undefined);
+    return jsonError(error.status, error.code, error.message, error.details);
   }
 
   if (error instanceof ApiValidationError) {

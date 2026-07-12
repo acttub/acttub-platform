@@ -3,6 +3,7 @@ import "server-only";
 import type {
   LegacyInternalCoachSessionDto,
   LegacyCoachSessionDto,
+  LegacyTakeDto,
   ConfirmationState,
   Medium,
   ObservationDto,
@@ -252,6 +253,35 @@ const mapTake = (sessionRow: JsonRecord): TakeDto => {
   };
 };
 
+const mapLegacyTake = (sessionRow: JsonRecord): LegacyTakeDto => {
+  const take = asArray(sessionRow.practice_takes)
+    .sort((a, b) => asString(b.created_at).localeCompare(asString(a.created_at)))[0];
+  if (!take) {
+    throw new SupabaseCoachSessionPersistenceError(
+      "sessionId",
+      "Supabase session is missing its practice take.",
+    );
+  }
+
+  const analysisStatus = asString(take.analysis_status);
+  if (analysisStatus !== "generated" && analysisStatus !== "failed") {
+    throw new SupabaseCoachSessionPersistenceError(
+      "analysisStatus",
+      "Legacy practice take has an invalid analysis status.",
+    );
+  }
+
+  return {
+    id: asString(take.id),
+    sessionId: asString(take.session_id),
+    videoUrl: `supabase://${asString(take.storage_bucket)}/${asString(take.storage_path)}`,
+    durationMs: asNullableNumber(take.duration_ms),
+    analysisStatus,
+    analysisError: asNullableString(take.analysis_error),
+    createdAt: asString(take.created_at),
+  };
+};
+
 const mapLegacyInternalSession = (row: JsonRecord): LegacyInternalCoachSessionDto => ({
   id: asString(row.id),
   userId: asString(row.user_id),
@@ -293,7 +323,7 @@ const mapLegacySession = (row: JsonRecord): LegacyCoachSessionDto => ({
   hiddenAt: asNullableString(row.hidden_at),
   createdAt: asString(row.created_at),
   updatedAt: asString(row.updated_at),
-  take: mapTake(row),
+  take: mapLegacyTake(row),
   sceneSummary: null, currentRun: null, turns: [], report: null,
   legacyResult: asArray(row.session_results)[0] ? {
     actorAuthoredSentence: asString(asArray(row.session_results)[0].actor_authored_sentence),
@@ -334,6 +364,18 @@ const mapSceneSummary = (row: JsonRecord): SceneSummaryDto => ({
 
 const mapActingSession = (row: JsonRecord): ActingCoachSessionDto => {
   const takeRow = asArray(row.practice_takes)[0] ?? {};
+  const durationMs = asNullableNumber(takeRow.duration_ms);
+  if (
+    durationMs === null ||
+    !Number.isInteger(durationMs) ||
+    durationMs < 1 ||
+    durationMs > 180_000
+  ) {
+    throw new SupabaseCoachSessionPersistenceError(
+      "durationMs",
+      "Acting practice take has an invalid duration.",
+    );
+  }
   const runRows = asArray(row.practice_interview_runs);
   const currentRun = runRows.find((run) => asString(run.id) === asString(row.interview_run_id)) ?? null;
   const turns = asArray(row.practice_turns)
@@ -366,7 +408,7 @@ const mapActingSession = (row: JsonRecord): ActingCoachSessionDto => {
     updatedAt: asString(row.updated_at),
     take: {
       id: asString(takeRow.id),
-      durationMs: asNullableNumber(takeRow.duration_ms),
+      durationMs,
       analysisStatus: asString(takeRow.analysis_status) as ActingCoachSessionDto["take"]["analysisStatus"],
       analysisError: asNullableString(takeRow.analysis_error),
       analysisRetryable: asBoolean(takeRow.analysis_retryable),

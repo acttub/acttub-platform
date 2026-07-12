@@ -752,6 +752,14 @@ export const coachSessionService = {
     requireSupabaseConfigured();
 
     const config = getAppConfig();
+    const session = await requireSupabasePersistence(() =>
+      supabaseCoachSessionRepository.getOwnedSession(userId, sessionId),
+    );
+
+    if (!session) {
+      return null;
+    }
+
     const storageObject = await requireSupabasePersistence(() =>
       supabaseCoachSessionRepository.getOwnedVideoStorage(userId, sessionId),
     );
@@ -760,7 +768,7 @@ export const coachSessionService = {
       return null;
     }
 
-    if (storageObject.storageBucket !== "practice-videos") {
+    if (storageObject.storageBucket !== config.video.bucket) {
       throw new ApiValidationError("Request validation failed", {
         storageObject: "Unexpected private video storage bucket.",
       });

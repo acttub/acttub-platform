@@ -11,13 +11,19 @@ test("public reads and private playback use owner-safe repository boundaries", (
   const repository = read("src/server/repositories/supabase-coach-session-repository.ts");
   assert.match(service, /listOwnedSessions\(userId\)/);
   assert.match(service, /getOwnedSession\(userId, sessionId\)/);
-  assert.match(service, /getOwnedVideoStorage\(userId, sessionId\)/);
+  assert.match(
+    service,
+    /createSignedVideoUrl[\s\S]*getOwnedSession\(userId, sessionId\)[\s\S]*if \(!session\)[\s\S]*getOwnedVideoStorage\(userId, sessionId\)/,
+  );
   assert.match(repository, /\.from\("practice_takes"\)[\s\S]*\.eq\("user_id", userId\)[\s\S]*\.eq\("session_id", sessionId\)/);
-  assert.match(service, /storageObject\.storageBucket !== "practice-videos"/);
+  assert.match(service, /storageObject\.storageBucket !== config\.video\.bucket/);
 });
 
-test("finalize rejects non-object JSON before property access", () => {
+test("finalize delegates all JSON shape validation to the canonical service", () => {
   const route = read("src/app/api/v1/practice-upload-intents/[uploadIntentId]/finalize/route.ts");
-  assert.match(route, /typeof payload !== "object" \|\| payload === null \|\| Array\.isArray\(payload\)/);
+  const service = read("src/server/services/acting-coach-service.ts");
+  assert.match(route, /finalizeUploadIntent\(uploadIntentId, payload, auth\.userId\)/);
   assert.doesNotMatch(route, /payload\.durationMs/);
+  assert.doesNotMatch(route, /typeof payload|Array\.isArray\(payload\)/);
+  assert.match(service, /finalizeUploadIntent\([\s\S]*exactBody\(payload, \["storagePath", "durationMs"\]\)/);
 });

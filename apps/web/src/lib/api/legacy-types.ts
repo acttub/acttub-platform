@@ -30,13 +30,23 @@ export type ValidationMetricsDto = {
   forbiddenLanguageCount: number; finalSentenceResult: "empty" | "saved" | "skipped";
 };
 
+export type LegacyTakeDto = {
+  id: string;
+  sessionId: string;
+  videoUrl: string | null;
+  durationMs: number | null;
+  analysisStatus: "generated" | "failed";
+  analysisError: string | null;
+  createdAt: string;
+};
+
 export type LegacyCoachSessionDto = {
   id: string; userId: string; pipelineVersion: "legacy-gemini-v1"; legacy: true;
   status: LegacySessionStatus; medium: Medium; genre: string; situation: string;
   characterContext: string; subtext: string; hiddenAt: string | null;
-  createdAt: string; updatedAt: string; take: TakeDto; sceneSummary: null;
+  createdAt: string; updatedAt: string; take: LegacyTakeDto; sceneSummary: null;
   currentRun: null; turns: []; report: null;
-  legacyResult?: { actorAuthoredSentence: string; questionToRevisit: string | null; createdAt: string } | null;
+  legacyResult: { actorAuthoredSentence: string; questionToRevisit: string | null; createdAt: string } | null;
 };
 
 export type LegacyInternalCoachSessionDto = { id: string; userId: string; status: SessionStatus; medium: Medium; genre: string;
