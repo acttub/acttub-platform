@@ -1,4 +1,5 @@
 import asyncio
+import os
 import secrets
 import time
 from contextlib import asynccontextmanager
@@ -108,6 +109,8 @@ def create_app(
             "services": ["summary", "coach", "report"],
             "model": summary_settings.model,
             "keep_alive": bool(gateway_settings.keep_alive_url),
+            # Render가 주입하는 배포 커밋 — 어느 버전이 라이브인지 확인용
+            "commit": os.environ.get("RENDER_GIT_COMMIT", "unknown")[:7],
         }
 
     app.include_router(build_summary_router(client=client, settings=summary_settings))

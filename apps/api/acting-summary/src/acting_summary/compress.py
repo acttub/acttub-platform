@@ -10,6 +10,7 @@ Render free tier는 CPU가 약하므로(0.1 CPU) ultrafast 프리셋 + 시간제
 
 import shutil
 import subprocess
+import threading
 from pathlib import Path
 
 # 이보다 작은 파일은 압축해도 이득이 적어 건너뛴다.
@@ -17,6 +18,9 @@ MIN_BYTES = 15 * 1024 * 1024
 # free tier에서 인코딩이 이 시간을 넘기면 포기하고 원본을 쓴다.
 # 4K 원본은 디코딩만으로도 오래 걸리므로 넉넉히 둔다 (워커 스레드라 루프는 안 막힘).
 TIMEOUT_SEC = 300.0
+
+# 512MB 인스턴스에서 ffmpeg 2개가 겹치면 OOM — 한 번에 하나만 돌린다.
+_FFMPEG_LOCK = threading.Lock()
 
 
 def compress_for_gemini(
@@ -39,6 +43,10 @@ def compress_for_gemini(
     cmd = [
         ffmpeg,
         "-y",
+        # 4K 디코더는 스레드당 프레임 버퍼를 잡아 기본(auto)이면 수백 MB를 먹는다.
+        # 512MB 인스턴스 + 0.1 CPU라 단일 스레드가 메모리·CPU 모두에서 맞다.
+        "-threads",
+        "1",
         "-i",
         str(src),
         "-vf",
@@ -61,10 +69,13 @@ def compress_for_gemini(
         "1",
         "-movflags",
         "+faststart",
+        "-threads",
+        "1",
         str(dst),
     ]
     try:
-        subprocess.run(cmd, check=True, timeout=timeout, capture_output=True)
+        with _FFMPEG_LOCK:
+            subprocess.run(cmd, check=True, timeout=timeout, capture_output=True)
     except (subprocess.SubprocessError, OSError):
         dst.unlink(missing_ok=True)
         return str(src)
