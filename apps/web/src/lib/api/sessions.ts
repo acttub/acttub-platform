@@ -2,7 +2,6 @@ import type {
   ActingCoachSessionDto,
   ActingReportDto,
   ActingTurnRequest,
-  CoachSessionDto,
   CreateActingSessionRequest,
   CreateReportRequest,
   CreateUploadIntentRequest,
@@ -11,8 +10,6 @@ import type {
   FinalizeUploadIntentResponse,
   LegacyCoachSessionDto,
   RetryAnalysisRequest,
-  SceneGenre,
-  SceneMedium,
 } from "./types";
 
 export type { SceneGenre, SceneMedium } from "./types";
@@ -73,14 +70,14 @@ export function getPracticeSession(id: string) {
 }
 
 export function createPracticeSession(body: CreateActingSessionRequest) {
-  return request<{ session: ActingCoachSessionDto }>("/api/v1/practice-sessions", {
+  return request<ActingCoachSessionDto>("/api/v1/practice-sessions", {
     method: "POST", headers: jsonHeaders, body: JSON.stringify(body),
   });
 }
 
 export function retryPracticeAnalysis(sessionId: string) {
   const body: RetryAnalysisRequest = { operation: "retry", requestId: crypto.randomUUID() };
-  return request<{ session: ActingCoachSessionDto }>(`/api/v1/practice-sessions/${sessionId}/analysis`, {
+  return request<ActingCoachSessionDto>(`/api/v1/practice-sessions/${sessionId}/analysis`, {
     method: "POST", headers: jsonHeaders,
     body: JSON.stringify(body),
   });
@@ -90,14 +87,14 @@ export function mutatePracticeTurn(
   sessionId: string,
   body: ActingTurnRequest,
 ) {
-  return request<{ session: ActingCoachSessionDto }>(`/api/v1/practice-sessions/${sessionId}/turns`, {
+  return request<ActingCoachSessionDto>(`/api/v1/practice-sessions/${sessionId}/turns`, {
     method: "POST", headers: jsonHeaders, body: JSON.stringify(body),
   });
 }
 
 export function createPracticeReport(sessionId: string) {
   const body: CreateReportRequest = { requestId: crypto.randomUUID() };
-  return request<{ session: ActingCoachSessionDto; report?: ActingReportDto }>(
+  return request<ActingReportDto>(
     `/api/v1/practice-sessions/${sessionId}/report`,
     { method: "POST", headers: jsonHeaders, body: JSON.stringify(body) },
   );
