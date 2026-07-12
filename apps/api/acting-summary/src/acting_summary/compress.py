@@ -15,7 +15,8 @@ from pathlib import Path
 # 이보다 작은 파일은 압축해도 이득이 적어 건너뛴다.
 MIN_BYTES = 15 * 1024 * 1024
 # free tier에서 인코딩이 이 시간을 넘기면 포기하고 원본을 쓴다.
-TIMEOUT_SEC = 120.0
+# 4K 원본은 디코딩만으로도 오래 걸리므로 넉넉히 둔다 (워커 스레드라 루프는 안 막힘).
+TIMEOUT_SEC = 300.0
 
 
 def compress_for_gemini(

@@ -10,8 +10,8 @@ from acting_summary import summarizer as summarizer_mod
 from acting_summary.config import Settings
 from acting_summary.schema import SubText
 
-# Render free tier(512MB RAM)에서 안전한 업로드 상한. 앱 제한(80MB)보다 여유를 둔다.
-MAX_UPLOAD_MB = 100
+# 업로드 상한. 스트리밍 수신이라 메모리와 무관 — 앱 제한(500MB)보다 여유를 둔다.
+MAX_UPLOAD_MB = 550
 MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024
 _CHUNK_BYTES = 1024 * 1024
 

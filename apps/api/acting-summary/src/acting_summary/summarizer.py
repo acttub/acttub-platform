@@ -104,7 +104,8 @@ def summarize(
     *,
     client,
     model: str,
-    active_timeout: float = 120.0,
+    # 압축 폴백으로 수백 MB 원본이 올라오면 Files API 처리(ACTIVE 전환)가 오래 걸린다
+    active_timeout: float = 300.0,
     poll_interval: float = 2.0,
     cache_dir=None,
 ) -> SceneSummary:
