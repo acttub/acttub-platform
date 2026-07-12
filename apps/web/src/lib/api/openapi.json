@@ -1777,9 +1777,8 @@
               },
               "details": {
                 "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
+                "description": "재시도 가능 여부 같은 boolean을 포함한 안전한 복구 메타데이터입니다.",
+                "additionalProperties": true
               }
             }
           }

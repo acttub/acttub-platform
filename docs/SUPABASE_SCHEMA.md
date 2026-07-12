@@ -1,6 +1,6 @@
 # Supabase Schema and Policy Notes for Acttub Slice 1
 
-> **방향 전환 (2026-07-13)**: 이 문서는 현재 구현된 Slice 1 스키마(관찰 확인, 자기 정리 문장 포함)를 기록한다. 제품 방향은 외부 acting-api 기반으로 변경되었으므로 (`docs/API.md`, ADR-014~015), 목표 데이터 모델은 `docs/ARCHITECTURE.md`를 따르고 이 스키마는 마이그레이션 전까지의 현행 기준이다.
+> **방향 전환 (2026-07-13)**: migration 001의 Slice 1 기준은 관찰 확인, 자기 정리 문장, `314572800` bytes(300 MiB) 업로드 제한이었다. 현재 acting-api 파이프라인은 후속 migration 004를 통해 `576716800` bytes(550 MiB)로 확장되었다. 아래 Slice 1 설명은 역사적 기준이며 현재 계약은 `docs/API.md`, ADR-014~015, `docs/ARCHITECTURE.md`를 따른다.
 
 This document records the Supabase persistence contract for the Slice 1 MVP. Apply the executable SQL files in `supabase/migrations/` in order. Migration `001_acttub_slice1_schema.sql` mirrors the baseline snapshot in `docs/supabase/slice1-schema-rls-storage.sql`; later migrations evolve that baseline.
 
@@ -33,7 +33,7 @@ Key fields:
 - `status`: upload lifecycle (`created`, `finalized`, `expired`, `cleanup_failed`).
 - `expected_storage_bucket`: defaults to `practice-videos`.
 - `expected_storage_path`: exact browser upload path, constrained to `users/{userId}/practice-sessions/{sessionId}/take.mp4|take.mov`.
-- `expected_mime_type`, `expected_size_bytes`: finalization checks; size is bounded by the 300 MB bucket policy.
+- `expected_mime_type`, `expected_size_bytes`: finalization checks. Migration 001's historical bound is 300 MiB; the current acting-api migration 004 bound is 550 MiB.
 
 ### `public.practice_sessions`
 
@@ -102,7 +102,7 @@ Low-level validation/audit events for alpha learning, including rejected-observa
 
 ## Storage and upload contract
 
-The migration creates a private bucket:
+Migration 001 creates the historical private-bucket baseline:
 
 - bucket id/name: `practice-videos`
 - public: `false`
@@ -117,7 +117,9 @@ users/{userId}/practice-sessions/{sessionId}/take.mp4|take.mov
 
 The server persists that path as `practice_takes.storage_path`. Playback signed URLs are short-lived and generated server-side from the owner-checked canonical endpoint `GET /api/v1/practice-sessions/{sessionId}/signed-video-url`.
 
-Slice 1 keeps the browser upload path dependency-free: the current MVP uses Supabase Storage standard `.upload()` direct storage, then the `/finalize` API verification step checks owner, path, MIME type, size, and object existence under the existing 300 MB bucket limit. Supabase documents standard uploads at https://supabase.com/docs/guides/storage/uploads/standard-uploads and recommends TUS/resumable uploads for files above 6 MB at https://supabase.com/docs/guides/storage/uploads/resumable-uploads. Production hardening should add a TUS-capable client for large/mobile/unreliable-network uploads, but Slice 1 intentionally does not add a new TUS dependency.
+Slice 1 kept the browser upload path dependency-free under its historical 300 MiB limit. The current acting-api path still uploads directly with Supabase Storage standard `.upload()`, but migration 004 aligns the upload intent, take, and bucket gates at `576716800` bytes (550 MiB), with required duration `1..180000` ms at finalization. Supabase documents standard uploads at https://supabase.com/docs/guides/storage/uploads/standard-uploads and recommends TUS/resumable uploads for files above 6 MB at https://supabase.com/docs/guides/storage/uploads/resumable-uploads. Production hardening should add a TUS-capable client for large/mobile/unreliable-network uploads.
+
+`ACTING_API_BASE_URL` and `ACTING_API_KEY` are server-only configuration for the canonical pipeline. Gemini environment variables are retained only for legacy compatibility and must not be exposed to browser code.
 
 ## RLS Policy Model
 

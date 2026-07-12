@@ -95,7 +95,9 @@ Recommended server behavior:
 
 ## Upload Hardening Boundary
 
-Slice 1 browser uploads currently use Supabase Storage standard `.upload()` direct storage without adding a TUS dependency. The `/finalize` API verification step remains the upload safety boundary: the object must match the active upload intent, owner, bucket, path, MIME type, size, and expiry, and the bucket/server checks retain the 300 MB maximum.
+The current acting-api pipeline accepts at most `576716800` bytes (550 MiB) across the client, upload intent/take checks, and private Storage bucket. Browser uploads use Supabase Storage standard `.upload()` directly; `/finalize` remains the owner/path/MIME/size/duration verification boundary. Migration 001's Slice 1 snapshot used `314572800` bytes (300 MiB). That value remains documented as the historical baseline, not the current acting-api limit.
+
+Spring Boot must treat `ACTING_API_BASE_URL` and `ACTING_API_KEY` as server-only configuration and send the key only on server-to-server requests. `GEMINI_API_KEY` and `GEMINI_QUESTION_MODEL` belong only to preserved legacy compatibility behavior and must not drive the canonical acting-api-v1 pipeline.
 
 Supabase documents standard uploads at https://supabase.com/docs/guides/storage/uploads/standard-uploads and recommends TUS/resumable uploads for files larger than 6 MB at https://supabase.com/docs/guides/storage/uploads/resumable-uploads. The Spring Boot production hardening path should add a TUS-capable client before relying on large-video uploads over mobile or unreliable networks; this is explicitly out of dependency scope for Slice 1.
 
