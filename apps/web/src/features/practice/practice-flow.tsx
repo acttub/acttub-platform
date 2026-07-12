@@ -82,6 +82,7 @@ export function PracticeFlow({ entry = "new" }: { entry?: Entry }) {
         fileMetadata: { fileName: file.name, mimeType: file.type, sizeBytes: file.size },
       });
       const supabase = getSupabaseBrowserClient();
+      if (!supabase) throw new Error("업로드 설정을 확인하지 못했어요.");
       const { error: uploadError } = await supabase.storage.from(uploadIntent.storageBucket)
         .upload(uploadIntent.storagePath, file, { contentType: file.type, upsert: false });
       if (uploadError) throw uploadError;
