@@ -163,3 +163,43 @@ def test_summarize_compresses_before_gemini(monkeypatch, tmp_path):
 
     assert not os.path.exists(seen["original"])
     assert not compressed.exists()
+
+
+def test_summarize_oversized_upload_413(monkeypatch):
+    from acting_summary import router as router_mod
+
+    monkeypatch.setattr(router_mod, "MAX_UPLOAD_BYTES", 50)
+
+    def never(*a, **k):
+        raise AssertionError("업로드 제한 초과 시 Gemini 호출 없어야 함")
+
+    monkeypatch.setattr(summarizer_mod, "summarize", never)
+    c = TestClient(_app())
+    r = c.post(
+        "/summarize",
+        data={"situation": "a", "character": "b", "subtext": "c"},
+        files={"video": ("t.mp4", b"x" * 200, "video/mp4")},
+    )
+    assert r.status_code == 413
+    assert "MB" in r.json()["detail"]
+
+
+def test_summarize_streams_within_limit(monkeypatch):
+    seen = {}
+
+    def fake_summarize(video_path, subtext, *, client, model, **kw):
+        import os
+
+        seen["size"] = os.path.getsize(video_path)
+        return FAKE
+
+    monkeypatch.setattr(summarizer_mod, "summarize", fake_summarize)
+    c = TestClient(_app())
+    body = b"x" * (3 * 1024 * 1024)  # 청크(1MB)를 여러 번 도는 크기
+    r = c.post(
+        "/summarize",
+        data={"situation": "a", "character": "b", "subtext": "c"},
+        files={"video": ("t.mp4", body, "video/mp4")},
+    )
+    assert r.status_code == 200
+    assert seen["size"] == len(body)

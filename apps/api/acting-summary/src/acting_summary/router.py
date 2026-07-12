@@ -2,7 +2,7 @@ import os
 import tempfile
 from pathlib import Path
 
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 from starlette.concurrency import run_in_threadpool
 
 from acting_summary import compress as compress_mod
@@ -10,23 +10,46 @@ from acting_summary import summarizer as summarizer_mod
 from acting_summary.config import Settings
 from acting_summary.schema import SubText
 
+# Render free tier(512MB RAM)에서 안전한 업로드 상한. 앱 제한(80MB)보다 여유를 둔다.
+MAX_UPLOAD_MB = 100
+MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024
+_CHUNK_BYTES = 1024 * 1024
+
+
+def _too_large() -> HTTPException:
+    return HTTPException(
+        status_code=413,
+        detail=f"영상이 {MAX_UPLOAD_MB}MB를 넘어요. 한 장면(3분 이내)만 잘라서 다시 올려주세요.",
+    )
+
 
 def build_router(*, client, settings: Settings) -> APIRouter:
     router = APIRouter(tags=["summary"])
 
     @router.post("/summarize")
     async def summarize_endpoint(
+        request: Request,
         situation: str = Form(...),
         character: str = Form(...),
         subtext: str = Form(...),
         video: UploadFile = File(...),
     ):
+        content_length = request.headers.get("content-length")
+        if content_length and content_length.isdigit():
+            if int(content_length) > MAX_UPLOAD_BYTES + _CHUNK_BYTES:
+                raise _too_large()
         subtext_obj = SubText(situation=situation, character=character, subtext=subtext)
         suffix = Path(video.filename or "video.mp4").suffix or ".mp4"
         tmp = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
         send_path = tmp.name
         try:
-            tmp.write(await video.read())
+            # 통째로 read()하면 큰 영상에서 OOM — 청크 단위로 디스크에 흘려 쓴다
+            received = 0
+            while chunk := await video.read(_CHUNK_BYTES):
+                received += len(chunk)
+                if received > MAX_UPLOAD_BYTES:
+                    raise _too_large()
+                tmp.write(chunk)
             tmp.close()
             # 동기 압축·Gemini 파이프라인을 워커 스레드로 — 이벤트 루프 블로킹 방지
             def _compress_and_summarize():
