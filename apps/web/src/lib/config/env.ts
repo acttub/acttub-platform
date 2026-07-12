@@ -1,5 +1,6 @@
 const DEFAULT_APP_URL = "http://localhost:3000";
 const DEFAULT_TERMS_VERSION = "2026-07-mvp";
+const MAX_VIDEO_BYTES = 576_716_800;
 
 export type SupabasePublicConfig = {
   url: string;
@@ -46,10 +47,7 @@ export function getAppConfig(): AppConfig {
     },
     video: {
       bucket: process.env.NEXT_PUBLIC_SUPABASE_VIDEO_BUCKET ?? "practice-videos",
-      maxUploadBytes: numberFromEnv(
-        process.env.NEXT_PUBLIC_ACTTUB_MAX_VIDEO_BYTES,
-        300 * 1024 * 1024,
-      ),
+      maxUploadBytes: MAX_VIDEO_BYTES,
       signedUrlExpiresInSeconds: numberFromEnv(
         process.env.ACTTUB_SIGNED_URL_EXPIRES_SECONDS,
         10 * 60,

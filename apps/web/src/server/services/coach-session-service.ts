@@ -448,7 +448,7 @@ export const coachSessionService = {
       sizeBytes > maxUploadBytes
     ) {
       throw new ApiValidationError("Request validation failed", {
-        "fileMetadata.sizeBytes": "Must be greater than 0 and at most 300MB.",
+        "fileMetadata.sizeBytes": "Must be greater than 0 and at most 550MB.",
       });
     }
 

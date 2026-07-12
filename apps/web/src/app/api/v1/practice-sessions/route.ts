@@ -20,7 +20,7 @@ export async function POST(request: Request) {
     const auth = await requireApiTermsAccepted();
     const payload = await request.json();
     const result = await actingCoachService.createSession(payload, auth.userId);
-    return jsonResponse(result, { status: 201 });
+    return jsonResponse(result.value, { status: result.replayed ? 200 : 201 });
   } catch (error) {
     return handleApiError(error);
   }
