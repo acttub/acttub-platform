@@ -7,6 +7,7 @@ import {
   ApiValidationError,
 } from "@/server/services/coach-session-service";
 import { ApiAuthError } from "@/server/services/auth-context";
+import { ActingServiceError } from "@/server/services/acting-coach-service";
 
 export const jsonResponse = <T>(
   body: T,
@@ -46,6 +47,10 @@ export const handleApiError = (
 
   if (error instanceof ApiAuthError) {
     return jsonError(error.status, error.code, error.message);
+  }
+
+  if (error instanceof ActingServiceError) {
+    return jsonError(error.status, error.code, error.message, error.details as Record<string, string> | undefined);
   }
 
   if (error instanceof ApiValidationError) {
