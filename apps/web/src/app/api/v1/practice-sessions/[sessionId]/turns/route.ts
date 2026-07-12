@@ -1,6 +1,6 @@
 import { actingCoachService } from "@/server/services/acting-coach-service";
 import { requireApiTermsAccepted } from "@/server/services/auth-context";
-import { handleApiError, jsonError, jsonResponse } from "../../../http";
+import { handleApiError, jsonResponse } from "../../../http";
 
 type RouteContext = { params: Promise<{ sessionId: string }> };
 

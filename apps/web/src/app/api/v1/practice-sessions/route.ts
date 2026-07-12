@@ -3,6 +3,9 @@ import { actingCoachService } from "@/server/services/acting-coach-service";
 import { requireApiTermsAccepted } from "@/server/services/auth-context";
 import { handleApiError, jsonResponse } from "../http";
 
+export const runtime = "nodejs";
+export const maxDuration = 800;
+
 export async function GET() {
   try {
     const auth = await requireApiTermsAccepted();
