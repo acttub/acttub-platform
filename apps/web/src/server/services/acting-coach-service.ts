@@ -14,17 +14,17 @@ function normalizeClaim(value: ActingRpcResult): Claim {
   const source = record(value.analysis_source ?? value.source);
   const coachContext = record(value.coach_context);
   return {
-    kind: value.claimState ?? string(value.claim_state) as Claim["kind"] ?? "claimed",
+    kind: string(value.kind) as Claim["kind"] ?? value.claimState ?? string(value.claim_state) as Claim["kind"] ?? "claimed",
     operationId: value.operationId ?? string(value.operation_id) ?? "",
-    leaseToken: string(value.lease_token) ?? "",
-    sessionId: string(value.session_id) ?? "",
-    runId: string(value.run_id) ?? "",
-    actorTurnId: string(value.actor_turn_id) ?? "",
-    privateActingSessionId: string(value.acting_session_id) ?? "",
-    source: { ...source, ...(string(value.actor_text) ? { actorText: string(value.actor_text) } : {}) },
-    summaryPayload: value.summary_payload,
-    coachContext: Object.keys(coachContext).length ? coachContext : undefined,
-    reportPayload: value.coach_session_payload,
+    leaseToken: string(value.leaseToken) ?? string(value.lease_token) ?? "",
+    sessionId: string(value.sessionId) ?? string(value.session_id) ?? "",
+    runId: string(value.runId) ?? string(value.run_id) ?? "",
+    actorTurnId: string(value.actorTurnId) ?? string(value.actor_turn_id) ?? "",
+    privateActingSessionId: string(value.privateActingSessionId) ?? string(value.acting_session_id) ?? "",
+    source: { ...record(value.source), ...source, ...(string(value.actor_text) ? { actorText: string(value.actor_text) } : {}) },
+    summaryPayload: value.summaryPayload ?? value.summary_payload,
+    coachContext: record(value.coachContext ?? (Object.keys(coachContext).length ? coachContext : undefined)),
+    reportPayload: value.reportPayload ?? value.coach_session_payload,
     result: value.result,
   };
 }
