@@ -439,6 +439,7 @@ const mapUploadIntent = (row: JsonRecord): StoredUploadIntentRecord => {
 
   return {
     ...uploadIntent,
+    finalizedDurationMs: asNullableNumber(row.duration_ms),
     intent: uploadIntent,
   };
 };

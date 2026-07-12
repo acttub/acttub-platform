@@ -511,6 +511,35 @@ export const coachSessionService = {
       });
     }
 
+    const input = payload as { storagePath?: unknown; durationMs?: unknown };
+    const storagePath = requiredText(input.storagePath, "storagePath");
+    if (
+      typeof input.durationMs !== "number" ||
+      !Number.isInteger(input.durationMs) ||
+      input.durationMs < 1 ||
+      input.durationMs > 180_000
+    ) {
+      throw new ApiValidationError("Request validation failed", {
+        durationMs: "Must be an integer from 1 to 180000.",
+      });
+    }
+    const durationMs = input.durationMs;
+
+    validateExpectedStoragePath(uploadIntent.intent, storagePath, userId);
+
+    if (uploadIntent.status === "finalized") {
+      if (uploadIntent.finalizedDurationMs !== durationMs) {
+        throw new ApiValidationError("Request validation failed", {
+          durationMs: "Must match the duration already stored for this upload intent.",
+        });
+      }
+      return {
+        videoUrl: videoRefForUploadIntent(uploadIntent.intent),
+        storagePath,
+        durationMs,
+      };
+    }
+
     if (uploadIntent.status !== "created") {
       throw new ApiValidationError("Request validation failed", {
         uploadIntentId: "Upload intent is not available for verification.",
@@ -526,16 +555,6 @@ export const coachSessionService = {
       });
     }
 
-    const input = payload as { storagePath?: unknown; durationMs?: unknown };
-    const storagePath = requiredText(input.storagePath, "storagePath");
-    const durationMs =
-      typeof input.durationMs === "number" &&
-      Number.isFinite(input.durationMs) &&
-      input.durationMs > 0
-        ? input.durationMs
-        : null;
-
-    validateExpectedStoragePath(uploadIntent.intent, storagePath, userId);
     await verifySupabaseStorageObject(uploadIntent.intent);
     await requireSupabasePersistence(() =>
       supabaseCoachSessionRepository.finalizeUploadIntent(uploadIntent.intent),
