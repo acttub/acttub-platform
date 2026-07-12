@@ -1196,6 +1196,525 @@
           }
         }
       }
+    },
+    "/api/v1/practice-sessions/{sessionId}/metrics": {
+      "post": {
+        "tags": [
+          "호환 API"
+        ],
+        "summary": "검증 지표 저장",
+        "operationId": "savePracticeValidationMetrics",
+        "description": "레거시 클라이언트 호환을 위해 보존된 사용 중단 예정 API입니다. acting-api-v1 세션에는 사용할 수 없습니다. 동일 출처의 Supabase 브라우저 세션, 현재 약관 동의 및 리소스 소유권이 필요합니다. Swagger UI는 이 출처에 이미 설정된 브라우저 쿠키를 사용합니다.",
+        "x-acttub-auth": "supabase-session-cookie+current-terms",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/SessionId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveValidationMetricsRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "리소스가 생성되었습니다.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SaveValidationMetricsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/TermsRequired"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ConfigurationError"
+          }
+        },
+        "deprecated": true
+      }
+    },
+    "/api/v1/practice-sessions/{sessionId}/result": {
+      "post": {
+        "tags": [
+          "호환 API"
+        ],
+        "summary": "세션을 종료하고 결과 생성",
+        "operationId": "createPracticeResult",
+        "description": "레거시 클라이언트 호환을 위해 보존된 사용 중단 예정 API입니다. acting-api-v1 세션에는 사용할 수 없습니다. 동일 출처의 Supabase 브라우저 세션, 현재 약관 동의 및 리소스 소유권이 필요합니다. Swagger UI는 이 출처에 이미 설정된 브라우저 쿠키를 사용합니다.",
+        "x-acttub-auth": "supabase-session-cookie+current-terms",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/SessionId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateSummaryRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "리소스가 생성되었습니다.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateSummaryResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/TermsRequired"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "502": {
+            "$ref": "#/components/responses/UpstreamError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ConfigurationError"
+          }
+        },
+        "deprecated": true
+      }
+    },
+    "/api/v1/practice-sessions/{sessionId}/observations/{observationId}": {
+      "patch": {
+        "tags": [
+          "호환 API"
+        ],
+        "summary": "관찰 내용 확인 또는 거절",
+        "operationId": "updatePracticeObservation",
+        "description": "레거시 클라이언트 호환을 위해 보존된 사용 중단 예정 API입니다. acting-api-v1 세션에는 사용할 수 없습니다. 동일 출처의 Supabase 브라우저 세션, 현재 약관 동의 및 리소스 소유권이 필요합니다. Swagger UI는 이 출처에 이미 설정된 브라우저 쿠키를 사용합니다. 관찰 내용을 수정하면 다음 AI 코치 대화가 생성되어 추가될 수 있습니다.",
+        "x-acttub-auth": "supabase-session-cookie+current-terms",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/SessionId"
+          },
+          {
+            "$ref": "#/components/parameters/ObservationId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateObservationRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "요청이 성공했습니다.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdateObservationResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/TermsRequired"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "502": {
+            "$ref": "#/components/responses/UpstreamError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ConfigurationError"
+          }
+        },
+        "deprecated": true
+      }
+    },
+    "/api/v1/sessions": {
+      "post": {
+        "deprecated": true,
+        "description": "레거시 클라이언트 호환을 위해 보존된 사용 중단 예정 API입니다. acting-api-v1 세션에는 사용할 수 없습니다. 호환용 별칭입니다. 새 클라이언트는 `/api/v1/practice-sessions`를 사용해야 합니다. 동일 출처의 Supabase 브라우저 세션, 현재 약관 동의 및 리소스 소유권이 필요합니다. Swagger UI는 이 출처에 이미 설정된 브라우저 쿠키를 사용합니다.",
+        "tags": [
+          "호환 API"
+        ],
+        "x-acttub-auth": "supabase-session-cookie+current-terms",
+        "summary": "연습 세션 생성(레거시 별칭)",
+        "operationId": "createLegacySession",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateSessionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "리소스가 생성되었습니다.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateSessionResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/TermsRequired"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "502": {
+            "$ref": "#/components/responses/UpstreamError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ConfigurationError"
+          }
+        }
+      }
+    },
+    "/api/v1/sessions/{sessionId}": {
+      "get": {
+        "deprecated": true,
+        "description": "레거시 클라이언트 호환을 위해 보존된 사용 중단 예정 API입니다. acting-api-v1 세션에는 사용할 수 없습니다. 호환용 별칭입니다. 새 클라이언트는 `/api/v1/practice-sessions/{sessionId}`를 사용해야 합니다. 동일 출처의 Supabase 브라우저 세션, 현재 약관 동의 및 리소스 소유권이 필요합니다. Swagger UI는 이 출처에 이미 설정된 브라우저 쿠키를 사용합니다.",
+        "tags": [
+          "호환 API"
+        ],
+        "x-acttub-auth": "supabase-session-cookie+current-terms",
+        "summary": "연습 세션 조회(레거시 별칭)",
+        "operationId": "getLegacySession",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/SessionId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "요청이 성공했습니다.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetSessionResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/TermsRequired"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ConfigurationError"
+          }
+        }
+      }
+    },
+    "/api/v1/sessions/{sessionId}/observations/{observationId}": {
+      "patch": {
+        "deprecated": true,
+        "description": "레거시 클라이언트 호환을 위해 보존된 사용 중단 예정 API입니다. acting-api-v1 세션에는 사용할 수 없습니다. 호환용 별칭입니다. 새 클라이언트는 `/api/v1/practice-sessions/{sessionId}/observations/{observationId}`를 사용해야 합니다. 동일 출처의 Supabase 브라우저 세션, 현재 약관 동의 및 리소스 소유권이 필요합니다. Swagger UI는 이 출처에 이미 설정된 브라우저 쿠키를 사용합니다.",
+        "tags": [
+          "호환 API"
+        ],
+        "x-acttub-auth": "supabase-session-cookie+current-terms",
+        "summary": "관찰 내용 수정(레거시 별칭)",
+        "operationId": "updateLegacyObservation",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/SessionId"
+          },
+          {
+            "$ref": "#/components/parameters/ObservationId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateObservationRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "요청이 성공했습니다.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdateObservationResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/TermsRequired"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "502": {
+            "$ref": "#/components/responses/UpstreamError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ConfigurationError"
+          }
+        }
+      }
+    },
+    "/api/v1/sessions/{sessionId}/turns": {
+      "post": {
+        "deprecated": true,
+        "description": "레거시 클라이언트 호환을 위해 보존된 사용 중단 예정 API입니다. acting-api-v1 세션에는 사용할 수 없습니다. 호환용 별칭입니다. 새 클라이언트는 `/api/v1/practice-sessions/{sessionId}/turns`를 사용해야 합니다. 저장된 배우 답변 수를 기준으로 최소 5회, 최대 10회의 같은 완료 정책을 적용하며 완료 시에도 요약이나 결과를 자동 생성하지 않습니다. 동일 출처의 Supabase 브라우저 세션, 현재 약관 동의 및 리소스 소유권이 필요합니다. Swagger UI는 이 출처에 이미 설정된 브라우저 쿠키를 사용합니다.",
+        "tags": [
+          "호환 API"
+        ],
+        "x-acttub-auth": "supabase-session-cookie+current-terms",
+        "summary": "연습 대화 생성(레거시 별칭)",
+        "operationId": "createLegacyTurn",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/SessionId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTurnRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "배우/코치 턴과 저장 후 답변 수, 대화 완료 판단이 생성되었습니다.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateTurnResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/TermsRequired"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "502": {
+            "$ref": "#/components/responses/UpstreamError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ConfigurationError"
+          }
+        }
+      }
+    },
+    "/api/v1/sessions/{sessionId}/summary": {
+      "post": {
+        "deprecated": true,
+        "description": "레거시 클라이언트 호환을 위해 보존된 사용 중단 예정 API입니다. acting-api-v1 세션에는 사용할 수 없습니다. 호환용 별칭입니다. 새 클라이언트는 `/api/v1/practice-sessions/{sessionId}/result`를 사용해야 합니다. 동일 출처의 Supabase 브라우저 세션, 현재 약관 동의 및 리소스 소유권이 필요합니다. Swagger UI는 이 출처에 이미 설정된 브라우저 쿠키를 사용합니다.",
+        "tags": [
+          "호환 API"
+        ],
+        "x-acttub-auth": "supabase-session-cookie+current-terms",
+        "summary": "연습 결과 생성(레거시 별칭)",
+        "operationId": "createLegacySummary",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/SessionId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateSummaryRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "리소스가 생성되었습니다.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateSummaryResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/TermsRequired"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "502": {
+            "$ref": "#/components/responses/UpstreamError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ConfigurationError"
+          }
+        }
+      }
+    },
+    "/api/v1/practice-sessions/{sessionId}/summary": {
+      "post": {
+        "deprecated": true,
+        "description": "레거시 클라이언트 호환을 위해 보존된 사용 중단 예정 API입니다. acting-api-v1 세션에는 사용할 수 없습니다. 호환용 별칭입니다. 새 클라이언트는 `/api/v1/practice-sessions/{sessionId}/result`를 사용해야 합니다. 동일 출처의 Supabase 브라우저 세션, 현재 약관 동의 및 리소스 소유권이 필요합니다. Swagger UI는 이 출처에 이미 설정된 브라우저 쿠키를 사용합니다.",
+        "tags": [
+          "호환 API"
+        ],
+        "x-acttub-auth": "supabase-session-cookie+current-terms",
+        "summary": "연습 결과 생성(호환용 별칭)",
+        "operationId": "createPracticeSummaryAlias",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/SessionId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateSummaryRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "리소스가 생성되었습니다.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateSummaryResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/TermsRequired"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "502": {
+            "$ref": "#/components/responses/UpstreamError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ConfigurationError"
+          }
+        }
+      }
     }
   },
   "components": {
