@@ -21,7 +21,7 @@ export function requireCoachResponse(value: unknown, expectedSessionId?: string)
     throw new ActingApiResponseError();
   }
   if (expectedSessionId && response.session_id !== expectedSessionId) throw new ActingApiResponseError();
-  return response;
+  return response as Record<string, unknown> & { session_id: string; question: string; done: boolean; action: string; focus_timestamp: string; close_reason: string };
 }
 
 export function requireReportResponse(value: unknown, expectedUserId: string) {
@@ -29,5 +29,5 @@ export function requireReportResponse(value: unknown, expectedUserId: string) {
   if (response.user_id !== expectedUserId || !Number.isInteger(response.report_count) || (response.report_count as number) < 1) {
     throw new ActingApiResponseError();
   }
-  return response;
+  return response as Record<string, unknown> & { user_id: string; report_count: number; report: Record<string, unknown> };
 }
