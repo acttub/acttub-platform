@@ -229,7 +229,7 @@ begin
       update public.practice_takes set analysis_status='outcome_unknown',analysis_retryable=false,analysis_error='acting_api_timeout' where session_id=existing.session_id and user_id=existing.user_id;
       existing.status:='outcome_unknown';
     end if;
-    return query select existing.id,case existing.status when 'completed' then 'replay_completed' when 'failed' then 'replay_failed' when 'outcome_unknown' then 'outcome_unknown' else 'in_progress' end,existing.session_id,null::jsonb; return;
+    return query select existing.id,case existing.status when 'completed' then 'replay_completed' when 'failed' then 'replay_failed' when 'outcome_unknown' then 'outcome_unknown' else 'in_progress' end,existing.session_id,existing.response_payload; return;
   end if;
   select * into v from public.upload_intents where id=p_upload_intent_id and user_id=p_user_id and status='finalized' for update;
   if not found or v.session_id<>p_session_id or v.duration_ms is null then raise exception 'upload_intent_invalid'; end if;
@@ -250,7 +250,7 @@ declare replay record; source jsonb;
 begin
  if p_lease_seconds<>780 then raise exception 'invalid_lease'; end if;
  select * into replay from public.acttub_operation_claim_state(p_user_id,p_request_id,p_request_fingerprint);
- if replay.found then return query select replay.operation_id,replay.claim_state,null::jsonb; return; end if;
+ if replay.found then return query select replay.operation_id,replay.claim_state,replay.response_payload; return; end if;
  if not exists(select 1 from public.practice_sessions s join public.practice_takes t on (t.session_id,t.user_id)=(s.id,s.user_id) where s.id=p_session_id and s.user_id=p_user_id and s.pipeline_version='acting-api-v1' and s.status='analyzing' and t.analysis_status='failed' and t.analysis_retryable) then raise exception 'invalid_session'; end if;
  select jsonb_build_object('storageBucket',t.storage_bucket,'storagePath',t.storage_path,'mimeType',t.mime_type,'sizeBytes',t.size_bytes,'medium',s.medium,'genre',s.genre,'situation',s.situation,'formattedSituation','[매체: '||s.medium||'] [장르: '||s.genre||'] '||s.situation,'characterContext',s.character_context,'subtext',s.subtext) into source from public.practice_sessions s join public.practice_takes t on (t.session_id,t.user_id)=(s.id,s.user_id) where s.id=p_session_id and s.user_id=p_user_id;
  insert into public.practice_upstream_operations values(p_operation_id,p_session_id,p_user_id,null,p_request_id,p_request_fingerprint,'analysis_retry','in_flight',p_lease_token,clock_timestamp()+interval '780 seconds',null,null,clock_timestamp(),null);

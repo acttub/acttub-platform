@@ -124,11 +124,25 @@ const callActingRpc = async (name: string, input: ActingRpcInput): Promise<Actin
   return mapActingRpcResult(data);
 };
 
-const normalizeClaim = (
+const normalizeClaim = async (
   value: ActingRpcResult,
   input: { operationId: string; leaseToken: string },
-): ActingRpcResult => {
+): Promise<ActingRpcResult> => {
   const kind = value.claimState;
+  let replayPayload = value.response_payload;
+  let replayErrorCode: string | null = null;
+  if (kind && kind !== "claimed" && value.operationId) {
+    const admin = requireSupabaseAdminClient();
+    const { data, error } = await admin
+      .from("practice_upstream_operations")
+      .select("response_payload,safe_error_code")
+      .eq("id", value.operationId)
+      .maybeSingle();
+    assertNoPersistenceError(error, "operation", "Could not hydrate replay metadata");
+    const replay = asRecord(data);
+    replayPayload = replay.response_payload ?? replayPayload;
+    replayErrorCode = asNullableString(replay.safe_error_code);
+  }
   return {
     ...value,
     kind,
@@ -142,7 +156,8 @@ const normalizeClaim = (
     summaryPayload: value.summary_payload,
     coachContext: value.coach_context,
     reportPayload: value.coach_session_payload,
-    result: value.response_payload,
+    result: replayPayload,
+    safeErrorCode: replayErrorCode ?? undefined,
   };
 };
 
@@ -482,7 +497,7 @@ export const supabaseCoachSessionRepository = {
     medium: string; genre: string; situation: string; characterContext: string; subtext: string;
     leaseSeconds: number; createdAt?: string;
   }): Promise<ActingRpcResult> {
-    return normalizeClaim(await callActingRpc("acttub_create_acting_session", {
+    return await normalizeClaim(await callActingRpc("acttub_create_acting_session", {
       p_upload_intent_id: input.uploadIntentId, p_user_id: input.userId,
       p_session_id: input.sessionId, p_take_id: input.takeId, p_request_id: input.requestId,
       p_request_fingerprint: input.requestFingerprint, p_operation_id: input.operationId,
@@ -497,7 +512,7 @@ export const supabaseCoachSessionRepository = {
     sessionId: string; userId: string; requestId: string; requestFingerprint: string;
     operationId: string; leaseToken: string; leaseSeconds: number;
   }): Promise<ActingRpcResult> {
-    return normalizeClaim(await callActingRpc("acttub_claim_analysis_retry", {
+    return await normalizeClaim(await callActingRpc("acttub_claim_analysis_retry", {
       p_session_id: input.sessionId, p_user_id: input.userId, p_request_id: input.requestId,
       p_request_fingerprint: input.requestFingerprint, p_operation_id: input.operationId,
       p_lease_token: input.leaseToken, p_lease_seconds: input.leaseSeconds,
@@ -530,7 +545,7 @@ export const supabaseCoachSessionRepository = {
     sessionId: string; userId: string; requestId: string; requestFingerprint: string;
     operationId: string; runId: string; leaseToken: string; leaseSeconds: number; restart: boolean;
   }): Promise<ActingRpcResult> {
-    return normalizeClaim(await callActingRpc("acttub_claim_coach_start", {
+    return await normalizeClaim(await callActingRpc("acttub_claim_coach_start", {
       p_session_id: input.sessionId, p_user_id: input.userId, p_request_id: input.requestId,
       p_request_fingerprint: input.requestFingerprint, p_operation_id: input.operationId,
       p_run_id: input.runId, p_lease_token: input.leaseToken,
@@ -543,7 +558,7 @@ export const supabaseCoachSessionRepository = {
     requestFingerprint: string; operationId: string; actorTurnId: string; actorText: string;
     retryActorTurnId?: string | null; leaseToken: string; leaseSeconds: number;
   }): Promise<ActingRpcResult> {
-    return normalizeClaim(await callActingRpc("acttub_claim_coach_reply", {
+    return await normalizeClaim(await callActingRpc("acttub_claim_coach_reply", {
       p_session_id: input.sessionId, p_user_id: input.userId, p_run_id: input.runId,
       p_request_id: input.requestId, p_request_fingerprint: input.requestFingerprint,
       p_operation_id: input.operationId, p_actor_turn_id: input.actorTurnId,
@@ -593,7 +608,7 @@ export const supabaseCoachSessionRepository = {
     sessionId: string; userId: string; requestId: string; requestFingerprint: string;
     operationId: string; leaseToken: string; leaseSeconds: number;
   }): Promise<ActingRpcResult> {
-    return normalizeClaim(await callActingRpc("acttub_claim_report", {
+    return await normalizeClaim(await callActingRpc("acttub_claim_report", {
       p_session_id: input.sessionId, p_user_id: input.userId, p_request_id: input.requestId,
       p_request_fingerprint: input.requestFingerprint, p_operation_id: input.operationId,
       p_lease_token: input.leaseToken, p_lease_seconds: input.leaseSeconds,
