@@ -237,8 +237,16 @@ const mapActingSession = (row: JsonRecord): CoachSessionDto => {
     .sort((a, b) => asNumber(a.ordinal) - asNumber(b.ordinal));
   const sceneSummary = asArray(row.scene_summaries)[0] ?? null;
   const report = asArray(row.practice_reports)[0] ?? null;
+  const runStatus = currentRun ? asString(currentRun.status) : null;
+  const recoveryAction = !currentRun
+    ? "start"
+    : ["expired", "outcome_unknown"].includes(runStatus ?? "")
+      ? "restart"
+      : runStatus === "start_failed" && asBoolean(currentRun.failure_retryable)
+        ? asString(currentRun.start_mode) === "restart" ? "restart" : "start"
+        : null;
 
-  return {
+  const session = {
     id: asString(row.id),
     userId: asString(row.user_id),
     pipelineVersion: "acting-api-v1",
@@ -269,7 +277,7 @@ const mapActingSession = (row: JsonRecord): CoachSessionDto => {
       closeReason: asNullableString(currentRun.close_reason),
       failureCode: asNullableString(currentRun.failure_code),
       failureRetryable: currentRun.failure_retryable === null ? null : asBoolean(currentRun.failure_retryable),
-      recoveryAction: ["expired", "outcome_unknown"].includes(asString(currentRun.status)) ? "restart" : null,
+      recoveryAction,
     } : null,
     turns: turns.map((turn) => ({
       id: asString(turn.id), runId: asString(turn.run_id), ordinal: asNumber(turn.ordinal),
@@ -280,7 +288,11 @@ const mapActingSession = (row: JsonRecord): CoachSessionDto => {
       createdAt: asString(turn.created_at),
     })),
     report: report ? asRecord(report.payload) : null,
-  } as unknown as CoachSessionDto;
+  };
+
+  // Remove this compatibility cast when the shared CoachSessionDto union lands.
+  // The runtime object deliberately contains only the acting discriminator surface.
+  return session as unknown as CoachSessionDto;
 };
 
 const mapSession = (row: JsonRecord): CoachSessionDto =>
