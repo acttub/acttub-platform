@@ -16,7 +16,7 @@ import {
   type SceneGenre,
   type SceneMedium,
 } from "@/lib/api/sessions";
-import type { ActingAnalysisStatus, ActingCoachSessionDto } from "@/lib/api/types";
+import type { ActingCoachSessionDto, ActingReportDto } from "@/lib/api/types";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
 const MAX_UPLOAD_BYTES = 576_716_800;
@@ -103,7 +103,10 @@ export function PracticeFlow({ entry = "new" }: { entry?: Entry }) {
     try {
       const session = await mutatePracticeTurn(active.id, { operation: kind, requestId: crypto.randomUUID() });
       setActive(session); setRestartRequired(false);
-    } catch (reason) { setError(errorMessage(reason)); } finally { setBusy(false); }
+    } catch (reason) {
+      await recoverPersistedSession(active.id, reason);
+      setError(errorMessage(reason));
+    } finally { setBusy(false); }
   }
 
   async function reply() {
@@ -116,9 +119,7 @@ export function PracticeFlow({ entry = "new" }: { entry?: Entry }) {
       });
       setActive(session); setAnswer("");
     } catch (reason) {
-      if (reason instanceof ApiClientError && ["acting_session_expired", "upstream_outcome_unknown"].includes(reason.code)) {
-        setRestartRequired(true);
-      }
+      await recoverPersistedSession(active.id, reason);
       setError(reason instanceof ApiClientError && reason.code === "acting_session_expired"
         ? "인터뷰 연결이 만료되었어요. 아래 버튼으로 새 인터뷰를 시작해 주세요."
         : errorMessage(reason));
@@ -140,7 +141,31 @@ export function PracticeFlow({ entry = "new" }: { entry?: Entry }) {
       const { session } = await getPracticeSession(active.id);
       if (session.legacy) throw new Error("완료된 연습 리포트를 불러오지 못했어요.");
       setActive(session);
-    } catch (reason) { setError(errorMessage(reason)); } finally { setBusy(false); }
+    } catch (reason) {
+      await recoverPersistedSession(active.id, reason);
+      setError(errorMessage(reason));
+    } finally { setBusy(false); }
+  }
+
+  async function recoverPersistedSession(sessionId: string, reason: unknown) {
+    if (!(reason instanceof ApiClientError) || ![
+      "acting_session_expired",
+      "upstream_outcome_unknown",
+      "report_outcome_unknown",
+    ].includes(reason.code)) return;
+
+    if (["acting_session_expired", "upstream_outcome_unknown"].includes(reason.code)) {
+      setRestartRequired(true);
+    }
+    try {
+      const { session: persisted } = await getPracticeSession(sessionId);
+      if (!persisted.legacy) {
+        setActive(persisted);
+        setRestartRequired(persisted.currentRun?.recoveryAction === "restart");
+      }
+    } catch {
+      // Preserve the original operation error when recovery refresh is unavailable.
+    }
   }
 
   if (!ready) return <main className="mx-auto max-w-3xl p-8">{error ?? "연습 공간을 준비하는 중이에요."}</main>;
@@ -171,13 +196,12 @@ function TextField({ label, value, onChange }: { label: string; value: string; o
 function SessionView({ session, answer, setAnswer, busy, error, restartRequired, onStart, onRestart, onReply, onRetryAnalysis, onReport }: { session: ActingCoachSessionDto; answer: string; setAnswer: (value: string) => void; busy: boolean; error: string | null; restartRequired: boolean; onStart: () => void; onRestart: () => void; onReply: () => void; onRetryAnalysis: () => void; onReport: () => void }) {
   const currentQuestion = [...session.turns].reverse().find((turn) => turn.role === "ai" && turn.deliveryStatus === "completed");
   const restart = restartRequired || session.currentRun?.recoveryAction === "restart";
-  // types.ts currently intersects TakeDto's legacy status with ActingAnalysisStatus.
-  const analysisStatus = session.take.analysisStatus as ActingAnalysisStatus;
+  const analysisStatus = session.take.analysisStatus;
   return <main className="mx-auto grid max-w-3xl gap-5 p-6 md:p-10">
     <header><p className="text-sm font-semibold text-violet-600">{session.medium} · {session.genre}</p><h1 className="text-2xl font-bold">{session.situation}</h1></header>
     {session.status === "ANALYZING" && <section className="rounded-2xl bg-violet-50 p-6"><h2 className="text-xl font-bold">장면을 분석하고 있어요</h2><p className="mt-2">영상 속 행동과 장면 정보를 안전하게 정리하는 중이에요.</p>{analysisStatus === "failed" && session.take.analysisRetryable && <button onClick={onRetryAnalysis}>분석 다시 시도</button>}{analysisStatus === "outcome_unknown" && <p className="mt-3 text-red-700">처리 결과를 확인할 수 없어 이 세션은 안전하게 재시도할 수 없어요. 새 연습을 시작해 주세요.</p>}</section>}
     {session.status === "INTERVIEW" && <section className="grid gap-4">
-      {!session.currentRun && <button className="rounded-xl bg-violet-600 p-3 text-white" disabled={busy} onClick={onStart}>인터뷰 시작</button>}
+      {!session.currentRun && !restart && <button className="rounded-xl bg-violet-600 p-3 text-white" disabled={busy} onClick={onStart}>인터뷰 시작</button>}
       {restart && <div className="rounded-2xl bg-amber-50 p-5"><p>이전 인터뷰 연결이 끝났어요. 영상 분석은 유지한 채 새 인터뷰를 시작할 수 있어요.</p><button className="mt-3 rounded-xl bg-amber-700 px-4 py-2 text-white" disabled={busy} onClick={onRestart}>인터뷰 다시 시작</button></div>}
       {currentQuestion && !restart && <><article className="rounded-2xl bg-violet-50 p-5"><p className="text-sm font-semibold">현재 질문</p><p className="mt-2 text-lg">{currentQuestion.text}</p></article><div role="log" aria-live="polite" aria-label="AI 코치와 나눈 대화" className="max-h-72 space-y-2 overflow-auto">{session.turns.map((turn) => <p key={turn.id} className={turn.role === "actor" ? "text-right" : "text-left"}><span className="inline-block rounded-xl bg-gray-100 px-4 py-2">{turn.text}</span></p>)}</div><textarea aria-label="답변" className="rounded-xl border p-3" value={answer} disabled={busy} onChange={(e) => setAnswer(e.target.value)} /><button className="rounded-xl bg-violet-600 p-3 text-white disabled:opacity-50" disabled={busy || !answer.trim()} onClick={onReply}>답변 보내기</button></>}
     </section>}
@@ -187,9 +211,21 @@ function SessionView({ session, answer, setAnswer, busy, error, restartRequired,
   </main>;
 }
 
-function Report({ report }: { report?: Record<string, unknown> | null }) {
+function Report({ report }: { report?: ActingReportDto | null }) {
   if (!report) return <section><h2 className="text-2xl font-bold">연기 리포트</h2><p>저장된 리포트를 불러오는 중이에요.</p></section>;
-  return <section className="grid gap-4"><h2 className="text-2xl font-bold">연기 리포트</h2>{Object.entries(report).filter(([, value]) => value != null && typeof value !== "object").map(([key, value]) => <article key={key} className="rounded-2xl border p-5"><h3 className="font-semibold">{key}</h3><p className="mt-2 whitespace-pre-wrap">{String(value)}</p></article>)}</section>;
+  return <section className="grid gap-4">
+    <header><p className="text-sm font-semibold text-violet-600">{report.reportCount}번째 리포트</p><h2 className="text-2xl font-bold">{report.headline}</h2></header>
+    <article className="rounded-2xl border p-5"><h3 className="font-semibold">가장 크게 보완할 지점</h3><p className="mt-2 text-sm text-gray-600">{report.biggestProblem.start}–{report.biggestProblem.end} · {report.biggestProblem.dimension}</p><p className="mt-2 whitespace-pre-wrap">{report.biggestProblem.description}</p></article>
+    <ReportSection title="장면에서 찾은 근거" body={report.evidence} />
+    <ReportSection title="스스로 발견한 점" body={report.selfDiscovery} />
+    <ReportSection title="잘하고 있는 점" body={report.encouragement} />
+    <ReportSection title="다음 연습" body={report.nextStep} />
+    {report.comparison?.trim() ? <ReportSection title="이전 연습과 비교" body={report.comparison} /> : null}
+  </section>;
+}
+
+function ReportSection({ title, body }: { title: string; body: string }) {
+  return <article className="rounded-2xl border p-5"><h3 className="font-semibold">{title}</h3><p className="mt-2 whitespace-pre-wrap">{body}</p></article>;
 }
 
 function History({ sessions, onOpen }: { sessions: PracticeSession[]; onOpen: (session: PracticeSession) => void }) {
