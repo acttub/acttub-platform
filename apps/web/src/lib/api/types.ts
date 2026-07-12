@@ -9,6 +9,97 @@ export type SessionStatus =
 
 export type AnalysisStatus = "pending" | "completed" | "failed";
 
+export type ActingAnalysisStatus = AnalysisStatus | "outcome_unknown";
+export type ActingSessionStatus = "ANALYZING" | "INTERVIEW" | "REPORT" | "END";
+export type LegacySessionStatus =
+  | "LEGACY_OBSERVATIONS_PENDING"
+  | "LEGACY_QUESTIONING"
+  | "LEGACY_COMPLETED";
+export type SceneMedium = "연극" | "영화" | "TV 드라마" | "웹드라마" | "뮤지컬" | "기타";
+export type SceneGenre = "드라마" | "코미디" | "로맨스" | "스릴러" | "액션" | "판타지" | "기타";
+export type CoachAction = "probe_intent" | "dig_cause" | "deflect" | "close";
+export type CoachCloseReason = string | "session_expired";
+
+export type SceneSummaryDto = {
+  scene: Record<string, unknown>;
+  characters: unknown[];
+  beats: unknown[];
+  [key: string]: unknown;
+};
+
+export type PracticeTurnDto = {
+  id: string;
+  runId: string;
+  ordinal: number;
+  role: "ai" | "actor";
+  text: string;
+  deliveryStatus: "pending" | "completed" | "failed" | "outcome_unknown";
+  deliveryErrorCode?: string;
+  action?: CoachAction;
+  focusTimestamp?: string;
+  createdAt: string;
+};
+
+export type ActingReportDto = Record<string, unknown> & {
+  id: string;
+  sessionId: string;
+  createdAt: string;
+};
+
+export type ActingCoachSessionDto = {
+  id: string;
+  userId: string;
+  pipelineVersion: "acting-api-v1";
+  legacy: false;
+  status: ActingSessionStatus;
+  medium: SceneMedium;
+  genre: SceneGenre;
+  situation: string;
+  characterContext: string;
+  subtext: string;
+  hiddenAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  take: TakeDto & { analysisStatus: ActingAnalysisStatus; analysisRetryable: boolean };
+  sceneSummary: SceneSummaryDto | null;
+  currentRun: {
+    runId: string;
+    status: "starting" | "live" | "completed" | "start_failed" | "expired" | "outcome_unknown";
+    closeReason: CoachCloseReason | null;
+    failureCode: string | null;
+    failureRetryable: boolean;
+    recoveryAction: "start" | "restart" | null;
+  } | null;
+  turns: PracticeTurnDto[];
+  report?: ActingReportDto | null;
+};
+
+export type LegacyCoachSessionDto = {
+  id: string;
+  userId: string;
+  pipelineVersion: "legacy-gemini-v1";
+  legacy: true;
+  status: LegacySessionStatus;
+  medium: Medium;
+  genre: string;
+  situation: string;
+  characterContext: string;
+  subtext: string;
+  hiddenAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  take: TakeDto;
+  sceneSummary: null;
+  currentRun: null;
+  turns: [];
+  report: null;
+  legacyResult?: {
+    actorAuthoredSentence: string;
+    questionToRevisit: string | null;
+    createdAt: string;
+  } | null;
+};
+
 export type ConfirmationState = "unasked" | "accepted" | "rejected" | "unsure";
 
 export type TurnSpeaker = "actor" | "coach";
@@ -114,8 +205,26 @@ export type CreateUploadIntentResponse = {
 
 export type FinalizeUploadIntentRequest = {
   storagePath: string;
-  durationMs?: number;
+  durationMs: number;
 };
+
+export type CreateActingSessionRequest = {
+  requestId: string;
+  uploadIntentId: string;
+  medium: SceneMedium;
+  genre: SceneGenre;
+  situation: string;
+  characterContext: string;
+  subtext: string;
+};
+
+export type RetryAnalysisRequest = { operation: "retry"; requestId: string };
+export type ActingTurnRequest =
+  | { operation: "start"; requestId: string }
+  | { operation: "reply"; runId: string; requestId: string; text: string }
+  | { operation: "retry_reply"; runId: string; requestId: string; actorTurnId: string }
+  | { operation: "restart"; requestId: string };
+export type CreateReportRequest = { requestId: string };
 
 export type FinalizeUploadIntentResponse = {
   videoUrl: string;

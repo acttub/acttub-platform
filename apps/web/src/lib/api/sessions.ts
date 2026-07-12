@@ -1,4 +1,9 @@
 import type {
+  ActingCoachSessionDto,
+  ActingReportDto,
+  ActingTurnRequest,
+  CreateActingSessionRequest,
+  CreateReportRequest,
   CreateSessionRequest,
   CreateSessionResponse,
   CreateSummaryRequest,
@@ -10,6 +15,7 @@ import type {
   FinalizeUploadIntentRequest,
   FinalizeUploadIntentResponse,
   ListSessionsResponse,
+  RetryAnalysisRequest,
   SaveValidationMetricsRequest,
   SaveValidationMetricsResponse,
   SignedVideoUrlResponse,
@@ -18,6 +24,18 @@ import type {
   UpdateSessionVisibilityRequest,
   UpdateSessionVisibilityResponse,
 } from "./types";
+
+export class ApiClientError extends Error {
+  constructor(
+    readonly status: number,
+    readonly code: string,
+    message: string,
+    readonly details?: Record<string, unknown>,
+  ) {
+    super(message);
+    this.name = "ApiClientError";
+  }
+}
 
 async function parseJsonResponse<T>(response: Response): Promise<T> {
   const payload = (await response.json()) as unknown;
@@ -33,10 +51,44 @@ async function parseJsonResponse<T>(response: Response): Promise<T> {
       typeof payload.error.message === "string"
         ? payload.error.message
         : "요청을 처리하지 못했어요.";
-    throw new Error(message);
+    const error = typeof payload === "object" && payload !== null && "error" in payload
+      ? payload.error
+      : null;
+    const code = typeof error === "object" && error !== null && "code" in error && typeof error.code === "string"
+      ? error.code
+      : "request_failed";
+    const details = typeof error === "object" && error !== null && "details" in error && typeof error.details === "object" && error.details !== null
+      ? error.details as Record<string, unknown>
+      : undefined;
+    throw new ApiClientError(response.status, code, message, details);
   }
 
   return payload as T;
+}
+
+export async function createActingPracticeSession(body: CreateActingSessionRequest): Promise<ActingCoachSessionDto> {
+  const response = await fetch("/api/v1/practice-sessions", { method: "POST", headers: jsonHeaders, body: JSON.stringify(body) });
+  return parseJsonResponse<ActingCoachSessionDto>(response);
+}
+
+export async function retryPracticeAnalysis(sessionId: string, body: RetryAnalysisRequest): Promise<ActingCoachSessionDto> {
+  const response = await fetch(`/api/v1/practice-sessions/${sessionId}/analysis`, { method: "POST", headers: jsonHeaders, body: JSON.stringify(body) });
+  return parseJsonResponse<ActingCoachSessionDto>(response);
+}
+
+export async function createActingPracticeTurn(sessionId: string, body: ActingTurnRequest): Promise<ActingCoachSessionDto> {
+  const response = await fetch(`/api/v1/practice-sessions/${sessionId}/turns`, { method: "POST", headers: jsonHeaders, body: JSON.stringify(body) });
+  return parseJsonResponse<ActingCoachSessionDto>(response);
+}
+
+export async function createActingReport(sessionId: string, body: CreateReportRequest): Promise<ActingReportDto> {
+  const response = await fetch(`/api/v1/practice-sessions/${sessionId}/report`, { method: "POST", headers: jsonHeaders, body: JSON.stringify(body) });
+  return parseJsonResponse<ActingReportDto>(response);
+}
+
+export async function getActingReport(sessionId: string): Promise<ActingReportDto> {
+  const response = await fetch(`/api/v1/practice-sessions/${sessionId}/report`, { headers: { Accept: "application/json" } });
+  return parseJsonResponse<ActingReportDto>(response);
 }
 
 const jsonHeaders = {
