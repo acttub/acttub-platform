@@ -130,3 +130,36 @@ def test_summarize_timeout_maps_504(monkeypatch):
         files={"video": ("t.mp4", b"bytes", "video/mp4")},
     )
     assert r.status_code == 504
+
+
+def test_summarize_compresses_before_gemini(monkeypatch, tmp_path):
+    from acting_summary import compress as compress_mod
+
+    compressed = tmp_path / "small.gemini.mp4"
+    seen = {}
+
+    def fake_compress(video_path, **kw):
+        seen["original"] = video_path
+        compressed.write_bytes(b"tiny")
+        return str(compressed)
+
+    def fake_summarize(video_path, subtext, *, client, model, **kw):
+        seen["sent"] = video_path
+        return FAKE
+
+    monkeypatch.setattr(compress_mod, "compress_for_gemini", fake_compress)
+    monkeypatch.setattr(summarizer_mod, "summarize", fake_summarize)
+    c = TestClient(_app())
+    r = c.post(
+        "/summarize",
+        data={"situation": "a", "character": "b", "subtext": "c"},
+        files={"video": ("t.mp4", b"x" * 100, "video/mp4")},
+    )
+    assert r.status_code == 200
+    assert seen["sent"] == str(compressed)
+    assert seen["sent"] != seen["original"]
+    # 원본 임시파일과 압축본 모두 정리돼야 한다
+    import os
+
+    assert not os.path.exists(seen["original"])
+    assert not compressed.exists()
