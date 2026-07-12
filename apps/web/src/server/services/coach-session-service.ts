@@ -738,9 +738,9 @@ export const coachSessionService = {
   async softHideSession(
     sessionId: string,
     userId: string,
-  ): Promise<{ session: CoachSessionDto } | null> {
+  ): Promise<{ session: PublicCoachSessionDto } | null> {
     const session = await requireSupabasePersistence(() =>
-      supabaseCoachSessionRepository.updateVisibility(sessionId, userId, true),
+      supabaseCoachSessionRepository.updatePublicVisibility(sessionId, userId, true),
     );
     return session ? { session } : null;
   },

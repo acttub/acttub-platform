@@ -427,6 +427,7 @@ const mapActingSession = (row: JsonRecord): ActingCoachSessionDto => {
       id: asString(turn.id), runId: asString(turn.run_id), ordinal: asNumber(turn.ordinal),
       role: asString(turn.role) as "ai" | "actor", text: asString(turn.text), action: asNullableString(turn.action) as ActingCoachSessionDto["turns"][number]["action"],
       focusTimestamp: asNullableString(turn.focus_timestamp), deliveryStatus: asString(turn.delivery_status) as "pending" | "completed" | "failed" | "outcome_unknown",
+      deliveryRetryable: asBoolean(turn.delivery_retryable),
       deliveryErrorCode: asNullableString(turn.delivery_error_code),
       createdAt: asString(turn.created_at),
     })),
@@ -1110,5 +1111,27 @@ export const supabaseCoachSessionRepository = {
     assertNoPersistenceError(error, "sessionId", "Could not update Supabase session visibility");
     if (!data) return null;
     return hydrateLegacySession(sessionId, userId, true);
+  },
+
+  async updatePublicVisibility(
+    sessionId: string,
+    userId: string,
+    hidden: boolean,
+  ): Promise<CoachSessionDto | null> {
+    if (!configuredForSupabasePersistence()) return null;
+
+    const admin = requireSupabaseAdminClient();
+    const hiddenAt = hidden ? new Date().toISOString() : null;
+    const { data, error } = await admin
+      .from("practice_sessions")
+      .update({ hidden_at: hiddenAt, updated_at: new Date().toISOString() })
+      .eq("id", sessionId)
+      .eq("user_id", userId)
+      .select("id")
+      .maybeSingle();
+
+    assertNoPersistenceError(error, "sessionId", "Could not update Supabase session visibility");
+    if (!data) return null;
+    return hydrateSession(sessionId, userId, true);
   },
 };
