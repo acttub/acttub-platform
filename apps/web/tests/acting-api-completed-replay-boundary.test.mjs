@@ -18,3 +18,10 @@ test("completion RPCs persist database-built public DTOs", () => {
   assert.match(sql, /response_payload=public\.acttub_public_report_payload\(p_session_id,p_user_id\)/);
   assert.doesNotMatch(sql, /status='completed',response_payload=p_response_payload/);
 });
+
+test("completed session replay includes the normal mapper deliveryRetryable field", () => {
+  assert.match(
+    sql,
+    /'deliveryRetryable',coalesce\(x\.delivery_retryable,false\)/,
+  );
+});
