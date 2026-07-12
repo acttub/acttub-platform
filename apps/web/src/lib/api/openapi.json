@@ -2778,6 +2778,10 @@
           "createdAt": {
             "type": "string",
             "format": "date-time"
+          },
+          "deliveryRetryable": {
+            "type": "boolean",
+            "description": "명시적으로 안전한 동일 답변 재전송 가능 여부"
           }
         }
       },

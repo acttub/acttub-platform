@@ -26,6 +26,7 @@ export type PracticeTurnDto = {
   role: "ai" | "actor";
   text: string;
   deliveryStatus: "pending" | "completed" | "failed" | "outcome_unknown";
+  deliveryRetryable?: boolean;
   deliveryErrorCode?: string | null;
   action?: CoachAction | null;
   focusTimestamp?: string | null;
