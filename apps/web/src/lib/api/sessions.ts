@@ -8,9 +8,9 @@ import type {
   CreateUploadIntentResponse,
   FinalizeUploadIntentRequest,
   FinalizeUploadIntentResponse,
-  LegacyCoachSessionDto,
   RetryAnalysisRequest,
 } from "./types";
+import type { LegacyCoachSessionDto } from "./legacy-types";
 
 export type { SceneGenre, SceneMedium } from "./types";
 

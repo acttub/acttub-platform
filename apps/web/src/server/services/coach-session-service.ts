@@ -1,17 +1,20 @@
 import type {
-  CoachSessionDto,
   ConfirmationState,
   CreateSessionRequest,
   CreateTurnResponse,
-  CreateUploadIntentRequest,
   Medium,
   ObservationDto,
-  PracticeUploadIntentDto,
   SessionStatus,
-  SignedVideoUrlResponse,
-  TakeDto,
   TurnDto,
   ValidationMetricsDto,
+  LegacyInternalCoachSessionDto as CoachSessionDto,
+} from "@/lib/api/legacy-types";
+
+import type {
+  CreateUploadIntentRequest,
+  PracticeUploadIntentDto,
+  SignedVideoUrlResponse,
+  TakeDto,
 } from "@/lib/api/types";
 import { getAppConfig } from "@/lib/config/env";
 import {

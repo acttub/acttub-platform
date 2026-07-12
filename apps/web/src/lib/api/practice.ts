@@ -1,19 +1,15 @@
 import type {
-  CreateSessionRequest,
-  CreateSessionResponse,
-  CreateSummaryRequest,
-  CreateSummaryResponse,
-  CreateTurnRequest,
-  CreateTurnResponse,
   CreateUploadIntentRequest,
   CreateUploadIntentResponse,
   GetSessionResponse,
   ListSessionsResponse,
   SignedVideoUrlResponse,
   UpdateSessionVisibilityResponse,
-  UpdateObservationRequest,
-  UpdateObservationResponse,
 } from "./types";
+import type {
+  CreateSessionRequest, CreateSessionResponse, CreateSummaryRequest, CreateSummaryResponse,
+  CreateTurnRequest, CreateTurnResponse, UpdateObservationRequest, UpdateObservationResponse,
+} from "./legacy-types";
 
 async function parseJsonResponse<T>(response: Response): Promise<T> {
   const payload = (await response.json()) as unknown;
