@@ -1,10 +1,13 @@
 import "server-only";
 
 import type {
-  CoachSessionDto,
   CreateSessionRequest,
+  LegacyInternalCoachSessionDto as CoachSessionDto,
   ObservationDto,
   TurnDto,
+} from "@/lib/api/legacy-types";
+
+import type {
 } from "@/lib/api/types";
 import {
   MAX_DIALOGUE_ANSWER_COUNT,

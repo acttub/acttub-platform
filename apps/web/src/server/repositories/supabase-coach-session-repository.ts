@@ -1,15 +1,23 @@
 import "server-only";
 
 import type {
-  CoachSessionDto,
+  LegacyInternalCoachSessionDto,
+  LegacyCoachSessionDto,
   ConfirmationState,
   Medium,
   ObservationDto,
-  PracticeUploadIntentDto,
   SessionStatus,
-  TakeDto,
   TurnDto,
   ValidationMetricsDto,
+} from "@/lib/api/legacy-types";
+
+import type {
+  ActingCoachSessionDto,
+  ActingReportDto,
+  SceneSummaryDto,
+  CoachSessionDto,
+  PracticeUploadIntentDto,
+  TakeDto,
 } from "@/lib/api/types";
 import { getAppConfig } from "@/lib/config/env";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
@@ -126,7 +134,7 @@ const callActingRpc = async (name: string, input: ActingRpcInput): Promise<Actin
 
 const normalizeClaim = async (
   value: ActingRpcResult,
-  input: { operationId: string; leaseToken: string },
+  input: { operationId: string; leaseToken: string; sessionId?: string; runId?: string; actorTurnId?: string },
 ): Promise<ActingRpcResult> => {
   const kind = value.claimState;
   let replayPayload = value.response_payload;
@@ -148,9 +156,9 @@ const normalizeClaim = async (
     kind,
     operationId: value.operationId ?? input.operationId,
     leaseToken: kind === "claimed" ? input.leaseToken : undefined,
-    sessionId: asNullableString(value.session_id) ?? undefined,
-    runId: asNullableString(value.run_id) ?? undefined,
-    actorTurnId: asNullableString(value.actor_turn_id) ?? undefined,
+    sessionId: asNullableString(value.session_id) ?? input.sessionId,
+    runId: asNullableString(value.run_id) ?? input.runId,
+    actorTurnId: asNullableString(value.actor_turn_id) ?? input.actorTurnId,
     privateActingSessionId: asNullableString(value.acting_session_id) ?? undefined,
     source: value.analysis_source ?? (value.actor_text ? { actorText: value.actor_text } : undefined),
     summaryPayload: value.summary_payload,
@@ -244,12 +252,12 @@ const mapTake = (sessionRow: JsonRecord): TakeDto => {
   };
 };
 
-const mapLegacySession = (row: JsonRecord): CoachSessionDto => ({
+const mapLegacyInternalSession = (row: JsonRecord): LegacyInternalCoachSessionDto => ({
   id: asString(row.id),
   userId: asString(row.user_id),
   status: mapDbStatus(row.status),
   medium: asString(row.medium, "upload_url") as Medium,
-  genre: asString(row.genre),
+  genre: asString(row.genre) as ActingCoachSessionDto["genre"],
   situation: asString(row.situation),
   characterContext: asString(row.character_context),
   subtext: asString(row.subtext),
@@ -267,7 +275,64 @@ const mapLegacySession = (row: JsonRecord): CoachSessionDto => ({
     .sort((a, b) => a.createdAt.localeCompare(b.createdAt)),
 });
 
-const mapActingSession = (row: JsonRecord): CoachSessionDto => {
+const mapLegacySession = (row: JsonRecord): LegacyCoachSessionDto => ({
+  id: asString(row.id),
+  userId: asString(row.user_id),
+  pipelineVersion: "legacy-gemini-v1",
+  legacy: true,
+  status: mapDbStatus(row.status) === "END"
+    ? "LEGACY_COMPLETED"
+    : mapDbStatus(row.status) === "PROBE_LOOP"
+      ? "LEGACY_QUESTIONING"
+      : "LEGACY_OBSERVATIONS_PENDING",
+  medium: asString(row.medium, "upload_url") as Medium,
+  genre: asString(row.genre) as ActingCoachSessionDto["genre"],
+  situation: asString(row.situation),
+  characterContext: asString(row.character_context),
+  subtext: asString(row.subtext),
+  hiddenAt: asNullableString(row.hidden_at),
+  createdAt: asString(row.created_at),
+  updatedAt: asString(row.updated_at),
+  take: mapTake(row),
+  sceneSummary: null, currentRun: null, turns: [], report: null,
+  legacyResult: asArray(row.session_results)[0] ? {
+    actorAuthoredSentence: asString(asArray(row.session_results)[0].actor_authored_sentence),
+    questionToRevisit: asNullableString(asArray(row.session_results)[0].question_to_revisit),
+    createdAt: asString(asArray(row.session_results)[0].created_at),
+  } : null,
+});
+
+const mapActingReport = (row: JsonRecord): ActingReportDto => {
+  const payload = asRecord(row.payload);
+  const biggestProblem = asRecord(payload.biggest_problem);
+  return {
+    headline: asString(payload.headline),
+    biggestProblem: {
+      start: asString(biggestProblem.start),
+      end: asString(biggestProblem.end),
+      dimension: asString(biggestProblem.dimension),
+      description: asString(biggestProblem.description),
+    },
+    evidence: asString(payload.evidence),
+    selfDiscovery: asString(payload.self_discovery),
+    encouragement: asString(payload.encouragement),
+    nextStep: asString(payload.next_step),
+    comparison: asString(payload.comparison),
+    reportCount: asNumber(row.report_count),
+  };
+};
+
+const mapSceneSummary = (row: JsonRecord): SceneSummaryDto => ({
+  ...row,
+  observation: asRecord(row.observation),
+  summary: asString(row.summary),
+  intent_alignment: asString(row.intent_alignment),
+  key_moment: asString(row.key_moment),
+  key_dimension: asString(row.key_dimension),
+  anomalies: asArray(row.anomalies),
+});
+
+const mapActingSession = (row: JsonRecord): ActingCoachSessionDto => {
   const takeRow = asArray(row.practice_takes)[0] ?? {};
   const runRows = asArray(row.practice_interview_runs);
   const currentRun = runRows.find((run) => asString(run.id) === asString(row.interview_run_id)) ?? null;
@@ -285,14 +350,14 @@ const mapActingSession = (row: JsonRecord): CoachSessionDto => {
         ? asString(currentRun.start_mode) === "restart" ? "restart" : "start"
         : null;
 
-  const session = {
+  const session: ActingCoachSessionDto = {
     id: asString(row.id),
     userId: asString(row.user_id),
     pipelineVersion: "acting-api-v1",
     legacy: false,
-    status: asString(row.status).toUpperCase(),
-    medium: asString(row.medium),
-    genre: asString(row.genre),
+    status: asString(row.status).toUpperCase() as ActingCoachSessionDto["status"],
+    medium: asString(row.medium) as ActingCoachSessionDto["medium"],
+    genre: asString(row.genre) as ActingCoachSessionDto["genre"],
     situation: asString(row.situation),
     characterContext: asString(row.character_context),
     subtext: asString(row.subtext),
@@ -301,37 +366,32 @@ const mapActingSession = (row: JsonRecord): CoachSessionDto => {
     updatedAt: asString(row.updated_at),
     take: {
       id: asString(takeRow.id),
-      sessionId: asString(takeRow.session_id),
-      videoUrl: `supabase://${asString(takeRow.storage_bucket)}/${asString(takeRow.storage_path)}`,
       durationMs: asNullableNumber(takeRow.duration_ms),
-      analysisStatus: asString(takeRow.analysis_status),
+      analysisStatus: asString(takeRow.analysis_status) as ActingCoachSessionDto["take"]["analysisStatus"],
       analysisError: asNullableString(takeRow.analysis_error),
-      analysisRetryable: takeRow.analysis_retryable === null ? null : asBoolean(takeRow.analysis_retryable),
+      analysisRetryable: asBoolean(takeRow.analysis_retryable),
       createdAt: asString(takeRow.created_at),
     },
-    sceneSummary: sceneSummary ? asRecord(sceneSummary.payload) : null,
+    sceneSummary: sceneSummary ? mapSceneSummary(asRecord(sceneSummary.payload)) : null,
     currentRun: currentRun ? {
       runId: asString(currentRun.id),
-      status: asString(currentRun.status),
+      status: asString(currentRun.status) as NonNullable<ActingCoachSessionDto["currentRun"]>["status"],
       closeReason: asNullableString(currentRun.close_reason),
       failureCode: asNullableString(currentRun.failure_code),
-      failureRetryable: currentRun.failure_retryable === null ? null : asBoolean(currentRun.failure_retryable),
+      failureRetryable: asBoolean(currentRun.failure_retryable),
       recoveryAction,
     } : null,
     turns: turns.map((turn) => ({
       id: asString(turn.id), runId: asString(turn.run_id), ordinal: asNumber(turn.ordinal),
-      role: asString(turn.role), text: asString(turn.text), action: asNullableString(turn.action),
-      focusTimestamp: asNullableString(turn.focus_timestamp), deliveryStatus: asString(turn.delivery_status),
+      role: asString(turn.role) as "ai" | "actor", text: asString(turn.text), action: asNullableString(turn.action) as ActingCoachSessionDto["turns"][number]["action"],
+      focusTimestamp: asNullableString(turn.focus_timestamp), deliveryStatus: asString(turn.delivery_status) as "pending" | "completed" | "failed" | "outcome_unknown",
       deliveryErrorCode: asNullableString(turn.delivery_error_code),
-      deliveryRetryable: turn.delivery_retryable === null ? null : asBoolean(turn.delivery_retryable),
       createdAt: asString(turn.created_at),
     })),
-    report: report ? asRecord(report.payload) : null,
+    report: report ? mapActingReport(report) : null,
   };
 
-  // Remove this compatibility cast when the shared CoachSessionDto union lands.
-  // The runtime object deliberately contains only the acting discriminator surface.
-  return session as unknown as CoachSessionDto;
+  return session;
 };
 
 const mapSession = (row: JsonRecord): CoachSessionDto =>
@@ -379,6 +439,7 @@ const mapUploadIntent = (row: JsonRecord): StoredUploadIntentRecord => {
 
   return {
     ...uploadIntent,
+    finalizedDurationMs: asNullableNumber(row.duration_ms),
     intent: uploadIntent,
   };
 };
@@ -396,6 +457,18 @@ async function hydrateSession(sessionId: string, userId: string, includeHidden =
   const { data, error } = await query.maybeSingle();
   assertNoPersistenceError(error, "sessionId", "Could not read Supabase practice session");
   return data ? mapSession(asRecord(data)) : null;
+}
+
+async function hydrateLegacySession(sessionId: string, userId: string, includeHidden = false): Promise<LegacyInternalCoachSessionDto | null> {
+  const admin = requireSupabaseAdminClient();
+  let query = admin.from("practice_sessions").select(sessionSelect).eq("id", sessionId).eq("user_id", userId);
+  if (!includeHidden) query = query.is("hidden_at", null);
+  const { data, error } = await query.maybeSingle();
+  assertNoPersistenceError(error, "sessionId", "Could not read legacy practice session");
+  if (!data) return null;
+  const row = asRecord(data);
+  if (asString(row.pipeline_version, "legacy-gemini-v1") === "acting-api-v1") return null;
+  return mapLegacyInternalSession(row);
 }
 
 export const supabaseCoachSessionRepository = {
@@ -662,11 +735,11 @@ export const supabaseCoachSessionRepository = {
 
   async createSession(input: {
     uploadIntent: PracticeUploadIntentDto;
-    session: CoachSessionDto;
+    session: LegacyInternalCoachSessionDto;
     take: TakeDto;
     observation: ObservationDto;
     firstQuestion: TurnDto;
-  }): Promise<CoachSessionDto> {
+  }): Promise<LegacyInternalCoachSessionDto> {
     if (!configuredForSupabasePersistence()) return input.session;
 
     const admin = requireSupabaseAdminClient();
@@ -701,7 +774,7 @@ export const supabaseCoachSessionRepository = {
     );
 
     const createdSessionId = asString(asRecord(Array.isArray(data) ? data[0] : data).session_id, session.id);
-    const hydrated = await hydrateSession(createdSessionId, uploadIntent.userId);
+    const hydrated = await hydrateLegacySession(createdSessionId, uploadIntent.userId);
     if (!hydrated) {
       throw new SupabaseCoachSessionPersistenceError(
         "sessionId",
@@ -712,7 +785,7 @@ export const supabaseCoachSessionRepository = {
     return hydrated;
   },
 
-  async listVisible(userId: string): Promise<CoachSessionDto[]> {
+  async listVisible(userId: string): Promise<LegacyInternalCoachSessionDto[]> {
     if (!configuredForSupabasePersistence()) return [];
 
     const admin = requireSupabaseAdminClient();
@@ -724,17 +797,19 @@ export const supabaseCoachSessionRepository = {
       .order("created_at", { ascending: false });
 
     assertNoPersistenceError(error, "userId", "Could not list Supabase practice sessions");
-    return asArray(data).map(mapSession);
+    return asArray(data)
+      .filter((row) => asString(row.pipeline_version, "legacy-gemini-v1") !== "acting-api-v1")
+      .map(mapLegacyInternalSession);
   },
 
-  async findById(sessionId: string, userId: string): Promise<CoachSessionDto | null> {
+  async findById(sessionId: string, userId: string): Promise<LegacyInternalCoachSessionDto | null> {
     if (!configuredForSupabasePersistence()) return null;
-    return hydrateSession(sessionId, userId);
+    return hydrateLegacySession(sessionId, userId);
   },
 
-  async findByIdIncludingHidden(sessionId: string, userId: string): Promise<CoachSessionDto | null> {
+  async findByIdIncludingHidden(sessionId: string, userId: string): Promise<LegacyInternalCoachSessionDto | null> {
     if (!configuredForSupabasePersistence()) return null;
-    return hydrateSession(sessionId, userId, true);
+    return hydrateLegacySession(sessionId, userId, true);
   },
 
   async getOwnedSession(userId: string, sessionId: string): Promise<CoachSessionDto | null> {
@@ -743,20 +818,25 @@ export const supabaseCoachSessionRepository = {
   },
 
   async listOwnedSessions(userId: string): Promise<CoachSessionDto[]> {
-    return this.listVisible(userId);
+    if (!configuredForSupabasePersistence()) return [];
+    const admin = requireSupabaseAdminClient();
+    const { data, error } = await admin.from("practice_sessions").select(sessionSelect)
+      .eq("user_id", userId).is("hidden_at", null).order("created_at", { ascending: false });
+    assertNoPersistenceError(error, "userId", "Could not list owned practice sessions");
+    return asArray(data).map(mapSession);
   },
 
-  async getOwnedReport(userId: string, sessionId: string): Promise<JsonRecord | null> {
+  async getOwnedReport(userId: string, sessionId: string): Promise<ActingReportDto | null> {
     if (!configuredForSupabasePersistence()) return null;
     const admin = requireSupabaseAdminClient();
     const { data, error } = await admin
       .from("practice_reports")
-      .select("payload")
+      .select("payload,report_count")
       .eq("session_id", sessionId)
       .eq("user_id", userId)
       .maybeSingle();
     assertNoPersistenceError(error, "sessionId", "Could not read acting report");
-    return data ? asRecord(asRecord(data).payload) : null;
+    return data ? mapActingReport(asRecord(data)) : null;
   },
 
   async updateObservationState(
@@ -764,7 +844,7 @@ export const supabaseCoachSessionRepository = {
     userId: string,
     observationId: string,
     confirmationState: ConfirmationState,
-  ): Promise<CoachSessionDto | null> {
+  ): Promise<LegacyInternalCoachSessionDto | null> {
     if (!configuredForSupabasePersistence()) return null;
 
     const admin = requireSupabaseAdminClient();
@@ -802,14 +882,14 @@ export const supabaseCoachSessionRepository = {
       if (!sessionUpdate.data) return null;
     }
 
-    return hydrateSession(sessionId, userId);
+    return hydrateLegacySession(sessionId, userId);
   },
 
   async addCoachTurn(
     sessionId: string,
     userId: string,
     coachTurn: TurnDto,
-  ): Promise<CoachSessionDto | null> {
+  ): Promise<LegacyInternalCoachSessionDto | null> {
     if (!configuredForSupabasePersistence()) return null;
 
     const admin = requireSupabaseAdminClient();
@@ -843,7 +923,7 @@ export const supabaseCoachSessionRepository = {
     assertNoPersistenceError(sessionUpdate.error, "sessionId", "Could not update Supabase session status");
     if (!sessionUpdate.data) return null;
 
-    return hydrateSession(sessionId, userId);
+    return hydrateLegacySession(sessionId, userId);
   },
 
   async addTurnPair(
@@ -853,7 +933,7 @@ export const supabaseCoachSessionRepository = {
     coachTurn: TurnDto,
     expectedActorAnswerCount: number,
   ): Promise<{
-    session: CoachSessionDto;
+    session: LegacyInternalCoachSessionDto;
     actorAnswerCount: number;
   } | null> {
     if (!configuredForSupabasePersistence()) return null;
@@ -888,7 +968,7 @@ export const supabaseCoachSessionRepository = {
       );
     }
 
-    const session = await hydrateSession(updatedSessionId, userId);
+    const session = await hydrateLegacySession(updatedSessionId, userId);
     if (!session) {
       throw new SupabaseCoachSessionPersistenceError(
         "sessionId",
@@ -903,7 +983,7 @@ export const supabaseCoachSessionRepository = {
     sessionId: string,
     userId: string,
     validationMetrics: ValidationMetricsDto,
-  ): Promise<CoachSessionDto | null> {
+  ): Promise<LegacyInternalCoachSessionDto | null> {
     if (!configuredForSupabasePersistence()) return null;
 
     const admin = requireSupabaseAdminClient();
@@ -919,7 +999,7 @@ export const supabaseCoachSessionRepository = {
       .single();
 
     assertNoPersistenceError(error, "validationMetrics", "Could not save Supabase validation metrics");
-    return hydrateSession(sessionId, userId);
+    return hydrateLegacySession(sessionId, userId);
   },
 
   async createSummary(
@@ -928,7 +1008,7 @@ export const supabaseCoachSessionRepository = {
     finalActorSentence: string,
     validationMetrics: ValidationMetricsDto,
     questionToRevisit: string,
-  ): Promise<CoachSessionDto | null> {
+  ): Promise<LegacyInternalCoachSessionDto | null> {
     if (!configuredForSupabasePersistence()) return null;
 
     const admin = requireSupabaseAdminClient();
@@ -942,14 +1022,14 @@ export const supabaseCoachSessionRepository = {
 
     assertNoPersistenceError(error, "finalActorSentence", "Could not complete Supabase practice session");
     const updatedSessionId = asString(asRecord(Array.isArray(data) ? data[0] : data).session_id, sessionId);
-    return hydrateSession(updatedSessionId, userId);
+    return hydrateLegacySession(updatedSessionId, userId);
   },
 
   async updateVisibility(
     sessionId: string,
     userId: string,
     hidden: boolean,
-  ): Promise<CoachSessionDto | null> {
+  ): Promise<LegacyInternalCoachSessionDto | null> {
     if (!configuredForSupabasePersistence()) return null;
 
     const admin = requireSupabaseAdminClient();
@@ -964,6 +1044,6 @@ export const supabaseCoachSessionRepository = {
 
     assertNoPersistenceError(error, "sessionId", "Could not update Supabase session visibility");
     if (!data) return null;
-    return hydrateSession(sessionId, userId, true);
+    return hydrateLegacySession(sessionId, userId, true);
   },
 };
