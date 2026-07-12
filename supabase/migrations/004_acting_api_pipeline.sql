@@ -163,17 +163,22 @@ create or replace function public.acttub_error_replay_payload(
       when p_safe_error_code in ('video_too_large','acting_video_too_large') then 413
       when p_safe_error_code in ('acting_api_auth_failed','acting_api_rejected') then 502
       else 409 end,
-    'error',jsonb_strip_nulls(jsonb_build_object(
+    'error',jsonb_build_object(
       'code',case when p_failure_class='ambiguous' then
         case p_phase when 'analysis' then 'analysis_outcome_unknown' when 'report' then 'report_outcome_unknown' else 'upstream_outcome_unknown' end
-        else p_safe_error_code end,
-      'details',jsonb_strip_nulls(jsonb_build_object(
-        'causeCode',case when p_failure_class='ambiguous' then p_safe_error_code end,
-        'retryAllowed',case when p_failure_class='ambiguous' then false else p_safe_error_code in ('acting_api_auth_failed','acting_api_rate_limited') end,
+        else p_safe_error_code end
+    ) || case
+      when p_failure_class='ambiguous' then jsonb_build_object('details',jsonb_strip_nulls(jsonb_build_object(
+        'causeCode',p_safe_error_code,
+        'retryAllowed',false,
         'action',case when p_phase='analysis' then 'create_new_session' when p_phase='report' then 'contact_support' else 'restart_interview' end,
-        'runId',p_run_id
-      ))
-    ))
+        'runId',case when p_phase='coach' then p_run_id end
+      )))
+      when p_safe_error_code='acting_session_expired' then jsonb_build_object('details',jsonb_strip_nulls(jsonb_build_object(
+        'action','restart_interview','runId',p_run_id
+      )))
+      else '{}'::jsonb
+    end
   )
 $$;
 
@@ -372,7 +377,7 @@ begin
  select jsonb_build_object('user_id',s.user_id,'session',jsonb_build_object(
    'session_id',r.acting_session_id,'summary',ss.payload,
    'subtext',jsonb_build_object('situation','[매체: '||s.medium||'] [장르: '||s.genre||'] '||s.situation,'character',s.character_context,'subtext',s.subtext),
-   'turns',coalesce((select jsonb_agg(jsonb_build_object('role',t.role,'text',t.text,'ordinal',t.ordinal) order by t.ordinal) from public.practice_turns t where t.session_id=s.id and t.run_id=r.id and t.user_id=s.user_id and t.delivery_status='completed'),'[]'::jsonb),
+   'turns',coalesce((select jsonb_agg(jsonb_build_object('role',t.role,'text',t.text) order by t.ordinal) from public.practice_turns t where t.session_id=s.id and t.run_id=r.id and t.user_id=s.user_id and t.delivery_status='completed'),'[]'::jsonb),
    'question_count',(select count(*) from public.practice_turns t where t.session_id=s.id and t.run_id=r.id and t.user_id=s.user_id and t.role='ai' and t.delivery_status='completed'),
    'status','closed','close_reason',coalesce(r.close_reason,''))) into payload
  from public.practice_sessions s join public.scene_summaries ss on (ss.session_id,ss.user_id)=(s.id,s.user_id)
