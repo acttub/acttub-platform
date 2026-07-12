@@ -179,6 +179,11 @@ begin
     existing.response_payload;
 end $$;
 
+create or replace function public.acttub_preflight_operation(p_session_id uuid,p_user_id uuid,p_report boolean) returns void language plpgsql security definer set search_path=public as $$
+begin
+ if exists(select 1 from public.practice_upstream_operations where status='in_flight' and lease_expires_at>clock_timestamp() and (session_id=p_session_id or (p_report and user_id=p_user_id and kind='report'))) then raise exception 'operation_in_progress'; end if;
+end $$;
+
 alter table public.scene_summaries enable row level security;
 alter table public.practice_interview_runs enable row level security;
 alter table public.practice_turns enable row level security;
