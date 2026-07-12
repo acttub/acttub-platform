@@ -169,6 +169,9 @@ export function PracticeFlow({ entry = "new" }: { entry?: Entry }) {
       "acting_session_expired",
       "upstream_outcome_unknown",
       "report_outcome_unknown",
+      "acting_api_auth_failed",
+      "acting_api_rate_limited",
+      "acting_api_rejected",
     ].includes(reason.code)) return;
 
     if (["acting_session_expired", "upstream_outcome_unknown"].includes(reason.code)) {
@@ -215,6 +218,7 @@ function SessionView({ session, answer, setAnswer, busy, error, restartRequired,
   const retryableActorTurn = [...session.turns].reverse().find((turn) => turn.role === "actor" && turn.deliveryStatus === "failed" && turn.deliveryRetryable);
   const restart = restartRequired || session.currentRun?.recoveryAction === "restart";
   const startRetry = session.currentRun?.status === "start_failed" && session.currentRun.failureRetryable && session.currentRun.recoveryAction === "start";
+  const startTerminal = session.currentRun?.status === "start_failed" && !session.currentRun.failureRetryable;
   const analysisStatus = session.take.analysisStatus;
   return <main className="mx-auto grid max-w-3xl gap-5 p-6 md:p-10">
     <header><p className="text-sm font-semibold text-violet-600">{session.medium} · {session.genre}</p><h1 className="text-2xl font-bold">{session.situation}</h1></header>
@@ -222,6 +226,7 @@ function SessionView({ session, answer, setAnswer, busy, error, restartRequired,
     {session.status === "INTERVIEW" && <section className="grid gap-4">
       {!session.currentRun && !restart && <button className="rounded-xl bg-violet-600 p-3 text-white" disabled={busy} onClick={onStart}>인터뷰 시작</button>}
       {startRetry && !restart && <div className="rounded-2xl bg-amber-50 p-5"><p>인터뷰 시작 요청이 완료되지 않았어요. 같은 장면으로 다시 시작할 수 있어요.</p><button className="mt-3 rounded-xl bg-amber-700 px-4 py-2 text-white" disabled={busy} onClick={onStart}>인터뷰 시작 다시 시도</button></div>}
+      {startTerminal && !restart && <div className="rounded-2xl bg-red-50 p-5 text-red-800"><p>이 인터뷰는 안전하게 다시 시작할 수 없어요. 새 연습 세션을 시작해 주세요.</p></div>}
       {restart && <div className="rounded-2xl bg-amber-50 p-5"><p>이전 인터뷰 연결이 끝났어요. 영상 분석은 유지한 채 새 인터뷰를 시작할 수 있어요.</p><button className="mt-3 rounded-xl bg-amber-700 px-4 py-2 text-white" disabled={busy} onClick={onRestart}>인터뷰 다시 시작</button></div>}
       {currentQuestion && !restart && !startRetry && <><article className="rounded-2xl bg-violet-50 p-5"><p className="text-sm font-semibold">현재 질문</p><p className="mt-2 text-lg">{currentQuestion.text}</p></article><div role="log" aria-live="polite" aria-label="AI 코치와 나눈 대화" className="max-h-72 space-y-2 overflow-auto">{session.turns.map((turn) => <p key={turn.id} className={turn.role === "actor" ? "text-right" : "text-left"}><span className="inline-block rounded-xl bg-gray-100 px-4 py-2">{turn.text}</span></p>)}</div>{retryableActorTurn ? <button className="rounded-xl border border-amber-700 p-3 text-amber-800 disabled:opacity-50" disabled={busy} onClick={() => onRetryReply(retryableActorTurn.id)}>마지막 답변 다시 보내기</button> : <><textarea aria-label="답변" className="rounded-xl border p-3" value={answer} disabled={busy} onChange={(e) => setAnswer(e.target.value)} /><button className="rounded-xl bg-violet-600 p-3 text-white disabled:opacity-50" disabled={busy || !answer.trim()} onClick={onReply}>답변 보내기</button></>}</>}
     </section>}
