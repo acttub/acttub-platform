@@ -253,19 +253,14 @@ create or replace function public.acttub_create_acting_session(
   p_situation text,p_character_context text,p_subtext text,p_lease_seconds integer,p_created_at timestamptz default now()
 ) returns table(operation_id uuid,claim_state text,session_id uuid,analysis_source jsonb)
 language plpgsql security definer set search_path=public as $$
-declare v public.upload_intents%rowtype; existing public.practice_upstream_operations%rowtype;
+declare v public.upload_intents%rowtype; replay record;
 begin
   if p_lease_seconds<>780 then raise exception 'invalid_lease'; end if;
   if p_request_fingerprint !~ '^[0-9a-f]{64}$' then raise exception 'invalid_fingerprint'; end if;
-  select * into existing from public.practice_upstream_operations where user_id=p_user_id and request_id=p_request_id;
-  if found then
-    if existing.request_fingerprint<>p_request_fingerprint then raise exception 'request_id_conflict'; end if;
-    if existing.status='in_flight' and existing.lease_expires_at<=clock_timestamp() then
-      update public.practice_upstream_operations set status='outcome_unknown',safe_error_code='acting_api_timeout',finished_at=clock_timestamp() where id=existing.id and status='in_flight';
-      update public.practice_takes set analysis_status='outcome_unknown',analysis_retryable=false,analysis_error='acting_api_timeout' where session_id=existing.session_id and user_id=existing.user_id;
-      existing.status:='outcome_unknown';
-    end if;
-    return query select existing.id,case existing.status when 'completed' then 'replay_completed' when 'failed' then 'replay_failed' when 'outcome_unknown' then 'outcome_unknown' else 'in_progress' end,existing.session_id,existing.response_payload; return;
+  select * into replay from public.acttub_operation_claim_state(p_user_id,p_request_id,p_request_fingerprint);
+  if replay.found then
+    return query select replay.operation_id,replay.claim_state,replay.session_id,replay.response_payload;
+    return;
   end if;
   perform public.acttub_preflight_operation(p_session_id,p_user_id,false);
   select * into v from public.upload_intents where id=p_upload_intent_id and user_id=p_user_id and status='finalized' and expires_at>clock_timestamp() for update;
