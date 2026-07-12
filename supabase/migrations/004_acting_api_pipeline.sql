@@ -293,6 +293,307 @@ create or replace function public.acttub_complete_report(p_session_id uuid,p_use
 create or replace function public.acttub_fail_report(p_session_id uuid,p_user_id uuid,p_operation_id uuid,p_lease_token uuid,p_failure_class text,p_safe_error_code text) returns void language plpgsql security definer set search_path=public as $$ begin if p_failure_class not in ('definitive','ambiguous') then raise exception 'invalid_failure_class'; end if; update public.practice_upstream_operations set status=case when p_failure_class='ambiguous' then 'outcome_unknown' else 'failed' end,safe_error_code=p_safe_error_code,response_payload=jsonb_build_object('error',jsonb_build_object('code',p_safe_error_code)),finished_at=clock_timestamp() where id=p_operation_id and kind='report' and user_id=p_user_id and lease_token=p_lease_token and status='in_flight' and lease_expires_at>clock_timestamp(); if not found then raise exception 'upstream_outcome_unknown'; end if; end $$;
 create or replace function public.acttub_seal_expired_operation(p_session_id uuid,p_user_id uuid,p_operation_id uuid) returns table(sealed boolean,kind text) language plpgsql security definer set search_path=public as $$ declare op public.practice_upstream_operations%rowtype; begin update public.practice_upstream_operations set status='outcome_unknown',safe_error_code='acting_api_timeout',response_payload=jsonb_build_object('error',jsonb_build_object('code','acting_api_timeout')),finished_at=clock_timestamp() where id=p_operation_id and session_id=p_session_id and user_id=p_user_id and status='in_flight' and lease_expires_at<=clock_timestamp() returning * into op; if not found then return query select false,null::text; return; end if; if op.kind in ('analysis_create','analysis_retry') then update public.practice_takes set analysis_status='outcome_unknown',analysis_retryable=false,analysis_error='acting_api_timeout' where session_id=op.session_id and user_id=op.user_id; elsif op.kind in ('coach_start','coach_restart','coach_reply','coach_retry_reply') then update public.practice_interview_runs set status='outcome_unknown',failure_code='acting_api_timeout',failure_retryable=false,ended_at=clock_timestamp() where id=op.run_id and session_id=op.session_id and user_id=op.user_id and status in ('starting','live'); update public.practice_turns set delivery_status='outcome_unknown',delivery_error_code='acting_api_timeout',delivery_retryable=false where session_id=op.session_id and run_id=op.run_id and user_id=op.user_id and delivery_status='pending'; end if; return query select true,op.kind; end $$;
 
+create or replace function public.acttub_create_session_from_upload_intent(
+  p_upload_intent_id uuid,
+  p_user_id uuid,
+  p_session_id uuid,
+  p_take_id uuid,
+  p_observation_id uuid,
+  p_first_question_id uuid,
+  p_medium text,
+  p_genre text,
+  p_situation text,
+  p_character_context text,
+  p_subtext text,
+  p_duration_ms integer,
+  p_observation_text text,
+  p_observation_confidence numeric,
+  p_observation_timestamp_start_ms integer,
+  p_observation_timestamp_end_ms integer,
+  p_first_question_content text,
+  p_first_question_focus text,
+  p_first_question_source_observation_ids uuid[],
+  p_created_at timestamptz default now()
+)
+returns table(session_id uuid)
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_upload_intent public.upload_intents%rowtype;
+begin
+  select * into v_upload_intent
+  from public.upload_intents ui
+  where ui.id = p_upload_intent_id
+    and ui.user_id = p_user_id
+    and ui.session_id = p_session_id
+    and ui.status = 'created'
+    and ui.expires_at > now()
+  for update;
+
+  if not found then
+    raise exception 'Upload intent is not available for atomic session creation.'
+      using errcode = 'P0001';
+  end if;
+
+  update public.upload_intents
+  set status = 'finalized',
+      finalized_at = coalesce(finalized_at, p_created_at),
+      updated_at = p_created_at
+  where id = p_upload_intent_id
+    and user_id = p_user_id;
+
+  insert into public.practice_sessions (
+    id,
+    user_id,
+    upload_intent_id,
+    pipeline_version,
+    status,
+    medium,
+    genre,
+    situation,
+    character_context,
+    subtext,
+    final_actor_sentence,
+    hidden_at,
+    created_at,
+    updated_at
+  ) values (
+    p_session_id,
+    p_user_id,
+    p_upload_intent_id,
+    'legacy-gemini-v1',
+    'observations_pending',
+    p_medium,
+    p_genre,
+    p_situation,
+    p_character_context,
+    nullif(p_subtext, ''),
+    null,
+    null,
+    p_created_at,
+    p_created_at
+  );
+
+  insert into public.practice_takes (
+    id,
+    session_id,
+    user_id,
+    storage_bucket,
+    storage_path,
+    mime_type,
+    size_bytes,
+    duration_ms,
+    analysis_status,
+    analysis_error,
+    created_at
+  ) values (
+    p_take_id,
+    p_session_id,
+    p_user_id,
+    v_upload_intent.expected_storage_bucket,
+    v_upload_intent.expected_storage_path,
+    v_upload_intent.expected_mime_type,
+    v_upload_intent.expected_size_bytes,
+    p_duration_ms,
+    'generated',
+    null,
+    p_created_at
+  );
+
+  insert into public.observations (
+    id,
+    session_id,
+    take_id,
+    user_id,
+    timestamp_start_ms,
+    timestamp_end_ms,
+    observation_text,
+    confidence,
+    confirmation_state,
+    blocked_for_questioning,
+    source_payload,
+    created_at
+  ) values (
+    p_observation_id,
+    p_session_id,
+    p_take_id,
+    p_user_id,
+    p_observation_timestamp_start_ms,
+    p_observation_timestamp_end_ms,
+    p_observation_text,
+    p_observation_confidence,
+    'unasked',
+    false,
+    '{"source":"gemini-question-service"}'::jsonb,
+    p_created_at
+  );
+
+  insert into public.question_turns (
+    id,
+    session_id,
+    user_id,
+    speaker,
+    content,
+    question_focus,
+    source_observation_ids,
+    turn_state,
+    created_at
+  ) values (
+    p_first_question_id,
+    p_session_id,
+    p_user_id,
+    'acttub',
+    p_first_question_content,
+    p_first_question_focus,
+    p_first_question_source_observation_ids,
+    'open',
+    p_created_at
+  );
+
+  return query select p_session_id;
+end;
+$$;
+
+
+create or replace function public.acttub_append_turn_pair(
+  p_session_id uuid,
+  p_user_id uuid,
+  p_expected_actor_answer_count integer,
+  p_actor_turn_id uuid,
+  p_actor_content text,
+  p_actor_question_focus text,
+  p_coach_turn_id uuid,
+  p_coach_content text,
+  p_coach_question_focus text,
+  p_coach_source_observation_ids uuid[],
+  p_created_at timestamptz default now()
+)
+returns table(session_id uuid, actor_answer_count integer)
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_actor_answer_count integer;
+  v_latest_coach_question_focus text;
+begin
+  perform 1
+  from public.practice_sessions s
+  where s.id = p_session_id
+    and s.user_id = p_user_id
+    and s.hidden_at is null
+    and s.pipeline_version = 'legacy-gemini-v1'
+    and s.status <> 'completed'
+  for update;
+
+  if not found then
+    raise exception 'Session is not available for turn append.' using errcode = 'P0001';
+  end if;
+
+  select count(*)::integer
+  into v_actor_answer_count
+  from public.question_turns qt
+  where qt.session_id = p_session_id
+    and qt.user_id = p_user_id
+    and qt.speaker = 'actor';
+
+  select qt.question_focus
+  into v_latest_coach_question_focus
+  from public.question_turns qt
+  where qt.session_id = p_session_id
+    and qt.user_id = p_user_id
+    and qt.speaker = 'acttub'
+  order by qt.created_at desc, qt.id desc
+  limit 1;
+
+  if v_latest_coach_question_focus = 'summary_reflection' then
+    raise exception 'Dialogue already ended with a summary reflection.' using errcode = 'P0001';
+  end if;
+
+  if v_actor_answer_count >= 10 then
+    raise exception 'Dialogue cannot exceed 10 actor answers.' using errcode = 'P0001';
+  end if;
+
+  if v_actor_answer_count is distinct from p_expected_actor_answer_count then
+    raise exception 'Actor-answer count changed before turn append.' using errcode = 'P0001';
+  end if;
+
+  insert into public.question_turns (
+    id, session_id, user_id, speaker, content, question_focus, source_observation_ids, turn_state, created_at
+  ) values (
+    p_actor_turn_id, p_session_id, p_user_id, 'actor', p_actor_content, p_actor_question_focus, '{}', 'answered', p_created_at
+  );
+
+  insert into public.question_turns (
+    id, session_id, user_id, speaker, content, question_focus, source_observation_ids, turn_state, created_at
+  ) values (
+    p_coach_turn_id, p_session_id, p_user_id, 'acttub', p_coach_content, p_coach_question_focus, p_coach_source_observation_ids, 'open', p_created_at
+  );
+
+  update public.practice_sessions
+  set status = 'questioning', updated_at = p_created_at
+  where id = p_session_id and user_id = p_user_id;
+
+  v_actor_answer_count := v_actor_answer_count + 1;
+  return query select p_session_id, v_actor_answer_count;
+end;
+$$;
+
+
+create or replace function public.acttub_complete_session(
+  p_session_id uuid,
+  p_user_id uuid,
+  p_final_actor_sentence text,
+  p_validation_metrics jsonb,
+  p_question_to_revisit text
+)
+returns table(session_id uuid)
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_completed_at timestamptz := now();
+begin
+  perform 1
+  from public.practice_sessions s
+  where s.id = p_session_id
+    and s.user_id = p_user_id
+    and s.hidden_at is null
+    and s.pipeline_version = 'legacy-gemini-v1'
+    and s.status <> 'completed'
+  for update;
+
+  if not found then
+    raise exception 'Session is not available for completion.' using errcode = 'P0001';
+  end if;
+
+  update public.practice_sessions
+  set status = 'completed',
+      final_actor_sentence = p_final_actor_sentence,
+      updated_at = v_completed_at
+  where id = p_session_id and user_id = p_user_id;
+
+  insert into public.session_results (
+    session_id, user_id, actor_authored_sentence, question_to_revisit, created_at
+  ) values (
+    p_session_id, p_user_id, p_final_actor_sentence, p_question_to_revisit, v_completed_at
+  );
+
+  insert into public.validation_events (
+    session_id, user_id, event_type, payload, created_at
+  ) values (
+    p_session_id, p_user_id, 'validation_metrics', p_validation_metrics, v_completed_at
+  );
+
+  return query select p_session_id;
+end;
+$$;
+
+
+
 do $$ declare signature regprocedure; begin
   foreach signature in array array[
     'public.acttub_operation_claim_state(uuid,uuid,text)'::regprocedure,
