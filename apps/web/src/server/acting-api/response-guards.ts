@@ -15,6 +15,53 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 const requireString = (value: unknown): value is string =>
   typeof value === "string";
 
+const requireBoolean = (value: unknown): value is boolean =>
+  typeof value === "boolean";
+
+const observationFields = [
+  "timeline",
+  "dialogue",
+  "tempo",
+  "pitch",
+  "movement",
+  "expression",
+  "emotion",
+] as const;
+
+const anomalyStringFields = [
+  "start",
+  "end",
+  "dimension",
+  "what",
+  "why_odd",
+  "likely_cause",
+  "impact_on_intent",
+  "severity_reason",
+] as const;
+
+const intentImpacts = new Set(["반전", "약화", "국소"]);
+const severities = new Set(["high", "mid", "low"]);
+
+function isSceneObservation(value: unknown): value is Record<string, unknown> {
+  if (!isRecord(value) || !observationFields.every((field) => requireString(value[field]))) {
+    return false;
+  }
+  return Array.isArray(value.extra) && value.extra.every(
+    (entry) => isRecord(entry) && requireString(entry.name) && requireString(entry.observation),
+  );
+}
+
+function isSceneAnomaly(value: unknown): value is Record<string, unknown> {
+  return isRecord(value) &&
+    anomalyStringFields.every((field) => requireString(value[field])) &&
+    requireBoolean(value.overlaps_key_moment) &&
+    requireBoolean(value.on_key_dimension) &&
+    requireString(value.intent_impact) &&
+    intentImpacts.has(value.intent_impact) &&
+    requireString(value.severity) &&
+    severities.has(value.severity);
+}
+
 export function requireRecord(value: unknown): Record<string, unknown> {
   if (!isRecord(value)) throw new ActingApiResponseError();
   return value;
@@ -23,13 +70,13 @@ export function requireRecord(value: unknown): Record<string, unknown> {
 export function requireSceneSummary(value: unknown): Record<string, unknown> {
   const response = requireRecord(value);
   if (
-    !isRecord(response.observation) ||
+    !isSceneObservation(response.observation) ||
     !requireString(response.summary) ||
     !requireString(response.intent_alignment) ||
     !requireString(response.key_moment) ||
     !requireString(response.key_dimension) ||
     !Array.isArray(response.anomalies) ||
-    !response.anomalies.every(isRecord)
+    !response.anomalies.every(isSceneAnomaly)
   ) {
     throw new ActingApiResponseError();
   }
@@ -37,6 +84,7 @@ export function requireSceneSummary(value: unknown): Record<string, unknown> {
 }
 
 const coachActions = new Set(["probe_intent", "dig_cause", "deflect", "close"]);
+const coachReasons = new Set(["gap_stated", "exhausted", "limit", "user_ended"]);
 
 export function requireCoachResponse(value: unknown, expectedSessionId?: string) {
   const response = requireRecord(value);
@@ -47,7 +95,8 @@ export function requireCoachResponse(value: unknown, expectedSessionId?: string)
     !coachActions.has(response.action) ||
     !requireString(response.focus_timestamp) ||
     typeof response.done !== "boolean" ||
-    !(response.reason === null || requireString(response.reason))
+    !(response.reason === null ||
+      (requireString(response.reason) && coachReasons.has(response.reason)))
   ) {
     throw new ActingApiResponseError();
   }
@@ -60,7 +109,7 @@ export function requireCoachResponse(value: unknown, expectedSessionId?: string)
     action: "probe_intent" | "dig_cause" | "deflect" | "close";
     focus_timestamp: string;
     done: boolean;
-    reason: string | null;
+    reason: "gap_stated" | "exhausted" | "limit" | "user_ended" | null;
   };
 }
 
