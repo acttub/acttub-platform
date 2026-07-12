@@ -20,8 +20,6 @@ alter table public.practice_takes add constraint practice_takes_analysis_status_
   check (analysis_status in ('generated','pending','completed','failed','outcome_unknown'));
 alter table public.practice_takes add column if not exists analysis_retryable boolean;
 
-update public.practice_sessions set pipeline_version = 'legacy-gemini-v1'
-where pipeline_version is null;
 alter table public.practice_sessions add column if not exists pipeline_version text;
 update public.practice_sessions set pipeline_version = 'legacy-gemini-v1' where pipeline_version is null;
 alter table public.practice_sessions alter column pipeline_version set default 'legacy-gemini-v1';
@@ -32,6 +30,36 @@ alter table public.practice_sessions add constraint practice_sessions_status_che
   check (status in ('observations_pending','questioning','completed','analyzing','interview','report','end'));
 alter table public.practice_sessions add constraint practice_sessions_pipeline_version_check
   check (pipeline_version in ('legacy-gemini-v1','acting-api-v1'));
+
+-- Compatibility guards: migration-002/003 callers continue to create legacy rows
+-- through the legacy default, but cannot move acting-api rows through legacy states.
+create or replace function public.acttub_guard_legacy_session_mutation()
+returns trigger language plpgsql set search_path=public as $$
+begin
+  if old.pipeline_version='acting-api-v1'
+     and new.status in ('observations_pending','questioning','completed') then
+    raise exception 'acting_pipeline_requires_acting_rpcs';
+  end if;
+  return new;
+end $$;
+drop trigger if exists acttub_guard_legacy_session_mutation on public.practice_sessions;
+create trigger acttub_guard_legacy_session_mutation before update on public.practice_sessions
+for each row execute function public.acttub_guard_legacy_session_mutation();
+
+create or replace function public.acttub_guard_legacy_child_mutation()
+returns trigger language plpgsql set search_path=public as $$
+begin
+  if exists(select 1 from public.practice_sessions s where s.id=new.session_id and s.pipeline_version='acting-api-v1') then
+    raise exception 'acting_pipeline_requires_acting_rpcs';
+  end if;
+  return new;
+end $$;
+drop trigger if exists acttub_guard_legacy_question_turn on public.question_turns;
+create trigger acttub_guard_legacy_question_turn before insert or update on public.question_turns
+for each row execute function public.acttub_guard_legacy_child_mutation();
+drop trigger if exists acttub_guard_legacy_session_result on public.session_results;
+create trigger acttub_guard_legacy_session_result before insert or update on public.session_results
+for each row execute function public.acttub_guard_legacy_child_mutation();
 
 update storage.buckets set file_size_limit = 576716800
 where id = 'practice-videos';

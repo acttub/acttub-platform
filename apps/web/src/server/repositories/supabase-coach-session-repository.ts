@@ -26,6 +26,20 @@ export class SupabaseCoachSessionPersistenceError extends Error {
 
 type JsonRecord = Record<string, unknown>;
 
+export type ActingClaimState =
+  | "claimed"
+  | "replay_completed"
+  | "replay_failed"
+  | "in_progress"
+  | "outcome_unknown";
+
+export type ActingRpcResult = JsonRecord & {
+  operationId?: string;
+  claimState?: ActingClaimState;
+};
+
+type ActingRpcInput = Record<string, string | number | boolean | null | JsonRecord>;
+
 type StoredUploadIntentRecord = PracticeUploadIntentDto & {
   finalizedVideoUrl?: string;
   finalizedDurationMs?: number | null;
@@ -91,6 +105,22 @@ const asNullableNumber = (value: unknown): number | null => {
 };
 
 const asBoolean = (value: unknown): boolean => value === true;
+
+const mapActingRpcResult = (value: unknown): ActingRpcResult => {
+  const row = asRecord(Array.isArray(value) ? value[0] : value);
+  return {
+    ...row,
+    operationId: asNullableString(row.operation_id) ?? undefined,
+    claimState: asNullableString(row.claim_state) as ActingClaimState | undefined,
+  };
+};
+
+const callActingRpc = async (name: string, input: ActingRpcInput): Promise<ActingRpcResult> => {
+  const admin = requireSupabaseAdminClient();
+  const { data, error } = await admin.rpc(name, input);
+  assertNoPersistenceError(error, "operation", `Could not execute ${name}`);
+  return mapActingRpcResult(data);
+};
 
 const mapDbStatus = (status: unknown): SessionStatus => {
   switch (status) {
@@ -175,7 +205,7 @@ const mapTake = (sessionRow: JsonRecord): TakeDto => {
   };
 };
 
-const mapSession = (row: JsonRecord): CoachSessionDto => ({
+const mapLegacySession = (row: JsonRecord): CoachSessionDto => ({
   id: asString(row.id),
   userId: asString(row.user_id),
   status: mapDbStatus(row.status),
@@ -198,13 +228,77 @@ const mapSession = (row: JsonRecord): CoachSessionDto => ({
     .sort((a, b) => a.createdAt.localeCompare(b.createdAt)),
 });
 
+const mapActingSession = (row: JsonRecord): CoachSessionDto => {
+  const takeRow = asArray(row.practice_takes)[0] ?? {};
+  const runRows = asArray(row.practice_interview_runs);
+  const currentRun = runRows.find((run) => asString(run.id) === asString(row.interview_run_id)) ?? null;
+  const turns = asArray(row.practice_turns)
+    .filter((turn) => !currentRun || asString(turn.run_id) === asString(currentRun.id))
+    .sort((a, b) => asNumber(a.ordinal) - asNumber(b.ordinal));
+  const sceneSummary = asArray(row.scene_summaries)[0] ?? null;
+  const report = asArray(row.practice_reports)[0] ?? null;
+
+  return {
+    id: asString(row.id),
+    userId: asString(row.user_id),
+    pipelineVersion: "acting-api-v1",
+    legacy: false,
+    status: asString(row.status).toUpperCase(),
+    medium: asString(row.medium),
+    genre: asString(row.genre),
+    situation: asString(row.situation),
+    characterContext: asString(row.character_context),
+    subtext: asString(row.subtext),
+    hiddenAt: asNullableString(row.hidden_at),
+    createdAt: asString(row.created_at),
+    updatedAt: asString(row.updated_at),
+    take: {
+      id: asString(takeRow.id),
+      sessionId: asString(takeRow.session_id),
+      videoUrl: `supabase://${asString(takeRow.storage_bucket)}/${asString(takeRow.storage_path)}`,
+      durationMs: asNullableNumber(takeRow.duration_ms),
+      analysisStatus: asString(takeRow.analysis_status),
+      analysisError: asNullableString(takeRow.analysis_error),
+      analysisRetryable: takeRow.analysis_retryable === null ? null : asBoolean(takeRow.analysis_retryable),
+      createdAt: asString(takeRow.created_at),
+    },
+    sceneSummary: sceneSummary ? asRecord(sceneSummary.payload) : null,
+    currentRun: currentRun ? {
+      runId: asString(currentRun.id),
+      status: asString(currentRun.status),
+      closeReason: asNullableString(currentRun.close_reason),
+      failureCode: asNullableString(currentRun.failure_code),
+      failureRetryable: currentRun.failure_retryable === null ? null : asBoolean(currentRun.failure_retryable),
+      recoveryAction: ["expired", "outcome_unknown"].includes(asString(currentRun.status)) ? "restart" : null,
+    } : null,
+    turns: turns.map((turn) => ({
+      id: asString(turn.id), runId: asString(turn.run_id), ordinal: asNumber(turn.ordinal),
+      role: asString(turn.role), text: asString(turn.text), action: asNullableString(turn.action),
+      focusTimestamp: asNullableString(turn.focus_timestamp), deliveryStatus: asString(turn.delivery_status),
+      deliveryErrorCode: asNullableString(turn.delivery_error_code),
+      deliveryRetryable: turn.delivery_retryable === null ? null : asBoolean(turn.delivery_retryable),
+      createdAt: asString(turn.created_at),
+    })),
+    report: report ? asRecord(report.payload) : null,
+  } as unknown as CoachSessionDto;
+};
+
+const mapSession = (row: JsonRecord): CoachSessionDto =>
+  asString(row.pipeline_version, "legacy-gemini-v1") === "acting-api-v1"
+    ? mapActingSession(row)
+    : mapLegacySession(row);
+
 const sessionSelect = `
   *,
   practice_takes(*),
   observations(*),
   question_turns(*),
   validation_events(*),
-  session_results(*)
+  session_results(*),
+  scene_summaries(*),
+  practice_interview_runs(*),
+  practice_turns(*),
+  practice_reports(*)
 `;
 
 const mapUploadIntent = (row: JsonRecord): StoredUploadIntentRecord => {
@@ -332,6 +426,175 @@ export const supabaseCoachSessionRepository = {
     }
   },
 
+  async finalizeActingUploadIntent(input: {
+    uploadIntentId: string;
+    userId: string;
+    storagePath: string;
+    durationMs: number;
+  }): Promise<ActingRpcResult> {
+    return callActingRpc("acttub_finalize_upload_intent", {
+      p_upload_intent_id: input.uploadIntentId,
+      p_user_id: input.userId,
+      p_storage_path: input.storagePath,
+      p_duration_ms: input.durationMs,
+    });
+  },
+
+  async createAnalysisClaim(input: {
+    uploadIntentId: string; userId: string; sessionId: string; takeId: string;
+    requestId: string; requestFingerprint: string; operationId: string; leaseToken: string;
+    medium: string; genre: string; situation: string; characterContext: string; subtext: string;
+    leaseSeconds: number; createdAt?: string;
+  }): Promise<ActingRpcResult> {
+    return callActingRpc("acttub_create_acting_session", {
+      p_upload_intent_id: input.uploadIntentId, p_user_id: input.userId,
+      p_session_id: input.sessionId, p_take_id: input.takeId, p_request_id: input.requestId,
+      p_request_fingerprint: input.requestFingerprint, p_operation_id: input.operationId,
+      p_lease_token: input.leaseToken, p_medium: input.medium, p_genre: input.genre,
+      p_situation: input.situation, p_character_context: input.characterContext,
+      p_subtext: input.subtext, p_lease_seconds: input.leaseSeconds,
+      p_created_at: input.createdAt ?? new Date().toISOString(),
+    });
+  },
+
+  async claimAnalysisRetry(input: {
+    sessionId: string; userId: string; requestId: string; requestFingerprint: string;
+    operationId: string; leaseToken: string; leaseSeconds: number;
+  }): Promise<ActingRpcResult> {
+    return callActingRpc("acttub_claim_analysis_retry", {
+      p_session_id: input.sessionId, p_user_id: input.userId, p_request_id: input.requestId,
+      p_request_fingerprint: input.requestFingerprint, p_operation_id: input.operationId,
+      p_lease_token: input.leaseToken, p_lease_seconds: input.leaseSeconds,
+    });
+  },
+
+  async completeAnalysis(input: {
+    sessionId: string; userId: string; operationId: string; leaseToken: string;
+    sceneSummaryId: string; summaryPayload: JsonRecord;
+  }): Promise<void> {
+    await callActingRpc("acttub_complete_analysis", {
+      p_session_id: input.sessionId, p_user_id: input.userId, p_operation_id: input.operationId,
+      p_lease_token: input.leaseToken, p_scene_summary_id: input.sceneSummaryId,
+      p_summary_payload: input.summaryPayload,
+    });
+  },
+
+  async failAnalysis(input: {
+    sessionId: string; userId: string; operationId: string; leaseToken: string;
+    failureClass: string; safeErrorCode: string;
+  }): Promise<void> {
+    await callActingRpc("acttub_fail_analysis", {
+      p_session_id: input.sessionId, p_user_id: input.userId, p_operation_id: input.operationId,
+      p_lease_token: input.leaseToken, p_failure_class: input.failureClass,
+      p_safe_error_code: input.safeErrorCode,
+    });
+  },
+
+  async claimCoachStart(input: {
+    sessionId: string; userId: string; requestId: string; requestFingerprint: string;
+    operationId: string; runId: string; leaseToken: string; leaseSeconds: number; restart: boolean;
+  }): Promise<ActingRpcResult> {
+    return callActingRpc("acttub_claim_coach_start", {
+      p_session_id: input.sessionId, p_user_id: input.userId, p_request_id: input.requestId,
+      p_request_fingerprint: input.requestFingerprint, p_operation_id: input.operationId,
+      p_run_id: input.runId, p_lease_token: input.leaseToken,
+      p_lease_seconds: input.leaseSeconds, p_restart: input.restart,
+    });
+  },
+
+  async claimCoachReply(input: {
+    sessionId: string; userId: string; runId: string; requestId: string;
+    requestFingerprint: string; operationId: string; actorTurnId: string; actorText: string;
+    retryActorTurnId?: string | null; leaseToken: string; leaseSeconds: number;
+  }): Promise<ActingRpcResult> {
+    return callActingRpc("acttub_claim_coach_reply", {
+      p_session_id: input.sessionId, p_user_id: input.userId, p_run_id: input.runId,
+      p_request_id: input.requestId, p_request_fingerprint: input.requestFingerprint,
+      p_operation_id: input.operationId, p_actor_turn_id: input.actorTurnId,
+      p_actor_text: input.actorText, p_retry_actor_turn_id: input.retryActorTurnId ?? null,
+      p_lease_token: input.leaseToken, p_lease_seconds: input.leaseSeconds,
+    });
+  },
+
+  async completeCoachTurn(input: {
+    sessionId: string; userId: string; runId: string; operationId: string; leaseToken: string;
+    actingSessionId: string; aiTurnId: string; question: string; action: string;
+    focusTimestamp: string; done: boolean; closeReason: string; responsePayload: JsonRecord;
+  }): Promise<void> {
+    await callActingRpc("acttub_complete_coach_turn", {
+      p_session_id: input.sessionId, p_user_id: input.userId, p_run_id: input.runId,
+      p_operation_id: input.operationId, p_lease_token: input.leaseToken,
+      p_acting_session_id: input.actingSessionId, p_ai_turn_id: input.aiTurnId,
+      p_question: input.question, p_action: input.action, p_focus_timestamp: input.focusTimestamp,
+      p_done: input.done, p_close_reason: input.closeReason, p_response_payload: input.responsePayload,
+    });
+  },
+
+  async failCoachOperation(input: {
+    sessionId: string; userId: string; runId: string; operationId: string; leaseToken: string;
+    actorTurnId?: string | null; failureClass: string; safeErrorCode: string;
+  }): Promise<void> {
+    await callActingRpc("acttub_fail_coach_operation", {
+      p_session_id: input.sessionId, p_user_id: input.userId, p_run_id: input.runId,
+      p_operation_id: input.operationId, p_lease_token: input.leaseToken,
+      p_actor_turn_id: input.actorTurnId ?? null, p_failure_class: input.failureClass,
+      p_safe_error_code: input.safeErrorCode,
+    });
+  },
+
+  async expireCoachRun(input: {
+    sessionId: string; userId: string; runId: string; operationId: string;
+    leaseToken: string; actorTurnId?: string | null;
+  }): Promise<void> {
+    await callActingRpc("acttub_expire_coach_run", {
+      p_session_id: input.sessionId, p_user_id: input.userId, p_run_id: input.runId,
+      p_operation_id: input.operationId, p_lease_token: input.leaseToken,
+      p_actor_turn_id: input.actorTurnId ?? null,
+    });
+  },
+
+  async claimReport(input: {
+    sessionId: string; userId: string; requestId: string; requestFingerprint: string;
+    operationId: string; leaseToken: string; leaseSeconds: number;
+  }): Promise<ActingRpcResult> {
+    return callActingRpc("acttub_claim_report", {
+      p_session_id: input.sessionId, p_user_id: input.userId, p_request_id: input.requestId,
+      p_request_fingerprint: input.requestFingerprint, p_operation_id: input.operationId,
+      p_lease_token: input.leaseToken, p_lease_seconds: input.leaseSeconds,
+    });
+  },
+
+  async completeReport(input: {
+    sessionId: string; userId: string; operationId: string; leaseToken: string;
+    reportId: string; reportPayload: JsonRecord; reportCount: number; responsePayload: JsonRecord;
+  }): Promise<void> {
+    await callActingRpc("acttub_complete_report", {
+      p_session_id: input.sessionId, p_user_id: input.userId, p_operation_id: input.operationId,
+      p_lease_token: input.leaseToken, p_report_id: input.reportId,
+      p_report_payload: input.reportPayload, p_report_count: input.reportCount,
+      p_response_payload: input.responsePayload,
+    });
+  },
+
+  async failReport(input: {
+    sessionId: string; userId: string; operationId: string; leaseToken: string;
+    failureClass: string; safeErrorCode: string;
+  }): Promise<void> {
+    await callActingRpc("acttub_fail_report", {
+      p_session_id: input.sessionId, p_user_id: input.userId, p_operation_id: input.operationId,
+      p_lease_token: input.leaseToken, p_failure_class: input.failureClass,
+      p_safe_error_code: input.safeErrorCode,
+    });
+  },
+
+  async sealExpiredOperation(input: {
+    sessionId: string; userId: string; operationId: string;
+  }): Promise<void> {
+    await callActingRpc("acttub_seal_expired_operation", {
+      p_session_id: input.sessionId, p_user_id: input.userId, p_operation_id: input.operationId,
+    });
+  },
+
   async expireUploadIntent(uploadIntentId: string, userId: string): Promise<void> {
     if (!configuredForSupabasePersistence()) return;
 
@@ -421,6 +684,28 @@ export const supabaseCoachSessionRepository = {
   async findByIdIncludingHidden(sessionId: string, userId: string): Promise<CoachSessionDto | null> {
     if (!configuredForSupabasePersistence()) return null;
     return hydrateSession(sessionId, userId, true);
+  },
+
+  async getOwnedSession(userId: string, sessionId: string): Promise<CoachSessionDto | null> {
+    if (!configuredForSupabasePersistence()) return null;
+    return hydrateSession(sessionId, userId);
+  },
+
+  async listOwnedSessions(userId: string): Promise<CoachSessionDto[]> {
+    return this.listVisible(userId);
+  },
+
+  async getOwnedReport(userId: string, sessionId: string): Promise<JsonRecord | null> {
+    if (!configuredForSupabasePersistence()) return null;
+    const admin = requireSupabaseAdminClient();
+    const { data, error } = await admin
+      .from("practice_reports")
+      .select("payload")
+      .eq("session_id", sessionId)
+      .eq("user_id", userId)
+      .maybeSingle();
+    assertNoPersistenceError(error, "sessionId", "Could not read acting report");
+    return data ? asRecord(asRecord(data).payload) : null;
   },
 
   async updateObservationState(
