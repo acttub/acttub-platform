@@ -11,6 +11,7 @@ import type {
 } from "@/lib/api/legacy-types";
 
 import type {
+  CoachSessionDto as PublicCoachSessionDto,
   CreateUploadIntentRequest,
   PracticeUploadIntentDto,
   SignedVideoUrlResponse,
@@ -365,17 +366,6 @@ const verifySupabaseStorageObject = async (
 const videoRefForUploadIntent = (uploadIntent: PracticeUploadIntentDto): string =>
   `supabase://${uploadIntent.storageBucket}/${uploadIntent.storagePath}`;
 
-const storagePathFromVideoRef = (videoRef: string): string | null => {
-  const config = getAppConfig();
-  const supabasePrefix = `supabase://${config.video.bucket}/`;
-
-  if (videoRef.startsWith(supabasePrefix)) {
-    return videoRef.slice(supabasePrefix.length);
-  }
-
-  return null;
-};
-
 const readSessionForOwner = async (
   sessionId: string,
   userId: string,
@@ -491,10 +481,10 @@ export const coachSessionService = {
     return uploadIntent;
   },
 
-  async listSessions(userId: string): Promise<{ sessions: CoachSessionDto[] }> {
+  async listSessions(userId: string): Promise<{ sessions: PublicCoachSessionDto[] }> {
     return {
       sessions: await requireSupabasePersistence(() =>
-        supabaseCoachSessionRepository.listVisible(userId),
+        supabaseCoachSessionRepository.listOwnedSessions(userId),
       ),
     };
   },
@@ -739,8 +729,10 @@ export const coachSessionService = {
     };
   },
 
-  async getSession(sessionId: string, userId: string): Promise<CoachSessionDto | null> {
-    return readSessionForOwner(sessionId, userId);
+  async getSession(sessionId: string, userId: string): Promise<PublicCoachSessionDto | null> {
+    return requireSupabasePersistence(() =>
+      supabaseCoachSessionRepository.getOwnedSession(userId, sessionId),
+    );
   },
 
   async softHideSession(
@@ -760,19 +752,27 @@ export const coachSessionService = {
     requireSupabaseConfigured();
 
     const config = getAppConfig();
-    const session = await readSessionForOwner(sessionId, userId);
+    const storageObject = await requireSupabasePersistence(() =>
+      supabaseCoachSessionRepository.getOwnedVideoStorage(userId, sessionId),
+    );
 
-    if (!session || !session.take.videoUrl) {
+    if (!storageObject) {
       return null;
+    }
+
+    if (storageObject.storageBucket !== "practice-videos") {
+      throw new ApiValidationError("Request validation failed", {
+        storageObject: "Unexpected private video storage bucket.",
+      });
     }
 
     const expiresInSeconds =
       config.video.signedUrlExpiresInSeconds || signedUrlExpiresInSeconds;
     const expiresAt = new Date(Date.now() + expiresInSeconds * 1000).toISOString();
-    const storagePath = storagePathFromVideoRef(session.take.videoUrl);
+    const storagePath = storageObject.storagePath;
     const admin = createSupabaseAdminClient();
 
-    if (!storagePath || !admin) {
+    if (!admin) {
       throw new ApiConfigurationError(
         "Supabase signed playback requires verified private storage.",
         { storageObject: "Could not create a signed video URL without Supabase admin access." },

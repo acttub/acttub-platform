@@ -826,6 +826,29 @@ export const supabaseCoachSessionRepository = {
     return asArray(data).map(mapSession);
   },
 
+  async getOwnedVideoStorage(
+    userId: string,
+    sessionId: string,
+  ): Promise<{ storageBucket: string; storagePath: string } | null> {
+    if (!configuredForSupabasePersistence()) return null;
+    const admin = requireSupabaseAdminClient();
+    const { data, error } = await admin
+      .from("practice_takes")
+      .select("storage_bucket,storage_path")
+      .eq("user_id", userId)
+      .eq("session_id", sessionId)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    assertNoPersistenceError(error, "sessionId", "Could not read owned private video storage");
+    if (!data) return null;
+    const row = asRecord(data);
+    return {
+      storageBucket: asString(row.storage_bucket),
+      storagePath: asString(row.storage_path),
+    };
+  },
+
   async getOwnedReport(userId: string, sessionId: string): Promise<ActingReportDto | null> {
     if (!configuredForSupabasePersistence()) return null;
     const admin = requireSupabaseAdminClient();
