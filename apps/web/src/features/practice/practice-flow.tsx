@@ -11,14 +11,14 @@ import {
   listPracticeSessions,
   mutatePracticeTurn,
   retryPracticeAnalysis,
-  type ActingSession,
   type PracticeSession,
   type SceneGenre,
   type SceneMedium,
 } from "@/lib/api/sessions";
+import type { ActingAnalysisStatus, ActingCoachSessionDto } from "@/lib/api/types";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
-const MAX_UPLOAD_BYTES = 550 * 1024 * 1024;
+const MAX_UPLOAD_BYTES = 576_716_800;
 const MAX_DURATION_MS = 180_000;
 const media: SceneMedium[] = ["연극", "영화", "TV 드라마", "웹드라마", "뮤지컬", "기타"];
 const genres: SceneGenre[] = ["드라마", "코미디", "로맨스", "스릴러", "액션", "판타지", "기타"];
@@ -44,7 +44,7 @@ async function videoDuration(file: File) {
 export function PracticeFlow({ entry = "new" }: { entry?: Entry }) {
   const [ready, setReady] = useState(false);
   const [history, setHistory] = useState<PracticeSession[]>([]);
-  const [active, setActive] = useState<ActingSession | null>(null);
+  const [active, setActive] = useState<ActingCoachSessionDto | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [medium, setMedium] = useState<SceneMedium | null>(null);
   const [genre, setGenre] = useState<SceneGenre | null>(null);
@@ -54,6 +54,7 @@ export function PracticeFlow({ entry = "new" }: { entry?: Entry }) {
   const [answer, setAnswer] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [restartRequired, setRestartRequired] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -100,7 +101,7 @@ export function PracticeFlow({ entry = "new" }: { entry?: Entry }) {
     setBusy(true); setError(null);
     try {
       const { session } = await mutatePracticeTurn(active.id, { operation: kind, requestId: crypto.randomUUID() });
-      setActive(session);
+      setActive(session); setRestartRequired(false);
     } catch (reason) { setError(errorMessage(reason)); } finally { setBusy(false); }
   }
 
@@ -114,6 +115,9 @@ export function PracticeFlow({ entry = "new" }: { entry?: Entry }) {
       });
       setActive(session); setAnswer("");
     } catch (reason) {
+      if (reason instanceof ApiClientError && ["acting_session_expired", "upstream_outcome_unknown"].includes(reason.code)) {
+        setRestartRequired(true);
+      }
       setError(reason instanceof ApiClientError && reason.code === "acting_session_expired"
         ? "인터뷰 연결이 만료되었어요. 아래 버튼으로 새 인터뷰를 시작해 주세요."
         : errorMessage(reason));
@@ -138,7 +142,7 @@ export function PracticeFlow({ entry = "new" }: { entry?: Entry }) {
 
   if (!ready) return <main className="mx-auto max-w-3xl p-8">{error ?? "연습 공간을 준비하는 중이에요."}</main>;
   if (entry === "history" && !active) return <History sessions={history} onOpen={(session) => !session.legacy && setActive(session)} />;
-  if (active) return <SessionView session={active} answer={answer} setAnswer={setAnswer} busy={busy} error={error} onStart={() => operation("start")} onRestart={() => operation("restart")} onReply={reply} onRetryAnalysis={retryAnalysis} onReport={report} />;
+  if (active) return <SessionView session={active} answer={answer} setAnswer={setAnswer} busy={busy} error={error} restartRequired={restartRequired} onStart={() => operation("start")} onRestart={() => operation("restart")} onReply={reply} onRetryAnalysis={retryAnalysis} onReport={report} />;
 
   return <main className="mx-auto grid max-w-3xl gap-6 p-6 md:p-10">
     <header><p className="text-sm font-semibold text-violet-600">새 연기 연습</p><h1 className="text-3xl font-bold">장면을 올리고 인터뷰를 시작하세요</h1></header>
@@ -161,12 +165,14 @@ function TextField({ label, value, onChange }: { label: string; value: string; o
   return <label className="grid gap-2 font-semibold">{label} (필수)<textarea className="min-h-24 rounded-xl border p-3 font-normal" value={value} onChange={(e) => onChange(e.target.value)} /></label>;
 }
 
-function SessionView({ session, answer, setAnswer, busy, error, onStart, onRestart, onReply, onRetryAnalysis, onReport }: { session: ActingSession; answer: string; setAnswer: (value: string) => void; busy: boolean; error: string | null; onStart: () => void; onRestart: () => void; onReply: () => void; onRetryAnalysis: () => void; onReport: () => void }) {
+function SessionView({ session, answer, setAnswer, busy, error, restartRequired, onStart, onRestart, onReply, onRetryAnalysis, onReport }: { session: ActingCoachSessionDto; answer: string; setAnswer: (value: string) => void; busy: boolean; error: string | null; restartRequired: boolean; onStart: () => void; onRestart: () => void; onReply: () => void; onRetryAnalysis: () => void; onReport: () => void }) {
   const currentQuestion = [...session.turns].reverse().find((turn) => turn.role === "ai" && turn.deliveryStatus === "completed");
-  const restart = session.currentRun?.recoveryAction === "restart";
+  const restart = restartRequired || session.currentRun?.recoveryAction === "restart";
+  // types.ts currently intersects TakeDto's legacy status with ActingAnalysisStatus.
+  const analysisStatus = session.take.analysisStatus as ActingAnalysisStatus;
   return <main className="mx-auto grid max-w-3xl gap-5 p-6 md:p-10">
     <header><p className="text-sm font-semibold text-violet-600">{session.medium} · {session.genre}</p><h1 className="text-2xl font-bold">{session.situation}</h1></header>
-    {session.status === "ANALYZING" && <section className="rounded-2xl bg-violet-50 p-6"><h2 className="text-xl font-bold">장면을 분석하고 있어요</h2><p className="mt-2">영상 속 행동과 장면 정보를 안전하게 정리하는 중이에요.</p>{session.take.analysisStatus === "failed" && session.take.analysisRetryable && <button onClick={onRetryAnalysis}>분석 다시 시도</button>}{session.take.analysisStatus === "outcome_unknown" && <p className="mt-3 text-red-700">처리 결과를 확인할 수 없어 이 세션은 안전하게 재시도할 수 없어요. 새 연습을 시작해 주세요.</p>}</section>}
+    {session.status === "ANALYZING" && <section className="rounded-2xl bg-violet-50 p-6"><h2 className="text-xl font-bold">장면을 분석하고 있어요</h2><p className="mt-2">영상 속 행동과 장면 정보를 안전하게 정리하는 중이에요.</p>{analysisStatus === "failed" && session.take.analysisRetryable && <button onClick={onRetryAnalysis}>분석 다시 시도</button>}{analysisStatus === "outcome_unknown" && <p className="mt-3 text-red-700">처리 결과를 확인할 수 없어 이 세션은 안전하게 재시도할 수 없어요. 새 연습을 시작해 주세요.</p>}</section>}
     {session.status === "INTERVIEW" && <section className="grid gap-4">
       {!session.currentRun && <button className="rounded-xl bg-violet-600 p-3 text-white" disabled={busy} onClick={onStart}>인터뷰 시작</button>}
       {restart && <div className="rounded-2xl bg-amber-50 p-5"><p>이전 인터뷰 연결이 끝났어요. 영상 분석은 유지한 채 새 인터뷰를 시작할 수 있어요.</p><button className="mt-3 rounded-xl bg-amber-700 px-4 py-2 text-white" disabled={busy} onClick={onRestart}>인터뷰 다시 시작</button></div>}

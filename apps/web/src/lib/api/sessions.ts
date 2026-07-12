@@ -2,7 +2,6 @@ import type {
   ActingCoachSessionDto,
   ActingReportDto,
   ActingTurnRequest,
-  CoachSessionDto,
   CreateActingSessionRequest,
   CreateReportRequest,
   CreateUploadIntentRequest,
@@ -11,8 +10,6 @@ import type {
   FinalizeUploadIntentResponse,
   LegacyCoachSessionDto,
   RetryAnalysisRequest,
-  SceneGenre,
-  SceneMedium,
 } from "./types";
 
 export type { SceneGenre, SceneMedium } from "./types";
