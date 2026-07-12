@@ -84,18 +84,6 @@ type UploadIntent = {
   storagePath: string;
 };
 
-export class ApiClientError extends Error {
-  constructor(
-    readonly status: number,
-    readonly code: string,
-    message: string,
-    readonly details?: Record<string, unknown>,
-  ) {
-    super(message);
-    this.name = "ApiClientError";
-  }
-}
-
 async function parseJsonResponse<T>(response: Response): Promise<T> {
   const payload = (await response.json().catch(() => null)) as {
     error?: { code?: string; message?: string; details?: ApiErrorDetails };
