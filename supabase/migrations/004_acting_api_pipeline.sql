@@ -267,6 +267,10 @@ begin
     return query select replay.operation_id,replay.claim_state,replay.session_id,replay.response_payload;
     return;
   end if;
+  select o.id as operation_id,o.response_payload into replay from public.practice_upstream_operations o
+    where o.session_id=p_session_id and o.user_id=p_user_id and kind in ('analysis_create','analysis_retry') and status='outcome_unknown'
+    order by finished_at desc limit 1;
+  if found then return query select replay.operation_id,'outcome_unknown',p_session_id,replay.response_payload; return; end if;
   perform public.acttub_preflight_operation(p_session_id,p_user_id,false);
   select * into v from public.upload_intents where id=p_upload_intent_id and user_id=p_user_id and status='finalized' and expires_at>clock_timestamp() for update;
   if not found or v.session_id<>p_session_id or v.duration_ms is null then raise exception 'upload_intent_invalid'; end if;
@@ -288,6 +292,8 @@ begin
  if p_lease_seconds<>780 then raise exception 'invalid_lease'; end if;
  select * into replay from public.acttub_operation_claim_state(p_user_id,p_request_id,p_request_fingerprint);
  if replay.found then return query select replay.operation_id,replay.claim_state,replay.response_payload; return; end if;
+ select o.id as operation_id,o.response_payload into replay from public.practice_upstream_operations o where o.session_id=p_session_id and o.user_id=p_user_id and o.kind in ('analysis_create','analysis_retry') and status='outcome_unknown' order by finished_at desc limit 1;
+ if found then return query select replay.operation_id,'outcome_unknown',replay.response_payload; return; end if;
  perform public.acttub_preflight_operation(p_session_id,p_user_id,false);
  if not exists(select 1 from public.practice_sessions s join public.practice_takes t on (t.session_id,t.user_id)=(s.id,s.user_id) where s.id=p_session_id and s.user_id=p_user_id and s.pipeline_version='acting-api-v1' and s.status='analyzing' and t.analysis_status='failed' and t.analysis_retryable) then raise exception 'invalid_session'; end if;
  select jsonb_build_object('storageBucket',t.storage_bucket,'storagePath',t.storage_path,'mimeType',t.mime_type,'sizeBytes',t.size_bytes,'medium',s.medium,'genre',s.genre,'situation',s.situation,'formattedSituation','[매체: '||s.medium||'] [장르: '||s.genre||'] '||s.situation,'characterContext',s.character_context,'subtext',s.subtext) into source from public.practice_sessions s join public.practice_takes t on (t.session_id,t.user_id)=(s.id,s.user_id) where s.id=p_session_id and s.user_id=p_user_id;
@@ -315,6 +321,10 @@ create or replace function public.acttub_claim_coach_start(p_session_id uuid,p_u
 returns table(operation_id uuid,claim_state text,run_id uuid,summary_payload jsonb,coach_context jsonb) language plpgsql security definer set search_path=public as $$ declare s public.practice_sessions%rowtype; summary jsonb; prior uuid; replay record; previous public.practice_interview_runs%rowtype; begin
  if p_lease_seconds<>120 then raise exception 'invalid_lease'; end if;
  select * into replay from public.acttub_operation_claim_state(p_user_id,p_request_id,p_request_fingerprint); if replay.found then return query select replay.operation_id,replay.claim_state,replay.run_id,replay.response_payload,null::jsonb; return; end if;
+ if not p_restart then
+   select o.id as operation_id,o.run_id,o.response_payload into replay from public.practice_upstream_operations o where o.session_id=p_session_id and o.user_id=p_user_id and kind in ('coach_start','coach_reply','coach_retry_reply') and status='outcome_unknown' order by finished_at desc limit 1;
+   if found then return query select replay.operation_id,'outcome_unknown',replay.run_id,replay.response_payload,null::jsonb; return; end if;
+ end if;
  perform public.acttub_preflight_operation(p_session_id,p_user_id,false);
  select * into s from public.practice_sessions where id=p_session_id and user_id=p_user_id and pipeline_version='acting-api-v1' for update; if not found or s.status<>'interview' then raise exception 'invalid_session'; end if; select payload into summary from public.scene_summaries where session_id=p_session_id and user_id=p_user_id; prior:=s.interview_run_id;
  if prior is not null then select * into previous from public.practice_interview_runs where id=prior and user_id=p_user_id; end if;
@@ -328,6 +338,8 @@ create or replace function public.acttub_claim_coach_reply(p_session_id uuid,p_u
 returns table(operation_id uuid,claim_state text,acting_session_id text,actor_turn_id uuid,actor_text text) language plpgsql security definer set search_path=public as $$ declare r public.practice_interview_runs%rowtype; next_ordinal integer; replay record; replay_turn public.practice_turns%rowtype; begin
  if p_lease_seconds<>120 then raise exception 'invalid_lease'; end if;
  select * into replay from public.acttub_operation_claim_state(p_user_id,p_request_id,p_request_fingerprint); if replay.found then select * into replay_turn from public.practice_turns where user_id=p_user_id and request_id=p_request_id; select * into r from public.practice_interview_runs where id=replay.run_id and user_id=p_user_id; return query select replay.operation_id,replay.claim_state,r.acting_session_id,replay_turn.id,replay_turn.text; return; end if;
+ select o.id as operation_id into replay from public.practice_upstream_operations o where o.session_id=p_session_id and o.user_id=p_user_id and o.run_id=p_run_id and kind in ('coach_start','coach_reply','coach_retry_reply') and status='outcome_unknown' order by finished_at desc limit 1;
+ if found then select * into r from public.practice_interview_runs where id=p_run_id and session_id=p_session_id and user_id=p_user_id; return query select replay.operation_id,'outcome_unknown',r.acting_session_id,null::uuid,null::text; return; end if;
  perform public.acttub_preflight_operation(p_session_id,p_user_id,false);
  select * into r from public.practice_interview_runs where id=p_run_id and session_id=p_session_id and user_id=p_user_id and status='live' for update; if not found then raise exception 'invalid_run'; end if;
  if p_retry_actor_turn_id is null then select coalesce(max(ordinal),0)+1 into next_ordinal from public.practice_turns where session_id=p_session_id and run_id=p_run_id; insert into public.practice_turns(id,session_id,user_id,run_id,ordinal,role,delivery_status,request_id,text) values(p_actor_turn_id,p_session_id,p_user_id,p_run_id,next_ordinal,'actor','pending',p_request_id,trim(p_actor_text)); else update public.practice_turns set delivery_status='pending',delivery_error_code=null,delivery_retryable=null where id=p_retry_actor_turn_id and session_id=p_session_id and run_id=p_run_id and user_id=p_user_id and role='actor' and delivery_status='failed' and delivery_retryable returning text into p_actor_text; if not found or nullif(trim(p_actor_text),'') is null then raise exception 'retry_actor_not_eligible'; end if; p_actor_turn_id:=p_retry_actor_turn_id; end if;
@@ -370,6 +382,8 @@ begin
  if p_lease_seconds<>120 then raise exception 'invalid_lease'; end if;
  select * into replay from public.acttub_operation_claim_state(p_user_id,p_request_id,p_request_fingerprint);
  if replay.found then return query select replay.operation_id,replay.claim_state,replay.response_payload; return; end if;
+ select o.id as operation_id,o.response_payload into replay from public.practice_upstream_operations o where o.session_id=p_session_id and o.user_id=p_user_id and o.kind='report' and status='outcome_unknown' order by finished_at desc limit 1;
+ if found then return query select replay.operation_id,'outcome_unknown',replay.response_payload; return; end if;
  perform public.acttub_preflight_operation(p_session_id,p_user_id,true);
  select * into replay from public.practice_upstream_operations where session_id=p_session_id and user_id=p_user_id and kind='report' and status='failed' and safe_error_code not in ('acting_api_auth_failed','acting_api_rate_limited') order by finished_at desc limit 1;
  if found then return query select replay.id,'replay_failed',replay.response_payload; return; end if;
