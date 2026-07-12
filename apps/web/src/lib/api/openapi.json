@@ -272,7 +272,7 @@
         ],
         "summary": "연습 세션 생성",
         "operationId": "createPracticeSession",
-        "description": "동일 출처의 Supabase 브라우저 세션, 현재 약관 동의 및 리소스 소유권이 필요합니다. Swagger UI는 이 출처에 이미 설정된 브라우저 쿠키를 사용합니다. 현재 구현은 저장 상태가 `created`인 검증된 업로드 인텐트만 허용하며, `medium`은 `upload_url`이어야 합니다.",
+        "description": "동일 출처의 Supabase 브라우저 세션, 현재 약관 동의 및 리소스 소유권이 필요합니다. 완료된 업로드 인텐트와 정규화된 장면 맥락을 JSON으로 전송하며 영상 바이트는 Next.js를 통과하지 않습니다.",
         "x-acttub-auth": "supabase-session-cookie+current-terms",
         "requestBody": {
           "required": true,
@@ -280,46 +280,130 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/CreateSessionRequest"
-              },
-              "example": {
-                "medium": "upload_url",
-                "genre": "연극",
-                "situation": "시각장애인이 사랑하는 마음을 숨기는 장면",
-                "characterContext": "상대에게 감정을 들키지 않으려는 인물",
-                "subtext": "사랑하지만 부담을 주고 싶지 않다.",
-                "uploadIntentId": "8e8ec275-8f2c-4cd8-8ea1-4aa6af3aa6df"
               }
             }
           }
         },
         "responses": {
           "201": {
-            "description": "첫 번째 AI 코치 질문과 함께 연습 세션이 생성되었습니다.",
+            "description": "연습 세션의 현재 상태입니다.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CreateSessionResponse"
+                  "$ref": "#/components/schemas/CoachSession"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "연습 세션의 현재 상태입니다.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoachSession"
                 }
               }
             }
           },
           "400": {
-            "$ref": "#/components/responses/BadRequest"
+            "description": "안전한 오류 응답입니다.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "401": {
-            "$ref": "#/components/responses/Unauthorized"
+            "description": "안전한 오류 응답입니다.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "403": {
-            "$ref": "#/components/responses/TermsRequired"
+            "description": "안전한 오류 응답입니다.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "안전한 오류 응답입니다.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "안전한 오류 응답입니다.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "안전한 오류 응답입니다.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "안전한 오류 응답입니다.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "500": {
-            "$ref": "#/components/responses/InternalError"
+            "description": "안전한 오류 응답입니다.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "502": {
-            "$ref": "#/components/responses/UpstreamError"
+            "description": "안전한 오류 응답입니다.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "503": {
-            "$ref": "#/components/responses/ConfigurationError"
+            "description": "안전한 오류 응답입니다.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           }
         }
       }
@@ -413,76 +497,14 @@
         }
       }
     },
-    "/api/v1/practice-sessions/{sessionId}/observations/{observationId}": {
-      "patch": {
-        "tags": [
-          "연습 세션"
-        ],
-        "summary": "관찰 내용 확인 또는 거절",
-        "operationId": "updatePracticeObservation",
-        "description": "동일 출처의 Supabase 브라우저 세션, 현재 약관 동의 및 리소스 소유권이 필요합니다. Swagger UI는 이 출처에 이미 설정된 브라우저 쿠키를 사용합니다. 관찰 내용을 수정하면 다음 AI 코치 대화가 생성되어 추가될 수 있습니다.",
-        "x-acttub-auth": "supabase-session-cookie+current-terms",
-        "parameters": [
-          {
-            "$ref": "#/components/parameters/SessionId"
-          },
-          {
-            "$ref": "#/components/parameters/ObservationId"
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UpdateObservationRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "요청이 성공했습니다.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/UpdateObservationResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "403": {
-            "$ref": "#/components/responses/TermsRequired"
-          },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
-          },
-          "500": {
-            "$ref": "#/components/responses/InternalError"
-          },
-          "502": {
-            "$ref": "#/components/responses/UpstreamError"
-          },
-          "503": {
-            "$ref": "#/components/responses/ConfigurationError"
-          }
-        }
-      }
-    },
     "/api/v1/practice-sessions/{sessionId}/turns": {
       "post": {
         "tags": [
           "연습 세션"
         ],
-        "summary": "배우 답변을 제출하고 다음 코치 대화 생성",
+        "summary": "코치 인터뷰 시작, 답변, 재시도 또는 재시작",
         "operationId": "createPracticeTurn",
-        "description": "동일 출처의 Supabase 브라우저 세션, 현재 약관 동의 및 리소스 소유권이 필요합니다. 저장된 배우 답변 수를 기준으로 1~4회는 계속하고, 5~9회는 Gemini의 충분성 판단을 적용하며, 10회에는 반드시 대화를 끝냅니다. 완료 응답은 요약이나 결과를 자동 생성하지 않습니다. 마지막 코치 턴이 `summary_reflection`이거나 이미 배우 답변이 10개이면 추가 턴 요청을 거절합니다. Swagger UI는 이 출처에 이미 설정된 브라우저 쿠키를 사용합니다.",
+        "description": "동일 출처의 Supabase 브라우저 세션, 현재 약관 동의 및 리소스 소유권이 필요합니다. operation 판별자로 한 번에 한 작업만 요청하며 requestId 재사용은 동일 지문일 때만 재생됩니다.",
         "x-acttub-auth": "supabase-session-cookie+current-terms",
         "parameters": [
           {
@@ -500,95 +522,115 @@
           }
         },
         "responses": {
-          "201": {
-            "description": "배우/코치 턴과 저장 후 답변 수, 대화 완료 판단이 생성되었습니다.",
+          "200": {
+            "description": "연습 세션의 현재 상태입니다.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CreateTurnResponse"
+                  "$ref": "#/components/schemas/CoachSession"
                 }
               }
             }
           },
           "400": {
-            "$ref": "#/components/responses/BadRequest"
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "403": {
-            "$ref": "#/components/responses/TermsRequired"
-          },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
-          },
-          "500": {
-            "$ref": "#/components/responses/InternalError"
-          },
-          "502": {
-            "$ref": "#/components/responses/UpstreamError"
-          },
-          "503": {
-            "$ref": "#/components/responses/ConfigurationError"
-          }
-        }
-      }
-    },
-    "/api/v1/practice-sessions/{sessionId}/result": {
-      "post": {
-        "tags": [
-          "연습 세션"
-        ],
-        "summary": "세션을 종료하고 결과 생성",
-        "operationId": "createPracticeResult",
-        "description": "동일 출처의 Supabase 브라우저 세션, 현재 약관 동의 및 리소스 소유권이 필요합니다. Swagger UI는 이 출처에 이미 설정된 브라우저 쿠키를 사용합니다.",
-        "x-acttub-auth": "supabase-session-cookie+current-terms",
-        "parameters": [
-          {
-            "$ref": "#/components/parameters/SessionId"
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateSummaryRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "리소스가 생성되었습니다.",
+            "description": "안전한 오류 응답입니다.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CreateSummaryResponse"
+                  "$ref": "#/components/schemas/ApiError"
                 }
               }
             }
           },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
-          },
           "401": {
-            "$ref": "#/components/responses/Unauthorized"
+            "description": "안전한 오류 응답입니다.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "403": {
-            "$ref": "#/components/responses/TermsRequired"
+            "description": "안전한 오류 응답입니다.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "404": {
-            "$ref": "#/components/responses/NotFound"
+            "description": "안전한 오류 응답입니다.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "안전한 오류 응답입니다.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "안전한 오류 응답입니다.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "안전한 오류 응답입니다.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "500": {
-            "$ref": "#/components/responses/InternalError"
+            "description": "안전한 오류 응답입니다.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "502": {
-            "$ref": "#/components/responses/UpstreamError"
+            "description": "안전한 오류 응답입니다.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "503": {
-            "$ref": "#/components/responses/ConfigurationError"
+            "description": "안전한 오류 응답입니다.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           }
         }
       }
@@ -642,122 +684,6 @@
           },
           "500": {
             "$ref": "#/components/responses/InternalError"
-          },
-          "503": {
-            "$ref": "#/components/responses/ConfigurationError"
-          }
-        }
-      }
-    },
-    "/api/v1/practice-sessions/{sessionId}/metrics": {
-      "post": {
-        "tags": [
-          "연습 세션"
-        ],
-        "summary": "검증 지표 저장",
-        "operationId": "savePracticeValidationMetrics",
-        "description": "동일 출처의 Supabase 브라우저 세션, 현재 약관 동의 및 리소스 소유권이 필요합니다. Swagger UI는 이 출처에 이미 설정된 브라우저 쿠키를 사용합니다.",
-        "x-acttub-auth": "supabase-session-cookie+current-terms",
-        "parameters": [
-          {
-            "$ref": "#/components/parameters/SessionId"
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/SaveValidationMetricsRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "리소스가 생성되었습니다.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SaveValidationMetricsResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "403": {
-            "$ref": "#/components/responses/TermsRequired"
-          },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
-          },
-          "500": {
-            "$ref": "#/components/responses/InternalError"
-          },
-          "503": {
-            "$ref": "#/components/responses/ConfigurationError"
-          }
-        }
-      }
-    },
-    "/api/v1/practice-sessions/{sessionId}/summary": {
-      "post": {
-        "deprecated": true,
-        "description": "호환용 별칭입니다. 새 클라이언트는 `/api/v1/practice-sessions/{sessionId}/result`를 사용해야 합니다. 동일 출처의 Supabase 브라우저 세션, 현재 약관 동의 및 리소스 소유권이 필요합니다. Swagger UI는 이 출처에 이미 설정된 브라우저 쿠키를 사용합니다.",
-        "tags": [
-          "호환 API"
-        ],
-        "x-acttub-auth": "supabase-session-cookie+current-terms",
-        "summary": "연습 결과 생성(호환용 별칭)",
-        "operationId": "createPracticeSummaryAlias",
-        "parameters": [
-          {
-            "$ref": "#/components/parameters/SessionId"
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateSummaryRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "리소스가 생성되었습니다.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CreateSummaryResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "403": {
-            "$ref": "#/components/responses/TermsRequired"
-          },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
-          },
-          "500": {
-            "$ref": "#/components/responses/InternalError"
-          },
-          "502": {
-            "$ref": "#/components/responses/UpstreamError"
           },
           "503": {
             "$ref": "#/components/responses/ConfigurationError"
@@ -859,68 +785,153 @@
         }
       }
     },
-    "/api/v1/sessions": {
+    "/api/v1/practice-sessions/{sessionId}/analysis": {
       "post": {
-        "deprecated": true,
-        "description": "호환용 별칭입니다. 새 클라이언트는 `/api/v1/practice-sessions`를 사용해야 합니다. 동일 출처의 Supabase 브라우저 세션, 현재 약관 동의 및 리소스 소유권이 필요합니다. Swagger UI는 이 출처에 이미 설정된 브라우저 쿠키를 사용합니다.",
         "tags": [
-          "호환 API"
+          "연습 세션"
         ],
+        "summary": "실패한 영상 분석 명시적 재시도",
+        "operationId": "retryPracticeAnalysis",
+        "description": "동일 출처의 Supabase 브라우저 세션, 현재 약관 동의 및 리소스 소유권이 필요합니다. 401 또는 429로 확정 실패하고 재시도 가능하게 저장된 분석만 다시 요청합니다.",
         "x-acttub-auth": "supabase-session-cookie+current-terms",
-        "summary": "연습 세션 생성(레거시 별칭)",
-        "operationId": "createLegacySession",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/SessionId"
+          }
+        ],
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/CreateSessionRequest"
+                "$ref": "#/components/schemas/AnalysisRetryRequest"
               }
             }
           }
         },
         "responses": {
-          "201": {
-            "description": "리소스가 생성되었습니다.",
+          "200": {
+            "description": "연습 세션의 현재 상태입니다.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CreateSessionResponse"
+                  "$ref": "#/components/schemas/CoachSession"
                 }
               }
             }
           },
           "400": {
-            "$ref": "#/components/responses/BadRequest"
+            "description": "안전한 오류 응답입니다.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "401": {
-            "$ref": "#/components/responses/Unauthorized"
+            "description": "안전한 오류 응답입니다.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "403": {
-            "$ref": "#/components/responses/TermsRequired"
+            "description": "안전한 오류 응답입니다.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "안전한 오류 응답입니다.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "안전한 오류 응답입니다.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "안전한 오류 응답입니다.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "안전한 오류 응답입니다.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "500": {
-            "$ref": "#/components/responses/InternalError"
+            "description": "안전한 오류 응답입니다.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "502": {
-            "$ref": "#/components/responses/UpstreamError"
+            "description": "안전한 오류 응답입니다.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "503": {
-            "$ref": "#/components/responses/ConfigurationError"
+            "description": "안전한 오류 응답입니다.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           }
         }
       }
     },
-    "/api/v1/sessions/{sessionId}": {
+    "/api/v1/practice-sessions/{sessionId}/report": {
       "get": {
-        "deprecated": true,
-        "description": "호환용 별칭입니다. 새 클라이언트는 `/api/v1/practice-sessions/{sessionId}`를 사용해야 합니다. 동일 출처의 Supabase 브라우저 세션, 현재 약관 동의 및 리소스 소유권이 필요합니다. Swagger UI는 이 출처에 이미 설정된 브라우저 쿠키를 사용합니다.",
         "tags": [
-          "호환 API"
+          "연습 세션"
         ],
+        "summary": "저장된 연기 리포트 조회",
+        "operationId": "getPracticeReport",
+        "description": "동일 출처의 Supabase 브라우저 세션, 현재 약관 동의 및 리소스 소유권이 필요합니다. acting-api 히스토리를 직접 조회하지 않고 플랫폼 DB의 리포트만 반환합니다.",
         "x-acttub-auth": "supabase-session-cookie+current-terms",
-        "summary": "연습 세션 조회(레거시 별칭)",
-        "operationId": "getLegacySession",
         "parameters": [
           {
             "$ref": "#/components/parameters/SessionId"
@@ -928,49 +939,128 @@
         ],
         "responses": {
           "200": {
-            "description": "요청이 성공했습니다.",
+            "description": "플랫폼에 저장된 연기 리포트입니다.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/GetSessionResponse"
+                  "$ref": "#/components/schemas/ActingReport"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "안전한 오류 응답입니다.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
                 }
               }
             }
           },
           "401": {
-            "$ref": "#/components/responses/Unauthorized"
+            "description": "안전한 오류 응답입니다.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "403": {
-            "$ref": "#/components/responses/TermsRequired"
+            "description": "안전한 오류 응답입니다.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "404": {
-            "$ref": "#/components/responses/NotFound"
+            "description": "안전한 오류 응답입니다.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "안전한 오류 응답입니다.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "안전한 오류 응답입니다.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "안전한 오류 응답입니다.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "500": {
-            "$ref": "#/components/responses/InternalError"
+            "description": "안전한 오류 응답입니다.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "안전한 오류 응답입니다.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "503": {
-            "$ref": "#/components/responses/ConfigurationError"
+            "description": "안전한 오류 응답입니다.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           }
         }
-      }
-    },
-    "/api/v1/sessions/{sessionId}/observations/{observationId}": {
-      "patch": {
-        "deprecated": true,
-        "description": "호환용 별칭입니다. 새 클라이언트는 `/api/v1/practice-sessions/{sessionId}/observations/{observationId}`를 사용해야 합니다. 동일 출처의 Supabase 브라우저 세션, 현재 약관 동의 및 리소스 소유권이 필요합니다. Swagger UI는 이 출처에 이미 설정된 브라우저 쿠키를 사용합니다.",
+      },
+      "post": {
         "tags": [
-          "호환 API"
+          "연습 세션"
         ],
+        "summary": "완료된 현재 인터뷰의 연기 리포트 생성",
+        "operationId": "createPracticeReport",
+        "description": "동일 출처의 Supabase 브라우저 세션, 현재 약관 동의 및 리소스 소유권이 필요합니다. 모호한 upstream 결과 뒤에는 추가 POST를 차단합니다.",
         "x-acttub-auth": "supabase-session-cookie+current-terms",
-        "summary": "관찰 내용 수정(레거시 별칭)",
-        "operationId": "updateLegacyObservation",
         "parameters": [
           {
             "$ref": "#/components/parameters/SessionId"
-          },
-          {
-            "$ref": "#/components/parameters/ObservationId"
           }
         ],
         "requestBody": {
@@ -978,162 +1068,131 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/UpdateObservationRequest"
+                "$ref": "#/components/schemas/CreateReportRequest"
               }
             }
           }
         },
         "responses": {
+          "201": {
+            "description": "플랫폼에 저장된 연기 리포트입니다.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActingReport"
+                }
+              }
+            }
+          },
           "200": {
-            "description": "요청이 성공했습니다.",
+            "description": "플랫폼에 저장된 연기 리포트입니다.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/UpdateObservationResponse"
+                  "$ref": "#/components/schemas/ActingReport"
                 }
               }
             }
           },
           "400": {
-            "$ref": "#/components/responses/BadRequest"
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "403": {
-            "$ref": "#/components/responses/TermsRequired"
-          },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
-          },
-          "500": {
-            "$ref": "#/components/responses/InternalError"
-          },
-          "502": {
-            "$ref": "#/components/responses/UpstreamError"
-          },
-          "503": {
-            "$ref": "#/components/responses/ConfigurationError"
-          }
-        }
-      }
-    },
-    "/api/v1/sessions/{sessionId}/turns": {
-      "post": {
-        "deprecated": true,
-        "description": "호환용 별칭입니다. 새 클라이언트는 `/api/v1/practice-sessions/{sessionId}/turns`를 사용해야 합니다. 저장된 배우 답변 수를 기준으로 최소 5회, 최대 10회의 같은 완료 정책을 적용하며 완료 시에도 요약이나 결과를 자동 생성하지 않습니다. 동일 출처의 Supabase 브라우저 세션, 현재 약관 동의 및 리소스 소유권이 필요합니다. Swagger UI는 이 출처에 이미 설정된 브라우저 쿠키를 사용합니다.",
-        "tags": [
-          "호환 API"
-        ],
-        "x-acttub-auth": "supabase-session-cookie+current-terms",
-        "summary": "연습 대화 생성(레거시 별칭)",
-        "operationId": "createLegacyTurn",
-        "parameters": [
-          {
-            "$ref": "#/components/parameters/SessionId"
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateTurnRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "배우/코치 턴과 저장 후 답변 수, 대화 완료 판단이 생성되었습니다.",
+            "description": "안전한 오류 응답입니다.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CreateTurnResponse"
+                  "$ref": "#/components/schemas/ApiError"
                 }
               }
             }
           },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
-          },
           "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "403": {
-            "$ref": "#/components/responses/TermsRequired"
-          },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
-          },
-          "500": {
-            "$ref": "#/components/responses/InternalError"
-          },
-          "502": {
-            "$ref": "#/components/responses/UpstreamError"
-          },
-          "503": {
-            "$ref": "#/components/responses/ConfigurationError"
-          }
-        }
-      }
-    },
-    "/api/v1/sessions/{sessionId}/summary": {
-      "post": {
-        "deprecated": true,
-        "description": "호환용 별칭입니다. 새 클라이언트는 `/api/v1/practice-sessions/{sessionId}/result`를 사용해야 합니다. 동일 출처의 Supabase 브라우저 세션, 현재 약관 동의 및 리소스 소유권이 필요합니다. Swagger UI는 이 출처에 이미 설정된 브라우저 쿠키를 사용합니다.",
-        "tags": [
-          "호환 API"
-        ],
-        "x-acttub-auth": "supabase-session-cookie+current-terms",
-        "summary": "연습 결과 생성(레거시 별칭)",
-        "operationId": "createLegacySummary",
-        "parameters": [
-          {
-            "$ref": "#/components/parameters/SessionId"
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateSummaryRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "리소스가 생성되었습니다.",
+            "description": "안전한 오류 응답입니다.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CreateSummaryResponse"
+                  "$ref": "#/components/schemas/ApiError"
                 }
               }
             }
           },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
           "403": {
-            "$ref": "#/components/responses/TermsRequired"
+            "description": "안전한 오류 응답입니다.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "404": {
-            "$ref": "#/components/responses/NotFound"
+            "description": "안전한 오류 응답입니다.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "안전한 오류 응답입니다.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "안전한 오류 응답입니다.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "안전한 오류 응답입니다.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "500": {
-            "$ref": "#/components/responses/InternalError"
+            "description": "안전한 오류 응답입니다.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "502": {
-            "$ref": "#/components/responses/UpstreamError"
+            "description": "안전한 오류 응답입니다.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "503": {
-            "$ref": "#/components/responses/ConfigurationError"
+            "description": "안전한 오류 응답입니다.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           }
         }
       }
@@ -1447,8 +1506,10 @@
       },
       "FinalizeUploadIntentRequest": {
         "type": "object",
+        "additionalProperties": false,
         "required": [
-          "storagePath"
+          "storagePath",
+          "durationMs"
         ],
         "properties": {
           "storagePath": {
@@ -1456,8 +1517,9 @@
             "minLength": 1
           },
           "durationMs": {
-            "type": "number",
-            "exclusiveMinimum": 0
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 180000
           }
         }
       },
@@ -1704,126 +1766,48 @@
         }
       },
       "CoachSession": {
-        "type": "object",
-        "required": [
-          "id",
-          "userId",
-          "status",
-          "medium",
-          "genre",
-          "situation",
-          "characterContext",
-          "subtext",
-          "finalActorSentence",
-          "hiddenAt",
-          "validationMetrics",
-          "createdAt",
-          "updatedAt",
-          "take",
-          "observations",
-          "turns"
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/ActingCoachSession"
+          },
+          {
+            "$ref": "#/components/schemas/LegacyCoachSession"
+          }
         ],
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "userId": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string",
-            "enum": [
-              "ANALYZING",
-              "OBSERVE_CONFIRM",
-              "PROBE_LOOP",
-              "INSIGHT",
-              "END"
-            ]
-          },
-          "medium": {
-            "type": "string",
-            "enum": [
-              "youtube_url",
-              "upload_url",
-              "text_only"
-            ]
-          },
-          "genre": {
-            "type": "string"
-          },
-          "situation": {
-            "type": "string"
-          },
-          "characterContext": {
-            "type": "string"
-          },
-          "subtext": {
-            "type": "string"
-          },
-          "finalActorSentence": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "hiddenAt": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "date-time"
-          },
-          "validationMetrics": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/ValidationMetrics"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "createdAt": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "updatedAt": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "take": {
-            "$ref": "#/components/schemas/Take"
-          },
-          "observations": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/Observation"
-            }
-          },
-          "turns": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/Turn"
-            }
+        "discriminator": {
+          "propertyName": "pipelineVersion",
+          "mapping": {
+            "acting-api-v1": "#/components/schemas/ActingCoachSession",
+            "legacy-gemini-v1": "#/components/schemas/LegacyCoachSession"
           }
         }
       },
       "CreateSessionRequest": {
         "type": "object",
+        "additionalProperties": false,
         "required": [
+          "requestId",
+          "uploadIntentId",
           "medium",
           "genre",
           "situation",
           "characterContext",
-          "uploadIntentId"
+          "subtext"
         ],
         "properties": {
+          "requestId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "uploadIntentId": {
+            "type": "string",
+            "format": "uuid"
+          },
           "medium": {
-            "const": "upload_url"
+            "$ref": "#/components/schemas/SceneMedium"
           },
           "genre": {
-            "type": "string",
-            "minLength": 1
+            "$ref": "#/components/schemas/SceneGenre"
           },
           "situation": {
             "type": "string",
@@ -1834,45 +1818,13 @@
             "minLength": 1
           },
           "subtext": {
-            "type": "string"
-          },
-          "videoUrl": {
-            "type": "string",
-            "deprecated": true,
-            "description": "호환성을 위해 DTO에 남아 있지만 현재 업로드 전용 구현에서는 사용하지 않습니다."
-          },
-          "durationMs": {
-            "type": "number"
-          },
-          "sessionId": {
-            "type": "string"
-          },
-          "uploadIntentId": {
             "type": "string",
             "minLength": 1
-          },
-          "storagePath": {
-            "type": "string"
-          },
-          "fileMetadata": {
-            "$ref": "#/components/schemas/FileMetadata"
           }
         }
       },
       "CreateSessionResponse": {
-        "type": "object",
-        "required": [
-          "session",
-          "firstQuestion"
-        ],
-        "properties": {
-          "session": {
-            "$ref": "#/components/schemas/CoachSession"
-          },
-          "firstQuestion": {
-            "$ref": "#/components/schemas/Turn"
-          }
-        }
+        "$ref": "#/components/schemas/CoachSession"
       },
       "ListSessionsResponse": {
         "type": "object",
@@ -1932,64 +1884,26 @@
         }
       },
       "CreateTurnRequest": {
-        "type": "object",
-        "required": [
-          "actorAnswer"
-        ],
-        "properties": {
-          "actorAnswer": {
-            "type": "string",
-            "minLength": 1
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/StartTurnRequest"
+          },
+          {
+            "$ref": "#/components/schemas/ReplyTurnRequest"
+          },
+          {
+            "$ref": "#/components/schemas/RetryReplyTurnRequest"
+          },
+          {
+            "$ref": "#/components/schemas/RestartTurnRequest"
           }
+        ],
+        "discriminator": {
+          "propertyName": "operation"
         }
       },
       "CreateTurnResponse": {
-        "type": "object",
-        "required": [
-          "actorTurn",
-          "coachTurn",
-          "session",
-          "dialogueComplete",
-          "answerCount",
-          "completionReason"
-        ],
-        "properties": {
-          "actorTurn": {
-            "$ref": "#/components/schemas/Turn"
-          },
-          "coachTurn": {
-            "$ref": "#/components/schemas/Turn"
-          },
-          "session": {
-            "$ref": "#/components/schemas/CoachSession"
-          },
-          "dialogueComplete": {
-            "type": "boolean",
-            "description": "현재 배우 답변까지 반영한 뒤 질문 대화를 끝내야 하면 true입니다.",
-            "example": true
-          },
-          "answerCount": {
-            "type": "integer",
-            "minimum": 1,
-            "maximum": 10,
-            "description": "이번 actorTurn을 포함해 저장된 배우 답변 수입니다.",
-            "example": 5
-          },
-          "completionReason": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "enum": [
-              "ai_sufficient",
-              "max_questions_reached",
-              null
-            ],
-            "description": "5~9번째 답변에서 AI가 충분하다고 판단하면 ai_sufficient, 10번째 답변이면 max_questions_reached이며 계속 중에는 null입니다.",
-            "example": "ai_sufficient"
-          }
-        },
-        "description": "기존 actorTurn, coachTurn, session 필드를 유지하면서 대화 완료 판단을 덧붙인 응답입니다. dialogueComplete는 대화 루프의 종료만 뜻하며 세션 결과 생성이나 상태 완료를 뜻하지 않습니다."
+        "$ref": "#/components/schemas/CoachSession"
       },
       "SaveValidationMetricsRequest": {
         "type": "object",
@@ -2139,6 +2053,693 @@
           },
           "validationMetrics": {
             "$ref": "#/components/schemas/ValidationMetrics"
+          }
+        }
+      },
+      "SceneMedium": {
+        "type": "string",
+        "enum": [
+          "연극",
+          "영화",
+          "TV 드라마",
+          "웹드라마",
+          "뮤지컬",
+          "기타"
+        ]
+      },
+      "SceneGenre": {
+        "type": "string",
+        "enum": [
+          "드라마",
+          "코미디",
+          "로맨스",
+          "스릴러",
+          "액션",
+          "판타지",
+          "기타"
+        ]
+      },
+      "SceneSummary": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": [
+          "observation",
+          "summary",
+          "intent_alignment",
+          "key_moment",
+          "key_dimension",
+          "anomalies"
+        ],
+        "properties": {
+          "observation": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "summary": {
+            "type": "string"
+          },
+          "intent_alignment": {
+            "type": "string"
+          },
+          "key_moment": {
+            "type": "string"
+          },
+          "key_dimension": {
+            "type": "string"
+          },
+          "anomalies": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            }
+          }
+        },
+        "description": "acting-api 요약 원본의 호환 가능한 미지 필드를 손실 없이 보존합니다."
+      },
+      "ActingTake": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "durationMs",
+          "analysisStatus",
+          "analysisRetryable",
+          "analysisError",
+          "createdAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "durationMs": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 180000
+          },
+          "analysisStatus": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "completed",
+              "failed",
+              "outcome_unknown"
+            ]
+          },
+          "analysisRetryable": {
+            "type": "boolean"
+          },
+          "analysisError": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "LegacyTake": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": [
+          "id",
+          "analysisStatus",
+          "createdAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "analysisStatus": {
+            "type": "string",
+            "enum": [
+              "generated",
+              "failed"
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "PracticeTurn": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "runId",
+          "ordinal",
+          "role",
+          "deliveryStatus",
+          "text",
+          "createdAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "runId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "ordinal": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "ai",
+              "actor"
+            ]
+          },
+          "deliveryStatus": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "completed",
+              "failed",
+              "outcome_unknown"
+            ]
+          },
+          "deliveryErrorCode": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "text": {
+            "type": "string"
+          },
+          "action": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "probe_intent",
+              "dig_cause",
+              "deflect",
+              "close",
+              null
+            ]
+          },
+          "focusTimestamp": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "CurrentInterviewRun": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "runId",
+          "status",
+          "closeReason",
+          "failureCode",
+          "failureRetryable",
+          "recoveryAction"
+        ],
+        "properties": {
+          "runId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "starting",
+              "live",
+              "completed",
+              "start_failed",
+              "expired",
+              "outcome_unknown"
+            ]
+          },
+          "closeReason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "failureCode": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "failureRetryable": {
+            "type": "boolean"
+          },
+          "recoveryAction": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "start",
+              "restart",
+              null
+            ]
+          }
+        }
+      },
+      "ActingReport": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "headline",
+          "biggestProblem",
+          "evidence",
+          "selfDiscovery",
+          "encouragement",
+          "nextStep",
+          "comparison",
+          "reportCount"
+        ],
+        "properties": {
+          "headline": {
+            "type": "string"
+          },
+          "biggestProblem": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "start",
+              "end",
+              "dimension",
+              "description"
+            ],
+            "properties": {
+              "start": {
+                "type": "string"
+              },
+              "end": {
+                "type": "string"
+              },
+              "dimension": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              }
+            }
+          },
+          "evidence": {
+            "type": "string"
+          },
+          "selfDiscovery": {
+            "type": "string"
+          },
+          "encouragement": {
+            "type": "string"
+          },
+          "nextStep": {
+            "type": "string"
+          },
+          "comparison": {
+            "type": "string"
+          },
+          "reportCount": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      },
+      "ActingCoachSession": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "pipelineVersion",
+          "legacy",
+          "id",
+          "userId",
+          "status",
+          "medium",
+          "genre",
+          "situation",
+          "characterContext",
+          "subtext",
+          "take",
+          "sceneSummary",
+          "currentRun",
+          "turns",
+          "report",
+          "hiddenAt",
+          "createdAt",
+          "updatedAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "userId": {
+            "type": "string"
+          },
+          "medium": {
+            "$ref": "#/components/schemas/SceneMedium"
+          },
+          "genre": {
+            "$ref": "#/components/schemas/SceneGenre"
+          },
+          "situation": {
+            "type": "string"
+          },
+          "characterContext": {
+            "type": "string"
+          },
+          "subtext": {
+            "type": "string"
+          },
+          "hiddenAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "pipelineVersion": {
+            "const": "acting-api-v1"
+          },
+          "legacy": {
+            "const": false
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ANALYZING",
+              "INTERVIEW",
+              "REPORT",
+              "END"
+            ]
+          },
+          "take": {
+            "$ref": "#/components/schemas/ActingTake"
+          },
+          "sceneSummary": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/SceneSummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "currentRun": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/CurrentInterviewRun"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "turns": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PracticeTurn"
+            }
+          },
+          "report": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ActingReport"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "LegacyResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "actorAuthoredSentence",
+          "questionToRevisit",
+          "createdAt"
+        ],
+        "properties": {
+          "actorAuthoredSentence": {
+            "type": "string"
+          },
+          "questionToRevisit": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "LegacyCoachSession": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "pipelineVersion",
+          "legacy",
+          "id",
+          "userId",
+          "status",
+          "medium",
+          "genre",
+          "situation",
+          "characterContext",
+          "subtext",
+          "take",
+          "sceneSummary",
+          "currentRun",
+          "turns",
+          "report",
+          "legacyResult",
+          "hiddenAt",
+          "createdAt",
+          "updatedAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "userId": {
+            "type": "string"
+          },
+          "medium": {
+            "type": "string"
+          },
+          "genre": {
+            "type": "string"
+          },
+          "situation": {
+            "type": "string"
+          },
+          "characterContext": {
+            "type": "string"
+          },
+          "subtext": {
+            "type": "string"
+          },
+          "hiddenAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "pipelineVersion": {
+            "const": "legacy-gemini-v1"
+          },
+          "legacy": {
+            "const": true
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "LEGACY_OBSERVATIONS_PENDING",
+              "LEGACY_QUESTIONING",
+              "LEGACY_COMPLETED"
+            ]
+          },
+          "take": {
+            "$ref": "#/components/schemas/LegacyTake"
+          },
+          "sceneSummary": {
+            "type": "null"
+          },
+          "currentRun": {
+            "type": "null"
+          },
+          "turns": {
+            "type": "array",
+            "maxItems": 0
+          },
+          "report": {
+            "type": "null"
+          },
+          "legacyResult": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/LegacyResult"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "AnalysisRetryRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "operation",
+          "requestId"
+        ],
+        "properties": {
+          "operation": {
+            "const": "retry"
+          },
+          "requestId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "StartTurnRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "operation",
+          "requestId"
+        ],
+        "properties": {
+          "operation": {
+            "const": "start"
+          },
+          "requestId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "ReplyTurnRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "operation",
+          "runId",
+          "requestId",
+          "text"
+        ],
+        "properties": {
+          "operation": {
+            "const": "reply"
+          },
+          "runId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "requestId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "text": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "RetryReplyTurnRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "operation",
+          "runId",
+          "requestId",
+          "actorTurnId"
+        ],
+        "properties": {
+          "operation": {
+            "const": "retry_reply"
+          },
+          "runId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "requestId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "actorTurnId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "RestartTurnRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "operation",
+          "requestId"
+        ],
+        "properties": {
+          "operation": {
+            "const": "restart"
+          },
+          "requestId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "CreateReportRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "requestId"
+        ],
+        "properties": {
+          "requestId": {
+            "type": "string",
+            "format": "uuid"
           }
         }
       }
