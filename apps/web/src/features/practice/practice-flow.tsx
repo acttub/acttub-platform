@@ -77,12 +77,14 @@ export function PracticeFlow({ entry = "new" }: { entry?: Entry }) {
     if (file.size <= 0 || file.size > MAX_UPLOAD_BYTES) { setError("영상은 550MB 이하여야 해요."); return; }
     if (file.type !== "video/mp4" && file.type !== "video/quicktime") { setError("MP4 또는 MOV 영상만 업로드할 수 있어요."); return; }
     setBusy(true); setError(null);
+    let persistedSessionId: string | null = null;
     try {
       const durationMs = await videoDuration(file);
       if (durationMs < 1 || durationMs > MAX_DURATION_MS) throw new Error("영상은 3분 이하여야 해요.");
       const { uploadIntent } = await createPracticeUploadIntent({
         fileMetadata: { fileName: file.name, mimeType: file.type, sizeBytes: file.size },
       });
+      persistedSessionId = uploadIntent.sessionId;
       const supabase = getSupabaseBrowserClient();
       if (!supabase) throw new Error("업로드 설정을 확인하지 못했어요.");
       const { error: uploadError } = await supabase.storage.from(uploadIntent.storageBucket)
@@ -94,7 +96,10 @@ export function PracticeFlow({ entry = "new" }: { entry?: Entry }) {
         medium, genre, situation: situation.trim(), characterContext: characterContext.trim(), subtext: subtext.trim(),
       });
       setActive(session); setHistory((items) => [session, ...items.filter((item) => item.id !== session.id)]);
-    } catch (reason) { setError(errorMessage(reason)); } finally { setBusy(false); }
+    } catch (reason) {
+      if (persistedSessionId) await recoverPersistedSession(persistedSessionId, reason);
+      setError(errorMessage(reason));
+    } finally { setBusy(false); }
   }
 
   async function operation(kind: "start" | "restart") {
@@ -147,7 +152,10 @@ export function PracticeFlow({ entry = "new" }: { entry?: Entry }) {
     if (!active) return;
     setBusy(true); setError(null);
     try { setActive(await retryPracticeAnalysis(active.id)); }
-    catch (reason) { setError(errorMessage(reason)); } finally { setBusy(false); }
+    catch (reason) {
+      await recoverPersistedSession(active.id, reason);
+      setError(errorMessage(reason));
+    } finally { setBusy(false); }
   }
 
   async function report() {
@@ -172,6 +180,8 @@ export function PracticeFlow({ entry = "new" }: { entry?: Entry }) {
       "acting_api_auth_failed",
       "acting_api_rate_limited",
       "acting_api_rejected",
+      "analysis_outcome_unknown",
+      "video_too_large",
     ].includes(reason.code)) return;
 
     if (["acting_session_expired", "upstream_outcome_unknown"].includes(reason.code)) {
