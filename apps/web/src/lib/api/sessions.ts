@@ -1,29 +1,88 @@
-import type {
-  ActingCoachSessionDto,
-  ActingReportDto,
-  ActingTurnRequest,
-  CreateActingSessionRequest,
-  CreateReportRequest,
-  CreateSessionRequest,
-  CreateSessionResponse,
-  CreateSummaryRequest,
-  CreateSummaryResponse,
-  CreateTurnRequest,
-  CreateTurnResponse,
-  CreateUploadIntentRequest,
-  CreateUploadIntentResponse,
-  FinalizeUploadIntentRequest,
-  FinalizeUploadIntentResponse,
-  ListSessionsResponse,
-  RetryAnalysisRequest,
-  SaveValidationMetricsRequest,
-  SaveValidationMetricsResponse,
-  SignedVideoUrlResponse,
-  UpdateObservationRequest,
-  UpdateObservationResponse,
-  UpdateSessionVisibilityRequest,
-  UpdateSessionVisibilityResponse,
-} from "./types";
+export type SceneMedium = "연극" | "영화" | "TV 드라마" | "웹드라마" | "뮤지컬" | "기타";
+export type SceneGenre = "드라마" | "코미디" | "로맨스" | "스릴러" | "액션" | "판타지" | "기타";
+export type ActingSessionStatus = "ANALYZING" | "INTERVIEW" | "REPORT" | "END";
+
+export type ApiErrorDetails = Record<string, unknown>;
+
+export class ApiClientError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+    readonly code: string,
+    readonly details?: ApiErrorDetails,
+  ) {
+    super(message);
+    this.name = "ApiClientError";
+  }
+}
+
+export type PracticeTurn = {
+  id: string;
+  runId: string;
+  ordinal: number;
+  role: "ai" | "actor";
+  text: string;
+  deliveryStatus: "pending" | "completed" | "failed" | "outcome_unknown";
+  deliveryErrorCode?: string | null;
+  focusTimestampMs?: number | null;
+  createdAt: string;
+};
+
+export type ActingReport = {
+  [key: string]: unknown;
+  id?: string;
+  createdAt?: string;
+};
+
+export type ActingSession = {
+  id: string;
+  pipelineVersion: "acting-api-v1";
+  legacy: false;
+  status: ActingSessionStatus;
+  medium: SceneMedium;
+  genre: SceneGenre;
+  situation: string;
+  characterContext: string;
+  subtext: string;
+  createdAt: string;
+  updatedAt: string;
+  take: {
+    analysisStatus: "pending" | "completed" | "failed" | "outcome_unknown";
+    analysisError?: string | null;
+    analysisRetryable: boolean;
+  };
+  currentRun: {
+    runId: string;
+    status: string;
+    closeReason?: string | null;
+    failureCode?: string | null;
+    failureRetryable?: boolean;
+    recoveryAction: "start" | "restart" | null;
+  } | null;
+  turns: PracticeTurn[];
+  report?: ActingReport | null;
+};
+
+export type LegacySession = {
+  id: string;
+  pipelineVersion: "legacy-gemini-v1";
+  legacy: true;
+  status: "LEGACY_OBSERVATIONS_PENDING" | "LEGACY_QUESTIONING" | "LEGACY_COMPLETED";
+  genre: string;
+  situation: string;
+  createdAt: string;
+  updatedAt: string;
+  report: null;
+};
+
+export type PracticeSession = ActingSession | LegacySession;
+
+type UploadIntent = {
+  uploadIntentId: string;
+  sessionId: string;
+  storageBucket: "practice-videos";
+  storagePath: string;
+};
 
 export class ApiClientError extends Error {
   constructor(
@@ -38,181 +97,77 @@ export class ApiClientError extends Error {
 }
 
 async function parseJsonResponse<T>(response: Response): Promise<T> {
-  const payload = (await response.json()) as unknown;
-
+  const payload = (await response.json().catch(() => null)) as {
+    error?: { code?: string; message?: string; details?: ApiErrorDetails };
+  } | null;
   if (!response.ok) {
-    const message =
-      typeof payload === "object" &&
-      payload !== null &&
-      "error" in payload &&
-      typeof payload.error === "object" &&
-      payload.error !== null &&
-      "message" in payload.error &&
-      typeof payload.error.message === "string"
-        ? payload.error.message
-        : "요청을 처리하지 못했어요.";
-    const error = typeof payload === "object" && payload !== null && "error" in payload
-      ? payload.error
-      : null;
-    const code = typeof error === "object" && error !== null && "code" in error && typeof error.code === "string"
-      ? error.code
-      : "request_failed";
-    const details = typeof error === "object" && error !== null && "details" in error && typeof error.details === "object" && error.details !== null
-      ? error.details as Record<string, unknown>
-      : undefined;
-    throw new ApiClientError(response.status, code, message, details);
+    throw new ApiClientError(
+      payload?.error?.message ?? "요청을 처리하지 못했어요.",
+      response.status,
+      payload?.error?.code ?? "unknown_error",
+      payload?.error?.details,
+    );
   }
-
   return payload as T;
 }
 
-export async function createActingPracticeSession(body: CreateActingSessionRequest): Promise<ActingCoachSessionDto> {
-  const response = await fetch("/api/v1/practice-sessions", { method: "POST", headers: jsonHeaders, body: JSON.stringify(body) });
-  return parseJsonResponse<ActingCoachSessionDto>(response);
-}
+const jsonHeaders = { Accept: "application/json", "Content-Type": "application/json" };
+const request = <T>(url: string, init?: RequestInit) =>
+  fetch(url, { cache: "no-store", ...init }).then(parseJsonResponse<T>);
 
-export async function retryPracticeAnalysis(sessionId: string, body: RetryAnalysisRequest): Promise<ActingCoachSessionDto> {
-  const response = await fetch(`/api/v1/practice-sessions/${sessionId}/analysis`, { method: "POST", headers: jsonHeaders, body: JSON.stringify(body) });
-  return parseJsonResponse<ActingCoachSessionDto>(response);
-}
-
-export async function createActingPracticeTurn(sessionId: string, body: ActingTurnRequest): Promise<ActingCoachSessionDto> {
-  const response = await fetch(`/api/v1/practice-sessions/${sessionId}/turns`, { method: "POST", headers: jsonHeaders, body: JSON.stringify(body) });
-  return parseJsonResponse<ActingCoachSessionDto>(response);
-}
-
-export async function createActingReport(sessionId: string, body: CreateReportRequest): Promise<ActingReportDto> {
-  const response = await fetch(`/api/v1/practice-sessions/${sessionId}/report`, { method: "POST", headers: jsonHeaders, body: JSON.stringify(body) });
-  return parseJsonResponse<ActingReportDto>(response);
-}
-
-export async function getActingReport(sessionId: string): Promise<ActingReportDto> {
-  const response = await fetch(`/api/v1/practice-sessions/${sessionId}/report`, { headers: { Accept: "application/json" } });
-  return parseJsonResponse<ActingReportDto>(response);
-}
-
-const jsonHeaders = {
-  Accept: "application/json",
-  "Content-Type": "application/json",
-};
-
-export async function createPracticeUploadIntent(
-  body: CreateUploadIntentRequest,
-): Promise<CreateUploadIntentResponse> {
-  const response = await fetch("/api/v1/practice-upload-intents", {
-    method: "POST",
-    headers: jsonHeaders,
-    body: JSON.stringify(body),
+export function createPracticeUploadIntent(body: {
+  fileMetadata: { fileName: string; mimeType: "video/mp4" | "video/quicktime"; sizeBytes: number };
+}) {
+  return request<{ uploadIntent: UploadIntent }>("/api/v1/practice-upload-intents", {
+    method: "POST", headers: jsonHeaders, body: JSON.stringify(body),
   });
-
-  return parseJsonResponse<CreateUploadIntentResponse>(response);
 }
 
-export async function finalizePracticeUploadIntent(
-  uploadIntentId: string,
-  body: FinalizeUploadIntentRequest | { storagePath: string; durationMs?: number },
-): Promise<FinalizeUploadIntentResponse> {
-  const response = await fetch(`/api/v1/practice-upload-intents/${uploadIntentId}/finalize`, {
-    method: "POST",
-    headers: jsonHeaders,
-    body: JSON.stringify(body),
+export function finalizePracticeUploadIntent(id: string, body: { storagePath: string; durationMs: number }) {
+  return request(`/api/v1/practice-upload-intents/${id}/finalize`, {
+    method: "POST", headers: jsonHeaders, body: JSON.stringify(body),
   });
-
-  return parseJsonResponse<FinalizeUploadIntentResponse>(response);
 }
 
-export async function listPracticeSessions(): Promise<ListSessionsResponse> {
-  const response = await fetch("/api/v1/practice-sessions", {
-    headers: { Accept: "application/json" },
+export function listPracticeSessions() {
+  return request<{ sessions: PracticeSession[] }>("/api/v1/practice-sessions");
+}
+
+export function getPracticeSession(id: string) {
+  return request<{ session: PracticeSession }>(`/api/v1/practice-sessions/${id}`);
+}
+
+export function createPracticeSession(body: {
+  requestId: string; uploadIntentId: string; situation: string; characterContext: string;
+  subtext: string; medium: SceneMedium; genre: SceneGenre;
+}) {
+  return request<{ session: ActingSession }>("/api/v1/practice-sessions", {
+    method: "POST", headers: jsonHeaders, body: JSON.stringify(body),
   });
-
-  return parseJsonResponse<ListSessionsResponse>(response);
 }
 
-export async function createPracticeSession(
-  body: CreateSessionRequest,
-): Promise<CreateSessionResponse> {
-  const response = await fetch("/api/v1/practice-sessions", {
-    method: "POST",
-    headers: jsonHeaders,
-    body: JSON.stringify(body),
+export function retryPracticeAnalysis(sessionId: string) {
+  return request<{ session: ActingSession }>(`/api/v1/practice-sessions/${sessionId}/analysis`, {
+    method: "POST", headers: jsonHeaders,
+    body: JSON.stringify({ operation: "retry", requestId: crypto.randomUUID() }),
   });
-
-  return parseJsonResponse<CreateSessionResponse>(response);
 }
 
-export async function updatePracticeObservation(
+export function mutatePracticeTurn(
   sessionId: string,
-  observationId: string,
-  body: UpdateObservationRequest,
-): Promise<UpdateObservationResponse> {
-  const response = await fetch(`/api/v1/practice-sessions/${sessionId}/observations/${observationId}`, {
-    method: "PATCH",
-    headers: jsonHeaders,
-    body: JSON.stringify(body),
+  body:
+    | { operation: "start" | "restart"; requestId: string }
+    | { operation: "reply"; runId: string; requestId: string; text: string }
+    | { operation: "retry_reply"; runId: string; requestId: string; actorTurnId: string },
+) {
+  return request<{ session: ActingSession }>(`/api/v1/practice-sessions/${sessionId}/turns`, {
+    method: "POST", headers: jsonHeaders, body: JSON.stringify(body),
   });
-
-  return parseJsonResponse<UpdateObservationResponse>(response);
 }
 
-export async function createPracticeTurn(
-  sessionId: string,
-  body: CreateTurnRequest,
-): Promise<CreateTurnResponse> {
-  const response = await fetch(`/api/v1/practice-sessions/${sessionId}/turns`, {
-    method: "POST",
-    headers: jsonHeaders,
-    body: JSON.stringify(body),
-  });
-
-  return parseJsonResponse<CreateTurnResponse>(response);
-}
-
-export async function createPracticeSummary(
-  sessionId: string,
-  body: CreateSummaryRequest,
-): Promise<CreateSummaryResponse> {
-  const response = await fetch(`/api/v1/practice-sessions/${sessionId}/result`, {
-    method: "POST",
-    headers: jsonHeaders,
-    body: JSON.stringify(body),
-  });
-
-  return parseJsonResponse<CreateSummaryResponse>(response);
-}
-
-export async function updatePracticeSessionVisibility(
-  sessionId: string,
-  body: UpdateSessionVisibilityRequest,
-): Promise<UpdateSessionVisibilityResponse> {
-  const response = await fetch(`/api/v1/practice-sessions/${sessionId}/visibility`, {
-    method: "PATCH",
-    headers: jsonHeaders,
-    body: JSON.stringify(body),
-  });
-
-  return parseJsonResponse<UpdateSessionVisibilityResponse>(response);
-}
-
-export async function getPracticeSignedVideoUrl(
-  sessionId: string,
-): Promise<SignedVideoUrlResponse> {
-  const response = await fetch(`/api/v1/practice-sessions/${sessionId}/signed-video-url`, {
-    headers: { Accept: "application/json" },
-  });
-
-  return parseJsonResponse<SignedVideoUrlResponse>(response);
-}
-
-export async function savePracticeValidationMetrics(
-  sessionId: string,
-  body: SaveValidationMetricsRequest,
-): Promise<SaveValidationMetricsResponse> {
-  const response = await fetch(`/api/v1/practice-sessions/${sessionId}/metrics`, {
-    method: "POST",
-    headers: jsonHeaders,
-    body: JSON.stringify(body),
-  });
-
-  return parseJsonResponse<SaveValidationMetricsResponse>(response);
+export function createPracticeReport(sessionId: string) {
+  return request<{ session: ActingSession; report?: ActingReport }>(
+    `/api/v1/practice-sessions/${sessionId}/report`,
+    { method: "POST", headers: jsonHeaders, body: JSON.stringify({ requestId: crypto.randomUUID() }) },
+  );
 }
