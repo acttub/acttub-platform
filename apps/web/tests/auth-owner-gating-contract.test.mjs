@@ -49,14 +49,24 @@ test("auth session response is private and varies on credentials", () => {
   assert.match(read("src/server/http/cache.ts"), /Vary: "Cookie, Authorization"/);
 });
 
-test("terms acceptance persists Supabase profile consent when admin client exists", () => {
+test("terms acceptance persists canonical consent while internal review stays optional", () => {
   const route = read("src/app/api/v1/terms/acceptances/route.ts");
   const authContext = read("src/server/services/auth-context.ts");
-  assert.match(route, /recordTermsAcceptance\(auth\)/);
+  const acceptanceRead = authContext.slice(
+    authContext.indexOf("async function hasPersistedTermsAcceptance"),
+    authContext.indexOf("export async function getCurrentConsentVersions"),
+  );
+
+  assert.match(route, /recordTermsAcceptance\(auth, body\.internalReviewConsent === true\)/);
   assert.match(authContext, /createSupabaseAdminClient/);
+  assert.match(authContext, /required_consent_version/);
+  assert.match(authContext, /required_consent_at/);
+  assert.match(authContext, /ai_processing_consent_version/);
+  assert.match(authContext, /ai_processing_consent_at/);
   assert.match(authContext, /terms_accepted_at/);
   assert.match(authContext, /privacy_accepted_at/);
   assert.match(authContext, /internal_review_consent_at/);
+  assert.doesNotMatch(acceptanceRead, /internal_review_consent/);
   assert.match(authContext, /status: "active"/);
 });
 
@@ -103,7 +113,8 @@ test("practice entrypoints require authentication before use", () => {
   assert.match(proxy, /supabase\.auth\.getClaims\(\)/);
   assert.match(proxy, /if \(!config\.supabase\.isConfigured\) \{[\s\S]*redirectToLogin\(request\)/);
   assert.match(proxy, /return redirectToLogin\(request\)/);
-  assert.match(practiceFlow, /location\.href = `\/auth\/login\?next=\/practice\/\$\{entry === "history" \? "history" : "new"\}`/);
+  assert.match(practiceFlow, /const entryPath: Record<Entry, string> = \{[\s\S]*home: "\/home"[\s\S]*new: "\/practice\/new"[\s\S]*history: "\/practice\/history"/);
+  assert.match(practiceFlow, /location\.href = `\/auth\/login\?next=\$\{encodeURIComponent\(entryPath\[entry\]\)\}`/);
   assert.match(termsGate, /window\.location\.href = "\/auth\/login\?next=\/home"/);
   assert.match(termsGate, /window\.location\.href = "\/home"/);
 });

@@ -134,8 +134,6 @@ export type FinalizeUploadIntentRequest = {
 export type CreateActingSessionRequest = {
   requestId: string;
   uploadIntentId: string;
-  medium: SceneMedium;
-  genre: SceneGenre;
   situation: string;
   characterContext: string;
   subtext: string;

@@ -67,8 +67,9 @@ Keep controllers thin: parse/validate DTOs, call application services, return ty
 
 Spring Boot DTOs should preserve these meanings from the Next.js MVP:
 
-- Required session input: `medium`, `genre`, `situation`, `characterContext`, `uploadIntentId`, `storageBucket`, and `storagePath` for upload sessions.
-- Optional context: `subtext`.
+- Required acting-api session input: `requestId`, `uploadIntentId`, `situation`, `characterContext`, and `subtext`.
+- The server derives `storageBucket` and `storagePath` from the finalized upload intent; clients do not submit them during session creation.
+- `medium` and `genre` remain legacy/response-compatibility fields only and must not be forwarded to acting-api.
 - One session has one Slice 1 take.
 - Persistence owner field is `user_id`; keep executable schema assumptions on that owner key.
 - `practice_sessions.status` values are `observations_pending`, `questioning`, and `completed`; DTO mapping to UI labels/states must be explicit.

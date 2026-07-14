@@ -139,8 +139,8 @@ practice_sessions
 - id
 - user_id
 - status
-- medium
-- genre
+- medium                 # legacy/response compatibility only; not active input
+- genre                  # legacy/response compatibility only; not active input
 - situation
 - character_context
 - subtext

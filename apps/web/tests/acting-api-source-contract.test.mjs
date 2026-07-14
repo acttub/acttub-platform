@@ -35,3 +35,17 @@ test("typed client exposes only the locked acting operations", () => {
   assert.match(client, /\/analysis/);
   assert.match(client, /\/report/);
 });
+
+test("active session input forwards only the summarize scene context", () => {
+  const types = read("src/lib/api/types.ts");
+  const service = read("src/server/services/acting-coach-service.ts");
+  const requestType = types.match(/export type CreateActingSessionRequest = \{[\s\S]*?\n\};/)?.[0] ?? "";
+
+  assert.doesNotMatch(requestType, /\bmedium\b|\bgenre\b/);
+  assert.match(requestType, /\bsituation:\s*string/);
+  assert.match(requestType, /\bcharacterContext:\s*string/);
+  assert.match(requestType, /\bsubtext:\s*string/);
+  assert.match(service, /situation:\s*String\(source\.situation\)/);
+  assert.match(service, /situation:\s*claim\.coachContext\?\.situation/);
+  assert.doesNotMatch(service, /formattedSituation/);
+});

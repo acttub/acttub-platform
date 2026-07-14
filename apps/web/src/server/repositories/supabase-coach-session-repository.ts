@@ -27,6 +27,7 @@ export class SupabaseCoachSessionPersistenceError extends Error {
   constructor(
     readonly field: string,
     message: string,
+    readonly code?: string,
   ) {
     super(message);
     this.name = "SupabaseCoachSessionPersistenceError";
@@ -76,7 +77,7 @@ const requireSupabaseAdminClient = () => {
 };
 
 const assertNoPersistenceError = (
-  error: { message?: string } | null | undefined,
+  error: { code?: string; message?: string } | null | undefined,
   field: string,
   action: string,
 ): void => {
@@ -85,6 +86,7 @@ const assertNoPersistenceError = (
   throw new SupabaseCoachSessionPersistenceError(
     field,
     `${action}: ${error.message ?? "Supabase persistence failed."}`,
+    error.code,
   );
 };
 
@@ -437,23 +439,26 @@ const mapActingSession = (row: JsonRecord): ActingCoachSessionDto => {
   return session;
 };
 
-const mapSession = (row: JsonRecord): CoachSessionDto =>
-  asString(row.pipeline_version, "legacy-gemini-v1") === "acting-api-v1"
-    ? mapActingSession(row)
-    : mapLegacySession(row);
-
-const sessionSelect = `
+const legacySessionSelect = `
   *,
   practice_takes(*),
   observations(*),
   question_turns(*),
   validation_events(*),
-  session_results(*),
+  session_results(*)
+`;
+
+const actingSessionSelect = `
+  *,
+  practice_takes(*),
   scene_summaries(*),
   practice_interview_runs(*),
   practice_turns(*),
   practice_reports(*)
 `;
+
+const isActingSessionRow = (row: JsonRecord): boolean =>
+  asString(row.pipeline_version, "legacy-gemini-v1") === "acting-api-v1";
 
 const mapUploadIntent = (row: JsonRecord): StoredUploadIntentRecord => {
   const config = getAppConfig();
@@ -489,28 +494,47 @@ const mapUploadIntent = (row: JsonRecord): StoredUploadIntentRecord => {
 
 async function hydrateSession(sessionId: string, userId: string, includeHidden = false): Promise<CoachSessionDto | null> {
   const admin = requireSupabaseAdminClient();
-  let query = admin
+  let legacyQuery = admin
     .from("practice_sessions")
-    .select(sessionSelect)
+    .select(legacySessionSelect)
     .eq("id", sessionId)
     .eq("user_id", userId);
 
-  if (!includeHidden) query = query.is("hidden_at", null);
+  if (!includeHidden) legacyQuery = legacyQuery.is("hidden_at", null);
 
-  const { data, error } = await query.maybeSingle();
+  const { data, error } = await legacyQuery.maybeSingle();
   assertNoPersistenceError(error, "sessionId", "Could not read Supabase practice session");
-  return data ? mapSession(asRecord(data)) : null;
+  if (!data) return null;
+
+  const legacyRow = asRecord(data);
+  if (!isActingSessionRow(legacyRow)) return mapLegacySession(legacyRow);
+
+  let actingQuery = admin
+    .from("practice_sessions")
+    .select(actingSessionSelect)
+    .eq("id", sessionId)
+    .eq("user_id", userId);
+
+  if (!includeHidden) actingQuery = actingQuery.is("hidden_at", null);
+
+  const { data: actingData, error: actingError } = await actingQuery.maybeSingle();
+  assertNoPersistenceError(
+    actingError,
+    "sessionId",
+    "Could not read acting-api practice session",
+  );
+  return actingData ? mapActingSession(asRecord(actingData)) : null;
 }
 
 async function hydrateLegacySession(sessionId: string, userId: string, includeHidden = false): Promise<LegacyInternalCoachSessionDto | null> {
   const admin = requireSupabaseAdminClient();
-  let query = admin.from("practice_sessions").select(sessionSelect).eq("id", sessionId).eq("user_id", userId);
+  let query = admin.from("practice_sessions").select(legacySessionSelect).eq("id", sessionId).eq("user_id", userId);
   if (!includeHidden) query = query.is("hidden_at", null);
   const { data, error } = await query.maybeSingle();
   assertNoPersistenceError(error, "sessionId", "Could not read legacy practice session");
   if (!data) return null;
   const row = asRecord(data);
-  if (asString(row.pipeline_version, "legacy-gemini-v1") === "acting-api-v1") return null;
+  if (isActingSessionRow(row)) return null;
   return mapLegacyInternalSession(row);
 }
 
@@ -834,7 +858,7 @@ export const supabaseCoachSessionRepository = {
     const admin = requireSupabaseAdminClient();
     const { data, error } = await admin
       .from("practice_sessions")
-      .select(sessionSelect)
+      .select(legacySessionSelect)
       .eq("user_id", userId)
       .is("hidden_at", null)
       .order("created_at", { ascending: false });
@@ -863,10 +887,41 @@ export const supabaseCoachSessionRepository = {
   async listOwnedSessions(userId: string): Promise<CoachSessionDto[]> {
     if (!configuredForSupabasePersistence()) return [];
     const admin = requireSupabaseAdminClient();
-    const { data, error } = await admin.from("practice_sessions").select(sessionSelect)
+    const { data, error } = await admin.from("practice_sessions").select(legacySessionSelect)
       .eq("user_id", userId).is("hidden_at", null).order("created_at", { ascending: false });
     assertNoPersistenceError(error, "userId", "Could not list owned practice sessions");
-    return asArray(data).map(mapSession);
+
+    const rows = asArray(data);
+    const actingRows = rows.filter(isActingSessionRow);
+    if (actingRows.length === 0) return rows.map(mapLegacySession);
+
+    const { data: actingData, error: actingError } = await admin
+      .from("practice_sessions")
+      .select(actingSessionSelect)
+      .eq("user_id", userId)
+      .is("hidden_at", null)
+      .in("id", actingRows.map((row) => asString(row.id)));
+    assertNoPersistenceError(
+      actingError,
+      "userId",
+      "Could not list acting-api practice sessions",
+    );
+
+    const actingById = new Map(
+      asArray(actingData).map((row) => [asString(row.id), row]),
+    );
+    return rows.map((row) => {
+      if (!isActingSessionRow(row)) return mapLegacySession(row);
+
+      const actingRow = actingById.get(asString(row.id));
+      if (!actingRow) {
+        throw new SupabaseCoachSessionPersistenceError(
+          "sessionId",
+          "Could not hydrate an acting-api practice session from the list query.",
+        );
+      }
+      return mapActingSession(actingRow);
+    });
   },
 
   async getOwnedVideoStorage(

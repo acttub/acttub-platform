@@ -12,15 +12,15 @@ alter table public.upload_intents add constraint upload_intents_duration_ms_chec
 alter table public.practice_takes drop constraint if exists practice_takes_size_bytes_check;
 alter table public.practice_takes add constraint practice_takes_size_bytes_check
   check (size_bytes > 0 and size_bytes <= 576716800);
-alter table public.practice_takes drop constraint if exists practice_takes_duration_ms_check;
-alter table public.practice_takes add constraint practice_takes_duration_ms_check
-  check (duration_ms is null or duration_ms between 1 and 180000);
 alter table public.practice_takes drop constraint if exists practice_takes_analysis_status_check;
 alter table public.practice_takes add constraint practice_takes_analysis_status_check
   check (analysis_status in ('generated','pending','completed','failed','outcome_unknown'));
 alter table public.practice_takes add column if not exists analysis_retryable boolean;
 
 alter table public.practice_sessions add column if not exists pipeline_version text;
+alter table public.practice_sessions
+  drop constraint if exists practice_sessions_pipeline_version_check,
+  drop constraint if exists pipeline_consent_snapshots;
 update public.practice_sessions set pipeline_version = 'legacy-gemini-v1' where pipeline_version is null;
 alter table public.practice_sessions alter column pipeline_version set default 'legacy-gemini-v1';
 alter table public.practice_sessions alter column pipeline_version set not null;
@@ -29,7 +29,16 @@ alter table public.practice_sessions drop constraint if exists practice_sessions
 alter table public.practice_sessions add constraint practice_sessions_status_check
   check (status in ('observations_pending','questioning','completed','analyzing','interview','report','end'));
 alter table public.practice_sessions add constraint practice_sessions_pipeline_version_check
-  check (pipeline_version in ('legacy-gemini-v1','acting-api-v1'));
+  check (pipeline_version in ('legacy-gemini-v1','ai-pipeline.v1','acting-api-v1'));
+alter table public.practice_sessions add constraint pipeline_consent_snapshots check (
+  pipeline_version <> 'ai-pipeline.v1'
+  or (
+    required_consent_version_snapshot is not null
+    and ai_processing_consent_version_snapshot is not null
+    and adult_confirmed_at is not null
+    and all_participants_confirmed_at is not null
+  )
+);
 
 -- Compatibility guards: migration-002/003 callers continue to create legacy rows
 -- through the legacy default, but cannot move acting-api rows through legacy states.

@@ -7,8 +7,6 @@ import type {
   ActingTurnRequest,
   CreateActingSessionRequest,
   RetryAnalysisRequest,
-  SceneGenre,
-  SceneMedium,
 } from "@/lib/api/types";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { actingApiClient } from "@/server/acting-api/client";
@@ -61,10 +59,20 @@ type Claim = {
 type CreatedResult<T> = { value: T; replayed: boolean };
 
 const repository = supabaseCoachSessionRepository;
+const compatibilitySceneMedium = "기타";
+const compatibilitySceneGenre = "기타";
 const causeCodes = new Set<CauseCode>([
   "acting_api_timeout",
   "acting_api_unavailable",
   "acting_api_invalid_response",
+]);
+const actingSchemaErrorCodes = new Set([
+  "42P01",
+  "42703",
+  "42883",
+  "PGRST202",
+  "PGRST204",
+  "PGRST205",
 ]);
 
 const asRecord = (value: unknown): Record<string, unknown> =>
@@ -166,35 +174,6 @@ const normalizeReply = (value: unknown): string => {
     throw validationError("text is required.");
   }
   return value.trim();
-};
-
-const sceneMediums = new Set<SceneMedium>([
-  "연극",
-  "영화",
-  "TV 드라마",
-  "웹드라마",
-  "뮤지컬",
-  "기타",
-]);
-const sceneGenres = new Set<SceneGenre>([
-  "드라마",
-  "코미디",
-  "로맨스",
-  "스릴러",
-  "액션",
-  "판타지",
-  "기타",
-]);
-
-const exactEnum = <T extends string>(
-  value: unknown,
-  field: string,
-  allowed: Set<T>,
-): T => {
-  if (typeof value !== "string" || !allowed.has(value as T)) {
-    throw validationError(`${field} is invalid.`);
-  }
-  return value as T;
 };
 
 const requireActingConfig = (): void => {
@@ -385,6 +364,14 @@ const knownRepositoryError = (
 ): ActingServiceError | null => {
   if (!(error instanceof SupabaseCoachSessionPersistenceError)) return null;
   const message = error.message;
+  if (error.code && actingSchemaErrorCodes.has(error.code)) {
+    return new ActingServiceError(
+      503,
+      "acting_pipeline_not_ready",
+      "연기 분석 서버 설정이 아직 완료되지 않았어요.",
+      { dependency: "supabase_schema" },
+    );
+  }
   if (message.includes("request_id_conflict")) {
     return new ActingServiceError(409, "request_id_conflict", "requestId was already used.");
   }
@@ -500,7 +487,7 @@ async function runAnalysisClaim(
     }
 
     const response = await actingApiClient.summarize({
-      situation: String(source.formattedSituation),
+      situation: String(source.situation),
       character: String(source.characterContext),
       subtext: String(source.subtext),
       video: video.body,
@@ -623,15 +610,15 @@ export const actingCoachService = {
     const input = exactBody(payload, [
       "requestId",
       "uploadIntentId",
-      "medium",
-      "genre",
       "situation",
       "characterContext",
       "subtext",
+      // Rolling-deploy compatibility only. Old clients may still send these;
+      // active processing ignores them and never forwards them upstream.
+      "medium",
+      "genre",
     ]) as CreateActingSessionRequest;
     const uploadIntentId = uuid(input.uploadIntentId, "uploadIntentId");
-    const medium = exactEnum(input.medium, "medium", sceneMediums);
-    const genre = exactEnum(input.genre, "genre", sceneGenres);
     const situation = normalizeContext(input.situation, "situation");
     const characterContext = normalizeContext(input.characterContext, "characterContext");
     const subtext = normalizeContext(input.subtext, "subtext");
@@ -649,8 +636,6 @@ export const actingCoachService = {
         ...operationInput(userId, input.requestId, [
           "create",
           uploadIntentId,
-          medium,
-          genre,
           situation,
           characterContext,
           subtext,
@@ -658,8 +643,8 @@ export const actingCoachService = {
         uploadIntentId,
         sessionId,
         takeId: crypto.randomUUID(),
-        medium,
-        genre,
+        medium: compatibilitySceneMedium,
+        genre: compatibilitySceneGenre,
         situation,
         characterContext,
         subtext,
@@ -747,7 +732,7 @@ export const actingCoachService = {
             await actingApiClient.start({
               summary: claim.summaryPayload,
               subtext: {
-                situation: claim.coachContext?.formattedSituation,
+                situation: claim.coachContext?.situation,
                 character: claim.coachContext?.characterContext,
                 subtext: claim.coachContext?.subtext,
               },

@@ -1,6 +1,6 @@
 # Supabase Schema and Policy Notes for Acttub Slice 1
 
-> **방향 전환 (2026-07-13)**: migration 001의 Slice 1 기준은 관찰 확인, 자기 정리 문장, `314572800` bytes(300 MiB) 업로드 제한이었다. 현재 acting-api 파이프라인은 후속 migration 004를 통해 `576716800` bytes(550 MiB)로 확장되었다. 아래 Slice 1 설명은 역사적 기준이며 현재 계약은 `docs/API.md`, ADR-014~015, `docs/ARCHITECTURE.md`를 따른다.
+> **방향 전환 (2026-07-13)**: migration 001의 Slice 1 기준은 관찰 확인, 자기 정리 문장, `314572800` bytes(300 MiB) 업로드 제한이었다. migration 004~010은 이전 `ai-pipeline.v1` 계보이며, 현재 acting-api 파이프라인은 additive migration 011을 통해 `576716800` bytes(550 MiB)로 확장되었다. 아래 Slice 1 설명은 역사적 기준이며 현재 계약은 `docs/API.md`, ADR-014~015, `docs/ARCHITECTURE.md`를 따른다.
 
 This document records the Supabase persistence contract for the Slice 1 MVP. Apply the executable SQL files in `supabase/migrations/` in order. Migration `001_acttub_slice1_schema.sql` mirrors the baseline snapshot in `docs/supabase/slice1-schema-rls-storage.sql`; later migrations evolve that baseline.
 
@@ -20,7 +20,7 @@ Out of scope for executable schema and user-facing contracts:
 
 ### `public.profiles`
 
-One row per Supabase user. Slice 1 API access requires an active profile with current consent timestamps and `consent_version`. Local development may use cookie-backed consent only when Supabase is not configured.
+One row per Supabase user. Current API access requires an active profile with the server-authoritative required-consent and AI-processing-consent versions plus their acceptance timestamps. `internal_review_consent` is optional, defaults to `false`, and does not gate service access.
 
 ### `public.upload_intents`
 
@@ -33,7 +33,7 @@ Key fields:
 - `status`: upload lifecycle (`created`, `finalized`, `expired`, `cleanup_failed`).
 - `expected_storage_bucket`: defaults to `practice-videos`.
 - `expected_storage_path`: exact browser upload path, constrained to `users/{userId}/practice-sessions/{sessionId}/take.mp4|take.mov`.
-- `expected_mime_type`, `expected_size_bytes`: finalization checks. Migration 001's historical bound is 300 MiB; the current acting-api migration 004 bound is 550 MiB.
+- `expected_mime_type`, `expected_size_bytes`: finalization checks. Migration 001's historical bound is 300 MiB; the current acting-api migration 011 bound is 550 MiB.
 
 ### `public.practice_sessions`
 
@@ -44,7 +44,8 @@ Key fields:
 - `user_id`: Supabase Auth user id and owner. Slice 1 executable schema uses this field as the owner key.
 - `upload_intent_id`: owner-aligned reference to the upload intent consumed by atomic session creation; in configured Supabase mode the database marks that intent `finalized` inside `public.acttub_create_session_from_upload_intent`.
 - `status`: persistence lifecycle (`observations_pending`, `questioning`, `completed`). The web DTO may map these to current UI states such as observation review, conversation, and end/result, but the database status values remain these three strings.
-- `medium`, `genre`, `situation`, `character_context`, `subtext`: scene context from the input step.
+- `situation`, `character_context`, `subtext`: active acting-api scene context from the input step.
+- `medium`, `genre`: legacy columns retained for shared-table and response compatibility. New acting-api sessions store internal `기타` compatibility values, which are not sent upstream or shown as user-entered metadata.
 - `final_actor_sentence`: actor-authored filled-thought sentence saved at completion.
 - `hidden_at`: soft-hide marker for visible session lists.
 
@@ -117,7 +118,7 @@ users/{userId}/practice-sessions/{sessionId}/take.mp4|take.mov
 
 The server persists that path as `practice_takes.storage_path`. Playback signed URLs are short-lived and generated server-side from the owner-checked canonical endpoint `GET /api/v1/practice-sessions/{sessionId}/signed-video-url`.
 
-Slice 1 kept the browser upload path dependency-free under its historical 300 MiB limit. The current acting-api path still uploads directly with Supabase Storage standard `.upload()`, but migration 004 aligns the upload intent, take, and bucket gates at `576716800` bytes (550 MiB), with required duration `1..180000` ms at finalization. Supabase documents standard uploads at https://supabase.com/docs/guides/storage/uploads/standard-uploads and recommends TUS/resumable uploads for files above 6 MB at https://supabase.com/docs/guides/storage/uploads/resumable-uploads. Production hardening should add a TUS-capable client for large/mobile/unreliable-network uploads.
+Slice 1 kept the browser upload path dependency-free under its historical 300 MiB limit. The current acting-api path still uploads directly with Supabase Storage standard `.upload()`, but migration 011 aligns the upload intent, take, and bucket gates at `576716800` bytes (550 MiB), with required duration `1..180000` ms at finalization. Supabase documents standard uploads at https://supabase.com/docs/guides/storage/uploads/standard-uploads and recommends TUS/resumable uploads for files above 6 MB at https://supabase.com/docs/guides/storage/uploads/resumable-uploads. Production hardening should add a TUS-capable client for large/mobile/unreliable-network uploads.
 
 `ACTING_API_BASE_URL` and `ACTING_API_KEY` are server-only configuration for the canonical pipeline. Gemini environment variables are retained only for legacy compatibility and must not be exposed to browser code.
 

@@ -199,8 +199,14 @@ test("acting and legacy sessions use an exact public discriminator", () => {
 test("acting mutations document the locked discriminated requests", () => {
   const schemas = openApiDocument.components.schemas;
   assert.deepEqual(schemas.CreateSessionRequest.required, [
-    "requestId", "uploadIntentId", "medium", "genre", "situation", "characterContext", "subtext",
+    "requestId", "uploadIntentId", "situation", "characterContext", "subtext",
   ]);
+  assert.equal("medium" in schemas.CreateSessionRequest.properties, false);
+  assert.equal("genre" in schemas.CreateSessionRequest.properties, false);
+  assert.equal(
+    openApiDocument.paths["/api/v1/sessions"].post.requestBody.content["application/json"].schema.$ref,
+    "#/components/schemas/LegacyCreateSessionRequest",
+  );
   assert.deepEqual(schemas.SceneMedium.enum, ["연극", "영화", "TV 드라마", "웹드라마", "뮤지컬", "기타"]);
   assert.deepEqual(schemas.SceneGenre.enum, ["드라마", "코미디", "로맨스", "스릴러", "액션", "판타지", "기타"]);
   assert.equal(schemas.CreateSessionRequest.additionalProperties, false);

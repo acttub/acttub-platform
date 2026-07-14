@@ -72,7 +72,7 @@
         ],
         "summary": "현재 약관에 동의",
         "operationId": "acceptTerms",
-        "description": "인증된 Supabase 브라우저 세션이 필요하지만 기존 약관 동의는 필요하지 않습니다. HTML을 요청하는 브라우저 폼은 `/home`으로 303 리디렉션되고, JSON 클라이언트에는 JSON 응답을 반환합니다.",
+        "description": "인증된 Supabase 브라우저 세션이 필요하지만 기존 동의는 필요하지 않습니다. 필수 서비스 약관과 외부 AI 처리에는 모두 명시적으로 동의해야 하며 내부 검토 동의는 선택입니다. HTML을 요청하는 브라우저 폼은 `/home`으로 303 리디렉션되고, JSON 클라이언트에는 JSON 응답을 반환합니다.",
         "x-acttub-auth": "supabase-session-cookie",
         "requestBody": {
           "required": true,
@@ -113,11 +113,11 @@
             }
           },
           "400": {
-            "description": "전달한 약관 버전이 현재 필수 버전과 일치하지 않습니다.",
+            "description": "필수 서비스 약관 또는 외부 AI 처리 동의가 누락되었거나 선택 동의 값이 올바르지 않습니다.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/TermsVersionMismatch"
+                  "$ref": "#/components/schemas/ConsentValidationError"
                 }
               }
             }
@@ -1392,7 +1392,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/CreateSessionRequest"
+                "$ref": "#/components/schemas/LegacyCreateSessionRequest"
               }
             }
           }
@@ -1790,7 +1790,9 @@
           "authenticated",
           "mode",
           "user",
-          "terms"
+          "terms",
+          "aiProcessingConsent",
+          "internalReviewConsent"
         ],
         "properties": {
           "authenticated": {
@@ -1842,18 +1844,58 @@
                 "type": "boolean"
               }
             }
+          },
+          "aiProcessingConsent": {
+            "type": "object",
+            "required": [
+              "requiredVersion",
+              "accepted"
+            ],
+            "properties": {
+              "requiredVersion": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "accepted": {
+                "type": "boolean"
+              }
+            }
+          },
+          "internalReviewConsent": {
+            "type": "object",
+            "required": [
+              "accepted"
+            ],
+            "properties": {
+              "accepted": {
+                "type": "boolean"
+              }
+            }
           }
         }
       },
       "AcceptTermsRequest": {
         "type": "object",
+        "additionalProperties": false,
         "required": [
-          "termsVersion"
+          "requiredConsentAccepted",
+          "aiProcessingConsentAccepted"
         ],
         "properties": {
-          "termsVersion": {
-            "type": "string",
-            "minLength": 1
+          "requiredConsentAccepted": {
+            "const": true,
+            "description": "필수 서비스 약관 동의입니다."
+          },
+          "aiProcessingConsentAccepted": {
+            "const": true,
+            "description": "외부 AI 처리 목적 동의입니다."
+          },
+          "internalReviewConsent": {
+            "type": "boolean",
+            "default": false,
+            "description": "선택 내부 검토 동의이며 서비스와 AI 사용을 제한하지 않습니다."
           }
         }
       },
@@ -1861,32 +1903,36 @@
         "type": "object",
         "required": [
           "accepted",
-          "termsVersion",
+          "requiredConsentAccepted",
+          "aiProcessingConsentAccepted",
+          "internalReviewConsent",
           "nextPath"
         ],
         "properties": {
           "accepted": {
             "const": true
           },
-          "termsVersion": {
-            "type": "string"
+          "requiredConsentAccepted": {
+            "const": true
+          },
+          "aiProcessingConsentAccepted": {
+            "const": true
+          },
+          "internalReviewConsent": {
+            "type": "boolean"
           },
           "nextPath": {
             "const": "/home"
           }
         }
       },
-      "TermsVersionMismatch": {
+      "ConsentValidationError": {
         "type": "object",
         "required": [
-          "error",
-          "requiredVersion"
+          "error"
         ],
         "properties": {
           "error": {
-            "type": "string"
-          },
-          "requiredVersion": {
             "type": "string"
           }
         }
@@ -2306,8 +2352,6 @@
         "required": [
           "requestId",
           "uploadIntentId",
-          "medium",
-          "genre",
           "situation",
           "characterContext",
           "subtext"
@@ -2321,11 +2365,37 @@
             "type": "string",
             "format": "uuid"
           },
+          "situation": {
+            "type": "string",
+            "minLength": 1
+          },
+          "characterContext": {
+            "type": "string",
+            "minLength": 1
+          },
+          "subtext": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "LegacyCreateSessionRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "medium",
+          "genre",
+          "situation",
+          "characterContext",
+          "uploadIntentId"
+        ],
+        "properties": {
           "medium": {
-            "$ref": "#/components/schemas/SceneMedium"
+            "const": "upload_url"
           },
           "genre": {
-            "$ref": "#/components/schemas/SceneGenre"
+            "type": "string",
+            "minLength": 1
           },
           "situation": {
             "type": "string",
@@ -2338,6 +2408,28 @@
           "subtext": {
             "type": "string",
             "minLength": 1
+          },
+          "videoUrl": {
+            "type": "string"
+          },
+          "durationMs": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          },
+          "sessionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "uploadIntentId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "storagePath": {
+            "type": "string",
+            "minLength": 1
+          },
+          "fileMetadata": {
+            "$ref": "#/components/schemas/FileMetadata"
           }
         }
       },
@@ -2934,10 +3026,12 @@
             "type": "string"
           },
           "medium": {
-            "$ref": "#/components/schemas/SceneMedium"
+            "$ref": "#/components/schemas/SceneMedium",
+            "description": "응답 호환용 필드입니다. 새 acting-api 세션에서는 사용자 입력이 아니라 내부 호환값 `기타`입니다."
           },
           "genre": {
-            "$ref": "#/components/schemas/SceneGenre"
+            "$ref": "#/components/schemas/SceneGenre",
+            "description": "응답 호환용 필드입니다. 새 acting-api 세션에서는 사용자 입력이 아니라 내부 호환값 `기타`입니다."
           },
           "situation": {
             "type": "string"

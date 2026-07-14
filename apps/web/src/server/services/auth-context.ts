@@ -24,6 +24,13 @@ export type AuthContext = {
   email: string | null;
   termsAccepted: boolean;
   termsVersion: string;
+  aiProcessingConsentVersion: string;
+  internalReviewConsent: boolean;
+};
+
+export type CurrentConsentVersions = {
+  requiredConsentVersion: string;
+  aiProcessingConsentVersion: string;
 };
 
 export type AuthSessionDto = {
@@ -37,6 +44,13 @@ export type AuthSessionDto = {
     requiredVersion: string;
     accepted: boolean;
   };
+  aiProcessingConsent: {
+    requiredVersion: string | null;
+    accepted: boolean;
+  };
+  internalReviewConsent: {
+    accepted: boolean;
+  };
 };
 
 async function getProfileClient() {
@@ -44,14 +58,19 @@ async function getProfileClient() {
 }
 
 async function hasPersistedTermsAcceptance(userId: string): Promise<boolean> {
-  const config = getAppConfig();
   const client = await getProfileClient();
 
   if (!client) return false;
 
+  let versions: CurrentConsentVersions;
+  try {
+    versions = await getCurrentConsentVersions();
+  } catch {
+    return false;
+  }
   const { data, error } = await client
     .from("profiles")
-    .select("status, consent_version, terms_accepted_at, privacy_accepted_at, internal_review_consent_at")
+    .select("status, required_consent_version, required_consent_at, ai_processing_consent_version, ai_processing_consent_at")
     .eq("id", userId)
     .maybeSingle();
 
@@ -59,11 +78,26 @@ async function hasPersistedTermsAcceptance(userId: string): Promise<boolean> {
 
   return (
     data.status === "active" &&
-    data.consent_version === config.termsVersion &&
-    Boolean(data.terms_accepted_at) &&
-    Boolean(data.privacy_accepted_at) &&
-    Boolean(data.internal_review_consent_at)
+    data.required_consent_version === versions.requiredConsentVersion &&
+    Boolean(data.required_consent_at) &&
+    data.ai_processing_consent_version === versions.aiProcessingConsentVersion &&
+    Boolean(data.ai_processing_consent_at)
   );
+}
+
+export async function getCurrentConsentVersions(): Promise<CurrentConsentVersions> {
+  const client = createSupabaseAdminClient();
+  if (!client) {
+    throw new ApiAuthError(403, "terms_required", "Current terms acceptance is required.");
+  }
+  const [required, ai] = await Promise.all([
+    client.rpc("current_acttub_terms_version"),
+    client.rpc("current_acttub_ai_processing_consent_version"),
+  ]);
+  if (required.error || ai.error || typeof required.data !== "string" || typeof ai.data !== "string") {
+    throw new ApiAuthError(403, "terms_required", "Current terms acceptance is required.");
+  }
+  return { requiredConsentVersion: required.data, aiProcessingConsentVersion: ai.data };
 }
 
 function isDuplicateProfileError(error: { code?: string; message?: string }) {
@@ -95,21 +129,30 @@ export async function ensurePendingProfile(
   }
 }
 
-export async function recordTermsAcceptance(context: AuthContext): Promise<void> {
-  const config = getAppConfig();
+export async function recordTermsAcceptance(
+  context: AuthContext,
+  internalReviewConsent = false,
+): Promise<void> {
   const client = await getProfileClient();
   if (!client) return;
 
   const acceptedAt = new Date().toISOString();
+  const versions = await getCurrentConsentVersions();
   const { error } = await client.from("profiles").upsert(
     {
       id: context.userId,
       email: context.email,
       status: "active",
+      required_consent_version: versions.requiredConsentVersion,
+      required_consent_at: acceptedAt,
+      ai_processing_consent_version: versions.aiProcessingConsentVersion,
+      ai_processing_consent_at: acceptedAt,
+      internal_review_consent: internalReviewConsent,
+      internal_review_consent_updated_at: acceptedAt,
       terms_accepted_at: acceptedAt,
       privacy_accepted_at: acceptedAt,
-      internal_review_consent_at: acceptedAt,
-      consent_version: config.termsVersion,
+      internal_review_consent_at: internalReviewConsent ? acceptedAt : null,
+      consent_version: versions.requiredConsentVersion,
       updated_at: acceptedAt,
     },
     { onConflict: "id" },
@@ -132,12 +175,33 @@ export async function getAuthContext(): Promise<AuthContext | null> {
     email: data.user.email ?? null,
   });
 
+  let versions: CurrentConsentVersions;
+  try {
+    versions = await getCurrentConsentVersions();
+  } catch {
+    versions = {
+      requiredConsentVersion: config.termsVersion,
+      aiProcessingConsentVersion: "",
+    };
+  }
+
+  const client = await getProfileClient();
+  const profileResult = client
+    ? await client
+        .from("profiles")
+        .select("internal_review_consent")
+        .eq("id", data.user.id)
+        .maybeSingle()
+    : { data: null, error: null };
+
   return {
     mode: "supabase",
     userId: data.user.id,
     email: data.user.email ?? null,
     termsAccepted: await hasPersistedTermsAcceptance(data.user.id),
-    termsVersion: config.termsVersion,
+    termsVersion: versions.requiredConsentVersion,
+    aiProcessingConsentVersion: versions.aiProcessingConsentVersion,
+    internalReviewConsent: Boolean(profileResult.data?.internal_review_consent),
   };
 }
 
@@ -190,8 +254,15 @@ export function toAuthSessionDto(context: AuthContext | null): AuthSessionDto {
         }
       : null,
     terms: {
-      requiredVersion: config.termsVersion,
+      requiredVersion: context?.termsVersion ?? config.termsVersion,
       accepted: Boolean(context?.termsAccepted),
+    },
+    aiProcessingConsent: {
+      requiredVersion: context?.aiProcessingConsentVersion || null,
+      accepted: Boolean(context?.termsAccepted),
+    },
+    internalReviewConsent: {
+      accepted: Boolean(context?.internalReviewConsent),
     },
   };
 }

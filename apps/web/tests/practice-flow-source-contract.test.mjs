@@ -19,8 +19,8 @@ test("practice flow keeps the canonical analysis, interview, and report steps", 
   assert.match(source, /INTERVIEW/);
   assert.match(source, /REPORT/);
   assert.match(source, /END/);
-  assert.match(source, /TV 드라마/);
-  assert.match(source, /웹드라마/);
+  assert.doesNotMatch(source, /label="매체"|label="장르"/);
+  assert.doesNotMatch(source, /type SceneMedium|type SceneGenre/);
   assert.doesNotMatch(source, /finalActorSentence|OBSERVE_CONFIRM|PROBE_LOOP/);
 });
 

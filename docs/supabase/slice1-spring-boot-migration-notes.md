@@ -6,10 +6,11 @@ This note preserves the backend contract that the temporary Next.js route handle
 
 - Supabase Auth is the identity provider for Slice 1. Spring Boot should verify the Supabase JWT and map `sub` to `profiles.id`.
 - Active access requires `profiles.status = 'active'` and current consent fields:
-  - `terms_accepted_at`
-  - `privacy_accepted_at`
-  - `internal_review_consent_at`
-  - `consent_version = '2026-07-mvp'`
+  - `required_consent_version = current_acttub_terms_version()`
+  - `required_consent_at`
+  - `ai_processing_consent_version = current_acttub_ai_processing_consent_version()`
+  - `ai_processing_consent_at`
+- `internal_review_consent` is optional, defaults to `false`, and never gates service access.
 - Unauthenticated requests return `401`.
 - Authenticated users without current consent return `403` with a `pending_terms`-style error code.
 
@@ -18,7 +19,7 @@ This note preserves the backend contract that the temporary Next.js route handle
 | Method/path | Purpose | Auth rule | Migration note |
 | --- | --- | --- | --- |
 | `GET /api/v1/auth/session` | Current user + terms state | optional auth | Must stay non-cacheable. |
-| `POST /api/v1/terms/acceptances` | Record current consent version | authenticated | Writes all three consent timestamps atomically. |
+| `POST /api/v1/terms/acceptances` | Record current required + AI-processing consent | authenticated | Requires both mandatory booleans, stores server-authoritative versions atomically, and preserves internal review as an explicit optional choice. |
 | `POST /api/v1/practice-upload-intents` | Create pre-session upload authority | active user | Returns future `sessionId`, exact Storage path, constraints, expiry. |
 | `POST /api/v1/practice-sessions` | Finalize an uploaded video into DB state | active user | Creates session/take/Gemini-generated context observations only after object existence validation. |
 | `GET /api/v1/practice-sessions` | List visible sessions | active user | Excludes `hidden_at is not null`. |

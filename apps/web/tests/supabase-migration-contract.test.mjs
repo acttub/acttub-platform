@@ -221,3 +221,15 @@ test("turn append migration serializes and rejects stale or completed dialogue a
   assert.ok(maxGuard < expectedGuard);
   assert.ok(expectedGuard < firstInsert);
 });
+
+test("active upstream payloads use only summarize scene context", () => {
+  const sql = read("supabase/migrations/013_scene_context_only.sql");
+
+  assert.doesNotMatch(sql, /alter table public\.practice_sessions/);
+  assert.match(sql, /create or replace function public\.acttub_create_acting_session\([\s\S]*?p_medium text,[\s\S]*?p_genre text,[\s\S]*?p_situation text/);
+  assert.doesNotMatch(sql, /\[매체:|\[장르:/);
+  assert.match(sql, /'situation',\s*p_situation,\s*'formattedSituation',\s*p_situation/);
+  assert.match(sql, /create or replace function public\.acttub_claim_analysis_retry[\s\S]*?'situation',\s*s\.situation,\s*'formattedSituation',\s*s\.situation/);
+  assert.match(sql, /create or replace function public\.acttub_claim_coach_start[\s\S]*?'situation',\s*s\.situation,\s*'formattedSituation',\s*s\.situation/);
+  assert.match(sql, /create or replace function public\.acttub_claim_report[\s\S]*?'subtext',\s*jsonb_build_object\([\s\S]*?'situation',\s*s\.situation/);
+});

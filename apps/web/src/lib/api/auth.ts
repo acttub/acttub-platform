@@ -9,15 +9,26 @@ export type AuthSessionResponse = {
     requiredVersion: string;
     accepted: boolean;
   };
+  aiProcessingConsent: {
+    requiredVersion: string | null;
+    accepted: boolean;
+  };
+  internalReviewConsent: {
+    accepted: boolean;
+  };
 };
 
 export type AcceptTermsRequest = {
-  termsVersion: string;
+  requiredConsentAccepted: true;
+  aiProcessingConsentAccepted: true;
+  internalReviewConsent?: boolean;
 };
 
 export type AcceptTermsResponse = {
   accepted: true;
-  termsVersion: string;
+  requiredConsentAccepted: true;
+  aiProcessingConsentAccepted: true;
+  internalReviewConsent: boolean;
   nextPath: string;
 };
 
@@ -66,7 +77,11 @@ export async function acceptTerms(
       Accept: "application/json",
       "Content-Type": "application/json",
     },
-    body: JSON.stringify(body),
+    body: JSON.stringify({
+      requiredConsentAccepted: body.requiredConsentAccepted === true,
+      aiProcessingConsentAccepted: body.aiProcessingConsentAccepted === true,
+      internalReviewConsent: body.internalReviewConsent === true,
+    }),
   });
 
   return parseJsonResponse<AcceptTermsResponse>(response);

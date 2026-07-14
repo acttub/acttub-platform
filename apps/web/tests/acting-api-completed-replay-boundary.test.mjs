@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 const service = readFileSync(new URL("../src/server/services/acting-coach-service.ts", import.meta.url), "utf8");
-const sql = readFileSync(new URL("../../../supabase/migrations/004_acting_api_pipeline.sql", import.meta.url), "utf8");
+const sql = readFileSync(new URL("../../../supabase/migrations/011_acting_api_pipeline.sql", import.meta.url), "utf8");
 test("completed replays return validated persisted public results", () => {
   assert.match(service, /requireCompletedResult<ActingCoachSessionDto>\(claim\.result, completedSessionKeys\)/);
   assert.match(service, /requireCompletedResult<ActingReportDto>\(claim\.result, completedReportKeys\)/);
