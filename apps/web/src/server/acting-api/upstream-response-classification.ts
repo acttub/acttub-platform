@@ -8,6 +8,7 @@ export type UpstreamFailure =
   | "auth_failed"
   | "rate_limited"
   | "video_too_large"
+  | "contract_mismatch"
   | "request_rejected"
   | "route_not_found"
   | "session_expired"
@@ -29,6 +30,7 @@ export function classifyUpstreamFailure(
   if (status === 401) return "auth_failed";
   if (status === 429) return "rate_limited";
   if (status === 413 && operation === "analysis") return "video_too_large";
+  if (status === 422) return "contract_mismatch";
   if (status === 400 || status === 413) return "request_rejected";
   if (status < 200 || status >= 300) return "unavailable";
   return null;

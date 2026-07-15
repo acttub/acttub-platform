@@ -263,7 +263,8 @@ const statusForStableCode = (code: string): number => {
   if (code === "source_video_unavailable") return 503;
   if (
     code === "acting_api_auth_failed" ||
-    code === "acting_api_rejected"
+    code === "acting_api_rejected" ||
+    code === "acting_api_contract_mismatch"
   ) return 502;
   if (code === "video_too_large") return 413;
   return 409;
@@ -349,6 +350,13 @@ async function parseUpstreamResponse(
   }
   if (failure === "video_too_large") {
     throw new ActingServiceError(413, "video_too_large", "The video is too large.");
+  }
+  if (failure === "contract_mismatch") {
+    throw new ActingServiceError(
+      502,
+      "acting_api_contract_mismatch",
+      "The acting service could not accept this request.",
+    );
   }
   if (failure === "request_rejected") {
     throw new ActingServiceError(
@@ -491,6 +499,7 @@ const isDefinitive = (error: ActingServiceError): boolean =>
     "acting_api_auth_failed",
     "acting_api_rate_limited",
     "acting_api_rejected",
+    "acting_api_contract_mismatch",
     "source_video_unavailable",
     "video_too_large",
   ].includes(error.code);
