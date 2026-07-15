@@ -49,6 +49,12 @@ function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : "요청을 처리하지 못했어요.";
 }
 
+function definitiveMediaFailureMessage(code: string | null): string | null {
+  if (code === "video_too_long") return "실제 영상 길이가 3분을 초과해 분석할 수 없어요. 3분 이하 영상으로 새 연습을 시작해 주세요.";
+  if (code === "source_video_metadata_invalid") return "영상 파일 형식이나 메타데이터를 확인할 수 없어요. 정상적인 MP4 또는 MOV 파일로 새 연습을 시작해 주세요.";
+  return null;
+}
+
 function isDefinitiveMutationFailure(reason: unknown): boolean {
   return reason instanceof ApiClientError &&
     !reason.code.includes("outcome_unknown") &&
@@ -1167,7 +1173,7 @@ function SessionView({
               ) : null}
               {analysisStatus === "failed" && !session.take.analysisRetryable ? (
                 <p className="mt-6 rounded-2xl bg-red-50 p-5 font-bold leading-7 text-red-700">
-                  이 영상의 분석은 안전하게 다시 시도할 수 없어요. 새 연습 세션을 시작해 주세요.
+                  {definitiveMediaFailureMessage(session.take.analysisError) ?? "이 영상의 분석은 안전하게 다시 시도할 수 없어요. 새 연습 세션을 시작해 주세요."}
                 </p>
               ) : null}
               {analysisStatus === "outcome_unknown" ? (

@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 import { randomUUID } from "node:crypto";
+import os from "node:os";
 import { createClient } from "@supabase/supabase-js";
 import { runAnalysisWorker } from "./lib/analysis-job-runner.mjs";
+import { assertFfprobeAvailable } from "./lib/trusted-media-probe.mjs";
 
 function required(name) {
   const value = process.env[name]?.trim();
@@ -28,6 +30,9 @@ export function readWorkerConfig() {
     pollMs: integer("ANALYSIS_WORKER_POLL_MS", 1000, { min: 50, max: 60000 }),
     upstreamTimeoutMs: integer("ANALYSIS_WORKER_UPSTREAM_TIMEOUT_MS", 900000, { min: 1000, max: 1800000 }),
     shutdownGraceMs: integer("ANALYSIS_WORKER_SHUTDOWN_GRACE_MS", 30000, { min: 1000, max: 300000 }),
+    ffprobePath: process.env.ANALYSIS_WORKER_FFPROBE_PATH?.trim() || "ffprobe",
+    mediaTmpDir: process.env.ANALYSIS_WORKER_MEDIA_TMP_DIR?.trim() || os.tmpdir(),
+    maxSourceBytes: 550 * 1024 * 1024,
   };
   if (config.heartbeatMs >= config.leaseMs / 2) throw new Error("ANALYSIS_WORKER_HEARTBEAT_MS must be less than half the lease");
   if (config.upstreamTimeoutMs <= config.heartbeatMs) throw new Error("ANALYSIS_WORKER_UPSTREAM_TIMEOUT_MS must exceed the heartbeat interval");
@@ -42,7 +47,7 @@ function createRepository(client) {
   };
   return {
     async claim(token, seconds) {
-      const rows = await rpc("acttub_claim_next_analysis_job", { p_lease_token: token, p_lease_seconds: seconds, p_worker_id: process.env.HOSTNAME ?? null });
+      const rows = await rpc("acttub_claim_next_analysis_job_v2", { p_lease_token: token, p_lease_seconds: seconds, p_worker_id: process.env.HOSTNAME ?? null });
       return Array.isArray(rows) ? rows[0] ?? null : null;
     },
     heartbeat(operationId, token, seconds) {
@@ -57,6 +62,25 @@ function createRepository(client) {
     fail(job, token, code) {
       return rpc("acttub_fail_analysis", { p_session_id: job.session_id, p_user_id: job.user_id, p_operation_id: job.operation_id, p_lease_token: token, p_failure_class: "definitive", p_safe_error_code: code });
     },
+    recordProbe(job, token, durationMs, mediaMetadataVersion) {
+      return rpc("acttub_record_trusted_media_probe", {
+        p_session_id: job.session_id,
+        p_user_id: job.user_id,
+        p_operation_id: job.operation_id,
+        p_lease_token: token,
+        p_authoritative_duration_ms: durationMs,
+        p_media_metadata_version: mediaMetadataVersion,
+      });
+    },
+    failMediaValidation(job, token, code) {
+      return rpc("acttub_fail_trusted_media_validation", {
+        p_session_id: job.session_id,
+        p_user_id: job.user_id,
+        p_operation_id: job.operation_id,
+        p_lease_token: token,
+        p_safe_error_code: code,
+      });
+    },
     async createSignedVideoUrl(bucket, path) {
       const { data, error } = await client.storage.from(bucket).createSignedUrl(path, 900);
       if (error || !data?.signedUrl) throw Object.assign(new Error("source video unavailable"), { code: "source_video_unavailable", definitive: true });
@@ -67,6 +91,7 @@ function createRepository(client) {
 
 async function main() {
   const config = readWorkerConfig();
+  await assertFfprobeAvailable(config.ffprobePath);
   const client = createClient(config.supabaseUrl, config.serviceRoleKey, { auth: { persistSession: false } });
   const shutdown = { stopping: false, controllers: new Set() };
   let graceTimer;

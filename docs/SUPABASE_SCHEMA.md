@@ -30,10 +30,12 @@ Key fields:
 
 - `user_id`: Supabase Auth user id and owner for the future session and object path.
 - `session_id`: future practice session id; also embedded in the Storage path.
-- `status`: upload lifecycle (`created`, `finalized`, `expired`, `cleanup_failed`).
+- `status`: upload lifecycle (`created`, `validating`, `validation_failed`, `finalized`, `expired`, `cleanup_failed`). `validating`은 브라우저 업로드 확인 후 worker byte probe 이전의 내부 상태입니다.
 - `expected_storage_bucket`: defaults to `practice-videos`.
 - `expected_storage_path`: exact browser upload path, constrained to `users/{userId}/practice-sessions/{sessionId}/take.mp4|take.mov`.
 - `expected_mime_type`, `expected_size_bytes`: finalization checks. Migration 001's historical bound is 300 MiB; the current acting-api migration 011 bound is 550 MiB.
+- `reported_duration_ms`: unchanged finalize DTO의 `durationMs`를 보관하는 UX/compatibility hint이며 권한 근거가 아닙니다.
+- `authoritative_duration_ms`, `media_metadata_version`, `ai_eligible_at`: migration 022의 lease-fenced probe RPC가 실제 Storage bytes를 검증한 한 transaction에서만 설정합니다. Acting flow는 180000 ms까지만 허용하고 기존 `ai-pipeline.v1`의 300000 ms 계약은 유지합니다.
 
 ### `public.practice_sessions`
 
@@ -58,8 +60,11 @@ Key fields:
 - `storage_bucket`: defaults to `practice-videos`.
 - `storage_path`: private Supabase Storage object path.
 - `mime_type`, `size_bytes`: copied from the upload intent after API upload verification and database-side finalization during session creation.
+- `reported_duration_ms`: `ANALYZING` DTO 숫자 호환을 위한 브라우저 보고값입니다. `duration_ms`는 probe 성공 전까지 NULL이며 성공 후 authoritative duration만 저장합니다.
 - `analysis_status`: one-time Gemini question seed generation state (`generated`, `failed`).
 - `analysis_error`: operational failure detail, not user-facing judgment.
+
+Migration 022의 v2 worker order는 `claim -> heartbeat -> Storage stream -> ffprobe -> authoritative probe CAS -> summarize -> completion CAS`입니다. `video_too_long`과 `source_video_metadata_invalid`는 `validation_failed`, null eligibility, non-retryable take failure로 원자적으로 종료됩니다. 구 G010 claim RPC는 이미 authoritative eligibility가 있는 row만 볼 수 있어 rollout 중 새 unvalidated work를 소비하지 못합니다.
 
 ### `public.observations`
 

@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { createMultipartStream } from "./multipart.mjs";
+import { removeStagedMedia, stageAndProbeMedia } from "./trusted-media-probe.mjs";
 
 const canonicalObservationFields = ["timeline", "dialogue", "tempo", "pitch", "movement", "expression", "emotion"];
 const anomalyFields = ["start", "end", "dimension", "what", "why_odd", "likely_cause", "impact_on_intent", "severity_reason"];
@@ -44,7 +45,7 @@ function classifyStatus(status) {
   return { code: "acting_api_unavailable", retryable: true };
 }
 
-async function prepareVideo(job, repository, fetchImpl, signal) {
+async function prepareVideo(job, repository, config, fetchImpl, signal, stageAndProbeImpl) {
   const metadata = validateAnalysisSource(job.analysis_source, job.user_id, job.session_id);
   let signedUrl;
   try { signedUrl = await repository.createSignedVideoUrl(job.analysis_source.storageBucket, job.analysis_source.storagePath); }
@@ -61,7 +62,16 @@ async function prepareVideo(job, repository, fetchImpl, signal) {
     throw Object.assign(new Error("source video unavailable"), { code: "source_video_unavailable", definitive: true });
   }
   if (!response.ok || !response.body) throw Object.assign(new Error("source video unavailable"), { code: "source_video_unavailable", definitive: true });
-  return { metadata, stream: response.body };
+  if (!config.ffprobePath) return { metadata, stream: response.body };
+  const staged = await stageAndProbeImpl({
+    body: response.body,
+    fileName: metadata.fileName,
+    mimeType: metadata.mimeType,
+    ffprobePath: config.ffprobePath,
+    tempDir: config.mediaTmpDir,
+    maxBytes: config.maxSourceBytes ?? 550 * 1024 * 1024,
+  });
+  return { metadata, ...staged, stream: staged.stream() };
 }
 
 async function summarize(job, video, config, fetchImpl, signal) {
@@ -95,7 +105,7 @@ async function summarize(job, video, config, fetchImpl, signal) {
   return requireSceneSummary(payload);
 }
 
-export async function runAnalysisJobOnce({ repository, config, fetchImpl = fetch, timers = globalThis, shutdown = { stopping: false } }) {
+export async function runAnalysisJobOnce({ repository, config, fetchImpl = fetch, timers = globalThis, shutdown = { stopping: false }, stageAndProbeImpl = stageAndProbeMedia }) {
   if (shutdown.stopping) return { claimed: false };
   const leaseToken = randomUUID();
   const job = await repository.claim(leaseToken, Math.ceil(config.leaseMs / 1000));
@@ -113,8 +123,20 @@ export async function runAnalysisJobOnce({ repository, config, fetchImpl = fetch
     });
   }, config.heartbeatMs);
 
+  let video;
   try {
-    const video = await prepareVideo(job, repository, fetchImpl, controller.signal);
+    video = await prepareVideo(job, repository, config, fetchImpl, controller.signal, stageAndProbeImpl);
+    if (video.durationMs) {
+      if (video.durationMs > 180_000) {
+        throw Object.assign(new Error("trusted media exceeds 180 seconds"), { code: "video_too_long", definitive: true, mediaValidationFailure: true });
+      }
+      try {
+        await repository.recordProbe(job, leaseToken, video.durationMs, video.mediaMetadataVersion);
+      } catch (error) {
+        if (hasErrorCode(error, "stale_analysis_lease")) return { claimed: true, outcome: "lease_lost" };
+        throw Object.assign(new Error("trusted media persistence failed", { cause: error }), { persistenceFailure: true });
+      }
+    }
     const summary = await summarize(job, video, config, fetchImpl, controller.signal);
     try {
       await repository.complete(job, leaseToken, randomUUID(), summary);
@@ -127,7 +149,8 @@ export async function runAnalysisJobOnce({ repository, config, fetchImpl = fetch
     if (error?.persistenceFailure) throw error.cause ?? error;
     const code = typeof error?.code === "string" ? error.code : "acting_api_unavailable";
     if (error?.definitive) {
-      await repository.fail(job, leaseToken, code);
+      if (error.mediaValidationFailure || code === "source_video_metadata_invalid") await repository.failMediaValidation(job, leaseToken, code);
+      else await repository.fail(job, leaseToken, code);
       return { claimed: true, outcome: "failed", code };
     }
     try {
@@ -141,6 +164,7 @@ export async function runAnalysisJobOnce({ repository, config, fetchImpl = fetch
       throw requeueError;
     }
   } finally {
+    await removeStagedMedia(video?.filePath);
     timers.clearTimeout(timeout);
     timers.clearInterval(heartbeat);
     controllers.delete(controller);

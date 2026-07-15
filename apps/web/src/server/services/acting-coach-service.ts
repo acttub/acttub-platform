@@ -490,6 +490,7 @@ const isDefinitive = (error: ActingServiceError): boolean =>
     "source_video_metadata_invalid",
     "source_video_unavailable",
     "video_too_large",
+    "video_too_long",
   ].includes(error.code);
 
 const persistedFailureCode = (error: ActingServiceError): string =>
@@ -551,12 +552,12 @@ export const actingCoachService = {
   async finalizeUploadIntent(uploadIntentId: string, payload: unknown, userId: string) {
     requirePersistenceConfig();
     const input = exactBody(payload, ["storagePath", "durationMs"]);
-    const durationMs = input.durationMs;
+    const reportedDurationMs = input.durationMs;
     if (
-      typeof durationMs !== "number" ||
-      !Number.isInteger(durationMs) ||
-      durationMs < 1 ||
-      durationMs > 180_000
+      typeof reportedDurationMs !== "number" ||
+      !Number.isInteger(reportedDurationMs) ||
+      reportedDurationMs < 1 ||
+      reportedDurationMs > 180_000
     ) {
       throw validationError("durationMs must be an integer from 1 to 180000.");
     }
@@ -570,12 +571,12 @@ export const actingCoachService = {
         uploadIntentId,
         userId,
         storagePath: verified.storagePath,
-        durationMs,
+        reportedDurationMs,
       });
     } catch (error) {
       throw knownRepositoryError(error, "analysis") ?? error;
     }
-    return { ...verified, durationMs };
+    return { ...verified, durationMs: reportedDurationMs };
   },
 
   async createSession(
@@ -597,7 +598,7 @@ export const actingCoachService = {
     const uploadIntentId = uuid(input.uploadIntentId, "uploadIntentId");
     const { situation, characterContext, subtext } = validateSceneContext(input);
     const intent = await repository.findUploadIntent(uploadIntentId, userId);
-    if (!intent || intent.status !== "finalized") {
+    if (!intent || !["validating", "finalized"].includes(intent.status)) {
       throw new ActingServiceError(
         409,
         "invalid_session_state",

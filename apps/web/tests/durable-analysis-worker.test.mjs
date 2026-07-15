@@ -272,3 +272,85 @@ test("analysis result mismatch remains fatal instead of being requeued", async (
   await assert.rejects(runAnalysisJobOnce({ repository, config, fetchImpl }), /analysis_result_mismatch/);
   assert.equal(requeueAttempts, 0);
 });
+
+test("trusted probe commits authority before summarize and cleans staged media", async () => {
+  const order = [];
+  const repository = {
+    claim: async () => job,
+    heartbeat: async () => true,
+    createSignedVideoUrl: async () => "http://storage.test/video",
+    recordProbe: async (_job, _token, durationMs, version) => order.push(`probe:${durationMs}:${version}`),
+    complete: async () => order.push("complete"),
+    fail: async () => assert.fail("must not fail"),
+    failMediaValidation: async () => assert.fail("must not fail validation"),
+    requeue: async () => assert.fail("must not requeue"),
+  };
+  let calls = 0;
+  const result = await runAnalysisJobOnce({
+    repository,
+    config: { ...config, ffprobePath: "fake", mediaTmpDir: "/tmp" },
+    stageAndProbeImpl: async () => ({ durationMs: 180_000, mediaMetadataVersion: "iso-bmff-duration.v1", stream: () => new ReadableStream({ start(controller) { controller.enqueue(new Uint8Array([1])); controller.close(); } }) }),
+    fetchImpl: async () => {
+      calls += 1;
+      if (calls === 1) return new Response(new Uint8Array([1]));
+      order.push("summarize");
+      return new Response(JSON.stringify(summary), { status: 200 });
+    },
+  });
+  assert.equal(result.outcome, "completed");
+  assert.deepEqual(order, ["probe:180000:iso-bmff-duration.v1", "summarize", "complete"]);
+});
+
+for (const [durationMs, expectedCode] of [[180_001, "video_too_long"], [600_000, "video_too_long"]]) {
+  test(`trusted ${durationMs}ms bytes override the client report and dispatch zero summaries`, async () => {
+    let summarizeCalls = 0;
+    const failures = [];
+    const repository = {
+      claim: async () => ({ ...job, analysis_source: { ...job.analysis_source, reportedDurationMs: 1000 } }),
+      heartbeat: async () => true,
+      createSignedVideoUrl: async () => "http://storage.test/video",
+      recordProbe: async () => assert.fail("over-limit media must not become eligible"),
+      complete: async () => assert.fail("must not complete"),
+      fail: async () => assert.fail("must use validation failure CAS"),
+      failMediaValidation: async (_job, _token, code) => failures.push(code),
+      requeue: async () => assert.fail("must not requeue"),
+    };
+    const result = await runAnalysisJobOnce({
+      repository,
+      config: { ...config, ffprobePath: "fake", mediaTmpDir: "/tmp" },
+      stageAndProbeImpl: async () => ({ durationMs, mediaMetadataVersion: "iso-bmff-duration.v1", stream: () => new ReadableStream() }),
+      fetchImpl: async (url) => {
+        if (String(url).endsWith("/summarize")) summarizeCalls += 1;
+        return new Response(new Uint8Array([1]));
+      },
+    });
+    assert.deepEqual(result, { claimed: true, outcome: "failed", code: expectedCode });
+    assert.equal(summarizeCalls, 0);
+    assert.deepEqual(failures, [expectedCode]);
+  });
+}
+
+test("stale probe CAS loses the lease and dispatches zero summaries", async () => {
+  let summarizeCalls = 0;
+  const repository = {
+    claim: async () => job,
+    heartbeat: async () => true,
+    createSignedVideoUrl: async () => "http://storage.test/video",
+    recordProbe: async () => { throw new Error("stale_analysis_lease"); },
+    complete: async () => assert.fail("must not complete"),
+    fail: async () => assert.fail("must not fail"),
+    failMediaValidation: async () => assert.fail("must not fail validation"),
+    requeue: async () => assert.fail("must not requeue"),
+  };
+  const result = await runAnalysisJobOnce({
+    repository,
+    config: { ...config, ffprobePath: "fake", mediaTmpDir: "/tmp" },
+    stageAndProbeImpl: async () => ({ durationMs: 1_000, mediaMetadataVersion: "iso-bmff-duration.v1", stream: () => new ReadableStream() }),
+    fetchImpl: async (url) => {
+      if (String(url).endsWith("/summarize")) summarizeCalls += 1;
+      return new Response(new Uint8Array([1]));
+    },
+  });
+  assert.deepEqual(result, { claimed: true, outcome: "lease_lost" });
+  assert.equal(summarizeCalls, 0);
+});

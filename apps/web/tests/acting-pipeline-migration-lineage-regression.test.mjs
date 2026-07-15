@@ -39,6 +39,28 @@ test("acting-api migrations extend the deployed AI pipeline lineage", () => {
   assert.equal(new Set(prefixes).size, prefixes.length, "migration versions must be unique");
 });
 
+test("migration 022 adds lease-fenced trusted acting media validation without tightening legacy AI duration", () => {
+  const sql = readFileSync(migrationPath("022_trusted_media_validation.sql"), "utf8");
+  for (const contract of [
+    /reported_duration_ms/u,
+    /status in \('created','validating','validation_failed','finalized','expired','cleanup_failed'\)/u,
+    /acttub_claim_next_analysis_job_v2/u,
+    /acttub_record_trusted_media_probe/u,
+    /acttub_fail_trusted_media_validation/u,
+    /for update(?: of \w+)? skip locked/iu,
+    /stale_analysis_lease/u,
+    /media_probe_mismatch/u,
+    /coalesce\(t\.duration_ms,t\.reported_duration_ms\)/u,
+  ]) assert.match(sql, contract);
+  assert.doesNotMatch(sql, /alter table public\.practice_takes\s+alter column duration_ms/iu);
+  assert.doesNotMatch(sql, /alter table public\.upload_intents\s+alter column duration_ms/iu);
+  assert.match(sql, /p_authoritative_duration_ms not between 1 and 180000/u);
+
+  const legacy = readFileSync(migrationPath("004_ai_pipeline_data_plane.sql"), "utf8");
+  assert.match(legacy, /p_duration_ms not between 1 and 300000/u);
+  assert.match(legacy, /authoritative_duration_ms is null or authoritative_duration_ms between 1 and 300000/u);
+});
+
 test("acting-api transition preserves historical and active pipeline rows", () => {
   const sql = readFileSync(migrationPath("011_acting_api_pipeline.sql"), "utf8");
 

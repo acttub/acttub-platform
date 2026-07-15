@@ -5,6 +5,137 @@ import { createClient } from "@supabase/supabase-js";
 
 const sqlScalar = (dbUrl, sql) => execFileSync("psql", [dbUrl, "-At", "-v", "ON_ERROR_STOP=1", "-c", sql], { encoding: "utf8" }).trim();
 
+test("trusted acting media probe is lease-fenced, atomic, idempotent, and keeps legacy 300000ms lineage", {
+  skip: process.env.G011_RUN_DB_INTEGRATION !== "1" && "set G011_RUN_DB_INTEGRATION=1 with local Supabase running",
+}, async () => {
+  const local = JSON.parse(execFileSync("supabase", ["status", "--output", "json"], { encoding: "utf8" }));
+  const client = createClient(local.API_URL, local.SERVICE_ROLE_KEY, { auth: { persistSession: false } });
+  const userId = "11000000-0000-0000-0000-000000000001";
+  const sessionId = "11000000-0000-0000-0001-000000000001";
+  const uploadId = "11000000-0000-0000-0002-000000000001";
+  const operationId = "11000000-0000-0000-0003-000000000001";
+  const path = `users/${userId}/practice-sessions/${sessionId}/take.mp4`;
+  execFileSync("psql", [local.DB_URL, "-v", "ON_ERROR_STOP=1", "-c", `
+    delete from auth.users where id='${userId}';
+    insert into auth.users(id,aud,role,email,created_at,updated_at) values('${userId}','authenticated','authenticated','g011-db@example.com',now(),now());
+    insert into public.profiles(id,email,status) values('${userId}','g011-db@example.com','pending_terms');
+    insert into public.upload_intents(id,user_id,session_id,status,expected_storage_path,expected_mime_type,expected_size_bytes)
+      values('${uploadId}','${userId}','${sessionId}','created','${path}','video/mp4',1024);
+  `]);
+  const finalized = await client.rpc("acttub_finalize_upload_intent", {
+    p_upload_intent_id: uploadId, p_user_id: userId, p_storage_path: path, p_duration_ms: 1000,
+  });
+  assert.ifError(finalized.error);
+  assert.equal(sqlScalar(local.DB_URL, `select status||':'||reported_duration_ms||':'||coalesce(duration_ms::text,'null') from public.upload_intents where id='${uploadId}'`), "validating:1000:null");
+  const replay = await client.rpc("acttub_finalize_upload_intent", {
+    p_upload_intent_id: uploadId, p_user_id: userId, p_storage_path: path, p_duration_ms: 1000,
+  });
+  assert.ifError(replay.error);
+  const conflict = await client.rpc("acttub_finalize_upload_intent", {
+    p_upload_intent_id: uploadId, p_user_id: userId, p_storage_path: path, p_duration_ms: 1001,
+  });
+  assert.ok(conflict.error);
+  const enqueued = await client.rpc("acttub_enqueue_acting_session", {
+    p_upload_intent_id: uploadId, p_user_id: userId, p_session_id: sessionId,
+    p_take_id: "11000000-0000-0000-0004-000000000001", p_request_id: "11000000-0000-0000-0005-000000000001",
+    p_request_fingerprint: "1".repeat(64), p_operation_id: operationId,
+    p_medium: "기타", p_genre: "기타", p_situation: "상황", p_character_context: "인물", p_subtext: "의도",
+    p_created_at: new Date().toISOString(),
+  });
+  assert.ifError(enqueued.error);
+  assert.equal(sqlScalar(local.DB_URL, `select coalesce(duration_ms::text,'null')||':'||reported_duration_ms from public.practice_takes where session_id='${sessionId}'`), "null:1000");
+  const oldClaim = await client.rpc("acttub_claim_next_analysis_job", { p_lease_token: crypto.randomUUID(), p_lease_seconds: 120, p_worker_id: "old" });
+  assert.ifError(oldClaim.error);
+  assert.deepEqual(oldClaim.data, []);
+  const token = crypto.randomUUID();
+  const claim = await client.rpc("acttub_claim_next_analysis_job_v2", { p_lease_token: token, p_lease_seconds: 120, p_worker_id: "v2" });
+  assert.ifError(claim.error);
+  assert.equal(claim.data[0].operation_id, operationId);
+  const stale = await client.rpc("acttub_record_trusted_media_probe", {
+    p_session_id: sessionId, p_user_id: userId, p_operation_id: operationId, p_lease_token: crypto.randomUUID(),
+    p_authoritative_duration_ms: 180000, p_media_metadata_version: "iso-bmff-duration.v1",
+  });
+  assert.equal(stale.error?.message.includes("stale_analysis_lease"), true);
+  const recordedInput = {
+    p_session_id: sessionId, p_user_id: userId, p_operation_id: operationId, p_lease_token: token,
+    p_authoritative_duration_ms: 180000, p_media_metadata_version: "iso-bmff-duration.v1",
+  };
+  const recorded = await client.rpc("acttub_record_trusted_media_probe", recordedInput);
+  assert.ifError(recorded.error);
+  const acknowledged = await client.rpc("acttub_record_trusted_media_probe", recordedInput);
+  assert.ifError(acknowledged.error);
+  assert.equal(sqlScalar(local.DB_URL, `select status||':'||duration_ms||':'||authoritative_duration_ms||':'||(ai_eligible_at is not null) from public.upload_intents where id='${uploadId}'`), "finalized:180000:180000:true");
+  assert.equal(sqlScalar(local.DB_URL, `select duration_ms||':'||reported_duration_ms||':'||media_metadata_version from public.practice_takes where session_id='${sessionId}'`), "180000:1000:iso-bmff-duration.v1");
+  const mismatch = await client.rpc("acttub_record_trusted_media_probe", { ...recordedInput, p_authoritative_duration_ms: 179999 });
+  assert.equal(mismatch.error?.message.includes("media_probe_mismatch"), true);
+  assert.match(sqlScalar(local.DB_URL, "select pg_get_functiondef('public.acttub_finalize_ai_upload(uuid,uuid,integer,text)'::regprocedure)"), /between 1 and 300000/u);
+  execFileSync("psql", [local.DB_URL, "-c", `delete from auth.users where id='${userId}'`]);
+});
+
+test("acting 180001/600000 fail atomically while legacy AI finalize executes 300000 and rejects 300001", {
+  skip: process.env.G011_RUN_DB_INTEGRATION !== "1" && "set G011_RUN_DB_INTEGRATION=1 with local Supabase running",
+}, async () => {
+  const local = JSON.parse(execFileSync("supabase", ["status", "--output", "json"], { encoding: "utf8" }));
+  const client = createClient(local.API_URL, local.SERVICE_ROLE_KEY, { auth: { persistSession: false } });
+  const userId = "12000000-0000-0000-0000-000000000001";
+  const sessionId = "12000000-0000-0000-0001-000000000001";
+  const uploadId = "12000000-0000-0000-0002-000000000001";
+  const operationId = "12000000-0000-0000-0003-000000000001";
+  const legacyUploadId = "12000000-0000-0000-0004-000000000001";
+  execFileSync("psql", [local.DB_URL, "-v", "ON_ERROR_STOP=1", "-c", `
+    delete from auth.users where id='${userId}';
+    insert into auth.users(id,aud,role,email,created_at,updated_at) values('${userId}','authenticated','authenticated','g011-boundaries@example.com',now(),now());
+    insert into public.profiles(id,email,status,required_consent_version,required_consent_at,ai_processing_consent_version,ai_processing_consent_at)
+      values('${userId}','g011-boundaries@example.com','active',public.current_acttub_terms_version(),now(),public.current_acttub_ai_processing_consent_version(),now());
+    insert into public.upload_intents(id,user_id,session_id,status,expected_storage_path,expected_mime_type,expected_size_bytes,reported_duration_ms)
+      values('${uploadId}','${userId}','${sessionId}','validating','users/${userId}/practice-sessions/${sessionId}/take.mp4','video/mp4',1024,1000);
+    insert into public.practice_sessions(id,user_id,upload_intent_id,status,pipeline_version,medium,genre,situation,character_context,subtext)
+      values('${sessionId}','${userId}','${uploadId}','analyzing','acting-api-v1','기타','기타','상황','인물','의도');
+    insert into public.practice_takes(id,session_id,user_id,storage_path,mime_type,size_bytes,reported_duration_ms,analysis_status)
+      values('12000000-0000-0000-0005-000000000001','${sessionId}','${userId}','users/${userId}/practice-sessions/${sessionId}/take.mp4','video/mp4',1024,1000,'pending');
+    insert into public.practice_upstream_operations(id,session_id,user_id,request_id,request_fingerprint,kind,status,lease_token,lease_expires_at)
+      values('${operationId}','${sessionId}','${userId}','12000000-0000-0000-0006-000000000001',repeat('2',64),'analysis_create','queued',null,null);
+    insert into public.upload_intents(id,user_id,session_id,status,expected_storage_path,expected_mime_type,expected_size_bytes,reported_duration_ms)
+      values('12000000-0000-0000-0012-000000000001','${userId}','12000000-0000-0000-0011-000000000001','validating',
+      'users/${userId}/practice-sessions/12000000-0000-0000-0011-000000000001/take.mp4','video/mp4',1024,1000);
+    insert into public.practice_sessions(id,user_id,upload_intent_id,status,pipeline_version,medium,genre,situation,character_context,subtext)
+      values('12000000-0000-0000-0011-000000000001','${userId}','12000000-0000-0000-0012-000000000001','analyzing','acting-api-v1','기타','기타','orphan','인물','의도');
+    insert into public.practice_upstream_operations(id,session_id,user_id,request_id,request_fingerprint,kind,status,lease_token,lease_expires_at,started_at,available_at)
+      values('12000000-0000-0000-0013-000000000001','12000000-0000-0000-0011-000000000001','${userId}',
+      '12000000-0000-0000-0014-000000000001',repeat('3',64),'analysis_create','queued',null,null,now()-interval '1 minute',now()-interval '1 minute');
+    insert into public.upload_intents(id,user_id,session_id,status,expected_storage_path,expected_mime_type,expected_size_bytes,
+      required_consent_version_snapshot,ai_processing_consent_version_snapshot,adult_confirmed_at,all_participants_confirmed_at)
+      values('${legacyUploadId}','${userId}','12000000-0000-0000-0007-000000000001','created',
+      'users/${userId}/practice-sessions/12000000-0000-0000-0007-000000000001/take.mp4','video/mp4',1024,
+      public.current_acttub_terms_version(),public.current_acttub_ai_processing_consent_version(),now(),now());
+  `]);
+  const token = crypto.randomUUID();
+  const claim = await client.rpc("acttub_claim_next_analysis_job_v2", { p_lease_token: token, p_lease_seconds: 120, p_worker_id: "boundary" });
+  assert.ifError(claim.error);
+  assert.equal(claim.data[0].operation_id, operationId, "v2 must skip a queue row whose acting take join is missing");
+  assert.equal(sqlScalar(local.DB_URL, "select status from public.practice_upstream_operations where id='12000000-0000-0000-0013-000000000001'"), "queued");
+  for (const duration of [180001, 600000]) {
+    const rejected = await client.rpc("acttub_record_trusted_media_probe", {
+      p_session_id: sessionId, p_user_id: userId, p_operation_id: operationId, p_lease_token: token,
+      p_authoritative_duration_ms: duration, p_media_metadata_version: "iso-bmff-duration.v1",
+    });
+    assert.equal(rejected.error?.message.includes("invalid_media_metadata"), true);
+  }
+  const failed = await client.rpc("acttub_fail_trusted_media_validation", {
+    p_session_id: sessionId, p_user_id: userId, p_operation_id: operationId, p_lease_token: token, p_safe_error_code: "video_too_long",
+  });
+  assert.ifError(failed.error);
+  assert.equal(sqlScalar(local.DB_URL, `select status||':'||coalesce(authoritative_duration_ms::text,'null')||':'||coalesce(ai_eligible_at::text,'null') from public.upload_intents where id='${uploadId}'`), "validation_failed:null:null");
+  assert.equal(sqlScalar(local.DB_URL, `select analysis_status||':'||analysis_error||':'||analysis_retryable||':'||coalesce(duration_ms::text,'null') from public.practice_takes where session_id='${sessionId}'`), "failed:video_too_long:false:null");
+  assert.equal(sqlScalar(local.DB_URL, `select status||':'||safe_error_code||':'||(lease_token is null) from public.practice_upstream_operations where id='${operationId}'`), "failed:video_too_long:true");
+  const legacyTooLong = await client.rpc("acttub_finalize_ai_upload", { p_upload_intent_id: legacyUploadId, p_user_id: userId, p_duration_ms: 300001, p_media_metadata_version: "iso-bmff-duration.v1" });
+  assert.equal(legacyTooLong.error?.message.includes("invalid_media_metadata"), true);
+  const legacyBoundary = await client.rpc("acttub_finalize_ai_upload", { p_upload_intent_id: legacyUploadId, p_user_id: userId, p_duration_ms: 300000, p_media_metadata_version: "iso-bmff-duration.v1" });
+  assert.ifError(legacyBoundary.error);
+  assert.equal(legacyBoundary.data[0].authoritative_duration_ms, 300000);
+  execFileSync("psql", [local.DB_URL, "-c", `delete from auth.users where id='${userId}'`]);
+});
+
 test("fresh migrated database supports concurrent analysis claim and stale-token CAS", {
   skip: process.env.G010_RUN_DB_INTEGRATION !== "1" && "set G010_RUN_DB_INTEGRATION=1 with local Supabase running",
 }, async () => {
@@ -19,12 +150,12 @@ test("fresh migrated database supports concurrent analysis claim and stale-token
     delete from auth.users where id='${userId}';
     insert into auth.users(id,aud,role,email,created_at,updated_at) values('${userId}','authenticated','authenticated','g010-db@example.com',now(),now());
     insert into public.profiles(id,email,status) values('${userId}','g010-db@example.com','pending_terms');
-    insert into public.upload_intents(id,user_id,session_id,status,expected_storage_path,expected_mime_type,expected_size_bytes,duration_ms,finalized_at)
-      values('21000000-0000-0000-0003-000000000001','${userId}','${sessionId}','finalized','users/${userId}/practice-sessions/${sessionId}/take.mp4','video/mp4',1024,1000,now());
+    insert into public.upload_intents(id,user_id,session_id,status,expected_storage_path,expected_mime_type,expected_size_bytes,duration_ms,authoritative_duration_ms,media_metadata_version,ai_eligible_at,finalized_at)
+      values('21000000-0000-0000-0003-000000000001','${userId}','${sessionId}','finalized','users/${userId}/practice-sessions/${sessionId}/take.mp4','video/mp4',1024,1000,1000,'iso-bmff-duration.v1',now(),now());
     insert into public.practice_sessions(id,user_id,upload_intent_id,status,pipeline_version,medium,genre,situation,character_context,subtext)
       values('${sessionId}','${userId}','21000000-0000-0000-0003-000000000001','analyzing','acting-api-v1','기타','기타','상황','인물','의도');
-    insert into public.practice_takes(id,session_id,user_id,storage_path,mime_type,size_bytes,duration_ms,analysis_status)
-      values('21000000-0000-0000-0004-000000000001','${sessionId}','${userId}','users/${userId}/practice-sessions/${sessionId}/take.mp4','video/mp4',1024,1000,'pending');
+    insert into public.practice_takes(id,session_id,user_id,storage_path,mime_type,size_bytes,duration_ms,media_metadata_version,analysis_status)
+      values('21000000-0000-0000-0004-000000000001','${sessionId}','${userId}','users/${userId}/practice-sessions/${sessionId}/take.mp4','video/mp4',1024,1000,'iso-bmff-duration.v1','pending');
     insert into public.practice_upstream_operations(id,session_id,user_id,request_id,request_fingerprint,kind,status,lease_token,lease_expires_at)
       values('${operationId}','${sessionId}','${userId}','21000000-0000-0000-0005-000000000001',repeat('a',64),'analysis_create','queued',null,null);
   `]);
@@ -42,6 +173,7 @@ test("fresh migrated database supports concurrent analysis claim and stale-token
   assert.equal(claimed.length, 1, "exactly one concurrent claimant must win");
   const winner = claimed[0][0];
   assert.equal(winner.attempt_count, 1);
+  for (const key of ["medium", "genre", "formattedSituation"]) assert.equal(typeof winner.analysis_source[key], "string");
   const winnerToken = winner.lease_token;
   const staleToken = winnerToken === firstToken ? secondToken : firstToken;
   const stale = await client.rpc("acttub_extend_analysis_job_lease", { p_operation_id: operationId, p_lease_token: staleToken, p_lease_seconds: 120 });
@@ -230,7 +362,7 @@ test("enqueue RPCs are atomic across forced create and retry failures", {
   assert.equal(sqlScalar(local.DB_URL, `select count(*) from public.practice_upstream_operations where session_id='${sessionId}' and kind='analysis_retry'`), "1");
   execFileSync("psql", [local.DB_URL, "-c", `update public.practice_upstream_operations set max_attempts=1 where id='${retryOperationId}'`]);
   const exhaustedToken = crypto.randomUUID();
-  const exhaustedClaim = await client.rpc("acttub_claim_next_analysis_job", { p_lease_token: exhaustedToken, p_lease_seconds: 120, p_worker_id: "exhaustion" });
+  const exhaustedClaim = await client.rpc("acttub_claim_next_analysis_job_v2", { p_lease_token: exhaustedToken, p_lease_seconds: 120, p_worker_id: "exhaustion" });
   assert.ifError(exhaustedClaim.error);
   assert.equal(exhaustedClaim.data[0].operation_id, retryOperationId);
   const exhausted = await client.rpc("acttub_requeue_analysis_job", { p_operation_id: retryOperationId, p_lease_token: exhaustedToken, p_safe_error_code: "acting_api_unavailable" });
@@ -247,7 +379,7 @@ test("enqueue RPCs are atomic across forced create and retry failures", {
   });
   assert.ifError(definitiveRetry.error);
   const definitiveToken = crypto.randomUUID();
-  const definitiveClaim = await client.rpc("acttub_claim_next_analysis_job", { p_lease_token: definitiveToken, p_lease_seconds: 120, p_worker_id: "definitive" });
+  const definitiveClaim = await client.rpc("acttub_claim_next_analysis_job_v2", { p_lease_token: definitiveToken, p_lease_seconds: 120, p_worker_id: "definitive" });
   assert.ifError(definitiveClaim.error);
   assert.equal(definitiveClaim.data[0].operation_id, definitiveOperationId);
   const definitive = await client.rpc("acttub_fail_analysis", {

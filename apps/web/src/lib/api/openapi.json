@@ -2102,7 +2102,8 @@
           "durationMs": {
             "type": "integer",
             "minimum": 1,
-            "maximum": 180000
+            "maximum": 180000,
+            "description": "브라우저가 보고한 호환성/UX 힌트입니다. 서버 워커가 업로드된 바이트를 검사한 실제 길이만 분석 권한의 기준이 됩니다."
           }
         }
       },
@@ -2125,7 +2126,8 @@
             "type": [
               "number",
               "null"
-            ]
+            ],
+            "description": "finalize 응답에서는 클라이언트 보고값이며, 세션 take에서는 ANALYZING 중 호환성 보고값이고 검증 후에는 서버가 ffprobe로 확인한 실제 길이입니다."
           }
         }
       },
@@ -2768,7 +2770,8 @@
           "durationMs": {
             "type": "integer",
             "minimum": 1,
-            "maximum": 180000
+            "maximum": 180000,
+            "description": "ANALYZING 중에는 숫자 DTO 호환을 위한 브라우저 보고값이며, worker probe가 완료되면 같은 필드가 서버가 검증한 실제 길이를 나타냅니다."
           },
           "analysisStatus": {
             "type": "string",

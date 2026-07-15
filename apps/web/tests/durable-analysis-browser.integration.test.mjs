@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawn } from "node:child_process";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, statSync } from "node:fs";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -95,8 +95,8 @@ class CdpClient {
 const sqlScalar = (dbUrl, sql) => execFileSync("psql", [dbUrl, "-At", "-v", "ON_ERROR_STOP=1", "-c", sql], { encoding: "utf8" }).trim();
 
 test("actual browser + Next API + durable queue + worker covers recovery and terminal stop", {
-  skip: process.env.G010_RUN_BROWSER_INTEGRATION !== "1" && "set G010_RUN_BROWSER_INTEGRATION=1 with local Supabase and Chrome",
-  timeout: 60_000,
+  skip: process.env.G011_RUN_BROWSER_INTEGRATION !== "1" && "set G011_RUN_BROWSER_INTEGRATION=1 with local Supabase and Chrome",
+  timeout: 120_000,
 }, async () => {
   const local = JSON.parse(execFileSync("supabase", ["status", "--output", "json"], { encoding: "utf8" }));
   const admin = createClient(local.API_URL, local.SERVICE_ROLE_KEY, { auth: { persistSession: false } });
@@ -107,18 +107,22 @@ test("actual browser + Next API + durable queue + worker covers recovery and ter
   const userId = createdUser.data.user.id;
   const successPath = `users/${userId}/practice-sessions/${successSessionId}/take.mp4`;
   const failedPath = `users/${userId}/practice-sessions/${failedSessionId}/take.mp4`;
+  const successFixture = new URL("fixtures/media/valid-180000ms.mp4", import.meta.url);
+  const failedFixture = new URL("fixtures/media/valid-600000ms.mp4", import.meta.url);
   execFileSync("psql", [local.DB_URL, "-v", "ON_ERROR_STOP=1", "-c", `
     insert into public.profiles(id,email,status,required_consent_version,required_consent_at,ai_processing_consent_version,ai_processing_consent_at)
       values('${userId}','${email}','active',public.current_acttub_terms_version(),now(),public.current_acttub_ai_processing_consent_version(),now())
       on conflict(id) do update set status='active',required_consent_version=excluded.required_consent_version,
         required_consent_at=excluded.required_consent_at,ai_processing_consent_version=excluded.ai_processing_consent_version,
         ai_processing_consent_at=excluded.ai_processing_consent_at;
-    insert into public.upload_intents(id,user_id,session_id,status,expected_storage_path,expected_mime_type,expected_size_bytes,duration_ms,finalized_at)
-      values('${successUploadId}','${userId}','${successSessionId}','finalized','${successPath}','video/mp4',3,1000,now()),
-            ('${failedUploadId}','${userId}','${failedSessionId}','finalized','${failedPath}','video/mp4',3,1000,now());
+    insert into public.upload_intents(id,user_id,session_id,status,expected_storage_path,expected_mime_type,expected_size_bytes,reported_duration_ms)
+      values('${successUploadId}','${userId}','${successSessionId}','validating','${successPath}','video/mp4',${statSync(successFixture).size},1000),
+            ('${failedUploadId}','${userId}','${failedSessionId}','validating','${failedPath}','video/mp4',${statSync(failedFixture).size},1000);
   `]);
-  const uploaded = await admin.storage.from("practice-videos").upload(successPath, new Blob([new Uint8Array([1, 2, 3])], { type: "video/mp4" }));
+  const uploaded = await admin.storage.from("practice-videos").upload(successPath, new Blob([readFileSync(successFixture)], { type: "video/mp4" }));
   assert.ifError(uploaded.error);
+  const failedUploaded = await admin.storage.from("practice-videos").upload(failedPath, new Blob([readFileSync(failedFixture)], { type: "video/mp4" }));
+  assert.ifError(failedUploaded.error);
 
   const cookieWrites = [];
   const browserAuth = createBrowserClient(local.API_URL, local.ANON_KEY, {
@@ -169,6 +173,8 @@ test("actual browser + Next API + durable queue + worker covers recovery and ter
     ANALYSIS_WORKER_LEASE_MS: "30000",
     ANALYSIS_WORKER_HEARTBEAT_MS: "1000",
     ANALYSIS_WORKER_UPSTREAM_TIMEOUT_MS: "10000",
+    ANALYSIS_WORKER_FFPROBE_PATH: process.env.ANALYSIS_WORKER_FFPROBE_PATH,
+    ANALYSIS_WORKER_MEDIA_TMP_DIR: new URL("fixtures/media", import.meta.url).pathname,
   };
   let appOutput = "";
   const startApp = (env) => {
@@ -239,16 +245,18 @@ test("actual browser + Next API + durable queue + worker covers recovery and ter
     await waitFor(async () => cdp.evaluate(`document.body.innerText.includes("장면을 분석하고 있어요")`), 10_000, "terminal-case ANALYZING UI");
     const failedWorker = await runWorkerOnce(repoRoot, workerEnv);
     assert.equal(failedWorker.code, 0, failedWorker.output);
-    await waitFor(async () => cdp.evaluate(`document.body.innerText.includes("분석을 완료하지 못했지만 같은 영상으로 다시 시도할 수 있어요")`), 10_000, "terminal failure UI");
+    await waitFor(async () => cdp.evaluate(`document.body.innerText.includes("실제 영상 길이가 3분을 초과해 분석할 수 없어요")`), 10_000, "forged 600000ms/report1000 terminal UI");
     const failedGetUrl = `${appOrigin}/api/v1/practice-sessions/${failedSessionId}`;
     const stoppedAt = responseCounts.get(failedGetUrl) ?? 0;
     await new Promise((resolve) => setTimeout(resolve, 1800));
     assert.equal(responseCounts.get(failedGetUrl) ?? 0, stoppedAt, "terminal failure must stop browser polling");
-    assert.equal(sqlScalar(local.DB_URL, `select analysis_status||':'||analysis_error||':'||analysis_retryable from public.practice_takes where session_id='${failedSessionId}'`), "failed:source_video_unavailable:true");
+    assert.equal(sqlScalar(local.DB_URL, `select analysis_status||':'||analysis_error||':'||analysis_retryable from public.practice_takes where session_id='${failedSessionId}'`), "failed:video_too_long:false");
+    assert.equal(sqlScalar(local.DB_URL, `select status||':'||coalesce(authoritative_duration_ms::text,'null')||':'||coalesce(ai_eligible_at::text,'null') from public.upload_intents where id='${failedUploadId}'`), "validation_failed:null:null");
+    assert.equal(summarizeCalls, 1, "600000ms bytes reported as 1000ms must not add a summarize call");
   } finally {
     cdp?.close(); chrome.kill("SIGTERM"); await stopChild(app);
     await new Promise((resolve) => actingApi.close(resolve));
-    await admin.storage.from("practice-videos").remove([successPath]);
+    await admin.storage.from("practice-videos").remove([successPath, failedPath]);
     await admin.auth.admin.deleteUser(userId);
     rmSync(profile, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
   }

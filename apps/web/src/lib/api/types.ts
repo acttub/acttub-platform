@@ -46,6 +46,7 @@ export type ActingReportDto = {
 
 export type ActingTakeDto = {
   id: string;
+  /** Reported browser duration while ANALYZING; authoritative worker-probed duration after validation. */
   durationMs: number;
   analysisStatus: ActingAnalysisStatus;
   analysisRetryable: boolean;

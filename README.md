@@ -48,3 +48,6 @@ GEMINI_QUESTION_MODEL=gemini-3-flash-preview
 ```bash
 pnpm check:acting-runtime
 ```
+
+독립 분석 워커는 작업 claim 전에 pinned host `ffprobe`의 `-version` boot check를 통과해야 합니다.
+워커는 Storage 응답을 mode `0600` 임시 파일로 한 번만 스트리밍하고, 실제 ISO-BMFF 길이·video stream·MP4/MOV brand를 확인한 뒤 같은 파일을 `/summarize`에 보냅니다. `ANALYSIS_WORKER_FFPROBE_PATH`와 `ANALYSIS_WORKER_MEDIA_TMP_DIR`로 실행 파일/임시 디스크 위치를 지정합니다. 동시성별 최악의 임시 디스크 예산은 `550 MiB × ANALYSIS_WORKER_CONCURRENCY`에 운영 여유분을 더해 잡습니다.

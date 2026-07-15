@@ -52,9 +52,12 @@ export type ActingRpcResult = JsonRecord & {
 
 type ActingRpcInput = Record<string, string | number | boolean | null | JsonRecord>;
 
-type StoredUploadIntentRecord = PracticeUploadIntentDto & {
+type StoredUploadIntentStatus = PracticeUploadIntentDto["status"] | "validating" | "validation_failed" | "cleanup_failed";
+type StoredUploadIntentRecord = Omit<PracticeUploadIntentDto, "status"> & {
+  status: StoredUploadIntentStatus;
   finalizedVideoUrl?: string;
   finalizedDurationMs?: number | null;
+  reportedDurationMs?: number | null;
   intent: PracticeUploadIntentDto;
 };
 
@@ -366,7 +369,7 @@ const mapSceneSummary = (row: JsonRecord): SceneSummaryDto => ({
 
 const mapActingSession = (row: JsonRecord): ActingCoachSessionDto => {
   const takeRow = asArray(row.practice_takes)[0] ?? {};
-  const durationMs = asNullableNumber(takeRow.duration_ms);
+  const durationMs = asNullableNumber(takeRow.duration_ms) ?? asNullableNumber(takeRow.reported_duration_ms);
   if (
     durationMs === null ||
     !Number.isInteger(durationMs) ||
@@ -464,6 +467,10 @@ const mapUploadIntent = (row: JsonRecord): StoredUploadIntentRecord => {
   const config = getAppConfig();
   const mimeType = asString(row.expected_mime_type) as PracticeUploadIntentDto["fileMetadata"]["mimeType"];
   const storageBucket = asString(row.expected_storage_bucket, "practice-videos") as PracticeUploadIntentDto["storageBucket"];
+  const storedStatus = asString(row.status, "created") as StoredUploadIntentStatus;
+  const publicStatus: PracticeUploadIntentDto["status"] = storedStatus === "validating" || storedStatus === "finalized"
+    ? "finalized"
+    : storedStatus === "expired" ? "expired" : "created";
   const uploadIntent: PracticeUploadIntentDto = {
     uploadIntentId: asString(row.id),
     sessionId: asString(row.session_id),
@@ -476,7 +483,7 @@ const mapUploadIntent = (row: JsonRecord): StoredUploadIntentRecord => {
       mimeType,
       sizeBytes: asNumber(row.expected_size_bytes),
     },
-    status: asString(row.status, "created") as PracticeUploadIntentDto["status"],
+    status: publicStatus,
     finalizedAt: asNullableString(row.finalized_at),
     constraints: {
       maxUploadBytes: config.video.maxUploadBytes,
@@ -487,7 +494,9 @@ const mapUploadIntent = (row: JsonRecord): StoredUploadIntentRecord => {
 
   return {
     ...uploadIntent,
+    status: storedStatus,
     finalizedDurationMs: asNullableNumber(row.duration_ms),
+    reportedDurationMs: asNullableNumber(row.reported_duration_ms),
     intent: uploadIntent,
   };
 };
@@ -649,13 +658,13 @@ export const supabaseCoachSessionRepository = {
     uploadIntentId: string;
     userId: string;
     storagePath: string;
-    durationMs: number;
+    reportedDurationMs: number;
   }): Promise<ActingRpcResult> {
     return callActingRpc("acttub_finalize_upload_intent", {
       p_upload_intent_id: input.uploadIntentId,
       p_user_id: input.userId,
       p_storage_path: input.storagePath,
-      p_duration_ms: input.durationMs,
+      p_duration_ms: input.reportedDurationMs,
     });
   },
 

@@ -545,12 +545,12 @@ export const coachSessionService = {
         durationMs: "Must be an integer from 1 to 180000.",
       });
     }
-    const durationMs = input.durationMs;
+    const reportedDurationMs = input.durationMs;
 
     validateExpectedStoragePath(uploadIntent.intent, storagePath, userId);
 
-    if (uploadIntent.status === "finalized") {
-      if (uploadIntent.finalizedDurationMs !== durationMs) {
+    if (["validating", "finalized"].includes(uploadIntent.status)) {
+      if ((uploadIntent.reportedDurationMs ?? uploadIntent.finalizedDurationMs) !== reportedDurationMs) {
         throw new ApiValidationError("Request validation failed", {
           durationMs: "Must match the duration already stored for this upload intent.",
         });
@@ -558,7 +558,7 @@ export const coachSessionService = {
       return {
         videoUrl: videoRefForUploadIntent(uploadIntent.intent),
         storagePath,
-        durationMs,
+        durationMs: reportedDurationMs,
       };
     }
 
@@ -585,7 +585,7 @@ export const coachSessionService = {
     return {
       videoUrl: videoRefForUploadIntent(uploadIntent.intent),
       storagePath,
-      durationMs,
+      durationMs: reportedDurationMs,
     };
   },
 
