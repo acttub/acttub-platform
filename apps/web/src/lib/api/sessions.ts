@@ -9,6 +9,7 @@ import type {
   FinalizeUploadIntentRequest,
   FinalizeUploadIntentResponse,
   RetryAnalysisRequest,
+  PracticeSessionListPageDto,
 } from "./types";
 import type { LegacyCoachSessionDto } from "./legacy-types";
 
@@ -61,8 +62,11 @@ export function finalizePracticeUploadIntent(id: string, body: FinalizeUploadInt
   });
 }
 
-export function listPracticeSessions() {
-  return request<{ sessions: PracticeSession[] }>("/api/v1/practice-sessions");
+export function listPracticeSessions(options: { limit?: number; cursor?: string } = {}) {
+  const query = new URLSearchParams("view=summary");
+  if (options.limit !== undefined) query.set("limit", String(options.limit));
+  if (options.cursor) query.set("cursor", options.cursor);
+  return request<PracticeSessionListPageDto>(`/api/v1/practice-sessions?${query}`);
 }
 
 export function getPracticeSession(id: string, signal?: AbortSignal) {

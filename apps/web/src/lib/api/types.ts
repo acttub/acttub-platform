@@ -1,4 +1,5 @@
 import type { LegacyCoachSessionDto } from "./legacy-types";
+import type { LegacySessionStatus } from "./legacy-types";
 
 export type AnalysisStatus = "pending" | "completed" | "failed";
 
@@ -94,6 +95,24 @@ export type TakeDto = {
 };
 
 export type CoachSessionDto = ActingCoachSessionDto | LegacyCoachSessionDto;
+
+export type PracticeSessionListItemDto = {
+  id: string;
+  pipelineVersion: "acting-api-v1" | "legacy-gemini-v1";
+  legacy: boolean;
+  status: ActingSessionStatus | LegacySessionStatus;
+  title: string;
+  preview: string | null;
+  durationMs: number | null;
+  analysisStatus: ActingAnalysisStatus | "generated" | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type PracticeSessionListPageDto = {
+  sessions: PracticeSessionListItemDto[];
+  nextCursor: string | null;
+};
 
 export type FileMetadataDto = {
   fileName: string;

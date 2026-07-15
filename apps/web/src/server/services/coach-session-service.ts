@@ -14,6 +14,7 @@ import type {
   CoachSessionDto as PublicCoachSessionDto,
   CreateUploadIntentRequest,
   PracticeUploadIntentDto,
+  PracticeSessionListPageDto,
   SignedVideoUrlResponse,
   TakeDto,
 } from "@/lib/api/types";
@@ -32,6 +33,10 @@ import {
   SupabaseCoachSessionPersistenceError,
   supabaseCoachSessionRepository,
 } from "@/server/repositories/supabase-coach-session-repository";
+import {
+  encodePracticeSessionListCursor,
+  type PracticeSessionListQuery,
+} from "@/server/services/practice-session-list-pagination";
 
 export class ApiValidationError extends Error {
   constructor(
@@ -523,6 +528,34 @@ export const coachSessionService = {
       sessions: await requireSupabasePersistence(() =>
         supabaseCoachSessionRepository.listOwnedSessions(userId),
       ),
+    };
+  },
+
+  async listSessionSummaries(
+    userId: string,
+    query: PracticeSessionListQuery,
+  ): Promise<PracticeSessionListPageDto> {
+    const cursor = query.cursor;
+    const result = await requireSupabasePersistence(() =>
+      supabaseCoachSessionRepository.listOwnedSessionSummaries(userId, {
+        limit: query.limit,
+        snapshotAt: cursor?.snapshotAt ?? null,
+        beforeCreatedAt: cursor?.createdAt ?? null,
+        beforeId: cursor?.id ?? null,
+      }),
+    );
+    const hasMore = result.sessions.length > query.limit;
+    const sessions = result.sessions.slice(0, query.limit);
+    const last = sessions.at(-1);
+    return {
+      sessions,
+      nextCursor: hasMore && last
+        ? encodePracticeSessionListCursor({
+            snapshotAt: result.snapshotAt,
+            createdAt: last.createdAt,
+            id: last.id,
+          })
+        : null,
     };
   },
 

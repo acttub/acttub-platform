@@ -12,9 +12,9 @@ import {
   listPracticeSessions,
   mutatePracticeTurn,
   retryPracticeAnalysis,
-  type PracticeSession,
 } from "@/lib/api/sessions";
-import type { ActingCoachSessionDto, ActingReportDto } from "@/lib/api/types";
+import type { ActingCoachSessionDto, ActingReportDto, PracticeSessionListItemDto } from "@/lib/api/types";
+import { toPracticeSessionListItem } from "@/lib/api/session-list-item";
 import {
   createLogicalAttemptRegistry,
   reconcilePersistedMutation,
@@ -84,8 +84,11 @@ export function PracticeFlow({ entry = "new" }: { entry?: Entry }) {
   const [authSession, setAuthSession] = useState<AuthSessionResponse | null>(null);
   const [ready, setReady] = useState(false);
   const [step, setStep] = useState<Step>(entryInitialStep[entry]);
-  const [history, setHistory] = useState<PracticeSession[]>([]);
+  const [history, setHistory] = useState<PracticeSessionListItemDto[]>([]);
   const [historyError, setHistoryError] = useState<string | null>(null);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [loadMoreBusy, setLoadMoreBusy] = useState(false);
+  const [loadMoreError, setLoadMoreError] = useState<string | null>(null);
   const [active, setActive] = useState<ActingCoachSessionDto | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [situation, setSituation] = useState("");
@@ -127,8 +130,11 @@ export function PracticeFlow({ entry = "new" }: { entry?: Entry }) {
         setHistoryError(null);
 
         try {
-          const { sessions } = await listPracticeSessions();
-          if (mounted) setHistory(sessions);
+          const page = await listPracticeSessions();
+          if (mounted) {
+            setHistory(page.sessions);
+            setNextCursor(page.nextCursor);
+          }
           const activeId = localStorage.getItem(ACTIVE_SESSION_LOCATOR_KEY);
           if (activeId) {
             try {
@@ -189,7 +195,7 @@ export function PracticeFlow({ entry = "new" }: { entry?: Entry }) {
         }
         failures = 0;
         setActive(session);
-        setHistory((items) => [session, ...items.filter((item) => item.id !== session.id)]);
+        setHistory((items) => [toPracticeSessionListItem(session), ...items.filter((item) => item.id !== session.id)]);
         if (session.status === "ANALYZING" && session.take.analysisStatus === "pending") schedule(1500);
       } catch (reason) {
         if (stopped || controller.signal.aborted) return;
@@ -258,10 +264,34 @@ export function PracticeFlow({ entry = "new" }: { entry?: Entry }) {
     setStep("video");
   }
 
-  function openSession(session: PracticeSession) {
-    if (session.legacy) return;
-    localStorage.setItem(ACTIVE_SESSION_LOCATOR_KEY, session.id);
-    setActive(session);
+  async function openSession(item: PracticeSessionListItemDto) {
+    if (item.legacy) return;
+    setHistoryError(null);
+    try {
+      const { session } = await getPracticeSession(item.id);
+      if (session.legacy) return;
+      localStorage.setItem(ACTIVE_SESSION_LOCATOR_KEY, session.id);
+      setActive(session);
+    } catch (reason) {
+      setHistoryError(errorMessage(reason));
+    }
+  }
+
+  async function loadMoreSessions() {
+    if (!nextCursor || loadMoreBusy) return;
+    setLoadMoreBusy(true); setLoadMoreError(null);
+    try {
+      const page = await listPracticeSessions({ cursor: nextCursor });
+      setHistory((items) => {
+        const seen = new Set(items.map((item) => item.id));
+        return [...items, ...page.sessions.filter((item) => !seen.has(item.id))];
+      });
+      setNextCursor(page.nextCursor);
+    } catch (reason) {
+      setLoadMoreError(errorMessage(reason));
+    } finally {
+      setLoadMoreBusy(false);
+    }
   }
 
   async function begin() {
@@ -312,7 +342,7 @@ export function PracticeFlow({ entry = "new" }: { entry?: Entry }) {
       });
       logicalAttempts.settle("begin", beginAttempt.requestId);
       localStorage.setItem(ACTIVE_SESSION_LOCATOR_KEY, session.id);
-      setActive(session); setHistory((items) => [session, ...items.filter((item) => item.id !== session.id)]);
+      setActive(session); setHistory((items) => [toPracticeSessionListItem(session), ...items.filter((item) => item.id !== session.id)]);
     } catch (reason) {
       const recovered = persistedSessionId
         ? await recoverPersistedSession(persistedSessionId, reason)
@@ -472,6 +502,7 @@ export function PracticeFlow({ entry = "new" }: { entry?: Entry }) {
         if (persisted.legacy) return;
         reconciled = persisted;
         setActive(persisted);
+        setHistory((items) => [toPracticeSessionListItem(persisted), ...items.filter((item) => item.id !== persisted.id)]);
         setRestartRequired(persisted.currentRun?.recoveryAction === "restart");
       },
     );
@@ -521,6 +552,10 @@ export function PracticeFlow({ entry = "new" }: { entry?: Entry }) {
         historyError={historyError}
         sessions={history}
         onOpen={openSession}
+        nextCursor={nextCursor}
+        loadMoreBusy={loadMoreBusy}
+        loadMoreError={loadMoreError}
+        onLoadMore={loadMoreSessions}
       />
     );
   }
@@ -594,8 +629,8 @@ function PracticeHome({
 }: {
   displayName: string;
   historyError: string | null;
-  sessions: PracticeSession[];
-  onOpen: (session: PracticeSession) => void;
+  sessions: PracticeSessionListItemDto[];
+  onOpen: (session: PracticeSessionListItemDto) => void;
 }) {
   const description = historyError
     ? "연습 기록을 잠시 불러오지 못했지만 새 연습은 바로 시작할 수 있어요."
@@ -698,11 +733,19 @@ function PracticeHistoryScreen({
   historyError,
   sessions,
   onOpen,
+  nextCursor,
+  loadMoreBusy,
+  loadMoreError,
+  onLoadMore,
 }: {
   displayName: string;
   historyError: string | null;
-  sessions: PracticeSession[];
-  onOpen: (session: PracticeSession) => void;
+  sessions: PracticeSessionListItemDto[];
+  onOpen: (session: PracticeSessionListItemDto) => void;
+  nextCursor: string | null;
+  loadMoreBusy: boolean;
+  loadMoreError: string | null;
+  onLoadMore: () => void;
 }) {
   return (
     <main className="min-h-dvh bg-white px-4 py-6 text-[#191f28] sm:px-6 lg:px-8">
@@ -731,7 +774,8 @@ function PracticeHistoryScreen({
             </a>
           </div>
         </header>
-        <RecentPracticeSection error={historyError} sessions={sessions} onOpen={onOpen} variant="full" />
+        <RecentPracticeSection error={historyError} sessions={sessions} onOpen={onOpen} variant="full"
+          nextCursor={nextCursor} loadMoreBusy={loadMoreBusy} loadMoreError={loadMoreError} onLoadMore={onLoadMore} />
       </div>
     </main>
   );
@@ -948,11 +992,19 @@ function RecentPracticeSection({
   sessions,
   onOpen,
   variant = "recent",
+  nextCursor = null,
+  loadMoreBusy = false,
+  loadMoreError = null,
+  onLoadMore,
 }: {
   error?: string | null;
-  sessions: PracticeSession[];
-  onOpen: (session: PracticeSession) => void;
+  sessions: PracticeSessionListItemDto[];
+  onOpen: (session: PracticeSessionListItemDto) => void;
   variant?: "recent" | "full";
+  nextCursor?: string | null;
+  loadMoreBusy?: boolean;
+  loadMoreError?: string | null;
+  onLoadMore?: () => void;
 }) {
   const visibleSessions = variant === "full" ? sessions : sessions.slice(0, 3);
 
@@ -980,22 +1032,29 @@ function RecentPracticeSection({
           {visibleSessions.map((session) => <PracticeHistoryCard key={session.id} session={session} onOpen={onOpen} />)}
         </div>
       )}
+      {variant === "full" && loadMoreError ? <p role="alert" className="mt-4 text-sm font-bold text-red-600">{loadMoreError}</p> : null}
+      {variant === "full" && nextCursor && onLoadMore ? (
+        <button type="button" disabled={loadMoreBusy} onClick={onLoadMore}
+          className="mt-6 inline-flex min-h-12 items-center justify-center rounded-2xl border border-[#d1d6db] px-6 text-sm font-black text-[#2f6bff] disabled:opacity-50">
+          {loadMoreBusy ? "불러오는 중" : "더 보기"}
+        </button>
+      ) : null}
     </section>
   );
 }
 
-function PracticeHistoryCard({ session, onOpen }: { session: PracticeSession; onOpen: (session: PracticeSession) => void }) {
+function PracticeHistoryCard({ session, onOpen }: { session: PracticeSessionListItemDto; onOpen: (session: PracticeSessionListItemDto) => void }) {
   const content = (
     <>
       <div className="relative flex aspect-[2.78/1] items-center justify-center bg-[#1f2937]" style={{ backgroundImage: "repeating-linear-gradient(45deg, #202938 0 22px, #182131 22px 44px)" }}>
         <span className="flex h-12 w-12 items-center justify-center rounded-full bg-white/95 text-[#191f28] shadow-sm"><PlayIcon /></span>
-        <span className="absolute bottom-3 right-3 rounded-lg bg-[#0f1724]/90 px-2.5 py-1 text-sm font-black text-white">{formatDuration(session.take.durationMs)}</span>
+        <span className="absolute bottom-3 right-3 rounded-lg bg-[#0f1724]/90 px-2.5 py-1 text-sm font-black text-white">{formatDuration(session.durationMs)}</span>
       </div>
       <div className="px-5 py-5 text-left">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <h3 className="truncate text-lg font-black tracking-[-0.04em]">{formatPracticeTitle(session)}</h3>
-            <p className="mt-2 line-clamp-2 text-sm font-bold leading-6 text-[#8b95a1]">{formatPracticeSummary(session)}</p>
+            <h3 className="truncate text-lg font-black tracking-[-0.04em]">{session.title}</h3>
+            <p className="mt-2 line-clamp-2 text-sm font-bold leading-6 text-[#8b95a1]">{session.preview || "연습 기록"}</p>
           </div>
           <span className={"shrink-0 rounded-full px-3 py-1.5 text-xs font-black " + (getPracticeBadge(session).positive ? "bg-[#e5f8ef] text-[#009959]" : "bg-[#f2f4f6] text-[#4e5968]")}>{getPracticeBadge(session).label}</span>
         </div>
@@ -1044,18 +1103,7 @@ function formatDisplayName(session: AuthSessionResponse): string {
   return email.split("@")[0]?.replace(/[._-]+/g, " ").trim() || "배우";
 }
 
-function formatPracticeTitle(session: PracticeSession): string {
-  if (session.legacy) return session.genre || session.situation || "이전 버전 연습";
-  return session.situation || "연기 연습";
-}
-
-function formatPracticeSummary(session: PracticeSession): string {
-  if (session.legacy) return session.situation || "이전 버전 연습 기록";
-  const actorTurn = [...session.turns].reverse().find((turn) => turn.role === "actor" && turn.deliveryStatus === "completed");
-  return session.report?.headline || actorTurn?.text || session.sceneSummary?.summary || session.situation || "장면을 분석하고 있어요";
-}
-
-function getPracticeBadge(session: PracticeSession): { label: string; positive: boolean } {
+function getPracticeBadge(session: PracticeSessionListItemDto): { label: string; positive: boolean } {
   if (session.legacy) return { label: "이전 기록", positive: false };
   if (session.status === "END") return { label: "완료", positive: true };
   if (session.status === "REPORT") return { label: "리포트 준비", positive: false };

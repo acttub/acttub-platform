@@ -198,3 +198,15 @@ Safe rollout order is compatible app/worker code, drain old G010 workers and lea
 Spring Boot must preserve the existing `/api/v1/*` request/success DTOs and HTTP 409 `upload_quota_exceeded` error. It may replace the Node cleanup process, but must preserve PostgreSQL's per-user advisory-lock ordering, active usage predicate (`consumed_at is null and cleanup_completed_at is null`), actual-byte accounting, `FOR UPDATE SKIP LOCKED` claims, lease-token CAS, capped retry, and reference guards.
 
 Storage deletion is service-role/server-only, targets one canonical bucket/path, and treats an already-missing object as success. A successful provider delete does not release quota until DB completion succeeds under the live lease; a crash between those steps converges when the next lease observes the object absent. Normal session/take media is marked consumed and never enters orphan cleanup.
+## 경량 연습 세션 목록 전환 (Item 17)
+
+연습 세션 상세 DTO는 `GET /api/v1/practice-sessions/{sessionId}`에서만 완전히 조회한다. 목록은
+`GET /api/v1/practice-sessions?view=summary&limit=20&cursor=...`의 소유자 한정 경량 DTO와
+`(created_at, id)` 내림차순 키셋 페이지를 사용한다. 커서의 `snapshotAt`은 첫 페이지의
+`statement_timestamp()`를 유지하여 페이지 탐색 중 새 행이 끼어들지 않게 한다.
+
+배포 순서는 024 마이그레이션(RPC/부분 인덱스), 요약 지원 API와 OpenAPI, 첫 번째 클라이언트/UI
+순서다. 기존 브라우저 번들과 배포 소비자를 위해 쿼리가 없는 목록 요청은 당분간 전체 DTO를
+반환한다. 해당 트래픽을 관찰한 뒤 별도 릴리스에서만 기본값을 요약 목록으로 전환하고 호환
+전체 목록을 제거한다. Spring Boot 이전 시 HTTP 경로, DTO, 엄격한 커서 검증, 서비스 역할 전용
+RPC와 소유자/숨김 조건을 그대로 보존해야 한다.

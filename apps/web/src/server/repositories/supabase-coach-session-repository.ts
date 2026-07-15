@@ -18,6 +18,7 @@ import type {
   SceneSummaryDto,
   CoachSessionDto,
   PracticeUploadIntentDto,
+  PracticeSessionListItemDto,
   TakeDto,
 } from "@/lib/api/types";
 import { getAppConfig } from "@/lib/config/env";
@@ -473,6 +474,48 @@ const actingSessionSelect = `
 
 const isActingSessionRow = (row: JsonRecord): boolean =>
   asString(row.pipeline_version, "legacy-gemini-v1") === "acting-api-v1";
+
+const canonicalTimestamp = (value: unknown, field: string): string => {
+  if (typeof value !== "string") throw new SupabaseCoachSessionPersistenceError(field, `Invalid ${field}.`);
+  const date = new Date(value);
+  if (!Number.isFinite(date.valueOf())) throw new SupabaseCoachSessionPersistenceError(field, `Invalid ${field}.`);
+  return date.toISOString();
+};
+
+const mapSessionListItem = (value: unknown): PracticeSessionListItemDto => {
+  const row = asRecord(value);
+  const id = asString(row.id);
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(id)) {
+    throw new SupabaseCoachSessionPersistenceError("id", "Invalid summary id.");
+  }
+  const pipelineVersion = asString(row.pipeline_version);
+  const legacy = pipelineVersion === "legacy-gemini-v1";
+  if (!legacy && pipelineVersion !== "acting-api-v1") throw new SupabaseCoachSessionPersistenceError("pipelineVersion", "Invalid summary pipeline.");
+  const status = asString(row.status);
+  const statuses = legacy
+    ? ["LEGACY_OBSERVATIONS_PENDING", "LEGACY_QUESTIONING", "LEGACY_COMPLETED"]
+    : ["ANALYZING", "INTERVIEW", "REPORT", "END"];
+  if (!statuses.includes(status)) throw new SupabaseCoachSessionPersistenceError("status", "Invalid summary status.");
+  const title = asString(row.title);
+  const preview = asNullableString(row.preview);
+  const durationMs = asNullableNumber(row.duration_ms);
+  const analysisStatus = asNullableString(row.analysis_status);
+  if (Array.from(title).length < 1 || Array.from(title).length > 120 || (preview !== null && Array.from(preview).length > 240)) {
+    throw new SupabaseCoachSessionPersistenceError("title", "Invalid summary text bounds.");
+  }
+  if (durationMs !== null && (!Number.isInteger(durationMs) || durationMs < 1 || durationMs > 180_000)) {
+    throw new SupabaseCoachSessionPersistenceError("durationMs", "Invalid summary duration.");
+  }
+  if (analysisStatus !== null && !["pending", "completed", "failed", "outcome_unknown", "generated"].includes(analysisStatus)) {
+    throw new SupabaseCoachSessionPersistenceError("analysisStatus", "Invalid summary analysis status.");
+  }
+  return {
+    id, pipelineVersion, legacy, status,
+    title, preview, durationMs, analysisStatus,
+    createdAt: canonicalTimestamp(row.created_at, "createdAt"),
+    updatedAt: canonicalTimestamp(row.updated_at, "updatedAt"),
+  } as PracticeSessionListItemDto;
+};
 
 const mapUploadIntent = (row: JsonRecord): StoredUploadIntentRecord => {
   const config = getAppConfig();
@@ -1035,6 +1078,25 @@ export const supabaseCoachSessionRepository = {
       }
       return mapActingSession(actingRow);
     });
+  },
+
+  async listOwnedSessionSummaries(
+    userId: string,
+    query: { limit: number; snapshotAt: string | null; beforeCreatedAt: string | null; beforeId: string | null },
+  ): Promise<{ sessions: PracticeSessionListItemDto[]; snapshotAt: string }> {
+    if (!configuredForSupabasePersistence()) return { sessions: [], snapshotAt: new Date().toISOString() };
+    const admin = requireSupabaseAdminClient();
+    const { data, error } = await admin.rpc("acttub_list_owned_practice_session_summaries", {
+      p_user_id: userId,
+      p_limit: query.limit + 1,
+      p_snapshot_at: query.snapshotAt,
+      p_before_created_at: query.beforeCreatedAt,
+      p_before_id: query.beforeId,
+    });
+    assertNoPersistenceError(error, "cursor", "Could not list owned practice session summaries");
+    const rows = asArray(data);
+    const snapshotAt = rows[0] ? canonicalTimestamp(rows[0].snapshot_at, "snapshotAt") : query.snapshotAt ?? new Date().toISOString();
+    return { sessions: rows.map(mapSessionListItem), snapshotAt };
   },
 
   async getOwnedVideoStorage(
