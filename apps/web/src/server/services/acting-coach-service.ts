@@ -408,6 +408,9 @@ const knownRepositoryError = (
   if (message.includes("request_id_conflict")) {
     return new ActingServiceError(409, "request_id_conflict", "requestId was already used.");
   }
+  if (message.includes("upload_quota_exceeded")) {
+    return new ActingServiceError(409, "upload_quota_exceeded", "Upload quota was exceeded.");
+  }
   if (message.includes("operation_in_progress") || message.includes("duplicate key")) {
     return new ActingServiceError(
       409,

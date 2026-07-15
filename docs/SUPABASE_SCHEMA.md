@@ -159,3 +159,12 @@ The canonical REST surface uses `/api/v1/practice-sessions/*`. `/api/v1/sessions
 
 - The current repository uses Supabase persistence as the source of truth. DTO names and meanings must stay aligned with this schema for the future Spring Boot migration.
 - If future analysis jobs require async queues, add job tables in a separate migration instead of overloading `practice_takes.analysis_status` with provider-specific workflow details.
+# Migration 023: private upload cleanup and quota state
+
+`upload_intents.actual_size_bytes`, `consumed_at`, and `cleanup_completed_at` are private lifecycle fields; they do not change the `/api/v1/*` DTO or its `created | finalized | expired` status union. `validating` maps to public `created`, while `validation_failed`, `cleanup_failed`, and completed cleanup tombstones map to public `expired`.
+
+The dedicated cleanup runner also invokes a bounded, service-role-only tombstone purge on every iteration, including an idle `--once` run. The purge deletes only completed rows older than `completed_tombstone_retention` after rechecking that no session or take still references the upload.
+
+The owner-seeded singleton `upload_quota_policy` defaults to 5 active intents and 1,153,433,600 active bytes. Admission and every quota-affecting transition acquire the per-user advisory lock before the intent row. Declared bytes reserve capacity until trusted Storage observation persists `actual_size_bytes`; physical cleanup alone writes `cleanup_completed_at` and releases abandoned-object quota.
+
+`upload_cleanup_jobs` is RLS-enabled and browser-inaccessible. Only narrow service-role claim/complete/fail RPCs are executable. The authenticated browser retains INSERT-only Storage authority—there is no browser DELETE policy. The independent worker performs exact single-object deletion and treats a missing object as idempotent success.

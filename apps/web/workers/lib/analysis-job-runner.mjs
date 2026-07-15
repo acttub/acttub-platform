@@ -131,7 +131,11 @@ export async function runAnalysisJobOnce({ repository, config, fetchImpl = fetch
         throw Object.assign(new Error("trusted media exceeds 180 seconds"), { code: "video_too_long", definitive: true, mediaValidationFailure: true });
       }
       try {
-        await repository.recordProbe(job, leaseToken, video.durationMs, video.mediaMetadataVersion);
+        const probeOutcome = await repository.recordProbe(job, leaseToken, video.durationMs, video.mediaMetadataVersion, video.bytes);
+        if (typeof probeOutcome === "string" && probeOutcome !== "ok") {
+          await repository.bestEffortCleanup?.(job).catch(() => {});
+          return { claimed: true, outcome: "failed", code: probeOutcome };
+        }
       } catch (error) {
         if (hasErrorCode(error, "stale_analysis_lease")) return { claimed: true, outcome: "lease_lost" };
         throw Object.assign(new Error("trusted media persistence failed", { cause: error }), { persistenceFailure: true });
@@ -149,7 +153,10 @@ export async function runAnalysisJobOnce({ repository, config, fetchImpl = fetch
     if (error?.persistenceFailure) throw error.cause ?? error;
     const code = typeof error?.code === "string" ? error.code : "acting_api_unavailable";
     if (error?.definitive) {
-      if (error.mediaValidationFailure || code === "source_video_metadata_invalid") await repository.failMediaValidation(job, leaseToken, code);
+      if (error.mediaValidationFailure || code === "source_video_metadata_invalid") {
+        await repository.failMediaValidation(job, leaseToken, code);
+        await repository.bestEffortCleanup?.(job).catch(() => {});
+      }
       else await repository.fail(job, leaseToken, code);
       return { claimed: true, outcome: "failed", code };
     }

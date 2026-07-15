@@ -151,6 +151,12 @@ test("OpenAPI operation IDs and local references are valid", () => {
   }
 });
 
+test("upload finalize documents the committed actual-byte quota conflict without changing success DTO", () => {
+  const operation = openApiDocument.paths["/api/v1/practice-upload-intents/{uploadIntentId}/finalize"].post;
+  assert.equal(operation.responses["200"].content["application/json"].schema.$ref, "#/components/schemas/FinalizeUploadIntentResponse");
+  assert.equal(operation.responses["409"].content["application/json"].example.error.code, "upload_quota_exceeded");
+});
+
 test("remaining compatibility API aliases are visibly deprecated", () => {
   const aliases = [
     ["/api/v1/practice-sessions/{sessionId}/video-url", "get"],

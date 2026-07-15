@@ -4,6 +4,7 @@ import os from "node:os";
 import { createClient } from "@supabase/supabase-js";
 import { runAnalysisWorker } from "./lib/analysis-job-runner.mjs";
 import { assertFfprobeAvailable } from "./lib/trusted-media-probe.mjs";
+import { deleteUploadObject } from "./lib/idempotent-storage-delete.mjs";
 
 function required(name) {
   const value = process.env[name]?.trim();
@@ -62,14 +63,15 @@ function createRepository(client) {
     fail(job, token, code) {
       return rpc("acttub_fail_analysis", { p_session_id: job.session_id, p_user_id: job.user_id, p_operation_id: job.operation_id, p_lease_token: token, p_failure_class: "definitive", p_safe_error_code: code });
     },
-    recordProbe(job, token, durationMs, mediaMetadataVersion) {
-      return rpc("acttub_record_trusted_media_probe", {
+    recordProbe(job, token, durationMs, mediaMetadataVersion, actualSizeBytes) {
+      return rpc("acttub_record_trusted_media_probe_v2", {
         p_session_id: job.session_id,
         p_user_id: job.user_id,
         p_operation_id: job.operation_id,
         p_lease_token: token,
         p_authoritative_duration_ms: durationMs,
         p_media_metadata_version: mediaMetadataVersion,
+        p_actual_size_bytes: actualSizeBytes,
       });
     },
     failMediaValidation(job, token, code) {
@@ -80,6 +82,25 @@ function createRepository(client) {
         p_lease_token: token,
         p_safe_error_code: code,
       });
+    },
+    async bestEffortCleanup(job) {
+      const { data: session } = await client.from("practice_sessions").select("upload_intent_id").eq("id", job.session_id).eq("user_id", job.user_id).maybeSingle();
+      if (!session?.upload_intent_id) return;
+      const cleanupToken = randomUUID();
+      const rows = await rpc("acttub_claim_upload_cleanup_job", { p_upload_intent_id: session.upload_intent_id, p_lease_token: cleanupToken, p_lease_seconds: 30, p_worker_id: "analysis-immediate" });
+      const cleanup = Array.isArray(rows) ? rows[0] : rows;
+      if (!cleanup) return;
+      try {
+        const result = await Promise.race([
+          deleteUploadObject({ storage: client.storage, bucket: cleanup.storage_bucket, path: cleanup.storage_path,
+            recordObserved: (bytes) => rpc("acttub_record_upload_cleanup_observation", { p_job_id: cleanup.id, p_lease_token: cleanupToken, p_actual_size_bytes: bytes }) }),
+          new Promise((_, reject) => setTimeout(() => reject(Object.assign(new Error("cleanup timeout"), { code: "timeout" })), 10000)),
+        ]);
+        await rpc("acttub_complete_upload_cleanup", { p_job_id: cleanup.id, p_lease_token: cleanupToken, p_object_existed: result.objectExisted, p_cleaned_size_bytes: result.cleanedSizeBytes });
+      } catch (error) {
+        const code = typeof error?.code === "string" ? error.code : "storage_delete_failed";
+        await rpc("acttub_fail_upload_cleanup", { p_job_id: cleanup.id, p_lease_token: cleanupToken, p_safe_error_code: code });
+      }
     },
     async createSignedVideoUrl(bucket, path) {
       const { data, error } = await client.storage.from(bucket).createSignedUrl(path, 900);

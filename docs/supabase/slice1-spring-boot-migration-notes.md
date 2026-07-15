@@ -82,3 +82,6 @@ Vary: Cookie, Authorization
 - Wrap finalization in a DB transaction. If the transaction fails after object upload, call the Storage API remove operation and log `orphan_cleanup_attempted` with the result.
 - Apply `003_atomic_dialogue_turn_append.sql`. Pass the count observed for generation as `p_expected_actor_answer_count`; lock and recount persisted actor turns in the RPC, reject a stale expected count, and return the post-insert count so concurrent requests cannot bypass the 10-answer limit or append after `summary_reflection`.
 - Preserve the current product language rules in backend generated content: the final result centers the actor-authored sentence and avoids score/verdict/evaluation/diagnosis/prescriptive-correction framing.
+# Follow-up: migration 023 orphan cleanup
+
+The Slice 1 browser upload policy remains INSERT-only. Durable orphan reclamation is implemented by the separate service-role `worker:upload-cleanup` lease/CAS saga from migration 023; Spring Boot must reuse that state machine rather than adding browser-owned deletion.

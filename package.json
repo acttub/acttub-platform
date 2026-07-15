@@ -19,7 +19,9 @@
     "typecheck": "pnpm typecheck:web",
     "typecheck:web": "pnpm --filter web typecheck",
     "worker:analysis": "pnpm --filter web worker:analysis",
-    "worker:analysis:once": "pnpm --filter web worker:analysis:once"
+    "worker:analysis:once": "pnpm --filter web worker:analysis:once",
+    "worker:upload-cleanup": "pnpm --filter web worker:upload-cleanup",
+    "worker:upload-cleanup:once": "pnpm --filter web worker:upload-cleanup:once"
   },
   "devDependencies": {
     "@lhci/cli": "0.15.1"

@@ -10,7 +10,9 @@
     "test": "node --test tests/*.test.mjs && node scripts/check-forbidden-copy.mjs",
     "typecheck": "tsc --noEmit",
     "worker:analysis": "node workers/analysis-worker.mjs",
-    "worker:analysis:once": "node workers/analysis-worker.mjs --once"
+    "worker:analysis:once": "node workers/analysis-worker.mjs --once",
+    "worker:upload-cleanup": "node workers/upload-cleanup-worker.mjs",
+    "worker:upload-cleanup:once": "node workers/upload-cleanup-worker.mjs --once"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.0",

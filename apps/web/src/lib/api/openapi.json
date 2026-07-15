@@ -170,6 +170,15 @@
           "403": {
             "$ref": "#/components/responses/TermsRequired"
           },
+          "409": {
+            "description": "사용자별 활성 업로드 개수 또는 바이트 한도를 초과했습니다.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ApiError" },
+                "example": { "error": { "code": "upload_quota_exceeded", "message": "Upload quota was exceeded." } }
+              }
+            }
+          },
           "500": {
             "$ref": "#/components/responses/InternalError"
           },
@@ -225,6 +234,15 @@
           },
           "403": {
             "$ref": "#/components/responses/TermsRequired"
+          },
+          "409": {
+            "description": "신뢰된 실제 업로드 바이트가 사용자별 한도를 초과했습니다.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ApiError" },
+                "example": { "error": { "code": "upload_quota_exceeded", "message": "Upload quota was exceeded." } }
+              }
+            }
           },
           "500": {
             "$ref": "#/components/responses/InternalError"

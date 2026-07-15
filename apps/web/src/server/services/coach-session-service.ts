@@ -329,7 +329,7 @@ const storageObjectSizeBytes = (object: Record<string, unknown>): number | null 
 
 const verifySupabaseStorageObject = async (
   uploadIntent: PracticeUploadIntentDto,
-): Promise<void> => {
+): Promise<{ mimeType: string | null; sizeBytes: number; matchesIntent: boolean }> => {
   const admin = createSupabaseAdminClient();
   if (!admin) {
     throw new ApiConfigurationError(
@@ -364,15 +364,17 @@ const verifySupabaseStorageObject = async (
 
   const actualMimeType = storageObjectMimeType(storageObject);
   const actualSizeBytes = storageObjectSizeBytes(storageObject);
-
-  if (
+  const metadataMismatch =
+    actualMimeType === null ||
     actualMimeType !== uploadIntent.fileMetadata.mimeType ||
-    actualSizeBytes !== uploadIntent.fileMetadata.sizeBytes
-  ) {
+    actualSizeBytes !== uploadIntent.fileMetadata.sizeBytes;
+
+  if (actualSizeBytes === null) {
     throw new ApiValidationError("Request validation failed", {
       storageObject: "Uploaded storage object metadata does not match the upload intent.",
     });
   }
+  return { mimeType: actualMimeType, sizeBytes: actualSizeBytes, matchesIntent: !metadataMismatch };
 };
 
 const videoRefForUploadIntent = (uploadIntent: PracticeUploadIntentDto): string =>
@@ -509,6 +511,9 @@ export const coachSessionService = {
       ) {
         throw new ApiConflictError("request_id_conflict", "requestId was already used.");
       }
+      if (error instanceof SupabaseCoachSessionPersistenceError && error.message.includes("upload_quota_exceeded")) {
+        throw new ApiConflictError("upload_quota_exceeded", "Upload quota was exceeded.");
+      }
       throw error;
     }
   },
@@ -577,7 +582,13 @@ export const coachSessionService = {
       });
     }
 
-    await verifySupabaseStorageObject(uploadIntent.intent);
+    const observed = await verifySupabaseStorageObject(uploadIntent.intent);
+    const observation = await requireSupabasePersistence(() => supabaseCoachSessionRepository.observeUploadObject({
+      uploadIntentId, userId, actualSizeBytes: observed.sizeBytes, actualMimeType: observed.mimeType,
+    }));
+    if (observation !== "ok") await supabaseCoachSessionRepository.bestEffortCleanupUpload(uploadIntentId);
+    if (observation === "upload_quota_exceeded") throw new ApiConflictError("upload_quota_exceeded", "Upload quota was exceeded.");
+    if (observation !== "ok") throw new ApiValidationError("Request validation failed", { storageObject: "Uploaded storage object metadata does not match the upload intent." });
     await requireSupabasePersistence(() =>
       supabaseCoachSessionRepository.finalizeUploadIntent(uploadIntent.intent),
     );
@@ -668,7 +679,18 @@ export const coachSessionService = {
       });
     }
 
-    await verifySupabaseStorageObject(uploadIntent.intent);
+    const observed = await verifySupabaseStorageObject(uploadIntent.intent);
+    const observationOutcome = await requireSupabasePersistence(() => supabaseCoachSessionRepository.observeUploadObject({
+      uploadIntentId: uploadIntent.uploadIntentId,
+      userId,
+      actualSizeBytes: observed.sizeBytes,
+      actualMimeType: observed.mimeType,
+    }));
+    if (observationOutcome !== "ok") await supabaseCoachSessionRepository.bestEffortCleanupUpload(uploadIntent.uploadIntentId);
+    if (observationOutcome === "upload_quota_exceeded") throw new ApiConflictError("upload_quota_exceeded", "Upload quota was exceeded.");
+    if (observationOutcome !== "ok") throw new ApiValidationError("Request validation failed", {
+      storageObject: "Uploaded storage object metadata does not match the upload intent.",
+    });
 
     const sessionId = uploadIntent.sessionId;
     const videoUrl = videoRefForUploadIntent(uploadIntent.intent);

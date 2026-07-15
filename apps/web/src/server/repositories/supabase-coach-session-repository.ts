@@ -22,6 +22,8 @@ import type {
 } from "@/lib/api/types";
 import { getAppConfig } from "@/lib/config/env";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { deleteUploadObject } from "@/server/storage/idempotent-storage-delete.mjs";
+import { randomUUID } from "node:crypto";
 
 export class SupabaseCoachSessionPersistenceError extends Error {
   constructor(
@@ -121,6 +123,15 @@ const asNullableNumber = (value: unknown): number | null => {
 };
 
 const asBoolean = (value: unknown): boolean => value === true;
+const withTimeout = async <T>(operation: Promise<T>, timeoutMs: number): Promise<T> => {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      operation,
+      new Promise<never>((_, reject) => { timer = setTimeout(() => reject(Object.assign(new Error("cleanup timeout"), { code: "timeout" })), timeoutMs); }),
+    ]);
+  } finally { if (timer) clearTimeout(timer); }
+};
 
 const mapActingRpcResult = (value: unknown): ActingRpcResult => {
   const row = asRecord(Array.isArray(value) ? value[0] : value);
@@ -468,9 +479,9 @@ const mapUploadIntent = (row: JsonRecord): StoredUploadIntentRecord => {
   const mimeType = asString(row.expected_mime_type) as PracticeUploadIntentDto["fileMetadata"]["mimeType"];
   const storageBucket = asString(row.expected_storage_bucket, "practice-videos") as PracticeUploadIntentDto["storageBucket"];
   const storedStatus = asString(row.status, "created") as StoredUploadIntentStatus;
-  const publicStatus: PracticeUploadIntentDto["status"] = storedStatus === "validating" || storedStatus === "finalized"
+  const publicStatus: PracticeUploadIntentDto["status"] = storedStatus === "finalized"
     ? "finalized"
-    : storedStatus === "expired" ? "expired" : "created";
+    : ["expired", "validation_failed", "cleanup_failed"].includes(storedStatus) ? "expired" : "created";
   const uploadIntent: PracticeUploadIntentDto = {
     uploadIntentId: asString(row.id),
     sessionId: asString(row.session_id),
@@ -666,6 +677,43 @@ export const supabaseCoachSessionRepository = {
       p_storage_path: input.storagePath,
       p_duration_ms: input.reportedDurationMs,
     });
+  },
+
+  async observeUploadObject(input: { uploadIntentId: string; userId: string; actualSizeBytes: number; actualMimeType: string | null }): Promise<string> {
+    const admin = requireSupabaseAdminClient();
+    const { data, error } = await admin.rpc("acttub_observe_upload_object", {
+      p_upload_intent_id: input.uploadIntentId,
+      p_user_id: input.userId,
+      p_actual_size_bytes: input.actualSizeBytes,
+      p_actual_mime_type: input.actualMimeType,
+    });
+    assertNoPersistenceError(error, "uploadIntentId", "Could not record trusted upload metadata");
+    return asString(data, "source_video_metadata_invalid");
+  },
+
+  async bestEffortCleanupUpload(uploadIntentId: string): Promise<void> {
+    const admin = requireSupabaseAdminClient();
+    const token = randomUUID();
+    const { data, error } = await admin.rpc("acttub_claim_upload_cleanup_job", {
+      p_upload_intent_id: uploadIntentId, p_lease_token: token, p_lease_seconds: 30, p_worker_id: "web-immediate",
+    });
+    if (error) return;
+    const job = asRecord(Array.isArray(data) ? data[0] : data);
+    const id = asString(job.id); if (!id) return;
+    try {
+      const result = await withTimeout(deleteUploadObject({
+        storage: admin.storage, bucket: asString(job.storage_bucket), path: asString(job.storage_path),
+        recordObserved: async (sizeBytes) => {
+          const observation = await admin.rpc("acttub_record_upload_cleanup_observation", { p_job_id: id, p_lease_token: token, p_actual_size_bytes: sizeBytes });
+          if (observation.error) throw Object.assign(new Error("cleanup observation failed"), { code: "storage_object_changed" });
+        },
+      }), 10_000);
+      await admin.rpc("acttub_complete_upload_cleanup", { p_job_id: id, p_lease_token: token, p_object_existed: result.objectExisted, p_cleaned_size_bytes: result.cleanedSizeBytes });
+    } catch (cleanupError) {
+      const code = cleanupError instanceof Error && "code" in cleanupError ? cleanupError.code : null;
+      const safeErrorCode = typeof code === "string" && ["storage_inspection_failed", "storage_object_changed", "invalid_cleanup_object", "timeout"].includes(code) ? code : "storage_delete_failed";
+      await admin.rpc("acttub_fail_upload_cleanup", { p_job_id: id, p_lease_token: token, p_safe_error_code: safeErrorCode });
+    }
   },
 
   async createAnalysisClaim(input: {
