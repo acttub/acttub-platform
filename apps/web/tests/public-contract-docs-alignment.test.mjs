@@ -24,6 +24,14 @@ test("runtime docs keep acting credentials server-only and Gemini legacy-only", 
   }
 });
 
+test("tracked environment example includes server-only acting credentials", () => {
+  const source = read("apps/web/.env.example");
+
+  assert.match(source, /^ACTING_API_BASE_URL=/m);
+  assert.match(source, /^ACTING_API_KEY=/m);
+  assert.doesNotMatch(source, /^NEXT_PUBLIC_ACTING_API_/m);
+});
+
 test("upload docs distinguish current 550 MiB from the Slice 1 baseline", () => {
   for (const file of ["README.md", "docs/SPRING_BOOT_MIGRATION.md", "docs/SUPABASE_SCHEMA.md"]) {
     const source = read(file);

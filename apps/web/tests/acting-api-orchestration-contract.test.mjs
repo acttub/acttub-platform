@@ -40,6 +40,23 @@ test("create and report return 200 only for completed replays", () => {
   }
 });
 
+test("long-running analysis routes stay within the Vercel Hobby duration limit", () => {
+  const config = read("src/server/acting-api/config.ts");
+  const routes = [
+    read("src/app/api/v1/practice-sessions/route.ts"),
+    read("src/app/api/v1/practice-sessions/[sessionId]/analysis/route.ts"),
+  ];
+
+  assert.match(
+    config,
+    /SUMMARY_TIMEOUT_MS = 270_000;/,
+    "the upstream timeout must leave time to persist failure state before the route is terminated",
+  );
+  for (const route of routes) {
+    assert.match(route, /export const maxDuration = 300;/);
+  }
+});
+
 test("local completion retries reuse generated persistence identifiers", () => {
   const service = read("src/server/services/acting-coach-service.ts");
 

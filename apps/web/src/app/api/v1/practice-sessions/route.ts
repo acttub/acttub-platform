@@ -4,7 +4,7 @@ import { requireApiTermsAccepted } from "@/server/services/auth-context";
 import { handleApiError, jsonResponse } from "../http";
 
 export const runtime = "nodejs";
-export const maxDuration = 800;
+export const maxDuration = 300;
 
 export async function GET() {
   try {

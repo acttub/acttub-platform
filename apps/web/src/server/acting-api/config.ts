@@ -1,6 +1,6 @@
 import "server-only";
 
-export const SUMMARY_TIMEOUT_MS = 720_000;
+export const SUMMARY_TIMEOUT_MS = 270_000;
 export const COACH_TIMEOUT_MS = 90_000;
 export const REPORT_TIMEOUT_MS = 90_000;
 

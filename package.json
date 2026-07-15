@@ -7,6 +7,7 @@
     "dev": "pnpm dev:web",
     "build": "pnpm build:web",
     "lint": "pnpm lint:web",
+    "check:acting-runtime": "node --env-file=apps/web/.env.local apps/web/scripts/check-acting-runtime.mjs",
     "dev:web": "pnpm --filter web dev",
     "build:web": "pnpm --filter web build",
     "lint:web": "pnpm --filter web lint",
