@@ -558,7 +558,6 @@ export const supabaseCoachSessionRepository = {
         expected_storage_path: uploadIntent.storagePath,
         expected_mime_type: uploadIntent.fileMetadata.mimeType,
         expected_size_bytes: uploadIntent.fileMetadata.sizeBytes,
-        consent_version: getAppConfig().termsVersion,
         expires_at: uploadIntent.expiresAt,
       })
       .select("id")

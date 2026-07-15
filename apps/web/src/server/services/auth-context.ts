@@ -153,6 +153,9 @@ export async function recordTermsAcceptance(
   if (error?.code === "PT403" || error?.message.includes("account_suspended")) {
     throw new ApiAuthError(403, "account_suspended", "This account is suspended.");
   }
+  if (error?.message.includes("consent_version_mismatch")) {
+    throw new ApiAuthError(403, "terms_required", "Current terms acceptance is required.");
+  }
   if (error) throw error;
 }
 

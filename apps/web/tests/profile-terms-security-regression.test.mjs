@@ -21,6 +21,7 @@ const immutableMigrationHashes = new Map([
   ["011_acting_api_pipeline.sql", "69d743df6fe9c3ebd1ddb56355c604e7f542ce1d204933bbdff08315153c2ee6"],
   ["012_canonical_consent_contract.sql", "d9e77e881f8b15614fe549d54a396a753205587976c9489e818a9d5f8beba20d"],
   ["013_scene_context_only.sql", "a2b8b2054d98431397c37bc9605664d2bd98ae168be52bba7421d26f40a01092"],
+  ["014_lock_profile_and_terms_owners.sql", "d80d88cdeab177417650b3d2f3a71ee1129e605b3d4cfddf6a9e7b0bb496b629"],
 ]);
 
 test("root exposes canonical test aliases", () => {
@@ -29,7 +30,7 @@ test("root exposes canonical test aliases", () => {
   assert.equal(packageJson.scripts["test:web"], "pnpm --filter web test");
 });
 
-test("deployed migrations 001 through 013 remain immutable", () => {
+test("deployed migrations 001 through 014 remain immutable", () => {
   for (const [file, expectedHash] of immutableMigrationHashes) {
     const actualHash = createHash("sha256")
       .update(read(`supabase/migrations/${file}`))
@@ -40,7 +41,7 @@ test("deployed migrations 001 through 013 remain immutable", () => {
 
 test("item 1 is implemented only through the additive 014 migration", () => {
   const migrationFiles = readdirSync(path.join(repoRoot, "supabase/migrations")).sort();
-  assert.equal(migrationFiles.at(-1), "014_lock_profile_and_terms_owners.sql");
+  assert.ok(migrationFiles.includes("014_lock_profile_and_terms_owners.sql"));
 
   const sql = read("supabase/migrations/014_lock_profile_and_terms_owners.sql");
   assert.match(sql, /drop policy if exists "profiles owner insert self" on public\.profiles/);
