@@ -52,6 +52,7 @@ test("auth session response is private and varies on credentials", () => {
 test("terms acceptance persists canonical consent while internal review stays optional", () => {
   const route = read("src/app/api/v1/terms/acceptances/route.ts");
   const authContext = read("src/server/services/auth-context.ts");
+  const migration = read("../../supabase/migrations/014_lock_profile_and_terms_owners.sql");
   const acceptanceRead = authContext.slice(
     authContext.indexOf("async function hasPersistedTermsAcceptance"),
     authContext.indexOf("export async function getCurrentConsentVersions"),
@@ -59,15 +60,16 @@ test("terms acceptance persists canonical consent while internal review stays op
 
   assert.match(route, /recordTermsAcceptance\(auth, body\.internalReviewConsent === true\)/);
   assert.match(authContext, /createSupabaseAdminClient/);
-  assert.match(authContext, /required_consent_version/);
-  assert.match(authContext, /required_consent_at/);
-  assert.match(authContext, /ai_processing_consent_version/);
-  assert.match(authContext, /ai_processing_consent_at/);
-  assert.match(authContext, /terms_accepted_at/);
-  assert.match(authContext, /privacy_accepted_at/);
-  assert.match(authContext, /internal_review_consent_at/);
+  assert.match(authContext, /\.rpc\("acttub_accept_terms"/);
+  assert.match(migration, /required_consent_version = p_required_consent_version/);
+  assert.match(migration, /required_consent_at = p_accepted_at/);
+  assert.match(migration, /ai_processing_consent_version = p_ai_processing_consent_version/);
+  assert.match(migration, /ai_processing_consent_at = p_accepted_at/);
+  assert.match(migration, /terms_accepted_at = p_accepted_at/);
+  assert.match(migration, /privacy_accepted_at = p_accepted_at/);
+  assert.match(migration, /internal_review_consent_at = case/);
   assert.doesNotMatch(acceptanceRead, /internal_review_consent/);
-  assert.match(authContext, /status: "active"/);
+  assert.match(migration, /status = 'active'/);
 });
 
 test("Google OAuth sign-in creates a pending profile without overwriting existing users", () => {

@@ -36,12 +36,14 @@ test("the executable migration defines the canonical consent contract", () => {
 test("terms acceptance writes the canonical consent shape required by Supabase", () => {
   const authContext = read("src/server/services/auth-context.ts");
   const route = read("src/app/api/v1/terms/acceptances/route.ts");
+  const migration = read("../../supabase/migrations/014_lock_profile_and_terms_owners.sql");
 
-  assert.match(authContext, /required_consent_version: versions\.requiredConsentVersion/);
-  assert.match(authContext, /required_consent_at: acceptedAt/);
-  assert.match(authContext, /ai_processing_consent_version: versions\.aiProcessingConsentVersion/);
-  assert.match(authContext, /ai_processing_consent_at: acceptedAt/);
-  assert.match(authContext, /internal_review_consent: internalReviewConsent/);
+  assert.match(authContext, /p_required_consent_version: versions\.requiredConsentVersion/);
+  assert.match(authContext, /p_ai_processing_consent_version: versions\.aiProcessingConsentVersion/);
+  assert.match(authContext, /p_internal_review_consent: internalReviewConsent/);
+  assert.match(authContext, /p_accepted_at: acceptedAt/);
+  assert.match(migration, /required_consent_at = p_accepted_at/);
+  assert.match(migration, /ai_processing_consent_at = p_accepted_at/);
   assert.match(route, /body\.requiredConsentAccepted !== true/);
   assert.match(route, /body\.aiProcessingConsentAccepted !== true/);
   assert.match(route, /recordTermsAcceptance\(auth, body\.internalReviewConsent === true\)/);

@@ -10,7 +10,7 @@ export const TERMS_COOKIE_NAME = "acttub_terms_version";
 export class ApiAuthError extends Error {
   constructor(
     readonly status: 401 | 403,
-    readonly code: "unauthenticated" | "terms_required",
+    readonly code: "unauthenticated" | "terms_required" | "account_suspended",
     message: string,
   ) {
     super(message);
@@ -113,8 +113,10 @@ export async function ensurePendingProfile(
   const config = getAppConfig();
   if (!config.supabase.isConfigured) return;
 
-  const client = await getProfileClient();
-  if (!client) return;
+  const client = createSupabaseAdminClient();
+  if (!client) {
+    throw new Error("SUPABASE_SERVICE_ROLE_KEY is required to create profiles.");
+  }
 
   const now = new Date().toISOString();
   const { error } = await client.from("profiles").insert({
@@ -133,31 +135,24 @@ export async function recordTermsAcceptance(
   context: AuthContext,
   internalReviewConsent = false,
 ): Promise<void> {
-  const client = await getProfileClient();
-  if (!client) return;
+  const client = createSupabaseAdminClient();
+  if (!client) {
+    throw new ApiAuthError(403, "terms_required", "Current terms acceptance is required.");
+  }
 
   const acceptedAt = new Date().toISOString();
   const versions = await getCurrentConsentVersions();
-  const { error } = await client.from("profiles").upsert(
-    {
-      id: context.userId,
-      email: context.email,
-      status: "active",
-      required_consent_version: versions.requiredConsentVersion,
-      required_consent_at: acceptedAt,
-      ai_processing_consent_version: versions.aiProcessingConsentVersion,
-      ai_processing_consent_at: acceptedAt,
-      internal_review_consent: internalReviewConsent,
-      internal_review_consent_updated_at: acceptedAt,
-      terms_accepted_at: acceptedAt,
-      privacy_accepted_at: acceptedAt,
-      internal_review_consent_at: internalReviewConsent ? acceptedAt : null,
-      consent_version: versions.requiredConsentVersion,
-      updated_at: acceptedAt,
-    },
-    { onConflict: "id" },
-  );
+  const { error } = await client.rpc("acttub_accept_terms", {
+    p_user_id: context.userId,
+    p_required_consent_version: versions.requiredConsentVersion,
+    p_ai_processing_consent_version: versions.aiProcessingConsentVersion,
+    p_internal_review_consent: internalReviewConsent,
+    p_accepted_at: acceptedAt,
+  });
 
+  if (error?.code === "PT403" || error?.message.includes("account_suspended")) {
+    throw new ApiAuthError(403, "account_suspended", "This account is suspended.");
+  }
   if (error) throw error;
 }
 
