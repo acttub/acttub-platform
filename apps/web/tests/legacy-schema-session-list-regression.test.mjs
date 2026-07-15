@@ -33,7 +33,11 @@ test("acting-api relations are queried only after acting rows are found", () => 
 
   assert.ok(actingSelect, "actingSessionSelect must be defined");
   assert.match(actingSelect, /scene_summaries\(\*\)/);
-  assert.match(actingSelect, /practice_interview_runs\(\*\)/);
+  assert.match(
+    actingSelect,
+    /practice_interview_runs:practice_interview_runs!practice_interview_runs_session_id_user_id_fkey\(\*\)/,
+    "acting session reads must disambiguate the session-to-runs relationship",
+  );
   assert.ok(listOwnedSessions, "listOwnedSessions must be defined");
   assert.match(listOwnedSessions, /\.select\(legacySessionSelect\)/);
   assert.match(listOwnedSessions, /if \(actingRows\.length === 0\)/);

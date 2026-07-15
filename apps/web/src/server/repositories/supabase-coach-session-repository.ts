@@ -452,7 +452,7 @@ const actingSessionSelect = `
   *,
   practice_takes(*),
   scene_summaries(*),
-  practice_interview_runs(*),
+  practice_interview_runs:practice_interview_runs!practice_interview_runs_session_id_user_id_fkey(*),
   practice_turns(*),
   practice_reports(*)
 `;
