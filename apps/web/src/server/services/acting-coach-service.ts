@@ -29,8 +29,9 @@ import {
 } from "@/server/repositories/supabase-coach-session-repository";
 import { coachSessionService } from "@/server/services/coach-session-service";
 import {
+  AnalysisSourceMetadataError,
   AnalysisSourcePreparationError,
-  prepareAnalysisVideoSource,
+  prepareAnalysisRelaySource,
 } from "@/server/services/analysis-source-preparation";
 import {
   validateReplyText,
@@ -390,6 +391,14 @@ const mapOperationError = (
       { retryAllowed: true, action: "retry_analysis" },
     );
   }
+  if (error instanceof AnalysisSourceMetadataError) {
+    return new ActingServiceError(
+      409,
+      error.code,
+      error.message,
+      { retryAllowed: false, action: "create_new_session" },
+    );
+  }
   if (error instanceof ActingApiResponseError) {
     return ambiguousError(phase, error.causeCode, runId);
   }
@@ -500,6 +509,7 @@ const isDefinitive = (error: ActingServiceError): boolean =>
     "acting_api_rate_limited",
     "acting_api_rejected",
     "acting_api_contract_mismatch",
+    "source_video_metadata_invalid",
     "source_video_unavailable",
     "video_too_large",
   ].includes(error.code);
@@ -518,7 +528,7 @@ async function runAnalysisClaim(
   let localCommitStarted = false;
 
   try {
-    const video = await prepareAnalysisVideoSource(source, {
+    const relaySource = await prepareAnalysisRelaySource(source, userId, sessionId, {
       createAdminClient: createSupabaseAdminClient,
       fetchVideo: fetch,
     });
@@ -527,9 +537,7 @@ async function runAnalysisClaim(
       situation: String(source.situation),
       character: String(source.characterContext),
       subtext: String(source.subtext),
-      video,
-      fileName: String(source.fileName ?? "take.mp4"),
-      mimeType: String(source.mimeType),
+      ...relaySource,
     });
     const summary = requireSceneSummary(
       await parseUpstreamResponse(response, "analysis"),

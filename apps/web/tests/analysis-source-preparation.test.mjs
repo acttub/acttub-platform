@@ -109,7 +109,7 @@ test("analysis orchestration prepares the source before summarize dispatch", () 
     "utf8",
   );
 
-  assert.match(service, /prepareAnalysisVideoSource[\s\S]*actingApiClient\.summarize/);
+  assert.match(service, /prepareAnalysisRelaySource[\s\S]*actingApiClient\.summarize/);
   assert.match(service, /source_video_unavailable/);
   assert.match(service, /failureClass:\s*isDefinitive\(mapped\)\s*\?\s*"definitive"\s*:\s*"ambiguous"/);
 });
