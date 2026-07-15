@@ -29,6 +29,10 @@ import {
 } from "@/server/repositories/supabase-coach-session-repository";
 import { coachSessionService } from "@/server/services/coach-session-service";
 import {
+  AnalysisSourcePreparationError,
+  prepareAnalysisVideoSource,
+} from "@/server/services/analysis-source-preparation";
+import {
   validateReplyText,
   validateSceneContext,
 } from "@/lib/practice/input-limits";
@@ -256,6 +260,7 @@ const expiredError = (runId: string): ActingServiceError =>
 
 const statusForStableCode = (code: string): number => {
   if (code === "acting_api_rate_limited") return 429;
+  if (code === "source_video_unavailable") return 503;
   if (
     code === "acting_api_auth_failed" ||
     code === "acting_api_rejected"
@@ -369,6 +374,14 @@ const mapOperationError = (
   runId?: string,
 ): ActingServiceError => {
   if (error instanceof ActingServiceError) return error;
+  if (error instanceof AnalysisSourcePreparationError) {
+    return new ActingServiceError(
+      503,
+      error.code,
+      error.message,
+      { retryAllowed: true, action: "retry_analysis" },
+    );
+  }
   if (error instanceof ActingApiResponseError) {
     return ambiguousError(phase, error.causeCode, runId);
   }
@@ -478,6 +491,7 @@ const isDefinitive = (error: ActingServiceError): boolean =>
     "acting_api_auth_failed",
     "acting_api_rate_limited",
     "acting_api_rejected",
+    "source_video_unavailable",
     "video_too_large",
   ].includes(error.code);
 
@@ -495,27 +509,16 @@ async function runAnalysisClaim(
   let localCommitStarted = false;
 
   try {
-    const admin = createSupabaseAdminClient();
-    if (!admin) {
-      throw ambiguousError("analysis", "acting_api_unavailable");
-    }
-    const signed = await admin.storage
-      .from(String(source.storageBucket))
-      .createSignedUrl(String(source.storagePath), 900);
-    if (signed.error || !signed.data?.signedUrl) {
-      throw ambiguousError("analysis", "acting_api_unavailable");
-    }
-
-    const video = await fetch(signed.data.signedUrl);
-    if (!video.ok || !video.body) {
-      throw ambiguousError("analysis", "acting_api_unavailable");
-    }
+    const video = await prepareAnalysisVideoSource(source, {
+      createAdminClient: createSupabaseAdminClient,
+      fetchVideo: fetch,
+    });
 
     const response = await actingApiClient.summarize({
       situation: String(source.situation),
       character: String(source.characterContext),
       subtext: String(source.subtext),
-      video: video.body,
+      video,
       fileName: String(source.fileName ?? "take.mp4"),
       mimeType: String(source.mimeType),
     });
