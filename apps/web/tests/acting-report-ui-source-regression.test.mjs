@@ -19,6 +19,22 @@ test("acting report renders every canonical section and optional comparison", ()
   assert.match(source, /report\.comparison\?\.trim\(\)/);
 });
 
+test("completed report exposes the session review survey as a safe external link", () => {
+  const reportComponent = source.match(
+    /function Report\([\s\S]*?\n}\n\nfunction ReportSection/,
+  )?.[0];
+
+  assert.ok(reportComponent, "Report component must be defined");
+  assert.match(reportComponent, /href="https:\/\/acttub\.github\.io\/review-form\/"/);
+  assert.match(reportComponent, /target="_blank"/);
+  assert.match(reportComponent, /rel="noopener noreferrer"/);
+  assert.ok(
+    reportComponent.indexOf("if (!report)") <
+      reportComponent.indexOf('href="https://acttub.github.io/review-form/"'),
+    "the survey link must render only after a report is available",
+  );
+});
+
 test("persisted recovery refreshes expired and ambiguous operations", () => {
   assert.match(source, /acting_session_expired/);
   assert.match(source, /upstream_outcome_unknown/);

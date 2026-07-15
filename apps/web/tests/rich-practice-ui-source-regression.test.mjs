@@ -38,7 +38,7 @@ test("history remains a dedicated surface with recent-practice cards", () => {
 });
 
 test("rich surfaces retain acting operations and persisted-session recovery", () => {
-  assert.match(flow, /operation\(kind: "start" \| "restart"\)/);
+  assert.match(flow, /operation\(kind: "start" \| "restart"/);
   assert.match(flow, /operation: "retry_reply"/);
   assert.match(flow, /retryPracticeAnalysis/);
   assert.match(flow, /createPracticeReport/);

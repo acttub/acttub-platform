@@ -63,6 +63,7 @@ export function PracticeFlow({ entry = "new" }: { entry?: Entry }) {
   const [characterContext, setCharacterContext] = useState("");
   const [subtext, setSubtext] = useState("");
   const [answer, setAnswer] = useState("");
+  const [pendingAnswer, setPendingAnswer] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [restartRequired, setRestartRequired] = useState(false);
@@ -144,6 +145,14 @@ export function PracticeFlow({ entry = "new" }: { entry?: Entry }) {
     setStep("video");
   }
 
+  function openSession(session: PracticeSession) {
+    if (session.legacy) return;
+    setActive(session);
+    if (session.status === "INTERVIEW" && !session.currentRun) {
+      void operation("start", session);
+    }
+  }
+
   async function begin() {
     if (!file || !situation.trim() || !characterContext.trim() || !subtext.trim()) {
       setError("영상, 상황, 인물 정보와 서브텍스트를 모두 입력해 주세요."); return;
@@ -170,20 +179,23 @@ export function PracticeFlow({ entry = "new" }: { entry?: Entry }) {
         situation: situation.trim(), characterContext: characterContext.trim(), subtext: subtext.trim(),
       });
       setActive(session); setHistory((items) => [session, ...items.filter((item) => item.id !== session.id)]);
+      if (session.status === "INTERVIEW" && !session.currentRun) {
+        await operation("start", session);
+      }
     } catch (reason) {
       if (persistedSessionId) await recoverPersistedSession(persistedSessionId, reason);
       setError(errorMessage(reason));
     } finally { setBusy(false); }
   }
 
-  async function operation(kind: "start" | "restart") {
-    if (!active) return;
+  async function operation(kind: "start" | "restart", target: ActingCoachSessionDto | null = active) {
+    if (!target) return;
     setBusy(true); setError(null);
     try {
-      const session = await mutatePracticeTurn(active.id, { operation: kind, requestId: crypto.randomUUID() });
+      const session = await mutatePracticeTurn(target.id, { operation: kind, requestId: crypto.randomUUID() });
       setActive(session); setRestartRequired(false);
     } catch (reason) {
-      await recoverPersistedSession(active.id, reason);
+      await recoverPersistedSession(target.id, reason);
       setError(errorMessage(reason));
     } finally { setBusy(false); }
   }
@@ -191,6 +203,7 @@ export function PracticeFlow({ entry = "new" }: { entry?: Entry }) {
   async function reply() {
     const text = answer.trim();
     if (!active?.currentRun || !text) return;
+    setPendingAnswer(text);
     setBusy(true); setError(null);
     try {
       const session = await mutatePracticeTurn(active.id, {
@@ -202,7 +215,7 @@ export function PracticeFlow({ entry = "new" }: { entry?: Entry }) {
       setError(reason instanceof ApiClientError && reason.code === "acting_session_expired"
         ? "인터뷰 연결이 만료되었어요. 아래 버튼으로 새 인터뷰를 시작해 주세요."
         : errorMessage(reason));
-    } finally { setBusy(false); }
+    } finally { setPendingAnswer(null); setBusy(false); }
   }
 
   async function retryReply(actorTurnId: string) {
@@ -225,8 +238,13 @@ export function PracticeFlow({ entry = "new" }: { entry?: Entry }) {
   async function retryAnalysis() {
     if (!active) return;
     setBusy(true); setError(null);
-    try { setActive(await retryPracticeAnalysis(active.id)); }
-    catch (reason) {
+    try {
+      const session = await retryPracticeAnalysis(active.id);
+      setActive(session);
+      if (session.status === "INTERVIEW" && !session.currentRun) {
+        await operation("start", session);
+      }
+    } catch (reason) {
       await recoverPersistedSession(active.id, reason);
       setError(errorMessage(reason));
     } finally { setBusy(false); }
@@ -281,6 +299,7 @@ export function PracticeFlow({ entry = "new" }: { entry?: Entry }) {
       <SessionView
         session={active}
         answer={answer}
+        pendingAnswer={pendingAnswer}
         setAnswer={setAnswer}
         busy={busy}
         error={error}
@@ -301,7 +320,7 @@ export function PracticeFlow({ entry = "new" }: { entry?: Entry }) {
         displayName={formatDisplayName(authSession)}
         historyError={historyError}
         sessions={history}
-        onOpen={(session) => !session.legacy && setActive(session)}
+        onOpen={openSession}
       />
     );
   }
@@ -312,7 +331,7 @@ export function PracticeFlow({ entry = "new" }: { entry?: Entry }) {
         displayName={formatDisplayName(authSession)}
         historyError={historyError}
         sessions={history}
-        onOpen={(session) => !session.legacy && setActive(session)}
+        onOpen={openSession}
       />
     );
   }
@@ -864,6 +883,7 @@ function formatFileSize(sizeBytes: number): string {
 function SessionView({
   session,
   answer,
+  pendingAnswer,
   setAnswer,
   busy,
   error,
@@ -877,6 +897,7 @@ function SessionView({
 }: {
   session: ActingCoachSessionDto;
   answer: string;
+  pendingAnswer: string | null;
   setAnswer: (value: string) => void;
   busy: boolean;
   error: string | null;
@@ -915,9 +936,6 @@ function SessionView({
           <nav aria-label="연습 화면 이동" className="flex gap-2">
             <a href="/home" className="inline-flex h-11 items-center justify-center rounded-2xl border border-[#d1d6db] bg-white px-4 text-sm font-black text-[#4e5968] transition hover:border-[#3182f6] hover:text-[#1b64da]">
               홈
-            </a>
-            <a href="/practice/new" className="inline-flex h-11 items-center justify-center rounded-2xl bg-[#2f6bff] px-4 text-sm font-black text-white transition hover:bg-[#1b64da]">
-              새 연습
             </a>
           </nav>
         </header>
@@ -964,13 +982,15 @@ function SessionView({
         {session.status === "INTERVIEW" ? (
           <section className="mt-8 grid gap-5">
             {!session.currentRun && !restart ? (
-              <div className="rounded-[28px] border border-[#dce9ff] bg-white p-6 shadow-[0_14px_40px_rgba(25,31,40,0.06)] sm:p-8">
+              <div aria-live="polite" className="rounded-[28px] border border-[#dce9ff] bg-white p-6 shadow-[0_14px_40px_rgba(25,31,40,0.06)] sm:p-8">
                 <span className="inline-flex rounded-full bg-[#eaf2ff] px-3 py-1.5 text-xs font-black text-[#2f6bff]">AI 인터뷰</span>
-                <h2 className="mt-4 text-2xl font-black tracking-[-0.04em]">장면에서 발견한 감정을 함께 살펴봐요</h2>
-                <p className="mt-3 font-bold leading-7 text-[#6b7684]">AI 코치가 한 번에 하나씩 질문하고, 답변을 바탕으로 다음 질문을 이어갑니다.</p>
-                <button type="button" className="mt-6 min-h-13 w-full rounded-2xl bg-[#2f6bff] px-5 py-3 font-black text-white shadow-[0_10px_20px_rgba(49,130,246,0.18)] transition hover:bg-[#1b64da] disabled:bg-[#b0d2ff] sm:w-auto" disabled={busy} onClick={onStart}>
-                  {busy ? "인터뷰를 준비하는 중…" : "인터뷰 시작"}
-                </button>
+                <h2 className="mt-4 text-2xl font-black tracking-[-0.04em]">AI 코치가 첫 질문을 준비하고 있어요</h2>
+                <p className="mt-3 font-bold leading-7 text-[#6b7684]">영상 분석이 끝나 인터뷰 화면으로 바로 이동했어요.</p>
+                {!busy && error ? (
+                  <button type="button" className="mt-6 min-h-13 w-full rounded-2xl bg-[#2f6bff] px-5 py-3 font-black text-white shadow-[0_10px_20px_rgba(49,130,246,0.18)] transition hover:bg-[#1b64da] sm:w-auto" onClick={onStart}>
+                    인터뷰 준비 다시 시도
+                  </button>
+                ) : null}
               </div>
             ) : null}
 
@@ -1029,6 +1049,14 @@ function SessionView({
                       </div>
                     );
                   })}
+                  {pendingAnswer ? (
+                    <div data-message-id="pending-answer" className="flex items-end justify-end gap-2">
+                      <div className="max-w-[82%] rounded-2xl rounded-br-md bg-[#3182f6] px-4 py-3 text-white shadow-sm">
+                        <p className="text-xs font-black opacity-70">나</p>
+                        <p className="mt-1 whitespace-pre-wrap text-[15px] font-semibold leading-6">{pendingAnswer}</p>
+                      </div>
+                    </div>
+                  ) : null}
                   {busy ? (
                     <div className="flex items-end gap-2">
                       <span aria-hidden="true" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#2f6bff] text-[10px] font-black text-white">AI</span>
@@ -1055,6 +1083,17 @@ function SessionView({
                         disabled={busy}
                         placeholder="질문을 듣고 떠오른 생각을 편하게 적어 주세요."
                         onChange={(event) => setAnswer(event.target.value)}
+                        onKeyDown={(event) => {
+                          if (
+                            event.key === "Enter" &&
+                            !event.shiftKey &&
+                            !event.nativeEvent.isComposing &&
+                            answer.trim()
+                          ) {
+                            event.preventDefault();
+                            onReply();
+                          }
+                        }}
                       />
                       <button type="button" className="min-h-12 shrink-0 rounded-2xl bg-[#2f6bff] px-6 py-3 text-sm font-black text-white transition hover:bg-[#1b64da] disabled:bg-[#b0d2ff]" disabled={busy || !answer.trim()} onClick={onReply}>
                         {busy ? "보내는 중…" : "답변 보내기"}
@@ -1116,6 +1155,21 @@ function Report({ report }: { report?: ActingReportDto | null }) {
         <ReportSection title="다음 연습" body={report.nextStep} tone="action" />
         {report.comparison?.trim() ? <ReportSection title="이전 연습과 비교" body={report.comparison} wide /> : null}
       </div>
+      <aside className="rounded-[24px] border border-[#dce9ff] bg-white p-5 shadow-[0_8px_24px_rgba(25,31,40,0.035)] sm:flex sm:items-center sm:justify-between sm:gap-6 sm:p-6">
+        <div>
+          <h3 className="text-lg font-black tracking-[-0.035em]">이번 연습은 어떠셨나요?</h3>
+          <p className="mt-2 font-semibold leading-7 text-[#4e5968]">짧은 설문으로 경험을 알려 주시면 더 나은 연기 코치를 만드는 데 활용할게요.</p>
+        </div>
+        <a
+          href="https://acttub.github.io/review-form/"
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label="세션 후기 설문조사 참여하기 (새 창)"
+          className="mt-5 inline-flex min-h-12 shrink-0 items-center justify-center rounded-2xl bg-[#2f6bff] px-5 py-3 text-sm font-black text-white transition hover:bg-[#1b64da] sm:mt-0"
+        >
+          설문조사 참여하기 ↗
+        </a>
+      </aside>
     </section>
   );
 }

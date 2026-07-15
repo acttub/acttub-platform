@@ -35,3 +35,53 @@ test("interview is a one-question chat without manual completion", () => {
   assert.match(source, /restart/);
   assert.match(source, /acting_session_expired/);
 });
+
+test("completed analysis enters the interview without a manual start step", () => {
+  const source = read("src/features/practice/practice-flow.tsx");
+  const sessionView = source.slice(
+    source.indexOf("function SessionView"),
+    source.indexOf("function Report"),
+  );
+
+  assert.match(
+    source,
+    /const session = await createPracticeSession[\s\S]*setActive\(session\);[\s\S]*await operation\("start", session\)/,
+  );
+  assert.match(
+    source,
+    /const session = await retryPracticeAnalysis[\s\S]*setActive\(session\);[\s\S]*await operation\("start", session\)/,
+  );
+  assert.doesNotMatch(sessionView, />\s*인터뷰 시작\s*</);
+});
+
+test("answer input submits with Enter and renders an optimistic actor turn", () => {
+  const source = read("src/features/practice/practice-flow.tsx");
+  const reply = source.slice(
+    source.indexOf("async function reply"),
+    source.indexOf("async function retryReply"),
+  );
+  const sessionView = source.slice(
+    source.indexOf("function SessionView"),
+    source.indexOf("function Report"),
+  );
+
+  assert.match(source, /const \[pendingAnswer, setPendingAnswer\] = useState<string \| null>\(null\)/);
+  assert.match(reply, /setPendingAnswer\(text\);[\s\S]*await mutatePracticeTurn/);
+  assert.match(reply, /finally \{[\s\S]*setPendingAnswer\(null\)/);
+  assert.match(sessionView, /pendingAnswer[\s\S]*pending-answer[\s\S]*나/);
+  assert.match(
+    sessionView,
+    /onKeyDown=[\s\S]*event\.key === "Enter"[\s\S]*!event\.shiftKey[\s\S]*!event\.nativeEvent\.isComposing[\s\S]*event\.preventDefault\(\)[\s\S]*onReply\(\)/,
+  );
+});
+
+test("acting coach header omits the new-practice shortcut", () => {
+  const source = read("src/features/practice/practice-flow.tsx");
+  const sessionView = source.slice(
+    source.indexOf("function SessionView"),
+    source.indexOf("function Report"),
+  );
+
+  assert.match(sessionView, /href="\/home"/);
+  assert.doesNotMatch(sessionView, /href="\/practice\/new"/);
+});
