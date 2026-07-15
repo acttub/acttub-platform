@@ -65,8 +65,8 @@ export function listPracticeSessions() {
   return request<{ sessions: PracticeSession[] }>("/api/v1/practice-sessions");
 }
 
-export function getPracticeSession(id: string) {
-  return request<{ session: PracticeSession }>(`/api/v1/practice-sessions/${id}`);
+export function getPracticeSession(id: string, signal?: AbortSignal) {
+  return request<{ session: PracticeSession }>(`/api/v1/practice-sessions/${id}`, { signal });
 }
 
 export function createPracticeSession(body: CreateActingSessionRequest) {

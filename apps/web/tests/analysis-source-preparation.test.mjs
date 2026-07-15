@@ -105,11 +105,11 @@ test("successful source preparation returns the original response body", async (
 
 test("analysis orchestration prepares the source before summarize dispatch", () => {
   const service = readFileSync(
-    path.join(appRoot, "src/server/services/acting-coach-service.ts"),
+    path.join(appRoot, "workers/lib/analysis-job-runner.mjs"),
     "utf8",
   );
 
-  assert.match(service, /prepareAnalysisRelaySource[\s\S]*actingApiClient\.summarize/);
+  assert.match(service, /prepareVideo[\s\S]*summarize/);
   assert.match(service, /source_video_unavailable/);
-  assert.match(service, /failureClass:\s*isDefinitive\(mapped\)\s*\?\s*"definitive"\s*:\s*"ambiguous"/);
+  assert.match(service, /error\?\.definitive[\s\S]*repository\.fail/);
 });

@@ -333,3 +333,11 @@ curl https://acting-api.onrender.com/report/history/user-123 \
 - **acting_agent / acting-report** (사본): 위 세 필드 없음. 대신 `SceneSummary`에 `segment_scan` 필드 존재 (기본 빈 배열).
 
 pydantic이 알 수 없는 필드를 무시하므로 파이프라인은 정상 동작하지만, 사본 쪽으로 넘어가면 추가 anomaly 필드가 탈락합니다. 또한 `acting-summary/README.md`의 스키마 표는 구버전이므로 코드(`schema.py`)를 기준으로 삼으세요.
+
+## Durable analysis execution
+
+`POST /api/v1/practice-sessions` and `POST /api/v1/practice-sessions/{sessionId}/analysis` atomically enqueue analysis in `practice_upstream_operations` and return `202` with the existing `ActingCoachSessionDto` in `ANALYZING`. A completed same-request replay returns `200`; paths and DTO fields do not expose queue metadata.
+
+Analysis runs outside the HTTP lifecycle with `pnpm worker:analysis` (continuous) or `pnpm worker:analysis:once` (at most one claim). The worker requires `NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `ACTING_API_BASE_URL`, and `ACTING_API_KEY`; optional lease, heartbeat, poll, upstream-timeout, shutdown-grace, and concurrency values are listed in `apps/web/.env.example`.
+
+The browser polls the existing owner-checked session GET sequentially and stores only the active session ID for reload recovery. A disconnect cannot cancel durable work. Queued work is claimed through a lease-token CAS, heartbeated, deterministically requeued on retryable transport failures, and completed or failed atomically. G011 trusted duration probing belongs in the worker preparation hook; G012 abandoned-upload/session sweeping remains a separate future scheduled process.

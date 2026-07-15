@@ -183,3 +183,9 @@ The backend should reject or regenerate assistant text containing evaluator-styl
 ## Current Next.js compatibility boundary
 
 The temporary Next.js handlers now enforce API auth/terms checks before every practice/session/upload operation and pass the authenticated `user_id` owner into the service/repository layer. Spring Boot must preserve these route-level semantics while replacing local Supabase persistence with Supabase-backed transactions.
+
+## Durable analysis queue contract
+
+Spring Boot must preserve `POST /api/v1/practice-sessions` and `POST /api/v1/practice-sessions/{sessionId}/analysis`: accepted create/retry returns `202` with the unchanged `ActingCoachSessionDto`, and completed replay returns `200`. Enqueue must atomically mutate session/take/request identity with a lease-free `practice_upstream_operations` row.
+
+The portable database contract is claim (`FOR UPDATE SKIP LOCKED`), heartbeat, retry requeue, definitive failure, and completion through operation ID plus live lease-token CAS. Attempts, `available_at`, bounded backoff, and trusted source reconstruction remain private. A future Java worker may replace the Node worker, but it must preserve these transitions and must not move work back into an HTTP request lifecycle. Roll out migration 021, a worker-capable artifact, the worker process, then async routes. G011 media validation and G012 sweeping remain separate migrations/workers.

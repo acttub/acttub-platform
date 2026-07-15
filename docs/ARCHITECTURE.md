@@ -190,3 +190,9 @@ practice_reports
 | Platform | Next.js App Router, TypeScript, pnpm, Supabase (Auth/Postgres/Storage), Vercel |
 | AI | 외부 acting-api (계약은 `API.md`, 내부 구현은 플랫폼 관심사 아님) |
 | 향후 | `apps/api` Spring Boot 이전 — HTTP path와 DTO는 `/api/v1/*` REST 계약으로 안정 유지, `apps/mobile` React Native |
+
+## Durable analysis worker
+
+The web route no longer owns `/summarize`. Session creation and explicit analysis retry atomically write a lease-free `queued` row in `practice_upstream_operations`, then promptly return `202 + ActingCoachSessionDto(ANALYZING)`. A separately deployed Node 20 ESM process (`pnpm worker:analysis`) claims with `FOR UPDATE SKIP LOCKED`, heartbeats a bounded lease, prepares the trusted private Storage source, calls acting-api, and commits through a lease-token CAS. Timeout, network failure, and shutdown abort requeue with bounded deterministic backoff; expired leases are reclaimable and never become analysis `outcome_unknown`.
+
+The UI stores only an active session ID locator, restores through the existing owner-checked GET, and polls sequentially until `INTERVIEW` or terminal analysis failure. Web and worker restart independently. Deployment order is migration 021, worker-capable artifact, worker process, then asynchronous web routes; old instances may finish previously claimed in-flight operations. G011 adds trusted media probing at source preparation, while G012 adds a separate sweeper.

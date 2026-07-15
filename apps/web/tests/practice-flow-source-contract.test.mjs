@@ -43,14 +43,10 @@ test("completed analysis enters the interview without a manual start step", () =
     source.indexOf("function Report"),
   );
 
-  assert.match(
-    source,
-    /const session = await createPracticeSession[\s\S]*setActive\(session\);[\s\S]*await operation\("start", session\)/,
-  );
-  assert.match(
-    source,
-    /const session = await retryPracticeAnalysis[\s\S]*setActive\(session\);[\s\S]*await operation\("start", session\)/,
-  );
+  assert.match(source, /startedInterviewRef\.current\.has\(active\.id\)/);
+  assert.match(source, /startedInterviewRef\.current\.add\(active\.id\)/);
+  assert.match(source, /operationRef\.current\("start", active\)/);
+  assert.match(source, /if \(!settled\) startedInterviewRef\.current\.delete\(active\.id\)/);
   assert.doesNotMatch(sessionView, />\s*인터뷰 시작\s*</);
 });
 

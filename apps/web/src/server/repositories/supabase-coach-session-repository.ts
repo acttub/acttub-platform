@@ -676,6 +676,32 @@ export const supabaseCoachSessionRepository = {
     }), input);
   },
 
+  async enqueueAnalysisCreate(input: {
+    uploadIntentId: string; userId: string; sessionId: string; takeId: string;
+    requestId: string; requestFingerprint: string; operationId: string;
+    medium: string; genre: string; situation: string; characterContext: string; subtext: string;
+    createdAt?: string;
+  }): Promise<ActingRpcResult> {
+    return normalizeClaim(await callActingRpc("acttub_enqueue_acting_session", {
+      p_upload_intent_id: input.uploadIntentId, p_user_id: input.userId,
+      p_session_id: input.sessionId, p_take_id: input.takeId, p_request_id: input.requestId,
+      p_request_fingerprint: input.requestFingerprint, p_operation_id: input.operationId,
+      p_medium: input.medium, p_genre: input.genre, p_situation: input.situation,
+      p_character_context: input.characterContext, p_subtext: input.subtext,
+      p_created_at: input.createdAt ?? new Date().toISOString(),
+    }), input as typeof input & { leaseToken: string });
+  },
+
+  async enqueueAnalysisRetry(input: {
+    sessionId: string; userId: string; requestId: string; requestFingerprint: string;
+    operationId: string;
+  }): Promise<ActingRpcResult> {
+    return normalizeClaim(await callActingRpc("acttub_enqueue_analysis_retry", {
+      p_session_id: input.sessionId, p_user_id: input.userId, p_request_id: input.requestId,
+      p_request_fingerprint: input.requestFingerprint, p_operation_id: input.operationId,
+    }), input as typeof input & { leaseToken: string });
+  },
+
   async claimAnalysisRetry(input: {
     sessionId: string; userId: string; requestId: string; requestFingerprint: string;
     operationId: string; leaseToken: string; leaseSeconds: number;

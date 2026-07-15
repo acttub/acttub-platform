@@ -5,7 +5,6 @@ import { handleApiError, jsonResponse } from "../http";
 import { readBoundedJson } from "@/server/http/bounded-json";
 
 export const runtime = "nodejs";
-export const maxDuration = 300;
 
 export async function GET() {
   try {
@@ -21,7 +20,7 @@ export async function POST(request: Request) {
     const auth = await requireApiTermsAccepted();
     const payload = await readBoundedJson(request);
     const result = await actingCoachService.createSession(payload, auth.userId);
-    return jsonResponse(result.value, { status: result.replayed ? 200 : 201 });
+    return jsonResponse(result.value, { status: result.accepted ? 202 : 200 });
   } catch (error) {
     return handleApiError(error);
   }

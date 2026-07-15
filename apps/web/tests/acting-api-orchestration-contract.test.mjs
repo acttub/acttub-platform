@@ -31,37 +31,35 @@ test("upstream failures preserve phase-specific recovery semantics", () => {
   assert.match(classification, /operation\s*===\s*"coach_reply"[\s\S]*status\s*===\s*404/);
 });
 
-test("create and report return 200 only for completed replays", () => {
+test("analysis enqueue returns 202 while report keeps synchronous replay status", () => {
   const createRoute = read("src/app/api/v1/practice-sessions/route.ts");
   const reportRoute = read("src/app/api/v1/practice-sessions/[sessionId]/report/route.ts");
 
-  for (const route of [createRoute, reportRoute]) {
-    assert.match(route, /result\.replayed\s*\?\s*200\s*:\s*201/);
-    assert.match(route, /jsonResponse\(result\.value/);
-  }
+  assert.match(createRoute, /result\.accepted\s*\?\s*202\s*:\s*200/);
+  assert.match(reportRoute, /result\.replayed\s*\?\s*200\s*:\s*201/);
+  assert.match(createRoute, /jsonResponse\(result\.value/);
+  assert.match(reportRoute, /jsonResponse\(result\.value/);
 });
 
-test("long-running analysis routes stay within the Vercel Hobby duration limit", () => {
-  const config = read("src/server/acting-api/config.ts");
+test("long-running analysis is owned by the independent worker", () => {
+  const worker = read("workers/analysis-worker.mjs");
   const routes = [
     read("src/app/api/v1/practice-sessions/route.ts"),
     read("src/app/api/v1/practice-sessions/[sessionId]/analysis/route.ts"),
   ];
 
-  assert.match(
-    config,
-    /SUMMARY_TIMEOUT_MS = 270_000;/,
-    "the upstream timeout must leave time to persist failure state before the route is terminated",
-  );
   for (const route of routes) {
-    assert.match(route, /export const maxDuration = 300;/);
+    assert.doesNotMatch(route, /maxDuration|summarize/);
   }
+  assert.match(worker, /ANALYSIS_WORKER_UPSTREAM_TIMEOUT_MS/);
+  assert.match(worker, /900000/);
 });
 
 test("local completion retries reuse generated persistence identifiers", () => {
   const service = read("src/server/services/acting-coach-service.ts");
 
-  assert.match(service, /const sceneSummaryId = crypto\.randomUUID\(\);[\s\S]*retryLocalCommit/);
+  const worker = read("workers/lib/analysis-job-runner.mjs");
+  assert.match(worker, /repository\.complete\(job, leaseToken, randomUUID\(\), summary\)/);
   assert.match(service, /const aiTurnId = crypto\.randomUUID\(\);[\s\S]*retryLocalCommit/);
   assert.match(service, /const reportId = crypto\.randomUUID\(\);[\s\S]*retryLocalCommit/);
 });

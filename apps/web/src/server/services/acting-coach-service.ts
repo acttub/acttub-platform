@@ -20,7 +20,6 @@ import {
   ActingApiResponseError,
   requireCoachResponse,
   requireReportResponse,
-  requireSceneSummary,
 } from "@/server/acting-api/response-guards";
 import {
   SupabaseCoachSessionPersistenceError,
@@ -28,11 +27,6 @@ import {
   type ActingRpcResult,
 } from "@/server/repositories/supabase-coach-session-repository";
 import { coachSessionService } from "@/server/services/coach-session-service";
-import {
-  AnalysisSourceMetadataError,
-  AnalysisSourcePreparationError,
-  prepareAnalysisRelaySource,
-} from "@/server/services/analysis-source-preparation";
 import {
   validateReplyText,
   validateSceneContext,
@@ -70,7 +64,7 @@ type Claim = {
   result?: unknown;
 };
 
-type CreatedResult<T> = { value: T; replayed: boolean };
+type CreatedResult<T> = { value: T; accepted?: boolean; replayed: boolean };
 
 const repository = supabaseCoachSessionRepository;
 const compatibilitySceneMedium = "기타";
@@ -383,22 +377,6 @@ const mapOperationError = (
   runId?: string,
 ): ActingServiceError => {
   if (error instanceof ActingServiceError) return error;
-  if (error instanceof AnalysisSourcePreparationError) {
-    return new ActingServiceError(
-      503,
-      error.code,
-      error.message,
-      { retryAllowed: true, action: "retry_analysis" },
-    );
-  }
-  if (error instanceof AnalysisSourceMetadataError) {
-    return new ActingServiceError(
-      409,
-      error.code,
-      error.message,
-      { retryAllowed: false, action: "create_new_session" },
-    );
-  }
   if (error instanceof ActingApiResponseError) {
     return ambiguousError(phase, error.causeCode, runId);
   }
@@ -519,61 +497,6 @@ const persistedFailureCode = (error: ActingServiceError): string =>
     ? error.code
     : asCauseCode(error.details?.causeCode) ?? "acting_api_unavailable";
 
-async function runAnalysisClaim(
-  claim: Claim,
-  userId: string,
-  sessionId: string,
-): Promise<ActingCoachSessionDto> {
-  const source = claim.source ?? {};
-  let localCommitStarted = false;
-
-  try {
-    const relaySource = await prepareAnalysisRelaySource(source, userId, sessionId, {
-      createAdminClient: createSupabaseAdminClient,
-      fetchVideo: fetch,
-    });
-
-    const response = await actingApiClient.summarize({
-      situation: String(source.situation),
-      character: String(source.characterContext),
-      subtext: String(source.subtext),
-      ...relaySource,
-    });
-    const summary = requireSceneSummary(
-      await parseUpstreamResponse(response, "analysis"),
-    );
-    const sceneSummaryId = crypto.randomUUID();
-    localCommitStarted = true;
-    await retryLocalCommit(() =>
-      repository.completeAnalysis({
-        userId,
-        sessionId,
-        operationId: claim.operationId,
-        leaseToken: claim.leaseToken,
-        sceneSummaryId,
-        summaryPayload: summary,
-      }),
-    );
-    return ownedSession(userId, sessionId);
-  } catch (error) {
-    const mapped = mapOperationError(error, "analysis");
-    if (localCommitStarted) throw knownRepositoryError(error, "analysis") ?? mapped;
-    try {
-      await repository.failAnalysis({
-        userId,
-        sessionId,
-        operationId: claim.operationId,
-        leaseToken: claim.leaseToken,
-        failureClass: isDefinitive(mapped) ? "definitive" : "ambiguous",
-        safeErrorCode: persistedFailureCode(mapped),
-      });
-    } catch (persistenceError) {
-      throw knownRepositoryError(persistenceError, "analysis") ?? mapped;
-    }
-    throw mapped;
-  }
-}
-
 const completedSessionKeys = ["id", "userId", "pipelineVersion", "legacy", "status", "medium", "genre", "situation", "characterContext", "subtext", "hiddenAt", "createdAt", "updatedAt", "take", "sceneSummary", "currentRun", "turns", "report"] as const;
 const completedReportKeys = ["headline", "biggestProblem", "evidence", "selfDiscovery", "encouragement", "nextStep", "comparison", "reportCount"] as const;
 const privateReplayKeys = new Set(["actingSessionId", "privateActingSessionId", "leaseToken", "storagePath", "storageBucket", "signedUrl", "operationId"]);
@@ -606,6 +529,15 @@ const replaySession = async (
 ): Promise<ActingCoachSessionDto> => {
   if (claim.kind === "replay_completed") return requireCompletedResult<ActingCoachSessionDto>(claim.result, completedSessionKeys);
   return replayError(claim, phase, runId);
+};
+
+const replayAnalysisSession = async (
+  claim: Claim,
+  userId: string,
+  sessionId: string,
+): Promise<ActingCoachSessionDto> => {
+  if (claim.kind === "replay_completed") return ownedSession(userId, sessionId);
+  return replayError(claim, "analysis");
 };
 
 const requireStoredReply = (value: unknown): string => {
@@ -650,7 +582,6 @@ export const actingCoachService = {
     payload: unknown,
     userId: string,
   ): Promise<CreatedResult<ActingCoachSessionDto>> {
-    requireActingConfig();
     requirePersistenceConfig();
     const input = exactBody(payload, [
       "requestId",
@@ -675,7 +606,7 @@ export const actingCoachService = {
     }
     const sessionId = intent.sessionId;
     const claim = await claimOperation("analysis", () =>
-      repository.createAnalysisClaim({
+      repository.enqueueAnalysisCreate({
         ...operationInput(userId, input.requestId, [
           "create",
           uploadIntentId,
@@ -691,18 +622,17 @@ export const actingCoachService = {
         situation,
         characterContext,
         subtext,
-        leaseSeconds: 780,
       }),
     );
-    if (claim.kind !== "claimed") {
-      return {
-        value: await replaySession(claim, "analysis", userId, claim.sessionId || sessionId),
-        replayed: true,
-      };
-    }
+    if (!["claimed", "in_progress"].includes(claim.kind)) return {
+      value: await replayAnalysisSession(claim, userId, claim.sessionId || sessionId),
+      accepted: false,
+      replayed: true,
+    };
     return {
-      value: await runAnalysisClaim(claim, userId, sessionId),
-      replayed: false,
+      value: await ownedSession(userId, claim.sessionId || sessionId),
+      accepted: true,
+      replayed: claim.kind === "in_progress",
     };
   },
 
@@ -710,8 +640,7 @@ export const actingCoachService = {
     sessionId: string,
     payload: unknown,
     userId: string,
-  ): Promise<ActingCoachSessionDto> {
-    requireActingConfig();
+  ): Promise<CreatedResult<ActingCoachSessionDto>> {
     requirePersistenceConfig();
     const input = exactBody(payload, ["operation", "requestId"]) as RetryAnalysisRequest;
     if (input.operation !== "retry") {
@@ -719,16 +648,21 @@ export const actingCoachService = {
     }
     const sid = uuid(sessionId, "sessionId");
     const claim = await claimOperation("analysis", () =>
-      repository.claimAnalysisRetry({
+      repository.enqueueAnalysisRetry({
         ...operationInput(userId, input.requestId, ["analysis_retry", sid]),
         sessionId: sid,
-        leaseSeconds: 780,
       }),
     );
-    if (claim.kind !== "claimed") {
-      return replaySession(claim, "analysis", userId, sid);
-    }
-    return runAnalysisClaim(claim, userId, sid);
+    if (!["claimed", "in_progress"].includes(claim.kind)) return {
+      value: await replayAnalysisSession(claim, userId, sid),
+      accepted: false,
+      replayed: true,
+    };
+    return {
+      value: await ownedSession(userId, sid),
+      accepted: true,
+      replayed: claim.kind === "in_progress",
+    };
   },
 
   async turn(

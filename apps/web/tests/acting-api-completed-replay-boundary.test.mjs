@@ -7,11 +7,13 @@ test("completed replays return validated persisted public results", () => {
   assert.match(service, /requireCompletedResult<ActingCoachSessionDto>\(claim\.result, completedSessionKeys\)/);
   assert.match(service, /requireCompletedResult<ActingReportDto>\(claim\.result, completedReportKeys\)/);
   assert.match(service, /privateReplayKeys = new Set/);
-  assert.doesNotMatch(service, /claim\.kind === "replay_completed"\) return ownedSession/);
+  assert.match(service, /replayAnalysisSession[\s\S]*claim\.kind === "replay_completed"\) return ownedSession\(userId, sessionId\)/);
+  assert.match(service, /replaySession[\s\S]*requireCompletedResult<ActingCoachSessionDto>\(claim\.result, completedSessionKeys\)/);
 });
 test("post-commit errors cannot persist contradictory failures", () => {
-  assert.equal((service.match(/if \(localCommitStarted\) throw knownRepositoryError/g) ?? []).length, 4);
-  assert.equal((service.match(/localCommitStarted = true;/g) ?? []).length, 4);
+  assert.equal((service.match(/if \(localCommitStarted\) throw knownRepositoryError/g) ?? []).length, 3);
+  assert.equal((service.match(/localCommitStarted = true;/g) ?? []).length, 3);
+  assert.doesNotMatch(service, /runAnalysisClaim/);
 });
 test("completion RPCs persist database-built public DTOs", () => {
   assert.match(sql, /response_payload=public\.acttub_public_session_payload\(p_session_id,p_user_id\)/);

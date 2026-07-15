@@ -17,7 +17,9 @@
     "perf:web": "lhci autorun --config=apps/web/lighthouserc.cjs",
     "perf:healthcheck": "lhci healthcheck --fatal --config=apps/web/lighthouserc.cjs",
     "typecheck": "pnpm typecheck:web",
-    "typecheck:web": "pnpm --filter web typecheck"
+    "typecheck:web": "pnpm --filter web typecheck",
+    "worker:analysis": "pnpm --filter web worker:analysis",
+    "worker:analysis:once": "pnpm --filter web worker:analysis:once"
   },
   "devDependencies": {
     "@lhci/cli": "0.15.1"

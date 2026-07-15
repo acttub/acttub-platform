@@ -39,13 +39,16 @@ test("typed client exposes only the locked acting operations", () => {
 test("active session input forwards only the summarize scene context", () => {
   const types = read("src/lib/api/types.ts");
   const service = read("src/server/services/acting-coach-service.ts");
+  const worker = read("workers/lib/analysis-job-runner.mjs");
   const requestType = types.match(/export type CreateActingSessionRequest = \{[\s\S]*?\n\};/)?.[0] ?? "";
 
   assert.doesNotMatch(requestType, /\bmedium\b|\bgenre\b/);
   assert.match(requestType, /\bsituation:\s*string/);
   assert.match(requestType, /\bcharacterContext:\s*string/);
   assert.match(requestType, /\bsubtext:\s*string/);
-  assert.match(service, /situation:\s*String\(source\.situation\)/);
+  assert.match(worker, /String\(job\.analysis_source\.situation\)/);
+  assert.match(worker, /String\(job\.analysis_source\.characterContext\)/);
+  assert.match(worker, /String\(job\.analysis_source\.subtext\)/);
   assert.match(service, /situation:\s*claim\.coachContext\?\.situation/);
-  assert.doesNotMatch(service, /formattedSituation/);
+  assert.doesNotMatch(worker, /formattedSituation/);
 });

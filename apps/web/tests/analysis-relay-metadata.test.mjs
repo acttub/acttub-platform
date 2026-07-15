@@ -121,12 +121,12 @@ test("multipart serializes matching MOV and MP4 relay metadata", async () => {
 
 test("analysis orchestration validates metadata before source fetch and dispatch", () => {
   const service = readFileSync(
-    path.join(appRoot, "src/server/services/acting-coach-service.ts"),
+    path.join(appRoot, "workers/lib/analysis-job-runner.mjs"),
     "utf8",
   );
 
-  const prepareIndex = service.indexOf("prepareAnalysisRelaySource(");
-  const summarizeIndex = service.indexOf("actingApiClient.summarize(");
+  const prepareIndex = service.indexOf("validateAnalysisSource(");
+  const summarizeIndex = service.indexOf("async function summarize(");
   assert.ok(prepareIndex >= 0 && prepareIndex < summarizeIndex);
   assert.doesNotMatch(service, /source\.fileName\s*\?\?/);
   assert.match(service, /source_video_metadata_invalid/);

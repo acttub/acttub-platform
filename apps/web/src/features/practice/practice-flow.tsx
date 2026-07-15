@@ -29,6 +29,7 @@ import {
 
 const MAX_UPLOAD_BYTES = 576_716_800;
 const MAX_DURATION_MS = 180_000;
+const ACTIVE_SESSION_LOCATOR_KEY = "acttub:active-practice-session-id";
 type Entry = "home" | "new" | "history";
 type Step = "home" | "history" | "video" | "context";
 
@@ -91,9 +92,13 @@ export function PracticeFlow({ entry = "new" }: { entry?: Entry }) {
   const [restartRequired, setRestartRequired] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const previewUrlRef = useRef<string | null>(null);
-  const logicalAttemptsRef = useRef<ReturnType<typeof createLogicalAttemptRegistry> | null>(null);
-  if (!logicalAttemptsRef.current) logicalAttemptsRef.current = createLogicalAttemptRegistry();
-  const logicalAttempts = logicalAttemptsRef.current;
+  const [logicalAttempts] = useState(() => createLogicalAttemptRegistry());
+  const operationRef = useRef<(kind: "start" | "restart", target?: ActingCoachSessionDto | null) => Promise<boolean>>(async () => false);
+  const startedInterviewRef = useRef(new Set<string>());
+
+  useEffect(() => {
+    operationRef.current = operation;
+  });
 
   useEffect(() => {
     let mounted = true;
@@ -118,6 +123,18 @@ export function PracticeFlow({ entry = "new" }: { entry?: Entry }) {
         try {
           const { sessions } = await listPracticeSessions();
           if (mounted) setHistory(sessions);
+          const activeId = localStorage.getItem(ACTIVE_SESSION_LOCATOR_KEY);
+          if (activeId) {
+            try {
+              const { session } = await getPracticeSession(activeId);
+              if (session.legacy) localStorage.removeItem(ACTIVE_SESSION_LOCATOR_KEY);
+              else if (mounted) setActive(session);
+            } catch (reason) {
+              if (reason instanceof ApiClientError && reason.status === 404) {
+                localStorage.removeItem(ACTIVE_SESSION_LOCATOR_KEY);
+              }
+            }
+          }
         } catch (reason) {
           if (mounted) setHistoryError(errorMessage(reason));
         } finally {
@@ -140,6 +157,71 @@ export function PracticeFlow({ entry = "new" }: { entry?: Entry }) {
     },
     [],
   );
+
+  useEffect(() => {
+    const sessionId = active?.id;
+    if (!sessionId || active.status !== "ANALYZING" || active.take.analysisStatus !== "pending") return;
+    let stopped = false;
+    let inFlight = false;
+    let failures = 0;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let controller: AbortController | undefined;
+
+    const schedule = (delay: number) => {
+      if (!stopped) timer = setTimeout(() => { void refresh(); }, delay);
+    };
+    const refresh = async () => {
+      if (stopped || inFlight) return;
+      inFlight = true;
+      controller = new AbortController();
+      try {
+        const { session } = await getPracticeSession(sessionId, controller.signal);
+        if (session.legacy) {
+          localStorage.removeItem(ACTIVE_SESSION_LOCATOR_KEY);
+          setActive(null);
+          return;
+        }
+        failures = 0;
+        setActive(session);
+        setHistory((items) => [session, ...items.filter((item) => item.id !== session.id)]);
+        if (session.status === "ANALYZING" && session.take.analysisStatus === "pending") schedule(1500);
+      } catch (reason) {
+        if (stopped || controller.signal.aborted) return;
+        if (reason instanceof ApiClientError && reason.status === 404) {
+          localStorage.removeItem(ACTIVE_SESSION_LOCATOR_KEY);
+          setActive(null);
+          return;
+        }
+        failures += 1;
+        schedule(Math.min(10_000, 1000 * 2 ** Math.min(failures, 4)));
+      } finally {
+        inFlight = false;
+      }
+    };
+    const refreshVisible = () => {
+      if (document.visibilityState !== "visible" || inFlight) return;
+      if (timer) clearTimeout(timer);
+      void refresh();
+    };
+    document.addEventListener("visibilitychange", refreshVisible);
+    window.addEventListener("focus", refreshVisible);
+    void refresh();
+    return () => {
+      stopped = true;
+      if (timer) clearTimeout(timer);
+      controller?.abort();
+      document.removeEventListener("visibilitychange", refreshVisible);
+      window.removeEventListener("focus", refreshVisible);
+    };
+  }, [active?.id, active?.status, active?.take.analysisStatus]);
+
+  useEffect(() => {
+    if (!active || active.status !== "INTERVIEW" || active.currentRun || startedInterviewRef.current.has(active.id)) return;
+    startedInterviewRef.current.add(active.id);
+    void operationRef.current("start", active).then((settled) => {
+      if (!settled) startedInterviewRef.current.delete(active.id);
+    });
+  }, [active]);
 
   function selectUploadFile(nextFile: File | null) {
     if (!nextFile) return;
@@ -172,10 +254,8 @@ export function PracticeFlow({ entry = "new" }: { entry?: Entry }) {
 
   function openSession(session: PracticeSession) {
     if (session.legacy) return;
+    localStorage.setItem(ACTIVE_SESSION_LOCATOR_KEY, session.id);
     setActive(session);
-    if (session.status === "INTERVIEW" && !session.currentRun) {
-      void operation("start", session);
-    }
   }
 
   async function begin() {
@@ -225,10 +305,8 @@ export function PracticeFlow({ entry = "new" }: { entry?: Entry }) {
         ...sceneContext,
       });
       logicalAttempts.settle("begin", beginAttempt.requestId);
+      localStorage.setItem(ACTIVE_SESSION_LOCATOR_KEY, session.id);
       setActive(session); setHistory((items) => [session, ...items.filter((item) => item.id !== session.id)]);
-      if (session.status === "INTERVIEW" && !session.currentRun) {
-        await operation("start", session);
-      }
     } catch (reason) {
       const recovered = persistedSessionId
         ? await recoverPersistedSession(persistedSessionId, reason)
@@ -240,8 +318,8 @@ export function PracticeFlow({ entry = "new" }: { entry?: Entry }) {
     } finally { setBusy(false); }
   }
 
-  async function operation(kind: "start" | "restart", target: ActingCoachSessionDto | null = active) {
-    if (!target) return;
+  async function operation(kind: "start" | "restart", target: ActingCoachSessionDto | null = active): Promise<boolean> {
+    if (!target) return false;
     const attemptKey = `${kind}:${target.id}`;
     const attempt = logicalAttempts.acquire(attemptKey, () => ({}));
     setBusy(true); setError(null);
@@ -249,6 +327,7 @@ export function PracticeFlow({ entry = "new" }: { entry?: Entry }) {
       const session = await mutatePracticeTurn(target.id, { operation: kind, requestId: attempt.requestId });
       logicalAttempts.settle(attemptKey, attempt.requestId);
       setActive(session); setRestartRequired(false);
+      return true;
     } catch (reason) {
       const recovered = await recoverPersistedSession(target.id, reason);
       const operationPersisted = recovered?.currentRun != null && (
@@ -259,6 +338,7 @@ export function PracticeFlow({ entry = "new" }: { entry?: Entry }) {
         logicalAttempts.settle(attemptKey, attempt.requestId);
       }
       setError(errorMessage(reason));
+      return operationPersisted;
     } finally { setBusy(false); }
   }
 
@@ -336,10 +416,8 @@ export function PracticeFlow({ entry = "new" }: { entry?: Entry }) {
     try {
       const session = await retryPracticeAnalysis(active.id, attempt.requestId);
       logicalAttempts.settle(attemptKey, attempt.requestId);
+      localStorage.setItem(ACTIVE_SESSION_LOCATOR_KEY, session.id);
       setActive(session);
-      if (session.status === "INTERVIEW" && !session.currentRun) {
-        await operation("start", session);
-      }
     } catch (reason) {
       const recovered = await recoverPersistedSession(active.id, reason);
       if (
@@ -414,6 +492,7 @@ export function PracticeFlow({ entry = "new" }: { entry?: Entry }) {
         onRetryReply={retryReply}
         onRetryAnalysis={retryAnalysis}
         onReport={report}
+        onLeave={() => localStorage.removeItem(ACTIVE_SESSION_LOCATOR_KEY)}
       />
     );
   }
@@ -1013,6 +1092,7 @@ function SessionView({
   onRetryReply,
   onRetryAnalysis,
   onReport,
+  onLeave,
 }: {
   session: ActingCoachSessionDto;
   answer: string;
@@ -1027,6 +1107,7 @@ function SessionView({
   onRetryReply: (actorTurnId: string) => void;
   onRetryAnalysis: () => void;
   onReport: () => void;
+  onLeave: () => void;
 }) {
   const currentQuestion = [...session.turns].reverse().find((turn) => turn.role === "ai" && turn.deliveryStatus === "completed");
   const retryableActorTurn = [...session.turns].reverse().find((turn) => turn.role === "actor" && turn.deliveryStatus === "failed" && turn.deliveryRetryable);
@@ -1053,7 +1134,7 @@ function SessionView({
             </h1>
           </div>
           <nav aria-label="연습 화면 이동" className="flex gap-2">
-            <a href="/home" className="inline-flex h-11 items-center justify-center rounded-2xl border border-[#d1d6db] bg-white px-4 text-sm font-black text-[#4e5968] transition hover:border-[#3182f6] hover:text-[#1b64da]">
+            <a href="/home" onClick={onLeave} className="inline-flex h-11 items-center justify-center rounded-2xl border border-[#d1d6db] bg-white px-4 text-sm font-black text-[#4e5968] transition hover:border-[#3182f6] hover:text-[#1b64da]">
               홈
             </a>
           </nav>
