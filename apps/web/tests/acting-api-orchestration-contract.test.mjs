@@ -19,6 +19,7 @@ test("coach response parsing follows the documented acting-api shape", () => {
 
 test("upstream failures preserve phase-specific recovery semantics", () => {
   const service = read("src/server/services/acting-coach-service.ts");
+  const classification = read("src/server/acting-api/upstream-response-classification.ts");
 
   assert.match(service, /analysis_outcome_unknown/);
   assert.match(service, /upstream_outcome_unknown/);
@@ -27,7 +28,7 @@ test("upstream failures preserve phase-specific recovery semantics", () => {
   assert.match(service, /create_new_session/);
   assert.match(service, /restart_interview/);
   assert.match(service, /contact_support/);
-  assert.match(service, /phase\s*===\s*"coach"[\s\S]*response\.status\s*===\s*404/);
+  assert.match(classification, /operation\s*===\s*"coach_reply"[\s\S]*status\s*===\s*404/);
 });
 
 test("create and report return 200 only for completed replays", () => {

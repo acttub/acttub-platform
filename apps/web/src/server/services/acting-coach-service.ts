@@ -12,6 +12,11 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { actingApiClient } from "@/server/acting-api/client";
 import { getActingApiConfig } from "@/server/acting-api/config";
 import {
+  classifyUpstreamFailure,
+  upstreamEndpoint,
+  type UpstreamOperation,
+} from "@/server/acting-api/upstream-response-classification";
+import {
   ActingApiResponseError,
   requireCoachResponse,
   requireReportResponse,
@@ -251,7 +256,10 @@ const expiredError = (runId: string): ActingServiceError =>
 
 const statusForStableCode = (code: string): number => {
   if (code === "acting_api_rate_limited") return 429;
-  if (code === "acting_api_auth_failed" || code === "acting_api_rejected") return 502;
+  if (
+    code === "acting_api_auth_failed" ||
+    code === "acting_api_rejected"
+  ) return 502;
   if (code === "video_too_large") return 413;
   return 409;
 };
@@ -298,35 +306,55 @@ const replayError = (
 
 async function parseUpstreamResponse(
   response: Response,
-  phase: OperationPhase,
+  operation: UpstreamOperation,
   runId?: string,
 ): Promise<unknown> {
-  if (phase === "coach" && response.status === 404) throw expiredError(runId ?? "");
-  if (response.status === 401) {
+  const phase: OperationPhase =
+    operation === "analysis" || operation === "report" ? operation : "coach";
+  const failure = classifyUpstreamFailure(operation, response.status);
+
+  if (failure) {
+    console.error("acting-api upstream request failed", {
+      operation,
+      endpoint: upstreamEndpoint(operation),
+      status: response.status,
+    });
+  }
+  if (failure === "session_expired") throw expiredError(runId ?? "");
+  if (failure === "route_not_found") {
+    throw new ActingServiceError(
+      502,
+      "acting_api_rejected",
+      "acting-api route was not found.",
+    );
+  }
+  if (failure === "auth_failed") {
     throw new ActingServiceError(
       502,
       "acting_api_auth_failed",
       "acting-api authentication failed.",
     );
   }
-  if (response.status === 429) {
+  if (failure === "rate_limited") {
     throw new ActingServiceError(
       429,
       "acting_api_rate_limited",
       "acting-api rate limit exceeded.",
     );
   }
-  if (response.status === 413 && phase === "analysis") {
+  if (failure === "video_too_large") {
     throw new ActingServiceError(413, "video_too_large", "The video is too large.");
   }
-  if (response.status === 400 || response.status === 413) {
+  if (failure === "request_rejected") {
     throw new ActingServiceError(
       502,
       "acting_api_rejected",
       "acting-api rejected the request.",
     );
   }
-  if (!response.ok) throw ambiguousError(phase, "acting_api_unavailable", runId);
+  if (failure === "unavailable") {
+    throw ambiguousError(phase, "acting_api_unavailable", runId);
+  }
 
   try {
     return await response.json();
@@ -732,7 +760,7 @@ export const actingCoachService = {
                 subtext: claim.coachContext?.subtext,
               },
             }),
-            "coach",
+            "coach_start",
             claimedRunId,
           ),
         );
@@ -760,25 +788,15 @@ export const actingCoachService = {
         const mapped = mapOperationError(error, "coach", claimedRunId);
         if (localCommitStarted) throw knownRepositoryError(error, "coach", claimedRunId) ?? mapped;
         try {
-          if (mapped.code === "acting_session_expired") {
-            await repository.expireCoachRun({
-              userId,
-              sessionId: sid,
-              runId: claimedRunId,
-              operationId: claim.operationId,
-              leaseToken: claim.leaseToken,
-            });
-          } else {
-            await repository.failCoachOperation({
-              userId,
-              sessionId: sid,
-              runId: claimedRunId,
-              operationId: claim.operationId,
-              leaseToken: claim.leaseToken,
-              failureClass: isDefinitive(mapped) ? "definitive" : "ambiguous",
-              safeErrorCode: persistedFailureCode(mapped),
-            });
-          }
+          await repository.failCoachOperation({
+            userId,
+            sessionId: sid,
+            runId: claimedRunId,
+            operationId: claim.operationId,
+            leaseToken: claim.leaseToken,
+            failureClass: isDefinitive(mapped) ? "definitive" : "ambiguous",
+            safeErrorCode: persistedFailureCode(mapped),
+          });
         } catch (persistenceError) {
           throw knownRepositoryError(persistenceError, "coach", claimedRunId) ?? mapped;
         }
@@ -837,7 +855,7 @@ export const actingCoachService = {
             session_id: claim.privateActingSessionId,
             text: storedText,
           }),
-          "coach",
+          "coach_reply",
           runId,
         ),
         claim.privateActingSessionId,
