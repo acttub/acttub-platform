@@ -386,7 +386,7 @@ const knownRepositoryError = (
     return ambiguousError(phase, "acting_api_unavailable", runId);
   }
   if (
-    /invalid_session|invalid_run|start_not_allowed|restart_not_allowed|retry_actor_not_eligible|upload_intent_invalid/u.test(
+    /invalid_session|invalid_run|start_not_allowed|restart_not_allowed|retry_actor_not_eligible|stale_ai_turn|coach_reply_pending|upload_intent_invalid/u.test(
       message,
     )
   ) {
@@ -788,7 +788,7 @@ export const actingCoachService = {
 
     const allowedKeys =
       operation === "reply"
-        ? ["operation", "runId", "requestId", "text"]
+        ? ["operation", "runId", "requestId", "text", "expectedAiTurnId"]
         : ["operation", "runId", "requestId", "actorTurnId"];
     const input = exactBody(payload, allowedKeys) as Extract<
       ActingTurnRequest,
@@ -796,6 +796,9 @@ export const actingCoachService = {
     >;
     const runId = uuid(input.runId, "runId");
     const text = input.operation === "reply" ? validateReplyText(input.text) : undefined;
+    const expectedAiTurnId = input.operation === "reply" && input.expectedAiTurnId
+      ? uuid(input.expectedAiTurnId, "expectedAiTurnId")
+      : null;
     const actorTurnId =
       input.operation === "retry_reply"
         ? uuid(input.actorTurnId, "actorTurnId")
@@ -809,6 +812,7 @@ export const actingCoachService = {
             sid,
             runId,
             ...(text ? [text] : [actorTurnId]),
+            ...(expectedAiTurnId ? [expectedAiTurnId] : []),
           ]),
           sessionId: sid,
           runId,
@@ -816,6 +820,7 @@ export const actingCoachService = {
           actorText: text ?? "",
           retryActorTurnId: input.operation === "retry_reply" ? actorTurnId : null,
           leaseSeconds: 120,
+          expectedAiTurnId,
         }),
       runId,
     );

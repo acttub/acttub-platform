@@ -11,14 +11,13 @@ const source = readFileSync(
 test("initial analysis failures retain and refresh the persisted session id", () => {
   assert.match(source, /let persistedSessionId: string \| null = null/);
   assert.match(source, /persistedSessionId = uploadIntent\.sessionId/);
-  assert.match(source, /if \(persistedSessionId\) await recoverPersistedSession\(persistedSessionId, reason\)/);
+  assert.match(source, /persistedSessionId\s*\?[\s\S]*recoverPersistedSession\(persistedSessionId, reason\)/);
 });
 
 test("analysis retry refreshes every persisted terminal classification", () => {
-  assert.match(source, /await retryPracticeAnalysis\(active\.id\)/);
+  assert.match(source, /await retryPracticeAnalysis\(active\.id, attempt\.requestId\)/);
   assert.match(source, /await recoverPersistedSession\(active\.id, reason\)/);
-  assert.match(source, /analysis_outcome_unknown/);
-  assert.match(source, /video_too_large/);
+  assert.match(source, /reconcilePersistedMutation/);
   assert.match(source, /analysisStatus === "failed" && session\.take\.analysisRetryable/);
   assert.match(source, /analysisStatus === "failed" && !session\.take\.analysisRetryable/);
 });

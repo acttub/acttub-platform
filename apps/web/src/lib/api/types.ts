@@ -119,6 +119,7 @@ export type PracticeUploadIntentDto = {
 };
 
 export type CreateUploadIntentRequest = {
+  requestId?: string;
   fileMetadata: FileMetadataDto;
 };
 
@@ -142,7 +143,7 @@ export type CreateActingSessionRequest = {
 export type RetryAnalysisRequest = { operation: "retry"; requestId: string };
 export type ActingTurnRequest =
   | { operation: "start"; requestId: string }
-  | { operation: "reply"; runId: string; requestId: string; text: string }
+  | { operation: "reply"; runId: string; requestId: string; expectedAiTurnId?: string; text: string }
   | { operation: "retry_reply"; runId: string; requestId: string; actorTurnId: string }
   | { operation: "restart"; requestId: string };
 export type CreateReportRequest = { requestId: string };

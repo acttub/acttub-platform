@@ -76,9 +76,9 @@ test("upload intents and session lifecycle source Supabase without local mirrori
   const service = readApp("src/server/services/coach-session-service.ts");
   const repository = readApp("src/server/repositories/supabase-coach-session-repository.ts");
 
-  assert.match(repository, /createUploadIntent\(uploadIntent: PracticeUploadIntentDto\)[\s\S]*\.from\("upload_intents"\)[\s\S]*\.insert\(\{/);
-  assert.match(service, /supabaseCoachSessionRepository\.createUploadIntent\(uploadIntent\)/);
-  assert.match(service, /return uploadIntent;/);
+  assert.match(repository, /createUploadIntent\([\s\S]*uploadIntent: PracticeUploadIntentDto,[\s\S]*\.from\("upload_intents"\)[\s\S]*\.insert\(\{/);
+  assert.match(repository, /admin\.rpc\("acttub_create_upload_intent"/);
+  assert.match(service, /return await requireSupabasePersistence\([\s\S]*supabaseCoachSessionRepository\.createUploadIntent\(uploadIntent/);
   assert.match(service, /readUploadIntentForOwner[\s\S]*supabaseCoachSessionRepository\.findUploadIntent\(uploadIntentId, userId\)/);
   assert.doesNotMatch(service, new RegExp("saveUploadIntent|markUploadIntentFinalized|mirrorSupabaseSessionTo" + "M" + "ock"));
 });

@@ -31,7 +31,7 @@ export class ApiClientError extends Error {
 export type PracticeSession = ActingCoachSessionDto | LegacyCoachSessionDto;
 
 async function parseJsonResponse<T>(response: Response): Promise<T> {
-  const payload = (await response.json().catch(() => null)) as {
+  const payload = (await response.json()) as {
     error?: { code?: string; message?: string; details?: ApiErrorDetails };
   } | null;
   if (!response.ok) {
@@ -75,8 +75,8 @@ export function createPracticeSession(body: CreateActingSessionRequest) {
   });
 }
 
-export function retryPracticeAnalysis(sessionId: string) {
-  const body: RetryAnalysisRequest = { operation: "retry", requestId: crypto.randomUUID() };
+export function retryPracticeAnalysis(sessionId: string, requestId: string) {
+  const body: RetryAnalysisRequest = { operation: "retry", requestId };
   return request<ActingCoachSessionDto>(`/api/v1/practice-sessions/${sessionId}/analysis`, {
     method: "POST", headers: jsonHeaders,
     body: JSON.stringify(body),
@@ -92,8 +92,8 @@ export function mutatePracticeTurn(
   });
 }
 
-export function createPracticeReport(sessionId: string) {
-  const body: CreateReportRequest = { requestId: crypto.randomUUID() };
+export function createPracticeReport(sessionId: string, requestId: string) {
+  const body: CreateReportRequest = { requestId };
   return request<ActingReportDto>(
     `/api/v1/practice-sessions/${sessionId}/report`,
     { method: "POST", headers: jsonHeaders, body: JSON.stringify(body) },

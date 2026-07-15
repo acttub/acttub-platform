@@ -66,7 +66,7 @@ test("answer input submits with Enter and renders an optimistic actor turn", () 
   );
 
   assert.match(source, /const \[pendingAnswer, setPendingAnswer\] = useState<string \| null>\(null\)/);
-  assert.match(reply, /setPendingAnswer\(text\);[\s\S]*await mutatePracticeTurn/);
+  assert.match(reply, /setPendingAnswer\(attempt\.context\.text\);[\s\S]*await mutatePracticeTurn/);
   assert.match(reply, /finally \{[\s\S]*setPendingAnswer\(null\)/);
   assert.match(sessionView, /pendingAnswer[\s\S]*pending-answer[\s\S]*나/);
   assert.match(

@@ -1977,6 +1977,10 @@
           "fileMetadata"
         ],
         "properties": {
+          "requestId": {
+            "type": "string",
+            "format": "uuid"
+          },
           "fileMetadata": {
             "$ref": "#/components/schemas/FileMetadata"
           }
@@ -3301,6 +3305,10 @@
             "format": "uuid"
           },
           "requestId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "expectedAiTurnId": {
             "type": "string",
             "format": "uuid"
           },

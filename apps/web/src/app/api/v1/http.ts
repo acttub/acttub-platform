@@ -3,6 +3,7 @@ import type { ApiErrorResponse } from "@/lib/api/types";
 import { privateNoStoreHeaders } from "@/server/http/cache";
 import {
   ApiConfigurationError,
+  ApiConflictError,
   ApiUpstreamError,
   ApiValidationError,
 } from "@/server/services/coach-session-service";
@@ -65,6 +66,10 @@ export const handleApiError = (
 
   if (error instanceof ApiValidationError) {
     return jsonError(400, "validation_error", error.message, error.details);
+  }
+
+  if (error instanceof ApiConflictError) {
+    return jsonError(409, error.code, error.message);
   }
 
   if (error instanceof ApiConfigurationError) {

@@ -15,6 +15,10 @@ import {
   type PracticeSession,
 } from "@/lib/api/sessions";
 import type { ActingCoachSessionDto, ActingReportDto } from "@/lib/api/types";
+import {
+  createLogicalAttemptRegistry,
+  reconcilePersistedMutation,
+} from "@/features/practice/logical-attempt";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import {
   countUnicodeCodePoints,
@@ -42,6 +46,18 @@ const entryInitialStep: Record<Entry, Step> = {
 
 function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : "요청을 처리하지 못했어요.";
+}
+
+function isDefinitiveMutationFailure(reason: unknown): boolean {
+  return reason instanceof ApiClientError &&
+    !reason.code.includes("outcome_unknown") &&
+    reason.code !== "operation_in_progress";
+}
+
+function latestVisibleAiTurn(session: ActingCoachSessionDto) {
+  return [...session.turns].reverse().find(
+    (turn) => turn.role === "ai" && turn.deliveryStatus === "completed",
+  ) ?? null;
 }
 
 async function videoDuration(file: File) {
@@ -75,6 +91,9 @@ export function PracticeFlow({ entry = "new" }: { entry?: Entry }) {
   const [restartRequired, setRestartRequired] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const previewUrlRef = useRef<string | null>(null);
+  const logicalAttemptsRef = useRef<ReturnType<typeof createLogicalAttemptRegistry> | null>(null);
+  if (!logicalAttemptsRef.current) logicalAttemptsRef.current = createLogicalAttemptRegistry();
+  const logicalAttempts = logicalAttemptsRef.current;
 
   useEffect(() => {
     let mounted = true;
@@ -172,49 +191,81 @@ export function PracticeFlow({ entry = "new" }: { entry?: Entry }) {
       setError(errorMessage(reason));
       return;
     }
+    const beginAttempt = logicalAttempts.acquire("begin", () => ({
+      createRequestId: crypto.randomUUID(),
+      uploadIntentId: null as string | null,
+      storagePath: null as string | null,
+      sessionId: null as string | null,
+    }));
     setBusy(true); setError(null);
     let persistedSessionId: string | null = null;
     try {
       const durationMs = await videoDuration(file);
       if (durationMs < 1 || durationMs > MAX_DURATION_MS) throw new Error("영상은 3분 이하여야 해요.");
       const { uploadIntent } = await createPracticeUploadIntent({
+        requestId: beginAttempt.requestId,
         fileMetadata: { fileName: file.name, mimeType: file.type, sizeBytes: file.size },
       });
       persistedSessionId = uploadIntent.sessionId;
+      beginAttempt.context.uploadIntentId = uploadIntent.uploadIntentId;
+      beginAttempt.context.storagePath = uploadIntent.storagePath;
+      beginAttempt.context.sessionId = uploadIntent.sessionId;
       const supabase = getSupabaseBrowserClient();
       if (!supabase) throw new Error("업로드 설정을 확인하지 못했어요.");
       const { error: uploadError } = await supabase.storage.from(uploadIntent.storageBucket)
         .upload(uploadIntent.storagePath, file, { contentType: file.type, upsert: false });
-      if (uploadError) throw uploadError;
-      await finalizePracticeUploadIntent(uploadIntent.uploadIntentId, { storagePath: uploadIntent.storagePath, durationMs });
+      try {
+        await finalizePracticeUploadIntent(uploadIntent.uploadIntentId, { storagePath: uploadIntent.storagePath, durationMs });
+      } catch (finalizeError) {
+        throw uploadError ?? finalizeError;
+      }
       const session = await createPracticeSession({
-        requestId: crypto.randomUUID(), uploadIntentId: uploadIntent.uploadIntentId,
+        requestId: beginAttempt.context.createRequestId,
+        uploadIntentId: uploadIntent.uploadIntentId,
         ...sceneContext,
       });
+      logicalAttempts.settle("begin", beginAttempt.requestId);
       setActive(session); setHistory((items) => [session, ...items.filter((item) => item.id !== session.id)]);
       if (session.status === "INTERVIEW" && !session.currentRun) {
         await operation("start", session);
       }
     } catch (reason) {
-      if (persistedSessionId) await recoverPersistedSession(persistedSessionId, reason);
+      const recovered = persistedSessionId
+        ? await recoverPersistedSession(persistedSessionId, reason)
+        : null;
+      if (recovered || isDefinitiveMutationFailure(reason)) {
+        logicalAttempts.settle("begin", beginAttempt.requestId);
+      }
       setError(errorMessage(reason));
     } finally { setBusy(false); }
   }
 
   async function operation(kind: "start" | "restart", target: ActingCoachSessionDto | null = active) {
     if (!target) return;
+    const attemptKey = `${kind}:${target.id}`;
+    const attempt = logicalAttempts.acquire(attemptKey, () => ({}));
     setBusy(true); setError(null);
     try {
-      const session = await mutatePracticeTurn(target.id, { operation: kind, requestId: crypto.randomUUID() });
+      const session = await mutatePracticeTurn(target.id, { operation: kind, requestId: attempt.requestId });
+      logicalAttempts.settle(attemptKey, attempt.requestId);
       setActive(session); setRestartRequired(false);
     } catch (reason) {
-      await recoverPersistedSession(target.id, reason);
+      const recovered = await recoverPersistedSession(target.id, reason);
+      const operationPersisted = recovered?.currentRun != null && (
+        recovered.currentRun.runId !== target.currentRun?.runId ||
+        recovered.currentRun.status !== target.currentRun?.status
+      );
+      if (operationPersisted || isDefinitiveMutationFailure(reason)) {
+        logicalAttempts.settle(attemptKey, attempt.requestId);
+      }
       setError(errorMessage(reason));
     } finally { setBusy(false); }
   }
 
   async function reply() {
     if (!active?.currentRun || !answer.trim()) return;
+    const latestAiTurn = latestVisibleAiTurn(active);
+    if (!latestAiTurn) return;
     let text: string;
     try {
       text = validateReplyText(answer);
@@ -222,15 +273,29 @@ export function PracticeFlow({ entry = "new" }: { entry?: Entry }) {
       setError(errorMessage(reason));
       return;
     }
-    setPendingAnswer(text);
+    const attemptKey = `reply:${active.id}:${active.currentRun.runId}:${latestAiTurn.id}`;
+    const attempt = logicalAttempts.acquire(attemptKey, () => ({ text }));
+    setPendingAnswer(attempt.context.text);
     setBusy(true); setError(null);
     try {
       const session = await mutatePracticeTurn(active.id, {
-        operation: "reply", runId: active.currentRun.runId, requestId: crypto.randomUUID(), text,
+        operation: "reply",
+        runId: active.currentRun.runId,
+        requestId: attempt.requestId,
+        expectedAiTurnId: latestAiTurn.id,
+        text: attempt.context.text,
       });
+      logicalAttempts.settle(attemptKey, attempt.requestId);
       setActive(session); setAnswer("");
     } catch (reason) {
-      await recoverPersistedSession(active.id, reason);
+      const recovered = await recoverPersistedSession(active.id, reason);
+      if (
+        latestVisibleAiTurn(recovered ?? active)?.id !== latestAiTurn.id ||
+        isDefinitiveMutationFailure(reason)
+      ) {
+        logicalAttempts.settle(attemptKey, attempt.requestId);
+        if (recovered) setAnswer("");
+      }
       setError(reason instanceof ApiClientError && reason.code === "acting_session_expired"
         ? "인터뷰 연결이 만료되었어요. 아래 버튼으로 새 인터뷰를 시작해 주세요."
         : errorMessage(reason));
@@ -239,74 +304,94 @@ export function PracticeFlow({ entry = "new" }: { entry?: Entry }) {
 
   async function retryReply(actorTurnId: string) {
     if (!active?.currentRun) return;
+    const attemptKey = `retry_reply:${active.id}:${actorTurnId}`;
+    const attempt = logicalAttempts.acquire(attemptKey, () => ({}));
     setBusy(true); setError(null);
     try {
       const session = await mutatePracticeTurn(active.id, {
         operation: "retry_reply",
         runId: active.currentRun.runId,
-        requestId: crypto.randomUUID(),
+        requestId: attempt.requestId,
         actorTurnId,
       });
+      logicalAttempts.settle(attemptKey, attempt.requestId);
       setActive(session);
     } catch (reason) {
-      await recoverPersistedSession(active.id, reason);
+      const recovered = await recoverPersistedSession(active.id, reason);
+      const actorStillRetryable = recovered?.turns.some(
+        (turn) => turn.id === actorTurnId && turn.deliveryStatus === "failed" && turn.deliveryRetryable,
+      );
+      if (actorStillRetryable === false || isDefinitiveMutationFailure(reason)) {
+        logicalAttempts.settle(attemptKey, attempt.requestId);
+      }
       setError(errorMessage(reason));
     } finally { setBusy(false); }
   }
 
   async function retryAnalysis() {
     if (!active) return;
+    const attemptKey = `analysis-retry:${active.id}`;
+    const attempt = logicalAttempts.acquire(attemptKey, () => ({}));
     setBusy(true); setError(null);
     try {
-      const session = await retryPracticeAnalysis(active.id);
+      const session = await retryPracticeAnalysis(active.id, attempt.requestId);
+      logicalAttempts.settle(attemptKey, attempt.requestId);
       setActive(session);
       if (session.status === "INTERVIEW" && !session.currentRun) {
         await operation("start", session);
       }
     } catch (reason) {
-      await recoverPersistedSession(active.id, reason);
+      const recovered = await recoverPersistedSession(active.id, reason);
+      if (
+        (recovered != null && recovered.take.analysisStatus !== "failed") ||
+        isDefinitiveMutationFailure(reason)
+      ) {
+        logicalAttempts.settle(attemptKey, attempt.requestId);
+      }
       setError(errorMessage(reason));
     } finally { setBusy(false); }
   }
 
   async function report() {
     if (!active) return;
+    const attemptKey = `report:${active.id}`;
+    const attempt = logicalAttempts.acquire(attemptKey, () => ({}));
     setBusy(true); setError(null);
     try {
-      await createPracticeReport(active.id);
+      await createPracticeReport(active.id, attempt.requestId);
       const { session } = await getPracticeSession(active.id);
       if (session.legacy) throw new Error("완료된 연습 리포트를 불러오지 못했어요.");
+      logicalAttempts.settle(attemptKey, attempt.requestId);
       setActive(session);
     } catch (reason) {
-      await recoverPersistedSession(active.id, reason);
+      const recovered = await recoverPersistedSession(active.id, reason);
+      if (recovered?.status === "END" || isDefinitiveMutationFailure(reason)) {
+        logicalAttempts.settle(attemptKey, attempt.requestId);
+      }
       setError(errorMessage(reason));
     } finally { setBusy(false); }
   }
 
-  async function recoverPersistedSession(sessionId: string, reason: unknown) {
-    if (!(reason instanceof ApiClientError) || ![
-      "acting_session_expired",
-      "upstream_outcome_unknown",
-      "report_outcome_unknown",
-      "acting_api_auth_failed",
-      "acting_api_rate_limited",
-      "acting_api_rejected",
-      "analysis_outcome_unknown",
-      "video_too_large",
-    ].includes(reason.code)) return;
-
-    if (["acting_session_expired", "upstream_outcome_unknown"].includes(reason.code)) {
+  async function recoverPersistedSession(
+    sessionId: string,
+    reason: unknown,
+  ): Promise<ActingCoachSessionDto | null> {
+    if (reason instanceof ApiClientError && ["acting_session_expired", "upstream_outcome_unknown"].includes(reason.code)) {
       setRestartRequired(true);
     }
-    try {
-      const { session: persisted } = await getPracticeSession(sessionId);
-      if (!persisted.legacy) {
+    let reconciled: ActingCoachSessionDto | null = null;
+    await reconcilePersistedMutation(
+      sessionId,
+      reason,
+      async (id) => (await getPracticeSession(id)).session,
+      (persisted) => {
+        if (persisted.legacy) return;
+        reconciled = persisted;
         setActive(persisted);
         setRestartRequired(persisted.currentRun?.recoveryAction === "restart");
-      }
-    } catch {
-      // Preserve the original operation error when recovery refresh is unavailable.
-    }
+      },
+    );
+    return reconciled;
   }
 
   if (!ready || !authSession) {

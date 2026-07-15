@@ -38,7 +38,7 @@ test("completed report exposes the session review survey as a safe external link
 test("persisted recovery refreshes expired and ambiguous operations", () => {
   assert.match(source, /acting_session_expired/);
   assert.match(source, /upstream_outcome_unknown/);
-  assert.match(source, /report_outcome_unknown/);
-  assert.match(source, /await getPracticeSession\(sessionId\)/);
+  assert.match(source, /reconcilePersistedMutation/);
+  assert.match(source, /await getPracticeSession\(id\)/);
   assert.match(source, /setRestartRequired\(persisted\.currentRun\?\.recoveryAction === "restart"\)/);
 });

@@ -543,10 +543,38 @@ export const supabaseCoachSessionRepository = {
     return configuredForSupabasePersistence();
   },
 
-  async createUploadIntent(uploadIntent: PracticeUploadIntentDto): Promise<void> {
-    if (!configuredForSupabasePersistence()) return;
+  async createUploadIntent(
+    uploadIntent: PracticeUploadIntentDto,
+    identity?: { requestId: string; requestFingerprint: string },
+  ): Promise<PracticeUploadIntentDto> {
+    if (!configuredForSupabasePersistence()) return uploadIntent;
 
     const admin = requireSupabaseAdminClient();
+    if (identity) {
+      const { data, error } = await admin.rpc("acttub_create_upload_intent", {
+        p_user_id: uploadIntent.userId,
+        p_request_id: identity.requestId,
+        p_request_fingerprint: identity.requestFingerprint,
+        p_upload_intent_id: uploadIntent.uploadIntentId,
+        p_session_id: uploadIntent.sessionId,
+        p_storage_bucket: uploadIntent.storageBucket,
+        p_storage_path: uploadIntent.storagePath,
+        p_mime_type: uploadIntent.fileMetadata.mimeType,
+        p_size_bytes: uploadIntent.fileMetadata.sizeBytes,
+        p_expires_at: uploadIntent.expiresAt,
+      });
+      assertNoPersistenceError(error, "uploadIntentId", "Could not claim Supabase upload intent");
+      const row = asRecord(Array.isArray(data) ? data[0] : data);
+      const replayed = mapUploadIntent(row).intent;
+      return {
+        ...replayed,
+        fileMetadata: {
+          ...replayed.fileMetadata,
+          fileName: uploadIntent.fileMetadata.fileName,
+        },
+      };
+    }
+
     const { error } = await admin
       .from("upload_intents")
       .insert({
@@ -568,6 +596,7 @@ export const supabaseCoachSessionRepository = {
       "uploadIntentId",
       "Could not persist Supabase upload intent",
     );
+    return uploadIntent;
   },
 
   async findUploadIntent(
@@ -696,6 +725,7 @@ export const supabaseCoachSessionRepository = {
     sessionId: string; userId: string; runId: string; requestId: string;
     requestFingerprint: string; operationId: string; actorTurnId: string; actorText: string;
     retryActorTurnId?: string | null; leaseToken: string; leaseSeconds: number;
+    expectedAiTurnId?: string | null;
   }): Promise<ActingRpcResult> {
     return await normalizeClaim(await callActingRpc("acttub_claim_coach_reply", {
       p_session_id: input.sessionId, p_user_id: input.userId, p_run_id: input.runId,
@@ -703,6 +733,7 @@ export const supabaseCoachSessionRepository = {
       p_operation_id: input.operationId, p_actor_turn_id: input.actorTurnId,
       p_actor_text: input.actorText, p_retry_actor_turn_id: input.retryActorTurnId ?? null,
       p_lease_token: input.leaseToken, p_lease_seconds: input.leaseSeconds,
+      p_expected_ai_turn_id: input.expectedAiTurnId ?? null,
     }), input);
   },
 

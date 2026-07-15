@@ -17,6 +17,7 @@ import type {
   SignedVideoUrlResponse,
   TakeDto,
 } from "@/lib/api/types";
+import { createHash } from "node:crypto";
 import { getAppConfig } from "@/lib/config/env";
 import {
   MAX_DIALOGUE_ANSWER_COUNT,
@@ -49,6 +50,16 @@ export class ApiConfigurationError extends Error {
   ) {
     super(message);
     this.name = "ApiConfigurationError";
+  }
+}
+
+export class ApiConflictError extends Error {
+  constructor(
+    readonly code: string,
+    message: string,
+  ) {
+    super(message);
+    this.name = "ApiConflictError";
   }
 }
 
@@ -96,6 +107,7 @@ const optionalText = (value: unknown): string => {
 };
 
 const createUuid = (): string => crypto.randomUUID();
+const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
 
 const nowIso = (): string => new Date().toISOString();
 
@@ -445,6 +457,16 @@ export const coachSessionService = {
       });
     }
 
+    const requestId = input.requestId;
+    if (requestId !== undefined && (typeof requestId !== "string" || !uuidPattern.test(requestId))) {
+      throw new ApiValidationError("Request validation failed", {
+        requestId: "Must be a UUID when provided.",
+      });
+    }
+
+    const requestFingerprint = createHash("sha256")
+      .update(JSON.stringify([fileName, mimeType, sizeBytes]))
+      .digest("hex");
     const sessionId = createUuid();
     const uploadIntentId = createUuid();
     const extension = fileExtensionForMime(mimeType);
@@ -474,11 +496,21 @@ export const coachSessionService = {
       expiresAt: new Date(Date.now() + uploadIntentTtlMs).toISOString(),
     };
 
-    await requireSupabasePersistence(() =>
-      supabaseCoachSessionRepository.createUploadIntent(uploadIntent),
-    );
-
-    return uploadIntent;
+    try {
+      return await requireSupabasePersistence(() =>
+        supabaseCoachSessionRepository.createUploadIntent(uploadIntent, requestId
+          ? { requestId, requestFingerprint }
+          : undefined),
+      );
+    } catch (error) {
+      if (
+        error instanceof SupabaseCoachSessionPersistenceError &&
+        error.message.includes("request_id_conflict")
+      ) {
+        throw new ApiConflictError("request_id_conflict", "requestId was already used.");
+      }
+      throw error;
+    }
   },
 
   async listSessions(userId: string): Promise<{ sessions: PublicCoachSessionDto[] }> {
