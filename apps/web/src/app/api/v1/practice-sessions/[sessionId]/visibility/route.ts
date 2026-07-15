@@ -1,6 +1,7 @@
 import { coachSessionService } from "@/server/services/coach-session-service";
 import { requireApiTermsAccepted } from "@/server/services/auth-context";
 import { handleApiError, jsonError, jsonResponse } from "../../../http";
+import { readBoundedJson } from "@/server/http/bounded-json";
 
 type RouteContext = { params: Promise<{ sessionId: string }> };
 
@@ -8,7 +9,7 @@ export async function PATCH(request: Request, context: RouteContext) {
   try {
     const auth = await requireApiTermsAccepted();
     const { sessionId } = await context.params;
-    const body = (await request.json()) as {
+    const body = (await readBoundedJson(request)) as {
       hidden?: unknown;
     };
 

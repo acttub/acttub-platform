@@ -23,6 +23,10 @@ import {
   type ActingRpcResult,
 } from "@/server/repositories/supabase-coach-session-repository";
 import { coachSessionService } from "@/server/services/coach-session-service";
+import {
+  validateReplyText,
+  validateSceneContext,
+} from "@/lib/practice/input-limits";
 
 type OperationPhase = "analysis" | "coach" | "report";
 type OutcomeCode =
@@ -167,13 +171,6 @@ export const normalizeContext = (value: unknown, field: string): string => {
     throw validationError(`${field} is required.`);
   }
   return value.trim().replace(/\s+/gu, " ");
-};
-
-const normalizeReply = (value: unknown): string => {
-  if (typeof value !== "string" || !value.trim()) {
-    throw validationError("text is required.");
-  }
-  return value.trim();
 };
 
 const requireActingConfig = (): void => {
@@ -619,9 +616,7 @@ export const actingCoachService = {
       "genre",
     ]) as CreateActingSessionRequest;
     const uploadIntentId = uuid(input.uploadIntentId, "uploadIntentId");
-    const situation = normalizeContext(input.situation, "situation");
-    const characterContext = normalizeContext(input.characterContext, "characterContext");
-    const subtext = normalizeContext(input.subtext, "subtext");
+    const { situation, characterContext, subtext } = validateSceneContext(input);
     const intent = await repository.findUploadIntent(uploadIntentId, userId);
     if (!intent || intent.status !== "finalized") {
       throw new ActingServiceError(
@@ -800,7 +795,7 @@ export const actingCoachService = {
       { operation: "reply" | "retry_reply" }
     >;
     const runId = uuid(input.runId, "runId");
-    const text = input.operation === "reply" ? normalizeReply(input.text) : undefined;
+    const text = input.operation === "reply" ? validateReplyText(input.text) : undefined;
     const actorTurnId =
       input.operation === "retry_reply"
         ? uuid(input.actorTurnId, "actorTurnId")

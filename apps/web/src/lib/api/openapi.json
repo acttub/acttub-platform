@@ -175,6 +175,9 @@
           },
           "503": {
             "$ref": "#/components/responses/ConfigurationError"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
           }
         }
       }
@@ -228,6 +231,9 @@
           },
           "503": {
             "$ref": "#/components/responses/ConfigurationError"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
           }
         }
       }
@@ -356,14 +362,7 @@
             }
           },
           "413": {
-            "description": "안전한 오류 응답입니다.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
+            "$ref": "#/components/responses/PayloadTooLarge"
           },
           "429": {
             "description": "안전한 오류 응답입니다.",
@@ -583,14 +582,7 @@
             }
           },
           "413": {
-            "description": "안전한 오류 응답입니다.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
+            "$ref": "#/components/responses/PayloadTooLarge"
           },
           "429": {
             "description": "안전한 오류 응답입니다.",
@@ -687,6 +679,9 @@
           },
           "503": {
             "$ref": "#/components/responses/ConfigurationError"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
           }
         }
       }
@@ -871,14 +866,7 @@
             }
           },
           "413": {
-            "description": "안전한 오류 응답입니다.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
+            "$ref": "#/components/responses/PayloadTooLarge"
           },
           "429": {
             "description": "안전한 오류 응답입니다.",
@@ -1145,14 +1133,7 @@
             }
           },
           "413": {
-            "description": "안전한 오류 응답입니다.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
+            "$ref": "#/components/responses/PayloadTooLarge"
           },
           "429": {
             "description": "안전한 오류 응답입니다.",
@@ -1249,6 +1230,9 @@
           },
           "503": {
             "$ref": "#/components/responses/ConfigurationError"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
           }
         },
         "deprecated": true
@@ -1309,6 +1293,9 @@
           },
           "503": {
             "$ref": "#/components/responses/ConfigurationError"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
           }
         },
         "deprecated": true
@@ -1372,6 +1359,9 @@
           },
           "503": {
             "$ref": "#/components/responses/ConfigurationError"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
           }
         },
         "deprecated": true
@@ -1425,6 +1415,9 @@
           },
           "503": {
             "$ref": "#/components/responses/ConfigurationError"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
           }
         }
       }
@@ -1532,6 +1525,9 @@
           },
           "503": {
             "$ref": "#/components/responses/ConfigurationError"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
           }
         }
       }
@@ -1592,6 +1588,9 @@
           },
           "503": {
             "$ref": "#/components/responses/ConfigurationError"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
           }
         }
       }
@@ -1652,6 +1651,9 @@
           },
           "503": {
             "$ref": "#/components/responses/ConfigurationError"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
           }
         }
       }
@@ -1712,6 +1714,9 @@
           },
           "503": {
             "$ref": "#/components/responses/ConfigurationError"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
           }
         }
       }
@@ -2367,15 +2372,18 @@
           },
           "situation": {
             "type": "string",
-            "minLength": 1
+            "minLength": 1,
+            "maxLength": 2000
           },
           "characterContext": {
             "type": "string",
-            "minLength": 1
+            "minLength": 1,
+            "maxLength": 2000
           },
           "subtext": {
             "type": "string",
-            "minLength": 1
+            "minLength": 1,
+            "maxLength": 2000
           }
         }
       },
@@ -3298,7 +3306,8 @@
           },
           "text": {
             "type": "string",
-            "minLength": 1
+            "minLength": 1,
+            "maxLength": 2000
           }
         }
       },
@@ -3423,6 +3432,16 @@
       },
       "InternalError": {
         "description": "예상하지 못한 서버 오류가 발생했습니다.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ApiError"
+            }
+          }
+        }
+      },
+      "PayloadTooLarge": {
+        "description": "실제 스트리밍 JSON 요청 본문이 64 KiB를 초과했습니다.",
         "content": {
           "application/json": {
             "schema": {

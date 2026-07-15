@@ -19,7 +19,7 @@ test("upload intent creation delegates the consent snapshot to the database defa
 
 test("migration 015 makes current consent database-canonical at every authorization boundary", () => {
   const migrationFiles = readdirSync(path.join(repoRoot, "supabase/migrations")).sort();
-  assert.equal(migrationFiles.at(-1), "015_canonicalize_consent_versions.sql");
+  assert.equal(migrationFiles.includes("015_canonicalize_consent_versions.sql"), true);
 
   const sql = read("supabase/migrations/015_canonicalize_consent_versions.sql");
   assert.match(

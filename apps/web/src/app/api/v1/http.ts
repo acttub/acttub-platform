@@ -8,6 +8,8 @@ import {
 } from "@/server/services/coach-session-service";
 import { ApiAuthError } from "@/server/services/auth-context";
 import { ActingServiceError } from "@/server/services/acting-coach-service";
+import { PracticeInputValidationError } from "@/lib/practice/input-limits";
+import { BoundedJsonError } from "@/server/http/bounded-json";
 
 export const jsonResponse = <T>(
   body: T,
@@ -43,6 +45,14 @@ export const handleApiError = (
 ): NextResponse<ApiErrorResponse> => {
   if (error instanceof SyntaxError) {
     return jsonError(400, "invalid_json", "Request body must be valid JSON.");
+  }
+
+  if (error instanceof BoundedJsonError) {
+    return jsonError(error.status, error.code, error.message);
+  }
+
+  if (error instanceof PracticeInputValidationError) {
+    return jsonError(error.status, error.code, error.message, error.details);
   }
 
   if (error instanceof ApiAuthError) {

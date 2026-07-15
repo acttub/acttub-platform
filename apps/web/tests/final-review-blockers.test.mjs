@@ -122,8 +122,8 @@ test("visibility PATCH requires valid JSON while POST hide remains bodyless", ()
   const visibilityRoute = readWeb("src/app/api/v1/practice-sessions/[sessionId]/visibility/route.ts");
   const hideRoute = readWeb("src/app/api/v1/practice-sessions/[sessionId]/hide/route.ts");
 
-  assert.match(visibilityRoute, /await request\.json\(\)/);
-  assert.doesNotMatch(visibilityRoute, /request\.json\(\)\.catch/);
+  assert.match(visibilityRoute, /await readBoundedJson\(request\)/);
+  assert.doesNotMatch(visibilityRoute, /request\.json\(\)/);
   assert.doesNotMatch(visibilityRoute, /\{\s*hidden:\s*true\s*\}/);
   assert.match(visibilityRoute, /body\.hidden !== true/);
   assert.match(visibilityRoute, /handleApiError\(error\)/);

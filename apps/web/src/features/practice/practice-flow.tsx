@@ -16,6 +16,12 @@ import {
 } from "@/lib/api/sessions";
 import type { ActingCoachSessionDto, ActingReportDto } from "@/lib/api/types";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import {
+  countUnicodeCodePoints,
+  PRACTICE_INPUT_LIMITS,
+  validateReplyText,
+  validateSceneContext,
+} from "@/lib/practice/input-limits";
 
 const MAX_UPLOAD_BYTES = 576_716_800;
 const MAX_DURATION_MS = 180_000;
@@ -159,6 +165,13 @@ export function PracticeFlow({ entry = "new" }: { entry?: Entry }) {
     }
     if (file.size <= 0 || file.size > MAX_UPLOAD_BYTES) { setError("영상은 550MB 이하여야 해요."); return; }
     if (file.type !== "video/mp4" && file.type !== "video/quicktime") { setError("MP4 또는 MOV 영상만 업로드할 수 있어요."); return; }
+    let sceneContext: ReturnType<typeof validateSceneContext>;
+    try {
+      sceneContext = validateSceneContext({ situation, characterContext, subtext });
+    } catch (reason) {
+      setError(errorMessage(reason));
+      return;
+    }
     setBusy(true); setError(null);
     let persistedSessionId: string | null = null;
     try {
@@ -176,7 +189,7 @@ export function PracticeFlow({ entry = "new" }: { entry?: Entry }) {
       await finalizePracticeUploadIntent(uploadIntent.uploadIntentId, { storagePath: uploadIntent.storagePath, durationMs });
       const session = await createPracticeSession({
         requestId: crypto.randomUUID(), uploadIntentId: uploadIntent.uploadIntentId,
-        situation: situation.trim(), characterContext: characterContext.trim(), subtext: subtext.trim(),
+        ...sceneContext,
       });
       setActive(session); setHistory((items) => [session, ...items.filter((item) => item.id !== session.id)]);
       if (session.status === "INTERVIEW" && !session.currentRun) {
@@ -201,8 +214,14 @@ export function PracticeFlow({ entry = "new" }: { entry?: Entry }) {
   }
 
   async function reply() {
-    const text = answer.trim();
-    if (!active?.currentRun || !text) return;
+    if (!active?.currentRun || !answer.trim()) return;
+    let text: string;
+    try {
+      text = validateReplyText(answer);
+    } catch (reason) {
+      setError(errorMessage(reason));
+      return;
+    }
     setPendingAnswer(text);
     setBusy(true); setError(null);
     try {
@@ -365,14 +384,23 @@ export function PracticeFlow({ entry = "new" }: { entry?: Entry }) {
 }
 
 function TextField({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
+  const codePoints = countUnicodeCodePoints(value);
   return (
     <label className="grid gap-3 text-base font-black text-[#333d4b]">
       <span className="flex items-center gap-2">{label} <RequiredBadge /></span>
       <textarea
         className="min-h-28 rounded-2xl border border-[#d1d6db] bg-white p-4 text-sm font-semibold leading-6 text-[#191f28] outline-none transition placeholder:text-[#b0b8c1] focus:border-[#3182f6]"
         value={value}
-        onChange={(event) => onChange(event.target.value)}
+        maxLength={PRACTICE_INPUT_LIMITS.sceneFieldCodePoints * 2}
+        onChange={(event) => {
+          if (countUnicodeCodePoints(event.target.value) <= PRACTICE_INPUT_LIMITS.sceneFieldCodePoints) {
+            onChange(event.target.value);
+          }
+        }}
       />
+      <span className="text-right text-xs font-bold text-[#8b95a1]">
+        {codePoints.toLocaleString()} / {PRACTICE_INPUT_LIMITS.sceneFieldCodePoints.toLocaleString()}
+      </span>
     </label>
   );
 }
@@ -650,8 +678,14 @@ function SceneContextForm({
   onCharacterContextChange: (value: string) => void;
   onSubtextChange: (value: string) => void;
 }) {
+  const aggregateCodePoints = [situation, characterContext, subtext]
+    .reduce((total, value) => total + countUnicodeCodePoints(value), 0);
+  const aggregateLimit = PRACTICE_INPUT_LIMITS.sceneAggregateCodePoints;
   return (
     <section className="mt-6 grid gap-6 rounded-[24px] border border-[#e5e8eb] bg-white p-5 shadow-sm sm:p-7">
+      <p className={`text-right text-xs font-bold ${aggregateCodePoints > aggregateLimit ? "text-red-600" : "text-[#8b95a1]"}`}>
+        전체 {aggregateCodePoints.toLocaleString()} / {aggregateLimit.toLocaleString()}
+      </p>
       <TextField label="상황" value={situation} onChange={onSituationChange} />
       <TextField label="인물 정보" value={characterContext} onChange={onCharacterContextChange} />
       <TextField label="서브텍스트" value={subtext} onChange={onSubtextChange} />
@@ -1080,9 +1114,14 @@ function SessionView({
                         rows={3}
                         className="min-h-24 flex-1 resize-y rounded-2xl border border-[#d1d6db] bg-white p-4 text-[15px] font-semibold leading-6 outline-none transition placeholder:text-[#b0b8c1] focus:border-[#3182f6] focus:ring-4 focus:ring-[#e8f3ff] disabled:bg-[#f2f4f6]"
                         value={answer}
+                        maxLength={PRACTICE_INPUT_LIMITS.replyCodePoints * 2}
                         disabled={busy}
                         placeholder="질문을 듣고 떠오른 생각을 편하게 적어 주세요."
-                        onChange={(event) => setAnswer(event.target.value)}
+                        onChange={(event) => {
+                          if (countUnicodeCodePoints(event.target.value) <= PRACTICE_INPUT_LIMITS.replyCodePoints) {
+                            setAnswer(event.target.value);
+                          }
+                        }}
                         onKeyDown={(event) => {
                           if (
                             event.key === "Enter" &&
@@ -1095,6 +1134,9 @@ function SessionView({
                           }
                         }}
                       />
+                      <span className="text-right text-xs font-bold text-[#8b95a1] sm:self-center">
+                        {countUnicodeCodePoints(answer).toLocaleString()} / {PRACTICE_INPUT_LIMITS.replyCodePoints.toLocaleString()}
+                      </span>
                       <button type="button" className="min-h-12 shrink-0 rounded-2xl bg-[#2f6bff] px-6 py-3 text-sm font-black text-white transition hover:bg-[#1b64da] disabled:bg-[#b0d2ff]" disabled={busy || !answer.trim()} onClick={onReply}>
                         {busy ? "보내는 중…" : "답변 보내기"}
                       </button>

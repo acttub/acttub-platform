@@ -1,6 +1,7 @@
 import { requireApiTermsAccepted } from "@/server/services/auth-context";
 import { coachSessionService } from "@/server/services/coach-session-service";
 import { handleApiError, jsonError, jsonResponse } from "../../../http";
+import { readBoundedJson } from "@/server/http/bounded-json";
 
 type RouteContext = { params: Promise<{ sessionId: string }> };
 
@@ -8,7 +9,7 @@ export async function POST(request: Request, context: RouteContext) {
   try {
     const auth = await requireApiTermsAccepted();
     const { sessionId } = await context.params;
-    const payload = await request.json();
+    const payload = await readBoundedJson(request);
     const result = await coachSessionService.createTurn(sessionId, auth.userId, payload);
 
     if (!result) return jsonError(404, "session_not_found", "Session was not found.");
