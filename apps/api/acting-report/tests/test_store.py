@@ -1,30 +1,34 @@
-from acting_report.store import FileReportStore
-from support import PREV_RECORD
+from acting_report.store import InMemoryReportStore
+from report_test_support import REPORT, SECOND_SESSION, SESSION
 
 
-def test_empty_store(tmp_path):
-    store = FileReportStore(tmp_path / "reports.json")
-    assert store.list("u1") == []
-    assert store.latest("u1") is None
+def test_context_lookup():
+    store = InMemoryReportStore()
+    store.seed_context("u1", SESSION)
+    assert store.get_report_context(SESSION.session_id) == ("u1", SESSION)
+    assert store.get_report_context(SECOND_SESSION.session_id) is None
 
 
-def test_add_and_list_per_user(tmp_path):
-    store = FileReportStore(tmp_path / "reports.json")
-    store.add("u1", PREV_RECORD)
-    assert len(store.list("u1")) == 1
-    assert store.list("u2") == []
+def test_add_list_and_count_per_user():
+    store = InMemoryReportStore()
+    store.seed_context("u1", SESSION)
+    assert store.add_report(SESSION.session_id, REPORT) is True
+    assert store.count_reports("u1") == 1
+    assert store.count_reports("u2") == 0
+    record = store.list_reports("u1")[0]
+    assert record.session_id == SESSION.session_id
+    assert record.turns == SESSION.turns
 
 
-def test_persists_across_instances(tmp_path):
-    path = tmp_path / "reports.json"
-    FileReportStore(path).add("u1", PREV_RECORD)
-    reopened = FileReportStore(path)
-    assert reopened.latest("u1").session_id == "sid0"
+def test_duplicate_session_report_rejected():
+    store = InMemoryReportStore()
+    store.seed_context("u1", SESSION)
+    assert store.add_report(SESSION.session_id, REPORT) is True
+    assert store.has_report(SESSION.session_id) is True
+    assert store.add_report(SESSION.session_id, REPORT) is False
+    assert store.count_reports("u1") == 1
 
 
-def test_latest_is_last_added(tmp_path):
-    store = FileReportStore(tmp_path / "reports.json")
-    store.add("u1", PREV_RECORD)
-    second = PREV_RECORD.model_copy(update={"session_id": "sid1"})
-    store.add("u1", second)
-    assert store.latest("u1").session_id == "sid1"
+def test_add_requires_seeded_context():
+    store = InMemoryReportStore()
+    assert store.add_report(SESSION.session_id, REPORT) is False

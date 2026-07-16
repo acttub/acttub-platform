@@ -6,6 +6,10 @@ from acting_report.summary_schema import (
     SceneSummary,
 )
 
+SESSION_ID = "00000000-0000-4000-8000-000000000001"
+SECOND_SESSION_ID = "00000000-0000-4000-8000-000000000002"
+PREVIOUS_SESSION_ID = "00000000-0000-4000-8000-000000000000"
+
 OBS = Observation(
     timeline="t",
     dialogue="d",
@@ -48,7 +52,7 @@ SUMMARY = SceneSummary(
 )
 
 SESSION = CoachSession(
-    session_id="sid1",
+    session_id=SESSION_ID,
     summary=SUMMARY,
     turns=[
         CoachTurn(role="ai", text="[00:12] 1.2초 멈춤 — 의도한 거야?"),
@@ -60,6 +64,7 @@ SESSION = CoachSession(
     status="closed",
     close_reason="gap_stated",
 )
+SECOND_SESSION = SESSION.model_copy(update={"session_id": SECOND_SESSION_ID})
 
 REPORT = ActingReport(
     headline="오늘은 멈춤의 이유를 스스로 찾아냈어",
@@ -78,7 +83,7 @@ REPORT = ActingReport(
 
 PREV_RECORD = ReportRecord(
     created_at="2026-07-01T00:00:00+00:00",
-    session_id="sid0",
+    session_id=PREVIOUS_SESSION_ID,
     report=REPORT.model_copy(
         update={
             "biggest_problem": BiggestProblem(

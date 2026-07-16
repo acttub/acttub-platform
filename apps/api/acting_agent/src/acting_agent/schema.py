@@ -8,6 +8,8 @@ from acting_agent.summary_schema import SceneSummary, SubText
 class CoachTurn(BaseModel):
     role: Literal["ai", "actor"]
     text: str
+    action: Optional[Literal["probe_intent", "dig_cause", "deflect", "close"]] = None
+    focus_timestamp: str = ""
 
 
 class CoachReply(BaseModel):
@@ -21,6 +23,7 @@ class CoachReply(BaseModel):
 
 class CoachSession(BaseModel):
     session_id: str
+    summary_id: str
     summary: SceneSummary
     subtext: Optional[SubText] = None
     turns: list[CoachTurn] = Field(default_factory=list)

@@ -3,7 +3,12 @@ from acting_agent.summary_schema import (
     Observation,
     SceneSummary,
     SegmentCheck,
+    SubText,
 )
+
+SUMMARY_ID = "12345678-1234-4234-9234-123456789abc"
+SESSION_ID = "87654321-4321-4321-8321-cba987654321"
+SUBTEXT = SubText(situation="상황", character="인물", subtext="속내")
 
 OBS = Observation(
     timeline="t",

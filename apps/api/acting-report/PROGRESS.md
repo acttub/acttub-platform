@@ -1,13 +1,13 @@
 # 진행 상황 (acting-report)
 
 > 한 줄: 3층. 코치 대화(CoachSession)+요약을 받아 **가장 큰 문제 하나만** 사용자 친화 리포트.
-> 리포트는 user_id별 파일 저장 → 다음 영상 때 "저번엔 이랬는데" 비교(comparison).
+> 리포트 저장소는 게이트웨이가 주입하며, user_id별 이전 기록으로 comparison을 만든다.
 
 ## DONE (2026-07-05)
 - 스캐폴딩: config(.env는 ../video-feedback/.env 재사용) / summary_schema·session_schema(사본) / schema / prompt / engine / store / FastAPI app
 - 출력 스키마 `ActingReport`: headline · biggest_problem(구간+축+쉬운말) · evidence(관찰+배우 발언 인용) · self_discovery · encouragement · **next_step(다음에 뭘 할지 1개)** · **comparison(이전 리포트 대비 변화, 없으면 "")**
-- 저장: `FileReportStore` — `data/reports.json` (env `REPORT_STORE_PATH` override), user_id별 히스토리, 재시작에도 유지
-- API: `POST /report` (user_id+session → 리포트 생성+저장, 이전 리포트 자동 주입), `GET /report/history/{user_id}`, `GET /health`
+- 저장: 게이트웨이가 주입하는 store — 세션에서 user_id·요약·대화를 로드하고 user_id별 히스토리 조회
+- API: `POST /report` (session_id → 리포트 생성+저장, 이전 리포트 자동 주입), `GET /report/history/{user_id}`, `GET /health`
 - 테스트 17 passed, 전부 mock (실제 API 호출 0)
 
 ## DONE (2026-07-05, 추가)

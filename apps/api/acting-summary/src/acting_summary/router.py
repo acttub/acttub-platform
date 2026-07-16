@@ -9,6 +9,7 @@ from acting_summary import compress as compress_mod
 from acting_summary import summarizer as summarizer_mod
 from acting_summary.config import Settings
 from acting_summary.schema import SubText
+from acting_summary.store import SummaryStore
 
 # 업로드 상한. 스트리밍 수신이라 메모리와 무관 — 앱 제한(500MB)보다 여유를 둔다.
 MAX_UPLOAD_MB = 550
@@ -23,12 +24,13 @@ def _too_large() -> HTTPException:
     )
 
 
-def build_router(*, client, settings: Settings) -> APIRouter:
+def build_router(*, client, settings: Settings, store: SummaryStore) -> APIRouter:
     router = APIRouter(tags=["summary"])
 
     @router.post("/summarize")
     async def summarize_endpoint(
         request: Request,
+        user_id: str = Form(...),
         situation: str = Form(...),
         character: str = Form(...),
         subtext: str = Form(...),
@@ -39,7 +41,8 @@ def build_router(*, client, settings: Settings) -> APIRouter:
             if int(content_length) > MAX_UPLOAD_BYTES + _CHUNK_BYTES:
                 raise _too_large()
         subtext_obj = SubText(situation=situation, character=character, subtext=subtext)
-        suffix = Path(video.filename or "video.mp4").suffix or ".mp4"
+        video_filename = video.filename
+        suffix = Path(video_filename or "video.mp4").suffix or ".mp4"
         tmp = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
         send_path = tmp.name
         try:
@@ -51,13 +54,24 @@ def build_router(*, client, settings: Settings) -> APIRouter:
                     raise _too_large()
                 tmp.write(chunk)
             tmp.close()
+
             # 동기 압축·Gemini 파이프라인을 워커 스레드로 — 이벤트 루프 블로킹 방지
             def _compress_and_summarize():
                 nonlocal send_path
                 send_path = compress_mod.compress_for_gemini(tmp.name)
-                return summarizer_mod.summarize(
+                summary = summarizer_mod.summarize(
                     send_path, subtext_obj, client=client, model=settings.model
                 )
+                summary_id = store.create_summary(
+                    user_id=user_id,
+                    subtext=subtext_obj,
+                    summary=summary,
+                    video_filename=video_filename,
+                    video_size_bytes=received,
+                    was_compressed=send_path != tmp.name,
+                    model=settings.model,
+                )
+                return {**summary.model_dump(mode="json"), "summary_id": summary_id}
 
             return await run_in_threadpool(_compress_and_summarize)
         except summarizer_mod.FileActiveTimeout as exc:

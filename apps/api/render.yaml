@@ -3,16 +3,13 @@ services:
     name: acting-api
     runtime: python
     plan: free
-    rootDir: acting-api
-    buildCommand: pip install uv && uv sync --frozen --no-dev
-    startCommand: uv run --no-sync uvicorn acting_api.app:create_app --factory --host 0.0.0.0 --port $PORT
+    buildCommand: pip install uv && uv sync --frozen --no-dev --package acting-api
+    startCommand: uv run --frozen --no-sync --package acting-api alembic -c acting-api/alembic.ini upgrade head && uv run --frozen --no-sync --package acting-api uvicorn acting_api.app:create_app --factory --host 0.0.0.0 --port $PORT
     healthCheckPath: /health
     envVars:
-      - key: API_KEYS
+      - key: DATABASE_URL
         sync: false
       - key: GEMINI_API_KEY
         sync: false
-      - key: RATE_LIMIT_PER_MIN
-        value: "10"
       - key: KEEP_ALIVE_URL
         value: "https://acting-api.onrender.com"

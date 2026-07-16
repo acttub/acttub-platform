@@ -1,11 +1,12 @@
 from acting_agent import engine
 from acting_agent.schema import CoachReply, CoachSession, CoachTurn
-from support import SUMMARY, FakeClient, RaisingClient, _Resp
+from agent_test_support import SUMMARY, SUMMARY_ID, FakeClient, RaisingClient, _Resp
 
 
 def _open_session():
     return CoachSession(
         session_id="x",
+        summary_id=SUMMARY_ID,
         summary=SUMMARY,
         question_count=1,
         turns=[CoachTurn(role="ai", text="첫 질문")],
@@ -13,14 +14,22 @@ def _open_session():
 
 
 def test_reply_digs_cause():
-    reply = CoachReply(action="dig_cause", utterance="그럼 그 직전엔 무슨 생각이었어?")
+    reply = CoachReply(
+        action="dig_cause",
+        utterance="그럼 그 직전엔 무슨 생각이었어?",
+        focus_timestamp="00:12",
+    )
+    session = _open_session()
     out = engine.reply(
-        _open_session(),
+        session,
         "긴장했어요",
         client=FakeClient([_Resp(parsed=reply)]),
         model="m",
     )
     assert out.action == "dig_cause" and out.done is False
+    assert session.turns[-2].role == "actor" and session.turns[-2].action is None
+    assert session.turns[-1].action == "dig_cause"
+    assert session.turns[-1].focus_timestamp == "00:12"
 
 
 def test_reply_gap_stated_closes():
@@ -35,6 +44,7 @@ def test_reply_gap_stated_closes():
         model="m",
     )
     assert out.reason == "gap_stated" and s.status == "closed"
+    assert s.turns[-1].action == "close"
 
 
 def test_reply_exhausted_closes():

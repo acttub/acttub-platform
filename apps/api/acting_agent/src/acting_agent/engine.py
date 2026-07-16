@@ -49,21 +49,39 @@ def _generate(session, actor_text, *, client, model) -> CoachReply:
     raise CoachParseError(f"failed to parse after retry: {last_err}")
 
 
-def start(session_id, summary, subtext=None, *, client, model, store=None):
-    session = CoachSession(session_id=session_id, summary=summary, subtext=subtext)
+def start(session_id, summary, subtext=None, *, summary_id, client, model):
+    session = CoachSession(
+        session_id=session_id,
+        summary_id=summary_id,
+        summary=summary,
+        subtext=subtext,
+    )
     reply = _generate(session, None, client=client, model=model)
-    session.turns.append(CoachTurn(role="ai", text=reply.utterance))
-    session.question_count += 1
+    session.turns.append(
+        CoachTurn(
+            role="ai",
+            text=reply.utterance,
+            action=reply.action,
+            focus_timestamp=reply.focus_timestamp,
+        )
+    )
+    if reply.action != "close":
+        session.question_count += 1
     if reply.done:
         session.status = "closed"
         session.close_reason = reply.reason or ""
-    if store is not None:
-        store.create(session)
     return session, reply
 
 
 def _close(session, reply):
-    session.turns.append(CoachTurn(role="ai", text=reply.utterance))
+    session.turns.append(
+        CoachTurn(
+            role="ai",
+            text=reply.utterance,
+            action=reply.action,
+            focus_timestamp=reply.focus_timestamp,
+        )
+    )
     session.status = "closed"
     session.close_reason = reply.reason or ""
 
@@ -102,10 +120,17 @@ def reply(
         return r
 
     out = _generate(session, actor_text, client=client, model=model)
-    session.turns.append(CoachTurn(role="ai", text=out.utterance))
+    session.turns.append(
+        CoachTurn(
+            role="ai",
+            text=out.utterance,
+            action=out.action,
+            focus_timestamp=out.focus_timestamp,
+        )
+    )
     if out.action != "close":
         session.question_count += 1
     if out.done:
         session.status = "closed"
-        session.close_reason = out.reason
+        session.close_reason = out.reason or ""
     return out

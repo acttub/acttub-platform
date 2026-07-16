@@ -15,10 +15,19 @@
 | 상태 코드 | 의미 | 응답 본문 |
 |---|---|---|
 | 401 | API 키 누락/불일치 | `{"detail": "invalid or missing X-API-Key"}` |
-| 429 | 분당 요청 한도 초과 (키당 기본 10회/분, 고정 1분 윈도우) | `{"detail": "rate limit exceeded"}` |
-| 503 | 서버에 `API_KEYS` 미설정 (fail-closed) | `{"detail": "API_KEYS not configured"}` |
+| 429 | DB에 설정된 해당 키의 분당 요청 한도 초과 (고정 1분 윈도우) | `{"detail": "rate limit exceeded"}` |
 
-레이트리밋은 인메모리 방식이라 인스턴스 재시작 시 초기화됩니다.
+서버는 평문 키를 SHA-256으로 해시한 뒤 `api_keys` 테이블에서 활성 키와 키별 한도를 조회합니다. 평문 키는 DB에 저장하지 않습니다. 레이트리밋 카운터는 인메모리 방식이라 인스턴스 재시작 시 초기화됩니다.
+
+API 키 관리 CLI (`DATABASE_URL` 필수):
+
+```bash
+uv run python -m acting_api.api_keys issue --label local --rate-limit-per-min 10
+uv run python -m acting_api.api_keys list
+uv run python -m acting_api.api_keys revoke <api-key-uuid>
+```
+
+발급 명령의 평문 키는 이때 한 번만 출력됩니다.
 
 ---
 
@@ -50,6 +59,7 @@
 
 | 필드 | 타입 | 필수 | 설명 |
 |---|---|---|---|
+| `user_id` | text | ✅ | 외부 사용자 ID. 처음 보는 값이면 서버가 사용자를 생성 |
 | `situation` | text | ✅ | 상황 |
 | `character` | text | ✅ | 인물설정 |
 | `subtext` | text | ✅ | 서브텍스트 |
@@ -62,10 +72,11 @@
 - Gemini Files API 업로드 후 ACTIVE 상태를 최대 300초 대기 (2초 간격 폴링).
 - 대용량 영상은 전체 처리에 수 분 소요될 수 있으므로 클라이언트 타임아웃을 넉넉히 설정할 것.
 
-### 응답 200 — `SceneSummary`
+### 응답 200 — `SceneSummary` + `summary_id`
 
 ```json
 {
+  "summary_id": "11111111-1111-4111-8111-111111111111",
   "observation": {
     "timeline": "...",
     "dialogue": "...",
@@ -101,6 +112,8 @@
 
 - `intent_impact`: `"반전" | "약화" | "국소"`
 - `severity`: `"high" | "mid" | "low"` — 서버가 규칙 기반으로 재계산·정렬 (severity 내림차순 → 시작 시각 → 축 순서)
+- `summary_id`: 저장된 요약의 표준 UUID. 이후 `/coach/start`에서 사용
+- 서버는 이 요청에서 사용자·장면·요약·이상 구간을 PostgreSQL에 한 번 INSERT하며, 이후 코치·리포트 단계에서 요약을 수정하지 않습니다.
 
 ### 오류
 
@@ -120,14 +133,15 @@
 
 | 필드 | 타입 | 필수 | 설명 |
 |---|---|---|---|
-| `summary` | `SceneSummary` | ✅ | `/summarize` 응답 그대로 전달 |
-| `subtext` | object \| null | — | `{"situation": str, "character": str, "subtext": str}` |
+| `summary_id` | UUID 문자열 | ✅ | `/summarize` 응답의 `summary_id` |
+
+서버가 저장된 요약과 장면의 `situation`·`character`·`subtext`를 조인해 로드합니다. 요약 객체를 함께 보내는 구형 요청은 허용하지 않습니다.
 
 ### 응답 200
 
 ```json
 {
-  "session_id": "3f2a9c...",
+  "session_id": "22222222-2222-4222-8222-222222222222",
   "action": "probe_intent",
   "utterance": "그 장면에서 어떤 의도로...",
   "focus_timestamp": "00:17",
@@ -138,7 +152,7 @@
 
 | 필드 | 타입 | 설명 |
 |---|---|---|
-| `session_id` | str | 이후 `/coach/reply`, `/report`에서 사용 |
+| `session_id` | UUID 문자열 | 이후 `/coach/reply`, `/report`에서 사용 |
 | `action` | enum | `"probe_intent" \| "dig_cause" \| "deflect" \| "close"` |
 | `utterance` | str | 코치 발화 |
 | `focus_timestamp` | str | 언급 구간 타임스탬프 (기본 `""`) |
@@ -147,7 +161,10 @@
 
 ### 오류
 
-- **502** — Gemini 응답 파싱 실패
+| 상태 코드 | 원인 | 응답 본문 |
+|---|---|---|
+| 404 | 저장된 요약 없음 | `{"detail": "summary not found"}` |
+| 502 | Gemini 응답 파싱 실패 | `{"detail": "<메시지>"}` |
 
 ---
 
@@ -159,7 +176,7 @@
 
 | 필드 | 타입 | 필수 | 설명 |
 |---|---|---|---|
-| `session_id` | str | ✅ | `/coach/start`에서 받은 세션 ID |
+| `session_id` | UUID 문자열 | ✅ | `/coach/start`에서 받은 세션 ID |
 | `text` | str | ✅ | 배우의 답변 |
 
 ### 응답 200
@@ -176,34 +193,24 @@
 | 상태 코드 | 원인 | 응답 본문 |
 |---|---|---|
 | 404 | 세션 없음 | `{"detail": "session not found"}` |
+| 409 | 동일 세션이 다른 요청에서 먼저 변경됨 | `{"detail": "session changed concurrently"}` |
 | 502 | Gemini 응답 파싱 실패 | `{"detail": "<메시지>"}` |
 
-> ⚠️ 세션은 **인메모리 저장**이라 서버 재시작/재배포 시 소멸됩니다. 404가 오면 `/coach/start`부터 다시 시작해야 합니다.
+세션과 턴은 PostgreSQL에 저장되므로 서버 재시작 후에도 같은 `session_id`로 이어갈 수 있습니다.
 
 ---
 
 ## POST /report
 
-코칭 세션 전체를 넘겨 최종 연기 리포트를 생성합니다. 같은 `user_id`의 이전 리포트가 있으면 비교(`comparison`)가 포함됩니다.
+저장된 코칭 세션으로 최종 연기 리포트를 생성합니다. 서버가 세션→요약→장면→사용자 사슬에서 대화·요약·`user_id`를 로드하며, 같은 사용자의 이전 리포트가 있으면 비교(`comparison`)가 포함됩니다.
 
 ### 요청 — JSON
 
 | 필드 | 타입 | 필수 | 설명 |
 |---|---|---|---|
-| `user_id` | str | ✅ | 사용자 식별자 |
-| `session` | `CoachSession` | ✅ | 아래 참조 |
+| `session_id` | UUID 문자열 | ✅ | `/coach/start`에서 받은 세션 ID |
 
-`CoachSession`:
-
-| 필드 | 타입 | 기본값 | 설명 |
-|---|---|---|---|
-| `session_id` | str | — | 코치 세션 ID |
-| `summary` | `SceneSummary` | — | 요약 결과 |
-| `subtext` | object \| null | `null` | 상황/인물/서브텍스트 |
-| `turns` | array | `[]` | `{"role": "ai" \| "actor", "text": str}` 목록 |
-| `question_count` | int | `0` | 질문 횟수 |
-| `status` | enum | `"open"` | `"open" \| "closed"` |
-| `close_reason` | str | `""` | 종료 사유 |
+`user_id`, 요약 또는 대화 전체를 함께 보내는 구형 요청은 허용하지 않습니다.
 
 ### 응답 200
 
@@ -233,7 +240,12 @@
 
 ### 오류
 
-- **502** — Gemini 응답 파싱 실패
+| 상태 코드 | 원인 | 응답 본문 |
+|---|---|---|
+| 404 | 저장된 세션 없음 | `{"detail": "session not found"}` |
+| 409 | 코칭 세션이 아직 종료되지 않음 | `{"detail": "session is still open"}` |
+| 409 | 같은 세션의 리포트가 이미 존재 | `{"detail": "report already exists for session"}` |
+| 502 | Gemini 응답 파싱 실패 | `{"detail": "<메시지>"}` |
 
 ---
 
@@ -250,7 +262,7 @@
   "reports": [
     {
       "created_at": "2026-07-13T04:00:00+00:00",
-      "session_id": "3f2a9c...",
+      "session_id": "22222222-2222-4222-8222-222222222222",
       "report": { "...": "ActingReport" },
       "turns": []
     }
@@ -260,7 +272,7 @@
 
 - 존재하지 않는 사용자도 404가 아닌 `count: 0`, 빈 배열 반환.
 
-> ⚠️ 리포트는 JSON 파일(`REPORT_STORE_PATH`)에 저장되며, Render 무료 플랜은 디스크가 휘발성이라 **재배포/재시작 시 이력이 사라집니다**.
+이력은 PostgreSQL에서 사용자→장면→요약→세션→리포트 사슬을 조인해 조회합니다.
 
 ---
 
@@ -268,14 +280,12 @@
 
 | 변수 | 서비스 | 기본값 | 설명 |
 |---|---|---|---|
-| `API_KEYS` | acting-api | (빈 값 → 503) | 콤마 구분 유효 API 키 목록 |
-| `RATE_LIMIT_PER_MIN` | acting-api | `10` | 키당 분당 요청 한도 |
+| `DATABASE_URL` | acting-api/Alembic/CLI | **필수** (없으면 기동 실패) | PostgreSQL 연결 URL. `postgres://`/`postgresql://`는 psycopg3 URL로 정규화 |
 | `KEEP_ALIVE_URL` | acting-api | 없음 | 설정 시 600초마다 `<url>/health` 핑 (Render 슬립 방지) |
 | `KEEP_ALIVE_INTERVAL_SEC` | acting-api | `600` | keep-alive 주기 |
 | `GEMINI_API_KEY` | 공통 | **필수** (없으면 기동 실패) | Gemini API 키 |
 | `GEMINI_MODEL` | 공통 | `gemini-2.5-flash` | 사용 모델 |
 | `COACH_MAX_QUESTIONS` | acting_agent | `10` | 코치 최대 질문 수 |
-| `REPORT_STORE_PATH` | acting-report | `acting-report/data/reports.json` | 리포트 저장 경로 |
 
 ---
 
@@ -288,7 +298,7 @@
 | Gemini 파일 ACTIVE 대기 | 최대 300초 (초과 시 504) |
 | Gemini 파싱 재시도 | 2회 (실패 시 502) |
 | 코치 질문 상한 | 10회 |
-| 레이트리밋 | 키당 10회/분 (고정 윈도우) |
+| 레이트리밋 | `api_keys.rate_limit_per_min`의 키별 값 (고정 윈도우) |
 
 ---
 
@@ -298,15 +308,16 @@
 # 1. 영상 요약
 curl -X POST https://acting-api.onrender.com/summarize \
   -H "X-API-Key: $API_KEY" \
+  -F "user_id=user-123" \
   -F "situation=이별 통보를 받은 직후" \
   -F "character=감정을 억누르는 30대 직장인" \
   -F "subtext=붙잡고 싶지만 자존심 때문에 말하지 못한다" \
   -F "video=@scene.mp4" > summary.json
 
-# 2. 코칭 시작
+# 2. 코칭 시작 (1의 summary_id 사용)
 curl -X POST https://acting-api.onrender.com/coach/start \
   -H "X-API-Key: $API_KEY" -H "Content-Type: application/json" \
-  -d "{\"summary\": $(cat summary.json)}"
+  -d '{"summary_id": "<summary_id>"}'
 
 # 3. 코칭 답변
 curl -X POST https://acting-api.onrender.com/coach/reply \
@@ -316,7 +327,7 @@ curl -X POST https://acting-api.onrender.com/coach/reply \
 # 4. 리포트 생성
 curl -X POST https://acting-api.onrender.com/report \
   -H "X-API-Key: $API_KEY" -H "Content-Type: application/json" \
-  -d '{"user_id": "user-123", "session": { ... }}'
+  -d '{"session_id": "<session_id>"}'
 
 # 5. 리포트 이력
 curl https://acting-api.onrender.com/report/history/user-123 \
@@ -332,4 +343,4 @@ curl https://acting-api.onrender.com/report/history/user-123 \
 - **acting-summary** (원본 출력): `Anomaly`에 `overlaps_key_moment`, `on_key_dimension`, `intent_impact` 포함. `segment_scan` 없음.
 - **acting_agent / acting-report** (사본): 위 세 필드 없음. 대신 `SceneSummary`에 `segment_scan` 필드 존재 (기본 빈 배열).
 
-pydantic이 알 수 없는 필드를 무시하므로 파이프라인은 정상 동작하지만, 사본 쪽으로 넘어가면 추가 anomaly 필드가 탈락합니다. 또한 `acting-summary/README.md`의 스키마 표는 구버전이므로 코드(`schema.py`)를 기준으로 삼으세요.
+사본 3벌은 이번 범위에서 유지합니다. DB에는 `/summarize` 원본을 `summaries.raw` JSONB로 온전히 저장하고, acting-api의 store가 코치·리포트 조회 때 해당 서비스의 사본 모델로 파싱합니다. 하류 객체로 DB 요약을 UPDATE/UPSERT하지 않으므로 사본에 없는 필드가 원본 DB에서 유실되지 않습니다.
