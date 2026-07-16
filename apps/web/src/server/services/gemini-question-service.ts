@@ -224,8 +224,8 @@ function ensureSafeSingleQuestion(question: string): string {
     throw new GeminiQuestionServiceError("Gemini must return exactly one question.");
   }
 
-  if (/[\n•]/.test(question)) {
-    throw new GeminiQuestionServiceError("Gemini question must be a single sentence, not a list.");
+  if (/•/u.test(trimmed)) {
+    throw new GeminiQuestionServiceError("Gemini question must not contain a bullet list.");
   }
 
   if (bannedQuestionLanguage.some((pattern) => pattern.test(trimmed))) {
