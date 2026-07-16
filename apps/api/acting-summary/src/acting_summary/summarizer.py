@@ -127,6 +127,9 @@ def summarize(
             top_p=0.1,
             top_k=1,
             seed=42,
+            # 영상 토큰을 초당 ~300→~100(66%↓)으로. Gemini 토큰은 영상 길이 기반이라
+            # 파일 크기가 아닌 이 설정이 실제 비용을 줄인다. 프레임당 258→64토큰.
+            media_resolution=types.MediaResolution.MEDIA_RESOLUTION_LOW,
         )
         last_err = None
         for _ in range(2):
