@@ -58,6 +58,7 @@ function definitiveMediaFailureMessage(code: string | null): string | null {
 function isDefinitiveMutationFailure(reason: unknown): boolean {
   return reason instanceof ApiClientError &&
     !reason.code.includes("outcome_unknown") &&
+    reason.code !== "invalid_response" &&
     reason.code !== "operation_in_progress";
 }
 
