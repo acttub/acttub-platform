@@ -1,49 +1,55 @@
-from datetime import datetime, timezone
+from uuid import UUID
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from acting_report import engine
 from acting_report.config import Settings
-from acting_report.schema import ReportRecord
-from acting_report.session_schema import CoachSession
-from acting_report.store import FileReportStore
+from acting_report.store import ReportStore
 
 
 class ReportReq(BaseModel):
-    user_id: str
-    session: CoachSession
+    model_config = ConfigDict(extra="forbid")
+
+    session_id: UUID
 
 
-def build_router(*, client, settings: Settings, store=None) -> APIRouter:
-    store = store or FileReportStore(settings.store_path)
+def build_router(*, client, settings: Settings, store: ReportStore) -> APIRouter:
     router = APIRouter(tags=["report"])
 
     @router.post("/report")
     def create_report(req: ReportReq):
-        previous = store.list(req.user_id)
+        session_id = str(req.session_id)
+        context = store.get_report_context(session_id)
+        if context is None:
+            raise HTTPException(status_code=404, detail="session not found")
+        user_id, session = context
+        if session.status != "closed":
+            raise HTTPException(status_code=409, detail="session is still open")
+        if store.has_report(session_id):
+            raise HTTPException(
+                status_code=409, detail="report already exists for session"
+            )
+        previous = store.list_reports(user_id)
         try:
             report = engine.generate_report(
-                req.session, previous, client=client, model=settings.model
+                session, previous, client=client, model=settings.model
             )
         except engine.ReportParseError as exc:
             raise HTTPException(status_code=502, detail=str(exc))
-        record = ReportRecord(
-            created_at=datetime.now(timezone.utc).isoformat(),
-            session_id=req.session.session_id,
-            report=report,
-            turns=req.session.turns,
-        )
-        store.add(req.user_id, record)
+        if not store.add_report(session_id, report):
+            raise HTTPException(
+                status_code=409, detail="report already exists for session"
+            )
         return {
-            "user_id": req.user_id,
+            "user_id": user_id,
             "report": report.model_dump(),
-            "report_count": len(previous) + 1,
+            "report_count": store.count_reports(user_id),
         }
 
     @router.get("/report/history/{user_id}")
     def report_history(user_id: str):
-        records = store.list(user_id)
+        records = store.list_reports(user_id)
         return {
             "user_id": user_id,
             "count": len(records),

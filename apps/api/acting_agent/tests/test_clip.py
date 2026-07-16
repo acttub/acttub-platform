@@ -1,5 +1,5 @@
 from acting_agent.clip import build_clip_html, pick_target
-from support import SUMMARY
+from agent_test_support import SUMMARY
 
 
 def test_pick_target_returns_top_severity():

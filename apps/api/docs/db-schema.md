@@ -1,6 +1,14 @@
-# 추천 DB 스키마 (PostgreSQL)
+# DB 스키마 (PostgreSQL) — 확정
 
-현재는 코치 세션이 인메모리, 리포트가 JSON 파일이라 재배포 때마다 데이터가 사라진다. Render 관리형 **PostgreSQL**로 이관을 권장한다 — 가변 구조(observation, biggest_problem)는 JSONB로, 조회·비교가 필요한 필드는 컬럼으로 승격했다.
+현재는 코치 세션이 인메모리, 리포트가 JSON 파일이라 재배포 때마다 데이터가 사라진다. **PostgreSQL**로 이관한다 — 가변 구조(observation, biggest_problem)는 JSONB로, 조회·비교가 필요한 필드는 컬럼으로 승격했다.
+
+**확정된 스택·환경** (2026-07 설계 리뷰):
+
+- 개발은 **로컬 PostgreSQL**, 추후 **AWS로 이전** 예정. 접속은 `DATABASE_URL` 환경 변수로 추상화하고, 미설정 시 부팅 실패(fail-fast — `API_KEYS` fail-closed 패턴과 일관)
+- **SQLAlchemy 2.0 (sync) + psycopg3** — 코치·리포트 핸들러가 sync `def`인 현재 구조와 일치
+- 마이그레이션은 **Alembic** (초기 리비전 1개로 시작, AWS 이전 시 `alembic upgrade head`로 재현)
+- 모델·엔진·alembic·Postgres store 구현체는 **acting-api에 집중**, 게이트웨이가 하위 서비스 라우터에 store를 주입하는 기존 패턴 유지
+- API는 **클린 브레이크** — 통째 전달 방식과의 과도기 dual-accept 없음 ([api-changes.md](api-changes.md) 참고)
 
 DB 도입 후 API 요청 형태 변화는 [api-changes.md](api-changes.md) 참고. 관련 이슈: [#1](https://github.com/acttub/acting-api-deploy/issues/1)
 
@@ -24,7 +32,6 @@ erDiagram
     summaries ||--o{ coach_sessions : "같은 요약으로 여러 번 코칭 가능"
     coach_sessions ||--o{ coach_turns : "turn_index로 대화 순서 보장"
     coach_sessions ||--|| reports : "세션당 리포트 1건 (session_id UNIQUE)"
-    users ||--o{ reports : "이력 조회·comparison에 사용"
 
     users {
         uuid id PK
@@ -83,7 +90,6 @@ erDiagram
     coach_sessions {
         uuid id PK
         uuid summary_id FK
-        uuid user_id FK
         session_status_t status
         close_reason_t close_reason
         timestamptz created_at
@@ -101,7 +107,6 @@ erDiagram
     }
     reports {
         uuid id PK
-        uuid user_id FK
         uuid session_id FK "UNIQUE"
         text headline
         jsonb biggest_problem
@@ -125,7 +130,7 @@ CREATE TYPE turn_role_t AS ENUM ('ai', 'actor');
 
 CREATE TABLE users (
   id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  external_id   text NOT NULL UNIQUE,          -- 현재 API의 user_id
+  external_id   text NOT NULL UNIQUE,          -- 현재 API의 user_id. 처음 보는 값이면 자동 생성(get-or-create)
   created_at    timestamptz NOT NULL DEFAULT now()
 );
 
@@ -141,7 +146,7 @@ CREATE TABLE api_keys (
 
 CREATE TABLE scenes (
   id                uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id           uuid REFERENCES users(id),
+  user_id           uuid NOT NULL REFERENCES users(id),  -- /summarize가 user_id를 필수로 받음
   situation         text NOT NULL,
   character         text NOT NULL,
   subtext           text NOT NULL,
@@ -184,8 +189,8 @@ CREATE TABLE anomalies (
 
 CREATE TABLE coach_sessions (
   id              uuid PRIMARY KEY,             -- 기존 session_id 그대로 사용
-  summary_id      uuid REFERENCES summaries(id),
-  user_id         uuid REFERENCES users(id),
+  summary_id      uuid NOT NULL REFERENCES summaries(id),  -- 클린 브레이크라 통째-summary 세션이 없어 NOT NULL 가능
+  -- user_id 컬럼 없음: summary_id → summaries → scenes.user_id로 파생 (설계 노트 참고)
   -- subtext 컬럼 없음: summary_id → scenes 조인으로 situation/character/subtext 조회
   -- question_count 컬럼 없음: coach_turns에서 COUNT로 파생 (설계 노트 참고)
   status          session_status_t NOT NULL DEFAULT 'open',
@@ -208,8 +213,8 @@ CREATE TABLE coach_turns (
 
 CREATE TABLE reports (
   id               uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id          uuid NOT NULL REFERENCES users(id),
-  session_id       uuid UNIQUE REFERENCES coach_sessions(id),
+  -- user_id 컬럼 없음: session → summary → scene → user 사슬로 파생 (설계 노트 참고)
+  session_id       uuid NOT NULL UNIQUE REFERENCES coach_sessions(id),
   headline         text NOT NULL,
   biggest_problem  jsonb NOT NULL,              -- {start, end, dimension, description}
   evidence         text NOT NULL,
@@ -221,10 +226,13 @@ CREATE TABLE reports (
 );
 
 -- 조회 패턴에 맞춘 인덱스
-CREATE INDEX idx_reports_user_created ON reports (user_id, created_at DESC);  -- 이력·latest 비교
+-- 리포트 이력·latest 비교는 user → scenes → summaries → coach_sessions → reports 조인 경로.
+-- 사슬의 각 FK에 인덱스를 둬서 조인 비용을 잡는다.
 CREATE INDEX idx_turns_session ON coach_turns (session_id, turn_index);
 CREATE INDEX idx_anomalies_summary ON anomalies (summary_id, sort_order);
 CREATE INDEX idx_scenes_user ON scenes (user_id, created_at DESC);
+CREATE INDEX idx_summaries_scene ON summaries (scene_id);
+CREATE INDEX idx_sessions_summary ON coach_sessions (summary_id);
 ```
 
 ## 설계 노트
@@ -238,7 +246,9 @@ CREATE INDEX idx_scenes_user ON scenes (user_id, created_at DESC);
 | `anomalies`를 별도 테이블로 정규화 | severity·구간 기준 조회와 통계(자주 걸리는 축 분석 등)를 SQL로 바로 가능. 순서는 `sort_order`로 보존 |
 | 타임스탬프(`start_ts`)를 text로 유지 | 모델 출력이 `"MM:SS"` 문자열이라 그대로 저장하는 게 안전. 초 단위 정렬이 필요해지면 `start_seconds int` 생성 컬럼 추가 |
 | `reports.session_id`에 UNIQUE | 같은 세션으로 리포트 중복 생성을 DB 레벨에서 차단. `report_count`는 `COUNT(*)`로 대체 |
-| `api_keys.key_hash`로 키 관리 이관 | 키 발급·폐기에 재배포 불필요, 키별 레이트리밋(`rate_limit_per_min`) 개별 조정 가능. 레이트리밋 카운터 자체는 DB가 아니라 인메모리/Redis에 유지 |
+| `coach_sessions.user_id`·`reports.user_id` 없음 | 클린 브레이크로 `reports → session → summary → scene → user` 사슬이 항상 성립해 둘 다 파생 가능. 서버가 INSERT 시점에 사슬에서 도출하므로 위조 경로도 없음. 이력 조회(`/report/history`)는 사슬 FK 인덱스를 타는 조인으로 대체 — 데이터 규모(사용자당 리포트 수십 건)에서 비용 무시 가능 |
+| `users`는 get-or-create | 회원 개념이 없어 처음 보는 `external_id`면 `/summarize`에서 자동 생성(`INSERT ... ON CONFLICT DO NOTHING`). 인증/회원이 생기면 그때 잠금 |
+| `api_keys.key_hash`로 키 관리 이관 | 키 발급·폐기에 재배포 불필요, 키별 레이트리밋(`rate_limit_per_min`)으로 전역 `RATE_LIMIT_PER_MIN` 대체. 발급·폐기·목록은 CLI 스크립트로(발급 시 평문 1회 출력), `API_KEYS` 환경 변수 지원은 제거. 레이트리밋 카운터 자체는 DB가 아니라 인메모리/Redis에 유지 |
 | `users.display_name` 없음 | 현재 API에 이 값을 받는 입력이 없음. 회원 개념이 생기면 그때 추가 |
 | `coach_sessions.subtext` 없음 | situation/character/subtext는 이미 `scenes`에 컬럼으로 저장됨. 코치가 필요하면 `summary_id → scenes` 조인으로 조회. 세션에 또 저장하면 중복 + 두 값이 어긋날 가능성만 생김 |
 | `coach_sessions.question_count` 없음 | `coach_turns`에서 파생: `SELECT COUNT(*) FROM coach_turns WHERE session_id = ? AND role = 'ai' AND action <> 'close'` (증가 규칙 근거: `acting_agent/src/acting_agent/engine.py:56,106-107`). 세션당 턴 최대 20여 개 + `idx_turns_session` 인덱스라 COUNT 비용 무시 가능 |
@@ -250,12 +260,16 @@ CREATE INDEX idx_scenes_user ON scenes (user_id, created_at DESC);
 - `summaries`/`anomalies`는 **`/summarize` 시점에 1회 INSERT, 이후 불변**
 - `overlaps_key_moment`/`on_key_dimension`/`intent_impact` 세 필드는 acting-summary 내부에서 severity 점수 합산(`summarizer.py:38-42`)에만 쓰이고 하류에선 미사용. 사본 스키마 파싱 시 탈락해도 기능상 무해하지만, **코치/리포트 단계의 객체로 UPDATE/UPSERT하면 참값이 기본값(false/NULL)으로 덮임**. 분석 결과는 불변 데이터로 취급할 것
 
-## 도입 순서 제안
+## 도입 범위 (확정)
 
-1. `reports` 이관 — 이력 유실부터 해결
+당초 4단계 점진 도입을 제안했으나, **한 브랜치(feat/introduce-db-and-api-id-reference)에서 전부 도입**하기로 확정:
+
+1. `reports` 이관 — 이력 유실 해결
 2. `coach_sessions`/`coach_turns` — 재배포 후 404 해결
 3. `scenes`/`summaries`/`anomalies` — 재분석 비용 절감 + API 참조 방식 전환
-4. `api_keys` — 호출자가 여럿이 될 때 (당장은 환경 변수로 충분)
+4. `api_keys` — 환경 변수 방식 제거, CLI 발급으로 전환
+
+기존 데이터는 이관하지 않는다(로컬 데모 데이터뿐이고 Render 디스크는 어차피 휘발성). `InMemorySessionStore`는 테스트용 fake로 재활용하고, `FileReportStore`와 `REPORT_STORE_PATH` 설정은 삭제한다. 하위 서비스 단독 gradio 데모는 이번 범위 밖 — 게이트웨이 + DB 경유로만 동작한다.
 
 ## 향후 확장 — 같은 연습의 반복 업로드 추적 (practices)
 

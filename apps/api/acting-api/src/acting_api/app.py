@@ -1,6 +1,5 @@
 import asyncio
 import os
-import secrets
 import time
 from contextlib import asynccontextmanager
 
@@ -9,15 +8,17 @@ from fastapi import FastAPI, Security
 from fastapi.responses import JSONResponse
 from fastapi.security import APIKeyHeader
 from google import genai
+from starlette.concurrency import run_in_threadpool
 
 from acting_agent.config import load_settings as load_agent_settings
 from acting_agent.router import build_router as build_coach_router
 from acting_api.config import load_gateway_settings
+from acting_api.db.store import PostgresStore
 from acting_api.keepalive import keep_alive_loop
 from acting_api.ratelimit import RateLimiter
+from acting_api.security import hash_api_key
 from acting_report.config import load_settings as load_report_settings
 from acting_report.router import build_router as build_report_router
-from acting_report.store import FileReportStore
 from acting_summary.config import load_settings as load_summary_settings
 from acting_summary.router import build_router as build_summary_router
 
@@ -27,12 +28,6 @@ EXEMPT_PATHS = {"/health", "/docs", "/openapi.json", "/redoc"}
 api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 
 
-def _key_valid(key: str | None, api_keys: tuple[str, ...]) -> bool:
-    if key is None:
-        return False
-    return any(secrets.compare_digest(key, k) for k in api_keys)
-
-
 def create_app(
     *,
     client=None,
@@ -40,7 +35,7 @@ def create_app(
     summary_settings=None,
     agent_settings=None,
     report_settings=None,
-    report_store=None,
+    store=None,
     clock=time.monotonic,
     keep_alive_client=None,
 ) -> FastAPI:
@@ -49,8 +44,10 @@ def create_app(
     agent_settings = agent_settings or load_agent_settings()
     report_settings = report_settings or load_report_settings()
     client = client or genai.Client(api_key=summary_settings.api_key)
-    report_store = report_store or FileReportStore(report_settings.store_path)
-    limiter = RateLimiter(gateway_settings.rate_limit_per_min, clock=clock)
+    owns_store = store is None
+    if store is None:
+        store = PostgresStore.from_url(gateway_settings.database_url)
+    limiter = RateLimiter(clock=clock)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -75,6 +72,8 @@ def create_app(
                 task.cancel()
             if owned_client:
                 await owned_client.aclose()
+            if owns_store:
+                store.close()
 
     app = FastAPI(
         title="acting-api",
@@ -82,21 +81,24 @@ def create_app(
         dependencies=[Security(api_key_header)],
         lifespan=lifespan,
     )
+    app.state.store = store
 
     @app.middleware("http")
     async def auth_and_rate_limit(request, call_next):
         if request.url.path in EXEMPT_PATHS:
             return await call_next(request)
-        if not gateway_settings.api_keys:
-            return JSONResponse(
-                status_code=503, content={"detail": "API_KEYS not configured"}
-            )
         key = request.headers.get("X-API-Key")
-        if not _key_valid(key, gateway_settings.api_keys):
+        if key is None:
             return JSONResponse(
                 status_code=401, content={"detail": "invalid or missing X-API-Key"}
             )
-        if not limiter.allow(key):
+        key_hash = hash_api_key(key)
+        rate_limit = await run_in_threadpool(store.get_api_key_rate_limit, key_hash)
+        if rate_limit is None:
+            return JSONResponse(
+                status_code=401, content={"detail": "invalid or missing X-API-Key"}
+            )
+        if not limiter.allow(key_hash, rate_limit):
             return JSONResponse(
                 status_code=429, content={"detail": "rate limit exceeded"}
             )
@@ -113,10 +115,14 @@ def create_app(
             "commit": os.environ.get("RENDER_GIT_COMMIT", "unknown")[:7],
         }
 
-    app.include_router(build_summary_router(client=client, settings=summary_settings))
-    app.include_router(build_coach_router(client=client, settings=agent_settings))
     app.include_router(
-        build_report_router(client=client, settings=report_settings, store=report_store)
+        build_summary_router(client=client, settings=summary_settings, store=store)
+    )
+    app.include_router(
+        build_coach_router(client=client, settings=agent_settings, store=store)
+    )
+    app.include_router(
+        build_report_router(client=client, settings=report_settings, store=store)
     )
 
     return app

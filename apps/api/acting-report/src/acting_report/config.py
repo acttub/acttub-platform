@@ -1,5 +1,5 @@
 import os
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -12,15 +12,10 @@ def _project_root() -> Path:
     return Path(__file__).resolve().parents[2]
 
 
-def _default_store_path() -> Path:
-    return _project_root() / "data" / "reports.json"
-
-
 @dataclass
 class Settings:
     api_key: str
     model: str
-    store_path: Path = field(default_factory=_default_store_path)
 
 
 def _default_env_path() -> Path:
@@ -38,5 +33,4 @@ def load_settings(env_path: Path | None = None) -> Settings:
             "GEMINI_API_KEY not found. Set it in ../video-feedback/.env or the environment."
         )
     model = os.environ.get("GEMINI_MODEL", DEFAULT_MODEL)
-    store_path = Path(os.environ.get("REPORT_STORE_PATH", _default_store_path()))
-    return Settings(api_key=api_key, model=model, store_path=store_path)
+    return Settings(api_key=api_key, model=model)

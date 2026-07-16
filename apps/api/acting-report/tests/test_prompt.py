@@ -1,5 +1,5 @@
 from acting_report.prompt import build_prompt
-from support import PREV_RECORD, SESSION
+from report_test_support import PREV_RECORD, SESSION
 
 
 def test_prompt_contains_target_and_turns():

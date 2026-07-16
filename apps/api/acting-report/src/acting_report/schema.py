@@ -36,10 +36,9 @@ class ActingReport(BaseModel):
 
 
 class ReportRecord(BaseModel):
-    """저장용 래퍼 — 같은 사용자의 리포트 히스토리 한 건.
+    """같은 사용자의 리포트 히스토리 한 건.
 
-    turns에 코치 대화 원문을 함께 보존한다 — 다음 영상 때 리포트 요지만이 아니라
-    실제 대화까지 되짚을 수 있게.
+    DB에서는 대화를 coach_turns에만 저장하고, 조회할 때 turns를 함께 구성한다.
     """
 
     created_at: str = Field(description="ISO8601 생성 시각")

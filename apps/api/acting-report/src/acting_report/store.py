@@ -1,39 +1,59 @@
-import json
-from pathlib import Path
+from datetime import datetime, timezone
+from typing import Protocol
 
-from acting_report.schema import ReportRecord
+from acting_report.schema import ActingReport, ReportRecord
+from acting_report.session_schema import CoachSession
 
 
-class FileReportStore:
-    """user_id별 리포트 히스토리를 JSON 파일 하나에 저장한다.
+class ReportStore(Protocol):
+    def get_report_context(
+        self, session_id: str
+    ) -> tuple[str, CoachSession] | None: ...
 
-    다음 영상 업로드 때 이전 리포트를 불러와 비교하는 용도라
-    프로세스 재시작 후에도 남아야 한다 → 파일 저장.
-    """
+    def list_reports(self, user_id: str) -> list[ReportRecord]: ...
 
-    def __init__(self, path: Path):
-        self._path = Path(path)
+    def has_report(self, session_id: str) -> bool: ...
 
-    def _load(self) -> dict[str, list[dict]]:
-        if not self._path.exists():
-            return {}
-        return json.loads(self._path.read_text(encoding="utf-8"))
+    def add_report(self, session_id: str, report: ActingReport) -> bool: ...
 
-    def _dump(self, data: dict[str, list[dict]]) -> None:
-        self._path.parent.mkdir(parents=True, exist_ok=True)
-        self._path.write_text(
-            json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8"
+    def count_reports(self, user_id: str) -> int: ...
+
+
+class InMemoryReportStore:
+    """DB-free fake that mirrors the report router's persistence contract."""
+
+    def __init__(self):
+        self._contexts: dict[str, tuple[str, CoachSession]] = {}
+        self._records: dict[str, ReportRecord] = {}
+
+    def seed_context(self, user_id: str, session: CoachSession) -> None:
+        self._contexts[session.session_id] = (user_id, session)
+
+    def get_report_context(self, session_id: str) -> tuple[str, CoachSession] | None:
+        return self._contexts.get(session_id)
+
+    def list_reports(self, user_id: str) -> list[ReportRecord]:
+        return [
+            record
+            for session_id, record in self._records.items()
+            if self._contexts[session_id][0] == user_id
+        ]
+
+    def has_report(self, session_id: str) -> bool:
+        return session_id in self._records
+
+    def add_report(self, session_id: str, report: ActingReport) -> bool:
+        context = self._contexts.get(session_id)
+        if context is None or self.has_report(session_id):
+            return False
+        _, session = context
+        self._records[session_id] = ReportRecord(
+            created_at=datetime.now(timezone.utc).isoformat(),
+            session_id=session_id,
+            report=report,
+            turns=session.turns,
         )
+        return True
 
-    def add(self, user_id: str, record: ReportRecord) -> None:
-        data = self._load()
-        data.setdefault(user_id, []).append(record.model_dump())
-        self._dump(data)
-
-    def list(self, user_id: str) -> list[ReportRecord]:
-        data = self._load()
-        return [ReportRecord.model_validate(r) for r in data.get(user_id, [])]
-
-    def latest(self, user_id: str) -> ReportRecord | None:
-        records = self.list(user_id)
-        return records[-1] if records else None
+    def count_reports(self, user_id: str) -> int:
+        return len(self.list_reports(user_id))

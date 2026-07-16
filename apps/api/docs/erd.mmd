@@ -1,0 +1,92 @@
+erDiagram
+    users ||--o{ scenes : "한 사용자가 여러 영상 업로드"
+    scenes ||--o{ summaries : "업로드 1건당 분석 1건 (재분석 시 1:N)"
+    summaries ||--o{ anomalies : "sort_order로 순서 보존"
+    summaries ||--o{ coach_sessions : "같은 요약으로 여러 번 코칭"
+    coach_sessions ||--o{ coach_turns : "turn_index로 대화 순서 보장"
+    coach_sessions ||--|| reports : "세션당 리포트 1건 (session_id UNIQUE)"
+
+    users {
+        uuid id PK
+        text external_id UK
+        timestamptz created_at
+    }
+    api_keys {
+        uuid id PK
+        text key_hash UK
+        text label
+        int rate_limit_per_min
+        boolean is_active
+        timestamptz created_at
+        timestamptz revoked_at
+    }
+    scenes {
+        uuid id PK
+        uuid user_id FK
+        text situation
+        text character
+        text subtext
+        text video_filename
+        bigint video_size_bytes
+        boolean was_compressed
+        text model
+        timestamptz created_at
+    }
+    summaries {
+        uuid id PK
+        uuid scene_id FK
+        jsonb observation
+        text summary
+        text intent_alignment
+        text key_moment
+        text key_dimension
+        jsonb raw
+        timestamptz created_at
+    }
+    anomalies {
+        bigserial id PK
+        uuid summary_id FK
+        int sort_order
+        text start_ts
+        text end_ts
+        text dimension
+        text what
+        text why_odd
+        text likely_cause
+        text impact_on_intent
+        boolean overlaps_key_moment
+        boolean on_key_dimension
+        intent_impact_t intent_impact
+        severity_t severity
+        text severity_reason
+    }
+    coach_sessions {
+        uuid id PK
+        uuid summary_id FK
+        session_status_t status
+        close_reason_t close_reason
+        timestamptz created_at
+        timestamptz updated_at
+    }
+    coach_turns {
+        bigserial id PK
+        uuid session_id FK
+        int turn_index
+        turn_role_t role
+        text text
+        text action
+        text focus_timestamp
+        timestamptz created_at
+    }
+    reports {
+        uuid id PK
+        uuid session_id FK, UK
+        text headline
+        jsonb biggest_problem
+        text evidence
+        text self_discovery
+        text encouragement
+        text next_step
+        text comparison
+        timestamptz created_at
+    }

@@ -9,15 +9,18 @@ dependencies = [
     "uvicorn>=0.34",
     "python-dotenv>=1.0",
     "httpx>=0.27",
+    "sqlalchemy>=2.0,<3",
+    "psycopg[binary]>=3.2,<4",
+    "alembic>=1.14,<2",
     "acting-summary",
     "acting-agent",
     "acting-report",
 ]
 
 [tool.uv.sources]
-acting-summary = { path = "../acting-summary", editable = true }
-acting-agent = { path = "../acting_agent", editable = true }
-acting-report = { path = "../acting-report", editable = true }
+acting-summary = { workspace = true }
+acting-agent = { workspace = true }
+acting-report = { workspace = true }
 
 [build-system]
 requires = ["uv_build>=0.11.23,<0.12.0"]

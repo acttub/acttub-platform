@@ -1,4 +1,5 @@
 import threading
+from uuid import UUID
 
 from fastapi.testclient import TestClient
 
@@ -6,6 +7,7 @@ from acting_summary import summarizer as summarizer_mod
 from acting_summary.app import create_app
 from acting_summary.config import Settings
 from acting_summary.schema import Anomaly, Observation, SceneSummary
+from acting_summary.store import InMemorySummaryStore
 
 FAKE = SceneSummary(
     observation=Observation(
@@ -40,8 +42,12 @@ FAKE = SceneSummary(
 )
 
 
-def _app():
-    return create_app(client=object(), settings=Settings(api_key="x", model="m"))
+def _app(store=None):
+    return create_app(
+        client=object(),
+        settings=Settings(api_key="x", model="m"),
+        store=store or InMemorySummaryStore(),
+    )
 
 
 def test_health():
@@ -58,16 +64,31 @@ def test_summarize_endpoint(monkeypatch):
         return FAKE
 
     monkeypatch.setattr(summarizer_mod, "summarize", fake_summarize)
-    c = TestClient(_app())
+    store = InMemorySummaryStore()
+    c = TestClient(_app(store))
     r = c.post(
         "/summarize",
-        data={"situation": "상황", "character": "인물", "subtext": "서브"},
+        data={
+            "user_id": "user-1",
+            "situation": "상황",
+            "character": "인물",
+            "subtext": "서브",
+        },
         files={"video": ("t.mp4", b"bytes", "video/mp4")},
     )
     assert r.status_code == 200
     assert r.json()["summary"] == "s"
     assert r.json()["anomalies"][0]["start"] == "00:01"
     assert r.json()["anomalies"][0]["end"] == "00:02"
+    summary_id = r.json()["summary_id"]
+    assert str(UUID(summary_id)) == summary_id
+    record = store.records[summary_id]
+    assert record["user_id"] == "user-1"
+    assert record["subtext"].situation == "상황"
+    assert record["video_filename"] == "t.mp4"
+    assert record["video_size_bytes"] == len(b"bytes")
+    assert record["was_compressed"] is False
+    assert record["model"] == "m"
 
 
 def test_summarize_does_not_block_event_loop(monkeypatch):
@@ -87,7 +108,12 @@ def test_summarize_does_not_block_event_loop(monkeypatch):
         def do_post():
             post_result["r"] = c.post(
                 "/summarize",
-                data={"situation": "a", "character": "b", "subtext": "c"},
+                data={
+                    "user_id": "u",
+                    "situation": "a",
+                    "character": "b",
+                    "subtext": "c",
+                },
                 files={"video": ("t.mp4", b"bytes", "video/mp4")},
             )
 
@@ -114,7 +140,20 @@ def test_summarize_does_not_block_event_loop(monkeypatch):
 
 def test_summarize_missing_video_422():
     c = TestClient(_app())
-    r = c.post("/summarize", data={"situation": "a", "character": "b", "subtext": "c"})
+    r = c.post(
+        "/summarize",
+        data={"user_id": "u", "situation": "a", "character": "b", "subtext": "c"},
+    )
+    assert r.status_code == 422
+
+
+def test_summarize_missing_user_id_422():
+    c = TestClient(_app())
+    r = c.post(
+        "/summarize",
+        data={"situation": "a", "character": "b", "subtext": "c"},
+        files={"video": ("t.mp4", b"bytes", "video/mp4")},
+    )
     assert r.status_code == 422
 
 
@@ -126,7 +165,7 @@ def test_summarize_timeout_maps_504(monkeypatch):
     c = TestClient(_app())
     r = c.post(
         "/summarize",
-        data={"situation": "a", "character": "b", "subtext": "c"},
+        data={"user_id": "u", "situation": "a", "character": "b", "subtext": "c"},
         files={"video": ("t.mp4", b"bytes", "video/mp4")},
     )
     assert r.status_code == 504
@@ -152,7 +191,7 @@ def test_summarize_compresses_before_gemini(monkeypatch, tmp_path):
     c = TestClient(_app())
     r = c.post(
         "/summarize",
-        data={"situation": "a", "character": "b", "subtext": "c"},
+        data={"user_id": "u", "situation": "a", "character": "b", "subtext": "c"},
         files={"video": ("t.mp4", b"x" * 100, "video/mp4")},
     )
     assert r.status_code == 200
@@ -177,7 +216,7 @@ def test_summarize_oversized_upload_413(monkeypatch):
     c = TestClient(_app())
     r = c.post(
         "/summarize",
-        data={"situation": "a", "character": "b", "subtext": "c"},
+        data={"user_id": "u", "situation": "a", "character": "b", "subtext": "c"},
         files={"video": ("t.mp4", b"x" * 200, "video/mp4")},
     )
     assert r.status_code == 413
@@ -198,7 +237,7 @@ def test_summarize_streams_within_limit(monkeypatch):
     body = b"x" * (3 * 1024 * 1024)  # 청크(1MB)를 여러 번 도는 크기
     r = c.post(
         "/summarize",
-        data={"situation": "a", "character": "b", "subtext": "c"},
+        data={"user_id": "u", "situation": "a", "character": "b", "subtext": "c"},
         files={"video": ("t.mp4", body, "video/mp4")},
     )
     assert r.status_code == 200

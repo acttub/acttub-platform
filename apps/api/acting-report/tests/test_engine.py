@@ -1,7 +1,7 @@
 import pytest
 
 from acting_report import engine
-from support import REPORT, SESSION, FakeClient, _Resp
+from report_test_support import REPORT, SESSION, FakeClient, _Resp
 
 
 def test_generate_report_parsed():

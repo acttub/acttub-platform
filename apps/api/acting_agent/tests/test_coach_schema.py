@@ -1,5 +1,5 @@
 from acting_agent.schema import CoachTurn, CoachReply, CoachSession
-from support import SUMMARY
+from agent_test_support import SESSION_ID, SUMMARY, SUMMARY_ID
 
 
 def test_coach_reply_defaults():
@@ -19,7 +19,12 @@ def test_coach_reply_reason_enum_has_no_empty_value():
 
 
 def test_coach_session_defaults_and_roundtrip():
-    s = CoachSession(session_id="abc", summary=SUMMARY)
+    s = CoachSession(session_id=SESSION_ID, summary_id=SUMMARY_ID, summary=SUMMARY)
     assert s.turns == [] and s.question_count == 0 and s.status == "open"
-    s.turns.append(CoachTurn(role="ai", text="hi"))
-    assert CoachSession.model_validate(s.model_dump()).turns[0].role == "ai"
+    s.turns.append(
+        CoachTurn(role="ai", text="hi", action="probe_intent", focus_timestamp="00:12")
+    )
+    loaded = CoachSession.model_validate(s.model_dump())
+    assert loaded.summary_id == SUMMARY_ID
+    assert loaded.turns[0].action == "probe_intent"
+    assert loaded.turns[0].focus_timestamp == "00:12"
