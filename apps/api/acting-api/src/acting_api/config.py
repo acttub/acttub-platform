@@ -18,6 +18,7 @@ class GatewaySettings:
     database_url: str
     jwt_secret: str
     google_oauth_client_id: str | None = None
+    dev_auth_provider: bool = False
     keep_alive_url: str | None = None
     keep_alive_interval_sec: int = DEFAULT_KEEP_ALIVE_INTERVAL_SEC
     s3_bucket: str | None = None
@@ -113,6 +114,10 @@ def load_gateway_settings(env_path: Path | None = None) -> GatewaySettings:
         database_url=database_url,
         jwt_secret=jwt_secret,
         google_oauth_client_id=os.environ.get("GOOGLE_OAUTH_CLIENT_ID") or None,
+        dev_auth_provider=(
+            os.environ.get("DEV_AUTH_PROVIDER", "").strip().lower()
+            in {"1", "true"}
+        ),
         keep_alive_url=keep_alive_url,
         keep_alive_interval_sec=keep_alive_interval,
         **s3_values,
