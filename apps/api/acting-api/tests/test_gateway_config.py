@@ -19,6 +19,31 @@ def test_google_client_id_is_optional_at_boot(monkeypatch, tmp_path):
     assert settings.google_oauth_client_id is None
 
 
+@pytest.mark.parametrize("value", ["1", "true", "TRUE", " true "])
+def test_dev_auth_provider_truthy_values_enable_flag(monkeypatch, tmp_path, value):
+    monkeypatch.setenv("DATABASE_URL", "postgresql://user:pass@db.example/acting")
+    monkeypatch.setenv("JWT_SECRET", "secret")
+    monkeypatch.setenv("DEV_AUTH_PROVIDER", value)
+
+    settings = load_gateway_settings(tmp_path / "missing.env")
+
+    assert settings.dev_auth_provider is True
+
+
+@pytest.mark.parametrize("value", [None, "0", "false", "yes"])
+def test_dev_auth_provider_is_disabled_by_default(monkeypatch, tmp_path, value):
+    monkeypatch.setenv("DATABASE_URL", "postgresql://user:pass@db.example/acting")
+    monkeypatch.setenv("JWT_SECRET", "secret")
+    if value is None:
+        monkeypatch.delenv("DEV_AUTH_PROVIDER", raising=False)
+    else:
+        monkeypatch.setenv("DEV_AUTH_PROVIDER", value)
+
+    settings = load_gateway_settings(tmp_path / "missing.env")
+
+    assert settings.dev_auth_provider is False
+
+
 def test_default_analysis_lease_covers_download_compression_and_gemini_wait(
     monkeypatch, tmp_path
 ):

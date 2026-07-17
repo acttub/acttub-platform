@@ -11,8 +11,11 @@ DATABASE_URL=postgresql://localhost/acting uv run alembic -c acting-api/alembic.
 DATABASE_URL=postgresql://localhost/acting JWT_SECRET=... GOOGLE_OAUTH_CLIENT_ID=... GEMINI_API_KEY=... S3_BUCKET=... AWS_ACCESS_KEY_ID=... AWS_SECRET_ACCESS_KEY=... AWS_REGION=ap-northeast-2 uv run uvicorn acting_api.app:create_app --factory --host 127.0.0.1 --port 8000
 ```
 
+### 환경 변수
+
 - `DATABASE_URL`, `JWT_SECRET`, `GEMINI_API_KEY`는 필수이며, 누락 시 앱이 기동하지 않습니다.
 - `GOOGLE_OAUTH_CLIENT_ID`는 구글 로그인 요청이 들어올 때 필요하며, 미설정 시 해당 요청은 503을 반환합니다.
+- `DEV_AUTH_PROVIDER`는 선택 사항이며 기본값은 비활성입니다. `1` 또는 `true`일 때만 로컬 개발용 `dev` 로그인 provider를 등록합니다.
 - S3 설정 4개는 선택 사항이지만 일부만 설정할 수는 없습니다. 미설정 상태에서는 앱은 기동하고 업로드·재생 API가 503을 반환하며 분석 워커는 시작하지 않습니다.
 - 분석 워커는 `ANALYSIS_WORKER_CONCURRENCY`(기본 1), `ANALYSIS_WORKER_POLL_INTERVAL_SEC`(기본 2초), `ANALYSIS_LEASE_SEC`(기본 1800초), `ANALYSIS_SWEEP_INTERVAL_SEC`(기본 60초)로 조정합니다. 기본 lease는 550MB 다운로드·압축·Gemini 업로드와 ACTIVE 대기 최악 시간을 한 번의 선점 안에 수용하도록 잡았습니다.
 - `KEEP_ALIVE_URL`을 설정하면 기존 self-ping이 활성화됩니다. EC2 상시 가동에서는 불필요하지만 제거 결정 전까지 opt-in으로 유지합니다.
@@ -32,6 +35,26 @@ uv run python -m acting_api.consents list
 - 로그인·refresh는 토큰에서 사용자를 확인한 뒤, logout과 나머지 보호 API는 Bearer access token에서 사용자를 확인한 뒤 동일한 사용자별 60회/분 제한을 적용합니다.
 - 로그인 전 최신 약관을 보여줘야 하는 `GET /v2/consents/documents`와 `/health`·API 문서는 공개입니다.
 - 다른 사용자의 upload intent, practice session, summary, coach session은 존재 여부를 노출하지 않고 404를 반환합니다.
+
+## 로컬 개발 인증
+
+실제 Google ID token 없이 Swagger나 프론트엔드를 개발할 때만 앱 실행 환경에
+`DEV_AUTH_PROVIDER=1`을 설정합니다. 이후 일반 로그인 엔드포인트에 다음 형식의 가짜
+ID token을 보냅니다.
+
+- `<uid>`: 이메일 없는 미검증 사용자
+- `<uid>:<email>`: 검증된 이메일을 가진 사용자
+
+```bash
+curl -X POST http://127.0.0.1:8000/v2/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"provider":"dev","id_token":"local-user:actor@example.com"}'
+```
+
+응답 JWT, 자동 가입·기존 계정 연결, pending consent, rate limit은 Google 로그인과
+같은 코드 경로를 사용합니다. **이 provider는 신원을 검증하지 않으므로 프로덕션에서는
+절대 `DEV_AUTH_PROVIDER`를 활성화하지 마세요.** 플래그가 없거나 다른 값이면 `dev`
+로그인은 `400 unsupported_provider`로 거부됩니다.
 
 ## 엔드포인트
 

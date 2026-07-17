@@ -110,6 +110,22 @@ def test_empty_schema_upgrade_creates_exact_v2_schema(postgres_store):
     } <= enum_names
 
 
+def test_dev_identity_provider_is_persisted_after_migration(postgres_store):
+    user = postgres_store.create_user(email="dev-actor@example.com")
+
+    identity = postgres_store.link_user_identity(
+        user_id=user.id,
+        provider="dev",
+        provider_uid="local-dev-actor",
+    )
+
+    assert identity.user_id == user.id
+    assert (
+        postgres_store.get_user_by_identity("dev", "local-dev-actor").id
+        == user.id
+    )
+
+
 def test_account_consent_upload_and_practice_lifecycle(postgres_store):
     store = postgres_store
     now = datetime.now(timezone.utc)
