@@ -1,19 +1,9 @@
-from datetime import datetime, timezone
-from uuid import uuid4
-
-from acting_agent.schema import CoachReply, CoachSession
+from acting_agent.schema import CoachReply
 from acting_agent.summary_schema import SceneSummary as AgentSceneSummary
-from acting_agent.summary_schema import SubText as AgentSubText
-from acting_api.security import hash_api_key
-from acting_report.schema import ActingReport, BiggestProblem, ReportRecord
-from acting_report.session_schema import CoachSession as ReportCoachSession
-from acting_report.session_schema import CoachTurn as ReportCoachTurn
-from acting_report.summary_schema import SceneSummary as ReportSceneSummary
-from acting_report.summary_schema import SubText as ReportSubText
+from acting_report.schema import ActingReport, BiggestProblem
 from acting_summary.schema import Anomaly, Observation, SceneSummary, SubText
 
 SUMMARY_ID = "11111111-1111-4111-8111-111111111111"
-SESSION_ID = "22222222-2222-4222-8222-222222222222"
 
 SUBTEXT = SubText(situation="상황", character="인물", subtext="서브")
 SUMMARY = SceneSummary(
@@ -48,7 +38,6 @@ SUMMARY = SceneSummary(
     ],
 )
 AGENT_SUMMARY = AgentSceneSummary.model_validate(SUMMARY.model_dump(mode="json"))
-REPORT_SUMMARY = ReportSceneSummary.model_validate(SUMMARY.model_dump(mode="json"))
 
 COACH_QUESTION = CoachReply(
     action="probe_intent",
@@ -73,132 +62,7 @@ REPORT = ActingReport(
 )
 
 
-class FakeGatewayStore:
-    def __init__(self, api_keys: dict[str, int] | None = None):
-        self._key_limits = {
-            hash_api_key(key): limit for key, limit in (api_keys or {}).items()
-        }
-        self._summaries: dict[str, dict] = {}
-        self._sessions: dict[str, CoachSession] = {}
-        self._reports: dict[str, ReportRecord] = {}
-        self.closed = False
-
-    def get_api_key_rate_limit(self, key_hash: str) -> int | None:
-        return self._key_limits.get(key_hash)
-
-    def create_summary(
-        self,
-        *,
-        user_id: str,
-        subtext: SubText,
-        summary: SceneSummary,
-        video_filename: str | None,
-        video_size_bytes: int,
-        was_compressed: bool,
-        model: str,
-    ) -> str:
-        summary_id = str(uuid4())
-        self.seed_summary(
-            summary_id,
-            user_id=user_id,
-            summary=summary,
-            subtext=subtext,
-            video_filename=video_filename,
-            video_size_bytes=video_size_bytes,
-            was_compressed=was_compressed,
-            model=model,
-        )
-        return summary_id
-
-    def seed_summary(
-        self,
-        summary_id: str = SUMMARY_ID,
-        *,
-        user_id: str = "u1",
-        summary: SceneSummary = SUMMARY,
-        subtext: SubText = SUBTEXT,
-        **metadata,
-    ) -> str:
-        self._summaries[summary_id] = {
-            "user_id": user_id,
-            "raw": summary.model_dump(mode="json"),
-            "subtext": subtext.model_dump(mode="json"),
-            **metadata,
-        }
-        return summary_id
-
-    def get_summary(self, summary_id: str):
-        record = self._summaries.get(summary_id)
-        if record is None:
-            return None
-        return (
-            AgentSceneSummary.model_validate(record["raw"]),
-            AgentSubText.model_validate(record["subtext"]),
-        )
-
-    def create(self, session: CoachSession) -> CoachSession:
-        self._sessions[session.session_id] = session.model_copy(deep=True)
-        return session.model_copy(deep=True)
-
-    def get(self, session_id: str) -> CoachSession | None:
-        session = self._sessions.get(session_id)
-        return session.model_copy(deep=True) if session else None
-
-    def save(self, session: CoachSession) -> CoachSession:
-        self._sessions[session.session_id] = session.model_copy(deep=True)
-        return session.model_copy(deep=True)
-
-    def get_report_context(self, session_id: str):
-        session = self._sessions.get(session_id)
-        if session is None:
-            return None
-        summary_record = self._summaries[session.summary_id]
-        report_session = ReportCoachSession(
-            session_id=session.session_id,
-            summary=ReportSceneSummary.model_validate(summary_record["raw"]),
-            subtext=ReportSubText.model_validate(summary_record["subtext"]),
-            turns=[
-                ReportCoachTurn(role=turn.role, text=turn.text)
-                for turn in session.turns
-            ],
-            question_count=session.question_count,
-            status=session.status,
-            close_reason=session.close_reason,
-        )
-        return summary_record["user_id"], report_session
-
-    def list_reports(self, user_id: str) -> list[ReportRecord]:
-        return [
-            record.model_copy(deep=True)
-            for session_id, record in self._reports.items()
-            if self._summaries[self._sessions[session_id].summary_id]["user_id"]
-            == user_id
-        ]
-
-    def has_report(self, session_id: str) -> bool:
-        return session_id in self._reports
-
-    def add_report(self, session_id: str, report: ActingReport) -> bool:
-        context = self.get_report_context(session_id)
-        if context is None or self.has_report(session_id):
-            return False
-        _, session = context
-        self._reports[session_id] = ReportRecord(
-            created_at=datetime.now(timezone.utc).isoformat(),
-            session_id=session_id,
-            report=report,
-            turns=session.turns,
-        )
-        return True
-
-    def count_reports(self, user_id: str) -> int:
-        return len(self.list_reports(user_id))
-
-    def close(self) -> None:
-        self.closed = True
-
-
-class _Resp:
+class FakeModelResponse:
     def __init__(self, parsed=None, text=None):
         self.parsed, self.text = parsed, text
 
@@ -215,3 +79,6 @@ class _Models:
 class FakeClient:
     def __init__(self, responses=()):
         self.models = _Models(responses)
+
+    def queue_response(self, response) -> None:
+        self.models._responses.append(response)

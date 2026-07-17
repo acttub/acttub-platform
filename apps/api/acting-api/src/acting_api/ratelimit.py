@@ -2,7 +2,7 @@ import time
 
 
 class RateLimiter:
-    """키별 고정 윈도우(1분) 인메모리 카운터."""
+    """주체별 고정 윈도우(1분) 인메모리 카운터."""
 
     def __init__(self, *, clock=time.monotonic):
         self._clock = clock

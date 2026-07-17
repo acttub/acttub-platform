@@ -1,5 +1,9 @@
 import hashlib
 
 
-def hash_api_key(api_key: str) -> str:
-    return hashlib.sha256(api_key.encode("utf-8")).hexdigest()
+def _hash_secret(value: str) -> str:
+    return hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+
+def hash_token(token: str) -> str:
+    return _hash_secret(token)

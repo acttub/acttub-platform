@@ -1,19 +1,22 @@
 # acting-api-deploy
 
-Render 배포용 모노레포 스냅샷. 루트 `pyproject.toml`이 uv workspace를 구성하고, `acting-api`가 summary/coach/report 라우터를 한 프로세스에 마운트합니다.
+연기 피드백 플랫폼 모노레포. 루트 `pyproject.toml`이 uv workspace를 구성하고, `acting-api`가 계정·업로드·분석·코칭·리포트를 단일 FastAPI 앱으로 제공합니다 (acting-summary·acting_agent·acting-report는 in-process 임베드).
 
-- 원본: acttub/acttub-ai-summary, acttub/acttub-ai-report, acttub/acttub-ai-agent + 로컬 acting-api
-- 갱신: 로컬에서 `.\sync_deploy.ps1` 실행 → diff 확인 → commit/push → Render 자동 재배포
-- 배포 설정: `render.yaml` (루트 workspace sync, Alembic upgrade, uvicorn factory)
-- 필수 환경변수: `DATABASE_URL`, `GEMINI_API_KEY`
-- 선택 환경변수: `GEMINI_MODEL`, `COACH_MAX_QUESTIONS`, `KEEP_ALIVE_URL`, `KEEP_ALIVE_INTERVAL_SEC`
+- API 계약: [API.md](API.md) · 설계 결정 기록: [docs/design-decisions.md](docs/design-decisions.md) · 시각화: [spec/api-spec.html](spec/api-spec.html)
+- DB 스키마의 진실: `acting-api/src/acting_api/db/models.py` + `acting-api/alembic/versions/0001_initial_schema.py`
+- 배포 대상: EC2 (기존 Render 설정 `render.yaml`은 이전 확정 시 정리 예정)
+- 환경 변수 전체 목록: [API.md의 환경 변수 절](API.md#환경-변수) — 필수는 `DATABASE_URL`, `JWT_SECRET`, `GEMINI_API_KEY`
 
 ```bash
 uv sync
-DATABASE_URL=postgresql://localhost/acting uv run alembic -c acting-api/alembic.ini upgrade head
-DATABASE_URL=postgresql://localhost/acting uv run python -m acting_api.api_keys issue --label local
-DATABASE_URL=postgresql://localhost/acting GEMINI_API_KEY=... uv run uvicorn acting_api.app:create_app --factory
-uv run pytest
-```
 
-API 키 평문은 발급 명령에서 한 번만 출력되고 DB에는 SHA-256 해시만 저장됩니다. 전체 API 계약은 [API.md](API.md), 확정 DB 스키마는 [docs/db-schema.md](docs/db-schema.md)를 참고하세요.
+# 스키마 적용 (빈 DB → 13테이블)
+DATABASE_URL=postgresql://localhost/acting uv run alembic -c acting-api/alembic.ini upgrade head
+
+# 서버 실행 (acting-api/.env를 읽음)
+uv run uvicorn acting_api.app:create_app --factory --host 127.0.0.1 --port 8000
+
+# 테스트 (DB 통합 테스트는 opt-in)
+uv run pytest
+RUN_DB_TESTS=1 TEST_DATABASE_URL=postgresql://localhost/acting_test uv run pytest
+```

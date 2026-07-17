@@ -1,31 +1,39 @@
 import asyncio
+from datetime import timedelta
 import os
 import time
 from contextlib import asynccontextmanager
 
 import httpx
-from fastapi import FastAPI, Security
-from fastapi.responses import JSONResponse
-from fastapi.security import APIKeyHeader
+from fastapi import FastAPI
 from google import genai
-from starlette.concurrency import run_in_threadpool
 
 from acting_agent.config import load_settings as load_agent_settings
-from acting_agent.router import build_router as build_coach_router
+from acting_api.analysis_worker import (
+    AnalysisWorker,
+    AnalysisWorkerPool,
+    SummaryAnalyzer,
+)
+from acting_api.auth.dependencies import (
+    build_current_user_dependency,
+    build_rate_limited_user_dependency,
+)
+from acting_api.auth.google import GoogleProviderVerifier
+from acting_api.auth.jwt import JwtService
+from acting_api.auth.providers import ProviderRegistry
+from acting_api.auth.router import build_router as build_auth_router
+from acting_api.coaching import build_router as build_coaching_router
 from acting_api.config import load_gateway_settings
+from acting_api.consents import build_router as build_consents_router
 from acting_api.db.store import PostgresStore
 from acting_api.keepalive import keep_alive_loop
+from acting_api.practice_sessions import build_router as build_practice_router
 from acting_api.ratelimit import RateLimiter
-from acting_api.security import hash_api_key
+from acting_api.reports import build_router as build_reports_router
+from acting_api.storage import S3Storage
+from acting_api.uploads import build_router as build_uploads_router
 from acting_report.config import load_settings as load_report_settings
-from acting_report.router import build_router as build_report_router
 from acting_summary.config import load_settings as load_summary_settings
-from acting_summary.router import build_router as build_summary_router
-
-EXEMPT_PATHS = {"/health", "/docs", "/openapi.json", "/redoc"}
-
-# Swagger UI Authorize 버튼용 스펙 선언 — 실제 검증은 미들웨어가 담당
-api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 
 
 def create_app(
@@ -38,6 +46,12 @@ def create_app(
     store=None,
     clock=time.monotonic,
     keep_alive_client=None,
+    jwt_service=None,
+    provider_registry=None,
+    s3_client=None,
+    s3_storage=None,
+    analysis_worker=None,
+    analyzer=None,
 ) -> FastAPI:
     gateway_settings = gateway_settings or load_gateway_settings()
     summary_settings = summary_settings or load_summary_settings()
@@ -48,6 +62,43 @@ def create_app(
     if store is None:
         store = PostgresStore.from_url(gateway_settings.database_url)
     limiter = RateLimiter(clock=clock)
+    jwt_service = jwt_service or JwtService(gateway_settings.jwt_secret)
+    provider_registry = provider_registry or ProviderRegistry(
+        [GoogleProviderVerifier(gateway_settings.google_oauth_client_id)]
+    )
+    current_user = build_current_user_dependency(store, jwt_service)
+    rate_limited_user = build_rate_limited_user_dependency(current_user, limiter)
+    if s3_storage is None and gateway_settings.s3_configured:
+        if s3_client is not None:
+            s3_storage = S3Storage(bucket=gateway_settings.s3_bucket, client=s3_client)
+        else:
+            s3_storage = S3Storage.from_credentials(
+                bucket=gateway_settings.s3_bucket,
+                access_key_id=gateway_settings.aws_access_key_id,
+                secret_access_key=gateway_settings.aws_secret_access_key,
+                region=gateway_settings.aws_region,
+            )
+    if (
+        analysis_worker is None
+        and s3_storage is not None
+        and isinstance(store, PostgresStore)
+    ):
+        analyzer = analyzer or SummaryAnalyzer(
+            client=client,
+            model=summary_settings.model,
+        )
+        analysis_worker = AnalysisWorkerPool(
+            worker=AnalysisWorker(
+                store=store,
+                storage=s3_storage,
+                analyzer=analyzer,
+                lease_duration=timedelta(seconds=gateway_settings.analysis_lease_sec),
+                model=summary_settings.model,
+            ),
+            concurrency=gateway_settings.analysis_worker_concurrency,
+            poll_interval_sec=gateway_settings.analysis_worker_poll_interval_sec,
+            sweep_interval_sec=gateway_settings.analysis_sweep_interval_sec,
+        )
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -65,9 +116,13 @@ def create_app(
                 )
             )
         app.state.keep_alive_task = task
+        if analysis_worker is not None:
+            analysis_worker.start()
         try:
             yield
         finally:
+            if analysis_worker is not None:
+                analysis_worker.stop()
             if task:
                 task.cancel()
             if owned_client:
@@ -77,32 +132,12 @@ def create_app(
 
     app = FastAPI(
         title="acting-api",
-        description="연기 영상 요약(/summarize) → 코치 대화(/coach/*) → 진단 리포트(/report) 통합 API. 모든 요청에 X-API-Key 헤더 필요.",
-        dependencies=[Security(api_key_header)],
+        description="연기 분석 플랫폼 API v2. Bearer access token을 사용합니다.",
         lifespan=lifespan,
     )
     app.state.store = store
-
-    @app.middleware("http")
-    async def auth_and_rate_limit(request, call_next):
-        if request.url.path in EXEMPT_PATHS:
-            return await call_next(request)
-        key = request.headers.get("X-API-Key")
-        if key is None:
-            return JSONResponse(
-                status_code=401, content={"detail": "invalid or missing X-API-Key"}
-            )
-        key_hash = hash_api_key(key)
-        rate_limit = await run_in_threadpool(store.get_api_key_rate_limit, key_hash)
-        if rate_limit is None:
-            return JSONResponse(
-                status_code=401, content={"detail": "invalid or missing X-API-Key"}
-            )
-        if not limiter.allow(key_hash, rate_limit):
-            return JSONResponse(
-                status_code=429, content={"detail": "rate limit exceeded"}
-            )
-        return await call_next(request)
+    app.state.s3_storage = s3_storage
+    app.state.analysis_worker = analysis_worker
 
     @app.get("/health")
     def health():
@@ -111,18 +146,54 @@ def create_app(
             "services": ["summary", "coach", "report"],
             "model": summary_settings.model,
             "keep_alive": bool(gateway_settings.keep_alive_url),
-            # Render가 주입하는 배포 커밋 — 어느 버전이 라이브인지 확인용
+            # 이전 배포 환경 변수가 있으면 진단 메타데이터로 계속 노출한다.
             "commit": os.environ.get("RENDER_GIT_COMMIT", "unknown")[:7],
         }
 
     app.include_router(
-        build_summary_router(client=client, settings=summary_settings, store=store)
+        build_auth_router(
+            store=store,
+            jwt_service=jwt_service,
+            providers=provider_registry,
+            current_user=current_user,
+            user_limiter=limiter,
+        )
     )
     app.include_router(
-        build_coach_router(client=client, settings=agent_settings, store=store)
+        build_consents_router(
+            store=store,
+            rate_limited_user=rate_limited_user,
+        )
     )
     app.include_router(
-        build_report_router(client=client, settings=report_settings, store=store)
+        build_uploads_router(
+            store=store,
+            storage=s3_storage,
+            rate_limited_user=rate_limited_user,
+        )
+    )
+    app.include_router(
+        build_practice_router(
+            store=store,
+            storage=s3_storage,
+            rate_limited_user=rate_limited_user,
+        )
+    )
+    app.include_router(
+        build_coaching_router(
+            client=client,
+            settings=agent_settings,
+            store=store,
+            rate_limited_user=rate_limited_user,
+        )
+    )
+    app.include_router(
+        build_reports_router(
+            client=client,
+            settings=report_settings,
+            store=store,
+            rate_limited_user=rate_limited_user,
+        )
     )
 
     return app

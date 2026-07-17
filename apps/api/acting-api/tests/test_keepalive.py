@@ -10,7 +10,8 @@ from acting_summary.config import Settings as SummarySettings
 from acting_api.app import create_app
 from acting_api.config import GatewaySettings, load_gateway_settings
 from acting_api.keepalive import keep_alive_loop
-from api_test_support import FakeClient, FakeGatewayStore
+from api_test_support import FakeClient
+from platform_test_support import FakePlatformStore
 
 
 # ---- 설정 파싱 ----
@@ -18,6 +19,7 @@ from api_test_support import FakeClient, FakeGatewayStore
 
 def test_keep_alive_env_parsed(monkeypatch, tmp_path):
     monkeypatch.setenv("DATABASE_URL", "postgresql://localhost/acting")
+    monkeypatch.setenv("JWT_SECRET", "test-jwt-secret")
     monkeypatch.setenv("KEEP_ALIVE_URL", "https://acting-api.onrender.com")
     monkeypatch.setenv("KEEP_ALIVE_INTERVAL_SEC", "300")
     s = load_gateway_settings(env_path=tmp_path / "missing.env")
@@ -28,6 +30,7 @@ def test_keep_alive_env_parsed(monkeypatch, tmp_path):
 
 def test_keep_alive_defaults_off(monkeypatch, tmp_path):
     monkeypatch.setenv("DATABASE_URL", "postgresql+psycopg://localhost/acting")
+    monkeypatch.setenv("JWT_SECRET", "test-jwt-secret")
     monkeypatch.delenv("KEEP_ALIVE_URL", raising=False)
     monkeypatch.delenv("KEEP_ALIVE_INTERVAL_SEC", raising=False)
     s = load_gateway_settings(env_path=tmp_path / "missing.env")
@@ -89,12 +92,13 @@ def _app(*, keep_alive_url=None, keep_alive_client=None):
         client=FakeClient(),
         gateway_settings=GatewaySettings(
             database_url="postgresql+psycopg://unused/unused",
+            jwt_secret="test-jwt-secret",
             keep_alive_url=keep_alive_url,
         ),
         summary_settings=SummarySettings(api_key="k", model="m"),
         agent_settings=AgentSettings(api_key="k", model="m"),
         report_settings=ReportSettings(api_key="k", model="m"),
-        store=FakeGatewayStore({"k": 10}),
+        store=FakePlatformStore(),
         keep_alive_client=keep_alive_client,
     )
 

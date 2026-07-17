@@ -3,64 +3,153 @@ from unittest.mock import MagicMock
 from uuid import UUID
 
 import pytest
+import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.exc import IntegrityError
 
 from acting_agent.schema import CoachSession, CoachTurn
 from acting_agent.store import SessionWriteConflict
 from acting_api.db.models import (
-    Anomaly,
     Base,
     CloseReason,
     CoachSession as DbCoachSession,
     CoachTurn as DbCoachTurn,
-    Scene,
+    ConsentAction,
+    ConsentType,
+    IdentityProvider,
+    OperationKind,
+    OperationStatus,
+    PracticeStatus,
     SessionStatus,
-    Summary,
     TurnRole,
+    UploadStatus,
+    UserStatus,
 )
 from acting_api.db.store import PostgresStore
-from api_test_support import AGENT_SUMMARY, SUBTEXT, SUMMARY_ID, SUMMARY as SUMMARY_DATA
+from api_test_support import AGENT_SUMMARY, SUMMARY_ID
 
 
-def test_metadata_has_exact_initial_tables():
-    assert set(Base.metadata.tables) == {
-        "users",
-        "api_keys",
-        "scenes",
-        "summaries",
-        "anomalies",
-        "coach_sessions",
-        "coach_turns",
-        "reports",
-    }
+EXPECTED_TABLES = {
+    "users",
+    "user_identities",
+    "refresh_tokens",
+    "consent_documents",
+    "user_consents",
+    "upload_intents",
+    "practice_sessions",
+    "summaries",
+    "anomalies",
+    "coach_sessions",
+    "coach_turns",
+    "reports",
+    "external_operations",
+}
 
 
-def test_derived_user_columns_are_not_stored():
-    assert "user_id" not in Base.metadata.tables["coach_sessions"].c
-    assert "user_id" not in Base.metadata.tables["reports"].c
+def test_metadata_has_exact_platform_v2_tables():
+    assert set(Base.metadata.tables) == EXPECTED_TABLES
+    assert "scenes" not in Base.metadata.tables
+    assert "external_id" not in Base.metadata.tables["users"].c
 
 
-def test_required_reference_chain_is_non_nullable():
+def test_documented_enum_values_are_exact():
+    assert [item.value for item in UserStatus] == ["active", "suspended"]
+    assert [item.value for item in IdentityProvider] == ["google", "kakao", "apple"]
+    assert [item.value for item in ConsentType] == ["terms", "privacy", "ai_analysis"]
+    assert [item.value for item in ConsentAction] == [
+        "granted",
+        "declined",
+        "revoked",
+    ]
+    assert [item.value for item in UploadStatus] == ["pending", "finalized", "expired"]
+    assert [item.value for item in PracticeStatus] == [
+        "created",
+        "analyzing",
+        "analyzed",
+        "failed",
+    ]
+    assert [item.value for item in OperationKind] == [
+        "analyze",
+        "coach_start",
+        "coach_reply",
+        "report",
+    ]
+    assert [item.value for item in OperationStatus] == [
+        "pending",
+        "running",
+        "succeeded",
+        "failed",
+    ]
+
+
+def test_required_reference_chain_and_v2_summary_columns():
     tables = Base.metadata.tables
-    assert tables["scenes"].c.user_id.nullable is False
-    assert tables["summaries"].c.scene_id.nullable is False
-    assert tables["coach_sessions"].c.summary_id.nullable is False
-    assert tables["reports"].c.session_id.nullable is False
-    assert tables["reports"].c.session_id.unique is True
+    assert _fk_target(tables["summaries"].c.session_id) == "practice_sessions.id"
+    assert _fk_target(tables["coach_sessions"].c.summary_id) == "summaries.id"
+    assert _fk_target(tables["reports"].c.session_id) == "coach_sessions.id"
+    assert _fk_target(tables["practice_sessions"].c.user_id) == "users.id"
+    assert "model" in tables["summaries"].c
+    assert "was_compressed" in tables["summaries"].c
+    assert "situation" in tables["practice_sessions"].c
+    assert "character_context" in tables["practice_sessions"].c
+    assert "subtext" in tables["practice_sessions"].c
+    assert tables["upload_intents"].c.etag.nullable is True
+    assert "user_id" not in tables["coach_sessions"].c
+    assert "user_id" not in tables["reports"].c
 
 
-def test_join_indexes_are_present():
+def test_every_time_column_is_timezone_aware():
+    for table in Base.metadata.tables.values():
+        for column in table.columns:
+            if column.name.endswith("_at"):
+                assert isinstance(column.type, sa.DateTime), (
+                    table.name,
+                    column.name,
+                )
+                assert column.type.timezone is True, (table.name, column.name)
+
+
+def test_all_documented_unique_constraints_exist():
+    expected = {
+        "users": {("email",)},
+        "user_identities": {("provider", "provider_uid")},
+        "refresh_tokens": {("token_hash",)},
+        "consent_documents": {("type", "version")},
+        "upload_intents": {("object_key",)},
+        "practice_sessions": {("upload_intent_id",)},
+        "coach_turns": {("session_id", "turn_index")},
+        "reports": {("session_id",)},
+        "external_operations": {("user_id", "request_id")},
+    }
+    for table_name, constraints in expected.items():
+        actual = {
+            tuple(column.name for column in constraint.columns)
+            for constraint in Base.metadata.tables[table_name].constraints
+            if isinstance(constraint, sa.UniqueConstraint)
+        }
+        assert constraints <= actual, table_name
+
+
+def test_operational_indexes_cover_lists_sweeps_and_polling():
     index_names = {
         index.name for table in Base.metadata.tables.values() for index in table.indexes
     }
-    assert index_names == {
-        "idx_turns_session",
+    assert {
+        "idx_refresh_tokens_user_expires",
+        "idx_consent_documents_latest",
+        "idx_user_consents_current",
+        "idx_upload_intents_expiry",
+        "idx_practice_sessions_user_visible_created",
+        "idx_practice_sessions_user",
+        "idx_practice_sessions_status_updated",
+        "idx_summaries_session",
         "idx_anomalies_summary",
-        "idx_scenes_user",
-        "idx_summaries_scene",
         "idx_sessions_summary",
-    }
+        "idx_turns_session",
+        "idx_external_operations_claimable",
+        "idx_external_operations_session",
+        "idx_external_operations_status_attempt_lease",
+    } <= index_names
 
 
 def test_only_report_session_unique_violation_is_treated_as_duplicate():
@@ -105,10 +194,6 @@ def test_closed_session_rejects_appended_turns_as_concurrent_write():
     db = MagicMock()
     db.scalar.return_value = db_session
     db.scalars.return_value = [stored_turn]
-    session_factory = MagicMock()
-    session_factory.begin.return_value.__enter__.return_value = db
-    store = PostgresStore.__new__(PostgresStore)
-    store._session_factory = session_factory
     hybrid_snapshot = CoachSession(
         session_id=str(session_id),
         summary_id=str(summary_id),
@@ -122,7 +207,7 @@ def test_closed_session_rejects_appended_turns_as_concurrent_write():
     )
 
     with pytest.raises(SessionWriteConflict, match="closed session"):
-        store.save(hybrid_snapshot)
+        PostgresStore._save_coach_session(db, hybrid_snapshot)
 
     db.add.assert_not_called()
 
@@ -140,31 +225,5 @@ def test_session_context_load_locks_session_row_before_turn_query():
     assert "FOR SHARE OF coach_sessions" in sql
 
 
-def test_create_summary_flushes_each_parent_before_fk_children():
-    events = []
-    db = MagicMock()
-    db.scalar.return_value = UUID("00000000-0000-4000-8000-000000000001")
-    db.add.side_effect = lambda row: events.append(("add", type(row)))
-    db.flush.side_effect = lambda: events.append(("flush", None))
-    session_factory = MagicMock()
-    session_factory.begin.return_value.__enter__.return_value = db
-    store = PostgresStore.__new__(PostgresStore)
-    store._session_factory = session_factory
-
-    store.create_summary(
-        user_id="external-u1",
-        subtext=SUBTEXT,
-        summary=SUMMARY_DATA,
-        video_filename="scene.mp4",
-        video_size_bytes=1234,
-        was_compressed=False,
-        model="gemini-test",
-    )
-
-    assert events == [
-        ("add", Scene),
-        ("flush", None),
-        ("add", Summary),
-        ("flush", None),
-        ("add", Anomaly),
-    ]
+def _fk_target(column: sa.Column) -> str:
+    return next(iter(column.foreign_keys)).target_fullname
