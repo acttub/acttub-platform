@@ -31,6 +31,7 @@ class GatewaySettings:
     )
     analysis_lease_sec: int = DEFAULT_ANALYSIS_LEASE_SEC
     analysis_sweep_interval_sec: float = DEFAULT_ANALYSIS_SWEEP_INTERVAL_SEC
+    static_dir: Path | None = None
 
     @property
     def s3_configured(self) -> bool:
@@ -110,6 +111,12 @@ def load_gateway_settings(env_path: Path | None = None) -> GatewaySettings:
         sweep_interval,
     ) <= 0:
         raise RuntimeError("analysis worker settings must be positive")
+    static_dir_value = os.environ.get("STATIC_DIR") or None
+    static_dir = None
+    if static_dir_value:
+        static_dir = Path(static_dir_value).resolve()
+        if not static_dir.is_dir():
+            raise RuntimeError(f"STATIC_DIR is not a directory: {static_dir}")
     return GatewaySettings(
         database_url=database_url,
         jwt_secret=jwt_secret,
@@ -125,4 +132,5 @@ def load_gateway_settings(env_path: Path | None = None) -> GatewaySettings:
         analysis_worker_poll_interval_sec=worker_poll_interval,
         analysis_lease_sec=analysis_lease_sec,
         analysis_sweep_interval_sec=sweep_interval,
+        static_dir=static_dir,
     )

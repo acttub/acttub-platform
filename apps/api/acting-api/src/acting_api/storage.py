@@ -42,6 +42,9 @@ class S3Storage:
             aws_access_key_id=access_key_id,
             aws_secret_access_key=secret_access_key,
             region_name=region,
+            # 글로벌 엔드포인트(s3.amazonaws.com)는 신규 버킷에 307을 돌려줄 수 있어
+            # presign URL이 항상 리전 엔드포인트를 가리키도록 고정한다.
+            endpoint_url=f"https://s3.{region}.amazonaws.com",
         )
         return cls(bucket=bucket, client=client)
 
