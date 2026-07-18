@@ -1,63 +1,46 @@
-# AGENTS.md
+# AGENTS.md — apps/web
 
-## 적용 범위
+## 적용 범위·스택
 
-이 지침은 `apps/web`의 Next.js 웹 앱에 적용됩니다.
+Next.js 16 App Router + React 19 + TypeScript + Tailwind CSS v4. **정적 export 전용**(`BUILD_STATIC=1` → `output:'export'`) — 서버 런타임이 없습니다.
 
-## 기술 스택
+## 명령어 (이 디렉토리 기준)
 
-- Next.js App Router
-- TypeScript
-- Tailwind CSS
-- ESLint
-- 저장소 루트에서 관리하는 pnpm workspace
-
-## 명령어
-
-가능하면 저장소 루트에서 명령어를 실행합니다:
-
-- `pnpm dev:web`
-- `pnpm lint:web`
-- `pnpm build:web`
-
-동일한 루트 alias:
-
-- `pnpm dev`
-- `pnpm lint`
-- `pnpm build`
+- `pnpm dev` — 개발 서버(:3000). next.config rewrites가 `/v2/*`를 `http://127.0.0.1:8000`(acting-api)으로 프록시.
+- `pnpm lint` · `pnpm typecheck` · `pnpm test`(node --test + 금지 카피 가드)
+- `pnpm build` — 정적 빌드 → `out/`
+- `pnpm generate:v2-schema` — `../api/spec/openapi.json`에서 요청 타입 재생성(`src/lib/api/v2-schema.d.ts`). 이 파일은 직접 수정 금지.
 
 ## 구조
 
-권장 소스 구조:
-
 ```text
 src/
-  app/          App Router 페이지, 레이아웃, route handler
-  components/   재사용 UI 컴포넌트
-  features/     제품/도메인 feature 모듈
+  app/        페이지 (전부 정적 프리렌더 + 클라이언트 렌더)
+  features/   화면 모듈 (practice-flow, terms-gate, auth 가드)
   lib/
-    api/        클라이언트 API 접근 코드와 공유 DTO 타입
-    config/     앱 설정
-  server/       Next Route Handler용 임시 서버 사이드 로직
+    api/v2/   acting-api v2 클라이언트 (도메인별 모듈)
+    auth/     토큰 스토어·refresh·로그인 provider
+    config/   env 스위치 (선택 변수는 env.ts 주석이 단일 문서)
 ```
 
-필요할 때만 폴더를 만들고, 빈 추상화 계층은 추가하지 않습니다.
+## 정적 export 제약 (위반 시 빌드 실패 또는 런타임 오류)
 
-## 프론트엔드/API 경계
+- Route Handler·middleware·Server Actions·서버 `redirect()` 금지. 서버 로직은 전부 `apps/api` 소관.
+- `useSearchParams`는 `<Suspense>` 내부에서만. 모듈 최상위에서 `window`/`navigator` 접근 금지.
+- 비밀 금지: `NEXT_PUBLIC_*`만 클라이언트에 노출되며 빌드 시점에 번들에 새겨집니다.
+- `crypto.randomUUID` 등 보안 컨텍스트 전용 API는 http(IP) 배포를 고려해 폴백 필수.
 
-장기적인 백엔드는 `apps/api`의 Spring Boot입니다. 그 전까지는 이 앱이 `src/app/api` 아래의 Next.js Route Handler로 임시 API를 제공할 수 있습니다.
+## API 호출 규칙
 
-규칙:
+- UI는 반드시 `src/lib/api/v2/*` 모듈을 통해 호출합니다. fetch 직접 호출 금지.
+- 토큰 부착·401 refresh(회전형 — 재사용 시 전 세션 무효화)·X-Request-Id 멱등 재시도·429 백오프는 전부 클라이언트 계층(`v2/client.ts`, `v2/idempotency.ts`, `auth/refresh.ts`)이 담당합니다. UI에서 재구현하지 않습니다.
+- 404는 "없음"과 "남의 리소스" 겸용 — 중립 카피("~를 찾을 수 없어요")를 사용합니다.
 
-- UI, component, feature 코드는 반드시 `src/lib/api/*`를 통해 API를 호출합니다.
-- UI 코드에서 `src/server/*`를 직접 import하지 않습니다.
-- 요청/응답 DTO를 명시적으로 유지하고, 이전하기 쉬운 형태로 작성합니다.
-- 나중에 프론트엔드 호출부를 바꾸지 않고 Spring Boot에서 구현할 수 있는 HTTP 계약을 선호합니다.
-- 향후 모바일 앱이나 Spring Boot 서비스에서도 같은 동작이 필요하다면 Server Actions를 핵심 백엔드 계약으로 사용하지 않습니다.
+## 스타일·카피
 
-## Next.js 규칙
+- Toss 스타일 인라인 Tailwind 유틸리티, 프레젠테이션 컴포넌트는 같은 파일의 로컬 함수로.
+- 사용자 카피는 한국어 존댓말("~해요"). `scripts/check-forbidden-copy.mjs`가 금지 문구를 검사합니다.
 
-- `src/app` 아래에서는 App Router 규칙을 따릅니다.
-- 기본적으로 Server Component를 선호하고, 상호작용, 브라우저 API, 클라이언트 상태가 필요할 때만 `"use client"`를 추가합니다.
-- route handler는 얇게 유지합니다: 입력 파싱, server/service 코드 호출, 응답 반환만 담당합니다.
-- 의도적으로 공개하는 값이며 `NEXT_PUBLIC_`로 이름 붙인 경우가 아니라면 환경 변수 접근은 서버 사이드에 둡니다.
+## 테스트
+
+`tests/*.test.mjs` — node --test. Node 24 타입 스트리핑으로 `.ts` 모듈을 상대 경로로 직접 임포트합니다(`@/` 별칭 불가). 토큰 스토어는 node 환경에서 메모리 모드로 동작해 그대로 테스트 가능합니다.
