@@ -1,0 +1,713 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>acting-api 문서 — API 스펙 · ERD</title>
+<style>
+:root {
+  --blue-500: #3182f6; --blue-600: #2272eb; --blue-50: #e8f3ff;
+  --grey-900: #191f28; --grey-800: #333d4b; --grey-700: #4e5968;
+  --grey-600: #6b7684; --grey-500: #8b95a1; --grey-400: #b0b8c1;
+  --grey-200: #e5e8eb; --grey-100: #f2f4f6; --grey-50: #f9fafb;
+  --red-500: #f04452; --green-500: #03b26c;
+  --font-sans: "Toss Product Sans", "Tossface", "SF Pro KR", "SF Pro Display",
+    -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", Roboto, "Noto Sans KR", sans-serif;
+  --font-mono: "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: #ffffff; color: var(--grey-800);
+  font-family: var(--font-sans); font-size: 14px; line-height: 1.57;
+}
+.container { max-width: 1040px; margin: 0 auto; padding: 48px 20px 80px; }
+h1 { font-size: 30px; font-weight: 700; line-height: 1.33; color: var(--grey-900); margin: 0 0 8px; }
+.subtitle { font-size: 16px; color: var(--grey-600); margin: 0 0 12px; }
+h2 { font-size: 26px; font-weight: 700; line-height: 1.38; color: var(--grey-900); margin: 56px 0 16px; }
+.meta-row { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0 0; }
+.chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: var(--grey-100); color: var(--grey-700);
+  border-radius: 8px; padding: 6px 12px; font-size: 13px;
+}
+.chip .mono { font-family: var(--font-mono); font-size: 12.5px; color: var(--grey-800); }
+.flow { margin-top: 20px; display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.flow .step {
+  font-family: var(--font-mono); font-size: 12.5px; font-weight: 600;
+  background: var(--blue-50); color: var(--blue-600);
+  border-radius: 8px; padding: 6px 10px;
+}
+.flow .arr { color: var(--grey-400); font-weight: 600; }
+
+/* 버전 구분 */
+.ver-nav { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0 0; }
+.ver-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  border-radius: 8px; padding: 6px 12px; font-size: 13px; text-decoration: none;
+}
+.ver-chip.current { background: var(--grey-100); color: var(--grey-700); }
+.ver-chip.target { background: var(--blue-50); color: var(--blue-600); font-weight: 600; }
+.ver-badge {
+  display: inline-block; vertical-align: 3px; margin-left: 10px;
+  font-size: 12px; font-weight: 700; border-radius: 6px; padding: 3px 8px;
+}
+.ver-badge.live { background: rgba(3,178,108,0.12); color: var(--green-500); }
+.ver-badge.plan { background: var(--blue-50); color: var(--blue-600); }
+h2.ver-h { margin-top: 72px; padding-top: 32px; border-top: 2px solid var(--grey-100); }
+
+/* 엔드포인트 카드 */
+.ep-card {
+  background: #ffffff; border-radius: 12px; padding: 24px;
+  box-shadow: 0px 2px 8px rgba(0,0,0,0.08); margin-top: 24px;
+}
+.ep-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.method {
+  font-size: 13px; font-weight: 700; color: #ffffff;
+  border-radius: 8px; padding: 4px 10px; letter-spacing: 0.02em;
+}
+.method.post { background: var(--blue-500); }
+.method.get { background: rgba(34,197,94,0.15); color: #16a34a; }
+.method.delete { background: rgba(240,68,82,0.12); color: var(--red-500); }
+.ep-path { font-family: var(--font-mono); font-size: 16px; font-weight: 600; color: var(--grey-900); }
+.ep-desc { color: var(--grey-600); margin: 10px 0 0; }
+.ep-desc .mono { font-family: var(--font-mono); }
+.ep-card h4 { font-size: 14px; font-weight: 600; color: var(--grey-700); margin: 20px 0 8px; }
+
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th {
+  text-align: left; font-weight: 600; color: var(--grey-500);
+  padding: 8px 10px; border-bottom: 1px solid var(--grey-200); white-space: nowrap;
+}
+td { padding: 8px 10px; border-bottom: 1px solid var(--grey-100); color: var(--grey-800); vertical-align: top; }
+tr:last-child td { border-bottom: none; }
+td .mono, th .mono, td.mono { font-family: var(--font-mono); font-size: 12.5px; }
+.req { color: var(--blue-600); font-weight: 600; }
+.code-4xx { font-family: var(--font-mono); font-weight: 600; color: var(--red-500); }
+.code-2xx { font-family: var(--font-mono); font-weight: 600; color: #16a34a; }
+
+pre {
+  background: var(--grey-50); border: 1px solid var(--grey-100);
+  border-radius: 8px; padding: 14px 16px; overflow-x: auto;
+  font-family: var(--font-mono); font-size: 12.5px; line-height: 1.6;
+  color: var(--grey-800); margin: 8px 0 0;
+}
+.note {
+  background: var(--blue-50); border-radius: 8px; padding: 12px 16px;
+  font-size: 13px; color: var(--grey-700); margin-top: 12px;
+}
+.note .mono { font-family: var(--font-mono); font-size: 12px; }
+footer { margin-top: 56px; font-size: 12px; color: var(--grey-400); border-top: 1px solid var(--grey-100); padding-top: 16px; }
+footer a { color: var(--blue-600); text-decoration: none; }
+
+/* ===== ERD 스타일 (docs/erd.html) ===== */
+:root {
+  --blue-500: #3182f6; --blue-600: #2272eb; --blue-50: #e8f3ff;
+  --grey-900: #191f28; --grey-800: #333d4b; --grey-700: #4e5968;
+  --grey-600: #6b7684; --grey-500: #8b95a1; --grey-400: #b0b8c1;
+  --grey-200: #e5e8eb; --grey-100: #f2f4f6; --grey-50: #f9fafb;
+  --font-sans: "Toss Product Sans", "Tossface", "SF Pro KR", "SF Pro Display",
+    -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", Roboto, "Noto Sans KR", sans-serif;
+  --font-mono: "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: #ffffff; color: var(--grey-800);
+  font-family: var(--font-sans); font-size: 14px; line-height: 1.57;
+}
+.container { max-width: 1040px; margin: 0 auto; padding: 48px 20px 80px; }
+h1 { font-size: 30px; font-weight: 700; line-height: 1.33; color: var(--grey-900); margin: 0 0 8px; }
+.subtitle { font-size: 16px; color: var(--grey-600); margin: 0 0 12px; }
+.subtitle .mono { font-family: var(--font-mono); font-size: 13px; }
+h3 { font-size: 16px; font-weight: 600; color: var(--grey-900); margin: 0 0 8px; }
+
+/* ERD 카드 그리드 */
+.erd-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; margin-top: 20px; }
+.erd-table {
+  background: #ffffff; border: 1px solid var(--grey-200);
+  border-radius: 12px; overflow: hidden;
+  box-shadow: 0px 1px 3px rgba(0,0,0,0.06);
+}
+.erd-table .erd-head {
+  background: var(--grey-900); color: #ffffff; padding: 10px 14px;
+  font-family: var(--font-mono); font-size: 13px; font-weight: 600;
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+}
+.erd-table .erd-head .head-note { font-size: 10.5px; font-weight: 400; color: var(--grey-400); }
+.erd-table ul { list-style: none; padding: 6px 0; margin: 0; }
+.erd-table li {
+  display: flex; justify-content: space-between; gap: 12px;
+  padding: 5px 14px; font-size: 12.5px;
+}
+.erd-table li + li { border-top: 1px solid var(--grey-50); }
+.erd-table .col { font-family: var(--font-mono); color: var(--grey-800); }
+.erd-table .typ { font-family: var(--font-mono); color: var(--grey-400); font-size: 11.5px; white-space: nowrap; text-align: right; }
+.erd-table li.pk .col { color: var(--blue-600); font-weight: 600; }
+.erd-table li.fk .col { color: #16a34a; }
+.erd-legend { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 14px; font-size: 12.5px; color: var(--grey-500); }
+.erd-legend .swatch { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
+
+.rel-card-wrap {
+  background: #ffffff; border-radius: 12px; padding: 24px;
+  box-shadow: 0px 2px 8px rgba(0,0,0,0.08); margin-top: 24px;
+}
+.rel-row { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--grey-100); font-size: 13.5px; flex-wrap: wrap; }
+.rel-row:last-child { border-bottom: none; }
+.rel-card { display: inline-block; font-family: var(--font-mono); font-size: 12.5px; font-weight: 600; color: var(--grey-900); background: var(--grey-100); border-radius: 6px; padding: 3px 9px; }
+.rel-arrow { color: var(--grey-400); font-weight: 600; }
+.rel-note { color: var(--grey-500); font-size: 12.5px; }
+
+/* 버전 구분 */
+.ver-nav { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0 0; }
+.ver-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  border-radius: 8px; padding: 6px 12px; font-size: 13px; text-decoration: none;
+}
+.ver-chip.current { background: var(--grey-100); color: var(--grey-700); }
+.ver-chip.target { background: var(--blue-50); color: var(--blue-600); font-weight: 600; }
+.ver-badge {
+  display: inline-block; vertical-align: 3px; margin-left: 10px;
+  font-size: 12px; font-weight: 700; border-radius: 6px; padding: 3px 8px;
+}
+.ver-badge.live { background: rgba(3,178,108,0.12); color: #03b26c; }
+.ver-badge.plan { background: var(--blue-50); color: var(--blue-600); }
+h2.ver-h { margin-top: 72px; padding-top: 32px; border-top: 2px solid var(--grey-100); }
+.sub-h { font-size: 18px; font-weight: 600; color: var(--grey-900); margin: 36px 0 8px; }
+.domain-h {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 15px; font-weight: 600; color: var(--grey-700); margin: 32px 0 4px;
+}
+.domain-h .dot { width: 10px; height: 10px; border-radius: 3px; }
+.mono { font-family: var(--font-mono); font-size: 13px; }
+
+/* mermaid 다이어그램 */
+.diagram-card {
+  background: #ffffff; border: 1px solid var(--grey-200); border-radius: 12px;
+  box-shadow: 0px 1px 3px rgba(0,0,0,0.06);
+  padding: 24px; margin-top: 20px; overflow-x: auto;
+}
+.diagram-card pre.mermaid {
+  background: transparent; border: none; margin: 0; padding: 0;
+  display: flex; justify-content: center; min-width: 640px;
+  font-family: var(--font-mono); font-size: 12.5px; color: var(--grey-800);
+}
+.diagram-fallback { color: var(--grey-500); font-size: 13px; }
+h2 { font-size: 26px; font-weight: 700; line-height: 1.38; color: var(--grey-900); margin: 48px 0 4px; }
+
+footer { margin-top: 56px; font-size: 12px; color: var(--grey-400); border-top: 1px solid var(--grey-100); padding-top: 16px; }
+footer a { color: var(--blue-600); text-decoration: none; }
+
+/* ===== 탭 ===== */
+.tabs {
+  display: flex; gap: 4px; margin: 24px 0 0;
+  border-bottom: 1px solid var(--grey-200);
+}
+.tab-btn {
+  appearance: none; background: none; border: none; cursor: pointer;
+  padding: 10px 18px; margin-bottom: -1px;
+  font-family: var(--font-sans); font-size: 15px; font-weight: 600;
+  color: var(--grey-500); border-bottom: 2px solid transparent;
+}
+.tab-btn:hover { color: var(--grey-700); }
+.tab-btn.active { color: var(--blue-600); border-bottom-color: var(--blue-500); }
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<h1>acting-api 문서</h1>
+<p class="subtitle">API 스펙과 DB ERD를 한 파일에서 봅니다.</p>
+
+<div class="tabs" role="tablist">
+  <button class="tab-btn active" data-tab="api" role="tab" aria-selected="true">API 스펙</button>
+  <button class="tab-btn" data-tab="erd" role="tab" aria-selected="false">ERD</button>
+</div>
+
+<div class="tab-panel active" id="panel-api" role="tabpanel">
+
+
+<p class="subtitle">연기 피드백 파이프라인 게이트웨이 — 영상 분석, 코칭 대화, 리포트를 단일 API로 제공합니다.</p>
+<div class="meta-row">
+  <span class="chip">Base URL <span class="mono">EC2 배포 후 확정 · 로컬 http://127.0.0.1:8000</span></span>
+  <span class="chip">자동 문서 <span class="mono">/docs · /redoc</span></span>
+  <span class="chip">저장소 <span class="mono">PostgreSQL (DATABASE_URL 필수)</span></span>
+</div>
+
+<h2 id="api-overview">개요 및 공통 규칙</h2>
+<p class="subtitle">
+  별도 백엔드 없이 클라이언트(앱)가 이 FastAPI 서버를 직접 호출하는 구조입니다.
+  인증·약관·업로드와 분석·코칭·리포트를 JWT 소유권 검증 아래 <span class="mono">/v2</span> 경로로 제공합니다.
+</p>
+<div class="flow">
+  <span class="step">POST /v2/auth/login</span><span class="arr">&rarr;</span>
+  <span class="step">POST /v2/uploads/intents</span><span class="arr">&rarr;</span>
+  <span class="step">POST /v2/practice-sessions</span><span class="arr">&rarr;</span>
+  <span class="step">/v2/coach &times; N</span><span class="arr">&rarr;</span>
+  <span class="step">POST /v2/reports</span>
+</div>
+
+<div class="ep-card">
+  <p class="ep-desc" style="margin-top:0">
+    모든 <span class="mono">/v2</span> 요청은 <strong>Authorization: Bearer &lt;access_token&gt;</strong> 헤더 필수 (auth 계열 제외).
+    access token은 30분(HS256), refresh token은 14일 — <span class="mono">refresh_tokens</span> 테이블에서 회전 관리하며 회전 시마다 수명이 갱신됩니다.
+    리소스는 항상 토큰의 사용자 기준으로 조회하므로 <span class="mono">user_id</span>를 요청에 싣지 않습니다.
+  </p>
+  <h4>공통 오류</h4>
+  <table>
+    <tr><th>상태</th><th>의미</th><th>응답</th></tr>
+    <tr><td class="code-4xx">401</td><td>access token 누락·만료·서명 불일치</td><td class="mono">{"detail": "invalid or expired token"}</td></tr>
+    <tr><td class="code-4xx">404</td><td>다른 사용자의 리소스 (존재 여부 노출 방지를 위해 403 대신 404)</td><td class="mono">{"detail": "&lt;resource&gt; not found"}</td></tr>
+    <tr><td class="code-4xx">429</td><td>사용자별 분당 한도(60회/분) 초과</td><td class="mono">{"detail": "rate limit exceeded"}</td></tr>
+  </table>
+  <h4>멱등성 — X-Request-Id</h4>
+  <p class="ep-desc">AI 호출이 포함된 쓰기 요청(<span class="mono">/v2/practice-sessions</span>, <span class="mono">/v2/coach/*</span>, <span class="mono">/v2/reports</span>)에 클라이언트가 UUID를 담아 보내면 <span class="mono">external_operations</span>의 UNIQUE (user_id, request_id)로 중복 실행을 막고, 완료된 요청은 저장된 <span class="mono">response_payload</span>를 재반환합니다. 네트워크 재시도 시 영상 재분석·토큰 재소모가 없습니다.</p>
+</div>
+
+<h2>엔드포인트 요약</h2>
+<div class="ep-card">
+  <table>
+    <tr><th>메서드</th><th>경로</th><th>설명</th></tr>
+    <tr><td class="mono">POST</td><td class="mono">/v2/auth/login</td><td>소셜 로그인(OIDC id_token 검증) 후 자체 JWT 발급. 신규면 users·user_identities 생성</td></tr>
+    <tr><td class="mono">POST</td><td class="mono">/v2/auth/refresh</td><td>refresh token 회전 재발급</td></tr>
+    <tr><td class="mono">POST</td><td class="mono">/v2/auth/logout</td><td>refresh token 폐기 (revoked_at)</td></tr>
+    <tr><td class="mono">GET</td><td class="mono">/v2/consents/documents</td><td>약관 최신 버전 목록</td></tr>
+    <tr><td class="mono">POST</td><td class="mono">/v2/consents</td><td>동의·거부·철회 이벤트 기록 (INSERT only)</td></tr>
+    <tr><td class="mono">POST</td><td class="mono">/v2/uploads/intents</td><td>presigned 업로드 URL 발급</td></tr>
+    <tr><td class="mono">POST</td><td class="mono">/v2/uploads/intents/{intent_id}/complete</td><td>업로드 완료 검증·확정</td></tr>
+    <tr><td class="mono">POST</td><td class="mono">/v2/practice-sessions</td><td>연습 세션 생성 + 장면 분석 비동기 시작 (202)</td></tr>
+    <tr><td class="mono">GET</td><td class="mono">/v2/practice-sessions</td><td>내 세션 목록 (hidden 제외, 최신순)</td></tr>
+    <tr><td class="mono">GET</td><td class="mono">/v2/practice-sessions/{session_id}</td><td>세션 상세 + 영상 재생 URL + 분석 결과</td></tr>
+    <tr><td class="mono">DELETE</td><td class="mono">/v2/practice-sessions/{session_id}</td><td>소프트 삭제 (hidden_at)</td></tr>
+    <tr><td class="mono">POST</td><td class="mono">/v2/coach/start</td><td>코칭 대화 시작 (소유권 검증)</td></tr>
+    <tr><td class="mono">POST</td><td class="mono">/v2/coach/reply</td><td>코칭 답변 (소유권 검증)</td></tr>
+    <tr><td class="mono">POST</td><td class="mono">/v2/reports</td><td>리포트 생성</td></tr>
+    <tr><td class="mono">GET</td><td class="mono">/v2/reports</td><td>내 리포트 이력</td></tr>
+  </table>
+</div>
+
+<h2>주요 엔드포인트 상세</h2>
+
+<div class="ep-card">
+  <div class="ep-head"><span class="method post">POST</span><span class="ep-path">/v2/auth/login</span></div>
+  <p class="ep-desc">클라이언트가 구글·카카오·애플 SDK로 받은 OIDC id_token을 서버가 검증하고 자체 JWT를 발급합니다. (provider, provider_uid)가 처음이면 users와 user_identities를 생성합니다. 같은 이메일의 기존 계정이 있으면 <strong>검증된 이메일(email_verified)일 때만</strong> 기존 계정에 identity를 자동 연결하고, 미검증이면 409로 거절합니다.</p>
+  <h4>요청 — JSON</h4>
+  <table>
+    <tr><th>필드</th><th>타입</th><th>필수</th><th>설명</th></tr>
+    <tr><td class="mono">provider</td><td>str</td><td class="req">필수</td><td>google | kakao | apple</td></tr>
+    <tr><td class="mono">id_token</td><td>str</td><td class="req">필수</td><td>공급자가 발급한 OIDC id_token</td></tr>
+  </table>
+  <h4>응답 <span class="code-2xx">200</span></h4>
+  <pre>{
+  "access_token": "&lt;JWT&gt;",
+  "refresh_token": "&lt;opaque&gt;",
+  "token_type": "Bearer",
+  "expires_in": 1800,
+  "user": { "id": "33333333-3333-4333-8333-333333333333", "email": "actor@example.com", "status": "active" },
+  "pending_consents": [
+    { "document_id": "...", "type": "terms", "version": "2026-07", "required": true }
+  ]
+}</pre>
+  <div class="note">
+    <span class="mono">pending_consents</span>가 비어 있지 않으면 클라이언트는 동의 화면을 먼저 띄우고 <span class="mono">POST /v2/consents</span>로 기록합니다.
+    <span class="mono">POST /v2/auth/refresh</span>는 <span class="mono">{"refresh_token": "..."}</span>을 받아 새 토큰 쌍을 발급하며, 사용된 토큰은 <span class="mono">replaced_by_id</span>로 연결됩니다 (재사용 감지 시 해당 사용자 토큰 전체 회수).
+  </div>
+  <h4>오류</h4>
+  <table>
+    <tr><th>상태</th><th>원인</th></tr>
+    <tr><td class="code-4xx">401</td><td>id_token 검증 실패 (서명·만료·audience 불일치)</td></tr>
+    <tr><td class="code-4xx">403</td><td>정지된 계정 (users.status != active)</td></tr>
+    <tr><td class="code-4xx">409</td><td>같은 이메일의 기존 계정 존재 + 미검증 이메일 — <span class="mono">{"detail": "account_exists_with_different_provider"}</span></td></tr>
+  </table>
+</div>
+
+<div class="ep-card">
+  <div class="ep-head"><span class="method post">POST</span><span class="ep-path">/v2/uploads/intents</span></div>
+  <p class="ep-desc">영상을 서버를 거치지 않고 스토리지에 직접 올리도록 presigned URL을 발급합니다. 550MB 멀티파트를 API 서버가 받지 않으므로 서버 메모리·타임아웃 부담이 사라집니다.</p>
+  <h4>요청 — JSON</h4>
+  <table>
+    <tr><th>필드</th><th>타입</th><th>필수</th><th>설명</th></tr>
+    <tr><td class="mono">mime_type</td><td>str</td><td class="req">필수</td><td>video/mp4 등 허용 목록 검증</td></tr>
+    <tr><td class="mono">size_bytes</td><td>int</td><td class="req">필수</td><td>최대 550MB</td></tr>
+    <tr><td class="mono">duration_ms</td><td>int</td><td>선택</td><td>클라이언트가 아는 경우 전달</td></tr>
+  </table>
+  <h4>응답 <span class="code-2xx">201</span></h4>
+  <pre>{
+  "intent_id": "44444444-4444-4444-8444-444444444444",
+  "upload_url": "https://storage.example.com/...&amp;X-Signature=...",
+  "method": "PUT",
+  "object_key": "uploads/2026/07/44444444.mp4",
+  "expires_at": "2026-07-17T05:00:00+00:00"
+}</pre>
+  <div class="note">업로드 완료 후 <span class="mono">POST /v2/uploads/intents/{intent_id}/complete</span>를 호출하면 서버가 스토리지에서 실제 존재·크기를 검증하고 <span class="mono">finalized</span>로 확정합니다. 만료(<span class="mono">expires_at</span> 경과)·미업로드 상태에서 호출하면 <span class="code-4xx">409</span>.</div>
+  <h4>오류</h4>
+  <table>
+    <tr><th>상태</th><th>원인</th></tr>
+    <tr><td class="code-4xx">413</td><td>size_bytes가 550MB 초과</td></tr>
+    <tr><td class="code-4xx">415</td><td>허용되지 않는 mime_type</td></tr>
+  </table>
+</div>
+
+<div class="ep-card">
+  <div class="ep-head"><span class="method post">POST</span><span class="ep-path">/v2/practice-sessions</span></div>
+  <p class="ep-desc">확정된 업로드로 연습 세션을 만들고 장면 분석을 백그라운드로 시작합니다. 응답을 기다리지 않고 <span class="code-2xx">202</span>를 즉시 반환하며, 분석 결과는 세션 상세 조회로 확인합니다.</p>
+  <h4>요청 — JSON</h4>
+  <table>
+    <tr><th>필드</th><th>타입</th><th>필수</th><th>설명</th></tr>
+    <tr><td class="mono">upload_intent_id</td><td>UUID 문자열</td><td class="req">필수</td><td>finalized 상태의 인텐트</td></tr>
+    <tr><td class="mono">situation</td><td>text</td><td class="req">필수</td><td>상황</td></tr>
+    <tr><td class="mono">character_context</td><td>text</td><td class="req">필수</td><td>인물설정</td></tr>
+    <tr><td class="mono">subtext</td><td>text</td><td class="req">필수</td><td>서브텍스트</td></tr>
+  </table>
+  <h4>응답 <span class="code-2xx">202</span></h4>
+  <pre>{
+  "session_id": "55555555-5555-4555-8555-555555555555",
+  "status": "analyzing"
+}</pre>
+  <div class="note">
+    <span class="mono">GET /v2/practice-sessions/{session_id}</span>가 세션 상태와 서명된 재생 URL(upload_intents의 object_key로 서명)을 반환하고,
+    분석이 끝나면(<span class="mono">status: "analyzed"</span>) SceneSummary + <span class="mono">summary_id</span>가 <span class="mono">summary</span> 필드에 포함됩니다.
+    분석 실패 시 <span class="mono">status: "failed"</span>와 <span class="mono">error_code</span>를 노출하며, 같은 세션에 재요청하면 영상 재업로드 없이 재분석합니다(재분석은 summaries 1:N).
+  </div>
+  <h4>오류</h4>
+  <table>
+    <tr><th>상태</th><th>원인</th></tr>
+    <tr><td class="code-4xx">409</td><td>인텐트가 finalized가 아니거나 이미 다른 세션에 사용됨 (upload_intent_id UNIQUE)</td></tr>
+  </table>
+</div>
+
+<div class="ep-card">
+  <div class="ep-head"><span class="method post">POST</span><span class="ep-path">/v2/coach/* · /v2/reports</span></div>
+  <p class="ep-desc">코칭 대화(start·reply)와 리포트 생성·이력 조회입니다. 상세 요청·응답 스키마는 API.md 참고.</p>
+  <table>
+    <tr><th>항목</th><th>동작</th></tr>
+    <tr><td>인증</td><td class="mono">Authorization: Bearer</td></tr>
+    <tr><td>소유권</td><td>summary·session이 토큰 사용자 소유가 아니면 <span class="code-4xx">404</span></td></tr>
+    <tr><td>리포트 생성</td><td><span class="mono">POST /v2/reports</span> — 응답은 report + report_count (user_id는 토큰으로 자명)</td></tr>
+    <tr><td>리포트 이력</td><td><span class="mono">GET /v2/reports</span> — 토큰의 사용자 기준, 경로 파라미터 없음</td></tr>
+    <tr><td>멱등성</td><td><span class="mono">X-Request-Id</span> 지원 — 처리 중 재요청 <span class="code-4xx">409</span>, 성공 재요청은 저장된 응답 재반환</td></tr>
+  </table>
+</div>
+</div>
+
+<div class="tab-panel" id="panel-erd" role="tabpanel">
+
+
+<p class="subtitle">PostgreSQL 13개 테이블. user 귀속은 <span class="mono">reports &rarr; coach_sessions &rarr; summaries &rarr; practice_sessions &rarr; users</span> FK 사슬로 도출하며, 파생 가능한 값은 저장하지 않습니다.</p>
+
+<h2 id="erd-schema">스키마 — 13개 테이블</h2>
+<p class="subtitle">
+  클라이언트가 직접 호출하는 단일 FastAPI 서버의 단일 PostgreSQL 스키마입니다.
+  서버가 하나이므로 서버 간 논리 참조 없이 전부 실제 FK로 연결되며,
+  파일 메타는 <span class="mono">upload_intents</span>가 단일 원천입니다.
+</p>
+
+<h3 class="sub-h">다이어그램</h3>
+<div class="diagram-card">
+  <pre class="mermaid" id="mermaid-erd"></pre>  <noscript><p class="diagram-fallback">다이어그램은 자바스크립트(mermaid.js, CDN)가 필요합니다. 오프라인에서는 아래 테이블 상세 카드를 참고하세요.</p></noscript>
+</div>
+
+<h3 class="sub-h">테이블 상세</h3>
+<div class="erd-legend">
+  <span><span class="swatch" style="background:var(--blue-500);"></span>PK</span>
+  <span><span class="swatch" style="background:#16a34a;"></span>FK</span>
+  <span>외부 논리 참조 없음 — 전 테이블 단일 DB</span>
+</div>
+
+<div class="domain-h"><span class="dot" style="background:var(--blue-500);"></span>Account — 인증·약관 (플랫폼에서 수용)</div>
+<div class="erd-grid">
+  <div class="erd-table">
+    <div class="erd-head">users<span class="head-note">email NULL 허용</span></div>
+    <ul>
+      <li class="pk"><span class="col">id</span><span class="typ">uuid PK</span></li>
+      <li><span class="col">email</span><span class="typ">text UNIQUE NULL — 카카오 동의 거부·애플 미제공 대응</span></li>
+      <li><span class="col">status</span><span class="typ">user_status_t</span></li>
+      <li><span class="col">created_at / updated_at</span><span class="typ">timestamptz</span></li>
+    </ul>
+  </div>
+
+  <div class="erd-table">
+    <div class="erd-head">user_identities</div>
+    <ul>
+      <li class="pk"><span class="col">id</span><span class="typ">uuid PK</span></li>
+      <li class="fk"><span class="col">user_id</span><span class="typ">uuid FK &rarr; users</span></li>
+      <li><span class="col">provider</span><span class="typ">google | kakao | apple</span></li>
+      <li><span class="col">provider_uid</span><span class="typ">text UNIQUE(provider)</span></li>
+      <li><span class="col">created_at</span><span class="typ">timestamptz</span></li>
+    </ul>
+  </div>
+
+  <div class="erd-table">
+    <div class="erd-head">refresh_tokens</div>
+    <ul>
+      <li class="pk"><span class="col">id</span><span class="typ">uuid PK</span></li>
+      <li class="fk"><span class="col">user_id</span><span class="typ">uuid FK &rarr; users</span></li>
+      <li class="fk"><span class="col">replaced_by_id</span><span class="typ">uuid FK NULL &rarr; self</span></li>
+      <li><span class="col">token_hash</span><span class="typ">char(64) UNIQUE</span></li>
+      <li><span class="col">device_info</span><span class="typ">text NULL</span></li>
+      <li><span class="col">issued_at / expires_at</span><span class="typ">timestamptz</span></li>
+      <li><span class="col">revoked_at</span><span class="typ">timestamptz NULL</span></li>
+    </ul>
+  </div>
+
+  <div class="erd-table">
+    <div class="erd-head">consent_documents</div>
+    <ul>
+      <li class="pk"><span class="col">id</span><span class="typ">uuid PK</span></li>
+      <li><span class="col">type</span><span class="typ">consent_type_t</span></li>
+      <li><span class="col">version</span><span class="typ">text UNIQUE(type)</span></li>
+      <li><span class="col">title / body</span><span class="typ">text</span></li>
+      <li><span class="col">required</span><span class="typ">boolean</span></li>
+      <li><span class="col">published_at</span><span class="typ">timestamptz</span></li>
+    </ul>
+  </div>
+
+  <div class="erd-table">
+    <div class="erd-head">user_consents<span class="head-note">INSERT only</span></div>
+    <ul>
+      <li class="pk"><span class="col">id</span><span class="typ">uuid PK</span></li>
+      <li class="fk"><span class="col">user_id</span><span class="typ">uuid FK &rarr; users</span></li>
+      <li class="fk"><span class="col">document_id</span><span class="typ">uuid FK &rarr; consent_documents</span></li>
+      <li><span class="col">action</span><span class="typ">granted | declined | revoked</span></li>
+      <li><span class="col">occurred_at</span><span class="typ">timestamptz</span></li>
+    </ul>
+  </div>
+</div>
+
+<div class="domain-h"><span class="dot" style="background:#03b26c;"></span>Practice — 업로드·연습 세션</div>
+<div class="erd-grid">
+  <div class="erd-table">
+    <div class="erd-head">upload_intents<span class="head-note">파일 메타 단일 원천</span></div>
+    <ul>
+      <li class="pk"><span class="col">id</span><span class="typ">uuid PK</span></li>
+      <li class="fk"><span class="col">user_id</span><span class="typ">uuid FK &rarr; users</span></li>
+      <li><span class="col">status</span><span class="typ">upload_status_t</span></li>
+      <li><span class="col">storage_provider</span><span class="typ">text</span></li>
+      <li><span class="col">object_key</span><span class="typ">text UNIQUE</span></li>
+      <li><span class="col">mime_type / size_bytes</span><span class="typ">text · bigint</span></li>
+      <li><span class="col">duration_ms</span><span class="typ">int NULL</span></li>
+      <li><span class="col">created_at / expires_at</span><span class="typ">timestamptz</span></li>
+      <li><span class="col">finalized_at</span><span class="typ">timestamptz NULL</span></li>
+    </ul>
+  </div>
+
+  <div class="erd-table">
+    <div class="erd-head">practice_sessions<span class="head-note">hidden_at 소프트 삭제</span></div>
+    <ul>
+      <li class="pk"><span class="col">id</span><span class="typ">uuid PK</span></li>
+      <li class="fk"><span class="col">user_id</span><span class="typ">uuid FK &rarr; users</span></li>
+      <li class="fk"><span class="col">upload_intent_id</span><span class="typ">uuid FK UNIQUE &rarr; upload_intents</span></li>
+      <li><span class="col">status</span><span class="typ">created | analyzing | analyzed | failed</span></li>
+      <li><span class="col">situation</span><span class="typ">text</span></li>
+      <li><span class="col">character_context / subtext</span><span class="typ">text</span></li>
+      <li><span class="col">hidden_at</span><span class="typ">timestamptz NULL</span></li>
+      <li><span class="col">created_at / updated_at</span><span class="typ">timestamptz</span></li>
+    </ul>
+  </div>
+</div>
+
+<div class="domain-h"><span class="dot" style="background:#8b5cf6;"></span>AI Coaching — 분석·인터뷰·리포트</div>
+<div class="erd-grid">
+  <div class="erd-table">
+    <div class="erd-head">summaries<span class="head-note">저장 후 불변</span></div>
+    <ul>
+      <li class="pk"><span class="col">id</span><span class="typ">uuid PK</span></li>
+      <li class="fk"><span class="col">session_id</span><span class="typ">uuid FK &rarr; practice_sessions</span></li>
+      <li><span class="col">observation</span><span class="typ">jsonb</span></li>
+      <li><span class="col">summary</span><span class="typ">text</span></li>
+      <li><span class="col">intent_alignment</span><span class="typ">text</span></li>
+      <li><span class="col">key_moment / key_dimension</span><span class="typ">text</span></li>
+      <li><span class="col">model</span><span class="typ">text</span></li>
+      <li><span class="col">was_compressed</span><span class="typ">boolean</span></li>
+      <li><span class="col">raw</span><span class="typ">jsonb</span></li>
+      <li><span class="col">created_at</span><span class="typ">timestamptz</span></li>
+    </ul>
+  </div>
+
+  <div class="erd-table">
+    <div class="erd-head">anomalies</div>
+    <ul>
+      <li class="pk"><span class="col">id</span><span class="typ">bigserial PK</span></li>
+      <li class="fk"><span class="col">summary_id</span><span class="typ">uuid FK &rarr; summaries</span></li>
+      <li><span class="col">sort_order</span><span class="typ">int</span></li>
+      <li><span class="col">start_ts / end_ts</span><span class="typ">text "MM:SS"</span></li>
+      <li><span class="col">dimension / what / why_odd</span><span class="typ">text</span></li>
+      <li><span class="col">likely_cause / impact_on_intent</span><span class="typ">text</span></li>
+      <li><span class="col">overlaps_key_moment / on_key_dimension</span><span class="typ">boolean</span></li>
+      <li><span class="col">intent_impact / severity</span><span class="typ">enum</span></li>
+      <li><span class="col">severity_reason</span><span class="typ">text</span></li>
+    </ul>
+  </div>
+
+  <div class="erd-table">
+    <div class="erd-head">coach_sessions</div>
+    <ul>
+      <li class="pk"><span class="col">id</span><span class="typ">uuid PK</span></li>
+      <li class="fk"><span class="col">summary_id</span><span class="typ">uuid FK &rarr; summaries</span></li>
+      <li><span class="col">status</span><span class="typ">session_status_t</span></li>
+      <li><span class="col">close_reason</span><span class="typ">close_reason_t NULL</span></li>
+      <li><span class="col">created_at / updated_at</span><span class="typ">timestamptz</span></li>
+    </ul>
+  </div>
+
+  <div class="erd-table">
+    <div class="erd-head">coach_turns</div>
+    <ul>
+      <li class="pk"><span class="col">id</span><span class="typ">bigserial PK</span></li>
+      <li class="fk"><span class="col">session_id</span><span class="typ">uuid FK &rarr; coach_sessions</span></li>
+      <li><span class="col">turn_index</span><span class="typ">int UNIQUE(session)</span></li>
+      <li><span class="col">role</span><span class="typ">turn_role_t</span></li>
+      <li><span class="col">text / action</span><span class="typ">text · text NULL</span></li>
+      <li><span class="col">focus_timestamp</span><span class="typ">text</span></li>
+      <li><span class="col">created_at</span><span class="typ">timestamptz</span></li>
+    </ul>
+  </div>
+
+  <div class="erd-table">
+    <div class="erd-head">reports</div>
+    <ul>
+      <li class="pk"><span class="col">id</span><span class="typ">uuid PK</span></li>
+      <li class="fk"><span class="col">session_id</span><span class="typ">uuid FK UNIQUE &rarr; coach_sessions</span></li>
+      <li><span class="col">headline</span><span class="typ">text</span></li>
+      <li><span class="col">biggest_problem</span><span class="typ">jsonb</span></li>
+      <li><span class="col">evidence / self_discovery</span><span class="typ">text</span></li>
+      <li><span class="col">encouragement / next_step</span><span class="typ">text</span></li>
+      <li><span class="col">comparison</span><span class="typ">text DEFAULT ''</span></li>
+      <li><span class="col">created_at</span><span class="typ">timestamptz</span></li>
+    </ul>
+  </div>
+</div>
+
+<div class="domain-h"><span class="dot" style="background:#fe9800;"></span>Operations — 멱등성·내부 인증</div>
+<div class="erd-grid">
+  <div class="erd-table">
+    <div class="erd-head">external_operations<span class="head-note">Gemini 호출 관리</span></div>
+    <ul>
+      <li class="pk"><span class="col">id</span><span class="typ">uuid PK</span></li>
+      <li class="fk"><span class="col">session_id</span><span class="typ">uuid FK &rarr; practice_sessions</span></li>
+      <li class="fk"><span class="col">user_id</span><span class="typ">uuid FK &rarr; users</span></li>
+      <li><span class="col">request_id</span><span class="typ">uuid UNIQUE(user)</span></li>
+      <li><span class="col">kind</span><span class="typ">analyze | coach_start | coach_reply | report</span></li>
+      <li><span class="col">status</span><span class="typ">operation_status_t</span></li>
+      <li><span class="col">attempt_count</span><span class="typ">int DEFAULT 0</span></li>
+      <li><span class="col">request_fingerprint</span><span class="typ">char(64)</span></li>
+      <li><span class="col">lease_token / lease_expires_at</span><span class="typ">uuid NULL · timestamptz NULL</span></li>
+      <li><span class="col">error_code / response_payload</span><span class="typ">text NULL · jsonb NULL</span></li>
+      <li><span class="col">created_at / updated_at</span><span class="typ">timestamptz</span></li>
+    </ul>
+  </div>
+
+</div>
+
+<div class="rel-card-wrap">
+  <h3>관계</h3>
+  <div>
+    <div class="rel-row"><span class="rel-card">users</span><span class="rel-arrow">1 : N</span><span class="rel-card">user_identities</span><span class="rel-note">한 사용자가 여러 소셜 로그인 연결 — UNIQUE (provider, provider_uid)</span></div>
+    <div class="rel-row"><span class="rel-card">users</span><span class="rel-arrow">1 : N</span><span class="rel-card">refresh_tokens</span><span class="rel-note">기기·세션마다 토큰 하나, 회전 시 replaced_by_id 연결</span></div>
+    <div class="rel-row"><span class="rel-card">consent_documents</span><span class="rel-arrow">1 : N</span><span class="rel-card">user_consents</span><span class="rel-note">불변 이벤트 로그 — 현재 동의 상태는 (user, document) 최신 행</span></div>
+    <div class="rel-row"><span class="rel-card">users</span><span class="rel-arrow">1 : N</span><span class="rel-card">practice_sessions</span><span class="rel-note">사용자가 여러 연습 세션 소유 — user_id NOT NULL</span></div>
+    <div class="rel-row"><span class="rel-card">upload_intents</span><span class="rel-arrow">1 : 1</span><span class="rel-card">practice_sessions</span><span class="rel-note">인텐트 1건당 세션 1건, 세션당 영상 하나 — upload_intent_id UNIQUE, 파일 메타는 조인으로 도출</span></div>
+    <div class="rel-row"><span class="rel-card">practice_sessions</span><span class="rel-arrow">1 : N</span><span class="rel-card">summaries</span><span class="rel-note">재분석 허용 시 1:N — UNIQUE 제약 없음, ON DELETE CASCADE</span></div>
+    <div class="rel-row"><span class="rel-card">summaries</span><span class="rel-arrow">1 : N</span><span class="rel-card">anomalies</span><span class="rel-note">sort_order로 서버 계산 순서 보존, ON DELETE CASCADE</span></div>
+    <div class="rel-row"><span class="rel-card">summaries</span><span class="rel-arrow">1 : N</span><span class="rel-card">coach_sessions</span><span class="rel-note">같은 요약으로 여러 번 코칭 — summary_id NOT NULL</span></div>
+    <div class="rel-row"><span class="rel-card">coach_sessions</span><span class="rel-arrow">1 : N</span><span class="rel-card">coach_turns</span><span class="rel-note">대화 순서 보장 — UNIQUE (session_id, turn_index), ON DELETE CASCADE</span></div>
+    <div class="rel-row"><span class="rel-card">coach_sessions</span><span class="rel-arrow">1 : 1</span><span class="rel-card">reports</span><span class="rel-note">세션당 리포트 1건 — reports.session_id UNIQUE NOT NULL</span></div>
+    <div class="rel-row"><span class="rel-card">practice_sessions</span><span class="rel-arrow">1 : N</span><span class="rel-card">external_operations</span><span class="rel-note">AI 호출 멱등성 — UNIQUE (user_id, request_id)로 중복 요청 차단</span></div>
+  </div>
+</div>
+
+<div class="rel-card-wrap">
+  <h3>설계 결정</h3>
+  <div>
+    <div class="rel-row"><span class="rel-note"><strong>파생 값 저장 금지</strong> — user 귀속은 reports &rarr; coach_sessions &rarr; summaries &rarr; practice_sessions &rarr; users FK 사슬로 도출하고, question_count·report_count 같은 값은 COUNT로 대체합니다.</span></div>
+    <div class="rel-row"><span class="rel-note"><strong>external_operations</strong> — Gemini 외부 호출의 멱등성(UNIQUE user_id+request_id)·lease·시도 상한(3회, 초과 시 max_attempts_exceeded)을 관리합니다. 완료된 호출은 response_payload를 재반환해 재시도를 흡수합니다.</span></div>
+    <div class="rel-row"><span class="rel-note">결정의 전체 목록과 근거는 <span class="mono">docs/design-decisions.md</span> 참고.</span></div>
+  </div>
+</div>
+</div>
+
+<footer>acting-api · API 스펙 + ERD 통합 문서 · 설계 결정 기록은 docs/design-decisions.md</footer>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+<script>
+(function () {
+  var buttons = document.querySelectorAll(".tab-btn");
+  var panels = document.querySelectorAll(".tab-panel");
+  var mermaidDone = false;
+
+  // startOnLoad 기본값(true)이면 로드 시점에 숨겨진 패널을 자동 렌더링해버리고,
+  // 탭 전환 시의 수동 run()이 그 결과물을 재파싱해 Syntax error를 덧붙인다.
+  // 자동 렌더링을 즉시 꺼서 탭이 열릴 때 한 번만 렌더링되게 한다.
+  if (window.mermaid) mermaid.initialize({ startOnLoad: false });
+
+  function renderMermaid() {
+    if (mermaidDone) return;
+    mermaidDone = true;
+    if (!window.mermaid) {
+      document.querySelectorAll("#panel-erd .diagram-card").forEach(function (card) {
+        card.innerHTML = '<p class="diagram-fallback">mermaid.js(CDN)를 불러오지 못했습니다. 인터넷 연결을 확인하거나 아래 테이블 상세 카드를 참고하세요.</p>';
+      });
+      return;
+    }
+    mermaid.initialize({
+      startOnLoad: false,
+      er: { useMaxWidth: false },
+      theme: "base",
+      themeVariables: {
+        fontFamily: '"SF Mono", SFMono-Regular, Menlo, Consolas, monospace',
+        fontSize: "13px",
+        primaryColor: "#f2f4f6",
+        primaryTextColor: "#191f28",
+        primaryBorderColor: "#b0b8c1",
+        lineColor: "#8b95a1",
+        attributeBackgroundColorOdd: "#ffffff",
+        attributeBackgroundColorEven: "#f9fafb",
+        tertiaryColor: "#e8f3ff",
+        tertiaryTextColor: "#333d4b"
+      }
+    });
+    (async function () {
+      // ERD 소스는 같은 폴더의 erd.mmd가 유일한 원본이다.
+      // file://로 직접 열면 fetch가 막히므로 로컬 HTTP 서버로 열어야 한다.
+      var pre = document.getElementById("mermaid-erd");
+      try {
+        var res = await fetch("erd.mmd");
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        pre.textContent = await res.text();
+      } catch (e) {
+        document.querySelectorAll("#panel-erd .diagram-card").forEach(function (card) {
+          card.innerHTML = '<p class="diagram-fallback">erd.mmd를 불러오지 못했습니다. 파일을 직접 열면 브라우저가 fetch를 차단하므로, spec 폴더에서 <code>python3 -m http.server</code>를 실행해 HTTP로 열거나 아래 테이블 상세 카드를 참고하세요.</p>';
+        });
+        return;
+      }
+      mermaid.run({ nodes: document.querySelectorAll("pre.mermaid") });
+    })();
+  }
+
+  function show(tab) {
+    buttons.forEach(function (b) {
+      var on = b.dataset.tab === tab;
+      b.classList.toggle("active", on);
+      b.setAttribute("aria-selected", on ? "true" : "false");
+    });
+    panels.forEach(function (p) {
+      p.classList.toggle("active", p.id === "panel-" + tab);
+    });
+    // mermaid는 숨겨진 요소에서 크기를 못 재므로 ERD 탭이 처음 보일 때 렌더한다
+    if (tab === "erd") renderMermaid();
+  }
+
+  buttons.forEach(function (b) {
+    b.addEventListener("click", function () {
+      show(b.dataset.tab);
+      history.replaceState(null, "", "#" + b.dataset.tab);
+    });
+  });
+
+  if (location.hash === "#erd" || location.hash.indexOf("#erd-") === 0) show("erd");
+})();
+</script>
+</body>
+</html>
