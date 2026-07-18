@@ -4,15 +4,14 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
+    "build": "BUILD_STATIC=1 next build",
     "lint": "eslint",
     "test": "node --test tests/*.test.mjs && node scripts/check-forbidden-copy.mjs",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "generate:v2-schema": "openapi-typescript ../../../acting-api-deploy/spec/openapi.json -o src/lib/api/v2-schema.d.ts",
+    "generate:v2-schema:live": "openapi-typescript http://127.0.0.1:8000/openapi.json -o src/lib/api/v2-schema.d.ts"
   },
   "dependencies": {
-    "@supabase/ssr": "^0.12.0",
-    "@supabase/supabase-js": "^2.110.1",
     "next": "16.2.10",
     "react": "19.2.4",
     "react-dom": "19.2.4"
@@ -24,6 +23,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.2.10",
+    "openapi-typescript": "^7.13.0",
     "tailwindcss": "^4",
     "typescript": "^5"
   }

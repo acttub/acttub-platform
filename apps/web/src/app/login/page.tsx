@@ -1,0 +1,158 @@
+"use client";
+
+import Link from "next/link";
+import { FormEvent, Suspense, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { ApiError } from "../../lib/api/v2/errors";
+import { getLoginProvider, loginWith } from "../../lib/auth/providers";
+import { sanitizeNextPath } from "../../lib/auth/next-path";
+import { AUTH_PROVIDER } from "../../lib/config/env";
+import {
+  clearPendingConsents,
+  savePendingConsents,
+} from "../../features/auth/pending-consents";
+
+function loginErrorMessage(error: unknown): string {
+  if (
+    error instanceof ApiError &&
+    error.status === 401 &&
+    error.code === "invalid_provider_token"
+  ) {
+    return "로그인 정보가 올바르지 않아요";
+  }
+  if (
+    error instanceof ApiError &&
+    error.status === 403 &&
+    error.code === "account_suspended"
+  ) {
+    return "정지된 계정이에요";
+  }
+  return "로그인하지 못했어요. 잠시 후 다시 시도해 주세요";
+}
+
+function LoginForm() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const nextPath = sanitizeNextPath(searchParams.get("next"));
+  const noticeMessage =
+    searchParams.get("notice") === "account_suspended"
+      ? "정지된 계정이에요"
+      : searchParams.get("notice") === "consents_updated"
+        ? "약관 정보가 바뀌어 다시 로그인이 필요해요"
+        : null;
+  const [uid, setUid] = useState("");
+  const [email, setEmail] = useState("");
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (isSubmitting) return;
+
+    setErrorMessage(null);
+    setIsSubmitting(true);
+    try {
+      const result = await loginWith(getLoginProvider(), { uid, email });
+      if (result.pending_consents.length > 0) {
+        savePendingConsents(result.pending_consents);
+        router.replace(`/terms?next=${encodeURIComponent(nextPath)}`);
+        return;
+      }
+
+      clearPendingConsents();
+      router.replace(nextPath);
+    } catch (error) {
+      setErrorMessage(loginErrorMessage(error));
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  return (
+    <main className="flex min-h-dvh items-center justify-center bg-[#f2f4f6] px-5 py-12 text-[#191f28]">
+      <section className="w-full max-w-md rounded-[32px] bg-white p-7 shadow-[0_24px_80px_rgba(25,31,40,0.1)] sm:p-9">
+        <Link href="/" className="text-xl font-black tracking-[-0.04em]">
+          Acttub
+        </Link>
+        <p className="mt-10 text-sm font-black text-[#3182f6]">연기 복기 시작하기</p>
+        <h1 className="mt-3 text-3xl font-black leading-tight tracking-[-0.05em]">
+          로그인하고
+          <br />내 장면을 이어가세요
+        </h1>
+        <p className="mt-4 text-base font-semibold leading-7 text-[#6b7684]">
+          영상과 장면 맥락을 안전하게 보관하고, 질문과 연습 노트를 이어서 볼 수 있어요.
+        </p>
+
+        {AUTH_PROVIDER === "google" ? (
+          <button
+            type="button"
+            disabled
+            className="mt-9 flex h-14 w-full cursor-not-allowed items-center justify-center rounded-2xl bg-[#e5e8eb] text-base font-black text-[#8b95a1]"
+          >
+            Google 로그인 준비 중
+          </button>
+        ) : (
+          <form className="mt-9 space-y-5" onSubmit={handleSubmit}>
+            <label className="block">
+              <span className="text-sm font-black text-[#333d4b]">사용자 ID</span>
+              <input
+                required
+                value={uid}
+                onChange={(event) => setUid(event.target.value)}
+                placeholder="연습용 ID를 입력해 주세요"
+                autoComplete="username"
+                className="mt-2 h-14 w-full rounded-2xl border border-[#e5e8eb] bg-[#f9fafb] px-4 text-base font-bold outline-none transition placeholder:text-[#b0b8c1] focus:border-[#3182f6] focus:bg-white focus:ring-4 focus:ring-[#e8f3ff]"
+              />
+            </label>
+            <label className="block">
+              <span className="text-sm font-black text-[#333d4b]">
+                이메일 <span className="text-[#8b95a1]">(선택)</span>
+              </span>
+              <input
+                type="email"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                placeholder="actor@example.com"
+                autoComplete="email"
+                className="mt-2 h-14 w-full rounded-2xl border border-[#e5e8eb] bg-[#f9fafb] px-4 text-base font-bold outline-none transition placeholder:text-[#b0b8c1] focus:border-[#3182f6] focus:bg-white focus:ring-4 focus:ring-[#e8f3ff]"
+              />
+            </label>
+
+            {errorMessage || noticeMessage ? (
+              <p
+                role="alert"
+                className="rounded-2xl bg-[#fff0f0] px-4 py-3 text-sm font-bold text-[#e42939]"
+              >
+                {errorMessage ?? noticeMessage}
+              </p>
+            ) : null}
+
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="flex h-14 w-full items-center justify-center rounded-2xl bg-[#3182f6] text-base font-black text-white shadow-[0_12px_30px_rgba(49,130,246,0.25)] transition hover:bg-[#1b64da] disabled:cursor-wait disabled:bg-[#8fbffa]"
+            >
+              {isSubmitting ? "로그인 중..." : "로그인"}
+            </button>
+          </form>
+        )}
+
+        <p className="mt-7 text-center text-xs font-semibold leading-5 text-[#8b95a1]">
+          로그인하면 Acttub의 이용약관과 개인정보 처리 원칙을 확인할 수 있어요.
+        </p>
+      </section>
+    </main>
+  );
+}
+
+function LoginFallback() {
+  return <main className="min-h-dvh bg-[#f2f4f6]" aria-busy="true" />;
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<LoginFallback />}>
+      <LoginForm />
+    </Suspense>
+  );
+}
