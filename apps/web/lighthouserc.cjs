@@ -8,11 +8,8 @@ module.exports = {
   ci: {
     collect: {
       numberOfRuns,
-      url: ["http://127.0.0.1:4317/"],
-      startServerCommand:
-        "pnpm --filter web start --hostname 127.0.0.1 --port 4317",
-      startServerReadyPattern: "Ready in",
-      startServerReadyTimeout: 60_000,
+      staticDistDir: `${__dirname}/out`,
+      url: ["http://localhost/"],
       settings: {
         onlyCategories: ["performance"],
         throttlingMethod: "simulate",
