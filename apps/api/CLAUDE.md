@@ -2,7 +2,7 @@
 
 ## 적용 범위·스택
 
-acting-api 백엔드. uv 파이썬 모노레포 — `acting-api`(FastAPI 게이트웨이)가 `acting-summary`·`acting_agent`·`acting-report`를 in-process로 마운트합니다 (별도 HTTP 서비스 아님). API 계약은 [API.md](API.md), 설계 결정은 [docs/design-decisions.md](docs/design-decisions.md).
+acting-api 백엔드. uv 파이썬 모노레포 — `acting-api`(FastAPI 게이트웨이)가 `acting-summary`·`acting-agent`·`acting-report`를 in-process로 마운트합니다 (별도 HTTP 서비스 아님). API 계약은 [API.md](API.md), 설계 결정은 [docs/design-decisions.md](docs/design-decisions.md).
 
 ## 명령어 (이 디렉토리 기준)
 

@@ -10,7 +10,6 @@ dependencies = [
     "google-genai>=2.9.0",
     "pydantic>=2.9",
     "python-dotenv>=1.0",
-    "gradio>=6.19.0",
 ]
 
 [build-system]

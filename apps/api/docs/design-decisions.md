@@ -73,6 +73,10 @@ reports 존재로 조인 도출.
 | model·was_compressed는 summaries | 장면이 아닌 분석 실행의 속성 — 재분석마다 다를 수 있음 |
 | practice_status_t 4개 값 | 코칭·리포트 여부까지 status에 넣으면 같은 사실이 두 곳에 저장돼 어긋남 (파생 값 저장 금지) |
 | 분석만 비동기 | 수 분 소요 + 기다릴 이유 없음. 코칭은 대화 중 대기가 자연스러워 동기 |
+| 영상 요약은 단일 구조화 Gemini 호출 | 영상 관찰·요약·이상징후 추출을 `SceneSummary` 응답 스키마 한 번에 묶는다. 정상 경로는 1회 호출하고 JSON 파싱 실패 때만 1회 재시도 |
+| 이상징후는 5초 고정 스캔 + 결정적 severity | 00:00부터 5초 그리드와 고정 축 순서로 스캔하고 생성 파라미터를 고정한다. severity는 사실 점수로 서버가 재계산·정렬 |
+| 코칭은 세션당 타깃 하나 | 최고 우선순위 anomaly 하나만 세션 종료까지 다루며 다른 문제로 이동하지 않음 |
+| 코치 발화와 재생 시점 분리 | 배우에게 보이는 `utterance`는 타임스탬프·기술 수치·내부 라벨을 뺀 자연어로 만들고, UI용 시점은 `focus_timestamp`로만 전달 |
 | S3 + presigned 업로드 | 550MB 멀티파트를 API 서버가 받지 않음 — 메모리·타임아웃 부담 제거 |
 | finalize 시 ETag 고정 | presigned PUT이 만료 전까지 유효하므로, complete 시점의 ETag를 기록하고 워커가 다운로드 후 검증 — 분석 후 같은 크기 파일로 내용을 바꿔치기하는 경로 차단 |
 | 만료 인텐트 스윕이 S3 객체도 삭제 | 미완료 업로드가 최대 550MB 고아 객체로 영구 잔존하는 것 방지 (best-effort 삭제 후 expired 마감) |
@@ -89,4 +93,6 @@ reports 존재로 조인 도출.
 - [ ] **약관 법적 검토** — AI 초안을 검토본으로 교체 (새 version 게시)
 - [ ] **일일 분석 상한** — 사용자당 예: 10회/일 (external_operations COUNT 한 줄). 외부 사용자 유입 시점에 활성화
 - [ ] **response_payload 30일 정리** — 재응답 캐시 삭제 스윕
-- [ ] **render.yaml 정리** — EC2 이전 확정 시
+- [ ] **실제 PostgreSQL 통합 검증** — 네트워크 제약 없는 PostgreSQL에서 `RUN_DB_TESTS=1` 테스트 실행
+- [ ] **acting-report 유료·E2E 검증** — 사용자 비용 승인 후 실제 Gemini 호출과 summary → agent → report 전체 파이프라인 실행
+- [x] **render.yaml 정리** — EC2 이전 확정과 함께 제거 완료
