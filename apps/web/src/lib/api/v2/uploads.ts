@@ -88,7 +88,7 @@ function emitProgress(
   onProgress({ loadedBytes: boundedLoaded, totalBytes, percent });
 }
 
-export const xhrS3Uploader: S3Uploader = ({
+const xhrS3Uploader: S3Uploader = ({
   url,
   file,
   contentType,
@@ -220,7 +220,7 @@ function mockWait(signal?: AbortSignal): Promise<void> {
   });
 }
 
-export const mockS3Uploader: S3Uploader = async ({
+const mockS3Uploader: S3Uploader = async ({
   file,
   signal,
   onProgress,
@@ -238,11 +238,11 @@ export const mockS3Uploader: S3Uploader = async ({
   }
 };
 
-export const defaultS3Uploader: S3Uploader = MOCK_S3_UPLOAD
+const defaultS3Uploader: S3Uploader = MOCK_S3_UPLOAD
   ? mockS3Uploader
   : xhrS3Uploader;
 
-export async function createUploadIntent(
+async function createUploadIntent(
   body: UploadIntentRequest,
   options: UploadRequestOptions = {},
 ): Promise<UploadIntentResponse> {
@@ -254,7 +254,7 @@ export async function createUploadIntent(
   return data;
 }
 
-export async function completeUploadIntent(
+async function completeUploadIntent(
   intentId: string,
   options: UploadRequestOptions = {},
 ): Promise<UploadCompleteResponse> {

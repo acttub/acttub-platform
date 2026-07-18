@@ -7,7 +7,7 @@ export interface LoginProvider {
   getIdToken(input?: { uid?: string; email?: string }): Promise<string>;
 }
 
-export const devProvider: LoginProvider = {
+const devProvider: LoginProvider = {
   name: "dev",
   async getIdToken(input) {
     const uid = input?.uid?.trim();
@@ -17,7 +17,7 @@ export const devProvider: LoginProvider = {
   },
 };
 
-export const googleProvider: LoginProvider = {
+const googleProvider: LoginProvider = {
   name: "google",
   async getIdToken() {
     // GIS 연동 시 Google Identity Services에서 받은 credential을 반환한다.

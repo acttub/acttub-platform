@@ -20,7 +20,7 @@ export class NetworkError extends Error {
   }
 }
 
-export class UnauthorizedError extends ApiError {
+class UnauthorizedError extends ApiError {
   constructor(code: string, detail: unknown, requestId?: string) {
     super(401, code, detail, requestId);
     this.name = "UnauthorizedError";
