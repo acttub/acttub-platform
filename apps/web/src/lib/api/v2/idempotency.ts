@@ -14,7 +14,7 @@ export type PostIdempotentOptions = {
   }) => void;
 };
 
-export function newRequestId(): string {
+function newRequestId(): string {
   // crypto.randomUUID는 보안 컨텍스트(HTTPS·localhost) 전용이라
   // http://<IP> 배포에서는 getRandomValues 기반 UUID v4로 폴백한다.
   if (typeof crypto.randomUUID === "function") {

@@ -18,7 +18,7 @@ export type ApiResponse<T> = {
   headers: Headers;
 };
 
-export function apiUrl(path: string): string {
+function apiUrl(path: string): string {
   return `${API_BASE_URL}${path}`;
 }
 
