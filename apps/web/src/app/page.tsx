@@ -1,6 +1,9 @@
+"use client";
+
 import Link from "next/link";
-import { redirect } from "next/navigation";
-import { getAuthContext } from "@/server/services/auth-context";
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { isLoggedIn } from "../lib/auth/token-store";
 
 const heroSignals = [
   ["대상", "배우 · 연기자"],
@@ -38,14 +41,14 @@ const outcomes = [
   ["다음 액션", "다음 테이크에서 바로 시도할 연습 문장을 남겨요."],
 ];
 
-const practiceLoginHref = "/auth/login?next=/practice/new";
+const practiceLoginHref = "/login?next=/practice/new";
 
-export default async function Home() {
-  const auth = await getAuthContext();
+export default function Home() {
+  const router = useRouter();
 
-  if (auth) {
-    redirect(auth.termsAccepted ? "/home" : "/terms");
-  }
+  useEffect(() => {
+    if (isLoggedIn()) router.replace("/home");
+  }, [router]);
 
   return (
     <main className="min-h-dvh overflow-hidden bg-white text-[#191f28]">
