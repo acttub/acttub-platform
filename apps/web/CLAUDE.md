@@ -7,7 +7,8 @@ Next.js 16 App Router + React 19 + TypeScript + Tailwind CSS v4. **정적 export
 ## 명령어 (이 디렉토리 기준)
 
 - `pnpm dev` — 개발 서버(:3000). next.config rewrites가 `/v2/*`를 `http://127.0.0.1:8000`(acting-api)으로 프록시.
-- `pnpm lint` · `pnpm typecheck` · `pnpm test`(node --test + 금지 카피 가드)
+- `pnpm lint` · `pnpm typecheck`
+- `pnpm test` — Node 테스트와 금지 카피 가드를 하나의 테스트 명령으로 실행.
 - `pnpm build` — 정적 빌드 → `out/`
 - `pnpm generate:v2-schema` — `../api/spec/openapi.json`에서 요청 타입 재생성(`src/lib/api/v2-schema.d.ts`). 이 파일은 직접 수정 금지.
 
@@ -39,8 +40,8 @@ src/
 ## 스타일·카피
 
 - Toss 스타일 인라인 Tailwind 유틸리티, 프레젠테이션 컴포넌트는 같은 파일의 로컬 함수로.
-- 사용자 카피는 한국어 존댓말("~해요"). `scripts/check-forbidden-copy.mjs`가 금지 문구를 검사합니다.
+- 사용자 카피는 한국어 존댓말("~해요"). `tests/product-language-guard.test.mjs`가 `pnpm test` 안에서 금지 문구를 검사합니다.
 
 ## 테스트
 
-`tests/*.test.mjs` — node --test. Node 24 타입 스트리핑으로 `.ts` 모듈을 상대 경로로 직접 임포트합니다(`@/` 별칭 불가). 토큰 스토어는 node 환경에서 메모리 모드로 동작해 그대로 테스트 가능합니다.
+`tests/*.test.mjs` — `node --test`. 필요한 테스트는 `tests/ts-module-loader.mjs` 커스텀 로더를 등록합니다. 이 로더는 확장자 없는 상대 경로 import를 `.ts`로 해석하고, TypeScript transpile로 parameter property를 포함한 문법을 변환합니다(`@/` 별칭 불가). 토큰 스토어는 Node 환경에서 메모리 모드로 동작해 그대로 테스트 가능합니다.
