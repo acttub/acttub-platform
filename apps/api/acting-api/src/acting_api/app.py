@@ -5,7 +5,9 @@ import time
 from contextlib import asynccontextmanager
 
 import httpx
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from google import genai
 
 from acting_agent.config import load_settings as load_agent_settings
@@ -201,4 +203,41 @@ def create_app(
         )
     )
 
+    if gateway_settings.static_dir is not None:
+        _mount_static_frontend(app, gateway_settings.static_dir)
+
     return app
+
+
+def _mount_static_frontend(app: FastAPI, static_root) -> None:
+    """Next.js `output: 'export'` 결과물(out/)을 같은 origin에서 서빙한다.
+
+    API 라우트(/v2/*, /health)가 먼저 등록되어 있어 catch-all보다 우선한다.
+    Next export는 trailingSlash 기본값에서 /home -> home.html 형태로 파일을
+    만들기 때문에 경로에 .html을 붙여 매핑한다.
+    """
+    static_root = static_root.resolve()
+    next_assets = static_root / "_next"
+    if next_assets.is_dir():
+        app.mount("/_next", StaticFiles(directory=next_assets), name="next-assets")
+
+    index_html = static_root / "index.html"
+    not_found_html = static_root / "404.html"
+
+    @app.get("/{full_path:path}", include_in_schema=False)
+    def serve_frontend(full_path: str):
+        if full_path.startswith("v2/") or full_path == "health":
+            raise HTTPException(status_code=404)
+        candidate = (static_root / full_path).resolve() if full_path else index_html
+        if not str(candidate).startswith(str(static_root)):
+            raise HTTPException(status_code=404)
+        if candidate.is_file():
+            return FileResponse(candidate)
+        html_candidate = static_root / f"{full_path}.html"
+        if html_candidate.is_file():
+            return FileResponse(html_candidate)
+        if not_found_html.is_file():
+            return FileResponse(not_found_html, status_code=404)
+        if index_html.is_file():
+            return FileResponse(index_html)
+        raise HTTPException(status_code=404)
