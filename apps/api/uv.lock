@@ -28,7 +28,7 @@ members = [
 [[package]]
 name = "acting-agent"
 version = "0.1.0"
-source = { editable = "acting_agent" }
+source = { editable = "acting-agent" }
 dependencies = [
     { name = "fastapi" },
     { name = "google-genai" },
@@ -85,7 +85,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "acting-agent", editable = "acting_agent" },
+    { name = "acting-agent", editable = "acting-agent" },
     { name = "acting-report", editable = "acting-report" },
     { name = "acting-summary", editable = "acting-summary" },
     { name = "alembic", specifier = ">=1.14,<2" },

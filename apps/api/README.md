@@ -1,6 +1,6 @@
 # acting-api-deploy
 
-연기 피드백 플랫폼 모노레포. 루트 `pyproject.toml`이 uv workspace를 구성하고, `acting-api`가 계정·업로드·분석·코칭·리포트를 단일 FastAPI 앱으로 제공합니다 (acting-summary·acting_agent·acting-report는 in-process 임베드).
+연기 피드백 플랫폼 모노레포. 루트 `pyproject.toml`이 uv workspace를 구성하고, `acting-api`가 계정·업로드·분석·코칭·리포트를 단일 FastAPI 앱으로 제공합니다 (acting-summary·acting-agent·acting-report는 in-process 임베드).
 
 - API 계약: [API.md](API.md) · 기계용 스펙: [spec/openapi.json](spec/openapi.json) (재생성: `uv run python -c "import json; from acting_api.app import create_app; json.dump(create_app().openapi(), open('spec/openapi.json','w'), ensure_ascii=False, indent=2)"`)
 - 설계 결정 기록: [docs/design-decisions.md](docs/design-decisions.md) · 시각화: [spec/api-spec.html](spec/api-spec.html)

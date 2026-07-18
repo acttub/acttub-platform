@@ -17,7 +17,7 @@ acting-api = { workspace = true }
 members = [
     "acting-api",
     "acting-summary",
-    "acting_agent",
+    "acting-agent",
     "acting-report",
 ]
 
@@ -31,13 +31,13 @@ dev = [
 addopts = "--import-mode=importlib"
 pythonpath = [
     "acting-api/tests",
-    "acting_agent/tests",
+    "acting-agent/tests",
     "acting-report/tests",
 ]
 testpaths = [
     "acting-api/tests",
     "acting-summary/tests",
-    "acting_agent/tests",
+    "acting-agent/tests",
     "acting-report/tests",
 ]
 markers = [

@@ -20,5 +20,5 @@ acting-summary가 만든 요약(SceneSummary JSON)을 입력으로 받아,
 `apps/api` 디렉토리 기준:
 
 ```bash
-uv run --package acting-agent pytest acting_agent/tests
+uv run --package acting-agent pytest acting-agent/tests
 ```
