@@ -1,7 +1,0 @@
-.omx
-.lighthouseci
-.DS_Store
-**/.next
-**/node_modules
-**/artifacts
-**/*.tsbuildinfo
