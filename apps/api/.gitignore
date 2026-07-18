@@ -10,7 +10,3 @@ __pycache__/
 *.html
 !spec/*.html
 *.tmp
-
-# 런타임 데이터 (repo에 올리지 않음)
-acting-report/data/
-acting_agent/transcripts/
