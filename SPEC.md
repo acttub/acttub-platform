@@ -1,95 +1,91 @@
-# SPEC: 웹 로그인 페이지 Google Identity Services(GIS) 연동
+# SPEC: 로그인 provider 기본화 — Google 기본 + "dev"→"development" 전면 리네임
 
 ## 배경/목적
 
-- 백엔드 `/v2/auth/login`(provider=google)은 이미 구현·검증됨 (`apps/api/acting-api/src/acting_api/auth/google.py` — ID 토큰 서명 검증).
-- 웹은 `NEXT_PUBLIC_AUTH_PROVIDER=google`일 때 "Google 로그인 준비 중" 비활성 버튼만 있음.
-- 목적: GIS 공식 렌더 버튼으로 credential(ID 토큰)을 받아 기존 로그인 플로우(`loginWith` → 약관 게이트 → 리다이렉트)에 연결한다.
+현재 구글 로그인은 `NEXT_PUBLIC_AUTH_PROVIDER=google` + `NEXT_PUBLIC_GOOGLE_CLIENT_ID` env를
+빌드 시점에 넣어야만 활성화된다. env 누락 시 로그인 버튼이 안 뜨는 사고 여지가 있고,
+"dev" provider라는 이름은 이제 "개발 서버"가 아니라 "로컬 전용 테스트 로그인"을 뜻하므로
+오해를 부른다.
 
-## 확정된 결정
+목표:
 
-1. **렌더 버튼만** 사용. One Tap(`prompt()`) 사용 안 함.
-2. **환경 스위치 유지 (either/or)**: 기본(dev 서버·로컬)은 uid/email dev 폼, 운영 빌드만 Google 버튼.
-3. **`apps/web/.env.production` 커밋**으로 운영 빌드 설정 고정 (`next build` 시 자동 로드, `next dev`에는 미적용):
-   - `NEXT_PUBLIC_AUTH_PROVIDER=google`
-   - `NEXT_PUBLIC_GOOGLE_CLIENT_ID=<발급 후 교체>` (클라이언트 ID는 공개 값 — 커밋 가능)
-4. **실패 처리**: 버튼 자리에 기존 에러 카피 스타일 안내문.
-   - 클라이언트 ID 미설정 → "Google 로그인 설정이 필요해요"
-   - GIS 스크립트 로드 실패 → "Google 로그인을 불러오지 못했어요. 새로고침 후 다시 시도해 주세요"
-   - 로그인 API 실패(401/403 등)는 기존 `loginErrorMessage` 재사용.
-5. **버튼 외형**: `theme: filled_blue`, `shape: pill`, `size: large`, 너비는 컨테이너 폭(최대 400px).
+1. **Google 로그인을 코드 기본값으로**: client ID를 하드코딩하고 env 스위치를 전부 제거한다.
+2. **dev 폼은 로컬 `next dev`에서만**: `process.env.NODE_ENV === "development"` 게이트.
+   프로덕션 빌드에서는 tree-shaking으로 제거된다.
+3. **"dev" → "development" 전면 리네임**: 프론트 심볼, 백엔드 provider 키(wire 값), env 변수,
+   DB enum 값까지 일관되게 바꾼다.
 
 ## 설계
 
-### 변경 파일
+### 프론트 (`apps/web`)
 
-1. **`apps/web/src/lib/config/env.ts`**
-   - `GOOGLE_CLIENT_ID` export 추가 (`process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? ""`).
-   - 파일 주석 규약(env.ts 주석이 선택 변수의 단일 문서)에 맞춰 용도 주석 추가.
+- `src/lib/config/env.ts`
+  - `AUTH_PROVIDER` 제거. `GOOGLE_CLIENT_ID`는 env 조회 없이 순수 하드코딩:
+    `462651930952-625pcnhrjib79r7990fqsdqhsterdij2.apps.googleusercontent.com`
+    (OAuth client ID는 공개 값이므로 번들 포함 무방 — 주석으로 명시)
+- `src/lib/auth/providers.ts`
+  - `getLoginProvider()` 전역 스위치 제거.
+  - `googleProvider`와 `developmentProvider`(구 devProvider, `name: "development"`)를 각각 export.
+  - `LoginProvider.name` 타입: `"development" | "google"`.
+- `src/app/login/page.tsx`
+  - Google 버튼은 **항상** 렌더. `GOOGLE_CLIENT_ID` 부재 분기(설정 안내 카피)는 제거
+    (상수가 항상 존재하므로 dead code).
+  - 로컬 로그인 폼은 `process.env.NODE_ENV === "development"`일 때만 Google 버튼
+    **아래에** 추가 렌더. 폼 섹션에 "로컬 테스트 로그인" 류의 구분 레이블을 달아
+    Google 버튼과 시각적으로 구분한다 (카피는 존댓말 "~해요" 규칙 준수).
+  - credential 콜백 → `loginWith(googleProvider, { credential })`,
+    폼 submit → `loginWith(developmentProvider, { uid, email })` 직결.
+- `.env.production` **파일 삭제** (내용이 전부 코드 기본값과 동일해짐).
+- `tests/providers.test.mjs`: env 스위치(spawnSync + NEXT_PUBLIC_AUTH_PROVIDER) 제거,
+  두 provider를 직접 import해 검증하는 구조로 재작성.
 
-2. **`apps/web/src/lib/auth/google-gis.ts` (신규)**
-   - GIS 스크립트(`https://accounts.google.com/gsi/client`) 동적 로더: 중복 로드 방지(단일 promise 캐시), `onerror` 시 reject.
-   - `window.google.accounts.id`에 대한 최소 TypeScript 타입 선언(전역 `declare` — 외부 @types 패키지 추가 금지).
-   - `initialize({ client_id, callback })` + `renderButton(el, options)` 래퍼 함수 제공.
-   - 모듈 최상위에서 `window` 접근 금지 (정적 프리렌더 제약) — 함수 내부에서만 접근.
+### 백엔드 (`apps/api/acting-api`)
 
-3. **`apps/web/src/lib/auth/providers.ts`**
-   - `LoginProvider.getIdToken` 입력에 `credential?: string` 추가.
-   - `googleProvider.getIdToken`: `input.credential`이 있으면 반환, 없으면 throw (기존 pending 에러 제거).
+- `src/acting_api/auth/dev.py` → `development.py`: `DevelopmentProviderVerifier`, `provider = "development"`.
+  토큰 파싱 로직(`uid` 또는 `uid:email`)은 동일 유지.
+- `src/acting_api/config.py`: `dev_auth_provider` → `development_auth_provider`,
+  env 키 `DEV_AUTH_PROVIDER` → `DEVELOPMENT_AUTH_PROVIDER`. 하위 호환 alias는 두지 않는다
+  (배포 env는 이 PR과 함께 갱신).
+- `src/acting_api/app.py`: 배선 갱신 (`DevelopmentProviderVerifier` 등록 조건).
+- `src/acting_api/db/models.py`: `IdentityProvider.DEV = "dev"` → `DEVELOPMENT = "development"`.
+- **alembic 0003**: `ALTER TYPE identity_provider_t RENAME VALUE 'dev' TO 'development'`
+  (PostgreSQL 10+; 기존 행은 자동 추종, 데이터 재작성 없음). downgrade는 역방향 RENAME.
+- 테스트: `tests/test_dev_auth.py` → `test_development_auth.py` 등 "dev" provider를 참조하는
+  테스트·서포트(`auth_test_support.py`, `platform_test_support.py` 등) 일괄 갱신.
+- `spec/openapi.json` 재생성 → 웹 타입 재생성(`pnpm --filter web generate:v2-schema`)
+  → 프론트 반영 (API 계약 변경은 한 PR 원칙).
 
-4. **`apps/web/src/app/login/page.tsx`**
-   - 로그인 성공 후처리(`pending_consents` 저장 → `/terms` 또는 `next` 리다이렉트)를 dev 폼과 Google 콜백이 공유하도록 로컬 함수로 추출.
-   - `AUTH_PROVIDER === "google"` 분기: 로컬 컴포넌트 `GoogleLoginButton`
-     - `GOOGLE_CLIENT_ID`가 빈 값이면 스크립트 로드 없이 "Google 로그인 설정이 필요해요" 표시.
-     - `useEffect`에서 GIS 로드 → initialize(콜백: credential 수신 시 `loginWith(googleProvider, { credential })` → 공유 후처리) → 컨테이너 div에 renderButton.
-     - 로드 실패 시 "Google 로그인을 불러오지 못했어요. 새로고침 후 다시 시도해 주세요" 표시.
-     - 로그인 진행 중 상태(중복 제출 방지)와 API 에러 표시는 기존 상태/카피 재사용.
+### 문서
 
-5. **`apps/web/.env.production` (신규)** — 위 확정 결정 3 내용.
-
-6. **`apps/web/.gitignore`** — `.env*` 패턴이 `.env.production`을 무시하므로 `!.env.production` 예외 추가 (Codex 비판 반영). 루트 `.gitignore`의 `.env.*`보다 하위 디렉토리 negation이 우선하므로 이 한 줄로 충분. 다른 env 파일은 계속 무시된다.
-
-### 백엔드 (코드 변경 없음)
-
-- API 계약 불변 → openapi 스펙·웹 타입 재생성 불필요.
-- 운영 `.env`(`apps/api/acting-api/.env`)에 `GOOGLE_OAUTH_CLIENT_ID=<클라이언트 ID>` 추가 필요 — 코드 아닌 배포 설정 (미결 사항 참조).
-
-### 테스트
-
-- `apps/web/tests/`에 providers 유닛 테스트 추가/확장 (`node --test` + ts-module-loader):
-  - `googleProvider.getIdToken({ credential })` → credential 그대로 반환.
-  - credential 없이 호출 → throw.
-  - dev provider 기존 동작 회귀 없음.
-- GIS 버튼 렌더(DOM/외부 스크립트)는 Node 테스트 범위 밖 — 수동 검증으로 대체.
-- 카피 가드(`product-language-guard`)는 `pnpm --filter web test`에 포함되어 자동 검사.
-
-### 검증 명령
-
-```bash
-pnpm lint && pnpm typecheck && pnpm --filter web test && pnpm build
-```
+- `apps/web/CLAUDE.md`·README 등에서 dev 로그인/env 스위치 언급이 있으면 실태에 맞게 갱신.
+- 저장소 내 "DEV_AUTH_PROVIDER"·"NEXT_PUBLIC_AUTH_PROVIDER" 잔존 참조를 grep으로 확인해 0으로.
 
 ## 완료 기준 체크리스트
 
-- [ ] `NEXT_PUBLIC_AUTH_PROVIDER=google` + 클라이언트 ID 설정 시 로그인 페이지에 GIS 공식 버튼(filled_blue/pill/large)이 렌더된다.
-- [ ] 버튼 클릭 → Google 계정 선택 → credential이 `/v2/auth/login`(provider=google)으로 전달되고, 성공 시 dev 로그인과 동일하게 약관 게이트/리다이렉트가 동작한다.
-- [ ] 클라이언트 ID 미설정 시 "Google 로그인 설정이 필요해요" 안내가 표시된다.
-- [ ] GIS 스크립트 로드 실패 시 "Google 로그인을 불러오지 못했어요..." 안내가 표시된다.
-- [ ] 기본(dev) 모드의 uid/email 폼 동작에 회귀가 없다.
-- [ ] `apps/web/.env.production`이 커밋되어(`!.env.production` gitignore 예외 포함) `pnpm build`만으로 운영 빌드가 google 모드가 된다.
-- [ ] providers 유닛 테스트 추가, `pnpm lint`·`pnpm typecheck`·`pnpm --filter web test`·`pnpm build` 전부 통과.
+- [ ] `pnpm build` 산출물에서 로컬 로그인 폼 문자열이 검출되지 않는다 (tree-shaking 확인).
+- [ ] `next dev` 화면: Google 버튼 + 로컬 테스트 로그인 폼이 함께 표시된다.
+- [ ] env 변수 없이 빌드해도 Google 버튼이 활성화된다 (`NEXT_PUBLIC_*` 로그인 관련 변수 0개).
+- [ ] `POST /v2/auth/login`에 `provider: "development"`이 통하고 `"dev"`는 `unsupported_provider`(400).
+- [ ] `DEVELOPMENT_AUTH_PROVIDER=1`일 때만 development provider가 등록된다 (기본 꺼짐).
+- [ ] alembic upgrade가 기존 `provider='dev'` 행을 `'development'`로 보이게 한다 (RENAME VALUE).
+- [ ] 저장소에서 `DEV_AUTH_PROVIDER`·`NEXT_PUBLIC_AUTH_PROVIDER`·`NEXT_PUBLIC_GOOGLE_CLIENT_ID`
+      참조가 alembic 히스토리·과거 문서 기록을 제외하고 0건.
+- [ ] `pnpm lint` · `pnpm typecheck` · `pnpm --filter web test` · `pnpm build` 통과.
+- [ ] `cd apps/api && uv run pytest` 통과.
+- [ ] `spec/openapi.json`·`v2-schema.d.ts` 재생성 반영.
 
 ## 하지 말 것 (스코프 제한)
 
-- One Tap(`prompt()`), FedCM 관련 설정 추가 금지.
-- 백엔드(apps/api) 코드·스펙 변경 금지.
-- dev 폼 UI/로직 리팩터링 금지 (후처리 공유 추출 외).
-- `fetch` 직접 호출 금지 — 반드시 `lib/api/v2/*` 경유 (기존 규칙).
-- 토큰 저장·refresh·멱등 재시도 계층 수정 금지.
-- 외부 패키지(@types/google.accounts 등) 추가 금지 — 로컬 타입 선언으로 해결.
+- 다중 provider 버튼 목록(레지스트리) 일반화 — 두 번째 소셜 provider 추가 시점의 과제.
+- 카카오/네이버/애플 연동, 자체(이메일/비밀번호) 로그인.
+- `IdentityProvider.KAKAO`/`APPLE` enum 값 정리 — 건드리지 않는다.
+- 스코프 밖 리팩터링·스타일 변경.
+- `v2-schema.d.ts` 수동 편집 (재생성만 허용).
 
 ## 미결 사항
 
-- **Google OAuth 클라이언트 ID 미발급**: 사용자가 Google Cloud Console에서 발급 후 두 곳에 설정해야 실동작 확인 가능 — `apps/web/.env.production`의 placeholder 교체 + 운영 `apps/api/acting-api/.env`에 `GOOGLE_OAUTH_CLIENT_ID` 추가. 발급 전까지 Google 플로우 E2E는 검증 불가(코드 검증은 유닛 테스트·빌드로 갈음).
-- 운영 도메인이 http+IP인 경우 GIS가 동작하지 않음(secure context 필요) — HTTPS 도메인 준비 여부는 배포 시점 확인.
-- **[후속 과제 — Codex 비판 지적] 백엔드 이메일 자동 계정 연결 정책**: `auth/service.py` 로그인 로직이 새 Google sub라도 `email_verified=true` + 동일 이메일이면 기존 계정에 자동 연결함. Google은 비-Gmail/비-Workspace 이메일의 현재 소유권을 보증하지 않으므로 이론상 계정 탈취 여지가 있음. Google 외 provider(kakao/apple) 추가 전에 연결 정책(자동 연결 제한 또는 재인증 요구)을 별도 스펙으로 결정할 것. 이번 작업 스코프 아님.
+- Google Console 승인된 JavaScript 원본에 `http://localhost:3000` 등록 여부 — 코드 밖
+  운영 작업. 미등록이면 로컬에서 Google 버튼이 뜨되 로그인 시도가 실패한다 (기능 자체는
+  로컬 폼으로 대체 가능하므로 블로커 아님).
+- 배포 환경의 `DEV_AUTH_PROVIDER` env가 켜져 있다면 배포 시 `DEVELOPMENT_AUTH_PROVIDER`로
+  키 교체 필요 (배포 절차 메모).
