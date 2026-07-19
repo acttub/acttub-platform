@@ -1,12 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, Suspense, useState } from "react";
+import { FormEvent, Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ApiError } from "../../lib/api/v2/errors";
+import { renderGoogleLoginButton } from "../../lib/auth/google-gis";
 import { getLoginProvider, loginWith } from "../../lib/auth/providers";
 import { sanitizeNextPath } from "../../lib/auth/next-path";
-import { AUTH_PROVIDER } from "../../lib/config/env";
+import { AUTH_PROVIDER, GOOGLE_CLIENT_ID } from "../../lib/config/env";
 import {
   clearPendingConsents,
   savePendingConsents,
@@ -30,6 +31,71 @@ function loginErrorMessage(error: unknown): string {
   return "로그인하지 못했어요. 잠시 후 다시 시도해 주세요";
 }
 
+function GoogleLoginButton({
+  onCredential,
+}: {
+  onCredential: (credential: string) => void;
+}) {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const [loadFailed, setLoadFailed] = useState(false);
+  // GIS callback은 initialize 시점의 클로저를 계속 쓰므로 ref로 최신 핸들러를 참조한다.
+  const onCredentialRef = useRef(onCredential);
+  useEffect(() => {
+    onCredentialRef.current = onCredential;
+  });
+
+  useEffect(() => {
+    if (!GOOGLE_CLIENT_ID) return;
+    const container = containerRef.current;
+    if (!container) return;
+
+    let cancelled = false;
+    renderGoogleLoginButton({
+      clientId: GOOGLE_CLIENT_ID,
+      container,
+      onCredential: (credential) => onCredentialRef.current(credential),
+    }).catch(() => {
+      if (!cancelled) setLoadFailed(true);
+    });
+
+    return () => {
+      cancelled = true;
+      // StrictMode 이중 실행 시 버튼이 중복 렌더되지 않도록 정리한다.
+      container.replaceChildren();
+    };
+  }, []);
+
+  if (!GOOGLE_CLIENT_ID) {
+    return (
+      <p
+        role="alert"
+        className="rounded-2xl bg-[#fff0f0] px-4 py-3 text-sm font-bold text-[#e42939]"
+      >
+        Google 로그인 설정이 필요해요
+      </p>
+    );
+  }
+
+  if (loadFailed) {
+    return (
+      <p
+        role="alert"
+        className="rounded-2xl bg-[#fff0f0] px-4 py-3 text-sm font-bold text-[#e42939]"
+      >
+        Google 로그인을 불러오지 못했어요. 새로고침 후 다시 시도해 주세요
+      </p>
+    );
+  }
+
+  return (
+    <div
+      ref={containerRef}
+      className="flex min-h-14 w-full items-center justify-center"
+      aria-label="Google 로그인"
+    />
+  );
+}
+
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -45,14 +111,17 @@ function LoginForm() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  async function submitLogin(input: {
+    uid?: string;
+    email?: string;
+    credential?: string;
+  }) {
     if (isSubmitting) return;
 
     setErrorMessage(null);
     setIsSubmitting(true);
     try {
-      const result = await loginWith(getLoginProvider(), { uid, email });
+      const result = await loginWith(getLoginProvider(), input);
       if (result.pending_consents.length > 0) {
         savePendingConsents(result.pending_consents);
         router.replace(`/terms?next=${encodeURIComponent(nextPath)}`);
@@ -66,6 +135,11 @@ function LoginForm() {
     } finally {
       setIsSubmitting(false);
     }
+  }
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    await submitLogin({ uid, email });
   }
 
   return (
@@ -84,13 +158,24 @@ function LoginForm() {
         </p>
 
         {AUTH_PROVIDER === "google" ? (
-          <button
-            type="button"
-            disabled
-            className="mt-9 flex h-14 w-full cursor-not-allowed items-center justify-center rounded-2xl bg-[#e5e8eb] text-base font-black text-[#8b95a1]"
-          >
-            Google 로그인 준비 중
-          </button>
+          <div className="mt-9 space-y-5">
+            <GoogleLoginButton
+              onCredential={(credential) => void submitLogin({ credential })}
+            />
+            {isSubmitting ? (
+              <p className="text-center text-sm font-bold text-[#6b7684]">
+                로그인 중...
+              </p>
+            ) : null}
+            {errorMessage || noticeMessage ? (
+              <p
+                role="alert"
+                className="rounded-2xl bg-[#fff0f0] px-4 py-3 text-sm font-bold text-[#e42939]"
+              >
+                {errorMessage ?? noticeMessage}
+              </p>
+            ) : null}
+          </div>
         ) : (
           <form className="mt-9 space-y-5" onSubmit={handleSubmit}>
             <label className="block">

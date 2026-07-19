@@ -4,7 +4,11 @@ import { AUTH_PROVIDER } from "../config/env";
 
 export interface LoginProvider {
   name: "dev" | "google";
-  getIdToken(input?: { uid?: string; email?: string }): Promise<string>;
+  getIdToken(input?: {
+    uid?: string;
+    email?: string;
+    credential?: string;
+  }): Promise<string>;
 }
 
 const devProvider: LoginProvider = {
@@ -19,9 +23,11 @@ const devProvider: LoginProvider = {
 
 const googleProvider: LoginProvider = {
   name: "google",
-  async getIdToken() {
-    // GIS 연동 시 Google Identity Services에서 받은 credential을 반환한다.
-    throw new Error("google login not wired yet (GIS integration pending)");
+  async getIdToken(input) {
+    if (!input?.credential) {
+      throw new Error("Google 로그인 credential이 필요합니다.");
+    }
+    return input.credential;
   },
 };
 
@@ -31,7 +37,7 @@ export function getLoginProvider(): LoginProvider {
 
 export async function loginWith(
   provider: LoginProvider,
-  input?: { uid?: string; email?: string },
+  input?: { uid?: string; email?: string; credential?: string },
 ): Promise<TokenPairResponse> {
   return login(provider.name, await provider.getIdToken(input));
 }

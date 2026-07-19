@@ -14,8 +14,9 @@
 # debug
 .pnpm-debug.log*
 
-# env files
+# env files (.env.production은 공개 클라이언트 ID만 담으므로 커밋 대상)
 .env*
+!.env.production
 
 # typescript
 *.tsbuildinfo
