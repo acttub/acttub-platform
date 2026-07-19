@@ -85,6 +85,8 @@ export async function renderGoogleLoginButton(options: {
     callback: (response) => options.onCredential(response.credential),
   });
   const measured = options.container.offsetWidth;
+  // StrictMode 이중 실행 등으로 로드가 겹쳐도 마지막 렌더만 남도록 비우고 그린다.
+  options.container.replaceChildren();
   api.renderButton(options.container, {
     theme: "filled_blue",
     shape: "pill",
