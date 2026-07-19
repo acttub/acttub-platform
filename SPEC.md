@@ -47,6 +47,8 @@
 
 5. **`apps/web/.env.production` (신규)** — 위 확정 결정 3 내용.
 
+6. **`apps/web/.gitignore`** — `.env*` 패턴이 `.env.production`을 무시하므로 `!.env.production` 예외 추가 (Codex 비판 반영). 루트 `.gitignore`의 `.env.*`보다 하위 디렉토리 negation이 우선하므로 이 한 줄로 충분. 다른 env 파일은 계속 무시된다.
+
 ### 백엔드 (코드 변경 없음)
 
 - API 계약 불변 → openapi 스펙·웹 타입 재생성 불필요.
@@ -74,7 +76,7 @@ pnpm lint && pnpm typecheck && pnpm --filter web test && pnpm build
 - [ ] 클라이언트 ID 미설정 시 "Google 로그인 설정이 필요해요" 안내가 표시된다.
 - [ ] GIS 스크립트 로드 실패 시 "Google 로그인을 불러오지 못했어요..." 안내가 표시된다.
 - [ ] 기본(dev) 모드의 uid/email 폼 동작에 회귀가 없다.
-- [ ] `apps/web/.env.production`이 커밋되어 `pnpm build`만으로 운영 빌드가 google 모드가 된다.
+- [ ] `apps/web/.env.production`이 커밋되어(`!.env.production` gitignore 예외 포함) `pnpm build`만으로 운영 빌드가 google 모드가 된다.
 - [ ] providers 유닛 테스트 추가, `pnpm lint`·`pnpm typecheck`·`pnpm --filter web test`·`pnpm build` 전부 통과.
 
 ## 하지 말 것 (스코프 제한)
@@ -90,3 +92,4 @@ pnpm lint && pnpm typecheck && pnpm --filter web test && pnpm build
 
 - **Google OAuth 클라이언트 ID 미발급**: 사용자가 Google Cloud Console에서 발급 후 두 곳에 설정해야 실동작 확인 가능 — `apps/web/.env.production`의 placeholder 교체 + 운영 `apps/api/acting-api/.env`에 `GOOGLE_OAUTH_CLIENT_ID` 추가. 발급 전까지 Google 플로우 E2E는 검증 불가(코드 검증은 유닛 테스트·빌드로 갈음).
 - 운영 도메인이 http+IP인 경우 GIS가 동작하지 않음(secure context 필요) — HTTPS 도메인 준비 여부는 배포 시점 확인.
+- **[후속 과제 — Codex 비판 지적] 백엔드 이메일 자동 계정 연결 정책**: `auth/service.py` 로그인 로직이 새 Google sub라도 `email_verified=true` + 동일 이메일이면 기존 계정에 자동 연결함. Google은 비-Gmail/비-Workspace 이메일의 현재 소유권을 보증하지 않으므로 이론상 계정 탈취 여지가 있음. Google 외 provider(kakao/apple) 추가 전에 연결 정책(자동 연결 제한 또는 재인증 요구)을 별도 스펙으로 결정할 것. 이번 작업 스코프 아님.
