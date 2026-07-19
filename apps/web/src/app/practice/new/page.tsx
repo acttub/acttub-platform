@@ -1,5 +1,5 @@
-import { PracticeFlow } from "@/features/practice/practice-flow";
+import { PracticeSingle } from "@/features/practice/practice-single";
 
 export default function NewPracticePage() {
-  return <PracticeFlow entry="new" />;
+  return <PracticeSingle />;
 }

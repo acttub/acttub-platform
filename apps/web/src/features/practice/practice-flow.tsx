@@ -44,7 +44,7 @@ type CoachState = {
 };
 type ReportData = { report: ActingReport; reportCount: number };
 
-// v2 리포트에는 practice_session_id가 없어 현재 탭에서 확인한 연결만 보존한다.
+// v2 연습 노트에는 practice_session_id가 없어 현재 탭에서 확인한 연결만 보존한다.
 const practiceCoachSessionMap = new Map<string, string>();
 
 const entryInitialStep: Record<Entry, Step> = {
@@ -146,7 +146,7 @@ export function PracticeFlow({ entry = "new" }: { entry?: Entry }) {
         } else {
           setReports([]);
           if (sessionsResult.status === "fulfilled") {
-            setHistoryError("완료된 리포트 기록을 불러오지 못했어요. 잠시 후 다시 확인해 주세요.");
+            setHistoryError("완료된 연습 노트 기록을 불러오지 못했어요. 잠시 후 다시 확인해 주세요.");
           }
         }
         setDataReady(true);
@@ -518,7 +518,7 @@ export function PracticeFlow({ entry = "new" }: { entry?: Entry }) {
           const existing = refreshed.reports.find(
             (item) => item.session_id === coach.coachSessionId,
           );
-          if (!existing) throw new Error("완료된 리포트를 불러오지 못했어요.");
+          if (!existing) throw new Error("완료된 연습 노트를 불러오지 못했어요.");
           showReportRecord(existing, refreshed.reports);
         } catch (refreshError) {
           setError(errorMessage(refreshError));
@@ -708,63 +708,59 @@ function PracticeHome({
   onLogout: () => void | Promise<void>;
   onOpen: (session: PracticeSessionListItem) => void;
 }) {
-  const description = historyError
-    ? "연습 기록을 잠시 불러오지 못했지만 새 연습은 바로 시작할 수 있어요."
-    : sessions.length > 0
-      ? "최근 연습을 확인하거나 새 영상을 올려 다음 질문을 받아보세요."
-      : "첫 영상을 올리면 장면을 분석하고, 연기를 더 깊게 만드는 질문을 시작할 수 있어요.";
-
   return (
-    <main className="min-h-dvh bg-white px-4 py-6 text-[#191f28] sm:px-6 lg:px-8">
-      <div className="mx-auto w-full max-w-[1280px]">
-        <header className="overflow-hidden rounded-[32px] bg-[#f7faff] p-6 shadow-sm sm:p-8 lg:p-10">
-          <div className="flex flex-col gap-6 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-              <div className="flex items-center gap-3">
-                <AppLogoMark />
-                <p className="text-base font-black tracking-[-0.03em] text-[#2f6bff] sm:text-lg">
-                  Acttub AI 연기 코치
-                </p>
-              </div>
-              <h1 className="mt-6 text-3xl font-black leading-tight tracking-[-0.05em] sm:text-4xl lg:text-[42px]">
-                {displayName}님, 오늘은 어떤 장면을 연습할까요?
-              </h1>
-              <p className="mt-4 max-w-3xl text-base font-bold leading-7 tracking-[-0.02em] text-[#8b95a1] sm:text-lg sm:leading-8">
-                {description}
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => void onLogout()}
-              className="inline-flex h-11 shrink-0 items-center justify-center rounded-2xl border border-[#d1d6db] bg-white px-4 text-sm font-black text-[#4e5968] transition hover:border-[#3182f6] hover:text-[#1b64da]"
-            >
-              로그아웃
-            </button>
-          </div>
-          <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-            <Link
-              href="/practice/new"
-              className="inline-flex min-h-13 items-center justify-center rounded-2xl bg-[#2f6bff] px-6 py-3 text-base font-black text-white shadow-[0_10px_20px_rgba(49,130,246,0.18)] transition hover:bg-[#1b64da]"
-            >
-              새 연습 시작하기
-            </Link>
-            <Link
-              href="/practice/history"
-              className="inline-flex min-h-13 items-center justify-center rounded-2xl bg-white px-6 py-3 text-base font-black text-[#2f6bff] shadow-sm transition hover:text-[#1b64da]"
-            >
-              전체 기록 보기
-            </Link>
-          </div>
-        </header>
+    <div className="min-h-dvh bg-white text-[#191f28]">
+      <header className="flex h-15 items-center gap-3 border-b border-[#edf0f3] bg-white/90 px-5 backdrop-blur">
+        <span className="text-lg font-black tracking-[-0.04em]">Acttub</span>
+        <div className="ml-auto flex items-center gap-3 text-[13px] text-[#4e5968]">
+          <span className="font-black tracking-[-0.02em]">{displayName}</span>
+          <button type="button" onClick={() => void onLogout()} className="font-semibold text-[#8b95a1] transition hover:text-[#191f28]">로그아웃</button>
+        </div>
+      </header>
 
-        <RecentPracticeSection
-          error={historyError}
-          sessions={sessions}
-          reportForSession={reportForSession}
-          onOpen={onOpen}
-        />
-      </div>
-    </main>
+      <main className="mx-auto w-full max-w-[920px] px-5 pb-16 pt-10">
+        <h1 className="text-2xl font-black leading-tight tracking-[-0.05em] sm:text-[34px]">{displayName}님, 오늘도 한 장면 볼까요?</h1>
+        <p className="mt-2.5 text-[15px] font-bold text-[#4e5968]">영상을 올리면 확인한 단서만 질문으로 바꿔 드려요. 마지막 문장은 직접 남기게 됩니다.</p>
+
+        <div className="mt-7 flex items-center justify-between gap-4 rounded-[24px] bg-[linear-gradient(120deg,#eaf6ff,#f8fbff)] p-6 shadow-[0_16px_45px_rgba(25,31,40,0.06)] sm:px-7">
+          <div>
+            <div className="text-lg font-black tracking-[-0.03em]">새 연습 시작하기</div>
+            <div className="mt-1.5 text-[13px] font-semibold text-[#4e5968]">오늘 찍은 장면을 올리고 질문을 받아보세요.</div>
+          </div>
+          <Link href="/practice/new" className="inline-flex h-13 shrink-0 items-center rounded-2xl bg-[#191f28] px-6 text-[15px] font-black text-white shadow-[0_12px_28px_rgba(25,31,40,0.18)] transition hover:bg-[#333d4b]">＋ 새 연습</Link>
+        </div>
+
+        <div className="mb-3.5 mt-10 flex items-center justify-between">
+          <h2 className="text-lg font-black tracking-[-0.03em]">내 연습 기록</h2>
+          <Link href="/practice/history" className="text-[13px] font-black text-[#8b95a1] transition hover:text-[#191f28]">전체 보기</Link>
+        </div>
+
+        {historyError ? (
+          <p className="rounded-[24px] bg-[#fff8ec] px-6 py-5 text-sm font-bold text-[#8a4b00]">연습 기록을 잠시 불러오지 못했어요. 새 연습은 바로 시작할 수 있어요.</p>
+        ) : sessions.length === 0 ? (
+          <div className="rounded-[24px] bg-[#f8fbff] px-6 py-11 text-center">
+            <div className="text-[15px] font-black tracking-[-0.02em]">아직 연습 기록이 없어요</div>
+            <div className="mt-2 text-[13px] font-semibold text-[#4e5968]">첫 영상을 올리면 이곳에 장면별 연습 기록이 쌓입니다.</div>
+          </div>
+        ) : (
+          <div className="grid gap-3">
+            {sessions.map((s) => {
+              const hasReport = Boolean(reportForSession(s.session_id));
+              return (
+                <button key={s.session_id} type="button" onClick={() => onOpen(s)} className="flex items-center gap-3.5 rounded-[20px] bg-white p-4 text-left shadow-[0_16px_45px_rgba(25,31,40,0.06)] transition hover:-translate-y-0.5">
+                  <span className="flex h-10 w-14 shrink-0 items-center justify-center rounded-xl bg-[linear-gradient(135deg,#0b1220,#1b2942)] text-[11px] font-black text-[#8fb4ff]">▶</span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-black tracking-[-0.02em]">{s.situation || "연습"}</span>
+                    <span className="mt-0.5 block truncate text-xs font-semibold text-[#8b95a1]">{s.character_context || "장면 기록"}</span>
+                  </span>
+                  <span className="shrink-0 text-xs font-black text-[#3182f6]">{hasReport ? "연습 노트 다시 보기 →" : "이어보기 →"}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </main>
+    </div>
   );
 }
 
@@ -838,7 +834,7 @@ function PracticeHistoryScreen({
               {displayName}님의 전체 연습
             </h1>
             <p className="mt-3 max-w-2xl text-base font-bold leading-7 text-[#8b95a1]">
-              장면별 진행 상태와 완성된 리포트를 한곳에서 확인할 수 있어요.
+              장면별 진행 상태와 완성된 연습 노트를 한곳에서 확인할 수 있어요.
             </p>
           </div>
           <div className="flex gap-2">
@@ -1532,9 +1528,9 @@ function CoachingView({
           <div className="rounded-2xl border border-[#dce9ff] bg-[#f7faff] p-5">
             <p className="text-xs font-black text-[#2f6bff]">코칭 완료</p>
             <h3 className="mt-2 text-xl font-black tracking-[-0.035em]">{coachDoneMessage(coach.reason)}</h3>
-            <p className="mt-2 font-semibold leading-7 text-[#6b7684]">대화를 바탕으로 이번 연기의 핵심을 리포트로 정리해 보세요.</p>
+            <p className="mt-2 font-semibold leading-7 text-[#6b7684]">대화를 바탕으로 이번 연기의 핵심을 연습 노트로 정리해 보세요.</p>
             <button type="button" disabled={busy} onClick={onCreateReport} className="mt-5 min-h-12 w-full rounded-2xl bg-[#2f6bff] px-5 py-3 text-sm font-black text-white transition hover:bg-[#1b64da] disabled:bg-[#b0d2ff] sm:w-auto">
-              {busy ? "리포트를 만드는 중…" : "리포트 만들기"}
+              {busy ? "연습 노트를 만드는 중…" : "연습 노트 만들기"}
             </button>
           </div>
         ) : (
@@ -1600,9 +1596,9 @@ function Report({
     return (
       <section className="mt-8 rounded-[28px] border border-[#dce9ff] bg-white p-6 shadow-[0_14px_40px_rgba(25,31,40,0.06)] sm:p-8">
         <span className="inline-flex rounded-full bg-[#eaf2ff] px-3 py-1.5 text-xs font-black text-[#2f6bff]">코칭 완료</span>
-        <h2 className="mt-4 text-2xl font-black tracking-[-0.04em] sm:text-3xl">{busy ? "연기 리포트를 만들고 있어요" : "연기 리포트를 만들어 보세요"}</h2>
+        <h2 className="mt-4 text-2xl font-black tracking-[-0.04em] sm:text-3xl">{busy ? "연습 노트를 만들고 있어요" : "연습 노트를 만들어 보세요"}</h2>
         <p className="mt-3 max-w-2xl font-bold leading-7 text-[#6b7684]">나눈 대화를 바탕으로 다음 연습에 가져갈 한 문장을 정리해요.</p>
-        {!busy ? <button type="button" onClick={onCreateReport} className="mt-6 min-h-12 rounded-2xl bg-[#2f6bff] px-5 py-3 text-sm font-black text-white transition hover:bg-[#1b64da]">리포트 만들기</button> : null}
+        {!busy ? <button type="button" onClick={onCreateReport} className="mt-6 min-h-12 rounded-2xl bg-[#2f6bff] px-5 py-3 text-sm font-black text-white transition hover:bg-[#1b64da]">연습 노트 만들기</button> : null}
       </section>
     );
   }
@@ -1611,12 +1607,12 @@ function Report({
   return (
     <section className="mt-8 grid gap-4">
       <header className="rounded-[28px] bg-[#2f6bff] p-6 text-white shadow-[0_16px_36px_rgba(49,130,246,0.2)] sm:p-8">
-        <p className="text-sm font-black text-white/75">{reportData.reportCount}번째 연기 리포트</p>
+        <p className="text-sm font-black text-white/75">{reportData.reportCount}번째 연습 노트</p>
         <h2 className="mt-3 text-3xl font-black leading-tight tracking-[-0.05em] sm:text-4xl">{report.headline}</h2>
       </header>
       <article className="rounded-[24px] border border-[#dce9ff] bg-[#f7faff] p-5 sm:p-6">
-        <p className="text-xs font-black text-[#2f6bff]">핵심 피드백</p>
-        <h3 className="mt-2 text-xl font-black tracking-[-0.035em]">가장 크게 보완할 지점</h3>
+        <p className="text-xs font-black text-[#2f6bff]">다시 본 순간</p>
+        <h3 className="mt-2 text-xl font-black tracking-[-0.035em]">영상에서 눈에 남은 곳</h3>
         <p className="mt-3 inline-flex rounded-full bg-white px-3 py-1.5 text-sm font-black text-[#4e5968]">
           {report.biggest_problem.start}–{report.biggest_problem.end} · {report.biggest_problem.dimension}
         </p>
@@ -1625,9 +1621,7 @@ function Report({
       <div className="grid gap-4 md:grid-cols-2">
         <ReportSection title="장면에서 찾은 근거" body={report.evidence} />
         <ReportSection title="스스로 발견한 점" body={report.self_discovery} />
-        <ReportSection title="잘하고 있는 점" body={report.encouragement} tone="positive" />
-        <ReportSection title="다음 연습" body={report.next_step} tone="action" />
-        {report.comparison.trim() ? <ReportSection title="이전 연습과 비교" body={report.comparison} wide /> : null}
+        <ReportSection title="다음 연습" body={report.next_step} tone="action" wide />
       </div>
       {turns.length > 0 ? (
         <section className="overflow-hidden rounded-[24px] border border-[#e5e8eb] bg-white shadow-[0_8px_24px_rgba(25,31,40,0.035)]">
