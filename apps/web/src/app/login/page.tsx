@@ -50,16 +50,33 @@ function GoogleLoginButton({
     if (!container) return;
 
     let cancelled = false;
-    renderGoogleLoginButton({
-      clientId: GOOGLE_CLIENT_ID,
-      container,
-      onCredential: (credential) => onCredentialRef.current(credential),
-    }).catch(() => {
-      if (!cancelled) setLoadFailed(true);
+    const render = () =>
+      renderGoogleLoginButton({
+        clientId: GOOGLE_CLIENT_ID,
+        container,
+        // 언마운트 뒤 늦게 도착한 credential이 로그인을 실행하지 않도록 가드한다.
+        onCredential: (credential) => {
+          if (!cancelled) onCredentialRef.current(credential);
+        },
+      }).catch(() => {
+        if (!cancelled) setLoadFailed(true);
+      });
+
+    // ResizeObserver는 observe 직후 1회 발화하므로 초기 렌더도 이 경로로 처리하고,
+    // 회전 등으로 컨테이너 폭이 바뀌면 새 폭으로 다시 그린다 (렌더는 last-wins).
+    let lastWidth = -1;
+    const observer = new ResizeObserver(() => {
+      if (cancelled) return;
+      const width = Math.round(container.offsetWidth);
+      if (width === lastWidth) return;
+      lastWidth = width;
+      void render();
     });
+    observer.observe(container);
 
     return () => {
       cancelled = true;
+      observer.disconnect();
       // StrictMode 이중 실행 시 버튼이 중복 렌더되지 않도록 정리한다.
       container.replaceChildren();
     };
