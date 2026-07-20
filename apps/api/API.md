@@ -149,7 +149,7 @@ S3 presigned 업로드 URL 발급. 서버는 영상 바이트를 받지 않습�
 
 | 상태 코드 | 원인 |
 |---|---|
-| 413 | 550MB 초과 — `upload_too_large` |
+| 413 | 100MB 초과 — `upload_too_large` |
 | 415 | `video/*`가 아닌 mime_type — `unsupported_media_type` |
 | 503 | S3 미설정 — `storage_not_configured` |
 
@@ -328,7 +328,7 @@ S3 업로드 완료 확인. 서버가 S3 HEAD로 객체 존재·크기 일치를
 
 | 항목 | 값 |
 |---|---|
-| 영상 업로드 상한 | 550MB (초과 시 413), `video/*`만 |
+| 영상 업로드 상한 | 100MB (초과 시 413), `video/*`만 |
 | 업로드 인텐트·presigned PUT 만료 | 30분 |
 | 재생 URL 유효 | 15분 |
 | 분석 시도 상한 | 작업당 3회 (초과 시 `max_attempts_exceeded`) |

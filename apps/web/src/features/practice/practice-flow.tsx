@@ -24,7 +24,7 @@ import type {
 } from "@/lib/api/v2/types";
 import { UploadError, uploadVideo } from "@/lib/api/v2/uploads";
 import { logout } from "@/lib/api/v2/auth";
-import { MAX_DURATION_MS, MAX_UPLOAD_BYTES } from "@/lib/config/env";
+import { prepareVideoUpload } from "@/lib/media/upload-preflight";
 
 type Entry = "home" | "new" | "history";
 type Step = "home" | "history" | "video" | "context";
@@ -43,6 +43,10 @@ type CoachState = {
   reason: CoachTurnResponse["reason"];
 };
 type ReportData = { report: ActingReport; reportCount: number };
+type UploadProgressState = {
+  percent: number;
+  stage: "compressing" | "uploading";
+};
 
 // v2 연습 노트에는 practice_session_id가 없어 현재 탭에서 확인한 연결만 보존한다.
 const practiceCoachSessionMap = new Map<string, string>();
@@ -79,21 +83,6 @@ function reportTurnsForStorage(turns: CoachTurn[]): ReportRecord["turns"] {
   }));
 }
 
-async function videoDuration(file: File): Promise<number> {
-  const url = URL.createObjectURL(file);
-  try {
-    return await new Promise<number>((resolve, reject) => {
-      const video = document.createElement("video");
-      video.preload = "metadata";
-      video.onloadedmetadata = () => resolve(Math.round(video.duration * 1000));
-      video.onerror = () => reject(new Error("영상 길이를 확인하지 못했어요."));
-      video.src = url;
-    });
-  } finally {
-    URL.revokeObjectURL(url);
-  }
-}
-
 export function PracticeFlow({ entry = "new" }: { entry?: Entry }) {
   const router = useRouter();
   const { ready: authReady, user } = useRequireAuth();
@@ -116,7 +105,7 @@ export function PracticeFlow({ entry = "new" }: { entry?: Entry }) {
   const [pendingAnswer, setPendingAnswer] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [coachWaiting, setCoachWaiting] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<UploadProgressState | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const previewUrlRef = useRef<string | null>(null);
@@ -169,8 +158,8 @@ export function PracticeFlow({ entry = "new" }: { entry?: Entry }) {
 
   function selectUploadFile(nextFile: File | null) {
     if (!nextFile) return;
-    if (nextFile.size <= 0 || nextFile.size > MAX_UPLOAD_BYTES) {
-      setError("영상은 550MB 이하여야 해요.");
+    if (nextFile.size <= 0) {
+      setError("비어 있는 영상은 업로드할 수 없어요.");
       return;
     }
     if (nextFile.type !== "video/mp4" && nextFile.type !== "video/quicktime") {
@@ -297,30 +286,25 @@ export function PracticeFlow({ entry = "new" }: { entry?: Entry }) {
       setError("영상, 상황, 인물 정보와 서브텍스트를 모두 입력해 주세요.");
       return;
     }
-    if (file.size <= 0 || file.size > MAX_UPLOAD_BYTES) {
-      setError("영상은 550MB 이하여야 해요.");
-      return;
-    }
-    if (file.type !== "video/mp4" && file.type !== "video/quicktime") {
-      setError("MP4 또는 MOV 영상만 업로드할 수 있어요.");
-      return;
-    }
     setBusy(true);
     setError(null);
-    setUploadProgress(0);
+    setUploadProgress({ percent: 0, stage: "compressing" });
     const controller = new AbortController();
     uploadControllerRef.current?.abort();
     uploadControllerRef.current = controller;
 
     try {
-      const durationMs = await videoDuration(file);
-      if (durationMs < 1 || durationMs > MAX_DURATION_MS) {
-        throw new Error("영상은 3분 이하여야 해요.");
-      }
-      const upload = await uploadVideo(file, {
-        durationMs,
+      const prepared = await prepareVideoUpload(file, {
         signal: controller.signal,
-        onProgress: (progress) => setUploadProgress(progress.percent),
+        onCompressionProgress: (progress) =>
+          setUploadProgress({ percent: Math.round(progress * 100), stage: "compressing" }),
+      });
+      setUploadProgress({ percent: 0, stage: "uploading" });
+      const upload = await uploadVideo(prepared.file, {
+        durationMs: prepared.durationMs,
+        signal: controller.signal,
+        onProgress: (progress) =>
+          setUploadProgress({ percent: progress.percent, stage: "uploading" }),
       });
       const created = await createPracticeSession(
         {
@@ -334,18 +318,22 @@ export function PracticeFlow({ entry = "new" }: { entry?: Entry }) {
       resetActiveFlow(created.session.session_id);
       void pollSession(created.session.session_id);
     } catch (reason) {
-      if (!(reason instanceof Error && reason.name === "AbortError")) {
-        if (reason instanceof UploadError) {
-          if (reason.stage === "intent") setError("업로드를 준비하지 못했어요.");
-          else setError(reason.message);
-        } else {
-          setError(errorMessage(reason));
+      if (uploadControllerRef.current === controller) {
+        if (!(reason instanceof Error && reason.name === "AbortError")) {
+          if (reason instanceof UploadError) {
+            if (reason.stage === "intent") setError("업로드를 준비하지 못했어요.");
+            else setError(reason.message);
+          } else {
+            setError(errorMessage(reason));
+          }
         }
       }
     } finally {
-      if (uploadControllerRef.current === controller) uploadControllerRef.current = null;
-      setUploadProgress(null);
-      setBusy(false);
+      if (uploadControllerRef.current === controller) {
+        uploadControllerRef.current = null;
+        setUploadProgress(null);
+        setBusy(false);
+      }
     }
   }
 
@@ -879,7 +867,7 @@ function PracticeContextScreen({
   characterContext: string;
   subtext: string;
   busy: boolean;
-  uploadProgress: number | null;
+  uploadProgress: UploadProgressState | null;
   error: string | null;
   onBack: () => void;
   onSituationChange: (value: string) => void;
@@ -923,7 +911,9 @@ function PracticeContextScreen({
               </p>
               {file ? <p className="mt-1 text-sm font-bold text-[#b0b8c1]">{formatFileSize(file.size)}</p> : null}
               {uploadProgress !== null ? (
-                <p className="mt-2 text-sm font-black text-[#2f6bff]">업로드 중… {uploadProgress}%</p>
+                <p className="mt-2 text-sm font-black text-[#2f6bff]">
+                  {uploadProgress.stage === "compressing" ? "압축 중" : "업로드 중"}… {uploadProgress.percent}%
+                </p>
               ) : null}
             </div>
           </div>
@@ -951,7 +941,7 @@ function PracticeContextScreen({
             </button>
             <button type="submit" disabled={busy || !file} className="min-h-13 rounded-2xl bg-[#2f6bff] px-5 py-3 font-black text-white shadow-[0_10px_20px_rgba(49,130,246,0.18)] transition hover:bg-[#1b64da] disabled:bg-[#b0d2ff]">
               {uploadProgress !== null
-                ? `업로드 중… ${uploadProgress}%`
+                ? `${uploadProgress.stage === "compressing" ? "압축 중" : "업로드 중"}… ${uploadProgress.percent}%`
                 : busy
                   ? "업로드하고 분석하는 중…"
                   : "입력 완료하고 분석 시작"}
@@ -1035,7 +1025,7 @@ function VideoDropZone({
           {busy ? "업로드 준비 중" : "파일 선택하기"}
         </span>
         <span className="mt-4 block text-sm font-bold tracking-[0.02em] text-[#b0b8c1] sm:text-base">
-          MP4 · MOV · 최대 550MB · 3분 이내
+          MP4 · MOV · 5분 이내
         </span>
       </span>
     </label>

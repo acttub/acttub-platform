@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, ConfigDict, Field
 from starlette.concurrency import run_in_threadpool
 
-MAX_UPLOAD_BYTES = 550 * 1024 * 1024
+MAX_UPLOAD_BYTES = 100 * 1024 * 1024
 UPLOAD_INTENT_TTL = timedelta(minutes=30)
 
 
