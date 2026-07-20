@@ -1,0 +1,25 @@
+{
+  "name": "acttub-platform",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@11.1.2",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "dev": "pnpm dev:web",
+    "build": "pnpm build:web",
+    "lint": "pnpm lint:web",
+    "dev:web": "pnpm --filter web dev",
+    "build:web": "pnpm --filter web build",
+    "lint:web": "pnpm --filter web lint",
+    "perf": "pnpm build:web && pnpm perf:web",
+    "perf:web": "lhci autorun --config=apps/web/lighthouserc.cjs",
+    "perf:healthcheck": "lhci healthcheck --fatal --config=apps/web/lighthouserc.cjs",
+    "typecheck": "pnpm typecheck:web",
+    "typecheck:web": "pnpm --filter web typecheck"
+  },
+  "devDependencies": {
+    "@lhci/cli": "0.15.1"
+  }
+}

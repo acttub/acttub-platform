@@ -1,0 +1,22 @@
+# dependencies
+/node_modules
+
+# lighthouse
+/artifacts/lighthouse/
+
+# next.js
+/.next/
+/out/
+
+# misc
+.DS_Store
+
+# debug
+.pnpm-debug.log*
+
+# env files
+.env*
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
