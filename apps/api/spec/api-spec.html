@@ -323,12 +323,12 @@ footer a { color: var(--blue-600); text-decoration: none; }
 
 <div class="ep-card">
   <div class="ep-head"><span class="method post">POST</span><span class="ep-path">/v2/uploads/intents</span></div>
-  <p class="ep-desc">영상을 서버를 거치지 않고 스토리지에 직접 올리도록 presigned URL을 발급합니다. 550MB 멀티파트를 API 서버가 받지 않으므로 서버 메모리·타임아웃 부담이 사라집니다.</p>
+  <p class="ep-desc">영상을 서버를 거치지 않고 스토리지에 직접 올리도록 presigned URL을 발급합니다. 최대 100MB 영상을 API 서버가 받지 않으므로 서버 메모리·타임아웃 부담이 사라집니다.</p>
   <h4>요청 — JSON</h4>
   <table>
     <tr><th>필드</th><th>타입</th><th>필수</th><th>설명</th></tr>
     <tr><td class="mono">mime_type</td><td>str</td><td class="req">필수</td><td>video/mp4 등 허용 목록 검증</td></tr>
-    <tr><td class="mono">size_bytes</td><td>int</td><td class="req">필수</td><td>최대 550MB</td></tr>
+    <tr><td class="mono">size_bytes</td><td>int</td><td class="req">필수</td><td>최대 100MB</td></tr>
     <tr><td class="mono">duration_ms</td><td>int</td><td>선택</td><td>클라이언트가 아는 경우 전달</td></tr>
   </table>
   <h4>응답 <span class="code-2xx">201</span></h4>
@@ -343,7 +343,7 @@ footer a { color: var(--blue-600); text-decoration: none; }
   <h4>오류</h4>
   <table>
     <tr><th>상태</th><th>원인</th></tr>
-    <tr><td class="code-4xx">413</td><td>size_bytes가 550MB 초과</td></tr>
+    <tr><td class="code-4xx">413</td><td>size_bytes가 100MB 초과</td></tr>
     <tr><td class="code-4xx">415</td><td>허용되지 않는 mime_type</td></tr>
   </table>
 </div>

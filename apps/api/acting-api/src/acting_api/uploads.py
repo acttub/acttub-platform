@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, ConfigDict, Field
 from starlette.concurrency import run_in_threadpool
 
-MAX_UPLOAD_BYTES = 550 * 1024 * 1024
+MAX_UPLOAD_BYTES = 100 * 1024 * 1024
 UPLOAD_INTENT_TTL = timedelta(minutes=30)
 
 
@@ -124,6 +124,9 @@ def build_router(
         now = utcnow()
         if _status_value(intent.status) != "pending" or intent.expires_at <= now:
             raise HTTPException(status_code=409, detail="upload_intent_expired")
+        # 상한 하향 배포 전에 발급된 pending intent가 게이트를 우회하지 못하게 재검증한다.
+        if intent.size_bytes > MAX_UPLOAD_BYTES:
+            raise HTTPException(status_code=413, detail="upload_too_large")
         metadata = await run_in_threadpool(s3.head, object_key=intent.object_key)
         if metadata is None:
             raise HTTPException(status_code=409, detail="upload_not_found")

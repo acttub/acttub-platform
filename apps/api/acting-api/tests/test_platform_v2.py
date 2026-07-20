@@ -125,6 +125,26 @@ def test_upload_intent_rejects_oversize_and_non_video_mime():
     assert store.uploads == {}
 
 
+def test_upload_complete_rejects_pending_intent_over_current_limit():
+    # 상한 하향 배포 전에 발급된 pending intent가 complete로 게이트를 우회하지 못한다.
+    client, store, s3, _, headers = _application()
+    created = client.post(
+        "/v2/uploads/intents",
+        json={"mime_type": "video/mp4", "size_bytes": 12},
+        headers=headers,
+    ).json()
+    intent = store.uploads[UUID(created["intent_id"])]
+    intent.size_bytes = MAX_UPLOAD_BYTES + 1
+    s3.put(bucket="videos", key=intent.object_key, content=b"x" * 12)
+
+    response = client.post(
+        f"/v2/uploads/intents/{intent.id}/complete", headers=headers
+    )
+    assert response.status_code == 413
+    assert response.json()["detail"] == "upload_too_large"
+    assert intent.status != UploadStatus.FINALIZED
+
+
 def test_upload_complete_requires_object_and_exact_size_then_finalizes():
     client, store, s3, _, headers = _application()
     created = client.post(

@@ -12,6 +12,7 @@ import {
 import { startCoach, replyCoach } from "../../lib/api/v2/coach";
 import { createReport } from "../../lib/api/v2/reports";
 import type { ActingReport, CoachTurnResponse } from "../../lib/api/v2/types";
+import { prepareVideoUpload } from "../../lib/media/upload-preflight";
 
 type Phase = "input" | "analyzing" | "coaching" | "done";
 type ChatMsg = { role: "ai" | "me"; text: string; obs?: string };
@@ -19,7 +20,7 @@ type ChatMsg = { role: "ai" | "me"; text: string; obs?: string };
 const ANALYZE_LABELS = [
   "장면을 분석하고 있어요…",
   "무엇을 물어볼지 고르는 중…",
-  "거의 다 됐어요 (서버 처리 30~120초)",
+  "질문을 준비하고 있어요…",
 ];
 
 const TOUR = [
@@ -45,7 +46,6 @@ export function PracticeSingle() {
   const [sessionName, setSessionName] = useState("연습1");
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
-  const durationMsRef = useRef<number | undefined>(undefined);
 
   const [situation, setSituation] = useState("");
   const [character, setCharacter] = useState("");
@@ -69,6 +69,7 @@ export function PracticeSingle() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const chatScrollRef = useRef<HTMLDivElement | null>(null);
   const pctTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const uploadControllerRef = useRef<AbortController | null>(null);
 
   // Guided tour refs (real elements the tour points at)
   const pickerRef = useRef<HTMLElement | null>(null);
@@ -152,6 +153,10 @@ export function PracticeSingle() {
     if (videoUrl) URL.revokeObjectURL(videoUrl);
   }, [videoUrl]);
 
+  useEffect(() => () => {
+    uploadControllerRef.current?.abort();
+  }, []);
+
   const locked = phase === "analyzing" || phase === "coaching" || phase === "done";
 
   const onPickFile = (file: File | null) => {
@@ -193,27 +198,58 @@ export function PracticeSingle() {
     setTourStep(-1); // 진행 시작하면 가이드 투어 닫기 (stable setter)
     setError(null);
     setPhase("analyzing");
-    startProgress();
+    setPct(0);
+    setAnalyzeLabel("영상 정보를 확인하고 있어요…");
+    uploadControllerRef.current?.abort();
+    const controller = new AbortController();
+    uploadControllerRef.current = controller;
     try {
-      const { intentId } = await uploadVideo(videoFile, { durationMs: durationMsRef.current });
-      const { session } = await createPracticeSession({
-        upload_intent_id: intentId,
-        situation,
-        character_context: character,
-        subtext,
+      const prepared = await prepareVideoUpload(videoFile, {
+        signal: controller.signal,
+        onCompressionProgress: (progress) => {
+          setAnalyzeLabel("영상 압축 중…");
+          setPct(progress * 100);
+        },
       });
-      const detail = await pollSessionUntilSettled(session.session_id, { intervalMs: 4000 });
+      setAnalyzeLabel("영상 업로드 중…");
+      setPct(0);
+      const { intentId } = await uploadVideo(prepared.file, {
+        durationMs: prepared.durationMs,
+        signal: controller.signal,
+        onProgress: (progress) => setPct(progress.percent),
+      });
+      startProgress();
+      const { session } = await createPracticeSession(
+        {
+          upload_intent_id: intentId,
+          situation,
+          character_context: character,
+          subtext,
+        },
+        { signal: controller.signal },
+      );
+      const detail = await pollSessionUntilSettled(session.session_id, {
+        intervalMs: 4000,
+        signal: controller.signal,
+      });
       if (detail.status === "failed") throw new Error("영상 분석에 실패했어요. 다른 영상으로 다시 시도해 주세요.");
       const summaryId = detail.summary?.summary_id;
       if (!summaryId) throw new Error("분석 요약을 불러오지 못했어요.");
       const { data: start } = await startCoach({ summary_id: summaryId });
+      if (controller.signal.aborted || uploadControllerRef.current !== controller) return;
       stopProgress();
       setPhase("coaching");
       pushAi(start);
     } catch (err) {
-      if (pctTimer.current) clearInterval(pctTimer.current);
-      setPhase("input");
-      setError(err instanceof Error ? err.message : "문제가 생겼어요. 다시 시도해 주세요.");
+      if (uploadControllerRef.current === controller) {
+        if (pctTimer.current) clearInterval(pctTimer.current);
+        setPhase("input");
+        if (!(err instanceof Error && err.name === "AbortError")) {
+          setError(err instanceof Error ? err.message : "문제가 생겼어요. 다시 시도해 주세요.");
+        }
+      }
+    } finally {
+      if (uploadControllerRef.current === controller) uploadControllerRef.current = null;
     }
   }, [videoFile, situation, character, subtext]);
 
@@ -281,10 +317,6 @@ export function PracticeSingle() {
                     src={videoUrl}
                     controls
                     playsInline
-                    onLoadedMetadata={(e) => {
-                      const d = e.currentTarget.duration;
-                      if (Number.isFinite(d)) durationMsRef.current = Math.round(d * 1000);
-                    }}
                     className="h-full w-full object-contain"
                   />
                 </div>
@@ -300,7 +332,7 @@ export function PracticeSingle() {
                 <span className="text-xs font-semibold">MP4 · MOV · 5분 이내 · 끌어다 놓아도 돼요</span>
               </button>
             )}
-            <input ref={fileInputRef} type="file" accept="video/*" className="hidden" onChange={(e) => onPickFile(e.target.files?.[0] ?? null)} />
+            <input ref={fileInputRef} type="file" accept="video/mp4,video/quicktime" className="hidden" onChange={(e) => onPickFile(e.target.files?.[0] ?? null)} />
           </section>
 
           {/* Inputs */}

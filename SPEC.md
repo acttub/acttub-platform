@@ -1,96 +1,106 @@
-# SPEC: API 응답 모델 선언 및 계약 소스 승격
+# SPEC: 업로드 영상 클라이언트 압축 + 용량 게이트 100MB (TODO 1)
+
+기준 커밋: `fe99977` · 브랜치: `feat/upload-compression`
 
 ## 배경 / 목적
 
-acting-api의 17개 엔드포인트 전부가 응답 스키마 선언 없이 dict를 반환한다. 그 결과:
-
-- OpenAPI 스펙의 모든 2xx 응답 스키마가 빈 스키마(`{}`)로 나가고, Swagger `/docs`는 응답 예시를 전부 `"string"`으로 렌더링한다.
-- 웹 생성 타입(`apps/web/src/lib/api/v2-schema.d.ts`)의 응답 타입이 전부 `unknown`이라, 프론트는 응답 계약을 `types.ts` 수제 정의(20여 개)로 유지하고 있다. 계약 소스가 코드·API.md·수제 타입 세 곳으로 갈라져 드리프트를 typecheck가 잡지 못한다.
-
-이번 작업으로 응답 계약의 단일 소스를 `apps/api/spec/openapi.json`으로 승격한다.
+- 현재 업로드는 브라우저 → S3 presigned PUT 직접 업로드이며 상한 550MB. 원본이 그대로 저장·재생되고, 서버는 Gemini 분석 직전에만 ffmpeg로 압축한다(`acting-summary/compress.py`).
+- 550MB 원본 업로드는 모바일 회선에서 느리고 저장 비용이 크다. 프론트에서 재생 품질을 지키는 수준으로 압축해 **결과물 50MB를 목표(soft target)**로 하고, 백엔드는 **100MB 초과를 거부**하는 경성 게이트로 바꾼다. (mediabunny의 bitrate는 목표치라 인코더 overshoot로 50MB를 다소 넘을 수 있음 — Codex 비판 #2 수용, 사용자 결정)
+- 핵심 제약: **S3에 저장된 파일이 곧 재생본**이다(`presign_playback`). 따라서 압축 스펙은 Gemini용(768px/10fps)이 아니라 재생 품질 유지형(긴 변 1280px/≤30fps)으로 잡는다. Gemini용 축소는 지금처럼 서버가 분석 직전에 수행한다.
+- 길이 상한은 3분 → **5분**으로 변경한다. 5분 상한은 **클라이언트 검증 한정**이다(백엔드는 기존처럼 duration을 검증하지 않음 — 합의 사항, Codex #10b 기각).
+- **실제 업로드 화면은 `practice-single.tsx`(PracticeSingle)다** — `/practice/new`가 이를 렌더링한다. `practice-flow.tsx`(PracticeFlow)는 `/home`·`/practice/history` 전용이며 그 업로드 경로는 라우트에 연결되지 않는다. (Codex #1 수용 — 검증 완료)
 
 ## 설계
 
-### 1. 백엔드 — Pydantic 응답 모델 선언 (문서화 전용)
+### 프론트 (apps/web)
 
-- **선언 방식** (Codex 비판 ①·② 반영, 사용자 결정): 17개 전부 데코레이터의 `responses={<status>: {"model": <Model>}}`로 **문서화 전용** 선언한다. `response_model=`은 사용하지 않는다 — 런타임 검증·재직렬화가 없으므로 **응답 바이트가 100% 불변**이고, 5개 라우트(practice create/analyze, coach start/reply, reports create)가 `Response`를 직접 반환해 검증을 우회하는 비대칭도 없다.
-- **계약 정직성은 CI가 강제**: 문서화 전용이므로 모델이 실제와 어긋나도 런타임엔 침묵한다. 이를 막기 위해 **계약 테스트**를 추가한다 — 기존 pytest 통합 플로우가 받는 실제 응답 본문을 각 선언 모델의 `TypeAdapter`(strict 필드 대조)로 검증한다. 멱등 replay 경로(저장된 `response_payload` 재반환)도 같은 모델로 검증한다.
-- **모델 위치·네이밍**: 각 라우터 모듈 안에 정의 (`practice_sessions.py`, `uploads.py`, `consents.py`, `auth/router.py`, `coaching.py`, `reports.py`, health는 소재 모듈). 이름은 프론트 `types.ts` 수제 타입명을 따르되(`TokenPairResponse` 등), **내부 서비스 패키지(acting-summary/agent/report)의 스키마 클래스를 import 재사용하지 않는다** — 게이트웨이 전용 모델로 새로 정의한다 (Codex ③·④·⑨: 복제본 드리프트·`user_id` 유입·스키마 그래프 이름 충돌 차단). FastAPI 스키마 그래프 안에서 클래스명이 유일해야 component 키가 `"SceneSummary"` 그대로 생성된다.
-- **가변 구조 필드** (사용자 결정, Codex ③ 반영): `SceneSummary`는 최상위 핵심 필드만 typed(`summary_id` 필수 + `summary`/`intent_alignment`/`key_moment`/`key_dimension` 선택) + `model_config = ConfigDict(extra="allow")`. **중첩 구조는 raw로 유지** — `observation: dict[str, Any] | None`, `anomalies: list[dict[str, Any]] | None`. 중첩 모델 필드 손실 위험 0, 현 프론트 타입과 동일 계약.
-- **required 의미 정확화** (Codex ⑧): wire에 항상 존재하는 필드는 default 없이 required로 선언한다 (`CoachTurnResponse.done`·`reason`, `ReportRecord.turns` 등). 게이트웨이가 항상 넣는 필드에 default를 주면 생성 타입이 optional(`done?`)이 되어 프론트가 깨진다.
-- **상태 코드별 처리** (Codex ⑩):
-  - 204 라우트(`POST /v2/auth/logout`, `DELETE /v2/practice-sessions/{id}`)는 모델 없음.
-  - `POST /v2/practice-sessions`·`POST /{id}/analyze`: **200과 202 모델 분리** — 202는 `{session_id, status}`만(`PracticeSessionAcceptedResponse`), 200은 `summary_id`를 **optional**로 포함(`PracticeSessionCreateResponse`) — 레거시 succeeded operation에 payload가 없으면 두 필드 fallback이 존재하므로 required로 하면 문서가 거짓이 된다.
-  - `POST /v2/consents`·`POST /v2/uploads/intents`는 201에 선언.
-- **reports 게이트웨이 모델** (Codex ④): `CreateReportResponse`·`ReportHistoryResponse`에 내부 envelope의 `user_id`를 포함하지 않는다 (기존 테스트가 부재를 검증).
-- **오류 응답**: 이번 PR은 성공 응답만. 4xx/5xx `{"detail": string}` envelope 문서화는 후속.
+1. **공통 업로드 준비 함수**: 검증(타입·길이) → 압축/스킵/폴백 → 게이트 확인을 하나의 공통 preflight로 묶어 `PracticeSingle`(실사용)과 `PracticeFlow.begin()`(비활성 경로) 둘 다 이를 사용하게 한다. 입력 검증: MP4/MOV(`video/mp4`·`video/quicktime`) + **길이 5분 이하**. **원본 용량 상한(550MB)은 제거.**
+2. **압축 모듈 신설** — `src/lib/media/` 아래(파일 구성은 구현 재량):
+   - 라이브러리: **mediabunny v1.50.9** (선행 설치됨). 압축 시점에 **dynamic import**로 로드.
+   - **스킵**: 원본 ≤ 50MB면 재인코딩 없이 원본 그대로 업로드. (≤50MB HEVC도 스킵 — 재생 호환성은 기존과 동일하다는 합의로 Codex #9 기각)
+   - **입력**: `Input` + `BlobSource`, `formats: [MP4, QTFF]` (`ALL_FORMATS` 금지 — 번들 축소, Codex #14).
+   - **트랙**: `tracks: "primary"` 명시 (다중 트랙 시 비트레이트 예산 붕괴 방지, Codex #3).
+   - **출력 스펙**: `Mp4OutputFormat`(faststart) + `BufferTarget`. H.264(`avc`) + AAC. 해상도는 per-track callback에서 `getDisplayWidth()/getDisplayHeight()` 기준 **긴 변 1280px**(종횡비 유지, 업스케일 금지 — mediabunny가 짝수 처리). 프레임레이트는 `computePacketStats().averagePacketRate`가 **30 초과일 때만 `frameRate: 30` 지정, 그 외 생략**(VFR 원본 타이밍 유지, Codex #8).
+   - **오디오**: AAC 128kbps. WebCodecs가 소스의 실제 채널 수·샘플레이트로 AAC 인코딩 가능한지 `canEncodeAudio()`로 확인하고, 불가하면 `@mediabunny/aac-encoder`의 `registerAacEncoder()`를 동적 import로 등록(Codex #7). 원본 채널·샘플레이트 유지가 불가능하면 mediabunny의 2ch/48kHz 자동 재시도를 허용한다.
+   - **길이 적응형 비트레이트**: `videoBitrate = min(2_000_000, floor(0.95 × 50MB × 8 / durationSec) − 128_000)`. 계산 로직(해상도·비트레이트·스킵 판단)은 **순수 함수로 분리**해 node 테스트 가능하게 한다. 테스트 대상 모듈은 `@/` 별칭 없이 상대 경로로 import 가능한 `.ts` 파일이어야 한다(테스트 로더 제약).
+   - **결과 검증**: `isValid` 확인 + **primary video 트랙이 출력에 존재해야 하고, 입력에 오디오가 있었는데 출력에서 discard됐으면 실패로 간주해 원본 폴백**(무음 업로드 방지, Codex #4). 압축 결과가 원본보다 크면 원본 사용.
+   - **진행률**: `onProgress`(0~1)를 UI 콜백으로 전달하되 **99%로 캡**하고, `execute()` resolve 후에만 100%·다음 단계 전환(Codex #13).
+   - **취소**: AbortSignal 연동. `ConversionCanceledError`와 abort로 인한 예외는 **원본 폴백 대상에서 제외**하고 DOM `AbortError` 의미로 전파한다. 각 await 경계에서 `signal.aborted`를 확인한다(Codex #5). 취소 버튼 UI는 이번 스코프에서 제외(unmount/이탈 시 abort만) — 사용자 결정.
+   - **폴백**: WebCodecs 미존재(`typeof VideoEncoder === "undefined"` 등), `isValid` 실패, 트랙 discard, 변환 중 예외(취소 제외) → **원본 그대로 업로드 경로로 폴백**.
+3. **업로드 게이트**: 실제 업로드할 파일(압축본 또는 폴백 원본)이 **100MB 초과면 업로드 중단** + 안내 카피(브라우저 변경 또는 파일 축소 유도, 한국어 존댓말, `product-language-guard` 준수).
+4. **`env.ts` 상수**: `MAX_UPLOAD_BYTES = 100MB`(백엔드 게이트 미러, 주석 갱신), `MAX_DURATION_MS = 300_000`. 압축 관련 상수(목표 50MB, 스킵 50MB, 2Mbps, 128k, 1280px, 30fps)는 압축 모듈에 둔다.
+5. **UI — `practice-single.tsx`(주 대상)**:
+   - 제출 시 **선택된 파일의 duration을 await로 확정 후 검증**한다. 새 파일 선택 시 이전 `durationMsRef` 잔존·metadata 미로드 제출 race를 제거한다(Codex #10a — 기존 버그 수정).
+   - 제출 흐름: 길이 확인 → 압축(진행률 "압축 중" 단계 표시) → 게이트 확인 → `uploadVideo()`(압축본은 `video/mp4`, AbortSignal·업로드 진행률 연결).
+   - "서버 처리 30~120초" 고정 카피를 제거하거나 단계 기반 표현으로 교체(Codex #11 — timeout 600초와 모순).
+6. **UI — `practice-flow.tsx`(비활성 경로 정합성)**: 550MB 검사·카피(173·301·1038행) 제거/갱신, 길이 카피 상수 유도("5분"), `begin()`이 공통 preflight를 사용. 드롭존 카피는 용량 언급 없는 "MP4 · MOV · 5분 이내" 계열로.
 
-### 2. 드리프트 가드 (Codex ⑤·⑥·⑦ 반영)
+### 백엔드 (apps/api)
 
-pytest 3종을 추가한다. 모두 `test_platform_v2.py`의 fake settings/store/client 주입 패턴을 사용해 secret 없는 CI에서 동작해야 한다 (`create_app()` 인자 없는 호출은 DATABASE_URL·JWT_SECRET·GEMINI_API_KEY를 요구하므로 금지):
+7. `acting-api/src/acting_api/uploads.py`: `MAX_UPLOAD_BYTES = 100 * 1024 * 1024`. 검증·에러(413 `upload_too_large`)·presign 구조는 그대로. intent의 `duration_ms`는 source duration 의미로 유지(Codex #12 기각 — worker 미사용, 계약 주석만).
+8. `acting-summary/src/acting_summary/compress.py`: `TIMEOUT_SEC = 600.0`(5분 영상 대응, 초과 시 원본 사용 폴백은 그대로). 압축 스펙(768px/10fps 등) 변경 없음.
+9. `acting-summary/router.py`의 legacy `/summarize` 한도(550MB)는 **변경하지 않는다**(별도 계약, 스코프 밖).
 
-1. **매트릭스 가드**: 기대 (method, path, status) 매트릭스를 테스트에 고정하고, OpenAPI의 각 항목이 매트릭스와 일치하며 `$ref`를 끝까지 resolve했을 때 빈/무제약 객체가 아닌 스키마를 갖는지 검사. (단순 "2xx 비어있지 않음" 검사는 202 누락·엉터리 한 필드 모델을 통과시킨다.)
-2. **스펙 동등성**: live `app.openapi()` == `json.loads(spec/openapi.json)` — 모델만 바꾸고 스펙 재생성을 빠뜨리는 드리프트를 CI에서 차단.
-3. **계약 테스트**: §1의 TypeAdapter 실응답 검증.
+### 계약 / 문서
 
-### 3. 스펙·웹 타입 재생성
-
-1. 스펙 재생성 (apps/api/CLAUDE.md의 기존 명령, 단 fake settings 필요 시 테스트 픽스처와 동일 방식).
-2. `pnpm --filter web generate:v2-schema`로 `v2-schema.d.ts` 재생성.
-
-### 4. 프론트 — 수제 응답 타입 교체 (사용자 결정, Codex ⑧ 완화 반영)
-
-`types.ts`의 수제 응답 타입을 `components["schemas"][...]` re-export로 교체한다. **export 이름은 전부 유지**하고 사용처 수정은 최소화하되, required/optional 의미가 정확해지면서 생기는 **소폭 사용처 수정은 허용**한다 (예: `practice-flow.tsx`의 `turns: unknown[]` 대입부). 파생 유니온(`PracticeSessionStatus`, `CoachAction` 등)은 생성 스키마 인덱싱으로 유도하되, 부적합하면 수제 유지 허용 (사유를 최종 보고에 기록). 생성 component 키가 기대 이름과 어긋나면 `paths` operation response 인덱싱으로 대체한다.
-
-### 5. 문서 지위 정리 (사용자 결정)
-
-- `apps/api/CLAUDE.md`의 계약 변경 절차에서 "응답 스키마는 스펙에 없으므로 API.md가 응답 계약의 소스" 문구를 "스펙(openapi.json)이 응답 계약의 소스"로 갱신한다.
-- `API.md`는 사람용 설명 문서로 유지하고 응답 예시를 삭제하지 않는다.
+10. openapi.json에는 용량 수치가 없어 스키마 변경 없음이 예상된다. 확인 차 스펙 재생성 후 **diff 없음을 검증**한다(diff가 생기면 웹 타입 재생성 포함 같은 커밋에 반영).
+11. 문서 내 550MB·3분 언급 현행화: `apps/api/API.md`(413 행, 제한 요약 표), `docs/PRD.md`(58행 부근 — 5분 이내·클라이언트 압축 50MB 목표·게이트 100MB), `apps/api/acting-api/README.md`(20행), `apps/api/docs/design-decisions.md`(51·80·82행), **`apps/api/spec/api-spec.html`(550MB 3곳, Codex #15)**.
 
 ## 완료 기준 체크리스트
 
-- [ ] 본문이 있는 모든 2xx 응답(매트릭스 고정)이 OpenAPI 스펙에 `$ref` resolve 기준 구체적 스키마로 노출된다.
-- [ ] Swagger `/docs`에서 응답 예시가 `"string"`이 아닌 실제 구조로 표시된다.
-- [ ] `POST /v2/practice-sessions`·`/{id}/analyze`의 202 응답이 200과 별도 모델로 문서화된다.
-- [ ] 가드 pytest 3종(매트릭스·스펙 동등성·계약)이 추가되어 통과한다.
-- [ ] `apps/api/spec/openapi.json` 재생성 반영 (동등성 테스트가 증명).
-- [ ] `v2-schema.d.ts` 재생성 + `types.ts` 응답 타입이 생성 타입 re-export로 교체 (export 이름 유지).
-- [ ] 런타임 응답 바이트 불변 — 문서화 전용 선언이므로 라우터 런타임 경로 무변경, `cd apps/api && uv run pytest` 전체 통과 (기존 234개 + 신규).
-- [ ] `pnpm lint` · `pnpm typecheck` · `pnpm --filter web test` · `pnpm build` 통과.
-- [ ] `apps/api/CLAUDE.md` 계약 절차 문구 갱신.
+- [ ] `/practice/new`(PracticeSingle)에서 50MB 초과 MP4/MOV 선택 시 브라우저에서 긴 변 1280px·≤30fps H.264+AAC MP4로 재인코딩된다 (50MB는 soft target, 100MB 게이트는 경성)
+- [ ] 50MB 이하 파일은 재인코딩 없이 기존 경로 그대로 업로드
+- [ ] WebCodecs 미지원/디코딩 불가/트랙 discard 시 원본 업로드 폴백, 100MB 초과면 업로드 전 안내와 함께 거부
+- [ ] 압축 진행률(≤99% 캡)과 업로드 진행률이 단계 구분되어 표시
+- [ ] 취소(unmount/이탈)가 원본 폴백으로 오인되지 않고 변환·업로드 모두 중단
+- [ ] PracticeSingle의 duration race(이전 파일 duration 잔존·미로드 제출) 제거
+- [ ] 백엔드 intent 생성이 100MB 초과 `size_bytes`에 413 `upload_too_large` 반환 (기존 테스트는 상수 참조라 그대로 통과)
+- [ ] 압축 계획 순수 함수의 node 테스트 존재 (경계: 스킵 임계, 2Mbps 상한, 5분 최저 비트레이트, 업스케일 금지, 세로 영상, fps 30 초과/이하)
+- [ ] `pnpm lint` · `pnpm typecheck` · `pnpm --filter web test` · `pnpm build` 통과
+- [ ] `cd apps/api && uv run --package acting-api pytest` 통과
+- [ ] openapi.json 재생성 시 diff 없음 확인 (있으면 웹 타입 재생성 포함 반영)
+- [ ] 문서 5곳(API.md·PRD.md·acting-api README·design-decisions.md·spec/api-spec.html)의 한도 수치 현행화
 
 ## 하지 말 것 (스코프 제한)
 
-- `response_model=` 사용 (런타임 검증·재직렬화 도입 금지 — 문서화 전용 결정 위반).
-- 4xx/5xx 오류 응답 스키마 선언 (후속 PR).
-- 라우터 비즈니스 로직·상태 코드·응답 내용·직렬화 경로의 변경. 런타임 응답 바이트는 완전 동일해야 한다.
-- 내부 서비스 패키지(acting-summary/agent/report)의 스키마 클래스를 게이트웨이 응답 모델로 import 재사용.
-- `API.md` 응답 예시 삭제·축소.
-- `v2-schema.d.ts` 수동 편집.
-- acting-agent / acting-summary / acting-report 내부 서비스 라우터 수정.
-- 스코프 밖 리팩터링.
+- 서버 Gemini 압축 스펙(768px/10fps/CRF28) 변경 금지 — `TIMEOUT_SEC` 상향만.
+- legacy `/summarize` 라우터 한도 변경 금지.
+- 업로드 3단계 흐름(intent→PUT→complete), presign 방식, 인증·rate limit 로직 변경 금지.
+- ffmpeg.wasm 도입 금지. 녹화(MediaRecorder) 기능 추가 금지. 취소 버튼 UI 추가 금지(후속).
+- 서버측 duration 검증 추가 금지(후속 검토 대상).
+- `apps/web/src/lib/api/v2-schema.d.ts` 직접 수정 금지 (재생성 명령만).
+- 스코프 밖 리팩터링 금지 (기존 코드 스타일·구조·카피 톤 유지, `tests/product-language-guard.test.mjs` 카피 가드 준수).
 
-## Codex 최종 관문 처리 기록 (Phase 6, 2026-07-20)
+## Codex 설계 비판 처리 기록 (Phase 2, 2026-07-20)
 
-- **코드 리뷰**: 지적 0건 — "응답 모델·실제 payload·OpenAPI 스펙·생성 TS 타입 사이의 불일치 없음".
-- **적대적 리뷰 [high] 기각** — "legacy cache의 `200 {}` 무검증 replay": 사실이나 이번 변경이 만든 위험이 아닌 기존 동작이고, 권고안(cached payload 런타임 strict 검증 + DB 감사/backfill)은 문서화 전용 결정·"런타임 경로 무변경" 스코프 제한과 충돌. 미결 사항에 후속 과제로 기록.
-- **적대적 리뷰 [medium] 수용** — "analysis replay 계약 테스트 순환 검증": 실제 `AnalysisWorker` 완료 경로를 통과시키도록 테스트 보강.
+- **수용 #1(blocker)**: 실제 업로드 화면은 PracticeSingle — UI 주 대상 교체 + 공통 preflight (Claude가 라우트 직접 검증).
+- **수용 #2(blocker, 완화안)**: 50MB는 soft target으로 변경, 경성 한도는 100MB 게이트 (사용자 결정 — 재시도 루프는 기각).
+- **수용 #3·#4·#5·#7·#8·#10a·#11·#13·#14·#15**: tracks primary, 트랙 discard 검증, 취소 의미론 분리, AAC 폴리필 조건 검사, fps 평균 기반 명문화, duration race 수정, 대기시간 카피 수정, progress 99% 캡, formats [MP4, QTFF], api-spec.html 문서 추가.
+- **부분 수용 #6**: BufferTarget 메모리 지적은 타당하나 1차 구현은 BufferTarget 유지, StreamTarget/OPFS는 미결 사항으로 (사용자 결정).
+- **부분 수용 #5**: 취소 의미론은 수용, 취소 버튼 UI는 이번 스코프 제외 (사용자 결정).
+- **기각 #9**: ≤50MB HEVC 재인코딩 — grilling에서 이미 검토·기각된 선택지(재생 호환성은 기존에도 동일). 
+- **기각 #10b**: 서버측 duration 검증 — "5분은 프론트 검증만" 합의 유지, 스펙에 명시.
+- **기각 #12**: intent `duration_ms` 재정의 — worker 미사용으로 실질 영향 없음, source duration 의미 유지.
 
-## Codex 설계 비판 처리 기록 (2026-07-20)
+## Codex 최종 관문 처리 기록 (Phase 6, 2026-07-21)
 
-- **수용 ①②(blocker/major)**: 검증형 response_model 폐기 → 전 라우트 문서화 전용 + CI 계약 테스트로 전환 (사용자 결정).
-- **수용 ③**: SceneSummary 중첩(observation/anomalies)은 raw 유지, 게이트웨이 전용 모델 정의 (사용자 결정).
-- **수용 ④⑤⑥⑦⑧⑨⑩**: user_id 유입 금지, 매트릭스 가드·스펙 동등성 테스트·fake settings 패턴, required 의미 정확화 + 프론트 소폭 수정 허용, 이름 충돌 회피, 200/202 모델 분리 (일괄 반영, 사용자 승인).
-- **기각 (부분)**: ②의 "저장·반환 전 런타임 TypeAdapter 검증" 제안 — 런타임 경로 변경이라 문서화 전용 결정과 충돌, 검증은 CI 계약 테스트로 대체.
+- **코드 디테일 리뷰**: 지적 0건 (리뷰어가 웹 테스트·typecheck·lint·백엔드 상수 자체 재검증).
+- **적대적 리뷰 [high] 기각** — BufferTarget 메모리(≈114MiB): Phase 2에서 동일 수치로 사용자가 "1차는 BufferTarget" 결정, 미결 사항에 기존 기록 유지. 결과물이 100MB에 근접하는 시나리오는 비트레이트 산식상 비현실적.
+- **적대적 리뷰 [high] 수용** — 다중 트랙 무손실: `getVideoTracks/getAudioTracks` 수가 1 초과면 원본 폴백 (tracks:"primary"가 비-primary 트랙을 discardedTracks에도 남기지 않고 버리는 것 확인). 회귀 테스트 추가.
+- **적대적 리뷰 [medium] 수용** — 취소 오분류: 취소 판정을 `signal.aborted`로만 한정. WebCodecs 자체 AbortError는 원본 폴백. 회귀 테스트 추가.
+- **적대적 리뷰 [medium] 수용** — 배포 전 대형 intent: `complete`에서도 `size_bytes > MAX_UPLOAD_BYTES` 재검증(413). pytest·API.md 갱신.
+- **적대적 리뷰 [medium] 수용(방식 변경)** — fps 표본: `computePacketStats()`는 metadataOnly 순회라 전체 스캔이 저렴함을 소스에서 확인, Phase 5의 200개 제한을 되돌려 전체 평균으로 복원. 평균이 30 이하인 혼합 fps 영상의 잔여 한계는 미결로 기록.
 
 ## 미결 사항
 
-- 오류 응답 envelope(`{"detail": string}`)의 스펙 문서화 — 후속 PR.
-- 멱등 replay의 legacy cache 방어 (후속 PR): `external_operations.response_payload`가 null/구형인 succeeded row는 `200 {}` 또는 구형 payload를 무검증 반환한다. operation kind별 모델로 cached payload를 반환 전 검증할지, 기존 row 감사·backfill할지는 별도 결정 필요 (이번 PR은 런타임 무변경 원칙으로 제외).
+- **StreamTarget/OPFS 전환**(Codex #6): 실기기(모바일 Safari)에서 BufferTarget 메모리 문제가 확인되면 `StreamTarget` + `FileSystemWritableFileStream`으로 전환. 1차 구현은 BufferTarget.
+- **취소 버튼 UI**: 압축·업로드 진행 중 명시적 취소 버튼은 후속.
+- 비트레이트 계수(0.95 마진, 오디오 128k)는 실측 결과물이 목표를 크게 넘으면 조정 가능. E2E 실측(노이즈 60초 1080p): 목표 2Mbps 대비 ~3Mbps overshoot, 결과 22.9MB로 목표 내.
+- **혼합 fps 잔여 한계**: 전체 평균 fps가 30 이하인 VFR/편집 영상은 30 초과 구간이 cap 없이 남는다 (평균 휴리스틱의 한계 — 합의된 스펙 동작).
 
 ## 검증 명령
 
-- 백엔드: `cd apps/api && uv run pytest`
-- 스펙 재생성: `cd apps/api && uv run python -c "import json; from acting_api.app import create_app; json.dump(create_app().openapi(), open('spec/openapi.json','w'), ensure_ascii=False, indent=2)"` (env 요구 시 계약 테스트와 동일한 fake settings 경로 사용)
-- 웹: `pnpm --filter web generate:v2-schema` → `pnpm lint` · `pnpm typecheck` · `pnpm --filter web test` · `pnpm build`
-- 수동 확인: dev 서버 기동 후 `http://localhost:8000/docs`에서 응답 스키마 표시 확인.
+- 웹: `pnpm lint` · `pnpm typecheck` · `pnpm --filter web test` · `pnpm build`
+- 백엔드: `cd apps/api && uv run --package acting-api pytest`
+- 스펙 재생성(무변경 확인): `cd apps/api && uv run python -c "import json; from acting_api.app import create_app; json.dump(create_app().openapi(), open('spec/openapi.json','w'), ensure_ascii=False, indent=2)"` 후 `git diff --stat spec/openapi.json`
+- 수동 확인: dev 루프(api :8000 + `pnpm dev`)에서 50MB 초과 영상 업로드 → 압축 진행률 → 업로드 → 재생 확인.

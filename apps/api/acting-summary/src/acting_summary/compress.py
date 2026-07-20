@@ -15,9 +15,9 @@ from pathlib import Path
 
 # 이보다 작은 파일은 압축해도 이득이 적어 건너뛴다.
 MIN_BYTES = 15 * 1024 * 1024
-# free tier에서 인코딩이 이 시간을 넘기면 포기하고 원본을 쓴다.
-# 4K 원본은 디코딩만으로도 오래 걸리므로 넉넉히 둔다 (워커 스레드라 루프는 안 막힘).
-TIMEOUT_SEC = 300.0
+# free tier에서 5분 영상 인코딩이 이 시간을 넘기면 포기하고 원본을 쓴다.
+# 4K 원본은 디코딩만으로도 오래 걸리므로 10분까지 둔다 (워커 스레드라 루프는 안 막힘).
+TIMEOUT_SEC = 600.0
 
 # 512MB 인스턴스에서 ffmpeg 2개가 겹치면 OOM — 한 번에 하나만 돌린다.
 _FFMPEG_LOCK = threading.Lock()

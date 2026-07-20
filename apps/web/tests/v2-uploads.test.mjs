@@ -7,7 +7,7 @@ import "./ts-module-loader.mjs";
 process.env.NEXT_PUBLIC_API_BASE_URL = "";
 
 const { UploadError, uploadVideo } = await import("../src/lib/api/v2/uploads.ts");
-const { MAX_UPLOAD_BYTES } = await import("../src/lib/config/env.ts");
+const { MAX_DURATION_MS, MAX_UPLOAD_BYTES } = await import("../src/lib/config/env.ts");
 
 const originalFetch = globalThis.fetch;
 
@@ -20,6 +20,11 @@ function jsonResponse(payload, status = 200) {
 
 afterEach(() => {
   globalThis.fetch = originalFetch;
+});
+
+test("클라이언트 업로드 제한은 100MB와 5분이다", () => {
+  assert.equal(MAX_UPLOAD_BYTES, 100 * 1024 * 1024);
+  assert.equal(MAX_DURATION_MS, 300_000);
 });
 
 test("uploadVideo는 intent, S3 PUT, complete 순서와 서명 MIME을 지킨다", async () => {

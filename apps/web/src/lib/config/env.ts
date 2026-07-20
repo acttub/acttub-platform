@@ -12,6 +12,6 @@ export const MOCK_S3_UPLOAD = process.env.NEXT_PUBLIC_MOCK_S3_UPLOAD === "1";
 
 export const LOGIN_PATH = "/login";
 
-// 백엔드 uploads.py의 MAX_UPLOAD_BYTES(550MB)와 동일해야 한다.
-export const MAX_UPLOAD_BYTES = 550 * 1024 * 1024;
-export const MAX_DURATION_MS = 180_000;
+// 백엔드 uploads.py의 MAX_UPLOAD_BYTES(100MB)와 동일해야 한다.
+export const MAX_UPLOAD_BYTES = 100 * 1024 * 1024;
+export const MAX_DURATION_MS = 300_000;

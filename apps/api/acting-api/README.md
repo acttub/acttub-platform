@@ -17,7 +17,7 @@ DEVELOPMENT_AUTH_PROVIDER=1 DATABASE_URL=postgresql://localhost/acting JWT_SECRE
 - `GOOGLE_OAUTH_CLIENT_ID`는 선택 override입니다. 미설정 시 웹과 동일한 공개 OAuth client ID를 기본값으로 사용합니다.
 - `DEVELOPMENT_AUTH_PROVIDER`는 선택 사항이며 기본값은 비활성입니다. `1` 또는 `true`일 때만 로컬 개발용 `development` 로그인 provider를 등록합니다.
 - S3 설정 4개는 선택 사항이지만 일부만 설정할 수는 없습니다. 미설정 상태에서는 앱은 기동하고 업로드·재생 API가 503을 반환하며 분석 워커는 시작하지 않습니다.
-- 분석 워커는 `ANALYSIS_WORKER_CONCURRENCY`(기본 1), `ANALYSIS_WORKER_POLL_INTERVAL_SEC`(기본 2초), `ANALYSIS_LEASE_SEC`(기본 1800초), `ANALYSIS_SWEEP_INTERVAL_SEC`(기본 60초)로 조정합니다. 기본 lease는 550MB 다운로드·압축·Gemini 업로드와 ACTIVE 대기 최악 시간을 한 번의 선점 안에 수용하도록 잡았습니다.
+- 분석 워커는 `ANALYSIS_WORKER_CONCURRENCY`(기본 1), `ANALYSIS_WORKER_POLL_INTERVAL_SEC`(기본 2초), `ANALYSIS_LEASE_SEC`(기본 1800초), `ANALYSIS_SWEEP_INTERVAL_SEC`(기본 60초)로 조정합니다. 기본 lease는 100MB 다운로드·최대 600초 압축·Gemini 업로드와 ACTIVE 대기 최악 시간을 한 번의 선점 안에 수용하도록 잡았습니다.
 - `KEEP_ALIVE_URL`을 설정하면 기존 self-ping이 활성화됩니다. EC2 상시 가동에서는 불필요하지만 제거 결정 전까지 opt-in으로 유지합니다.
 - `postgres://`와 `postgresql://` URL은 SQLAlchemy psycopg3 드라이버 URL로 정규화됩니다.
 
