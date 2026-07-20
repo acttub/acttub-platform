@@ -15,7 +15,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
               }
             }
           }
@@ -44,7 +46,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/TokenPairResponse"
+                }
               }
             }
           },
@@ -83,7 +87,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/RefreshTokenResponse"
+                }
               }
             }
           },
@@ -119,7 +125,7 @@
         },
         "responses": {
           "204": {
-            "description": "Successful Response"
+            "description": "No Content"
           },
           "422": {
             "description": "Validation Error",
@@ -151,7 +157,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/ConsentDocumentsResponse"
+                }
               }
             }
           }
@@ -180,7 +188,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/ConsentEventResponse"
+                }
               }
             }
           },
@@ -224,7 +234,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/UploadIntentResponse"
+                }
               }
             }
           },
@@ -275,7 +287,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/UploadCompleteResponse"
+                }
               }
             }
           },
@@ -337,9 +351,21 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/PracticeSessionCreateResponse"
+                }
               }
             }
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PracticeSessionAcceptedResponse"
+                }
+              }
+            },
+            "description": "Accepted"
           },
           "422": {
             "description": "Validation Error",
@@ -369,7 +395,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/PracticeSessionListResponse"
+                }
               }
             }
           }
@@ -405,7 +433,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/PracticeSessionDetail"
+                }
               }
             }
           },
@@ -446,7 +476,7 @@
         ],
         "responses": {
           "204": {
-            "description": "Successful Response"
+            "description": "No Content"
           },
           "422": {
             "description": "Validation Error",
@@ -506,9 +536,21 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/PracticeSessionCreateResponse"
+                }
               }
             }
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PracticeSessionAcceptedResponse"
+                }
+              }
+            },
+            "description": "Accepted"
           },
           "422": {
             "description": "Validation Error",
@@ -568,7 +610,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/CoachTurnResponse"
+                }
               }
             }
           },
@@ -630,7 +674,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/CoachTurnResponse"
+                }
               }
             }
           },
@@ -692,7 +738,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/CreateReportResponse"
+                }
               }
             }
           },
@@ -724,7 +772,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/ReportHistoryResponse"
+                }
               }
             }
           }
@@ -734,6 +784,114 @@
   },
   "components": {
     "schemas": {
+      "ActingReport": {
+        "properties": {
+          "headline": {
+            "type": "string",
+            "title": "Headline"
+          },
+          "biggest_problem": {
+            "$ref": "#/components/schemas/BiggestProblem"
+          },
+          "evidence": {
+            "type": "string",
+            "title": "Evidence"
+          },
+          "self_discovery": {
+            "type": "string",
+            "title": "Self Discovery"
+          },
+          "encouragement": {
+            "type": "string",
+            "title": "Encouragement"
+          },
+          "next_step": {
+            "type": "string",
+            "title": "Next Step"
+          },
+          "comparison": {
+            "type": "string",
+            "title": "Comparison"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "headline",
+          "biggest_problem",
+          "evidence",
+          "self_discovery",
+          "encouragement",
+          "next_step",
+          "comparison"
+        ],
+        "title": "ActingReport"
+      },
+      "AuthUser": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "suspended"
+            ],
+            "title": "Status"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "email",
+          "status"
+        ],
+        "title": "AuthUser"
+      },
+      "BiggestProblem": {
+        "properties": {
+          "start": {
+            "type": "string",
+            "title": "Start"
+          },
+          "end": {
+            "type": "string",
+            "title": "End"
+          },
+          "dimension": {
+            "type": "string",
+            "title": "Dimension"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "start",
+          "end",
+          "dimension",
+          "description"
+        ],
+        "title": "BiggestProblem"
+      },
       "CoachReplyReq": {
         "properties": {
           "session_id": {
@@ -768,6 +926,88 @@
         ],
         "title": "CoachStartReq"
       },
+      "CoachTurn": {
+        "properties": {
+          "role": {
+            "type": "string",
+            "enum": [
+              "ai",
+              "actor"
+            ],
+            "title": "Role"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "role",
+          "text"
+        ],
+        "title": "CoachTurn"
+      },
+      "CoachTurnResponse": {
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Session Id"
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "probe_intent",
+              "dig_cause",
+              "deflect",
+              "close"
+            ],
+            "title": "Action"
+          },
+          "utterance": {
+            "type": "string",
+            "title": "Utterance"
+          },
+          "focus_timestamp": {
+            "type": "string",
+            "title": "Focus Timestamp"
+          },
+          "done": {
+            "type": "boolean",
+            "title": "Done"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "gap_stated",
+                  "exhausted",
+                  "limit",
+                  "user_ended"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "session_id",
+          "action",
+          "utterance",
+          "focus_timestamp",
+          "done",
+          "reason"
+        ],
+        "title": "CoachTurnResponse"
+      },
       "ConsentAction": {
         "type": "string",
         "enum": [
@@ -776,6 +1016,99 @@
           "revoked"
         ],
         "title": "ConsentAction"
+      },
+      "ConsentDocument": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "type": {
+            "$ref": "#/components/schemas/ConsentType"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "body": {
+            "type": "string",
+            "title": "Body"
+          },
+          "required": {
+            "type": "boolean",
+            "title": "Required"
+          },
+          "published_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Published At"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "type",
+          "version",
+          "title",
+          "body",
+          "required",
+          "published_at"
+        ],
+        "title": "ConsentDocument"
+      },
+      "ConsentDocumentsResponse": {
+        "properties": {
+          "documents": {
+            "items": {
+              "$ref": "#/components/schemas/ConsentDocument"
+            },
+            "type": "array",
+            "title": "Documents"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "documents"
+        ],
+        "title": "ConsentDocumentsResponse"
+      },
+      "ConsentEventResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "document_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Document Id"
+          },
+          "action": {
+            "$ref": "#/components/schemas/ConsentAction"
+          },
+          "occurred_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Occurred At"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "document_id",
+          "action",
+          "occurred_at"
+        ],
+        "title": "ConsentEventResponse"
       },
       "ConsentRequest": {
         "properties": {
@@ -794,6 +1127,33 @@
         ],
         "title": "ConsentRequest"
       },
+      "ConsentType": {
+        "type": "string",
+        "enum": [
+          "terms",
+          "privacy",
+          "ai_analysis"
+        ],
+        "title": "ConsentType"
+      },
+      "CreateReportResponse": {
+        "properties": {
+          "report": {
+            "$ref": "#/components/schemas/ActingReport"
+          },
+          "report_count": {
+            "type": "integer",
+            "title": "Report Count"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "report",
+          "report_count"
+        ],
+        "title": "CreateReportResponse"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -806,6 +1166,44 @@
         },
         "type": "object",
         "title": "HTTPValidationError"
+      },
+      "HealthResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "const": "ok",
+            "title": "Status"
+          },
+          "services": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Services"
+          },
+          "model": {
+            "type": "string",
+            "title": "Model"
+          },
+          "keep_alive": {
+            "type": "boolean",
+            "title": "Keep Alive"
+          },
+          "commit": {
+            "type": "string",
+            "title": "Commit"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "status",
+          "services",
+          "model",
+          "keep_alive",
+          "commit"
+        ],
+        "title": "HealthResponse"
       },
       "LoginRequest": {
         "properties": {
@@ -837,6 +1235,220 @@
           "refresh_token"
         ],
         "title": "LogoutRequest"
+      },
+      "PracticeSessionAcceptedResponse": {
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Session Id"
+          },
+          "status": {
+            "type": "string",
+            "const": "analyzing",
+            "title": "Status"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "session_id",
+          "status"
+        ],
+        "title": "PracticeSessionAcceptedResponse"
+      },
+      "PracticeSessionCreateResponse": {
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Session Id"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "created",
+              "analyzing",
+              "analyzed",
+              "failed"
+            ],
+            "title": "Status"
+          },
+          "summary_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "session_id",
+          "status"
+        ],
+        "title": "PracticeSessionCreateResponse"
+      },
+      "PracticeSessionDetail": {
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Session Id"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "created",
+              "analyzing",
+              "analyzed",
+              "failed"
+            ],
+            "title": "Status"
+          },
+          "situation": {
+            "type": "string",
+            "title": "Situation"
+          },
+          "character_context": {
+            "type": "string",
+            "title": "Character Context"
+          },
+          "subtext": {
+            "type": "string",
+            "title": "Subtext"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          },
+          "playback_url": {
+            "type": "string",
+            "title": "Playback Url"
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SceneSummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "error_code": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "gemini_timeout",
+                  "gemini_parse_error",
+                  "unsupported_media",
+                  "max_attempts_exceeded"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Code"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "session_id",
+          "status",
+          "situation",
+          "character_context",
+          "subtext",
+          "created_at",
+          "updated_at",
+          "playback_url"
+        ],
+        "title": "PracticeSessionDetail"
+      },
+      "PracticeSessionListItem": {
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Session Id"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "created",
+              "analyzing",
+              "analyzed",
+              "failed"
+            ],
+            "title": "Status"
+          },
+          "situation": {
+            "type": "string",
+            "title": "Situation"
+          },
+          "character_context": {
+            "type": "string",
+            "title": "Character Context"
+          },
+          "subtext": {
+            "type": "string",
+            "title": "Subtext"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "session_id",
+          "status",
+          "situation",
+          "character_context",
+          "subtext",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "PracticeSessionListItem"
+      },
+      "PracticeSessionListResponse": {
+        "properties": {
+          "sessions": {
+            "items": {
+              "$ref": "#/components/schemas/PracticeSessionListItem"
+            },
+            "type": "array",
+            "title": "Sessions"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "sessions"
+        ],
+        "title": "PracticeSessionListResponse"
       },
       "PracticeSessionRequest": {
         "properties": {
@@ -883,6 +1495,90 @@
         ],
         "title": "RefreshRequest"
       },
+      "RefreshTokenResponse": {
+        "properties": {
+          "access_token": {
+            "type": "string",
+            "title": "Access Token"
+          },
+          "refresh_token": {
+            "type": "string",
+            "title": "Refresh Token"
+          },
+          "token_type": {
+            "type": "string",
+            "title": "Token Type"
+          },
+          "expires_in": {
+            "type": "integer",
+            "title": "Expires In"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "access_token",
+          "refresh_token",
+          "token_type",
+          "expires_in"
+        ],
+        "title": "RefreshTokenResponse"
+      },
+      "ReportHistoryResponse": {
+        "properties": {
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          },
+          "reports": {
+            "items": {
+              "$ref": "#/components/schemas/ReportRecord"
+            },
+            "type": "array",
+            "title": "Reports"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "count",
+          "reports"
+        ],
+        "title": "ReportHistoryResponse"
+      },
+      "ReportRecord": {
+        "properties": {
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "session_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Session Id"
+          },
+          "report": {
+            "$ref": "#/components/schemas/ActingReport"
+          },
+          "turns": {
+            "items": {
+              "$ref": "#/components/schemas/CoachTurn"
+            },
+            "type": "array",
+            "title": "Turns"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "created_at",
+          "session_id",
+          "report",
+          "turns"
+        ],
+        "title": "ReportRecord"
+      },
       "ReportReq": {
         "properties": {
           "session_id": {
@@ -897,6 +1593,154 @@
           "session_id"
         ],
         "title": "ReportReq"
+      },
+      "SceneSummary": {
+        "properties": {
+          "summary_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Summary Id"
+          },
+          "observation": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observation"
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary"
+          },
+          "intent_alignment": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Intent Alignment"
+          },
+          "key_moment": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Key Moment"
+          },
+          "key_dimension": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Key Dimension"
+          },
+          "anomalies": {
+            "anyOf": [
+              {
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Anomalies"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "summary_id"
+        ],
+        "title": "SceneSummary"
+      },
+      "TokenPairResponse": {
+        "properties": {
+          "access_token": {
+            "type": "string",
+            "title": "Access Token"
+          },
+          "refresh_token": {
+            "type": "string",
+            "title": "Refresh Token"
+          },
+          "token_type": {
+            "type": "string",
+            "title": "Token Type"
+          },
+          "expires_in": {
+            "type": "integer",
+            "title": "Expires In"
+          },
+          "user": {
+            "$ref": "#/components/schemas/AuthUser"
+          },
+          "pending_consents": {
+            "items": {
+              "$ref": "#/components/schemas/ConsentDocument"
+            },
+            "type": "array",
+            "title": "Pending Consents"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "access_token",
+          "refresh_token",
+          "token_type",
+          "expires_in",
+          "user",
+          "pending_consents"
+        ],
+        "title": "TokenPairResponse"
+      },
+      "UploadCompleteResponse": {
+        "properties": {
+          "intent_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Intent Id"
+          },
+          "status": {
+            "type": "string",
+            "const": "finalized",
+            "title": "Status"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "intent_id",
+          "status"
+        ],
+        "title": "UploadCompleteResponse"
       },
       "UploadIntentRequest": {
         "properties": {
@@ -928,6 +1772,32 @@
           "size_bytes"
         ],
         "title": "UploadIntentRequest"
+      },
+      "UploadIntentResponse": {
+        "properties": {
+          "intent_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Intent Id"
+          },
+          "upload_url": {
+            "type": "string",
+            "title": "Upload Url"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Expires At"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "intent_id",
+          "upload_url",
+          "expires_at"
+        ],
+        "title": "UploadIntentResponse"
       },
       "ValidationError": {
         "properties": {

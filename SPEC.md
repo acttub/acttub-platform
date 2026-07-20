@@ -1,163 +1,96 @@
-# SPEC: 로그인 provider 기본화 — Google 기본 + "dev"→"development" 전면 리네임
+# SPEC: API 응답 모델 선언 및 계약 소스 승격
 
-## 배경/목적
+## 배경 / 목적
 
-현재 구글 로그인은 `NEXT_PUBLIC_AUTH_PROVIDER=google` + `NEXT_PUBLIC_GOOGLE_CLIENT_ID` env를
-빌드 시점에 넣어야만 활성화된다. env 누락 시 로그인 버튼이 안 뜨는 사고 여지가 있고,
-"dev" provider라는 이름은 이제 "개발 서버"가 아니라 "로컬 전용 테스트 로그인"을 뜻하므로
-오해를 부른다.
+acting-api의 17개 엔드포인트 전부가 응답 스키마 선언 없이 dict를 반환한다. 그 결과:
 
-목표:
+- OpenAPI 스펙의 모든 2xx 응답 스키마가 빈 스키마(`{}`)로 나가고, Swagger `/docs`는 응답 예시를 전부 `"string"`으로 렌더링한다.
+- 웹 생성 타입(`apps/web/src/lib/api/v2-schema.d.ts`)의 응답 타입이 전부 `unknown`이라, 프론트는 응답 계약을 `types.ts` 수제 정의(20여 개)로 유지하고 있다. 계약 소스가 코드·API.md·수제 타입 세 곳으로 갈라져 드리프트를 typecheck가 잡지 못한다.
 
-1. **Google 로그인을 코드 기본값으로**: client ID를 프론트·백엔드 양쪽에 하드코딩하고
-   프론트 env 스위치를 전부 제거한다.
-2. **development 폼은 로컬 `next dev`에서만**: `process.env.NODE_ENV === "development"` 게이트.
-   프로덕션 빌드에서는 죽은 코드 제거로 산출물에서 사라진다.
-3. **"dev" → "development" 전면 리네임**: 프론트 심볼, 백엔드 provider 키(wire 값), env 변수,
-   DB enum 값까지 일관되게 바꾼다.
+이번 작업으로 응답 계약의 단일 소스를 `apps/api/spec/openapi.json`으로 승격한다.
 
 ## 설계
 
-### 프론트 (`apps/web`)
+### 1. 백엔드 — Pydantic 응답 모델 선언 (문서화 전용)
 
-- `src/lib/config/env.ts`
-  - `AUTH_PROVIDER` 제거. `GOOGLE_CLIENT_ID`는 env 조회 없이 순수 하드코딩:
-    `462651930952-625pcnhrjib79r7990fqsdqhsterdij2.apps.googleusercontent.com`
-    (OAuth client ID는 공개 값이므로 번들 포함 무방 — 주석으로 명시)
-- `src/lib/auth/providers.ts`
-  - `getLoginProvider()` 전역 스위치 제거.
-  - `googleProvider`와 `developmentProvider`(구 devProvider, `name: "development"`)를 각각 export.
-  - `LoginProvider.name` 타입: `"development" | "google"`.
-  - `tests/v2-module-surface.test.mjs`의 내부 심볼 불변식이 `devProvider`·`googleProvider`를
-    "export 금지 내부 선언"으로 고정하고 있으므로, 두 provider의 export를 의도된 공개
-    표면으로 재정의해 불변식 목록을 갱신한다.
-- `src/app/login/page.tsx`
-  - Google 버튼은 **항상** 렌더. `GOOGLE_CLIENT_ID` 부재 분기(설정 안내 카피)는 제거
-    (상수가 항상 존재하므로 dead code).
-  - development 로그인 폼은 `process.env.NODE_ENV === "development"`일 때만 Google 버튼
-    **아래에** 추가 렌더. 폼 섹션에 "개발용 테스트 로그인" 류의 구분 레이블을 달아
-    Google 버튼과 시각적으로 구분한다 (카피는 존댓말 "~해요" 규칙 준수).
-  - **에러·진행 상태 영역은 페이지에 하나만 둔다**: 현재 상호배타 분기가 각자 에러/notice를
-    렌더하는 구조인데, 두 컨트롤이 동시에 보이면 중복 표시되므로 공유 busy/error/notice
-    영역을 단일화한다 (Google 버튼·폼 어느 쪽 제출이든 같은 영역에 표시).
-  - credential 콜백 → `loginWith(googleProvider, { credential })`,
-    폼 submit → `loginWith(developmentProvider, { uid, email })` 직결.
-- `.env.production` **파일 삭제** (내용이 전부 코드 기본값과 동일해짐).
-- `tests/providers.test.mjs`: spawnSync + `NEXT_PUBLIC_AUTH_PROVIDER` env 스위치 제거.
-  단, 커스텀 로더(`tests/ts-module-loader.mjs`)는 side-effect import로 훅을 등록하므로
-  provider 모듈은 **정적 import가 아니라 로더 import 이후 top-level `await import(...)`**
-  로 가져온다 (정적 import는 훅 등록 전에 링크되어 `.ts` 해석이 실패한다).
+- **선언 방식** (Codex 비판 ①·② 반영, 사용자 결정): 17개 전부 데코레이터의 `responses={<status>: {"model": <Model>}}`로 **문서화 전용** 선언한다. `response_model=`은 사용하지 않는다 — 런타임 검증·재직렬화가 없으므로 **응답 바이트가 100% 불변**이고, 5개 라우트(practice create/analyze, coach start/reply, reports create)가 `Response`를 직접 반환해 검증을 우회하는 비대칭도 없다.
+- **계약 정직성은 CI가 강제**: 문서화 전용이므로 모델이 실제와 어긋나도 런타임엔 침묵한다. 이를 막기 위해 **계약 테스트**를 추가한다 — 기존 pytest 통합 플로우가 받는 실제 응답 본문을 각 선언 모델의 `TypeAdapter`(strict 필드 대조)로 검증한다. 멱등 replay 경로(저장된 `response_payload` 재반환)도 같은 모델로 검증한다.
+- **모델 위치·네이밍**: 각 라우터 모듈 안에 정의 (`practice_sessions.py`, `uploads.py`, `consents.py`, `auth/router.py`, `coaching.py`, `reports.py`, health는 소재 모듈). 이름은 프론트 `types.ts` 수제 타입명을 따르되(`TokenPairResponse` 등), **내부 서비스 패키지(acting-summary/agent/report)의 스키마 클래스를 import 재사용하지 않는다** — 게이트웨이 전용 모델로 새로 정의한다 (Codex ③·④·⑨: 복제본 드리프트·`user_id` 유입·스키마 그래프 이름 충돌 차단). FastAPI 스키마 그래프 안에서 클래스명이 유일해야 component 키가 `"SceneSummary"` 그대로 생성된다.
+- **가변 구조 필드** (사용자 결정, Codex ③ 반영): `SceneSummary`는 최상위 핵심 필드만 typed(`summary_id` 필수 + `summary`/`intent_alignment`/`key_moment`/`key_dimension` 선택) + `model_config = ConfigDict(extra="allow")`. **중첩 구조는 raw로 유지** — `observation: dict[str, Any] | None`, `anomalies: list[dict[str, Any]] | None`. 중첩 모델 필드 손실 위험 0, 현 프론트 타입과 동일 계약.
+- **required 의미 정확화** (Codex ⑧): wire에 항상 존재하는 필드는 default 없이 required로 선언한다 (`CoachTurnResponse.done`·`reason`, `ReportRecord.turns` 등). 게이트웨이가 항상 넣는 필드에 default를 주면 생성 타입이 optional(`done?`)이 되어 프론트가 깨진다.
+- **상태 코드별 처리** (Codex ⑩):
+  - 204 라우트(`POST /v2/auth/logout`, `DELETE /v2/practice-sessions/{id}`)는 모델 없음.
+  - `POST /v2/practice-sessions`·`POST /{id}/analyze`: **200과 202 모델 분리** — 202는 `{session_id, status}`만(`PracticeSessionAcceptedResponse`), 200은 `summary_id`를 **optional**로 포함(`PracticeSessionCreateResponse`) — 레거시 succeeded operation에 payload가 없으면 두 필드 fallback이 존재하므로 required로 하면 문서가 거짓이 된다.
+  - `POST /v2/consents`·`POST /v2/uploads/intents`는 201에 선언.
+- **reports 게이트웨이 모델** (Codex ④): `CreateReportResponse`·`ReportHistoryResponse`에 내부 envelope의 `user_id`를 포함하지 않는다 (기존 테스트가 부재를 검증).
+- **오류 응답**: 이번 PR은 성공 응답만. 4xx/5xx `{"detail": string}` envelope 문서화는 후속.
 
-### 백엔드 (`apps/api/acting-api`)
+### 2. 드리프트 가드 (Codex ⑤·⑥·⑦ 반영)
 
-- `src/acting_api/auth/dev.py` → `development.py`: `DevelopmentProviderVerifier`,
-  `provider = "development"`. 토큰 파싱 로직(`uid` 또는 `uid:email`)은 동일 유지.
-- `src/acting_api/config.py`
-  - `dev_auth_provider` → `development_auth_provider`,
-    env 키 `DEV_AUTH_PROVIDER` → `DEVELOPMENT_AUTH_PROVIDER`. 하위 호환 alias는 두지 않는다
-    (배포 env는 이 PR과 함께 갱신).
-  - `google_oauth_client_id`: env `GOOGLE_OAUTH_CLIENT_ID` 미설정 시 **프론트와 동일한
-    client ID를 기본값으로 사용** (env는 오버라이드 용도로 유지). env 누락 시 503
-    `provider_not_configured`로 죽던 반쪽 기본화를 해소한다.
-    `tests/test_gateway_config.py`의 기본값 검증도 함께 갱신.
-- `src/acting_api/app.py`: 배선 갱신 (`DevelopmentProviderVerifier` 등록 조건).
-- `src/acting_api/db/models.py`: `IdentityProvider.DEV = "dev"` → `DEVELOPMENT = "development"`.
-- **alembic 0003**: `ALTER TYPE identity_provider_t RENAME VALUE 'dev' TO 'development'`
-  (PostgreSQL 10+; `values_callable`이 Python enum value를 저장하므로 라벨 리네임으로 기존
-  행이 자동 추종, 데이터 재작성 없음). downgrade는 역방향 RENAME.
-- **마이그레이션 테스트** (`RUN_DB_TESTS=1` 게이트, 기존 DB 픽스처 활용):
-  0002까지 upgrade → raw SQL로 `provider='dev'` 행 시드 → 0003 upgrade →
-  해당 행이 `'development'`로 읽히는지 검증. (기존 픽스처는 빈 스키마를 head로 올려
-  기존 행 마이그레이션을 증명하지 못하므로 별도 케이스 필요.)
-- 테스트: `tests/test_dev_auth.py` → `test_development_auth.py` 등 "dev" provider를 참조하는
-  테스트·서포트(`auth_test_support.py`, `platform_test_support.py` 등) 일괄 갱신.
-  **회귀 추가**: development provider가 **등록된 상태**에서 `provider: "dev"` 요청이
-  400 `unsupported_provider`로 거부되는지 검증 (기존 부정 테스트는 비활성 상태만 증명).
-- **API 계약**: `LoginRequest.provider`는 자유 문자열(`str`)을 유지한다 — Literal/enum으로
-  좁히면 미지원 provider가 422로 바뀌어 기존 400 `unsupported_provider` 계약이 깨진다.
-  따라서 `apps/api/spec/openapi.json` 재생성은 provider 관점에서 no-op일 수 있으며,
-  재생성 후 diff 유무만 확인해 반영한다 (웹 타입 재생성 포함, 경로 주의:
-  스펙 파일은 `apps/api/spec/openapi.json`이 정본이고 `apps/api/acting-api/spec/`은 없다).
+pytest 3종을 추가한다. 모두 `test_platform_v2.py`의 fake settings/store/client 주입 패턴을 사용해 secret 없는 CI에서 동작해야 한다 (`create_app()` 인자 없는 호출은 DATABASE_URL·JWT_SECRET·GEMINI_API_KEY를 요구하므로 금지):
 
-### 문서
+1. **매트릭스 가드**: 기대 (method, path, status) 매트릭스를 테스트에 고정하고, OpenAPI의 각 항목이 매트릭스와 일치하며 `$ref`를 끝까지 resolve했을 때 빈/무제약 객체가 아닌 스키마를 갖는지 검사. (단순 "2xx 비어있지 않음" 검사는 202 누락·엉터리 한 필드 모델을 통과시킨다.)
+2. **스펙 동등성**: live `app.openapi()` == `json.loads(spec/openapi.json)` — 모델만 바꾸고 스펙 재생성을 빠뜨리는 드리프트를 CI에서 차단.
+3. **계약 테스트**: §1의 TypeAdapter 실응답 검증.
 
-- `apps/api/acting-api/README.md`·`apps/api/CLAUDE.md`·루트 `CLAUDE.md` 등에서
-  dev 로그인/env 스위치 언급을 실태에 맞게 갱신. 로컬 개발 루프 명령을
-  `DEVELOPMENT_AUTH_PROVIDER=1 uv run uvicorn ...`으로 문서화한다
-  (development 폼이 보이는데 백엔드가 거부하는 기본 조합을 문서로 해소).
-  README의 "프로덕션에서 절대 켜지 말 것" 경고는 유지·강화한다.
-- 잔존 참조 검사: env 변수명 grep에 더해 **의미 검사**를 포함한다 — provider wire 값
-  `"dev"`, 심볼(`devProvider`, `DevProviderVerifier`, `dev_auth_provider`), 파일명(`dev.py`,
-  `test_dev_auth.py`)이 alembic 히스토리·과거 문서 기록·통상적 "next dev" 용어를 제외하고
-  0건이어야 한다.
+### 3. 스펙·웹 타입 재생성
 
-### 배포 절차 메모 (코드 밖, PR 설명에 포함)
+1. 스펙 재생성 (apps/api/CLAUDE.md의 기존 명령, 단 fake settings 필요 시 테스트 픽스처와 동일 방식).
+2. `pnpm --filter web generate:v2-schema`로 `v2-schema.d.ts` 재생성.
 
-- enum RENAME은 구코드(‘dev’ 바인딩)와 신코드(‘development’ 바인딩)가 동시에 살아 있으면
-  어느 방향이든 깨진다. 현재 운영은 FastAPI 단일 프로세스이므로
-  **구프로세스 정지 → `alembic upgrade head` → 신코드 기동** 순서로 배포한다 (롤링 불가).
-- **롤백도 대칭**: 코드만 되돌리면 구 ORM이 `'development'` 라벨을 읽지 못한다.
-  롤백 시 반드시 `alembic downgrade 0002`를 코드 롤백과 결합한다 (정지 → downgrade → 구코드 기동).
-- 배포 환경에 `DEV_AUTH_PROVIDER`가 설정돼 있으면 **키를 교체하지 말고 제거**한다
-  (development provider는 프로덕션에서 꺼져 있어야 한다).
-- `GOOGLE_OAUTH_CLIENT_ID`를 오버라이드하는 배포는 웹 번들의 하드코딩 값과 동일해야 한다
-  — 다르면 audience 불일치로 구글 로그인 전면 401 (config.py 주석에도 명시).
+### 4. 프론트 — 수제 응답 타입 교체 (사용자 결정, Codex ⑧ 완화 반영)
+
+`types.ts`의 수제 응답 타입을 `components["schemas"][...]` re-export로 교체한다. **export 이름은 전부 유지**하고 사용처 수정은 최소화하되, required/optional 의미가 정확해지면서 생기는 **소폭 사용처 수정은 허용**한다 (예: `practice-flow.tsx`의 `turns: unknown[]` 대입부). 파생 유니온(`PracticeSessionStatus`, `CoachAction` 등)은 생성 스키마 인덱싱으로 유도하되, 부적합하면 수제 유지 허용 (사유를 최종 보고에 기록). 생성 component 키가 기대 이름과 어긋나면 `paths` operation response 인덱싱으로 대체한다.
+
+### 5. 문서 지위 정리 (사용자 결정)
+
+- `apps/api/CLAUDE.md`의 계약 변경 절차에서 "응답 스키마는 스펙에 없으므로 API.md가 응답 계약의 소스" 문구를 "스펙(openapi.json)이 응답 계약의 소스"로 갱신한다.
+- `API.md`는 사람용 설명 문서로 유지하고 응답 예시를 삭제하지 않는다.
 
 ## 완료 기준 체크리스트
 
-- [ ] `pnpm build` 후 `out/` 하위 **모든 HTML/JS 산출물**에서 development 폼 고유
-      sentinel 문자열(예: 폼 구분 레이블 카피)이 0건 — 이 산출물 스캔이 제거의 증명이다
-      (소스 조건식이 아니라).
-- [ ] `next dev` 화면: Google 버튼 + development 폼이 함께 표시되고, 에러/진행 영역은
-      페이지에 하나만 존재한다.
-- [ ] env 변수 없이 빌드해도 Google 버튼이 활성화된다 (`NEXT_PUBLIC_*` 로그인 관련 변수 0개).
-- [ ] 백엔드가 `GOOGLE_OAUTH_CLIENT_ID` env 없이도 google provider를 기본 client ID로
-      등록한다 (env 설정 시 오버라이드).
-- [ ] `POST /v2/auth/login`에 `provider: "development"`가 통하고, development provider가
-      **등록된 상태에서도** `"dev"`는 400 `unsupported_provider`.
-- [ ] `DEVELOPMENT_AUTH_PROVIDER=1`일 때만 development provider가 등록된다 (기본 꺼짐).
-- [ ] `RUN_DB_TESTS=1` 마이그레이션 테스트: 0002 + `'dev'` 행 시드 → 0003 upgrade →
-      `'development'`로 조회됨.
-- [ ] 잔존 참조 0건: env 변수명(`DEV_AUTH_PROVIDER`·`NEXT_PUBLIC_AUTH_PROVIDER`·
-      `NEXT_PUBLIC_GOOGLE_CLIENT_ID`) + wire 값·심볼·파일명 의미 검사
-      (alembic 히스토리·과거 문서 기록 제외).
+- [ ] 본문이 있는 모든 2xx 응답(매트릭스 고정)이 OpenAPI 스펙에 `$ref` resolve 기준 구체적 스키마로 노출된다.
+- [ ] Swagger `/docs`에서 응답 예시가 `"string"`이 아닌 실제 구조로 표시된다.
+- [ ] `POST /v2/practice-sessions`·`/{id}/analyze`의 202 응답이 200과 별도 모델로 문서화된다.
+- [ ] 가드 pytest 3종(매트릭스·스펙 동등성·계약)이 추가되어 통과한다.
+- [ ] `apps/api/spec/openapi.json` 재생성 반영 (동등성 테스트가 증명).
+- [ ] `v2-schema.d.ts` 재생성 + `types.ts` 응답 타입이 생성 타입 re-export로 교체 (export 이름 유지).
+- [ ] 런타임 응답 바이트 불변 — 문서화 전용 선언이므로 라우터 런타임 경로 무변경, `cd apps/api && uv run pytest` 전체 통과 (기존 234개 + 신규).
 - [ ] `pnpm lint` · `pnpm typecheck` · `pnpm --filter web test` · `pnpm build` 통과.
-- [ ] `cd apps/api && uv run pytest` 통과.
-- [ ] `apps/api/spec/openapi.json` 재생성 후 diff 확인·반영,
-      `pnpm --filter web generate:v2-schema` 재생성 반영 (no-op이면 무변경 확인 기록).
+- [ ] `apps/api/CLAUDE.md` 계약 절차 문구 갱신.
 
 ## 하지 말 것 (스코프 제한)
 
-- 다중 provider 버튼 목록(레지스트리) 일반화 — 두 번째 소셜 provider 추가 시점의 과제.
-- 카카오/네이버/애플 연동, 자체(이메일/비밀번호) 로그인.
-- `IdentityProvider.KAKAO`/`APPLE` enum 값 정리 — 건드리지 않는다.
-- `LoginRequest.provider`의 Literal/enum 타입 강화 — 400→422 계약 파괴.
-- development provider에 대한 백엔드 프로덕션 가드(환경 감지 등) 도입 — 아래 기각 기록 참조.
-- 스코프 밖 리팩터링·스타일 변경.
-- `v2-schema.d.ts` 수동 편집 (재생성만 허용).
+- `response_model=` 사용 (런타임 검증·재직렬화 도입 금지 — 문서화 전용 결정 위반).
+- 4xx/5xx 오류 응답 스키마 선언 (후속 PR).
+- 라우터 비즈니스 로직·상태 코드·응답 내용·직렬화 경로의 변경. 런타임 응답 바이트는 완전 동일해야 한다.
+- 내부 서비스 패키지(acting-summary/agent/report)의 스키마 클래스를 게이트웨이 응답 모델로 import 재사용.
+- `API.md` 응답 예시 삭제·축소.
+- `v2-schema.d.ts` 수동 편집.
+- acting-agent / acting-summary / acting-report 내부 서비스 라우터 수정.
+- 스코프 밖 리팩터링.
 
-## 리뷰 지적 처리 기록 (Codex 설계 비판)
+## Codex 최종 관문 처리 기록 (Phase 6, 2026-07-20)
 
-- **기각 — "development provider 미강제가 계정 탈취 허용" (Blocker 지적)**:
-  `DEVELOPMENT_AUTH_PROVIDER=1` + 직접 API 호출 시 `uid:email`만으로 verified 이메일 연결이
-  되는 위험은 사실이나, 이는 **이번 변경으로 새로 생기는 위험이 아니라 기존 dev provider의
-  기존 특성**이다. 방어선은 "프로덕션에서 flag를 켜지 않는다"(README 경고 유지·강화)이며,
-  백엔드에 환경 감지 가드를 도입하는 것은 새 환경 개념을 추가하는 스코프 확장이라 기각.
-  사용자 결정(2026-07-19). 배포 메모에 "키 교체가 아니라 제거" 원칙으로 반영.
-- **Phase 6 최종 리뷰 처리 (2026-07-20)**:
-  - 수용 — `next dev`를 `--hostname 127.0.0.1`로 고정 (LAN에서 dev 서버 프록시 경유로
-    development 로그인 우회 접근 가능하던 노출 차단, 한 줄 수정).
-  - 경량 수용 — `GOOGLE_OAUTH_CLIENT_ID` env 값 strip + 웹 번들과 동일해야 한다는 주석·배포 메모.
-    오버라이드 자체 제거는 기각 (client ID 교체 시 탈출구로 의도적으로 유지).
-  - 문서 수용 — 롤백 시 DB downgrade 결합 필수를 배포 메모에 추가.
-    expand-contract 마이그레이션은 기각 (단일 프로세스 운영에 과설계).
-- 수용: 백엔드 client ID 기본값(#2), 배포 절차 메모(#3), 마이그레이션 테스트(#4),
-  모듈 표면 불변식 갱신(#5), provider 자유 문자열 유지·경로 정정(#6·#12),
-  동적 import 테스트 구조(#7), 로컬 명령 문서화(#8), 산출물 sentinel 스캔(#9),
-  활성 상태 "dev" 400 회귀·의미 검사(#10), 공유 에러 영역 단일화(#11).
+- **코드 리뷰**: 지적 0건 — "응답 모델·실제 payload·OpenAPI 스펙·생성 TS 타입 사이의 불일치 없음".
+- **적대적 리뷰 [high] 기각** — "legacy cache의 `200 {}` 무검증 replay": 사실이나 이번 변경이 만든 위험이 아닌 기존 동작이고, 권고안(cached payload 런타임 strict 검증 + DB 감사/backfill)은 문서화 전용 결정·"런타임 경로 무변경" 스코프 제한과 충돌. 미결 사항에 후속 과제로 기록.
+- **적대적 리뷰 [medium] 수용** — "analysis replay 계약 테스트 순환 검증": 실제 `AnalysisWorker` 완료 경로를 통과시키도록 테스트 보강.
+
+## Codex 설계 비판 처리 기록 (2026-07-20)
+
+- **수용 ①②(blocker/major)**: 검증형 response_model 폐기 → 전 라우트 문서화 전용 + CI 계약 테스트로 전환 (사용자 결정).
+- **수용 ③**: SceneSummary 중첩(observation/anomalies)은 raw 유지, 게이트웨이 전용 모델 정의 (사용자 결정).
+- **수용 ④⑤⑥⑦⑧⑨⑩**: user_id 유입 금지, 매트릭스 가드·스펙 동등성 테스트·fake settings 패턴, required 의미 정확화 + 프론트 소폭 수정 허용, 이름 충돌 회피, 200/202 모델 분리 (일괄 반영, 사용자 승인).
+- **기각 (부분)**: ②의 "저장·반환 전 런타임 TypeAdapter 검증" 제안 — 런타임 경로 변경이라 문서화 전용 결정과 충돌, 검증은 CI 계약 테스트로 대체.
 
 ## 미결 사항
 
-- Google Console 승인된 JavaScript 원본에 `http://localhost:3000` 등록 여부 — 코드 밖
-  운영 작업. 미등록이면 로컬에서 Google 버튼이 뜨되 로그인 시도가 실패한다 (기능 자체는
-  development 폼으로 대체 가능하므로 블로커 아님).
+- 오류 응답 envelope(`{"detail": string}`)의 스펙 문서화 — 후속 PR.
+- 멱등 replay의 legacy cache 방어 (후속 PR): `external_operations.response_payload`가 null/구형인 succeeded row는 `200 {}` 또는 구형 payload를 무검증 반환한다. operation kind별 모델로 cached payload를 반환 전 검증할지, 기존 row 감사·backfill할지는 별도 결정 필요 (이번 PR은 런타임 무변경 원칙으로 제외).
+
+## 검증 명령
+
+- 백엔드: `cd apps/api && uv run pytest`
+- 스펙 재생성: `cd apps/api && uv run python -c "import json; from acting_api.app import create_app; json.dump(create_app().openapi(), open('spec/openapi.json','w'), ensure_ascii=False, indent=2)"` (env 요구 시 계약 테스트와 동일한 fake settings 경로 사용)
+- 웹: `pnpm --filter web generate:v2-schema` → `pnpm lint` · `pnpm typecheck` · `pnpm --filter web test` · `pnpm build`
+- 수동 확인: dev 서버 기동 후 `http://localhost:8000/docs`에서 응답 스키마 표시 확인.

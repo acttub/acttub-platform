@@ -249,6 +249,48 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** ActingReport */
+        ActingReport: {
+            /** Headline */
+            headline: string;
+            biggest_problem: components["schemas"]["BiggestProblem"];
+            /** Evidence */
+            evidence: string;
+            /** Self Discovery */
+            self_discovery: string;
+            /** Encouragement */
+            encouragement: string;
+            /** Next Step */
+            next_step: string;
+            /** Comparison */
+            comparison: string;
+        };
+        /** AuthUser */
+        AuthUser: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Email */
+            email: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "active" | "suspended";
+        };
+        /** BiggestProblem */
+        BiggestProblem: {
+            /** Start */
+            start: string;
+            /** End */
+            end: string;
+            /** Dimension */
+            dimension: string;
+            /** Description */
+            description: string;
+        };
         /** CoachReplyReq */
         CoachReplyReq: {
             /**
@@ -267,21 +309,125 @@ export interface components {
              */
             summary_id: string;
         };
+        /** CoachTurn */
+        CoachTurn: {
+            /**
+             * Role
+             * @enum {string}
+             */
+            role: "ai" | "actor";
+            /** Text */
+            text: string;
+        };
+        /** CoachTurnResponse */
+        CoachTurnResponse: {
+            /**
+             * Session Id
+             * Format: uuid
+             */
+            session_id: string;
+            /**
+             * Action
+             * @enum {string}
+             */
+            action: "probe_intent" | "dig_cause" | "deflect" | "close";
+            /** Utterance */
+            utterance: string;
+            /** Focus Timestamp */
+            focus_timestamp: string;
+            /** Done */
+            done: boolean;
+            /** Reason */
+            reason: ("gap_stated" | "exhausted" | "limit" | "user_ended") | null;
+        };
         /**
          * ConsentAction
          * @enum {string}
          */
         ConsentAction: "granted" | "declined" | "revoked";
+        /** ConsentDocument */
+        ConsentDocument: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            type: components["schemas"]["ConsentType"];
+            /** Version */
+            version: string;
+            /** Title */
+            title: string;
+            /** Body */
+            body: string;
+            /** Required */
+            required: boolean;
+            /**
+             * Published At
+             * Format: date-time
+             */
+            published_at: string;
+        };
+        /** ConsentDocumentsResponse */
+        ConsentDocumentsResponse: {
+            /** Documents */
+            documents: components["schemas"]["ConsentDocument"][];
+        };
+        /** ConsentEventResponse */
+        ConsentEventResponse: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Document Id
+             * Format: uuid
+             */
+            document_id: string;
+            action: components["schemas"]["ConsentAction"];
+            /**
+             * Occurred At
+             * Format: date-time
+             */
+            occurred_at: string;
+        };
         /** ConsentRequest */
         ConsentRequest: {
             /** Document Id */
             document_id: string;
             action: components["schemas"]["ConsentAction"];
         };
+        /**
+         * ConsentType
+         * @enum {string}
+         */
+        ConsentType: "terms" | "privacy" | "ai_analysis";
+        /** CreateReportResponse */
+        CreateReportResponse: {
+            report: components["schemas"]["ActingReport"];
+            /** Report Count */
+            report_count: number;
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
+        };
+        /** HealthResponse */
+        HealthResponse: {
+            /**
+             * Status
+             * @constant
+             */
+            status: "ok";
+            /** Services */
+            services: string[];
+            /** Model */
+            model: string;
+            /** Keep Alive */
+            keep_alive: boolean;
+            /** Commit */
+            commit: string;
         };
         /** LoginRequest */
         LoginRequest: {
@@ -294,6 +440,102 @@ export interface components {
         LogoutRequest: {
             /** Refresh Token */
             refresh_token: string;
+        };
+        /** PracticeSessionAcceptedResponse */
+        PracticeSessionAcceptedResponse: {
+            /**
+             * Session Id
+             * Format: uuid
+             */
+            session_id: string;
+            /**
+             * Status
+             * @constant
+             */
+            status: "analyzing";
+        };
+        /** PracticeSessionCreateResponse */
+        PracticeSessionCreateResponse: {
+            /**
+             * Session Id
+             * Format: uuid
+             */
+            session_id: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "created" | "analyzing" | "analyzed" | "failed";
+            /** Summary Id */
+            summary_id?: string | null;
+        };
+        /** PracticeSessionDetail */
+        PracticeSessionDetail: {
+            /**
+             * Session Id
+             * Format: uuid
+             */
+            session_id: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "created" | "analyzing" | "analyzed" | "failed";
+            /** Situation */
+            situation: string;
+            /** Character Context */
+            character_context: string;
+            /** Subtext */
+            subtext: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** Playback Url */
+            playback_url: string;
+            summary?: components["schemas"]["SceneSummary"] | null;
+            /** Error Code */
+            error_code?: ("gemini_timeout" | "gemini_parse_error" | "unsupported_media" | "max_attempts_exceeded") | null;
+        };
+        /** PracticeSessionListItem */
+        PracticeSessionListItem: {
+            /**
+             * Session Id
+             * Format: uuid
+             */
+            session_id: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "created" | "analyzing" | "analyzed" | "failed";
+            /** Situation */
+            situation: string;
+            /** Character Context */
+            character_context: string;
+            /** Subtext */
+            subtext: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /** PracticeSessionListResponse */
+        PracticeSessionListResponse: {
+            /** Sessions */
+            sessions: components["schemas"]["PracticeSessionListItem"][];
         };
         /** PracticeSessionRequest */
         PracticeSessionRequest: {
@@ -314,6 +556,40 @@ export interface components {
             /** Refresh Token */
             refresh_token: string;
         };
+        /** RefreshTokenResponse */
+        RefreshTokenResponse: {
+            /** Access Token */
+            access_token: string;
+            /** Refresh Token */
+            refresh_token: string;
+            /** Token Type */
+            token_type: string;
+            /** Expires In */
+            expires_in: number;
+        };
+        /** ReportHistoryResponse */
+        ReportHistoryResponse: {
+            /** Count */
+            count: number;
+            /** Reports */
+            reports: components["schemas"]["ReportRecord"][];
+        };
+        /** ReportRecord */
+        ReportRecord: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Session Id
+             * Format: uuid
+             */
+            session_id: string;
+            report: components["schemas"]["ActingReport"];
+            /** Turns */
+            turns: components["schemas"]["CoachTurn"][];
+        };
         /** ReportReq */
         ReportReq: {
             /**
@@ -321,6 +597,59 @@ export interface components {
              * Format: uuid
              */
             session_id: string;
+        };
+        /** SceneSummary */
+        SceneSummary: {
+            /**
+             * Summary Id
+             * Format: uuid
+             */
+            summary_id: string;
+            /** Observation */
+            observation?: {
+                [key: string]: unknown;
+            } | null;
+            /** Summary */
+            summary?: string | null;
+            /** Intent Alignment */
+            intent_alignment?: string | null;
+            /** Key Moment */
+            key_moment?: string | null;
+            /** Key Dimension */
+            key_dimension?: string | null;
+            /** Anomalies */
+            anomalies?: {
+                [key: string]: unknown;
+            }[] | null;
+        } & {
+            [key: string]: unknown;
+        };
+        /** TokenPairResponse */
+        TokenPairResponse: {
+            /** Access Token */
+            access_token: string;
+            /** Refresh Token */
+            refresh_token: string;
+            /** Token Type */
+            token_type: string;
+            /** Expires In */
+            expires_in: number;
+            user: components["schemas"]["AuthUser"];
+            /** Pending Consents */
+            pending_consents: components["schemas"]["ConsentDocument"][];
+        };
+        /** UploadCompleteResponse */
+        UploadCompleteResponse: {
+            /**
+             * Intent Id
+             * Format: uuid
+             */
+            intent_id: string;
+            /**
+             * Status
+             * @constant
+             */
+            status: "finalized";
         };
         /** UploadIntentRequest */
         UploadIntentRequest: {
@@ -330,6 +659,21 @@ export interface components {
             size_bytes: number;
             /** Duration Ms */
             duration_ms?: number | null;
+        };
+        /** UploadIntentResponse */
+        UploadIntentResponse: {
+            /**
+             * Intent Id
+             * Format: uuid
+             */
+            intent_id: string;
+            /** Upload Url */
+            upload_url: string;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
         };
         /** ValidationError */
         ValidationError: {
@@ -368,7 +712,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["HealthResponse"];
                 };
             };
         };
@@ -392,7 +736,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["TokenPairResponse"];
                 };
             };
             /** @description Validation Error */
@@ -425,7 +769,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["RefreshTokenResponse"];
                 };
             };
             /** @description Validation Error */
@@ -452,7 +796,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful Response */
+            /** @description No Content */
             204: {
                 headers: {
                     [name: string]: unknown;
@@ -485,7 +829,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["ConsentDocumentsResponse"];
                 };
             };
         };
@@ -509,7 +853,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["ConsentEventResponse"];
                 };
             };
             /** @description Validation Error */
@@ -542,7 +886,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["UploadIntentResponse"];
                 };
             };
             /** @description Validation Error */
@@ -573,7 +917,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["UploadCompleteResponse"];
                 };
             };
             /** @description Validation Error */
@@ -602,7 +946,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["PracticeSessionListResponse"];
                 };
             };
         };
@@ -628,7 +972,16 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["PracticeSessionCreateResponse"];
+                };
+            };
+            /** @description Accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PracticeSessionAcceptedResponse"];
                 };
             };
             /** @description Validation Error */
@@ -659,7 +1012,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["PracticeSessionDetail"];
                 };
             };
             /** @description Validation Error */
@@ -684,7 +1037,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful Response */
+            /** @description No Content */
             204: {
                 headers: {
                     [name: string]: unknown;
@@ -721,7 +1074,16 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["PracticeSessionCreateResponse"];
+                };
+            };
+            /** @description Accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PracticeSessionAcceptedResponse"];
                 };
             };
             /** @description Validation Error */
@@ -756,7 +1118,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["CoachTurnResponse"];
                 };
             };
             /** @description Validation Error */
@@ -791,7 +1153,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["CoachTurnResponse"];
                 };
             };
             /** @description Validation Error */
@@ -820,7 +1182,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["ReportHistoryResponse"];
                 };
             };
         };
@@ -846,7 +1208,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["CreateReportResponse"];
                 };
             };
             /** @description Validation Error */

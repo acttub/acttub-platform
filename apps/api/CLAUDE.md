@@ -20,7 +20,7 @@ acting-api 백엔드. uv 파이썬 모노레포 — `acting-api`(FastAPI 게이�
 
 1. 라우터/스키마 수정
 2. 스펙 재생성: `uv run python -c "import json; from acting_api.app import create_app; json.dump(create_app().openapi(), open('spec/openapi.json','w'), ensure_ascii=False, indent=2)"`
-3. `API.md` 갱신 (응답 스키마는 스펙에 없으므로 이 문서가 응답 계약의 소스)
+3. 스펙(`openapi.json`)이 응답 계약의 소스. `API.md`는 사람용 설명·응답 예시 문서로 함께 유지
 4. 웹 타입 재생성: `pnpm --filter web generate:v2-schema` + 프론트 수정
 
 ## 주의

@@ -1,16 +1,72 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from typing import Any, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Response, status
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from starlette.concurrency import run_in_threadpool
 
 from acting_api.sync_operations import parse_request_id, sync_request_fingerprint
 
 PLAYBACK_URL_TTL_SEC = 15 * 60
+
+PracticeSessionStatus = Literal["created", "analyzing", "analyzed", "failed"]
+AnalysisErrorCode = Literal[
+    "gemini_timeout",
+    "gemini_parse_error",
+    "unsupported_media",
+    "max_attempts_exceeded",
+]
+
+
+class _StrictResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+
+class PracticeSessionCreateResponse(_StrictResponse):
+    session_id: UUID
+    status: PracticeSessionStatus
+    summary_id: UUID | None = None
+
+
+class PracticeSessionAcceptedResponse(_StrictResponse):
+    session_id: UUID
+    status: Literal["analyzing"]
+
+
+class PracticeSessionListItem(_StrictResponse):
+    session_id: UUID
+    status: PracticeSessionStatus
+    situation: str
+    character_context: str
+    subtext: str
+    created_at: datetime
+    updated_at: datetime
+
+
+class PracticeSessionListResponse(_StrictResponse):
+    sessions: list[PracticeSessionListItem]
+
+
+class SceneSummary(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    summary_id: UUID
+    observation: dict[str, Any] | None = None
+    summary: str | None = None
+    intent_alignment: str | None = None
+    key_moment: str | None = None
+    key_dimension: str | None = None
+    anomalies: list[dict[str, Any]] | None = None
+
+
+class PracticeSessionDetail(PracticeSessionListItem):
+    playback_url: str
+    summary: SceneSummary | None = None
+    error_code: AnalysisErrorCode | None = None
 
 
 class PracticeSessionRequest(BaseModel):
@@ -60,7 +116,15 @@ def _idempotent_response(result, *, store, user_id: UUID, request_id: UUID):
 def build_router(*, store, storage, rate_limited_user) -> APIRouter:
     router = APIRouter(prefix="/v2/practice-sessions", tags=["v2-practice"])
 
-    @router.post("")
+    @router.post(
+        "",
+        responses={
+            status.HTTP_200_OK: {"model": PracticeSessionCreateResponse},
+            status.HTTP_202_ACCEPTED: {
+                "model": PracticeSessionAcceptedResponse,
+            },
+        },
+    )
     async def create_session(
         payload: PracticeSessionRequest,
         x_request_id: str | None = Header(default=None, alias="X-Request-Id"),
@@ -108,7 +172,10 @@ def build_router(*, store, storage, rate_limited_user) -> APIRouter:
             request_id=request_id,
         )
 
-    @router.get("")
+    @router.get(
+        "",
+        responses={status.HTTP_200_OK: {"model": PracticeSessionListResponse}},
+    )
     async def list_sessions(user=Depends(rate_limited_user)):
         sessions = await run_in_threadpool(store.list_practice_sessions, user.id)
         return {
@@ -126,7 +193,10 @@ def build_router(*, store, storage, rate_limited_user) -> APIRouter:
             ]
         }
 
-    @router.get("/{session_id}")
+    @router.get(
+        "/{session_id}",
+        responses={status.HTTP_200_OK: {"model": PracticeSessionDetail}},
+    )
     async def get_session(session_id: UUID, user=Depends(rate_limited_user)):
         detail = await run_in_threadpool(
             store.get_practice_session_detail,
@@ -164,7 +234,15 @@ def build_router(*, store, storage, rate_limited_user) -> APIRouter:
             )
         return payload
 
-    @router.post("/{session_id}/analyze")
+    @router.post(
+        "/{session_id}/analyze",
+        responses={
+            status.HTTP_200_OK: {"model": PracticeSessionCreateResponse},
+            status.HTTP_202_ACCEPTED: {
+                "model": PracticeSessionAcceptedResponse,
+            },
+        },
+    )
     async def reanalyze_session(
         session_id: UUID,
         x_request_id: str | None = Header(default=None, alias="X-Request-Id"),
@@ -208,7 +286,13 @@ def build_router(*, store, storage, rate_limited_user) -> APIRouter:
             request_id=request_id,
         )
 
-    @router.delete("/{session_id}", status_code=status.HTTP_204_NO_CONTENT)
+    @router.delete(
+        "/{session_id}",
+        status_code=status.HTTP_204_NO_CONTENT,
+        responses={
+            status.HTTP_204_NO_CONTENT: {"description": "No Content"},
+        },
+    )
     async def delete_session(session_id: UUID, user=Depends(rate_limited_user)):
         hidden = await run_in_threadpool(
             store.hide_practice_session,
