@@ -58,7 +58,7 @@ def test_documented_enum_values_are_exact():
         "google",
         "kakao",
         "apple",
-        "dev",
+        "development",
     ]
     assert [item.value for item in ConsentType] == ["terms", "privacy", "ai_analysis"]
     assert [item.value for item in ConsentAction] == [

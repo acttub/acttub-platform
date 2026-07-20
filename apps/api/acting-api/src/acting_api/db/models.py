@@ -17,7 +17,7 @@ class IdentityProvider(str, enum.Enum):
     GOOGLE = "google"
     KAKAO = "kakao"
     APPLE = "apple"
-    DEV = "dev"
+    DEVELOPMENT = "development"
 
 
 class ConsentType(str, enum.Enum):

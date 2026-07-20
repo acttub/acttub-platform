@@ -19,7 +19,7 @@ packages/   공유 패키지 자리
 ```bash
 # 터미널 1
 cd apps/api
-uv run uvicorn acting_api.app:create_app --factory --port 8000
+DEVELOPMENT_AUTH_PROVIDER=1 uv run uvicorn acting_api.app:create_app --factory --port 8000
 
 # 터미널 2 (저장소 루트)
 pnpm dev

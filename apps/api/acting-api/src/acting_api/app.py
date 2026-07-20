@@ -20,7 +20,7 @@ from acting_api.auth.dependencies import (
     build_current_user_dependency,
     build_rate_limited_user_dependency,
 )
-from acting_api.auth.dev import DevProviderVerifier
+from acting_api.auth.development import DevelopmentProviderVerifier
 from acting_api.auth.google import GoogleProviderVerifier
 from acting_api.auth.jwt import JwtService
 from acting_api.auth.providers import ProviderRegistry
@@ -70,8 +70,8 @@ def create_app(
         provider_verifiers = [
             GoogleProviderVerifier(gateway_settings.google_oauth_client_id)
         ]
-        if gateway_settings.dev_auth_provider:
-            provider_verifiers.append(DevProviderVerifier())
+        if gateway_settings.development_auth_provider:
+            provider_verifiers.append(DevelopmentProviderVerifier())
         provider_registry = ProviderRegistry(provider_verifiers)
     current_user = build_current_user_dependency(store, jwt_service)
     rate_limited_user = build_rate_limited_user_dependency(current_user, limiter)

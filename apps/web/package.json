@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev --hostname 127.0.0.1",
     "build": "BUILD_STATIC=1 next build",
     "lint": "eslint",
     "test": "node --test tests/*.test.mjs",

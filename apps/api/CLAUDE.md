@@ -7,14 +7,14 @@ acting-api 백엔드. uv 파이썬 모노레포 — `acting-api`(FastAPI 게이�
 ## 명령어 (이 디렉토리 기준)
 
 - 의존성: `uv sync --frozen --no-dev --package acting-api`
-- 실행: `uv run uvicorn acting_api.app:create_app --factory --host 127.0.0.1 --port 8000`
+- 로컬 실행: `DEVELOPMENT_AUTH_PROVIDER=1 uv run uvicorn acting_api.app:create_app --factory --host 127.0.0.1 --port 8000`
 - 마이그레이션: `cd acting-api && set -a; source .env; set +a && uv run alembic upgrade head`
   (alembic은 `.env`를 스스로 읽지 않으므로 셸로 내보내야 합니다)
 - 테스트: `uv run --package acting-api pytest`
 
 ## .env (필수, 위치 고정)
 
-`acting-api/.env` — config.py가 이 경로를 하드코딩으로 읽습니다. 키: `DATABASE_URL`, `JWT_SECRET`, `GEMINI_API_KEY`, `DEV_AUTH_PROVIDER`(dev 로그인 opt-in), S3 4종(`S3_BUCKET`/`AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY`/`AWS_REGION` — all-or-none, 없으면 업로드 503), `STATIC_DIR`(선택 — 웹 정적 빌드 서빙, 지정 시 디렉토리가 존재해야 기동).
+`acting-api/.env` — config.py가 이 경로를 하드코딩으로 읽습니다. 키: `DATABASE_URL`, `JWT_SECRET`, `GEMINI_API_KEY`, `DEVELOPMENT_AUTH_PROVIDER`(로컬 development 로그인 opt-in), `GOOGLE_OAUTH_CLIENT_ID`(선택 override), S3 4종(`S3_BUCKET`/`AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY`/`AWS_REGION` — all-or-none, 없으면 업로드 503), `STATIC_DIR`(선택 — 웹 정적 빌드 서빙, 지정 시 디렉토리가 존재해야 기동).
 
 ## 계약 변경 절차 (한 PR로)
 

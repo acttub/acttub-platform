@@ -52,14 +52,14 @@ AI 호출을 포함한 쓰기 요청(`/v2/practice-sessions`, `/{id}/analyze`, `
 
 ## POST /v2/auth/login
 
-소셜 로그인. 별도 회원가입 없이 첫 로그인 시 자동으로 계정이 생성됩니다. 1차 지원 provider는 `google`뿐입니다 (카카오·애플은 후속).
+소셜 로그인. 별도 회원가입 없이 첫 로그인 시 자동으로 계정이 생성됩니다. 운영 provider는 `google`이며, 로컬에서는 `DEVELOPMENT_AUTH_PROVIDER=1`일 때만 `development`를 추가로 사용할 수 있습니다 (카카오·애플은 후속).
 
 ### 요청 — JSON
 
 | 필드 | 타입 | 설명 |
 |---|---|---|
-| `provider` | str | `"google"` |
-| `id_token` | str | 구글 OIDC id_token. 서버가 서명·issuer·audience·만료를 검증 |
+| `provider` | str | `"google"` (로컬 opt-in: `"development"`) |
+| `id_token` | str | 구글 OIDC id_token. development provider는 로컬 테스트 토큰(`<uid>` 또는 `<uid>:<email>`) |
 
 ### 처리 규칙
 
@@ -92,7 +92,6 @@ AI 호출을 포함한 쓰기 요청(`/v2/practice-sessions`, `/{id}/analyze`, `
 | 403 | 정지 계정 — `account_suspended` |
 | 409 | 같은 이메일의 기존 계정 + 미검증 이메일 — `account_exists_with_different_provider` |
 | 429 | IP별 한도 초과 |
-| 503 | `GOOGLE_OAUTH_CLIENT_ID` 미설정 — `provider_not_configured` |
 
 ---
 
@@ -314,7 +313,8 @@ S3 업로드 완료 확인. 서버가 S3 HEAD로 객체 존재·크기 일치를
 | `DATABASE_URL` | ✅ | — | PostgreSQL URL (`postgres://`·`postgresql://`는 psycopg3 URL로 정규화). 없으면 기동 실패 |
 | `JWT_SECRET` | ✅ | — | HS256 서명 키. 없으면 기동 실패 |
 | `GEMINI_API_KEY` | ✅ | — | Gemini API 키. 없으면 기동 실패 |
-| `GOOGLE_OAUTH_CLIENT_ID` | 로그인 시 | — | 구글 id_token audience 검증. 미설정 시 로그인 503 |
+| `GOOGLE_OAUTH_CLIENT_ID` | | `462651930952-625pcnhrjib79r7990fqsdqhsterdij2.apps.googleusercontent.com` | 구글 id_token audience 검증용 client ID override |
+| `DEVELOPMENT_AUTH_PROVIDER` | | 비활성 | `1` 또는 `true`일 때만 로컬 테스트용 `development` provider 등록. 프로덕션 활성화 금지 |
 | `S3_BUCKET` / `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` / `AWS_REGION` | 업로드·분석 시 | — | **4개 모두 설정하거나 전부 생략** (일부만이면 기동 실패). 미설정 시 업로드·재생 API 503, 분석 워커 비활성 |
 | `GEMINI_MODEL` | | `gemini-2.5-flash` | 사용 모델 |
 | `COACH_MAX_QUESTIONS` | | `10` | 코치 최대 질문 수 |

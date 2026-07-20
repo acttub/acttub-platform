@@ -3,13 +3,13 @@ from __future__ import annotations
 from acting_api.auth.providers import InvalidIdentityToken, ProviderIdentity
 
 
-class DevProviderVerifier:
-    provider = "dev"
+class DevelopmentProviderVerifier:
+    provider = "development"
 
     def verify(self, id_token: str) -> ProviderIdentity:
         token = id_token.strip()
         if not token:
-            raise InvalidIdentityToken("dev id_token is empty")
+            raise InvalidIdentityToken("development id_token is empty")
 
         if ":" not in token:
             return ProviderIdentity(
