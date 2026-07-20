@@ -70,6 +70,12 @@ pytest 3종을 추가한다. 모두 `test_platform_v2.py`의 fake settings/store
 - acting-agent / acting-summary / acting-report 내부 서비스 라우터 수정.
 - 스코프 밖 리팩터링.
 
+## Codex 최종 관문 처리 기록 (Phase 6, 2026-07-20)
+
+- **코드 리뷰**: 지적 0건 — "응답 모델·실제 payload·OpenAPI 스펙·생성 TS 타입 사이의 불일치 없음".
+- **적대적 리뷰 [high] 기각** — "legacy cache의 `200 {}` 무검증 replay": 사실이나 이번 변경이 만든 위험이 아닌 기존 동작이고, 권고안(cached payload 런타임 strict 검증 + DB 감사/backfill)은 문서화 전용 결정·"런타임 경로 무변경" 스코프 제한과 충돌. 미결 사항에 후속 과제로 기록.
+- **적대적 리뷰 [medium] 수용** — "analysis replay 계약 테스트 순환 검증": 실제 `AnalysisWorker` 완료 경로를 통과시키도록 테스트 보강.
+
 ## Codex 설계 비판 처리 기록 (2026-07-20)
 
 - **수용 ①②(blocker/major)**: 검증형 response_model 폐기 → 전 라우트 문서화 전용 + CI 계약 테스트로 전환 (사용자 결정).
@@ -80,6 +86,7 @@ pytest 3종을 추가한다. 모두 `test_platform_v2.py`의 fake settings/store
 ## 미결 사항
 
 - 오류 응답 envelope(`{"detail": string}`)의 스펙 문서화 — 후속 PR.
+- 멱등 replay의 legacy cache 방어 (후속 PR): `external_operations.response_payload`가 null/구형인 succeeded row는 `200 {}` 또는 구형 payload를 무검증 반환한다. operation kind별 모델로 cached payload를 반환 전 검증할지, 기존 row 감사·backfill할지는 별도 결정 필요 (이번 PR은 런타임 무변경 원칙으로 제외).
 
 ## 검증 명령
 

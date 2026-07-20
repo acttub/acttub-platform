@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
 from uuid import UUID, uuid4
@@ -12,6 +11,7 @@ from pydantic import BaseModel, TypeAdapter
 from acting_agent.config import Settings as AgentSettings
 from acting_api import app as app_module
 from acting_api import coaching, consents, practice_sessions, reports, uploads
+from acting_api.analysis_worker import AnalysisResult, AnalysisWorker
 from acting_api.app import create_app
 from acting_api.auth import router as auth_router
 from acting_api.auth.providers import ProviderRegistry
@@ -430,24 +430,31 @@ def test_declared_response_models_validate_real_success_payloads_and_replays():
 
     session_id = UUID(accepted.json()["session_id"])
     session = store.sessions[session_id]
+    analysis_worker = AnalysisWorker(
+        store=store,
+        storage=app.state.s3_storage,
+        analyzer=SimpleNamespace(
+            analyze=lambda _video_path, _session: AnalysisResult(
+                summary=SUMMARY,
+                was_compressed=False,
+            )
+        ),
+        model="summary-model",
+    )
+    assert analysis_worker.run_once() is True
+
     operation = store.get_external_operation(
         user_id=session.user_id,
         request_id=session_request_id,
     )
-    summary_id = uuid4()
-    session.status = PracticeStatus.ANALYZED
-    operation.status = OperationStatus.SUCCEEDED
-    operation.response_payload = {
-        "session_id": str(session_id),
-        "status": "analyzed",
-        "summary_id": str(summary_id),
-    }
-    store.summaries[summary_id] = SimpleNamespace(
-        id=summary_id,
-        session_id=session_id,
-        raw=SUMMARY.model_dump(mode="json"),
-        created_at=datetime.now(timezone.utc),
-    )
+    assert session.status == PracticeStatus.ANALYZED
+    assert operation.status == OperationStatus.SUCCEEDED
+    assert operation.attempt_count == 1
+    persisted_payload = operation.response_payload
+    assert persisted_payload is not None
+    summary_id = UUID(persisted_payload["summary_id"])
+    assert summary_id in store.summaries
+
     succeeded_replay = client.post(
         "/v2/practice-sessions",
         json=session_body,
@@ -458,6 +465,18 @@ def test_declared_response_models_validate_real_success_payloads_and_replays():
         200,
         models["PracticeSessionCreateResponse"],
     )
+    assert succeeded_replay.json() == persisted_payload
+    second_succeeded_replay = client.post(
+        "/v2/practice-sessions",
+        json=session_body,
+        headers=session_headers,
+    )
+    _assert_contract(
+        second_succeeded_replay,
+        200,
+        models["PracticeSessionCreateResponse"],
+    )
+    assert second_succeeded_replay.content == succeeded_replay.content
 
     listed = client.get("/v2/practice-sessions", headers=headers)
     _assert_contract(listed, 200, models["PracticeSessionListResponse"])
