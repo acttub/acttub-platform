@@ -5,9 +5,13 @@ import { FormEvent, Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ApiError } from "../../lib/api/v2/errors";
 import { renderGoogleLoginButton } from "../../lib/auth/google-gis";
-import { getLoginProvider, loginWith } from "../../lib/auth/providers";
+import {
+  developmentProvider,
+  googleProvider,
+  loginWith,
+} from "../../lib/auth/providers";
 import { sanitizeNextPath } from "../../lib/auth/next-path";
-import { AUTH_PROVIDER, GOOGLE_CLIENT_ID } from "../../lib/config/env";
+import { GOOGLE_CLIENT_ID } from "../../lib/config/env";
 import {
   clearPendingConsents,
   savePendingConsents,
@@ -33,19 +37,21 @@ function loginErrorMessage(error: unknown): string {
 
 function GoogleLoginButton({
   onCredential,
+  onLoadError,
 }: {
   onCredential: (credential: string) => void;
+  onLoadError: () => void;
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const [loadFailed, setLoadFailed] = useState(false);
   // GIS callback은 initialize 시점의 클로저를 계속 쓰므로 ref로 최신 핸들러를 참조한다.
   const onCredentialRef = useRef(onCredential);
+  const onLoadErrorRef = useRef(onLoadError);
   useEffect(() => {
     onCredentialRef.current = onCredential;
+    onLoadErrorRef.current = onLoadError;
   });
 
   useEffect(() => {
-    if (!GOOGLE_CLIENT_ID) return;
     const container = containerRef.current;
     if (!container) return;
 
@@ -59,7 +65,7 @@ function GoogleLoginButton({
           if (!cancelled) onCredentialRef.current(credential);
         },
       }).catch(() => {
-        if (!cancelled) setLoadFailed(true);
+        if (!cancelled) onLoadErrorRef.current();
       });
 
     // ResizeObserver는 observe 직후 1회 발화하므로 초기 렌더도 이 경로로 처리하고,
@@ -81,28 +87,6 @@ function GoogleLoginButton({
       container.replaceChildren();
     };
   }, []);
-
-  if (!GOOGLE_CLIENT_ID) {
-    return (
-      <p
-        role="alert"
-        className="rounded-2xl bg-[#fff0f0] px-4 py-3 text-sm font-bold text-[#e42939]"
-      >
-        Google 로그인 설정이 필요해요
-      </p>
-    );
-  }
-
-  if (loadFailed) {
-    return (
-      <p
-        role="alert"
-        className="rounded-2xl bg-[#fff0f0] px-4 py-3 text-sm font-bold text-[#e42939]"
-      >
-        Google 로그인을 불러오지 못했어요. 새로고침 후 다시 시도해 주세요
-      </p>
-    );
-  }
 
   return (
     <div
@@ -128,17 +112,13 @@ function LoginForm() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  async function submitLogin(input: {
-    uid?: string;
-    email?: string;
-    credential?: string;
-  }) {
+  async function submitLogin(request: () => ReturnType<typeof loginWith>) {
     if (isSubmitting) return;
 
     setErrorMessage(null);
     setIsSubmitting(true);
     try {
-      const result = await loginWith(getLoginProvider(), input);
+      const result = await request();
       if (result.pending_consents.length > 0) {
         savePendingConsents(result.pending_consents);
         router.replace(`/terms?next=${encodeURIComponent(nextPath)}`);
@@ -156,7 +136,7 @@ function LoginForm() {
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    await submitLogin({ uid, email });
+    await submitLogin(() => loginWith(developmentProvider, { uid, email }));
   }
 
   return (
@@ -174,70 +154,75 @@ function LoginForm() {
           영상과 장면 맥락을 안전하게 보관하고, 질문과 연습 노트를 이어서 볼 수 있어요.
         </p>
 
-        {AUTH_PROVIDER === "google" ? (
-          <div className="mt-9 space-y-5">
-            <GoogleLoginButton
-              onCredential={(credential) => void submitLogin({ credential })}
-            />
-            {isSubmitting ? (
-              <p className="text-center text-sm font-bold text-[#6b7684]">
-                로그인 중...
-              </p>
-            ) : null}
-            {errorMessage || noticeMessage ? (
-              <p
-                role="alert"
-                className="rounded-2xl bg-[#fff0f0] px-4 py-3 text-sm font-bold text-[#e42939]"
-              >
-                {errorMessage ?? noticeMessage}
-              </p>
-            ) : null}
-          </div>
-        ) : (
-          <form className="mt-9 space-y-5" onSubmit={handleSubmit}>
-            <label className="block">
-              <span className="text-sm font-black text-[#333d4b]">사용자 ID</span>
-              <input
-                required
-                value={uid}
-                onChange={(event) => setUid(event.target.value)}
-                placeholder="연습용 ID를 입력해 주세요"
-                autoComplete="username"
-                className="mt-2 h-14 w-full rounded-2xl border border-[#e5e8eb] bg-[#f9fafb] px-4 text-base font-bold outline-none transition placeholder:text-[#b0b8c1] focus:border-[#3182f6] focus:bg-white focus:ring-4 focus:ring-[#e8f3ff]"
-              />
-            </label>
-            <label className="block">
-              <span className="text-sm font-black text-[#333d4b]">
-                이메일 <span className="text-[#8b95a1]">(선택)</span>
-              </span>
-              <input
-                type="email"
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
-                placeholder="actor@example.com"
-                autoComplete="email"
-                className="mt-2 h-14 w-full rounded-2xl border border-[#e5e8eb] bg-[#f9fafb] px-4 text-base font-bold outline-none transition placeholder:text-[#b0b8c1] focus:border-[#3182f6] focus:bg-white focus:ring-4 focus:ring-[#e8f3ff]"
-              />
-            </label>
+        <div className="mt-9 space-y-5">
+          <GoogleLoginButton
+            onCredential={(credential) =>
+              void submitLogin(() => loginWith(googleProvider, { credential }))
+            }
+            onLoadError={() =>
+              setErrorMessage(
+                "Google 로그인을 불러오지 못했어요. 새로고침 후 다시 시도해 주세요",
+              )
+            }
+          />
 
-            {errorMessage || noticeMessage ? (
-              <p
-                role="alert"
-                className="rounded-2xl bg-[#fff0f0] px-4 py-3 text-sm font-bold text-[#e42939]"
-              >
-                {errorMessage ?? noticeMessage}
-              </p>
-            ) : null}
-
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="flex h-14 w-full items-center justify-center rounded-2xl bg-[#3182f6] text-base font-black text-white shadow-[0_12px_30px_rgba(49,130,246,0.25)] transition hover:bg-[#1b64da] disabled:cursor-wait disabled:bg-[#8fbffa]"
+          {process.env.NODE_ENV === "development" ? (
+            <form
+              className="space-y-5 rounded-3xl border border-[#e5e8eb] bg-[#f9fafb] p-5"
+              onSubmit={handleSubmit}
             >
-              {isSubmitting ? "로그인 중..." : "로그인"}
-            </button>
-          </form>
-        )}
+              <p className="text-sm font-black text-[#6b7684]">
+                개발용 테스트 로그인을 사용해요
+              </p>
+              <label className="block">
+                <span className="text-sm font-black text-[#333d4b]">사용자 ID</span>
+                <input
+                  required
+                  value={uid}
+                  onChange={(event) => setUid(event.target.value)}
+                  placeholder="연습용 ID를 입력해 주세요"
+                  autoComplete="username"
+                  className="mt-2 h-14 w-full rounded-2xl border border-[#e5e8eb] bg-white px-4 text-base font-bold outline-none transition placeholder:text-[#b0b8c1] focus:border-[#3182f6] focus:ring-4 focus:ring-[#e8f3ff]"
+                />
+              </label>
+              <label className="block">
+                <span className="text-sm font-black text-[#333d4b]">
+                  이메일 <span className="text-[#8b95a1]">(선택)</span>
+                </span>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                  placeholder="actor@example.com"
+                  autoComplete="email"
+                  className="mt-2 h-14 w-full rounded-2xl border border-[#e5e8eb] bg-white px-4 text-base font-bold outline-none transition placeholder:text-[#b0b8c1] focus:border-[#3182f6] focus:ring-4 focus:ring-[#e8f3ff]"
+                />
+              </label>
+
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="flex h-14 w-full items-center justify-center rounded-2xl bg-[#3182f6] text-base font-black text-white shadow-[0_12px_30px_rgba(49,130,246,0.25)] transition hover:bg-[#1b64da] disabled:cursor-wait disabled:bg-[#8fbffa]"
+              >
+                개발용 로그인
+              </button>
+            </form>
+          ) : null}
+
+          {isSubmitting ? (
+            <p className="text-center text-sm font-bold text-[#6b7684]">
+              로그인 중...
+            </p>
+          ) : null}
+          {errorMessage || noticeMessage ? (
+            <p
+              role="alert"
+              className="rounded-2xl bg-[#fff0f0] px-4 py-3 text-sm font-bold text-[#e42939]"
+            >
+              {errorMessage ?? noticeMessage}
+            </p>
+          ) : null}
+        </div>
 
         <p className="mt-7 text-center text-xs font-semibold leading-5 text-[#8b95a1]">
           로그인하면 Acttub의 이용약관과 개인정보 처리 원칙을 확인할 수 있어요.

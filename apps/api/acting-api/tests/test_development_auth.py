@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+import importlib
+
 import pytest
 from fastapi.testclient import TestClient
 
 from acting_agent.config import Settings as AgentSettings
 from acting_api.app import create_app
-from acting_api.auth.dev import DevProviderVerifier
 from acting_api.auth.providers import InvalidIdentityToken
 from acting_api.config import GatewaySettings
 from acting_report.config import Settings as ReportSettings
@@ -14,14 +15,22 @@ from api_test_support import FakeClient
 from auth_test_support import FakeAuthStore
 
 
+def _verifier():
+    try:
+        module = importlib.import_module("acting_api.auth.development")
+    except ModuleNotFoundError:
+        pytest.fail("acting_api.auth.development is missing")
+    return module.DevelopmentProviderVerifier()
+
+
 def _app(*, enabled: bool, store: FakeAuthStore | None = None):
     store = store or FakeAuthStore()
     app = create_app(
         client=FakeClient(),
         gateway_settings=GatewaySettings(
             database_url="postgresql+psycopg://unused/unused",
-            jwt_secret="dev-auth-test-secret",
-            dev_auth_provider=enabled,
+            jwt_secret="development-auth-test-secret",
+            development_auth_provider=enabled,
         ),
         summary_settings=SummarySettings(api_key="k", model="m"),
         agent_settings=AgentSettings(api_key="k", model="m"),
@@ -31,16 +40,16 @@ def _app(*, enabled: bool, store: FakeAuthStore | None = None):
     return app, store
 
 
-def test_dev_verifier_uses_token_as_uid_without_email():
-    identity = DevProviderVerifier().verify("local-user")
+def test_development_verifier_uses_token_as_uid_without_email():
+    identity = _verifier().verify("local-user")
 
     assert identity.provider_uid == "local-user"
     assert identity.email is None
     assert identity.email_verified is False
 
 
-def test_dev_verifier_parses_verified_email_form():
-    identity = DevProviderVerifier().verify("local-user:actor@example.com")
+def test_development_verifier_parses_verified_email_form():
+    identity = _verifier().verify("local-user:actor@example.com")
 
     assert identity.provider_uid == "local-user"
     assert identity.email == "actor@example.com"
@@ -48,13 +57,25 @@ def test_dev_verifier_parses_verified_email_form():
 
 
 @pytest.mark.parametrize("token", ["", "   "])
-def test_dev_verifier_rejects_empty_or_whitespace_token(token):
+def test_development_verifier_rejects_empty_or_whitespace_token(token):
     with pytest.raises(InvalidIdentityToken):
-        DevProviderVerifier().verify(token)
+        _verifier().verify(token)
 
 
-def test_dev_provider_is_unsupported_when_flag_is_off():
+def test_development_provider_is_unsupported_when_flag_is_off():
     app, _ = _app(enabled=False)
+
+    response = TestClient(app).post(
+        "/v2/auth/login",
+        json={"provider": "development", "id_token": "local-user"},
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "unsupported_provider"
+
+
+def test_legacy_dev_provider_is_unsupported_when_flag_is_on():
+    app, _ = _app(enabled=True)
 
     response = TestClient(app).post(
         "/v2/auth/login",
@@ -65,7 +86,7 @@ def test_dev_provider_is_unsupported_when_flag_is_off():
     assert response.json()["detail"] == "unsupported_provider"
 
 
-def test_dev_login_signs_up_and_accesses_protected_endpoint_when_enabled():
+def test_development_login_signs_up_and_accesses_protected_endpoint_when_enabled():
     app, store = _app(enabled=True)
     document = store.publish_consent_document(
         type="terms",
@@ -78,7 +99,7 @@ def test_dev_login_signs_up_and_accesses_protected_endpoint_when_enabled():
 
     login = client.post(
         "/v2/auth/login",
-        json={"provider": "dev", "id_token": "local-user"},
+        json={"provider": "development", "id_token": "local-user"},
     )
     assert login.status_code == 200
     access_token = login.json()["access_token"]
@@ -91,10 +112,10 @@ def test_dev_login_signs_up_and_accesses_protected_endpoint_when_enabled():
     assert login.json()["user"]["email"] is None
     assert login.json()["pending_consents"][0]["id"] == str(document.id)
     assert consent.status_code == 201
-    assert store.get_user_by_identity("dev", "local-user") is not None
+    assert store.get_user_by_identity("development", "local-user") is not None
 
 
-def test_dev_verified_email_login_links_existing_account():
+def test_development_verified_email_login_links_existing_account():
     store = FakeAuthStore()
     existing = store.create_user(email="actor@example.com")
     app, _ = _app(enabled=True, store=store)
@@ -102,12 +123,12 @@ def test_dev_verified_email_login_links_existing_account():
     response = TestClient(app).post(
         "/v2/auth/login",
         json={
-            "provider": "dev",
+            "provider": "development",
             "id_token": "local-user:ACTOR@example.com",
         },
     )
 
     assert response.status_code == 200
     assert response.json()["user"]["id"] == str(existing.id)
-    assert store.get_user_by_identity("dev", "local-user") is existing
+    assert store.get_user_by_identity("development", "local-user") is existing
     assert len(store.users) == 1

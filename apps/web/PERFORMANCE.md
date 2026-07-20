@@ -51,7 +51,8 @@ TBT는 반복 가능한 실험실 진단 지표이며, 필드 전용 지표인 I
 - `/terms`
 
 `/home`, `/practice/new`, `/practice/history` 같은 보호 화면은 인증되지 않으면
-`/login`으로 이동하며 기본 로그인 provider는 `dev`입니다. 인증 토큰은
+`/login`으로 이동하며 Google 로그인이 항상 표시되고, `next dev`에서만 development
+테스트 폼이 함께 표시됩니다. 인증 토큰은
 `localStorage`에 저장되므로 쿠키만 설정해서는 인증 상태를 재현할 수 없습니다.
 `/terms`는 API가 제공하는 약관 상태에 의존합니다. 이 경로들은 결정적인 테스트 계정,
 `localStorage` 토큰 주입, 안정적인 API 픽스처가 마련된 뒤 별도 시나리오로 추가합니다.

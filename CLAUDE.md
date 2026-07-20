@@ -12,7 +12,7 @@ Acttub 플랫폼 모노레포. JS(pnpm)와 Python(uv)이 공존합니다.
 
 ## 실행·검증 명령
 
-- 개발 루프: 터미널1 `cd apps/api && uv run uvicorn acting_api.app:create_app --factory --port 8000` + 터미널2 `pnpm dev`(:3000). dev 서버가 `/v2/*`·`/health`를 8000으로 프록시하므로 CORS가 필요 없습니다.
+- 개발 루프: 터미널1 `cd apps/api && DEVELOPMENT_AUTH_PROVIDER=1 uv run uvicorn acting_api.app:create_app --factory --port 8000` + 터미널2 `pnpm dev`(:3000). dev 서버가 `/v2/*`·`/health`를 8000으로 프록시하므로 CORS가 필요 없습니다.
 - 웹 검증: `pnpm lint` · `pnpm typecheck` · `pnpm --filter web test` · `pnpm build`(→ `apps/web/out/`)
 - 운영 형태: FastAPI 단일 프로세스가 `STATIC_DIR=<...>/apps/web/out`으로 정적 파일과 API를 같은 오리진에서 서빙합니다 (nginx·Vercel 없음).
 

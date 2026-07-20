@@ -10,38 +10,55 @@ def test_gateway_settings_fail_fast_when_jwt_secret_is_missing(monkeypatch, tmp_
         load_gateway_settings(tmp_path / "missing.env")
 
 
-def test_google_client_id_is_optional_at_boot(monkeypatch, tmp_path):
+def test_google_client_id_uses_code_default(monkeypatch, tmp_path):
     monkeypatch.setenv("DATABASE_URL", "postgresql://user:pass@db.example/acting")
     monkeypatch.setenv("JWT_SECRET", "secret")
     monkeypatch.delenv("GOOGLE_OAUTH_CLIENT_ID", raising=False)
     settings = load_gateway_settings(tmp_path / "missing.env")
     assert settings.jwt_secret == "secret"
-    assert settings.google_oauth_client_id is None
+    assert settings.google_oauth_client_id == (
+        "462651930952-625pcnhrjib79r7990fqsdqhsterdij2."
+        "apps.googleusercontent.com"
+    )
+
+
+def test_google_client_id_env_overrides_code_default(monkeypatch, tmp_path):
+    monkeypatch.setenv("DATABASE_URL", "postgresql://user:pass@db.example/acting")
+    monkeypatch.setenv("JWT_SECRET", "secret")
+    monkeypatch.setenv("GOOGLE_OAUTH_CLIENT_ID", "override-client-id")
+
+    settings = load_gateway_settings(tmp_path / "missing.env")
+
+    assert settings.google_oauth_client_id == "override-client-id"
 
 
 @pytest.mark.parametrize("value", ["1", "true", "TRUE", " true "])
-def test_dev_auth_provider_truthy_values_enable_flag(monkeypatch, tmp_path, value):
+def test_development_auth_provider_truthy_values_enable_flag(
+    monkeypatch, tmp_path, value
+):
     monkeypatch.setenv("DATABASE_URL", "postgresql://user:pass@db.example/acting")
     monkeypatch.setenv("JWT_SECRET", "secret")
-    monkeypatch.setenv("DEV_AUTH_PROVIDER", value)
+    monkeypatch.setenv("DEVELOPMENT_AUTH_PROVIDER", value)
 
     settings = load_gateway_settings(tmp_path / "missing.env")
 
-    assert settings.dev_auth_provider is True
+    assert settings.development_auth_provider is True
 
 
 @pytest.mark.parametrize("value", [None, "0", "false", "yes"])
-def test_dev_auth_provider_is_disabled_by_default(monkeypatch, tmp_path, value):
+def test_development_auth_provider_is_disabled_by_default(
+    monkeypatch, tmp_path, value
+):
     monkeypatch.setenv("DATABASE_URL", "postgresql://user:pass@db.example/acting")
     monkeypatch.setenv("JWT_SECRET", "secret")
     if value is None:
-        monkeypatch.delenv("DEV_AUTH_PROVIDER", raising=False)
+        monkeypatch.delenv("DEVELOPMENT_AUTH_PROVIDER", raising=False)
     else:
-        monkeypatch.setenv("DEV_AUTH_PROVIDER", value)
+        monkeypatch.setenv("DEVELOPMENT_AUTH_PROVIDER", value)
 
     settings = load_gateway_settings(tmp_path / "missing.env")
 
-    assert settings.dev_auth_provider is False
+    assert settings.development_auth_provider is False
 
 
 def test_default_analysis_lease_covers_download_compression_and_gemini_wait(

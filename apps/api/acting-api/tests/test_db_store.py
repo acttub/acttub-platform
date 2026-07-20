@@ -49,7 +49,7 @@ EXPECTED_TABLES = {
 
 
 @pytest.fixture
-def postgres_store(monkeypatch):
+def postgres_schema(monkeypatch):
     if os.environ.get("RUN_DB_TESTS") != "1":
         pytest.skip("set RUN_DB_TESTS=1 to run PostgreSQL integration tests")
     database_url = os.environ.get("TEST_DATABASE_URL") or os.environ.get("DATABASE_URL")
@@ -67,16 +67,26 @@ def postgres_store(monkeypatch):
     scoped_url = scoped.render_as_string(hide_password=False)
     monkeypatch.setenv("DATABASE_URL", scoped_url)
     project_dir = Path(__file__).resolve().parents[1]
-    command.upgrade(Config(str(project_dir / "alembic.ini")), "head")
+    alembic_config = Config(str(project_dir / "alembic.ini"))
+
+    try:
+        yield scoped_url, alembic_config
+    finally:
+        with admin_engine.begin() as connection:
+            connection.execute(text(f'DROP SCHEMA "{schema}" CASCADE'))
+        admin_engine.dispose()
+
+
+@pytest.fixture
+def postgres_store(postgres_schema):
+    scoped_url, alembic_config = postgres_schema
+    command.upgrade(alembic_config, "head")
 
     store = PostgresStore.from_url(scoped_url)
     try:
         yield store
     finally:
         store.close()
-        with admin_engine.begin() as connection:
-            connection.execute(text(f'DROP SCHEMA "{schema}" CASCADE'))
-        admin_engine.dispose()
 
 
 def test_empty_schema_upgrade_creates_exact_v2_schema(postgres_store):
@@ -110,20 +120,59 @@ def test_empty_schema_upgrade_creates_exact_v2_schema(postgres_store):
     } <= enum_names
 
 
-def test_dev_identity_provider_is_persisted_after_migration(postgres_store):
-    user = postgres_store.create_user(email="dev-actor@example.com")
+def test_development_identity_provider_is_persisted_after_migration(postgres_store):
+    user = postgres_store.create_user(email="development-actor@example.com")
 
     identity = postgres_store.link_user_identity(
         user_id=user.id,
-        provider="dev",
-        provider_uid="local-dev-actor",
+        provider="development",
+        provider_uid="local-development-actor",
     )
 
     assert identity.user_id == user.id
     assert (
-        postgres_store.get_user_by_identity("dev", "local-dev-actor").id
+        postgres_store.get_user_by_identity(
+            "development", "local-development-actor"
+        ).id
         == user.id
     )
+
+
+def test_0003_renames_existing_dev_identity_to_development(postgres_schema):
+    scoped_url, alembic_config = postgres_schema
+    command.upgrade(alembic_config, "0002_add_dev_identity_provider")
+    engine = create_db_engine(scoped_url)
+    try:
+        with engine.begin() as connection:
+            user_id = connection.scalar(
+                text(
+                    "INSERT INTO users (email) VALUES (:email) "
+                    "RETURNING id"
+                ),
+                {"email": "migration-development-actor@example.com"},
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO user_identities "
+                    "(user_id, provider, provider_uid) "
+                    "VALUES (:user_id, 'dev', :provider_uid)"
+                ),
+                {"user_id": user_id, "provider_uid": "migration-local-user"},
+            )
+
+        command.upgrade(alembic_config, "0003_rename_dev_provider")
+
+        with engine.connect() as connection:
+            provider = connection.scalar(
+                text(
+                    "SELECT provider::text FROM user_identities "
+                    "WHERE provider_uid = :provider_uid"
+                ),
+                {"provider_uid": "migration-local-user"},
+            )
+        assert provider == "development"
+    finally:
+        engine.dispose()
 
 
 def test_account_consent_upload_and_practice_lifecycle(postgres_store):

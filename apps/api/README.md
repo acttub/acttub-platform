@@ -14,8 +14,8 @@ uv sync
 # 스키마 적용 (빈 DB → 13테이블)
 DATABASE_URL=postgresql://localhost/acting uv run alembic -c acting-api/alembic.ini upgrade head
 
-# 서버 실행 (acting-api/.env를 읽음)
-uv run uvicorn acting_api.app:create_app --factory --host 127.0.0.1 --port 8000
+# 로컬 서버 실행 (acting-api/.env를 읽고 development 로그인을 opt-in)
+DEVELOPMENT_AUTH_PROVIDER=1 uv run uvicorn acting_api.app:create_app --factory --host 127.0.0.1 --port 8000
 
 # 테스트 (DB 통합 테스트는 opt-in)
 uv run pytest
