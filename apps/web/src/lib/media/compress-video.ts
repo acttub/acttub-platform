@@ -101,7 +101,8 @@ export async function compressVideo(
         throwIfAborted(options.signal);
         const displayHeight = await track.getDisplayHeight();
         throwIfAborted(options.signal);
-        const packetStats = await track.computePacketStats();
+        // 인자를 생략하면 파일 전체 패킷을 스캔하므로 fps 추정에 충분한 표본만 읽는다.
+        const packetStats = await track.computePacketStats(200);
         throwIfAborted(options.signal);
         const frameRate = computeFrameRate(packetStats.averagePacketRate);
 
