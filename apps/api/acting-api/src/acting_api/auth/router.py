@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from typing import Literal
+from uuid import UUID
+
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from sqlalchemy.exc import IntegrityError
 from starlette.concurrency import run_in_threadpool
 
@@ -14,10 +17,36 @@ from acting_api.auth.providers import (
     ProviderRegistry,
     UnsupportedProviderError,
 )
-from acting_api.consents import consent_document_payload
+from acting_api.consents import ConsentDocument, consent_document_payload
 from acting_api.db.store import IdentityAlreadyLinkedError
 from acting_api.ratelimit import RateLimiter
 from acting_api.security import hash_token
+
+
+class _StrictResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+
+class AuthUser(_StrictResponse):
+    id: UUID
+    email: str | None
+    status: Literal["active", "suspended"]
+
+
+class TokenPairResponse(_StrictResponse):
+    access_token: str
+    refresh_token: str
+    token_type: str
+    expires_in: int
+    user: AuthUser
+    pending_consents: list[ConsentDocument]
+
+
+class RefreshTokenResponse(_StrictResponse):
+    access_token: str
+    refresh_token: str
+    token_type: str
+    expires_in: int
 
 
 class LoginRequest(BaseModel):
@@ -116,7 +145,10 @@ def build_router(
         ):
             raise HTTPException(status_code=429, detail="rate limit exceeded")
 
-    @router.post("/login")
+    @router.post(
+        "/login",
+        responses={status.HTTP_200_OK: {"model": TokenPairResponse}},
+    )
     async def login(payload: LoginRequest, request: Request):
         enforce_ip_rate_limit(request)
         provider = payload.provider.strip().lower()
@@ -183,7 +215,10 @@ def build_router(
             device_info=_device_info(request),
         )
 
-    @router.post("/refresh")
+    @router.post(
+        "/refresh",
+        responses={status.HTTP_200_OK: {"model": RefreshTokenResponse}},
+    )
     async def refresh(payload: RefreshRequest, request: Request):
         enforce_ip_rate_limit(request)
         now = datetime.now(timezone.utc)
@@ -221,7 +256,13 @@ def build_router(
             "expires_in": int(ACCESS_TOKEN_TTL.total_seconds()),
         }
 
-    @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
+    @router.post(
+        "/logout",
+        status_code=status.HTTP_204_NO_CONTENT,
+        responses={
+            status.HTTP_204_NO_CONTENT: {"description": "No Content"},
+        },
+    )
     async def logout(payload: LogoutRequest, user=Depends(current_user)):
         enforce_rate_limit(user)
         try:

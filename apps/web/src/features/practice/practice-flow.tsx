@@ -72,7 +72,7 @@ function normalizeReportTurns(turns: unknown[]): CoachTurn[] {
   });
 }
 
-function reportTurnsForStorage(turns: CoachTurn[]): unknown[] {
+function reportTurnsForStorage(turns: CoachTurn[]): ReportRecord["turns"] {
   return turns.map((turn) => ({
     role: turn.role === "coach" ? "ai" : "actor",
     text: turn.text,
@@ -1743,7 +1743,9 @@ function coachDoneMessage(reason: CoachState["reason"]): string {
   }
 }
 
-function stringObservations(observation: Record<string, unknown> | undefined): Array<{
+function stringObservations(
+  observation: Record<string, unknown> | null | undefined,
+): Array<{
   key: string;
   value: string;
 }> {

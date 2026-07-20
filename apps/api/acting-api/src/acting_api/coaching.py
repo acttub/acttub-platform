@@ -1,8 +1,10 @@
 from __future__ import annotations
 
-from uuid import uuid4
+from typing import Literal
+from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Response
+from pydantic import BaseModel, ConfigDict
 from starlette.concurrency import run_in_threadpool
 
 from acting_agent import engine as coach_engine
@@ -17,6 +19,20 @@ from acting_api.sync_operations import (
     success_response,
     sync_request_fingerprint,
 )
+
+CoachAction = Literal["probe_intent", "dig_cause", "deflect", "close"]
+CoachReason = Literal["gap_stated", "exhausted", "limit", "user_ended"] | None
+
+
+class CoachTurnResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    session_id: UUID
+    action: CoachAction
+    utterance: str
+    focus_timestamp: str
+    done: bool
+    reason: CoachReason
 
 
 def _payload(session_id: str, reply) -> dict:
@@ -42,7 +58,10 @@ async def _fail(store, claim: SyncOperationClaim, error_code: str) -> None:
 def build_router(*, client, settings, store, rate_limited_user) -> APIRouter:
     router = APIRouter(prefix="/v2/coach", tags=["v2-coach"])
 
-    @router.post("/start")
+    @router.post(
+        "/start",
+        responses={200: {"model": CoachTurnResponse}},
+    )
     async def coach_start(
         req: CoachStartReq,
         x_request_id: str | None = Header(default=None, alias="X-Request-Id"),
@@ -104,7 +123,10 @@ def build_router(*, client, settings, store, rate_limited_user) -> APIRouter:
             raise
         return success_response(payload, claim)
 
-    @router.post("/reply")
+    @router.post(
+        "/reply",
+        responses={200: {"model": CoachTurnResponse}},
+    )
     async def coach_reply(
         req: CoachReplyReq,
         x_request_id: str | None = Header(default=None, alias="X-Request-Id"),
@@ -170,4 +192,3 @@ def build_router(*, client, settings, store, rate_limited_user) -> APIRouter:
         return success_response(payload, claim)
 
     return router
-

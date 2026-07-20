@@ -2,14 +2,30 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 from pathlib import PurePosixPath
+from typing import Literal
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from starlette.concurrency import run_in_threadpool
 
 MAX_UPLOAD_BYTES = 550 * 1024 * 1024
 UPLOAD_INTENT_TTL = timedelta(minutes=30)
+
+
+class _StrictResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+
+class UploadIntentResponse(_StrictResponse):
+    intent_id: UUID
+    upload_url: str
+    expires_at: datetime
+
+
+class UploadCompleteResponse(_StrictResponse):
+    intent_id: UUID
+    status: Literal["finalized"]
 
 
 class UploadIntentRequest(BaseModel):
@@ -50,7 +66,11 @@ def build_router(
             raise HTTPException(status_code=503, detail="storage_not_configured")
         return storage
 
-    @router.post("/intents", status_code=status.HTTP_201_CREATED)
+    @router.post(
+        "/intents",
+        status_code=status.HTTP_201_CREATED,
+        responses={status.HTTP_201_CREATED: {"model": UploadIntentResponse}},
+    )
     async def create_intent(
         payload: UploadIntentRequest, user=Depends(rate_limited_user)
     ):
@@ -86,7 +106,10 @@ def build_router(
             "expires_at": expires_at,
         }
 
-    @router.post("/intents/{intent_id}/complete")
+    @router.post(
+        "/intents/{intent_id}/complete",
+        responses={status.HTTP_200_OK: {"model": UploadCompleteResponse}},
+    )
     async def complete_intent(intent_id: UUID, user=Depends(rate_limited_user)):
         s3 = require_storage()
         intent = await run_in_threadpool(

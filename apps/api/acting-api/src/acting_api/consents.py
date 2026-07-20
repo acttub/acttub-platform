@@ -2,15 +2,42 @@ from __future__ import annotations
 
 import argparse
 from collections.abc import Sequence
+from datetime import datetime
 from pathlib import Path
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from starlette.concurrency import run_in_threadpool
 
 from acting_api.config import load_database_url
 from acting_api.db.models import ConsentAction, ConsentType
 from acting_api.db.store import PostgresStore
+
+
+class _StrictResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+
+class ConsentDocument(_StrictResponse):
+    id: UUID
+    type: ConsentType
+    version: str
+    title: str
+    body: str
+    required: bool
+    published_at: datetime
+
+
+class ConsentDocumentsResponse(_StrictResponse):
+    documents: list[ConsentDocument]
+
+
+class ConsentEventResponse(_StrictResponse):
+    id: UUID
+    document_id: UUID
+    action: ConsentAction
+    occurred_at: datetime
 
 
 def consent_document_payload(document) -> dict:
@@ -33,17 +60,22 @@ class ConsentRequest(BaseModel):
 def build_router(*, store, rate_limited_user) -> APIRouter:
     router = APIRouter(prefix="/v2/consents", tags=["v2-consents"])
 
-    @router.get("/documents")
+    @router.get(
+        "/documents",
+        responses={status.HTTP_200_OK: {"model": ConsentDocumentsResponse}},
+    )
     async def list_documents():
         documents = await run_in_threadpool(store.list_latest_consent_documents)
         return {"documents": [consent_document_payload(row) for row in documents]}
 
-    @router.post("", status_code=status.HTTP_201_CREATED)
+    @router.post(
+        "",
+        status_code=status.HTTP_201_CREATED,
+        responses={status.HTTP_201_CREATED: {"model": ConsentEventResponse}},
+    )
     async def record_consent(
         payload: ConsentRequest, user=Depends(rate_limited_user)
     ):
-        from uuid import UUID
-
         try:
             document_id = UUID(payload.document_id)
         except ValueError as exc:

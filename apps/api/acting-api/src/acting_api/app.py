@@ -3,12 +3,14 @@ from datetime import timedelta
 import os
 import time
 from contextlib import asynccontextmanager
+from typing import Literal
 
 import httpx
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from google import genai
+from pydantic import BaseModel, ConfigDict
 
 from acting_agent.config import load_settings as load_agent_settings
 from acting_api.analysis_worker import (
@@ -37,6 +39,16 @@ from acting_api.storage import S3Storage
 from acting_api.uploads import build_router as build_uploads_router
 from acting_report.config import load_settings as load_report_settings
 from acting_summary.config import load_settings as load_summary_settings
+
+
+class HealthResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    status: Literal["ok"]
+    services: list[str]
+    model: str
+    keep_alive: bool
+    commit: str
 
 
 def create_app(
@@ -146,7 +158,10 @@ def create_app(
     app.state.s3_storage = s3_storage
     app.state.analysis_worker = analysis_worker
 
-    @app.get("/health")
+    @app.get(
+        "/health",
+        responses={200: {"model": HealthResponse}},
+    )
     def health():
         return {
             "status": "ok",
