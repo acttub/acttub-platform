@@ -34,11 +34,15 @@ function createCompressionRuntime(options = {}) {
           getNumberOfChannels: async () => 6,
           getSampleRate: async () => 44_100,
         };
+  const videoTracks = [videoTrack, ...(options.extraVideoTracks ?? [])];
+  const audioTracks = audioTrack
+    ? [audioTrack, ...(options.extraAudioTracks ?? [])]
+    : [];
 
   class ConversionCanceledError extends Error {}
   class Input {
-    getPrimaryVideoTrack = async () => videoTrack;
-    getPrimaryAudioTrack = async () => audioTrack;
+    getVideoTracks = async () => videoTracks;
+    getAudioTracks = async () => audioTracks;
     dispose() {
       state.disposeCalls += 1;
       options.onDispose?.();
@@ -228,6 +232,37 @@ test("AAC 소스 설정을 인코딩할 수 없으면 fallback encoder를 등록
   assert.notEqual(result, file);
   assert.equal(result.type, "video/mp4");
   assert.equal(state.registerCalls, 1);
+});
+
+test("다중 audio 트랙 입력은 트랙 손실을 피해 원본으로 폴백한다", async () => {
+  const { runtime, state } = createCompressionRuntime({
+    extraAudioTracks: [{ getNumberOfChannels: async () => 2, getSampleRate: async () => 48_000 }],
+  });
+  const file = {
+    name: "multi.mov",
+    type: "video/quicktime",
+    size: SKIP_COMPRESSION_BYTES + 1,
+  };
+
+  assert.equal(await compressVideo(file, 60, {}, runtime), file);
+  assert.equal(state.executeCalls, 0);
+});
+
+test("signal 없이 발생한 AbortError는 취소가 아니라 원본 폴백으로 처리한다", async () => {
+  const { runtime } = createCompressionRuntime({
+    execute: async () => {
+      const error = new Error("encoder reset");
+      error.name = "AbortError";
+      throw error;
+    },
+  });
+  const file = {
+    name: "large.mp4",
+    type: "video/mp4",
+    size: SKIP_COMPRESSION_BYTES + 1,
+  };
+
+  assert.equal(await compressVideo(file, 60, {}, runtime), file);
 });
 
 test("primary audio가 discard되거나 변환이 invalid면 원본으로 폴백한다", async () => {

@@ -82,11 +82,21 @@
 - **기각 #10b**: 서버측 duration 검증 — "5분은 프론트 검증만" 합의 유지, 스펙에 명시.
 - **기각 #12**: intent `duration_ms` 재정의 — worker 미사용으로 실질 영향 없음, source duration 의미 유지.
 
+## Codex 최종 관문 처리 기록 (Phase 6, 2026-07-21)
+
+- **코드 디테일 리뷰**: 지적 0건 (리뷰어가 웹 테스트·typecheck·lint·백엔드 상수 자체 재검증).
+- **적대적 리뷰 [high] 기각** — BufferTarget 메모리(≈114MiB): Phase 2에서 동일 수치로 사용자가 "1차는 BufferTarget" 결정, 미결 사항에 기존 기록 유지. 결과물이 100MB에 근접하는 시나리오는 비트레이트 산식상 비현실적.
+- **적대적 리뷰 [high] 수용** — 다중 트랙 무손실: `getVideoTracks/getAudioTracks` 수가 1 초과면 원본 폴백 (tracks:"primary"가 비-primary 트랙을 discardedTracks에도 남기지 않고 버리는 것 확인). 회귀 테스트 추가.
+- **적대적 리뷰 [medium] 수용** — 취소 오분류: 취소 판정을 `signal.aborted`로만 한정. WebCodecs 자체 AbortError는 원본 폴백. 회귀 테스트 추가.
+- **적대적 리뷰 [medium] 수용** — 배포 전 대형 intent: `complete`에서도 `size_bytes > MAX_UPLOAD_BYTES` 재검증(413). pytest·API.md 갱신.
+- **적대적 리뷰 [medium] 수용(방식 변경)** — fps 표본: `computePacketStats()`는 metadataOnly 순회라 전체 스캔이 저렴함을 소스에서 확인, Phase 5의 200개 제한을 되돌려 전체 평균으로 복원. 평균이 30 이하인 혼합 fps 영상의 잔여 한계는 미결로 기록.
+
 ## 미결 사항
 
 - **StreamTarget/OPFS 전환**(Codex #6): 실기기(모바일 Safari)에서 BufferTarget 메모리 문제가 확인되면 `StreamTarget` + `FileSystemWritableFileStream`으로 전환. 1차 구현은 BufferTarget.
 - **취소 버튼 UI**: 압축·업로드 진행 중 명시적 취소 버튼은 후속.
-- 비트레이트 계수(0.95 마진, 오디오 128k)는 실측 결과물이 목표를 크게 넘으면 조정 가능.
+- 비트레이트 계수(0.95 마진, 오디오 128k)는 실측 결과물이 목표를 크게 넘으면 조정 가능. E2E 실측(노이즈 60초 1080p): 목표 2Mbps 대비 ~3Mbps overshoot, 결과 22.9MB로 목표 내.
+- **혼합 fps 잔여 한계**: 전체 평균 fps가 30 이하인 VFR/편집 영상은 30 초과 구간이 cap 없이 남는다 (평균 휴리스틱의 한계 — 합의된 스펙 동작).
 
 ## 검증 명령
 

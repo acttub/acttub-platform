@@ -1,4 +1,4 @@
-import { abortError, isAbortError, throwIfAborted } from "./abort";
+import { abortError, throwIfAborted } from "./abort";
 import {
   AUDIO_BITRATE,
   computeFrameRate,
@@ -45,8 +45,8 @@ export async function compressVideo(
   try {
     media = await runtime.loadMedia();
     throwIfAborted(options.signal);
-  } catch (error) {
-    if (options.signal?.aborted || isAbortError(error)) throw abortError(options.signal);
+  } catch {
+    if (options.signal?.aborted) throw abortError(options.signal);
     return file;
   }
 
@@ -59,12 +59,16 @@ export async function compressVideo(
 
   try {
     throwIfAborted(options.signal);
-    const primaryVideoTrack = await input.getPrimaryVideoTrack();
+    const videoTracks = await input.getVideoTracks();
     throwIfAborted(options.signal);
+    const audioTracks = await input.getAudioTracks();
+    throwIfAborted(options.signal);
+    // tracks:"primary" 변환은 비-primary 트랙을 discardedTracks에도 남기지 않고 버린다.
+    // 저장본이 곧 재생본이므로 다중 트랙 입력은 손실 없이 원본을 유지한다.
+    if (videoTracks.length > 1 || audioTracks.length > 1) return file;
+    const primaryVideoTrack = videoTracks[0] ?? null;
     if (!primaryVideoTrack) return file;
-
-    const primaryAudioTrack = await input.getPrimaryAudioTrack();
-    throwIfAborted(options.signal);
+    const primaryAudioTrack = audioTracks[0] ?? null;
 
     if (primaryAudioTrack) {
       const numberOfChannels = await primaryAudioTrack.getNumberOfChannels();
@@ -101,8 +105,9 @@ export async function compressVideo(
         throwIfAborted(options.signal);
         const displayHeight = await track.getDisplayHeight();
         throwIfAborted(options.signal);
-        // 인자를 생략하면 파일 전체 패킷을 스캔하므로 fps 추정에 충분한 표본만 읽는다.
-        const packetStats = await track.computePacketStats(200);
+        // metadataOnly 순회라 미디어 본문은 읽지 않는다 — 앞부분 표본만 보면
+        // 저fps 도입부 뒤 고fps 구간을 놓치므로 전체 타임라인으로 평균을 낸다.
+        const packetStats = await track.computePacketStats();
         throwIfAborted(options.signal);
         const frameRate = computeFrameRate(packetStats.averagePacketRate);
 
@@ -154,14 +159,10 @@ export async function compressVideo(
       lastModified: file.lastModified,
     });
     return compressed.size < file.size ? compressed : file;
-  } catch (error) {
-    if (
-      options.signal?.aborted ||
-      isAbortError(error) ||
-      error instanceof media.ConversionCanceledError
-    ) {
-      throw abortError(options.signal);
-    }
+  } catch {
+    // 취소 여부는 signal로만 가른다 — WebCodecs가 자체적으로 던지는 AbortError를
+    // 사용자 취소로 오인하면 원본 폴백 대신 조용한 실패가 된다.
+    if (options.signal?.aborted) throw abortError(options.signal);
     return file;
   } finally {
     options.signal?.removeEventListener("abort", onInputAbort);

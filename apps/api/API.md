@@ -165,6 +165,7 @@ S3 업로드 완료 확인. 서버가 S3 HEAD로 객체 존재·크기 일치를
 |---|---|
 | 404 | 없는·남의 인텐트 — `upload_intent_not_found` |
 | 409 | 만료 — `upload_intent_expired` / 객체 없음 — `upload_not_found` / 크기 불일치 — `upload_size_mismatch` |
+| 413 | 현재 상한(100MB) 초과 pending 인텐트(상한 하향 배포 전 발급분) — `upload_too_large` |
 
 ---
 
