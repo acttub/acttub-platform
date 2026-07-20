@@ -124,8 +124,10 @@ def load_gateway_settings(env_path: Path | None = None) -> GatewaySettings:
     return GatewaySettings(
         database_url=database_url,
         jwt_secret=jwt_secret,
+        # override 시 웹 번들의 GOOGLE_CLIENT_ID(apps/web/src/lib/config/env.ts)와
+        # 반드시 같은 값이어야 한다 — 다르면 audience 불일치로 모든 구글 로그인이 401.
         google_oauth_client_id=(
-            os.environ.get("GOOGLE_OAUTH_CLIENT_ID")
+            os.environ.get("GOOGLE_OAUTH_CLIENT_ID", "").strip()
             or DEFAULT_GOOGLE_OAUTH_CLIENT_ID
         ),
         development_auth_provider=(
