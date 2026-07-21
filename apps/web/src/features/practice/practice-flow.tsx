@@ -1,8 +1,11 @@
 "use client";
 
-import { useEffect, useRef, useState, type DragEvent } from "react";
+import { Suspense, useEffect, useRef, useState, type DragEvent } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import Image from "next/image";
+import wordmark from "@/assets/acttub-wordmark.png";
+import { useRouter, useSearchParams } from "next/navigation";
+import { getStoredDisplayName } from "@/features/auth/display-name";
 import { useRequireAuth } from "@/features/auth/use-require-auth";
 import { replyCoach, startCoach } from "@/lib/api/v2/coach";
 import { ApiError } from "@/lib/api/v2/errors";
@@ -83,8 +86,24 @@ function reportTurnsForStorage(turns: CoachTurn[]): ReportRecord["turns"] {
   }));
 }
 
+// 세션 상세는 이 주소 한 곳에서만 연다 — 주소에 세션 id가 남아야
+// 뒤로가기·새로고침·링크 공유가 동작한다. (정적 export라 /history/[id] 경로는 못 쓴다)
+const SESSION_DETAIL_PATH = "/practice/history";
+const sessionDetailHref = (sessionId: string) =>
+  `${SESSION_DETAIL_PATH}?session=${encodeURIComponent(sessionId)}`;
+
 export function PracticeFlow({ entry = "new" }: { entry?: Entry }) {
+  // useSearchParams는 정적 export에서 Suspense 안에 있어야 한다
+  return (
+    <Suspense fallback={<LoadingScreen message="연습 공간을 준비하는 중이에요." />}>
+      <PracticeFlowInner entry={entry} />
+    </Suspense>
+  );
+}
+
+function PracticeFlowInner({ entry = "new" }: { entry?: Entry }) {
   const router = useRouter();
+  const sessionParam = useSearchParams().get("session");
   const { ready: authReady, user } = useRequireAuth();
   const [dataReady, setDataReady] = useState(false);
   const [step, setStep] = useState<Step>(entryInitialStep[entry]);
@@ -112,6 +131,31 @@ export function PracticeFlow({ entry = "new" }: { entry?: Entry }) {
   const pollControllerRef = useRef<AbortController | null>(null);
   const uploadControllerRef = useRef<AbortController | null>(null);
   const playbackRefreshAttemptedRef = useRef(false);
+
+  // 배우가 정한 호칭. 묻는 건 첫 로그인 때 로그인 화면에서 하고, 여기서는 읽기만 한다.
+  const [storedName, setStoredName] = useState<string | null>(null);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 클라이언트 전용 localStorage 확인 (서버 렌더와 값이 달라 초기값으로 못 읽는다)
+    setStoredName(getStoredDisplayName());
+  }, []);
+
+  // 주소의 ?session=<id>가 상세 화면의 단일 기준이다.
+  // 카드 클릭·뒤로가기·새로고침·링크 직접 진입이 모두 이 한 경로로 처리된다.
+  useEffect(() => {
+    if (!sessionParam) {
+      clearActiveSession();
+      return;
+    }
+    resetActiveFlow(sessionParam);
+    void pollSession(sessionParam);
+    // 주소가 바뀌거나 화면을 떠나면 진행 중이던 조회를 끊는다.
+    // (개발 모드의 이중 마운트에서도 정리 후 다시 시작되므로 멈추지 않는다)
+    return () => {
+      pollControllerRef.current?.abort();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 주소가 바뀔 때만 다시 연다
+  }, [sessionParam]);
 
   useEffect(() => {
     if (!authReady) return;
@@ -262,6 +306,14 @@ export function PracticeFlow({ entry = "new" }: { entry?: Entry }) {
     }
   }
 
+  // 목록으로 돌아왔다 — 진행 중이던 폴링을 끊고 상세 상태를 비운다
+  function clearActiveSession() {
+    pollControllerRef.current?.abort();
+    setActive(null);
+    setSessionDetail(null);
+    setError(null);
+  }
+
   function resetActiveFlow(sessionId: string) {
     setActive({ sessionId });
     setSessionDetail(null);
@@ -277,8 +329,8 @@ export function PracticeFlow({ entry = "new" }: { entry?: Entry }) {
   }
 
   function openSession(session: PracticeSessionListItem) {
-    resetActiveFlow(session.session_id);
-    void pollSession(session.session_id);
+    // 상태를 직접 바꾸지 않고 주소를 바꾼다 — 나머지는 위 동기화 effect가 처리한다
+    router.push(sessionDetailHref(session.session_id));
   }
 
   async function begin() {
@@ -541,20 +593,26 @@ export function PracticeFlow({ entry = "new" }: { entry?: Entry }) {
   async function handleLogout() {
     await logout();
     practiceCoachSessionMap.clear();
+    // 호칭은 지우지 않는다 — 계정 id와 함께 저장돼 있어 남의 이름으로 인사할 일이 없고,
+    // 지우면 같은 사람이 다시 로그인할 때마다 "첫 로그인"으로 보여 또 묻게 된다.
     router.replace("/login");
   }
 
   function retryActiveSessionLoad() {
-    if (!active) return;
+    const sessionId = sessionParam ?? active?.sessionId;
+    if (!sessionId) return;
     setError(null);
-    void pollSession(active.sessionId);
+    void pollSession(sessionId);
   }
 
   if (!authReady || !dataReady) {
     return <LoadingScreen message={error ?? "연습 공간을 준비하는 중이에요."} />;
   }
 
-  if (active && !sessionDetail) {
+  // 주소에 세션이 있으면 effect가 돌기 전에도 곧바로 상세 화면으로 넘어간다 (목록이 깜빡이지 않게)
+  const activeSessionId = sessionParam ?? active?.sessionId ?? null;
+
+  if (activeSessionId && !sessionDetail) {
     return (
       <LoadingScreen
         message={error ?? "연습 세션을 불러오는 중이에요."}
@@ -563,7 +621,7 @@ export function PracticeFlow({ entry = "new" }: { entry?: Entry }) {
     );
   }
 
-  if (active && sessionDetail) {
+  if (activeSessionId && sessionDetail) {
     return (
       <SessionView
         session={sessionDetail}
@@ -587,10 +645,12 @@ export function PracticeFlow({ entry = "new" }: { entry?: Entry }) {
     );
   }
 
+  const displayName = storedName ?? formatDisplayName(user);
+
   if (step === "home") {
     return (
       <PracticeHome
-        displayName={formatDisplayName(user)}
+        displayName={displayName}
         historyError={historyError}
         sessions={history}
         reportForSession={reportForSession}
@@ -603,7 +663,7 @@ export function PracticeFlow({ entry = "new" }: { entry?: Entry }) {
   if (step === "history") {
     return (
       <PracticeHistoryScreen
-        displayName={formatDisplayName(user)}
+        displayName={displayName}
         historyError={historyError}
         sessions={history}
         reportForSession={reportForSession}
@@ -699,7 +759,7 @@ function PracticeHome({
   return (
     <div className="min-h-dvh bg-white text-[#191f28]">
       <header className="flex h-15 items-center gap-3 border-b border-[#edf0f3] bg-white/90 px-5 backdrop-blur">
-        <span className="text-lg font-black tracking-[-0.04em]">Acttub</span>
+        <Image src={wordmark} alt="Acttub" priority className="h-5 w-auto shrink-0" />
         <div className="ml-auto flex items-center gap-3 text-[13px] text-[#4e5968]">
           <span className="font-black tracking-[-0.02em]">{displayName}</span>
           <button type="button" onClick={() => void onLogout()} className="font-semibold text-[#8b95a1] transition hover:text-[#191f28]">로그아웃</button>
@@ -707,16 +767,19 @@ function PracticeHome({
       </header>
 
       <main className="mx-auto w-full max-w-[920px] px-5 pb-16 pt-10">
-        <h1 className="text-2xl font-black leading-tight tracking-[-0.05em] sm:text-[34px]">{displayName}님, 오늘도 한 장면 볼까요?</h1>
-        <p className="mt-2.5 text-[15px] font-bold text-[#4e5968]">영상을 올리면 확인한 단서만 질문으로 바꿔 드려요. 마지막 문장은 직접 남기게 됩니다.</p>
+        <h1 className="text-xl font-black leading-tight tracking-[-0.05em] sm:text-[34px]">{displayName}님, 오늘도 같이 연습해 볼까요?</h1>
 
-        <div className="mt-7 flex items-center justify-between gap-4 rounded-[24px] bg-[linear-gradient(120deg,#eaf6ff,#f8fbff)] p-6 shadow-[0_16px_45px_rgba(25,31,40,0.06)] sm:px-7">
-          <div>
-            <div className="text-lg font-black tracking-[-0.03em]">새 연습 시작하기</div>
-            <div className="mt-1.5 text-[13px] font-semibold text-[#4e5968]">오늘 찍은 장면을 올리고 질문을 받아보세요.</div>
-          </div>
-          <Link href="/practice/new" className="inline-flex h-13 shrink-0 items-center rounded-2xl bg-[#191f28] px-6 text-[15px] font-black text-white shadow-[0_12px_28px_rgba(25,31,40,0.18)] transition hover:bg-[#333d4b]">＋ 새 연습</Link>
-        </div>
+        {/* 카드 전체가 버튼이다 — 안에 따로 버튼을 두면 폰에서 눌러야 할 곳이 두 군데로 갈린다 */}
+        <Link
+          href="/practice/new"
+          className="mt-6 flex items-center justify-between gap-4 rounded-[24px] bg-[linear-gradient(120deg,#eaf6ff,#f8fbff)] p-5 shadow-[0_16px_45px_rgba(25,31,40,0.06)] transition hover:-translate-y-0.5 sm:px-7 sm:py-6"
+        >
+          <span className="min-w-0">
+            <span className="block text-base font-black tracking-[-0.03em] sm:text-lg">새 연습 시작하기</span>
+            <span className="mt-1 block text-xs font-semibold text-[#4e5968] sm:text-[13px]">오늘 찍은 장면을 올리고 질문을 받아보세요.</span>
+          </span>
+          <span aria-hidden="true" className="shrink-0 text-lg font-black text-[#3182f6]">→</span>
+        </Link>
 
         <div className="mb-3.5 mt-10 flex items-center justify-between">
           <h2 className="text-lg font-black tracking-[-0.03em]">내 연습 기록</h2>
@@ -734,8 +797,9 @@ function PracticeHome({
           <div className="grid gap-3">
             {sessions.map((s) => {
               const hasReport = Boolean(reportForSession(s.session_id));
+              // min-w-0: 없으면 카드가 제목 길이만큼 벌어져 좁은 화면에서 화면 밖으로 나간다
               return (
-                <button key={s.session_id} type="button" onClick={() => onOpen(s)} className="flex items-center gap-3.5 rounded-[20px] bg-white p-4 text-left shadow-[0_16px_45px_rgba(25,31,40,0.06)] transition hover:-translate-y-0.5">
+                <button key={s.session_id} type="button" onClick={() => onOpen(s)} className="flex w-full min-w-0 items-center gap-3.5 rounded-[20px] bg-white p-4 text-left shadow-[0_16px_45px_rgba(25,31,40,0.06)] transition hover:-translate-y-0.5">
                   <span className="flex h-10 w-14 shrink-0 items-center justify-center rounded-xl bg-[linear-gradient(135deg,#0b1220,#1b2942)] text-[11px] font-black text-[#8fb4ff]">▶</span>
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm font-black tracking-[-0.02em]">{s.situation || "연습"}</span>
@@ -769,10 +833,10 @@ function PracticeNewScreen({
             <div className="flex items-center gap-3">
               <AppLogoMark />
               <p className="text-base font-black tracking-[-0.03em] text-[#2f6bff] sm:text-lg">
-                Acttub · 새 연습
+                새 연습
               </p>
             </div>
-            <h1 className="mt-5 text-3xl font-black leading-tight tracking-[-0.05em] sm:text-4xl">
+            <h1 className="mt-5 text-2xl font-black leading-tight tracking-[-0.05em] sm:text-4xl">
               오늘의 연기 영상을 올려 주세요
             </h1>
             <p className="mt-3 max-w-2xl text-base font-bold leading-7 text-[#8b95a1]">
@@ -815,10 +879,10 @@ function PracticeHistoryScreen({
             <div className="flex items-center gap-3">
               <AppLogoMark />
               <p className="text-base font-black tracking-[-0.03em] text-[#2f6bff] sm:text-lg">
-                Acttub · 연습 기록
+                연습 기록
               </p>
             </div>
-            <h1 className="mt-5 text-3xl font-black leading-tight tracking-[-0.05em] sm:text-4xl">
+            <h1 className="mt-5 text-2xl font-black leading-tight tracking-[-0.05em] sm:text-4xl">
               {displayName}님의 전체 연습
             </h1>
             <p className="mt-3 max-w-2xl text-base font-bold leading-7 text-[#8b95a1]">
@@ -889,7 +953,7 @@ function PracticeContextScreen({
 
         <header className="mt-6 rounded-[28px] bg-white p-6 shadow-sm sm:p-8">
           <p className="text-sm font-black text-[#2f6bff]">2단계 · 장면 맥락</p>
-          <h1 className="mt-3 text-3xl font-black leading-tight tracking-[-0.05em] sm:text-4xl">
+          <h1 className="mt-3 text-2xl font-black leading-tight tracking-[-0.05em] sm:text-4xl">
             이 장면에서 무엇을 연기했는지 알려 주세요
           </h1>
           <p className="mt-4 max-w-2xl text-base font-bold leading-7 text-[#8b95a1]">
@@ -936,10 +1000,10 @@ function PracticeContextScreen({
           />
 
           <div className="mt-6 grid gap-3 sm:grid-cols-[1fr_2fr]">
-            <button type="button" disabled={busy} onClick={onBack} className="min-h-13 rounded-2xl border border-[#d1d6db] bg-white px-5 py-3 font-black text-[#4e5968] transition hover:border-[#3182f6] hover:text-[#1b64da] disabled:text-[#b0b8c1]">
+            <button type="button" disabled={busy} onClick={onBack} className="min-h-12 rounded-2xl border border-[#d1d6db] bg-white px-5 py-3 font-black text-[#4e5968] transition hover:border-[#3182f6] hover:text-[#1b64da] disabled:text-[#b0b8c1]">
               다른 영상 선택
             </button>
-            <button type="submit" disabled={busy || !file} className="min-h-13 rounded-2xl bg-[#2f6bff] px-5 py-3 font-black text-white shadow-[0_10px_20px_rgba(49,130,246,0.18)] transition hover:bg-[#1b64da] disabled:bg-[#b0d2ff]">
+            <button type="submit" disabled={busy || !file} className="min-h-12 rounded-2xl bg-[#2f6bff] px-5 py-3 font-black text-white shadow-[0_10px_20px_rgba(49,130,246,0.18)] transition hover:bg-[#1b64da] disabled:bg-[#b0d2ff]">
               {uploadProgress !== null
                 ? `${uploadProgress.stage === "compressing" ? "압축 중" : "업로드 중"}… ${uploadProgress.percent}%`
                 : busy
@@ -1021,7 +1085,7 @@ function VideoDropZone({
           여기로 연습 영상을 끌어다 놓으세요
         </span>
         <span className="mt-2 block text-base font-bold text-[#b0b8c1]">또는</span>
-        <span className="mt-4 inline-flex min-h-14 items-center justify-center rounded-2xl bg-[#2f6bff] px-7 text-lg font-black text-white shadow-[0_10px_20px_rgba(49,130,246,0.18)] transition group-hover:bg-[#1b64da]">
+        <span className="mt-4 inline-flex min-h-12 items-center justify-center rounded-2xl bg-[#2f6bff] px-7 text-lg font-black text-white shadow-[0_10px_20px_rgba(49,130,246,0.18)] transition group-hover:bg-[#1b64da]">
           {busy ? "업로드 준비 중" : "파일 선택하기"}
         </span>
         <span className="mt-4 block text-sm font-bold tracking-[0.02em] text-[#b0b8c1] sm:text-base">
@@ -1075,7 +1139,7 @@ function RecentPracticeSection({
   return (
     <section className="mt-10 pb-10">
       <header className="flex items-center justify-between gap-4">
-        <h2 className="text-2xl font-black tracking-[-0.05em]">{variant === "full" ? "전체 연습 기록" : "최근 연습"}</h2>
+        <h2 className="text-xl font-black tracking-[-0.05em]">{variant === "full" ? "전체 연습 기록" : "최근 연습"}</h2>
         {variant === "recent" && sessions.length > 0 ? <Link href="/practice/history" className="text-base font-black text-[#2f6bff] transition hover:text-[#1b64da]">전체 보기</Link> : null}
       </header>
 
@@ -1140,11 +1204,7 @@ function PracticeHistoryCard({
 }
 
 function AppLogoMark() {
-  return (
-    <span className="flex h-11 w-11 items-center justify-center rounded-full bg-[#2f6bff] text-white shadow-[0_8px_20px_rgba(49,130,246,0.2)]">
-      <span className="flex h-5 w-5 items-center justify-center rounded-full border-4 border-white"><span className="h-1.5 w-1.5 rounded-full bg-white" /></span>
-    </span>
-  );
+  return <Image src={wordmark} alt="Acttub" priority className="h-6 w-auto shrink-0" />;
 }
 
 function UploadIcon() {
@@ -1245,12 +1305,14 @@ function SessionView({
           <div>
             <div className="flex items-center gap-3">
               <AppLogoMark />
-              <p className="text-base font-black tracking-[-0.03em] text-[#2f6bff] sm:text-lg">Acttub AI 연기 코치</p>
             </div>
-            <h1 className="mt-5 text-3xl font-black leading-tight tracking-[-0.05em] sm:text-4xl">{session.situation}</h1>
+            <h1 className="mt-5 text-2xl font-black leading-tight tracking-[-0.05em] sm:text-4xl">{session.situation}</h1>
             <p className="mt-3 max-w-2xl font-semibold leading-7 text-[#6b7684]">{session.character_context}</p>
           </div>
-          <Link href="/home" className="inline-flex h-11 items-center justify-center rounded-2xl border border-[#d1d6db] bg-white px-4 text-sm font-black text-[#4e5968] transition hover:border-[#3182f6] hover:text-[#1b64da]">홈</Link>
+          <div className="flex shrink-0 items-center gap-2">
+            <Link href={SESSION_DETAIL_PATH} className="inline-flex h-11 items-center justify-center rounded-2xl border border-[#d1d6db] bg-white px-4 text-sm font-black text-[#4e5968] transition hover:border-[#3182f6] hover:text-[#1b64da]">← 연습 기록</Link>
+            <Link href="/home" className="inline-flex h-11 items-center justify-center rounded-2xl border border-[#d1d6db] bg-white px-4 text-sm font-black text-[#4e5968] transition hover:border-[#3182f6] hover:text-[#1b64da]">홈</Link>
+          </div>
         </header>
 
         {analysisPending ? (
@@ -1264,7 +1326,7 @@ function SessionView({
           <AnalysisFailed errorCode={session.error_code} busy={busy} onRetry={onRetryAnalysis} />
         ) : null}
         {session.status === "analyzed" && phase === "summary" ? (
-          <SummaryView session={session} busy={busy} onPlaybackError={onPlaybackError} onStartCoach={onStartCoach} />
+          <SummaryView session={session} onPlaybackError={onPlaybackError} />
         ) : null}
         {session.status === "analyzed" && phase === "coaching" ? (
           <CoachingView
@@ -1302,7 +1364,7 @@ function AnalysisPending({
     <section aria-live="polite" className="mt-8 overflow-hidden rounded-[28px] border border-[#dce9ff] bg-white shadow-[0_14px_40px_rgba(25,31,40,0.06)]">
       <div className="bg-[#f7faff] p-6 sm:p-8">
         <span className="inline-flex rounded-full bg-[#eaf2ff] px-3 py-1.5 text-xs font-black text-[#2f6bff]">영상 분석</span>
-        <h2 className="mt-4 text-2xl font-black tracking-[-0.04em] sm:text-3xl">
+        <h2 className="mt-4 text-xl font-black tracking-[-0.04em] sm:text-3xl">
           {status === "created" ? "분석을 준비하고 있어요" : "장면을 분석하고 있어요"}
         </h2>
         <p className="mt-3 max-w-2xl text-base font-bold leading-7 text-[#6b7684]">영상 속 행동과 장면 정보를 안전하게 정리하는 중이에요.</p>
@@ -1336,7 +1398,7 @@ function AnalysisFailed({
   return (
     <section className="mt-8 rounded-[28px] border border-[#ffd8a8] bg-[#fff8ec] p-6 shadow-[0_14px_40px_rgba(25,31,40,0.05)] sm:p-8">
       <span className="inline-flex rounded-full bg-white px-3 py-1.5 text-xs font-black text-[#9a5b00]">분석 중단</span>
-      <h2 className="mt-4 text-2xl font-black tracking-[-0.04em] text-[#8a4b00]">분석을 완료하지 못했어요</h2>
+      <h2 className="mt-4 text-xl font-black tracking-[-0.04em] text-[#8a4b00]">분석을 완료하지 못했어요</h2>
       <p className="mt-3 font-bold leading-7 text-[#8a4b00]">{failure.message}</p>
       {failure.retryable ? (
         <button type="button" disabled={busy} onClick={onRetry} className="mt-6 inline-flex min-h-12 items-center justify-center rounded-2xl bg-[#2f6bff] px-5 py-3 text-sm font-black text-white transition hover:bg-[#1b64da] disabled:bg-[#b0d2ff]">
@@ -1351,27 +1413,19 @@ function AnalysisFailed({
 
 function SummaryView({
   session,
-  busy,
   onPlaybackError,
-  onStartCoach,
 }: {
   session: PracticeSessionDetail;
-  busy: boolean;
   onPlaybackError: () => void;
-  onStartCoach: () => void;
 }) {
   const summary = session.summary;
-  const observations = stringObservations(summary?.observation);
-  const anomalies = (summary?.anomalies ?? [])
-    .map(asAnomalyRecord)
-    .filter((item): item is Record<string, unknown> => item !== null);
 
   return (
     <section className="mt-8 grid gap-5">
       <div className="overflow-hidden rounded-[28px] border border-[#e5e8eb] bg-white shadow-[0_14px_40px_rgba(25,31,40,0.06)]">
         <div className="p-5 sm:p-6">
           <span className="inline-flex rounded-full bg-[#e5f8ef] px-3 py-1.5 text-xs font-black text-[#009959]">분석 완료</span>
-          <h2 className="mt-4 text-2xl font-black tracking-[-0.04em] sm:text-3xl">장면에서 보인 단서를 정리했어요</h2>
+          <h2 className="mt-4 text-xl font-black tracking-[-0.04em] sm:text-3xl">장면에서 보인 단서를 정리했어요</h2>
           <p className="mt-3 font-semibold leading-7 text-[#6b7684]">분석은 정답이 아니라 다음 질문을 위한 관찰이에요.</p>
         </div>
         <video key={session.playback_url} controls preload="metadata" src={session.playback_url} onError={onPlaybackError} className="aspect-video w-full bg-[#111827] object-contain">
@@ -1388,36 +1442,16 @@ function SummaryView({
             {summary.key_dimension?.trim() ? <SummarySection title="핵심 차원" body={summary.key_dimension} /> : null}
           </div>
 
-          {observations.length > 0 ? (
-            <section className="rounded-[28px] border border-[#e5e8eb] bg-white p-5 shadow-[0_8px_24px_rgba(25,31,40,0.035)] sm:p-6">
-              <p className="text-xs font-black text-[#2f6bff]">관찰 기록</p>
-              <h3 className="mt-2 text-xl font-black tracking-[-0.035em]">영상에서 확인한 흐름</h3>
-              <div className="mt-5 grid gap-3 md:grid-cols-2">
-                {observations.map(({ key, value }) => (
-                  <div key={key} className="rounded-2xl bg-[#f7f8fa] p-4">
-                    <p className="text-xs font-black text-[#8b95a1]">{observationLabel(key)}</p>
-                    <p className="mt-2 whitespace-pre-wrap text-sm font-semibold leading-6 text-[#4e5968]">{value}</p>
-                  </div>
-                ))}
-              </div>
-            </section>
-          ) : null}
+          {/* 관찰 기록과 특이점은 내부 산출물이라 배우에게 노출하지 않는다 (제품 가드레일).
+              질문 대화의 근거로만 쓰고 화면에는 그리지 않는다. */}
 
-          {anomalies.length > 0 ? (
-            <section className="rounded-[28px] border border-[#dce9ff] bg-[#f7faff] p-5 sm:p-6">
-              <p className="text-xs font-black text-[#2f6bff]">질문으로 이어질 지점</p>
-              <h3 className="mt-2 text-xl font-black tracking-[-0.035em]">눈에 띈 특이점</h3>
-              <div className="mt-5 space-y-3">
-                {anomalies.map((anomaly, index) => (
-                  <AnomalyCard key={stringField(anomaly, "start") + "-" + String(index)} anomaly={anomaly} />
-                ))}
-              </div>
-            </section>
-          ) : null}
-
-          <button type="button" disabled={busy} onClick={onStartCoach} className="min-h-14 w-full rounded-2xl bg-[#2f6bff] px-6 py-3 text-base font-black text-white shadow-[0_10px_20px_rgba(49,130,246,0.18)] transition hover:bg-[#1b64da] disabled:bg-[#b0d2ff]">
-            {busy ? "코치를 준비하고 있어요…" : "인터뷰 시작하기"}
-          </button>
+          {/* 같은 장면을 다시 찍어 보게, 적었던 맥락만 새 연습으로 넘긴다 (영상은 새로 올린다) */}
+          <Link
+            href={`/practice/new?from=${encodeURIComponent(session.session_id)}`}
+            className="flex min-h-12 w-full items-center justify-center rounded-2xl bg-[#2f6bff] px-6 py-3 text-base font-black text-white shadow-[0_10px_20px_rgba(49,130,246,0.18)] transition hover:bg-[#1b64da]"
+          >
+            인터뷰 다시하기
+          </Link>
         </>
       ) : (
         <p className="rounded-2xl bg-[#fff8ec] p-5 font-bold leading-7 text-[#8a4b00]">분석 요약을 불러오지 못했어요. 잠시 후 다시 확인해 주세요.</p>
@@ -1453,7 +1487,7 @@ function CoachingView({
     return (
       <section aria-live="polite" className="mt-8 rounded-[28px] border border-[#dce9ff] bg-white p-6 shadow-[0_14px_40px_rgba(25,31,40,0.06)] sm:p-8">
         <span className="inline-flex rounded-full bg-[#eaf2ff] px-3 py-1.5 text-xs font-black text-[#2f6bff]">AI 코칭</span>
-        <h2 className="mt-4 text-2xl font-black tracking-[-0.04em]">AI 코치가 첫 질문을 준비하고 있어요</h2>
+        <h2 className="mt-4 text-xl font-black tracking-[-0.04em]">AI 코치가 첫 질문을 준비하고 있어요</h2>
         <p className="mt-3 font-bold leading-7 text-[#6b7684]">{coachWaiting ? "코치가 생각 중이에요…" : "분석 내용을 질문으로 바꾸고 있어요."}</p>
         {!busy && error ? (
           <button type="button" onClick={onStartCoach} className="mt-6 min-h-12 rounded-2xl bg-[#2f6bff] px-5 py-3 text-sm font-black text-white transition hover:bg-[#1b64da]">코칭 시작 다시 시도</button>
@@ -1474,8 +1508,7 @@ function CoachingView({
         <div className="flex items-center gap-3">
           <span aria-hidden="true" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#2f6bff] text-xs font-black text-white">AI</span>
           <div>
-            <h2 className="font-black tracking-[-0.03em]">AI 연기 코치</h2>
-            <p className="mt-0.5 text-xs font-bold text-[#8b95a1]">현재 장면을 바탕으로 질문하고 있어요</p>
+            <h2 className="font-black tracking-[-0.03em]">현재 장면을 바탕으로 질문하고 있어요</h2>
           </div>
         </div>
         <span className="shrink-0 rounded-full bg-[#eaf2ff] px-3 py-1.5 text-xs font-black text-[#2f6bff]">질문 {Math.min(coach.questionCount, 10)}/10</span>
@@ -1586,8 +1619,8 @@ function Report({
     return (
       <section className="mt-8 rounded-[28px] border border-[#dce9ff] bg-white p-6 shadow-[0_14px_40px_rgba(25,31,40,0.06)] sm:p-8">
         <span className="inline-flex rounded-full bg-[#eaf2ff] px-3 py-1.5 text-xs font-black text-[#2f6bff]">코칭 완료</span>
-        <h2 className="mt-4 text-2xl font-black tracking-[-0.04em] sm:text-3xl">{busy ? "연습 노트를 만들고 있어요" : "연습 노트를 만들어 보세요"}</h2>
-        <p className="mt-3 max-w-2xl font-bold leading-7 text-[#6b7684]">나눈 대화를 바탕으로 다음 연습에 가져갈 한 문장을 정리해요.</p>
+        <h2 className="mt-3 text-lg font-black tracking-[-0.04em] sm:mt-4 sm:text-3xl">{busy ? "연습 노트를 만들고 있어요" : "연습 노트를 만들어 보세요"}</h2>
+        <p className="mt-2.5 max-w-2xl text-sm font-bold leading-6 text-[#6b7684] sm:mt-3 sm:text-base sm:leading-7">나눈 대화를 바탕으로 다음 연습에 가져갈 한 문장을 정리해요.</p>
         {!busy ? <button type="button" onClick={onCreateReport} className="mt-6 min-h-12 rounded-2xl bg-[#2f6bff] px-5 py-3 text-sm font-black text-white transition hover:bg-[#1b64da]">연습 노트 만들기</button> : null}
       </section>
     );
@@ -1596,17 +1629,17 @@ function Report({
   const report = reportData.report;
   return (
     <section className="mt-8 grid gap-4">
-      <header className="rounded-[28px] bg-[#2f6bff] p-6 text-white shadow-[0_16px_36px_rgba(49,130,246,0.2)] sm:p-8">
-        <p className="text-sm font-black text-white/75">{reportData.reportCount}번째 연습 노트</p>
-        <h2 className="mt-3 text-3xl font-black leading-tight tracking-[-0.05em] sm:text-4xl">{report.headline}</h2>
+      <header className="rounded-[28px] bg-[#2f6bff] p-5 text-white shadow-[0_16px_36px_rgba(49,130,246,0.2)] sm:p-8">
+        <p className="text-xs font-black text-white/75 sm:text-sm">{reportData.reportCount}번째 연습 노트</p>
+        <h2 className="mt-2 text-lg font-black leading-snug tracking-[-0.04em] sm:mt-3 sm:text-4xl">{report.headline}</h2>
       </header>
-      <article className="rounded-[24px] border border-[#dce9ff] bg-[#f7faff] p-5 sm:p-6">
+      <article className="rounded-[24px] border border-[#dce9ff] bg-[#f7faff] p-4 sm:p-6">
         <p className="text-xs font-black text-[#2f6bff]">다시 본 순간</p>
-        <h3 className="mt-2 text-xl font-black tracking-[-0.035em]">영상에서 눈에 남은 곳</h3>
-        <p className="mt-3 inline-flex rounded-full bg-white px-3 py-1.5 text-sm font-black text-[#4e5968]">
-          {report.biggest_problem.start}–{report.biggest_problem.end} · {report.biggest_problem.dimension}
+        <h3 className="mt-2 text-base font-black tracking-[-0.035em] sm:text-xl">영상에서 눈에 남은 곳</h3>
+        <p className="mt-3 inline-flex rounded-full bg-white px-3 py-1.5 text-xs font-black text-[#4e5968] sm:text-sm">
+          {report.biggest_problem.start}–{report.biggest_problem.end}
         </p>
-        <p className="mt-4 whitespace-pre-wrap font-semibold leading-7 text-[#333d4b]">{report.biggest_problem.description}</p>
+        <p className="mt-3 whitespace-pre-wrap text-sm font-semibold leading-6 text-[#333d4b] sm:mt-4 sm:text-base sm:leading-7">{report.biggest_problem.description}</p>
       </article>
       <div className="grid gap-4 md:grid-cols-2">
         <ReportSection title="장면에서 찾은 근거" body={report.evidence} />
@@ -1615,9 +1648,9 @@ function Report({
       </div>
       {turns.length > 0 ? (
         <section className="overflow-hidden rounded-[24px] border border-[#e5e8eb] bg-white shadow-[0_8px_24px_rgba(25,31,40,0.035)]">
-          <div className="border-b border-[#e5e8eb] px-5 py-4 sm:px-6">
+          <div className="border-b border-[#e5e8eb] px-4 py-3.5 sm:px-6 sm:py-4">
             <p className="text-xs font-black text-[#2f6bff]">코칭 대화</p>
-            <h3 className="mt-1 text-lg font-black tracking-[-0.035em]">함께 찾은 생각</h3>
+            <h3 className="mt-1 text-base font-black tracking-[-0.035em] sm:text-lg">함께 찾은 생각</h3>
           </div>
           <div role="log" aria-label="완료된 AI 코칭 대화" className="max-h-[480px] space-y-4 overflow-y-auto bg-[#f7f8fa] px-4 py-5 sm:px-6">
             {turns.map((turn, index) => <ConversationBubble key={"report-" + turn.role + "-" + String(index)} turn={turn} />)}
@@ -1626,8 +1659,8 @@ function Report({
       ) : null}
       <aside className="rounded-[24px] border border-[#dce9ff] bg-white p-5 shadow-[0_8px_24px_rgba(25,31,40,0.035)] sm:flex sm:items-center sm:justify-between sm:gap-6 sm:p-6">
         <div>
-          <h3 className="text-lg font-black tracking-[-0.035em]">이번 연습은 어떠셨나요?</h3>
-          <p className="mt-2 font-semibold leading-7 text-[#4e5968]">짧은 설문으로 경험을 알려 주시면 더 나은 연기 코치를 만드는 데 활용할게요.</p>
+          <h3 className="text-base font-black tracking-[-0.035em] sm:text-lg">이번 연습은 어떠셨나요?</h3>
+          <p className="mt-2 text-sm font-semibold leading-6 text-[#4e5968] sm:text-base sm:leading-7">짧은 설문으로 경험을 알려 주시면 더 나은 연기 코치를 만드는 데 활용할게요.</p>
         </div>
         <a href="https://acttub.github.io/review-form/" target="_blank" rel="noopener noreferrer" aria-label="세션 후기 설문조사 참여하기 (새 창)" className="mt-5 inline-flex min-h-12 shrink-0 items-center justify-center rounded-2xl bg-[#2f6bff] px-5 py-3 text-sm font-black text-white transition hover:bg-[#1b64da] sm:mt-0">설문조사 참여하기 ↗</a>
       </aside>
@@ -1648,29 +1681,8 @@ function SummarySection({
 }) {
   return (
     <article className={(wide ? "md:col-span-2 " : "") + "rounded-[24px] border p-5 shadow-[0_8px_24px_rgba(25,31,40,0.035)] sm:p-6 " + (tone === "blue" ? "border-[#dce9ff] bg-[#f7faff]" : "border-[#e5e8eb] bg-white")}>
-      <h3 className="text-lg font-black tracking-[-0.035em]">{title}</h3>
-      <p className="mt-3 whitespace-pre-wrap font-semibold leading-7 text-[#4e5968]">{body}</p>
-    </article>
-  );
-}
-
-function AnomalyCard({ anomaly }: { anomaly: Record<string, unknown> }) {
-  const start = stringField(anomaly, "start");
-  const end = stringField(anomaly, "end");
-  const dimension = stringField(anomaly, "dimension");
-  const what = stringField(anomaly, "what");
-  const whyOdd = stringField(anomaly, "why_odd");
-  const likelyCause = stringField(anomaly, "likely_cause");
-  const impact = stringField(anomaly, "impact_on_intent");
-  const timeRange = start ? start + (end ? "–" + end : "") : "";
-
-  return (
-    <article className="rounded-2xl border border-[#dce9ff] bg-white p-4 sm:p-5">
-      {timeRange || dimension ? <p className="text-xs font-black text-[#2f6bff]">{[timeRange, dimension].filter(Boolean).join(" · ")}</p> : null}
-      {what ? <h4 className="mt-2 font-black leading-7 tracking-[-0.02em]">{what}</h4> : null}
-      {whyOdd ? <p className="mt-2 text-sm font-semibold leading-6 text-[#4e5968]">{whyOdd}</p> : null}
-      {likelyCause ? <p className="mt-2 text-sm font-semibold leading-6 text-[#6b7684]">추정 원인: {likelyCause}</p> : null}
-      {impact ? <p className="mt-2 text-sm font-semibold leading-6 text-[#6b7684]">장면 의도에 미친 영향: {impact}</p> : null}
+      <h3 className="text-base font-black tracking-[-0.035em] sm:text-lg">{title}</h3>
+      <p className="mt-2.5 whitespace-pre-wrap text-sm font-semibold leading-6 text-[#4e5968] sm:mt-3 sm:text-base sm:leading-7">{body}</p>
     </article>
   );
 }
@@ -1694,8 +1706,8 @@ function ReportSection({
 
   return (
     <article className={(wide ? "md:col-span-2 " : "") + "rounded-[24px] border p-5 shadow-[0_8px_24px_rgba(25,31,40,0.035)] sm:p-6 " + toneClass}>
-      <h3 className="text-lg font-black tracking-[-0.035em]">{title}</h3>
-      <p className="mt-3 whitespace-pre-wrap font-semibold leading-7 text-[#4e5968]">{body}</p>
+      <h3 className="text-base font-black tracking-[-0.035em] sm:text-lg">{title}</h3>
+      <p className="mt-2.5 whitespace-pre-wrap text-sm font-semibold leading-6 text-[#4e5968] sm:mt-3 sm:text-base sm:leading-7">{body}</p>
     </article>
   );
 }
@@ -1733,48 +1745,3 @@ function coachDoneMessage(reason: CoachState["reason"]): string {
   }
 }
 
-function stringObservations(
-  observation: Record<string, unknown> | null | undefined,
-): Array<{
-  key: string;
-  value: string;
-}> {
-  if (!observation) return [];
-  return Object.entries(observation).flatMap(([key, value]) =>
-    typeof value === "string" && value.trim() ? [{ key, value }] : [],
-  );
-}
-
-function observationLabel(key: string): string {
-  const labels: Record<string, string> = {
-    timeline: "전체 흐름",
-    dialogue: "대사",
-    tempo: "템포",
-    pitch: "높낮이",
-    movement: "움직임",
-    expression: "표정과 시선",
-    emotion: "감정",
-  };
-  return labels[key] ?? key;
-}
-
-function asRecord(value: unknown): Record<string, unknown> | null {
-  return value !== null && typeof value === "object" && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : null;
-}
-
-function asAnomalyRecord(value: unknown): Record<string, unknown> | null {
-  const record = asRecord(value);
-  if (record) return record;
-  if (typeof value === "string" && value.trim()) return { what: value.trim() };
-  if (typeof value === "number" || typeof value === "boolean") {
-    return { what: String(value) };
-  }
-  return null;
-}
-
-function stringField(record: Record<string, unknown>, key: string): string {
-  const value = record[key];
-  return typeof value === "string" ? value.trim() : "";
-}

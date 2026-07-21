@@ -15,14 +15,20 @@ export function useRequireAuth() {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    const loginPath = `/login?next=${pathname}`;
+    // 쿼리까지 실어야 /practice/history?session=<id> 링크가 로그인 뒤에도 살아남는다.
+    // 붙잡아 두지 않고 그때그때 읽는다 — 로그아웃·만료는 나중에 일어나는데,
+    // effect는 pathname만 보고 다시 돌기 때문에 ?session=A에서 B로 옮긴 뒤
+    // 로그아웃되면 굳어 있던 A로 되돌아가 엉뚱한 세션이 열린다.
+    const nextPathNow = () =>
+      encodeURIComponent(`${window.location.pathname}${window.location.search}`);
+    const loginPathNow = () => `/login?next=${nextPathNow()}`;
     let cancelled = false;
     const readyTimer: { id?: number } = {};
     const redirectToLogin = () => {
       cancelled = true;
       if (readyTimer.id !== undefined) window.clearTimeout(readyTimer.id);
       setReady(false);
-      router.replace(loginPath);
+      router.replace(loginPathNow());
     };
     const unsubscribe = onSessionEvent((event) => {
       if (event !== "logout") return;
@@ -42,12 +48,12 @@ export function useRequireAuth() {
     };
 
     if (!isLoggedIn()) {
-      router.replace(loginPath);
+      router.replace(loginPathNow());
       return cleanup;
     }
 
     if (hasPendingConsents()) {
-      router.replace(`/terms?next=${pathname}`);
+      router.replace(`/terms?next=${nextPathNow()}`);
       return cleanup;
     }
 

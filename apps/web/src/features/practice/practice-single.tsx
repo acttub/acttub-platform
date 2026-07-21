@@ -1,12 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import Image from "next/image";
+import wordmark from "../../assets/acttub-wordmark.png";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { isLoggedIn } from "../../lib/auth/token-store";
 import { uploadVideo } from "../../lib/api/v2/uploads";
 import {
   createPracticeSession,
+  getPracticeSession,
   pollSessionUntilSettled,
 } from "../../lib/api/v2/sessions";
 import { startCoach, replyCoach } from "../../lib/api/v2/coach";
@@ -31,12 +34,24 @@ const TOUR = [
 ] as const;
 
 export function PracticeSingle() {
+  // useSearchParams는 정적 export에서 Suspense 안에 있어야 한다
+  return (
+    <Suspense fallback={<div className="min-h-dvh bg-white" aria-busy="true" />}>
+      <PracticeSingleInner />
+    </Suspense>
+  );
+}
+
+function PracticeSingleInner() {
   const router = useRouter();
 
   const [ready, setReady] = useState(false);
   useEffect(() => {
     if (!isLoggedIn()) {
-      router.replace("/login?next=/practice/new");
+      // 쿼리까지 실어야 /practice/new?from=<id> 링크가 로그인 뒤에도 살아남는다
+      // (안 실으면 돌아왔을 때 장면 맥락과 영상이 채워지지 않는다)
+      const search = typeof window === "undefined" ? "" : window.location.search;
+      router.replace(`/login?next=${encodeURIComponent(`/practice/new${search}`)}`);
       return;
     }
     // eslint-disable-next-line react-hooks/set-state-in-effect -- 클라이언트 전용 인증 확인 후 1회 게이트
@@ -50,6 +65,47 @@ export function PracticeSingle() {
   const [situation, setSituation] = useState("");
   const [character, setCharacter] = useState("");
   const [subtext, setSubtext] = useState("");
+
+  // 지난 연습에서 "인터뷰 다시하기"로 넘어온 경우, 적었던 장면 맥락과 영상을 그대로 채워 준다.
+  // 영상은 서버에 있는 것을 내려받아 새 파일처럼 다시 올린다 (원본 파일은 브라우저에 남아 있지 않다).
+  const fromSessionId = useSearchParams().get("from");
+  const [prefilling, setPrefilling] = useState(Boolean(fromSessionId));
+
+  useEffect(() => {
+    if (!fromSessionId) return;
+    // 영상은 최대 100MB다 — 화면을 떠나거나 ?from=이 바뀌면 실제로 끊어야 한다.
+    // 플래그만 세우면 폰 웹뷰에서 받던 영상을 끝까지 계속 받는다.
+    const controller = new AbortController();
+
+    void (async () => {
+      try {
+        const detail = await getPracticeSession(fromSessionId, { signal: controller.signal });
+        if (controller.signal.aborted) return;
+        setSituation(detail.situation ?? "");
+        setCharacter(detail.character_context ?? "");
+        setSubtext(detail.subtext ?? "");
+
+        if (!detail.playback_url) return;
+        const response = await fetch(detail.playback_url, { signal: controller.signal });
+        if (!response.ok) return;
+        const blob = await response.blob();
+        if (controller.signal.aborted) return;
+
+        const type = blob.type.startsWith("video/") ? blob.type : "video/mp4";
+        const file = new File([blob], type === "video/quicktime" ? "지난-연습.mov" : "지난-연습.mp4", { type });
+        setVideoFile(file);
+        setVideoUrl(URL.createObjectURL(file));
+      } catch {
+        /* 못 가져오면 배우가 직접 올리면 된다 — 맥락만 채워진 채로 시작한다 */
+      } finally {
+        if (!controller.signal.aborted) setPrefilling(false);
+      }
+    })();
+
+    return () => {
+      controller.abort();
+    };
+  }, [fromSessionId]);
 
   const [phase, setPhase] = useState<Phase>("input");
   const [pct, setPct] = useState(0);
@@ -147,6 +203,11 @@ export function PracticeSingle() {
     const el = chatScrollRef.current;
     if (el) el.scrollTop = el.scrollHeight;
   }, [messages]);
+
+  // 분석이 시작되면 진행률 패널이 화면 아래로 숨지 않게 입력 카드 끝을 보여준다
+  useEffect(() => {
+    if (phase === "analyzing") inputsRef.current?.scrollIntoView({ block: "end", behavior: "smooth" });
+  }, [phase]);
 
   useEffect(() => () => {
     if (pctTimer.current) clearInterval(pctTimer.current);
@@ -291,7 +352,7 @@ export function PracticeSingle() {
     <div className="flex h-dvh flex-col overflow-hidden bg-white text-[#191f28]">
       {/* Topbar */}
       <header className="flex h-15 shrink-0 items-center gap-3 border-b border-[#edf0f3] bg-white/90 px-5 backdrop-blur">
-        <Link href="/home" className="text-lg font-black tracking-[-0.04em]">Acttub</Link>
+        <Link href="/home" className="shrink-0" aria-label="Acttub 홈"><Image src={wordmark} alt="Acttub" priority className="h-5 w-auto" /></Link>
         <span className="text-[#d1d6db]">·</span>
         <input
           value={sessionName}
@@ -307,7 +368,7 @@ export function PracticeSingle() {
       {/* Workspace */}
       <div className="mx-auto grid min-h-0 w-full max-w-[1400px] flex-1 grid-cols-1 gap-4 overflow-hidden p-4 lg:grid-cols-[1.7fr_1fr]">
         {/* Left column */}
-        <div className="flex min-h-0 min-w-0 flex-col gap-3 overflow-y-auto lg:overflow-hidden">
+        <div className="flex min-h-0 min-w-0 flex-col gap-3 overflow-y-auto">
           {/* Video */}
           <section ref={pickerRef} className="rounded-3xl bg-white p-4 shadow-[0_16px_45px_rgba(25,31,40,0.06)]">
             {videoUrl ? (
@@ -325,6 +386,11 @@ export function PracticeSingle() {
                   <span className="text-xs font-semibold text-[#8b95a1]">이 장면으로 질문을 받아요</span>
                 </div>
               </>
+            ) : prefilling ? (
+              <div aria-busy="true" className="flex aspect-video max-h-[34vh] w-full flex-col items-center justify-center gap-2 rounded-2xl border-[1.5px] border-dashed border-[#cfe0f5] bg-[#f8fbff] px-4 text-center">
+                <span className="text-sm font-black tracking-[-0.02em] text-[#333d4b]">지난 연습을 불러오는 중이에요…</span>
+                <span className="text-xs font-semibold text-[#8b95a1]">영상과 적어 두신 장면 맥락을 가져오고 있어요</span>
+              </div>
             ) : (
               <button type="button" onClick={() => fileInputRef.current?.click()} className="flex aspect-video max-h-[34vh] w-full flex-col items-center justify-center gap-2 rounded-2xl border-[1.5px] border-dashed border-[#cfe0f5] bg-[#f8fbff] px-4 text-center text-[#8b95a1] transition hover:border-[#3182f6] hover:bg-[#e8f3ff] hover:text-[#3182f6]">
                 <span className="text-3xl font-black text-[#3182f6]">＋</span>
@@ -347,6 +413,13 @@ export function PracticeSingle() {
               </div>
             </div>
 
+            {phase === "input" ? (
+              <div className="mt-4 flex items-center gap-3">
+                <button ref={beginRef} type="button" onClick={onBegin} disabled={!videoFile} className="h-11 rounded-2xl bg-[#3182f6] px-6 text-sm font-black text-white shadow-[0_8px_20px_rgba(49,130,246,0.24)] transition hover:bg-[#1b64da] disabled:bg-[#c9d3df] disabled:shadow-none">질문 받기</button>
+                <span className="text-xs font-semibold text-[#8b95a1]">{videoFile ? "준비됐어요 — 눌러서 질문을 받아요" : "영상을 올리면 시작할 수 있어요"}</span>
+              </div>
+            ) : null}
+
             {phase === "analyzing" ? (
               <div className="mt-4 rounded-2xl bg-[#e8f3ff] px-4 py-3.5">
                 <div className="mb-2 flex items-baseline gap-2.5">
@@ -359,24 +432,27 @@ export function PracticeSingle() {
             ) : null}
 
             {error ? <p role="alert" className="mt-4 rounded-2xl bg-[#fff0f0] px-4 py-3 text-sm font-bold text-[#e42939]">{error}</p> : null}
-
-            <div className="mt-4 flex items-center gap-3">
-              <button ref={beginRef} type="button" onClick={onBegin} disabled={!videoFile || locked} className="h-11 rounded-2xl bg-[#3182f6] px-6 text-sm font-black text-white shadow-[0_8px_20px_rgba(49,130,246,0.24)] transition hover:bg-[#1b64da] disabled:bg-[#c9d3df] disabled:shadow-none">질문 받기</button>
-              <span className="text-xs font-semibold text-[#8b95a1]">{phase !== "input" ? "질문이 진행 중이에요" : videoFile ? "준비됐어요 — 눌러서 질문을 받아요" : "영상을 올리면 시작할 수 있어요"}</span>
-            </div>
           </section>
         </div>
 
         {/* Chat column */}
         <section ref={chatRef} className="flex min-h-0 flex-col overflow-hidden rounded-3xl bg-white shadow-[0_16px_45px_rgba(25,31,40,0.06)]">
-          <div className="flex items-center gap-2 border-b border-[#edf0f3] px-4 py-3.5 text-[13px] font-black text-[#4e5968]">
-            <span className={`h-1.5 w-1.5 rounded-full ${phase === "coaching" || phase === "done" ? "bg-[#03b26c]" : "bg-[#b0b8c1]"}`} />
-            {phase === "input" || phase === "analyzing" ? "아직 질문이 시작되지 않았어요" : "현재 장면을 바탕으로 질문하고 있어요"}
-          </div>
+          {/* 질문이 시작되기 전에는 상태 줄을 띄우지 않는다 (아직 아무 일도 없다는 안내는 군더더기) */}
+          {phase === "coaching" || phase === "done" ? (
+            <div className="flex items-center gap-2 border-b border-[#edf0f3] px-4 py-3.5 text-[13px] font-black text-[#4e5968]">
+              <span className="h-1.5 w-1.5 rounded-full bg-[#03b26c]" />
+              현재 장면을 바탕으로 질문하고 있어요
+            </div>
+          ) : null}
 
           <div ref={chatScrollRef} className="flex flex-1 flex-col gap-3 overflow-y-auto p-4">
             {messages.length === 0 ? (
-              <p className="m-auto max-w-xs text-center text-[13px] font-semibold leading-6 text-[#8b95a1]">왼쪽에 영상과 장면 맥락을 채우고<br />‘질문 받기’를 누르면 여기서 대화가 시작돼요.</p>
+              // 넓은 화면에서는 이 칸이 화면 한 축을 차지한다 — 비워 두면 로딩이 덜 된 것처럼 보인다.
+              // 좁은 화면은 위아래로 쌓이므로 굳이 자리를 만들지 않는다.
+              <div className="hidden flex-1 flex-col items-center justify-center gap-1.5 px-6 text-center lg:flex">
+                <span className="text-sm font-black tracking-[-0.02em] text-[#4e5968]">질문은 여기에서 이어져요</span>
+                <span className="text-xs font-semibold leading-5 text-[#b0b8c1]">영상과 장면 맥락을 올리고 질문 받기를 누르면 시작해요</span>
+              </div>
             ) : (
               messages.map((m, i) => (
                 <div key={i} className={`max-w-[82%] whitespace-pre-wrap rounded-[18px] px-3.5 py-2.5 text-[13.5px] font-semibold leading-6 ${m.role === "ai" ? "self-start rounded-bl-[5px] bg-[#f8fbff] text-[#191f28]" : "self-end rounded-br-[5px] bg-[#3182f6] text-white"}`}>
@@ -393,7 +469,7 @@ export function PracticeSingle() {
             </div>
           ) : phase === "coaching" ? (
             <div className="flex gap-2 border-t border-[#edf0f3] p-3">
-              <textarea value={chatInput} onChange={(e) => setChatInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void onSend(); } }} rows={1} placeholder="답을 편하게 적어 주세요" className="h-11 flex-1 resize-none rounded-2xl border border-[#e5e8eb] bg-[#f8fbff] px-3.5 py-2.5 text-[13.5px] font-semibold outline-none focus:border-[#3182f6] focus:bg-white" />
+              <textarea value={chatInput} onChange={(e) => setChatInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); void onSend(); } }} rows={1} placeholder="답을 편하게 적어 주세요" className="h-11 flex-1 resize-none rounded-2xl border border-[#e5e8eb] bg-[#f8fbff] px-3.5 py-2.5 text-[13.5px] font-semibold outline-none focus:border-[#3182f6] focus:bg-white" />
               <button type="button" onClick={() => void onSend()} disabled={sending || !chatInput.trim()} className="w-11 shrink-0 rounded-2xl bg-[#3182f6] text-lg font-black text-white transition hover:bg-[#1b64da] disabled:bg-[#c9d3df]">↑</button>
             </div>
           ) : null}
