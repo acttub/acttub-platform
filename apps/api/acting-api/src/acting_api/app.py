@@ -22,6 +22,7 @@ from acting_api.auth.dependencies import (
     build_current_user_dependency,
     build_rate_limited_user_dependency,
 )
+from acting_api.auth.apple import AppleProviderVerifier
 from acting_api.auth.development import DevelopmentProviderVerifier
 from acting_api.auth.google import GoogleProviderVerifier
 from acting_api.auth.jwt import JwtService
@@ -80,7 +81,8 @@ def create_app(
     jwt_service = jwt_service or JwtService(gateway_settings.jwt_secret)
     if provider_registry is None:
         provider_verifiers = [
-            GoogleProviderVerifier(gateway_settings.google_oauth_client_id)
+            GoogleProviderVerifier(gateway_settings.google_oauth_client_id),
+            AppleProviderVerifier(gateway_settings.apple_oauth_client_id),
         ]
         if gateway_settings.development_auth_provider:
             provider_verifiers.append(DevelopmentProviderVerifier())

@@ -15,6 +15,8 @@ DEFAULT_GOOGLE_OAUTH_CLIENT_ID = (
     "462651930952-625pcnhrjib79r7990fqsdqhsterdij2."
     "apps.googleusercontent.com"
 )
+# 네이티브 iOS "Sign in with Apple" identityToken의 aud = 앱 번들 ID.
+DEFAULT_APPLE_OAUTH_CLIENT_ID = "com.acttub.app"
 
 
 @dataclass
@@ -22,6 +24,7 @@ class GatewaySettings:
     database_url: str
     jwt_secret: str
     google_oauth_client_id: str | None = DEFAULT_GOOGLE_OAUTH_CLIENT_ID
+    apple_oauth_client_id: str | None = DEFAULT_APPLE_OAUTH_CLIENT_ID
     development_auth_provider: bool = False
     keep_alive_url: str | None = None
     keep_alive_interval_sec: int = DEFAULT_KEEP_ALIVE_INTERVAL_SEC
@@ -129,6 +132,11 @@ def load_gateway_settings(env_path: Path | None = None) -> GatewaySettings:
         google_oauth_client_id=(
             os.environ.get("GOOGLE_OAUTH_CLIENT_ID", "").strip()
             or DEFAULT_GOOGLE_OAUTH_CLIENT_ID
+        ),
+        # 네이티브 앱 번들 ID가 곧 aud. 콤마 구분으로 복수 audience 지정 가능.
+        apple_oauth_client_id=(
+            os.environ.get("APPLE_OAUTH_CLIENT_ID", "").strip()
+            or DEFAULT_APPLE_OAUTH_CLIENT_ID
         ),
         development_auth_provider=(
             os.environ.get("DEVELOPMENT_AUTH_PROVIDER", "").strip().lower()

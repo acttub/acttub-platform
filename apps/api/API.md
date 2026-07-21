@@ -52,14 +52,14 @@ AI 호출을 포함한 쓰기 요청(`/v2/practice-sessions`, `/{id}/analyze`, `
 
 ## POST /v2/auth/login
 
-소셜 로그인. 별도 회원가입 없이 첫 로그인 시 자동으로 계정이 생성됩니다. 운영 provider는 `google`이며, 로컬에서는 `DEVELOPMENT_AUTH_PROVIDER=1`일 때만 `development`를 추가로 사용할 수 있습니다 (카카오·애플은 후속).
+소셜 로그인. 별도 회원가입 없이 첫 로그인 시 자동으로 계정이 생성됩니다. 운영 provider는 `google`·`apple`이며, 로컬에서는 `DEVELOPMENT_AUTH_PROVIDER=1`일 때만 `development`를 추가로 사용할 수 있습니다 (카카오는 후속).
 
 ### 요청 — JSON
 
 | 필드 | 타입 | 설명 |
 |---|---|---|
-| `provider` | str | `"google"` (로컬 opt-in: `"development"`) |
-| `id_token` | str | 구글 OIDC id_token. development provider는 로컬 테스트 토큰(`<uid>` 또는 `<uid>:<email>`) |
+| `provider` | str | `"google"` \| `"apple"` (로컬 opt-in: `"development"`) |
+| `id_token` | str | google=OIDC id_token, apple=네이티브 "Sign in with Apple" identityToken(JWT). development는 로컬 테스트 토큰(`<uid>` 또는 `<uid>:<email>`) |
 
 ### 처리 규칙
 
@@ -315,6 +315,7 @@ S3 업로드 완료 확인. 서버가 S3 HEAD로 객체 존재·크기 일치를
 | `JWT_SECRET` | ✅ | — | HS256 서명 키. 없으면 기동 실패 |
 | `GEMINI_API_KEY` | ✅ | — | Gemini API 키. 없으면 기동 실패 |
 | `GOOGLE_OAUTH_CLIENT_ID` | | `462651930952-625pcnhrjib79r7990fqsdqhsterdij2.apps.googleusercontent.com` | 구글 id_token audience 검증용 client ID override |
+| `APPLE_OAUTH_CLIENT_ID` | | `com.acttub.app` | 애플 identityToken audience(앱 번들 ID) override. 콤마 구분으로 복수 지정 가능 |
 | `DEVELOPMENT_AUTH_PROVIDER` | | 비활성 | `1` 또는 `true`일 때만 로컬 테스트용 `development` provider 등록. 프로덕션 활성화 금지 |
 | `S3_BUCKET` / `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` / `AWS_REGION` | 업로드·분석 시 | — | **4개 모두 설정하거나 전부 생략** (일부만이면 기동 실패). 미설정 시 업로드·재생 API 503, 분석 워커 비활성 |
 | `GEMINI_MODEL` | | `gemini-2.5-flash` | 사용 모델 |
