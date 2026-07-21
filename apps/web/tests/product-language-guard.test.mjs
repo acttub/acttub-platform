@@ -1,11 +1,12 @@
 import assert from "node:assert/strict";
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
 import { test } from "node:test";
 
 const appRoot = path.resolve(import.meta.dirname, "..");
 const sourceRoot = path.join(appRoot, "src");
 const generatedSchemaPath = path.join("src", "lib", "api", "v2-schema.d.ts");
+const publicLlmsPath = path.join("public", "llms.txt");
 
 const ignoredDirectories = new Set([".next", "node_modules"]);
 const ignoredFiles = new Set([generatedSchemaPath]);
@@ -104,6 +105,13 @@ function readSource(relativePath) {
   return readFileSync(path.join(appRoot, relativePath), "utf8");
 }
 
+function collectProductCopyFiles() {
+  return [
+    ...collectFiles(sourceRoot),
+    ...(existsSync(path.join(appRoot, publicLlmsPath)) ? [publicLlmsPath] : []),
+  ];
+}
+
 test("legacy substring guard catches every prior term inside longer text", () => {
   const missedTerms = legacySubstringRegressionCases
     .filter(([, source]) => !matchesForbiddenProductLanguage(source))
@@ -116,10 +124,14 @@ test("generated v2 schema is excluded from the source scan", () => {
   assert.equal(collectFiles(sourceRoot).includes(generatedSchemaPath), false);
 });
 
+test("llms.txt is included in the product language scan", () => {
+  assert.equal(collectProductCopyFiles().includes(publicLlmsPath), true);
+});
+
 test("user-facing source avoids score or verdict product language", () => {
   const matches = [];
 
-  for (const file of collectFiles(sourceRoot)) {
+  for (const file of collectProductCopyFiles()) {
     const source = readSource(file);
 
     for (const match of findForbiddenProductLanguage(source)) {
