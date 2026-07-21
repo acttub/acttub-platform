@@ -7,7 +7,19 @@ const providersUrl = new URL(
   "../src/lib/auth/providers.ts",
   import.meta.url,
 ).href;
-const { developmentProvider, googleProvider } = await import(providersUrl);
+const { appleProvider, developmentProvider, googleProvider } =
+  await import(providersUrl);
+
+test("apple provider는 identityToken을 그대로 반환한다", async () => {
+  const credential = "  apple-identity-token  ";
+
+  assert.equal(appleProvider.name, "apple");
+  assert.equal(await appleProvider.getIdToken({ credential }), credential);
+});
+
+test("apple provider는 credential이 없으면 거부한다", async () => {
+  await assert.rejects(() => appleProvider.getIdToken(), /credential/);
+});
 
 test("google provider는 GIS credential을 그대로 반환한다", async () => {
   const credential = "  google-credential  ";
