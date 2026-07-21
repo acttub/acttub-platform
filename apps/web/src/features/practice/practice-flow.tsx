@@ -356,7 +356,23 @@ export function PracticeFlow({ entry = "new" }: { entry?: Entry }) {
       setReportData(null);
       setPhase("coaching");
     } catch (reason) {
-      setError(sessionErrorMessage(reason));
+      if (
+        reason instanceof ApiError &&
+        reason.status === 409 &&
+        reason.code === "report already exists for practice session"
+      ) {
+        try {
+          const refreshed = await listReports();
+          setReports(refreshed.reports);
+          if (!showReportRecord(active.sessionId, refreshed.reports)) {
+            throw new Error("완료된 연습 노트를 불러오지 못했어요.");
+          }
+        } catch (refreshError) {
+          setError(errorMessage(refreshError));
+        }
+      } else {
+        setError(sessionErrorMessage(reason));
+      }
     } finally {
       setCoachWaiting(false);
       setBusy(false);
