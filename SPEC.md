@@ -34,7 +34,7 @@
 **연습 세션당 리포트 1개 강제** [C3]:
 - `db/store.py`: `has_report(session_id)`(1069, coach 세션 기준)를 `has_report_for_practice_session(practice_session_id)`로 교체 — `Report → CoachSession → Summary` 조인으로 `Summary.session_id == practice_session_id` 존재 검사.
 - `reports.py` POST(116): `store.has_report(req.session_id)` → `store.has_report_for_practice_session(owned.practice_session_id)` (claim 내부 검사 유지 — 동시성 직렬화 지점). 409 detail은 기존 "report already exists for session" 유지.
-- `coaching.py` `coach_start`(65-124): 소유권 확인 직후·begin_sync_operation 이전에 `has_report_for_practice_session(owned.practice_session_id)` 검사, 있으면 409 detail "report already exists for practice session". (경합으로 코칭이 하나 더 생겨도 리포트 생성 단계에서 최종 차단되므로 pre-claim 검사로 충분)
+- `coaching.py` `coach_start`(65-124): claim 획득 후(succeeded 오퍼레이션의 캐시 replay 반환 이후) `has_report_for_practice_session(owned.practice_session_id)` 검사, 있으면 `_fail` 후 409 detail "report already exists for practice session". [Phase 6 수정: pre-claim 검사는 성공한 요청의 멱등 replay를 409로 강등시키므로 claim 내부로 이동 — replay 회귀 테스트 포함] (경합으로 코칭이 하나 더 생겨도 리포트 생성 단계에서 최종 차단됨)
 - `complete_report_operation`의 None 페이로드 폴백(reports.py:137-142, coach 세션 unique 기반)은 그대로 유지.
 
 **list_reports** (`db/store.py:1100-1144`):
@@ -108,7 +108,17 @@
 - C7(SIMPLER) 수용: 연결·ordinal 단일 resolver
 - C8(NIT) 수용: 미사용 import·localTurns 잔재 삭제
 
+## 최종 리뷰 반영 기록 (Phase 5~6)
+
+- Claude 리뷰 #1 수용: coach/start 신설 409를 프론트에서 listReports 재조회 → 리포트 표시로 복구
+- Claude 리뷰 #2 → Codex 적대적 [medium] 수용: coach/start 리포트 존재 검사를 claim 내부로 이동해 성공 요청의 멱등 replay 보존 (byte-identical 200 회귀 테스트 추가)
+- Codex 적대적 [high] 기각: 리포트 확정과 coach start/reply 완료 경로의 원자적 직렬화 — SPEC이 명시한 트레이드오프(핵심 불변식은 리포트 생성 row lock이 보장, 경합 코칭의 손실은 모델 비용뿐이며 프론트 409 복구로 착지). 강화가 필요해지면 coach 완료 경로에도 practice row lock + 재검사 추가(미결)
+- Claude 리뷰 #3 기각: refreshPlayback 공유로 인한 요약 화면 메시지 변화는 개선에 가까움
+- Codex 디테일 리뷰는 1차 실행이 네트워크 오류로 정체·재실행분은 사용자 머지 지시로 취소 — 적대적 리뷰·Claude 심층 리뷰로 커버
+
 ## 미결 사항
 
 - 세션 삭제(소프트 삭제) 시 리포트 노출 정책 — 현재 삭제 UI가 없어 이번 스코프에서 제외
 - playback_url nullable화(스토리지 장애 시에도 리포트 텍스트 표시) — 별도 과제 [C5]
+- coach start/reply 완료 경로와 리포트 확정의 원자적 직렬화 강화 — 경합 창 좁음, 필요 시 별도 과제
+- 리포트 삭제 API — TODO.md 등재 (삭제 시 해당 연습 세션 재코칭 허용과 연동)

@@ -349,6 +349,47 @@ def test_practice_session_allows_restart_until_report_then_rejects_coaching_and_
     assert store.has_report_for_practice_session(practice_session_id) is True
 
 
+def test_coach_start_replay_returns_cached_success_after_report():
+    client, store, _, user, headers = _application(
+        responses=[
+            FakeModelResponse(parsed=COACH_QUESTION),
+            FakeModelResponse(parsed=REPORT),
+        ]
+    )
+    summary_id = store.seed_summary(user_id=user.id)
+    start_request_id = uuid4()
+    started = _post(
+        client,
+        "/v2/coach/start",
+        headers=headers,
+        request_id=start_request_id,
+        body={"summary_id": str(summary_id)},
+    )
+    assert started.status_code == 200
+    closed = client.post(
+        "/v2/coach/reply",
+        json={"session_id": started.json()["session_id"], "text": "그만할래"},
+        headers=headers,
+    )
+    assert closed.status_code == 200
+    created = client.post(
+        "/v2/reports",
+        json={"session_id": started.json()["session_id"]},
+        headers=headers,
+    )
+    assert created.status_code == 200
+
+    replayed = _post(
+        client,
+        "/v2/coach/start",
+        headers=headers,
+        request_id=start_request_id,
+        body={"summary_id": str(summary_id)},
+    )
+    assert replayed.status_code == 200
+    assert replayed.content == started.content
+
+
 def test_report_history_strictly_rejects_invalid_runtime_record():
     client, store, _, user, headers = _application()
 
