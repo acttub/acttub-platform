@@ -3,6 +3,9 @@ import { test } from "node:test";
 
 import "./ts-module-loader.mjs";
 
+// 셸/CI에 NEXT_PUBLIC_SITE_URL이 설정돼 있어도 기본값 검증이 결정적이어야 한다.
+delete process.env.NEXT_PUBLIC_SITE_URL;
+
 const {
   buildLandingMetadata,
   buildNoindexMetadata,
@@ -21,6 +24,8 @@ test("사이트 URL은 기본값과 정상 http(s) 주소를 정규화한다", (
     resolveSiteUrl("https://example.com/path///"),
     "https://example.com/path",
   );
+  assert.equal(resolveSiteUrl("https://example.com/?utm=1"), "https://example.com");
+  assert.equal(resolveSiteUrl("https://example.com/#section"), "https://example.com");
 });
 
 test("사이트 URL은 빈 값, 공백, 비정상 scheme을 기본값으로 대체한다", () => {

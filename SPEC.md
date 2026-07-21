@@ -73,7 +73,7 @@
 ## 완료 기준 체크리스트
 
 - [ ] `pnpm build` 후 `out/`에 `robots.txt`·`sitemap.xml`·`llms.txt`·OG 이미지 파일이 생성된다.
-- [ ] `out/index.html`에 canonical(`https://acttub.com/`), og:title·og:description·og:image(절대 URL)·og:image:alt·og:image:type·og:image:width/height, twitter card 메타, JSON-LD 3종이 포함된다.
+- [ ] `out/index.html`에 canonical(`https://acttub.com` — Next가 루트 경로를 origin으로 직렬화, RFC 3986상 `https://acttub.com/`과 동등), og:title·og:description·og:image(절대 URL)·og:image:alt·og:image:type·og:image:width/height, twitter card 메타, JSON-LD 3종이 포함된다.
 - [ ] noindex 페이지들의 HTML(`login.html`·`terms.html`·`home.html`·`practice.html`·`practice/new.html`·`practice/history.html`)에 robots noindex 메타가 있고, **canonical·og:url이 랜딩 값으로 상속되어 있지 않다**.
 - [ ] 생성된 OG 이미지 PNG에 한국어 태그라인이 실제로 렌더된다(빌드 후 이미지 확인).
 - [ ] `sitemap.xml`에 `https://acttub.com/` 단일 URL만 있다.
@@ -111,6 +111,14 @@
 - lint·typecheck·웹 테스트 79/79·빌드·산출물 체크리스트 전부 통과. OG PNG(1200×630, 28KB)의 한국어 태그라인 렌더를 이미지로 직접 확인.
 - **결함 발견·수정(사용자 승인)**: Next가 OG 이미지를 확장자 없는 `out/opengraph-image`로 내보내 FastAPI `FileResponse`가 `application/octet-stream`으로 서빙(실측). "백엔드 변경 불필요" 전제가 이 케이스에서 깨짐 → `app.py`에 PNG 매직 바이트 기반 `_extensionless_media_type` 보강 + `tests/test_static_frontend.py` 신설(4건). 수정 후 실서빙 재실측: `/opengraph-image`·`/twitter-image` → `image/png`. acting-api pytest 228 passed.
 - ImageResponse × 정적 export 호환 미결 사항 해소: 빌드타임 정적 생성 확인됨.
+
+## Claude 리뷰 루프 처리 기록 (Phase 5, 2026-07-21)
+
+라운드 1 (독립 리뷰 에이전트, high effort): blocker/high/medium 0건, low 3건.
+
+- **기각 #1(low)**: 랜딩 canonical·og:url이 슬래시 없는 `https://acttub.com`으로 직렬화 — Next 내부 resolver의 의도된 동작이며 RFC 3986상 동일 URL. `trailingSlash` 변경은 라우팅 전반에 파급 → 수정하지 않고 SPEC 체크리스트 문구를 실측값으로 정정.
+- **수용 #2(low)**: 기본값 테스트가 셸 env 미설정을 암묵 전제 → `seo-metadata`·`seo-routes` 테스트 상단에서 `NEXT_PUBLIC_SITE_URL` 삭제로 결정성 확보.
+- **수용 #3(low)**: `resolveSiteUrl`이 query/fragment를 통과시켜 `${siteUrl}/` 결합 시 malformed URL 가능 → `url.search`/`url.hash` 제거 보강 + 테스트 케이스 2건 추가.
 
 ## 미결 사항
 - **Render에서 www→apex 301 리다이렉트 동작 여부**: 배포 시 확인 (인프라, 이 작업 범위 밖).

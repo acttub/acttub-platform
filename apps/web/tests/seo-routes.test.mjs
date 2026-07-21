@@ -3,6 +3,9 @@ import { test } from "node:test";
 
 import "./ts-module-loader.mjs";
 
+// 셸/CI에 NEXT_PUBLIC_SITE_URL이 설정돼 있어도 기본값 검증이 결정적이어야 한다.
+delete process.env.NEXT_PUBLIC_SITE_URL;
+
 const { default: robots } = await import("../src/app/robots.ts");
 const { default: sitemap } = await import("../src/app/sitemap.ts");
 

@@ -17,6 +17,9 @@ export function resolveSiteUrl(raw?: string): string {
     if (url.protocol !== "http:" && url.protocol !== "https:") {
       return DEFAULT_SITE_URL;
     }
+    // query/fragment가 남으면 `${siteUrl}/` 결합이 malformed URL을 만든다.
+    url.search = "";
+    url.hash = "";
     return url.toString().replace(/\/+$/, "");
   } catch {
     return DEFAULT_SITE_URL;
