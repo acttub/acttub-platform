@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist } from "next/font/google";
+import { buildRootMetadata } from "@/lib/seo/site-metadata";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -7,10 +8,7 @@ const geistSans = Geist({
   subsets: ["latin"],
 });
 
-export const metadata: Metadata = {
-  title: "Acttub",
-  description: "질문으로 연기 장면을 다시 생각하는 연습 도구",
-};
+export const metadata: Metadata = buildRootMetadata();
 
 export default function RootLayout({
   children,

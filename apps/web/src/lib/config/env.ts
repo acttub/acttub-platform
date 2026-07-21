@@ -3,6 +3,9 @@
 // EC2 등 별도 오리진에 API를 둘 때만 NEXT_PUBLIC_API_BASE_URL을 설정한다.
 export const API_BASE_URL = (process.env.NEXT_PUBLIC_API_BASE_URL ?? "").replace(/\/$/, "");
 
+// NEXT_PUBLIC_SITE_URL은 정식 사이트 URL이며 기본값은 https://acttub.com이다.
+// 값의 검증과 정규화는 src/lib/seo/site-metadata.ts에서 담당한다.
+
 // OAuth client ID는 공개 값이므로 클라이언트 번들에 포함해도 무방하다.
 export const GOOGLE_CLIENT_ID =
   "462651930952-625pcnhrjib79r7990fqsdqhsterdij2.apps.googleusercontent.com";
