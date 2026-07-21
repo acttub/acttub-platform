@@ -17,10 +17,9 @@ export function resolveSiteUrl(raw?: string): string {
     if (url.protocol !== "http:" && url.protocol !== "https:") {
       return DEFAULT_SITE_URL;
     }
-    // query/fragment가 남으면 `${siteUrl}/` 결합이 malformed URL을 만든다.
-    url.search = "";
-    url.hash = "";
-    return url.toString().replace(/\/+$/, "");
+    // 사이트는 항상 도메인 루트에서 서빙된다(basePath 없음) — path·인증정보·
+    // query·fragment가 섞인 값은 배포 오설정이므로 origin만 취한다.
+    return url.origin;
   } catch {
     return DEFAULT_SITE_URL;
   }

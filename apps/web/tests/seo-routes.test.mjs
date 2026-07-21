@@ -14,7 +14,7 @@ test("robots는 공개 페이지를 허용하고 API 경로를 제외한다", ()
     rules: {
       userAgent: "*",
       allow: "/",
-      disallow: ["/v2/", "/health"],
+      disallow: ["/v2/", "/health", "/docs", "/redoc", "/openapi.json"],
     },
     sitemap: "https://acttub.com/sitemap.xml",
   });

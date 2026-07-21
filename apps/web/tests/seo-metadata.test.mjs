@@ -16,13 +16,17 @@ const {
 const description =
   "내 연기 영상을 올리면 장면 맥락에서 확인한 단서가 질문으로 돌아와요. 질문으로 연기 장면을 다시 생각하는 연습 도구예요.";
 
-test("사이트 URL은 기본값과 정상 http(s) 주소를 정규화한다", () => {
+test("사이트 URL은 기본값과 정상 http(s) 주소를 origin으로 정규화한다", () => {
   assert.equal(resolveSiteUrl(), "https://acttub.com");
   assert.equal(resolveSiteUrl("https://example.com"), "https://example.com");
-  assert.equal(resolveSiteUrl("http://example.com/path/"), "http://example.com/path");
+  assert.equal(resolveSiteUrl("https://example.com/"), "https://example.com");
+  assert.equal(resolveSiteUrl("http://localhost:8055"), "http://localhost:8055");
+  // 사이트는 도메인 루트에서만 서빙되므로 path·인증정보·query·fragment는 제거된다.
+  assert.equal(resolveSiteUrl("http://example.com/path/"), "http://example.com");
+  assert.equal(resolveSiteUrl("https://example.com/stage"), "https://example.com");
   assert.equal(
-    resolveSiteUrl("https://example.com/path///"),
-    "https://example.com/path",
+    resolveSiteUrl("https://user:pw@example.com/base?utm=1#f"),
+    "https://example.com",
   );
   assert.equal(resolveSiteUrl("https://example.com/?utm=1"), "https://example.com");
   assert.equal(resolveSiteUrl("https://example.com/#section"), "https://example.com");

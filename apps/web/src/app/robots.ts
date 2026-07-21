@@ -8,7 +8,8 @@ export default function robots(): MetadataRoute.Robots {
     rules: {
       userAgent: "*",
       allow: "/",
-      disallow: ["/v2/", "/health"],
+      // FastAPI가 같은 오리진에 노출하는 API 경로와 자동 문서도 크롤링에서 제외한다.
+      disallow: ["/v2/", "/health", "/docs", "/redoc", "/openapi.json"],
     },
     sitemap: `${resolveSiteUrl()}/sitemap.xml`,
   };

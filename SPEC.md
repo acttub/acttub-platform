@@ -50,7 +50,7 @@
    - `buildOrganizationJsonLd(siteUrl?)` — name `Acttub`, url, sameAs(Instagram), email.
    - `buildWebSiteJsonLd(siteUrl?)` — name, url, inLanguage `ko`, publisher `@id`.
    - `buildSoftwareApplicationJsonLd(siteUrl?)` — name, url, description(확정 카피), applicationCategory `EducationalApplication`, operatingSystem `Web`, offers `{ "@type": "Offer", price: "0", priceCurrency: "KRW" }`, publisher `@id`. rating/review가 없으므로 rich result 자격은 기대하지 않는다(aggregateRating 등 허위 필드 금지).
-4. `apps/web/src/app/robots.ts` — 전체 허용 + `/v2/`·`/health` disallow + `Sitemap:` 라인. noindex는 robots.txt가 아니라 메타태그 담당(크롤러가 noindex를 읽으려면 크롤 허용 필요).
+4. `apps/web/src/app/robots.ts` — 전체 허용 + `/v2/`·`/health`·`/docs`·`/redoc`·`/openapi.json` disallow + `Sitemap:` 라인 (FastAPI 자동 문서도 같은 오리진에 노출되므로 제외 — Phase 6 수용). noindex는 robots.txt가 아니라 메타태그 담당(크롤러가 noindex를 읽으려면 크롤 허용 필요).
 5. `apps/web/src/app/sitemap.ts` — `/` 단일 엔트리. `lastModified` 생략(단일 URL에 의미 없고 빌드 재현성 유지).
 6. `apps/web/src/app/opengraph-image.tsx` — ImageResponse 빌드타임 생성. **리포에 커밋한 한국어 폰트 서브셋**(Noto Sans KR 계열, OFL 라이선스, ttf/otf — 태그라인 렌더에 필요한 최소 서브셋 권장)을 Node fs로 읽어 `fonts` 옵션에 주입(빌드 네트워크 의존 제거). `alt`·`size`(1200×630)·`contentType` export 포함. `twitter-image.tsx`는 default·alt·size·contentType 전부 재export.
 7. `apps/web/public/llms.txt` — llms.txt 관례(H1 + 요약 인용문 + 링크 섹션). 서비스 요약, 랜딩·Instagram·문의 이메일 링크. 한국어, 금지 카피 톤 준수.
@@ -72,15 +72,15 @@
 
 ## 완료 기준 체크리스트
 
-- [ ] `pnpm build` 후 `out/`에 `robots.txt`·`sitemap.xml`·`llms.txt`·OG 이미지 파일이 생성된다.
-- [ ] `out/index.html`에 canonical(`https://acttub.com` — Next가 루트 경로를 origin으로 직렬화, RFC 3986상 `https://acttub.com/`과 동등), og:title·og:description·og:image(절대 URL)·og:image:alt·og:image:type·og:image:width/height, twitter card 메타, JSON-LD 3종이 포함된다.
-- [ ] noindex 페이지들의 HTML(`login.html`·`terms.html`·`home.html`·`practice.html`·`practice/new.html`·`practice/history.html`)에 robots noindex 메타가 있고, **canonical·og:url이 랜딩 값으로 상속되어 있지 않다**.
-- [ ] 생성된 OG 이미지 PNG에 한국어 태그라인이 실제로 렌더된다(빌드 후 이미지 확인).
-- [ ] `sitemap.xml`에 `https://acttub.com/` 단일 URL만 있다.
-- [ ] `robots.txt`에 `/v2/`·`/health` disallow와 `Sitemap:` 라인이 있다.
-- [ ] `resolveSiteUrl` 정규화(기본값·오버라이드·이상값 폴백)가 테스트로 검증된다.
-- [ ] `pnpm lint`·`pnpm typecheck`·`pnpm --filter web test`(product-language-guard, 기존 login-provider-defaults 포함 전부) 통과.
-- [ ] 랜딩·로그인 기존 동작 회귀 없음: 로그인 상태에서 `/` 접근 시 `/home` replace, `/login?next=` 플로우, `<Suspense>` 경계 유지, `login/page.tsx` 무변경.
+- [x] `pnpm build` 후 `out/`에 `robots.txt`·`sitemap.xml`·`llms.txt`·OG 이미지 파일이 생성된다.
+- [x] `out/index.html`에 canonical(`https://acttub.com` — Next가 루트 경로를 origin으로 직렬화, RFC 3986상 `https://acttub.com/`과 동등), og:title·og:description·og:image(절대 URL)·og:image:alt·og:image:type·og:image:width/height, twitter card 메타, JSON-LD 3종이 포함된다.
+- [x] noindex 페이지들의 HTML(`login.html`·`terms.html`·`home.html`·`practice.html`·`practice/new.html`·`practice/history.html`)에 robots noindex 메타가 있고, **canonical·og:url이 랜딩 값으로 상속되어 있지 않다**.
+- [x] 생성된 OG 이미지 PNG에 한국어 태그라인이 실제로 렌더된다(빌드 후 이미지 확인).
+- [x] `sitemap.xml`에 `https://acttub.com/` 단일 URL만 있다.
+- [x] `robots.txt`에 `/v2/`·`/health`·`/docs`·`/redoc`·`/openapi.json` disallow와 `Sitemap:` 라인이 있다.
+- [x] `resolveSiteUrl` 정규화(기본값·오버라이드·이상값 폴백)가 테스트로 검증된다.
+- [x] `pnpm lint`·`pnpm typecheck`·`pnpm --filter web test`(product-language-guard, 기존 login-provider-defaults 포함 전부) 통과.
+- [x] 랜딩·로그인 기존 동작 회귀 없음: 로그인 상태에서 `/` 접근 시 `/home` replace, `/login?next=` 플로우, `<Suspense>` 경계 유지, `login/page.tsx` 무변경.
 
 ## 하지 말 것 (스코프 제한)
 
@@ -120,7 +120,15 @@
 - **수용 #2(low)**: 기본값 테스트가 셸 env 미설정을 암묵 전제 → `seo-metadata`·`seo-routes` 테스트 상단에서 `NEXT_PUBLIC_SITE_URL` 삭제로 결정성 확보.
 - **수용 #3(low)**: `resolveSiteUrl`이 query/fragment를 통과시켜 `${siteUrl}/` 결합 시 malformed URL 가능 → `url.search`/`url.hash` 제거 보강 + 테스트 케이스 2건 추가.
 
+## Codex 최종 관문 처리 기록 (Phase 6, 2026-07-21)
+
+- **코드 디테일 리뷰 [P2] 수용** — robots.txt가 운영 오리진의 FastAPI 자동 문서(`/docs`·`/redoc`·`/openapi.json`)를 막지 않음 → disallow 목록에 추가(웹만 수정, api 무변경).
+- **코드 디테일 [P2] + 적대적 [high] 교집합 수용** — pathname 포함 `NEXT_PUBLIC_SITE_URL`이 존재하지 않는 하위 경로를 공식 URL로 선언 → `resolveSiteUrl`을 **origin-only 정규화**로 강화(path·인증정보·query·fragment 제거, 포트는 로컬 프리뷰용으로 유지). 테스트 갱신.
+- **적대적 [high] 잔여 기각** — 빌드 fail-fast·허용 host allowlist·스테이징 전체 noindex 플래그·env 주입 산출물 회귀 테스트: Phase 2 #7에서 사용자가 승인한 "이상값은 기본값 폴백" 설계와 충돌하고, 존재하지 않는 스테이징 인프라를 전제한 스코프 확장. 미결 사항으로 이관.
+
 ## 미결 사항
+
+- **배포 URL 오설정 방어 고도화**(Phase 6 적대적 리뷰): 스테이징/프리뷰 환경이 생기면 허용 host 검증·빌드 fail-fast·스테이징 전체 noindex를 재검토한다. `llms.txt`는 기본 도메인이 하드코딩된 정적 파일이라 `NEXT_PUBLIC_SITE_URL` 오버라이드와 상충할 수 있다(현재는 단일 도메인이라 무해).
 - **Render에서 www→apex 301 리다이렉트 동작 여부**: 배포 시 확인 (인프라, 이 작업 범위 밖).
 - **Google Search Console 소유 확인 + sitemap 제출**: 배포 후 사용자 후속 작업. 필요 시 verification 메타는 추후 추가.
 - **로고 이미지 자산 부재**: Organization.logo 생략. 로고가 생기면 추가.
