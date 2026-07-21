@@ -1,106 +1,79 @@
-# SPEC: 업로드 영상 클라이언트 압축 + 용량 게이트 100MB (TODO 1)
+# SPEC: 리포트(연습 노트) = 결과 + 영상만 제공
 
-기준 커밋: `fe99977` · 브랜치: `feat/upload-compression`
+기준 커밋: `722626c` · 브랜치: `feat/report-result-video-only`
 
 ## 배경 / 목적
 
-- 현재 업로드는 브라우저 → S3 presigned PUT 직접 업로드이며 상한 550MB. 원본이 그대로 저장·재생되고, 서버는 Gemini 분석 직전에만 ffmpeg로 압축한다(`acting-summary/compress.py`).
-- 550MB 원본 업로드는 모바일 회선에서 느리고 저장 비용이 크다. 프론트에서 재생 품질을 지키는 수준으로 압축해 **결과물 50MB를 목표(soft target)**로 하고, 백엔드는 **100MB 초과를 거부**하는 경성 게이트로 바꾼다. (mediabunny의 bitrate는 목표치라 인코더 overshoot로 50MB를 다소 넘을 수 있음 — Codex 비판 #2 수용, 사용자 결정)
-- 핵심 제약: **S3에 저장된 파일이 곧 재생본**이다(`presign_playback`). 따라서 압축 스펙은 Gemini용(768px/10fps)이 아니라 재생 품질 유지형(긴 변 1280px/≤30fps)으로 잡는다. Gemini용 축소는 지금처럼 서버가 분석 직전에 수행한다.
-- 길이 상한은 3분 → **5분**으로 변경한다. 5분 상한은 **클라이언트 검증 한정**이다(백엔드는 기존처럼 duration을 검증하지 않음 — 합의 사항, Codex #10b 기각).
-- **실제 업로드 화면은 `practice-single.tsx`(PracticeSingle)다** — `/practice/new`가 이를 렌더링한다. `practice-flow.tsx`(PracticeFlow)는 `/home`·`/practice/history` 전용이며 그 업로드 경로는 라우트에 연결되지 않는다. (Codex #1 수용 — 검증 완료)
+현재 리포트 화면(practice-flow, `/home`·`/practice/history`)은 리포트 결과 텍스트에 더해 **코칭 대화(turns) 버블**을 보여주고, 정작 **연습 영상은 없다**. 요구: "리포트에는 리포트 결과와 영상만 제공".
+
+또한 리포트→영상 연결에 필요한 `practice_session_id`가 API 계약에 없어, 현재는 같은 탭에서 코칭을 시작한 경우에만 동작하는 인메모리 맵(`practiceCoachSessionMap`)으로 리포트를 연결하는 임시 구조다(새 탭/새로고침에서 깨짐).
+
+**사용자 확정 사항**:
+1. turns는 화면 + `GET /v2/reports` 계약 양쪽에서 제거 (DB `coach_turns` 저장은 유지)
+2. `ReportRecord`에 `practice_session_id` 추가, 영상은 `GET /v2/practice-sessions/{id}`의 presign(15분)으로 재생
+3. 변경 대상은 practice-flow 리포트 화면만 — `/practice/new`(practice-single) 모달은 무변경
+4. 설문 CTA("이번 연습은 어떠셨나요?") 유지. 결과 텍스트 카드(headline·biggest_problem·evidence·self_discovery·next_step)도 현행 유지
 
 ## 설계
 
-### 프론트 (apps/web)
+### 1. 백엔드 — 공유 스키마 (apps/api/acting-report)
 
-1. **공통 업로드 준비 함수**: 검증(타입·길이) → 압축/스킵/폴백 → 게이트 확인을 하나의 공통 preflight로 묶어 `PracticeSingle`(실사용)과 `PracticeFlow.begin()`(비활성 경로) 둘 다 이를 사용하게 한다. 입력 검증: MP4/MOV(`video/mp4`·`video/quicktime`) + **길이 5분 이하**. **원본 용량 상한(550MB)은 제거.**
-2. **압축 모듈 신설** — `src/lib/media/` 아래(파일 구성은 구현 재량):
-   - 라이브러리: **mediabunny v1.50.9** (선행 설치됨). 압축 시점에 **dynamic import**로 로드.
-   - **스킵**: 원본 ≤ 50MB면 재인코딩 없이 원본 그대로 업로드. (≤50MB HEVC도 스킵 — 재생 호환성은 기존과 동일하다는 합의로 Codex #9 기각)
-   - **입력**: `Input` + `BlobSource`, `formats: [MP4, QTFF]` (`ALL_FORMATS` 금지 — 번들 축소, Codex #14).
-   - **트랙**: `tracks: "primary"` 명시 (다중 트랙 시 비트레이트 예산 붕괴 방지, Codex #3).
-   - **출력 스펙**: `Mp4OutputFormat`(faststart) + `BufferTarget`. H.264(`avc`) + AAC. 해상도는 per-track callback에서 `getDisplayWidth()/getDisplayHeight()` 기준 **긴 변 1280px**(종횡비 유지, 업스케일 금지 — mediabunny가 짝수 처리). 프레임레이트는 `computePacketStats().averagePacketRate`가 **30 초과일 때만 `frameRate: 30` 지정, 그 외 생략**(VFR 원본 타이밍 유지, Codex #8).
-   - **오디오**: AAC 128kbps. WebCodecs가 소스의 실제 채널 수·샘플레이트로 AAC 인코딩 가능한지 `canEncodeAudio()`로 확인하고, 불가하면 `@mediabunny/aac-encoder`의 `registerAacEncoder()`를 동적 import로 등록(Codex #7). 원본 채널·샘플레이트 유지가 불가능하면 mediabunny의 2ch/48kHz 자동 재시도를 허용한다.
-   - **길이 적응형 비트레이트**: `videoBitrate = min(2_000_000, floor(0.95 × 50MB × 8 / durationSec) − 128_000)`. 계산 로직(해상도·비트레이트·스킵 판단)은 **순수 함수로 분리**해 node 테스트 가능하게 한다. 테스트 대상 모듈은 `@/` 별칭 없이 상대 경로로 import 가능한 `.ts` 파일이어야 한다(테스트 로더 제약).
-   - **결과 검증**: `isValid` 확인 + **primary video 트랙이 출력에 존재해야 하고, 입력에 오디오가 있었는데 출력에서 discard됐으면 실패로 간주해 원본 폴백**(무음 업로드 방지, Codex #4). 압축 결과가 원본보다 크면 원본 사용.
-   - **진행률**: `onProgress`(0~1)를 UI 콜백으로 전달하되 **99%로 캡**하고, `execute()` resolve 후에만 100%·다음 단계 전환(Codex #13).
-   - **취소**: AbortSignal 연동. `ConversionCanceledError`와 abort로 인한 예외는 **원본 폴백 대상에서 제외**하고 DOM `AbortError` 의미로 전파한다. 각 await 경계에서 `signal.aborted`를 확인한다(Codex #5). 취소 버튼 UI는 이번 스코프에서 제외(unmount/이탈 시 abort만) — 사용자 결정.
-   - **폴백**: WebCodecs 미존재(`typeof VideoEncoder === "undefined"` 등), `isValid` 실패, 트랙 discard, 변환 중 예외(취소 제외) → **원본 그대로 업로드 경로로 폴백**.
-3. **업로드 게이트**: 실제 업로드할 파일(압축본 또는 폴백 원본)이 **100MB 초과면 업로드 중단** + 안내 카피(브라우저 변경 또는 파일 축소 유도, 한국어 존댓말, `product-language-guard` 준수).
-4. **`env.ts` 상수**: `MAX_UPLOAD_BYTES = 100MB`(백엔드 게이트 미러, 주석 갱신), `MAX_DURATION_MS = 300_000`. 압축 관련 상수(목표 50MB, 스킵 50MB, 2Mbps, 128k, 1280px, 30fps)는 압축 모듈에 둔다.
-5. **UI — `practice-single.tsx`(주 대상)**:
-   - 제출 시 **선택된 파일의 duration을 await로 확정 후 검증**한다. 새 파일 선택 시 이전 `durationMsRef` 잔존·metadata 미로드 제출 race를 제거한다(Codex #10a — 기존 버그 수정).
-   - 제출 흐름: 길이 확인 → 압축(진행률 "압축 중" 단계 표시) → 게이트 확인 → `uploadVideo()`(압축본은 `video/mp4`, AbortSignal·업로드 진행률 연결).
-   - "서버 처리 30~120초" 고정 카피를 제거하거나 단계 기반 표현으로 교체(Codex #11 — timeout 600초와 모순).
-6. **UI — `practice-flow.tsx`(비활성 경로 정합성)**: 550MB 검사·카피(173·301·1038행) 제거/갱신, 길이 카피 상수 유도("5분"), `begin()`이 공통 preflight를 사용. 드롭존 카피는 용량 언급 없는 "MP4 · MOV · 5분 이내" 계열로.
+- `src/acting_report/schema.py:38-47` `ReportRecord`: `turns` 필드 제거(3행 `CoachTurn` import도 미사용화되므로 제거), `practice_session_id: str = ""` 추가(디폴트는 standalone in-memory 스토어용 — 실계약은 acting-api strict 모델이 required UUID로 강제), docstring 갱신. `_previous_block`(prompt.py:31-42)은 created_at·report만 사용하므로 리포트 생성 무영향(확인 완료).
+- `src/acting_report/store.py:50-55` `InMemoryReportStore.add_report`: `turns=session.turns` 제거.
+- 테스트: `tests/test_store.py:20` turns 어서션 삭제, `tests/test_app.py:34` `reports[0]["turns"]` 어서션 삭제.
 
-### 백엔드 (apps/api)
+### 2. 백엔드 — acting-api (apps/api/acting-api)
 
-7. `acting-api/src/acting_api/uploads.py`: `MAX_UPLOAD_BYTES = 100 * 1024 * 1024`. 검증·에러(413 `upload_too_large`)·presign 구조는 그대로. intent의 `duration_ms`는 source duration 의미로 유지(Codex #12 기각 — worker 미사용, 계약 주석만).
-8. `acting-summary/src/acting_summary/compress.py`: `TIMEOUT_SEC = 600.0`(5분 영상 대응, 초과 시 원본 사용 폴백은 그대로). 압축 스펙(768px/10fps 등) 변경 없음.
-9. `acting-summary/router.py`의 legacy `/summarize` 한도(550MB)는 **변경하지 않는다**(별도 계약, 스코프 밖).
+- `src/acting_api/reports.py`: 응답 모델 `ReportRecord`(50-54)에서 `turns` 제거·`practice_session_id: UUID` 추가, 로컬 `CoachTurn`(45-48) 삭제(이 파일 전용 확인 완료). POST 경로·`CreateReportResponse`·GET 핸들러 코드는 무변경.
+- `src/acting_api/db/store.py` `list_reports`(1100-1144): select를 `(DbReport, PracticeSession.id)` 튜플로 바꿔 기존 4중 조인에서 practice session id를 함께 조회(order_by 1109·user 필터 1108 유지), turns 적재 블록(1112-1122) 삭제, `ReportRecord` 조립에서 `turns=` 제거·`practice_session_id=str(...)` 추가. 49행 `ReportCoachTurn` import는 1799행에서 계속 사용 — 유지. DB 마이그레이션 없음.
+- 테스트: `tests/platform_test_support.py:753-758` FakeStore 조립을 새 모양으로(context.practice_session_id 사용, 666행에 존재), `tests/test_coach_reports_v2.py:260-264` turns 어서션 → `"turns" not in record` + `practice_session_id` 일치 검증, `tests/test_response_contracts.py:160` required set 교체, `tests/test_db_store.py:661-663` turns 길이 어서션 → practice_session_id 어서션.
 
-### 계약 / 문서
+### 3. 계약 산출물 (한 PR, apps/api에서)
 
-10. openapi.json에는 용량 수치가 없어 스키마 변경 없음이 예상된다. 확인 차 스펙 재생성 후 **diff 없음을 검증**한다(diff가 생기면 웹 타입 재생성 포함 같은 커밋에 반영).
-11. 문서 내 550MB·3분 언급 현행화: `apps/api/API.md`(413 행, 제한 요약 표), `docs/PRD.md`(58행 부근 — 5분 이내·클라이언트 압축 50MB 목표·게이트 100MB), `apps/api/acting-api/README.md`(20행), `apps/api/docs/design-decisions.md`(51·80·82행), **`apps/api/spec/api-spec.html`(550MB 3곳, Codex #15)**.
+1. `uv run --package acting-report pytest && uv run --package acting-api pytest`
+2. `spec/openapi.json` 재생성(apps/api/CLAUDE.md의 명령) → diff가 ReportRecord 변경뿐인지 확인
+3. `API.md`의 GET /v2/reports 응답 예시 갱신(305행 부근)
+4. `pnpm --filter web generate:v2-schema`
+
+### 4. 프론트 — apps/web/src/features/practice/practice-flow.tsx (이 파일만)
+
+**turns 제거**: `normalizeReportTurns`(69-77)·`reportTurnsForStorage`(79-84)·`reportTurns` state(99)와 set 호출 5곳(215, 271, 371, 435, 485)·SessionView `reportTurns` prop(573, 1207, 1225)·Report `turns` prop(1284, 1576, 1581)·코칭 대화 섹션(1616-1626) 삭제. **`ConversationBubble`(1557-1572)은 유지** — 라이브 코칭 화면 1499행에서 사용 중(확인 완료).
+
+**practiceCoachSessionMap 제거**: 맵 선언·주석(51-52)·set 2곳(368, 393)·clear(543) 삭제. `linkedReportForSession`(190-197)을 `sourceReports.find((r) => r.practice_session_id === practiceSessionId)`로 교체. 부수 효과로 새 탭/새로고침에서도 기록 카드 "완료" 배지·리포트 자동 표시가 동작하게 됨.
+
+**영상 추가**: 리포트는 항상 SessionView 안에서 렌더되고 `sessionDetail.playback_url`이 이미 로드돼 있다(이전 기록 경로는 openSession→getPracticeSession이 방금 발급한 presign — 추가 API 호출 불필요). 1284행에서 `playbackUrl={session.playback_url}`·`onPlaybackError` 전달, Report의 reportData 존재 분기에서 헤더 카드 다음에 SummaryView 1377과 동일 패턴의 `<video key={playbackUrl} controls preload="metadata" src={playbackUrl} onError={onPlaybackError}>` 카드 추가. reportData null 분기(연습 노트 만들기 프롬프트)는 영상 없이 현행 유지.
+
+**presign 만료 처리**: one-shot 가드 `playbackRefreshAttemptedRef`(114)를 리포트 진입 시 재장전 — `showReportRecord`(210-217)와 `createActingReport` 성공 경로(486 부근)에서 `false`로 리셋. 만료 시 기존 `refreshPlayback`(529-539)이 1회 재발급, 실패 시 ErrorNotice만 표시하고 리포트 텍스트는 유지(전체 실패 금지).
+
+**로컬 ReportRecord 조립**(`createActingReport` 473-527): 가드를 `if (!coach || !active) return;`로 확장, localRecord(487-492)에서 `turns` 제거·`practice_session_id: active.sessionId` 추가. 409 복구 경로(503-510)는 무수정.
+
+카피는 한국어 존댓말("~해요") — video fallback은 기존 "분석한 영상을 재생할 수 없어요." 톤 준수(product-language-guard 통과 필요).
+
+## 검증
+
+1. 백엔드: `cd apps/api && uv run --package acting-report pytest && uv run --package acting-api pytest`
+2. 웹: `pnpm --filter web typecheck` · `pnpm --filter web lint` · `pnpm --filter web test` · `pnpm --filter web build` (typecheck가 turns 잔재 전수 검출)
+3. 수동(개발 루프: api :8000 + `pnpm dev`): (a) 새 연습→코칭→연습 노트에 영상+결과+설문만 표시 (b) 새 탭에서 `/practice/history`의 완료 연습 열기 → 리포트 자동 표시·완료 배지 (c) 영상 onError 시 재발급 재생 (d) `/practice/new` 모달 무변경
 
 ## 완료 기준 체크리스트
 
-- [ ] `/practice/new`(PracticeSingle)에서 50MB 초과 MP4/MOV 선택 시 브라우저에서 긴 변 1280px·≤30fps H.264+AAC MP4로 재인코딩된다 (50MB는 soft target, 100MB 게이트는 경성)
-- [ ] 50MB 이하 파일은 재인코딩 없이 기존 경로 그대로 업로드
-- [ ] WebCodecs 미지원/디코딩 불가/트랙 discard 시 원본 업로드 폴백, 100MB 초과면 업로드 전 안내와 함께 거부
-- [ ] 압축 진행률(≤99% 캡)과 업로드 진행률이 단계 구분되어 표시
-- [ ] 취소(unmount/이탈)가 원본 폴백으로 오인되지 않고 변환·업로드 모두 중단
-- [ ] PracticeSingle의 duration race(이전 파일 duration 잔존·미로드 제출) 제거
-- [ ] 백엔드 intent 생성이 100MB 초과 `size_bytes`에 413 `upload_too_large` 반환 (기존 테스트는 상수 참조라 그대로 통과)
-- [ ] 압축 계획 순수 함수의 node 테스트 존재 (경계: 스킵 임계, 2Mbps 상한, 5분 최저 비트레이트, 업스케일 금지, 세로 영상, fps 30 초과/이하)
-- [ ] `pnpm lint` · `pnpm typecheck` · `pnpm --filter web test` · `pnpm build` 통과
-- [ ] `cd apps/api && uv run --package acting-api pytest` 통과
-- [ ] openapi.json 재생성 시 diff 없음 확인 (있으면 웹 타입 재생성 포함 반영)
-- [ ] 문서 5곳(API.md·PRD.md·acting-api README·design-decisions.md·spec/api-spec.html)의 한도 수치 현행화
+- [ ] GET /v2/reports 각 record: `turns` 없음, `practice_session_id`(UUID) 있음 — openapi.json·계약 테스트 반영
+- [ ] POST /v2/reports 요청·응답 계약 무변경
+- [ ] coach_turns 테이블·저장 경로 무변경(마이그레이션 없음), `list_reports`는 coach_turns 미조회
+- [ ] 리포트 생성 프롬프트(previous 블록) 회귀 없음 — acting-report 테스트 green
+- [ ] 리포트 화면 = 결과 텍스트 카드 + 영상 + 설문 CTA (코칭 대화 섹션 없음)
+- [ ] 새 탭/새로고침 포함, 완료 연습 열기 시 리포트 즉시 표시 (practiceCoachSessionMap 제거)
+- [ ] 방금 연습 경로에서도 리포트에 영상 표시, presign 만료 시 1회 재발급·실패 시 텍스트 유지
+- [ ] `/practice/new` 리포트 모달 무변경
+- [ ] pytest 2종·웹 4종 명령 전부 통과, 계약 산출물(openapi.json·API.md·v2-schema.d.ts) 동일 PR 포함
 
 ## 하지 말 것 (스코프 제한)
 
-- 서버 Gemini 압축 스펙(768px/10fps/CRF28) 변경 금지 — `TIMEOUT_SEC` 상향만.
-- legacy `/summarize` 라우터 한도 변경 금지.
-- 업로드 3단계 흐름(intent→PUT→complete), presign 방식, 인증·rate limit 로직 변경 금지.
-- ffmpeg.wasm 도입 금지. 녹화(MediaRecorder) 기능 추가 금지. 취소 버튼 UI 추가 금지(후속).
-- 서버측 duration 검증 추가 금지(후속 검토 대상).
-- `apps/web/src/lib/api/v2-schema.d.ts` 직접 수정 금지 (재생성 명령만).
-- 스코프 밖 리팩터링 금지 (기존 코드 스타일·구조·카피 톤 유지, `tests/product-language-guard.test.mjs` 카피 가드 준수).
-
-## Codex 설계 비판 처리 기록 (Phase 2, 2026-07-20)
-
-- **수용 #1(blocker)**: 실제 업로드 화면은 PracticeSingle — UI 주 대상 교체 + 공통 preflight (Claude가 라우트 직접 검증).
-- **수용 #2(blocker, 완화안)**: 50MB는 soft target으로 변경, 경성 한도는 100MB 게이트 (사용자 결정 — 재시도 루프는 기각).
-- **수용 #3·#4·#5·#7·#8·#10a·#11·#13·#14·#15**: tracks primary, 트랙 discard 검증, 취소 의미론 분리, AAC 폴리필 조건 검사, fps 평균 기반 명문화, duration race 수정, 대기시간 카피 수정, progress 99% 캡, formats [MP4, QTFF], api-spec.html 문서 추가.
-- **부분 수용 #6**: BufferTarget 메모리 지적은 타당하나 1차 구현은 BufferTarget 유지, StreamTarget/OPFS는 미결 사항으로 (사용자 결정).
-- **부분 수용 #5**: 취소 의미론은 수용, 취소 버튼 UI는 이번 스코프 제외 (사용자 결정).
-- **기각 #9**: ≤50MB HEVC 재인코딩 — grilling에서 이미 검토·기각된 선택지(재생 호환성은 기존에도 동일). 
-- **기각 #10b**: 서버측 duration 검증 — "5분은 프론트 검증만" 합의 유지, 스펙에 명시.
-- **기각 #12**: intent `duration_ms` 재정의 — worker 미사용으로 실질 영향 없음, source duration 의미 유지.
-
-## Codex 최종 관문 처리 기록 (Phase 6, 2026-07-21)
-
-- **코드 디테일 리뷰**: 지적 0건 (리뷰어가 웹 테스트·typecheck·lint·백엔드 상수 자체 재검증).
-- **적대적 리뷰 [high] 기각** — BufferTarget 메모리(≈114MiB): Phase 2에서 동일 수치로 사용자가 "1차는 BufferTarget" 결정, 미결 사항에 기존 기록 유지. 결과물이 100MB에 근접하는 시나리오는 비트레이트 산식상 비현실적.
-- **적대적 리뷰 [high] 수용** — 다중 트랙 무손실: `getVideoTracks/getAudioTracks` 수가 1 초과면 원본 폴백 (tracks:"primary"가 비-primary 트랙을 discardedTracks에도 남기지 않고 버리는 것 확인). 회귀 테스트 추가.
-- **적대적 리뷰 [medium] 수용** — 취소 오분류: 취소 판정을 `signal.aborted`로만 한정. WebCodecs 자체 AbortError는 원본 폴백. 회귀 테스트 추가.
-- **적대적 리뷰 [medium] 수용** — 배포 전 대형 intent: `complete`에서도 `size_bytes > MAX_UPLOAD_BYTES` 재검증(413). pytest·API.md 갱신.
-- **적대적 리뷰 [medium] 수용(방식 변경)** — fps 표본: `computePacketStats()`는 metadataOnly 순회라 전체 스캔이 저렴함을 소스에서 확인, Phase 5의 200개 제한을 되돌려 전체 평균으로 복원. 평균이 30 이하인 혼합 fps 영상의 잔여 한계는 미결로 기록.
+- `v2-schema.d.ts` 직접 수정 금지(재생성만), 다른 lockfile 추가 금지
+- encouragement/comparison 화면 추가, Report/Summary 컴포넌트 통합 등 스코프 밖 리팩터링 금지
+- practice-single.tsx 수정 금지
+- DB 마이그레이션·coach_turns 저장 경로 변경 금지
 
 ## 미결 사항
 
-- **StreamTarget/OPFS 전환**(Codex #6): 실기기(모바일 Safari)에서 BufferTarget 메모리 문제가 확인되면 `StreamTarget` + `FileSystemWritableFileStream`으로 전환. 1차 구현은 BufferTarget.
-- **취소 버튼 UI**: 압축·업로드 진행 중 명시적 취소 버튼은 후속.
-- 비트레이트 계수(0.95 마진, 오디오 128k)는 실측 결과물이 목표를 크게 넘으면 조정 가능. E2E 실측(노이즈 60초 1080p): 목표 2Mbps 대비 ~3Mbps overshoot, 결과 22.9MB로 목표 내.
-- **혼합 fps 잔여 한계**: 전체 평균 fps가 30 이하인 VFR/편집 영상은 30 초과 구간이 cap 없이 남는다 (평균 휴리스틱의 한계 — 합의된 스펙 동작).
-
-## 검증 명령
-
-- 웹: `pnpm lint` · `pnpm typecheck` · `pnpm --filter web test` · `pnpm build`
-- 백엔드: `cd apps/api && uv run --package acting-api pytest`
-- 스펙 재생성(무변경 확인): `cd apps/api && uv run python -c "import json; from acting_api.app import create_app; json.dump(create_app().openapi(), open('spec/openapi.json','w'), ensure_ascii=False, indent=2)"` 후 `git diff --stat spec/openapi.json`
-- 수동 확인: dev 루프(api :8000 + `pnpm dev`)에서 50MB 초과 영상 업로드 → 압축 진행률 → 업로드 → 재생 확인.
+- 세션 삭제(소프트 삭제) 시 리포트 노출 정책 — 현재 삭제 UI가 없어 이번 스코프에서 제외 (숨긴 세션은 히스토리에 안 보이므로 리포트 진입 경로도 없음)
