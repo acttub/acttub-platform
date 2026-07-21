@@ -1,15 +1,11 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
+import wordmark from "../assets/acttub-wordmark.png";
 import { isLoggedIn } from "../lib/auth/token-store";
-
-const heroSignals = [
-  ["대상", "배우 · 연기자"],
-  ["입력", "연기 영상 + 장면 맥락"],
-  ["결과", "질문 카드 + 연습 노트"],
-];
 
 const productFlow = [
   {
@@ -54,8 +50,8 @@ export default function LandingClient() {
     <main className="min-h-dvh overflow-hidden bg-white text-[#191f28]">
       <header className="sticky top-0 z-20 border-b border-[#edf0f3]/80 bg-white/90 px-5 backdrop-blur-xl">
         <nav className="mx-auto flex h-16 max-w-6xl items-center justify-between">
-          <Link href="/" className="text-xl font-black tracking-[-0.04em]">
-            Acttub
+          <Link href="/" aria-label="Acttub 홈" className="shrink-0">
+            <Image src={wordmark} alt="Acttub" priority className="h-6 w-auto" />
           </Link>
           <div className="hidden items-center gap-8 text-sm font-semibold text-[#4e5968] sm:flex">
             <a href="#flow" className="transition hover:text-[#191f28]">
@@ -68,13 +64,6 @@ export default function LandingClient() {
               안전 약속
             </Link>
           </div>
-          <Link
-            href={practiceLoginHref}
-            prefetch={false}
-            className="inline-flex h-10 items-center justify-center rounded-full bg-[#3182f6] px-4 text-sm font-bold text-white shadow-[0_8px_20px_rgba(49,130,246,0.24)] transition hover:bg-[#1b64da]"
-          >
-            질문 받기
-          </Link>
         </nav>
       </header>
 
@@ -87,36 +76,20 @@ export default function LandingClient() {
           <p className="rounded-full bg-white/85 px-4 py-2 text-sm font-black text-[#3182f6] shadow-sm">
             연기 영상 기반 질문 연습
           </p>
-          <h1 className="mt-8 max-w-5xl text-5xl font-black leading-[1.06] tracking-[-0.065em] sm:text-6xl lg:text-7xl">
-            내 연기 영상을 올리면
-            <br />장면 질문이 도착해요
+          <h1 className="mt-8 max-w-5xl text-4xl font-black leading-[1.06] tracking-[-0.065em] sm:text-6xl lg:text-7xl">
+            같이 연기 연습해요!
           </h1>
           <p className="mt-7 max-w-3xl text-lg font-semibold leading-8 text-[#4e5968] sm:text-xl">
-            Acttub은 영상과 장면 맥락에서 확인한 단서만 질문으로 바꿔요.
-            배우는 답을 쌓아 연습 노트와 다음 테이크 문장을 남깁니다.
+            연기 영상을 올리면 세심한 분석을 도와줘요
           </p>
 
-          <div className="mt-9 grid w-full max-w-3xl gap-3 sm:grid-cols-3">
-            {heroSignals.map(([label, value]) => (
-              <div
-                key={label}
-                className="rounded-2xl bg-white/80 px-5 py-4 text-left shadow-[0_16px_45px_rgba(25,31,40,0.06)] backdrop-blur"
-              >
-                <p className="text-xs font-black text-[#3182f6]">{label}</p>
-                <p className="mt-1 text-base font-black tracking-[-0.03em] text-[#333d4b]">
-                  {value}
-                </p>
-              </div>
-            ))}
-          </div>
-
-          <div className="mt-10 flex w-full max-w-lg flex-col gap-3 sm:flex-row sm:justify-center">
+          <div className="mt-9 flex w-full max-w-lg flex-col gap-3 sm:flex-row sm:justify-center">
             <Link
               href={practiceLoginHref}
               prefetch={false}
               className="inline-flex h-14 items-center justify-center rounded-2xl bg-[#191f28] px-7 text-base font-black text-white shadow-[0_18px_40px_rgba(25,31,40,0.18)] transition hover:-translate-y-0.5 hover:bg-[#333d4b]"
             >
-              내 장면으로 질문 받기
+              무료로 사용하기
             </Link>
             <a
               href="#flow"
@@ -259,7 +232,7 @@ export default function LandingClient() {
             prefetch={false}
             className="inline-flex h-16 items-center justify-center rounded-2xl bg-white px-8 text-lg font-black text-[#191f28] transition hover:-translate-y-0.5"
           >
-            내 장면으로 질문 받기
+            무료로 사용하기
           </Link>
         </div>
       </section>
