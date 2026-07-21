@@ -84,7 +84,7 @@
 
 ## 하지 말 것 (스코프 제한)
 
-- `apps/api` 변경 금지 (서빙 로직이 이미 지원함).
+- `apps/api` 변경 금지 — 단 하나의 예외: 확장자 없는 metadata 파일의 Content-Type 판별 보강(Phase 4 처리 기록 참조, 사용자 승인).
 - `login/page.tsx` 수정 금지 (layout으로 우회).
 - 랜딩의 보이는 UI·카피 변경 금지 (서버 컴포넌트 래핑과 JSON-LD 삽입만 허용, 렌더 결과 동일 유지).
 - manifest / PWA / FAQ 섹션 / hreflang(다국어) 추가 금지.
@@ -106,9 +106,13 @@
 - **수용 #9(low)**: OG alt·size·contentType export + twitter-image 전체 재export.
 - **수용 #10(low)**: llms.txt 금지 카피 검사 포함.
 
-## 미결 사항
+## Phase 4 실행 검증 처리 기록 (2026-07-21)
 
-- **ImageResponse × 정적 export 호환**: 빌드타임 생성이 되는 것으로 파악되나 Phase 4 빌드에서 최종 확인. 실패 시 대안: PNG를 사전 생성해 `public/`에 커밋하고 metadata에서 참조.
+- lint·typecheck·웹 테스트 79/79·빌드·산출물 체크리스트 전부 통과. OG PNG(1200×630, 28KB)의 한국어 태그라인 렌더를 이미지로 직접 확인.
+- **결함 발견·수정(사용자 승인)**: Next가 OG 이미지를 확장자 없는 `out/opengraph-image`로 내보내 FastAPI `FileResponse`가 `application/octet-stream`으로 서빙(실측). "백엔드 변경 불필요" 전제가 이 케이스에서 깨짐 → `app.py`에 PNG 매직 바이트 기반 `_extensionless_media_type` 보강 + `tests/test_static_frontend.py` 신설(4건). 수정 후 실서빙 재실측: `/opengraph-image`·`/twitter-image` → `image/png`. acting-api pytest 228 passed.
+- ImageResponse × 정적 export 호환 미결 사항 해소: 빌드타임 정적 생성 확인됨.
+
+## 미결 사항
 - **Render에서 www→apex 301 리다이렉트 동작 여부**: 배포 시 확인 (인프라, 이 작업 범위 밖).
 - **Google Search Console 소유 확인 + sitemap 제출**: 배포 후 사용자 후속 작업. 필요 시 verification 메타는 추후 추가.
 - **로고 이미지 자산 부재**: Organization.logo 생략. 로고가 생기면 추가.

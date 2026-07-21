@@ -224,6 +224,25 @@ def create_app(
     return app
 
 
+_PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
+
+
+def _extensionless_media_type(path) -> str | None:
+    """Next metadata 라우트 산출물(out/opengraph-image 등)은 확장자가 없어
+    파일명 기반 MIME 추측이 불가능하므로 매직 바이트로 판별한다.
+    None을 반환하면 FileResponse 기본 동작을 따른다."""
+    if path.suffix:
+        return None
+    try:
+        with path.open("rb") as file:
+            head = file.read(len(_PNG_SIGNATURE))
+    except OSError:
+        return None
+    if head.startswith(_PNG_SIGNATURE):
+        return "image/png"
+    return None
+
+
 def _mount_static_frontend(app: FastAPI, static_root) -> None:
     """Next.js `output: 'export'` 결과물(out/)을 같은 origin에서 서빙한다.
 
@@ -247,7 +266,7 @@ def _mount_static_frontend(app: FastAPI, static_root) -> None:
         if not str(candidate).startswith(str(static_root)):
             raise HTTPException(status_code=404)
         if candidate.is_file():
-            return FileResponse(candidate)
+            return FileResponse(candidate, media_type=_extensionless_media_type(candidate))
         html_candidate = static_root / f"{full_path}.html"
         if html_candidate.is_file():
             return FileResponse(html_candidate)
