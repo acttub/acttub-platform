@@ -30,8 +30,8 @@ def test_report_flow_and_history():
     h = c.get("/report/history/u1")
     assert h.status_code == 200
     assert h.json()["count"] == 1
-    # 대화 원문도 함께 저장된다
-    assert h.json()["reports"][0]["turns"] == [t.model_dump() for t in SESSION.turns]
+    assert h.json()["reports"][0]["practice_session_id"] == ""
+    assert "turns" not in h.json()["reports"][0]
     assert c.get("/report/history/u2").json()["count"] == 0
 
 

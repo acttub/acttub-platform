@@ -3,6 +3,7 @@ from uuid import UUID, uuid4
 
 import pytest
 from fastapi.testclient import TestClient
+from pydantic import ValidationError
 
 from acting_agent.config import Settings as AgentSettings
 from acting_api.app import create_app
@@ -257,11 +258,11 @@ def test_reports_create_history_idempotency_and_conflicts():
     assert history.status_code == 200
     assert history.json()["count"] == 1
     assert "user_id" not in history.json()
-    assert [turn["role"] for turn in history.json()["reports"][0]["turns"]] == [
-        "ai",
-        "actor",
-        "ai",
-    ]
+    record = history.json()["reports"][0]
+    assert "turns" not in record
+    assert record["practice_session_id"] == str(
+        store.summaries[summary_id].session_id
+    )
     assert len(fake.models.calls) == 2
 
     duplicate_new_key = _post(
@@ -287,6 +288,85 @@ def test_reports_create_history_idempotency_and_conflicts():
     )
     assert still_open.status_code == 409
     assert still_open.json()["detail"] == "session is still open"
+
+
+def test_practice_session_allows_restart_until_report_then_rejects_coaching_and_report():
+    client, store, _, user, headers = _application(
+        responses=[
+            FakeModelResponse(parsed=COACH_QUESTION),
+            FakeModelResponse(parsed=COACH_QUESTION),
+            FakeModelResponse(parsed=REPORT),
+        ]
+    )
+    summary_id = store.seed_summary(user_id=user.id)
+    practice_session_id = store.summaries[summary_id].session_id
+
+    first = client.post(
+        "/v2/coach/start",
+        json={"summary_id": str(summary_id)},
+        headers=headers,
+    )
+    second = client.post(
+        "/v2/coach/start",
+        json={"summary_id": str(summary_id)},
+        headers=headers,
+    )
+    assert first.status_code == 200
+    assert second.status_code == 200
+
+    for response in (first, second):
+        closed = client.post(
+            "/v2/coach/reply",
+            json={"session_id": response.json()["session_id"], "text": "그만할래"},
+            headers=headers,
+        )
+        assert closed.status_code == 200
+
+    created = client.post(
+        "/v2/reports",
+        json={"session_id": first.json()["session_id"]},
+        headers=headers,
+    )
+    assert created.status_code == 200
+
+    duplicate = client.post(
+        "/v2/reports",
+        json={"session_id": second.json()["session_id"]},
+        headers=headers,
+    )
+    assert duplicate.status_code == 409
+    assert duplicate.json() == {"detail": "report already exists for session"}
+
+    restart = client.post(
+        "/v2/coach/start",
+        json={"summary_id": str(summary_id)},
+        headers=headers,
+    )
+    assert restart.status_code == 409
+    assert restart.json() == {
+        "detail": "report already exists for practice session"
+    }
+    assert store.has_report_for_practice_session(practice_session_id) is True
+
+
+def test_report_history_strictly_rejects_invalid_runtime_record():
+    client, store, _, user, headers = _application()
+
+    class InvalidReportRecord:
+        @staticmethod
+        def model_dump(*, mode):
+            assert mode == "json"
+            return {
+                "created_at": "2026-07-21T00:00:00Z",
+                "session_id": str(uuid4()),
+                "practice_session_id": "",
+                "report": REPORT.model_dump(mode="json"),
+            }
+
+    store.list_reports = lambda _user_id: [InvalidReportRecord()]
+
+    with pytest.raises(ValidationError):
+        client.get("/v2/reports", headers=headers)
 
 
 def test_report_preparation_exception_marks_claimed_operation_failed():

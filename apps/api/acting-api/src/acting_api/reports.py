@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Response
@@ -42,16 +41,11 @@ class ActingReport(_StrictResponse):
     comparison: str
 
 
-class CoachTurn(_StrictResponse):
-    role: Literal["ai", "actor"]
-    text: str
-
-
 class ReportRecord(_StrictResponse):
     created_at: datetime
     session_id: UUID
+    practice_session_id: UUID
     report: ActingReport
-    turns: list[CoachTurn]
 
 
 class CreateReportResponse(_StrictResponse):
@@ -113,7 +107,10 @@ def build_router(*, client, settings, store, rate_limited_user) -> APIRouter:
             if owned.session.status != "closed":
                 await _fail(store, claim, "session_is_still_open")
                 raise HTTPException(status_code=409, detail="session is still open")
-            if await run_in_threadpool(store.has_report, req.session_id):
+            if await run_in_threadpool(
+                store.has_report_for_practice_session,
+                owned.practice_session_id,
+            ):
                 await _fail(store, claim, "report_already_exists")
                 raise HTTPException(
                     status_code=409,
@@ -161,9 +158,11 @@ def build_router(*, client, settings, store, rate_limited_user) -> APIRouter:
     )
     async def report_history(user=Depends(rate_limited_user)):
         records = await run_in_threadpool(store.list_reports, user.id)
-        return {
-            "count": len(records),
-            "reports": [record.model_dump(mode="json") for record in records],
-        }
+        return ReportHistoryResponse.model_validate(
+            {
+                "count": len(records),
+                "reports": [record.model_dump(mode="json") for record in records],
+            }
+        )
 
     return router

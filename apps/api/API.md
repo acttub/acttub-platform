@@ -253,7 +253,7 @@ S3 업로드 완료 확인. 서버가 S3 HEAD로 객체 존재·크기 일치를
 | 상태 코드 | 원인 |
 |---|---|
 | 404 | 없는·남의 summary — `summary not found` |
-| 409 | 같은 X-Request-Id가 처리 중 — `request is still processing` |
+| 409 | 해당 연습 세션에 리포트가 이미 있음 — `report already exists for practice session` / 같은 X-Request-Id가 처리 중 — `request is still processing` |
 | 502 | Gemini 응답 파싱 실패 |
 
 ---
@@ -276,7 +276,7 @@ S3 업로드 완료 확인. 서버가 S3 HEAD로 객체 존재·크기 일치를
 
 ## POST /v2/reports
 
-종료된 코칭 세션으로 최종 리포트를 생성합니다. 같은 사용자의 이전 리포트가 있으면 `comparison`이 채워집니다.
+종료된 코칭 세션으로 최종 리포트를 생성합니다. 연습 세션당 리포트는 하나만 만들 수 있으며, 같은 사용자의 이전 리포트가 있으면 `comparison`이 채워집니다.
 
 **요청**: `{"session_id": "<코칭 session_id>"}`
 
@@ -302,7 +302,7 @@ S3 업로드 완료 확인. 서버가 S3 HEAD로 객체 존재·크기 일치를
 내 리포트 이력 (토큰 사용자 기준, 오래된 순).
 
 ```json
-{"count": 2, "reports": [{"created_at": "...", "session_id": "...", "report": {...}, "turns": [...]}]}
+{"count": 2, "reports": [{"created_at": "...", "session_id": "...", "practice_session_id": "...", "report": {...}}]}
 ```
 
 ---

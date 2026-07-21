@@ -43,13 +43,11 @@ type CoachState = {
   reason: CoachTurnResponse["reason"];
 };
 type ReportData = { report: ActingReport; reportCount: number };
+type ResolvedReport = { record: ReportRecord; ordinal: number };
 type UploadProgressState = {
   percent: number;
   stage: "compressing" | "uploading";
 };
-
-// v2 연습 노트에는 practice_session_id가 없어 현재 탭에서 확인한 연결만 보존한다.
-const practiceCoachSessionMap = new Map<string, string>();
 
 const entryInitialStep: Record<Entry, Step> = {
   home: "home",
@@ -66,23 +64,6 @@ function sessionErrorMessage(error: unknown): string {
   return errorMessage(error);
 }
 
-function normalizeReportTurns(turns: unknown[]): CoachTurn[] {
-  return turns.flatMap((turn) => {
-    if (!turn || typeof turn !== "object") return [];
-    const role = "role" in turn ? turn.role : undefined;
-    const text = "text" in turn ? turn.text : undefined;
-    if ((role !== "ai" && role !== "actor") || typeof text !== "string") return [];
-    return [{ role: role === "ai" ? "coach" : "actor", text } satisfies CoachTurn];
-  });
-}
-
-function reportTurnsForStorage(turns: CoachTurn[]): ReportRecord["turns"] {
-  return turns.map((turn) => ({
-    role: turn.role === "coach" ? "ai" : "actor",
-    text: turn.text,
-  }));
-}
-
 export function PracticeFlow({ entry = "new" }: { entry?: Entry }) {
   const router = useRouter();
   const { ready: authReady, user } = useRequireAuth();
@@ -96,7 +77,6 @@ export function PracticeFlow({ entry = "new" }: { entry?: Entry }) {
   const [phase, setPhase] = useState<Phase>("summary");
   const [coach, setCoach] = useState<CoachState | null>(null);
   const [reportData, setReportData] = useState<ReportData | null>(null);
-  const [reportTurns, setReportTurns] = useState<CoachTurn[]>([]);
   const [file, setFile] = useState<File | null>(null);
   const [situation, setSituation] = useState("");
   const [characterContext, setCharacterContext] = useState("");
@@ -187,17 +167,21 @@ export function PracticeFlow({ entry = "new" }: { entry?: Entry }) {
     setStep("video");
   }
 
-  function linkedReportForSession(
+  function resolveReportForSession(
     practiceSessionId: string,
     sourceReports: ReportRecord[] = reports,
-  ): ReportRecord | undefined {
-    const coachSessionId = practiceCoachSessionMap.get(practiceSessionId);
-    if (!coachSessionId) return undefined;
-    return sourceReports.find((report) => report.session_id === coachSessionId);
+  ): ResolvedReport | undefined {
+    let resolved: ResolvedReport | undefined;
+    sourceReports.forEach((record, index) => {
+      if (record.practice_session_id === practiceSessionId) {
+        resolved = { record, ordinal: index + 1 };
+      }
+    });
+    return resolved;
   }
 
   function reportForSession(practiceSessionId: string): ReportRecord | undefined {
-    return linkedReportForSession(practiceSessionId);
+    return resolveReportForSession(practiceSessionId)?.record;
   }
 
   function upsertHistory(session: PracticeSessionDetail) {
@@ -207,13 +191,19 @@ export function PracticeFlow({ entry = "new" }: { entry?: Entry }) {
     ]);
   }
 
-  function showReportRecord(record: ReportRecord, sourceReports: ReportRecord[]) {
-    const reportIndex = sourceReports.findIndex(
-      (candidate) => candidate.session_id === record.session_id,
-    );
-    setReportData({ report: record.report, reportCount: reportIndex + 1 });
-    setReportTurns(normalizeReportTurns(record.turns));
+  function showReportRecord(
+    practiceSessionId: string,
+    sourceReports: ReportRecord[],
+  ): boolean {
+    const resolved = resolveReportForSession(practiceSessionId, sourceReports);
+    if (!resolved) return false;
+    setReportData({
+      report: resolved.record.report,
+      reportCount: resolved.ordinal,
+    });
+    playbackRefreshAttemptedRef.current = false;
     setPhase("report");
+    return true;
   }
 
   function applySessionDetail(session: PracticeSessionDetail, sourceReports = reports) {
@@ -227,9 +217,7 @@ export function PracticeFlow({ entry = "new" }: { entry?: Entry }) {
     }
 
     if (session.status === "analyzed") {
-      const linkedReport = linkedReportForSession(session.session_id, sourceReports);
-      if (linkedReport) showReportRecord(linkedReport, sourceReports);
-      else setPhase("summary");
+      if (!showReportRecord(session.session_id, sourceReports)) setPhase("summary");
       setError(null);
     }
   }
@@ -268,7 +256,6 @@ export function PracticeFlow({ entry = "new" }: { entry?: Entry }) {
     setPhase("summary");
     setCoach(null);
     setReportData(null);
-    setReportTurns([]);
     setAnswer("");
     setPendingAnswer(null);
     setCoachWaiting(false);
@@ -365,10 +352,8 @@ export function PracticeFlow({ entry = "new" }: { entry?: Entry }) {
         done: data.done,
         reason: data.reason,
       };
-      practiceCoachSessionMap.set(active.sessionId, data.session_id);
       setCoach(nextCoach);
       setReportData(null);
-      setReportTurns([]);
       setPhase("coaching");
     } catch (reason) {
       setError(sessionErrorMessage(reason));
@@ -390,7 +375,6 @@ export function PracticeFlow({ entry = "new" }: { entry?: Entry }) {
         { session_id: coach.coachSessionId, text },
         { onWait: () => setCoachWaiting(true) },
       );
-      practiceCoachSessionMap.set(active.sessionId, data.session_id);
       setCoach({
         coachSessionId: data.session_id,
         turns: [
@@ -432,7 +416,6 @@ export function PracticeFlow({ entry = "new" }: { entry?: Entry }) {
     setPhase("summary");
     setCoach(null);
     setReportData(null);
-    setReportTurns([]);
     try {
       await reanalyzeSession(active.sessionId);
       setSessionDetail((current) =>
@@ -471,8 +454,7 @@ export function PracticeFlow({ entry = "new" }: { entry?: Entry }) {
   }
 
   async function createActingReport() {
-    if (!coach) return;
-    const localTurns = coach.turns;
+    if (!coach || !active) return;
     setBusy(true);
     setCoachWaiting(false);
     setError(null);
@@ -482,13 +464,13 @@ export function PracticeFlow({ entry = "new" }: { entry?: Entry }) {
         { onWait: () => setCoachWaiting(true) },
       );
       setReportData({ report: data.report, reportCount: data.report_count });
-      setReportTurns(localTurns);
+      playbackRefreshAttemptedRef.current = false;
       setPhase("report");
       const localRecord: ReportRecord = {
         created_at: new Date().toISOString(),
         session_id: coach.coachSessionId,
+        practice_session_id: active.sessionId,
         report: data.report,
-        turns: reportTurnsForStorage(localTurns),
       };
       setReports((current) => [
         ...current.filter((item) => item.session_id !== localRecord.session_id),
@@ -503,11 +485,9 @@ export function PracticeFlow({ entry = "new" }: { entry?: Entry }) {
         try {
           const refreshed = await listReports();
           setReports(refreshed.reports);
-          const existing = refreshed.reports.find(
-            (item) => item.session_id === coach.coachSessionId,
-          );
-          if (!existing) throw new Error("완료된 연습 노트를 불러오지 못했어요.");
-          showReportRecord(existing, refreshed.reports);
+          if (!showReportRecord(active.sessionId, refreshed.reports)) {
+            throw new Error("완료된 연습 노트를 불러오지 못했어요.");
+          }
         } catch (refreshError) {
           setError(errorMessage(refreshError));
         }
@@ -527,20 +507,23 @@ export function PracticeFlow({ entry = "new" }: { entry?: Entry }) {
   }
 
   async function refreshPlayback() {
-    if (!active || playbackRefreshAttemptedRef.current) return;
+    if (!active) return;
+    if (playbackRefreshAttemptedRef.current) {
+      setError("영상을 다시 불러왔지만 재생할 수 없어요.");
+      return;
+    }
     playbackRefreshAttemptedRef.current = true;
     try {
       const refreshed = await getPracticeSession(active.sessionId);
       setSessionDetail(refreshed);
       upsertHistory(refreshed);
-    } catch (reason) {
-      setError(sessionErrorMessage(reason));
+    } catch {
+      setError("영상 재생 링크를 다시 불러오지 못했어요. 잠시 후 다시 시도해 주세요.");
     }
   }
 
   async function handleLogout() {
     await logout();
-    practiceCoachSessionMap.clear();
     router.replace("/login");
   }
 
@@ -570,7 +553,6 @@ export function PracticeFlow({ entry = "new" }: { entry?: Entry }) {
         phase={phase}
         coach={coach}
         reportData={reportData}
-        reportTurns={reportTurns}
         answer={answer}
         pendingAnswer={pendingAnswer}
         busy={busy}
@@ -1204,7 +1186,6 @@ function SessionView({
   phase,
   coach,
   reportData,
-  reportTurns,
   answer,
   pendingAnswer,
   busy,
@@ -1222,7 +1203,6 @@ function SessionView({
   phase: Phase;
   coach: CoachState | null;
   reportData: ReportData | null;
-  reportTurns: CoachTurn[];
   answer: string;
   pendingAnswer: string | null;
   busy: boolean;
@@ -1281,7 +1261,13 @@ function SessionView({
           />
         ) : null}
         {session.status === "analyzed" && phase === "report" ? (
-          <Report reportData={reportData} turns={reportTurns} busy={busy} onCreateReport={onCreateReport} />
+          <Report
+            reportData={reportData}
+            playbackUrl={session.playback_url}
+            busy={busy}
+            onCreateReport={onCreateReport}
+            onPlaybackError={onPlaybackError}
+          />
         ) : null}
         {error && phase !== "coaching" && !analysisPending ? <ErrorNotice message={error} /> : null}
       </div>
@@ -1573,14 +1559,16 @@ function ConversationBubble({ turn }: { turn: CoachTurn }) {
 
 function Report({
   reportData,
-  turns,
+  playbackUrl,
   busy,
   onCreateReport,
+  onPlaybackError,
 }: {
   reportData: ReportData | null;
-  turns: CoachTurn[];
+  playbackUrl: string;
   busy: boolean;
   onCreateReport: () => void;
+  onPlaybackError: () => void;
 }) {
   if (!reportData) {
     return (
@@ -1600,6 +1588,11 @@ function Report({
         <p className="text-sm font-black text-white/75">{reportData.reportCount}번째 연습 노트</p>
         <h2 className="mt-3 text-3xl font-black leading-tight tracking-[-0.05em] sm:text-4xl">{report.headline}</h2>
       </header>
+      <div className="overflow-hidden rounded-[24px] border border-[#e5e8eb] bg-white shadow-[0_8px_24px_rgba(25,31,40,0.035)]">
+        <video key={playbackUrl} controls preload="metadata" src={playbackUrl} onError={onPlaybackError} className="aspect-video w-full bg-[#111827] object-contain">
+          분석한 영상을 재생할 수 없어요.
+        </video>
+      </div>
       <article className="rounded-[24px] border border-[#dce9ff] bg-[#f7faff] p-5 sm:p-6">
         <p className="text-xs font-black text-[#2f6bff]">다시 본 순간</p>
         <h3 className="mt-2 text-xl font-black tracking-[-0.035em]">영상에서 눈에 남은 곳</h3>
@@ -1613,17 +1606,6 @@ function Report({
         <ReportSection title="스스로 발견한 점" body={report.self_discovery} />
         <ReportSection title="다음 연습" body={report.next_step} tone="action" wide />
       </div>
-      {turns.length > 0 ? (
-        <section className="overflow-hidden rounded-[24px] border border-[#e5e8eb] bg-white shadow-[0_8px_24px_rgba(25,31,40,0.035)]">
-          <div className="border-b border-[#e5e8eb] px-5 py-4 sm:px-6">
-            <p className="text-xs font-black text-[#2f6bff]">코칭 대화</p>
-            <h3 className="mt-1 text-lg font-black tracking-[-0.035em]">함께 찾은 생각</h3>
-          </div>
-          <div role="log" aria-label="완료된 AI 코칭 대화" className="max-h-[480px] space-y-4 overflow-y-auto bg-[#f7f8fa] px-4 py-5 sm:px-6">
-            {turns.map((turn, index) => <ConversationBubble key={"report-" + turn.role + "-" + String(index)} turn={turn} />)}
-          </div>
-        </section>
-      ) : null}
       <aside className="rounded-[24px] border border-[#dce9ff] bg-white p-5 shadow-[0_8px_24px_rgba(25,31,40,0.035)] sm:flex sm:items-center sm:justify-between sm:gap-6 sm:p-6">
         <div>
           <h3 className="text-lg font-black tracking-[-0.035em]">이번 연습은 어떠셨나요?</h3>

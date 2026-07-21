@@ -74,6 +74,14 @@ def build_router(*, client, settings, store, rate_limited_user) -> APIRouter:
         )
         if owned is None:
             raise HTTPException(status_code=404, detail="summary not found")
+        if await run_in_threadpool(
+            store.has_report_for_practice_session,
+            owned.practice_session_id,
+        ):
+            raise HTTPException(
+                status_code=409,
+                detail="report already exists for practice session",
+            )
         request_id = parse_request_id(x_request_id)
         fingerprint = sync_request_fingerprint(
             "coach_start",

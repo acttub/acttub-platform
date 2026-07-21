@@ -743,18 +743,18 @@ class FakePlatformStore(FakeAuthStore):
     ):
         operation = self._owned_running_operation(operation_id, lease_token)
         session_id = str(coach_session_id)
-        if session_id in self.reports:
-            return None
         context = self.get_owned_report_context(
             user_id=operation.user_id,
             coach_session_id=coach_session_id,
         )
+        if self.has_report_for_practice_session(context.practice_session_id):
+            return None
         created_at = now or datetime.now(timezone.utc)
         self.reports[session_id] = ReportRecord(
             created_at=created_at.isoformat(),
             session_id=session_id,
+            practice_session_id=str(context.practice_session_id),
             report=report,
-            turns=context.session.turns,
         )
         payload = {
             "report": report.model_dump(mode="json"),
@@ -763,8 +763,14 @@ class FakePlatformStore(FakeAuthStore):
         self._succeed(operation, payload, now)
         return payload
 
-    def has_report(self, session_id: UUID):
-        return str(session_id) in self.reports
+    def has_report_for_practice_session(self, practice_session_id: UUID):
+        return any(
+            self.summaries[
+                UUID(self.coach_sessions[coach_session_id].summary_id)
+            ].session_id
+            == practice_session_id
+            for coach_session_id in self.reports
+        )
 
     def list_reports(self, user_id: UUID):
         return [
