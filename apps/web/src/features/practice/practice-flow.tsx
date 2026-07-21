@@ -86,6 +86,9 @@ function reportTurnsForStorage(turns: CoachTurn[]): ReportRecord["turns"] {
   }));
 }
 
+// 연습을 마친 배우가 넘어가는 후기 페이지
+const REVIEW_FORM_URL = "https://acttub.github.io/review-form/";
+
 // 세션 상세는 이 주소 한 곳에서만 연다 — 주소에 세션 id가 남아야
 // 뒤로가기·새로고침·링크 공유가 동작한다. (정적 export라 /history/[id] 경로는 못 쓴다)
 const SESSION_DETAIL_PATH = "/practice/history";
@@ -128,6 +131,9 @@ function PracticeFlowInner({ entry = "new" }: { entry?: Entry }) {
   const [error, setError] = useState<string | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const previewUrlRef = useRef<string | null>(null);
+  // 지금 화면에 열려 있는 세션. 코치 요청은 취소할 수 없으므로, 늦게 도착한 응답이
+  // 이미 다른 세션으로 옮겨간 화면을 덮지 않도록 이 값과 대조한다.
+  const activeSessionRef = useRef<string | null>(null);
   const pollControllerRef = useRef<AbortController | null>(null);
   const uploadControllerRef = useRef<AbortController | null>(null);
   const playbackRefreshAttemptedRef = useRef(false);
@@ -309,12 +315,14 @@ function PracticeFlowInner({ entry = "new" }: { entry?: Entry }) {
   // 목록으로 돌아왔다 — 진행 중이던 폴링을 끊고 상세 상태를 비운다
   function clearActiveSession() {
     pollControllerRef.current?.abort();
+    activeSessionRef.current = null;
     setActive(null);
     setSessionDetail(null);
     setError(null);
   }
 
   function resetActiveFlow(sessionId: string) {
+    activeSessionRef.current = sessionId;
     setActive({ sessionId });
     setSessionDetail(null);
     setPhase("summary");
@@ -395,6 +403,7 @@ function PracticeFlowInner({ entry = "new" }: { entry?: Entry }) {
       setError("세션을 찾을 수 없어요");
       return;
     }
+    const sessionAtStart = active.sessionId;
     setBusy(true);
     setCoachWaiting(false);
     setError(null);
@@ -403,6 +412,7 @@ function PracticeFlowInner({ entry = "new" }: { entry?: Entry }) {
         { summary_id: summaryId },
         { onWait: () => setCoachWaiting(true) },
       );
+      if (activeSessionRef.current !== sessionAtStart) return;
       const nextCoach: CoachState = {
         coachSessionId: data.session_id,
         turns: [
@@ -423,16 +433,20 @@ function PracticeFlowInner({ entry = "new" }: { entry?: Entry }) {
       setReportTurns([]);
       setPhase("coaching");
     } catch (reason) {
+      if (activeSessionRef.current !== sessionAtStart) return;
       setError(sessionErrorMessage(reason));
     } finally {
-      setCoachWaiting(false);
-      setBusy(false);
+      if (activeSessionRef.current === sessionAtStart) {
+        setCoachWaiting(false);
+        setBusy(false);
+      }
     }
   }
 
   async function reply() {
     const text = answer.trim();
     if (!active || !coach || coach.done || !text) return;
+    const sessionAtStart = active.sessionId;
     setPendingAnswer(text);
     setBusy(true);
     setCoachWaiting(false);
@@ -442,6 +456,7 @@ function PracticeFlowInner({ entry = "new" }: { entry?: Entry }) {
         { session_id: coach.coachSessionId, text },
         { onWait: () => setCoachWaiting(true) },
       );
+      if (activeSessionRef.current !== sessionAtStart) return;
       practiceCoachSessionMap.set(active.sessionId, data.session_id);
       setCoach({
         coachSessionId: data.session_id,
@@ -461,6 +476,7 @@ function PracticeFlowInner({ entry = "new" }: { entry?: Entry }) {
       });
       setAnswer("");
     } catch (reason) {
+      if (activeSessionRef.current !== sessionAtStart) return;
       if (
         reason instanceof ApiError &&
         reason.status === 409 &&
@@ -471,9 +487,11 @@ function PracticeFlowInner({ entry = "new" }: { entry?: Entry }) {
         setError(sessionErrorMessage(reason));
       }
     } finally {
-      setPendingAnswer(null);
-      setCoachWaiting(false);
-      setBusy(false);
+      if (activeSessionRef.current === sessionAtStart) {
+        setPendingAnswer(null);
+        setCoachWaiting(false);
+        setBusy(false);
+      }
     }
   }
 
@@ -523,19 +541,22 @@ function PracticeFlowInner({ entry = "new" }: { entry?: Entry }) {
   }
 
   async function createActingReport() {
-    if (!coach) return;
+    if (!coach || !active) return;
+    const sessionAtStart = active.sessionId;
     const localTurns = coach.turns;
     setBusy(true);
     setCoachWaiting(false);
     setError(null);
+    // 기다리는 동안 완성될 화면의 뼈대를 먼저 보여준다 — 실패하면 아래에서 대화로 되돌린다
+    setReportData(null);
+    setReportTurns([]);
+    setPhase("report");
     try {
       const { data } = await createReport(
         { session_id: coach.coachSessionId },
         { onWait: () => setCoachWaiting(true) },
       );
-      setReportData({ report: data.report, reportCount: data.report_count });
-      setReportTurns(localTurns);
-      setPhase("report");
+      // 노트 목록은 어느 세션을 보고 있든 최신으로 둔다 — 화면 상태만 아래에서 가른다
       const localRecord: ReportRecord = {
         created_at: new Date().toISOString(),
         session_id: coach.coachSessionId,
@@ -546,6 +567,10 @@ function PracticeFlowInner({ entry = "new" }: { entry?: Entry }) {
         ...current.filter((item) => item.session_id !== localRecord.session_id),
         localRecord,
       ]);
+      if (activeSessionRef.current !== sessionAtStart) return;
+      setReportData({ report: data.report, reportCount: data.report_count });
+      setReportTurns(localTurns);
+      setPhase("report");
     } catch (reason) {
       if (
         reason instanceof ApiError &&
@@ -559,22 +584,31 @@ function PracticeFlowInner({ entry = "new" }: { entry?: Entry }) {
             (item) => item.session_id === coach.coachSessionId,
           );
           if (!existing) throw new Error("완료된 연습 노트를 불러오지 못했어요.");
+          if (activeSessionRef.current !== sessionAtStart) return;
           showReportRecord(existing, refreshed.reports);
         } catch (refreshError) {
+          if (activeSessionRef.current !== sessionAtStart) return;
+          setPhase("coaching");
           setError(errorMessage(refreshError));
         }
+      } else if (activeSessionRef.current !== sessionAtStart) {
+        return;
       } else if (
         reason instanceof ApiError &&
         reason.status === 409 &&
         reason.code === "session is still open"
       ) {
+        setPhase("coaching");
         setError("인터뷰가 아직 진행 중이에요");
       } else {
+        setPhase("coaching");
         setError(sessionErrorMessage(reason));
       }
     } finally {
-      setCoachWaiting(false);
-      setBusy(false);
+      if (activeSessionRef.current === sessionAtStart) {
+        setCoachWaiting(false);
+        setBusy(false);
+      }
     }
   }
 
@@ -1297,10 +1331,15 @@ function SessionView({
   onRefreshSession: () => void;
 }) {
   const analysisPending = session.status === "created" || session.status === "analyzing";
+  // 화면이 열려 있는 내내 자리를 지키는 안내 영역. 조건부로 붙였다 떼면 보조기술이 못 읽으므로
+  // 노드는 그대로 두고 글자만 바꾼다.
+  const liveStatus =
+    phase === "report" ? (reportData ? "연습 노트가 완성됐어요" : "연습 노트를 만들고 있어요") : "";
 
   return (
     <main className="min-h-dvh bg-[#f8fafc] px-4 py-6 text-[#191f28] sm:px-6 lg:px-8">
       <div className="mx-auto w-full max-w-4xl">
+        <span role="status" className="sr-only">{liveStatus}</span>
         <header className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <div className="flex items-center gap-3">
@@ -1538,10 +1577,15 @@ function CoachingView({
             </div>
           </div>
         ) : null}
-        {coachWaiting ? (
+        {/* 첫 요청이 도는 동안에는 onWait(재시도)가 불리지 않는다 — pendingAnswer를 기준으로 삼아야
+            답변을 보낸 순간부터 끊기지 않고 대기 표시가 이어진다 */}
+        {pendingAnswer !== null || coachWaiting ? (
           <div className="flex items-end gap-2">
             <span aria-hidden="true" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#2f6bff] text-[10px] font-black text-white">AI</span>
-            <p className="rounded-2xl rounded-bl-md border border-[#e5e8eb] bg-white px-4 py-3 text-sm font-bold text-[#8b95a1] shadow-sm">코치가 생각 중이에요…</p>
+            <div className="rounded-2xl rounded-bl-md border border-[#e5e8eb] bg-white px-4 py-3 shadow-sm">
+              <span className="sr-only">코치가 답변을 쓰고 있어요</span>
+              <TypingDots />
+            </div>
           </div>
         ) : null}
       </div>
@@ -1587,6 +1631,20 @@ function CoachingView({
   );
 }
 
+function TypingDots() {
+  return (
+    <span aria-hidden="true" className="flex h-5 items-center gap-1.5">
+      {[0, 160, 320].map((delayMs) => (
+        <span
+          key={delayMs}
+          className="h-2 w-2 animate-bounce rounded-full bg-[#b0b8c1]"
+          style={{ animationDelay: String(delayMs) + "ms" }}
+        />
+      ))}
+    </span>
+  );
+}
+
 function ConversationBubble({ turn }: { turn: CoachTurn }) {
   const actor = turn.role === "actor";
   const focusTimestamp = turn.focusTimestamp?.trim();
@@ -1615,13 +1673,16 @@ function Report({
   busy: boolean;
   onCreateReport: () => void;
 }) {
+  // 만드는 동안에는 완성될 화면과 같은 자리에 글자 자리만 비워 둔다
+  if (!reportData && busy) return <ReportSkeleton />;
+
   if (!reportData) {
     return (
       <section className="mt-8 rounded-[28px] border border-[#dce9ff] bg-white p-6 shadow-[0_14px_40px_rgba(25,31,40,0.06)] sm:p-8">
         <span className="inline-flex rounded-full bg-[#eaf2ff] px-3 py-1.5 text-xs font-black text-[#2f6bff]">코칭 완료</span>
-        <h2 className="mt-3 text-lg font-black tracking-[-0.04em] sm:mt-4 sm:text-3xl">{busy ? "연습 노트를 만들고 있어요" : "연습 노트를 만들어 보세요"}</h2>
+        <h2 className="mt-3 text-lg font-black tracking-[-0.04em] sm:mt-4 sm:text-3xl">연습 노트를 만들어 보세요</h2>
         <p className="mt-2.5 max-w-2xl text-sm font-bold leading-6 text-[#6b7684] sm:mt-3 sm:text-base sm:leading-7">나눈 대화를 바탕으로 다음 연습에 가져갈 한 문장을 정리해요.</p>
-        {!busy ? <button type="button" onClick={onCreateReport} className="mt-6 min-h-12 rounded-2xl bg-[#2f6bff] px-5 py-3 text-sm font-black text-white transition hover:bg-[#1b64da]">연습 노트 만들기</button> : null}
+        <button type="button" onClick={onCreateReport} className="mt-6 min-h-12 rounded-2xl bg-[#2f6bff] px-5 py-3 text-sm font-black text-white transition hover:bg-[#1b64da]">연습 노트 만들기</button>
       </section>
     );
   }
@@ -1657,14 +1718,61 @@ function Report({
           </div>
         </section>
       ) : null}
+      {/* 연습 노트가 나온 뒤에만 보인다 — 마치기를 누르면 후기 페이지로 넘어간다 */}
       <aside className="rounded-[24px] border border-[#dce9ff] bg-white p-5 shadow-[0_8px_24px_rgba(25,31,40,0.035)] sm:flex sm:items-center sm:justify-between sm:gap-6 sm:p-6">
         <div>
           <h3 className="text-base font-black tracking-[-0.035em] sm:text-lg">이번 연습은 어떠셨나요?</h3>
           <p className="mt-2 text-sm font-semibold leading-6 text-[#4e5968] sm:text-base sm:leading-7">짧은 설문으로 경험을 알려 주시면 더 나은 연기 코치를 만드는 데 활용할게요.</p>
         </div>
-        <a href="https://acttub.github.io/review-form/" target="_blank" rel="noopener noreferrer" aria-label="세션 후기 설문조사 참여하기 (새 창)" className="mt-5 inline-flex min-h-12 shrink-0 items-center justify-center rounded-2xl bg-[#2f6bff] px-5 py-3 text-sm font-black text-white transition hover:bg-[#1b64da] sm:mt-0">설문조사 참여하기 ↗</a>
+        {/* 새 창으로 연다 — 같은 탭에서 나가면 연습과 연습 노트를 잇는 메모리 정보가 사라져
+            돌아왔을 때 방금 만든 노트가 이 연습에 다시 붙지 않는다 */}
+        <a href={REVIEW_FORM_URL} target="_blank" rel="noopener noreferrer" aria-label="연습 마치고 후기 남기기 (새 창)" className="mt-5 inline-flex min-h-12 shrink-0 items-center justify-center rounded-2xl bg-[#2f6bff] px-5 py-3 text-sm font-black text-white transition hover:bg-[#1b64da] sm:mt-0">연습 마치기 ↗</a>
       </aside>
     </section>
+  );
+}
+
+// 연습 노트를 만드는 동안 보여주는 뼈대 — 완성 화면의 앞부분(제목·카드)을 같은 순서로 둔다.
+// 대화 로그와 후기 안내는 길이를 알 수 없어 넣지 않으므로 완료 시 아래쪽은 밀린다.
+function ReportSkeleton() {
+  return (
+    // 시각적 뼈대만 맡는다 — 소리로 읽히는 안내는 SessionView의 상시 status 영역이 처리한다
+    <section aria-busy="true" className="mt-8 grid animate-pulse gap-4">
+      <header className="rounded-[28px] bg-[#2f6bff] p-5 shadow-[0_16px_36px_rgba(49,130,246,0.2)] sm:p-8">
+        <div className="h-3.5 w-24 rounded-full bg-white/40" />
+        <div className="mt-3 h-6 w-4/5 rounded-full bg-white/50 sm:h-9" />
+        <div className="mt-2.5 h-6 w-3/5 rounded-full bg-white/40 sm:h-9" />
+      </header>
+      <article className="rounded-[24px] border border-[#dce9ff] bg-[#f7faff] p-4 sm:p-6">
+        <div className="h-3.5 w-20 rounded-full bg-[#dce9ff]" />
+        <div className="mt-3 h-5 w-40 rounded-full bg-[#dce9ff]" />
+        <SkeletonLines className="mt-4" />
+      </article>
+      <div className="grid gap-4 md:grid-cols-2">
+        <SkeletonCard />
+        <SkeletonCard />
+        <SkeletonCard wide />
+      </div>
+    </section>
+  );
+}
+
+function SkeletonCard({ wide = false }: { wide?: boolean }) {
+  return (
+    <article className={(wide ? "md:col-span-2 " : "") + "rounded-[24px] border border-[#e5e8eb] bg-white p-5 shadow-[0_8px_24px_rgba(25,31,40,0.035)] sm:p-6"}>
+      <div className="h-5 w-32 rounded-full bg-[#e5e8eb]" />
+      <SkeletonLines className="mt-3" />
+    </article>
+  );
+}
+
+function SkeletonLines({ className = "" }: { className?: string }) {
+  return (
+    <div className={"grid gap-2.5 " + className}>
+      <div className="h-4 rounded-full bg-[#eef1f4]" />
+      <div className="h-4 rounded-full bg-[#eef1f4]" />
+      <div className="h-4 w-2/3 rounded-full bg-[#eef1f4]" />
+    </div>
   );
 }
 
