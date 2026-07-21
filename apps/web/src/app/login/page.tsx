@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import {
   FormEvent,
   Suspense,
@@ -10,6 +11,9 @@ import {
   useSyncExternalStore,
 } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import wordmark from "../../assets/acttub-wordmark.png";
+import { NamePrompt } from "../../features/auth/name-prompt";
+import { useDisplayNameGate } from "../../features/auth/use-display-name-gate";
 import { ApiError } from "../../lib/api/v2/errors";
 import { renderGoogleLoginButton } from "../../lib/auth/google-gis";
 import {
@@ -143,6 +147,11 @@ function LoginForm() {
     if (escapeUrl) window.location.href = escapeUrl;
   }, [inAppBrowser]);
 
+  // 첫 로그인이면 들여보내기 전에 호칭을 한 번 묻는다.
+  // (위 탈출은 로그인 전에 끝나므로 이 팝업과 순서가 겹치지 않는다)
+  // 약관 동의가 남은 신규 계정은 /terms를 거치므로 그쪽에도 같은 관문이 있다.
+  const { pendingDestination, enterApp, resolveName } = useDisplayNameGate();
+
   async function submitLogin(request: () => ReturnType<typeof loginWith>) {
     if (isSubmitting) return;
 
@@ -157,7 +166,7 @@ function LoginForm() {
       }
 
       clearPendingConsents();
-      router.replace(nextPath);
+      enterApp(nextPath);
     } catch (error) {
       setErrorMessage(loginErrorMessage(error));
     } finally {
@@ -172,14 +181,16 @@ function LoginForm() {
 
   return (
     <main className="flex min-h-dvh items-center justify-center bg-[#f2f4f6] px-5 py-12 text-[#191f28]">
+      {pendingDestination ? (
+        <NamePrompt onSubmit={resolveName} onSkip={() => resolveName(null)} />
+      ) : null}
       <section className="w-full max-w-md rounded-[32px] bg-white p-7 shadow-[0_24px_80px_rgba(25,31,40,0.1)] sm:p-9">
-        <Link href="/" className="text-xl font-black tracking-[-0.04em]">
-          Acttub
+        <Link href="/" aria-label="Acttub 홈" className="inline-block">
+          <Image src={wordmark} alt="Acttub" priority className="h-6 w-auto" />
         </Link>
         <p className="mt-10 text-sm font-black text-[#3182f6]">연기 복기 시작하기</p>
         <h1 className="mt-3 text-3xl font-black leading-tight tracking-[-0.05em]">
-          로그인하고
-          <br />내 장면을 이어가세요
+          로그인하기
         </h1>
         <p className="mt-4 text-base font-semibold leading-7 text-[#6b7684]">
           영상과 장면 맥락을 안전하게 보관하고, 질문과 연습 노트를 이어서 볼 수 있어요.

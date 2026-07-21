@@ -1,7 +1,10 @@
 "use client";
 
 import { Suspense, useEffect, useMemo, useState, type FormEvent } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import { NamePrompt } from "@/features/auth/name-prompt";
+import { useDisplayNameGate } from "@/features/auth/use-display-name-gate";
 import {
   clearPendingConsents,
   getPendingConsents,
@@ -44,6 +47,11 @@ function TermsGateContent() {
   );
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  // 신규 계정은 로그인 직후 여기로 오므로, 앱에 들여보내기 전 호칭을 이 화면에서 묻는다.
+  const { pendingDestination, enterApp, resolveName } = useDisplayNameGate();
+  // 로그인에서 넘어온 목적지. 그냥 약관을 읽으러 온 경우(랜딩의 "안전 약속")에는 없다.
+  const rawNext = searchParams.get("next");
+  const nextPath = rawNext ? sanitizeNextPath(rawNext) : null;
 
   useEffect(() => {
     let active = true;
@@ -170,7 +178,7 @@ function TermsGateContent() {
       }
 
       clearPendingConsents();
-      router.replace(sanitizeNextPath(searchParams.get("next")));
+      enterApp(sanitizeNextPath(searchParams.get("next")));
     } finally {
       setSubmitting(false);
     }
@@ -200,6 +208,9 @@ function TermsGateContent() {
           : "현재 제공 중인 약관과 데이터 처리 안내를 확인할 수 있어요."
       }
     >
+      {pendingDestination ? (
+        <NamePrompt onSubmit={resolveName} onSkip={() => resolveName(null)} />
+      ) : null}
       <form onSubmit={handleSubmit}>
         <div className="space-y-5">
           {state.documents.length > 0 ? (
@@ -242,6 +253,15 @@ function TermsGateContent() {
               선택 항목을 체크하지 않으면 동의하지 않음으로 기록돼요.
             </p>
           </>
+        ) : nextPath ? (
+          // 동의를 이미 끝낸 뒤 이 화면이 다시 열린 경우(새로고침·뒤로가기)에는
+          // 동의 항목이 남아 있지 않아 진행 버튼이 사라진다 — 갈 곳을 잃지 않게 길을 남긴다.
+          <Link
+            href={nextPath}
+            className="mt-8 flex h-14 w-full items-center justify-center rounded-2xl bg-[#3182f6] px-5 text-base font-semibold text-white transition hover:bg-[#1b64da]"
+          >
+            계속하기
+          </Link>
         ) : null}
       </form>
     </TermsShell>
