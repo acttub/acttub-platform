@@ -1,10 +1,23 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, Suspense, useEffect, useRef, useState } from "react";
+import {
+  FormEvent,
+  Suspense,
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ApiError } from "../../lib/api/v2/errors";
 import { renderGoogleLoginButton } from "../../lib/auth/google-gis";
+import {
+  detectInAppBrowser,
+  externalBrowserUrl,
+  inAppBrowserNotice,
+  type InAppBrowser,
+} from "../../lib/auth/in-app-browser";
 import {
   developmentProvider,
   googleProvider,
@@ -16,6 +29,11 @@ import {
   clearPendingConsents,
   savePendingConsents,
 } from "../../features/auth/pending-consents";
+
+// UA는 세션 동안 불변이므로 구독 없이 스냅샷만 읽는다. 서버(프리렌더)에서는 null.
+const subscribeNever = () => () => {};
+const getInAppBrowserSnapshot = () => detectInAppBrowser(navigator.userAgent);
+const getServerInAppBrowserSnapshot = () => null;
 
 function loginErrorMessage(error: unknown): string {
   if (
@@ -111,6 +129,19 @@ function LoginForm() {
   const [email, setEmail] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const inAppBrowser: InAppBrowser | null = useSyncExternalStore(
+    subscribeNever,
+    getInAppBrowserSnapshot,
+    getServerInAppBrowserSnapshot,
+  );
+
+  // 인앱 브라우저(WebView)에서는 Google이 OAuth를 차단하므로,
+  // 탈출 수단이 있는 브라우저는 기본 브라우저로 이동시키고 안내를 남긴다.
+  useEffect(() => {
+    if (!inAppBrowser) return;
+    const escapeUrl = externalBrowserUrl(inAppBrowser, window.location.href);
+    if (escapeUrl) window.location.href = escapeUrl;
+  }, [inAppBrowser]);
 
   async function submitLogin(request: () => ReturnType<typeof loginWith>) {
     if (isSubmitting) return;
@@ -155,6 +186,14 @@ function LoginForm() {
         </p>
 
         <div className="mt-9 space-y-5">
+          {inAppBrowser ? (
+            <p
+              role="status"
+              className="rounded-2xl bg-[#fff6e5] px-4 py-3 text-sm font-bold text-[#b25c00]"
+            >
+              {inAppBrowserNotice(inAppBrowser)}
+            </p>
+          ) : null}
           <GoogleLoginButton
             onCredential={(credential) =>
               void submitLogin(() => loginWith(googleProvider, { credential }))
