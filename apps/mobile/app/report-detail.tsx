@@ -1,24 +1,60 @@
-import { Stack, useRouter } from 'expo-router';
-import { useState } from 'react';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useVideoPlayer, VideoView } from 'expo-video';
 
-import { api } from '@/lib/api';
-import { getSelectedReport } from '@/lib/selected-report';
+import { api, type ReportDetail } from '@/lib/api';
 import { formatKoreanDate } from '@/lib/format';
 import { palette } from '@/constants/palette';
 
 /**
  * 지난 피드백 상세 — 기록 화면에서 카드를 누르면 열린다.
- * GET /v2/reports가 준 리포트 전문을 추가 호출 없이 그대로 보여준다.
+ * practice_session_id를 라우터 파라미터로 받아 GET /v2/reports/{id}로
+ * 리포트 본문과 영상 재생 URL을 조회한다.
  */
 export default function ReportDetailScreen() {
   const router = useRouter();
-  const record = getSelectedReport();
+  const { practiceSessionId } = useLocalSearchParams<{ practiceSessionId: string }>();
+  const [detail, setDetail] = useState<ReportDetail | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
 
+  const player = useVideoPlayer(null, (p) => {
+    p.loop = false;
+  });
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!practiceSessionId) {
+      setError('기록을 불러오지 못했어요.');
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    api
+      .getReport(practiceSessionId)
+      .then((result) => {
+        if (cancelled) return;
+        setDetail(result);
+        if (result.playback_url) player.replace(result.playback_url);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setError(err instanceof Error ? err.message : '기록을 불러오지 못했어요.');
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [practiceSessionId, player]);
+
   const onDelete = () => {
-    if (!record) return;
+    if (!practiceSessionId) return;
     Alert.alert('삭제할까요?', '이 연습 기록을 지우면 되돌릴 수 없어요.', [
       { text: '취소', style: 'cancel' },
       {
@@ -27,7 +63,7 @@ export default function ReportDetailScreen() {
         onPress: async () => {
           setDeleting(true);
           try {
-            await api.deletePracticeSession(record.session_id);
+            await api.deletePracticeSession(practiceSessionId);
             router.back();
           } catch (err) {
             setDeleting(false);
@@ -38,18 +74,29 @@ export default function ReportDetailScreen() {
     ]);
   };
 
-  if (!record) {
+  if (loading) {
     return (
       <SafeAreaView style={styles.safe}>
         <Stack.Screen options={{ title: '피드백 카드' }} />
         <View style={styles.center}>
-          <Text style={styles.empty}>기록을 불러오지 못했어요.</Text>
+          <ActivityIndicator color={palette.blue} />
         </View>
       </SafeAreaView>
     );
   }
 
-  const { report } = record;
+  if (error || !detail) {
+    return (
+      <SafeAreaView style={styles.safe}>
+        <Stack.Screen options={{ title: '피드백 카드' }} />
+        <View style={styles.center}>
+          <Text style={styles.empty}>{error ?? '기록을 불러오지 못했어요.'}</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  const { report } = detail;
   const problem = report.biggest_problem;
   const problemRange = problem
     ? problem.end && problem.end !== problem.start
@@ -61,7 +108,16 @@ export default function ReportDetailScreen() {
     <SafeAreaView style={styles.safe} edges={['bottom']}>
       <Stack.Screen options={{ title: '피드백 카드' }} />
       <ScrollView contentContainerStyle={styles.container}>
-        <Text style={styles.date}>{formatKoreanDate(record.created_at)}</Text>
+        {!!detail.playback_url && (
+          <VideoView
+            style={styles.video}
+            player={player}
+            nativeControls
+            allowsFullscreen
+            contentFit="contain"
+          />
+        )}
+        <Text style={styles.date}>{formatKoreanDate(detail.created_at)}</Text>
         <Text style={styles.headline}>{report.headline}</Text>
 
         <View style={[styles.block, styles.blockGreen]}>
@@ -111,6 +167,13 @@ const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
   empty: { color: palette.textDim, fontSize: 15 },
   container: { padding: 20, paddingBottom: 40 },
+  video: {
+    width: '100%',
+    aspectRatio: 16 / 9,
+    borderRadius: 16,
+    backgroundColor: '#000',
+    marginBottom: 16,
+  },
   date: { color: palette.textFaint, fontSize: 13, marginBottom: 8 },
   headline: { fontSize: 21, fontWeight: '800', color: palette.text, lineHeight: 30, marginBottom: 18 },
   block: {

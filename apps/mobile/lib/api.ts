@@ -72,10 +72,16 @@ export type CreateReportResponse = {
 };
 
 export type ReportRecord = {
+  practice_session_id: string;
+  headline: string;
   created_at: string;
-  session_id: string;
+};
+
+export type ReportDetail = {
+  practice_session_id: string;
+  created_at: string;
   report: ActingReport;
-  turns: CoachTurn[];
+  playback_url: string;
 };
 
 export type ReportHistoryResponse = {
@@ -427,6 +433,14 @@ export const api = {
 
   reportHistory(): Promise<ReportHistoryResponse> {
     return request<ReportHistoryResponse>('/v2/reports', {}, { timeoutMs: 30_000 });
+  },
+
+  getReport(practiceSessionId: string): Promise<ReportDetail> {
+    return request<ReportDetail>(
+      `/v2/reports/${encodeURIComponent(practiceSessionId)}`,
+      {},
+      { timeoutMs: 20_000 },
+    );
   },
 };
 

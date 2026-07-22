@@ -1,10 +1,9 @@
-import { useFocusEffect, useRouter, type Href } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { api, type ReportRecord } from '@/lib/api';
-import { setSelectedReport } from '@/lib/selected-report';
 import { formatKoreanDate } from '@/lib/format';
 import { palette } from '@/constants/palette';
 
@@ -49,20 +48,16 @@ export default function HistoryScreen() {
 
         {reports.map((item) => (
           <Pressable
-            key={item.session_id + item.created_at}
+            key={item.practice_session_id + item.created_at}
             style={styles.card}
-            onPress={() => {
-              setSelectedReport(item);
-              router.push('/report-detail' as Href);
-            }}>
+            onPress={() =>
+              router.push({
+                pathname: '/report-detail',
+                params: { practiceSessionId: item.practice_session_id },
+              })
+            }>
             <Text style={styles.date}>{formatKoreanDate(item.created_at)}</Text>
-            <Text style={styles.headline}>{item.report?.headline ?? ''}</Text>
-            <Text style={styles.problem} numberOfLines={2}>
-              {item.report?.biggest_problem?.description ?? ''}
-            </Text>
-            <Text style={styles.next} numberOfLines={2}>
-              다음 한 걸음 · {item.report?.next_step ?? ''}
-            </Text>
+            <Text style={styles.headline}>{item.headline}</Text>
             <Text style={styles.viewMore}>전체 보기 ›</Text>
           </Pressable>
         ))}
@@ -107,7 +102,5 @@ const styles = StyleSheet.create({
   },
   date: { color: palette.textFaint, fontSize: 12, marginBottom: 6 },
   headline: { color: palette.text, fontSize: 16, fontWeight: '700', lineHeight: 22 },
-  problem: { color: palette.textDim, fontSize: 13, marginTop: 8, lineHeight: 19 },
-  next: { color: palette.blue, fontSize: 13, marginTop: 6, lineHeight: 19, fontWeight: '600' },
   viewMore: { color: palette.textFaint, fontSize: 12, fontWeight: '700', marginTop: 10, alignSelf: 'flex-end' },
 });
