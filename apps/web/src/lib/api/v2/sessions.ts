@@ -9,6 +9,7 @@ import type {
   PracticeSessionListResponse,
   PracticeSessionRequest,
 } from "./types";
+import type { components } from "../v2-schema";
 
 const DEFAULT_POLL_INTERVAL_MS = 10_000;
 
@@ -21,9 +22,12 @@ export type GetPracticeSessionOptions = {
   signal?: AbortSignal;
 };
 
+export type PracticeSessionStatusResponse =
+  components["schemas"]["PracticeSessionStatusResponse"];
+
 export type PollSessionOptions = GetPracticeSessionOptions & {
   intervalMs?: number;
-  onTick?: (session: PracticeSessionDetail) => void;
+  onStatus?: (status: PracticeSessionStatusResponse["status"]) => void;
 };
 
 function sessionPath(sessionId: string): string {
@@ -80,6 +84,17 @@ export async function getPracticeSession(
   return data;
 }
 
+export async function getPracticeSessionStatus(
+  sessionId: string,
+  options: GetPracticeSessionOptions = {},
+): Promise<PracticeSessionStatusResponse> {
+  const { data } = await apiFetch<PracticeSessionStatusResponse>(
+    `${sessionPath(sessionId)}/status`,
+    { signal: options.signal },
+  );
+  return data;
+}
+
 export async function deletePracticeSession(sessionId: string): Promise<void> {
   await apiFetch<void>(sessionPath(sessionId), { method: "DELETE" });
 }
@@ -99,16 +114,16 @@ export async function pollSessionUntilSettled(
   sessionId: string,
   options: PollSessionOptions = {},
 ): Promise<PracticeSessionDetail> {
-  const { intervalMs = DEFAULT_POLL_INTERVAL_MS, onTick, signal } = options;
+  const { intervalMs = DEFAULT_POLL_INTERVAL_MS, onStatus, signal } = options;
 
   while (true) {
     if (signal?.aborted) throw abortReason(signal);
 
-    const session = await getPracticeSession(sessionId, { signal });
-    onTick?.(session);
+    const sessionStatus = await getPracticeSessionStatus(sessionId, { signal });
+    onStatus?.(sessionStatus.status);
 
-    if (session.status === "analyzed" || session.status === "failed") {
-      return session;
+    if (sessionStatus.status === "analyzed" || sessionStatus.status === "failed") {
+      return getPracticeSession(sessionId, { signal });
     }
 
     await wait(intervalMs, signal);

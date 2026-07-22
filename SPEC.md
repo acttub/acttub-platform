@@ -134,3 +134,64 @@
   모바일 리팩터. 각자 검증(web lint/typecheck/test/build, mobile typecheck) → 커밋.
 - 결과 보장: 각 wave 후 실행 검증 + Claude 리뷰(triage) + Codex 최종 이중 리뷰.
 - BASE_REF(전체 PR diff 기준) = 5155dc0(dev tip). pre-work(UNIQUE·ERD)는 커밋 완료.
+
+---
+
+# 후속 SPEC — ① 분석 폴링 경량화 + 이전 기록 reports-only
+
+기준 커밋: 이 브랜치 tip(`feat/report-history-api`). 위 리포트 상세/목록 슬림화 작업 **위에 이어서** 얹는다.
+
+## 스코프 결정 (2026-07-22, 사용자 확정)
+
+- **①만 구현**: `GET /v2/practice-sessions/{id}/status` 폴링 경량 엔드포인트 + 웹·모바일 폴링 전환.
+- **이전 기록 화면(웹)을 `GET /v2/reports`(슬림) 전용으로 전환**: 완료된 리포트만 카드로 표시. 진행중 "이어보기" 카드 제거, `listPracticeSessions` 호출 제거.
+- **②(`GET /v2/practice-sessions?filter=incomplete`)는 이번에 만들지 않음.** "미완료 연습 이어가기 별도 페이지" 작업으로 미룬다(TODO 재서술).
+- 감수 확정: 이번 버전은 진행중 세션 이어가기 UI가 없다 → 웹에서 분석 대기 중 새로고침/재진입 시 그 세션을 목록에서 다시 여는 경로가 없다(세션 URL 직접 접근만 가능). 모바일은 원래 없어서 무관.
+
+## ① `GET /v2/practice-sessions/{session_id}/status`
+
+**백엔드** (`apps/api/acting-api/src/acting_api/practice_sessions.py`, `db/store.py`)
+
+- 새 응답 모델 `PracticeSessionStatusResponse(_StrictResponse)`: `status: PracticeSessionStatus`, `error_code: AnalysisErrorCode | None = None`.
+- 새 라우트 `@router.get("/{session_id}/status", responses={200: {"model": PracticeSessionStatusResponse}})`:
+  - `result = await run_in_threadpool(store.get_practice_session_status, user_id=user.id, session_id=session_id)`
+  - `result is None` → `HTTPException(404, "practice_session_not_found")` (없음/남의 것/hidden 구분 안 함).
+  - 반환 `{"status": ..., "error_code": ...}`. **presign·summary·본문 없음, storage 의존 없음(503 없음)**.
+  - `error_code`는 status==failed일 때만 값, 그 외 `None` (기존 `get_session`과 동일 규칙).
+- 새 store 메서드 `get_practice_session_status(*, user_id, session_id)`:
+  - 반환용 작은 dataclass(예: `PracticeSessionStatusView(status: str, error_code: str | None)`), 미존재 시 `None`.
+  - 쿼리1: `PracticeSession.status` where `id==session_id AND user_id==user_id AND hidden_at IS NULL`. 없으면 `None`.
+  - status가 FAILED면 최신 `ANALYZE` `ExternalOperation.error_code` 1건 조회, 아니면 `error_code=None`. (upload/summary/presign 조회 안 함)
+- 라우트 순서: `/{session_id}/status`는 경로 깊이가 달라 `/{session_id}`와 충돌 없음. `get_session` 근처 배치.
+
+**웹** (`lib/api/v2/sessions.ts`, `features/practice/practice-flow.tsx`, `practice-single.tsx`)
+
+- `getPracticeSessionStatus(sessionId, {signal})` 신설 → `GET /v2/practice-sessions/{id}/status`. 타입은 재생성한 `v2-schema` 사용.
+- `pollSessionUntilSettled` 리팩터: 매 틱 `getPracticeSessionStatus` 폴링(경량). `onTick`→`onStatus(status)`로 변경. **정착(analyzed/failed) 시 `getPracticeSession`(전체) 1회** 호출해 그 `PracticeSessionDetail`을 반환(반환 타입 유지 → `practice-single.tsx`는 수정 불필요).
+- `practice-flow.tsx` `pollSession`: **초기 `getPracticeSession`(전체) 1회**로 `setSessionDetail`/`upsertHistory`(대기화면 렌더용). 이미 정착 상태면 `applySessionDetail` 후 종료. 아니면 `pollSessionUntilSettled({ signal, onStatus: (s) => setSessionDetail(prev => prev ? {...prev, status: s} : prev) })` → 정착 시 `applySessionDetail`. (10초마다 presign 발급이 사라짐)
+
+**모바일** (`apps/mobile/lib/api.ts`, `app/analyzing.tsx`)
+
+- `lib/api.ts`: `PracticeSessionStatusPayload = { status: SessionStatus; error_code: PracticeSessionDetail['error_code'] }` 타입 + `getPracticeSessionStatus(sessionId)` 메서드 추가.
+- `analyzing.tsx` `pollUntilDone`: `api.getPracticeSessionStatus` 폴링. `analyzed`면 `api.getPracticeSession` 1회 호출해 detail 반환(summary_id·playback_url 확보), `failed`면 `errorMessage(status.error_code)` throw. (4초마다 전체 상세·presign 발급이 사라짐)
+
+## 이전 기록 화면 reports-only (웹, `practice-flow.tsx`)
+
+- 로드 effect: `Promise.allSettled([listPracticeSessions(), listReports()])` → **`listReports()`만**. `listPracticeSessions` import·호출·`history` state 제거(사용처 정돈).
+- 카드 목록을 `reports`(슬림)로 렌더. 진행중 카드 제거.
+  - `PracticeHome`/`PracticeHistoryScreen`/`RecentPracticeSection`/`PracticeHistoryCard`: prop `sessions: PracticeSessionListItem[]` → `reports: ReportRecord[]`. 카드 제목=`headline`, 날짜=`created_at`, 배지 "완료", 링크=리포트 열기.
+  - 카드 클릭 → `report.practice_session_id`로 `sessionDetailHref` 이동. 세션 상세 진입 시 기존 흐름(pollSession→정착 analyzed→`showReportRecord`)이 리포트를 표시.
+- ripple: `openSession`을 `practice_session_id` 기반으로, `getPracticeBadge`는 완료 전용으로 단순화(또는 제거). 리포트 생성 직후(`createActingReport`)엔 새 리포트를 `reports` state에 반영(목록 즉시 갱신). `sessionDetail`/세션 상세/코칭 흐름은 그대로 유지. 빈 상태 문구 유지.
+
+## 계약·검증·문서
+
+- 계약 변경 → `apps/api`에서 spec 재생성(`uv run python -c "import json; from acting_api.app import create_app; json.dump(create_app().openapi(), open('spec/openapi.json','w'), ensure_ascii=False, indent=2)"`, **cwd=apps/api**) → 웹 `pnpm --filter web generate:v2-schema` → 프론트.
+- `apps/api/API.md`에 `GET /{id}/status` 추가.
+- 백엔드: `uv run --package acting-api pytest` (status: 200 / hidden→404 / 남의것→404 / failed면 error_code 채움 / 정착 케이스).
+- 웹: `pnpm --filter web typecheck · lint · --filter web test · build`.
+- 모바일: `apps/mobile`에서 `npx tsc --noEmit`.
+- `TODO.md`: line 9(status) 완료 반영, line 10을 "미완료 연습 이어가기 별도 페이지(리포트 없는 세션 조회 + 이어가기 UI)"로 재서술(이번 스코프 밖).
+
+## 하지 말 것
+
+- `GET /v2/practice-sessions?filter=incomplete` 신설 금지(미룸). DB 스키마 변경 금지. 리포트 생성/코칭/업로드 계약 변경 금지. 스코프 밖 리팩터·파일 정리 금지.

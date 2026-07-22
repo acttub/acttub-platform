@@ -298,6 +298,25 @@ class FakePlatformStore(FakeAuthStore):
             return None
         return row
 
+    def get_practice_session_status(self, *, user_id, session_id):
+        session = self.get_practice_session(user_id=user_id, session_id=session_id)
+        if session is None:
+            return None
+        error_code = None
+        if session.status == PracticeStatus.FAILED:
+            operations = [
+                row
+                for row in self.operations.values()
+                if row.session_id == session.id and row.kind == OperationKind.ANALYZE
+            ]
+            latest = max(
+                operations,
+                key=lambda row: (row.created_at, row.id),
+                default=None,
+            )
+            error_code = latest.error_code if latest is not None else None
+        return SimpleNamespace(status=session.status, error_code=error_code)
+
     def list_practice_sessions(self, user_id):
         return sorted(
             (

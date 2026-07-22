@@ -13,7 +13,6 @@ import { createReport, getReport, listReports } from "@/lib/api/v2/reports";
 import {
   createPracticeSession,
   getPracticeSession,
-  listPracticeSessions,
   pollSessionUntilSettled,
   reanalyzeSession,
 } from "@/lib/api/v2/sessions";
@@ -22,7 +21,6 @@ import type {
   AuthUser,
   CoachTurnResponse,
   PracticeSessionDetail,
-  PracticeSessionListItem,
   ReportRecord,
 } from "@/lib/api/v2/types";
 import { UploadError, uploadVideo } from "@/lib/api/v2/uploads";
@@ -91,7 +89,6 @@ function PracticeFlowInner({ entry = "new" }: { entry?: Entry }) {
   const { ready: authReady, user } = useRequireAuth();
   const [dataReady, setDataReady] = useState(false);
   const [step, setStep] = useState<Step>(entryInitialStep[entry]);
-  const [history, setHistory] = useState<PracticeSessionListItem[]>([]);
   const [reports, setReports] = useState<ReportRecord[]>([]);
   const [historyError, setHistoryError] = useState<string | null>(null);
   const [active, setActive] = useState<{ sessionId: string } | null>(null);
@@ -129,6 +126,7 @@ function PracticeFlowInner({ entry = "new" }: { entry?: Entry }) {
   // 주소의 ?session=<id>가 상세 화면의 단일 기준이다.
   // 카드 클릭·뒤로가기·새로고침·링크 직접 진입이 모두 이 한 경로로 처리된다.
   useEffect(() => {
+    if (!authReady || !dataReady) return;
     if (!sessionParam) {
       clearActiveSession();
       return;
@@ -140,34 +138,26 @@ function PracticeFlowInner({ entry = "new" }: { entry?: Entry }) {
     return () => {
       pollControllerRef.current?.abort();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- 주소가 바뀔 때만 다시 연다
-  }, [sessionParam]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 주소나 초기 데이터 준비 상태가 바뀔 때만 다시 연다
+  }, [sessionParam, authReady, dataReady]);
 
   useEffect(() => {
     if (!authReady) return;
     let activeLoad = true;
 
-    void Promise.allSettled([listPracticeSessions(), listReports()]).then(
-      ([sessionsResult, reportsResult]) => {
+    void listReports().then(
+      (result) => {
         if (!activeLoad) return;
         setStep(entryInitialStep[entry]);
         setHistoryError(null);
-
-        if (sessionsResult.status === "fulfilled") {
-          setHistory(sessionsResult.value.sessions);
-        } else {
-          setHistory([]);
-          setHistoryError(errorMessage(sessionsResult.reason));
-        }
-
-        if (reportsResult.status === "fulfilled") {
-          setReports(reportsResult.value.reports);
-        } else {
-          setReports([]);
-          if (sessionsResult.status === "fulfilled") {
-            setHistoryError("완료된 연습 노트 기록을 불러오지 못했어요. 잠시 후 다시 확인해 주세요.");
-          }
-        }
+        setReports(result.reports);
+        setDataReady(true);
+      },
+      () => {
+        if (!activeLoad) return;
+        setStep(entryInitialStep[entry]);
+        setReports([]);
+        setHistoryError("완료된 연습 노트 기록을 불러오지 못했어요. 잠시 후 다시 확인해 주세요.");
         setDataReady(true);
       },
     );
@@ -230,17 +220,6 @@ function PracticeFlowInner({ entry = "new" }: { entry?: Entry }) {
     return resolved;
   }
 
-  function reportForSession(practiceSessionId: string): ReportRecord | undefined {
-    return resolveReportForSession(practiceSessionId)?.record;
-  }
-
-  function upsertHistory(session: PracticeSessionDetail) {
-    setHistory((items) => [
-      session,
-      ...items.filter((item) => item.session_id !== session.session_id),
-    ]);
-  }
-
   async function showReportRecord(
     practiceSessionId: string,
     sourceReports: ReportRecord[],
@@ -278,7 +257,6 @@ function PracticeFlowInner({ entry = "new" }: { entry?: Entry }) {
     sourceReports = reports,
   ) {
     setSessionDetail(session);
-    upsertHistory(session);
 
     if (session.status === "failed") {
       setPhase("summary");
@@ -300,12 +278,27 @@ function PracticeFlowInner({ entry = "new" }: { entry?: Entry }) {
     pollControllerRef.current = controller;
 
     try {
+      const initial = await getPracticeSession(sessionId, {
+        signal: controller.signal,
+      });
+      if (controller.signal.aborted) return null;
+      setSessionDetail(initial);
+      if (initial.status === "analyzed" || initial.status === "failed") {
+        await applySessionDetail(initial);
+        return initial;
+      }
+
       const settled = await pollSessionUntilSettled(sessionId, {
         signal: controller.signal,
-        onTick: (session) => {
+        onStatus: (status) => {
           if (controller.signal.aborted) return;
-          setSessionDetail(session);
-          upsertHistory(session);
+          // 정착 상태(analyzed/failed)는 이어지는 상세 조회가 성공한 뒤 applySessionDetail로만
+          // 반영한다. 여기서 낙관적으로 바꾸면 상세 조회가 실패했을 때 summary 없는 완료 화면 +
+          // 재조회 버튼이 사라진 상태로 굳어 복구가 막힌다.
+          if (status === "analyzed" || status === "failed") return;
+          setSessionDetail((current) =>
+            current ? { ...current, status } : current,
+          );
         },
       });
       if (controller.signal.aborted) return null;
@@ -348,9 +341,9 @@ function PracticeFlowInner({ entry = "new" }: { entry?: Entry }) {
     playbackRefreshAttemptedRef.current = false;
   }
 
-  function openSession(session: PracticeSessionListItem) {
+  function openSession(practiceSessionId: string) {
     // 상태를 직접 바꾸지 않고 주소를 바꾼다 — 나머지는 위 동기화 effect가 처리한다
-    router.push(sessionDetailHref(session.session_id));
+    router.push(sessionDetailHref(practiceSessionId));
   }
 
   async function begin() {
@@ -596,6 +589,13 @@ function PracticeFlowInner({ entry = "new" }: { entry?: Entry }) {
       setReportData({ report: data.report, reportCount: data.report_count });
       playbackRefreshAttemptedRef.current = false;
       setPhase("report");
+      // 화면은 방금 만든 노트를 서버 응답(report_count)으로 바로 보여줬다. 목록 state는
+      // 낙관적 append만으론 다른 탭/기기에서 생성된 노트를 놓쳐 index 기반 서수가 서버와
+      // 어긋날 수 있으므로, 백그라운드로 canonical 목록을 다시 읽어 맞춘다(실패 시 위 append 유지).
+      void listReports().then(
+        (refreshed) => setReports(refreshed.reports),
+        () => {},
+      );
     } catch (reason) {
       if (
         reason instanceof ApiError &&
@@ -645,7 +645,6 @@ function PracticeFlowInner({ entry = "new" }: { entry?: Entry }) {
     try {
       const refreshed = await getPracticeSession(active.sessionId);
       setSessionDetail(refreshed);
-      upsertHistory(refreshed);
     } catch {
       setError("영상 재생 링크를 다시 불러오지 못했어요. 잠시 후 다시 시도해 주세요.");
     }
@@ -711,8 +710,7 @@ function PracticeFlowInner({ entry = "new" }: { entry?: Entry }) {
       <PracticeHome
         displayName={displayName}
         historyError={historyError}
-        sessions={history}
-        reportForSession={reportForSession}
+        reports={reports}
         onLogout={handleLogout}
         onOpen={openSession}
       />
@@ -724,8 +722,7 @@ function PracticeFlowInner({ entry = "new" }: { entry?: Entry }) {
       <PracticeHistoryScreen
         displayName={displayName}
         historyError={historyError}
-        sessions={history}
-        reportForSession={reportForSession}
+        reports={reports}
         onOpen={openSession}
       />
     );
@@ -803,18 +800,18 @@ function LoadingScreen({
 function PracticeHome({
   displayName,
   historyError,
-  sessions,
-  reportForSession,
+  reports,
   onLogout,
   onOpen,
 }: {
   displayName: string;
   historyError: string | null;
-  sessions: PracticeSessionListItem[];
-  reportForSession: (sessionId: string) => ReportRecord | undefined;
+  reports: ReportRecord[];
   onLogout: () => void | Promise<void>;
-  onOpen: (session: PracticeSessionListItem) => void;
+  onOpen: (practiceSessionId: string) => void;
 }) {
+  const visibleReports = [...reports].reverse();
+
   return (
     <div className="min-h-dvh bg-white text-[#191f28]">
       <header className="flex h-15 items-center gap-3 border-b border-[#edf0f3] bg-white/90 px-5 backdrop-blur">
@@ -847,27 +844,23 @@ function PracticeHome({
 
         {historyError ? (
           <p className="rounded-[24px] bg-[#fff8ec] px-6 py-5 text-sm font-bold text-[#8a4b00]">연습 기록을 잠시 불러오지 못했어요. 새 연습은 바로 시작할 수 있어요.</p>
-        ) : sessions.length === 0 ? (
+        ) : reports.length === 0 ? (
           <div className="rounded-[24px] bg-[#f8fbff] px-6 py-11 text-center">
             <div className="text-[15px] font-black tracking-[-0.02em]">아직 연습 기록이 없어요</div>
             <div className="mt-2 text-[13px] font-semibold text-[#4e5968]">첫 영상을 올리면 이곳에 장면별 연습 기록이 쌓입니다.</div>
           </div>
         ) : (
           <div className="grid gap-3">
-            {sessions.map((s) => {
-              const hasReport = Boolean(reportForSession(s.session_id));
-              // min-w-0: 없으면 카드가 제목 길이만큼 벌어져 좁은 화면에서 화면 밖으로 나간다
-              return (
-                <button key={s.session_id} type="button" onClick={() => onOpen(s)} className="flex w-full min-w-0 items-center gap-3.5 rounded-[20px] bg-white p-4 text-left shadow-[0_16px_45px_rgba(25,31,40,0.06)] transition hover:-translate-y-0.5">
-                  <span className="flex h-10 w-14 shrink-0 items-center justify-center rounded-xl bg-[linear-gradient(135deg,#0b1220,#1b2942)] text-[11px] font-black text-[#8fb4ff]">▶</span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-black tracking-[-0.02em]">{s.situation || "연습"}</span>
-                    <span className="mt-0.5 block truncate text-xs font-semibold text-[#8b95a1]">{s.character_context || "장면 기록"}</span>
-                  </span>
-                  <span className="shrink-0 text-xs font-black text-[#3182f6]">{hasReport ? "연습 노트 다시 보기 →" : "이어보기 →"}</span>
-                </button>
-              );
-            })}
+            {visibleReports.map((report) => (
+              <button key={report.practice_session_id} type="button" onClick={() => onOpen(report.practice_session_id)} className="flex w-full min-w-0 items-center gap-3.5 rounded-[20px] bg-white p-4 text-left shadow-[0_16px_45px_rgba(25,31,40,0.06)] transition hover:-translate-y-0.5">
+                <span className="flex h-10 w-14 shrink-0 items-center justify-center rounded-xl bg-[linear-gradient(135deg,#0b1220,#1b2942)] text-[11px] font-black text-[#8fb4ff]">▶</span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-black tracking-[-0.02em]">{report.headline}</span>
+                  <span className="mt-0.5 block truncate text-xs font-semibold text-[#8b95a1]">{formatRelativePracticeDate(report.created_at)}</span>
+                </span>
+                <span className="shrink-0 rounded-full bg-[#e5f8ef] px-3 py-1.5 text-xs font-black text-[#009959]">완료</span>
+              </button>
+            ))}
           </div>
         )}
       </main>
@@ -920,15 +913,13 @@ function PracticeNewScreen({
 function PracticeHistoryScreen({
   displayName,
   historyError,
-  sessions,
-  reportForSession,
+  reports,
   onOpen,
 }: {
   displayName: string;
   historyError: string | null;
-  sessions: PracticeSessionListItem[];
-  reportForSession: (sessionId: string) => ReportRecord | undefined;
-  onOpen: (session: PracticeSessionListItem) => void;
+  reports: ReportRecord[];
+  onOpen: (practiceSessionId: string) => void;
 }) {
   return (
     <main className="min-h-dvh bg-white px-4 py-6 text-[#191f28] sm:px-6 lg:px-8">
@@ -945,7 +936,7 @@ function PracticeHistoryScreen({
               {displayName}님의 전체 연습
             </h1>
             <p className="mt-3 max-w-2xl text-base font-bold leading-7 text-[#8b95a1]">
-              장면별 진행 상태와 완성된 연습 노트를 한곳에서 확인할 수 있어요.
+              완성된 연습 노트를 한곳에서 확인할 수 있어요.
             </p>
           </div>
           <div className="flex gap-2">
@@ -959,8 +950,7 @@ function PracticeHistoryScreen({
         </header>
         <RecentPracticeSection
           error={historyError}
-          sessions={sessions}
-          reportForSession={reportForSession}
+          reports={reports}
           onOpen={onOpen}
           variant="full"
         />
@@ -1182,24 +1172,23 @@ function SelectedUploadPreview({ file, previewUrl }: { file: File | null; previe
 
 function RecentPracticeSection({
   error,
-  sessions,
-  reportForSession,
+  reports,
   onOpen,
   variant = "recent",
 }: {
   error?: string | null;
-  sessions: PracticeSessionListItem[];
-  reportForSession: (sessionId: string) => ReportRecord | undefined;
-  onOpen: (session: PracticeSessionListItem) => void;
+  reports: ReportRecord[];
+  onOpen: (practiceSessionId: string) => void;
   variant?: "recent" | "full";
 }) {
-  const visibleSessions = variant === "full" ? sessions : sessions.slice(0, 3);
+  const newestReports = [...reports].reverse();
+  const visibleReports = variant === "full" ? newestReports : newestReports.slice(0, 3);
 
   return (
     <section className="mt-10 pb-10">
       <header className="flex items-center justify-between gap-4">
         <h2 className="text-xl font-black tracking-[-0.05em]">{variant === "full" ? "전체 연습 기록" : "최근 연습"}</h2>
-        {variant === "recent" && sessions.length > 0 ? <Link href="/practice/history" className="text-base font-black text-[#2f6bff] transition hover:text-[#1b64da]">전체 보기</Link> : null}
+        {variant === "recent" && reports.length > 0 ? <Link href="/practice/history" className="text-base font-black text-[#2f6bff] transition hover:text-[#1b64da]">전체 보기</Link> : null}
       </header>
 
       {error ? (
@@ -1208,7 +1197,7 @@ function RecentPracticeSection({
           <p className="mt-2 text-sm font-bold leading-6 text-[#8a4b00]">{error}</p>
           <p className="mt-2 text-sm font-bold leading-6 text-[#8a4b00]">새 연습은 계속 시작할 수 있어요.</p>
         </div>
-      ) : visibleSessions.length === 0 ? (
+      ) : visibleReports.length === 0 ? (
         <div className="mt-5 rounded-[24px] border border-dashed border-[#c8d9f7] bg-[#f7faff] p-8 text-center">
           <p className="text-xl font-black tracking-[-0.04em]">아직 연습 기록이 없어요</p>
           <p className="mt-2 text-sm font-bold leading-6 text-[#8b95a1]">첫 영상을 올리면 이곳에 장면별 연습 기록이 쌓입니다.</p>
@@ -1216,11 +1205,10 @@ function RecentPracticeSection({
         </div>
       ) : (
         <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {visibleSessions.map((session) => (
+          {visibleReports.map((report) => (
             <PracticeHistoryCard
-              key={session.session_id}
-              session={session}
-              report={reportForSession(session.session_id)}
+              key={report.practice_session_id}
+              report={report}
               onOpen={onOpen}
             />
           ))}
@@ -1231,15 +1219,12 @@ function RecentPracticeSection({
 }
 
 function PracticeHistoryCard({
-  session,
   report,
   onOpen,
 }: {
-  session: PracticeSessionListItem;
-  report?: ReportRecord;
-  onOpen: (session: PracticeSessionListItem) => void;
+  report: ReportRecord;
+  onOpen: (practiceSessionId: string) => void;
 }) {
-  const badge = getPracticeBadge(session, report);
   const content = (
     <>
       <div className="relative flex aspect-[2.78/1] items-center justify-center bg-[#1f2937]" style={{ backgroundImage: "repeating-linear-gradient(45deg, #202938 0 22px, #182131 22px 44px)" }}>
@@ -1248,18 +1233,17 @@ function PracticeHistoryCard({
       <div className="px-5 py-5 text-left">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <h3 className="truncate text-lg font-black tracking-[-0.04em]">{session.situation || "연기 연습"}</h3>
-            <p className="mt-2 line-clamp-2 text-sm font-bold leading-6 text-[#8b95a1]">{report?.headline ?? session.situation}</p>
+            <h3 className="line-clamp-2 text-lg font-black tracking-[-0.04em]">{report.headline}</h3>
           </div>
-          <span className={"shrink-0 rounded-full px-3 py-1.5 text-xs font-black " + (badge.positive ? "bg-[#e5f8ef] text-[#009959]" : "bg-[#f2f4f6] text-[#4e5968]")}>{badge.label}</span>
+          <span className="shrink-0 rounded-full bg-[#e5f8ef] px-3 py-1.5 text-xs font-black text-[#009959]">완료</span>
         </div>
-        <p className="mt-4 text-sm font-bold text-[#b0b8c1]">{formatRelativePracticeDate(session.updated_at)}</p>
+        <p className="mt-4 text-sm font-bold text-[#b0b8c1]">{formatRelativePracticeDate(report.created_at)}</p>
       </div>
     </>
   );
 
   const className = "overflow-hidden rounded-[20px] border border-[#e5e8eb] bg-white shadow-[0_8px_24px_rgba(25,31,40,0.045)] transition hover:-translate-y-0.5 hover:shadow-[0_14px_30px_rgba(25,31,40,0.08)]";
-  return <button type="button" className={className} onClick={() => onOpen(session)}>{content}</button>;
+  return <button type="button" className={className} onClick={() => onOpen(report.practice_session_id)}>{content}</button>;
 }
 
 function AppLogoMark() {
@@ -1291,16 +1275,6 @@ function formatDisplayName(user: AuthUser | null): string {
   const email = user?.email;
   if (!email) return "배우";
   return email.split("@")[0]?.replace(/[._-]+/g, " ").trim() || "배우";
-}
-
-function getPracticeBadge(
-  session: PracticeSessionListItem,
-  report?: ReportRecord,
-): { label: string; positive: boolean } {
-  if (report) return { label: "완료", positive: true };
-  if (session.status === "analyzed") return { label: "인터뷰 가능", positive: false };
-  if (session.status === "failed") return { label: "분석 실패", positive: false };
-  return { label: "분석 중", positive: false };
 }
 
 function formatRelativePracticeDate(value: string): string {

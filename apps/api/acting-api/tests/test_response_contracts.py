@@ -59,6 +59,11 @@ SUCCESS_RESPONSE_MODELS = {
         "200",
     ): "PracticeSessionDetail",
     (
+        "get",
+        "/v2/practice-sessions/{session_id}/status",
+        "200",
+    ): "PracticeSessionStatusResponse",
+    (
         "post",
         "/v2/practice-sessions/{session_id}/analyze",
         "200",
@@ -156,6 +161,10 @@ RESPONSE_COMPONENT_SHAPES = {
         },
     },
     "PracticeSessionListResponse": {"required": {"sessions"}},
+    "PracticeSessionStatusResponse": {
+        "required": {"status"},
+        "optional": {"error_code"},
+    },
     "RefreshTokenResponse": {
         "required": {"access_token", "refresh_token", "token_type", "expires_in"},
     },
@@ -218,6 +227,10 @@ RESPONSE_MODEL_LOCATIONS: dict[str, tuple[ModuleType, str]] = {
     "PracticeSessionListResponse": (
         practice_sessions,
         "PracticeSessionListResponse",
+    ),
+    "PracticeSessionStatusResponse": (
+        practice_sessions,
+        "PracticeSessionStatusResponse",
     ),
     "PracticeSessionDetail": (practice_sessions, "PracticeSessionDetail"),
     "CoachTurnResponse": (coaching, "CoachTurnResponse"),
@@ -495,6 +508,15 @@ def test_declared_response_models_validate_real_success_payloads_and_replays():
     _assert_contract(listed, 200, models["PracticeSessionListResponse"])
     detail = client.get(f"/v2/practice-sessions/{session_id}", headers=headers)
     _assert_contract(detail, 200, models["PracticeSessionDetail"])
+    session_status = client.get(
+        f"/v2/practice-sessions/{session_id}/status",
+        headers=headers,
+    )
+    _assert_contract(
+        session_status,
+        200,
+        models["PracticeSessionStatusResponse"],
+    )
 
     session.status = PracticeStatus.FAILED
     operation.error_code = "gemini_timeout"

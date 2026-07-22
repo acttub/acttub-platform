@@ -84,6 +84,12 @@ class PracticeSessionOperation:
 
 
 @dataclass(frozen=True)
+class PracticeSessionStatusView:
+    status: str
+    error_code: str | None
+
+
+@dataclass(frozen=True)
 class PracticeSessionDetail:
     session: PracticeSession
     upload: UploadIntent
@@ -821,6 +827,39 @@ class PostgresStore:
             query = query.where(PracticeSession.hidden_at.is_(None))
         with self._session_factory() as db:
             return db.scalar(query)
+
+    def get_practice_session_status(
+        self, *, user_id: UUID, session_id: UUID
+    ) -> PracticeSessionStatusView | None:
+        with self._session_factory() as db:
+            session_status = db.scalar(
+                select(PracticeSession.status).where(
+                    PracticeSession.id == session_id,
+                    PracticeSession.user_id == user_id,
+                    PracticeSession.hidden_at.is_(None),
+                )
+            )
+            if session_status is None:
+                return None
+            status_value = getattr(session_status, "value", session_status)
+            error_code = None
+            if session_status == PracticeStatus.FAILED:
+                error_code = db.scalar(
+                    select(ExternalOperation.error_code)
+                    .where(
+                        ExternalOperation.session_id == session_id,
+                        ExternalOperation.kind == OperationKind.ANALYZE,
+                    )
+                    .order_by(
+                        ExternalOperation.created_at.desc(),
+                        ExternalOperation.id.desc(),
+                    )
+                    .limit(1)
+                )
+            return PracticeSessionStatusView(
+                status=status_value,
+                error_code=error_code,
+            )
 
     def list_practice_sessions(self, user_id: UUID) -> list[PracticeSession]:
         with self._session_factory() as db:

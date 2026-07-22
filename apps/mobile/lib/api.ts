@@ -160,6 +160,11 @@ export type PracticeSessionDetail = {
     | null;
 };
 
+export type PracticeSessionStatusPayload = {
+  status: SessionStatus;
+  error_code: PracticeSessionDetail['error_code'];
+};
+
 // ─── 에러 ─────────────────────────────────────────────────────────────────────
 
 export class ApiError extends Error {
@@ -384,6 +389,14 @@ export const api = {
   getPracticeSession(sessionId: string): Promise<PracticeSessionDetail> {
     return request<PracticeSessionDetail>(
       `/v2/practice-sessions/${encodeURIComponent(sessionId)}`,
+      {},
+      { timeoutMs: 20_000 },
+    );
+  },
+
+  getPracticeSessionStatus(sessionId: string): Promise<PracticeSessionStatusPayload> {
+    return request<PracticeSessionStatusPayload>(
+      `/v2/practice-sessions/${encodeURIComponent(sessionId)}/status`,
       {},
       { timeoutMs: 20_000 },
     );

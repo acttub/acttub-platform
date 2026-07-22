@@ -158,6 +158,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v2/practice-sessions/{session_id}/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Session Status */
+        get: operations["get_session_status_v2_practice_sessions__session_id__status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v2/practice-sessions/{session_id}": {
         parameters: {
             query?: never;
@@ -557,6 +574,16 @@ export interface components {
             character_context: string;
             /** Subtext */
             subtext: string;
+        };
+        /** PracticeSessionStatusResponse */
+        PracticeSessionStatusResponse: {
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "created" | "analyzing" | "analyzed" | "failed";
+            /** Error Code */
+            error_code?: ("gemini_timeout" | "gemini_parse_error" | "unsupported_media" | "max_attempts_exceeded") | null;
         };
         /** RefreshRequest */
         RefreshRequest: {
@@ -1004,6 +1031,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PracticeSessionAcceptedResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_session_status_v2_practice_sessions__session_id__status_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PracticeSessionStatusResponse"];
                 };
             };
             /** @description Validation Error */

@@ -404,6 +404,54 @@
         }
       }
     },
+    "/v2/practice-sessions/{session_id}/status": {
+      "get": {
+        "tags": [
+          "v2-practice"
+        ],
+        "summary": "Get Session Status",
+        "operationId": "get_session_status_v2_practice_sessions__session_id__status_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PracticeSessionStatusResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v2/practice-sessions/{session_id}": {
       "get": {
         "tags": [
@@ -1506,6 +1554,43 @@
           "subtext"
         ],
         "title": "PracticeSessionRequest"
+      },
+      "PracticeSessionStatusResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "created",
+              "analyzing",
+              "analyzed",
+              "failed"
+            ],
+            "title": "Status"
+          },
+          "error_code": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "gemini_timeout",
+                  "gemini_parse_error",
+                  "unsupported_media",
+                  "max_attempts_exceeded"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Code"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "title": "PracticeSessionStatusResponse"
       },
       "RefreshRequest": {
         "properties": {

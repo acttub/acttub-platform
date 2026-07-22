@@ -377,6 +377,90 @@ def test_session_list_detail_summary_failure_ownership_and_soft_delete():
 
 
 @pytest.mark.parametrize(
+    "session_status",
+    [PracticeStatus.CREATED, PracticeStatus.ANALYZING, PracticeStatus.ANALYZED],
+)
+def test_practice_session_status_returns_only_status_and_null_error_code(
+    session_status,
+):
+    client, store, s3_client, user, headers = _application()
+    upload = finalized_upload(store, user.id)
+    created = _create_session(client, headers, upload.id).json()
+    session = store.sessions[UUID(created["session_id"])]
+    session.status = session_status
+
+    response = client.get(
+        f"/v2/practice-sessions/{session.id}/status", headers=headers
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "status": session_status.value,
+        "error_code": None,
+    }
+    assert s3_client.presign_calls == []
+
+
+def test_practice_session_status_returns_latest_failed_analysis_error_code():
+    client, store, s3_client, user, headers = _application()
+    upload = finalized_upload(store, user.id)
+    created = _create_session(client, headers, upload.id).json()
+    session = store.sessions[UUID(created["session_id"])]
+    operation = next(
+        row for row in store.operations.values() if row.session_id == session.id
+    )
+    session.status = PracticeStatus.FAILED
+    operation.status = OperationStatus.FAILED
+    operation.error_code = "gemini_timeout"
+
+    response = client.get(
+        f"/v2/practice-sessions/{session.id}/status", headers=headers
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "status": "failed",
+        "error_code": "gemini_timeout",
+    }
+    assert s3_client.presign_calls == []
+
+
+def test_practice_session_status_returns_404_for_hidden_session():
+    client, store, _, user, headers = _application()
+    upload = finalized_upload(store, user.id)
+    created = _create_session(client, headers, upload.id).json()
+    session = store.sessions[UUID(created["session_id"])]
+    store.hide_practice_session(user_id=user.id, session_id=session.id)
+
+    response = client.get(
+        f"/v2/practice-sessions/{session.id}/status", headers=headers
+    )
+
+    assert response.status_code == 404
+    assert response.json() == {"detail": "practice_session_not_found"}
+
+
+def test_practice_session_status_returns_404_for_other_user_session():
+    client, store, _, user, headers = _application()
+    upload = finalized_upload(store, user.id)
+    session_id = _create_session(client, headers, upload.id).json()["session_id"]
+    other = store.create_user()
+    other_headers = {
+        "Authorization": (
+            "Bearer "
+            + JwtService(JWT_SECRET).issue_access_token(other.id).value
+        )
+    }
+
+    response = client.get(
+        f"/v2/practice-sessions/{session_id}/status", headers=other_headers
+    )
+
+    assert response.status_code == 404
+    assert response.json() == {"detail": "practice_session_not_found"}
+
+
+@pytest.mark.parametrize(
     "error_code",
     [
         "gemini_timeout",
