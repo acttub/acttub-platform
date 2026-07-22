@@ -263,6 +263,9 @@ function PracticeFlowInner({ entry = "new" }: { entry?: Entry }) {
     } catch (reason) {
       if (activeSessionRef.current === practiceSessionId) {
         setError(errorMessage(reason));
+        // 리포트는 존재하지만 본문을 못 불러왔다 — "연습 노트 만들기" CTA 대신
+        // 분석 화면으로 되돌려 잘못된 재생성을 막는다. 재진입하면 다시 조회한다.
+        setPhase("summary");
       }
       return true;
     } finally {
@@ -326,6 +329,8 @@ function PracticeFlowInner({ entry = "new" }: { entry?: Entry }) {
     setActive(null);
     setSessionDetail(null);
     setError(null);
+    // 보류 중이던 상세 조회의 busy가 staleness 가드로 해제되지 못하는 경우를 대비
+    setBusy(false);
   }
 
   function resetActiveFlow(sessionId: string) {
@@ -339,6 +344,7 @@ function PracticeFlowInner({ entry = "new" }: { entry?: Entry }) {
     setPendingAnswer(null);
     setCoachWaiting(false);
     setError(null);
+    setBusy(false);
     playbackRefreshAttemptedRef.current = false;
   }
 

@@ -82,7 +82,7 @@ export default function HomeScreen() {
           <Text style={styles.coachLabel}>AI 코치</Text>
           <Text style={styles.coachHeadline}>
             {latest
-              ? '지난번 "다음 한 걸음"을 이어가 볼까요?'
+              ? '지난 피드백을 이어 연습해 볼까요?'
               : '영상을 올리면 원인과 처방을 돌려드려요'}
           </Text>
           <Text style={styles.coachBody} numberOfLines={2}>
