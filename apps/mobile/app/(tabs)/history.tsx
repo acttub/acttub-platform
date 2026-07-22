@@ -5,6 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { api, type ReportRecord } from '@/lib/api';
 import { setSelectedReport } from '@/lib/selected-report';
+import { formatKoreanDate } from '@/lib/format';
 import { palette } from '@/constants/palette';
 
 /**
@@ -54,19 +55,13 @@ export default function HistoryScreen() {
               setSelectedReport(item);
               router.push('/report-detail' as Href);
             }}>
-            <Text style={styles.date}>
-              {new Date(item.created_at).toLocaleDateString('ko-KR', {
-                year: 'numeric',
-                month: 'long',
-                day: 'numeric',
-              })}
-            </Text>
-            <Text style={styles.headline}>{item.report.headline}</Text>
+            <Text style={styles.date}>{formatKoreanDate(item.created_at)}</Text>
+            <Text style={styles.headline}>{item.report?.headline ?? ''}</Text>
             <Text style={styles.problem} numberOfLines={2}>
-              {item.report.biggest_problem.description}
+              {item.report?.biggest_problem?.description ?? ''}
             </Text>
             <Text style={styles.next} numberOfLines={2}>
-              다음 한 걸음 · {item.report.next_step}
+              다음 한 걸음 · {item.report?.next_step ?? ''}
             </Text>
             <Text style={styles.viewMore}>전체 보기 ›</Text>
           </Pressable>

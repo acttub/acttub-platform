@@ -5,6 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { api } from '@/lib/api';
 import { getSelectedReport } from '@/lib/selected-report';
+import { formatKoreanDate } from '@/lib/format';
 import { palette } from '@/constants/palette';
 
 /**
@@ -49,22 +50,18 @@ export default function ReportDetailScreen() {
   }
 
   const { report } = record;
-  const problemRange =
-    report.biggest_problem.end && report.biggest_problem.end !== report.biggest_problem.start
-      ? `${report.biggest_problem.start} ~ ${report.biggest_problem.end}`
-      : report.biggest_problem.start;
+  const problem = report.biggest_problem;
+  const problemRange = problem
+    ? problem.end && problem.end !== problem.start
+      ? `${problem.start} ~ ${problem.end}`
+      : problem.start
+    : '';
 
   return (
     <SafeAreaView style={styles.safe} edges={['bottom']}>
       <Stack.Screen options={{ title: '피드백 카드' }} />
       <ScrollView contentContainerStyle={styles.container}>
-        <Text style={styles.date}>
-          {new Date(record.created_at).toLocaleDateString('ko-KR', {
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric',
-          })}
-        </Text>
+        <Text style={styles.date}>{formatKoreanDate(record.created_at)}</Text>
         <Text style={styles.headline}>{report.headline}</Text>
 
         <View style={[styles.block, styles.blockGreen]}>
@@ -74,7 +71,7 @@ export default function ReportDetailScreen() {
 
         <View style={[styles.block, styles.blockBlue]}>
           <Text style={[styles.blockTag, styles.tagBlue]}>이번엔 이거 딱 하나 · {problemRange}</Text>
-          <Text style={styles.blockBody}>{report.biggest_problem.description}</Text>
+          <Text style={styles.blockBody}>{problem?.description ?? ''}</Text>
           {!!report.evidence && <Text style={styles.evidence}>{report.evidence}</Text>}
         </View>
 
