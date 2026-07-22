@@ -89,6 +89,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v2/consents/pending": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Pending Documents */
+        get: operations["list_pending_documents_v2_consents_pending_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v2/consents": {
         parameters: {
             query?: never;
@@ -864,6 +881,26 @@ export interface operations {
         };
     };
     list_documents_v2_consents_documents_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConsentDocumentsResponse"];
+                };
+            };
+        };
+    };
+    list_pending_documents_v2_consents_pending_get: {
         parameters: {
             query?: never;
             header?: never;

@@ -39,6 +39,7 @@ SUCCESS_RESPONSE_MODELS = {
     ("post", "/v2/auth/login", "200"): "TokenPairResponse",
     ("post", "/v2/auth/refresh", "200"): "RefreshTokenResponse",
     ("get", "/v2/consents/documents", "200"): "ConsentDocumentsResponse",
+    ("get", "/v2/consents/pending", "200"): "ConsentDocumentsResponse",
     ("post", "/v2/consents", "201"): "ConsentEventResponse",
     ("post", "/v2/uploads/intents", "201"): "UploadIntentResponse",
     (

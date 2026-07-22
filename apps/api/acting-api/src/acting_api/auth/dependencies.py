@@ -48,3 +48,15 @@ def build_rate_limited_user_dependency(
         return user
 
     return rate_limited_user
+
+
+def build_consent_gate_dependency(rate_limited_user, store):
+    async def consented_user(user=Depends(rate_limited_user)):
+        has_pending = await run_in_threadpool(
+            store.has_pending_required_consents, user.id
+        )
+        if has_pending:
+            raise HTTPException(status_code=403, detail="consent_required")
+        return user
+
+    return consented_user

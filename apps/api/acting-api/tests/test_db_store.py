@@ -202,7 +202,7 @@ def test_account_consent_upload_and_practice_lifecycle(postgres_store):
         required=True,
         published_at=now,
     )
-    store.publish_consent_document(
+    privacy = store.publish_consent_document(
         type="privacy",
         version="1",
         title="Privacy",
@@ -216,6 +216,8 @@ def test_account_consent_upload_and_practice_lifecycle(postgres_store):
     }
     assert latest == {"privacy": "1", "terms": "2"}
     assert store.get_consent_document(new_terms.id).version == "2"
+    assert store.get_consent_document_by_type_version("terms", "2").id == new_terms.id
+    assert store.has_pending_required_consents(user.id) is True
     all_documents = store.list_consent_documents()
     assert all_documents[0].id == old_terms.id
     assert {(document.type.value, document.version) for document in all_documents} == {
@@ -242,11 +244,22 @@ def test_account_consent_upload_and_practice_lifecycle(postgres_store):
         action="granted",
         occurred_at=now,
     )
+    store.record_user_consent(
+        user_id=user.id,
+        document_id=privacy.id,
+        action="granted",
+        occurred_at=now,
+    )
     current = {
         event.document_id: event.action.value
         for event in store.get_current_user_consents(user.id)
     }
-    assert current == {old_terms.id: "revoked", new_terms.id: "granted"}
+    assert current == {
+        old_terms.id: "revoked",
+        new_terms.id: "granted",
+        privacy.id: "granted",
+    }
+    assert store.has_pending_required_consents(user.id) is False
 
     expired = store.create_upload_intent(
         user_id=user.id,

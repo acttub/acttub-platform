@@ -17,6 +17,7 @@ export type ConsentDocument = components["schemas"]["ConsentDocument"];
 export type TokenPairResponse = components["schemas"]["TokenPairResponse"];
 export type RefreshTokenResponse = components["schemas"]["RefreshTokenResponse"];
 export type ConsentDocumentsResponse = components["schemas"]["ConsentDocumentsResponse"];
+export type PendingConsentsResponse = components["schemas"]["ConsentDocumentsResponse"];
 export type ConsentEventResponse = components["schemas"]["ConsentEventResponse"];
 export type UploadIntentResponse = components["schemas"]["UploadIntentResponse"];
 export type UploadCompleteResponse = components["schemas"]["UploadCompleteResponse"];

@@ -417,6 +417,17 @@ class PostgresStore:
         with self._session_factory() as db:
             return db.get(ConsentDocument, document_id)
 
+    def get_consent_document_by_type_version(
+        self, type: ConsentType | str, version: str
+    ) -> ConsentDocument | None:
+        with self._session_factory() as db:
+            return db.scalar(
+                select(ConsentDocument).where(
+                    ConsentDocument.type == ConsentType(type),
+                    ConsentDocument.version == version,
+                )
+            )
+
     def list_consent_documents(self) -> list[ConsentDocument]:
         with self._session_factory() as db:
             return list(
@@ -461,6 +472,16 @@ class PostgresStore:
                     )
                 )
             )
+
+    def has_pending_required_consents(self, user_id: UUID) -> bool:
+        actions = {
+            event.document_id: getattr(event.action, "value", event.action)
+            for event in self.get_current_user_consents(user_id)
+        }
+        return any(
+            document.required and actions.get(document.id) != "granted"
+            for document in self.list_latest_consent_documents()
+        )
 
     # ---- upload intents ----
 

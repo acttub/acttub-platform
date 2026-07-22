@@ -118,7 +118,7 @@ def _idempotent_response(result, *, store, user_id: UUID, request_id: UUID):
     raise HTTPException(status_code=409, detail="invalid_operation_state")
 
 
-def build_router(*, store, storage, rate_limited_user) -> APIRouter:
+def build_router(*, store, storage, rate_limited_user, ungated_user) -> APIRouter:
     router = APIRouter(prefix="/v2/practice-sessions", tags=["v2-practice"])
 
     @router.post(
@@ -315,7 +315,7 @@ def build_router(*, store, storage, rate_limited_user) -> APIRouter:
             status.HTTP_204_NO_CONTENT: {"description": "No Content"},
         },
     )
-    async def delete_session(session_id: UUID, user=Depends(rate_limited_user)):
+    async def delete_session(session_id: UUID, user=Depends(ungated_user)):
         hidden = await run_in_threadpool(
             store.hide_practice_session,
             user_id=user.id,
