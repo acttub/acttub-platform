@@ -132,3 +132,31 @@ def test_report_count_query_excludes_hidden_practice_sessions():
     statement_sql = _sql(PostgresStore._report_count_query(uuid4()))
 
     assert "practice_sessions.hidden_at IS NULL" in statement_sql
+
+
+def test_report_count_query_counts_distinct_practice_sessions():
+    # 한 practice_session에 리포트가 여럿이어도 서수·count가 부풀지 않도록 distinct.
+    statement_sql = _sql(PostgresStore._report_count_query(uuid4())).lower()
+
+    assert "count(distinct(practice_sessions.id))" in statement_sql
+
+
+def test_list_report_summaries_dedupes_to_latest_report_per_practice_session():
+    user_id = uuid4()
+    practice_session_id = uuid4()
+    older = datetime(2026, 7, 18, tzinfo=timezone.utc)
+    newer = datetime(2026, 7, 20, tzinfo=timezone.utc)
+    # 같은 practice_session의 리포트 2건(순서 무관) — 최신 1건만 남아야 한다.
+    store, _ = _store_with_rows(
+        [
+            (practice_session_id, "오래된 헤드라인", older),
+            (practice_session_id, "최신 헤드라인", newer),
+        ]
+    )
+
+    records = store.list_report_summaries(user_id)
+
+    assert len(records) == 1
+    assert records[0].practice_session_id == practice_session_id
+    assert records[0].headline == "최신 헤드라인"
+    assert records[0].created_at == newer

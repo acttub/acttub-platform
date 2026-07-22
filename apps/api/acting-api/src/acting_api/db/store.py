@@ -1160,14 +1160,19 @@ class PostgresStore:
                     .order_by(DbReport.created_at, DbReport.id)
                 )
             )
-            return [
-                ReportSummary(
-                    practice_session_id=practice_session_id,
-                    headline=headline,
-                    created_at=created_at,
-                )
-                for practice_session_id, headline, created_at in reports
-            ]
+            # DB 모델상 practice_session당 리포트가 여럿일 수 있다(앱 로직이 1건으로
+            # 강제하지만 방어적으로). 상세 조회의 "최신 1건" 규칙과 일치시키고 count가
+            # 부풀지 않도록 practice_session별 최신 리포트만 남긴다.
+            latest: dict[UUID, ReportSummary] = {}
+            for practice_session_id, headline, created_at in reports:
+                current = latest.get(practice_session_id)
+                if current is None or created_at > current.created_at:
+                    latest[practice_session_id] = ReportSummary(
+                        practice_session_id=practice_session_id,
+                        headline=headline,
+                        created_at=created_at,
+                    )
+            return list(latest.values())
 
     def get_report_detail_for_practice_session(
         self,
@@ -1227,8 +1232,10 @@ class PostgresStore:
 
     @staticmethod
     def _report_count_query(user_id: UUID):
+        # 목록·서수와 같은 단위(practice_session별 1건)로 세어 중복 리포트가 있어도
+        # count가 부풀지 않게 한다.
         return (
-            select(func.count(DbReport.id))
+            select(func.count(func.distinct(PracticeSession.id)))
             .join(DbCoachSession, DbReport.session_id == DbCoachSession.id)
             .join(Summary, DbCoachSession.summary_id == Summary.id)
             .join(PracticeSession, Summary.session_id == PracticeSession.id)
