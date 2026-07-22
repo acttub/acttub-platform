@@ -1,14 +1,8 @@
-"use client";
+import { buildNoindexMetadata } from "@/lib/seo/site-metadata";
+import PracticeRedirect from "./practice-redirect";
 
-import { useEffect } from "react";
-import { useRouter } from "next/navigation";
+export const metadata = buildNoindexMetadata("연기 연습");
 
 export default function LegacyPracticePage() {
-  const router = useRouter();
-
-  useEffect(() => {
-    router.replace("/home");
-  }, [router]);
-
-  return null;
+  return <PracticeRedirect />;
 }

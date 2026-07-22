@@ -2,7 +2,7 @@ import { login } from "../api/v2/auth";
 import type { TokenPairResponse } from "../api/v2/types";
 
 export interface LoginProvider {
-  name: "development" | "google";
+  name: "development" | "google" | "apple";
   getIdToken(input?: {
     uid?: string;
     email?: string;
@@ -25,6 +25,17 @@ export const googleProvider: LoginProvider = {
   async getIdToken(input) {
     if (!input?.credential) {
       throw new Error("Google 로그인 credential이 필요합니다.");
+    }
+    return input.credential;
+  },
+};
+
+// 웹의 credential은 Apple JS가 준 identityToken, 네이티브 앱은 자체 SDK가 준 같은 형태의 JWT다.
+export const appleProvider: LoginProvider = {
+  name: "apple",
+  async getIdToken(input) {
+    if (!input?.credential) {
+      throw new Error("Apple 로그인 credential이 필요합니다.");
     }
     return input.credential;
   },
