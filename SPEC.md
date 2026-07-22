@@ -38,54 +38,76 @@
   `storage_not_configured` (기존 세션 상세와 동일).
 - 응답에 `session_id`(coach_session id)·`turns` **미포함**.
 - store: `get_report_detail_for_practice_session(user_id, practice_session_id)` 신설 —
-  리포트 본문 + upload object_key를 함께 반환(1 쿼리). presign은 라우터에서.
+  리포트 본문 + upload object_key를 함께 반환. presign은 라우터에서.
+- **조인 다중성 방어**(Codex): practice_session → 1 summary(0004 UNIQUE) → **N
+  coach_sessions** → 각 ≤1 report 이므로 DB상 practice_session당 리포트가 다수일 수
+  있다(앱 로직이 1건으로 강제하지만 쿼리는 방어적으로). 쿼리는 `reports.created_at
+  DESC LIMIT 1`로 최신 1건을 결정적으로 선택. **DB에 UNIQUE 추가는 스코프 밖**(스키마
+  변경 금지)이라 하지 않는다.
 
-**B. `GET /v2/reports` 슬림화 + hidden 필터**
-- `ReportRecord`를 `{ practice_session_id: UUID, headline: str,
-  created_at: datetime }`로 축소. `session_id`·`report`(본문) 제거.
-- `ReportHistoryResponse = { count, reports: [슬림] }` 유지.
-- `store.list_reports`에 `PracticeSession.hidden_at IS NULL` 필터 추가. 반환은
-  슬림 필드만(headline만 필요 — 본문 로딩 불필요).
+**B. `GET /v2/reports` 슬림화 + hidden 필터 (list_reports 분리)**
+- **HTTP용 슬림 쿼리 신설** `store.list_report_summaries(user_id)` → `{ practice_session_id,
+  headline, created_at }` 목록, `hidden_at IS NULL` 필터. `report_history` 핸들러가 이걸 사용.
+- **기존 `store.list_reports`(full body)는 유지**(Codex HIGH): `create_report`가 이전
+  리포트 본문을 comparison 생성에 사용(`reports.py:119`)하므로 인플레이스 슬림화 금지.
+  단 여기에도 `hidden_at IS NULL` 필터를 **추가**(삭제된 연습이 comparison에 새지 않게).
+- HTTP `ReportRecord`를 `{ practice_session_id, headline, created_at }`로 축소
+  (`session_id`·`report` 제거). `ReportHistoryResponse = { count, reports: [슬림] }` 유지.
+- **`_report_count_query`에 `hidden_at IS NULL` 추가**(Codex): 안 그러면 hidden 리포트가
+  `POST /v2/reports`의 `report_count` 및 "N번째 연습 노트" 서수와 목록 count가 불일치.
 
 **C. 스펙·타입 재생성 (같은 PR)**
 - `spec/openapi.json` 재생성 → 웹 `v2-schema.d.ts` 재생성.
 
 ### 웹 프론트 (`apps/web`)
 
-목록 레코드 본문에 의존하던 **세 경로**를 fetch 기반으로 전환:
+웹 리포트 화면은 이미 `getPracticeSession`에서 `situation`/`character_context`(헤더,
+`practice-flow.tsx:1345-1346`)와 `playback_url`(영상, `Report`에 `session.playback_url`
+전달)을 받아 쓴다. 따라서 **웹은 세션 호출이 원래 필요**하고, 목록 레코드에서 얻던 건
+리포트 **본문뿐**이다. 슬림화로 본문만 fetch로 전환:
 - **신설** `getReport(practiceSessionId)` API 클라이언트 (`lib/api/v2/reports.ts`).
-- **기록 열기**: `showReportRecord`가 목록에서 본문을 꺼내던 것 → `getReport` fetch로
-  `reportData`(본문)+`playbackUrl`을 한 번에 세팅. **로딩/에러 상태 신설**.
+- **기록 열기**: `getPracticeSession`(맥락+영상, 변경 없음) + `getReport`(본문) — **2-call**.
+  `showReportRecord`가 목록 본문을 꺼내던 것 → `getReport` 본문으로 `reportData` 세팅.
+  **로딩/에러 상태 신설**.
 - **리포트 생성 직후**(`POST /v2/reports` 후): 슬림 목록 재파생 대신 **POST 응답 본문**을
-  직접 `reportData`에 사용해 즉시 표시.
-- **playback refresh**(`onPlaybackError`/`playbackRefreshAttemptedRef`): 만료 시
-  `getReport` 재호출로 재발급.
+  직접 `reportData`에 사용. 영상은 기존 `session.playback_url` 그대로.
+- **영상·playback refresh 경로는 변경하지 않음** — 영상은 계속 `session.playback_url`에서
+  오므로 `onPlaybackError` 기존 로직 유지(웹 변경 최소화).
 - 목록 화면은 `listPracticeSessions`(진행 중 표시용)+슬림 `listReports` **병행 유지**.
   리포트 카드 미리보기는 `headline`만 사용.
 
 ### 모바일 (`apps/mobile`, 수기 타입 — 웹 타입 재생성과 독립)
 
-- `lib/api.ts` `ReportRecord`를 슬림(`practice_session_id, headline, created_at`)으로
-  수정, 죽은 `turns` 필드 제거. `getReport(practiceSessionId)` 추가.
+- `lib/api.ts`: `ReportRecord`를 슬림(`practice_session_id, headline, created_at`)으로
+  수정, 죽은 `turns` 필드 제거. `getReport(practiceSessionId)` 추가 — 응답
+  `{ practice_session_id, created_at, report, playback_url }` 타입.
 - `history.tsx`: 카드를 **날짜+headline**만으로 단순화(기존
   `biggest_problem.description`·`next_step` 미리보기 제거). 카드 key를
-  `practice_session_id + created_at`로 변경(응답에서 session_id 제거되므로).
-- `report-detail.tsx`: 목록이 넘긴 본문(module store) 대신 **`getReport`로 본문 fetch**
-  (로딩 상태). 삭제를 `deletePracticeSession(practice_session_id)`로 수정 — 현재
-  `session_id`(coach id) 전달은 잠재 버그였음.
+  `practice_session_id + created_at`로 변경. 카드 탭 시 **`practice_session_id`를 Expo
+  Router param으로 전달**(module store 의존 제거 — 앱 재시작·딥링크 대응, Codex).
+- `report-detail.tsx`: `useLocalSearchParams`로 받은 `practice_session_id`로 **`getReport`
+  fetch**(로딩 상태). 본문 텍스트 + **영상 재생 추가** — `playback_url`을 기존
+  `expo-video`(`useVideoPlayer`+`VideoView`, coach.tsx/analyzing.tsx와 동일 패턴)로 재생.
+  삭제를 `deletePracticeSession(practice_session_id)`로 수정(현재 coach id 전달은 잠재 버그).
+  `selected-report.ts` module store 제거(또는 미사용화).
 - 모바일 기록은 리포트 전용이라 진행 중 세션 관련 변경 없음.
 
 ## 완료 기준 체크리스트
 
-- [ ] `GET /v2/reports/{practice_session_id}` 200이 명세대로(4필드, session_id/turns 없음).
-- [ ] 같은 엔드포인트가 hidden 세션엔 404, 남의 리소스엔 404, storage 미설정 시 503.
+- [ ] `GET /v2/reports/{practice_session_id}` 200이 명세대로(4필드: practice_session_id,
+      created_at, report, playback_url; session_id/turns 없음).
+- [ ] 같은 엔드포인트가 hidden 세션엔 404, 남의 리소스엔 404, storage 미설정 시 503,
+      practice_session당 리포트 다수여도 최신 1건을 결정적으로 반환.
 - [ ] `GET /v2/reports`가 슬림 3필드만 반환하고 hidden 세션 리포트를 제외.
-- [ ] `store.list_reports` hidden 필터 + 신설 상세 store 함수에 pytest 커버리지 추가.
+- [ ] `list_report_summaries`(신설, 슬림)와 `list_reports`(full, 내부 comparison용) 분리,
+      **양쪽 다** hidden 필터. `_report_count_query`도 hidden 필터. pytest 커버리지 추가.
+- [ ] `create_report`의 comparison 생성이 슬림화 후에도 정상 동작(회귀 없음).
 - [ ] `spec/openapi.json`·`v2-schema.d.ts` 재생성 반영.
-- [ ] 웹: 기록 열기/생성 직후/playback 만료 세 경로가 fetch 기반으로 동작, 로딩·에러 표시.
+- [ ] 웹: 기록 열기(session+getReport 2-call)·생성 직후 본문 출처 전환, 로딩·에러 표시,
+      영상은 session.playback_url 유지.
 - [ ] 웹 `pnpm lint`·`typecheck`·`--filter web test`·`build` 통과.
-- [ ] 모바일: 카드 슬림화, 상세 fetch, 삭제 practice_session_id 사용, `turns` 제거,
-      모바일 typecheck 통과.
+- [ ] 모바일: 카드 슬림화, 상세 getReport fetch + **영상 재생(expo-video)**, router param
+      전달, 삭제 practice_session_id 사용, `turns` 제거, 모바일 typecheck 통과.
 - [ ] `apps/api` pytest 전체 통과.
 
 ## 하지 말 것 (스코프 제한)
