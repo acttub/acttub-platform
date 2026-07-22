@@ -1,0 +1,88 @@
+{
+  "expo": {
+    "name": "Acttub",
+    "slug": "acting-app",
+    "version": "0.0.1",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "actingapp",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.acttub.app",
+      "usesAppleSignIn": true,
+      "googleServicesFile": "./GoogleService-Info.plist",
+      "infoPlist": {
+        "NSSpeechRecognitionUsageDescription": "말한 내용을 글자로 바꾸기 위해 음성 인식 권한이 필요해요.",
+        "NSMicrophoneUsageDescription": "음성으로 답변을 입력하려면 마이크 접근이 필요해요.",
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#0182F9",
+        "backgroundImage": "./assets/images/android-icon-background.png",
+        "foregroundImage": "./assets/images/android-icon-foreground.png"
+      },
+      "edgeToEdgeEnabled": true,
+      "predictiveBackGestureEnabled": false,
+      "softwareKeyboardLayoutMode": "resize",
+      "package": "com.acttub.app",
+      "googleServicesFile": "./google-services.json"
+    },
+    "web": {
+      "output": "static",
+      "favicon": "./assets/images/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "useFrameworks": "static"
+          }
+        }
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/images/splash-icon.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
+          "backgroundColor": "#FFFFFF",
+          "dark": {
+            "backgroundColor": "#FFFFFF"
+          }
+        }
+      ],
+      "react-native-compressor",
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "음성으로 답변을 입력하려면 마이크 접근이 필요해요.",
+          "speechRecognitionPermission": "말한 내용을 글자로 바꾸기 위해 음성 인식 권한이 필요해요."
+        }
+      ],
+      "expo-video",
+      "@react-native-firebase/app",
+      "@react-native-firebase/analytics",
+      "@react-native-google-signin/google-signin",
+      "expo-secure-store",
+      "expo-apple-authentication",
+      "./plugins/with-non-modular-headers.js"
+    ],
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "6c0ea180-5d00-40a7-b109-9225f05fe291"
+      }
+    },
+    "owner": "ryujisung"
+  }
+}
