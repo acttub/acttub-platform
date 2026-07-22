@@ -29,10 +29,21 @@ test('API client는 403 body를 한 번 읽고 consent_required를 emit한다', 
 test('AuthProvider와 consent 화면은 서버 pending 목록으로 상태를 복구한다', () => {
   const auth = readSource('lib/auth.tsx');
   const consent = readSource('app/consent.tsx');
+  const layout = readSource('app/_layout.tsx');
 
   assert.match(auth, /onConsentRequired/);
   assert.match(auth, /api\.pendingConsents\(\)/);
   assert.match(auth, /setPendingConsents\(documents\)/);
+  assert.match(auth, /consentRequired: boolean/);
+  assert.match(auth, /onConsentRequired\(\(\) => \{\s*setConsentRequired\(true\);/);
+  assert.match(auth, /setPendingConsents\(\[\]\);\s*setConsentRequired\(false\);/);
+  assert.match(layout, /consentRequired \|\| pendingConsents\.length > 0/);
   assert.match(consent, /pendingConsents\.length > 0/);
   assert.match(consent, /refreshPendingConsents\(\)/);
+  assert.match(
+    consent,
+    /if \(status !== 'signedIn' \|\| pendingConsents\.length > 0\) return;/,
+  );
+  assert.match(consent, /getUserName\(\)/);
+  assert.match(consent, /onPress=\{\(\) => void loadPendingConsents\(\)\}/);
 });

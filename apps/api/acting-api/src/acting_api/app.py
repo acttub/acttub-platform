@@ -219,6 +219,7 @@ def create_app(
             store=store,
             storage=s3_storage,
             rate_limited_user=consented_user,
+            ungated_user=rate_limited_user,
         )
     )
     app.include_router(

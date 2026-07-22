@@ -419,6 +419,11 @@ def test_pending_consents_endpoint_and_protected_router_enforcement():
         response.json() == {"detail": "consent_required"}
         for response in blocked_requests
     )
+    delete_response = client.delete(
+        f"/v2/practice-sessions/{uuid4()}", headers=headers
+    )
+    assert delete_response.status_code == 404
+    assert delete_response.json() == {"detail": "practice_session_not_found"}
 
     assert client.get("/v2/consents/documents").status_code == 200
     pending = client.get("/v2/consents/pending", headers=headers)

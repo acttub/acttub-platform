@@ -36,6 +36,7 @@ type AuthContextValue = {
   status: AuthStatus;
   user: AuthUser | null;
   pendingConsents: ConsentDocument[];
+  consentRequired: boolean;
   signInWithGoogle: () => Promise<void>;
   /** iOS Sign in with Apple. isAvailableAsync가 true일 때만 노출. */
   signInWithApple: () => Promise<void>;
@@ -89,10 +90,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<AuthStatus>('loading');
   const [user, setUser] = useState<AuthUser | null>(null);
   const [pendingConsents, setPendingConsents] = useState<ConsentDocument[]>([]);
+  const [consentRequired, setConsentRequired] = useState(false);
 
   const refreshPendingConsents = useCallback(async () => {
     const { documents } = await api.pendingConsents();
     setPendingConsents(documents);
+    setConsentRequired(documents.length > 0);
   }, []);
 
   useEffect(() => {
@@ -102,9 +105,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
     const unsubTokens = onTokensCleared(() => {
       setUser(null);
+      setPendingConsents([]);
+      setConsentRequired(false);
       setStatus('signedOut');
     });
     const unsubConsent = onConsentRequired(() => {
+      setConsentRequired(true);
       void refreshPendingConsents().catch(() => undefined);
     });
     return () => {
@@ -126,6 +132,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await setTokens(pair.access_token, pair.refresh_token);
     setUser(pair.user);
     setPendingConsents(pair.pending_consents ?? []);
+    setConsentRequired(false);
     setStatus('signedIn');
   }, []);
 
@@ -172,13 +179,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setStatus('signedOut');
   }, []);
 
-  const clearPendingConsents = useCallback(() => setPendingConsents([]), []);
+  const clearPendingConsents = useCallback(() => {
+    setPendingConsents([]);
+    setConsentRequired(false);
+  }, []);
 
   const value = useMemo(
     () => ({
       status,
       user,
       pendingConsents,
+      consentRequired,
       signInWithGoogle,
       signInWithApple,
       signOut,
@@ -189,6 +200,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       status,
       user,
       pendingConsents,
+      consentRequired,
       signInWithGoogle,
       signInWithApple,
       signOut,

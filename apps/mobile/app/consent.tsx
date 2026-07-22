@@ -1,5 +1,5 @@
 import { Stack } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -14,7 +14,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { api, type ConsentDocument } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { saveConsentPrefs } from '@/lib/consent-prefs';
-import { saveUserName } from '@/lib/profile';
+import { getUserName, saveUserName } from '@/lib/profile';
 import { palette } from '@/constants/palette';
 
 /**
@@ -23,30 +23,46 @@ import { palette } from '@/constants/palette';
  * 이름도 함께 받는다(현재는 로컬 저장 — [[profile]], 백엔드 프로필 API 생기면 전송).
  */
 export default function ConsentScreen() {
-  const { pendingConsents, clearPendingConsents, refreshPendingConsents } = useAuth();
+  const { status, pendingConsents, clearPendingConsents, refreshPendingConsents } = useAuth();
   const [name, setName] = useState('');
   const [agreed, setAgreed] = useState<Record<string, boolean>>({});
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [busy, setBusy] = useState(false);
+  const [loadingPending, setLoadingPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const loadPendingConsents = useCallback(async () => {
+    setLoadingPending(true);
+    setError(null);
+    try {
+      await refreshPendingConsents();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '약관 문서를 불러오지 못했어요.');
+    } finally {
+      setLoadingPending(false);
+    }
+  }, [refreshPendingConsents]);
+
   useEffect(() => {
-    if (pendingConsents.length > 0) return;
+    if (status !== 'signedIn' || pendingConsents.length > 0) return;
+    void loadPendingConsents();
+  }, [status, pendingConsents.length, loadPendingConsents]);
+
+  useEffect(() => {
     let active = true;
-    void refreshPendingConsents().catch((err) => {
-      if (active) {
-        setError(err instanceof Error ? err.message : '약관 문서를 불러오지 못했어요.');
-      }
+    void getUserName().then((storedName) => {
+      if (active && storedName) setName((current) => current || storedName);
     });
     return () => {
       active = false;
     };
-  }, [pendingConsents.length, refreshPendingConsents]);
+  }, []);
 
   const required = useMemo(() => pendingConsents.filter((d) => d.required), [pendingConsents]);
   const optional = useMemo(() => pendingConsents.filter((d) => !d.required), [pendingConsents]);
 
-  const canProceed = name.trim().length > 0 && required.every((d) => agreed[d.id]);
+  const canProceed =
+    pendingConsents.length > 0 && name.trim().length > 0 && required.every((d) => agreed[d.id]);
   const allChecked = pendingConsents.length > 0 && pendingConsents.every((d) => agreed[d.id]);
 
   const toggleAll = () => {
@@ -135,7 +151,16 @@ export default function ConsentScreen() {
         )}
       </ScrollView>
 
+      {loadingPending && pendingConsents.length === 0 && <ActivityIndicator color={palette.blue} />}
       {error && <Text style={styles.error}>{error}</Text>}
+      {error && status === 'signedIn' && pendingConsents.length === 0 && (
+        <Pressable
+          style={styles.retry}
+          onPress={() => void loadPendingConsents()}
+          disabled={loadingPending}>
+          <Text style={styles.retryText}>다시 불러오기</Text>
+        </Pressable>
+      )}
       <Pressable
         style={[styles.cta, (!canProceed || busy) && styles.ctaDisabled]}
         onPress={proceed}
@@ -209,6 +234,8 @@ const styles = StyleSheet.create({
     borderTopColor: palette.border,
   },
   error: { color: palette.danger, textAlign: 'center', paddingHorizontal: 20, paddingBottom: 8 },
+  retry: { alignSelf: 'center', paddingHorizontal: 16, paddingVertical: 8 },
+  retryText: { color: palette.blue, fontSize: 14, fontWeight: '700' },
   cta: {
     backgroundColor: palette.blue,
     borderRadius: 16,
