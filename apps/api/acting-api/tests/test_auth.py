@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
+from uuid import uuid4
 
 from fastapi.testclient import TestClient
 from sqlalchemy.exc import IntegrityError
@@ -13,15 +14,17 @@ from acting_api.config import GatewaySettings
 from acting_api.db.models import UserStatus
 from acting_api.db.store import IdentityAlreadyLinkedError
 from acting_api.security import hash_token
+from acting_api.storage import S3Storage
 from acting_report.config import Settings as ReportSettings
 from acting_summary.config import Settings as SummarySettings
 from api_test_support import FakeClient
 from auth_test_support import FakeAuthStore, FakeProviderVerifier
+from platform_test_support import FakeBotoS3Client, FakePlatformStore
 
 JWT_SECRET = "stage-2-test-jwt-secret"
 
 
-def _app(*, store=None, verifier=None, clock=None):
+def _app(*, store=None, verifier=None, clock=None, s3_storage=None):
     store = store or FakeAuthStore()
     verifier = verifier or FakeProviderVerifier()
     kwargs = {"clock": clock} if clock is not None else {}
@@ -38,6 +41,7 @@ def _app(*, store=None, verifier=None, clock=None):
         provider_registry=ProviderRegistry(
             verifier if isinstance(verifier, list) else [verifier]
         ),
+        s3_storage=s3_storage,
         **kwargs,
     )
     return app, store, verifier
@@ -352,6 +356,98 @@ def test_consent_documents_are_public_and_consent_events_require_bearer():
     )
     assert revoked.status_code == 201
     assert _login(client).json()["pending_consents"][0]["id"] == str(document.id)
+
+
+def test_pending_consents_endpoint_and_protected_router_enforcement():
+    store = FakePlatformStore()
+    storage = S3Storage(bucket="videos", client=FakeBotoS3Client())
+    app, _, verifier = _app(store=store, s3_storage=storage)
+    verifier.add("provider-token", provider_uid="pending-user")
+    now = datetime.now(timezone.utc)
+    store.publish_consent_document(
+        type="terms",
+        version="v0",
+        title="Old terms",
+        body="old",
+        required=True,
+        published_at=now - timedelta(days=1),
+    )
+    terms = store.publish_consent_document(
+        type="terms",
+        version="v1",
+        title="Terms",
+        body="terms",
+        required=True,
+        published_at=now,
+    )
+    privacy = store.publish_consent_document(
+        type="privacy",
+        version="v1",
+        title="Privacy",
+        body="privacy",
+        required=True,
+        published_at=now,
+    )
+    store.publish_consent_document(
+        type="ai_analysis",
+        version="v1",
+        title="Optional",
+        body="optional",
+        required=False,
+        published_at=now,
+    )
+    client = TestClient(app)
+    login = _login(client).json()
+    headers = _bearer(login["access_token"])
+
+    blocked_requests = [
+        client.post(
+            "/v2/uploads/intents",
+            json={"mime_type": "video/mp4", "size_bytes": 12},
+            headers=headers,
+        ),
+        client.get("/v2/practice-sessions", headers=headers),
+        client.post(
+            "/v2/coach/start",
+            json={"summary_id": str(uuid4())},
+            headers=headers,
+        ),
+        client.get("/v2/reports", headers=headers),
+    ]
+    assert [response.status_code for response in blocked_requests] == [403] * 4
+    assert all(
+        response.json() == {"detail": "consent_required"}
+        for response in blocked_requests
+    )
+
+    assert client.get("/v2/consents/documents").status_code == 200
+    pending = client.get("/v2/consents/pending", headers=headers)
+    assert pending.status_code == 200
+    assert [item["id"] for item in pending.json()["documents"]] == [
+        str(privacy.id),
+        str(terms.id),
+    ]
+    assert client.post(
+        "/v2/auth/refresh", json={"refresh_token": login["refresh_token"]}
+    ).status_code == 200
+
+    for document in (terms, privacy):
+        response = client.post(
+            "/v2/consents",
+            json={"document_id": str(document.id), "action": "granted"},
+            headers=headers,
+        )
+        assert response.status_code == 201
+
+    assert client.get(
+        "/v2/consents/pending", headers=headers
+    ).json() == {"documents": []}
+    allowed = client.post(
+        "/v2/uploads/intents",
+        json={"mime_type": "video/mp4", "size_bytes": 12},
+        headers=headers,
+    )
+    assert allowed.status_code == 201
 
 
 def test_bearer_dependency_rejects_invalid_token_and_suspended_user():

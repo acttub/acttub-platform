@@ -13,6 +13,7 @@ import {
   clearTokens,
   getRefreshToken,
   loadTokens,
+  onConsentRequired,
   onTokensCleared,
   setTokens,
 } from '@/lib/token-store';
@@ -41,6 +42,7 @@ type AuthContextValue = {
   signOut: () => Promise<void>;
   /** 약관 화면에서 필수 동의를 모두 마친 뒤 호출 → 게이트 통과. */
   clearPendingConsents: () => void;
+  refreshPendingConsents: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -88,20 +90,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [pendingConsents, setPendingConsents] = useState<ConsentDocument[]>([]);
 
+  const refreshPendingConsents = useCallback(async () => {
+    const { documents } = await api.pendingConsents();
+    setPendingConsents(documents);
+  }, []);
+
   useEffect(() => {
     let active = true;
     loadTokens().then((hasToken) => {
       if (active) setStatus(hasToken ? 'signedIn' : 'signedOut');
     });
-    const unsub = onTokensCleared(() => {
+    const unsubTokens = onTokensCleared(() => {
       setUser(null);
       setStatus('signedOut');
     });
+    const unsubConsent = onConsentRequired(() => {
+      void refreshPendingConsents().catch(() => undefined);
+    });
     return () => {
       active = false;
-      unsub();
+      unsubTokens();
+      unsubConsent();
     };
-  }, []);
+  }, [refreshPendingConsents]);
 
   const finishLogin = useCallback(async (pair: TokenPair) => {
     if (__DEV__) {
@@ -172,6 +183,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signInWithApple,
       signOut,
       clearPendingConsents,
+      refreshPendingConsents,
     }),
     [
       status,
@@ -181,6 +193,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signInWithApple,
       signOut,
       clearPendingConsents,
+      refreshPendingConsents,
     ],
   );
 

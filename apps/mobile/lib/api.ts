@@ -5,6 +5,7 @@ import {
 
 import {
   clearTokens,
+  emitConsentRequired,
   getAccessToken,
   getRefreshToken,
   setTokens,
@@ -160,13 +161,30 @@ export class ApiError extends Error {
   constructor(
     public status: number,
     message: string,
+    public code?: string,
+    public detail?: unknown,
   ) {
     super(message);
   }
 }
 
+function errorDetail(body: unknown): unknown {
+  if (body === null || typeof body !== 'object' || Array.isArray(body)) {
+    return undefined;
+  }
+  return 'detail' in body ? body.detail : undefined;
+}
+
+async function readErrorBody(res: Response): Promise<unknown> {
+  try {
+    return await res.json();
+  } catch {
+    return undefined;
+  }
+}
+
 /** 상태 코드를 사용자 언어로. */
-async function friendlyError(res: Response): Promise<string> {
+function friendlyError(res: Response, body: unknown): string {
   switch (res.status) {
     case 401:
       return '로그인이 만료됐어요. 다시 로그인해주세요.';
@@ -181,14 +199,10 @@ async function friendlyError(res: Response): Promise<string> {
     case 504:
       return '서버가 잠시 불안정해요. 잠시 후 다시 시도해주세요.';
     default: {
-      try {
-        const body = await res.json();
-        if (typeof body?.detail === 'string') return body.detail;
-        if (Array.isArray(body?.detail) && body.detail[0]?.msg)
-          return String(body.detail[0].msg);
-      } catch {
-        // JSON이 아니면 상태 코드만
-      }
+      const detail = errorDetail(body);
+      if (typeof detail === 'string') return detail;
+      if (Array.isArray(detail) && detail[0]?.msg)
+        return String(detail[0].msg);
       return `HTTP ${res.status}`;
     }
   }
@@ -271,7 +285,15 @@ async function request<T>(
       await clearTokens();
       throw new ApiError(401, '로그인이 만료됐어요. 다시 로그인해주세요.');
     }
-    if (!res.ok) throw new ApiError(res.status, await friendlyError(res));
+    if (!res.ok) {
+      const body = await readErrorBody(res);
+      const detail = errorDetail(body);
+      const code = typeof detail === 'string' ? detail : undefined;
+      if (res.status === 403 && detail === 'consent_required') {
+        emitConsentRequired();
+      }
+      throw new ApiError(res.status, friendlyError(res, body), code, detail);
+    }
     if (res.status === 204) return undefined as T;
     return (await res.json()) as T;
   } catch (err) {
@@ -314,6 +336,10 @@ export const api = {
   // 약관 -----------------------------------------------------------------------
   consentDocuments(): Promise<{ documents: ConsentDocument[] }> {
     return request('/v2/consents/documents', {}, { auth: false });
+  },
+
+  pendingConsents(): Promise<{ documents: ConsentDocument[] }> {
+    return request('/v2/consents/pending', {}, { auth: true });
   },
 
   recordConsent(documentId: string, action: 'granted' | 'declined' | 'revoked') {

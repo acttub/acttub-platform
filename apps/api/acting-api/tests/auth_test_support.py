@@ -189,6 +189,17 @@ class FakeAuthStore:
     def get_consent_document(self, document_id):
         return self.documents.get(document_id)
 
+    def get_consent_document_by_type_version(self, type, version):
+        consent_type = ConsentType(type)
+        return next(
+            (
+                row
+                for row in self.documents.values()
+                if row.type == consent_type and row.version == version
+            ),
+            None,
+        )
+
     def list_consent_documents(self):
         return sorted(
             self.documents.values(), key=lambda row: (row.published_at, row.id)
@@ -230,3 +241,14 @@ class FakeAuthStore:
             ):
                 latest[row.document_id] = row
         return list(latest.values())
+
+    def has_pending_required_consents(self, user_id):
+        current = {
+            row.document_id: row.action
+            for row in self.get_current_user_consents(user_id)
+        }
+        return any(
+            document.required
+            and current.get(document.id) != ConsentAction.GRANTED
+            for document in self.list_latest_consent_documents()
+        )

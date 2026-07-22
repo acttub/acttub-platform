@@ -17,7 +17,11 @@ from acting_api.auth.providers import (
     ProviderRegistry,
     UnsupportedProviderError,
 )
-from acting_api.consents import ConsentDocument, consent_document_payload
+from acting_api.consents import (
+    ConsentDocument,
+    consent_document_payload,
+    pending_required_documents,
+)
 from acting_api.db.store import IdentityAlreadyLinkedError
 from acting_api.ratelimit import RateLimiter
 from acting_api.security import hash_token
@@ -82,16 +86,12 @@ def _user_payload(user) -> dict:
 
 
 async def _pending_consents(store, user_id) -> list[dict]:
-    documents = await run_in_threadpool(store.list_latest_consent_documents)
-    current = await run_in_threadpool(store.get_current_user_consents, user_id)
-    actions = {
-        event.document_id: getattr(event.action, "value", event.action)
-        for event in current
-    }
+    documents = await run_in_threadpool(
+        pending_required_documents, store, user_id
+    )
     return [
         consent_document_payload(document)
         for document in documents
-        if document.required and actions.get(document.id) != "granted"
     ]
 
 

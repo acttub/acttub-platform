@@ -1,5 +1,5 @@
 import { Stack } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -23,12 +23,25 @@ import { palette } from '@/constants/palette';
  * 이름도 함께 받는다(현재는 로컬 저장 — [[profile]], 백엔드 프로필 API 생기면 전송).
  */
 export default function ConsentScreen() {
-  const { pendingConsents, clearPendingConsents } = useAuth();
+  const { pendingConsents, clearPendingConsents, refreshPendingConsents } = useAuth();
   const [name, setName] = useState('');
   const [agreed, setAgreed] = useState<Record<string, boolean>>({});
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (pendingConsents.length > 0) return;
+    let active = true;
+    void refreshPendingConsents().catch((err) => {
+      if (active) {
+        setError(err instanceof Error ? err.message : '약관 문서를 불러오지 못했어요.');
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, [pendingConsents.length, refreshPendingConsents]);
 
   const required = useMemo(() => pendingConsents.filter((d) => d.required), [pendingConsents]);
   const optional = useMemo(() => pendingConsents.filter((d) => !d.required), [pendingConsents]);

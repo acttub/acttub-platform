@@ -7,14 +7,19 @@ import { NamePrompt } from "@/features/auth/name-prompt";
 import { useDisplayNameGate } from "@/features/auth/use-display-name-gate";
 import {
   clearPendingConsents,
-  getPendingConsents,
+  getPendingConsents as getStoredPendingConsents,
   savePendingConsents,
 } from "@/features/auth/pending-consents";
 import { logout } from "@/lib/api/v2/auth";
-import { recordConsent, listConsentDocuments } from "@/lib/api/v2/consents";
+import {
+  getPendingConsents as fetchPendingConsents,
+  listConsentDocuments,
+  recordConsent,
+} from "@/lib/api/v2/consents";
 import { ApiError } from "@/lib/api/v2/errors";
 import type { ConsentDocument } from "@/lib/api/v2/types";
 import { sanitizeNextPath } from "@/lib/auth/next-path";
+import { isLoggedIn } from "@/lib/auth/token-store";
 
 type ReadyState = {
   kind: "ready";
@@ -58,12 +63,27 @@ function TermsGateContent() {
 
     async function loadDocuments() {
       try {
-        const pendingDocuments = getPendingConsents();
+        const pendingDocuments = getStoredPendingConsents();
         if (pendingDocuments.length > 0) {
           if (active) {
             setState({ kind: "ready", mode: "pending", documents: pendingDocuments });
           }
           return;
+        }
+
+        if (isLoggedIn()) {
+          const serverPending = await fetchPendingConsents();
+          if (serverPending.documents.length > 0) {
+            if (active) {
+              savePendingConsents(serverPending.documents);
+              setState({
+                kind: "ready",
+                mode: "pending",
+                documents: serverPending.documents,
+              });
+            }
+            return;
+          }
         }
 
         const response = await listConsentDocuments();
