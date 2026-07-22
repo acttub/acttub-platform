@@ -1,124 +1,114 @@
-# SPEC: 리포트(연습 노트) = 결과 + 영상만 제공
+# SPEC — 이전 기록 API 개편 (리포트 상세 신설 + 목록 슬림화)
 
-기준 커밋: `722626c` · 브랜치: `feat/report-result-video-only`
+기준 커밋: `5155dc0`(dev) · 브랜치: `feat/report-history-api`
 
 ## 배경 / 목적
 
-현재 리포트 화면(practice-flow, `/home`·`/practice/history`)은 리포트 결과 텍스트에 더해 **코칭 대화(turns) 버블**을 보여주고, 정작 **연습 영상은 없다**. 요구: "리포트에는 리포트 결과와 영상만 제공".
+"이전 기록"은 완료된 연습(리포트)을 영상과 함께 다시 보는 화면이다. 현재는
+`GET /v2/reports`가 **리포트 본문 전체**를 목록으로 실어 나르고, 웹·모바일 상세
+화면이 그 목록 레코드의 본문을 그대로 렌더링한다(추가 호출 없음). 영상은 웹에서만
+`GET /v2/practice-sessions/{id}`로 따로 받는다.
 
-또한 리포트→영상 연결에 필요한 `practice_session_id`가 API 계약에 없어, 현재는 같은 탭에서 코칭을 시작한 경우에만 동작하는 인메모리 맵(`practiceCoachSessionMap`)으로 리포트를 연결하는 임시 구조다(새 탭/새로고침에서 깨짐).
+이 구조의 문제:
+1. 목록 응답이 리포트 수에 비례해 무거워진다(본문 7필드 × N).
+2. `GET /v2/reports`가 `hidden_at`(사용자 삭제=소프트 숨김)을 필터링하지 않아,
+   **삭제한 연습의 리포트가 모바일 기록 화면에 계속 노출된다**(실사용 버그).
+3. 영상과 리포트를 얻는 호출이 분리돼 웹 상세가 2-call이다.
 
-**사용자 확정 사항**:
-1. turns는 화면 + `GET /v2/reports` 계약 양쪽에서 제거 (DB `coach_turns` 저장은 유지)
-2. `ReportRecord`에 `practice_session_id` 추가, 영상은 `GET /v2/practice-sessions/{id}`의 presign(15분)으로 재생
-3. 변경 대상은 practice-flow 리포트 화면만 — `/practice/new`(practice-single) 모달은 무변경
-4. 설문 CTA("이번 연습은 어떠셨나요?") 유지. 결과 텍스트 카드(headline·biggest_problem·evidence·self_discovery·next_step)도 현행 유지
-5. **연습 세션당 리포트는 1개** (Codex 비판 C3에 대한 사용자 결정: "하나의 연습 세션에서는 코칭 한 번만"). 백엔드가 강제한다 — 리포트가 이미 있는 연습 세션은 재코칭·재리포트 모두 409. 단, **리포트가 없는 미완주 코칭의 재시작은 허용**(코칭 이어하기 API가 없으므로 막으면 사용자가 영구히 갇힘).
+목표: 목록은 "클릭할 항목 나열"로 슬림화하고, 상세는 리포트 본문+영상 URL을 한 번에
+주는 전용 엔드포인트로 분리한다. hidden 필터를 API 전체에 일관 적용한다.
 
 ## 설계
 
-### 1. 백엔드 — 공유 스키마 (apps/api/acting-report)
+### 백엔드 (`apps/api/acting-api`)
 
-- `src/acting_report/schema.py:38-47` `ReportRecord`: `turns` 필드 제거(3행 `CoachTurn` import도 미사용화되므로 제거), `practice_session_id: str = ""` 추가(디폴트는 standalone in-memory 스토어용), docstring 갱신. `_previous_block`(prompt.py:31-42)은 created_at·report만 사용하므로 리포트 생성 무영향(확인 완료).
-- `src/acting_report/store.py:50-55` `InMemoryReportStore.add_report`: `turns=session.turns` 제거.
-- 테스트: `tests/test_store.py:20` turns 어서션 삭제, `tests/test_app.py:34` `reports[0]["turns"]` 어서션 삭제.
+**A. 신설 `GET /v2/reports/{practice_session_id}`**
+- 응답 200 (`_StrictResponse`, extra 금지):
+  ```
+  { practice_session_id: UUID, created_at: datetime,
+    report: ActingReport, playback_url: str }
+  ```
+- path key는 `practice_session_id`. 조회는 `reports → coach_sessions → summaries →
+  practice_sessions` 조인으로 역추적하며 `PracticeSession.user_id == user.id` AND
+  `PracticeSession.hidden_at IS NULL` 필터.
+- 미존재 / 남의 리소스 / hidden / 리포트 없음 → **404 `report_not_found`** (구분 안 함,
+  기존 관례).
+- `playback_url`은 upload_intents.object_key로 presign (`storage.presign_playback`,
+  TTL `PLAYBACK_URL_TTL_SEC=15분` 재사용). storage 미설정 → **503**
+  `storage_not_configured` (기존 세션 상세와 동일).
+- 응답에 `session_id`(coach_session id)·`turns` **미포함**.
+- store: `get_report_detail_for_practice_session(user_id, practice_session_id)` 신설 —
+  리포트 본문 + upload object_key를 함께 반환(1 쿼리). presign은 라우터에서.
 
-### 2. 백엔드 — acting-api (apps/api/acting-api)
+**B. `GET /v2/reports` 슬림화 + hidden 필터**
+- `ReportRecord`를 `{ practice_session_id: UUID, headline: str,
+  created_at: datetime }`로 축소. `session_id`·`report`(본문) 제거.
+- `ReportHistoryResponse = { count, reports: [슬림] }` 유지.
+- `store.list_reports`에 `PracticeSession.hidden_at IS NULL` 필터 추가. 반환은
+  슬림 필드만(headline만 필요 — 본문 로딩 불필요).
 
-**응답 모델** (`src/acting_api/reports.py`):
-- `ReportRecord`(50-54): `turns` 제거, `practice_session_id: UUID` 추가.
-- 로컬 `CoachTurn`(45-48) 삭제. [C8] 이로써 미사용이 되는 import(`Literal` 등)도 함께 정리.
-- [C4] GET 핸들러(158-167): dict를 그대로 반환하지 않고 **strict `ReportHistoryResponse`로 검증한 뒤 반환** — 공유 스키마 디폴트 `""`가 런타임 응답으로 새는 것을 차단.
-- POST 응답 `CreateReportResponse`(57-59) 무변경.
+**C. 스펙·타입 재생성 (같은 PR)**
+- `spec/openapi.json` 재생성 → 웹 `v2-schema.d.ts` 재생성.
 
-**연습 세션당 리포트 1개 강제** [C3]:
-- `db/store.py`: `has_report(session_id)`(1069, coach 세션 기준)를 `has_report_for_practice_session(practice_session_id)`로 교체 — `Report → CoachSession → Summary` 조인으로 `Summary.session_id == practice_session_id` 존재 검사.
-- `reports.py` POST(116): `store.has_report(req.session_id)` → `store.has_report_for_practice_session(owned.practice_session_id)` (claim 내부 검사 유지 — 동시성 직렬화 지점). 409 detail은 기존 "report already exists for session" 유지.
-- `coaching.py` `coach_start`(65-124): claim 획득 후(succeeded 오퍼레이션의 캐시 replay 반환 이후) `has_report_for_practice_session(owned.practice_session_id)` 검사, 있으면 `_fail` 후 409 detail "report already exists for practice session". [Phase 6 수정: pre-claim 검사는 성공한 요청의 멱등 replay를 409로 강등시키므로 claim 내부로 이동 — replay 회귀 테스트 포함] (경합으로 코칭이 하나 더 생겨도 리포트 생성 단계에서 최종 차단됨)
-- `complete_report_operation`의 None 페이로드 폴백(reports.py:137-142, coach 세션 unique 기반)은 그대로 유지.
+### 웹 프론트 (`apps/web`)
 
-**list_reports** (`db/store.py:1100-1144`):
-- [C2] `db.scalars(...)` → `db.execute(select(DbReport, PracticeSession.id).join(...)...)`로 바꾸고 **(report, practice_session_id) 튜플을 명시적으로 구조분해**. order_by(1109)·user 필터(1108) 유지.
-- turns 적재 블록(1112-1122) 삭제. `ReportRecord` 조립에서 `turns=` 제거·`practice_session_id=str(...)` 추가.
-- 49행 `ReportCoachTurn` import는 1799행에서 계속 사용 — 유지. DB 마이그레이션 없음.
+목록 레코드 본문에 의존하던 **세 경로**를 fetch 기반으로 전환:
+- **신설** `getReport(practiceSessionId)` API 클라이언트 (`lib/api/v2/reports.ts`).
+- **기록 열기**: `showReportRecord`가 목록에서 본문을 꺼내던 것 → `getReport` fetch로
+  `reportData`(본문)+`playbackUrl`을 한 번에 세팅. **로딩/에러 상태 신설**.
+- **리포트 생성 직후**(`POST /v2/reports` 후): 슬림 목록 재파생 대신 **POST 응답 본문**을
+  직접 `reportData`에 사용해 즉시 표시.
+- **playback refresh**(`onPlaybackError`/`playbackRefreshAttemptedRef`): 만료 시
+  `getReport` 재호출로 재발급.
+- 목록 화면은 `listPracticeSessions`(진행 중 표시용)+슬림 `listReports` **병행 유지**.
+  리포트 카드 미리보기는 `headline`만 사용.
 
-**테스트**:
-- `tests/platform_test_support.py`: FakeStore `has_report`(766)를 `has_report_for_practice_session`으로 교체(coach_sessions·summaries 경유 검사), 753-758 `ReportRecord` 조립을 새 모양으로(context.practice_session_id 사용, 666행에 존재).
-- `tests/test_coach_reports_v2.py:260-264`: turns 어서션 → `"turns" not in record` + `practice_session_id` 일치 검증. **추가**: (a) 리포트가 있는 연습 세션에 `POST /v2/coach/start` → 409, (b) 같은 연습 세션의 다른 코치 세션으로 `POST /v2/reports` → 409.
-- `tests/test_response_contracts.py`: [C1] `RESPONSE_COMPONENT_SHAPES`에서 `CoachTurn`(93) 제거, `ReportRecord` required set(160)을 `{"created_at", "session_id", "practice_session_id", "report"}`로 교체.
-- `tests/test_db_store.py:661-663`: turns 길이 어서션 → `practice_session_id` 어서션. **추가**: `has_report_for_practice_session` 동작 검사.
+### 모바일 (`apps/mobile`, 수기 타입 — 웹 타입 재생성과 독립)
 
-### 3. 계약 산출물 (한 PR, apps/api에서)
-
-1. `uv run --package acting-report pytest && uv run --package acting-api pytest`
-2. `spec/openapi.json` 재생성(apps/api/CLAUDE.md의 명령) → [C1] 예상 diff는 **`ReportRecord` 변경 + `CoachTurn` 컴포넌트 삭제** 두 가지뿐인지 확인
-3. `API.md`의 GET /v2/reports 응답 예시 갱신(305행 부근) + 409 정책(연습 세션당 리포트 1개) 언급
-4. `pnpm --filter web generate:v2-schema` (v2-schema.d.ts에서도 CoachTurn 컴포넌트가 사라짐)
-
-### 4. 프론트 — apps/web/src/features/practice/practice-flow.tsx (이 파일만)
-
-**turns 제거**: `normalizeReportTurns`(69-77)·`reportTurnsForStorage`(79-84)·`reportTurns` state(99)와 set 호출 5곳(215, 271, 371, 435, 485)·SessionView `reportTurns` prop(573, 1207, 1225)·Report `turns` prop(1284, 1576, 1581)·코칭 대화 섹션(1616-1626) 삭제. [C8] 이로써 미사용이 되는 `localTurns`(475) 등 잔재도 삭제. **`ConversationBubble`(1557-1572)은 유지** — 라이브 코칭 화면 1499행에서 사용 중(확인 완료).
-
-**리포트 연결 resolver** [C3·C7]: `practiceCoachSessionMap`(51-52, 368, 393, 543) 삭제. `linkedReportForSession`(190-197)·`showReportRecord`의 ordinal 계산(210-214)을 **단일 resolver로 통합**: `practice_session_id`를 받아 `{record, ordinal}`을 반환. 매칭은 `record.practice_session_id === practiceSessionId`로 하되, 과거 중복 데이터 방어로 **여러 개면 가장 최신(배열 마지막) 선택**. ordinal은 기존 의미 유지(전체 리포트 목록에서의 index+1). `createActingReport`의 409 복구 경로(503-510)도 coach session id 매칭 → practice_session_id 매칭으로 변경(active.sessionId 사용).
-
-**영상 추가**: 리포트는 항상 SessionView 안에서 렌더되고 `sessionDetail.playback_url`이 이미 로드돼 있다(이전 기록 경로는 openSession→getPracticeSession이 방금 발급한 presign — 추가 API 호출 불필요). 1284행에서 `playbackUrl={session.playback_url}`·`onPlaybackError` 전달, Report의 reportData 존재 분기에서 헤더 카드 다음에 SummaryView 1377과 동일 패턴의 `<video key={playbackUrl} controls preload="metadata" src={playbackUrl} onError={onPlaybackError}>` 카드 추가. reportData null 분기(연습 노트 만들기 프롬프트)는 영상 없이 현행 유지.
-
-**presign 만료 처리** [C6 부분 수용]: one-shot 가드 `playbackRefreshAttemptedRef`(114)를 리포트 진입 시 재장전 — `showReportRecord`와 `createActingReport` 성공 경로에서 `false`로 리셋. 만료 시 기존 `refreshPlayback`(529-539)이 1회 재발급. **2차 실패(재발급 후에도 onError, 또는 재발급 호출 실패) 시 조용히 무시하지 않고 `setError`로 ErrorNotice 안내** — 리포트 텍스트는 유지(전체 실패 금지). 정상 재생 후 가드 재장전(30분+ 장기 체류 재만료 대응)은 스코프 밖 — 기각.
-
-**로컬 ReportRecord 조립**(`createActingReport` 473-527): 가드를 `if (!coach || !active) return;`로 확장, localRecord(487-492)에서 `turns` 제거·`practice_session_id: active.sessionId` 추가.
-
-카피는 한국어 존댓말("~해요") — video fallback·오류 안내는 기존 "분석한 영상을 재생할 수 없어요." 톤 준수(product-language-guard 통과 필요).
-
-## 검증
-
-1. 백엔드: `cd apps/api && uv run --package acting-report pytest && uv run --package acting-api pytest`
-2. 웹: `pnpm --filter web typecheck` · `pnpm --filter web lint` · `pnpm --filter web test` · `pnpm --filter web build` (typecheck가 turns 잔재 전수 검출)
-3. 수동(개발 루프: api :8000 + `pnpm dev`): (a) 새 연습→코칭→연습 노트에 영상+결과+설문만 표시 (b) 새 탭에서 `/practice/history`의 완료 연습 열기 → 리포트 자동 표시·완료 배지 (c) 영상 onError 시 재발급 재생 (d) `/practice/new` 모달 무변경 (e) 리포트 있는 세션에 coach/start 재호출 → 409
+- `lib/api.ts` `ReportRecord`를 슬림(`practice_session_id, headline, created_at`)으로
+  수정, 죽은 `turns` 필드 제거. `getReport(practiceSessionId)` 추가.
+- `history.tsx`: 카드를 **날짜+headline**만으로 단순화(기존
+  `biggest_problem.description`·`next_step` 미리보기 제거). 카드 key를
+  `practice_session_id + created_at`로 변경(응답에서 session_id 제거되므로).
+- `report-detail.tsx`: 목록이 넘긴 본문(module store) 대신 **`getReport`로 본문 fetch**
+  (로딩 상태). 삭제를 `deletePracticeSession(practice_session_id)`로 수정 — 현재
+  `session_id`(coach id) 전달은 잠재 버그였음.
+- 모바일 기록은 리포트 전용이라 진행 중 세션 관련 변경 없음.
 
 ## 완료 기준 체크리스트
 
-- [ ] GET /v2/reports 각 record: `turns` 없음, `practice_session_id`(UUID) 있음 — openapi.json·계약 테스트 반영, GET 핸들러가 strict 모델로 런타임 검증
-- [ ] openapi.json diff = ReportRecord 변경 + CoachTurn 컴포넌트 삭제뿐
-- [ ] POST /v2/reports 요청·응답 계약 무변경, 연습 세션당 리포트 1개 강제(409) — 다른 코치 세션 경유 중복 생성 차단
-- [ ] 리포트가 있는 연습 세션에 POST /v2/coach/start → 409, 리포트 없는 미완주 코칭 재시작은 허용
-- [ ] coach_turns 테이블·저장 경로 무변경(마이그레이션 없음), `list_reports`는 coach_turns 미조회
-- [ ] 리포트 생성 프롬프트(previous 블록) 회귀 없음 — acting-report 테스트 green
-- [ ] 리포트 화면 = 결과 텍스트 카드 + 영상 + 설문 CTA (코칭 대화 섹션 없음)
-- [ ] 새 탭/새로고침 포함, 완료 연습 열기 시 리포트 즉시 표시 (practiceCoachSessionMap 제거, 단일 resolver)
-- [ ] 방금 연습 경로에서도 리포트에 영상 표시, presign 만료 시 1회 재발급, 2차 실패 시 오류 안내 + 텍스트 유지
-- [ ] `/practice/new` 리포트 모달 무변경
-- [ ] pytest 2종·웹 4종 명령 전부 통과, 계약 산출물(openapi.json·API.md·v2-schema.d.ts) 동일 PR 포함
+- [ ] `GET /v2/reports/{practice_session_id}` 200이 명세대로(4필드, session_id/turns 없음).
+- [ ] 같은 엔드포인트가 hidden 세션엔 404, 남의 리소스엔 404, storage 미설정 시 503.
+- [ ] `GET /v2/reports`가 슬림 3필드만 반환하고 hidden 세션 리포트를 제외.
+- [ ] `store.list_reports` hidden 필터 + 신설 상세 store 함수에 pytest 커버리지 추가.
+- [ ] `spec/openapi.json`·`v2-schema.d.ts` 재생성 반영.
+- [ ] 웹: 기록 열기/생성 직후/playback 만료 세 경로가 fetch 기반으로 동작, 로딩·에러 표시.
+- [ ] 웹 `pnpm lint`·`typecheck`·`--filter web test`·`build` 통과.
+- [ ] 모바일: 카드 슬림화, 상세 fetch, 삭제 practice_session_id 사용, `turns` 제거,
+      모바일 typecheck 통과.
+- [ ] `apps/api` pytest 전체 통과.
 
 ## 하지 말 것 (스코프 제한)
 
-- `v2-schema.d.ts` 직접 수정 금지(재생성만), 다른 lockfile 추가 금지
-- encouragement/comparison 화면 추가, Report/Summary 컴포넌트 통합 등 스코프 밖 리팩터링 금지
-- practice-single.tsx 수정 금지
-- DB 마이그레이션·coach_turns 저장 경로 변경 금지
-- 코칭 이어하기(resume) API 신설 금지 — 이번 스코프 밖
-
-## Codex 설계 비판 반영 기록 (Phase 2)
-
-- C1(BLOCKER) 수용: CoachTurn 컴포넌트 삭제를 계약 테스트·예상 diff에 반영
-- C2(BLOCKER) 수용: list_reports를 db.execute + 튜플 구조분해로 명시
-- C3(BLOCKER) 수용(사용자 결정): 연습 세션당 리포트 1개를 백엔드 강제 + 프론트 최신 우선 방어
-- C4(EDGE) 수용: GET 핸들러에서 strict 응답 검증
-- C5(EDGE) 기각(사용자 결정): 스토리지 장애 시 세션 상세 503은 기존 동작 — playback_url nullable화는 별도 과제(미결)
-- C6(EDGE) 부분 수용(사용자 결정): 2차 실패 시 오류 표시. 정상 재생 후 가드 재장전은 기각
-- C7(SIMPLER) 수용: 연결·ordinal 단일 resolver
-- C8(NIT) 수용: 미사용 import·localTurns 잔재 삭제
-
-## 최종 리뷰 반영 기록 (Phase 5~6)
-
-- Claude 리뷰 #1 수용: coach/start 신설 409를 프론트에서 listReports 재조회 → 리포트 표시로 복구
-- Claude 리뷰 #2 → Codex 적대적 [medium] 수용: coach/start 리포트 존재 검사를 claim 내부로 이동해 성공 요청의 멱등 replay 보존 (byte-identical 200 회귀 테스트 추가)
-- Codex 적대적 [high] 기각: 리포트 확정과 coach start/reply 완료 경로의 원자적 직렬화 — SPEC이 명시한 트레이드오프(핵심 불변식은 리포트 생성 row lock이 보장, 경합 코칭의 손실은 모델 비용뿐이며 프론트 409 복구로 착지). 강화가 필요해지면 coach 완료 경로에도 practice row lock + 재검사 추가(미결)
-- Claude 리뷰 #3 기각: refreshPlayback 공유로 인한 요약 화면 메시지 변화는 개선에 가까움
-- Codex 디테일 리뷰는 1차 실행이 네트워크 오류로 정체·재실행분은 사용자 머지 지시로 취소 — 적대적 리뷰·Claude 심층 리뷰로 커버
+- 폴링 경량 API(`/status`), `filter=incomplete`, 리포트 삭제 API, DB 스키마 변경 — 전부
+  이번 스코프 밖(TODO에 이미 기록).
+- 리포트 생성 로직(`POST /v2/reports`)·코칭 플로우·업로드/세션 생성 계약 변경 금지.
+- 리포트 본문 필드 구조(ActingReport) 변경 금지 — 위치만 이동, 재정의 안 함.
+- 스코프 밖 리팩터링·파일 정리 금지.
 
 ## 미결 사항
 
-- 세션 삭제(소프트 삭제) 시 리포트 노출 정책 — 현재 삭제 UI가 없어 이번 스코프에서 제외
-- playback_url nullable화(스토리지 장애 시에도 리포트 텍스트 표시) — 별도 과제 [C5]
-- coach start/reply 완료 경로와 리포트 확정의 원자적 직렬화 강화 — 경합 창 좁음, 필요 시 별도 과제
-- 리포트 삭제 API — TODO.md 등재 (삭제 시 해당 연습 세션 재코칭 허용과 연동)
+- 없음(설계 합의 완료). 구현 중 발견 사항은 SPEC 기준으로 판정.
+
+## 실행 환경 / 병렬 전략 (Codex 위임)
+
+- 작업 위치: git worktree `/Users/insung/Documents/GitHub/acttub/wt-report-history`
+  (브랜치 `feat/report-history-api`, dev=5155dc0 위로 rebase 완료). 메인 체크아웃은
+  다른 세션이 `feat/signup-consent`로 점유 중이라 격리함.
+- 의존성: 백엔드(계약·타입 소스) → 웹 타입 재생성 → 웹 프론트. 모바일은 수기 타입이라
+  계약만 고정되면 독립.
+- **Wave 1 (순차, 단독)**: 백엔드 A+B+C → pytest 검증 → 커밋.
+- **Wave 2 (병렬, 경로 分離: apps/web vs apps/mobile)**: 웹 프론트 3경로 리팩터 //
+  모바일 리팩터. 각자 검증(web lint/typecheck/test/build, mobile typecheck) → 커밋.
+- 결과 보장: 각 wave 후 실행 검증 + Claude 리뷰(triage) + Codex 최종 이중 리뷰.
+- BASE_REF(전체 PR diff 기준) = 5155dc0(dev tip). pre-work(UNIQUE·ERD)는 커밋 완료.
