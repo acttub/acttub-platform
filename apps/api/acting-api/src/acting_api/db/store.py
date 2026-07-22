@@ -118,6 +118,21 @@ class OwnedReportContext:
 
 
 @dataclass(frozen=True)
+class ReportSummary:
+    practice_session_id: UUID
+    headline: str
+    created_at: datetime
+
+
+@dataclass(frozen=True)
+class ReportDetail:
+    practice_session_id: UUID
+    created_at: datetime
+    report: ActingReport
+    object_key: str
+
+
+@dataclass(frozen=True)
 class _SessionData:
     practice_session_id: UUID
     session_id: UUID
@@ -1109,7 +1124,10 @@ class PostgresStore:
                     .join(DbCoachSession, DbReport.session_id == DbCoachSession.id)
                     .join(Summary, DbCoachSession.summary_id == Summary.id)
                     .join(PracticeSession, Summary.session_id == PracticeSession.id)
-                    .where(PracticeSession.user_id == user_id)
+                    .where(
+                        PracticeSession.user_id == user_id,
+                        PracticeSession.hidden_at.is_(None),
+                    )
                     .order_by(DbReport.created_at, DbReport.id)
                 )
             )
@@ -1118,20 +1136,84 @@ class PostgresStore:
                     created_at=report.created_at.isoformat(),
                     session_id=str(report.session_id),
                     practice_session_id=str(practice_session_id),
-                    report=ActingReport(
-                        headline=report.headline,
-                        biggest_problem=BiggestProblem.model_validate(
-                            report.biggest_problem
-                        ),
-                        evidence=report.evidence,
-                        self_discovery=report.self_discovery,
-                        encouragement=report.encouragement,
-                        next_step=report.next_step,
-                        comparison=report.comparison,
-                    ),
+                    report=self._acting_report(report),
                 )
                 for report, practice_session_id in reports
             ]
+
+    def list_report_summaries(self, user_id: UUID) -> list[ReportSummary]:
+        with self._session_factory() as db:
+            reports = list(
+                db.execute(
+                    select(
+                        PracticeSession.id,
+                        DbReport.headline,
+                        DbReport.created_at,
+                    )
+                    .join(DbCoachSession, DbReport.session_id == DbCoachSession.id)
+                    .join(Summary, DbCoachSession.summary_id == Summary.id)
+                    .join(PracticeSession, Summary.session_id == PracticeSession.id)
+                    .where(
+                        PracticeSession.user_id == user_id,
+                        PracticeSession.hidden_at.is_(None),
+                    )
+                    .order_by(DbReport.created_at, DbReport.id)
+                )
+            )
+            return [
+                ReportSummary(
+                    practice_session_id=practice_session_id,
+                    headline=headline,
+                    created_at=created_at,
+                )
+                for practice_session_id, headline, created_at in reports
+            ]
+
+    def get_report_detail_for_practice_session(
+        self,
+        *,
+        user_id: UUID,
+        practice_session_id: UUID,
+    ) -> ReportDetail | None:
+        with self._session_factory() as db:
+            row = db.execute(
+                select(DbReport, PracticeSession.id, UploadIntent.object_key)
+                .join(DbCoachSession, DbReport.session_id == DbCoachSession.id)
+                .join(Summary, DbCoachSession.summary_id == Summary.id)
+                .join(PracticeSession, Summary.session_id == PracticeSession.id)
+                .join(
+                    UploadIntent,
+                    PracticeSession.upload_intent_id == UploadIntent.id,
+                )
+                .where(
+                    PracticeSession.user_id == user_id,
+                    PracticeSession.id == practice_session_id,
+                    PracticeSession.hidden_at.is_(None),
+                )
+                .order_by(DbReport.created_at.desc(), DbReport.id.desc())
+                .limit(1)
+            ).first()
+            if row is None:
+                return None
+            report, row_practice_session_id, object_key = row
+            return ReportDetail(
+                practice_session_id=row_practice_session_id,
+                created_at=report.created_at,
+                report=self._acting_report(report),
+                object_key=object_key,
+            )
+
+    @staticmethod
+    def _acting_report(report: DbReport) -> ActingReport:
+        return ActingReport(
+            headline=report.headline,
+            biggest_problem=BiggestProblem.model_validate(report.biggest_problem),
+            evidence=report.evidence,
+            self_discovery=report.self_discovery,
+            encouragement=report.encouragement,
+            next_step=report.next_step,
+            comparison=report.comparison,
+        )
 
     @staticmethod
     def _is_duplicate_report_error(exc: IntegrityError) -> bool:
@@ -1150,7 +1232,10 @@ class PostgresStore:
             .join(DbCoachSession, DbReport.session_id == DbCoachSession.id)
             .join(Summary, DbCoachSession.summary_id == Summary.id)
             .join(PracticeSession, Summary.session_id == PracticeSession.id)
-            .where(PracticeSession.user_id == user_id)
+            .where(
+                PracticeSession.user_id == user_id,
+                PracticeSession.hidden_at.is_(None),
+            )
         )
 
     # ---- external operations ----

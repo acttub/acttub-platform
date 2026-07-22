@@ -245,6 +245,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v2/reports/{practice_session_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Report Detail */
+        get: operations["report_detail_v2_reports__practice_session_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -557,6 +574,22 @@ export interface components {
             /** Expires In */
             expires_in: number;
         };
+        /** ReportDetailResponse */
+        ReportDetailResponse: {
+            /**
+             * Practice Session Id
+             * Format: uuid
+             */
+            practice_session_id: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            report: components["schemas"]["ActingReport"];
+            /** Playback Url */
+            playback_url: string;
+        };
         /** ReportHistoryResponse */
         ReportHistoryResponse: {
             /** Count */
@@ -567,21 +600,17 @@ export interface components {
         /** ReportRecord */
         ReportRecord: {
             /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /**
-             * Session Id
-             * Format: uuid
-             */
-            session_id: string;
-            /**
              * Practice Session Id
              * Format: uuid
              */
             practice_session_id: string;
-            report: components["schemas"]["ActingReport"];
+            /** Headline */
+            headline: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
         };
         /** ReportReq */
         ReportReq: {
@@ -1202,6 +1231,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CreateReportResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    report_detail_v2_reports__practice_session_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                practice_session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportDetailResponse"];
                 };
             };
             /** @description Validation Error */

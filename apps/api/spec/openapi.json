@@ -780,6 +780,54 @@
           }
         }
       }
+    },
+    "/v2/reports/{practice_session_id}": {
+      "get": {
+        "tags": [
+          "v2-reports"
+        ],
+        "summary": "Report Detail",
+        "operationId": "report_detail_v2_reports__practice_session_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "practice_session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Practice Session Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReportDetailResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -1501,6 +1549,36 @@
         ],
         "title": "RefreshTokenResponse"
       },
+      "ReportDetailResponse": {
+        "properties": {
+          "practice_session_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Practice Session Id"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "report": {
+            "$ref": "#/components/schemas/ActingReport"
+          },
+          "playback_url": {
+            "type": "string",
+            "title": "Playback Url"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "practice_session_id",
+          "created_at",
+          "report",
+          "playback_url"
+        ],
+        "title": "ReportDetailResponse"
+      },
       "ReportHistoryResponse": {
         "properties": {
           "count": {
@@ -1525,32 +1603,27 @@
       },
       "ReportRecord": {
         "properties": {
-          "created_at": {
-            "type": "string",
-            "format": "date-time",
-            "title": "Created At"
-          },
-          "session_id": {
-            "type": "string",
-            "format": "uuid",
-            "title": "Session Id"
-          },
           "practice_session_id": {
             "type": "string",
             "format": "uuid",
             "title": "Practice Session Id"
           },
-          "report": {
-            "$ref": "#/components/schemas/ActingReport"
+          "headline": {
+            "type": "string",
+            "title": "Headline"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
           }
         },
         "additionalProperties": false,
         "type": "object",
         "required": [
-          "created_at",
-          "session_id",
           "practice_session_id",
-          "report"
+          "headline",
+          "created_at"
         ],
         "title": "ReportRecord"
       },

@@ -8,6 +8,7 @@ from pydantic import BaseModel, ConfigDict
 from starlette.concurrency import run_in_threadpool
 
 from acting_api.db.store import LeaseOwnershipError
+from acting_api.practice_sessions import PLAYBACK_URL_TTL_SEC
 from acting_api.sync_operations import (
     SyncOperationClaim,
     begin_sync_operation,
@@ -42,10 +43,16 @@ class ActingReport(_StrictResponse):
 
 
 class ReportRecord(_StrictResponse):
-    created_at: datetime
-    session_id: UUID
     practice_session_id: UUID
+    headline: str
+    created_at: datetime
+
+
+class ReportDetailResponse(_StrictResponse):
+    practice_session_id: UUID
+    created_at: datetime
     report: ActingReport
+    playback_url: str
 
 
 class CreateReportResponse(_StrictResponse):
@@ -67,7 +74,7 @@ async def _fail(store, claim: SyncOperationClaim, error_code: str) -> None:
     )
 
 
-def build_router(*, client, settings, store, rate_limited_user) -> APIRouter:
+def build_router(*, client, settings, store, storage, rate_limited_user) -> APIRouter:
     router = APIRouter(prefix="/v2/reports", tags=["v2-reports"])
 
     @router.post(
@@ -157,11 +164,49 @@ def build_router(*, client, settings, store, rate_limited_user) -> APIRouter:
         responses={200: {"model": ReportHistoryResponse}},
     )
     async def report_history(user=Depends(rate_limited_user)):
-        records = await run_in_threadpool(store.list_reports, user.id)
+        records = await run_in_threadpool(store.list_report_summaries, user.id)
         return ReportHistoryResponse.model_validate(
             {
                 "count": len(records),
-                "reports": [record.model_dump(mode="json") for record in records],
+                "reports": [
+                    {
+                        "practice_session_id": record.practice_session_id,
+                        "headline": record.headline,
+                        "created_at": record.created_at,
+                    }
+                    for record in records
+                ],
+            }
+        )
+
+    @router.get(
+        "/{practice_session_id}",
+        responses={200: {"model": ReportDetailResponse}},
+    )
+    async def report_detail(
+        practice_session_id: UUID,
+        user=Depends(rate_limited_user),
+    ):
+        detail = await run_in_threadpool(
+            store.get_report_detail_for_practice_session,
+            user_id=user.id,
+            practice_session_id=practice_session_id,
+        )
+        if detail is None:
+            raise HTTPException(status_code=404, detail="report_not_found")
+        if storage is None:
+            raise HTTPException(status_code=503, detail="storage_not_configured")
+        playback_url = await run_in_threadpool(
+            storage.presign_playback,
+            object_key=detail.object_key,
+            expires_in_sec=PLAYBACK_URL_TTL_SEC,
+        )
+        return ReportDetailResponse.model_validate(
+            {
+                "practice_session_id": detail.practice_session_id,
+                "created_at": detail.created_at,
+                "report": detail.report.model_dump(mode="json"),
+                "playback_url": playback_url,
             }
         )
 
