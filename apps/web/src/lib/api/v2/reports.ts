@@ -5,6 +5,7 @@ import {
 } from "./idempotency";
 import type {
   CreateReportResponse,
+  ReportDetailResponse,
   ReportHistoryResponse,
   ReportReq,
 } from "./types";
@@ -18,5 +19,14 @@ export function createReport(
 
 export async function listReports(): Promise<ReportHistoryResponse> {
   const { data } = await apiFetch<ReportHistoryResponse>("/v2/reports");
+  return data;
+}
+
+export async function getReport(
+  practiceSessionId: string,
+): Promise<ReportDetailResponse> {
+  const { data } = await apiFetch<ReportDetailResponse>(
+    `/v2/reports/${encodeURIComponent(practiceSessionId)}`,
+  );
   return data;
 }

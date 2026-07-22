@@ -40,5 +40,6 @@ export type CoachTurnResponse = components["schemas"]["CoachTurnResponse"];
 
 export type ActingReport = components["schemas"]["ActingReport"];
 export type CreateReportResponse = components["schemas"]["CreateReportResponse"];
+export type ReportDetailResponse = components["schemas"]["ReportDetailResponse"];
 export type ReportRecord = components["schemas"]["ReportRecord"];
 export type ReportHistoryResponse = components["schemas"]["ReportHistoryResponse"];

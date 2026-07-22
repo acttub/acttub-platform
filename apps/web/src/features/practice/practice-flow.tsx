@@ -9,7 +9,7 @@ import { getStoredDisplayName } from "@/features/auth/display-name";
 import { useRequireAuth } from "@/features/auth/use-require-auth";
 import { replyCoach, startCoach } from "@/lib/api/v2/coach";
 import { ApiError } from "@/lib/api/v2/errors";
-import { createReport, listReports } from "@/lib/api/v2/reports";
+import { createReport, getReport, listReports } from "@/lib/api/v2/reports";
 import {
   createPracticeSession,
   getPracticeSession,
@@ -241,22 +241,39 @@ function PracticeFlowInner({ entry = "new" }: { entry?: Entry }) {
     ]);
   }
 
-  function showReportRecord(
+  async function showReportRecord(
     practiceSessionId: string,
     sourceReports: ReportRecord[],
-  ): boolean {
+  ): Promise<boolean> {
     const resolved = resolveReportForSession(practiceSessionId, sourceReports);
     if (!resolved) return false;
-    setReportData({
-      report: resolved.record.report,
-      reportCount: resolved.ordinal,
-    });
-    playbackRefreshAttemptedRef.current = false;
+    setBusy(true);
+    setError(null);
+    setReportData(null);
     setPhase("report");
-    return true;
+    try {
+      const detail = await getReport(practiceSessionId);
+      if (activeSessionRef.current !== practiceSessionId) return true;
+      setReportData({
+        report: detail.report,
+        reportCount: resolved.ordinal,
+      });
+      playbackRefreshAttemptedRef.current = false;
+      return true;
+    } catch (reason) {
+      if (activeSessionRef.current === practiceSessionId) {
+        setError(errorMessage(reason));
+      }
+      return true;
+    } finally {
+      if (activeSessionRef.current === practiceSessionId) setBusy(false);
+    }
   }
 
-  function applySessionDetail(session: PracticeSessionDetail, sourceReports = reports) {
+  async function applySessionDetail(
+    session: PracticeSessionDetail,
+    sourceReports = reports,
+  ) {
     setSessionDetail(session);
     upsertHistory(session);
 
@@ -267,8 +284,10 @@ function PracticeFlowInner({ entry = "new" }: { entry?: Entry }) {
     }
 
     if (session.status === "analyzed") {
-      if (!showReportRecord(session.session_id, sourceReports)) setPhase("summary");
-      setError(null);
+      if (!(await showReportRecord(session.session_id, sourceReports))) {
+        setPhase("summary");
+        setError(null);
+      }
     }
   }
 
@@ -287,7 +306,7 @@ function PracticeFlowInner({ entry = "new" }: { entry?: Entry }) {
         },
       });
       if (controller.signal.aborted) return null;
-      applySessionDetail(settled);
+      await applySessionDetail(settled);
       return settled;
     } catch (reason) {
       if (controller.signal.aborted || (reason instanceof Error && reason.name === "AbortError")) {
@@ -428,7 +447,7 @@ function PracticeFlowInner({ entry = "new" }: { entry?: Entry }) {
           const refreshed = await listReports();
           setReports(refreshed.reports);
           if (activeSessionRef.current !== sessionAtStart) return;
-          if (!showReportRecord(sessionAtStart, refreshed.reports)) {
+          if (!(await showReportRecord(sessionAtStart, refreshed.reports))) {
             throw new Error("완료된 연습 노트를 불러오지 못했어요.");
           }
         } catch (refreshError) {
@@ -525,7 +544,7 @@ function PracticeFlowInner({ entry = "new" }: { entry?: Entry }) {
             if (refreshed.status === "created" || refreshed.status === "analyzing") {
               void pollSession(active.sessionId);
             } else {
-              applySessionDetail(refreshed);
+              await applySessionDetail(refreshed);
             }
           } catch (refreshError) {
             setError(sessionErrorMessage(refreshError));
@@ -558,12 +577,13 @@ function PracticeFlowInner({ entry = "new" }: { entry?: Entry }) {
       // 노트 목록은 어느 세션을 보고 있든 최신으로 둔다 — 화면 상태만 아래에서 가른다
       const localRecord: ReportRecord = {
         created_at: new Date().toISOString(),
-        session_id: coach.coachSessionId,
         practice_session_id: active.sessionId,
-        report: data.report,
+        headline: data.report.headline,
       };
       setReports((current) => [
-        ...current.filter((item) => item.session_id !== localRecord.session_id),
+        ...current.filter(
+          (item) => item.practice_session_id !== localRecord.practice_session_id,
+        ),
         localRecord,
       ]);
       if (activeSessionRef.current !== sessionAtStart) return;
@@ -580,7 +600,7 @@ function PracticeFlowInner({ entry = "new" }: { entry?: Entry }) {
           const refreshed = await listReports();
           setReports(refreshed.reports);
           if (activeSessionRef.current !== sessionAtStart) return;
-          if (!showReportRecord(sessionAtStart, refreshed.reports)) {
+          if (!(await showReportRecord(sessionAtStart, refreshed.reports))) {
             throw new Error("완료된 연습 노트를 불러오지 못했어요.");
           }
         } catch (refreshError) {
@@ -1223,7 +1243,7 @@ function PracticeHistoryCard({
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <h3 className="truncate text-lg font-black tracking-[-0.04em]">{session.situation || "연기 연습"}</h3>
-            <p className="mt-2 line-clamp-2 text-sm font-bold leading-6 text-[#8b95a1]">{report?.report.headline ?? session.situation}</p>
+            <p className="mt-2 line-clamp-2 text-sm font-bold leading-6 text-[#8b95a1]">{report?.headline ?? session.situation}</p>
           </div>
           <span className={"shrink-0 rounded-full px-3 py-1.5 text-xs font-black " + (badge.positive ? "bg-[#e5f8ef] text-[#009959]" : "bg-[#f2f4f6] text-[#4e5968]")}>{badge.label}</span>
         </div>
@@ -1850,4 +1870,3 @@ function coachDoneMessage(reason: CoachState["reason"]): string {
       return "인터뷰를 마무리했어요";
   }
 }
-
