@@ -1,0 +1,41 @@
+# 동의 문서 발행 (consent_docs)
+
+앱(모바일·웹) 로그인 시 뜨는 동의 화면은 서버에 **발행된 동의 문서**를 `GET /v2/consents/documents`로 받아 렌더한다.
+현재 dev(`dev.acttub.com`)에는 발행된 문서가 0개라 동의가 수집되지 않는다. 아래 문서 3종을 발행해야 동의 화면이 뜬다.
+
+## 문서
+| 파일 | type | version | title | required |
+| --- | --- | --- | --- | --- |
+| `terms_v1.md` | `terms` | `v1` | 이용약관 | ✅ |
+| `privacy_v1.md` | `privacy` | `v1` | 개인정보처리방침 | ✅ |
+| `ai_analysis_v1.md` | `ai_analysis` | `v1` | AI 분석 동의 | ✅ |
+
+> `ConsentType` enum은 이 3종만 지원(`db/models.py`). 선택 동의(연구/홍보 등)는 enum + 마이그레이션 확장 필요.
+
+## 발행 (서버에서 실행, `acting-api/` 기준)
+DB는 `.env`의 `DATABASE_URL`을 사용한다.
+
+```bash
+uv run python -m acting_api.consents publish \
+  --type terms --version v1 --title "이용약관" --file consent_docs/terms_v1.md --required
+
+uv run python -m acting_api.consents publish \
+  --type privacy --version v1 --title "개인정보처리방침" --file consent_docs/privacy_v1.md --required
+
+uv run python -m acting_api.consents publish \
+  --type ai_analysis --version v1 --title "AI 분석 동의" --file consent_docs/ai_analysis_v1.md --required
+```
+
+consent 테이블이 없으면 먼저: `uv run alembic upgrade head`
+
+## 검증
+```bash
+uv run python -m acting_api.consents list          # 3개 뜨는지
+curl -s https://dev.acttub.com/v2/consents/documents   # documents 3개
+```
+그 후 앱에서 소셜 로그인 → 동의 화면에 3종이 필수로 뜨는지 확인.
+
+## ⚠️ 배포 전 필수
+- 본문의 플레이스홀더를 실제 값으로 치환: `[운영자명]` `[대표자]` `[개인정보 보호책임자]` `[연락처 이메일]` `[시행일 YYYY-MM-DD]` `[기타 수탁자]`
+- 본문은 **법률 자문 아닌 실무 초안** — 특히 얼굴/감정 = 민감정보 소지가 있어 배포 전 법률 검토 권장.
+- 본문 수정 시 `--version`을 올려(v2 …) 재발행하면 최신본이 노출된다.
