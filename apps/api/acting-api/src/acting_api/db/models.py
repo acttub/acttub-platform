@@ -322,6 +322,7 @@ class Summary(Base):
         postgresql.UUID(as_uuid=True),
         sa.ForeignKey("practice_sessions.id", ondelete="CASCADE"),
         nullable=False,
+        unique=True,
     )
     observation: Mapped[dict[str, Any]] = mapped_column(
         postgresql.JSONB, nullable=False
@@ -530,7 +531,6 @@ sa.Index(
     PracticeSession.status,
     PracticeSession.updated_at,
 )
-sa.Index("idx_summaries_session", Summary.session_id)
 sa.Index("idx_anomalies_summary", Anomaly.summary_id, Anomaly.sort_order)
 sa.Index("idx_sessions_summary", CoachSession.summary_id)
 sa.Index("idx_turns_session", CoachTurn.session_id, CoachTurn.turn_index)

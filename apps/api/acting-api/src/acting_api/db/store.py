@@ -84,6 +84,12 @@ class PracticeSessionOperation:
 
 
 @dataclass(frozen=True)
+class PracticeSessionStatusView:
+    status: str
+    error_code: str | None
+
+
+@dataclass(frozen=True)
 class PracticeSessionDetail:
     session: PracticeSession
     upload: UploadIntent
@@ -115,6 +121,21 @@ class OwnedCoachSessionContext:
 class OwnedReportContext:
     practice_session_id: UUID
     session: ReportCoachSession
+
+
+@dataclass(frozen=True)
+class ReportSummary:
+    practice_session_id: UUID
+    headline: str
+    created_at: datetime
+
+
+@dataclass(frozen=True)
+class ReportDetail:
+    practice_session_id: UUID
+    created_at: datetime
+    report: ActingReport
+    object_key: str
 
 
 @dataclass(frozen=True)
@@ -828,6 +849,39 @@ class PostgresStore:
         with self._session_factory() as db:
             return db.scalar(query)
 
+    def get_practice_session_status(
+        self, *, user_id: UUID, session_id: UUID
+    ) -> PracticeSessionStatusView | None:
+        with self._session_factory() as db:
+            session_status = db.scalar(
+                select(PracticeSession.status).where(
+                    PracticeSession.id == session_id,
+                    PracticeSession.user_id == user_id,
+                    PracticeSession.hidden_at.is_(None),
+                )
+            )
+            if session_status is None:
+                return None
+            status_value = getattr(session_status, "value", session_status)
+            error_code = None
+            if session_status == PracticeStatus.FAILED:
+                error_code = db.scalar(
+                    select(ExternalOperation.error_code)
+                    .where(
+                        ExternalOperation.session_id == session_id,
+                        ExternalOperation.kind == OperationKind.ANALYZE,
+                    )
+                    .order_by(
+                        ExternalOperation.created_at.desc(),
+                        ExternalOperation.id.desc(),
+                    )
+                    .limit(1)
+                )
+            return PracticeSessionStatusView(
+                status=status_value,
+                error_code=error_code,
+            )
+
     def list_practice_sessions(self, user_id: UUID) -> list[PracticeSession]:
         with self._session_factory() as db:
             return list(
@@ -1130,7 +1184,10 @@ class PostgresStore:
                     .join(DbCoachSession, DbReport.session_id == DbCoachSession.id)
                     .join(Summary, DbCoachSession.summary_id == Summary.id)
                     .join(PracticeSession, Summary.session_id == PracticeSession.id)
-                    .where(PracticeSession.user_id == user_id)
+                    .where(
+                        PracticeSession.user_id == user_id,
+                        PracticeSession.hidden_at.is_(None),
+                    )
                     .order_by(DbReport.created_at, DbReport.id)
                 )
             )
@@ -1139,20 +1196,89 @@ class PostgresStore:
                     created_at=report.created_at.isoformat(),
                     session_id=str(report.session_id),
                     practice_session_id=str(practice_session_id),
-                    report=ActingReport(
-                        headline=report.headline,
-                        biggest_problem=BiggestProblem.model_validate(
-                            report.biggest_problem
-                        ),
-                        evidence=report.evidence,
-                        self_discovery=report.self_discovery,
-                        encouragement=report.encouragement,
-                        next_step=report.next_step,
-                        comparison=report.comparison,
-                    ),
+                    report=self._acting_report(report),
                 )
                 for report, practice_session_id in reports
             ]
+
+    def list_report_summaries(self, user_id: UUID) -> list[ReportSummary]:
+        with self._session_factory() as db:
+            reports = list(
+                db.execute(
+                    select(
+                        PracticeSession.id,
+                        DbReport.headline,
+                        DbReport.created_at,
+                    )
+                    .join(DbCoachSession, DbReport.session_id == DbCoachSession.id)
+                    .join(Summary, DbCoachSession.summary_id == Summary.id)
+                    .join(PracticeSession, Summary.session_id == PracticeSession.id)
+                    .where(
+                        PracticeSession.user_id == user_id,
+                        PracticeSession.hidden_at.is_(None),
+                    )
+                    .order_by(DbReport.created_at, DbReport.id)
+                )
+            )
+            # DB 모델상 practice_session당 리포트가 여럿일 수 있다(앱 로직이 1건으로
+            # 강제하지만 방어적으로). 상세 조회의 "최신 1건" 규칙과 일치시키고 count가
+            # 부풀지 않도록 practice_session별 최신 리포트만 남긴다.
+            latest: dict[UUID, ReportSummary] = {}
+            for practice_session_id, headline, created_at in reports:
+                current = latest.get(practice_session_id)
+                if current is None or created_at > current.created_at:
+                    latest[practice_session_id] = ReportSummary(
+                        practice_session_id=practice_session_id,
+                        headline=headline,
+                        created_at=created_at,
+                    )
+            return list(latest.values())
+
+    def get_report_detail_for_practice_session(
+        self,
+        *,
+        user_id: UUID,
+        practice_session_id: UUID,
+    ) -> ReportDetail | None:
+        with self._session_factory() as db:
+            row = db.execute(
+                select(DbReport, PracticeSession.id, UploadIntent.object_key)
+                .join(DbCoachSession, DbReport.session_id == DbCoachSession.id)
+                .join(Summary, DbCoachSession.summary_id == Summary.id)
+                .join(PracticeSession, Summary.session_id == PracticeSession.id)
+                .join(
+                    UploadIntent,
+                    PracticeSession.upload_intent_id == UploadIntent.id,
+                )
+                .where(
+                    PracticeSession.user_id == user_id,
+                    PracticeSession.id == practice_session_id,
+                    PracticeSession.hidden_at.is_(None),
+                )
+                .order_by(DbReport.created_at.desc(), DbReport.id.desc())
+                .limit(1)
+            ).first()
+            if row is None:
+                return None
+            report, row_practice_session_id, object_key = row
+            return ReportDetail(
+                practice_session_id=row_practice_session_id,
+                created_at=report.created_at,
+                report=self._acting_report(report),
+                object_key=object_key,
+            )
+
+    @staticmethod
+    def _acting_report(report: DbReport) -> ActingReport:
+        return ActingReport(
+            headline=report.headline,
+            biggest_problem=BiggestProblem.model_validate(report.biggest_problem),
+            evidence=report.evidence,
+            self_discovery=report.self_discovery,
+            encouragement=report.encouragement,
+            next_step=report.next_step,
+            comparison=report.comparison,
+        )
 
     @staticmethod
     def _is_duplicate_report_error(exc: IntegrityError) -> bool:
@@ -1166,12 +1292,17 @@ class PostgresStore:
 
     @staticmethod
     def _report_count_query(user_id: UUID):
+        # 목록·서수와 같은 단위(practice_session별 1건)로 세어 중복 리포트가 있어도
+        # count가 부풀지 않게 한다.
         return (
-            select(func.count(DbReport.id))
+            select(func.count(func.distinct(PracticeSession.id)))
             .join(DbCoachSession, DbReport.session_id == DbCoachSession.id)
             .join(Summary, DbCoachSession.summary_id == Summary.id)
             .join(PracticeSession, Summary.session_id == PracticeSession.id)
-            .where(PracticeSession.user_id == user_id)
+            .where(
+                PracticeSession.user_id == user_id,
+                PracticeSession.hidden_at.is_(None),
+            )
         )
 
     # ---- external operations ----

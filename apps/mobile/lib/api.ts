@@ -73,10 +73,16 @@ export type CreateReportResponse = {
 };
 
 export type ReportRecord = {
+  practice_session_id: string;
+  headline: string;
   created_at: string;
-  session_id: string;
+};
+
+export type ReportDetail = {
+  practice_session_id: string;
+  created_at: string;
   report: ActingReport;
-  turns: CoachTurn[];
+  playback_url: string;
 };
 
 export type ReportHistoryResponse = {
@@ -153,6 +159,11 @@ export type PracticeSessionDetail = {
     | 'unsupported_media'
     | 'max_attempts_exceeded'
     | null;
+};
+
+export type PracticeSessionStatusPayload = {
+  status: SessionStatus;
+  error_code: PracticeSessionDetail['error_code'];
 };
 
 // ─── 에러 ─────────────────────────────────────────────────────────────────────
@@ -409,6 +420,14 @@ export const api = {
     );
   },
 
+  getPracticeSessionStatus(sessionId: string): Promise<PracticeSessionStatusPayload> {
+    return request<PracticeSessionStatusPayload>(
+      `/v2/practice-sessions/${encodeURIComponent(sessionId)}/status`,
+      {},
+      { timeoutMs: 20_000 },
+    );
+  },
+
   reanalyze(sessionId: string): Promise<PracticeSessionCreate> {
     return request<PracticeSessionCreate>(
       `/v2/practice-sessions/${encodeURIComponent(sessionId)}/analyze`,
@@ -453,6 +472,14 @@ export const api = {
 
   reportHistory(): Promise<ReportHistoryResponse> {
     return request<ReportHistoryResponse>('/v2/reports', {}, { timeoutMs: 30_000 });
+  },
+
+  getReport(practiceSessionId: string): Promise<ReportDetail> {
+    return request<ReportDetail>(
+      `/v2/reports/${encodeURIComponent(practiceSessionId)}`,
+      {},
+      { timeoutMs: 20_000 },
+    );
   },
 };
 

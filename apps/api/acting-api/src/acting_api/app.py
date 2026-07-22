@@ -235,6 +235,7 @@ def create_app(
             client=client,
             settings=report_settings,
             store=store,
+            storage=s3_storage,
             rate_limited_user=consented_user,
         )
     )

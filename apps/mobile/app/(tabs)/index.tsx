@@ -5,7 +5,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { heatColors, palette } from '@/constants/palette';
 import { api, type ReportRecord } from '@/lib/api';
-import { setSelectedReport } from '@/lib/selected-report';
 import { formatKoreanDate } from '@/lib/format';
 
 const WEEKS = 12;
@@ -83,12 +82,12 @@ export default function HomeScreen() {
           <Text style={styles.coachLabel}>AI 코치</Text>
           <Text style={styles.coachHeadline}>
             {latest
-              ? '지난번 "다음 한 걸음"을 이어가 볼까요?'
+              ? '지난 피드백을 이어 연습해 볼까요?'
               : '영상을 올리면 원인과 처방을 돌려드려요'}
           </Text>
           <Text style={styles.coachBody} numberOfLines={2}>
             {latest
-              ? latest.report.next_step
+              ? latest.headline
               : '점수 대신, 의도가 왜 안 닿았는지와 당장 해볼 처방 하나.'}
           </Text>
           <Pressable style={styles.coachCta} onPress={() => router.push('/upload')}>
@@ -171,17 +170,19 @@ export default function HomeScreen() {
         ) : (
           recent.map((r) => (
             <Pressable
-              key={r.session_id + r.created_at}
+              key={r.practice_session_id + r.created_at}
               style={styles.recentCard}
-              onPress={() => {
-                setSelectedReport(r);
-                router.push('/report-detail' as Href);
-              }}>
+              onPress={() =>
+                router.push({
+                  pathname: '/report-detail',
+                  params: { practiceSessionId: r.practice_session_id },
+                })
+              }>
               <Text style={styles.recentDate}>
                 {formatKoreanDate(r.created_at, { month: 'long', day: 'numeric' })}
               </Text>
               <Text style={styles.recentHeadline} numberOfLines={2}>
-                {r.report?.headline ?? ''}
+                {r.headline}
               </Text>
             </Pressable>
           ))

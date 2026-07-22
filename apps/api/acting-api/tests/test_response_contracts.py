@@ -60,6 +60,11 @@ SUCCESS_RESPONSE_MODELS = {
         "200",
     ): "PracticeSessionDetail",
     (
+        "get",
+        "/v2/practice-sessions/{session_id}/status",
+        "200",
+    ): "PracticeSessionStatusResponse",
+    (
         "post",
         "/v2/practice-sessions/{session_id}/analyze",
         "200",
@@ -73,6 +78,11 @@ SUCCESS_RESPONSE_MODELS = {
     ("post", "/v2/coach/reply", "200"): "CoachTurnResponse",
     ("post", "/v2/reports", "200"): "CreateReportResponse",
     ("get", "/v2/reports", "200"): "ReportHistoryResponse",
+    (
+        "get",
+        "/v2/reports/{practice_session_id}",
+        "200",
+    ): "ReportDetailResponse",
 }
 
 RESPONSE_COMPONENT_SHAPES = {
@@ -152,12 +162,24 @@ RESPONSE_COMPONENT_SHAPES = {
         },
     },
     "PracticeSessionListResponse": {"required": {"sessions"}},
+    "PracticeSessionStatusResponse": {
+        "required": {"status"},
+        "optional": {"error_code"},
+    },
     "RefreshTokenResponse": {
         "required": {"access_token", "refresh_token", "token_type", "expires_in"},
     },
     "ReportHistoryResponse": {"required": {"count", "reports"}},
+    "ReportDetailResponse": {
+        "required": {
+            "practice_session_id",
+            "created_at",
+            "report",
+            "playback_url",
+        },
+    },
     "ReportRecord": {
-        "required": {"created_at", "session_id", "practice_session_id", "report"},
+        "required": {"practice_session_id", "headline", "created_at"},
     },
     "SceneSummary": {
         "required": {"summary_id"},
@@ -207,10 +229,15 @@ RESPONSE_MODEL_LOCATIONS: dict[str, tuple[ModuleType, str]] = {
         practice_sessions,
         "PracticeSessionListResponse",
     ),
+    "PracticeSessionStatusResponse": (
+        practice_sessions,
+        "PracticeSessionStatusResponse",
+    ),
     "PracticeSessionDetail": (practice_sessions, "PracticeSessionDetail"),
     "CoachTurnResponse": (coaching, "CoachTurnResponse"),
     "CreateReportResponse": (reports, "CreateReportResponse"),
     "ReportHistoryResponse": (reports, "ReportHistoryResponse"),
+    "ReportDetailResponse": (reports, "ReportDetailResponse"),
 }
 
 
@@ -482,6 +509,15 @@ def test_declared_response_models_validate_real_success_payloads_and_replays():
     _assert_contract(listed, 200, models["PracticeSessionListResponse"])
     detail = client.get(f"/v2/practice-sessions/{session_id}", headers=headers)
     _assert_contract(detail, 200, models["PracticeSessionDetail"])
+    session_status = client.get(
+        f"/v2/practice-sessions/{session_id}/status",
+        headers=headers,
+    )
+    _assert_contract(
+        session_status,
+        200,
+        models["PracticeSessionStatusResponse"],
+    )
 
     session.status = PracticeStatus.FAILED
     operation.error_code = "gemini_timeout"
@@ -581,6 +617,11 @@ def test_declared_response_models_validate_real_success_payloads_and_replays():
     assert report_replay.content == created_report.content
     history = client.get("/v2/reports", headers=headers)
     _assert_contract(history, 200, models["ReportHistoryResponse"])
+    report_detail = client.get(
+        f"/v2/reports/{session_id}",
+        headers=headers,
+    )
+    _assert_contract(report_detail, 200, models["ReportDetailResponse"])
 
     deleted = client.delete(f"/v2/practice-sessions/{session_id}", headers=headers)
     assert deleted.status_code == 204

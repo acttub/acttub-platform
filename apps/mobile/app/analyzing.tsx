@@ -63,9 +63,16 @@ export default function AnalyzingScreen() {
     const deadline = Date.now() + POLL_TIMEOUT_MS;
     while (Date.now() < deadline) {
       if (cancelledRef.current) throw new Error('cancelled');
-      const detail = await api.getPracticeSession(sessionId);
-      if (detail.status === 'analyzed' && detail.summary) return detail;
-      if (detail.status === 'failed') throw new Error(errorMessage(detail.error_code));
+      const status = await api.getPracticeSessionStatus(sessionId);
+      // 요청 도중 화면을 떠났으면 여기서 멈춘다 — 아래 detail 조회·startPractice(전역 상태 변경)로
+      // 이어지지 않게. (인플라이트 요청 자체 취소는 별도 과제)
+      if (cancelledRef.current) throw new Error('cancelled');
+      if (status.status === 'failed') throw new Error(errorMessage(status.error_code));
+      if (status.status === 'analyzed') {
+        const detail = await api.getPracticeSession(sessionId);
+        if (cancelledRef.current) throw new Error('cancelled');
+        return detail;
+      }
       await sleep(POLL_INTERVAL_MS);
     }
     throw new Error('분석이 예상보다 오래 걸려요. 잠시 후 기록에서 다시 확인해주세요.');

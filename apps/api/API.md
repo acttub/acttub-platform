@@ -177,7 +177,7 @@ S3 업로드 완료 확인. 서버가 S3 HEAD로 객체 존재·크기 일치를
 
 **응답 202**: `{"session_id": "...", "status": "analyzing"}`
 
-분석은 백그라운드 워커가 수행하며(수 분 소요), 완료 여부는 `GET /v2/practice-sessions/{id}`를 **10초 간격** 폴링으로 확인합니다.
+분석은 백그라운드 워커가 수행하며(수 분 소요), 완료 여부는 `GET /v2/practice-sessions/{id}/status`를 **10초 간격** 폴링으로 확인합니다. 완료·실패로 정착한 뒤 상세 API를 한 번 조회합니다.
 
 | 상태 코드 | 원인 |
 |---|---|
@@ -215,6 +215,20 @@ S3 업로드 완료 확인. 서버가 S3 HEAD로 객체 존재·크기 일치를
 - `summary`: **analyzed일 때만** 포함 (최신 분석 결과 + `summary_id` — `/v2/coach/start`에 사용)
 - `error_code`: **failed일 때만** 포함 — `gemini_timeout` · `gemini_parse_error` · `unsupported_media` · `max_attempts_exceeded`
 - 없는·남의·삭제된 세션 404, S3 미설정 503
+
+---
+
+## GET /v2/practice-sessions/{session_id}/status
+
+분석 폴링용 경량 상태 조회. 인증이 필요하며 재생 URL·분석 본문을 조회하거나 S3에 의존하지 않습니다.
+
+```json
+{"status": "analyzing", "error_code": null}
+```
+
+- `status`: `created | analyzing | analyzed | failed`
+- `error_code`: `failed`일 때만 `gemini_timeout` · `gemini_parse_error` · `unsupported_media` · `max_attempts_exceeded`, 그 외 `null`
+- 없는·남의·삭제된 세션은 모두 404 `practice_session_not_found`
 
 ---
 

@@ -1,133 +1,197 @@
-# SPEC — 회원가입 시 동의 수집 활성화 (발행 자동화 + 서버 강제 + 클라이언트 복구)
+# SPEC — 이전 기록 API 개편 (리포트 상세 신설 + 목록 슬림화)
 
-브랜치: `feat/signup-consent` (base: `dev` = 5155dc0)
-범위: 프론트엔드(web) · 백엔드 · DB(데이터/seed) · **모바일(포함)**.
+기준 커밋: `5155dc0`(dev) · 브랜치: `feat/report-history-api`
 
 ## 배경 / 목적
 
-동의 수집 플로우는 이미 **전 계층에 구현**돼 있다:
+"이전 기록"은 완료된 연습(리포트)을 영상과 함께 다시 보는 화면이다. 현재는
+`GET /v2/reports`가 **리포트 본문 전체**를 목록으로 실어 나르고, 웹·모바일 상세
+화면이 그 목록 레코드의 본문을 그대로 렌더링한다(추가 호출 없음). 영상은 웹에서만
+`GET /v2/practice-sessions/{id}`로 따로 받는다.
 
-- **DB 스키마**: `consent_documents`(unique(type,version)), `user_consents`(append-only 이벤트 로그) — 마이그레이션 0001. 스키마 변경 불필요.
-- **백엔드**: `POST /v2/auth/login`이 미동의 필수 문서를 `pending_consents`로 반환(`auth/router.py:84,120`). `POST /v2/consents` 기록, `GET /v2/consents/documents` 목록.
-- **웹**: 로그인 후 `pending_consents`가 있으면 `/terms`로 보내고, `terms-gate.tsx`가 필수 체크·제출·부분실패 재시도·403/404 처리까지 완비. `use-require-auth.ts` 가드.
-- **모바일**: `_layout.tsx` 게이트가 `pendingConsents`를 보고 `/consent` 화면으로 라우팅.
+이 구조의 문제:
+1. 목록 응답이 리포트 수에 비례해 무거워진다(본문 7필드 × N).
+2. `GET /v2/reports`가 `hidden_at`(사용자 삭제=소프트 숨김)을 필터링하지 않아,
+   **삭제한 연습의 리포트가 모바일 기록 화면에 계속 노출된다**(실사용 버그).
+3. 영상과 리포트를 얻는 호출이 분리돼 웹 상세가 2-call이다.
 
-**그런데 동작하지 않는다.** 이유:
-
-1. **문서가 DB에 발행되지 않는다.** `publish_consent_document`는 수동 CLI로만 호출 → `pending_consents`가 항상 비어 게이트가 안 뜬다.
-2. **서버 강제가 없다.** 동의 안 해도 보호 엔드포인트 접근 가능(advisory-only). 클라이언트 게이트는 로그인 응답/로컬 상태에 의존해, 저장소 소실·타기기·refresh(로그인 아님) 경로에서 우회된다.
-
-목적: (A) 문서를 앱 시작 시 자동 발행, (B) 필수 동의 전 보호 엔드포인트를 서버에서 차단, (C) 웹·모바일이 그 차단(403)을 받아 동의 게이트를 띄우고 서버에서 유저별 pending을 조회해 복구.
-
-## 핵심 설계 원칙 — dev/prod 동일 구성 (env 플래그 없음)
-
-강제·발행을 **환경변수 플래그로 분기하지 않는다.** dev와 prod는 완전히 동일한 코드·설정으로 동작한다. 환경별 차이는 **오직 데이터(각 DB에 발행된 문서)**에서 자연 발생한다:
-
-- 강제 로직은 "발행된 필수 문서가 있는데 유저가 동의 안 함 → 403"이다.
-- **발행된 문서가 없는 DB에서는 pending이 없어 자동으로 통과**한다(fail-open by data).
-- 따라서 코드·설정은 dev==prod, "강제가 실제로 켜지는가"는 그 DB에 문서가 발행됐는지에만 좌우된다.
-
-롤아웃 안전은 플래그가 아니라 **배포 순서**로 통제한다(하단 "운영 노트" 참조).
+목표: 목록은 "클릭할 항목 나열"로 슬림화하고, 상세는 리포트 본문+영상 URL을 한 번에
+주는 전용 엔드포인트로 분리한다. hidden 필터를 API 전체에 일관 적용한다.
 
 ## 설계
 
-### A. 문서 발행 자동화 (앱 시작 시 idempotent seed) — 백엔드 + DB(데이터)
+### 백엔드 (`apps/api/acting-api`)
 
-- **매니페스트**: `consent_docs/manifest.json` 신설 — 발행 대상의 단일 소스.
-  ```json
-  [
-    {"file": "terms_v1.md",       "type": "terms",       "version": "v1", "title": "이용약관",         "required": true},
-    {"file": "privacy_v1.md",     "type": "privacy",     "version": "v1", "title": "개인정보처리방침", "required": true},
-    {"file": "ai_analysis_v1.md", "type": "ai_analysis", "version": "v1", "title": "AI 분석 동의",     "required": true}
-  ]
+**A. 신설 `GET /v2/reports/{practice_session_id}`**
+- 응답 200 (`_StrictResponse`, extra 금지):
   ```
-- **config**: `GatewaySettings`에 `consent_docs_dir: Path | None` 추가. env `CONSENT_DOCS_DIR`, 기본값 `Path(config.py).resolve().parents[2] / "consent_docs"` (= acting-api 루트, `.env` 경로와 동일 패턴). *(env는 "경로 지정"일 뿐 동작 분기가 아님 — parity 위반 아님.)*
-- **store 헬퍼**: `get_consent_document_by_type_version(type, version) -> ConsentDocument | None` 추가.
-- **seed 함수**: `acting_api/consents.py: seed_consent_documents(store, docs_dir) -> int` (발행 건수 반환).
-  - **선검증-후발행**(부분 커밋 방지): 매니페스트와 **모든 파일 본문을 먼저 읽어 검증**한 뒤 발행 단계로 넘어간다. 파일 누락/파싱 실패 시 → error 로그 후 **아무것도 발행하지 않고** 0 반환.
-  - **idempotency + 불일치 감지**: 각 항목에 대해 (type,version)이 이미 있으면 skip하되, **기존 row의 title/body/required가 매니페스트와 다르면 WARNING 로그**(조용한 skip 금지 — 수정본은 version을 올려 재발행하라는 워크플로우 강제). 없으면 `publish_consent_document(...)`.
-  - **경합 처리 축소**: 동시 부팅 경합으로 인한 `IntegrityError`는 **해당 unique constraint(`uq_consent_documents_type_version`) 위반일 때만** skip, 그 외 IntegrityError는 재발생시킴(무관 오류 은폐 금지).
-  - `docs_dir`/`manifest.json` 자체가 없으면 warning 후 0 반환.
-- **lifespan 배선**: `app.py`의 `lifespan` startup(`yield` 이전)에서 `run_in_threadpool(seed_consent_documents, store, gateway_settings.consent_docs_dir)` 호출. **try/except로 감싸 실패해도 부팅 계속**(로그만). *(문서 미발행 시 강제는 "pending 없음 → 통과"로 안전.)*
-
-### B. 서버측 강제 (enforcement) — 백엔드 (항상 켜짐)
-
-- **pending 로직 중앙화**: `auth/router.py:_pending_consents`의 판정을 재사용 함수로 추출.
-  - store 헬퍼 `has_pending_required_consents(user_id) -> bool`: 최신 필수 문서 중 유저의 현재 action이 `granted`가 아닌 것이 하나라도 있으면 True.
-  - `pending_required_documents(store, user_id) -> list[ConsentDocument]`: pending 문서 목록(‌로그인 응답·GET /pending·`_pending_consents`가 공유).
-- **게이트 의존성**: `auth/dependencies.py`에 `build_consent_gate_dependency(rate_limited_user, store)` → `consented_user`.
-  ```python
-  async def consented_user(user = Depends(rate_limited_user)):
-      if await run_in_threadpool(store.has_pending_required_consents, user.id):
-          raise HTTPException(status_code=403, detail="consent_required")
-      return user
+  { practice_session_id: UUID, created_at: datetime,
+    report: ActingReport, playback_url: str }
   ```
-- **배선 (app.py만 수정)**: `consented_user`를 만들어 **uploads · practice · coaching · reports** 라우터의 `rate_limited_user=` 인자로 전달. `consented_user`가 내부적으로 `rate_limited_user`를 depend → **네 라우터 파일 무변경**. (Codex 확인: 중첩 의존성이라 rate limit 이중 실행 없음.)
-  - **면제(그대로 `rate_limited_user`)**: `consents`(동의 기록·조회·pending), `auth`(logout).
-- 오류 형식은 FastAPI 표준 `{"detail": "consent_required"}` 유지.
+- path key는 `practice_session_id`. 조회는 `reports → coach_sessions → summaries →
+  practice_sessions` 조인으로 역추적하며 `PracticeSession.user_id == user.id` AND
+  `PracticeSession.hidden_at IS NULL` 필터.
+- 미존재 / 남의 리소스 / hidden / 리포트 없음 → **404 `report_not_found`** (구분 안 함,
+  기존 관례).
+- `playback_url`은 upload_intents.object_key로 presign (`storage.presign_playback`,
+  TTL `PLAYBACK_URL_TTL_SEC=15분` 재사용). storage 미설정 → **503**
+  `storage_not_configured` (기존 세션 상세와 동일).
+- 응답에 `session_id`(coach_session id)·`turns` **미포함**.
+- store: `get_report_detail_for_practice_session(user_id, practice_session_id)` 신설 —
+  리포트 본문 + upload object_key를 함께 반환. presign은 라우터에서.
+- **조인 다중성 방어**(Codex): practice_session → 1 summary(0004 UNIQUE) → **N
+  coach_sessions** → 각 ≤1 report 이므로 DB상 practice_session당 리포트가 다수일 수
+  있다(앱 로직이 1건으로 강제하지만 쿼리는 방어적으로). 쿼리는 `reports.created_at
+  DESC LIMIT 1`로 최신 1건을 결정적으로 선택. **DB에 UNIQUE 추가는 스코프 밖**(스키마
+  변경 금지)이라 하지 않는다.
 
-### C. 유저별 pending 조회 엔드포인트 (웹·모바일 공용) — 백엔드
+**B. `GET /v2/reports` 슬림화 + hidden 필터 (list_reports 분리)**
+- **HTTP용 슬림 쿼리 신설** `store.list_report_summaries(user_id)` → `{ practice_session_id,
+  headline, created_at }` 목록, `hidden_at IS NULL` 필터. `report_history` 핸들러가 이걸 사용.
+- **기존 `store.list_reports`(full body)는 유지**(Codex HIGH): `create_report`가 이전
+  리포트 본문을 comparison 생성에 사용(`reports.py:119`)하므로 인플레이스 슬림화 금지.
+  단 여기에도 `hidden_at IS NULL` 필터를 **추가**(삭제된 연습이 comparison에 새지 않게).
+- HTTP `ReportRecord`를 `{ practice_session_id, headline, created_at }`로 축소
+  (`session_id`·`report` 제거). `ReportHistoryResponse = { count, reports: [슬림] }` 유지.
+- **`_report_count_query`에 `hidden_at IS NULL` 추가**(Codex): 안 그러면 hidden 리포트가
+  `POST /v2/reports`의 `report_count` 및 "N번째 연습 노트" 서수와 목록 count가 불일치.
 
-- **`GET /v2/consents/pending`** 신설 (consents 라우터, 인증 `rate_limited_user`, **강제 면제**). 반환 `ConsentDocumentsResponse` = 해당 유저의 pending 필수 문서(`pending_required_documents` 재사용).
-- 계약 변경: openapi 재생성 + 웹 타입 재생성 절차 수행.
+**C. 스펙·타입 재생성 (같은 PR)**
+- `spec/openapi.json` 재생성 → 웹 `v2-schema.d.ts` 재생성.
 
-### D. 웹 프론트엔드 — 403 처리 + 게이트 서버소싱
+### 웹 프론트 (`apps/web`)
 
-- **중앙 403 처리**: `lib/api/v2/client.ts`(`apiFetch`)에서 `status 403 && code === "consent_required"`이면 세션 이벤트 `consent-required` emit(`lib/auth/session-events.ts`에 이벤트 추가).
-- **전역 리스너**: 앱 루트에 마운트되는 client 컴포넌트가 구독 → `router.replace('/terms?next=<현재경로>')`. **single-flight dedupe**(동시 다발 403이 next를 덮지 않게 1회만), **이미 `/terms`면 무시**(루프 차단).
-- **게이트 서버소싱** (`terms-gate.tsx` `loadDocuments` 수정):
-  - localStorage pending 있으면 → 기존대로 interactive(pending) 모드(로그인 해피패스 유지).
-  - 없고 로그인 상태면 → **`GET /v2/consents/pending`** 조회 → 비어있지 않으면 그 문서로 interactive 모드(유저별 정확). *(query flag 신뢰 제거 — 서버가 권위.)*
-  - 위 둘 다 아니면 → info(read-only, `GET /documents`) 모드.
-  - 제출 성공 경로는 기존과 동일.
+웹 리포트 화면은 이미 `getPracticeSession`에서 `situation`/`character_context`(헤더,
+`practice-flow.tsx:1345-1346`)와 `playback_url`(영상, `Report`에 `session.playback_url`
+전달)을 받아 쓴다. 따라서 **웹은 세션 호출이 원래 필요**하고, 목록 레코드에서 얻던 건
+리포트 **본문뿐**이다. 슬림화로 본문만 fetch로 전환:
+- **신설** `getReport(practiceSessionId)` API 클라이언트 (`lib/api/v2/reports.ts`).
+- **기록 열기**: `getPracticeSession`(맥락+영상, 변경 없음) + `getReport`(본문) — **2-call**.
+  `showReportRecord`가 목록 본문을 꺼내던 것 → `getReport` 본문으로 `reportData` 세팅.
+  **로딩/에러 상태 신설**.
+- **리포트 생성 직후**(`POST /v2/reports` 후): 슬림 목록 재파생 대신 **POST 응답 본문**을
+  직접 `reportData`에 사용. 영상은 기존 `session.playback_url` 그대로.
+- **영상·playback refresh 경로는 변경하지 않음** — 영상은 계속 `session.playback_url`에서
+  오므로 `onPlaybackError` 기존 로직 유지(웹 변경 최소화).
+- 목록 화면은 `listPracticeSessions`(진행 중 표시용)+슬림 `listReports` **병행 유지**.
+  리포트 카드 미리보기는 `headline`만 사용.
 
-### E. 모바일 (apps/mobile) — 403 처리 + pending 조회
+### 모바일 (`apps/mobile`, 수기 타입 — 웹 타입 재생성과 독립)
 
-기존 게이트(`_layout.tsx`가 `pendingConsents.length>0`이면 `/consent`로 라우팅)를 재사용한다. 인터셉터가 pending만 채우면 자동 이동.
-
-- **`lib/api.ts` `request()`**(274줄 throw 지점): 401 refresh 분기 다음에 **403 `consent_required` 감지** 추가. body는 1회 소비 주의(`res.json()`로 detail 확인 후 재사용, `friendlyError` 재호출 금지). 감지 시 모듈 pub/sub `emitConsentRequired()` emit 후 에러 throw.
-- **`lib/api.ts`**: `api.pendingConsents()` 추가 → `GET /v2/consents/pending`(`auth:true`). `ApiError`에 `detail`/`code` 필드(또는 `ConsentRequiredError` 서브클래스) 추가해 코드 구분.
-- **`lib/token-store.ts` 패턴 복제**: `onTokensCleared`(pub/sub)와 동형으로 `onConsentRequired(fn)` 신설.
-- **`lib/auth.tsx`**: `onConsentRequired` 구독 → `api.pendingConsents()`로 목록 fetch 후 `setPendingConsents(docs)`. 그러면 `_layout.tsx` 게이트가 자동으로 `/consent`로 이동.
-- **`app/consent.tsx`**: 진입 시 `pendingConsents`가 비어 있으면 `GET /v2/consents/pending`로도 채우도록 보강(로그인 응답 유래가 아닌 403 유입 케이스 대응).
-- Expo v54 관례 준수(`apps/mobile/AGENTS.md`) — 변경은 대부분 순수 TS(fetch·pub/sub·context)라 Expo API 의존 낮음.
+- `lib/api.ts`: `ReportRecord`를 슬림(`practice_session_id, headline, created_at`)으로
+  수정, 죽은 `turns` 필드 제거. `getReport(practiceSessionId)` 추가 — 응답
+  `{ practice_session_id, created_at, report, playback_url }` 타입.
+- `history.tsx`: 카드를 **날짜+headline**만으로 단순화(기존
+  `biggest_problem.description`·`next_step` 미리보기 제거). 카드 key를
+  `practice_session_id + created_at`로 변경. 카드 탭 시 **`practice_session_id`를 Expo
+  Router param으로 전달**(module store 의존 제거 — 앱 재시작·딥링크 대응, Codex).
+- `report-detail.tsx`: `useLocalSearchParams`로 받은 `practice_session_id`로 **`getReport`
+  fetch**(로딩 상태). 본문 텍스트 + **영상 재생 추가** — `playback_url`을 기존
+  `expo-video`(`useVideoPlayer`+`VideoView`, coach.tsx/analyzing.tsx와 동일 패턴)로 재생.
+  삭제를 `deletePracticeSession(practice_session_id)`로 수정(현재 coach id 전달은 잠재 버그).
+  `selected-report.ts` module store 제거(또는 미사용화).
+- 모바일 기록은 리포트 전용이라 진행 중 세션 관련 변경 없음.
 
 ## 완료 기준 체크리스트
 
-- [ ] `consent_docs/manifest.json` 존재, 3종 매핑 정확.
-- [ ] 빈 consent DB로 API 부팅 시 3종 자동 발행, `GET /v2/consents/documents` 3건.
-- [ ] 재부팅해도 중복 발행 0, 여전히 3건. 파일 누락 시 아무것도 발행 안 하고 경고, 부팅은 계속.
-- [ ] (type,version) 동일하나 본문/required 다르면 경고 로그.
-- [ ] 미동의 유저가 uploads·practice·coaching·reports 호출 → `403 {"detail":"consent_required"}`.
-- [ ] 미동의 유저도 `POST /v2/consents`, `GET /v2/consents/documents`, `GET /v2/consents/pending`, `/v2/auth/*` 정상.
-- [ ] `GET /v2/consents/pending`이 그 유저의 미동의 필수 문서만 반환(전부 granted면 빈 목록).
-- [ ] 3종 granted 후 보호 엔드포인트 정상.
-- [ ] 웹: 미동의로 보호 API 호출 → `/terms` 이동, `/pending` 조회로 required 문서 interactive 표시, 제출 후 원래 목적지 진입. 동시 다발 403에도 리다이렉트 1회.
-- [ ] 모바일: 미동의로 보호 API 호출 → `/consent` 이동, `/pending`으로 문서 채워 렌더, 제출 후 진입.
-- [ ] 웹: `pnpm lint` · `pnpm typecheck` · `pnpm --filter web test` · `pnpm build` 통과.
-- [ ] 모바일: `pnpm --filter mobile lint`(있으면) · typecheck 통과.
-- [ ] 백엔드: `uv run --package acting-api pytest` 통과(신규 테스트 포함).
-- [ ] openapi.json 재생성 + 웹 타입 재생성 반영(`GET /v2/consents/pending` 포함).
+- [ ] `GET /v2/reports/{practice_session_id}` 200이 명세대로(4필드: practice_session_id,
+      created_at, report, playback_url; session_id/turns 없음).
+- [ ] 같은 엔드포인트가 hidden 세션엔 404, 남의 리소스엔 404, storage 미설정 시 503,
+      practice_session당 리포트 다수여도 최신 1건을 결정적으로 반환.
+- [ ] `GET /v2/reports`가 슬림 3필드만 반환하고 hidden 세션 리포트를 제외.
+- [ ] `list_report_summaries`(신설, 슬림)와 `list_reports`(full, 내부 comparison용) 분리,
+      **양쪽 다** hidden 필터. `_report_count_query`도 hidden 필터. pytest 커버리지 추가.
+- [ ] `create_report`의 comparison 생성이 슬림화 후에도 정상 동작(회귀 없음).
+- [ ] `spec/openapi.json`·`v2-schema.d.ts` 재생성 반영.
+- [ ] 웹: 기록 열기(session+getReport 2-call)·생성 직후 본문 출처 전환, 로딩·에러 표시,
+      영상은 session.playback_url 유지.
+- [ ] 웹 `pnpm lint`·`typecheck`·`--filter web test`·`build` 통과.
+- [ ] 모바일: 카드 슬림화, 상세 getReport fetch + **영상 재생(expo-video)**, router param
+      전달, 삭제 practice_session_id 사용, `turns` 제거, 모바일 typecheck 통과.
+- [ ] `apps/api` pytest 전체 통과.
 
 ## 하지 말 것 (스코프 제한)
 
-- 문서 본문 placeholder(`[운영자명]` 등) 치환 금지 — 별도 운영/법무 작업.
-- `refresh` 응답에 `pending_consents` 추가하지 않음 — 403+`/pending`으로 충분.
-- 선택(optional) 동의 타입/enum 확장 안 함 — 현재 3종 전부 required.
-- consent DB 스키마/마이그레이션 변경 안 함 — 이미 완비.
-- **env 플래그로 강제/발행을 분기하지 않음** — dev==prod.
-- consent 이벤트 순서 결정성(occurred_at 앱시계) 개선은 이 스코프 밖(하단 참조).
-- 모바일 최소버전 강제(force-update)는 이 스코프 밖(운영 과제).
+- 폴링 경량 API(`/status`), `filter=incomplete`, 리포트 삭제 API, DB 스키마 변경 — 전부
+  이번 스코프 밖(TODO에 이미 기록).
+- 리포트 생성 로직(`POST /v2/reports`)·코칭 플로우·업로드/세션 생성 계약 변경 금지.
+- 리포트 본문 필드 구조(ActingReport) 변경 금지 — 위치만 이동, 재정의 안 함.
+- 스코프 밖 리팩터링·파일 정리 금지.
 
-## 미결 / 운영 노트 (env 플래그를 대체하는 배포 순서 통제)
+## 미결 사항
 
-1. **prod 배포 전 문안 확정**: placeholder를 실제 값으로 치환한 뒤 prod에 배포(‌prod DB는 별도라 깨끗한 v1을 받음). 문안 수정 시 version을 올려 재발행.
-2. **클라이언트 선/동시 배포**: 403 `consent_required`를 처리하는 웹·모바일 신버전을 강제가 도는 서버와 함께 릴리스.
-3. **모바일 구버전 한계**: 이미 설치된 옛 앱은 업데이트 전까지 막힘(네이티브 앱 본질). 최소버전 강제는 추후 별도 과제.
-4. **기존 유저 재동의**: 문서 발행 후 모든 기존 유저는 다음 행동 시 게이트를 만남 — 의도된 결과.
+- 없음(설계 합의 완료). 구현 중 발견 사항은 SPEC 기준으로 판정.
 
-## Codex 설계 비판 반영 요약
+## 실행 환경 / 병렬 전략 (Codex 위임)
 
-- 반영: 선검증-후발행(부분 커밋 방지), 불일치 경고, IntegrityError 범위 축소, `GET /v2/consents/pending` 신설(query flag·전체 재동의·전면 localStorage 의존 제거), 리다이렉트 single-flight·`/terms` 무시.
-- 기각(스코프 밖): consent 이벤트 동시성 순서(기존 append-log 설계 속성, 회원가입은 단일기기·순차), wheel 패키징 경로(소스 레이아웃 배포 + `CONSENT_DOCS_DIR` override로 충분).
-- 확인됨: enforcement 배선 트릭 정상(rate limit 이중 없음), 면제 범위 정확, gate 자체 fetch 루프 없음.
+- 작업 위치: git worktree `/Users/insung/Documents/GitHub/acttub/wt-report-history`
+  (브랜치 `feat/report-history-api`, dev=5155dc0 위로 rebase 완료). 메인 체크아웃은
+  다른 세션이 `feat/signup-consent`로 점유 중이라 격리함.
+- 의존성: 백엔드(계약·타입 소스) → 웹 타입 재생성 → 웹 프론트. 모바일은 수기 타입이라
+  계약만 고정되면 독립.
+- **Wave 1 (순차, 단독)**: 백엔드 A+B+C → pytest 검증 → 커밋.
+- **Wave 2 (병렬, 경로 分離: apps/web vs apps/mobile)**: 웹 프론트 3경로 리팩터 //
+  모바일 리팩터. 각자 검증(web lint/typecheck/test/build, mobile typecheck) → 커밋.
+- 결과 보장: 각 wave 후 실행 검증 + Claude 리뷰(triage) + Codex 최종 이중 리뷰.
+- BASE_REF(전체 PR diff 기준) = 5155dc0(dev tip). pre-work(UNIQUE·ERD)는 커밋 완료.
+
+---
+
+# 후속 SPEC — ① 분석 폴링 경량화 + 이전 기록 reports-only
+
+기준 커밋: 이 브랜치 tip(`feat/report-history-api`). 위 리포트 상세/목록 슬림화 작업 **위에 이어서** 얹는다.
+
+## 스코프 결정 (2026-07-22, 사용자 확정)
+
+- **①만 구현**: `GET /v2/practice-sessions/{id}/status` 폴링 경량 엔드포인트 + 웹·모바일 폴링 전환.
+- **이전 기록 화면(웹)을 `GET /v2/reports`(슬림) 전용으로 전환**: 완료된 리포트만 카드로 표시. 진행중 "이어보기" 카드 제거, `listPracticeSessions` 호출 제거.
+- **②(`GET /v2/practice-sessions?filter=incomplete`)는 이번에 만들지 않음.** "미완료 연습 이어가기 별도 페이지" 작업으로 미룬다(TODO 재서술).
+- 감수 확정: 이번 버전은 진행중 세션 이어가기 UI가 없다 → 웹에서 분석 대기 중 새로고침/재진입 시 그 세션을 목록에서 다시 여는 경로가 없다(세션 URL 직접 접근만 가능). 모바일은 원래 없어서 무관.
+
+## ① `GET /v2/practice-sessions/{session_id}/status`
+
+**백엔드** (`apps/api/acting-api/src/acting_api/practice_sessions.py`, `db/store.py`)
+
+- 새 응답 모델 `PracticeSessionStatusResponse(_StrictResponse)`: `status: PracticeSessionStatus`, `error_code: AnalysisErrorCode | None = None`.
+- 새 라우트 `@router.get("/{session_id}/status", responses={200: {"model": PracticeSessionStatusResponse}})`:
+  - `result = await run_in_threadpool(store.get_practice_session_status, user_id=user.id, session_id=session_id)`
+  - `result is None` → `HTTPException(404, "practice_session_not_found")` (없음/남의 것/hidden 구분 안 함).
+  - 반환 `{"status": ..., "error_code": ...}`. **presign·summary·본문 없음, storage 의존 없음(503 없음)**.
+  - `error_code`는 status==failed일 때만 값, 그 외 `None` (기존 `get_session`과 동일 규칙).
+- 새 store 메서드 `get_practice_session_status(*, user_id, session_id)`:
+  - 반환용 작은 dataclass(예: `PracticeSessionStatusView(status: str, error_code: str | None)`), 미존재 시 `None`.
+  - 쿼리1: `PracticeSession.status` where `id==session_id AND user_id==user_id AND hidden_at IS NULL`. 없으면 `None`.
+  - status가 FAILED면 최신 `ANALYZE` `ExternalOperation.error_code` 1건 조회, 아니면 `error_code=None`. (upload/summary/presign 조회 안 함)
+- 라우트 순서: `/{session_id}/status`는 경로 깊이가 달라 `/{session_id}`와 충돌 없음. `get_session` 근처 배치.
+
+**웹** (`lib/api/v2/sessions.ts`, `features/practice/practice-flow.tsx`, `practice-single.tsx`)
+
+- `getPracticeSessionStatus(sessionId, {signal})` 신설 → `GET /v2/practice-sessions/{id}/status`. 타입은 재생성한 `v2-schema` 사용.
+- `pollSessionUntilSettled` 리팩터: 매 틱 `getPracticeSessionStatus` 폴링(경량). `onTick`→`onStatus(status)`로 변경. **정착(analyzed/failed) 시 `getPracticeSession`(전체) 1회** 호출해 그 `PracticeSessionDetail`을 반환(반환 타입 유지 → `practice-single.tsx`는 수정 불필요).
+- `practice-flow.tsx` `pollSession`: **초기 `getPracticeSession`(전체) 1회**로 `setSessionDetail`/`upsertHistory`(대기화면 렌더용). 이미 정착 상태면 `applySessionDetail` 후 종료. 아니면 `pollSessionUntilSettled({ signal, onStatus: (s) => setSessionDetail(prev => prev ? {...prev, status: s} : prev) })` → 정착 시 `applySessionDetail`. (10초마다 presign 발급이 사라짐)
+
+**모바일** (`apps/mobile/lib/api.ts`, `app/analyzing.tsx`)
+
+- `lib/api.ts`: `PracticeSessionStatusPayload = { status: SessionStatus; error_code: PracticeSessionDetail['error_code'] }` 타입 + `getPracticeSessionStatus(sessionId)` 메서드 추가.
+- `analyzing.tsx` `pollUntilDone`: `api.getPracticeSessionStatus` 폴링. `analyzed`면 `api.getPracticeSession` 1회 호출해 detail 반환(summary_id·playback_url 확보), `failed`면 `errorMessage(status.error_code)` throw. (4초마다 전체 상세·presign 발급이 사라짐)
+
+## 이전 기록 화면 reports-only (웹, `practice-flow.tsx`)
+
+- 로드 effect: `Promise.allSettled([listPracticeSessions(), listReports()])` → **`listReports()`만**. `listPracticeSessions` import·호출·`history` state 제거(사용처 정돈).
+- 카드 목록을 `reports`(슬림)로 렌더. 진행중 카드 제거.
+  - `PracticeHome`/`PracticeHistoryScreen`/`RecentPracticeSection`/`PracticeHistoryCard`: prop `sessions: PracticeSessionListItem[]` → `reports: ReportRecord[]`. 카드 제목=`headline`, 날짜=`created_at`, 배지 "완료", 링크=리포트 열기.
+  - 카드 클릭 → `report.practice_session_id`로 `sessionDetailHref` 이동. 세션 상세 진입 시 기존 흐름(pollSession→정착 analyzed→`showReportRecord`)이 리포트를 표시.
+- ripple: `openSession`을 `practice_session_id` 기반으로, `getPracticeBadge`는 완료 전용으로 단순화(또는 제거). 리포트 생성 직후(`createActingReport`)엔 새 리포트를 `reports` state에 반영(목록 즉시 갱신). `sessionDetail`/세션 상세/코칭 흐름은 그대로 유지. 빈 상태 문구 유지.
+
+## 계약·검증·문서
+
+- 계약 변경 → `apps/api`에서 spec 재생성(`uv run python -c "import json; from acting_api.app import create_app; json.dump(create_app().openapi(), open('spec/openapi.json','w'), ensure_ascii=False, indent=2)"`, **cwd=apps/api**) → 웹 `pnpm --filter web generate:v2-schema` → 프론트.
+- `apps/api/API.md`에 `GET /{id}/status` 추가.
+- 백엔드: `uv run --package acting-api pytest` (status: 200 / hidden→404 / 남의것→404 / failed면 error_code 채움 / 정착 케이스).
+- 웹: `pnpm --filter web typecheck · lint · --filter web test · build`.
+- 모바일: `apps/mobile`에서 `npx tsc --noEmit`.
+- `TODO.md`: line 9(status) 완료 반영, line 10을 "미완료 연습 이어가기 별도 페이지(리포트 없는 세션 조회 + 이어가기 UI)"로 재서술(이번 스코프 밖).
+
+## 하지 말 것
+
+- `GET /v2/practice-sessions?filter=incomplete` 신설 금지(미룸). DB 스키마 변경 금지. 리포트 생성/코칭/업로드 계약 변경 금지. 스코프 밖 리팩터·파일 정리 금지.

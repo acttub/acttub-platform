@@ -298,6 +298,25 @@ class FakePlatformStore(FakeAuthStore):
             return None
         return row
 
+    def get_practice_session_status(self, *, user_id, session_id):
+        session = self.get_practice_session(user_id=user_id, session_id=session_id)
+        if session is None:
+            return None
+        error_code = None
+        if session.status == PracticeStatus.FAILED:
+            operations = [
+                row
+                for row in self.operations.values()
+                if row.session_id == session.id and row.kind == OperationKind.ANALYZE
+            ]
+            latest = max(
+                operations,
+                key=lambda row: (row.created_at, row.id),
+                default=None,
+            )
+            error_code = latest.error_code if latest is not None else None
+        return SimpleNamespace(status=session.status, error_code=error_code)
+
     def list_practice_sessions(self, user_id):
         return sorted(
             (
@@ -777,13 +796,62 @@ class FakePlatformStore(FakeAuthStore):
             record.model_copy(deep=True)
             for session_id, record in self.reports.items()
             if self._coach_owner(session_id) == user_id
+            and self._report_practice(session_id).hidden_at is None
         ]
 
+    def list_report_summaries(self, user_id: UUID):
+        records = [
+            SimpleNamespace(
+                practice_session_id=UUID(record.practice_session_id),
+                headline=record.report.headline,
+                created_at=datetime.fromisoformat(record.created_at),
+            )
+            for session_id, record in self.reports.items()
+            if self._coach_owner(session_id) == user_id
+            and self._report_practice(session_id).hidden_at is None
+        ]
+        return sorted(
+            records,
+            key=lambda record: (record.created_at, record.practice_session_id),
+        )
+
+    def get_report_detail_for_practice_session(
+        self, *, user_id: UUID, practice_session_id: UUID
+    ):
+        practice = self.get_practice_session(
+            user_id=user_id,
+            session_id=practice_session_id,
+        )
+        if practice is None:
+            return None
+        candidates = [
+            record
+            for record in self.reports.values()
+            if UUID(record.practice_session_id) == practice_session_id
+        ]
+        if not candidates:
+            return None
+        latest = max(
+            candidates,
+            key=lambda record: (
+                datetime.fromisoformat(record.created_at),
+                record.session_id,
+            ),
+        )
+        return SimpleNamespace(
+            practice_session_id=practice_session_id,
+            created_at=datetime.fromisoformat(latest.created_at),
+            report=latest.report.model_copy(deep=True),
+            object_key=self.uploads[practice.upload_intent_id].object_key,
+        )
+
     def _coach_owner(self, coach_session_id: str):
+        return self._report_practice(coach_session_id).user_id
+
+    def _report_practice(self, coach_session_id: str):
         session = self.coach_sessions[coach_session_id]
         summary = self.summaries[UUID(session.summary_id)]
-        practice = self.sessions[summary.session_id]
-        return practice.user_id
+        return self.sessions[summary.session_id]
 
     @staticmethod
     def _succeed(operation, payload, now=None):
