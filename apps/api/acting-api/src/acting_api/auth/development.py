@@ -22,5 +22,5 @@ class DevelopmentProviderVerifier:
         return ProviderIdentity(
             provider_uid=provider_uid,
             email=email,
-            email_verified=True,
+            email_verified=False,
         )

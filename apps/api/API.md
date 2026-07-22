@@ -59,7 +59,7 @@ AI 호출을 포함한 쓰기 요청(`/v2/practice-sessions`, `/{id}/analyze`, `
 | 필드 | 타입 | 설명 |
 |---|---|---|
 | `provider` | str | `"google"` \| `"apple"` (로컬 opt-in: `"development"`) |
-| `id_token` | str | google=OIDC id_token, apple="Sign in with Apple" identityToken(JWT — 네이티브는 앱 SDK, 웹은 Apple JS가 발급). development는 로컬 테스트 토큰(`<uid>` 또는 `<uid>:<email>`) |
+| `id_token` | str | google=OIDC id_token, apple="Sign in with Apple" identityToken(JWT — 네이티브는 앱 SDK, 웹은 Apple JS가 발급). development는 로컬 테스트 토큰(`<uid>` 또는 `<uid>:<email>`)이며 email은 미검증으로 취급되어 기존 계정에 자동 연결되지 않고 신규 계정에도 저장되지 않음 |
 
 ### 처리 규칙
 
