@@ -1,0 +1,53 @@
+# EAS Build 업로드 제외 목록.
+# .easignore가 있으면 EAS는 .gitignore 대신 이 파일을 사용한다.
+# → .gitignore와 동일하게 두되, google-services.json은 빌더가 필요로 하므로 제외하지 '않는다'.
+
+# dependencies
+node_modules/
+
+# Expo
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+
+# Native
+.kotlin/
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+
+# Metro
+.metro-health-check*
+
+# debug
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+
+# macOS
+.DS_Store
+*.pem
+
+# local env files
+.env*.local
+
+# Google Play service account key (EAS submit)
+google-service-account.json
+
+# typescript
+*.tsbuildinfo
+
+app-example
+
+# generated native folders
+/ios
+/android
+.env
+
+# Firebase iOS 설정: iOS 빌드가 이 파일을 필요로 하므로 EAS 업로드에서 제외하지 '않는다'.
+# (제외하면 @react-native-firebase/app iOS 플러그인이 빌드 중 throw)
+# GoogleService-Info.plist  ← 일부러 무시 안 함

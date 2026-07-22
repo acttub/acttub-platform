@@ -1,0 +1,45 @@
+{
+  "cli": {
+    "version": ">= 13.0.0",
+    "appVersionSource": "remote"
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://dev.acttub.com",
+        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "462651930952-625pcnhrjib79r7990fqsdqhsterdij2.apps.googleusercontent.com",
+        "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "462651930952-ca5o968kkbucm1qg4ko1u6tepgv3beqf.apps.googleusercontent.com"
+      },
+      "android": {
+        "buildType": "apk"
+      }
+    },
+    "preview": {
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      }
+    },
+    "production": {
+      "autoIncrement": true,
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://acttub.com",
+        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "462651930952-625pcnhrjib79r7990fqsdqhsterdij2.apps.googleusercontent.com",
+        "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "462651930952-ca5o968kkbucm1qg4ko1u6tepgv3beqf.apps.googleusercontent.com"
+      }
+    }
+  },
+  "submit": {
+    "production": {
+      "android": {
+        "serviceAccountKeyPath": "./google-service-account.json",
+        "track": "internal"
+      },
+      "ios": {
+        "ascAppId": "6793056855"
+      }
+    }
+  }
+}
