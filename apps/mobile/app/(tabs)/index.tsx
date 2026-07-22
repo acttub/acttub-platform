@@ -6,6 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { heatColors, palette } from '@/constants/palette';
 import { api, type ReportRecord } from '@/lib/api';
 import { setSelectedReport } from '@/lib/selected-report';
+import { formatKoreanDate } from '@/lib/format';
 
 const WEEKS = 12;
 const DAY = 24 * 60 * 60 * 1000;
@@ -177,13 +178,10 @@ export default function HomeScreen() {
                 router.push('/report-detail' as Href);
               }}>
               <Text style={styles.recentDate}>
-                {new Date(r.created_at).toLocaleDateString('ko-KR', {
-                  month: 'long',
-                  day: 'numeric',
-                })}
+                {formatKoreanDate(r.created_at, { month: 'long', day: 'numeric' })}
               </Text>
               <Text style={styles.recentHeadline} numberOfLines={2}>
-                {r.report.headline}
+                {r.report?.headline ?? ''}
               </Text>
             </Pressable>
           ))
