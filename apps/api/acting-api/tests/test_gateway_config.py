@@ -1,5 +1,8 @@
+from pathlib import Path
+
 import pytest
 
+from acting_api import config
 from acting_api.config import load_gateway_settings
 
 
@@ -30,6 +33,28 @@ def test_google_client_id_env_overrides_code_default(monkeypatch, tmp_path):
     settings = load_gateway_settings(tmp_path / "missing.env")
 
     assert settings.google_oauth_client_id == "override-client-id"
+
+
+def test_consent_docs_dir_uses_project_default(monkeypatch, tmp_path):
+    monkeypatch.setenv("DATABASE_URL", "postgresql://user:pass@db.example/acting")
+    monkeypatch.setenv("JWT_SECRET", "secret")
+    monkeypatch.delenv("CONSENT_DOCS_DIR", raising=False)
+
+    settings = load_gateway_settings(tmp_path / "missing.env")
+
+    assert settings.consent_docs_dir == (
+        Path(config.__file__).resolve().parents[2] / "consent_docs"
+    )
+
+
+def test_consent_docs_dir_env_overrides_default(monkeypatch, tmp_path):
+    monkeypatch.setenv("DATABASE_URL", "postgresql://user:pass@db.example/acting")
+    monkeypatch.setenv("JWT_SECRET", "secret")
+    monkeypatch.setenv("CONSENT_DOCS_DIR", str(tmp_path / "custom-consents"))
+
+    settings = load_gateway_settings(tmp_path / "missing.env")
+
+    assert settings.consent_docs_dir == (tmp_path / "custom-consents").resolve()
 
 
 @pytest.mark.parametrize("value", ["1", "true", "TRUE", " true "])

@@ -13,6 +13,7 @@ import {
   clearTokens,
   getRefreshToken,
   loadTokens,
+  onConsentRequired,
   onTokensCleared,
   setTokens,
 } from '@/lib/token-store';
@@ -35,12 +36,14 @@ type AuthContextValue = {
   status: AuthStatus;
   user: AuthUser | null;
   pendingConsents: ConsentDocument[];
+  consentRequired: boolean;
   signInWithGoogle: () => Promise<void>;
   /** iOS Sign in with Apple. isAvailableAsync가 true일 때만 노출. */
   signInWithApple: () => Promise<void>;
   signOut: () => Promise<void>;
   /** 약관 화면에서 필수 동의를 모두 마친 뒤 호출 → 게이트 통과. */
   clearPendingConsents: () => void;
+  refreshPendingConsents: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -87,21 +90,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<AuthStatus>('loading');
   const [user, setUser] = useState<AuthUser | null>(null);
   const [pendingConsents, setPendingConsents] = useState<ConsentDocument[]>([]);
+  const [consentRequired, setConsentRequired] = useState(false);
+
+  const refreshPendingConsents = useCallback(async () => {
+    const { documents } = await api.pendingConsents();
+    setPendingConsents(documents);
+    setConsentRequired(documents.length > 0);
+  }, []);
 
   useEffect(() => {
     let active = true;
     loadTokens().then((hasToken) => {
       if (active) setStatus(hasToken ? 'signedIn' : 'signedOut');
     });
-    const unsub = onTokensCleared(() => {
+    const unsubTokens = onTokensCleared(() => {
       setUser(null);
+      setPendingConsents([]);
+      setConsentRequired(false);
       setStatus('signedOut');
+    });
+    const unsubConsent = onConsentRequired(() => {
+      setConsentRequired(true);
+      void refreshPendingConsents().catch(() => undefined);
     });
     return () => {
       active = false;
-      unsub();
+      unsubTokens();
+      unsubConsent();
     };
-  }, []);
+  }, [refreshPendingConsents]);
 
   const finishLogin = useCallback(async (pair: TokenPair) => {
     if (__DEV__) {
@@ -115,6 +132,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await setTokens(pair.access_token, pair.refresh_token);
     setUser(pair.user);
     setPendingConsents(pair.pending_consents ?? []);
+    setConsentRequired(false);
     setStatus('signedIn');
   }, []);
 
@@ -161,26 +179,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setStatus('signedOut');
   }, []);
 
-  const clearPendingConsents = useCallback(() => setPendingConsents([]), []);
+  const clearPendingConsents = useCallback(() => {
+    setPendingConsents([]);
+    setConsentRequired(false);
+  }, []);
 
   const value = useMemo(
     () => ({
       status,
       user,
       pendingConsents,
+      consentRequired,
       signInWithGoogle,
       signInWithApple,
       signOut,
       clearPendingConsents,
+      refreshPendingConsents,
     }),
     [
       status,
       user,
       pendingConsents,
+      consentRequired,
       signInWithGoogle,
       signInWithApple,
       signOut,
       clearPendingConsents,
+      refreshPendingConsents,
     ],
   );
 

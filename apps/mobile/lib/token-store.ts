@@ -15,11 +15,22 @@ let loaded = false;
 
 type Listener = () => void;
 const clearedListeners = new Set<Listener>();
+const consentRequiredListeners = new Set<Listener>();
 
 /** 토큰이 비워졌을 때(로그아웃·세션 만료) 호출된다. 구독 해제 함수를 반환. */
 export function onTokensCleared(fn: Listener): () => void {
   clearedListeners.add(fn);
   return () => clearedListeners.delete(fn);
+}
+
+/** 보호 API가 필수 동의를 요구할 때 호출된다. 구독 해제 함수를 반환. */
+export function onConsentRequired(fn: Listener): () => void {
+  consentRequiredListeners.add(fn);
+  return () => consentRequiredListeners.delete(fn);
+}
+
+export function emitConsentRequired(): void {
+  for (const fn of consentRequiredListeners) fn();
 }
 
 /** 앱 시작 시 저장된 토큰을 메모리로 로드한다 (1회). */

@@ -166,6 +166,32 @@
         }
       }
     },
+    "/v2/consents/pending": {
+      "get": {
+        "tags": [
+          "v2-consents"
+        ],
+        "summary": "List Pending Documents",
+        "operationId": "list_pending_documents_v2_consents_pending_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsentDocumentsResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
     "/v2/consents": {
       "post": {
         "tags": [

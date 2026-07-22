@@ -33,7 +33,7 @@ const theme = {
 
 /** 로그인 여부에 따라 로그인 화면 ↔ 앱을 게이트한다. */
 function RootNavigator() {
-  const { status, pendingConsents } = useAuth();
+  const { status, pendingConsents, consentRequired } = useAuth();
   const segments = useSegments();
   const router = useRouter();
 
@@ -48,12 +48,12 @@ function RootNavigator() {
       return;
     }
     // signedIn — 필수 약관이 남아있으면 약관 화면으로.
-    if (pendingConsents.length > 0) {
+    if (consentRequired || pendingConsents.length > 0) {
       if (!inConsent) router.replace('/consent' as Href);
       return;
     }
     if (inLogin || inConsent) router.replace('/(tabs)');
-  }, [status, pendingConsents, segments, router]);
+  }, [status, pendingConsents, consentRequired, segments, router]);
 
   return (
     <Stack>

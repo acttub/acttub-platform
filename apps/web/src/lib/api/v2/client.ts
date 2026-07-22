@@ -1,5 +1,6 @@
 import { API_BASE_URL } from "../../config/env";
 import { refreshAccessToken } from "../../auth/refresh";
+import { emitSessionEvent } from "../../auth/session-events";
 import { getAccessToken } from "../../auth/token-store";
 import { NetworkError, toApiError } from "./errors";
 
@@ -88,11 +89,15 @@ async function responsePayload(response: Response): Promise<unknown> {
 }
 
 function throwResponseError(response: Response, payload: unknown): never {
-  throw toApiError(
+  const error = toApiError(
     response.status,
     payload,
     response.headers.get("X-Request-Id") ?? undefined,
   );
+  if (error.status === 403 && error.code === "consent_required") {
+    emitSessionEvent("consent-required");
+  }
+  throw error;
 }
 
 export async function apiFetch<T>(
