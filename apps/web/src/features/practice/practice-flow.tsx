@@ -12,6 +12,7 @@ import { ApiError } from "@/lib/api/v2/errors";
 import { createReport, getReport, listReports } from "@/lib/api/v2/reports";
 import {
   createPracticeSession,
+  deletePracticeSession,
   getPracticeSession,
   pollSessionUntilSettled,
   reanalyzeSession,
@@ -103,6 +104,7 @@ function PracticeFlowInner({ entry = "new" }: { entry?: Entry }) {
   const [answer, setAnswer] = useState("");
   const [pendingAnswer, setPendingAnswer] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [coachWaiting, setCoachWaiting] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<UploadProgressState | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -664,6 +666,37 @@ function PracticeFlowInner({ entry = "new" }: { entry?: Entry }) {
     void pollSession(sessionId);
   }
 
+  // 삭제된 세션을 목록(노트)에서 걷어낸다 — 삭제 성공 후, 그리고 이미 사라진(404) 경우에도 부른다.
+  // 목록은 reports 기준이라 그 세션의 노트만 지우면 카드가 사라진다.
+  function forgetDeletedSession(sessionId: string) {
+    pollControllerRef.current?.abort();
+    setReports((items) => items.filter((item) => item.practice_session_id !== sessionId));
+  }
+
+  async function deleteSession() {
+    const sessionId = sessionParam ?? active?.sessionId;
+    if (!sessionId || deleting) return;
+    setDeleting(true);
+    setError(null);
+    try {
+      await deletePracticeSession(sessionId);
+      forgetDeletedSession(sessionId);
+      // 주소에서 세션을 떼면 동기화 effect가 목록 화면으로 되돌린다.
+      // replace라 뒤로가기로 지운 세션에 다시 들어가지 않는다.
+      router.replace(SESSION_DETAIL_PATH);
+    } catch (reason) {
+      // 404는 이미 지워졌거나 남의 리소스 — 조용히 목록으로 보낸다
+      if (reason instanceof ApiError && reason.status === 404) {
+        forgetDeletedSession(sessionId);
+        router.replace(SESSION_DETAIL_PATH);
+        return;
+      }
+      setError(sessionErrorMessage(reason));
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   if (!authReady || !dataReady) {
     return <LoadingScreen message={error ?? "연습 공간을 준비하는 중이에요."} />;
   }
@@ -690,6 +723,7 @@ function PracticeFlowInner({ entry = "new" }: { entry?: Entry }) {
         answer={answer}
         pendingAnswer={pendingAnswer}
         busy={busy}
+        deleting={deleting}
         coachWaiting={coachWaiting}
         error={error}
         setAnswer={setAnswer}
@@ -699,6 +733,7 @@ function PracticeFlowInner({ entry = "new" }: { entry?: Entry }) {
         onCreateReport={createActingReport}
         onPlaybackError={refreshPlayback}
         onRefreshSession={retryActiveSessionLoad}
+        onDelete={deleteSession}
       />
     );
   }
@@ -1300,6 +1335,7 @@ function SessionView({
   answer,
   pendingAnswer,
   busy,
+  deleting,
   coachWaiting,
   error,
   setAnswer,
@@ -1309,6 +1345,7 @@ function SessionView({
   onCreateReport,
   onPlaybackError,
   onRefreshSession,
+  onDelete,
 }: {
   session: PracticeSessionDetail;
   phase: Phase;
@@ -1317,6 +1354,7 @@ function SessionView({
   answer: string;
   pendingAnswer: string | null;
   busy: boolean;
+  deleting: boolean;
   coachWaiting: boolean;
   error: string | null;
   setAnswer: (value: string) => void;
@@ -1326,6 +1364,7 @@ function SessionView({
   onCreateReport: () => void;
   onPlaybackError: () => void;
   onRefreshSession: () => void;
+  onDelete: () => void;
 }) {
   const analysisPending = session.status === "created" || session.status === "analyzing";
   // 화면이 열려 있는 내내 자리를 지키는 안내 영역. 조건부로 붙였다 떼면 보조기술이 못 읽으므로
@@ -1345,9 +1384,10 @@ function SessionView({
             <h1 className="mt-5 text-2xl font-black leading-tight tracking-[-0.05em] sm:text-4xl">{session.situation}</h1>
             <p className="mt-3 max-w-2xl font-semibold leading-7 text-[#6b7684]">{session.character_context}</p>
           </div>
-          <div className="flex shrink-0 items-center gap-2">
+          <div className="flex shrink-0 flex-wrap items-center gap-2">
             <Link href={SESSION_DETAIL_PATH} className="inline-flex h-11 items-center justify-center rounded-2xl border border-[#d1d6db] bg-white px-4 text-sm font-black text-[#4e5968] transition hover:border-[#3182f6] hover:text-[#1b64da]">← 연습 기록</Link>
             <Link href="/home" className="inline-flex h-11 items-center justify-center rounded-2xl border border-[#d1d6db] bg-white px-4 text-sm font-black text-[#4e5968] transition hover:border-[#3182f6] hover:text-[#1b64da]">홈</Link>
+            <DeleteSessionControl deleting={deleting} onDelete={onDelete} />
           </div>
         </header>
 
@@ -1390,6 +1430,52 @@ function SessionView({
         {error && phase !== "coaching" && !analysisPending ? <ErrorNotice message={error} /> : null}
       </div>
     </main>
+  );
+}
+
+// 상세 화면 헤더의 삭제 버튼. 한 번 눌러 확인을 띄우고 다시 눌러야 지운다 —
+// 실수로 지우는 걸 막되 브라우저 기본 confirm 팝업은 쓰지 않는다.
+function DeleteSessionControl({
+  deleting,
+  onDelete,
+}: {
+  deleting: boolean;
+  onDelete: () => void;
+}) {
+  const [confirming, setConfirming] = useState(false);
+
+  if (!confirming) {
+    return (
+      <button
+        type="button"
+        onClick={() => setConfirming(true)}
+        className="inline-flex h-11 items-center justify-center rounded-2xl border border-[#f1aeb5] bg-white px-4 text-sm font-black text-[#e03131] transition hover:border-[#e03131] hover:bg-[#fff5f5]"
+      >
+        삭제
+      </button>
+    );
+  }
+
+  return (
+    <span className="inline-flex items-center gap-2 rounded-2xl border border-[#f1aeb5] bg-[#fff5f5] px-2 py-1">
+      <span className="pl-1 text-sm font-black text-[#c92a2a]">삭제할까요?</span>
+      <button
+        type="button"
+        disabled={deleting}
+        onClick={onDelete}
+        className="inline-flex h-9 items-center justify-center rounded-xl bg-[#e03131] px-3 text-sm font-black text-white transition hover:bg-[#c92a2a] disabled:bg-[#f1aeb5]"
+      >
+        {deleting ? "삭제 중…" : "삭제"}
+      </button>
+      <button
+        type="button"
+        disabled={deleting}
+        onClick={() => setConfirming(false)}
+        className="inline-flex h-9 items-center justify-center rounded-xl border border-[#d1d6db] bg-white px-3 text-sm font-black text-[#4e5968] transition hover:border-[#3182f6] hover:text-[#1b64da] disabled:text-[#b0b8c1]"
+      >
+        취소
+      </button>
+    </span>
   );
 }
 
