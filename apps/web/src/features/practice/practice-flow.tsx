@@ -46,13 +46,11 @@ type CoachState = {
   reason: CoachTurnResponse["reason"];
 };
 type ReportData = { report: ActingReport; reportCount: number };
+type ResolvedReport = { record: ReportRecord; ordinal: number };
 type UploadProgressState = {
   percent: number;
   stage: "compressing" | "uploading";
 };
-
-// v2 연습 노트에는 practice_session_id가 없어 현재 탭에서 확인한 연결만 보존한다.
-const practiceCoachSessionMap = new Map<string, string>();
 
 const entryInitialStep: Record<Entry, Step> = {
   home: "home",
@@ -67,23 +65,6 @@ function errorMessage(error: unknown): string {
 function sessionErrorMessage(error: unknown): string {
   if (error instanceof ApiError && error.status === 404) return "세션을 찾을 수 없어요";
   return errorMessage(error);
-}
-
-function normalizeReportTurns(turns: unknown[]): CoachTurn[] {
-  return turns.flatMap((turn) => {
-    if (!turn || typeof turn !== "object") return [];
-    const role = "role" in turn ? turn.role : undefined;
-    const text = "text" in turn ? turn.text : undefined;
-    if ((role !== "ai" && role !== "actor") || typeof text !== "string") return [];
-    return [{ role: role === "ai" ? "coach" : "actor", text } satisfies CoachTurn];
-  });
-}
-
-function reportTurnsForStorage(turns: CoachTurn[]): ReportRecord["turns"] {
-  return turns.map((turn) => ({
-    role: turn.role === "coach" ? "ai" : "actor",
-    text: turn.text,
-  }));
 }
 
 // 연습을 마친 배우가 넘어가는 후기 페이지
@@ -118,7 +99,6 @@ function PracticeFlowInner({ entry = "new" }: { entry?: Entry }) {
   const [phase, setPhase] = useState<Phase>("summary");
   const [coach, setCoach] = useState<CoachState | null>(null);
   const [reportData, setReportData] = useState<ReportData | null>(null);
-  const [reportTurns, setReportTurns] = useState<CoachTurn[]>([]);
   const [file, setFile] = useState<File | null>(null);
   const [situation, setSituation] = useState("");
   const [characterContext, setCharacterContext] = useState("");
@@ -237,17 +217,21 @@ function PracticeFlowInner({ entry = "new" }: { entry?: Entry }) {
     setStep("video");
   }
 
-  function linkedReportForSession(
+  function resolveReportForSession(
     practiceSessionId: string,
     sourceReports: ReportRecord[] = reports,
-  ): ReportRecord | undefined {
-    const coachSessionId = practiceCoachSessionMap.get(practiceSessionId);
-    if (!coachSessionId) return undefined;
-    return sourceReports.find((report) => report.session_id === coachSessionId);
+  ): ResolvedReport | undefined {
+    let resolved: ResolvedReport | undefined;
+    sourceReports.forEach((record, index) => {
+      if (record.practice_session_id === practiceSessionId) {
+        resolved = { record, ordinal: index + 1 };
+      }
+    });
+    return resolved;
   }
 
   function reportForSession(practiceSessionId: string): ReportRecord | undefined {
-    return linkedReportForSession(practiceSessionId);
+    return resolveReportForSession(practiceSessionId)?.record;
   }
 
   function upsertHistory(session: PracticeSessionDetail) {
@@ -257,13 +241,19 @@ function PracticeFlowInner({ entry = "new" }: { entry?: Entry }) {
     ]);
   }
 
-  function showReportRecord(record: ReportRecord, sourceReports: ReportRecord[]) {
-    const reportIndex = sourceReports.findIndex(
-      (candidate) => candidate.session_id === record.session_id,
-    );
-    setReportData({ report: record.report, reportCount: reportIndex + 1 });
-    setReportTurns(normalizeReportTurns(record.turns));
+  function showReportRecord(
+    practiceSessionId: string,
+    sourceReports: ReportRecord[],
+  ): boolean {
+    const resolved = resolveReportForSession(practiceSessionId, sourceReports);
+    if (!resolved) return false;
+    setReportData({
+      report: resolved.record.report,
+      reportCount: resolved.ordinal,
+    });
+    playbackRefreshAttemptedRef.current = false;
     setPhase("report");
+    return true;
   }
 
   function applySessionDetail(session: PracticeSessionDetail, sourceReports = reports) {
@@ -277,9 +267,7 @@ function PracticeFlowInner({ entry = "new" }: { entry?: Entry }) {
     }
 
     if (session.status === "analyzed") {
-      const linkedReport = linkedReportForSession(session.session_id, sourceReports);
-      if (linkedReport) showReportRecord(linkedReport, sourceReports);
-      else setPhase("summary");
+      if (!showReportRecord(session.session_id, sourceReports)) setPhase("summary");
       setError(null);
     }
   }
@@ -328,7 +316,6 @@ function PracticeFlowInner({ entry = "new" }: { entry?: Entry }) {
     setPhase("summary");
     setCoach(null);
     setReportData(null);
-    setReportTurns([]);
     setAnswer("");
     setPendingAnswer(null);
     setCoachWaiting(false);
@@ -427,14 +414,30 @@ function PracticeFlowInner({ entry = "new" }: { entry?: Entry }) {
         done: data.done,
         reason: data.reason,
       };
-      practiceCoachSessionMap.set(active.sessionId, data.session_id);
       setCoach(nextCoach);
       setReportData(null);
-      setReportTurns([]);
       setPhase("coaching");
     } catch (reason) {
       if (activeSessionRef.current !== sessionAtStart) return;
-      setError(sessionErrorMessage(reason));
+      if (
+        reason instanceof ApiError &&
+        reason.status === 409 &&
+        reason.code === "report already exists for practice session"
+      ) {
+        try {
+          const refreshed = await listReports();
+          setReports(refreshed.reports);
+          if (activeSessionRef.current !== sessionAtStart) return;
+          if (!showReportRecord(sessionAtStart, refreshed.reports)) {
+            throw new Error("완료된 연습 노트를 불러오지 못했어요.");
+          }
+        } catch (refreshError) {
+          if (activeSessionRef.current !== sessionAtStart) return;
+          setError(errorMessage(refreshError));
+        }
+      } else {
+        setError(sessionErrorMessage(reason));
+      }
     } finally {
       if (activeSessionRef.current === sessionAtStart) {
         setCoachWaiting(false);
@@ -457,7 +460,6 @@ function PracticeFlowInner({ entry = "new" }: { entry?: Entry }) {
         { onWait: () => setCoachWaiting(true) },
       );
       if (activeSessionRef.current !== sessionAtStart) return;
-      practiceCoachSessionMap.set(active.sessionId, data.session_id);
       setCoach({
         coachSessionId: data.session_id,
         turns: [
@@ -502,7 +504,6 @@ function PracticeFlowInner({ entry = "new" }: { entry?: Entry }) {
     setPhase("summary");
     setCoach(null);
     setReportData(null);
-    setReportTurns([]);
     try {
       await reanalyzeSession(active.sessionId);
       setSessionDetail((current) =>
@@ -543,13 +544,11 @@ function PracticeFlowInner({ entry = "new" }: { entry?: Entry }) {
   async function createActingReport() {
     if (!coach || !active) return;
     const sessionAtStart = active.sessionId;
-    const localTurns = coach.turns;
     setBusy(true);
     setCoachWaiting(false);
     setError(null);
     // 기다리는 동안 완성될 화면의 뼈대를 먼저 보여준다 — 실패하면 아래에서 대화로 되돌린다
     setReportData(null);
-    setReportTurns([]);
     setPhase("report");
     try {
       const { data } = await createReport(
@@ -560,8 +559,8 @@ function PracticeFlowInner({ entry = "new" }: { entry?: Entry }) {
       const localRecord: ReportRecord = {
         created_at: new Date().toISOString(),
         session_id: coach.coachSessionId,
+        practice_session_id: active.sessionId,
         report: data.report,
-        turns: reportTurnsForStorage(localTurns),
       };
       setReports((current) => [
         ...current.filter((item) => item.session_id !== localRecord.session_id),
@@ -569,7 +568,7 @@ function PracticeFlowInner({ entry = "new" }: { entry?: Entry }) {
       ]);
       if (activeSessionRef.current !== sessionAtStart) return;
       setReportData({ report: data.report, reportCount: data.report_count });
-      setReportTurns(localTurns);
+      playbackRefreshAttemptedRef.current = false;
       setPhase("report");
     } catch (reason) {
       if (
@@ -580,12 +579,10 @@ function PracticeFlowInner({ entry = "new" }: { entry?: Entry }) {
         try {
           const refreshed = await listReports();
           setReports(refreshed.reports);
-          const existing = refreshed.reports.find(
-            (item) => item.session_id === coach.coachSessionId,
-          );
-          if (!existing) throw new Error("완료된 연습 노트를 불러오지 못했어요.");
           if (activeSessionRef.current !== sessionAtStart) return;
-          showReportRecord(existing, refreshed.reports);
+          if (!showReportRecord(sessionAtStart, refreshed.reports)) {
+            throw new Error("완료된 연습 노트를 불러오지 못했어요.");
+          }
         } catch (refreshError) {
           if (activeSessionRef.current !== sessionAtStart) return;
           setPhase("coaching");
@@ -613,20 +610,23 @@ function PracticeFlowInner({ entry = "new" }: { entry?: Entry }) {
   }
 
   async function refreshPlayback() {
-    if (!active || playbackRefreshAttemptedRef.current) return;
+    if (!active) return;
+    if (playbackRefreshAttemptedRef.current) {
+      setError("영상을 다시 불러왔지만 재생할 수 없어요.");
+      return;
+    }
     playbackRefreshAttemptedRef.current = true;
     try {
       const refreshed = await getPracticeSession(active.sessionId);
       setSessionDetail(refreshed);
       upsertHistory(refreshed);
-    } catch (reason) {
-      setError(sessionErrorMessage(reason));
+    } catch {
+      setError("영상 재생 링크를 다시 불러오지 못했어요. 잠시 후 다시 시도해 주세요.");
     }
   }
 
   async function handleLogout() {
     await logout();
-    practiceCoachSessionMap.clear();
     // 호칭은 지우지 않는다 — 계정 id와 함께 저장돼 있어 남의 이름으로 인사할 일이 없고,
     // 지우면 같은 사람이 다시 로그인할 때마다 "첫 로그인"으로 보여 또 묻게 된다.
     router.replace("/login");
@@ -662,7 +662,6 @@ function PracticeFlowInner({ entry = "new" }: { entry?: Entry }) {
         phase={phase}
         coach={coach}
         reportData={reportData}
-        reportTurns={reportTurns}
         answer={answer}
         pendingAnswer={pendingAnswer}
         busy={busy}
@@ -1298,7 +1297,6 @@ function SessionView({
   phase,
   coach,
   reportData,
-  reportTurns,
   answer,
   pendingAnswer,
   busy,
@@ -1316,7 +1314,6 @@ function SessionView({
   phase: Phase;
   coach: CoachState | null;
   reportData: ReportData | null;
-  reportTurns: CoachTurn[];
   answer: string;
   pendingAnswer: string | null;
   busy: boolean;
@@ -1382,7 +1379,13 @@ function SessionView({
           />
         ) : null}
         {session.status === "analyzed" && phase === "report" ? (
-          <Report reportData={reportData} turns={reportTurns} busy={busy} onCreateReport={onCreateReport} />
+          <Report
+            reportData={reportData}
+            playbackUrl={session.playback_url}
+            busy={busy}
+            onCreateReport={onCreateReport}
+            onPlaybackError={onPlaybackError}
+          />
         ) : null}
         {error && phase !== "coaching" && !analysisPending ? <ErrorNotice message={error} /> : null}
       </div>
@@ -1664,14 +1667,16 @@ function ConversationBubble({ turn }: { turn: CoachTurn }) {
 
 function Report({
   reportData,
-  turns,
+  playbackUrl,
   busy,
   onCreateReport,
+  onPlaybackError,
 }: {
   reportData: ReportData | null;
-  turns: CoachTurn[];
+  playbackUrl: string;
   busy: boolean;
   onCreateReport: () => void;
+  onPlaybackError: () => void;
 }) {
   // 만드는 동안에는 완성될 화면과 같은 자리에 글자 자리만 비워 둔다
   if (!reportData && busy) return <ReportSkeleton />;
@@ -1694,6 +1699,11 @@ function Report({
         <p className="text-xs font-black text-white/75 sm:text-sm">{reportData.reportCount}번째 연습 노트</p>
         <h2 className="mt-2 text-lg font-black leading-snug tracking-[-0.04em] sm:mt-3 sm:text-4xl">{report.headline}</h2>
       </header>
+      <div className="overflow-hidden rounded-[24px] border border-[#e5e8eb] bg-white shadow-[0_8px_24px_rgba(25,31,40,0.035)]">
+        <video key={playbackUrl} controls preload="metadata" src={playbackUrl} onError={onPlaybackError} className="aspect-video w-full bg-[#111827] object-contain">
+          분석한 영상을 재생할 수 없어요.
+        </video>
+      </div>
       <article className="rounded-[24px] border border-[#dce9ff] bg-[#f7faff] p-4 sm:p-6">
         <p className="text-xs font-black text-[#2f6bff]">다시 본 순간</p>
         <h3 className="mt-2 text-base font-black tracking-[-0.035em] sm:text-xl">영상에서 눈에 남은 곳</h3>
@@ -1707,25 +1717,13 @@ function Report({
         <ReportSection title="스스로 발견한 점" body={report.self_discovery} />
         <ReportSection title="다음 연습" body={report.next_step} tone="action" wide />
       </div>
-      {turns.length > 0 ? (
-        <section className="overflow-hidden rounded-[24px] border border-[#e5e8eb] bg-white shadow-[0_8px_24px_rgba(25,31,40,0.035)]">
-          <div className="border-b border-[#e5e8eb] px-4 py-3.5 sm:px-6 sm:py-4">
-            <p className="text-xs font-black text-[#2f6bff]">코칭 대화</p>
-            <h3 className="mt-1 text-base font-black tracking-[-0.035em] sm:text-lg">함께 찾은 생각</h3>
-          </div>
-          <div role="log" aria-label="완료된 AI 코칭 대화" className="max-h-[480px] space-y-4 overflow-y-auto bg-[#f7f8fa] px-4 py-5 sm:px-6">
-            {turns.map((turn, index) => <ConversationBubble key={"report-" + turn.role + "-" + String(index)} turn={turn} />)}
-          </div>
-        </section>
-      ) : null}
       {/* 연습 노트가 나온 뒤에만 보인다 — 마치기를 누르면 후기 페이지로 넘어간다 */}
       <aside className="rounded-[24px] border border-[#dce9ff] bg-white p-5 shadow-[0_8px_24px_rgba(25,31,40,0.035)] sm:flex sm:items-center sm:justify-between sm:gap-6 sm:p-6">
         <div>
           <h3 className="text-base font-black tracking-[-0.035em] sm:text-lg">이번 연습은 어떠셨나요?</h3>
           <p className="mt-2 text-sm font-semibold leading-6 text-[#4e5968] sm:text-base sm:leading-7">짧은 설문으로 경험을 알려 주시면 더 나은 연기 코치를 만드는 데 활용할게요.</p>
         </div>
-        {/* 새 창으로 연다 — 같은 탭에서 나가면 연습과 연습 노트를 잇는 메모리 정보가 사라져
-            돌아왔을 때 방금 만든 노트가 이 연습에 다시 붙지 않는다 */}
+        {/* 새 창으로 연다 — 보던 연습 노트 화면을 유지한 채 후기를 남길 수 있게 */}
         <a href={REVIEW_FORM_URL} target="_blank" rel="noopener noreferrer" aria-label="연습 마치고 후기 남기기 (새 창)" className="mt-5 inline-flex min-h-12 shrink-0 items-center justify-center rounded-2xl bg-[#2f6bff] px-5 py-3 text-sm font-black text-white transition hover:bg-[#1b64da] sm:mt-0">연습 마치기 ↗</a>
       </aside>
     </section>

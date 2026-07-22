@@ -1066,13 +1066,17 @@ class PostgresStore:
                 session=self._report_coach_session(data),
             )
 
-    def has_report(self, session_id: UUID) -> bool:
+    def has_report_for_practice_session(self, practice_session_id: UUID) -> bool:
         with self._session_factory() as db:
             return (
                 db.scalar(
-                    select(DbReport.id).where(
-                        DbReport.session_id == session_id
+                    select(DbReport.id)
+                    .join(
+                        DbCoachSession,
+                        DbReport.session_id == DbCoachSession.id,
                     )
+                    .join(Summary, DbCoachSession.summary_id == Summary.id)
+                    .where(Summary.session_id == practice_session_id)
                 )
                 is not None
             )
@@ -1100,8 +1104,8 @@ class PostgresStore:
     def list_reports(self, user_id: UUID) -> list[ReportRecord]:
         with self._session_factory() as db:
             reports = list(
-                db.scalars(
-                    select(DbReport)
+                db.execute(
+                    select(DbReport, PracticeSession.id)
                     .join(DbCoachSession, DbReport.session_id == DbCoachSession.id)
                     .join(Summary, DbCoachSession.summary_id == Summary.id)
                     .join(PracticeSession, Summary.session_id == PracticeSession.id)
@@ -1109,21 +1113,11 @@ class PostgresStore:
                     .order_by(DbReport.created_at, DbReport.id)
                 )
             )
-            turns_by_session: dict[UUID, list[DbCoachTurn]] = {
-                report.session_id: [] for report in reports
-            }
-            if turns_by_session:
-                turns = db.scalars(
-                    select(DbCoachTurn)
-                    .where(DbCoachTurn.session_id.in_(turns_by_session))
-                    .order_by(DbCoachTurn.session_id, DbCoachTurn.turn_index)
-                )
-                for turn in turns:
-                    turns_by_session[turn.session_id].append(turn)
             return [
                 ReportRecord(
                     created_at=report.created_at.isoformat(),
                     session_id=str(report.session_id),
+                    practice_session_id=str(practice_session_id),
                     report=ActingReport(
                         headline=report.headline,
                         biggest_problem=BiggestProblem.model_validate(
@@ -1135,12 +1129,8 @@ class PostgresStore:
                         next_step=report.next_step,
                         comparison=report.comparison,
                     ),
-                    turns=[
-                        ReportCoachTurn(role=turn.role.value, text=turn.text)
-                        for turn in turns_by_session[report.session_id]
-                    ],
                 )
-                for report in reports
+                for report, practice_session_id in reports
             ]
 
     @staticmethod
@@ -1432,6 +1422,24 @@ class PostgresStore:
                     raise LookupError("external operation not found")
                 if operation.kind != OperationKind.REPORT:
                     raise ValueError("report result requires a report operation")
+                practice_session_id = db.scalar(
+                    select(PracticeSession.id)
+                    .where(PracticeSession.id == operation.session_id)
+                    .with_for_update()
+                )
+                if practice_session_id is None:
+                    raise LookupError("practice session not found")
+                existing_report_id = db.scalar(
+                    select(DbReport.id)
+                    .join(
+                        DbCoachSession,
+                        DbReport.session_id == DbCoachSession.id,
+                    )
+                    .join(Summary, DbCoachSession.summary_id == Summary.id)
+                    .where(Summary.session_id == practice_session_id)
+                )
+                if existing_report_id is not None:
+                    return None
                 self._add_report(db, coach_session_id, report)
                 db.flush()
                 payload = {

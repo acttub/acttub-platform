@@ -926,29 +926,6 @@
         ],
         "title": "CoachStartReq"
       },
-      "CoachTurn": {
-        "properties": {
-          "role": {
-            "type": "string",
-            "enum": [
-              "ai",
-              "actor"
-            ],
-            "title": "Role"
-          },
-          "text": {
-            "type": "string",
-            "title": "Text"
-          }
-        },
-        "additionalProperties": false,
-        "type": "object",
-        "required": [
-          "role",
-          "text"
-        ],
-        "title": "CoachTurn"
-      },
       "CoachTurnResponse": {
         "properties": {
           "session_id": {
@@ -1558,15 +1535,13 @@
             "format": "uuid",
             "title": "Session Id"
           },
+          "practice_session_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Practice Session Id"
+          },
           "report": {
             "$ref": "#/components/schemas/ActingReport"
-          },
-          "turns": {
-            "items": {
-              "$ref": "#/components/schemas/CoachTurn"
-            },
-            "type": "array",
-            "title": "Turns"
           }
         },
         "additionalProperties": false,
@@ -1574,8 +1549,8 @@
         "required": [
           "created_at",
           "session_id",
-          "report",
-          "turns"
+          "practice_session_id",
+          "report"
         ],
         "title": "ReportRecord"
       },

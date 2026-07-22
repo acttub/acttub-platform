@@ -90,7 +90,6 @@ RESPONSE_COMPONENT_SHAPES = {
     "BiggestProblem": {
         "required": {"start", "end", "dimension", "description"},
     },
-    "CoachTurn": {"required": {"role", "text"}},
     "CoachTurnResponse": {
         "required": {
             "session_id",
@@ -157,7 +156,7 @@ RESPONSE_COMPONENT_SHAPES = {
     },
     "ReportHistoryResponse": {"required": {"count", "reports"}},
     "ReportRecord": {
-        "required": {"created_at", "session_id", "report", "turns"},
+        "required": {"created_at", "session_id", "practice_session_id", "report"},
     },
     "SceneSummary": {
         "required": {"summary_id"},

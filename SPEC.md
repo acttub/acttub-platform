@@ -1,140 +1,124 @@
-# SPEC: SEO / AEO / GEO 설정 (apps/web)
+# SPEC: 리포트(연습 노트) = 결과 + 영상만 제공
 
-기준 커밋: `722626c` · 브랜치: `feat/seo-aeo-geo`
+기준 커밋: `722626c` · 브랜치: `feat/report-result-video-only`
 
 ## 배경 / 목적
 
-`apps/web`은 SEO·AEO·GEO 관점에서 백지 상태다. metadata는 루트 layout의 title/description 두 줄뿐이고, robots.txt·sitemap.xml·OG 이미지·canonical·JSON-LD·llms.txt가 전부 없다. `public/` 디렉토리 자체가 존재하지 않는다.
+현재 리포트 화면(practice-flow, `/home`·`/practice/history`)은 리포트 결과 텍스트에 더해 **코칭 대화(turns) 버블**을 보여주고, 정작 **연습 영상은 없다**. 요구: "리포트에는 리포트 결과와 영상만 제공".
 
-목적: 검색엔진(SEO), 답변엔진(AEO), 생성형 엔진(GEO)이 Acttub을 정확히 이해·인용하도록 기반 설정을 갖춘다. 실제 인덱싱 가치가 있는 공개 페이지는 랜딩(`/`) 하나이므로, 랜딩에 신호를 집중하고 나머지는 noindex로 정리한다.
+또한 리포트→영상 연결에 필요한 `practice_session_id`가 API 계약에 없어, 현재는 같은 탭에서 코칭을 시작한 경우에만 동작하는 인메모리 맵(`practiceCoachSessionMap`)으로 리포트를 연결하는 임시 구조다(새 탭/새로고침에서 깨짐).
 
-전제 (조사·Codex 비판으로 확인됨):
-
-- FastAPI 서빙 로직(`apps/api/.../app.py:239` catch-all)은 `out/` 루트의 정확 일치 파일을 우선 반환한다 → robots.txt 등은 **파일 생성만으로 서빙됨, 백엔드 변경 불필요**.
-- `out/`에 `practice/new.html`, `practice/history.html` 등 페이지별 HTML이 개별 생성된다 → 페이지별 메타가 산출물에 반영된다.
-- Next 16.2.10. `robots.ts`/`sitemap.ts`/`opengraph-image.tsx`는 정적 export에서 빌드타임 정적 파일로 생성된다(문서상 지원, 최종 확인은 빌드).
-- **`/terms`·`/home`·`/practice/new`·`/practice/history`의 page.tsx는 이미 서버 컴포넌트다** (클라이언트 경계는 feature 내부). 전환 리팩터가 필요한 것은 랜딩(`/`)과 `/practice` 스텁뿐이며, `/login`은 layout으로 우회한다.
-- Next 16.2.10의 ImageResponse 기본 폰트는 **Latin 전용**이며, 한국어 감지 시 빌드 중 Google Fonts에서 Noto Sans KR를 네트워크로 받아오고 **실패해도 한국어가 빠진 PNG를 성공으로 생성**한다 → 로컬 폰트 주입 필수.
-- `tests/product-language-guard.test.mjs`가 `src/` 전체에서 금지 카피(점수·판정·등급·레벨·강점·약점·개선점 계열 + score/grade/rate/level/judge/improvement 등)를 검사한다 → 새 metadata·JSON-LD·OG 카피도 통과해야 한다. 확정 카피 5종은 금지 regex 비저촉 확인됨.
-- `tests/login-provider-defaults.test.mjs`가 `login/page.tsx` 내부 구현을 직접 검사한다 → 로그인 페이지는 손대지 않는 설계를 택한다.
-
-## 확정된 결정 (사용자 승인)
-
-| 항목 | 결정 |
-|---|---|
-| 정식 도메인 | `https://acttub.com` (www 없음). www는 인프라에서 apex로 리다이렉트 |
-| 사이트 URL 주입 | `NEXT_PUBLIC_SITE_URL` 빌드타임 env, 미설정 시 기본값 `https://acttub.com`. **정규화 필수** (아래 설계 §2) |
-| 기본 title | `Acttub — 질문으로 다시 보는 연기 연습` |
-| title template | `%s \| Acttub` |
-| description | `내 연기 영상을 올리면 장면 맥락에서 확인한 단서가 질문으로 돌아와요. 질문으로 연기 장면을 다시 생각하는 연습 도구예요.` |
-| 인덱싱 범위 | 랜딩(`/`)만 index 허용. `/login`, `/terms`, `/home`, `/practice`, `/practice/new`, `/practice/history` 전부 noindex 메타 |
-| sitemap | `https://acttub.com/` 단일 URL |
-| JSON-LD | `WebSite` + `SoftwareApplication` + `Organization` (랜딩에만) |
-| Organization | 이름 Acttub, url, `sameAs: ["https://www.instagram.com/acttub_com/"]` (추적 파라미터 제거), 이메일 `acttub0527@gmail.com`. logo는 자산 없음 → 생략 |
-| SoftwareApplication | `offers: { "@type": "Offer", price: "0", priceCurrency: "KRW" }` (현재 무료 확인됨) + 필수·권장 필드 (설계 §3) |
-| OG 이미지 | `opengraph-image.tsx` ImageResponse 코드 생성. 1200×630, 어두운 단색 배경 + `Acttub` + 태그라인 `질문으로 다시 보는 연기 연습`. 색상은 globals.css 브랜드 색과 일치. 장식 없음. **로컬 한국어 폰트 주입** |
-| GEO | `public/llms.txt` 포함. manifest·FAQ 섹션 제외 |
+**사용자 확정 사항**:
+1. turns는 화면 + `GET /v2/reports` 계약 양쪽에서 제거 (DB `coach_turns` 저장은 유지)
+2. `ReportRecord`에 `practice_session_id` 추가, 영상은 `GET /v2/practice-sessions/{id}`의 presign(15분)으로 재생
+3. 변경 대상은 practice-flow 리포트 화면만 — `/practice/new`(practice-single) 모달은 무변경
+4. 설문 CTA("이번 연습은 어떠셨나요?") 유지. 결과 텍스트 카드(headline·biggest_problem·evidence·self_discovery·next_step)도 현행 유지
+5. **연습 세션당 리포트는 1개** (Codex 비판 C3에 대한 사용자 결정: "하나의 연습 세션에서는 코칭 한 번만"). 백엔드가 강제한다 — 리포트가 이미 있는 연습 세션은 재코칭·재리포트 모두 409. 단, **리포트가 없는 미완주 코칭의 재시작은 허용**(코칭 이어하기 API가 없으므로 막으면 사용자가 영구히 갇힘).
 
 ## 설계
 
-### 새 파일
+### 1. 백엔드 — 공유 스키마 (apps/api/acting-report)
 
-1. `apps/web/src/lib/config/env.ts` — `NEXT_PUBLIC_SITE_URL` 항목을 주석으로 문서화(env.ts가 선택 변수의 단일 문서라는 기존 규칙 준수). 실제 해석·정규화는 seo 모듈(§2)이 담당.
-2. `apps/web/src/lib/seo/site-metadata.ts` — 플레인 TS 모듈(next 런타임 비의존, node:test 직접 테스트 가능).
-   - `resolveSiteUrl(raw?: string): string` — `new URL()`로 http(s) URL 검증, trailing slash 제거 정규화. 빈 값·공백·비정상 scheme이면 기본값 `https://acttub.com` 사용.
-   - `buildRootMetadata(siteUrl?)` — metadataBase, title(default + template), description, openGraph(siteName·locale `ko_KR`·type `website` — **url 없음**), twitter(card `summary_large_image`). **canonical·openGraph.url을 루트에 두지 않는다** (metadata 상속으로 모든 noindex 페이지에 랜딩 canonical이 전파되는 오신호 방지).
-   - `buildLandingMetadata(siteUrl?)` — 랜딩 전용: `alternates.canonical: "/"` + `openGraph.url`.
-   - `buildNoindexMetadata(title?)` — `robots: { index: false, follow: false }`.
-   - siteUrl은 **인자 주입** 방식(기본값은 호출 시 `process.env.NEXT_PUBLIC_SITE_URL`을 `resolveSiteUrl`로 해석) — module-time 상수 캐시로 인한 테스트 불성립 문제 회피.
-3. `apps/web/src/lib/seo/json-ld.ts` — 순수 빌더 3종, `@context: "https://schema.org"`, **stable `@id`로 상호 연결** (예: Organization `#org`, WebSite `#website`(publisher→`#org`), SoftwareApplication `#app`).
-   - `buildOrganizationJsonLd(siteUrl?)` — name `Acttub`, url, sameAs(Instagram), email.
-   - `buildWebSiteJsonLd(siteUrl?)` — name, url, inLanguage `ko`, publisher `@id`.
-   - `buildSoftwareApplicationJsonLd(siteUrl?)` — name, url, description(확정 카피), applicationCategory `EducationalApplication`, operatingSystem `Web`, offers `{ "@type": "Offer", price: "0", priceCurrency: "KRW" }`, publisher `@id`. rating/review가 없으므로 rich result 자격은 기대하지 않는다(aggregateRating 등 허위 필드 금지).
-4. `apps/web/src/app/robots.ts` — 전체 허용 + `/v2/`·`/health`·`/docs`·`/redoc`·`/openapi.json` disallow + `Sitemap:` 라인 (FastAPI 자동 문서도 같은 오리진에 노출되므로 제외 — Phase 6 수용). noindex는 robots.txt가 아니라 메타태그 담당(크롤러가 noindex를 읽으려면 크롤 허용 필요).
-5. `apps/web/src/app/sitemap.ts` — `/` 단일 엔트리. `lastModified` 생략(단일 URL에 의미 없고 빌드 재현성 유지).
-6. `apps/web/src/app/opengraph-image.tsx` — ImageResponse 빌드타임 생성. **리포에 커밋한 한국어 폰트 서브셋**(Noto Sans KR 계열, OFL 라이선스, ttf/otf — 태그라인 렌더에 필요한 최소 서브셋 권장)을 Node fs로 읽어 `fonts` 옵션에 주입(빌드 네트워크 의존 제거). `alt`·`size`(1200×630)·`contentType` export 포함. `twitter-image.tsx`는 default·alt·size·contentType 전부 재export.
-7. `apps/web/public/llms.txt` — llms.txt 관례(H1 + 요약 인용문 + 링크 섹션). 서비스 요약, 랜딩·Instagram·문의 이메일 링크. 한국어, 금지 카피 톤 준수.
+- `src/acting_report/schema.py:38-47` `ReportRecord`: `turns` 필드 제거(3행 `CoachTurn` import도 미사용화되므로 제거), `practice_session_id: str = ""` 추가(디폴트는 standalone in-memory 스토어용), docstring 갱신. `_previous_block`(prompt.py:31-42)은 created_at·report만 사용하므로 리포트 생성 무영향(확인 완료).
+- `src/acting_report/store.py:50-55` `InMemoryReportStore.add_report`: `turns=session.turns` 제거.
+- 테스트: `tests/test_store.py:20` turns 어서션 삭제, `tests/test_app.py:34` `reports[0]["turns"]` 어서션 삭제.
 
-### 기존 파일 수정
+### 2. 백엔드 — acting-api (apps/api/acting-api)
 
-8. `apps/web/src/app/layout.tsx` — metadata를 `buildRootMetadata()`로 교체 (canonical·og.url 없음).
-9. `apps/web/src/app/page.tsx` (랜딩) — `"use client"` 제거하고 서버 컴포넌트로 전환. 클라이언트 로직(로그인 시 `/home` replace 포함)은 자식 클라이언트 컴포넌트로 추출(렌더 결과·동작 동일 유지). `buildLandingMetadata()` export + JSON-LD 3종 `<script type="application/ld+json">` 삽입.
-10. `apps/web/src/app/login/layout.tsx` **신설** — metadata(title `로그인`, noindex)만 export. **`login/page.tsx`는 수정하지 않는다** (`tests/login-provider-defaults.test.mjs`가 내부 구현을 검사하므로).
-11. `/terms`, `/home`, `/practice/new`, `/practice/history`의 각 page.tsx — **이미 서버 컴포넌트이므로 `buildNoindexMetadata()` export만 추가**. `/practice` 스텁(클라이언트 리다이렉트)만 최소 분리: 서버 page.tsx가 noindex metadata를 export하고 리다이렉트 로직은 작은 클라이언트 자식으로 추출.
+**응답 모델** (`src/acting_api/reports.py`):
+- `ReportRecord`(50-54): `turns` 제거, `practice_session_id: UUID` 추가.
+- 로컬 `CoachTurn`(45-48) 삭제. [C8] 이로써 미사용이 되는 import(`Literal` 등)도 함께 정리.
+- [C4] GET 핸들러(158-167): dict를 그대로 반환하지 않고 **strict `ReportHistoryResponse`로 검증한 뒤 반환** — 공유 스키마 디폴트 `""`가 런타임 응답으로 새는 것을 차단.
+- POST 응답 `CreateReportResponse`(57-59) 무변경.
 
-### 테스트 (node:test, `tests/*.test.mjs`, ts-module-loader 상대 import)
+**연습 세션당 리포트 1개 강제** [C3]:
+- `db/store.py`: `has_report(session_id)`(1069, coach 세션 기준)를 `has_report_for_practice_session(practice_session_id)`로 교체 — `Report → CoachSession → Summary` 조인으로 `Summary.session_id == practice_session_id` 존재 검사.
+- `reports.py` POST(116): `store.has_report(req.session_id)` → `store.has_report_for_practice_session(owned.practice_session_id)` (claim 내부 검사 유지 — 동시성 직렬화 지점). 409 detail은 기존 "report already exists for session" 유지.
+- `coaching.py` `coach_start`(65-124): claim 획득 후(succeeded 오퍼레이션의 캐시 replay 반환 이후) `has_report_for_practice_session(owned.practice_session_id)` 검사, 있으면 `_fail` 후 409 detail "report already exists for practice session". [Phase 6 수정: pre-claim 검사는 성공한 요청의 멱등 replay를 409로 강등시키므로 claim 내부로 이동 — replay 회귀 테스트 포함] (경합으로 코칭이 하나 더 생겨도 리포트 생성 단계에서 최종 차단됨)
+- `complete_report_operation`의 None 페이로드 폴백(reports.py:137-142, coach 세션 unique 기반)은 그대로 유지.
 
-12. `tests/seo-metadata.test.mjs` — `resolveSiteUrl`: 기본값, 정상 오버라이드, trailing slash 제거, 빈 값·공백·비정상 scheme 폴백. 빌더: 인자 주입으로 기본값·오버라이드 검증(env 조작 불필요), 루트 metadata에 canonical·og.url 부재, 랜딩 metadata에 canonical 존재, noindex 빌더의 robots 플래그.
-13. `tests/seo-json-ld.test.mjs` — 3종 빌더: `@context`/`@type`/`@id` 연결 정확성, SoftwareApplication의 name·url·description·applicationCategory·operatingSystem, offers의 `@type: Offer`·price `"0"`·KRW, sameAs에 추적 파라미터 없는 Instagram URL, 이메일, undefined 값 없음, JSON 직렬화 가능.
-14. `tests/seo-routes.test.mjs` — robots()·sitemap() 반환값: disallow 목록, sitemap URL, 단일 엔트리.
-15. `tests/seo-noindex-guard.test.mjs` — 소스 스캔 가드: 랜딩을 제외한 모든 `src/app/**/page.tsx`(또는 이를 담당하는 layout)가 **`export const metadata = buildNoindexMetadata(` 형태의 실제 export**를 갖는지 검사(단순 참조 검사 금지). 랜딩은 noindex 미참조 + `buildLandingMetadata` export 검사. `public/llms.txt` 존재·비어있지 않음·`acttub.com` 포함 검증 포함.
-16. 금지 카피 가드 확장 — `public/llms.txt`도 금지어 검사 대상에 포함(기존 `product-language-guard.test.mjs`의 스캔 대상 확장 또는 동일 금지어 목록을 공유 헬퍼로 추출, 구현 재량).
+**list_reports** (`db/store.py:1100-1144`):
+- [C2] `db.scalars(...)` → `db.execute(select(DbReport, PracticeSession.id).join(...)...)`로 바꾸고 **(report, practice_session_id) 튜플을 명시적으로 구조분해**. order_by(1109)·user 필터(1108) 유지.
+- turns 적재 블록(1112-1122) 삭제. `ReportRecord` 조립에서 `turns=` 제거·`practice_session_id=str(...)` 추가.
+- 49행 `ReportCoachTurn` import는 1799행에서 계속 사용 — 유지. DB 마이그레이션 없음.
+
+**테스트**:
+- `tests/platform_test_support.py`: FakeStore `has_report`(766)를 `has_report_for_practice_session`으로 교체(coach_sessions·summaries 경유 검사), 753-758 `ReportRecord` 조립을 새 모양으로(context.practice_session_id 사용, 666행에 존재).
+- `tests/test_coach_reports_v2.py:260-264`: turns 어서션 → `"turns" not in record` + `practice_session_id` 일치 검증. **추가**: (a) 리포트가 있는 연습 세션에 `POST /v2/coach/start` → 409, (b) 같은 연습 세션의 다른 코치 세션으로 `POST /v2/reports` → 409.
+- `tests/test_response_contracts.py`: [C1] `RESPONSE_COMPONENT_SHAPES`에서 `CoachTurn`(93) 제거, `ReportRecord` required set(160)을 `{"created_at", "session_id", "practice_session_id", "report"}`로 교체.
+- `tests/test_db_store.py:661-663`: turns 길이 어서션 → `practice_session_id` 어서션. **추가**: `has_report_for_practice_session` 동작 검사.
+
+### 3. 계약 산출물 (한 PR, apps/api에서)
+
+1. `uv run --package acting-report pytest && uv run --package acting-api pytest`
+2. `spec/openapi.json` 재생성(apps/api/CLAUDE.md의 명령) → [C1] 예상 diff는 **`ReportRecord` 변경 + `CoachTurn` 컴포넌트 삭제** 두 가지뿐인지 확인
+3. `API.md`의 GET /v2/reports 응답 예시 갱신(305행 부근) + 409 정책(연습 세션당 리포트 1개) 언급
+4. `pnpm --filter web generate:v2-schema` (v2-schema.d.ts에서도 CoachTurn 컴포넌트가 사라짐)
+
+### 4. 프론트 — apps/web/src/features/practice/practice-flow.tsx (이 파일만)
+
+**turns 제거**: `normalizeReportTurns`(69-77)·`reportTurnsForStorage`(79-84)·`reportTurns` state(99)와 set 호출 5곳(215, 271, 371, 435, 485)·SessionView `reportTurns` prop(573, 1207, 1225)·Report `turns` prop(1284, 1576, 1581)·코칭 대화 섹션(1616-1626) 삭제. [C8] 이로써 미사용이 되는 `localTurns`(475) 등 잔재도 삭제. **`ConversationBubble`(1557-1572)은 유지** — 라이브 코칭 화면 1499행에서 사용 중(확인 완료).
+
+**리포트 연결 resolver** [C3·C7]: `practiceCoachSessionMap`(51-52, 368, 393, 543) 삭제. `linkedReportForSession`(190-197)·`showReportRecord`의 ordinal 계산(210-214)을 **단일 resolver로 통합**: `practice_session_id`를 받아 `{record, ordinal}`을 반환. 매칭은 `record.practice_session_id === practiceSessionId`로 하되, 과거 중복 데이터 방어로 **여러 개면 가장 최신(배열 마지막) 선택**. ordinal은 기존 의미 유지(전체 리포트 목록에서의 index+1). `createActingReport`의 409 복구 경로(503-510)도 coach session id 매칭 → practice_session_id 매칭으로 변경(active.sessionId 사용).
+
+**영상 추가**: 리포트는 항상 SessionView 안에서 렌더되고 `sessionDetail.playback_url`이 이미 로드돼 있다(이전 기록 경로는 openSession→getPracticeSession이 방금 발급한 presign — 추가 API 호출 불필요). 1284행에서 `playbackUrl={session.playback_url}`·`onPlaybackError` 전달, Report의 reportData 존재 분기에서 헤더 카드 다음에 SummaryView 1377과 동일 패턴의 `<video key={playbackUrl} controls preload="metadata" src={playbackUrl} onError={onPlaybackError}>` 카드 추가. reportData null 분기(연습 노트 만들기 프롬프트)는 영상 없이 현행 유지.
+
+**presign 만료 처리** [C6 부분 수용]: one-shot 가드 `playbackRefreshAttemptedRef`(114)를 리포트 진입 시 재장전 — `showReportRecord`와 `createActingReport` 성공 경로에서 `false`로 리셋. 만료 시 기존 `refreshPlayback`(529-539)이 1회 재발급. **2차 실패(재발급 후에도 onError, 또는 재발급 호출 실패) 시 조용히 무시하지 않고 `setError`로 ErrorNotice 안내** — 리포트 텍스트는 유지(전체 실패 금지). 정상 재생 후 가드 재장전(30분+ 장기 체류 재만료 대응)은 스코프 밖 — 기각.
+
+**로컬 ReportRecord 조립**(`createActingReport` 473-527): 가드를 `if (!coach || !active) return;`로 확장, localRecord(487-492)에서 `turns` 제거·`practice_session_id: active.sessionId` 추가.
+
+카피는 한국어 존댓말("~해요") — video fallback·오류 안내는 기존 "분석한 영상을 재생할 수 없어요." 톤 준수(product-language-guard 통과 필요).
+
+## 검증
+
+1. 백엔드: `cd apps/api && uv run --package acting-report pytest && uv run --package acting-api pytest`
+2. 웹: `pnpm --filter web typecheck` · `pnpm --filter web lint` · `pnpm --filter web test` · `pnpm --filter web build` (typecheck가 turns 잔재 전수 검출)
+3. 수동(개발 루프: api :8000 + `pnpm dev`): (a) 새 연습→코칭→연습 노트에 영상+결과+설문만 표시 (b) 새 탭에서 `/practice/history`의 완료 연습 열기 → 리포트 자동 표시·완료 배지 (c) 영상 onError 시 재발급 재생 (d) `/practice/new` 모달 무변경 (e) 리포트 있는 세션에 coach/start 재호출 → 409
 
 ## 완료 기준 체크리스트
 
-- [x] `pnpm build` 후 `out/`에 `robots.txt`·`sitemap.xml`·`llms.txt`·OG 이미지 파일이 생성된다.
-- [x] `out/index.html`에 canonical(`https://acttub.com` — Next가 루트 경로를 origin으로 직렬화, RFC 3986상 `https://acttub.com/`과 동등), og:title·og:description·og:image(절대 URL)·og:image:alt·og:image:type·og:image:width/height, twitter card 메타, JSON-LD 3종이 포함된다.
-- [x] noindex 페이지들의 HTML(`login.html`·`terms.html`·`home.html`·`practice.html`·`practice/new.html`·`practice/history.html`)에 robots noindex 메타가 있고, **canonical·og:url이 랜딩 값으로 상속되어 있지 않다**.
-- [x] 생성된 OG 이미지 PNG에 한국어 태그라인이 실제로 렌더된다(빌드 후 이미지 확인).
-- [x] `sitemap.xml`에 `https://acttub.com/` 단일 URL만 있다.
-- [x] `robots.txt`에 `/v2/`·`/health`·`/docs`·`/redoc`·`/openapi.json` disallow와 `Sitemap:` 라인이 있다.
-- [x] `resolveSiteUrl` 정규화(기본값·오버라이드·이상값 폴백)가 테스트로 검증된다.
-- [x] `pnpm lint`·`pnpm typecheck`·`pnpm --filter web test`(product-language-guard, 기존 login-provider-defaults 포함 전부) 통과.
-- [x] 랜딩·로그인 기존 동작 회귀 없음: 로그인 상태에서 `/` 접근 시 `/home` replace, `/login?next=` 플로우, `<Suspense>` 경계 유지, `login/page.tsx` 무변경.
+- [ ] GET /v2/reports 각 record: `turns` 없음, `practice_session_id`(UUID) 있음 — openapi.json·계약 테스트 반영, GET 핸들러가 strict 모델로 런타임 검증
+- [ ] openapi.json diff = ReportRecord 변경 + CoachTurn 컴포넌트 삭제뿐
+- [ ] POST /v2/reports 요청·응답 계약 무변경, 연습 세션당 리포트 1개 강제(409) — 다른 코치 세션 경유 중복 생성 차단
+- [ ] 리포트가 있는 연습 세션에 POST /v2/coach/start → 409, 리포트 없는 미완주 코칭 재시작은 허용
+- [ ] coach_turns 테이블·저장 경로 무변경(마이그레이션 없음), `list_reports`는 coach_turns 미조회
+- [ ] 리포트 생성 프롬프트(previous 블록) 회귀 없음 — acting-report 테스트 green
+- [ ] 리포트 화면 = 결과 텍스트 카드 + 영상 + 설문 CTA (코칭 대화 섹션 없음)
+- [ ] 새 탭/새로고침 포함, 완료 연습 열기 시 리포트 즉시 표시 (practiceCoachSessionMap 제거, 단일 resolver)
+- [ ] 방금 연습 경로에서도 리포트에 영상 표시, presign 만료 시 1회 재발급, 2차 실패 시 오류 안내 + 텍스트 유지
+- [ ] `/practice/new` 리포트 모달 무변경
+- [ ] pytest 2종·웹 4종 명령 전부 통과, 계약 산출물(openapi.json·API.md·v2-schema.d.ts) 동일 PR 포함
 
 ## 하지 말 것 (스코프 제한)
 
-- `apps/api` 변경 금지 — 단 하나의 예외: 확장자 없는 metadata 파일의 Content-Type 판별 보강(Phase 4 처리 기록 참조, 사용자 승인).
-- `login/page.tsx` 수정 금지 (layout으로 우회).
-- 랜딩의 보이는 UI·카피 변경 금지 (서버 컴포넌트 래핑과 JSON-LD 삽입만 허용, 렌더 결과 동일 유지).
-- manifest / PWA / FAQ 섹션 / hreflang(다국어) 추가 금지.
-- JSON-LD에 aggregateRating 등 실체 없는 필드 추가 금지.
-- www→apex 리다이렉트 등 인프라·DNS 설정 다루지 않음.
-- 생성물(`v2-schema.d.ts`, `out/`, `node_modules/` 등) 수정 금지.
-- 스코프 밖 리팩터링 금지 (컴포넌트 전환은 metadata export에 필요한 최소 범위만).
+- `v2-schema.d.ts` 직접 수정 금지(재생성만), 다른 lockfile 추가 금지
+- encouragement/comparison 화면 추가, Report/Summary 컴포넌트 통합 등 스코프 밖 리팩터링 금지
+- practice-single.tsx 수정 금지
+- DB 마이그레이션·coach_turns 저장 경로 변경 금지
+- 코칭 이어하기(resume) API 신설 금지 — 이번 스코프 밖
 
-## Codex 설계 비판 처리 기록 (Phase 2, 2026-07-21)
+## Codex 설계 비판 반영 기록 (Phase 2)
 
-- **수용 #1(high)**: canonical·og.url 루트 상속 오신호 → 랜딩 전용 `buildLandingMetadata`로 분리.
-- **수용 #2(high)**: `/login` 추출 시 `login-provider-defaults.test.mjs` 파손 → `login/layout.tsx` metadata 우회, 페이지 무변경.
-- **수용 #3(high)**: ImageResponse 한국어 폰트가 빌드 네트워크 의존 + 실패 시 무음 → 로컬 폰트 서브셋 커밋·주입, 렌더 확인을 완료 기준에 추가.
-- **수용 #4(medium)**: module-time 상수 캐시로 env 오버라이드 테스트 불성립 → 빌더 인자 주입 방식.
-- **수용 #5(medium)**: 4개 페이지는 이미 서버 컴포넌트(스펙 사실 정정) → metadata export만, 전환은 랜딩·`/practice` 스텁만.
-- **부분 수용 #6(medium)**: noindex 가드를 실제 export 형태 검사로 강화. 빌드 산출물 HTML 검사는 자동 테스트가 아닌 Phase 4 검증 절차로(테스트 스위트에 빌드 의존 배제).
-- **수용 #7(medium)**: `resolveSiteUrl` 정규화 + 이상값 폴백 + 테스트.
-- **수용 #8(medium)**: SoftwareApplication 필드 보강(applicationCategory·operatingSystem·Offer @type·@id 연결), rich result 비기대 명시.
-- **수용 #9(low)**: OG alt·size·contentType export + twitter-image 전체 재export.
-- **수용 #10(low)**: llms.txt 금지 카피 검사 포함.
+- C1(BLOCKER) 수용: CoachTurn 컴포넌트 삭제를 계약 테스트·예상 diff에 반영
+- C2(BLOCKER) 수용: list_reports를 db.execute + 튜플 구조분해로 명시
+- C3(BLOCKER) 수용(사용자 결정): 연습 세션당 리포트 1개를 백엔드 강제 + 프론트 최신 우선 방어
+- C4(EDGE) 수용: GET 핸들러에서 strict 응답 검증
+- C5(EDGE) 기각(사용자 결정): 스토리지 장애 시 세션 상세 503은 기존 동작 — playback_url nullable화는 별도 과제(미결)
+- C6(EDGE) 부분 수용(사용자 결정): 2차 실패 시 오류 표시. 정상 재생 후 가드 재장전은 기각
+- C7(SIMPLER) 수용: 연결·ordinal 단일 resolver
+- C8(NIT) 수용: 미사용 import·localTurns 잔재 삭제
 
-## Phase 4 실행 검증 처리 기록 (2026-07-21)
+## 최종 리뷰 반영 기록 (Phase 5~6)
 
-- lint·typecheck·웹 테스트 79/79·빌드·산출물 체크리스트 전부 통과. OG PNG(1200×630, 28KB)의 한국어 태그라인 렌더를 이미지로 직접 확인.
-- **결함 발견·수정(사용자 승인)**: Next가 OG 이미지를 확장자 없는 `out/opengraph-image`로 내보내 FastAPI `FileResponse`가 `application/octet-stream`으로 서빙(실측). "백엔드 변경 불필요" 전제가 이 케이스에서 깨짐 → `app.py`에 PNG 매직 바이트 기반 `_extensionless_media_type` 보강 + `tests/test_static_frontend.py` 신설(4건). 수정 후 실서빙 재실측: `/opengraph-image`·`/twitter-image` → `image/png`. acting-api pytest 228 passed.
-- ImageResponse × 정적 export 호환 미결 사항 해소: 빌드타임 정적 생성 확인됨.
-
-## Claude 리뷰 루프 처리 기록 (Phase 5, 2026-07-21)
-
-라운드 1 (독립 리뷰 에이전트, high effort): blocker/high/medium 0건, low 3건.
-
-- **기각 #1(low)**: 랜딩 canonical·og:url이 슬래시 없는 `https://acttub.com`으로 직렬화 — Next 내부 resolver의 의도된 동작이며 RFC 3986상 동일 URL. `trailingSlash` 변경은 라우팅 전반에 파급 → 수정하지 않고 SPEC 체크리스트 문구를 실측값으로 정정.
-- **수용 #2(low)**: 기본값 테스트가 셸 env 미설정을 암묵 전제 → `seo-metadata`·`seo-routes` 테스트 상단에서 `NEXT_PUBLIC_SITE_URL` 삭제로 결정성 확보.
-- **수용 #3(low)**: `resolveSiteUrl`이 query/fragment를 통과시켜 `${siteUrl}/` 결합 시 malformed URL 가능 → `url.search`/`url.hash` 제거 보강 + 테스트 케이스 2건 추가.
-
-## Codex 최종 관문 처리 기록 (Phase 6, 2026-07-21)
-
-- **코드 디테일 리뷰 [P2] 수용** — robots.txt가 운영 오리진의 FastAPI 자동 문서(`/docs`·`/redoc`·`/openapi.json`)를 막지 않음 → disallow 목록에 추가(웹만 수정, api 무변경).
-- **코드 디테일 [P2] + 적대적 [high] 교집합 수용** — pathname 포함 `NEXT_PUBLIC_SITE_URL`이 존재하지 않는 하위 경로를 공식 URL로 선언 → `resolveSiteUrl`을 **origin-only 정규화**로 강화(path·인증정보·query·fragment 제거, 포트는 로컬 프리뷰용으로 유지). 테스트 갱신.
-- **적대적 [high] 잔여 기각** — 빌드 fail-fast·허용 host allowlist·스테이징 전체 noindex 플래그·env 주입 산출물 회귀 테스트: Phase 2 #7에서 사용자가 승인한 "이상값은 기본값 폴백" 설계와 충돌하고, 존재하지 않는 스테이징 인프라를 전제한 스코프 확장. 미결 사항으로 이관.
+- Claude 리뷰 #1 수용: coach/start 신설 409를 프론트에서 listReports 재조회 → 리포트 표시로 복구
+- Claude 리뷰 #2 → Codex 적대적 [medium] 수용: coach/start 리포트 존재 검사를 claim 내부로 이동해 성공 요청의 멱등 replay 보존 (byte-identical 200 회귀 테스트 추가)
+- Codex 적대적 [high] 기각: 리포트 확정과 coach start/reply 완료 경로의 원자적 직렬화 — SPEC이 명시한 트레이드오프(핵심 불변식은 리포트 생성 row lock이 보장, 경합 코칭의 손실은 모델 비용뿐이며 프론트 409 복구로 착지). 강화가 필요해지면 coach 완료 경로에도 practice row lock + 재검사 추가(미결)
+- Claude 리뷰 #3 기각: refreshPlayback 공유로 인한 요약 화면 메시지 변화는 개선에 가까움
+- Codex 디테일 리뷰는 1차 실행이 네트워크 오류로 정체·재실행분은 사용자 머지 지시로 취소 — 적대적 리뷰·Claude 심층 리뷰로 커버
 
 ## 미결 사항
 
-- **배포 URL 오설정 방어 고도화**(Phase 6 적대적 리뷰): 스테이징/프리뷰 환경이 생기면 허용 host 검증·빌드 fail-fast·스테이징 전체 noindex를 재검토한다. `llms.txt`는 기본 도메인이 하드코딩된 정적 파일이라 `NEXT_PUBLIC_SITE_URL` 오버라이드와 상충할 수 있다(현재는 단일 도메인이라 무해).
-- **Render에서 www→apex 301 리다이렉트 동작 여부**: 배포 시 확인 (인프라, 이 작업 범위 밖).
-- **Google Search Console 소유 확인 + sitemap 제출**: 배포 후 사용자 후속 작업. 필요 시 verification 메타는 추후 추가.
-- **로고 이미지 자산 부재**: Organization.logo 생략. 로고가 생기면 추가.
-
-## 검증 명령
-
-- `pnpm lint` · `pnpm typecheck` · `pnpm --filter web test` · `pnpm build`
-- 빌드 산출물 확인: `out/robots.txt`·`out/sitemap.xml`·`out/llms.txt`·OG 이미지 존재, `out/index.html`의 canonical·OG(alt/type/size 포함)·JSON-LD, noindex 페이지들의 메타 grep + canonical 미상속 확인, OG PNG 한국어 렌더 확인.
-- 수동 확인: dev 루프(:3000)에서 랜딩·로그인 플로우 회귀 확인.
+- 세션 삭제(소프트 삭제) 시 리포트 노출 정책 — 현재 삭제 UI가 없어 이번 스코프에서 제외
+- playback_url nullable화(스토리지 장애 시에도 리포트 텍스트 표시) — 별도 과제 [C5]
+- coach start/reply 완료 경로와 리포트 확정의 원자적 직렬화 강화 — 경합 창 좁음, 필요 시 별도 과제
+- 리포트 삭제 API — TODO.md 등재 (삭제 시 해당 연습 세션 재코칭 허용과 연동)

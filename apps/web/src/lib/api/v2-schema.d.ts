@@ -309,16 +309,6 @@ export interface components {
              */
             summary_id: string;
         };
-        /** CoachTurn */
-        CoachTurn: {
-            /**
-             * Role
-             * @enum {string}
-             */
-            role: "ai" | "actor";
-            /** Text */
-            text: string;
-        };
         /** CoachTurnResponse */
         CoachTurnResponse: {
             /**
@@ -586,9 +576,12 @@ export interface components {
              * Format: uuid
              */
             session_id: string;
+            /**
+             * Practice Session Id
+             * Format: uuid
+             */
+            practice_session_id: string;
             report: components["schemas"]["ActingReport"];
-            /** Turns */
-            turns: components["schemas"]["CoachTurn"][];
         };
         /** ReportReq */
         ReportReq: {

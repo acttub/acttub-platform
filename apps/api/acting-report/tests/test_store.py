@@ -17,7 +17,8 @@ def test_add_list_and_count_per_user():
     assert store.count_reports("u2") == 0
     record = store.list_reports("u1")[0]
     assert record.session_id == SESSION.session_id
-    assert record.turns == SESSION.turns
+    assert record.practice_session_id == ""
+    assert "turns" not in record.model_dump()
 
 
 def test_duplicate_session_report_rejected():
