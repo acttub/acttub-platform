@@ -138,6 +138,7 @@ export type AnalysisOperationOwnerOptions = {
 
 export class AnalysisOperationOwner {
   private active: AnalysisOperation | null = null;
+  private readonly availabilityListeners = new Set<() => void>();
   private generation = 0;
   private readonly now: () => number;
   private readonly instanceId: string;
@@ -164,9 +165,30 @@ export class AnalysisOperationOwner {
     return this.active === operation;
   }
 
+  onAvailable(listener: () => void): () => void {
+    if (!this.active) {
+      let subscribed = true;
+      void Promise.resolve().then(() => {
+        if (subscribed) listener();
+      });
+      return () => {
+        subscribed = false;
+      };
+    }
+    this.availabilityListeners.add(listener);
+    return () => this.availabilityListeners.delete(listener);
+  }
+
+  private notifyAvailable(): void {
+    const listeners = [...this.availabilityListeners];
+    this.availabilityListeners.clear();
+    for (const listener of listeners) listener();
+  }
+
   finish(operation: AnalysisOperation): void {
     if (this.active !== operation) return;
     this.active = null;
+    this.notifyAvailable();
   }
 
   async leave(operation: AnalysisOperation): Promise<CancelVocabulary | null> {
@@ -174,6 +196,7 @@ export class AnalysisOperationOwner {
     const mode = operation.cancellationMode();
     this.active = null;
     operation.deactivate();
+    this.notifyAvailable();
     if (mode === 'cancel-local') await operation.cancelLocalResources();
     return mode;
   }

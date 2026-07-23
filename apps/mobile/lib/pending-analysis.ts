@@ -116,6 +116,23 @@ export type BootstrapRoute =
       };
     };
 
+export type BootstrapRecoveryParams = {
+  recoveryKey?: string | string[];
+  sessionId?: string | string[];
+};
+
+export function resolveAnalyzingBootstrapRoute(
+  pathname: string,
+  currentParams: BootstrapRecoveryParams,
+  target: Extract<BootstrapRoute, { pathname: '/analyzing' }>,
+): 'replace' | 'complete' {
+  return pathname === target.pathname &&
+    currentParams.recoveryKey === target.params.recoveryKey &&
+    currentParams.sessionId === target.params.sessionId
+    ? 'complete'
+    : 'replace';
+}
+
 export type BootstrapStage =
   | 'auth-gate'
   | 'consent-gate'

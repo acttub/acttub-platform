@@ -284,3 +284,48 @@ test('F4: consent 전환 뒤 stale recovery snapshot은 storage 재로드 전 ta
     },
   );
 });
+
+test('N2: analyzing recovery params가 목적 route와 같을 때만 bootstrap을 완료한다', () => {
+  const resolveAnalyzingBootstrapRoute =
+    pendingAnalysisModule.resolveAnalyzingBootstrapRoute;
+  assert.ok(
+    resolveAnalyzingBootstrapRoute,
+    'analyzing pathname과 recovery params를 함께 판정해야 합니다.',
+  );
+  const target = {
+    pathname: '/analyzing',
+    params: {
+      recoveryKey: 'pending:user-1:session-1:scope',
+      sessionId: 'session-1',
+    },
+  };
+
+  assert.equal(
+    resolveAnalyzingBootstrapRoute('/analyzing', {}, target),
+    'replace',
+  );
+  assert.equal(
+    resolveAnalyzingBootstrapRoute(
+      '/analyzing',
+      { recoveryKey: 'pending:stale', sessionId: 'session-old' },
+      target,
+    ),
+    'replace',
+  );
+  assert.equal(
+    resolveAnalyzingBootstrapRoute(
+      '/upload',
+      target.params,
+      target,
+    ),
+    'replace',
+  );
+  assert.equal(
+    resolveAnalyzingBootstrapRoute(
+      '/analyzing',
+      target.params,
+      target,
+    ),
+    'complete',
+  );
+});

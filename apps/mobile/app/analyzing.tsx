@@ -61,6 +61,9 @@ export default function AnalyzingScreen() {
     sessionId?: string;
   }>();
   const activeOperationRef = useRef<AnalysisOperation | null>(null);
+  const availabilityUnsubscribeRef = useRef<(() => void) | null>(null);
+  const mountedRef = useRef(false);
+  const runRef = useRef<(retryFailed?: boolean) => Promise<void>>(async () => undefined);
   const uploadRef = useRef<PendingUpload | null>(null);
   const sessionIdRef = useRef<string | null>(null);
   const pendingHandleRef = useRef<AnalysisPendingHandle | null>(null);
@@ -79,7 +82,20 @@ export default function AnalyzingScreen() {
 
   const run = useCallback(async (retryFailed = false) => {
     const operation = appAnalysisOperationOwner.start();
-    if (!operation) return;
+    if (!operation) {
+      if (activeOperationRef.current || availabilityUnsubscribeRef.current) return;
+      const unsubscribe = appAnalysisOperationOwner.onAvailable(() => {
+        unsubscribe();
+        if (availabilityUnsubscribeRef.current === unsubscribe) {
+          availabilityUnsubscribeRef.current = null;
+        }
+        if (mountedRef.current) void runRef.current(retryFailed);
+      });
+      availabilityUnsubscribeRef.current = unsubscribe;
+      return;
+    }
+    availabilityUnsubscribeRef.current?.();
+    availabilityUnsubscribeRef.current = null;
     activeOperationRef.current = operation;
     const upload = uploadRef.current;
     const ownerId = user?.id;
@@ -192,9 +208,11 @@ export default function AnalyzingScreen() {
       if (activeOperationRef.current === operation) activeOperationRef.current = null;
     }
   }, [router, user?.id]);
+  runRef.current = run;
 
   useEffect(() => {
     let mounted = true;
+    mountedRef.current = true;
     const initialize = async () => {
       if (recoveryKey && recoveredSessionId && user?.id) {
         const recovered = await pendingAnalysisStore.loadForOwner(user.id).catch(() => null);
@@ -223,6 +241,9 @@ export default function AnalyzingScreen() {
     void initialize();
     return () => {
       mounted = false;
+      mountedRef.current = false;
+      availabilityUnsubscribeRef.current?.();
+      availabilityUnsubscribeRef.current = null;
       const activeOperation = activeOperationRef.current;
       if (activeOperation) void appAnalysisOperationOwner.leave(activeOperation);
     };

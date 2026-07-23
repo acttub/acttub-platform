@@ -22,8 +22,10 @@ let loaded = false;
 let authSessionEpoch = 0;
 
 type Listener = () => void;
+type UserListener = (user: AuthUser) => void;
 const clearedListeners = new Set<Listener>();
 const consentRequiredListeners = new Set<Listener>();
+const storedUserChangedListeners = new Set<UserListener>();
 
 /** 토큰이 비워졌을 때(로그아웃·세션 만료) 호출된다. 구독 해제 함수를 반환. */
 export function onTokensCleared(fn: Listener): () => void {
@@ -35,6 +37,12 @@ export function onTokensCleared(fn: Listener): () => void {
 export function onConsentRequired(fn: Listener): () => void {
   consentRequiredListeners.add(fn);
   return () => consentRequiredListeners.delete(fn);
+}
+
+/** refresh가 legacy principal을 교정했을 때 인증 컨텍스트에 새 user를 알린다. */
+export function onStoredUserChanged(fn: UserListener): () => void {
+  storedUserChangedListeners.add(fn);
+  return () => storedUserChangedListeners.delete(fn);
 }
 
 export function emitConsentRequired(): void {
@@ -82,12 +90,17 @@ export async function setTokens(
 ): Promise<void> {
   const nextUser = user ?? authUser;
   if (!nextUser) throw new Error('사용자 정보 없이 인증 credential을 저장할 수 없습니다.');
-  await credentialStore.save(access, refresh, nextUser);
+  const record = user
+    ? await credentialStore.save(access, refresh, nextUser)
+    : await credentialStore.saveRefreshed(access, refresh, nextUser);
+  const principalChanged = authUser?.id !== record.user.id;
   accessToken = access;
   refreshToken = refresh;
+  authUser = record.user;
   if (user) {
-    authUser = user;
     authSessionEpoch += 1;
+  } else if (principalChanged) {
+    for (const fn of storedUserChangedListeners) fn(record.user);
   }
   loaded = true;
 }

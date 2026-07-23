@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
+import { createApiRequestClient } from '../lib/api-request.ts';
+
 function createMemoryStorage(initial = {}) {
   const values = new Map(Object.entries(initial));
   return {
@@ -109,4 +111,72 @@ test('F3: React Native처럼 atob가 없어도 JWT sub를 파싱해 credential�
       delete globalThis.atob;
     }
   }
+});
+
+test('N1: 파싱 가능한 잘못된 legacy sub도 refresh 회전 후 새 principal과 토큰을 저장한다', async () => {
+  const credentials = await loadCredentialModule();
+  assert.ok(credentials, 'versioned credential store 모듈이 있어야 합니다.');
+  const wrongUserId = '11111111-1111-4111-8111-111111111111';
+  const actualUserId = '8f74bd95-43cf-4dde-90f2-6320722e5ae1';
+  const storage = createMemoryStorage({
+    [credentials.LEGACY_ACCESS_KEY]: jwtWithSubject(wrongUserId),
+    [credentials.LEGACY_REFRESH_KEY]: 'refresh-old',
+  });
+  const store = credentials.createAuthCredentialStore(storage);
+  const restored = await store.load();
+  assert.equal(restored?.user.id, wrongUserId);
+
+  let accessToken = restored.accessToken;
+  let refreshToken = restored.refreshToken;
+  let user = restored.user;
+  let protectedCalls = 0;
+  const client = createApiRequestClient({
+    baseUrl: 'https://api.test',
+    fetchImpl: async (url) => {
+      const pathname = new URL(String(url)).pathname;
+      if (pathname === '/v2/auth/refresh') {
+        return new Response(JSON.stringify({
+          access_token: jwtWithSubject(actualUserId),
+          refresh_token: 'refresh-new',
+        }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+      protectedCalls += 1;
+      return protectedCalls === 1
+        ? new Response(JSON.stringify({ detail: 'expired access' }), {
+            status: 401,
+            headers: { 'Content-Type': 'application/json' },
+          })
+        : new Response(JSON.stringify({ ok: true }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          });
+    },
+    getAccessToken: () => accessToken,
+    getRefreshToken: () => refreshToken,
+    getAuthSessionEpoch: () => 0,
+    setTokens: async (nextAccessToken, nextRefreshToken) => {
+      const saved = await store.saveRefreshed(nextAccessToken, nextRefreshToken, user);
+      accessToken = saved.accessToken;
+      refreshToken = saved.refreshToken;
+      user = saved.user;
+    },
+    clearTokens: store.clear,
+    emitConsentRequired: () => {},
+  });
+
+  assert.deepEqual(await client.request('/v2/protected'), { ok: true });
+  assert.equal(protectedCalls, 2);
+  assert.equal(accessToken, jwtWithSubject(actualUserId));
+  assert.equal(refreshToken, 'refresh-new');
+  assert.deepEqual(user, {
+    id: actualUserId,
+    email: null,
+    status: 'active',
+  });
+  const persisted = JSON.parse(storage.values.get(credentials.AUTH_CREDENTIAL_KEY));
+  assert.equal(persisted.refreshToken, 'refresh-new');
+  assert.deepEqual(persisted.user, user);
 });

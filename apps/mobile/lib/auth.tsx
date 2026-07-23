@@ -16,6 +16,7 @@ import {
   getStoredUser,
   loadTokens,
   onConsentRequired,
+  onStoredUserChanged,
   onTokensCleared,
   setTokens,
 } from '@/lib/token-store';
@@ -118,10 +119,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setConsentRequired(true);
       void refreshPendingConsents().catch(() => undefined);
     });
+    const unsubStoredUser = onStoredUserChanged(setUser);
     return () => {
       active = false;
       unsubTokens();
       unsubConsent();
+      unsubStoredUser();
     };
   }, [refreshPendingConsents]);
 

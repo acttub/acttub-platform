@@ -142,6 +142,26 @@ export function createAuthCredentialStore(storage: AuthCredentialStorage) {
     return record;
   }
 
+  async function saveRefreshed(
+    accessToken: string,
+    refreshToken: string,
+    currentUser: AuthCredentialUser,
+  ): Promise<AuthCredentialRecord> {
+    const subject = readJwtSubject(accessToken);
+    if (!subject) {
+      throw new Error('refresh credential의 사용자 정보를 확인할 수 없습니다.');
+    }
+    const refreshedUser =
+      subject === currentUser.id
+        ? currentUser
+        : {
+            id: subject,
+            email: null,
+            status: 'active' as const,
+          };
+    return save(accessToken, refreshToken, refreshedUser);
+  }
+
   async function load(): Promise<AuthCredentialRecord | null> {
     const stored = await storage.getItem(AUTH_CREDENTIAL_KEY);
     if (stored !== null) {
@@ -184,5 +204,6 @@ export function createAuthCredentialStore(storage: AuthCredentialStorage) {
     clear,
     load,
     save,
+    saveRefreshed,
   };
 }

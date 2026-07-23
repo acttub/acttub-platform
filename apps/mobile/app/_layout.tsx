@@ -1,7 +1,14 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { useFonts } from 'expo-font';
-import { Stack, useRouter, useSegments, type Href } from 'expo-router';
+import {
+  Stack,
+  useGlobalSearchParams,
+  usePathname,
+  useRouter,
+  useSegments,
+  type Href,
+} from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useRef, useState } from 'react';
@@ -12,7 +19,9 @@ import { pendingAnalysisStore } from '@/lib/analysis-storage';
 import { AuthProvider, useAuth } from '@/lib/auth';
 import {
   recoveryStatusForConsentGate,
+  resolveAnalyzingBootstrapRoute,
   resolveBootstrapStep,
+  type BootstrapRecoveryParams,
   type BootstrapRoute,
   type PendingAnalysisHandle,
 } from '@/lib/pending-analysis';
@@ -42,6 +51,11 @@ const theme = {
 function RootNavigator() {
   const { status, user, pendingConsents, consentRequired } = useAuth();
   const segments = useSegments();
+  const pathname = usePathname();
+  const {
+    recoveryKey: currentRecoveryKey,
+    sessionId: currentRecoverySessionId,
+  } = useGlobalSearchParams<BootstrapRecoveryParams>();
   const router = useRouter();
   const hasPendingConsents = consentRequired || pendingConsents.length > 0;
   const consentGateRef = useRef({
@@ -154,7 +168,6 @@ function RootNavigator() {
     const first = segments[0] as string;
     const inLogin = first === 'login';
     const inConsent = first === 'consent';
-    const inAnalyzing = first === 'analyzing';
 
     if (bootstrap.stage === 'auth-gate') {
       if (bootstrap.route === '/login' && !inLogin) {
@@ -177,15 +190,27 @@ function RootNavigator() {
       return;
     }
 
+    if (typeof bootstrap.route === 'object') {
+      if (
+        resolveAnalyzingBootstrapRoute(
+          pathname,
+          {
+            recoveryKey: currentRecoveryKey,
+            sessionId: currentRecoverySessionId,
+          },
+          bootstrap.route,
+        ) === 'replace'
+      ) {
+        router.replace(bootstrap.route as Href);
+        return;
+      }
+    } else if (inLogin || inConsent) {
+      router.replace(bootstrap.route as Href);
+    }
     completedBootstrapRef.current = {
       sessionKey,
       route: bootstrap.route,
     };
-    if (typeof bootstrap.route === 'object') {
-      if (!inAnalyzing) router.replace(bootstrap.route as Href);
-    } else if (inLogin || inConsent) {
-      router.replace(bootstrap.route as Href);
-    }
   }, [
     status,
     user,
@@ -193,6 +218,9 @@ function RootNavigator() {
     consentRequired,
     recovery,
     segments,
+    pathname,
+    currentRecoveryKey,
+    currentRecoverySessionId,
     router,
   ]);
 

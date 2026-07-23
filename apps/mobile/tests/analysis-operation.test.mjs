@@ -90,6 +90,35 @@ test('F1: 서로 다른 analyzing 화면도 앱 전역 operation owner 하나를
   }
 });
 
+test('N3: 두 analyzing 화면 mount 후 선행 owner를 leave하면 후발 화면이 operation을 획득한다', async () => {
+  const owner = createAnalysisOperationOwner({
+    now: () => 100,
+    instanceId: 'two-screens',
+  });
+  const firstScreenOperation = owner.start();
+  assert.ok(firstScreenOperation);
+
+  let secondScreenOperation = null;
+  let unsubscribe = () => {};
+  const mountSecondScreen = () => {
+    const operation = owner.start();
+    if (operation) {
+      secondScreenOperation = operation;
+      return;
+    }
+    unsubscribe = owner.onAvailable(mountSecondScreen);
+  };
+
+  mountSecondScreen();
+  assert.equal(secondScreenOperation, null);
+  assert.equal(await owner.leave(firstScreenOperation), 'cancel-local');
+  assert.ok(secondScreenOperation);
+  assert.equal(secondScreenOperation.isActive(), true);
+
+  unsubscribe();
+  await owner.leave(secondScreenOperation);
+});
+
 test('F1: upload start를 빠르게 두 번 호출해도 pending 저장과 이동은 한 번뿐이다', async () => {
   const analysisEntryModule = await import('../lib/analysis-entry.ts').catch(() => null);
   assert.ok(analysisEntryModule, 'analysis entry guard 모듈이 있어야 합니다.');
