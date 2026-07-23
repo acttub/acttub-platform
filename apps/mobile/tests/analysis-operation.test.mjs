@@ -11,6 +11,7 @@ import {
   runAnalysisPipeline,
 } from '../lib/analysis-operation.ts';
 import * as analysisOperationModule from '../lib/analysis-operation.ts';
+import { startCancellableCompression } from '../lib/cancellable-transfer.ts';
 
 function uploadInput() {
   return {
@@ -117,6 +118,144 @@ test('N3: 두 analyzing 화면 mount 후 선행 owner를 leave하면 후발 화�
 
   unsubscribe();
   await owner.leave(secondScreenOperation);
+});
+
+test('R3: pre-session native 취소가 끝나기 전에는 availability listener가 operation을 획득하지 못한다', async () => {
+  const owner = createAnalysisOperationOwner({
+    now: () => 100,
+    instanceId: 'release-order',
+  });
+  const firstOperation = owner.start();
+  assert.ok(firstOperation);
+
+  let resolveCancel;
+  let markCancelStarted;
+  const cancelStarted = new Promise((resolve) => {
+    markCancelStarted = resolve;
+  });
+  firstOperation.attachCompressionCancel(() => {
+    markCancelStarted();
+    return new Promise((resolve) => {
+      resolveCancel = resolve;
+    });
+  });
+
+  let nextOperation = null;
+  const unsubscribe = owner.onAvailable(() => {
+    nextOperation = owner.start();
+  });
+  const leaving = owner.leave(firstOperation);
+  await cancelStarted;
+
+  try {
+    assert.equal(firstOperation.isActive(), false);
+    assert.equal(nextOperation, null);
+    assert.equal(owner.start(), null);
+  } finally {
+    resolveCancel();
+    await leaving;
+    unsubscribe();
+  }
+
+  assert.ok(nextOperation);
+  assert.equal(nextOperation.isActive(), true);
+  await owner.leave(nextOperation);
+});
+
+test('R3: cancellation id가 늦게 와도 native compression 취소 완료 전에는 owner를 넘기지 않는다', async () => {
+  const owner = createAnalysisOperationOwner({
+    now: () => 100,
+    instanceId: 'late-native-cancel',
+  });
+  const operation = owner.start();
+  assert.ok(operation);
+
+  let revealCancellationId;
+  const cancellationIdReady = new Promise((resolve) => {
+    revealCancellationId = resolve;
+  });
+  let markNativeCancelStarted;
+  const nativeCancelStarted = new Promise((resolve) => {
+    markNativeCancelStarted = resolve;
+  });
+  let finishNativeCancel;
+  const nativeCancelFinished = new Promise((resolve) => {
+    finishNativeCancel = resolve;
+  });
+  let finishCompression;
+  const compressionFinished = new Promise((resolve) => {
+    finishCompression = resolve;
+  });
+  let nativeFinished = false;
+  const compression = startCancellableCompression({
+    originalUri: 'file:///original.mov',
+    run: async (onCancellationId) => {
+      await cancellationIdReady;
+      onCancellationId('late-compression-id');
+      return compressionFinished;
+    },
+    cancelNative: async () => {
+      markNativeCancelStarted();
+      await nativeCancelFinished;
+      nativeFinished = true;
+    },
+    removeOutput: async () => {},
+  });
+  operation.attachCompressionCancel(compression.cancel);
+
+  let nextOperation = null;
+  const unsubscribe = owner.onAvailable(() => {
+    nextOperation = owner.start();
+  });
+  let leaveSettled = false;
+  const leaving = owner.leave(operation).then((mode) => {
+    leaveSettled = true;
+    return mode;
+  });
+  await new Promise((resolve) => setImmediate(resolve));
+
+  try {
+    assert.equal(leaveSettled, false);
+    assert.equal(nextOperation, null);
+    revealCancellationId();
+    await nativeCancelStarted;
+    assert.equal(nativeFinished, false);
+    assert.equal(leaveSettled, false);
+    assert.equal(nextOperation, null);
+  } finally {
+    revealCancellationId();
+    finishNativeCancel();
+    finishCompression({ uri: 'file:///partial-compressed.mp4' });
+    await leaving.catch(() => undefined);
+    await compression.result.catch(() => undefined);
+    unsubscribe();
+  }
+
+  assert.ok(nextOperation);
+  assert.equal(nextOperation.isActive(), true);
+  await owner.leave(nextOperation);
+});
+
+test('R3: local cancel callback이 동기 예외를 던져도 owner는 releasing에서 복구된다', async () => {
+  const owner = createAnalysisOperationOwner({
+    now: () => 100,
+    instanceId: 'sync-cancel-throw',
+  });
+  const operation = owner.start();
+  assert.ok(operation);
+  operation.attachCompressionCancel(() => {
+    throw new Error('native cancel sync failure');
+  });
+
+  let nextOperation = null;
+  const unsubscribe = owner.onAvailable(() => {
+    nextOperation = owner.start();
+  });
+
+  assert.equal(await owner.leave(operation), 'cancel-local');
+  assert.ok(nextOperation);
+  unsubscribe();
+  await owner.leave(nextOperation);
 });
 
 test('F1: upload start를 빠르게 두 번 호출해도 pending 저장과 이동은 한 번뿐이다', async () => {

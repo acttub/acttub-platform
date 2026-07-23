@@ -26,11 +26,13 @@ function createTokenState() {
       setCalls += 1;
       access = nextAccess;
       refresh = nextRefresh;
+      return 'refreshed';
     },
     clearTokens: async () => {
       clearCalls += 1;
       access = null;
       refresh = null;
+      return true;
     },
     snapshot: () => ({ access, refresh, clearCalls, setCalls }),
   };
@@ -140,6 +142,7 @@ test('F2: invalid refresh로 현재 세션을 지운 caller는 session_changed�
     clearTokens: async () => {
       authSessionEpoch += 1;
       await tokenState.clearTokens();
+      return true;
     },
   });
 
@@ -281,6 +284,87 @@ test('F2: shared refresh 중 auth session이 바뀌면 기존 mutation을 새 �
   assert.deepEqual(protectedAuthorizations, ['Bearer access-old']);
   assert.equal(tokenState.snapshot().access, 'access-b');
   assert.equal(tokenState.snapshot().refresh, 'refresh-b');
+});
+
+test('R1: refresh가 principal을 교정하면 기존 mutation을 새 principal token으로 재전송하지 않는다', async () => {
+  let accessToken = 'access-a';
+  let refreshToken = 'refresh-a';
+  const protectedAuthorizations = [];
+  const client = createApiRequestClient({
+    baseUrl: 'https://api.test',
+    fetchImpl: async (url, init) => {
+      const path = new URL(String(url)).pathname;
+      if (path === '/v2/auth/refresh') {
+        return jsonResponse({
+          access_token: 'access-b',
+          refresh_token: 'refresh-b',
+        });
+      }
+      protectedAuthorizations.push(new Headers(init.headers).get('Authorization'));
+      return protectedAuthorizations.length === 1
+        ? jsonResponse({ detail: 'expired access' }, 401)
+        : jsonResponse({ ok: true });
+    },
+    getAccessToken: () => accessToken,
+    getRefreshToken: () => refreshToken,
+    getAuthSessionEpoch: () => 7,
+    setTokens: async (nextAccessToken, nextRefreshToken) => {
+      accessToken = nextAccessToken;
+      refreshToken = nextRefreshToken;
+      return 'principal_changed';
+    },
+    clearTokens: async () => true,
+    emitConsentRequired: () => {},
+  });
+
+  await assert.rejects(
+    client.request(
+      '/v2/consents',
+      {
+        method: 'POST',
+        body: JSON.stringify({ document_id: 'terms-a', action: 'granted' }),
+      },
+    ),
+    (error) => error instanceof ApiError && error.code === 'session_changed',
+  );
+  assert.deepEqual(protectedAuthorizations, ['Bearer access-a']);
+});
+
+test('R2: 같은 epoch의 선행 token rotation이 invalid refresh clear를 이기면 새 token으로 재시도한다', async () => {
+  let authSessionEpoch = 3;
+  const tokenState = createTokenState();
+  const protectedAuthorizations = [];
+  const { client } = createClient(async (url, init) => {
+    const path = new URL(String(url)).pathname;
+    if (path === '/v2/auth/refresh') {
+      await tokenState.setTokens('access-rotated', 'refresh-rotated');
+      return jsonResponse({ detail: 'already rotated' }, 401);
+    }
+    protectedAuthorizations.push(new Headers(init.headers).get('Authorization'));
+    return protectedAuthorizations.length === 1
+      ? jsonResponse({ detail: 'expired access' }, 401)
+      : jsonResponse({ ok: true });
+  }, tokenState, {
+    getAuthSessionEpoch: () => authSessionEpoch,
+    clearTokens: async (expectation) => {
+      if (
+        authSessionEpoch !== expectation.authSessionEpoch ||
+        tokenState.getRefreshToken() !== expectation.refreshToken
+      ) {
+        return false;
+      }
+      authSessionEpoch += 1;
+      await tokenState.clearTokens();
+      return true;
+    },
+  });
+
+  assert.deepEqual(await client.request('/v2/protected'), { ok: true });
+  assert.deepEqual(protectedAuthorizations, [
+    'Bearer access-old',
+    'Bearer access-rotated',
+  ]);
+  assert.equal(tokenState.snapshot().clearCalls, 0);
 });
 
 test('F2: idempotent backoff 중 auth session이 바뀌면 다음 attempt를 새 계정으로 보내지 않는다', async () => {

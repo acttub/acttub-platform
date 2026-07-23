@@ -54,8 +54,14 @@ export type ApiRequestDependencies = {
   getAccessToken: () => string | null;
   getRefreshToken: () => string | null;
   getAuthSessionEpoch: () => number;
-  setTokens: (accessToken: string, refreshToken: string) => Promise<void>;
-  clearTokens: () => Promise<void>;
+  setTokens: (
+    accessToken: string,
+    refreshToken: string,
+    expectation: AuthCredentialExpectation,
+  ) => Promise<RefreshCommitResult>;
+  clearTokens: (
+    expectation: AuthCredentialExpectation,
+  ) => Promise<boolean>;
   emitConsentRequired: () => void;
   clock?: RequestClock;
   random?: () => number;
@@ -87,7 +93,18 @@ type ParsedResponse = {
 
 type RefreshResult =
   | { kind: 'refreshed' }
-  | { kind: 'invalid' };
+  | { kind: 'invalid' }
+  | { kind: 'session_changed' };
+
+export type AuthCredentialExpectation = {
+  authSessionEpoch: number;
+  refreshToken: string | null;
+};
+
+export type RefreshCommitResult =
+  | 'refreshed'
+  | 'principal_changed'
+  | 'stale';
 
 const defaultClock: RequestClock = {
   now: () => Date.now(),
@@ -237,14 +254,24 @@ export function createApiRequestClient(dependencies: ApiRequestDependencies) {
   const random = dependencies.random ?? Math.random;
   let refreshing: Promise<RefreshResult> | null = null;
 
+  function sessionChangedError(): ApiError {
+    return new ApiError(
+      401,
+      '로그인 계정이 변경되어 요청을 중단했어요. 다시 시도해주세요.',
+      'session_changed',
+    );
+  }
+
   function assertSameAuthSession(expectedEpoch: number): void {
     if (dependencies.getAuthSessionEpoch() !== expectedEpoch) {
-      throw new ApiError(
-        401,
-        '로그인 계정이 변경되어 요청을 중단했어요. 다시 시도해주세요.',
-        'session_changed',
-      );
+      throw sessionChangedError();
     }
+  }
+
+  function supersededRefreshResult(expectedEpoch: number): RefreshResult {
+    return dependencies.getAuthSessionEpoch() === expectedEpoch
+      ? { kind: 'refreshed' }
+      : { kind: 'session_changed' };
   }
 
   async function fetchParsed(
@@ -296,10 +323,17 @@ export function createApiRequestClient(dependencies: ApiRequestDependencies) {
     ) {
       return { kind: 'refreshed' };
     }
+    const expectedEpoch = dependencies.getAuthSessionEpoch();
     const refreshToken = dependencies.getRefreshToken();
+    const expectation: AuthCredentialExpectation = {
+      authSessionEpoch: expectedEpoch,
+      refreshToken,
+    };
     if (!refreshToken) {
-      await dependencies.clearTokens();
-      return { kind: 'invalid' };
+      const cleared = await dependencies.clearTokens(expectation);
+      return cleared === false
+        ? supersededRefreshResult(expectedEpoch)
+        : { kind: 'invalid' };
     }
 
     const { response, payload } = await fetchParsed(
@@ -312,20 +346,29 @@ export function createApiRequestClient(dependencies: ApiRequestDependencies) {
       { auth: false, timeoutMs: 30_000 },
     );
     if (response.status === 401 || response.status === 422) {
-      if (dependencies.getRefreshToken() === refreshToken) {
-        await dependencies.clearTokens();
-        return { kind: 'invalid' };
-      }
-      return { kind: 'refreshed' };
+      const cleared = await dependencies.clearTokens(expectation);
+      return cleared === false
+        ? supersededRefreshResult(expectedEpoch)
+        : { kind: 'invalid' };
     }
     if (!response.ok) throw toApiError(response.status, payload);
     const tokens = payload as {
       access_token: string;
       refresh_token: string;
     };
-    if (dependencies.getRefreshToken() === refreshToken) {
-      await dependencies.setTokens(tokens.access_token, tokens.refresh_token);
+    if (dependencies.getAuthSessionEpoch() !== expectedEpoch) {
+      return { kind: 'session_changed' };
     }
+    if (dependencies.getRefreshToken() !== refreshToken) return { kind: 'refreshed' };
+    const commit = await dependencies.setTokens(
+      tokens.access_token,
+      tokens.refresh_token,
+      expectation,
+    );
+    if (commit === 'principal_changed') {
+      return { kind: 'session_changed' };
+    }
+    if (commit === 'stale') return supersededRefreshResult(expectedEpoch);
     return { kind: 'refreshed' };
   }
 
@@ -372,6 +415,7 @@ export function createApiRequestClient(dependencies: ApiRequestDependencies) {
       if (refresh.kind === 'invalid') {
         throw new ApiError(401, '로그인이 만료됐어요. 다시 로그인해주세요.', 'unauthorized');
       }
+      if (refresh.kind === 'session_changed') throw sessionChangedError();
       assertSameAuthSession(authSessionEpoch!);
       return request<T>(path, init, options, true, authSessionEpoch!);
     }

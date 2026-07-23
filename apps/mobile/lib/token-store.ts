@@ -2,6 +2,11 @@ import * as SecureStore from 'expo-secure-store';
 
 import { createAuthCredentialStore } from '@/lib/auth-credentials';
 import type { AuthUser } from '@/lib/api';
+import {
+  createCredentialMutationQueue,
+  type CredentialExpectation,
+  type RefreshCommitResult,
+} from '@/lib/credential-mutation-queue';
 
 /**
  * v2 인증 토큰(JWT) 저장소.
@@ -9,28 +14,21 @@ import type { AuthUser } from '@/lib/api';
  * 토큰이 비워질 때(로그아웃·refresh 실패) 구독자에게 알려 로그인 화면으로 게이트한다.
  */
 
-const credentialStore = createAuthCredentialStore({
-  getItem: (key) => SecureStore.getItemAsync(key),
-  setItem: (key, value) => SecureStore.setItemAsync(key, value),
-  deleteItem: (key) => SecureStore.deleteItemAsync(key),
-});
-
-let accessToken: string | null = null;
-let refreshToken: string | null = null;
-let authUser: AuthUser | null = null;
-let loaded = false;
-let authSessionEpoch = 0;
+const credentialMutationQueue = createCredentialMutationQueue(
+  createAuthCredentialStore({
+    getItem: (key) => SecureStore.getItemAsync(key),
+    setItem: (key, value) => SecureStore.setItemAsync(key, value),
+    deleteItem: (key) => SecureStore.deleteItemAsync(key),
+  }),
+);
 
 type Listener = () => void;
 type UserListener = (user: AuthUser) => void;
-const clearedListeners = new Set<Listener>();
 const consentRequiredListeners = new Set<Listener>();
-const storedUserChangedListeners = new Set<UserListener>();
 
 /** 토큰이 비워졌을 때(로그아웃·세션 만료) 호출된다. 구독 해제 함수를 반환. */
 export function onTokensCleared(fn: Listener): () => void {
-  clearedListeners.add(fn);
-  return () => clearedListeners.delete(fn);
+  return credentialMutationQueue.onTokensCleared(fn);
 }
 
 /** 보호 API가 필수 동의를 요구할 때 호출된다. 구독 해제 함수를 반환. */
@@ -41,8 +39,7 @@ export function onConsentRequired(fn: Listener): () => void {
 
 /** refresh가 legacy principal을 교정했을 때 인증 컨텍스트에 새 user를 알린다. */
 export function onStoredUserChanged(fn: UserListener): () => void {
-  storedUserChangedListeners.add(fn);
-  return () => storedUserChangedListeners.delete(fn);
+  return credentialMutationQueue.onStoredUserChanged(fn);
 }
 
 export function emitConsentRequired(): void {
@@ -51,70 +48,48 @@ export function emitConsentRequired(): void {
 
 /** 앱 시작 시 저장된 토큰을 메모리로 로드한다 (1회). */
 export async function loadTokens(): Promise<boolean> {
-  if (loaded) return accessToken !== null && refreshToken !== null && authUser !== null;
-  try {
-    const credentials = await credentialStore.load();
-    accessToken = credentials?.accessToken ?? null;
-    refreshToken = credentials?.refreshToken ?? null;
-    authUser = credentials?.user ?? null;
-  } catch {
-    accessToken = null;
-    refreshToken = null;
-    authUser = null;
-  }
-  loaded = true;
-  return accessToken !== null && refreshToken !== null && authUser !== null;
+  return credentialMutationQueue.loadTokens();
 }
 
 export function getAccessToken(): string | null {
-  return accessToken;
+  return credentialMutationQueue.getAccessToken();
 }
 
 export function getRefreshToken(): string | null {
-  return refreshToken;
+  return credentialMutationQueue.getRefreshToken();
 }
 
 export function getStoredUser(): AuthUser | null {
-  return authUser;
+  return credentialMutationQueue.getStoredUser();
 }
 
 /** 로그인·로그아웃 경계를 나타낸다. refresh token rotation에서는 바뀌지 않는다. */
 export function getAuthSessionEpoch(): number {
-  return authSessionEpoch;
+  return credentialMutationQueue.getAuthSessionEpoch();
 }
 
 export async function setTokens(
   access: string,
   refresh: string,
-  user?: AuthUser,
-): Promise<void> {
-  const nextUser = user ?? authUser;
-  if (!nextUser) throw new Error('사용자 정보 없이 인증 credential을 저장할 수 없습니다.');
-  const record = user
-    ? await credentialStore.save(access, refresh, nextUser)
-    : await credentialStore.saveRefreshed(access, refresh, nextUser);
-  const principalChanged = authUser?.id !== record.user.id;
-  accessToken = access;
-  refreshToken = refresh;
-  authUser = record.user;
-  if (user) {
-    authSessionEpoch += 1;
-  } else if (principalChanged) {
-    for (const fn of storedUserChangedListeners) fn(record.user);
-  }
-  loaded = true;
+  user: AuthUser,
+): Promise<boolean> {
+  return credentialMutationQueue.setLoginTokens(access, refresh, user);
+}
+
+export async function commitRefreshedTokens(
+  access: string,
+  refresh: string,
+  expectation: CredentialExpectation,
+): Promise<RefreshCommitResult> {
+  return credentialMutationQueue.commitRefresh(access, refresh, expectation);
 }
 
 export async function clearTokens(): Promise<void> {
-  accessToken = null;
-  refreshToken = null;
-  authUser = null;
-  loaded = true;
-  authSessionEpoch += 1;
-  try {
-    await credentialStore.clear();
-  } catch {
-    // 삭제 실패해도 메모리는 이미 비웠으니 로그아웃으로 간주
-  }
-  for (const fn of clearedListeners) fn();
+  await credentialMutationQueue.clearTokens();
+}
+
+export async function clearTokensIfCurrent(
+  expectation: CredentialExpectation,
+): Promise<boolean> {
+  return credentialMutationQueue.clearTokensIfCurrent(expectation);
 }

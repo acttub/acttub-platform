@@ -17,43 +17,70 @@ export function startCancellableCompression<T extends { uri: string }>(
 } {
   let cancelled = false;
   let cancellationId: string | null = null;
-  const cancelledIds = new Set<string>();
+  let runSettled = false;
+  let resolveCancellationId: (id: string) => void;
+  const cancellationIdReady = new Promise<string>((resolve) => {
+    resolveCancellationId = resolve;
+  });
+  const nativeCancellations = new Map<string, Promise<void>>();
 
-  const cancelId = async (id: string): Promise<void> => {
-    if (cancelledIds.has(id)) return;
-    cancelledIds.add(id);
-    try {
-      await dependencies.cancelNative(id);
-    } catch {
-      // native task가 이미 끝난 race여도 local cancellation 상태는 유지한다.
-    }
+  const cancelId = (id: string): Promise<void> => {
+    const existing = nativeCancellations.get(id);
+    if (existing) return existing;
+    const pending = (async () => {
+      try {
+        await dependencies.cancelNative(id);
+      } catch {
+        // native task가 이미 끝난 race여도 local cancellation 상태는 유지한다.
+      }
+    })();
+    nativeCancellations.set(id, pending);
+    return pending;
   };
 
   const onCancellationId = (id: string) => {
     cancellationId = id;
+    resolveCancellationId(id);
     if (cancelled) void cancelId(id);
   };
 
   const result = (async (): Promise<CancellableCompressionResult<T>> => {
-    let value: T;
     try {
-      value = await dependencies.run(onCancellationId);
-    } catch (error) {
-      if (cancelled) return { kind: 'cancelled' };
-      throw error;
+      let value: T;
+      try {
+        value = await dependencies.run(onCancellationId);
+      } catch (error) {
+        if (cancelled) return { kind: 'cancelled' };
+        throw error;
+      }
+      if (!cancelled) return { kind: 'completed', value };
+      if (value.uri !== dependencies.originalUri) {
+        await dependencies.removeOutput(value.uri).catch(() => undefined);
+      }
+      return { kind: 'cancelled' };
+    } finally {
+      runSettled = true;
     }
-    if (!cancelled) return { kind: 'completed', value };
-    if (value.uri !== dependencies.originalUri) {
-      await dependencies.removeOutput(value.uri).catch(() => undefined);
-    }
-    return { kind: 'cancelled' };
   })();
+  const resultSettled = result.then(
+    () => undefined,
+    () => undefined,
+  );
 
   return {
     result,
     cancel: async () => {
       cancelled = true;
-      if (cancellationId) await cancelId(cancellationId);
+      if (runSettled) return;
+      if (cancellationId) {
+        await cancelId(cancellationId);
+        return;
+      }
+      const outcome = await Promise.race([
+        cancellationIdReady.then((id) => ({ kind: 'id' as const, id })),
+        resultSettled.then(() => ({ kind: 'settled' as const })),
+      ]);
+      if (outcome.kind === 'id') await cancelId(outcome.id);
     },
   };
 }

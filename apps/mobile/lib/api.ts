@@ -4,12 +4,12 @@ import {
 } from 'expo-file-system/legacy';
 
 import {
-  clearTokens,
+  clearTokensIfCurrent,
+  commitRefreshedTokens,
   emitConsentRequired,
   getAccessToken,
   getAuthSessionEpoch,
   getRefreshToken,
-  setTokens,
 } from '@/lib/token-store';
 import {
   ApiError,
@@ -37,8 +37,8 @@ const requestClient = createApiRequestClient({
   getAccessToken,
   getRefreshToken,
   getAuthSessionEpoch,
-  setTokens,
-  clearTokens,
+  setTokens: commitRefreshedTokens,
+  clearTokens: clearTokensIfCurrent,
   emitConsentRequired,
 });
 

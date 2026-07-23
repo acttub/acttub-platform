@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { createApiRequestClient } from '../lib/api-request.ts';
+import { ApiError, createApiRequestClient } from '../lib/api-request.ts';
 
 function createMemoryStorage(initial = {}) {
   const values = new Map(Object.entries(initial));
@@ -158,17 +158,25 @@ test('N1: 파싱 가능한 잘못된 legacy sub도 refresh 회전 후 새 princi
     getRefreshToken: () => refreshToken,
     getAuthSessionEpoch: () => 0,
     setTokens: async (nextAccessToken, nextRefreshToken) => {
+      const previousUserId = user.id;
       const saved = await store.saveRefreshed(nextAccessToken, nextRefreshToken, user);
       accessToken = saved.accessToken;
       refreshToken = saved.refreshToken;
       user = saved.user;
+      return saved.user.id === previousUserId ? 'refreshed' : 'principal_changed';
     },
-    clearTokens: store.clear,
+    clearTokens: async () => {
+      await store.clear();
+      return true;
+    },
     emitConsentRequired: () => {},
   });
 
-  assert.deepEqual(await client.request('/v2/protected'), { ok: true });
-  assert.equal(protectedCalls, 2);
+  await assert.rejects(
+    client.request('/v2/protected'),
+    (error) => error instanceof ApiError && error.code === 'session_changed',
+  );
+  assert.equal(protectedCalls, 1);
   assert.equal(accessToken, jwtWithSubject(actualUserId));
   assert.equal(refreshToken, 'refresh-new');
   assert.deepEqual(user, {

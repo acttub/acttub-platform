@@ -127,7 +127,13 @@ export class AnalysisOperation {
     );
     this.compressionCancel = null;
     this.uploadCancel = null;
-    await Promise.all(resources.map((cancel) => Promise.resolve(cancel()).catch(() => undefined)));
+    await Promise.all(
+      resources.map((cancel) =>
+        Promise.resolve()
+          .then(cancel)
+          .catch(() => undefined),
+      ),
+    );
   }
 }
 
@@ -138,6 +144,7 @@ export type AnalysisOperationOwnerOptions = {
 
 export class AnalysisOperationOwner {
   private active: AnalysisOperation | null = null;
+  private releasing: AnalysisOperation | null = null;
   private readonly availabilityListeners = new Set<() => void>();
   private generation = 0;
   private readonly now: () => number;
@@ -151,7 +158,7 @@ export class AnalysisOperationOwner {
   }
 
   start(): AnalysisOperation | null {
-    if (this.active) return null;
+    if (this.active || this.releasing) return null;
     this.generation += 1;
     const timestamp = String(this.now()).padStart(16, '0');
     const generation = String(this.generation).padStart(10, '0');
@@ -166,7 +173,7 @@ export class AnalysisOperationOwner {
   }
 
   onAvailable(listener: () => void): () => void {
-    if (!this.active) {
+    if (!this.active && !this.releasing) {
       let subscribed = true;
       void Promise.resolve().then(() => {
         if (subscribed) listener();
@@ -195,9 +202,16 @@ export class AnalysisOperationOwner {
     if (this.active !== operation) return null;
     const mode = operation.cancellationMode();
     this.active = null;
+    this.releasing = operation;
     operation.deactivate();
-    this.notifyAvailable();
-    if (mode === 'cancel-local') await operation.cancelLocalResources();
+    try {
+      if (mode === 'cancel-local') await operation.cancelLocalResources();
+    } finally {
+      if (this.releasing === operation) {
+        this.releasing = null;
+        this.notifyAvailable();
+      }
+    }
     return mode;
   }
 }

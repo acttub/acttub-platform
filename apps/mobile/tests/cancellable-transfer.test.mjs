@@ -21,8 +21,9 @@ test('M7: compressor cancellation id가 늦게 도착해도 해당 uuid를 취�
     removeOutput: async () => {},
   });
 
-  await task.cancel();
+  const cancelling = task.cancel();
   provideCancellationId('compress-uuid-1');
+  await cancelling;
   resolveCompression({ uri: 'file:///compressed.mp4' });
 
   assert.deepEqual(await task.result, { kind: 'cancelled' });

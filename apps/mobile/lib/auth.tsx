@@ -119,7 +119,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setConsentRequired(true);
       void refreshPendingConsents().catch(() => undefined);
     });
-    const unsubStoredUser = onStoredUserChanged(setUser);
+    const unsubStoredUser = onStoredUserChanged((nextUser) => {
+      setUser(nextUser);
+      setPendingConsents([]);
+      setConsentRequired(true);
+      setStatus('signedIn');
+      void refreshPendingConsents().catch(() => undefined);
+    });
     return () => {
       active = false;
       unsubTokens();
@@ -137,7 +143,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         (pair.pending_consents ?? []).map((c) => `${c.type}${c.required ? '(필수)' : ''}`),
       );
     }
-    await setTokens(pair.access_token, pair.refresh_token, pair.user);
+    const committed = await setTokens(pair.access_token, pair.refresh_token, pair.user);
+    if (!committed) return;
     setUser(pair.user);
     setPendingConsents(pair.pending_consents ?? []);
     setConsentRequired(false);
