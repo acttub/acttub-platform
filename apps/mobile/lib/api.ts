@@ -10,6 +10,10 @@ import {
   getRefreshToken,
   setTokens,
 } from '@/lib/token-store';
+import {
+  sendUploadIntent,
+  type UploadIntentInput,
+} from '@/lib/upload-input';
 
 /**
  * acttub v2 API (https://dev.acttub.com).
@@ -130,7 +134,7 @@ export type SessionStatus = 'created' | 'analyzing' | 'analyzed' | 'failed';
 export type PracticeSessionCreate = {
   session_id: string;
   status: SessionStatus;
-  summary_id: string | null;
+  summary_id?: string | null;
 };
 
 export type PracticeSessionListItem = {
@@ -151,9 +155,9 @@ export type PracticeSessionDetail = {
   subtext: string;
   created_at: string;
   updated_at: string;
-  playback_url: string;
-  summary: SceneSummary | null;
-  error_code:
+  playback_url?: string;
+  summary?: SceneSummary | null;
+  error_code?:
     | 'gemini_timeout'
     | 'gemini_parse_error'
     | 'unsupported_media'
@@ -360,15 +364,21 @@ export const api = {
   },
 
   // 업로드 ---------------------------------------------------------------------
-  createUploadIntent(input: {
-    mime_type: string;
-    size_bytes: number;
-    duration_ms?: number | null;
-  }): Promise<UploadIntent> {
-    return request<UploadIntent>('/v2/uploads/intents', jsonInit(input), {
-      requestId: true,
-      timeoutMs: 30_000,
-    });
+  createUploadIntent(input: UploadIntentInput): Promise<UploadIntent> {
+    return sendUploadIntent(input, (body) =>
+      request<UploadIntent>(
+        '/v2/uploads/intents',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body,
+        },
+        {
+          requestId: true,
+          timeoutMs: 30_000,
+        },
+      ),
+    );
   },
 
   /** presigned URL에 파일 바이트를 그대로 PUT (우리 API가 아니라 스토리지로 직접). */
@@ -383,7 +393,7 @@ export const api = {
     }
   },
 
-  completeUpload(intentId: string): Promise<{ intent_id: string; status: string }> {
+  completeUpload(intentId: string): Promise<{ intent_id: string; status: 'finalized' }> {
     return request(
       `/v2/uploads/intents/${encodeURIComponent(intentId)}/complete`,
       { method: 'POST' },

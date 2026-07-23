@@ -16,6 +16,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import type { VideoFile } from '@/lib/api';
 import { setPendingUpload, takePrefill } from '@/lib/practice';
+import {
+  MAX_VIDEO_DURATION_MS,
+  normalizeVideoDurationMs,
+} from '@/lib/upload-input';
 import { palette } from '@/constants/palette';
 
 /**
@@ -43,8 +47,6 @@ export default function UploadScreen() {
     setSubtext(p.subtext);
   }, []);
 
-  // 압축(lib/compress)이 목표 크기로 줄이므로 실질 제약은 길이 — 5분 내외(+30초 여유).
-  const MAX_DURATION_SEC = 330;
   const MAX_RAW_MB = 4096;
 
   const pickVideo = async () => {
@@ -56,8 +58,9 @@ export default function UploadScreen() {
     });
     if (result.canceled || !result.assets[0]) return;
     const asset = result.assets[0];
-    const durationSec = asset.duration ? asset.duration / 1000 : null;
-    if (durationSec !== null && durationSec > MAX_DURATION_SEC) {
+    const normalizedDurationMs = normalizeVideoDurationMs(asset.duration);
+    if (normalizedDurationMs !== null && normalizedDurationMs > MAX_VIDEO_DURATION_MS) {
+      const durationSec = normalizedDurationMs / 1000;
       const min = Math.floor(durationSec / 60);
       const sec = Math.round(durationSec % 60);
       setVideoError(`영상이 ${min}분 ${sec}초예요. 5분 이내로 잘라서 올려주세요.`);
@@ -68,7 +71,7 @@ export default function UploadScreen() {
       setVideoError(`영상이 ${Math.round(sizeMb / 1024)}GB예요. 너무 커서 기기에서 처리할 수 없어요.`);
       return;
     }
-    setDurationMs(asset.duration ?? null);
+    setDurationMs(normalizedDurationMs);
     setVideo({
       uri: asset.uri,
       name: asset.fileName ?? 'video.mp4',
