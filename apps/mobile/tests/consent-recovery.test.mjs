@@ -34,6 +34,7 @@ test('API client는 403 body를 한 번 읽고 consent_required를 emit한다', 
     }),
     getAccessToken: () => 'access',
     getRefreshToken: () => 'refresh',
+    getAuthSessionEpoch: () => 0,
     setTokens: async () => {},
     clearTokens: async () => {},
     emitConsentRequired: () => {

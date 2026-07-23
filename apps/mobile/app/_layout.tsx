@@ -11,7 +11,9 @@ import { logScreenView } from '@/lib/analytics';
 import { pendingAnalysisStore } from '@/lib/analysis-storage';
 import { AuthProvider, useAuth } from '@/lib/auth';
 import {
-  decideBootstrapRoute,
+  recoveryStatusForConsentGate,
+  resolveBootstrapStep,
+  type BootstrapRoute,
   type PendingAnalysisHandle,
 } from '@/lib/pending-analysis';
 import { palette } from '@/constants/palette';
@@ -41,80 +43,149 @@ function RootNavigator() {
   const { status, user, pendingConsents, consentRequired } = useAuth();
   const segments = useSegments();
   const router = useRouter();
-  const bootstrappedSessionRef = useRef<string | null>(null);
+  const hasPendingConsents = consentRequired || pendingConsents.length > 0;
+  const consentGateRef = useRef({
+    active: hasPendingConsents,
+    generation: 0,
+  });
+  if (consentGateRef.current.active !== hasPendingConsents) {
+    consentGateRef.current = {
+      active: hasPendingConsents,
+      generation: consentGateRef.current.generation + 1,
+    };
+  }
+  const consentGate = consentGateRef.current.generation;
+  const completedBootstrapRef = useRef<{
+    sessionKey: string;
+    route: BootstrapRoute;
+  } | null>(null);
   const [recovery, setRecovery] = useState<{
     status: 'loading' | 'ready';
     owner: string | null;
+    consentGate: number | null;
     pending: PendingAnalysisHandle | null;
-  }>({ status: 'loading', owner: null, pending: null });
+  }>({
+    status: 'loading',
+    owner: null,
+    consentGate: null,
+    pending: null,
+  });
 
   useEffect(() => {
     let active = true;
     if (status === 'loading') {
-      setRecovery({ status: 'loading', owner: null, pending: null });
+      setRecovery({
+        status: 'loading',
+        owner: null,
+        consentGate: null,
+        pending: null,
+      });
       return () => {
         active = false;
       };
     }
     if (status === 'signedOut' || !user) {
-      setRecovery({ status: 'ready', owner: null, pending: null });
+      setRecovery({
+        status: 'ready',
+        owner: null,
+        consentGate,
+        pending: null,
+      });
       return () => {
         active = false;
       };
     }
-    setRecovery({ status: 'loading', owner: user.id, pending: null });
+    setRecovery({
+      status: 'loading',
+      owner: user.id,
+      consentGate,
+      pending: null,
+    });
     void pendingAnalysisStore
       .loadForOwner(user.id)
       .then((pending) => {
-        if (active) setRecovery({ status: 'ready', owner: user.id, pending });
+        if (active) {
+          setRecovery({
+            status: 'ready',
+            owner: user.id,
+            consentGate,
+            pending,
+          });
+        }
       })
       .catch(() => {
-        if (active) setRecovery({ status: 'ready', owner: user.id, pending: null });
+        if (active) {
+          setRecovery({
+            status: 'ready',
+            owner: user.id,
+            consentGate,
+            pending: null,
+          });
+        }
       });
     return () => {
       active = false;
     };
-  }, [status, user]);
+  }, [status, user, consentGate]);
 
   useEffect(() => {
-    if (status === 'loading' || recovery.status === 'loading') return;
-    const sessionKey = status === 'signedIn' ? `signedIn:${user?.id ?? ''}` : 'signedOut';
+    const bootstrap = resolveBootstrapStep({
+      authStatus: status,
+      userId: user?.id ?? null,
+      hasPendingConsents,
+      recoveryStatus: recoveryStatusForConsentGate(recovery, consentGate),
+      recoveryOwner: recovery.owner,
+      pending: recovery.pending,
+    });
+    const sessionKey =
+      status === 'signedIn' && user
+        ? `signedIn:${user.id}`
+        : status === 'signedOut'
+          ? 'signedOut'
+          : null;
+    if (
+      completedBootstrapRef.current &&
+      completedBootstrapRef.current.sessionKey !== sessionKey
+    ) {
+      completedBootstrapRef.current = null;
+    }
+
     // /login·/consent는 typedRoutes가 다음 dev 서버 실행 때 인식 — 그전까지 캐스트로 처리.
     const first = segments[0] as string;
     const inLogin = first === 'login';
     const inConsent = first === 'consent';
     const inAnalyzing = first === 'analyzing';
 
-    if (bootstrappedSessionRef.current !== sessionKey) {
-      const initialRoute = decideBootstrapRoute({
-        authStatus: status,
-        hasPendingConsents: consentRequired || pendingConsents.length > 0,
-        recoveryStatus: recovery.status,
-        pending: recovery.pending,
-      });
-      if (!initialRoute) return;
-      bootstrappedSessionRef.current = sessionKey;
-      if (typeof initialRoute === 'object') {
-        if (!inAnalyzing) router.replace(initialRoute as Href);
-      } else if (initialRoute === '/login') {
-        if (!inLogin) router.replace(initialRoute as Href);
-      } else if (initialRoute === '/consent') {
-        if (!inConsent) router.replace(initialRoute as Href);
-      } else if (inLogin || inConsent) {
-        router.replace(initialRoute as Href);
+    if (bootstrap.stage === 'auth-gate') {
+      if (bootstrap.route === '/login' && !inLogin) {
+        router.replace('/login' as Href);
       }
       return;
     }
-
-    if (status === 'signedOut') {
-      if (!inLogin) router.replace('/login' as Href);
-      return;
-    }
-    if (consentRequired || pendingConsents.length > 0) {
+    if (bootstrap.stage === 'consent-gate') {
+      completedBootstrapRef.current = null;
       if (!inConsent) router.replace('/consent' as Href);
       return;
     }
-    if (inLogin || inConsent) router.replace('/(tabs)');
+    if (bootstrap.stage === 'pending-recovery' || !bootstrap.route || !sessionKey) {
+      return;
+    }
+
+    const completed = completedBootstrapRef.current;
+    if (completed?.sessionKey === sessionKey) {
+      if (inLogin || inConsent) router.replace(completed.route as Href);
+      return;
+    }
+
+    completedBootstrapRef.current = {
+      sessionKey,
+      route: bootstrap.route,
+    };
+    if (typeof bootstrap.route === 'object') {
+      if (!inAnalyzing) router.replace(bootstrap.route as Href);
+    } else if (inLogin || inConsent) {
+      router.replace(bootstrap.route as Href);
+    }
   }, [
     status,
     user,
@@ -126,10 +197,23 @@ function RootNavigator() {
   ]);
 
   useEffect(() => {
-    if (status !== 'loading' && recovery.status === 'ready') {
+    const readyToShow =
+      status === 'signedOut' ||
+      (status === 'signedIn' &&
+        Boolean(user) &&
+        (hasPendingConsents ||
+          (recovery.status === 'ready' && recovery.owner === user?.id)));
+    if (readyToShow) {
       void SplashScreen.hideAsync();
     }
-  }, [status, recovery.status]);
+  }, [
+    status,
+    user,
+    pendingConsents,
+    consentRequired,
+    recovery.status,
+    recovery.owner,
+  ]);
 
   return (
     <Stack>

@@ -10,6 +10,7 @@ import {
   readAnalyzedDetail,
   runAnalysisPipeline,
 } from '../lib/analysis-operation.ts';
+import * as analysisOperationModule from '../lib/analysis-operation.ts';
 
 function uploadInput() {
   return {
@@ -75,6 +76,44 @@ function createDependencies(overrides = {}) {
     ...overrides,
   };
 }
+
+test('F1: 서로 다른 analyzing 화면도 앱 전역 operation owner 하나를 공유한다', async () => {
+  const owner = analysisOperationModule.appAnalysisOperationOwner;
+  assert.ok(owner, '앱 전역 operation owner가 export되어야 합니다.');
+
+  const firstScreenOperation = owner.start();
+  assert.ok(firstScreenOperation);
+  try {
+    assert.equal(owner.start(), null);
+  } finally {
+    await owner.leave(firstScreenOperation);
+  }
+});
+
+test('F1: upload start를 빠르게 두 번 호출해도 pending 저장과 이동은 한 번뿐이다', async () => {
+  const analysisEntryModule = await import('../lib/analysis-entry.ts').catch(() => null);
+  assert.ok(analysisEntryModule, 'analysis entry guard 모듈이 있어야 합니다.');
+
+  const lock = { current: false };
+  let prepareCalls = 0;
+  let navigationCalls = 0;
+  const start = () =>
+    analysisEntryModule.beginAnalysisNavigation(
+      lock,
+      () => {
+        prepareCalls += 1;
+      },
+      () => {
+        navigationCalls += 1;
+      },
+    );
+
+  assert.equal(start(), true);
+  assert.equal(start(), false);
+  assert.equal(lock.current, true);
+  assert.equal(prepareCalls, 1);
+  assert.equal(navigationCalls, 1);
+});
 
 test('S1: 연속 run 두 번째는 무시되고 이전 generation의 side effect가 실행되지 않는다', async () => {
   const owner = createAnalysisOperationOwner({

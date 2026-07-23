@@ -1,5 +1,6 @@
 import * as SecureStore from 'expo-secure-store';
 
+import { createAuthCredentialStore } from '@/lib/auth-credentials';
 import type { AuthUser } from '@/lib/api';
 
 /**
@@ -8,14 +9,17 @@ import type { AuthUser } from '@/lib/api';
  * 토큰이 비워질 때(로그아웃·refresh 실패) 구독자에게 알려 로그인 화면으로 게이트한다.
  */
 
-const ACCESS_KEY = 'acttub.accessToken';
-const REFRESH_KEY = 'acttub.refreshToken';
-const USER_KEY = 'acttub.authUser';
+const credentialStore = createAuthCredentialStore({
+  getItem: (key) => SecureStore.getItemAsync(key),
+  setItem: (key, value) => SecureStore.setItemAsync(key, value),
+  deleteItem: (key) => SecureStore.deleteItemAsync(key),
+});
 
 let accessToken: string | null = null;
 let refreshToken: string | null = null;
 let authUser: AuthUser | null = null;
 let loaded = false;
+let authSessionEpoch = 0;
 
 type Listener = () => void;
 const clearedListeners = new Set<Listener>();
@@ -39,19 +43,19 @@ export function emitConsentRequired(): void {
 
 /** 앱 시작 시 저장된 토큰을 메모리로 로드한다 (1회). */
 export async function loadTokens(): Promise<boolean> {
-  if (loaded) return accessToken !== null;
+  if (loaded) return accessToken !== null && refreshToken !== null && authUser !== null;
   try {
-    accessToken = await SecureStore.getItemAsync(ACCESS_KEY);
-    refreshToken = await SecureStore.getItemAsync(REFRESH_KEY);
-    const storedUser = await SecureStore.getItemAsync(USER_KEY);
-    authUser = storedUser ? (JSON.parse(storedUser) as AuthUser) : null;
+    const credentials = await credentialStore.load();
+    accessToken = credentials?.accessToken ?? null;
+    refreshToken = credentials?.refreshToken ?? null;
+    authUser = credentials?.user ?? null;
   } catch {
     accessToken = null;
     refreshToken = null;
     authUser = null;
   }
   loaded = true;
-  return accessToken !== null;
+  return accessToken !== null && refreshToken !== null && authUser !== null;
 }
 
 export function getAccessToken(): string | null {
@@ -66,18 +70,26 @@ export function getStoredUser(): AuthUser | null {
   return authUser;
 }
 
+/** 로그인·로그아웃 경계를 나타낸다. refresh token rotation에서는 바뀌지 않는다. */
+export function getAuthSessionEpoch(): number {
+  return authSessionEpoch;
+}
+
 export async function setTokens(
   access: string,
   refresh: string,
   user?: AuthUser,
 ): Promise<void> {
+  const nextUser = user ?? authUser;
+  if (!nextUser) throw new Error('사용자 정보 없이 인증 credential을 저장할 수 없습니다.');
+  await credentialStore.save(access, refresh, nextUser);
   accessToken = access;
   refreshToken = refresh;
-  if (user) authUser = user;
+  if (user) {
+    authUser = user;
+    authSessionEpoch += 1;
+  }
   loaded = true;
-  await SecureStore.setItemAsync(ACCESS_KEY, access);
-  await SecureStore.setItemAsync(REFRESH_KEY, refresh);
-  if (user) await SecureStore.setItemAsync(USER_KEY, JSON.stringify(user));
 }
 
 export async function clearTokens(): Promise<void> {
@@ -85,10 +97,9 @@ export async function clearTokens(): Promise<void> {
   refreshToken = null;
   authUser = null;
   loaded = true;
+  authSessionEpoch += 1;
   try {
-    await SecureStore.deleteItemAsync(ACCESS_KEY);
-    await SecureStore.deleteItemAsync(REFRESH_KEY);
-    await SecureStore.deleteItemAsync(USER_KEY);
+    await credentialStore.clear();
   } catch {
     // 삭제 실패해도 메모리는 이미 비웠으니 로그아웃으로 간주
   }

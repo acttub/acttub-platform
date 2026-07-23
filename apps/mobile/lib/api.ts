@@ -7,6 +7,7 @@ import {
   clearTokens,
   emitConsentRequired,
   getAccessToken,
+  getAuthSessionEpoch,
   getRefreshToken,
   setTokens,
 } from '@/lib/token-store';
@@ -35,6 +36,7 @@ const requestClient = createApiRequestClient({
   fetchImpl: (...args) => fetch(...args),
   getAccessToken,
   getRefreshToken,
+  getAuthSessionEpoch,
   setTokens,
   clearTokens,
   emitConsentRequired,

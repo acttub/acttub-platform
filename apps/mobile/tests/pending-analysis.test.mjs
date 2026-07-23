@@ -6,6 +6,7 @@ import {
   createPendingAnalysisStore,
   decideBootstrapRoute,
 } from '../lib/pending-analysis.ts';
+import * as pendingAnalysisModule from '../lib/pending-analysis.ts';
 
 function createMemoryStorage() {
   const values = new Map();
@@ -130,5 +131,156 @@ test('M5: auth와 recovery가 모두 준비된 뒤 한 bootstrap owner가 최초
       pending: null,
     }),
     '/login',
+  );
+});
+
+test('F4: consent gate가 끝나면 같은 session의 pending recovery를 거쳐 analyzing으로 간다', () => {
+  const resolveBootstrapStep = pendingAnalysisModule.resolveBootstrapStep;
+  assert.ok(resolveBootstrapStep, '단계형 bootstrap state machine이 있어야 합니다.');
+  const pending = {
+    key: 'pending:user-1:session-1:scope',
+    record: record('user-1', 'session-1'),
+  };
+  const base = {
+    authStatus: 'signedIn',
+    userId: 'user-1',
+    recoveryStatus: 'ready',
+    recoveryOwner: 'user-1',
+    pending,
+  };
+
+  assert.deepEqual(
+    resolveBootstrapStep({ ...base, hasPendingConsents: true }),
+    {
+      stage: 'consent-gate',
+      route: '/consent',
+    },
+  );
+  assert.deepEqual(
+    resolveBootstrapStep({ ...base, hasPendingConsents: false }),
+    {
+      stage: 'done',
+      route: {
+        pathname: '/analyzing',
+        params: {
+          recoveryKey: pending.key,
+          sessionId: 'session-1',
+        },
+      },
+    },
+  );
+});
+
+test('F4: signedOut 뒤 signedIn의 stale owner:null recovery는 완료하지 않고 현재 owner를 기다린다', () => {
+  const resolveBootstrapStep = pendingAnalysisModule.resolveBootstrapStep;
+  assert.ok(resolveBootstrapStep, '단계형 bootstrap state machine이 있어야 합니다.');
+  const pending = {
+    key: 'pending:user-1:session-1:scope',
+    record: record('user-1', 'session-1'),
+  };
+
+  assert.deepEqual(
+    resolveBootstrapStep({
+      authStatus: 'signedOut',
+      userId: null,
+      hasPendingConsents: false,
+      recoveryStatus: 'ready',
+      recoveryOwner: null,
+      pending: null,
+    }),
+    {
+      stage: 'auth-gate',
+      route: '/login',
+    },
+  );
+  assert.deepEqual(
+    resolveBootstrapStep({
+      authStatus: 'signedIn',
+      userId: 'user-1',
+      hasPendingConsents: false,
+      recoveryStatus: 'ready',
+      recoveryOwner: null,
+      pending: null,
+    }),
+    {
+      stage: 'pending-recovery',
+      route: null,
+    },
+  );
+  assert.deepEqual(
+    resolveBootstrapStep({
+      authStatus: 'signedIn',
+      userId: 'user-1',
+      hasPendingConsents: false,
+      recoveryStatus: 'ready',
+      recoveryOwner: 'user-1',
+      pending,
+    }),
+    {
+      stage: 'done',
+      route: {
+        pathname: '/analyzing',
+        params: {
+          recoveryKey: pending.key,
+          sessionId: 'session-1',
+        },
+      },
+    },
+  );
+});
+
+test('F4: consent 전환 뒤 stale recovery snapshot은 storage 재로드 전 tabs를 결정하지 않는다', () => {
+  const recoveryStatusForConsentGate =
+    pendingAnalysisModule.recoveryStatusForConsentGate;
+  assert.ok(
+    recoveryStatusForConsentGate,
+    'consent 전환별 recovery freshness 판정이 있어야 합니다.',
+  );
+  const pending = {
+    key: 'pending:user-1:session-1:scope',
+    record: record('user-1', 'session-1'),
+  };
+  const staleStatus = recoveryStatusForConsentGate(
+    { status: 'ready', consentGate: 1 },
+    2,
+  );
+
+  assert.equal(staleStatus, 'loading');
+  assert.deepEqual(
+    pendingAnalysisModule.resolveBootstrapStep({
+      authStatus: 'signedIn',
+      userId: 'user-1',
+      hasPendingConsents: false,
+      recoveryStatus: staleStatus,
+      recoveryOwner: 'user-1',
+      pending: null,
+    }),
+    {
+      stage: 'pending-recovery',
+      route: null,
+    },
+  );
+  assert.deepEqual(
+    pendingAnalysisModule.resolveBootstrapStep({
+      authStatus: 'signedIn',
+      userId: 'user-1',
+      hasPendingConsents: false,
+      recoveryStatus: recoveryStatusForConsentGate(
+        { status: 'ready', consentGate: 2 },
+        2,
+      ),
+      recoveryOwner: 'user-1',
+      pending,
+    }),
+    {
+      stage: 'done',
+      route: {
+        pathname: '/analyzing',
+        params: {
+          recoveryKey: pending.key,
+          sessionId: 'session-1',
+        },
+      },
+    },
   );
 });

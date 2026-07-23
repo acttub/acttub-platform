@@ -1,7 +1,7 @@
 import { useHeaderHeight } from '@react-navigation/elements';
 import * as ImagePicker from 'expo-image-picker';
 import { Stack, useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
@@ -15,6 +15,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { FirstUploadGuide } from '@/components/first-upload-guide';
+import { beginAnalysisNavigation } from '@/lib/analysis-entry';
 import type { VideoFile } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { setPendingUpload, takePrefill } from '@/lib/practice';
@@ -40,6 +41,8 @@ export default function UploadScreen() {
   const [durationMs, setDurationMs] = useState<number | null>(null);
   const [videoError, setVideoError] = useState<string | null>(null);
   const [agreedRights, setAgreedRights] = useState(false);
+  const startLockRef = useRef(false);
+  const [starting, setStarting] = useState(false);
 
   useEffect(() => {
     const p = takePrefill();
@@ -87,17 +90,25 @@ export default function UploadScreen() {
 
   const start = () => {
     if (!canSubmit || !video) return;
-    setPendingUpload({
-      subtext: {
-        situation: situation.trim(),
-        character: character.trim(),
-        subtext: subtext.trim(),
+    beginAnalysisNavigation(
+      startLockRef,
+      () => {
+        setStarting(true);
+        setPendingUpload({
+          subtext: {
+            situation: situation.trim(),
+            character: character.trim(),
+            subtext: subtext.trim(),
+          },
+          video,
+          durationMs,
+        });
       },
-      video,
-      durationMs,
-    });
-    router.push('/analyzing');
+      () => router.replace('/analyzing'),
+    );
   };
+
+  const submitDisabled = !canSubmit || starting;
 
   return (
     <SafeAreaView style={styles.safe} edges={['bottom']}>
@@ -161,9 +172,9 @@ export default function UploadScreen() {
           </Pressable>
 
           <Pressable
-            style={[styles.submit, !canSubmit && styles.submitDisabled]}
+            style={[styles.submit, submitDisabled && styles.submitDisabled]}
             onPress={start}
-            disabled={!canSubmit}>
+            disabled={submitDisabled}>
             <Text style={styles.submitText}>분석 시작</Text>
           </Pressable>
         </ScrollView>

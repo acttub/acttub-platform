@@ -1,5 +1,6 @@
 import './api-request.test.mjs';
 import './analysis-operation.test.mjs';
+import './auth-credentials.test.mjs';
 import './auth-session.test.mjs';
 import './cancellable-transfer.test.mjs';
 import './consent-recovery.test.mjs';

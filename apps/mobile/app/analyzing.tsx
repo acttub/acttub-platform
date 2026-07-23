@@ -10,7 +10,7 @@ import {
   AnalysisTerminalError,
   OperationInactiveError,
   abandonAnalysis,
-  createAnalysisOperationOwner,
+  appAnalysisOperationOwner,
   runAnalysisPipeline,
   type AnalysisOperation,
   type AnalysisPendingHandle,
@@ -60,7 +60,6 @@ export default function AnalyzingScreen() {
     recoveryKey?: string;
     sessionId?: string;
   }>();
-  const ownerRef = useRef(createAnalysisOperationOwner());
   const activeOperationRef = useRef<AnalysisOperation | null>(null);
   const uploadRef = useRef<PendingUpload | null>(null);
   const sessionIdRef = useRef<string | null>(null);
@@ -79,13 +78,13 @@ export default function AnalyzingScreen() {
   });
 
   const run = useCallback(async (retryFailed = false) => {
-    const operation = ownerRef.current.start();
+    const operation = appAnalysisOperationOwner.start();
     if (!operation) return;
     activeOperationRef.current = operation;
     const upload = uploadRef.current;
     const ownerId = user?.id;
     if (!ownerId) {
-      ownerRef.current.finish(operation);
+      appAnalysisOperationOwner.finish(operation);
       activeOperationRef.current = null;
       setError('로그인 정보를 불러오지 못했어요. 다시 로그인해주세요.');
       return;
@@ -176,7 +175,7 @@ export default function AnalyzingScreen() {
         logEvent('analysis_complete', {});
         router.replace('/coach');
       });
-      ownerRef.current.finish(operation);
+      appAnalysisOperationOwner.finish(operation);
       if (activeOperationRef.current === operation) activeOperationRef.current = null;
     } catch (err) {
       if (!operation.isActive() || err instanceof OperationInactiveError) return;
@@ -189,7 +188,7 @@ export default function AnalyzingScreen() {
         logEvent('analysis_failed', { reason: message.slice(0, 90) });
         setError(message);
       });
-      ownerRef.current.finish(operation);
+      appAnalysisOperationOwner.finish(operation);
       if (activeOperationRef.current === operation) activeOperationRef.current = null;
     }
   }, [router, user?.id]);
@@ -225,7 +224,7 @@ export default function AnalyzingScreen() {
     return () => {
       mounted = false;
       const activeOperation = activeOperationRef.current;
-      if (activeOperation) void ownerRef.current.leave(activeOperation);
+      if (activeOperation) void appAnalysisOperationOwner.leave(activeOperation);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

@@ -53,6 +53,7 @@ export type ApiRequestDependencies = {
   fetchImpl: typeof fetch;
   getAccessToken: () => string | null;
   getRefreshToken: () => string | null;
+  getAuthSessionEpoch: () => number;
   setTokens: (accessToken: string, refreshToken: string) => Promise<void>;
   clearTokens: () => Promise<void>;
   emitConsentRequired: () => void;
@@ -236,6 +237,16 @@ export function createApiRequestClient(dependencies: ApiRequestDependencies) {
   const random = dependencies.random ?? Math.random;
   let refreshing: Promise<RefreshResult> | null = null;
 
+  function assertSameAuthSession(expectedEpoch: number): void {
+    if (dependencies.getAuthSessionEpoch() !== expectedEpoch) {
+      throw new ApiError(
+        401,
+        '로그인 계정이 변경되어 요청을 중단했어요. 다시 시도해주세요.',
+        'session_changed',
+      );
+    }
+  }
+
   async function fetchParsed(
     path: string,
     init: RequestInit,
@@ -338,14 +349,21 @@ export function createApiRequestClient(dependencies: ApiRequestDependencies) {
     init: RequestInit = {},
     options: ApiRequestOptions = {},
     retried = false,
+    originalAuthSessionEpoch?: number,
   ): Promise<T> {
     throwIfCancelled(options.signal);
     const auth = options.auth !== false;
+    const authSessionEpoch = auth
+      ? originalAuthSessionEpoch ?? dependencies.getAuthSessionEpoch()
+      : null;
+    if (authSessionEpoch !== null) assertSameAuthSession(authSessionEpoch);
     const failedAccess = auth ? dependencies.getAccessToken() : null;
     const { response, payload } = await fetchParsed(path, init, options);
     throwIfCancelled(options.signal);
+    if (authSessionEpoch !== null) assertSameAuthSession(authSessionEpoch);
 
     if (response.status === 401 && auth && options.retryOn401 !== false && !retried) {
+      assertSameAuthSession(authSessionEpoch!);
       const refresh = await waitForShared(
         ensureRefreshed(failedAccess ?? undefined),
         options.signal,
@@ -354,7 +372,8 @@ export function createApiRequestClient(dependencies: ApiRequestDependencies) {
       if (refresh.kind === 'invalid') {
         throw new ApiError(401, '로그인이 만료됐어요. 다시 로그인해주세요.', 'unauthorized');
       }
-      return request<T>(path, init, options, true);
+      assertSameAuthSession(authSessionEpoch!);
+      return request<T>(path, init, options, true, authSessionEpoch!);
     }
 
     if (!response.ok) {
@@ -372,6 +391,8 @@ export function createApiRequestClient(dependencies: ApiRequestDependencies) {
     body: unknown,
     options: PostIdempotentOptions = {},
   ): Promise<T> {
+    const authSessionEpoch =
+      options.auth === false ? undefined : dependencies.getAuthSessionEpoch();
     const requestId = options.requestId ?? randomId(random);
     const serializedBody =
       body === undefined ? undefined : typeof body === 'string' ? body : JSON.stringify(body);
@@ -384,6 +405,7 @@ export function createApiRequestClient(dependencies: ApiRequestDependencies) {
 
     while (true) {
       throwIfCancelled(options.signal);
+      if (authSessionEpoch !== undefined) assertSameAuthSession(authSessionEpoch);
       const remainingMs = deadline - clock.now();
       if (remainingMs <= 0) {
         if (lastError !== undefined) throw lastError;
@@ -406,6 +428,8 @@ export function createApiRequestClient(dependencies: ApiRequestDependencies) {
             timeoutMs: Math.min(options.timeoutMs ?? 60_000, remainingMs),
             retryOn401: options.retryOn401,
           },
+          false,
+          authSessionEpoch,
         );
       } catch (error) {
         lastError = error;
@@ -442,6 +466,7 @@ export function createApiRequestClient(dependencies: ApiRequestDependencies) {
         const boundedDelayMs = Math.min(delayMs, waitRemainingMs);
         options.onWait?.({ reason, attempt, delayMs: boundedDelayMs });
         await wait(boundedDelayMs, options.signal, clock);
+        if (authSessionEpoch !== undefined) assertSameAuthSession(authSessionEpoch);
       }
     }
   }

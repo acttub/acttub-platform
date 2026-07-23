@@ -99,6 +99,7 @@ function createClient(fetchImpl, tokenState = createTokenState(), extra = {}) {
       fetchImpl,
       getAccessToken: tokenState.getAccessToken,
       getRefreshToken: tokenState.getRefreshToken,
+      getAuthSessionEpoch: () => 0,
       setTokens: tokenState.setTokens,
       clearTokens: tokenState.clearTokens,
       emitConsentRequired: () => {},
@@ -125,6 +126,28 @@ for (const refreshStatus of [401, 422]) {
     assert.equal(tokenState.snapshot().access, null);
   });
 }
+
+test('F2: invalid refresh로 현재 세션을 지운 caller는 session_changed가 아니라 unauthorized다', async () => {
+  let authSessionEpoch = 1;
+  const tokenState = createTokenState();
+  const { client } = createClient(async (url) => {
+    if (String(url).endsWith('/v2/auth/refresh')) {
+      return jsonResponse({ detail: 'invalid refresh' }, 401);
+    }
+    return jsonResponse({ detail: 'expired access' }, 401);
+  }, tokenState, {
+    getAuthSessionEpoch: () => authSessionEpoch,
+    clearTokens: async () => {
+      authSessionEpoch += 1;
+      await tokenState.clearTokens();
+    },
+  });
+
+  await assert.rejects(
+    client.request('/v2/protected'),
+    (error) => error instanceof ApiError && error.code === 'unauthorized',
+  );
+});
 
 for (const scenario of [
   {
@@ -207,6 +230,100 @@ test('S3: 한 caller 취소는 shared refresh를 죽이지 않고 취소 caller�
   assert.equal(refreshCalls, 1);
   assert.equal(pathCalls.get('/v2/cancelled'), 1);
   assert.equal(pathCalls.get('/v2/survivor'), 2);
+});
+
+test('F2: shared refresh 중 auth session이 바뀌면 기존 mutation을 새 계정으로 재전송하지 않는다', async () => {
+  let authSessionEpoch = 1;
+  let resolveRefresh;
+  const refreshResponse = new Promise((resolve) => {
+    resolveRefresh = resolve;
+  });
+  const tokenState = createTokenState();
+  const protectedAuthorizations = [];
+  let refreshCalls = 0;
+  const { client } = createClient(async (url, init) => {
+    const path = new URL(String(url)).pathname;
+    if (path === '/v2/auth/refresh') {
+      refreshCalls += 1;
+      return refreshResponse;
+    }
+    protectedAuthorizations.push(new Headers(init.headers).get('Authorization'));
+    return protectedAuthorizations.length === 1
+      ? jsonResponse({ detail: 'expired access' }, 401)
+      : jsonResponse({ ok: true });
+  }, tokenState, {
+    getAuthSessionEpoch: () => authSessionEpoch,
+  });
+
+  const originalMutation = client.request(
+    '/v2/consents',
+    {
+      method: 'POST',
+      body: JSON.stringify({ document_id: 'terms-1', action: 'granted' }),
+    },
+  );
+  for (let index = 0; index < 10 && refreshCalls === 0; index += 1) {
+    await Promise.resolve();
+  }
+  assert.equal(refreshCalls, 1);
+
+  authSessionEpoch += 1;
+  await tokenState.setTokens('access-b', 'refresh-b');
+  resolveRefresh(jsonResponse({
+    access_token: 'access-a-refreshed',
+    refresh_token: 'refresh-a-refreshed',
+  }));
+
+  await assert.rejects(
+    originalMutation,
+    (error) => error instanceof ApiError && error.code === 'session_changed',
+  );
+  assert.deepEqual(protectedAuthorizations, ['Bearer access-old']);
+  assert.equal(tokenState.snapshot().access, 'access-b');
+  assert.equal(tokenState.snapshot().refresh, 'refresh-b');
+});
+
+test('F2: idempotent backoff 중 auth session이 바뀌면 다음 attempt를 새 계정으로 보내지 않는다', async () => {
+  const clock = createFakeClock();
+  let authSessionEpoch = 1;
+  const tokenState = createTokenState();
+  const authorizations = [];
+  let backoffReady = false;
+  const { client } = createClient(async (_url, init) => {
+    authorizations.push(new Headers(init.headers).get('Authorization'));
+    return authorizations.length === 1
+      ? jsonResponse({ detail: 'request is still processing' }, 409)
+      : jsonResponse({ ok: true });
+  }, tokenState, {
+    clock,
+    getAuthSessionEpoch: () => authSessionEpoch,
+  });
+  const originalMutation = client.postIdempotent(
+    '/v2/practice-sessions',
+    { upload_intent_id: 'intent-a' },
+    {
+      deadlineMs: 1_000_000,
+      onWait: () => {
+        backoffReady = true;
+      },
+    },
+  );
+  for (let index = 0; index < 10 && !backoffReady; index += 1) {
+    await Promise.resolve();
+  }
+  assert.deepEqual(authorizations, ['Bearer access-old']);
+  assert.equal(backoffReady, true);
+  assert.equal(clock.pendingCount, 1);
+
+  authSessionEpoch += 1;
+  await tokenState.setTokens('access-b', 'refresh-b');
+  clock.runNext();
+
+  await assert.rejects(
+    originalMutation,
+    (error) => error instanceof ApiError && error.code === 'session_changed',
+  );
+  assert.deepEqual(authorizations, ['Bearer access-old']);
 });
 
 test('S3: per-attempt timeout과 caller cancelled 원인을 구분한다', async () => {

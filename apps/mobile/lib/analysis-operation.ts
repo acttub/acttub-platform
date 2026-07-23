@@ -185,6 +185,9 @@ export function createAnalysisOperationOwner(
   return new AnalysisOperationOwner(options);
 }
 
+/** 화면 인스턴스가 여러 개 생겨도 앱 전체에서 분석 pipeline은 하나만 실행한다. */
+export const appAnalysisOperationOwner = createAnalysisOperationOwner();
+
 export type AbandonDependencies = {
   deleteSession: (sessionId: string) => Promise<void>;
   removePending: (handle: AnalysisPendingHandle) => Promise<void>;
