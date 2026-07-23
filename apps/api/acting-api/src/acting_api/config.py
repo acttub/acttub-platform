@@ -11,10 +11,13 @@ DEFAULT_ANALYSIS_WORKER_CONCURRENCY = 1
 DEFAULT_ANALYSIS_WORKER_POLL_INTERVAL_SEC = 2.0
 DEFAULT_ANALYSIS_LEASE_SEC = 1800
 DEFAULT_ANALYSIS_SWEEP_INTERVAL_SEC = 60.0
+DEFAULT_CONSENT_DOCS_DIR = Path(__file__).resolve().parents[2] / "consent_docs"
 DEFAULT_GOOGLE_OAUTH_CLIENT_ID = (
     "462651930952-625pcnhrjib79r7990fqsdqhsterdij2."
     "apps.googleusercontent.com"
 )
+# 네이티브 iOS "Sign in with Apple" identityToken의 aud = 앱 번들 ID.
+DEFAULT_APPLE_OAUTH_CLIENT_ID = "com.acttub.app"
 
 
 @dataclass
@@ -22,6 +25,7 @@ class GatewaySettings:
     database_url: str
     jwt_secret: str
     google_oauth_client_id: str | None = DEFAULT_GOOGLE_OAUTH_CLIENT_ID
+    apple_oauth_client_id: str | None = DEFAULT_APPLE_OAUTH_CLIENT_ID
     development_auth_provider: bool = False
     keep_alive_url: str | None = None
     keep_alive_interval_sec: int = DEFAULT_KEEP_ALIVE_INTERVAL_SEC
@@ -36,6 +40,7 @@ class GatewaySettings:
     analysis_lease_sec: int = DEFAULT_ANALYSIS_LEASE_SEC
     analysis_sweep_interval_sec: float = DEFAULT_ANALYSIS_SWEEP_INTERVAL_SEC
     static_dir: Path | None = None
+    consent_docs_dir: Path | None = DEFAULT_CONSENT_DOCS_DIR
 
     @property
     def s3_configured(self) -> bool:
@@ -121,6 +126,12 @@ def load_gateway_settings(env_path: Path | None = None) -> GatewaySettings:
         static_dir = Path(static_dir_value).resolve()
         if not static_dir.is_dir():
             raise RuntimeError(f"STATIC_DIR is not a directory: {static_dir}")
+    consent_docs_dir_value = os.environ.get("CONSENT_DOCS_DIR") or None
+    consent_docs_dir = (
+        Path(consent_docs_dir_value).resolve()
+        if consent_docs_dir_value
+        else DEFAULT_CONSENT_DOCS_DIR
+    )
     return GatewaySettings(
         database_url=database_url,
         jwt_secret=jwt_secret,
@@ -129,6 +140,11 @@ def load_gateway_settings(env_path: Path | None = None) -> GatewaySettings:
         google_oauth_client_id=(
             os.environ.get("GOOGLE_OAUTH_CLIENT_ID", "").strip()
             or DEFAULT_GOOGLE_OAUTH_CLIENT_ID
+        ),
+        # 네이티브 앱 번들 ID가 곧 aud. 콤마 구분으로 복수 audience 지정 가능.
+        apple_oauth_client_id=(
+            os.environ.get("APPLE_OAUTH_CLIENT_ID", "").strip()
+            or DEFAULT_APPLE_OAUTH_CLIENT_ID
         ),
         development_auth_provider=(
             os.environ.get("DEVELOPMENT_AUTH_PROVIDER", "").strip().lower()
@@ -142,4 +158,5 @@ def load_gateway_settings(env_path: Path | None = None) -> GatewaySettings:
         analysis_lease_sec=analysis_lease_sec,
         analysis_sweep_interval_sec=sweep_interval,
         static_dir=static_dir,
+        consent_docs_dir=consent_docs_dir,
     )

@@ -91,6 +91,16 @@ def build_router(*, client, settings, store, rate_limited_user) -> APIRouter:
         if isinstance(begun, Response):
             return begun
         claim = begun
+        # 리포트 존재 검사는 claim 이후에 수행해 성공한 요청의 멱등 replay를 보존한다.
+        if await run_in_threadpool(
+            store.has_report_for_practice_session,
+            owned.practice_session_id,
+        ):
+            await _fail(store, claim, "report_already_exists")
+            raise HTTPException(
+                status_code=409,
+                detail="report already exists for practice session",
+            )
         session_id = str(uuid4())
         try:
             session, reply = await run_in_threadpool(

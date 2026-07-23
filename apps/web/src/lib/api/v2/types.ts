@@ -17,6 +17,7 @@ export type ConsentDocument = components["schemas"]["ConsentDocument"];
 export type TokenPairResponse = components["schemas"]["TokenPairResponse"];
 export type RefreshTokenResponse = components["schemas"]["RefreshTokenResponse"];
 export type ConsentDocumentsResponse = components["schemas"]["ConsentDocumentsResponse"];
+export type PendingConsentsResponse = components["schemas"]["ConsentDocumentsResponse"];
 export type ConsentEventResponse = components["schemas"]["ConsentEventResponse"];
 export type UploadIntentResponse = components["schemas"]["UploadIntentResponse"];
 export type UploadCompleteResponse = components["schemas"]["UploadCompleteResponse"];
@@ -40,5 +41,6 @@ export type CoachTurnResponse = components["schemas"]["CoachTurnResponse"];
 
 export type ActingReport = components["schemas"]["ActingReport"];
 export type CreateReportResponse = components["schemas"]["CreateReportResponse"];
+export type ReportDetailResponse = components["schemas"]["ReportDetailResponse"];
 export type ReportRecord = components["schemas"]["ReportRecord"];
 export type ReportHistoryResponse = components["schemas"]["ReportHistoryResponse"];

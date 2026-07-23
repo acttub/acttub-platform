@@ -48,12 +48,12 @@ def test_development_verifier_uses_token_as_uid_without_email():
     assert identity.email_verified is False
 
 
-def test_development_verifier_parses_verified_email_form():
+def test_development_verifier_parses_unverified_email_form():
     identity = _verifier().verify("local-user:actor@example.com")
 
     assert identity.provider_uid == "local-user"
     assert identity.email == "actor@example.com"
-    assert identity.email_verified is True
+    assert identity.email_verified is False
 
 
 @pytest.mark.parametrize("token", ["", "   "])
@@ -115,7 +115,7 @@ def test_development_login_signs_up_and_accesses_protected_endpoint_when_enabled
     assert store.get_user_by_identity("development", "local-user") is not None
 
 
-def test_development_verified_email_login_links_existing_account():
+def test_development_email_login_does_not_link_existing_account():
     store = FakeAuthStore()
     existing = store.create_user(email="actor@example.com")
     app, _ = _app(enabled=True, store=store)
@@ -128,7 +128,8 @@ def test_development_verified_email_login_links_existing_account():
         },
     )
 
-    assert response.status_code == 200
-    assert response.json()["user"]["id"] == str(existing.id)
-    assert store.get_user_by_identity("development", "local-user") is existing
+    assert response.status_code == 409
+    assert response.json()["detail"] == "account_exists_with_different_provider"
+    assert store.get_user(existing.id) is existing
+    assert store.get_user_by_identity("development", "local-user") is None
     assert len(store.users) == 1

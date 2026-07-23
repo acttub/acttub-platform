@@ -1,0 +1,11 @@
+# Acttub
+
+> Acttub은 배우 지망생과 초보 배우가 질문을 통해 자신의 연기 장면을 다시 생각하도록 돕는 연기 연습 도구입니다.
+
+연기 영상과 장면의 상황, 인물, 서브텍스트를 입력하면 영상과 답변에서 확인한 단서를 바탕으로 한 번에 하나씩 질문을 이어갑니다. 세션이 끝나면 답변을 정리한 연습 노트를 만들어 드리며, Acttub은 답을 단정하는 대신 함께 질문하는 파트너를 지향합니다.
+
+## 링크
+
+- [Acttub 랜딩](https://acttub.com/)
+- [Acttub Instagram](https://www.instagram.com/acttub_com/)
+- [문의 이메일](mailto:acttub0527@gmail.com)

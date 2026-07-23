@@ -52,14 +52,14 @@ AI 호출을 포함한 쓰기 요청(`/v2/practice-sessions`, `/{id}/analyze`, `
 
 ## POST /v2/auth/login
 
-소셜 로그인. 별도 회원가입 없이 첫 로그인 시 자동으로 계정이 생성됩니다. 운영 provider는 `google`이며, 로컬에서는 `DEVELOPMENT_AUTH_PROVIDER=1`일 때만 `development`를 추가로 사용할 수 있습니다 (카카오·애플은 후속).
+소셜 로그인. 별도 회원가입 없이 첫 로그인 시 자동으로 계정이 생성됩니다. 운영 provider는 `google`·`apple`이며, 로컬에서는 `DEVELOPMENT_AUTH_PROVIDER=1`일 때만 `development`를 추가로 사용할 수 있습니다 (카카오는 후속).
 
 ### 요청 — JSON
 
 | 필드 | 타입 | 설명 |
 |---|---|---|
-| `provider` | str | `"google"` (로컬 opt-in: `"development"`) |
-| `id_token` | str | 구글 OIDC id_token. development provider는 로컬 테스트 토큰(`<uid>` 또는 `<uid>:<email>`) |
+| `provider` | str | `"google"` \| `"apple"` (로컬 opt-in: `"development"`) |
+| `id_token` | str | google=OIDC id_token, apple="Sign in with Apple" identityToken(JWT — 네이티브는 앱 SDK, 웹은 Apple JS가 발급). development는 로컬 테스트 토큰(`<uid>` 또는 `<uid>:<email>`)이며 email은 미검증으로 취급되어 기존 계정에 자동 연결되지 않고 신규 계정에도 저장되지 않음 |
 
 ### 처리 규칙
 
@@ -177,7 +177,7 @@ S3 업로드 완료 확인. 서버가 S3 HEAD로 객체 존재·크기 일치를
 
 **응답 202**: `{"session_id": "...", "status": "analyzing"}`
 
-분석은 백그라운드 워커가 수행하며(수 분 소요), 완료 여부는 `GET /v2/practice-sessions/{id}`를 **10초 간격** 폴링으로 확인합니다.
+분석은 백그라운드 워커가 수행하며(수 분 소요), 완료 여부는 `GET /v2/practice-sessions/{id}/status`를 **10초 간격** 폴링으로 확인합니다. 완료·실패로 정착한 뒤 상세 API를 한 번 조회합니다.
 
 | 상태 코드 | 원인 |
 |---|---|
@@ -218,6 +218,20 @@ S3 업로드 완료 확인. 서버가 S3 HEAD로 객체 존재·크기 일치를
 
 ---
 
+## GET /v2/practice-sessions/{session_id}/status
+
+분석 폴링용 경량 상태 조회. 인증이 필요하며 재생 URL·분석 본문을 조회하거나 S3에 의존하지 않습니다.
+
+```json
+{"status": "analyzing", "error_code": null}
+```
+
+- `status`: `created | analyzing | analyzed | failed`
+- `error_code`: `failed`일 때만 `gemini_timeout` · `gemini_parse_error` · `unsupported_media` · `max_attempts_exceeded`, 그 외 `null`
+- 없는·남의·삭제된 세션은 모두 404 `practice_session_not_found`
+
+---
+
 ## POST /v2/practice-sessions/{session_id}/analyze
 
 **재분석** — status가 `failed`일 때만. 영상 재업로드 없이 새 분석 작업을 시작하고 202 반환 (summaries는 세션당 1:N 누적, 조회는 항상 최신).
@@ -253,7 +267,7 @@ S3 업로드 완료 확인. 서버가 S3 HEAD로 객체 존재·크기 일치를
 | 상태 코드 | 원인 |
 |---|---|
 | 404 | 없는·남의 summary — `summary not found` |
-| 409 | 같은 X-Request-Id가 처리 중 — `request is still processing` |
+| 409 | 해당 연습 세션에 리포트가 이미 있음 — `report already exists for practice session` / 같은 X-Request-Id가 처리 중 — `request is still processing` |
 | 502 | Gemini 응답 파싱 실패 |
 
 ---
@@ -276,7 +290,7 @@ S3 업로드 완료 확인. 서버가 S3 HEAD로 객체 존재·크기 일치를
 
 ## POST /v2/reports
 
-종료된 코칭 세션으로 최종 리포트를 생성합니다. 같은 사용자의 이전 리포트가 있으면 `comparison`이 채워집니다.
+종료된 코칭 세션으로 최종 리포트를 생성합니다. 연습 세션당 리포트는 하나만 만들 수 있으며, 같은 사용자의 이전 리포트가 있으면 `comparison`이 채워집니다.
 
 **요청**: `{"session_id": "<코칭 session_id>"}`
 
@@ -302,7 +316,7 @@ S3 업로드 완료 확인. 서버가 S3 HEAD로 객체 존재·크기 일치를
 내 리포트 이력 (토큰 사용자 기준, 오래된 순).
 
 ```json
-{"count": 2, "reports": [{"created_at": "...", "session_id": "...", "report": {...}, "turns": [...]}]}
+{"count": 2, "reports": [{"created_at": "...", "session_id": "...", "practice_session_id": "...", "report": {...}}]}
 ```
 
 ---
@@ -315,6 +329,7 @@ S3 업로드 완료 확인. 서버가 S3 HEAD로 객체 존재·크기 일치를
 | `JWT_SECRET` | ✅ | — | HS256 서명 키. 없으면 기동 실패 |
 | `GEMINI_API_KEY` | ✅ | — | Gemini API 키. 없으면 기동 실패 |
 | `GOOGLE_OAUTH_CLIENT_ID` | | `462651930952-625pcnhrjib79r7990fqsdqhsterdij2.apps.googleusercontent.com` | 구글 id_token audience 검증용 client ID override |
+| `APPLE_OAUTH_CLIENT_ID` | | `com.acttub.app` | 애플 identityToken audience override. 네이티브 앱은 번들 ID, 웹은 Services ID이므로 웹 로그인을 켤 때 `com.acttub.app,<Services ID>`처럼 콤마로 함께 지정 |
 | `DEVELOPMENT_AUTH_PROVIDER` | | 비활성 | `1` 또는 `true`일 때만 로컬 테스트용 `development` provider 등록. 프로덕션 활성화 금지 |
 | `S3_BUCKET` / `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` / `AWS_REGION` | 업로드·분석 시 | — | **4개 모두 설정하거나 전부 생략** (일부만이면 기동 실패). 미설정 시 업로드·재생 API 503, 분석 워커 비활성 |
 | `GEMINI_MODEL` | | `gemini-2.5-flash` | 사용 모델 |

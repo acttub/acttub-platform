@@ -37,3 +37,26 @@ test("PracticeFlow.begin도 공통 preflight를 사용하고 이전 제한 카�
       .length >= 2,
   );
 });
+
+test("PracticeFlow 리포트는 연습 세션으로 연결하고 결과와 영상만 보여 준다", () => {
+  assert.doesNotMatch(practiceFlow, /practiceCoachSessionMap/);
+  assert.doesNotMatch(practiceFlow, /normalizeReportTurns/);
+  assert.doesNotMatch(practiceFlow, /reportTurnsForStorage/);
+  assert.doesNotMatch(practiceFlow, /완료된 AI 코칭 대화/);
+  assert.match(
+    practiceFlow,
+    /record\.practice_session_id === practiceSessionId/,
+  );
+  assert.match(
+    practiceFlow,
+    /<video key=\{playbackUrl\} controls preload="metadata" src=\{playbackUrl\} onError=\{onPlaybackError\}/,
+  );
+  assert.match(practiceFlow, /practice_session_id: active\.sessionId/);
+});
+
+test("PracticeFlow는 리포트가 이미 있는 세션의 인터뷰 시작 409를 리포트 표시로 복구한다", () => {
+  assert.match(
+    practiceFlow,
+    /reason\.code === "report already exists for practice session"/,
+  );
+});

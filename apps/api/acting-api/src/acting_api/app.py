@@ -1,5 +1,6 @@
 import asyncio
 from datetime import timedelta
+import logging
 import os
 import time
 from contextlib import asynccontextmanager
@@ -11,6 +12,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from google import genai
 from pydantic import BaseModel, ConfigDict
+from starlette.concurrency import run_in_threadpool
 
 from acting_agent.config import load_settings as load_agent_settings
 from acting_api.analysis_worker import (
@@ -19,9 +21,11 @@ from acting_api.analysis_worker import (
     SummaryAnalyzer,
 )
 from acting_api.auth.dependencies import (
+    build_consent_gate_dependency,
     build_current_user_dependency,
     build_rate_limited_user_dependency,
 )
+from acting_api.auth.apple import AppleProviderVerifier
 from acting_api.auth.development import DevelopmentProviderVerifier
 from acting_api.auth.google import GoogleProviderVerifier
 from acting_api.auth.jwt import JwtService
@@ -29,7 +33,10 @@ from acting_api.auth.providers import ProviderRegistry
 from acting_api.auth.router import build_router as build_auth_router
 from acting_api.coaching import build_router as build_coaching_router
 from acting_api.config import load_gateway_settings
-from acting_api.consents import build_router as build_consents_router
+from acting_api.consents import (
+    build_router as build_consents_router,
+    seed_consent_documents,
+)
 from acting_api.db.store import PostgresStore
 from acting_api.keepalive import keep_alive_loop
 from acting_api.practice_sessions import build_router as build_practice_router
@@ -39,6 +46,8 @@ from acting_api.storage import S3Storage
 from acting_api.uploads import build_router as build_uploads_router
 from acting_report.config import load_settings as load_report_settings
 from acting_summary.config import load_settings as load_summary_settings
+
+logger = logging.getLogger(__name__)
 
 
 class HealthResponse(BaseModel):
@@ -80,13 +89,15 @@ def create_app(
     jwt_service = jwt_service or JwtService(gateway_settings.jwt_secret)
     if provider_registry is None:
         provider_verifiers = [
-            GoogleProviderVerifier(gateway_settings.google_oauth_client_id)
+            GoogleProviderVerifier(gateway_settings.google_oauth_client_id),
+            AppleProviderVerifier(gateway_settings.apple_oauth_client_id),
         ]
         if gateway_settings.development_auth_provider:
             provider_verifiers.append(DevelopmentProviderVerifier())
         provider_registry = ProviderRegistry(provider_verifiers)
     current_user = build_current_user_dependency(store, jwt_service)
     rate_limited_user = build_rate_limited_user_dependency(current_user, limiter)
+    consented_user = build_consent_gate_dependency(rate_limited_user, store)
     if s3_storage is None and gateway_settings.s3_configured:
         if s3_client is not None:
             s3_storage = S3Storage(bucket=gateway_settings.s3_bucket, client=s3_client)
@@ -121,6 +132,15 @@ def create_app(
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
+        try:
+            published = await run_in_threadpool(
+                seed_consent_documents,
+                store,
+                gateway_settings.consent_docs_dir,
+            )
+            logger.info("Published %d consent documents during startup", published)
+        except Exception:
+            logger.exception("Consent document startup seed failed")
         task = None
         owned_client = None
         if gateway_settings.keep_alive_url:
@@ -191,14 +211,15 @@ def create_app(
         build_uploads_router(
             store=store,
             storage=s3_storage,
-            rate_limited_user=rate_limited_user,
+            rate_limited_user=consented_user,
         )
     )
     app.include_router(
         build_practice_router(
             store=store,
             storage=s3_storage,
-            rate_limited_user=rate_limited_user,
+            rate_limited_user=consented_user,
+            ungated_user=rate_limited_user,
         )
     )
     app.include_router(
@@ -206,7 +227,7 @@ def create_app(
             client=client,
             settings=agent_settings,
             store=store,
-            rate_limited_user=rate_limited_user,
+            rate_limited_user=consented_user,
         )
     )
     app.include_router(
@@ -214,7 +235,8 @@ def create_app(
             client=client,
             settings=report_settings,
             store=store,
-            rate_limited_user=rate_limited_user,
+            storage=s3_storage,
+            rate_limited_user=consented_user,
         )
     )
 
@@ -222,6 +244,25 @@ def create_app(
         _mount_static_frontend(app, gateway_settings.static_dir)
 
     return app
+
+
+_PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
+
+
+def _extensionless_media_type(path) -> str | None:
+    """Next metadata 라우트 산출물(out/opengraph-image 등)은 확장자가 없어
+    파일명 기반 MIME 추측이 불가능하므로 매직 바이트로 판별한다.
+    None을 반환하면 FileResponse 기본 동작을 따른다."""
+    if path.suffix:
+        return None
+    try:
+        with path.open("rb") as file:
+            head = file.read(len(_PNG_SIGNATURE))
+    except OSError:
+        return None
+    if head.startswith(_PNG_SIGNATURE):
+        return "image/png"
+    return None
 
 
 def _mount_static_frontend(app: FastAPI, static_root) -> None:
@@ -247,7 +288,7 @@ def _mount_static_frontend(app: FastAPI, static_root) -> None:
         if not str(candidate).startswith(str(static_root)):
             raise HTTPException(status_code=404)
         if candidate.is_file():
-            return FileResponse(candidate)
+            return FileResponse(candidate, media_type=_extensionless_media_type(candidate))
         html_candidate = static_root / f"{full_path}.html"
         if html_candidate.is_file():
             return FileResponse(html_candidate)

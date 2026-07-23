@@ -1,21 +1,52 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, Suspense, useEffect, useRef, useState } from "react";
+import Image from "next/image";
+import {
+  FormEvent,
+  Suspense,
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import wordmark from "../../assets/acttub-wordmark.png";
+import { NamePrompt } from "../../features/auth/name-prompt";
+import { useDisplayNameGate } from "../../features/auth/use-display-name-gate";
 import { ApiError } from "../../lib/api/v2/errors";
+import {
+  isAppleSignInCancelled,
+  requestAppleIdToken,
+} from "../../lib/auth/apple-id";
 import { renderGoogleLoginButton } from "../../lib/auth/google-gis";
 import {
+  detectInAppBrowser,
+  externalBrowserUrl,
+  inAppBrowserNotice,
+  type InAppBrowser,
+} from "../../lib/auth/in-app-browser";
+import {
+  appleProvider,
   developmentProvider,
   googleProvider,
   loginWith,
 } from "../../lib/auth/providers";
 import { sanitizeNextPath } from "../../lib/auth/next-path";
-import { GOOGLE_CLIENT_ID } from "../../lib/config/env";
+import {
+  APPLE_CLIENT_ID,
+  APPLE_REDIRECT_PATH,
+  GOOGLE_CLIENT_ID,
+} from "../../lib/config/env";
 import {
   clearPendingConsents,
   savePendingConsents,
 } from "../../features/auth/pending-consents";
+
+// UA는 세션 동안 불변이므로 구독 없이 스냅샷만 읽는다. 서버(프리렌더)에서는 null.
+const subscribeNever = () => () => {};
+const getInAppBrowserSnapshot = () => detectInAppBrowser(navigator.userAgent);
+const getServerInAppBrowserSnapshot = () => null;
 
 function loginErrorMessage(error: unknown): string {
   if (
@@ -31,6 +62,14 @@ function loginErrorMessage(error: unknown): string {
     error.code === "account_suspended"
   ) {
     return "정지된 계정이에요";
+  }
+  // 서버가 아직 해당 로그인 방식을 지원하지 않는 배포 상태 (400 unsupported_provider).
+  if (
+    error instanceof ApiError &&
+    error.status === 400 &&
+    error.code === "unsupported_provider"
+  ) {
+    return "지금은 이 방법으로 로그인할 수 없어요. 다른 방법을 사용해 주세요";
   }
   return "로그인하지 못했어요. 잠시 후 다시 시도해 주세요";
 }
@@ -97,6 +136,56 @@ function GoogleLoginButton({
   );
 }
 
+// Apple HIG: 검은 배경 + 흰 로고, 문구는 "Apple로 계속하기" 계열만 허용된다.
+function AppleLoginButton({
+  disabled,
+  onIdToken,
+  onError,
+}: {
+  disabled: boolean;
+  onIdToken: (idToken: string) => void;
+  onError: (message: string) => void;
+}) {
+  const [isOpening, setIsOpening] = useState(false);
+
+  async function handleClick() {
+    if (isOpening) return;
+    setIsOpening(true);
+    try {
+      const idToken = await requestAppleIdToken({
+        clientId: APPLE_CLIENT_ID,
+        redirectUri: `${window.location.origin}${APPLE_REDIRECT_PATH}`,
+      });
+      onIdToken(idToken);
+    } catch (error) {
+      // 사용자가 팝업을 닫은 건 오류가 아니므로 조용히 넘긴다.
+      if (!isAppleSignInCancelled(error)) {
+        onError("Apple 로그인을 시작하지 못했어요. 잠시 후 다시 시도해 주세요");
+      }
+    } finally {
+      setIsOpening(false);
+    }
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={handleClick}
+      disabled={disabled || isOpening}
+      className="mx-auto flex h-10 w-full max-w-[400px] items-center justify-center gap-2 rounded-full bg-black text-[15px] font-black text-white transition hover:bg-[#1a1a1a] disabled:cursor-wait disabled:bg-[#4a4a4a]"
+    >
+      <svg
+        aria-hidden="true"
+        viewBox="0 0 14 17"
+        className="h-[17px] w-[14px] fill-current"
+      >
+        <path d="M11.68 8.98c-.02-1.9 1.55-2.81 1.62-2.85-.88-1.3-2.26-1.47-2.75-1.49-1.17-.12-2.28.69-2.87.69-.59 0-1.5-.67-2.47-.66-1.27.02-2.44.74-3.1 1.88-1.32 2.29-.34 5.68.95 7.54.63.91 1.38 1.93 2.37 1.9.95-.04 1.31-.62 2.46-.62 1.15 0 1.47.62 2.47.6 1.02-.02 1.67-.93 2.29-1.85.72-1.06 1.02-2.09 1.04-2.14-.02-.01-2-.77-2.02-3.05zM9.79 3.4c.52-.64.88-1.52.78-2.4-.75.03-1.67.5-2.21 1.13-.48.56-.91 1.46-.79 2.32.84.06 1.69-.42 2.22-1.05z" />
+      </svg>
+      Apple로 계속하기
+    </button>
+  );
+}
+
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -111,6 +200,24 @@ function LoginForm() {
   const [email, setEmail] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const inAppBrowser: InAppBrowser | null = useSyncExternalStore(
+    subscribeNever,
+    getInAppBrowserSnapshot,
+    getServerInAppBrowserSnapshot,
+  );
+
+  // 인앱 브라우저(WebView)에서는 Google이 OAuth를 차단하므로,
+  // 탈출 수단이 있는 브라우저는 기본 브라우저로 이동시키고 안내를 남긴다.
+  useEffect(() => {
+    if (!inAppBrowser) return;
+    const escapeUrl = externalBrowserUrl(inAppBrowser, window.location.href);
+    if (escapeUrl) window.location.href = escapeUrl;
+  }, [inAppBrowser]);
+
+  // 첫 로그인이면 들여보내기 전에 호칭을 한 번 묻는다.
+  // (위 탈출은 로그인 전에 끝나므로 이 팝업과 순서가 겹치지 않는다)
+  // 약관 동의가 남은 신규 계정은 /terms를 거치므로 그쪽에도 같은 관문이 있다.
+  const { pendingDestination, enterApp, resolveName } = useDisplayNameGate();
 
   async function submitLogin(request: () => ReturnType<typeof loginWith>) {
     if (isSubmitting) return;
@@ -126,7 +233,7 @@ function LoginForm() {
       }
 
       clearPendingConsents();
-      router.replace(nextPath);
+      enterApp(nextPath);
     } catch (error) {
       setErrorMessage(loginErrorMessage(error));
     } finally {
@@ -141,20 +248,30 @@ function LoginForm() {
 
   return (
     <main className="flex min-h-dvh items-center justify-center bg-[#f2f4f6] px-5 py-12 text-[#191f28]">
+      {pendingDestination ? (
+        <NamePrompt onSubmit={resolveName} onSkip={() => resolveName(null)} />
+      ) : null}
       <section className="w-full max-w-md rounded-[32px] bg-white p-7 shadow-[0_24px_80px_rgba(25,31,40,0.1)] sm:p-9">
-        <Link href="/" className="text-xl font-black tracking-[-0.04em]">
-          Acttub
+        <Link href="/" aria-label="Acttub 홈" className="inline-block">
+          <Image src={wordmark} alt="Acttub" priority className="h-6 w-auto" />
         </Link>
         <p className="mt-10 text-sm font-black text-[#3182f6]">연기 복기 시작하기</p>
         <h1 className="mt-3 text-3xl font-black leading-tight tracking-[-0.05em]">
-          로그인하고
-          <br />내 장면을 이어가세요
+          로그인하기
         </h1>
         <p className="mt-4 text-base font-semibold leading-7 text-[#6b7684]">
           영상과 장면 맥락을 안전하게 보관하고, 질문과 연습 노트를 이어서 볼 수 있어요.
         </p>
 
         <div className="mt-9 space-y-5">
+          {inAppBrowser ? (
+            <p
+              role="status"
+              className="rounded-2xl bg-[#fff6e5] px-4 py-3 text-sm font-bold text-[#b25c00]"
+            >
+              {inAppBrowserNotice(inAppBrowser)}
+            </p>
+          ) : null}
           <GoogleLoginButton
             onCredential={(credential) =>
               void submitLogin(() => loginWith(googleProvider, { credential }))
@@ -165,6 +282,17 @@ function LoginForm() {
               )
             }
           />
+
+          {/* Services ID가 설정되기 전에는 눌러도 실패만 하므로 버튼 자체를 내린다. */}
+          {APPLE_CLIENT_ID ? (
+            <AppleLoginButton
+              disabled={isSubmitting}
+              onIdToken={(credential) =>
+                void submitLogin(() => loginWith(appleProvider, { credential }))
+              }
+              onError={setErrorMessage}
+            />
+          ) : null}
 
           {process.env.NODE_ENV === "development" ? (
             <form

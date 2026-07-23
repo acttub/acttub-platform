@@ -1,5 +1,6 @@
 packages:
   - "apps/*"
+  - "!apps/mobile" # Expo RN 앱 — npm/EAS로 자립 관리(pnpm 심링크가 Metro를 깨서 워크스페이스 제외)
   - "packages/*"
 
 overrides:

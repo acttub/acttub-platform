@@ -16,3 +16,24 @@ body {
   color: var(--foreground);
   font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
 }
+
+/* 앱 웹뷰(폰)에서는 데스크톱과 같은 크기가 과하게 커 보인다.
+   rem 기준인 Tailwind 글자·여백을 한 번에 낮추려고 루트 크기를 줄인다(16px→14px).
+   sm 브레이크포인트(640px) 경계와 맞춰 두어 태블릿 이상은 그대로 둔다.
+   px로 직접 박은 값(text-[15px] 등)은 여기서 안 줄어드니 화면별로 따로 손본다. */
+@media (max-width: 639.98px) {
+  html {
+    font-size: 87.5%;
+  }
+
+  /* 입력칸만은 16px 아래로 내리지 않는다 — iOS Safari·WKWebView는 16px 미만
+     입력칸에 포커스가 가면 화면을 자동으로 확대해 버린다. 호칭 팝업은 열자마자
+     포커스를 주므로, 그대로 두면 폰에서 팝업이 뜨는 순간 화면이 튄다.
+     :not(...)을 붙인 건 Tailwind의 text-* 유틸리티(클래스)를 이기기 위해서다 —
+     요소 선택자만으로는 우선순위가 밀려 적용되지 않는다. */
+  input:not([type="checkbox"]):not([type="radio"]),
+  textarea,
+  select {
+    font-size: max(16px, 1em);
+  }
+}

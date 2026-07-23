@@ -89,6 +89,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v2/consents/pending": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Pending Documents */
+        get: operations["list_pending_documents_v2_consents_pending_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v2/consents": {
         parameters: {
             query?: never;
@@ -152,6 +169,23 @@ export interface paths {
         put?: never;
         /** Create Session */
         post: operations["create_session_v2_practice_sessions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/practice-sessions/{session_id}/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Session Status */
+        get: operations["get_session_status_v2_practice_sessions__session_id__status_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -245,6 +279,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v2/reports/{practice_session_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Report Detail */
+        get: operations["report_detail_v2_reports__practice_session_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -308,16 +359,6 @@ export interface components {
              * Format: uuid
              */
             summary_id: string;
-        };
-        /** CoachTurn */
-        CoachTurn: {
-            /**
-             * Role
-             * @enum {string}
-             */
-            role: "ai" | "actor";
-            /** Text */
-            text: string;
         };
         /** CoachTurnResponse */
         CoachTurnResponse: {
@@ -551,6 +592,16 @@ export interface components {
             /** Subtext */
             subtext: string;
         };
+        /** PracticeSessionStatusResponse */
+        PracticeSessionStatusResponse: {
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "created" | "analyzing" | "analyzed" | "failed";
+            /** Error Code */
+            error_code?: ("gemini_timeout" | "gemini_parse_error" | "unsupported_media" | "max_attempts_exceeded") | null;
+        };
         /** RefreshRequest */
         RefreshRequest: {
             /** Refresh Token */
@@ -567,6 +618,22 @@ export interface components {
             /** Expires In */
             expires_in: number;
         };
+        /** ReportDetailResponse */
+        ReportDetailResponse: {
+            /**
+             * Practice Session Id
+             * Format: uuid
+             */
+            practice_session_id: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            report: components["schemas"]["ActingReport"];
+            /** Playback Url */
+            playback_url: string;
+        };
         /** ReportHistoryResponse */
         ReportHistoryResponse: {
             /** Count */
@@ -577,18 +644,17 @@ export interface components {
         /** ReportRecord */
         ReportRecord: {
             /**
+             * Practice Session Id
+             * Format: uuid
+             */
+            practice_session_id: string;
+            /** Headline */
+            headline: string;
+            /**
              * Created At
              * Format: date-time
              */
             created_at: string;
-            /**
-             * Session Id
-             * Format: uuid
-             */
-            session_id: string;
-            report: components["schemas"]["ActingReport"];
-            /** Turns */
-            turns: components["schemas"]["CoachTurn"][];
         };
         /** ReportReq */
         ReportReq: {
@@ -834,6 +900,26 @@ export interface operations {
             };
         };
     };
+    list_pending_documents_v2_consents_pending_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConsentDocumentsResponse"];
+                };
+            };
+        };
+    };
     record_consent_v2_consents_post: {
         parameters: {
             query?: never;
@@ -982,6 +1068,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PracticeSessionAcceptedResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_session_status_v2_practice_sessions__session_id__status_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PracticeSessionStatusResponse"];
                 };
             };
             /** @description Validation Error */
@@ -1209,6 +1326,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CreateReportResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    report_detail_v2_reports__practice_session_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                practice_session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportDetailResponse"];
                 };
             };
             /** @description Validation Error */

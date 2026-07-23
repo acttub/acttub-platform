@@ -44,6 +44,24 @@ test("login page always renders Google and development form only in next dev", (
   assert.match(source, /개발용 테스트 로그인을 사용해요/);
 });
 
+test("Apple client ID is a code default without login env switches", () => {
+  const source = readSource("src/lib/config/env.ts");
+
+  assert.match(source, /export const APPLE_CLIENT_ID: string = /);
+  assert.equal(
+    source.includes(["NEXT", "PUBLIC", "APPLE", "CLIENT", "ID"].join("_")),
+    false,
+  );
+});
+
+test("login page gates the Apple button on a configured client ID", () => {
+  const source = readSource("src/app/login/page.tsx");
+
+  assert.match(source, /loginWith\(appleProvider,\s*\{ credential \}\)/);
+  // Services ID 미설정 상태에서는 버튼이 렌더되지 않아야 한다.
+  assert.match(source, /\{APPLE_CLIENT_ID \? \(\s*<AppleLoginButton/);
+});
+
 test("login page has one shared submit status region", () => {
   const source = readSource("src/app/login/page.tsx");
 

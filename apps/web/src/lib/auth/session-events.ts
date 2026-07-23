@@ -1,4 +1,4 @@
-export type SessionEvent = "login" | "logout";
+export type SessionEvent = "login" | "logout" | "consent-required";
 export type SessionEventListener = (event: SessionEvent) => void;
 
 let sessionEventTarget: EventTarget | null = null;
@@ -24,9 +24,11 @@ export function onSessionEvent(listener: SessionEventListener): () => void {
   };
   target.addEventListener("login", handleEvent);
   target.addEventListener("logout", handleEvent);
+  target.addEventListener("consent-required", handleEvent);
 
   return () => {
     target.removeEventListener("login", handleEvent);
     target.removeEventListener("logout", handleEvent);
+    target.removeEventListener("consent-required", handleEvent);
   };
 }

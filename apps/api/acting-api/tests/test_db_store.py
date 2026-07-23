@@ -202,7 +202,7 @@ def test_account_consent_upload_and_practice_lifecycle(postgres_store):
         required=True,
         published_at=now,
     )
-    store.publish_consent_document(
+    privacy = store.publish_consent_document(
         type="privacy",
         version="1",
         title="Privacy",
@@ -216,6 +216,8 @@ def test_account_consent_upload_and_practice_lifecycle(postgres_store):
     }
     assert latest == {"privacy": "1", "terms": "2"}
     assert store.get_consent_document(new_terms.id).version == "2"
+    assert store.get_consent_document_by_type_version("terms", "2").id == new_terms.id
+    assert store.has_pending_required_consents(user.id) is True
     all_documents = store.list_consent_documents()
     assert all_documents[0].id == old_terms.id
     assert {(document.type.value, document.version) for document in all_documents} == {
@@ -242,11 +244,22 @@ def test_account_consent_upload_and_practice_lifecycle(postgres_store):
         action="granted",
         occurred_at=now,
     )
+    store.record_user_consent(
+        user_id=user.id,
+        document_id=privacy.id,
+        action="granted",
+        occurred_at=now,
+    )
     current = {
         event.document_id: event.action.value
         for event in store.get_current_user_consents(user.id)
     }
-    assert current == {old_terms.id: "revoked", new_terms.id: "granted"}
+    assert current == {
+        old_terms.id: "revoked",
+        new_terms.id: "granted",
+        privacy.id: "granted",
+    }
+    assert store.has_pending_required_consents(user.id) is False
 
     expired = store.create_upload_intent(
         user_id=user.id,
@@ -660,7 +673,68 @@ def test_owned_workflow_contexts_and_atomic_sync_operation_completion(postgres_s
     assert "user_id" not in report_payload
     history = store.list_reports(user.id)
     assert history[0].session_id == str(coach_session_id)
-    assert len(history[0].turns) == 3
+    assert history[0].practice_session_id == str(practice.id)
+    assert store.has_report_for_practice_session(practice.id) is True
+    assert store.has_report_for_practice_session(uuid4()) is False
+
+    second_start_lookup = store.get_or_create_external_operation(
+        user_id=user.id,
+        session_id=practice.id,
+        request_id=uuid4(),
+        kind="coach_start",
+        request_fingerprint=_hash("second-coach-start"),
+    )
+    second_start_token = uuid4()
+    store.claim_external_operation(
+        operation_id=second_start_lookup.operation.id,
+        lease_token=second_start_token,
+        lease_duration=timedelta(minutes=10),
+        now=now,
+    )
+    second_coach_session_id = uuid4()
+    second_coach_session = coach_session.model_copy(
+        update={
+            "session_id": str(second_coach_session_id),
+            "status": "closed",
+            "close_reason": "user_ended",
+        },
+        deep=True,
+    )
+    assert store.complete_coach_start_operation(
+        operation_id=second_start_lookup.operation.id,
+        lease_token=second_start_token,
+        coach_session=second_coach_session,
+        response_payload={
+            **start_payload,
+            "session_id": str(second_coach_session_id),
+        },
+        now=now,
+    )
+    second_report_lookup = store.get_or_create_external_operation(
+        user_id=user.id,
+        session_id=practice.id,
+        request_id=uuid4(),
+        kind="report",
+        request_fingerprint=_hash("second-report"),
+    )
+    second_report_token = uuid4()
+    store.claim_external_operation(
+        operation_id=second_report_lookup.operation.id,
+        lease_token=second_report_token,
+        lease_duration=timedelta(minutes=10),
+        now=now,
+    )
+    assert (
+        store.complete_report_operation(
+            operation_id=second_report_lookup.operation.id,
+            lease_token=second_report_token,
+            coach_session_id=second_coach_session_id,
+            report=REPORT,
+            now=now,
+        )
+        is None
+    )
+    assert len(store.list_reports(user.id)) == 1
     assert store.get_external_operation(
         user_id=user.id,
         request_id=report_lookup.operation.request_id,

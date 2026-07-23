@@ -166,6 +166,32 @@
         }
       }
     },
+    "/v2/consents/pending": {
+      "get": {
+        "tags": [
+          "v2-consents"
+        ],
+        "summary": "List Pending Documents",
+        "operationId": "list_pending_documents_v2_consents_pending_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsentDocumentsResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
     "/v2/consents": {
       "post": {
         "tags": [
@@ -397,6 +423,54 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/PracticeSessionListResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/practice-sessions/{session_id}/status": {
+      "get": {
+        "tags": [
+          "v2-practice"
+        ],
+        "summary": "Get Session Status",
+        "operationId": "get_session_status_v2_practice_sessions__session_id__status_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PracticeSessionStatusResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -780,6 +854,54 @@
           }
         }
       }
+    },
+    "/v2/reports/{practice_session_id}": {
+      "get": {
+        "tags": [
+          "v2-reports"
+        ],
+        "summary": "Report Detail",
+        "operationId": "report_detail_v2_reports__practice_session_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "practice_session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Practice Session Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReportDetailResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -925,29 +1047,6 @@
           "summary_id"
         ],
         "title": "CoachStartReq"
-      },
-      "CoachTurn": {
-        "properties": {
-          "role": {
-            "type": "string",
-            "enum": [
-              "ai",
-              "actor"
-            ],
-            "title": "Role"
-          },
-          "text": {
-            "type": "string",
-            "title": "Text"
-          }
-        },
-        "additionalProperties": false,
-        "type": "object",
-        "required": [
-          "role",
-          "text"
-        ],
-        "title": "CoachTurn"
       },
       "CoachTurnResponse": {
         "properties": {
@@ -1482,6 +1581,43 @@
         ],
         "title": "PracticeSessionRequest"
       },
+      "PracticeSessionStatusResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "created",
+              "analyzing",
+              "analyzed",
+              "failed"
+            ],
+            "title": "Status"
+          },
+          "error_code": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "gemini_timeout",
+                  "gemini_parse_error",
+                  "unsupported_media",
+                  "max_attempts_exceeded"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Code"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "title": "PracticeSessionStatusResponse"
+      },
       "RefreshRequest": {
         "properties": {
           "refresh_token": {
@@ -1524,6 +1660,36 @@
         ],
         "title": "RefreshTokenResponse"
       },
+      "ReportDetailResponse": {
+        "properties": {
+          "practice_session_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Practice Session Id"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "report": {
+            "$ref": "#/components/schemas/ActingReport"
+          },
+          "playback_url": {
+            "type": "string",
+            "title": "Playback Url"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "practice_session_id",
+          "created_at",
+          "report",
+          "playback_url"
+        ],
+        "title": "ReportDetailResponse"
+      },
       "ReportHistoryResponse": {
         "properties": {
           "count": {
@@ -1548,34 +1714,27 @@
       },
       "ReportRecord": {
         "properties": {
+          "practice_session_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Practice Session Id"
+          },
+          "headline": {
+            "type": "string",
+            "title": "Headline"
+          },
           "created_at": {
             "type": "string",
             "format": "date-time",
             "title": "Created At"
-          },
-          "session_id": {
-            "type": "string",
-            "format": "uuid",
-            "title": "Session Id"
-          },
-          "report": {
-            "$ref": "#/components/schemas/ActingReport"
-          },
-          "turns": {
-            "items": {
-              "$ref": "#/components/schemas/CoachTurn"
-            },
-            "type": "array",
-            "title": "Turns"
           }
         },
         "additionalProperties": false,
         "type": "object",
         "required": [
-          "created_at",
-          "session_id",
-          "report",
-          "turns"
+          "practice_session_id",
+          "headline",
+          "created_at"
         ],
         "title": "ReportRecord"
       },

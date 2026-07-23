@@ -46,12 +46,10 @@ class InMemoryReportStore:
         context = self._contexts.get(session_id)
         if context is None or self.has_report(session_id):
             return False
-        _, session = context
         self._records[session_id] = ReportRecord(
             created_at=datetime.now(timezone.utc).isoformat(),
             session_id=session_id,
             report=report,
-            turns=session.turns,
         )
         return True
 

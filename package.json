@@ -11,6 +11,7 @@
     "build": "pnpm build:web",
     "lint": "pnpm lint:web",
     "dev:web": "pnpm --filter web dev",
+    "dev:lan": "pnpm --filter web dev:lan",
     "build:web": "pnpm --filter web build",
     "lint:web": "pnpm --filter web lint",
     "perf": "pnpm build:web && pnpm perf:web",

@@ -1,7 +1,5 @@
 from pydantic import BaseModel, Field
 
-from acting_report.session_schema import CoachTurn
-
 
 class BiggestProblem(BaseModel):
     start: str = Field(description="문제 구간 시작 시점 (예: 00:12)")
@@ -38,10 +36,10 @@ class ActingReport(BaseModel):
 class ReportRecord(BaseModel):
     """같은 사용자의 리포트 히스토리 한 건.
 
-    DB에서는 대화를 coach_turns에만 저장하고, 조회할 때 turns를 함께 구성한다.
+    DB에서는 코칭 대화를 coach_turns에 별도로 유지한다.
     """
 
     created_at: str = Field(description="ISO8601 생성 시각")
     session_id: str
+    practice_session_id: str = ""
     report: ActingReport
-    turns: list[CoachTurn] = Field(default_factory=list)
