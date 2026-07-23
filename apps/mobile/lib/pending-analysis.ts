@@ -1,0 +1,216 @@
+export const ANALYSIS_SCHEMA_VERSION = 1;
+
+const KEY_PREFIX = 'acttub.pendingAnalysis:';
+
+export type PendingAnalysisRecord = {
+  schemaVersion: number;
+  owner: string;
+  session_id: string;
+};
+
+export type PendingAnalysisHandle = {
+  key: string;
+  record: PendingAnalysisRecord;
+};
+
+export type PendingAnalysisStorage = {
+  getAllKeys: () => Promise<readonly string[]>;
+  getItem: (key: string) => Promise<string | null>;
+  setItem: (key: string, value: string) => Promise<void>;
+  removeItem: (key: string) => Promise<void>;
+};
+
+function isRecord(value: unknown): value is PendingAnalysisRecord {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return false;
+  const candidate = value as Partial<PendingAnalysisRecord>;
+  return (
+    typeof candidate.schemaVersion === 'number' &&
+    typeof candidate.owner === 'string' &&
+    typeof candidate.session_id === 'string'
+  );
+}
+
+function createKey(record: PendingAnalysisRecord, scope: string): string {
+  return [
+    KEY_PREFIX,
+    encodeURIComponent(record.owner),
+    ':',
+    encodeURIComponent(scope),
+    ':',
+    encodeURIComponent(record.session_id),
+  ].join('');
+}
+
+export function createPendingAnalysisStore(storage: PendingAnalysisStorage) {
+  async function save(
+    record: PendingAnalysisRecord,
+    scope: string,
+  ): Promise<PendingAnalysisHandle> {
+    const handle = {
+      key: createKey(record, scope),
+      record,
+    };
+    await storage.setItem(handle.key, JSON.stringify(record));
+    return handle;
+  }
+
+  async function remove(handle: PendingAnalysisHandle): Promise<void> {
+    await storage.removeItem(handle.key);
+  }
+
+  async function loadForOwner(owner: string): Promise<PendingAnalysisHandle | null> {
+    const keys = (await storage.getAllKeys()).filter((key) => key.startsWith(KEY_PREFIX));
+    const current: PendingAnalysisHandle[] = [];
+    const discard: string[] = [];
+
+    for (const key of keys) {
+      const raw = await storage.getItem(key);
+      if (raw === null) continue;
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(raw);
+      } catch {
+        discard.push(key);
+        continue;
+      }
+      if (!isRecord(parsed) || parsed.schemaVersion !== ANALYSIS_SCHEMA_VERSION) {
+        discard.push(key);
+        continue;
+      }
+      if (parsed.owner !== owner) continue;
+      current.push({ key, record: parsed });
+    }
+
+    current.sort((a, b) => b.key.localeCompare(a.key));
+    discard.push(...current.slice(1).map(({ key }) => key));
+    await Promise.all(discard.map((key) => storage.removeItem(key)));
+    return current[0] ?? null;
+  }
+
+  return {
+    save,
+    remove,
+    loadForOwner,
+  };
+}
+
+export type BootstrapDecisionInput = {
+  authStatus: 'loading' | 'signedIn' | 'signedOut';
+  hasPendingConsents: boolean;
+  recoveryStatus: 'loading' | 'ready';
+  pending: PendingAnalysisHandle | null;
+};
+
+export type BootstrapRoute =
+  | '/login'
+  | '/consent'
+  | '/(tabs)'
+  | {
+      pathname: '/analyzing';
+      params: {
+        recoveryKey: string;
+        sessionId: string;
+      };
+    };
+
+export type BootstrapRecoveryParams = {
+  recoveryKey?: string | string[];
+  sessionId?: string | string[];
+};
+
+export function resolveAnalyzingBootstrapRoute(
+  pathname: string,
+  currentParams: BootstrapRecoveryParams,
+  target: Extract<BootstrapRoute, { pathname: '/analyzing' }>,
+): 'replace' | 'complete' {
+  return pathname === target.pathname &&
+    currentParams.recoveryKey === target.params.recoveryKey &&
+    currentParams.sessionId === target.params.sessionId
+    ? 'complete'
+    : 'replace';
+}
+
+export type BootstrapStage =
+  | 'auth-gate'
+  | 'consent-gate'
+  | 'pending-recovery'
+  | 'done';
+
+export type BootstrapStepInput = {
+  authStatus: 'loading' | 'signedIn' | 'signedOut';
+  userId: string | null;
+  hasPendingConsents: boolean;
+  recoveryStatus: 'loading' | 'ready';
+  recoveryOwner: string | null;
+  pending: PendingAnalysisHandle | null;
+};
+
+export type BootstrapStep = {
+  stage: BootstrapStage;
+  route: BootstrapRoute | null;
+};
+
+export type RecoveryConsentGate = string | number | boolean | null;
+
+export function recoveryStatusForConsentGate(
+  recovery: {
+    status: 'loading' | 'ready';
+    consentGate: RecoveryConsentGate;
+  },
+  currentConsentGate: RecoveryConsentGate,
+): 'loading' | 'ready' {
+  return recovery.consentGate === currentConsentGate
+    ? recovery.status
+    : 'loading';
+}
+
+/** auth → consent → owner별 pending recovery 순서로만 done에 도달한다. */
+export function resolveBootstrapStep(input: BootstrapStepInput): BootstrapStep {
+  if (input.authStatus === 'loading') {
+    return { stage: 'auth-gate', route: null };
+  }
+  if (input.authStatus === 'signedOut') {
+    return { stage: 'auth-gate', route: '/login' };
+  }
+  if (!input.userId) {
+    return { stage: 'auth-gate', route: null };
+  }
+  if (input.hasPendingConsents) {
+    return { stage: 'consent-gate', route: '/consent' };
+  }
+  if (
+    input.recoveryStatus !== 'ready' ||
+    input.recoveryOwner !== input.userId
+  ) {
+    return { stage: 'pending-recovery', route: null };
+  }
+  if (input.pending) {
+    return {
+      stage: 'done',
+      route: {
+        pathname: '/analyzing',
+        params: {
+          recoveryKey: input.pending.key,
+          sessionId: input.pending.record.session_id,
+        },
+      },
+    };
+  }
+  return { stage: 'done', route: '/(tabs)' };
+}
+
+export function decideBootstrapRoute(input: BootstrapDecisionInput): BootstrapRoute | null {
+  if (input.authStatus === 'loading' || input.recoveryStatus === 'loading') return null;
+  if (input.authStatus === 'signedOut') return '/login';
+  if (input.hasPendingConsents) return '/consent';
+  if (input.pending) {
+    return {
+      pathname: '/analyzing',
+      params: {
+        recoveryKey: input.pending.key,
+        sessionId: input.pending.record.session_id,
+      },
+    };
+  }
+  return '/(tabs)';
+}

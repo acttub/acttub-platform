@@ -108,6 +108,35 @@ def test_upload_intent_issues_presigned_put_with_user_scoped_object_key():
     assert s3.presign_calls[0][1]["ExpiresIn"] == 1800
 
 
+def test_upload_intent_rejects_fractional_numbers_but_accepts_integer_floats():
+    client, store, _, _, headers = _application()
+
+    fractional = client.post(
+        "/v2/uploads/intents",
+        json={
+            "mime_type": "video/mp4",
+            "size_bytes": 12.5,
+            "duration_ms": 12345.678,
+        },
+        headers=headers,
+    )
+    integer_float = client.post(
+        "/v2/uploads/intents",
+        json={
+            "mime_type": "video/mp4",
+            "size_bytes": 12.0,
+            "duration_ms": 12345.0,
+        },
+        headers=headers,
+    )
+
+    assert fractional.status_code == 422
+    assert integer_float.status_code == 201
+    intent = store.uploads[UUID(integer_float.json()["intent_id"])]
+    assert intent.size_bytes == 12
+    assert intent.duration_ms == 12345
+
+
 def test_upload_intent_rejects_oversize_and_non_video_mime():
     client, store, _, _, headers = _application()
     too_large = client.post(

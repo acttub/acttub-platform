@@ -1,197 +1,314 @@
-# SPEC — 이전 기록 API 개편 (리포트 상세 신설 + 목록 슬림화)
+# SPEC — 리포트 500 장애 + 모바일 계약 정합성 일괄 수정
 
-기준 커밋: `5155dc0`(dev) · 브랜치: `feat/report-history-api`
+기준 커밋: `40f1f6d`(dev) · 브랜치: `feat/report-and-mobile-fixes`
+작업 위치: `/Users/insung/Documents/GitHub/acttub/acttub-wt-fixes` (격리 worktree)
 
 ## 배경 / 목적
 
-"이전 기록"은 완료된 연습(리포트)을 영상과 함께 다시 보는 화면이다. 현재는
-`GET /v2/reports`가 **리포트 본문 전체**를 목록으로 실어 나르고, 웹·모바일 상세
-화면이 그 목록 레코드의 본문을 그대로 렌더링한다(추가 호출 없음). 영상은 웹에서만
-`GET /v2/practice-sessions/{id}`로 따로 받는다.
+2026-07-23 감사에서 서로 독립적인 세 갈래 결함이 확인됐다. 모두 코드·실행 출력으로 검증했다.
 
-이 구조의 문제:
-1. 목록 응답이 리포트 수에 비례해 무거워진다(본문 7필드 × N).
-2. `GET /v2/reports`가 `hidden_at`(사용자 삭제=소프트 숨김)을 필터링하지 않아,
-   **삭제한 연습의 리포트가 모바일 기록 화면에 계속 노출된다**(실사용 버그).
-3. 영상과 리포트를 얻는 호출이 분리돼 웹 상세가 2-call이다.
+1. **리포트 미출력 (운영 장애)** — `PostgresStore._report_count_query`가 만드는 SQL에
+   `FROM reports`가 없어 Postgres가 거부한다. `POST /v2/reports`가 500으로 죽고
+   **웹·앱 양쪽에서 리포트가 나오지 않는다.**
+2. **iOS 업로드 422** — 모바일이 `asset.duration`(iOS에서 Double)을 정수화 없이
+   `duration_ms: int`로 보내 intent 생성이 422로 막힌다.
+3. **모바일 계약 정합성 11건** — dev 머지 후에도 남는 모바일 고유 결함. 웹·백엔드를
+   기준으로 대조해 확정했다.
 
-목표: 목록은 "클릭할 항목 나열"로 슬림화하고, 상세는 리포트 본문+영상 URL을 한 번에
-주는 전용 엔드포인트로 분리한다. hidden 필터를 API 전체에 일관 적용한다.
+부수적으로 두 장애 모두 **사용자에게 영문 원문(`HTTP 500`, Pydantic 메시지)이 그대로
+노출**되는 문제가 함께 드러났다.
 
 ## 설계
 
-### 백엔드 (`apps/api/acting-api`)
+### W1. 백엔드 — 리포트 count 쿼리 (긴급)
 
-**A. 신설 `GET /v2/reports/{practice_session_id}`**
-- 응답 200 (`_StrictResponse`, extra 금지):
-  ```
-  { practice_session_id: UUID, created_at: datetime,
-    report: ActingReport, playback_url: str }
-  ```
-- path key는 `practice_session_id`. 조회는 `reports → coach_sessions → summaries →
-  practice_sessions` 조인으로 역추적하며 `PracticeSession.user_id == user.id` AND
-  `PracticeSession.hidden_at IS NULL` 필터.
-- 미존재 / 남의 리소스 / hidden / 리포트 없음 → **404 `report_not_found`** (구분 안 함,
-  기존 관례).
-- `playback_url`은 upload_intents.object_key로 presign (`storage.presign_playback`,
-  TTL `PLAYBACK_URL_TTL_SEC=15분` 재사용). storage 미설정 → **503**
-  `storage_not_configured` (기존 세션 상세와 동일).
-- 응답에 `session_id`(coach_session id)·`turns` **미포함**.
-- store: `get_report_detail_for_practice_session(user_id, practice_session_id)` 신설 —
-  리포트 본문 + upload object_key를 함께 반환. presign은 라우터에서.
-- **조인 다중성 방어**(Codex): practice_session → 1 summary(0004 UNIQUE) → **N
-  coach_sessions** → 각 ≤1 report 이므로 DB상 practice_session당 리포트가 다수일 수
-  있다(앱 로직이 1건으로 강제하지만 쿼리는 방어적으로). 쿼리는 `reports.created_at
-  DESC LIMIT 1`로 최신 1건을 결정적으로 선택. **DB에 UNIQUE 추가는 스코프 밖**(스키마
-  변경 금지)이라 하지 않는다.
+`apps/api/acting-api/src/acting_api/db/store.py:1294` `_report_count_query`에 명시적
+FROM 앵커를 지정한다.
 
-**B. `GET /v2/reports` 슬림화 + hidden 필터 (list_reports 분리)**
-- **HTTP용 슬림 쿼리 신설** `store.list_report_summaries(user_id)` → `{ practice_session_id,
-  headline, created_at }` 목록, `hidden_at IS NULL` 필터. `report_history` 핸들러가 이걸 사용.
-- **기존 `store.list_reports`(full body)는 유지**(Codex HIGH): `create_report`가 이전
-  리포트 본문을 comparison 생성에 사용(`reports.py:119`)하므로 인플레이스 슬림화 금지.
-  단 여기에도 `hidden_at IS NULL` 필터를 **추가**(삭제된 연습이 comparison에 새지 않게).
-- HTTP `ReportRecord`를 `{ practice_session_id, headline, created_at }`로 축소
-  (`session_id`·`report` 제거). `ReportHistoryResponse = { count, reports: [슬림] }` 유지.
-- **`_report_count_query`에 `hidden_at IS NULL` 추가**(Codex): 안 그러면 hidden 리포트가
-  `POST /v2/reports`의 `report_count` 및 "N번째 연습 노트" 서수와 목록 count가 불일치.
+현재 컴파일 결과(검증됨):
+```
+FROM practice_sessions JOIN coach_sessions ON reports.session_id = ...
+  JOIN practice_sessions ON ...        -- reports 없음 + practice_sessions 중복
+```
+목표:
+```
+FROM reports JOIN coach_sessions JOIN summaries JOIN practice_sessions
+```
 
-**C. 스펙·타입 재생성 (같은 PR)**
-- `spec/openapi.json` 재생성 → 웹 `v2-schema.d.ts` 재생성.
+수정본은 이미 작성돼 worktree에 적용돼 있다(`.select_from(DbReport)` + 회귀 테스트).
+**이 파이프라인에서는 검증·보강만 한다.**
 
-### 웹 프론트 (`apps/web`)
+### W2. 테스트 게이트
 
-웹 리포트 화면은 이미 `getPracticeSession`에서 `situation`/`character_context`(헤더,
-`practice-flow.tsx:1345-1346`)와 `playback_url`(영상, `Report`에 `session.playback_url`
-전달)을 받아 쓴다. 따라서 **웹은 세션 호출이 원래 필요**하고, 목록 레코드에서 얻던 건
-리포트 **본문뿐**이다. 슬림화로 본문만 fetch로 전환:
-- **신설** `getReport(practiceSessionId)` API 클라이언트 (`lib/api/v2/reports.ts`).
-- **기록 열기**: `getPracticeSession`(맥락+영상, 변경 없음) + `getReport`(본문) — **2-call**.
-  `showReportRecord`가 목록 본문을 꺼내던 것 → `getReport` 본문으로 `reportData` 세팅.
-  **로딩/에러 상태 신설**.
-- **리포트 생성 직후**(`POST /v2/reports` 후): 슬림 목록 재파생 대신 **POST 응답 본문**을
-  직접 `reportData`에 사용. 영상은 기존 `session.playback_url` 그대로.
-- **영상·playback refresh 경로는 변경하지 않음** — 영상은 계속 `session.playback_url`에서
-  오므로 `onPlaybackError` 기존 로직 유지(웹 변경 최소화).
-- 목록 화면은 `listPracticeSessions`(진행 중 표시용)+슬림 `listReports` **병행 유지**.
-  리포트 카드 미리보기는 `headline`만 사용.
+이 회귀를 잡을 수 있는 `tests/test_db_store.py`가 `RUN_DB_TESTS != "1"`이면 통째로
+skip된다(53-54행). `test_report_store_queries.py`는 가짜 Session이라 SQL을 실제
+실행하지 않고 부분 문자열만 본다.
 
-### 모바일 (`apps/mobile`, 수기 타입 — 웹 타입 재생성과 독립)
+- SQL 문자열 검증을 **FROM 앵커·중복 JOIN까지** 확인하도록 강화
+- Postgres 통합 테스트 실행 명령을 확정하고 `apps/api/AGENTS.md`에 문서화한다.
+  이번 파이프라인에서 **실제로 돌려 통과를 확인**한다.
 
-- `lib/api.ts`: `ReportRecord`를 슬림(`practice_session_id, headline, created_at`)으로
-  수정, 죽은 `turns` 필드 제거. `getReport(practiceSessionId)` 추가 — 응답
-  `{ practice_session_id, created_at, report, playback_url }` 타입.
-- `history.tsx`: 카드를 **날짜+headline**만으로 단순화(기존
-  `biggest_problem.description`·`next_step` 미리보기 제거). 카드 key를
-  `practice_session_id + created_at`로 변경. 카드 탭 시 **`practice_session_id`를 Expo
-  Router param으로 전달**(module store 의존 제거 — 앱 재시작·딥링크 대응, Codex).
-- `report-detail.tsx`: `useLocalSearchParams`로 받은 `practice_session_id`로 **`getReport`
-  fetch**(로딩 상태). 본문 텍스트 + **영상 재생 추가** — `playback_url`을 기존
-  `expo-video`(`useVideoPlayer`+`VideoView`, coach.tsx/analyzing.tsx와 동일 패턴)로 재생.
-  삭제를 `deletePracticeSession(practice_session_id)`로 수정(현재 coach id 전달은 잠재 버그).
-  `selected-report.ts` module store 제거(또는 미사용화).
-- 모바일 기록은 리포트 전용이라 진행 중 세션 관련 변경 없음.
+> 결정: 저장소에 CI 설정(`.github`)이 없다. "CI 필수 경로"는 달성 불가이므로 로컬 검증
+> 명령 확정 + 문서화로 재조정한다. CI 신설은 스코프 밖.
+> 로컬 Postgres가 `localhost:5432`에서 동작 중이고 DB `acting_local`이 있다. 통합 테스트
+> fixture는 `acting_test_<uuid>` 스키마를 만들었다 지우므로 기존 데이터에 영향이 없다.
+
+### W3. 모바일 — 숫자 타입 (iOS 422)
+
+`apps/mobile/app/upload.tsx:71` `setDurationMs(asset.duration ?? null)`을 한 곳에서
+정규화한다. 유한한 양수면 반올림 정수 밀리초, 아니면 `null`. 길이 검사와 `setDurationMs`가
+**같은 정규화 값**을 쓴다.
+`lib/api.ts`의 `createUploadIntent` 경계에서도 `duration_ms`·`size_bytes`가 양의 정수인지
+검사해 요청 전에 막는다.
+
+서버 스키마는 바꾸지 않는다 — DB가 `Integer`이고 웹도 `Number.isInteger`를 요구한다.
+
+### W4. 모바일 — 계약 정합성 11건
+
+| # | 문제 | 위치 | 수정 방향 |
+|---|---|---|---|
+| M1 | 리포트 목록 정렬 역전 (서버 오름차순인데 `records[0]`을 최신으로 사용) | `app/(tabs)/index.tsx:64` | `created_at` 내림차순 명시 정렬 |
+| M2 | 재시도가 상태 확인 없이 `reanalyze` → 409 `session_is_not_failed` | `app/analyzing.tsx:91-93` | 먼저 status 조회, `failed`일 때만 재분석. `analysis_retry_exhausted`도 분기 |
+| M3 | 오프라인 로그아웃 시 토큰 미삭제 (비-ApiError rethrow) | `lib/auth.tsx:168-171` | 서버 로그아웃은 best-effort, 로컬 정리는 `finally`에서 항상 |
+| M4 | refresh의 429·5xx를 영구 실패로 처리해 세션 파기 | `lib/api.ts:235`, `293-298` | 401/422만 영구 실패. 일시 오류는 세션 유지하고 전파 |
+| M5 | 진행 중 연습이 메모리 전용이라 앱 종료 시 복구 불가 | `lib/practice.ts:35`, `app/analyzing.tsx:47,154` | **AsyncStorage 영속화 + 분석 재개** (아래 결정 참조) |
+| M6 | `X-Request-Id`가 호출마다 새로 생성돼 idempotency 무력화 | `lib/api.ts:285` | **웹과 동일한 재시도 루프 도입** (아래 결정 참조) |
+| M7 | 화면 이탈해도 압축·PUT·complete·세션 생성이 계속 진행 | `app/analyzing.tsx:97,114,162` | **전면 취소** (아래 결정 참조) |
+| M8 | `coachStart` 실패 후 재시도 UI 없음, 전송 버튼 무반응 | `app/coach.tsx:61,108,210` | 시작 재시도 버튼 추가, `coachSessionId` 없으면 입력 비활성 |
+| M9 | 영상 길이 제한 330초 (웹 300초) | `app/upload.tsx:47` | **300초로 통일**, 안내 문구와 검증값이 같은 상수 참조 |
+
+#### 확정된 설계 결정 (Codex 설계 비판 반영, 2차 개정)
+
+Codex 비판에서 critical 2건·high 2건이 나왔고 **전부 코드로 검증해 수용**했다. 핵심은
+M5·M6·M7을 개별 수정으로 다루면 서로 밟는다는 것이다. 공통 기반을 먼저 정의한다.
+
+##### S1. 작업 소유권 state machine (선행 조건)
+
+검증된 문제: `app/analyzing.tsx:81`의 `run()`이 mount(`:161`)와 재시도 버튼(`:203`)
+양쪽에서 호출되는데 **실행 중 가드가 없다.** 재시도를 빠르게 두 번 누르거나 취소 직후
+재진입하면 각자 compression uuid·UploadTask·AbortController·requestId를 가진 두
+pipeline이 같은 `uploadRef`·`sessionIdRef`·AsyncStorage 키를 두고 경쟁한다. 단일 ref만
+두면 후발 작업이 선행 handle을 덮어써 **선행 작업은 취소되지 않고**, 선행 작업의 늦은
+cleanup이 후발 작업의 영속 상태를 지우거나 `startPractice`·`router.replace`를 실행한다.
+
+- 화면별 boolean이 아니라 **generation 카운터를 가진 단일 operation**을 둔다.
+- active operation이 있으면 `run()` 재진입을 막는다.
+- 모든 콜백·스토리지 write/remove·navigation은 **자기 generation이 아직 active일 때만** 수행한다.
+- cleanup은 **자기 generation의 자원만** 취소한다.
+- 이 state machine은 `app/analyzing.tsx`가 아니라 **순수 모듈로 분리**해 테스트한다.
+
+##### S2. 취소 어휘 3종 분리 (선행 조건)
+
+검증된 문제: 현재 unmount cleanup은 화면 lifecycle만 나타내는데, `createPracticeSession`
+이후 서버 분석은 독립적으로 계속된다. AbortController는 응답 대기·폴링만 끊을 뿐 서버
+작업을 롤백하지 않는다. generic unmount를 "취소"로 보고 영속 레코드를 지우면 **M5의 재시작
+복구가 사라지고 접근 불가 서버 세션이 남는다.** 반대로 항상 유지하면 사용자가 포기한
+작업도 다음 실행에 다시 열린다. 즉 M5와 M7은 현재 서술로는 **서로 모순**이다.
+
+| 어휘 | 발생 시점 | 동작 |
+|---|---|---|
+| `cancel-local` | 세션 생성 **전** 이탈 | 압축·PUT 취소, 이후 단계 진입 차단, 영속 레코드 없음 |
+| `detach` | 세션 생성 **후** 이탈 | 폴링만 중단, **레코드 유지**, 서버 작업은 계속 |
+| `abandon` | 사용자 명시적 포기 | 기존 삭제 경로 처리 후 레코드 제거 |
+
+##### S3. 네트워크 취소 계약 (선행 조건)
+
+검증된 문제: `lib/api.ts`의 `request()`가 자기 `AbortController`를 만들고(`:277`)
+`signal: controller.signal`로 **호출자 signal을 덮어쓰며**(`:290`), 모든 AbortError를
+타임아웃 문구로 바꾼다(`:310-311`). 401에서는 signal과 무관하게 shared `ensureRefreshed()`를
+기다린 뒤 새 controller로 재귀한다(`:294`) — **화면 취소 중 refresh가 끝나면 요청이 부활**한다.
+반대로 화면 signal을 single-flight refresh에 연결하면 한 화면의 취소가 다른 요청이 공유하는
+refresh까지 죽인다.
+
+- 외부 operation signal과 per-attempt timeout을 **합성**하되 abort 원인(`timeout` / `cancelled`)을 보존하는 단일 request primitive를 만든다.
+- 취소 시 **shared refresh를 기다리는 것만** 중단한다. refresh 자체는 취소하지 않는다.
+- retry 대기와 401 재시도 **전후로 signal을 재확인**한다.
+- `lib/compress.ts:76`의 포괄 `catch`는 **네이티브 모듈 부재(원본 fallback)와 취소를 구분하지 못한다** — 지금 상태로 취소를 붙이면 취소가 "원본 업로드 성공"으로 둔갑한다. `cancelled`를 별도 결과로 반환하도록 좁힌다.
+- `createUploadTask`의 취소 결과도 정상 응답과 구분한다.
+
+##### M5 — 재정의: 서버 분석 단계 재개로 범위 축소
+
+검증된 문제: `app/_layout.tsx:40`의 `RootNavigator`는 auth·consent만 gate하고 영속
+분석을 읽는 단계가 없다. 복구 로드와 auth redirect가 각각 `router.replace`를 실행하면
+tabs·consent·analyzing이 경합한다. 게다가 analyzing에 도착해도 `takePendingUpload()`가
+없으면 즉시 upload로 되돌리고(`:154`), 완료 후 `startPractice`에는 로컬 `videoUri`가
+필요하다(`:133-139`).
+
+- 저장 시점을 **`createPracticeSession` 응답 이후**로 한정한다. `session_id` + `schemaVersion` + `owner`(user id)만 저장한다.
+- 재시작 시 서버 detail로 hydrate한다(subtext·summary·playback URL). 로컬 원본 영상에 의존하지 않는다.
+- **보장 범위를 명시한다**: 압축·PUT 중 종료, 그리고 세션 생성 응답 유실은 복구 대상이 아니다.
+- auth와 recovery storage가 **모두 로드될 때까지 한 bootstrap owner가 최초 route를 결정**한다. `router.replace` 경합을 없앤다.
+- `owner` 불일치(계정 전환)나 `schemaVersion` 불일치 레코드는 폐기한다.
+- `TODO.md` 10번 "이어가기 페이지"는 만들지 않는다(별도 과제).
+
+##### M6 — 재정의: idempotent POST에 한정
+
+웹 loop 전체를 이식하면 `requestId`를 쓰는 모든 호출과 refresh를 한꺼번에 재구성하게 된다.
+대신 **idempotent POST**(`/v2/uploads/intents`, `/v2/practice-sessions`, `/v2/coach/*`,
+`/v2/reports`)에만 invocation 단위 requestId 스냅샷과 제한된 network·429·processing
+재시도를 둔다. 참조 구현은 `apps/web/src/lib/api/v2/idempotency.ts`(`:89` ID 1회 생성,
+`:99` 루프).
+포기하는 것: 웹과 정책이 완전히 같지는 않고, 제한 횟수를 넘는 일시 장애는 사용자에게 노출된다.
+
+##### M7 — 재정의: 세션 생성 전후로 의미가 다름
+
+- 세션 생성 **전**: 압축(`cancelCompression` + uuid)과 PUT(`createUploadTask`) native 취소.
+- 세션 생성 **후**: 서버 취소를 주장하지 않는다. `detach`로 정의한다.
+- 각 `await` 뒤 generation을 검사해 `complete`·세션 생성 진입을 막는다.
+- 남는 부작용을 인정한다: 이미 dispatch된 API와 서버 분석은 계속될 수 있고, finalized된 미사용 upload intent가 남을 수 있다.
+
+##### M9 — 300초 통일
+
+웹은 UI 문구("5분 이내")와 검증(`MAX_DURATION_MS = 300_000`)이 모두 300초다. 모바일
+가이드 문구도 "5분 이내"이므로 330초가 유일한 예외다. 300초로 맞춘다.
+
+##### 추가 엣지 케이스 (비판에서 수용, 전부 처리 대상)
+
+| # | 시나리오 | 요구 동작 |
+|---|---|---|
+| E1 | 영속 세션이 다른 기기·기록 화면에서 이미 삭제돼 status가 404 | 레코드를 **terminal stale로 제거**한다. 안 하면 매 실행마다 analyzing에 들어가 같은 오류·재시도를 반복한다 |
+| E2 | 재시도 중 토큰 만료로 single-flight refresh가 시작된 뒤 화면 취소 | caller 대기만 취소한다. shared refresh 자체를 abort하면 다른 화면의 동시 요청까지 죽는다 (S3) |
+| E3 | 취소 직후 새 분석 진입, 이전 operation의 비동기 storage remove가 뒤늦게 완료 | **고정 키 금지.** 키를 session/generation 스코프로 두거나 remove 전에 소유 검사를 한다. 안 하면 이전 cleanup이 새 레코드를 지운다 |
+| E4 | 서버가 세션을 만들었으나 응답 수신·저장 전에 프로세스 종료 | **복구 대상 아님**(M5 보장 범위 밖). 다만 사용자가 새 업로드를 만들 수 있음을 인정하고 문서화한다 |
+| E5 | 압축 취소가 캐시에 부분 파일을 남김 (Codex도 hypothesis로 표시) | 압축 산출물만 정리한다. **원본 URI는 절대 삭제하지 않는다** |
+| E6 | UploadTask가 마지막 바이트 전송 직후 취소돼 object는 존재하는데 client는 cancel을 받음 | cancel 결과를 정상 업로드로 처리하면 안 된다(`completeUpload` 실행 금지). 신호 확인 후 downstream 차단 |
+| E7 | 분석 레코드가 남은 채 logout → 다른 계정 로그인 | 키에 `owner`를 넣고 불일치 시 폐기 (M5). 앱 재시작 시 `AuthProvider.user`가 복원되지 않는 점을 고려한다 |
+| E8 | status는 `analyzed`인데 M11로 optional이 된 `summary`/`playback_url`이 detail에 없음 | 1회 재조회 후에도 없으면 **terminal error**로 처리한다(무한 폴링 금지) |
+
+#### 구현 순서 (비판의 권고를 수용)
+
+1. **W1 → W2** (완료)
+2. **W3 + M9 → M11** — 업로드 입력 정규화와 실제 optional 응답 타입 확정
+3. **M4 → S3 → M6** — refresh의 영구/일시 실패 구분을 먼저 만들고, 외부 signal·timeout 합성을 올린 뒤, 그 위에 재시도 루프
+4. **M3 → M2 → S1/S2 → M5** — logout 정리, 세션 상태 전이, state machine, 영속 복구
+5. **M7** — 확정된 state machine에 compressor uuid와 UploadTask 연결
+6. **M1 · M8 · M10 → W5** — 독립 UI·오류 처리
+7. **W6** — `upload.tsx`·AsyncStorage 변경이 끝난 뒤 마지막에 이식
+
+근거: M4와 M6은 같은 `request()`·refresh 경계를 건드리므로 M4의 결과 모델이 먼저 필요하다.
+M5는 unmount가 레코드를 유지할지 지울지 결정하므로 M7의 화면 cleanup보다 앞서야 한다.
+W6는 W3/M9와 같은 `upload.tsx`, M5와 같은 AsyncStorage 영역을 건드리므로 마지막이 안전하다.
+
+#### 기각한 제안
+
+- **W6를 후속 작업으로 미루자** — 기각. 사용자가 이번 스코프로 명시했고, 브랜치의 유일한
+  고유 가치다. 대신 구현 순서에서 **마지막에 배치**해 동시 변경 위험을 줄이는 것으로 대신한다.
+- **AsyncStorage 대신 매 시작 `listPracticeSessions()` 조회** — 기각. Codex 자신도
+  `recommend: false`로 표시했다. 매 시작 API 호출이 필요하고 복수 진행 세션 중 선택이
+  모호하며 오프라인 복구가 불가능하다.
+| M10 | 삭제 404를 실패 알럿으로 표시 | `app/report-detail.tsx:66-71` | 404를 idempotent success로 처리 |
+| M11 | 수기 타입이 실제 계약보다 과선언 | `lib/api.ts:130,146,386` | 조건부 필드를 옵셔널로, `completeUpload.status`는 `'finalized'` literal |
+
+### W5. 오류 문구 (두 장애에서 드러난 공통 결함)
+
+- `lib/api.ts` `friendlyError`에 **500·422 케이스가 없어** 영문이 그대로 노출된다
+  (`HTTP 500`, Pydantic 원문). 한국어 문구로 매핑한다.
+- `app/report.tsx`는 리포트 생성 실패 시 **재시도 경로가 없다**(마운트 1회 `useEffect`).
+  재시도 버튼을 추가한다 — M8과 같은 패턴.
+
+### W6. first-upload-guide 이식
+
+폐기할 `feat/mobile-delete-fix-and-onboarding-ui`(073c326)에서 고유 가치만 dev 위로 옮긴다.
+
+- `components/first-upload-guide.tsx` (신규 134줄)
+- `app/upload.tsx` — import + `!prefilled` 조건부 mount 2 hunk
+- `app/consent.tsx` — `✓` 텍스트 → `MaterialIcons` 교체
+
+이식하면서 감사에서 나온 자체 결함도 함께 고친다:
+- `AsyncStorage.getItem`에 `.catch` 없음 → unhandled rejection (42행)
+- `setItem` 실패 무시 (53행)
+- `SEEN_KEY`가 계정 구분 없는 기기 전역 → 공용 기기에서 다음 계정이 가이드를 못 봄
+- 가이드 문구 "5분 이내"가 실제 검증(330초)과 불일치 → W3/M9로 함께 해소
+- Modal·조작 버튼에 접근성 역할 없음
+- `app/consent.tsx` 동의 행에 `accessibilityRole="checkbox"`/`accessibilityState` 없음
 
 ## 완료 기준 체크리스트
 
-- [ ] `GET /v2/reports/{practice_session_id}` 200이 명세대로(4필드: practice_session_id,
-      created_at, report, playback_url; session_id/turns 없음).
-- [ ] 같은 엔드포인트가 hidden 세션엔 404, 남의 리소스엔 404, storage 미설정 시 503,
-      practice_session당 리포트 다수여도 최신 1건을 결정적으로 반환.
-- [ ] `GET /v2/reports`가 슬림 3필드만 반환하고 hidden 세션 리포트를 제외.
-- [ ] `list_report_summaries`(신설, 슬림)와 `list_reports`(full, 내부 comparison용) 분리,
-      **양쪽 다** hidden 필터. `_report_count_query`도 hidden 필터. pytest 커버리지 추가.
-- [ ] `create_report`의 comparison 생성이 슬림화 후에도 정상 동작(회귀 없음).
-- [ ] `spec/openapi.json`·`v2-schema.d.ts` 재생성 반영.
-- [ ] 웹: 기록 열기(session+getReport 2-call)·생성 직후 본문 출처 전환, 로딩·에러 표시,
-      영상은 session.playback_url 유지.
-- [ ] 웹 `pnpm lint`·`typecheck`·`--filter web test`·`build` 통과.
-- [ ] 모바일: 카드 슬림화, 상세 getReport fetch + **영상 재생(expo-video)**, router param
-      전달, 삭제 practice_session_id 사용, `turns` 제거, 모바일 typecheck 통과.
-- [ ] `apps/api` pytest 전체 통과.
+**W1 — 리포트 500**
+- [ ] `_report_count_query` 컴파일 결과가 `FROM reports`로 시작하고, `practice_sessions`가 JOIN에 정확히 1회만 등장한다
+- [ ] `uv run --package acting-api pytest` 전체 통과
+- [ ] `RUN_DB_TESTS=1` Postgres 통합 테스트에서 `complete_report_operation`이 예외 없이 `report_count`를 반환한다
+
+**W2 — 테스트 게이트**
+- [ ] SQL 형태 회귀 테스트가 FROM 앵커와 중복 JOIN 부재를 모두 검증한다
+- [ ] Postgres 통합 테스트 실행 방법이 문서화되고 실제로 통과한다
+
+> **검증 원칙 (비판 수용)**: "근거가 있다" 같은 서술은 소스 문자열 확인만으로 통과
+> 처리될 수 있어 완료 증명이 못 된다. 아래 항목은 **입력 → 기대 관찰**로 고정하고,
+> 순수 모듈로 분리해 `node --test`로 실제 실행한다.
+>
+> 모바일 테스트 러너는 이미 존재한다: `apps/mobile/tests/consent-recovery.test.mjs`가
+> `node:test`를 쓴다. 다만 **소스 문자열 검사 방식**이고 package script에도 없다.
+> 실행 명령을 `node --test tests/`로 확정하고, 신규 테스트는 문자열이 아니라
+> **mock fetch·mock storage·fake timer로 동작을 검증**한다.
+
+**W3 — iOS 422**
+- [ ] `asset.duration = 12345.678`일 때 길이 검사와 저장 값이 **동일한 `12346`**을 쓴다
+- [ ] fetch 직전 request body의 `duration_ms`가 `12346`(정수)임을 모바일 테스트로 확인
+- [ ] `12345.0` → `12345`, `null` → `null` 유지
+- [ ] 비유한 값·0·소수 `size_bytes`는 fetch **전에** 거부된다 (fetch 호출 0회)
+- [ ] 서버 계약 테스트가 소수 float 422 / 정수형 float 통과를 고정한다
+
+**W4 — 모바일**
+
+*순수 모듈로 분리해 실제 실행 검증하는 항목*
+- [ ] **S1** 재시도 2회 연속 클릭 시 두 번째 `run()`이 무시된다(pipeline 1개). 이전 generation의 콜백·storage write/remove·navigation이 **실행되지 않는다**
+- [ ] **S2** 세션 생성 **전** 이탈 → 압축·PUT 취소되고 `completeUpload` 호출 0회. 세션 생성 **후** 이탈 → 폴링 중단되지만 레코드 **유지**
+- [ ] **S3** 취소 시 shared refresh는 죽지 않고, 취소 후 추가 fetch **0회**. abort 원인이 `timeout`과 `cancelled`로 구분된다
+- [ ] **M6** processing 409 / 429 / network error / 401→refresh 각각에서 **모든 attempt의 `X-Request-Id`와 body 바이트가 동일**하다. refresh single-flight 호출 횟수와 backoff 중 취소 후 fetch 0회를 확인
+- [ ] **M4** 401·422만 세션 파기, 429·5xx·network는 세션 유지하고 오류 전파
+- [ ] **M2** status가 `failed`일 때만 `reanalyze` 호출. 그 외 상태에서는 호출 0회
+- [ ] **M1** 서버가 오름차순으로 준 목록에서 최신 항목이 선택된다
+- [ ] **E1~E8** 각 시나리오별 기대 동작 (위 표) — 최소 E1·E3·E6·E8은 테스트로 고정
+
+*정적 확인으로 충분한 항목*
+- [ ] **M3** 로그아웃이 `finally`에서 항상 로컬 토큰을 정리한다 (비-ApiError 포함)
+- [ ] **M8** `coachSessionId` 없으면 입력 비활성 + 시작 재시도 버튼 존재
+- [ ] **M9** 300초 상수 하나를 검증·문구가 공유한다
+- [ ] **M10** DELETE 404가 성공과 동일 처리
+- [ ] **M11** 조건부 필드가 옵셔널, `completeUpload.status`가 `'finalized'` literal
+
+*런타임 미검증으로 분리 (완료로 세지 않는다)*
+- [ ] **M5·M7 실기기 확인** — 압축·PUT·API 대기·폴링 각 단계 이탈과 재진입, 앱 강제 종료 후 복구. 이 파이프라인에서 실행 불가하므로 **"정적 구현 완료 · 런타임 미검증"**으로 보고한다
+
+**W5 — 오류 문구**
+- [ ] 500 응답(plain text)에서 한국어 문구가 표시된다 — `HTTP 500` 노출 금지
+- [ ] 422 응답에서 Pydantic 영문 원문 대신 한국어 문구가 표시된다
+- [ ] 리포트 생성 실패 후 재시도 버튼이 `createReport`를 다시 호출한다
+
+**W6 — 이식**
+- [ ] AsyncStorage `getItem`/`setItem` rejection에서 **unhandled rejection이 발생하지 않고** 가이드 표시 여부가 결정된다
+- [ ] 계정별 표시 정책이 키에 반영된다 (또는 기기 단위 정책임을 코드에 명시)
+- [ ] Modal·건너뛰기·다음 버튼에 접근성 역할/라벨이 있다
+- [ ] `consent.tsx` 동의 행에 `accessibilityRole="checkbox"` + `accessibilityState`가 있다
+- [ ] 가이드 문구의 길이 안내가 M9의 300초와 일치한다
+- [ ] `feat/mobile-delete-fix-and-onboarding-ui`에서 살릴 것이 더 없음을 diff로 확인했다
+
+**전체 검증**
+- [ ] 백엔드: `uv run --package acting-api pytest` (cwd=`apps/api`)
+- [ ] 백엔드 통합: `RUN_DB_TESTS=1 TEST_DATABASE_URL=... pytest acting-api/tests/test_db_store.py`
+- [ ] 모바일 정적: `apps/mobile`에서 `npx tsc --noEmit` (별도 게이트로 유지 — 위 동작 검증을 대체하지 않는다)
+- [ ] 모바일 동작: `apps/mobile`에서 `node --test tests/`
+- [ ] 웹: `pnpm lint` · `pnpm typecheck` · `pnpm --filter web test`
 
 ## 하지 말 것 (스코프 제한)
 
-- 폴링 경량 API(`/status`), `filter=incomplete`, 리포트 삭제 API, DB 스키마 변경 — 전부
-  이번 스코프 밖(TODO에 이미 기록).
-- 리포트 생성 로직(`POST /v2/reports`)·코칭 플로우·업로드/세션 생성 계약 변경 금지.
-- 리포트 본문 필드 구조(ActingReport) 변경 금지 — 위치만 이동, 재정의 안 함.
-- 스코프 밖 리팩터링·파일 정리 금지.
+- 서버의 `size_bytes`/`duration_ms` 스키마를 float 허용으로 바꾸지 않는다
+- 리포트·업로드와 무관한 리팩터링, 스타일 정리, 의존성 업그레이드 금지
+- `apps/web` 코드 수정은 이번 스코프가 아니다 — 다만 W1이 웹 증상도 함께 고치므로 웹 동작 확인은 한다
+- `feat/mobile-delete-fix-and-onboarding-ui` 브랜치를 머지하지 않는다 (W6로 대체)
+- API 계약(요청/응답 스키마)은 바꾸지 않는다 → `spec/openapi.json`·`v2-schema.d.ts` 재생성 불필요
+- 생성물 수정 금지: `node_modules/`, `out/`, `.venv/`, `apps/web/src/lib/api/v2-schema.d.ts`
+- 커밋은 phase 단위로 남기되 **push는 하지 않는다**
 
 ## 미결 사항
 
-- 없음(설계 합의 완료). 구현 중 발견 사항은 SPEC 기준으로 판정.
-
-## 실행 환경 / 병렬 전략 (Codex 위임)
-
-- 작업 위치: git worktree `/Users/insung/Documents/GitHub/acttub/wt-report-history`
-  (브랜치 `feat/report-history-api`, dev=5155dc0 위로 rebase 완료). 메인 체크아웃은
-  다른 세션이 `feat/signup-consent`로 점유 중이라 격리함.
-- 의존성: 백엔드(계약·타입 소스) → 웹 타입 재생성 → 웹 프론트. 모바일은 수기 타입이라
-  계약만 고정되면 독립.
-- **Wave 1 (순차, 단독)**: 백엔드 A+B+C → pytest 검증 → 커밋.
-- **Wave 2 (병렬, 경로 分離: apps/web vs apps/mobile)**: 웹 프론트 3경로 리팩터 //
-  모바일 리팩터. 각자 검증(web lint/typecheck/test/build, mobile typecheck) → 커밋.
-- 결과 보장: 각 wave 후 실행 검증 + Claude 리뷰(triage) + Codex 최종 이중 리뷰.
-- BASE_REF(전체 PR diff 기준) = 5155dc0(dev tip). pre-work(UNIQUE·ERD)는 커밋 완료.
-
----
-
-# 후속 SPEC — ① 분석 폴링 경량화 + 이전 기록 reports-only
-
-기준 커밋: 이 브랜치 tip(`feat/report-history-api`). 위 리포트 상세/목록 슬림화 작업 **위에 이어서** 얹는다.
-
-## 스코프 결정 (2026-07-22, 사용자 확정)
-
-- **①만 구현**: `GET /v2/practice-sessions/{id}/status` 폴링 경량 엔드포인트 + 웹·모바일 폴링 전환.
-- **이전 기록 화면(웹)을 `GET /v2/reports`(슬림) 전용으로 전환**: 완료된 리포트만 카드로 표시. 진행중 "이어보기" 카드 제거, `listPracticeSessions` 호출 제거.
-- **②(`GET /v2/practice-sessions?filter=incomplete`)는 이번에 만들지 않음.** "미완료 연습 이어가기 별도 페이지" 작업으로 미룬다(TODO 재서술).
-- 감수 확정: 이번 버전은 진행중 세션 이어가기 UI가 없다 → 웹에서 분석 대기 중 새로고침/재진입 시 그 세션을 목록에서 다시 여는 경로가 없다(세션 URL 직접 접근만 가능). 모바일은 원래 없어서 무관.
-
-## ① `GET /v2/practice-sessions/{session_id}/status`
-
-**백엔드** (`apps/api/acting-api/src/acting_api/practice_sessions.py`, `db/store.py`)
-
-- 새 응답 모델 `PracticeSessionStatusResponse(_StrictResponse)`: `status: PracticeSessionStatus`, `error_code: AnalysisErrorCode | None = None`.
-- 새 라우트 `@router.get("/{session_id}/status", responses={200: {"model": PracticeSessionStatusResponse}})`:
-  - `result = await run_in_threadpool(store.get_practice_session_status, user_id=user.id, session_id=session_id)`
-  - `result is None` → `HTTPException(404, "practice_session_not_found")` (없음/남의 것/hidden 구분 안 함).
-  - 반환 `{"status": ..., "error_code": ...}`. **presign·summary·본문 없음, storage 의존 없음(503 없음)**.
-  - `error_code`는 status==failed일 때만 값, 그 외 `None` (기존 `get_session`과 동일 규칙).
-- 새 store 메서드 `get_practice_session_status(*, user_id, session_id)`:
-  - 반환용 작은 dataclass(예: `PracticeSessionStatusView(status: str, error_code: str | None)`), 미존재 시 `None`.
-  - 쿼리1: `PracticeSession.status` where `id==session_id AND user_id==user_id AND hidden_at IS NULL`. 없으면 `None`.
-  - status가 FAILED면 최신 `ANALYZE` `ExternalOperation.error_code` 1건 조회, 아니면 `error_code=None`. (upload/summary/presign 조회 안 함)
-- 라우트 순서: `/{session_id}/status`는 경로 깊이가 달라 `/{session_id}`와 충돌 없음. `get_session` 근처 배치.
-
-**웹** (`lib/api/v2/sessions.ts`, `features/practice/practice-flow.tsx`, `practice-single.tsx`)
-
-- `getPracticeSessionStatus(sessionId, {signal})` 신설 → `GET /v2/practice-sessions/{id}/status`. 타입은 재생성한 `v2-schema` 사용.
-- `pollSessionUntilSettled` 리팩터: 매 틱 `getPracticeSessionStatus` 폴링(경량). `onTick`→`onStatus(status)`로 변경. **정착(analyzed/failed) 시 `getPracticeSession`(전체) 1회** 호출해 그 `PracticeSessionDetail`을 반환(반환 타입 유지 → `practice-single.tsx`는 수정 불필요).
-- `practice-flow.tsx` `pollSession`: **초기 `getPracticeSession`(전체) 1회**로 `setSessionDetail`/`upsertHistory`(대기화면 렌더용). 이미 정착 상태면 `applySessionDetail` 후 종료. 아니면 `pollSessionUntilSettled({ signal, onStatus: (s) => setSessionDetail(prev => prev ? {...prev, status: s} : prev) })` → 정착 시 `applySessionDetail`. (10초마다 presign 발급이 사라짐)
-
-**모바일** (`apps/mobile/lib/api.ts`, `app/analyzing.tsx`)
-
-- `lib/api.ts`: `PracticeSessionStatusPayload = { status: SessionStatus; error_code: PracticeSessionDetail['error_code'] }` 타입 + `getPracticeSessionStatus(sessionId)` 메서드 추가.
-- `analyzing.tsx` `pollUntilDone`: `api.getPracticeSessionStatus` 폴링. `analyzed`면 `api.getPracticeSession` 1회 호출해 detail 반환(summary_id·playback_url 확보), `failed`면 `errorMessage(status.error_code)` throw. (4초마다 전체 상세·presign 발급이 사라짐)
-
-## 이전 기록 화면 reports-only (웹, `practice-flow.tsx`)
-
-- 로드 effect: `Promise.allSettled([listPracticeSessions(), listReports()])` → **`listReports()`만**. `listPracticeSessions` import·호출·`history` state 제거(사용처 정돈).
-- 카드 목록을 `reports`(슬림)로 렌더. 진행중 카드 제거.
-  - `PracticeHome`/`PracticeHistoryScreen`/`RecentPracticeSection`/`PracticeHistoryCard`: prop `sessions: PracticeSessionListItem[]` → `reports: ReportRecord[]`. 카드 제목=`headline`, 날짜=`created_at`, 배지 "완료", 링크=리포트 열기.
-  - 카드 클릭 → `report.practice_session_id`로 `sessionDetailHref` 이동. 세션 상세 진입 시 기존 흐름(pollSession→정착 analyzed→`showReportRecord`)이 리포트를 표시.
-- ripple: `openSession`을 `practice_session_id` 기반으로, `getPracticeBadge`는 완료 전용으로 단순화(또는 제거). 리포트 생성 직후(`createActingReport`)엔 새 리포트를 `reports` state에 반영(목록 즉시 갱신). `sessionDetail`/세션 상세/코칭 흐름은 그대로 유지. 빈 상태 문구 유지.
-
-## 계약·검증·문서
-
-- 계약 변경 → `apps/api`에서 spec 재생성(`uv run python -c "import json; from acting_api.app import create_app; json.dump(create_app().openapi(), open('spec/openapi.json','w'), ensure_ascii=False, indent=2)"`, **cwd=apps/api**) → 웹 `pnpm --filter web generate:v2-schema` → 프론트.
-- `apps/api/API.md`에 `GET /{id}/status` 추가.
-- 백엔드: `uv run --package acting-api pytest` (status: 200 / hidden→404 / 남의것→404 / failed면 error_code 채움 / 정착 케이스).
-- 웹: `pnpm --filter web typecheck · lint · --filter web test · build`.
-- 모바일: `apps/mobile`에서 `npx tsc --noEmit`.
-- `TODO.md`: line 9(status) 완료 반영, line 10을 "미완료 연습 이어가기 별도 페이지(리포트 없는 세션 조회 + 이어가기 UI)"로 재서술(이번 스코프 밖).
-
-## 하지 말 것
-
-- `GET /v2/practice-sessions?filter=incomplete` 신설 금지(미룸). DB 스키마 변경 금지. 리포트 생성/코칭/업로드 계약 변경 금지. 스코프 밖 리팩터·파일 정리 금지.
+1. **M5·M6·M7은 구조 변경 성격**이다. 다른 항목이 국소 수정인 것과 달리 화면 간 상태
+   흐름과 네트워크 계층을 건드린다. 각각 별도 커밋으로 분리하고, 스코프가 감당 범위를
+   넘으면 남은 부분을 최종 보고에 명시한다.
+2. **실기기 검증 불가** — M7의 `createUploadTask` 교체, M5의 앱 재시작 복구, first-upload-guide의
+   AsyncStorage 실패 경로는 정적 검증으로 확인할 수 없다. 최종 보고에 "실기기 확인 필요"로
+   분류해 남긴다.
+3. **모바일 검증 환경** — worktree에 `apps/mobile/node_modules`가 없다. 메인 체크아웃의
+   것을 심볼릭 링크로 연결해 `npx tsc --noEmit`과 `expo lint`를 돌린다(같은 커밋 기반이라
+   버전 드리프트 없음).

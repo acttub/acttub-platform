@@ -8,12 +8,15 @@ import {
   type ReactNode,
 } from 'react';
 
-import { api, ApiError, type AuthUser, type ConsentDocument, type TokenPair } from '@/lib/api';
+import { api, type AuthUser, type ConsentDocument, type TokenPair } from '@/lib/api';
+import { signOutBestEffort } from '@/lib/auth-session';
 import {
   clearTokens,
   getRefreshToken,
+  getStoredUser,
   loadTokens,
   onConsentRequired,
+  onStoredUserChanged,
   onTokensCleared,
   setTokens,
 } from '@/lib/token-store';
@@ -101,7 +104,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let active = true;
     loadTokens().then((hasToken) => {
-      if (active) setStatus(hasToken ? 'signedIn' : 'signedOut');
+      if (active) {
+        setUser(hasToken ? getStoredUser() : null);
+        setStatus(hasToken ? 'signedIn' : 'signedOut');
+      }
     });
     const unsubTokens = onTokensCleared(() => {
       setUser(null);
@@ -113,10 +119,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setConsentRequired(true);
       void refreshPendingConsents().catch(() => undefined);
     });
+    const unsubStoredUser = onStoredUserChanged((nextUser) => {
+      setUser(nextUser);
+      setPendingConsents([]);
+      setConsentRequired(true);
+      setStatus('signedIn');
+      void refreshPendingConsents().catch(() => undefined);
+    });
     return () => {
       active = false;
       unsubTokens();
       unsubConsent();
+      unsubStoredUser();
     };
   }, [refreshPendingConsents]);
 
@@ -129,7 +143,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         (pair.pending_consents ?? []).map((c) => `${c.type}${c.required ? '(필수)' : ''}`),
       );
     }
-    await setTokens(pair.access_token, pair.refresh_token);
+    const committed = await setTokens(pair.access_token, pair.refresh_token, pair.user);
+    if (!committed) return;
     setUser(pair.user);
     setPendingConsents(pair.pending_consents ?? []);
     setConsentRequired(false);
@@ -163,18 +178,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signOut = useCallback(async () => {
     const rt = getRefreshToken();
-    try {
-      if (rt) await api.logout(rt);
-    } catch (err) {
-      // 서버 로그아웃 실패해도 로컬 토큰은 지운다 (401 등은 무시)
-      if (!(err instanceof ApiError)) throw err;
-    }
-    try {
-      if (google) await google.GoogleSignin.signOut();
-    } catch {
-      // 구글 세션 정리 실패는 치명적이지 않음
-    }
-    await clearTokens();
+    await signOutBestEffort({
+      serverLogout: async () => {
+        if (rt) await api.logout(rt);
+      },
+      providerLogout: async () => {
+        if (google) await google.GoogleSignin.signOut();
+      },
+      clearLocalSession: clearTokens,
+    });
     setUser(null);
     setStatus('signedOut');
   }, []);

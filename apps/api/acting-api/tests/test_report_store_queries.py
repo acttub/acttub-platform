@@ -141,6 +141,17 @@ def test_report_count_query_counts_distinct_practice_sessions():
     assert "count(distinct(practice_sessions.id))" in statement_sql
 
 
+def test_report_count_query_anchors_from_on_reports():
+    # count 컬럼이 practice_sessions만 참조하므로 FROM 앵커를 reports로 명시하지
+    # 않으면 practice_sessions가 FROM에 두 번 들어가고 reports가 빠져 Postgres가
+    # "missing FROM-clause entry for table reports"로 500을 낸다(regression).
+    statement_sql = _sql(PostgresStore._report_count_query(uuid4()))
+
+    assert "FROM reports" in statement_sql
+    # practice_sessions는 JOIN 대상으로 정확히 한 번만 등장해야 한다.
+    assert statement_sql.count("practice_sessions ON") <= 1
+
+
 def test_list_report_summaries_dedupes_to_latest_report_per_practice_session():
     user_id = uuid4()
     practice_session_id = uuid4()
