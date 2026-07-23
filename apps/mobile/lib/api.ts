@@ -10,6 +10,7 @@ import {
   getAccessToken,
   getAuthSessionEpoch,
   getRefreshToken,
+  waitForCredentialReady,
 } from '@/lib/token-store';
 import {
   ApiError,
@@ -34,6 +35,7 @@ const BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? 'https://dev.acttub.com';
 const requestClient = createApiRequestClient({
   baseUrl: BASE_URL,
   fetchImpl: (...args) => fetch(...args),
+  waitForCredentialReady,
   getAccessToken,
   getRefreshToken,
   getAuthSessionEpoch,

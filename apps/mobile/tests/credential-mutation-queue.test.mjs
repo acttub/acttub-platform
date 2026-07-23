@@ -3,8 +3,10 @@ import test from 'node:test';
 
 import {
   AUTH_CREDENTIAL_KEY,
+  AUTH_CREDENTIAL_SCHEMA_VERSION,
   createAuthCredentialStore,
 } from '../lib/auth-credentials.ts';
+import { createApiRequestClient } from '../lib/api-request.ts';
 
 const credentialMutationModule =
   await import('../lib/credential-mutation-queue.ts').catch(() => null);
@@ -17,10 +19,17 @@ function jwtWithSubject(subject) {
 
 function createDelayedStorage() {
   const values = new Map();
+  let nextReadBlock = null;
   let nextWriteBlock = null;
 
   return {
     async getItem(key) {
+      const block = nextReadBlock;
+      if (block) {
+        nextReadBlock = null;
+        block.markStarted();
+        await block.wait;
+      }
       return values.get(key) ?? null;
     },
     async setItem(key, value) {
@@ -34,6 +43,18 @@ function createDelayedStorage() {
     },
     async deleteItem(key) {
       values.delete(key);
+    },
+    blockNextRead() {
+      let markStarted;
+      let release;
+      const started = new Promise((resolve) => {
+        markStarted = resolve;
+      });
+      const wait = new Promise((resolve) => {
+        release = resolve;
+      });
+      nextReadBlock = { markStarted, wait };
+      return { started, release };
     },
     blockNextWrite() {
       let markStarted;
@@ -71,6 +92,82 @@ const userB = {
   email: 'b@example.com',
   status: 'active',
 };
+
+test('Q1: cold start SecureStore load 중 홈 401의 null expectation은 저장 credential을 삭제하지 않는다', async () => {
+  const storage = createDelayedStorage();
+  const persisted = {
+    schemaVersion: AUTH_CREDENTIAL_SCHEMA_VERSION,
+    accessToken: jwtWithSubject(userA.id),
+    refreshToken: 'refresh-a',
+    user: userA,
+  };
+  storage.values.set(AUTH_CREDENTIAL_KEY, JSON.stringify(persisted));
+  const queue = createQueue(storage);
+  const blockedRead = storage.blockNextRead();
+
+  const loading = queue.loadTokens();
+  await blockedRead.started;
+  const clearFromPremature401 = queue.clearTokensIfCurrent({
+    authSessionEpoch: queue.getAuthSessionEpoch(),
+    refreshToken: queue.getRefreshToken(),
+  });
+  blockedRead.release();
+
+  assert.equal(await clearFromPremature401, false);
+  assert.equal(await loading, true);
+  assert.equal(queue.getRefreshToken(), 'refresh-a');
+  assert.deepEqual(
+    JSON.parse(storage.values.get(AUTH_CREDENTIAL_KEY)),
+    persisted,
+  );
+});
+
+test('Q1: 보호 요청은 최초 credential readiness가 정착된 뒤 Authorization을 보낸다', async () => {
+  const storage = createDelayedStorage();
+  storage.values.set(
+    AUTH_CREDENTIAL_KEY,
+    JSON.stringify({
+      schemaVersion: AUTH_CREDENTIAL_SCHEMA_VERSION,
+      accessToken: jwtWithSubject(userA.id),
+      refreshToken: 'refresh-a',
+      user: userA,
+    }),
+  );
+  const queue = createQueue(storage);
+  const blockedRead = storage.blockNextRead();
+  const loading = queue.loadTokens();
+  await blockedRead.started;
+  const authorizations = [];
+  const client = createApiRequestClient({
+    baseUrl: 'https://api.test',
+    fetchImpl: async (_url, init) => {
+      authorizations.push(new Headers(init.headers).get('Authorization'));
+      return new Response(JSON.stringify({ count: 0, reports: [] }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    },
+    waitForCredentialReady: () => queue.waitForCredentialReady(),
+    getAccessToken: queue.getAccessToken,
+    getRefreshToken: queue.getRefreshToken,
+    getAuthSessionEpoch: queue.getAuthSessionEpoch,
+    setTokens: queue.commitRefresh,
+    clearTokens: queue.clearTokensIfCurrent,
+    emitConsentRequired: () => {},
+  });
+  const homeHistory = client.request('/v2/reports');
+
+  try {
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.deepEqual(authorizations, []);
+  } finally {
+    blockedRead.release();
+    await loading;
+  }
+
+  assert.deepEqual(await homeHistory, { count: 0, reports: [] });
+  assert.deepEqual(authorizations, [`Bearer ${jwtWithSubject(userA.id)}`]);
+});
 
 test('R1: principal 교정 commit은 token과 user 공개 전에 epoch을 올린다', async () => {
   const storage = createDelayedStorage();

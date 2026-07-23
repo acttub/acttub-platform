@@ -32,6 +32,7 @@ test('API client는 403 body를 한 번 읽고 consent_required를 emit한다', 
         return JSON.stringify({ detail: 'consent_required' });
       },
     }),
+    waitForCredentialReady: async () => {},
     getAccessToken: () => 'access',
     getRefreshToken: () => 'refresh',
     getAuthSessionEpoch: () => 0,

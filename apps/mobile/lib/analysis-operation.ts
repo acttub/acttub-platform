@@ -28,6 +28,7 @@ export class AnalysisFailedError extends Error {
 }
 
 type CancelResource = () => void | Promise<void>;
+const DEFAULT_CANCEL_DEADLINE_MS = 2_000;
 
 type PendingRecord = {
   schemaVersion: number;
@@ -140,6 +141,7 @@ export class AnalysisOperation {
 export type AnalysisOperationOwnerOptions = {
   now?: () => number;
   instanceId?: string;
+  cancelDeadlineMs?: number;
 };
 
 export class AnalysisOperationOwner {
@@ -149,12 +151,15 @@ export class AnalysisOperationOwner {
   private generation = 0;
   private readonly now: () => number;
   private readonly instanceId: string;
+  private readonly cancelDeadlineMs: number;
 
   constructor(options: AnalysisOperationOwnerOptions = {}) {
     this.now = options.now ?? (() => Date.now());
     this.instanceId =
       options.instanceId ??
       `${Math.floor(Math.random() * 0x100000000).toString(16)}-${Date.now()}`;
+    this.cancelDeadlineMs =
+      options.cancelDeadlineMs ?? DEFAULT_CANCEL_DEADLINE_MS;
   }
 
   start(): AnalysisOperation | null {
@@ -198,6 +203,20 @@ export class AnalysisOperationOwner {
     this.notifyAvailable();
   }
 
+  private async cancelWithinDeadline(operation: AnalysisOperation): Promise<void> {
+    let deadline: ReturnType<typeof setTimeout> | null = null;
+    try {
+      await Promise.race([
+        operation.cancelLocalResources(),
+        new Promise<void>((resolve) => {
+          deadline = setTimeout(resolve, this.cancelDeadlineMs);
+        }),
+      ]);
+    } finally {
+      if (deadline !== null) clearTimeout(deadline);
+    }
+  }
+
   async leave(operation: AnalysisOperation): Promise<CancelVocabulary | null> {
     if (this.active !== operation) return null;
     const mode = operation.cancellationMode();
@@ -205,7 +224,7 @@ export class AnalysisOperationOwner {
     this.releasing = operation;
     operation.deactivate();
     try {
-      if (mode === 'cancel-local') await operation.cancelLocalResources();
+      if (mode === 'cancel-local') await this.cancelWithinDeadline(operation);
     } finally {
       if (this.releasing === operation) {
         this.releasing = null;

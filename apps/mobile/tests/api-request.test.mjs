@@ -99,6 +99,7 @@ function createClient(fetchImpl, tokenState = createTokenState(), extra = {}) {
     client: createApiRequestClient({
       baseUrl: 'https://api.test',
       fetchImpl,
+      waitForCredentialReady: async () => {},
       getAccessToken: tokenState.getAccessToken,
       getRefreshToken: tokenState.getRefreshToken,
       getAuthSessionEpoch: () => 0,
@@ -305,6 +306,7 @@ test('R1: refresh가 principal을 교정하면 기존 mutation을 새 principal 
         ? jsonResponse({ detail: 'expired access' }, 401)
         : jsonResponse({ ok: true });
     },
+    waitForCredentialReady: async () => {},
     getAccessToken: () => accessToken,
     getRefreshToken: () => refreshToken,
     getAuthSessionEpoch: () => 7,

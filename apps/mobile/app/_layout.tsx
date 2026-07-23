@@ -243,6 +243,8 @@ function RootNavigator() {
     recovery.owner,
   ]);
 
+  if (status === 'loading') return null;
+
   return (
     <Stack>
       <Stack.Screen name="login" options={{ headerShown: false }} />

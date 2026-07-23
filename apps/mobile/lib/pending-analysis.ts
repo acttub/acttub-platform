@@ -73,14 +73,11 @@ export function createPendingAnalysisStore(storage: PendingAnalysisStorage) {
         discard.push(key);
         continue;
       }
-      if (
-        !isRecord(parsed) ||
-        parsed.schemaVersion !== ANALYSIS_SCHEMA_VERSION ||
-        parsed.owner !== owner
-      ) {
+      if (!isRecord(parsed) || parsed.schemaVersion !== ANALYSIS_SCHEMA_VERSION) {
         discard.push(key);
         continue;
       }
+      if (parsed.owner !== owner) continue;
       current.push({ key, record: parsed });
     }
 

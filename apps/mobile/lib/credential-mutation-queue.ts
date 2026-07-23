@@ -101,6 +101,10 @@ export function createCredentialMutationQueue(
     });
   }
 
+  async function waitForCredentialReady(): Promise<void> {
+    while (!loaded) await loadTokens();
+  }
+
   function getAccessToken(): string | null {
     return visibleCredential()?.accessToken ?? null;
   }
@@ -204,12 +208,13 @@ export function createCredentialMutationQueue(
   function clearTokensIfCurrent(
     expectation: CredentialExpectation,
   ): Promise<boolean> {
-    if (!matches(expectation)) return Promise.resolve(false);
+    if (!loaded || !matches(expectation)) return Promise.resolve(false);
     return clearTokens();
   }
 
   return {
     loadTokens,
+    waitForCredentialReady,
     getAccessToken,
     getRefreshToken,
     getStoredUser,

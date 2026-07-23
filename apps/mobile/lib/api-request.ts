@@ -51,6 +51,7 @@ export type RequestClock = {
 export type ApiRequestDependencies = {
   baseUrl: string;
   fetchImpl: typeof fetch;
+  waitForCredentialReady: () => Promise<void>;
   getAccessToken: () => string | null;
   getRefreshToken: () => string | null;
   getAuthSessionEpoch: () => number;
@@ -396,6 +397,10 @@ export function createApiRequestClient(dependencies: ApiRequestDependencies) {
   ): Promise<T> {
     throwIfCancelled(options.signal);
     const auth = options.auth !== false;
+    if (auth) {
+      await waitForShared(dependencies.waitForCredentialReady(), options.signal);
+      throwIfCancelled(options.signal);
+    }
     const authSessionEpoch = auth
       ? originalAuthSessionEpoch ?? dependencies.getAuthSessionEpoch()
       : null;
@@ -435,6 +440,10 @@ export function createApiRequestClient(dependencies: ApiRequestDependencies) {
     body: unknown,
     options: PostIdempotentOptions = {},
   ): Promise<T> {
+    if (options.auth !== false) {
+      await waitForShared(dependencies.waitForCredentialReady(), options.signal);
+      throwIfCancelled(options.signal);
+    }
     const authSessionEpoch =
       options.auth === false ? undefined : dependencies.getAuthSessionEpoch();
     const requestId = options.requestId ?? randomId(random);

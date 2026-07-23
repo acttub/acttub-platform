@@ -51,6 +51,11 @@ export async function loadTokens(): Promise<boolean> {
   return credentialMutationQueue.loadTokens();
 }
 
+/** 보호 요청이 최초 SecureStore credential 복원을 관측한 뒤 시작되도록 한다. */
+export async function waitForCredentialReady(): Promise<void> {
+  await credentialMutationQueue.waitForCredentialReady();
+}
+
 export function getAccessToken(): string | null {
   return credentialMutationQueue.getAccessToken();
 }

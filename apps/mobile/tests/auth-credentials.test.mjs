@@ -154,6 +154,7 @@ test('N1: 파싱 가능한 잘못된 legacy sub도 refresh 회전 후 새 princi
             headers: { 'Content-Type': 'application/json' },
           });
     },
+    waitForCredentialReady: async () => {},
     getAccessToken: () => accessToken,
     getRefreshToken: () => refreshToken,
     getAuthSessionEpoch: () => 0,

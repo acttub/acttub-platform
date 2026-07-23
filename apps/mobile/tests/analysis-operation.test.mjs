@@ -78,6 +78,50 @@ function createDependencies(overrides = {}) {
   };
 }
 
+function withinDeadline(promise, timeoutMs = 250) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(
+      () => reject(new Error('owner recovery deadline exceeded')),
+      timeoutMs,
+    );
+    void promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (error) => {
+        clearTimeout(timer);
+        reject(error);
+      },
+    );
+  });
+}
+
+async function assertOwnerRecoversAfterCancelDeadline(instanceId, attachCancel) {
+  const owner = createAnalysisOperationOwner({
+    now: () => 100,
+    instanceId,
+    cancelDeadlineMs: 10,
+  });
+  const operation = owner.start();
+  assert.ok(operation);
+  attachCancel(operation);
+
+  const nextAvailable = new Promise((resolve) => {
+    owner.onAvailable(() => resolve(owner.start()));
+  });
+
+  assert.equal(
+    await withinDeadline(owner.leave(operation)),
+    'cancel-local',
+  );
+  const nextOperation = await withinDeadline(nextAvailable);
+  assert.ok(nextOperation);
+  assert.equal(operation.isActive(), false);
+  assert.equal(nextOperation.isActive(), true);
+  await owner.leave(nextOperation);
+}
+
 test('F1: 서로 다른 analyzing 화면도 앱 전역 operation owner 하나를 공유한다', async () => {
   const owner = analysisOperationModule.appAnalysisOperationOwner;
   assert.ok(owner, '앱 전역 operation owner가 export되어야 합니다.');
@@ -256,6 +300,48 @@ test('R3: local cancel callback이 동기 예외를 던져도 owner는 releasing
   assert.ok(nextOperation);
   unsubscribe();
   await owner.leave(nextOperation);
+});
+
+test('Q2: cancellation ID와 원래 compression이 모두 정착하지 않아도 owner가 deadline 뒤 복구된다', async () => {
+  await assertOwnerRecoversAfterCancelDeadline(
+    'missing-cancellation-id',
+    (operation) => {
+      const compression = startCancellableCompression({
+        originalUri: 'file:///original.mov',
+        run: async () => new Promise(() => {}),
+        cancelNative: async () => {},
+        removeOutput: async () => {},
+      });
+      operation.attachCompressionCancel(compression.cancel);
+    },
+  );
+});
+
+test('Q2: native compression cancel이 정착하지 않아도 owner가 deadline 뒤 복구된다', async () => {
+  await assertOwnerRecoversAfterCancelDeadline(
+    'hanging-native-compression-cancel',
+    (operation) => {
+      const compression = startCancellableCompression({
+        originalUri: 'file:///original.mov',
+        run: async (onCancellationId) => {
+          onCancellationId('compression-id');
+          return new Promise(() => {});
+        },
+        cancelNative: async () => new Promise(() => {}),
+        removeOutput: async () => {},
+      });
+      operation.attachCompressionCancel(compression.cancel);
+    },
+  );
+});
+
+test('Q2: UploadTask cancel이 정착하지 않아도 owner가 deadline 뒤 복구된다', async () => {
+  await assertOwnerRecoversAfterCancelDeadline(
+    'hanging-upload-cancel',
+    (operation) => {
+      operation.attachUploadCancel(async () => new Promise(() => {}));
+    },
+  );
 });
 
 test('F1: upload start를 빠르게 두 번 호출해도 pending 저장과 이동은 한 번뿐이다', async () => {
