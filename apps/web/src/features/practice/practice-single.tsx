@@ -16,15 +16,27 @@ import { startCoach, replyCoach } from "../../lib/api/v2/coach";
 import { createReport } from "../../lib/api/v2/reports";
 import type { ActingReport, CoachTurnResponse } from "../../lib/api/v2/types";
 import { prepareVideoUpload } from "../../lib/media/upload-preflight";
+import { REVIEW_FORM_URL } from "../../lib/config/env";
+import { analysisFailure } from "./analysis-failure";
 
 type Phase = "input" | "analyzing" | "coaching" | "done";
 type ChatMsg = { role: "ai" | "me"; text: string; obs?: string };
 
-const ANALYZE_LABELS = [
-  "장면을 분석하고 있어요…",
-  "무엇을 물어볼지 고르는 중…",
-  "질문을 준비하고 있어요…",
-];
+// 서버가 주는 분석 상태는 analyzing/analyzed/failed 셋뿐이라 진행률을 만들 근거가 없다.
+// 예전에는 95%로 수렴하는 가짜 막대와 단계를 흉내 낸 문구를 보여줬는데, 분석이 길어지면
+// "질문 준비 95%"에서 멈춘 화면이 돼 배우가 고장으로 읽었다. 경과 시간만 정직하게 보여준다.
+const ANALYZE_LABEL = "장면을 분석하고 있어요…";
+
+// 이 시간을 넘기면 화면에서 기다리는 것 말고 다른 길을 안내한다.
+// 분석은 서버에서 계속 진행되고, 끝나면 연습 기록에 남는다.
+const ANALYSIS_SLOW_NOTICE_SEC = 180;
+const ANALYSIS_GIVE_UP_MS = 15 * 60_000;
+
+function formatElapsed(sec: number): string {
+  const minutes = Math.floor(sec / 60);
+  const seconds = sec % 60;
+  return minutes > 0 ? `${minutes}분 ${seconds}초` : `${seconds}초`;
+}
 
 const TOUR = [
   { key: "picker", title: "1 · 영상 올리기", body: "여기를 눌러 오늘 연습할 장면 영상을 올려요. (MP4·MOV, 5분 이내)" },
@@ -109,8 +121,13 @@ function PracticeSingleInner() {
 
   const [phase, setPhase] = useState<Phase>("input");
   const [pct, setPct] = useState(0);
-  const [analyzeLabel, setAnalyzeLabel] = useState(ANALYZE_LABELS[0]);
+  const [analyzeLabel, setAnalyzeLabel] = useState(ANALYZE_LABEL);
   const [error, setError] = useState<string | null>(null);
+  // 서버 분석을 기다리는 구간 — 퍼센트가 없으므로 경과 시간으로 살아있음을 보여준다
+  const [serverWaiting, setServerWaiting] = useState(false);
+  const [waitedSec, setWaitedSec] = useState(0);
+  const [stalled, setStalled] = useState(false);
+  const [pendingSessionId, setPendingSessionId] = useState<string | null>(null);
 
   const [messages, setMessages] = useState<ChatMsg[]>([]);
   const [chatInput, setChatInput] = useState("");
@@ -124,7 +141,11 @@ function PracticeSingleInner() {
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const chatScrollRef = useRef<HTMLDivElement | null>(null);
-  const pctTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  // 서버 분석을 기다리는 동안 경과 초를 센다 (압축·업로드는 진짜 진행률이 있어 이 타이머를 쓰지 않는다)
+  const waitTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const waitStartedAt = useRef(0);
+  const giveUpTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const gaveUpRef = useRef(false);
   const uploadControllerRef = useRef<AbortController | null>(null);
 
   // Guided tour refs (real elements the tour points at)
@@ -210,7 +231,8 @@ function PracticeSingleInner() {
   }, [phase]);
 
   useEffect(() => () => {
-    if (pctTimer.current) clearInterval(pctTimer.current);
+    if (waitTimer.current) clearInterval(waitTimer.current);
+    if (giveUpTimer.current) clearTimeout(giveUpTimer.current);
     if (videoUrl) URL.revokeObjectURL(videoUrl);
   }, [videoUrl]);
 
@@ -228,22 +250,25 @@ function PracticeSingleInner() {
     setError(null);
   };
 
-  const startProgress = () => {
-    setPct(0);
-    setAnalyzeLabel(ANALYZE_LABELS[0]);
-    if (pctTimer.current) clearInterval(pctTimer.current);
-    pctTimer.current = setInterval(() => {
-      setPct((p) => {
-        const next = Math.min(95, p + Math.max(0.5, (95 - p) * 0.04));
-        setAnalyzeLabel(next < 45 ? ANALYZE_LABELS[0] : next < 80 ? ANALYZE_LABELS[1] : ANALYZE_LABELS[2]);
-        return next;
-      });
-    }, 400);
+  const startWaiting = () => {
+    setAnalyzeLabel(ANALYZE_LABEL);
+    setServerWaiting(true);
+    setWaitedSec(0);
+    // 폰이 잠기거나 탭이 뒤로 가면 브라우저가 interval을 억제한다 — 콜백 횟수를 세면
+    // 실제 경과보다 짧게 나오므로 시작 시각을 두고 시계에서 뺀다
+    waitStartedAt.current = Date.now();
+    if (waitTimer.current) clearInterval(waitTimer.current);
+    waitTimer.current = setInterval(
+      () => setWaitedSec(Math.floor((Date.now() - waitStartedAt.current) / 1000)),
+      1000,
+    );
   };
-  const stopProgress = () => {
-    if (pctTimer.current) clearInterval(pctTimer.current);
-    pctTimer.current = null;
-    setPct(100);
+  const stopWaiting = () => {
+    if (waitTimer.current) clearInterval(waitTimer.current);
+    waitTimer.current = null;
+    if (giveUpTimer.current) clearTimeout(giveUpTimer.current);
+    giveUpTimer.current = null;
+    setServerWaiting(false);
   };
 
   const pushAi = (turn: CoachTurnResponse) => {
@@ -258,6 +283,9 @@ function PracticeSingleInner() {
     if (!videoFile) return;
     setTourStep(-1); // 진행 시작하면 가이드 투어 닫기 (stable setter)
     setError(null);
+    setStalled(false);
+    setPendingSessionId(null);
+    gaveUpRef.current = false;
     setPhase("analyzing");
     setPct(0);
     setAnalyzeLabel("영상 정보를 확인하고 있어요…");
@@ -279,7 +307,7 @@ function PracticeSingleInner() {
         signal: controller.signal,
         onProgress: (progress) => setPct(progress.percent),
       });
-      startProgress();
+      startWaiting();
       const { session } = await createPracticeSession(
         {
           upload_intent_id: intentId,
@@ -289,27 +317,47 @@ function PracticeSingleInner() {
         },
         { signal: controller.signal },
       );
+      setPendingSessionId(session.session_id);
+      // 폴링 자체에는 끝이 없다 — 서버가 analyzing에 머물면 영원히 기다린다.
+      // 여기서 끊고 "기록에서 이어보기"로 안내한다. 분석은 서버에서 계속된다.
+      giveUpTimer.current = setTimeout(() => {
+        gaveUpRef.current = true;
+        controller.abort();
+      }, ANALYSIS_GIVE_UP_MS);
       const detail = await pollSessionUntilSettled(session.session_id, {
         intervalMs: 4000,
         signal: controller.signal,
       });
-      if (detail.status === "failed") throw new Error("영상 분석에 실패했어요. 다른 영상으로 다시 시도해 주세요.");
+      // 제한시간은 폴링만 묶는다 — 여기서 풀지 않으면 뒤이은 startCoach가 도는 중에 타이머가
+      // 터져 controller를 끊고, 화면이 analyzing에 갇힌 채 아무 안내도 없이 남는다
+      if (giveUpTimer.current) {
+        clearTimeout(giveUpTimer.current);
+        giveUpTimer.current = null;
+      }
+      if (detail.status === "failed") throw new Error(analysisFailure(detail.error_code).message);
       const summaryId = detail.summary?.summary_id;
       if (!summaryId) throw new Error("분석 요약을 불러오지 못했어요.");
       const { data: start } = await startCoach({ summary_id: summaryId });
       if (controller.signal.aborted || uploadControllerRef.current !== controller) return;
-      stopProgress();
+      stopWaiting();
       setPhase("coaching");
       pushAi(start);
     } catch (err) {
       if (uploadControllerRef.current === controller) {
-        if (pctTimer.current) clearInterval(pctTimer.current);
-        setPhase("input");
-        if (!(err instanceof Error && err.name === "AbortError")) {
-          setError(err instanceof Error ? err.message : "문제가 생겼어요. 다시 시도해 주세요.");
+        stopWaiting();
+        if (gaveUpRef.current) {
+          // 화면만 그만 기다린다 — phase는 analyzing으로 두고 다른 길을 안내한다
+          setStalled(true);
+        } else {
+          setPhase("input");
+          if (!(err instanceof Error && err.name === "AbortError")) {
+            setError(err instanceof Error ? err.message : "문제가 생겼어요. 다시 시도해 주세요.");
+          }
         }
       }
     } finally {
+      // 중간에 return으로 빠져나가는 경로가 있어 타이머 정리는 여기서 한 번 더 보장한다
+      stopWaiting();
       if (uploadControllerRef.current === controller) uploadControllerRef.current = null;
     }
   }, [videoFile, situation, character, subtext]);
@@ -420,14 +468,40 @@ function PracticeSingleInner() {
               </div>
             ) : null}
 
-            {phase === "analyzing" ? (
+            {phase === "analyzing" && stalled ? (
+              <div role="alert" className="mt-4 rounded-2xl bg-[#fff8e8] px-4 py-3.5">
+                <p className="text-sm font-black text-[#333d4b]">분석이 예상보다 오래 걸리고 있어요</p>
+                <p className="mt-1.5 text-xs font-semibold leading-5 text-[#4e5968]">영상은 이미 저장됐고 분석은 계속 진행돼요. 이 화면을 닫아도 되고, 끝나면 연습 기록에서 이어볼 수 있어요.</p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <Link href={pendingSessionId ? `/practice/history?session=${pendingSessionId}` : "/practice/history"} className="inline-flex h-10 items-center justify-center rounded-2xl bg-[#3182f6] px-4 text-xs font-black text-white transition hover:bg-[#1b64da]">연습 기록에서 확인하기</Link>
+                  <button type="button" onClick={() => { setStalled(false); setPhase("input"); }} className="inline-flex h-10 items-center justify-center rounded-2xl bg-white px-4 text-xs font-black text-[#4e5968] transition hover:bg-[#eef2f6]">다른 영상으로 다시 하기</button>
+                </div>
+              </div>
+            ) : null}
+
+            {phase === "analyzing" && !stalled ? (
               <div className="mt-4 rounded-2xl bg-[#e8f3ff] px-4 py-3.5">
                 <div className="mb-2 flex items-baseline gap-2.5">
-                  <span className="text-2xl font-black tracking-[-0.04em] text-[#3182f6] tabular-nums">{Math.round(pct)}%</span>
+                  {serverWaiting ? (
+                    <span className="text-sm font-black text-[#3182f6] tabular-nums">{formatElapsed(waitedSec)} 경과</span>
+                  ) : (
+                    <span className="text-2xl font-black tracking-[-0.04em] text-[#3182f6] tabular-nums">{Math.round(pct)}%</span>
+                  )}
                   <span className="text-xs font-semibold text-[#4e5968]">{analyzeLabel}</span>
                 </div>
-                <div className="h-2 overflow-hidden rounded-full bg-white/70"><div className="h-full rounded-full bg-[#3182f6] transition-[width] duration-300" style={{ width: `${pct}%` }} /></div>
-                <p className="mt-2 text-[11px] font-semibold text-[#8b95a1]">분석 중에도 왼쪽에서 영상을 볼 수 있어요. 입력은 잠시 잠겨요.</p>
+                {/* 압축·업로드는 진짜 진행률이 있고, 서버 분석 대기는 없다 — 없는 구간은 막대를 채우지 않는다 */}
+                <div className="h-2 overflow-hidden rounded-full bg-white/70">
+                  {serverWaiting ? (
+                    <div className="h-full w-1/3 animate-pulse rounded-full bg-[#3182f6]" />
+                  ) : (
+                    <div className="h-full rounded-full bg-[#3182f6] transition-[width] duration-300" style={{ width: `${pct}%` }} />
+                  )}
+                </div>
+                <p className="mt-2 text-[11px] font-semibold text-[#8b95a1]">
+                  {serverWaiting && waitedSec >= ANALYSIS_SLOW_NOTICE_SEC
+                    ? "장면이 길거나 앞에 기다리는 분석이 있으면 몇 분 더 걸려요. 이 화면을 닫아도 분석은 계속되고, 연습 기록에서 이어볼 수 있어요."
+                    : "분석 중에도 왼쪽에서 영상을 볼 수 있어요. 입력은 잠시 잠겨요."}
+                </p>
               </div>
             ) : null}
 
@@ -525,7 +599,9 @@ function PracticeSingleInner() {
             </div>
             <div className="flex gap-2.5 border-t border-[#edf0f3] px-6 py-4">
               <button type="button" onClick={() => setReportOpen(false)} className="h-11 flex-1 rounded-2xl bg-[#f8fbff] text-sm font-black text-[#4e5968] transition hover:bg-[#eef2f6]">뒤 화면 보기</button>
-              <Link href="/home" className="flex h-11 flex-1 items-center justify-center rounded-2xl bg-[#3182f6] text-sm font-black text-white transition hover:bg-[#1b64da]">연습 마치기</Link>
+              {/* 새 창으로 연다 — 같은 탭에서 나가면 화면에 떠 있는 연습 노트가 사라져
+                  후기를 적고 돌아와도 방금 본 노트를 다시 볼 수 없다 */}
+              <a href={REVIEW_FORM_URL} target="_blank" rel="noopener noreferrer" aria-label="연습 마치고 후기 남기기 (새 창)" className="flex h-11 flex-1 items-center justify-center rounded-2xl bg-[#3182f6] text-sm font-black text-white transition hover:bg-[#1b64da]">연습 마치기 ↗</a>
             </div>
           </div>
         </div>

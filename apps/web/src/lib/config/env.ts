@@ -26,6 +26,10 @@ export const MOCK_S3_UPLOAD = process.env.NEXT_PUBLIC_MOCK_S3_UPLOAD === "1";
 
 export const LOGIN_PATH = "/login";
 
+// 연습을 마친 배우가 넘어가는 후기 페이지. 연습 노트를 띄우는 화면이 둘(practice-flow·
+// practice-single)이라 한쪽만 고치면 다른 쪽이 조용히 옛 주소로 남는다.
+export const REVIEW_FORM_URL = "https://acttub.github.io/review-form/";
+
 // 백엔드 uploads.py의 MAX_UPLOAD_BYTES(100MB)와 동일해야 한다.
 export const MAX_UPLOAD_BYTES = 100 * 1024 * 1024;
 export const MAX_DURATION_MS = 300_000;
