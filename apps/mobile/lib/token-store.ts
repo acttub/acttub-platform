@@ -1,5 +1,7 @@
 import * as SecureStore from 'expo-secure-store';
 
+import type { AuthUser } from '@/lib/api';
+
 /**
  * v2 인증 토큰(JWT) 저장소.
  * access/refresh 토큰을 SecureStore(키체인/keystore)에 두고, 앱 구동 중엔 메모리 캐시로 빠르게 읽는다.
@@ -8,9 +10,11 @@ import * as SecureStore from 'expo-secure-store';
 
 const ACCESS_KEY = 'acttub.accessToken';
 const REFRESH_KEY = 'acttub.refreshToken';
+const USER_KEY = 'acttub.authUser';
 
 let accessToken: string | null = null;
 let refreshToken: string | null = null;
+let authUser: AuthUser | null = null;
 let loaded = false;
 
 type Listener = () => void;
@@ -39,9 +43,12 @@ export async function loadTokens(): Promise<boolean> {
   try {
     accessToken = await SecureStore.getItemAsync(ACCESS_KEY);
     refreshToken = await SecureStore.getItemAsync(REFRESH_KEY);
+    const storedUser = await SecureStore.getItemAsync(USER_KEY);
+    authUser = storedUser ? (JSON.parse(storedUser) as AuthUser) : null;
   } catch {
     accessToken = null;
     refreshToken = null;
+    authUser = null;
   }
   loaded = true;
   return accessToken !== null;
@@ -55,21 +62,33 @@ export function getRefreshToken(): string | null {
   return refreshToken;
 }
 
-export async function setTokens(access: string, refresh: string): Promise<void> {
+export function getStoredUser(): AuthUser | null {
+  return authUser;
+}
+
+export async function setTokens(
+  access: string,
+  refresh: string,
+  user?: AuthUser,
+): Promise<void> {
   accessToken = access;
   refreshToken = refresh;
+  if (user) authUser = user;
   loaded = true;
   await SecureStore.setItemAsync(ACCESS_KEY, access);
   await SecureStore.setItemAsync(REFRESH_KEY, refresh);
+  if (user) await SecureStore.setItemAsync(USER_KEY, JSON.stringify(user));
 }
 
 export async function clearTokens(): Promise<void> {
   accessToken = null;
   refreshToken = null;
+  authUser = null;
   loaded = true;
   try {
     await SecureStore.deleteItemAsync(ACCESS_KEY);
     await SecureStore.deleteItemAsync(REFRESH_KEY);
+    await SecureStore.deleteItemAsync(USER_KEY);
   } catch {
     // 삭제 실패해도 메모리는 이미 비웠으니 로그아웃으로 간주
   }

@@ -1,3 +1,4 @@
+import { MaterialIcons } from '@expo/vector-icons';
 import { Stack } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
@@ -94,9 +95,12 @@ export default function ConsentScreen() {
     <View key={doc.id} style={styles.docCard}>
       <Pressable
         style={styles.docRow}
+        accessibilityRole="checkbox"
+        accessibilityState={{ checked: !!agreed[doc.id] }}
+        accessibilityLabel={doc.title}
         onPress={() => setAgreed((a) => ({ ...a, [doc.id]: !a[doc.id] }))}>
         <View style={[styles.check, agreed[doc.id] && styles.checkOn]}>
-          {agreed[doc.id] && <Text style={styles.checkMark}>✓</Text>}
+          {agreed[doc.id] && <MaterialIcons name="check" size={16} color="#fff" />}
         </View>
         <Text style={styles.docTitle}>{doc.title}</Text>
         <Pressable hitSlop={8} onPress={() => setExpanded((e) => ({ ...e, [doc.id]: !e[doc.id] }))}>
@@ -127,9 +131,14 @@ export default function ConsentScreen() {
         />
 
         {pendingConsents.length > 0 && (
-          <Pressable style={styles.allRow} onPress={toggleAll}>
+          <Pressable
+            style={styles.allRow}
+            onPress={toggleAll}
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: allChecked }}
+            accessibilityLabel="약관 전체 동의">
             <View style={[styles.check, allChecked && styles.checkOn]}>
-              {allChecked && <Text style={styles.checkMark}>✓</Text>}
+              {allChecked && <MaterialIcons name="check" size={16} color="#fff" />}
             </View>
             <Text style={styles.allText}>약관 전체 동의</Text>
           </Pressable>
@@ -221,7 +230,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   checkOn: { backgroundColor: palette.blue, borderColor: palette.blue },
-  checkMark: { color: '#fff', fontSize: 14, fontWeight: '900' },
   docTitle: { flex: 1, fontSize: 14, color: palette.text, fontWeight: '600' },
   viewLink: { fontSize: 13, color: palette.textDim, textDecorationLine: 'underline' },
   docBody: {

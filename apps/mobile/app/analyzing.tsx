@@ -1,13 +1,24 @@
 import { getInfoAsync } from 'expo-file-system/legacy';
-import { Stack, useRouter } from 'expo-router';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { logEvent } from '@/lib/analytics';
-import { api, type PracticeSessionDetail } from '@/lib/api';
-import { compressVideo, formatSizeChange } from '@/lib/compress';
+import {
+  AnalysisTerminalError,
+  OperationInactiveError,
+  abandonAnalysis,
+  createAnalysisOperationOwner,
+  runAnalysisPipeline,
+  type AnalysisOperation,
+  type AnalysisPendingHandle,
+} from '@/lib/analysis-operation';
+import { pendingAnalysisStore } from '@/lib/analysis-storage';
+import { api } from '@/lib/api';
+import { useAuth } from '@/lib/auth';
+import { formatSizeChange, startVideoCompression } from '@/lib/compress';
 import { startPractice, takePendingUpload, type PendingUpload } from '@/lib/practice';
 import { palette } from '@/constants/palette';
 
@@ -22,21 +33,21 @@ const STAGES = [
 const POLL_INTERVAL_MS = 4_000;
 const POLL_TIMEOUT_MS = 10 * 60 * 1000;
 
-function errorMessage(code: PracticeSessionDetail['error_code']): string {
-  switch (code) {
-    case 'gemini_timeout':
-    case 'max_attempts_exceeded':
-      return '분석 시간이 초과됐어요. 영상을 더 짧게 잘라서 다시 시도해주세요.';
-    case 'unsupported_media':
-      return '지원하지 않는 영상 형식이에요. mp4로 다시 올려주세요.';
-    case 'gemini_parse_error':
-      return '분석 결과를 정리하지 못했어요. 다시 시도해주세요.';
-    default:
-      return '분석에 실패했어요. 다시 시도해주세요.';
-  }
+function abortableDelay(ms: number, signal: AbortSignal): Promise<void> {
+  if (signal.aborted) return Promise.reject(signal.reason);
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      signal.removeEventListener('abort', onAbort);
+      resolve();
+    }, ms);
+    const onAbort = () => {
+      clearTimeout(timer);
+      signal.removeEventListener('abort', onAbort);
+      reject(signal.reason);
+    };
+    signal.addEventListener('abort', onAbort, { once: true });
+  });
 }
-
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /**
  * A3. 분석 대기 — 압축 → 업로드(intent·PUT·complete) → 세션 생성 → 상태 폴링(analyzed까지).
@@ -44,126 +55,203 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
  */
 export default function AnalyzingScreen() {
   const router = useRouter();
+  const { user } = useAuth();
+  const { recoveryKey, sessionId: recoveredSessionId } = useLocalSearchParams<{
+    recoveryKey?: string;
+    sessionId?: string;
+  }>();
+  const ownerRef = useRef(createAnalysisOperationOwner());
+  const activeOperationRef = useRef<AnalysisOperation | null>(null);
   const uploadRef = useRef<PendingUpload | null>(null);
   const sessionIdRef = useRef<string | null>(null);
-  const cancelledRef = useRef(false);
+  const pendingHandleRef = useRef<AnalysisPendingHandle | null>(null);
   const [stage, setStage] = useState(0);
   const [compressPct, setCompressPct] = useState<number | null>(null);
   const [uploading, setUploading] = useState(false);
   const [sizeNote, setSizeNote] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [videoUri, setVideoUri] = useState<string | null>(null);
+  const [abandoning, setAbandoning] = useState(false);
 
   // 방금 올린 로컬 원본을 대기 중 재생 (서버 업로드본·압축본이 아니라 원본).
   const player = useVideoPlayer(videoUri, (p) => {
     p.loop = true;
   });
 
-  const pollUntilDone = useCallback(async (sessionId: string): Promise<PracticeSessionDetail> => {
-    const deadline = Date.now() + POLL_TIMEOUT_MS;
-    while (Date.now() < deadline) {
-      if (cancelledRef.current) throw new Error('cancelled');
-      const status = await api.getPracticeSessionStatus(sessionId);
-      // 요청 도중 화면을 떠났으면 여기서 멈춘다 — 아래 detail 조회·startPractice(전역 상태 변경)로
-      // 이어지지 않게. (인플라이트 요청 자체 취소는 별도 과제)
-      if (cancelledRef.current) throw new Error('cancelled');
-      if (status.status === 'failed') throw new Error(errorMessage(status.error_code));
-      if (status.status === 'analyzed') {
-        const detail = await api.getPracticeSession(sessionId);
-        if (cancelledRef.current) throw new Error('cancelled');
-        return detail;
-      }
-      await sleep(POLL_INTERVAL_MS);
-    }
-    throw new Error('분석이 예상보다 오래 걸려요. 잠시 후 기록에서 다시 확인해주세요.');
-  }, []);
-
-  const run = useCallback(async () => {
+  const run = useCallback(async (retryFailed = false) => {
+    const operation = ownerRef.current.start();
+    if (!operation) return;
+    activeOperationRef.current = operation;
     const upload = uploadRef.current;
-    if (!upload) return;
-    setError(null);
-    setStage(0);
-    logEvent('analysis_start', {});
-
-    try {
-      // 이미 세션이 있으면(재시도) 업로드를 건너뛰고 재분석만 트리거한다.
-      let sessionId = sessionIdRef.current;
-      if (sessionId) {
-        setUploading(false);
-        await api.reanalyze(sessionId);
-      } else {
-        // 1) 압축
-        setCompressPct(0);
-        const compressed = await compressVideo(upload.video.uri, setCompressPct);
-        setCompressPct(null);
-        setSizeNote(formatSizeChange(compressed));
-        const uploadUri = compressed.uri;
-        const mime = compressed.uri === upload.video.uri ? upload.video.mimeType : 'video/mp4';
-        const info = await getInfoAsync(uploadUri);
-        const sizeBytes =
-          compressed.compressedBytes ??
-          (info.exists && typeof info.size === 'number' ? info.size : 0);
-
-        // 2) 업로드 intent → presigned PUT → complete
-        setUploading(true);
-        const intent = await api.createUploadIntent({
-          mime_type: mime,
-          size_bytes: sizeBytes,
-          duration_ms: upload.durationMs,
-        });
-        await api.putToUploadUrl(intent.upload_url, uploadUri, mime);
-        await api.completeUpload(intent.intent_id);
-        setUploading(false);
-
-        // 3) 연습 세션 생성 (분석 자동 시작)
-        const created = await api.createPracticeSession({
-          upload_intent_id: intent.intent_id,
-          subtext: upload.subtext,
-        });
-        sessionId = created.session_id;
-        sessionIdRef.current = sessionId;
-      }
-
-      // 4) analyzed까지 폴링
-      const detail = await pollUntilDone(sessionId);
-      const summaryId = detail.summary?.summary_id;
-      if (!summaryId) throw new Error('분석 결과를 불러오지 못했어요. 다시 시도해주세요.');
-
-      // 재생용으로는 서버 업로드본이 아닌 로컬 원본 uri를 남긴다.
-      startPractice({
-        practiceSessionId: sessionId,
-        summaryId,
-        subtext: upload.subtext,
-        videoUri: upload.video.uri,
-        playbackUrl: detail.playback_url ?? null,
-      });
-      logEvent('analysis_complete', {});
-      if (!cancelledRef.current) router.replace('/coach');
-    } catch (err) {
-      if (cancelledRef.current || (err instanceof Error && err.message === 'cancelled')) return;
-      setCompressPct(null);
-      setUploading(false);
-      const message = err instanceof Error ? err.message : '분석에 실패했어요.';
-      logEvent('analysis_failed', { reason: message.slice(0, 90) });
-      setError(message);
-    }
-  }, [pollUntilDone, router]);
-
-  useEffect(() => {
-    cancelledRef.current = false;
-    const p = takePendingUpload();
-    uploadRef.current = p;
-    if (!p) {
-      router.replace('/upload');
+    const ownerId = user?.id;
+    if (!ownerId) {
+      ownerRef.current.finish(operation);
+      activeOperationRef.current = null;
+      setError('로그인 정보를 불러오지 못했어요. 다시 로그인해주세요.');
       return;
     }
-    setVideoUri(p.video.uri);
-    run();
+    operation.runIfActive(() => {
+      setError(null);
+      setStage(0);
+      setUploading(false);
+      logEvent('analysis_start', {});
+    });
+
+    try {
+      const result = await runAnalysisPipeline({
+        operation,
+        ownerId,
+        upload,
+        recovered: pendingHandleRef.current,
+        existingSessionId: sessionIdRef.current,
+        retryFailed,
+        dependencies: {
+          compress: async (pendingUpload, currentOperation) => {
+            currentOperation.runIfActive(() => setCompressPct(0));
+            const compression = startVideoCompression(
+              pendingUpload.video.uri,
+              (percent) => currentOperation.runIfActive(() => setCompressPct(percent)),
+            );
+            currentOperation.attachCompressionCancel(compression.cancel);
+            const compressed = await compression.result;
+            if (compressed.kind === 'cancelled') return compressed;
+            currentOperation.runIfActive(() => {
+              setCompressPct(null);
+              setSizeNote(formatSizeChange(compressed));
+            });
+            return compressed;
+          },
+          getFileSize: async (uri) => {
+            const info = await getInfoAsync(uri);
+            return info.exists && typeof info.size === 'number' ? info.size : 0;
+          },
+          createUploadIntent: (input, signal) => {
+            operation.runIfActive(() => setUploading(true));
+            return api.createUploadIntent(input, { signal });
+          },
+          uploadToUrl: async (uploadUrl, fileUri, mimeType, currentOperation) => {
+            const uploadTask = api.startUploadToUrl(uploadUrl, fileUri, mimeType);
+            currentOperation.attachUploadCancel(uploadTask.cancel);
+            return uploadTask.result;
+          },
+          completeUpload: async (intentId, signal) => {
+            await api.completeUpload(intentId, { signal });
+          },
+          createPracticeSession: async (input, signal) => {
+            const created = await api.createPracticeSession(input, { signal });
+            operation.runIfActive(() => setUploading(false));
+            return created;
+          },
+          getStatus: (currentSessionId, signal) =>
+            api.getPracticeSessionStatus(currentSessionId, { signal }),
+          reanalyze: (currentSessionId, signal) =>
+            api.reanalyze(currentSessionId, { signal }),
+          getDetail: (currentSessionId, signal) =>
+            api.getPracticeSession(currentSessionId, { signal }),
+          savePending: pendingAnalysisStore.save,
+          removePending: pendingAnalysisStore.remove,
+          delay: abortableDelay,
+          now: () => Date.now(),
+          pollIntervalMs: POLL_INTERVAL_MS,
+          pollTimeoutMs: POLL_TIMEOUT_MS,
+        },
+      });
+      operation.runIfActive(() => {
+        sessionIdRef.current = result.sessionId;
+        pendingHandleRef.current = operation.pendingHandle;
+        const detail = result.detail;
+        const subtext = upload?.subtext ?? {
+          situation: detail.situation,
+          character: detail.character_context,
+          subtext: detail.subtext,
+        };
+        const playbackUrl = detail.playback_url ?? null;
+        startPractice({
+          practiceSessionId: result.sessionId,
+          summaryId: detail.summary!.summary_id,
+          subtext,
+          videoUri: upload?.video.uri ?? playbackUrl ?? '',
+          playbackUrl,
+        });
+        logEvent('analysis_complete', {});
+        router.replace('/coach');
+      });
+      ownerRef.current.finish(operation);
+      if (activeOperationRef.current === operation) activeOperationRef.current = null;
+    } catch (err) {
+      if (!operation.isActive() || err instanceof OperationInactiveError) return;
+      operation.runIfActive(() => {
+        sessionIdRef.current = operation.sessionId;
+        pendingHandleRef.current = operation.pendingHandle;
+        setCompressPct(null);
+        setUploading(false);
+        const message = err instanceof Error ? err.message : '분석에 실패했어요.';
+        logEvent('analysis_failed', { reason: message.slice(0, 90) });
+        setError(message);
+      });
+      ownerRef.current.finish(operation);
+      if (activeOperationRef.current === operation) activeOperationRef.current = null;
+    }
+  }, [router, user?.id]);
+
+  useEffect(() => {
+    let mounted = true;
+    const initialize = async () => {
+      if (recoveryKey && recoveredSessionId && user?.id) {
+        const recovered = await pendingAnalysisStore.loadForOwner(user.id).catch(() => null);
+        if (!mounted) return;
+        if (
+          recovered &&
+          recovered.key === recoveryKey &&
+          recovered.record.session_id === recoveredSessionId
+        ) {
+          pendingHandleRef.current = recovered;
+          sessionIdRef.current = recovered.record.session_id;
+          setVideoUri(null);
+          await run(false);
+          return;
+        }
+      }
+      const pendingUpload = takePendingUpload();
+      uploadRef.current = pendingUpload;
+      if (!pendingUpload) {
+        router.replace('/upload');
+        return;
+      }
+      setVideoUri(pendingUpload.video.uri);
+      await run(false);
+    };
+    void initialize();
     return () => {
-      cancelledRef.current = true;
+      mounted = false;
+      const activeOperation = activeOperationRef.current;
+      if (activeOperation) void ownerRef.current.leave(activeOperation);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const abandon = useCallback(async () => {
+    if (abandoning) return;
+    setAbandoning(true);
+    try {
+      await abandonAnalysis(sessionIdRef.current, pendingHandleRef.current, {
+        deleteSession: api.deletePracticeSession,
+        removePending: pendingAnalysisStore.remove,
+      });
+      sessionIdRef.current = null;
+      pendingHandleRef.current = null;
+      uploadRef.current = null;
+      router.replace('/upload');
+    } catch (err) {
+      setError(
+        err instanceof AnalysisTerminalError || err instanceof Error
+          ? err.message
+          : '분석을 정리하지 못했어요. 다시 시도해주세요.',
+      );
+    } finally {
+      setAbandoning(false);
+    }
+  }, [abandoning, router]);
 
   // 압축/업로드 중이 아닐 때만 단계 문구를 진행시킨다.
   useEffect(() => {
@@ -200,11 +288,13 @@ export default function AnalyzingScreen() {
             <Text style={styles.errorTitle}>분석이 잘 안 됐어요</Text>
             <Text style={styles.errorBody}>{error}</Text>
             <Text style={styles.errorHint}>올려주신 영상은 그대로 있으니 다시 시도해볼 수 있어요.</Text>
-            <Pressable style={styles.retry} onPress={run}>
+            <Pressable style={styles.retry} onPress={() => void run(true)}>
               <Text style={styles.retryText}>다시 시도</Text>
             </Pressable>
-            <Pressable onPress={() => router.replace('/upload')}>
-              <Text style={styles.backLink}>영상 다시 선택하기</Text>
+            <Pressable onPress={() => void abandon()} disabled={abandoning}>
+              <Text style={styles.backLink}>
+                {abandoning ? '정리하는 중…' : '영상 다시 선택하기'}
+              </Text>
             </Pressable>
           </>
         ) : (

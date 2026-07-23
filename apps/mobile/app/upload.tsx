@@ -14,7 +14,9 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { FirstUploadGuide } from '@/components/first-upload-guide';
 import type { VideoFile } from '@/lib/api';
+import { useAuth } from '@/lib/auth';
 import { setPendingUpload, takePrefill } from '@/lib/practice';
 import {
   MAX_VIDEO_DURATION_MS,
@@ -28,6 +30,7 @@ import { palette } from '@/constants/palette';
  */
 export default function UploadScreen() {
   const router = useRouter();
+  const { user } = useAuth();
   const headerHeight = useHeaderHeight();
   const [prefilled, setPrefilled] = useState(false);
   const [situation, setSituation] = useState('');
@@ -99,6 +102,7 @@ export default function UploadScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={['bottom']}>
       <Stack.Screen options={{ title: prefilled ? '같은 장면 다시 찍기' : '영상 올리기' }} />
+      {!prefilled && user && <FirstUploadGuide ownerId={user.id} />}
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}

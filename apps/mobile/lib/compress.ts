@@ -1,12 +1,17 @@
 import * as FileSystem from 'expo-file-system/legacy';
 import { Platform } from 'react-native';
 
-export type CompressResult = {
+import { startCancellableCompression } from '@/lib/cancellable-transfer';
+
+export type CompletedCompressResult = {
+  kind: 'completed';
   uri: string;
   /** 압축 전/후 바이트. 크기를 못 읽었거나 압축이 스킵되면 null. */
   originalBytes: number | null;
   compressedBytes: number | null;
 };
+
+export type CompressResult = CompletedCompressResult | { kind: 'cancelled' };
 
 /**
  * 업로드 목표 크기 — 업로드 속도·서버 부담을 줄이려 6MB로 잡는다.
@@ -44,42 +49,102 @@ export function bitrateForDuration(durationSec: number): number {
  *
  * 네이티브 모듈이라 개발 빌드(EAS)에서만 동작 — Expo Go/웹에서는 원본을 그대로 반환한다.
  */
+export function startVideoCompression(
+  uri: string,
+  onProgress?: (percent: number) => void,
+): {
+  result: Promise<CompressResult>;
+  cancel: () => Promise<void>;
+} {
+  if (Platform.OS === 'web') {
+    return {
+      result: Promise.resolve({
+        kind: 'completed',
+        uri,
+        originalBytes: null,
+        compressedBytes: null,
+      }),
+      cancel: async () => {},
+    };
+  }
+
+  let compressor: typeof import('react-native-compressor');
+  try {
+    compressor = require('react-native-compressor');
+  } catch {
+    // Expo Go 등 네이티브 모듈이 없는 환경 — 압축 없이 원본 업로드
+    return {
+      result: Promise.resolve({
+        kind: 'completed',
+        uri,
+        originalBytes: null,
+        compressedBytes: null,
+      }),
+      cancel: async () => {},
+    };
+  }
+
+  const task = startCancellableCompression({
+    originalUri: uri,
+    run: async (onCancellationId) => {
+      const originalBytes = await fileSize(uri);
+      let durationSec: number | null = null;
+      try {
+        const meta = await compressor.getVideoMetaData(uri);
+        durationSec =
+          typeof meta?.duration === 'number' && meta.duration > 0
+            ? meta.duration
+            : null;
+      } catch {
+        // 메타데이터 실패는 치명적이지 않음 — auto 모드로 폴백
+      }
+      const options =
+        durationSec !== null
+          ? {
+              compressionMethod: 'manual' as const,
+              bitrate: bitrateForDuration(durationSec),
+              maxSize: 720,
+              progressDivider: 5,
+              getCancellationId: onCancellationId,
+            }
+          : {
+              compressionMethod: 'auto' as const,
+              maxSize: 720,
+              progressDivider: 5,
+              getCancellationId: onCancellationId,
+            };
+      const compressed = await compressor.Video.compress(
+        uri,
+        options,
+        (progress: number) => onProgress?.(Math.round(progress * 100)),
+      );
+      const compressedBytes = await fileSize(compressed);
+      return { uri: compressed, originalBytes, compressedBytes };
+    },
+    cancelNative: (cancellationId) =>
+      compressor.Video.cancelCompression(cancellationId),
+    removeOutput: (outputUri) =>
+      FileSystem.deleteAsync(outputUri, { idempotent: true }),
+  });
+
+  return {
+    result: task.result.then((result) =>
+      result.kind === 'cancelled'
+        ? result
+        : { kind: 'completed' as const, ...result.value },
+    ),
+    cancel: task.cancel,
+  };
+}
+
 export async function compressVideo(
   uri: string,
   onProgress?: (percent: number) => void,
 ): Promise<CompressResult> {
-  if (Platform.OS === 'web') return { uri, originalBytes: null, compressedBytes: null };
-  try {
-    const { Video, getVideoMetaData } = require('react-native-compressor');
-    const originalBytes = await fileSize(uri);
-    let durationSec: number | null = null;
-    try {
-      const meta = await getVideoMetaData(uri);
-      durationSec = typeof meta?.duration === 'number' && meta.duration > 0 ? meta.duration : null;
-    } catch {
-      // 메타데이터 실패는 치명적이지 않음 — auto 모드로 폴백
-    }
-    const options =
-      durationSec !== null
-        ? {
-            compressionMethod: 'manual' as const,
-            bitrate: bitrateForDuration(durationSec),
-            maxSize: 720,
-            progressDivider: 5,
-          }
-        : { compressionMethod: 'auto' as const, maxSize: 720, progressDivider: 5 };
-    const compressed: string = await Video.compress(uri, options, (progress: number) =>
-      onProgress?.(Math.round(progress * 100)),
-    );
-    const compressedBytes = await fileSize(compressed);
-    return { uri: compressed, originalBytes, compressedBytes };
-  } catch {
-    // Expo Go 등 네이티브 모듈이 없는 환경 — 압축 없이 원본 업로드
-    return { uri, originalBytes: null, compressedBytes: null };
-  }
+  return startVideoCompression(uri, onProgress).result;
 }
 
-export function formatSizeChange(result: CompressResult): string | null {
+export function formatSizeChange(result: CompletedCompressResult): string | null {
   const { originalBytes: o, compressedBytes: c } = result;
   if (!o || !c || result.uri === '' || c >= o) return null;
   const mb = (b: number) => (b / (1024 * 1024)).toFixed(b >= 100 * 1024 * 1024 ? 0 : 1);

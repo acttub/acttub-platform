@@ -6,6 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { heatColors, palette } from '@/constants/palette';
 import { api, type ReportRecord } from '@/lib/api';
 import { formatKoreanDate } from '@/lib/format';
+import { sortReportsNewestFirst } from '@/lib/report-order';
 
 const WEEKS = 12;
 const DAY = 24 * 60 * 60 * 1000;
@@ -24,7 +25,7 @@ export default function HomeScreen() {
     useCallback(() => {
       api
         .reportHistory()
-        .then((r) => setRecords(r.reports))
+        .then((r) => setRecords(sortReportsNewestFirst(r.reports)))
         .catch(() => setRecords([]));
     }, []),
   );

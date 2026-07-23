@@ -5,6 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useVideoPlayer, VideoView } from 'expo-video';
 
 import { api, type ReportDetail } from '@/lib/api';
+import { deletePracticeSessionIdempotently } from '@/lib/delete-practice';
 import { formatKoreanDate } from '@/lib/format';
 import { palette } from '@/constants/palette';
 
@@ -63,7 +64,10 @@ export default function ReportDetailScreen() {
         onPress: async () => {
           setDeleting(true);
           try {
-            await api.deletePracticeSession(practiceSessionId);
+            await deletePracticeSessionIdempotently(
+              practiceSessionId,
+              api.deletePracticeSession,
+            );
             router.back();
           } catch (err) {
             setDeleting(false);

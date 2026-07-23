@@ -1,2 +1,9 @@
+import './api-request.test.mjs';
+import './analysis-operation.test.mjs';
+import './auth-session.test.mjs';
+import './cancellable-transfer.test.mjs';
 import './consent-recovery.test.mjs';
+import './first-upload-guide.test.mjs';
+import './pending-analysis.test.mjs';
+import './ui-fixes.test.mjs';
 import './upload-input.test.mjs';
