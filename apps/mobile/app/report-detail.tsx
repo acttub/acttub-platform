@@ -27,7 +27,7 @@ export default function ReportDetailScreen() {
         onPress: async () => {
           setDeleting(true);
           try {
-            await api.deletePracticeSession(record.session_id);
+            await api.deletePracticeSession(record.practice_session_id);
             router.back();
           } catch (err) {
             setDeleting(false);

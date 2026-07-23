@@ -10,6 +10,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { MaterialIcons } from '@expo/vector-icons';
 
 import { api, type ConsentDocument } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
@@ -67,7 +68,7 @@ export default function ConsentScreen() {
         style={styles.docRow}
         onPress={() => setAgreed((a) => ({ ...a, [doc.id]: !a[doc.id] }))}>
         <View style={[styles.check, agreed[doc.id] && styles.checkOn]}>
-          {agreed[doc.id] && <Text style={styles.checkMark}>✓</Text>}
+          {agreed[doc.id] && <MaterialIcons name="check" size={16} color="#fff" />}
         </View>
         <Text style={styles.docTitle}>{doc.title}</Text>
         <Pressable hitSlop={8} onPress={() => setExpanded((e) => ({ ...e, [doc.id]: !e[doc.id] }))}>
@@ -100,7 +101,7 @@ export default function ConsentScreen() {
         {pendingConsents.length > 0 && (
           <Pressable style={styles.allRow} onPress={toggleAll}>
             <View style={[styles.check, allChecked && styles.checkOn]}>
-              {allChecked && <Text style={styles.checkMark}>✓</Text>}
+              {allChecked && <MaterialIcons name="check" size={16} color="#fff" />}
             </View>
             <Text style={styles.allText}>약관 전체 동의</Text>
           </Pressable>
@@ -183,7 +184,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   checkOn: { backgroundColor: palette.blue, borderColor: palette.blue },
-  checkMark: { color: '#fff', fontSize: 14, fontWeight: '900' },
   docTitle: { flex: 1, fontSize: 14, color: palette.text, fontWeight: '600' },
   viewLink: { fontSize: 13, color: palette.textDim, textDecorationLine: 'underline' },
   docBody: {

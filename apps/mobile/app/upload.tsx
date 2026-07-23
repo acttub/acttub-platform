@@ -17,6 +17,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import type { VideoFile } from '@/lib/api';
 import { setPendingUpload, takePrefill } from '@/lib/practice';
 import { palette } from '@/constants/palette';
+import { FirstUploadGuide } from '@/components/first-upload-guide';
 
 /**
  * A2. 영상 올리기 + 의도 입력 — 영상과 "이 장면에서 뭘 하려 했는지"를 받는다.
@@ -96,6 +97,7 @@ export default function UploadScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={['bottom']}>
       <Stack.Screen options={{ title: prefilled ? '같은 장면 다시 찍기' : '영상 올리기' }} />
+      {!prefilled && <FirstUploadGuide />}
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}

@@ -73,9 +73,11 @@ export type CreateReportResponse = {
 
 export type ReportRecord = {
   created_at: string;
+  /** 코치 세션 id (리포트를 만든 대화 세션). 연습 기록 삭제에는 쓰지 말 것 */
   session_id: string;
+  /** 연습 세션 id — DELETE /v2/practice-sessions/{id} 에 사용 */
+  practice_session_id: string;
   report: ActingReport;
-  turns: CoachTurn[];
 };
 
 export type ReportHistoryResponse = {
