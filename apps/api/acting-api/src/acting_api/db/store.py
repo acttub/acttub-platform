@@ -1294,8 +1294,12 @@ class PostgresStore:
     def _report_count_query(user_id: UUID):
         # 목록·서수와 같은 단위(practice_session별 1건)로 세어 중복 리포트가 있어도
         # count가 부풀지 않게 한다.
+        # count 컬럼이 reports를 참조하지 않으므로 FROM 앵커를 reports로 명시한다.
+        # (없으면 practice_sessions가 FROM에 두 번 들어가고 reports가 빠져
+        #  Postgres가 "missing FROM-clause entry for table reports"로 거부한다.)
         return (
             select(func.count(func.distinct(PracticeSession.id)))
+            .select_from(DbReport)
             .join(DbCoachSession, DbReport.session_id == DbCoachSession.id)
             .join(Summary, DbCoachSession.summary_id == Summary.id)
             .join(PracticeSession, Summary.session_id == PracticeSession.id)
