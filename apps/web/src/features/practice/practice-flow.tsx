@@ -26,6 +26,8 @@ import type {
 } from "@/lib/api/v2/types";
 import { UploadError, uploadVideo } from "@/lib/api/v2/uploads";
 import { logout } from "@/lib/api/v2/auth";
+import { REVIEW_FORM_URL } from "@/lib/config/env";
+import { analysisFailure } from "@/features/practice/analysis-failure";
 import { prepareVideoUpload } from "@/lib/media/upload-preflight";
 
 type Entry = "home" | "new" | "history";
@@ -65,9 +67,6 @@ function sessionErrorMessage(error: unknown): string {
   if (error instanceof ApiError && error.status === 404) return "세션을 찾을 수 없어요";
   return errorMessage(error);
 }
-
-// 연습을 마친 배우가 넘어가는 후기 페이지
-const REVIEW_FORM_URL = "https://acttub.github.io/review-form/";
 
 // 세션 상세는 이 주소 한 곳에서만 연다 — 주소에 세션 id가 남아야
 // 뒤로가기·새로고침·링크 공유가 동작한다. (정적 export라 /history/[id] 경로는 못 쓴다)
@@ -1902,24 +1901,6 @@ function ReportSection({
       <p className="mt-2.5 whitespace-pre-wrap text-sm font-semibold leading-6 text-[#4e5968] sm:mt-3 sm:text-base sm:leading-7">{body}</p>
     </article>
   );
-}
-
-function analysisFailure(errorCode: PracticeSessionDetail["error_code"]): {
-  message: string;
-  retryable: boolean;
-} {
-  switch (errorCode) {
-    case "gemini_timeout":
-      return { message: "분석 시간이 초과됐어요. 같은 영상으로 다시 시도할 수 있어요.", retryable: true };
-    case "gemini_parse_error":
-      return { message: "분석 결과를 정리하지 못했어요. 다시 시도해 주세요.", retryable: true };
-    case "unsupported_media":
-      return { message: "이 영상 형식은 분석할 수 없어요. 다른 영상으로 새 연습을 시작해 주세요.", retryable: false };
-    case "max_attempts_exceeded":
-      return { message: "재시도 한도를 모두 사용했어요. 새 연습을 시작해 주세요.", retryable: false };
-    default:
-      return { message: "영상 분석을 완료하지 못했어요. 같은 영상으로 다시 시도해 주세요.", retryable: true };
-  }
 }
 
 function coachDoneMessage(reason: CoachState["reason"]): string {
