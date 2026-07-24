@@ -24,3 +24,13 @@
 - [ ] `react-native-compressor` 취소가 캐시에 부분 파일을 남기는지 실기기 확인 (리뷰 시점엔 hypothesis였음). 남는다면 압축 산출물만 정리하고 원본 URI는 절대 삭제하지 말 것
 - [ ] AuthProvider 이벤트 → recovery owner 전환을 잇는 React behavioral 통합 테스트 추가 (현재는 credential queue·API·state machine 단위로만 검증됨)
 - [ ] 모바일 검증 명령을 package script로 승격 (`node --test tests/`·`npx tsc --noEmit`이 현재 어디에도 등록돼 있지 않아 사람이 기억해야 함)
+
+## CI/CD 자동화 (GitHub Actions, 2026-07-24~)
+
+Phase 1(PR 게이트)까지 도입 완료. 그 전엔 CI 전무·전부 수동 SSH 배포였다
+(`docs`가 아니라 [dev-server-deploy]/[prod-server-deploy] 메모 참고).
+
+- [x] Phase 1 PR 게이트 (#36): `.github/workflows/ci.yml` — dev·main 대상 PR에서 web(lint·typecheck·test·build)·api(pytest + `postgres:16-alpine` service로 `RUN_DB_TESTS=1` DB 통합) 검증. ruleset에 두 잡을 required status check로 등록해 초록이어야 머지. (함정: check context = 잡 이름 문자열 그대로라, `ci.yml` 잡 `name` 변경 시 ruleset도 함께 갱신 안 하면 dev·main 머지가 전부 막힌다)
+- [ ] Phase 2 배포 자동화: 지금 수동인 SSH `git pull`→`uv sync`→`alembic upgrade`→`systemctl restart` + 로컬 웹 빌드→`rsync`를 워크플로로 고정. 웹 빌드를 CI에서 수행(재현성 확보), 웹 rsync+restart를 잡 끝에 붙여 동시 전환(동의 강제/복구 분리로 인한 로그인 락아웃 방지), dev는 `push` 자동/운영은 `workflow_dispatch`+Environment 승인, SSH 키·서버 IP는 Secrets
+- [ ] Phase 3 env 단일화: dev/prod `.env` 드리프트 근절(2026-07-23 dev에만 있던 `APPLE_OAUTH_CLIENT_ID`로 운영 웹 Apple 로그인만 401 난 사고) — GitHub Environments secret을 단일 소스로 배포 시 렌더링. systemd 유닛(`acting-api.service`)을 레포로 편입 + `daemon-reload`
+- [ ] `Node.js 20 deprecated` 경고 제거: `actions/checkout`·`actions/setup-node`를 v5로 상향 (현재 실패 아님, 안내만)
