@@ -1,0 +1,99 @@
+# PR 게이트 CI — dev·main으로 향하는 PR에서 웹·API를 검증합니다.
+# ruleset "Require pull requests for main and dev"에 이 잡들을 required status check로
+# 추가하면, 초록불이어야만 머지가 됩니다.
+name: CI
+
+on:
+  pull_request:
+    branches: [dev, main]
+  workflow_dispatch: # Actions 탭에서 수동 실행
+
+# 같은 PR에 새 커밋이 올라오면 진행 중이던 오래된 실행은 취소.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  web:
+    name: web (lint · typecheck · test · build)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # pnpm을 먼저 깔아야 setup-node의 cache:pnpm이 동작합니다.
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.1.2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      # pnpm-workspace.yaml가 apps/mobile(Expo)을 제외하므로 웹만 설치됩니다.
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Test
+        run: pnpm --filter web test
+
+      # BUILD_STATIC=1은 web build 스크립트에 내장. 비밀 env 없이 자립 빌드됩니다.
+      - name: Build (static export)
+        run: pnpm build
+
+  api:
+    name: api (pytest · DB 통합)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/api
+    # config가 .env 없이도 뜨도록 더미 값을 주입. 일반 테스트는 fake session이라
+    # 실접속하지 않고, DB 통합 테스트만 아래 Postgres 서비스에 붙습니다.
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+      JWT_SECRET: ci-test-secret-not-a-real-key
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.11"
+          enable-cache: true
+
+      # 워크스페이스 전체(acting-api가 acting-agent/report/summary를 import) + dev 그룹(pytest).
+      - name: Sync deps
+        run: uv sync --frozen --all-packages
+
+      # AGENTS.md 기본 테스트 명령. RUN_DB_TESTS 없으면 test_db_store.py는 skip.
+      - name: Test (fake store)
+        run: uv run --package acting-api pytest
+
+      # #29 500 장애가 새어나간 갭. 실제 Postgres에 스키마를 만들고 마이그레이션을 돌려 검증.
+      - name: Test (PostgreSQL 통합)
+        env:
+          RUN_DB_TESTS: "1"
+          TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+        run: uv run --package acting-api pytest acting-api/tests/test_db_store.py
