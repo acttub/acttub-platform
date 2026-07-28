@@ -1,5 +1,6 @@
 from acting_agent.prompt import build_prompt
 from acting_agent.schema import CoachSession, CoachTurn
+from acting_agent.summary_schema import ExtraDimension, Observation
 from agent_test_support import SESSION_ID, SUMMARY, SUMMARY_ID
 
 
@@ -37,6 +38,43 @@ def test_prompt_shows_only_top_severity_anomaly():
     p = build_prompt(s, None)
     assert "1.2초 멈춤" in p and "severity=high" in p
     assert "시선 이탈" not in p  # low anomaly는 아예 노출하지 않는다
+
+
+def test_prompt_includes_observation_axes():
+    # 1층이 만든 축별 관찰이 그대로 코치에게 전달돼야 한다 (요약만 받으면 안 됨)
+    summary = SUMMARY.model_copy(deep=True)
+    summary.observation = Observation(
+        timeline="00:00 등장, 00:12 정지",
+        dialogue="첫 문장 어미가 흐려진다",
+        tempo="1.2초 사이가 생긴다",
+        pitch="문장 끝에서 3도 내려간다",
+        movement="오른손을 45도 들어올린다",
+        expression="시선이 좌하단으로 내려간다",
+        emotion="분노에서 체념으로 전환된다",
+        extra=[ExtraDimension(name="호흡", observation="들숨이 두 번 끊긴다")],
+    )
+    s = CoachSession(session_id=SESSION_ID, summary_id=SUMMARY_ID, summary=summary)
+    p = build_prompt(s, None)
+    assert "[영상 관찰" in p
+    for fragment in (
+        "00:00 등장, 00:12 정지",
+        "첫 문장 어미가 흐려진다",
+        "1.2초 사이가 생긴다",
+        "문장 끝에서 3도 내려간다",
+        "오른손을 45도 들어올린다",
+        "시선이 좌하단으로 내려간다",
+        "분노에서 체념으로 전환된다",
+        "호흡: 들숨이 두 번 끊긴다",  # extra 축도 빠지지 않는다
+    ):
+        assert fragment in p
+
+
+def test_prompt_keeps_target_discipline_with_observation():
+    # 관찰을 다 줘도 거기서 새 문제를 캐지 말라는 지시가 함께 실려야 한다
+    s = CoachSession(session_id=SESSION_ID, summary_id=SUMMARY_ID, summary=SUMMARY)
+    p = build_prompt(s, None)
+    assert "타깃을 더 구체적으로 짚고" in p
+    assert "찾아 꺼내지 않는다" in p
 
 
 def test_prompt_includes_history_and_actor_text():

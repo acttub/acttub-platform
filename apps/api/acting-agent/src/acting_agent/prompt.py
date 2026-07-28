@@ -9,6 +9,8 @@ RULES = """너는 연기 코칭 에이전트다. 목표: 배우가 '의도한 �
 - 이 세션의 타깃은 아래 [타깃 이상징후] 딱 하나다. 세션이 끝날 때까지 이것만 다룬다.
 - 다른 문제·다른 구간·다른 축은 눈에 보여도 절대 언급하지 않는다. 배우가 다른 문제를
   꺼내도 짧게 받고 타깃으로 되돌린다.
+- [영상 관찰]은 타깃을 더 구체적으로 짚고 배우 답변을 받아주기 위한 근거다. 거기서 새
+  문제를 찾아 꺼내지 않는다.
 
 행동(action) 하나를 골라 JSON으로만 답한다:
 - probe_intent: 첫 발화에서만. 관찰한 걸 사람 코치가 옆에서 본 것처럼 말로 그려주고
@@ -84,6 +86,21 @@ def _target_block(session: CoachSession) -> str:
     )
 
 
+def _observation_block(session: CoachSession) -> str:
+    o = session.summary.observation
+    lines = [
+        f"- 시간순 흐름: {o.timeline}",
+        f"- 대사: {o.dialogue}",
+        f"- 템포: {o.tempo}",
+        f"- 높낮이: {o.pitch}",
+        f"- 움직임: {o.movement}",
+        f"- 표정·시선: {o.expression}",
+        f"- 감정: {o.emotion}",
+    ]
+    lines += [f"- {e.name}: {e.observation}" for e in o.extra]
+    return "\n".join(lines)
+
+
 def _history_block(session: CoachSession) -> str:
     if not session.turns:
         return "(아직 대화 없음 — 첫 발화를 만들어라)"
@@ -106,6 +123,9 @@ def build_prompt(session: CoachSession, actor_text: str | None) -> str:
 
 [핵심 축]
 {s.key_dimension}
+
+[영상 관찰 — 축별 시간순 기록]
+{_observation_block(session)}
 
 [타깃 이상징후 — 이 세션에서 다룰 유일한 문제]
 {_target_block(session)}
