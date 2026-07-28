@@ -4,12 +4,15 @@ from fastapi.testclient import TestClient
 
 from acting_agent.app import create_app
 from acting_agent.config import Settings
-from acting_agent.schema import CoachReply
+from acting_agent.engine import AgentOut, AgentOutWithClose
 from acting_agent.store import (
     InMemorySessionStore,
     SessionWriteConflict,
 )
 from agent_test_support import SUMMARY, SUMMARY_ID, SUBTEXT, FakeClient, _Resp
+
+FIRST = AgentOut(analysis="a", question="그 말이 멎은 것처럼 들렸는데, 인물은 뭘 기다렸을까요?")
+TAIL = AgentOutWithClose(analysis="a", question="그럼 그 자리에서 인물이 지키려던 건 뭐였을까요?")
 
 
 def _client(replies, store=None):
@@ -27,17 +30,7 @@ def _client(replies, store=None):
 
 def test_start_then_reply_flow():
     store = InMemorySessionStore()
-    c = _client(
-        [
-            CoachReply(
-                action="probe_intent",
-                utterance="그 대사 뒤에 사이가 길게 비었더라 — 의도한 거야?",
-                focus_timestamp="00:12",
-            ),
-            CoachReply(action="dig_cause", utterance="왜 그랬어?"),
-        ],
-        store=store,
-    )
+    c = _client([FIRST, TAIL], store=store)
     r1 = c.post("/coach/start", json={"summary_id": SUMMARY_ID})
     assert r1.status_code == 200
     sid = r1.json()["session_id"]
@@ -80,9 +73,8 @@ def test_start_parse_failure_returns_502():
 
 def test_reply_parse_failure_does_not_persist_actor_turn():
     store = InMemorySessionStore()
-    question = CoachReply(action="probe_intent", utterance="의도하신 거예요?")
     responses = [
-        _Resp(parsed=question),
+        _Resp(parsed=FIRST),
         _Resp(text="nope"),
         _Resp(text="still nope"),
     ]
@@ -109,13 +101,7 @@ def test_reply_write_conflict_returns_409_without_overwriting_session():
             raise SessionWriteConflict("stale session")
 
     store = ConflictStore()
-    c = _client(
-        [
-            CoachReply(action="probe_intent", utterance="의도하신 거예요?"),
-            CoachReply(action="dig_cause", utterance="왜 그랬어?"),
-        ],
-        store=store,
-    )
+    c = _client([FIRST, TAIL], store=store)
     sid = c.post("/coach/start", json={"summary_id": SUMMARY_ID}).json()["session_id"]
 
     response = c.post("/coach/reply", json={"session_id": sid, "text": "긴장했어요"})

@@ -1,27 +1,38 @@
 from acting_agent import engine
-from acting_agent.schema import CoachReply
-from agent_test_support import SUMMARY, SUMMARY_ID, FakeClient, _Resp
+from agent_test_support import SUBTEXT, SUMMARY, SUMMARY_ID, FakeClient, _Resp
+
+
+def _out(question, analysis="내부 분석"):
+    return _Resp(parsed=engine.AgentOut(analysis=analysis, question=question))
 
 
 def test_start_creates_session_and_first_probe():
-    reply = CoachReply(
-        action="probe_intent",
-        utterance="그 대사 뒤에 사이가 길게 비었더라 — 의도한 거야?",
-        focus_timestamp="00:12",
-    )
-    client = FakeClient([_Resp(parsed=reply)])
+    client = FakeClient([_out("그 말이 잠깐 멎은 것처럼 들렸는데, 인물은 뭘 기다리고 있었을까요?")])
     session, out = engine.start(
-        "sid", SUMMARY, summary_id=SUMMARY_ID, client=client, model="m"
+        "sid", SUMMARY, SUBTEXT, summary_id=SUMMARY_ID, client=client, model="m"
     )
     assert out.action == "probe_intent"
     assert session.summary_id == SUMMARY_ID
     assert session.question_count == 1
     assert session.turns[-1].role == "ai" and session.turns[-1].text == out.utterance
-    assert session.turns[-1].action == out.action
-    assert session.turns[-1].focus_timestamp == "00:12"
-    # 프롬프트에 anomaly material이 실려 나갔는지
-    sent_prompt = client.models.calls[0][1][0]
-    assert "1.2초 멈춤" in sent_prompt
+    # severity high anomaly가 타깃이 되고 그 시각이 focus 로 나간다
+    assert out.focus_timestamp == "00:12"
+
+    system, user_msg = client.models.calls[0][2].system_instruction, client.models.calls[0][1][0]
+    # 규칙은 system_instruction 으로, 장면·관찰은 사용자 메시지로 갈린다
+    assert "[금지 문형 — 하나라도 쓰면 실패]" in system
+    assert "[금지 문형 — 하나라도 쓰면 실패]" not in user_msg
+    assert "1.2초 멈춤" in user_msg
+
+
+def test_low_severity_anomaly_is_not_used_as_target():
+    # 신뢰도 게이트 — low 관찰은 질문 타깃으로 승격되지 않는다
+    client = FakeClient([_out("이 장면에서 인물이 원하는 게 뭐예요?")])
+    _, out = engine.start(
+        "sid-low", SUMMARY, SUBTEXT, summary_id=SUMMARY_ID, client=client, model="m"
+    )
+    assert "시선 이탈" not in client.models.calls[0][1][0]
+    assert out.utterance != ""
 
 
 def test_start_with_empty_anomalies_still_produces_utterance():
@@ -44,45 +55,43 @@ def test_start_with_empty_anomalies_still_produces_utterance():
         segment_scan=[],
         anomalies=[],
     )
-    reply = CoachReply(
-        action="probe_intent",
-        utterance="처음부터 끝까지 톤이 한 색이던데 — 의도한 거야?",
-    )
     _, out = engine.start(
         "sid2",
         empty,
+        SUBTEXT,
         summary_id=SUMMARY_ID,
-        client=FakeClient([_Resp(parsed=reply)]),
+        client=FakeClient([_out("원하는 걸 이루지 못하면 인물에게 무슨 일이 벌어질까요?")]),
         model="m",
     )
-    assert out.utterance != ""
+    assert out.utterance != "" and out.focus_timestamp == ""
 
 
-def test_start_close_turn_is_not_counted_as_question():
-    reply = CoachReply(
-        action="close", utterance="여기까지 할게요.", done=True, reason="exhausted"
-    )
-    session, _ = engine.start(
-        "sid-close",
-        SUMMARY,
-        summary_id=SUMMARY_ID,
-        client=FakeClient([_Resp(parsed=reply)]),
-        model="m",
-    )
-    assert session.question_count == 0
-    assert session.turns[0].action == "close"
-    assert session.status == "closed"
+def test_missing_input_asks_for_the_scene_first():
+    # 장면을 모르면 관찰을 해석할 수 없다 — 입력 결손이 관찰보다 앞선다
+    client = FakeClient([_out("이 장면은 무슨 상황이에요?")])
+    engine.start("sid-noinput", SUMMARY, None, summary_id=SUMMARY_ID, client=client, model="m")
+    user_msg = client.models.calls[0][1][0]
+    assert "입력 결손(상황)" in user_msg
+    assert "아직 관찰은 인용하지 않는다" in user_msg
 
 
-def test_generate_retries_on_forbidden_word():
-    bad = CoachReply(action="probe_intent", utterance="연기력이 부족해")
-    good = CoachReply(
-        action="probe_intent",
-        utterance="그 대사 뒤에 사이가 길게 비었던데 — 왜 그랬어?",
-    )
-    client = FakeClient([_Resp(parsed=bad), _Resp(parsed=good)])
+def test_generate_retries_on_banned_shape():
+    bad = _out("이거 의도하신 거예요, 아니면 그냥 그렇게 나온 거예요?")
+    good = _out("그 말이 멎은 것처럼 들렸는데, 인물은 뭘 기다리고 있었을까요?")
+    client = FakeClient([bad, good])
     _, out = engine.start(
-        "sid3", SUMMARY, summary_id=SUMMARY_ID, client=client, model="m"
+        "sid3", SUMMARY, SUBTEXT, summary_id=SUMMARY_ID, client=client, model="m"
     )
-    assert out.utterance == good.utterance
+    assert out.utterance == "그 말이 멎은 것처럼 들렸는데, 인물은 뭘 기다리고 있었을까요?"
     assert len(client.models.calls) == 2
+    assert "[재생성]" in client.models.calls[1][1][0]
+
+
+def test_falls_back_when_retry_also_violates():
+    # 가드가 경고에 그치면 금지 문형이 배우에게 그대로 나간다 → 폴백으로 바꾼다
+    bad = _out("이거 의도하신 거예요, 아니면 그냥 그렇게 나온 거예요?")
+    client = FakeClient([bad, bad])
+    _, out = engine.start(
+        "sid4", SUMMARY, SUBTEXT, summary_id=SUMMARY_ID, client=client, model="m"
+    )
+    assert out.utterance == "이 장면에서 인물이 원하는 게 뭐예요?"
