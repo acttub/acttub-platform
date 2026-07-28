@@ -1,5 +1,5 @@
 import { Stack, useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -12,6 +12,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { api, type ActingReport } from '@/lib/api';
 import { clearPractice, getPractice, setPrefill } from '@/lib/practice';
+import { createOrReuseReport } from '@/lib/report-flow';
 import { palette } from '@/constants/palette';
 
 /**
@@ -24,38 +25,45 @@ export default function ReportScreen() {
   const practice = getPractice();
   const [report, setReport] = useState<ActingReport | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const mountedRef = useRef(true);
+  const requestInFlightRef = useRef(false);
 
-  useEffect(() => {
+  const loadReport = useCallback(async () => {
+    if (requestInFlightRef.current) return;
     if (!practice) {
       setError('진행 중인 연습이 없어요.');
-      return;
-    }
-    if (practice.report) {
-      setReport(practice.report);
+      setLoading(false);
       return;
     }
     if (!practice.coachSessionId) {
       setError('코치 대화가 끝나지 않아 카드를 만들 수 없어요.');
+      setLoading(false);
       return;
     }
-    let cancelled = false;
-    (async () => {
-      try {
-        // v2: 서버가 세션·대화를 들고 있으므로 코치 세션 id만 넘기면 리포트를 만든다.
-        const res = await api.createReport(practice.coachSessionId!);
-        if (cancelled) return;
-        practice.report = res.report;
-        setReport(res.report);
-        // 리포트는 POST /v2/reports로 서버에 영속화되므로 별도 로컬 저장 안 함.
-      } catch (err) {
-        if (!cancelled) setError(err instanceof Error ? err.message : '카드를 만들지 못했어요.');
+    requestInFlightRef.current = true;
+    setError(null);
+    setLoading(true);
+    try {
+      const nextReport = await createOrReuseReport(practice, api.createReport);
+      if (mountedRef.current) setReport(nextReport);
+    } catch (err) {
+      if (mountedRef.current) {
+        setError(err instanceof Error ? err.message : '카드를 만들지 못했어요.');
       }
-    })();
+    } finally {
+      requestInFlightRef.current = false;
+      if (mountedRef.current) setLoading(false);
+    }
+  }, [practice]);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    void loadReport();
     return () => {
-      cancelled = true;
+      mountedRef.current = false;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [loadReport]);
 
   const retake = () => {
     if (practice) setPrefill(practice.subtext);
@@ -78,7 +86,7 @@ export default function ReportScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={['bottom']}>
       <Stack.Screen options={{ title: '피드백 카드', headerBackVisible: false }} />
-      {!report && !error && (
+      {!report && loading && (
         <View style={styles.center}>
           <ActivityIndicator color={palette.blue} size="large" />
           <Text style={styles.loadingText}>대화를 정리해서 카드를 만들고 있어요…</Text>
@@ -87,6 +95,11 @@ export default function ReportScreen() {
       {error && (
         <View style={styles.center}>
           <Text style={styles.errorText}>{error}</Text>
+          {practice?.coachSessionId && (
+            <Pressable style={styles.nextButton} onPress={() => void loadReport()}>
+              <Text style={styles.nextButtonText}>다시 시도</Text>
+            </Pressable>
+          )}
           <Pressable style={styles.nextButton} onPress={finish}>
             <Text style={styles.nextButtonText}>홈으로</Text>
           </Pressable>

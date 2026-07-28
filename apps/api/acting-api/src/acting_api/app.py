@@ -1,5 +1,6 @@
 import asyncio
 from datetime import timedelta
+import logging
 import os
 import time
 from contextlib import asynccontextmanager
@@ -11,6 +12,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from google import genai
 from pydantic import BaseModel, ConfigDict
+from starlette.concurrency import run_in_threadpool
 
 from acting_agent.config import load_settings as load_agent_settings
 from acting_api.analysis_worker import (
@@ -19,6 +21,7 @@ from acting_api.analysis_worker import (
     SummaryAnalyzer,
 )
 from acting_api.auth.dependencies import (
+    build_consent_gate_dependency,
     build_current_user_dependency,
     build_rate_limited_user_dependency,
 )
@@ -30,7 +33,10 @@ from acting_api.auth.providers import ProviderRegistry
 from acting_api.auth.router import build_router as build_auth_router
 from acting_api.coaching import build_router as build_coaching_router
 from acting_api.config import load_gateway_settings
-from acting_api.consents import build_router as build_consents_router
+from acting_api.consents import (
+    build_router as build_consents_router,
+    seed_consent_documents,
+)
 from acting_api.db.store import PostgresStore
 from acting_api.keepalive import keep_alive_loop
 from acting_api.practice_sessions import build_router as build_practice_router
@@ -40,6 +46,8 @@ from acting_api.storage import S3Storage
 from acting_api.uploads import build_router as build_uploads_router
 from acting_report.config import load_settings as load_report_settings
 from acting_summary.config import load_settings as load_summary_settings
+
+logger = logging.getLogger(__name__)
 
 
 class HealthResponse(BaseModel):
@@ -89,6 +97,7 @@ def create_app(
         provider_registry = ProviderRegistry(provider_verifiers)
     current_user = build_current_user_dependency(store, jwt_service)
     rate_limited_user = build_rate_limited_user_dependency(current_user, limiter)
+    consented_user = build_consent_gate_dependency(rate_limited_user, store)
     if s3_storage is None and gateway_settings.s3_configured:
         if s3_client is not None:
             s3_storage = S3Storage(bucket=gateway_settings.s3_bucket, client=s3_client)
@@ -123,6 +132,15 @@ def create_app(
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
+        try:
+            published = await run_in_threadpool(
+                seed_consent_documents,
+                store,
+                gateway_settings.consent_docs_dir,
+            )
+            logger.info("Published %d consent documents during startup", published)
+        except Exception:
+            logger.exception("Consent document startup seed failed")
         task = None
         owned_client = None
         if gateway_settings.keep_alive_url:
@@ -193,14 +211,15 @@ def create_app(
         build_uploads_router(
             store=store,
             storage=s3_storage,
-            rate_limited_user=rate_limited_user,
+            rate_limited_user=consented_user,
         )
     )
     app.include_router(
         build_practice_router(
             store=store,
             storage=s3_storage,
-            rate_limited_user=rate_limited_user,
+            rate_limited_user=consented_user,
+            ungated_user=rate_limited_user,
         )
     )
     app.include_router(
@@ -208,7 +227,7 @@ def create_app(
             client=client,
             settings=agent_settings,
             store=store,
-            rate_limited_user=rate_limited_user,
+            rate_limited_user=consented_user,
         )
     )
     app.include_router(
@@ -216,7 +235,8 @@ def create_app(
             client=client,
             settings=report_settings,
             store=store,
-            rate_limited_user=rate_limited_user,
+            storage=s3_storage,
+            rate_limited_user=consented_user,
         )
     )
 

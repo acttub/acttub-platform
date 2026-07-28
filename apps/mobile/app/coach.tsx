@@ -1,7 +1,7 @@
 import { useHeaderHeight } from '@react-navigation/elements';
 import { Stack, useRouter } from 'expo-router';
 import { useVideoPlayer, VideoView } from 'expo-video';
-import { useEffect, useRef, useState, type ComponentType } from 'react';
+import { useCallback, useEffect, useRef, useState, type ComponentType } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -16,6 +16,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { api } from '@/lib/api';
+import { attemptCoachStart, canSendCoachMessage } from '@/lib/coach-flow';
 import { getPractice } from '@/lib/practice';
 import { palette } from '@/constants/palette';
 import type { MicButtonProps } from '@/components/mic-button';
@@ -45,6 +46,8 @@ export default function CoachScreen() {
   const headerHeight = useHeaderHeight();
   const practice = getPractice();
   const scrollRef = useRef<ScrollView>(null);
+  const mountedRef = useRef(true);
+  const startInFlightRef = useRef(false);
   const [messages, setMessages] = useState<ChatMessage[]>(() =>
     practice ? practice.turns.map((t) => ({ role: t.role, text: t.text })) : [],
   );
@@ -58,13 +61,15 @@ export default function CoachScreen() {
     p.loop = false;
   });
 
-  useEffect(() => {
-    if (!practice) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const reply = await api.coachStart(practice.summaryId);
-        if (cancelled) return;
+  const startCoach = useCallback(async () => {
+    if (!practice || startInFlightRef.current) return;
+    startInFlightRef.current = true;
+    setWaiting(true);
+    setError(null);
+    const result = await attemptCoachStart(practice.summaryId, api.coachStart);
+    if (mountedRef.current) {
+      if (result.ok) {
+        const reply = result.response;
         practice.coachSessionId = reply.session_id;
         practice.questionCount = 1;
         practice.turns.push({ role: 'ai', text: reply.utterance });
@@ -76,14 +81,19 @@ export default function CoachScreen() {
           practice.closeReason = reply.reason ?? '';
           setDone(true);
         }
-      } catch (err) {
-        if (!cancelled) setError(err instanceof Error ? err.message : '코치 연결에 실패했어요.');
-      } finally {
-        if (!cancelled) setWaiting(false);
+      } else {
+        setError(result.message);
       }
-    })();
+      setWaiting(false);
+    }
+    startInFlightRef.current = false;
+  }, [practice]);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    void startCoach();
     return () => {
-      cancelled = true;
+      mountedRef.current = false;
     };
     // practice는 화면 생애 동안 동일한 모듈 스토어 객체
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -105,7 +115,13 @@ export default function CoachScreen() {
 
   const send = async () => {
     const text = input.trim();
-    if (!text || waiting || done || !practice.coachSessionId) return;
+    const canSend = canSendCoachMessage({
+      text,
+      waiting,
+      done,
+      coachSessionId: practice.coachSessionId,
+    });
+    if (!canSend || !practice.coachSessionId) return;
     setInput('');
     setError(null);
     practice.turns.push({ role: 'actor', text });
@@ -189,7 +205,16 @@ export default function CoachScreen() {
           )}
         </ScrollView>
 
-        {error && <Text style={styles.errorText}>{error}</Text>}
+        {error && (
+          <View>
+            <Text style={styles.errorText}>{error}</Text>
+            {!practice.coachSessionId && !waiting && (
+              <Pressable style={styles.startRetry} onPress={() => void startCoach()}>
+                <Text style={styles.startRetryText}>코치 다시 연결하기</Text>
+              </Pressable>
+            )}
+          </View>
+        )}
 
         {done ? (
           <Pressable style={styles.reportButton} onPress={() => router.push('/report')}>
@@ -197,7 +222,12 @@ export default function CoachScreen() {
           </Pressable>
         ) : (
           <View style={styles.inputRow}>
-            {MicButton && <MicButton onText={setInput} disabled={waiting} />}
+            {MicButton && (
+              <MicButton
+                onText={setInput}
+                disabled={waiting || !practice.coachSessionId}
+              />
+            )}
             <TextInput
               style={styles.input}
               placeholder="떠오르는 대로 편하게 답해보세요"
@@ -205,12 +235,27 @@ export default function CoachScreen() {
               value={input}
               onChangeText={setInput}
               multiline
-              editable={!waiting}
+              editable={!waiting && !!practice.coachSessionId}
             />
             <Pressable
-              style={[styles.sendButton, (!input.trim() || waiting) && styles.sendDisabled]}
+              style={[
+                styles.sendButton,
+                !canSendCoachMessage({
+                  text: input,
+                  waiting,
+                  done,
+                  coachSessionId: practice.coachSessionId,
+                }) && styles.sendDisabled,
+              ]}
               onPress={send}
-              disabled={!input.trim() || waiting}>
+              disabled={
+                !canSendCoachMessage({
+                  text: input,
+                  waiting,
+                  done,
+                  coachSessionId: practice.coachSessionId,
+                })
+              }>
               <Text style={styles.sendText}>보내기</Text>
             </Pressable>
           </View>
@@ -260,6 +305,8 @@ const styles = StyleSheet.create({
   actorText: { color: '#FFFFFF', fontSize: 15, lineHeight: 21 },
   hint: { fontSize: 12, color: palette.textDim, textAlign: 'center', marginTop: 4 },
   errorText: { color: palette.danger, textAlign: 'center', padding: 8 },
+  startRetry: { alignSelf: 'center', paddingHorizontal: 16, paddingBottom: 8 },
+  startRetryText: { color: palette.blue, fontSize: 14, fontWeight: '700' },
   inputRow: { flexDirection: 'row', padding: 10, gap: 8, alignItems: 'flex-end' },
   input: {
     flex: 1,

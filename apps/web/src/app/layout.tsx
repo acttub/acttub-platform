@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist } from "next/font/google";
+import { ConsentRedirectListener } from "@/features/auth/consent-redirect-listener";
 import { buildRootMetadata } from "@/lib/seo/site-metadata";
 import "./globals.css";
 
@@ -20,7 +21,10 @@ export default function RootLayout({
       lang="ko"
       className={`${geistSans.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        <ConsentRedirectListener />
+        {children}
+      </body>
     </html>
   );
 }

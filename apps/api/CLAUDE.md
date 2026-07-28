@@ -11,6 +11,11 @@ acting-api 백엔드. uv 파이썬 모노레포 — `acting-api`(FastAPI 게이�
 - 마이그레이션: `cd acting-api && set -a; source .env; set +a && uv run alembic upgrade head`
   (alembic은 `.env`를 스스로 읽지 않으므로 셸로 내보내야 합니다)
 - 테스트: `uv run --package acting-api pytest`
+- **Postgres 통합 테스트(중요)**: `RUN_DB_TESTS=1 TEST_DATABASE_URL="postgresql://<user>@localhost:5432/acting_local" uv run --package acting-api pytest acting-api/tests/test_db_store.py`
+  - `RUN_DB_TESTS=1` 없이 돌리면 `test_db_store.py`가 **통째로 skip**됩니다. 기본 `pytest`가 통과해도 SQL이 실제로 검증된 게 아닙니다.
+  - 다른 테스트는 가짜 Session이 statement를 저장만 하고 실행하지 않습니다. **Postgres가 SQL 자체를 거부하는 종류의 회귀(잘못된 FROM 앵커, 중복 JOIN 등)는 이 통합 테스트에서만 잡힙니다.**
+  - fixture가 `acting_test_<uuid>` 스키마를 만들었다 지우므로 대상 DB의 기존 데이터에는 영향이 없습니다.
+  - ORM 쿼리를 손댔다면 커밋 전에 반드시 이 명령을 돌리세요.
 
 ## .env (필수, 위치 고정)
 

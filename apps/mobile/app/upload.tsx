@@ -1,7 +1,7 @@
 import { useHeaderHeight } from '@react-navigation/elements';
 import * as ImagePicker from 'expo-image-picker';
 import { Stack, useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
@@ -13,12 +13,17 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { MaterialIcons } from '@expo/vector-icons';
 
-import type { VideoFile } from '@/lib/api';
-import { setPendingUpload, takePrefill } from '@/lib/practice';
-import { palette } from '@/constants/palette';
 import { FirstUploadGuide } from '@/components/first-upload-guide';
+import { beginAnalysisNavigation } from '@/lib/analysis-entry';
+import type { VideoFile } from '@/lib/api';
+import { useAuth } from '@/lib/auth';
+import { setPendingUpload, takePrefill } from '@/lib/practice';
+import {
+  MAX_VIDEO_DURATION_MS,
+  normalizeVideoDurationMs,
+} from '@/lib/upload-input';
+import { palette } from '@/constants/palette';
 
 /**
  * A2. 영상 올리기 + 의도 입력 — 영상과 "이 장면에서 뭘 하려 했는지"를 받는다.
@@ -26,6 +31,7 @@ import { FirstUploadGuide } from '@/components/first-upload-guide';
  */
 export default function UploadScreen() {
   const router = useRouter();
+  const { user } = useAuth();
   const headerHeight = useHeaderHeight();
   const [prefilled, setPrefilled] = useState(false);
   const [situation, setSituation] = useState('');
@@ -35,6 +41,8 @@ export default function UploadScreen() {
   const [durationMs, setDurationMs] = useState<number | null>(null);
   const [videoError, setVideoError] = useState<string | null>(null);
   const [agreedRights, setAgreedRights] = useState(false);
+  const startLockRef = useRef(false);
+  const [starting, setStarting] = useState(false);
 
   useEffect(() => {
     const p = takePrefill();
@@ -45,8 +53,6 @@ export default function UploadScreen() {
     setSubtext(p.subtext);
   }, []);
 
-  // 압축(lib/compress)이 목표 크기로 줄이므로 실질 제약은 길이 — 5분 내외(+30초 여유).
-  const MAX_DURATION_SEC = 330;
   const MAX_RAW_MB = 4096;
 
   const pickVideo = async () => {
@@ -58,8 +64,9 @@ export default function UploadScreen() {
     });
     if (result.canceled || !result.assets[0]) return;
     const asset = result.assets[0];
-    const durationSec = asset.duration ? asset.duration / 1000 : null;
-    if (durationSec !== null && durationSec > MAX_DURATION_SEC) {
+    const normalizedDurationMs = normalizeVideoDurationMs(asset.duration);
+    if (normalizedDurationMs !== null && normalizedDurationMs > MAX_VIDEO_DURATION_MS) {
+      const durationSec = normalizedDurationMs / 1000;
       const min = Math.floor(durationSec / 60);
       const sec = Math.round(durationSec % 60);
       setVideoError(`영상이 ${min}분 ${sec}초예요. 5분 이내로 잘라서 올려주세요.`);
@@ -70,7 +77,7 @@ export default function UploadScreen() {
       setVideoError(`영상이 ${Math.round(sizeMb / 1024)}GB예요. 너무 커서 기기에서 처리할 수 없어요.`);
       return;
     }
-    setDurationMs(asset.duration ?? null);
+    setDurationMs(normalizedDurationMs);
     setVideo({
       uri: asset.uri,
       name: asset.fileName ?? 'video.mp4',
@@ -83,22 +90,30 @@ export default function UploadScreen() {
 
   const start = () => {
     if (!canSubmit || !video) return;
-    setPendingUpload({
-      subtext: {
-        situation: situation.trim(),
-        character: character.trim(),
-        subtext: subtext.trim(),
+    beginAnalysisNavigation(
+      startLockRef,
+      () => {
+        setStarting(true);
+        setPendingUpload({
+          subtext: {
+            situation: situation.trim(),
+            character: character.trim(),
+            subtext: subtext.trim(),
+          },
+          video,
+          durationMs,
+        });
       },
-      video,
-      durationMs,
-    });
-    router.push('/analyzing');
+      () => router.replace('/analyzing'),
+    );
   };
+
+  const submitDisabled = !canSubmit || starting;
 
   return (
     <SafeAreaView style={styles.safe} edges={['bottom']}>
       <Stack.Screen options={{ title: prefilled ? '같은 장면 다시 찍기' : '영상 올리기' }} />
-      {!prefilled && <FirstUploadGuide />}
+      {!prefilled && user && <FirstUploadGuide ownerId={user.id} />}
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -147,12 +162,8 @@ export default function UploadScreen() {
           />
 
           <Pressable style={styles.rightsRow} onPress={() => setAgreedRights((v) => !v)}>
-            <View style={styles.check}>
-              <MaterialIcons
-                name="check"
-                size={20}
-                color={agreedRights ? palette.blue : palette.checkOff}
-              />
+            <View style={[styles.check, agreedRights && styles.checkOn]}>
+              {agreedRights && <Text style={styles.checkMark}>✓</Text>}
             </View>
             <Text style={styles.rightsText}>
               본인이 촬영·업로드할 권리가 있고, 영상에 나오는 다른 사람의 촬영·처리 동의를
@@ -161,9 +172,9 @@ export default function UploadScreen() {
           </Pressable>
 
           <Pressable
-            style={[styles.submit, !canSubmit && styles.submitDisabled]}
+            style={[styles.submit, submitDisabled && styles.submitDisabled]}
             onPress={start}
-            disabled={!canSubmit}>
+            disabled={submitDisabled}>
             <Text style={styles.submitText}>분석 시작</Text>
           </Pressable>
         </ScrollView>
@@ -218,10 +229,15 @@ const styles = StyleSheet.create({
   check: {
     width: 22,
     height: 22,
+    borderRadius: 6,
+    borderWidth: 1.5,
+    borderColor: palette.textFaint,
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 1,
   },
+  checkOn: { backgroundColor: palette.blue, borderColor: palette.blue },
+  checkMark: { color: '#fff', fontSize: 13, fontWeight: '900' },
   rightsText: { flex: 1, fontSize: 12, color: palette.textDim, lineHeight: 18 },
   submit: {
     backgroundColor: palette.blue,

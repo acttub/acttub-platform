@@ -1,14 +1,28 @@
 import {
+  createUploadTask,
   FileSystemUploadType,
-  uploadAsync,
 } from 'expo-file-system/legacy';
 
 import {
-  clearTokens,
+  clearTokensIfCurrent,
+  commitRefreshedTokens,
+  emitConsentRequired,
   getAccessToken,
+  getAuthSessionEpoch,
   getRefreshToken,
-  setTokens,
+  waitForCredentialReady,
 } from '@/lib/token-store';
+import {
+  ApiError,
+  createApiRequestClient,
+  type PostIdempotentOptions,
+} from '@/lib/api-request';
+import {
+  sendUploadIntent,
+  type UploadIntentInput,
+} from '@/lib/upload-input';
+
+export { ApiError, NetworkError, RequestAbortError } from '@/lib/api-request';
 
 /**
  * acttub v2 API (https://dev.acttub.com).
@@ -18,6 +32,17 @@ import {
  * - 분석: 비동기 — practice-session 생성 후 상태를 폴링해 analyzed까지 기다린다.
  */
 const BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? 'https://dev.acttub.com';
+const requestClient = createApiRequestClient({
+  baseUrl: BASE_URL,
+  fetchImpl: (...args) => fetch(...args),
+  waitForCredentialReady,
+  getAccessToken,
+  getRefreshToken,
+  getAuthSessionEpoch,
+  setTokens: commitRefreshedTokens,
+  clearTokens: clearTokensIfCurrent,
+  emitConsentRequired,
+});
 
 // ─── 도메인 타입 ────────────────────────────────────────────────────────────
 
@@ -71,18 +96,13 @@ export type CreateReportResponse = {
   report_count: number;
 };
 
-// 배포된 /v2/reports 목록은 전문이 아니라 headline 요약만 내려준다.
-// 전문은 GET /v2/reports/{practice_session_id} (ReportDetailResponse)로 따로 받는다.
 export type ReportRecord = {
-  created_at: string;
-  /** 연습 세션 id — 상세 조회·삭제(DELETE /v2/practice-sessions/{id})에 사용 */
   practice_session_id: string;
-  /** 목록 카드에 보여줄 한 줄 요약 */
   headline: string;
+  created_at: string;
 };
 
-// GET /v2/reports/{practice_session_id} — 리포트 전문 상세
-export type ReportDetailResponse = {
+export type ReportDetail = {
   practice_session_id: string;
   created_at: string;
   report: ActingReport;
@@ -134,7 +154,7 @@ export type SessionStatus = 'created' | 'analyzing' | 'analyzed' | 'failed';
 export type PracticeSessionCreate = {
   session_id: string;
   status: SessionStatus;
-  summary_id: string | null;
+  summary_id?: string | null;
 };
 
 export type PracticeSessionListItem = {
@@ -155,9 +175,9 @@ export type PracticeSessionDetail = {
   subtext: string;
   created_at: string;
   updated_at: string;
-  playback_url: string;
-  summary: SceneSummary | null;
-  error_code:
+  playback_url?: string;
+  summary?: SceneSummary | null;
+  error_code?:
     | 'gemini_timeout'
     | 'gemini_parse_error'
     | 'unsupported_media'
@@ -165,80 +185,10 @@ export type PracticeSessionDetail = {
     | null;
 };
 
-// ─── 에러 ─────────────────────────────────────────────────────────────────────
-
-export class ApiError extends Error {
-  constructor(
-    public status: number,
-    message: string,
-  ) {
-    super(message);
-  }
-}
-
-/** 상태 코드를 사용자 언어로. */
-async function friendlyError(res: Response): Promise<string> {
-  switch (res.status) {
-    case 401:
-      return '로그인이 만료됐어요. 다시 로그인해주세요.';
-    case 403:
-      return '이 작업을 할 권한이 없어요.';
-    case 413:
-      return '영상이 너무 커서 서버가 받지 못했어요. 구간을 잘라 더 작게 올려주세요.';
-    case 429:
-      return '요청이 잠시 몰렸어요. 1분 뒤에 다시 시도해주세요.';
-    case 502:
-    case 503:
-    case 504:
-      return '서버가 잠시 불안정해요. 잠시 후 다시 시도해주세요.';
-    default: {
-      try {
-        const body = await res.json();
-        if (typeof body?.detail === 'string') return body.detail;
-        if (Array.isArray(body?.detail) && body.detail[0]?.msg)
-          return String(body.detail[0].msg);
-      } catch {
-        // JSON이 아니면 상태 코드만
-      }
-      return `HTTP ${res.status}`;
-    }
-  }
-}
-
-// ─── refresh (single-flight) ──────────────────────────────────────────────────
-
-let refreshing: Promise<boolean> | null = null;
-
-async function refreshOnce(): Promise<boolean> {
-  const rt = getRefreshToken();
-  if (!rt) return false;
-  try {
-    const res = await fetch(`${BASE_URL}/v2/auth/refresh`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ refresh_token: rt }),
-    });
-    if (!res.ok) return false;
-    const data = (await res.json()) as {
-      access_token: string;
-      refresh_token: string;
-    };
-    await setTokens(data.access_token, data.refresh_token);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-/** 동시에 여러 요청이 401을 만나도 refresh는 한 번만 돈다. */
-function ensureRefreshed(): Promise<boolean> {
-  if (!refreshing) {
-    refreshing = refreshOnce().finally(() => {
-      refreshing = null;
-    });
-  }
-  return refreshing;
-}
+export type PracticeSessionStatusPayload = {
+  status: SessionStatus;
+  error_code: PracticeSessionDetail['error_code'];
+};
 
 // ─── 공통 요청 ────────────────────────────────────────────────────────────────
 
@@ -246,6 +196,7 @@ type ReqOpts = {
   auth?: boolean;
   timeoutMs?: number;
   requestId?: boolean;
+  signal?: AbortSignal;
 };
 
 function randomId(): string {
@@ -257,42 +208,20 @@ async function request<T>(
   path: string,
   init: RequestInit = {},
   opts: ReqOpts = {},
-  _retried = false,
 ): Promise<T> {
-  const { auth = true, timeoutMs = 60_000, requestId = false } = opts;
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    const headers: Record<string, string> = { ...(init.headers as Record<string, string>) };
-    if (auth) {
-      const token = getAccessToken();
-      if (token) headers.Authorization = `Bearer ${token}`;
-    }
-    if (requestId && !headers['X-Request-Id']) headers['X-Request-Id'] = randomId();
-
-    const res = await fetch(`${BASE_URL}${path}`, {
-      ...init,
-      headers,
-      signal: controller.signal,
-    });
-
-    if (res.status === 401 && auth && !_retried) {
-      const ok = await ensureRefreshed();
-      if (ok) return request<T>(path, init, opts, true);
-      await clearTokens();
-      throw new ApiError(401, '로그인이 만료됐어요. 다시 로그인해주세요.');
-    }
-    if (!res.ok) throw new ApiError(res.status, await friendlyError(res));
-    if (res.status === 204) return undefined as T;
-    return (await res.json()) as T;
-  } catch (err) {
-    if (err instanceof Error && err.name === 'AbortError') {
-      throw new ApiError(0, '요청 시간이 초과됐어요. 네트워크를 확인하고 다시 시도해주세요.');
-    }
-    throw err;
-  } finally {
-    clearTimeout(timer);
+  const headers = new Headers(init.headers);
+  if (opts.requestId && !headers.has('X-Request-Id')) {
+    headers.set('X-Request-Id', randomId());
   }
+  return requestClient.request<T>(
+    path,
+    { ...init, headers },
+    {
+      auth: opts.auth,
+      timeoutMs: opts.timeoutMs,
+      signal: opts.signal,
+    },
+  );
 }
 
 function jsonInit(body: unknown): RequestInit {
@@ -301,6 +230,18 @@ function jsonInit(body: unknown): RequestInit {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   };
+}
+
+export type ApiCallOptions = {
+  signal?: AbortSignal;
+};
+
+function postIdempotent<T>(
+  path: string,
+  body: unknown,
+  options: PostIdempotentOptions = {},
+): Promise<T> {
+  return requestClient.postIdempotent<T>(path, body, options);
 }
 
 // ─── API ──────────────────────────────────────────────────────────────────────
@@ -327,6 +268,10 @@ export const api = {
     return request('/v2/consents/documents', {}, { auth: false });
   },
 
+  pendingConsents(): Promise<{ documents: ConsentDocument[] }> {
+    return request('/v2/consents/pending', {}, { auth: true });
+  },
+
   recordConsent(documentId: string, action: 'granted' | 'declined' | 'revoked') {
     return request('/v2/consents', jsonInit({ document_id: documentId, action }), {
       requestId: true,
@@ -334,44 +279,72 @@ export const api = {
   },
 
   // 업로드 ---------------------------------------------------------------------
-  createUploadIntent(input: {
-    mime_type: string;
-    size_bytes: number;
-    duration_ms?: number | null;
-  }): Promise<UploadIntent> {
-    // 백엔드는 size_bytes·duration_ms를 int로만 받는다. iOS의 asset.duration은
-    // 소수 ms로 올 수 있어 정수로 강제(안 하면 "got a number with a fractional part" 422).
-    const payload = {
-      mime_type: input.mime_type,
-      size_bytes: Math.round(input.size_bytes),
-      duration_ms:
-        input.duration_ms != null && input.duration_ms > 0
-          ? Math.round(input.duration_ms)
-          : null,
-    };
-    return request<UploadIntent>('/v2/uploads/intents', jsonInit(payload), {
-      requestId: true,
-      timeoutMs: 30_000,
-    });
+  createUploadIntent(
+    input: UploadIntentInput,
+    options: ApiCallOptions = {},
+  ): Promise<UploadIntent> {
+    return sendUploadIntent(input, (body) =>
+      postIdempotent<UploadIntent>(
+        '/v2/uploads/intents',
+        body,
+        {
+          timeoutMs: 30_000,
+          signal: options.signal,
+        },
+      ),
+    );
   },
 
-  /** presigned URL에 파일 바이트를 그대로 PUT (우리 API가 아니라 스토리지로 직접). */
-  async putToUploadUrl(uploadUrl: string, fileUri: string, mimeType: string): Promise<void> {
-    const res = await uploadAsync(uploadUrl, fileUri, {
+  /** presigned URL PUT. UploadTask를 노출해 화면 operation이 native 취소할 수 있게 한다. */
+  startUploadToUrl(
+    uploadUrl: string,
+    fileUri: string,
+    mimeType: string,
+  ): {
+    result: Promise<{ kind: 'uploaded' } | { kind: 'cancelled' }>;
+    cancel: () => Promise<void>;
+  } {
+    const task = createUploadTask(uploadUrl, fileUri, {
       httpMethod: 'PUT',
       uploadType: FileSystemUploadType.BINARY_CONTENT,
       headers: { 'Content-Type': mimeType },
     });
-    if (res.status < 200 || res.status >= 300) {
-      throw new ApiError(res.status, '영상 업로드에 실패했어요. 네트워크를 확인해주세요.');
-    }
+    let cancelled = false;
+    const result = (async () => {
+      try {
+        const response = await task.uploadAsync();
+        if (cancelled || response === null || response === undefined) {
+          return { kind: 'cancelled' as const };
+        }
+        if (response.status < 200 || response.status >= 300) {
+          throw new ApiError(
+            response.status,
+            '영상 업로드에 실패했어요. 네트워크를 확인해주세요.',
+          );
+        }
+        return { kind: 'uploaded' as const };
+      } catch (error) {
+        if (cancelled) return { kind: 'cancelled' as const };
+        throw error;
+      }
+    })();
+    return {
+      result,
+      cancel: async () => {
+        cancelled = true;
+        await task.cancelAsync();
+      },
+    };
   },
 
-  completeUpload(intentId: string): Promise<{ intent_id: string; status: string }> {
+  completeUpload(
+    intentId: string,
+    options: ApiCallOptions = {},
+  ): Promise<{ intent_id: string; status: 'finalized' }> {
     return request(
       `/v2/uploads/intents/${encodeURIComponent(intentId)}/complete`,
       { method: 'POST' },
-      { requestId: true, timeoutMs: 30_000 },
+      { requestId: true, timeoutMs: 30_000, signal: options.signal },
     );
   },
 
@@ -379,16 +352,16 @@ export const api = {
   createPracticeSession(input: {
     upload_intent_id: string;
     subtext: SubText;
-  }): Promise<PracticeSessionCreate> {
-    return request<PracticeSessionCreate>(
+  }, options: ApiCallOptions = {}): Promise<PracticeSessionCreate> {
+    return postIdempotent<PracticeSessionCreate>(
       '/v2/practice-sessions',
-      jsonInit({
+      {
         upload_intent_id: input.upload_intent_id,
         situation: input.subtext.situation,
         character_context: input.subtext.character,
         subtext: input.subtext.subtext,
-      }),
-      { requestId: true, timeoutMs: 30_000 },
+      },
+      { timeoutMs: 30_000, signal: options.signal },
     );
   },
 
@@ -396,19 +369,36 @@ export const api = {
     return request('/v2/practice-sessions', {}, { timeoutMs: 30_000 });
   },
 
-  getPracticeSession(sessionId: string): Promise<PracticeSessionDetail> {
+  getPracticeSession(
+    sessionId: string,
+    options: ApiCallOptions = {},
+  ): Promise<PracticeSessionDetail> {
     return request<PracticeSessionDetail>(
       `/v2/practice-sessions/${encodeURIComponent(sessionId)}`,
       {},
-      { timeoutMs: 20_000 },
+      { timeoutMs: 20_000, signal: options.signal },
     );
   },
 
-  reanalyze(sessionId: string): Promise<PracticeSessionCreate> {
+  getPracticeSessionStatus(
+    sessionId: string,
+    options: ApiCallOptions = {},
+  ): Promise<PracticeSessionStatusPayload> {
+    return request<PracticeSessionStatusPayload>(
+      `/v2/practice-sessions/${encodeURIComponent(sessionId)}/status`,
+      {},
+      { timeoutMs: 20_000, signal: options.signal },
+    );
+  },
+
+  reanalyze(
+    sessionId: string,
+    options: ApiCallOptions = {},
+  ): Promise<PracticeSessionCreate> {
     return request<PracticeSessionCreate>(
       `/v2/practice-sessions/${encodeURIComponent(sessionId)}/analyze`,
       { method: 'POST' },
-      { requestId: true, timeoutMs: 30_000 },
+      { requestId: true, timeoutMs: 30_000, signal: options.signal },
     );
   },
 
@@ -422,27 +412,27 @@ export const api = {
 
   // 코치 -----------------------------------------------------------------------
   coachStart(summaryId: string): Promise<CoachTurnResponse> {
-    return request<CoachTurnResponse>(
+    return postIdempotent<CoachTurnResponse>(
       '/v2/coach/start',
-      jsonInit({ summary_id: summaryId }),
-      { requestId: true, timeoutMs: 120_000 },
+      { summary_id: summaryId },
+      { timeoutMs: 120_000 },
     );
   },
 
   coachReply(sessionId: string, text: string): Promise<CoachTurnResponse> {
-    return request<CoachTurnResponse>(
+    return postIdempotent<CoachTurnResponse>(
       '/v2/coach/reply',
-      jsonInit({ session_id: sessionId, text }),
-      { requestId: true, timeoutMs: 120_000 },
+      { session_id: sessionId, text },
+      { timeoutMs: 120_000 },
     );
   },
 
   // 리포트 ---------------------------------------------------------------------
   createReport(sessionId: string): Promise<CreateReportResponse> {
-    return request<CreateReportResponse>(
+    return postIdempotent<CreateReportResponse>(
       '/v2/reports',
-      jsonInit({ session_id: sessionId }),
-      { requestId: true, timeoutMs: 120_000 },
+      { session_id: sessionId },
+      { timeoutMs: 120_000 },
     );
   },
 
@@ -450,11 +440,11 @@ export const api = {
     return request<ReportHistoryResponse>('/v2/reports', {}, { timeoutMs: 30_000 });
   },
 
-  reportDetail(practiceSessionId: string): Promise<ReportDetailResponse> {
-    return request<ReportDetailResponse>(
+  getReport(practiceSessionId: string): Promise<ReportDetail> {
+    return request<ReportDetail>(
       `/v2/reports/${encodeURIComponent(practiceSessionId)}`,
       {},
-      { timeoutMs: 30_000 },
+      { timeoutMs: 20_000 },
     );
   },
 };

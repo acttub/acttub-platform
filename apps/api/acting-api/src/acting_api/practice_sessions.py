@@ -51,6 +51,11 @@ class PracticeSessionListResponse(_StrictResponse):
     sessions: list[PracticeSessionListItem]
 
 
+class PracticeSessionStatusResponse(_StrictResponse):
+    status: PracticeSessionStatus
+    error_code: AnalysisErrorCode | None = None
+
+
 class SceneSummary(BaseModel):
     model_config = ConfigDict(extra="allow")
 
@@ -113,7 +118,7 @@ def _idempotent_response(result, *, store, user_id: UUID, request_id: UUID):
     raise HTTPException(status_code=409, detail="invalid_operation_state")
 
 
-def build_router(*, store, storage, rate_limited_user) -> APIRouter:
+def build_router(*, store, storage, rate_limited_user, ungated_user) -> APIRouter:
     router = APIRouter(prefix="/v2/practice-sessions", tags=["v2-practice"])
 
     @router.post(
@@ -191,6 +196,23 @@ def build_router(*, store, storage, rate_limited_user) -> APIRouter:
                 }
                 for session in sessions
             ]
+        }
+
+    @router.get(
+        "/{session_id}/status",
+        responses={status.HTTP_200_OK: {"model": PracticeSessionStatusResponse}},
+    )
+    async def get_session_status(session_id: UUID, user=Depends(rate_limited_user)):
+        result = await run_in_threadpool(
+            store.get_practice_session_status,
+            user_id=user.id,
+            session_id=session_id,
+        )
+        if result is None:
+            raise HTTPException(status_code=404, detail="practice_session_not_found")
+        return {
+            "status": _value(result.status),
+            "error_code": result.error_code,
         }
 
     @router.get(
@@ -293,7 +315,7 @@ def build_router(*, store, storage, rate_limited_user) -> APIRouter:
             status.HTTP_204_NO_CONTENT: {"description": "No Content"},
         },
     )
-    async def delete_session(session_id: UUID, user=Depends(rate_limited_user)):
+    async def delete_session(session_id: UUID, user=Depends(ungated_user)):
         hidden = await run_in_threadpool(
             store.hide_practice_session,
             user_id=user.id,

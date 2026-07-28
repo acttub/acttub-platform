@@ -5,8 +5,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { heatColors, palette } from '@/constants/palette';
 import { api, type ReportRecord } from '@/lib/api';
-import { RecordCard, type RecordMeta } from '@/components/record-card';
-import { setSelectedReport } from '@/lib/selected-report';
+import { RecordCard } from '@/components/record-card';
+import { sortReportsNewestFirst } from '@/lib/report-order';
 
 const WEEKS = 12;
 const DAY = 24 * 60 * 60 * 1000;
@@ -20,32 +20,14 @@ function dayKey(d: Date) {
 export default function HomeScreen() {
   const router = useRouter();
   const [records, setRecords] = useState<ReportRecord[]>([]);
-  const [meta, setMeta] = useState<Record<string, RecordMeta>>({});
 
   useFocusEffect(
     useCallback(() => {
       let cancelled = false;
       api
         .reportHistory()
-        .then(async (r) => {
-          if (cancelled) return;
-          setRecords(r.reports);
-          // '최근 연습' 카드 태그칩용으로 상위 2개만 상세를 불러온다.
-          const entries = await Promise.all(
-            r.reports.slice(0, 2).map(async (rec) => {
-              try {
-                const d = await api.reportDetail(rec.practice_session_id);
-                const bp = d.report?.biggest_problem;
-                return [
-                  rec.practice_session_id,
-                  { dimension: bp?.dimension ?? '', start: bp?.start ?? '', end: bp?.end ?? '' },
-                ] as const;
-              } catch {
-                return [rec.practice_session_id, { dimension: '', start: '', end: '' }] as const;
-              }
-            }),
-          );
-          if (!cancelled) setMeta(Object.fromEntries(entries));
+        .then((r) => {
+          if (!cancelled) setRecords(sortReportsNewestFirst(r.reports));
         })
         .catch(() => {
           if (!cancelled) setRecords([]);
@@ -109,7 +91,7 @@ export default function HomeScreen() {
           <Text style={styles.coachLabel}>AI 코치</Text>
           <Text style={styles.coachHeadline}>
             {latest
-              ? '지난 연습, 이어서 한 걸음 더 가볼까요?'
+              ? '지난 피드백을 이어 연습해 볼까요?' 
               : '영상을 올리면 원인과 처방을 돌려드려요'}
           </Text>
           <Text style={styles.coachBody} numberOfLines={2}>
@@ -197,14 +179,15 @@ export default function HomeScreen() {
         ) : (
           recent.map((r) => (
             <RecordCard
-              key={r.practice_session_id}
+              key={r.practice_session_id + r.created_at}
               item={r}
-              meta={meta[r.practice_session_id]}
               preview
-              onPress={() => {
-                setSelectedReport(r);
-                router.push('/report-detail' as Href);
-              }}
+              onPress={() =>
+                router.push({
+                  pathname: '/report-detail',
+                  params: { practiceSessionId: r.practice_session_id },
+                })
+              }
             />
           ))
         )}
@@ -290,14 +273,4 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   emptyText: { fontSize: 13, color: palette.textDim, lineHeight: 20, textAlign: 'center' },
-  recentCard: {
-    backgroundColor: palette.card,
-    borderWidth: 1,
-    borderColor: palette.border,
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 10,
-  },
-  recentDate: { fontSize: 12, color: palette.textFaint, marginBottom: 4 },
-  recentHeadline: { fontSize: 14, fontWeight: '700', color: palette.text, lineHeight: 20 },
 });

@@ -1,0 +1,5 @@
+[
+  {"file": "terms_v1.md", "type": "terms", "version": "v1", "title": "이용약관", "required": true},
+  {"file": "privacy_v1.md", "type": "privacy", "version": "v1", "title": "개인정보처리방침", "required": true},
+  {"file": "ai_analysis_v1.md", "type": "ai_analysis", "version": "v1", "title": "AI 분석 동의", "required": true}
+]

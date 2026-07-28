@@ -1,5 +1,6 @@
+import { MaterialIcons } from '@expo/vector-icons';
 import { Stack } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -10,12 +11,11 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { MaterialIcons } from '@expo/vector-icons';
 
 import { api, type ConsentDocument } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { saveConsentPrefs } from '@/lib/consent-prefs';
-import { saveUserName } from '@/lib/profile';
+import { getUserName, saveUserName } from '@/lib/profile';
 import { palette } from '@/constants/palette';
 
 /**
@@ -24,17 +24,46 @@ import { palette } from '@/constants/palette';
  * 이름도 함께 받는다(현재는 로컬 저장 — [[profile]], 백엔드 프로필 API 생기면 전송).
  */
 export default function ConsentScreen() {
-  const { pendingConsents, clearPendingConsents } = useAuth();
+  const { status, pendingConsents, clearPendingConsents, refreshPendingConsents } = useAuth();
   const [name, setName] = useState('');
   const [agreed, setAgreed] = useState<Record<string, boolean>>({});
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [busy, setBusy] = useState(false);
+  const [loadingPending, setLoadingPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const loadPendingConsents = useCallback(async () => {
+    setLoadingPending(true);
+    setError(null);
+    try {
+      await refreshPendingConsents();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '약관 문서를 불러오지 못했어요.');
+    } finally {
+      setLoadingPending(false);
+    }
+  }, [refreshPendingConsents]);
+
+  useEffect(() => {
+    if (status !== 'signedIn' || pendingConsents.length > 0) return;
+    void loadPendingConsents();
+  }, [status, pendingConsents.length, loadPendingConsents]);
+
+  useEffect(() => {
+    let active = true;
+    void getUserName().then((storedName) => {
+      if (active && storedName) setName((current) => current || storedName);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const required = useMemo(() => pendingConsents.filter((d) => d.required), [pendingConsents]);
   const optional = useMemo(() => pendingConsents.filter((d) => !d.required), [pendingConsents]);
 
-  const canProceed = name.trim().length > 0 && required.every((d) => agreed[d.id]);
+  const canProceed =
+    pendingConsents.length > 0 && name.trim().length > 0 && required.every((d) => agreed[d.id]);
   const allChecked = pendingConsents.length > 0 && pendingConsents.every((d) => agreed[d.id]);
 
   const toggleAll = () => {
@@ -66,13 +95,12 @@ export default function ConsentScreen() {
     <View key={doc.id} style={styles.docCard}>
       <Pressable
         style={styles.docRow}
+        accessibilityRole="checkbox"
+        accessibilityState={{ checked: !!agreed[doc.id] }}
+        accessibilityLabel={doc.title}
         onPress={() => setAgreed((a) => ({ ...a, [doc.id]: !a[doc.id] }))}>
-        <View style={styles.check}>
-          <MaterialIcons
-            name="check"
-            size={22}
-            color={agreed[doc.id] ? palette.blue : palette.checkOff}
-          />
+        <View style={[styles.check, agreed[doc.id] && styles.checkOn]}>
+          {agreed[doc.id] && <MaterialIcons name="check" size={16} color="#fff" />}
         </View>
         <Text style={styles.docTitle}>{doc.title}</Text>
         <Pressable hitSlop={8} onPress={() => setExpanded((e) => ({ ...e, [doc.id]: !e[doc.id] }))}>
@@ -103,13 +131,14 @@ export default function ConsentScreen() {
         />
 
         {pendingConsents.length > 0 && (
-          <Pressable style={styles.allRow} onPress={toggleAll}>
-            <View style={styles.check}>
-              <MaterialIcons
-                name="check"
-                size={22}
-                color={allChecked ? palette.blue : palette.checkOff}
-              />
+          <Pressable
+            style={styles.allRow}
+            onPress={toggleAll}
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: allChecked }}
+            accessibilityLabel="약관 전체 동의">
+            <View style={[styles.check, allChecked && styles.checkOn]}>
+              {allChecked && <MaterialIcons name="check" size={16} color="#fff" />}
             </View>
             <Text style={styles.allText}>약관 전체 동의</Text>
           </Pressable>
@@ -131,7 +160,16 @@ export default function ConsentScreen() {
         )}
       </ScrollView>
 
+      {loadingPending && pendingConsents.length === 0 && <ActivityIndicator color={palette.blue} />}
       {error && <Text style={styles.error}>{error}</Text>}
+      {error && status === 'signedIn' && pendingConsents.length === 0 && (
+        <Pressable
+          style={styles.retry}
+          onPress={() => void loadPendingConsents()}
+          disabled={loadingPending}>
+          <Text style={styles.retryText}>다시 불러오기</Text>
+        </Pressable>
+      )}
       <Pressable
         style={[styles.cta, (!canProceed || busy) && styles.ctaDisabled]}
         onPress={proceed}
@@ -185,9 +223,13 @@ const styles = StyleSheet.create({
   check: {
     width: 24,
     height: 24,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: palette.textFaint,
     alignItems: 'center',
     justifyContent: 'center',
   },
+  checkOn: { backgroundColor: palette.blue, borderColor: palette.blue },
   docTitle: { flex: 1, fontSize: 14, color: palette.text, fontWeight: '600' },
   viewLink: { fontSize: 13, color: palette.textDim, textDecorationLine: 'underline' },
   docBody: {
@@ -200,6 +242,8 @@ const styles = StyleSheet.create({
     borderTopColor: palette.border,
   },
   error: { color: palette.danger, textAlign: 'center', paddingHorizontal: 20, paddingBottom: 8 },
+  retry: { alignSelf: 'center', paddingHorizontal: 16, paddingVertical: 8 },
+  retryText: { color: palette.blue, fontSize: 14, fontWeight: '700' },
   cta: {
     backgroundColor: palette.blue,
     borderRadius: 16,

@@ -3,16 +3,28 @@ from __future__ import annotations
 import argparse
 from collections.abc import Sequence
 from datetime import datetime
+import json
+import logging
 from pathlib import Path
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, ConfigDict
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    StrictBool,
+    TypeAdapter,
+    ValidationError,
+)
+from sqlalchemy.exc import IntegrityError
 from starlette.concurrency import run_in_threadpool
 
 from acting_api.config import load_database_url
 from acting_api.db.models import ConsentAction, ConsentType
 from acting_api.db.store import PostgresStore
+
+logger = logging.getLogger(__name__)
 
 
 class _StrictResponse(BaseModel):
@@ -57,6 +69,100 @@ class ConsentRequest(BaseModel):
     action: ConsentAction
 
 
+class _ConsentManifestEntry(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    file: str = Field(min_length=1)
+    type: ConsentType
+    version: str = Field(min_length=1)
+    title: str = Field(min_length=1)
+    required: StrictBool
+
+
+def _is_consent_document_unique_error(exc: IntegrityError) -> bool:
+    original = exc.orig
+    diagnostic = getattr(original, "diag", None)
+    return (
+        getattr(original, "sqlstate", None) == "23505"
+        and getattr(diagnostic, "constraint_name", None)
+        == "uq_consent_documents_type_version"
+    )
+
+
+def seed_consent_documents(store, docs_dir: Path | None) -> int:
+    if docs_dir is None or not docs_dir.is_dir():
+        logger.warning("Consent documents directory is missing: %s", docs_dir)
+        return 0
+    manifest_path = docs_dir / "manifest.json"
+    if not manifest_path.is_file():
+        logger.warning("Consent documents manifest is missing: %s", manifest_path)
+        return 0
+
+    try:
+        raw_manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        entries = TypeAdapter(list[_ConsentManifestEntry]).validate_python(
+            raw_manifest
+        )
+        validated = [
+            (entry, (docs_dir / entry.file).read_text(encoding="utf-8"))
+            for entry in entries
+        ]
+    except (OSError, json.JSONDecodeError, ValidationError) as exc:
+        logger.error("Failed to validate consent documents: %s", exc)
+        return 0
+
+    published = 0
+    for entry, body in validated:
+        existing = store.get_consent_document_by_type_version(
+            entry.type, entry.version
+        )
+        if existing is not None:
+            mismatches = [
+                field
+                for field, expected in (
+                    ("title", entry.title),
+                    ("body", body),
+                    ("required", entry.required),
+                )
+                if getattr(existing, field) != expected
+            ]
+            if mismatches:
+                logger.warning(
+                    "Consent document %s:%s differs in fields: %s; publish a new version",
+                    entry.type.value,
+                    entry.version,
+                    ", ".join(mismatches),
+                )
+            continue
+        try:
+            store.publish_consent_document(
+                type=entry.type,
+                version=entry.version,
+                title=entry.title,
+                body=body,
+                required=entry.required,
+            )
+        except IntegrityError as exc:
+            if _is_consent_document_unique_error(exc):
+                continue
+            raise
+        published += 1
+    return published
+
+
+def pending_required_documents(store, user_id) -> list:
+    documents = store.list_latest_consent_documents()
+    actions = {
+        event.document_id: getattr(event.action, "value", event.action)
+        for event in store.get_current_user_consents(user_id)
+    }
+    return [
+        document
+        for document in documents
+        if document.required and actions.get(document.id) != "granted"
+    ]
+
+
 def build_router(*, store, rate_limited_user) -> APIRouter:
     router = APIRouter(prefix="/v2/consents", tags=["v2-consents"])
 
@@ -66,6 +172,16 @@ def build_router(*, store, rate_limited_user) -> APIRouter:
     )
     async def list_documents():
         documents = await run_in_threadpool(store.list_latest_consent_documents)
+        return {"documents": [consent_document_payload(row) for row in documents]}
+
+    @router.get(
+        "/pending",
+        responses={status.HTTP_200_OK: {"model": ConsentDocumentsResponse}},
+    )
+    async def list_pending_documents(user=Depends(rate_limited_user)):
+        documents = await run_in_threadpool(
+            pending_required_documents, store, user.id
+        )
         return {"documents": [consent_document_payload(row) for row in documents]}
 
     @router.post(

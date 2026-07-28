@@ -3,18 +3,19 @@ import { useEffect, useState } from 'react';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { palette } from '@/constants/palette';
+import {
+  markFirstUploadGuideSeen,
+  shouldShowFirstUploadGuide,
+} from '@/lib/first-upload-guide-state';
+import { MAX_VIDEO_DURATION_MS } from '@/lib/upload-input';
 
-/**
- * 첫 영상 업로드 온보딩 가이드 — 웹(practice-single)의 첫 연습 투어를 RN 플로우에 맞춘 버전.
- * upload.tsx 첫 진입 때 1회만 뜬다. 본 뒤엔 AsyncStorage 플래그로 다시 안 뜬다.
- */
-const SEEN_KEY = 'acttub.firstUploadGuideSeen';
+const MAX_VIDEO_DURATION_MINUTES = MAX_VIDEO_DURATION_MS / 60_000;
 
 const STEPS = [
   {
     emoji: '🎬',
     title: '영상 올리기',
-    body: '갤러리에서 오늘 연습한 장면 영상을 올려요. mp4·mov, 5분 이내면 돼요.',
+    body: `갤러리에서 오늘 연습한 장면 영상을 올려요. mp4·mov, ${MAX_VIDEO_DURATION_MINUTES}분 이내면 돼요.`,
   },
   {
     emoji: '✍️',
@@ -33,58 +34,77 @@ const STEPS = [
   },
 ];
 
-export function FirstUploadGuide() {
+export function FirstUploadGuide({ ownerId }: { ownerId: string }) {
   const [visible, setVisible] = useState(false);
   const [step, setStep] = useState(0);
 
   useEffect(() => {
-    let alive = true;
-    AsyncStorage.getItem(SEEN_KEY).then((seen) => {
-      if (alive && !seen) setVisible(true);
+    let active = true;
+    void shouldShowFirstUploadGuide(AsyncStorage, ownerId).then((shouldShow) => {
+      if (active) setVisible(shouldShow);
     });
     return () => {
-      alive = false;
+      active = false;
     };
-  }, []);
+  }, [ownerId]);
 
   const close = () => {
     setVisible(false);
-    // 끝까지 봤든 건너뛰었든 다시 안 띄운다.
-    AsyncStorage.setItem(SEEN_KEY, '1').catch(() => {});
+    void markFirstUploadGuideSeen(AsyncStorage, ownerId);
   };
 
   const next = () => {
     if (step >= STEPS.length - 1) close();
-    else setStep((s) => s + 1);
+    else setStep((current) => current + 1);
   };
 
   if (!visible) return null;
 
-  const s = STEPS[step];
+  const current = STEPS[step];
   const isLast = step === STEPS.length - 1;
 
   return (
-    <Modal transparent visible animationType="fade" onRequestClose={close} statusBarTranslucent>
+    <Modal
+      transparent
+      visible
+      animationType="fade"
+      onRequestClose={close}
+      statusBarTranslucent
+      accessibilityRole="summary"
+      accessibilityLabel="첫 영상 업로드 가이드"
+      accessibilityViewIsModal>
       <View style={styles.backdrop}>
         <View style={styles.card}>
           <Text style={styles.counter}>
             {step + 1} / {STEPS.length}
           </Text>
-          <Text style={styles.emoji}>{s.emoji}</Text>
-          <Text style={styles.title}>{s.title}</Text>
-          <Text style={styles.body}>{s.body}</Text>
+          <Text style={styles.emoji}>{current.emoji}</Text>
+          <Text style={styles.title}>{current.title}</Text>
+          <Text style={styles.body}>{current.body}</Text>
 
           <View style={styles.dots}>
-            {STEPS.map((_, i) => (
-              <View key={i} style={[styles.dot, i === step && styles.dotOn]} />
+            {STEPS.map((_, index) => (
+              <View
+                key={index}
+                style={[styles.dot, index === step && styles.dotOn]}
+              />
             ))}
           </View>
 
           <View style={styles.actions}>
-            <Pressable style={styles.skip} onPress={close} hitSlop={8}>
+            <Pressable
+              style={styles.skip}
+              onPress={close}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel="첫 영상 업로드 가이드 건너뛰기">
               <Text style={styles.skipText}>건너뛰기</Text>
             </Pressable>
-            <Pressable style={styles.next} onPress={next}>
+            <Pressable
+              style={styles.next}
+              onPress={next}
+              accessibilityRole="button"
+              accessibilityLabel={isLast ? '가이드 닫고 시작하기' : '가이드 다음 단계'}>
               <Text style={styles.nextText}>{isLast ? '시작하기' : '다음'}</Text>
             </Pressable>
           </View>

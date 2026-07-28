@@ -1,12 +1,13 @@
-import { useFocusEffect, useRouter, type Href } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { RecordCard } from '@/components/record-card';
 import { api, type ReportRecord } from '@/lib/api';
-import { RecordCard, type RecordMeta } from '@/components/record-card';
-import { setSelectedReport } from '@/lib/selected-report';
+import { deletePracticeSessionIdempotently } from '@/lib/delete-practice';
 import { formatKoreanMonth } from '@/lib/format';
+import { sortReportsNewestFirst } from '@/lib/report-order';
 import { palette } from '@/constants/palette';
 
 /**
@@ -16,7 +17,6 @@ import { palette } from '@/constants/palette';
 export default function HistoryScreen() {
   const router = useRouter();
   const [reports, setReports] = useState<ReportRecord[]>([]);
-  const [meta, setMeta] = useState<Record<string, RecordMeta>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -24,23 +24,7 @@ export default function HistoryScreen() {
     setError(null);
     try {
       const history = await api.reportHistory();
-      setReports(history.reports);
-      // 목록엔 태그 정보가 없으므로 카드별 상세를 불러와 칩(진단 축·구간)을 채운다.
-      const entries = await Promise.all(
-        history.reports.map(async (r) => {
-          try {
-            const d = await api.reportDetail(r.practice_session_id);
-            const bp = d.report?.biggest_problem;
-            return [
-              r.practice_session_id,
-              { dimension: bp?.dimension ?? '', start: bp?.start ?? '', end: bp?.end ?? '' },
-            ] as const;
-          } catch {
-            return [r.practice_session_id, { dimension: '', start: '', end: '' }] as const;
-          }
-        }),
-      );
-      setMeta(Object.fromEntries(entries));
+      setReports(sortReportsNewestFirst(history.reports));
     } catch (err) {
       setError(err instanceof Error ? err.message : '기록을 불러오지 못했어요.');
     } finally {
@@ -70,8 +54,10 @@ export default function HistoryScreen() {
   }, [reports]);
 
   const openDetail = (item: ReportRecord) => {
-    setSelectedReport(item);
-    router.push('/report-detail' as Href);
+    router.push({
+      pathname: '/report-detail',
+      params: { practiceSessionId: item.practice_session_id },
+    });
   };
 
   const confirmDelete = (item: ReportRecord) => {
@@ -82,7 +68,10 @@ export default function HistoryScreen() {
         style: 'destructive',
         onPress: async () => {
           try {
-            await api.deletePracticeSession(item.practice_session_id);
+            await deletePracticeSessionIdempotently(
+              item.practice_session_id,
+              api.deletePracticeSession,
+            );
             load();
           } catch (e) {
             Alert.alert('삭제 실패', e instanceof Error ? e.message : '삭제하지 못했어요.');
@@ -116,9 +105,8 @@ export default function HistoryScreen() {
             <Text style={styles.monthHeader}>{section.month}</Text>
             {section.items.map((item) => (
               <RecordCard
-                key={item.practice_session_id}
+                key={item.practice_session_id + item.created_at}
                 item={item}
-                meta={meta[item.practice_session_id]}
                 onPress={() => openDetail(item)}
                 onMenu={() => onMenu(item)}
               />
