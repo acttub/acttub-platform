@@ -39,10 +39,17 @@ import { analysisFailure } from "../practice/analysis-failure";
 type Mode = "prep" | "analyzing" | "chat" | "note";
 type ChatMsg = { role: "ai" | "me"; text: string; at?: string };
 
-// 서버 분석 상태는 analyzing/analyzed/failed 셋뿐이라 진행률을 만들 근거가 없다.
-// 압축·업로드에는 진짜 진행률이 있고, 서버 대기에는 없어서 경과 시간만 보여준다.
+// 서버 분석 상태는 analyzing/analyzed/failed 셋뿐이라 진짜 진행률이 없다.
+// 압축·업로드에는 진짜 진행률이 있고, 서버 대기는 실측 평균 시간을 기준으로 채운다.
 const ANALYZE_LABEL = "장면을 분석하고 있어요…";
+const AVG_ANALYZE_SEC = 60;
 const SLOW_NOTICE_SEC = 180;
+// 압축·업로드·분석을 진행률 막대 하나로 잇는다. 구간마다 0으로 되돌아가면 배우에게는
+// 끝난 작업이 다시 시작되는 것으로 보인다 (2026-07-28).
+const COMPRESS_END = 20;
+const UPLOAD_END = 45;
+// 서버 대기 구간이 닿을 수 있는 최대치. 100%는 실제로 끝났을 때만 쓴다.
+const WAIT_CEILING = 92;
 const GIVE_UP_MS = 15 * 60_000;
 
 export function WorkspaceApp() {
@@ -239,15 +246,15 @@ function WorkspaceInner() {
         signal: controller.signal,
         onCompressionProgress: (progress) => {
           setAnalyzeLabel("영상 압축 중…");
-          setPct(progress * 100);
+          setPct(progress * COMPRESS_END);
         },
       });
       setAnalyzeLabel("영상 업로드 중…");
-      setPct(0);
       const { intentId } = await uploadVideo(prepared.file, {
         durationMs: prepared.durationMs,
         signal: controller.signal,
-        onProgress: (progress) => setPct(progress.percent),
+        onProgress: (progress) =>
+          setPct(COMPRESS_END + (progress.percent / 100) * (UPLOAD_END - COMPRESS_END)),
       });
       startWaiting();
       // 세 번째 칸은 화면에서 "목표"로 묻지만 API 계약은 아직 subtext 다.
@@ -978,6 +985,18 @@ function StartRow({ ready, onStart }: { ready: boolean; onStart: () => void }) {
   );
 }
 
+/**
+ * 서버 대기 구간의 표시용 진행률(0~1). 서버는 analyzing/analyzed/failed 셋만 주므로
+ * 진짜 진행률이 없다 — 실측 평균 시간에 맞춘 지수 곡선으로 채운다.
+ *
+ * ⚠️ 이전 구현은 60초에 상한(90)에 닿고 그 뒤로는 시간상수 90초짜리 crawl만 남아서,
+ * 화면상 94.5%에서 사실상 멈춰 있었다 (2026-07-28 실사용: "95%에서 멈추다 갑자기 시작").
+ * 상한에 부딪히는 구간을 없애고, 평균 시점에 약 80%가 되도록 시간상수를 잡는다.
+ */
+function waitingRatio(sec: number): number {
+  return 1 - Math.exp(-sec / (AVG_ANALYZE_SEC / 1.6));
+}
+
 function ProgressPanel({
   serverWaiting,
   waitedSec,
@@ -989,30 +1008,26 @@ function ProgressPanel({
   pct: number;
   label: string;
 }) {
+  // 업로드가 끝난 지점(UPLOAD_END)에서 이어받아 계속 오른다 — 되감기지 않는다.
+  const shownPct = serverWaiting
+    ? UPLOAD_END + (WAIT_CEILING - UPLOAD_END) * waitingRatio(waitedSec)
+    : pct;
   return (
     <div aria-live="polite" className="rounded-[16px] bg-[#e8f3ff] px-4 py-4 sm:px-5">
       <div className="flex flex-wrap items-baseline gap-2.5">
-        {serverWaiting ? (
-          <span className="text-sm font-black tabular-nums text-[#3182f6] sm:text-[15px]">
-            {formatElapsed(waitedSec)} 경과
-          </span>
-        ) : (
-          <span className="text-xl font-black tabular-nums tracking-[-0.04em] text-[#3182f6]">
-            {Math.round(pct)}%
-          </span>
-        )}
+        <span className="text-xl font-black tabular-nums tracking-[-0.04em] text-[#3182f6]">
+          {Math.round(shownPct)}%
+        </span>
         <span className="text-xs font-semibold text-[#4e5968] sm:text-[13px]">{label}</span>
       </div>
-      {/* 압축·업로드에는 진짜 진행률이 있고 서버 대기에는 없다 — 없는 구간은 채우지 않는다. */}
+      {/* 압축·업로드는 진짜 진행률, 서버 대기는 시간 기준 추정치다. */}
       <div className="mt-2.5 h-2 overflow-hidden rounded-full bg-white/70">
-        {serverWaiting ? (
-          <div className="h-full w-1/3 animate-pulse rounded-full bg-[#3182f6]" />
-        ) : (
-          <div
-            className="h-full rounded-full bg-[#3182f6] transition-[width] duration-300"
-            style={{ width: `${pct}%` }}
-          />
-        )}
+        <div
+          className={`h-full rounded-full bg-[#3182f6] transition-[width] ${
+            serverWaiting ? "duration-1000 ease-linear" : "duration-300"
+          }`}
+          style={{ width: `${shownPct}%` }}
+        />
       </div>
       <p className="mt-2.5 text-[11.5px] font-semibold leading-5 text-[#8b95a1]">
         {serverWaiting && waitedSec >= SLOW_NOTICE_SEC
@@ -1288,11 +1303,6 @@ function Bubble({ msg }: { msg: ChatMsg }) {
           mine ? "rounded-br-[6px] bg-[#3182f6] text-white" : "rounded-bl-[6px] bg-[#f8fbff] text-[#191f28]"
         }`}
       >
-        {msg.at ? (
-          <span className="mb-1.5 inline-flex rounded-full bg-white px-2.5 py-1 text-[11.5px] font-bold text-[#3182f6]">
-            관찰 시점 · {msg.at}
-          </span>
-        ) : null}
         {msg.text}
       </div>
     </div>
@@ -1420,12 +1430,6 @@ function StatusChip({ mode }: { mode: Mode }) {
 }
 
 /* ── 잡다한 것 ────────────────────────────────────────────────── */
-
-function formatElapsed(sec: number): string {
-  const minutes = Math.floor(sec / 60);
-  const seconds = sec % 60;
-  return minutes > 0 ? `${minutes}분 ${seconds}초` : `${seconds}초`;
-}
 
 // 언제 한 연습인지 목록에서 바로 보이게 날짜와 시각을 같이 준다 (2026-07-28).
 // 이전에는 "3일 전"처럼 상대 표기만 있어서 같은 날 여러 번 연습하면 구분이 안 됐다.

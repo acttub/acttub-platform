@@ -1,64 +1,58 @@
 from acting_agent import engine
-from acting_agent.schema import CoachReply, CoachSession, CoachTurn
-from agent_test_support import SUMMARY, SUMMARY_ID, FakeClient, RaisingClient, _Resp
+from acting_agent.schema import CoachSession, CoachTurn
+from acting_agent.summary_schema import SubText
+from agent_test_support import (
+    SUBTEXT,
+    SUMMARY,
+    SUMMARY_ID,
+    FakeClient,
+    RaisingClient,
+    _Resp,
+)
 
 
-def _open_session():
-    return CoachSession(
+def _out(question, close=False, analysis="내부 분석"):
+    return _Resp(
+        parsed=engine.AgentOutWithClose(analysis=analysis, question=question, close=close)
+    )
+
+
+def _open_session(**overrides):
+    base = dict(
         session_id="x",
         summary_id=SUMMARY_ID,
         summary=SUMMARY,
+        subtext=SUBTEXT,
         question_count=1,
         turns=[CoachTurn(role="ai", text="첫 질문")],
     )
+    base.update(overrides)
+    return CoachSession(**base)
 
 
-def test_reply_digs_cause():
-    reply = CoachReply(
-        action="dig_cause",
-        utterance="그럼 그 직전엔 무슨 생각이었어?",
-        focus_timestamp="00:12",
-    )
+def test_reply_digs_from_the_last_answer():
     session = _open_session()
     out = engine.reply(
         session,
-        "긴장했어요",
-        client=FakeClient([_Resp(parsed=reply)]),
+        "붙잡고 싶었어요",
+        client=FakeClient([_out("그 말을 하고 나서 인물은 무엇을 기다렸을까요?")]),
         model="m",
     )
     assert out.action == "dig_cause" and out.done is False
     assert session.turns[-2].role == "actor" and session.turns[-2].action is None
     assert session.turns[-1].action == "dig_cause"
-    assert session.turns[-1].focus_timestamp == "00:12"
 
 
-def test_reply_gap_stated_closes():
-    reply = CoachReply(
-        action="close", utterance="차이를 잘 짚었어.", done=True, reason="gap_stated"
-    )
+def test_reply_closes_when_model_says_close():
     s = _open_session()
     out = engine.reply(
         s,
-        "긴장이 목소리를 작게 만든 것 같아요",
-        client=FakeClient([_Resp(parsed=reply)]),
+        "붙잡고 싶었는데 화면에선 놓아준 것처럼 보였네요",
+        client=FakeClient([_out("스스로 짚으신 그 문장이 오늘의 답이에요.", close=True)]),
         model="m",
     )
-    assert out.reason == "gap_stated" and s.status == "closed"
+    assert out.done is True and out.reason == "gap_stated" and s.status == "closed"
     assert s.turns[-1].action == "close"
-
-
-def test_reply_exhausted_closes():
-    reply = CoachReply(
-        action="close",
-        utterance="더 물을 게 없네. 오늘 짚은 걸 기억해.",
-        done=True,
-        reason="exhausted",
-    )
-    s = _open_session()
-    out = engine.reply(
-        s, "모르겠어요", client=FakeClient([_Resp(parsed=reply)]), model="m"
-    )
-    assert out.reason == "exhausted" and s.status == "closed"
 
 
 def test_reply_limit_guard_no_llm_call():
@@ -88,12 +82,65 @@ def test_reply_on_closed_session_returns_closed():
     assert out.done is True and out.reason == "gap_stated"
 
 
-def test_reply_deflect_passthrough():
-    reply = CoachReply(action="deflect", utterance="그건 화면에 어떻게 보이길 원했어?")
+def test_denied_observation_is_dropped_from_later_prompts():
+    # 배우가 부정한 관찰은 다시 꺼내지 않는다. 상태는 턴에서 되살리므로 DB 왕복에도 살아남는다.
+    s = _open_session(
+        turns=[CoachTurn(role="ai", text="첫 질문", focus_timestamp="00:12")]
+    )
+    client = FakeClient([_out("그럼 그 자리에서 인물이 지키려던 건 뭐였을까요?")])
+    engine.reply(s, "안 멈췄는데요", client=client, model="m")
+    assert "1.2초 멈춤" not in client.models.calls[0][1][0]
+
+
+def test_used_observation_is_not_offered_twice():
+    # 부정하지 않아도 이미 쓴 관찰은 다음 후보에서 빠진다 — 세션이 다음 관찰로 넘어간다
+    s = _open_session(
+        turns=[CoachTurn(role="ai", text="첫 질문", focus_timestamp="00:12")]
+    )
+    client = FakeClient([_out("그 자리에서 인물이 지키려던 건 뭐였을까요?")])
+    engine.reply(s, "붙잡고 싶었어요", client=client, model="m")
+    assert "1.2초 멈춤" not in client.models.calls[0][1][0]
+
+
+def test_followup_prompt_carries_a_bank_archetype():
+    # 꼬리 질문도 원형을 코드가 정한다 — 관찰만 넘기면 은행이 있으나 마나가 된다
+    s = _open_session()
+    client = FakeClient([_out("그 자리에서 인물이 지키려던 건 뭐였을까요?")])
+    engine.reply(s, "붙잡고 싶었어요", client=client, model="m")
+    user_msg = client.models.calls[0][1][0]
+    assert "은행 원형(" in user_msg
+
+
+def test_close_turn_is_linted_too():
+    # 종료 문구에도 판정이 섞이면 안 된다 — 걸리면 정해둔 마무리 문장으로 바꾼다
+    s = _open_session()
+    bad = _out("연기가 아주 좋았어요. 오늘 여기까지 할게요.", close=True)
     out = engine.reply(
-        _open_session(),
-        "제 감정 진짜 같았어요?",
-        client=FakeClient([_Resp(parsed=reply)]),
+        s, "제가 놓친 걸 알겠어요", client=FakeClient([bad, bad]), model="m"
+    )
+    assert out.done is True
+    assert out.utterance == engine.SAFE_CLOSING
+
+
+def test_echo_retry_failure_keeps_first_answer():
+    # 되읽기 재시도가 깨져도 멀쩡한 첫 응답을 버리지 않는다 (502가 나던 자리)
+    situation = "이별을 통보받은 직후 카페에서"
+    s = _open_session(subtext=SubText(situation=situation, character="여성", subtext="붙잡고 싶다"))
+    echoed = _out("이별을 통보받은 직후 카페에서 붙잡고 싶으셨던 건 무엇이었을까요?")
+    out = engine.reply(
+        s,
+        "그랬어요",
+        client=FakeClient([echoed, _Resp(text="not-json"), _Resp(text="still bad")]),
         model="m",
     )
-    assert out.action == "deflect" and out.done is False
+    assert out.utterance == echoed.parsed.question
+
+
+def test_converging_instruction_appears_near_the_limit():
+    s = _open_session(question_count=engine.MAX_QUESTIONS - engine.CONVERGE_MARGIN)
+    client = FakeClient([_out("오늘 짚으신 걸 한 문장으로 하면 뭐가 될까요?")])
+    engine.reply(s, "잘 모르겠어요", client=client, model="m")
+    user_msg = client.models.calls[0][1][0]
+    assert "수렴 구간이다" in user_msg
+    # 배우가 스스로 막혔다고 말했을 때만 scaffold 지시가 붙는다
+    assert "scaffold" in user_msg

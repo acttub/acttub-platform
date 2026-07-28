@@ -1,4 +1,4 @@
-from acting_agent.schema import CoachReply
+from acting_agent.engine import AgentOut, AgentOutWithClose
 from acting_agent.summary_schema import SceneSummary as AgentSceneSummary
 from acting_report.schema import ActingReport, BiggestProblem
 from acting_summary.schema import Anomaly, Observation, SceneSummary, SubText
@@ -39,12 +39,15 @@ SUMMARY = SceneSummary(
 )
 AGENT_SUMMARY = AgentSceneSummary.model_validate(SUMMARY.model_dump(mode="json"))
 
-COACH_QUESTION = CoachReply(
-    action="probe_intent",
-    utterance="그 멈춤, 의도한 거야?",
-    focus_timestamp="00:12",
+# 코치 에이전트는 {analysis, question, close} 로 답하고, action·done 은 코드가 정한다.
+COACH_QUESTION = AgentOut(
+    analysis="내부 분석",
+    question="그 말이 멎은 것처럼 들렸는데, 인물은 뭘 기다리고 있었을까요?",
 )
-COACH_FOLLOWUP = CoachReply(action="dig_cause", utterance="그 순간 무슨 생각 했어?")
+COACH_FOLLOWUP = AgentOutWithClose(
+    analysis="내부 분석",
+    question="그럼 그 자리에서 인물이 지키려던 건 뭐였을까요?",
+)
 
 REPORT = ActingReport(
     headline="오늘은 멈춤의 이유를 스스로 찾아냈어",
