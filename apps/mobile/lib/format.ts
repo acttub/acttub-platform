@@ -17,3 +17,33 @@ export function formatKoreanDate(
     return d.toISOString().slice(0, 10);
   }
 }
+
+/** "2026. 7. 23. 오후 3:45" 형태의 날짜+시각. 파싱 실패 시 빈 문자열. */
+export function formatKoreanDateTime(value: string | null | undefined): string {
+  if (!value) return '';
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return '';
+  try {
+    return d.toLocaleString('ko-KR', {
+      year: 'numeric',
+      month: 'numeric',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+    });
+  } catch {
+    return d.toISOString().slice(0, 16).replace('T', ' ');
+  }
+}
+
+/** "2026년 7월" 형태의 월 라벨 (기록 섹션 그룹핑용). */
+export function formatKoreanMonth(value: string | null | undefined): string {
+  if (!value) return '';
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return '';
+  try {
+    return d.toLocaleDateString('ko-KR', { year: 'numeric', month: 'long' });
+  } catch {
+    return d.toISOString().slice(0, 7);
+  }
+}

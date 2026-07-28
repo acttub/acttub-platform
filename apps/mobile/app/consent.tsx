@@ -67,8 +67,12 @@ export default function ConsentScreen() {
       <Pressable
         style={styles.docRow}
         onPress={() => setAgreed((a) => ({ ...a, [doc.id]: !a[doc.id] }))}>
-        <View style={[styles.check, agreed[doc.id] && styles.checkOn]}>
-          {agreed[doc.id] && <MaterialIcons name="check" size={16} color="#fff" />}
+        <View style={styles.check}>
+          <MaterialIcons
+            name="check"
+            size={22}
+            color={agreed[doc.id] ? palette.blue : palette.checkOff}
+          />
         </View>
         <Text style={styles.docTitle}>{doc.title}</Text>
         <Pressable hitSlop={8} onPress={() => setExpanded((e) => ({ ...e, [doc.id]: !e[doc.id] }))}>
@@ -100,8 +104,12 @@ export default function ConsentScreen() {
 
         {pendingConsents.length > 0 && (
           <Pressable style={styles.allRow} onPress={toggleAll}>
-            <View style={[styles.check, allChecked && styles.checkOn]}>
-              {allChecked && <MaterialIcons name="check" size={16} color="#fff" />}
+            <View style={styles.check}>
+              <MaterialIcons
+                name="check"
+                size={22}
+                color={allChecked ? palette.blue : palette.checkOff}
+              />
             </View>
             <Text style={styles.allText}>약관 전체 동의</Text>
           </Pressable>
@@ -177,13 +185,9 @@ const styles = StyleSheet.create({
   check: {
     width: 24,
     height: 24,
-    borderRadius: 12,
-    borderWidth: 1.5,
-    borderColor: palette.textFaint,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  checkOn: { backgroundColor: palette.blue, borderColor: palette.blue },
   docTitle: { flex: 1, fontSize: 14, color: palette.text, fontWeight: '600' },
   viewLink: { fontSize: 13, color: palette.textDim, textDecorationLine: 'underline' },
   docBody: {

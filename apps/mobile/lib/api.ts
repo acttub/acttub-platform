@@ -71,13 +71,22 @@ export type CreateReportResponse = {
   report_count: number;
 };
 
+// 배포된 /v2/reports 목록은 전문이 아니라 headline 요약만 내려준다.
+// 전문은 GET /v2/reports/{practice_session_id} (ReportDetailResponse)로 따로 받는다.
 export type ReportRecord = {
   created_at: string;
-  /** 코치 세션 id (리포트를 만든 대화 세션). 연습 기록 삭제에는 쓰지 말 것 */
-  session_id: string;
-  /** 연습 세션 id — DELETE /v2/practice-sessions/{id} 에 사용 */
+  /** 연습 세션 id — 상세 조회·삭제(DELETE /v2/practice-sessions/{id})에 사용 */
   practice_session_id: string;
+  /** 목록 카드에 보여줄 한 줄 요약 */
+  headline: string;
+};
+
+// GET /v2/reports/{practice_session_id} — 리포트 전문 상세
+export type ReportDetailResponse = {
+  practice_session_id: string;
+  created_at: string;
   report: ActingReport;
+  playback_url: string;
 };
 
 export type ReportHistoryResponse = {
@@ -330,7 +339,17 @@ export const api = {
     size_bytes: number;
     duration_ms?: number | null;
   }): Promise<UploadIntent> {
-    return request<UploadIntent>('/v2/uploads/intents', jsonInit(input), {
+    // 백엔드는 size_bytes·duration_ms를 int로만 받는다. iOS의 asset.duration은
+    // 소수 ms로 올 수 있어 정수로 강제(안 하면 "got a number with a fractional part" 422).
+    const payload = {
+      mime_type: input.mime_type,
+      size_bytes: Math.round(input.size_bytes),
+      duration_ms:
+        input.duration_ms != null && input.duration_ms > 0
+          ? Math.round(input.duration_ms)
+          : null,
+    };
+    return request<UploadIntent>('/v2/uploads/intents', jsonInit(payload), {
       requestId: true,
       timeoutMs: 30_000,
     });
@@ -429,6 +448,14 @@ export const api = {
 
   reportHistory(): Promise<ReportHistoryResponse> {
     return request<ReportHistoryResponse>('/v2/reports', {}, { timeoutMs: 30_000 });
+  },
+
+  reportDetail(practiceSessionId: string): Promise<ReportDetailResponse> {
+    return request<ReportDetailResponse>(
+      `/v2/reports/${encodeURIComponent(practiceSessionId)}`,
+      {},
+      { timeoutMs: 30_000 },
+    );
   },
 };
 

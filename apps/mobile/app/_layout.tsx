@@ -7,6 +7,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import 'react-native-reanimated';
 
+import '@/lib/global-font';
 import { logScreenView } from '@/lib/analytics';
 import { AuthProvider, useAuth } from '@/lib/auth';
 import { palette } from '@/constants/palette';
@@ -86,7 +87,10 @@ function SplashGate() {
 }
 
 export default function RootLayout() {
-  const [fontsLoaded] = useFonts(MaterialIcons.font);
+  const [fontsLoaded] = useFonts({
+    ...MaterialIcons.font,
+    Pretendard: require('@/assets/fonts/PretendardVariable.ttf'),
+  });
 
   if (!fontsLoaded) return null;
 

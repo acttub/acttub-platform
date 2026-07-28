@@ -13,6 +13,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { MaterialIcons } from '@expo/vector-icons';
 
 import type { VideoFile } from '@/lib/api';
 import { setPendingUpload, takePrefill } from '@/lib/practice';
@@ -146,8 +147,12 @@ export default function UploadScreen() {
           />
 
           <Pressable style={styles.rightsRow} onPress={() => setAgreedRights((v) => !v)}>
-            <View style={[styles.check, agreedRights && styles.checkOn]}>
-              {agreedRights && <Text style={styles.checkMark}>✓</Text>}
+            <View style={styles.check}>
+              <MaterialIcons
+                name="check"
+                size={20}
+                color={agreedRights ? palette.blue : palette.checkOff}
+              />
             </View>
             <Text style={styles.rightsText}>
               본인이 촬영·업로드할 권리가 있고, 영상에 나오는 다른 사람의 촬영·처리 동의를
@@ -213,15 +218,10 @@ const styles = StyleSheet.create({
   check: {
     width: 22,
     height: 22,
-    borderRadius: 6,
-    borderWidth: 1.5,
-    borderColor: palette.textFaint,
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 1,
   },
-  checkOn: { backgroundColor: palette.blue, borderColor: palette.blue },
-  checkMark: { color: '#fff', fontSize: 13, fontWeight: '900' },
   rightsText: { flex: 1, fontSize: 12, color: palette.textDim, lineHeight: 18 },
   submit: {
     backgroundColor: palette.blue,

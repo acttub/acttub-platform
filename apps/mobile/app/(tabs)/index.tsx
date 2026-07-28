@@ -5,8 +5,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { heatColors, palette } from '@/constants/palette';
 import { api, type ReportRecord } from '@/lib/api';
+import { RecordCard, type RecordMeta } from '@/components/record-card';
 import { setSelectedReport } from '@/lib/selected-report';
-import { formatKoreanDate } from '@/lib/format';
 
 const WEEKS = 12;
 const DAY = 24 * 60 * 60 * 1000;
@@ -20,13 +20,39 @@ function dayKey(d: Date) {
 export default function HomeScreen() {
   const router = useRouter();
   const [records, setRecords] = useState<ReportRecord[]>([]);
+  const [meta, setMeta] = useState<Record<string, RecordMeta>>({});
 
   useFocusEffect(
     useCallback(() => {
+      let cancelled = false;
       api
         .reportHistory()
-        .then((r) => setRecords(r.reports))
-        .catch(() => setRecords([]));
+        .then(async (r) => {
+          if (cancelled) return;
+          setRecords(r.reports);
+          // '최근 연습' 카드 태그칩용으로 상위 2개만 상세를 불러온다.
+          const entries = await Promise.all(
+            r.reports.slice(0, 2).map(async (rec) => {
+              try {
+                const d = await api.reportDetail(rec.practice_session_id);
+                const bp = d.report?.biggest_problem;
+                return [
+                  rec.practice_session_id,
+                  { dimension: bp?.dimension ?? '', start: bp?.start ?? '', end: bp?.end ?? '' },
+                ] as const;
+              } catch {
+                return [rec.practice_session_id, { dimension: '', start: '', end: '' }] as const;
+              }
+            }),
+          );
+          if (!cancelled) setMeta(Object.fromEntries(entries));
+        })
+        .catch(() => {
+          if (!cancelled) setRecords([]);
+        });
+      return () => {
+        cancelled = true;
+      };
     }, []),
   );
 
@@ -83,12 +109,12 @@ export default function HomeScreen() {
           <Text style={styles.coachLabel}>AI 코치</Text>
           <Text style={styles.coachHeadline}>
             {latest
-              ? '지난번 "다음 한 걸음"을 이어가 볼까요?'
+              ? '지난 연습, 이어서 한 걸음 더 가볼까요?'
               : '영상을 올리면 원인과 처방을 돌려드려요'}
           </Text>
           <Text style={styles.coachBody} numberOfLines={2}>
             {latest
-              ? latest.report.next_step
+              ? latest.headline
               : '점수 대신, 의도가 왜 안 닿았는지와 당장 해볼 처방 하나.'}
           </Text>
           <Pressable style={styles.coachCta} onPress={() => router.push('/upload')}>
@@ -170,20 +196,16 @@ export default function HomeScreen() {
           </View>
         ) : (
           recent.map((r) => (
-            <Pressable
-              key={r.session_id + r.created_at}
-              style={styles.recentCard}
+            <RecordCard
+              key={r.practice_session_id}
+              item={r}
+              meta={meta[r.practice_session_id]}
+              preview
               onPress={() => {
                 setSelectedReport(r);
                 router.push('/report-detail' as Href);
-              }}>
-              <Text style={styles.recentDate}>
-                {formatKoreanDate(r.created_at, { month: 'long', day: 'numeric' })}
-              </Text>
-              <Text style={styles.recentHeadline} numberOfLines={2}>
-                {r.report?.headline ?? ''}
-              </Text>
-            </Pressable>
+              }}
+            />
           ))
         )}
       </ScrollView>

@@ -1,20 +1,22 @@
 import { useFocusEffect, useRouter, type Href } from 'expo-router';
-import { useCallback, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useMemo, useState } from 'react';
+import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { api, type ReportRecord } from '@/lib/api';
+import { RecordCard, type RecordMeta } from '@/components/record-card';
 import { setSelectedReport } from '@/lib/selected-report';
-import { formatKoreanDate } from '@/lib/format';
+import { formatKoreanMonth } from '@/lib/format';
 import { palette } from '@/constants/palette';
 
 /**
  * 연습 기록 — 서버 정본(GET /v2/reports)의 지난 피드백 목록.
- * 카드를 누르면 상세(전체 보기)로 이동한다. 삭제는 상세 화면 맨 아래에서 한다.
+ * 월별 섹션 + 공용 RecordCard(제목·태그칩·메뉴). 카드를 누르면 상세로 이동한다.
  */
 export default function HistoryScreen() {
   const router = useRouter();
   const [reports, setReports] = useState<ReportRecord[]>([]);
+  const [meta, setMeta] = useState<Record<string, RecordMeta>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -23,6 +25,22 @@ export default function HistoryScreen() {
     try {
       const history = await api.reportHistory();
       setReports(history.reports);
+      // 목록엔 태그 정보가 없으므로 카드별 상세를 불러와 칩(진단 축·구간)을 채운다.
+      const entries = await Promise.all(
+        history.reports.map(async (r) => {
+          try {
+            const d = await api.reportDetail(r.practice_session_id);
+            const bp = d.report?.biggest_problem;
+            return [
+              r.practice_session_id,
+              { dimension: bp?.dimension ?? '', start: bp?.start ?? '', end: bp?.end ?? '' },
+            ] as const;
+          } catch {
+            return [r.practice_session_id, { dimension: '', start: '', end: '' }] as const;
+          }
+        }),
+      );
+      setMeta(Object.fromEntries(entries));
     } catch (err) {
       setError(err instanceof Error ? err.message : '기록을 불러오지 못했어요.');
     } finally {
@@ -36,6 +54,52 @@ export default function HistoryScreen() {
     }, [load]),
   );
 
+  // 월별 섹션으로 그룹핑 (서버가 최신순으로 준다).
+  const sections = useMemo(() => {
+    const out: { month: string; items: ReportRecord[] }[] = [];
+    let cur: { month: string; items: ReportRecord[] } | null = null;
+    for (const r of reports) {
+      const m = formatKoreanMonth(r.created_at);
+      if (!cur || cur.month !== m) {
+        cur = { month: m, items: [] };
+        out.push(cur);
+      }
+      cur.items.push(r);
+    }
+    return out;
+  }, [reports]);
+
+  const openDetail = (item: ReportRecord) => {
+    setSelectedReport(item);
+    router.push('/report-detail' as Href);
+  };
+
+  const confirmDelete = (item: ReportRecord) => {
+    Alert.alert('삭제할까요?', '이 연습 기록을 지우면 되돌릴 수 없어요.', [
+      { text: '취소', style: 'cancel' },
+      {
+        text: '삭제',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await api.deletePracticeSession(item.practice_session_id);
+            load();
+          } catch (e) {
+            Alert.alert('삭제 실패', e instanceof Error ? e.message : '삭제하지 못했어요.');
+          }
+        },
+      },
+    ]);
+  };
+
+  const onMenu = (item: ReportRecord) => {
+    Alert.alert('이 기록', undefined, [
+      { text: '전체 보기', onPress: () => openDetail(item) },
+      { text: '삭제', style: 'destructive', onPress: () => confirmDelete(item) },
+      { text: '취소', style: 'cancel' },
+    ]);
+  };
+
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <Text style={styles.title}>연습 기록</Text>
@@ -47,24 +111,19 @@ export default function HistoryScreen() {
         )}
         {error && <Text style={styles.error}>{error}</Text>}
 
-        {reports.map((item) => (
-          <Pressable
-            key={item.session_id + item.created_at}
-            style={styles.card}
-            onPress={() => {
-              setSelectedReport(item);
-              router.push('/report-detail' as Href);
-            }}>
-            <Text style={styles.date}>{formatKoreanDate(item.created_at)}</Text>
-            <Text style={styles.headline}>{item.report?.headline ?? ''}</Text>
-            <Text style={styles.problem} numberOfLines={2}>
-              {item.report?.biggest_problem?.description ?? ''}
-            </Text>
-            <Text style={styles.next} numberOfLines={2}>
-              다음 한 걸음 · {item.report?.next_step ?? ''}
-            </Text>
-            <Text style={styles.viewMore}>전체 보기 ›</Text>
-          </Pressable>
+        {sections.map((section) => (
+          <View key={section.month}>
+            <Text style={styles.monthHeader}>{section.month}</Text>
+            {section.items.map((item) => (
+              <RecordCard
+                key={item.practice_session_id}
+                item={item}
+                meta={meta[item.practice_session_id]}
+                onPress={() => openDetail(item)}
+                onMenu={() => onMenu(item)}
+              />
+            ))}
+          </View>
         ))}
 
         {!loading && !error && reports.length === 0 && (
@@ -78,14 +137,15 @@ export default function HistoryScreen() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: palette.bg },
+  safe: { flex: 1, backgroundColor: palette.bgSoft },
   title: {
-    fontSize: 26,
+    fontSize: 28,
     fontWeight: '800',
     color: palette.text,
+    letterSpacing: -0.5,
     paddingHorizontal: 20,
     paddingTop: 20,
-    paddingBottom: 8,
+    paddingBottom: 6,
   },
   list: { padding: 20, paddingBottom: 130 },
   center: { paddingVertical: 40, alignItems: 'center' },
@@ -97,17 +157,12 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 24,
   },
-  card: {
-    backgroundColor: palette.card,
-    borderWidth: 1,
-    borderColor: palette.border,
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 12,
+  monthHeader: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: palette.textDim,
+    marginTop: 6,
+    marginBottom: 10,
+    paddingHorizontal: 4,
   },
-  date: { color: palette.textFaint, fontSize: 12, marginBottom: 6 },
-  headline: { color: palette.text, fontSize: 16, fontWeight: '700', lineHeight: 22 },
-  problem: { color: palette.textDim, fontSize: 13, marginTop: 8, lineHeight: 19 },
-  next: { color: palette.blue, fontSize: 13, marginTop: 6, lineHeight: 19, fontWeight: '600' },
-  viewMore: { color: palette.textFaint, fontSize: 12, fontWeight: '700', marginTop: 10, alignSelf: 'flex-end' },
 });
