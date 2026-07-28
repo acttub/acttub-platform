@@ -1231,14 +1231,21 @@ function ChatPanel({
         role="log"
         aria-live="polite"
         aria-label="질문과 답변"
-        className="flex min-h-0 flex-1 flex-col justify-end gap-3 overflow-y-auto p-3.5 sm:gap-4 sm:p-4"
+        className="flex min-h-0 flex-1 flex-col overflow-y-auto p-3.5 sm:p-4"
       >
+        {/* justify-end 를 쓰면 안 된다 — flex 컬럼에서 넘친 내용이 위쪽으로 삐져나가
+            스크롤로 닿지 않는다. 대화가 길어지면 앞 질문을 볼 수 없었다 (2026-07-28).
+            대신 안쪽을 mt-auto 로 밀어, 짧은 대화는 아래에 붙고 길어지면 정상 스크롤된다. */}
         {messages.length === 0 ? (
           <p className="my-auto text-center text-[13px] font-semibold leading-6 text-[#b0b8c1]">
             이 연습에는 아직 오간 질문이 없어요.
           </p>
         ) : (
-          messages.map((m, index) => <Bubble key={`${m.role}-${index}`} msg={m} />)
+          <div className="mt-auto flex flex-col gap-3 sm:gap-4">
+            {messages.map((m, index) => (
+              <Bubble key={`${m.role}-${index}`} msg={m} />
+            ))}
+          </div>
         )}
       </div>
 
