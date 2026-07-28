@@ -108,7 +108,7 @@ def test_coach_start_and_reply_reuse_engines_and_cache_success_bytes():
         body={"summary_id": str(summary_id)},
     )
     assert started.status_code == 200
-    assert started.json()["utterance"] == COACH_QUESTION.utterance
+    assert started.json()["utterance"] == COACH_QUESTION.question
     UUID(started.json()["session_id"])
     start_duplicate = _post(
         client,
@@ -133,7 +133,7 @@ def test_coach_start_and_reply_reuse_engines_and_cache_success_bytes():
         body=reply_body,
     )
     assert replied.status_code == 200
-    assert replied.json()["utterance"] == COACH_FOLLOWUP.utterance
+    assert replied.json()["utterance"] == COACH_FOLLOWUP.question
     reply_duplicate = _post(
         client,
         "/v2/coach/reply",

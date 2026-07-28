@@ -5,7 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { heatColors, palette } from '@/constants/palette';
 import { api, type ReportRecord } from '@/lib/api';
-import { formatKoreanDate } from '@/lib/format';
+import { RecordCard } from '@/components/record-card';
 import { sortReportsNewestFirst } from '@/lib/report-order';
 
 const WEEKS = 12;
@@ -23,10 +23,18 @@ export default function HomeScreen() {
 
   useFocusEffect(
     useCallback(() => {
+      let cancelled = false;
       api
         .reportHistory()
-        .then((r) => setRecords(sortReportsNewestFirst(r.reports)))
-        .catch(() => setRecords([]));
+        .then((r) => {
+          if (!cancelled) setRecords(sortReportsNewestFirst(r.reports));
+        })
+        .catch(() => {
+          if (!cancelled) setRecords([]);
+        });
+      return () => {
+        cancelled = true;
+      };
     }, []),
   );
 
@@ -83,7 +91,7 @@ export default function HomeScreen() {
           <Text style={styles.coachLabel}>AI 코치</Text>
           <Text style={styles.coachHeadline}>
             {latest
-              ? '지난 피드백을 이어 연습해 볼까요?'
+              ? '지난 피드백을 이어 연습해 볼까요?' 
               : '영상을 올리면 원인과 처방을 돌려드려요'}
           </Text>
           <Text style={styles.coachBody} numberOfLines={2}>
@@ -170,22 +178,17 @@ export default function HomeScreen() {
           </View>
         ) : (
           recent.map((r) => (
-            <Pressable
+            <RecordCard
               key={r.practice_session_id + r.created_at}
-              style={styles.recentCard}
+              item={r}
+              preview
               onPress={() =>
                 router.push({
                   pathname: '/report-detail',
                   params: { practiceSessionId: r.practice_session_id },
                 })
-              }>
-              <Text style={styles.recentDate}>
-                {formatKoreanDate(r.created_at, { month: 'long', day: 'numeric' })}
-              </Text>
-              <Text style={styles.recentHeadline} numberOfLines={2}>
-                {r.headline}
-              </Text>
-            </Pressable>
+              }
+            />
           ))
         )}
       </ScrollView>
@@ -270,14 +273,4 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   emptyText: { fontSize: 13, color: palette.textDim, lineHeight: 20, textAlign: 'center' },
-  recentCard: {
-    backgroundColor: palette.card,
-    borderWidth: 1,
-    borderColor: palette.border,
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 10,
-  },
-  recentDate: { fontSize: 12, color: palette.textFaint, marginBottom: 4 },
-  recentHeadline: { fontSize: 14, fontWeight: '700', color: palette.text, lineHeight: 20 },
 });

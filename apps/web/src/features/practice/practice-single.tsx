@@ -20,7 +20,7 @@ import { REVIEW_FORM_URL } from "../../lib/config/env";
 import { analysisFailure } from "./analysis-failure";
 
 type Phase = "input" | "analyzing" | "coaching" | "done";
-type ChatMsg = { role: "ai" | "me"; text: string; obs?: string };
+type ChatMsg = { role: "ai" | "me"; text: string };
 
 // 서버가 주는 분석 상태는 analyzing/analyzed/failed 셋뿐이라 진행률을 만들 근거가 없다.
 // 예전에는 95%로 수렴하는 가짜 막대와 단계를 흉내 낸 문구를 보여줬는데, 분석이 길어지면
@@ -40,7 +40,7 @@ function formatElapsed(sec: number): string {
 
 const TOUR = [
   { key: "picker", title: "1 · 영상 올리기", body: "여기를 눌러 오늘 연습할 장면 영상을 올려요. (MP4·MOV, 5분 이내)" },
-  { key: "inputs", title: "2 · 장면 맥락 적기", body: "상황 · 인물 · 겉으로 드러낸 태도와 속마음을 짧게 적어요. 질문이 이걸 근거로 만들어져요." },
+  { key: "inputs", title: "2 · 장면 맥락 적기", body: "상황 · 인물 · 목표를 짧게 적어요. 질문이 이걸 근거로 만들어져요." },
   { key: "begin", title: "3 · 질문 받기", body: "영상을 올리면 이 버튼이 켜져요. 누르면 오른쪽에서 질문이 하나씩 도착해요." },
   { key: "chat", title: "4 · 대화하기", body: "도착한 질문에 여기서 답해요. 정답은 없어요 — 떠오르는 대로 답하면 질문이 이어지고, 답이 쌓이면 마지막에 연습 노트로 정리돼요." },
 ] as const;
@@ -76,7 +76,9 @@ function PracticeSingleInner() {
 
   const [situation, setSituation] = useState("");
   const [character, setCharacter] = useState("");
-  const [subtext, setSubtext] = useState("");
+  // 2026-07-27 로컬 변경(커밋 금지): 입력 모델이 상황·인물·목표 셋으로 바뀌었다.
+  // 정본 스펙 = planning/AI품질/질문생성-1-2층-수정스펙-2026-07-26.md §7
+  const [goal, setGoal] = useState("");
 
   // 지난 연습에서 "인터뷰 다시하기"로 넘어온 경우, 적었던 장면 맥락과 영상을 그대로 채워 준다.
   // 영상은 서버에 있는 것을 내려받아 새 파일처럼 다시 올린다 (원본 파일은 브라우저에 남아 있지 않다).
@@ -95,7 +97,7 @@ function PracticeSingleInner() {
         if (controller.signal.aborted) return;
         setSituation(detail.situation ?? "");
         setCharacter(detail.character_context ?? "");
-        setSubtext(detail.subtext ?? "");
+        setGoal((detail as { goal?: string }).goal ?? "");  // goal은 아직 스펙에 없다(로컬 변경)
 
         if (!detail.playback_url) return;
         const response = await fetch(detail.playback_url, { signal: controller.signal });
@@ -274,8 +276,7 @@ function PracticeSingleInner() {
   const pushAi = (turn: CoachTurnResponse) => {
     // 코치 세션 id는 매 응답마다 회전할 수 있어 다음 reply/report에 최신 값을 쓴다
     sessionIdRef.current = turn.session_id;
-    const obs = turn.focus_timestamp ? `관찰 시점 · ${turn.focus_timestamp}` : undefined;
-    setMessages((m) => [...m, { role: "ai", text: turn.utterance, obs }]);
+    setMessages((m) => [...m, { role: "ai", text: turn.utterance }]);
     if (turn.done) setPhase("done");
   };
 
@@ -313,8 +314,8 @@ function PracticeSingleInner() {
           upload_intent_id: intentId,
           situation,
           character_context: character,
-          subtext,
-        },
+          goal,  // 아직 스펙에 없다(로컬 변경) → 아래 캐스팅으로 통과시킨다
+        } as unknown as Parameters<typeof createPracticeSession>[0],
         { signal: controller.signal },
       );
       setPendingSessionId(session.session_id);
@@ -360,7 +361,7 @@ function PracticeSingleInner() {
       stopWaiting();
       if (uploadControllerRef.current === controller) uploadControllerRef.current = null;
     }
-  }, [videoFile, situation, character, subtext]);
+  }, [videoFile, situation, character, goal]);
 
   const onSend = useCallback(async () => {
     const text = chatInput.trim();
@@ -456,8 +457,8 @@ function PracticeSingleInner() {
               <Field label="상황" value={situation} onChange={setSituation} disabled={locked} placeholder="예: 이별을 통보받은 직후, 카페에서" />
               <Field label="인물" value={character} onChange={setCharacter} disabled={locked} placeholder="예: 담담한 척하는 20대 후반 여성" />
               <div className="sm:col-span-2">
-                <label className="mb-1.5 block text-xs font-black text-[#333d4b]">겉으로 드러낸 태도와 속마음</label>
-                <textarea value={subtext} onChange={(e) => setSubtext(e.target.value)} disabled={locked} placeholder="예: 겉으론 괜찮은 척했지만, 사실은 붙잡고 싶었어요" className="h-12 w-full resize-none rounded-2xl border border-[#e5e8eb] bg-[#f8fbff] px-3 py-2.5 text-sm font-semibold outline-none transition placeholder:text-[#b0b8c1] focus:border-[#3182f6] focus:bg-white focus:ring-4 focus:ring-[#e8f3ff]" />
+                <label className="mb-1.5 block text-xs font-black text-[#333d4b]">목표 — 이 장면에서 인물이 얻으려는 것</label>
+                <textarea value={goal} onChange={(e) => setGoal(e.target.value)} disabled={locked} placeholder="예: 상대가 마음을 돌려 다시 앉게 만들기" className="h-12 w-full resize-none rounded-2xl border border-[#e5e8eb] bg-[#f8fbff] px-3 py-2.5 text-sm font-semibold outline-none transition placeholder:text-[#b0b8c1] focus:border-[#3182f6] focus:bg-white focus:ring-4 focus:ring-[#e8f3ff]" />
               </div>
             </div>
 
@@ -530,7 +531,6 @@ function PracticeSingleInner() {
             ) : (
               messages.map((m, i) => (
                 <div key={i} className={`max-w-[82%] whitespace-pre-wrap rounded-[18px] px-3.5 py-2.5 text-[13.5px] font-semibold leading-6 ${m.role === "ai" ? "self-start rounded-bl-[5px] bg-[#f8fbff] text-[#191f28]" : "self-end rounded-br-[5px] bg-[#3182f6] text-white"}`}>
-                  {m.obs ? <span className="mb-1 block text-[11.5px] font-bold text-[#8b95a1]">{m.obs}</span> : null}
                   {m.text}
                 </div>
               ))

@@ -30,3 +30,5 @@ class CoachSession(BaseModel):
     question_count: int = 0
     status: Literal["open", "closed"] = "open"
     close_reason: str = ""
+    # 관찰 상태(쓴 것·부정된 것)는 필드로 두지 않는다 — DB 복원 경로에 없어서 운영에서만
+    # 초기화된다. turns 의 focus_timestamp 에서 targeting.derive_observation_state 로 되살린다.

@@ -37,7 +37,6 @@ type CoachTurn = {
   role: "coach" | "actor";
   text: string;
   action?: CoachTurnResponse["action"];
-  focusTimestamp?: string;
 };
 type CoachState = {
   coachSessionId: string;
@@ -426,7 +425,6 @@ function PracticeFlowInner({ entry = "new" }: { entry?: Entry }) {
             role: "coach",
             text: data.utterance,
             action: data.action,
-            focusTimestamp: data.focus_timestamp,
           },
         ],
         questionCount: 1,
@@ -488,7 +486,6 @@ function PracticeFlowInner({ entry = "new" }: { entry?: Entry }) {
             role: "coach",
             text: data.utterance,
             action: data.action,
-            focusTimestamp: data.focus_timestamp,
           },
         ],
         questionCount: coach.questionCount + 1,
@@ -1627,7 +1624,6 @@ function CoachingView({
   const currentQuestion = [...coach.turns]
     .reverse()
     .find((turn) => turn.role === "coach");
-  const currentFocusTimestamp = currentQuestion?.focusTimestamp?.trim();
 
   return (
     <section className="mt-8 overflow-hidden rounded-[28px] border border-[#e5e8eb] bg-white shadow-[0_14px_40px_rgba(25,31,40,0.06)]">
@@ -1645,11 +1641,6 @@ function CoachingView({
         <article className="border-b border-[#e5e8eb] bg-[#f7faff] px-5 py-5 sm:px-6">
           <div className="flex flex-wrap items-center gap-2">
             <p className="text-xs font-black text-[#2f6bff]">현재 질문</p>
-            {currentFocusTimestamp ? (
-              <span className="inline-flex rounded-full bg-white px-2.5 py-1 text-[11px] font-black text-[#2f6bff] shadow-sm">
-                {currentFocusTimestamp} 구간
-              </span>
-            ) : null}
           </div>
           <p className="mt-2 text-lg font-black leading-8 tracking-[-0.025em]">{currentQuestion.text}</p>
         </article>
@@ -1735,15 +1726,11 @@ function TypingDots() {
 
 function ConversationBubble({ turn }: { turn: CoachTurn }) {
   const actor = turn.role === "actor";
-  const focusTimestamp = turn.focusTimestamp?.trim();
   return (
     <div className={"flex items-end gap-2 " + (actor ? "justify-end" : "justify-start")}>
       {!actor ? <span aria-hidden="true" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#2f6bff] text-[10px] font-black text-white">AI</span> : null}
       <div className={"max-w-[82%] rounded-2xl px-4 py-3 shadow-sm " + (actor ? "rounded-br-md bg-[#3182f6] text-white" : "rounded-bl-md border border-[#e5e8eb] bg-white text-[#191f28]")}>
         <p className="text-xs font-black opacity-70">{actor ? "나" : "AI 코치"}</p>
-        {focusTimestamp ? (
-          <span className={"mt-2 inline-flex rounded-full px-2.5 py-1 text-[11px] font-black " + (actor ? "bg-white/15 text-white" : "bg-[#eaf2ff] text-[#2f6bff]")}>{focusTimestamp} 구간</span>
-        ) : null}
         <p className="mt-1 whitespace-pre-wrap text-[15px] font-semibold leading-6">{turn.text}</p>
       </div>
     </div>

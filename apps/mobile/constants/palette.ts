@@ -12,6 +12,7 @@ export const palette = {
   text: '#171D2B',
   textDim: '#5B6378',
   textFaint: '#9099AC',
+  checkOff: '#C7CDD9',
   blue: '#2F55F2',
   blueDeep: '#1E3FCC',
   blueSoft: '#EEF2FF',
