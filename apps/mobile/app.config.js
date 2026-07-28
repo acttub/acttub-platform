@@ -11,14 +11,6 @@
 const GOOGLE_PLIST = './GoogleService-Info.plist';
 const GOOGLE_SIGNIN = '@react-native-google-signin/google-signin';
 
-// iOS 빌드에서 제거할 플러그인들 = Firebase만.
-// (useFrameworks static + non-modular 플러그인은 google-signin의 pod install/컴파일에 필요하므로 유지.
-//  지난 빌드에서 static framework 켰을 때만 pod install이 통과했음.)
-const STRIP_ON_IOS = [
-  '@react-native-firebase/app',
-  '@react-native-firebase/analytics',
-];
-
 // "462...-xxx.apps.googleusercontent.com" → "com.googleusercontent.apps.462...-xxx"
 function reversedClientId(iosClientId) {
   if (!iosClientId) return null;
@@ -41,12 +33,19 @@ module.exports = ({ config }) => {
 
   const ios = { ...config.ios };
 
-  if (isIOSBuild) {
-    plugins = plugins.filter((pl) => !STRIP_ON_IOS.includes(pluginName(pl)));
-    delete ios.googleServicesFile; // Firebase 제외했으니 plist 참조도 제거
-  } else {
-    ios.googleServicesFile = GOOGLE_PLIST;
+  // iOS에도 Firebase(애널리틱스) 유지 — $RNFirebaseAsStaticFramework=true(plugins/with-rnfirebase-static)로
+  // useFrameworks(static)+New Arch 컴파일 충돌을 해결한다. (과거엔 iOS에서 제외했었음)
+  // 모노레포에서 GoogleService-Info.plist는 gitignore라 EAS 빌더에 안 올라간다(git-tracked만 업로드).
+  // → EAS 파일 환경변수(GOOGLE_SERVICE_INFO_PLIST, secret)로 주입하고, 없으면 로컬 경로 폴백.
+  ios.googleServicesFile = process.env.GOOGLE_SERVICE_INFO_PLIST || GOOGLE_PLIST;
+  void isIOSBuild; // 더 이상 플랫폼별 firebase strip 안 함
+
+  // 모노레포에서 google-services.json은 gitignore라 EAS 빌더에 안 올라간다.
+  // EAS 파일 환경변수(GOOGLE_SERVICES_JSON, secret)로 주입하고, 없으면 app.json 로컬 경로 폴백.
+  const android = { ...config.android };
+  if (process.env.GOOGLE_SERVICES_JSON) {
+    android.googleServicesFile = process.env.GOOGLE_SERVICES_JSON;
   }
 
-  return { ...config, ios, plugins };
+  return { ...config, ios, android, plugins };
 };

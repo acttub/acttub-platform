@@ -8,12 +8,10 @@
  *
  * 이벤트 이름은 GA4 규칙: snake_case, 40자 이내. 커스텀 파라미터도 snake_case.
  *
- * ⚠️ iOS: Firebase 네이티브 모듈을 autolinking에서 제외했다(package.json expo.autolinking.ios.exclude).
- *   iOS에서 @react-native-firebase를 require하면 모듈 로드 시점에 "RNFBAppModule not found"가
- *   try/catch로도 안 잡히는 형태로 throw되어 앱이 런치 크래시한다. 그래서 iOS는 require 자체를 건너뛴다.
+ * iOS/Android 모두 Firebase 네이티브 모듈을 포함한다(2026-07-23부터). iOS는 useFrameworks(static)
+ * 컴파일 충돌을 $RNFirebaseAsStaticFramework=true(plugins/with-rnfirebase-static)로 해결.
+ * 네이티브 모듈이 없거나 초기화 실패한 환경(Expo Go·웹)은 아래 try 가드로 조용히 no-op이 된다.
  */
-import { Platform } from 'react-native';
-
 let resolved = false;
 let instance: unknown = null;
 let mod: any = null;
@@ -21,12 +19,6 @@ let mod: any = null;
 function getAnalytics(): unknown {
   if (resolved) return instance;
   resolved = true;
-  // iOS엔 Firebase 네이티브가 없다 → require 자체가 크래시를 유발하므로 아예 시도하지 않는다.
-  if (Platform.OS === 'ios') {
-    instance = null;
-    mod = null;
-    return null;
-  }
   try {
     mod = require('@react-native-firebase/analytics');
     const factory = mod.getAnalytics ?? mod.default;
