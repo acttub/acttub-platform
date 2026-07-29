@@ -7,19 +7,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '@/lib/auth';
 import { palette } from '@/constants/palette';
 
-// 구글 공식 로그인 버튼. 브랜드 가이드(로고·색·여백·문구)를 라이브러리가 네이티브로 지키므로
-// 직접 그린 버튼 대신 이걸 쓴다 — 자체 제작 'G' 마크는 스토어 심사에서 반려 사유가 된다.
-// 네이티브 모듈이 없는 빌드에서도 화면이 뜨도록 가드해서 로드한다([[auth]]와 같은 방식).
-let GoogleButton: typeof import('@react-native-google-signin/google-signin').GoogleSigninButton | null =
-  null;
-try {
-  GoogleButton = (
-    require('@react-native-google-signin/google-signin') as typeof import('@react-native-google-signin/google-signin')
-  ).GoogleSigninButton;
-} catch {
-  GoogleButton = null;
-}
-
 // Apple 로그인 모듈은 iOS에서만 로드 (안드로이드·재빌드 전 dev client에서 크래시 방지).
 let AppleAuth: typeof import('expo-apple-authentication') | null = null;
 if (Platform.OS === 'ios') {
@@ -29,6 +16,10 @@ if (Platform.OS === 'ios') {
     AppleAuth = null;
   }
 }
+
+// 구글 로그인 버튼 라이트 테마 규격 색(브랜드 가이드).
+const GOOGLE_BORDER = '#DADCE0';
+const GOOGLE_TEXT = '#1F1F1F';
 
 /**
  * 로그인 — 스플래시(흰 배경 + 중앙 로고) 톤을 이어받은 첫 화면.
@@ -71,26 +62,32 @@ export default function LoginScreen() {
       </View>
 
       <View style={styles.bottom}>
-        {GoogleButton ? (
-          <GoogleButton
-            style={styles.googleButton}
-            size={GoogleButton.Size.Wide}
-            color="light"
-            disabled={busy}
-            onPress={onGoogle}
-          />
-        ) : (
-          <Pressable style={styles.googleFallback} onPress={onGoogle} disabled={busy}>
-            <Text style={styles.googleFallbackText}>Google로 계속하기</Text>
-          </Pressable>
-        )}
-        {busy && <ActivityIndicator color={palette.textDim} />}
+        <Pressable
+          style={({ pressed }) => [styles.googleButton, pressed && styles.pressed]}
+          onPress={onGoogle}
+          disabled={busy}
+          accessibilityRole="button"
+          accessibilityLabel="Google로 계속하기">
+          {busy ? (
+            <ActivityIndicator color={GOOGLE_TEXT} />
+          ) : (
+            <>
+              {/* 구글이 배포하는 공식 로고 에셋(GoogleSignIn SDK). 직접 그리면 심사에서 막힌다. */}
+              <Image
+                source={require('@/assets/images/google-logo.png')}
+                style={styles.googleLogo}
+                contentFit="contain"
+              />
+              <Text style={styles.googleText}>Google로 계속하기</Text>
+            </>
+          )}
+        </Pressable>
 
         {appleAvailable && AppleAuth && (
           <AppleAuth.AppleAuthenticationButton
             buttonType={AppleAuth.AppleAuthenticationButtonType.SIGN_IN}
             buttonStyle={AppleAuth.AppleAuthenticationButtonStyle.BLACK}
-            cornerRadius={4} // 구글 공식 버튼 모서리와 맞춤
+            cornerRadius={16}
             style={styles.appleButton}
             onPress={() => run(signInWithApple)}
           />
@@ -109,16 +106,21 @@ const styles = StyleSheet.create({
   logo: { width: 220, height: 88 },
   tagline: { fontSize: 15, color: palette.textDim, textAlign: 'center', lineHeight: 22 },
   bottom: { paddingBottom: 28, gap: 14 },
-  googleButton: { alignSelf: 'center' }, // 크기는 구글 권장값(312×48)을 그대로 쓴다
-  googleFallback: {
+  googleButton: {
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: palette.bgSoft,
-    borderRadius: 16,
+    gap: 10,
     height: 56,
+    borderRadius: 16,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: GOOGLE_BORDER, // 구글 라이트 테마 규격 색
   },
-  googleFallbackText: { fontSize: 16, fontWeight: '700', color: palette.textDim },
-  appleButton: { width: 312, height: 48, alignSelf: 'center' }, // 구글 공식 버튼과 같은 크기
+  googleLogo: { width: 20, height: 20 },
+  googleText: { fontSize: 16, fontWeight: '600', color: GOOGLE_TEXT },
+  pressed: { opacity: 0.7 },
+  appleButton: { width: '100%', height: 56 },
   error: { color: palette.danger, fontSize: 13, textAlign: 'center' },
   legal: { color: palette.textFaint, fontSize: 12, textAlign: 'center', lineHeight: 18 },
 });
