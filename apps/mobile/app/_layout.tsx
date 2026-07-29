@@ -1,4 +1,4 @@
-import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import Feather from '@expo/vector-icons/Feather';
 import { DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { useFonts } from 'expo-font';
 import {
@@ -269,8 +269,11 @@ function ScreenTracker() {
 
 export default function RootLayout() {
   const [fontsLoaded] = useFonts({
-    ...MaterialIcons.font,
-    Pretendard: require('@/assets/fonts/PretendardVariable.ttf'),
+    ...Feather.font,
+    // 굵기별 static 서브셋 — 가변폰트는 안드로이드에서 fontWeight가 안 먹는다([[global-font]]).
+    Pretendard: require('@/assets/fonts/Pretendard-Regular.subset.ttf'),
+    'Pretendard-SemiBold': require('@/assets/fonts/Pretendard-SemiBold.subset.ttf'),
+    'Pretendard-Bold': require('@/assets/fonts/Pretendard-Bold.subset.ttf'),
   });
 
   if (!fontsLoaded) return null;

@@ -1,10 +1,7 @@
-import { useHeaderHeight } from '@react-navigation/elements';
 import * as ImagePicker from 'expo-image-picker';
 import { Stack, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
-  KeyboardAvoidingView,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -15,12 +12,14 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { FirstUploadGuide } from '@/components/first-upload-guide';
+import { useKeyboardHeight } from '@/hooks/use-keyboard-height';
 import { beginAnalysisNavigation } from '@/lib/analysis-entry';
 import type { VideoFile } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { setPendingUpload, takePrefill } from '@/lib/practice';
 import {
   MAX_VIDEO_DURATION_MS,
+  missingUploadFieldsHint,
   normalizeVideoDurationMs,
 } from '@/lib/upload-input';
 import { palette } from '@/constants/palette';
@@ -32,7 +31,9 @@ import { palette } from '@/constants/palette';
 export default function UploadScreen() {
   const router = useRouter();
   const { user } = useAuth();
-  const headerHeight = useHeaderHeight();
+  const keyboardHeight = useKeyboardHeight();
+  // SafeAreaView가 이미 하단 인셋을 비워두므로 그만큼 빼고 올린다([[use-keyboard-height]]).
+  const keyboardVisible = keyboardHeight > 0;
   const [prefilled, setPrefilled] = useState(false);
   const [situation, setSituation] = useState('');
   const [character, setCharacter] = useState('');
@@ -109,15 +110,19 @@ export default function UploadScreen() {
   };
 
   const submitDisabled = !canSubmit || starting;
+  const missingHint = missingUploadFieldsHint({
+    situation,
+    character,
+    subtext,
+    hasVideo: !!video,
+    agreedRights,
+  });
 
   return (
-    <SafeAreaView style={styles.safe} edges={['bottom']}>
+    <SafeAreaView style={styles.safe} edges={keyboardVisible ? [] : ['bottom']}>
       <Stack.Screen options={{ title: prefilled ? '같은 장면 다시 찍기' : '영상 올리기' }} />
       {!prefilled && user && <FirstUploadGuide ownerId={user.id} />}
-      <KeyboardAvoidingView
-        style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? headerHeight : 0}>
+      <View style={[styles.flex, { paddingBottom: keyboardHeight }]}>
         <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
           <Text style={styles.guide}>
             이 장면에서 뭘 하려 하셨는지 알려주시면, 그 의도를 기준으로 봐드릴게요.
@@ -171,14 +176,19 @@ export default function UploadScreen() {
             </Text>
           </Pressable>
 
+        </ScrollView>
+        {/* 입력은 위에서 아래로, 실행은 아래에서 위로 — '분석 시작'은 화면 하단에 고정한다. */}
+        <View style={styles.submitBar}>
+          {/* 안내는 버튼 위에 — 키보드가 뜰 때 하단이 몇 px 잘려도 버튼이 온전히 남는다. */}
+          {!canSubmit && !starting && <Text style={styles.submitHint}>{missingHint}</Text>}
           <Pressable
             style={[styles.submit, submitDisabled && styles.submitDisabled]}
             onPress={start}
             disabled={submitDisabled}>
             <Text style={styles.submitText}>분석 시작</Text>
           </Pressable>
-        </ScrollView>
-      </KeyboardAvoidingView>
+        </View>
+      </View>
     </SafeAreaView>
   );
 }
@@ -239,13 +249,21 @@ const styles = StyleSheet.create({
   checkOn: { backgroundColor: palette.blue, borderColor: palette.blue },
   checkMark: { color: '#fff', fontSize: 13, fontWeight: '900' },
   rightsText: { flex: 1, fontSize: 12, color: palette.textDim, lineHeight: 18 },
+  submitBar: {
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 12,
+    borderTopWidth: 1,
+    borderTopColor: palette.border,
+    backgroundColor: palette.bg,
+  },
   submit: {
     backgroundColor: palette.blue,
     borderRadius: 16,
     padding: 17,
     alignItems: 'center',
-    marginTop: 14,
   },
   submitDisabled: { opacity: 0.4 },
   submitText: { color: '#FFFFFF', fontSize: 16, fontWeight: '800' },
+  submitHint: { marginBottom: 8, fontSize: 12, color: palette.textFaint, textAlign: 'center' },
 });

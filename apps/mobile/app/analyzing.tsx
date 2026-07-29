@@ -2,9 +2,19 @@ import { getInfoAsync } from 'expo-file-system/legacy';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  ActivityIndicator,
+  BackHandler,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { useAppDialog } from '@/components/app-dialog';
 import { logEvent } from '@/lib/analytics';
 import {
   AnalysisTerminalError,
@@ -74,6 +84,7 @@ export default function AnalyzingScreen() {
   const [error, setError] = useState<string | null>(null);
   const [videoUri, setVideoUri] = useState<string | null>(null);
   const [abandoning, setAbandoning] = useState(false);
+  const { confirm, dialog } = useAppDialog();
 
   // 방금 올린 로컬 원본을 대기 중 재생 (서버 업로드본·압축본이 아니라 원본).
   const player = useVideoPlayer(videoUri, (p) => {
@@ -273,6 +284,30 @@ export default function AnalyzingScreen() {
     }
   }, [abandoning, router]);
 
+  /**
+   * 안드로이드 하드웨어 뒤로가기로 조용히 빠져나가면 압축·업로드가 통째로 날아간다.
+   * (iOS는 headerBackVisible·gestureEnabled를 이미 막아뒀다.)
+   */
+  const confirmLeave = useCallback(async () => {
+    const leave = await confirm({
+      title: '분석을 중단할까요?',
+      message: '지금 나가면 올린 영상과 분석이 사라져요.',
+      cancelLabel: '계속 기다리기',
+      confirmLabel: '중단하고 나가기',
+      destructive: true,
+    });
+    if (leave) void abandon();
+  }, [abandon, confirm]);
+
+  useEffect(() => {
+    if (Platform.OS !== 'android' || error) return;
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      void confirmLeave();
+      return true; // 기본 뒤로가기를 막는다
+    });
+    return () => subscription.remove();
+  }, [confirmLeave, error]);
+
   // 압축/업로드 중이 아닐 때만 단계 문구를 진행시킨다.
   useEffect(() => {
     if (error || compressPct !== null || uploading) return;
@@ -325,6 +360,12 @@ export default function AnalyzingScreen() {
             <Text style={styles.eta}>
               보통 1~3분 정도 걸려요. 기다리는 동안 방금 찍은 영상을 다시 봐도 좋아요.
             </Text>
+            <View style={styles.stayBox}>
+              <Text style={styles.stayText}>
+                ⚠️ 이 화면을 벗어나거나 앱을 종료하면 분석이 중단돼요. 끝날 때까지 켜 둔 채로
+                기다려주세요.
+              </Text>
+            </View>
             <View style={styles.tipBox}>
               <Text style={styles.tipTitle}>기다리는 동안</Text>
               <Text style={styles.tipBody}>
@@ -335,6 +376,7 @@ export default function AnalyzingScreen() {
           </>
         )}
       </ScrollView>
+      {dialog}
     </SafeAreaView>
   );
 }
@@ -359,6 +401,15 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   eta: { fontSize: 13, color: '#9FB0C9', textAlign: 'center', lineHeight: 19 },
+  stayBox: {
+    backgroundColor: 'rgba(255,170,105,0.14)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,170,105,0.45)',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  stayText: { fontSize: 13, color: '#FFD9B8', lineHeight: 19, textAlign: 'center' },
   tipBox: { backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 14, padding: 16, marginTop: 24 },
   tipTitle: { fontSize: 12, fontWeight: '700', color: '#8FA5FF', marginBottom: 6 },
   tipBody: { fontSize: 13, color: '#C6D0E2', lineHeight: 20 },

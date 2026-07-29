@@ -14,6 +14,7 @@ import { api, type ActingReport } from '@/lib/api';
 import { clearPractice, getPractice, setPrefill } from '@/lib/practice';
 import { createOrReuseReport } from '@/lib/report-flow';
 import { palette } from '@/constants/palette';
+import { Markdown } from '@/components/markdown';
 
 /**
  * A4. 피드백 카드 — 4블록 단일 초점형 (명세 §4).
@@ -120,7 +121,7 @@ export default function ReportScreen() {
           {/* 블록 1 — 잘된 순간 */}
           <View style={[styles.block, styles.blockGreen]}>
             <Text style={[styles.blockTag, styles.tagGreen]}>✓ 잘된 순간</Text>
-            <Text style={styles.blockBody}>{report.encouragement}</Text>
+            <Markdown source={report.encouragement} />
           </View>
 
           {/* 블록 2 — 이번에 딱 하나 */}
@@ -128,15 +129,19 @@ export default function ReportScreen() {
             <Text style={[styles.blockTag, styles.tagBlue]}>
               이번엔 이거 딱 하나 · {problemRange}
             </Text>
-            <Text style={styles.blockBody}>{report.biggest_problem.description}</Text>
-            {!!report.evidence && <Text style={styles.evidence}>{report.evidence}</Text>}
+            <Markdown source={report.biggest_problem.description} />
+            {!!report.evidence && (
+              <View style={styles.evidence}>
+                <Markdown source={report.evidence} variant="compact" />
+              </View>
+            )}
           </View>
 
           {/* 대화에서 스스로 찾은 것 */}
           {!!report.self_discovery && (
             <View style={styles.block}>
               <Text style={styles.blockTag}>대화에서 스스로 찾으신 것</Text>
-              <Text style={styles.blockBody}>{report.self_discovery}</Text>
+              <Markdown source={report.self_discovery} />
             </View>
           )}
 
@@ -144,14 +149,14 @@ export default function ReportScreen() {
           {!!report.comparison && (
             <View style={[styles.block, styles.blockPurple]}>
               <Text style={[styles.blockTag, styles.tagPurple]}>지난번과 비교하면</Text>
-              <Text style={styles.blockBody}>{report.comparison}</Text>
+              <Markdown source={report.comparison} />
             </View>
           )}
 
           {/* 블록 3 — 다음 한 걸음 */}
           <View style={[styles.block, styles.blockSoft]}>
             <Text style={[styles.blockTag, styles.tagBlue]}>다음 한 걸음</Text>
-            <Text style={styles.blockBody}>→ {report.next_step}</Text>
+            <Markdown source={`→ ${report.next_step}`} />
           </View>
 
           <Pressable style={styles.nextButton} onPress={retake}>
@@ -196,7 +201,7 @@ const styles = StyleSheet.create({
   tagBlue: { color: palette.blue },
   tagPurple: { color: palette.purple },
   blockBody: { fontSize: 15, color: palette.text, lineHeight: 23 },
-  evidence: { fontSize: 13, color: palette.textDim, lineHeight: 20, marginTop: 8 },
+  evidence: { marginTop: 8 },
   nextButton: {
     backgroundColor: palette.blue,
     borderRadius: 16,

@@ -1,10 +1,7 @@
-import { Stack } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Pressable,
-  ScrollView,
   StyleSheet,
   Switch,
   Text,
@@ -13,6 +10,9 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { useAppDialog } from '@/components/app-dialog';
+import { KeyboardAwareScroll } from '@/components/keyboard-aware-scroll';
+import { Markdown } from '@/components/markdown';
 import { api, type ConsentDocument } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { getConsentPrefs, setConsentPref } from '@/lib/consent-prefs';
@@ -33,6 +33,7 @@ export default function SettingsScreen() {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(true);
   const [nameSaved, setNameSaved] = useState(false);
+  const { confirm, alert, dialog } = useAppDialog();
 
   useEffect(() => {
     (async () => {
@@ -65,34 +66,43 @@ export default function SettingsScreen() {
         await setConsentPref(doc.id, next);
       } catch (err) {
         setPrefs((p) => ({ ...p, [doc.id]: prev })); // 실패 시 롤백
-        Alert.alert('변경 실패', err instanceof Error ? err.message : '잠시 후 다시 시도해주세요.');
+        void alert({
+          title: '변경 실패',
+          message: err instanceof Error ? err.message : '잠시 후 다시 시도해주세요.',
+        });
       }
     },
-    [prefs],
+    [prefs, alert],
   );
 
   const required = docs.filter((d) => d.required);
   const optional = docs.filter((d) => !d.required);
 
-  const confirmLogout = () => {
-    Alert.alert('로그아웃할까요?', '', [
-      { text: '취소', style: 'cancel' },
-      { text: '로그아웃', style: 'destructive', onPress: () => void signOut() },
-    ]);
+  const confirmLogout = async () => {
+    const ok = await confirm({
+      title: '로그아웃할까요?',
+      confirmLabel: '로그아웃',
+      destructive: true,
+    });
+    if (ok) void signOut();
   };
 
   const DocBody = ({ doc }: { doc: ConsentDocument }) =>
-    expanded[doc.id] ? <Text style={styles.docBody}>{doc.body}</Text> : null;
+    expanded[doc.id] ? (
+      <View style={styles.docBody}>
+        <Markdown source={doc.body} variant="compact" />
+      </View>
+    ) : null;
 
   return (
-    <SafeAreaView style={styles.safe} edges={['bottom']}>
-      <Stack.Screen options={{ title: '설정' }} />
+    <SafeAreaView style={styles.safe} edges={['top']}>
+      <Text style={styles.screenTitle}>설정</Text>
       {loading ? (
         <View style={styles.center}>
           <ActivityIndicator color={palette.blue} />
         </View>
       ) : (
-        <ScrollView contentContainerStyle={styles.list} keyboardShouldPersistTaps="handled">
+        <KeyboardAwareScroll contentContainerStyle={styles.list}>
           {/* 프로필 */}
           <Text style={styles.sectionTitle}>프로필</Text>
           {!!user?.email && <Text style={styles.email}>{user.email}</Text>}
@@ -158,11 +168,12 @@ export default function SettingsScreen() {
             </>
           )}
 
-          <Pressable style={styles.logout} onPress={confirmLogout}>
+          <Pressable style={styles.logout} onPress={() => void confirmLogout()}>
             <Text style={styles.logoutText}>로그아웃</Text>
           </Pressable>
-        </ScrollView>
+        </KeyboardAwareScroll>
       )}
+      {dialog}
     </SafeAreaView>
   );
 }
@@ -170,7 +181,8 @@ export default function SettingsScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  list: { padding: 20, paddingBottom: 40, gap: 8 },
+  screenTitle: { fontSize: 22, fontWeight: '800', color: palette.text, paddingHorizontal: 20, paddingTop: 12 },
+  list: { padding: 20, paddingBottom: 130, gap: 8 },
   sectionTitle: { fontSize: 13, fontWeight: '800', color: palette.textDim, marginTop: 18 },
   sectionHint: { fontSize: 12, color: palette.textFaint, marginTop: -2 },
   email: { fontSize: 14, color: palette.textDim, marginTop: 2 },
@@ -205,9 +217,6 @@ const styles = StyleSheet.create({
   viewLink: { fontSize: 12, color: palette.textDim, textDecorationLine: 'underline', marginTop: 3 },
   agreedTag: { fontSize: 12, fontWeight: '700', color: palette.green },
   docBody: {
-    fontSize: 13,
-    color: palette.textDim,
-    lineHeight: 20,
     marginTop: 12,
     paddingTop: 12,
     borderTopWidth: 1,

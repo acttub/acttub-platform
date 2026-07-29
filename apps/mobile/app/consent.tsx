@@ -1,10 +1,9 @@
-import { MaterialIcons } from '@expo/vector-icons';
+import Feather from '@expo/vector-icons/Feather';
 import { Stack } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -12,6 +11,9 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { KeyboardAwareScroll } from '@/components/keyboard-aware-scroll';
+import { useKeyboardHeight } from '@/hooks/use-keyboard-height';
+import { Markdown } from '@/components/markdown';
 import { api, type ConsentDocument } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { saveConsentPrefs } from '@/lib/consent-prefs';
@@ -31,6 +33,8 @@ export default function ConsentScreen() {
   const [busy, setBusy] = useState(false);
   const [loadingPending, setLoadingPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const keyboardHeight = useKeyboardHeight();
+  const keyboardVisible = keyboardHeight > 0;
 
   const loadPendingConsents = useCallback(async () => {
     setLoadingPending(true);
@@ -100,26 +104,34 @@ export default function ConsentScreen() {
         accessibilityLabel={doc.title}
         onPress={() => setAgreed((a) => ({ ...a, [doc.id]: !a[doc.id] }))}>
         <View style={[styles.check, agreed[doc.id] && styles.checkOn]}>
-          {agreed[doc.id] && <MaterialIcons name="check" size={16} color="#fff" />}
+          {agreed[doc.id] && <Feather name="check" size={14} color="#fff" />}
         </View>
         <Text style={styles.docTitle}>{doc.title}</Text>
         <Pressable hitSlop={8} onPress={() => setExpanded((e) => ({ ...e, [doc.id]: !e[doc.id] }))}>
           <Text style={styles.viewLink}>{expanded[doc.id] ? '접기' : '보기'}</Text>
         </Pressable>
       </Pressable>
-      {expanded[doc.id] && <Text style={styles.docBody}>{doc.body}</Text>}
+      {expanded[doc.id] && (
+        <View style={styles.docBody}>
+          <Markdown source={doc.body} variant="compact" />
+        </View>
+      )}
     </View>
   );
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+    <SafeAreaView style={styles.safe} edges={keyboardVisible ? ['top'] : ['top', 'bottom']}>
       <Stack.Screen options={{ headerShown: false }} />
       <View style={styles.header}>
         <Text style={styles.title}>가입 마무리</Text>
         <Text style={styles.subtitle}>이름과 약관 동의만 하면 시작할 수 있어요.</Text>
       </View>
 
-      <ScrollView contentContainerStyle={styles.list} keyboardShouldPersistTaps="handled">
+      <View style={[styles.flex, { paddingBottom: keyboardHeight }]}>
+        {/* KeyboardAvoidingView가 이미 화면을 줄이므로 키보드 inset을 또 잡으면 두 번 밀린다. */}
+        <KeyboardAwareScroll
+          contentContainerStyle={styles.list}
+          automaticallyAdjustKeyboardInsets={false}>
         <Text style={styles.label}>이름</Text>
         <TextInput
           style={styles.input}
@@ -138,7 +150,7 @@ export default function ConsentScreen() {
             accessibilityState={{ checked: allChecked }}
             accessibilityLabel="약관 전체 동의">
             <View style={[styles.check, allChecked && styles.checkOn]}>
-              {allChecked && <MaterialIcons name="check" size={16} color="#fff" />}
+              {allChecked && <Feather name="check" size={14} color="#fff" />}
             </View>
             <Text style={styles.allText}>약관 전체 동의</Text>
           </Pressable>
@@ -158,9 +170,9 @@ export default function ConsentScreen() {
             {optional.map(renderDoc)}
           </>
         )}
-      </ScrollView>
+        </KeyboardAwareScroll>
 
-      {loadingPending && pendingConsents.length === 0 && <ActivityIndicator color={palette.blue} />}
+        {loadingPending && pendingConsents.length === 0 && <ActivityIndicator color={palette.blue} />}
       {error && <Text style={styles.error}>{error}</Text>}
       {error && status === 'signedIn' && pendingConsents.length === 0 && (
         <Pressable
@@ -170,22 +182,24 @@ export default function ConsentScreen() {
           <Text style={styles.retryText}>다시 불러오기</Text>
         </Pressable>
       )}
-      <Pressable
-        style={[styles.cta, (!canProceed || busy) && styles.ctaDisabled]}
-        onPress={proceed}
-        disabled={!canProceed || busy}>
-        {busy ? (
-          <ActivityIndicator color="#fff" />
-        ) : (
-          <Text style={styles.ctaText}>동의하고 시작하기</Text>
-        )}
-      </Pressable>
+        <Pressable
+          style={[styles.cta, (!canProceed || busy) && styles.ctaDisabled]}
+          onPress={proceed}
+          disabled={!canProceed || busy}>
+          {busy ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text style={styles.ctaText}>동의하고 시작하기</Text>
+          )}
+        </Pressable>
+      </View>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
+  flex: { flex: 1 },
   header: { paddingHorizontal: 24, paddingTop: 16, paddingBottom: 8 },
   title: { fontSize: 24, fontWeight: '800', color: palette.text },
   subtitle: { fontSize: 14, color: palette.textDim, marginTop: 6, lineHeight: 20 },
@@ -233,9 +247,6 @@ const styles = StyleSheet.create({
   docTitle: { flex: 1, fontSize: 14, color: palette.text, fontWeight: '600' },
   viewLink: { fontSize: 13, color: palette.textDim, textDecorationLine: 'underline' },
   docBody: {
-    fontSize: 13,
-    color: palette.textDim,
-    lineHeight: 20,
     marginTop: 12,
     paddingTop: 12,
     borderTopWidth: 1,

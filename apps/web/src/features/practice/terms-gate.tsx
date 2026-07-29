@@ -8,6 +8,7 @@ import { useDisplayNameGate } from "@/features/auth/use-display-name-gate";
 import {
   clearPendingConsents,
   getPendingConsents as getStoredPendingConsents,
+  markPrivacyVersionAccepted,
   savePendingConsents,
 } from "@/features/auth/pending-consents";
 import { logout } from "@/lib/api/v2/auth";
@@ -198,6 +199,10 @@ function TermsGateContent() {
       }
 
       clearPendingConsents();
+      // 필수 동의를 전부 서버에 기록한 순간이다. 어느 버전에 동의했는지까지 남겨야
+      // 다음 개정 때 계측 쿠키가 저절로 유지되지 않는다(pending-consents.ts 참고).
+      const acceptedPrivacy = state.documents.find((document) => document.type === "privacy");
+      if (acceptedPrivacy) markPrivacyVersionAccepted(acceptedPrivacy.version);
       enterApp(sanitizeNextPath(searchParams.get("next")));
     } finally {
       setSubmitting(false);

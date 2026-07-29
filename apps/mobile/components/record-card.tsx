@@ -1,4 +1,4 @@
-import { MaterialIcons } from '@expo/vector-icons';
+import Feather from '@expo/vector-icons/Feather';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import type { ReportRecord } from '@/lib/api';
@@ -40,17 +40,19 @@ export function RecordCard({
       <View style={styles.cardTop}>
         <Pressable style={styles.cardTextArea} onPress={onPress}>
           <View style={styles.eyebrowRow}>
-            <MaterialIcons name="graphic-eq" size={16} color={palette.textFaint} />
+            <Feather name="activity" size={15} color={palette.textFaint} />
             <Text style={styles.eyebrow}>연습 피드백</Text>
           </View>
           <Text style={styles.cardTitle} numberOfLines={2}>
             {item.headline}
           </Text>
-          {!preview && <Text style={styles.timestamp}>{formatKoreanDateTime(item.created_at)}</Text>}
+          <Text style={[styles.timestamp, preview && styles.timestampPreview]}>
+            {formatKoreanDateTime(item.created_at)}
+          </Text>
         </Pressable>
         {!!onMenu && (
           <Pressable hitSlop={8} style={styles.menuBtn} onPress={onMenu}>
-            <MaterialIcons name="more-vert" size={22} color={palette.textFaint} />
+            <Feather name="more-vertical" size={20} color={palette.textFaint} />
           </Pressable>
         )}
       </View>
@@ -90,9 +92,13 @@ const styles = StyleSheet.create({
   eyebrow: { fontSize: 13, fontWeight: '500', color: palette.textFaint },
   cardTitle: { fontSize: 16, fontWeight: '500', color: palette.text, lineHeight: 24 },
   timestamp: { fontSize: 13, fontWeight: '400', color: palette.textFaint, marginTop: 6 },
+  timestampPreview: { fontSize: 12 },
   menuBtn: { padding: 2, marginLeft: 8 },
   chipRow: { gap: 8, paddingTop: 14, paddingRight: 8 },
   chip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
     backgroundColor: palette.bgSoft,
     borderRadius: 999,
     paddingHorizontal: 14,
