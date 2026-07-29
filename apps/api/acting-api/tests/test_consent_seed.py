@@ -27,9 +27,9 @@ MANIFEST = [
         "required": True,
     },
     {
-        "file": "privacy_v1.md",
+        "file": "privacy_v2.md",
         "type": "privacy",
-        "version": "v1",
+        "version": "v2",
         "title": "개인정보처리방침",
         "required": True,
     },
@@ -93,13 +93,13 @@ def test_seed_missing_manifest_is_non_fatal_and_warns(tmp_path, caplog):
 def test_seed_validates_every_file_before_publishing(tmp_path, caplog):
     docs_dir = tmp_path / "consent_docs"
     _write_docs(docs_dir)
-    (docs_dir / "privacy_v1.md").unlink()
+    (docs_dir / "privacy_v2.md").unlink()
     store = FakeAuthStore()
 
     assert seed_consent_documents(store, docs_dir) == 0
 
     assert store.list_consent_documents() == []
-    assert "privacy_v1.md" in caplog.text
+    assert "privacy_v2.md" in caplog.text
 
 
 def test_seed_warns_when_existing_document_content_differs(tmp_path, caplog):
