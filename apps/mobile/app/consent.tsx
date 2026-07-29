@@ -3,8 +3,9 @@ import { Stack } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -12,6 +13,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { KeyboardAwareScroll } from '@/components/keyboard-aware-scroll';
 import { api, type ConsentDocument } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { saveConsentPrefs } from '@/lib/consent-prefs';
@@ -119,7 +121,13 @@ export default function ConsentScreen() {
         <Text style={styles.subtitle}>이름과 약관 동의만 하면 시작할 수 있어요.</Text>
       </View>
 
-      <ScrollView contentContainerStyle={styles.list} keyboardShouldPersistTaps="handled">
+      <KeyboardAvoidingView
+        style={styles.flex}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        {/* KeyboardAvoidingView가 이미 화면을 줄이므로 키보드 inset을 또 잡으면 두 번 밀린다. */}
+        <KeyboardAwareScroll
+          contentContainerStyle={styles.list}
+          automaticallyAdjustKeyboardInsets={false}>
         <Text style={styles.label}>이름</Text>
         <TextInput
           style={styles.input}
@@ -158,9 +166,9 @@ export default function ConsentScreen() {
             {optional.map(renderDoc)}
           </>
         )}
-      </ScrollView>
+        </KeyboardAwareScroll>
 
-      {loadingPending && pendingConsents.length === 0 && <ActivityIndicator color={palette.blue} />}
+        {loadingPending && pendingConsents.length === 0 && <ActivityIndicator color={palette.blue} />}
       {error && <Text style={styles.error}>{error}</Text>}
       {error && status === 'signedIn' && pendingConsents.length === 0 && (
         <Pressable
@@ -170,22 +178,24 @@ export default function ConsentScreen() {
           <Text style={styles.retryText}>다시 불러오기</Text>
         </Pressable>
       )}
-      <Pressable
-        style={[styles.cta, (!canProceed || busy) && styles.ctaDisabled]}
-        onPress={proceed}
-        disabled={!canProceed || busy}>
-        {busy ? (
-          <ActivityIndicator color="#fff" />
-        ) : (
-          <Text style={styles.ctaText}>동의하고 시작하기</Text>
-        )}
-      </Pressable>
+        <Pressable
+          style={[styles.cta, (!canProceed || busy) && styles.ctaDisabled]}
+          onPress={proceed}
+          disabled={!canProceed || busy}>
+          {busy ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text style={styles.ctaText}>동의하고 시작하기</Text>
+          )}
+        </Pressable>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
+  flex: { flex: 1 },
   header: { paddingHorizontal: 24, paddingTop: 16, paddingBottom: 8 },
   title: { fontSize: 24, fontWeight: '800', color: palette.text },
   subtitle: { fontSize: 14, color: palette.textDim, marginTop: 6, lineHeight: 20 },

@@ -21,6 +21,7 @@ import { useAuth } from '@/lib/auth';
 import { setPendingUpload, takePrefill } from '@/lib/practice';
 import {
   MAX_VIDEO_DURATION_MS,
+  missingUploadFieldsHint,
   normalizeVideoDurationMs,
 } from '@/lib/upload-input';
 import { palette } from '@/constants/palette';
@@ -109,6 +110,13 @@ export default function UploadScreen() {
   };
 
   const submitDisabled = !canSubmit || starting;
+  const missingHint = missingUploadFieldsHint({
+    situation,
+    character,
+    subtext,
+    hasVideo: !!video,
+    agreedRights,
+  });
 
   return (
     <SafeAreaView style={styles.safe} edges={['bottom']}>
@@ -171,13 +179,17 @@ export default function UploadScreen() {
             </Text>
           </Pressable>
 
+        </ScrollView>
+        {/* 입력은 위에서 아래로, 실행은 아래에서 위로 — '분석 시작'은 화면 하단에 고정한다. */}
+        <View style={styles.submitBar}>
           <Pressable
             style={[styles.submit, submitDisabled && styles.submitDisabled]}
             onPress={start}
             disabled={submitDisabled}>
             <Text style={styles.submitText}>분석 시작</Text>
           </Pressable>
-        </ScrollView>
+          {!canSubmit && !starting && <Text style={styles.submitHint}>{missingHint}</Text>}
+        </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -239,13 +251,21 @@ const styles = StyleSheet.create({
   checkOn: { backgroundColor: palette.blue, borderColor: palette.blue },
   checkMark: { color: '#fff', fontSize: 13, fontWeight: '900' },
   rightsText: { flex: 1, fontSize: 12, color: palette.textDim, lineHeight: 18 },
+  submitBar: {
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 12,
+    borderTopWidth: 1,
+    borderTopColor: palette.border,
+    backgroundColor: palette.bg,
+  },
   submit: {
     backgroundColor: palette.blue,
     borderRadius: 16,
     padding: 17,
     alignItems: 'center',
-    marginTop: 14,
   },
   submitDisabled: { opacity: 0.4 },
   submitText: { color: '#FFFFFF', fontSize: 16, fontWeight: '800' },
+  submitHint: { marginTop: 8, fontSize: 12, color: palette.textFaint, textAlign: 'center' },
 });

@@ -25,6 +25,29 @@ export function prepareUploadIntentBody(input: UploadIntentInput): string {
   return JSON.stringify(input);
 }
 
+export type UploadFormState = {
+  situation: string;
+  character: string;
+  subtext: string;
+  hasVideo: boolean;
+  agreedRights: boolean;
+};
+
+/**
+ * 하단에 고정된 '분석 시작'이 비활성일 때 뭐가 비었는지 알려주는 문구.
+ * 버튼이 항상 보이게 되면서 "왜 안 눌리지"가 생기므로 이유를 한 줄로 붙인다.
+ */
+export function missingUploadFieldsHint(state: UploadFormState): string | null {
+  const missing: string[] = [];
+  if (!state.hasVideo) missing.push('영상');
+  if (!state.situation.trim()) missing.push('상황');
+  if (!state.character.trim()) missing.push('인물');
+  if (!state.subtext.trim()) missing.push('의도');
+  if (missing.length > 0) return `${missing.join(' · ')}을(를) 채워주세요`;
+  if (!state.agreedRights) return '권리 확인에 체크해주세요';
+  return null;
+}
+
 export async function sendUploadIntent<T>(
   input: UploadIntentInput,
   send: (serializedBody: string) => Promise<T>,

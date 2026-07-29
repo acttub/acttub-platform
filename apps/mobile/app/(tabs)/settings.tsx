@@ -3,7 +3,6 @@ import {
   ActivityIndicator,
   Alert,
   Pressable,
-  ScrollView,
   StyleSheet,
   Switch,
   Text,
@@ -12,6 +11,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { KeyboardAwareScroll } from '@/components/keyboard-aware-scroll';
 import { api, type ConsentDocument } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { getConsentPrefs, setConsentPref } from '@/lib/consent-prefs';
@@ -91,7 +91,7 @@ export default function SettingsScreen() {
           <ActivityIndicator color={palette.blue} />
         </View>
       ) : (
-        <ScrollView contentContainerStyle={styles.list} keyboardShouldPersistTaps="handled">
+        <KeyboardAwareScroll contentContainerStyle={styles.list}>
           {/* 프로필 */}
           <Text style={styles.sectionTitle}>프로필</Text>
           {!!user?.email && <Text style={styles.email}>{user.email}</Text>}
@@ -160,7 +160,7 @@ export default function SettingsScreen() {
           <Pressable style={styles.logout} onPress={confirmLogout}>
             <Text style={styles.logoutText}>로그아웃</Text>
           </Pressable>
-        </ScrollView>
+        </KeyboardAwareScroll>
       )}
     </SafeAreaView>
   );
