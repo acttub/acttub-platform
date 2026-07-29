@@ -127,15 +127,14 @@ export default function HomeScreen() {
                 {total ? '꾸준함이 쌓이는 중이에요' : '첫 연습이 여기에 쌓여요'}
               </Text>
             )}
-            <Text style={styles.streakEmpty}>전체 {total}회</Text>
-          </View>
-          <View style={styles.legend}>
-            {weekLegendLabels.map((label, i) => (
-              <View key={label} style={styles.legendItem}>
-                <Text style={styles.legendLabel}>{label}</Text>
-                <View style={[styles.legendSwatch, { backgroundColor: weekColors[i + 1] }]} />
-              </View>
-            ))}
+            <View style={styles.legend}>
+              {weekLegendLabels.map((label, i) => (
+                <View key={label} style={styles.legendItem}>
+                  <Text style={styles.legendLabel}>{label}</Text>
+                  <View style={[styles.legendSwatch, { backgroundColor: weekColors[i + 1] }]} />
+                </View>
+              ))}
+            </View>
           </View>
         </View>
 
@@ -198,8 +197,8 @@ const styles = StyleSheet.create({
   coachCard: {
     backgroundColor: palette.navy,
     borderRadius: 20,
-    padding: 20,
-    marginTop: 20,
+    padding: 18,
+    marginTop: 16,
   },
   coachCardPressed: { opacity: 0.85 },
   coachLabel: { fontSize: 12, fontWeight: '700', color: '#8FA5FF', marginBottom: 8 },
@@ -210,8 +209,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-end',
     justifyContent: 'space-between',
-    marginTop: 28,
-    marginBottom: 10,
+    marginTop: 22,
+    marginBottom: 8,
   },
   sectionTitle: { fontSize: 16, fontWeight: '800', color: palette.text },
   sectionMeta: { fontSize: 12, color: palette.textFaint },
@@ -221,14 +220,14 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: palette.border,
     borderRadius: 16,
-    padding: 14,
+    padding: 12,
   },
-  week: { flexDirection: 'row', gap: 6 },
-  weekDay: { flex: 1, alignItems: 'center', gap: 6 },
+  week: { flexDirection: 'row', gap: 5 },
+  weekDay: { flex: 1, alignItems: 'center', gap: 4 },
   weekCell: {
     width: '100%',
-    height: 44,
-    borderRadius: 10,
+    height: 30,
+    borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -240,23 +239,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginTop: 12,
+    marginTop: 10,
   },
-  legend: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 14,
-    marginTop: 12,
-  },
-  legendItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  legendLabel: { fontSize: 12, color: palette.textFaint },
-  legendSwatch: { width: 18, height: 18, borderRadius: 6 },
+  legend: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  legendItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  legendLabel: { fontSize: 10, color: palette.textFaint },
+  legendSwatch: { width: 12, height: 12, borderRadius: 4 },
   streakChip: {
     backgroundColor: palette.amberSoft,
     borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
   },
   streak: { fontSize: 12, fontWeight: '800', color: '#B45309' },
   streakEmpty: { fontSize: 12, color: palette.textFaint },
