@@ -1,11 +1,8 @@
-import { useHeaderHeight } from '@react-navigation/elements';
 import { Stack, useRouter } from 'expo-router';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useCallback, useEffect, useRef, useState, type ComponentType } from 'react';
 import {
   ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -20,7 +17,7 @@ import { api } from '@/lib/api';
 import { attemptCoachStart, canSendCoachMessage } from '@/lib/coach-flow';
 import { getPractice } from '@/lib/practice';
 import { palette } from '@/constants/palette';
-import { useKeyboardVisible } from '@/hooks/use-keyboard-visible';
+import { useKeyboardHeight } from '@/hooks/use-keyboard-height';
 import type { MicButtonProps } from '@/components/mic-button';
 
 // 네이티브 모듈이 없는 빌드(STT 도입 전 dev client)에서도 화면이 뜨도록 가드해서 로드한다.
@@ -46,8 +43,8 @@ type ChatMessage = {
  */
 export default function CoachScreen() {
   const router = useRouter();
-  const headerHeight = useHeaderHeight();
-  const keyboardVisible = useKeyboardVisible();
+  const keyboardHeight = useKeyboardHeight();
+  const keyboardVisible = keyboardHeight > 0;
   const { width: windowWidth } = useWindowDimensions();
   const practice = getPractice();
   const scrollRef = useRef<ScrollView>(null);
@@ -159,12 +156,9 @@ export default function CoachScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safe} edges={['bottom']}>
+    <SafeAreaView style={styles.safe} edges={keyboardVisible ? [] : ['bottom']}>
       <Stack.Screen options={{ title: '코치와 되짚기', headerBackVisible: false }} />
-      <KeyboardAvoidingView
-        style={styles.flex}
-        behavior="padding"
-        keyboardVerticalOffset={Platform.OS === 'ios' ? headerHeight : 0}>
+      <View style={[styles.flex, { paddingBottom: keyboardHeight }]}>
         {/* 영상: 위에 고정 (스크롤 안 됨) */}
         {practice.videoUri && (
           <VideoView
@@ -273,7 +267,7 @@ export default function CoachScreen() {
             </Pressable>
           </View>
         )}
-      </KeyboardAvoidingView>
+      </View>
     </SafeAreaView>
   );
 }

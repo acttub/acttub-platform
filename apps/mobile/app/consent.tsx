@@ -3,8 +3,6 @@ import { Stack } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -14,6 +12,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { KeyboardAwareScroll } from '@/components/keyboard-aware-scroll';
+import { useKeyboardHeight } from '@/hooks/use-keyboard-height';
 import { Markdown } from '@/components/markdown';
 import { api, type ConsentDocument } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
@@ -34,6 +33,8 @@ export default function ConsentScreen() {
   const [busy, setBusy] = useState(false);
   const [loadingPending, setLoadingPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const keyboardHeight = useKeyboardHeight();
+  const keyboardVisible = keyboardHeight > 0;
 
   const loadPendingConsents = useCallback(async () => {
     setLoadingPending(true);
@@ -119,16 +120,14 @@ export default function ConsentScreen() {
   );
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+    <SafeAreaView style={styles.safe} edges={keyboardVisible ? ['top'] : ['top', 'bottom']}>
       <Stack.Screen options={{ headerShown: false }} />
       <View style={styles.header}>
         <Text style={styles.title}>가입 마무리</Text>
         <Text style={styles.subtitle}>이름과 약관 동의만 하면 시작할 수 있어요.</Text>
       </View>
 
-      <KeyboardAvoidingView
-        style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <View style={[styles.flex, { paddingBottom: keyboardHeight }]}>
         {/* KeyboardAvoidingView가 이미 화면을 줄이므로 키보드 inset을 또 잡으면 두 번 밀린다. */}
         <KeyboardAwareScroll
           contentContainerStyle={styles.list}
@@ -193,7 +192,7 @@ export default function ConsentScreen() {
             <Text style={styles.ctaText}>동의하고 시작하기</Text>
           )}
         </Pressable>
-      </KeyboardAvoidingView>
+      </View>
     </SafeAreaView>
   );
 }
