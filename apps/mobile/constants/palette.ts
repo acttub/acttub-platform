@@ -31,5 +31,3 @@ export const palette = {
  */
 export const weekColors = ['#EDEFF4', '#F8D66E', '#F3AE74', '#EE837D', '#EC6A85'];
 
-/** 범례에 쓰는 라벨 — weekColors의 1단계부터 순서대로 대응한다. */
-export const weekLegendLabels = ['1', '2~3', '4~5', '6~7'];

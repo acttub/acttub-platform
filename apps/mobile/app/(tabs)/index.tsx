@@ -3,7 +3,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { weekColors, weekLegendLabels, palette } from '@/constants/palette';
+import { weekColors, palette } from '@/constants/palette';
 import { api, type ReportRecord } from '@/lib/api';
 import { RecordCard, type RecordMeta } from '@/components/record-card';
 import { buildWeekActivity, weekColorStep } from '@/lib/practice-activity';
@@ -128,12 +128,11 @@ export default function HomeScreen() {
               </Text>
             )}
             <View style={styles.legend}>
-              {weekLegendLabels.map((label, i) => (
-                <View key={label} style={styles.legendItem}>
-                  <Text style={styles.legendLabel}>{label}</Text>
-                  <View style={[styles.legendSwatch, { backgroundColor: weekColors[i + 1] }]} />
-                </View>
+              <Text style={styles.legendLabel}>적음</Text>
+              {weekColors.slice(1).map((color) => (
+                <View key={color} style={[styles.legendSwatch, { backgroundColor: color }]} />
               ))}
+              <Text style={styles.legendLabel}>많음</Text>
             </View>
           </View>
         </View>
@@ -226,8 +225,8 @@ const styles = StyleSheet.create({
   weekDay: { flex: 1, alignItems: 'center', gap: 4 },
   weekCell: {
     width: '100%',
-    height: 30,
-    borderRadius: 8,
+    aspectRatio: 1, // 요일 칸은 정사각형
+    borderRadius: 9,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -241,9 +240,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginTop: 10,
   },
-  legend: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  legendItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  legendLabel: { fontSize: 10, color: palette.textFaint },
+  legend: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  legendLabel: { fontSize: 10, color: palette.textFaint, marginHorizontal: 2 },
   legendSwatch: { width: 12, height: 12, borderRadius: 4 },
   streakChip: {
     backgroundColor: palette.amberSoft,
