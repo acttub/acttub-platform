@@ -129,7 +129,7 @@ export default function HomeScreen() {
             )}
             <View style={styles.legend}>
               <Text style={styles.legendLabel}>적음</Text>
-              {weekColors.slice(1).map((color) => (
+              {weekColors.map((color) => (
                 <View key={color} style={[styles.legendSwatch, { backgroundColor: color }]} />
               ))}
               <Text style={styles.legendLabel}>많음</Text>
