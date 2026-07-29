@@ -14,3 +14,4 @@ import './markdown.test.mjs';
 import './font-weight.test.mjs';
 import './record-meta.test.mjs';
 import './display-name.test.mjs';
+import './keyboard-overlap.test.mjs';
