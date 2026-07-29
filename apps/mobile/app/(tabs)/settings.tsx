@@ -1,4 +1,3 @@
-import { Stack } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -85,8 +84,8 @@ export default function SettingsScreen() {
     expanded[doc.id] ? <Text style={styles.docBody}>{doc.body}</Text> : null;
 
   return (
-    <SafeAreaView style={styles.safe} edges={['bottom']}>
-      <Stack.Screen options={{ title: '설정' }} />
+    <SafeAreaView style={styles.safe} edges={['top']}>
+      <Text style={styles.screenTitle}>설정</Text>
       {loading ? (
         <View style={styles.center}>
           <ActivityIndicator color={palette.blue} />
@@ -170,7 +169,8 @@ export default function SettingsScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  list: { padding: 20, paddingBottom: 40, gap: 8 },
+  screenTitle: { fontSize: 22, fontWeight: '800', color: palette.text, paddingHorizontal: 20, paddingTop: 12 },
+  list: { padding: 20, paddingBottom: 130, gap: 8 },
   sectionTitle: { fontSize: 13, fontWeight: '800', color: palette.textDim, marginTop: 18 },
   sectionHint: { fontSize: 12, color: palette.textFaint, marginTop: -2 },
   email: { fontSize: 14, color: palette.textDim, marginTop: 2 },

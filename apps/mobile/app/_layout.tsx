@@ -1,3 +1,4 @@
+import Feather from '@expo/vector-icons/Feather';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { useFonts } from 'expo-font';
@@ -270,6 +271,7 @@ function ScreenTracker() {
 export default function RootLayout() {
   const [fontsLoaded] = useFonts({
     ...MaterialIcons.font,
+    ...Feather.font,
     Pretendard: require('@/assets/fonts/PretendardVariable.ttf'),
   });
 

@@ -1,4 +1,4 @@
-import { MaterialIcons } from '@expo/vector-icons';
+import { Feather } from '@expo/vector-icons';
 import { Stack } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
@@ -100,7 +100,7 @@ export default function ConsentScreen() {
         accessibilityLabel={doc.title}
         onPress={() => setAgreed((a) => ({ ...a, [doc.id]: !a[doc.id] }))}>
         <View style={[styles.check, agreed[doc.id] && styles.checkOn]}>
-          {agreed[doc.id] && <MaterialIcons name="check" size={16} color="#fff" />}
+          {agreed[doc.id] && <Feather name="check" size={14} color="#fff" />}
         </View>
         <Text style={styles.docTitle}>{doc.title}</Text>
         <Pressable hitSlop={8} onPress={() => setExpanded((e) => ({ ...e, [doc.id]: !e[doc.id] }))}>
@@ -138,7 +138,7 @@ export default function ConsentScreen() {
             accessibilityState={{ checked: allChecked }}
             accessibilityLabel="약관 전체 동의">
             <View style={[styles.check, allChecked && styles.checkOn]}>
-              {allChecked && <MaterialIcons name="check" size={16} color="#fff" />}
+              {allChecked && <Feather name="check" size={14} color="#fff" />}
             </View>
             <Text style={styles.allText}>약관 전체 동의</Text>
           </Pressable>

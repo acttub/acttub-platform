@@ -1,4 +1,4 @@
-import { useFocusEffect, useRouter, type Href } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -6,20 +6,15 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { heatColors, palette } from '@/constants/palette';
 import { api, type ReportRecord } from '@/lib/api';
 import { RecordCard } from '@/components/record-card';
+import { buildWeekActivity } from '@/lib/practice-activity';
+import { getUserName } from '@/lib/profile';
 import { sortReportsNewestFirst } from '@/lib/report-order';
 
-const WEEKS = 12;
-const DAY = 24 * 60 * 60 * 1000;
-
-/** 로컬 자정 기준 날짜 키 (YYYY-MM-DD). */
-function dayKey(d: Date) {
-  return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
-}
-
-/** A1. 홈 — 인사말 + AI 코치 카드 + 연습 활동(히트맵·스탯) + 최근 연습. */
+/** A1. 홈 — 인사말 + AI 코치 카드(=연습 시작) + 이번 주 연습 활동 + 최근 연습. */
 export default function HomeScreen() {
   const router = useRouter();
   const [records, setRecords] = useState<ReportRecord[]>([]);
+  const [name, setName] = useState<string | null>(null);
 
   useFocusEffect(
     useCallback(() => {
@@ -32,43 +27,18 @@ export default function HomeScreen() {
         .catch(() => {
           if (!cancelled) setRecords([]);
         });
+      // 설정에서 이름을 바꿀 수 있으니 화면에 돌아올 때마다 다시 읽는다.
+      void getUserName().then((stored) => {
+        if (!cancelled) setName(stored?.trim() || null);
+      });
       return () => {
         cancelled = true;
       };
     }, []),
   );
 
-  const { grid, streak, total } = useMemo(() => {
-    const counts = new Map<string, number>();
-    for (const r of records) {
-      const key = dayKey(new Date(r.created_at));
-      counts.set(key, (counts.get(key) ?? 0) + 1);
-    }
-
-    // 이번 주(월요일 시작)의 월요일을 마지막 열로 두고 12주를 거슬러 올라간다.
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const monday = new Date(today.getTime() - ((today.getDay() + 6) % 7) * DAY);
-    const grid: number[][] = [];
-    for (let w = WEEKS - 1; w >= 0; w--) {
-      const col: number[] = [];
-      for (let d = 0; d < 7; d++) {
-        const cell = new Date(monday.getTime() - w * 7 * DAY + d * DAY);
-        col.push(cell > today ? -1 : (counts.get(dayKey(cell)) ?? 0));
-      }
-      grid.push(col);
-    }
-
-    let streak = 0;
-    for (let i = 0; ; i++) {
-      const day = new Date(today.getTime() - i * DAY);
-      if (counts.has(dayKey(day))) streak++;
-      else if (i === 0) continue; // 오늘 아직 안 했어도 어제까지의 연속은 유지
-      else break;
-    }
-
-    return { grid, streak, total: records.length };
-  }, [records]);
+  const { days, weekTotal, streak } = useMemo(() => buildWeekActivity(records), [records]);
+  const total = records.length;
 
   const latest = records[0];
   const recent = records.slice(0, 2);
@@ -78,20 +48,21 @@ export default function HomeScreen() {
       <ScrollView contentContainerStyle={styles.container}>
         <View style={styles.helloRow}>
           <View style={styles.flex}>
-            <Text style={styles.hello}>안녕하세요 👋</Text>
+            <Text style={styles.hello}>{name ? `${name}님, 안녕하세요 👋` : '안녕하세요 👋'}</Text>
             <Text style={styles.helloSub}>오늘은 어떤 장면을 연습할까요?</Text>
           </View>
-          <Pressable hitSlop={8} onPress={() => router.push('/settings' as Href)}>
-            <Text style={styles.logout}>설정</Text>
-          </Pressable>
         </View>
 
-        {/* AI 코치 카드 */}
-        <View style={styles.coachCard}>
+        {/* AI 코치 카드 — 카드 전체가 '연습 시작' 버튼이다(안에 버튼을 또 두지 않는다). */}
+        <Pressable
+          style={({ pressed }) => [styles.coachCard, pressed && styles.coachCardPressed]}
+          accessibilityRole="button"
+          accessibilityLabel="연습 시작"
+          onPress={() => router.push('/upload')}>
           <Text style={styles.coachLabel}>AI 코치</Text>
           <Text style={styles.coachHeadline}>
             {latest
-              ? '지난 피드백을 이어 연습해 볼까요?' 
+              ? '지난 피드백을 이어 연습해 볼까요?'
               : '영상을 올리면 원인과 처방을 돌려드려요'}
           </Text>
           <Text style={styles.coachBody} numberOfLines={2}>
@@ -99,34 +70,34 @@ export default function HomeScreen() {
               ? latest.headline
               : '점수 대신, 의도가 왜 안 닿았는지와 당장 해볼 처방 하나.'}
           </Text>
-          <Pressable style={styles.coachCta} onPress={() => router.push('/upload')}>
-            <Text style={styles.coachCtaText}>연습 시작 →</Text>
-          </Pressable>
-        </View>
+          <Text style={styles.coachCtaText}>연습 시작 →</Text>
+        </Pressable>
 
-        {/* 연습 활동 */}
+        {/* 연습 활동 — 이번 주(월~일) */}
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>연습 활동</Text>
-          <Text style={styles.sectionMeta}>최근 {WEEKS}주 · {total}회</Text>
+          <Text style={styles.sectionMeta}>이번 주 · {weekTotal}회</Text>
         </View>
         <View style={styles.activityCard}>
-          <View style={styles.heatmap}>
-            {grid.map((col, i) => (
-              <View key={i} style={styles.heatCol}>
-                {col.map((count, j) => (
-                  <View
-                    key={j}
-                    style={[
-                      styles.heatCell,
-                      {
-                        backgroundColor:
-                          count < 0
-                            ? 'transparent'
-                            : heatColors[Math.min(count, heatColors.length - 1)],
-                      },
-                    ]}
-                  />
-                ))}
+          <View style={styles.week}>
+            {days.map((day) => (
+              <View key={day.key} style={styles.weekDay}>
+                <View
+                  style={[
+                    styles.weekCell,
+                    {
+                      backgroundColor: day.isFuture
+                        ? 'transparent'
+                        : heatColors[Math.min(day.count, heatColors.length - 1)],
+                    },
+                    day.isFuture && styles.weekCellFuture,
+                    day.isToday && styles.weekCellToday,
+                  ]}>
+                  {day.count > 0 && <Text style={styles.weekCount}>{day.count}</Text>}
+                </View>
+                <Text style={[styles.weekLabel, day.isToday && styles.weekLabelToday]}>
+                  {day.label}
+                </Text>
               </View>
             ))}
           </View>
@@ -138,13 +109,7 @@ export default function HomeScreen() {
                 {total ? '꾸준함이 쌓이는 중이에요' : '첫 연습이 여기에 쌓여요'}
               </Text>
             )}
-            <View style={styles.legend}>
-              <Text style={styles.legendText}>적음</Text>
-              {heatColors.map((c) => (
-                <View key={c} style={[styles.legendCell, { backgroundColor: c }]} />
-              ))}
-              <Text style={styles.legendText}>많음</Text>
-            </View>
+            <Text style={styles.streakEmpty}>전체 {total}회</Text>
           </View>
         </View>
 
@@ -201,7 +166,6 @@ const styles = StyleSheet.create({
   container: { padding: 20, paddingBottom: 130 },
   helloRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
   flex: { flex: 1 },
-  logout: { fontSize: 13, color: palette.textFaint, marginTop: 10, fontWeight: '600' },
   hello: { fontSize: 14, color: palette.textDim, marginTop: 8 },
   helloSub: { fontSize: 22, fontWeight: '800', color: palette.text, marginTop: 2 },
   coachCard: {
@@ -210,18 +174,11 @@ const styles = StyleSheet.create({
     padding: 20,
     marginTop: 20,
   },
+  coachCardPressed: { opacity: 0.85 },
   coachLabel: { fontSize: 12, fontWeight: '700', color: '#8FA5FF', marginBottom: 8 },
   coachHeadline: { fontSize: 18, fontWeight: '800', color: '#FFFFFF', lineHeight: 26 },
   coachBody: { fontSize: 13, color: '#9FB0C9', lineHeight: 19, marginTop: 8 },
-  coachCta: {
-    backgroundColor: palette.blue,
-    borderRadius: 12,
-    paddingVertical: 12,
-    paddingHorizontal: 18,
-    alignSelf: 'flex-start',
-    marginTop: 16,
-  },
-  coachCtaText: { color: '#FFFFFF', fontSize: 14, fontWeight: '800' },
+  coachCtaText: { color: '#8FA5FF', fontSize: 14, fontWeight: '800', marginTop: 16 },
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'flex-end',
@@ -239,9 +196,20 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 14,
   },
-  heatmap: { flexDirection: 'row', justifyContent: 'space-between' },
-  heatCol: { gap: 4 },
-  heatCell: { width: 18, height: 18, borderRadius: 4 },
+  week: { flexDirection: 'row', gap: 6 },
+  weekDay: { flex: 1, alignItems: 'center', gap: 6 },
+  weekCell: {
+    width: '100%',
+    height: 44,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  weekCellFuture: { borderWidth: 1, borderColor: palette.border, borderStyle: 'dashed' },
+  weekCellToday: { borderWidth: 2, borderColor: palette.blue },
+  weekCount: { fontSize: 13, fontWeight: '800', color: palette.navy },
+  weekLabel: { fontSize: 11, color: palette.textFaint },
+  weekLabelToday: { color: palette.blue, fontWeight: '800' },
   activityFooter: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -250,9 +218,6 @@ const styles = StyleSheet.create({
   },
   streak: { fontSize: 12, fontWeight: '700', color: palette.text },
   streakEmpty: { fontSize: 12, color: palette.textFaint },
-  legend: { flexDirection: 'row', alignItems: 'center', gap: 3 },
-  legendCell: { width: 10, height: 10, borderRadius: 3 },
-  legendText: { fontSize: 10, color: palette.textFaint, marginHorizontal: 3 },
   statRow: {
     flexDirection: 'row',
     alignItems: 'center',

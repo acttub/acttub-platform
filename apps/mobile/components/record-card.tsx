@@ -1,4 +1,4 @@
-import { MaterialIcons } from '@expo/vector-icons';
+import { Feather } from '@expo/vector-icons';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import type { ReportRecord } from '@/lib/api';
@@ -40,7 +40,7 @@ export function RecordCard({
       <View style={styles.cardTop}>
         <Pressable style={styles.cardTextArea} onPress={onPress}>
           <View style={styles.eyebrowRow}>
-            <MaterialIcons name="graphic-eq" size={16} color={palette.textFaint} />
+            <Feather name="activity" size={15} color={palette.textFaint} />
             <Text style={styles.eyebrow}>연습 피드백</Text>
           </View>
           <Text style={styles.cardTitle} numberOfLines={2}>
@@ -50,7 +50,7 @@ export function RecordCard({
         </Pressable>
         {!!onMenu && (
           <Pressable hitSlop={8} style={styles.menuBtn} onPress={onMenu}>
-            <MaterialIcons name="more-vert" size={22} color={palette.textFaint} />
+            <Feather name="more-vertical" size={20} color={palette.textFaint} />
           </Pressable>
         )}
       </View>
