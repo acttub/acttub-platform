@@ -10,3 +10,4 @@ import './pending-analysis.test.mjs';
 import './ui-fixes.test.mjs';
 import './upload-input.test.mjs';
 import './practice-activity.test.mjs';
+import './markdown.test.mjs';

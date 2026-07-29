@@ -12,6 +12,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { KeyboardAwareScroll } from '@/components/keyboard-aware-scroll';
+import { Markdown } from '@/components/markdown';
 import { api, type ConsentDocument } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { getConsentPrefs, setConsentPref } from '@/lib/consent-prefs';
@@ -81,7 +82,11 @@ export default function SettingsScreen() {
   };
 
   const DocBody = ({ doc }: { doc: ConsentDocument }) =>
-    expanded[doc.id] ? <Text style={styles.docBody}>{doc.body}</Text> : null;
+    expanded[doc.id] ? (
+      <View style={styles.docBody}>
+        <Markdown source={doc.body} variant="compact" />
+      </View>
+    ) : null;
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -205,9 +210,6 @@ const styles = StyleSheet.create({
   viewLink: { fontSize: 12, color: palette.textDim, textDecorationLine: 'underline', marginTop: 3 },
   agreedTag: { fontSize: 12, fontWeight: '700', color: palette.green },
   docBody: {
-    fontSize: 13,
-    color: palette.textDim,
-    lineHeight: 20,
     marginTop: 12,
     paddingTop: 12,
     borderTopWidth: 1,

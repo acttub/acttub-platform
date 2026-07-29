@@ -14,6 +14,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { KeyboardAwareScroll } from '@/components/keyboard-aware-scroll';
+import { Markdown } from '@/components/markdown';
 import { api, type ConsentDocument } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { saveConsentPrefs } from '@/lib/consent-prefs';
@@ -109,7 +110,11 @@ export default function ConsentScreen() {
           <Text style={styles.viewLink}>{expanded[doc.id] ? '접기' : '보기'}</Text>
         </Pressable>
       </Pressable>
-      {expanded[doc.id] && <Text style={styles.docBody}>{doc.body}</Text>}
+      {expanded[doc.id] && (
+        <View style={styles.docBody}>
+          <Markdown source={doc.body} variant="compact" />
+        </View>
+      )}
     </View>
   );
 
@@ -243,9 +248,6 @@ const styles = StyleSheet.create({
   docTitle: { flex: 1, fontSize: 14, color: palette.text, fontWeight: '600' },
   viewLink: { fontSize: 13, color: palette.textDim, textDecorationLine: 'underline' },
   docBody: {
-    fontSize: 13,
-    color: palette.textDim,
-    lineHeight: 20,
     marginTop: 12,
     paddingTop: 12,
     borderTopWidth: 1,
