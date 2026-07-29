@@ -4,7 +4,7 @@ import { test } from "node:test";
 
 import "./ts-module-loader.mjs";
 
-const { isMeasuredHost, toTrackedPath, toTrackedReferrer } = await import(
+const { isMeasuredHost, toDurationBucket, toTrackedPath, toTrackedReferrer } = await import(
   "../src/lib/analytics/ga.ts"
 );
 
@@ -80,4 +80,24 @@ test("기대하는 방침 버전이 발행 매니페스트와 같다", async () 
 
   assert.ok(privacy, "매니페스트에 privacy 문서가 있어야 한다");
   assert.equal(EXPECTED_PRIVACY_VERSION, privacy.version);
+});
+
+// 영상 길이를 원본 그대로 보내면 특정 연습을 짚어낼 수 있는 값이 된다. 구간 경계가
+// 밀리면 조용히 원본에 가까운 값이 나가므로 경계값을 못박아 둔다.
+test("영상 길이를 구간으로 뭉갠다", () => {
+  assert.equal(toDurationBucket(0), "<30s");
+  assert.equal(toDurationBucket(29_999), "<30s");
+  assert.equal(toDurationBucket(30_000), "30-60s");
+  assert.equal(toDurationBucket(59_999), "30-60s");
+  assert.equal(toDurationBucket(60_000), "60-180s");
+  assert.equal(toDurationBucket(179_999), "60-180s");
+  assert.equal(toDurationBucket(180_000), "180s+");
+  assert.equal(toDurationBucket(3_600_000), "180s+");
+});
+
+// 길이를 못 읽은 영상이 0초로 둔갑하면 "30초 미만"이 부풀어 실제와 다른 그림이 된다.
+test("길이를 못 읽으면 구간 대신 unknown 이다", () => {
+  assert.equal(toDurationBucket(Number.NaN), "unknown");
+  assert.equal(toDurationBucket(Number.POSITIVE_INFINITY), "unknown");
+  assert.equal(toDurationBucket(-1), "unknown");
 });

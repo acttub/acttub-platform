@@ -113,6 +113,70 @@ export function toTrackedReferrer(referrer: string, origin: string): string {
   }
 }
 
+let sentUserId: string | null = null;
+
+/**
+ * 로그인한 사람을 기기 너머로 잇는다. 폰에서 시작하고 노트북에서 이어 하면
+ * 같은 사람이 둘로 세어져 "가입한 사람 중 몇 명이 연습까지 갔나"가 실제보다 낮게 나온다.
+ *
+ * ⚠️ 값은 백엔드 내부 식별자(`AuthUser.id`)만 쓴다. 이메일·표시 이름·구글 sub 를 넣으면
+ * GA4 약관 위반이고, 이 파일이 주소에서 식별자를 씻어내는 이유와도 정면으로 어긋난다.
+ */
+export function setAnalyticsUser(userId: string): void {
+  if (!window.gtag) return;
+  // 화면이 바뀔 때마다 같은 값을 다시 보내지 않는다.
+  if (sentUserId === userId) return;
+  // `config` 재호출이 아니라 `set` 이다. config 로 하면 startAnalytics 가 못박아 둔
+  // page_location·page_referrer 기본값을 매번 덮어써서 주소 세척이 풀린다.
+  window.gtag("set", { user_id: userId });
+  sentUserId = userId;
+}
+
+export function clearAnalyticsUser(): void {
+  if (!window.gtag) return;
+  if (sentUserId === null) return;
+  window.gtag("set", { user_id: null });
+  sentUserId = null;
+}
+
+/**
+ * 영상 길이는 구간으로 뭉개서 보낸다. 원본 밀리초를 그대로 실으면 특정 연습을
+ * 짚어낼 수 있는 값이 되고, 보고서 항목만 의미 없이 늘어난다.
+ */
+export function toDurationBucket(durationMs: number): string {
+  if (!Number.isFinite(durationMs) || durationMs < 0) return "unknown";
+  if (durationMs < 30_000) return "<30s";
+  if (durationMs < 60_000) return "30-60s";
+  if (durationMs < 180_000) return "60-180s";
+  return "180s+";
+}
+
+/**
+ * 영상이 올라가고 연습 세션까지 만들어진 시점에 부른다.
+ * 업로드만 끝난 시점이 아니다 — 세션 생성이 실패하면 연습이 시작된 게 아니다.
+ *
+ * ⚠️ 아래 세 함수 모두 연습 세션 id·업로드 intent id·파일명을 파라미터로 싣지 않는다.
+ * 한 번 실어 보내면 되돌릴 수 없고, 방침 v2 6항이 막기로 한 바로 그 값이다.
+ */
+export function trackVideoUploaded(durationMs: number): void {
+  if (!window.gtag) return;
+  window.gtag("event", "practice_video_uploaded", {
+    duration_bucket: toDurationBucket(durationMs),
+  });
+}
+
+/** 첫 질문이 화면에 올라온 시점. 노트를 못 만들어 대화로 되돌아온 경우는 해당하지 않는다. */
+export function trackDialogueStarted(): void {
+  if (!window.gtag) return;
+  window.gtag("event", "practice_dialogue_started");
+}
+
+/** 연습 노트 본문이 실제로 화면에 올라온 시점. 만들기 시작한 시점이 아니다. */
+export function trackResultViewed(): void {
+  if (!window.gtag) return;
+  window.gtag("event", "practice_result_viewed");
+}
+
 /** 화면 전환마다 부른다. 경로만 실어 보낸다. */
 export function trackPageView(pathname: string): void {
   if (!window.gtag) return;

@@ -32,6 +32,11 @@ import type {
 import { getStoredUser, isLoggedIn } from "@/lib/auth/token-store";
 import { prepareVideoUpload } from "@/lib/media/upload-preflight";
 import { uploadVideo } from "@/lib/api/v2/uploads";
+import {
+  trackDialogueStarted,
+  trackResultViewed,
+  trackVideoUploaded,
+} from "@/lib/analytics/ga";
 import { REVIEW_FORM_URL } from "@/lib/config/env";
 import { analysisFailure } from "../practice/analysis-failure";
 
@@ -156,6 +161,26 @@ function WorkspaceInner() {
   const gaveUpRef = useRef(false);
   const uploadControllerRef = useRef<AbortController | null>(null);
 
+  // 어느 연습에서 어느 단계를 이미 세었는지. 대화와 노트 확인은 한 연습 안에서 여러 번
+  // 열린다 — 노트를 보다 대화로 돌아갔다 오거나, 지난 연습을 다시 열거나.
+  // 그대로 두면 단계별 수가 부풀어 어디서 사람이 빠지는지 못 읽는다.
+  // 화면을 벗어났다 돌아오면 이 Set 은 비므로 그때는 다시 센다 — 유입경로 그래프는
+  // 사람 수로 그려져 영향이 없고, 이걸 막으려면 기기에 기록을 남겨야 해서 두지 않았다.
+  const countedStepsRef = useRef<Set<string>>(new Set());
+  // 세션 id 는 열쇠로만 쓰고 GA4 로 보내지 않는다. 보내는 값은 ga.ts 가 정하고,
+  // 그 파일이 주소에서 식별자를 씻어내는 이유가 여기에도 그대로 적용된다.
+  const countStepOnce = useCallback(
+    (practiceSessionId: string | null, stepName: "dialogue" | "result") => {
+      if (!practiceSessionId) return;
+      const key = `${practiceSessionId}:${stepName}`;
+      if (countedStepsRef.current.has(key)) return;
+      countedStepsRef.current.add(key);
+      if (stepName === "dialogue") trackDialogueStarted();
+      else trackResultViewed();
+    },
+    [],
+  );
+
   useEffect(() => {
     const el = chatScrollRef.current;
     if (el) el.scrollTop = el.scrollHeight;
@@ -269,6 +294,9 @@ function WorkspaceInner() {
         { signal: controller.signal },
       );
       setActiveId(session.session_id);
+      // 업로드가 끝난 시점이 아니라 연습 세션까지 만들어진 시점에 센다.
+      // 업로드만 되고 세션 생성이 실패하면 연습이 시작된 게 아니다.
+      trackVideoUploaded(prepared.durationMs);
       // 폴링 자체에는 끝이 없다 — 서버가 analyzing 에 머물면 영원히 기다린다.
       giveUpTimer.current = setTimeout(() => {
         gaveUpRef.current = true;
@@ -294,6 +322,9 @@ function WorkspaceInner() {
       setDetail(settled);
       setMode("chat");
       pushAi(start);
+      // 첫 질문이 실제로 화면에 올라온 이 지점만 "대화 시작"이다. 아래 openSession·
+      // 주소 진입에서 노트 없는 세션을 열며 chat 으로 가는 건 이어 하기라 세지 않는다.
+      countStepOnce(session.session_id, "dialogue");
       void refreshList();
     } catch (err) {
       if (uploadControllerRef.current === controller) {
@@ -311,7 +342,7 @@ function WorkspaceInner() {
       stopWaiting();
       if (uploadControllerRef.current === controller) uploadControllerRef.current = null;
     }
-  }, [videoFile, situation, character, goal, refreshList]);
+  }, [videoFile, situation, character, goal, refreshList, countStepOnce]);
 
   const send = useCallback(async () => {
     const text = answer.trim();
@@ -340,13 +371,15 @@ function WorkspaceInner() {
       setReport(data.report);
       setReportCount(data.report_count);
       setMode("note");
+      // 본문까지 받아온 뒤에 센다. 실패하면 아래 catch 로 빠져 노트 화면이 뜨지 않는다.
+      countStepOnce(activeId, "result");
       void refreshList();
     } catch {
       setError("연습 노트를 만들지 못했어요. 잠시 후 다시 시도해 주세요.");
     } finally {
       setBusy(false);
     }
-  }, [refreshList]);
+  }, [activeId, countStepOnce, refreshList]);
 
   const openSession = useCallback(async (id: string) => {
     setDrawerOpen(false);
@@ -363,6 +396,7 @@ function WorkspaceInner() {
         const found = await getReport(id);
         setReport(found.report);
         setMode("note");
+        countStepOnce(id, "result");
       } catch {
         // 노트가 아직 없는 세션 — 장면만 보여주고 대화는 비운다.
         setReport(null);
@@ -373,7 +407,7 @@ function WorkspaceInner() {
     } finally {
       setBusy(false);
     }
-  }, []);
+  }, [countStepOnce]);
 
   // 주소에 ?session= 이 실려 오면(연습 기록 링크·새로고침) 그 세션을 연다.
   // 클릭으로 여는 경로는 openSession 이고, 이쪽은 첫 진입만 맡는다.
@@ -393,6 +427,7 @@ function WorkspaceInner() {
           if (cancelled) return;
           setReport(found.report);
           setMode("note");
+          countStepOnce(sessionParam, "result");
         } catch {
           if (cancelled) return;
           setReport(null);
@@ -405,7 +440,7 @@ function WorkspaceInner() {
     return () => {
       cancelled = true;
     };
-  }, [ready, sessionParam]);
+  }, [ready, sessionParam, countStepOnce]);
 
   const removeSession = useCallback(async () => {
     if (!activeId) return;
