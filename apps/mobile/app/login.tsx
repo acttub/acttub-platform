@@ -117,8 +117,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: GOOGLE_BORDER, // 구글 라이트 테마 규격 색
   },
-  googleLogo: { width: 20, height: 20 },
-  googleText: { fontSize: 16, fontWeight: '600', color: GOOGLE_TEXT },
+  googleLogo: { width: 22, height: 22 },
+  // 애플 공식 버튼은 높이의 약 0.35배로 글자를 그린다(56pt → 약 19.7pt).
+  // 나란히 놓았을 때 크기가 달라 보여서 같은 값으로 맞춘다.
+  googleText: { fontSize: 20, fontWeight: '600', color: GOOGLE_TEXT },
   pressed: { opacity: 0.7 },
   appleButton: { width: '100%', height: 56 },
   error: { color: palette.danger, fontSize: 13, textAlign: 'center' },
