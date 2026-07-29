@@ -1,12 +1,17 @@
-import { MaterialIcons } from '@expo/vector-icons';
+import Feather from '@expo/vector-icons/Feather';
 import { Tabs, useRouter } from 'expo-router';
 import React from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { HapticTab } from '@/components/haptic-tab';
 import { palette } from '@/constants/palette';
 
+/**
+ * 하단 탭 — 홈 / 기록 / [연습(FAB)] / 설정.
+ * 가운데 버튼이 무슨 버튼인지 모르겠다는 피드백이 있어 아이콘 아래 '연습' 라벨을 붙였다.
+ * 아이콘은 Feather(라인) 한 세트로 통일한다 — MaterialIcons 기본 채움 아이콘은 톤이 안 맞는다.
+ */
 export default function TabLayout() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -43,20 +48,7 @@ export default function TabLayout() {
           title: '홈',
           tabBarIcon: ({ color, focused }) => (
             <View style={[styles.iconPill, focused && styles.iconPillActive]}>
-              <MaterialIcons size={24} name="home" color={color} />
-            </View>
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="record"
-        options={{
-          title: '',
-          tabBarButton: () => (
-            <View style={styles.fabSlot}>
-              <Pressable style={styles.fab} onPress={() => router.push('/upload')}>
-                <MaterialIcons name="videocam" size={28} color="#FFFFFF" />
-              </Pressable>
+              <Feather size={21} name="home" color={color} />
             </View>
           ),
         }}
@@ -67,7 +59,36 @@ export default function TabLayout() {
           title: '기록',
           tabBarIcon: ({ color, focused }) => (
             <View style={[styles.iconPill, focused && styles.iconPillActive]}>
-              <MaterialIcons size={24} name="description" color={color} />
+              <Feather size={21} name="file-text" color={color} />
+            </View>
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="record"
+        options={{
+          title: '',
+          tabBarButton: () => (
+            <View style={styles.fabSlot}>
+              <Pressable
+                style={styles.fab}
+                accessibilityRole="button"
+                accessibilityLabel="연습 시작"
+                onPress={() => router.push('/upload')}>
+                <Feather name="video" size={24} color="#FFFFFF" />
+              </Pressable>
+              <Text style={styles.fabLabel}>연습</Text>
+            </View>
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="settings"
+        options={{
+          title: '설정',
+          tabBarIcon: ({ color, focused }) => (
+            <View style={[styles.iconPill, focused && styles.iconPillActive]}>
+              <Feather size={21} name="settings" color={color} />
             </View>
           ),
         }}
@@ -89,13 +110,13 @@ const styles = StyleSheet.create({
   },
   fabSlot: { flex: 1, alignItems: 'center' },
   fab: {
-    width: 58,
-    height: 58,
-    borderRadius: 29,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
     backgroundColor: palette.blue,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: -26,
+    marginTop: -22,
     borderWidth: 4,
     borderColor: palette.card,
     shadowColor: palette.blue,
@@ -104,4 +125,5 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     elevation: 6,
   },
+  fabLabel: { fontSize: 11, fontWeight: '700', color: palette.blue, marginTop: 3 },
 });

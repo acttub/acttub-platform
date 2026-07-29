@@ -3,7 +3,9 @@ import test from 'node:test';
 
 import {
   MAX_VIDEO_DURATION_MS,
+  missingUploadFieldsHint,
   normalizeVideoDurationMs,
+  objectParticle,
   prepareUploadIntentBody,
   sendUploadIntent,
 } from '../lib/upload-input.ts';
@@ -70,3 +72,63 @@ for (const [name, input] of [
     assert.equal(fetchCalls, 0);
   });
 }
+
+test('F10: 분석 시작이 막혀 있으면 빠진 항목을 한 줄로 알려준다', () => {
+  assert.equal(
+    missingUploadFieldsHint({
+      situation: '',
+      character: '',
+      subtext: '',
+      hasVideo: false,
+      agreedRights: false,
+    }),
+    '영상 · 상황 · 인물 · 의도를 채워주세요',
+  );
+});
+
+test('F10: 입력이 다 찼고 체크만 남았으면 체크를 안내한다', () => {
+  assert.equal(
+    missingUploadFieldsHint({
+      situation: '카페',
+      character: '20대 여성',
+      subtext: '무너지는 순간',
+      hasVideo: true,
+      agreedRights: false,
+    }),
+    '권리 확인에 체크해주세요',
+  );
+});
+
+test('F10: 공백만 입력한 칸은 채운 것으로 보지 않는다', () => {
+  assert.equal(
+    missingUploadFieldsHint({
+      situation: '   ',
+      character: '20대 여성',
+      subtext: '무너지는 순간',
+      hasVideo: true,
+      agreedRights: true,
+    }),
+    '상황을 채워주세요',
+  );
+});
+
+test('F10: 전부 채우면 안내 문구가 없다', () => {
+  assert.equal(
+    missingUploadFieldsHint({
+      situation: '카페',
+      character: '20대 여성',
+      subtext: '무너지는 순간',
+      hasVideo: true,
+      agreedRights: true,
+    }),
+    null,
+  );
+});
+
+test('F10: 받침 유무로 을/를을 고른다', () => {
+  assert.equal(objectParticle('의도'), '를');
+  assert.equal(objectParticle('상황'), '을');
+  assert.equal(objectParticle('영상'), '을');
+  assert.equal(objectParticle('인물'), '을');
+  assert.equal(objectParticle('video'), '을');
+});

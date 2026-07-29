@@ -1,12 +1,14 @@
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useVideoPlayer, VideoView } from 'expo-video';
 
+import { useAppDialog } from '@/components/app-dialog';
 import { api, type ReportDetail } from '@/lib/api';
 import { deletePracticeSessionIdempotently } from '@/lib/delete-practice';
 import { formatKoreanDate } from '@/lib/format';
+import { Markdown } from '@/components/markdown';
 import { palette } from '@/constants/palette';
 
 /**
@@ -21,6 +23,7 @@ export default function ReportDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const { confirm, alert, dialog } = useAppDialog();
 
   const player = useVideoPlayer(null, (p) => {
     p.loop = false;
@@ -54,28 +57,26 @@ export default function ReportDetailScreen() {
     };
   }, [practiceSessionId, player]);
 
-  const onDelete = () => {
+  const onDelete = async () => {
     if (!practiceSessionId) return;
-    Alert.alert('삭제할까요?', '이 연습 기록을 지우면 되돌릴 수 없어요.', [
-      { text: '취소', style: 'cancel' },
-      {
-        text: '삭제',
-        style: 'destructive',
-        onPress: async () => {
-          setDeleting(true);
-          try {
-            await deletePracticeSessionIdempotently(
-              practiceSessionId,
-              api.deletePracticeSession,
-            );
-            router.back();
-          } catch (err) {
-            setDeleting(false);
-            Alert.alert('삭제 실패', err instanceof Error ? err.message : '삭제하지 못했어요.');
-          }
-        },
-      },
-    ]);
+    const ok = await confirm({
+      title: '삭제할까요?',
+      message: '이 연습 기록을 지우면 되돌릴 수 없어요.',
+      confirmLabel: '삭제',
+      destructive: true,
+    });
+    if (!ok) return;
+    setDeleting(true);
+    try {
+      await deletePracticeSessionIdempotently(practiceSessionId, api.deletePracticeSession);
+      router.back();
+    } catch (err) {
+      setDeleting(false);
+      await alert({
+        title: '삭제 실패',
+        message: err instanceof Error ? err.message : '삭제하지 못했어요.',
+      });
+    }
   };
 
   if (loading) {
@@ -126,35 +127,39 @@ export default function ReportDetailScreen() {
 
         <View style={[styles.block, styles.blockGreen]}>
           <Text style={[styles.blockTag, styles.tagGreen]}>✓ 잘된 순간</Text>
-          <Text style={styles.blockBody}>{report.encouragement}</Text>
+          <Markdown source={report.encouragement} />
         </View>
 
         <View style={[styles.block, styles.blockBlue]}>
           <Text style={[styles.blockTag, styles.tagBlue]}>이번엔 이거 딱 하나 · {problemRange}</Text>
-          <Text style={styles.blockBody}>{problem?.description ?? ''}</Text>
-          {!!report.evidence && <Text style={styles.evidence}>{report.evidence}</Text>}
+          <Markdown source={problem?.description ?? ''} />
+          {!!report.evidence && (
+            <View style={styles.evidence}>
+              <Markdown source={report.evidence} variant="compact" />
+            </View>
+          )}
         </View>
 
         {!!report.self_discovery && (
           <View style={styles.block}>
             <Text style={styles.blockTag}>대화에서 스스로 찾으신 것</Text>
-            <Text style={styles.blockBody}>{report.self_discovery}</Text>
+            <Markdown source={report.self_discovery} />
           </View>
         )}
 
         {!!report.comparison && (
           <View style={[styles.block, styles.blockPurple]}>
             <Text style={[styles.blockTag, styles.tagPurple]}>지난번과 비교하면</Text>
-            <Text style={styles.blockBody}>{report.comparison}</Text>
+            <Markdown source={report.comparison} />
           </View>
         )}
 
         <View style={[styles.block, styles.blockSoft]}>
           <Text style={[styles.blockTag, styles.tagBlue]}>다음 한 걸음</Text>
-          <Text style={styles.blockBody}>→ {report.next_step}</Text>
+          <Markdown source={`→ ${report.next_step}`} />
         </View>
 
-        <Pressable style={styles.deleteButton} onPress={onDelete} disabled={deleting}>
+        <Pressable style={styles.deleteButton} onPress={() => void onDelete()} disabled={deleting}>
           {deleting ? (
             <ActivityIndicator color={palette.danger} />
           ) : (
@@ -162,6 +167,7 @@ export default function ReportDetailScreen() {
           )}
         </Pressable>
       </ScrollView>
+      {dialog}
     </SafeAreaView>
   );
 }
@@ -196,8 +202,7 @@ const styles = StyleSheet.create({
   tagGreen: { color: palette.green },
   tagBlue: { color: palette.blue },
   tagPurple: { color: palette.purple },
-  blockBody: { fontSize: 15, color: palette.text, lineHeight: 23 },
-  evidence: { fontSize: 13, color: palette.textDim, lineHeight: 20, marginTop: 8 },
+  evidence: { marginTop: 8 },
   deleteButton: {
     marginTop: 28,
     paddingVertical: 14,

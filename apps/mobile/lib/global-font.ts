@@ -1,18 +1,21 @@
 import React from 'react';
-import { Text, TextInput } from 'react-native';
+import { StyleSheet, Text, TextInput, type TextStyle } from 'react-native';
+
+import { fontFamilyForWeight } from '@/lib/font-weight';
 
 /**
- * 앱 전역 기본 폰트를 Pretendard(가변폰트)로 강제한다.
+ * 앱 전역 기본 폰트를 Pretendard로 강제한다.
  * iOS(SF)·Android(Roboto)의 글자체/두께 렌더 차이로 디자인이 달라 보이는 문제를 없앤다.
  *
- * 방식: RN Text/TextInput의 render를 감싸 fontFamily를 base로 주입.
- * - defaultProps.style은 style prop이 있는 컴포넌트엔 안 먹혀서 render 패치를 쓴다.
- * - Pretendard를 '먼저' 깔고 원래 style을 뒤에 둬서, 아이콘 폰트(MaterialIcons가 지정한
- *   fontFamily) 등 개별 지정이 있으면 그게 이긴다 → 아이콘은 그대로 유지.
- * - 두께는 각 스타일의 fontWeight가 가변폰트에서 그대로 선택된다.
+ * 왜 가변폰트를 버렸나
+ *   전엔 PretendardVariable.ttf 하나만 깔고 fontWeight로 두께를 골랐는데, RN은 가변폰트의
+ *   weight 축을 지정할 수 없다. iOS는 어떻게든 굵게 그려주지만 안드로이드는 fontWeight가
+ *   무시되거나 가짜 볼드가 돼 "볼드가 안 먹는" 상태였다.
+ *   → 굵기별 static 서브셋(scripts/build-fonts.py)을 싣고, fontWeight를 폰트 파일 선택으로 바꾼다.
+ *
+ * 주의: 굵기는 각 Text가 자기 스타일에 fontWeight를 가지고 있어야 결정된다.
+ *       부모 Text의 굵기를 자식이 물려받던 동작에는 기대지 말 것.
  */
-const FONT_FAMILY = 'Pretendard';
-
 /* eslint-disable @typescript-eslint/no-explicit-any */
 function applyGlobalFont(Component: any) {
   if (!Component || Component.__globalFontApplied || typeof Component.render !== 'function') return;
@@ -21,8 +24,19 @@ function applyGlobalFont(Component: any) {
   Component.render = function patchedRender(...args: any[]) {
     const element = original.apply(this, args);
     if (!element) return element;
+    const style = element.props?.style;
+    const flattened = (StyleSheet.flatten(style) ?? {}) as TextStyle;
+    // 아이콘 폰트(Feather 등)처럼 패밀리를 직접 지정한 건 건드리지 않는다.
+    if (flattened.fontFamily) return element;
     return React.cloneElement(element, {
-      style: [{ fontFamily: FONT_FAMILY }, element.props?.style],
+      style: [
+        style,
+        {
+          fontFamily: fontFamilyForWeight(flattened.fontWeight),
+          // 실제 굵은 폰트를 싣고 있으므로 가짜 볼드를 덧씌우지 않게 굵기는 중립으로 되돌린다.
+          fontWeight: 'normal' as const,
+        },
+      ],
     });
   };
 }

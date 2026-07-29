@@ -1,4 +1,4 @@
-import { MaterialIcons } from '@expo/vector-icons';
+import Feather from '@expo/vector-icons/Feather';
 import {
   ExpoSpeechRecognitionModule,
   useSpeechRecognitionEvent,
@@ -48,8 +48,8 @@ export function MicButton({ onText, disabled }: MicButtonProps) {
       style={[styles.button, listening && styles.listening, disabled && styles.disabled]}
       onPress={toggle}
       disabled={disabled}>
-      <MaterialIcons
-        name={listening ? 'stop' : 'mic'}
+      <Feather
+        name={listening ? 'square' : 'mic'}
         size={22}
         color={listening ? '#FFFFFF' : palette.blue}
       />

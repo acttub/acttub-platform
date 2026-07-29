@@ -1,12 +1,14 @@
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { RecordCard } from '@/components/record-card';
+import { useAppDialog } from '@/components/app-dialog';
+import { RecordCard, type RecordMeta } from '@/components/record-card';
 import { api, type ReportRecord } from '@/lib/api';
 import { deletePracticeSessionIdempotently } from '@/lib/delete-practice';
 import { formatKoreanMonth } from '@/lib/format';
+import { loadRecordMeta } from '@/lib/record-meta';
 import { sortReportsNewestFirst } from '@/lib/report-order';
 import { palette } from '@/constants/palette';
 
@@ -17,14 +19,24 @@ import { palette } from '@/constants/palette';
 export default function HistoryScreen() {
   const router = useRouter();
   const [reports, setReports] = useState<ReportRecord[]>([]);
+  const [meta, setMeta] = useState<Record<string, RecordMeta>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { confirm, alert, sheet, dialog } = useAppDialog();
 
   const load = useCallback(async () => {
     setError(null);
     try {
       const history = await api.reportHistory();
-      setReports(sortReportsNewestFirst(history.reports));
+      const sorted = sortReportsNewestFirst(history.reports);
+      setReports(sorted);
+      // 목록엔 진단 축·구간이 없어서 카드별 상세를 따로 불러 칩을 채운다.
+      setMeta(
+        await loadRecordMeta(
+          sorted.map((r) => r.practice_session_id),
+          (id) => api.getReport(id),
+        ),
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : '기록을 불러오지 못했어요.');
     } finally {
@@ -60,33 +72,33 @@ export default function HistoryScreen() {
     });
   };
 
-  const confirmDelete = (item: ReportRecord) => {
-    Alert.alert('삭제할까요?', '이 연습 기록을 지우면 되돌릴 수 없어요.', [
-      { text: '취소', style: 'cancel' },
-      {
-        text: '삭제',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await deletePracticeSessionIdempotently(
-              item.practice_session_id,
-              api.deletePracticeSession,
-            );
-            load();
-          } catch (e) {
-            Alert.alert('삭제 실패', e instanceof Error ? e.message : '삭제하지 못했어요.');
-          }
-        },
-      },
-    ]);
+  const confirmDelete = async (item: ReportRecord) => {
+    const ok = await confirm({
+      title: '삭제할까요?',
+      message: '이 연습 기록을 지우면 되돌릴 수 없어요.',
+      confirmLabel: '삭제',
+      destructive: true,
+    });
+    if (!ok) return;
+    try {
+      await deletePracticeSessionIdempotently(item.practice_session_id, api.deletePracticeSession);
+      load();
+    } catch (e) {
+      await alert({
+        title: '삭제 실패',
+        message: e instanceof Error ? e.message : '삭제하지 못했어요.',
+      });
+    }
   };
 
   const onMenu = (item: ReportRecord) => {
-    Alert.alert('이 기록', undefined, [
-      { text: '전체 보기', onPress: () => openDetail(item) },
-      { text: '삭제', style: 'destructive', onPress: () => confirmDelete(item) },
-      { text: '취소', style: 'cancel' },
-    ]);
+    void sheet({
+      title: '이 기록',
+      actions: [
+        { label: '전체 보기', onPress: () => openDetail(item) },
+        { label: '삭제', destructive: true, onPress: () => void confirmDelete(item) },
+      ],
+    });
   };
 
   return (
@@ -107,6 +119,7 @@ export default function HistoryScreen() {
               <RecordCard
                 key={item.practice_session_id + item.created_at}
                 item={item}
+                meta={meta[item.practice_session_id]}
                 onPress={() => openDetail(item)}
                 onMenu={() => onMenu(item)}
               />
@@ -120,6 +133,7 @@ export default function HistoryScreen() {
           </Text>
         )}
       </ScrollView>
+      {dialog}
     </SafeAreaView>
   );
 }

@@ -10,6 +10,7 @@ import {
 
 import { api, type AuthUser, type ConsentDocument, type TokenPair } from '@/lib/api';
 import { signOutBestEffort } from '@/lib/auth-session';
+import { getUserName, saveUserName } from '@/lib/profile';
 import {
   clearTokens,
   getRefreshToken,
@@ -71,14 +72,24 @@ try {
 }
 
 /** signIn 응답 형태가 버전마다 달라(idToken 위치) 방어적으로 추출한다. */
-async function getGoogleIdToken(): Promise<string | null> {
+type GoogleSignInResult = {
+  idToken: string | null;
+  /** 구글 계정 표시 이름 — 저장된 이름이 없을 때 인사말에 쓴다([[display-name]]). */
+  name: string | null;
+};
+
+async function getGoogleIdToken(): Promise<GoogleSignInResult | null> {
   if (!google) throw new Error('구글 로그인 모듈이 없어요. 개발 빌드를 다시 설치해주세요.');
   const { GoogleSignin } = google;
   await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
   const result = (await GoogleSignin.signIn()) as {
     type?: string;
     idToken?: string | null;
-    data?: { idToken?: string | null } | null;
+    user?: { name?: string | null; givenName?: string | null } | null;
+    data?: {
+      idToken?: string | null;
+      user?: { name?: string | null; givenName?: string | null } | null;
+    } | null;
   };
   if (result?.type === 'cancelled') return null;
   let idToken = result?.data?.idToken ?? result?.idToken ?? null;
@@ -86,7 +97,21 @@ async function getGoogleIdToken(): Promise<string | null> {
     const tokens = await GoogleSignin.getTokens();
     idToken = tokens.idToken;
   }
-  return idToken;
+  const profile = result?.data?.user ?? result?.user ?? null;
+  return { idToken, name: profile?.givenName ?? profile?.name ?? null };
+}
+
+/** 아직 저장된 이름이 없을 때만 로그인 제공자가 준 이름을 채운다(사용자가 고친 이름을 덮지 않게). */
+async function rememberProviderName(name: string | null | undefined): Promise<void> {
+  const trimmed = name?.trim();
+  if (!trimmed) return;
+  try {
+    const existing = await getUserName();
+    if (existing?.trim()) return;
+    await saveUserName(trimmed);
+  } catch {
+    // 이름은 부가정보라 실패해도 로그인을 막지 않는다.
+  }
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -152,9 +177,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signInWithGoogle = useCallback(async () => {
-    const idToken = await getGoogleIdToken();
-    if (!idToken) return; // 사용자가 취소
-    await finishLogin(await api.login('google', idToken));
+    const signIn = await getGoogleIdToken();
+    if (!signIn?.idToken) return; // 사용자가 취소
+    await finishLogin(await api.login('google', signIn.idToken));
+    await rememberProviderName(signIn.name);
   }, [finishLogin]);
 
   const signInWithApple = useCallback(async () => {
@@ -174,6 +200,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     if (!credential.identityToken) throw new Error('Apple 로그인 토큰을 받지 못했어요.');
     await finishLogin(await api.login('apple', credential.identityToken));
+    // Apple은 최초 1회만 이름을 준다 — 그때 받아 저장해 둔다.
+    await rememberProviderName(
+      [credential.fullName?.familyName, credential.fullName?.givenName]
+        .filter(Boolean)
+        .join('') || credential.fullName?.givenName,
+    );
   }, [finishLogin]);
 
   const signOut = useCallback(async () => {
