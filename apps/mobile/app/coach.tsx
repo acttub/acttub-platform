@@ -12,6 +12,7 @@ import {
   Text,
   TextInput,
   View,
+  useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -19,6 +20,7 @@ import { api } from '@/lib/api';
 import { attemptCoachStart, canSendCoachMessage } from '@/lib/coach-flow';
 import { getPractice } from '@/lib/practice';
 import { palette } from '@/constants/palette';
+import { useKeyboardVisible } from '@/hooks/use-keyboard-visible';
 import type { MicButtonProps } from '@/components/mic-button';
 
 // 네이티브 모듈이 없는 빌드(STT 도입 전 dev client)에서도 화면이 뜨도록 가드해서 로드한다.
@@ -39,11 +41,14 @@ type ChatMessage = {
 /**
  * 코치 대화 — 영상은 위에 고정, 아래 대화는 전체 스레드를 스크롤해서 볼 수 있다.
  * 전체 대화는 practice.turns에도 쌓여 리포트 생성에 쓰인다.
- * 키보드: Android는 softwareKeyboardLayoutMode=resize가 처리하므로 iOS만 padding 보정.
+ * 키보드가 올라오면 영상을 접는다 — 안 그러면 화면 위쪽을 영상이 차지한 채 입력칸이 키보드에
+ * 가려 자기가 뭘 치는지 안 보인다. 영상은 키보드를 내리면 그대로 돌아온다(플레이어는 유지).
  */
 export default function CoachScreen() {
   const router = useRouter();
   const headerHeight = useHeaderHeight();
+  const keyboardVisible = useKeyboardVisible();
+  const { width: windowWidth } = useWindowDimensions();
   const practice = getPractice();
   const scrollRef = useRef<ScrollView>(null);
   const mountedRef = useRef(true);
@@ -105,6 +110,13 @@ export default function CoachScreen() {
     return () => clearTimeout(t);
   }, [messages, waiting]);
 
+  // 키보드가 올라오면 레이아웃이 줄어드니 마지막 메시지가 가려지지 않게 끝으로 스크롤한다.
+  useEffect(() => {
+    if (!keyboardVisible) return;
+    const timer = setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 80);
+    return () => clearTimeout(timer);
+  }, [keyboardVisible]);
+
   if (!practice) {
     return (
       <SafeAreaView style={styles.safe}>
@@ -156,7 +168,8 @@ export default function CoachScreen() {
         {/* 영상: 위에 고정 (스크롤 안 됨) */}
         {practice.videoUri && (
           <VideoView
-            style={styles.video}
+            // 키보드가 뜨면 높이를 0으로 접어 대화와 입력칸에 자리를 내준다.
+            style={[styles.video, { height: keyboardVisible ? 0 : (windowWidth * 9) / 16 }]}
             player={player}
             nativeControls
             allowsFullscreen
@@ -270,7 +283,6 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   video: {
     width: '100%',
-    aspectRatio: 16 / 9,
     backgroundColor: '#111827',
   },
   chat: { padding: 16, gap: 12, flexGrow: 1 },
