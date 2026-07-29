@@ -1,5 +1,13 @@
 import { Fragment, useMemo } from 'react';
-import { Linking, StyleSheet, Text, View, type StyleProp, type TextStyle } from 'react-native';
+import {
+  Linking,
+  Platform,
+  StyleSheet,
+  Text,
+  View,
+  type StyleProp,
+  type TextStyle,
+} from 'react-native';
 
 import { parseMarkdown, type MarkdownSpan } from '@/lib/markdown';
 import { palette } from '@/constants/palette';
@@ -24,11 +32,16 @@ export function Markdown({
   const size = variant === 'compact' ? compactSizes : bodySizes;
   const baseColor = color ?? (variant === 'compact' ? palette.textDim : palette.text);
 
-  const renderSpans = (spans: MarkdownSpan[]) =>
+  /**
+   * 굵기는 각 Text가 자기 스타일로 들고 있어야 한다([[global-font]] — 굵기별 폰트 파일을 고르는
+   * 방식이라 부모의 fontWeight가 자식에게 상속되지 않는다). 그래서 부모 굵기를 내려준다.
+   */
+  const renderSpans = (spans: MarkdownSpan[], inherited?: TextStyle['fontWeight']) =>
     spans.map((span, i) => (
       <Text
         key={i}
         style={[
+          inherited ? { fontWeight: inherited } : null,
           span.bold && styles.bold,
           span.italic && styles.italic,
           span.code && styles.code,
@@ -54,7 +67,7 @@ export function Markdown({
                   index > 0 && styles.headingSpaced,
                   style,
                 ]}>
-                {renderSpans(block.spans)}
+                {renderSpans(block.spans, '800')}
               </Text>
             );
           case 'quote':
@@ -118,7 +131,7 @@ const styles = StyleSheet.create({
   bold: { fontWeight: '800' },
   italic: { fontStyle: 'italic' },
   code: {
-    fontFamily: 'Menlo',
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
     backgroundColor: palette.bgSoft,
     fontSize: 13,
   },
