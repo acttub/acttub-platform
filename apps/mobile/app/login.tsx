@@ -103,7 +103,7 @@ export default function LoginScreen() {
             accessibilityRole="button"
             accessibilityLabel="Apple로 로그인">
             {SymbolView ? (
-              <SymbolView name="apple.logo" tintColor="#FFFFFF" size={18} />
+              <SymbolView name="apple.logo" tintColor="#FFFFFF" size={23} />
             ) : (
               <Text style={styles.appleGlyph}></Text>
             )}
@@ -147,7 +147,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     backgroundColor: '#000000',
   },
-  appleGlyph: { fontFamily: 'System', fontSize: 18, color: '#FFFFFF' },
+  appleGlyph: { fontFamily: 'System', fontSize: 21, color: '#FFFFFF' },
   appleText: { fontSize: 16, fontWeight: '600', color: '#FFFFFF' },
   error: { color: palette.danger, fontSize: 13, textAlign: 'center' },
   legal: { color: palette.textFaint, fontSize: 12, textAlign: 'center', lineHeight: 18 },
