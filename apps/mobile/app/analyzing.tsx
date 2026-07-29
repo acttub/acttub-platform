@@ -4,7 +4,6 @@ import { useVideoPlayer, VideoView } from 'expo-video';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   BackHandler,
   Platform,
   Pressable,
@@ -15,6 +14,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { useAppDialog } from '@/components/app-dialog';
 import { logEvent } from '@/lib/analytics';
 import {
   AnalysisTerminalError,
@@ -84,6 +84,7 @@ export default function AnalyzingScreen() {
   const [error, setError] = useState<string | null>(null);
   const [videoUri, setVideoUri] = useState<string | null>(null);
   const [abandoning, setAbandoning] = useState(false);
+  const { confirm, dialog } = useAppDialog();
 
   // 방금 올린 로컬 원본을 대기 중 재생 (서버 업로드본·압축본이 아니라 원본).
   const player = useVideoPlayer(videoUri, (p) => {
@@ -287,17 +288,21 @@ export default function AnalyzingScreen() {
    * 안드로이드 하드웨어 뒤로가기로 조용히 빠져나가면 압축·업로드가 통째로 날아간다.
    * (iOS는 headerBackVisible·gestureEnabled를 이미 막아뒀다.)
    */
-  const confirmLeave = useCallback(() => {
-    Alert.alert('분석을 중단할까요?', '지금 나가면 올린 영상과 분석이 사라져요.', [
-      { text: '계속 기다리기', style: 'cancel' },
-      { text: '중단하고 나가기', style: 'destructive', onPress: () => void abandon() },
-    ]);
-  }, [abandon]);
+  const confirmLeave = useCallback(async () => {
+    const leave = await confirm({
+      title: '분석을 중단할까요?',
+      message: '지금 나가면 올린 영상과 분석이 사라져요.',
+      cancelLabel: '계속 기다리기',
+      confirmLabel: '중단하고 나가기',
+      destructive: true,
+    });
+    if (leave) void abandon();
+  }, [abandon, confirm]);
 
   useEffect(() => {
     if (Platform.OS !== 'android' || error) return;
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
-      confirmLeave();
+      void confirmLeave();
       return true; // 기본 뒤로가기를 막는다
     });
     return () => subscription.remove();
@@ -371,6 +376,7 @@ export default function AnalyzingScreen() {
           </>
         )}
       </ScrollView>
+      {dialog}
     </SafeAreaView>
   );
 }

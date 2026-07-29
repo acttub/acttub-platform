@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Pressable,
   StyleSheet,
   Switch,
@@ -11,6 +10,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { useAppDialog } from '@/components/app-dialog';
 import { KeyboardAwareScroll } from '@/components/keyboard-aware-scroll';
 import { Markdown } from '@/components/markdown';
 import { api, type ConsentDocument } from '@/lib/api';
@@ -33,6 +33,7 @@ export default function SettingsScreen() {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(true);
   const [nameSaved, setNameSaved] = useState(false);
+  const { confirm, alert, dialog } = useAppDialog();
 
   useEffect(() => {
     (async () => {
@@ -65,20 +66,25 @@ export default function SettingsScreen() {
         await setConsentPref(doc.id, next);
       } catch (err) {
         setPrefs((p) => ({ ...p, [doc.id]: prev })); // 실패 시 롤백
-        Alert.alert('변경 실패', err instanceof Error ? err.message : '잠시 후 다시 시도해주세요.');
+        void alert({
+          title: '변경 실패',
+          message: err instanceof Error ? err.message : '잠시 후 다시 시도해주세요.',
+        });
       }
     },
-    [prefs],
+    [prefs, alert],
   );
 
   const required = docs.filter((d) => d.required);
   const optional = docs.filter((d) => !d.required);
 
-  const confirmLogout = () => {
-    Alert.alert('로그아웃할까요?', '', [
-      { text: '취소', style: 'cancel' },
-      { text: '로그아웃', style: 'destructive', onPress: () => void signOut() },
-    ]);
+  const confirmLogout = async () => {
+    const ok = await confirm({
+      title: '로그아웃할까요?',
+      confirmLabel: '로그아웃',
+      destructive: true,
+    });
+    if (ok) void signOut();
   };
 
   const DocBody = ({ doc }: { doc: ConsentDocument }) =>
@@ -162,11 +168,12 @@ export default function SettingsScreen() {
             </>
           )}
 
-          <Pressable style={styles.logout} onPress={confirmLogout}>
+          <Pressable style={styles.logout} onPress={() => void confirmLogout()}>
             <Text style={styles.logoutText}>로그아웃</Text>
           </Pressable>
         </KeyboardAwareScroll>
       )}
+      {dialog}
     </SafeAreaView>
   );
 }

@@ -1,9 +1,10 @@
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useVideoPlayer, VideoView } from 'expo-video';
 
+import { useAppDialog } from '@/components/app-dialog';
 import { api, type ReportDetail } from '@/lib/api';
 import { deletePracticeSessionIdempotently } from '@/lib/delete-practice';
 import { formatKoreanDate } from '@/lib/format';
@@ -22,6 +23,7 @@ export default function ReportDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const { confirm, alert, dialog } = useAppDialog();
 
   const player = useVideoPlayer(null, (p) => {
     p.loop = false;
@@ -55,28 +57,26 @@ export default function ReportDetailScreen() {
     };
   }, [practiceSessionId, player]);
 
-  const onDelete = () => {
+  const onDelete = async () => {
     if (!practiceSessionId) return;
-    Alert.alert('삭제할까요?', '이 연습 기록을 지우면 되돌릴 수 없어요.', [
-      { text: '취소', style: 'cancel' },
-      {
-        text: '삭제',
-        style: 'destructive',
-        onPress: async () => {
-          setDeleting(true);
-          try {
-            await deletePracticeSessionIdempotently(
-              practiceSessionId,
-              api.deletePracticeSession,
-            );
-            router.back();
-          } catch (err) {
-            setDeleting(false);
-            Alert.alert('삭제 실패', err instanceof Error ? err.message : '삭제하지 못했어요.');
-          }
-        },
-      },
-    ]);
+    const ok = await confirm({
+      title: '삭제할까요?',
+      message: '이 연습 기록을 지우면 되돌릴 수 없어요.',
+      confirmLabel: '삭제',
+      destructive: true,
+    });
+    if (!ok) return;
+    setDeleting(true);
+    try {
+      await deletePracticeSessionIdempotently(practiceSessionId, api.deletePracticeSession);
+      router.back();
+    } catch (err) {
+      setDeleting(false);
+      await alert({
+        title: '삭제 실패',
+        message: err instanceof Error ? err.message : '삭제하지 못했어요.',
+      });
+    }
   };
 
   if (loading) {
@@ -159,7 +159,7 @@ export default function ReportDetailScreen() {
           <Markdown source={`→ ${report.next_step}`} />
         </View>
 
-        <Pressable style={styles.deleteButton} onPress={onDelete} disabled={deleting}>
+        <Pressable style={styles.deleteButton} onPress={() => void onDelete()} disabled={deleting}>
           {deleting ? (
             <ActivityIndicator color={palette.danger} />
           ) : (
@@ -167,6 +167,7 @@ export default function ReportDetailScreen() {
           )}
         </Pressable>
       </ScrollView>
+      {dialog}
     </SafeAreaView>
   );
 }
