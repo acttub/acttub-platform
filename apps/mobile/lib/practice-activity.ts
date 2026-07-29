@@ -71,3 +71,15 @@ export function buildWeekActivity(
 
   return { days, weekTotal, streak };
 }
+
+/**
+ * 연습 횟수 → 주간 스트립 색 단계(0=안 함, 1=1회, 2=2~3회, 3=4~5회, 4=6회 이상).
+ * 색 값은 constants/palette의 weekColors가 같은 순서로 들고 있다.
+ */
+export function weekColorStep(count: number): number {
+  if (!Number.isFinite(count) || count <= 0) return 0;
+  if (count === 1) return 1;
+  if (count <= 3) return 2;
+  if (count <= 5) return 3;
+  return 4;
+}

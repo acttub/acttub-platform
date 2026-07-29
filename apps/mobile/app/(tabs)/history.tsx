@@ -3,10 +3,11 @@ import { useCallback, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { RecordCard } from '@/components/record-card';
+import { RecordCard, type RecordMeta } from '@/components/record-card';
 import { api, type ReportRecord } from '@/lib/api';
 import { deletePracticeSessionIdempotently } from '@/lib/delete-practice';
 import { formatKoreanMonth } from '@/lib/format';
+import { loadRecordMeta } from '@/lib/record-meta';
 import { sortReportsNewestFirst } from '@/lib/report-order';
 import { palette } from '@/constants/palette';
 
@@ -17,6 +18,7 @@ import { palette } from '@/constants/palette';
 export default function HistoryScreen() {
   const router = useRouter();
   const [reports, setReports] = useState<ReportRecord[]>([]);
+  const [meta, setMeta] = useState<Record<string, RecordMeta>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -24,7 +26,15 @@ export default function HistoryScreen() {
     setError(null);
     try {
       const history = await api.reportHistory();
-      setReports(sortReportsNewestFirst(history.reports));
+      const sorted = sortReportsNewestFirst(history.reports);
+      setReports(sorted);
+      // 목록엔 진단 축·구간이 없어서 카드별 상세를 따로 불러 칩을 채운다.
+      setMeta(
+        await loadRecordMeta(
+          sorted.map((r) => r.practice_session_id),
+          (id) => api.getReport(id),
+        ),
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : '기록을 불러오지 못했어요.');
     } finally {
@@ -107,6 +117,7 @@ export default function HistoryScreen() {
               <RecordCard
                 key={item.practice_session_id + item.created_at}
                 item={item}
+                meta={meta[item.practice_session_id]}
                 onPress={() => openDetail(item)}
                 onMenu={() => onMenu(item)}
               />

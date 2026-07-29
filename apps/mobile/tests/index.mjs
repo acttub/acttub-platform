@@ -12,3 +12,5 @@ import './upload-input.test.mjs';
 import './practice-activity.test.mjs';
 import './markdown.test.mjs';
 import './font-weight.test.mjs';
+import './record-meta.test.mjs';
+import './display-name.test.mjs';

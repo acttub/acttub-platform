@@ -46,7 +46,9 @@ export function RecordCard({
           <Text style={styles.cardTitle} numberOfLines={2}>
             {item.headline}
           </Text>
-          {!preview && <Text style={styles.timestamp}>{formatKoreanDateTime(item.created_at)}</Text>}
+          <Text style={[styles.timestamp, preview && styles.timestampPreview]}>
+            {formatKoreanDateTime(item.created_at)}
+          </Text>
         </Pressable>
         {!!onMenu && (
           <Pressable hitSlop={8} style={styles.menuBtn} onPress={onMenu}>
@@ -90,9 +92,13 @@ const styles = StyleSheet.create({
   eyebrow: { fontSize: 13, fontWeight: '500', color: palette.textFaint },
   cardTitle: { fontSize: 16, fontWeight: '500', color: palette.text, lineHeight: 24 },
   timestamp: { fontSize: 13, fontWeight: '400', color: palette.textFaint, marginTop: 6 },
+  timestampPreview: { fontSize: 12 },
   menuBtn: { padding: 2, marginLeft: 8 },
   chipRow: { gap: 8, paddingTop: 14, paddingRight: 8 },
   chip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
     backgroundColor: palette.bgSoft,
     borderRadius: 999,
     paddingHorizontal: 14,

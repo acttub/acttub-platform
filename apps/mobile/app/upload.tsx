@@ -124,7 +124,7 @@ export default function UploadScreen() {
       {!prefilled && user && <FirstUploadGuide ownerId={user.id} />}
       <KeyboardAvoidingView
         style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior="padding"
         keyboardVerticalOffset={Platform.OS === 'ios' ? headerHeight : 0}>
         <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
           <Text style={styles.guide}>

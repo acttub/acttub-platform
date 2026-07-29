@@ -25,6 +25,14 @@ export function prepareUploadIntentBody(input: UploadIntentInput): string {
   return JSON.stringify(input);
 }
 
+/** 마지막 글자의 받침 유무로 목적격 조사(을/를)를 고른다. */
+export function objectParticle(word: string): string {
+  const last = word.trim().slice(-1);
+  const code = last.charCodeAt(0);
+  if (Number.isNaN(code) || code < 0xac00 || code > 0xd7a3) return '을';
+  return (code - 0xac00) % 28 === 0 ? '를' : '을';
+}
+
 export type UploadFormState = {
   situation: string;
   character: string;
@@ -43,7 +51,10 @@ export function missingUploadFieldsHint(state: UploadFormState): string | null {
   if (!state.situation.trim()) missing.push('상황');
   if (!state.character.trim()) missing.push('인물');
   if (!state.subtext.trim()) missing.push('의도');
-  if (missing.length > 0) return `${missing.join(' · ')}을(를) 채워주세요`;
+  if (missing.length > 0) {
+    const list = missing.join(' · ');
+    return `${list}${objectParticle(missing[missing.length - 1])} 채워주세요`;
+  }
   if (!state.agreedRights) return '권리 확인에 체크해주세요';
   return null;
 }

@@ -3,33 +3,48 @@ import { useCallback, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { heatColors, palette } from '@/constants/palette';
+import { weekColors, weekLegendLabels, palette } from '@/constants/palette';
 import { api, type ReportRecord } from '@/lib/api';
-import { RecordCard } from '@/components/record-card';
-import { buildWeekActivity } from '@/lib/practice-activity';
+import { RecordCard, type RecordMeta } from '@/components/record-card';
+import { buildWeekActivity, weekColorStep } from '@/lib/practice-activity';
+import { loadRecordMeta } from '@/lib/record-meta';
+import { displayNameFor } from '@/lib/display-name';
+import { useAuth } from '@/lib/auth';
 import { getUserName } from '@/lib/profile';
 import { sortReportsNewestFirst } from '@/lib/report-order';
+
+const PREVIEW_COUNT = 2;
 
 /** A1. 홈 — 인사말 + AI 코치 카드(=연습 시작) + 이번 주 연습 활동 + 최근 연습. */
 export default function HomeScreen() {
   const router = useRouter();
+  const { user } = useAuth();
   const [records, setRecords] = useState<ReportRecord[]>([]);
-  const [name, setName] = useState<string | null>(null);
+  const [meta, setMeta] = useState<Record<string, RecordMeta>>({});
+  const [savedName, setSavedName] = useState<string | null>(null);
 
   useFocusEffect(
     useCallback(() => {
       let cancelled = false;
       api
         .reportHistory()
-        .then((r) => {
-          if (!cancelled) setRecords(sortReportsNewestFirst(r.reports));
+        .then(async (r) => {
+          const sorted = sortReportsNewestFirst(r.reports);
+          if (cancelled) return;
+          setRecords(sorted);
+          // 미리보기로 보여줄 카드만 상세를 불러 칩(진단 축·구간)을 채운다.
+          const loaded = await loadRecordMeta(
+            sorted.slice(0, PREVIEW_COUNT).map((item) => item.practice_session_id),
+            (id) => api.getReport(id),
+          );
+          if (!cancelled) setMeta(loaded);
         })
         .catch(() => {
           if (!cancelled) setRecords([]);
         });
       // 설정에서 이름을 바꿀 수 있으니 화면에 돌아올 때마다 다시 읽는다.
       void getUserName().then((stored) => {
-        if (!cancelled) setName(stored?.trim() || null);
+        if (!cancelled) setSavedName(stored?.trim() || null);
       });
       return () => {
         cancelled = true;
@@ -41,7 +56,8 @@ export default function HomeScreen() {
   const total = records.length;
 
   const latest = records[0];
-  const recent = records.slice(0, 2);
+  const recent = records.slice(0, PREVIEW_COUNT);
+  const name = displayNameFor(savedName, user?.email ?? null);
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -88,13 +104,13 @@ export default function HomeScreen() {
                     {
                       backgroundColor: day.isFuture
                         ? 'transparent'
-                        : heatColors[Math.min(day.count, heatColors.length - 1)],
+                        : weekColors[weekColorStep(day.count)],
                     },
                     day.isFuture && styles.weekCellFuture,
                     day.isToday && styles.weekCellToday,
-                  ]}>
-                  {day.count > 0 && <Text style={styles.weekCount}>{day.count}</Text>}
-                </View>
+                  ]}
+                  accessibilityLabel={`${day.label}요일 ${day.count}회`}
+                />
                 <Text style={[styles.weekLabel, day.isToday && styles.weekLabelToday]}>
                   {day.label}
                 </Text>
@@ -102,14 +118,24 @@ export default function HomeScreen() {
             ))}
           </View>
           <View style={styles.activityFooter}>
-            {streak >= 2 ? (
-              <Text style={styles.streak}>🔥 {streak}일 연속</Text>
+            {streak >= 1 ? (
+              <View style={styles.streakChip}>
+                <Text style={styles.streak}>🔥 {streak}일 연속</Text>
+              </View>
             ) : (
               <Text style={styles.streakEmpty}>
                 {total ? '꾸준함이 쌓이는 중이에요' : '첫 연습이 여기에 쌓여요'}
               </Text>
             )}
             <Text style={styles.streakEmpty}>전체 {total}회</Text>
+          </View>
+          <View style={styles.legend}>
+            {weekLegendLabels.map((label, i) => (
+              <View key={label} style={styles.legendItem}>
+                <Text style={styles.legendLabel}>{label}</Text>
+                <View style={[styles.legendSwatch, { backgroundColor: weekColors[i + 1] }]} />
+              </View>
+            ))}
           </View>
         </View>
 
@@ -146,6 +172,7 @@ export default function HomeScreen() {
             <RecordCard
               key={r.practice_session_id + r.created_at}
               item={r}
+              meta={meta[r.practice_session_id]}
               preview
               onPress={() =>
                 router.push({
@@ -207,7 +234,6 @@ const styles = StyleSheet.create({
   },
   weekCellFuture: { borderWidth: 1, borderColor: palette.border, borderStyle: 'dashed' },
   weekCellToday: { borderWidth: 2, borderColor: palette.blue },
-  weekCount: { fontSize: 13, fontWeight: '800', color: palette.navy },
   weekLabel: { fontSize: 11, color: palette.textFaint },
   weekLabelToday: { color: palette.blue, fontWeight: '800' },
   activityFooter: {
@@ -216,7 +242,23 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginTop: 12,
   },
-  streak: { fontSize: 12, fontWeight: '700', color: palette.text },
+  legend: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 14,
+    marginTop: 12,
+  },
+  legendItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  legendLabel: { fontSize: 12, color: palette.textFaint },
+  legendSwatch: { width: 18, height: 18, borderRadius: 6 },
+  streakChip: {
+    backgroundColor: palette.amberSoft,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  streak: { fontSize: 12, fontWeight: '800', color: '#B45309' },
   streakEmpty: { fontSize: 12, color: palette.textFaint },
   statRow: {
     flexDirection: 'row',

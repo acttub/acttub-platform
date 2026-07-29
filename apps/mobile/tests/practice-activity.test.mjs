@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { buildWeekActivity } from '../lib/practice-activity.ts';
+import { buildWeekActivity, weekColorStep } from '../lib/practice-activity.ts';
 
 /** 로컬 자정 기준으로 Date를 만든다(테스트가 실행 타임존에 흔들리지 않게). */
 function local(y, m, d, h = 12) {
@@ -106,4 +106,20 @@ test('F4: 잘못된 created_at은 무시한다', () => {
 
   assert.equal(weekTotal, 1);
   assert.equal(streak, 1);
+});
+
+test('F4: 연습 횟수를 색 단계(0/1/2~3/4~5/6+)로 접는다', () => {
+  assert.equal(weekColorStep(0), 0);
+  assert.equal(weekColorStep(1), 1);
+  assert.equal(weekColorStep(2), 2);
+  assert.equal(weekColorStep(3), 2);
+  assert.equal(weekColorStep(4), 3);
+  assert.equal(weekColorStep(5), 3);
+  assert.equal(weekColorStep(6), 4);
+  assert.equal(weekColorStep(99), 4);
+});
+
+test('F4: 음수·비정상 값은 0단계', () => {
+  assert.equal(weekColorStep(-1), 0);
+  assert.equal(weekColorStep(NaN), 0);
 });

@@ -151,7 +151,7 @@ export default function CoachScreen() {
       <Stack.Screen options={{ title: '코치와 되짚기', headerBackVisible: false }} />
       <KeyboardAvoidingView
         style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior="padding"
         keyboardVerticalOffset={Platform.OS === 'ios' ? headerHeight : 0}>
         {/* 영상: 위에 고정 (스크롤 안 됨) */}
         {practice.videoUri && (

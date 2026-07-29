@@ -25,5 +25,11 @@ export const palette = {
   danger: '#E5484D',
 };
 
-/** 연습 활동 히트맵 단계 색 — 0회는 bgSoft, 1회부터 옐로→핑크. */
-export const heatColors = ['#F2F2F7', '#FFD459', '#FFAA69', '#FF5F84'];
+/**
+ * 홈 '연습 활동' 주간 스트립 단계 색 — 0회 / 1회 / 2~3회 / 4~5회 / 6회 이상.
+ * 값은 디자인 시안(스트릭_예시)에서 그대로 가져왔다. 단계 계산은 [[practice-activity]].
+ */
+export const weekColors = ['#EDEFF4', '#F8D66E', '#F3AE74', '#EE837D', '#EC6A85'];
+
+/** 범례에 쓰는 라벨 — weekColors의 1단계부터 순서대로 대응한다. */
+export const weekLegendLabels = ['1', '2~3', '4~5', '6~7'];
