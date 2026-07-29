@@ -7,6 +7,15 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '@/lib/auth';
 import { palette } from '@/constants/palette';
 
+// 애플 로고는 SF Symbols의 공식 심볼(apple.logo)을 쓴다. 네이티브 모듈이 없는 옛 dev client에서도
+// 화면이 뜨도록 가드해서 로드하고, 없으면 시스템 폰트의 애플 글리프로 대체한다.
+let SymbolView: typeof import('expo-symbols').SymbolView | null = null;
+try {
+  SymbolView = (require('expo-symbols') as typeof import('expo-symbols')).SymbolView;
+} catch {
+  SymbolView = null;
+}
+
 // Apple 로그인 모듈은 iOS에서만 로드 (안드로이드·재빌드 전 dev client에서 크래시 방지).
 let AppleAuth: typeof import('expo-apple-authentication') | null = null;
 if (Platform.OS === 'ios') {
@@ -84,13 +93,22 @@ export default function LoginScreen() {
         </Pressable>
 
         {appleAvailable && AppleAuth && (
-          <AppleAuth.AppleAuthenticationButton
-            buttonType={AppleAuth.AppleAuthenticationButtonType.SIGN_IN}
-            buttonStyle={AppleAuth.AppleAuthenticationButtonStyle.BLACK}
-            cornerRadius={16}
-            style={styles.appleButton}
+          // 공식 AppleAuthenticationButton은 글자 크기를 버튼 높이에 비례해 정해서(약 0.35배)
+          // 구글 버튼과 크기를 맞출 수 없다. HIG가 허용하는 커스텀 버튼으로 직접 그린다 —
+          // 공식 로고(SF Symbols apple.logo)·승인 문구·검정 배경 규격은 그대로 지킨다.
+          <Pressable
+            style={({ pressed }) => [styles.appleButton, pressed && styles.pressed]}
             onPress={() => run(signInWithApple)}
-          />
+            disabled={busy}
+            accessibilityRole="button"
+            accessibilityLabel="Apple로 로그인">
+            {SymbolView ? (
+              <SymbolView name="apple.logo" tintColor="#FFFFFF" size={23} />
+            ) : (
+              <Text style={styles.appleGlyph}></Text>
+            )}
+            <Text style={styles.appleText}>Apple로 로그인</Text>
+          </Pressable>
         )}
 
         {error && <Text style={styles.error}>{error}</Text>}
@@ -117,12 +135,20 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: GOOGLE_BORDER, // 구글 라이트 테마 규격 색
   },
-  googleLogo: { width: 22, height: 22 },
-  // 애플 공식 버튼은 높이의 약 0.35배로 글자를 그린다(56pt → 약 19.7pt).
-  // 나란히 놓았을 때 크기가 달라 보여서 같은 값으로 맞춘다.
-  googleText: { fontSize: 20, fontWeight: '600', color: GOOGLE_TEXT },
+  googleLogo: { width: 20, height: 20 },
+  googleText: { fontSize: 16, fontWeight: '600', color: GOOGLE_TEXT },
   pressed: { opacity: 0.7 },
-  appleButton: { width: '100%', height: 56 },
+  appleButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    height: 56,
+    borderRadius: 16,
+    backgroundColor: '#000000',
+  },
+  appleGlyph: { fontFamily: 'System', fontSize: 21, color: '#FFFFFF' },
+  appleText: { fontSize: 16, fontWeight: '600', color: '#FFFFFF' },
   error: { color: palette.danger, fontSize: 13, textAlign: 'center' },
   legal: { color: palette.textFaint, fontSize: 12, textAlign: 'center', lineHeight: 18 },
 });
