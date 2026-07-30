@@ -11,9 +11,11 @@
  *    ⚠️ `client_storage:'none'` 으로는 안 된다 — 옛 UA 필드라 GA4 가 무시하고 쿠키를 그대로 심는다
  *    (2026-07-29 실제 크롬으로 확인). consent 로만 막힌다.
  *
- * 2) **주소의 쿼리를 떼고 보낸다.** `/home?session=<uuid>` 같은 주소가 그대로 나가면
- *    연습 세션 식별자가 구글로 넘어가고 페이지 통계 카디널리티도 터진다.
- *    그래서 자동 page_view(`send_page_view`)를 끄고 경로만 실어 직접 쏜다.
+ * 2) **주소에서 캠페인 파라미터만 남기고 나머지 쿼리를 뗀다.** `/home?session=<uuid>`
+ *    같은 주소가 그대로 나가면 연습 세션 식별자가 구글로 넘어가고 페이지 통계
+ *    카디널리티도 터진다. 그래서 자동 page_view(`send_page_view`)를 끄고 직접 쏜다.
+ *    `utm_*` 만 남기는 이유는 toTrackedQuery 주석에 있다 — 방침 v2 6항이 수집 항목으로
+ *    적어 둔 "유입 경로(캠페인 정보)"가 이 값이라, 통째로 버리면 방침보다 덜 걷는다.
  *    referrer 도 같이 씻는다 — GA4 는 `page_referrer` 를 생략하면 `document.referrer` 를
  *    쓰는데, `/practice/history?session=<uuid>` 에서 `/login` 으로 하드 이동하면
  *    그 주소가 referrer 에 그대로 실린다.
@@ -50,6 +52,67 @@ export function toTrackedPath(pathname: string): string {
   return path.startsWith("/") ? path : `/${path}`;
 }
 
+/**
+ * 유입 경로를 셀 수 있는 파라미터만 남긴다. 허용 목록이므로 여기 없는 이름은 전부 버린다 —
+ * `session`·`next` 는 물론, 나중에 새 쿼리가 생겨도 자동으로 걸러진다.
+ *
+ * 두 갈래만 넣는다: GA4 가 캠페인으로 읽는 수동 태깅(`utm_*`)과, GA4 가 귀속에 실제로
+ * 쓰는 구글 자동 태깅 값이다.
+ *
+ * ⚠️ `fbclid`·`msclkid`·`ttclid` 는 일부러 뺐다. 캠페인 이름이 아니라 **클릭 하나를
+ * 가리키는 식별자**이고 GA4 는 이 값을 읽지도 않는다. 넣으면 얻는 것 없이 남의 클릭
+ * 식별자를 구글로 넘기게 된다 — 인스타에서 들어오면 `fbclid` 가 자동으로 붙으므로
+ * 실제로 흔하다. 채널은 우리가 붙인 `utm_source` 로 센다.
+ */
+const CAMPAIGN_PARAMS = new Set([
+  // GA4 수동 태깅
+  "utm_source",
+  "utm_medium",
+  "utm_campaign",
+  "utm_term",
+  "utm_content",
+  "utm_id",
+  "utm_source_platform",
+  "utm_creative_format",
+  "utm_marketing_tactic",
+  // 구글 자동 태깅 — GA4 가 귀속에 직접 쓴다
+  "gclid",
+  "gbraid",
+  "wbraid",
+  "dclid",
+  "gad_source",
+  "gad_campaignid",
+]);
+
+/**
+ * 캠페인 파라미터만 남긴 쿼리를 돌려준다. 남는 게 없으면 빈 문자열이다.
+ *
+ * 쿼리를 통째로 버리면 `?utm_source=instagram` 도 같이 사라진다. GA4 는 캠페인을
+ * `page_location` 의 쿼리에서만 읽으므로, 그러면 유입용 서브프로젝트 6개가 UTM 을
+ * 달아 보내도 전부 direct 로 잡혀 "어느 채널이 가입을 만들었나"를 못 센다.
+ *
+ * 방침 v2 6항은 수집 항목으로 "유입 경로(직전 사이트·**캠페인 정보**)"를 적어 두었고,
+ * 같은 항이 막는 것은 "연습 세션 식별자 등"이다. 그래서 통째로 버리는 대신 아는
+ * 캠페인 파라미터만 통과시킨다.
+ */
+export function toTrackedQuery(search: string): string {
+  const kept = new URLSearchParams();
+  for (const [key, value] of new URLSearchParams(search)) {
+    if (CAMPAIGN_PARAMS.has(key)) kept.append(key, value);
+  }
+  const query = kept.toString();
+  return query ? `?${query}` : "";
+}
+
+/**
+ * GA4 로 보낼 주소. 경로는 씻고 캠페인 파라미터만 남긴다.
+ * config 와 page_view 두 곳이 같은 값을 만들어야 해서 함수로 묶어 둔다 — 한쪽만
+ * 고치면 gtag 가 만드는 히트와 우리가 쏘는 히트의 `dl` 이 갈라진다.
+ */
+export function toTrackedLocation(origin: string, pathname: string, search: string): string {
+  return `${origin}${toTrackedPath(pathname)}${toTrackedQuery(search)}`;
+}
+
 let started = false;
 
 /** 태그를 올린다. 여러 번 불러도 한 번만 올라간다. */
@@ -76,7 +139,11 @@ export function startAnalytics(): void {
   // 매번 덮어쓰므로 화면별 통계는 그대로 산다.
   window.gtag("config", MEASUREMENT_ID, {
     send_page_view: false,
-    page_location: `${window.location.origin}${toTrackedPath(window.location.pathname)}`,
+    page_location: toTrackedLocation(
+      window.location.origin,
+      window.location.pathname,
+      window.location.search,
+    ),
     page_referrer: toTrackedReferrer(document.referrer, window.location.origin),
   });
 
@@ -177,14 +244,25 @@ export function trackResultViewed(): void {
   window.gtag("event", "practice_result_viewed");
 }
 
-/** 화면 전환마다 부른다. 경로만 실어 보낸다. */
+/**
+ * 화면 전환마다 부른다. 경로와 캠페인 파라미터만 실어 보낸다.
+ *
+ * `page_path` 에는 캠페인을 넣지 않는다 — 화면별 통계는 경로로 세야 같은 화면이
+ * 캠페인 수만큼 쪼개지지 않는다. 캠페인은 `page_location` 에서 GA4 가 읽어 간다.
+ *
+ * 캠페인은 호출 시점의 `window.location.search` 에서 읽는다. 인자 `pathname` 은 렌더
+ * 스냅샷이라, 아주 빠른 연속 이동에서는 서로 다른 이동에서 온 조합이 될 수 있다.
+ * 금지 키는 어차피 다시 걸러지므로 유출이 아니라 귀속이 흔들리는 문제이고, 유입을
+ * 정하는 것은 세션 첫 히트라 실제 영향은 없다. `useSearchParams` 로 맞추려면 이
+ * 컴포넌트를 Suspense 로 감싸야 해서(정적 export 제약) 그대로 둔다.
+ */
 export function trackPageView(pathname: string): void {
   if (!window.gtag) return;
   const path = toTrackedPath(pathname);
   const referrer = toTrackedReferrer(document.referrer, window.location.origin);
   window.gtag("event", "page_view", {
     page_path: path,
-    page_location: `${window.location.origin}${path}`,
+    page_location: toTrackedLocation(window.location.origin, pathname, window.location.search),
     page_title: document.title,
     // 빈 문자열로라도 넘긴다. 생략하면 GA4 가 document.referrer 를 직접 읽어
     // 씻지 않은 주소가 그대로 나간다.
