@@ -7,6 +7,15 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '@/lib/auth';
 import { palette } from '@/constants/palette';
 
+// 애플 로고는 SF Symbols의 공식 심볼(apple.logo)을 쓴다. 네이티브 모듈이 없는 옛 dev client에서도
+// 화면이 뜨도록 가드해서 로드하고, 없으면 시스템 폰트의 애플 글리프로 대체한다.
+let SymbolView: typeof import('expo-symbols').SymbolView | null = null;
+try {
+  SymbolView = (require('expo-symbols') as typeof import('expo-symbols')).SymbolView;
+} catch {
+  SymbolView = null;
+}
+
 // Apple 로그인 모듈은 iOS에서만 로드 (안드로이드·재빌드 전 dev client에서 크래시 방지).
 let AppleAuth: typeof import('expo-apple-authentication') | null = null;
 if (Platform.OS === 'ios') {
@@ -16,6 +25,10 @@ if (Platform.OS === 'ios') {
     AppleAuth = null;
   }
 }
+
+// 구글 로그인 버튼 라이트 테마 규격 색(브랜드 가이드).
+const GOOGLE_BORDER = '#DADCE0';
+const GOOGLE_TEXT = '#1F1F1F';
 
 /**
  * 로그인 — 스플래시(흰 배경 + 중앙 로고) 톤을 이어받은 첫 화면.
@@ -59,29 +72,43 @@ export default function LoginScreen() {
 
       <View style={styles.bottom}>
         <Pressable
-          style={[styles.googleButton, busy && styles.googleButtonBusy]}
+          style={({ pressed }) => [styles.googleButton, pressed && styles.pressed]}
           onPress={onGoogle}
-          disabled={busy}>
+          disabled={busy}
+          accessibilityRole="button"
+          accessibilityLabel="Google로 계속하기">
           {busy ? (
-            <ActivityIndicator color={palette.text} />
+            <ActivityIndicator color={GOOGLE_TEXT} />
           ) : (
             <>
-              <View style={styles.googleG}>
-                <Text style={styles.googleGText}>G</Text>
-              </View>
+              {/* 구글이 배포하는 공식 로고 에셋(GoogleSignIn SDK). 직접 그리면 심사에서 막힌다. */}
+              <Image
+                source={require('@/assets/images/google-logo.png')}
+                style={styles.googleLogo}
+                contentFit="contain"
+              />
               <Text style={styles.googleText}>Google로 계속하기</Text>
             </>
           )}
         </Pressable>
 
         {appleAvailable && AppleAuth && (
-          <AppleAuth.AppleAuthenticationButton
-            buttonType={AppleAuth.AppleAuthenticationButtonType.SIGN_IN}
-            buttonStyle={AppleAuth.AppleAuthenticationButtonStyle.BLACK}
-            cornerRadius={16}
-            style={styles.appleButton}
+          // 공식 AppleAuthenticationButton은 글자 크기를 버튼 높이에 비례해 정해서(약 0.35배)
+          // 구글 버튼과 크기를 맞출 수 없다. HIG가 허용하는 커스텀 버튼으로 직접 그린다 —
+          // 공식 로고(SF Symbols apple.logo)·승인 문구·검정 배경 규격은 그대로 지킨다.
+          <Pressable
+            style={({ pressed }) => [styles.appleButton, pressed && styles.pressed]}
             onPress={() => run(signInWithApple)}
-          />
+            disabled={busy}
+            accessibilityRole="button"
+            accessibilityLabel="Apple로 로그인">
+            {SymbolView ? (
+              <SymbolView name="apple.logo" tintColor="#FFFFFF" size={23} />
+            ) : (
+              <Text style={styles.appleGlyph}></Text>
+            )}
+            <Text style={styles.appleText}>Apple로 로그인</Text>
+          </Pressable>
         )}
 
         {error && <Text style={styles.error}>{error}</Text>}
@@ -101,32 +128,27 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 12,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1.5,
-    borderColor: palette.border,
-    borderRadius: 16,
+    gap: 10,
     height: 56,
-    shadowColor: palette.navy,
-    shadowOpacity: 0.06,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 2,
-  },
-  googleButtonBusy: { opacity: 0.7 },
-  appleButton: { width: '100%', height: 56 },
-  googleG: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+    borderRadius: 16,
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: palette.border,
+    borderColor: GOOGLE_BORDER, // 구글 라이트 테마 규격 색
+  },
+  googleLogo: { width: 20, height: 20 },
+  googleText: { fontSize: 16, fontWeight: '600', color: GOOGLE_TEXT },
+  pressed: { opacity: 0.7 },
+  appleButton: {
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 8,
+    height: 56,
+    borderRadius: 16,
+    backgroundColor: '#000000',
   },
-  googleGText: { fontSize: 16, fontWeight: '800', color: '#4285F4' },
-  googleText: { fontSize: 16, fontWeight: '700', color: palette.text },
+  appleGlyph: { fontFamily: 'System', fontSize: 21, color: '#FFFFFF' },
+  appleText: { fontSize: 16, fontWeight: '600', color: '#FFFFFF' },
   error: { color: palette.danger, fontSize: 13, textAlign: 'center' },
   legal: { color: palette.textFaint, fontSize: 12, textAlign: 'center', lineHeight: 18 },
 });

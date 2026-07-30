@@ -2,9 +2,32 @@
 
 import { useEffect } from "react";
 import { usePathname } from "next/navigation";
-import { isLoggedIn } from "@/lib/auth/token-store";
+import { getStoredUser, isLoggedIn } from "@/lib/auth/token-store";
+import { onSessionEvent } from "@/lib/auth/session-events";
 import { hasAcceptedCurrentPrivacy } from "@/features/auth/pending-consents";
-import { grantAnalyticsConsent, startAnalytics, trackPageView } from "@/lib/analytics/ga";
+import {
+  clearAnalyticsUser,
+  grantAnalyticsConsent,
+  setAnalyticsUser,
+  startAnalytics,
+  trackPageView,
+} from "@/lib/analytics/ga";
+
+/**
+ * user_id 는 쿠키와 똑같은 조건에서만 붙인다. consent 가 denied 여도 gtag 는 쿠키 없는
+ * 히트를 계속 보내므로, 조건 밖에서 설정하면 방침에 동의하기 전에 내부 식별자가 구글로
+ * 나간다(방침 v2 6항의 수집 항목에 없는 값이다).
+ */
+function syncAnalyticsUser(): void {
+  if (isLoggedIn() && hasAcceptedCurrentPrivacy()) {
+    const storedUser = getStoredUser();
+    if (storedUser) {
+      setAnalyticsUser(storedUser.id);
+      return;
+    }
+  }
+  clearAnalyticsUser();
+}
 
 /**
  * 루트 레이아웃에 한 번 놓는다. 화면은 그리지 않는다.
@@ -24,8 +47,25 @@ export function Analytics() {
   useEffect(() => {
     startAnalytics();
     if (isLoggedIn() && hasAcceptedCurrentPrivacy()) grantAnalyticsConsent();
+    // page_view 보다 먼저 붙여야 동의 직후 첫 화면부터 사람에 묶인다.
+    syncAnalyticsUser();
     trackPageView(pathname);
   }, [pathname]);
+
+  // 로그아웃과 재동의 요구는 화면 전환 없이도 일어난다 — 같은 탭에서 로그아웃 버튼을
+  // 누르거나, 다른 탭에서 로그아웃해 이 탭의 토큰이 사라지거나, 방침이 개정되거나.
+  // 위 effect 는 pathname 이 바뀔 때만 도는데 그때까지 이전 user_id 가 남아 있으면
+  // 그 사이의 히트가 이미 나간 사람에게 계속 붙는다.
+  useEffect(() => {
+    const unsubscribe = onSessionEvent(syncAnalyticsUser);
+    // 다른 탭의 변화는 세션 이벤트로 오지 않는다(token-store 는 storage 로 메모리 캐시만
+    // 되돌린다). storage 는 그 탭 밖에서 일어난 변화만 오므로 여기서 같이 듣는다.
+    window.addEventListener("storage", syncAnalyticsUser);
+    return () => {
+      unsubscribe();
+      window.removeEventListener("storage", syncAnalyticsUser);
+    };
+  }, []);
 
   return null;
 }
