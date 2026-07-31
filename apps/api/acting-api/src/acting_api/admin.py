@@ -66,7 +66,9 @@ class AdminSessions(_Strict):
     playback_expires_in_sec: int
 
 
-def build_router(*, store, storage, admin_token: str | None) -> APIRouter | None:
+def build_router(
+    *, store, storage, admin_token: str | None, exclude_emails: tuple[str, ...] = ()
+) -> APIRouter | None:
     """토큰이 없으면 None 을 돌려준다 — 호출부가 아예 라우터를 달지 않는다."""
     if not admin_token:
         return None
@@ -90,7 +92,7 @@ def build_router(*, store, storage, admin_token: str | None) -> APIRouter | None
     async def sessions(
         limit: int = Query(default=20, ge=1, le=MAX_SESSIONS)
     ) -> AdminSessions:
-        rows = await run_in_threadpool(store.admin_sessions, limit)
+        rows = await run_in_threadpool(store.admin_sessions, limit, exclude_emails)
         out: list[AdminSession] = []
         for row in rows:
             object_key = row.pop("object_key", None)
