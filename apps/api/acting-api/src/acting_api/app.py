@@ -199,6 +199,12 @@ def create_app(
         store=store,
         storage=s3_storage,
         admin_token=os.environ.get("ADMIN_OPS_TOKEN"),
+        # 팀이 테스트로 만든 세션을 빼는 목록. 쉼표로 구분한다.
+        exclude_emails=tuple(
+            e.strip()
+            for e in os.environ.get("ADMIN_OPS_EXCLUDE_EMAILS", "").split(",")
+            if e.strip()
+        ),
     )
     if admin_router is not None:
         app.include_router(admin_router)
