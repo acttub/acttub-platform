@@ -1978,3 +1978,104 @@ class PostgresStore:
             raise ValueError(
                 "SHA-256 values must be 64 hexadecimal characters"
             ) from exc
+
+    # ---- 운영 대시보드 조회 ----
+    #
+    # 이메일·user_id 를 돌려주지 않는다. 누구인지 몰라도 무엇이 오갔는지는 보이고,
+    # 토큰이 새더라도 사용자 명단이 되지는 않게 하려는 것이다.
+
+    def admin_stats(self) -> dict[str, Any]:
+        since = datetime.now(timezone.utc) - timedelta(days=7)
+        with self._session_factory() as db:
+
+            def total(model, *where) -> int:
+                stmt = select(func.count()).select_from(model)
+                for clause in where:
+                    stmt = stmt.where(clause)
+                return int(db.execute(stmt).scalar_one())
+
+            active = db.execute(
+                select(func.count(func.distinct(PracticeSession.user_id))).where(
+                    PracticeSession.created_at >= since
+                )
+            ).scalar_one()
+
+            return {
+                "users_total": total(User),
+                "users_last_7d": total(User, User.created_at >= since),
+                "practice_sessions_total": total(PracticeSession),
+                "practice_sessions_last_7d": total(
+                    PracticeSession, PracticeSession.created_at >= since
+                ),
+                "uploads_finalized_total": total(
+                    UploadIntent, UploadIntent.status == UploadStatus.FINALIZED
+                ),
+                "analyses_completed_total": total(
+                    PracticeSession, PracticeSession.status == PracticeStatus.ANALYZED
+                ),
+                "coach_sessions_total": total(DbCoachSession),
+                "coach_turns_total": total(DbCoachTurn),
+                "reports_total": total(DbReport),
+                "active_users_last_7d": int(active),
+                "last_signup_at": db.execute(
+                    select(func.max(User.created_at))
+                ).scalar_one_or_none(),
+                "last_session_at": db.execute(
+                    select(func.max(PracticeSession.created_at))
+                ).scalar_one_or_none(),
+            }
+
+    def admin_sessions(self, limit: int) -> list[dict[str, Any]]:
+        with self._session_factory() as db:
+            rows = db.execute(
+                select(DbCoachSession, PracticeSession, UploadIntent.object_key)
+                .join(Summary, Summary.id == DbCoachSession.summary_id, isouter=True)
+                .join(
+                    PracticeSession,
+                    PracticeSession.id == Summary.session_id,
+                    isouter=True,
+                )
+                .join(
+                    UploadIntent,
+                    and_(
+                        UploadIntent.id == PracticeSession.upload_intent_id,
+                        UploadIntent.status == UploadStatus.FINALIZED,
+                    ),
+                    isouter=True,
+                )
+                .order_by(DbCoachSession.created_at.desc())
+                .limit(limit)
+            ).all()
+
+            sessions: list[dict[str, Any]] = []
+            for coach, practice, object_key in rows:
+                turns = db.execute(
+                    select(DbCoachTurn)
+                    .where(DbCoachTurn.session_id == coach.id)
+                    .order_by(DbCoachTurn.turn_index)
+                ).scalars().all()
+                sessions.append(
+                    {
+                        "coach_session_id": str(coach.id),
+                        "created_at": coach.created_at,
+                        "status": getattr(coach.status, "value", coach.status),
+                        "close_reason": getattr(
+                            coach.close_reason, "value", coach.close_reason
+                        ),
+                        "situation": practice.situation if practice else None,
+                        "character_context": (
+                            practice.character_context if practice else None
+                        ),
+                        "subtext": practice.subtext if practice else None,
+                        "turns": [
+                            {
+                                "turn_index": t.turn_index,
+                                "role": getattr(t.role, "value", t.role),
+                                "text": t.text or "",
+                            }
+                            for t in turns
+                        ],
+                        "object_key": object_key,
+                    }
+                )
+            return sessions

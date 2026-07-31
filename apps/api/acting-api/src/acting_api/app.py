@@ -30,6 +30,7 @@ from acting_api.auth.development import DevelopmentProviderVerifier
 from acting_api.auth.google import GoogleProviderVerifier
 from acting_api.auth.jwt import JwtService
 from acting_api.auth.providers import ProviderRegistry
+from acting_api.admin import build_router as build_admin_router
 from acting_api.auth.router import build_router as build_auth_router
 from acting_api.coaching import build_router as build_coaching_router
 from acting_api.config import load_gateway_settings
@@ -191,6 +192,16 @@ def create_app(
             # 이전 배포 환경 변수가 있으면 진단 메타데이터로 계속 노출한다.
             "commit": os.environ.get("RENDER_GIT_COMMIT", "unknown")[:7],
         }
+
+    # 운영 대시보드 조회. ADMIN_OPS_TOKEN 이 없으면 build_router 가 None 을 주고
+    # 라우터 자체가 붙지 않는다 — 기본값이 '열림'이 되지 않게 한 것이다.
+    admin_router = build_admin_router(
+        store=store,
+        storage=s3_storage,
+        admin_token=os.environ.get("ADMIN_OPS_TOKEN"),
+    )
+    if admin_router is not None:
+        app.include_router(admin_router)
 
     app.include_router(
         build_auth_router(
