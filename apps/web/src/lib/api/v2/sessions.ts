@@ -54,13 +54,34 @@ function wait(delayMs: number, signal?: AbortSignal): Promise<void> {
   });
 }
 
+// 장면 세 칸은 화면에서 "비워 두셔도 돼요. 빈 칸은 대화에서 물어봐요"로 안내하지만,
+// 서버는 세 칸 모두 min_length=1을 요구한다. 빈 칸으로 제출하면 업로드를 끝낸 뒤
+// createPracticeSession에서만 422가 나고 화면은 아무 말 없이 멈춘다(실사용자 4명이 여기서
+// 이탈했다). 자리표시자를 채워 넣어 그 구간을 넘긴다 — 코치는 두 글자 미만을 모호값으로
+// 걸러내므로(acting_agent.targeting.is_vague) 빈 칸과 똑같이 되묻는다.
+const BLANK_PLACEHOLDER = ".";
+
+export function fillBlankScene(
+  body: PracticeSessionRequest,
+): PracticeSessionRequest {
+  const filled = (value: string | undefined) =>
+    value && value.trim() ? value : BLANK_PLACEHOLDER;
+
+  return {
+    ...body,
+    situation: filled(body.situation),
+    character_context: filled(body.character_context),
+    subtext: filled(body.subtext),
+  };
+}
+
 export async function createPracticeSession(
   body: PracticeSessionRequest,
   options?: PostIdempotentOptions,
 ): Promise<CreatePracticeSessionResult> {
   const { status, data } = await postIdempotent<PracticeSessionCreateResponse>(
     "/v2/practice-sessions",
-    body,
+    fillBlankScene(body),
     options,
   );
 
