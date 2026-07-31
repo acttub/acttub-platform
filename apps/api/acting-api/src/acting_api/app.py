@@ -31,6 +31,7 @@ from acting_api.auth.google import GoogleProviderVerifier
 from acting_api.auth.jwt import JwtService
 from acting_api.auth.providers import ProviderRegistry
 from acting_api.admin import build_router as build_admin_router
+from acting_api.admissions import build_router as build_admissions_router
 from acting_api.auth.router import build_router as build_auth_router
 from acting_api.coaching import build_router as build_coaching_router
 from acting_api.config import load_gateway_settings
@@ -202,6 +203,14 @@ def create_app(
     )
     if admin_router is not None:
         app.include_router(admin_router)
+
+    # 입시 공고 조회. 인증이 필요 없다 — 공개 정보이고 가입 전에도 보여야 한다.
+    # 데이터 파일이 없으면 라우터를 붙이지 않는다(배포에서 빠져도 기동은 되게).
+    admissions_router = build_admissions_router(
+        admissions_file=gateway_settings.admissions_file,
+    )
+    if admissions_router is not None:
+        app.include_router(admissions_router)
 
     app.include_router(
         build_auth_router(

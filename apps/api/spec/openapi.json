@@ -24,6 +24,69 @@
         }
       }
     },
+    "/v2/admissions": {
+      "get": {
+        "tags": [
+          "v2-admissions"
+        ],
+        "summary": "List Admissions",
+        "operationId": "list_admissions_v2_admissions_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdmissionsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/admissions/{university_id}": {
+      "get": {
+        "tags": [
+          "v2-admissions"
+        ],
+        "summary": "Get University",
+        "operationId": "get_university_v2_admissions__university_id__get",
+        "parameters": [
+          {
+            "name": "university_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "University Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdmissionsResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v2/auth/login": {
       "post": {
         "tags": [
@@ -948,6 +1011,227 @@
           "comparison"
         ],
         "title": "ActingReport"
+      },
+      "AdmissionNotice": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "university_id": {
+            "type": "string",
+            "title": "University Id"
+          },
+          "department": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Department"
+          },
+          "admission_year": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Admission Year"
+          },
+          "track": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Track"
+          },
+          "screening": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Screening"
+          },
+          "apply_start": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Apply Start"
+          },
+          "apply_end": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Apply End"
+          },
+          "practical_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Practical Date"
+          },
+          "practical_task": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Practical Task"
+          },
+          "source_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Url"
+          },
+          "verified_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verified At"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "university_id"
+        ],
+        "title": "AdmissionNotice"
+      },
+      "AdmissionUniversity": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "admission_url": {
+            "type": "string",
+            "title": "Admission Url"
+          },
+          "verified_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verified At"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "admission_url"
+        ],
+        "title": "AdmissionUniversity"
+      },
+      "AdmissionsResponse": {
+        "properties": {
+          "updated_at": {
+            "type": "string",
+            "title": "Updated At"
+          },
+          "disclaimer": {
+            "type": "string",
+            "title": "Disclaimer"
+          },
+          "universities": {
+            "items": {
+              "$ref": "#/components/schemas/AdmissionUniversity"
+            },
+            "type": "array",
+            "title": "Universities"
+          },
+          "notices": {
+            "items": {
+              "$ref": "#/components/schemas/AdmissionNotice"
+            },
+            "type": "array",
+            "title": "Notices"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "updated_at",
+          "disclaimer",
+          "universities",
+          "notices"
+        ],
+        "title": "AdmissionsResponse"
       },
       "AuthUser": {
         "properties": {

@@ -38,6 +38,8 @@ SUCCESS_RESPONSE_MODELS = {
     ("get", "/health", "200"): "HealthResponse",
     ("post", "/v2/auth/login", "200"): "TokenPairResponse",
     ("post", "/v2/auth/refresh", "200"): "RefreshTokenResponse",
+    ("get", "/v2/admissions", "200"): "AdmissionsResponse",
+    ("get", "/v2/admissions/{university_id}", "200"): "AdmissionsResponse",
     ("get", "/v2/consents/documents", "200"): "ConsentDocumentsResponse",
     ("get", "/v2/consents/pending", "200"): "ConsentDocumentsResponse",
     ("post", "/v2/consents", "201"): "ConsentEventResponse",

@@ -21,6 +21,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v2/admissions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Admissions */
+        get: operations["list_admissions_v2_admissions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/admissions/{university_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get University */
+        get: operations["get_university_v2_admissions__university_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v2/auth/login": {
         parameters: {
             query?: never;
@@ -315,6 +349,59 @@ export interface components {
             next_step: string;
             /** Comparison */
             comparison: string;
+        };
+        /** AdmissionNotice */
+        AdmissionNotice: {
+            /** Id */
+            id: string;
+            /** University Id */
+            university_id: string;
+            /** Department */
+            department?: string | null;
+            /** Admission Year */
+            admission_year?: number | null;
+            /** Track */
+            track?: string | null;
+            /** Screening */
+            screening?: string | null;
+            /** Apply Start */
+            apply_start?: string | null;
+            /** Apply End */
+            apply_end?: string | null;
+            /** Practical Date */
+            practical_date?: string | null;
+            /** Practical Task */
+            practical_task?: string | null;
+            /** Source Url */
+            source_url?: string | null;
+            /** Verified At */
+            verified_at?: string | null;
+            /** Note */
+            note?: string | null;
+        };
+        /** AdmissionUniversity */
+        AdmissionUniversity: {
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /** Admission Url */
+            admission_url: string;
+            /** Verified At */
+            verified_at?: string | null;
+            /** Note */
+            note?: string | null;
+        };
+        /** AdmissionsResponse */
+        AdmissionsResponse: {
+            /** Updated At */
+            updated_at: string;
+            /** Disclaimer */
+            disclaimer: string;
+            /** Universities */
+            universities: components["schemas"]["AdmissionUniversity"][];
+            /** Notices */
+            notices: components["schemas"]["AdmissionNotice"][];
         };
         /** AuthUser */
         AuthUser: {
@@ -779,6 +866,57 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HealthResponse"];
+                };
+            };
+        };
+    };
+    list_admissions_v2_admissions_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdmissionsResponse"];
+                };
+            };
+        };
+    };
+    get_university_v2_admissions__university_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                university_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdmissionsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

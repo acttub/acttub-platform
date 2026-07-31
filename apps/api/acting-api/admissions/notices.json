@@ -1,0 +1,208 @@
+{
+  "updated_at": "2026-07-31",
+  "disclaimer": "최종 확인은 반드시 각 대학 입학처 공고로 해주세요.",
+  "universities": [
+    {
+      "id": "cau",
+      "name": "중앙대학교",
+      "admission_url": "https://admission.cau.ac.kr",
+      "verified_at": "2026-07-31"
+    },
+    {
+      "id": "dongguk",
+      "name": "동국대학교",
+      "admission_url": "https://ipsi.dongguk.edu",
+      "verified_at": "2026-07-31"
+    },
+    {
+      "id": "sejong",
+      "name": "세종대학교",
+      "admission_url": "https://ipsi.sejong.ac.kr",
+      "verified_at": "2026-07-31"
+    },
+    {
+      "id": "dankook",
+      "name": "단국대학교",
+      "admission_url": "https://ipsi.dankook.ac.kr",
+      "verified_at": "2026-07-31",
+      "note": "입학처가 자동 수집을 막아 두어(robots.txt Disallow: /) 전형 정보를 확인하지 못했다. 공연영화학부 일정은 입학처에서 직접 확인해야 한다."
+    },
+    {
+      "id": "konkuk",
+      "name": "건국대학교",
+      "admission_url": "https://admission.konkuk.ac.kr",
+      "verified_at": "2026-07-31"
+    },
+    {
+      "id": "skku",
+      "name": "성균관대학교",
+      "admission_url": "https://admission.skku.edu",
+      "verified_at": "2026-07-31"
+    },
+    {
+      "id": "seoularts",
+      "name": "서울예술대학교",
+      "admission_url": "https://www.seoularts.ac.kr",
+      "verified_at": "2026-07-31",
+      "note": "입시공지 게시판이 JS로 렌더링되어 본문을 확인하지 못했다. 연기전공 일정은 입학처 게시판에서 직접 확인해야 한다."
+    },
+    {
+      "id": "mju",
+      "name": "명지대학교",
+      "admission_url": "https://iphak.mju.ac.kr",
+      "verified_at": "2026-07-31"
+    }
+  ],
+  "notices": [
+    {
+      "id": "sejong-2027-susi-practical-acting",
+      "university_id": "sejong",
+      "department": "영화예술학과 연기예술전공",
+      "admission_year": 2027,
+      "track": "수시",
+      "screening": "실기/실적 - 실기우수자 전형",
+      "apply_start": "2026-09-08",
+      "apply_end": "2026-09-11",
+      "practical_date": "2026-09-29",
+      "practical_task": "1단계 2026-09-29 ~, 2단계 2026-10-30 ~ 10-31. 수능 최저학력기준 없음.",
+      "source_url": "https://ipsi.sejong.ac.kr/sub_page/sub1/0101.asp?tab1=1",
+      "verified_at": "2026-07-31",
+      "note": "2027학년도 수시 모집요강 PDF 33쪽(전형일정)·80쪽(실기우수자) 확인. 원서접수는 09.08 10시 ~ 09.11 18시. 전형요소 반영비율은 PDF 표 구조상 판독이 불확실해 싣지 않음 - 원문 확인 필요."
+    },
+    {
+      "id": "sejong-2027-susi-practical-directing",
+      "university_id": "sejong",
+      "department": "영화예술학과 연출제작전공",
+      "admission_year": 2027,
+      "track": "수시",
+      "screening": "실기/실적 - 실기우수자 전형",
+      "apply_start": "2026-09-08",
+      "apply_end": "2026-09-11",
+      "practical_date": "2026-10-03",
+      "practical_task": "1단계 2026-10-03, 2단계 2026-10-29 ~ 10-30. 수능 최저학력기준 없음.",
+      "source_url": "https://ipsi.sejong.ac.kr/sub_page/sub1/0101.asp?tab1=1",
+      "verified_at": "2026-07-31",
+      "note": "연기 전공은 아니지만 같은 학과라 함께 싣는다. 전형요소 반영비율은 원문 확인 필요."
+    },
+    {
+      "id": "dongguk-2027-susi-practical",
+      "university_id": "dongguk",
+      "department": "연극학부 (연극/뮤지컬)",
+      "admission_year": 2027,
+      "track": "수시",
+      "screening": "실기/실적 - 실기(연극학부-실기형)",
+      "apply_start": "2026-09-09",
+      "apply_end": "2026-09-11",
+      "practical_date": "2026-09-18",
+      "practical_task": "단계별. 기초실기 2026-09-18 ~ 09-22 → 1단계 발표 2026-10-06 → 종합실기 2026-10-21 ~ 10-25. 1단계 기초실기 100%(7배수), 2단계 종합실기 70% + 학생부교과 20% + 출결 10%. 수능 최저학력기준 없음.",
+      "source_url": "https://ipsi.dongguk.edu/upload/file/20260715140521FRWQXB.PDF",
+      "verified_at": "2026-07-31",
+      "note": "2027학년도 수시 모집요강 PDF 19·23·24·74쪽 확인. 모집 38명. 원서접수 09.09 10시 ~ 09.11 17시. 정시모집 없음."
+    },
+    {
+      "id": "dongguk-2027-susi-talent",
+      "university_id": "dongguk",
+      "department": "연극학부 (연극/뮤지컬)",
+      "admission_year": 2027,
+      "track": "수시",
+      "screening": "실기/실적 - 실기(연극학부-특기형)",
+      "apply_start": "2026-09-09",
+      "apply_end": "2026-09-11",
+      "practical_date": "2026-10-21",
+      "practical_task": "일괄. 실기고사 2026-10-21 ~ 10-25. 실기 40% + 실적평가 + 학생부교과 20% + 출결 10%. 연극·뮤지컬·영화·방송 주·조연급 경력자 대상. 수능 최저학력기준 없음.",
+      "source_url": "https://ipsi.dongguk.edu/upload/file/20260715140521FRWQXB.PDF",
+      "verified_at": "2026-07-31",
+      "note": "2027학년도 수시 모집요강 PDF 19·23·77쪽 확인. 모집 2명. 경력 요건이 있어 지원자격을 원문에서 반드시 확인해야 한다."
+    },
+    {
+      "id": "skku-2027-susi-acting",
+      "university_id": "skku",
+      "department": "연기예술학과 (연기)",
+      "admission_year": 2027,
+      "track": "수시",
+      "screening": "실기/실적 - 예체능 실기우수자",
+      "apply_start": "2026-09-08",
+      "apply_end": "2026-09-11",
+      "practical_date": "2026-10-02",
+      "practical_task": "단계별. 1단계 기초연기역량평가 2026-10-02 ~ 10-05 (실기 100%, 6배수 내외) → 2단계 전공적성평가 2026-10-17 ~ 10-18 (학생부 40 + 실기 60). 대상자 발표 1단계 09-29, 2단계 10-13.",
+      "source_url": "https://admission.skku.edu/admission/html/rolling/guide.html",
+      "verified_at": "2026-07-31",
+      "note": "2027학년도 수시 모집요강 PDF 10·50·51쪽 확인. 모집 20명. 원서접수 09.08 10시 ~ 09.11 18시. 기출 문항은 입학처 question.html 참고."
+    },
+    {
+      "id": "skku-2027-susi-directing",
+      "university_id": "skku",
+      "department": "연기예술학과 (연출)",
+      "admission_year": 2027,
+      "track": "수시",
+      "screening": "학생부종합 - 성균인재",
+      "apply_start": "2026-09-08",
+      "apply_end": "2026-09-11",
+      "practical_date": null,
+      "practical_task": "실기 없음. 면접 2026-11-08 (대상자 발표 11-03). 1단계 5배수 내외.",
+      "source_url": "https://admission.skku.edu/admission/html/rolling/guide.html",
+      "verified_at": "2026-07-31",
+      "note": "2027학년도 수시 모집요강 PDF 10·30·31쪽 확인. 모집 9명. 연출 전공은 실기가 아니라 학생부종합+면접으로 뽑는다."
+    },
+    {
+      "id": "konkuk-2027-susi-acting",
+      "university_id": "konkuk",
+      "department": "영화예술학과 (연기)",
+      "admission_year": 2027,
+      "track": "수시",
+      "screening": "실기/실적 - 연기우수자",
+      "apply_start": "2026-09-08",
+      "apply_end": "2026-09-11",
+      "practical_date": "2026-11-03",
+      "practical_task": "자유연기 [대면] 인물이나 상황을 자유롭게 설정, 3분 이내 (연습 20분 이내). 선택으로 특기 실연 1분 이내. 평가는 표현력 40% + 이해력 30% 등. 1단계 학생부(교과정량) 100%로 20배수 → 2단계 실기 100%. 실기 2026-11-03 ~ 11-05.",
+      "source_url": "https://admission.konkuk.ac.kr/admission/37859/subview.do",
+      "verified_at": "2026-07-31",
+      "note": "2027학년도 수시 모집요강 PDF 11·23·51·52쪽 확인. 모집 15명. 원서접수 09.08 10시 ~ 09.11 17시, 서류제출 09.15까지. 1단계 발표 10-22, 최초합격 12-18."
+    },
+    {
+      "id": "konkuk-2027-susi-directing",
+      "university_id": "konkuk",
+      "department": "영화예술학과 (연출)",
+      "admission_year": 2027,
+      "track": "수시",
+      "screening": "실기/실적 - 연출우수자",
+      "apply_start": "2026-09-08",
+      "apply_end": "2026-09-11",
+      "practical_date": "2026-11-06",
+      "practical_task": "1단계 학생부(교과정량) → 2단계 실기 100%. 실기 2026-11-06.",
+      "source_url": "https://admission.konkuk.ac.kr/admission/37859/subview.do",
+      "verified_at": "2026-07-31",
+      "note": "2027학년도 수시 모집요강 PDF 11·23쪽 확인. 모집 10명. 연기 전공은 아니지만 같은 학과라 함께 싣는다."
+    },
+    {
+      "id": "cau-2027-susi-practical",
+      "university_id": "cau",
+      "department": "공연영상창작학부 연극전공 (연기·뮤지컬)",
+      "admission_year": 2027,
+      "track": "수시",
+      "screening": "실기/실적 - 실기형",
+      "apply_start": null,
+      "apply_end": null,
+      "practical_date": null,
+      "practical_task": "단계별. 1단계 대면 실기 100% (5배수) → 2단계 실기 반영. 정시는 수능(실기형)으로 연극(연출/기획)을 따로 뽑는다.",
+      "source_url": "https://admission.cau.ac.kr",
+      "verified_at": "2026-07-31",
+      "note": "2027학년도 입학전형시행계획(안) 9·22·30쪽 기준 - 모집요강이 아니라 일정이 없다. 입학처 사이트가 자동 수집을 막아 두어(robots.txt Disallow: /) 원문을 직접 확인하지 못했고, 전형요소 반영비율도 판독이 불확실해 싣지 않았다. 원서접수·실기일은 모집요강 공개 후 채워야 한다."
+    },
+    {
+      "id": "mju-2027-susi-musical",
+      "university_id": "mju",
+      "department": "예술학부 뮤지컬공연전공",
+      "admission_year": 2027,
+      "track": "수시",
+      "screening": "실기/실적 - 실기우수자전형",
+      "apply_start": "2026-09-07",
+      "apply_end": "2026-09-11",
+      "practical_date": "2026-10-03",
+      "practical_task": "보컬 2026-10-03 ~ 10-06, 댄스 2026-10-17 ~ 10-18. 학생부(교과)·출결·실기 합산 총점 순으로 선발. 실기고사는 자연캠퍼스(용인)에서 진행.",
+      "source_url": "https://iphak.mju.ac.kr/pages/?p=10&mj=01",
+      "verified_at": "2026-07-31",
+      "note": "2027학년도 수시 모집요강 PDF 84쪽 확인. 모집 보컬 10명·댄스 10명. 원서접수 09.07 10시 ~ 09.11 17시, 서류제출 09.14까지. 고사장 발표 09.29, 합격자 발표 12.09. 영화전공(연기·연출 트랙)은 특기자전형 소관이라 별도 확인 필요."
+    }
+  ]
+}
