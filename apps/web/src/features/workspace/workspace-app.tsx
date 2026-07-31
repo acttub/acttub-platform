@@ -968,9 +968,6 @@ function SceneForm({
         <SceneField label="인물" value={character} onChange={onCharacter} disabled={locked} placeholder="예: 담담한 척하는 20대 후반 여성" />
         <SceneField label="목표" value={goal} onChange={onGoal} disabled={locked} placeholder="예: 상대가 마음을 돌려 다시 앉게 만들기" />
       </div>
-      <p className="mt-3 text-xs font-semibold text-[#8b95a1]">
-        비워 두셔도 돼요. 빈 칸은 대화에서 물어봐요.
-      </p>
     </section>
   );
 }
