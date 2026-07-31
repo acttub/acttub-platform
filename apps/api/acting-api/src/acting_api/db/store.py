@@ -2025,9 +2025,16 @@ class PostgresStore:
                 ).scalar_one_or_none(),
             }
 
-    def admin_sessions(self, limit: int) -> list[dict[str, Any]]:
+    def admin_sessions(
+        self, limit: int, exclude_emails: tuple[str, ...] = ()
+    ) -> list[dict[str, Any]]:
+        """최근 코치 세션. `exclude_emails` 에 해당하는 사용자의 세션은 뺀다.
+
+        팀이 테스트로 만든 세션이 섞이면 실사용자 흐름이 안 보인다. 이메일은
+        걸러내는 데만 쓰고 결과에는 넣지 않는다.
+        """
         with self._session_factory() as db:
-            rows = db.execute(
+            stmt = (
                 select(DbCoachSession, PracticeSession, UploadIntent.object_key)
                 .join(Summary, Summary.id == DbCoachSession.summary_id, isouter=True)
                 .join(
@@ -2044,8 +2051,21 @@ class PostgresStore:
                     isouter=True,
                 )
                 .order_by(DbCoachSession.created_at.desc())
-                .limit(limit)
-            ).all()
+            )
+            if exclude_emails:
+                # 제외 대상은 users 를 거쳐야 알 수 있다. 조인은 필터 전용이고
+                # 이메일은 결과에 담기지 않는다.
+                stmt = stmt.join(
+                    User, User.id == PracticeSession.user_id, isouter=True
+                ).where(
+                    or_(
+                        User.email.is_(None),
+                        func.lower(User.email).notin_(
+                            [e.lower() for e in exclude_emails]
+                        ),
+                    )
+                )
+            rows = db.execute(stmt.limit(limit)).all()
 
             sessions: list[dict[str, Any]] = []
             for coach, practice, object_key in rows:
