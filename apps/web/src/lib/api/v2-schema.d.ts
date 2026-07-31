@@ -372,6 +372,61 @@ export interface components {
             practical_date?: string | null;
             /** Practical Task */
             practical_task?: string | null;
+            /** Quota */
+            quota?: string | null;
+            /** Fee */
+            fee?: string | null;
+            /** Csat Minimum */
+            csat_minimum?: string | null;
+            /** Documents */
+            documents?: string | null;
+            /** Dress Code */
+            dress_code?: string | null;
+            /**
+             * Designated Works
+             * @default []
+             */
+            designated_works: string[];
+            /**
+             * Essay Questions
+             * @default []
+             */
+            essay_questions: string[];
+            /**
+             * Results
+             * @default []
+             */
+            results: components["schemas"]["AdmissionResult"][];
+            /** Source Url */
+            source_url?: string | null;
+            /** Verified At */
+            verified_at?: string | null;
+            /** Note */
+            note?: string | null;
+        };
+        /**
+         * AdmissionResult
+         * @description 전년도 입시결과. 대학이 공개한 값만 담고, 나머지는 None으로 남긴다.
+         */
+        AdmissionResult: {
+            /** Year */
+            year: number;
+            /** Quota */
+            quota?: number | null;
+            /** Applicants */
+            applicants?: number | null;
+            /** Competition Rate */
+            competition_rate?: string | null;
+            /** Transcript Avg */
+            transcript_avg?: string | null;
+            /** Transcript Cut70 */
+            transcript_cut70?: string | null;
+            /** Transcript Low */
+            transcript_low?: string | null;
+            /** Fill Rate */
+            fill_rate?: string | null;
+            /** Waitlist Last */
+            waitlist_last?: number | null;
             /** Source Url */
             source_url?: string | null;
             /** Verified At */

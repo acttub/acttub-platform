@@ -3,7 +3,9 @@ import { test } from "node:test";
 
 import "./ts-module-loader.mjs";
 
-const { groupByUniversity, isOpen } = await import("../src/lib/api/v2/admissions.ts");
+const { groupByUniversity, isOpen, countdown } = await import(
+  "../src/lib/api/v2/admissions.ts",
+);
 
 const payload = {
   updated_at: "2026-07-31",
@@ -46,4 +48,60 @@ test("접수 마감일이 지나지 않았으면 열린 것으로 본다", () =>
 test("마감일이 비어 있으면 닫힌 것으로 단정하지 않는다", () => {
   assert.equal(isOpen({ apply_end: null }, "2026-12-31"), true);
   assert.equal(isOpen({}, "2026-12-31"), true);
+});
+
+// 입시생에게 가장 급한 건 마감일이다. 알파벳순으로 세우면 이 화면이 쓸모없어진다.
+test("접수가 빠른 대학이 앞에 온다", () => {
+  const grouped = groupByUniversity({
+    ...payload,
+    universities: [
+      { id: "late", name: "늦은대", admission_url: "https://late.example" },
+      { id: "early", name: "이른대", admission_url: "https://early.example" },
+      { id: "unknown", name: "미확인대", admission_url: "https://unknown.example" },
+    ],
+    notices: [
+      { id: "l", university_id: "late", apply_start: "2026-09-14" },
+      { id: "e", university_id: "early", apply_start: "2026-06-22" },
+      { id: "u", university_id: "unknown", apply_start: null },
+    ],
+  });
+  assert.deepEqual(
+    grouped.map((g) => g.university.id),
+    ["early", "late", "unknown"],
+  );
+});
+
+test("접수 전이면 시작까지, 접수 중이면 마감까지 센다", () => {
+  const notice = { apply_start: "2026-09-08", apply_end: "2026-09-11" };
+  assert.deepEqual(countdown(notice, "2026-08-29"), { label: "접수 시작", days: 10 });
+  assert.deepEqual(countdown(notice, "2026-09-09"), { label: "접수 마감", days: 2 });
+  assert.deepEqual(countdown(notice, "2026-09-11"), { label: "접수 마감", days: 0 });
+});
+
+// 이미 끝났거나 날짜를 모르는 공고에 D-day를 붙이면 거짓말이 된다.
+test("끝났거나 날짜가 없으면 카운트다운을 붙이지 않는다", () => {
+  assert.equal(countdown({ apply_start: "2026-09-08", apply_end: "2026-09-11" }, "2026-09-12"), null);
+  assert.equal(countdown({ apply_start: null, apply_end: null }, "2026-09-12"), null);
+});
+
+// 이미 끝난 전형이 맨 위에 있으면, 지금 지원할 수 있는 곳을 못 찾는다.
+test("접수가 끝난 전형은 뒤로 내려간다", () => {
+  const grouped = groupByUniversity(
+    {
+      ...payload,
+      universities: [
+        { id: "done", name: "끝난대", admission_url: "https://done.example" },
+        { id: "soon", name: "곧대", admission_url: "https://soon.example" },
+      ],
+      notices: [
+        { id: "d", university_id: "done", apply_start: "2026-06-22", apply_end: "2026-06-25" },
+        { id: "s", university_id: "soon", apply_start: "2026-09-08", apply_end: "2026-09-11" },
+      ],
+    },
+    "2026-07-31",
+  );
+  assert.deepEqual(
+    grouped.map((g) => g.university.id),
+    ["soon", "done"],
+  );
 });
