@@ -14,7 +14,13 @@ import {
   type CommunityCategory,
 } from "@/lib/api/v2/community";
 import { useRequireAuth } from "@/features/auth/use-require-auth";
-import { CommunityShell, Notice, PrimaryButton, errorMessage } from "./shell";
+import {
+  AnonymousToggle,
+  CommunityShell,
+  Notice,
+  PrimaryButton,
+  errorMessage,
+} from "./shell";
 
 const TITLE_MAX = 100;
 const BODY_MAX = 5000;
@@ -47,6 +53,7 @@ export function PostComposer({ postId }: { postId?: string }) {
   const [slug, setSlug] = useState("");
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
+  const [anonymous, setAnonymous] = useState(false);
   const [loading, setLoading] = useState(editing);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -74,6 +81,7 @@ export function PostComposer({ postId }: { postId?: string }) {
         setTitle(post.title);
         setBody(post.body);
         setSlug(post.category_slug);
+        setAnonymous(post.anonymous);
       })
       .catch((cause) => {
         if (controller.signal.aborted) return;
@@ -99,6 +107,7 @@ export function PostComposer({ postId }: { postId?: string }) {
             categorySlug: slug,
             title: title.trim(),
             body: body.trim(),
+            anonymous,
           });
       router.replace(`/community/post?id=${post.id}`);
     } catch (cause) {
@@ -155,9 +164,23 @@ export function PostComposer({ postId }: { postId?: string }) {
             placeholder="무슨 이야기인가요?"
             className="w-full resize-none rounded-2xl bg-white px-5 py-4 text-[15px] font-semibold leading-7 text-[#191f28] outline-none placeholder:text-[#c6d3e3]"
           />
-          <p className="text-right text-[12px] font-bold text-[#8b95a1]">
-            {body.length} / {BODY_MAX}
-          </p>
+          <div className="flex items-center justify-between">
+            {editing ? (
+              // 올린 뒤에는 못 바꾼다. 뒤집으면 이미 읽힌 글의 신원이 소급해 드러난다.
+              <p className="text-[13px] font-bold text-[#8b95a1]">
+                {anonymous ? "익명으로 올린 글이에요" : ""}
+              </p>
+            ) : (
+              <AnonymousToggle
+                checked={anonymous}
+                onChange={setAnonymous}
+                hint="올린 뒤에는 바꿀 수 없어요"
+              />
+            )}
+            <p className="text-[12px] font-bold text-[#8b95a1]">
+              {body.length} / {BODY_MAX}
+            </p>
+          </div>
 
           {error && <p className="text-sm font-bold text-[#e5484d]">{error}</p>}
 

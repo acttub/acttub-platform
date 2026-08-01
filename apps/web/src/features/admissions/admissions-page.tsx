@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
 import {
@@ -15,6 +14,7 @@ import {
   type AdmissionsResponse,
   type AdmissionUniversity,
 } from "@/lib/api/v2/admissions";
+import { RailLayout } from "@/features/nav/app-rail";
 
 export function AdmissionsPage() {
   const [payload, setPayload] = useState<AdmissionsResponse | null>(null);
@@ -60,7 +60,8 @@ export function AdmissionsPage() {
     .slice(0, 3);
 
   return (
-    <main className="min-h-dvh bg-[#f8fbff]">
+    <RailLayout>
+      <main className="min-h-dvh">
       <div className="mx-auto w-full max-w-[760px] px-5 py-10">
         <h1 className="text-[26px] font-black tracking-[-0.03em] text-[#191f28]">
           연기 입시 정보
@@ -163,14 +164,9 @@ export function AdmissionsPage() {
           </>
         )}
 
-        <Link
-          href="/"
-          className="mt-8 inline-block text-[13px] font-black text-[#3182f6] hover:underline"
-        >
-          ← 홈으로
-        </Link>
-      </div>
-    </main>
+        </div>
+      </main>
+    </RailLayout>
   );
 }
 

@@ -5,6 +5,8 @@
 
 import Link from "next/link";
 
+import { RailLayout } from "@/features/nav/app-rail";
+
 export function CommunityShell({
   title,
   subtitle,
@@ -19,32 +21,34 @@ export function CommunityShell({
   children: React.ReactNode;
 }) {
   return (
-    <main className="min-h-dvh bg-[#f8fbff]">
-      <div className="mx-auto w-full max-w-[760px] px-5 py-10">
-        {back && (
-          <Link
-            href={back.href}
-            className="text-[13px] font-bold text-[#8b95a1] hover:text-[#4e5968]"
-          >
-            ← {back.label}
-          </Link>
-        )}
-        <div className="mt-3 flex items-start justify-between gap-4">
-          <div>
-            <h1 className="text-[26px] font-black tracking-[-0.03em] text-[#191f28]">
-              {title}
-            </h1>
-            {subtitle && (
-              <p className="mt-2 text-sm font-semibold leading-6 text-[#4e5968]">
-                {subtitle}
-              </p>
-            )}
+    <RailLayout>
+      <main className="min-h-dvh">
+        <div className="mx-auto w-full max-w-[760px] px-5 py-10">
+          {back && (
+            <Link
+              href={back.href}
+              className="text-[13px] font-bold text-[#8b95a1] hover:text-[#4e5968]"
+            >
+              ← {back.label}
+            </Link>
+          )}
+          <div className="mt-3 flex items-start justify-between gap-4">
+            <div>
+              <h1 className="text-[26px] font-black tracking-[-0.03em] text-[#191f28]">
+                {title}
+              </h1>
+              {subtitle && (
+                <p className="mt-2 text-sm font-semibold leading-6 text-[#4e5968]">
+                  {subtitle}
+                </p>
+              )}
+            </div>
+            {action}
           </div>
-          {action}
+          {children}
         </div>
-        {children}
-      </div>
-    </main>
+      </main>
+    </RailLayout>
   );
 }
 
@@ -125,4 +129,28 @@ export function relativeTime(iso: string, now: number | null): string {
 
 export function errorMessage(cause: unknown, fallback: string): string {
   return cause instanceof Error && cause.message ? cause.message : fallback;
+}
+
+/** 익명 토글. 글쓰기와 댓글 두 곳에서 같은 모양으로 쓴다. */
+export function AnonymousToggle({
+  checked,
+  onChange,
+  hint,
+}: {
+  checked: boolean;
+  onChange: (next: boolean) => void;
+  hint?: string;
+}) {
+  return (
+    <label className="flex cursor-pointer items-center gap-2 text-[13px] font-bold text-[#4e5968]">
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(event) => onChange(event.target.checked)}
+        className="h-4 w-4 accent-[#3182f6]"
+      />
+      익명으로
+      {hint && <span className="font-semibold text-[#8b95a1]">{hint}</span>}
+    </label>
+  );
 }

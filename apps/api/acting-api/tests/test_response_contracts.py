@@ -227,12 +227,13 @@ RESPONSE_COMPONENT_SHAPES = {
         },
     },
     "MeResponse": {"required": {"id", "email", "nickname", "status"}},
-    "AuthorPayload": {"required": {"id", "nickname"}},
+    "AuthorPayload": {"required": {"id", "nickname", "alias"}},
     "CategoryPayload": {"required": {"slug", "name", "description"}},
     "CategoryListResponse": {"required": {"categories"}},
     "PostPayload": {
         "required": {
             "id",
+            "anonymous",
             "category_slug",
             "category_name",
             "author",
@@ -252,6 +253,7 @@ RESPONSE_COMPONENT_SHAPES = {
         "required": {
             "id",
             "post_id",
+            "anonymous",
             "author",
             "body",
             "mine",

@@ -39,6 +39,7 @@ import {
   trackVideoUploaded,
 } from "@/lib/analytics/ga";
 import { REVIEW_FORM_URL } from "@/lib/config/env";
+import { AppRail } from "@/features/nav/app-rail";
 import { analysisFailure } from "../practice/analysis-failure";
 
 /** 준비 → 분석 → 대화 → 노트. 화면이 단계마다 대화 쪽으로 좁혀진다. */
@@ -500,6 +501,9 @@ function WorkspaceInner() {
 
   return (
     <div className="flex h-dvh overflow-hidden bg-white text-[#191f28]">
+      {/* 앱 전체 네비. 세션 바보다 한 겹 바깥이고, 여기서 입시·커뮤니티로 나간다. */}
+      <AppRail />
+
       {/* 데스크톱: 붙박이 세션 바. 질문이 시작되면 접혀서 대화에 자리를 내준다. */}
       <div className="hidden lg:flex">{rail}</div>
 
@@ -782,27 +786,9 @@ function SessionRail({
         </div>
       )}
 
-      {/* 연습 밖으로 나가는 유일한 통로. 여기 없으면 커뮤니티는 주소를 아는 사람만 쓴다. */}
+      {/* 커뮤니티·입시로 나가는 길은 AppRail 이 맡는다. 여기 두면 두 군데가 된다. */}
       <div
-        className={`mt-auto border-t border-[#edf0f3] ${
-          open ? "px-4 py-3" : "flex justify-center py-3"
-        }`}
-      >
-        <Link
-          href="/community"
-          title="커뮤니티"
-          className={
-            open
-              ? "block rounded-xl px-2 py-2 text-[13px] font-black text-[#4e5968] transition hover:bg-[#eef2f6]"
-              : "flex h-9 w-9 items-center justify-center rounded-xl bg-[#f2f4f6] text-[13px] font-black text-[#8b95a1] transition hover:bg-[#eef2f6]"
-          }
-        >
-          {open ? "커뮤니티" : "커"}
-        </Link>
-      </div>
-
-      <div
-        className={`flex items-center border-t border-[#edf0f3] ${
+        className={`mt-auto flex items-center border-t border-[#edf0f3] ${
           open ? "justify-between px-4 py-3.5" : "justify-center py-3.5"
         }`}
       >

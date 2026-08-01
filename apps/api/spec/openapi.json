@@ -2450,8 +2450,15 @@
       "AuthorPayload": {
         "properties": {
           "id": {
-            "type": "string",
-            "format": "uuid",
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Id"
           },
           "nickname": {
@@ -2464,15 +2471,28 @@
               }
             ],
             "title": "Nickname"
+          },
+          "alias": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Alias"
           }
         },
         "additionalProperties": false,
         "type": "object",
         "required": [
           "id",
-          "nickname"
+          "nickname",
+          "alias"
         ],
-        "title": "AuthorPayload"
+        "title": "AuthorPayload",
+        "description": "익명이면 `id`·`nickname` 이 비고 `alias` 만 온다.\n\n익명 글에 실제 user id 를 실어 보내면 화면에 \"익명\" 이라 적혀 있어도 클라이언트가\n같은 id 로 다른 글과 묶는다. 그래서 아예 담지 않는다."
       },
       "BiggestProblem": {
         "properties": {
@@ -2744,6 +2764,10 @@
             "format": "uuid",
             "title": "Post Id"
           },
+          "anonymous": {
+            "type": "boolean",
+            "title": "Anonymous"
+          },
           "author": {
             "$ref": "#/components/schemas/AuthorPayload"
           },
@@ -2771,6 +2795,7 @@
         "required": [
           "id",
           "post_id",
+          "anonymous",
           "author",
           "body",
           "mine",
@@ -2786,6 +2811,11 @@
             "maxLength": 1000,
             "minLength": 1,
             "title": "Body"
+          },
+          "anonymous": {
+            "type": "boolean",
+            "title": "Anonymous",
+            "default": false
           }
         },
         "additionalProperties": false,
@@ -3126,6 +3156,10 @@
             "format": "uuid",
             "title": "Id"
           },
+          "anonymous": {
+            "type": "boolean",
+            "title": "Anonymous"
+          },
           "category_slug": {
             "type": "string",
             "title": "Category Slug"
@@ -3180,6 +3214,7 @@
         "type": "object",
         "required": [
           "id",
+          "anonymous",
           "category_slug",
           "category_name",
           "author",
@@ -3236,6 +3271,11 @@
             "maxLength": 5000,
             "minLength": 1,
             "title": "Body"
+          },
+          "anonymous": {
+            "type": "boolean",
+            "title": "Anonymous",
+            "default": false
           }
         },
         "additionalProperties": false,

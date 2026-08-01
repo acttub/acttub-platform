@@ -25,9 +25,19 @@ export const REPORT_REASONS: { value: ReportReason; label: string }[] = [
   { value: "other", label: "그 밖의 문제" },
 ];
 
-/** 닉네임을 아직 안 정한 계정이 있다. 빈 자리로 두지 않는다. */
+/**
+ * 화면에 보일 이름. 익명이면 서버가 준 별명(익명2·글쓴이)을 그대로 쓴다.
+ *
+ * 익명 글에는 `id`·`nickname` 이 아예 오지 않는다 — 화면만 가리고 id 를 실어 보내면
+ * 다른 글과 묶여 익명이 깨지기 때문이다.
+ */
 export function authorName(author: CommunityAuthor): string {
-  return author.nickname?.trim() || "이름 없는 배우";
+  return author.alias?.trim() || author.nickname?.trim() || "이름 없는 배우";
+}
+
+/** 익명 작성자는 차단할 수 없다 — 차단 전후로 사라진 글을 비교하면 신원이 드러난다. */
+export function canBlock(author: CommunityAuthor): boolean {
+  return Boolean(author.id);
 }
 
 type ListOptions = {
@@ -74,6 +84,7 @@ export async function createPost(input: {
   categorySlug: string;
   title: string;
   body: string;
+  anonymous: boolean;
 }) {
   const { data } = await apiFetch<CommunityPost>("/v2/community/posts", {
     method: "POST",
@@ -81,6 +92,7 @@ export async function createPost(input: {
       category_slug: input.categorySlug,
       title: input.title,
       body: input.body,
+      anonymous: input.anonymous,
     },
   });
   return data;
@@ -128,10 +140,14 @@ export async function getComments(
   return data;
 }
 
-export async function createComment(postId: string, body: string) {
+export async function createComment(
+  postId: string,
+  body: string,
+  anonymous: boolean,
+) {
   const { data } = await apiFetch<CommunityComment>(
     `/v2/community/posts/${postId}/comments`,
-    { method: "POST", body: { body } },
+    { method: "POST", body: { body, anonymous } },
   );
   return data;
 }
