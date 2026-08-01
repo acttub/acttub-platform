@@ -1,0 +1,21 @@
+[Unit]
+Description=acttub web (Next.js standalone, front svc)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+# 모노레포 standalone은 트리를 그대로 유지한다 — server.js는 apps/web/ 아래,
+# node_modules는 그 상위(/svc/acttub/web)에 놓인다. 트리 전체를 옮겨야 한다.
+WorkingDirectory=/svc/acttub/web/apps/web
+Environment=NODE_ENV=production
+Environment=PORT=3000
+# front alb가 닿아야 하므로 loopback에 묶지 않는다.
+Environment=HOSTNAME=0.0.0.0
+ExecStart=/usr/bin/node server.js
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
