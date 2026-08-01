@@ -390,3 +390,175 @@ def test_view_count_increments(actors):
     community.increment_view_count(post.id)
 
     assert community.get_post(post.id, viewer_id=reader.id).view_count == 2
+
+
+# ---- 익명 ----
+
+
+def _anon_post(community, author, *, title="익명 글", body="본문", slug="free"):
+    return community.create_post(
+        author_id=author.id,
+        category_slug=slug,
+        title=title,
+        body=body,
+        anonymous=True,
+    )
+
+
+def test_anonymous_post_hides_the_author_id(actors):
+    _, community, writer, reader = actors
+    post = _anon_post(community, writer)
+
+    seen = community.get_post(post.id, viewer_id=reader.id)
+
+    # id 가 실려 나가면 화면에 "익명" 이라 적혀도 다른 글과 묶인다.
+    assert seen.author.id is None
+    assert seen.author.nickname is None
+    assert seen.author.alias == "익명"
+
+
+def test_author_still_owns_their_anonymous_post(actors):
+    _, community, writer, _ = actors
+    post = _anon_post(community, writer)
+
+    assert community.get_post(post.id, viewer_id=writer.id).mine is True
+    updated = community.update_post(
+        post_id=post.id, author_id=writer.id, title="고친 익명 글", body="고침"
+    )
+    assert updated.title == "고친 익명 글"
+    assert updated.author.id is None
+
+
+def test_named_post_still_carries_the_author(actors):
+    _, community, writer, reader = actors
+    post = _post(community, writer)
+
+    seen = community.get_post(post.id, viewer_id=reader.id)
+
+    assert seen.author.id == writer.id
+    assert seen.author.nickname == "글쓴이"
+    assert seen.author.alias is None
+
+
+def test_anonymous_commenters_get_numbers_in_order(actors):
+    store, community, writer, reader = actors
+    third = store.create_user(email="third@example.com")
+    post = _post(community, writer)
+
+    for author in (reader, third, reader):
+        community.create_comment(
+            post_id=post.id, author_id=author.id, body="익명 댓글", anonymous=True
+        )
+
+    aliases = [
+        item.author.alias
+        for item in community.list_comments(post_id=post.id, viewer_id=writer.id).items
+    ]
+
+    # 같은 사람은 한 글 안에서 같은 번호를 유지한다.
+    assert aliases == ["익명1", "익명2", "익명1"]
+
+
+def test_alias_numbers_do_not_carry_across_posts(actors):
+    _, community, writer, reader = actors
+    first = _post(community, writer, title="글 하나")
+    second = _post(community, writer, title="글 둘")
+
+    for post in (first, second):
+        community.create_comment(
+            post_id=post.id, author_id=reader.id, body="익명", anonymous=True
+        )
+
+    # 번호가 글마다 1 부터 다시 시작해야 두 글을 이어 붙일 수 없다.
+    for post in (first, second):
+        page = community.list_comments(post_id=post.id, viewer_id=writer.id)
+        assert page.items[0].author.alias == "익명1"
+
+
+def test_alias_survives_comment_pagination(actors):
+    store, community, writer, reader = actors
+    third = store.create_user(email="pager@example.com")
+    post = _post(community, writer)
+    for index in range(4):
+        author = reader if index % 2 == 0 else third
+        community.create_comment(
+            post_id=post.id, author_id=author.id, body=f"댓글 {index}", anonymous=True
+        )
+
+    seen = []
+    cursor = None
+    while True:
+        page = community.list_comments(
+            post_id=post.id, viewer_id=writer.id, cursor=cursor, limit=1
+        )
+        seen.extend(item.author.alias for item in page.items)
+        cursor = page.next_cursor
+        if cursor is None:
+            break
+
+    # 한 장씩 끊어 읽어도 번호가 흔들리지 않는다 — 저장해 두는 이유가 이것이다.
+    assert seen == ["익명1", "익명2", "익명1", "익명2"]
+
+
+def test_op_of_an_anonymous_post_is_labelled_as_the_writer(actors):
+    _, community, writer, reader = actors
+    post = _anon_post(community, writer)
+    community.create_comment(
+        post_id=post.id, author_id=reader.id, body="답", anonymous=True
+    )
+    community.create_comment(
+        post_id=post.id, author_id=writer.id, body="덧붙임", anonymous=True
+    )
+
+    aliases = [
+        item.author.alias
+        for item in community.list_comments(post_id=post.id, viewer_id=reader.id).items
+    ]
+
+    assert aliases == ["익명1", "글쓴이"]
+
+
+def test_named_posts_op_does_not_get_the_writer_label(actors):
+    _, community, writer, reader = actors
+    post = _post(community, writer)
+
+    community.create_comment(
+        post_id=post.id, author_id=writer.id, body="내 글에 익명 댓글", anonymous=True
+    )
+
+    alias = community.list_comments(post_id=post.id, viewer_id=reader.id).items[
+        0
+    ].author.alias
+
+    # "글쓴이" 라고 적으면 위에 이름이 걸린 그 사람이라고 알려주는 꼴이 된다.
+    assert alias == "익명1"
+
+
+def test_blocking_does_not_hide_anonymous_posts(actors):
+    _, community, writer, reader = actors
+    named = _post(community, writer, title="이름 걸린 글")
+    hidden = _anon_post(community, writer, title="같은 사람의 익명 글")
+
+    community.block_user(blocker_id=reader.id, blocked_id=writer.id)
+
+    visible = {item.id for item in community.list_posts(viewer_id=reader.id).items}
+    # 익명 글까지 사라지면 차단 전후를 비교해 익명 작성자를 알아낼 수 있다.
+    assert named.id not in visible
+    assert hidden.id in visible
+
+
+def test_blocking_does_not_hide_anonymous_comments(actors):
+    _, community, writer, reader = actors
+    post = _post(community, reader)
+    community.create_comment(post_id=post.id, author_id=writer.id, body="이름 걸린 댓글")
+    anonymous = community.create_comment(
+        post_id=post.id, author_id=writer.id, body="익명 댓글", anonymous=True
+    )
+
+    community.block_user(blocker_id=reader.id, blocked_id=writer.id)
+
+    remaining = [
+        item.id
+        for item in community.list_comments(post_id=post.id, viewer_id=reader.id).items
+    ]
+    assert remaining == [anonymous.id]

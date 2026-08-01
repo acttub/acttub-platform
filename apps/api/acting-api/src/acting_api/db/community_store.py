@@ -22,6 +22,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from acting_api.db.engine import create_session_factory
 from acting_api.db.models import (
+    CommunityAnonymousAlias,
     CommunityBlock,
     CommunityCategory,
     CommunityComment,
@@ -68,10 +69,29 @@ class Category:
     sort_order: int
 
 
+ANONYMOUS_POST_LABEL = "익명"
+ANONYMOUS_AUTHOR_LABEL = "글쓴이"
+
+
 @dataclass(frozen=True)
 class Author:
-    id: UUID
+    """익명이면 `id`·`nickname` 이 비고 `alias` 만 찬다.
+
+    익명 글에 실제 user id 를 실어 보내면 화면에 "익명" 이라고 써 있어도 클라이언트가
+    같은 id 로 다른 글과 묶어버린다 — 익명이 아니게 된다. 그래서 아예 담지 않는다.
+    """
+
+    id: UUID | None
     nickname: str | None
+    alias: str | None = None
+
+    @classmethod
+    def named(cls, user) -> Author:
+        return cls(id=user.id, nickname=user.nickname, alias=None)
+
+    @classmethod
+    def anonymous(cls, alias: str) -> Author:
+        return cls(id=None, nickname=None, alias=alias)
 
 
 @dataclass(frozen=True)
@@ -124,6 +144,16 @@ def decode_cursor(cursor: str) -> tuple[datetime, UUID]:
         return datetime.fromisoformat(stamp), UUID(row_id)
     except (ValueError, UnicodeDecodeError) as exc:
         raise ValueError("invalid_cursor") from exc
+
+
+def _not_blocked(table, blocked):
+    """차단 필터. 익명 글·댓글은 일부러 통과시킨다.
+
+    익명까지 걸러내면 차단 전후로 사라진 글을 비교해 "이 익명이 그 사람" 이라는 걸
+    알아낼 수 있다. 차단은 이름 붙은 글을 안 보겠다는 뜻이고, 익명 글에는 애초에 그
+    사람의 이름이 붙어 있지 않다.
+    """
+    return or_(table.anonymous.is_(True), table.author_id.not_in(blocked))
 
 
 def _clamp_limit(limit: int | None) -> int:
@@ -185,11 +215,17 @@ class CommunityStore:
 
     def _post_from_row(self, row, *, viewer_id: UUID | None, liked: bool) -> Post:
         post, category, author = row
+        # 글 작성자는 한 명뿐이라 번호가 필요 없다. 그냥 "익명".
+        shown = (
+            Author.anonymous(ANONYMOUS_POST_LABEL)
+            if post.anonymous
+            else Author.named(author)
+        )
         return Post(
             id=post.id,
             category_slug=category.slug,
             category_name=category.name,
-            author=Author(id=author.id, nickname=author.nickname),
+            author=shown,
             title=post.title,
             body=post.body,
             like_count=post.like_count,
@@ -221,7 +257,7 @@ class CommunityStore:
                 query = query.where(CommunityCategory.slug == category_slug)
             blocked = self._blocked_ids_subquery(viewer_id)
             if blocked is not None:
-                query = query.where(CommunityPost.author_id.not_in(blocked))
+                query = query.where(_not_blocked(CommunityPost, blocked))
             if cursor is not None:
                 stamp, row_id = decode_cursor(cursor)
                 # 같은 시각이면 id 로 가른다 — 그래야 글이 건너뛰거나 겹치지 않는다.
@@ -293,14 +329,20 @@ class CommunityStore:
         )
         blocked = self._blocked_ids_subquery(viewer_id)
         if blocked is not None:
-            query = query.where(CommunityPost.author_id.not_in(blocked))
+            query = query.where(_not_blocked(CommunityPost, blocked))
         row = db.execute(query).first()
         if row is None:
             raise PostNotFound(post_id)
         return row
 
     def create_post(
-        self, *, author_id: UUID, category_slug: str, title: str, body: str
+        self,
+        *,
+        author_id: UUID,
+        category_slug: str,
+        title: str,
+        body: str,
+        anonymous: bool = False,
     ) -> Post:
         with self._session_factory.begin() as db:
             category = self._category_by_slug(db, category_slug)
@@ -310,6 +352,7 @@ class CommunityStore:
                 author_id=author_id,
                 title=title,
                 body=body,
+                anonymous=anonymous,
             )
             db.add(post)
             db.flush()
@@ -414,17 +457,90 @@ class CommunityStore:
 
     # ---- 댓글 ----
 
-    def _comment_from_row(self, row, *, viewer_id: UUID | None) -> Comment:
+    def _comment_from_row(
+        self, row, *, viewer_id: UUID | None, post, aliases: dict[UUID, int]
+    ) -> Comment:
         comment, author = row
+        if comment.anonymous:
+            shown = Author.anonymous(
+                self._comment_alias(comment, post=post, aliases=aliases)
+            )
+        else:
+            shown = Author.named(author)
         return Comment(
             id=comment.id,
             post_id=comment.post_id,
-            author=Author(id=author.id, nickname=author.nickname),
+            author=shown,
             body=comment.body,
             mine=viewer_id is not None and author.id == viewer_id,
             created_at=comment.created_at,
             updated_at=comment.updated_at,
         )
+
+    def _comment_alias(self, comment, *, post, aliases: dict[UUID, int]) -> str:
+        """익명 댓글에 붙일 이름.
+
+        글쓴이 표시는 **글도 익명일 때만** 준다. 실명으로 올린 글에 글쓴이가 익명
+        댓글을 달았는데 "글쓴이" 라고 적으면, 그 익명이 곧 위에 이름이 적힌 사람이라고
+        알려주는 꼴이라 익명이 깨진다.
+        """
+        if post.anonymous and comment.author_id == post.author_id:
+            return ANONYMOUS_AUTHOR_LABEL
+        ordinal = aliases.get(comment.author_id)
+        # 번호를 못 찾더라도 실명으로 되돌리지는 않는다.
+        return f"{ANONYMOUS_POST_LABEL}{ordinal}" if ordinal else ANONYMOUS_POST_LABEL
+
+    def _alias_map(self, db: Session, post_id: UUID) -> dict[UUID, int]:
+        rows = db.execute(
+            select(
+                CommunityAnonymousAlias.user_id, CommunityAnonymousAlias.ordinal
+            ).where(CommunityAnonymousAlias.post_id == post_id)
+        ).all()
+        return {user_id: ordinal for user_id, ordinal in rows}
+
+    def _ensure_alias(self, db: Session, *, post_id: UUID, user_id: UUID) -> int:
+        """이 글에서 쓸 익명 번호를 발급하거나 이미 받은 번호를 돌려준다."""
+        existing = db.scalar(
+            select(CommunityAnonymousAlias.ordinal).where(
+                CommunityAnonymousAlias.post_id == post_id,
+                CommunityAnonymousAlias.user_id == user_id,
+            )
+        )
+        if existing is not None:
+            return existing
+        for _ in range(3):
+            next_ordinal = (
+                db.scalar(
+                    select(
+                        func.coalesce(func.max(CommunityAnonymousAlias.ordinal), 0)
+                    ).where(CommunityAnonymousAlias.post_id == post_id)
+                )
+                or 0
+            ) + 1
+            savepoint = db.begin_nested()
+            try:
+                db.add(
+                    CommunityAnonymousAlias(
+                        id=uuid4(),
+                        post_id=post_id,
+                        user_id=user_id,
+                        ordinal=next_ordinal,
+                    )
+                )
+                savepoint.commit()
+                return next_ordinal
+            except IntegrityError:
+                # 같은 순간에 다른 사람이 그 번호를 가져갔다. 다시 센다.
+                savepoint.rollback()
+                already = db.scalar(
+                    select(CommunityAnonymousAlias.ordinal).where(
+                        CommunityAnonymousAlias.post_id == post_id,
+                        CommunityAnonymousAlias.user_id == user_id,
+                    )
+                )
+                if already is not None:
+                    return already
+        raise RuntimeError("could not allocate an anonymous alias")
 
     def list_comments(
         self,
@@ -437,7 +553,7 @@ class CommunityStore:
         size = _clamp_limit(limit)
         with self._session_factory() as db:
             # 글이 없거나 안 보이면 댓글도 없는 것으로 본다.
-            self._load_post_row(db, post_id, viewer_id=viewer_id)
+            post_row = self._load_post_row(db, post_id, viewer_id=viewer_id)
             query = (
                 select(CommunityComment, User)
                 .join(User, User.id == CommunityComment.author_id)
@@ -448,7 +564,7 @@ class CommunityStore:
             )
             blocked = self._blocked_ids_subquery(viewer_id)
             if blocked is not None:
-                query = query.where(CommunityComment.author_id.not_in(blocked))
+                query = query.where(_not_blocked(CommunityComment, blocked))
             if cursor is not None:
                 stamp, row_id = decode_cursor(cursor)
                 # 댓글은 오래된 순이라 부등호 방향이 글 목록과 반대다.
@@ -466,7 +582,13 @@ class CommunityStore:
             ).all()
             has_more = len(rows) > size
             rows = rows[:size]
-            items = [self._comment_from_row(row, viewer_id=viewer_id) for row in rows]
+            aliases = self._alias_map(db, post_id)
+            items = [
+                self._comment_from_row(
+                    row, viewer_id=viewer_id, post=post_row[0], aliases=aliases
+                )
+                for row in rows
+            ]
             next_cursor = (
                 encode_cursor(rows[-1][0].created_at, rows[-1][0].id)
                 if has_more and rows
@@ -474,20 +596,42 @@ class CommunityStore:
             )
             return Page(items=items, next_cursor=next_cursor)
 
-    def create_comment(self, *, post_id: UUID, author_id: UUID, body: str) -> Comment:
+    def create_comment(
+        self,
+        *,
+        post_id: UUID,
+        author_id: UUID,
+        body: str,
+        anonymous: bool = False,
+    ) -> Comment:
         with self._session_factory.begin() as db:
             post = db.get(CommunityPost, post_id)
             if post is None or post.status != ContentStatus.VISIBLE:
                 raise PostNotFound(post_id)
             comment = CommunityComment(
-                id=uuid4(), post_id=post_id, author_id=author_id, body=body
+                id=uuid4(),
+                post_id=post_id,
+                author_id=author_id,
+                body=body,
+                anonymous=anonymous,
             )
             db.add(comment)
             post.comment_count = CommunityPost.comment_count + 1
+            # 글쓴이 표시를 받는 사람은 번호가 필요 없다.
+            needs_alias = anonymous and not (
+                post.anonymous and author_id == post.author_id
+            )
+            if needs_alias:
+                self._ensure_alias(db, post_id=post_id, user_id=author_id)
             db.flush()
             db.refresh(comment)
             author = db.get(User, author_id)
-            return self._comment_from_row((comment, author), viewer_id=author_id)
+            return self._comment_from_row(
+                (comment, author),
+                viewer_id=author_id,
+                post=post,
+                aliases=self._alias_map(db, post_id),
+            )
 
     def update_comment(self, *, comment_id: UUID, author_id: UUID, body: str) -> Comment:
         with self._session_factory.begin() as db:
@@ -501,7 +645,13 @@ class CommunityStore:
             db.flush()
             db.refresh(comment)
             author = db.get(User, author_id)
-            return self._comment_from_row((comment, author), viewer_id=author_id)
+            post = db.get(CommunityPost, comment.post_id)
+            return self._comment_from_row(
+                (comment, author),
+                viewer_id=author_id,
+                post=post,
+                aliases=self._alias_map(db, comment.post_id),
+            )
 
     def delete_comment(self, *, comment_id: UUID, author_id: UUID) -> None:
         with self._session_factory.begin() as db:

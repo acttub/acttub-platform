@@ -584,6 +584,11 @@ class CommunityPost(Base):
     )
     title: Mapped[str] = mapped_column(sa.Text, nullable=False)
     body: Mapped[str] = mapped_column(sa.Text, nullable=False)
+    # 올린 뒤에는 바꾸지 않는다. 실명↔익명을 뒤집으면 이미 읽힌 글의 신원이
+    # 소급해서 드러나거나, 달려 있던 익명 번호가 갈 곳을 잃는다.
+    anonymous: Mapped[bool] = mapped_column(
+        sa.Boolean, nullable=False, default=False, server_default=sa.text("false")
+    )
     status: Mapped[ContentStatus] = mapped_column(
         content_status_enum,
         nullable=False,
@@ -628,6 +633,9 @@ class CommunityComment(Base):
         postgresql.UUID(as_uuid=True), sa.ForeignKey("users.id"), nullable=False
     )
     body: Mapped[str] = mapped_column(sa.Text, nullable=False)
+    anonymous: Mapped[bool] = mapped_column(
+        sa.Boolean, nullable=False, default=False, server_default=sa.text("false")
+    )
     status: Mapped[ContentStatus] = mapped_column(
         content_status_enum,
         nullable=False,
@@ -638,6 +646,44 @@ class CommunityComment(Base):
         sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()
     )
     updated_at: Mapped[datetime] = mapped_column(
+        sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()
+    )
+
+
+class CommunityAnonymousAlias(Base):
+    """글 하나 안에서 익명 작성자에게 붙는 번호(익명1·익명2).
+
+    계산하지 않고 저장하는 이유: 댓글이 커서로 나뉘어 오면 뒷장만 받은 서버는 앞에
+    익명이 몇 명이었는지 알 수 없어 같은 사람이 페이지마다 다른 번호를 받는다.
+
+    `post_id` 범위 안에서만 유효하다 — 다른 글의 익명1 과 아무 관계가 없어야 익명이
+    성립한다.
+    """
+
+    __tablename__ = "community_anonymous_aliases"
+    __table_args__ = (
+        sa.UniqueConstraint("post_id", "user_id", name="uq_community_alias_post_user"),
+        sa.UniqueConstraint(
+            "post_id", "ordinal", name="uq_community_alias_post_ordinal"
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        postgresql.UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+        server_default=sa.text("gen_random_uuid()"),
+    )
+    post_id: Mapped[uuid.UUID] = mapped_column(
+        postgresql.UUID(as_uuid=True),
+        sa.ForeignKey("community_posts.id"),
+        nullable=False,
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        postgresql.UUID(as_uuid=True), sa.ForeignKey("users.id"), nullable=False
+    )
+    ordinal: Mapped[int] = mapped_column(sa.Integer, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
         sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()
     )
 
@@ -811,3 +857,8 @@ sa.Index(
     CommunityReport.created_at.desc(),
 )
 sa.Index("idx_community_blocks_blocker", CommunityBlock.blocker_id)
+sa.Index(
+    "idx_community_alias_post",
+    CommunityAnonymousAlias.post_id,
+    CommunityAnonymousAlias.ordinal,
+)

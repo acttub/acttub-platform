@@ -49,6 +49,7 @@ EXPECTED_TABLES = {
     "community_post_likes",
     "community_reports",
     "community_blocks",
+    "community_anonymous_aliases",
 }
 
 

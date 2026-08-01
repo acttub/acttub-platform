@@ -53,13 +53,22 @@ class CategoryListResponse(_StrictResponse):
 
 
 class AuthorPayload(_StrictResponse):
-    id: UUID
+    """익명이면 `id`·`nickname` 이 비고 `alias` 만 온다.
+
+    익명 글에 실제 user id 를 실어 보내면 화면에 "익명" 이라 적혀 있어도 클라이언트가
+    같은 id 로 다른 글과 묶는다. 그래서 아예 담지 않는다.
+    """
+
+    id: UUID | None
     # 닉네임을 아직 정하지 않은 계정이 있다. 화면에서 대체 표기를 고르도록 null 로 준다.
     nickname: str | None
+    # "익명" · "익명2" · "글쓴이". 실명 글에서는 null.
+    alias: str | None
 
 
 class PostPayload(_StrictResponse):
     id: UUID
+    anonymous: bool
     category_slug: str
     category_name: str
     author: AuthorPayload
@@ -82,6 +91,7 @@ class PostListResponse(_StrictResponse):
 class CommentPayload(_StrictResponse):
     id: UUID
     post_id: UUID
+    anonymous: bool
     author: AuthorPayload
     body: str
     mine: bool
@@ -124,6 +134,9 @@ class PostWriteRequest(BaseModel):
     category_slug: str = Field(min_length=1)
     title: str = Field(min_length=1, max_length=TITLE_MAX_LENGTH)
     body: str = Field(min_length=1, max_length=BODY_MAX_LENGTH)
+    # 올린 뒤에는 못 바꾼다(PostUpdateRequest 에 없다) — 뒤집으면 이미 읽힌 글의
+    # 신원이 소급해서 드러난다.
+    anonymous: bool = False
 
     _normalize_title = field_validator("title")(_trimmed("title", TITLE_MAX_LENGTH))
     _normalize_body = field_validator("body")(_trimmed("body", BODY_MAX_LENGTH))
@@ -143,6 +156,7 @@ class CommentWriteRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     body: str = Field(min_length=1, max_length=COMMENT_MAX_LENGTH)
+    anonymous: bool = False
 
     _normalize_body = field_validator("body")(_trimmed("body", COMMENT_MAX_LENGTH))
 
@@ -168,12 +182,13 @@ def _viewer_id(user):
 
 
 def _author_payload(author) -> AuthorPayload:
-    return AuthorPayload(id=author.id, nickname=author.nickname)
+    return AuthorPayload(id=author.id, nickname=author.nickname, alias=author.alias)
 
 
 def _post_payload(post) -> PostPayload:
     return PostPayload(
         id=post.id,
+        anonymous=post.author.id is None,
         category_slug=post.category_slug,
         category_name=post.category_name,
         author=_author_payload(post.author),
@@ -193,6 +208,7 @@ def _comment_payload(comment) -> CommentPayload:
     return CommentPayload(
         id=comment.id,
         post_id=comment.post_id,
+        anonymous=comment.author.id is None,
         author=_author_payload(comment.author),
         body=comment.body,
         mine=comment.mine,
@@ -258,6 +274,7 @@ def build_router(*, community_store, viewer, author) -> APIRouter:
                     category_slug=request.category_slug,
                     title=request.title,
                     body=request.body,
+                    anonymous=request.anonymous,
                 )
             )
         except CategoryNotFound as exc:
@@ -379,7 +396,10 @@ def build_router(*, community_store, viewer, author) -> APIRouter:
         try:
             comment = await run_in_threadpool(
                 lambda: community_store.create_comment(
-                    post_id=post_id, author_id=user.id, body=request.body
+                    post_id=post_id,
+                    author_id=user.id,
+                    body=request.body,
+                    anonymous=request.anonymous,
                 )
             )
         except PostNotFound as exc:
