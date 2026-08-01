@@ -41,21 +41,21 @@ fi
 
 tar czf "$TARBALL" -C "$STAGE" .
 echo "▶ 업로드 ($(du -h "$TARBALL" | cut -f1))"
-aws s3 cp "$TARBALL" "s3://$DEPLOY_BUCKET/web/$TAG.tar.gz"
+aws s3 cp "$TARBALL" "s3://$DEPLOY_BUCKET/fe/$TAG.tar.gz"
 # latest는 인스턴스에서 늘 같은 명령으로 받기 위한 별칭이다.
-aws s3 cp "$TARBALL" "s3://$DEPLOY_BUCKET/web/latest.tar.gz"
-aws s3 cp deploy/systemd/acttub-web.service "s3://$DEPLOY_BUCKET/web/acttub-web.service"
+aws s3 cp "$TARBALL" "s3://$DEPLOY_BUCKET/fe/latest.tar.gz"
+aws s3 cp deploy/systemd/acttub-web.service "s3://$DEPLOY_BUCKET/fe/acttub-web.service"
 
 cat <<EOF
 
-✔ 업로드 완료: s3://$DEPLOY_BUCKET/web/$TAG.tar.gz
+✔ 업로드 완료: s3://$DEPLOY_BUCKET/fe/$TAG.tar.gz
 
 front svc 인스턴스에서 이어서 실행하세요:
 
-  aws s3 cp s3://$DEPLOY_BUCKET/web/latest.tar.gz /tmp/web.tar.gz
+  aws s3 cp s3://$DEPLOY_BUCKET/fe/latest.tar.gz /tmp/web.tar.gz
   sudo rm -rf /svc/acttub/web/* && sudo tar xzf /tmp/web.tar.gz -C /svc/acttub/web
   sudo chown -R ubuntu:ubuntu /svc/acttub/web
-  aws s3 cp s3://$DEPLOY_BUCKET/web/acttub-web.service /tmp/
+  aws s3 cp s3://$DEPLOY_BUCKET/fe/acttub-web.service /tmp/
   sudo mv /tmp/acttub-web.service /etc/systemd/system/
   sudo systemctl daemon-reload && sudo systemctl enable --now acttub-web
   systemctl status acttub-web --no-pager

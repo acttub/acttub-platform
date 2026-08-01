@@ -29,22 +29,22 @@ tar czf "$TARBALL" \
   -C apps api
 
 echo "▶ 업로드 ($(du -h "$TARBALL" | cut -f1))"
-aws s3 cp "$TARBALL" "s3://$DEPLOY_BUCKET/api/$TAG.tar.gz"
-aws s3 cp "$TARBALL" "s3://$DEPLOY_BUCKET/api/latest.tar.gz"
-aws s3 cp deploy/systemd/acttub-api.service "s3://$DEPLOY_BUCKET/api/acttub-api.service"
+aws s3 cp "$TARBALL" "s3://$DEPLOY_BUCKET/be/$TAG.tar.gz"
+aws s3 cp "$TARBALL" "s3://$DEPLOY_BUCKET/be/latest.tar.gz"
+aws s3 cp deploy/systemd/acttub-api.service "s3://$DEPLOY_BUCKET/be/acttub-api.service"
 
 cat <<EOF
 
-✔ 업로드 완료: s3://$DEPLOY_BUCKET/api/$TAG.tar.gz
+✔ 업로드 완료: s3://$DEPLOY_BUCKET/be/$TAG.tar.gz
 
 back svc 인스턴스에서 이어서 실행하세요:
 
-  aws s3 cp s3://$DEPLOY_BUCKET/api/latest.tar.gz /tmp/api.tar.gz
+  aws s3 cp s3://$DEPLOY_BUCKET/be/latest.tar.gz /tmp/api.tar.gz
   sudo rm -rf /svc/acttub/acttub-platform/apps/api
   sudo tar xzf /tmp/api.tar.gz -C /svc/acttub/acttub-platform/apps
   sudo chown -R ubuntu:ubuntu /svc/acttub
   sudo -u ubuntu bash -c 'cd /svc/acttub/acttub-platform/apps/api && uv sync'
-  aws s3 cp s3://$DEPLOY_BUCKET/api/acttub-api.service /tmp/
+  aws s3 cp s3://$DEPLOY_BUCKET/be/acttub-api.service /tmp/
   sudo mv /tmp/acttub-api.service /etc/systemd/system/
   sudo systemctl daemon-reload && sudo systemctl enable --now acttub-api
   systemctl status acttub-api --no-pager

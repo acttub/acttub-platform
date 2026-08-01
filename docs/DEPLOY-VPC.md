@@ -20,8 +20,25 @@ CloudFront 도메인 하나만 보이므로 same-origin이 유지되고 CORS 설
 
 새 인스턴스는 비어 있다. 배포 전에 런타임을 깔아야 한다.
 
-**빌드는 전부 로컬에서 하므로 인스턴스에 git·pnpm은 필요 없다.** 산출물과 소스를 rsync로
-보내고, 인스턴스는 그것을 실행하기만 한다. 저장소를 클론하지 않으니 deploy key도 필요 없다.
+**빌드는 전부 로컬에서 하므로 인스턴스에 git·pnpm은 필요 없다.** 산출물과 소스를 S3로
+보내고, 인스턴스는 그것을 받아 실행하기만 한다. 저장소를 클론하지 않으니 deploy key도
+필요 없다.
+
+### 공통 — aws CLI
+
+S3에서 아티팩트를 받으려면 필요하다. Ubuntu 24.04 기본 이미지에는 없다.
+
+```bash
+sudo snap install aws-cli --classic
+aws sts get-caller-identity    # Arn에 인스턴스 role 이름이 나오면 정상
+```
+
+**인스턴스에서는 `aws configure`를 하지 않는다.** 인스턴스 role이 자격증명을 자동으로
+제공하므로, 키를 넣으면 오히려 role을 덮어쓴다. `aws configure`는 업로드하는 로컬 맥에서만
+필요하다.
+
+Gateway VPC Endpoint는 S3로 가는 *경로*를 사설망으로 돌릴 뿐, 요청을 대신 만들어주지
+않는다. 그래서 Endpoint가 있어도 인스턴스 안에 요청을 보낼 도구가 필요하다.
 
 ### front svc — Node만
 
@@ -206,14 +223,14 @@ standalone에는 `sharp`의 **빌드한 플랫폼 전용** 네이티브 바이�
 `--exclude '*sharp*'`가 핵심이다. `upload-web.sh`는 패키징 후 `*.node` 파일이 남아 있으면
 업로드하지 않고 멈춘다 — 리눅스에서 기동 실패로 이어지는 것을 미리 막기 위해서다.
 
-**전송은 S3를 경유한다.** 배포 버킷 하나에 prefix로 나눈다(`web/`, `api/`). 인스턴스는
+**전송은 S3를 경유한다.** 배포 버킷 하나에 prefix로 나눈다(`fe/`, `be/`). 인스턴스는
 S3 Gateway VPC Endpoint로 사설 경로를 통해 받으므로 SSH 키가 필요 없다.
 
 ```
 s3://<배포 버킷>/
-  web/<타임스탬프>-<git sha>.tar.gz
-  web/latest.tar.gz          # 인스턴스에서 늘 같은 명령으로 받기 위한 별칭
-  web/acttub-web.service
+  fe/<타임스탬프>-<git sha>.tar.gz
+  fe/latest.tar.gz          # 인스턴스에서 늘 같은 명령으로 받기 위한 별칭
+  fe/acttub-web.service
 ```
 
 디렉토리를 `s3 sync`로 올리지 않고 tar.gz 하나로 묶는 이유는, standalone이 27MB에 파일이
@@ -222,12 +239,29 @@ s3://<배포 버킷>/
 인스턴스 쪽 (SSM으로 접속해서):
 
 ```bash
-aws s3 cp s3://<배포 버킷>/web/latest.tar.gz /tmp/web.tar.gz
+aws s3 cp s3://<배포 버킷>/fe/latest.tar.gz /tmp/web.tar.gz
 sudo rm -rf /svc/acttub/web/* && sudo tar xzf /tmp/web.tar.gz -C /svc/acttub/web
 sudo chown -R ubuntu:ubuntu /svc/acttub/web
 ```
 
-인스턴스 IAM role에 해당 prefix의 `s3:GetObject` 권한이 있어야 한다.
+인스턴스 IAM role에 해당 prefix 권한이 있어야 한다. 인라인 정책 예(front svc):
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    { "Effect": "Allow", "Action": "s3:GetObject",
+      "Resource": "arn:aws:s3:::<배포 버킷>/fe/*" },
+    { "Effect": "Allow", "Action": "s3:ListBucket",
+      "Resource": "arn:aws:s3:::<배포 버킷>",
+      "Condition": { "StringLike": { "s3:prefix": "fe/*" } } }
+  ]
+}
+```
+
+back svc는 `fe`를 `be`로 바꾼다. **prefix 조건 때문에 버킷 루트 조회
+(`aws s3 ls s3://<배포 버킷>/`)는 정책이 있어도 AccessDenied가 난다** — 의도된 동작이다.
+확인은 `aws s3 ls s3://<배포 버킷>/fe/`로 한다.
 
 systemd 유닛의 `WorkingDirectory`가 `/svc/acttub/web/apps/web`인 이유가 이것이다. 한 단계
 위에서 실행하면 `server.js`를 못 찾고, `apps/web`만 떼어 옮기면 `node_modules`를 잃는다.
@@ -235,7 +269,7 @@ systemd 유닛의 `WorkingDirectory`가 `/svc/acttub/web/apps/web`인 이유가 
 유닛 파일도 같은 버킷에 함께 올라간다.
 
 ```bash
-aws s3 cp s3://<배포 버킷>/web/acttub-web.service /tmp/
+aws s3 cp s3://<배포 버킷>/fe/acttub-web.service /tmp/
 sudo mv /tmp/acttub-web.service /etc/systemd/system/
 sudo systemctl daemon-reload && sudo systemctl enable --now acttub-web
 systemctl status acttub-web --no-pager
@@ -256,13 +290,13 @@ DEPLOY_BUCKET=<배포 버킷> deploy/upload-api.sh
 
 ```bash
 # SSM으로 접속해 인스턴스에서
-aws s3 cp s3://<배포 버킷>/api/latest.tar.gz /tmp/api.tar.gz
+aws s3 cp s3://<배포 버킷>/be/latest.tar.gz /tmp/api.tar.gz
 sudo rm -rf /svc/acttub/acttub-platform/apps/api
 sudo tar xzf /tmp/api.tar.gz -C /svc/acttub/acttub-platform/apps
 sudo chown -R ubuntu:ubuntu /svc/acttub
 sudo -u ubuntu bash -c 'cd /svc/acttub/acttub-platform/apps/api && uv sync'
 
-aws s3 cp s3://<배포 버킷>/api/acttub-api.service /tmp/
+aws s3 cp s3://<배포 버킷>/be/acttub-api.service /tmp/
 sudo mv /tmp/acttub-api.service /etc/systemd/system/
 sudo systemctl daemon-reload && sudo systemctl enable --now acttub-api
 ```
