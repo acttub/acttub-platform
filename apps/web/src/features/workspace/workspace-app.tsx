@@ -12,6 +12,7 @@ import Link from "next/link";
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import wordmark from "@/assets/acttub-wordmark.png";
+import { getStoredDisplayName, loadDisplayName } from "@/features/auth/display-name";
 import { logout } from "@/lib/api/v2/auth";
 import { startCoach, replyCoach } from "@/lib/api/v2/coach";
 import { createReport, getReport, listReports } from "@/lib/api/v2/reports";
@@ -29,7 +30,7 @@ import type {
   PracticeSessionListItem,
   ReportRecord,
 } from "@/lib/api/v2/types";
-import { getStoredUser, isLoggedIn } from "@/lib/auth/token-store";
+import { isLoggedIn } from "@/lib/auth/token-store";
 import { prepareVideoUpload } from "@/lib/media/upload-preflight";
 import { uploadVideo } from "@/lib/api/v2/uploads";
 import {
@@ -70,6 +71,8 @@ function WorkspaceInner() {
   const searchParams = useSearchParams();
   const sessionParam = searchParams.get("session");
 
+  // 캐시를 초기값으로 써야 인증 게이트가 열린 첫 화면부터 호칭이 바뀌어 보이지 않는다.
+  const [nickname, setNickname] = useState<string | null>(() => getStoredDisplayName());
   const [ready, setReady] = useState(false);
   useEffect(() => {
     if (!isLoggedIn()) {
@@ -80,6 +83,18 @@ function WorkspaceInner() {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- 클라이언트 전용 인증 확인 후 1회 게이트
     setReady(true);
   }, [router]);
+
+  useEffect(() => {
+    if (!ready) return;
+    let cancelled = false;
+    void (async () => {
+      const resolvedNickname = await loadDisplayName();
+      if (!cancelled) setNickname(resolvedNickname);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [ready]);
 
   // ── 왼쪽 세션 바 ────────────────────────────────────────────────
   const [sessions, setSessions] = useState<PracticeSessionListItem[]>([]);
@@ -464,7 +479,7 @@ function WorkspaceInner() {
   const finished = sessions.filter((s) => s.status === "analyzed" || s.status === "failed");
   const step: 1 | 2 | 3 = mode === "analyzing" ? 3 : videoFile ? 2 : 1;
   const chatLeading = mode === "chat" || mode === "note";
-  const displayName = formatName();
+  const displayName = nickname ?? "배우";
 
   const rail = (
     <SessionRail
@@ -1512,10 +1527,4 @@ function whenLabel(value: string): string {
     day: "numeric",
   }).format(date);
   return `${day} ${time}`;
-}
-
-function formatName(): string {
-  const email = getStoredUser()?.email;
-  if (!email) return "배우";
-  return email.split("@")[0]?.replace(/[._-]+/g, " ").trim() || "배우";
 }
