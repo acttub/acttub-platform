@@ -34,7 +34,7 @@ Ubuntu/AL2023 기본은 18~20이다.
 curl -fsSL https://deb.nodesource.com/setup_24.x | sudo -E bash -
 sudo apt-get install -y nodejs
 node -v            # v24.x 확인
-sudo mkdir -p /srv/acttub/web && sudo chown ubuntu:ubuntu /srv/acttub/web
+sudo mkdir -p /svc/acttub/web && sudo chown ubuntu:ubuntu /svc/acttub/web
 ```
 
 ### back svc — uv만
@@ -43,8 +43,8 @@ sudo mkdir -p /srv/acttub/web && sudo chown ubuntu:ubuntu /srv/acttub/web
 curl -LsSf https://astral.sh/uv/install.sh | sh
 uv python install 3.11    # requires-python >= 3.11
 which uv                  # systemd 유닛의 ExecStart 경로와 맞출 것
-sudo mkdir -p /srv/acttub/acttub-platform/apps/api
-sudo chown -R ubuntu:ubuntu /srv/acttub
+sudo mkdir -p /svc/acttub/acttub-platform/apps/api
+sudo chown -R ubuntu:ubuntu /svc/acttub
 ```
 
 `uv`는 기본적으로 `~/.local/bin/uv`에 깔린다. `acttub-api.service`의 `ExecStart`가 이 경로를
@@ -191,15 +191,15 @@ standalone에는 `sharp`의 **빌드한 플랫폼 전용** 네이티브 바이�
 ```bash
 # 로컬에서 실행. --exclude '*sharp*' 가 핵심이다.
 rsync -a --delete --exclude '*sharp*' \
-  apps/web/.next/standalone/ <instance-id>:/srv/acttub/web/
-rsync -a apps/web/.next/static/ <instance-id>:/srv/acttub/web/apps/web/.next/static/
-rsync -a apps/web/public/ <instance-id>:/srv/acttub/web/apps/web/public/
+  apps/web/.next/standalone/ <instance-id>:/svc/acttub/web/
+rsync -a apps/web/.next/static/ <instance-id>:/svc/acttub/web/apps/web/.next/static/
+rsync -a apps/web/public/ <instance-id>:/svc/acttub/web/apps/web/public/
 ```
 
 `<instance-id>`는 `i-0abc...` 형태이며, 3-1의 SSH-over-SSM `ProxyCommand` 설정이 있으면
 `rsync`가 그대로 동작한다.
 
-systemd 유닛의 `WorkingDirectory`가 `/srv/acttub/web/apps/web`인 이유가 이것이다. 한 단계
+systemd 유닛의 `WorkingDirectory`가 `/svc/acttub/web/apps/web`인 이유가 이것이다. 한 단계
 위에서 실행하면 `server.js`를 못 찾고, `apps/web`만 떼어 옮기면 `node_modules`를 잃는다.
 
 유닛 파일도 로컬에서 보낸다.
@@ -224,13 +224,13 @@ sudo systemctl daemon-reload && sudo systemctl enable --now acttub-web
 # 로컬에서 — 가상환경·캐시는 빼고 소스만 보낸다
 rsync -a --delete \
   --exclude '.venv' --exclude '__pycache__' --exclude '*.pyc' \
-  apps/api/ <instance-id>:/srv/acttub/acttub-platform/apps/api/
+  apps/api/ <instance-id>:/svc/acttub/acttub-platform/apps/api/
 rsync -a deploy/systemd/acttub-api.service <instance-id>:/tmp/
 ```
 
 ```bash
 # SSM으로 접속해 인스턴스에서
-cd /srv/acttub/acttub-platform/apps/api && uv sync
+cd /svc/acttub/acttub-platform/apps/api && uv sync
 sudo mv /tmp/acttub-api.service /etc/systemd/system/
 sudo systemctl daemon-reload && sudo systemctl enable --now acttub-api
 ```
@@ -244,7 +244,7 @@ back svc EC2가 이미 DB에 붙는 머신이므로, SSM으로 들어가 거기�
 
 ```bash
 aws ssm start-session --target <back-svc-instance-id>
-cd /srv/acttub/acttub-platform/apps/api/acting-api
+cd /svc/acttub/acttub-platform/apps/api/acting-api
 uv run alembic upgrade head
 ```
 
