@@ -1,21 +1,27 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import {
   countdown,
   getAdmissions,
   groupByUniversity,
   isOpen,
+  matchesQuery,
+  SOURCE_LABEL,
   type AdmissionNotice,
+  type AdmissionResource,
   type AdmissionsResponse,
+  type AdmissionUniversity,
 } from "@/lib/api/v2/admissions";
 
 export function AdmissionsPage() {
   const [payload, setPayload] = useState<AdmissionsResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [today, setToday] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
+  const [openOnly, setOpenOnly] = useState(false);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -34,15 +40,34 @@ export function AdmissionsPage() {
     return () => controller.abort();
   }, []);
 
+  const groups = useMemo(
+    () => (payload ? groupByUniversity(payload, today) : []),
+    [payload, today],
+  );
+
+  const visible = groups.filter(({ university, notices }) => {
+    if (!matchesQuery(university, notices, query)) return false;
+    if (!openOnly) return true;
+    return notices.some((notice) => today && isOpen(notice, today));
+  });
+
+  // 마감이 가까운 순으로 이미 정렬돼 있다. 맨 앞 셋만 크게 띄운다.
+  const upcoming = groups
+    .flatMap(({ university, notices }) =>
+      notices.map((notice) => ({ university, notice })),
+    )
+    .filter(({ notice }) => today && countdown(notice, today))
+    .slice(0, 3);
+
   return (
     <main className="min-h-dvh bg-[#f8fbff]">
-      <div className="mx-auto w-full max-w-[720px] px-5 py-10">
+      <div className="mx-auto w-full max-w-[760px] px-5 py-10">
         <h1 className="text-[26px] font-black tracking-[-0.03em] text-[#191f28]">
           연기 입시 정보
         </h1>
         <p className="mt-2 text-sm font-semibold leading-6 text-[#4e5968]">
-          연극영화 계열 실기 전형을 모았어요. 각 대학 입학처 모집요강 원문을 사람이 직접
-          읽고 채우고 있어요. 접수가 빠른 곳부터 보여드려요.
+          서울·경기 연극영화 계열 실기 전형을 모았어요. 각 대학 모집요강 원문을 사람이
+          직접 읽고 채우고 있어요.
         </p>
 
         {payload && (
@@ -51,9 +76,7 @@ export function AdmissionsPage() {
           </p>
         )}
 
-        {error && (
-          <p className="mt-8 text-sm font-semibold text-[#e5484d]">{error}</p>
-        )}
+        {error && <p className="mt-8 text-sm font-semibold text-[#e5484d]">{error}</p>}
 
         {!payload && !error && (
           <p className="mt-8 text-sm font-semibold text-[#8b95a1]">불러오는 중이에요…</p>
@@ -61,40 +84,74 @@ export function AdmissionsPage() {
 
         {payload && (
           <>
-            <div className="mt-6 space-y-3">
-              {groupByUniversity(payload, today).map(({ university, notices }) => (
-                <section
-                  key={university.id}
-                  className="rounded-2xl border border-[#e5e8eb] bg-white p-5"
-                >
-                  <div className="flex items-baseline justify-between gap-3">
-                    <h2 className="text-[17px] font-black text-[#191f28]">
-                      {university.name}
-                    </h2>
-                    <a
-                      href={university.admission_url}
-                      target="_blank"
-                      rel="noreferrer noopener"
-                      className="shrink-0 text-[13px] font-black text-[#3182f6] hover:underline"
-                    >
-                      입학처 ↗
-                    </a>
-                  </div>
+            {upcoming.length > 0 && (
+              <section className="mt-6">
+                <h2 className="text-[13px] font-black text-[#8b95a1]">다가오는 마감</h2>
+                <div className="mt-2 flex gap-2 overflow-x-auto pb-1">
+                  {upcoming.map(({ university, notice }) => {
+                    const remaining = countdown(notice, today as string);
+                    return (
+                      <div
+                        key={notice.id}
+                        className="min-w-[168px] flex-1 rounded-2xl bg-[#191f28] px-4 py-3 text-white"
+                      >
+                        <p className="text-[11px] font-bold text-[#b0b8c1]">
+                          {remaining?.label}
+                        </p>
+                        <p className="mt-0.5 text-[22px] font-black leading-none">
+                          D-{remaining?.days === 0 ? "DAY" : remaining?.days}
+                        </p>
+                        <p className="mt-2 truncate text-[12px] font-black">
+                          {university.name}
+                        </p>
+                        <p className="truncate text-[11px] font-semibold text-[#b0b8c1]">
+                          {notice.department ?? ""}
+                        </p>
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+            )}
 
-                  {notices.length === 0 ? (
-                    <p className="mt-3 text-[13px] font-semibold leading-5 text-[#8b95a1]">
-                      {university.note ??
-                        "아직 전형 정보를 확인하지 못했어요. 입학처에서 확인해 주세요."}
-                    </p>
-                  ) : (
-                    <ul className="mt-4 space-y-4">
-                      {notices.map((notice) => (
-                        <NoticeRow key={notice.id} notice={notice} today={today} />
-                      ))}
-                    </ul>
-                  )}
-                </section>
+            <div className="mt-6 flex flex-wrap items-center gap-2">
+              <input
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="대학·학과·지역 검색"
+                className="min-w-[200px] flex-1 rounded-xl border border-[#e5e8eb] bg-white px-4 py-2.5 text-[14px] font-semibold text-[#191f28] outline-none placeholder:text-[#b0b8c1] focus:border-[#3182f6]"
+              />
+              <button
+                type="button"
+                onClick={() => setOpenOnly((was) => !was)}
+                className={`rounded-xl px-4 py-2.5 text-[13px] font-black ${
+                  openOnly
+                    ? "bg-[#3182f6] text-white"
+                    : "border border-[#e5e8eb] bg-white text-[#4e5968]"
+                }`}
+              >
+                접수 가능만
+              </button>
+            </div>
+
+            <p className="mt-3 text-[12px] font-bold text-[#8b95a1]">
+              대학 {visible.length}곳
+            </p>
+
+            <div className="mt-2 space-y-3">
+              {visible.map(({ university, notices }) => (
+                <UniversityCard
+                  key={university.id}
+                  university={university}
+                  notices={notices}
+                  today={today}
+                />
               ))}
+              {visible.length === 0 && (
+                <p className="py-10 text-center text-sm font-semibold text-[#8b95a1]">
+                  조건에 맞는 대학이 없어요.
+                </p>
+              )}
             </div>
 
             <p className="mt-8 text-[12px] font-semibold leading-5 text-[#8b95a1]">
@@ -114,6 +171,139 @@ export function AdmissionsPage() {
         </Link>
       </div>
     </main>
+  );
+}
+
+function UniversityCard({
+  university,
+  notices,
+  today,
+}: {
+  university: AdmissionUniversity;
+  notices: AdmissionNotice[];
+  today: string | null;
+}) {
+  // 대학이 열다섯 곳이라 전부 펼쳐 두면 훑을 수가 없다.
+  const [open, setOpen] = useState(false);
+  const soonest = notices
+    .map((notice) => (today ? countdown(notice, today) : null))
+    .filter(Boolean)
+    .sort((a, b) => (a?.days ?? 0) - (b?.days ?? 0))[0];
+
+  return (
+    <section className="overflow-hidden rounded-2xl border border-[#e5e8eb] bg-white">
+      <button
+        type="button"
+        onClick={() => setOpen((was) => !was)}
+        className="flex w-full items-center gap-3 px-5 py-4 text-left"
+      >
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <h2 className="truncate text-[17px] font-black text-[#191f28]">
+              {university.name}
+            </h2>
+            {university.region && (
+              <span className="shrink-0 text-[12px] font-bold text-[#8b95a1]">
+                {university.region}
+              </span>
+            )}
+          </div>
+          <p className="mt-1 truncate text-[12px] font-semibold text-[#8b95a1]">
+            {notices.length > 0
+              ? notices.map((n) => n.department ?? "학과 미확인").join(" · ")
+              : "전형 정보 확인 중"}
+            {university.resources.length > 0 && ` · 영상 ${university.resources.length}`}
+          </p>
+        </div>
+        {soonest && (
+          <span className="shrink-0 rounded-full bg-[#191f28] px-2.5 py-1 text-[11px] font-black text-white">
+            D-{soonest.days === 0 ? "DAY" : soonest.days}
+          </span>
+        )}
+        <span className="shrink-0 text-[12px] font-black text-[#b0b8c1]">
+          {open ? "▲" : "▼"}
+        </span>
+      </button>
+
+      {open && (
+        <div className="border-t border-[#f2f4f6] px-5 pb-5 pt-4">
+          <a
+            href={university.admission_url}
+            target="_blank"
+            rel="noreferrer noopener"
+            className="text-[13px] font-black text-[#3182f6] hover:underline"
+          >
+            입학처 원문 ↗
+          </a>
+
+          {notices.length === 0 ? (
+            <p className="mt-3 text-[13px] font-semibold leading-5 text-[#8b95a1]">
+              {university.note ??
+                "아직 전형 정보를 확인하지 못했어요. 입학처에서 확인해 주세요."}
+            </p>
+          ) : (
+            <ul className="mt-4 space-y-4">
+              {notices.map((notice) => (
+                <NoticeRow key={notice.id} notice={notice} today={today} />
+              ))}
+            </ul>
+          )}
+
+          {university.resources.length > 0 && (
+            <ResourceList resources={university.resources} />
+          )}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function ResourceList({ resources }: { resources: AdmissionResource[] }) {
+  return (
+    <div className="mt-5 border-t border-[#f2f4f6] pt-4">
+      <p className="text-[13px] font-black text-[#191f28]">참고 영상</p>
+      <p className="mt-1 text-[12px] font-semibold leading-5 text-[#8b95a1]">
+        합격했다고 밝힌 영상이 섞여 있어요. 본인 주장이라 저희가 확인한 건 아니고,
+        입시학원 홍보 영상도 따로 표시해 뒀어요.
+      </p>
+      <ul className="mt-3 space-y-2.5">
+        {resources.map((resource) => (
+          <li key={resource.url}>
+            <a
+              href={resource.url}
+              target="_blank"
+              rel="noreferrer noopener"
+              className="block rounded-xl bg-[#f8fbff] p-3 hover:bg-[#eef5ff]"
+            >
+              <div className="flex items-center gap-2">
+                <span
+                  className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-black ${
+                    resource.source_type === "official"
+                      ? "bg-[#e8f3ff] text-[#3182f6]"
+                      : resource.source_type === "academy"
+                        ? "bg-[#fff0f0] text-[#e5484d]"
+                        : "bg-[#f2f4f6] text-[#4e5968]"
+                  }`}
+                >
+                  {SOURCE_LABEL[resource.source_type] ?? resource.source_type}
+                </span>
+                <span className="truncate text-[12px] font-bold text-[#8b95a1]">
+                  {resource.publisher}
+                </span>
+              </div>
+              <p className="mt-1.5 text-[13px] font-bold leading-5 text-[#191f28]">
+                {resource.title}
+              </p>
+              {resource.note && (
+                <p className="mt-1 text-[12px] font-semibold leading-5 text-[#8b95a1]">
+                  {resource.note}
+                </p>
+              )}
+            </a>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 
@@ -140,9 +330,7 @@ function NoticeRow({
           {notice.department ?? "학과 미확인"}
         </span>
         {notice.quota && (
-          <span className="text-[12px] font-bold text-[#8b95a1]">
-            {notice.quota}
-          </span>
+          <span className="text-[12px] font-bold text-[#8b95a1]">{notice.quota}</span>
         )}
         {remaining ? (
           <span className="ml-auto rounded-full bg-[#191f28] px-2.5 py-1 text-[11px] font-black text-white">

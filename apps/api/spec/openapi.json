@@ -1231,6 +1231,63 @@
         ],
         "title": "AdmissionNotice"
       },
+      "AdmissionResource": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "url": {
+            "type": "string",
+            "title": "Url"
+          },
+          "publisher": {
+            "type": "string",
+            "title": "Publisher"
+          },
+          "source_type": {
+            "type": "string",
+            "title": "Source Type"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "verified_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verified At"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "kind",
+          "title",
+          "url",
+          "publisher",
+          "source_type"
+        ],
+        "title": "AdmissionResource",
+        "description": "입시생이 참고할 만한 영상·글. 링크만 담고 본문은 옮기지 않는다(저작권).\n\n`source_type`을 반드시 붙인다 - 학원 홍보 영상과 대학 공식 영상을 같은 줄에\n늘어놓으면 입시생이 광고를 정보로 읽는다."
+      },
       "AdmissionResult": {
         "properties": {
           "year": {
@@ -1381,6 +1438,17 @@
             "type": "string",
             "title": "Admission Url"
           },
+          "region": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Region"
+          },
           "verified_at": {
             "anyOf": [
               {
@@ -1402,6 +1470,14 @@
               }
             ],
             "title": "Note"
+          },
+          "resources": {
+            "items": {
+              "$ref": "#/components/schemas/AdmissionResource"
+            },
+            "type": "array",
+            "title": "Resources",
+            "default": []
           }
         },
         "additionalProperties": false,

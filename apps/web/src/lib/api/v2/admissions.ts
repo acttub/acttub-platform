@@ -4,6 +4,33 @@ import type { components } from "../v2-schema";
 export type AdmissionsResponse = components["schemas"]["AdmissionsResponse"];
 export type AdmissionUniversity = components["schemas"]["AdmissionUniversity"];
 export type AdmissionNotice = components["schemas"]["AdmissionNotice"];
+export type AdmissionResource = components["schemas"]["AdmissionResource"];
+
+/** 자료 출처. 학원 홍보를 대학 공식 영상과 같은 무게로 보여주면 안 된다. */
+export const SOURCE_LABEL: Record<string, string> = {
+  official: "대학 공식",
+  school: "고등학교",
+  academy: "입시학원",
+  personal: "개인",
+};
+
+/** 검색 상자에 친 말로 대학·학과를 거른다. 비어 있으면 전부 남긴다. */
+export function matchesQuery(
+  university: AdmissionUniversity,
+  notices: AdmissionNotice[],
+  query: string,
+): boolean {
+  const needle = query.trim().toLowerCase();
+  if (!needle) return true;
+  const haystack = [
+    university.name,
+    university.region ?? "",
+    ...notices.map((n) => `${n.department ?? ""} ${n.screening ?? ""}`),
+  ]
+    .join(" ")
+    .toLowerCase();
+  return haystack.includes(needle);
+}
 
 // 공개 정보다. 가입 전에도 보여야 재방문 이유가 되므로 토큰을 붙이지 않는다.
 export async function getAdmissions(options: { signal?: AbortSignal } = {}) {

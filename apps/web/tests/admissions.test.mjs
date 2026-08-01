@@ -3,7 +3,7 @@ import { test } from "node:test";
 
 import "./ts-module-loader.mjs";
 
-const { groupByUniversity, isOpen, countdown } = await import(
+const { groupByUniversity, isOpen, countdown, matchesQuery } = await import(
   "../src/lib/api/v2/admissions.ts",
 );
 
@@ -104,4 +104,22 @@ test("접수가 끝난 전형은 뒤로 내려간다", () => {
     grouped.map((g) => g.university.id),
     ["soon", "done"],
   );
+});
+
+// 대학이 열다섯 곳이라 검색이 없으면 원하는 학교를 못 찾는다.
+test("대학명·지역·학과 어느 쪽으로도 검색된다", () => {
+  const uni = { id: "kyonggi", name: "경기대학교", region: "경기 수원", admission_url: "x" };
+  const notices = [{ id: "a", university_id: "kyonggi", department: "연기학과" }];
+  assert.equal(matchesQuery(uni, notices, "경기대"), true);
+  assert.equal(matchesQuery(uni, notices, "수원"), true);
+  assert.equal(matchesQuery(uni, notices, "연기"), true);
+  assert.equal(matchesQuery(uni, notices, "  "), true);
+  assert.equal(matchesQuery(uni, notices, "무용"), false);
+});
+
+// 학과가 아직 안 채워진 대학도 이름으로는 찾을 수 있어야 한다.
+test("공고가 없는 대학도 이름으로 검색된다", () => {
+  const uni = { id: "kbu", name: "경복대학교", region: "경기 남양주", admission_url: "x" };
+  assert.equal(matchesQuery(uni, [], "경복"), true);
+  assert.equal(matchesQuery(uni, [], "남양주"), true);
 });

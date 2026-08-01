@@ -405,6 +405,29 @@ export interface components {
             note?: string | null;
         };
         /**
+         * AdmissionResource
+         * @description 입시생이 참고할 만한 영상·글. 링크만 담고 본문은 옮기지 않는다(저작권).
+         *
+         *     `source_type`을 반드시 붙인다 - 학원 홍보 영상과 대학 공식 영상을 같은 줄에
+         *     늘어놓으면 입시생이 광고를 정보로 읽는다.
+         */
+        AdmissionResource: {
+            /** Kind */
+            kind: string;
+            /** Title */
+            title: string;
+            /** Url */
+            url: string;
+            /** Publisher */
+            publisher: string;
+            /** Source Type */
+            source_type: string;
+            /** Note */
+            note?: string | null;
+            /** Verified At */
+            verified_at?: string | null;
+        };
+        /**
          * AdmissionResult
          * @description 전년도 입시결과. 대학이 공개한 값만 담고, 나머지는 None으로 남긴다.
          */
@@ -442,10 +465,17 @@ export interface components {
             name: string;
             /** Admission Url */
             admission_url: string;
+            /** Region */
+            region?: string | null;
             /** Verified At */
             verified_at?: string | null;
             /** Note */
             note?: string | null;
+            /**
+             * Resources
+             * @default []
+             */
+            resources: components["schemas"]["AdmissionResource"][];
         };
         /** AdmissionsResponse */
         AdmissionsResponse: {

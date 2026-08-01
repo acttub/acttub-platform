@@ -20,13 +20,34 @@ class _StrictResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+class AdmissionResource(_StrictResponse):
+    """입시생이 참고할 만한 영상·글. 링크만 담고 본문은 옮기지 않는다(저작권).
+
+    `source_type`을 반드시 붙인다 - 학원 홍보 영상과 대학 공식 영상을 같은 줄에
+    늘어놓으면 입시생이 광고를 정보로 읽는다.
+    """
+
+    kind: str  # "video" | "article"
+    title: str
+    url: str
+    # 채널명·매체명을 원문 그대로.
+    publisher: str
+    # official(대학 공식) | school(고교) | academy(입시학원) | personal(개인)
+    source_type: str
+    note: str | None = None
+    verified_at: str | None = None
+
+
 class AdmissionUniversity(_StrictResponse):
     id: str
     name: str
     admission_url: str
+    # "경기 수원"처럼 캠퍼스 소재지. 통학 가능 여부가 지원 결정을 가른다.
+    region: str | None = None
     verified_at: str | None = None
     # 전형 정보를 확인하지 못한 사정을 적는다(자동 수집 차단, JS 렌더링 등).
     note: str | None = None
+    resources: list[AdmissionResource] = []
 
 
 class AdmissionResult(_StrictResponse):
