@@ -18,40 +18,37 @@ CloudFront 도메인 하나만 보이므로 same-origin이 유지되고 CORS 설
 
 ## 2. 인스턴스 부트스트랩 (런타임 설치)
 
-새 인스턴스는 비어 있다. 배포 전에 런타임을 깔아야 한다. **배포판 기본 Node로는 안 된다** —
-루트 `package.json`이 `engines: node >= 24`를 요구하는데 Ubuntu/AL2023 기본은 18~20이다.
+새 인스턴스는 비어 있다. 배포 전에 런타임을 깔아야 한다.
 
-### front svc
+**빌드는 전부 로컬에서 하므로 인스턴스에 git·pnpm은 필요 없다.** 산출물과 소스를 rsync로
+보내고, 인스턴스는 그것을 실행하기만 한다. 저장소를 클론하지 않으니 deploy key도 필요 없다.
+
+### front svc — Node만
+
+**배포판 기본 Node로는 안 된다.** 루트 `package.json`이 `engines: node >= 24`를 요구하는데
+Ubuntu/AL2023 기본은 18~20이다.
 
 ```bash
-# Node 24 — nvm이 아니라 NodeSource로 깐다. nvm은 홈 디렉토리에 설치되어
+# nvm이 아니라 NodeSource로 깐다. nvm은 홈 디렉토리에 설치되어
 # systemd 유닛의 ExecStart=/usr/bin/node 와 경로가 어긋난다.
 curl -fsSL https://deb.nodesource.com/setup_24.x | sudo -E bash -
-sudo apt-get install -y nodejs git
+sudo apt-get install -y nodejs
 node -v            # v24.x 확인
-sudo corepack enable
-corepack prepare pnpm@11.1.2 --activate    # 루트 package.json의 packageManager와 일치
+sudo mkdir -p /srv/acttub/web && sudo chown ubuntu:ubuntu /srv/acttub/web
 ```
 
-빌드를 EC2에서 하므로(4-1 참고) Next 빌드가 메모리를 꽤 쓴다. 인스턴스 메모리가 2GB
-이하라면 스왑을 잡아두는 편이 안전하다.
-
-### back svc
+### back svc — uv만
 
 ```bash
-sudo apt-get install -y git
 curl -LsSf https://astral.sh/uv/install.sh | sh
 uv python install 3.11    # requires-python >= 3.11
 which uv                  # systemd 유닛의 ExecStart 경로와 맞출 것
+sudo mkdir -p /srv/acttub/acttub-platform/apps/api
+sudo chown -R ubuntu:ubuntu /srv/acttub
 ```
 
 `uv`는 기본적으로 `~/.local/bin/uv`에 깔린다. `acttub-api.service`의 `ExecStart`가 이 경로를
 가정하고 있으니 다르면 유닛을 고친다.
-
-### 공통
-
-저장소를 `/srv/acttub/acttub-platform`에 클론한다. private 저장소이므로 deploy key나
-`gh auth`가 필요하다. 인스턴스는 NAT로 아웃바운드가 되므로 GitHub 접근 자체는 문제없다.
 
 ## 3. AWS 준비
 
@@ -159,26 +156,12 @@ presigned PUT은 브라우저에서 S3로 직접 나가므로 버킷 CORS에 새
 - `NEXT_PUBLIC_API_BASE_URL`은 **비워둔다**. 값을 주면 브라우저가 백엔드를 직접 호출하는데,
   back alb는 private이라 전부 실패한다. 비어 있어야 상대 경로로 나가 프록시를 탄다
 
-빌드 명령:
+**빌드는 로컬(맥)에서 하고 산출물만 보낸다.** EC2에는 git도 pnpm도 필요 없다.
 
 ```bash
 API_ORIGIN=http://<back-alb-dns> \
 NEXT_PUBLIC_SITE_URL=https://<cloudfront-domain> \
 pnpm --filter web build:server
-```
-
-**빌드는 front svc EC2에서 직접 하는 편을 권한다.** standalone 산출물은 `node_modules`
-일부를 포함하므로 macOS에서 만든 결과가 리눅스에서 그대로 돈다는 보장이 없다. 기존
-정적 export는 순수 HTML/JS라 플랫폼 무관이었지만 서버 모드는 다르다.
-
-EC2에서 빌드하는 경우:
-
-```bash
-cd /srv/acttub/acttub-platform
-git pull
-pnpm install --frozen-lockfile
-API_ORIGIN=http://<back-alb-dns> NEXT_PUBLIC_SITE_URL=https://<cloudfront-domain> \
-  pnpm --filter web build:server
 ```
 
 **standalone은 정적 자산을 자동으로 포함하지 않는다.** 빌드 직후 `.next/static`은 산출물
@@ -195,28 +178,60 @@ API_ORIGIN=http://<back-alb-dns> NEXT_PUBLIC_SITE_URL=https://<cloudfront-domain
     server.js
 ```
 
+### sharp를 제외해야 한다 ⚠️
+
+standalone에는 `sharp`의 **빌드한 플랫폼 전용** 네이티브 바이너리가 딸려온다
+(맥에서 빌드하면 `sharp-darwin-arm64.node`). `images.unoptimized`를 켜도 Next의 의존성
+트레이싱이 무조건 포함시키므로 설정으로는 뺄 수 없다. 그대로 리눅스로 옮기면 로드에
+실패하므로 **전송에서 제외한다.** 이미지 최적화를 쓰지 않아 실제로 로드되지 않는다.
+
+제외하면 산출물에 네이티브 바이너리가 하나도 남지 않아(45M → 27M) 플랫폼 무관해진다.
+맥에서 sharp를 뺀 채 기동해 페이지·정적 자산·프록시가 모두 정상 동작함을 확인했다.
+
 ```bash
-rsync -a --delete apps/web/.next/standalone/ /srv/acttub/web/
-mkdir -p /srv/acttub/web/apps/web/.next
-cp -r apps/web/.next/static /srv/acttub/web/apps/web/.next/static
-cp -r apps/web/public /srv/acttub/web/apps/web/public
+# 로컬에서 실행. --exclude '*sharp*' 가 핵심이다.
+rsync -a --delete --exclude '*sharp*' \
+  apps/web/.next/standalone/ <instance-id>:/srv/acttub/web/
+rsync -a apps/web/.next/static/ <instance-id>:/srv/acttub/web/apps/web/.next/static/
+rsync -a apps/web/public/ <instance-id>:/srv/acttub/web/apps/web/public/
 ```
+
+`<instance-id>`는 `i-0abc...` 형태이며, 3-1의 SSH-over-SSM `ProxyCommand` 설정이 있으면
+`rsync`가 그대로 동작한다.
 
 systemd 유닛의 `WorkingDirectory`가 `/srv/acttub/web/apps/web`인 이유가 이것이다. 한 단계
 위에서 실행하면 `server.js`를 못 찾고, `apps/web`만 떼어 옮기면 `node_modules`를 잃는다.
 
+유닛 파일도 로컬에서 보낸다.
+
 ```bash
-sudo cp deploy/systemd/acttub-web.service /etc/systemd/system/
+# 로컬에서
+rsync -a deploy/systemd/acttub-web.service <instance-id>:/tmp/
+```
+
+```bash
+# SSM으로 접속해 인스턴스에서
+sudo mv /tmp/acttub-web.service /etc/systemd/system/
 sudo systemctl daemon-reload && sudo systemctl enable --now acttub-web
 ```
 
 ### 4-2. back svc (FastAPI)
 
+여기도 git이 필요 없다. 파이썬 소스를 그대로 보내고 인스턴스에서는 의존성만 받는다.
+`uv.lock`에 git 의존성이 없어(확인함) `uv sync`는 PyPI만 본다.
+
 ```bash
-cd /srv/acttub/acttub-platform
-git pull
-cd apps/api && uv sync
-sudo cp ../../deploy/systemd/acttub-api.service /etc/systemd/system/
+# 로컬에서 — 가상환경·캐시는 빼고 소스만 보낸다
+rsync -a --delete \
+  --exclude '.venv' --exclude '__pycache__' --exclude '*.pyc' \
+  apps/api/ <instance-id>:/srv/acttub/acttub-platform/apps/api/
+rsync -a deploy/systemd/acttub-api.service <instance-id>:/tmp/
+```
+
+```bash
+# SSM으로 접속해 인스턴스에서
+cd /srv/acttub/acttub-platform/apps/api && uv sync
+sudo mv /tmp/acttub-api.service /etc/systemd/system/
 sudo systemctl daemon-reload && sudo systemctl enable --now acttub-api
 ```
 

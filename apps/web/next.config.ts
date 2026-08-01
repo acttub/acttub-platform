@@ -19,6 +19,12 @@ const nextConfig: NextConfig = isExport
       // EC2에 node_modules 없이 배포하기 위한 자립 실행 번들(.next/standalone).
       // `next dev`에는 영향이 없다 — `next build`에서만 쓰인다.
       output: "standalone",
+      // 정적 export와 같은 값으로 맞춰 두 빌드 모드의 이미지 동작이 갈리지 않게 한다.
+      // 이 값과 무관하게 standalone 산출물에는 sharp의 플랫폼 전용 바이너리가 딸려온다
+      // (Next의 의존성 트레이싱이 무조건 포함시킨다). 맥에서 빌드해 리눅스로 옮길 때는
+      // 전송에서 제외한다 — 이미지 최적화를 쓰지 않으므로 로드되지 않는다.
+      // 자세한 내용은 docs/DEPLOY-VPC.md.
+      images: { unoptimized: true },
       // 폰 등 다른 기기에서 dev 서버를 열 때 필요 (기본은 로컬만 허용).
       // 이 값만으로는 부족하다 — dev 서버가 loopback에만 붙어 있으면 폰이 소켓에
       // 닿지 못하므로 `pnpm dev:lan`으로 LAN 주소에 바인드해야 한다.
