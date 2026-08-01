@@ -14,20 +14,20 @@ import { usePathname } from "next/navigation";
 import { useOptionalAuth } from "@/features/auth/use-optional-auth";
 import { getStoredUser } from "@/lib/auth/token-store";
 
-const RAIL_WIDTH = "w-16";
+const RAIL_WIDTH = "w-[76px]";
 
 type Item = {
   href: string;
   label: string;
-  icon: string;
+  icon: IconName;
   /** 이 경로들 중 하나로 시작하면 현재 위치로 본다. */
   match: string[];
 };
 
 const ITEMS: Item[] = [
-  { href: "/practice/new", label: "홈", icon: "⌂", match: ["/practice", "/home"] },
-  { href: "/admissions", label: "입시", icon: "◎", match: ["/admissions"] },
-  { href: "/community", label: "커뮤", icon: "▢", match: ["/community"] },
+  { href: "/practice/new", label: "홈", icon: "home", match: ["/practice", "/home"] },
+  { href: "/admissions", label: "입시", icon: "school", match: ["/admissions"] },
+  { href: "/community", label: "커뮤", icon: "chat", match: ["/community"] },
 ];
 
 export function AppRail() {
@@ -40,9 +40,9 @@ export function AppRail() {
       // 뷰포트에 붙여 둔다. flex 자식으로 그냥 두면 본문이 길어질수록 레일도 문서
       // 높이만큼 늘어나서, 아래 붙은 프로필이 화면 밖 저 끝으로 밀려난다.
       // self-start 가 stretch 를 끄고, sticky+h-dvh 가 화면 높이를 지킨다.
-      className={`sticky top-0 flex h-dvh ${RAIL_WIDTH} shrink-0 flex-col items-center self-start overflow-y-auto border-r border-[#edf0f3] bg-white py-3`}
+      className={`sticky top-0 flex h-dvh ${RAIL_WIDTH} shrink-0 flex-col items-center self-start overflow-y-auto border-r border-[#edf0f3] bg-white px-2.5 pb-4 pt-5`}
     >
-      <div className="flex flex-1 flex-col items-center gap-1">
+      <div className="flex flex-1 flex-col items-center gap-2">
         {ITEMS.map((item) => (
           <RailLink
             key={item.href}
@@ -61,17 +61,55 @@ function RailLink({ item, active }: { item: Item; active: boolean }) {
     <Link
       href={item.href}
       aria-current={active ? "page" : undefined}
-      className={`flex h-14 w-14 flex-col items-center justify-center gap-0.5 rounded-2xl transition ${
+      className={`flex h-[58px] w-14 flex-col items-center justify-center gap-1 rounded-2xl transition ${
         active
           ? "bg-[#e8f3ff] text-[#3182f6]"
           : "text-[#8b95a1] hover:bg-[#f2f4f6] hover:text-[#4e5968]"
       }`}
     >
-      <span aria-hidden="true" className="text-[17px] leading-none">
-        {item.icon}
-      </span>
+      <RailIcon name={item.icon} />
       <span className="text-[11px] font-black leading-none">{item.label}</span>
     </Link>
+  );
+}
+
+type IconName = "home" | "school" | "chat";
+
+/**
+ * 유니코드 글리프(⌂ ◎ ▢)는 글자마다 실제 크기가 제각각이라 셋을 나란히 두면
+ * 하나만 작아 보인다. 획 굵기와 상자 크기를 우리가 정하려고 SVG 로 그린다.
+ */
+function RailIcon({ name }: { name: IconName }) {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      className="h-[22px] w-[22px]"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.9}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      {name === "home" && (
+        <>
+          <path d="M4 10.5 12 4l8 6.5" />
+          <path d="M6 10v9.5h12V10" />
+        </>
+      )}
+      {name === "school" && (
+        <>
+          <path d="M12 4 2.5 9 12 14l9.5-5L12 4Z" />
+          <path d="M6.5 11.4V16c0 1.5 2.5 3 5.5 3s5.5-1.5 5.5-3v-4.6" />
+        </>
+      )}
+      {name === "chat" && (
+        <>
+          <path d="M4 5.5h12.5v9H9l-5 3.5v-3.5H4v-9Z" />
+          <path d="M20 9v9h-1.5v3l-4-3" />
+        </>
+      )}
+    </svg>
   );
 }
 
@@ -83,7 +121,7 @@ function AccountSlot({ loggedIn }: { loggedIn: boolean }) {
     return (
       <Link
         href="/login"
-        className="mt-2 flex h-10 w-14 items-center justify-center rounded-2xl text-[11px] font-black text-[#3182f6] transition hover:bg-[#f2f4f6]"
+        className="mt-3 flex h-10 w-14 items-center justify-center rounded-2xl border-t border-[#edf0f3] pt-3 text-[11px] font-black text-[#3182f6] transition hover:bg-[#f2f4f6]"
       >
         로그인
       </Link>
@@ -94,7 +132,7 @@ function AccountSlot({ loggedIn }: { loggedIn: boolean }) {
     <Link
       href="/practice/new"
       title="내 연습으로"
-      className="mt-2 flex h-9 w-9 items-center justify-center rounded-full bg-[#191f28] text-[13px] font-black text-white"
+      className="mt-4 flex h-9 w-9 items-center justify-center rounded-full bg-[#191f28] text-[13px] font-black text-white"
     >
       {initial}
     </Link>
