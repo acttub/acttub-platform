@@ -11,10 +11,11 @@ WorkingDirectory=/svc/acttub/acttub-platform/apps/api
 # DATABASE_URL, JWT_SECRET, S3_*, AWS_*, ADMIN_OPS_TOKEN 등.
 # acting-api/.env 도 함께 읽히지만(load_dotenv), 이 파일이 우선한다.
 EnvironmentFile=/etc/acttub/api.env
-# `which uv`로 실제 경로를 확인해 맞춘다 (설치 방식에 따라 /usr/local/bin/uv).
+# uv는 계정 홈이 아니라 /usr/local/bin에 둔다 — 홈에 두면 설치한 계정(SSM 접속 시
+# 기본은 ssm-user)과 서비스 실행 계정(ubuntu)이 어긋나 서비스가 uv를 못 찾는다.
 # --host 0.0.0.0 이어야 back alb의 헬스체크·프록시가 닿는다. 노출 범위는
 # 보안그룹(back alb SG만 8000 허용)으로 제한한다.
-ExecStart=/home/ubuntu/.local/bin/uv run uvicorn acting_api.app:create_app --factory --host 0.0.0.0 --port 8000
+ExecStart=/usr/local/bin/uv run uvicorn acting_api.app:create_app --factory --host 0.0.0.0 --port 8000
 Restart=always
 RestartSec=3
 

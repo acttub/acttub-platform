@@ -41,14 +41,21 @@ sudo mkdir -p /svc/acttub/web && sudo chown ubuntu:ubuntu /svc/acttub/web
 
 ```bash
 curl -LsSf https://astral.sh/uv/install.sh | sh
-uv python install 3.11    # requires-python >= 3.11
-which uv                  # systemd 유닛의 ExecStart 경로와 맞출 것
+# 설치는 홈(~/.local/bin)에 들어간다. 시스템 경로로 옮겨 계정에 묶이지 않게 한다.
+sudo mv ~/.local/bin/uv ~/.local/bin/uvx /usr/local/bin/
+/usr/local/bin/uv --version
+
 sudo mkdir -p /svc/acttub/acttub-platform/apps/api
 sudo chown -R ubuntu:ubuntu /svc/acttub
 ```
 
-`uv`는 기본적으로 `~/.local/bin/uv`에 깔린다. `acttub-api.service`의 `ExecStart`가 이 경로를
-가정하고 있으니 다르면 유닛을 고친다.
+**uv를 홈에 두면 안 된다.** SSM으로 접속하면 `ssm-user`로 들어가는데 서비스는 `ubuntu`로
+돌기 때문에, 홈에 설치하면 서비스가 uv를 찾지 못한다. `acttub-api.service`의 `ExecStart`가
+`/usr/local/bin/uv`를 가리키는 이유가 이것이다.
+
+파이썬은 `uv python install`로 받지 말고 **시스템 python3을 쓴다** — uv가 받는 파이썬도
+실행 계정의 홈에 깔려 같은 문제가 반복된다. `python3 --version`이 3.11 이상이면 그대로
+쓰면 된다(`requires-python >= 3.11`).
 
 ## 3. AWS 준비
 
