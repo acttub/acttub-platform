@@ -1,0 +1,93 @@
+# VPC 2계층 인프라 배포 — 빌드·S3 업로드·SSM 설치를 한 번에 수행합니다.
+#
+# 인증은 OIDC입니다. 장기 액세스 키를 repo Secrets에 두지 않고, 실행할 때마다
+# AWS에서 임시 자격증명을 받습니다. 설정 절차는 docs/DEPLOY-VPC.md 7장 참고.
+#
+# 인스턴스에 SSH로 접속하지 않습니다 — SSM Run Command로 AWS에 실행을 위임하므로
+# private subnet이어도 runner에서 그대로 동작합니다.
+name: Deploy (VPC)
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: 배포 대상
+        type: choice
+        options: [fe, be, both]
+        default: fe
+
+# 배포는 겹치면 안 됩니다. 진행 중인 배포를 취소하면 인스턴스가 절반만 갱신된
+# 상태로 남을 수 있으므로 cancel-in-progress를 켜지 않습니다.
+concurrency:
+  group: deploy-vpc
+  cancel-in-progress: false
+
+permissions:
+  id-token: write # OIDC 토큰 발급에 필요 — 없으면 role assume이 실패합니다.
+  contents: read
+
+env:
+  AWS_REGION: ap-northeast-2
+
+jobs:
+  fe:
+    name: front svc (Next 서버)
+    if: ${{ inputs.target == 'fe' || inputs.target == 'both' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.1.2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      # 빌드 → sharp 제외 → 정적 자산 병합 → *.node 잔존 검사 → S3 업로드.
+      # API_ORIGIN은 빌드 시점에 routes-manifest로 굳으므로 여기서 주어야 합니다.
+      - name: Build & upload
+        env:
+          DEPLOY_BUCKET: ${{ vars.DEPLOY_BUCKET }}
+          API_ORIGIN: ${{ vars.API_ORIGIN }}
+          NEXT_PUBLIC_SITE_URL: ${{ vars.NEXT_PUBLIC_SITE_URL }}
+        run: deploy/upload-web.sh
+
+      - name: Install on instance
+        env:
+          DEPLOY_BUCKET: ${{ vars.DEPLOY_BUCKET }}
+        run: deploy/ssm-deploy.sh fe ${{ vars.FE_INSTANCE_ID }}
+
+  be:
+    name: back svc (FastAPI)
+    if: ${{ inputs.target == 'be' || inputs.target == 'both' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Package & upload
+        env:
+          DEPLOY_BUCKET: ${{ vars.DEPLOY_BUCKET }}
+        run: deploy/upload-api.sh
+
+      # 마이그레이션은 여기서 돌리지 않습니다. 스키마 변경은 되돌리기 어려우므로
+      # SSM으로 접속해 수동으로 실행합니다(docs/DEPLOY-VPC.md 4-3).
+      - name: Install on instance
+        env:
+          DEPLOY_BUCKET: ${{ vars.DEPLOY_BUCKET }}
+        run: deploy/ssm-deploy.sh be ${{ vars.BE_INSTANCE_ID }}

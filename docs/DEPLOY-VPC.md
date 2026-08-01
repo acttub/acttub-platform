@@ -326,7 +326,104 @@ uv run alembic upgrade head
 5. 영상 업로드 → presigned PUT 실패 시 S3 CORS 확인 (3-4)
 6. 분석 실행 → NAT를 통한 아웃바운드 LLM 호출 확인
 
-## 6. 아직 남은 것
+## 6. GitHub Actions 자동 배포 (OIDC)
+
+`.github/workflows/deploy.yml`이 빌드 → S3 업로드 → SSM 설치를 한 번에 한다. Actions
+탭에서 수동 실행(`workflow_dispatch`)하며, 대상을 `fe`·`be`·`both` 중에 고른다.
+
+**runner는 인스턴스에 접속하지 않는다.** SSM Run Command로 AWS에 실행을 위임하므로
+private subnet이어도 되고, SSH 키나 VPN이 필요 없다.
+
+### 6-1. AWS — OIDC 공급자 등록
+
+IAM → 자격 증명 공급자 → 공급자 추가 → OpenID Connect
+
+- 공급자 URL: `https://token.actions.githubusercontent.com`
+- 대상(Audience): `sts.amazonaws.com`
+
+### 6-2. AWS — 배포용 role 생성
+
+신뢰 정책(trust policy). `sub` 조건이 **이 저장소로만** 제한하는 부분이라 빠뜨리면
+안 된다 — 없으면 아무 GitHub 저장소나 이 role을 가져다 쓸 수 있다.
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": {
+        "Federated": "arn:aws:iam::<계정ID>:oidc-provider/token.actions.githubusercontent.com"
+      },
+      "Action": "sts:AssumeRoleWithWebIdentity",
+      "Condition": {
+        "StringEquals": {
+          "token.actions.githubusercontent.com:aud": "sts.amazonaws.com"
+        },
+        "StringLike": {
+          "token.actions.githubusercontent.com:sub": "repo:acttub/acttub-platform:*"
+        }
+      }
+    }
+  ]
+}
+```
+
+권한 정책:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": "s3:PutObject",
+      "Resource": "arn:aws:s3:::<배포 버킷>/*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": "ssm:SendCommand",
+      "Resource": [
+        "arn:aws:ssm:*::document/AWS-RunShellScript",
+        "arn:aws:ec2:<리전>:<계정ID>:instance/<fe 인스턴스 ID>",
+        "arn:aws:ec2:<리전>:<계정ID>:instance/<be 인스턴스 ID>"
+      ]
+    },
+    {
+      "Effect": "Allow",
+      "Action": "ssm:GetCommandInvocation",
+      "Resource": "*"
+    }
+  ]
+}
+```
+
+`ssm:SendCommand`의 Resource에 **문서와 인스턴스를 모두** 적어야 한다. 인스턴스만 적으면
+document 권한이 없다고 거부된다.
+
+### 6-3. GitHub — 저장소 변수 등록
+
+Settings → Secrets and variables → Actions → **Variables** 탭. 민감한 값이 아니므로
+Secrets가 아니라 Variables에 넣는다.
+
+| 이름 | 값 |
+| --- | --- |
+| `AWS_DEPLOY_ROLE_ARN` | `arn:aws:iam::<계정ID>:role/<role 이름>` |
+| `DEPLOY_BUCKET` | 배포 버킷 이름 |
+| `API_ORIGIN` | `http://<back-alb-dns>` |
+| `NEXT_PUBLIC_SITE_URL` | CloudFront 도메인 (없으면 비워둔다) |
+| `FE_INSTANCE_ID` | front svc 인스턴스 ID |
+| `BE_INSTANCE_ID` | back svc 인스턴스 ID |
+
+`API_ORIGIN`을 바꾸면 **반드시 fe를 재배포해야 한다.** 빌드 시점에 굳는 값이라 인스턴스만
+재시작해서는 반영되지 않는다.
+
+### 6-4. 마이그레이션은 자동화하지 않는다
+
+workflow는 `alembic upgrade head`를 실행하지 않는다. 스키마 변경은 되돌리기 어렵고
+배포와 수명주기가 다르므로, 4-3처럼 SSM으로 접속해 수동으로 실행한다.
+
+## 7. 아직 남은 것
 
 - **S3 자격증명이 access key 방식이다.** `apps/api/acting-api/src/acting_api/config.py`의
   `s3_configured`가 bucket/key/secret/region **넷 다** 있어야 True를 준다. 인스턴스 프로파일
