@@ -1338,6 +1338,17 @@
             ],
             "title": "Transcript Avg"
           },
+          "transcript_cut50": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Transcript Cut50"
+          },
           "transcript_cut70": {
             "anyOf": [
               {
@@ -1359,6 +1370,39 @@
               }
             ],
             "title": "Transcript Low"
+          },
+          "practical_avg": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Practical Avg"
+          },
+          "practical_cut50": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Practical Cut50"
+          },
+          "practical_cut70": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Practical Cut70"
           },
           "fill_rate": {
             "anyOf": [

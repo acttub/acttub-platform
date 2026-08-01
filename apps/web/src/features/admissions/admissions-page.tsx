@@ -157,8 +157,8 @@ export function AdmissionsPage() {
             <p className="mt-8 text-[12px] font-semibold leading-5 text-[#8b95a1]">
               {payload.updated_at} 기준 · 확인한 곳부터 차례로 채우고 있어요
               <br />
-              실기 커트라인은 어느 대학도 공개하지 않아요. 입시결과에 적힌 숫자는
-              최종등록자의 학생부 교과 성적이에요.
+              입시결과에 적힌 학생부 숫자는 최종등록자의 교과 성적이에요. 실기 성적은
+              대부분의 대학이 공개하지 않지만, 공개한 곳은 함께 적어 뒀어요.
             </p>
           </>
         )}
@@ -452,6 +452,12 @@ function ResultTable({ notice }: { notice: AdmissionNotice }) {
                     학생부 평균 {result.transcript_avg}
                     {result.transcript_cut70 && ` · 70%컷 ${result.transcript_cut70}`}
                     {result.transcript_low && ` · 최저 ${result.transcript_low}`}
+                  </span>
+                )}
+                {result.practical_avg && (
+                  <span className="rounded bg-[#e8f3ff] px-1.5 py-0.5 text-[12px] font-bold text-[#3182f6]">
+                    실기 평균 {result.practical_avg}
+                    {result.practical_cut70 && ` · 70%컷 ${result.practical_cut70}`}
                   </span>
                 )}
                 {result.fill_rate && (

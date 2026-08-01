@@ -442,10 +442,18 @@ export interface components {
             competition_rate?: string | null;
             /** Transcript Avg */
             transcript_avg?: string | null;
+            /** Transcript Cut50 */
+            transcript_cut50?: string | null;
             /** Transcript Cut70 */
             transcript_cut70?: string | null;
             /** Transcript Low */
             transcript_low?: string | null;
+            /** Practical Avg */
+            practical_avg?: string | null;
+            /** Practical Cut50 */
+            practical_cut50?: string | null;
+            /** Practical Cut70 */
+            practical_cut70?: string | null;
             /** Fill Rate */
             fill_rate?: string | null;
             /** Waitlist Last */

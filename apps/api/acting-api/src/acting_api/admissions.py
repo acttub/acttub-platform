@@ -58,10 +58,15 @@ class AdmissionResult(_StrictResponse):
     applicants: int | None = None
     # "63.61:1" 형태로 원문 표기를 그대로 옮긴다.
     competition_rate: str | None = None
-    # 최종등록자의 학생부 교과 성적. 실기 성적은 어느 대학도 공개하지 않는다.
+    # 최종등록자의 학생부 교과 성적.
     transcript_avg: str | None = None
+    transcript_cut50: str | None = None
     transcript_cut70: str | None = None
     transcript_low: str | None = None
+    # 최종등록자의 실기 성적. 대부분의 대학은 공개하지 않지만 경기대처럼 내는 곳이 있다.
+    practical_avg: str | None = None
+    practical_cut50: str | None = None
+    practical_cut70: str | None = None
     fill_rate: str | None = None
     waitlist_last: int | None = None
     source_url: str | None = None
