@@ -88,6 +88,34 @@ class OperationStatus(str, enum.Enum):
     FAILED = "failed"
 
 
+class ContentStatus(str, enum.Enum):
+    """글·댓글의 노출 상태. 삭제해도 행은 남긴다 — 신고 처리에 원문이 필요하다."""
+
+    VISIBLE = "visible"
+    # 운영자가 내린 상태. 작성자에게는 보이되 목록에서는 빠진다.
+    HIDDEN = "hidden"
+    DELETED = "deleted"
+
+
+class ReportTargetType(str, enum.Enum):
+    POST = "post"
+    COMMENT = "comment"
+
+
+class ReportReason(str, enum.Enum):
+    SPAM = "spam"
+    ABUSE = "abuse"
+    SEXUAL = "sexual"
+    PRIVACY = "privacy"
+    OTHER = "other"
+
+
+class ReportStatus(str, enum.Enum):
+    PENDING = "pending"
+    ACTIONED = "actioned"
+    DISMISSED = "dismissed"
+
+
 def _enum_values(enum_type: type[enum.Enum]) -> list[str]:
     return [member.value for member in enum_type]
 
@@ -109,6 +137,10 @@ close_reason_enum = _enum(CloseReason, "close_reason_t")
 turn_role_enum = _enum(TurnRole, "turn_role_t")
 operation_kind_enum = _enum(OperationKind, "operation_kind_t")
 operation_status_enum = _enum(OperationStatus, "operation_status_t")
+content_status_enum = _enum(ContentStatus, "content_status_t")
+report_target_type_enum = _enum(ReportTargetType, "report_target_type_t")
+report_reason_enum = _enum(ReportReason, "report_reason_t")
+report_status_enum = _enum(ReportStatus, "report_status_t")
 
 
 class Base(DeclarativeBase):
@@ -125,6 +157,10 @@ class User(Base):
         server_default=sa.text("gen_random_uuid()"),
     )
     email: Mapped[str | None] = mapped_column(sa.Text, unique=True)
+    # 화면에 보이는 이름. 커뮤니티 작성자 표시와 연습 화면 호칭에 같이 쓴다.
+    # 일부러 UNIQUE 를 걸지 않았다 — 가입 첫 화면에서 "이미 쓰는 이름" 을 만나면
+    # 이탈이 생긴다. 동일인 판별은 user_id 로 하고, 사칭은 신고로 처리한다.
+    nickname: Mapped[str | None] = mapped_column(sa.Text)
     status: Mapped[UserStatus] = mapped_column(
         user_status_enum,
         nullable=False,
@@ -504,6 +540,204 @@ class ExternalOperation(Base):
     )
 
 
+class CommunityCategory(Base):
+    """게시판 구분. 코드 상수가 아니라 행으로 둔다 — 배포 없이 추가·정렬할 수 있다."""
+
+    __tablename__ = "community_categories"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        postgresql.UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+        server_default=sa.text("gen_random_uuid()"),
+    )
+    slug: Mapped[str] = mapped_column(sa.Text, nullable=False, unique=True)
+    name: Mapped[str] = mapped_column(sa.Text, nullable=False)
+    description: Mapped[str | None] = mapped_column(sa.Text)
+    sort_order: Mapped[int] = mapped_column(
+        sa.Integer, nullable=False, default=0, server_default=sa.text("0")
+    )
+    is_active: Mapped[bool] = mapped_column(
+        sa.Boolean, nullable=False, default=True, server_default=sa.text("true")
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()
+    )
+
+
+class CommunityPost(Base):
+    __tablename__ = "community_posts"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        postgresql.UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+        server_default=sa.text("gen_random_uuid()"),
+    )
+    category_id: Mapped[uuid.UUID] = mapped_column(
+        postgresql.UUID(as_uuid=True),
+        sa.ForeignKey("community_categories.id"),
+        nullable=False,
+    )
+    author_id: Mapped[uuid.UUID] = mapped_column(
+        postgresql.UUID(as_uuid=True), sa.ForeignKey("users.id"), nullable=False
+    )
+    title: Mapped[str] = mapped_column(sa.Text, nullable=False)
+    body: Mapped[str] = mapped_column(sa.Text, nullable=False)
+    status: Mapped[ContentStatus] = mapped_column(
+        content_status_enum,
+        nullable=False,
+        default=ContentStatus.VISIBLE,
+        server_default=sa.text("'visible'"),
+    )
+    # 목록에서 글마다 COUNT 를 돌리지 않으려고 비정규화한다. 증감은 같은 트랜잭션에서.
+    like_count: Mapped[int] = mapped_column(
+        sa.Integer, nullable=False, default=0, server_default=sa.text("0")
+    )
+    comment_count: Mapped[int] = mapped_column(
+        sa.Integer, nullable=False, default=0, server_default=sa.text("0")
+    )
+    view_count: Mapped[int] = mapped_column(
+        sa.Integer, nullable=False, default=0, server_default=sa.text("0")
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()
+    )
+
+
+class CommunityComment(Base):
+    """1단계 댓글만. 대댓글은 parent_id 를 뒤에 붙이는 마이그레이션으로 연다."""
+
+    __tablename__ = "community_comments"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        postgresql.UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+        server_default=sa.text("gen_random_uuid()"),
+    )
+    post_id: Mapped[uuid.UUID] = mapped_column(
+        postgresql.UUID(as_uuid=True),
+        sa.ForeignKey("community_posts.id"),
+        nullable=False,
+    )
+    author_id: Mapped[uuid.UUID] = mapped_column(
+        postgresql.UUID(as_uuid=True), sa.ForeignKey("users.id"), nullable=False
+    )
+    body: Mapped[str] = mapped_column(sa.Text, nullable=False)
+    status: Mapped[ContentStatus] = mapped_column(
+        content_status_enum,
+        nullable=False,
+        default=ContentStatus.VISIBLE,
+        server_default=sa.text("'visible'"),
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()
+    )
+
+
+class CommunityPostLike(Base):
+    __tablename__ = "community_post_likes"
+    __table_args__ = (
+        sa.UniqueConstraint("post_id", "user_id", name="uq_community_post_likes"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        postgresql.UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+        server_default=sa.text("gen_random_uuid()"),
+    )
+    post_id: Mapped[uuid.UUID] = mapped_column(
+        postgresql.UUID(as_uuid=True),
+        sa.ForeignKey("community_posts.id"),
+        nullable=False,
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        postgresql.UUID(as_uuid=True), sa.ForeignKey("users.id"), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()
+    )
+
+
+class CommunityReport(Base):
+    """신고. target_id 에는 FK 를 걸지 않는다 — 글과 댓글 두 테이블을 함께 가리킨다."""
+
+    __tablename__ = "community_reports"
+    __table_args__ = (
+        sa.UniqueConstraint(
+            "reporter_id",
+            "target_type",
+            "target_id",
+            name="uq_community_reports_reporter_target",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        postgresql.UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+        server_default=sa.text("gen_random_uuid()"),
+    )
+    reporter_id: Mapped[uuid.UUID] = mapped_column(
+        postgresql.UUID(as_uuid=True), sa.ForeignKey("users.id"), nullable=False
+    )
+    target_type: Mapped[ReportTargetType] = mapped_column(
+        report_target_type_enum, nullable=False
+    )
+    target_id: Mapped[uuid.UUID] = mapped_column(
+        postgresql.UUID(as_uuid=True), nullable=False
+    )
+    reason: Mapped[ReportReason] = mapped_column(report_reason_enum, nullable=False)
+    detail: Mapped[str | None] = mapped_column(sa.Text)
+    status: Mapped[ReportStatus] = mapped_column(
+        report_status_enum,
+        nullable=False,
+        default=ReportStatus.PENDING,
+        server_default=sa.text("'pending'"),
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()
+    )
+
+
+class CommunityBlock(Base):
+    """차단. 차단한 사람 눈에서만 상대 글이 사라진다(상대는 아무것도 모른다)."""
+
+    __tablename__ = "community_blocks"
+    __table_args__ = (
+        sa.UniqueConstraint(
+            "blocker_id", "blocked_id", name="uq_community_blocks_pair"
+        ),
+        sa.CheckConstraint(
+            "blocker_id <> blocked_id", name="ck_community_blocks_not_self"
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        postgresql.UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+        server_default=sa.text("gen_random_uuid()"),
+    )
+    blocker_id: Mapped[uuid.UUID] = mapped_column(
+        postgresql.UUID(as_uuid=True), sa.ForeignKey("users.id"), nullable=False
+    )
+    blocked_id: Mapped[uuid.UUID] = mapped_column(
+        postgresql.UUID(as_uuid=True), sa.ForeignKey("users.id"), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()
+    )
+
+
 sa.Index("idx_user_identities_user", UserIdentity.user_id)
 sa.Index("idx_refresh_tokens_user_expires", RefreshToken.user_id, RefreshToken.expires_at)
 sa.Index(
@@ -548,3 +782,32 @@ sa.Index(
     ExternalOperation.attempt_count,
     ExternalOperation.lease_expires_at,
 )
+# 목록 질의 그대로의 순서 — 카테고리로 좁히고 최신순으로 커서를 민다.
+sa.Index(
+    "idx_community_posts_category_created",
+    CommunityPost.category_id,
+    CommunityPost.created_at.desc(),
+    CommunityPost.id.desc(),
+    postgresql_where=CommunityPost.status == ContentStatus.VISIBLE,
+)
+sa.Index(
+    "idx_community_posts_created",
+    CommunityPost.created_at.desc(),
+    CommunityPost.id.desc(),
+    postgresql_where=CommunityPost.status == ContentStatus.VISIBLE,
+)
+sa.Index("idx_community_posts_author", CommunityPost.author_id)
+sa.Index(
+    "idx_community_comments_post_created",
+    CommunityComment.post_id,
+    CommunityComment.created_at,
+    CommunityComment.id,
+)
+sa.Index("idx_community_comments_author", CommunityComment.author_id)
+sa.Index("idx_community_post_likes_user", CommunityPostLike.user_id)
+sa.Index(
+    "idx_community_reports_status_created",
+    CommunityReport.status,
+    CommunityReport.created_at.desc(),
+)
+sa.Index("idx_community_blocks_blocker", CommunityBlock.blocker_id)

@@ -23,6 +23,7 @@ from acting_api.analysis_worker import (
 from acting_api.auth.dependencies import (
     build_consent_gate_dependency,
     build_current_user_dependency,
+    build_optional_user_dependency,
     build_rate_limited_user_dependency,
 )
 from acting_api.auth.apple import AppleProviderVerifier
@@ -34,14 +35,17 @@ from acting_api.admin import build_router as build_admin_router
 from acting_api.admissions import build_router as build_admissions_router
 from acting_api.auth.router import build_router as build_auth_router
 from acting_api.coaching import build_router as build_coaching_router
+from acting_api.community import build_router as build_community_router
 from acting_api.config import load_gateway_settings
 from acting_api.consents import (
     build_router as build_consents_router,
     seed_consent_documents,
 )
+from acting_api.db.community_store import CommunityStore
 from acting_api.db.store import PostgresStore
 from acting_api.keepalive import keep_alive_loop
 from acting_api.practice_sessions import build_router as build_practice_router
+from acting_api.profile import build_router as build_profile_router
 from acting_api.ratelimit import RateLimiter
 from acting_api.reports import build_router as build_reports_router
 from acting_api.storage import S3Storage
@@ -70,6 +74,7 @@ def create_app(
     agent_settings=None,
     report_settings=None,
     store=None,
+    community_store=None,
     clock=time.monotonic,
     keep_alive_client=None,
     jwt_service=None,
@@ -87,6 +92,10 @@ def create_app(
     owns_store = store is None
     if store is None:
         store = PostgresStore.from_url(gateway_settings.database_url)
+    # 게시판은 기존 도메인과 공유하는 상태가 없어 같은 엔진만 나눠 쓴다. 가짜 store 를
+    # 넣는 테스트에서는 엔진이 없으므로 community_store 를 직접 주입한다.
+    if community_store is None and isinstance(store, PostgresStore):
+        community_store = CommunityStore.from_store(store)
     limiter = RateLimiter(clock=clock)
     jwt_service = jwt_service or JwtService(gateway_settings.jwt_secret)
     if provider_registry is None:
@@ -98,6 +107,8 @@ def create_app(
             provider_verifiers.append(DevelopmentProviderVerifier())
         provider_registry = ProviderRegistry(provider_verifiers)
     current_user = build_current_user_dependency(store, jwt_service)
+    # 커뮤니티 읽기 전용. 토큰이 없으면 익명으로 통과한다.
+    optional_user = build_optional_user_dependency(store, jwt_service)
     rate_limited_user = build_rate_limited_user_dependency(current_user, limiter)
     consented_user = build_consent_gate_dependency(rate_limited_user, store)
     if s3_storage is None and gateway_settings.s3_configured:
@@ -227,6 +238,22 @@ def create_app(
             rate_limited_user=rate_limited_user,
         )
     )
+    # 프로필(닉네임)은 동의 게이트를 걸지 않는다 — 동의 화면에서 이름을 함께 받는다.
+    app.include_router(
+        build_profile_router(
+            store=store,
+            rate_limited_user=rate_limited_user,
+        )
+    )
+    if community_store is not None:
+        app.include_router(
+            build_community_router(
+                community_store=community_store,
+                # 읽기는 가입 전에도 열어 둔다. 쓰기는 동의까지 마친 계정만.
+                viewer=optional_user,
+                author=consented_user,
+            )
+        )
     app.include_router(
         build_uploads_router(
             store=store,

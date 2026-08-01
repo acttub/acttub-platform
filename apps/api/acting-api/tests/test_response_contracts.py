@@ -85,6 +85,27 @@ SUCCESS_RESPONSE_MODELS = {
         "/v2/reports/{practice_session_id}",
         "200",
     ): "ReportDetailResponse",
+    ("get", "/v2/me", "200"): "MeResponse",
+    ("patch", "/v2/me", "200"): "MeResponse",
+    ("get", "/v2/community/categories", "200"): "CategoryListResponse",
+    ("get", "/v2/community/posts", "200"): "PostListResponse",
+    ("post", "/v2/community/posts", "201"): "PostPayload",
+    ("get", "/v2/community/posts/{post_id}", "200"): "PostPayload",
+    ("patch", "/v2/community/posts/{post_id}", "200"): "PostPayload",
+    ("post", "/v2/community/posts/{post_id}/likes", "200"): "LikeResponse",
+    ("delete", "/v2/community/posts/{post_id}/likes", "200"): "LikeResponse",
+    (
+        "get",
+        "/v2/community/posts/{post_id}/comments",
+        "200",
+    ): "CommentListResponse",
+    (
+        "post",
+        "/v2/community/posts/{post_id}/comments",
+        "201",
+    ): "CommentPayload",
+    ("patch", "/v2/community/comments/{comment_id}", "200"): "CommentPayload",
+    ("get", "/v2/community/blocks", "200"): "BlockListResponse",
 }
 
 RESPONSE_COMPONENT_SHAPES = {
@@ -205,6 +226,43 @@ RESPONSE_COMPONENT_SHAPES = {
             "pending_consents",
         },
     },
+    "MeResponse": {"required": {"id", "email", "nickname", "status"}},
+    "AuthorPayload": {"required": {"id", "nickname"}},
+    "CategoryPayload": {"required": {"slug", "name", "description"}},
+    "CategoryListResponse": {"required": {"categories"}},
+    "PostPayload": {
+        "required": {
+            "id",
+            "category_slug",
+            "category_name",
+            "author",
+            "title",
+            "body",
+            "like_count",
+            "comment_count",
+            "view_count",
+            "liked_by_me",
+            "mine",
+            "created_at",
+            "updated_at",
+        },
+    },
+    "PostListResponse": {"required": {"posts", "next_cursor"}},
+    "CommentPayload": {
+        "required": {
+            "id",
+            "post_id",
+            "author",
+            "body",
+            "mine",
+            "created_at",
+            "updated_at",
+        },
+    },
+    "CommentListResponse": {"required": {"comments", "next_cursor"}},
+    "LikeResponse": {"required": {"like_count", "liked_by_me"}},
+    "BlockPayload": {"required": {"user_id", "nickname"}},
+    "BlockListResponse": {"required": {"blocks"}},
     "UploadCompleteResponse": {"required": {"intent_id", "status"}},
     "UploadIntentResponse": {
         "required": {"intent_id", "upload_url", "expires_at"},
@@ -271,6 +329,9 @@ def _application():
         agent_settings=AgentSettings(api_key="k", model="coach-model"),
         report_settings=ReportSettings(api_key="k", model="report-model"),
         store=store,
+        # 라우터는 만들 때 스토어를 건드리지 않는다. 스키마만 확인하는 자리라
+        # 자리만 채워 커뮤니티 경로가 스펙에 들어오게 한다.
+        community_store=SimpleNamespace(),
         provider_registry=ProviderRegistry([verifier]),
         s3_storage=storage,
     )
