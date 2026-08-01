@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { getStoredDisplayName, saveDisplayName } from "./display-name";
+import { loadDisplayName, saveDisplayName } from "./display-name";
 
 // 앱으로 들여보내기 직전에 호칭을 한 번 묻는 관문.
 //
@@ -14,8 +14,9 @@ export function useDisplayNameGate() {
   const [pendingDestination, setPendingDestination] = useState<string | null>(null);
 
   // 이름이 이미 있으면 그대로 이동하고, 없으면 팝업을 띄운 뒤 답을 받고 이동한다.
-  function enterApp(destination: string) {
-    if (getStoredDisplayName()) {
+  // 서버에 먼저 물어본다 — 기기를 바꿔도 이미 정한 이름을 다시 묻지 않게.
+  async function enterApp(destination: string) {
+    if (await loadDisplayName()) {
       router.replace(destination);
       return;
     }
@@ -23,8 +24,8 @@ export function useDisplayNameGate() {
   }
 
   // name이 null이면 "나중에 정할게요" — 저장 없이 그대로 들여보낸다.
-  function resolveName(name: string | null) {
-    if (name) saveDisplayName(name);
+  async function resolveName(name: string | null) {
+    if (name) await saveDisplayName(name);
     if (pendingDestination) router.replace(pendingDestination);
   }
 

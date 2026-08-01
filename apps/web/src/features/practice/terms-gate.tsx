@@ -203,7 +203,7 @@ function TermsGateContent() {
       // 다음 개정 때 계측 쿠키가 저절로 유지되지 않는다(pending-consents.ts 참고).
       const acceptedPrivacy = state.documents.find((document) => document.type === "privacy");
       if (acceptedPrivacy) markPrivacyVersionAccepted(acceptedPrivacy.version);
-      enterApp(sanitizeNextPath(searchParams.get("next")));
+      await enterApp(sanitizeNextPath(searchParams.get("next")));
     } finally {
       setSubmitting(false);
     }

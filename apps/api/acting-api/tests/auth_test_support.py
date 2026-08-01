@@ -45,10 +45,11 @@ class FakeAuthStore:
         self.documents = {}
         self.consent_events = []
 
-    def create_user(self, *, email=None, status=UserStatus.ACTIVE):
+    def create_user(self, *, email=None, status=UserStatus.ACTIVE, nickname=None):
         row = SimpleNamespace(
             id=uuid4(),
             email=email,
+            nickname=nickname,
             status=UserStatus(status),
             created_at=datetime.now(timezone.utc),
         )
@@ -57,6 +58,13 @@ class FakeAuthStore:
 
     def get_user(self, user_id):
         return self.users.get(user_id)
+
+    def update_user_nickname(self, user_id, nickname):
+        row = self.users.get(user_id)
+        if row is None:
+            return None
+        row.nickname = nickname
+        return row
 
     def get_user_by_email(self, email):
         return next((row for row in self.users.values() if row.email == email), None)

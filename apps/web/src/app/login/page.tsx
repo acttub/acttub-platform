@@ -236,7 +236,7 @@ function LoginForm() {
       // 여기서 계측 동의를 표시하지 않는다. 대기 중인 동의가 비어 있다는 것만으로는
       // 어느 버전에 동의했는지 알 수 없고, 서버에 문서가 발행되지 않았을 때도 비어 있다.
       // 표시는 동의 화면(terms-gate)에서 실제로 문서를 제출할 때만 한다.
-      enterApp(nextPath);
+      await enterApp(nextPath);
     } catch (error) {
       setErrorMessage(loginErrorMessage(error));
     } finally {

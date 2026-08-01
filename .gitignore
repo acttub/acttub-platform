@@ -20,3 +20,6 @@ pnpm-debug.log*
 .DS_Store
 .idea/
 .vscode/
+
+# 에이전트가 만드는 작업용 worktree (체크아웃 사본이라 통째로 무시한다)
+.claude/worktrees/
