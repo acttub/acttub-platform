@@ -21,6 +21,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v2/admissions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Admissions */
+        get: operations["list_admissions_v2_admissions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/admissions/{university_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get University */
+        get: operations["get_university_v2_admissions__university_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v2/auth/login": {
         parameters: {
             query?: never;
@@ -118,6 +152,184 @@ export interface paths {
         /** Record Consent */
         post: operations["record_consent_v2_consents_post"];
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Me */
+        get: operations["get_me_v2_me_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update Me */
+        patch: operations["update_me_v2_me_patch"];
+        trace?: never;
+    };
+    "/v2/community/categories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Categories */
+        get: operations["list_categories_v2_community_categories_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/community/posts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Posts */
+        get: operations["list_posts_v2_community_posts_get"];
+        put?: never;
+        /** Create Post */
+        post: operations["create_post_v2_community_posts_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/community/posts/{post_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Post */
+        get: operations["get_post_v2_community_posts__post_id__get"];
+        put?: never;
+        post?: never;
+        /** Delete Post */
+        delete: operations["delete_post_v2_community_posts__post_id__delete"];
+        options?: never;
+        head?: never;
+        /** Update Post */
+        patch: operations["update_post_v2_community_posts__post_id__patch"];
+        trace?: never;
+    };
+    "/v2/community/posts/{post_id}/likes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Like Post */
+        post: operations["like_post_v2_community_posts__post_id__likes_post"];
+        /** Unlike Post */
+        delete: operations["unlike_post_v2_community_posts__post_id__likes_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/community/posts/{post_id}/comments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Comments */
+        get: operations["list_comments_v2_community_posts__post_id__comments_get"];
+        put?: never;
+        /** Create Comment */
+        post: operations["create_comment_v2_community_posts__post_id__comments_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/community/comments/{comment_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Comment */
+        delete: operations["delete_comment_v2_community_comments__comment_id__delete"];
+        options?: never;
+        head?: never;
+        /** Update Comment */
+        patch: operations["update_comment_v2_community_comments__comment_id__patch"];
+        trace?: never;
+    };
+    "/v2/community/reports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create Report */
+        post: operations["create_report_v2_community_reports_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/community/blocks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Blocks */
+        get: operations["list_blocks_v2_community_blocks_get"];
+        put?: never;
+        /** Block User */
+        post: operations["block_user_v2_community_blocks_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/community/blocks/{blocked_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Unblock User */
+        delete: operations["unblock_user_v2_community_blocks__blocked_id__delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -316,6 +528,152 @@ export interface components {
             /** Comparison */
             comparison: string;
         };
+        /** AdmissionNotice */
+        AdmissionNotice: {
+            /** Id */
+            id: string;
+            /** University Id */
+            university_id: string;
+            /** Department */
+            department?: string | null;
+            /** Admission Year */
+            admission_year?: number | null;
+            /** Track */
+            track?: string | null;
+            /** Screening */
+            screening?: string | null;
+            /** Apply Start */
+            apply_start?: string | null;
+            /** Apply End */
+            apply_end?: string | null;
+            /** Practical Date */
+            practical_date?: string | null;
+            /** Practical Task */
+            practical_task?: string | null;
+            /** Quota */
+            quota?: string | null;
+            /** Fee */
+            fee?: string | null;
+            /** Csat Minimum */
+            csat_minimum?: string | null;
+            /** Documents */
+            documents?: string | null;
+            /** Dress Code */
+            dress_code?: string | null;
+            /**
+             * Designated Works
+             * @default []
+             */
+            designated_works: string[];
+            /**
+             * Essay Questions
+             * @default []
+             */
+            essay_questions: string[];
+            /**
+             * Results
+             * @default []
+             */
+            results: components["schemas"]["AdmissionResult"][];
+            /** Source Url */
+            source_url?: string | null;
+            /** Verified At */
+            verified_at?: string | null;
+            /** Note */
+            note?: string | null;
+        };
+        /**
+         * AdmissionResource
+         * @description 입시생이 참고할 만한 영상·글. 링크만 담고 본문은 옮기지 않는다(저작권).
+         *
+         *     `source_type`을 반드시 붙인다 - 학원 홍보 영상과 대학 공식 영상을 같은 줄에
+         *     늘어놓으면 입시생이 광고를 정보로 읽는다.
+         */
+        AdmissionResource: {
+            /** Kind */
+            kind: string;
+            /** Title */
+            title: string;
+            /** Url */
+            url: string;
+            /** Publisher */
+            publisher: string;
+            /** Source Type */
+            source_type: string;
+            /** Note */
+            note?: string | null;
+            /** Verified At */
+            verified_at?: string | null;
+        };
+        /**
+         * AdmissionResult
+         * @description 전년도 입시결과. 대학이 공개한 값만 담고, 나머지는 None으로 남긴다.
+         */
+        AdmissionResult: {
+            /** Year */
+            year: number;
+            /** Quota */
+            quota?: number | null;
+            /** Applicants */
+            applicants?: number | null;
+            /** Competition Rate */
+            competition_rate?: string | null;
+            /** Transcript Avg */
+            transcript_avg?: string | null;
+            /** Transcript Cut50 */
+            transcript_cut50?: string | null;
+            /** Transcript Cut70 */
+            transcript_cut70?: string | null;
+            /** Transcript Low */
+            transcript_low?: string | null;
+            /** Practical Avg */
+            practical_avg?: string | null;
+            /** Practical Cut50 */
+            practical_cut50?: string | null;
+            /** Practical Cut70 */
+            practical_cut70?: string | null;
+            /** Fill Rate */
+            fill_rate?: string | null;
+            /** Waitlist Last */
+            waitlist_last?: number | null;
+            /** Source Url */
+            source_url?: string | null;
+            /** Verified At */
+            verified_at?: string | null;
+            /** Note */
+            note?: string | null;
+        };
+        /** AdmissionUniversity */
+        AdmissionUniversity: {
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /** Admission Url */
+            admission_url: string;
+            /** Region */
+            region?: string | null;
+            /** Verified At */
+            verified_at?: string | null;
+            /** Note */
+            note?: string | null;
+            /**
+             * Resources
+             * @default []
+             */
+            resources: components["schemas"]["AdmissionResource"][];
+        };
+        /** AdmissionsResponse */
+        AdmissionsResponse: {
+            /** Updated At */
+            updated_at: string;
+            /** Disclaimer */
+            disclaimer: string;
+            /** Universities */
+            universities: components["schemas"]["AdmissionUniversity"][];
+            /** Notices */
+            notices: components["schemas"]["AdmissionNotice"][];
+        };
         /** AuthUser */
         AuthUser: {
             /**
@@ -331,6 +689,16 @@ export interface components {
              */
             status: "active" | "suspended";
         };
+        /** AuthorPayload */
+        AuthorPayload: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Nickname */
+            nickname: string | null;
+        };
         /** BiggestProblem */
         BiggestProblem: {
             /** Start */
@@ -341,6 +709,43 @@ export interface components {
             dimension: string;
             /** Description */
             description: string;
+        };
+        /** BlockListResponse */
+        BlockListResponse: {
+            /** Blocks */
+            blocks: components["schemas"]["BlockPayload"][];
+        };
+        /** BlockPayload */
+        BlockPayload: {
+            /**
+             * User Id
+             * Format: uuid
+             */
+            user_id: string;
+            /** Nickname */
+            nickname: string | null;
+        };
+        /** BlockRequest */
+        BlockRequest: {
+            /**
+             * User Id
+             * Format: uuid
+             */
+            user_id: string;
+        };
+        /** CategoryListResponse */
+        CategoryListResponse: {
+            /** Categories */
+            categories: components["schemas"]["CategoryPayload"][];
+        };
+        /** CategoryPayload */
+        CategoryPayload: {
+            /** Slug */
+            slug: string;
+            /** Name */
+            name: string;
+            /** Description */
+            description: string | null;
         };
         /** CoachReplyReq */
         CoachReplyReq: {
@@ -380,6 +785,46 @@ export interface components {
             done: boolean;
             /** Reason */
             reason: ("gap_stated" | "exhausted" | "limit" | "user_ended") | null;
+        };
+        /** CommentListResponse */
+        CommentListResponse: {
+            /** Comments */
+            comments: components["schemas"]["CommentPayload"][];
+            /** Next Cursor */
+            next_cursor: string | null;
+        };
+        /** CommentPayload */
+        CommentPayload: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Post Id
+             * Format: uuid
+             */
+            post_id: string;
+            author: components["schemas"]["AuthorPayload"];
+            /** Body */
+            body: string;
+            /** Mine */
+            mine: boolean;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /** CommentWriteRequest */
+        CommentWriteRequest: {
+            /** Body */
+            body: string;
         };
         /**
          * ConsentAction
@@ -470,6 +915,13 @@ export interface components {
             /** Commit */
             commit: string;
         };
+        /** LikeResponse */
+        LikeResponse: {
+            /** Like Count */
+            like_count: number;
+            /** Liked By Me */
+            liked_by_me: boolean;
+        };
         /** LoginRequest */
         LoginRequest: {
             /** Provider */
@@ -481,6 +933,83 @@ export interface components {
         LogoutRequest: {
             /** Refresh Token */
             refresh_token: string;
+        };
+        /** MeResponse */
+        MeResponse: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Email */
+            email: string | null;
+            /** Nickname */
+            nickname: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "active" | "suspended";
+        };
+        /** PostListResponse */
+        PostListResponse: {
+            /** Posts */
+            posts: components["schemas"]["PostPayload"][];
+            /** Next Cursor */
+            next_cursor: string | null;
+        };
+        /** PostPayload */
+        PostPayload: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Category Slug */
+            category_slug: string;
+            /** Category Name */
+            category_name: string;
+            author: components["schemas"]["AuthorPayload"];
+            /** Title */
+            title: string;
+            /** Body */
+            body: string;
+            /** Like Count */
+            like_count: number;
+            /** Comment Count */
+            comment_count: number;
+            /** View Count */
+            view_count: number;
+            /** Liked By Me */
+            liked_by_me: boolean;
+            /** Mine */
+            mine: boolean;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /** PostUpdateRequest */
+        PostUpdateRequest: {
+            /** Title */
+            title: string;
+            /** Body */
+            body: string;
+        };
+        /** PostWriteRequest */
+        PostWriteRequest: {
+            /** Category Slug */
+            category_slug: string;
+            /** Title */
+            title: string;
+            /** Body */
+            body: string;
         };
         /** PracticeSessionAcceptedResponse */
         PracticeSessionAcceptedResponse: {
@@ -664,6 +1193,26 @@ export interface components {
              */
             session_id: string;
         };
+        /** ReportRequest */
+        ReportRequest: {
+            /**
+             * Target Type
+             * @enum {string}
+             */
+            target_type: "post" | "comment";
+            /**
+             * Target Id
+             * Format: uuid
+             */
+            target_id: string;
+            /**
+             * Reason
+             * @enum {string}
+             */
+            reason: "spam" | "abuse" | "sexual" | "privacy" | "other";
+            /** Detail */
+            detail?: string | null;
+        };
         /** SceneSummary */
         SceneSummary: {
             /**
@@ -703,6 +1252,11 @@ export interface components {
             user: components["schemas"]["AuthUser"];
             /** Pending Consents */
             pending_consents: components["schemas"]["ConsentDocument"][];
+        };
+        /** UpdateMeRequest */
+        UpdateMeRequest: {
+            /** Nickname */
+            nickname: string;
         };
         /** UploadCompleteResponse */
         UploadCompleteResponse: {
@@ -779,6 +1333,57 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HealthResponse"];
+                };
+            };
+        };
+    };
+    list_admissions_v2_admissions_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdmissionsResponse"];
+                };
+            };
+        };
+    };
+    get_university_v2_admissions__university_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                university_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdmissionsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -941,6 +1546,546 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ConsentEventResponse"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_me_v2_me_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MeResponse"];
+                };
+            };
+        };
+    };
+    update_me_v2_me_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateMeRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MeResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_categories_v2_community_categories_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CategoryListResponse"];
+                };
+            };
+        };
+    };
+    list_posts_v2_community_posts_get: {
+        parameters: {
+            query?: {
+                category?: string | null;
+                cursor?: string | null;
+                limit?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PostListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_post_v2_community_posts_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PostWriteRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PostPayload"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_post_v2_community_posts__post_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                post_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PostPayload"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_post_v2_community_posts__post_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                post_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_post_v2_community_posts__post_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                post_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PostUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PostPayload"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    like_post_v2_community_posts__post_id__likes_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                post_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LikeResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    unlike_post_v2_community_posts__post_id__likes_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                post_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LikeResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_comments_v2_community_posts__post_id__comments_get: {
+        parameters: {
+            query?: {
+                cursor?: string | null;
+                limit?: number | null;
+            };
+            header?: never;
+            path: {
+                post_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommentListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_comment_v2_community_posts__post_id__comments_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                post_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CommentWriteRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommentPayload"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_comment_v2_community_comments__comment_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                comment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_comment_v2_community_comments__comment_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                comment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CommentWriteRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommentPayload"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_report_v2_community_reports_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReportRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_blocks_v2_community_blocks_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BlockListResponse"];
+                };
+            };
+        };
+    };
+    block_user_v2_community_blocks_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BlockRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    unblock_user_v2_community_blocks__blocked_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                blocked_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

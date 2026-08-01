@@ -43,6 +43,12 @@ EXPECTED_TABLES = {
     "coach_turns",
     "reports",
     "external_operations",
+    "community_categories",
+    "community_posts",
+    "community_comments",
+    "community_post_likes",
+    "community_reports",
+    "community_blocks",
 }
 
 

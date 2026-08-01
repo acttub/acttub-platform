@@ -12,6 +12,9 @@ DEFAULT_ANALYSIS_WORKER_POLL_INTERVAL_SEC = 2.0
 DEFAULT_ANALYSIS_LEASE_SEC = 1800
 DEFAULT_ANALYSIS_SWEEP_INTERVAL_SEC = 60.0
 DEFAULT_CONSENT_DOCS_DIR = Path(__file__).resolve().parents[2] / "consent_docs"
+DEFAULT_ADMISSIONS_FILE = (
+    Path(__file__).resolve().parents[2] / "admissions" / "notices.json"
+)
 DEFAULT_GOOGLE_OAUTH_CLIENT_ID = (
     "462651930952-625pcnhrjib79r7990fqsdqhsterdij2."
     "apps.googleusercontent.com"
@@ -41,6 +44,7 @@ class GatewaySettings:
     analysis_sweep_interval_sec: float = DEFAULT_ANALYSIS_SWEEP_INTERVAL_SEC
     static_dir: Path | None = None
     consent_docs_dir: Path | None = DEFAULT_CONSENT_DOCS_DIR
+    admissions_file: Path | None = DEFAULT_ADMISSIONS_FILE
 
     @property
     def s3_configured(self) -> bool:

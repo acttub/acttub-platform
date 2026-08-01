@@ -169,6 +169,11 @@ class PostgresStore:
     def from_url(cls, database_url: str) -> PostgresStore:
         return cls(create_db_engine(database_url, pool_pre_ping=True))
 
+    @property
+    def engine(self) -> Engine:
+        """다른 스토어가 같은 연결 풀을 쓰도록 열어 둔다 (CommunityStore 등)."""
+        return self._engine
+
     def close(self) -> None:
         self._engine.dispose()
 
@@ -188,6 +193,18 @@ class PostgresStore:
     def get_user(self, user_id: UUID) -> User | None:
         with self._session_factory() as db:
             return db.get(User, user_id)
+
+    def update_user_nickname(self, user_id: UUID, nickname: str) -> User | None:
+        with self._session_factory.begin() as db:
+            row = db.get(User, user_id)
+            if row is None:
+                return None
+            row.nickname = nickname
+            row.updated_at = func.now()
+            db.flush()
+            db.refresh(row)
+            db.expunge(row)
+            return row
 
     def get_user_by_email(self, email: str) -> User | None:
         with self._session_factory() as db:

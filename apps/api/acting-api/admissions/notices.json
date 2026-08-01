@@ -1,0 +1,858 @@
+{
+  "updated_at": "2026-07-31",
+  "disclaimer": "최종 확인은 반드시 각 대학 입학처 공고로 해주세요.",
+  "universities": [
+    {
+      "id": "cau",
+      "name": "중앙대학교",
+      "admission_url": "https://admission.cau.ac.kr",
+      "verified_at": "2026-07-31",
+      "resources": [
+        {
+          "kind": "video",
+          "title": "[중앙대] 중앙대학교 연극학과 신입생의 솔직한 인터뷰",
+          "url": "https://www.youtube.com/watch?v=TQTYXKDc4No",
+          "publisher": "RAON ACTORS",
+          "source_type": "academy",
+          "note": "제목은 대학 이름으로 시작하지만 입시학원 채널이다.",
+          "verified_at": "2026-08-01"
+        },
+        {
+          "kind": "video",
+          "title": "98:1 경쟁률 중앙대 방송연예/연극전공 합격?! 불합격?!",
+          "url": "https://www.youtube.com/watch?v=cE02hSepMRo",
+          "publisher": "배낭이TV",
+          "source_type": "personal",
+          "note": null,
+          "verified_at": "2026-08-01"
+        }
+      ],
+      "region": "서울 동작"
+    },
+    {
+      "id": "dongguk",
+      "name": "동국대학교",
+      "admission_url": "https://ipsi.dongguk.edu",
+      "verified_at": "2026-07-31",
+      "resources": [
+        {
+          "kind": "video",
+          "title": "[동대문을 열어라 ep.2] 동국대학교 연극학부 24학번이 말하는 연극실기의 모든 것",
+          "url": "https://www.youtube.com/watch?v=Rrei2d9Y2i4",
+          "publisher": "동국대학교 DONGGUK UNIVERSITY",
+          "source_type": "official",
+          "note": "학교 공식 채널. 재학생이 실기를 직접 설명한다.",
+          "verified_at": "2026-08-01"
+        },
+        {
+          "kind": "video",
+          "title": "리라아트고등학교 연기전공 브이로그 - 동국대 연극학부편",
+          "url": "https://www.youtube.com/watch?v=FfRD5u_9_XM",
+          "publisher": "리라아트고등학교",
+          "source_type": "school",
+          "note": null,
+          "verified_at": "2026-08-01"
+        },
+        {
+          "kind": "video",
+          "title": "동국대학교 연극학부, 건국대학교 최종합격",
+          "url": "https://www.youtube.com/watch?v=1Mjpk315LP8",
+          "publisher": "이안 액터스 연기학원",
+          "source_type": "academy",
+          "note": null,
+          "verified_at": "2026-08-01"
+        }
+      ],
+      "region": "서울 중구"
+    },
+    {
+      "id": "sejong",
+      "name": "세종대학교",
+      "admission_url": "https://ipsi.sejong.ac.kr",
+      "verified_at": "2026-07-31",
+      "resources": [
+        {
+          "kind": "video",
+          "title": "학과이야기 영화예술학과 연기전공편 1탄",
+          "url": "https://www.youtube.com/watch?v=FJVZHtlpuxs",
+          "publisher": "세종대학교",
+          "source_type": "official",
+          "note": null,
+          "verified_at": "2026-08-01"
+        },
+        {
+          "kind": "video",
+          "title": "[세종대 학과 토크] 영화예술학과",
+          "url": "https://www.youtube.com/watch?v=ke0JC9SVvSw",
+          "publisher": "세종대학교",
+          "source_type": "official",
+          "note": null,
+          "verified_at": "2026-08-01"
+        },
+        {
+          "kind": "video",
+          "title": "2024학년도 세종대학교 영화예술학과 최종합격생 연기 / 인터뷰",
+          "url": "https://www.youtube.com/watch?v=qAHlUDDpl0U",
+          "publisher": "연기학원 수액터스팜",
+          "source_type": "academy",
+          "note": "합격생 실기 영상이 실려 있다.",
+          "verified_at": "2026-08-01"
+        }
+      ],
+      "region": "서울 광진"
+    },
+    {
+      "id": "dankook",
+      "name": "단국대학교",
+      "admission_url": "https://ipsi.dankook.ac.kr",
+      "verified_at": "2026-07-31",
+      "note": "입학처가 자동 수집을 막아 두어(robots.txt Disallow: /) 전형 정보를 확인하지 못했다. 공연영화학부 일정은 입학처에서 직접 확인해야 한다.",
+      "resources": [
+        {
+          "kind": "video",
+          "title": "성균관대학교 연기예술학과 / 단국대학교 연극전공 수시 최종합격",
+          "url": "https://www.youtube.com/watch?v=WXim5pferzQ",
+          "publisher": "대전유니크연기학원",
+          "source_type": "academy",
+          "note": "단국대 연극전공 최종합격 사례가 함께 실려 있다.",
+          "verified_at": "2026-08-01"
+        }
+      ],
+      "region": "경기 용인"
+    },
+    {
+      "id": "konkuk",
+      "name": "건국대학교",
+      "admission_url": "https://admission.konkuk.ac.kr",
+      "verified_at": "2026-07-31",
+      "region": "서울 광진"
+    },
+    {
+      "id": "skku",
+      "name": "성균관대학교",
+      "admission_url": "https://admission.skku.edu",
+      "verified_at": "2026-07-31",
+      "resources": [
+        {
+          "kind": "video",
+          "title": "[성균웹진] 성균과 사람들 Ep.12 연기예술학과 연출 전공",
+          "url": "https://www.youtube.com/watch?v=XGeaudg3dN0",
+          "publisher": "성균관대학교 SKKU",
+          "source_type": "official",
+          "note": null,
+          "verified_at": "2026-08-01"
+        },
+        {
+          "kind": "video",
+          "title": "성균관대 연기예술학과 [성과자 시즌2 1화]",
+          "url": "https://www.youtube.com/watch?v=TcQqIw-FKAM",
+          "publisher": "SUBS 성균관대학교 방송국",
+          "source_type": "official",
+          "note": "학교 방송국 제작.",
+          "verified_at": "2026-08-01"
+        },
+        {
+          "kind": "video",
+          "title": "성균관대 연기예술학과 — 시험장 들어가서 놀라지 마세요",
+          "url": "https://www.youtube.com/watch?v=ehW7sY5K6Rk",
+          "publisher": "배우들의 연기노트",
+          "source_type": "personal",
+          "note": null,
+          "verified_at": "2026-08-01"
+        },
+        {
+          "kind": "video",
+          "title": "[vlog] 고3 성균관대학교 연기예술학과 1차 합격",
+          "url": "https://www.youtube.com/watch?v=Vp1aoBm2QkA",
+          "publisher": "아주특별한TV",
+          "source_type": "academy",
+          "note": null,
+          "verified_at": "2026-08-01"
+        },
+        {
+          "kind": "video",
+          "title": "성균관대학교 연기예술학과 / 단국대학교 연극전공 수시 최종합격 / 서울예술대학교 연기전공 1차 합격",
+          "url": "https://www.youtube.com/watch?v=WXim5pferzQ",
+          "publisher": "대전유니크연기학원",
+          "source_type": "academy",
+          "note": null,
+          "verified_at": "2026-08-01"
+        },
+        {
+          "kind": "video",
+          "title": "2026학년도 성균관대학교 연기예술학과, 서경대학교 공연예술학부 연기전공 수시 최종 합격 후기",
+          "url": "https://www.youtube.com/watch?v=kV27dNJQ4ck",
+          "publisher": "배우로 갑니다 연기사단",
+          "source_type": "academy",
+          "note": null,
+          "verified_at": "2026-08-01"
+        }
+      ],
+      "region": "서울 종로"
+    },
+    {
+      "id": "seoularts",
+      "name": "서울예술대학교",
+      "admission_url": "https://www.seoularts.ac.kr",
+      "verified_at": "2026-07-31",
+      "resources": [
+        {
+          "kind": "video",
+          "title": "[서울예대 영화과 합격생 인터뷰] 면접부터 실기까지 합격 스토리",
+          "url": "https://www.youtube.com/watch?v=SktcRmPiMqg",
+          "publisher": "woosin kim",
+          "source_type": "personal",
+          "note": "영화과 25학번이다. 연기전공은 아니다.",
+          "verified_at": "2026-08-01"
+        }
+      ],
+      "region": "경기 안산"
+    },
+    {
+      "id": "mju",
+      "name": "명지대학교",
+      "admission_url": "https://iphak.mju.ac.kr",
+      "verified_at": "2026-07-31",
+      "resources": [
+        {
+          "kind": "video",
+          "title": "2025 명지대학교 뮤지컬과 댄스전공 합격 무용작품 (시카고)",
+          "url": "https://www.youtube.com/watch?v=hZBJ2WXDIPQ",
+          "publisher": "피플연기뮤지컬학원",
+          "source_type": "academy",
+          "note": "댄스 전공 합격 실연 영상.",
+          "verified_at": "2026-08-01"
+        }
+      ],
+      "region": "서울 서대문 · 경기 용인"
+    },
+    {
+      "id": "karts",
+      "name": "한국예술종합학교",
+      "admission_url": "https://www.karts.ac.kr",
+      "verified_at": "2026-07-31",
+      "resources": [
+        {
+          "kind": "video",
+          "title": "예종人터뷰 | 연극원 연기과",
+          "url": "https://www.youtube.com/watch?v=Q3BJAhJXGmw",
+          "publisher": "한국예술종합학교 K-Arts TV",
+          "source_type": "official",
+          "note": "학교 공식 채널의 연극원 연기과 소개.",
+          "verified_at": "2026-08-01"
+        },
+        {
+          "kind": "video",
+          "title": "[한예종 연기과] 합격 꿀팁!! 연극원 입시 전형 - 1,2차 실기/내신/워크숍/구술",
+          "url": "https://www.youtube.com/watch?v=QcdhVsg5FJ0",
+          "publisher": "쏠프로젝트MUSICAL",
+          "source_type": "academy",
+          "note": null,
+          "verified_at": "2026-08-01"
+        },
+        {
+          "kind": "video",
+          "title": "2026학년도 한예종 연기과의 변화 - 실기내용 변경, 글쓰기 준비",
+          "url": "https://www.youtube.com/watch?v=5eh9JQBwp6E",
+          "publisher": "철든배우TV",
+          "source_type": "academy",
+          "note": null,
+          "verified_at": "2026-08-01"
+        },
+        {
+          "kind": "video",
+          "title": "한예종 연기과 자소서, 이렇게 써야 합격합니다",
+          "url": "https://www.youtube.com/watch?v=93XMIwg7lGU",
+          "publisher": "입시반윤쌤",
+          "source_type": "academy",
+          "note": null,
+          "verified_at": "2026-08-01"
+        },
+        {
+          "kind": "video",
+          "title": "서울예대 연기과 편입 최종합격 / 한예종 1차 합격",
+          "url": "https://www.youtube.com/watch?v=7CooU9QBUS4",
+          "publisher": "피플연기뮤지컬학원",
+          "source_type": "academy",
+          "note": null,
+          "verified_at": "2026-08-01"
+        }
+      ],
+      "region": "서울 성북"
+    },
+    {
+      "id": "kyonggi",
+      "name": "경기대학교",
+      "admission_url": "https://enter.kyonggi.ac.kr",
+      "verified_at": "2026-08-01",
+      "region": "경기 수원"
+    },
+    {
+      "id": "daejin",
+      "name": "대진대학교",
+      "admission_url": "https://admission.daejin.ac.kr/main.do",
+      "verified_at": "2026-08-01",
+      "region": "경기 포천"
+    },
+    {
+      "id": "yongin",
+      "name": "용인대학교",
+      "admission_url": "https://ipsi.yongin.ac.kr",
+      "verified_at": "2026-08-01",
+      "region": "경기 용인"
+    },
+    {
+      "id": "ckcollege",
+      "name": "청강문화산업대학교",
+      "admission_url": "https://ipsi.ck.ac.kr/bbs/board.php?bo_table=info_2025&wr_id=1",
+      "verified_at": "2026-08-01",
+      "region": "경기 이천",
+      "note": "공연예술스쿨에 연극영상연기·뮤지컬연기 전공이 있는 것은 확인했다. 모집요강 원문은 입학처가 robots.txt로 막아 둔 경로(/data/)에 있어 자동으로 받지 않았다. 아래 입학처 링크의 '2027학년도 모집요강'에서 직접 볼 수 있고, 그 안에 전년도 예비번호와 입시결과도 함께 실려 있다."
+    },
+    {
+      "id": "shinhan",
+      "name": "신한대학교",
+      "admission_url": "https://ipsi.shinhan.ac.kr",
+      "verified_at": "2026-08-01",
+      "region": "경기 의정부"
+    },
+    {
+      "id": "kbu",
+      "name": "경복대학교",
+      "admission_url": "https://efms.kbu.ac.kr/efms/Main.do",
+      "verified_at": "2026-08-01",
+      "region": "경기 남양주"
+    }
+  ],
+  "notices": [
+    {
+      "id": "sejong-2027-susi-practical-acting",
+      "university_id": "sejong",
+      "department": "영화예술학과 연기예술전공",
+      "admission_year": 2027,
+      "track": "수시",
+      "screening": "실기/실적 - 실기우수자 전형",
+      "apply_start": "2026-09-08",
+      "apply_end": "2026-09-11",
+      "practical_date": "2026-09-29",
+      "practical_task": "1단계 2026-09-29 ~ (8배수 선발): 자유연기 100점(3분 이내, 국내외 희곡에서 본인이 자유롭게 발췌) + 특기 100점(춤·보컬·아크로바틱·움직임·악기 등). 1단계 성적은 2단계 대상자 선발에만 쓴다. 2단계 2026-10-30 ~ 10-31: 즉흥연기 350점(5분 이내, 상황과 대사는 당일 배포) + 지정연기 350점(아래 지정 작품에서 역할과 장면 선택). 총점 순으로 선발.",
+      "source_url": "https://ipsi.sejong.ac.kr/sub_page/sub1/0101.asp?tab1=1",
+      "verified_at": "2026-07-31",
+      "note": "2027학년도 수시 모집요강 PDF 33쪽(전형일정)·80쪽(실기우수자) 확인. 원서접수는 09.08 10시 ~ 09.11 18시. 전형요소 반영비율은 PDF 표 구조상 판독이 불확실해 싣지 않음 - 원문 확인 필요.",
+      "quota": "미확인 - 요강 표에서 판독 못 함",
+      "fee": "109,500원 (2단계 미선발 시 30,000원 환불)",
+      "csat_minimum": "없음",
+      "dress_code": "소품·의상·음악은 수험생이 직접 준비. 과도한 노출·헤어·메이크업 불가, 고사장 내 신발 착용 불가, 고사장 내 환복 금지, 별도 설치가 필요한 악기 사용 금지. 등받이 의자와 큐브 박스 각 1개만 있고 피아노는 없다.",
+      "designated_works": [
+        "오이디푸스 왕 — 소포클레스",
+        "맥베스 — 셰익스피어",
+        "스카펭의 간계 — 몰리에르",
+        "바냐 아저씨 — 안톤 체호프",
+        "인형의 집 — 헨리크 입센",
+        "주노와 공작 — 숀 오케이시",
+        "소 — 유치진"
+      ]
+    },
+    {
+      "id": "sejong-2027-susi-practical-directing",
+      "university_id": "sejong",
+      "department": "영화예술학과 연출제작전공",
+      "admission_year": 2027,
+      "track": "수시",
+      "screening": "실기/실적 - 실기우수자 전형",
+      "apply_start": "2026-09-08",
+      "apply_end": "2026-09-11",
+      "practical_date": "2026-10-03",
+      "practical_task": "1단계 2026-10-03 (5배수 선발): 스토리구성 200점 — 제시된 문제(상황·단어·사진·그림 등)로 스토리 구성, 3시간. 작품의도·인물설정·줄거리를 구체적으로 쓰고 글씨는 크고 바르게. 2단계 2026-10-29 ~ 10-30: 발표 600점 — 스토리 구성 내용과 전공 관련 질의응답, 5분 이내.",
+      "source_url": "https://ipsi.sejong.ac.kr/sub_page/sub1/0101.asp?tab1=1",
+      "verified_at": "2026-07-31",
+      "note": "연기 전공은 아니지만 같은 학과라 함께 싣는다. 전형요소 반영비율은 원문 확인 필요.",
+      "fee": "109,500원 (2단계 미선발 시 30,000원 환불)",
+      "csat_minimum": "없음",
+      "dress_code": "고사에 필요한 소품·의상·음악은 수험생이 준비."
+    },
+    {
+      "id": "dongguk-2027-susi-practical",
+      "university_id": "dongguk",
+      "department": "연극학부 (연극/뮤지컬)",
+      "admission_year": 2027,
+      "track": "수시",
+      "screening": "실기/실적 - 실기(연극학부-실기형)",
+      "apply_start": "2026-09-09",
+      "apply_end": "2026-09-11",
+      "practical_date": "2026-09-18",
+      "practical_task": "단계별. 기초실기 2026-09-18 ~ 09-22 → 1단계 발표 2026-10-06 → 종합실기 2026-10-21 ~ 10-25. 1단계 기초실기 100%(7배수), 2단계 종합실기 70% + 학생부교과 20% + 출결 10%. 수능 최저학력기준 없음.",
+      "source_url": "https://ipsi.dongguk.edu/upload/file/20260715140521FRWQXB.PDF",
+      "verified_at": "2026-07-31",
+      "note": "2027학년도 수시 모집요강 PDF 19·23·24·74쪽 확인. 모집 38명. 원서접수 09.09 10시 ~ 09.11 17시. 정시모집 없음.",
+      "quota": "38명",
+      "fee": "1단계 60,000원 + 2단계 25,000원 (미응시 환불: 기초실기 30,000원 / 종합실기 25,000원)",
+      "csat_minimum": "없음",
+      "results": [
+        {
+          "year": 2026,
+          "quota": 38,
+          "applicants": 2417,
+          "competition_rate": "63.61:1",
+          "fill_rate": "55%",
+          "source_url": "https://ipsi.dongguk.edu/upload/file/20260610105414NJET5C.PDF",
+          "verified_at": "2026-07-31",
+          "note": "최종등록자 전 교과목 평균 등급",
+          "transcript_avg": "4.32",
+          "transcript_low": "8.10"
+        },
+        {
+          "year": 2025,
+          "quota": 38,
+          "applicants": 2349,
+          "competition_rate": "61.82:1",
+          "fill_rate": "47%",
+          "source_url": "https://ipsi.dongguk.edu/upload/file/20260610105414NJET5C.PDF",
+          "verified_at": "2026-07-31",
+          "transcript_avg": "4.19",
+          "transcript_low": "6.10"
+        }
+      ]
+    },
+    {
+      "id": "dongguk-2027-susi-talent",
+      "university_id": "dongguk",
+      "department": "연극학부 (연극/뮤지컬)",
+      "admission_year": 2027,
+      "track": "수시",
+      "screening": "실기/실적 - 실기(연극학부-특기형)",
+      "apply_start": "2026-09-09",
+      "apply_end": "2026-09-11",
+      "practical_date": "2026-10-21",
+      "practical_task": "일괄. 실기고사 2026-10-21 ~ 10-25. 실기 40% + 실적평가 + 학생부교과 20% + 출결 10%. 연극·뮤지컬·영화·방송 주·조연급 경력자 대상. 수능 최저학력기준 없음.",
+      "source_url": "https://ipsi.dongguk.edu/upload/file/20260715140521FRWQXB.PDF",
+      "verified_at": "2026-07-31",
+      "note": "2027학년도 수시 모집요강 PDF 19·23·77쪽 확인. 모집 2명. 경력 요건이 있어 지원자격을 원문에서 반드시 확인해야 한다.",
+      "quota": "2명",
+      "fee": "100,000원 (미응시 환불 25,000원)",
+      "csat_minimum": "없음",
+      "results": [
+        {
+          "year": 2026,
+          "quota": 2,
+          "applicants": 15,
+          "competition_rate": "7.50:1",
+          "fill_rate": "100%",
+          "source_url": "https://ipsi.dongguk.edu/upload/file/20260610105414NJET5C.PDF",
+          "verified_at": "2026-07-31",
+          "transcript_avg": "4.15",
+          "transcript_low": "6.60"
+        },
+        {
+          "year": 2025,
+          "quota": 2,
+          "applicants": 18,
+          "competition_rate": "9.00:1",
+          "fill_rate": "100%",
+          "source_url": "https://ipsi.dongguk.edu/upload/file/20260610105414NJET5C.PDF",
+          "verified_at": "2026-07-31",
+          "transcript_avg": "5.15",
+          "transcript_low": "5.30"
+        }
+      ]
+    },
+    {
+      "id": "skku-2027-susi-acting",
+      "university_id": "skku",
+      "department": "연기예술학과 (연기)",
+      "admission_year": 2027,
+      "track": "수시",
+      "screening": "실기/실적 - 예체능 실기우수자",
+      "apply_start": "2026-09-08",
+      "apply_end": "2026-09-11",
+      "practical_date": "2026-10-02",
+      "practical_task": "단계별. 1단계 기초연기역량평가 2026-10-02 ~ 10-05 (실기 100%, 6배수 내외) → 2단계 전공적성평가 2026-10-17 ~ 10-18 (학생부 40 + 실기 60). 대상자 발표 1단계 09-29, 2단계 10-13.",
+      "source_url": "https://admission.skku.edu/admission/html/rolling/guide.html",
+      "verified_at": "2026-07-31",
+      "note": "2027학년도 수시 모집요강 PDF 10·50·51쪽 확인. 모집 20명. 원서접수 09.08 10시 ~ 09.11 18시. 기출 문항은 입학처 question.html 참고.",
+      "quota": "20명",
+      "fee": "100,000원 (1단계 불합격 시 40,000원 반환)",
+      "results": [
+        {
+          "year": 2026,
+          "quota": 106,
+          "applicants": 2661,
+          "competition_rate": "25.10:1",
+          "fill_rate": "27.4%",
+          "source_url": "https://admission.skku.edu/admission/html/ipsi/result.html",
+          "verified_at": "2026-07-31",
+          "note": "성균관대는 실기/실적 전형을 학과별로 쪼개 공개하지 않는다. 예체능 특기자·실기우수자 전형 전체 수치이므로 연기예술학과만의 경쟁률이 아니다."
+        }
+      ]
+    },
+    {
+      "id": "skku-2027-susi-directing",
+      "university_id": "skku",
+      "department": "연기예술학과 (연출)",
+      "admission_year": 2027,
+      "track": "수시",
+      "screening": "학생부종합 - 성균인재",
+      "apply_start": "2026-09-08",
+      "apply_end": "2026-09-11",
+      "practical_date": null,
+      "practical_task": "실기 없음. 면접 2026-11-08 (대상자 발표 11-03). 1단계 5배수 내외.",
+      "source_url": "https://admission.skku.edu/admission/html/rolling/guide.html",
+      "verified_at": "2026-07-31",
+      "note": "2027학년도 수시 모집요강 PDF 10·30·31쪽 확인. 모집 9명. 연출 전공은 실기가 아니라 학생부종합+면접으로 뽑는다.",
+      "quota": "9명",
+      "fee": "60,000원 (학생부종합 성균인재)"
+    },
+    {
+      "id": "konkuk-2027-susi-acting",
+      "university_id": "konkuk",
+      "department": "영화예술학과 (연기)",
+      "admission_year": 2027,
+      "track": "수시",
+      "screening": "실기/실적 - 연기우수자",
+      "apply_start": "2026-09-08",
+      "apply_end": "2026-09-11",
+      "practical_date": "2026-11-03",
+      "practical_task": "자유연기 [대면] 인물이나 상황을 자유롭게 설정, 3분 이내 (연습 20분 이내). 선택으로 특기 실연 1분 이내. 평가는 표현력 40% + 이해력 30% 등. 1단계 학생부(교과정량) 100%로 20배수 → 2단계 실기 100%. 실기 2026-11-03 ~ 11-05.",
+      "source_url": "https://admission.konkuk.ac.kr/admission/37859/subview.do",
+      "verified_at": "2026-07-31",
+      "note": "2027학년도 수시 모집요강 PDF 11·23·51·52쪽 확인. 모집 15명. 원서접수 09.08 10시 ~ 09.11 17시, 서류제출 09.15까지. 1단계 발표 10-22, 최초합격 12-18.",
+      "quota": "15명",
+      "fee": "95,000원 (1단계 불합격 시 20,000원 환불)",
+      "csat_minimum": "없음",
+      "documents": "원서접수 사이트에 PDF 업로드, 2026-09-15 17시까지.",
+      "results": [
+        {
+          "year": 2026,
+          "source_url": "https://admission.konkuk.ac.kr/admission/37905/subview.do",
+          "verified_at": "2026-07-31",
+          "note": "건국대는 2026학년도 입시결과에 실기/실적 전형을 싣지 않았다. 학생부위주·논술 전형만 공개한다."
+        }
+      ]
+    },
+    {
+      "id": "konkuk-2027-susi-directing",
+      "university_id": "konkuk",
+      "department": "영화예술학과 (연출)",
+      "admission_year": 2027,
+      "track": "수시",
+      "screening": "실기/실적 - 연출우수자",
+      "apply_start": "2026-09-08",
+      "apply_end": "2026-09-11",
+      "practical_date": "2026-11-06",
+      "practical_task": "1단계 학생부(교과정량) → 2단계 실기 100%. 실기 2026-11-06.",
+      "source_url": "https://admission.konkuk.ac.kr/admission/37859/subview.do",
+      "verified_at": "2026-07-31",
+      "note": "2027학년도 수시 모집요강 PDF 11·23쪽 확인. 모집 10명. 연기 전공은 아니지만 같은 학과라 함께 싣는다.",
+      "quota": "10명",
+      "fee": "95,000원 (1단계 불합격 시 20,000원 환불)",
+      "csat_minimum": "없음"
+    },
+    {
+      "id": "cau-2027-susi-practical",
+      "university_id": "cau",
+      "department": "공연영상창작학부 연극전공 (연기·뮤지컬)",
+      "admission_year": 2027,
+      "track": "수시",
+      "screening": "실기/실적 - 실기형",
+      "apply_start": null,
+      "apply_end": null,
+      "practical_date": null,
+      "practical_task": "단계별. 1단계 대면 실기 100% (5배수) → 2단계 실기 반영. 정시는 수능(실기형)으로 연극(연출/기획)을 따로 뽑는다.",
+      "source_url": "https://admission.cau.ac.kr",
+      "verified_at": "2026-07-31",
+      "note": "2027학년도 입학전형시행계획(안) 9·22·30쪽 기준 - 모집요강이 아니라 일정이 없다. 입학처 사이트가 자동 수집을 막아 두어(robots.txt Disallow: /) 원문을 직접 확인하지 못했고, 전형요소 반영비율도 판독이 불확실해 싣지 않았다. 원서접수·실기일은 모집요강 공개 후 채워야 한다."
+    },
+    {
+      "id": "mju-2027-susi-musical",
+      "university_id": "mju",
+      "department": "예술학부 뮤지컬공연전공",
+      "admission_year": 2027,
+      "track": "수시",
+      "screening": "실기/실적 - 실기우수자전형",
+      "apply_start": "2026-09-07",
+      "apply_end": "2026-09-11",
+      "practical_date": "2026-10-03",
+      "practical_task": "보컬 2026-10-03 ~ 10-06: 뮤지컬 넘버 중 자유곡 1곡 + 지정곡 1곡, 특기(연기 또는 안무). 댄스 2026-10-17 ~ 10-18: 뮤지컬 넘버 중 자유곡 1곡 + 자유 안무. 학생부(교과)·출결·실기 합산 총점 순으로 선발. 실기고사는 자연캠퍼스(용인)에서 진행.",
+      "source_url": "https://iphak.mju.ac.kr/pages/?p=10&mj=01",
+      "verified_at": "2026-07-31",
+      "note": "2027학년도 수시 모집요강 PDF 84쪽 확인. 모집 보컬 10명·댄스 10명. 원서접수 09.07 10시 ~ 09.11 17시, 서류제출 09.14까지. 고사장 발표 09.29, 합격자 발표 12.09. 영화전공(연기·연출 트랙)은 특기자전형 소관이라 별도 확인 필요.",
+      "quota": "보컬 10명 · 댄스 10명",
+      "fee": "80,000원",
+      "documents": "학교생활기록부 등 우편(등기) 제출, 2026-09-14 마감(마감일 소인 유효). 방문접수 불가. 서류는 2026-09-01 이후 발급분.",
+      "dress_code": "색조화장 금지, 굽 높은 신발 금지. 노래 반주(MR)는 .mp3로 USB에 담아 고사 당일 제출(스마트폰·MP3플레이어·CD 불가). 지정곡 MR은 학교가 제공하고 키 변경 불가, 한글 가사로 불러야 한다.",
+      "designated_works": [
+        "[보컬 지정곡·여] Come From Away 중 Me And The Sky",
+        "[보컬 지정곡·여] Memphis 중 Colored Woman",
+        "[보컬 지정곡·여] All Shook Up 중 There's Always Me",
+        "[보컬 지정곡·남] Dear Evan Hansen 중 For Forever",
+        "[보컬 지정곡·남] 마리 앙투아네트 중 멀리서 들려오는 천둥",
+        "[보컬 지정곡·남] 베르사유의 장미 중 너라면"
+      ],
+      "results": [
+        {
+          "year": 2026,
+          "quota": 12,
+          "competition_rate": "34.17:1",
+          "waitlist_last": 5,
+          "source_url": "https://iphak.mju.ac.kr/pages/?p=10&mj=01",
+          "verified_at": "2026-07-31",
+          "note": "보컬. 최고 등급 2.92, 표준편차 1.10.",
+          "transcript_avg": "4.62",
+          "transcript_cut70": "5.00",
+          "transcript_low": "7.40"
+        },
+        {
+          "year": 2026,
+          "quota": 10,
+          "competition_rate": "14.70:1",
+          "waitlist_last": 2,
+          "source_url": "https://iphak.mju.ac.kr/pages/?p=10&mj=01",
+          "verified_at": "2026-07-31",
+          "note": "댄스. 최고 등급 2.80, 표준편차 1.55.",
+          "transcript_avg": "5.65",
+          "transcript_cut70": "6.36",
+          "transcript_low": "7.80"
+        }
+      ]
+    },
+    {
+      "id": "karts-2027-drama-acting",
+      "university_id": "karts",
+      "department": "연극원 연기과",
+      "admission_year": 2027,
+      "track": null,
+      "screening": "일반전형 (8월입시)",
+      "apply_start": "2026-06-22",
+      "apply_end": "2026-06-25",
+      "practical_date": "2026-08-04",
+      "practical_task": "1차 2026-08-04 ~ 08-07: 자유롭게 준비한 독백 1개(1~2분 이내) + 노래 또는 움직임(1분 이내, MR·반주 없이 - 노래는 8마디 이상). 연기 70 + 고교 내신 30. 1차 발표 08-18. 2차 2026-08-25 ~ 08-28: 입시 지정 희곡 중 준비한 독백(1차와 다른 것) 40 + 당일 제시되는 1분 대사를 20~30분 연습 후 연기 40 + 노래 또는 움직임(MR 사용 가능) + 글쓰기(원고지 1,000자 이내, 100분)·구술 20. 화장 금지, 위험한 소품 불가, 무채색 무늬 없는 티셔츠·바지 착용.",
+      "source_url": "https://www.karts.ac.kr/cmm/fms/FileDown.do?atchFileId=FILE_000000000162048&fileSn=0&accAt=&bbsId=00000000000000000000",
+      "verified_at": "2026-07-31",
+      "note": "2027학년도 예술사(대학) 정원내 모집요강 PDF 6·21쪽 확인. 모집 37명(남녀 통합). 원서접수는 진학어플라이 인터넷 접수만 가능하고 마감일 18시까지. 최종합격 발표 2026-09-08. 수시·정시가 아니라 한예종 자체 일정이다.",
+      "quota": "37명 (남녀 통합)",
+      "fee": "1차 93,000원 + 2차 85,000원 (각 수수료 6,000원 별도)",
+      "csat_minimum": "없음 (한예종은 수능을 반영하지 않는다)",
+      "documents": "진학어플라이 인터넷 접수만 가능. 학력·내신 증명서류와 학교폭력 기재사항 서류는 우체국 등기로 입학관리과에 제출(방문 불가). 질의응답서는 2차 원서접수 때 온라인 입력.",
+      "dress_code": "화장 금지, 위험한 소품 사용 불가, 무채색 무늬 없는 티셔츠와 바지 착용. 필기도구는 흑·청색 볼펜 또는 만년필.",
+      "designated_works": [
+        "[공통] 트로이의 여인들 — 에우리피데스",
+        "[공통] 포스터스 박사의 비극 — 크리스토퍼 말로",
+        "[공통] 피그말리온 — 조지 버나드 쇼",
+        "[공통] 시련 — 아서 밀러",
+        "[공통] 살아있는 이중생 각하 — 오영진",
+        "[연기과 추가] 오이디푸스 왕 — 소포클레스",
+        "[연기과 추가] 스카팽의 간계 — 몰리에르",
+        "[연기과 추가] 인생은 꿈입니다 — 칼데론 데 라 바르카",
+        "[연기과 추가] 뜻대로 하세요 — 셰익스피어"
+      ],
+      "essay_questions": [
+        "연기과 지원을 결심하게 된 계기와, 그 이후 본인이 변화한 지점에 대해 서술하시오.",
+        "가장 인상 깊었던 공연 또는 책을 선택하여, 그 작품이 당신에게 어떤 질문을 남겼는지 서술하시오.",
+        "당신이 생각하는 연극의 역할과 그것이 당신에게 갖는 의미를 서술하시오."
+      ]
+    },
+    {
+      "id": "karts-2027-drama-directing",
+      "university_id": "karts",
+      "department": "연극원 연출과",
+      "admission_year": 2027,
+      "track": null,
+      "screening": "일반전형 (11월입시)",
+      "apply_start": "2026-09-14",
+      "apply_end": "2026-09-17",
+      "practical_date": "2026-11-28",
+      "practical_task": "실기 없음. 1차 2026-11-28 ~ 11-29 중 1일: 언어능력평가(논술형 글쓰기) 50 + 고교 내신 50. 1차 발표 12-10. 2차 2026-12-15 ~ 12-22: 스토리 구성 능력·창의력 평가(원고지 3,000자 이내, 7시간) 50 + 구술시험(입시 지정 공통 희곡과 본인 글) 50.",
+      "source_url": "https://www.karts.ac.kr/cmm/fms/FileDown.do?atchFileId=FILE_000000000162048&fileSn=0&accAt=&bbsId=00000000000000000000",
+      "verified_at": "2026-07-31",
+      "note": "2027학년도 모집요강 PDF 6·22쪽 확인. 모집 8명. 연기 전공은 아니지만 같은 연극원이라 함께 싣는다. 최종합격 발표 2026-12-24.",
+      "quota": "8명",
+      "fee": "1차 93,000원 + 2차 85,000원 (각 수수료 6,000원 별도)",
+      "csat_minimum": "없음",
+      "dress_code": "필기도구는 흑·청색 볼펜 또는 만년필.",
+      "designated_works": [
+        "[공통] 트로이의 여인들 — 에우리피데스",
+        "[공통] 포스터스 박사의 비극 — 크리스토퍼 말로",
+        "[공통] 피그말리온 — 조지 버나드 쇼",
+        "[공통] 시련 — 아서 밀러",
+        "[공통] 살아있는 이중생 각하 — 오영진"
+      ]
+    },
+    {
+      "id": "kyonggi-2027-susi-acting",
+      "university_id": "kyonggi",
+      "department": "연기학과",
+      "admission_year": 2027,
+      "track": "수시",
+      "screening": "실기/실적 - 예능실기우수자전형",
+      "apply_start": "2026-09-07",
+      "apply_end": "2026-09-11",
+      "practical_date": "2026-10-02",
+      "practical_task": "단계별. 1단계 2026-10-02 ~ 10-05 (실기 100%, 7배수): 자유연기 — 수험생이 준비, 장르 구분 없음, 1분 30초 이내. 1단계 발표 10-07. 2단계 2026-10-10: 종합연기(지정연기 + 자유연기), 각 1분 30초 이내. 지정연기는 테네시 윌리엄스 作 / 김소임 역 「뜨거운 양철 지붕 위의 고양이」(민음사)에서 출제된 대사 중 고사 당일 추첨으로 정해진다. 2단계는 실기 70% + 학생부교과 30%.",
+      "quota": "예능실기우수자전형 전체 158명 (연기학과 인원은 원문 확인 필요)",
+      "fee": "90,000원",
+      "csat_minimum": "없음",
+      "documents": "인터넷으로만 접수. 원본서류는 2026-09-15 17시까지 방문 또는 우편 제출.",
+      "dress_code": "평상복·트레이닝복·연습복·품치마와 소품(위험한 대도구 불가)은 개인이 준비한다. 무대복, 분장(기초화장 포함), 신발(맨발 연기만 허용), MR·배경음악은 금지. 학교가 등받이 있는 의자와 없는 의자를 제공한다.",
+      "designated_works": [
+        "뜨거운 양철 지붕 위의 고양이 — 테네시 윌리엄스 (김소임 역, 민음사)"
+      ],
+      "source_url": "https://enter.kyonggi.ac.kr/cms/FR_CON/index.do?MENU_ID=140",
+      "verified_at": "2026-08-01",
+      "note": "2027학년도 수시 모집요강 PDF 31·32·17·63쪽 확인. 실기고사는 수원캠퍼스에서 치른다. 합격자는 개별 통보하지 않고 입학처 홈페이지로만 조회한다.",
+      "results": [
+        {
+          "year": 2026,
+          "quota": 17,
+          "applicants": 1134,
+          "competition_rate": "66.71:1",
+          "transcript_avg": "4.962",
+          "transcript_cut50": "4.959",
+          "transcript_cut70": "5.500",
+          "transcript_low": "6.276",
+          "practical_avg": "74.666",
+          "practical_cut50": "80.166",
+          "practical_cut70": "78.332",
+          "fill_rate": "29%",
+          "waitlist_last": 5,
+          "source_url": "https://enter.kyonggi.ac.kr/cms/FR_CON/index.do?MENU_ID=140",
+          "verified_at": "2026-08-01",
+          "note": "모집요강 PDF 93쪽. 실기 만점은 100점 기준이고 최초합격자 실기 평균은 81.234였다. 최초합격자 학생부는 최고 2.774·평균 4.609였다."
+        }
+      ]
+    },
+    {
+      "id": "daejin-2027-susi-acting",
+      "university_id": "daejin",
+      "department": "연기예술학과",
+      "admission_year": 2027,
+      "track": "수시",
+      "screening": "실기/실적위주 - 실기우수자전형",
+      "apply_start": "2026-09-07",
+      "apply_end": "2026-09-11",
+      "practical_date": "2026-10-21",
+      "practical_task": "일괄합산. 학생부(교과) 20%(200점) + 실기 80%(800점). 실기고사 2026-10-21 ~ 10-24. 연기와 연출·스태프 중 택 1. [연기] 지정연기 400점 — 시험 당일 주어진 대본을 약 30분간 연습한 뒤 5분 이내 발표. 자유연기 또는 특기 400점 — 자유연기는 희곡·뮤지컬·시나리오에서 본인이 고른 작품과 장면, 특기는 춤·노래·무용·연주·마임 등 연기와 유관한 것(노래는 뮤지컬 자유곡 1곡). [연출·스태프] 심층면접 800점 — 5분 이내, 연극 상식과 열의를 평가한다.",
+      "quota": "19명 (교직과정 개설)",
+      "fee": "85,000원",
+      "csat_minimum": "없음",
+      "documents": "100% 인터넷 접수. 서류는 2026-09-16 17시까지 등기우편 또는 방문 제출(09-16 소인까지 인정). 학교생활기록부는 원서접수 때 온라인 제공에 동의하면 따로 낼 필요가 없다.",
+      "dress_code": "연기에 필요한 소품·의상·음악·MR은 본인이 준비한다. 피아노는 학교가 준비한다. 화장은 기초화장만 허용한다.",
+      "results": [
+        {
+          "year": 2026,
+          "quota": 20,
+          "applicants": 316,
+          "competition_rate": "15.80:1",
+          "transcript_avg": "4.07",
+          "transcript_low": "5.49",
+          "waitlist_last": 13,
+          "source_url": "https://admission.daejin.ac.kr/submenu.do?menuurl=kzVEfrpisRbR9lks5Jqg8A%3d%3d&",
+          "verified_at": "2026-08-01",
+          "note": "모집요강 PDF 10쪽에 실려 있다. '최저'로 적은 5.49는 최종등록자 학생부 90% 지점이다."
+        }
+      ],
+      "source_url": "https://admission.daejin.ac.kr/submenu.do?menuurl=kzVEfrpisRbR9lks5Jqg8A%3d%3d&",
+      "verified_at": "2026-08-01",
+      "note": "2027학년도 수시 모집요강 PDF 12·32·33·53·64쪽 확인. 합격자 발표 2026-11-13 14시, 개별 통보는 하지 않는다. 실기고사 문의 031-539-2080."
+    },
+    {
+      "id": "yongin-2027-susi-acting",
+      "university_id": "yongin",
+      "department": "연극학과 (연기)",
+      "admission_year": 2027,
+      "track": "수시",
+      "screening": "실기 - 단계별 전형",
+      "apply_start": "2026-09-07",
+      "apply_end": "2026-09-11",
+      "practical_date": "2026-09-18",
+      "practical_task": "단계별. 1단계 2026-09-18 ~ 09-19: 지정대사 2분 이내(고사 당일 학교가 제시한 대사로 연기력 평가), 배점 0~500점. 1단계 발표 09-23 15시. 2단계 2026-10-02 ~ 10-05: 자유연기(본인이 준비한 2분 이내) + 특기(노래·춤·악기연주·마임·아크로바틱 등 1분 이내), 3분 이내, 배점 0~350점. 최종 발표 2026-10-16 15시.",
+      "fee": "100,000원 (1단계 불합격 시 20,000원 환불)",
+      "csat_minimum": null,
+      "documents": "인터넷 접수만(유웨이어플라이). 서류는 2026-09-23 17시까지 등기우편 또는 방문 제출.",
+      "dress_code": "검은색 상·하의를 입는다. 검은색 레오타드와 풀치마는 허용하지만 레이스 등 장식이 달린 의상, 검은색 외의 색이 섞인 의상, 무대 의상은 금지. 무대 분장과 액세서리도 금지. 소품은 총·칼·흉기류·인화성 물질을 뺀 나머지만 쓸 수 있다. 신발은 금지(탭댄스처럼 불가피한 경우만 예외). 악기 연주를 한다면 개인 악기를 가져와야 한다 — 고사장에 비치된 악기가 없다. 음악 파일은 USB에 wav 또는 mp3로 담아 오고, 맥에서 쓰던 USB는 쓸 수 없다.",
+      "source_url": "https://ipsi.yongin.ac.kr/susi/guide.do",
+      "verified_at": "2026-08-01",
+      "note": "2027학년도 수시 모집요강 PDF 25·45쪽과 입학처 전형일정 확인. 모집인원은 아직 원문에서 확인하지 못했다. 입학처가 공개하는 전년도 입시결과는 아직 '준비중'이다."
+    },
+    {
+      "id": "kbu-2027-susi-performing",
+      "university_id": "kbu",
+      "department": "공연예술과 (3년제)",
+      "admission_year": 2027,
+      "track": "수시",
+      "screening": "실기 위주 - 일반전형(수시 1차)",
+      "apply_start": "2026-09-07",
+      "apply_end": "2026-09-30",
+      "practical_date": "2026-10-16",
+      "practical_task": "일괄. 학생부(교과) 20% + 실기 80%. 실기고사 2026-10-16. 자유연기, 뮤지컬노래(하이라이트 포함), 움직임 중 택 2를 전체 3분 내외로 한다. 실기 성적이 30점 이하면 불합격 처리한다. 불참해도 불합격이다. 수시 2차는 접수 2026-11-11 ~ 11-25, 실기 12-04, 발표 12-16.",
+      "quota": "수시 1차 17명 · 수시 2차 9명 (입학정원 30명)",
+      "fee": "35,000원 (전형료 25,000 + 실기고사료 5,000 + 원서접수 대행수수료 5,000)",
+      "csat_minimum": "없음",
+      "documents": "진학어플라이·유웨이어플라이 또는 남양주캠퍼스 창구 접수. 서류는 2026-10-01 소인까지 유효(대상자만).",
+      "dress_code": "필요한 MR은 USB에 담아 실기고사 당일 제출한다. CD는 받지 않는다. 고사일에는 사진이 붙은 신분증과 개인 준비물을 지참한다.",
+      "source_url": "https://efms.kbu.ac.kr/efms/CMS/Contents/Contents.do?mCode=MN030",
+      "verified_at": "2026-08-01",
+      "note": "2027학년도 수시 모집요강 PDF 10·16·17·18·47쪽 확인. 합격자 발표 2026-11-06. 지원자가 많으면 안내된 실기고사일 다음 날에도 실기를 볼 수 있다."
+    },
+    {
+      "id": "shinhan-2027-susi-performing",
+      "university_id": "shinhan",
+      "department": "공연예술학과",
+      "admission_year": 2027,
+      "track": "수시",
+      "screening": "실기 - 실기고사 시행학과",
+      "apply_start": "2026-09-07",
+      "apply_end": "2026-09-11",
+      "practical_date": "2026-10-26",
+      "practical_task": "실기고사 2026-10-26 ~ 10-30. 평가위원 3~5인이 수험생 1인을 평가한다. 자유종합연기(2~3분 내외) — 연극·영화·TV드라마·뮤지컬 작품 중 한 장면을 자유롭게 골라 준비해 온 연기. 기계적으로 외운 연기가 아니라 본능과 충동에 의한 생동감이 있는지를 본다. 제시연기(2~3분 내외) — 당일 제시한 희곡·영화·시나리오·TV드라마 대본의 대사를 짧은 시간 안에 분석하고 자기화하는 능력을 본다. 질의응답(1분 내외) — 제시연기와 자유종합연기의 분석·해석 능력을 본다.",
+      "fee": null,
+      "csat_minimum": null,
+      "documents": "진학어플라이로 접수(2026-09-07 09:00 ~ 09-11 23:59). 해당자는 서류를 2026-09-18 18시까지 제출(우편은 09-18 소인까지 유효). 서류 도착은 09-08부터 입학홈페이지에서 조회할 수 있다.",
+      "dress_code": "째즈복 또는 검은색 스판덱스 소재 하의를 입는다(상의는 자율). 연기에 필요한 음악과 MR은 반드시 USB에 저장해 본인이 준비한다. 짧은 시간 안에 모든 연기적 역량을 보일 수 있도록 구성해야 한다.",
+      "source_url": "https://ipsi.shinhan.ac.kr/adm/info.do?cateId=1&bbsId=BBSMSTR_000000000051",
+      "verified_at": "2026-08-01",
+      "note": "2027학년도 수시 모집요강 뷰어 20·47쪽 확인. 세부 일정은 개별 통지하지 않으니 입학홈페이지에서 직접 확인해야 한다. 타 대학과 일정이 겹쳐도 전형료는 환불되지 않는다. 모집인원과 전형료는 아직 원문에서 확인하지 못했다."
+    },
+    {
+      "id": "seoularts-2027-susi-acting",
+      "university_id": "seoularts",
+      "department": "공연학부 연기전공 (연기)",
+      "admission_year": 2027,
+      "track": "수시",
+      "screening": "일반전형 - 단계별 전형 (전문학사 3년제)",
+      "apply_start": "2026-09-07",
+      "apply_end": "2026-09-30",
+      "practical_date": "2026-10-17",
+      "practical_task": "단계별. 1차 2026-10-17 ~ 10-25 중 하루: 당일대사 1분 이내 — 시험 당일 제시되는 텍스트(산문·대사)의 상황과 인물 관계를 이해해 표현한다. 특기 1분 이내 — 노래·움직임·악기연주·스케치 코메디·마임 등 재능을 보여줄 수 있는 것(MR과 피아노를 쓸 수 있다). 독백 연기에서 특기로 이어지는 종합연기는 안 된다. 1차 발표 10-27 16시. 2차 2026-10-31 ~ 11-01: 연기 워크숍과 개인 구두문답 60분 내외 — 10~15명을 한 조로 묶어 당일 과제를 수행하게 하고 문해력·상상력·순발력을 본다(MR 불가). 최종 발표 2026-11-06 16시. 연기 전공은 최종 성적을 낼 때 1차 점수를 반영하지 않는다 — 2차가 전부다.",
+      "quota": "일반전형 남 18명 · 여 19명",
+      "fee": "1차 60,000원 + 2차 30,000원 (인터넷 접수 수수료 5,000원 포함)",
+      "csat_minimum": "없음 (수시는 수능최저를 반영하지 않는다)",
+      "documents": "유웨이어플라이·진학어플라이 인터넷 접수만. 수험표는 2026-10-01 16시부터 출력. 해당자는 추가서류를 2026-10-13 18시 도착분까지 등기우편으로 낸다(10-12 소인까지 유효). 학생부 반영교과는 국어·영어다.",
+      "dress_code": "실연 음악은 MP3로만 USB에 담아 시험 당일 제출한다(WAV·스마트폰·CD 불가). 소품은 입실 전 검사받은 것만 쓸 수 있고 흉기·화기·인화성 물질과 음식물은 금지다. 반주자 등 타인을 데려올 수 없고, 얼굴 전면이 보이도록 머리를 정리해야 하며 써클·컬러렌즈는 착용할 수 없다. 고사장에는 피아노와 큐브(40×40×40cm), 의자가 있다.",
+      "source_url": "https://www.seoularts.ac.kr/web/cop/bbsWeb/selectBoardList.do?bbsId=BBSMSTR_000000000924",
+      "verified_at": "2026-08-01",
+      "note": "2027학년도 수시 전문학사학위과정 모집요강 PDF 41·46·50·61·67쪽 확인. 2027학년도부터 소품에 음식물을 쓸 수 없게 바뀌었다. 개인별 고사 일시와 장소는 2026-10-12 16시부터 홈페이지 수험생정보서비스에서 확인해야 한다."
+    },
+    {
+      "id": "seoularts-2027-susi-musical",
+      "university_id": "seoularts",
+      "department": "공연학부 연기전공 (뮤지컬)",
+      "admission_year": 2027,
+      "track": "수시",
+      "screening": "일반전형 - 단계별 전형 (전문학사 3년제)",
+      "apply_start": "2026-09-07",
+      "apply_end": "2026-09-30",
+      "practical_date": "2026-10-17",
+      "practical_task": "단계별. 1차 2026-10-17 ~ 10-25 중 하루: 자유곡 1곡과 지정곡 1곡을 각 1분 이내로. 자유곡은 한국어 뮤지컬 삽입곡이어야 하고 전주는 두 마디를 넘지 않으며 첫 후렴구를 포함해야 한다. 지정곡 이외의 곡을 골라야 한다. 지정곡은 남녀 각 3곡이고 자기 성별에 맞는 한 곡을 고른다. 지정곡 MR은 고사장에서 제공한다. 1차 발표 10-27 16시. 2차 2026-10-31 ~ 11-01: 연기 워크숍과 개인 구두문답 60분 내외(MR 불가). 최종 발표 2026-11-06 16시.",
+      "fee": "1차 60,000원 + 2차 30,000원 (인터넷 접수 수수료 5,000원 포함)",
+      "csat_minimum": "없음",
+      "documents": "유웨이어플라이·진학어플라이 인터넷 접수만. 학생부 반영교과는 국어·영어다.",
+      "dress_code": "실연 음악은 MP3로만 USB에 담아 시험 당일 제출한다(WAV·스마트폰·CD 불가). 소품은 입실 전 검사받은 것만 쓸 수 있고 흉기·화기·인화성 물질과 음식물은 금지다. 반주자 등 타인을 데려올 수 없고, 얼굴 전면이 보이도록 머리를 정리해야 하며 써클·컬러렌즈는 착용할 수 없다. 고사장에는 피아노와 큐브(40×40×40cm), 의자가 있다.",
+      "designated_works": [
+        "지정곡 악보와 MR은 2026-08-21 서울예술대학교 입시공지사항에 올라온다 (남녀 각 3곡)"
+      ],
+      "source_url": "https://www.seoularts.ac.kr/web/cop/bbsWeb/selectBoardList.do?bbsId=BBSMSTR_000000000924",
+      "verified_at": "2026-08-01",
+      "note": "2027학년도 수시 모집요강 PDF 50·61쪽 확인. 지정곡 목록은 공지 전이라 아직 비어 있다."
+    }
+  ]
+}
