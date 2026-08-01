@@ -32,10 +32,16 @@ test("최근에 물어봤으면 조용히 두고, 기간이 지나면 다시 묻
   assert.equal(canAskAutomatically(null, String(now - REVIEW_QUIET_MS), now), true);
 });
 
-test("뒤로가기가 사이트를 벗어나는지는 브라우저에 직접 묻는다", () => {
-  // 이동 지점마다 표식을 손으로 다는 방식은 새 Link 가 생기면 조용히 깨진다.
-  assert.match(exitReview, /navigation\?\.currentEntry\?\.index/);
-  assert.match(exitReview, /return index === 0;/);
+test("연습 화면을 떠나는 뒤로가기는 모두 잡는다", () => {
+  // 밖으로 나가든 랜딩으로 돌아가든, 연습 화면에서 뒤로 가는 건 대개 "그만하겠다"다.
+  // 어디로 가는지 가리지 않으므로 히스토리 위치를 따지는 코드가 남아 있으면 안 된다.
+  assert.doesNotMatch(exitReview, /currentEntry|backLeavesSite/);
+  assert.match(exitReview, /window\.addEventListener\("popstate", onPopState\);/);
+});
+
+test("감시용 히스토리 항목은 화면당 한 번만 쌓는다", () => {
+  // 새 연습을 반복할 때마다 쌓으면 나갈 때 뒤로가기를 여러 번 눌러야 한다.
+  assert.match(exitReview, /if \(!guardPushedRef\.current\) \{\s*\n\s*guardPushedRef\.current = true;/);
 });
 
 test("후기 창은 폼이 든 그 iframe 이 보낸 메시지만 받는다", () => {
@@ -53,9 +59,6 @@ test("커서 이탈은 데스크톱에서만 건다", () => {
   assert.match(exitReview, /if \(pointerFine\) document\.addEventListener\("mouseout", onMouseOut\);/);
 });
 
-test("감시용 히스토리 항목은 화면당 한 번만 쌓는다", () => {
-  assert.match(exitReview, /if \(!guardPushedRef\.current\) \{\s*\n\s*guardPushedRef\.current = true;/);
-});
 
 test("대화가 시작된 뒤에만 후기를 묻는다", () => {
   assert.match(workspace, /const reviewArmed = mode === "chat" \|\| mode === "note";/);
