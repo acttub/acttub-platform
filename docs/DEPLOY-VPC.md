@@ -74,8 +74,12 @@ sudo chown -R ubuntu:ubuntu /svc/acttub
 aws ssm start-session --target i-xxxxxxxx
 ```
 
-`ssh`/`rsync`를 그대로 쓰려면 `~/.ssh/config`에 다음을 추가한다. 기존 배포 명령의 형태를
-바꾸지 않아도 된다.
+**SSM 콘솔·CLI 접속은 `ssm-user` 계정으로 들어간다.** 서비스는 `ubuntu`로 돌기 때문에,
+홈에 뭔가 설치하거나 파일을 만드는 작업은 `sudo su - ubuntu`로 계정을 바꾼 뒤에 한다.
+`sudo`가 붙는 시스템 작업(패키지 설치, `mkdir`, `systemctl`)은 어느 계정에서 하든 같다.
+
+파일 전송은 S3를 경유하므로(4장) SSH 키가 필요 없다. 굳이 `ssh`/`rsync`를 쓰고 싶다면
+`~/.ssh/config`에 아래를 넣으면 되지만, 인스턴스에 키페어가 등록되어 있어야 한다.
 
 ```
 Host i-* mi-*
@@ -164,12 +168,16 @@ presigned PUT은 브라우저에서 S3로 직접 나가므로 버킷 CORS에 새
   back alb는 private이라 전부 실패한다. 비어 있어야 상대 경로로 나가 프록시를 탄다
 
 **빌드는 로컬(맥)에서 하고 산출물만 보낸다.** EC2에는 git도 pnpm도 필요 없다.
+아래 과정을 `deploy/upload-web.sh`가 대신하므로 평소에는 이것만 실행하면 된다.
 
 ```bash
-API_ORIGIN=http://<back-alb-dns> \
-NEXT_PUBLIC_SITE_URL=https://<cloudfront-domain> \
-pnpm --filter web build:server
+DEPLOY_BUCKET=<배포 버킷> API_ORIGIN=http://<back-alb-dns> \
+  deploy/upload-web.sh
 ```
+
+빌드 → sharp 제외 → 정적 자산 병합 → 네이티브 바이너리 잔존 검사 → S3 업로드까지
+하고, 인스턴스에서 이어서 칠 명령을 출력한다. 아래는 그 스크립트가 무슨 일을 하는지에
+대한 설명이다.
 
 **standalone은 정적 자산을 자동으로 포함하지 않는다.** 빌드 직후 `.next/static`은 산출물
 안에 없다(확인함). 이 복사를 빠뜨리면 화면이 스타일 없이 뜨거나 JS가 404로 죽는다 —
@@ -195,31 +203,42 @@ standalone에는 `sharp`의 **빌드한 플랫폼 전용** 네이티브 바이�
 제외하면 산출물에 네이티브 바이너리가 하나도 남지 않아(45M → 27M) 플랫폼 무관해진다.
 맥에서 sharp를 뺀 채 기동해 페이지·정적 자산·프록시가 모두 정상 동작함을 확인했다.
 
-```bash
-# 로컬에서 실행. --exclude '*sharp*' 가 핵심이다.
-rsync -a --delete --exclude '*sharp*' \
-  apps/web/.next/standalone/ <instance-id>:/svc/acttub/web/
-rsync -a apps/web/.next/static/ <instance-id>:/svc/acttub/web/apps/web/.next/static/
-rsync -a apps/web/public/ <instance-id>:/svc/acttub/web/apps/web/public/
+`--exclude '*sharp*'`가 핵심이다. `upload-web.sh`는 패키징 후 `*.node` 파일이 남아 있으면
+업로드하지 않고 멈춘다 — 리눅스에서 기동 실패로 이어지는 것을 미리 막기 위해서다.
+
+**전송은 S3를 경유한다.** 배포 버킷 하나에 prefix로 나눈다(`web/`, `api/`). 인스턴스는
+S3 Gateway VPC Endpoint로 사설 경로를 통해 받으므로 SSH 키가 필요 없다.
+
+```
+s3://<배포 버킷>/
+  web/<타임스탬프>-<git sha>.tar.gz
+  web/latest.tar.gz          # 인스턴스에서 늘 같은 명령으로 받기 위한 별칭
+  web/acttub-web.service
 ```
 
-`<instance-id>`는 `i-0abc...` 형태이며, 3-1의 SSH-over-SSM `ProxyCommand` 설정이 있으면
-`rsync`가 그대로 동작한다.
+디렉토리를 `s3 sync`로 올리지 않고 tar.gz 하나로 묶는 이유는, standalone이 27MB에 파일이
+수천 개여서 요청 수가 많고 중간에 끊기면 반만 올라간 상태가 되기 때문이다.
+
+인스턴스 쪽 (SSM으로 접속해서):
+
+```bash
+aws s3 cp s3://<배포 버킷>/web/latest.tar.gz /tmp/web.tar.gz
+sudo rm -rf /svc/acttub/web/* && sudo tar xzf /tmp/web.tar.gz -C /svc/acttub/web
+sudo chown -R ubuntu:ubuntu /svc/acttub/web
+```
+
+인스턴스 IAM role에 해당 prefix의 `s3:GetObject` 권한이 있어야 한다.
 
 systemd 유닛의 `WorkingDirectory`가 `/svc/acttub/web/apps/web`인 이유가 이것이다. 한 단계
 위에서 실행하면 `server.js`를 못 찾고, `apps/web`만 떼어 옮기면 `node_modules`를 잃는다.
 
-유닛 파일도 로컬에서 보낸다.
+유닛 파일도 같은 버킷에 함께 올라간다.
 
 ```bash
-# 로컬에서
-rsync -a deploy/systemd/acttub-web.service <instance-id>:/tmp/
-```
-
-```bash
-# SSM으로 접속해 인스턴스에서
+aws s3 cp s3://<배포 버킷>/web/acttub-web.service /tmp/
 sudo mv /tmp/acttub-web.service /etc/systemd/system/
 sudo systemctl daemon-reload && sudo systemctl enable --now acttub-web
+systemctl status acttub-web --no-pager
 ```
 
 ### 4-2. back svc (FastAPI)
@@ -228,19 +247,28 @@ sudo systemctl daemon-reload && sudo systemctl enable --now acttub-web
 `uv.lock`에 git 의존성이 없어(확인함) `uv sync`는 PyPI만 본다.
 
 ```bash
-# 로컬에서 — 가상환경·캐시는 빼고 소스만 보낸다
-rsync -a --delete \
-  --exclude '.venv' --exclude '__pycache__' --exclude '*.pyc' \
-  apps/api/ <instance-id>:/svc/acttub/acttub-platform/apps/api/
-rsync -a deploy/systemd/acttub-api.service <instance-id>:/tmp/
+# 로컬에서
+DEPLOY_BUCKET=<배포 버킷> deploy/upload-api.sh
 ```
+
+`.venv`는 플랫폼 종속이라 보내지 않는다 — 인스턴스에서 `uv sync`로 새로 만든다.
+`.env`도 제외한다. 운영 값은 `/etc/acttub/api.env`가 담당한다.
 
 ```bash
 # SSM으로 접속해 인스턴스에서
-cd /svc/acttub/acttub-platform/apps/api && uv sync
+aws s3 cp s3://<배포 버킷>/api/latest.tar.gz /tmp/api.tar.gz
+sudo rm -rf /svc/acttub/acttub-platform/apps/api
+sudo tar xzf /tmp/api.tar.gz -C /svc/acttub/acttub-platform/apps
+sudo chown -R ubuntu:ubuntu /svc/acttub
+sudo -u ubuntu bash -c 'cd /svc/acttub/acttub-platform/apps/api && uv sync'
+
+aws s3 cp s3://<배포 버킷>/api/acttub-api.service /tmp/
 sudo mv /tmp/acttub-api.service /etc/systemd/system/
 sudo systemctl daemon-reload && sudo systemctl enable --now acttub-api
 ```
+
+`uv sync`는 반드시 `ubuntu` 계정으로 실행한다. SSM 접속 계정(`ssm-user`)으로 만들면
+`.venv` 소유자가 어긋나 서비스가 기동하지 못한다.
 
 유닛의 `ExecStart` 안 `uv` 경로는 설치 방식에 따라 다르다. `which uv`로 확인해 맞춘다.
 
