@@ -767,8 +767,27 @@ function SessionRail({
         </div>
       )}
 
+      {/* 연습 밖으로 나가는 유일한 통로. 여기 없으면 커뮤니티는 주소를 아는 사람만 쓴다. */}
       <div
-        className={`mt-auto flex items-center border-t border-[#edf0f3] ${
+        className={`mt-auto border-t border-[#edf0f3] ${
+          open ? "px-4 py-3" : "flex justify-center py-3"
+        }`}
+      >
+        <Link
+          href="/community"
+          title="커뮤니티"
+          className={
+            open
+              ? "block rounded-xl px-2 py-2 text-[13px] font-black text-[#4e5968] transition hover:bg-[#eef2f6]"
+              : "flex h-9 w-9 items-center justify-center rounded-xl bg-[#f2f4f6] text-[13px] font-black text-[#8b95a1] transition hover:bg-[#eef2f6]"
+          }
+        >
+          {open ? "커뮤니티" : "커"}
+        </Link>
+      </div>
+
+      <div
+        className={`flex items-center border-t border-[#edf0f3] ${
           open ? "justify-between px-4 py-3.5" : "justify-center py-3.5"
         }`}
       >
