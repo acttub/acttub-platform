@@ -10,6 +10,7 @@ import { Suspense, useCallback, useEffect, useState } from "react";
 
 import {
   authorName,
+  canBlock,
   createComment,
   deleteComment,
   deletePost,
@@ -24,6 +25,7 @@ import {
 import { useOptionalAuth } from "@/features/auth/use-optional-auth";
 import { ItemMenu, ModerationDialog, type ModerationTarget } from "./moderation";
 import {
+  AnonymousToggle,
   CommunityShell,
   Notice,
   PrimaryButton,
@@ -57,6 +59,7 @@ export function PostDetail({ postId }: { postId: string | null }) {
   const [comments, setComments] = useState<CommunityComment[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
+  const [commentAnonymous, setCommentAnonymous] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [moderating, setModerating] = useState<ModerationTarget | null>(null);
@@ -80,6 +83,9 @@ export function PostDetail({ postId }: { postId: string | null }) {
       .then((data) => {
         setNow(Date.now());
         setPost(data);
+        // 익명으로 올린 내 글이면 댓글도 익명이 기본이다. 여기서 이름을 걸면
+        // 위의 익명 글이 곧 나라는 걸 스스로 알리는 셈이 된다.
+        if (data.anonymous && data.mine) setCommentAnonymous(true);
         return loadComments(controller.signal);
       })
       .catch((cause) => {
@@ -134,7 +140,7 @@ export function PostDetail({ postId }: { postId: string | null }) {
     if (!post || !draft.trim() || busy) return;
     setBusy(true);
     try {
-      const created = await createComment(post.id, draft.trim());
+      const created = await createComment(post.id, draft.trim(), commentAnonymous);
       setComments((previous) => [...previous, created]);
       setPost({ ...post, comment_count: post.comment_count + 1 });
       setDraft("");
@@ -197,7 +203,7 @@ export function PostDetail({ postId }: { postId: string | null }) {
                   setModerating({
                     type: "post",
                     id: post.id,
-                    authorId: post.author.id,
+                    authorId: canBlock(post.author) ? post.author.id : null,
                     authorName: authorName(post.author),
                   })
                 }
@@ -253,7 +259,9 @@ export function PostDetail({ postId }: { postId: string | null }) {
                         setModerating({
                           type: "comment",
                           id: comment.id,
-                          authorId: comment.author.id,
+                          authorId: canBlock(comment.author)
+                            ? comment.author.id
+                            : null,
                           authorName: authorName(comment.author),
                         })
                       }
@@ -269,7 +277,16 @@ export function PostDetail({ postId }: { postId: string | null }) {
               </div>
             )}
 
-            <div className="mt-5 flex items-end gap-2">
+            <div className="mt-5">
+              {loggedIn && (
+                <div className="mb-2">
+                  <AnonymousToggle
+                    checked={commentAnonymous}
+                    onChange={setCommentAnonymous}
+                  />
+                </div>
+              )}
+              <div className="flex items-end gap-2">
               <textarea
                 value={draft}
                 onChange={(event) => setDraft(event.target.value)}
@@ -281,6 +298,7 @@ export function PostDetail({ postId }: { postId: string | null }) {
               <PrimaryButton onClick={submitComment} disabled={busy || !draft.trim()}>
                 남기기
               </PrimaryButton>
+              </div>
             </div>
           </section>
         </>

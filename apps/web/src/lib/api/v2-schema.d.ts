@@ -689,15 +689,20 @@ export interface components {
              */
             status: "active" | "suspended";
         };
-        /** AuthorPayload */
+        /**
+         * AuthorPayload
+         * @description 익명이면 `id`·`nickname` 이 비고 `alias` 만 온다.
+         *
+         *     익명 글에 실제 user id 를 실어 보내면 화면에 "익명" 이라 적혀 있어도 클라이언트가
+         *     같은 id 로 다른 글과 묶는다. 그래서 아예 담지 않는다.
+         */
         AuthorPayload: {
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
+            /** Id */
+            id: string | null;
             /** Nickname */
             nickname: string | null;
+            /** Alias */
+            alias: string | null;
         };
         /** BiggestProblem */
         BiggestProblem: {
@@ -805,6 +810,8 @@ export interface components {
              * Format: uuid
              */
             post_id: string;
+            /** Anonymous */
+            anonymous: boolean;
             author: components["schemas"]["AuthorPayload"];
             /** Body */
             body: string;
@@ -825,6 +832,11 @@ export interface components {
         CommentWriteRequest: {
             /** Body */
             body: string;
+            /**
+             * Anonymous
+             * @default false
+             */
+            anonymous: boolean;
         };
         /**
          * ConsentAction
@@ -965,6 +977,8 @@ export interface components {
              * Format: uuid
              */
             id: string;
+            /** Anonymous */
+            anonymous: boolean;
             /** Category Slug */
             category_slug: string;
             /** Category Name */
@@ -1010,6 +1024,11 @@ export interface components {
             title: string;
             /** Body */
             body: string;
+            /**
+             * Anonymous
+             * @default false
+             */
+            anonymous: boolean;
         };
         /** PracticeSessionAcceptedResponse */
         PracticeSessionAcceptedResponse: {

@@ -19,7 +19,8 @@ import { errorMessage, PrimaryButton, QuietButton } from "./shell";
 export type ModerationTarget = {
   type: ReportTargetType;
   id: string;
-  authorId: string;
+  /** 익명 작성자는 차단할 수 없어 null 이다 (community.ts의 canBlock 참고). */
+  authorId: string | null;
   authorName: string;
 };
 
@@ -57,6 +58,7 @@ export function ModerationDialog({
   }
 
   async function block() {
+    if (!target.authorId) return;
     setBusy(true);
     setMessage(null);
     try {
@@ -80,9 +82,11 @@ export function ModerationDialog({
             </p>
             <div className="mt-6 flex justify-end gap-2">
               <QuietButton onClick={onClose}>닫기</QuietButton>
-              <PrimaryButton onClick={block} disabled={busy}>
-                {target.authorName} 차단하기
-              </PrimaryButton>
+              {target.authorId && (
+                <PrimaryButton onClick={block} disabled={busy}>
+                  {target.authorName} 차단하기
+                </PrimaryButton>
+              )}
             </div>
           </>
         ) : (
@@ -119,9 +123,15 @@ export function ModerationDialog({
               <p className="mt-3 text-[13px] font-bold text-[#e5484d]">{message}</p>
             )}
             <div className="mt-5 flex items-center justify-between">
-              <QuietButton onClick={block} disabled={busy}>
-                신고 없이 차단만
-              </QuietButton>
+              {target.authorId ? (
+                <QuietButton onClick={block} disabled={busy}>
+                  신고 없이 차단만
+                </QuietButton>
+              ) : (
+                <span className="text-[12px] font-semibold text-[#8b95a1]">
+                  익명 글은 차단할 수 없어요
+                </span>
+              )}
               <div className="flex gap-2">
                 <QuietButton onClick={onClose} disabled={busy}>
                   취소
