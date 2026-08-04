@@ -13,6 +13,7 @@ from pydantic import BaseModel
 
 from acting_agent import prompt as prompt_mod
 from acting_agent import targeting
+from acting_agent.config import DEFAULT_MAX_QUESTIONS
 from acting_agent.guard import (
     ECHO_LIMIT,
     echo_hits,
@@ -24,10 +25,13 @@ from acting_agent.schema import CoachReply, CoachSession, CoachTurn
 
 log = logging.getLogger(__name__)
 
-MAX_QUESTIONS = 10
+# 라우터는 설정값(COACH_MAX_QUESTIONS)을 넘기고 여기 값은 그 기본값이다.
+# 두 곳에 숫자를 따로 적으면 테스트와 운영이 다른 상한으로 돌아간다.
+MAX_QUESTIONS = DEFAULT_MAX_QUESTIONS
 END_TOKENS = ("그만", "종료", "끝")
 # 상한 직전 몇 턴은 새 갈래를 열지 않고 배우 문장으로 수렴시킨다 (스펙 §6).
-CONVERGE_MARGIN = 2
+# 마진이 2면 8턴 중 마지막 2턴에서야 수렴이 켜져 늦다. 3으로 두면 6번째부터 정리에 들어간다.
+CONVERGE_MARGIN = 3
 # 닫는 턴이 금지 문형에 걸렸을 때 쓰는 문장. 질문을 넣지 않는다.
 SAFE_CLOSING = "오늘 대화 잘 이어와 주셨어요 — 스스로 짚으신 걸 한 줄로 남겨봐 주세요."
 
