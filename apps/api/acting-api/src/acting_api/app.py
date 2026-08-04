@@ -62,6 +62,21 @@ from acting_summary.config import load_settings as load_summary_settings
 logger = logging.getLogger(__name__)
 
 
+def _ensure_app_logging() -> None:
+    """앱 로그가 journald까지 닿게 한다.
+
+    uvicorn은 자기 로거에만 핸들러를 붙이므로, 설정이 없으면 앱 로거의 INFO는
+    조용히 버려진다. 기동 시 남기는 S3 자격증명 method가 role 전환이 실제로
+    일어났는지 확인하는 유일한 증거라 반드시 보여야 한다.
+
+    root 레벨은 건드리지 않는다 — WARNING으로 두어야 서드파티 라이브러리의
+    INFO 로그가 쏟아지지 않는다.
+    """
+    if not logging.getLogger().handlers:
+        logging.basicConfig()
+    logging.getLogger("acting_api").setLevel(logging.INFO)
+
+
 class HealthResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -90,6 +105,7 @@ def create_app(
     analysis_worker=None,
     analyzer=None,
 ) -> FastAPI:
+    _ensure_app_logging()
     gateway_settings = gateway_settings or load_gateway_settings()
     summary_settings = summary_settings or load_summary_settings()
     agent_settings = agent_settings or load_agent_settings()
