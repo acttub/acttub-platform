@@ -88,7 +88,8 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: astral-sh/setup-uv@v9
+      # setup-uv는 v8부터 메이저 별칭 태그(vN)를 두지 않습니다 — 정확한 버전으로 고정합니다.
+      - uses: astral-sh/setup-uv@v9.0.0
         with:
           python-version: "3.11"
           enable-cache: true
