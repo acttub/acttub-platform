@@ -32,7 +32,21 @@ Phase 1(PR 게이트)까지 도입 완료. 그 전엔 CI 전무·전부 수동 S
 
 - [x] Phase 1 PR 게이트 (#36): `.github/workflows/ci.yml` — dev·main 대상 PR에서 web(lint·typecheck·test·build)·api(pytest + `postgres:16-alpine` service로 `RUN_DB_TESTS=1` DB 통합) 검증. ruleset에 두 잡을 required status check로 등록해 초록이어야 머지. (함정: check context = 잡 이름 문자열 그대로라, `ci.yml` 잡 `name` 변경 시 ruleset도 함께 갱신 안 하면 dev·main 머지가 전부 막힌다)
 - [x] Phase 2 배포 자동화 (#71, 후속): `.github/workflows/deploy.yml` 하나가 dev·prod를 모두 처리. 빌드는 runner에서(재현성 확보), 전송은 S3, 설치는 SSM Run Command라 SSH 키·서버 IP를 Secrets에 두지 않는다. dev는 `dev` push 자동(마이그레이션 포함)·운영은 `workflow_dispatch`. 환경 분기는 워크플로가 아니라 GitHub Environments variables가 담당. 절차는 `docs/DEPLOY-VPC.md`(운영)·`docs/DEPLOY-DEV.md`(개발)
-  - [ ] 남은 것: 개발 서버를 단일 EC2 구성으로 신설 → 검증 → `dev.acttub.com` DNS 전환 → 기존 인스턴스(`3.38.235.185`) 폐기 (`docs/DEPLOY-DEV.md` 1·2·6장)
-  - [ ] 운영 role 신뢰 정책의 `sub` 조건을 `repo:acttub/acttub-platform:environment:prod`로 좁히기 (현재 `:*`라 dev 잡에서도 이론상 assume 가능)
+  - [x] 개발 서버를 단일 EC2 구성으로 신설 → 검증 → `dev.acttub.com` DNS 전환 (#77, 2026-08-04). 구 인스턴스(`3.38.235.185`)는 **다른 AWS 계정**에 있어 그쪽에서 폐기해야 한다
+  - [x] 운영 role 신뢰 정책의 `sub` 조건을 `environment:prod`로 좁힘 (2026-08-04). GitHub `prod` 환경을 먼저 만들어야 동작한다 — 없는 상태로 좁히면 다음 운영 배포가 assume 단계에서 실패
 - [ ] Phase 3 env 단일화: dev/prod `.env` 드리프트 근절(2026-07-23 dev에만 있던 `APPLE_OAUTH_CLIENT_ID`로 운영 웹 Apple 로그인만 401 난 사고) — GitHub Environments secret을 단일 소스로 배포 시 렌더링. systemd 유닛(`acting-api.service`)을 레포로 편입 + `daemon-reload`
-- [ ] `Node.js 20 deprecated` 경고 제거: `actions/checkout`·`actions/setup-node`를 v5로 상향 (현재 실패 아님, 안내만)
+- [x] `Node.js 20 deprecated` 경고 제거 (#79): checkout v7 · setup-node v7 · action-setup v6 · configure-aws-credentials v6 · setup-uv **v9.0.0**. (함정: `astral-sh/setup-uv`는 v8부터 메이저 별칭 태그(`vN`)를 발행하지 않아 `@v9`로는 액션을 찾지 못한다 — 정확한 버전으로 고정할 것)
+
+## 웹 성능 예산 미달 (2026-08-04 발견)
+
+`pnpm perf`(Lighthouse CI)가 **LCP 임계값을 초과해 실패하는 상태**다. CI에는 성능 측정이 없어 그동안 드러나지 않았다. 새로 생긴 문제가 아니다 — 정적 export 시절 측정 방식(`staticDistDir`)으로도 같은 값이 나오는 것을 3회씩 비교해 확인했다(2527ms 대 2530ms).
+
+```
+LCP 실측 2527~2530ms   vs   예산 2500ms      (Performance 점수 0.97, CLS 0, TBT 0은 통과)
+LCP 구성: TTFB 452 + Render Delay 2078       LCP 요소는 랜딩 `<h1>`
+```
+
+- [ ] 방향 결정 후 처리. 둘 중 하나다
+  - **임계값 현실화**(2500 → 2600): 실측이 30ms 초과라 사실상 경계값이다. 간단하지만 근본 해결은 아니다
+  - **렌더 지연 개선**: Render Delay 2078ms가 대부분이다. `<h1>`이 하이드레이션 이후에 최종 렌더되는 구조라, 초기 HTML에서 바로 확정되게 바꾸면 크게 떨어진다. 프론트 렌더 구조를 손대는 일이라 범위가 있다
+- [ ] 결정 후 `apps/web/PERFORMANCE.md`의 허용 기준도 함께 맞춘다
