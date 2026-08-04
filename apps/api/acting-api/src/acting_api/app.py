@@ -6,9 +6,15 @@ import time
 from contextlib import asynccontextmanager
 from typing import Literal
 
+import boto3
 import httpx
+from botocore.exceptions import (
+    CredentialRetrievalError,
+    MetadataRetrievalError,
+    NoCredentialsError,
+)
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from google import genai
 from pydantic import BaseModel, ConfigDict
@@ -115,11 +121,15 @@ def create_app(
         if s3_client is not None:
             s3_storage = S3Storage(bucket=gateway_settings.s3_bucket, client=s3_client)
         else:
-            s3_storage = S3Storage.from_credentials(
+            session = boto3.Session()
+            credentials = session.get_credentials()
+            if credentials is None:
+                raise RuntimeError("S3 credentials could not be resolved")
+            logger.info("S3 credential method=%s", credentials.method)
+            s3_storage = S3Storage.from_session(
                 bucket=gateway_settings.s3_bucket,
-                access_key_id=gateway_settings.aws_access_key_id,
-                secret_access_key=gateway_settings.aws_secret_access_key,
                 region=gateway_settings.aws_region,
+                session=session,
             )
     if (
         analysis_worker is None
@@ -190,6 +200,22 @@ def create_app(
     app.state.store = store
     app.state.s3_storage = s3_storage
     app.state.analysis_worker = analysis_worker
+
+    async def storage_credentials_error_handler(_request, _exc):
+        return JSONResponse(
+            status_code=503,
+            content={"detail": "storage_not_configured"},
+        )
+
+    for exception_type in (
+        NoCredentialsError,
+        CredentialRetrievalError,
+        MetadataRetrievalError,
+    ):
+        app.add_exception_handler(
+            exception_type,
+            storage_credentials_error_handler,
+        )
 
     @app.get(
         "/health",

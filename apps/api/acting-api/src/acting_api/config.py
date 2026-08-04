@@ -48,14 +48,7 @@ class GatewaySettings:
 
     @property
     def s3_configured(self) -> bool:
-        return all(
-            (
-                self.s3_bucket,
-                self.aws_access_key_id,
-                self.aws_secret_access_key,
-                self.aws_region,
-            )
-        )
+        return bool(self.s3_bucket and self.aws_region)
 
 
 def _default_env_path() -> Path:
@@ -93,10 +86,15 @@ def load_gateway_settings(env_path: Path | None = None) -> GatewaySettings:
         "aws_secret_access_key": os.environ.get("AWS_SECRET_ACCESS_KEY") or None,
         "aws_region": os.environ.get("AWS_REGION") or None,
     }
-    if any(s3_values.values()) and not all(s3_values.values()):
+    if bool(s3_values["s3_bucket"]) != bool(s3_values["aws_region"]):
         raise RuntimeError(
-            "S3_BUCKET, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, and AWS_REGION "
-            "must be configured together"
+            "S3_BUCKET and AWS_REGION must be configured together"
+        )
+    if bool(s3_values["aws_access_key_id"]) != bool(
+        s3_values["aws_secret_access_key"]
+    ):
+        raise RuntimeError(
+            "AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY must be configured together"
         )
     worker_concurrency = int(
         os.environ.get(
