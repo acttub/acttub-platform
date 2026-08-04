@@ -12,6 +12,24 @@ set -euo pipefail
 SIDE="${1:?fe 또는 be를 지정해주세요}"
 INSTANCE="${2:?인스턴스 ID가 필요해요 (예: i-0abc...)}"
 
+# MIGRATE=1 이면 be 설치 중에 alembic upgrade head까지 돌린다. dev 전용이다 —
+# prod는 스키마 변경을 되돌리기 어려워 수동으로 실행한다(docs/DEPLOY-VPC.md 4-3).
+#
+# 인용된 heredoc(<<'EOS')이라 여기서는 아무것도 확장되지 않고, 원격에서 실행될 때
+# 비로소 평가된다. SSM Run Command는 systemd가 아니라서 EnvironmentFile을 타지
+# 않으므로, alembic env.py가 요구하는 DATABASE_URL을 api.env에서 직접 뽑아 넘긴다
+# (값에 선행 공백이나 따옴표가 있을 수 있어 걷어낸다).
+MIGRATE_STEP=""
+if [ "${MIGRATE:-}" = "1" ]; then
+  MIGRATE_STEP=$(cat <<'EOS'
+DB_URL=$(grep -m1 '^[[:space:]]*DATABASE_URL=' /etc/acttub/api.env | sed -E 's/^[[:space:]]*DATABASE_URL=//; s/^"//; s/"$//')
+[ -n "$DB_URL" ] || { echo "✗ /etc/acttub/api.env 에 DATABASE_URL이 없어요" >&2; exit 1; }
+echo "▶ alembic upgrade head"
+sudo -u ubuntu env DATABASE_URL="$DB_URL" bash -c 'cd /svc/acttub/acttub-platform/apps/api/acting-api && /usr/local/bin/uv run --no-dev alembic upgrade head'
+EOS
+)
+fi
+
 case "$SIDE" in
   fe)
     REMOTE_SCRIPT=$(cat <<EOF
@@ -40,6 +58,8 @@ tar xzf /tmp/api.tar.gz -C /svc/acttub/acttub-platform/apps
 chown -R ubuntu:ubuntu /svc/acttub
 # .venv는 반드시 ubuntu 소유여야 한다 — 서비스가 그 계정으로 돈다.
 sudo -u ubuntu bash -c 'cd /svc/acttub/acttub-platform/apps/api && /usr/local/bin/uv sync'
+# 마이그레이션은 새 코드로, 재시작 전에 돈다(MIGRATE=1 일 때만 내용이 들어간다).
+$MIGRATE_STEP
 aws s3 cp "s3://$DEPLOY_BUCKET/be/acttub-api.service" /etc/systemd/system/acttub-api.service
 systemctl daemon-reload
 systemctl enable acttub-api

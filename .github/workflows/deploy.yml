@@ -1,25 +1,40 @@
-# VPC 2계층 인프라 배포 — 빌드·S3 업로드·SSM 설치를 한 번에 수행합니다.
+# VPC 인프라 배포 — 빌드·S3 업로드·SSM 설치를 한 번에 수행합니다.
+#
+# dev·prod 두 환경이 같은 잡을 씁니다. 환경별로 다른 값(버킷·인스턴스 ID·API_ORIGIN)은
+# GitHub Environments의 variables가 담당하므로, 워크플로 안에는 환경 분기가 없습니다.
+#   - dev  : dev 브랜치에 머지되면 자동 배포. 인스턴스 한 대에 web·api가 함께 뜹니다.
+#   - prod : Actions 탭에서 수동 실행. 인스턴스가 fe·be로 나뉩니다.
 #
 # 인증은 OIDC입니다. 장기 액세스 키를 repo Secrets에 두지 않고, 실행할 때마다
 # AWS에서 임시 자격증명을 받습니다. 설정 절차는 docs/DEPLOY-VPC.md 7장 참고.
 #
 # 인스턴스에 SSH로 접속하지 않습니다 — SSM Run Command로 AWS에 실행을 위임하므로
 # private subnet이어도 runner에서 그대로 동작합니다.
-name: Deploy (VPC)
+name: Deploy
 
 on:
+  # dev는 머지 즉시 반영합니다. dev로 들어오는 경로는 PR뿐이고 그 PR은 ci.yml
+  # 게이트를 통과했으므로, 여기서 테스트를 다시 돌리지 않습니다.
+  push:
+    branches: [dev]
   workflow_dispatch:
     inputs:
+      environment:
+        description: 배포 환경
+        type: choice
+        options: [dev, prod]
+        default: dev
       target:
         description: 배포 대상
         type: choice
         options: [fe, be, both]
-        default: fe
+        default: both
 
 # 배포는 겹치면 안 됩니다. 진행 중인 배포를 취소하면 인스턴스가 절반만 갱신된
 # 상태로 남을 수 있으므로 cancel-in-progress를 켜지 않습니다.
+# dev 배포가 prod 배포를 막지 않도록 환경별로 그룹을 나눕니다.
 concurrency:
-  group: deploy-vpc
+  group: deploy-${{ inputs.environment || 'dev' }}
   cancel-in-progress: false
 
 permissions:
@@ -30,13 +45,40 @@ env:
   AWS_REGION: ap-northeast-2
 
 jobs:
+  # inputs.*는 push 이벤트에서 비어 있습니다. push는 곧 dev 전체 배포이므로
+  # 기본값으로 dev·both를 씁니다.
+  be:
+    name: back svc (FastAPI)
+    environment: ${{ inputs.environment || 'dev' }}
+    if: ${{ (inputs.target || 'both') != 'fe' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Package & upload
+        env:
+          DEPLOY_BUCKET: ${{ vars.DEPLOY_BUCKET }}
+        run: deploy/upload-api.sh
+
+      # 마이그레이션은 dev에서만 자동으로 돕니다. prod는 되돌리기 어렵고 배포와
+      # 수명주기가 달라 SSM으로 접속해 수동 실행합니다(docs/DEPLOY-VPC.md 4-3).
+      - name: Install on instance
+        env:
+          DEPLOY_BUCKET: ${{ vars.DEPLOY_BUCKET }}
+          MIGRATE: ${{ (inputs.environment || 'dev') == 'dev' && '1' || '' }}
+        run: deploy/ssm-deploy.sh be ${{ vars.BE_INSTANCE_ID }}
+
   fe:
     name: front svc (Next 서버)
     # environment를 지정하면 GitHub가 Deployment 이벤트를 남기고, GitHub for Jira
-    # 앱이 이를 Jira로 넘겨 이슈 화면에 배포 이력이 붙습니다. 배포 동작 자체와는
-    # 무관합니다. 개발서버 배포를 Actions로 옮기면 그쪽은 dev를 쓰면 됩니다.
-    environment: prod
-    if: ${{ inputs.target == 'fe' || inputs.target == 'both' }}
+    # 앱이 이를 Jira로 넘겨 이슈 화면에 배포 이력이 붙습니다.
+    environment: ${{ inputs.environment || 'dev' }}
+    if: ${{ (inputs.target || 'both') != 'be' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -71,28 +113,3 @@ jobs:
         env:
           DEPLOY_BUCKET: ${{ vars.DEPLOY_BUCKET }}
         run: deploy/ssm-deploy.sh fe ${{ vars.FE_INSTANCE_ID }}
-
-  be:
-    name: back svc (FastAPI)
-    environment: prod
-    if: ${{ inputs.target == 'be' || inputs.target == 'both' }}
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
-          aws-region: ${{ env.AWS_REGION }}
-
-      - name: Package & upload
-        env:
-          DEPLOY_BUCKET: ${{ vars.DEPLOY_BUCKET }}
-        run: deploy/upload-api.sh
-
-      # 마이그레이션은 여기서 돌리지 않습니다. 스키마 변경은 되돌리기 어려우므로
-      # SSM으로 접속해 수동으로 실행합니다(docs/DEPLOY-VPC.md 4-3).
-      - name: Install on instance
-        env:
-          DEPLOY_BUCKET: ${{ vars.DEPLOY_BUCKET }}
-        run: deploy/ssm-deploy.sh be ${{ vars.BE_INSTANCE_ID }}
