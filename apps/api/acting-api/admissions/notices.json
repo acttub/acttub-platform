@@ -427,7 +427,7 @@
       "campus": "서울",
       "type": "univ",
       "verified_at": "2026-08-04",
-      "note": "연기 모집단위 없이 뮤지컬전공만 있어요. 수업은 대학로캠퍼스에서 해요.",
+      "note": "연기 모집단위 없이 뮤지컬전공만 있어요. 수업은 대학로캠퍼스에서 해요. 입학처가 자동 조회를 막아 둬서 전형 정보를 옮겨 오지 못했어요. 입학처 원문에서 직접 확인해 주세요.",
       "resources": []
     },
     {
@@ -493,7 +493,7 @@
       "campus": null,
       "type": "college",
       "verified_at": "2026-08-04",
-      "note": "영상연기예술학부 소속 3년제예요.",
+      "note": "영상연기예술학부 소속 3년제예요. 입학처가 자동 조회를 막아 둬서 전형 정보를 옮겨 오지 못했어요. 입학처 원문에서 직접 확인해 주세요.",
       "resources": []
     },
     {
@@ -537,7 +537,7 @@
       "campus": null,
       "type": "univ",
       "verified_at": "2026-08-04",
-      "note": null,
+      "note": "입학처가 자동 조회를 막아 둬서 전형 정보를 옮겨 오지 못했어요. 입학처 원문에서 직접 확인해 주세요.",
       "resources": []
     },
     {
@@ -548,7 +548,7 @@
       "campus": null,
       "type": "univ",
       "verified_at": "2026-08-04",
-      "note": "교명은 수원대지만 캠퍼스는 화성 봉담에 있어요.",
+      "note": "교명은 수원대지만 캠퍼스는 화성 봉담에 있어요. 입학 안내는 열리지만 모집요강 파일은 조회가 막혀 있어요. 입학처가 자동 조회를 막아 둬서 전형 정보를 옮겨 오지 못했어요. 입학처 원문에서 직접 확인해 주세요.",
       "resources": []
     },
     {
@@ -603,7 +603,7 @@
       "campus": "송도",
       "type": "univ",
       "verified_at": "2026-08-04",
-      "note": "한 학과 안에 연기와 무용이 함께 있어요. 모집단위가 나뉘는지는 확인하지 못했어요.",
+      "note": "한 학과 안에 연기와 무용이 함께 있어요. 입학처가 자동 조회를 막아 둬서 전형 정보를 옮겨 오지 못했어요. 입학처 원문에서 직접 확인해 주세요.",
       "resources": []
     },
     {
@@ -856,7 +856,7 @@
       "campus": null,
       "type": "univ",
       "verified_at": "2026-08-04",
-      "note": "공연미디어학부에 연기·기획연출·뮤지컬 전공이 있어요.",
+      "note": "공연미디어학부에 연기·기획연출·뮤지컬 전공이 있어요. 입학처가 자동 조회를 막아 둬서 전형 정보를 옮겨 오지 못했어요. 입학처 원문에서 직접 확인해 주세요.",
       "resources": []
     },
     {
@@ -900,7 +900,7 @@
       "campus": null,
       "type": "college",
       "verified_at": "2026-08-04",
-      "note": null,
+      "note": "입학 안내 페이지가 조회가 막힌 경로에 있어요. 입학처가 자동 조회를 막아 둬서 전형 정보를 옮겨 오지 못했어요. 입학처 원문에서 직접 확인해 주세요.",
       "resources": []
     },
     {
@@ -7116,6 +7116,285 @@
       "source_url": "https://enter.du.ac.kr/submenu.do?menuUrl=AelSWjPhedMv%2bAZA2NXqDg%3d%3d&",
       "verified_at": "2026-08-04",
       "note": "정시 실기고사 학과는 일반(학생부)전형으로 지원한다(수능 반영 없음)."
+    },
+    {
+      "id": "kyungmin-2027-susi1-acting",
+      "university_id": "kyungmin",
+      "department": "연기예술과",
+      "discipline": "acting",
+      "admission_year": 2027,
+      "track": "수시",
+      "screening": "수시 1차 정원내 일반전형(실기학과)",
+      "apply_start": "2026-09-07",
+      "apply_end": "2026-09-30",
+      "practical_date": "2026-10-17",
+      "practical_date_end": null,
+      "announce_date": "2026-10-30",
+      "practical_task": "연기(1분 내외), 특기(움직임, 노래, 무용 등 1분 내외). 실기고사 불참자는 불합격 처리. 1일 수용인원 초과 시 2일차 일요일까지 시행.",
+      "quota": "13명",
+      "fee": "35,000원",
+      "csat_minimum": null,
+      "documents": "첨부서류 제출기간 2026.10.02.(금) 18:00까지(해당자만 제출). 등기우편 발송 또는 방문제출. 서류제출처: (11618) 경기도 의정부시 서부로 545 경민대학교 효행관 2층 통합행정사무실 입학취업처. 모든 서류는 원본 제출, 서류 미제출 시 입학사정 대상에서 제외.",
+      "dress_code": null,
+      "preparation": null,
+      "designated_works": [],
+      "essay_questions": [],
+      "weights": {
+        "practical": 90,
+        "transcript": 10
+      },
+      "weights_note": "실기학과 - 학생부 100점(10%) + 실기 900점(90%) = 총점 1,000점. 학생부는 1~2학년 중 우수 2개 학기 전체 석차 등급 평균 적용, 진로선택과목 미반영.",
+      "stages": [],
+      "practical_items": [
+        {
+          "category": "free_acting",
+          "label": "연기",
+          "required": true,
+          "time_limit_sec": 60,
+          "count": 1,
+          "weight": null,
+          "stage": null,
+          "note": "1분 내외"
+        },
+        {
+          "category": "special",
+          "label": "특기",
+          "required": true,
+          "time_limit_sec": 60,
+          "count": 1,
+          "weight": null,
+          "stage": null,
+          "note": "움직임, 노래, 무용 등 1분 내외"
+        }
+      ],
+      "results": [
+        {
+          "year": 2026,
+          "quota": null,
+          "applicants": null,
+          "competition_rate": "2.5",
+          "transcript_avg": "5.4",
+          "transcript_cut70": null,
+          "fill_rate": null,
+          "waitlist_last": null,
+          "waitlist_count": null,
+          "source_url": "https://iphak.kyungmin.ac.kr:8081/assets/main/4c5c9dcdd9515058ae7ee55da5c8b056.pdf",
+          "verified_at": "2026-08-04",
+          "note": "2026학년도 수시 1차 일반전형 입시결과 - 경쟁률 2.5, 학생부 등급 최저 6.6 / 평균 5.4."
+        }
+      ],
+      "source_url": "https://iphak.kyungmin.ac.kr:8081/assets/main/4c5c9dcdd9515058ae7ee55da5c8b056.pdf",
+      "verified_at": "2026-08-04",
+      "note": "2027학년도 신입생 모집요강 기준(경민대 입학홈페이지 게시 PDF). 2년제, 입학정원 40명. 원서접수는 진학어플라이·유웨이어플라이·창구접수. 면접/실기고사 불참으로 인한 전형료 반환 불가. 대면 실기는 블라인드 원칙(수험생 개인정보 발설 금지)."
+    },
+    {
+      "id": "kyungmin-2027-susi2-acting",
+      "university_id": "kyungmin",
+      "department": "연기예술과",
+      "discipline": "acting",
+      "admission_year": 2027,
+      "track": "수시",
+      "screening": "수시 2차 정원내 일반전형(실기학과)",
+      "apply_start": "2026-11-11",
+      "apply_end": "2026-11-25",
+      "practical_date": "2026-12-05",
+      "practical_date_end": null,
+      "announce_date": "2026-12-17",
+      "practical_task": "연기(1분 내외), 특기(움직임, 노래, 무용 등 1분 내외). 실기고사 불참자는 불합격 처리. 1일 수용인원 초과 시 2일차 일요일까지 시행.",
+      "quota": "15명",
+      "fee": "35,000원",
+      "csat_minimum": null,
+      "documents": "첨부서류 제출기간 2026.11.27.(금) 18:00까지(해당자만 제출). 등기우편 발송 또는 방문제출.",
+      "dress_code": null,
+      "preparation": null,
+      "designated_works": [],
+      "essay_questions": [],
+      "weights": {
+        "practical": 90,
+        "transcript": 10
+      },
+      "weights_note": "실기학과 - 학생부 100점(10%) + 실기 900점(90%) = 총점 1,000점",
+      "stages": [],
+      "practical_items": [
+        {
+          "category": "free_acting",
+          "label": "연기",
+          "required": true,
+          "time_limit_sec": 60,
+          "count": 1,
+          "weight": null,
+          "stage": null,
+          "note": "1분 내외"
+        },
+        {
+          "category": "special",
+          "label": "특기",
+          "required": true,
+          "time_limit_sec": 60,
+          "count": 1,
+          "weight": null,
+          "stage": null,
+          "note": "움직임, 노래, 무용 등 1분 내외"
+        }
+      ],
+      "results": [
+        {
+          "year": 2026,
+          "quota": null,
+          "applicants": null,
+          "competition_rate": "3.4",
+          "transcript_avg": "5.4",
+          "transcript_cut70": null,
+          "fill_rate": null,
+          "waitlist_last": null,
+          "waitlist_count": null,
+          "source_url": "https://iphak.kyungmin.ac.kr:8081/assets/main/4c5c9dcdd9515058ae7ee55da5c8b056.pdf",
+          "verified_at": "2026-08-04",
+          "note": "2026학년도 수시 2차 일반전형 입시결과 - 경쟁률 3.4, 학생부 등급 최저 7.3 / 평균 5.4."
+        }
+      ],
+      "source_url": "https://iphak.kyungmin.ac.kr:8081/assets/main/4c5c9dcdd9515058ae7ee55da5c8b056.pdf",
+      "verified_at": "2026-08-04",
+      "note": "수시 1차 모집 이후 미충원 인원을 수시 2차에서 추가 선발(수시 1차 합격자 발표 후 미충원 인원 입학홈페이지 공지)."
+    },
+    {
+      "id": "kyungmin-2027-jeongsi-acting",
+      "university_id": "kyungmin",
+      "department": "연기예술과",
+      "discipline": "acting",
+      "admission_year": 2027,
+      "track": "정시",
+      "screening": "정시 정원내 일반전형(실기학과)",
+      "apply_start": "2027-01-04",
+      "apply_end": "2027-01-20",
+      "practical_date": "2027-01-23",
+      "practical_date_end": null,
+      "announce_date": "2027-02-05",
+      "practical_task": "연기(1분 내외), 특기(움직임, 노래, 무용 등 1분 내외). 실기고사 불참자는 불합격 처리. 1일 수용인원 초과 시 2일차 일요일까지 시행.",
+      "quota": "12명",
+      "fee": "35,000원",
+      "csat_minimum": null,
+      "documents": "첨부서류 제출기간 2027.01.21.(목) 18:00까지(해당자만 제출). 등기우편 발송 또는 방문제출.",
+      "dress_code": null,
+      "preparation": null,
+      "designated_works": [],
+      "essay_questions": [],
+      "weights": {
+        "practical": 90,
+        "transcript": 10
+      },
+      "weights_note": "정시 실기학과 - 학생부 100점(10%) + 실기 900점(90%) = 총점 1,000점 (수능 미반영, 수능 600점 반영은 면접/실기 미실시 학과에 한함)",
+      "stages": [],
+      "practical_items": [
+        {
+          "category": "free_acting",
+          "label": "연기",
+          "required": true,
+          "time_limit_sec": 60,
+          "count": 1,
+          "weight": null,
+          "stage": null,
+          "note": "1분 내외"
+        },
+        {
+          "category": "special",
+          "label": "특기",
+          "required": true,
+          "time_limit_sec": 60,
+          "count": 1,
+          "weight": null,
+          "stage": null,
+          "note": "움직임, 노래, 무용 등 1분 내외"
+        }
+      ],
+      "results": [
+        {
+          "year": 2026,
+          "quota": null,
+          "applicants": null,
+          "competition_rate": "3.9",
+          "transcript_avg": "5.3",
+          "transcript_cut70": null,
+          "fill_rate": null,
+          "waitlist_last": null,
+          "waitlist_count": null,
+          "source_url": "https://iphak.kyungmin.ac.kr:8081/assets/main/4c5c9dcdd9515058ae7ee55da5c8b056.pdf",
+          "verified_at": "2026-08-04",
+          "note": "2026학년도 정시 일반전형 입시결과 - 경쟁률 3.9, 학생부 등급 평균 5.3 / 최저 7.5. 실기학과라 수능 백분위는 미공개."
+        }
+      ],
+      "source_url": "https://iphak.kyungmin.ac.kr:8081/assets/main/4c5c9dcdd9515058ae7ee55da5c8b056.pdf",
+      "verified_at": "2026-08-04",
+      "note": "수시 모집 이후 미충원 인원을 정시에서 선발."
+    },
+    {
+      "id": "daejeon-2027-susi-acting",
+      "university_id": "daejeon",
+      "department": "공연예술영상콘텐츠학과",
+      "discipline": "acting",
+      "admission_year": 2027,
+      "track": "수시",
+      "screening": "실기위주전형",
+      "apply_start": "2026-09-07",
+      "apply_end": "2026-09-11",
+      "practical_date": "2026-10-02",
+      "practical_date_end": null,
+      "announce_date": "2026-11-16",
+      "practical_task": "연기(연극, 뮤지컬)트랙과 영상콘텐츠트랙 중 1개 과제 선택. [연기(연극, 뮤지컬)트랙] 대사연기 — 자유 연기, 3분 이내. [영상콘텐츠 트랙] 이야기(장면) 구성 — 제시된 예제로 이야기(장면) 구성, 3분 이내(고사 일주일 전 문항 사전 공개 예정). 실기고사 결시자 및 중도포기자는 불합격 처리.",
+      "quota": "15명",
+      "fee": "70,000원",
+      "csat_minimum": null,
+      "documents": null,
+      "dress_code": null,
+      "preparation": null,
+      "designated_works": [],
+      "essay_questions": [],
+      "weights": {
+        "practical": 100
+      },
+      "weights_note": "실기고사 100%(최고 1,000점 / 최저 0점), 학교생활기록부 미반영",
+      "stages": [],
+      "practical_items": [
+        {
+          "category": "free_acting",
+          "label": "대사연기(자유 연기) — 연기(연극, 뮤지컬)트랙",
+          "required": false,
+          "time_limit_sec": 180,
+          "count": 1,
+          "weight": null,
+          "stage": null,
+          "note": "연기트랙/영상콘텐츠트랙 중 1개 과제 선택"
+        },
+        {
+          "category": "audition_etc",
+          "label": "이야기(장면) 구성 — 영상콘텐츠 트랙",
+          "required": false,
+          "time_limit_sec": 180,
+          "count": 1,
+          "weight": null,
+          "stage": null,
+          "note": "제시된 예제로 이야기(장면) 구성. 고사 일주일 전 문항 사전 공개 예정"
+        }
+      ],
+      "results": [
+        {
+          "year": 2026,
+          "quota": 15,
+          "applicants": null,
+          "competition_rate": "2.8",
+          "transcript_avg": null,
+          "transcript_cut70": null,
+          "fill_rate": null,
+          "waitlist_last": 14,
+          "waitlist_count": null,
+          "source_url": "https://ipsi.dju.ac.kr/enter/html/rolling/guide.asp",
+          "verified_at": "2026-08-04",
+          "note": "2027학년도 수시모집요강 내 '2026학년도 신입학 수시모집 입시결과' 표(교과중점/실기위주 열). 대학이 공개한 항목은 모집 15, 경쟁률 2.8, 후보 14, 교과성적 80% 컷 9(등급). 70% 컷은 미공개."
+        }
+      ],
+      "source_url": "https://ipsi.dju.ac.kr/enter/html/rolling/guide.asp",
+      "verified_at": "2026-08-04",
+      "note": "2027학년도 대전대학교 수시모집요강 기준. 실기고사 2026.10.02.(금) 13:00, 본교 내 지정장소(실기고사 전 입학처 홈페이지 공지). 수능최저학력기준 미적용. 학과 입학정원 20명 중 실기위주 15명, 교과면접 5명. 정시모집에서는 실기 선발 없이 수능위주(가군) 수시 미충원 이월 인원만 선발."
     }
   ]
 }
