@@ -23,3 +23,6 @@ pnpm-debug.log*
 
 # 에이전트가 만드는 작업용 worktree (체크아웃 사본이라 통째로 무시한다)
 .claude/worktrees/
+
+# Playwright MCP가 만드는 세션 산출물(스크린샷·트레이스)
+.playwright-mcp/
