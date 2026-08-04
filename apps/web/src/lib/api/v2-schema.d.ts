@@ -536,6 +536,8 @@ export interface components {
             university_id: string;
             /** Department */
             department?: string | null;
+            /** Discipline */
+            discipline?: string | null;
             /** Admission Year */
             admission_year?: number | null;
             /** Track */
@@ -548,6 +550,10 @@ export interface components {
             apply_end?: string | null;
             /** Practical Date */
             practical_date?: string | null;
+            /** Practical Date End */
+            practical_date_end?: string | null;
+            /** Announce Date */
+            announce_date?: string | null;
             /** Practical Task */
             practical_task?: string | null;
             /** Quota */
@@ -560,6 +566,8 @@ export interface components {
             documents?: string | null;
             /** Dress Code */
             dress_code?: string | null;
+            /** Preparation */
+            preparation?: string | null;
             /**
              * Designated Works
              * @default []
@@ -570,6 +578,19 @@ export interface components {
              * @default []
              */
             essay_questions: string[];
+            weights?: components["schemas"]["AdmissionWeights"] | null;
+            /** Weights Note */
+            weights_note?: string | null;
+            /**
+             * Stages
+             * @default []
+             */
+            stages: components["schemas"]["AdmissionStage"][];
+            /**
+             * Practical Items
+             * @default []
+             */
+            practical_items: components["schemas"]["AdmissionPracticalItem"][];
             /**
              * Results
              * @default []
@@ -579,6 +600,31 @@ export interface components {
             source_url?: string | null;
             /** Verified At */
             verified_at?: string | null;
+            /** Note */
+            note?: string | null;
+        };
+        /**
+         * AdmissionPracticalItem
+         * @description 실기 종목 하나. 서술형 `practical_task`를 필터·비교용으로 쪼갠 것이다.
+         *
+         *     원문 서술이 정본이고 이쪽은 보조다 — 대학마다 실기 구성이 제각각이라
+         *     category로 다 담기지 않는 경우 `note`에 원문을 남긴다.
+         */
+        AdmissionPracticalItem: {
+            /** Category */
+            category: string;
+            /** Label */
+            label?: string | null;
+            /** Required */
+            required?: boolean | null;
+            /** Time Limit Sec */
+            time_limit_sec?: number | null;
+            /** Count */
+            count?: number | null;
+            /** Weight */
+            weight?: number | null;
+            /** Stage */
+            stage?: number | null;
             /** Note */
             note?: string | null;
         };
@@ -636,10 +682,35 @@ export interface components {
             fill_rate?: string | null;
             /** Waitlist Last */
             waitlist_last?: number | null;
+            /** Waitlist Count */
+            waitlist_count?: number | null;
             /** Source Url */
             source_url?: string | null;
             /** Verified At */
             verified_at?: string | null;
+            /** Note */
+            note?: string | null;
+        };
+        /**
+         * AdmissionStage
+         * @description 단계별 전형. 1차에서 몇 배수를 뽑는지가 지원 판단을 가른다.
+         */
+        AdmissionStage: {
+            /** Order */
+            order: number;
+            /** Name */
+            name: string;
+            /** Date */
+            date?: string | null;
+            /**
+             * Evaluates
+             * @default []
+             */
+            evaluates: string[];
+            /** Multiple */
+            multiple?: string | null;
+            /** Weight */
+            weight?: number | null;
             /** Note */
             note?: string | null;
         };
@@ -653,6 +724,10 @@ export interface components {
             admission_url: string;
             /** Region */
             region?: string | null;
+            /** Campus */
+            campus?: string | null;
+            /** Type */
+            type?: string | null;
             /** Verified At */
             verified_at?: string | null;
             /** Note */
@@ -662,6 +737,28 @@ export interface components {
              * @default []
              */
             resources: components["schemas"]["AdmissionResource"][];
+        };
+        /**
+         * AdmissionWeights
+         * @description 전형요소 반영비율(%). 원문에 숫자가 그대로 적힌 경우에만 채운다.
+         *
+         *     PDF 표를 텍스트로 뽑으면 행·열이 뒤엉켜 오독하기 쉬운데, 이 값이 틀리면
+         *     지원 전략을 통째로 그르친다. 판독이 조금이라도 애매하면 전부 None으로 두고
+         *     `AdmissionNotice.weights_note`에 원문 표기를 그대로 옮겨 적는다.
+         */
+        AdmissionWeights: {
+            /** Practical */
+            practical?: number | null;
+            /** Transcript */
+            transcript?: number | null;
+            /** Csat */
+            csat?: number | null;
+            /** Interview */
+            interview?: number | null;
+            /** Portfolio */
+            portfolio?: number | null;
+            /** Other */
+            other?: number | null;
         };
         /** AdmissionsResponse */
         AdmissionsResponse: {
