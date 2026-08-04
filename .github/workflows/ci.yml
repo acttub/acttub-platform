@@ -21,14 +21,14 @@ jobs:
     name: web (lint · typecheck · test · build)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # pnpm을 먼저 깔아야 setup-node의 cache:pnpm이 동작합니다.
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with:
           version: 11.1.2
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: pnpm
@@ -86,9 +86,10 @@ jobs:
           --health-timeout 5s
           --health-retries 5
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: astral-sh/setup-uv@v6
+      # setup-uv는 v8부터 메이저 별칭 태그(vN)를 두지 않습니다 — 정확한 버전으로 고정합니다.
+      - uses: astral-sh/setup-uv@v9.0.0
         with:
           python-version: "3.11"
           enable-cache: true
