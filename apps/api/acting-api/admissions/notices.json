@@ -971,10 +971,10 @@
       "apply_end": "2026-09-11",
       "practical_date": "2026-09-29",
       "practical_task": "1단계 2026-09-29 ~ (8배수 선발): 자유연기 100점(3분 이내, 국내외 희곡에서 본인이 자유롭게 발췌) + 특기 100점(춤·보컬·아크로바틱·움직임·악기 등). 1단계 성적은 2단계 대상자 선발에만 쓴다. 2단계 2026-10-30 ~ 10-31: 즉흥연기 350점(5분 이내, 상황과 대사는 당일 배포) + 지정연기 350점(아래 지정 작품에서 역할과 장면 선택). 총점 순으로 선발.",
-      "source_url": "https://ipsi.sejong.ac.kr/sub_page/sub1/0101.asp?tab1=1",
-      "verified_at": "2026-07-31",
+      "source_url": "https://ipsi.sejong.ac.kr/board/upload_file/pdf/202661010201044254.pdf",
+      "verified_at": "2026-08-04",
       "note": "2027학년도 수시 모집요강 PDF 33쪽(전형일정)·80쪽(실기우수자) 확인. 원서접수는 09.08 10시 ~ 09.11 18시. 전형요소 반영비율은 PDF 표 구조상 판독이 불확실해 싣지 않음 - 원문 확인 필요.",
-      "quota": "미확인 - 요강 표에서 판독 못 함",
+      "quota": "22명",
       "fee": "109,500원 (2단계 미선발 시 30,000원 환불)",
       "csat_minimum": "없음",
       "dress_code": "소품·의상·음악은 수험생이 직접 준비. 과도한 노출·헤어·메이크업 불가, 고사장 내 신발 착용 불가, 고사장 내 환복 금지, 별도 설치가 필요한 악기 사용 금지. 등받이 의자와 큐브 박스 각 1개만 있고 피아노는 없다.",
@@ -987,7 +987,102 @@
         "주노와 공작 — 숀 오케이시",
         "소 — 유치진"
       ],
-      "discipline": "acting"
+      "discipline": "acting",
+      "announce_date": "2026-11-06",
+      "practical_date_end": "2026-10-31",
+      "weights": {
+        "practical": 70,
+        "transcript": 30
+      },
+      "weights_note": "1단계(8배수) 실기고사 100% [전형총점 200점] / 2단계 실기고사 70% + 학교생활기록부(교과) 30% [전형총점 1,000점]. 1단계 성적은 2단계 대상자 선발 자료로만 활용함.",
+      "stages": [
+        {
+          "order": 1,
+          "name": "1단계 실기고사",
+          "date": "2026-09-29",
+          "evaluates": [
+            "free_acting",
+            "special"
+          ],
+          "multiple": "모집인원의 8배수",
+          "weight": 0,
+          "note": "요강 전형일정표에 '2026.09.29.(화) ~'까지만 인쇄되어 있고 종료일이 빠져 있음(33쪽·83쪽 동일). 고사장 발표 2026-09-22 17시 이후. 1단계 성적은 2단계 대상자 선발에만 활용."
+        },
+        {
+          "order": 2,
+          "name": "2단계 실기고사",
+          "date": "2026-10-30",
+          "evaluates": [
+            "improv",
+            "assigned_acting"
+          ],
+          "multiple": null,
+          "weight": 70,
+          "note": "2026-10-30 ~ 10-31. 1단계 합격자 발표 및 2단계 일정·장소 안내 2026-10-21 17시 이후. 전형총점 1,000점 = 실기 700점 + 학교생활기록부(교과) 300점."
+        }
+      ],
+      "practical_items": [
+        {
+          "category": "free_acting",
+          "label": "자유연기",
+          "required": true,
+          "time_limit_sec": 180,
+          "count": 1,
+          "weight": null,
+          "stage": 1,
+          "note": "배점 100점. 국내·외 희곡 작품 중 수험생 본인이 자유롭게 발췌한 작품과 장면 연기. 제한시간 3분 이내."
+        },
+        {
+          "category": "special",
+          "label": "특기",
+          "required": true,
+          "time_limit_sec": null,
+          "count": 1,
+          "weight": null,
+          "stage": 1,
+          "note": "배점 100점. 춤, 보컬(뮤지컬넘버), 아크로바틱, 움직임, 악기연주 등 연기와 관련된 특기. 요강에 제한시간 표기 없음."
+        },
+        {
+          "category": "improv",
+          "label": "즉흥연기",
+          "required": true,
+          "time_limit_sec": 300,
+          "count": 1,
+          "weight": null,
+          "stage": 2,
+          "note": "배점 350점. 시험 당일 제시하는 장면연기이며 상황과 대사는 당일 배포. 제한시간 5분 이내."
+        },
+        {
+          "category": "assigned_acting",
+          "label": "지정연기",
+          "required": true,
+          "time_limit_sec": 300,
+          "count": 1,
+          "weight": null,
+          "stage": 2,
+          "note": "배점 350점. 지정 작품에서 역할과 장면을 선택해 연기. 요강의 '제한시간 5분 이내' 표기가 즉흥연기·지정연기 두 행에 걸쳐 있어 지정연기에도 같은 시간이 적용되는지는 원문 재확인 필요."
+        }
+      ],
+      "preparation": "고사에 필요한 소품·의상·음악은 수험생이 직접 준비해야 함. 별도의 설치 과정이 필요한 악기는 사용 금지. 고사장에는 등받이 의자와 큐브 박스 각 1개만 있고 피아노는 없음. 고사 당일 사진이 인쇄된 수험표와 신분증(주민등록증·운전면허증·기간만료 전 여권·유효기간 내 청소년증·주민등록증 발급신청 확인서·사진이 부착된 학생증 중 택1) 지참.",
+      "documents": "학교생활기록부 온라인 제공 동의자는 제출서류 없음. 비동의자·불가자는 학교생활기록부 출력물 1부. 검정고시 출신자는 대입전형자료 온라인 제공 동의 시 없음, 비동의 시 합격증명서(대입전형용) 1부. 등기우편으로 2026-09-14 18시까지(09.14 소인 유효) 세종대 입학과 제출. 모든 제출서류는 2026-09-02 이후 발급분(국외고교 발행서류 제외).",
+      "results": [
+        {
+          "year": 2026,
+          "quota": 22,
+          "applicants": 1824,
+          "competition_rate": "82.91:1",
+          "transcript_avg": "4.87",
+          "transcript_cut70": "5.34",
+          "transcript_low": "6.20",
+          "fill_rate": "27.27%",
+          "waitlist_last": 6,
+          "waitlist_count": null,
+          "source_url": "https://ipsi.sejong.ac.kr/sub_page/sub5/0110_view.asp?tab1=5&B_CATEGORY=0&B_CODE=BOARD_1464103629&IDX=25",
+          "verified_at": "2026-08-04",
+          "note": "2026학년도 수시모집 입시결과 PDF 10쪽 '실기우수자 - 영화예술학과-연기예술'. 학생부 등급은 최종등록자 [진로선택 포함] 기준(최고 3.42 / 평균 4.87 / 50% 4.62 / 70% 5.34 / 최저 6.20). 최종등록 22명, 마지막 합격자 예비번호 6. 실기고사 성적은 총점 600점 만점에 최고 583.00 / 평균 500.95 / 최저 422.00."
+        }
+      ],
+      "essay_questions": []
     },
     {
       "id": "dongguk-2027-susi-practical",
@@ -1001,7 +1096,7 @@
       "practical_date": "2026-09-18",
       "practical_task": "단계별. 기초실기 2026-09-18 ~ 09-22 → 1단계 발표 2026-10-06 → 종합실기 2026-10-21 ~ 10-25. 1단계 기초실기 100%(7배수), 2단계 종합실기 70% + 학생부교과 20% + 출결 10%. 수능 최저학력기준 없음.",
       "source_url": "https://ipsi.dongguk.edu/upload/file/20260715140521FRWQXB.PDF",
-      "verified_at": "2026-07-31",
+      "verified_at": "2026-08-04",
       "note": "2027학년도 수시 모집요강 PDF 19·23·24·74쪽 확인. 모집 38명. 원서접수 09.09 10시 ~ 09.11 17시. 정시모집 없음.",
       "quota": "38명",
       "fee": "1단계 60,000원 + 2단계 25,000원 (미응시 환불: 기초실기 30,000원 / 종합실기 25,000원)",
@@ -1031,7 +1126,96 @@
           "transcript_low": "6.10"
         }
       ],
-      "discipline": "acting"
+      "discipline": "acting",
+      "announce_date": "2026-12-01",
+      "practical_date_end": "2026-10-25",
+      "weights": {
+        "practical": 70,
+        "transcript": 30
+      },
+      "weights_note": "1단계 기초실기 100%(7배수) / 2단계 종합실기 70%(700점) + 학생부교과 20%(200점) + 학생부출결 10%(100점), 전형총점 1,000점.",
+      "stages": [
+        {
+          "order": 1,
+          "name": "1단계 기초실기고사",
+          "date": "2026-09-18",
+          "evaluates": [
+            "free_acting"
+          ],
+          "multiple": "7배수",
+          "weight": 0,
+          "note": "2026-09-18 ~ 09-22. 응시시간 신청 2026-09-15 12~15시, 고사장 안내 2026-09-16, 1단계 합격자 발표 2026-10-06 예정. 기초실기 최고점 1,000점 / 기본점 500점, 실질반영비율 100%. 모든 대사와 노래는 한국어 사용(외국어 불가)."
+        },
+        {
+          "order": 2,
+          "name": "2단계 종합실기고사",
+          "date": "2026-10-21",
+          "evaluates": [
+            "assigned_acting",
+            "audition_etc",
+            "improv",
+            "special"
+          ],
+          "multiple": null,
+          "weight": 70,
+          "note": "2026-10-21 ~ 10-25. 2단계 전형료 납부 1단계 합격자 발표 이후 ~ 2026-10-08 16시, 응시시간 신청 2026-10-16, 고사장 안내 2026-10-19 예정. 종합실기 최고점 700점 / 기본점 350점. 모든 대사와 노래는 한국어 사용(외국어 불가)."
+        }
+      ],
+      "practical_items": [
+        {
+          "category": "free_acting",
+          "label": "기초실기고사",
+          "required": true,
+          "time_limit_sec": 120,
+          "count": 1,
+          "weight": 100,
+          "stage": 1,
+          "note": "연극 또는 뮤지컬 관련 작품 하나를 자유 선정하여 준비하고, 한 장면을 선택해 2분 이내로 실연. 대면 평가."
+        },
+        {
+          "category": "assigned_acting",
+          "label": "지정작품",
+          "required": true,
+          "time_limit_sec": 120,
+          "count": 1,
+          "weight": 25,
+          "stage": 2,
+          "note": "윌리엄 셰익스피어 / 헨릭 입센 / 프리드리히 뒤렌마트 / 아서 밀러 / 안톤 체홉 / 베르톨트 브레히트 작품 중 택1 후 한 장면을 2분 이내로 실연."
+        },
+        {
+          "category": "audition_etc",
+          "label": "작품이해력",
+          "required": true,
+          "time_limit_sec": null,
+          "count": 1,
+          "weight": 25,
+          "stage": 2,
+          "note": "지정작품의 실연을 통해 작품 분석 및 해석능력을 평가하거나 질의·응답을 통해 평가."
+        },
+        {
+          "category": "improv",
+          "label": "즉흥연기",
+          "required": true,
+          "time_limit_sec": 60,
+          "count": 1,
+          "weight": 25,
+          "stage": 2,
+          "note": "제시된 대사로부터 시작해서 1분 이내의 이야기를 구성하여 연기."
+        },
+        {
+          "category": "special",
+          "label": "특기",
+          "required": true,
+          "time_limit_sec": 120,
+          "count": 1,
+          "weight": 25,
+          "stage": 2,
+          "note": "지망 전공분야를 포함한 연극예술과 관련 있는 것으로 2분 이내 실연. 뮤지컬전공 지망자는 뮤지컬 작품 중 한 곡을 선정해 2분 이내로 노래. 특기로 연기하는 것은 지양."
+        }
+      ],
+      "documents": "학생부 온라인 제공자는 별도 제출 필요 없음. 온라인 제공 비동의자·불가자는 학교장 직인이 날인된 학교생활기록부 1부(2026-09-01 이후 발급분, 열람용 미인정). 검정고시 합격자·국외고 졸업(예정)자는 별도 안내 참조. 제출서류가 있는 경우 입학원서를 출력해 함께 우편 제출(방문 제출 불가), 원서접수 이후 ~ 2026-09-14 소인까지 유효, 서류도착 확인 2026-09-21.",
+      "designated_works": [],
+      "essay_questions": []
     },
     {
       "id": "dongguk-2027-susi-talent",
@@ -1045,7 +1229,7 @@
       "practical_date": "2026-10-21",
       "practical_task": "일괄. 실기고사 2026-10-21 ~ 10-25. 실기 40% + 실적평가 + 학생부교과 20% + 출결 10%. 연극·뮤지컬·영화·방송 주·조연급 경력자 대상. 수능 최저학력기준 없음.",
       "source_url": "https://ipsi.dongguk.edu/upload/file/20260715140521FRWQXB.PDF",
-      "verified_at": "2026-07-31",
+      "verified_at": "2026-08-04",
       "note": "2027학년도 수시 모집요강 PDF 19·23·77쪽 확인. 모집 2명. 경력 요건이 있어 지원자격을 원문에서 반드시 확인해야 한다.",
       "quota": "2명",
       "fee": "100,000원 (미응시 환불 25,000원)",
@@ -1074,7 +1258,62 @@
           "transcript_low": "5.30"
         }
       ],
-      "discipline": "acting"
+      "discipline": "acting",
+      "announce_date": "2026-12-01",
+      "practical_date_end": "2026-10-25",
+      "weights": {
+        "practical": 40,
+        "other": 30,
+        "transcript": 30
+      },
+      "weights_note": "일괄합산 — 실기 40%(400점) + 실적평가 30%(300점) + 학생부교과 20%(200점) + 학생부출결 10%(100점), 전형총점 1,000점. 실적평가는 개인수상 33.3% + 작품상 33.3% + 출연실적 33.3%이며, 원서접수 마감일 기준 최근 3년 이내 실적만 인정.",
+      "stages": [],
+      "practical_items": [
+        {
+          "category": "assigned_acting",
+          "label": "선택작품 자유연기",
+          "required": true,
+          "time_limit_sec": 120,
+          "count": 1,
+          "weight": 25,
+          "stage": null,
+          "note": "윌리엄 셰익스피어 / 헨릭 입센 / 프리드리히 뒤렌마트 / 아서 밀러 / 안톤 체홉 / 베르톨트 브레히트 작품 중 택1 후 한 장면을 2분 이내로 실연. 요강 표기는 '선택작품 자유연기'이나 작가가 지정돼 있어 지정연기로 분류함."
+        },
+        {
+          "category": "audition_etc",
+          "label": "작품이해력",
+          "required": true,
+          "time_limit_sec": null,
+          "count": 1,
+          "weight": 25,
+          "stage": null,
+          "note": "지정작품의 실연을 통해 작품 분석 및 해석능력을 평가하거나 질의·응답을 통해 평가."
+        },
+        {
+          "category": "improv",
+          "label": "즉흥연기",
+          "required": true,
+          "time_limit_sec": 60,
+          "count": 1,
+          "weight": 25,
+          "stage": null,
+          "note": "제시된 대사로부터 시작해서 1분 이내의 이야기를 구성하여 연기."
+        },
+        {
+          "category": "special",
+          "label": "특기",
+          "required": true,
+          "time_limit_sec": 120,
+          "count": 1,
+          "weight": 25,
+          "stage": null,
+          "note": "지망 전공분야를 포함한 연극예술과 관련 있는 것으로 2분 이내 실연. 뮤지컬전공 지망자는 뮤지컬 작품 중 한 곡을 선정해 2분 이내로 노래. 특기로 연기하는 것은 지양. 실기 작품의 모든 대사와 노래는 한국어 사용(외국어 불가)."
+        }
+      ],
+      "documents": "입학원서(원서접수 후 출력) + 실적증명서류 필수: 활동실적 총괄표(원서접수 후 출력), 출연실적 확인서(대학 소정서식에 주최기관 직인), 수상실적 확인서(해당자). 학생부 온라인 제공 비동의자·불가자는 학교장 직인이 날인된 학교생활기록부 1부(2026-09-01 이후 발급분). 우편 제출(방문 제출 불가), 원서접수 이후 ~ 2026-09-14 소인까지 유효, 서류도착 확인 2026-09-21.",
+      "preparation": "실기고사 응시시간을 수험생이 직접 신청(2026-10-16 12~15시 예정, 선착순·변경 불가). 고사장 안내 2026-10-19 예정.",
+      "designated_works": [],
+      "essay_questions": []
     },
     {
       "id": "skku-2027-susi-acting",
@@ -1087,8 +1326,8 @@
       "apply_end": "2026-09-11",
       "practical_date": "2026-10-02",
       "practical_task": "단계별. 1단계 기초연기역량평가 2026-10-02 ~ 10-05 (실기 100%, 6배수 내외) → 2단계 전공적성평가 2026-10-17 ~ 10-18 (학생부 40 + 실기 60). 대상자 발표 1단계 09-29, 2단계 10-13.",
-      "source_url": "https://admission.skku.edu/admission/html/rolling/guide.html",
-      "verified_at": "2026-07-31",
+      "source_url": "https://admission.skku.edu/upload/guide/202608041325539NC76S.pdf",
+      "verified_at": "2026-08-04",
       "note": "2027학년도 수시 모집요강 PDF 10·50·51쪽 확인. 모집 20명. 원서접수 09.08 10시 ~ 09.11 18시. 기출 문항은 입학처 question.html 참고.",
       "quota": "20명",
       "fee": "100,000원 (1단계 불합격 시 40,000원 반환)",
@@ -1104,7 +1343,77 @@
           "note": "성균관대는 실기/실적 전형을 학과별로 쪼개 공개하지 않는다. 예체능 특기자·실기우수자 전형 전체 수치이므로 연기예술학과만의 경쟁률이 아니다."
         }
       ],
-      "discipline": "acting"
+      "discipline": "acting",
+      "announce_date": "2026-12-18",
+      "practical_date_end": "2026-10-18",
+      "csat_minimum": "없음",
+      "weights": {
+        "practical": 60,
+        "transcript": 40
+      },
+      "weights_note": "1단계 실기시험(기초연기역량평가) 100 / 2단계 학생부 40 + 실기시험(전공적성평가) 60, 전형총점 1,000점.",
+      "stages": [
+        {
+          "order": 1,
+          "name": "1단계 기초연기역량평가",
+          "date": "2026-10-02",
+          "evaluates": [
+            "free_acting"
+          ],
+          "multiple": "모집인원의 6배수 내외",
+          "weight": 0,
+          "note": "2026-10-02 ~ 10-05, 지원자 전원 응시. 시험장 및 시험시간 발표 2026-09-29. 수험생별 시험 일자·시간은 무작위로 배정될 수 있고 지정 일시에 응시하지 않으면 결시(불합격) 처리."
+        },
+        {
+          "order": 2,
+          "name": "2단계 전공적성평가",
+          "date": "2026-10-17",
+          "evaluates": [
+            "assigned_acting",
+            "special"
+          ],
+          "multiple": null,
+          "weight": 60,
+          "note": "2026-10-17 ~ 10-18, 1단계 합격자 대상. 시험장 및 대상자 발표 2026-10-13. 시험 내용 전체가 5분 내외이며 간단한 즉흥연기나 질의응답이 진행될 수 있음."
+        }
+      ],
+      "practical_items": [
+        {
+          "category": "free_acting",
+          "label": "자유연기",
+          "required": true,
+          "time_limit_sec": 120,
+          "count": 1,
+          "weight": null,
+          "stage": 1,
+          "note": "각자 준비한 자유연기 실연, 2분 이내(간단한 인터뷰를 실시할 수 있음). 연기 실연 1분 후 평가위원이 중지를 명할 수 있음."
+        },
+        {
+          "category": "assigned_acting",
+          "label": "지정 대사 연기",
+          "required": true,
+          "time_limit_sec": null,
+          "count": 1,
+          "weight": null,
+          "stage": 2,
+          "note": "시험 당일 주어지는 대사를 연기와 함께 실연. 특기 실연과 합쳐 2단계 시험 내용 전체가 5분 내외라 종목별 제한시간은 원문에 없음."
+        },
+        {
+          "category": "special",
+          "label": "특기 실연",
+          "required": true,
+          "time_limit_sec": null,
+          "count": 1,
+          "weight": null,
+          "stage": 2,
+          "note": "2단계 전공적성평가의 특기 발표. 음향 또는 음악 사용 가능(개인 준비). 종목별 제한시간은 원문에 없고 2단계 전체가 5분 내외."
+        }
+      ],
+      "dress_code": "특수한 의상·분장·소품·장신구(귀걸이·목걸이·팔찌 등) 일절 불허. 의상은 간편한 평상복(연습복·트레이닝복 가능, 레오타드·풀치마 불가). 실기시험 진행 시 맨발 또는 재즈화 착용 가능(하이힐·부츠 등 굽이 높은 신발 금지). 기본 메이크업만 허용(마스카라·립스틱 및 과도한 메이크업·헤어스타일 금지).",
+      "preparation": "수험표, 신분증, 실기시험 수행이 가능한 복장. 2단계(전공적성평가) 특기 발표에 음향·음악을 쓰려면 본인이 준비해 USB에 재생 가능한 형식(MP3 등)으로 저장한 뒤 시험 당일 제출(제출 전 음향기기에서 작동되는지 확인 필수, 미작동 시 본인 책임).",
+      "documents": "없음",
+      "designated_works": [],
+      "essay_questions": []
     },
     {
       "id": "konkuk-2027-susi-acting",
@@ -1116,9 +1425,9 @@
       "apply_start": "2026-09-08",
       "apply_end": "2026-09-11",
       "practical_date": "2026-11-03",
-      "practical_task": "자유연기 [대면] 인물이나 상황을 자유롭게 설정, 3분 이내 (연습 20분 이내). 선택으로 특기 실연 1분 이내. 평가는 표현력 40% + 이해력 30% 등. 1단계 학생부(교과정량) 100%로 20배수 → 2단계 실기 100%. 실기 2026-11-03 ~ 11-05.",
+      "practical_task": "자유연기 [대면] 인물이나 상황을 자유롭게 설정하여 연기, 3분 이내(연습 20분 이내). 특기실연 [대면](선택) 연기 이외에 본인이 가진 예술적 특기를 실연, 1분 이내. 특기실연을 하는 경우 자유연기 → 특기실연 순으로 소요 시간 내에서 구성해 이어서 진행하며, 각 종목 시작 전 '자유연기(특기실연) 시작하겠습니다.' 발언 후 진행. 실기 평가요소는 표현력 40% + 창의력 30% + 이해력 30%. 1단계 학생부(교과정량) 100%로 20배수 → 2단계 실기 100%. 실기 2026-11-03 ~ 11-05.",
       "source_url": "https://admission.konkuk.ac.kr/admission/37859/subview.do",
-      "verified_at": "2026-07-31",
+      "verified_at": "2026-08-04",
       "note": "2027학년도 수시 모집요강 PDF 11·23·51·52쪽 확인. 모집 15명. 원서접수 09.08 10시 ~ 09.11 17시, 서류제출 09.15까지. 1단계 발표 10-22, 최초합격 12-18.",
       "quota": "15명",
       "fee": "95,000원 (1단계 불합격 시 20,000원 환불)",
@@ -1132,7 +1441,60 @@
           "note": "건국대는 2026학년도 입시결과에 실기/실적 전형을 싣지 않았다. 학생부위주·논술 전형만 공개한다."
         }
       ],
-      "discipline": "acting"
+      "discipline": "acting",
+      "announce_date": "2026-12-18",
+      "practical_date_end": "2026-11-05",
+      "weights": {
+        "practical": 100
+      },
+      "weights_note": "1단계 학생부(교과정량) 1,000점 100%(20배수) / 2단계 실기 1,000점 100%. 실기 평가요소는 표현력 40% + 창의력 30% + 이해력 30%.",
+      "stages": [
+        {
+          "order": 1,
+          "name": "1단계 학생부(교과정량)",
+          "date": null,
+          "evaluates": [],
+          "multiple": "20배수",
+          "weight": 0,
+          "note": "실기고사 없이 학생부(교과정량) 1,000점 100% 석차순으로 모집인원의 20배수 선발. 1단계 합격자 발표 2026-10-22 14시 예정. 1단계 성적은 2단계에 반영하지 않음."
+        },
+        {
+          "order": 2,
+          "name": "2단계 실기",
+          "date": "2026-11-03",
+          "evaluates": [
+            "free_acting",
+            "special"
+          ],
+          "multiple": null,
+          "weight": 100,
+          "note": "2026-11-03 ~ 11-05. 실기 1,000점 100% 총점 석차순으로 최종 선발. 고사장 및 입실완료 시간은 고사 3~4일 전 입학처 홈페이지 공고."
+        }
+      ],
+      "practical_items": [
+        {
+          "category": "free_acting",
+          "label": "자유연기 [대면]",
+          "required": true,
+          "time_limit_sec": 180,
+          "count": 1,
+          "weight": null,
+          "stage": 2,
+          "note": "인물이나 상황을 자유롭게 설정하여 연기. 소요 시간 3분 이내, 연습 시간 20분 이내."
+        },
+        {
+          "category": "special",
+          "label": "특기실연 [대면] (선택)",
+          "required": false,
+          "time_limit_sec": 60,
+          "count": 1,
+          "weight": null,
+          "stage": 2,
+          "note": "연기 이외에 본인이 가진 예술적 특기를 실연, 1분 이내. 선택 종목이며 진행 시 자유연기 → 특기실연 순으로 이어서 진행. 각 종목 시작 전 '자유연기(특기실연) 시작하겠습니다.' 발언 후 진행."
+        }
+      ],
+      "designated_works": [],
+      "essay_questions": []
     },
     {
       "id": "cau-2027-susi-practical",
@@ -1162,7 +1524,7 @@
       "practical_date": "2026-10-03",
       "practical_task": "보컬 2026-10-03 ~ 10-06: 뮤지컬 넘버 중 자유곡 1곡 + 지정곡 1곡, 특기(연기 또는 안무). 댄스 2026-10-17 ~ 10-18: 뮤지컬 넘버 중 자유곡 1곡 + 자유 안무. 학생부(교과)·출결·실기 합산 총점 순으로 선발. 실기고사는 자연캠퍼스(용인)에서 진행.",
       "source_url": "https://iphak.mju.ac.kr/pages/?p=10&mj=01",
-      "verified_at": "2026-07-31",
+      "verified_at": "2026-08-04",
       "note": "2027학년도 수시 모집요강 PDF 84쪽 확인. 모집 보컬 10명·댄스 10명. 원서접수 09.07 10시 ~ 09.11 17시, 서류제출 09.14까지. 고사장 발표 09.29, 합격자 발표 12.09. 영화전공(연기·연출 트랙)은 특기자전형 소관이라 별도 확인 필요.",
       "quota": "보컬 10명 · 댄스 10명",
       "fee": "80,000원",
@@ -1202,7 +1564,70 @@
           "transcript_low": "7.80"
         }
       ],
-      "discipline": "musical"
+      "discipline": "musical",
+      "practical_date_end": "2026-10-18",
+      "announce_date": "2026-12-09",
+      "weights": {
+        "practical": 70,
+        "transcript": 20,
+        "other": 10
+      },
+      "weights_note": "일괄합산 - 실기 70%, 학생부(교과) 20%, 출결 10%. 총점 1,000점(최저/최고점 0/1,000점). 학생부(교과) 성적·출결·실기고사 성적을 합산한 전형 총점 순으로 합격자 선발.",
+      "stages": [],
+      "practical_items": [
+        {
+          "category": "song",
+          "label": "자유곡(뮤지컬 넘버)",
+          "required": true,
+          "time_limit_sec": null,
+          "count": 1,
+          "weight": null,
+          "stage": null,
+          "note": "[보컬] 뮤지컬 넘버 중 자유곡 1곡. 보컬 실기고사 2026-10-03 ~ 10-06."
+        },
+        {
+          "category": "song",
+          "label": "지정곡",
+          "required": true,
+          "time_limit_sec": null,
+          "count": 1,
+          "weight": null,
+          "stage": null,
+          "note": "[보컬] 지정곡 1곡. 지정곡 MR은 고사 당일 학교에서 제공하고 키 변경 불가, 한글 가사로 불러야 한다(입학처 홈페이지 수시 공지사항의 MR·악보 참조)."
+        },
+        {
+          "category": "special",
+          "label": "특기(연기 또는 안무 등)",
+          "required": true,
+          "time_limit_sec": null,
+          "count": null,
+          "weight": null,
+          "stage": null,
+          "note": "[보컬] 특기: 연기 또는 안무 등."
+        },
+        {
+          "category": "song",
+          "label": "자유곡(뮤지컬 넘버)",
+          "required": true,
+          "time_limit_sec": null,
+          "count": 1,
+          "weight": null,
+          "stage": null,
+          "note": "[댄스] 뮤지컬 넘버 중 자유곡 1곡. 댄스 실기고사 2026-10-17 ~ 10-18."
+        },
+        {
+          "category": "dance",
+          "label": "자유 안무",
+          "required": true,
+          "time_limit_sec": null,
+          "count": null,
+          "weight": null,
+          "stage": null,
+          "note": "[댄스] 자유 안무."
+        }
+      ],
+      "preparation": "노래 반주곡(MR)은 확장자를 .mp3로 하여 USB에 저장해 고사 당일 제출한다(스마트폰·MP3플레이어·CD 등 사용 불가). 제출한 MR이 재생 불가하면 무반주로 고사를 진행한다. 보컬 지정곡 MR은 고사 당일 학교에서 제공하며 키 변경이 불가하고 한글 가사로 불러야 한다(MR·악보는 입학처 홈페이지 수시 공지사항 참조).",
+      "essay_questions": []
     },
     {
       "id": "karts-2027-drama-acting",
@@ -1216,7 +1641,7 @@
       "practical_date": "2026-08-04",
       "practical_task": "1차 2026-08-04 ~ 08-07: 자유롭게 준비한 독백 1개(1~2분 이내) + 노래 또는 움직임(1분 이내, MR·반주 없이 - 노래는 8마디 이상). 연기 70 + 고교 내신 30. 1차 발표 08-18. 2차 2026-08-25 ~ 08-28: 입시 지정 희곡 중 준비한 독백(1차와 다른 것) 40 + 당일 제시되는 1분 대사를 20~30분 연습 후 연기 40 + 노래 또는 움직임(MR 사용 가능) + 글쓰기(원고지 1,000자 이내, 100분)·구술 20. 화장 금지, 위험한 소품 불가, 무채색 무늬 없는 티셔츠·바지 착용.",
       "source_url": "https://www.karts.ac.kr/cmm/fms/FileDown.do?atchFileId=FILE_000000000162048&fileSn=0&accAt=&bbsId=00000000000000000000",
-      "verified_at": "2026-07-31",
+      "verified_at": "2026-08-04",
       "note": "2027학년도 예술사(대학) 정원내 모집요강 PDF 6·21쪽 확인. 모집 37명(남녀 통합). 원서접수는 진학어플라이 인터넷 접수만 가능하고 마감일 18시까지. 최종합격 발표 2026-09-08. 수시·정시가 아니라 한예종 자체 일정이다.",
       "quota": "37명 (남녀 통합)",
       "fee": "1차 93,000원 + 2차 85,000원 (각 수수료 6,000원 별도)",
@@ -1239,7 +1664,145 @@
         "가장 인상 깊었던 공연 또는 책을 선택하여, 그 작품이 당신에게 어떤 질문을 남겼는지 서술하시오.",
         "당신이 생각하는 연극의 역할과 그것이 당신에게 갖는 의미를 서술하시오."
       ],
-      "discipline": "acting"
+      "discipline": "acting",
+      "practical_date_end": "2026-08-28",
+      "announce_date": "2026-09-08",
+      "weights_note": "1차: 연기자의 연기 능력 평가 70 + 고교 내신성적 30. 2차(배점 100): 준비한 독백 연기 40 + [제시된 독백 연기·노래 또는 움직임] 40 + 글쓰기 및 구술시험 20. 1차와 2차 성적을 어떤 비율로 합산하는지는 모집요강에 나와 있지 않다.",
+      "stages": [
+        {
+          "order": 1,
+          "name": "1차시험",
+          "date": "2026-08-04",
+          "evaluates": [
+            "free_acting",
+            "song",
+            "movement",
+            "interview"
+          ],
+          "multiple": null,
+          "weight": null,
+          "note": "1차시험 기간 2026-08-04(화) ~ 08-07(금), 세부 시간표는 2026-07-29(수) 17:00 공지. 배점은 연기 능력 평가 70 + 고교 내신성적 30. 1차 합격자 발표 2026-08-18(화) 17:00. 1차 합격자는 발표 직후 ~ 08-19(수) 18:00에 2차 원서접수를 마쳐야 2차 응시가 가능하다. 선발배수는 요강에 공개되지 않았다."
+        },
+        {
+          "order": 2,
+          "name": "2차시험",
+          "date": "2026-08-25",
+          "evaluates": [
+            "assigned_acting",
+            "song",
+            "movement",
+            "essay",
+            "interview"
+          ],
+          "multiple": null,
+          "weight": null,
+          "note": "2차시험 기간 2026-08-25(화) ~ 08-28(금), 시간표는 2026-08-19(수) 15:00 공지. 배점 합계 100. 2차시험은 1차 합격자에 한해 실시한다. 최종합격자 발표 2026-09-08(화) 17:00."
+        }
+      ],
+      "practical_items": [
+        {
+          "category": "free_acting",
+          "label": "자유롭게 준비한 독백 연기",
+          "required": true,
+          "time_limit_sec": 120,
+          "count": 1,
+          "weight": null,
+          "stage": 1,
+          "note": "1~2분 이내. '연기자의 연기 능력 평가'(배점 70)에 포함된다."
+        },
+        {
+          "category": "song",
+          "label": "노래",
+          "required": false,
+          "time_limit_sec": 60,
+          "count": 1,
+          "weight": null,
+          "stage": 1,
+          "note": "노래·움직임 중 택1, 1분 이내. MR이나 반주음악 없이 뮤지컬·가곡·판소리 등 8마디 이상. '연기 능력 평가'(배점 70)에 포함."
+        },
+        {
+          "category": "movement",
+          "label": "움직임",
+          "required": false,
+          "time_limit_sec": 60,
+          "count": 1,
+          "weight": null,
+          "stage": 1,
+          "note": "노래·움직임 중 택1, 1분 이내. MR이나 반주음악 없이 자유로운 주제로 신체 능력을 표현(위험한 동작 지양). '연기 능력 평가'(배점 70)에 포함."
+        },
+        {
+          "category": "interview",
+          "label": "질의·응답",
+          "required": true,
+          "time_limit_sec": null,
+          "count": null,
+          "weight": null,
+          "stage": 1,
+          "note": "시험에 관한 전반적 질의·응답이 1차 연기 능력 평가에 포함된다."
+        },
+        {
+          "category": "assigned_acting",
+          "label": "준비한 독백 연기(입시 지정 희곡)",
+          "required": true,
+          "time_limit_sec": 120,
+          "count": 1,
+          "weight": 40,
+          "stage": 2,
+          "note": "입시 지정 희곡 중 '연기과 추가 희곡'만 해당하고 '공통 희곡'은 제외한다. 1차 시험의 독백과 다른 독백, 1~2분 이내."
+        },
+        {
+          "category": "assigned_acting",
+          "label": "제시된 독백 연기",
+          "required": true,
+          "time_limit_sec": null,
+          "count": 1,
+          "weight": null,
+          "stage": 2,
+          "note": "시험 당일 학교에서 제시하는 1분 정도의 대사를 20~30분 연습한 후 연기한다. 배점표에서 '노래 또는 움직임'과 한 칸으로 묶여 합계 40이다."
+        },
+        {
+          "category": "song",
+          "label": "노래",
+          "required": false,
+          "time_limit_sec": 60,
+          "count": 1,
+          "weight": null,
+          "stage": 2,
+          "note": "노래·움직임 중 택1. 뮤지컬·가곡·판소리 등 8마디 이상을 1분 이내로 실연하며 MR·반주음악 사용 가능. '제시된 독백 연기'와 묶여 배점 40."
+        },
+        {
+          "category": "movement",
+          "label": "움직임",
+          "required": false,
+          "time_limit_sec": 60,
+          "count": 1,
+          "weight": null,
+          "stage": 2,
+          "note": "노래·움직임 중 택1. 자유로운 주제로 신체 능력을 1분 이내로 표현하며 MR·반주음악 사용 가능(위험한 동작 지양). '제시된 독백 연기'와 묶여 배점 40."
+        },
+        {
+          "category": "essay",
+          "label": "글쓰기",
+          "required": true,
+          "time_limit_sec": 6000,
+          "count": 1,
+          "weight": null,
+          "stage": 2,
+          "note": "시험 당일 제시되는 주제에 대해 자신의 생각과 느낌을 원고지 1,000자 이내로 작성, 시험시간 100분. 구술시험과 별도로 배점하지 않고 합쳐 20."
+        },
+        {
+          "category": "interview",
+          "label": "구술시험",
+          "required": true,
+          "time_limit_sec": null,
+          "count": null,
+          "weight": null,
+          "stage": 2,
+          "note": "입시 지정 희곡(공통 희곡·연기과 추가 희곡 모두 포함)의 내용과 1·2차 시험 결과를 바탕으로 묻는 말에 답한다. 글쓰기와 별도 배점 없이 구술시험 시 종합 채점하며 합계 20."
+        }
+      ],
+      "preparation": "필기도구(흑·청색 볼펜 또는 만년필)를 개인 지참한다. 1차 노래·움직임은 MR이나 반주음악을 쓸 수 없고, 2차 노래·움직임은 MR·반주음악 사용이 가능하다. 위험한 소품은 사용할 수 없다.",
+      "results": []
     },
     {
       "id": "kyonggi-2027-susi-acting",
@@ -1252,7 +1815,7 @@
       "apply_end": "2026-09-11",
       "practical_date": "2026-10-02",
       "practical_task": "단계별. 1단계 2026-10-02 ~ 10-05 (실기 100%, 7배수): 자유연기 — 수험생이 준비, 장르 구분 없음, 1분 30초 이내. 1단계 발표 10-07. 2단계 2026-10-10: 종합연기(지정연기 + 자유연기), 각 1분 30초 이내. 지정연기는 테네시 윌리엄스 作 / 김소임 역 「뜨거운 양철 지붕 위의 고양이」(민음사)에서 출제된 대사 중 고사 당일 추첨으로 정해진다. 2단계는 실기 70% + 학생부교과 30%.",
-      "quota": "예능실기우수자전형 전체 158명 (연기학과 인원은 원문 확인 필요)",
+      "quota": "16명",
       "fee": "90,000원",
       "csat_minimum": "없음",
       "documents": "인터넷으로만 접수. 원본서류는 2026-09-15 17시까지 방문 또는 우편 제출.",
@@ -1260,8 +1823,8 @@
       "designated_works": [
         "뜨거운 양철 지붕 위의 고양이 — 테네시 윌리엄스 (김소임 역, 민음사)"
       ],
-      "source_url": "https://enter.kyonggi.ac.kr/cms/FR_CON/index.do?MENU_ID=140",
-      "verified_at": "2026-08-01",
+      "source_url": "https://enter.kyonggi.ac.kr/cms/FR_CON/index.do?MENU_ID=120",
+      "verified_at": "2026-08-04",
       "note": "2027학년도 수시 모집요강 PDF 31·32·17·63쪽 확인. 실기고사는 수원캠퍼스에서 치른다. 합격자는 개별 통보하지 않고 입학처 홈페이지로만 조회한다.",
       "results": [
         {
@@ -1283,7 +1846,73 @@
           "note": "모집요강 PDF 93쪽. 실기 만점은 100점 기준이고 최초합격자 실기 평균은 81.234였다. 최초합격자 학생부는 최고 2.774·평균 4.609였다."
         }
       ],
-      "discipline": "acting"
+      "discipline": "acting",
+      "practical_date_end": "2026-10-10",
+      "announce_date": "2026-11-20",
+      "weights": {
+        "practical": 70,
+        "transcript": 30
+      },
+      "weights_note": "1단계(7배수) 실기 100%(100점), 학교생활기록부 미반영. 2단계 실기 70%(70점) + 학교생활기록부(교과) 30%(30점), 합계 100%(100점). 위 weights 숫자는 2단계(최종) 기준이다.",
+      "stages": [
+        {
+          "order": 1,
+          "name": "1단계 실기고사",
+          "date": "2026-10-02",
+          "evaluates": [
+            "free_acting"
+          ],
+          "multiple": "7배수",
+          "weight": null,
+          "note": "1단계 실기고사 2026-10-02(금) ~ 10-05(월). 실기 100%(100점)로 모집인원의 7배수를 선발하고 학교생활기록부는 반영하지 않는다. 1단계 합격자 발표 2026-10-07(수), 개별통보 없이 입학처 홈페이지에서만 조회. 1단계 동점자는 전원 선발. 1단계 성적이 최종 총점에 얼마나 반영되는지는 요강에 명시되어 있지 않다."
+        },
+        {
+          "order": 2,
+          "name": "2단계 실기고사",
+          "date": "2026-10-10",
+          "evaluates": [
+            "assigned_acting",
+            "free_acting"
+          ],
+          "multiple": null,
+          "weight": null,
+          "note": "2단계 실기고사 2026-10-10(토). 실기유형은 종합연기(지정연기 + 자유연기). 실기 70%(70점) + 학교생활기록부(교과) 30%(30점). 2단계 동점자 처리 기준은 '실기고사 성적(2단계 실기성적 → 1단계 실기성적) → 학교생활기록부 성적' 순."
+        }
+      ],
+      "practical_items": [
+        {
+          "category": "free_acting",
+          "label": "자유연기",
+          "required": true,
+          "time_limit_sec": 90,
+          "count": 1,
+          "weight": null,
+          "stage": 1,
+          "note": "자유연기를 수험생이 준비하여 연기한다. 장르의 구분 없음. 시험시간 1분 30초 이내."
+        },
+        {
+          "category": "assigned_acting",
+          "label": "지정연기",
+          "required": true,
+          "time_limit_sec": 90,
+          "count": 1,
+          "weight": null,
+          "stage": 2,
+          "note": "종합연기의 일부. 테네시 윌리엄스 作 / 김소임 역 「뜨거운 양철 지붕위의 고양이」(민음사)에서 출제된 대사 중 고사 당일 추첨에 의해 선정된 대사를 연기한다. 시험시간 각 1분 30초 이내."
+        },
+        {
+          "category": "free_acting",
+          "label": "자유연기",
+          "required": true,
+          "time_limit_sec": 90,
+          "count": 1,
+          "weight": null,
+          "stage": 2,
+          "note": "종합연기의 일부. 장르 구분 없음. 시험시간 각 1분 30초 이내."
+        }
+      ],
+      "preparation": "개인 준비물은 평상복·트레이닝복·연습복·풀치마와 소품(위험한 대도구는 불가)이다. 학교는 등받이 있는 의자와 등받이 없는 의자를 제공한다. 무대복, 분장(기초화장 포함), 신발(맨발 연기만 허용), MR·배경음악은 금지.",
+      "essay_questions": []
     },
     {
       "id": "daejin-2027-susi-acting",
