@@ -33,6 +33,9 @@ class GatewaySettings:
     keep_alive_url: str | None = None
     keep_alive_interval_sec: int = DEFAULT_KEEP_ALIVE_INTERVAL_SEC
     s3_bucket: str | None = None
+    # 자격증명은 boto3 기본 체인이 환경변수에서 직접 읽는다. 이 두 필드는 클라이언트
+    # 생성에 쓰이지 않지만, 반쪽 설정을 걸러내고 "키를 줘도 코드가 넘기지 않는다"를
+    # 테스트로 붙잡아 두기 위해 남긴다. 지우면 그 회귀 방어가 함께 사라진다.
     aws_access_key_id: str | None = None
     aws_secret_access_key: str | None = None
     aws_region: str | None = None
