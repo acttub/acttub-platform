@@ -5,8 +5,8 @@
   "scripts": {
     "dev": "next dev --hostname 127.0.0.1",
     "dev:lan": "next dev --hostname ${DEV_HOST:?맥의 LAN IP가 필요해요 (예: DEV_HOST=172.16.103.192)}",
-    "build": "BUILD_STATIC=1 next build",
-    "build:server": "next build",
+    "build": "next build",
+    "start": "next start",
     "lint": "eslint",
     "test": "node --test tests/*.test.mjs",
     "typecheck": "tsc --noEmit",

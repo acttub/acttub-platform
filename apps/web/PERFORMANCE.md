@@ -2,14 +2,14 @@
 
 ## 목표
 
-프로덕션 정적 빌드의 비로그인 랜딩 페이지(`/`)는 모바일 Lighthouse Performance
+프로덕션 빌드의 비로그인 랜딩 페이지(`/`)는 모바일 Lighthouse Performance
 점수 90 이상을 유지합니다. Lighthouse CI는 기본적으로 세 번 측정하고 각 성능
 예산의 중앙값을 사용해 한 번의 이례적인 측정이 결과를 결정하지 않게 합니다.
 
 저장소 루트의 성능 명령은 다음 용도로 사용합니다.
 
-- `pnpm perf` — 웹 정적 빌드 후 Lighthouse CI 성능 예산을 검증합니다.
-- `pnpm perf:web` — 기존 `apps/web/out/`을 대상으로 Lighthouse CI를 실행합니다.
+- `pnpm perf` — 웹을 빌드한 뒤 Lighthouse CI 성능 예산을 검증합니다.
+- `pnpm perf:web` — 기존 빌드 결과를 대상으로 Lighthouse CI를 실행합니다.
 - `pnpm perf:healthcheck` — Lighthouse CI 실행 환경과 설정을 사전 점검합니다.
 
 최종 확인에서는 측정 횟수를 다섯 번으로 늘릴 수 있습니다.
@@ -18,13 +18,14 @@
 LHCI_RUNS=5 pnpm perf
 ```
 
-`pnpm perf:web` 실행 시 Lighthouse CI는 `apps/web/out/`을 임시 정적 서버로 열고
-사용 가능한 포트를 동적으로 배정하므로 고정 포트를 전제로 하지 않습니다. 보고서는
-`apps/web/artifacts/lighthouse/mobile/`에 저장되며 Git 추적 대상에서 제외됩니다.
+`pnpm perf:web` 실행 시 Lighthouse CI는 `pnpm --filter web start`로 **실제 배포와 같은
+Next 서버**를 3000 포트에 띄워 측정합니다. `pnpm dev`가 떠 있으면 포트가 겹치므로 먼저
+내려야 합니다. 보고서는 `apps/web/artifacts/lighthouse/mobile/`에 저장되며 Git 추적
+대상에서 제외됩니다.
 
 ## 허용 기준
 
-임시 정적 서버의 `/`를 측정한 모바일 중앙값은 다음 예산을 모두 만족해야 합니다.
+Next 서버의 `/`를 측정한 모바일 중앙값은 다음 예산을 모두 만족해야 합니다.
 
 - Lighthouse Performance 점수: 90 이상
 - Largest Contentful Paint (LCP): 2.5초 이하

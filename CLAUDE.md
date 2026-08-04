@@ -4,7 +4,7 @@
 
 Acttub 플랫폼 모노레포. JS(pnpm)와 Python(uv)이 공존합니다.
 
-- `apps/web`: Next.js 웹 앱. **서버 모드**(`output:'standalone'`)로 빌드해 Node 프로세스가 서빙합니다. 정적 export 모드도 남아 있지만 배포에는 쓰지 않습니다.
+- `apps/web`: Next.js 웹 앱. `output:'standalone'`으로 빌드해 Node 프로세스가 서빙합니다. 화면 렌더와 `/v2/*` 프록시만 담당하고, 서버 로직은 두지 않습니다.
 - `apps/api`: FastAPI 백엔드(acting-api). uv 파이썬 모노레포이며 자체 AGENTS.md를 따릅니다.
 - `apps/mobile`: 향후 React Native 앱 자리. 작업 시작 전까지 비워둡니다.
 - `packages/*`: 공유 패키지 자리. 실제 두 번째 사용처가 생긴 뒤에만 분리합니다.
@@ -13,7 +13,7 @@ Acttub 플랫폼 모노레포. JS(pnpm)와 Python(uv)이 공존합니다.
 ## 실행·검증 명령
 
 - 개발 루프: 터미널1 `cd apps/api && DEVELOPMENT_AUTH_PROVIDER=1 uv run uvicorn acting_api.app:create_app --factory --port 8000` + 터미널2 `pnpm dev`(:3000). dev 서버가 `/v2/*`·`/health`를 8000으로 프록시하므로 CORS가 필요 없습니다.
-- 웹 검증: `pnpm lint` · `pnpm typecheck` · `pnpm --filter web test` · `pnpm build`(정적, → `apps/web/out/`) · `pnpm --filter web build:server`(배포 산출물, → `.next/standalone/`)
+- 웹 검증: `pnpm lint` · `pnpm typecheck` · `pnpm --filter web test` · `pnpm build`(→ `.next/standalone/`, 실제 배포 산출물)
 - 배포 형태(dev·운영 공통): **Next 서버가 화면을 서빙하고 `/v2/*`·`/health`를 rewrites로 FastAPI에 넘깁니다.** 두 프로세스가 분리돼 있어 브라우저에는 오리진이 하나로 보입니다(CORS 불필요).
   - 운영 `acttub.com`(`www`는 301): CloudFront → front ALB → front svc / back ALB → back svc → RDS. 전부 private subnet → [docs/DEPLOY-VPC.md](docs/DEPLOY-VPC.md)
   - 개발 `dev.acttub.com`: EC2 한 대에 Caddy + 두 프로세스 + PostgreSQL → [docs/DEPLOY-DEV.md](docs/DEPLOY-DEV.md)

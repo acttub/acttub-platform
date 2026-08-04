@@ -1,8 +1,10 @@
 # VPC 2계층 배포 절차 (front svc + back svc)
 
 CloudFront → front alb → front svc(Next 서버) → back alb → back svc(FastAPI) → DB 구조로
-배포한다. 기존 dev/prod의 "FastAPI 단일 프로세스가 정적+API를 함께 서빙"과 다른 형태이며,
-두 방식은 공존한다 — 기존 인스턴스는 이 문서의 영향을 받지 않는다.
+배포한다. **운영(`acttub.com`)이 쓰는 형태다.** 개발 서버는 같은 프로세스 구성을 EC2 한
+대에 올린 축소판이므로([`DEPLOY-DEV.md`](./DEPLOY-DEV.md)) 배포 스크립트와 systemd 유닛을
+양쪽이 공유한다. 예전의 "FastAPI 단일 프로세스가 정적+API를 함께 서빙"하던 인스턴스는
+모두 폐기됐다.
 
 가장 큰 차이는 **백엔드가 private subnet에 있어 브라우저가 직접 닿지 못한다**는 점이다.
 모든 API 호출은 front svc의 Next rewrites 프록시를 통과한다. 덕분에 브라우저 입장에서는
@@ -12,8 +14,8 @@ CloudFront 도메인 하나만 보이므로 same-origin이 유지되고 CORS 설
 
 - `apps/web/next.config.ts` — 서버 모드에 `output:'standalone'` 추가, 프록시 대상 환경변수를
   `API_ORIGIN`으로 통일(`DEV_API_ORIGIN`은 폴백으로 유지).
-- `apps/web/package.json` — `build:server` 추가. 기존 `build`(정적 export)는 그대로 두어
-  현행 dev/prod 배포가 계속 동작한다.
+- `apps/web/package.json` — `build`가 standalone 산출물을 만든다. (정적 export 모드는
+  더 이상 쓰지 않아 걷어냈다.)
 - `deploy/systemd/acttub-{web,api}.service` — 두 인스턴스용 유닛.
 
 ## 2. 인스턴스 부트스트랩 (런타임 설치)
