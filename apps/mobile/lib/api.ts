@@ -531,6 +531,15 @@ export const api = {
       timeoutMs: 20_000,
     });
   },
+
+  /** 대학 하나만. 상세 화면이 쉰 곳치 공고를 통째로 받을 이유가 없다. */
+  admissionsByUniversity(universityId: string): Promise<AdmissionsResponse> {
+    return request<AdmissionsResponse>(
+      `/v2/admissions/${encodeURIComponent(universityId)}`,
+      {},
+      { auth: false, timeoutMs: 20_000 },
+    );
+  },
 };
 
 export type VideoFile = { uri: string; name: string; mimeType: string };

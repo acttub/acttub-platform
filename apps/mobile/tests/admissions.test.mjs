@@ -8,6 +8,13 @@ import {
   localDate,
   matchesQuery,
   upcomingNotices,
+  filterGroups,
+  availableFacets,
+  activeFilterCount,
+  broadRegion,
+  weightBars,
+  formatSeconds,
+  EMPTY_FILTERS,
 } from '../lib/admissions.ts';
 
 const payload = {
@@ -109,4 +116,148 @@ test('대학명·지역·학과 어느 쪽으로도 검색된다', () => {
 test('오늘 날짜는 기기 시간대 기준으로 만든다', () => {
   const at = new Date(2026, 7, 1, 8, 30);
   assert.equal(localDate(at), '2026-08-01');
+});
+
+// ---- 필터 ----
+// 웹(apps/web/src/lib/api/v2/admissions.ts)과 같은 결과를 내야 한다.
+// pnpm 워크스페이스에서 apps/mobile이 빠져 있어 코드를 공유할 수 없으므로,
+// 두 구현이 갈라지지 않게 여기서 같은 계약을 건다.
+
+const filterPayload = {
+  updated_at: '2026-08-04',
+  disclaimer: 'd',
+  universities: [
+    {
+      id: 'seoul-univ',
+      name: '서울대학',
+      region: '서울 종로',
+      type: 'univ',
+      admission_url: 'x',
+      resources: [],
+    },
+    {
+      id: 'gyeonggi-col',
+      name: '경기전문대',
+      region: '경기 용인',
+      type: 'college',
+      admission_url: 'x',
+      resources: [],
+    },
+  ],
+  notices: [
+    {
+      id: 's1',
+      university_id: 'seoul-univ',
+      track: '수시',
+      discipline: 'acting',
+      csat_minimum: '국어 3등급',
+      practical_items: [{ category: 'free_acting' }, { category: 'song' }],
+      designated_works: [],
+      essay_questions: [],
+      stages: [],
+      results: [],
+    },
+    {
+      id: 'g1',
+      university_id: 'gyeonggi-col',
+      track: '정시',
+      discipline: 'musical',
+      csat_minimum: null,
+      practical_items: [{ category: 'dance' }],
+      designated_works: [],
+      essay_questions: [],
+      stages: [],
+      results: [],
+    },
+  ],
+};
+
+const withFilters = (overrides) => ({ ...EMPTY_FILTERS, ...overrides });
+const idsOf = (groups) => groups.map((g) => g.university.id);
+
+test('광역 지역만 뽑아 필터 선택지를 줄인다', () => {
+  assert.equal(broadRegion('경기 용인'), '경기');
+  assert.equal(broadRegion(null), null);
+  assert.equal(broadRegion('  '), null);
+});
+
+test('지역·설립형태로 대학을 거른다', () => {
+  const groups = groupByUniversity(filterPayload);
+  assert.deepEqual(idsOf(filterGroups(groups, withFilters({ regions: ['서울'] }))), ['seoul-univ']);
+  assert.deepEqual(idsOf(filterGroups(groups, withFilters({ types: ['college'] }))), [
+    'gyeonggi-col',
+  ]);
+});
+
+test('수시·정시와 연기·뮤지컬로 공고를 거른다', () => {
+  const groups = groupByUniversity(filterPayload);
+  assert.deepEqual(idsOf(filterGroups(groups, withFilters({ tracks: ['수시'] }))), ['seoul-univ']);
+  assert.deepEqual(idsOf(filterGroups(groups, withFilters({ disciplines: ['musical'] }))), [
+    'gyeonggi-col',
+  ]);
+});
+
+test('실기 종목은 하나라도 겹치면 통과한다', () => {
+  const groups = groupByUniversity(filterPayload);
+  assert.deepEqual(idsOf(filterGroups(groups, withFilters({ practicals: ['free_acting'] }))), [
+    'seoul-univ',
+  ]);
+  assert.deepEqual(
+    idsOf(filterGroups(groups, withFilters({ practicals: ['free_acting', 'dance'] }))),
+    ['seoul-univ', 'gyeonggi-col'],
+  );
+  assert.deepEqual(idsOf(filterGroups(groups, withFilters({ practicals: ['improv'] }))), []);
+});
+
+test('수능 최저가 없는 전형만 남긴다', () => {
+  const groups = groupByUniversity(filterPayload);
+  assert.deepEqual(idsOf(filterGroups(groups, withFilters({ noCsatOnly: true }))), [
+    'gyeonggi-col',
+  ]);
+});
+
+// 확인하지 못한 대학이 필터를 켰다는 이유로 사라지면, 없는 것과 모르는 것을 구분할 수 없다.
+test('필터를 안 켜면 공고 없는 대학도 남고, 켜면 빠진다', () => {
+  const withEmpty = {
+    ...filterPayload,
+    universities: [
+      ...filterPayload.universities,
+      { id: 'unknown', name: '미확인대', region: '인천 남동', admission_url: 'x', resources: [] },
+    ],
+  };
+  const groups = groupByUniversity(withEmpty);
+  assert.ok(idsOf(filterGroups(groups, EMPTY_FILTERS)).includes('unknown'));
+  assert.ok(
+    !idsOf(filterGroups(groups, withFilters({ tracks: ['수시'] }))).includes('unknown'),
+  );
+});
+
+test('필터 선택지는 데이터에 실제로 있는 값만 낸다', () => {
+  const facets = availableFacets(filterPayload);
+  assert.deepEqual(facets.regions, ['경기', '서울']);
+  assert.deepEqual(facets.types, ['college', 'univ']);
+  assert.deepEqual(facets.tracks, ['수시', '정시']);
+  assert.deepEqual(facets.disciplines, ['acting', 'musical']);
+  assert.deepEqual(facets.practicals, ['free_acting', 'song', 'dance']);
+});
+
+test('켜져 있는 필터 개수를 센다', () => {
+  assert.equal(activeFilterCount(EMPTY_FILTERS), 0);
+  assert.equal(activeFilterCount(withFilters({ regions: ['서울', '경기'], openOnly: true })), 3);
+  assert.equal(activeFilterCount(withFilters({ query: '중앙대' })), 0);
+});
+
+test('반영비율은 값이 있는 항목만 실기부터 순서대로 그린다', () => {
+  assert.deepEqual(weightBars({ practical: 70, transcript: 30, csat: null }), [
+    { key: 'practical', label: '실기', value: 70 },
+    { key: 'transcript', label: '학생부', value: 30 },
+  ]);
+  assert.deepEqual(weightBars({ practical: 0 }), []);
+  assert.deepEqual(weightBars(null), []);
+});
+
+test('실기 제한시간은 분·초로 읽는다', () => {
+  assert.equal(formatSeconds(120), '2분');
+  assert.equal(formatSeconds(90), '1분 30초');
+  assert.equal(formatSeconds(45), '45초');
 });

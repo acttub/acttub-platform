@@ -257,7 +257,8 @@ function RootNavigator() {
       <Stack.Screen name="report" options={{ title: '피드백 카드' }} />
       {/* 아래 셋은 화면 안에 자체 헤더가 있다. 등록해 두지 않으면 기본 헤더가
           한 겹 더 붙어 '뒤로' 버튼이 두 개로 보인다. */}
-      <Stack.Screen name="admissions" options={{ headerShown: false }} />
+      <Stack.Screen name="admissions/index" options={{ headerShown: false }} />
+      <Stack.Screen name="admissions/[id]" options={{ headerShown: false }} />
       <Stack.Screen name="community-post" options={{ headerShown: false }} />
       <Stack.Screen name="community-new" options={{ headerShown: false, presentation: 'modal' }} />
     </Stack>
