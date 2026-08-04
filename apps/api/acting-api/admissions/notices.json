@@ -1623,7 +1623,7 @@
       "apply_end": "2026-06-25",
       "practical_date": "2026-08-04",
       "practical_task": "1차 2026-08-04 ~ 08-07: 자유롭게 준비한 독백 1개(1~2분 이내) + 노래 또는 움직임(1분 이내, MR·반주 없이 - 노래는 8마디 이상). 연기 70 + 고교 내신 30. 1차 발표 08-18. 2차 2026-08-25 ~ 08-28: 입시 지정 희곡 중 준비한 독백(1차와 다른 것) 40 + 당일 제시되는 1분 대사를 20~30분 연습 후 연기 40 + 노래 또는 움직임(MR 사용 가능) + 글쓰기(원고지 1,000자 이내, 100분)·구술 20. 화장 금지, 위험한 소품 불가, 무채색 무늬 없는 티셔츠·바지 착용.",
-      "source_url": "https://www.karts.ac.kr/cmm/fms/FileDown.do?atchFileId=FILE_000000000162048&fileSn=0&accAt=&bbsId=00000000000000000000",
+      "source_url": "https://www.karts.ac.kr/cop/bbs/selectBoardList.do?bbsId=BBSMSTR_000000000008",
       "verified_at": "2026-08-04",
       "note": "원서접수는 진학어플라이 인터넷 접수만 가능하고 마감일 18시에 닫혀요. 최종 합격자는 2026년 9월 8일에 발표되고, 수시·정시가 아니라 한예종 자체 일정으로 진행돼요.",
       "quota": "37명 (남녀 통합)",
@@ -1785,7 +1785,59 @@
         }
       ],
       "preparation": "필기도구(흑·청색 볼펜 또는 만년필)를 개인 지참한다. 1차 노래·움직임은 MR이나 반주음악을 쓸 수 없고, 2차 노래·움직임은 MR·반주음악 사용이 가능하다. 위험한 소품은 사용할 수 없다.",
-      "results": []
+      "results": [
+        {
+          "year": 2026,
+          "quota": 37,
+          "applicants": 5896,
+          "competition_rate": null,
+          "transcript_avg": null,
+          "transcript_cut50": null,
+          "transcript_cut70": null,
+          "transcript_low": null,
+          "practical_avg": null,
+          "fill_rate": null,
+          "waitlist_last": null,
+          "waitlist_count": null,
+          "source_url": "https://www.karts.ac.kr/cop/bbs/selectBoardArticle.do?nttNo=69956&bbsId=BBSMSTR_000000000008",
+          "verified_at": "2026-08-04",
+          "note": "입학관리과 '2026학년도 신입생 모집 지원-합격자 현황(예술사 정원내)' 기준. 연기과 정원 37명(남녀 통합)에 연기(여) 지원 3,558명·최종합격 19명, 연기(남) 지원 2,338명·최종합격 18명이에요. 경쟁률은 대학이 표기하지 않았고, 예비합격 설정인원·추가합격 인원 칸은 연기과 줄이 비어 있어요."
+        },
+        {
+          "year": 2025,
+          "quota": 37,
+          "applicants": 5497,
+          "competition_rate": null,
+          "transcript_avg": null,
+          "transcript_cut50": null,
+          "transcript_cut70": null,
+          "transcript_low": null,
+          "practical_avg": null,
+          "fill_rate": null,
+          "waitlist_last": null,
+          "waitlist_count": null,
+          "source_url": "https://www.karts.ac.kr/cop/bbs/selectBoardArticle.do?nttNo=67488&bbsId=BBSMSTR_000000000008",
+          "verified_at": "2026-08-04",
+          "note": "'2025학년도 신입생 모집 지원-합격자 현황(예술사 대학 과정)' 기준. 연기과 정원 37명에 연기(여) 지원 3,195명·최종합격 18명(예비합격 설정인원 3명, 추가합격 1명), 연기(남) 지원 2,302명·최종합격 19명(예비합격 설정인원 3명)이에요. 경쟁률 표기는 없어요."
+        },
+        {
+          "year": 2024,
+          "quota": 37,
+          "applicants": 5083,
+          "competition_rate": null,
+          "transcript_avg": null,
+          "transcript_cut50": null,
+          "transcript_cut70": null,
+          "transcript_low": null,
+          "practical_avg": null,
+          "fill_rate": null,
+          "waitlist_last": null,
+          "waitlist_count": null,
+          "source_url": "https://www.karts.ac.kr/cop/bbs/selectBoardArticle.do?nttNo=64855&bbsId=BBSMSTR_000000000008",
+          "verified_at": "2026-08-04",
+          "note": "'2024 예술사(대학) 정원내 지원 합격자 현황' 기준. 연기과 정원 37명에 연기(여) 지원 2,908명·최종합격 18명(예비합격 설정인원 2명, 추가합격 1명), 연기(남) 지원 2,175명·최종합격 19명(예비합격 설정인원 2명)이에요. 경쟁률 표기는 없어요."
+        }
+      ]
     },
     {
       "id": "kyonggi-2027-susi-acting",
@@ -1999,10 +2051,10 @@
       "fee": "100,000원 (1단계 불합격 시 20,000원 환불)",
       "csat_minimum": null,
       "documents": "인터넷 접수만(유웨이어플라이). 서류는 2026-09-23 17시까지 등기우편 또는 방문 제출.",
-      "dress_code": "검은색 상·하의를 입는다. 검은색 레오타드와 풀치마는 허용하지만 레이스 등 장식이 달린 의상, 검은색 외의 색이 섞인 의상, 무대 의상은 금지. 무대 분장과 액세서리도 금지. 소품은 총·칼·흉기류·인화성 물질을 뺀 나머지만 쓸 수 있다. 신발은 금지(탭댄스처럼 불가피한 경우만 예외). 악기 연주를 한다면 개인 악기를 가져와야 한다 — 고사장에 비치된 악기가 없다. 음악 파일은 USB에 wav 또는 mp3로 담아 오고, 맥에서 쓰던 USB는 쓸 수 없다.",
+      "dress_code": "검은색 상·하의를 입는다. 검은색 레오타드와 풀치마는 허용하지만 레이스 등 장식이 달린 의상, 검은색 외의 색이 섞인 의상, 무대 의상은 금지. 무대 분장과 액세서리도 금지. 교복이나 학원명이 적힌 옷처럼 개인 신분을 드러낼 수 있는 유니폼도 입을 수 없다. 소품은 총·칼·흉기류·인화성 물질을 뺀 나머지만 쓸 수 있다. 신발은 금지(탭댄스처럼 불가피한 경우만 예외). 악기 연주를 한다면 개인 악기를 가져와야 한다 — 고사장에 비치된 악기가 없다. 음악 파일은 USB에 wav 또는 mp3로 담아 오고, 맥에서 쓰던 USB는 쓸 수 없다.",
       "source_url": "https://ipsi.yongin.ac.kr/ipsi/guide/susi/mo_susi_20260623_1020.pdf",
       "verified_at": "2026-08-04",
-      "note": "모집인원은 아직 확인되지 않았어요. 입학처가 공개하는 전년도 입시결과도 아직 준비 중이에요.",
+      "note": "용인대는 요강 지원자 유의사항에 '입학전형 성적 및 전형자료는 공개하지 않는다'고 못박아 두었어요. 그래서 전년도 경쟁률·합격선 같은 입시결과가 요강에도 입학관리실 홈페이지에도 공개되지 않아요. 1단계 지정대사는 고사 당일 학교가 제시하니 미리 준비할 지정 작품 목록은 없어요.",
       "discipline": "acting",
       "stages": [
         {
@@ -2243,7 +2295,7 @@
       "csat_minimum": "없음 (수시는 수능최저를 반영하지 않는다)",
       "documents": "유웨이어플라이·진학어플라이 인터넷 접수만. 수험표는 2026-10-01 16시부터 출력. 해당자는 추가서류를 2026-10-13 18시 도착분까지 등기우편으로 낸다(10-12 소인까지 유효). 학생부 반영교과는 국어·영어다.",
       "dress_code": "실연 음악은 MP3로만 USB에 담아 시험 당일 제출한다(WAV·스마트폰·CD 불가). 소품은 입실 전 검사받은 것만 쓸 수 있고 흉기·화기·인화성 물질과 음식물은 금지다. 반주자 등 타인을 데려올 수 없고, 얼굴 전면이 보이도록 머리를 정리해야 하며 써클·컬러렌즈는 착용할 수 없다. 고사장에는 피아노와 큐브(40×40×40cm), 의자가 있다.",
-      "source_url": "https://www.seoularts.ac.kr/web/cop/bbsWeb/selectBoardList.do?bbsId=BBSMSTR_000000000924",
+      "source_url": "https://www.seoularts.ac.kr/web/cop/bbsWeb/selectBoardList.do?bbsId=BBSMSTR_000000000712",
       "verified_at": "2026-08-04",
       "note": "2027학년도부터 소품에 음식물을 쓸 수 없어요. 개인별 고사 일시와 장소는 2026년 10월 12일 16시부터 홈페이지 수험생정보서비스에서 확인할 수 있어요.",
       "discipline": "acting",
@@ -2315,7 +2367,42 @@
           "note": "연기 워크숍과 합쳐 60분 내외로 진행한다."
         }
       ],
-      "results": [],
+      "results": [
+        {
+          "year": 2026,
+          "quota": 37,
+          "applicants": 4446,
+          "competition_rate": "연기-남 94.37:1 / 연기-여 147.39:1",
+          "transcript_avg": null,
+          "transcript_cut50": null,
+          "transcript_cut70": null,
+          "transcript_low": null,
+          "practical_avg": null,
+          "fill_rate": null,
+          "waitlist_last": null,
+          "waitlist_count": null,
+          "source_url": "https://www.seoularts.ac.kr/web/cop/bbsWeb/selectBoardList.do?bbsId=BBSMSTR_000000000712",
+          "verified_at": "2026-08-04",
+          "note": "대학이 공개한 '2026학년도 수시 신입생 모집 지원율'의 정원내 일반전형 기준. 연기-남 모집 19명·지원 1,793명·경쟁률 94.37, 연기-여 모집 18명·지원 2,653명·경쟁률 147.39예요(연기전공 소계는 뮤지컬 포함 45명·4,822명·107.16). '2026학년도 수시 모집 충원(추가합격) 결과'에서 연기 세부선택의 추가합격 예비순위는 남 예비10·여 예비4였고, '2026학년도 신입생(합격자) 학생부 및 수능 성적'에서 연기전공 수시 학생부 등급은 비공개('-')예요."
+        },
+        {
+          "year": 2025,
+          "quota": null,
+          "applicants": null,
+          "competition_rate": "97.69:1",
+          "transcript_avg": null,
+          "transcript_cut50": null,
+          "transcript_cut70": null,
+          "transcript_low": null,
+          "practical_avg": null,
+          "fill_rate": null,
+          "waitlist_last": null,
+          "waitlist_count": null,
+          "source_url": "https://www.seoularts.ac.kr/web/cop/bbsWeb/selectBoardList.do?bbsId=BBSMSTR_000000000712",
+          "verified_at": "2026-08-04",
+          "note": "2025학년도는 대학이 연기와 뮤지컬을 나누지 않고 '연기전공' 하나로만 공개했어요. 정원내 일반전형 모집 45명·지원 4,396명·경쟁률 97.69(연기+뮤지컬 합산)이라 연기 세부선택만의 모집인원·지원자수는 알 수 없어요. 충원 자료에는 연기 남 예비13(마감)·여 예비12(마감)로 나뉘어 있고, 2025학년도 수시 연기전공 학생부 등급은 비공개('-')예요."
+        }
+      ],
       "designated_works": [],
       "essay_questions": [],
       "announce_date": "2026-11-06",
@@ -2344,7 +2431,7 @@
       "designated_works": [
         "지정곡 악보와 MR은 2026-08-21 서울예술대학교 입시공지사항에 올라온다 (남녀 각 3곡)"
       ],
-      "source_url": "https://www.seoularts.ac.kr/web/cop/bbsWeb/selectBoardList.do?bbsId=BBSMSTR_000000000924",
+      "source_url": "https://www.seoularts.ac.kr/web/cop/bbsWeb/selectBoardList.do?bbsId=BBSMSTR_000000000712",
       "verified_at": "2026-08-04",
       "note": "지정곡 목록은 아직 공지 전이라 비어 있어요.",
       "discipline": "musical",
@@ -2415,7 +2502,42 @@
           "note": "연기 워크숍과 합쳐 60분 내외로 진행한다."
         }
       ],
-      "results": [],
+      "results": [
+        {
+          "year": 2026,
+          "quota": 8,
+          "applicants": 376,
+          "competition_rate": "뮤지컬-남 36.5:1 / 뮤지컬-여 57.5:1",
+          "transcript_avg": null,
+          "transcript_cut50": null,
+          "transcript_cut70": null,
+          "transcript_low": null,
+          "practical_avg": null,
+          "fill_rate": null,
+          "waitlist_last": null,
+          "waitlist_count": null,
+          "source_url": "https://www.seoularts.ac.kr/web/cop/bbsWeb/selectBoardList.do?bbsId=BBSMSTR_000000000712",
+          "verified_at": "2026-08-04",
+          "note": "대학이 공개한 '2026학년도 수시 신입생 모집 지원율'의 정원내 일반전형 기준. 뮤지컬-남 모집 4명·지원 146명·경쟁률 36.5, 뮤지컬-여 모집 4명·지원 230명·경쟁률 57.5예요(연기전공 소계는 연기 포함 45명·4,822명·107.16). '2026학년도 수시 모집 충원(추가합격) 결과'에서 뮤지컬 세부선택의 추가합격 예비순위는 남 예비1·여 예비1이었고, 연기전공 수시 학생부 등급은 비공개('-')예요."
+        },
+        {
+          "year": 2025,
+          "quota": null,
+          "applicants": null,
+          "competition_rate": "97.69:1",
+          "transcript_avg": null,
+          "transcript_cut50": null,
+          "transcript_cut70": null,
+          "transcript_low": null,
+          "practical_avg": null,
+          "fill_rate": null,
+          "waitlist_last": null,
+          "waitlist_count": null,
+          "source_url": "https://www.seoularts.ac.kr/web/cop/bbsWeb/selectBoardList.do?bbsId=BBSMSTR_000000000712",
+          "verified_at": "2026-08-04",
+          "note": "2025학년도는 대학이 연기와 뮤지컬을 나누지 않고 '연기전공' 하나로만 공개했어요. 정원내 일반전형 모집 45명·지원 4,396명·경쟁률 97.69(연기+뮤지컬 합산)이라 뮤지컬 세부선택만의 모집인원·지원자수는 알 수 없어요. 충원 자료에는 뮤지컬 남 예비3(마감)·여 예비3(마감)으로 나뉘어 있어요."
+        }
+      ],
       "essay_questions": [],
       "announce_date": "2026-11-06",
       "practical_date_end": "2026-11-01",
@@ -2571,7 +2693,7 @@
       "practical_task": "연기: 자유대사 연기(연극·영화·드라마·창작 중 택일, 2분 이내). 특기: 개인특기 발표(연기 외, 2분 이내). 전공 관련 간단한 질의응답이 있을 수 있음.",
       "quota": "15명",
       "fee": "50,000원",
-      "csat_minimum": null,
+      "csat_minimum": "없음 — 2027학년도 신입생 수시·정시 모집요강에 수능 반영이나 수능 최저학력기준 규정이 전혀 없어요. 학교생활기록부 30% + 실기고사 70%로만 뽑아요.",
       "documents": "학교생활기록부 사본 1부(온라인 제공 미동의자 등 해당자만), 검정고시 합격증명서·성적증명서 각 1부(해당자만), 외국고등학교 출신자는 졸업(예정)증명서·성적증명서 각 1부(아포스티유 확인 또는 영사확인)",
       "dress_code": null,
       "preparation": "MR은 스마트폰(3.5파이만 가능) 또는 mp3플레이어(3.5파이만 가능)로만 사용 가능하며, 3.5파이가 불가능한 기기는 변환젠더를 지참할 것. 스마트폰 사용 시 비행기탑승모드로 전환 후 진행되므로 기기 내에 저장된 MR만 사용 가능. 악보 및 포트폴리오는 모두 제출받지 않음.",
@@ -2641,7 +2763,7 @@
       "practical_task": "연기: 자유대사 연기(연극·영화·드라마·창작 중 택일, 2분 이내). 특기: 개인특기 발표(연기 외, 2분 이내). 전공 관련 간단한 질의응답이 있을 수 있음.",
       "quota": "13명",
       "fee": "50,000원",
-      "csat_minimum": null,
+      "csat_minimum": "없음 — 2027학년도 신입생 수시·정시 모집요강에 수능 반영이나 수능 최저학력기준 규정이 전혀 없어요. 학교생활기록부 30% + 실기고사 70%로만 뽑아요.",
       "documents": "학교생활기록부 사본 1부(온라인 제공 미동의자 등 해당자만), 검정고시 합격증명서·성적증명서 각 1부(해당자만), 외국고등학교 출신자는 졸업(예정)증명서·성적증명서 각 1부(아포스티유 확인 또는 영사확인)",
       "dress_code": null,
       "preparation": "MR은 스마트폰(3.5파이만 가능) 또는 mp3플레이어(3.5파이만 가능)로만 사용 가능하며, 3.5파이가 불가능한 기기는 변환젠더를 지참할 것. 스마트폰 사용 시 비행기탑승모드로 전환 후 진행되므로 기기 내에 저장된 MR만 사용 가능. 악보 및 포트폴리오는 모두 제출받지 않음.",
@@ -2711,7 +2833,7 @@
       "practical_task": "연기: 자유대사 연기(연극·영화·드라마·창작 중 택일, 2분 이내). 특기: 개인특기 발표(연기 외, 2분 이내). 전공 관련 간단한 질의응답이 있을 수 있음.",
       "quota": "6명",
       "fee": "50,000원",
-      "csat_minimum": null,
+      "csat_minimum": "없음 — 2027학년도 신입생 수시·정시 모집요강에 수능 반영이나 수능 최저학력기준 규정이 전혀 없어요. 학교생활기록부 30% + 실기고사 70%로만 뽑아요.",
       "documents": "학교생활기록부 사본 1부(온라인 제공 미동의자 등 해당자만), 검정고시 합격증명서·성적증명서 각 1부(해당자만), 외국고등학교 출신자는 졸업(예정)증명서·성적증명서 각 1부(아포스티유 확인 또는 영사확인)",
       "dress_code": null,
       "preparation": "MR은 스마트폰(3.5파이만 가능) 또는 mp3플레이어(3.5파이만 가능)로만 사용 가능하며, 3.5파이가 불가능한 기기는 변환젠더를 지참할 것. 악보 및 포트폴리오는 모두 제출받지 않음.",
@@ -2781,7 +2903,7 @@
       "practical_task": "1단계 - 자유연기, 특기 중 택일(2분 이내, 배점 1,000점). 자유연기는 수험생이 스스로 자유롭게 선택한 작품의 장면을 연기(희곡, 뮤지컬, 시나리오 등에서 발췌), 특기는 춤·보컬(뮤지컬넘버)·아크로바틱·움직임·악기연주 등 연기와 관련된 특기. 2단계 - 즉흥상황연기(2분 이내, 배점 700점): 시험 당일 제시하는 장면 연기, 즉흥상황연기를 위한 상황과 대사는 당일 고사장 입실 30분 전 배포. 지정연기(2분 이내): 지정작품 중 역할과 장면을 선택하여 택일 연기. 2단계 실기고사 시 특기를 실시할 수 있음.",
       "quota": "24명",
       "fee": "90,000원",
-      "csat_minimum": null,
+      "csat_minimum": "없음",
       "documents": "국내 고교 졸업(예정)자·검정고시 합격자는 제출서류 없음(학생부 온라인 제공 비동의자는 학교생활기록부, 검정고시 합격증명서 등 제출). 외국 고교 졸업자는 외국 고등학교 졸업증명서(아포스티유 확인 또는 고등학교 소재국 한국 영사관 영사확인) 온라인 제출.",
       "dress_code": "용모는 단정하게 하고, 가급적 노출이 심한 의상이나 신발(구두, 하이힐, 장화 등)은 피할 것. 의상 및 소품은 제한 없음(단, 위험물 또는 신원파악이 힘들 정도의 분장은 불가).",
       "preparation": "음악·음향 사용 가능하며 고사 당일 제출(USB, mp3 파일만 가능). 음악·음향 1곡당 1개의 USB에 저장하여 제출해야 하며 즉시 재생 가능하도록 준비. 신분증(주민등록증, 운전면허증, 여권 등) 필참. 연기 및 특기 중 악기 연주 시 필요한 악기는 본인이 준비(단, 피아노는 고사장 내 비치). 기타 실기고사 진행에 지장을 주는 개인사물 반입금지.",
@@ -2956,7 +3078,7 @@
       "practical_task": "자유연기(카메라테스트) 및 특기. 자유연기는 2분 이내이며, 총 실기시간(특기·인터뷰 포함) 4분 이내. 실기위원 3명 / 수험생 1명. 실기고사 배점 방식은 최소 400점 ~ 최대 1000점으로 평가(10점 단위).",
       "quota": "40명",
       "fee": "45,000원",
-      "csat_minimum": null,
+      "csat_minimum": "없음 — 2027학년도 수시 모집요강 전체에 수능 반영이나 수능 최저학력기준 규정이 없어요. 융합예술학부 연기전공 일반전형은 실기고사 1000점만으로 뽑아요(학생부·면접·서류 미반영).",
       "documents": "일반전형은 가산점 증빙 서류(해당자에 한함) 제출. 지원자격·가산점 증빙서류 원본은 면접·실기고사 시 지참(온라인 또는 우편으로 사본을 제출한 수험생 대상).",
       "dress_code": "의상 및 소품 허용(단, 과도한 노출이나 위험한 소품은 불가)",
       "preparation": "자유연기 또는 특기에 필요한 MR은 USB에 저장하여 개별 준비. MR 제출 시 USB 안에 시험곡만 저장해서 제출. 생년월일이 표기되어 있는 신분증(학생증, 주민등록증, 주민등록증 발급신청 확인서, 청소년증, 운전면허증, 여권 중 택1) 지참.",
@@ -3025,7 +3147,7 @@
       "practical_task": "자유연기(카메라테스트) 및 특기. 자유연기는 2분 이내이며, 총 실기시간(특기·인터뷰 포함) 4분 이내. 실기위원 3명 / 수험생 1명. 실기고사 배점 방식은 최소 400점 ~ 최대 1000점으로 평가(10점 단위).",
       "quota": "40명",
       "fee": "45,000원",
-      "csat_minimum": null,
+      "csat_minimum": "없음 — 2027학년도 수시 모집요강 전체에 수능 반영이나 수능 최저학력기준 규정이 없어요. 융합예술학부 연기전공 일반전형은 실기고사 1000점만으로 뽑아요(학생부·면접·서류 미반영).",
       "documents": "일반전형은 가산점 증빙 서류(해당자에 한함) 제출. 지원자격·가산점 증빙서류 원본은 면접·실기고사 시 지참(온라인 또는 우편으로 사본을 제출한 수험생 대상).",
       "dress_code": "의상 및 소품 허용(단, 과도한 노출이나 위험한 소품은 불가)",
       "preparation": "자유연기 또는 특기에 필요한 MR은 USB에 저장하여 개별 준비. MR 제출 시 USB 안에 시험곡만 저장해서 제출. 생년월일이 표기되어 있는 신분증(학생증, 주민등록증, 주민등록증 발급신청 확인서, 청소년증, 운전면허증, 여권 중 택1) 지참.",
@@ -3244,7 +3366,7 @@
       "practical_task": "아래 3가지 지원분야 중 택1. ① 연극/매체 연기 ② 뮤지컬 연기 — i) 자유연기: 수험생이 자유롭게 준비한 내용으로 2분 이내의 독백연기(별도의 지정작품 없음) ii) 특기: 연기자로서의 자질과 개성을 표현할 수 있는 움직임 또는 가창 1분 발표(연기 제외) iii) 인터뷰: 지원동기·인성·전공적성 관련 인터뷰. ③ 연출및스탭(연출, 무대, 조명, 음향) — 지원동기·인성·전공적성 등 관련 인터뷰 진행. 블라인드 평가 진행.",
       "quota": "20명",
       "fee": "60,000원",
-      "csat_minimum": null,
+      "csat_minimum": "없음",
       "documents": "원서접수 시 사진(3×4cm) 업로드(미업로드 시 사진 1매를 입학관리본부로 제출). 학교생활기록부 1부(2023년 2월 이전 졸업자 등 해당자).",
       "dress_code": "블라인드 평가 진행 — 교복착용 금지. 수험생 본인의 성명·수험번호·출신고교·부모직업 등을 언급할 경우 평가에 불이익을 받을 수 있음.",
       "preparation": "수험표, 신분증(모바일 신분증 가능). 개인소품(실기고사에 지장을 줄 수 있는 소재의 물품 사용 불가). 실기고사에 사용할 음악파일은 반드시 USB에 저장하여 준비.",
@@ -3287,8 +3409,60 @@
           "note": "연출및스탭 분야는 인터뷰만 실시"
         }
       ],
-      "results": [],
-      "source_url": "https://www.semyung.ac.kr/prog/info/ipsi/sub01_01/MJ01/list.do",
+      "results": [
+        {
+          "year": 2026,
+          "quota": 18,
+          "applicants": 32,
+          "competition_rate": "1.78",
+          "transcript_avg": null,
+          "transcript_cut50": null,
+          "transcript_cut70": null,
+          "transcript_low": null,
+          "practical_avg": null,
+          "fill_rate": null,
+          "waitlist_last": 14,
+          "waitlist_count": null,
+          "source_url": "https://www.semyung.ac.kr/cop/bbs/BBSMSTR_000000000353/selectBoardArticle.do?bbsId=BBSMSTR_000000000353&nttId=474065",
+          "verified_at": "2026-08-04",
+          "note": "입학관리본부 '2026학년도 입시결과(평균, 70%, 예비최저 등) 안내' 첨부 엑셀 '정원내(수시)' 시트, [실기/실적위주] 일반전형 공연예술학과 행. 예비최저 14는 '기재된 예비번호까지 충원합격'이라는 뜻이에요. 실기 100% 전형이라 학생부 성적은 공개하지 않아요."
+        },
+        {
+          "year": 2025,
+          "quota": 24,
+          "applicants": 36,
+          "competition_rate": "1.50",
+          "transcript_avg": null,
+          "transcript_cut50": null,
+          "transcript_cut70": null,
+          "transcript_low": null,
+          "practical_avg": null,
+          "fill_rate": null,
+          "waitlist_last": 12,
+          "waitlist_count": null,
+          "source_url": "https://www.semyung.ac.kr/cop/bbs/BBSMSTR_000000000353/selectBoardArticle.do?bbsId=BBSMSTR_000000000353&nttId=459351",
+          "verified_at": "2026-08-04",
+          "note": "'2025학년도 입시결과(평균, 80%, 예비최저 등) 안내' 첨부 엑셀 '정원내' 시트, [실기/실적위주] 실기우수자전형 연기예술학과 행(당시 학과·전형 이름). 예비최저 12."
+        },
+        {
+          "year": 2024,
+          "quota": 25,
+          "applicants": 36,
+          "competition_rate": "1.44",
+          "transcript_avg": null,
+          "transcript_cut50": null,
+          "transcript_cut70": null,
+          "transcript_low": null,
+          "practical_avg": null,
+          "fill_rate": null,
+          "waitlist_last": 11,
+          "waitlist_count": null,
+          "source_url": "https://www.semyung.ac.kr/cop/bbs/BBSMSTR_000000000353/selectBoardArticle.do?bbsId=BBSMSTR_000000000353&nttId=367669",
+          "verified_at": "2026-08-04",
+          "note": "'2024학년도 입시결과(80%컷, 예비번호 등 확인) 안내' 첨부 엑셀 '2024학년도 입시결과' 시트, 실기우수자전형 연기예술학과 행. 충원합격 최종순위 11."
+        }
+      ],
+      "source_url": "https://www.semyung.ac.kr/js/common/pdf.js/web/viewer.html?file=/uloads_clone/info/MJI_202606080437271380.pdf",
       "verified_at": "2026-08-04",
       "note": "고사장은 서울 대학로에 있는 세명대학교 민송아트홀이고, 수험생 고사 안내는 2026년 10월 7일에 홈페이지에 올라와요. 합격자 발표는 요강에 '2026년 11월 13일 이전'으로만 적혀 있어요."
     },
@@ -3308,7 +3482,7 @@
       "practical_task": "① 지정연기: 당일 대사 제시 — 입시 당일 학교에서 제시하는 지정 대본을 사전 연습 후 지정작품 실연 (원점수 100점) ② 자유연기 또는 특기 중 1개 선택 — 즉흥연기, 특기 실연 (원점수 100점). 원점수 합계 200점을 환산점수 800점(80%)으로 반영.",
       "quota": "30명",
       "fee": "60,000원",
-      "csat_minimum": null,
+      "csat_minimum": "없음",
       "documents": "인터넷 접수 시 제출서류 없음(전산자료 활용 미동의자는 학교생활기록부 1부).",
       "dress_code": null,
       "preparation": "실기고사 관련 개별 준비물 MR(Music Recorded, USB·CD 상관없음)은 수험생 본인이 준비하여 고사 당일 제출.",
@@ -3352,8 +3526,43 @@
           "note": "원점수 100점. 특기 실연"
         }
       ],
-      "results": [],
-      "source_url": "https://ipsi.kdu.ac.kr/ipsi/download/2027_KDU_SuSi.pdf",
+      "results": [
+        {
+          "year": 2026,
+          "quota": 30,
+          "applicants": 168,
+          "competition_rate": "5.60",
+          "transcript_avg": null,
+          "transcript_cut50": "5.00",
+          "transcript_cut70": "5.50",
+          "transcript_low": "7.00",
+          "practical_avg": null,
+          "fill_rate": "86.67%",
+          "waitlist_last": null,
+          "waitlist_count": 19,
+          "source_url": "https://ipsi.kdu.ac.kr/ipsi/sub.do?mncd=1363&mode=view&no=527802950",
+          "verified_at": "2026-08-04",
+          "note": "입학처 '2026학년도 수시 입시결과 공개' 표(일반학생전형 정원내, 최종등록자) 연극연기학과 행. 등록 26명(등록률 86.67%), 충원 19명, 잔여 99명. 학생부교과 석차등급 최저 7.00 / 80% 6.25 / 70% 5.50 / 50% 5.00 / 최고 2.63. 대학별환산 최저 132 ~ 최고 164(만점 180)."
+        },
+        {
+          "year": 2025,
+          "quota": 30,
+          "applicants": null,
+          "competition_rate": "5.80",
+          "transcript_avg": null,
+          "transcript_cut50": "4.38",
+          "transcript_cut70": "5.25",
+          "transcript_low": "7.50",
+          "practical_avg": null,
+          "fill_rate": null,
+          "waitlist_last": null,
+          "waitlist_count": null,
+          "source_url": "https://ipsi.kdu.ac.kr/ipsi/sub.do?mncd=1363&mode=view&no=503203014",
+          "verified_at": "2026-08-04",
+          "note": "입학처 '2025학년도 수시/정시(경쟁률_등록률_점수)' 표(수시 학생부교과위주 일반학생전형 정원내, 최종등록자) 연극연기학과 행. 등록 29명. 학생부교과 석차등급 최저 7.50 / 80% 6.00 / 70% 5.25 / 50% 4.38 / 최고 1.50. 지원인원은 대학이 공개하지 않았어요."
+        }
+      ],
+      "source_url": "https://ipsi.kdu.ac.kr/ipsi/sub.do?mncd=1358&mode=view&no=526272071",
       "verified_at": "2026-08-04",
       "note": "수능 최저학력기준은 적용하지 않아요. 실기고사일 중 2026년 10월 17일은 예비일이라 지원 인원에 따라 실시 여부가 정해지고, 면접·실기 상세 안내는 10월 8일에 공지될 예정이에요."
     },
@@ -3373,7 +3582,7 @@
       "practical_task": "① 지정연기 ② 자유연기 또는 특기(선택) — 입시 당일 학교에서 제시하는 지정 대본을 사전 연습 후 지정작품 실연, 즉흥연기·특기 실연.",
       "quota": "10명",
       "fee": null,
-      "csat_minimum": null,
+      "csat_minimum": "없음",
       "documents": null,
       "dress_code": null,
       "preparation": null,
@@ -3417,7 +3626,42 @@
           "note": null
         }
       ],
-      "results": [],
+      "results": [
+        {
+          "year": 2026,
+          "quota": 14,
+          "applicants": 77,
+          "competition_rate": "5.50",
+          "transcript_avg": null,
+          "transcript_cut50": null,
+          "transcript_cut70": null,
+          "transcript_low": null,
+          "practical_avg": null,
+          "fill_rate": "100.00%",
+          "waitlist_last": null,
+          "waitlist_count": 18,
+          "source_url": "https://ipsi.kdu.ac.kr/ipsi/sub.do?mncd=1363&mode=view&no=527812384",
+          "verified_at": "2026-08-04",
+          "note": "입학처 '2026학년도 정시 입시결과 공개' 표(다군 일반학생전형 정원내, 최종등록자) 연극연기학과 행. 등록 14명(등록률 100.00%), 충원 18명, 잔여 34명. 대학별환산점수 최저 17.00 / 80% 45.40 / 70% 52.20 / 50% 82.20 / 최고 120.90(만점 200). 수능 영역별 70% cut 백분위 국어 21·수학 12·탐구 31 평균 21.33, 영어 6등급. 학생부 교과 성적은 정시라 공개 항목이 아니에요."
+        },
+        {
+          "year": 2025,
+          "quota": 10,
+          "applicants": null,
+          "competition_rate": "6.70",
+          "transcript_avg": null,
+          "transcript_cut50": null,
+          "transcript_cut70": null,
+          "transcript_low": null,
+          "practical_avg": null,
+          "fill_rate": null,
+          "waitlist_last": null,
+          "waitlist_count": null,
+          "source_url": "https://ipsi.kdu.ac.kr/ipsi/sub.do?mncd=1363&mode=view&no=503203014",
+          "verified_at": "2026-08-04",
+          "note": "입학처 '2025학년도 수시/정시' 표(정시 수능위주 다군 일반학생전형 정원내, 최종등록자) 연극연기학과 행. 등록 9명. 대학별환산점수 최저 30.10 / 80% 62.90 / 70% 65.50 / 50% 68.60 / 최고 98.50(만점 200). 수능 영역별 70% cut 백분위 국어 21·수학 14·탐구 10 평균 15.00, 영어 4등급."
+        }
+      ],
       "source_url": "https://ipsi.kdu.ac.kr/ipsi/sub.do?mncd=1358&mode=view&no=526272071",
       "verified_at": "2026-08-04",
       "note": "2027학년도 정시 모집요강이 아직 안 나왔어요. 다군 전형은 2027년 1월 25일부터 31일 사이에 치를 예정이지만 실기고사 확정 일자는 아직 모르고, 원서접수는 1월 4일부터 7일 중 3일 이상 진행돼요. 정시와 추가모집은 수능을 보지 않아도 지원할 수 있어요."
@@ -5767,7 +6011,7 @@
       "practical_task": "자유연기: 스스로 자유롭게 준비한 작품의 장면 연기(희곡, 시나리오 등에서 발췌), 2분 이내 / 특기: 수험생이 준비한 노래, 춤, 움직임, 아크로바틱, 악기 연주 등 연기와 관련된 특기, 2분 이내. 두 과목 모두 응시(택1 아님). 실기고사 기본점수 210점(만점의 30%), 평균점수는 소수점 둘째자리에서 반올림하여 적용. 실기고사는 개인별 일시 지정.",
       "quota": "30명",
       "fee": "75,000원",
-      "csat_minimum": null,
+      "csat_minimum": "없음",
       "documents": "공통: 입학원서(인터넷 접수자 제외), 학교생활기록부(온라인 제공 비동의자 및 비대상 고교) / 검정고시 합격자: 합격증명서 및 성적증명서 / 외국고교 졸업자: 고교 성적증명서 및 졸업증명서",
       "dress_code": null,
       "preparation": null,
@@ -5837,7 +6081,7 @@
       "practical_task": "자유연기(1분 30초 미만) - 미리 준비한 대사 연기나 노래 연기 중 선택, 대사의 장르는 제한 없음. 필요에 따라 심사위원의 간단한 질의응답이 있을 수 있음. 평가는 연기력·감정전달·이해력·발성/발음 평가(노래 선택 시 가창 평가 포함)이며, 표현의 유연성·적합성·논리성·독창성, 발성 에너지의 적합성 및 유연성, 발음의 정확성을 주안점으로 채점.",
       "quota": "11명",
       "fee": "80,000원",
-      "csat_minimum": null,
+      "csat_minimum": "없음",
       "documents": "학생부 온라인 제공 동의자는 제출서류 없음. 미동의자·불가자는 입학원서 1부 + 학교생활기록부(학교장 직인 날인) 1부. 검정고시 출신자는 입학원서, 검정고시 합격증명서(대입전형용), 검정고시 성적증명서. 외국고 출신자는 입학원서, 졸업(예정)증명서, 성적증명서(아포스티유 또는 영사확인 첨부). 제출기한 2026. 9. 18.(금) 우편소인까지.",
       "dress_code": null,
       "preparation": "수험표 및 신분증 필수 지참(결시자는 불합격 처리). 배경음악(또는 MR) 사용 시 반드시 USB 활용(CD 재생 불가).",
@@ -5960,7 +6204,7 @@
       "practical_task": "고사종목 '종합연기'(2분 이내) - 수험생 본인이 시험 전에 준비한 작품을 소재로 다양한 연기표현을 종합적으로 구성하여 발표. 수험생이 표현할 수 있는 별도의 특기가 있을 경우에 특기(노래, 춤, 움직임 등)를 포함해서 종합적으로 구성. 필요 시 시연 내용에 한하여 평가위원이 추가로 간단한 보충 발표를 요구할 수 있음(1분 이내).",
       "quota": "9명",
       "fee": "￦100,000",
-      "csat_minimum": null,
+      "csat_minimum": "없음",
       "documents": "입학원서(오프라인 제출서류가 있는 경우 출력 후 제출), 학교생활기록부(온라인 제공 미동의자·비대상자는 학교장 직인 또는 원본대조필 날인 후 제출). 서류 제출 2026.09.07. 09:00 ~ 09.16. 17:00.",
       "dress_code": null,
       "preparation": "보충 발표 시 음원 사용을 희망할 경우 2026.09.28.(월) 10:00 ~ 09.29.(화) 11:00 기간 내 음원 파일 업로드 필요(업로드 방법은 실기고사 유의사항 공지 시 안내).",
@@ -6070,7 +6314,7 @@
       "practical_task": "① 노래(1분 30초): 자유곡(뮤지컬 삽입곡 중 택1, 한국어만 가능) ② 특기(1분, 환복시간 포함): 자유안무(현대무용, 재즈댄스, 발레 등) 또는 연기 중 택1. ①·② 모두 실시. MR, 의상, 소품을 사용할 수 있으며 본인이 준비해야 함(의자, 박스는 각 1개씩 고사장에 비치). MR은 고사 당일 USB로 제출하며 USB에 문제가 있을 시 사용 불가하므로 본인이 사전에 확인·점검해야 함.",
       "quota": "27명",
       "fee": "80,000원",
-      "csat_minimum": null,
+      "csat_minimum": "없음",
       "documents": "학생부 온라인제공 동의자는 제출서류 없음. 온라인제공 비동의자·비대상(미설치)교 출신자는 학교생활기록부 사본 1부(출신학교장 직인 및 날인). 검정고시 출신자는 온라인제공 동의 시 없음(국내 고교 재학 사실이 있으면 학교생활기록부 사본 1부 필수), 비동의자는 대입전형용 합격증명서 1부 + 검정고시 성적증명서 1부. 제출서류 마감 2026. 9. 16.(수) 17:00까지.",
       "dress_code": null,
       "preparation": "MR(USB로 고사 당일 제출), 의상, 소품은 본인 준비. 의자·박스는 각 1개씩 고사장 비치. 수험표 및 신분증 지참.",
@@ -6120,7 +6364,7 @@
           "note": "2027 수시 모집요강 39p '전년도 입시결과'(정원 내) 실기우수자 전형 공연예술전공. 대학이 공개한 값은 경쟁률 26.82와 학생부 8.00뿐이며, 이 학생부 값은 평균이 아니라 2026학년도 수시 최종등록자의 '최저등급'(가산점 제외)이라 transcript 필드에 넣지 않음. 모집인원·지원자수는 미공개"
         }
       ],
-      "source_url": "https://ipsi.hansei.ac.kr/view.do?no=1071",
+      "source_url": "https://ipsi.hansei.ac.kr/share/portal/data/ipsi/2027학년도 신입생 수시 모집요강.pdf",
       "verified_at": "2026-08-04",
       "note": "공연예술전공은 노래중심·연기중심으로 나뉘지 않고 '예술학부 공연예술전공' 하나로 27명을 뽑아요. 실기는 뮤지컬 삽입곡 노래가 필수이고 연기는 특기 항목에서 무용과 택 1하는 구조라 사실상 뮤지컬 중심 전공이에요. 2025학년도 미충원 이월 인원은 1명이에요."
     },
@@ -6210,7 +6454,7 @@
       "practical_task": "연극영화학전공은 '연극 연출/기획', '영화 연출/제작', '연기' 중 택1이며 연기 지원 시 - 지정대사(1분 이내): 시험 당일 배부된 대사 연기 / 자유연기(1분 이내): 수험생 각자 준비(뮤지컬연기로 발표 가능) / 질의응답(1분 이내): 전공 관련 기초지식. 실기고사 일정은 지원자 현황에 따라 변경될 수 있으며 입학정보 홈페이지에 공지.",
       "quota": "18명",
       "fee": "85,000원",
-      "csat_minimum": null,
+      "csat_minimum": "없음",
       "documents": "학생부 온라인 제공 동의자(2024년 2월~2027년 2월 이전 졸업(예정)자): 제출서류 없음 / 비동의자·비대상교: 학교생활기록부 1부 / 2023년 2월 이전 졸업자: 학교생활기록부 1부 / 검정고시 출신자: 합격증명서(대입전형용)·성적증명서 각 1부 등 / 외국계 고교 졸업(예정)자: 성적증명서·졸업(예정)증명서 각 1부(아포스티유 또는 영사 확인, 한국어 번역·공증). 서류제출 마감 2026.09.18.(금) 17시까지.",
       "dress_code": null,
       "preparation": "수험표, 신분증(주민등록증 또는 학생증 등) 반드시 지참. 소품 사용 가능(칼, 인화성 물질 등 위험하거나 혐오스러운 물품 금지). MR은 USB로 당일 제출(재생 오류 발생 시 무반주로 진행). 포트폴리오는 접수하지 않음.",
@@ -6270,7 +6514,7 @@
           "note": "2026학년도 수시 실기우수자전형(학생부(교과)30%+실기70%) 연극영화학전공 연기. 최종등록자 학생부 교과 평균 2.82 / 최저 3.80, 충원후보순위 8. 2027학년도 모집단위 기준으로 재정리된 수치이며, 2026학년도 최종등록자 성적을 2027학년도 학생부 반영 방법으로 적용한 결과."
         }
       ],
-      "source_url": "https://ipsi.joongbu.ac.kr/menu.es?mid=a60101000000",
+      "source_url": "https://ipsi.joongbu.ac.kr/boardDownload.es?bid=ATT&list_no=338272&seq=1",
       "verified_at": "2026-08-04",
       "note": "수능 최저학력기준은 없어요. 연극영화학전공은 연기 18명과 연출·제작·기획 17명을 따로 뽑는데 이 공고는 연기 모집단위예요. 학생부(교과)와 실기 성적을 합산한 총점 순으로 뽑고, 실기고사에 결시하면 선발 대상에서 빠지고 전형료도 돌려받지 못해요."
     },
@@ -6290,7 +6534,7 @@
       "practical_task": "실기고사: 개인이 준비한 자유 연기, 고사 시간 3분 이내. 개인별 고사 일자·시간은 2026년 10월 1일(목) 18:00~20:00에 입시 홈페이지에서 지정(선택)하며, 미지정자는 대학이 임의 배정한다. 실기고사 미응시자(결시자)는 실기 성적을 0점 처리하되 합격사정 대상에는 포함한다.",
       "quota": "44명",
       "fee": null,
-      "csat_minimum": null,
+      "csat_minimum": "없음",
       "documents": "학교생활기록부 1부(대입전형자료 온라인 제공 동의자는 제출하지 않음). 고졸 검정고시 출신자는 검정고시 성적증명서 1부. 제출 기한 2026년 10월 2일(금) 도착분에 한하며 등기우편 또는 본교 방문 제출.",
       "dress_code": null,
       "preparation": "실기고사 시간표(입시 홈페이지에서 개인별 일시 조회 후 출력), 사진이 부착된 신분증(주민등록증·여권·운전면허증·학생증·공인 자격증 등, 주민등록번호 또는 생년월일 기재 필요)",
@@ -6330,7 +6574,7 @@
           "note": "2026학년도 수시1차 일반전형(정원내). 대학 표기는 '지원율' 1.13, 합격 평균등급 5.85, 합격(최저)등급 9.00, 합격 예비순위 3. 내신 성적산출은 1~2학년(4학기) 중 1학기의 전과목 기준."
         }
       ],
-      "source_url": "https://ipsi.ssc.ac.kr/recruitment/index.do",
+      "source_url": "https://ipsi.ssc.ac.kr/guide/planView.do?board_seq=437",
       "verified_at": "2026-08-04",
       "note": "학과 공식 명칭은 '연기영상과'이고 서비스컬처학부 소속 3년제예요. 전형료는 아직 공개되지 않았어요."
     },
@@ -6350,7 +6594,7 @@
       "practical_task": "실기고사: 개인이 준비한 자유 연기, 고사 시간 3분 이내. 개인별 고사 일자·시간은 2026년 11월 26일(목) 18:00~20:00에 입시 홈페이지에서 지정(선택)하며, 미지정자는 대학이 임의 배정한다. 실기고사 미응시자(결시자)는 실기 성적을 0점 처리하되 합격사정 대상에는 포함한다.",
       "quota": "16명",
       "fee": null,
-      "csat_minimum": null,
+      "csat_minimum": "없음",
       "documents": "학교생활기록부 1부(대입전형자료 온라인 제공 동의자는 제출하지 않음). 고졸 검정고시 출신자는 검정고시 성적증명서 1부. 제출 기한 2026년 11월 27일(금) 도착분에 한하며 등기우편 또는 본교 방문 제출.",
       "dress_code": null,
       "preparation": "실기고사 시간표(입시 홈페이지에서 개인별 일시 조회 후 출력), 사진이 부착된 신분증(주민등록증·여권·운전면허증·학생증·공인 자격증 등)",
@@ -6390,7 +6634,7 @@
           "note": "2026학년도 수시2차 일반전형(정원내). 대학 표기는 '지원율' 3.00, 합격 평균등급 5.94, 합격(최저)등급 7.99, 합격 예비순위 12."
         }
       ],
-      "source_url": "https://ipsi.ssc.ac.kr/recruitment/secondary.do",
+      "source_url": "https://ipsi.ssc.ac.kr/guide/planView.do?board_seq=437",
       "verified_at": "2026-08-04",
       "note": "전형료는 아직 공개되지 않았어요."
     },
@@ -6410,7 +6654,7 @@
       "practical_task": "실기고사: 개인이 준비한 자유 연기, 고사 시간 3분 이내. 개인별 고사 시간은 2027년 1월 21일(목) 10:00~12:00에 입시 홈페이지에서 지정(선택)하며, 미지정자는 대학이 임의 배정한다. 실기고사 미응시자(결시자)는 실기 성적을 0점 처리하되 합격사정 대상에는 포함한다.",
       "quota": "10명",
       "fee": "40,000원(대학교 전형료 35,000원 + 인터넷 대행업체 수수료 5,000원)",
-      "csat_minimum": null,
+      "csat_minimum": "없음",
       "documents": "학교생활기록부 1부(대입전형자료 온라인 제공 동의자는 제출하지 않음). 제출 기한 2027년 1월 22일(금) 도착분에 한하며 등기우편 또는 본교 방문 제출.",
       "dress_code": null,
       "preparation": "실기고사 시간표(입시 홈페이지에서 개인별 일시 조회 후 출력), 사진이 부착된 신분증(주민등록증·여권·운전면허증·학생증·공인 자격증 등)",
@@ -6450,7 +6694,7 @@
           "note": "2026학년도 정시 일반전형(정원내). 대학 표기는 '지원율' 1.00. 연기영상과는 내신 미반영이라 내신 등급 공개 없음. 공개된 수능 백분위는 합격(최저) 15.50, 평균 45.18."
         }
       ],
-      "source_url": "https://ipsi.ssc.ac.kr/regular/index.do",
+      "source_url": "https://ipsi.ssc.ac.kr/guide/planView.do?board_seq=437",
       "verified_at": "2026-08-04",
       "note": "별도의 수능 최저학력기준은 없고, 대신 수능 성적이 전형총점의 20%로 반영돼요."
     },
@@ -6915,7 +7159,7 @@
       "practical_task": "자유연기(1분 30초 이내): 수험생이 사전에 준비한 독백 대사를 자유롭게 연기한다. 움직임 연기(2분 이내): 대사 없이 신체 표현만으로 감정과 상황을 전달하는 움직임 중심의 표현을 수행한다. 연극전공은 음악(MR) 사용 불가. 실기고사 미응시(결시)자는 해당 항목 0점 처리 후 사정대상에 포함(추가합격 예비번호 부여). 실기고사 일정은 입학홈페이지에 공지 예정이며 지원인원에 따라 변동될 수 있음(예약시스템 운영).",
       "quota": "25명",
       "fee": "55,000원",
-      "csat_minimum": null,
+      "csat_minimum": "없음",
       "documents": "2024년 2월~2027년 2월 졸업(예정)자 중 원서접수 시 학생부 온라인 제공에 동의한 자는 제출서류 없음. 미동의자·2004년 2월 이전 졸업자는 고등학교 생활기록부 사본 1부. 검정고시 합격자는 성적 온라인 제공 동의 여부에 따라 검정고시 합격증명서·성적증명서 1부. 서류제출 마감 2026.10.07.(수) 17:00까지.",
       "dress_code": "과하지 않은 메이크업 및 얼굴이 잘 보이는 헤어스타일로 준비",
       "preparation": "사진(3cm×4cm) 제출(원서접수 시 온라인 제출), 예약증과 신분증(주민등록증 또는 여권) 지참",
@@ -6950,8 +7194,26 @@
           "note": "대사 없이 신체 표현만으로 감정과 상황을 전달하는 움직임 중심의 표현"
         }
       ],
-      "results": [],
-      "source_url": "https://enter.du.ac.kr/submenu.do?menuUrl=AelSWjPhedMv%2bAZA2NXqDg%3d%3d&",
+      "results": [
+        {
+          "year": 2026,
+          "quota": null,
+          "applicants": null,
+          "competition_rate": "23.4",
+          "transcript_avg": "5.06",
+          "transcript_cut50": null,
+          "transcript_cut70": null,
+          "transcript_low": null,
+          "practical_avg": null,
+          "fill_rate": null,
+          "waitlist_last": null,
+          "waitlist_count": 15,
+          "source_url": "https://enter.du.ac.kr/submenu.do?menuUrl=LxZUaTFmmSi27DgQxWKW1A%3d%3d&",
+          "verified_at": "2026-08-04",
+          "note": "2026학년도 수시 1차 정원내 일반전형. 경쟁률 23.4, 평균등급 5.06은 대학이 2026-07-22에 올린 '[2027학년도 성적 반영방식 적용] 2026학년도 입시결과'이며, 2026학년도 지원자 성적을 2027학년도 반영방법(1학년 1학기~2학년 2학기 중 우수 2개 학기 평균)으로 다시 계산한 참고용 수치예요. 평균등급은 최종등록자 기준이고 출결점수·실기고사 성적은 빠져 있어요. 충원결과 공고 기준 최초합격 30명, 충원합격 15명이에요."
+        }
+      ],
+      "source_url": "https://enter.du.ac.kr/submenu.do?menuUrl=LxZUaTFmmSi27DgQxWKW1A%3d%3d&",
       "verified_at": "2026-08-04",
       "note": "2027학년도 신입생 모집요강 기준. 연기예술학과는 연극전공·방송연예전공·연출창작전공으로 나뉘어 별도 모집하며 본 공고는 연극전공. 연기예술학과·뮤지컬과·실용음악학과는 전형 간 중복지원 불가, 전공 간 복수지원 불가(하나의 전공에만 지원 가능). 학생부 반영은 1학년 1학기~2학년 2학기 4개 학기 중 우수 2개 학기 평균."
     },
@@ -6971,7 +7233,7 @@
       "practical_task": "자유연기(1분 30초 이내): 수험생이 사전에 준비한 독백 대사를 자유롭게 연기한다. 움직임 연기(2분 이내): 대사 없이 신체 표현만으로 감정과 상황을 전달하는 움직임 중심의 표현을 수행한다. 연극전공은 음악(MR) 사용 불가. 실기고사 미응시(결시)자는 해당 항목 0점 처리 후 사정대상에 포함(추가합격 예비번호 부여).",
       "quota": "25명",
       "fee": "55,000원",
-      "csat_minimum": null,
+      "csat_minimum": "없음",
       "documents": "학생부 온라인 제공 동의자는 제출서류 없음, 미동의자·2004년 2월 이전 졸업자는 고등학교 생활기록부 사본 1부. 서류제출 마감 2027.01.22.(금) 17:00까지.",
       "dress_code": "과하지 않은 메이크업 및 얼굴이 잘 보이는 헤어스타일로 준비",
       "preparation": "사진(3cm×4cm) 제출(원서접수 시 온라인 제출), 예약증과 신분증(주민등록증 또는 여권) 지참",
@@ -7005,8 +7267,26 @@
           "note": "대사 없이 신체 표현만으로 감정과 상황을 전달하는 움직임 중심의 표현"
         }
       ],
-      "results": [],
-      "source_url": "https://enter.du.ac.kr/submenu.do?menuUrl=AelSWjPhedMv%2bAZA2NXqDg%3d%3d&",
+      "results": [
+        {
+          "year": 2026,
+          "quota": null,
+          "applicants": null,
+          "competition_rate": "21.8",
+          "transcript_avg": "5.06",
+          "transcript_cut50": null,
+          "transcript_cut70": null,
+          "transcript_low": null,
+          "practical_avg": null,
+          "fill_rate": null,
+          "waitlist_last": null,
+          "waitlist_count": 16,
+          "source_url": "https://enter.du.ac.kr/submenu.do?menuUrl=LxZUaTFmmSi27DgQxWKW1A%3d%3d&",
+          "verified_at": "2026-08-04",
+          "note": "2026학년도 정시 정원내 일반(학생부)전형. 경쟁률 21.8, 평균등급 5.06은 '[2027학년도 성적 반영방식 적용] 2026학년도 입시결과' 기준으로, 2026학년도 지원자 성적을 2027학년도 반영방법으로 다시 계산한 참고용 수치예요(최종등록자 기준, 실기 성적 제외). 충원결과 공고 기준 최초합격 30명, 충원합격 16명이에요."
+        }
+      ],
+      "source_url": "https://enter.du.ac.kr/submenu.do?menuUrl=LxZUaTFmmSi27DgQxWKW1A%3d%3d&",
       "verified_at": "2026-08-04",
       "note": "정시 실기고사 학과는 일반(학생부)전형으로 지원한다(수능 반영 없음). 정시 추가합격자 발표 2027.02.13.(토)~02.27.(토)."
     },
@@ -7026,7 +7306,7 @@
       "practical_task": "자유연기(1분 30초 이내): 수험생이 사전에 준비한 독백 대사를 자유롭게 연기한다. 즉흥 카메라 연기(2분 이내): 카메라 앞에서 심사위원의 지시에 따라 즉흥적으로 상황을 설정하고 연기한다. 방송연예전공은 음악(MR) 사용 불가. 실기고사 미응시(결시)자는 해당 항목 0점 처리 후 사정대상에 포함(추가합격 예비번호 부여).",
       "quota": "15명",
       "fee": "55,000원",
-      "csat_minimum": null,
+      "csat_minimum": "없음",
       "documents": "2024년 2월~2027년 2월 졸업(예정)자 중 원서접수 시 학생부 온라인 제공에 동의한 자는 제출서류 없음. 미동의자·2004년 2월 이전 졸업자는 고등학교 생활기록부 사본 1부. 서류제출 마감 2026.10.07.(수) 17:00까지.",
       "dress_code": "과하지 않은 메이크업 및 얼굴이 잘 보이는 헤어스타일로 준비",
       "preparation": "사진(3cm×4cm) 제출(원서접수 시 온라인 제출), 예약증과 신분증(주민등록증 또는 여권) 지참",
@@ -7061,8 +7341,26 @@
           "note": "카메라 앞에서 심사위원의 지시에 따라 즉흥적으로 상황을 설정하고 연기"
         }
       ],
-      "results": [],
-      "source_url": "https://enter.du.ac.kr/submenu.do?menuUrl=AelSWjPhedMv%2bAZA2NXqDg%3d%3d&",
+      "results": [
+        {
+          "year": 2026,
+          "quota": null,
+          "applicants": null,
+          "competition_rate": "17.7",
+          "transcript_avg": "5.64",
+          "transcript_cut50": null,
+          "transcript_cut70": null,
+          "transcript_low": null,
+          "practical_avg": null,
+          "fill_rate": null,
+          "waitlist_last": null,
+          "waitlist_count": 7,
+          "source_url": "https://enter.du.ac.kr/submenu.do?menuUrl=LxZUaTFmmSi27DgQxWKW1A%3d%3d&",
+          "verified_at": "2026-08-04",
+          "note": "2026학년도 수시 1차 정원내 일반전형. 경쟁률 17.7, 평균등급 5.64는 '[2027학년도 성적 반영방식 적용] 2026학년도 입시결과' 기준으로, 2026학년도 지원자 성적을 2027학년도 반영방법으로 다시 계산한 참고용 수치예요(최종등록자 기준, 출결·실기 성적 제외). 충원결과 공고 기준 최초합격 15명, 충원합격 7명이에요."
+        }
+      ],
+      "source_url": "https://enter.du.ac.kr/submenu.do?menuUrl=LxZUaTFmmSi27DgQxWKW1A%3d%3d&",
       "verified_at": "2026-08-04",
       "note": "2027학년도 신입생 모집요강 기준. 연기예술학과·뮤지컬과·실용음악학과는 전형 간 중복지원 불가, 전공 간 복수지원 불가(하나의 전공에만 지원 가능)."
     },
@@ -7082,7 +7380,7 @@
       "practical_task": "자유연기(1분 30초 이내): 수험생이 사전에 준비한 독백 대사를 자유롭게 연기한다. 즉흥 카메라 연기(2분 이내): 카메라 앞에서 심사위원의 지시에 따라 즉흥적으로 상황을 설정하고 연기한다. 방송연예전공은 음악(MR) 사용 불가.",
       "quota": "15명",
       "fee": "55,000원",
-      "csat_minimum": null,
+      "csat_minimum": "없음",
       "documents": "학생부 온라인 제공 동의자는 제출서류 없음, 미동의자·2004년 2월 이전 졸업자는 고등학교 생활기록부 사본 1부. 서류제출 마감 2027.01.22.(금) 17:00까지.",
       "dress_code": "과하지 않은 메이크업 및 얼굴이 잘 보이는 헤어스타일로 준비",
       "preparation": "사진(3cm×4cm) 제출(원서접수 시 온라인 제출), 예약증과 신분증(주민등록증 또는 여권) 지참",
@@ -7116,8 +7414,26 @@
           "note": "카메라 앞에서 심사위원의 지시에 따라 즉흥적으로 상황을 설정하고 연기"
         }
       ],
-      "results": [],
-      "source_url": "https://enter.du.ac.kr/submenu.do?menuUrl=AelSWjPhedMv%2bAZA2NXqDg%3d%3d&",
+      "results": [
+        {
+          "year": 2026,
+          "quota": null,
+          "applicants": null,
+          "competition_rate": "15.4",
+          "transcript_avg": "5.89",
+          "transcript_cut50": null,
+          "transcript_cut70": null,
+          "transcript_low": null,
+          "practical_avg": null,
+          "fill_rate": null,
+          "waitlist_last": null,
+          "waitlist_count": 3,
+          "source_url": "https://enter.du.ac.kr/submenu.do?menuUrl=LxZUaTFmmSi27DgQxWKW1A%3d%3d&",
+          "verified_at": "2026-08-04",
+          "note": "2026학년도 정시 정원내 일반(학생부)전형. 경쟁률 15.4, 평균등급 5.89는 '[2027학년도 성적 반영방식 적용] 2026학년도 입시결과' 기준의 참고용 수치예요(최종등록자 기준, 실기 성적 제외). 충원결과 공고 기준 최초합격 15명, 충원합격 3명이에요."
+        }
+      ],
+      "source_url": "https://enter.du.ac.kr/submenu.do?menuUrl=LxZUaTFmmSi27DgQxWKW1A%3d%3d&",
       "verified_at": "2026-08-04",
       "note": "정시 실기고사 학과는 일반(학생부)전형으로 지원한다(수능 반영 없음)."
     },
@@ -7137,7 +7453,7 @@
       "practical_task": "뮤지컬연기(2분 이내): 한국어로 된 뮤지컬 넘버를 활용하여 동선과 장면 구성을 포함한 연기를 수행한다. 자유연기(1분 30초 이내): 수험생이 사전에 준비한 독백 대사를 자유롭게 연기한다. 자유연기는 음악(MR) 사용 불가. 실기고사 미응시(결시)자는 해당 항목 0점 처리 후 사정대상에 포함(추가합격 예비번호 부여).",
       "quota": "15명",
       "fee": "55,000원",
-      "csat_minimum": null,
+      "csat_minimum": "없음",
       "documents": "2024년 2월~2027년 2월 졸업(예정)자 중 원서접수 시 학생부 온라인 제공에 동의한 자는 제출서류 없음. 미동의자·2004년 2월 이전 졸업자는 고등학교 생활기록부 사본 1부. 서류제출 마감 2026.10.07.(수) 17:00까지.",
       "dress_code": "과하지 않은 메이크업 및 얼굴이 잘 보이는 헤어스타일로 준비",
       "preparation": "사진(3cm×4cm) 제출(원서접수 시 온라인 제출), 예약증과 신분증(주민등록증 또는 여권) 지참. '뮤지컬연기'의 반주(MR)는 본인이 직접 USB에 준비하며 반드시 mp3 파일 1개로 준비하고 파일명에 제목 기입, USB 메모리의 바이러스(악성코드) 사전 검사 요망.",
@@ -7172,8 +7488,26 @@
           "note": "사전에 준비한 독백 대사, 음악(MR) 사용 불가"
         }
       ],
-      "results": [],
-      "source_url": "https://enter.du.ac.kr/submenu.do?menuUrl=AelSWjPhedMv%2bAZA2NXqDg%3d%3d&",
+      "results": [
+        {
+          "year": 2026,
+          "quota": null,
+          "applicants": null,
+          "competition_rate": "14.9",
+          "transcript_avg": "4.60",
+          "transcript_cut50": null,
+          "transcript_cut70": null,
+          "transcript_low": null,
+          "practical_avg": null,
+          "fill_rate": null,
+          "waitlist_last": null,
+          "waitlist_count": 12,
+          "source_url": "https://enter.du.ac.kr/submenu.do?menuUrl=LxZUaTFmmSi27DgQxWKW1A%3d%3d&",
+          "verified_at": "2026-08-04",
+          "note": "2026학년도 수시 1차 정원내 일반전형. 2026학년도에는 연기예술학과 뮤지컬전공으로 뽑았어요. 경쟁률 14.9, 평균등급 4.60은 '[2027학년도 성적 반영방식 적용] 2026학년도 입시결과' 기준의 참고용 수치예요(최종등록자 기준, 출결·실기 성적 제외). 충원결과 공고 기준 최초합격 15명, 충원합격 12명이에요."
+        }
+      ],
+      "source_url": "https://enter.du.ac.kr/submenu.do?menuUrl=LxZUaTFmmSi27DgQxWKW1A%3d%3d&",
       "verified_at": "2026-08-04",
       "note": "2027학년도부터 기존 연기예술학과 뮤지컬전공이 뮤지컬과(학과)로 전환됨. 뮤지컬과는 전형 간 중복지원 불가(하나의 전형으로만 지원). 3년제, 입학정원 30명."
     },
@@ -7193,7 +7527,7 @@
       "practical_task": "뮤지컬연기(2분 이내): 한국어로 된 뮤지컬 넘버를 활용하여 동선과 장면 구성을 포함한 연기를 수행한다. 자유연기(1분 30초 이내): 수험생이 사전에 준비한 독백 대사를 자유롭게 연기한다. 자유연기는 음악(MR) 사용 불가.",
       "quota": "15명",
       "fee": "55,000원",
-      "csat_minimum": null,
+      "csat_minimum": "없음",
       "documents": "학생부 온라인 제공 동의자는 제출서류 없음, 미동의자·2004년 2월 이전 졸업자는 고등학교 생활기록부 사본 1부. 서류제출 마감 2027.01.22.(금) 17:00까지.",
       "dress_code": "과하지 않은 메이크업 및 얼굴이 잘 보이는 헤어스타일로 준비",
       "preparation": "사진(3cm×4cm) 제출(원서접수 시 온라인 제출), 예약증과 신분증(주민등록증 또는 여권) 지참. '뮤지컬연기'의 반주(MR)는 본인이 직접 USB에 mp3 파일 1개로 준비하고 파일명에 제목 기입.",
@@ -7227,8 +7561,26 @@
           "note": "사전에 준비한 독백 대사, 음악(MR) 사용 불가"
         }
       ],
-      "results": [],
-      "source_url": "https://enter.du.ac.kr/submenu.do?menuUrl=AelSWjPhedMv%2bAZA2NXqDg%3d%3d&",
+      "results": [
+        {
+          "year": 2026,
+          "quota": null,
+          "applicants": null,
+          "competition_rate": "12.6",
+          "transcript_avg": "5.19",
+          "transcript_cut50": null,
+          "transcript_cut70": null,
+          "transcript_low": null,
+          "practical_avg": null,
+          "fill_rate": null,
+          "waitlist_last": null,
+          "waitlist_count": 13,
+          "source_url": "https://enter.du.ac.kr/submenu.do?menuUrl=LxZUaTFmmSi27DgQxWKW1A%3d%3d&",
+          "verified_at": "2026-08-04",
+          "note": "2026학년도 정시 정원내 일반(학생부)전형. 2026학년도에는 연기예술학과 뮤지컬전공으로 뽑았어요. 경쟁률 12.6, 평균등급 5.19는 '[2027학년도 성적 반영방식 적용] 2026학년도 입시결과' 기준의 참고용 수치예요(최종등록자 기준, 실기 성적 제외). 충원결과 공고 기준 최초합격 15명, 충원합격 13명이에요."
+        }
+      ],
+      "source_url": "https://enter.du.ac.kr/submenu.do?menuUrl=LxZUaTFmmSi27DgQxWKW1A%3d%3d&",
       "verified_at": "2026-08-04",
       "note": "정시 실기고사 학과는 일반(학생부)전형으로 지원한다(수능 반영 없음)."
     },
@@ -7250,8 +7602,8 @@
       "fee": "35,000원",
       "csat_minimum": null,
       "documents": "첨부서류 제출기간 2026.10.02.(금) 18:00까지(해당자만 제출). 등기우편 발송 또는 방문제출. 서류제출처: (11618) 경기도 의정부시 서부로 545 경민대학교 효행관 2층 통합행정사무실 입학취업처. 모든 서류는 원본 제출, 서류 미제출 시 입학사정 대상에서 제외.",
-      "dress_code": null,
-      "preparation": null,
+      "dress_code": "복장 제한 없음. 교복을 입고 올 경우 학교 마크와 이름을 가릴 수 있는 스티커를 대학에서 제공한다. 블라인드로 진행하므로 수험생은 개인정보를 발설할 수 없다.",
+      "preparation": "① 사진이 부착된 신분증(주민등록증·여권·고교 학생증·생활기록부 사본·운전면허증·국가자격증 중 택 1) — 본인 확인이 불가능하면 실기고사에 응시할 수 없다. ② 수험표(스마트폰 촬영 화면 또는 출력물로 확인).",
       "designated_works": [],
       "essay_questions": [],
       "weights": {
@@ -7298,7 +7650,7 @@
           "note": "2026학년도 수시 1차 일반전형 입시결과 - 경쟁률 2.5, 학생부 등급 최저 6.6 / 평균 5.4."
         }
       ],
-      "source_url": "https://iphak.kyungmin.ac.kr:8081/assets/main/4c5c9dcdd9515058ae7ee55da5c8b056.pdf",
+      "source_url": "https://iphak.kyungmin.ac.kr:8081/assets/main/4bb4961623905219804e1cf082c5442f.pdf",
       "verified_at": "2026-08-04",
       "note": "2027학년도 신입생 모집요강 기준(경민대 입학홈페이지 게시 PDF). 2년제, 입학정원 40명. 원서접수는 진학어플라이·유웨이어플라이·창구접수. 면접/실기고사 불참으로 인한 전형료 반환 불가. 대면 실기는 블라인드 원칙(수험생 개인정보 발설 금지)."
     },
@@ -7320,8 +7672,8 @@
       "fee": "35,000원",
       "csat_minimum": null,
       "documents": "첨부서류 제출기간 2026.11.27.(금) 18:00까지(해당자만 제출). 등기우편 발송 또는 방문제출.",
-      "dress_code": null,
-      "preparation": null,
+      "dress_code": "복장 제한 없음. 교복을 입고 올 경우 학교 마크와 이름을 가릴 수 있는 스티커를 대학에서 제공한다. 블라인드로 진행하므로 수험생은 개인정보를 발설할 수 없다.",
+      "preparation": "① 사진이 부착된 신분증(주민등록증·여권·고교 학생증·생활기록부 사본·운전면허증·국가자격증 중 택 1) — 본인 확인이 불가능하면 실기고사에 응시할 수 없다. ② 수험표(스마트폰 촬영 화면 또는 출력물로 확인).",
       "designated_works": [],
       "essay_questions": [],
       "weights": {
@@ -7368,7 +7720,7 @@
           "note": "2026학년도 수시 2차 일반전형 입시결과 - 경쟁률 3.4, 학생부 등급 최저 7.3 / 평균 5.4."
         }
       ],
-      "source_url": "https://iphak.kyungmin.ac.kr:8081/assets/main/4c5c9dcdd9515058ae7ee55da5c8b056.pdf",
+      "source_url": "https://iphak.kyungmin.ac.kr:8081/assets/main/4bb4961623905219804e1cf082c5442f.pdf",
       "verified_at": "2026-08-04",
       "note": "수시 1차 모집 이후 미충원 인원을 수시 2차에서 추가 선발(수시 1차 합격자 발표 후 미충원 인원 입학홈페이지 공지)."
     },
@@ -7390,8 +7742,8 @@
       "fee": "35,000원",
       "csat_minimum": null,
       "documents": "첨부서류 제출기간 2027.01.21.(목) 18:00까지(해당자만 제출). 등기우편 발송 또는 방문제출.",
-      "dress_code": null,
-      "preparation": null,
+      "dress_code": "복장 제한 없음. 교복을 입고 올 경우 학교 마크와 이름을 가릴 수 있는 스티커를 대학에서 제공한다. 블라인드로 진행하므로 수험생은 개인정보를 발설할 수 없다.",
+      "preparation": "① 사진이 부착된 신분증(주민등록증·여권·고교 학생증·생활기록부 사본·운전면허증·국가자격증 중 택 1) — 본인 확인이 불가능하면 실기고사에 응시할 수 없다. ② 수험표(스마트폰 촬영 화면 또는 출력물로 확인).",
       "designated_works": [],
       "essay_questions": [],
       "weights": {
@@ -7438,7 +7790,7 @@
           "note": "2026학년도 정시 일반전형 입시결과 - 경쟁률 3.9, 학생부 등급 평균 5.3 / 최저 7.5. 실기학과라 수능 백분위는 미공개."
         }
       ],
-      "source_url": "https://iphak.kyungmin.ac.kr:8081/assets/main/4c5c9dcdd9515058ae7ee55da5c8b056.pdf",
+      "source_url": "https://iphak.kyungmin.ac.kr:8081/assets/main/46590421b0c8e58ca3b3602eb20f7ce0.pdf",
       "verified_at": "2026-08-04",
       "note": "수시 모집 이후 미충원 인원을 정시에서 선발."
     },
@@ -7458,8 +7810,8 @@
       "practical_task": "연기(연극, 뮤지컬)트랙과 영상콘텐츠트랙 중 1개 과제 선택. [연기(연극, 뮤지컬)트랙] 대사연기 — 자유 연기, 3분 이내. [영상콘텐츠 트랙] 이야기(장면) 구성 — 제시된 예제로 이야기(장면) 구성, 3분 이내(고사 일주일 전 문항 사전 공개 예정). 실기고사 결시자 및 중도포기자는 불합격 처리.",
       "quota": "15명",
       "fee": "70,000원",
-      "csat_minimum": null,
-      "documents": null,
+      "csat_minimum": "없음",
+      "documents": "학교생활기록부 온라인 제공 동의자는 별도 제출서류 없음(2024년 2월~2027년 2월 졸업(예정)자는 원서접수 시 동의하면 자동 제출, 2004~2022학년도 졸업자는 온라인 생성 신청 시스템에서 2026.08.24.~09.11. 개별생성 필수, 2003학년도 이전 졸업생은 모교·주민센터에서 발급받아 방문·우편 제출). 온라인 제공 비동의자는 학교생활기록부 1부(발급 기관장 직인 필). 2017년(포함) 이전 검정고시 합격자 및 검정고시 대입전형자료 온라인 제공 비동의자는 검정고시 합격증명서 1부 + 성적증명서 1부. 서류제출기간은 2026.09.23.(수) 17:00까지 본교 입학팀 방문·우편 제출. 자격증을 제외한 제출서류는 원본만 유효하고 원서접수 마감일 기준 1개월 이내 발급분만 인정.",
       "dress_code": null,
       "preparation": null,
       "designated_works": [],
@@ -7507,7 +7859,7 @@
           "note": "2027학년도 수시모집요강 내 '2026학년도 신입학 수시모집 입시결과' 표(교과중점/실기위주 열). 대학이 공개한 항목은 모집 15, 경쟁률 2.8, 후보 14, 교과성적 80% 컷 9(등급). 70% 컷은 미공개."
         }
       ],
-      "source_url": "https://ipsi.dju.ac.kr/enter/html/rolling/guide.asp",
+      "source_url": "https://ipsi.dju.ac.kr/upload/GUIDES/20260729103454001.pdf",
       "verified_at": "2026-08-04",
       "note": "2027학년도 대전대학교 수시모집요강 기준. 실기고사 2026.10.02.(금) 13:00, 본교 내 지정장소(실기고사 전 입학처 홈페이지 공지). 수능최저학력기준 미적용. 학과 입학정원 20명 중 실기위주 15명, 교과면접 5명. 정시모집에서는 실기 선발 없이 수능위주(가군) 수시 미충원 이월 인원만 선발."
     }
