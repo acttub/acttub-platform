@@ -16,6 +16,15 @@ Acttub 플랫폼 모노레포. JS(pnpm)와 Python(uv)이 공존합니다.
 - 웹 검증: `pnpm lint` · `pnpm typecheck` · `pnpm --filter web test` · `pnpm build`(→ `apps/web/out/`)
 - 운영 형태: FastAPI 단일 프로세스가 `STATIC_DIR=<...>/apps/web/out`으로 정적 파일과 API를 같은 오리진에서 서빙합니다 (nginx·Vercel 없음).
 
+## 이슈 추적 (Jira 연동)
+
+Jira 프로젝트 `SOMA`와 GitHub이 연결되어 있습니다. 브랜치·PR에 이슈 키가 있어야 상태 전이 자동화와 개발 패널 연결이 동작합니다.
+
+- 브랜치명에 이슈 키를 포함합니다: `feat/SOMA-123-exit-review-modal`. 타입 뒤·설명 앞에 두고, **키는 대문자**여야 인식됩니다.
+- PR 제목은 `SOMA-123 <한국어 요약>` 형식입니다.
+- 커밋 메시지에는 키를 넣지 않습니다. 기존 컨벤션(`feat(web): ~를 띄운다` — Conventional Commits + 한국어 평서형)을 그대로 쓰며, 머지 커밋에 브랜치명이 들어가므로 키는 자동으로 따라갑니다.
+- 자동 전이: 브랜치 생성 → `In Progress`, PR 오픈 → `검토 중`, PR 머지 → `Done`. `보류 중`은 수동으로만 넣고 뺍니다.
+
 ## 저장소 규칙
 
 - 패키지 매니저는 JS=pnpm, Python=uv. 다른 lockfile을 추가하지 않습니다.
