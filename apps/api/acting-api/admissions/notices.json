@@ -1917,13 +1917,62 @@
         }
       ],
       "source_url": "https://admission.daejin.ac.kr/submenu.do?menuurl=kzVEfrpisRbR9lks5Jqg8A%3d%3d&",
-      "verified_at": "2026-08-01",
+      "verified_at": "2026-08-04",
       "note": "합격자 발표는 2026년 11월 13일 14시고, 개별 통보는 하지 않아요. 실기고사 문의는 031-539-2080이에요.",
       "discipline": "acting",
       "stages": [],
-      "practical_items": [],
+      "practical_items": [
+        {
+          "category": "assigned_acting",
+          "label": "지정연기",
+          "required": true,
+          "time_limit_sec": 300,
+          "count": 1,
+          "weight": null,
+          "stage": null,
+          "note": "배점 400점. 시험 당일 주어진 대본을 약 30분간 연습한 뒤 5분 이내로 발표한다. 연기 지원자 필수."
+        },
+        {
+          "category": "free_acting",
+          "label": "자유연기",
+          "required": false,
+          "time_limit_sec": null,
+          "count": 1,
+          "weight": null,
+          "stage": null,
+          "note": "배점 400점. 자유연기와 특기 중 택 1. 희곡·뮤지컬·시나리오에서 본인이 고른 작품과 장면으로 한다."
+        },
+        {
+          "category": "special",
+          "label": "특기",
+          "required": false,
+          "time_limit_sec": null,
+          "count": 1,
+          "weight": null,
+          "stage": null,
+          "note": "배점 400점. 자유연기와 특기 중 택 1. 춤·노래·무용·연주·마임 등 연기와 유관한 것으로 하며, 노래는 뮤지컬 자유곡 1곡이다."
+        },
+        {
+          "category": "interview",
+          "label": "심층면접",
+          "required": false,
+          "time_limit_sec": 300,
+          "count": 1,
+          "weight": null,
+          "stage": null,
+          "note": "배점 800점. 연기가 아닌 연출·스태프로 지원한 사람만 본다. 5분 이내로 연극 상식과 열의를 평가한다."
+        }
+      ],
       "designated_works": [],
-      "essay_questions": []
+      "essay_questions": [],
+      "announce_date": "2026-11-13",
+      "practical_date_end": "2026-10-24",
+      "weights": {
+        "transcript": 20,
+        "practical": 80
+      },
+      "weights_note": "일괄합산 — 학생부(교과) 20%(200점) + 실기 80%(800점), 총 1,000점",
+      "preparation": "연기에 필요한 소품·의상·음악·MR은 본인이 준비한다. 피아노는 학교가 준비한다."
     },
     {
       "id": "yongin-2027-susi-acting",
@@ -1940,15 +1989,78 @@
       "csat_minimum": null,
       "documents": "인터넷 접수만(유웨이어플라이). 서류는 2026-09-23 17시까지 등기우편 또는 방문 제출.",
       "dress_code": "검은색 상·하의를 입는다. 검은색 레오타드와 풀치마는 허용하지만 레이스 등 장식이 달린 의상, 검은색 외의 색이 섞인 의상, 무대 의상은 금지. 무대 분장과 액세서리도 금지. 소품은 총·칼·흉기류·인화성 물질을 뺀 나머지만 쓸 수 있다. 신발은 금지(탭댄스처럼 불가피한 경우만 예외). 악기 연주를 한다면 개인 악기를 가져와야 한다 — 고사장에 비치된 악기가 없다. 음악 파일은 USB에 wav 또는 mp3로 담아 오고, 맥에서 쓰던 USB는 쓸 수 없다.",
-      "source_url": "https://ipsi.yongin.ac.kr/susi/guide.do",
-      "verified_at": "2026-08-01",
+      "source_url": "https://ipsi.yongin.ac.kr/ipsi/guide/susi/mo_susi_20260623_1020.pdf",
+      "verified_at": "2026-08-04",
       "note": "모집인원은 아직 확인되지 않았어요. 입학처가 공개하는 전년도 입시결과도 아직 준비 중이에요.",
       "discipline": "acting",
-      "stages": [],
-      "practical_items": [],
+      "stages": [
+        {
+          "order": 1,
+          "name": "1단계",
+          "date": "2026-09-18",
+          "evaluates": [
+            "assigned_acting"
+          ],
+          "multiple": "모집인원 10배수",
+          "weight": 0,
+          "note": "2026-09-18 ~ 09-19. 실기 100%(500점)로 선발한다. 최종 성적은 학생부 30% + 2단계 실기 70%로만 내므로 1단계 점수는 최종에 반영되지 않는다. 1단계 발표 2026-09-23 15시."
+        },
+        {
+          "order": 2,
+          "name": "2단계",
+          "date": "2026-10-02",
+          "evaluates": [
+            "free_acting",
+            "special"
+          ],
+          "multiple": null,
+          "weight": 100,
+          "note": "2026-10-02 ~ 10-05. 학교생활기록부 30%(150점) + 실기 70%(350점), 500점 만점. 최종 발표 2026-10-16 15시."
+        }
+      ],
+      "practical_items": [
+        {
+          "category": "assigned_acting",
+          "label": "지정대사",
+          "required": true,
+          "time_limit_sec": 120,
+          "count": 1,
+          "weight": null,
+          "stage": 1,
+          "note": "고사 당일 본교에서 제시한 2분 이내의 대사로 연기력을 평가한다. 배점 0~500점."
+        },
+        {
+          "category": "free_acting",
+          "label": "자유연기",
+          "required": true,
+          "time_limit_sec": 120,
+          "count": 1,
+          "weight": null,
+          "stage": 2,
+          "note": "본인이 준비한 2분 이내의 연기. 특기와 합쳐 3분 이내이며 둘을 합한 배점이 0~350점이다."
+        },
+        {
+          "category": "special",
+          "label": "특기",
+          "required": true,
+          "time_limit_sec": 60,
+          "count": 1,
+          "weight": null,
+          "stage": 2,
+          "note": "노래·춤·악기연주·마임·아크로바틱·연기 등 1분 이내에 실현 가능한 기예로 평가한다."
+        }
+      ],
       "results": [],
       "designated_works": [],
-      "essay_questions": []
+      "essay_questions": [],
+      "announce_date": "2026-10-16",
+      "practical_date_end": "2026-10-05",
+      "weights": {
+        "transcript": 30,
+        "practical": 70
+      },
+      "weights_note": "단계별 — 1단계 실기 100%(500점)로 모집인원 10배수를 뽑고, 2단계는 학교생활기록부 30%(150점) + 실기 70%(350점) 500점 만점으로 최종 성적을 내요.",
+      "preparation": "음악 파일이 필요하면 USB에 담아 준비한다 — 반드시 wav 또는 MP3여야 하고, USB에 문제가 생겨도 학교는 책임지지 않으며 맥(MAC)에서 쓰던 USB는 사용할 수 없다. 악기를 연주한다면 개인 악기를 가져와야 한다(고사장에 비치된 악기가 없다). 소품은 총·칼·흉기류·인화성 물질을 뺀 나머지만 쓸 수 있고, 신발은 탭댄스처럼 불가피한 경우가 아니면 신을 수 없다."
     },
     {
       "id": "kbu-2027-susi-performing",
@@ -1966,15 +2078,53 @@
       "csat_minimum": "없음",
       "documents": "진학어플라이·유웨이어플라이 또는 남양주캠퍼스 창구 접수. 서류는 2026-10-01 소인까지 유효(대상자만).",
       "dress_code": "필요한 MR은 USB에 담아 실기고사 당일 제출한다. CD는 받지 않는다. 고사일에는 사진이 붙은 신분증과 개인 준비물을 지참한다.",
-      "source_url": "https://efms.kbu.ac.kr/efms/CMS/Contents/Contents.do?mCode=MN030",
-      "verified_at": "2026-08-01",
+      "source_url": "https://efms.kbu.ac.kr/attach/CONTENTS/PDF/ContentMgr/PDFViewer/2026/7/WJX5O64q7tbCjNE7.PDF",
+      "verified_at": "2026-08-04",
       "note": "합격자 발표는 2026년 11월 6일이에요. 지원자가 많으면 안내된 실기고사일 다음 날에도 실기를 볼 수 있어요.",
       "discipline": "acting",
       "stages": [],
-      "practical_items": [],
+      "practical_items": [
+        {
+          "category": "free_acting",
+          "label": "자유연기",
+          "required": false,
+          "time_limit_sec": null,
+          "count": 1,
+          "weight": null,
+          "stage": null,
+          "note": "자유연기·뮤지컬노래·움직임 세 가지 중 두 가지를 골라 전체 3분 내외로 한다."
+        },
+        {
+          "category": "song",
+          "label": "뮤지컬노래",
+          "required": false,
+          "time_limit_sec": null,
+          "count": 1,
+          "weight": null,
+          "stage": null,
+          "note": "하이라이트를 포함한다. 자유연기·뮤지컬노래·움직임 세 가지 중 두 가지를 골라 전체 3분 내외로 한다."
+        },
+        {
+          "category": "movement",
+          "label": "움직임",
+          "required": false,
+          "time_limit_sec": null,
+          "count": 1,
+          "weight": null,
+          "stage": null,
+          "note": "자유연기·뮤지컬노래·움직임 세 가지 중 두 가지를 골라 전체 3분 내외로 한다."
+        }
+      ],
       "results": [],
       "designated_works": [],
-      "essay_questions": []
+      "essay_questions": [],
+      "announce_date": "2026-11-06",
+      "weights": {
+        "transcript": 20,
+        "practical": 80
+      },
+      "weights_note": "실기 위주 — 학생부(교과) 20% + 실기 80%, 합계 100%에 가산점(KBU입시드림포인트) 별도. 동점자는 실기고사 성적이 높은 사람을 먼저 뽑아요.",
+      "preparation": "필요한 MR은 USB에 담아 실기고사 당일 제출한다. CD는 받지 않는다. 실기고사일에는 사진이 붙은 신분증(학생증 가능)과 개인 준비물을 지참하고 대기시간까지 고사장에 입실해야 한다."
     },
     {
       "id": "shinhan-2027-susi-performing",
@@ -1987,19 +2137,84 @@
       "apply_end": "2026-09-11",
       "practical_date": "2026-10-26",
       "practical_task": "실기고사 2026-10-26 ~ 10-30. 평가위원 3~5인이 수험생 1인을 평가한다. 자유종합연기(2~3분 내외) — 연극·영화·TV드라마·뮤지컬 작품 중 한 장면을 자유롭게 골라 준비해 온 연기. 기계적으로 외운 연기가 아니라 본능과 충동에 의한 생동감이 있는지를 본다. 제시연기(2~3분 내외) — 당일 제시한 희곡·영화·시나리오·TV드라마 대본의 대사를 짧은 시간 안에 분석하고 자기화하는 능력을 본다. 질의응답(1분 내외) — 제시연기와 자유종합연기의 분석·해석 능력을 본다.",
-      "fee": null,
-      "csat_minimum": null,
+      "fee": "90,000원 (전형료 40,000 + 실기고사료 50,000, 인터넷 원서접수 수수료 5,000원 별도)",
+      "csat_minimum": "없음",
       "documents": "진학어플라이로 접수(2026-09-07 09:00 ~ 09-11 23:59). 해당자는 서류를 2026-09-18 18시까지 제출(우편은 09-18 소인까지 유효). 서류 도착은 09-08부터 입학홈페이지에서 조회할 수 있다.",
       "dress_code": "째즈복 또는 검은색 스판덱스 소재 하의를 입는다(상의는 자율). 연기에 필요한 음악과 MR은 반드시 USB에 저장해 본인이 준비한다. 짧은 시간 안에 모든 연기적 역량을 보일 수 있도록 구성해야 한다.",
-      "source_url": "https://ipsi.shinhan.ac.kr/adm/info.do?cateId=1&bbsId=BBSMSTR_000000000051",
-      "verified_at": "2026-08-01",
+      "source_url": "https://ipsi.shinhan.ac.kr/adm/info.do?cateId=1&bbsId=BBSMSTR_000000000051&relateImagePath=svis_1",
+      "verified_at": "2026-08-04",
       "note": "세부 일정은 개별 통지하지 않으니 입학 홈페이지에서 직접 확인해요. 다른 대학과 일정이 겹쳐도 전형료는 환불되지 않아요. 모집인원과 전형료는 아직 확인되지 않았어요.",
       "discipline": "acting",
       "stages": [],
-      "practical_items": [],
-      "results": [],
+      "practical_items": [
+        {
+          "category": "free_acting",
+          "label": "자유종합연기",
+          "required": true,
+          "time_limit_sec": 180,
+          "count": 1,
+          "weight": null,
+          "stage": null,
+          "note": "2~3분 내외. 연극·영화·TV드라마·뮤지컬 작품 중 한 장면을 자유롭게 골라 준비해 온 연기를 한다. 기계적으로 외운 연기가 아니라 본능과 충동에 의한 생동감이 있는지를 본다. 연기 지원자용."
+        },
+        {
+          "category": "assigned_acting",
+          "label": "제시 연기",
+          "required": true,
+          "time_limit_sec": 180,
+          "count": 1,
+          "weight": null,
+          "stage": null,
+          "note": "2~3분 내외. 당일 제시한 희곡·영화·시나리오·TV드라마 대본의 대사를 연기하며, 짧은 시간 안에 분석·이해해 자기화하는 능력을 본다. 연기 지원자용."
+        },
+        {
+          "category": "interview",
+          "label": "질의응답",
+          "required": true,
+          "time_limit_sec": 60,
+          "count": 1,
+          "weight": null,
+          "stage": null,
+          "note": "1분 내외. 제시 연기와 자유종합연기의 분석·해석 능력을 본다. 연기 지원자용."
+        },
+        {
+          "category": "audition_etc",
+          "label": "창의력 평가",
+          "required": false,
+          "time_limit_sec": 900,
+          "count": 1,
+          "weight": null,
+          "stage": null,
+          "note": "15분 이내. 연기가 아닌 연출로 지원한 사람만 본다. 실기고사 전 30분의 준비시간을 주고, 당일 제시되는 단어로 스토리텔링을 시킨 뒤(예: 밧줄·쥐·빨대), 고사장에 준비된 소품을 활용해 그 이야기의 앞뒤를 잇는 2차 스토리텔링을 하게 하고, 마지막에 연출에 대한 질의응답을 한다."
+        }
+      ],
+      "results": [
+        {
+          "year": 2026,
+          "quota": 18,
+          "applicants": null,
+          "competition_rate": "31.78:1",
+          "transcript_avg": "4.02",
+          "transcript_cut70": null,
+          "fill_rate": null,
+          "waitlist_last": null,
+          "waitlist_count": null,
+          "source_url": "https://ipsi.shinhan.ac.kr/adm/info.do?cateId=6&bbsId=BBSMSTR_000000000065&relateImagePath=svis_1",
+          "verified_at": "2026-08-04",
+          "note": "대학이 낸 '2026학년도 입시결과(수시)' 실기우수자전형 표의 공연예술학과(연기) 줄이다. 학생부 커트라인 5.90등급(200점 만점에 183.30점), 학생부 평균 4.02등급(191.66점), 실기고사 평균 739.26점(800점 만점), '예비' 칸은 3이다. 같은 표의 공연예술학과(연출)은 모집 2명·경쟁률 14·학생부 커트라인 4.40등급·평균 2.90등급·실기 평균 740.00점이다."
+        }
+      ],
       "designated_works": [],
-      "essay_questions": []
+      "essay_questions": [],
+      "announce_date": "2026-11-16",
+      "practical_date_end": "2026-10-30",
+      "quota": "연기 15명 · 연출 2명",
+      "weights": {
+        "practical": 80,
+        "transcript": 20
+      },
+      "weights_note": "일괄 — 실기고사 80%(800점) + 학생부 교과성적 20%(200점), 총점 1,000점(최저점 136점). 총점 순으로 선발하며 실기고사에 결시하면 불합격이에요.",
+      "preparation": "연기에 필요한 음악과 MR은 반드시 USB에 저장해 본인이 준비한다. 고사 당일에는 본인임을 확인할 수 있는 신분증(주민등록증·운전면허증·여권·학생증 등)과 수험표를 지참한다."
     },
     {
       "id": "seoularts-2027-susi-acting",
@@ -2018,14 +2233,87 @@
       "documents": "유웨이어플라이·진학어플라이 인터넷 접수만. 수험표는 2026-10-01 16시부터 출력. 해당자는 추가서류를 2026-10-13 18시 도착분까지 등기우편으로 낸다(10-12 소인까지 유효). 학생부 반영교과는 국어·영어다.",
       "dress_code": "실연 음악은 MP3로만 USB에 담아 시험 당일 제출한다(WAV·스마트폰·CD 불가). 소품은 입실 전 검사받은 것만 쓸 수 있고 흉기·화기·인화성 물질과 음식물은 금지다. 반주자 등 타인을 데려올 수 없고, 얼굴 전면이 보이도록 머리를 정리해야 하며 써클·컬러렌즈는 착용할 수 없다. 고사장에는 피아노와 큐브(40×40×40cm), 의자가 있다.",
       "source_url": "https://www.seoularts.ac.kr/web/cop/bbsWeb/selectBoardList.do?bbsId=BBSMSTR_000000000924",
-      "verified_at": "2026-08-01",
+      "verified_at": "2026-08-04",
       "note": "2027학년도부터 소품에 음식물을 쓸 수 없어요. 개인별 고사 일시와 장소는 2026년 10월 12일 16시부터 홈페이지 수험생정보서비스에서 확인할 수 있어요.",
       "discipline": "acting",
-      "stages": [],
-      "practical_items": [],
+      "stages": [
+        {
+          "order": 1,
+          "name": "1차 시험",
+          "date": "2026-10-17",
+          "evaluates": [
+            "assigned_acting",
+            "special"
+          ],
+          "multiple": "모집인원의 4배수 내외",
+          "weight": 0,
+          "note": "2026-10-17(토) ~ 10-25(일) 9일 중 하루. 1차 합격자 발표 2026-10-27(화) 16시 예정. 1차 성적은 최종 입학성적에 반영하지 않는다. 다만 1차 성적이 현저히 낮으면 2배수 내외만 2차 대상자로 뽑을 수 있다."
+        },
+        {
+          "order": 2,
+          "name": "2차 시험",
+          "date": "2026-10-31",
+          "evaluates": [
+            "improv",
+            "interview"
+          ],
+          "multiple": null,
+          "weight": 100,
+          "note": "2026-10-31(토) ~ 11-01(일) 2일. 1,000점 만점이며 최종 성적은 이 점수만으로 낸다."
+        }
+      ],
+      "practical_items": [
+        {
+          "category": "assigned_acting",
+          "label": "당일대사",
+          "required": true,
+          "time_limit_sec": 60,
+          "count": 1,
+          "weight": null,
+          "stage": 1,
+          "note": "시험 당일 제시되는 텍스트(산문·대사)의 상황과 인물 관계를 이해해 표현한다."
+        },
+        {
+          "category": "special",
+          "label": "특기",
+          "required": true,
+          "time_limit_sec": 60,
+          "count": 1,
+          "weight": null,
+          "stage": 1,
+          "note": "노래·움직임·악기연주·스케치 코메디·마임 등 재능을 보여줄 수 있는 것. MR과 피아노를 쓸 수 있다. 독백 연기에서 특기로 이어지는 종합연기는 불가."
+        },
+        {
+          "category": "improv",
+          "label": "연기 워크숍",
+          "required": true,
+          "time_limit_sec": null,
+          "count": 1,
+          "weight": null,
+          "stage": 2,
+          "note": "개인 구두문답과 합쳐 60분 내외. 10~15명 가량을 한 조로 묶어 당일 제시되는 과제를 수행하게 하고 문해력·상상력·순발력을 평가한다. MR 사용 불가."
+        },
+        {
+          "category": "interview",
+          "label": "개인 구두문답",
+          "required": true,
+          "time_limit_sec": null,
+          "count": 1,
+          "weight": null,
+          "stage": 2,
+          "note": "연기 워크숍과 합쳐 60분 내외로 진행한다."
+        }
+      ],
       "results": [],
       "designated_works": [],
-      "essay_questions": []
+      "essay_questions": [],
+      "announce_date": "2026-11-06",
+      "practical_date_end": "2026-11-01",
+      "weights": {
+        "practical": 100
+      },
+      "weights_note": "정원내 일반전형(실기우수) 연기 전공은 실기 100%, 학생부는 반영하지 않아요(학생부 반영교과 '-'). 최종 입학성적 산출 시 1차 시험 성적은 반영하지 않고 2차 시험 1,000점만 반영해요.",
+      "preparation": "실연에 필요한 음악(특기)은 MP3 파일로만 USB에 담아 시험 당일 제출한다. 입시에 쓰는 음악만 담아야 하고 WAV·스마트폰·휴대용 플레이어·TAPE·CD는 쓸 수 없다. 소품은 입실 전에 검사받아 허용된 것만 쓸 수 있다. 고사장에 피아노·큐브(40×40×40cm)·의자가 비치되어 있다. 반주자 등 수험생 외 타인은 데려올 수 없다."
     },
     {
       "id": "seoularts-2027-susi-musical",
@@ -2046,13 +2334,86 @@
         "지정곡 악보와 MR은 2026-08-21 서울예술대학교 입시공지사항에 올라온다 (남녀 각 3곡)"
       ],
       "source_url": "https://www.seoularts.ac.kr/web/cop/bbsWeb/selectBoardList.do?bbsId=BBSMSTR_000000000924",
-      "verified_at": "2026-08-01",
+      "verified_at": "2026-08-04",
       "note": "지정곡 목록은 아직 공지 전이라 비어 있어요.",
       "discipline": "musical",
-      "stages": [],
-      "practical_items": [],
+      "stages": [
+        {
+          "order": 1,
+          "name": "1차 시험",
+          "date": "2026-10-17",
+          "evaluates": [
+            "song"
+          ],
+          "multiple": "모집인원의 4배수 내외",
+          "weight": 0,
+          "note": "2026-10-17(토) ~ 10-25(일) 9일 중 하루. 1차 합격자 발표 2026-10-27(화) 16시 예정. 1차 성적은 최종 입학성적에 반영하지 않는다."
+        },
+        {
+          "order": 2,
+          "name": "2차 시험",
+          "date": "2026-10-31",
+          "evaluates": [
+            "improv",
+            "interview"
+          ],
+          "multiple": null,
+          "weight": 100,
+          "note": "2026-10-31(토) ~ 11-01(일) 2일. 1,000점 만점이며 최종 성적은 이 점수만으로 낸다."
+        }
+      ],
+      "practical_items": [
+        {
+          "category": "song",
+          "label": "자유곡 1곡",
+          "required": true,
+          "time_limit_sec": 60,
+          "count": 1,
+          "weight": null,
+          "stage": 1,
+          "note": "한국어 뮤지컬 삽입곡. 전주는 2마디를 넘지 않아야 하고 첫 후렴구를 포함해야 한다. 반드시 지정곡 이외의 곡을 골라야 한다."
+        },
+        {
+          "category": "song",
+          "label": "지정곡 1곡",
+          "required": true,
+          "time_limit_sec": 60,
+          "count": 1,
+          "weight": null,
+          "stage": 1,
+          "note": "지정곡 중 자신의 성별에 맞는 한 곡을 고른다. 남녀 각 3곡이며 악보와 MR은 2026-08-21 학교 홈페이지 입시공지사항에 올라온다. 지정곡 MR은 실기고사 당일 고사장에서 제공한다."
+        },
+        {
+          "category": "improv",
+          "label": "연기 워크숍",
+          "required": true,
+          "time_limit_sec": null,
+          "count": 1,
+          "weight": null,
+          "stage": 2,
+          "note": "개인 구두문답과 합쳐 60분 내외. 10~15명 가량을 한 조로 묶어 당일 제시되는 과제를 수행하게 하고 문해력·상상력·순발력을 평가한다. MR 사용 불가."
+        },
+        {
+          "category": "interview",
+          "label": "개인 구두문답",
+          "required": true,
+          "time_limit_sec": null,
+          "count": 1,
+          "weight": null,
+          "stage": 2,
+          "note": "연기 워크숍과 합쳐 60분 내외로 진행한다."
+        }
+      ],
       "results": [],
-      "essay_questions": []
+      "essay_questions": [],
+      "announce_date": "2026-11-06",
+      "practical_date_end": "2026-11-01",
+      "quota": "일반전형 남 4명 · 여 4명",
+      "weights": {
+        "practical": 100
+      },
+      "weights_note": "정원내 일반전형(실기우수) 연기 전공은 실기 100%, 학생부는 반영하지 않아요(학생부 반영교과 '-'). 최종 입학성적 산출 시 1차 시험 성적은 반영하지 않고 2차 시험 1,000점만 반영해요.",
+      "preparation": "자유곡 MR은 MP3 파일로만 USB에 담아 시험 당일 제출한다(WAV·스마트폰·휴대용 플레이어·TAPE·CD 불가). 지정곡 MR은 고사장에서 제공하므로 따로 준비하지 않아도 된다. 소품은 입실 전에 검사받아 허용된 것만 쓸 수 있다. 고사장에 피아노·큐브(40×40×40cm)·의자가 비치되어 있다. 반주자 등 수험생 외 타인은 데려올 수 없다."
     },
     {
       "id": "khu-2027-susi-acting",
@@ -6352,7 +6713,7 @@
       ],
       "source_url": "https://admission.yewon.ac.kr/main/filedown.php?menu=292&no=1629",
       "verified_at": "2026-08-04",
-      "note": "연극영화전공 정원 11명 중 실기위주 일반전형으로 7명을 뽑아요. 실기 당일 예원관에는 수험생만 들어갈 수 있고 학부모는 출입할 수 없어요. 학생생활관도 개방하지 않아요."
+      "note": "2027학년도 수시모집요강 기준. 연극영화전공 정원내 모집정원 11명 중 일반전형(실기위주 수시모집) 7명. 고사 당일 예원관에는 수험생만 출입 가능(학부모 출입 통제), 학생생활관은 개방하지 않음."
     },
     {
       "id": "yewon-2027-susi-performing-arts",
@@ -6422,6 +6783,339 @@
       "source_url": "https://admission.yewon.ac.kr/main/filedown.php?menu=292&no=1629",
       "verified_at": "2026-08-04",
       "note": "공연예술전공은 뮤지컬배우·방송배우·연극/영화배우 등을 진로로 하는 모집단위로, 연기와 뮤지컬(보컬)을 한 모집단위에서 함께 선발한다. 정원내 모집정원 10명 중 일반전형(실기위주 수시모집) 7명."
+    },
+    {
+      "id": "dongseoul-2027-susi-acting-theater",
+      "university_id": "dongseoul",
+      "department": "연기예술학과 연극전공",
+      "discipline": "acting",
+      "admission_year": 2027,
+      "track": "수시",
+      "screening": "수시 1차 일반전형(실기 위주)",
+      "apply_start": "2026-09-07",
+      "apply_end": "2026-09-30",
+      "practical_date": "2026-10-15",
+      "practical_date_end": "2026-10-25",
+      "announce_date": "2026-11-06",
+      "practical_task": "자유연기(1분 30초 이내): 수험생이 사전에 준비한 독백 대사를 자유롭게 연기한다. 움직임 연기(2분 이내): 대사 없이 신체 표현만으로 감정과 상황을 전달하는 움직임 중심의 표현을 수행한다. 연극전공은 음악(MR) 사용 불가. 실기고사 미응시(결시)자는 해당 항목 0점 처리 후 사정대상에 포함(추가합격 예비번호 부여). 실기고사 일정은 입학홈페이지에 공지 예정이며 지원인원에 따라 변동될 수 있음(예약시스템 운영).",
+      "quota": "25명",
+      "fee": "55,000원",
+      "csat_minimum": null,
+      "documents": "2024년 2월~2027년 2월 졸업(예정)자 중 원서접수 시 학생부 온라인 제공에 동의한 자는 제출서류 없음. 미동의자·2004년 2월 이전 졸업자는 고등학교 생활기록부 사본 1부. 검정고시 합격자는 성적 온라인 제공 동의 여부에 따라 검정고시 합격증명서·성적증명서 1부. 서류제출 마감 2026.10.07.(수) 17:00까지.",
+      "dress_code": "과하지 않은 메이크업 및 얼굴이 잘 보이는 헤어스타일로 준비",
+      "preparation": "사진(3cm×4cm) 제출(원서접수 시 온라인 제출), 예약증과 신분증(주민등록증 또는 여권) 지참",
+      "designated_works": [],
+      "essay_questions": [],
+      "weights": {
+        "practical": 80,
+        "transcript": 12,
+        "other": 8
+      },
+      "weights_note": "실기 위주 - 학생부성적 120점(12%) + 출결성적 80점(8%) + 실기성적 800점(80%) = 총점 1,000점",
+      "stages": [],
+      "practical_items": [
+        {
+          "category": "free_acting",
+          "label": "자유연기",
+          "required": true,
+          "time_limit_sec": 90,
+          "count": 1,
+          "weight": null,
+          "stage": null,
+          "note": "사전에 준비한 독백 대사, 음악(MR) 사용 불가"
+        },
+        {
+          "category": "movement",
+          "label": "움직임 연기",
+          "required": true,
+          "time_limit_sec": 120,
+          "count": 1,
+          "weight": null,
+          "stage": null,
+          "note": "대사 없이 신체 표현만으로 감정과 상황을 전달하는 움직임 중심의 표현"
+        }
+      ],
+      "results": [],
+      "source_url": "https://enter.du.ac.kr/submenu.do?menuUrl=AelSWjPhedMv%2bAZA2NXqDg%3d%3d&",
+      "verified_at": "2026-08-04",
+      "note": "2027학년도 신입생 모집요강 기준. 연기예술학과는 연극전공·방송연예전공·연출창작전공으로 나뉘어 별도 모집하며 본 공고는 연극전공. 연기예술학과·뮤지컬과·실용음악학과는 전형 간 중복지원 불가, 전공 간 복수지원 불가(하나의 전공에만 지원 가능). 학생부 반영은 1학년 1학기~2학년 2학기 4개 학기 중 우수 2개 학기 평균."
+    },
+    {
+      "id": "dongseoul-2027-jeongsi-acting-theater",
+      "university_id": "dongseoul",
+      "department": "연기예술학과 연극전공",
+      "discipline": "acting",
+      "admission_year": 2027,
+      "track": "정시",
+      "screening": "일반(학생부)전형(실기 위주)",
+      "apply_start": "2027-01-04",
+      "apply_end": "2027-01-20",
+      "practical_date": "2027-01-27",
+      "practical_date_end": "2027-02-01",
+      "announce_date": "2027-02-09",
+      "practical_task": "자유연기(1분 30초 이내): 수험생이 사전에 준비한 독백 대사를 자유롭게 연기한다. 움직임 연기(2분 이내): 대사 없이 신체 표현만으로 감정과 상황을 전달하는 움직임 중심의 표현을 수행한다. 연극전공은 음악(MR) 사용 불가. 실기고사 미응시(결시)자는 해당 항목 0점 처리 후 사정대상에 포함(추가합격 예비번호 부여).",
+      "quota": "25명",
+      "fee": "55,000원",
+      "csat_minimum": null,
+      "documents": "학생부 온라인 제공 동의자는 제출서류 없음, 미동의자·2004년 2월 이전 졸업자는 고등학교 생활기록부 사본 1부. 서류제출 마감 2027.01.22.(금) 17:00까지.",
+      "dress_code": "과하지 않은 메이크업 및 얼굴이 잘 보이는 헤어스타일로 준비",
+      "preparation": "사진(3cm×4cm) 제출(원서접수 시 온라인 제출), 예약증과 신분증(주민등록증 또는 여권) 지참",
+      "designated_works": [],
+      "essay_questions": [],
+      "weights": {
+        "practical": 80,
+        "transcript": 20
+      },
+      "weights_note": "정시 일반(학생부)전형 실기 위주 - 학생부성적 200점(20%) + 실기성적 800점(80%) = 총점 1,000점 (정시는 출결성적 미반영)",
+      "stages": [],
+      "practical_items": [
+        {
+          "category": "free_acting",
+          "label": "자유연기",
+          "required": true,
+          "time_limit_sec": 90,
+          "count": 1,
+          "weight": null,
+          "stage": null,
+          "note": "사전에 준비한 독백 대사, 음악(MR) 사용 불가"
+        },
+        {
+          "category": "movement",
+          "label": "움직임 연기",
+          "required": true,
+          "time_limit_sec": 120,
+          "count": 1,
+          "weight": null,
+          "stage": null,
+          "note": "대사 없이 신체 표현만으로 감정과 상황을 전달하는 움직임 중심의 표현"
+        }
+      ],
+      "results": [],
+      "source_url": "https://enter.du.ac.kr/submenu.do?menuUrl=AelSWjPhedMv%2bAZA2NXqDg%3d%3d&",
+      "verified_at": "2026-08-04",
+      "note": "정시 실기고사 학과는 일반(학생부)전형으로 지원한다(수능 반영 없음). 정시 추가합격자 발표 2027.02.13.(토)~02.27.(토)."
+    },
+    {
+      "id": "dongseoul-2027-susi-acting-broadcast",
+      "university_id": "dongseoul",
+      "department": "연기예술학과 방송연예전공",
+      "discipline": "acting",
+      "admission_year": 2027,
+      "track": "수시",
+      "screening": "수시 1차 일반전형(실기 위주)",
+      "apply_start": "2026-09-07",
+      "apply_end": "2026-09-30",
+      "practical_date": "2026-10-15",
+      "practical_date_end": "2026-10-25",
+      "announce_date": "2026-11-06",
+      "practical_task": "자유연기(1분 30초 이내): 수험생이 사전에 준비한 독백 대사를 자유롭게 연기한다. 즉흥 카메라 연기(2분 이내): 카메라 앞에서 심사위원의 지시에 따라 즉흥적으로 상황을 설정하고 연기한다. 방송연예전공은 음악(MR) 사용 불가. 실기고사 미응시(결시)자는 해당 항목 0점 처리 후 사정대상에 포함(추가합격 예비번호 부여).",
+      "quota": "15명",
+      "fee": "55,000원",
+      "csat_minimum": null,
+      "documents": "2024년 2월~2027년 2월 졸업(예정)자 중 원서접수 시 학생부 온라인 제공에 동의한 자는 제출서류 없음. 미동의자·2004년 2월 이전 졸업자는 고등학교 생활기록부 사본 1부. 서류제출 마감 2026.10.07.(수) 17:00까지.",
+      "dress_code": "과하지 않은 메이크업 및 얼굴이 잘 보이는 헤어스타일로 준비",
+      "preparation": "사진(3cm×4cm) 제출(원서접수 시 온라인 제출), 예약증과 신분증(주민등록증 또는 여권) 지참",
+      "designated_works": [],
+      "essay_questions": [],
+      "weights": {
+        "practical": 80,
+        "transcript": 12,
+        "other": 8
+      },
+      "weights_note": "실기 위주 - 학생부성적 120점(12%) + 출결성적 80점(8%) + 실기성적 800점(80%) = 총점 1,000점",
+      "stages": [],
+      "practical_items": [
+        {
+          "category": "free_acting",
+          "label": "자유연기",
+          "required": true,
+          "time_limit_sec": 90,
+          "count": 1,
+          "weight": null,
+          "stage": null,
+          "note": "사전에 준비한 독백 대사, 음악(MR) 사용 불가"
+        },
+        {
+          "category": "improv",
+          "label": "즉흥 카메라 연기",
+          "required": true,
+          "time_limit_sec": 120,
+          "count": 1,
+          "weight": null,
+          "stage": null,
+          "note": "카메라 앞에서 심사위원의 지시에 따라 즉흥적으로 상황을 설정하고 연기"
+        }
+      ],
+      "results": [],
+      "source_url": "https://enter.du.ac.kr/submenu.do?menuUrl=AelSWjPhedMv%2bAZA2NXqDg%3d%3d&",
+      "verified_at": "2026-08-04",
+      "note": "2027학년도 신입생 모집요강 기준. 연기예술학과·뮤지컬과·실용음악학과는 전형 간 중복지원 불가, 전공 간 복수지원 불가(하나의 전공에만 지원 가능)."
+    },
+    {
+      "id": "dongseoul-2027-jeongsi-acting-broadcast",
+      "university_id": "dongseoul",
+      "department": "연기예술학과 방송연예전공",
+      "discipline": "acting",
+      "admission_year": 2027,
+      "track": "정시",
+      "screening": "일반(학생부)전형(실기 위주)",
+      "apply_start": "2027-01-04",
+      "apply_end": "2027-01-20",
+      "practical_date": "2027-01-27",
+      "practical_date_end": "2027-02-01",
+      "announce_date": "2027-02-09",
+      "practical_task": "자유연기(1분 30초 이내): 수험생이 사전에 준비한 독백 대사를 자유롭게 연기한다. 즉흥 카메라 연기(2분 이내): 카메라 앞에서 심사위원의 지시에 따라 즉흥적으로 상황을 설정하고 연기한다. 방송연예전공은 음악(MR) 사용 불가.",
+      "quota": "15명",
+      "fee": "55,000원",
+      "csat_minimum": null,
+      "documents": "학생부 온라인 제공 동의자는 제출서류 없음, 미동의자·2004년 2월 이전 졸업자는 고등학교 생활기록부 사본 1부. 서류제출 마감 2027.01.22.(금) 17:00까지.",
+      "dress_code": "과하지 않은 메이크업 및 얼굴이 잘 보이는 헤어스타일로 준비",
+      "preparation": "사진(3cm×4cm) 제출(원서접수 시 온라인 제출), 예약증과 신분증(주민등록증 또는 여권) 지참",
+      "designated_works": [],
+      "essay_questions": [],
+      "weights": {
+        "practical": 80,
+        "transcript": 20
+      },
+      "weights_note": "정시 일반(학생부)전형 실기 위주 - 학생부성적 200점(20%) + 실기성적 800점(80%) = 총점 1,000점",
+      "stages": [],
+      "practical_items": [
+        {
+          "category": "free_acting",
+          "label": "자유연기",
+          "required": true,
+          "time_limit_sec": 90,
+          "count": 1,
+          "weight": null,
+          "stage": null,
+          "note": "사전에 준비한 독백 대사, 음악(MR) 사용 불가"
+        },
+        {
+          "category": "improv",
+          "label": "즉흥 카메라 연기",
+          "required": true,
+          "time_limit_sec": 120,
+          "count": 1,
+          "weight": null,
+          "stage": null,
+          "note": "카메라 앞에서 심사위원의 지시에 따라 즉흥적으로 상황을 설정하고 연기"
+        }
+      ],
+      "results": [],
+      "source_url": "https://enter.du.ac.kr/submenu.do?menuUrl=AelSWjPhedMv%2bAZA2NXqDg%3d%3d&",
+      "verified_at": "2026-08-04",
+      "note": "정시 실기고사 학과는 일반(학생부)전형으로 지원한다(수능 반영 없음)."
+    },
+    {
+      "id": "dongseoul-2027-susi-musical",
+      "university_id": "dongseoul",
+      "department": "뮤지컬과",
+      "discipline": "musical",
+      "admission_year": 2027,
+      "track": "수시",
+      "screening": "수시 1차 일반전형(실기 위주)",
+      "apply_start": "2026-09-07",
+      "apply_end": "2026-09-30",
+      "practical_date": "2026-10-15",
+      "practical_date_end": "2026-10-25",
+      "announce_date": "2026-11-06",
+      "practical_task": "뮤지컬연기(2분 이내): 한국어로 된 뮤지컬 넘버를 활용하여 동선과 장면 구성을 포함한 연기를 수행한다. 자유연기(1분 30초 이내): 수험생이 사전에 준비한 독백 대사를 자유롭게 연기한다. 자유연기는 음악(MR) 사용 불가. 실기고사 미응시(결시)자는 해당 항목 0점 처리 후 사정대상에 포함(추가합격 예비번호 부여).",
+      "quota": "15명",
+      "fee": "55,000원",
+      "csat_minimum": null,
+      "documents": "2024년 2월~2027년 2월 졸업(예정)자 중 원서접수 시 학생부 온라인 제공에 동의한 자는 제출서류 없음. 미동의자·2004년 2월 이전 졸업자는 고등학교 생활기록부 사본 1부. 서류제출 마감 2026.10.07.(수) 17:00까지.",
+      "dress_code": "과하지 않은 메이크업 및 얼굴이 잘 보이는 헤어스타일로 준비",
+      "preparation": "사진(3cm×4cm) 제출(원서접수 시 온라인 제출), 예약증과 신분증(주민등록증 또는 여권) 지참. '뮤지컬연기'의 반주(MR)는 본인이 직접 USB에 준비하며 반드시 mp3 파일 1개로 준비하고 파일명에 제목 기입, USB 메모리의 바이러스(악성코드) 사전 검사 요망.",
+      "designated_works": [],
+      "essay_questions": [],
+      "weights": {
+        "practical": 80,
+        "transcript": 12,
+        "other": 8
+      },
+      "weights_note": "실기 위주 - 학생부성적 120점(12%) + 출결성적 80점(8%) + 실기성적 800점(80%) = 총점 1,000점",
+      "stages": [],
+      "practical_items": [
+        {
+          "category": "song",
+          "label": "뮤지컬연기",
+          "required": true,
+          "time_limit_sec": 120,
+          "count": 1,
+          "weight": null,
+          "stage": null,
+          "note": "한국어로 된 뮤지컬 넘버를 활용해 동선과 장면 구성을 포함한 연기, MR은 본인이 USB에 mp3 1개로 준비"
+        },
+        {
+          "category": "free_acting",
+          "label": "자유연기",
+          "required": true,
+          "time_limit_sec": 90,
+          "count": 1,
+          "weight": null,
+          "stage": null,
+          "note": "사전에 준비한 독백 대사, 음악(MR) 사용 불가"
+        }
+      ],
+      "results": [],
+      "source_url": "https://enter.du.ac.kr/submenu.do?menuUrl=AelSWjPhedMv%2bAZA2NXqDg%3d%3d&",
+      "verified_at": "2026-08-04",
+      "note": "2027학년도부터 기존 연기예술학과 뮤지컬전공이 뮤지컬과(학과)로 전환됨. 뮤지컬과는 전형 간 중복지원 불가(하나의 전형으로만 지원). 3년제, 입학정원 30명."
+    },
+    {
+      "id": "dongseoul-2027-jeongsi-musical",
+      "university_id": "dongseoul",
+      "department": "뮤지컬과",
+      "discipline": "musical",
+      "admission_year": 2027,
+      "track": "정시",
+      "screening": "일반(학생부)전형(실기 위주)",
+      "apply_start": "2027-01-04",
+      "apply_end": "2027-01-20",
+      "practical_date": "2027-01-27",
+      "practical_date_end": "2027-02-01",
+      "announce_date": "2027-02-09",
+      "practical_task": "뮤지컬연기(2분 이내): 한국어로 된 뮤지컬 넘버를 활용하여 동선과 장면 구성을 포함한 연기를 수행한다. 자유연기(1분 30초 이내): 수험생이 사전에 준비한 독백 대사를 자유롭게 연기한다. 자유연기는 음악(MR) 사용 불가.",
+      "quota": "15명",
+      "fee": "55,000원",
+      "csat_minimum": null,
+      "documents": "학생부 온라인 제공 동의자는 제출서류 없음, 미동의자·2004년 2월 이전 졸업자는 고등학교 생활기록부 사본 1부. 서류제출 마감 2027.01.22.(금) 17:00까지.",
+      "dress_code": "과하지 않은 메이크업 및 얼굴이 잘 보이는 헤어스타일로 준비",
+      "preparation": "사진(3cm×4cm) 제출(원서접수 시 온라인 제출), 예약증과 신분증(주민등록증 또는 여권) 지참. '뮤지컬연기'의 반주(MR)는 본인이 직접 USB에 mp3 파일 1개로 준비하고 파일명에 제목 기입.",
+      "designated_works": [],
+      "essay_questions": [],
+      "weights": {
+        "practical": 80,
+        "transcript": 20
+      },
+      "weights_note": "정시 일반(학생부)전형 실기 위주 - 학생부성적 200점(20%) + 실기성적 800점(80%) = 총점 1,000점",
+      "stages": [],
+      "practical_items": [
+        {
+          "category": "song",
+          "label": "뮤지컬연기",
+          "required": true,
+          "time_limit_sec": 120,
+          "count": 1,
+          "weight": null,
+          "stage": null,
+          "note": "한국어로 된 뮤지컬 넘버를 활용해 동선과 장면 구성을 포함한 연기"
+        },
+        {
+          "category": "free_acting",
+          "label": "자유연기",
+          "required": true,
+          "time_limit_sec": 90,
+          "count": 1,
+          "weight": null,
+          "stage": null,
+          "note": "사전에 준비한 독백 대사, 음악(MR) 사용 불가"
+        }
+      ],
+      "results": [],
+      "source_url": "https://enter.du.ac.kr/submenu.do?menuUrl=AelSWjPhedMv%2bAZA2NXqDg%3d%3d&",
+      "verified_at": "2026-08-04",
+      "note": "정시 실기고사 학과는 일반(학생부)전형으로 지원한다(수능 반영 없음)."
     }
   ]
 }
