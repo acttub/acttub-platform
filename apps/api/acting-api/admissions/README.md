@@ -31,6 +31,40 @@ iphak.hanyang.ac.kr    robots.txt 없음 (명시적 허용도 없음)
 - 날짜는 `YYYY-MM-DD`. 기간은 `apply_start`/`apply_end`로 나눈다.
 - 미확정이면 `null` + `note`에 사정을 적는다.
 
+### 값의 출처는 대학 공식 요강뿐
+
+진학사·메가스터디 같은 사설 업체 자료는 **어느 대학에 연기 모집단위가 있는지 찾는
+인덱스로만** 쓴다. 경쟁률·등급컷·일정 같은 숫자를 그쪽에서 옮겨 오지 않는다. 상업
+데이터라 출처를 밝힐 수 없고, 2차 가공을 거치며 틀어지기 때문이다.
+
+### 서술형이 정본, 구조화 필드는 보조
+
+`stages` · `practical_items` · `weights`는 필터와 비교를 위해 원문을 쪼갠 것이다.
+대학마다 실기 구성이 제각각이라 여기에 다 담기지 않는다. **원문 서술(`practical_task`,
+`dress_code`)은 항상 그대로 남기고**, 구조화 필드는 확실한 것만 채운다.
+
+`weights`는 특히 조심한다. 모집요강 PDF의 표를 텍스트로 뽑으면 행·열이 뒤엉켜
+오독하기 쉬운데, 이 값이 틀리면 지원 전략을 통째로 그르친다. **숫자가 문장이나 표에
+또렷하게 적혀 있을 때만 채우고, 조금이라도 애매하면 전부 `null`로 두고 원문 표기를
+`weights_note`에 그대로 옮긴다.**
+
+### 부팅 때 걸러지는 것
+
+`admissions.py`의 `load_admissions()`가 파일을 읽으며 검사한다. 걸리면 서버가 뜨지
+않으므로 배포 전에 드러난다.
+
+- `notices[].university_id`가 `universities[].id`에 없음
+- `universities[].id` · `notices[].id` 중복
+- `discipline`이 `acting|musical`이 아님
+- `universities[].type`이 `univ|college`가 아님
+- `practical_items[].category` · `stages[].evaluates[]`가 정해진 목록 밖
+- `stages[].order` 중복, `practical_items[].stage`가 없는 단계를 가리킴
+
+허용되는 실기 종목(`category`):
+`free_acting`(자유연기) · `assigned_acting`(지정연기) · `improv`(즉흥) · `song`(노래) ·
+`dance`(무용) · `movement`(신체표현) · `special`(특기) · `interview`(면접) ·
+`essay`(작문) · `audition_etc`(그 외)
+
 ## 구조
 
 ```jsonc
@@ -45,18 +79,34 @@ iphak.hanyang.ac.kr    robots.txt 없음 (명시적 허용도 없음)
     { "id": "cau-2027-susi-practical",
       "university_id": "cau",            // universities[].id 를 가리킨다
       "department": "공연영상창작학부 연극전공",
+      "discipline": "acting",            // acting | musical
       "admission_year": 2027,            // 2027학년도 = 2026년에 치르는 입시
       "track": "수시",                    // 수시 | 정시
       "screening": "실기형",
       "apply_start": null, "apply_end": null,
       "practical_date": null,            // 여러 날이면 첫날
-      "practical_task": null,            // 자유연기·지정연기 등 요약
+      "practical_date_end": null,        // 마지막 날 (하루면 생략)
+      "announce_date": null,             // 합격발표일
+      "practical_task": null,            // 자유연기·지정연기 등 요약 — 이게 정본
+      "weights": { "practical": 70, "transcript": 30 },   // 확실할 때만
+      "weights_note": null,              // 애매하면 원문 표기를 여기에
+      "stages": [
+        { "order": 1, "name": "1차 실기", "date": "2026-10-10",
+          "evaluates": ["free_acting"], "multiple": "5배수", "weight": 0 }
+      ],
+      "practical_items": [
+        { "category": "free_acting", "label": "자유연기",
+          "required": true, "time_limit_sec": 120, "count": 1, "stage": 1 }
+      ],
       "source_url": "https://...",       // 그 전형이 실린 원문 페이지
       "verified_at": null,
       "note": "2027학년도 모집요강 확인 필요" }
   ]
 }
 ```
+
+`universities[]`에는 `campus`("서울"·"ERICA"처럼 캠퍼스별로 전형이 갈릴 때)와
+`type`(`univ` 4년제 / `college` 전문대)도 둔다. 둘 다 화면 필터로 쓰인다.
 
 ## 현재 상태 (2026-08-01)
 
