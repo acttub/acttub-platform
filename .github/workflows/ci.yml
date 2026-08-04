@@ -53,6 +53,13 @@ jobs:
       - name: Test
         run: pnpm --filter web test
 
+      # 실제 배포에 쓰는 산출물은 이쪽입니다(deploy.yml → upload-web.sh). 두 모드는
+      # next.config.ts에서 갈리므로 한쪽만 깨질 수 있습니다. 여기서 안 돌리면
+      # 머지 후 배포 단계에서야 발견됩니다.
+      # API_ORIGIN은 빌드 시점에 굳지만, 여기서는 컴파일 여부만 보므로 기본값을 씁니다.
+      - name: Build (server, 실제 배포 산출물)
+        run: pnpm --filter web build:server
+
   api:
     name: api (pytest · DB 통합)
     runs-on: ubuntu-latest

@@ -6,18 +6,18 @@ Next.js 16 App Router + React 19 + TypeScript + Tailwind CSS v4.
 
 빌드 모드가 둘입니다. **어느 쪽이든 페이지는 전부 빌드 시점에 정적 프리렌더되며, 요청마다 SSR하지 않습니다.**
 
-- **정적 export**(`BUILD_STATIC=1` → `output:'export'`) — 기본. 현행 dev/prod가 이 산출물(`out/`)을 FastAPI로 서빙합니다. 서버 런타임이 없습니다.
-- **서버 모드**(`output:'standalone'`) — 새 VPC 인프라(`docs/DEPLOY-VPC.md`)용. Node 프로세스가 뜨지만 역할은 정적 HTML 서빙 + `/v2/*` 프록시뿐입니다. 백엔드가 private subnet에 있어 브라우저가 직접 닿지 못하므로 이 프록시가 유일한 통로입니다.
+- **서버 모드**(`output:'standalone'`) — **dev·운영이 실제로 배포하는 산출물**입니다. Node 프로세스가 뜨지만 역할은 정적 HTML 서빙 + `/v2/*` 프록시뿐입니다. 운영은 백엔드가 private subnet에 있어 브라우저가 직접 닿지 못하므로 이 프록시가 유일한 통로이고, 개발 서버도 같은 경로를 씁니다.
+- **정적 export**(`BUILD_STATIC=1` → `output:'export'`) — 서버 런타임 없이 `out/`만 만듭니다. **현재 어디에도 배포하지 않습니다.** `ci.yml`이 매 PR에서 빌드하므로 깨지면 머지가 막힙니다.
 
-**서버 모드가 생겨도 아래 "정적 export 제약"은 그대로 지킵니다.** 서버 전용 기능을 쓰면 정적 export 빌드가 깨지고, 그건 현행 dev/prod 배포가 죽는다는 뜻입니다.
+**아래 "정적 export 제약"은 그대로 지킵니다.** 서버 전용 기능을 쓰면 정적 export 빌드가 깨지고, 그러면 `ci.yml`의 web 잡이 실패해 머지가 막힙니다. (이 제약을 계속 둘지는 별도로 정할 문제입니다 — 정적 export를 걷어내면 제약도 함께 사라집니다.)
 
 ## 명령어 (이 디렉토리 기준)
 
 - `pnpm dev` — 개발 서버(:3000). next.config rewrites가 `/v2/*`를 `http://127.0.0.1:8000`(acting-api)으로 프록시.
 - `pnpm lint` · `pnpm typecheck`
 - `pnpm test` — Node 테스트와 금지 카피 가드를 하나의 테스트 명령으로 실행.
-- `pnpm build` — 정적 빌드 → `out/`
-- `pnpm build:server` — 서버 모드 빌드 → `.next/standalone/`. 프록시 대상은 `API_ORIGIN`으로 주며, rewrites가 빌드 시점에 `routes-manifest.json`으로 굳으므로 런타임 환경변수로는 바뀌지 않습니다.
+- `pnpm build:server` — 서버 모드 빌드 → `.next/standalone/`. **실제 배포 산출물입니다.** 프록시 대상은 `API_ORIGIN`으로 주며, rewrites가 빌드 시점에 `routes-manifest.json`으로 굳으므로 런타임 환경변수로는 바뀌지 않습니다.
+- `pnpm build` — 정적 빌드 → `out/`. 배포에는 쓰지 않지만, `next-env.d.ts`·`.next/types`를 만들어야 `typecheck`가 `*.png` import와 typedRoutes를 해석합니다(그래서 CI도 build를 typecheck보다 먼저 돌립니다).
 - `pnpm generate:v2-schema` — `../api/spec/openapi.json`에서 요청 타입 재생성(`src/lib/api/v2-schema.d.ts`). 이 파일은 직접 수정 금지.
 
 ## 구조
