@@ -123,3 +123,28 @@ test("공고가 없는 대학도 이름으로 검색된다", () => {
   assert.equal(matchesQuery(uni, [], "경복"), true);
   assert.equal(matchesQuery(uni, [], "남양주"), true);
 });
+
+// 마감 키("9:")가 미확인 키("8:")보다 커서, reduce 초기값을 미확인으로 두면
+// 공고가 전부 끝난 대학이 '확인 중'인 대학과 같은 자리로 묶여 버렸다.
+test("공고가 전부 마감된 대학은 날짜 미확인 대학보다도 뒤에 온다", () => {
+  const grouped = groupByUniversity(
+    {
+      ...payload,
+      universities: [
+        { id: "done", name: "끝난대", admission_url: "x" },
+        { id: "unknown", name: "미확인대", admission_url: "x" },
+        { id: "soon", name: "곧대", admission_url: "x" },
+      ],
+      notices: [
+        { id: "d", university_id: "done", apply_start: "2026-06-22", apply_end: "2026-06-25" },
+        { id: "u", university_id: "unknown", apply_start: null, apply_end: null },
+        { id: "s", university_id: "soon", apply_start: "2026-09-07", apply_end: "2026-09-11" },
+      ],
+    },
+    "2026-08-01",
+  );
+  assert.deepEqual(
+    grouped.map((g) => g.university.id),
+    ["soon", "unknown", "done"],
+  );
+});

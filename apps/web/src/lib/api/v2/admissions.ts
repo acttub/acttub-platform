@@ -77,10 +77,13 @@ function sortKey(notice: AdmissionNotice, today?: string | null): string {
 }
 
 function groupKey(notices: AdmissionNotice[], today?: string | null): string {
+  // 초기값을 NO_DATE로 두면 안 된다. 마감된 전형 키("9:")가 NO_DATE("8:")보다 커서
+  // 절대 채택되지 않고, 공고가 전부 마감된 대학이 '날짜 미확인'과 같은 자리로 묶인다.
+  if (notices.length === 0) return NO_DATE;
   return notices.reduce(
     (earliest, notice) =>
       sortKey(notice, today) < earliest ? sortKey(notice, today) : earliest,
-    NO_DATE,
+    sortKey(notices[0], today),
   );
 }
 

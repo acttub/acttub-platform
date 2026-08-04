@@ -1,5 +1,5 @@
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -12,16 +12,22 @@ import { displayNameFor } from '@/lib/display-name';
 import { useAuth } from '@/lib/auth';
 import { getUserName } from '@/lib/profile';
 import { sortReportsNewestFirst } from '@/lib/report-order';
+import {
+  localDate,
+  upcomingNotices,
+  type AdmissionsResponse,
+} from '@/lib/admissions';
 
 const PREVIEW_COUNT = 2;
 
-/** A1. 홈 — 인사말 + AI 코치 카드(=연습 시작) + 이번 주 연습 활동 + 최근 연습. */
+/** A1. 홈 — 인사말 + AI 코치 카드(=연습 시작) + 연습 활동 + 최근 연습 + 입시 마감. */
 export default function HomeScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const [records, setRecords] = useState<ReportRecord[]>([]);
   const [meta, setMeta] = useState<Record<string, RecordMeta>>({});
   const [savedName, setSavedName] = useState<string | null>(null);
+  const [admissions, setAdmissions] = useState<AdmissionsResponse | null>(null);
 
   useFocusEffect(
     useCallback(() => {
@@ -50,6 +56,27 @@ export default function HomeScreen() {
         cancelled = true;
       };
     }, []),
+  );
+
+  useEffect(() => {
+    // 입시는 로그인과 무관하고 배포 때만 바뀐다 — 포커스마다 다시 읽지 않는다.
+    let cancelled = false;
+    api
+      .admissions()
+      .then((data) => {
+        if (!cancelled) setAdmissions(data);
+      })
+      .catch(() => {
+        if (!cancelled) setAdmissions(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const deadlines = useMemo(
+    () => (admissions ? upcomingNotices(admissions, localDate(), 2) : []),
+    [admissions],
   );
 
   const { days, weekTotal, streak } = useMemo(() => buildWeekActivity(records), [records]);
@@ -181,6 +208,42 @@ export default function HomeScreen() {
             />
           ))
         )}
+
+        {/* 입시 마감 — 실기 일정은 놓치면 1년을 기다린다. 임박한 둘만 띄운다. */}
+        {deadlines.length > 0 && (
+          <>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>연기 입시</Text>
+              <Pressable onPress={() => router.push('/admissions')}>
+                <Text style={styles.sectionLink}>전체보기</Text>
+              </Pressable>
+            </View>
+            <Pressable
+              style={styles.admissionCard}
+              accessibilityRole="button"
+              accessibilityLabel="연기 입시 정보 보기"
+              onPress={() => router.push('/admissions')}>
+              {deadlines.map(({ university, notice, remaining }, index) => (
+                <View
+                  key={notice.id}
+                  style={[styles.admissionRow, index > 0 && styles.admissionRowNext]}>
+                  <View style={styles.admissionDday}>
+                    <Text style={styles.admissionDdayText}>
+                      D-{remaining.days === 0 ? 'DAY' : remaining.days}
+                    </Text>
+                  </View>
+                  <View style={styles.flex}>
+                    <Text style={styles.admissionUni}>{university.name}</Text>
+                    <Text style={styles.admissionDept} numberOfLines={1}>
+                      {notice.department ?? ''}
+                    </Text>
+                  </View>
+                  <Text style={styles.admissionLabel}>{remaining.label}</Text>
+                </View>
+              ))}
+            </Pressable>
+          </>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -188,38 +251,69 @@ export default function HomeScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
-  container: { padding: 20, paddingBottom: 130 },
+  // 바로 위 '최근 연습'의 RecordCard와 같은 상자여야 한 화면처럼 보인다
+  // (radius 20 · padding 18 · marginBottom 12 · 같은 그림자).
+  admissionCard: {
+    backgroundColor: palette.card,
+    borderRadius: 20,
+    paddingHorizontal: 20,
+    paddingVertical: 6,
+    marginBottom: 12,
+    shadowColor: '#191F28',
+    shadowOpacity: 0.06,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 1,
+  },
+  admissionRow: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 16 },
+  admissionRowNext: { borderTopWidth: 1, borderTopColor: palette.border },
+  admissionDday: {
+    minWidth: 54,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: palette.navy,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  admissionDdayText: { fontSize: 12, fontWeight: '800', color: '#FFFFFF' },
+  admissionUni: { fontSize: 15, fontWeight: '700', color: palette.text },
+  admissionDept: { marginTop: 4, fontSize: 12, fontWeight: '500', color: palette.textFaint, lineHeight: 17 },
+  admissionLabel: { fontSize: 11, fontWeight: '700', color: palette.textFaint },
+  container: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 140 },
   helloRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
   flex: { flex: 1 },
   hello: { fontSize: 14, color: palette.textDim, marginTop: 8 },
-  helloSub: { fontSize: 22, fontWeight: '800', color: palette.text, marginTop: 2 },
+  helloSub: { fontSize: 22, fontWeight: '800', color: palette.text, marginTop: 4, lineHeight: 30 },
   coachCard: {
     backgroundColor: palette.navy,
     borderRadius: 20,
-    padding: 18,
-    marginTop: 16,
+    padding: 22,
+    marginTop: 20,
   },
   coachCardPressed: { opacity: 0.85 },
-  coachLabel: { fontSize: 12, fontWeight: '700', color: '#8FA5FF', marginBottom: 8 },
+  coachLabel: { fontSize: 12, fontWeight: '700', color: '#8FA5FF', marginBottom: 10 },
   coachHeadline: { fontSize: 18, fontWeight: '800', color: '#FFFFFF', lineHeight: 26 },
-  coachBody: { fontSize: 13, color: '#9FB0C9', lineHeight: 19, marginTop: 8 },
-  coachCtaText: { color: '#8FA5FF', fontSize: 14, fontWeight: '800', marginTop: 16 },
+  coachBody: { fontSize: 13, color: '#9FB0C9', lineHeight: 20, marginTop: 10 },
+  coachCtaText: { color: '#8FA5FF', fontSize: 14, fontWeight: '800', marginTop: 18 },
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'flex-end',
     justifyContent: 'space-between',
-    marginTop: 22,
-    marginBottom: 8,
+    marginTop: 28,
+    marginBottom: 12,
   },
   sectionTitle: { fontSize: 16, fontWeight: '800', color: palette.text },
   sectionMeta: { fontSize: 12, color: palette.textFaint },
   sectionLink: { fontSize: 13, fontWeight: '600', color: palette.blue },
   activityCard: {
     backgroundColor: palette.card,
-    borderWidth: 1,
-    borderColor: palette.border,
-    borderRadius: 16,
-    padding: 12,
+    borderRadius: 20,
+    padding: 18,
+    shadowColor: '#191F28',
+    shadowOpacity: 0.06,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 1,
   },
   week: { flexDirection: 'row', gap: 5 },
   weekDay: { flex: 1, alignItems: 'center', gap: 4 },
@@ -238,7 +332,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginTop: 10,
+    marginTop: 14,
   },
   legend: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   legendLabel: { fontSize: 10, color: palette.textFaint, marginHorizontal: 2 },
@@ -255,14 +349,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: palette.card,
-    borderWidth: 1,
-    borderColor: palette.border,
-    borderRadius: 16,
-    paddingVertical: 14,
-    marginTop: 10,
+    borderRadius: 20,
+    paddingVertical: 20,
+    marginTop: 12,
+    shadowColor: '#191F28',
+    shadowOpacity: 0.06,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 1,
   },
-  statItem: { flex: 1, alignItems: 'center', gap: 2 },
-  statDivider: { width: 1, height: 24, backgroundColor: palette.border },
+  statItem: { flex: 1, alignItems: 'center', gap: 4 },
+  statDivider: { width: 1, height: 28, backgroundColor: palette.border },
   statValue: { fontSize: 18, fontWeight: '800', color: palette.blue },
   statLabel: { fontSize: 11, color: palette.textDim },
   emptyCard: {

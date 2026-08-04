@@ -1,3 +1,14 @@
+import type {
+  AdmissionsResponse,
+} from './admissions';
+import type {
+  CommentListResponse,
+  CommunityCategory,
+  CommunityComment,
+  CommunityPost,
+  PostListResponse,
+} from './community';
+
 import {
   createUploadTask,
   FileSystemUploadType,
@@ -446,6 +457,79 @@ export const api = {
       {},
       { timeoutMs: 20_000 },
     );
+  },
+
+  // 게시판 --------------------------------------------------------------------
+  // 목록·상세는 로그인 없이 열린다. 쓰기만 토큰이 필요하다.
+  communityCategories(): Promise<{ categories: CommunityCategory[] }> {
+    return request<{ categories: CommunityCategory[] }>('/v2/community/categories', {}, {
+      auth: false,
+      timeoutMs: 15_000,
+    });
+  },
+
+  communityPosts(params: { category?: string; cursor?: string } = {}): Promise<PostListResponse> {
+    const query = new URLSearchParams();
+    if (params.category) query.set('category', params.category);
+    if (params.cursor) query.set('cursor', params.cursor);
+    const suffix = query.toString() ? `?${query.toString()}` : '';
+    return request<PostListResponse>(`/v2/community/posts${suffix}`, {}, {
+      auth: false,
+      timeoutMs: 20_000,
+    });
+  },
+
+  communityPost(postId: string): Promise<CommunityPost> {
+    return request<CommunityPost>(`/v2/community/posts/${encodeURIComponent(postId)}`, {}, {
+      auth: false,
+      timeoutMs: 20_000,
+    });
+  },
+
+  communityComments(postId: string, cursor?: string): Promise<CommentListResponse> {
+    const suffix = cursor ? `?cursor=${encodeURIComponent(cursor)}` : '';
+    return request<CommentListResponse>(
+      `/v2/community/posts/${encodeURIComponent(postId)}/comments${suffix}`,
+      {},
+      { auth: false, timeoutMs: 20_000 },
+    );
+  },
+
+  createCommunityPost(input: {
+    category_slug: string;
+    title: string;
+    body: string;
+    anonymous: boolean;
+  }): Promise<CommunityPost> {
+    return request<CommunityPost>('/v2/community/posts', jsonInit(input), { timeoutMs: 20_000 });
+  },
+
+  createCommunityComment(
+    postId: string,
+    input: { body: string; anonymous: boolean },
+  ): Promise<CommunityComment> {
+    return request<CommunityComment>(
+      `/v2/community/posts/${encodeURIComponent(postId)}/comments`,
+      jsonInit(input),
+      { timeoutMs: 20_000 },
+    );
+  },
+
+  likeCommunityPost(postId: string, liked: boolean): Promise<void> {
+    return request<void>(
+      `/v2/community/posts/${encodeURIComponent(postId)}/likes`,
+      { method: liked ? 'POST' : 'DELETE' },
+      { timeoutMs: 15_000 },
+    );
+  },
+
+  // 입시 ----------------------------------------------------------------------
+  // 공개 정보다. 가입 전에도 보여야 재방문 이유가 된다.
+  admissions(): Promise<AdmissionsResponse> {
+    return request<AdmissionsResponse>('/v2/admissions', {}, {
+      auth: false,
+      timeoutMs: 20_000,
+    });
   },
 };
 
