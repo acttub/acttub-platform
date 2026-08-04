@@ -179,9 +179,12 @@ TTL을 낮추면 `playback_expires_in_sec` 응답값이 바뀌어 **"계약은 �
    SSM 기본 계정(`ssm-user`)의 CLI 성공은 `ubuntu`로 도는 앱의 체인을 증명하지 않는다.
    조직 SCP 등 저장소에서 알 수 없는 요인도 여기서 함께 걸러진다.
 
-4. **키를 안전한 곳에 백업한 뒤** `/etc/acttub/api.env`에서 `AWS_ACCESS_KEY_ID`·
-   `AWS_SECRET_ACCESS_KEY`를 제거하고 `systemctl restart acttub-api`.
-   백업 없이 지우면 롤백(키 복원)이 **실행 불가능**하다.
+4. `/etc/acttub/api.env`에서 `AWS_ACCESS_KEY_ID`·`AWS_SECRET_ACCESS_KEY`를 제거하고
+   `systemctl restart acttub-api`.
+
+   **키 사본을 서버에 남기지 않는다.** dev 전환 때 `api.env.soma296-backup`을 같은 서버에
+   만들었다가 지웠다 — 그 키는 **운영 버킷도 허용**하므로, 서버에 파일로 남으면 이 티켓이
+   막으려던 경로가 그대로 열려 있는 셈이다. 백업이 없어도 롤백은 가능하다(아래).
 
 5. **검증** (6장). 브라우저 확인은 사용자가 한다.
 
@@ -198,7 +201,16 @@ IAM 추가 작업 없음(D5). 같은 순서로 2→3→4→5. **운영 배포는
 
 ### 롤백
 
-백업해 둔 키를 api.env에 되돌리고 재시작. 코드 재배포는 불필요하다(D1).
+**저장해 둔 secret이 없어도 된다.** IAM 사용자 `acting-api`와 그 정책은 그대로 살아 있고
+키 슬롯이 하나 비어 있으므로, 필요할 때 새로 발급하면 된다.
+
+```
+aws iam create-access-key --user-name acting-api --profile acttub
+```
+
+발급한 두 값을 `/etc/acttub/api.env`에 넣고 재시작하면 boto3 env provider가 role보다
+우선하므로 즉시 되돌아간다. 코드 재배포는 불필요하다(D1). 상황이 끝나면 그 임시 키를
+반드시 삭제한다.
 
 **다만 롤백 상태는 정상 완료가 아니라 incident 상태다** — 공유 IAM 사용자 정책이 두 버킷을
 모두 허용하므로 이 티켓의 목적인 데이터 경계가 그대로 사라진다. 롤백했다면 원인을 규명하고
