@@ -177,7 +177,7 @@ export function AdmissionsPage() {
 
             {filterOpen && facets && (
               <div className="mt-2 space-y-3 rounded-2xl border border-[#e5e8eb] bg-white p-4">
-                <FilterRow label="지역">
+                <FilterRow label="지역" values={facets.regions}>
                   {facets.regions.map((region) => (
                     <Chip
                       key={region}
@@ -187,7 +187,7 @@ export function AdmissionsPage() {
                     />
                   ))}
                 </FilterRow>
-                <FilterRow label="전형">
+                <FilterRow label="전형" values={facets.tracks}>
                   {facets.tracks.map((track) => (
                     <Chip
                       key={track}
@@ -197,7 +197,7 @@ export function AdmissionsPage() {
                     />
                   ))}
                 </FilterRow>
-                <FilterRow label="계열">
+                <FilterRow label="계열" values={facets.disciplines}>
                   {facets.disciplines.map((discipline) => (
                     <Chip
                       key={discipline}
@@ -207,7 +207,7 @@ export function AdmissionsPage() {
                     />
                   ))}
                 </FilterRow>
-                <FilterRow label="실기 종목">
+                <FilterRow label="실기 종목" values={facets.practicals}>
                   {facets.practicals.map((category) => (
                     <Chip
                       key={category}
@@ -217,7 +217,7 @@ export function AdmissionsPage() {
                     />
                   ))}
                 </FilterRow>
-                <FilterRow label="학교">
+                <FilterRow label="학교" values={["always"]}>
                   {facets.types.map((type) => (
                     <Chip
                       key={type}
@@ -342,13 +342,20 @@ function UniversityCard({
   );
 }
 
+/**
+ * 필터 한 줄. `values`가 비면 통째로 감춘다 — 아직 공고를 확인하지 못한 대학이
+ * 대부분이라 실기 종목 facet이 빌 수 있는데, 라벨만 남은 빈 줄은 고장으로 읽힌다.
+ */
 function FilterRow({
   label,
+  values,
   children,
 }: {
   label: string;
+  values: unknown[];
   children: React.ReactNode;
 }) {
+  if (values.length === 0) return null;
   return (
     <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
       <span className="w-[64px] shrink-0 text-[12px] font-black text-[#8b95a1]">
