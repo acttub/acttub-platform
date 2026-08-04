@@ -329,7 +329,12 @@ uv run alembic upgrade head
 ## 6. GitHub Actions 자동 배포 (OIDC)
 
 `.github/workflows/deploy.yml`이 빌드 → S3 업로드 → SSM 설치를 한 번에 한다. Actions
-탭에서 수동 실행(`workflow_dispatch`)하며, 대상을 `fe`·`be`·`both` 중에 고른다.
+탭에서 수동 실행(`workflow_dispatch`)하며, 환경(`dev`/`prod`)과 대상(`fe`·`be`·`both`)을
+고른다.
+
+같은 워크플로가 개발 서버 배포도 담당한다(`dev` 브랜치 push 시 자동). 환경별로 다른
+값은 GitHub Environments의 variables가 담당하므로 워크플로 안에는 환경 분기가 없다 —
+개발 서버 쪽 절차는 [`DEPLOY-DEV.md`](./DEPLOY-DEV.md)를 본다.
 
 **runner는 인스턴스에 접속하지 않는다.** SSM Run Command로 AWS에 실행을 위임하므로
 private subnet이어도 되고, SSH 키나 VPN이 필요 없다.
@@ -418,10 +423,13 @@ Secrets가 아니라 Variables에 넣는다.
 `API_ORIGIN`을 바꾸면 **반드시 fe를 재배포해야 한다.** 빌드 시점에 굳는 값이라 인스턴스만
 재시작해서는 반영되지 않는다.
 
-### 6-4. 마이그레이션은 자동화하지 않는다
+### 6-4. 운영 마이그레이션은 자동화하지 않는다
 
-workflow는 `alembic upgrade head`를 실행하지 않는다. 스키마 변경은 되돌리기 어렵고
-배포와 수명주기가 다르므로, 4-3처럼 SSM으로 접속해 수동으로 실행한다.
+운영 배포에서 workflow는 `alembic upgrade head`를 실행하지 않는다. 스키마 변경은
+되돌리기 어렵고 배포와 수명주기가 다르므로, 4-3처럼 SSM으로 접속해 수동으로 실행한다.
+
+dev 배포에서는 자동으로 돈다(`ssm-deploy.sh`의 `MIGRATE=1`). 개발 DB는 되돌리기보다
+다시 만드는 편이 빠르고, 스키마 변경을 즉시 반영하는 쪽이 실용적이기 때문이다.
 
 ## 7. 아직 남은 것
 
