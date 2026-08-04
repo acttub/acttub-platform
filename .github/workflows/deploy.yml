@@ -45,10 +45,28 @@ env:
   AWS_REGION: ap-northeast-2
 
 jobs:
+  # workflow_dispatch는 "어디에 배포할까"(environment)와 "무엇을 배포할까"(ref)를
+  # 따로 받습니다. ref는 Actions UI의 브랜치 드롭다운이 정하는데 기본값이
+  # default branch(dev)라, 운영 배포를 하면서 브랜치를 바꾸지 않으면 운영 서버에
+  # dev 브랜치 코드가 올라갑니다. 2026-08-01에 실제로 세 번 그렇게 나갔고,
+  # main에 없는 마이그레이션이 운영에 실려 커뮤니티 API가 며칠간 500이었습니다.
+  guard:
+    name: 사전 점검
+    runs-on: ubuntu-latest
+    steps:
+      - name: 운영 배포는 main에서만
+        if: ${{ inputs.environment == 'prod' && github.ref_name != 'main' }}
+        run: |
+          echo "::error::운영 배포는 main 브랜치에서만 실행할 수 있습니다 (현재 ref: ${{ github.ref_name }})."
+          echo "Actions 탭의 'Use workflow from' 을 main 으로 바꾸거나," >> $GITHUB_STEP_SUMMARY
+          echo '`gh workflow run deploy.yml --ref main -f environment=prod` 로 실행하세요.' >> $GITHUB_STEP_SUMMARY
+          exit 1
+
   # inputs.*는 push 이벤트에서 비어 있습니다. push는 곧 dev 전체 배포이므로
   # 기본값으로 dev·both를 씁니다.
   be:
     name: back svc (FastAPI)
+    needs: guard
     environment: ${{ inputs.environment || 'dev' }}
     if: ${{ (inputs.target || 'both') != 'fe' }}
     runs-on: ubuntu-latest
@@ -73,8 +91,18 @@ jobs:
           MIGRATE: ${{ (inputs.environment || 'dev') == 'dev' && '1' || '' }}
         run: deploy/ssm-deploy.sh be ${{ vars.BE_INSTANCE_ID }}
 
+      # 운영은 마이그레이션이 자동으로 돌지 않으므로, 방금 올린 코드가 기대하는
+      # 리비전과 DB의 현재 리비전이 어긋난 채 방치될 수 있습니다. 2026-08-01에
+      # 그렇게 커뮤니티 API가 며칠간 500이었으므로 배포 직후 확인합니다.
+      # 배포를 막지는 않습니다 — 새 마이그레이션 파일은 배포되어야 서버에 생기니
+      # 사전 차단은 순환이 됩니다. 대신 어긋나면 잡을 실패로 표시해 드러냅니다.
+      - name: 운영 스키마 리비전 확인
+        if: ${{ inputs.environment == 'prod' }}
+        run: deploy/check-migration.sh ${{ vars.BE_INSTANCE_ID }}
+
   fe:
     name: front svc (Next 서버)
+    needs: guard
     # environment를 지정하면 GitHub가 Deployment 이벤트를 남기고, GitHub for Jira
     # 앱이 이를 Jira로 넘겨 이슈 화면에 배포 이력이 붙습니다.
     environment: ${{ inputs.environment || 'dev' }}
