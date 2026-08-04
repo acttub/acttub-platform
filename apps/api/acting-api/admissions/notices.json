@@ -5344,6 +5344,379 @@
       "source_url": "https://ipsi.dyu.ac.kr/wp-content/uploads/2026/07/2027학년도-동양대학교-수시모집-요강최종.pdf",
       "verified_at": "2026-08-04",
       "note": "수능 최저학력기준 없음. 전자기기·휴대폰 반입 불가(위반 시 퇴실 및 불합격). 실기고사 불참자·대리응시자 불합격. 수험표는 당일 배부하므로 신분증 지참 필수. 동점자 처리: ①출결점수 ②실기점수 ③최종교과환산점수."
+    },
+    {
+      "id": "pyeongtaek-2027-susi-acting",
+      "university_id": "pyeongtaek",
+      "department": "연극영화과(연기)",
+      "discipline": "acting",
+      "admission_year": 2027,
+      "track": "수시",
+      "screening": "PTU실기전형(실기위주)",
+      "apply_start": "2026-09-07",
+      "apply_end": "2026-09-11",
+      "practical_date": "2026-10-23",
+      "practical_date_end": "2026-10-25",
+      "announce_date": "2026-11-20",
+      "practical_task": "자유연기(1분 30초 미만) - 미리 준비한 대사 연기나 노래 연기 중 선택, 대사의 장르는 제한 없음. 필요에 따라 심사위원의 간단한 질의응답이 있을 수 있음. 평가는 연기력·감정전달·이해력·발성/발음 평가(노래 선택 시 가창 평가 포함)이며, 표현의 유연성·적합성·논리성·독창성, 발성 에너지의 적합성 및 유연성, 발음의 정확성을 주안점으로 채점.",
+      "quota": "11명",
+      "fee": "80,000원",
+      "csat_minimum": null,
+      "documents": "학생부 온라인 제공 동의자는 제출서류 없음. 미동의자·불가자는 입학원서 1부 + 학교생활기록부(학교장 직인 날인) 1부. 검정고시 출신자는 입학원서, 검정고시 합격증명서(대입전형용), 검정고시 성적증명서. 외국고 출신자는 입학원서, 졸업(예정)증명서, 성적증명서(아포스티유 또는 영사확인 첨부). 제출기한 2026. 9. 18.(금) 우편소인까지.",
+      "dress_code": null,
+      "preparation": "수험표 및 신분증 필수 지참(결시자는 불합격 처리). 배경음악(또는 MR) 사용 시 반드시 USB 활용(CD 재생 불가).",
+      "designated_works": [],
+      "essay_questions": [],
+      "weights": {
+        "practical": 100
+      },
+      "weights_note": "실기 100%",
+      "stages": [],
+      "practical_items": [
+        {
+          "category": "free_acting",
+          "label": "자유연기(대사 연기 또는 노래 연기 중 택1)",
+          "required": true,
+          "time_limit_sec": 90,
+          "count": 1,
+          "weight": 100,
+          "stage": null,
+          "note": "1분 30초 미만. 대사의 장르 제한 없음. 노래 연기를 택하면 가창 평가 항목이 추가됨"
+        },
+        {
+          "category": "interview",
+          "label": "질의응답",
+          "required": false,
+          "time_limit_sec": null,
+          "count": null,
+          "weight": null,
+          "stage": null,
+          "note": "필요에 따라 심사위원의 간단한 질문이 있을 수 있음"
+        }
+      ],
+      "results": [
+        {
+          "year": 2026,
+          "quota": 10,
+          "applicants": 436,
+          "competition_rate": "43.60 : 1",
+          "transcript_avg": null,
+          "transcript_cut70": null,
+          "fill_rate": null,
+          "waitlist_last": 1,
+          "waitlist_count": null,
+          "source_url": "https://entrance.ptu.ac.kr/bbs/entrance/306/32800/artclView.do",
+          "verified_at": "2026-08-04",
+          "note": "2026학년도 수시모집 입시결과(정원 내). 문화예술대학은 실기 100% 반영이라 교과성적은 미공개. 충원합격 순위 1"
+        }
+      ],
+      "source_url": "https://entrance.ptu.ac.kr/bbs/entrance/255/33031/artclView.do",
+      "verified_at": "2026-08-04",
+      "note": "출처: 평택대학교 2027학년도 수시모집 모집요강 PDF + 2027학년도 실기고사 평가방법 및 채점기준 안내(2026.06.22). 실기고사는 2026.10.23.(금) 09:00 시작이며 지원자가 많은 경우 10.23.~10.25. 기간에 나누어 실시. 수능최저학력기준은 모든 전형 없음."
+    },
+    {
+      "id": "pyeongtaek-2027-jeongsi-acting",
+      "university_id": "pyeongtaek",
+      "department": "연극영화과(연기)",
+      "discipline": "acting",
+      "admission_year": 2027,
+      "track": "정시",
+      "screening": "PTU실기전형(다군, 실기위주)",
+      "apply_start": null,
+      "apply_end": null,
+      "practical_date": null,
+      "practical_date_end": null,
+      "announce_date": null,
+      "practical_task": "자유연기(1분 30초 미만, 사전에 준비한 대사 연기나 노래 연기, 대사의 장르는 제한 없음. 실기 시험 후 발표한 것에 대한 질의응답). 배경음(또는 MR)의 경우 반드시 USB 활용(CD 재생 불가).",
+      "quota": "8명",
+      "fee": null,
+      "csat_minimum": null,
+      "documents": null,
+      "dress_code": null,
+      "preparation": "배경음(또는 MR) 사용 시 반드시 USB 활용(CD 재생 불가).",
+      "designated_works": [],
+      "essay_questions": [],
+      "weights": {
+        "practical": 100
+      },
+      "weights_note": "실기 100%",
+      "stages": [],
+      "practical_items": [
+        {
+          "category": "free_acting",
+          "label": "자유연기(대사 연기 또는 노래 연기 중 택1)",
+          "required": true,
+          "time_limit_sec": 90,
+          "count": 1,
+          "weight": 100,
+          "stage": null,
+          "note": "1분 30초 미만"
+        },
+        {
+          "category": "interview",
+          "label": "질의응답",
+          "required": false,
+          "time_limit_sec": null,
+          "count": null,
+          "weight": null,
+          "stage": null,
+          "note": "실기 시험 후 발표 내용에 대한 질의응답"
+        }
+      ],
+      "results": [],
+      "source_url": "https://entrance.ptu.ac.kr/bbs/entrance/255/33065/artclView.do",
+      "verified_at": "2026-08-04",
+      "note": "2027학년도 정시 모집요강 미공개 상태라 '평택대학교 2027학년도 대학입학전형시행계획(최종, 2026년 5월 기준)' PDF 기준으로 작성. 시행계획에는 정시 전형일정·전형료가 없어 null. 정시는 연극영화과 중 연기전공만 구분모집하며(영화영상 0명), 다군 실기위주 8명. 정시 최종 모집인원은 수시 이월 인원에 따라 변동될 수 있음."
+    },
+    {
+      "id": "inha-2027-susi-acting",
+      "university_id": "inha",
+      "department": "연극영화학과(연기)",
+      "discipline": "acting",
+      "admission_year": 2027,
+      "track": "수시",
+      "screening": "실기/실적(실기우수자)",
+      "apply_start": "2026-09-07",
+      "apply_end": "2026-09-11",
+      "practical_date": "2026-10-02",
+      "practical_date_end": "2026-10-05",
+      "announce_date": "2026-11-17",
+      "practical_task": "고사종목 '종합연기'(2분 이내) - 수험생 본인이 시험 전에 준비한 작품을 소재로 다양한 연기표현을 종합적으로 구성하여 발표. 수험생이 표현할 수 있는 별도의 특기가 있을 경우에 특기(노래, 춤, 움직임 등)를 포함해서 종합적으로 구성. 필요 시 시연 내용에 한하여 평가위원이 추가로 간단한 보충 발표를 요구할 수 있음(1분 이내).",
+      "quota": "9명",
+      "fee": "￦100,000",
+      "csat_minimum": null,
+      "documents": "입학원서(오프라인 제출서류가 있는 경우 출력 후 제출), 학교생활기록부(온라인 제공 미동의자·비대상자는 학교장 직인 또는 원본대조필 날인 후 제출). 서류 제출 2026.09.07. 09:00 ~ 09.16. 17:00.",
+      "dress_code": null,
+      "preparation": "보충 발표 시 음원 사용을 희망할 경우 2026.09.28.(월) 10:00 ~ 09.29.(화) 11:00 기간 내 음원 파일 업로드 필요(업로드 방법은 실기고사 유의사항 공지 시 안내).",
+      "designated_works": [],
+      "essay_questions": [],
+      "weights": {
+        "practical": 70,
+        "transcript": 30
+      },
+      "weights_note": "일괄합산 실기 70% + 학생부교과 30% (실기 700점/250점, 학생부교과 300점/100점, 선발배수 1배수, 수능최저 미적용)",
+      "stages": [],
+      "practical_items": [
+        {
+          "category": "free_acting",
+          "label": "종합연기",
+          "required": true,
+          "time_limit_sec": 120,
+          "count": 1,
+          "weight": 70,
+          "stage": null,
+          "note": "본인이 준비한 작품을 소재로 다양한 연기표현을 종합 구성하여 발표. 특기(노래, 춤, 움직임 등)를 포함해 구성 가능"
+        },
+        {
+          "category": "audition_etc",
+          "label": "보충 발표",
+          "required": false,
+          "time_limit_sec": 60,
+          "count": 1,
+          "weight": null,
+          "stage": null,
+          "note": "필요 시 평가위원이 시연 내용에 한하여 요구. 음원 사용 희망 시 사전 업로드"
+        }
+      ],
+      "results": [],
+      "source_url": "https://admission.inha.ac.kr/cms/FR_CON/index.do?MENU_ID=80",
+      "verified_at": "2026-08-04",
+      "note": "출처: 2027학년도 인하대학교 수시모집요강(20260728) PDF. 수시에서 예술체육대학 연극영화학과는 '연극영화학과(연기)' 모집단위 하나만 실기/실적(실기우수자)로 9명 선발하며 연출·영화 모집단위는 수시에 없음(정시에서 연출이 별도 모집단위로 분리됨). 학생부교과 반영교과는 국어·영어·사회. 인하대가 공개한 2026학년도 입시결과 자료에는 실기/실적 전형 결과가 포함되어 있지 않아 results 비움."
+    },
+    {
+      "id": "inha-2026-jeongsi-acting",
+      "university_id": "inha",
+      "department": "연극영화학과(연기)",
+      "discipline": "acting",
+      "admission_year": 2026,
+      "track": "정시",
+      "screening": "실기/실적(다군)",
+      "apply_start": "2025-12-29",
+      "apply_end": "2025-12-31",
+      "practical_date": "2026-01-25",
+      "practical_date_end": "2026-01-27",
+      "announce_date": "2026-02-02",
+      "practical_task": "고사종목 '종합연기'(2분 이내) - 수험생 본인이 시험 전에 준비한 작품을 소재로 다양한 연기표현을 종합적으로 구성하여 발표. 수험생이 표현할 수 있는 별도의 특기가 있을 경우에 특기(노래, 춤, 움직임 등)를 포함해서 종합적으로 구성. 필요 시 시연 내용에 한하여 평가위원이 추가로 간단한 보충 발표를 요구할 수 있음(1분 이내). 실기고사 결시 시 불합격 처리.",
+      "quota": "9명",
+      "fee": "￦100,000",
+      "csat_minimum": null,
+      "documents": null,
+      "dress_code": null,
+      "preparation": "보충 발표 시 음원 사용을 희망할 경우 2026.01.21.(수) 10:00 ~ 01.22.(목) 16:00 기간 내 음원 파일 업로드 필요.",
+      "designated_works": [],
+      "essay_questions": [],
+      "weights": {
+        "practical": 70,
+        "csat": 30
+      },
+      "weights_note": "다군 연극영화학과(연기): 수능 300점 + 실기 700점 = 전형총점 1,000점",
+      "stages": [],
+      "practical_items": [
+        {
+          "category": "free_acting",
+          "label": "종합연기",
+          "required": true,
+          "time_limit_sec": 120,
+          "count": 1,
+          "weight": 70,
+          "stage": null,
+          "note": "본인이 준비한 작품을 소재로 다양한 연기표현을 종합 구성하여 발표. 특기(노래, 춤, 움직임 등) 포함 가능"
+        },
+        {
+          "category": "audition_etc",
+          "label": "보충 발표",
+          "required": false,
+          "time_limit_sec": 60,
+          "count": 1,
+          "weight": null,
+          "stage": null,
+          "note": "필요 시 평가위원이 요구"
+        }
+      ],
+      "results": [],
+      "source_url": "https://admission.inha.ac.kr/cms/FR_CON/index.do?MENU_ID=120",
+      "verified_at": "2026-08-04",
+      "note": "2027학년도 정시 모집요강 미공개(입학처 정시 모집요강 메뉴에 2026학년도 요강만 게시). 2027학년도 대학입학전형 시행계획은 HWP 배포용(ViewText) 보호 문서라 본문을 읽을 수 없어, 규격 4항에 따라 2026학년도 정시모집요강 기준으로 채우고 admission_year를 2026으로 표기함. 2027학년도 수치는 반드시 추후 공개될 2027 정시 요강으로 재확인 필요. 참고: 인하대 정시는 연극영화학과(연기)와 연극영화학과(연출)를 별도 모집단위로 분리하며 이 공고는 연기만 담음(연출은 시놉시스 작문 실기)."
+    },
+    {
+      "id": "hansei-2027-susi-acting",
+      "university_id": "hansei",
+      "department": "예술학부 공연예술전공",
+      "discipline": "acting",
+      "admission_year": 2027,
+      "track": "수시",
+      "screening": "실기우수자 전형(실기/실적)",
+      "apply_start": "2026-09-07",
+      "apply_end": "2026-09-11",
+      "practical_date": "2026-10-12",
+      "practical_date_end": "2026-10-18",
+      "announce_date": "2026-11-10",
+      "practical_task": "① 노래(1분 30초): 자유곡(뮤지컬 삽입곡 중 택1, 한국어만 가능) ② 특기(1분, 환복시간 포함): 자유안무(현대무용, 재즈댄스, 발레 등) 또는 연기 중 택1. ①·② 모두 실시. MR, 의상, 소품을 사용할 수 있으며 본인이 준비해야 함(의자, 박스는 각 1개씩 고사장에 비치). MR은 고사 당일 USB로 제출하며 USB에 문제가 있을 시 사용 불가하므로 본인이 사전에 확인·점검해야 함.",
+      "quota": "27명",
+      "fee": "80,000원",
+      "csat_minimum": null,
+      "documents": "학생부 온라인제공 동의자는 제출서류 없음. 온라인제공 비동의자·비대상(미설치)교 출신자는 학교생활기록부 사본 1부(출신학교장 직인 및 날인). 검정고시 출신자는 온라인제공 동의 시 없음(국내 고교 재학 사실이 있으면 학교생활기록부 사본 1부 필수), 비동의자는 대입전형용 합격증명서 1부 + 검정고시 성적증명서 1부. 제출서류 마감 2026. 9. 16.(수) 17:00까지.",
+      "dress_code": null,
+      "preparation": "MR(USB로 고사 당일 제출), 의상, 소품은 본인 준비. 의자·박스는 각 1개씩 고사장 비치. 수험표 및 신분증 지참.",
+      "designated_works": [],
+      "essay_questions": [],
+      "weights": {
+        "practical": 80,
+        "transcript": 20
+      },
+      "weights_note": "일괄합산 학생부교과 20% + 실기 80%, 수능최저학력기준 없음",
+      "stages": [],
+      "practical_items": [
+        {
+          "category": "song",
+          "label": "노래(자유곡)",
+          "required": true,
+          "time_limit_sec": 90,
+          "count": 1,
+          "weight": null,
+          "stage": null,
+          "note": "뮤지컬 삽입곡 중 택1, 한국어만 가능"
+        },
+        {
+          "category": "special",
+          "label": "특기 - 자유안무 또는 연기 중 택1",
+          "required": true,
+          "time_limit_sec": 60,
+          "count": 1,
+          "weight": null,
+          "stage": null,
+          "note": "자유안무(현대무용, 재즈댄스, 발레 등) 또는 연기 중 택1. 1분에 환복시간 포함"
+        }
+      ],
+      "results": [
+        {
+          "year": 2026,
+          "quota": null,
+          "applicants": null,
+          "competition_rate": "26.82",
+          "transcript_avg": null,
+          "transcript_cut70": null,
+          "fill_rate": null,
+          "waitlist_last": null,
+          "waitlist_count": null,
+          "source_url": "https://ipsi.hansei.ac.kr/view.do?no=1071",
+          "verified_at": "2026-08-04",
+          "note": "2027 수시 모집요강 39p '전년도 입시결과'(정원 내) 실기우수자 전형 공연예술전공. 대학이 공개한 값은 경쟁률 26.82와 학생부 8.00뿐이며, 이 학생부 값은 평균이 아니라 2026학년도 수시 최종등록자의 '최저등급'(가산점 제외)이라 transcript 필드에 넣지 않음. 모집인원·지원자수는 미공개"
+        }
+      ],
+      "source_url": "https://ipsi.hansei.ac.kr/view.do?no=1071",
+      "verified_at": "2026-08-04",
+      "note": "출처: 한세대학교 2027학년도 신입생 수시 모집요강 PDF. 공연예술전공은 노래중심/연기중심으로 모집단위가 갈리지 않고 '예술학부 공연예술전공' 하나로 27명을 통합 선발하므로 공고를 나누지 않음. 다만 실기는 뮤지컬 삽입곡 노래가 필수이고 연기는 특기 항목에서 무용과 택1하는 구조라 사실상 뮤지컬 중심 전공임에 유의. 정원 외로 농어촌학생 전형(예술학부 4명, 학생부교과+실기)과 특수교육대상자 전형(예술학부 실기 70%+면접 30%)에도 공연예술전공이 포함되나 세부 모집인원이 예술학부 통합으로만 표기되어 별도 공고로 만들지 않음. 2025학년도 미충원 이월 인원 1명."
+    },
+    {
+      "id": "hansei-2026-jeongsi-acting",
+      "university_id": "hansei",
+      "department": "예술학부 공연예술전공",
+      "discipline": "acting",
+      "admission_year": 2026,
+      "track": "정시",
+      "screening": "「가」군 일반(공연예술) 전형[실기/실적]",
+      "apply_start": "2025-12-29",
+      "apply_end": "2025-12-31",
+      "practical_date": "2026-01-06",
+      "practical_date_end": "2026-01-10",
+      "announce_date": "2026-02-02",
+      "practical_task": "① 노래(1분 30초): 자유곡(뮤지컬 삽입곡 중 택일, 한국어만 가능) ② 특기(1분, 환복시간 포함): 자유안무(현대무용, 재즈댄스, 발레 등) 또는 연기 중 택1. ①·② 모두 실시. MR, 의상, 소품을 사용할 수 있으며 본인이 준비해야 함(의자, 박스는 각 1개씩 고사장에 비치). MR은 고사 당일 USB로 제출해야 하며 USB에 문제가 있을 시 사용 불가하니 필히 확인 및 점검.",
+      "quota": "4명",
+      "fee": "77,000원",
+      "csat_minimum": null,
+      "documents": "학생부 온라인제공 동의자는 제출서류 없음. 온라인제공 비동의자·비대상(미설치)교 출신자는 학교생활기록부 사본 1부(출신학교장 직인 및 날인). 검정고시 출신자는 온라인제공 비동의 시 검정고시 성적증명서 1부(주민등록번호 모두 표시). 제출서류 마감 2026. 1. 7.(수) 17:00까지.",
+      "dress_code": null,
+      "preparation": "MR(고사 당일 USB로 제출), 의상, 소품은 본인 준비. 의자·박스는 각 1개씩 고사장 비치. 수험표 및 신분증 지참.",
+      "designated_works": [],
+      "essay_questions": [],
+      "weights": {
+        "practical": 80,
+        "csat": 20
+      },
+      "weights_note": "수능 20% + 실기 80%",
+      "stages": [],
+      "practical_items": [
+        {
+          "category": "song",
+          "label": "노래(자유곡)",
+          "required": true,
+          "time_limit_sec": 90,
+          "count": 1,
+          "weight": null,
+          "stage": null,
+          "note": "뮤지컬 삽입곡 중 택1, 한국어만 가능"
+        },
+        {
+          "category": "special",
+          "label": "특기 - 자유안무 또는 연기 중 택1",
+          "required": true,
+          "time_limit_sec": 60,
+          "count": 1,
+          "weight": null,
+          "stage": null,
+          "note": "자유안무(현대무용, 재즈댄스, 발레 등) 또는 연기 중 택1. 1분에 환복시간 포함"
+        }
+      ],
+      "results": [
+        {
+          "year": 2025,
+          "quota": null,
+          "applicants": null,
+          "competition_rate": "50.75",
+          "transcript_avg": null,
+          "transcript_cut70": null,
+          "fill_rate": null,
+          "waitlist_last": null,
+          "waitlist_count": null,
+          "source_url": "https://ipsi.hansei.ac.kr/view.do?no=1077",
+          "verified_at": "2026-08-04",
+          "note": "2026학년도 정시 모집요강 34p '전년도 입시결과'(= 2025학년도) 일반(예술) 전형 공연예술학과: 경쟁률 50.75, 최종등록자 수능 백분위 28.80. 모집인원·지원자수는 미공개"
+        }
+      ],
+      "source_url": "https://ipsi.hansei.ac.kr/view.do?no=1077",
+      "verified_at": "2026-08-04",
+      "note": "2027학년도 정시 모집요강 미공개(입학처 정시 모집요강 메뉴에 2026학년도 요강만 게시)라 규격 4항에 따라 2026학년도 정시모집요강 기준으로 채우고 admission_year를 2026으로 표기함. 2027학년도 수치는 추후 공개될 2027 정시 요강으로 재확인 필요. 정시에서도 공연예술전공은 연기/뮤지컬로 모집단위가 갈리지 않고 하나로 선발하며, 실기는 뮤지컬 삽입곡 노래 필수 + 특기(무용 또는 연기 택1) 구조. 정시 모집인원은 수시모집 결과에 따라 변경될 수 있음."
     }
   ]
 }
