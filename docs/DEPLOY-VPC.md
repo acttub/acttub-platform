@@ -149,6 +149,17 @@ S3 자격증명은 back svc의 EC2 instance role에서 boto3 기본 체인으로
 택했다. 그래서 role 권한을 손대거나 키를 지우기 전에 반드시 서비스 계정(`ubuntu`)으로
 접근을 먼저 확인한다.
 
+access key 방식으로 되돌려야 할 때는 **서버에 보관해 둔 사본을 쓰지 않는다.** 그 키는
+운영·개발 버킷을 모두 허용하므로, 서버에 파일로 남겨 두면 instance role로 만든 경계가
+무의미해진다. 대신 필요한 순간에 새로 발급한다.
+
+```bash
+aws iam create-access-key --user-name acting-api
+```
+
+두 값을 `api.env`에 넣고 재시작하면 환경변수 provider가 role보다 우선해 즉시 되돌아간다.
+상황이 끝나면 그 임시 키를 반드시 삭제한다.
+
 `STATIC_DIR`은 **주지 않는다**. front svc가 화면을 서빙하므로 백엔드는 API만 담당한다.
 값을 주면 FastAPI가 정적 파일을 함께 물면서 역할이 겹친다.
 
