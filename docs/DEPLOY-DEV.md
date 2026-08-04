@@ -57,6 +57,17 @@ GitHub Environments의 variables 값뿐이다.
 - **22도 열지 않는다.** 접속은 SSM Session Manager로 한다(2장). 퍼블릭 IP가 붙는
   서버라 인바운드를 80/443로만 두는 편이 낫고, 운영과 접속 방식도 통일된다
 - **3000·8000·5432는 열지 않는다.** 전부 loopback으로만 통신한다
+
+> **함정**: 보안그룹 이름은 VPC마다 따로 놀아서, 다른 VPC에 같은 이름의 SG가 있을 수
+> 있다. `--filters Name=group-name,Values=acttub-dev-sg`로 조회하면 **두 SG의 규칙이
+> 한 덩어리로 보여** 열려 있지도 않은 포트가 열린 것처럼 읽힌다. 규칙을 확인할 때는
+> 인스턴스에 실제로 붙은 **GroupId**로 조회한다.
+>
+> ```bash
+> SG=$(aws ec2 describe-instances --instance-ids <ID> \
+>   --query 'Reservations[0].Instances[0].SecurityGroups[0].GroupId' --output text)
+> aws ec2 describe-security-groups --group-ids "$SG" --query 'SecurityGroups[0].IpPermissions'
+> ```
 - **운영 보안그룹을 소스로 참조하지 않는다.** 이 규칙 하나가 dev↔prod 경계다.
   반대로 운영 SG 쪽에도 이 SG를 추가하지 않는다
 
