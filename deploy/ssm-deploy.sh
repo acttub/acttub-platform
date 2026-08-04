@@ -63,9 +63,16 @@ $MIGRATE_STEP
 aws s3 cp "s3://$DEPLOY_BUCKET/be/acttub-api.service" /etc/systemd/system/acttub-api.service
 systemctl daemon-reload
 systemctl enable acttub-api
+# 자동 재시작 카운터를 0으로 맞춰두고 시작한다 — 아래 NRestarts 확인의 기준점이다.
+systemctl reset-failed acttub-api || true
 systemctl restart acttub-api
-sleep 3
+sleep 8
 systemctl is-active acttub-api
+# Type=simple은 exec 직후 곧바로 active가 되므로 is-active만으로는 기동에 실패해
+# 크래시루프 중인 프로세스도 성공으로 읽힌다. S3 자격증명을 못 찾으면 앱이 기동을
+# 거부하므로(config.py·app.py) 이 확인이 없으면 전면 장애가 배포 성공으로 기록된다.
+# 수동 restart는 카운터를 올리지 않으니, 0이 아니면 자동 재시작이 돌았다는 뜻이다.
+test "$(systemctl show -p NRestarts --value acttub-api)" = "0"
 EOF
 )
     SERVICE=acttub-api

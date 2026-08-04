@@ -131,7 +131,7 @@ back svc에 직접 인바운드를 열지 않는다. 브라우저는 back alb를
 DATABASE_URL=postgresql://<user>:<pw>@<rds-endpoint>:5432/<db>
 JWT_SECRET=<랜덤 문자열>
 GEMINI_API_KEY=<키>
-S3_BUCKET=<개발 버킷 이름>
+S3_BUCKET=<운영 버킷 이름 — acttub-practice-videos-prod>
 AWS_REGION=ap-northeast-2
 ADMIN_OPS_TOKEN=<운영 대시보드 토큰>
 ```
@@ -152,11 +152,15 @@ S3 자격증명은 back svc의 EC2 instance role에서 boto3 기본 체인으로
 
 front svc는 런타임 환경변수가 필요 없다 (아래 4-1 참고 — 웹 설정은 전부 빌드 시점에 고정된다).
 
-### 3-4. S3 개발 버킷 CORS
+### 3-4. S3 운영 버킷 CORS
 
-presigned PUT은 브라우저에서 S3로 직접 나가므로 버킷 CORS에 새 CloudFront 도메인을
-**추가**해야 한다. dev와 공유하는 버킷이므로 **기존 항목은 절대 지우지 않는다** — 지우면
-현재 dev 업로드가 즉시 깨진다.
+presigned PUT은 브라우저에서 S3로 직접 나가므로 서비스 도메인을 버킷 CORS에
+**추가**해야 한다. **기존 항목은 절대 지우지 않는다** — 지우면 그 오리진의 업로드가 즉시
+깨진다.
+
+버킷은 dev와 나눠 쓴다: 운영은 `acttub-practice-videos-prod`, dev는 `-dev`다. 각 EC2의
+instance role이 자기 버킷 객체만 허용하므로 `S3_BUCKET`을 반대쪽으로 적으면 자격증명
+해석과 `/health`는 성공하는데 실제 PUT/GET만 403이 된다.
 
 ```json
 {
