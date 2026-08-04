@@ -316,6 +316,19 @@ export const EMPTY_FILTERS: AdmissionFilters = {
   noCsatOnly: false,
 };
 
+/**
+ * 수능 최저학력기준이 **없다고 확인된** 전형인지.
+ *
+ * csat_minimum 이 비어 있는 건 "없다"가 아니라 "아직 확인하지 못했다"는 뜻이다.
+ * 빈 값을 없음으로 세면 확인도 안 한 전형을 "수능 안 봐도 돼요"라고 단정하게 된다.
+ * 웹과 같은 규칙이다.
+ */
+export function hasNoCsatMinimum(notice: AdmissionNotice): boolean {
+  const value = notice.csat_minimum?.trim();
+  if (!value) return false;
+  return /^(없음|미적용|해당\s*없음|없습니다)/.test(value);
+}
+
 /** "경기 용인" → "경기". 공백만 든 값이 빈 문자열 칩으로 올라오지 않게 한다. */
 export function broadRegion(region?: string | null): string | null {
   return region?.trim().split(/\s+/)[0] || null;
@@ -330,7 +343,7 @@ export function noticeMatches(
   if (filters.tracks.length > 0 && !filters.tracks.includes(notice.track ?? '')) return false;
   if (filters.disciplines.length > 0 && !filters.disciplines.includes(notice.discipline ?? ''))
     return false;
-  if (filters.noCsatOnly && notice.csat_minimum) return false;
+  if (filters.noCsatOnly && !hasNoCsatMinimum(notice)) return false;
   if (filters.practicals.length > 0) {
     const categories = new Set((notice.practical_items ?? []).map((item) => item.category));
     if (!filters.practicals.some((wanted) => categories.has(wanted))) return false;

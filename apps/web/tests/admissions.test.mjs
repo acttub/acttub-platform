@@ -14,6 +14,7 @@ const {
   broadRegion,
   weightBars,
   normalizeAdmissions,
+  hasNoCsatMinimum,
   EMPTY_FILTERS,
 } = await import("../src/lib/api/v2/admissions.ts");
 
@@ -170,7 +171,7 @@ const filterPayload = {
       university_id: "gyeonggi-col",
       track: "정시",
       discipline: "musical",
-      csat_minimum: null,
+      csat_minimum: "없음",
       practical_items: [{ category: "dance" }],
     },
   ],
@@ -331,4 +332,34 @@ test("이미 들어 있는 리스트는 그대로 둔다", () => {
     notices: [{ id: "n", university_id: "a", stages: [{ order: 1, name: "1차" }] }],
   });
   assert.equal(filled.notices[0].stages.length, 1);
+});
+
+// 빈 csat_minimum 은 "수능 최저가 없다"가 아니라 "아직 확인 못 했다"는 뜻이다.
+// 이걸 없음으로 세면 확인도 안 한 전형을 "수능 안 봐도 돼요"라고 단정하게 된다.
+test("수능 최저는 '없음'이라고 확인된 것만 없음으로 센다", () => {
+  assert.equal(hasNoCsatMinimum({ csat_minimum: "없음" }), true);
+  assert.equal(hasNoCsatMinimum({ csat_minimum: "없음 (수시는 반영하지 않는다)" }), true);
+  assert.equal(hasNoCsatMinimum({ csat_minimum: "미적용" }), true);
+  assert.equal(hasNoCsatMinimum({ csat_minimum: "국어 3등급" }), false);
+  assert.equal(hasNoCsatMinimum({ csat_minimum: null }), false);
+  assert.equal(hasNoCsatMinimum({ csat_minimum: "  " }), false);
+  assert.equal(hasNoCsatMinimum({}), false);
+});
+
+test("수능 최저 없음 필터는 미확인 전형을 남기지 않는다", () => {
+  const groups = groupByUniversity({
+    updated_at: "x", disclaimer: "d",
+    universities: [
+      { id: "known", name: "확인대", admission_url: "x" },
+      { id: "unknown", name: "미확인대", admission_url: "x" },
+    ],
+    notices: [
+      { id: "k", university_id: "known", csat_minimum: "없음" },
+      { id: "u", university_id: "unknown", csat_minimum: null },
+    ],
+  });
+  assert.deepEqual(
+    filterGroups(groups, { ...EMPTY_FILTERS, noCsatOnly: true }).map((g) => g.university.id),
+    ["known"],
+  );
 });

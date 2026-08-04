@@ -98,6 +98,20 @@ export const EMPTY_FILTERS: AdmissionFilters = {
   noCsatOnly: false,
 };
 
+/**
+ * 수능 최저학력기준이 **없다고 확인된** 전형인지.
+ *
+ * `csat_minimum`이 비어 있는 건 "없다"가 아니라 "아직 확인하지 못했다"는 뜻이다.
+ * 빈 값을 없음으로 세면, 확인도 안 한 전형을 "수능 안 봐도 돼요"라고 단정해
+ * 보여주게 된다 — 수능을 놓친 학생이 지원했다가 최저를 못 맞추는 쪽이,
+ * 후보에서 빠지는 쪽보다 훨씬 큰 피해다.
+ */
+export function hasNoCsatMinimum(notice: AdmissionNotice): boolean {
+  const value = notice.csat_minimum?.trim();
+  if (!value) return false;
+  return /^(없음|미적용|해당\s*없음|없습니다)/.test(value);
+}
+
 /** "경기 용인" → "경기". 필터는 광역 단위로 묶어야 선택지가 열 개 안쪽이 된다. */
 export function broadRegion(region?: string | null): string | null {
   // 공백만 든 값을 그대로 두면 빈 문자열이 필터 칩으로 올라온다.
@@ -118,7 +132,7 @@ export function noticeMatches(
     !filters.disciplines.includes(notice.discipline ?? "")
   )
     return false;
-  if (filters.noCsatOnly && notice.csat_minimum) return false;
+  if (filters.noCsatOnly && !hasNoCsatMinimum(notice)) return false;
   if (filters.practicals.length > 0) {
     const categories = new Set(
       (notice.practical_items ?? []).map((item) => item.category),

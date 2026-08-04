@@ -14,6 +14,7 @@ import {
   broadRegion,
   weightBars,
   formatSeconds,
+  hasNoCsatMinimum,
   EMPTY_FILTERS,
 } from '../lib/admissions.ts';
 
@@ -162,7 +163,7 @@ const filterPayload = {
       university_id: 'gyeonggi-col',
       track: '정시',
       discipline: 'musical',
-      csat_minimum: null,
+      csat_minimum: '없음',
       practical_items: [{ category: 'dance' }],
       designated_works: [],
       essay_questions: [],
@@ -260,4 +261,13 @@ test('실기 제한시간은 분·초로 읽는다', () => {
   assert.equal(formatSeconds(120), '2분');
   assert.equal(formatSeconds(90), '1분 30초');
   assert.equal(formatSeconds(45), '45초');
+});
+
+// 빈 csat_minimum 은 "없다"가 아니라 "아직 확인 못 했다"는 뜻이다. 웹과 같은 규칙.
+test("수능 최저는 '없음'이라고 확인된 것만 없음으로 센다", () => {
+  assert.equal(hasNoCsatMinimum({ csat_minimum: '없음' }), true);
+  assert.equal(hasNoCsatMinimum({ csat_minimum: '미적용' }), true);
+  assert.equal(hasNoCsatMinimum({ csat_minimum: '국어 3등급' }), false);
+  assert.equal(hasNoCsatMinimum({ csat_minimum: null }), false);
+  assert.equal(hasNoCsatMinimum({}), false);
 });
