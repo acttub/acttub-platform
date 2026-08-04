@@ -119,3 +119,24 @@ def test_s3_uses_one_session_for_credential_check_and_client_creation(
     ]
     assert app.state.s3_storage._client is session.s3_client
     assert "S3 credential method=iam-role" in caplog.text
+
+
+def test_credential_method_log_survives_without_forcing_the_log_level(
+    monkeypatch, caplog
+):
+    # 위 테스트는 caplog.at_level로 레벨을 강제해서, 실제 서버에서 앱 로거의 INFO가
+    # 통째로 버려지던 것을 잡지 못했다. 여기서는 강제하지 않고 기동만 시킨다.
+    logging.getLogger("acting_api").setLevel(logging.NOTSET)
+    session = FakeBotoSession(credentials=SimpleNamespace(method="iam-role"))
+    monkeypatch.setattr("acting_api.app.boto3.Session", lambda: session)
+    settings = GatewaySettings(
+        database_url="postgresql+psycopg://unused/unused",
+        jwt_secret="test-jwt-secret",
+        s3_bucket="videos",
+        aws_region="ap-northeast-2",
+    )
+
+    _app(gateway_settings=settings)
+
+    assert logging.getLogger("acting_api").level == logging.INFO
+    assert "S3 credential method=iam-role" in caplog.text
