@@ -144,3 +144,86 @@ def test_converging_instruction_appears_near_the_limit():
     assert "수렴 구간이다" in user_msg
     # 배우가 스스로 막혔다고 말했을 때만 scaffold 지시가 붙는다
     assert "scaffold" in user_msg
+
+
+# 실제 대화 8건에서 코치가 이미 던진 질문을 그대로 다시 던졌다. 원인은 폴백 문장이
+# 1번 질문(Q_PURPOSE)과 글자 그대로 같은데, 이미 무엇을 물었는지 모르고 넣어서다.
+# 8/3 se8tify 는 20턴을 채운 최우수 사용자였고 14번째 턴에서 1번 질문을 다시 받았다.
+def test_fallback_never_repeats_a_question_already_asked():
+    session = _open_session(
+        turns=[
+            CoachTurn(role="ai", text="이 장면에서 인물이 원하는 게 뭐예요?"),
+            CoachTurn(role="actor", text="형에게 인정받고 싶어요"),
+        ],
+    )
+    # 두 번 다 금지 문형에 걸려 폴백으로 떨어지는 상황.
+    banned = "지금 연기에 점수를 준다면 몇 점일까요?"
+    out = engine.reply(
+        session,
+        "네",
+        client=FakeClient([_out(banned), _out(banned)]),
+        model="m",
+    )
+    asked = [t.text for t in session.turns if t.role == "ai"]
+    assert out.utterance not in asked[:-1], f"이미 물어본 질문을 또 냈다: {out.utterance}"
+    assert out.utterance.strip(), "폴백이 비어 있으면 안 된다"
+
+
+def test_fallback_still_works_when_nothing_asked_yet():
+    session = _open_session(turns=[])
+    banned = "지금 연기에 점수를 준다면 몇 점일까요?"
+    out = engine.reply(
+        session,
+        "모르겠어요",
+        client=FakeClient([_out(banned), _out(banned)]),
+        model="m",
+    )
+    assert out.utterance.strip()
+
+
+# 폴백을 다 써도 같은 질문을 또 내느니 끝낸다. 대화를 원점으로 돌리는 것이
+# 배우에게 가장 큰 이탈 신호였다 — "또 물어보시는 건가요?"(8/3).
+def test_closes_instead_of_repeating_when_fallbacks_run_out():
+    from acting_agent.guard import FALLBACK_QUESTIONS
+
+    session = _open_session(
+        turns=[CoachTurn(role="ai", text=q) for q in FALLBACK_QUESTIONS],
+    )
+    banned = "지금 연기에 점수를 준다면 몇 점일까요?"
+    out = engine.reply(
+        session,
+        "네",
+        client=FakeClient([_out(banned), _out(banned)]),
+        model="m",
+    )
+    assert out.done is True
+    assert out.action == "close"
+    assert out.reason == "exhausted"
+    assert session.status == "closed"
+
+
+# 폴백이 아니라 모델이 정상 생성한 질문이어도, 이미 물어본 것과 같으면 끝낸다.
+def test_closes_when_the_model_repeats_an_earlier_question():
+    asked = "그 순간 인물은 무엇을 기다렸을까요?"
+    session = _open_session(turns=[CoachTurn(role="ai", text=asked)])
+    out = engine.reply(
+        session,
+        "모르겠어요",
+        client=FakeClient([_out(asked)]),
+        model="m",
+    )
+    assert out.done is True
+    assert out.reason == "exhausted"
+
+
+# 새 질문이면 당연히 계속 간다 — 종료 가드가 과하게 걸리면 대화가 다 끊긴다.
+def test_a_new_question_still_continues():
+    session = _open_session(turns=[CoachTurn(role="ai", text="첫 질문")])
+    out = engine.reply(
+        session,
+        "붙잡고 싶었어요",
+        client=FakeClient([_out("그 말을 하고 나서 인물은 무엇을 기다렸을까요?")]),
+        model="m",
+    )
+    assert out.done is False
+    assert out.action == "dig_cause"

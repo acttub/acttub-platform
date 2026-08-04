@@ -13,7 +13,13 @@ from pydantic import BaseModel
 
 from acting_agent import prompt as prompt_mod
 from acting_agent import targeting
-from acting_agent.guard import ECHO_LIMIT, FALLBACK_QUESTION, echo_hits, lint_question
+from acting_agent.guard import (
+    ECHO_LIMIT,
+    echo_hits,
+    lint_question,
+    normalize_question,
+    pick_fallback,
+)
 from acting_agent.schema import CoachReply, CoachSession, CoachTurn
 
 log = logging.getLogger(__name__)
@@ -77,7 +83,7 @@ def _call_retrying_parse(client, model, system, user_msg, with_close):
         return _call(client, model, system, user_msg, with_close)
 
 
-def _generate_guarded(client, model, system, user_msg, with_close, ctx):
+def _generate_guarded(client, model, system, user_msg, with_close, ctx, asked=None):
     out = _call_retrying_parse(client, model, system, user_msg, with_close)
 
     # 종료 발화도 검사한다. 옛 구현은 close 를 통째로 건너뛰어서 판정·칭찬이 섞인 마무리가
@@ -97,7 +103,10 @@ def _generate_guarded(client, model, system, user_msg, with_close, ctx):
                 # 닫는 턴이면 질문을 넣지 않는다 — 폴백 질문 + done=true 는 모순이다
                 out = out.model_copy(update={"question": SAFE_CLOSING})
             else:
-                out = out.model_copy(update={"question": FALLBACK_QUESTION})
+                # 이미 물어본 것을 빼고 고른다. 같은 문장을 다시 내보내면
+                # 대화가 원점으로 돌아가고, 그게 가장 큰 이탈 신호였다.
+                # 폴백까지 떨어지면 질문을 비운다 — 호출부가 종료로 바꾼다.
+                out = out.model_copy(update={"question": pick_fallback(asked) or ""})
 
     closing = bool(getattr(out, "close", False))
 
@@ -220,8 +229,34 @@ def reply(
         converging=session.question_count >= max_questions - CONVERGE_MARGIN,
     )
     out = _generate_guarded(
-        client, model, prompt_mod.system_prompt(True), user_msg, True, ctx
+        client,
+        model,
+        prompt_mod.system_prompt(True),
+        user_msg,
+        True,
+        ctx,
+        asked=[t.text for t in session.turns if t.role == "ai"],
     )
+
+    # 같은 질문을 또 던지느니 끝낸다. 폴백이 떨어졌거나(question 빈 문자열),
+    # 모델이 이미 물어본 것을 그대로 냈을 때 걸린다.
+    asked_before = {
+        normalize_question(t.text) for t in session.turns if t.role == "ai"
+    }
+    repeats = normalize_question(out.question) in asked_before
+    if not out.question.strip() or repeats:
+        log.info("되풀이 질문 감지 → 종료 (%s)", "폴백 소진" if not out.question.strip() else "중복")
+        r = CoachReply(
+            action="close",
+            utterance=(
+                "여기까지 할게요. 오늘 짚으신 것들이 이미 충분해요 — "
+                "그중 하나만 다음 연습에 들고 가 주세요."
+            ),
+            done=True,
+            reason="exhausted",
+        )
+        _close(session, r)
+        return r
 
     closing = bool(getattr(out, "close", False))
     focus = candidate.start if candidate is not None else ""

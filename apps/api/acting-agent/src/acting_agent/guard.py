@@ -81,6 +81,38 @@ FIRST_PERSON = re.compile(r"(?<![가-힣])(나에게|나를|나의|내가|나한
 
 FALLBACK_QUESTION = "이 장면에서 인물이 원하는 게 뭐예요?"
 
+# 폴백 후보. 앞의 것부터 쓰되, 이미 물어본 것은 건너뛴다.
+#
+# 폴백이 하나뿐이던 시절엔 모델 출력이 두 번 연속 금지 문형에 걸릴 때마다 같은 문장이
+# 나갔다. 그래서 대화 중간에 1번 질문이 다시 튀어나왔다 — 실제 대화 33건 중 8건이
+# 이 경로였고, 20턴을 채운 배우가 14번째 턴에서 "또 물어보시는 건가요?"라고 되물었다.
+FALLBACK_QUESTIONS: tuple[str, ...] = (
+    FALLBACK_QUESTION,
+    "원하는 걸 이루지 못하면 인물에게 무슨 일이 벌어질까요?",
+    "그 순간 인물은 상대에게서 무엇을 기다리고 있었을까요?",
+    "인물이 그렇게까지 하게 만든 건 무엇이었을까요?",
+    "그 마음이 몸으로는 어떻게 새어 나왔을까요?",
+)
+
+
+def normalize_question(question: str) -> str:
+    """같은 질문인지 보려고 공백과 문장부호를 걷어낸다."""
+    return re.sub(r"[\s?!.,·…]+", "", question or "")
+
+
+def pick_fallback(asked: "list[str] | tuple[str, ...] | None" = None) -> str | None:
+    """이미 물어본 것을 뺀 폴백 질문. 다 썼으면 None.
+
+    같은 문장을 두 번 내보내느니 결이 조금 다른 질문이 낫고, 그마저 떨어지면
+    묻지 말고 끝내야 한다. 대화를 원점으로 되돌리는 것이 배우에게 가장 큰
+    이탈 신호였다 — "또 물어보시는 건가요?"(2026-08-03).
+    """
+    used = {normalize_question(q) for q in (asked or [])}
+    for candidate in FALLBACK_QUESTIONS:
+        if normalize_question(candidate) not in used:
+            return candidate
+    return None
+
 
 def lint_question(question: str) -> list[str]:
     q = question or ""
