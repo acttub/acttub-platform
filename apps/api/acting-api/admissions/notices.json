@@ -3854,6 +3854,881 @@
       "source_url": "https://ipsi.ysu.ac.kr/ipsi/CMS/Contents/Contents.do?mCode=MN016",
       "verified_at": "2026-08-04",
       "note": "2027학년도 정시모집요강이 2026-08-04 기준 미공개라 2026학년도 정시모집요강 기준으로 작성했다. 2027학년도 수시 기준으로 이 모집단위의 명칭은 'K-공연방송미디어학과'로 바뀌었으므로 2027 정시 요강에서 다시 확인해야 한다. 수능 최저학력기준 없음."
+    },
+    {
+      "id": "hanyang-2027-susi-acting",
+      "university_id": "hanyang",
+      "department": "연극영화학과(연기)",
+      "discipline": "acting",
+      "admission_year": 2027,
+      "track": "수시",
+      "screening": "실기/실적(연기특기자)",
+      "apply_start": "2026-09-08",
+      "apply_end": "2026-09-11",
+      "practical_date": "2026-10-07",
+      "practical_date_end": null,
+      "announce_date": "2026-11-13",
+      "practical_task": "실기고사 없음(요강 명시: \"실기 없음, 수능 면제\"). 일괄합산으로 연기실적 70 + 면접 30 평가. 최고점 1,000점 / 최저점 0점. 면접고사는 10. 7.(수) 실시(시간 추후 공지)이며, 연극영화학과(연기)는 면접위원 3인 내외의 대면 '제출서류 기반 면접'으로 진행되고 개인별 블라인드 면접임. 면접 고사장 배정 및 유의사항은 9. 22.(화) 10:00 이후 입학처 홈페이지 공지. 지원자격은 국내 정규 고교 졸업(예정)자 및 동등 학력 소지자로서 '국내 공인된 영화, TV 등 기타 매체에서 활동한 경력자 혹은 수상자' 기본요건 아래 세부요건 중 하나 충족: ①공중파(KBS/MBC/SBS) 드라마 주연급 20회 이상 ②종편·케이블TV(채널A, JTBC, TV조선, MBN, tvN, OCN, ENA) 드라마 주연급 20회 이상 ③국내외 OTT(넷플릭스, 웨이브, 티빙, 왓챠, 디즈니플러스, 카카오TV, 쿠팡플레이) 자체 제작·편성 드라마 주연급 20회 이상 ④국내 개봉 장편 상업영화 2편 이상 주연 출연(독립 장편영화 제외) ⑤국내외 공인 시상식 수상자(관객상·인기상·공로상 등 제외) — 대종상, 청룡영화상, 대한민국영화대상, 백상예술대상, 춘사영화상, 영평상, 부일영화상, 깐느영화제, 베니스영화제, 선댄스영화제, 베를린영화제, 로카르노영화제, 아카데미영화제, 동경영화제 / KBS·MBC·SBS 연기대상, 골든디스크어워즈, Mnet Asian Music Awards. 유의사항: 출연 혹은 수상실적 점수가 현저하게 낮아 선발에 부적합하다고 판단되는 자는 입학을 허가하지 않으며, 미등록으로 인한 결원이 발생하더라도 충원하지 않고 미충원 인원은 당해 연도 정시모집 인원으로 이월함.",
+      "quota": "2명",
+      "fee": "65,000원",
+      "csat_minimum": null,
+      "documents": "① 학교생활기록부(온라인 제공 동의자 제외) 또는 학력증명서(해당자) ② 수상실적 확인서(해당자) ③ 포트폴리오 1부(주/조연 등 역할 명기, 출연실적 증빙자료 등). 제출서류는 온라인 PDF 업로드(9. 8.~9. 14.), 우편·방문접수 불가. 최종등록자는 원서접수 시 업로드한 서류의 원본을 입학처로 제출해야 함.",
+      "dress_code": "면접고사 대상자는 교복 착용 금지(공통 면접고사 유의사항)",
+      "preparation": "면접고사 시 수험표와 신분증(주민등록증, 운전면허증, 기간 만료 전 여권, 청소년증 등) 지참 필수 ※ 모바일 신분증 불인정. 안내된 대기장소·시각까지 입실 완료해야 하며 이후 입실 불가.",
+      "designated_works": [],
+      "essay_questions": [],
+      "weights": {
+        "other": 70,
+        "interview": 30
+      },
+      "weights_note": "일괄합산 — 연기실적 70 + 면접 30 (연기실적 70은 제출한 출연·수상실적 및 포트폴리오 평가로, 스키마의 practical/portfolio 어느 키에도 정확히 대응하지 않아 other로 둠)",
+      "stages": [],
+      "practical_items": [
+        {
+          "category": "interview",
+          "label": "면접(제출서류 기반, 대면, 면접위원 3인 내외)",
+          "required": true,
+          "time_limit_sec": null,
+          "count": 1,
+          "weight": 30,
+          "stage": null,
+          "note": "개인별 블라인드 면접. 10. 7.(수) 실시, 시간 추후 공지"
+        }
+      ],
+      "results": [
+        {
+          "year": 2026,
+          "quota": 2,
+          "applicants": 17,
+          "competition_rate": "8.50 : 1",
+          "transcript_avg": null,
+          "transcript_cut70": null,
+          "fill_rate": null,
+          "waitlist_last": null,
+          "waitlist_count": null,
+          "source_url": "https://go.hanyang.ac.kr/web/rate/rate.do?m_type=SUSI",
+          "verified_at": "2026-08-04",
+          "note": "입학처 지원현황 메뉴가 링크하는 '한양대학교(서울) 경쟁률 서비스' 최종 마감 현황(https://addon.jinhakapply.com/RatioV1/RatioH/Ratio11640461.html). 대학이 공개한 수시 입시결과 가이드북에는 실기/실적 전형 성적자료 없음"
+        },
+        {
+          "year": 2025,
+          "quota": 2,
+          "applicants": 25,
+          "competition_rate": "12.50 : 1",
+          "transcript_avg": null,
+          "transcript_cut70": null,
+          "fill_rate": null,
+          "waitlist_last": null,
+          "waitlist_count": null,
+          "source_url": "https://go.hanyang.ac.kr/web/rate/rate.do?m_type=SUSI",
+          "verified_at": "2026-08-04",
+          "note": "https://addon.jinhakapply.com/RatioV1/RatioH/Ratio11640371.html"
+        },
+        {
+          "year": 2024,
+          "quota": 2,
+          "applicants": 17,
+          "competition_rate": "8.50 : 1",
+          "transcript_avg": null,
+          "transcript_cut70": null,
+          "fill_rate": null,
+          "waitlist_last": null,
+          "waitlist_count": null,
+          "source_url": "https://go.hanyang.ac.kr/web/rate/rate.do?m_type=SUSI",
+          "verified_at": "2026-08-04",
+          "note": "https://addon.jinhakapply.com/RatioV1/RatioH/Ratio11640281.html"
+        }
+      ],
+      "source_url": "https://go.hanyang.ac.kr/web/mojib/mojib.do?m_type=SUSI",
+      "verified_at": "2026-08-04",
+      "note": "출처: '2027학년도 한양대학교 신입학 수시모집요강'(입학처 모집요강 뷰어, PDF: https://go.hanyang.ac.kr/resources/upload_data/mojib/20260709032252947_.pdf) pp.1~2(전형일정), p.15(전형료), p.20(선발방법·반영비율), pp.48~49(실기/실적 연기특기자), p.55(면접고사 관련 안내) 및 공지 '2027학년도 한양대학교 수시 예체능 실기고사 안내사항'(2026.06.26). 수능최저학력기준 미적용(수능 면제). 최종합격자 발표 11. 13.(금)은 요강 표기상 '예정'. 전형일정은 지원자 수·고사 실시 여건에 따라 변경될 수 있음. 연극영화학과(영화) 7명은 학생부종합(서류형), 4명은 논술로 별도 선발되며 본 공고 대상이 아님. ※ 이 전형은 요강에 '실기 없음'으로 명시된 특기자 전형으로, 방송·영화 주연 경력자 또는 공인 시상식 수상자만 지원 가능함."
+    },
+    {
+      "id": "hanyang-2027-jeongsi-acting",
+      "university_id": "hanyang",
+      "department": "연극영화학과(연기)",
+      "discipline": "acting",
+      "admission_year": 2027,
+      "track": "정시",
+      "screening": "수능(가군) 일반전형[예체능]",
+      "apply_start": null,
+      "apply_end": null,
+      "practical_date": null,
+      "practical_date_end": null,
+      "announce_date": null,
+      "practical_task": "2027학년도 전형계획 '예체능계열 전공별 실기내용' 표기 그대로: 연극영화학과(연기) — \"연기종합실기, 질의응답 ※ 주제는 시험 당일 제시\". 일괄합산 수능 55% + 실기 45%로 선발. 실기 세부 배점·소요시간·복장 규정은 2027학년도 정시 모집요강 미공개로 확인 불가.",
+      "quota": "13명",
+      "fee": null,
+      "csat_minimum": null,
+      "documents": "학교생활기록부(해당자), 학력증명서(해당자)",
+      "dress_code": null,
+      "preparation": null,
+      "designated_works": [],
+      "essay_questions": [],
+      "weights": {
+        "csat": 55,
+        "practical": 45
+      },
+      "weights_note": "일괄합산 — 수능 55% + 실기 45%",
+      "stages": [],
+      "practical_items": [
+        {
+          "category": "assigned_acting",
+          "label": "연기종합실기",
+          "required": true,
+          "time_limit_sec": null,
+          "count": null,
+          "weight": null,
+          "stage": null,
+          "note": "주제는 시험 당일 제시. 2027학년도 전형계획 표기는 '연기종합실기'뿐이며 세부 내용·배점 미공개"
+        },
+        {
+          "category": "interview",
+          "label": "질의응답",
+          "required": true,
+          "time_limit_sec": null,
+          "count": null,
+          "weight": null,
+          "stage": null,
+          "note": "주제는 시험 당일 제시"
+        }
+      ],
+      "results": [
+        {
+          "year": 2026,
+          "quota": 14,
+          "applicants": 434,
+          "competition_rate": "31.00 : 1",
+          "transcript_avg": null,
+          "transcript_cut70": null,
+          "fill_rate": null,
+          "waitlist_last": null,
+          "waitlist_count": 0,
+          "source_url": "https://go.hanyang.ac.kr/web/rate/rate.do?m_type=JEONGSI",
+          "verified_at": "2026-08-04",
+          "note": "모집인원·지원인원·경쟁률은 입학처 지원현황이 링크하는 '한양대학교(서울) 경쟁률 서비스' 최종 마감 현황(https://addon.jinhakapply.com/RatioV1/RatioH/Ratio11640511.html), 추가합격인원은 입학처 입시결과 '2024-2026 전형별 입시결과'(https://go.hanyang.ac.kr/web/result/result.do?m_type=JEONGSI). 해당 자료는 연극영화학과(연기전공)에 대해 '수학 미반영 등 사유로 성적 정보를 공개하지 않음'이라고 명시"
+        },
+        {
+          "year": 2025,
+          "quota": 15,
+          "applicants": 563,
+          "competition_rate": "37.53 : 1",
+          "transcript_avg": null,
+          "transcript_cut70": null,
+          "fill_rate": null,
+          "waitlist_last": null,
+          "waitlist_count": 0,
+          "source_url": "https://go.hanyang.ac.kr/web/rate/rate.do?m_type=JEONGSI",
+          "verified_at": "2026-08-04",
+          "note": "https://addon.jinhakapply.com/RatioV1/RatioH/Ratio11640401.html / 추가합격인원은 입학처 입시결과 가이드북"
+        },
+        {
+          "year": 2024,
+          "quota": 14,
+          "applicants": 258,
+          "competition_rate": "18.43 : 1",
+          "transcript_avg": null,
+          "transcript_cut70": null,
+          "fill_rate": null,
+          "waitlist_last": null,
+          "waitlist_count": 1,
+          "source_url": "https://go.hanyang.ac.kr/web/rate/rate.do?m_type=JEONGSI",
+          "verified_at": "2026-08-04",
+          "note": "https://addon.jinhakapply.com/RatioV1/RatioH/Ratio11640301.html / 추가합격인원은 입학처 입시결과 가이드북"
+        }
+      ],
+      "source_url": "https://go.hanyang.ac.kr/web/notice/notice_view.do?bn=19710&m_type=&nPage=1",
+      "verified_at": "2026-08-04",
+      "note": "2026-08-04 기준 2027학년도 정시 모집요강 미공개(입학처 정시 모집요강 최신본은 2026학년도). 본 공고는 '2027학년도 한양대학교 신입학 전형계획(최종)_20260530.pdf'(공지사항 2025.10.28 게시, 2026.5.30 수정) pp.2~3·8·25~29 기준. 해당 문서에 정시 원서접수일·실기고사일·합격자 발표일·전형료가 확정되어 있지 않아 모두 null로 둠. 참고로 문서의 '대학입학전형 주요일정(한국대학교육협의회 제공)'에는 정시 원서접수 2027.01.04(월)~01.07(목) 중 3일, [가]군 전형기간 2027.01.11(월)~01.17(일), 합격자 발표 2027.02.05(금)까지로만 표기되어 있어 본교 확정 일자가 아님. 수능 필수 응시영역: 국어, 영어, 사탐 또는 과탐(1과목), 한국사(수학 미반영). 수능 영역별 반영비율: 국어 50, 영어 30, 탐구 20. 예체능계열 영어 등급환산·한국사 감점표는 전형계획 pp.27~28 참조. 같은 [가]군의 연극영화학과(연출및스탭) 6명, 연극영화학과(영화) 10명은 별도 모집단위로 본 공고 대상 아님. 참고(2027학년도 적용 여부 미확인): 2026학년도 정시 모집요강에서는 연기 실기가 '연기종합실기(5분) 60점 + 면접(2분) 40점', 지정 대사 준비시간 2차 대기실 15분, 복장은 자유이나 교복·과한 노출 의상·풀치마 착용 금지, 소품·MR·의상·대도구 지참 및 사용 불가였음."
+    },
+    {
+      "id": "dongduk-2027-susi-acting-day",
+      "university_id": "dongduk",
+      "department": "공연예술대학 공연예술학부 방송연예전공(주간)",
+      "discipline": "acting",
+      "admission_year": 2027,
+      "track": "수시",
+      "screening": "실기우수자전형",
+      "apply_start": "2026-09-07",
+      "apply_end": "2026-09-11",
+      "practical_date": "2026-09-29",
+      "practical_date_end": "2026-10-04",
+      "announce_date": "2026-11-17",
+      "practical_task": "○ 연기 및 특기(2분 이내) - 연기: 연극, 영화, 방송 등 수험생이 선택한 작품의 대사연기 / - 특기: 연기자로서의 자질과 개성을 보여줄 수 있는 특기. ○ 질의응답(1분 이내) - 연기자로서의 열정과 의욕을 평가. ※ 지원자 수에 따라 실기고사 시간이 조정될 수 있음 ※ MR/AR 포함 모든 음향사용 불가 ※ 신발(운동화, 힐 등)은 벗고 연기함 ※ 연습복 착용(무대의상 및 치마, 반바지 착용금지): 색상은 상ㆍ하의 모두 검은색으로 착용 ※ 컬러렌즈를 포함한 메이크업 및 모든 액세서리 금지",
+      "quota": "22명",
+      "fee": "90,000원",
+      "csat_minimum": null,
+      "documents": "학교생활기록부(대입전형자료 온라인 제공 동의자는 별도 제출서류 없음). 2003학년도 이전(2004년 2월 이전) 졸업자, 온라인 제공 비동의자 및 비대상교 출신자는 별도 제출. 검정고시 출신자는 검정고시 합격증명서 제출(원본 제출 원칙, 합격증서로 대체 불가), 최종 재학 고등학교가 있는 경우 해당 학교생활기록부도 제출.",
+      "dress_code": "연습복 착용(무대의상 및 치마, 반바지 착용금지) — 색상은 상ㆍ하의 모두 검은색으로 착용. 신발(운동화, 힐 등)은 벗고 연기함. 컬러렌즈를 포함한 메이크업 및 모든 액세서리 금지.",
+      "preparation": null,
+      "designated_works": [],
+      "essay_questions": [],
+      "weights": {
+        "practical": 80,
+        "transcript": 20
+      },
+      "weights_note": "일괄합산 100% — 실기 80%(최고 800점) + 학생부교과 20%(최고 200점, 최저 80점), 계 1,000점. 전형요소별 실질반영비율: 실기 87% / 학생부교과 13%.",
+      "stages": [],
+      "practical_items": [
+        {
+          "category": "free_acting",
+          "label": "연기",
+          "required": true,
+          "time_limit_sec": 120,
+          "count": 1,
+          "weight": null,
+          "stage": null,
+          "note": "원문은 '연기 및 특기(2분 이내)' 한 항목 — 연기와 특기를 합하여 2분 이내. 연극, 영화, 방송 등 수험생이 선택한 작품의 대사연기. MR/AR 포함 모든 음향사용 불가."
+        },
+        {
+          "category": "special",
+          "label": "특기",
+          "required": true,
+          "time_limit_sec": 120,
+          "count": 1,
+          "weight": null,
+          "stage": null,
+          "note": "원문은 '연기 및 특기(2분 이내)' 한 항목 — 연기와 특기를 합하여 2분 이내. 연기자로서의 자질과 개성을 보여줄 수 있는 특기."
+        },
+        {
+          "category": "interview",
+          "label": "질의응답",
+          "required": true,
+          "time_limit_sec": 60,
+          "count": 1,
+          "weight": null,
+          "stage": null,
+          "note": "연기자로서의 열정과 의욕을 평가."
+        }
+      ],
+      "results": [
+        {
+          "year": 2026,
+          "quota": 22,
+          "applicants": 505,
+          "competition_rate": "22.95 : 1",
+          "transcript_avg": null,
+          "transcript_cut70": null,
+          "fill_rate": null,
+          "waitlist_last": 16,
+          "waitlist_count": null,
+          "source_url": "https://ipsi.dongduk.ac.kr/ipsi/contents/nontime-result.do?schM=view&page=1&viewCount=10&id=91530&schBdcode=_ipsi_result01&etc1=39",
+          "verified_at": "2026-08-04",
+          "note": "2026학년도 수시모집 최종 지원현황 및 충원 현황. 원문 표기 '충원순위 16'(최초합격자를 제외한 충원합격인원)을 waitlist_last에 기재. 학생부 교과성적은 대학이 '실기성적 실질반영비율이 87%로 합격자간 교과성적 편차가 매우 큰 편'이라며 실기우수자·특기자 전형의 합격자 평균등급을 공개하지 않아 null."
+        }
+      ],
+      "source_url": "https://ipsi.dongduk.ac.kr/ipsi/contents/nontime-viewer.do?gotoMenuNo=nontime-viewer",
+      "verified_at": "2026-08-04",
+      "note": "출처: 2027학년도 신입학 수시모집요강(입학처 '수시-모집요강' 뷰어 게시 PDF). 동일 내용이 '2027학년도 신입학 수시모집요강(260713변경공고).pdf'(공지 id=91994)에서도 확인됨. 실기고사 일자는 입학처 공지 '2027학년도 수시모집 면접/논술/실기고사 일정 안내'(2026-07-30, id=92048, 첨부 PDF)에서 확인 — 방송연예전공(주간) 09.29.(화)~10.04.(일). 여러 날에 걸쳐 진행하는 경우 수험번호 순(원서접수 순)으로 일자를 나누어 진행하며, 수험생별 세부 고사일정·입실장소·입실시간은 2026.09.22.(화) 17:00 입학처 홈페이지 안내 예정. 모집요강 본문의 공연예술대학 실기고사 기간은 2026.09.29.~10.12.로 표기. 실기고사에 결시하거나 실기고사 성적이 평균 60점(100점 만점) 미만이면 불합격. 수능 최저학력기준 없음(원문 '전체 모집단위: 없음'). 전형료에는 인터넷 원서접수 수수료 4,500원이 포함됨. 지원인원 또는 감염병·천재지변 등 상황에 따라 원서접수 마감 후 고사일 및 시간이 변동될 수 있음."
+    },
+    {
+      "id": "dongduk-2027-susi-acting-night",
+      "university_id": "dongduk",
+      "department": "공연예술대학 공연예술학부 방송연예전공(야간)",
+      "discipline": "acting",
+      "admission_year": 2027,
+      "track": "수시",
+      "screening": "실기우수자전형",
+      "apply_start": "2026-09-07",
+      "apply_end": "2026-09-11",
+      "practical_date": "2026-10-05",
+      "practical_date_end": "2026-10-09",
+      "announce_date": "2026-11-17",
+      "practical_task": "○ 연기 및 특기(2분 이내) - 연기: 연극, 영화, 방송 등 수험생이 선택한 작품의 대사연기 / - 특기: 연기자로서의 자질과 개성을 보여줄 수 있는 특기. ○ 질의응답(1분 이내) - 연기자로서의 열정과 의욕을 평가. ※ 지원자 수에 따라 실기고사 시간이 조정될 수 있음 ※ MR/AR 포함 모든 음향사용 불가 ※ 신발(운동화, 힐 등)은 벗고 연기함 ※ 연습복 착용(무대의상 및 치마, 반바지 착용금지): 색상은 상ㆍ하의 모두 검은색으로 착용 ※ 컬러렌즈를 포함한 메이크업 및 모든 액세서리 금지",
+      "quota": "30명",
+      "fee": "90,000원",
+      "csat_minimum": null,
+      "documents": "학교생활기록부(대입전형자료 온라인 제공 동의자는 별도 제출서류 없음). 2003학년도 이전(2004년 2월 이전) 졸업자, 온라인 제공 비동의자 및 비대상교 출신자는 별도 제출. 검정고시 출신자는 검정고시 합격증명서 제출(원본 제출 원칙, 합격증서로 대체 불가), 최종 재학 고등학교가 있는 경우 해당 학교생활기록부도 제출.",
+      "dress_code": "연습복 착용(무대의상 및 치마, 반바지 착용금지) — 색상은 상ㆍ하의 모두 검은색으로 착용. 신발(운동화, 힐 등)은 벗고 연기함. 컬러렌즈를 포함한 메이크업 및 모든 액세서리 금지.",
+      "preparation": null,
+      "designated_works": [],
+      "essay_questions": [],
+      "weights": {
+        "practical": 80,
+        "transcript": 20
+      },
+      "weights_note": "일괄합산 100% — 실기 80%(최고 800점) + 학생부교과 20%(최고 200점, 최저 80점), 계 1,000점. 전형요소별 실질반영비율: 실기 87% / 학생부교과 13%.",
+      "stages": [],
+      "practical_items": [
+        {
+          "category": "free_acting",
+          "label": "연기",
+          "required": true,
+          "time_limit_sec": 120,
+          "count": 1,
+          "weight": null,
+          "stage": null,
+          "note": "원문은 '연기 및 특기(2분 이내)' 한 항목 — 연기와 특기를 합하여 2분 이내. 연극, 영화, 방송 등 수험생이 선택한 작품의 대사연기. MR/AR 포함 모든 음향사용 불가."
+        },
+        {
+          "category": "special",
+          "label": "특기",
+          "required": true,
+          "time_limit_sec": 120,
+          "count": 1,
+          "weight": null,
+          "stage": null,
+          "note": "원문은 '연기 및 특기(2분 이내)' 한 항목 — 연기와 특기를 합하여 2분 이내. 연기자로서의 자질과 개성을 보여줄 수 있는 특기."
+        },
+        {
+          "category": "interview",
+          "label": "질의응답",
+          "required": true,
+          "time_limit_sec": 60,
+          "count": 1,
+          "weight": null,
+          "stage": null,
+          "note": "연기자로서의 열정과 의욕을 평가."
+        }
+      ],
+      "results": [
+        {
+          "year": 2026,
+          "quota": 29,
+          "applicants": 533,
+          "competition_rate": "18.38 : 1",
+          "transcript_avg": null,
+          "transcript_cut70": null,
+          "fill_rate": null,
+          "waitlist_last": 13,
+          "waitlist_count": null,
+          "source_url": "https://ipsi.dongduk.ac.kr/ipsi/contents/nontime-result.do?schM=view&page=1&viewCount=10&id=91530&schBdcode=_ipsi_result01&etc1=39",
+          "verified_at": "2026-08-04",
+          "note": "2026학년도 수시모집 최종 지원현황 및 충원 현황. 원문 표기 '충원순위 13'(최초합격자를 제외한 충원합격인원). 실기우수자전형은 대학이 합격자 학생부 평균등급을 공개하지 않음."
+        }
+      ],
+      "source_url": "https://ipsi.dongduk.ac.kr/ipsi/contents/nontime-viewer.do?gotoMenuNo=nontime-viewer",
+      "verified_at": "2026-08-04",
+      "note": "야간 모집단위. 모집요강 모집인원표 표기는 '방송연예전공(야)'이며, 실기고사 일정 공지에서는 '방송연예전공(야간)'으로 표기됨. 실기고사 내용·전형요소·전형료는 주간과 동일(요강에 '방송연예전공(주/야)'로 묶여 기재). 출처: 2027학년도 신입학 수시모집요강. 실기고사 일자는 입학처 공지 '2027학년도 수시모집 면접/논술/실기고사 일정 안내'(2026-07-30, id=92048) — 방송연예전공(야간) 10.05.(월)~10.09.(금). 여러 날에 걸쳐 진행하는 경우 수험번호 순(원서접수 순)으로 일자를 나누어 진행. 입실장소·입실시간은 2026.09.22.(화) 17:00 입학처 홈페이지 안내 예정. 실기고사 결시 또는 실기고사 성적 평균 60점(100점 만점) 미만이면 불합격. 수능 최저학력기준 없음. 야간 모집단위는 특기자 특별전형을 실시하지 않음."
+    },
+    {
+      "id": "dongduk-2027-susi-acting-talent",
+      "university_id": "dongduk",
+      "department": "공연예술대학 공연예술학부 방송연예전공(주간)",
+      "discipline": "acting",
+      "admission_year": 2027,
+      "track": "수시",
+      "screening": "특기자 특별전형(방송연예 특기자)",
+      "apply_start": "2026-09-07",
+      "apply_end": "2026-09-11",
+      "practical_date": "2026-10-04",
+      "practical_date_end": null,
+      "announce_date": "2026-11-17",
+      "practical_task": "[2단계 실기고사] ○ 연기 및 특기(2분 이내) - 연기: 연극, 영화, 방송 등 수험생이 선택한 작품의 대사연기 / - 특기: 연기자로서의 자질과 개성을 보여줄 수 있는 특기. ○ 질의응답(1분 이내) - 연기자로서의 열정과 의욕을 평가. ※ 지원자 수에 따라 실기고사 시간이 조정될 수 있음 ※ MR/AR 포함 모든 음향사용 불가 ※ 신발(운동화, 힐 등)은 벗고 연기함 ※ 연습복 착용(무대의상 및 치마, 반바지 착용금지): 색상은 상ㆍ하의 모두 검은색으로 착용 ※ 컬러렌즈를 포함한 메이크업 및 모든 액세서리 금지. [1단계] 서류평가 100% — 평가자료는 지원자격 증빙서류(수상실적 등). 1단계 서류평가를 통과한 자에 한하여 2단계 실기고사에 응시할 수 있음.",
+      "quota": "5명",
+      "fee": "75,000원",
+      "csat_minimum": null,
+      "documents": "기본지원자격 관련: 학교생활기록부(대입전형자료 온라인 제공 동의자는 별도 제출서류 없음). 세부지원자격 관련(방송연예 특기자): 입상실적이 있는 지원자는 입상실적확인서(대회·행사 개최기관 발급 또는 입학처 '수시-입시자료실' 표준양식, 상장 제출 불가), 프로필 사진 3매(전신 및 상반신 정면과 측면 — 실기고사 시 참고자료로 활용되며 서류평가 합격 여부와 무관), 포트폴리오 서류(방송 또는 연예분야 경력이 있는 자는 필수, 서류 또는 USB/CD), 출연확인서(해당기관 발급 — 모든 출연경력 필수).",
+      "dress_code": "연습복 착용(무대의상 및 치마, 반바지 착용금지) — 색상은 상ㆍ하의 모두 검은색으로 착용. 신발(운동화, 힐 등)은 벗고 연기함. 컬러렌즈를 포함한 메이크업 및 모든 액세서리 금지.",
+      "preparation": null,
+      "designated_works": [],
+      "essay_questions": [],
+      "weights": null,
+      "weights_note": "1단계 서류평가 100%(최고 1,000점), 모집인원의 500% 선발. 2단계 실기 80%(최고 800점) + 학생부교과 20%(최고 200점, 최저 80점), 계 1,000점. 2단계 전형요소별 실질반영비율: 실기 87% / 학생부교과 13%.",
+      "stages": [
+        {
+          "order": 1,
+          "name": "1단계 서류평가",
+          "date": null,
+          "evaluates": [
+            "audition_etc"
+          ],
+          "multiple": "500%",
+          "weight": 0,
+          "note": "서류평가 100%. 평가자료는 지원자격 증빙서류(수상실적 등). 서류평가 성적이 평균 40점(100점 만점) 미만이면 불합격. 합격선 동점자는 전원 합격 처리. 2단계 전형요소는 실기 80% + 학생부교과 20%로만 구성되어 1단계 성적은 2단계 총점에 미반영. 1단계 합격자 발표 및 2단계 입실장소·입실시간 안내: 2026.09.29.(화) 17:00 입학처 홈페이지."
+        },
+        {
+          "order": 2,
+          "name": "2단계 실기고사",
+          "date": "2026-10-04",
+          "evaluates": [
+            "free_acting",
+            "special",
+            "interview"
+          ],
+          "multiple": null,
+          "weight": null,
+          "note": "실기 80% + 학생부교과 20%. 실기고사에 결시하거나 실기고사 성적이 평균 60점(100점 만점) 미만이면 불합격."
+        }
+      ],
+      "practical_items": [
+        {
+          "category": "free_acting",
+          "label": "연기",
+          "required": true,
+          "time_limit_sec": 120,
+          "count": 1,
+          "weight": null,
+          "stage": 2,
+          "note": "원문은 '연기 및 특기(2분 이내)' 한 항목 — 연기와 특기를 합하여 2분 이내. 연극, 영화, 방송 등 수험생이 선택한 작품의 대사연기. MR/AR 포함 모든 음향사용 불가."
+        },
+        {
+          "category": "special",
+          "label": "특기",
+          "required": true,
+          "time_limit_sec": 120,
+          "count": 1,
+          "weight": null,
+          "stage": 2,
+          "note": "원문은 '연기 및 특기(2분 이내)' 한 항목 — 연기와 특기를 합하여 2분 이내. 연기자로서의 자질과 개성을 보여줄 수 있는 특기."
+        },
+        {
+          "category": "interview",
+          "label": "질의응답",
+          "required": true,
+          "time_limit_sec": 60,
+          "count": 1,
+          "weight": null,
+          "stage": 2,
+          "note": "연기자로서의 열정과 의욕을 평가."
+        }
+      ],
+      "results": [
+        {
+          "year": 2026,
+          "quota": 5,
+          "applicants": 19,
+          "competition_rate": "3.8 : 1",
+          "transcript_avg": null,
+          "transcript_cut70": null,
+          "fill_rate": null,
+          "waitlist_last": 0,
+          "waitlist_count": null,
+          "source_url": "https://ipsi.dongduk.ac.kr/ipsi/contents/nontime-result.do?schM=view&page=1&viewCount=10&id=91530&schBdcode=_ipsi_result01&etc1=39",
+          "verified_at": "2026-08-04",
+          "note": "2026학년도 수시모집 최종 지원현황(방송연예전공 방송연예특기자) 및 충원 현황(충원순위 0). 특기자 전형은 대학이 합격자 학생부 평균등급을 공개하지 않음."
+        }
+      ],
+      "source_url": "https://ipsi.dongduk.ac.kr/ipsi/contents/nontime-viewer.do?gotoMenuNo=nontime-viewer",
+      "verified_at": "2026-08-04",
+      "note": "주간 방송연예전공만 특기자 특별전형을 실시함(야간 없음). 지원자격(기본): 국내 고등학교 졸업(예정)자이면서 국내 고등학교 4학기 이상 이수(예정)자. 세부 지원자격(방송연예 특기자, 아래 중 1개 이상 해당): ①공중파 방송국 또는 CATV 등 전국규모 상업방송국 주관 연기상(대상·주연상·신인상·조연상) 수상 ②한국연극협회·ITI 등 전국규모 전문연극제 연기상 수상 ③국제·국내·청소년영화제 등 전국(국제)규모 영화제 연기상 수상 ④뮤지컬의 경우 '한국뮤지컬대상', '더 뮤지컬어워즈' 연기상 수상 ⑤현재 방송 또는 연예분야에서 활동 중인 자로서 등급이 있는 자(예: 공채탤런트, 특채연기자, MC, DJ, VJ, CF모델, 리포터 등은 주연 또는 조연급으로 2회 이상 출연경력자). 2027학년도 변경사항: 2026학년도에 있던 '기타 본교가 인정하는 대회에서 입상한 자' 항목이 삭제됨. 실기고사 일자는 입학처 공지 '2027학년도 수시모집 면접/논술/실기고사 일정 안내'(2026-07-30, id=92048) — 특기자전형 방송연예전공 10.04.(일). 모집요강 본문의 특기자 실기고사 기간은 2026.10.01.~10.12.로 표기. 1단계 불합격자에게는 전형료 20,000원 일부 환불. 수능 최저학력기준 없음."
+    },
+    {
+      "id": "dongduk-2027-jeongsi-acting-day",
+      "university_id": "dongduk",
+      "department": "공연예술대학 공연예술학부 방송연예전공(주간)",
+      "discipline": "acting",
+      "admission_year": 2027,
+      "track": "정시",
+      "screening": "실기우수자전형(나군)",
+      "apply_start": null,
+      "apply_end": null,
+      "practical_date": null,
+      "practical_date_end": null,
+      "announce_date": null,
+      "practical_task": "연기 및 특기, 질의응답 (2027학년도 대학입학전형 시행계획 '실기고사 내용' 표의 방송연예전공(주/야) 기재 전문. 과제별 제한시간·복장 규정 등 세부사항은 추후 발표될 2027학년도 정시모집요강 참조)",
+      "quota": "8명",
+      "fee": null,
+      "csat_minimum": null,
+      "documents": null,
+      "dress_code": null,
+      "preparation": null,
+      "designated_works": [],
+      "essay_questions": [],
+      "weights": {
+        "csat": 40,
+        "practical": 60
+      },
+      "weights_note": "나군 공연예술대학 방송연예전공(주/야), 실용음악전공(보컬 제외), 무용전공, 모델전공 — 일괄합산 100%, 수능 40%(최고 400점) + 실기 60%(최고 600점), 계 1,000점. 전형요소별 실질반영비율도 수능 40% / 실기 60%.",
+      "stages": [],
+      "practical_items": [
+        {
+          "category": "free_acting",
+          "label": "연기",
+          "required": true,
+          "time_limit_sec": null,
+          "count": null,
+          "weight": null,
+          "stage": null,
+          "note": "시행계획 표기 '연기 및 특기, 질의응답'. 세부 과제·시간은 2027학년도 정시모집요강 미공개로 확인 불가."
+        },
+        {
+          "category": "special",
+          "label": "특기",
+          "required": true,
+          "time_limit_sec": null,
+          "count": null,
+          "weight": null,
+          "stage": null,
+          "note": "시행계획 표기 '연기 및 특기, 질의응답'. 세부 과제·시간은 2027학년도 정시모집요강 미공개로 확인 불가."
+        },
+        {
+          "category": "interview",
+          "label": "질의응답",
+          "required": true,
+          "time_limit_sec": null,
+          "count": null,
+          "weight": null,
+          "stage": null,
+          "note": "시행계획 표기 '연기 및 특기, 질의응답'. 세부 내용은 2027학년도 정시모집요강 미공개로 확인 불가."
+        }
+      ],
+      "results": [
+        {
+          "year": 2026,
+          "quota": 13,
+          "applicants": 265,
+          "competition_rate": "20.38 : 1",
+          "transcript_avg": null,
+          "transcript_cut70": null,
+          "fill_rate": null,
+          "waitlist_last": 1,
+          "waitlist_count": null,
+          "source_url": "https://ipsi.dongduk.ac.kr/ipsi/contents/fxdtime-result.do?schM=view&page=1&viewCount=10&id=91531&schBdcode=_ipsi_result02&etc1=55",
+          "verified_at": "2026-08-04",
+          "note": "2026학년도 정시모집 최종 지원현황 및 충원 현황. 2026학년도 최초모집인원은 8명이었고 수시 미충원 이월 반영 후 13명. 원문 표기 '최종 충원순위 1'. 대학이 '공연예술학부(방송연예, 실용음악, 무용, 모델)는 실기고사 반영비율이 높고 합격자간 수능 성적 편차가 커 합격자 성적을 별도 공개하지 않습니다'라고 명시하여 성적 지표는 null."
+        }
+      ],
+      "source_url": "https://ipsi.dongduk.ac.kr/ipsi/contents/admhelper-notice.do?schM=view&page=1&viewCount=10&id=91860&etc1=1083",
+      "verified_at": "2026-08-04",
+      "note": "2027학년도 정시모집요강은 2026-08-04 기준 미공개(입학처 '정시-모집요강' 게시물은 2026학년도판만 있음). 본 공고는 '2027학년도 신입학 대학입학전형 시행계획(변경)' PDF 기준이며, 시행계획에는 원서접수일·실기고사일·합격자발표일·전형료가 없는 것이 정상이라 모두 null로 둠(시행계획 표지에도 '전형일정 등 세부사항은 추후 발표될 2027학년도 수시/정시 모집요강을 참조'라고 명시). 수능 반영: [영어 외] 백분위, [영어] 등급환산점수. 공연예술대학은 국어 또는 수학 택1, 영어, 탐구(1과목) 3영역 균등반영(각 33.3%)이며, 탐구는 사회·과학·직업탐구 응시과목 중 1과목 반영(직업탐구 인정). 한국사 응시 필수(1~4등급 가산점 3~1.5점, 5등급부터 0.5점씩 감점). 수능 최저학력기준 항목은 시행계획 정시 실기우수자전형에 기재되어 있지 않음."
+    },
+    {
+      "id": "dongduk-2027-jeongsi-acting-night",
+      "university_id": "dongduk",
+      "department": "공연예술대학 공연예술학부 방송연예전공(야간)",
+      "discipline": "acting",
+      "admission_year": 2027,
+      "track": "정시",
+      "screening": "실기우수자전형(나군)",
+      "apply_start": null,
+      "apply_end": null,
+      "practical_date": null,
+      "practical_date_end": null,
+      "announce_date": null,
+      "practical_task": "연기 및 특기, 질의응답 (2027학년도 대학입학전형 시행계획 '실기고사 내용' 표의 방송연예전공(주/야) 기재 전문. 과제별 제한시간·복장 규정 등 세부사항은 추후 발표될 2027학년도 정시모집요강 참조)",
+      "quota": "10명",
+      "fee": null,
+      "csat_minimum": null,
+      "documents": null,
+      "dress_code": null,
+      "preparation": null,
+      "designated_works": [],
+      "essay_questions": [],
+      "weights": {
+        "csat": 40,
+        "practical": 60
+      },
+      "weights_note": "나군 공연예술대학 방송연예전공(주/야), 실용음악전공(보컬 제외), 무용전공, 모델전공 — 일괄합산 100%, 수능 40%(최고 400점) + 실기 60%(최고 600점), 계 1,000점. 전형요소별 실질반영비율도 수능 40% / 실기 60%.",
+      "stages": [],
+      "practical_items": [
+        {
+          "category": "free_acting",
+          "label": "연기",
+          "required": true,
+          "time_limit_sec": null,
+          "count": null,
+          "weight": null,
+          "stage": null,
+          "note": "시행계획 표기 '연기 및 특기, 질의응답'. 세부 과제·시간은 2027학년도 정시모집요강 미공개로 확인 불가."
+        },
+        {
+          "category": "special",
+          "label": "특기",
+          "required": true,
+          "time_limit_sec": null,
+          "count": null,
+          "weight": null,
+          "stage": null,
+          "note": "시행계획 표기 '연기 및 특기, 질의응답'. 세부 과제·시간은 2027학년도 정시모집요강 미공개로 확인 불가."
+        },
+        {
+          "category": "interview",
+          "label": "질의응답",
+          "required": true,
+          "time_limit_sec": null,
+          "count": null,
+          "weight": null,
+          "stage": null,
+          "note": "시행계획 표기 '연기 및 특기, 질의응답'. 세부 내용은 2027학년도 정시모집요강 미공개로 확인 불가."
+        }
+      ],
+      "results": [
+        {
+          "year": 2026,
+          "quota": 9,
+          "applicants": 190,
+          "competition_rate": "21.11 : 1",
+          "transcript_avg": null,
+          "transcript_cut70": null,
+          "fill_rate": null,
+          "waitlist_last": 0,
+          "waitlist_count": null,
+          "source_url": "https://ipsi.dongduk.ac.kr/ipsi/contents/fxdtime-result.do?schM=view&page=1&viewCount=10&id=91531&schBdcode=_ipsi_result02&etc1=55",
+          "verified_at": "2026-08-04",
+          "note": "2026학년도 정시모집 최종 지원현황 및 충원 현황. 2026학년도 최초모집인원 9명, 수시 이월 반영 후에도 9명. 원문 표기 '최종 충원순위 0'. 공연예술학부는 합격자 수능 성적을 별도 공개하지 않음."
+        }
+      ],
+      "source_url": "https://ipsi.dongduk.ac.kr/ipsi/contents/admhelper-notice.do?schM=view&page=1&viewCount=10&id=91860&etc1=1083",
+      "verified_at": "2026-08-04",
+      "note": "야간 모집단위. 시행계획 표기는 '방송연예전공(야)'. 2027학년도 정시모집요강은 2026-08-04 기준 미공개이므로 '2027학년도 신입학 대학입학전형 시행계획(변경)' PDF 기준이며, 원서접수일·실기고사일·합격자발표일·전형료는 시행계획에 없어 전부 null. 전형요소·실기고사 내용은 주간과 동일(시행계획에 '방송연예전공(주/야)'로 묶여 기재). 수능 반영은 국어 또는 수학 택1, 영어, 탐구(1과목) 3영역 균등반영(각 33.3%)이며 직업탐구 인정, 한국사 응시 필수. 수능 최저학력기준 항목은 시행계획 정시 실기우수자전형에 기재되어 있지 않음."
+    },
+    {
+      "id": "sungshin-2027-susi-acting",
+      "university_id": "sungshin",
+      "department": "미디어영상연기학과",
+      "discipline": "acting",
+      "admission_year": 2027,
+      "track": "수시",
+      "screening": "실기/실적(일반학생전형)",
+      "apply_start": "2026-09-08",
+      "apply_end": "2026-09-11",
+      "practical_date": "2026-10-15",
+      "practical_date_end": "2026-10-31",
+      "announce_date": "2026-11-13",
+      "practical_task": "[1단계] 자유연기: 수험생이 자유롭게 준비한 1개의 대사를 연기(1분 내) / 특기: 수험생이 자유롭게 준비한 움직임, 무용, 보컬 등(1분 내). [2단계] 지정연기: 학교에서 고사 당일 제시한 대사를 연기(20~30분 정도 연습한 후 연기), 질의응답 형식.",
+      "quota": "13명",
+      "fee": "130,000원 (1단계 100,000원 / 2단계 30,000원)",
+      "csat_minimum": null,
+      "documents": "2024.02. 이후 졸업자는 추가 제출서류 없음(원서접수 사이트에서 학생부 온라인 제공 동의 체크). 2005.02.~2023.02. 졸업자는 학생부 전산자료 활용 동의 또는 학교생활기록부 1부 우편제출. 검정고시 합격자는 대입전형자료 온라인 제공 동의 또는 고졸 검정고시 합격증명서 1부 우편제출. 국외고 졸업(예정)자는 졸업(예정)증명서·성적증명서 각 1부 및 성적 산출기준 자료 1부. 우편제출 마감 2026.09.15.(화) 마감일 우체국 소인까지 인정, 성신여자대학교 입학관리실(서울 성북구 보문로34다길 2, 행정관 104호). 1단계 특기에서 반주 MR을 사용하는 지원자는 원서접수 후 MP3 파일을 2026.09.15.(화) 18:00까지 원서접수 사이트에 업로드(마감 이후 음원 변경 불가).",
+      "dress_code": "액세서리 및 일체의 얼굴화장 금지. 신발 착용 불가(맨발 또는 흰색 양말만 허용). 상·하의 반드시 트레이닝복 착용(상의는 흰색, 하의는 검은색 바지). 복장 관련 세부사항은 추후 입학 홈페이지(ipsi.sungshin.ac.kr)에 공지.",
+      "preparation": "신분증(주민등록증, 운전면허증, 기간만료 전 여권 등) 반드시 지참. 1단계(특기)에서 음원이 필요한 지원자는 MP3 파일(10MB 이하)을 2026.09.15.(화) 18:00까지 원서접수 사이트에 사전 업로드해야 하며, 미제출 시 무반주로 응시. 업로드한 음원의 시작 구간 설정 불가.",
+      "designated_works": [],
+      "essay_questions": [],
+      "weights": {
+        "practical": 70,
+        "transcript": 30
+      },
+      "weights_note": "1단계(5배수 선발): 실기 100%. 2단계: 실기 70%(질의응답 포함) + 학교생활기록부 30%(교과 27%, 출결 3%). weights 값은 최종 선발이 이뤄지는 2단계 반영비율임.",
+      "stages": [
+        {
+          "order": 1,
+          "name": "1단계 실기고사",
+          "date": "2026-10-15",
+          "evaluates": [
+            "free_acting",
+            "special"
+          ],
+          "multiple": "5배수",
+          "weight": 0,
+          "note": "실기고사 성적 100%로 모집인원의 5배수 선발. 2026.10.15.(목)~10.18.(일), 미아 운정그린캠퍼스. 고사장 발표 2026.09.18.(금) 10:00 예정. 실기고사 성적(100점 만점) 50점 미만은 불합격. 1단계 합격자 발표 2026.10.23.(금) 10:00 예정. 2단계 총점(실기 70+학생부 30)에 1단계 성적은 반영되지 않음."
+        },
+        {
+          "order": 2,
+          "name": "2단계 실기고사(질의응답 포함)",
+          "date": "2026-10-31",
+          "evaluates": [
+            "assigned_acting",
+            "interview"
+          ],
+          "multiple": null,
+          "weight": 100,
+          "note": "2026.10.31.(토), 미아 운정그린캠퍼스. 실기 70%(70점, 질의응답 포함) + 학생부 30%(30점: 교과 27%, 출결 3%) 일괄합산. 실기고사 성적(100점 만점) 50점 미만은 불합격."
+        }
+      ],
+      "practical_items": [
+        {
+          "category": "free_acting",
+          "label": "자유연기",
+          "required": true,
+          "time_limit_sec": 60,
+          "count": 1,
+          "weight": null,
+          "stage": 1,
+          "note": "수험생이 자유롭게 준비한 1개의 대사를 연기(1분 내)"
+        },
+        {
+          "category": "special",
+          "label": "특기",
+          "required": true,
+          "time_limit_sec": 60,
+          "count": null,
+          "weight": null,
+          "stage": 1,
+          "note": "수험생이 자유롭게 준비한 움직임, 무용, 보컬 등(1분 내). 음원(MP3, 10MB 이하) 사전 업로드 가능, 미제출 시 무반주 응시."
+        },
+        {
+          "category": "assigned_acting",
+          "label": "지정연기",
+          "required": true,
+          "time_limit_sec": null,
+          "count": null,
+          "weight": null,
+          "stage": 2,
+          "note": "학교에서 고사 당일 제시한 대사를 연기(20~30분 정도 연습한 후 연기)"
+        },
+        {
+          "category": "interview",
+          "label": "질의응답",
+          "required": true,
+          "time_limit_sec": null,
+          "count": null,
+          "weight": null,
+          "stage": 2,
+          "note": "2단계는 질의응답 형식으로 진행되며 2단계 실기 70%에 포함됨"
+        }
+      ],
+      "results": [
+        {
+          "year": 2026,
+          "quota": 20,
+          "applicants": 733,
+          "competition_rate": "36.65:1",
+          "transcript_avg": "5.05",
+          "transcript_cut70": null,
+          "fill_rate": null,
+          "waitlist_last": null,
+          "waitlist_count": 8,
+          "source_url": "https://ipsi.sungshin.ac.kr/guide/dataroom.htm?bbsid=prev_result&ctg_cd=all&mode=view&bltn_seq=35943",
+          "verified_at": "2026-08-04",
+          "note": "2026학년도 수시 실기/실적(일반학생전형) 최종 결과. 최종등록자 학생부 반영비율 30%, 평균점수 27.93점, 평균 교과등급 5.05등급 / 실기고사 반영비율 70%, 평균 65.73점 / 총점 100점 만점 평균 93.66점. 충원인원 8명. 2026학년도는 일괄합산(학생부 30+실기 70) 방식이었고 2027학년도부터 2단계 전형으로 변경됨."
+        }
+      ],
+      "source_url": "https://ipsi.sungshin.ac.kr/guide/dataroom.htm?bbsid=dataroom&ctg_cd=all&mode=view&bltn_seq=36049",
+      "verified_at": "2026-08-04",
+      "note": "출처: 2027학년도 수시 신입생 모집요강 PDF(2026.06.23. 게시). 수능 최저학력기준 없음. 고사장은 미아 운정그린캠퍼스. practical_date~practical_date_end는 1단계 첫날(2026.10.15.)부터 2단계(2026.10.31.)까지의 범위이며, 1단계는 2026.10.15.(목)~10.18.(일) 중 원서접수 순으로 실시됨. 1단계 불합격자에게는 2단계 전형료 30,000원을 환불함. 전형 일정은 지원자 현황 등에 따라 일부 변경될 수 있음."
+    },
+    {
+      "id": "sungshin-2027-jeongsi-acting",
+      "university_id": "sungshin",
+      "department": "미디어영상연기학과",
+      "discipline": "acting",
+      "admission_year": 2027,
+      "track": "정시",
+      "screening": "일반학생",
+      "apply_start": null,
+      "apply_end": null,
+      "practical_date": null,
+      "practical_date_end": null,
+      "announce_date": null,
+      "practical_task": null,
+      "quota": "7명",
+      "fee": null,
+      "csat_minimum": null,
+      "documents": null,
+      "dress_code": null,
+      "preparation": null,
+      "designated_works": [],
+      "essay_questions": [],
+      "weights": null,
+      "weights_note": null,
+      "stages": [],
+      "practical_items": [],
+      "results": [],
+      "source_url": "https://ipsi.sungshin.ac.kr/guide/dataroom.htm?bbsid=notice&ctg_cd=all&mode=view&bltn_seq=35192",
+      "verified_at": "2026-08-04",
+      "note": "2027학년도 정시 모집요강 미공개(2026-08-04 기준). 확인된 사실은 모집인원뿐임 — '2027학년도 예체능계열 모집인원 변경사항 안내'(입학관리실, 2025.12.17.) 각주에 '미디어영상연기학과는 변동사항 없음(모집정원 20명(수시 13명, 정시 7명))'로 명시. 전형명은 같은 안내의 정시모집 표 구분(수능-일반학생) 및 2027 수시 모집요강 p.39의 '미충원 인원은 정시모집 일반학생전형 모집인원에 포함하여 선발' 규정에서 확인. 모집군(가/나/다군), 수능·실기 반영비율, 실기과목, 원서접수·실기 일정, 전형료는 공개된 자료가 없어 전부 null. 실기고사 실시 여부도 2027 정시 모집요강 공개 전까지 미확인(2026학년도 정시에는 미디어영상연기학과 모집 자체가 없었음)."
+    },
+    {
+      "id": "soongsil-2027-susi-acting",
+      "university_id": "soongsil",
+      "department": "예술창작학부 영화예술전공(연기)",
+      "discipline": "acting",
+      "admission_year": 2027,
+      "track": "수시",
+      "screening": "실기/실적 예체능우수인재전형(연기)",
+      "apply_start": "2026-09-08",
+      "apply_end": "2026-09-11",
+      "practical_date": "2026-09-19",
+      "practical_date_end": "2026-10-18",
+      "announce_date": "2026-10-30",
+      "practical_task": "1단계 지정연기(1분 내): 제시된 자료(대본)를 바탕으로 한 장면을 연기 / 2단계 지정연기(6분 30초 내): 주어진 시나리오로 상대배우(현장 추첨)와 함께 연기",
+      "quota": "16명",
+      "fee": "95,000원",
+      "csat_minimum": null,
+      "documents": "모든 제출서류를 하나의 PDF 파일(1부)로 온라인 원서접수 사이트에 업로드(2026.09.08.(화) 10:00 ~ 09.14.(월) 17:00, 우편·방문 제출 불가). 국내 고교 졸업(예정)자 중 학생부 온라인 제공 동의자는 제출 불필요, 비동의자 및 비대상교는 학교생활기록부 1부(주민등록번호 모두 표기). 외국 고교 졸업(예정)자는 졸업(예정)증명서 1부, 국내 고교 이수학기가 있으면 국내 고교 학교생활기록부 1부. 검정고시 출신자는 온라인 제공 동의자면 제출 불필요, 비동의자는 검정고시 합격증명서 1부. 모든 제출서류는 2026.07.01.(수) 이후 발급분에 한하며, 최종등록자는 업로드 서류 원본 일체를 추후 우편 제출해야 함",
+      "dress_code": null,
+      "preparation": null,
+      "designated_works": [],
+      "essay_questions": [],
+      "weights": {
+        "practical": 90,
+        "transcript": 10
+      },
+      "weights_note": "1단계(4배수) 실기고사 100%(최고 100점/최저 0점, 총점 100점) / 2단계 실기고사 90%(90점) + 학생부교과 10%(10점), 총점 100점. ※ 실기고사, 학생부 교과 중 한 가지라도 '0점' 취득자는 불합격 처리함 ※ 1단계 동점자 전원 선발 ※ 비교평가대상자의 학생부 교과 성적은 실기고사 점수에서 환산함",
+      "stages": [
+        {
+          "order": 1,
+          "name": "1단계 실기고사",
+          "date": "2026-09-19",
+          "evaluates": [
+            "assigned_acting"
+          ],
+          "multiple": "4배수",
+          "weight": 0,
+          "note": "실기고사 09.19.(토) ~ 09.20.(일) 중 예정. 수험생 유의사항 공개 09.15.(화). 1단계 합격자 발표 2026.10.13.(화) 10:00. 2단계 총점에 1단계 성적 미반영"
+        },
+        {
+          "order": 2,
+          "name": "2단계 실기고사",
+          "date": "2026-10-17",
+          "evaluates": [
+            "assigned_acting"
+          ],
+          "multiple": null,
+          "weight": null,
+          "note": "실기고사 10.17.(토) ~ 10.18.(일) 중 예정. 수험생 유의사항 공개 10.13.(화). 2단계 = 실기고사 90% + 학생부교과 10%. 2단계 동점자 처리 1순위 실기고사 총점, 2순위 실기고사 평가항목 중 최고배점항목의 점수, 3순위 1단계 총점"
+        }
+      ],
+      "practical_items": [
+        {
+          "category": "assigned_acting",
+          "label": "지정연기(1단계)",
+          "required": true,
+          "time_limit_sec": 60,
+          "count": 1,
+          "weight": 100,
+          "stage": 1,
+          "note": "제시된 자료(대본)를 바탕으로 한 장면을 연기"
+        },
+        {
+          "category": "assigned_acting",
+          "label": "지정연기(2단계)",
+          "required": true,
+          "time_limit_sec": 390,
+          "count": 1,
+          "weight": 90,
+          "stage": 2,
+          "note": "주어진 시나리오로 상대배우(현장 추첨)와 함께 연기"
+        }
+      ],
+      "results": [
+        {
+          "year": 2026,
+          "quota": 16,
+          "applicants": 900,
+          "competition_rate": "56.3:1",
+          "transcript_avg": "3.86",
+          "transcript_cut70": null,
+          "fill_rate": "13%",
+          "waitlist_last": null,
+          "waitlist_count": 2,
+          "source_url": "https://iphak.ssu.ac.kr/board/statistics_view.asp?number=241&flag=1&page_no=1_2_6&page=1",
+          "verified_at": "2026-08-04",
+          "note": "숭실대 '2027학년도 입학전형 통계' 26~27p. 등록인원 16명, 충원인원 2명, 충원율 13%. 주요교과 평균 등급은 국어·수학·영어·사회·한국사 단순평균(진로선택교과 제외), 비교평가대상자 제외"
+        },
+        {
+          "year": 2025,
+          "quota": null,
+          "applicants": null,
+          "competition_rate": "53.9",
+          "transcript_avg": "4.03",
+          "transcript_cut70": null,
+          "fill_rate": "19%",
+          "waitlist_last": null,
+          "waitlist_count": null,
+          "source_url": "https://iphak.ssu.ac.kr/board/statistics_view.asp?number=241&flag=1&page_no=1_2_6&page=1",
+          "verified_at": "2026-08-04",
+          "note": "'예체능우수인재(예술창작학부 영화예술전공) 3개년 추이' 표 값. 경쟁률은 원문에 ':1' 표기 없이 53.9로 기재됨"
+        },
+        {
+          "year": 2024,
+          "quota": null,
+          "applicants": null,
+          "competition_rate": "42.5",
+          "transcript_avg": "3.13",
+          "transcript_cut70": null,
+          "fill_rate": "31%",
+          "waitlist_last": null,
+          "waitlist_count": null,
+          "source_url": "https://iphak.ssu.ac.kr/board/statistics_view.asp?number=241&flag=1&page_no=1_2_6&page=1",
+          "verified_at": "2026-08-04",
+          "note": "'예체능우수인재(예술창작학부 영화예술전공) 3개년 추이' 표 값. 경쟁률은 원문에 ':1' 표기 없이 42.5로 기재됨"
+        }
+      ],
+      "source_url": "https://iphak.ssu.ac.kr/upload/SSU(1)_260617194254.pdf",
+      "verified_at": "2026-08-04",
+      "note": "출처: 2027학년도 숭실대학교 수시모집요강 PDF(입학처 수시 모집요강 페이지 https://iphak.ssu.ac.kr/mojip/req.asp?flag=1&page_no=1_2_2 에서 제공) 12p(원서접수·전형일정), 14p(합격자 발표), 16p(전형료), 57~59p(예체능우수인재전형 연기·연출). 실기고사 일자는 원문에 '예정' 및 '09.19.(토)~09.20.(일) 중'처럼 범위로 표기되어 있고, 지원 인원·본교 사정에 따라 변경될 수 있음(변경 시 입학처 공지). practical_date/practical_date_end는 1단계 첫날~2단계 마지막날 범위이며 연속된 기간이 아님. 같은 전형의 '연출'(22명)은 본 공고에서 제외함. 수능최저학력기준 없음. 학교폭력 조치사항 1~4호 0점, 5~6호 5점, 7호 7점 감점(환산총점 100점), 8~9호 부적격. 전형료 95,000원 중 1단계 불합격자에게 20,000원 반환. 학생부 교과는 국어·수학·영어·사회(한국사 포함) 전 과목 반영, 교과 가중치 국어 35 / 수학 15 / 영어 35 / 사회 15"
     }
   ]
 }
