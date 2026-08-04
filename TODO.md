@@ -12,8 +12,7 @@
 - [ ] 원본이 10MB 이하면 압축 생략하고 그대로 업로드 (모바일 `lib/compress.ts`는 목표 6MB, 웹 `lib/media/compress-video.ts` — 작은 파일은 압축 이득보다 인코딩 대기·품질 손실이 커서 스킵)
 - [ ] 이름 입력은 최초 회원가입 때만 받기 (`apps/mobile/app/consent.tsx` — 지금은 동의 화면이 이름 입력을 항상 끼고 있고 `canProceed`가 `name.trim().length > 0`을 요구해서, 약관이 추가돼 재동의할 때도 이름을 다시 입력해야 한다. 이미 이름이 있으면 입력란을 숨기고 동의만 받도록 분리. 현재 이름은 로컬 저장(`lib/profile.ts`)이라 백엔드 프로필 API가 생기면 "최초"의 기준을 서버 값으로 옮길 것)
 - [ ] S3 instance role 전환을 며칠 관찰한 뒤 공유 IAM 사용자 `acting-api` access key를 Inactive로 전환하고, 추가 관찰 후 삭제하기 (secret은 복구 불가하므로 즉시 삭제하지 않음)
-- [ ] 분석 워커의 만료 upload intent 정리를 위해 dev·운영 영상 버킷의 `DeleteObject` 권한 누락을 별도 티켓으로 해결하기
-- [ ] S3 `ListBucket` 권한 누락으로 없는 객체의 `HeadObject`가 403이 되어 `upload_not_found` 대신 500을 반환하는 문제를 별도 티켓으로 해결하기
+- [x] 영상 버킷의 `DeleteObject`·`ListBucket` 권한 누락 해결 (2026-08-04). 코드 변경 없이 IAM 정책만 고쳤다 — dev는 인라인 `acttub-dev-videos-s3`, 운영은 관리형 `acttub-video-s3-access` v4. 이제 분석 워커의 만료 intent 정리가 실제로 지우고, 없는 객체 `HeadObject`가 403 대신 404를 받아 `upload_not_found`(409)가 정상 반환된다. 각 role은 여전히 자기 버킷만 허용하므로 dev↔운영 경계는 그대로다(양쪽에서 반대편 head·list·put이 403인 것을 확인)
 
 ## 모바일 인증·분석 동시성 — 실기기 검증 필요 (feat/report-and-mobile-fixes 후속)
 

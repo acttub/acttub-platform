@@ -142,6 +142,22 @@ S3 자격증명은 back svc의 EC2 instance role에서 boto3 기본 체인으로
 `AWS_ACCESS_KEY_ID`·`AWS_SECRET_ACCESS_KEY`를 넣으면 환경변수 provider가 role보다 우선하므로
 정상 상태에서는 두 값을 두지 않는다.
 
+권한은 운영 role에 붙은 관리형 정책 `acttub-video-s3-access`가 준다(dev는 인라인
+`acttub-dev-videos-s3`가 같은 모양으로 자기 버킷만 허용한다).
+
+| 액션 | 리소스 | 쓰는 곳 |
+| --- | --- | --- |
+| `PutObject` `GetObject` | `<버킷>/*` | presign 업로드·재생, 분석 워커 다운로드 |
+| `DeleteObject` | `<버킷>/*` | 만료 upload intent 정리(`analysis_worker.sweep`) |
+| `ListBucket` | `<버킷>` | **없는 객체 `HeadObject`가 403 대신 404를 받게 한다** |
+
+`ListBucket`이 빠지면 S3는 없는 객체에 404가 아니라 403을 준다. 그러면 `storage.head()`가
+`None` 대신 예외를 던져 업로드 완료 API가 409 `upload_not_found` 대신 500을 낸다 — 권한이
+아니라 **동작이 바뀌므로** 빼지 않는다.
+
+**각 role은 자기 버킷만 허용한다.** 이것이 dev·운영 데이터 경계의 실체다. 권한을 넓힐 때도
+리소스 범위는 절대 넓히지 않는다.
+
 **`S3_BUCKET`이 있는데 자격증명을 못 찾으면 API가 아예 기동하지 않는다** — 업로드만 503이
 되는 게 아니라 로그인을 포함한 전 기능이 멈춘다. 무자격증명으로 뜬 프로세스는 botocore가
 클라이언트 생성 시점의 자격증명을 고정하는 탓에 IMDS가 회복돼도 스스로 낫지 못하므로,
