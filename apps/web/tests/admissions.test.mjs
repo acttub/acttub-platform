@@ -15,6 +15,7 @@ const {
   weightBars,
   normalizeAdmissions,
   hasNoCsatMinimum,
+  cardBadge,
   EMPTY_FILTERS,
 } = await import("../src/lib/api/v2/admissions.ts");
 
@@ -362,4 +363,35 @@ test("수능 최저 없음 필터는 미확인 전형을 남기지 않는다", (
     filterGroups(groups, { ...EMPTY_FILTERS, noCsatOnly: true }).map((g) => g.university.id),
     ["known"],
   );
+});
+
+// 카드 오른쪽이 비어 있으면 "왜 이 대학만 정보가 없지"로 읽힌다. 날짜가 없으면
+// D-day를 지어내지 말고 모른다고 적는다.
+test("목록 배지는 다가오는 일정 → 마감 → 미정 → 준비 중 순으로 고른다", () => {
+  const open = [{ id: "a", university_id: "u", apply_start: "2026-09-08", apply_end: "2026-09-11" }];
+  assert.deepEqual(cardBadge(open, "2026-08-04"), { label: "D-35", tone: "live" });
+
+  const closed = [{ id: "a", university_id: "u", apply_start: "2026-06-22", apply_end: "2026-06-25" }];
+  assert.deepEqual(cardBadge(closed, "2026-08-04"), { label: "접수 마감", tone: "muted" });
+
+  const unknown = [{ id: "a", university_id: "u", apply_start: null, apply_end: null }];
+  assert.deepEqual(cardBadge(unknown, "2026-08-04"), { label: "일정 미정", tone: "muted" });
+
+  assert.deepEqual(cardBadge([], "2026-08-04"), { label: "정보 준비 중", tone: "muted" });
+});
+
+// 여러 공고가 섞이면 가장 임박한 것이 이긴다. 마감된 정시 때문에 수시 D-day가
+// 가려지면 안 된다.
+test("공고가 여럿이면 가장 임박한 일정을 쓴다", () => {
+  const mixed = [
+    { id: "past", university_id: "u", apply_start: "2026-06-22", apply_end: "2026-06-25" },
+    { id: "soon", university_id: "u", apply_start: "2026-09-08", apply_end: "2026-09-11" },
+  ];
+  assert.deepEqual(cardBadge(mixed, "2026-08-04"), { label: "D-35", tone: "live" });
+});
+
+// 서버 시각이 없는 프리렌더 시점에는 아무것도 단정하지 않는다.
+test("today를 모르면 공고 있는 대학엔 배지를 붙이지 않는다", () => {
+  assert.equal(cardBadge([{ id: "a", university_id: "u" }], null), null);
+  assert.deepEqual(cardBadge([], null), { label: "정보 준비 중", tone: "muted" });
 });

@@ -249,6 +249,33 @@ export function countdown(notice: AdmissionNotice, today: string): Countdown | n
   return null;
 }
 
+export type CardBadge = { label: string; tone: 'live' | 'muted' };
+
+/**
+ * 목록 카드 오른쪽 배지. 대학마다 하나씩, 빈 자리가 없게 만든다.
+ *
+ * 날짜가 없는데 D-day를 붙이면 거짓말이 되고, 아무것도 안 붙이면 카드가 비어
+ * "왜 이 대학만 정보가 없지"로 읽힌다. 모르면 모른다고 적는다. 웹과 같은 규칙이다.
+ */
+export function cardBadge(notices: AdmissionNotice[], today: string | null): CardBadge | null {
+  if (notices.length === 0) return { label: '정보 준비 중', tone: 'muted' };
+  if (!today) return null;
+
+  const soonest = notices
+    .map((notice) => countdown(notice, today))
+    .filter((value): value is Countdown => value !== null)
+    .sort((a, b) => a.days - b.days)[0];
+  if (soonest) {
+    return { label: `D-${soonest.days === 0 ? 'DAY' : soonest.days}`, tone: 'live' };
+  }
+
+  // 날짜를 하나라도 아는데 전부 지났으면 '마감', 하나도 모르면 '미정'이다.
+  const knowsAnyDate = notices.some((notice) => notice.apply_start ?? notice.apply_end);
+  return knowsAnyDate
+    ? { label: '접수 마감', tone: 'muted' }
+    : { label: '일정 미정', tone: 'muted' };
+}
+
 /** 홈 카드에 띄울 가장 임박한 공고 몇 개. */
 export function upcomingNotices(
   payload: AdmissionsResponse,

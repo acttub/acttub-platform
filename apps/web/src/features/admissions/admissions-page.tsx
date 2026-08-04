@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   activeFilterCount,
   availableFacets,
+  cardBadge,
   countdown,
   filterGroups,
   getAdmissions,
@@ -296,10 +297,7 @@ function UniversityCard({
   notices: AdmissionNotice[];
   today: string | null;
 }) {
-  const soonest = notices
-    .map((notice) => (today ? countdown(notice, today) : null))
-    .filter(Boolean)
-    .sort((a, b) => (a?.days ?? 0) - (b?.days ?? 0))[0];
+  const badge = cardBadge(notices, today);
 
   const departments = notices
     .map((notice) => notice.department ?? "학과 미확인")
@@ -332,9 +330,15 @@ function UniversityCard({
           {university.resources.length > 0 && ` · 영상 ${university.resources.length}`}
         </p>
       </div>
-      {soonest && (
-        <span className="shrink-0 rounded-full bg-[#191f28] px-2.5 py-1 text-[11px] font-black text-white">
-          D-{soonest.days === 0 ? "DAY" : soonest.days}
+      {badge && (
+        <span
+          className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-black ${
+            badge.tone === "live"
+              ? "bg-[#191f28] text-white"
+              : "bg-[#f2f4f6] text-[#8b95a1]"
+          }`}
+        >
+          {badge.label}
         </span>
       )}
       <span className="shrink-0 text-[12px] font-black text-[#b0b8c1]">›</span>

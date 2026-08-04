@@ -18,6 +18,7 @@ import { api } from '@/lib/api';
 import {
   activeFilterCount,
   availableFacets,
+  cardBadge,
   countdown,
   filterGroups,
   groupByUniversity,
@@ -221,10 +222,7 @@ function UniversityCard({
   onPress: () => void;
 }) {
   const { university, notices } = group;
-  const soonest = notices
-    .map((notice) => (today ? countdown(notice, today) : null))
-    .filter(Boolean)
-    .sort((a, b) => (a?.days ?? 0) - (b?.days ?? 0))[0];
+  const badge = cardBadge(notices, today);
 
   // 같은 학과가 수시·정시로 두 번 잡히면 한 줄에 같은 이름이 두 번 뜬다.
   const departments = notices
@@ -244,9 +242,11 @@ function UniversityCard({
             {departments.length > 0 ? departments.join(' · ') : '전형 정보 확인 중'}
           </Text>
         </View>
-        {soonest && (
-          <View style={styles.dday}>
-            <Text style={styles.ddayText}>D-{soonest.days === 0 ? 'DAY' : soonest.days}</Text>
+        {badge && (
+          <View style={[styles.dday, badge.tone === 'muted' && styles.ddayMuted]}>
+            <Text style={[styles.ddayText, badge.tone === 'muted' && styles.ddayTextMuted]}>
+              {badge.label}
+            </Text>
           </View>
         )}
         <Feather name="chevron-right" size={18} color={palette.checkOff} />
@@ -382,6 +382,8 @@ const styles = StyleSheet.create({
   deptLine: { marginTop: 7, fontSize: 12.5, fontWeight: '600', color: palette.textFaint, lineHeight: 18 },
   dday: { paddingHorizontal: 11, height: 28, borderRadius: 14, backgroundColor: palette.navy, justifyContent: 'center' },
   ddayText: { fontSize: 11, fontWeight: '800', color: '#FFFFFF' },
+  ddayMuted: { backgroundColor: palette.bgSoft },
+  ddayTextMuted: { color: palette.textFaint },
   cardBody: { paddingHorizontal: 20, paddingBottom: 20, gap: 18 },
   link: { fontSize: 13, fontWeight: '800', color: palette.blue },
   dim: { fontSize: 13, fontWeight: '600', color: palette.textFaint, lineHeight: 21 },
