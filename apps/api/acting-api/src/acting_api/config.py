@@ -33,6 +33,9 @@ class GatewaySettings:
     keep_alive_url: str | None = None
     keep_alive_interval_sec: int = DEFAULT_KEEP_ALIVE_INTERVAL_SEC
     s3_bucket: str | None = None
+    # 자격증명은 boto3 기본 체인이 환경변수에서 직접 읽는다. 이 두 필드는 클라이언트
+    # 생성에 쓰이지 않지만, 반쪽 설정을 걸러내고 "키를 줘도 코드가 넘기지 않는다"를
+    # 테스트로 붙잡아 두기 위해 남긴다. 지우면 그 회귀 방어가 함께 사라진다.
     aws_access_key_id: str | None = None
     aws_secret_access_key: str | None = None
     aws_region: str | None = None
@@ -48,14 +51,7 @@ class GatewaySettings:
 
     @property
     def s3_configured(self) -> bool:
-        return all(
-            (
-                self.s3_bucket,
-                self.aws_access_key_id,
-                self.aws_secret_access_key,
-                self.aws_region,
-            )
-        )
+        return bool(self.s3_bucket and self.aws_region)
 
 
 def _default_env_path() -> Path:
@@ -93,10 +89,15 @@ def load_gateway_settings(env_path: Path | None = None) -> GatewaySettings:
         "aws_secret_access_key": os.environ.get("AWS_SECRET_ACCESS_KEY") or None,
         "aws_region": os.environ.get("AWS_REGION") or None,
     }
-    if any(s3_values.values()) and not all(s3_values.values()):
+    if bool(s3_values["s3_bucket"]) != bool(s3_values["aws_region"]):
         raise RuntimeError(
-            "S3_BUCKET, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, and AWS_REGION "
-            "must be configured together"
+            "S3_BUCKET and AWS_REGION must be configured together"
+        )
+    if bool(s3_values["aws_access_key_id"]) != bool(
+        s3_values["aws_secret_access_key"]
+    ):
+        raise RuntimeError(
+            "AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY must be configured together"
         )
     worker_concurrency = int(
         os.environ.get(

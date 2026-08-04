@@ -8,9 +8,13 @@ import { HapticTab } from '@/components/haptic-tab';
 import { palette } from '@/constants/palette';
 
 /**
- * 하단 탭 — 홈 / 기록 / [연습(FAB)] / 설정.
- * 가운데 버튼이 무슨 버튼인지 모르겠다는 피드백이 있어 아이콘 아래 '연습' 라벨을 붙였다.
+ * 하단 탭 — 홈 / 기록 / [촬영(FAB)] / 게시판 / 프로필.
+ * 가운데 버튼이 무슨 버튼인지 모르겠다는 피드백이 있어 아이콘 아래 라벨을 붙였다.
  * 아이콘은 Feather(라인) 한 세트로 통일한다 — MaterialIcons 기본 채움 아이콘은 톤이 안 맞는다.
+ *
+ * 다섯 칸이 되면서 알약 하나에 돌아가는 폭이 좁아졌다. 아이콘 알약 minWidth를
+ * 44로 줄이고 라벨을 두 글자로 맞춰, 좁은 기기(iPhone SE 375pt)에서도 글자가
+ * 줄바꿈되지 않게 했다.
  */
 export default function TabLayout() {
   const router = useRouter();
@@ -38,7 +42,7 @@ export default function TabLayout() {
           shadowOffset: { width: 0, height: 8 },
           elevation: 8,
         },
-        tabBarLabelStyle: { fontSize: 11, fontWeight: '600' },
+        tabBarLabelStyle: { fontSize: 10, fontWeight: '600' },
         headerShown: false,
         tabBarButton: HapticTab,
       }}>
@@ -73,11 +77,22 @@ export default function TabLayout() {
               <Pressable
                 style={styles.fab}
                 accessibilityRole="button"
-                accessibilityLabel="연습 시작"
+                accessibilityLabel="촬영 시작"
                 onPress={() => router.push('/upload')}>
                 <Feather name="video" size={24} color="#FFFFFF" />
               </Pressable>
-              <Text style={styles.fabLabel}>연습</Text>
+              <Text style={styles.fabLabel}>촬영</Text>
+            </View>
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="community"
+        options={{
+          title: '게시판',
+          tabBarIcon: ({ color, focused }) => (
+            <View style={[styles.iconPill, focused && styles.iconPillActive]}>
+              <Feather size={21} name="message-square" color={color} />
             </View>
           ),
         }}
@@ -85,10 +100,10 @@ export default function TabLayout() {
       <Tabs.Screen
         name="settings"
         options={{
-          title: '설정',
+          title: '프로필',
           tabBarIcon: ({ color, focused }) => (
             <View style={[styles.iconPill, focused && styles.iconPillActive]}>
-              <Feather size={21} name="settings" color={color} />
+              <Feather size={21} name="user" color={color} />
             </View>
           ),
         }}
@@ -99,7 +114,7 @@ export default function TabLayout() {
 
 const styles = StyleSheet.create({
   iconPill: {
-    minWidth: 52,
+    minWidth: 44,
     height: 30,
     alignItems: 'center',
     justifyContent: 'center',

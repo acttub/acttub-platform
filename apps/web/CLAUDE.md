@@ -2,14 +2,23 @@
 
 ## 적용 범위·스택
 
-Next.js 16 App Router + React 19 + TypeScript + Tailwind CSS v4. **정적 export 전용**(`BUILD_STATIC=1` → `output:'export'`) — 서버 런타임이 없습니다.
+Next.js 16 App Router + React 19 + TypeScript + Tailwind CSS v4.
+
+빌드는 **서버 모드**(`output:'standalone'`) 하나뿐이며, 이것이 dev·운영이 실제로 배포하는 산출물입니다. **페이지는 전부 빌드 시점에 정적 프리렌더되며 요청마다 SSR하지 않습니다.** Node 프로세스가 뜨지만 역할은 정적 HTML 서빙 + `/v2/*` 프록시뿐입니다 — 운영은 백엔드가 private subnet에 있어 브라우저가 직접 닿지 못하므로 이 프록시가 유일한 통로이고, 개발 서버도 같은 경로를 씁니다.
+
+## 서버 로직은 여기 두지 않습니다
+
+**API·서버 로직은 전부 `apps/api`(FastAPI) 소관입니다.** Route Handler·Server Actions·middleware로 백엔드 로직을 만들지 않습니다.
+
+이전에는 정적 export 빌드가 깨지는 것이 이 경계를 물리적으로 강제했지만, 그 모드를 걷어내면서 **이제 빌드는 통과합니다.** 통과한다고 해서 허용되는 것은 아닙니다 — 백엔드가 FastAPI와 Next 양쪽으로 흩어지면 인증·권한·계약 검증이 두 곳에 생깁니다. 서버에서 해야 할 일이 보이면 `apps/api`에 엔드포인트를 추가하고 `v2` 클라이언트로 호출하세요.
 
 ## 명령어 (이 디렉토리 기준)
 
 - `pnpm dev` — 개발 서버(:3000). next.config rewrites가 `/v2/*`를 `http://127.0.0.1:8000`(acting-api)으로 프록시.
 - `pnpm lint` · `pnpm typecheck`
 - `pnpm test` — Node 테스트와 금지 카피 가드를 하나의 테스트 명령으로 실행.
-- `pnpm build` — 정적 빌드 → `out/`
+- `pnpm build` — 빌드 → `.next/standalone/`(실제 배포 산출물). 프록시 대상은 `API_ORIGIN`으로 주며, rewrites가 빌드 시점에 `routes-manifest.json`으로 굳으므로 런타임 환경변수로는 바뀌지 않습니다. **typecheck보다 먼저 돌려야 합니다** — `next-env.d.ts`·`.next/types`를 만들어야 tsc가 `*.png` import와 typedRoutes를 해석합니다.
+- `pnpm start` — 빌드 결과를 로컬에서 서빙(:3000). Lighthouse 측정이 이 명령을 씁니다.
 - `pnpm generate:v2-schema` — `../api/spec/openapi.json`에서 요청 타입 재생성(`src/lib/api/v2-schema.d.ts`). 이 파일은 직접 수정 금지.
 
 ## 구조
@@ -24,9 +33,11 @@ src/
     config/   env 스위치 (선택 변수는 env.ts 주석이 단일 문서)
 ```
 
-## 정적 export 제약 (위반 시 빌드 실패 또는 런타임 오류)
+## 정적 프리렌더 제약 (위반 시 빌드 실패 또는 런타임 오류)
 
-- Route Handler·middleware·Server Actions·서버 `redirect()` 금지. 서버 로직은 전부 `apps/api` 소관.
+페이지를 전부 빌드 시점에 프리렌더하므로 아래가 성립해야 합니다. 서버 전용 기능 금지는
+위 "서버 로직은 여기 두지 않습니다"를 따릅니다.
+
 - `useSearchParams`는 `<Suspense>` 내부에서만. 모듈 최상위에서 `window`/`navigator` 접근 금지.
 - 비밀 금지: `NEXT_PUBLIC_*`만 클라이언트에 노출되며 빌드 시점에 번들에 새겨집니다.
 - `crypto.randomUUID` 등 보안 컨텍스트 전용 API는 http(IP) 배포를 고려해 폴백 필수.

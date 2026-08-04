@@ -6,7 +6,7 @@ Acttub 플랫폼 모노레포입니다. JavaScript는 pnpm, Python은 uv로 관�
 
 ```text
 apps/
-  web/      Next.js 웹 앱 (정적 export)
+  web/      Next.js 웹 앱 (Next 서버 · standalone)
   api/      FastAPI 백엔드 (acting-api)
   mobile/   React Native 앱 자리
 packages/   공유 패키지 자리
@@ -39,5 +39,7 @@ pnpm build
 
 ## 운영
 
-`pnpm build`가 생성한 `apps/web/out/`을 FastAPI가 `STATIC_DIR`로 읽어 정적 파일과
-API를 같은 오리진에서 제공합니다.
+`pnpm build`가 만든 Next 서버(standalone)가 화면을 서빙하고, `/v2/*`·`/health`를
+rewrites로 FastAPI에 넘깁니다. 브라우저에는 오리진이 하나로 보여 CORS가 필요 없습니다.
+배포 절차는 운영 [docs/DEPLOY-VPC.md](docs/DEPLOY-VPC.md), 개발
+[docs/DEPLOY-DEV.md](docs/DEPLOY-DEV.md)를 참고하세요.

@@ -38,7 +38,8 @@ import {
   trackResultViewed,
   trackVideoUploaded,
 } from "@/lib/analytics/ga";
-import { REVIEW_FORM_URL } from "@/lib/config/env";
+import { AppRail } from "@/features/nav/app-rail";
+import { ExitReviewModal, useExitReview } from "./exit-review";
 import { analysisFailure } from "../practice/analysis-failure";
 
 /** 준비 → 분석 → 대화 → 노트. 화면이 단계마다 대화 쪽으로 좁혀진다. */
@@ -251,6 +252,23 @@ function WorkspaceInner() {
     });
     setDrawerOpen(false);
   }, []);
+
+  // 후기는 대화가 시작된 뒤에만 묻는다 — 영상만 올리고 나간 사람은 답할 게 없다.
+  const reviewArmed = mode === "chat" || mode === "note";
+  const {
+    trigger: reviewTrigger,
+    openFromButton: openReview,
+    close: closeReview,
+    markDone: markReviewDone,
+  } = useExitReview(reviewArmed);
+
+  // 마치기로 연 후기 창을 닫으면 연습을 끝낸 것으로 보고 새 연습 준비 화면으로 돌아간다.
+  // 커서 이탈·뒤로가기로 뜬 창은 보던 화면을 그대로 둔다.
+  const wasOpenedByButton = reviewTrigger === "x";
+  const onReviewClose = useCallback(() => {
+    closeReview();
+    if (wasOpenedByButton) resetToPrep();
+  }, [closeReview, wasOpenedByButton, resetToPrep]);
 
   const pushAi = (turn: CoachTurnResponse) => {
     // 코치 세션 id 는 매 응답마다 회전할 수 있어 다음 reply/report 에 최신 값을 쓴다.
@@ -500,6 +518,9 @@ function WorkspaceInner() {
 
   return (
     <div className="flex h-dvh overflow-hidden bg-white text-[#191f28]">
+      {/* 앱 전체 네비. 세션 바보다 한 겹 바깥이고, 여기서 입시·커뮤니티로 나간다. */}
+      <AppRail />
+
       {/* 데스크톱: 붙박이 세션 바. 질문이 시작되면 접혀서 대화에 자리를 내준다. */}
       <div className="hidden lg:flex">{rail}</div>
 
@@ -547,14 +568,27 @@ function WorkspaceInner() {
           </p>
           <StatusChip mode={mode} />
           {activeId ? (
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => void removeSession()}
-              className="ml-auto h-8 shrink-0 rounded-[10px] border border-[#f1aeb5] px-3 text-xs font-black text-[#e03131] transition hover:bg-[#fff5f5] disabled:text-[#f1aeb5]"
-            >
-              삭제
-            </button>
+            <div className="ml-auto flex shrink-0 items-center gap-2">
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => void removeSession()}
+                className="h-8 rounded-[10px] border border-[#f1aeb5] px-3 text-xs font-black text-[#e03131] transition hover:bg-[#fff5f5] disabled:text-[#f1aeb5]"
+              >
+                삭제
+              </button>
+              {reviewArmed ? (
+                <button
+                  type="button"
+                  onClick={openReview}
+                  aria-label="연습 마치기"
+                  title="연습 마치기"
+                  className="flex h-8 w-8 items-center justify-center rounded-[10px] bg-[#f2f4f6] text-sm font-black text-[#4e5968] transition hover:bg-[#e5e8eb]"
+                >
+                  ✕
+                </button>
+              ) : null}
+            </div>
           ) : (
             <span className="ml-auto hidden text-xs font-semibold text-[#8b95a1] sm:block">
               {mode === "analyzing" ? "분석이 끝나면 질문이 시작돼요" : "영상을 올리면 질문이 시작돼요"}
@@ -575,6 +609,7 @@ function WorkspaceInner() {
                 reportCount={reportCount}
                 busy={busy}
                 onBackToChat={() => setMode("chat")}
+                onFinish={openReview}
               />
             ) : (
               <ChatPanel
@@ -656,6 +691,14 @@ function WorkspaceInner() {
           </div>
         )}
       </div>
+
+      {reviewTrigger ? (
+        <ExitReviewModal
+          trigger={reviewTrigger}
+          onClose={onReviewClose}
+          onSubmitted={markReviewDone}
+        />
+      ) : null}
     </div>
   );
 }
@@ -782,27 +825,9 @@ function SessionRail({
         </div>
       )}
 
-      {/* 연습 밖으로 나가는 유일한 통로. 여기 없으면 커뮤니티는 주소를 아는 사람만 쓴다. */}
+      {/* 커뮤니티·입시로 나가는 길은 AppRail 이 맡는다. 여기 두면 두 군데가 된다. */}
       <div
-        className={`mt-auto border-t border-[#edf0f3] ${
-          open ? "px-4 py-3" : "flex justify-center py-3"
-        }`}
-      >
-        <Link
-          href="/community"
-          title="커뮤니티"
-          className={
-            open
-              ? "block rounded-xl px-2 py-2 text-[13px] font-black text-[#4e5968] transition hover:bg-[#eef2f6]"
-              : "flex h-9 w-9 items-center justify-center rounded-xl bg-[#f2f4f6] text-[13px] font-black text-[#8b95a1] transition hover:bg-[#eef2f6]"
-          }
-        >
-          {open ? "커뮤니티" : "커"}
-        </Link>
-      </div>
-
-      <div
-        className={`flex items-center border-t border-[#edf0f3] ${
+        className={`mt-auto flex items-center border-t border-[#edf0f3] ${
           open ? "justify-between px-4 py-3.5" : "justify-center py-3.5"
         }`}
       >
@@ -1387,11 +1412,13 @@ function NotePanel({
   reportCount,
   busy,
   onBackToChat,
+  onFinish,
 }: {
   report: ActingReport | null;
   reportCount: number;
   busy: boolean;
   onBackToChat: () => void;
+  onFinish: () => void;
 }) {
   if (!report) {
     return (
@@ -1449,16 +1476,14 @@ function NotePanel({
         >
           대화 다시 보기
         </button>
-        {/* 새 창으로 연다 — 보던 노트를 유지한 채 후기를 남길 수 있게 */}
-        <a
-          href={REVIEW_FORM_URL}
-          target="_blank"
-          rel="noopener noreferrer"
-          aria-label="연습 마치고 후기 남기기 (새 창)"
-          className="flex h-12 flex-1 items-center justify-center rounded-[14px] bg-[#3182f6] text-sm font-black text-white transition hover:bg-[#1b64da]"
+        {/* 헤더의 마치기와 같은 후기 창을 연다 — 새 창으로 새면 남겼는지 알 수 없다 */}
+        <button
+          type="button"
+          onClick={onFinish}
+          className="h-12 flex-1 rounded-[14px] bg-[#3182f6] text-sm font-black text-white transition hover:bg-[#1b64da]"
         >
-          연습 마치기 ↗
-        </a>
+          연습 마치기
+        </button>
       </div>
     </section>
   );

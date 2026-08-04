@@ -1876,6 +1876,17 @@
             ],
             "title": "Department"
           },
+          "discipline": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Discipline"
+          },
           "admission_year": {
             "anyOf": [
               {
@@ -1941,6 +1952,28 @@
               }
             ],
             "title": "Practical Date"
+          },
+          "practical_date_end": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Practical Date End"
+          },
+          "announce_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Announce Date"
           },
           "practical_task": {
             "anyOf": [
@@ -2008,6 +2041,17 @@
             ],
             "title": "Dress Code"
           },
+          "preparation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Preparation"
+          },
           "designated_works": {
             "items": {
               "type": "string"
@@ -2022,6 +2066,43 @@
             },
             "type": "array",
             "title": "Essay Questions",
+            "default": []
+          },
+          "weights": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AdmissionWeights"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "weights_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weights Note"
+          },
+          "stages": {
+            "items": {
+              "$ref": "#/components/schemas/AdmissionStage"
+            },
+            "type": "array",
+            "title": "Stages",
+            "default": []
+          },
+          "practical_items": {
+            "items": {
+              "$ref": "#/components/schemas/AdmissionPracticalItem"
+            },
+            "type": "array",
+            "title": "Practical Items",
             "default": []
           },
           "results": {
@@ -2073,6 +2154,98 @@
           "university_id"
         ],
         "title": "AdmissionNotice"
+      },
+      "AdmissionPracticalItem": {
+        "properties": {
+          "category": {
+            "type": "string",
+            "title": "Category"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          },
+          "required": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Required"
+          },
+          "time_limit_sec": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Time Limit Sec"
+          },
+          "count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Count"
+          },
+          "weight": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weight"
+          },
+          "stage": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stage"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "category"
+        ],
+        "title": "AdmissionPracticalItem",
+        "description": "실기 종목 하나. 서술형 `practical_task`를 필터·비교용으로 쪼갠 것이다.\n\n원문 서술이 정본이고 이쪽은 보조다 — 대학마다 실기 구성이 제각각이라\ncategory로 다 담기지 않는 경우 `note`에 원문을 남긴다."
       },
       "AdmissionResource": {
         "properties": {
@@ -2269,6 +2442,17 @@
             ],
             "title": "Waitlist Last"
           },
+          "waitlist_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Waitlist Count"
+          },
           "source_url": {
             "anyOf": [
               {
@@ -2311,6 +2495,78 @@
         "title": "AdmissionResult",
         "description": "전년도 입시결과. 대학이 공개한 값만 담고, 나머지는 None으로 남긴다."
       },
+      "AdmissionStage": {
+        "properties": {
+          "order": {
+            "type": "integer",
+            "title": "Order"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date"
+          },
+          "evaluates": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Evaluates",
+            "default": []
+          },
+          "multiple": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Multiple"
+          },
+          "weight": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weight"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "order",
+          "name"
+        ],
+        "title": "AdmissionStage",
+        "description": "단계별 전형. 1차에서 몇 배수를 뽑는지가 지원 판단을 가른다."
+      },
       "AdmissionUniversity": {
         "properties": {
           "id": {
@@ -2335,6 +2591,28 @@
               }
             ],
             "title": "Region"
+          },
+          "campus": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Campus"
+          },
+          "type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Type"
           },
           "verified_at": {
             "anyOf": [
@@ -2375,6 +2653,80 @@
           "admission_url"
         ],
         "title": "AdmissionUniversity"
+      },
+      "AdmissionWeights": {
+        "properties": {
+          "practical": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Practical"
+          },
+          "transcript": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Transcript"
+          },
+          "csat": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Csat"
+          },
+          "interview": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Interview"
+          },
+          "portfolio": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Portfolio"
+          },
+          "other": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Other"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "AdmissionWeights",
+        "description": "전형요소 반영비율(%). 원문에 숫자가 그대로 적힌 경우에만 채운다.\n\nPDF 표를 텍스트로 뽑으면 행·열이 뒤엉켜 오독하기 쉬운데, 이 값이 틀리면\n지원 전략을 통째로 그르친다. 판독이 조금이라도 애매하면 전부 None으로 두고\n`AdmissionNotice.weights_note`에 원문 표기를 그대로 옮겨 적는다."
       },
       "AdmissionsResponse": {
         "properties": {
@@ -2450,8 +2802,15 @@
       "AuthorPayload": {
         "properties": {
           "id": {
-            "type": "string",
-            "format": "uuid",
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Id"
           },
           "nickname": {
@@ -2464,15 +2823,28 @@
               }
             ],
             "title": "Nickname"
+          },
+          "alias": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Alias"
           }
         },
         "additionalProperties": false,
         "type": "object",
         "required": [
           "id",
-          "nickname"
+          "nickname",
+          "alias"
         ],
-        "title": "AuthorPayload"
+        "title": "AuthorPayload",
+        "description": "익명이면 `id`·`nickname` 이 비고 `alias` 만 온다.\n\n익명 글에 실제 user id 를 실어 보내면 화면에 \"익명\" 이라 적혀 있어도 클라이언트가\n같은 id 로 다른 글과 묶는다. 그래서 아예 담지 않는다."
       },
       "BiggestProblem": {
         "properties": {
@@ -2744,6 +3116,10 @@
             "format": "uuid",
             "title": "Post Id"
           },
+          "anonymous": {
+            "type": "boolean",
+            "title": "Anonymous"
+          },
           "author": {
             "$ref": "#/components/schemas/AuthorPayload"
           },
@@ -2771,6 +3147,7 @@
         "required": [
           "id",
           "post_id",
+          "anonymous",
           "author",
           "body",
           "mine",
@@ -2786,6 +3163,11 @@
             "maxLength": 1000,
             "minLength": 1,
             "title": "Body"
+          },
+          "anonymous": {
+            "type": "boolean",
+            "title": "Anonymous",
+            "default": false
           }
         },
         "additionalProperties": false,
@@ -3126,6 +3508,10 @@
             "format": "uuid",
             "title": "Id"
           },
+          "anonymous": {
+            "type": "boolean",
+            "title": "Anonymous"
+          },
           "category_slug": {
             "type": "string",
             "title": "Category Slug"
@@ -3180,6 +3566,7 @@
         "type": "object",
         "required": [
           "id",
+          "anonymous",
           "category_slug",
           "category_name",
           "author",
@@ -3236,6 +3623,11 @@
             "maxLength": 5000,
             "minLength": 1,
             "title": "Body"
+          },
+          "anonymous": {
+            "type": "boolean",
+            "title": "Anonymous",
+            "default": false
           }
         },
         "additionalProperties": false,

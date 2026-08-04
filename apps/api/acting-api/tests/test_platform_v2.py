@@ -5,6 +5,12 @@ from types import SimpleNamespace
 from uuid import UUID, uuid4
 
 import pytest
+from botocore.exceptions import (
+    ClientError,
+    CredentialRetrievalError,
+    MetadataRetrievalError,
+    NoCredentialsError,
+)
 from fastapi.testclient import TestClient
 
 from acting_agent.config import Settings as AgentSettings
@@ -26,9 +32,9 @@ from platform_test_support import (
 JWT_SECRET = "stage-3-test-secret"
 
 
-def _application(*, store=None):
+def _application(*, store=None, s3_client=None):
     store = store or FakePlatformStore()
-    s3_client = FakeBotoS3Client()
+    s3_client = s3_client or FakeBotoS3Client()
     storage = S3Storage(bucket="videos", client=s3_client)
     app = create_app(
         client=FakeClient(),
@@ -68,9 +74,13 @@ def _create_session(client, headers, upload_id, request_id=None):
     )
 
 
-def test_app_builds_storage_from_injected_boto_client_without_aws_calls():
+def test_app_builds_storage_from_injected_boto_client_without_aws_calls(monkeypatch):
     store = FakePlatformStore()
     s3_client = FakeBotoS3Client()
+    monkeypatch.setattr(
+        "acting_api.app.boto3.Session",
+        lambda: pytest.fail("injected S3 client must bypass credential resolution"),
+    )
     app = create_app(
         client=FakeClient(),
         gateway_settings=GatewaySettings(
@@ -88,6 +98,57 @@ def test_app_builds_storage_from_injected_boto_client_without_aws_calls():
         s3_client=s3_client,
     )
     assert app.state.s3_storage._client is s3_client
+
+
+class CredentialFailureS3Client(FakeBotoS3Client):
+    def __init__(self, error):
+        super().__init__()
+        self.error = error
+
+    def generate_presigned_url(self, method, **kwargs):
+        raise self.error
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        NoCredentialsError(),
+        CredentialRetrievalError(provider="iam-role", error_msg="refresh failed"),
+        MetadataRetrievalError(error_msg="IMDS unavailable"),
+    ],
+)
+def test_runtime_credential_failures_return_storage_not_configured(error):
+    client, _, _, _, headers = _application(
+        s3_client=CredentialFailureS3Client(error)
+    )
+
+    response = client.post(
+        "/v2/uploads/intents",
+        json={"mime_type": "video/mp4", "size_bytes": 12},
+        headers=headers,
+    )
+
+    assert response.status_code == 503
+    assert response.json() == {"detail": "storage_not_configured"}
+
+
+def test_s3_client_error_is_not_mapped_to_storage_not_configured():
+    error = ClientError(
+        {"Error": {"Code": "AccessDenied", "Message": "denied"}},
+        "PutObject",
+    )
+    client, _, _, _, headers = _application(
+        s3_client=CredentialFailureS3Client(error)
+    )
+    client = TestClient(client.app, raise_server_exceptions=False)
+
+    response = client.post(
+        "/v2/uploads/intents",
+        json={"mime_type": "video/mp4", "size_bytes": 12},
+        headers=headers,
+    )
+
+    assert response.status_code == 500
 
 
 def test_upload_intent_issues_presigned_put_with_user_scoped_object_key():

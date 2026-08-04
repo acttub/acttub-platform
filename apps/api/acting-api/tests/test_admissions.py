@@ -139,3 +139,92 @@ def test_repo_notice_dates_are_iso():
             assert len(value) == 10 and value[4] == value[7] == "-", (
                 f"{notice.id}.{field} = {value!r} — YYYY-MM-DD 형식이어야 한다"
             )
+
+
+# ---- 구조화 필드 검증 ----
+# 대학이 쉰 곳으로 늘면 손으로 채우다 오탈자가 난다. 오탈자 하나가 화면에서
+# 필터를 조용히 비우는데, 그건 데이터가 없는 것보다 나쁘다 — 부팅 때 세운다.
+
+
+def test_accepts_structured_fields(tmp_path):
+    payload = _payload()
+    payload["universities"][0].update({"campus": "서울", "type": "univ"})
+    payload["notices"][0].update(
+        {
+            "discipline": "acting",
+            "announce_date": "2026-12-12",
+            "weights": {"practical": 70.0, "transcript": 30.0},
+            "stages": [
+                {
+                    "order": 1,
+                    "name": "1차 실기",
+                    "evaluates": ["free_acting"],
+                    "multiple": "5배수",
+                    "weight": 0.0,
+                }
+            ],
+            "practical_items": [
+                {"category": "free_acting", "time_limit_sec": 120, "stage": 1}
+            ],
+        }
+    )
+    body = _client(_write(tmp_path, payload)).get("/v2/admissions").json()
+    notice = body["notices"][0]
+    assert notice["weights"]["practical"] == 70.0
+    assert notice["stages"][0]["multiple"] == "5배수"
+    assert notice["practical_items"][0]["category"] == "free_acting"
+    assert body["universities"][0]["type"] == "univ"
+
+
+@pytest.mark.parametrize(
+    "mutate, expected",
+    [
+        (lambda p: p["notices"][0].update({"discipline": "연기"}), "discipline"),
+        (lambda p: p["universities"][0].update({"type": "대학교"}), "type"),
+        (
+            lambda p: p["notices"][0].update(
+                {"practical_items": [{"category": "자유연기"}]}
+            ),
+            "category",
+        ),
+        (
+            lambda p: p["notices"][0].update(
+                {"stages": [{"order": 1, "name": "1차", "evaluates": ["노래"]}]}
+            ),
+            "evaluates",
+        ),
+    ],
+)
+def test_rejects_unknown_enum_values(tmp_path, mutate, expected):
+    payload = _payload()
+    mutate(payload)
+    with pytest.raises(ValueError, match=expected):
+        load_admissions(_write(tmp_path, payload))
+
+
+def test_rejects_practical_item_pointing_at_missing_stage(tmp_path):
+    """없는 단계를 가리키면 상세 화면에서 그 종목이 어디에도 안 붙는다."""
+    payload = _payload()
+    payload["notices"][0].update(
+        {
+            "stages": [{"order": 1, "name": "1차", "evaluates": []}],
+            "practical_items": [{"category": "song", "stage": 2}],
+        }
+    )
+    with pytest.raises(ValueError, match="stage=2"):
+        load_admissions(_write(tmp_path, payload))
+
+
+def test_rejects_duplicate_ids(tmp_path):
+    payload = _payload()
+    payload["universities"].append(dict(payload["universities"][0]))
+    with pytest.raises(ValueError, match="중복"):
+        load_admissions(_write(tmp_path, payload))
+
+
+def test_repo_file_passes_every_check():
+    """실제 배포되는 파일이 위 규칙을 전부 지키는지."""
+    payload = load_admissions(REPO_FILE)
+    assert payload.universities, "대학이 비어 있다"
+    for notice in payload.notices:
+        assert notice.university_id, notice.id

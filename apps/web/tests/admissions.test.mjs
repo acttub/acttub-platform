@@ -3,9 +3,21 @@ import { test } from "node:test";
 
 import "./ts-module-loader.mjs";
 
-const { groupByUniversity, isOpen, countdown, matchesQuery } = await import(
-  "../src/lib/api/v2/admissions.ts",
-);
+const {
+  groupByUniversity,
+  isOpen,
+  countdown,
+  matchesQuery,
+  filterGroups,
+  availableFacets,
+  activeFilterCount,
+  broadRegion,
+  weightBars,
+  normalizeAdmissions,
+  hasNoCsatMinimum,
+  cardBadge,
+  EMPTY_FILTERS,
+} = await import("../src/lib/api/v2/admissions.ts");
 
 const payload = {
   updated_at: "2026-07-31",
@@ -122,4 +134,264 @@ test("공고가 없는 대학도 이름으로 검색된다", () => {
   const uni = { id: "kbu", name: "경복대학교", region: "경기 남양주", admission_url: "x" };
   assert.equal(matchesQuery(uni, [], "경복"), true);
   assert.equal(matchesQuery(uni, [], "남양주"), true);
+});
+
+// ---- 필터 ----
+// 대학이 쉰 곳으로 늘면 검색만으로는 못 좁힌다. 아래는 필터 축별 계약이다.
+
+const filterPayload = {
+  updated_at: "2026-08-04",
+  disclaimer: "d",
+  universities: [
+    {
+      id: "seoul-univ",
+      name: "서울대학",
+      region: "서울 종로",
+      type: "univ",
+      admission_url: "x",
+    },
+    {
+      id: "gyeonggi-col",
+      name: "경기전문대",
+      region: "경기 용인",
+      type: "college",
+      admission_url: "x",
+    },
+  ],
+  notices: [
+    {
+      id: "s1",
+      university_id: "seoul-univ",
+      track: "수시",
+      discipline: "acting",
+      csat_minimum: "국어 3등급",
+      practical_items: [{ category: "free_acting" }, { category: "song" }],
+    },
+    {
+      id: "g1",
+      university_id: "gyeonggi-col",
+      track: "정시",
+      discipline: "musical",
+      csat_minimum: "없음",
+      practical_items: [{ category: "dance" }],
+    },
+  ],
+};
+
+const withFilters = (overrides) => ({ ...EMPTY_FILTERS, ...overrides });
+const idsOf = (groups) => groups.map((g) => g.university.id);
+
+test("광역 지역만 뽑아 필터 선택지를 열 개 안쪽으로 줄인다", () => {
+  assert.equal(broadRegion("경기 용인"), "경기");
+  assert.equal(broadRegion("서울 종로"), "서울");
+  assert.equal(broadRegion(null), null);
+  assert.equal(broadRegion("  "), null);
+});
+
+test("지역·설립형태로 대학을 거른다", () => {
+  const groups = groupByUniversity(filterPayload);
+  assert.deepEqual(idsOf(filterGroups(groups, withFilters({ regions: ["서울"] }))), [
+    "seoul-univ",
+  ]);
+  assert.deepEqual(idsOf(filterGroups(groups, withFilters({ types: ["college"] }))), [
+    "gyeonggi-col",
+  ]);
+});
+
+test("수시·정시와 연기·뮤지컬로 공고를 거른다", () => {
+  const groups = groupByUniversity(filterPayload);
+  assert.deepEqual(idsOf(filterGroups(groups, withFilters({ tracks: ["수시"] }))), [
+    "seoul-univ",
+  ]);
+  assert.deepEqual(
+    idsOf(filterGroups(groups, withFilters({ disciplines: ["musical"] }))),
+    ["gyeonggi-col"],
+  );
+});
+
+// "자유연기 보는 데만" 같은 탐색이 이 화면을 쓰는 이유다.
+test("실기 종목은 하나라도 겹치면 통과한다", () => {
+  const groups = groupByUniversity(filterPayload);
+  assert.deepEqual(
+    idsOf(filterGroups(groups, withFilters({ practicals: ["free_acting"] }))),
+    ["seoul-univ"],
+  );
+  // 여러 개를 고르면 OR — 자유연기나 무용 중 하나만 봐도 남는다.
+  assert.deepEqual(
+    idsOf(filterGroups(groups, withFilters({ practicals: ["free_acting", "dance"] }))),
+    ["seoul-univ", "gyeonggi-col"],
+  );
+  assert.deepEqual(idsOf(filterGroups(groups, withFilters({ practicals: ["improv"] }))), []);
+});
+
+test("수능 최저가 없는 전형만 남긴다", () => {
+  const groups = groupByUniversity(filterPayload);
+  assert.deepEqual(idsOf(filterGroups(groups, withFilters({ noCsatOnly: true }))), [
+    "gyeonggi-col",
+  ]);
+});
+
+// 확인하지 못한 대학이 "필터를 켰다"는 이유로 사라지면, 없는 것과 모르는 것을
+// 구분할 수 없다. 필터를 안 켰을 때는 반드시 남는다.
+test("필터를 안 켜면 공고 없는 대학도 남고, 켜면 빠진다", () => {
+  const empty = {
+    ...filterPayload,
+    universities: [
+      ...filterPayload.universities,
+      { id: "unknown", name: "미확인대", region: "인천 남동", admission_url: "x" },
+    ],
+  };
+  const groups = groupByUniversity(empty);
+  assert.ok(idsOf(filterGroups(groups, EMPTY_FILTERS)).includes("unknown"));
+  assert.ok(!idsOf(filterGroups(groups, withFilters({ tracks: ["수시"] }))).includes("unknown"));
+});
+
+// 결과가 0건만 나오는 칩을 띄우면 사용자가 데이터를 의심하게 된다.
+test("필터 선택지는 데이터에 실제로 있는 값만 낸다", () => {
+  const facets = availableFacets(filterPayload);
+  assert.deepEqual(facets.regions, ["경기", "서울"]);
+  assert.deepEqual(facets.types, ["college", "univ"]);
+  assert.deepEqual(facets.tracks, ["수시", "정시"]);
+  assert.deepEqual(facets.disciplines, ["acting", "musical"]);
+  // 실기 종목은 입력 순서가 아니라 정해진 순서로 — 대학을 추가할 때마다
+  // 칩 순서가 바뀌면 안 된다.
+  assert.deepEqual(facets.practicals, ["free_acting", "song", "dance"]);
+});
+
+test("켜져 있는 필터 개수를 센다", () => {
+  assert.equal(activeFilterCount(EMPTY_FILTERS), 0);
+  assert.equal(
+    activeFilterCount(withFilters({ regions: ["서울", "경기"], openOnly: true })),
+    3,
+  );
+  // 검색어는 입력창에 그대로 보이므로 배지에서 두 번 세지 않는다.
+  assert.equal(activeFilterCount(withFilters({ query: "중앙대" })), 0);
+});
+
+test("반영비율은 값이 있는 항목만 실기부터 순서대로 그린다", () => {
+  assert.deepEqual(weightBars({ practical: 70, transcript: 30, csat: null }), [
+    { key: "practical", label: "실기", value: 70 },
+    { key: "transcript", label: "학생부", value: 30 },
+  ]);
+  // 1단계 성적 미반영(0%)은 막대로 그려도 보이지 않는다.
+  assert.deepEqual(weightBars({ practical: 0 }), []);
+  assert.deepEqual(weightBars(null), []);
+});
+
+// 마감 키("9:")가 미확인 키("8:")보다 커서, reduce 초기값을 미확인으로 두면
+// 공고가 전부 끝난 대학이 '확인 중'인 대학과 같은 자리로 묶여 버렸다.
+test("공고가 전부 마감된 대학은 날짜 미확인 대학보다도 뒤에 온다", () => {
+  const grouped = groupByUniversity(
+    {
+      ...payload,
+      universities: [
+        { id: "done", name: "끝난대", admission_url: "x" },
+        { id: "unknown", name: "미확인대", admission_url: "x" },
+        { id: "soon", name: "곧대", admission_url: "x" },
+      ],
+      notices: [
+        { id: "d", university_id: "done", apply_start: "2026-06-22", apply_end: "2026-06-25" },
+        { id: "u", university_id: "unknown", apply_start: null, apply_end: null },
+        { id: "s", university_id: "soon", apply_start: "2026-09-07", apply_end: "2026-09-11" },
+      ],
+    },
+    "2026-08-01",
+  );
+  assert.deepEqual(
+    grouped.map((g) => g.university.id),
+    ["soon", "unknown", "done"],
+  );
+});
+
+// API가 리스트 필드를 빠뜨리면 화면이 `notice.stages.length`에서 죽는다. 공고 하나가
+// 덜 보이는 것과 흰 화면은 무게가 다르다 — 들어오는 자리에서 메운다.
+test("응답에 리스트 필드가 없어도 빈 배열로 채운다", () => {
+  const filled = normalizeAdmissions({
+    updated_at: "2026-08-04",
+    disclaimer: "d",
+    universities: [{ id: "a", name: "가", admission_url: "x" }],
+    notices: [{ id: "n", university_id: "a" }],
+  });
+  assert.deepEqual(filled.universities[0].resources, []);
+  const notice = filled.notices[0];
+  for (const key of [
+    "designated_works",
+    "essay_questions",
+    "stages",
+    "practical_items",
+    "results",
+  ]) {
+    assert.deepEqual(notice[key], [], key);
+  }
+});
+
+test("이미 들어 있는 리스트는 그대로 둔다", () => {
+  const filled = normalizeAdmissions({
+    updated_at: "2026-08-04",
+    disclaimer: "d",
+    universities: [],
+    notices: [{ id: "n", university_id: "a", stages: [{ order: 1, name: "1차" }] }],
+  });
+  assert.equal(filled.notices[0].stages.length, 1);
+});
+
+// 빈 csat_minimum 은 "수능 최저가 없다"가 아니라 "아직 확인 못 했다"는 뜻이다.
+// 이걸 없음으로 세면 확인도 안 한 전형을 "수능 안 봐도 돼요"라고 단정하게 된다.
+test("수능 최저는 '없음'이라고 확인된 것만 없음으로 센다", () => {
+  assert.equal(hasNoCsatMinimum({ csat_minimum: "없음" }), true);
+  assert.equal(hasNoCsatMinimum({ csat_minimum: "없음 (수시는 반영하지 않는다)" }), true);
+  assert.equal(hasNoCsatMinimum({ csat_minimum: "미적용" }), true);
+  assert.equal(hasNoCsatMinimum({ csat_minimum: "국어 3등급" }), false);
+  assert.equal(hasNoCsatMinimum({ csat_minimum: null }), false);
+  assert.equal(hasNoCsatMinimum({ csat_minimum: "  " }), false);
+  assert.equal(hasNoCsatMinimum({}), false);
+});
+
+test("수능 최저 없음 필터는 미확인 전형을 남기지 않는다", () => {
+  const groups = groupByUniversity({
+    updated_at: "x", disclaimer: "d",
+    universities: [
+      { id: "known", name: "확인대", admission_url: "x" },
+      { id: "unknown", name: "미확인대", admission_url: "x" },
+    ],
+    notices: [
+      { id: "k", university_id: "known", csat_minimum: "없음" },
+      { id: "u", university_id: "unknown", csat_minimum: null },
+    ],
+  });
+  assert.deepEqual(
+    filterGroups(groups, { ...EMPTY_FILTERS, noCsatOnly: true }).map((g) => g.university.id),
+    ["known"],
+  );
+});
+
+// 카드 오른쪽이 비어 있으면 "왜 이 대학만 정보가 없지"로 읽힌다. 날짜가 없으면
+// D-day를 지어내지 말고 모른다고 적는다.
+test("목록 배지는 다가오는 일정 → 마감 → 미정 → 준비 중 순으로 고른다", () => {
+  const open = [{ id: "a", university_id: "u", apply_start: "2026-09-08", apply_end: "2026-09-11" }];
+  assert.deepEqual(cardBadge(open, "2026-08-04"), { label: "D-35", tone: "live" });
+
+  const closed = [{ id: "a", university_id: "u", apply_start: "2026-06-22", apply_end: "2026-06-25" }];
+  assert.deepEqual(cardBadge(closed, "2026-08-04"), { label: "접수 마감", tone: "muted" });
+
+  const unknown = [{ id: "a", university_id: "u", apply_start: null, apply_end: null }];
+  assert.deepEqual(cardBadge(unknown, "2026-08-04"), { label: "일정 미정", tone: "muted" });
+
+  assert.deepEqual(cardBadge([], "2026-08-04"), { label: "정보 준비 중", tone: "muted" });
+});
+
+// 여러 공고가 섞이면 가장 임박한 것이 이긴다. 마감된 정시 때문에 수시 D-day가
+// 가려지면 안 된다.
+test("공고가 여럿이면 가장 임박한 일정을 쓴다", () => {
+  const mixed = [
+    { id: "past", university_id: "u", apply_start: "2026-06-22", apply_end: "2026-06-25" },
+    { id: "soon", university_id: "u", apply_start: "2026-09-08", apply_end: "2026-09-11" },
+  ];
+  assert.deepEqual(cardBadge(mixed, "2026-08-04"), { label: "D-35", tone: "live" });
+});
+
+// 서버 시각이 없는 프리렌더 시점에는 아무것도 단정하지 않는다.
+test("today를 모르면 공고 있는 대학엔 배지를 붙이지 않는다", () => {
+  assert.equal(cardBadge([{ id: "a", university_id: "u" }], null), null);
+  assert.deepEqual(cardBadge([], null), { label: "정보 준비 중", tone: "muted" });
 });

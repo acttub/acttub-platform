@@ -11,6 +11,9 @@
 - [ ] 쓸데없는 파일들 제거하기 (안 쓰는 산출물·죽은 코드·불필요 문서 정리)
 - [ ] 원본이 10MB 이하면 압축 생략하고 그대로 업로드 (모바일 `lib/compress.ts`는 목표 6MB, 웹 `lib/media/compress-video.ts` — 작은 파일은 압축 이득보다 인코딩 대기·품질 손실이 커서 스킵)
 - [ ] 이름 입력은 최초 회원가입 때만 받기 (`apps/mobile/app/consent.tsx` — 지금은 동의 화면이 이름 입력을 항상 끼고 있고 `canProceed`가 `name.trim().length > 0`을 요구해서, 약관이 추가돼 재동의할 때도 이름을 다시 입력해야 한다. 이미 이름이 있으면 입력란을 숨기고 동의만 받도록 분리. 현재 이름은 로컬 저장(`lib/profile.ts`)이라 백엔드 프로필 API가 생기면 "최초"의 기준을 서버 값으로 옮길 것)
+- [ ] S3 instance role 전환을 며칠 관찰한 뒤 공유 IAM 사용자 `acting-api` access key를 Inactive로 전환하고, 추가 관찰 후 삭제하기 (secret은 복구 불가하므로 즉시 삭제하지 않음)
+- [ ] 분석 워커의 만료 upload intent 정리를 위해 dev·운영 영상 버킷의 `DeleteObject` 권한 누락을 별도 티켓으로 해결하기
+- [ ] S3 `ListBucket` 권한 누락으로 없는 객체의 `HeadObject`가 403이 되어 `upload_not_found` 대신 500을 반환하는 문제를 별도 티켓으로 해결하기
 
 ## 모바일 인증·분석 동시성 — 실기기 검증 필요 (feat/report-and-mobile-fixes 후속)
 
@@ -31,6 +34,22 @@ Phase 1(PR 게이트)까지 도입 완료. 그 전엔 CI 전무·전부 수동 S
 (`docs`가 아니라 [dev-server-deploy]/[prod-server-deploy] 메모 참고).
 
 - [x] Phase 1 PR 게이트 (#36): `.github/workflows/ci.yml` — dev·main 대상 PR에서 web(lint·typecheck·test·build)·api(pytest + `postgres:16-alpine` service로 `RUN_DB_TESTS=1` DB 통합) 검증. ruleset에 두 잡을 required status check로 등록해 초록이어야 머지. (함정: check context = 잡 이름 문자열 그대로라, `ci.yml` 잡 `name` 변경 시 ruleset도 함께 갱신 안 하면 dev·main 머지가 전부 막힌다)
-- [ ] Phase 2 배포 자동화: 지금 수동인 SSH `git pull`→`uv sync`→`alembic upgrade`→`systemctl restart` + 로컬 웹 빌드→`rsync`를 워크플로로 고정. 웹 빌드를 CI에서 수행(재현성 확보), 웹 rsync+restart를 잡 끝에 붙여 동시 전환(동의 강제/복구 분리로 인한 로그인 락아웃 방지), dev는 `push` 자동/운영은 `workflow_dispatch`+Environment 승인, SSH 키·서버 IP는 Secrets
+- [x] Phase 2 배포 자동화 (#71, 후속): `.github/workflows/deploy.yml` 하나가 dev·prod를 모두 처리. 빌드는 runner에서(재현성 확보), 전송은 S3, 설치는 SSM Run Command라 SSH 키·서버 IP를 Secrets에 두지 않는다. dev는 `dev` push 자동(마이그레이션 포함)·운영은 `workflow_dispatch`. 환경 분기는 워크플로가 아니라 GitHub Environments variables가 담당. 절차는 `docs/DEPLOY-VPC.md`(운영)·`docs/DEPLOY-DEV.md`(개발)
+  - [x] 개발 서버를 단일 EC2 구성으로 신설 → 검증 → `dev.acttub.com` DNS 전환 (#77, 2026-08-04). 구 인스턴스(`3.38.235.185`)는 **다른 AWS 계정**에 있어 그쪽에서 폐기해야 한다
+  - [x] 운영 role 신뢰 정책의 `sub` 조건을 `environment:prod`로 좁힘 (2026-08-04). GitHub `prod` 환경을 먼저 만들어야 동작한다 — 없는 상태로 좁히면 다음 운영 배포가 assume 단계에서 실패
 - [ ] Phase 3 env 단일화: dev/prod `.env` 드리프트 근절(2026-07-23 dev에만 있던 `APPLE_OAUTH_CLIENT_ID`로 운영 웹 Apple 로그인만 401 난 사고) — GitHub Environments secret을 단일 소스로 배포 시 렌더링. systemd 유닛(`acting-api.service`)을 레포로 편입 + `daemon-reload`
-- [ ] `Node.js 20 deprecated` 경고 제거: `actions/checkout`·`actions/setup-node`를 v5로 상향 (현재 실패 아님, 안내만)
+- [x] `Node.js 20 deprecated` 경고 제거 (#79): checkout v7 · setup-node v7 · action-setup v6 · configure-aws-credentials v6 · setup-uv **v9.0.0**. (함정: `astral-sh/setup-uv`는 v8부터 메이저 별칭 태그(`vN`)를 발행하지 않아 `@v9`로는 액션을 찾지 못한다 — 정확한 버전으로 고정할 것)
+
+## 웹 성능 예산 미달 (2026-08-04 발견)
+
+`pnpm perf`(Lighthouse CI)가 **LCP 임계값을 초과해 실패하는 상태**다. CI에는 성능 측정이 없어 그동안 드러나지 않았다. 새로 생긴 문제가 아니다 — 정적 export 시절 측정 방식(`staticDistDir`)으로도 같은 값이 나오는 것을 3회씩 비교해 확인했다(2527ms 대 2530ms).
+
+```
+LCP 실측 2527~2530ms   vs   예산 2500ms      (Performance 점수 0.97, CLS 0, TBT 0은 통과)
+LCP 구성: TTFB 452 + Render Delay 2078       LCP 요소는 랜딩 `<h1>`
+```
+
+- [ ] 방향 결정 후 처리. 둘 중 하나다
+  - **임계값 현실화**(2500 → 2600): 실측이 30ms 초과라 사실상 경계값이다. 간단하지만 근본 해결은 아니다
+  - **렌더 지연 개선**: Render Delay 2078ms가 대부분이다. `<h1>`이 하이드레이션 이후에 최종 렌더되는 구조라, 초기 HTML에서 바로 확정되게 바꾸면 크게 떨어진다. 프론트 렌더 구조를 손대는 일이라 범위가 있다
+- [ ] 결정 후 `apps/web/PERFORMANCE.md`의 허용 기준도 함께 맞춘다
