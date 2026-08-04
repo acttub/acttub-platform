@@ -20,7 +20,7 @@ echo "▶ 빌드 (API_ORIGIN=$API_ORIGIN)"
 # API_ORIGIN·NEXT_PUBLIC_* 는 빌드 시점에 굳는다. 런타임 환경변수로는 안 바뀐다.
 API_ORIGIN="$API_ORIGIN" \
 NEXT_PUBLIC_SITE_URL="${NEXT_PUBLIC_SITE_URL:-}" \
-  pnpm --filter web build:server
+  pnpm --filter web build
 
 echo "▶ 패키징 (sharp 제외)"
 # standalone에는 빌드한 플랫폼 전용 sharp 바이너리가 딸려온다(맥이면 darwin-arm64).

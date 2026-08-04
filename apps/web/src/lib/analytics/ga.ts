@@ -254,7 +254,7 @@ export function trackResultViewed(): void {
  * 스냅샷이라, 아주 빠른 연속 이동에서는 서로 다른 이동에서 온 조합이 될 수 있다.
  * 금지 키는 어차피 다시 걸러지므로 유출이 아니라 귀속이 흔들리는 문제이고, 유입을
  * 정하는 것은 세션 첫 히트라 실제 영향은 없다. `useSearchParams` 로 맞추려면 이
- * 컴포넌트를 Suspense 로 감싸야 해서(정적 export 제약) 그대로 둔다.
+ * 컴포넌트를 Suspense 로 감싸야 해서(정적 프리렌더 제약) 그대로 둔다.
  */
 export function trackPageView(pathname: string): void {
   if (!window.gtag) return;
