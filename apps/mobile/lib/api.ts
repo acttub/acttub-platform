@@ -1,6 +1,7 @@
 import type {
   AdmissionsResponse,
 } from './admissions';
+import { normalizeAdmissions } from './admissions';
 import type {
   CommentListResponse,
   CommunityCategory,
@@ -525,20 +526,22 @@ export const api = {
 
   // 입시 ----------------------------------------------------------------------
   // 공개 정보다. 가입 전에도 보여야 재방문 이유가 된다.
-  admissions(): Promise<AdmissionsResponse> {
-    return request<AdmissionsResponse>('/v2/admissions', {}, {
+  async admissions(): Promise<AdmissionsResponse> {
+    const data = await request<AdmissionsResponse>('/v2/admissions', {}, {
       auth: false,
       timeoutMs: 20_000,
     });
+    return normalizeAdmissions(data);
   },
 
   /** 대학 하나만. 상세 화면이 쉰 곳치 공고를 통째로 받을 이유가 없다. */
-  admissionsByUniversity(universityId: string): Promise<AdmissionsResponse> {
-    return request<AdmissionsResponse>(
+  async admissionsByUniversity(universityId: string): Promise<AdmissionsResponse> {
+    const data = await request<AdmissionsResponse>(
       `/v2/admissions/${encodeURIComponent(universityId)}`,
       {},
       { auth: false, timeoutMs: 20_000 },
     );
+    return normalizeAdmissions(data);
   },
 };
 

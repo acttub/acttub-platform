@@ -13,6 +13,7 @@ const {
   activeFilterCount,
   broadRegion,
   weightBars,
+  normalizeAdmissions,
   EMPTY_FILTERS,
 } = await import("../src/lib/api/v2/admissions.ts");
 
@@ -298,4 +299,36 @@ test("공고가 전부 마감된 대학은 날짜 미확인 대학보다도 뒤�
     grouped.map((g) => g.university.id),
     ["soon", "unknown", "done"],
   );
+});
+
+// API가 리스트 필드를 빠뜨리면 화면이 `notice.stages.length`에서 죽는다. 공고 하나가
+// 덜 보이는 것과 흰 화면은 무게가 다르다 — 들어오는 자리에서 메운다.
+test("응답에 리스트 필드가 없어도 빈 배열로 채운다", () => {
+  const filled = normalizeAdmissions({
+    updated_at: "2026-08-04",
+    disclaimer: "d",
+    universities: [{ id: "a", name: "가", admission_url: "x" }],
+    notices: [{ id: "n", university_id: "a" }],
+  });
+  assert.deepEqual(filled.universities[0].resources, []);
+  const notice = filled.notices[0];
+  for (const key of [
+    "designated_works",
+    "essay_questions",
+    "stages",
+    "practical_items",
+    "results",
+  ]) {
+    assert.deepEqual(notice[key], [], key);
+  }
+});
+
+test("이미 들어 있는 리스트는 그대로 둔다", () => {
+  const filled = normalizeAdmissions({
+    updated_at: "2026-08-04",
+    disclaimer: "d",
+    universities: [],
+    notices: [{ id: "n", university_id: "a", stages: [{ order: 1, name: "1차" }] }],
+  });
+  assert.equal(filled.notices[0].stages.length, 1);
 });

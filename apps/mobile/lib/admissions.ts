@@ -117,6 +117,31 @@ export type UniversityGroup = {
   notices: AdmissionNotice[];
 };
 
+/**
+ * 리스트 필드를 빈 배열로 채운다.
+ *
+ * 화면 곳곳이 `notice.stages.length`처럼 바로 읽는다. 응답에서 그 키가 빠지면
+ * 화면 전체가 죽는다 — 공고 하나가 덜 보이는 것과는 무게가 다르다. 소비자마다
+ * `?? []`를 흩뿌리는 대신 들어오는 자리에서 한 번 메운다. 웹도 같은 규칙이다.
+ */
+export function normalizeAdmissions(payload: AdmissionsResponse): AdmissionsResponse {
+  return {
+    ...payload,
+    universities: (payload.universities ?? []).map((university) => ({
+      ...university,
+      resources: university.resources ?? [],
+    })),
+    notices: (payload.notices ?? []).map((notice) => ({
+      ...notice,
+      designated_works: notice.designated_works ?? [],
+      essay_questions: notice.essay_questions ?? [],
+      stages: notice.stages ?? [],
+      practical_items: notice.practical_items ?? [],
+      results: notice.results ?? [],
+    })),
+  };
+}
+
 /** 자료 출처. 학원 홍보를 대학 공식 자료와 같은 무게로 보여주면 안 된다. */
 export const SOURCE_LABEL: Record<string, string> = {
   official: '대학 공식',

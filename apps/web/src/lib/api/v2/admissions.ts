@@ -203,13 +203,38 @@ export function weightBars(
   return bars;
 }
 
+/**
+ * 리스트 필드를 빈 배열로 채운다.
+ *
+ * 화면 곳곳이 `notice.stages.length`처럼 바로 읽는다. 응답에서 그 키가 빠지면
+ * 페이지 전체가 흰 화면이 된다 — 공고 하나가 덜 보이는 것과는 무게가 다르다.
+ * 소비자마다 `?? []`를 흩뿌리는 대신 들어오는 자리에서 한 번 메운다.
+ */
+export function normalizeAdmissions(payload: AdmissionsResponse): AdmissionsResponse {
+  return {
+    ...payload,
+    universities: (payload.universities ?? []).map((university) => ({
+      ...university,
+      resources: university.resources ?? [],
+    })),
+    notices: (payload.notices ?? []).map((notice) => ({
+      ...notice,
+      designated_works: notice.designated_works ?? [],
+      essay_questions: notice.essay_questions ?? [],
+      stages: notice.stages ?? [],
+      practical_items: notice.practical_items ?? [],
+      results: notice.results ?? [],
+    })),
+  };
+}
+
 // 공개 정보다. 가입 전에도 보여야 재방문 이유가 되므로 토큰을 붙이지 않는다.
 export async function getAdmissions(options: { signal?: AbortSignal } = {}) {
   const { data } = await apiFetch<AdmissionsResponse>("/v2/admissions", {
     auth: false,
     signal: options.signal,
   });
-  return data;
+  return normalizeAdmissions(data);
 }
 
 /** 대학 하나만. 상세 화면이 쉰 곳치 공고를 통째로 받을 이유가 없다. */
@@ -221,7 +246,7 @@ export async function getUniversityAdmissions(
     `/v2/admissions/${encodeURIComponent(universityId)}`,
     { auth: false, signal: options.signal },
   );
-  return data;
+  return normalizeAdmissions(data);
 }
 
 /**
