@@ -457,6 +457,28 @@ Secrets가 아니라 Variables에 넣는다.
 dev 배포에서는 자동으로 돈다(`ssm-deploy.sh`의 `MIGRATE=1`). 개발 DB는 되돌리기보다
 다시 만드는 편이 빠르고, 스키마 변경을 즉시 반영하는 쪽이 실용적이기 때문이다.
 
+그래서 운영 배포 뒤에는 `deploy/check-migration.sh`가 DB 리비전과 배포된 코드의 리비전을
+비교하고, 어긋나면 잡을 실패로 표시한다. 배포를 막지는 않는다 — 새 마이그레이션 파일은
+배포되어야 서버에 생기므로 사전 차단은 순환이 된다. 실패가 뜨면 4-3의 절차로 실행한다.
+
+### 6-5. 운영 배포는 반드시 `main`에서 실행한다 ⚠️
+
+`workflow_dispatch`는 **어디에 배포할지(`environment`)와 무엇을 배포할지(ref)를 따로**
+받는다. ref는 Actions UI의 "Use workflow from" 드롭다운이 정하는데 **기본값이 default
+branch(`dev`)** 다. 그래서 환경만 `prod`로 바꾸고 브랜치를 그대로 두면 **운영 서버에 dev
+브랜치 코드가 올라간다.**
+
+2026-08-01에 실제로 세 번 그렇게 나갔다. `main`에 없던 `0006` 마이그레이션이 운영 코드에
+실렸고, 운영은 마이그레이션이 자동으로 돌지 않아 DB만 `0005`에 남았다. 결과적으로
+`/v2/community/posts`가 며칠간 500이었다(`column community_posts.anonymous does not exist`).
+겉으로는 배포가 전부 성공으로 보였다.
+
+지금은 `guard` 잡이 이 조합을 막는다. CLI로 실행하면 ref를 명시하게 되어 안전하다.
+
+```bash
+gh workflow run deploy.yml --ref main -f environment=prod -f target=both
+```
+
 ## 7. 아직 남은 것
 
 - 루트 `CLAUDE.md`의 "운영 형태" 서술은 아직 단일 프로세스 방식을 가리킨다. 실제 운영이
