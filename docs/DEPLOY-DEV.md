@@ -34,12 +34,18 @@ GitHub Environments의 variables 값뿐이다.
 
 ### 1-1. 서브넷
 
-- 운영 VPC 안에 새 서브넷 `acttub-dev-a` — 비어 있는 /24 대역을 고른다
-- **퍼블릭 서브넷으로 만든다**: 라우팅 테이블의 `0.0.0.0/0` → Internet Gateway,
-  「퍼블릭 IPv4 주소 자동 할당」 켜기
+- 운영 VPC 안에 새 서브넷 `pub-dev` — 비어 있는 /24 대역을 고른다
+- **dev 전용 라우팅 테이블** `acttub-dev-pub-rt`를 만들어 `0.0.0.0/0` → Internet Gateway
+  경로를 넣고 이 서브넷에 연결한다. 운영 퍼블릭 RT(`acttub-pub-rt`)를 공유해도 동작은
+  하지만, 라우팅을 건드릴 때 운영 ALB까지 함께 흔들리므로 나눠 둔다
+- 서브넷 속성에서 「퍼블릭 IPv4 주소 자동 할당」을 켠다
 - NAT Gateway를 태우지 않는 이유: dev 아웃바운드(LLM 호출·apt·PyPI)가 운영 NAT의
   비용·대역폭에 섞이지 않게 하려는 것이다. 별도 NAT를 세우면 EC2보다 비싸다
 - 태그 `env=dev`
+
+> **함정**: 서브넷을 만들면 명시적으로 연결하지 않는 한 **VPC 메인 라우팅 테이블**을
+> 따른다. 메인 RT에는 대개 `local` 경로만 있어서, 이름을 `pub-*`으로 짓고 SG를 열어도
+> 인터넷으로 나가지도 들어오지도 못한다. SSM 등록 실패의 가장 흔한 원인이다.
 
 ### 1-2. 보안그룹 `acttub-dev-sg`
 
@@ -56,10 +62,15 @@ GitHub Environments의 variables 값뿐이다.
 
 ### 1-3. EC2
 
-- Ubuntu 24.04, **t3.medium 권장** (프로세스 3개 + PostgreSQL이라 2GB는 빠듯하다)
+- Ubuntu 24.04, **t2.micro**(프리티어). 1GB뿐이라 **swap 4GB가 필수**다(2-1) — Next·
+  uvicorn·PostgreSQL 셋이 상주하는 데다 배포마다 `uv sync`가 피크를 만든다. 메모리를
+  더 쓸 수 있으면 t3.small 이상이 편하다
 - 위 서브넷·보안그룹, IAM 인스턴스 프로파일은 아래 1-5
 - **키페어 없이 만든다.** 접속은 SSM으로 하므로 필요 없다
-- EBS gp3 30GB 이상
+- EBS gp3 **30GB** (프리티어 한도). 기본 8GB에 swap 4GB를 잡으면 남는 공간이 2GB도
+  안 된다 — venv·PostgreSQL 데이터·배포 아티팩트가 들어갈 자리가 없다
+- **Elastic IP를 붙인다.** 서브넷의 자동 할당은 이미 실행 중인 인스턴스에 소급되지
+  않고, 고정 IP라야 Cloudflare A 레코드가 재부팅에도 안전하다
 - 태그 `env=dev`, Name `acttub-dev`
 
 띄운 직후 SSM 등록부터 확인한다. 부트스트랩 전이라 등록이 안 되면(대개 인스턴스
@@ -78,12 +89,12 @@ aws ssm describe-instance-information \
 버킷 단위로 깔끔해진다. **영상 업로드용 개발 S3 버킷은 기존 것을 그대로 쓴다** —
 도메인이 `dev.acttub.com`으로 유지되므로 버킷 CORS는 건드릴 필요가 없다.
 
-### 1-5. 인스턴스 프로파일 `acttub-dev-instance`
+### 1-5. 인스턴스 프로파일 `acttub-dev-ec2-role`
 
-EC2에 붙일 role이다.
+EC2에 붙일 role이다. 운영의 `acttub-{fe,be}-prod-ec2-role`과 같은 구성이다.
 
 - 관리형 정책 `AmazonSSMManagedInstanceCore` (SSM 접속·Run Command에 필수)
-- 인라인 정책:
+- 정책 `acttub-dev-deploy`:
 
 ```json
 {
@@ -147,8 +158,49 @@ role만 쓸 수 있고, 반대로 dev 잡이 운영 인스턴스에 손댈 수 �
 
 ## 2. 인스턴스 부트스트랩
 
-한 번만 수행한다. SSH가 아니라 SSM으로 접속한다(로컬에 플러그인이 필요하다:
-`brew install --cask session-manager-plugin`).
+한 번만 수행한다. `deploy/bootstrap-dev.sh`가 swap·런타임·PostgreSQL·디렉토리·Caddy를
+한 번에 설치한다. **서버에 접속할 필요 없이** 로컬에서 SSM Run Command로 보낸다.
+
+```bash
+B64=$(base64 -i deploy/bootstrap-dev.sh | tr -d '\n')
+aws ssm send-command --instance-ids <dev 인스턴스 ID> \
+  --document-name AWS-RunShellScript --timeout-seconds 3600 \
+  --parameters "commands=[\"echo $B64 | base64 -d | bash\"]" \
+  --query 'Command.CommandId' --output text
+```
+
+t2.micro라 5~10분 걸린다. 결과는 명령 ID로 확인한다.
+
+```bash
+aws ssm get-command-invocation --command-id <명령 ID> \
+  --instance-id <dev 인스턴스 ID> --query StandardOutputContent --output text
+```
+
+무엇을 왜 그렇게 설치하는지는 스크립트 주석에 적어 두었다. 여러 번 실행해도 안전하다.
+인스턴스에 git·pnpm은 설치하지 않는다 — 빌드는 전부 GitHub Actions runner에서 한다.
+
+### 2-1. api.env 나머지 키 — 손으로 채운다
+
+스크립트가 만드는 것은 넷뿐이다. 나머지는 비밀이라 자동화하지 않는다.
+
+| 자동 생성 | 손으로 채울 것 |
+| --- | --- |
+| `DATABASE_URL` `JWT_SECRET` `AWS_REGION` `DEVELOPMENT_AUTH_PROVIDER` | `GEMINI_API_KEY` `S3_BUCKET` `AWS_ACCESS_KEY_ID` `AWS_SECRET_ACCESS_KEY` `ADMIN_OPS_TOKEN` `APPLE_OAUTH_CLIENT_ID` |
+
+기존 dev 서버의 `apps/api/acting-api/.env`에서 그대로 옮긴다. 값 누락은 배포가 아니라
+런타임에 드러나므로, 양쪽 키 목록을 비교해 빠진 것이 없는지 확인한다(**줄 앞에 공백이
+있는 항목이 있다** — `grep '^KEY='`는 놓친다).
+
+```bash
+grep -oE '^[[:space:]]*[A-Za-z0-9_]+=' .env | tr -d ' ='
+```
+
+**`STATIC_DIR`은 주지 않는다.** 화면은 Next 서버가 서빙한다. 값을 주면 FastAPI가 정적
+파일까지 물면서 역할이 겹친다 — 기존 dev 서버와 가장 크게 달라지는 지점이다.
+
+### 2-2. 서버에 직접 들어가야 할 때
+
+SSH가 아니라 SSM으로 접속한다(로컬에 `brew install --cask session-manager-plugin` 필요).
 
 ```bash
 aws ssm start-session --target <dev 인스턴스 ID>
@@ -158,107 +210,14 @@ aws ssm start-session --target <dev 인스턴스 ID>
 설치하거나 파일을 만드는 작업은 `sudo su - ubuntu`로 계정을 바꾼 뒤에 한다. `sudo`가
 붙는 시스템 작업(패키지 설치·`mkdir`·`systemctl`)은 어느 계정에서 하든 같다.
 
-### 2-1. 런타임
-
-```bash
-# aws CLI — S3에서 아티팩트를 받는다
-sudo snap install aws-cli --classic
-aws sts get-caller-identity          # Arn에 acttub-dev-instance가 보이면 정상
-
-# Node 24 — 루트 package.json이 engines: node >= 24 를 요구한다.
-# nvm이 아니라 NodeSource로 깐다(유닛의 ExecStart=/usr/bin/node 와 맞춰야 한다).
-curl -fsSL https://deb.nodesource.com/setup_24.x | sudo -E bash -
-sudo apt-get install -y nodejs && node -v
-
-# uv — 홈이 아니라 시스템 경로에 둔다. SSM은 ssm-user로 들어오는데 서비스는
-# ubuntu로 돌기 때문에, 홈에 두면 서비스가 uv를 못 찾는다.
-curl -LsSf https://astral.sh/uv/install.sh | sh
-sudo mv ~/.local/bin/uv ~/.local/bin/uvx /usr/local/bin/
-/usr/local/bin/uv --version
-```
-
-인스턴스에 git·pnpm은 필요 없다. 빌드는 전부 GitHub Actions runner에서 한다.
-
-### 2-2. PostgreSQL
-
-```bash
-sudo apt-get install -y postgresql
-sudo -u postgres psql -c "CREATE USER acttub WITH PASSWORD '<비밀번호>';"
-sudo -u postgres psql -c "CREATE DATABASE acttub OWNER acttub;"
-psql "postgresql://acttub:<비밀번호>@localhost:5432/acttub" -c '\conninfo'
-```
-
-외부에 열지 않는다(`listen_addresses`는 기본값 localhost 그대로). DataGrip 등 GUI 툴로
-붙을 때는 SSM 포트 포워딩을 쓴다 — DB가 인스턴스 안에 있으므로 `RemoteHost` 문서가
-아니라 아래 기본 문서다. 이후 `localhost:15432`로 접속한다.
+DB는 외부에 열지 않는다(`listen_addresses`는 기본값 localhost 그대로). DataGrip 등 GUI
+툴로 붙을 때는 포트 포워딩을 쓴다 — DB가 인스턴스 안에 있으므로 `RemoteHost`가 아니라
+기본 문서다. 이후 `localhost:15432`로 접속한다.
 
 ```bash
 aws ssm start-session --target <dev 인스턴스 ID> \
   --document-name AWS-StartPortForwardingSession \
   --parameters '{"portNumber":["5432"],"localPortNumber":["15432"]}'
-```
-
-### 2-3. 디렉토리와 환경변수
-
-```bash
-sudo mkdir -p /svc/acttub/web /svc/acttub/acttub-platform/apps/api
-sudo chown -R ubuntu:ubuntu /svc/acttub
-sudo mkdir -p /etc/acttub
-```
-
-`/etc/acttub/api.env` (권한 `600`) — 기존 dev 서버의 `apps/api/acting-api/.env`를 그대로
-옮기고 `DATABASE_URL`만 바꾸는 것이 가장 안전하다. 값 누락은 배포가 아니라 런타임에
-드러나므로, 양쪽 키 목록을 비교해 빠진 것이 없는지 확인한다.
-
-```bash
-# 기존 dev 서버에서 (선행 공백이 있는 줄이 있으므로 = 앞을 그대로 잘라낸다)
-grep -oE '^[[:space:]]*[A-Za-z0-9_]+=' .env | tr -d ' ='
-```
-
-```
-DATABASE_URL=postgresql://acttub:<비밀번호>@localhost:5432/acttub
-JWT_SECRET=<랜덤 문자열>
-GEMINI_API_KEY=<키>
-S3_BUCKET=<기존 개발 버킷>
-AWS_ACCESS_KEY_ID=<키>
-AWS_SECRET_ACCESS_KEY=<시크릿>
-AWS_REGION=ap-northeast-2
-ADMIN_OPS_TOKEN=<토큰>
-APPLE_OAUTH_CLIENT_ID=com.acttub.app,com.acttub.web
-DEVELOPMENT_AUTH_PROVIDER=1
-```
-
-**`STATIC_DIR`은 주지 않는다.** 화면은 Next 서버가 서빙한다. 값을 주면 FastAPI가 정적
-파일까지 물면서 역할이 겹친다 — 기존 dev 서버와 가장 크게 달라지는 지점이다.
-
-### 2-4. Caddy
-
-```bash
-sudo apt-get install -y debian-keyring debian-archive-keyring apt-transport-https curl
-curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' \
-  | sudo gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
-curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' \
-  | sudo tee /etc/apt/sources.list.d/caddy-stable.list
-sudo apt-get update && sudo apt-get install -y caddy
-```
-
-`/etc/caddy/Caddyfile`:
-
-```
-# Cloudflare 뒤라 내부 인증서로 충분하다(기존 dev 서버와 같은 구성).
-dev.acttub.com {
-	tls internal
-	reverse_proxy 127.0.0.1:3000
-}
-
-# DNS를 옮기기 전, 퍼블릭 IP로 직접 검증하기 위한 임시 블록. 전환이 끝나면 지운다.
-:80 {
-	reverse_proxy 127.0.0.1:3000
-}
-```
-
-```bash
-sudo systemctl reload caddy
 ```
 
 `/v2/*`와 `/health`는 Caddy에서 나누지 않는다 — Next의 rewrites가 백엔드로 넘긴다.
