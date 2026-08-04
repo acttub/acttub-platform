@@ -5,7 +5,9 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 DEFAULT_MODEL = "gemini-2.5-flash"
-DEFAULT_MAX_QUESTIONS = 10
+# 10턴은 배우가 지친다는 실사용 피드백이 있어 8로 줄였다. 대화는 대개 상한에서
+# 끊기지 배우가 스스로 정리해서 닫히지 않는다 — 상한이 곧 체감 길이다.
+DEFAULT_MAX_QUESTIONS = 8
 
 
 @dataclass

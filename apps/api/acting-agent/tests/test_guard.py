@@ -109,3 +109,40 @@ def test_echo_hits_counts_input_words_reused():
     assert len(echo_hits(echoed, situation, goal)) >= ECHO_LIMIT
     # 읽어낸 형태는 입력 어절을 옮기지 않는다
     assert echo_hits("그 자리에서 인물이 지키려던 건 뭐였을까요?", situation, goal) == []
+
+
+# 폴백은 가드를 우회해 그대로 배우에게 나간다. 목록 자체가 금지 문형을 밟으면
+# 검사기를 통과하지 못한 문장이 사용자에게 도달한다.
+def test_every_fallback_question_passes_the_lint():
+    from acting_agent.guard import FALLBACK_QUESTIONS
+
+    for question in FALLBACK_QUESTIONS:
+        assert not lint_question(question), f"{question} → {lint_question(question)}"
+
+
+def test_pick_fallback_skips_what_was_already_asked():
+    from acting_agent.guard import FALLBACK_QUESTIONS, pick_fallback
+
+    assert pick_fallback([]) == FALLBACK_QUESTIONS[0]
+    assert pick_fallback([FALLBACK_QUESTIONS[0]]) == FALLBACK_QUESTIONS[1]
+    assert pick_fallback(list(FALLBACK_QUESTIONS[:2])) == FALLBACK_QUESTIONS[2]
+    # 앞뒤 공백이 붙어 들어와도 같은 질문으로 본다.
+    assert pick_fallback([f"  {FALLBACK_QUESTIONS[0]}  "]) == FALLBACK_QUESTIONS[1]
+
+
+# 다 써 버리면 None 을 돌려준다. 호출부(engine)가 이걸 보고 대화를 끝낸다 —
+# 같은 질문을 또 던지느니 끝내는 게 낫다.
+def test_pick_fallback_returns_none_when_all_used():
+    from acting_agent.guard import FALLBACK_QUESTIONS, pick_fallback
+
+    assert pick_fallback(list(FALLBACK_QUESTIONS)) is None
+    assert pick_fallback(None) == FALLBACK_QUESTIONS[0]
+
+
+# 물음표나 공백이 달라도 같은 질문으로 본다 — 모델이 문장부호만 바꿔 내놓는다.
+def test_pick_fallback_ignores_punctuation_and_spacing():
+    from acting_agent.guard import FALLBACK_QUESTIONS, pick_fallback
+
+    first = FALLBACK_QUESTIONS[0]
+    assert pick_fallback([first.replace("?", "")]) == FALLBACK_QUESTIONS[1]
+    assert pick_fallback([first.replace(" ", "")]) == FALLBACK_QUESTIONS[1]
