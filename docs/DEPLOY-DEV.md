@@ -196,11 +196,14 @@ aws ssm get-command-invocation --command-id <명령 ID> \
 
 | 자동 생성 | 손으로 채울 것 |
 | --- | --- |
-| `DATABASE_URL` `JWT_SECRET` `AWS_REGION` `DEVELOPMENT_AUTH_PROVIDER` | `GEMINI_API_KEY` `S3_BUCKET` `AWS_ACCESS_KEY_ID` `AWS_SECRET_ACCESS_KEY` `ADMIN_OPS_TOKEN` `APPLE_OAUTH_CLIENT_ID` |
+| `DATABASE_URL` `JWT_SECRET` `AWS_REGION` `DEVELOPMENT_AUTH_PROVIDER` | `GEMINI_API_KEY` `S3_BUCKET` `ADMIN_OPS_TOKEN` `APPLE_OAUTH_CLIENT_ID` |
 
-기존 dev 서버의 `apps/api/acting-api/.env`에서 그대로 옮긴다. 값 누락은 배포가 아니라
+기존 dev 서버의 `apps/api/acting-api/.env`에서 표의 값을 옮긴다. 값 누락은 배포가 아니라
 런타임에 드러나므로, 양쪽 키 목록을 비교해 빠진 것이 없는지 확인한다(**줄 앞에 공백이
-있는 항목이 있다** — `grep '^KEY='`는 놓친다).
+있는 항목이 있다** — `grep '^KEY='`는 놓친다). 단, 아래 설명대로 S3 access key는 제외한다.
+
+S3 access key는 옮기지 않는다. boto3가 EC2 instance role 자격증명을 기본 체인으로 찾으며,
+`S3_BUCKET`·`AWS_REGION`이 있는데 자격증명을 찾지 못하면 API는 기동하지 않는다.
 
 ```bash
 grep -oE '^[[:space:]]*[A-Za-z0-9_]+=' .env | tr -d ' ='

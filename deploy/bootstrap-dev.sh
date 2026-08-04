@@ -97,7 +97,8 @@ ENVEOF
   )
   chmod 600 /etc/acttub/api.env
   unset PW JWT
-  echo "  DB·유저 생성, api.env 뼈대 작성 완료 (나머지 키는 손으로 채운다)"
+  echo "  DB·유저 생성, api.env 뼈대 작성 완료"
+  echo "  GEMINI_API_KEY·S3_BUCKET 등은 손으로 채우고 S3 자격증명은 instance role을 쓴다"
 fi
 
 echo "=== 7. 서비스 디렉토리 ==="

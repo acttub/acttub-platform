@@ -331,7 +331,8 @@ S3 업로드 완료 확인. 서버가 S3 HEAD로 객체 존재·크기 일치를
 | `GOOGLE_OAUTH_CLIENT_ID` | | `462651930952-625pcnhrjib79r7990fqsdqhsterdij2.apps.googleusercontent.com` | 구글 id_token audience 검증용 client ID override |
 | `APPLE_OAUTH_CLIENT_ID` | | `com.acttub.app` | 애플 identityToken audience override. 네이티브 앱은 번들 ID, 웹은 Services ID이므로 웹 로그인을 켤 때 `com.acttub.app,<Services ID>`처럼 콤마로 함께 지정 |
 | `DEVELOPMENT_AUTH_PROVIDER` | | 비활성 | `1` 또는 `true`일 때만 로컬 테스트용 `development` provider 등록. 프로덕션 활성화 금지 |
-| `S3_BUCKET` / `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` / `AWS_REGION` | 업로드·분석 시 | — | **4개 모두 설정하거나 전부 생략** (일부만이면 기동 실패). 미설정 시 업로드·재생 API 503, 분석 워커 비활성 |
+| `S3_BUCKET` / `AWS_REGION` | 업로드·분석 시 | — | **둘을 함께 설정하거나 함께 생략**. 설정했는데 boto3 기본 자격증명 체인에서 자격증명을 찾지 못하면 기동 실패. 미설정 시 업로드·재생 API 503, 분석 워커 비활성 |
+| `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` / `AWS_SESSION_TOKEN` | | — | boto3 기본 자격증명 체인의 환경변수 provider. key·secret은 둘을 함께 설정하며, 로컬 개발·role 전환 롤백 때 선택적으로 사용 |
 | `GEMINI_MODEL` | | `gemini-2.5-flash` | 사용 모델 |
 | `COACH_MAX_QUESTIONS` | | `10` | 코치 최대 질문 수 |
 | `ANALYSIS_WORKER_CONCURRENCY` | | `1` | 동시 분석 개수 |

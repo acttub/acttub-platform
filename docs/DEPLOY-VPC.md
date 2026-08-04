@@ -133,23 +133,36 @@ back svc에 직접 인바운드를 열지 않는다. 브라우저는 back alb를
 DATABASE_URL=postgresql://<user>:<pw>@<rds-endpoint>:5432/<db>
 JWT_SECRET=<랜덤 문자열>
 GEMINI_API_KEY=<키>
-S3_BUCKET=<개발 버킷 이름>
-AWS_ACCESS_KEY_ID=<키>
-AWS_SECRET_ACCESS_KEY=<시크릿>
+S3_BUCKET=<운영 버킷 이름 — acttub-practice-videos-prod>
 AWS_REGION=ap-northeast-2
 ADMIN_OPS_TOKEN=<운영 대시보드 토큰>
 ```
+
+S3 자격증명은 back svc의 EC2 instance role에서 boto3 기본 체인으로 받는다. 이 파일에
+`AWS_ACCESS_KEY_ID`·`AWS_SECRET_ACCESS_KEY`를 넣으면 환경변수 provider가 role보다 우선하므로
+정상 상태에서는 두 값을 두지 않는다.
+
+**`S3_BUCKET`이 있는데 자격증명을 못 찾으면 API가 아예 기동하지 않는다** — 업로드만 503이
+되는 게 아니라 로그인을 포함한 전 기능이 멈춘다. 무자격증명으로 뜬 프로세스는 botocore가
+클라이언트 생성 시점의 자격증명을 고정하는 탓에 IMDS가 회복돼도 스스로 낫지 못하므로,
+조용히 반쯤 죽은 상태로 트래픽을 받느니 기동을 거부하고 systemd가 재시도하게 두는 쪽을
+택했다. 그래서 role 권한을 손대거나 키를 지우기 전에 반드시 서비스 계정(`ubuntu`)으로
+접근을 먼저 확인한다.
 
 `STATIC_DIR`은 **주지 않는다**. front svc가 화면을 서빙하므로 백엔드는 API만 담당한다.
 값을 주면 FastAPI가 정적 파일을 함께 물면서 역할이 겹친다.
 
 front svc는 런타임 환경변수가 필요 없다 (아래 4-1 참고 — 웹 설정은 전부 빌드 시점에 고정된다).
 
-### 3-4. S3 개발 버킷 CORS
+### 3-4. S3 운영 버킷 CORS
 
-presigned PUT은 브라우저에서 S3로 직접 나가므로 버킷 CORS에 새 CloudFront 도메인을
-**추가**해야 한다. dev와 공유하는 버킷이므로 **기존 항목은 절대 지우지 않는다** — 지우면
-현재 dev 업로드가 즉시 깨진다.
+presigned PUT은 브라우저에서 S3로 직접 나가므로 서비스 도메인을 버킷 CORS에
+**추가**해야 한다. **기존 항목은 절대 지우지 않는다** — 지우면 그 오리진의 업로드가 즉시
+깨진다.
+
+버킷은 dev와 나눠 쓴다: 운영은 `acttub-practice-videos-prod`, dev는 `-dev`다. 각 EC2의
+instance role이 자기 버킷 객체만 허용하므로 `S3_BUCKET`을 반대쪽으로 적으면 자격증명
+해석과 `/health`는 성공하는데 실제 PUT/GET만 403이 된다.
 
 ```json
 {
@@ -435,11 +448,6 @@ dev 배포에서는 자동으로 돈다(`ssm-deploy.sh`의 `MIGRATE=1`). 개발 
 
 ## 7. 아직 남은 것
 
-- **S3 자격증명이 access key 방식이다.** `apps/api/acting-api/src/acting_api/config.py`의
-  `s3_configured`가 bucket/key/secret/region **넷 다** 있어야 True를 준다. 인스턴스 프로파일
-  (IAM role)로 전환하려면 이 조건과 `storage.py`의 클라이언트 생성부를 함께 고쳐야 하며,
-  별도 작업으로 분리한다. 지금은 개발 버킷의 access key를 그대로 주입해 넘어간다.
-  S3 Gateway VPC Endpoint는 라우팅 계층이라 access key를 쓰더라도 사설 경로로 나간다.
 - 루트 `CLAUDE.md`의 "운영 형태" 서술은 아직 단일 프로세스 방식을 가리킨다. 실제 운영이
   이 구조로 넘어간 뒤에 갱신한다 — 지금 바꾸면 현행 dev/prod 설명이 틀리게 된다.
   (`apps/web/CLAUDE.md`는 빌드 모드가 실제로 둘이 되었으므로 이미 갱신했다.)

@@ -98,13 +98,15 @@ def test_default_analysis_lease_covers_download_compression_and_gemini_wait(
     assert settings.analysis_lease_sec == 1800
 
 
-def test_s3_and_worker_settings_are_parsed_together(monkeypatch, tmp_path):
+def test_s3_bucket_and_region_enable_storage_without_access_keys(
+    monkeypatch, tmp_path
+):
     monkeypatch.setenv("DATABASE_URL", "postgresql://user:pass@db.example/acting")
     monkeypatch.setenv("JWT_SECRET", "secret")
     monkeypatch.setenv("S3_BUCKET", "acting-videos")
-    monkeypatch.setenv("AWS_ACCESS_KEY_ID", "access")
-    monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "secret-key")
     monkeypatch.setenv("AWS_REGION", "ap-northeast-2")
+    monkeypatch.delenv("AWS_ACCESS_KEY_ID", raising=False)
+    monkeypatch.delenv("AWS_SECRET_ACCESS_KEY", raising=False)
     monkeypatch.setenv("ANALYSIS_WORKER_CONCURRENCY", "2")
     monkeypatch.setenv("ANALYSIS_WORKER_POLL_INTERVAL_SEC", "3.5")
     monkeypatch.setenv("ANALYSIS_LEASE_SEC", "900")
@@ -119,12 +121,65 @@ def test_s3_and_worker_settings_are_parsed_together(monkeypatch, tmp_path):
     assert settings.analysis_sweep_interval_sec == 45
 
 
-def test_partial_s3_configuration_fails_fast(monkeypatch, tmp_path):
+@pytest.mark.parametrize(
+    ("configured_name", "configured_value"),
+    [
+        ("S3_BUCKET", "acting-videos"),
+        ("AWS_REGION", "ap-northeast-2"),
+    ],
+)
+def test_bucket_or_region_without_the_other_fails_fast(
+    monkeypatch, tmp_path, configured_name, configured_value
+):
     monkeypatch.setenv("DATABASE_URL", "postgresql://user:pass@db.example/acting")
     monkeypatch.setenv("JWT_SECRET", "secret")
-    monkeypatch.setenv("S3_BUCKET", "acting-videos")
+    monkeypatch.delenv("S3_BUCKET", raising=False)
+    monkeypatch.delenv("AWS_REGION", raising=False)
     monkeypatch.delenv("AWS_ACCESS_KEY_ID", raising=False)
     monkeypatch.delenv("AWS_SECRET_ACCESS_KEY", raising=False)
-    monkeypatch.delenv("AWS_REGION", raising=False)
-    with pytest.raises(RuntimeError, match="must be configured together"):
+    monkeypatch.setenv(configured_name, configured_value)
+
+    with pytest.raises(
+        RuntimeError, match="S3_BUCKET and AWS_REGION must be configured together"
+    ):
         load_gateway_settings(tmp_path / "missing.env")
+
+
+@pytest.mark.parametrize(
+    ("configured_name", "configured_value"),
+    [
+        ("AWS_ACCESS_KEY_ID", "access"),
+        ("AWS_SECRET_ACCESS_KEY", "secret-key"),
+    ],
+)
+def test_half_configured_access_key_pair_fails_fast(
+    monkeypatch, tmp_path, configured_name, configured_value
+):
+    monkeypatch.setenv("DATABASE_URL", "postgresql://user:pass@db.example/acting")
+    monkeypatch.setenv("JWT_SECRET", "secret")
+    monkeypatch.delenv("S3_BUCKET", raising=False)
+    monkeypatch.delenv("AWS_REGION", raising=False)
+    monkeypatch.delenv("AWS_ACCESS_KEY_ID", raising=False)
+    monkeypatch.delenv("AWS_SECRET_ACCESS_KEY", raising=False)
+    monkeypatch.setenv(configured_name, configured_value)
+
+    with pytest.raises(
+        RuntimeError,
+        match="AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY must be configured together",
+    ):
+        load_gateway_settings(tmp_path / "missing.env")
+
+
+def test_access_key_pair_without_s3_bucket_and_region_is_ignored(
+    monkeypatch, tmp_path
+):
+    monkeypatch.setenv("DATABASE_URL", "postgresql://user:pass@db.example/acting")
+    monkeypatch.setenv("JWT_SECRET", "secret")
+    monkeypatch.delenv("S3_BUCKET", raising=False)
+    monkeypatch.delenv("AWS_REGION", raising=False)
+    monkeypatch.setenv("AWS_ACCESS_KEY_ID", "access")
+    monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "secret-key")
+
+    settings = load_gateway_settings(tmp_path / "missing.env")
+
+    assert settings.s3_configured is False

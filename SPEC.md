@@ -1,206 +1,294 @@
-# SPEC — 웹 UI/UX 수정 6건
+# SOMA-296 — S3 접근을 access key에서 EC2 인스턴스 role로 전환
 
-기준 커밋: `859270d`(dev) · 브랜치: `feat/web-uiux-fixes`
+- 브랜치: `feat/SOMA-296-s3-instance-role` (worktree `../acttub-s3-role-worktree`)
+- BASE_REF: `83be897`
+- 범위: `apps/api`만. **프론트·API 계약은 바뀌지 않는다.**
+- 개정: Codex 설계 비판 반영(2026-08-04) — D1·D2·D3 변경, 4장에 preflight·키 백업 추가.
 
-## 배경 / 목적
+## 1. 배경과 목적
 
-`apps/web`에서 사용자가 직접 겪은 UI/UX 결함 6건을 한 번에 정리한다.
-**기존 UI를 최대한 유지**하는 것이 상위 제약이다 — 레이아웃·색·컴포넌트 구조를 새로 짜지 않고
-필요한 최소 변경만 넣는다.
+키 관리 개선이 아니라 **dev·운영 데이터 경계를 만드는 작업**이다.
 
-`apps/mobile`은 범위 밖이다. `TODO.md` 11번(이름 입력은 최초 회원가입 때만)은 웹에서
-`use-display-name-gate.ts:18`이 이미 처리하고 있어 이번 PR에서 제외하고 모바일 이슈로 남긴다.
+지금 dev 서버와 운영 back svc가 **같은 IAM 사용자 키**(`acting-api`)를 쓰고, 그 정책
+`acting-api-s3`(v2)가 `acttub-practice-videos-dev/*`와 `-prod/*`를 **둘 다 허용**한다.
+버킷은 `S3_BUCKET` env로만 갈라져 있어 자격증명에는 경계가 없다 — dev 서버에서 env만
+바꾸면 운영 영상에 닿는다.
 
-## 사전 조사로 확정된 사실
+코드가 role을 못 쓰는 이유는 두 가지다.
 
-- **배포 형태**: `pnpm build`(정적 export) → `out/` → EC2에서 FastAPI가 `STATIC_DIR`로 서빙.
-  `app.py:283-299`가 `/practice/history?session=x`에도 같은 `history.html`을 반환하므로
-  라우팅은 전부 클라이언트에서 일어난다. **사용자가 겪은 삭제 버그는 배포(정적 빌드) 환경이다.**
-- **죽은 코드**: `practice-flow.tsx`의 `PracticeNewScreen`(906~)·`PracticeContextScreen`(997~)·
-  `TextField`(795~806)는 도달 불가능하다. `step`은 `entryInitialStep[entry]`로만 초기화되고
-  실사용 entry는 `home`·`history` 둘뿐인데, `step`을 `"video"`/`"context"`로 바꾸는 함수는
-  `PracticeNewScreen`/`PracticeContextScreen`에만 전달되기 때문이다(`PracticeHome`·
-  `PracticeHistoryScreen`은 받지 않는다). **이번 PR에서는 손대지 않는다** — `TODO.md` 9번으로 남긴다.
-- **살아있는 입력 화면**: 새 연습은 `/practice/new` → `PracticeSingle`뿐이다.
-- **동의 문서**: `terms`·`privacy`·`ai_analysis` 3종이 전부 `required=true`. 선택 동의는
-  `ConsentType` enum에 아직 없다. 본문은 마크다운 원문인데 웹은 `whitespace-pre-wrap`으로
-  평문 렌더 중이라 `#`·`##`·`**` 기호가 그대로 노출되고 있다.
-- **테스트 인프라**: `node --test tests/*.test.mjs` 19개, 전부 순수 로직·계약 테스트.
-  컴포넌트 테스트 도구(jsdom/testing-library)는 없다.
+- `config.py:50` `s3_configured`가 bucket/key/secret/region **넷 다** 요구한다.
+- `storage.py:40` 이 boto3에 키를 명시 전달해 기본 자격증명 체인(→ 인스턴스 role) 탐색이
+  아예 일어나지 않는다.
 
----
+## 2. 현황 (2026-08-04 실측)
 
-## 설계
+| 대상 | 허용 액션 | 리소스 |
+|---|---|---|
+| IAM 사용자 정책 `acting-api-s3` (v2) | `PutObject`, `GetObject` | dev/* **및** prod/* |
+| 운영 role `acttub-be-prod-ec2-role` → `acttub-video-s3-access` (v3) | `GetObject`, `PutObject`, `AbortMultipartUpload`, `ListMultipartUploadParts` | prod/* |
+| dev role `acttub-dev-ec2-role` | SSM core + `acttub-dev-deploy`(배포 버킷 읽기) | 영상 버킷 권한 **없음** |
 
-### 1. 리포트 삭제 후 목록으로 이동
+- 인스턴스: dev `i-0f101fb852e26d081`, 운영 be `i-08a90c20095d4ecf1`. 둘 다 SSM 접속.
+- **IMDS**(양쪽 동일): `HttpEndpoint=enabled`, `HttpTokens=required`(IMDSv2),
+  `HopLimit=2`. boto3는 IMDSv2를 지원하고 호스트 systemd 프로세스라 hop 2로 충분하다.
+- **버킷**(양쪽 동일): bucket policy **없음**, 기본 암호화 **SSE-S3(AES256)**.
+  KMS key policy가 principal 전환을 막을 여지가 없다.
+- 코드가 쓰는 S3 액션: `put_object`(presign), `get_object`(presign + 워커 다운로드),
+  `head_object`, `delete_object`.
+- **`DeleteObject`·`ListBucket`은 현재 어느 정책에도 없다** → 5장 참고(스코프 밖).
 
-**증상**: 배포 환경에서 세션 상세의 삭제 버튼을 눌러 삭제가 성공해도 화면이 상세에 머문다.
+## 3. 설계 결정
 
-**현재 코드** (`practice-flow.tsx:676-698`): `deletePracticeSession()` 성공 후
-`router.replace(SESSION_DETAIL_PATH)`로 쿼리를 떼고, `sessionParam`이 `null`이 되면
-동기화 effect(`:130-144`)가 `clearActiveSession()`을 호출해 목록으로 돌아가는 구조다.
+### D1. 자격증명은 boto3 기본 체인에만 맡긴다 (코드에 분기 없음)
 
-**가설**: 정적 export에서 `router.replace`로 pathname은 그대로 두고 쿼리만 제거할 때
-`useSearchParams()`가 갱신되지 않아 `sessionParam`이 계속 세션 id를 들고 있고,
-`activeSessionId`(`:705`)가 여전히 truthy로 남는다. Phase 4에서 정적 빌드로 원인을 확정한다.
+`storage.py`가 자격증명 인자를 **아예 넘기지 않는다.** `region_name`과 `endpoint_url`
+(리전 엔드포인트 고정)만 전달한다.
 
-**설계**: URL을 단일 기준으로 쓰는 현재 구조를 유지하되, URL 갱신에 의존하지 않는
-로컬 안전장치를 둔다.
+키를 명시 전달하는 분기를 두지 않는 이유: boto3 기본 체인의 우선순위가 이미
+**환경변수 > 공유 파일 > IMDS(인스턴스 role)** 이고, `/etc/acttub/api.env`는 systemd
+`EnvironmentFile`로 프로세스 환경에 들어가므로(`acttub-api.service:13`), 키가 있으면
+boto3가 알아서 먼저 집는다. 코드가 같은 우선순위를 다시 구현할 이유가 없다.
 
+부수 효과로 `AWS_SESSION_TOKEN`이 자동 지원된다 — 명시 전달 방식은 이 값을 버려서
+SSO·임시 자격증명으로는 롤백조차 못 한다.
+
+`config.py`의 `aws_access_key_id`/`aws_secret_access_key` 필드는 **client 생성에는 쓰이지
+않고** D4의 반쪽 키 감지 용도로만 남는다.
+
+이 우선순위가 곧 **롤백 경로**다 — api.env에 키를 되돌려 넣고 재시작하면 코드 재배포 없이
+원상 복구된다.
+
+### D2. `S3_BUCKET`이 설정됐는데 자격증명을 못 찾으면 기동 실패
+
+`s3_configured`를 `bucket and region`으로 완화한다. 이름은 그대로 둔다(호출부·테스트가
+이미 쓰고 있고 diff를 좁게 유지한다).
+
+`s3_configured`가 True인데 `session.get_credentials()`가 None이면 **`RuntimeError`로 기동을
+중단한다.**
+
+당초 "뜨고 나서 503" 안을 검토했으나 **botocore 동작이 그것을 불가능하게 한다**:
+`botocore/session.py:986`의 `create_client`가 `credentials = self.get_credentials()` 결과를
+client에 고정한다. 기동 시 None이면 **그 client는 IMDS가 회복돼도 영원히
+`NoCredentialsError`**다. `get_credentials()` 자체는 None을 캐시하지 않지만 client가 붙든다.
+따라서 "다음 요청에서 자동 복구"는 성립하지 않는다.
+
+기동 실패로 두면 `Restart=always` + `RestartSec=3`(`acttub-api.service:19-20`)이 IMDS가
+준비될 때까지 재시도하므로 **부팅 레이스가 systemd 층에서 자동 해소**되고, 잘못된 상태로
+트래픽을 받지 않는다.
+
+로컬 개발은 `S3_BUCKET`을 주지 않으면 지금처럼 S3 비활성으로 뜬다(현행과 동일).
+
+### D3. 기동 로그에 자격증명 소스를 남기고, 런타임 자격증명 실패는 503
+
+- 기동 시 `boto3.Session()` **하나**를 만들어 `get_credentials()`로 판정·로깅하고,
+  **같은 Session으로 S3 client를 만든다.** 로그의 `method`가 실제 presign·download에 쓰이는
+  principal과 일치해야 의미가 있다.
+- 로그에 `method` 값(`iam-role` / `env` / `shared-credentials-file` 등)을 남긴다 — 3단계
+  전환이 실제로 일어났는지 확인하는 **유일한 증거**다.
+- 이 호출은 role 경로에서 **IMDS 네트워크 조회다**(무비용 로컬 조회가 아니다). 실패는 D2에
+  따라 기동 실패로 이어지고 systemd가 재시도한다.
+- 런타임 자격증명 실패 — `NoCredentialsError`뿐 아니라 **`CredentialRetrievalError`·
+  `MetadataRetrievalError`**(refresh 실패 계열)까지 **503 `storage_not_configured`** 전역
+  예외 핸들러로 매핑한다. 라우터 3곳(`uploads.py:65`, `practice_sessions.py:230`,
+  `reports.py:197`)은 손대지 않는다.
+- **`ClientError`는 매핑하지 않는다.** AccessDenied가 503에 묻히면 이번 전환에서 제일 보고
+  싶은 신호가 죽는다 — 권한 오류는 500으로 시끄럽게 터지는 편이 안전하다.
+
+### D4. env 검증 규칙
+
+| 조합 | 동작 |
+|---|---|
+| `S3_BUCKET` / `AWS_REGION` 중 하나만 | 기동 실패 (region 없이는 presign 엔드포인트를 못 만든다) |
+| key / secret 한쪽만 | 기동 실패 (반쪽 키는 설정 실수) |
+| bucket+region 있고 자격증명 해석 실패 | 기동 실패 (D2) |
+| key·secret 둘 다 | boto3 env provider가 집는다 (로컬 개발·롤백) |
+| key·secret 둘 다 없음 | 기본 체인 → IMDS role (목표 상태) |
+| bucket·region 없이 key만 | 무시하고 S3 비활성 (AWS_REGION은 S3 외 용도로도 놓인다) |
+
+즉 **bucket+region은 함께 필수, key+secret은 함께 선택.** 에러 메시지도 갈래별로 나눈다.
+
+### D5. dev role 정책은 현행 액션 세트와 동일하게 (Put/Get만)
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": ["s3:PutObject", "s3:GetObject"],
+      "Resource": "arn:aws:s3:::acttub-practice-videos-dev/*"
+    }
+  ]
+}
 ```
-deleteSession()
-  await deletePracticeSession(id)
-  markSessionDeleted(id)        ← 추가: 로컬 삭제 마킹
-  forgetDeletedSession(id)
-  router.replace(SESSION_DETAIL_PATH)
 
-activeSessionId 계산 (:705)
-  후보 id가 삭제 마킹돼 있으면 null로 취급 → 목록 화면으로 판정
-```
+`acttub-dev-ec2-role`에 인라인 정책 `acttub-dev-videos-s3`로 붙인다. **전환 전후 IAM 허용
+액션이 같다**는 것이 이 선택의 이유다. `DeleteObject`·`ListBucket`을 넣어 코드-정책 어긋남을
+고치는 안도 검토했으나, 이 티켓의 목적은 격리이지 버그 수정이 아니므로 5장으로 분리한다.
 
-- 404(이미 삭제됨·남의 리소스) 경로에도 같은 마킹을 적용한다.
-- 마킹은 컴포넌트 로컬 state로 충분하다(삭제는 항상 상세 화면에서 일어나고, 목록으로 돌아간 뒤
-  같은 id로 다시 들어갈 경로가 없다). 영속화하지 않는다.
-- 원인이 다른 것으로 밝혀지면 근본 원인을 고치되, 아래 제약은 유지한다.
-  - 풀 페이지 리로드(`window.location.assign` 등)로 해결하지 않는다 — 목록 재조회로 화면이 깜빡인다.
-  - **dev/prod 환경 분기 금지** — 한 코드 경로여야 한다.
+principal이 IAM user → role로 바뀌는 것 자체의 위험은 2장에서 확인했다(bucket policy 없음,
+SSE-S3라 KMS 무관). 남은 미확인 요소는 조직 SCP뿐이며, 이는 4장의 preflight에서 실제 호출로
+검증한다.
 
-### 2. "겉으로 드러낸 태도와 속마음" → "서브텍스트"
+이 선택의 부수 효과로 dev·운영 액션 세트가 같아져 **운영은 IAM 추가 작업이 없다**
+(`acttub-video-s3-access`가 이미 prod/*에 Get/Put을 준다).
 
-- `practice-single.tsx:411` 입력 레이블
-- `practice-single.tsx:31` 안내 문구 body — "상황 · 인물 · **서브텍스트**를 짧게 적어요."
+### D6. presign TTL은 손대지 않는다 (알려진 제약)
 
-`practice-flow.tsx:1123`은 죽은 코드이므로 건드리지 않는다.
+role의 임시 자격증명으로 서명한 URL은 **그 자격증명이 만료되면 `ExpiresIn`과 무관하게 같이
+죽는다.**
 
-### 3. placeholder 글씨 크기 축소
+정상 상태에서는 botocore가 만료 15분 전(advisory)에 갱신을 시도하므로 대부분의 서명은 새
+자격증명으로 이뤄지고 URL은 광고된 TTL을 채운다. 문제는 **갱신이 실패할 때**다 — advisory
+구간에서 실패하면 오래된 자격증명으로 서명해 URL이 조기 만료되고, mandatory 구간(만료 10분
+전)에서 실패하면 예외가 전파된다(D3의 503 매핑 대상).
 
-입력 **본문** 글씨 크기는 그대로 두고, `placeholder:text-[...]` 유틸리티만 추가해
-각 필드 본문보다 한 단계 작게 만든다.
+| 발급처 | TTL | 노출도 |
+|---|---|---|
+| `admin.py:23` 관리자 재생 | 3600초 | 가장 큼 — 광고 TTL과 실제 수명이 어긋날 수 있다 |
+| `uploads.py:13` 업로드 | 30분 | 발급 직후 쓰이므로 실질 영향 작음 |
+| `practice_sessions.py:14` 재생 | 15분 | 사실상 영향 없음 |
 
-| 위치 | 필드 | 본문 크기 | placeholder |
-| --- | --- | --- | --- |
-| `login/page.tsx:313` | 사용자 ID (개발 로그인) | `text-base` 16px | 13px |
-| `login/page.tsx:326` | 이메일 (개발 로그인) | `text-base` 16px | 13px |
-| `name-prompt.tsx:52` | 이름 | `text-base` 16px | 13px |
-| `practice-single.tsx:541` | 상황·인물 (`Field`) | `text-sm` 14px | 12.5px |
-| `practice-single.tsx:412` | 서브텍스트 | `text-sm` 14px | 12.5px |
-| `practice-single.tsx:472` | 채팅 답변 | 13.5px | 12.5px |
-| `practice-flow.tsx:1698` | 코치 인터뷰 답변 | 15px | 13px |
+TTL을 낮추면 `playback_expires_in_sec` 응답값이 바뀌어 **"계약은 안 바뀐다"는 전제가
+깨지므로** 이번에는 두고, 7장의 관찰 항목으로 남긴다.
 
-`practice-flow.tsx:800`(`TextField`)은 죽은 코드이고 placeholder도 없으므로 제외한다.
+## 4. 실행 순서 (뒤집으면 업로드 503)
 
-### 4. 약관 본문 최소화 + 자세히 보기
+### dev
 
-`terms-gate.tsx`의 `ConsentDocumentCard`(`:324-392`)를 수정한다.
+1. **role 권한 부여**
+   ```
+   aws iam put-role-policy --profile acttub \
+     --role-name acttub-dev-ec2-role \
+     --policy-name acttub-dev-videos-s3 \
+     --policy-document file://<정책 JSON>
+   aws iam get-role-policy --profile acttub \
+     --role-name acttub-dev-ec2-role --policy-name acttub-dev-videos-s3
+   ```
+   `get-role-policy`로 적용 결과를 눈으로 확인한다. 이 시점엔 앱 동작이 아무것도 안 바뀐다.
 
-- 접힌 상태: 본문 미리보기 약 96px(3~4줄) + 하단 흰색 그라데이션 페이드.
-- `▾ 자세히 보기` 토글 → 같은 자리에서 전문으로 펼침(모달 없음). 펼친 상태 문구는 `▴ 접기`.
-- 토글은 `<button type="button">`으로 만든다 — `<form>` 안이므로 `type` 생략 시 submit이 된다.
-- 접근성: `aria-expanded`, `aria-controls={bodyId}`를 붙인다. 접힌 상태에서도 본문 DOM은
-  유지하고 높이만 제한한다(체크박스의 `aria-describedby={bodyId}`가 계속 유효해야 한다).
-- 카드 헤더의 `document.title`과 본문 첫 줄(`# Acttub 이용약관`)이 중복되므로,
-  렌더 시 본문 최상위 h1은 생략한다.
+2. **PR 머지 → dev 자동 배포.** api.env에 키가 남아 있으므로 boto3 env provider가 먼저
+   잡아 **키로 계속 동작**한다(D1). 코드 변경만 먼저 안착시킨다.
 
-**경량 마크다운 렌더링** — 라이브러리를 추가하지 않고 `src/features/practice/consent-markdown.ts`
-(신규)에 순수 함수를 둔다. 지원 범위는 실제 약관 3종이 쓰는 문법으로 한정한다:
+3. **preflight — 키를 지우기 전에 role 경로를 먼저 증명한다.** SSM으로 접속해
+   **서비스와 같은 계정(`User=ubuntu`)·같은 환경**에서, env 키를 무력화한 상태로:
+   - `acttub-practice-videos-dev`에 Get/Put이 **성공**하는지
+   - `acttub-practice-videos-prod`에 접근이 **AccessDenied**인지
+   - 붙은 principal이 `acttub-dev-ec2-role`인지 (`sts get-caller-identity`)
 
-| 문법 | 처리 |
-| --- | --- |
-| `# 제목` | 최상위 제목 — 렌더에서 생략(카드 헤더와 중복) |
-| `## 소제목` | 굵은 중간 크기 제목 |
-| `- 항목` | 목록 항목 |
-| `**굵게**` | 굵게 |
-| 표(`\| a \| b \|`) | 파이프 구분 텍스트로 평이하게 렌더(표 레이아웃 없음) |
-| 빈 줄 | 문단 구분 |
+   SSM 기본 계정(`ssm-user`)의 CLI 성공은 `ubuntu`로 도는 앱의 체인을 증명하지 않는다.
+   조직 SCP 등 저장소에서 알 수 없는 요인도 여기서 함께 걸러진다.
 
-파서는 문자열 → 구조화 노드 배열을 반환하고, 렌더는 React가 담당한다.
-`dangerouslySetInnerHTML`은 쓰지 않는다.
+4. **키를 안전한 곳에 백업한 뒤** `/etc/acttub/api.env`에서 `AWS_ACCESS_KEY_ID`·
+   `AWS_SECRET_ACCESS_KEY`를 제거하고 `systemctl restart acttub-api`.
+   백업 없이 지우면 롤백(키 복원)이 **실행 불가능**하다.
 
-### 5. "약관에 모두 동의합니다"
+5. **검증** (6장). 브라우저 확인은 사용자가 한다.
 
-카드 리스트 **위**에 강조 박스로 체크박스 하나를 둔다.
+   `/health`는 S3를 보지 않으므로(`app.py:194-206`) 여전히 자동 판정만으로는 부족하다.
+   다만 배포 스크립트의 판정은 이번에 보강했다 — `Type=simple`은 exec 직후 곧바로 active가
+   되어 **기동에 실패해 크래시루프 중인 프로세스도 3초 뒤 `is-active`에는 성공으로 읽힌다.**
+   이번 변경이 "기동 실패"를 새 실패 모드로 도입했으므로, `ssm-deploy.sh`가 자동 재시작
+   카운터(`NRestarts`)를 함께 확인하도록 고쳤다. 그래도 최종 확인은 사람이 한다.
 
-- 체크 → 처리 대기 중인 모든 문서(필수·선택 전부)를 체크. 해제 → 전부 해제.
-- 이미 `completed`(부분 실패 후 재시도 상황에서 처리 끝난 문서)이거나 `disabled`인 항목은
-  건드리지 않는다.
-- **양방향 동기화**: 개별 항목을 전부 체크하면 "모두 동의"도 자동으로 켜지고,
-  하나라도 해제하면 꺼진다(파생 상태로 계산 — 별도 state를 두지 않는다).
-- 대상 문서가 하나도 없으면(`documents.length === 0`) 이 박스를 렌더하지 않는다.
-- `mode === "pending"`일 때만 노출한다(`info` 모드는 읽기 전용 화면).
-- 제출 버튼("확인하고 계속하기")과 그 아래 안내 문구는 그대로 둔다.
+### 운영 (dev 검증 통과 + 사용자 확인 후에만)
 
-### 6. 채팅 한글 마지막 글자 잔류
+IAM 추가 작업 없음(D5). 같은 순서로 2→3→4→5. **운영 배포는 수동이므로 반드시 먼저 묻는다.**
+운영 재시작은 진행 중인 분석 작업을 끊을 수 있으므로(7장) 한산한 시간대를 고른다.
 
-**증상**: Enter로 전송하면 메시지는 온전히 전송되는데, 비워진 입력창에 마지막 조합 중이던
-글자 하나가 다시 나타난다.
+### 롤백
 
-**현재 코드**: 두 채팅 입력 모두 `!e.nativeEvent.isComposing` 가드는 이미 있다
-(`practice-single.tsx:472`, `practice-flow.tsx:1704`). 따라서 원인은 Enter 가드가 아니라,
-전송으로 state를 비운 뒤 늦게 도착한 `compositionend`가 조합 문자를 controlled textarea에
-되돌려 놓는 것으로 본다.
+백업해 둔 키를 api.env에 되돌리고 재시작. 코드 재배포는 불필요하다(D1).
 
-**설계**: 두 입력 모두에 동일한 처리를 적용한다.
+**다만 롤백 상태는 정상 완료가 아니라 incident 상태다** — 공유 IAM 사용자 정책이 두 버킷을
+모두 허용하므로 이 티켓의 목적인 데이터 경계가 그대로 사라진다. 롤백했다면 원인을 규명하고
+재전환할 때까지 열린 항목으로 추적한다.
 
-- 전송 시점에 `event.currentTarget.value = ""`로 DOM 값을 직접 비워 조합 버퍼를 끊는다.
-- `onCompositionEnd`에서, 전송 직후 플래그가 서 있으면 그 이벤트의 값을 state에 반영하지 않고
-  입력창을 비운 채로 둔다.
-- 실제 원인이 다르면 Phase 4 진단 결과에 맞춰 고치되, **두 입력창 모두** 동일하게 처리한다.
+## 5. 하지 말 것 (스코프 밖)
 
-`practice-flow.tsx`의 채팅은 세션 상세(`SessionView`)의 코치 인터뷰 입력으로 **살아있는 코드**다.
+- **`acting-api` IAM 사용자 키의 Inactive 전환·삭제** — 며칠 관찰 후 별도로 처리한다.
+  secret은 복구 불가.
+- **`DeleteObject` 권한 누락 버그** — `analysis_worker.sweep`(`analysis_worker.py:156-164`)이
+  만료 업로드 객체를 지우려다 실패하고 예외를 warning으로 삼킨다. 현재 dev·운영 모두 조용히
+  실패 중. 별도 티켓.
+- **`ListBucket` 누락으로 없는 객체 head가 403→500** — `uploads.py:132`의 409
+  `upload_not_found` 경로가 사실상 도달 불가. **role 전환이 만드는 회귀가 아니라 현행 동작**이다.
+  별도 티켓.
+- **`/health`에 S3 상태를 넣는 것** — S3 장애 시 ALB가 멀쩡한 인스턴스를 죽여 장애를 키운다.
+  배포 판정은 5장처럼 사람이 확인한다.
+- **로컬 개발자 자격증명 대책** — 로컬 `.env`가 같은 공유 키를 쓴다면 나중에 Inactive되는
+  순간 로컬 업로드가 깨진다. 개인 키나 SSO 전환은 별도. (D1 덕분에 SSO 임시 자격증명이
+  `AWS_SESSION_TOKEN`과 함께 동작하긴 한다.)
+- admin presign TTL 조정(D6).
+- 스코프 밖 리팩터링 일체.
 
----
+## 6. 완료 기준 체크리스트
 
-## 완료 기준 체크리스트
+### 코드
 
-동작 확인은 정적 빌드(`pnpm build` → `out/`) 기준으로 한다.
+- [ ] `storage.py` — boto3에 자격증명 인자를 **넘기지 않는다**. `region_name`·`endpoint_url`만. 환경 분기 `if` 없음
+- [ ] `config.py` — `s3_configured`가 bucket+region만 요구. D4 검증 규칙
+- [ ] `app.py` — `boto3.Session()` 하나로 판정·로깅·client 생성. `s3_configured`인데 자격증명 없으면 `RuntimeError`
+- [ ] 기동 로그에 credential `method` 기록
+- [ ] `NoCredentialsError`·`CredentialRetrievalError`·`MetadataRetrievalError` → 503 전역 핸들러. `ClientError`는 미매핑
 
-- [ ] **C1** 세션 상세에서 삭제 → 확인 → 목록 화면으로 전환된다(로딩 화면에 갇히지 않는다).
-- [ ] **C2** 삭제된 세션 카드가 목록에서 사라진다.
-- [ ] **C3** 이미 삭제된 세션 삭제(404)에서도 목록으로 전환된다.
-- [ ] **C4** `/practice/new`의 입력 레이블이 "서브텍스트"이고, 상단 안내 문구도 같은 용어를 쓴다.
-- [ ] **C5** 표의 7개 필드에서 placeholder가 입력 본문보다 작게 보이고, **입력한 글자 크기는 그대로**다.
-- [ ] **C6** 약관 화면 카드가 접힌 상태로 뜨고, 미리보기 하단이 페이드된다.
-- [ ] **C7** "자세히 보기"를 누르면 같은 자리에서 전문이 펼쳐지고, 다시 누르면 접힌다.
-      토글이 폼을 제출하지 않는다.
-- [ ] **C8** 약관 본문에 `#`·`##`·`**` 기호가 보이지 않고 제목/본문이 시각적으로 구분된다.
-- [ ] **C9** "약관에 모두 동의합니다"를 켜면 3개가 모두 체크되고, 끄면 모두 해제된다.
-- [ ] **C10** 개별 3개를 손으로 다 체크하면 "모두 동의"가 자동으로 켜지고, 하나 해제하면 꺼진다.
-- [ ] **C11** 동의 제출이 기존과 동일하게 동작한다(부분 실패 재시도 포함 회귀 없음).
-- [ ] **C12** 두 채팅 입력창에서 한글을 IME로 입력하고 Enter → 전송된 메시지가 온전하고
-      입력창에 잔글자가 남지 않는다.
-- [ ] **C13** `pnpm lint` · `pnpm typecheck` · `pnpm --filter web test` · `pnpm build` 전부 통과.
-- [ ] **C14** 신규 순수 로직 테스트가 `node --test`로 통과한다 (마크다운 파서 / 모두 동의 상태 계산 /
-      삭제 후 활성 세션 판정).
+### 테스트 (`uv run --package acting-api pytest`)
 
-## 하지 말 것 (스코프 제한)
+- [ ] bucket+region만 → `s3_configured is True`
+- [ ] key 한쪽만 → RuntimeError
+- [ ] bucket만 / region만 → RuntimeError
+- [ ] bucket+region 있는데 자격증명 해석 실패 → 기동 RuntimeError
+- [ ] `boto3.client` 호출 인자에 `aws_access_key_id`/`aws_secret_access_key`가 **없다** (monkeypatch)
+- [ ] 판정에 쓴 Session과 client를 만든 Session이 동일하다
+- [ ] `NoCredentialsError` / refresh 실패 계열 → 503 응답
+- [ ] 기존 385개 전부 통과 (기준선: 330 passed, 55 skipped)
 
-- `practice-flow.tsx`의 죽은 입력 화면(`PracticeNewScreen`·`PracticeContextScreen`·`TextField`)
-  **제거·수정 금지**. `TODO.md` 9번으로 남긴다.
-- `apps/mobile` 수정 금지. `TODO.md` 11번은 열어둔다.
-- `apps/api` 수정 금지 — API 계약 변경 없음. 약관 본문(`consent_docs/*.md`)도 건드리지 않는다.
-  → `spec/openapi.json`·`v2-schema.d.ts` 재생성 불필요.
-- 새 런타임 의존성 추가 금지(마크다운 라이브러리·테스팅 라이브러리 포함).
-- 레이아웃·색상 팔레트·컴포넌트 구조 재설계 금지. 기존 Toss 스타일 인라인 Tailwind 유지.
-- 풀 페이지 리로드로 삭제 이동을 해결하지 않는다.
-- dev/prod 환경별 코드 분기 금지.
-- 스코프 밖 리팩터링·스타일 정리·의존성 업그레이드 금지.
-- 생성물 수정 금지: `node_modules/`, `.next/`, `out/`, `.venv/`, `apps/web/src/lib/api/v2-schema.d.ts`.
-- 커밋은 phase 단위로 남기되 **push는 하지 않는다**.
+### 문서
 
-## 지켜야 할 규칙 (기존 저장소 관례)
+- [ ] `apps/api/API.md:334` — S3 4종 all-or-none 서술 갱신
+- [ ] `apps/api/CLAUDE.md:22` — 동일
+- [ ] `apps/api/acting-api/README.md:11` — 로컬 실행 예시
+- [ ] `docs/DEPLOY-VPC.md:137-138` — api.env 예시에서 키 제거 / `438-442` "아직 남은 것" 항목 해소
+- [ ] `docs/DEPLOY-DEV.md:199` — 환경변수 표
+- [ ] `deploy/bootstrap-dev.sh:91-98` — 새 서버 api.env 뼈대에서 키 자리 제거
+- [ ] `TODO.md` — 키 Inactive 관찰 후 삭제 + 5장의 별도 티켓 2건 기록
 
-- 사용자 카피는 한국어 존댓말("~해요"). `tests/product-language-guard.test.mjs`의 금지어
-  (점수·판정·평가·등급·강점·약점·개선점 등)를 쓰지 않는다.
-- 정적 export 제약: Server Actions·Route Handler·서버 `redirect()` 금지,
-  `useSearchParams`는 `<Suspense>` 안에서만, 모듈 최상위 `window`/`navigator` 접근 금지.
-- API 호출은 `src/lib/api/v2/*`를 통해서만. 이번 PR은 새 API 호출을 추가하지 않는다.
-- 프레젠테이션 컴포넌트는 같은 파일의 로컬 함수로 둔다.
+### dev 검증
 
-## 미결 사항
+- [ ] **preflight**(4장 3단계) — `ubuntu` 계정에서 role principal 확인 + dev 버킷 Get/Put 성공 + **prod 버킷 AccessDenied**
+- [ ] 재시작 후 `journalctl -u acttub-api`에 `method=iam-role`
+- [ ] 업로드 → complete → 재생 (브라우저, 사용자 확인)
+- [ ] 분석 워커 완주 (GetObject 다운로드 경로)
 
-1. **항목 1의 근본 원인**이 정적 export의 `useSearchParams` 갱신 실패인지 Phase 4에서 확정한다.
-   다른 원인이면 설계의 안전장치 대신 근본 원인을 고친다(제약은 유지).
-2. **항목 6의 근본 원인**이 `compositionend` 잔류인지 Phase 4에서 실제 IME 입력으로 확정한다.
-3. 두 항목 모두 검증은 **정적 빌드**로 한다 — dev 서버에서는 재현되지 않을 수 있다.
-4. IME 재현은 macOS 한글 입력기로 사람이 직접 쳐야 확인된다. 자동 테스트로 대체할 수 없으므로
-   Phase 4에서 확인하지 못하면 최종 보고에 "수동 확인 필요"로 남긴다.
+### 운영 (사용자 확인 후)
+
+- [ ] 수동 배포 → preflight → 키 백업 후 제거 → 재시작 → 같은 검증
+
+## 7. 미결·관찰 항목
+
+- **자격증명 refresh를 한 번 넘긴 뒤의 동작** — 기존 테스트는 fake client를 주입해 IMDS·
+  refresh를 전부 우회한다. cutover 다음 날 업로드·재생·워커를 한 번 더 확인한다.
+- **admin URL의 실제 수명** — `playback_expires_in_sec=3600`이 광고값과 어긋나는지(D6).
+  어긋나는 게 확인되면 TTL 하향을 별도 티켓으로 연다(계약 변경이므로).
+- **재시작과 진행 중 분석 작업** — 워커 종료가 실행 중인 다운로드·분석을 취소하지 않고
+  `join()`하므로(`analysis_worker.py:117-150`), systemd가 강제 종료하면 lease가 남아 최대
+  lease 만료까지 재분석이 지연될 수 있다. 운영은 한산한 시간대에 한다.
+- 운영 `acttub-video-s3-access`의 `AbortMultipartUpload`·`ListMultipartUploadParts`는 코드가
+  멀티파트를 쓰지 않아 불필요하다. 제거는 하지 않는다(무해, diff 축소 우선).
+- dev 버킷 객체 2개 / 운영 103개. 이 중 만료 intent 잔여물이 얼마인지는 5장의 별도 티켓에서
+  다룬다.
+- **admin URL의 `expires_at` 계약** — `uploads.py:84`가 `now + 30분`을 DB에 저장해 응답하고
+  admin은 `playback_expires_in_sec=3600`을 광고한다. 임시 자격증명이 그보다 먼저 만료되면
+  클라이언트가 유효하다고 믿는 동안 S3가 거절한다(D6의 알려진 제약이 계약 층까지 번진
+  형태). 관찰해서 실제로 어긋나면 TTL 하향을 별도 티켓으로 연다.
+
+- **기각한 지적**:
+  - "기본 체인이라 `~/.aws/credentials`가 우선해 경계가 안 생긴다" — 두 EC2에 공유 자격증명
+    파일이 없고, 있더라도 D3의 `method` 로그와 4장 preflight에서 즉시 드러난다.
+  - "fail-closed를 feature flag로 분리해 canary하고, blue/green + 자동 rollback을 갖춰라" —
+    dev·운영 모두 단일 인스턴스 구조라 blue/green이 성립하지 않는다. 이 티켓에서 감당할
+    범위를 크게 넘고, 실질 방어는 4장 3단계 preflight(키를 지우기 **전에** role 경로를 증명)와
+    보강한 배포 판정(`NRestarts`)이 담당한다.
+  - "기동 시 expected credential method와 role ARN을 코드에서 강제하라" — 환경별 분기를 코드에
+    되살리는 안이라 D1의 전제와 정면으로 어긋난다. principal 검증은 코드가 아니라 롤아웃
+    절차(preflight)의 몫으로 남긴다.
