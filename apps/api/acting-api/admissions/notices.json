@@ -882,17 +882,6 @@
       "resources": []
     },
     {
-      "id": "busanarts",
-      "name": "부산예술대학교",
-      "admission_url": "https://www.pia.ac.kr/page/sub03/index.php",
-      "region": "부산 남구",
-      "campus": null,
-      "type": "college",
-      "verified_at": "2026-08-04",
-      "note": "학교 폐교 관련 학생상담 안내가 대학 홈페이지에 올라와 있어요. 지원 전에 입학처에 신입생 모집을 계속하는지 반드시 확인해 주세요. 입학 안내 페이지가 자동 조회를 막아 둬서 전형 정보는 옮겨 오지 못했어요.",
-      "resources": []
-    },
-    {
       "id": "daekyeung-namyangju",
       "name": "대경대학교",
       "admission_url": "https://www.dkuway.com/",
@@ -12065,6 +12054,512 @@
       "source_url": "https://iphak.jj.ac.kr/iphak/assistant/notice.do?mode=view&articleNo=523461",
       "verified_at": "2026-08-04",
       "note": "2027학년도 요강상 학과명은 '공연방송연기학과'가 아니라 문화융합대학 '공연예술학과'다(연극 분야와 음악 분야를 한 모집단위에서 통합 선발). 연기 지원자는 연극 분야의 자유연기 또는 특기를 시연하며, 음악(클래식/실용) 유형을 택해도 같은 10명 안에서 경쟁한다. 실기고사는 2026.10.24.(토) 예정, 본교 지정 고사실(추후 입학처 홈페이지 공지). 2027학년도 전형시행계획상 공연예술학과는 정시 배정 인원 없이 수시 미충원 인원만 정시 학생부교과(일반학생전형)으로 이월해 학생부 100%로 선발하므로 정시 실기 전형이 없다. 참고로 정시 실기/실적(일반학생전형) 4명은 산업디자인학과·생활체육학과 몫이다."
+    },
+    {
+      "id": "suwon-2027-susi-acting",
+      "university_id": "suwon",
+      "department": "아트앤엔터테인먼트학부(연기예술)",
+      "discipline": "acting",
+      "admission_year": 2027,
+      "track": "수시",
+      "screening": "실기우수자(연기예술)전형",
+      "apply_start": "2026-09-07",
+      "apply_end": "2026-09-11",
+      "practical_date": "2026-09-30",
+      "practical_date_end": "2026-10-18",
+      "announce_date": "2026-11-06",
+      "practical_task": "단계별 전형. 1단계 자유연기 100%(2분 이내)로 10배수 선발, 2단계 지정연기 + 자유연기 + 질의응답(총 4분 이내)",
+      "quota": "18명",
+      "fee": "80,000원 (1단계 불합격자는 2단계 전형료 30,000원 환불)",
+      "csat_minimum": "없음",
+      "documents": "학생부 온라인 제공 동의자는 제출 서류 없음. 비동의자는 학교생활기록부(대입전형용), 검정고시 출신자는 합격증명서·성적증명서(대입전형용)",
+      "dress_code": null,
+      "preparation": "실기에 필요한 도구는 모두 개인 지참(1인용 의자는 고사실 내에 비치되어 연기 시 사용 가능, 날카로운 물건·인화성 물질 등 위험한 소품 사용 불가). 뮤지컬(노래) 및 무용 연기를 위한 반주 MR은 개인이 준비하며 실기고사에 필요한 트랙만 USB 또는 오디오 CD 1번 트랙에 녹음하여 지참(뮤지컬 MR 전주는 10초를 넘기지 말 것, 음원 재생 오류 시 무반주 진행). 신분증과 수험표 지참, 휴대폰·전자기기 휴대 금지(전원 OFF)",
+      "designated_works": [],
+      "essay_questions": [],
+      "weights": null,
+      "weights_note": "1단계 실기 100(100)% (총점 700점), 2단계 학생부 17.6(30)% + 실기 82.4(70)% (총점 1,000점). 괄호 안이 명목반영비율, 앞의 값이 실질반영비율",
+      "stages": [
+        {
+          "order": 1,
+          "name": "1단계 실기(자유연기)",
+          "date": "2026-09-30",
+          "evaluates": [
+            "free_acting"
+          ],
+          "multiple": "10배수",
+          "weight": null,
+          "note": "2026. 9. 30(수) ~ 10. 4(일) 중 시행, 1단계 합격자 발표 2026. 10. 7(수). 지원자 수에 따라 전형일자 변경 가능"
+        },
+        {
+          "order": 2,
+          "name": "2단계 실기",
+          "date": "2026-10-16",
+          "evaluates": [
+            "assigned_acting",
+            "free_acting",
+            "interview"
+          ],
+          "multiple": null,
+          "weight": null,
+          "note": "2026. 10. 16(금) ~ 18(일) 중 시행"
+        }
+      ],
+      "practical_items": [
+        {
+          "category": "free_acting",
+          "label": "자유연기(1단계)",
+          "required": true,
+          "time_limit_sec": 120,
+          "count": 1,
+          "weight": 100,
+          "stage": 1,
+          "note": "1단계는 자유연기 100%"
+        },
+        {
+          "category": "assigned_acting",
+          "label": "지정연기(2단계)",
+          "required": true,
+          "time_limit_sec": null,
+          "count": 1,
+          "weight": null,
+          "stage": 2,
+          "note": "2단계 지정연기+자유연기+질의응답 총 4분 이내"
+        },
+        {
+          "category": "free_acting",
+          "label": "자유연기(2단계)",
+          "required": true,
+          "time_limit_sec": null,
+          "count": 1,
+          "weight": null,
+          "stage": 2,
+          "note": "2단계 지정연기+자유연기+질의응답 총 4분 이내"
+        },
+        {
+          "category": "interview",
+          "label": "질의응답(2단계)",
+          "required": true,
+          "time_limit_sec": null,
+          "count": 1,
+          "weight": null,
+          "stage": 2,
+          "note": "2단계 지정연기+자유연기+질의응답 총 4분 이내"
+        }
+      ],
+      "results": [
+        {
+          "year": 2026,
+          "quota": 18,
+          "applicants": 1460,
+          "competition_rate": "81.11:1",
+          "transcript_avg": "5.0",
+          "transcript_cut70": null,
+          "fill_rate": null,
+          "waitlist_last": null,
+          "waitlist_count": null,
+          "source_url": "https://ipsi.suwon.ac.kr/board/susi_result/read/5517",
+          "verified_at": "2026-08-04",
+          "note": "2026학년도 수시 실기우수자전형 최종합격자 학생부성적(평균) 5.0"
+        },
+        {
+          "year": 2026,
+          "quota": 2,
+          "applicants": 110,
+          "competition_rate": "55.00:1",
+          "transcript_avg": "5.6",
+          "transcript_cut70": null,
+          "fill_rate": null,
+          "waitlist_last": null,
+          "waitlist_count": null,
+          "source_url": "https://ipsi.suwon.ac.kr/board/susi_result/read/5517",
+          "verified_at": "2026-08-04",
+          "note": "2026학년도 수시 (정원 외)농어촌학생전형[연기예술] 결과"
+        }
+      ],
+      "source_url": "https://ipsi.suwon.ac.kr/upload_data/guide/1782347110_5378.pdf",
+      "verified_at": "2026-08-04",
+      "note": "2027학년도 수시 모집요강 기준. 지원자격은 2019년 2월 졸업 ~ 2027년 2월 졸업예정자(그 이전 졸업자 및 검정고시 합격자는 지원 불가). 정원 외 농어촌학생(연기예술)전형으로 2명을 동일한 방식으로 별도 선발"
+    },
+    {
+      "id": "suwon-2027-jeongsi-acting",
+      "university_id": "suwon",
+      "department": "아트앤엔터테인먼트학부(연기예술)",
+      "discipline": "acting",
+      "admission_year": 2027,
+      "track": "정시",
+      "screening": "실기위주(나군) 연기예술",
+      "apply_start": null,
+      "apply_end": null,
+      "practical_date": null,
+      "practical_date_end": null,
+      "announce_date": null,
+      "practical_task": "지정연기 + 자유연기 + 질의응답 (총 4분 이내), 실기 배점 700점",
+      "quota": "7명",
+      "fee": null,
+      "csat_minimum": null,
+      "documents": null,
+      "dress_code": null,
+      "preparation": null,
+      "designated_works": [],
+      "essay_questions": [],
+      "weights": {
+        "practical": 70,
+        "csat": 30
+      },
+      "weights_note": "실기 70(70)% + 수능 30(30)% (실질반영비율 기준, 괄호 안이 명목반영비율)",
+      "stages": [],
+      "practical_items": [
+        {
+          "category": "assigned_acting",
+          "label": "지정연기",
+          "required": true,
+          "time_limit_sec": null,
+          "count": 1,
+          "weight": null,
+          "stage": null,
+          "note": "지정연기+자유연기+질의응답 총 4분 이내"
+        },
+        {
+          "category": "free_acting",
+          "label": "자유연기",
+          "required": true,
+          "time_limit_sec": null,
+          "count": 1,
+          "weight": null,
+          "stage": null,
+          "note": "지정연기+자유연기+질의응답 총 4분 이내"
+        },
+        {
+          "category": "interview",
+          "label": "질의응답",
+          "required": true,
+          "time_limit_sec": null,
+          "count": 1,
+          "weight": null,
+          "stage": null,
+          "note": "지정연기+자유연기+질의응답 총 4분 이내"
+        }
+      ],
+      "results": [
+        {
+          "year": 2026,
+          "quota": 7,
+          "applicants": 538,
+          "competition_rate": "76.86:1",
+          "transcript_avg": null,
+          "transcript_cut70": null,
+          "fill_rate": null,
+          "waitlist_last": null,
+          "waitlist_count": null,
+          "source_url": "https://ipsi.suwon.ac.kr/board/jungsi_result/read/5520",
+          "verified_at": "2026-08-04",
+          "note": "2026학년도 정시 최종합격자 수능 성적(평균) 환산점수 923, 평균등급 4.8. 학생부 교과 성적은 정시에서 미반영·미공개"
+        }
+      ],
+      "source_url": "https://ipsi.suwon.ac.kr/board/notice/read/4058",
+      "verified_at": "2026-08-04",
+      "note": "2027학년도 정시 모집요강 미공개(홈페이지 정시 모집요강은 2026학년도 자료). 2027학년도 대학입학 전형계획(안) 기준으로 작성했고 전형일정·전형료는 미확정. 나군 모집. 전형계획의 수능최저학력기준 표에는 고교추천전형·교과우수전형만 기재되어 실기위주 전형의 수능최저 적용 여부는 명시되어 있지 않음. 정원 외 농어촌학생전형[연기예술]도 동일 비율로 선발"
+    },
+    {
+      "id": "howon-2027-susi-acting",
+      "university_id": "howon",
+      "department": "공연미디어학부 연기전공",
+      "discipline": "acting",
+      "admission_year": 2027,
+      "track": "수시",
+      "screening": "일반전형",
+      "apply_start": "2026-09-07",
+      "apply_end": "2026-09-11",
+      "practical_date": "2026-10-01",
+      "practical_date_end": "2026-10-11",
+      "announce_date": "2026-10-30",
+      "practical_task": "① 자유연기: 수험생이 선택한 작품과 장면을 연기(희곡, 뮤지컬, 시나리오 등) ② 특기: 보컬(뮤지컬넘버), 무용, 아크로바틱, 마임, 악기연주 등 연기와 관련된 특기. 자유연기와 특기를 합쳐 4분 이내.",
+      "quota": "14명",
+      "fee": "85,000원 (원서 25,000원 + 실기 60,000원)",
+      "csat_minimum": "없음",
+      "documents": "인터넷 접수자는 입학원서를 따로 내지 않는다. 학생부 온라인 제공 동의자(2024년 2월 졸업자~2027년 2월 졸업예정자)는 제출서류 없음. 온라인 제공 비동의자·비대상 고교 출신자는 학교생활기록부 제출. 서류 제출 마감 2026.9.20(일) 18:00 도착분(등기우편 원칙), 미제출 시 선발 대상에서 제외.",
+      "dress_code": "움직임이 편안한 복장 권장. 과도한 화장 금지(색조화장 금지), 미니스커트 자제. 신발 착화 금지(단, 특기나 무용인 경우 무용슈즈만 가능).",
+      "preparation": "반주 MR은 반드시 USB에 저장(다운로드)해 준비하고 음원 이상 유무를 확인할 것. 핸드폰 재생 불가, CD·MD·MP3 player 같은 저장매체 사용 불가. 칼·창 등 끝이 뾰족하거나 액체가 함유된 소품은 반입 금지. 예약한 응시시간 30분 전까지 입실 완료. 음원 재생 오류가 나면 무반주로 진행.",
+      "designated_works": [],
+      "essay_questions": [],
+      "weights": {
+        "transcript": 30,
+        "practical": 70
+      },
+      "weights_note": "학생부 30%(실질반영비율 28.6%) + 실기 70%(실질반영비율 71.4%). 총점 1,000점 중 실기 700점(기본점수 100점), 학생부 300점.",
+      "stages": [],
+      "practical_items": [
+        {
+          "category": "free_acting",
+          "label": "자유연기",
+          "required": true,
+          "time_limit_sec": null,
+          "count": 1,
+          "weight": null,
+          "stage": null,
+          "note": "수험생이 선택한 작품과 장면을 연기(희곡, 뮤지컬, 시나리오 등). 자유연기와 특기를 합쳐 4분 이내."
+        },
+        {
+          "category": "special",
+          "label": "특기",
+          "required": true,
+          "time_limit_sec": null,
+          "count": 1,
+          "weight": null,
+          "stage": null,
+          "note": "보컬(뮤지컬넘버), 무용, 아크로바틱, 마임, 악기연주 등 연기와 관련된 특기. 자유연기와 특기를 합쳐 4분 이내."
+        }
+      ],
+      "results": [
+        {
+          "year": 2026,
+          "quota": 19,
+          "applicants": 291,
+          "competition_rate": "15.32",
+          "transcript_avg": "4.56",
+          "transcript_cut70": null,
+          "fill_rate": null,
+          "waitlist_last": null,
+          "waitlist_count": null,
+          "source_url": "https://www.howon.ac.kr/web/_admission/?sm=preyear",
+          "verified_at": "2026-08-04",
+          "note": "2026학년도 수시 일반전형 공연미디어학부 연기전공. 대학이 공개한 값은 최종등록자 내신등급 최고 1등급 / 최저 7등급 / 평균 4.56등급(대학 반영등급 기준). 실기 성적과 충원 예비번호는 공개하지 않는다."
+        }
+      ],
+      "source_url": "https://www.howon.ac.kr/web/_admission/?sm=susi",
+      "verified_at": "2026-08-04",
+      "note": "호원대학교는 산업대학교라 수시모집 지원 횟수 제한이 없다. 본교 지원 시 1개 학부(과)만 지원 가능(복수지원 금지). 실기·면접고사 시간은 2026.9.15(화) 10~14시에 지원자가 홈페이지에서 선착순 예약하고, 9.15 17시 이후 홈페이지에서 확인한다(개별통보 없음). 실기고사 기간은 지원자 수에 따라 연장·변경될 수 있다. 공연미디어학부 수업은 서울 호원취업지원센터가 아닌 본교(군산)에서 진행된다. 공연미디어학부 기획·연출전공은 실기가 아니라 면접(학생부 70 + 면접 30)으로 뽑아 이 공고에서 제외했다. 수시 실기고사 장소는 서울 성내동 호원취업지원센터(변경될 수 있음). 합격자 발표 2026.10.30(금) 14:00, 홈페이지 게시로만 하고 개별통보하지 않는다. 표기한 모집인원은 정원 내 일반전형 기준이고, 이 밖에 지역인재전형 1명, 정원 외 농어촌학생전형 1명, 정원 외 기초생활수급자전형 1명을 같은 실기 방식(학생부 30 + 실기 70)으로 따로 뽑는다. 등록 2026.12.21(월)~23(수), 충원합격자 발표 2026.12.24(목)~29(화), 최종 등록 2027.2.10(수)~12(금)."
+    },
+    {
+      "id": "howon-2027-susi-musical",
+      "university_id": "howon",
+      "department": "공연미디어학부 뮤지컬전공",
+      "discipline": "musical",
+      "admission_year": 2027,
+      "track": "수시",
+      "screening": "일반전형",
+      "apply_start": "2026-09-07",
+      "apply_end": "2026-09-11",
+      "practical_date": "2026-10-01",
+      "practical_date_end": "2026-10-11",
+      "announce_date": "2026-10-30",
+      "practical_task": "① 자유곡 1곡(뮤지컬곡 중 택일, 시창 불가) ② 무용 혹은 자유연기 중 택일. 자유곡과 무용/자유연기를 합쳐 3분 이내.",
+      "quota": "17명",
+      "fee": "85,000원 (원서 25,000원 + 실기 60,000원)",
+      "csat_minimum": "없음",
+      "documents": "인터넷 접수자는 입학원서를 따로 내지 않는다. 학생부 온라인 제공 동의자(2024년 2월 졸업자~2027년 2월 졸업예정자)는 제출서류 없음. 온라인 제공 비동의자·비대상 고교 출신자는 학교생활기록부 제출. 서류 제출 마감 2026.9.20(일) 18:00 도착분(등기우편 원칙), 미제출 시 선발 대상에서 제외.",
+      "dress_code": null,
+      "preparation": "반주 MR은 반드시 USB에 저장(다운로드)해 준비하고 음원 이상 유무를 확인할 것. 핸드폰 재생 불가, CD·MD·MP3 player 같은 저장매체 사용 불가. 칼·창 등 끝이 뾰족하거나 액체가 함유된 소품은 반입 금지. 예약한 응시시간 30분 전까지 입실 완료. 음원 재생 오류가 나면 무반주로 진행.",
+      "designated_works": [],
+      "essay_questions": [],
+      "weights": {
+        "transcript": 30,
+        "practical": 70
+      },
+      "weights_note": "학생부 30%(실질반영비율 28.6%) + 실기 70%(실질반영비율 71.4%). 총점 1,000점 중 실기 700점(기본점수 100점), 학생부 300점.",
+      "stages": [],
+      "practical_items": [
+        {
+          "category": "song",
+          "label": "자유곡 1곡",
+          "required": true,
+          "time_limit_sec": null,
+          "count": 1,
+          "weight": null,
+          "stage": null,
+          "note": "뮤지컬곡 중 택일, 시창 불가. 자유곡과 무용/자유연기를 합쳐 3분 이내."
+        },
+        {
+          "category": "dance",
+          "label": "무용",
+          "required": false,
+          "time_limit_sec": null,
+          "count": 1,
+          "weight": null,
+          "stage": null,
+          "note": "무용과 자유연기 중 택1."
+        },
+        {
+          "category": "free_acting",
+          "label": "자유연기",
+          "required": false,
+          "time_limit_sec": null,
+          "count": 1,
+          "weight": null,
+          "stage": null,
+          "note": "무용과 자유연기 중 택1."
+        }
+      ],
+      "results": [
+        {
+          "year": 2026,
+          "quota": 19,
+          "applicants": 89,
+          "competition_rate": "4.68",
+          "transcript_avg": "5.44",
+          "transcript_cut70": null,
+          "fill_rate": null,
+          "waitlist_last": null,
+          "waitlist_count": null,
+          "source_url": "https://www.howon.ac.kr/web/_admission/?sm=preyear",
+          "verified_at": "2026-08-04",
+          "note": "2026학년도 수시 일반전형 공연미디어학부 뮤지컬전공. 대학이 공개한 값은 최종등록자 내신등급 최고 2등급 / 최저 9등급 / 평균 5.44등급(대학 반영등급 기준). 실기 성적과 충원 예비번호는 공개하지 않는다."
+        }
+      ],
+      "source_url": "https://www.howon.ac.kr/web/_admission/?sm=susi",
+      "verified_at": "2026-08-04",
+      "note": "호원대학교는 산업대학교라 수시모집 지원 횟수 제한이 없다. 본교 지원 시 1개 학부(과)만 지원 가능(복수지원 금지). 실기·면접고사 시간은 2026.9.15(화) 10~14시에 지원자가 홈페이지에서 선착순 예약하고, 9.15 17시 이후 홈페이지에서 확인한다(개별통보 없음). 실기고사 기간은 지원자 수에 따라 연장·변경될 수 있다. 공연미디어학부 수업은 서울 호원취업지원센터가 아닌 본교(군산)에서 진행된다. 공연미디어학부 기획·연출전공은 실기가 아니라 면접(학생부 70 + 면접 30)으로 뽑아 이 공고에서 제외했다. 수시 실기고사 장소는 서울 성내동 호원취업지원센터(변경될 수 있음). 합격자 발표 2026.10.30(금) 14:00, 홈페이지 게시로만 하고 개별통보하지 않는다. 요강의 뮤지컬 실기 유의사항에는 복장 규정이 따로 적혀 있지 않고(연기전공 쪽에만 복장·화장·신발 규정이 있다) 소품 제한만 있어 dress_code는 null로 뒀다. 표기한 모집인원은 정원 내 일반전형 기준이고, 이 밖에 지역인재전형 1명, 정원 외 농어촌학생전형 1명, 정원 외 기초생활수급자전형 1명을 같은 실기 방식(학생부 30 + 실기 70)으로 따로 뽑는다. 등록 2026.12.21(월)~23(수), 충원합격자 발표 2026.12.24(목)~29(화), 최종 등록 2027.2.10(수)~12(금)."
+    },
+    {
+      "id": "howon-2027-jeongsi-acting",
+      "university_id": "howon",
+      "department": "공연미디어학부 연기전공",
+      "discipline": "acting",
+      "admission_year": 2027,
+      "track": "정시",
+      "screening": "일반전형('나'군)",
+      "apply_start": null,
+      "apply_end": null,
+      "practical_date": "2027-01-18",
+      "practical_date_end": "2027-01-24",
+      "announce_date": null,
+      "practical_task": "① 자유연기: 수험생이 선택한 작품과 장면을 연기(희곡, 뮤지컬, 시나리오 등) ② 특기: 보컬(뮤지컬넘버), 무용, 아크로바틱, 마임, 악기연주 등 연기와 관련된 특기. 자유연기와 특기를 합쳐 4분 이내.",
+      "quota": "23명",
+      "fee": null,
+      "csat_minimum": "없음",
+      "documents": null,
+      "dress_code": "움직임이 편안한 복장 권장. 과도한 화장 금지(색조화장 금지), 미니스커트 자제. 신발 착화 금지(단, 특기나 무용인 경우 무용슈즈만 가능).",
+      "preparation": "반주 MR은 반드시 USB에 저장(다운로드)해 준비하고 음원 이상 유무를 확인할 것. 핸드폰 재생 불가, CD·MD·MP3 player 같은 저장매체 사용 불가. 칼·창 등 끝이 뾰족하거나 액체가 함유된 소품은 반입 금지. 예약한 응시시간 30분 전까지 입실 완료. 음원 재생 오류가 나면 무반주로 진행.",
+      "designated_works": [],
+      "essay_questions": [],
+      "weights": {
+        "transcript": 30,
+        "practical": 70
+      },
+      "weights_note": "학생부 30%(실질반영비율 28.6%) + 실기 70%(실질반영비율 71.4%). 총점 1,000점 중 실기 700점(기본점수 100점), 학생부 300점.",
+      "stages": [],
+      "practical_items": [
+        {
+          "category": "free_acting",
+          "label": "자유연기",
+          "required": true,
+          "time_limit_sec": null,
+          "count": 1,
+          "weight": null,
+          "stage": null,
+          "note": "수험생이 선택한 작품과 장면을 연기(희곡, 뮤지컬, 시나리오 등). 자유연기와 특기를 합쳐 4분 이내."
+        },
+        {
+          "category": "special",
+          "label": "특기",
+          "required": true,
+          "time_limit_sec": null,
+          "count": 1,
+          "weight": null,
+          "stage": null,
+          "note": "보컬(뮤지컬넘버), 무용, 아크로바틱, 마임, 악기연주 등 연기와 관련된 특기. 자유연기와 특기를 합쳐 4분 이내."
+        }
+      ],
+      "results": [
+        {
+          "year": 2026,
+          "quota": 23,
+          "applicants": 348,
+          "competition_rate": "15.13",
+          "transcript_avg": "5",
+          "transcript_cut70": null,
+          "fill_rate": null,
+          "waitlist_last": null,
+          "waitlist_count": null,
+          "source_url": "https://www.howon.ac.kr/web/_admission/?sm=preyear",
+          "verified_at": "2026-08-04",
+          "note": "2026학년도 정시 일반전형 공연미디어학부 연기전공. 대학이 공개한 값은 최종등록자 내신등급 최고 3등급 / 최저 8등급 / 평균 5등급(대학 반영등급 기준). 실기 성적과 충원 예비번호는 공개하지 않는다."
+        }
+      ],
+      "source_url": "https://www.howon.ac.kr/web/_admission/?sm=major",
+      "verified_at": "2026-08-04",
+      "note": "호원대학교는 산업대학교라 수시모집 지원 횟수 제한이 없다. 본교 지원 시 1개 학부(과)만 지원 가능(복수지원 금지). 실기·면접고사 시간은 2026.9.15(화) 10~14시에 지원자가 홈페이지에서 선착순 예약하고, 9.15 17시 이후 홈페이지에서 확인한다(개별통보 없음). 실기고사 기간은 지원자 수에 따라 연장·변경될 수 있다. 공연미디어학부 수업은 서울 호원취업지원센터가 아닌 본교(군산)에서 진행된다. 공연미디어학부 기획·연출전공은 실기가 아니라 면접(학생부 70 + 면접 30)으로 뽑아 이 공고에서 제외했다. 정시 실기고사 기간은 2027.1.18(월)~1.24(일) 7일이다(전형계획 기준). 2027학년도 정시모집요강이 아직 공개되지 않아(2026-08-04 기준 입학처 정시 게시판에 첨부파일 없음) 2027학년도 대학입학전형계획 주요사항 PDF 기준으로 채웠다. 그래서 원서접수 기간·합격자 발표일·전형료·고사 장소는 확인 불가로 null. 정시는 '나'군이고 수능을 반영하지 않는다(학생부 30 + 실기 70)."
+    },
+    {
+      "id": "howon-2027-jeongsi-musical",
+      "university_id": "howon",
+      "department": "공연미디어학부 뮤지컬전공",
+      "discipline": "musical",
+      "admission_year": 2027,
+      "track": "정시",
+      "screening": "일반전형('나'군)",
+      "apply_start": null,
+      "apply_end": null,
+      "practical_date": "2027-01-18",
+      "practical_date_end": "2027-01-24",
+      "announce_date": null,
+      "practical_task": "① 자유곡 1곡(뮤지컬곡 중 택일, 시창 불가) ② 무용 혹은 자유연기 중 택일. 자유곡과 무용/자유연기를 합쳐 3분 이내.",
+      "quota": "20명",
+      "fee": null,
+      "csat_minimum": "없음",
+      "documents": null,
+      "dress_code": null,
+      "preparation": "반주 MR은 반드시 USB에 저장(다운로드)해 준비하고 음원 이상 유무를 확인할 것. 핸드폰 재생 불가, CD·MD·MP3 player 같은 저장매체 사용 불가. 칼·창 등 끝이 뾰족하거나 액체가 함유된 소품은 반입 금지. 예약한 응시시간 30분 전까지 입실 완료. 음원 재생 오류가 나면 무반주로 진행.",
+      "designated_works": [],
+      "essay_questions": [],
+      "weights": {
+        "transcript": 30,
+        "practical": 70
+      },
+      "weights_note": "학생부 30%(실질반영비율 28.6%) + 실기 70%(실질반영비율 71.4%). 총점 1,000점 중 실기 700점(기본점수 100점), 학생부 300점.",
+      "stages": [],
+      "practical_items": [
+        {
+          "category": "song",
+          "label": "자유곡 1곡",
+          "required": true,
+          "time_limit_sec": null,
+          "count": 1,
+          "weight": null,
+          "stage": null,
+          "note": "뮤지컬곡 중 택일, 시창 불가. 자유곡과 무용/자유연기를 합쳐 3분 이내."
+        },
+        {
+          "category": "dance",
+          "label": "무용",
+          "required": false,
+          "time_limit_sec": null,
+          "count": 1,
+          "weight": null,
+          "stage": null,
+          "note": "무용과 자유연기 중 택1."
+        },
+        {
+          "category": "free_acting",
+          "label": "자유연기",
+          "required": false,
+          "time_limit_sec": null,
+          "count": 1,
+          "weight": null,
+          "stage": null,
+          "note": "무용과 자유연기 중 택1."
+        }
+      ],
+      "results": [
+        {
+          "year": 2026,
+          "quota": 20,
+          "applicants": 85,
+          "competition_rate": "4.25",
+          "transcript_avg": "5",
+          "transcript_cut70": null,
+          "fill_rate": null,
+          "waitlist_last": null,
+          "waitlist_count": null,
+          "source_url": "https://www.howon.ac.kr/web/_admission/?sm=preyear",
+          "verified_at": "2026-08-04",
+          "note": "2026학년도 정시 일반전형 공연미디어학부 뮤지컬전공. 대학이 공개한 값은 최종등록자 내신등급 최고 4등급 / 최저 8등급 / 평균 5등급(대학 반영등급 기준). 실기 성적과 충원 예비번호는 공개하지 않는다."
+        }
+      ],
+      "source_url": "https://www.howon.ac.kr/web/_admission/?sm=major",
+      "verified_at": "2026-08-04",
+      "note": "호원대학교는 산업대학교라 수시모집 지원 횟수 제한이 없다. 본교 지원 시 1개 학부(과)만 지원 가능(복수지원 금지). 실기·면접고사 시간은 2026.9.15(화) 10~14시에 지원자가 홈페이지에서 선착순 예약하고, 9.15 17시 이후 홈페이지에서 확인한다(개별통보 없음). 실기고사 기간은 지원자 수에 따라 연장·변경될 수 있다. 공연미디어학부 수업은 서울 호원취업지원센터가 아닌 본교(군산)에서 진행된다. 공연미디어학부 기획·연출전공은 실기가 아니라 면접(학생부 70 + 면접 30)으로 뽑아 이 공고에서 제외했다. 정시 실기고사 기간은 2027.1.18(월)~1.24(일) 7일이다(전형계획 기준). 복장 규정은 수시요강 뮤지컬 실기 안내에 따로 없어 null. 2027학년도 정시모집요강이 아직 공개되지 않아(2026-08-04 기준 입학처 정시 게시판에 첨부파일 없음) 2027학년도 대학입학전형계획 주요사항 PDF 기준으로 채웠다. 그래서 원서접수 기간·합격자 발표일·전형료·고사 장소는 확인 불가로 null. 정시는 '나'군이고 수능을 반영하지 않는다(학생부 30 + 실기 70)."
     }
   ]
 }
