@@ -3,9 +3,18 @@ import { test } from "node:test";
 
 import "./ts-module-loader.mjs";
 
-const { groupByUniversity, isOpen, countdown, matchesQuery } = await import(
-  "../src/lib/api/v2/admissions.ts",
-);
+const {
+  groupByUniversity,
+  isOpen,
+  countdown,
+  matchesQuery,
+  filterGroups,
+  availableFacets,
+  activeFilterCount,
+  broadRegion,
+  weightBars,
+  EMPTY_FILTERS,
+} = await import("../src/lib/api/v2/admissions.ts");
 
 const payload = {
   updated_at: "2026-07-31",
@@ -122,6 +131,148 @@ test("공고가 없는 대학도 이름으로 검색된다", () => {
   const uni = { id: "kbu", name: "경복대학교", region: "경기 남양주", admission_url: "x" };
   assert.equal(matchesQuery(uni, [], "경복"), true);
   assert.equal(matchesQuery(uni, [], "남양주"), true);
+});
+
+// ---- 필터 ----
+// 대학이 쉰 곳으로 늘면 검색만으로는 못 좁힌다. 아래는 필터 축별 계약이다.
+
+const filterPayload = {
+  updated_at: "2026-08-04",
+  disclaimer: "d",
+  universities: [
+    {
+      id: "seoul-univ",
+      name: "서울대학",
+      region: "서울 종로",
+      type: "univ",
+      admission_url: "x",
+    },
+    {
+      id: "gyeonggi-col",
+      name: "경기전문대",
+      region: "경기 용인",
+      type: "college",
+      admission_url: "x",
+    },
+  ],
+  notices: [
+    {
+      id: "s1",
+      university_id: "seoul-univ",
+      track: "수시",
+      discipline: "acting",
+      csat_minimum: "국어 3등급",
+      practical_items: [{ category: "free_acting" }, { category: "song" }],
+    },
+    {
+      id: "g1",
+      university_id: "gyeonggi-col",
+      track: "정시",
+      discipline: "musical",
+      csat_minimum: null,
+      practical_items: [{ category: "dance" }],
+    },
+  ],
+};
+
+const withFilters = (overrides) => ({ ...EMPTY_FILTERS, ...overrides });
+const idsOf = (groups) => groups.map((g) => g.university.id);
+
+test("광역 지역만 뽑아 필터 선택지를 열 개 안쪽으로 줄인다", () => {
+  assert.equal(broadRegion("경기 용인"), "경기");
+  assert.equal(broadRegion("서울 종로"), "서울");
+  assert.equal(broadRegion(null), null);
+  assert.equal(broadRegion("  "), null);
+});
+
+test("지역·설립형태로 대학을 거른다", () => {
+  const groups = groupByUniversity(filterPayload);
+  assert.deepEqual(idsOf(filterGroups(groups, withFilters({ regions: ["서울"] }))), [
+    "seoul-univ",
+  ]);
+  assert.deepEqual(idsOf(filterGroups(groups, withFilters({ types: ["college"] }))), [
+    "gyeonggi-col",
+  ]);
+});
+
+test("수시·정시와 연기·뮤지컬로 공고를 거른다", () => {
+  const groups = groupByUniversity(filterPayload);
+  assert.deepEqual(idsOf(filterGroups(groups, withFilters({ tracks: ["수시"] }))), [
+    "seoul-univ",
+  ]);
+  assert.deepEqual(
+    idsOf(filterGroups(groups, withFilters({ disciplines: ["musical"] }))),
+    ["gyeonggi-col"],
+  );
+});
+
+// "자유연기 보는 데만" 같은 탐색이 이 화면을 쓰는 이유다.
+test("실기 종목은 하나라도 겹치면 통과한다", () => {
+  const groups = groupByUniversity(filterPayload);
+  assert.deepEqual(
+    idsOf(filterGroups(groups, withFilters({ practicals: ["free_acting"] }))),
+    ["seoul-univ"],
+  );
+  // 여러 개를 고르면 OR — 자유연기나 무용 중 하나만 봐도 남는다.
+  assert.deepEqual(
+    idsOf(filterGroups(groups, withFilters({ practicals: ["free_acting", "dance"] }))),
+    ["seoul-univ", "gyeonggi-col"],
+  );
+  assert.deepEqual(idsOf(filterGroups(groups, withFilters({ practicals: ["improv"] }))), []);
+});
+
+test("수능 최저가 없는 전형만 남긴다", () => {
+  const groups = groupByUniversity(filterPayload);
+  assert.deepEqual(idsOf(filterGroups(groups, withFilters({ noCsatOnly: true }))), [
+    "gyeonggi-col",
+  ]);
+});
+
+// 확인하지 못한 대학이 "필터를 켰다"는 이유로 사라지면, 없는 것과 모르는 것을
+// 구분할 수 없다. 필터를 안 켰을 때는 반드시 남는다.
+test("필터를 안 켜면 공고 없는 대학도 남고, 켜면 빠진다", () => {
+  const empty = {
+    ...filterPayload,
+    universities: [
+      ...filterPayload.universities,
+      { id: "unknown", name: "미확인대", region: "인천 남동", admission_url: "x" },
+    ],
+  };
+  const groups = groupByUniversity(empty);
+  assert.ok(idsOf(filterGroups(groups, EMPTY_FILTERS)).includes("unknown"));
+  assert.ok(!idsOf(filterGroups(groups, withFilters({ tracks: ["수시"] }))).includes("unknown"));
+});
+
+// 결과가 0건만 나오는 칩을 띄우면 사용자가 데이터를 의심하게 된다.
+test("필터 선택지는 데이터에 실제로 있는 값만 낸다", () => {
+  const facets = availableFacets(filterPayload);
+  assert.deepEqual(facets.regions, ["경기", "서울"]);
+  assert.deepEqual(facets.types, ["college", "univ"]);
+  assert.deepEqual(facets.tracks, ["수시", "정시"]);
+  assert.deepEqual(facets.disciplines, ["acting", "musical"]);
+  // 실기 종목은 입력 순서가 아니라 정해진 순서로 — 대학을 추가할 때마다
+  // 칩 순서가 바뀌면 안 된다.
+  assert.deepEqual(facets.practicals, ["free_acting", "song", "dance"]);
+});
+
+test("켜져 있는 필터 개수를 센다", () => {
+  assert.equal(activeFilterCount(EMPTY_FILTERS), 0);
+  assert.equal(
+    activeFilterCount(withFilters({ regions: ["서울", "경기"], openOnly: true })),
+    3,
+  );
+  // 검색어는 입력창에 그대로 보이므로 배지에서 두 번 세지 않는다.
+  assert.equal(activeFilterCount(withFilters({ query: "중앙대" })), 0);
+});
+
+test("반영비율은 값이 있는 항목만 실기부터 순서대로 그린다", () => {
+  assert.deepEqual(weightBars({ practical: 70, transcript: 30, csat: null }), [
+    { key: "practical", label: "실기", value: 70 },
+    { key: "transcript", label: "학생부", value: 30 },
+  ]);
+  // 1단계 성적 미반영(0%)은 막대로 그려도 보이지 않는다.
+  assert.deepEqual(weightBars({ practical: 0 }), []);
+  assert.deepEqual(weightBars(null), []);
 });
 
 // 마감 키("9:")가 미확인 키("8:")보다 커서, reduce 초기값을 미확인으로 두면
