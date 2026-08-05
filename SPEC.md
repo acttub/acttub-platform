@@ -1,306 +1,204 @@
-# SOMA-296 — S3 접근을 access key에서 EC2 인스턴스 role로 전환
+# SPEC — acting-api FastAPI → Spring Boot 전면 이관 (공통 규칙)
 
-- 브랜치: `feat/SOMA-296-s3-instance-role` (worktree `../acttub-s3-role-worktree`)
-- BASE_REF: `83be897`
-- 범위: `apps/api`만. **프론트·API 계약은 바뀌지 않는다.**
-- 개정: Codex 설계 비판 반영(2026-08-04) — D1·D2·D3 변경, 4장에 preflight·키 백업 추가.
+이 문서는 **모든 마일스톤 사이클의 판정 기준**이다. 각 사이클은 이 문서 + `spec/M<n>-*.md`를 함께 읽는다.
+리뷰 지적의 수용/기각, 완료 판정 모두 이 문서를 근거로 한다.
+
+- BASE_REF: `47f8384`
+- 마일스톤: `spec/M0-spike.md` ~ `spec/M6-cleanup.md`
+- 이전 작업 스펙은 `docs/archive/`로 옮겼다.
 
 ## 1. 배경과 목적
 
-키 관리 개선이 아니라 **dev·운영 데이터 경계를 만드는 작업**이다.
+`apps/api`는 FastAPI 기반 uv 파이썬 모노레포다. `acting-api` 게이트웨이가 `acting-summary`·`acting-agent`·`acting-report`를 in-process로 마운트한다. 규모는 소스 10.1k LOC / 테스트 10.1k LOC / 엔드포인트 약 50개(`apps/api/spec/openapi.json` 29 paths · 61 schemas).
 
-지금 dev 서버와 운영 back svc가 **같은 IAM 사용자 키**(`acting-api`)를 쓰고, 그 정책
-`acting-api-s3`(v2)가 `acttub-practice-videos-dev/*`와 `-prod/*`를 **둘 다 허용**한다.
-버킷은 `S3_BUCKET` env로만 갈라져 있어 자격증명에는 경계가 없다 — dev 서버에서 env만
-바꾸면 운영 영상에 닿는다.
+이것을 **Java 21 + Spring Boot 3.4로 전면 이관**한다. LLM 파이프라인까지 포함해 파이썬을 0으로 만들고, 전환 후 백엔드 프로세스는 하나로 유지한다.
 
-코드가 role을 못 쓰는 이유는 두 가지다.
+**성공의 정의는 "엔드포인트가 동작한다"가 아니라 "기존 응답 계약이 재현된다"이다.** `apps/web`이 `spec/openapi.json`으로 타입을 생성하므로(`pnpm --filter web generate:v2-schema`), 필드 하나·nullable 하나가 어긋나면 프론트가 조용히 깨진다.
 
-- `config.py:50` `s3_configured`가 bucket/key/secret/region **넷 다** 요구한다.
-- `storage.py:40` 이 boto3에 키를 명시 전달해 기본 자격증명 체인(→ 인스턴스 role) 탐색이
-  아예 일어나지 않는다.
+## 2. 기술 스택 (확정, 변경 금지)
 
-## 2. 현황 (2026-08-04 실측)
-
-| 대상 | 허용 액션 | 리소스 |
-|---|---|---|
-| IAM 사용자 정책 `acting-api-s3` (v2) | `PutObject`, `GetObject` | dev/* **및** prod/* |
-| 운영 role `acttub-be-prod-ec2-role` → `acttub-video-s3-access` (v3) | `GetObject`, `PutObject`, `AbortMultipartUpload`, `ListMultipartUploadParts` | prod/* |
-| dev role `acttub-dev-ec2-role` | SSM core + `acttub-dev-deploy`(배포 버킷 읽기) | 영상 버킷 권한 **없음** |
-
-- 인스턴스: dev `i-0f101fb852e26d081`, 운영 be `i-08a90c20095d4ecf1`. 둘 다 SSM 접속.
-- **IMDS**(양쪽 동일): `HttpEndpoint=enabled`, `HttpTokens=required`(IMDSv2),
-  `HopLimit=2`. boto3는 IMDSv2를 지원하고 호스트 systemd 프로세스라 hop 2로 충분하다.
-- **버킷**(양쪽 동일): bucket policy **없음**, 기본 암호화 **SSE-S3(AES256)**.
-  KMS key policy가 principal 전환을 막을 여지가 없다.
-- 코드가 쓰는 S3 액션: `put_object`(presign), `get_object`(presign + 워커 다운로드),
-  `head_object`, `delete_object`.
-- **`DeleteObject`·`ListBucket`은 현재 어느 정책에도 없다** → 5장 참고(스코프 밖).
-
-## 3. 설계 결정
-
-### D1. 자격증명은 boto3 기본 체인에만 맡긴다 (코드에 분기 없음)
-
-`storage.py`가 자격증명 인자를 **아예 넘기지 않는다.** `region_name`과 `endpoint_url`
-(리전 엔드포인트 고정)만 전달한다.
-
-키를 명시 전달하는 분기를 두지 않는 이유: boto3 기본 체인의 우선순위가 이미
-**환경변수 > 공유 파일 > IMDS(인스턴스 role)** 이고, `/etc/acttub/api.env`는 systemd
-`EnvironmentFile`로 프로세스 환경에 들어가므로(`acttub-api.service:13`), 키가 있으면
-boto3가 알아서 먼저 집는다. 코드가 같은 우선순위를 다시 구현할 이유가 없다.
-
-부수 효과로 `AWS_SESSION_TOKEN`이 자동 지원된다 — 명시 전달 방식은 이 값을 버려서
-SSO·임시 자격증명으로는 롤백조차 못 한다.
-
-`config.py`의 `aws_access_key_id`/`aws_secret_access_key` 필드는 **client 생성에는 쓰이지
-않고** D4의 반쪽 키 감지 용도로만 남는다.
-
-이 우선순위가 곧 **롤백 경로**다 — api.env에 키를 되돌려 넣고 재시작하면 코드 재배포 없이
-원상 복구된다.
-
-### D2. `S3_BUCKET`이 설정됐는데 자격증명을 못 찾으면 기동 실패
-
-`s3_configured`를 `bucket and region`으로 완화한다. 이름은 그대로 둔다(호출부·테스트가
-이미 쓰고 있고 diff를 좁게 유지한다).
-
-`s3_configured`가 True인데 `session.get_credentials()`가 None이면 **`RuntimeError`로 기동을
-중단한다.**
-
-당초 "뜨고 나서 503" 안을 검토했으나 **botocore 동작이 그것을 불가능하게 한다**:
-`botocore/session.py:986`의 `create_client`가 `credentials = self.get_credentials()` 결과를
-client에 고정한다. 기동 시 None이면 **그 client는 IMDS가 회복돼도 영원히
-`NoCredentialsError`**다. `get_credentials()` 자체는 None을 캐시하지 않지만 client가 붙든다.
-따라서 "다음 요청에서 자동 복구"는 성립하지 않는다.
-
-기동 실패로 두면 `Restart=always` + `RestartSec=3`(`acttub-api.service:19-20`)이 IMDS가
-준비될 때까지 재시도하므로 **부팅 레이스가 systemd 층에서 자동 해소**되고, 잘못된 상태로
-트래픽을 받지 않는다.
-
-로컬 개발은 `S3_BUCKET`을 주지 않으면 지금처럼 S3 비활성으로 뜬다(현행과 동일).
-
-### D3. 기동 로그에 자격증명 소스를 남기고, 런타임 자격증명 실패는 503
-
-- 기동 시 `boto3.Session()` **하나**를 만들어 `get_credentials()`로 판정·로깅하고,
-  **같은 Session으로 S3 client를 만든다.** 로그의 `method`가 실제 presign·download에 쓰이는
-  principal과 일치해야 의미가 있다.
-- 로그에 `method` 값(`iam-role` / `env` / `shared-credentials-file` 등)을 남긴다 — 3단계
-  전환이 실제로 일어났는지 확인하는 **유일한 증거**다.
-- 이 호출은 role 경로에서 **IMDS 네트워크 조회다**(무비용 로컬 조회가 아니다). 실패는 D2에
-  따라 기동 실패로 이어지고 systemd가 재시도한다.
-- 런타임 자격증명 실패 — `NoCredentialsError`뿐 아니라 **`CredentialRetrievalError`·
-  `MetadataRetrievalError`**(refresh 실패 계열)까지 **503 `storage_not_configured`** 전역
-  예외 핸들러로 매핑한다. 라우터 3곳(`uploads.py:65`, `practice_sessions.py:230`,
-  `reports.py:197`)은 손대지 않는다.
-- **`ClientError`는 매핑하지 않는다.** AccessDenied가 503에 묻히면 이번 전환에서 제일 보고
-  싶은 신호가 죽는다 — 권한 오류는 500으로 시끄럽게 터지는 편이 안전하다.
-
-### D4. env 검증 규칙
-
-| 조합 | 동작 |
+| 항목 | 결정 |
 |---|---|
-| `S3_BUCKET` / `AWS_REGION` 중 하나만 | 기동 실패 (region 없이는 presign 엔드포인트를 못 만든다) |
-| key / secret 한쪽만 | 기동 실패 (반쪽 키는 설정 실수) |
-| bucket+region 있고 자격증명 해석 실패 | 기동 실패 (D2) |
-| key·secret 둘 다 | boto3 env provider가 집는다 (로컬 개발·롤백) |
-| key·secret 둘 다 없음 | 기본 체인 → IMDS role (목표 상태) |
-| bucket·region 없이 key만 | 무시하고 S3 비활성 (AWS_REGION은 S3 외 용도로도 놓인다) |
+| 런타임 | Java 21 + Spring Boot 3.4, Spring Web MVC + **virtual threads** (WebFlux 금지) |
+| 빌드 | Gradle (Kotlin DSL) + wrapper, `bootJar` |
+| 영속 | Spring Data JPA + **JdbcTemplate 하이브리드** (§5) |
+| 스키마 | **Flyway가 소유**. Hibernate `ddl-auto: validate` (`create`/`update` 절대 금지) |
+| 스펙 | springdoc-openapi |
+| 인증 | nimbus-jose-jwt + 커스텀 필터. Apple/Google은 `JwtDecoder`(JWKS 캐시) |
+| S3 | AWS SDK v2 `S3Presigner` |
+| 테스트 | JUnit 5 + **Testcontainers(Postgres)** + MockMvc |
+| 디렉토리 | `apps/api-java/` (M6에서 `apps/api`로 rename) |
 
-즉 **bucket+region은 함께 필수, key+secret은 함께 선택.** 에러 메시지도 갈래별로 나눈다.
+## 3. 하지 말 것 (스코프 제한)
 
-### D5. dev role 정책은 현행 액션 세트와 동일하게 (Put/Get만)
+1. **DB 스키마를 바꾸지 않는다.** 마이그레이션 신규 작성 금지. Flyway는 기존 스키마를 baseline으로 받는다.
+2. **API 계약을 바꾸지 않는다.** 유일한 예외는 §4뿐이다.
+3. **스코프 밖 리팩터링 금지.** 원본의 이상해 보이는 구조는 대부분 이유가 있다(§7).
+4. **기존 `apps/api`를 수정하지 않는다.** M5 전환 전까지 무손상 유지가 롤백 경로다.
+5. **성능 최적화를 명목으로 동작을 바꾸지 않는다.** 특히 §7-1.
+6. **`@ManyToOne`/`@OneToMany` 등 JPA 관계 매핑을 만들지 않는다.** 이유는 §5.
 
-```json
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Action": ["s3:PutObject", "s3:GetObject"],
-      "Resource": "arn:aws:s3:::acttub-practice-videos-dev/*"
-    }
-  ]
-}
-```
+## 4. 의도적 breaking change (유일한 예외)
 
-`acttub-dev-ec2-role`에 인라인 정책 `acttub-dev-videos-s3`로 붙인다. **전환 전후 IAM 허용
-액션이 같다**는 것이 이 선택의 이유다. `DeleteObject`·`ListBucket`을 넣어 코드-정책 어긋남을
-고치는 안도 검토했으나, 이 티켓의 목적은 격리이지 버그 수정이 아니므로 5장으로 분리한다.
+**datetime 포맷을 전 엔드포인트 `Z`로 통일한다.**
 
-principal이 IAM user → role로 바뀌는 것 자체의 위험은 2장에서 확인했다(bucket policy 없음,
-SSE-S3라 KMS 무관). 남은 미확인 요소는 조직 SCP뿐이며, 이는 4장의 preflight에서 실제 호출로
-검증한다.
+현행은 갈라져 있다(FastAPI 0.139.0 / pydantic 2.13.4에서 실측):
 
-이 선택의 부수 효과로 dev·운영 액션 세트가 같아져 **운영은 IAM 추가 작업이 없다**
-(`acttub-video-s3-access`가 이미 prod/*에 Get/Put을 준다).
-
-### D6. presign TTL은 손대지 않는다 (알려진 제약)
-
-role의 임시 자격증명으로 서명한 URL은 **그 자격증명이 만료되면 `ExpiresIn`과 무관하게 같이
-죽는다.**
-
-정상 상태에서는 botocore가 만료 15분 전(advisory)에 갱신을 시도하므로 대부분의 서명은 새
-자격증명으로 이뤄지고 URL은 광고된 TTL을 채운다. 문제는 **갱신이 실패할 때**다 — advisory
-구간에서 실패하면 오래된 자격증명으로 서명해 URL이 조기 만료되고, mandatory 구간(만료 10분
-전)에서 실패하면 예외가 전파된다(D3의 503 매핑 대상).
-
-| 발급처 | TTL | 노출도 |
+| 현행 경로 | 출력 | 해당 엔드포인트 |
 |---|---|---|
-| `admin.py:23` 관리자 재생 | 3600초 | 가장 큼 — 광고 TTL과 실제 수명이 어긋날 수 있다 |
-| `uploads.py:13` 업로드 | 30분 | 발급 직후 쓰이므로 실질 영향 작음 |
-| `practice_sessions.py:14` 재생 | 15분 | 사실상 영향 없음 |
+| dict 반환 → `jsonable_encoder` → `isoformat()` | `...789012+00:00` | `/v2/practice-sessions`(목록·상세·상태), `/v2/uploads/intents`, `/v2/consents/*`, `/v2/auth/*` |
+| Pydantic 모델 반환 → `model_dump(mode="json")` | `...789012Z` | `/v2/community/*`, `/v2/me`, `/v2/reports`(목록·상세) |
+| `json.dumps` canonical (멱등 replay) | 시간 필드 없음 | `POST /v2/reports`, `/v2/coach/*` |
 
-TTL을 낮추면 `playback_expires_in_sec` 응답값이 바뀌어 **"계약은 안 바뀐다"는 전제가
-깨지므로** 이번에는 두고, 7장의 관찰 항목으로 남긴다.
+중첩된 모델도 `Z`가 된다. 방증: `test_coach_reports_v2.py:456-457`이 `/v2/reports`에서만 `.replace("Z", "+00:00")`을 한다.
 
-## 4. 실행 순서 (뒤집으면 업로드 503)
+**결정: 전부 `Z` + 마이크로초 6자리.** 프론트는 전부 `new Date()`/`Date.parse()`를 쓰고(`apps/web/src/features/workspace/workspace-app.tsx:1538`, `community/shell.tsx:113`, `practice/practice-flow.tsx:1312`, `practice/terms-gate.tsx:400`) JS 표준 파서가 둘 다 처리하므로 **무영향**이다.
 
-### dev
+Jackson 설정: `WRITE_DATES_AS_TIMESTAMPS=false`, `Instant` 또는 `OffsetDateTime`(**`LocalDateTime` 금지**), 소수 자릿수 **6자리 고정**(기본은 나노초까지 갈 수 있음).
 
-1. **role 권한 부여**
-   ```
-   aws iam put-role-policy --profile acttub \
-     --role-name acttub-dev-ec2-role \
-     --policy-name acttub-dev-videos-s3 \
-     --policy-document file://<정책 JSON>
-   aws iam get-role-policy --profile acttub \
-     --role-name acttub-dev-ec2-role --policy-name acttub-dev-videos-s3
-   ```
-   `get-role-policy`로 적용 결과를 눈으로 확인한다. 이 시점엔 앱 동작이 아무것도 안 바뀐다.
+`openapi.json` 재생성 → 웹 타입 재생성 → 프론트 확인을 해당 사이클 안에서 완결한다.
 
-2. **PR 머지 → dev 자동 배포.** api.env에 키가 남아 있으므로 boto3 env provider가 먼저
-   잡아 **키로 계속 동작**한다(D1). 코드 변경만 먼저 안착시킨다.
+## 5. 영속 계층 규칙
 
-3. **preflight — 키를 지우기 전에 role 경로를 먼저 증명한다.** SSM으로 접속해
-   **서비스와 같은 계정(`User=ubuntu`)·같은 환경**에서, env 키를 무력화한 상태로:
-   - `acttub-practice-videos-dev`에 Get/Put이 **성공**하는지
-   - `acttub-practice-videos-prod`에 접근이 **AccessDenied**인지
-   - 붙은 principal이 `acttub-dev-ec2-role`인지 (`sts get-caller-identity`)
+### 5-1. JPA로 가는 것
 
-   SSM 기본 계정(`ssm-user`)의 CLI 성공은 `ubuntu`로 도는 앱의 체인을 증명하지 않는다.
-   조직 SCP 등 저장소에서 알 수 없는 요인도 여기서 함께 걸러진다.
+조회 쿼리, 단순 CRUD.
 
-4. `/etc/acttub/api.env`에서 `AWS_ACCESS_KEY_ID`·`AWS_SECRET_ACCESS_KEY`를 제거하고
-   `systemctl restart acttub-api`.
+**관계 매핑을 만들지 않는다.** 원본 `models.py`에 `relationship()`이 하나도 없고 전부 FK 컬럼 + 명시적 `join()`이다. UUID 컬럼만 두면 1:1로 대응되며 lazy loading·N+1·`LazyInitializationException`이 구조적으로 발생하지 않는다. 관계 매핑을 추가하는 것은 "개선"이 아니라 새 위험이다.
 
-   **키 사본을 서버에 남기지 않는다.** dev 전환 때 `api.env.soma296-backup`을 같은 서버에
-   만들었다가 지웠다 — 그 키는 **운영 버킷도 허용**하므로, 서버에 파일로 남으면 이 티켓이
-   막으려던 경로가 그대로 열려 있는 셈이다. 백업이 없어도 롤백은 가능하다(아래).
+### 5-2. JdbcTemplate으로 내리는 것 (JPA 표현 불가)
 
-5. **검증** (6장). 브라우저 확인은 사용자가 한다.
+| 패턴 | 위치 |
+|---|---|
+| `UPDATE ... RETURNING <엔티티>` | `store.py:551`, `571`, `1410`, `1474`, `1760` |
+| `INSERT ... ON CONFLICT DO NOTHING RETURNING` | `store.py:257`, `679`, `766`, `1362`; `community_store.py:438`, `736` |
+| `DISTINCT ON` | `store.py:419`, `478` |
+| `FOR SHARE OF <특정 테이블>` | `store.py:1903` (3-테이블 조인 중 `coach_sessions`만 락) |
+| 컬럼식 증감 / 스칼라 서브쿼리 대입 | `community_store.py:423`, `619`, `667` |
+| 상관 서브쿼리로 UPDATE 대상 선택 | `store.py:1466` |
 
-   `/health`는 S3를 보지 않으므로(`app.py:194-206`) 여전히 자동 판정만으로는 부족하다.
-   다만 배포 스크립트의 판정은 이번에 보강했다 — `Type=simple`은 exec 직후 곧바로 active가
-   되어 **기동에 실패해 크래시루프 중인 프로세스도 3초 뒤 `is-active`에는 성공으로 읽힌다.**
-   이번 변경이 "기동 실패"를 새 실패 모드로 도입했으므로, `ssm-deploy.sh`가 자동 재시작
-   카운터(`NRestarts`)를 함께 확인하도록 고쳤다. 그래도 최종 확인은 사람이 한다.
+`@Modifying`은 rowcount만 반환하므로 RETURNING 계열을 대체할 수 없다. `save()`는 SELECT-then-INSERT라 upsert의 동시성 보장을 깨뜨린다 — 원본이 `ON CONFLICT`를 쓰는 이유가 정확히 그것이다.
 
-### 운영 (dev 검증 통과 + 사용자 확인 후에만)
+### 5-3. 엔티티 매핑 함정
 
-IAM 추가 작업 없음(D5). 같은 순서로 2→3→4→5. **운영 배포는 수동이므로 반드시 먼저 묻는다.**
-운영 재시작은 진행 중인 분석 작업을 끊을 수 있으므로(7장) 한산한 시간대를 고른다.
+1. **네이티브 Postgres enum 17종.** `values_callable` 때문에 DB 저장값이 Python enum의 `.value`(소문자)다. `@Enumerated(EnumType.STRING)`은 varchar 바인딩이라 PG가 `operator does not exist`로 거부한다. **`IntentImpact`는 값이 한글**(`"반전"`/`"약화"`/`"국소"`, `models.py:48-52`). → **`AttributeConverter` 17개 필수, `@Enumerated` 금지.**
+2. **UUID PK 15개 테이블 전부 앱에서 `uuid4()` 생성.** Spring Data `save()`는 `@Id`가 non-null이면 `merge()`를 호출해 불필요한 SELECT가 붙는다. → `Persistable<UUID>` 구현 또는 `em.persist()` 직접. 예외: `CoachSession.id`는 `server_default`가 없고 agent 모듈의 문자열 파싱에서 온다(`store.py:1068`).
+3. **`server_default` vs `default` 이원화.** JPA에는 "앱 측 default" 개념이 없다. 필드 초기화값을 주면 항상 INSERT에 실려 `server_default`가 발동하지 않는다. 컬럼별로 판정한다. `focus_timestamp`(`models.py:452`)·`comparison`(`483`)의 `''` 기본값은 null로 두면 NOT NULL 위반.
+4. **JSONB 4개** — `summaries.observation`/`.raw`, `reports.biggest_problem`(NOT NULL), `external_operations.response_payload`(NULL 허용). **JSON null(`'null'::jsonb`)과 SQL NULL을 구분**한다. 현재 코드는 SQL NULL을 의도한다(`store.py:1436`, `1743`, `1786`, `1816`).
+5. **BIGSERIAL PK 2개** — `Anomaly.id`, `CoachTurn.id`. `IDENTITY` 전략은 JDBC 배치 INSERT를 막는다.
+6. **부분 인덱스 3개**(`models.py:802`, `832`, `839`)와 CHECK 제약(`765`)은 Hibernate가 만들 수도 검증할 수도 없다. Flyway가 DDL을 소유해야 하는 결정적 이유다.
+7. **`CommunityReport.target_id`는 의도적으로 FK가 없다**(글/댓글 양쪽을 가리킴, `models.py:717` 주석).
 
-### 롤백
+### 5-4. 트랜잭션 경계
 
-**저장해 둔 secret이 없어도 된다.** IAM 사용자 `acting-api`와 그 정책은 그대로 살아 있고
-키 슬롯이 하나 비어 있으므로, 필요할 때 새로 발급하면 된다.
+1. **외부 호출(S3·Gemini)을 트랜잭션 안에 넣지 않는다.** `claim → (수십 초) → complete` 흐름(`analysis_worker.py:92-135`)에서 커넥션이 점유된다. `claim`/`complete`/`fail`/`release`를 각각 별도 트랜잭션 메서드로 분리한다.
+2. **내부 헬퍼에 `@Transactional`을 붙이지 않는다.** `_finish_external_operation`(`store.py:1807`), `_save_coach_session`(`1084`), `_load_session`(`1882`), `_add_summary`(`1836`), `_add_report`(`1176`) 등은 호출자 트랜잭션에 참여하는 것이 의도다. self-invocation 함정과 겹친다.
+3. **`@Modifying`에는 `clearAutomatically=true, flushAutomatically=true`.** 벌크 UPDATE는 1차 캐시를 우회하므로 이후 같은 트랜잭션에서 엔티티를 계속 쓰는 코드(`store.py:1711`)가 stale해진다.
+4. 원본은 `expire_on_commit=False`가 전제라 store 메서드가 **detached 엔티티**를 반환한다. 대응 시 detach 시점을 맞춘다.
 
-```
-aws iam create-access-key --user-name acting-api --profile acttub
-```
+## 6. 계약 보존 체크리스트
 
-발급한 두 값을 `/etc/acttub/api.env`에 넣고 재시작하면 boto3 env provider가 role보다
-우선하므로 즉시 되돌아간다. 코드 재배포는 불필요하다(D1). 상황이 끝나면 그 임시 키를
-반드시 삭제한다.
+매 사이클의 리뷰·완료 판정에 그대로 쓴다.
 
-**다만 롤백 상태는 정상 완료가 아니라 incident 상태다** — 공유 IAM 사용자 정책이 두 버킷을
-모두 허용하므로 이 티켓의 목적인 데이터 경계가 그대로 사라진다. 롤백했다면 원인을 규명하고
-재전환할 때까지 열린 항목으로 추적한다.
+| # | 항목 | 조치 |
+|---|---|---|
+| 1 | 오류 포맷 `{"detail": <str>}` | Spring 기본 `ProblemDetail`을 **반드시** 오버라이드. 422 validation만 `detail`이 **배열** |
+| 2 | Pydantic `extra="forbid"` | `FAIL_ON_UNKNOWN_PROPERTIES=true` + Bean Validation |
+| 3 | null 필드 **포함** | `@JsonInclude(NON_NULL)` **전역 사용 금지** (§6-1) |
+| 4 | datetime | 전 엔드포인트 `Z` + 마이크로초 6자리 (§4) |
+| 5 | enum 표기 | `AttributeConverter` 17개. **`@Enumerated` 금지** |
+| 6 | refresh 회전 | 소진 토큰 재사용 시 **해당 유저 전 세션 무효화** (의도된 동작) |
+| 7 | 404 | "없음"과 "남의 리소스"를 구분하지 않는다 (존재 노출 방지) |
+| 8 | S3 presign | **리전 엔드포인트 고정**. 글로벌 엔드포인트는 신규 버킷에 307 |
+| 9 | ffmpeg | 동시 실행 1개 락, 600초 타임아웃, 실패·부재 시 원본 폴백 |
+| 10 | 제약명 문자열 의존 | `summaries_session_id_key` 중복 판정(`store.py:1300-1308`)을 `PSQLException.getServerErrorMessage().getConstraint()`로 재현 |
+| 11 | 테이블 락 획득 순서 | `upload_intents`→`external_operations`, `practice_sessions`→`reports`. 바꾸면 데드락 |
+| 12 | canonical JSON | 멱등 replay는 키 정렬 + 공백 없음 + 한글 raw UTF-8 (`sync_operations.py:147-155`) |
+| 13 | `X-Request-Id` 응답 헤더 | 바디만 맞추면 놓친다 (`sync_operations.py:28`, `practice_sessions.py:95`) |
+| 14 | v1 경로 404 | `/summarize`, `/coach/start`, `/coach/reply`, `/report`, `/report/history/{id}` 5개 |
+| 15 | 숫자 파싱 | `size_bytes: 12.0`(정수형 float) → **201**, `12.5` → **422** |
+| 16 | 커뮤니티 읽기 공개 | 스펙엔 `security`가 붙어 있지만 실제로는 `optional_user` — **토큰 없이 200** |
 
-## 5. 하지 말 것 (스코프 밖)
+### 6-1. nullable — "null로 보낼 것"과 "키를 생략할 것"이 다르다
 
-- **`acting-api` IAM 사용자 키의 Inactive 전환·삭제** — 며칠 관찰 후 별도로 처리한다.
-  secret은 복구 불가.
-- **`DeleteObject` 권한 누락 버그** — `analysis_worker.sweep`(`analysis_worker.py:156-164`)이
-  만료 업로드 객체를 지우려다 실패하고 예외를 warning으로 삼킨다. 현재 dev·운영 모두 조용히
-  실패 중. 별도 티켓.
-- **`ListBucket` 누락으로 없는 객체 head가 403→500** — `uploads.py:132`의 409
-  `upload_not_found` 경로가 사실상 도달 불가. **role 전환이 만드는 회귀가 아니라 현행 동작**이다.
-  별도 티켓.
-- **`/health`에 S3 상태를 넣는 것** — S3 장애 시 ALB가 멀쩡한 인스턴스를 죽여 장애를 키운다.
-  배포 판정은 5장처럼 사람이 확인한다.
-- **로컬 개발자 자격증명 대책** — 로컬 `.env`가 같은 공유 키를 쓴다면 나중에 Inactive되는
-  순간 로컬 업로드가 깨진다. 개인 키나 SSO 전환은 별도. (D1 덕분에 SSO 임시 자격증명이
-  `AWS_SESSION_TOKEN`과 함께 동작하긴 한다.)
-- admin presign TTL 조정(D6).
-- 스코프 밖 리팩터링 일체.
+`openapi.json`에 `anyOf [T, null]`이 86곳, `default`는 0개다. Pydantic에서 `X | None`을 기본값 없이 쓰면 **required가 된다.**
 
-## 6. 완료 기준 체크리스트
+| 동작 | 대상 |
+|---|---|
+| **required + `null` 값을 실어 보냄** | `AuthUser.email`, `MeResponse.email/.nickname`, `CoachTurnResponse.reason`, `PostListResponse.next_cursor`, `CommentListResponse.next_cursor`, `AuthorPayload.id/.nickname/.alias`, `CategoryPayload.description`, `BlockPayload.nickname` |
+| **optional + 조건부로 키를 추가** | `PracticeSessionDetail.summary`(analyzed일 때만), `.error_code`(failed일 때만) — `practice_sessions.py:248-256` |
+| **optional인데 항상 포함** | `PracticeSessionStatusResponse.error_code` — `practice_sessions.py:213-216` |
 
-### 코드
+같은 이름의 필드가 엔드포인트마다 다르게 동작한다. DTO를 분리하거나 직렬화를 수동 제어한다.
 
-- [ ] `storage.py` — boto3에 자격증명 인자를 **넘기지 않는다**. `region_name`·`endpoint_url`만. 환경 분기 `if` 없음
-- [ ] `config.py` — `s3_configured`가 bucket+region만 요구. D4 검증 규칙
-- [ ] `app.py` — `boto3.Session()` 하나로 판정·로깅·client 생성. `s3_configured`인데 자격증명 없으면 `RuntimeError`
-- [ ] 기동 로그에 credential `method` 기록
-- [ ] `NoCredentialsError`·`CredentialRetrievalError`·`MetadataRetrievalError` → 503 전역 핸들러. `ClientError`는 미매핑
+### 6-2. 오류 계약은 `openapi.json`에 없다
 
-### 테스트 (`uv run --package acting-api pytest`)
+스펙의 상태코드는 `200/201/202/204/422`뿐이다. **401·403·404·409·413·415·429·503이 전무**하고 422는 FastAPI 자동 생성 `HTTPValidationError`뿐이다. 실제 소스에는 40종의 `(status, detail)` 쌍이 있다.
 
-- [ ] bucket+region만 → `s3_configured is True`
-- [ ] key 한쪽만 → RuntimeError
-- [ ] bucket만 / region만 → RuntimeError
-- [ ] bucket+region 있는데 자격증명 해석 실패 → 기동 RuntimeError
-- [ ] `boto3.client` 호출 인자에 `aws_access_key_id`/`aws_secret_access_key`가 **없다** (monkeypatch)
-- [ ] 판정에 쓴 Session과 client를 만든 Session이 동일하다
-- [ ] `NoCredentialsError` / refresh 실패 계열 → 503 응답
-- [ ] 기존 385개 전부 통과 (기준선: 330 passed, 55 skipped)
+불규칙에 주의한다 — 대부분 snake_case(`upload_not_found`)인데 일부는 공백 포함 문장이다: `invalid or missing access token`, `session not found`, `summary not found`, `rate limit exceeded`, `request is still processing`, `session is still open`, `session changed concurrently`, `request retry exhausted`.
 
-### 문서
+M1이 이 표를 소스에서 추출해 fixture로 만든다. 이후 사이클은 그것을 기준으로 한다.
 
-- [ ] `apps/api/API.md:334` — S3 4종 all-or-none 서술 갱신
-- [ ] `apps/api/CLAUDE.md:22` — 동일
-- [ ] `apps/api/acting-api/README.md:11` — 로컬 실행 예시
-- [ ] `docs/DEPLOY-VPC.md:137-138` — api.env 예시에서 키 제거 / `438-442` "아직 남은 것" 항목 해소
-- [ ] `docs/DEPLOY-DEV.md:199` — 환경변수 표
-- [ ] `deploy/bootstrap-dev.sh:91-98` — 새 서버 api.env 뼈대에서 키 자리 제거
-- [ ] `TODO.md` — 키 Inactive 관찰 후 삭제 + 5장의 별도 티켓 2건 기록
+## 7. 보존 규칙 — 되돌리면 안 되는 결정
 
-### dev 검증
+1. **좋아요 카운트는 재집계다** (`community_store.py:416-431`). 증감 방식이 "두 번 눌리면 2 증가"하던 버그 때문에 의도적으로 선택됐다(주석 418-422). 성능 명목으로 증감으로 되돌리면 버그가 부활한다.
+2. **댓글 수 증감은 원자적이어야 한다** (`community_store.py:619`, `667`). `post.setCommentCount(get()+1)`로 옮기면 lost update가 새로 생긴다. 벌크 UPDATE로 분리한다.
+3. **`_report_count_query`의 FROM 앵커** (`store.py:1310-1327`). 주석에 함정이 기록돼 있다 — 앵커를 명시하지 않으면 `practice_sessions`가 FROM에 두 번 들어가 Postgres가 거부한다.
+4. **`SKIP LOCKED`는 현재 0건이다.** 경합 시 블로킹 대기 → 조건 재평가 실패 → 폴링 재시도 구조다. 정확하지만 처리량이 낮다. **원본 동작을 우선 재현한다.** 개선은 M2에서 별도 판단한다.
 
-- [ ] **preflight**(4장 3단계) — `ubuntu` 계정에서 role principal 확인 + dev 버킷 Get/Put 성공 + **prod 버킷 AccessDenied**
-- [ ] 재시작 후 `journalctl -u acttub-api`에 `method=iam-role`
-- [ ] 업로드 → complete → 재생 (브라우저, 사용자 확인)
-- [ ] 분석 워커 완주 (GetObject 다운로드 경로)
+### 7-1. 이식 위험 상위 5개
 
-### 운영 (사용자 확인 후)
+| 순위 | 함수 | 위험 |
+|---|---|---|
+| 1 | `complete_report_operation` (`store.py:1580-1643`) | 수동 세션 + `with db.begin()` + **커밋 예외를 트랜잭션 밖에서 캐치**. Spring 프록시 모델과 구조적 충돌 |
+| 2 | `create_practice_session_with_analysis_operation` (`store.py:620-721`) | 100줄/7분기. **충돌 시 방금 만든 세션을 delete하는 보상 로직**(697-714). 유사 구조가 `create_analysis_retry_operation`(723)에 복제 |
+| 3 | `_save_coach_session` + `_load_session` (`1084`, `1882`) | `FOR SHARE OF` + 턴 전량 값 비교 낙관적 락(`@Version` 대체 불가) |
+| 4 | `claim_next_external_operation` (`1442-1494`) | 분석 파이프라인의 심장. `UPDATE ... WHERE id=(SELECT ... LIMIT 1) ... RETURNING` |
+| 5 | `_ensure_alias` (`community_store.py:501-543`) | SAVEPOINT 재시도. `JpaTransactionManager`는 `PROPAGATION_NESTED` 미지원 → **이식이 아니라 재작성** |
 
-- [ ] 수동 배포 → preflight → 키 백업 후 제거 → 재시작 → 같은 검증
+## 8. 검증
 
-## 7. 미결·관찰 항목
+### 8-1. 매 사이클 공통
 
-- **자격증명 refresh를 한 번 넘긴 뒤의 동작** — 기존 테스트는 fake client를 주입해 IMDS·
-  refresh를 전부 우회한다. cutover 다음 날 업로드·재생·워커를 한 번 더 확인한다.
-- **admin URL의 실제 수명** — `playback_expires_in_sec=3600`이 광고값과 어긋나는지(D6).
-  어긋나는 게 확인되면 TTL 하향을 별도 티켓으로 연다(계약 변경이므로).
-- **재시작과 진행 중 분석 작업** — 워커 종료가 실행 중인 다운로드·분석을 취소하지 않고
-  `join()`하므로(`analysis_worker.py:117-150`), systemd가 강제 종료하면 lease가 남아 최대
-  lease 만료까지 재분석이 지연될 수 있다. 운영은 한산한 시간대에 한다.
-- 운영 `acttub-video-s3-access`의 `AbortMultipartUpload`·`ListMultipartUploadParts`는 코드가
-  멀티파트를 쓰지 않아 불필요하다. 제거는 하지 않는다(무해, diff 축소 우선).
-- dev 버킷 객체 2개 / 운영 103개. 이 중 만료 intent 잔여물이 얼마인지는 5장의 별도 티켓에서
-  다룬다.
-- **admin URL의 `expires_at` 계약** — `uploads.py:84`가 `now + 30분`을 DB에 저장해 응답하고
-  admin은 `playback_expires_in_sec=3600`을 광고한다. 임시 자격증명이 그보다 먼저 만료되면
-  클라이언트가 유효하다고 믿는 동안 S3가 거절한다(D6의 알려진 제약이 계약 층까지 번진
-  형태). 관찰해서 실제로 어긋나면 TTL 하향을 별도 티켓으로 연다.
+- Testcontainers(Postgres) 통합 테스트 통과
+- M1 이후: 계약 동등성 하네스 통과
+- `openapi.json` diff 0 (§4 항목 제외)
 
-- **기각한 지적**:
-  - "기본 체인이라 `~/.aws/credentials`가 우선해 경계가 안 생긴다" — 두 EC2에 공유 자격증명
-    파일이 없고, 있더라도 D3의 `method` 로그와 4장 preflight에서 즉시 드러난다.
-  - "fail-closed를 feature flag로 분리해 canary하고, blue/green + 자동 rollback을 갖춰라" —
-    dev·운영 모두 단일 인스턴스 구조라 blue/green이 성립하지 않는다. 이 티켓에서 감당할
-    범위를 크게 넘고, 실질 방어는 4장 3단계 preflight(키를 지우기 **전에** role 경로를 증명)와
-    보강한 배포 판정(`NRestarts`)이 담당한다.
-  - "기동 시 expected credential method와 role ARN을 코드에서 강제하라" — 환경별 분기를 코드에
-    되살리는 안이라 D1의 전제와 정면으로 어긋난다. principal 검증은 코드가 아니라 롤아웃
-    절차(preflight)의 몫으로 남긴다.
+### 8-2. 왜 통합 테스트가 필수인가
+
+기존 `pytest` 8,009 LOC 중 실제 DB를 치는 건 1,618 LOC뿐이고 나머지는 인메모리 fake다. `apps/api/CLAUDE.md`가 명시한다 — **"가짜 Session은 statement를 저장만 하고 실행하지 않는다. Postgres가 SQL 자체를 거부하는 종류의 회귀는 통합 테스트에서만 잡힌다."** `_report_count_query`가 실제 사례다.
+
+**Java 쪽 Testcontainers 테스트를 이식보다 먼저 세운다.** 그리고 `FakePlatformStore` 같은 인메모리 미러를 Java에서 다시 만들지 않는다 — 원본 fake는 `PostgresStore` 시맨틱을 손으로 미러링한 것이라 두 번 틀릴 수 있다.
+
+### 8-3. Java가 더 엄격해져 생기는 diff
+
+원본 라우터는 `response_model=`을 쓰지 않고 `responses={200: {"model": X}}`만 쓴다(문서용, 런타임 필터링 없음). Spring은 DTO 반환 시 스키마가 강제되므로 **Java 쪽이 더 엄격해진다.** Python이 흘리던 여분 필드가 사라져 diff가 나면 Python 버그일 가능성이 높다 → **"수정"이 아니라 "확인 후 수용"으로 처리하고 기록한다.**
+
+## 9. 참조
+
+- 계약의 소스: `apps/api/spec/openapi.json`
+- **`apps/api/API.md`는 드리프트했다 — 신뢰하지 않는다.** `GET /v2/reports` 응답 형상이 실제와 다르고 `/v2/me`·`/v2/community/*`·`/v2/admissions*`는 누락
+- 응답 형상표: `apps/api/acting-api/tests/test_response_contracts.py:37-272`
+- 전 플로우 시나리오: 같은 파일 `:440-698`
+- 멱등 전이표: `apps/api/acting-api/tests/test_platform_v2.py:340-381`
+- 프로젝트 규약: `CLAUDE.md`, `apps/api/CLAUDE.md`
+
+## 10. 미결 사항
+
+| 시점 | 결정할 것 |
+|---|---|
+| M0 | Gemini Java SDK가 Files API 업로드·`PROCESSING` 폴링·`responseSchema`를 지원하는가. 미흡하면 `RestClient`로 REST 직접 호출 |
+| M0 | 위험 함수 #1의 트랜잭션 관리 스타일 — 선언적 `@Transactional` vs `TransactionTemplate` |
+| M2 | 시계 소스 통일 — DB `now()` vs 앱 `Instant.now()`. 현재 혼재하며 리스 만료 비교(`store.py:1423`, `1462`, `1777`)에 영향 |
+| M2 | `SKIP LOCKED` 도입 여부 (기본 방침: 원본 동작 우선) |
+| M5 | dev 인스턴스 업그레이드 (t2.micro 1GB → t3.small 이상. JVM 도입으로 사실상 필수) |
+
+## 11. 진행 방식
+
+각 마일스톤이 `custom-codex-build` 1사이클이다.
+
+Phase 1(SPEC 확정) → 2(Codex 설계 비판) → **3(이중 구현 + 대조)** → 4(실행 검증) → 5(Claude 리뷰 루프) → 6(Codex 최종 관문) → 7(마무리 커밋)
+
+**Phase 3은 이중 구현이다.** 같은 SPEC으로 Codex(worktree A)와 Claude 서브에이전트(worktree B)가 독립 병렬 작업하고, SPEC 기준으로 대조해 차이 목록을 만든 뒤, 베이스를 정하고 상대 구현의 우월한 부분을 이식해 단일 구현을 확정한다. M1 이후에는 하네스 통과율이 객관 지표가 된다.
+
+사용자 개입은 2회 — 전체 SPEC 묶음 승인(지금), M5 운영 전환 직전. 그 사이 사이클은 자동 연쇄한다.
