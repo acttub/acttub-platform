@@ -15,7 +15,7 @@
 - Gradle Kotlin DSL + **wrapper**(로컬에 Gradle CLI가 없다), Spring Boot 3.4, Java 21
 - **virtual threads 활성화** (`spring.threads.virtual.enabled=true`)
 - 의존성: `spring-boot-starter-web`, `-data-jpa`, `-validation`, `flyway-core`, `flyway-database-postgresql`, `postgresql`, `springdoc-openapi-starter-webmvc-ui`, `nimbus-jose-jwt`, AWS SDK v2 `s3`, 테스트에 `spring-boot-starter-test` + `testcontainers-postgresql`
-- Jackson 설정을 **이 단계에서 못 박는다**: `WRITE_DATES_AS_TIMESTAMPS=false`, `FAIL_ON_UNKNOWN_PROPERTIES=true`, `@JsonInclude(NON_NULL)` 미사용, datetime `Z` + 마이크로초 6자리 (`/SPEC.md` §4)
+- Jackson 설정을 **이 단계에서 못 박는다**: `WRITE_DATES_AS_TIMESTAMPS=false`, datetime `Z` + 마이크로초 6자리(`/SPEC.md` §4), `@JsonInclude(NON_NULL)` 미사용. **`fail-on-unknown-properties`는 설정하지 않는다** — Spring Boot 기본값(`false`)이 Pydantic 기본값과 일치한다(`/SPEC.md` §6-3)
 - `bootJar`가 실행 가능한 단일 jar를 만든다
 
 ### B. `/health` 엔드포인트

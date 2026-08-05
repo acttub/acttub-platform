@@ -27,7 +27,8 @@
 | 스펙 | springdoc-openapi |
 | 인증 | nimbus-jose-jwt + 커스텀 필터. Apple/Google은 `JwtDecoder`(JWKS 캐시) |
 | S3 | AWS SDK v2 `S3Presigner` |
-| 테스트 | JUnit 5 + **Testcontainers(Postgres)** + MockMvc |
+| DB 버전 | **운영 RDS는 Postgres 18.4** (`db.t4g.micro`, 2026-08-06 실측). 컨테이너 이미지도 **18**로 맞춘다 — PG18은 NOT NULL을 `pg_constraint`로 물질화하는 등 카탈로그가 달라 16에서 통과한 스키마 검증이 운영을 보증하지 않는다 |
+| 테스트 | JUnit 5 + Testcontainers(Postgres **18**) + MockMvc. **버전을 BOM에 맡기지 않고 고정**하고, 외부 DB 폴백 경로를 둔다 (§8-4) |
 | 디렉토리 | `apps/api-java/` (M6에서 `apps/api`로 rename) |
 
 ## 3. 하지 말 것 (스코프 제한)
@@ -82,7 +83,9 @@ Jackson 설정: `WRITE_DATES_AS_TIMESTAMPS=false`, `Instant` 또는 `OffsetDateT
 
 ### 5-3. 엔티티 매핑 함정
 
-1. **네이티브 Postgres enum 17종.** `values_callable` 때문에 DB 저장값이 Python enum의 `.value`(소문자)다. `@Enumerated(EnumType.STRING)`은 varchar 바인딩이라 PG가 `operator does not exist`로 거부한다. **`IntentImpact`는 값이 한글**(`"반전"`/`"약화"`/`"국소"`, `models.py:48-52`). → **`AttributeConverter` 17개 필수, `@Enumerated` 금지.**
+1. **네이티브 Postgres enum 17종.** `values_callable` 때문에 DB 저장값이 Python enum의 `.value`(소문자)다. `@Enumerated(EnumType.STRING)`은 varchar 바인딩이라 PG가 `operator does not exist`로 거부한다. **`IntentImpact`는 값이 한글**(`"반전"`/`"약화"`/`"국소"`, `models.py:48-52`). → **`@Enumerated` 금지.**
+
+   **매핑 방법 (M0에서 실증)**: `@JdbcTypeCode(SqlTypes.NAMED_ENUM)`과 `AttributeConverter`는 **공존할 수 없다.** 둘을 같이 걸면 EntityManagerFactory 생성이 `Cannot read the array length because "values" is null`로 죽는다. → **커스텀 `JdbcType`**(`setObject(..., Types.OTHER)`)으로 값을 바인딩한다. M0의 `PgEnum`/`PgEnumJdbcType`/`PgEnumConverter`가 그 구현이다.
 2. **UUID PK 18개** (PK 20개 − BIGSERIAL 2개). 그중 **17개가 앱에서 `uuid4()` 생성**이고, `CoachSession.id` 1개만 외부(agent 모듈의 문자열 파싱, `store.py:1068`)에서 온다. Spring Data `save()`는 `@Id`가 non-null이면 `merge()`를 호출해 불필요한 SELECT가 붙는다. → 17개 전부 `Persistable<UUID>` 구현 또는 `em.persist()` 직접, 그리고 **INSERT 전 SELECT가 없음을 17개 모두에 대해 검증**한다.
 3. **`server_default` vs `default` 이원화.** JPA에는 "앱 측 default" 개념이 없다. 필드 초기화값을 주면 항상 INSERT에 실려 `server_default`가 발동하지 않는다. 컬럼별로 판정한다. `focus_timestamp`(`models.py:452`)·`comparison`(`483`)의 `''` 기본값은 null로 두면 NOT NULL 위반.
 4. **JSONB 4개** — `summaries.observation`/`.raw`, `reports.biggest_problem`(NOT NULL), `external_operations.response_payload`(NULL 허용). **JSON null(`'null'::jsonb`)과 SQL NULL을 구분**한다. 현재 코드는 SQL NULL을 의도한다(`store.py:1436`, `1743`, `1786`, `1816`).
@@ -114,6 +117,29 @@ Jackson 설정: `WRITE_DATES_AS_TIMESTAMPS=false`, `Instant` 또는 `OffsetDateT
 
 **환경변수 이름은 유지하고**(M5의 배포 문서·양쪽 서버 api.env를 건드리지 않기 위해), URI를 JDBC URL·username·password로 변환하는 설정 클래스를 둔다. **실제 배포 형식의 URL로 부팅하는 테스트**를 포함한다 — 없으면 dev·운영이 동시에 기동 실패한다.
 
+### 5-8. 네이티브 SQL 작성 규칙 (M0에서 실증됨)
+
+M0의 트랜잭션 프로토타입을 실제 Postgres에 돌려 확인한 두 가지다. **네이티브 SQL을 쓰는 모든 곳에 적용된다** — M3의 `UPDATE ... RETURNING` 5건, `ON CONFLICT` 6건이 전부 해당한다.
+
+**① enum 컬럼에는 명시 캐스팅이 필요하다.**
+
+```sql
+-- 실패: operation_status_t = character varying 비교를 Postgres가 거부한다
+WHERE status = 'running'
+-- 통과
+WHERE status = 'running'::operation_status_t
+```
+
+`@Enumerated` 금지(§5-3-1)는 JPA 얘기였지만, **JdbcTemplate의 SQL 리터럴에서도 같은 함정이 발현한다.** enum 컬럼을 읽을 때는 `kind::text`처럼 반대 방향 캐스팅을 쓴다.
+
+**② `Instant`는 JDBC 파라미터로 바인딩할 수 없다.**
+
+```
+PSQLException: Can't infer the SQL type to use for an instance of java.time.Instant.
+```
+
+`timestamptz` 컬럼에는 **`OffsetDateTime`**을 넘긴다(`instant.atOffset(ZoneOffset.UTC)`). Jackson 직렬화에서는 `Instant`가 문제없지만 pgjdbc 바인딩에서는 실패한다 — 두 층을 구분한다.
+
 ### 5-7. external_operations lease 상태 전이 — 고정 계약
 
 Python 구현의 의미를 그대로 옮긴다. 하나라도 다르면 재분석 횟수와 최종 `error_code`가 달라진다.
@@ -137,7 +163,7 @@ Python 구현의 의미를 그대로 옮긴다. 하나라도 다르면 재분석
 | 1 | 오류 포맷 `{"detail": <str>}` | Spring 기본 `ProblemDetail`을 **반드시** 오버라이드. 422 validation만 `detail`이 **배열** |
 | 2 | unknown key 정책 | **DTO별로 옮긴다. 전역 `FAIL_ON_UNKNOWN_PROPERTIES=true` 금지** (§6-3) |
 | 3 | null 필드 **포함** | `@JsonInclude(NON_NULL)` **전역 사용 금지** (§6-1) |
-| 4 | datetime | 전 엔드포인트 `Z` + 마이크로초 6자리 (§4) |
+| 4 | datetime | 전 엔드포인트 `Z` + 마이크로초 6자리 (§4). **JDBC 바인딩은 `OffsetDateTime`** (§5-8) |
 | 5 | enum 표기 | `AttributeConverter` 17개. **`@Enumerated` 금지** |
 | 6 | refresh 회전 | 소진 토큰 재사용 시 **해당 유저 전 세션 무효화** (의도된 동작) |
 | 7 | 404 | "없음"과 "남의 리소스"를 구분하지 않는다 (존재 노출 방지) |
@@ -185,7 +211,18 @@ POST /v2/practice-sessions   POST /v2/uploads/intents
 
 나머지 9개는 `additionalProperties: false`다.
 
-**전역 `FAIL_ON_UNKNOWN_PROPERTIES=true`를 켜면 위 7개가 422로 바뀐다.** 모바일·구버전 웹이 필드를 하나만 더 보내도 Java 전환 후에만 실패한다. DTO별로 Python의 `extra` 정책을 옮기고, **각 요청에 unknown-field 회귀 테스트**를 둔다.
+**전역 `fail-on-unknown-properties: true` + 허용할 7개에 `@JsonIgnoreProperties(ignoreUnknown = true)`.**
+
+```java
+@JsonIgnoreProperties(ignoreUnknown = true)
+record LoginRequest(...) {}      // 위 7개에만
+```
+
+**반대 방향(전역 허용 + DTO별 거부)은 Jackson이 표현하지 못한다** — M0에서 실제로 시도해 실패했다. `ignoreUnknown = false`는 "거부하라"가 아니라 **"전역 설정을 따르라"**는 뜻이라 기본값과 다를 바 없고, 예외가 나지 않는다.
+
+Spring Boot 기본값은 `false`(무시)이고 Pydantic 기본값과 같지만, **그 기본을 쓰면 거부해야 할 9개를 닫을 수단이 없다.** 그래서 전역을 뒤집고 7개를 여는 쪽이 유일한 구현이다.
+
+애노테이션이 붙는 7개는 Python에서 `extra`를 명시하지 않은 7개와 정확히 같은 집합이어야 한다. M1이 **요청 16개 전부에 unknown-field 회귀 테스트**를 둔다.
 
 응답 쪽은 반대다 — `SceneSummary` 하나를 빼면 전부 닫혀 있다(§8-3).
 
@@ -219,6 +256,30 @@ POST /v2/practice-sessions   POST /v2/uploads/intents
 기존 `pytest` 8,009 LOC 중 실제 DB를 치는 건 1,618 LOC뿐이고 나머지는 인메모리 fake다. `apps/api/CLAUDE.md`가 명시한다 — **"가짜 Session은 statement를 저장만 하고 실행하지 않는다. Postgres가 SQL 자체를 거부하는 종류의 회귀는 통합 테스트에서만 잡힌다."** `_report_count_query`가 실제 사례다.
 
 **Java 쪽 Testcontainers 테스트를 이식보다 먼저 세운다.** 그리고 `FakePlatformStore` 같은 인메모리 미러를 Java에서 다시 만들지 않는다 — 원본 fake는 `PostgresStore` 시맨틱을 손으로 미러링한 것이라 두 번 틀릴 수 있다.
+
+### 8-4. Testcontainers ↔ 최신 Docker Engine — 반드시 필요한 설정 (M0 실측)
+
+개발 머신의 Docker Desktop 4.78.0 / **Engine 29.5.3 / API 1.54**에서, Testcontainers는 기본 상태로 `/info`에 Status 400을 받고 `Could not find a valid Docker environment`로 실패한다. 소켓 접근 자체는 되므로(`curl --unix-socket` 성공) 권한이 아니라 **API 버전 협상 실패**다.
+
+**`DOCKER_API_VERSION` 환경변수만으로는 풀리지 않는다.** docker-java는 시스템 프로퍼티 `api.version`을 함께 본다. Gradle `Test` 태스크에 셋 다 준다:
+
+```kotlin
+tasks.withType<Test>().configureEach {
+    if (System.getenv("DOCKER_API_VERSION") == null) {
+        environment("DOCKER_API_VERSION", "1.41")
+        systemProperty("api.version", "1.41")          // 이게 빠지면 실패한다
+    }
+    val socket = File(System.getProperty("user.home"), ".docker/run/docker.sock")
+    if (System.getenv("DOCKER_HOST") == null && socket.exists()) {
+        environment("DOCKER_HOST", "unix://${socket.absolutePath}")
+        environment("TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE", "/var/run/docker.sock")
+    }
+}
+```
+
+Testcontainers 버전은 BOM에 맡기지 않고 고정한다(`extra["testcontainers.version"]`). 이미지는 운영과 같은 **`postgres:18-alpine`**.
+
+CI는 러너의 Docker 버전이 달라 동작이 갈릴 수 있다. `ci.yml:69-80`에 이미 Postgres 서비스가 있으므로, 필요하면 그것을 외부 DB로 쓰는 경로를 함께 둔다.
 
 ### 8-3. Java가 더 엄격해져 생기는 diff
 

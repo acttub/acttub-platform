@@ -52,7 +52,9 @@ operation_kind_t · operation_status_t
 content_status_t · report_target_type_t · report_reason_t · report_status_t
 ```
 
-**`@Enumerated`를 쓰지 않는다** — varchar 바인딩이라 PG가 `operator does not exist`로 거부한다. `@JdbcTypeCode(SqlTypes.NAMED_ENUM)` 또는 커스텀 `UserType`으로 네이티브 enum에 바인딩하고, 값 매핑은 컨버터가 한다.
+**`@Enumerated`를 쓰지 않는다** — varchar 바인딩이라 PG가 `operator does not exist`로 거부한다.
+
+**`@JdbcTypeCode(SqlTypes.NAMED_ENUM)`과 `AttributeConverter`를 같이 걸지 않는다** — EntityManagerFactory 생성이 `Cannot read the array length because "values" is null`로 죽는다(M0 실측). **커스텀 `JdbcType`**(`setObject(..., Types.OTHER)`)으로 바인딩하고 값 매핑은 컨버터가 한다. M0의 `PgEnum`/`PgEnumJdbcType`/`PgEnumConverter`를 그대로 확장한다.
 
 **`IntentImpact`는 값이 한글**이다 (`models.py:48-52`): `REVERSAL="반전"`, `WEAKENING="약화"`, `LOCAL="국소"`. Java enum 상수명을 그대로 쓰면 enum 타입 위반으로 즉시 실패한다.
 
