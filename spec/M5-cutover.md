@@ -24,11 +24,24 @@ ExecStart=/usr/bin/java -jar /svc/acttub/api/acttub-api.jar
 
 **환경변수 이름을 바꾸지 않는다** — `DATABASE_URL`, `JWT_SECRET`, `GEMINI_API_KEY`, `S3_BUCKET`, `AWS_REGION`, `ADMIN_OPS_TOKEN` 등을 Spring이 그대로 읽게 매핑한다. 이름을 바꾸면 배포 문서 전체와 두 서버의 api.env를 동시에 고쳐야 하고 롤백이 어려워진다.
 
-### B. JVM 튜닝
+### B. 인스턴스 — dev·운영 **둘 다** 업그레이드가 선행 조건
 
-- 힙 상한을 인스턴스 메모리에 맞춰 명시한다 (M0의 F에서 조회한 운영 스펙 기준)
-- **dev 인스턴스 업그레이드가 선행되어야 한다** — t2.micro 1GB에 Next + PostgreSQL + JVM은 성립하지 않는다. t3.small(2GB) 이상
-- 컨테이너가 아니므로 `MaxRAMPercentage`보다 `-Xmx`를 직접 준다
+2026-08-06 실측(SSM):
+
+| | 타입 | 메모리 | swap | available | 현재 상주 |
+|---|---|---|---|---|---|
+| **운영 be** `i-08a90c20095d4ecf1` | t2.micro | 954MB | **0** | **396MB** | uvicorn 226MB |
+| dev `i-0f101fb852e26d081` | t2.micro | 954MB | 4GB | 405MB | uvicorn 163MB + next 83MB + caddy 27MB |
+| 운영 fe `i-06eda45984a6f354e` | t2.micro | — | — | — | Next (이번 변경 없음) |
+
+**운영 be는 dev와 같은 t2.micro이고 swap이 아예 없다.** 여유 396MB에 Spring Boot JVM(실사용 250~400MB)을 넣는 것 자체가 빠듯하고, **§전환 절차가 요구하는 병행 기동(uvicorn 226MB 유지 + JVM)은 물리적으로 불가능하다.** swap이 없으므로 초과 시 OOM killer가 즉시 작동한다.
+
+vCPU도 1개다. JVM 기동 시 CPU 스파이크가 t2.micro의 버스트 크레딧을 소진할 수 있다.
+
+**따라서 dev와 운영 be 둘 다 t3.small(2GB) 이상으로 올린 뒤에야 이 마일스톤을 시작할 수 있다.** 이것은 선택이 아니라 선행 조건이며, 비용이 발생하므로 **사용자 승인 대상**이다.
+
+- 힙 상한은 `-Xmx`로 직접 준다 (컨테이너가 아니므로 `MaxRAMPercentage`는 부적합)
+- 업그레이드 후에도 운영 be에 swap을 두는 것은 권하지 않는다 — JVM이 swap에 들어가면 GC가 급격히 악화된다. 메모리를 충분히 주는 쪽이 맞다
 
 ### C. 마이그레이션 처리
 
@@ -49,9 +62,13 @@ ExecStart=/usr/bin/java -jar /svc/acttub/api/acttub-api.jar
 
 → **HTTP 전환과 워커 전환을 별개 관문으로 분리한다.** 양쪽 모두 `ANALYSIS_WORKER_ENABLED` 스위치를 갖는다(M4 산출물).
 
+### 선행 — 인스턴스 업그레이드 (사용자 승인 필요)
+
+dev·운영 be 둘 다 t3.small 이상. **완료 전에는 아래 절차를 시작할 수 없다**(§B).
+
 ### dev
 
-1. dev 인스턴스 업그레이드 (t3.small 이상)
+1. dev 인스턴스 업그레이드 확인
 2. Java 백엔드를 **8001 포트**로 배포. 기존 FastAPI(8000)는 그대로 둔다. **이 시점에 Java 워커는 꺼 둔다** — Python이 계속 큐 owner
 3. **하네스 전량 통과 확인.** 이것이 HTTP 스위치 조건이다
 4. **관문 A — HTTP 전환**: 프록시 대상을 8000 → 8001로. 워커는 여전히 Python
@@ -74,6 +91,10 @@ dev 관찰이 끝나고 사용자가 승인하면 같은 순서. 운영은 fe/be
 **롤백 상태는 정상 완료가 아니다.** 원인을 규명하고 재전환할 때까지 열린 항목으로 추적한다.
 
 ## 완료 기준 체크리스트
+
+### 선행
+- [ ] **dev·운영 be 둘 다 t3.small 이상으로 업그레이드** (사용자 승인 후)
+- [ ] 업그레이드 후 `free -m`으로 available 여유 확인 — 병행 기동에 최소 700MB 필요
 
 ### 배포
 - [ ] `bootJar` 산출물이 S3에 올라가고 SSM으로 설치된다

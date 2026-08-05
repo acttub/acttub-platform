@@ -241,7 +241,7 @@ POST /v2/practice-sessions   POST /v2/uploads/intents
 | M0 | 위험 함수 #1의 트랜잭션 관리 스타일 — 선언적 `@Transactional` vs `TransactionTemplate` |
 | M2 | 시계 소스 통일 — DB `now()` vs 앱 `Instant.now()`. 현재 혼재하며 리스 만료 비교(`store.py:1423`, `1462`, `1777`)에 영향 |
 | M2 | `SKIP LOCKED` 도입 여부 (기본 방침: 원본 동작 우선) |
-| M5 | dev 인스턴스 업그레이드 (t2.micro 1GB → t3.small 이상. JVM 도입으로 사실상 필수) |
+| M5 | ~~dev 인스턴스 업그레이드~~ → **확정: dev·운영 be 둘 다 t3.small 이상 필수.** 운영 be도 t2.micro 954MB이고 **swap이 0**이라 병행 기동이 불가능하다(2026-08-06 실측, `spec/M5-cutover.md` §B). 비용 발생 — 사용자 승인 대상 |
 
 ## 11. 진행 방식
 
