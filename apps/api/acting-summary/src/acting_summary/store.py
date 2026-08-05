@@ -1,7 +1,7 @@
 from typing import Protocol
 from uuid import uuid4
 
-from acting_summary.schema import SceneSummary, SubText
+from acting_summary.schema import ActorMaterial, ObservationPack
 
 
 class SummaryStore(Protocol):
@@ -9,8 +9,8 @@ class SummaryStore(Protocol):
         self,
         *,
         user_id: str,
-        subtext: SubText,
-        summary: SceneSummary,
+        actor: ActorMaterial,
+        observation_pack: ObservationPack,
         video_filename: str | None,
         video_size_bytes: int,
         was_compressed: bool,
@@ -28,8 +28,8 @@ class InMemorySummaryStore:
         self,
         *,
         user_id: str,
-        subtext: SubText,
-        summary: SceneSummary,
+        actor: ActorMaterial,
+        observation_pack: ObservationPack,
         video_filename: str | None,
         video_size_bytes: int,
         was_compressed: bool,
@@ -38,8 +38,8 @@ class InMemorySummaryStore:
         summary_id = str(uuid4())
         self.records[summary_id] = {
             "user_id": user_id,
-            "subtext": subtext,
-            "summary": summary,
+            "actor": actor,
+            "observation_pack": observation_pack,
             "video_filename": video_filename,
             "video_size_bytes": video_size_bytes,
             "was_compressed": was_compressed,

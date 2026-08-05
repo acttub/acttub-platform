@@ -12,10 +12,12 @@ package = false
 
 [tool.uv.sources]
 acting-api = { workspace = true }
+acting-llm = { workspace = true }
 
 [tool.uv.workspace]
 members = [
     "acting-api",
+    "acting-llm",
     "acting-summary",
     "acting-agent",
     "acting-report",
@@ -36,6 +38,7 @@ pythonpath = [
 ]
 testpaths = [
     "acting-api/tests",
+    "acting-llm/tests",
     "acting-summary/tests",
     "acting-agent/tests",
     "acting-report/tests",

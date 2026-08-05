@@ -15,12 +15,14 @@ dependencies = [
     "psycopg[binary]>=3.2,<4",
     "alembic>=1.14,<2",
     "boto3>=1.43.50,<2",
+    "acting-llm",
     "acting-summary",
     "acting-agent",
     "acting-report",
 ]
 
 [tool.uv.sources]
+acting-llm = { workspace = true }
 acting-summary = { workspace = true }
 acting-agent = { workspace = true }
 acting-report = { workspace = true }

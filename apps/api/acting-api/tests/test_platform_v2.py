@@ -59,7 +59,10 @@ def _session_body(upload_id, **overrides):
         "upload_intent_id": str(upload_id),
         "situation": "오디션 직전",
         "character_context": "불안한 배우",
-        "subtext": "침착한 척한다",
+        "goal": "상대가 멈추게 한다",
+        "blockage_kind": "분석",
+        "sub_branch": "대사 분석",
+        "blockage_detail": "왜 지금 말하는지 모르겠어.",
     }
     body.update(overrides)
     return body
@@ -380,7 +383,7 @@ def test_practice_session_running_succeeded_failed_and_fingerprint_branches():
     assert first.status_code == 202
 
 
-def test_practice_session_rejects_unfinalized_or_reused_upload():
+def test_practice_session_rejects_unfinalized_but_allows_reused_upload():
     client, store, _, user, headers = _application()
     pending = store.create_upload_intent(
         user_id=user.id,
@@ -393,8 +396,11 @@ def test_practice_session_rejects_unfinalized_or_reused_upload():
     assert _create_session(client, headers, pending.id).status_code == 409
 
     upload = finalized_upload(store, user.id)
-    assert _create_session(client, headers, upload.id).status_code == 202
-    assert _create_session(client, headers, upload.id).status_code == 409
+    first = _create_session(client, headers, upload.id)
+    second = _create_session(client, headers, upload.id)
+    assert first.status_code == 202
+    assert second.status_code == 202
+    assert first.json()["session_id"] != second.json()["session_id"]
 
 
 def test_practice_session_hides_missing_or_foreign_upload_intent():
@@ -430,6 +436,8 @@ def test_session_list_detail_summary_failure_ownership_and_soft_delete():
         id=summary_id,
         session_id=first_session.id,
         raw=SUMMARY.model_dump(mode="json"),
+        observations_json=SUMMARY.model_dump(mode="json")["observations"],
+        uncertainties_json=SUMMARY.model_dump(mode="json")["uncertainties"],
         created_at=datetime.now(timezone.utc),
     )
     detail = client.get(
@@ -437,6 +445,9 @@ def test_session_list_detail_summary_failure_ownership_and_soft_delete():
     )
     assert detail.status_code == 200
     assert detail.json()["summary"]["summary_id"] == str(summary_id)
+    assert detail.json()["summary"]["observations"][0]["label"] == (
+        "대사 직전에 숨을 들이쉰다"
+    )
     assert detail.json()["playback_url"].startswith(
         "https://s3.example/get_object/"
     )

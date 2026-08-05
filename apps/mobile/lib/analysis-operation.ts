@@ -277,7 +277,7 @@ export type AnalysisDetail = {
   status: AnalysisSessionStatus;
   situation: string;
   character_context: string;
-  subtext: string;
+  goal: string;
   created_at: string;
   updated_at: string;
   playback_url?: string;
@@ -382,10 +382,10 @@ export async function readAnalyzedDetail(
 }
 
 export type AnalysisUpload = {
-  subtext: {
+  scene: {
     situation: string;
     character: string;
-    subtext: string;
+    goal: string;
   };
   video: {
     uri: string;
@@ -430,7 +430,7 @@ export type AnalysisPipelineDependencies = ExistingSessionDependencies & {
   createPracticeSession: (
     input: {
       upload_intent_id: string;
-      subtext: AnalysisUpload['subtext'];
+      scene: AnalysisUpload['scene'];
     },
     signal: AbortSignal,
   ) => Promise<{ session_id: string; status: AnalysisSessionStatus }>;
@@ -523,7 +523,7 @@ export async function runAnalysisPipeline({
       const created = await dependencies.createPracticeSession(
         {
           upload_intent_id: intent.intent_id,
-          subtext: upload.subtext,
+          scene: upload.scene,
         },
         operation.signal,
       );

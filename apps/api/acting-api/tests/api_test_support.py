@@ -1,68 +1,95 @@
-from acting_agent.engine import AgentOut, AgentOutWithClose
-from acting_agent.summary_schema import SceneSummary as AgentSceneSummary
-from acting_report.schema import ActingReport, BiggestProblem
-from acting_summary.schema import Anomaly, Observation, SceneSummary, SubText
+import json
+
+from acting_agent.summary_schema import ObservationPack as AgentObservationPack
+from acting_llm.openai_client import TokenUsage
+from acting_report.schema import AnalysisNextTake, AnalysisReport
+from acting_summary.schema import ActorMaterial, ObservationPack
 
 SUMMARY_ID = "11111111-1111-4111-8111-111111111111"
 
-SUBTEXT = SubText(situation="상황", character="인물", subtext="서브")
-SUMMARY = SceneSummary(
-    observation=Observation(
-        timeline="t",
-        dialogue="d",
-        tempo="te",
-        pitch="p",
-        movement="m",
-        expression="e",
-        emotion="em",
-    ),
-    summary="s",
-    intent_alignment="i",
-    key_moment="00:10-00:15 절정 구간",
-    key_dimension="템포",
-    anomalies=[
-        Anomaly(
-            start="00:12",
-            end="00:13",
-            dimension="템포",
-            what="1.2초 멈춤",
-            why_odd="o",
-            likely_cause="c",
-            impact_on_intent="ii",
-            overlaps_key_moment=True,
-            on_key_dimension=True,
-            intent_impact="반전",
-            severity="high",
-            severity_reason="key_moment 구간",
-        )
+SUBTEXT = ActorMaterial(
+    situation="상황",
+    character="인물",
+    goal="상대가 멈추게 한다",
+    blockage_kind="분석",
+    blockage_detail="왜 지금 말하는지 모르겠다",
+    duration_ms=1000,
+)
+SUMMARY = ObservationPack(
+    observations=[
+        {
+            "start_ms": 120,
+            "end_ms": 130,
+            "label": "대사 직전에 숨을 들이쉰다",
+            "confidence": 0.9,
+        }
     ],
+    uncertainties=["얼굴은 화면 밖이라 확인되지 않음"],
 )
-AGENT_SUMMARY = AgentSceneSummary.model_validate(SUMMARY.model_dump(mode="json"))
+AGENT_SUMMARY = AgentObservationPack.model_validate(SUMMARY.model_dump(mode="json"))
 
-# 코치 에이전트는 {analysis, question, close} 로 답하고, action·done 은 코드가 정한다.
-COACH_QUESTION = AgentOut(
-    analysis="내부 분석",
-    question="그 말이 멎은 것처럼 들렸는데, 인물은 뭘 기다리고 있었을까요?",
-)
-COACH_FOLLOWUP = AgentOutWithClose(
-    analysis="내부 분석",
-    question="그럼 그 자리에서 인물이 지키려던 건 뭐였을까요?",
-)
+ANALYSIS_HANDOFF = {
+    "handoff_type": "analysis",
+    "blocked_point": "왜 이 말을 지금 하는지",
+    "line_meaning": "상대가 떠나기 전에 붙잡으려는 말",
+    "timing_reason": "상대가 돌아서려는 순간이라서",
+    "target_effect": "상대가 발걸음을 멈추게 한다",
+    "scene_evidence": ["상대가 돌아선다"],
+    "actor_words": ["지금 놓치면 끝이야"],
+    "coach_summary": "떠나려는 상대를 지금 붙잡는다",
+    "uncertainties": [],
+}
+COACH_QUESTION = {
+    "message": "그 말을 지금 꺼내서 상대가 어떻게 되길 바라는 거야?",
+    "status": "continue",
+    "handoff": None,
+}
+COACH_FOLLOWUP = {
+    "message": "지금 놓치면 끝이라는 말에서 출발하면, 상대에게 무엇을 이해시키려는 거야?",
+    "status": "continue",
+    "handoff": None,
+}
+COACH_COMPLETE = {
+    "message": "지금 놓치면 끝이라서, 돌아서는 상대의 발걸음을 멈추게 하려는 말이야.",
+    "status": "complete",
+    "handoff": ANALYSIS_HANDOFF,
+}
 
-REPORT = ActingReport(
-    headline="오늘은 멈춤의 이유를 스스로 찾아냈어",
-    biggest_problem=BiggestProblem(
-        start="00:12",
-        end="00:13",
-        dimension="템포",
-        description="가장 중요한 순간에 말이 1.2초 멈추면서 흐름이 끊겼어",
+REPORT = AnalysisReport(
+    report_type="analysis",
+    title="돌아서기 전에 붙잡는 말",
+    actor_discovery="지금 놓치면 끝이라는 걸 발견했다.",
+    line_meaning="상대가 떠나기 전에 붙잡으려는 말이다.",
+    timing_reason="상대가 돌아서려는 순간이라 지금 말한다.",
+    target_effect="상대가 발걸음을 멈추게 한다.",
+    next_take=AnalysisNextTake(
+        direction="상대의 발걸음을 멈추게 하는 일을 시험한다.", tested=False
     ),
-    evidence="00:12에 1.2초 멈춤",
-    self_discovery="대사 암기가 불안하면 감정이 끊긴다는 걸 찾아냈어",
-    encouragement="원인을 바로 짚어낸 게 좋았어",
-    next_step="대사만 소리 내서 세 번 통으로 말해보기",
-    comparison="",
+    acting_caution="정보만 전하지 않고 상대에게 하려는 일을 놓치지 않는다.",
+    evidence=["상대가 돌아선다."],
+    uncertainties=[],
+    source_handoff_id="00000000-0000-4000-8000-000000000001",
 )
+
+
+class FakeTextGenerator:
+    def __init__(self, responses=()):
+        self.responses = [
+            json.dumps(item, ensure_ascii=False) if isinstance(item, dict) else item
+            for item in responses
+        ]
+        self.calls = []
+
+    def __call__(self, system_instruction, prompt):
+        self.calls.append((system_instruction, prompt))
+        return self.responses.pop(0), TokenUsage(0, 0, 0)
+
+    def queue_response(self, response):
+        self.responses.append(
+            json.dumps(response, ensure_ascii=False)
+            if isinstance(response, dict)
+            else response
+        )
 
 
 class FakeModelResponse:

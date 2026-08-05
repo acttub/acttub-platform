@@ -37,7 +37,7 @@ export default function UploadScreen() {
   const [prefilled, setPrefilled] = useState(false);
   const [situation, setSituation] = useState('');
   const [character, setCharacter] = useState('');
-  const [subtext, setSubtext] = useState('');
+  const [goal, setGoal] = useState('');
   const [video, setVideo] = useState<VideoFile | null>(null);
   const [durationMs, setDurationMs] = useState<number | null>(null);
   const [videoError, setVideoError] = useState<string | null>(null);
@@ -51,7 +51,7 @@ export default function UploadScreen() {
     setPrefilled(true);
     setSituation(p.situation);
     setCharacter(p.character);
-    setSubtext(p.subtext);
+    setGoal(p.goal);
   }, []);
 
   const MAX_RAW_MB = 4096;
@@ -87,7 +87,7 @@ export default function UploadScreen() {
   };
 
   const canSubmit =
-    situation.trim() && character.trim() && subtext.trim() && video && agreedRights;
+    situation.trim() && character.trim() && goal.trim() && video && agreedRights;
 
   const start = () => {
     if (!canSubmit || !video) return;
@@ -96,10 +96,10 @@ export default function UploadScreen() {
       () => {
         setStarting(true);
         setPendingUpload({
-          subtext: {
+          scene: {
             situation: situation.trim(),
             character: character.trim(),
-            subtext: subtext.trim(),
+            goal: goal.trim(),
           },
           video,
           durationMs,
@@ -113,7 +113,7 @@ export default function UploadScreen() {
   const missingHint = missingUploadFieldsHint({
     situation,
     character,
-    subtext,
+    goal,
     hasVideo: !!video,
     agreedRights,
   });
@@ -139,7 +139,7 @@ export default function UploadScreen() {
           <Text style={styles.label}>어떤 상황인가요?</Text>
           <TextInput
             style={styles.input}
-            placeholder="예: 이별을 통보받은 직후, 카페에서"
+            placeholder="이별을 통보받은 직후, 카페에서"
             placeholderTextColor={palette.textDim}
             value={situation}
             onChangeText={setSituation}
@@ -149,20 +149,20 @@ export default function UploadScreen() {
           <Text style={styles.label}>어떤 인물인가요?</Text>
           <TextInput
             style={styles.input}
-            placeholder="예: 겉으로는 담담하려 애쓰는 20대 후반 여성"
+            placeholder="담담한 척하는 20대 후반 여성"
             placeholderTextColor={palette.textDim}
             value={character}
             onChangeText={setCharacter}
             multiline
           />
 
-          <Text style={styles.label}>뭘 보여주고 싶으셨나요? (의도)</Text>
+          <Text style={styles.label}>목표</Text>
           <TextInput
             style={[styles.input, styles.inputTall]}
-            placeholder="예: 꾹 참다 끝에 무너지는 걸 보여주고 싶었어요"
+            placeholder="상대가 마음을 돌려 다시 앉게 만들기"
             placeholderTextColor={palette.textDim}
-            value={subtext}
-            onChangeText={setSubtext}
+            value={goal}
+            onChangeText={setGoal}
             multiline
           />
 

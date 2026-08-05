@@ -311,6 +311,15 @@ class UploadIntent(Base):
 
 class PracticeSession(Base):
     __tablename__ = "practice_sessions"
+    __table_args__ = (
+        sa.CheckConstraint(
+            "(blockage_kind = '분석' AND sub_branch IN ('캐릭터 분석', '대사 분석', '그 외')) OR "
+            "(blockage_kind = '표현' AND sub_branch IN ('감정', '움직임', '화술', '표정', '그 외')) OR "
+            "(blockage_kind = '그 외' AND sub_branch = '그 외')",
+            name="ck_practice_sessions_blockage_branch",
+        ),
+        sa.Index("idx_practice_sessions_upload_intent", "upload_intent_id"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(
         postgresql.UUID(as_uuid=True),
@@ -325,7 +334,6 @@ class PracticeSession(Base):
         postgresql.UUID(as_uuid=True),
         sa.ForeignKey("upload_intents.id"),
         nullable=False,
-        unique=True,
     )
     status: Mapped[PracticeStatus] = mapped_column(
         practice_status_enum,
@@ -335,7 +343,11 @@ class PracticeSession(Base):
     )
     situation: Mapped[str] = mapped_column(sa.Text, nullable=False)
     character_context: Mapped[str] = mapped_column(sa.Text, nullable=False)
-    subtext: Mapped[str] = mapped_column(sa.Text, nullable=False)
+    goal: Mapped[str] = mapped_column(sa.Text, nullable=False)
+    subtext: Mapped[str | None] = mapped_column(sa.Text)
+    blockage_kind: Mapped[str] = mapped_column(sa.Text, nullable=False)
+    sub_branch: Mapped[str] = mapped_column(sa.Text, nullable=False)
+    blockage_detail: Mapped[str | None] = mapped_column(sa.Text)
     hidden_at: Mapped[datetime | None] = mapped_column(sa.DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(
         sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()
@@ -343,6 +355,29 @@ class PracticeSession(Base):
     updated_at: Mapped[datetime] = mapped_column(
         sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()
     )
+
+
+class Transcript(Base):
+    __tablename__ = "transcripts"
+    __table_args__ = (
+        sa.UniqueConstraint(
+            "session_id", "ord", name="uq_transcripts_session_ord"
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        postgresql.UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+        server_default=sa.text("gen_random_uuid()"),
+    )
+    session_id: Mapped[uuid.UUID] = mapped_column(
+        postgresql.UUID(as_uuid=True),
+        sa.ForeignKey("practice_sessions.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    ord: Mapped[int] = mapped_column(sa.Integer, nullable=False)
+    text: Mapped[str] = mapped_column(sa.Text, nullable=False)
 
 
 class Summary(Base):
@@ -360,13 +395,17 @@ class Summary(Base):
         nullable=False,
         unique=True,
     )
-    observation: Mapped[dict[str, Any]] = mapped_column(
+    observations_json: Mapped[list[dict[str, Any]]] = mapped_column(
         postgresql.JSONB, nullable=False
     )
-    summary: Mapped[str] = mapped_column(sa.Text, nullable=False)
-    intent_alignment: Mapped[str] = mapped_column(sa.Text, nullable=False)
-    key_moment: Mapped[str] = mapped_column(sa.Text, nullable=False)
-    key_dimension: Mapped[str] = mapped_column(sa.Text, nullable=False)
+    uncertainties_json: Mapped[list[str]] = mapped_column(
+        postgresql.JSONB, nullable=False
+    )
+    observation: Mapped[dict[str, Any] | None] = mapped_column(postgresql.JSONB)
+    summary: Mapped[str | None] = mapped_column(sa.Text)
+    intent_alignment: Mapped[str | None] = mapped_column(sa.Text)
+    key_moment: Mapped[str | None] = mapped_column(sa.Text)
+    key_dimension: Mapped[str | None] = mapped_column(sa.Text)
     model: Mapped[str] = mapped_column(sa.Text, nullable=False)
     was_compressed: Mapped[bool] = mapped_column(
         sa.Boolean, nullable=False, default=False, server_default=sa.false()
@@ -413,8 +452,13 @@ class CoachSession(Base):
     id: Mapped[uuid.UUID] = mapped_column(
         postgresql.UUID(as_uuid=True), primary_key=True
     )
-    summary_id: Mapped[uuid.UUID] = mapped_column(
-        postgresql.UUID(as_uuid=True), sa.ForeignKey("summaries.id"), nullable=False
+    practice_session_id: Mapped[uuid.UUID] = mapped_column(
+        postgresql.UUID(as_uuid=True),
+        sa.ForeignKey("practice_sessions.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    summary_id: Mapped[uuid.UUID | None] = mapped_column(
+        postgresql.UUID(as_uuid=True), sa.ForeignKey("summaries.id")
     )
     status: Mapped[SessionStatus] = mapped_column(
         session_status_enum,
@@ -423,6 +467,9 @@ class CoachSession(Base):
         server_default=sa.text("'open'"),
     )
     close_reason: Mapped[CloseReason | None] = mapped_column(close_reason_enum)
+    conversation_summary: Mapped[str] = mapped_column(
+        sa.Text, nullable=False, default="", server_default=sa.text("''")
+    )
     created_at: Mapped[datetime] = mapped_column(
         sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()
     )
@@ -448,9 +495,111 @@ class CoachTurn(Base):
     turn_index: Mapped[int] = mapped_column(sa.Integer, nullable=False)
     role: Mapped[TurnRole] = mapped_column(turn_role_enum, nullable=False)
     text: Mapped[str] = mapped_column(sa.Text, nullable=False)
-    action: Mapped[str | None] = mapped_column(sa.Text)
-    focus_timestamp: Mapped[str] = mapped_column(
-        sa.Text, nullable=False, default="", server_default=sa.text("''")
+    created_at: Mapped[datetime] = mapped_column(
+        sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()
+    )
+
+
+class CoachingHandoff(Base):
+    __tablename__ = "coaching_handoffs"
+    __table_args__ = (
+        sa.CheckConstraint(
+            "branch_kind IN ('analysis', 'expression')",
+            name="ck_coaching_handoffs_branch_kind",
+        ),
+        sa.Index(
+            "idx_coaching_handoffs_session_created",
+            "coach_session_id",
+            "created_at",
+        ),
+        sa.Index(
+            "idx_coaching_handoffs_practice_created",
+            "practice_session_id",
+            "created_at",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        postgresql.UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+        server_default=sa.text("gen_random_uuid()"),
+    )
+    coach_session_id: Mapped[uuid.UUID] = mapped_column(
+        postgresql.UUID(as_uuid=True),
+        sa.ForeignKey("coach_sessions.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    practice_session_id: Mapped[uuid.UUID] = mapped_column(
+        postgresql.UUID(as_uuid=True),
+        sa.ForeignKey("practice_sessions.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    branch_kind: Mapped[str] = mapped_column(sa.Text, nullable=False)
+    handoff_json: Mapped[dict[str, Any]] = mapped_column(
+        postgresql.JSONB, nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()
+    )
+
+
+class HandoffConfirmation(Base):
+    __tablename__ = "handoff_confirmations"
+
+    coaching_handoff_id: Mapped[uuid.UUID] = mapped_column(
+        postgresql.UUID(as_uuid=True),
+        sa.ForeignKey("coaching_handoffs.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    confirmed: Mapped[bool] = mapped_column(
+        sa.Boolean, nullable=False, default=False, server_default=sa.false()
+    )
+    rebuttal_text: Mapped[str | None] = mapped_column(sa.Text)
+    created_at: Mapped[datetime] = mapped_column(
+        sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()
+    )
+
+
+class PracticeReport(Base):
+    __tablename__ = "practice_reports"
+    __table_args__ = (
+        sa.CheckConstraint(
+            "report_type IN ('analysis', 'expression')",
+            name="ck_practice_reports_report_type",
+        ),
+        sa.UniqueConstraint(
+            "source_handoff_id", name="uq_practice_reports_source_handoff"
+        ),
+        sa.Index(
+            "idx_practice_reports_session_created",
+            "practice_session_id",
+            "created_at",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        postgresql.UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+        server_default=sa.text("gen_random_uuid()"),
+    )
+    practice_session_id: Mapped[uuid.UUID] = mapped_column(
+        postgresql.UUID(as_uuid=True),
+        sa.ForeignKey("practice_sessions.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    report_type: Mapped[str] = mapped_column(sa.Text, nullable=False)
+    report_json: Mapped[dict[str, Any]] = mapped_column(
+        postgresql.JSONB, nullable=False
+    )
+    source_handoff_id: Mapped[uuid.UUID] = mapped_column(
+        postgresql.UUID(as_uuid=True),
+        sa.ForeignKey("coaching_handoffs.id", ondelete="RESTRICT"),
+        nullable=False,
     )
     created_at: Mapped[datetime] = mapped_column(
         sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()
@@ -813,6 +962,11 @@ sa.Index(
 )
 sa.Index("idx_anomalies_summary", Anomaly.summary_id, Anomaly.sort_order)
 sa.Index("idx_sessions_summary", CoachSession.summary_id)
+sa.Index(
+    "idx_coach_sessions_practice",
+    CoachSession.practice_session_id,
+    CoachSession.created_at,
+)
 sa.Index("idx_turns_session", CoachTurn.session_id, CoachTurn.turn_index)
 sa.Index("idx_reports_created", Report.created_at.desc())
 sa.Index(

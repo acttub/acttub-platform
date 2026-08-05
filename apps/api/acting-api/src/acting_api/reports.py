@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Any, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Response
@@ -19,45 +20,25 @@ from acting_api.sync_operations import (
 )
 from acting_report import engine as report_engine
 from acting_report.router import ReportReq
+from acting_report.schema import AnalysisReport, BlockedReport, ExpressionReport
 
 
 class _StrictResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
-class BiggestProblem(_StrictResponse):
-    start: str
-    end: str
-    dimension: str
-    description: str
-
-
-class ActingReport(_StrictResponse):
-    headline: str
-    biggest_problem: BiggestProblem
-    evidence: str
-    self_discovery: str
-    encouragement: str
-    next_step: str
-    comparison: str
-
-
 class ReportRecord(_StrictResponse):
     practice_session_id: UUID
-    headline: str
+    report_type: Literal["analysis", "expression"]
+    title: str
     created_at: datetime
 
 
 class ReportDetailResponse(_StrictResponse):
     practice_session_id: UUID
     created_at: datetime
-    report: ActingReport
+    report: AnalysisReport | ExpressionReport
     playback_url: str
-
-
-class CreateReportResponse(_StrictResponse):
-    report: ActingReport
-    report_count: int
 
 
 class ReportHistoryResponse(_StrictResponse):
@@ -74,24 +55,54 @@ async def _fail(store, claim: SyncOperationClaim, error_code: str) -> None:
     )
 
 
-def build_router(*, client, settings, store, storage, rate_limited_user) -> APIRouter:
+def _generate_report(source, *, generate=None):
+    kwargs: dict[str, Any] = {}
+    if generate is not None:
+        kwargs["generate"] = generate
+    return report_engine.generate_report(
+        report_type=source.branch_kind,
+        video_summary=source.video_summary,
+        confirmed_handoff=source.handoff_json,
+        confirmed=source.confirmed,
+        coaching_handoff_id=str(source.handoff_id or ""),
+        analysis_handoff=source.analysis_handoff_json,
+        analysis_handoff_id=(
+            str(source.analysis_handoff_id)
+            if source.analysis_handoff_id is not None
+            else None
+        ),
+        **kwargs,
+    )
+
+
+def build_router(
+    *,
+    store,
+    storage,
+    rate_limited_user,
+    report_generate=None,
+) -> APIRouter:
     router = APIRouter(prefix="/v2/reports", tags=["v2-reports"])
 
     @router.post(
         "",
-        responses={200: {"model": CreateReportResponse}},
+        responses={
+            200: {
+                "model": AnalysisReport | ExpressionReport | BlockedReport
+            }
+        },
     )
     async def create_report(
         req: ReportReq,
         x_request_id: str | None = Header(default=None, alias="X-Request-Id"),
         user=Depends(rate_limited_user),
     ):
-        owned = await run_in_threadpool(
-            store.get_owned_report_context,
+        source = await run_in_threadpool(
+            store.get_owned_report_source,
             user_id=user.id,
             coach_session_id=req.session_id,
         )
-        if owned is None:
+        if source is None:
             raise HTTPException(status_code=404, detail="session not found")
         request_id = parse_request_id(x_request_id)
         fingerprint = sync_request_fingerprint(
@@ -102,7 +113,7 @@ def build_router(*, client, settings, store, storage, rate_limited_user) -> APIR
             begin_sync_operation,
             store=store,
             user_id=user.id,
-            practice_session_id=owned.practice_session_id,
+            practice_session_id=source.practice_session_id,
             request_id=request_id,
             kind="report",
             request_fingerprint=fingerprint,
@@ -111,39 +122,46 @@ def build_router(*, client, settings, store, storage, rate_limited_user) -> APIR
             return begun
         claim = begun
         try:
-            if owned.session.status != "closed":
-                await _fail(store, claim, "session_is_still_open")
-                raise HTTPException(status_code=409, detail="session is still open")
-            if await run_in_threadpool(
-                store.has_report_for_practice_session,
-                owned.practice_session_id,
-            ):
-                await _fail(store, claim, "report_already_exists")
-                raise HTTPException(
-                    status_code=409,
-                    detail="report already exists for session",
+            existing = (
+                await run_in_threadpool(
+                    store.get_practice_report_for_handoff,
+                    source.handoff_id,
                 )
-            previous = await run_in_threadpool(store.list_reports, user.id)
-            report = await run_in_threadpool(
-                report_engine.generate_report,
-                owned.session,
-                previous,
-                client=client,
-                model=settings.model,
+                if source.handoff_id is not None
+                else None
             )
-            payload = await run_in_threadpool(
-                store.complete_report_operation,
-                operation_id=claim.operation_id,
-                lease_token=claim.lease_token,
-                coach_session_id=req.session_id,
-                report=report,
+            report = (
+                existing
+                if existing is not None
+                else (
+                    await run_in_threadpool(
+                        _generate_report,
+                        source,
+                        generate=report_generate,
+                    )
+                ).model_dump(mode="json")
             )
-            if payload is None:
-                await _fail(store, claim, "report_already_exists")
-                raise HTTPException(
-                    status_code=409,
-                    detail="report already exists for session",
+            if report["report_type"] == "blocked" or existing is not None:
+                await run_in_threadpool(
+                    store.complete_sync_operation,
+                    operation_id=claim.operation_id,
+                    lease_token=claim.lease_token,
+                    response_payload=report,
                 )
+            else:
+                saved = await run_in_threadpool(
+                    store.complete_practice_report_operation,
+                    operation_id=claim.operation_id,
+                    lease_token=claim.lease_token,
+                    practice_session_id=source.practice_session_id,
+                    report_type=report["report_type"],
+                    report_json=report,
+                    source_handoff_id=source.handoff_id,
+                    response_payload=report,
+                )
+                if not saved:
+                    await _fail(store, claim, "report_already_exists")
+                    raise HTTPException(status_code=409, detail="report already exists")
         except report_engine.ReportParseError as exc:
             await _fail(store, claim, "report_parse_error")
             raise HTTPException(status_code=502, detail=str(exc)) from exc
@@ -157,7 +175,7 @@ def build_router(*, client, settings, store, storage, rate_limited_user) -> APIR
         except Exception:
             await _fail(store, claim, "report_failed")
             raise
-        return success_response(payload, claim)
+        return success_response(report, claim)
 
     @router.get(
         "",
@@ -171,7 +189,8 @@ def build_router(*, client, settings, store, storage, rate_limited_user) -> APIR
                 "reports": [
                     {
                         "practice_session_id": record.practice_session_id,
-                        "headline": record.headline,
+                        "report_type": record.report_type,
+                        "title": record.title,
                         "created_at": record.created_at,
                     }
                     for record in records
@@ -205,7 +224,7 @@ def build_router(*, client, settings, store, storage, rate_limited_user) -> APIR
             {
                 "practice_session_id": detail.practice_session_id,
                 "created_at": detail.created_at,
-                "report": detail.report.model_dump(mode="json"),
+                "report": detail.report,
                 "playback_url": playback_url,
             }
         )

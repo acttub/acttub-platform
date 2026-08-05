@@ -1,36 +1,15 @@
 import os
 from dataclasses import dataclass
-from pathlib import Path
-
-from dotenv import load_dotenv
-
-DEFAULT_MODEL = "gemini-2.5-flash"
-
-
-def _project_root() -> Path:
-    # src/acting_report/config.py -> parents[2] == 프로젝트 루트(acting-report)
-    return Path(__file__).resolve().parents[2]
 
 
 @dataclass
 class Settings:
-    api_key: str
-    model: str
+    api_key: str = ""
+    model: str = "gpt-5.6-terra"
 
 
-def _default_env_path() -> Path:
-    return _project_root().parent / "video-feedback" / ".env"
-
-
-def load_settings(env_path: Path | None = None) -> Settings:
-    if env_path is None:
-        env_path = _default_env_path()
-    if env_path.exists():
-        load_dotenv(env_path)
-    api_key = os.environ.get("GEMINI_API_KEY")
-    if not api_key:
-        raise RuntimeError(
-            "GEMINI_API_KEY not found. Set it in ../video-feedback/.env or the environment."
-        )
-    model = os.environ.get("GEMINI_MODEL", DEFAULT_MODEL)
-    return Settings(api_key=api_key, model=model)
+def load_settings() -> Settings:
+    return Settings(
+        api_key=os.environ.get("OPENAI_API_KEY", ""),
+        model=os.environ.get("OPENAI_CHAT_MODEL", "gpt-5.6-terra"),
+    )

@@ -4,6 +4,8 @@ import {
   type PostIdempotentOptions,
 } from "./idempotency";
 import type {
+  CoachConfirmReq,
+  CoachConfirmResponse,
   CoachReplyReq,
   CoachStartReq,
   CoachTurnResponse,
@@ -21,4 +23,11 @@ export function replyCoach(
   options?: PostIdempotentOptions,
 ): Promise<ApiResponse<CoachTurnResponse>> {
   return postIdempotent<CoachTurnResponse>("/v2/coach/reply", body, options);
+}
+
+export function confirmCoach(
+  body: CoachConfirmReq,
+  options?: PostIdempotentOptions,
+): Promise<ApiResponse<CoachConfirmResponse>> {
+  return postIdempotent<CoachConfirmResponse>("/v2/coach/confirm", body, options);
 }

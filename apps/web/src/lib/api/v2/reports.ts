@@ -4,7 +4,7 @@ import {
   type PostIdempotentOptions,
 } from "./idempotency";
 import type {
-  CreateReportResponse,
+  PracticeReport,
   ReportDetailResponse,
   ReportHistoryResponse,
   ReportReq,
@@ -13,8 +13,8 @@ import type {
 export function createReport(
   body: ReportReq,
   options?: PostIdempotentOptions,
-): Promise<ApiResponse<CreateReportResponse>> {
-  return postIdempotent<CreateReportResponse>("/v2/reports", body, options);
+): Promise<ApiResponse<PracticeReport>> {
+  return postIdempotent<PracticeReport>("/v2/reports", body, options);
 }
 
 export async function listReports(): Promise<ReportHistoryResponse> {

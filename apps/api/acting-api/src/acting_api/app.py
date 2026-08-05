@@ -20,7 +20,6 @@ from google import genai
 from pydantic import BaseModel, ConfigDict
 from starlette.concurrency import run_in_threadpool
 
-from acting_agent.config import load_settings as load_agent_settings
 from acting_api.analysis_worker import (
     AnalysisWorker,
     AnalysisWorkerPool,
@@ -56,7 +55,6 @@ from acting_api.ratelimit import RateLimiter
 from acting_api.reports import build_router as build_reports_router
 from acting_api.storage import S3Storage
 from acting_api.uploads import build_router as build_uploads_router
-from acting_report.config import load_settings as load_report_settings
 from acting_summary.config import load_settings as load_summary_settings
 
 logger = logging.getLogger(__name__)
@@ -104,12 +102,12 @@ def create_app(
     s3_storage=None,
     analysis_worker=None,
     analyzer=None,
+    coach_generate=None,
+    report_generate=None,
 ) -> FastAPI:
     _ensure_app_logging()
     gateway_settings = gateway_settings or load_gateway_settings()
     summary_settings = summary_settings or load_summary_settings()
-    agent_settings = agent_settings or load_agent_settings()
-    report_settings = report_settings or load_report_settings()
     client = client or genai.Client(api_key=summary_settings.api_key)
     owns_store = store is None
     if store is None:
@@ -319,19 +317,18 @@ def create_app(
     )
     app.include_router(
         build_coaching_router(
-            client=client,
-            settings=agent_settings,
             store=store,
             rate_limited_user=consented_user,
+            coach_generate=coach_generate,
+            report_generate=report_generate,
         )
     )
     app.include_router(
         build_reports_router(
-            client=client,
-            settings=report_settings,
             store=store,
             storage=s3_storage,
             rate_limited_user=consented_user,
+            report_generate=report_generate,
         )
     )
 
