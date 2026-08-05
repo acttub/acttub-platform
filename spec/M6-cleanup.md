@@ -12,9 +12,10 @@
 
 ### A. 디렉토리 정리
 
-1. `apps/api` 삭제
-2. `apps/api-java` → `apps/api`로 rename
-3. 배포 스크립트의 경로가 그대로 동작하는지 확인 (`upload-api.sh`가 `-C apps api`를 쓴다)
+1. **alembic을 지우기 전에 빈 DB 재구축을 확인한다** — `apps/api`가 사라지면 `V1__baseline.sql`이 신규 환경·재해 복구의 **유일한 스키마 생성 수단**이 된다. 빈 DB에 V1을 실행해 20 테이블 + 17 enum + 인덱스 + 제약 + 시드가 만들어지는지 먼저 검증한다(`/SPEC.md` §5-5)
+2. `apps/api` 삭제
+3. `apps/api-java` → `apps/api`로 rename
+4. 배포 스크립트의 경로가 그대로 동작하는지 확인 (`upload-api.sh`가 `-C apps api`를 쓴다)
 
 **rename 후 반드시 재배포해 동작을 확인한다.** 경로가 바뀐 상태로 다음 배포까지 방치하면 그때 깨진다.
 
@@ -59,7 +60,9 @@
 
 ## 완료 기준 체크리스트
 
-- [ ] `apps/api`가 Java 프로젝트다. 파이썬 파일 0개 (`find apps -name "*.py" | wc -l` → 0)
+- [ ] `apps/api`가 Java 프로젝트다. **`find apps/api -name "*.py" | wc -l` → 0**
+  - `apps/mobile/scripts/`의 `build-fonts.py`·`make_store_assets.py`는 정상 도구다. **검사 범위를 `apps/api`로 한정한다** — `apps` 전체로 잡으면 영원히 실패하거나 무관한 파일을 지우게 된다
+- [ ] **alembic 삭제 전 빈 DB 재구축 검증** — V1 실행만으로 전체 스키마가 만들어진다
 - [ ] rename 후 **재배포해 dev에서 동작 확인**
 - [ ] 하네스가 검증하던 계약 항목이 Java 테스트로 이관됨 (오류 40종·응답 형상·멱등 전이)
 - [ ] 하네스 삭제

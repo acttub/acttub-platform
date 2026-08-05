@@ -8,14 +8,15 @@
 
 ## 산출물
 
-### A. Flyway baseline
+### A. Flyway — `V1__baseline.sql` + baseline 기록
 
-M0의 D에서 검증한 방식을 확정한다.
+M0의 D에서 검증한 방식을 확정한다 (`/SPEC.md` §5-5).
 
-- 기존 alembic 스키마(리비전 `0006`)를 baseline으로 고정한다
-- **마이그레이션 파일을 새로 쓰지 않는다.** DB 스키마 변경 0
+- **`V1__baseline.sql`이 현 스키마 전체를 동결한다** — 20 테이블 + 17 enum 타입 + 인덱스 + 제약 + 시드 데이터. **빈 DB의 유일한 스키마 생성 수단**이 되므로 M6에서 alembic을 지운 뒤에도 성립해야 한다
+- **기존 DB(dev·운영)에는 같은 버전으로 baseline 기록만.** DDL 미실행, 스키마 변경 0
 - `ddl-auto: validate`로 전 엔티티를 검증한다
 - 부분 인덱스 3개(`models.py:802`, `832`, `839`)와 CHECK 제약(`765`)은 Flyway가 소유하고 Hibernate는 관여하지 않는다
+- 스키마 비교 시 **`flyway_schema_history`·`alembic_version` 제외**
 
 ### B. JPA 엔티티 20개
 
@@ -31,8 +32,8 @@ community_anonymous_aliases · community_post_likes · community_reports · comm
 
 **규칙** (`/SPEC.md` §5-1, §5-3):
 - 관계 매핑(`@ManyToOne` 등)을 만들지 않는다. FK는 UUID 컬럼으로 둔다
-- UUID PK 15개 테이블은 앱에서 생성 → `Persistable<UUID>` 또는 `em.persist()`
-- `CoachSession.id`는 예외 — `server_default`가 없고 agent 모듈의 문자열 파싱에서 온다(`store.py:1068`)
+- **UUID PK 18개 중 17개가 앱 생성** → `Persistable<UUID>` 또는 `em.persist()`. **17개 전부 INSERT 전 SELECT가 없음을 검증**한다
+- `CoachSession.id`가 그 예외 — `server_default`가 없고 agent 모듈의 문자열 파싱에서 온다(`store.py:1068`)
 - `CommunityReport.target_id`는 의도적으로 FK 없음(`models.py:717`)
 - JSONB 4개는 SQL NULL과 JSON null을 구분
 - BIGSERIAL 2개(`Anomaly.id`, `CoachTurn.id`)는 `IDENTITY`
@@ -67,7 +68,7 @@ content_status_t · report_target_type_t · report_reason_t · report_status_t
 |---|---|
 | 헤더 | `{"alg":"HS256","typ":"JWT"}` **정확히** (여분 필드 금지 — `kid` 자동 추가 주의) |
 | 클레임 | `iss="acting-api"`, `aud="acting-app"`, `sub=<user UUID>`, `jti=<uuid4>`, `token_type="access"\|"refresh"`, `iat`, `exp` (전부 int epoch초) |
-| 인코딩 | `sort_keys=True`, 공백 없음, base64url **패딩 제거** |
+| 인코딩 | 공백 없음, base64url **패딩 제거**. **payload 키 정렬은 계약이 아니다** — Python 디코더는 `json.loads`라 순서에 무관하다(`jwt.py:142`) |
 | 검증 | required 클레임 7개, iss/aud 일치, `token_type` 일치, `iat`/`exp`가 int 타입, `iat > now` 또는 **`exp <= now`(배타적)** 면 거부 |
 | TTL | access 30분, refresh 14일 |
 
@@ -75,10 +76,25 @@ content_status_t · report_target_type_t · report_reason_t · report_status_t
 
 평문 JWT를 DB에 저장하지 않는다 — `token_hash`는 SHA-256 64자 hex.
 
+**양방향 상호운용이 롤백 안전성을 결정한다.** M5에서 롤백하면 사용자는 **Java가 발급한 access·refresh 토큰을 들고 FastAPI로 돌아온다**(`auth/router.py:224-229`). Python이 그 헤더·클레임·DB hash를 받아들이지 못하면 "초 단위 복구" 직후 전 사용자가 로그아웃된다. 따라서 **Python→Java와 Java→Python을 둘 다 검증**한다.
+
+### D-2. `DATABASE_URL` 변환
+
+`/SPEC.md` §5-6. `postgresql://user:pass@host:5432/db`를 JDBC URL·username·password로 분해하는 설정 클래스를 만든다. **환경변수 이름은 유지**하고, 실제 배포 형식 URL로 부팅하는 테스트를 둔다.
+
+### D-3. unknown key 정책
+
+`/SPEC.md` §6-3. **전역 `FAIL_ON_UNKNOWN_PROPERTIES=true`를 켜지 않는다.** M2 범위에서는 `LoginRequest`·`LogoutRequest`·`RefreshRequest`·`ConsentRequest`가 unknown key를 **허용**해야 한다. DTO별로 정책을 지정하고 각각 회귀 테스트를 둔다.
+
 ### E. 인증 provider 3종
 
 - **Google** (`auth/google.py`) — `google-auth` 대신 Spring Security `JwtDecoder`(JWKS 캐시)
-- **Apple** (`auth/apple.py`) — 동일. client_secret 서명 주의
+- **Apple** (`auth/apple.py`) — **client_secret 서명·token exchange는 존재하지 않는다.** 실제 계약은 이것뿐이다:
+  - issuer `https://appleid.apple.com`, JWKS `https://appleid.apple.com/auth/keys`, **RS256**
+  - **audience는 콤마 구분 복수 허용** — `APPLE_OAUTH_CLIENT_ID`를 쪼개 그중 하나와 일치하면 통과 (`apple.py:32-35`)
+  - `exp` 검증, `sub`가 비어 있으면 `InvalidIdentityToken`
+  - **`email_verified`는 bool `true` 또는 문자열 `"true"`(대소문자 무시) 둘 다 받는다** (`apple.py:63-66`)
+  - audience 미설정 시 JWKS 클라이언트를 만들지 않고 `ProviderConfigurationError`
 - **development** (`auth/development.py`) — `DEVELOPMENT_AUTH_PROVIDER=1`일 때만 등록. **기본값이 '열림'이 되지 않게** 한다(`app.py:128-129`)
 
 `ProviderRegistry`(`auth/providers.py`)가 `unsupported_provider` 400을 낸다.
@@ -144,10 +160,11 @@ content_status_t · report_target_type_t · report_reason_t · report_status_t
 ## 완료 기준 체크리스트
 
 ### Flyway·엔티티
-- [ ] baseline 적용 후 **DB 스키마 변경 0** (적용 전후 `pg_dump --schema-only` diff)
+- [ ] **빈 DB에 `V1__baseline.sql` 실행 → alembic 결과와 `pg_dump` diff 0** (메타 테이블 제외)
+- [ ] 기존 DB에 baseline 기록 → **DDL 미실행, 스키마 변경 0**
 - [ ] `ddl-auto: validate`가 엔티티 20개 전부에 대해 통과
 - [ ] 부분 인덱스 3개·CHECK 제약이 유지된다
-- [ ] `save()`가 UUID PK 테이블에서 SELECT를 유발하지 않는다 (SQL 로그 검증)
+- [ ] `save()`가 **앱 생성 UUID PK 17개 전부**에서 SELECT를 유발하지 않는다 (SQL 로그 검증)
 
 ### enum
 - [ ] 컨버터 17개, `@Enumerated` 사용 0건 (정적 검사)
@@ -156,14 +173,22 @@ content_status_t · report_target_type_t · report_reason_t · report_status_t
 - [ ] 부팅 시 `pg_enum` 대조 검증이 동작하고, 값이 어긋나면 기동 실패
 
 ### JWT·인증
-- [ ] **Python이 발급한 토큰을 Java가 검증**한다 (상호운용의 실증)
-- [ ] Java가 발급한 토큰의 헤더가 `{"alg":"HS256","typ":"JWT"}` 정확히 — `kid` 없음
-- [ ] payload 키가 정렬되고 base64url 패딩이 없다
+- [ ] **Python 발급 토큰을 Java가 검증**한다
+- [ ] **Java 발급 access·refresh 토큰을 Python이 검증**한다 — 롤백 안전성
+- [ ] **Java 발급 refresh로 Python에서 실제 회전**이 되고, 재사용 시 전 세션이 폐기된다
+- [ ] Java 발급 토큰의 헤더가 `{"alg":"HS256","typ":"JWT"}` 정확히 — **`kid` 없음**
+- [ ] base64url 패딩이 없다 (payload 키 정렬은 검증하지 않는다)
 - [ ] `exp <= now`가 배타적으로 만료된다 (경계 테스트)
 - [ ] 회전: 소진 토큰 재사용 → **전 세션 무효화** (Testcontainers 동시성 테스트)
-- [ ] 평문 JWT가 DB에 없다
+- [ ] 평문 JWT가 DB에 없다. `token_hash`가 SHA-256 64자 hex
 - [ ] provider 3종 등록. `DEVELOPMENT_AUTH_PROVIDER` 없으면 development 미등록
 - [ ] 미지원 provider → 400 `unsupported_provider`
+- [ ] Apple: 복수 audience 중 하나 일치 통과, `email_verified`가 bool·문자열 둘 다 처리
+
+### 연결·직렬화
+- [ ] 실제 배포 형식 `DATABASE_URL`로 부팅 성공
+- [ ] `LoginRequest`·`LogoutRequest`·`RefreshRequest`·`ConsentRequest`가 **unknown key를 허용**한다 (회귀 테스트)
+- [ ] 전역 `FAIL_ON_UNKNOWN_PROPERTIES`가 켜져 있지 않다 (정적 검사)
 
 ### 게이트·오류
 - [ ] 레이트리밋 60회/분, 초과 시 429 `rate limit exceeded`
