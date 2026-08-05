@@ -74,8 +74,15 @@ public record DatabaseUrl(String jdbcUrl, String username, String password) {
         return new DatabaseUrl(jdbc.toString(), username, password);
     }
 
+    /**
+     * URI user-info 의 퍼센트 인코딩만 푼다.
+     *
+     * <p>{@code URLDecoder} 는 form encoding 규칙이라 {@code +} 를 공백으로 바꾼다. user-info 에서
+     * {@code +} 는 유효한 리터럴이므로, 비밀번호에 {@code +} 가 들어 있으면 그대로 쓰면 인증이 깨진다.
+     * 미리 {@code %2B} 로 escape 해 리터럴을 보존한다.
+     */
     private static String decode(String value) {
-        return URLDecoder.decode(value, StandardCharsets.UTF_8);
+        return URLDecoder.decode(value.replace("+", "%2B"), StandardCharsets.UTF_8);
     }
 
     private static String scheme(String raw) {

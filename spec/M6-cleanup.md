@@ -12,7 +12,15 @@
 
 ### A. 디렉토리 정리
 
-1. **alembic을 지우기 전에 빈 DB 재구축을 확인한다** — `apps/api`가 사라지면 `V1__baseline.sql`이 신규 환경·재해 복구의 **유일한 스키마 생성 수단**이 된다. 빈 DB에 V1을 실행해 20 테이블 + 17 enum + 인덱스 + 제약 + 시드가 만들어지는지 먼저 검증한다(`/SPEC.md` §5-5)
+1. **재해복구 리허설을 통과하기 전에는 alembic을 지우지 않는다.** `apps/api`가 사라지면 `V1__baseline.sql`이 신규 환경·재해 복구의 **유일한 스키마 생성 수단**이 된다.
+
+   M0의 검증은 카탈로그 fingerprint 비교였고 **다음을 보지 않는다**(적대적 리뷰 지적):
+   - **owner·ACL** — V1은 `--no-owner --no-privileges`로 생성됐다
+   - **extension**
+   - **sequence의 `last_value`·증가·캐시** — 데이터 복원 후 PK 충돌로 나타난다
+   - **시드 데이터의 실제 값** — 현재는 `community_categories` 3건이라는 개수만 확인
+
+   따라서 **리허설**을 관문으로 둔다: 실제 `alembic upgrade head`로 만든 DB와 V1으로 만든 DB를 **독립 생성해 비교**하고, **production-like role**로 baseline과 앱 기동을 수행하며, **데이터 복원 후 sequence 충돌이 없는지**까지 확인한다.
 2. `apps/api` 삭제
 3. `apps/api-java` → `apps/api`로 rename
 4. 배포 스크립트의 경로가 그대로 동작하는지 확인 (`upload-api.sh`가 `-C apps api`를 쓴다)

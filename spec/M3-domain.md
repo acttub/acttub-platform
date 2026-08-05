@@ -33,7 +33,11 @@ LLM에 의존하지 않는 엔드포인트를 이식한다. **`db/store.py` 2,11
 
 `/SPEC.md` §7-1. 각각을 **먼저 프로토타입 + Testcontainers 테스트로 고정**한 뒤 해당 그룹을 이식한다.
 
-1. **`complete_report_operation`** — M0에서 확정한 트랜잭션 스타일 적용. **엔드포인트는 M4지만 저장 계층은 여기서.** 제약명은 **`reports_session_id_key`**이며, 사전 존재 확인 경로와 커밋 시 위반 경로를 **각각** 테스트한다
+1. **`complete_report_operation`** — M0에서 확정한 트랜잭션 스타일 적용. **엔드포인트는 M4지만 저장 계층은 여기서.** 제약명은 **`reports_session_id_key`**이며, 사전 존재 확인 경로와 커밋 시 위반 경로를 **각각** 테스트한다.
+
+   **M0이 증명하지 못한 것을 여기서 메운다**(적대적 리뷰 지적): M0의 중복 테스트는 23505 발생 전에 SELECT만 하므로 **부분 커밋·커넥션 오염이 없다는 것을 증명하지 못한다**. 다음을 추가한다:
+   - 같은 트랜잭션에서 **성공하는 marker write를 먼저 수행**한 뒤 23505를 일으켜 marker가 롤백되는지 확인
+   - **커넥션 풀 크기를 1로 제한**해 같은 커넥션으로 즉시 새 트랜잭션이 성공하는지 확인 (Postgres가 aborted 상태로 남지 않음)
 2. **`create_practice_session_with_analysis_operation`** — 보상 로직(`store.py:697-714`). 유사 구조가 `create_analysis_retry_operation`(723)에 복제되어 있으므로 **둘을 함께** 본다
 3. **`_save_coach_session` + `_load_session`** — `FOR SHARE OF` + 턴 전량 값 비교. 저장 계층만
 4. **`claim_next_external_operation`** — 워커는 M4가 쓰지만 저장 계층은 여기서. lease 전이표(`/SPEC.md` §5-7)를 그대로 구현한다

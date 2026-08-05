@@ -55,10 +55,12 @@ tasks.withType<Test>().configureEach {
     // testcontainers 가 쓰는 docker-java 는 기본 Docker API 버전이 1.32 인데,
     // 최신 Docker Engine 은 그 버전을 400 으로 거부한다("Could not find a valid Docker environment"
     // 로 보인다). 최소로 올려 준다. 환경변수가 이미 있으면 그쪽을 존중한다.
-    if (System.getenv("DOCKER_API_VERSION") == null) {
-        environment("DOCKER_API_VERSION", "1.41")
-        systemProperty("api.version", "1.41")
-    }
+    // 환경변수가 이미 있으면 그 값을 존중하되, 시스템 프로퍼티에는 항상 같은 값을 넣는다.
+    // docker-java 는 api.version 시스템 프로퍼티를 우선 보므로, 환경변수만 있으면
+    // 기본 1.32 로 접속하다 최신 Engine 에서 400 을 받는다.
+    val dockerApiVersion = System.getenv("DOCKER_API_VERSION") ?: "1.41"
+    environment("DOCKER_API_VERSION", dockerApiVersion)
+    systemProperty("api.version", dockerApiVersion)
     // Docker Desktop(macOS)은 소켓을 ~/.docker/run/docker.sock 에 둔다.
     val desktopSocket = File(System.getProperty("user.home"), ".docker/run/docker.sock")
     if (System.getenv("DOCKER_HOST") == null && desktopSocket.exists()) {
