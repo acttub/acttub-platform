@@ -38,6 +38,7 @@ const forbiddenProductLanguage = [
   /개선점/,
   /진단 결과/,
   /피드백 카드/,
+  /리포트/,
   /잘함/,
   /못함/,
 ];
@@ -49,6 +50,7 @@ const legacyForbiddenSubstrings = [
   "개선점",
   "진단 결과",
   "피드백 카드",
+  "리포트",
   "score",
   "grade",
   "weakness",
@@ -62,6 +64,7 @@ const legacySubstringRegressionCases = [
   ["개선점", "앞개선점뒤"],
   ["진단 결과", "앞진단 결과뒤"],
   ["피드백 카드", "앞피드백 카드뒤"],
+  ["리포트", "앞리포트뒤"],
   ["score", "prefixSCOREsuffix"],
   ["grade", "prefixGRADEsuffix"],
   ["weakness", "prefixWEAKNESSsuffix"],

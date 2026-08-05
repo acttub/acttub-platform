@@ -8,7 +8,7 @@ from starlette.concurrency import run_in_threadpool
 from acting_summary import compress as compress_mod
 from acting_summary import summarizer as summarizer_mod
 from acting_summary.config import Settings
-from acting_summary.schema import SubText
+from acting_summary.schema import ActorMaterial
 from acting_summary.store import SummaryStore
 
 # 업로드 상한. 스트리밍 수신이라 메모리와 무관 — 앱 제한(500MB)보다 여유를 둔다.
@@ -33,14 +33,24 @@ def build_router(*, client, settings: Settings, store: SummaryStore) -> APIRoute
         user_id: str = Form(...),
         situation: str = Form(...),
         character: str = Form(...),
-        subtext: str = Form(...),
+        goal: str = Form(...),
+        blockage_kind: str = Form("그 외"),
+        blockage_detail: str = Form(""),
+        duration_ms: int = Form(...),
         video: UploadFile = File(...),
     ):
         content_length = request.headers.get("content-length")
         if content_length and content_length.isdigit():
             if int(content_length) > MAX_UPLOAD_BYTES + _CHUNK_BYTES:
                 raise _too_large()
-        subtext_obj = SubText(situation=situation, character=character, subtext=subtext)
+        actor = ActorMaterial(
+            situation=situation,
+            character=character,
+            goal=goal,
+            blockage_kind=blockage_kind,
+            blockage_detail=blockage_detail,
+            duration_ms=duration_ms,
+        )
         video_filename = video.filename
         suffix = Path(video_filename or "video.mp4").suffix or ".mp4"
         tmp = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
@@ -59,19 +69,22 @@ def build_router(*, client, settings: Settings, store: SummaryStore) -> APIRoute
             def _compress_and_summarize():
                 nonlocal send_path
                 send_path = compress_mod.compress_for_gemini(tmp.name)
-                summary = summarizer_mod.summarize(
-                    send_path, subtext_obj, client=client, model=settings.model
+                observation_pack = summarizer_mod.summarize(
+                    send_path, actor, client=client, model=settings.model
                 )
                 summary_id = store.create_summary(
                     user_id=user_id,
-                    subtext=subtext_obj,
-                    summary=summary,
+                    actor=actor,
+                    observation_pack=observation_pack,
                     video_filename=video_filename,
                     video_size_bytes=received,
                     was_compressed=send_path != tmp.name,
                     model=settings.model,
                 )
-                return {**summary.model_dump(mode="json"), "summary_id": summary_id}
+                return {
+                    **observation_pack.model_dump(mode="json"),
+                    "summary_id": summary_id,
+                }
 
             return await run_in_threadpool(_compress_and_summarize)
         except summarizer_mod.FileActiveTimeout as exc:

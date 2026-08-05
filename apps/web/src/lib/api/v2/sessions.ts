@@ -71,7 +71,7 @@ export function fillBlankScene(
     ...body,
     situation: filled(body.situation),
     character_context: filled(body.character_context),
-    subtext: filled(body.subtext),
+    goal: filled(body.goal),
   };
 }
 

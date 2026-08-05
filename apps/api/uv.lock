@@ -21,6 +21,7 @@ members = [
     "acting-agent",
     "acting-api",
     "acting-api-deploy",
+    "acting-llm",
     "acting-report",
     "acting-summary",
 ]
@@ -30,10 +31,9 @@ name = "acting-agent"
 version = "0.1.0"
 source = { editable = "acting-agent" }
 dependencies = [
+    { name = "acting-llm" },
     { name = "fastapi" },
-    { name = "google-genai" },
     { name = "pydantic" },
-    { name = "python-dotenv" },
     { name = "uvicorn" },
 ]
 
@@ -45,10 +45,9 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "acting-llm", editable = "acting-llm" },
     { name = "fastapi", specifier = ">=0.115" },
-    { name = "google-genai", specifier = ">=2.9.0" },
     { name = "pydantic", specifier = ">=2.9" },
-    { name = "python-dotenv", specifier = ">=1.0" },
     { name = "uvicorn", specifier = ">=0.34" },
 ]
 
@@ -64,6 +63,7 @@ version = "0.1.0"
 source = { editable = "acting-api" }
 dependencies = [
     { name = "acting-agent" },
+    { name = "acting-llm" },
     { name = "acting-report" },
     { name = "acting-summary" },
     { name = "alembic" },
@@ -87,6 +87,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "acting-agent", editable = "acting-agent" },
+    { name = "acting-llm", editable = "acting-llm" },
     { name = "acting-report", editable = "acting-report" },
     { name = "acting-summary", editable = "acting-summary" },
     { name = "alembic", specifier = ">=1.14,<2" },
@@ -131,14 +132,36 @@ dev = [
 ]
 
 [[package]]
+name = "acting-llm"
+version = "0.1.0"
+source = { editable = "acting-llm" }
+dependencies = [
+    { name = "httpx" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "pytest" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "httpx", specifier = ">=0.27" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "pytest", specifier = ">=9.1.1" },
+]
+
+[[package]]
 name = "acting-report"
 version = "0.1.0"
 source = { editable = "acting-report" }
 dependencies = [
+    { name = "acting-llm" },
     { name = "fastapi" },
-    { name = "google-genai" },
     { name = "pydantic" },
-    { name = "python-dotenv" },
     { name = "uvicorn" },
 ]
 
@@ -150,10 +173,9 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "acting-llm", editable = "acting-llm" },
     { name = "fastapi", specifier = ">=0.115" },
-    { name = "google-genai", specifier = ">=2.9.0" },
     { name = "pydantic", specifier = ">=2.9" },
-    { name = "python-dotenv", specifier = ">=1.0" },
     { name = "uvicorn", specifier = ">=0.34" },
 ]
 
@@ -168,6 +190,7 @@ name = "acting-summary"
 version = "0.1.0"
 source = { editable = "acting-summary" }
 dependencies = [
+    { name = "acting-llm" },
     { name = "fastapi" },
     { name = "google-genai" },
     { name = "pydantic" },
@@ -184,6 +207,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "acting-llm", editable = "acting-llm" },
     { name = "fastapi", specifier = ">=0.115" },
     { name = "google-genai", specifier = ">=2.9.0" },
     { name = "pydantic", specifier = ">=2.9" },

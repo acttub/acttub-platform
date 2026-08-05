@@ -10,11 +10,12 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { api, type ActingReport } from '@/lib/api';
+import { api, type PracticeReport } from '@/lib/api';
 import { clearPractice, getPractice, setPrefill } from '@/lib/practice';
 import { createOrReuseReport } from '@/lib/report-flow';
 import { palette } from '@/constants/palette';
 import { Markdown } from '@/components/markdown';
+import { reportDisplay } from '@/lib/report-display';
 
 /**
  * A4. 피드백 카드 — 4블록 단일 초점형 (명세 §4).
@@ -24,7 +25,7 @@ import { Markdown } from '@/components/markdown';
 export default function ReportScreen() {
   const router = useRouter();
   const practice = getPractice();
-  const [report, setReport] = useState<ActingReport | null>(null);
+  const [report, setReport] = useState<PracticeReport | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const mountedRef = useRef(true);
@@ -67,7 +68,7 @@ export default function ReportScreen() {
   }, [loadReport]);
 
   const retake = () => {
-    if (practice) setPrefill(practice.subtext);
+    if (practice) setPrefill(practice.scene);
     clearPractice();
     router.dismissAll();
     router.push('/upload');
@@ -78,15 +79,11 @@ export default function ReportScreen() {
     router.dismissAll();
   };
 
-  const problemRange = report
-    ? report.biggest_problem.end && report.biggest_problem.end !== report.biggest_problem.start
-      ? `${report.biggest_problem.start} ~ ${report.biggest_problem.end}`
-      : report.biggest_problem.start
-    : '';
+  const display = report && report.report_type !== 'blocked' ? reportDisplay(report) : null;
 
   return (
     <SafeAreaView style={styles.safe} edges={['bottom']}>
-      <Stack.Screen options={{ title: '피드백 카드', headerBackVisible: false }} />
+      <Stack.Screen options={{ title: '오늘 정리', headerBackVisible: false }} />
       {!report && loading && (
         <View style={styles.center}>
           <ActivityIndicator color={palette.blue} size="large" />
@@ -106,57 +103,66 @@ export default function ReportScreen() {
           </Pressable>
         </View>
       )}
-      {report && practice && (
+      {report?.report_type === 'blocked' && (
+        <View style={styles.center}>
+          <Text style={styles.headline}>아직 확인 전이에요</Text>
+          <Text style={styles.loadingText}>코치가 짚은 지점이 맞는지 확인하면 오늘 정리를 볼 수 있어요.</Text>
+          <Pressable style={styles.nextButton} onPress={() => router.back()}>
+            <Text style={styles.nextButtonText}>대화로 돌아가기</Text>
+          </Pressable>
+        </View>
+      )}
+      {report && report.report_type !== 'blocked' && display && practice && (
         <ScrollView contentContainerStyle={styles.container}>
-          <Text style={styles.headline}>{report.headline}</Text>
+          <Text style={styles.headline}>{display.title}</Text>
 
           {/* 블록 0 — 의도 되짚기 */}
           <View style={styles.block}>
             <Text style={styles.blockTag}>의도 되짚기</Text>
             <Text style={styles.blockBody}>
-              “{practice.subtext.subtext}” — 이걸 보여주고 싶으셨죠.
+              “{practice.scene.goal}” — 이걸 보여주고 싶으셨죠.
             </Text>
           </View>
 
           {/* 블록 1 — 잘된 순간 */}
           <View style={[styles.block, styles.blockGreen]}>
-            <Text style={[styles.blockTag, styles.tagGreen]}>✓ 잘된 순간</Text>
-            <Markdown source={report.encouragement} />
+            <Text style={[styles.blockTag, styles.tagGreen]}>대화에서 찾은 것</Text>
+            <Markdown source={display.found} />
           </View>
 
           {/* 블록 2 — 이번에 딱 하나 */}
           <View style={[styles.block, styles.blockBlue]}>
             <Text style={[styles.blockTag, styles.tagBlue]}>
-              이번엔 이거 딱 하나 · {problemRange}
+              지금 막힌 곳
             </Text>
-            <Markdown source={report.biggest_problem.description} />
-            {!!report.evidence && (
+            <Markdown source={display.blocked} />
+            {!!display.evidence && (
               <View style={styles.evidence}>
-                <Markdown source={report.evidence} variant="compact" />
+                <Markdown source={display.evidence} variant="compact" />
               </View>
             )}
           </View>
 
           {/* 대화에서 스스로 찾은 것 */}
-          {!!report.self_discovery && (
+          {!!display.actorWords && (
             <View style={styles.block}>
               <Text style={styles.blockTag}>대화에서 스스로 찾으신 것</Text>
-              <Markdown source={report.self_discovery} />
+              <Markdown source={display.actorWords} />
             </View>
           )}
 
           {/* A5 — 재촬영 비교 (이전 리포트가 있을 때만) */}
-          {!!report.comparison && (
+          {!!display.caution && (
             <View style={[styles.block, styles.blockPurple]}>
-              <Text style={[styles.blockTag, styles.tagPurple]}>지난번과 비교하면</Text>
-              <Markdown source={report.comparison} />
+              <Text style={[styles.blockTag, styles.tagPurple]}>연기할 때 조심할 점</Text>
+              <Markdown source={display.caution} />
             </View>
           )}
 
           {/* 블록 3 — 다음 한 걸음 */}
           <View style={[styles.block, styles.blockSoft]}>
             <Text style={[styles.blockTag, styles.tagBlue]}>다음 한 걸음</Text>
-            <Markdown source={`→ ${report.next_step}`} />
+            <Markdown source={`→ ${display.next}`} />
           </View>
 
           <Pressable style={styles.nextButton} onPress={retake}>

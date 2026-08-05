@@ -186,16 +186,15 @@ export default function AnalyzingScreen() {
         sessionIdRef.current = result.sessionId;
         pendingHandleRef.current = operation.pendingHandle;
         const detail = result.detail;
-        const subtext = upload?.subtext ?? {
+        const scene = upload?.scene ?? {
           situation: detail.situation,
           character: detail.character_context,
-          subtext: detail.subtext,
+          goal: detail.goal,
         };
         const playbackUrl = detail.playback_url ?? null;
         startPractice({
           practiceSessionId: result.sessionId,
-          summaryId: detail.summary!.summary_id,
-          subtext,
+          scene,
           videoUri: upload?.video.uri ?? playbackUrl ?? '',
           playbackUrl,
         });
@@ -369,8 +368,8 @@ export default function AnalyzingScreen() {
             <View style={styles.tipBox}>
               <Text style={styles.tipTitle}>기다리는 동안</Text>
               <Text style={styles.tipBody}>
-                분석이 끝나면 코치가 먼저 말을 걸어요. 점수나 판정이 아니라, 그 장면에서 뭘 하려
-                했는지 함께 되짚는 대화예요.
+                분석이 끝나면 코치가 먼저 말을 걸어요. 그 장면에서 뭘 하려 했는지 함께 되짚는
+                대화예요.
               </Text>
             </View>
           </>

@@ -59,65 +59,101 @@ const requestClient = createApiRequestClient({
 // ─── 도메인 타입 ────────────────────────────────────────────────────────────
 
 /** 앱 내부 표현. API로 보낼 땐 character → character_context 로 매핑한다. */
-export type SubText = {
+export type SceneContext = {
   situation: string;
   character: string;
-  subtext: string;
+  goal: string;
 };
 
 export type SceneSummary = {
   summary_id: string;
-  observation?: Record<string, unknown> | null;
-  summary?: string | null;
-  intent_alignment?: string | null;
-  key_moment?: string | null;
-  key_dimension?: string | null;
-  anomalies?: Record<string, unknown>[] | null;
+  observations: {
+    start_ms: number;
+    end_ms: number;
+    label: string;
+    confidence: number;
+  }[];
+  uncertainties: string[];
 };
 
 export type CoachTurnResponse = {
   session_id: string;
-  action: 'probe_intent' | 'dig_cause' | 'deflect' | 'close';
-  utterance: string;
-  focus_timestamp: string;
-  done: boolean;
-  reason: 'gap_stated' | 'exhausted' | 'limit' | 'user_ended' | null;
+  message: string | null;
+  status: 'continue' | 'complete';
+  handoff: { id: string; branch_kind: 'analysis' | 'expression' } | null;
 };
 
 export type CoachTurn = { role: 'ai' | 'actor'; text: string };
 
-export type BiggestProblem = {
-  start: string;
-  end: string;
-  dimension: string;
-  description: string;
+export type AnalysisReport = {
+  report_type: 'analysis';
+  title: string;
+  actor_discovery: string;
+  line_meaning: string;
+  timing_reason: string;
+  target_effect: string;
+  next_take: { direction: string; tested: false };
+  acting_caution: string;
+  evidence: string[];
+  uncertainties: string[];
+  source_handoff_id: string;
 };
 
-export type ActingReport = {
-  headline: string;
-  biggest_problem: BiggestProblem;
-  evidence: string;
-  self_discovery: string;
-  encouragement: string;
-  next_step: string;
-  comparison: string;
+export type ExpressionReport = {
+  report_type: 'expression';
+  title: string;
+  blocked_point: string;
+  expression_core: string;
+  line_meaning: string;
+  timing_reason: string;
+  playable_action: string;
+  effective_experiment: { instruction: string; tested: true };
+  observed_change: string;
+  next_take: string;
+  acting_trap: string;
+  actor_training: {
+    title: string;
+    purpose: string;
+    duration_minutes: number;
+    steps: string[];
+    focus: string;
+    success_check: string;
+    tested: false;
+  };
+  evidence: string[];
+  actor_words: string[];
+  uncertainties: string[];
+  source_handoff_ids: { analysis: string | null; expression: string };
 };
 
-export type CreateReportResponse = {
-  report: ActingReport;
-  report_count: number;
+export type BlockedReport = {
+  report_type: 'blocked';
+  reason:
+    | 'confirmed_analysis_handoff_required'
+    | 'confirmed_expression_handoff_required';
+};
+
+export type PracticeReport = AnalysisReport | ExpressionReport | BlockedReport;
+export type SavedPracticeReport = AnalysisReport | ExpressionReport;
+
+export type CoachConfirmResponse = {
+  session_id: string;
+  confirmed: boolean;
+  handoff: CoachTurnResponse['handoff'];
+  report: PracticeReport;
 };
 
 export type ReportRecord = {
   practice_session_id: string;
-  headline: string;
+  report_type: 'analysis' | 'expression';
+  title: string;
   created_at: string;
 };
 
 export type ReportDetail = {
   practice_session_id: string;
   created_at: string;
-  report: ActingReport;
+  report: SavedPracticeReport;
   playback_url: string;
 };
 
@@ -174,7 +210,10 @@ export type PracticeSessionListItem = {
   status: SessionStatus;
   situation: string;
   character_context: string;
-  subtext: string;
+  goal: string;
+  blockage_kind: '분석' | '표현' | '그 외';
+  sub_branch: string;
+  blockage_detail?: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -184,7 +223,10 @@ export type PracticeSessionDetail = {
   status: SessionStatus;
   situation: string;
   character_context: string;
-  subtext: string;
+  goal: string;
+  blockage_kind: '분석' | '표현' | '그 외';
+  sub_branch: string;
+  blockage_detail?: string | null;
   created_at: string;
   updated_at: string;
   playback_url?: string;
@@ -363,15 +405,18 @@ export const api = {
   // 연습 세션 -------------------------------------------------------------------
   createPracticeSession(input: {
     upload_intent_id: string;
-    subtext: SubText;
+    scene: SceneContext;
   }, options: ApiCallOptions = {}): Promise<PracticeSessionCreate> {
     return postIdempotent<PracticeSessionCreate>(
       '/v2/practice-sessions',
       {
         upload_intent_id: input.upload_intent_id,
-        situation: input.subtext.situation,
-        character_context: input.subtext.character,
-        subtext: input.subtext.subtext,
+        situation: input.scene.situation,
+        character_context: input.scene.character,
+        goal: input.scene.goal,
+        blockage_kind: '그 외',
+        sub_branch: '그 외',
+        blockage_detail: null,
       },
       { timeoutMs: 30_000, signal: options.signal },
     );
@@ -423,10 +468,10 @@ export const api = {
   },
 
   // 코치 -----------------------------------------------------------------------
-  coachStart(summaryId: string): Promise<CoachTurnResponse> {
+  coachStart(practiceSessionId: string): Promise<CoachTurnResponse> {
     return postIdempotent<CoachTurnResponse>(
       '/v2/coach/start',
-      { summary_id: summaryId },
+      { practice_session_id: practiceSessionId },
       { timeoutMs: 120_000 },
     );
   },
@@ -439,9 +484,25 @@ export const api = {
     );
   },
 
+  coachConfirm(
+    coachSessionId: string,
+    confirmed: boolean,
+    rebuttalText?: string,
+  ): Promise<CoachConfirmResponse> {
+    return postIdempotent<CoachConfirmResponse>(
+      '/v2/coach/confirm',
+      {
+        coach_session_id: coachSessionId,
+        confirmed,
+        ...(confirmed ? {} : { rebuttal_text: rebuttalText }),
+      },
+      { timeoutMs: 120_000 },
+    );
+  },
+
   // 리포트 ---------------------------------------------------------------------
-  createReport(sessionId: string): Promise<CreateReportResponse> {
-    return postIdempotent<CreateReportResponse>(
+  createReport(sessionId: string): Promise<PracticeReport> {
+    return postIdempotent<PracticeReport>(
       '/v2/reports',
       { session_id: sessionId },
       { timeoutMs: 120_000 },

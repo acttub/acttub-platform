@@ -5,8 +5,8 @@ from types import SimpleNamespace
 from uuid import UUID, uuid4
 
 from acting_agent.schema import CoachSession as AgentCoachSession
-from acting_agent.summary_schema import SceneSummary as AgentSceneSummary
-from acting_agent.summary_schema import SubText as AgentSubText
+from acting_agent.summary_schema import ActorMaterial as AgentActorMaterial
+from acting_agent.summary_schema import ObservationPack as AgentObservationPack
 from acting_api.db.models import (
     OperationKind,
     OperationStatus,
@@ -20,11 +20,6 @@ from acting_api.db.store import (
     PracticeSessionDetail,
     PracticeSessionOperation,
 )
-from acting_report.schema import ReportRecord
-from acting_report.session_schema import CoachSession as ReportCoachSession
-from acting_report.session_schema import CoachTurn as ReportCoachTurn
-from acting_report.summary_schema import SceneSummary as ReportSceneSummary
-from acting_report.summary_schema import SubText as ReportSubText
 from api_test_support import SUMMARY, SUBTEXT
 from auth_test_support import FakeAuthStore
 
@@ -113,8 +108,11 @@ class FakePlatformStore(FakeAuthStore):
         self.operations = {}
         self.operation_requests = {}
         self.summaries = {}
+        self.transcripts = {}
         self.coach_sessions: dict[str, AgentCoachSession] = {}
-        self.reports: dict[str, ReportRecord] = {}
+        self.handoffs = {}
+        self.confirmations = {}
+        self.practice_reports = {}
 
     def create_upload_intent(
         self,
@@ -183,7 +181,10 @@ class FakePlatformStore(FakeAuthStore):
         upload_intent_id,
         situation,
         character_context,
-        subtext,
+        goal,
+        blockage_kind="그 외",
+        sub_branch="그 외",
+        blockage_detail=None,
         request_id,
         request_fingerprint,
     ):
@@ -202,10 +203,6 @@ class FakePlatformStore(FakeAuthStore):
         )
         if upload is None or upload.status != UploadStatus.FINALIZED:
             return None
-        if any(
-            row.upload_intent_id == upload_intent_id for row in self.sessions.values()
-        ):
-            return None
         now = datetime.now(timezone.utc)
         session = SimpleNamespace(
             id=uuid4(),
@@ -214,7 +211,11 @@ class FakePlatformStore(FakeAuthStore):
             status=PracticeStatus.ANALYZING,
             situation=situation,
             character_context=character_context,
-            subtext=subtext,
+            goal=goal,
+            subtext=None,
+            blockage_kind=blockage_kind,
+            sub_branch=sub_branch,
+            blockage_detail=blockage_detail,
             hidden_at=None,
             created_at=now,
             updated_at=now,
@@ -479,10 +480,11 @@ class FakePlatformStore(FakeAuthStore):
         *,
         operation_id,
         lease_token,
-        summary,
+        observation_pack,
         model,
         was_compressed,
         response_payload,
+        transcripts=(),
         now=None,
     ):
         operation = self._owned_running_operation(operation_id, lease_token)
@@ -491,11 +493,14 @@ class FakePlatformStore(FakeAuthStore):
         self.summaries[summary_id] = SimpleNamespace(
             id=summary_id,
             session_id=operation.session_id,
-            raw=summary.model_dump(mode="json"),
+            raw=observation_pack.model_dump(mode="json"),
+            observations_json=observation_pack.model_dump(mode="json")["observations"],
+            uncertainties_json=observation_pack.model_dump(mode="json")["uncertainties"],
             model=model,
             was_compressed=was_compressed,
             created_at=now,
         )
+        self.transcripts[operation.session_id] = list(transcripts)
         session = self.sessions[operation.session_id]
         session.status = PracticeStatus.ANALYZED
         session.updated_at = now
@@ -617,18 +622,40 @@ class FakePlatformStore(FakeAuthStore):
             raise LeaseOwnershipError("external operation lease is not owned")
         return operation
 
-    def seed_summary(self, *, user_id, summary=SUMMARY, subtext=SUBTEXT):
+    def seed_summary(
+        self,
+        *,
+        user_id,
+        summary=SUMMARY,
+        actor=SUBTEXT,
+        blockage_kind="분석",
+        sub_branch="대사 분석",
+        blockage_detail="왜 지금 말하는지 모르겠어.",
+        transcripts=(),
+    ):
         now = datetime.now(timezone.utc)
         practice_session_id = uuid4()
         summary_id = uuid4()
+        upload_intent_id = uuid4()
+        self.uploads[upload_intent_id] = SimpleNamespace(
+            id=upload_intent_id,
+            user_id=user_id,
+            status=UploadStatus.FINALIZED,
+            object_key=f"users/{user_id}/uploads/seed.mp4",
+            duration_ms=actor.duration_ms,
+        )
         self.sessions[practice_session_id] = SimpleNamespace(
             id=practice_session_id,
             user_id=user_id,
-            upload_intent_id=uuid4(),
+            upload_intent_id=upload_intent_id,
             status=PracticeStatus.ANALYZED,
-            situation=subtext.situation,
-            character_context=subtext.character,
-            subtext=subtext.subtext,
+            situation=actor.situation,
+            character_context=actor.character,
+            goal=actor.goal,
+            subtext=None,
+            blockage_kind=blockage_kind,
+            sub_branch=sub_branch,
+            blockage_detail=blockage_detail,
             hidden_at=None,
             created_at=now,
             updated_at=now,
@@ -637,41 +664,102 @@ class FakePlatformStore(FakeAuthStore):
             id=summary_id,
             session_id=practice_session_id,
             raw=summary.model_dump(mode="json"),
+            observations_json=summary.model_dump(mode="json")["observations"],
+            uncertainties_json=summary.model_dump(mode="json")["uncertainties"],
             created_at=now,
         )
+        self.transcripts[practice_session_id] = list(transcripts)
         return summary_id
 
-    def get_owned_summary(self, *, user_id, summary_id):
-        summary = self.summaries.get(summary_id)
-        if summary is None:
+    def get_owned_practice_session_context(
+        self, *, user_id, practice_session_id
+    ):
+        practice = self.sessions.get(practice_session_id)
+        if practice is None:
             return None
-        practice = self.sessions[summary.session_id]
         if practice.user_id != user_id or practice.hidden_at is not None:
             return None
+        summary = next(
+            (
+                row
+                for row in self.summaries.values()
+                if row.session_id == practice.id
+            ),
+            None,
+        )
+        upload = self.uploads[practice.upload_intent_id]
         return SimpleNamespace(
             practice_session_id=practice.id,
-            summary=AgentSceneSummary.model_validate(summary.raw),
-            subtext=AgentSubText(
+            summary_id=summary.id if summary is not None else None,
+            observation_pack=(
+                AgentObservationPack.model_validate(summary.raw)
+                if summary is not None
+                else None
+            ),
+            actor=AgentActorMaterial(
                 situation=practice.situation,
                 character=practice.character_context,
-                subtext=practice.subtext,
+                goal=practice.goal,
+                blockage_kind=practice.blockage_kind,
+                blockage_detail=practice.blockage_detail or "",
+                duration_ms=upload.duration_ms or 0,
             ),
+            sub_branch=practice.sub_branch,
+            transcripts=tuple(self.transcripts.get(practice.id, ())),
+            analysis_handoff=self._confirmed_analysis_handoff(
+                user_id=user_id,
+                upload_intent_id=practice.upload_intent_id,
+            )
+            if practice.blockage_kind == "표현"
+            else None,
         )
+
+    def _confirmed_analysis_handoff(self, *, user_id, upload_intent_id):
+        handoff = max(
+            (
+                row
+                for row in self.handoffs.values()
+                if row.branch_kind == "analysis"
+                and self.confirmations.get(
+                    row.id, SimpleNamespace(confirmed=False)
+                ).confirmed
+                and self.sessions[row.practice_session_id].user_id == user_id
+                and self.sessions[row.practice_session_id].upload_intent_id
+                == upload_intent_id
+            ),
+            key=lambda row: (row.created_at, row.id),
+            default=None,
+        )
+        return handoff.handoff_json if handoff is not None else None
 
     def get_owned_coach_session(self, *, user_id, coach_session_id):
         session = self.coach_sessions.get(str(coach_session_id))
         if session is None:
             return None
-        summary = self.summaries[UUID(session.summary_id)]
-        practice = self.sessions[summary.session_id]
+        practice = self.sessions[UUID(session.practice_session_id)]
         if practice.user_id != user_id or practice.hidden_at is not None:
             return None
+        context = self.get_owned_practice_session_context(
+            user_id=user_id,
+            practice_session_id=practice.id,
+        )
+        refreshed = session.model_copy(
+            update={
+                "summary_id": (
+                    str(context.summary_id) if context.summary_id is not None else None
+                ),
+                "observation_pack": context.observation_pack,
+                "transcripts": list(context.transcripts),
+                "analysis_handoff": context.analysis_handoff,
+            },
+            deep=True,
+        )
         return SimpleNamespace(
             practice_session_id=practice.id,
-            session=session.model_copy(deep=True),
+            session=refreshed,
         )
 
-    def get_owned_report_context(self, *, user_id, coach_session_id):
+    def get_owned_report_source(self, *, user_id, coach_session_id):
         owned = self.get_owned_coach_session(
             user_id=user_id,
             coach_session_id=coach_session_id,
@@ -679,25 +767,60 @@ class FakePlatformStore(FakeAuthStore):
         if owned is None:
             return None
         session = owned.session
-        summary = self.summaries[UUID(session.summary_id)]
-        practice = self.sessions[summary.session_id]
+        practice = self.sessions[UUID(session.practice_session_id)]
+        summary = next(
+            (
+                row
+                for row in self.summaries.values()
+                if row.session_id == practice.id
+            ),
+            None,
+        )
+        handoffs = [
+            row
+            for row in self.handoffs.values()
+            if row.coach_session_id == str(coach_session_id)
+        ]
+        handoff = max(
+            handoffs, key=lambda row: (row.created_at, row.id), default=None
+        )
+        branch_kind = (
+            handoff.branch_kind
+            if handoff is not None
+            else ("expression" if practice.blockage_kind == "표현" else "analysis")
+        )
+        analysis = max(
+            (
+                row
+                for row in self.handoffs.values()
+                if row.branch_kind == "analysis"
+                and self.confirmations.get(row.id, SimpleNamespace(confirmed=False)).confirmed
+                and self.sessions[row.practice_session_id].user_id == user_id
+                and self.sessions[row.practice_session_id].upload_intent_id
+                == practice.upload_intent_id
+            ),
+            key=lambda row: (row.created_at, row.id),
+            default=None,
+        )
         return SimpleNamespace(
             practice_session_id=practice.id,
-            session=ReportCoachSession(
-                session_id=session.session_id,
-                summary=ReportSceneSummary.model_validate(summary.raw),
-                subtext=ReportSubText(
-                    situation=practice.situation,
-                    character=practice.character_context,
-                    subtext=practice.subtext,
-                ),
-                turns=[
-                    ReportCoachTurn(role=turn.role, text=turn.text)
-                    for turn in session.turns
-                ],
-                question_count=session.question_count,
-                status=session.status,
-                close_reason=session.close_reason,
+            coach_session_id=UUID(session.session_id),
+            video_summary=(
+                summary.raw
+                if summary is not None
+                else {"observations": [], "uncertainties": []}
+            ),
+            branch_kind=branch_kind,
+            handoff_id=handoff.id if handoff is not None else None,
+            handoff_json=handoff.handoff_json if handoff is not None else None,
+            confirmed=(
+                self.confirmations.get(handoff.id, SimpleNamespace(confirmed=False)).confirmed
+                if handoff is not None
+                else False
+            ),
+            analysis_handoff_id=analysis.id if analysis is not None else None,
+            analysis_handoff_json=(
+                analysis.handoff_json if analysis is not None else None
             ),
         )
 
@@ -708,6 +831,11 @@ class FakePlatformStore(FakeAuthStore):
         lease_token,
         coach_session,
         response_payload,
+        handoff_id=None,
+        branch_kind=None,
+        handoff_json=None,
+        confirmed=False,
+        report_json=None,
         now=None,
     ):
         return self._complete_coach_operation(
@@ -715,6 +843,11 @@ class FakePlatformStore(FakeAuthStore):
             lease_token=lease_token,
             coach_session=coach_session,
             response_payload=response_payload,
+            handoff_id=handoff_id,
+            branch_kind=branch_kind,
+            handoff_json=handoff_json,
+            confirmed=confirmed,
+            report_json=report_json,
             now=now,
         )
 
@@ -725,6 +858,11 @@ class FakePlatformStore(FakeAuthStore):
         lease_token,
         coach_session,
         response_payload,
+        handoff_id=None,
+        branch_kind=None,
+        handoff_json=None,
+        confirmed=False,
+        report_json=None,
         now=None,
     ):
         return self._complete_coach_operation(
@@ -732,6 +870,11 @@ class FakePlatformStore(FakeAuthStore):
             lease_token=lease_token,
             coach_session=coach_session,
             response_payload=response_payload,
+            handoff_id=handoff_id,
+            branch_kind=branch_kind,
+            handoff_json=handoff_json,
+            confirmed=confirmed,
+            report_json=report_json,
             now=now,
         )
 
@@ -742,73 +885,125 @@ class FakePlatformStore(FakeAuthStore):
         lease_token,
         coach_session,
         response_payload,
+        handoff_id,
+        branch_kind,
+        handoff_json,
+        confirmed,
+        report_json,
         now,
     ):
         operation = self._owned_running_operation(operation_id, lease_token)
-        self.coach_sessions[coach_session.session_id] = coach_session.model_copy(
-            deep=True
-        )
+        stored_session = coach_session.model_copy(deep=True)
+        if confirmed:
+            stored_session.status = "closed"
+        self.coach_sessions[coach_session.session_id] = stored_session
+        if handoff_id is not None:
+            self.handoffs[handoff_id] = SimpleNamespace(
+                id=handoff_id,
+                coach_session_id=coach_session.session_id,
+                practice_session_id=operation.session_id,
+                branch_kind=branch_kind,
+                handoff_json=handoff_json,
+                created_at=now or datetime.now(timezone.utc),
+            )
+            if confirmed:
+                self.confirmations[handoff_id] = SimpleNamespace(
+                    confirmed=True,
+                    rebuttal_text=None,
+                    updated_at=now or datetime.now(timezone.utc),
+                )
+            if report_json is not None and report_json["report_type"] != "blocked":
+                self.practice_reports[handoff_id] = SimpleNamespace(
+                    id=uuid4(),
+                    practice_session_id=operation.session_id,
+                    report_type=report_json["report_type"],
+                    report_json=report_json.copy(),
+                    source_handoff_id=handoff_id,
+                    created_at=now or datetime.now(timezone.utc),
+                )
         self._succeed(operation, response_payload, now)
         return True
 
-    def complete_report_operation(
+    def confirm_latest_handoff(
+        self,
+        *,
+        coach_session_id,
+        user_id,
+        confirmed,
+        rebuttal_text,
+        now=None,
+    ):
+        source = self.get_owned_report_source(
+            user_id=user_id,
+            coach_session_id=coach_session_id,
+        )
+        if source is None or source.handoff_id is None:
+            return source
+        self.confirmations[source.handoff_id] = SimpleNamespace(
+            confirmed=confirmed,
+            rebuttal_text=rebuttal_text,
+            updated_at=now or datetime.now(timezone.utc),
+        )
+        if confirmed:
+            self.coach_sessions[str(coach_session_id)].status = "closed"
+        values = vars(source).copy()
+        values["confirmed"] = confirmed
+        return SimpleNamespace(**values)
+
+    def complete_sync_operation(
+        self, *, operation_id, lease_token, response_payload, now=None
+    ):
+        operation = self._owned_running_operation(operation_id, lease_token)
+        self._succeed(operation, response_payload, now)
+        return True
+
+    def get_practice_report_for_handoff(self, source_handoff_id):
+        row = self.practice_reports.get(source_handoff_id)
+        return row.report_json.copy() if row is not None else None
+
+    def complete_practice_report_operation(
         self,
         *,
         operation_id,
         lease_token,
-        coach_session_id,
-        report,
+        practice_session_id,
+        report_type,
+        report_json,
+        source_handoff_id,
+        response_payload,
         now=None,
     ):
         operation = self._owned_running_operation(operation_id, lease_token)
-        session_id = str(coach_session_id)
-        context = self.get_owned_report_context(
-            user_id=operation.user_id,
-            coach_session_id=coach_session_id,
+        if source_handoff_id in self.practice_reports:
+            return False
+        self.practice_reports[source_handoff_id] = SimpleNamespace(
+            id=uuid4(),
+            practice_session_id=practice_session_id,
+            report_type=report_type,
+            report_json=report_json.copy(),
+            source_handoff_id=source_handoff_id,
+            created_at=now or datetime.now(timezone.utc),
         )
-        if self.has_report_for_practice_session(context.practice_session_id):
-            return None
-        created_at = now or datetime.now(timezone.utc)
-        self.reports[session_id] = ReportRecord(
-            created_at=created_at.isoformat(),
-            session_id=session_id,
-            practice_session_id=str(context.practice_session_id),
-            report=report,
-        )
-        payload = {
-            "report": report.model_dump(mode="json"),
-            "report_count": len(self.list_reports(operation.user_id)),
-        }
-        self._succeed(operation, payload, now)
-        return payload
+        self._succeed(operation, response_payload, now)
+        return True
 
     def has_report_for_practice_session(self, practice_session_id: UUID):
         return any(
-            self.summaries[
-                UUID(self.coach_sessions[coach_session_id].summary_id)
-            ].session_id
-            == practice_session_id
-            for coach_session_id in self.reports
+            report.practice_session_id == practice_session_id
+            for report in self.practice_reports.values()
         )
-
-    def list_reports(self, user_id: UUID):
-        return [
-            record.model_copy(deep=True)
-            for session_id, record in self.reports.items()
-            if self._coach_owner(session_id) == user_id
-            and self._report_practice(session_id).hidden_at is None
-        ]
 
     def list_report_summaries(self, user_id: UUID):
         records = [
             SimpleNamespace(
-                practice_session_id=UUID(record.practice_session_id),
-                headline=record.report.headline,
-                created_at=datetime.fromisoformat(record.created_at),
+                practice_session_id=record.practice_session_id,
+                report_type=record.report_type,
+                title=record.report_json["title"],
+                created_at=record.created_at,
             )
-            for session_id, record in self.reports.items()
-            if self._coach_owner(session_id) == user_id
-            and self._report_practice(session_id).hidden_at is None
+            for record in self.practice_reports.values()
+            if self.sessions[record.practice_session_id].user_id == user_id
+            and self.sessions[record.practice_session_id].hidden_at is None
         ]
         return sorted(
             records,
@@ -826,32 +1021,24 @@ class FakePlatformStore(FakeAuthStore):
             return None
         candidates = [
             record
-            for record in self.reports.values()
-            if UUID(record.practice_session_id) == practice_session_id
+            for record in self.practice_reports.values()
+            if record.practice_session_id == practice_session_id
         ]
         if not candidates:
             return None
         latest = max(
             candidates,
             key=lambda record: (
-                datetime.fromisoformat(record.created_at),
-                record.session_id,
+                record.created_at,
+                record.id,
             ),
         )
         return SimpleNamespace(
             practice_session_id=practice_session_id,
-            created_at=datetime.fromisoformat(latest.created_at),
-            report=latest.report.model_copy(deep=True),
+            created_at=latest.created_at,
+            report=latest.report_json.copy(),
             object_key=self.uploads[practice.upload_intent_id].object_key,
         )
-
-    def _coach_owner(self, coach_session_id: str):
-        return self._report_practice(coach_session_id).user_id
-
-    def _report_practice(self, coach_session_id: str):
-        session = self.coach_sessions[coach_session_id]
-        summary = self.summaries[UUID(session.summary_id)]
-        return self.sessions[summary.session_id]
 
     @staticmethod
     def _succeed(operation, payload, now=None):

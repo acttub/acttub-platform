@@ -32,7 +32,6 @@ try {
 type ChatMessage = {
   role: 'ai' | 'actor';
   text: string;
-  focus?: string | null; // ai 메시지가 가리키는 영상 구간 (예: "00:48")
 };
 
 /**
@@ -54,8 +53,10 @@ export default function CoachScreen() {
     practice ? practice.turns.map((t) => ({ role: t.role, text: t.text })) : [],
   );
   const [input, setInput] = useState('');
-  const [waiting, setWaiting] = useState(true);
+  const [connecting, setConnecting] = useState(true);
+  const [waiting, setWaiting] = useState(false);
   const [done, setDone] = useState(false);
+  const [rebuttal, setRebuttal] = useState('');
   const [error, setError] = useState<string | null>(null);
 
   // 사용자가 올린 원본(또는 서버 재생 URL) 영상을 재생한다 (practice.videoUri).
@@ -66,27 +67,19 @@ export default function CoachScreen() {
   const startCoach = useCallback(async () => {
     if (!practice || startInFlightRef.current) return;
     startInFlightRef.current = true;
-    setWaiting(true);
+    setConnecting(true);
     setError(null);
-    const result = await attemptCoachStart(practice.summaryId, api.coachStart);
+    const result = await attemptCoachStart(practice.practiceSessionId, api.coachStart);
     if (mountedRef.current) {
       if (result.ok) {
         const reply = result.response;
         practice.coachSessionId = reply.session_id;
-        practice.questionCount = 1;
-        practice.turns.push({ role: 'ai', text: reply.utterance });
-        setMessages((m) => [
-          ...m,
-          { role: 'ai', text: reply.utterance, focus: reply.focus_timestamp },
-        ]);
-        if (reply.done) {
-          practice.closeReason = reply.reason ?? '';
-          setDone(true);
-        }
+        practice.questionCount = 0;
+        if (reply.status === 'complete') setDone(true);
       } else {
         setError(result.message);
       }
-      setWaiting(false);
+      setConnecting(false);
     }
     startInFlightRef.current = false;
   }, [practice]);
@@ -138,18 +131,36 @@ export default function CoachScreen() {
     setWaiting(true);
     try {
       const reply = await api.coachReply(practice.coachSessionId, text);
-      practice.turns.push({ role: 'ai', text: reply.utterance });
-      if (!reply.done) practice.questionCount += 1;
-      setMessages((m) => [
-        ...m,
-        { role: 'ai', text: reply.utterance, focus: reply.focus_timestamp },
-      ]);
-      if (reply.done) {
-        practice.closeReason = reply.reason ?? '';
-        setDone(true);
+      const message = reply.message;
+      if (message !== null) {
+        practice.turns.push({ role: 'ai', text: message });
+        if (reply.status !== 'complete') practice.questionCount += 1;
+        setMessages((m) => [...m, { role: 'ai', text: message }]);
       }
+      if (reply.status === 'complete') setDone(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : '전송에 실패했어요.');
+    } finally {
+      setWaiting(false);
+    }
+  };
+
+  const confirmFinding = async (confirmed: boolean) => {
+    if (!practice.coachSessionId) return;
+    const reason = rebuttal.trim();
+    if (!confirmed && !reason) return;
+    setWaiting(true);
+    setError(null);
+    try {
+      const response = await api.coachConfirm(
+        practice.coachSessionId,
+        confirmed,
+        confirmed ? undefined : reason,
+      );
+      practice.report = response.report;
+      router.push('/report');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '오늘 정리를 만들지 못했어요.');
     } finally {
       setWaiting(false);
     }
@@ -180,11 +191,6 @@ export default function CoachScreen() {
           {messages.map((m, i) =>
             m.role === 'ai' ? (
               <View key={i} style={styles.aiRow}>
-                {!!m.focus && (
-                  <View style={styles.focusChip}>
-                    <Text style={styles.focusChipText}>🎬 영상 {m.focus} 부분</Text>
-                  </View>
-                )}
                 <View style={styles.aiBubble}>
                   <Text style={styles.aiText}>{m.text}</Text>
                 </View>
@@ -207,15 +213,12 @@ export default function CoachScreen() {
             </View>
           )}
 
-          {!waiting && !done && (
-            <Text style={styles.hint}>정답은 없어요. 그 순간 어땠는지 떠오르는 대로 답해보세요.</Text>
-          )}
         </ScrollView>
 
         {error && (
           <View>
             <Text style={styles.errorText}>{error}</Text>
-            {!practice.coachSessionId && !waiting && (
+            {!practice.coachSessionId && !waiting && !connecting && (
               <Pressable style={styles.startRetry} onPress={() => void startCoach()}>
                 <Text style={styles.startRetryText}>코치 다시 연결하기</Text>
               </Pressable>
@@ -224,47 +227,67 @@ export default function CoachScreen() {
         )}
 
         {done ? (
-          <Pressable style={styles.reportButton} onPress={() => router.push('/report')}>
-            <Text style={styles.reportButtonText}>피드백 카드 보기</Text>
-          </Pressable>
-        ) : (
-          <View style={styles.inputRow}>
-            {MicButton && (
-              <MicButton
-                onText={setInput}
-                disabled={waiting || !practice.coachSessionId}
-              />
-            )}
+          <View>
+            <Text style={styles.confirmTitle}>코치가 짚은 지점이 지금은 맞게 느껴지나요?</Text>
+            <Pressable style={styles.reportButton} onPress={() => void confirmFinding(true)}>
+              <Text style={styles.reportButtonText}>이제 맞아요</Text>
+            </Pressable>
             <TextInput
-              style={styles.input}
-              placeholder="떠오르는 대로 편하게 답해보세요"
+              style={styles.rebuttalInput}
+              placeholder="어떤 점이 다른지 적어 주세요"
               placeholderTextColor={palette.textDim}
-              value={input}
-              onChangeText={setInput}
+              value={rebuttal}
+              onChangeText={setRebuttal}
               multiline
-              editable={!waiting && !!practice.coachSessionId}
             />
             <Pressable
-              style={[
-                styles.sendButton,
-                !canSendCoachMessage({
-                  text: input,
-                  waiting,
-                  done,
-                  coachSessionId: practice.coachSessionId,
-                }) && styles.sendDisabled,
-              ]}
-              onPress={send}
-              disabled={
-                !canSendCoachMessage({
-                  text: input,
-                  waiting,
-                  done,
-                  coachSessionId: practice.coachSessionId,
-                })
-              }>
-              <Text style={styles.sendText}>보내기</Text>
+              style={[styles.reportButton, !rebuttal.trim() && styles.sendDisabled]}
+              disabled={!rebuttal.trim()}
+              onPress={() => void confirmFinding(false)}>
+              <Text style={styles.reportButtonText}>아직 달라요</Text>
             </Pressable>
+          </View>
+        ) : (
+          <View>
+            <Text style={styles.composerHint}>막히는 대목을 그대로 적어 주세요.</Text>
+            <View style={styles.inputRow}>
+              {MicButton && (
+                <MicButton
+                  onText={setInput}
+                  disabled={connecting || waiting || !practice.coachSessionId}
+                />
+              )}
+              <TextInput
+                style={styles.input}
+                placeholder="떠오르는 대로 편하게 답해보세요"
+                placeholderTextColor={palette.textDim}
+                value={input}
+                onChangeText={setInput}
+                multiline
+                editable={!connecting && !waiting && !!practice.coachSessionId}
+              />
+              <Pressable
+                style={[
+                  styles.sendButton,
+                  !canSendCoachMessage({
+                    text: input,
+                    waiting,
+                    done,
+                    coachSessionId: practice.coachSessionId,
+                  }) && styles.sendDisabled,
+                ]}
+                onPress={send}
+                disabled={
+                  !canSendCoachMessage({
+                    text: input,
+                    waiting,
+                    done,
+                    coachSessionId: practice.coachSessionId,
+                  })
+                }>
+                <Text style={styles.sendText}>보내기</Text>
+              </Pressable>
+            </View>
           </View>
         )}
       </View>
@@ -281,14 +304,6 @@ const styles = StyleSheet.create({
   },
   chat: { padding: 16, gap: 12, flexGrow: 1 },
   aiRow: { alignSelf: 'flex-start', maxWidth: '85%', gap: 6 },
-  focusChip: {
-    alignSelf: 'flex-start',
-    backgroundColor: palette.blueSoft,
-    borderRadius: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-  },
-  focusChipText: { fontSize: 12, fontWeight: '700', color: palette.blueDeep },
   aiBubble: {
     backgroundColor: palette.card,
     borderWidth: 1,
@@ -309,7 +324,12 @@ const styles = StyleSheet.create({
     padding: 12,
   },
   actorText: { color: '#FFFFFF', fontSize: 15, lineHeight: 21 },
-  hint: { fontSize: 12, color: palette.textDim, textAlign: 'center', marginTop: 4 },
+  composerHint: {
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    fontSize: 12,
+    color: palette.textDim,
+  },
   errorText: { color: palette.danger, textAlign: 'center', padding: 8 },
   startRetry: { alignSelf: 'center', paddingHorizontal: 16, paddingBottom: 8 },
   startRetryText: { color: palette.blue, fontSize: 14, fontWeight: '700' },
@@ -340,4 +360,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   reportButtonText: { color: '#FFFFFF', fontSize: 16, fontWeight: '800' },
+  confirmTitle: {
+    color: palette.text,
+    fontSize: 15,
+    fontWeight: '800',
+    textAlign: 'center',
+    marginTop: 12,
+  },
+  rebuttalInput: {
+    marginHorizontal: 12,
+    minHeight: 88,
+    borderRadius: 16,
+    backgroundColor: palette.bgSoft,
+    padding: 14,
+    color: palette.text,
+  },
 });

@@ -36,7 +36,7 @@ export function objectParticle(word: string): string {
 export type UploadFormState = {
   situation: string;
   character: string;
-  subtext: string;
+  goal: string;
   hasVideo: boolean;
   agreedRights: boolean;
 };
@@ -50,7 +50,7 @@ export function missingUploadFieldsHint(state: UploadFormState): string | null {
   if (!state.hasVideo) missing.push('영상');
   if (!state.situation.trim()) missing.push('상황');
   if (!state.character.trim()) missing.push('인물');
-  if (!state.subtext.trim()) missing.push('의도');
+  if (!state.goal.trim()) missing.push('목표');
   if (missing.length > 0) {
     const list = missing.join(' · ');
     return `${list}${objectParticle(missing[missing.length - 1])} 채워주세요`;

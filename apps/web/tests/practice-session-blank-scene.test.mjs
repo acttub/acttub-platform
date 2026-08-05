@@ -15,12 +15,12 @@ test("빈 칸은 자리표시자로 채워 보낸다", () => {
     upload_intent_id: "11111111-1111-4111-8111-111111111111",
     situation: "",
     character_context: "",
-    subtext: "",
+    goal: "",
   });
 
   assert.equal(body.situation, ".");
   assert.equal(body.character_context, ".");
-  assert.equal(body.subtext, ".");
+  assert.equal(body.goal, ".");
 });
 
 test("공백만 있는 칸도 빈 칸으로 본다", () => {
@@ -28,12 +28,12 @@ test("공백만 있는 칸도 빈 칸으로 본다", () => {
     upload_intent_id: "11111111-1111-4111-8111-111111111111",
     situation: "   ",
     character_context: "\n\t",
-    subtext: " ",
+    goal: " ",
   });
 
   assert.equal(body.situation, ".");
   assert.equal(body.character_context, ".");
-  assert.equal(body.subtext, ".");
+  assert.equal(body.goal, ".");
 });
 
 test("적어 넣은 값은 그대로 둔다", () => {
@@ -41,12 +41,12 @@ test("적어 넣은 값은 그대로 둔다", () => {
     upload_intent_id: "11111111-1111-4111-8111-111111111111",
     situation: "이별을 통보받은 직후, 카페에서",
     character_context: "담담한 척하는 20대 후반 여성",
-    subtext: "상대가 마음을 돌려 다시 앉게 만들기",
+    goal: "상대가 마음을 돌려 다시 앉게 만들기",
   });
 
   assert.equal(body.situation, "이별을 통보받은 직후, 카페에서");
   assert.equal(body.character_context, "담담한 척하는 20대 후반 여성");
-  assert.equal(body.subtext, "상대가 마음을 돌려 다시 앉게 만들기");
+  assert.equal(body.goal, "상대가 마음을 돌려 다시 앉게 만들기");
 });
 
 test("일부만 비어 있으면 그 칸만 채운다", () => {
@@ -54,12 +54,12 @@ test("일부만 비어 있으면 그 칸만 채운다", () => {
     upload_intent_id: "11111111-1111-4111-8111-111111111111",
     situation: "대표실에서 막말을 들은 직후",
     character_context: "",
-    subtext: "사과를 받아내기",
+    goal: "사과를 받아내기",
   });
 
   assert.equal(body.situation, "대표실에서 막말을 들은 직후");
   assert.equal(body.character_context, ".");
-  assert.equal(body.subtext, "사과를 받아내기");
+  assert.equal(body.goal, "사과를 받아내기");
 });
 
 test("upload_intent_id는 건드리지 않는다", () => {

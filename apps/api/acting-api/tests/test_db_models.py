@@ -1,17 +1,14 @@
-from types import SimpleNamespace
 from unittest.mock import MagicMock
 from uuid import UUID
 
 import pytest
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
-from sqlalchemy.exc import IntegrityError
 
 from acting_agent.schema import CoachSession, CoachTurn
 from acting_agent.store import SessionWriteConflict
 from acting_api.db.models import (
     Base,
-    CloseReason,
     CoachSession as DbCoachSession,
     CoachTurn as DbCoachTurn,
     ConsentAction,
@@ -37,11 +34,15 @@ EXPECTED_TABLES = {
     "user_consents",
     "upload_intents",
     "practice_sessions",
+    "transcripts",
     "summaries",
     "anomalies",
     "coach_sessions",
     "coach_turns",
     "reports",
+    "coaching_handoffs",
+    "handoff_confirmations",
+    "practice_reports",
     "external_operations",
     "community_categories",
     "community_posts",
@@ -97,7 +98,14 @@ def test_documented_enum_values_are_exact():
 def test_required_reference_chain_and_v2_summary_columns():
     tables = Base.metadata.tables
     assert _fk_target(tables["summaries"].c.session_id) == "practice_sessions.id"
+    assert _fk_target(tables["transcripts"].c.session_id) == "practice_sessions.id"
+    assert next(iter(tables["transcripts"].c.session_id.foreign_keys)).ondelete == (
+        "CASCADE"
+    )
     assert _fk_target(tables["coach_sessions"].c.summary_id) == "summaries.id"
+    assert _fk_target(tables["coach_sessions"].c.practice_session_id) == (
+        "practice_sessions.id"
+    )
     assert _fk_target(tables["reports"].c.session_id) == "coach_sessions.id"
     assert _fk_target(tables["practice_sessions"].c.user_id) == "users.id"
     assert "model" in tables["summaries"].c
@@ -105,6 +113,33 @@ def test_required_reference_chain_and_v2_summary_columns():
     assert "situation" in tables["practice_sessions"].c
     assert "character_context" in tables["practice_sessions"].c
     assert "subtext" in tables["practice_sessions"].c
+    assert tables["practice_sessions"].c.subtext.nullable is True
+    assert "goal" in tables["practice_sessions"].c
+    assert {
+        "observations_json",
+        "uncertainties_json",
+    } <= set(tables["summaries"].c.keys())
+    for legacy in (
+        "observation",
+        "summary",
+        "intent_alignment",
+        "key_moment",
+        "key_dimension",
+    ):
+        assert tables["summaries"].c[legacy].nullable is True
+    assert "blockage_kind" in tables["practice_sessions"].c
+    assert "sub_branch" in tables["practice_sessions"].c
+    assert "blockage_detail" in tables["practice_sessions"].c
+    assert "conversation_summary" in tables["coach_sessions"].c
+    assert tables["coach_sessions"].c.conversation_summary.nullable is False
+    assert "action" not in tables["coach_turns"].c
+    assert "focus_timestamp" not in tables["coach_turns"].c
+    assert _fk_target(tables["coaching_handoffs"].c.coach_session_id) == (
+        "coach_sessions.id"
+    )
+    assert _fk_target(tables["practice_reports"].c.source_handoff_id) == (
+        "coaching_handoffs.id"
+    )
     assert tables["upload_intents"].c.etag.nullable is True
     assert "user_id" not in tables["coach_sessions"].c
     assert "user_id" not in tables["reports"].c
@@ -128,10 +163,11 @@ def test_all_documented_unique_constraints_exist():
         "refresh_tokens": {("token_hash",)},
         "consent_documents": {("type", "version")},
         "upload_intents": {("object_key",)},
-        "practice_sessions": {("upload_intent_id",)},
+        "transcripts": {("session_id", "ord")},
         "summaries": {("session_id",)},
         "coach_turns": {("session_id", "turn_index")},
         "reports": {("session_id",)},
+        "practice_reports": {("source_handoff_id",)},
         "external_operations": {("user_id", "request_id")},
     }
     for table_name, constraints in expected.items():
@@ -155,67 +191,76 @@ def test_operational_indexes_cover_lists_sweeps_and_polling():
         "idx_practice_sessions_user_visible_created",
         "idx_practice_sessions_user",
         "idx_practice_sessions_status_updated",
+        "idx_practice_sessions_upload_intent",
         "idx_anomalies_summary",
         "idx_sessions_summary",
+        "idx_coach_sessions_practice",
         "idx_turns_session",
         "idx_external_operations_claimable",
         "idx_external_operations_session",
         "idx_external_operations_status_attempt_lease",
+        "idx_coaching_handoffs_session_created",
+        "idx_coaching_handoffs_practice_created",
+        "idx_practice_reports_session_created",
     } <= index_names
 
 
-def test_only_report_session_unique_violation_is_treated_as_duplicate():
-    duplicate = IntegrityError(
-        "insert",
-        {},
-        SimpleNamespace(
-            sqlstate="23505",
-            diag=SimpleNamespace(constraint_name="reports_session_id_key"),
-        ),
-    )
-    unrelated = IntegrityError(
-        "insert",
-        {},
-        SimpleNamespace(
-            sqlstate="23503",
-            diag=SimpleNamespace(constraint_name="reports_session_id_fkey"),
-        ),
-    )
-
-    assert PostgresStore._is_duplicate_report_error(duplicate) is True
-    assert PostgresStore._is_duplicate_report_error(unrelated) is False
+def test_legacy_reports_table_remains_unchanged_for_read_only_history():
+    columns = set(Base.metadata.tables["reports"].c.keys())
+    assert columns == {
+        "id",
+        "session_id",
+        "headline",
+        "biggest_problem",
+        "evidence",
+        "self_discovery",
+        "encouragement",
+        "next_step",
+        "comparison",
+        "created_at",
+    }
 
 
 def test_closed_session_rejects_appended_turns_as_concurrent_write():
     session_id = UUID("22222222-2222-4222-8222-222222222222")
+    practice_session_id = UUID("33333333-3333-4333-8333-333333333333")
     summary_id = UUID(SUMMARY_ID)
     stored_turn = DbCoachTurn(
         session_id=session_id,
         turn_index=0,
         role=TurnRole.AI,
         text="코칭 종료",
-        action="close",
-        focus_timestamp="",
     )
     db_session = DbCoachSession(
         id=session_id,
+        practice_session_id=practice_session_id,
         summary_id=summary_id,
         status=SessionStatus.CLOSED,
-        close_reason=CloseReason.GAP_STATED,
+        close_reason=None,
     )
     db = MagicMock()
     db.scalar.return_value = db_session
     db.scalars.return_value = [stored_turn]
     hybrid_snapshot = CoachSession(
         session_id=str(session_id),
+        practice_session_id=str(practice_session_id),
         summary_id=str(summary_id),
-        summary=AGENT_SUMMARY,
+        observation_pack=AGENT_SUMMARY,
+        actor={
+            "situation": "상황",
+            "character": "인물",
+            "goal": "상대가 멈추게 한다",
+            "blockage_kind": "분석",
+            "blockage_detail": "상세",
+            "duration_ms": 1000,
+        },
+        blockage_kind="분석",
+        sub_branch="대사 분석",
         turns=[
-            CoachTurn(role="ai", text="코칭 종료", action="close"),
+            CoachTurn(role="ai", text="코칭 종료"),
             CoachTurn(role="actor", text="뒤늦은 답변"),
         ],
         status="closed",
-        close_reason="gap_stated",
     )
 
     with pytest.raises(SessionWriteConflict, match="closed session"):

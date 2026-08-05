@@ -1,10 +1,10 @@
 from typing import Protocol
 
 from acting_agent.schema import CoachSession
-from acting_agent.summary_schema import SceneSummary, SubText
+from acting_agent.summary_schema import ActorMaterial, ObservationPack
 
 
-SummaryContext = tuple[SceneSummary, SubText]
+PracticeContext = tuple[ObservationPack | None, ActorMaterial, str, list[str]]
 
 
 class SessionWriteConflict(RuntimeError):
@@ -12,7 +12,9 @@ class SessionWriteConflict(RuntimeError):
 
 
 class SessionStore(Protocol):
-    def get_summary(self, summary_id: str) -> SummaryContext | None: ...
+    def get_practice_context(
+        self, practice_session_id: str
+    ) -> PracticeContext | None: ...
 
     def create(self, session: CoachSession) -> CoachSession: ...
 
@@ -23,23 +25,45 @@ class SessionStore(Protocol):
 
 class InMemorySessionStore:
     def __init__(self):
-        self._summaries: dict[str, SummaryContext] = {}
+        self._practices: dict[str, PracticeContext] = {}
         self._sessions: dict[str, CoachSession] = {}
 
-    def add_summary(
-        self, summary_id: str, summary: SceneSummary, subtext: SubText
+    def add_practice_session(
+        self,
+        practice_session_id: str,
+        observation_pack: ObservationPack | None,
+        actor: ActorMaterial,
+        sub_branch: str = "그 외",
+        transcripts: list[str] | None = None,
     ) -> None:
-        self._summaries[summary_id] = (
-            summary.model_copy(deep=True),
-            subtext.model_copy(deep=True),
+        self._practices[practice_session_id] = (
+            (
+                observation_pack.model_copy(deep=True)
+                if observation_pack is not None
+                else None
+            ),
+            actor.model_copy(deep=True),
+            sub_branch,
+            list(transcripts or ()),
         )
 
-    def get_summary(self, summary_id: str) -> SummaryContext | None:
-        context = self._summaries.get(summary_id)
+    def get_practice_context(
+        self, practice_session_id: str
+    ) -> PracticeContext | None:
+        context = self._practices.get(practice_session_id)
         if context is None:
             return None
-        summary, subtext = context
-        return summary.model_copy(deep=True), subtext.model_copy(deep=True)
+        observation_pack, actor, sub_branch, transcripts = context
+        return (
+            (
+                observation_pack.model_copy(deep=True)
+                if observation_pack is not None
+                else None
+            ),
+            actor.model_copy(deep=True),
+            sub_branch,
+            list(transcripts),
+        )
 
     def create(self, session: CoachSession) -> CoachSession:
         stored = session.model_copy(deep=True)
