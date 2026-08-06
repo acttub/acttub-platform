@@ -83,144 +83,186 @@ export default function ReportScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['bottom']}>
-      <Stack.Screen options={{ title: '오늘 정리', headerBackVisible: false }} />
+      <Stack.Screen
+        options={{
+          title: practice?.scene.situation.trim() || '분석 결과',
+          headerBackVisible: false,
+          headerShadowVisible: false,
+        }}
+      />
+
       {!report && loading && (
         <View style={styles.center}>
           <ActivityIndicator color={palette.blue} size="large" />
           <Text style={styles.loadingText}>대화를 정리해서 카드를 만들고 있어요…</Text>
         </View>
       )}
+
       {error && (
         <View style={styles.center}>
           <Text style={styles.errorText}>{error}</Text>
           {practice?.coachSessionId && (
-            <Pressable style={styles.nextButton} onPress={() => void loadReport()}>
-              <Text style={styles.nextButtonText}>다시 시도</Text>
+            <Pressable style={styles.primary} onPress={() => void loadReport()}>
+              <Text style={styles.primaryText}>다시 시도</Text>
             </Pressable>
           )}
-          <Pressable style={styles.nextButton} onPress={finish}>
-            <Text style={styles.nextButtonText}>홈으로</Text>
+          <Pressable style={styles.ghost} onPress={finish}>
+            <Text style={styles.ghostText}>홈으로</Text>
           </Pressable>
         </View>
       )}
+
       {report?.report_type === 'blocked' && (
         <View style={styles.center}>
-          <Text style={styles.headline}>아직 확인 전이에요</Text>
-          <Text style={styles.loadingText}>코치가 짚은 지점이 맞는지 확인하면 오늘 정리를 볼 수 있어요.</Text>
-          <Pressable style={styles.nextButton} onPress={() => router.back()}>
-            <Text style={styles.nextButtonText}>대화로 돌아가기</Text>
+          <Text style={styles.title}>아직 정리가 만들어지지 않았어요</Text>
+          <Text style={styles.loadingText}>
+            대화가 조금 더 이어지면 오늘 정리를 볼 수 있어요.
+          </Text>
+          <Pressable style={styles.primary} onPress={() => router.back()}>
+            <Text style={styles.primaryText}>대화로 돌아가기</Text>
           </Pressable>
         </View>
       )}
+
       {report && report.report_type !== 'blocked' && display && practice && (
-        <ScrollView contentContainerStyle={styles.container}>
-          <Text style={styles.headline}>{display.title}</Text>
-
-          {/* 블록 0 — 의도 되짚기 */}
-          <View style={styles.block}>
-            <Text style={styles.blockTag}>의도 되짚기</Text>
-            <Text style={styles.blockBody}>
-              “{practice.scene.goal}” — 이걸 보여주고 싶으셨죠.
-            </Text>
+        <>
+          <View style={styles.statusRow}>
+            <Text style={styles.confirmed}>✓ 배우님과 맞춘 내용</Text>
           </View>
+          <ScrollView contentContainerStyle={styles.body}>
+            <View style={styles.heading}>
+              <Text style={styles.title}>{display.title}</Text>
+              <Text style={styles.subtitle}>
+                “{practice.scene.goal}” — 이걸 하려던 장면이었어요.
+              </Text>
+            </View>
 
-          {/* 블록 1 — 잘된 순간 */}
-          <View style={[styles.block, styles.blockGreen]}>
-            <Text style={[styles.blockTag, styles.tagGreen]}>대화에서 찾은 것</Text>
-            <Markdown source={display.found} />
-          </View>
+            <Section label="대화에서 찾은 것">
+              <Markdown source={display.found} />
+            </Section>
 
-          {/* 블록 2 — 이번에 딱 하나 */}
-          <View style={[styles.block, styles.blockBlue]}>
-            <Text style={[styles.blockTag, styles.tagBlue]}>
-              지금 막힌 곳
-            </Text>
-            <Markdown source={display.blocked} />
-            {!!display.evidence && (
-              <View style={styles.evidence}>
-                <Markdown source={display.evidence} variant="compact" />
-              </View>
+            <Section label="지금 막힌 곳">
+              <Markdown source={display.blocked} />
+              {!!display.evidence && (
+                <View style={styles.quote}>
+                  <Markdown source={display.evidence} variant="compact" />
+                </View>
+              )}
+            </Section>
+
+            {!!display.actorWords && (
+              <Section label="배우님이 남긴 문장">
+                <View style={styles.quoteBlue}>
+                  <Markdown source={display.actorWords} />
+                </View>
+              </Section>
             )}
-          </View>
 
-          {/* 대화에서 스스로 찾은 것 */}
-          {!!display.actorWords && (
-            <View style={styles.block}>
-              <Text style={styles.blockTag}>대화에서 스스로 찾으신 것</Text>
-              <Markdown source={display.actorWords} />
+            {!!display.caution && (
+              <Section label="연기할 때 조심할 점">
+                <Markdown source={display.caution} />
+              </Section>
+            )}
+
+            <Section label="다음 테이크 · 배우님이 고른 한 문장">
+              <Text style={styles.nextTake}>{display.next}</Text>
+            </Section>
+
+            <View style={styles.buttonRow}>
+              <Pressable style={styles.ghost} onPress={finish}>
+                <Text style={styles.ghostText}>오늘은 여기까지</Text>
+              </Pressable>
+              <Pressable style={styles.primary} onPress={retake}>
+                <Text style={styles.primaryText}>같은 장면 다시 찍기 →</Text>
+              </Pressable>
             </View>
-          )}
-
-          {/* A5 — 재촬영 비교 (이전 리포트가 있을 때만) */}
-          {!!display.caution && (
-            <View style={[styles.block, styles.blockPurple]}>
-              <Text style={[styles.blockTag, styles.tagPurple]}>연기할 때 조심할 점</Text>
-              <Markdown source={display.caution} />
-            </View>
-          )}
-
-          {/* 블록 3 — 다음 한 걸음 */}
-          <View style={[styles.block, styles.blockSoft]}>
-            <Text style={[styles.blockTag, styles.tagBlue]}>다음 한 걸음</Text>
-            <Markdown source={`→ ${display.next}`} />
-          </View>
-
-          <Pressable style={styles.nextButton} onPress={retake}>
-            <Text style={styles.nextButtonText}>같은 장면 다시 찍기</Text>
-          </Pressable>
-          <Pressable onPress={finish}>
-            <Text style={styles.finishLink}>오늘은 여기까지</Text>
-          </Pressable>
-        </ScrollView>
+          </ScrollView>
+        </>
       )}
     </SafeAreaView>
   );
 }
 
+/** 목업의 섹션 — 위에 얇은 선, 작은 라벨, 그 아래 내용. */
+function Section({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <View style={styles.section}>
+      <Text style={styles.sectionLabel}>{label}</Text>
+      {children}
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 16, padding: 24 },
-  loadingText: { color: palette.textDim, fontSize: 15 },
-  errorText: { color: palette.danger, fontSize: 15, textAlign: 'center' },
-  container: { padding: 20, paddingBottom: 40 },
-  headline: {
-    fontSize: 21,
-    fontWeight: '800',
-    color: palette.text,
-    lineHeight: 30,
-    marginBottom: 18,
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24, gap: 14 },
+  loadingText: {
+    fontSize: 13.5,
+    fontWeight: '600',
+    color: palette.textFaint,
+    textAlign: 'center',
+    lineHeight: 22,
   },
-  block: {
-    backgroundColor: palette.card,
+  errorText: {
+    fontSize: 13.5,
+    fontWeight: '700',
+    color: palette.danger,
+    textAlign: 'center',
+    lineHeight: 22,
+  },
+
+  statusRow: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: palette.borderSoft,
+  },
+  confirmed: { fontSize: 12.5, fontWeight: '700', color: palette.green },
+
+  body: { paddingTop: 22, paddingHorizontal: 20, paddingBottom: 24, gap: 20 },
+  heading: { gap: 6 },
+  title: { fontSize: 23, fontWeight: '900', color: palette.text, lineHeight: 32 },
+  subtitle: { fontSize: 13.5, fontWeight: '600', color: palette.textDim, lineHeight: 22 },
+
+  section: {
+    borderTopWidth: 1,
+    borderTopColor: palette.borderSoft,
+    paddingTop: 16,
+    gap: 10,
+  },
+  sectionLabel: { fontSize: 11.5, fontWeight: '900', color: palette.textFaint },
+  quote: {
+    borderLeftWidth: 2,
+    borderLeftColor: palette.border,
+    paddingLeft: 14,
+    paddingVertical: 2,
+  },
+  quoteBlue: {
+    borderLeftWidth: 2,
+    borderLeftColor: palette.blue,
+    paddingLeft: 14,
+    paddingVertical: 2,
+  },
+  nextTake: { fontSize: 17, fontWeight: '900', color: palette.text, lineHeight: 27 },
+
+  buttonRow: { flexDirection: 'row', gap: 10, paddingTop: 4 },
+  primary: {
+    flex: 1,
+    height: 52,
+    borderRadius: 14,
+    backgroundColor: palette.blue,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  primaryText: { fontSize: 14.5, fontWeight: '900', color: palette.bg },
+  ghost: {
+    flex: 1,
+    height: 52,
+    borderRadius: 14,
     borderWidth: 1,
     borderColor: palette.border,
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 10,
-  },
-  blockGreen: { backgroundColor: palette.greenSoft, borderColor: palette.greenSoft },
-  blockBlue: { borderColor: palette.blue, borderWidth: 1.5 },
-  blockPurple: { backgroundColor: palette.purpleSoft, borderColor: palette.purpleSoft },
-  blockSoft: { backgroundColor: palette.blueSoft, borderColor: palette.blueSoft },
-  blockTag: { fontSize: 12, fontWeight: '800', color: palette.textDim, marginBottom: 6 },
-  tagGreen: { color: palette.green },
-  tagBlue: { color: palette.blue },
-  tagPurple: { color: palette.purple },
-  blockBody: { fontSize: 15, color: palette.text, lineHeight: 23 },
-  evidence: { marginTop: 8 },
-  nextButton: {
-    backgroundColor: palette.blue,
-    borderRadius: 16,
-    padding: 17,
     alignItems: 'center',
-    marginTop: 14,
+    justifyContent: 'center',
   },
-  nextButtonText: { color: '#FFFFFF', fontSize: 16, fontWeight: '800' },
-  finishLink: {
-    color: palette.textDim,
-    textAlign: 'center',
-    marginTop: 16,
-    fontSize: 14,
-    textDecorationLine: 'underline',
-  },
+  ghostText: { fontSize: 14.5, fontWeight: '800', color: palette.textDim },
 });
