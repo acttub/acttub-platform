@@ -143,7 +143,7 @@ Gemini에 나가는 요청 전체를 캡처해 Python과 비교한다. 실호출
 - [ ] **`ANALYSIS_WORKER_ENABLED` 스위치** 제공
 - [ ] 🔎 **M1이 정의한 제어 표면 5개를 contract 프로파일에서 제공한다** — `run-worker-once`·`run-sweep`·`stub-state`·`advance-clock`·`db-projection` (`spec/M1-harness.md` §백엔드 adapter 계약). **transport 형태는 Python 하네스 어댑터와 동일해야 한다.** 이게 없으면 M1 하네스가 Java를 구동할 수 없다
   - **M1이 확정한 transport**: `POST /__harness/<name>`, 요청·응답 모두 JSON. 요청 바디는 `advance-clock`이 `{"seconds": N}`, `db-projection`이 `{"include": [...]}`, 나머지는 `{}`다. 응답 키는 `run-worker-once` → `{"processed": n}`, `run-sweep` → `{"expired_uploads": n, "exhausted_operations": n}`, `advance-clock` → `{"offset_sec": n}`, `stub-state`·`db-projection`은 `tools/contract-harness/contract_harness/wrapper.py:BackendRuntime.control`·`.db_projection`의 형상을 그대로 따른다
-  - **외부 의존 스텁의 값은 `tools/contract-harness/fixtures/*.json`에서 읽는다.** 언어가 달라도 같은 파일을 읽으면 같은 값이 나온다. LLM 스텁의 분기 마커(`[[coach:complete]]` 등)와 S3 head/download 규칙(object key 접미사)이 그 파일에 정의돼 있다
+  - **외부 의존 스텁의 값은 `tools/contract-harness/contract_harness/fixtures/*.json`에서 읽는다.** 언어가 달라도 같은 파일을 읽으면 같은 값이 나온다. LLM 스텁의 분기 마커(`[[coach:complete]]` 등)와 S3 head/download 규칙(object key 접미사)이 그 파일에 정의돼 있다
 - [ ] 🔎 **contract 프로파일에서 백그라운드 워커가 뜨지 않는다.** 시간 의존 동작은 `advance-clock`으로만 일어난다
 - [ ] 🔎 **제어 표면이 운영 프로파일에 노출되지 않는다** — loopback 전용이며 기본 프로파일에서 라우트가 등록되지 않음을 테스트로 단언
 - [ ] 외부 호출이 트랜잭션 밖에 있다 (커넥션 점유 시간으로 확인)

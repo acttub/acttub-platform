@@ -72,7 +72,7 @@ M1 시점에 Java 쪽은 `/health`뿐이다. 따라서 **이 사이클의 검증
 
 **③ Java 쪽은 M1 범위 밖이다.** M1 시점 Java는 `/health`뿐이므로, Java adapter는 **제어 표면 없이 `/health`만 응답하는 최소 구현**으로 둔다. 위 표를 만족시키는 것은 M4의 일이며, **이 표가 곧 M4에 넘기는 요구사항이다** — `spec/M4-llm.md`에 반영한다.
 
-**④ 외부 의존의 값은 공유 fixture에서 읽는다.** 스텁을 어떻게 만들든(in-process 객체든 fake HTTP든), **반환값은 `tools/contract-harness/fixtures/` 아래 JSON 파일 하나에서 온다.** 언어가 달라도 같은 파일을 읽으면 같은 값이 나온다. 대상은 LLM 생성 결과, S3 객체 메타(HEAD 크기·ETag), 인증 provider 검증 결과다.
+**④ 외부 의존의 값은 공유 fixture에서 읽는다.** 스텁을 어떻게 만들든(in-process 객체든 fake HTTP든), **반환값은 `tools/contract-harness/contract_harness/fixtures/` 아래 JSON 파일 하나에서 온다.** 언어가 달라도 같은 파일을 읽으면 같은 값이 나온다. 대상은 LLM 생성 결과, S3 객체 메타(HEAD 크기·ETag), 인증 provider 검증 결과다.
 
 ### 🔎 DB projection — 응답만으로는 안 보이는 상태
 
@@ -406,7 +406,7 @@ python -m contract_harness --openapi-diff <a.json> <b.json>       # diff 리포�
 
 **⑤ datetime은 §datetime 절의 순서(검증 → 마스킹 → diff)를 따른다.**
 
-**⑥ 외부 의존 스텁의 값은 `tools/contract-harness/fixtures/`의 JSON에서 읽는다.**
+**⑥ 외부 의존 스텁의 값은 `tools/contract-harness/contract_harness/fixtures/`의 JSON에서 읽는다.**
 - **LLM**: 호출 순서가 계약이므로 큐로 관리하고, `stub-state`로 **잔량과 호출 횟수**를 노출한다
 - **S3**: 업로드는 실제로 하지 않는다. `complete`가 요구하는 HEAD 결과(존재·크기·ETag)와 워커가 쓰는 다운로드 대상 로컬 파일을 fixture로 준다
 - **인증 provider**: `(provider, id_token) → subject/email` 매핑을 fixture로 준다. `DEVELOPMENT_AUTH_PROVIDER`에 의존하지 않는다
