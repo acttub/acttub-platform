@@ -90,7 +90,7 @@ test('M8: coachStart는 열린 대화를 화면에 복원한다', () => {
   assert.match(startBlock, /practice\.coachSessionId = reply\.session_id;/);
   assert.match(startBlock, /reply\.turns/);
   assert.match(startBlock, /setMessages\(restored/);
-  assert.match(coachSource, /막히는 대목을 그대로 적어 주세요\./);
+  assert.match(coachSource, /기억나는 대로 적어 주세요/);
 });
 
 test('M10: DELETE 404는 성공과 동일하게 처리한다', async () => {
