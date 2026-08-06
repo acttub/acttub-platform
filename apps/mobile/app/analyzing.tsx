@@ -31,6 +31,7 @@ import { useAuth } from '@/lib/auth';
 import { formatSizeChange, startVideoCompression } from '@/lib/compress';
 import { startPractice, takePendingUpload, type PendingUpload } from '@/lib/practice';
 import { palette } from '@/constants/palette';
+import { PracticeFooter, ProgressRow, SceneFold, SceneSummary } from '@/components/practice-chrome';
 
 /** 경과 시간 기반 단계 문구로 기다림을 설계한다(실제 진행률은 서버가 주지 않음). */
 const STAGES = [
@@ -84,6 +85,8 @@ export default function AnalyzingScreen() {
   const [error, setError] = useState<string | null>(null);
   const [videoUri, setVideoUri] = useState<string | null>(null);
   const [abandoning, setAbandoning] = useState(false);
+  // 목업이 '1분 12초 경과'를 보여준다. 얼마나 기다렸는지 보이면 덜 불안하다.
+  const [elapsedSec, setElapsedSec] = useState(0);
   const { confirm, dialog } = useAppDialog();
 
   // 방금 올린 로컬 원본을 대기 중 재생 (서버 업로드본·압축본이 아니라 원본).
@@ -307,6 +310,16 @@ export default function AnalyzingScreen() {
     return () => subscription.remove();
   }, [confirmLeave, error]);
 
+  useEffect(() => {
+    if (error) return;
+    const startedAt = Date.now();
+    const timer = setInterval(
+      () => setElapsedSec(Math.floor((Date.now() - startedAt) / 1000)),
+      1000,
+    );
+    return () => clearInterval(timer);
+  }, [error]);
+
   // 압축/업로드 중이 아닐 때만 단계 문구를 진행시킨다.
   useEffect(() => {
     if (error || compressPct !== null || uploading) return;
@@ -321,27 +334,38 @@ export default function AnalyzingScreen() {
         ? '영상을 올리는 중이에요…'
         : STAGES[stage];
 
+  const scene = uploadRef.current?.scene ?? null;
+  const blockage = uploadRef.current?.blockage ?? null;
+  const elapsedText =
+    elapsedSec < 60
+      ? `${elapsedSec}초 경과`
+      : `${Math.floor(elapsedSec / 60)}분 ${elapsedSec % 60}초 경과`;
+
   return (
     <SafeAreaView style={styles.safe}>
       <Stack.Screen
         options={{
-          title: '분석 중',
+          title: '새 연습',
           headerBackVisible: false,
           gestureEnabled: false,
-          headerStyle: { backgroundColor: palette.navy },
-          headerTintColor: '#FFFFFF',
           headerShadowVisible: false,
         }}
       />
-      {videoUri && !error && (
-        <VideoView style={styles.video} player={player} nativeControls contentFit="contain" />
-      )}
-      <ScrollView contentContainerStyle={styles.center}>
+      <ProgressRow
+        label={error ? '3단계 · 질문 준비' : '3단계 · 질문 준비 중'}
+        right={<SceneFold videoUri={videoUri} scene={scene} blockage={blockage && {
+          kind: `${blockage.blockage_kind}${blockage.sub_branch && blockage.sub_branch !== blockage.blockage_kind ? ` › ${blockage.sub_branch}` : ''}`,
+          detail: blockage.blockage_detail,
+        }} />}
+      />
+      <ScrollView contentContainerStyle={styles.body}>
         {error ? (
-          <>
+          <View style={styles.errorBlock}>
             <Text style={styles.errorTitle}>분석이 잘 안 됐어요</Text>
             <Text style={styles.errorBody}>{error}</Text>
-            <Text style={styles.errorHint}>올려주신 영상은 그대로 있으니 다시 시도해볼 수 있어요.</Text>
+            <Text style={styles.errorHint}>
+              올려주신 영상은 그대로 있으니 다시 시도해볼 수 있어요.
+            </Text>
             <Pressable style={styles.retry} onPress={() => void run(true)}>
               <Text style={styles.retryText}>다시 시도</Text>
             </Pressable>
@@ -350,30 +374,39 @@ export default function AnalyzingScreen() {
                 {abandoning ? '정리하는 중…' : '영상 다시 선택하기'}
               </Text>
             </Pressable>
-          </>
+          </View>
         ) : (
           <>
-            <ActivityIndicator size="large" color={palette.blue} />
-            <Text style={styles.stageText}>{stageText}</Text>
-            {sizeNote && <Text style={styles.sizeNote}>📦 {sizeNote}</Text>}
-            <Text style={styles.eta}>
-              보통 1~3분 정도 걸려요. 기다리는 동안 방금 찍은 영상을 다시 봐도 좋아요.
-            </Text>
-            <View style={styles.stayBox}>
-              <Text style={styles.stayText}>
-                ⚠️ 이 화면을 벗어나거나 앱을 종료하면 분석이 중단돼요. 끝날 때까지 켜 둔 채로
-                기다려주세요.
+            <View style={styles.progressBlock}>
+              <ActivityIndicator size="large" color={palette.blue} />
+              <Text style={styles.stageText}>{stageText}</Text>
+              <Text style={styles.elapsed}>{elapsedText}</Text>
+              {sizeNote && <Text style={styles.sizeNote}>{sizeNote}</Text>}
+              <Text style={styles.notice}>
+                끝날 때까지 이 화면을 켜 둔 채로 기다려 주세요. 지금 나가면 올린 영상과
+                분석이 사라져요.
               </Text>
             </View>
-            <View style={styles.tipBox}>
-              <Text style={styles.tipTitle}>기다리는 동안</Text>
-              <Text style={styles.tipBody}>
-                분석이 끝나면 코치가 먼저 말을 걸어요. 그 장면에서 뭘 하려 했는지 함께 되짚는
-                대화예요.
-              </Text>
-            </View>
+
+            {scene && (
+              <SceneSummary
+                title="분석에 쓰는 내용"
+                scene={scene}
+                blockage={
+                  blockage && {
+                    kind: `${blockage.blockage_kind}${
+                      blockage.sub_branch && blockage.sub_branch !== blockage.blockage_kind
+                        ? ` › ${blockage.sub_branch}`
+                        : ''
+                    }`,
+                    detail: blockage.blockage_detail,
+                  }
+                }
+              />
+            )}
           </>
         )}
+        <PracticeFooter />
       </ScrollView>
       {dialog}
     </SafeAreaView>
@@ -381,47 +414,50 @@ export default function AnalyzingScreen() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: palette.navy },
-  center: { flexGrow: 1, justifyContent: 'center', alignItems: 'center', padding: 24, gap: 14 },
-  video: {
-    width: '100%',
-    aspectRatio: 16 / 9,
-    backgroundColor: '#111827',
+  safe: { flex: 1, backgroundColor: palette.bg },
+  body: { paddingTop: 28, paddingHorizontal: 20, paddingBottom: 20, gap: 24 },
+
+  progressBlock: { alignItems: 'center', gap: 14, paddingTop: 26, paddingBottom: 10 },
+  stageText: {
+    fontSize: 20,
+    fontWeight: '900',
+    color: palette.text,
+    textAlign: 'center',
   },
-  stageText: { fontSize: 17, fontWeight: '700', color: '#FFFFFF', textAlign: 'center', marginTop: 8 },
-  sizeNote: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#4ADE9E',
-    backgroundColor: 'rgba(255,255,255,0.08)',
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    overflow: 'hidden',
+  elapsed: { fontSize: 12, fontWeight: '600', color: palette.textFaint },
+  sizeNote: { fontSize: 12, fontWeight: '700', color: palette.green },
+  notice: {
+    fontSize: 12.5,
+    fontWeight: '600',
+    color: palette.textFaint,
+    textAlign: 'center',
+    lineHeight: 21,
   },
-  eta: { fontSize: 13, color: '#9FB0C9', textAlign: 'center', lineHeight: 19 },
-  stayBox: {
-    backgroundColor: 'rgba(255,170,105,0.14)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,170,105,0.45)',
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
+
+  errorBlock: { alignItems: 'center', gap: 12, paddingTop: 26 },
+  errorTitle: { fontSize: 20, fontWeight: '900', color: palette.text },
+  errorBody: {
+    fontSize: 13.5,
+    fontWeight: '600',
+    color: palette.danger,
+    textAlign: 'center',
+    lineHeight: 22,
   },
-  stayText: { fontSize: 13, color: '#FFD9B8', lineHeight: 19, textAlign: 'center' },
-  tipBox: { backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 14, padding: 16, marginTop: 24 },
-  tipTitle: { fontSize: 12, fontWeight: '700', color: '#8FA5FF', marginBottom: 6 },
-  tipBody: { fontSize: 13, color: '#C6D0E2', lineHeight: 20 },
-  errorTitle: { fontSize: 18, fontWeight: '700', color: '#FFFFFF' },
-  errorBody: { fontSize: 14, color: '#FF8A8E', textAlign: 'center', lineHeight: 20 },
-  errorHint: { fontSize: 13, color: '#9FB0C9', textAlign: 'center' },
+  errorHint: {
+    fontSize: 12.5,
+    fontWeight: '600',
+    color: palette.textFaint,
+    textAlign: 'center',
+  },
   retry: {
-    backgroundColor: palette.blue,
+    height: 52,
+    alignSelf: 'stretch',
     borderRadius: 14,
-    paddingVertical: 14,
-    paddingHorizontal: 40,
+    backgroundColor: palette.blue,
+    alignItems: 'center',
+    justifyContent: 'center',
     marginTop: 8,
   },
-  retryText: { color: '#fff', fontSize: 15, fontWeight: '700' },
-  backLink: { color: '#8FA5FF', fontSize: 14, marginTop: 10, textDecorationLine: 'underline' },
+  retryText: { color: palette.bg, fontSize: 15, fontWeight: '900' },
+  backLink: { color: palette.textFaint, fontSize: 12.5, fontWeight: '700', marginTop: 6 },
 });

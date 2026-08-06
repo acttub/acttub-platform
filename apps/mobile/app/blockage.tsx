@@ -21,6 +21,7 @@ import {
 } from '@/lib/blockage';
 import { useKeyboardHeight } from '@/hooks/use-keyboard-height';
 import { setPendingBlockage } from '@/lib/practice';
+import { palette } from '@/constants/palette';
 
 /**
  * 막히는 지점 고르기 — 장면을 적은 뒤, 분석을 시작하기 전 단계.
@@ -33,21 +34,21 @@ import { setPendingBlockage } from '@/lib/practice';
  * 라디오로 표시한 뒤 아래 버튼으로 확정한다 — 잘못 눌러 단계가 넘어가지 않게.
  */
 
-/** 목업 변수(web-*)를 그대로 옮겼다. 색을 화면마다 다시 적지 않으려고 한곳에 둔다. */
+/** 화면 안에서 짧게 쓰려고 붙인 별칭. 값은 전부 constants/palette 가 정한다. */
 const c = {
-  blue: '#3182f6',
-  blueSoft: '#e8f3ff',
-  blueMist: '#f8fbff',
-  blueLine: '#dce9ff',
-  blueDark: '#1b64da',
-  ink: '#191f28',
-  inkStrong: '#333d4b',
-  inkSub: '#4e5968',
-  ink3: '#6b7684',
-  ink4: '#8b95a1',
-  ink5: '#b0b8c1',
-  line: '#e5e8eb',
-  white: '#ffffff',
+  blue: palette.blue,
+  blueSoft: palette.blueSoft,
+  blueMist: palette.blueMist,
+  blueLine: palette.blueLine,
+  blueDark: palette.blueDeep,
+  ink: palette.text,
+  inkStrong: palette.textStrong,
+  inkSub: palette.textDim,
+  ink3: palette.textMuted,
+  ink4: palette.textFaint,
+  ink5: palette.checkOff,
+  line: palette.border,
+  white: palette.bg,
 };
 
 /** 목업의 대분류 예시 문구. 고른 항목에만 한 줄 더 붙는다. */
