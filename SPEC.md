@@ -3,7 +3,7 @@
 이 문서는 **모든 마일스톤 사이클의 판정 기준**이다. 각 사이클은 이 문서 + `spec/M<n>-*.md`를 함께 읽는다.
 리뷰 지적의 수용/기각, 완료 판정 모두 이 문서를 근거로 한다.
 
-- BASE_REF: `24dedfc` (2026-08-06 개정. 최초 작성은 `47f8384` 기준이었다 — §12 참조)
+- BASE_REF: `27d6b9b` (2026-08-06 2차 개정 — `SOMA-304` 반영. 1차 개정은 `24dedfc`, 최초 작성은 `47f8384` 기준이었다 — §12 참조)
 - 마일스톤: `spec/M0-spike.md` ~ `spec/M6-cleanup.md`
 - 이전 작업 스펙은 `docs/archive/`로 옮겼다.
 
@@ -15,7 +15,7 @@
 
 `apps/api`는 FastAPI 기반 uv 파이썬 모노레포다. `acting-api` 게이트웨이가 `acting-summary`·`acting-agent`·`acting-report`를 in-process로 마운트하고, 공용 LLM·검증 유틸은 `acting-llm` 패키지에 있다.
 
-규모(2026-08-06 실측): `apps/api/spec/openapi.json` **30 paths · 69 schemas · 41 operations**.
+규모(2026-08-06 2차 실측): `apps/api/spec/openapi.json` **30 paths · 70 schemas · 41 operations**. 🔁 1차 개정의 69 schemas는 `SOMA-304`의 `PublicCoachTurn` 신설로 하루 만에 어긋났다 — **이 수치도 참고값이며, 판정은 언제나 실행 시점의 `openapi.json`으로 한다**(§6-2).
 
 이것을 **Java 21 + Spring Boot 3.4로 전면 이관**한다. LLM 파이프라인까지 포함해 파이썬을 0으로 만들고, 전환 후 백엔드 프로세스는 하나로 유지한다.
 
@@ -106,7 +106,7 @@ Jackson 설정: `WRITE_DATES_AS_TIMESTAMPS=false`, `Instant` 또는 `OffsetDateT
 
 ### 5-4. 트랜잭션 경계
 
-1. **외부 호출(S3·Gemini)을 트랜잭션 안에 넣지 않는다.** `claim → (수십 초) → complete` 흐름(`analysis_worker.py:AnalysisWorker.run_once`)에서 커넥션이 점유된다. `claim`/`complete`/`fail`/`release`를 각각 별도 트랜잭션 메서드로 분리한다.
+1. **외부 호출(S3·LLM — Gemini·OpenAI 양쪽)을 트랜잭션 안에 넣지 않는다.** `claim → (수십 초) → complete` 흐름(`analysis_worker.py:AnalysisWorker.run_once`)에서 커넥션이 점유된다. `claim`/`complete`/`fail`/`release`를 각각 별도 트랜잭션 메서드로 분리한다.
 2. **내부 헬퍼에 `@Transactional`을 붙이지 않는다.** `db/store.py`의 `PostgresStore._finish_external_operation`·`._save_coach_session`·`._load_session`·`._add_summary`·`._add_coach_session` 등은 호출자 트랜잭션에 참여하는 것이 의도다. self-invocation 함정과 겹친다.
 3. **`@Modifying`에는 `clearAutomatically=true, flushAutomatically=true`.** 벌크 UPDATE는 1차 캐시를 우회하므로 이후 같은 트랜잭션에서 엔티티를 계속 쓰는 코드(`db/store.py:PostgresStore.fail_external_operation`)가 stale해진다.
 4. 원본은 `expire_on_commit=False`가 전제라 store 메서드가 **detached 엔티티**를 반환한다. 대응 시 detach 시점을 맞춘다.
@@ -362,3 +362,13 @@ python3 spec/check-refs.py          # 전체 검사
 ```
 
 M0 문서(`spec/M0-spike.md`·`spec/M0-findings.md`)는 **그 시점의 기록**이므로 라인 참조를 그대로 둔다. 대신 문서 상단에 스냅샷 시점을 밝히고, 무효가 된 항목에 표시를 남긴다. 검사기는 이 둘을 건너뛴다.
+
+### 🔁 검사기가 잡지 못하는 것 — 심볼은 남고 동작만 바뀔 때
+
+`check-refs.py`는 **참조가 실재하는지**만 본다. `SOMA-304`가 `coaching.py:build_router.coach_start`에 resume 분기를 넣어 **`POST /v2/coach/start`의 멱등 계약을 무효화**했을 때, 심볼은 그대로였으므로 검사기는 102건 전부 통과시켰다. `spec/M1-harness.md`의 L3 대상표는 **성립하지 않는 계약을 가리킨 채 초록불이었다.**
+
+따라서 **사이클 진입 전 점검은 검사기 통과로 대체할 수 없다.** 매 사이클 시작 시 다음을 손으로 확인한다:
+
+1. `git merge-base --is-ancestor <dev tip> <직전 SPEC 개정 커밋>` — 개정이 **실제로** 최신 dev를 보고 쓰였는지. 1차 개정은 본문에 "`SOMA-302`를 반영했다"고 적혀 있었지만 커밋 조상 관계로는 `SOMA-304`를 못 본 상태였다
+2. `git diff <직전 SPEC 개정 커밋>..origin/dev -- apps/api` — 변경이 있으면 **SPEC이 인용한 동작 서술**을 그 diff에 대고 읽는다
+3. `apps/api/spec/openapi.json`의 operation·컴포넌트·`default`·`anyOf [T,null]` 집합을 개정 시점과 비교

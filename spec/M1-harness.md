@@ -7,6 +7,11 @@
 > 초판이 근거로 삼은 사실 중 상당수가 바뀌어(`SceneSummary` 소멸, unknown key 허용 7→5,
 > `POST /v2/coach/confirm` 신설, 오류 detail 표기 변경) 기대값 소스를 다시 뽑았다.
 > 바뀐 항목은 본문에 ⚠로 표시했다.
+>
+> **2026-08-06 2차 개정.** 위 개정 커밋은 `SOMA-304`(coach resume, PR #95)를 **포함하지 않은
+> 시점에서 쓰였다**(`git merge-base`로 확인). 그 뒤 `coach_start`에 **멱등 클레임보다 먼저 실행되는
+> resume 분기**가 생겨 L3 대상 한 건이 성립하지 않게 됐다. 2차 개정분은 🔁로 표시했다.
+> 계약 인벤토리(operation 41개, unknown key 허용 5개, `anyOf [T,null]` 97곳)는 실측 결과 그대로다.
 
 ## 목적
 
@@ -51,13 +56,26 @@ M1 시점에 Java 쪽은 `/health`뿐이다. 따라서 **이 사이클의 검증
 | 엔드포인트 | 비고 |
 |---|---|
 | `POST /v2/practice-sessions` | 202 accepted replay, succeeded replay 두 경로 모두 |
-| `POST /v2/coach/start` | |
+| `POST /v2/coach/start` | 🔁 **`restart: true`로만 관측한다.** 아래 참조 |
 | `POST /v2/coach/reply` | |
 | `POST /v2/reports` | 응답 모델이 `PracticeReport`로 바뀌었다 (⚠ 구 `CreateReportResponse` 소멸) |
 
 ⚠ **초판과 달라진 두 가지**:
 - `POST /v2/practice-sessions/{id}/analyze`는 이제 **바이트 동등 단언이 없다**(형상 검증만 남았다). 멱등 계약 자체는 유효하므로 **하네스는 L3 대상으로 유지하되, 기존 테스트가 근거가 아님을 기록한다**
 - `POST /v2/coach/confirm`은 **신규인데 replay 테스트가 아예 없다.** `X-Request-Id`를 받는 sync operation이므로 L3 대상에 넣고, **하네스가 이 공백을 메운다**
+
+🔁 **`POST /v2/coach/start`의 멱등 계약은 `restart` 값에 따라 갈린다.**
+
+`SOMA-304`가 넣은 resume 분기(`coaching.py:build_router.coach_start`)가 **`begin_sync_operation` 호출보다 앞에 있다.** 따라서 경로가 둘로 나뉜다:
+
+| `restart` | 두 번째 요청이 타는 경로 | L3 성립 |
+|---|---|---|
+| `false`(기본값) | 열린 코치 세션이 있으면 **resume** — `store.get_oldest_open_coach_session` → `sync_operations.py:sync_response`. fingerprint를 계산하지 않고 sync operation 레코드도 만들지 않는다 | **불가** |
+| `true` | resume 분기를 건너뛰고 기존 fingerprint·클레임 경로 | 가능 |
+
+- **하네스는 `restart: true`로 L3를 관측한다.** `restart: false`로 replay를 시도하면 저장된 응답이 아니라 `_resumed_coach_payload`가 돌아온다 — `message`는 마지막 `ai` 턴에서 뽑고 `handoff`·`report`는 항상 `null`이라 **본문이 최초 응답과 다르다.** 이걸 L3 대상으로 두면 성립하지 않는 계약을 검증하게 된다
+- **resume 경로는 버리지 않고 L2 시나리오로 따로 덮는다**(아래 §시나리오). `X-Request-Id` 응답 헤더는 이 경로에서도 나오므로 헤더 검증 대상이다
+- `restart: true`는 기존 열린 세션을 닫는 부작용이 있다(`db/store.py:PostgresStore.complete_coach_start_operation`의 `restart` 인자). 시나리오 순서를 짤 때 **resume 검증을 restart 검증보다 먼저** 둔다
 
 ⚠ **`SceneSummary` 예외 조항은 삭제됐다.** 초판은 이 컴포넌트만 `additionalProperties: true`라 "스키마가 아니라 값 동일성으로 비교"하라고 했으나, `SOMA-302`가 스키마에서 제거했다. 현재 응답 컴포넌트에 열린 것은 FastAPI가 만드는 `HTTPValidationError`뿐이다.
 
@@ -89,6 +107,7 @@ M1 시점에 Java 쪽은 `/health`뿐이다. 따라서 **이 사이클의 검증
    - ⚠ 대상이 늘었다: `COACH_QUESTION`·`COACH_FOLLOWUP`·**`COACH_COMPLETE`(신규)**·`REPORT`, 그리고 관찰 팩 계열인 `SUMMARY`·`AGENT_SUMMARY`·**`ANALYSIS_HANDOFF`(신규)**
    - `REPORT`의 타입이 `AnalysisReport`로 바뀌었다(구 `ActingReport` 소멸)
    - `generate_text`는 `(text, TokenUsage)` 튜플을 돌려준다 — 스텁도 같은 형태여야 한다
+   - 🔁 **resume 경로는 LLM을 전혀 호출하지 않는다.** `_resumed_coach_payload`가 마지막 `ai` 턴을 그대로 되돌려준다. 따라서 **큐가 소비되지 않았다는 것 자체가 검증 대상**이다 — 스텁은 남은 큐 길이를 노출해야 하고, 이걸 확인하지 않으면 "resume인 척하면서 실제로는 새 발화를 생성하는" 구현을 통과시킨다
 2. **비동기 경로(분석 워커)**: **`analyzer` 레벨**(`create_app(analyzer=...)`)로 자른다. 워커는 백그라운드가 아니라 **`run_once()` 동기 훅**으로 구동한다(`analysis_worker.py:AnalysisWorker.run_once`). Java에도 동등 훅이 필요하다 — M4 SPEC에 반영됨
 
 **하네스는 네 주입점을 모두 막아야 한다.** 하나라도 열려 있으면 네트워크를 타서 비결정이 되고 CI에서 깨진다.
@@ -98,6 +117,8 @@ M1 시점에 Java 쪽은 `/health`뿐이다. 따라서 **이 사이클의 검증
 **숫자를 하드코딩하지 않는다**(`/SPEC.md` §6-2). 아래는 전부 **소스/OpenAPI에서 생성한 inventory**로 만들고, 집합 동등성으로 판정한다.
 
 **이 원칙이 왜 절대적인가**: 초판은 "요청 바디 16개 중 7개가 unknown key 허용", "`default` 0개", "`anyOf [T,null]` 86곳"을 본문에 박아 뒀다. 넉 달 만에 각각 17개 중 5개 / 9개 / 97곳이 됐다. **박아 둔 숫자는 전부 틀렸고, 그것을 근거로 이식했다면 조용히 잘못된 구현이 나왔다.**
+
+🔁 그리고 **1차 개정에서 적은 `default` 9개는 하루도 못 가 10개가 됐다** — `SOMA-304`가 `CoachStartReq.restart: bool = False`를 넣었다(`acting-agent/router.py:CoachStartReq`). 같은 변경으로 컴포넌트도 69→70개다(`PublicCoachTurn` 신설). **이 문단의 숫자들은 예시일 뿐이며, 하네스가 읽어야 할 값은 언제나 실행 시점의 `openapi.json`과 소스다.**
 
 ### ① 성공 응답 형상
 
@@ -110,6 +131,7 @@ M1 시점에 Java 쪽은 `/health`뿐이다. 따라서 **이 사이클의 검증
 주의:
 - 공백 포함 문장과 snake_case가 섞여 있다
 - **같은 상태코드에 두 표기가 공존한다** — 404에 `practice session not found`와 `practice_session_not_found`가 둘 다, 409에 `report already exists`와 `report already exists for practice session`이 둘 다 있다. 라우터별로 정확히 갈라야 한다
+- 🔁 **`coach_start` 안에서 409 `report already exists for practice session`이 두 지점에서 난다** — resume 분기(클레임 없음)와 클레임 획득 뒤(`fail_sync_operation`으로 `report_already_exists` 기록). **응답은 같지만 sync operation 부작용이 다르다.** 오류 계약 추출은 `(method, path, 조건) → (status, detail)`만 보므로 이 차이를 놓친다. 시나리오에서 **두 경로를 모두 밟고 operation 레코드 유무까지 비교**한다
 - 422 validation만 `detail`이 배열이다
 - ⚠ 초판이 "멀티라인이라 단순 grep에 안 잡힌다"고 예시한 `upload_intent_not_finalized_or_already_used`는 **더 이상 없다.** 현재는 `upload_intent_not_finalized`·`upload_not_found`로 갈렸다. 멀티라인 함정 자체는 남아 있으므로 **AST 파싱으로 추출**한다(정규식 금지)
 
@@ -139,6 +161,7 @@ admin 2개(`/admin/stats`, `/admin/sessions`)는 `ADMIN_OPS_TOKEN`이 있을 때
 | 시나리오 | 내용 |
 |---|---|
 | **메인 플로우** | 기존 대본 번역 — 로그인 → 약관 → 업로드 → complete → 세션(202) → 워커 → 재분석 → 코치(start·reply·**confirm**) → 리포트 → 이력·상세 → 삭제 → 로그아웃 |
+| 🔁 **코치 resume·restart** | ① `start`(신규 생성) → `reply` → **`start` 재호출(`restart` 생략)** → 같은 `session_id`로 이어받고 `turns`가 전량 반환되며 새 코치 발화가 생기지 않는지(=`generate_text` 호출 큐가 소비되지 않는지) ② 이어서 **`start`(`restart: true`)** → 새 `session_id`가 나오고 이전 세션이 닫히는지 ③ `restart: true` + 같은 `X-Request-Id` 재전송 → L3 바이트 동등 ④ 리포트 확정 후 resume 시도 → 409 |
 | **커뮤니티** | 16개 경로 전부. 목록 커서(글 DESC / 댓글 ASC), 익명 별칭 번호, 차단 필터, 좋아요 카운트, 신고 중복, 조회수 증가 시점 |
 | **프로필** | `/v2/me` GET·PATCH. nickname 정규화 |
 | **admissions** | 공개 조회 2개 |
@@ -182,6 +205,8 @@ Java의 springdoc 출력과 기존 스펙을 비교한다. 보고 항목: path/o
   - [ ] `X-Request-Id` 응답 헤더 누락 → 헤더 검증
   - [ ] 커뮤니티 커서 방향 뒤집기 → 커뮤니티 시나리오
   - [ ] 조회수를 증가 **후** 값으로 반환 → 커뮤니티 시나리오
+  - [ ] 🔁 **resume 분기를 멱등 replay 뒤로 옮김** → 코치 resume 시나리오 (열린 세션이 있는데도 새 세션이 생기거나, 저장된 replay 응답이 돌아온다)
+  - [ ] 🔁 **`turns` 배열을 역순으로 반환** → 코치 resume 시나리오 (`turns`는 저장 순서가 계약이다)
 
 ### 기대값 fixture
 - [ ] 성공 응답 형상이 **소스에서 생성**된다 (하드코딩 아님)
@@ -218,3 +243,5 @@ python -m contract_harness --coverage                             # 미실행 op
 - 두 백엔드를 띄우는 방식(프로세스 직접 vs docker-compose) — 구현자가 정한다. CI에서 돌아야 한다
 - symbolic ID 치환의 구현 형태 — 응답 본문뿐 아니라 후속 요청 경로·헤더에도 ID가 들어간다
 - `POST /v2/coach/confirm`의 멱등 계약 — 기존 테스트에 근거가 없어 **소스(`coaching.py:build_router.coach_confirm`)에서 직접 읽어 확정해야 한다**
+
+🔁 `POST /v2/coach/start`의 멱등 계약은 **더 이상 미결이 아니다** — 위 §3단 비교에서 `restart` 값에 따라 확정했다.

@@ -22,7 +22,7 @@ ExecStart=/usr/bin/java -jar /svc/acttub/api/acttub-api.jar
 ```
 `EnvironmentFile=/etc/acttub/api.env`는 그대로. `Restart=always` + `RestartSec=3`도 유지.
 
-**환경변수 이름을 바꾸지 않는다** — `DATABASE_URL`, `JWT_SECRET`, `GEMINI_API_KEY`, `S3_BUCKET`, `AWS_REGION`, `ADMIN_OPS_TOKEN` 등을 Spring이 그대로 읽게 매핑한다. 이름을 바꾸면 배포 문서 전체와 두 서버의 api.env를 동시에 고쳐야 하고 롤백이 어려워진다.
+**환경변수 이름을 바꾸지 않는다** — `DATABASE_URL`, `JWT_SECRET`, `GEMINI_API_KEY`, 🔁 `OPENAI_API_KEY`·`OPENAI_CHAT_MODEL`·`OPENAI_TRANSCRIBE_MODEL`(`SOMA-302`가 들인 `acting-llm/openai_client.py`), `S3_BUCKET`, `AWS_REGION`, `ADMIN_OPS_TOKEN` 등을 Spring이 그대로 읽게 매핑한다. 이름을 바꾸면 배포 문서 전체와 두 서버의 api.env를 동시에 고쳐야 하고 롤백이 어려워진다.
 
 ### B. 인스턴스 — dev·운영 **둘 다** 업그레이드가 선행 조건
 

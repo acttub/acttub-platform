@@ -30,8 +30,12 @@
 
 | 엔드포인트 | 이유 |
 |---|---|
-| `POST /v2/coach/start`, `/v2/coach/reply` | Gemini 호출 (`coaching.py:build_router.coach_start`·`.coach_reply`) |
-| **`POST /v2/reports`** | Gemini 호출 (`reports.py:build_router.create_report`). 저장 계층은 M3에서 완료 |
+| `POST /v2/coach/start`, `/v2/coach/reply` | **OpenAI** 호출 (`coaching.py:build_router.coach_start`·`.coach_reply` → `acting-agent/engine.py:_generate_validated`) |
+| **`POST /v2/reports`** | **OpenAI** 호출 (`reports.py:build_router.create_report`). 저장 계층은 M3에서 완료 |
+
+> 🔁 이 표는 1차 개정에서 "Gemini 호출"로 남아 있어 위 §공급자 표(`acting-agent`·`acting-report` = OpenAI)와 모순이었다. `SOMA-302` 이후 **이 세 엔드포인트에 Gemini는 관여하지 않는다.**
+>
+> `coach_start`는 🔁 **LLM을 호출하지 않는 경로가 하나 더 있다** — 열린 코치 세션을 이어받는 resume 분기(`SOMA-304`). 이식할 때 이 분기에서 생성 호출이 새지 않아야 한다. 판정 근거는 `spec/M1-harness.md`의 코치 resume 시나리오다.
 
 ## 산출물
 
