@@ -6,6 +6,12 @@
 - 검증: `./gradlew clean build` → **43 tests / 0 failed / 0 skipped** (Gemini 실호출 포함)
 - 환경: Java 21.0.11 (Homebrew openjdk@21), Gradle 8.14.3 (wrapper), Docker Desktop, Testcontainers 1.21.3
 
+> **📌 `47f8384` 시점의 기록이다.** 라인 번호 참조는 그때의 표기이며 의도적으로 유지한다(`/SPEC.md` §12).
+>
+> **⚠ 무효가 된 전제와 그 뒤 벌어진 일** — 무효 항목 목록은 `spec/M0-spike.md` 상단에 있다. 여기서는 검증 상태만 덧붙인다:
+> - 위 "43 tests / 0 failed"는 **오래 유지되지 못했다.** dev가 alembic을 `0006 → 0010`으로 올리는 동안 `practice_sessions`·`coach_sessions`에 NOT NULL 컬럼이 붙어 **통합 테스트 17개가 깨졌고, `ci.yml`에 Java 잡이 없어 아무도 알아채지 못했다.** M1 착수 전 preflight에서 복구했고, 같은 일이 반복되지 않도록 `api-java` 잡을 CI에 넣었다
+> - `FlywayBaselineTest`가 커밋된 fixture와 `V1__baseline.sql`을 서로 비교하는 **자기참조** 구조라 둘이 같이 낡아도 초록이었다. 실행 시점에 alembic을 직접 돌려 대조하도록 바꿨다(`/SPEC.md` §5-5)
+
 ---
 
 ## 0. 한 줄 결론

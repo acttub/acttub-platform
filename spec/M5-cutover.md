@@ -55,7 +55,7 @@ vCPU도 1개다. JVM 기동 시 CPU 스파이크가 t2.micro의 버스트 크레
 
 ### ⚠️ 워커 owner는 항상 정확히 하나
 
-**두 백엔드를 같은 DB에 띄우면 워커도 둘 다 돈다.** FastAPI는 lifespan에서 `analysis_worker.start()`를 무조건 실행하고(`app.py:197`), S3와 PostgresStore가 있으면 워커를 자동 생성한다(`app.py:150-154`). 둘이 같은 `external_operations` 큐를 소비하면:
+**두 백엔드를 같은 DB에 띄우면 워커도 둘 다 돈다.** FastAPI는 lifespan에서 `analysis_worker.start()`를 무조건 실행하고(`app.py:create_app.lifespan`), S3와 PostgresStore가 있으면 워커를 자동 생성한다(`app.py:create_app`). 둘이 같은 `external_operations` 큐를 소비하면:
 
 - Java로 보낸 분석 요청을 **Python 워커가 완료해버려 Java 파이프라인의 결함이 관찰 기간 내내 가려진다**
 - 두 구현의 실패·재시도 의미가 다르면 같은 세션을 번갈아 처리한다

@@ -2,11 +2,27 @@
 
 **공통 규칙은 `/SPEC.md`를 따른다. 이 문서는 M4 사이클에만 적용된다.**
 
-> **상세화 시점**: **M0의 Gemini 결론(SDK 채택 vs REST 직접)에 전적으로 의존한다.** 사이클 진입 시 그 결론을 반영해 보강한다.
+> **상세화 시점**: **M0의 Gemini 결론(SDK 채택 vs REST 직접)에 의존한다.** 사이클 진입 시 그 결론을 반영해 보강한다.
+>
+> ⚠ **2026-08-06 — 공급자가 둘이 됐다.** `SOMA-302`가 신규 패키지 `acting-llm`을 들이면서 코치·리포트가 **Gemini에서 OpenAI로 넘어갔다.** M0의 Gemini SDK 스파이크는 이제 **영상 분석 한 층에만** 답한 것이다. OpenAI 쪽은 별도 판단이 남았다(§A-0).
 
 ## 목적
 
-`acting-summary`·`acting-agent`·`acting-report`(약 3.8k LOC)와 분석 워커를 옮기고, M3에서 미뤄둔 LLM 의존 엔드포인트를 노출한다. 이 사이클이 끝나면 파이썬에 남는 기능이 없다.
+`acting-summary`·`acting-agent`·`acting-report`·**`acting-llm`**과 분석 워커를 옮기고, M3에서 미뤄둔 LLM 의존 엔드포인트를 노출한다. 이 사이클이 끝나면 파이썬에 남는 기능이 없다.
+
+### A-0. 공급자 지형 (먼저 읽는다)
+
+| 층 | 공급자 | 엔드포인트 | 호출부 |
+|---|---|---|---|
+| `acting-summary` — 영상 분석 | **Gemini** | Files API 업로드 → `PROCESSING` 폴링 → `generate_content` | `acting-summary/summarizer.py:summarize` |
+| `acting-agent` — 코치 | **OpenAI** | `POST https://api.openai.com/v1/responses` | `acting-agent/engine.py:_generate_validated` |
+| `acting-report` — 리포트 | **OpenAI** | 같은 클라이언트 | `acting-report/engine.py` |
+| `acting-llm` — 공용 | **OpenAI** | `:generate_text`, `:transcribe_audio` | `acting-llm/openai_client.py:generate_text` |
+
+- 모델은 환경변수로 갈린다: `OPENAI_CHAT_MODEL`(기본 `gpt-5.6-terra`)·전사 모델·`OPENAI_API_KEY`. **환경변수 이름을 유지한다**(`/SPEC.md` §5-6과 같은 이유 — M5에서 배포 문서·양쪽 서버 `api.env`를 건드리지 않기 위해)
+- **OpenAI 쪽은 공식 Java SDK를 전제하지 않는다.** 현재 파이썬 구현도 SDK가 아니라 `httpx`로 REST를 직접 친다(재시도 포함). 같은 형태로 `RestClient` 직접 호출이 기본안이며, SDK 채택은 M4 진입 시 판단한다
+- `generate_text`는 `(text, TokenUsage)`를 돌려준다. **토큰 사용량이 반환 계약의 일부**다
+- 재시도·오류 매핑(`_retrying_request`·`_api_error`)을 그대로 옮긴다 — 여기가 갈리면 사용자에게 보이는 오류 코드가 달라진다
 
 **이 마일스톤의 성패는 코드량이 아니라 "생성 요청이 Python과 동일한가"이다.** 자연어 출력은 비결정적이므로, 완료 판정은 **요청 golden + 결정적 후처리**로 한다.
 
@@ -14,14 +30,14 @@
 
 | 엔드포인트 | 이유 |
 |---|---|
-| `POST /v2/coach/start`, `/v2/coach/reply` | Gemini 호출 (`coaching.py:170`) |
-| **`POST /v2/reports`** | Gemini 호출 (`reports.py:126`). 저장 계층은 M3에서 완료 |
+| `POST /v2/coach/start`, `/v2/coach/reply` | Gemini 호출 (`coaching.py:build_router.coach_start`·`.coach_reply`) |
+| **`POST /v2/reports`** | Gemini 호출 (`reports.py:build_router.create_report`). 저장 계층은 M3에서 완료 |
 
 ## 산출물
 
 ### A. `acting-summary` — 영상 분석
 
-**생성 요청을 그대로 옮긴다** (`summarizer.py:123-132`):
+**생성 요청을 그대로 옮긴다** (`acting-summary/summarizer.py:summarize`):
 
 ```
 response_mime_type = "application/json"
@@ -47,14 +63,14 @@ media_resolution   = MEDIA_RESOLUTION_LOW
 
 `engine.py`(246) · `targeting.py`(284) · `guard.py`(127) · `prompt.py`(192) · `clip.py` · `knowledge.py`.
 
-- 생성 설정은 `system_instruction` + `response_mime_type` + `response_schema`뿐이다(`engine.py:45-49`). **summary와 달리 temperature 등을 지정하지 않는다** — 기본값을 그대로 둔다
-- **형제 스키마 파싱 폴백**: `close` 유무만 다른 모델로 파싱돼 오면 필드를 옮겨 담는다(`engine.py:56-58`). 이 폴백이 없으면 간헐적으로 실패한다
-- **`SessionWriteConflict` → 409 `session changed concurrently`** (`coaching.py:189`)
+- 생성 설정은 `system_instruction` + `response_mime_type` + `response_schema`뿐이다(`acting-agent/engine.py:_generate_validated`). **summary와 달리 temperature 등을 지정하지 않는다** — 기본값을 그대로 둔다
+- **형제 스키마 파싱 폴백**: `close` 유무만 다른 모델로 파싱돼 오면 필드를 옮겨 담는다(`acting-agent/engine.py:_generate_validated`). 이 폴백이 없으면 간헐적으로 실패한다
+- **`SessionWriteConflict` → 409 `session changed concurrently`** (`coaching.py:build_router.coach_reply`)
 - 낙관적 락은 M3에서 만든 `_save_coach_session` 대응물을 쓴다
 
 ### C. `acting-report` — 리포트
 
-`engine.py` · `prompt.py` · 스키마. 저장 계층(`complete_report_operation`)은 M3 완료분을 쓰고 LLM 호출부만 연결한다.
+`engine.py` · `prompt.py` · 스키마. 저장 계층(`db/store.py:PostgresStore.complete_practice_report_operation`)은 M3 완료분을 쓰고 LLM 호출부만 연결한다. ⚠ 구 `complete_report_operation`은 `SOMA-302`로 사라졌다(`/SPEC.md` §7-1).
 
 ### D. 분석 워커
 

@@ -2,6 +2,14 @@
 
 **공통 규칙은 `/SPEC.md`를 따른다. 이 문서는 M0 사이클에만 적용된다.**
 
+> **📌 이 문서는 `47f8384` 시점의 기록이다.** 소스 참조가 라인 번호인 것은 그때의 표기이며, 의도적으로 그대로 둔다(`/SPEC.md` §12 — 참조 검사기도 이 문서를 건너뛴다).
+>
+> **⚠ 그 뒤 `SOMA-302`(AI 3개 층 교체)가 dev에 들어와 아래 전제 일부가 무효가 됐다.** 무효 항목:
+> - **산출물 E(위험 함수 #1 `complete_report_operation`)** — 대상 함수가 소멸했다. `complete_practice_report_operation`으로 대체됐고 구조가 `ON CONFLICT ... DO NOTHING RETURNING` 한 방으로 단순해졌다. **트랜잭션 스타일 결론(선언적 vs `TransactionTemplate`)은 유효**하지만, 이식은 M3에서 새 함수 기준으로 다시 한다
+> - **`reports_session_id_key` 제약명 의존** — 리포트 경로에서 사라졌다. 제약명 문자열 의존은 `consents.py:_is_consent_document_unique_error`로 옮겨 갔다(`/SPEC.md` §6 #10)
+> - **Gemini SDK 결론의 적용 범위** — 이제 **영상 분석 한 층에만** 해당한다. 코치·리포트는 신규 패키지 `acting-llm`을 통해 **OpenAI**로 넘어갔다(`spec/M4-llm.md` §A-0)
+> - **스키마 규모** — 20 테이블 → 24 테이블. alembic `0006` → `0010`
+
 ## 목적
 
 이후 마일스톤의 SPEC을 확정 가능한 상태로 만든다. **M0은 "기능을 만드는" 사이클이 아니라 "미지수를 없애는" 사이클이다.** 지금 `/SPEC.md` §10에 남아 있는 미결 사항 중 M0 몫 두 개를 사실로 바꾸고, 나머지 마일스톤이 올라탈 최소 골격을 세운다.
