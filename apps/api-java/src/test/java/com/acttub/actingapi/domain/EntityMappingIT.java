@@ -98,14 +98,20 @@ class EntityMappingIT {
                 uploadIntentId, userId);
 
         UUID id = UUID.randomUUID();
+        // blockage_kind/sub_branch 는 ck_practice_sessions_blockage_branch 가 묶는 조합만 받는다.
         entityManager.persist(new PracticeSessionEntity(id, userId, uploadIntentId,
-                PracticeStatus.ANALYZING, "상황", "인물", "서브텍스트"));
+                PracticeStatus.ANALYZING, "상황", "인물", "서브텍스트",
+                "분석", "캐릭터 분석", "목표"));
         entityManager.flush();
         entityManager.clear();
 
         PracticeSessionEntity loaded = entityManager.find(PracticeSessionEntity.class, id);
         assertThat(loaded.getStatus()).isEqualTo(PracticeStatus.ANALYZING);
         assertThat(loaded.getHiddenAt()).isNull();
+        assertThat(loaded.getBlockageKind()).isEqualTo("분석");
+        assertThat(loaded.getSubBranch()).isEqualTo("캐릭터 분석");
+        assertThat(loaded.getGoal()).isEqualTo("목표");
+        assertThat(loaded.getBlockageDetail()).isNull();
         assertThat(jdbc.queryForObject("SELECT status::text FROM practice_sessions WHERE id = ?",
                 String.class, id)).isEqualTo("analyzing");
     }

@@ -116,8 +116,8 @@ class NaiveTransactionTrapIT {
     @DisplayName("삼키고 리턴하면 예외 없이 성공한 척하지만 선행 쓰기가 사라진다")
     void swallowingInsideTransactionSilentlyLosesWrites() {
         ReportFixtures fixtures = new ReportFixtures(jdbc);
-        UUID coachSession = fixtures.insertCoachSession(
-                fixtures.insertSummary(fixtures.insertPracticeSession(fixtures.insertUser())));
+        UUID coachSession = fixtures.insertCoachSessionFor(
+                fixtures.insertPracticeSession(fixtures.insertUser()));
         fixtures.insertReportDirectly(coachSession);
 
         UUID marker = UUID.randomUUID();
@@ -133,8 +133,8 @@ class NaiveTransactionTrapIT {
     @DisplayName("삼킨 뒤 DB 를 더 건드리면 25P02 로 터진다")
     void swallowingThenQueryingFails() {
         ReportFixtures fixtures = new ReportFixtures(jdbc);
-        UUID coachSession = fixtures.insertCoachSession(
-                fixtures.insertSummary(fixtures.insertPracticeSession(fixtures.insertUser())));
+        UUID coachSession = fixtures.insertCoachSessionFor(
+                fixtures.insertPracticeSession(fixtures.insertUser()));
         fixtures.insertReportDirectly(coachSession);
 
         Throwable thrown = catchThrowable(

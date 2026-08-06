@@ -91,6 +91,6 @@
 ## 이후 (스코프 밖)
 
 - `DeleteObject` 권한 누락 — 워커 sweep이 조용히 실패 중 (`docs/archive/SPEC-SOMA-296-s3-instance-role.md` 5장)
-- `ListBucket` 누락으로 `uploads.py:132`의 409 경로가 도달 불가
+- `ListBucket` 누락으로 `uploads.py:build_router.complete_intent`의 409 경로가 도달 불가
 - `admin_sessions` presign TTL(3600초)과 임시 자격증명 만료의 어긋남
 - 공유 IAM 키 은퇴 잔여 절차
