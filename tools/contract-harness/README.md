@@ -64,12 +64,33 @@ $PY -m pytest tests -q                                        # 리포터·정�
 전부 `advance-clock`으로만 일어난다. 이 표가 곧 M4에 넘기는 요구사항이다
 (`spec/M4-llm.md`).
 
+## 시간·중간 상태를 결정적으로 만드는 두 장치
+
+시계를 앞당기지 않고도 "만료됐다"·"처리 중이다"를 재현한다.
+
+**① 스텁 게이트** (`stubs.py:STUB_BLOCK_MARKER`). 프롬프트에 `[[stub:block]]`이 있으면
+LLM 스텁이 신호가 올 때까지 멈춘다. `coaching.py:build_router.coach_start`는
+`begin_sync_operation`으로 클레임을 잡은 **다음** `coach_engine.start(generate=...)`를
+부르므로, **스텁이 멈춰 있는 동안 그 operation은 running이다.** 하네스는 `stub-state`로
+멈춘 것을 확인한 뒤에만 다음 단계로 가므로 인터리빙에 의존하지 않는다. 해제는
+`stub-state`의 payload(`{"release": true}` / `{"rearm": true}`)로 한다 — 제어를 6개로
+늘리지 않으려고 기존 제어에 넣었다. 게이트에는 20초 상한이 있어 신호를 못 받아도
+매달리지 않고 실패로 보고된다.
+
+**② 이름 붙은 DB 조작** (`dbops.py`). `db-projection`이 이미 그렇듯 하네스는 대상
+스키마에 직접 붙는다. 만료 판정은 시계가 아니라 DB 값을 보므로
+(`uploads.py:build_router.complete_intent`의 `intent.expires_at <= now`), 발급된 행을
+과거로 UPDATE하면 만료가 결정적으로 만들어진다. lease 탈취·리포트 행 삭제·handoff에
+마커 주입도 같은 방식이다. 임의 SQL은 노출하지 않는다 — 조작마다 이름과 인자가
+고정돼 있어야 Java 백엔드에도 같은 형태로 옮길 수 있다.
+
 ## 알려진 한계
 
 - `advance-clock`은 레이트리밋 monotonic 시계와 워커 호출에 넘기는 wall clock만
-  움직인다. 앱 내부의 `datetime.now(timezone.utc)`에는 주입점이 없다.
-- 처리 도중 멈추는 훅이 없어 "lease가 살아 있는 running" 상태를 결정적으로 만들 수
-  없다. 그 상태에서만 나는 409 `request is still processing`은 manifest에서 명시
-  제외했다(`manifest.py:EXCLUSIONS`).
+  움직인다. 앱 내부의 `datetime.now(timezone.utc)`에는 주입점이 없다. 그래서 시각에
+  의존하는 계약은 위 ②처럼 **DB 값**을 바꿔 재현한다.
 - 동시성 시나리오는 인터리빙과 무관한 **불변식만** 기록한다. 응답 하나하나를 비교하면
   같은 시드로 반복 실행할 때 결과가 흔들린다.
+- 스텁 게이트와 DB 조작을 쓰는 시나리오(`inflight-replay`·`lease-stolen`·
+  `expired-intent`)는 백엔드의 스키마 이름을 알아야 한다. M1 시점 java 어댑터에는
+  스키마가 없어 이 시나리오는 fastapi 전용이며, 실행하면 명시적으로 중단된다.

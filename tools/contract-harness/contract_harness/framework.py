@@ -47,6 +47,38 @@ class ScenarioContext:
         self.symbols = symbols
         self.scenario = scenario
         self.steps: list[Step] = []
+        self._db = None
+
+    # -- 셋업용 DB 조작 ---------------------------------------------------
+
+    @property
+    def db(self):
+        """대상 백엔드의 스키마에 직접 붙는 이름 붙은 조작 (`dbops.SchemaOps`)."""
+        if self._db is None:
+            from contract_harness.dbops import SchemaOps
+
+            schema = getattr(self.backend, "schema", None)
+            if schema is None:
+                raise ScenarioAbort(
+                    f"{self.backend.name} 백엔드의 스키마를 모른다 — "
+                    "셋업용 DB 조작을 쓸 수 없다"
+                )
+            self._db = SchemaOps(schema)
+        return self._db
+
+    def db_op(self, step_id: str, operation: str, **kwargs) -> int:
+        """DB 조작을 실행하고 rowcount 를 note 로 남긴다.
+
+        rowcount 가 백엔드마다 다르면(한쪽에만 행이 있으면) 그 자체가 diff 다.
+        """
+        rowcount = getattr(self.db, operation)(**kwargs)
+        self.note(step_id, {"operation": operation, "rowcount": rowcount})
+        return rowcount
+
+    def close(self) -> None:
+        if self._db is not None:
+            self._db.close()
+            self._db = None
 
     # -- 심볼 -------------------------------------------------------------
 
@@ -109,6 +141,37 @@ class ScenarioContext:
                 parsed=response.json(),
                 sent_at=response.sent_at,
                 replay_of=replay_of,
+                canonical=canonical,
+                expect_request_id=expect_request_id,
+                schema_check=schema_check,
+            )
+        )
+
+    def record_response(
+        self,
+        step_id: str,
+        *,
+        method: str,
+        template: str,
+        response,
+        expect_request_id: bool = False,
+        canonical: bool = False,
+        schema_check: bool = True,
+    ) -> Step:
+        """`ctx.call` 밖에서 얻은 응답(별도 스레드 등)을 같은 형태의 스텝으로 남긴다."""
+        return self._append(
+            Step(
+                index=0,
+                id=step_id,
+                kind="http",
+                method=method.lower(),
+                template=template,
+                path=template,
+                status=response.status,
+                headers=response.headers,
+                body=response.body,
+                parsed=response.json(),
+                sent_at=response.sent_at,
                 canonical=canonical,
                 expect_request_id=expect_request_id,
                 schema_check=schema_check,

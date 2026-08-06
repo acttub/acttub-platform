@@ -133,6 +133,14 @@ class BackendRuntime:
             expired, exhausted = self.worker.sweep(now=self.now())
             return {"expired_uploads": expired, "exhausted_operations": exhausted}
         if name == "stub-state":
+            # 읽기 전용이 기본이고, `release`/`rearm` 이 오면 멈춰 있는 스텁을 푼다.
+            # 제어를 6개로 늘리지 않으려고 기존 제어의 payload 로 넣었다 —
+            # 스텁 게이트는 스텁 상태의 일부다.
+            for stub in (self.coach_generate, self.report_generate):
+                if payload.get("release"):
+                    stub.release()
+                if payload.get("rearm"):
+                    stub.rearm()
             return {
                 "coach_generate": self.coach_generate.state(),
                 "report_generate": self.report_generate.state(),

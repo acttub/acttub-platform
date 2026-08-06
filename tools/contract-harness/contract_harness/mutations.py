@@ -368,6 +368,77 @@ def _patch_nonatomic_like():
     return patch_attr(CommunityStore, "like_post", patched)
 
 
+def _patch_running_returns_replay():
+    """running 인 operation 에 저장된(=비어 있는) replay 응답을 돌려준다.
+
+    409 `request is still processing` 대신 200 을 내는 구현이다. 순차 호출로는
+    running 구간이 없어 통과하고, in-flight 시나리오에서만 드러난다.
+    """
+    from acting_api import sync_operations as sync
+
+    original = sync._existing_operation_response
+
+    def patched(operation, *, request_id, now):
+        if operation is not None:
+            status = getattr(operation.status, "value", operation.status)
+            if status == "running":
+                return sync._json_response(
+                    operation.response_payload or {},
+                    headers={"X-Request-Id": str(request_id)},
+                )
+        return original(operation, request_id=request_id, now=now)
+
+    return patch_attr(sync, "_existing_operation_response", patched)
+
+
+def _patch_ignores_intent_expiry():
+    """만료된 upload intent 를 그대로 통과시킨다.
+
+    만료 판정이 라우트(`uploads.py:build_router.complete_intent`)와 store
+    (`db/store.py:PostgresStore.finalize_upload_intent` 의 `expires_at > now`)
+    두 곳에 있으므로 둘 다 걷어내야 "만료를 검사하지 않는 구현"이 된다.
+    """
+    from datetime import datetime, timedelta, timezone
+
+    from sqlalchemy import update
+
+    from acting_api.db.models import UploadIntent, UploadStatus
+    from acting_api.db.store import PostgresStore
+
+    original_get = PostgresStore.get_upload_intent
+
+    def patched_get(self, **kwargs):
+        intent = original_get(self, **kwargs)
+        if intent is not None:
+            intent.expires_at = datetime.now(timezone.utc) + timedelta(days=1)
+        return intent
+
+    def patched_finalize(self, *, user_id, upload_intent_id, etag, now=None):
+        now = now or datetime.now(timezone.utc)
+        with self._session_factory.begin() as db:
+            return db.scalars(
+                update(UploadIntent)
+                .where(
+                    UploadIntent.id == upload_intent_id,
+                    UploadIntent.user_id == user_id,
+                    UploadIntent.status == UploadStatus.PENDING,
+                )
+                .values(
+                    status=UploadStatus.FINALIZED,
+                    finalized_at=now,
+                    etag=etag,
+                )
+                .returning(UploadIntent)
+            ).one_or_none()
+
+    stack = contextlib.ExitStack()
+    stack.enter_context(patch_attr(PostgresStore, "get_upload_intent", patched_get))
+    stack.enter_context(
+        patch_attr(PostgresStore, "finalize_upload_intent", patched_finalize)
+    )
+    return stack
+
+
 def _patch_no_rate_limiter():
     from acting_api.ratelimit import RateLimiter
 
@@ -650,6 +721,18 @@ MUTATIONS: tuple[Mutation, ...] = (
         "nonatomic-like",
         "원자 연산을 SELECT-then-INSERT / read-modify-write 로 교체한다",
         "concurrency", frozenset({"L2", "scenario", "sequence"}), patch=_patch_nonatomic_like,
+    ),
+    Mutation(
+        "running-returns-replay",
+        "running 상태인데 409 대신 저장된 replay 응답을 돌려준다",
+        "inflight-replay", frozenset({"manifest", "status", "L2"}),
+        patch=_patch_running_returns_replay,
+    ),
+    Mutation(
+        "ignores-intent-expiry",
+        "만료된 upload intent 를 그대로 통과시킨다",
+        "expired-intent", frozenset({"manifest", "status", "L2"}),
+        patch=_patch_ignores_intent_expiry,
     ),
     Mutation(
         "no-rate-limiter", "rate limiter 를 구현하지 않는다", "rate-limiter",

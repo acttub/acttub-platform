@@ -232,3 +232,32 @@ def test_committed_inventory_snapshot_matches_regeneration(committed, tmp_path):
         assert (tmp_path / name).read_text(encoding="utf-8") == (
             directory / name
         ).read_text(encoding="utf-8"), f"{name} 스냅샷이 낡았다 (--dump-inventory 로 재생성)"
+
+
+def test_in_flight_and_expiry_contracts_are_executed_not_excluded():
+    """이 둘은 제외 사유가 성립하지 않는다 — 실행 케이스로만 유지한다.
+
+    409 `request is still processing` 은 LLM 스텁 게이트가, 409
+    `upload_intent_expired` 는 DB 값 조작이 결정적으로 만든다. 다시 제외 목록으로
+    돌아가면 여기서 실패한다.
+    """
+    from contract_harness.manifest import API, covered_keys, excluded_keys, key
+
+    must_execute = {
+        key(f"{API}/sync_operations.py", "_existing_operation_response", 409,
+            "request is still processing"),
+        key(f"{API}/coaching.py", "build_router.coach_start", 409,
+            "request is still processing"),
+        key(f"{API}/coaching.py", "build_router.coach_reply", 409,
+            "request is still processing"),
+        key(f"{API}/coaching.py", "build_router.coach_confirm", 409,
+            "request is still processing"),
+        key(f"{API}/reports.py", "build_router.create_report", 409,
+            "request is still processing"),
+        key(f"{API}/uploads.py", "build_router.complete_intent", 409,
+            "upload_intent_expired"),
+    }
+    covered = covered_keys()
+    excluded = set(excluded_keys())
+    assert must_execute <= covered
+    assert not (must_execute & excluded)

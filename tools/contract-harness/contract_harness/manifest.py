@@ -190,6 +190,14 @@ CASES: tuple[Case, ...] = (
         "error-manifest", "uploads.complete-missing", 404, "upload_intent_not_found",
     ),
     Case(
+        "uploads.intent-expired",
+        (key(f"{API}/uploads.py", "build_router.complete_intent", 409,
+             "upload_intent_expired"),),
+        "expired-intent", "uploads.expired", 409, "upload_intent_expired",
+        note="만료 판정은 시계가 아니라 DB 값(intent.expires_at)을 본다 — "
+        "하네스가 발급된 행을 과거로 UPDATE 해 결정적으로 만든다",
+    ),
+    Case(
         "uploads.object-missing",
         (key(f"{API}/uploads.py", "build_router.complete_intent", 409, "upload_not_found"),),
         "error-manifest", "uploads.head-missing", 409, "upload_not_found",
@@ -362,6 +370,44 @@ CASES: tuple[Case, ...] = (
         "error-manifest", "sync.kind-collision", 422, "request_fingerprint_mismatch",
         note="coach/confirm 과 reports 가 kind='report' 네임스페이스를 공유한다 (§구현 규약 ⑧)",
     ),
+    # --- 처리 중인 sync operation (409 request is still processing) ---------
+    # 처리 도중에 멈추는 훅은 이미 있는 LLM 스텁이다. `coach_start` 는
+    # `begin_sync_operation` 으로 클레임을 잡은 **다음** `coach_engine.start(
+    # generate=coach_generate)` 를 부르므로, 스텁이 멈춰 있는 동안 그 operation 은
+    # running 이다. 인터리빙에 의존하지 않는다.
+    Case(
+        "sync.in-flight-replay",
+        (key(f"{API}/sync_operations.py", "_existing_operation_response", 409,
+             "request is still processing"),),
+        "inflight-replay", "sync.in-flight-replay", 409, "request is still processing",
+        note="첫 요청이 스텁 안에 멈춰 있는 동안 같은 X-Request-Id 를 다시 보낸다",
+    ),
+    Case(
+        "coach.start-lease-lost",
+        (key(f"{API}/coaching.py", "build_router.coach_start", 409,
+             "request is still processing"),),
+        "lease-stolen", "coach.start-lease-lost", 409, "request is still processing",
+        note="스텁 안에 멈춰 있는 동안 lease 를 빼앗아 LeaseOwnershipError 를 만든다",
+    ),
+    Case(
+        "coach.reply-lease-lost",
+        (key(f"{API}/coaching.py", "build_router.coach_reply", 409,
+             "request is still processing"),),
+        "lease-stolen", "coach.reply-lease-lost", 409, "request is still processing",
+    ),
+    Case(
+        "coach.confirm-lease-lost",
+        (key(f"{API}/coaching.py", "build_router.coach_confirm", 409,
+             "request is still processing"),),
+        "lease-stolen", "coach.confirm-lease-lost", 409, "request is still processing",
+        note="저장된 practice_report 를 지워 리포트 LLM 이 실제로 불리게 만든 뒤 멈춘다",
+    ),
+    Case(
+        "reports.lease-lost",
+        (key(f"{API}/reports.py", "build_router.create_report", 409,
+             "request is still processing"),),
+        "lease-stolen", "reports.lease-lost", 409, "request is still processing",
+    ),
     Case(
         "sync.retry-exhausted",
         (key(f"{API}/sync_operations.py", "begin_sync_operation", 409,
@@ -518,30 +564,6 @@ EXCLUSIONS: tuple[Exclusion, ...] = (
         (key(f"{API}/uploads.py", "build_router.complete_intent", 413, "upload_too_large"),),
         "상한을 낮춘 배포 이전에 발급된 pending intent 를 재검증하는 분기다. 한 프로세스 "
         "안에서는 MAX_UPLOAD_BYTES 가 바뀌지 않아 도달할 수 없다.",
-    ),
-    Exclusion(
-        (key(f"{API}/uploads.py", "build_router.complete_intent", 409,
-             "upload_intent_expired"),),
-        "intent 만료를 앞당기려면 앱 내부 wall clock 주입이 필요하다. "
-        "uploads.build_router 의 utcnow 인자를 create_app 이 넘기지 않아 주입점이 없고, "
-        "제어 표면의 advance-clock 은 monotonic(레이트리밋)과 워커 경로만 움직인다.",
-    ),
-    Exclusion(
-        (
-            key(f"{API}/coaching.py", "build_router.coach_start", 409,
-                "request is still processing"),
-            key(f"{API}/coaching.py", "build_router.coach_reply", 409,
-                "request is still processing"),
-            key(f"{API}/coaching.py", "build_router.coach_confirm", 409,
-                "request is still processing"),
-            key(f"{API}/reports.py", "build_router.create_report", 409,
-                "request is still processing"),
-            key(f"{API}/sync_operations.py", "_existing_operation_response", 409,
-                "request is still processing"),
-        ),
-        "lease 가 살아 있는 running 상태를 결정적으로 만들려면 요청을 처리 도중에 "
-        "멈추는 훅이 필요하다. 제어 표면 5개에 그런 것이 없고, 동시성 시나리오에서는 "
-        "인터리빙에 따라 관측될 뿐이라 결정적 manifest 케이스로 두지 않는다.",
     ),
     Exclusion(
         (

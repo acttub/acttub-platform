@@ -83,6 +83,14 @@ def _resolve_placeholders(value):
     return value
 
 
+# 스텁이 신호가 올 때까지 멈춘다. 이 마커가 프롬프트에 있으면 그 요청은
+# **클레임을 잡은 채로** 스텁 안에 머문다 — sync operation 이 running 인 구간을
+# 결정적으로 만드는 유일한 훅이다(§오류 계약: 409 request is still processing).
+STUB_BLOCK_MARKER = "[[stub:block]]"
+# 신호를 못 받아도 영원히 매달리지 않는다. 넘기면 시나리오가 실패로 보고된다.
+STUB_BLOCK_TIMEOUT_SEC = 20.0
+
+
 @dataclass
 class TextGeneratorStub:
     """`acting_llm.openai_client.generate_text` 와 같은 모양의 콜러블."""
@@ -91,12 +99,36 @@ class TextGeneratorStub:
     name: str
     calls: int = 0
     lock: threading.Lock = field(default_factory=threading.Lock)
+    gate: threading.Event = field(default_factory=threading.Event)
+    entered: threading.Event = field(default_factory=threading.Event)
+    blocked: int = 0
+    timed_out: int = 0
+
+    def release(self) -> None:
+        self.gate.set()
+
+    def rearm(self) -> None:
+        self.gate.clear()
+        self.entered.clear()
+
+    def wait_until_blocked(self, timeout: float) -> bool:
+        return self.entered.wait(timeout)
+
+    def _block(self) -> None:
+        with self.lock:
+            self.blocked += 1
+        self.entered.set()
+        if not self.gate.wait(STUB_BLOCK_TIMEOUT_SEC):
+            with self.lock:
+                self.timed_out += 1
 
     def __call__(self, system_instruction: str, prompt: str):
         from acting_llm.openai_client import TokenUsage
 
         with self.lock:
             self.calls += 1
+        if STUB_BLOCK_MARKER in prompt:
+            self._block()
         selected = self.spec["default"]
         for marker, response in self.spec.get("by_marker", {}).items():
             if marker in prompt:
@@ -116,6 +148,9 @@ class TextGeneratorStub:
             "calls": self.calls,
             "remaining": max(0, budget - self.calls),
             "budget": budget,
+            "blocked": self.blocked,
+            "in_block": self.entered.is_set() and not self.gate.is_set(),
+            "timed_out": self.timed_out,
         }
 
 

@@ -85,6 +85,8 @@ def run_side(scenario, backend, schema):
             abort = str(exc)
         except Exception as exc:  # noqa: BLE001 - 시나리오 실패를 발견으로 바꾼다
             abort = f"{exc!r}\n{traceback.format_exc()}"
+        finally:
+            ctx.close()
         openapi = opened.openapi()
     return SideResult(backend, ctx.steps, symbols, openapi), abort
 
@@ -149,6 +151,8 @@ def _run_java_side(scenario, backend):
             abort = str(exc)
         except Exception as exc:  # noqa: BLE001
             abort = f"{exc!r}\n{traceback.format_exc()}"
+        finally:
+            ctx.close()
         try:
             openapi = opened.openapi() or {}
         except Exception:  # noqa: BLE001 - springdoc 이 아직 없을 수 있다
