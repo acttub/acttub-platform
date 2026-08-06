@@ -74,7 +74,7 @@ test("업로드와 장면 확인 진행률은 단조 증가하고 analyzed에서
   }
   assert.equal(uploadProgress(100), UPLOAD_PROGRESS_END);
   assert.ok(UPLOAD_PROGRESS_END < 100);
-  assert.equal(analysisProgress(120_000), ANALYSIS_PROGRESS_LIMIT);
+  assert.equal(analysisProgress(600_000), ANALYSIS_PROGRESS_LIMIT);
   assert.ok(ANALYSIS_PROGRESS_LIMIT < 100);
   assert.equal(settleProgress(ANALYSIS_PROGRESS_LIMIT, "analyzing"), ANALYSIS_PROGRESS_LIMIT);
   assert.equal(settleProgress(ANALYSIS_PROGRESS_LIMIT, "failed"), ANALYSIS_PROGRESS_LIMIT);
