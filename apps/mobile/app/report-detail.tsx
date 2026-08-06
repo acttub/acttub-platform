@@ -83,7 +83,7 @@ export default function ReportDetailScreen() {
   if (loading) {
     return (
       <SafeAreaView style={styles.safe}>
-        <Stack.Screen options={{ title: '오늘 정리' }} />
+        <Stack.Screen options={{ title: '연습 노트' }} />
         <View style={styles.center}>
           <ActivityIndicator color={palette.blue} />
         </View>
@@ -94,7 +94,7 @@ export default function ReportDetailScreen() {
   if (error || !detail) {
     return (
       <SafeAreaView style={styles.safe}>
-        <Stack.Screen options={{ title: '오늘 정리' }} />
+        <Stack.Screen options={{ title: '연습 노트' }} />
         <View style={styles.center}>
           <Text style={styles.empty}>{error ?? '기록을 불러오지 못했어요.'}</Text>
         </View>
