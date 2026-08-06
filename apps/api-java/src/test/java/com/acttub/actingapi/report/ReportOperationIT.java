@@ -33,6 +33,17 @@ import org.springframework.test.context.DynamicPropertySource;
 /**
  * 위험 함수 #1 {@code complete_report_operation} 이식 검증 (/SPEC.md §7-1, M0-spike.md E).
  *
+ * <p><b>⚠ 대상 함수는 더 이상 존재하지 않는다.</b> {@code SOMA-302}(AI 3개 층 교체)가 리포트
+ * 계층을 갈아엎으면서 {@code complete_report_operation} 은 {@code complete_practice_report_operation}
+ * ({@code db/store.py}) 으로 대체됐고, 중복 판정도 <b>제약명 문자열 매칭에서
+ * {@code ON CONFLICT (source_handoff_id) DO NOTHING RETURNING} 으로 단순해졌다.</b>
+ * 구 {@code reports} 테이블은 스키마에 남아 있지만 파이썬 코드에서 참조가 0건이다.
+ *
+ * <p>그럼에도 이 스위트를 남겨 둔다 — M0 가 답하려던 질문은 "어느 함수인가"가 아니라
+ * <b>"선언적 {@code @Transactional} 과 {@code TransactionTemplate} 중 무엇을 쓸 것인가"</b> 였고,
+ * 그 결론은 대상 함수와 무관하게 성립한다. 실제 이식은 M3 에서 <b>새 함수를 기준으로</b> 다시 쓴다.
+ * 자세한 경위는 {@code spec/M0-findings.md} 참조.
+ *
  * <p>네 시나리오를 <b>두 가지 트랜잭션 관리 스타일</b>에 똑같이 돌린다.
  * 둘 다 통과해야 "스타일 선택은 취향"이라고 말할 수 있고, 그래야 findings 의 결론이 근거를 갖는다.
  *
@@ -145,7 +156,7 @@ class ReportOperationIT {
         UUID userId = fixtures.insertUser();
 
         UUID practiceSessionA = fixtures.insertPracticeSession(userId);
-        UUID coachSessionA = fixtures.insertCoachSession(fixtures.insertSummary(practiceSessionA));
+        UUID coachSessionA = fixtures.insertCoachSessionFor(practiceSessionA);
         fixtures.insertReportDirectly(coachSessionA);
 
         UUID practiceSessionB = fixtures.insertPracticeSession(userId);
@@ -166,8 +177,8 @@ class ReportOperationIT {
     @DisplayName("동시 실행: 한쪽만 payload 를 받고 다른 쪽은 null 이다 (진짜 경쟁 조건)")
     void concurrentCompletionsRaceOnTheUniqueIndex() throws Exception {
         UUID userId = fixtures.insertUser();
-        UUID coachSession = fixtures.insertCoachSession(
-                fixtures.insertSummary(fixtures.insertPracticeSession(userId)));
+        UUID coachSession = fixtures.insertCoachSessionFor(
+                fixtures.insertPracticeSession(userId));
 
         // 서로 다른 practice session 을 가리키는 두 operation.
         // FOR UPDATE 대상 행이 달라 직렬화되지 않고, 사전 확인도 둘 다 미스한다.
@@ -268,14 +279,14 @@ class ReportOperationIT {
         UUID userId = fixtures.insertUser();
 
         UUID hidden = fixtures.insertPracticeSession(userId);
-        fixtures.insertReportDirectly(fixtures.insertCoachSession(fixtures.insertSummary(hidden)));
+        fixtures.insertReportDirectly(fixtures.insertCoachSessionFor(hidden));
         jdbc.update("UPDATE practice_sessions SET hidden_at = now() WHERE id = ?", hidden);
 
         UUID visible = fixtures.insertPracticeSession(userId);
-        fixtures.insertReportDirectly(fixtures.insertCoachSession(fixtures.insertSummary(visible)));
+        fixtures.insertReportDirectly(fixtures.insertCoachSessionFor(visible));
 
         UUID target = fixtures.insertPracticeSession(userId);
-        UUID coachSession = fixtures.insertCoachSession(fixtures.insertSummary(target));
+        UUID coachSession = fixtures.insertCoachSessionFor(target);
         UUID lease = UUID.randomUUID();
         UUID operation = fixtures.insertRunningReportOperation(target, userId, lease);
 

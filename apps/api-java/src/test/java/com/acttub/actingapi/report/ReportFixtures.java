@@ -25,11 +25,18 @@ final class ReportFixtures {
             UUID operationId, UUID leaseToken) {
     }
 
+    /**
+     * {@code ck_practice_sessions_blockage_branch} 가 허용하는 조합 중 하나.
+     * ({@code 분석}, {@code 캐릭터 분석}) 이외의 짝을 넣으면 INSERT 가 거부된다.
+     */
+    static final String BLOCKAGE_KIND = "분석";
+    static final String SUB_BRANCH = "캐릭터 분석";
+
     Scenario create() {
         UUID userId = insertUser();
         UUID practiceSessionId = insertPracticeSession(userId);
         UUID summaryId = insertSummary(practiceSessionId);
-        UUID coachSessionId = insertCoachSession(summaryId);
+        UUID coachSessionId = insertCoachSession(summaryId, practiceSessionId);
         UUID leaseToken = UUID.randomUUID();
         UUID operationId = insertRunningReportOperation(practiceSessionId, userId, leaseToken);
         return new Scenario(userId, practiceSessionId, summaryId, coachSessionId, operationId,
@@ -52,10 +59,13 @@ final class ReportFixtures {
                 OffsetDateTime.now(ZoneOffset.UTC).plusDays(1));
 
         UUID id = UUID.randomUUID();
+        // blockage_kind·sub_branch·goal 은 alembic 0010 이 NOT NULL 로 추가했다.
         jdbc.update("INSERT INTO practice_sessions "
-                + "(id, user_id, upload_intent_id, status, situation, character_context, subtext) "
-                + "VALUES (?, ?, ?, 'analyzed'::practice_status_t, ?, ?, ?)",
-                id, userId, uploadIntentId, "상황", "인물설정", "서브텍스트");
+                + "(id, user_id, upload_intent_id, status, situation, character_context, subtext, "
+                + "blockage_kind, sub_branch, goal) "
+                + "VALUES (?, ?, ?, 'analyzed'::practice_status_t, ?, ?, ?, ?, ?, ?)",
+                id, userId, uploadIntentId, "상황", "인물설정", "서브텍스트",
+                BLOCKAGE_KIND, SUB_BRANCH, "목표");
         return id;
     }
 
@@ -70,10 +80,11 @@ final class ReportFixtures {
         return id;
     }
 
-    UUID insertCoachSession(UUID summaryId) {
+    /** {@code practice_session_id} 는 alembic 0007 이 NOT NULL 로 추가했다. */
+    UUID insertCoachSession(UUID summaryId, UUID practiceSessionId) {
         UUID id = UUID.randomUUID();
-        jdbc.update("INSERT INTO coach_sessions (id, summary_id, status) "
-                + "VALUES (?, ?, 'closed'::session_status_t)", id, summaryId);
+        jdbc.update("INSERT INTO coach_sessions (id, summary_id, practice_session_id, status) "
+                + "VALUES (?, ?, ?, 'closed'::session_status_t)", id, summaryId, practiceSessionId);
         return id;
     }
 
@@ -87,6 +98,11 @@ final class ReportFixtures {
                 id, practiceSessionId, userId, UUID.randomUUID(), "0".repeat(64), leaseToken,
                 OffsetDateTime.now(ZoneOffset.UTC).plusMinutes(5));
         return id;
+    }
+
+    /** practice session 하나에 summary + coach session 을 달고 coach session id 를 준다. */
+    UUID insertCoachSessionFor(UUID practiceSessionId) {
+        return insertCoachSession(insertSummary(practiceSessionId), practiceSessionId);
     }
 
     /** 리포트 행을 직접 넣는다 — 사전 확인 경로와 커밋 경쟁 경로를 만드는 데 쓴다. */

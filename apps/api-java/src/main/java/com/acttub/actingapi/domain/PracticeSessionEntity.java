@@ -44,8 +44,25 @@ public class PracticeSessionEntity implements Persistable<UUID> {
     @Column(name = "character_context", nullable = false)
     private String characterContext;
 
-    @Column(name = "subtext", nullable = false)
+    @Column(name = "subtext")
     private String subtext;
+
+    /**
+     * {@code blockage_kind}/{@code sub_branch}/{@code goal} 은 alembic {@code 0010} 이 NOT NULL 로
+     * 추가했다. 게다가 앞의 둘은 {@code ck_practice_sessions_blockage_branch} CHECK 제약이 묶는
+     * 조합만 허용한다 — 값을 아무거나 넣으면 INSERT 가 거부된다 (/SPEC.md §5-3-6).
+     */
+    @Column(name = "blockage_kind", nullable = false)
+    private String blockageKind;
+
+    @Column(name = "sub_branch", nullable = false)
+    private String subBranch;
+
+    @Column(name = "blockage_detail")
+    private String blockageDetail;
+
+    @Column(name = "goal", nullable = false)
+    private String goal;
 
     @Column(name = "hidden_at")
     private Instant hiddenAt;
@@ -63,7 +80,8 @@ public class PracticeSessionEntity implements Persistable<UUID> {
     }
 
     public PracticeSessionEntity(UUID id, UUID userId, UUID uploadIntentId, PracticeStatus status,
-            String situation, String characterContext, String subtext) {
+            String situation, String characterContext, String subtext,
+            String blockageKind, String subBranch, String goal) {
         this.id = id;
         this.userId = userId;
         this.uploadIntentId = uploadIntentId;
@@ -71,6 +89,9 @@ public class PracticeSessionEntity implements Persistable<UUID> {
         this.situation = situation;
         this.characterContext = characterContext;
         this.subtext = subtext;
+        this.blockageKind = blockageKind;
+        this.subBranch = subBranch;
+        this.goal = goal;
     }
 
     @Override
@@ -111,6 +132,22 @@ public class PracticeSessionEntity implements Persistable<UUID> {
 
     public String getSubtext() {
         return subtext;
+    }
+
+    public String getBlockageKind() {
+        return blockageKind;
+    }
+
+    public String getSubBranch() {
+        return subBranch;
+    }
+
+    public String getBlockageDetail() {
+        return blockageDetail;
+    }
+
+    public String getGoal() {
+        return goal;
     }
 
     public Instant getHiddenAt() {

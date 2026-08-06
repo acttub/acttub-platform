@@ -29,7 +29,7 @@ dependencies {
     implementation("com.nimbusds:nimbus-jose-jwt:9.48")
     implementation(platform("software.amazon.awssdk:bom:2.31.30"))
     implementation("software.amazon.awssdk:s3")
-    // runtimeOnly 가 아니라 implementation 이다. reports_session_id_key 중복 판정이
+    // runtimeOnly 가 아니라 implementation 이다. 제약명 문자열로 유니크 위반을 가르는 코드가
     // PSQLException.getServerErrorMessage().getConstraint() 를 컴파일 타임에 참조한다 (/SPEC.md §6 #10).
     implementation("org.postgresql:postgresql")
 
