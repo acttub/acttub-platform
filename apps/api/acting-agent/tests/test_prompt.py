@@ -29,11 +29,22 @@ def _session(**updates):
 
 def test_canonical_coach_prompt_hashes_are_unchanged():
     assert hashlib.sha256(COACH_V2_PROMPT.encode()).hexdigest() == (
-        "dfa247ee5a7b36e213efc9bddbe87d7cacca9a5ab0950a4823797d33dfe8f980"
+        "5763117f610e780249db58f24d6f1133434d693bad96b2c21bef16f5ba075682"
     )
     assert hashlib.sha256(COACH_V3_PROMPT.encode()).hexdigest() == (
-        "0c5f69aec7028ef6520a139eb3bc47ad4781d6605b34cf96d8244f349064cd78"
+        "c5aaafe9feddb6cd5482c4d82853378b1eef4afff69fd89fb698fc1051316239"
     )
+
+
+def test_both_prompts_forbid_leaking_internal_labels_into_the_message():
+    # 턴 예산·구간 이름은 배우 화면에 없는 내부 라벨이고, "리포트"는 런타임
+    # 금지어라 코치가 쓰면 응답이 통째로 폴백된다. 두 규칙이 사라지면
+    # 프롬프트가 필터와 싸우게 되므로 여기서 고정한다.
+    for prompt in (COACH_V2_PROMPT, COACH_V3_PROMPT):
+        assert "message 안에 “리포트”라는 말을 쓰지 않는다" in prompt
+        assert "구간 이름은 message에 쓰지 않는다" in prompt
+        # 금지 규칙 밖에서 "리포트"를 다시 쓰지 않는다.
+        assert prompt.count("리포트") == 1
 
 
 def test_chat_prompt_uses_goal_and_compact_observation_lines():
