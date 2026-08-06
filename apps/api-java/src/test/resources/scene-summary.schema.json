@@ -1,0 +1,68 @@
+{
+  "type": "OBJECT",
+  "description": "acting_summary/schema.py 의 SceneSummary 를 Gemini responseSchema 로 옮긴 것",
+  "properties": {
+    "observation": {
+      "type": "OBJECT",
+      "description": "연기 요소별로 세분화한 시간순 관찰, 손실 최소",
+      "properties": {
+        "timeline": {"type": "STRING", "description": "시간순 전체 흐름"},
+        "dialogue": {"type": "STRING", "description": "대사: 내용·딕션·명료도·강조 처리"},
+        "tempo": {"type": "STRING", "description": "템포: 말·행동의 속도·리듬·사이(pause)"},
+        "pitch": {"type": "STRING", "description": "높낮이: 피치·억양·강세의 변화"},
+        "movement": {"type": "STRING", "description": "움직임: 제스처·블로킹·자세·이동"},
+        "expression": {"type": "STRING", "description": "표정·시선"},
+        "emotion": {"type": "STRING", "description": "감정선의 흐름·진정성·전환"},
+        "extra": {
+          "type": "ARRAY",
+          "description": "6축으로 담기지 않는 추가 축. 없으면 빈 리스트.",
+          "items": {
+            "type": "OBJECT",
+            "properties": {
+              "name": {"type": "STRING"},
+              "observation": {"type": "STRING"}
+            },
+            "required": ["name", "observation"]
+          }
+        }
+      },
+      "required": ["timeline", "dialogue", "tempo", "pitch", "movement", "expression", "emotion", "extra"]
+    },
+    "summary": {"type": "STRING", "description": "서브텍스트 대비 압축 요약"},
+    "intent_alignment": {"type": "STRING", "description": "의도 대비 실제 연기"},
+    "key_moment": {"type": "STRING", "description": "가장 중요한 시간 구간과 이유"},
+    "key_dimension": {"type": "STRING", "description": "가장 중요한 연기 축과 이유"},
+    "anomalies": {
+      "type": "ARRAY",
+      "description": "이상징후 목록. 최소 2건.",
+      "items": {
+        "type": "OBJECT",
+        "properties": {
+          "start": {"type": "STRING", "description": "예: 00:17"},
+          "end": {"type": "STRING", "description": "예: 00:44"},
+          "dimension": {"type": "STRING"},
+          "what": {"type": "STRING"},
+          "why_odd": {"type": "STRING"},
+          "likely_cause": {"type": "STRING"},
+          "impact_on_intent": {"type": "STRING"},
+          "overlaps_key_moment": {"type": "BOOLEAN"},
+          "on_key_dimension": {"type": "BOOLEAN"},
+          "intent_impact": {
+            "type": "STRING",
+            "description": "의도에 끼치는 영향",
+            "enum": ["반전", "약화", "국소"]
+          },
+          "severity": {
+            "type": "STRING",
+            "enum": ["high", "mid", "low"]
+          },
+          "severity_reason": {"type": "STRING"}
+        },
+        "required": ["start", "end", "dimension", "what", "why_odd", "likely_cause",
+          "impact_on_intent", "overlaps_key_moment", "on_key_dimension", "intent_impact",
+          "severity", "severity_reason"]
+      }
+    }
+  },
+  "required": ["observation", "summary", "intent_alignment", "key_moment", "key_dimension", "anomalies"]
+}

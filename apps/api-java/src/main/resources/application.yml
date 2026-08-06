@@ -1,0 +1,50 @@
+spring:
+  application:
+    name: acting-api
+  # /SPEC.md §2 — Web MVC + virtual threads. WebFlux 는 쓰지 않는다.
+  threads:
+    virtual:
+      enabled: true
+  datasource:
+    # url/username/password 는 DatabaseUrlEnvironmentPostProcessor 가 DATABASE_URL 에서 채운다.
+    hikari:
+      pool-name: acting-api-pool
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    # 기존 DB(dev·운영)는 애플리케이션이 아니라 별도 baseline 명령으로 기록한다.
+    # 여기서 true 로 켜면 "빈 DB 가 아닌데 V1 을 건너뛰는" 판정을 애플리케이션이 조용히 내리게 된다.
+    baseline-on-migrate: false
+  jpa:
+    open-in-view: false
+    hibernate:
+      # /SPEC.md §2 — 스키마는 Flyway 가 소유한다. create/update 는 절대 금지.
+      ddl-auto: validate
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+  jackson:
+    # /SPEC.md §6 #3 — null 필드를 키째 실어보낸다. NON_NULL 을 전역으로 켜지 않는다.
+    default-property-inclusion: always
+    deserialization:
+      # 전역 거부로 두고, unknown key 를 허용하는 7개 DTO 만
+      # @JsonIgnoreProperties(ignoreUnknown = true) 로 연다 (/SPEC.md §6-3).
+      # 반대 방향(전역 허용 + DTO 별 거부)은 Jackson 이 표현하지 못한다 —
+      # ignoreUnknown=false 는 "전역을 따르라"는 뜻이라 거부를 강제하지 못한다.
+      fail-on-unknown-properties: true
+    serialization:
+      write-dates-as-timestamps: false
+
+springdoc:
+  api-docs:
+    # 기존 spec 이 3.1.0 이다. const/anyOf 표현이 3.0 과 다르므로 맞춘다.
+    version: openapi_3_1
+    path: /v3/api-docs
+
+server:
+  port: 8080
+
+logging:
+  level:
+    org.flywaydb: INFO
