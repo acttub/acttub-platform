@@ -12,12 +12,14 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.List;
 
+import com.acttub.actingapi.support.AlembicSchema;
 import com.acttub.actingapi.support.PostgresContainerSupport;
 import com.acttub.actingapi.support.SchemaFingerprint;
 import org.flywaydb.core.Flyway;
 import org.flywaydb.core.api.MigrationInfo;
 import org.flywaydb.core.api.CoreMigrationType;
 import org.flywaydb.core.api.output.MigrateResult;
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.datasource.SimpleDriverDataSource;
@@ -54,6 +56,48 @@ class FlywayBaselineTest {
 
     // ---- (a) 빈 DB 재구축 ----
 
+    /**
+     * 커밋된 fixture 가 <b>지금의</b> alembic HEAD 와 같은지 본다.
+     *
+     * <p>이것이 없으면 {@link #freshDatabaseRebuildMatchesAlembic()} 은 자기참조다 —
+     * {@code V1__baseline.sql} 과 {@code alembic-schema-fingerprint.txt} 는 둘 다 alembic 의
+     * 스냅샷이라 <b>같이 낡으면 둘을 비교해도 초록이 뜬다</b>. 실제로 dev 가 {@code 0006 → 0010}
+     * 으로 전진하는 동안 그렇게 됐다. 여기서 기대값을 파일이 아니라 실행 시점의 alembic 에서
+     * 뽑아 그 구멍을 막는다.
+     *
+     * <p>둘을 합치면 {@code V1 == fixture == alembic HEAD} 가 성립한다.
+     */
+    @Test
+    @DisplayName("커밋된 fingerprint 가 지금의 alembic HEAD 와 같다 (자기참조 차단)")
+    void committedFingerprintMatchesLiveAlembic() {
+        requireOrSkipAlembic();
+
+        List<String> live = AlembicSchema.materializeFingerprint("alembic_live");
+        List<String> committed = SchemaFingerprint.expectedFromAlembic();
+
+        assertThat(committed)
+                .as("apps/api 에 마이그레이션이 추가됐다. "
+                        + "apps/api-java/scripts/regen-baseline.sh 를 돌리고 두 파일을 커밋하세요.")
+                .containsExactlyElementsOf(live);
+    }
+
+    /**
+     * {@code uv} 가 없으면 건너뛴다 — 단, {@code REQUIRE_ALEMBIC_CHECK=1} 이면 실패시킨다.
+     * 건너뛰기가 조용한 초록으로 되돌아가지 않게 하는 장치이고, CI 는 이 값을 켠다.
+     */
+    private static void requireOrSkipAlembic() {
+        if (AlembicSchema.isAvailable()) {
+            return;
+        }
+        if (AlembicSchema.isRequired()) {
+            throw new IllegalStateException(
+                    "REQUIRE_ALEMBIC_CHECK=1 인데 alembic 을 돌릴 수 없다 "
+                            + "(uv 가 PATH 에 없거나 " + AlembicSchema.apiRoot() + " 가 제자리에 없다)");
+        }
+        Assumptions.abort("uv 가 없어 alembic 대조를 건너뛴다 "
+                + "(REQUIRE_ALEMBIC_CHECK=1 을 주면 실패로 바꾼다)");
+    }
+
     @Test
     @DisplayName("빈 DB 에 V1 을 실행하면 alembic upgrade head 와 스키마가 완전히 같다")
     void freshDatabaseRebuildMatchesAlembic() throws Exception {
@@ -74,7 +118,7 @@ class FlywayBaselineTest {
     }
 
     @Test
-    @DisplayName("재구축된 스키마에 20 테이블 · 17 enum · 부분 인덱스 3 · CHECK 제약이 다 있다")
+    @DisplayName("재구축된 스키마에 테이블 · enum · 부분 인덱스 · CHECK 제약이 다 있다")
     void freshDatabaseHasTheObjectsThatHibernateCannotCreate() throws Exception {
         String jdbcUrl = PostgresContainerSupport.createDatabase("flyway_objects");
         flywayFor(jdbcUrl).migrate();
@@ -82,10 +126,16 @@ class FlywayBaselineTest {
         try (Connection connection = connect(jdbcUrl)) {
             // 개수를 박아두면 apps/api 에 마이그레이션이 추가될 때마다 깨진다.
             // alembic fingerprint fixture 에서 세어 자동으로 따라가게 한다.
-            // (fixture 는 scripts/regen-baseline.sh 가 alembic HEAD 에서 만든다)
+            // (fixture 는 scripts/regen-baseline.sh 가 alembic HEAD 에서 만들고,
+            //  committedFingerprintMatchesLiveAlembic 이 그것이 낡지 않았음을 보장한다)
             List<String> alembic = SchemaFingerprint.expectedFromAlembic();
             long expectedTables = alembic.stream().filter(l -> l.startsWith("TABLE ")).count();
             long expectedEnums = alembic.stream().filter(l -> l.startsWith("ENUM ")).count();
+            long expectedPartialIndexes = alembic.stream()
+                    .filter(l -> l.startsWith("INDEX ") && l.contains(" WHERE ")).count();
+            // PG18 은 NOT NULL 도 pg_constraint 에 물질화하므로(contype='n') 정의 텍스트로 가른다.
+            long expectedChecks = alembic.stream()
+                    .filter(l -> l.startsWith("CONSTRAINT ") && l.contains(" CHECK (")).count();
 
             assertThat(scalar(connection,
                     "SELECT count(*) FROM information_schema.tables WHERE table_schema='public' "
@@ -102,16 +152,18 @@ class FlywayBaselineTest {
             assertThat(scalar(connection,
                     "SELECT count(*) FROM pg_indexes WHERE schemaname='public' "
                             + "AND indexdef LIKE '%WHERE%'"))
-                    .isEqualTo(3L);
+                    .isEqualTo(expectedPartialIndexes);
             assertThat(scalar(connection,
                     "SELECT count(*) FROM pg_constraint con JOIN pg_class c ON c.oid=con.conrelid "
                             + "JOIN pg_namespace n ON n.oid=c.relnamespace "
                             + "WHERE n.nspname='public' AND con.contype='c'"))
-                    .isEqualTo(1L);
+                    .isEqualTo(expectedChecks);
 
-            // /SPEC.md §6 #10 — 중복 리포트 판정이 이 제약명에 의존한다.
+            // uq_practice_reports_source_handoff — 리포트 멱등 INSERT 의
+            // ON CONFLICT 대상이다 (db/store.py:complete_practice_report_operation).
             assertThat(scalar(connection,
-                    "SELECT count(*) FROM pg_constraint WHERE conname='reports_session_id_key'"))
+                    "SELECT count(*) FROM pg_constraint "
+                            + "WHERE conname='uq_practice_reports_source_handoff'"))
                     .isEqualTo(1L);
 
             // 한글 라벨 enum. values_callable 때문에 DB 값이 한글이다 (/SPEC.md §5-3-1).
