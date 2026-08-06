@@ -261,3 +261,151 @@ def test_in_flight_and_expiry_contracts_are_executed_not_excluded():
     excluded = set(excluded_keys())
     assert must_execute <= covered
     assert not (must_execute & excluded)
+
+
+# --- TTL 길이·미래 시각 (상대 순서만 보면 못 잡는 것들) ----------------------
+
+
+def _sent_at():
+    from datetime import datetime, timezone
+
+    return datetime(2026, 1, 1, tzinfo=timezone.utc)
+
+
+def test_ttl_length_is_checked_against_source_constant():
+    from datetime import timedelta
+
+    from acting_api.uploads import UPLOAD_INTENT_TTL
+    from contract_harness.normalize import normalize
+
+    sent = _sent_at()
+    ok = (sent + UPLOAD_INTENT_TTL).strftime("%Y-%m-%dT%H:%M:%S.%f+00:00")
+    assert not normalize(
+        {"expires_at": ok}, SymbolTable(), role="fastapi", sent_at=sent
+    ).errors
+    one_year = (sent + timedelta(days=365)).strftime("%Y-%m-%dT%H:%M:%S.%f+00:00")
+    errors = normalize(
+        {"expires_at": one_year}, SymbolTable(), role="fastapi", sent_at=sent
+    ).errors
+    assert any("TTL" in error for error in errors)
+
+
+def test_future_created_at_is_rejected():
+    from contract_harness.normalize import normalize
+
+    errors = normalize(
+        {"created_at": "2099-01-01T00:00:00.000000+00:00"},
+        SymbolTable(),
+        role="fastapi",
+        sent_at=_sent_at(),
+    ).errors
+    assert any("미래" in error for error in errors)
+
+
+def test_expires_at_is_allowed_to_be_in_the_future():
+    from acting_api.uploads import UPLOAD_INTENT_TTL
+    from contract_harness.normalize import normalize
+
+    sent = _sent_at()
+    value = (sent + UPLOAD_INTENT_TTL).strftime("%Y-%m-%dT%H:%M:%S.%f+00:00")
+    assert not normalize(
+        {"expires_at": value}, SymbolTable(), role="fastapi", sent_at=sent
+    ).errors
+
+
+# --- presign 서명 인자 -------------------------------------------------------
+
+
+def test_object_key_shape_keeps_the_user_segment():
+    from contract_harness.stubs import StorageStub
+
+    shape = StorageStub.object_key_shape(
+        "users/11111111-1111-4111-8111-111111111111/uploads/deadbeef.mp4"
+    )
+    assert shape == "users/11111111-1111-4111-8111-111111111111/uploads/<file>.mp4"
+
+
+def test_presign_calls_record_signing_arguments():
+    from contract_harness.stubs import StorageStub
+
+    stub = StorageStub()
+    stub.presign_upload(
+        object_key="users/11111111-1111-4111-8111-111111111111/uploads/a.mp4",
+        mime_type="video/mp4",
+        size_bytes=4096,
+        expires_in_sec=1800,
+    )
+    call = stub.state()["presign_calls"][0]
+    assert call["http_method"] == "PUT"
+    assert call["content_type"] == "video/mp4"
+    assert call["content_length"] == 4096
+    assert call["expires_in_sec"] == 1800
+    assert "11111111-1111-4111-8111-111111111111" in call["object_key"]
+
+
+# --- java 대상 판정 경로 -----------------------------------------------------
+
+
+def test_coverage_declared_comes_from_baseline_not_target():
+    """target 문서에서 operation 을 빼도 기준이 줄어들지 않아야 한다."""
+    from contract_harness.runner import RunResult, coverage_report
+
+    result = RunResult()
+    result.baseline_openapi_by_profile["default"] = {
+        "paths": {"/a": {"get": {}}, "/b": {"get": {}}}
+    }
+    result.openapi_by_profile["default"] = {"paths": {"/a": {"get": {}}}}
+    result.executed = {("/a", "get")}
+    declared, executed, missing = coverage_report(result)
+    assert declared == {("/a", "get"), ("/b", "get")}
+    assert missing == {("/b", "get")}
+
+
+def test_scoped_openapi_slice_keeps_reachable_components():
+    from contract_harness.runner import _scoped_document
+
+    document = {
+        "openapi": "3.1.0",
+        "paths": {
+            "/health": {
+                "get": {
+                    "responses": {
+                        "200": {
+                            "content": {
+                                "application/json": {
+                                    "schema": {"$ref": "#/components/schemas/H"}
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "/other": {"get": {}},
+        },
+        "components": {"schemas": {"H": {"type": "object"}, "Unused": {}}},
+    }
+    scoped = _scoped_document(document, {"/health"})
+    assert set(scoped["paths"]) == {"/health"}
+    assert set(scoped["components"]["schemas"]) == {"H"}
+
+
+# --- 204 후속 관측 · 동시 확정 케이스가 제외로 돌아가지 않는지 ---------------
+
+
+def test_previously_unreachable_contracts_are_executed_not_excluded():
+    from contract_harness.manifest import API, covered_keys, excluded_keys, key
+
+    must_execute = {
+        key(f"{API}/uploads.py", "build_router.complete_intent", 413,
+            "upload_too_large"),
+        key(f"{API}/coaching.py", "build_router.coach_reply", 409,
+            "session changed concurrently"),
+        key(f"{API}/coaching.py", "build_router.coach_confirm", 409,
+            "report already exists"),
+        key(f"{API}/reports.py", "build_router.create_report", 409,
+            "report already exists"),
+        key(f"{API}/coaching.py", "build_router.coach_confirm", 502, "str(exc)"),
+        key(f"{API}/reports.py", "build_router.create_report", 502, "str(exc)"),
+    }
+    assert must_execute <= covered_keys()
+    assert not (must_execute & set(excluded_keys()))

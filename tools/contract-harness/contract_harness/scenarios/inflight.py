@@ -31,6 +31,8 @@ from contract_harness.stubs import STUB_BLOCK_MARKER
 
 BLOCK_WAIT_SEC = 15.0
 COMPLETE_MARKER = "[[coach:complete]]"
+# 리포트 스텁이 JSON 이 아닌 문자열을 내게 하는 마커 (fixtures/llm.json).
+REPORT_PARSE_ERROR_MARKER = "[[report:parse_error]]"
 
 
 def _wait_until_blocked(ctx, step_id: str, stub: str) -> None:
@@ -268,6 +270,168 @@ def _call_with_lease_steal(
     return response
 
 
+def report_parse_error(ctx) -> None:
+    """`POST /v2/reports`·`POST /v2/coach/confirm` 의 502 (ReportParseError).
+
+    두 라우트에서 리포트 LLM 을 실제로 부르려면 handoff 는 확정됐는데
+    practice_report 는 없는 상태여야 한다. 코치 완료 턴이 그 자리에서 리포트를
+    저장하므로 순차 호출로는 만들 수 없지만, 저장된 행을 지우고 handoff 에
+    파싱 실패 마커를 심으면 만들어진다.
+    """
+    tokens = login(ctx, "login", "harness-token-new-actor")
+    headers = {"Authorization": f"Bearer {tokens['access_token']}"}
+    grant_all_consents(ctx, "parse", headers)
+    session_id = create_analyzed_session(ctx, "parse", headers, tag="parse")
+
+    started = ctx.call(
+        "parse.start",
+        "post",
+        "/v2/coach/start",
+        json={"practice_session_id": session_id, "restart": True},
+        headers={**headers, "X-Request-Id": ctx.request_id("parse-start")},
+        canonical=True,
+        expect_request_id=True,
+    )
+    require(started.status == 200, f"coach start 실패 {started.status} {started.body!r}")
+    coach_session_id = started.parsed["session_id"]
+    ctx.register(coach_session_id, "coach_session")
+    completed = ctx.call(
+        "parse.complete",
+        "post",
+        "/v2/coach/reply",
+        json={"session_id": coach_session_id, "text": f"정리하죠 {COMPLETE_MARKER}"},
+        headers={**headers, "X-Request-Id": ctx.request_id("parse-complete")},
+        canonical=True,
+        expect_request_id=True,
+    )
+    require(
+        completed.status == 200 and completed.parsed["status"] == "complete",
+        f"complete 실패 {completed.status} {completed.body!r}",
+    )
+    ctx.register(completed.parsed["handoff"]["id"], "handoff")
+
+    ctx.db_op(
+        "parse.drop-report",
+        "delete_practice_reports",
+        practice_session_id=session_id,
+    )
+    ctx.db_op(
+        "parse.arm-handoff",
+        "inject_marker_into_handoff",
+        coach_session_id=coach_session_id,
+        marker=REPORT_PARSE_ERROR_MARKER,
+    )
+    ctx.call(
+        "reports.parse-error",
+        "post",
+        "/v2/reports",
+        json={"session_id": coach_session_id},
+        headers={**headers, "X-Request-Id": ctx.request_id("parse-reports")},
+    )
+    ctx.call(
+        "coach.confirm-parse-error",
+        "post",
+        "/v2/coach/confirm",
+        json={
+            "coach_session_id": coach_session_id,
+            "confirmed": True,
+            "rebuttal_text": None,
+        },
+        headers={**headers, "X-Request-Id": ctx.request_id("parse-confirm")},
+    )
+    ctx.control(
+        "parse.projection", "db-projection", include=["external_operations"]
+    )
+
+
+def duplicate_report(ctx) -> None:
+    """`ON CONFLICT (source_handoff_id) DO NOTHING` 이 실제로 걸리는 구간.
+
+    두 라우트 다 "기존 리포트 없음"을 먼저 확인하므로, 그 확인 **뒤**에 행이 생겨야
+    409 `report already exists` 가 난다. 요청을 리포트 스텁 게이트에 세워 두고 그
+    사이에 행을 만들면 그 순서가 결정적으로 만들어진다 — 동시 요청 두 개로 흉내
+    내면 인터리빙에 좌우되고(원본은 그 경합에서 500 을 내기도 한다) flaky 해진다.
+    """
+    tokens = login(ctx, "login", "harness-token-new-actor")
+    headers = {"Authorization": f"Bearer {tokens['access_token']}"}
+    grant_all_consents(ctx, "dup", headers)
+
+    for label, route, payload_of in (
+        ("reports.duplicate-conflict", "/v2/reports", lambda cs: {"session_id": cs}),
+        (
+            "coach.confirm-duplicate-conflict",
+            "/v2/coach/confirm",
+            lambda cs: {
+                "coach_session_id": cs,
+                "confirmed": True,
+                "rebuttal_text": None,
+            },
+        ),
+    ):
+        tag = label.replace(".", "-")
+        session_id = create_analyzed_session(ctx, tag, headers, tag=tag)
+        started = ctx.call(
+            f"{tag}.start",
+            "post",
+            "/v2/coach/start",
+            json={"practice_session_id": session_id, "restart": True},
+            headers={**headers, "X-Request-Id": ctx.request_id(f"{tag}-start")},
+            canonical=True,
+            expect_request_id=True,
+        )
+        require(started.status == 200, f"coach start 실패 {started.status}")
+        coach_session_id = started.parsed["session_id"]
+        ctx.register(coach_session_id, "coach_session")
+        completed = ctx.call(
+            f"{tag}.complete",
+            "post",
+            "/v2/coach/reply",
+            json={"session_id": coach_session_id, "text": f"정리하죠 {COMPLETE_MARKER}"},
+            headers={**headers, "X-Request-Id": ctx.request_id(f"{tag}-complete")},
+            canonical=True,
+            expect_request_id=True,
+        )
+        require(
+            completed.status == 200 and completed.parsed["status"] == "complete",
+            f"complete 실패 {completed.status} {completed.body!r}",
+        )
+        ctx.register(completed.parsed["handoff"]["id"], "handoff")
+        # 완료 턴이 저장한 리포트를 지워 생성 경로를 열고, 게이트를 무장시킨다.
+        ctx.db_op(
+            f"{tag}.drop", "delete_practice_reports", practice_session_id=session_id
+        )
+        ctx.db_op(
+            f"{tag}.arm",
+            "inject_marker_into_handoff",
+            coach_session_id=coach_session_id,
+            marker=STUB_BLOCK_MARKER,
+        )
+        ctx.backend.runtime.report_generate.rearm()
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            pending = pool.submit(
+                ctx.backend.request,
+                "POST",
+                route,
+                json=payload_of(coach_session_id),
+                headers={**headers, "X-Request-Id": ctx.request_id(f"{tag}-call")},
+            )
+            _wait_until_blocked(ctx, f"{tag}.blocked", "report_generate")
+            # 확인은 끝났고 저장은 아직인 그 사이에 행을 만든다.
+            ctx.db_op(
+                f"{tag}.insert",
+                "insert_practice_report",
+                practice_session_id=session_id,
+                coach_session_id=coach_session_id,
+            )
+            _release(ctx, f"{tag}.release")
+            response = pending.result(timeout=BLOCK_WAIT_SEC + 10)
+        _rearm(ctx, f"{tag}.rearm")
+        ctx.record_response(
+            label, method="post", template=route, response=response
+        )
+    ctx.control("dup.projection", "db-projection", include=["external_operations"])
+
+
 def expired_upload_intent(ctx) -> None:
     """③ 만료된 upload intent 는 complete 에서 409.
 
@@ -307,3 +471,26 @@ def expired_upload_intent(ctx) -> None:
     )
     # 정상 intent 는 그대로 통과한다 — 만료 판정이 무차별이 아님을 보인다.
     create_upload(ctx, "expired-healthy", headers)
+
+    # 상한을 낮춘 배포 이전에 발급된 pending intent 재검증(§uploads.complete_intent).
+    # 상한 자체는 못 바꾸지만 그 상황이 남긴 **행**은 만들 수 있다.
+    oversized = ctx.call(
+        "oversized.intent",
+        "post",
+        "/v2/uploads/intents",
+        json={"mime_type": "video/mp4", "size_bytes": 4096, "duration_ms": 1500},
+        headers=headers,
+    )
+    require(oversized.status == 201, f"intent 생성 실패 {oversized.status}")
+    oversized_id = oversized.parsed["intent_id"]
+    ctx.register(oversized_id, "upload_intent")
+    ctx.db_op(
+        "oversized.inflate", "inflate_upload_intent_size", intent_id=oversized_id
+    )
+    ctx.call(
+        "uploads.complete-too-large",
+        "post",
+        "/v2/uploads/intents/{intent_id}/complete",
+        path_params={"intent_id": oversized_id},
+        headers=headers,
+    )

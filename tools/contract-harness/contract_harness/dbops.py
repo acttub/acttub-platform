@@ -45,6 +45,22 @@ class SchemaOps:
             {"id": UUID(intent_id), "expires_at": "2020-01-01T00:00:00+00:00"},
         )
 
+    def inflate_upload_intent_size(self, intent_id: str) -> int:
+        """이미 발급된 intent 의 크기를 현재 상한보다 크게 만든다.
+
+        원본은 **이전 배포 데이터** 때문에 complete 에서 크기를 다시 검사한다
+        (`uploads.py:build_router.complete_intent` 의 주석: "상한 하향 배포 전에
+        발급된 pending intent 가 게이트를 우회하지 못하게 재검증한다"). 상한 자체를
+        바꿀 수는 없지만, 그 상황이 남긴 **행**은 이렇게 만들 수 있다.
+        상한은 소스 상수에서 읽는다 — 숫자를 박지 않는다.
+        """
+        from acting_api.uploads import MAX_UPLOAD_BYTES
+
+        return self._execute(
+            "UPDATE upload_intents SET size_bytes = :size WHERE id = :id",
+            {"id": UUID(intent_id), "size": MAX_UPLOAD_BYTES + 1},
+        )
+
     # -- external operation lease ------------------------------------------
 
     def steal_lease(self, request_id: str) -> int:
@@ -72,6 +88,47 @@ class SchemaOps:
             "DELETE FROM practice_reports WHERE practice_session_id = :id",
             {"id": UUID(practice_session_id)},
         )
+
+    def insert_practice_report(
+        self, practice_session_id: str, coach_session_id: str
+    ) -> int:
+        """그 handoff 에 대한 리포트 행을 밖에서 하나 만들어 둔다.
+
+        `complete_practice_report_operation` 의 `ON CONFLICT (source_handoff_id)
+        DO NOTHING` 이 실제로 걸리려면, 라우트가 "기존 리포트 없음"을 확인한 **뒤**
+        행이 생겨야 한다. 요청을 스텁 게이트에 세워 두고 이 조작을 걸면 그 순서가
+        결정적으로 만들어진다 — 동시 요청 두 개로 흉내 낼 필요가 없다.
+        """
+        import json as _json
+
+        report = dict(
+            _json.loads(
+                (cfg.FIXTURES_DIR / "llm.json").read_text(encoding="utf-8")
+            )["report"]["default"]
+        )
+        with self._engine.begin() as connection:
+            handoff_id = connection.execute(
+                text(
+                    "SELECT id FROM coaching_handoffs WHERE coach_session_id = :id"
+                    " ORDER BY created_at DESC, id DESC LIMIT 1"
+                ),
+                {"id": UUID(coach_session_id)},
+            ).scalar_one()
+            report["source_handoff_id"] = str(handoff_id)
+            return connection.execute(
+                text(
+                    "INSERT INTO practice_reports (id, practice_session_id,"
+                    " report_type, report_json, source_handoff_id)"
+                    " VALUES (:id, :session_id, 'analysis', CAST(:report AS jsonb),"
+                    " :handoff_id) ON CONFLICT (source_handoff_id) DO NOTHING"
+                ),
+                {
+                    "id": uuid4(),
+                    "session_id": UUID(practice_session_id),
+                    "report": _json.dumps(report, ensure_ascii=False),
+                    "handoff_id": handoff_id,
+                },
+            ).rowcount
 
     def inject_marker_into_handoff(self, coach_session_id: str, marker: str) -> int:
         """저장된 handoff 의 `coach_summary` 에 스텁 마커를 심는다.

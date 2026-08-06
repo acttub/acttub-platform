@@ -98,10 +98,10 @@ class TextGeneratorStub:
     spec: dict
     name: str
     calls: int = 0
-    lock: threading.Lock = field(default_factory=threading.Lock)
+    lock: threading.Condition = field(default_factory=threading.Condition)
     gate: threading.Event = field(default_factory=threading.Event)
-    entered: threading.Event = field(default_factory=threading.Event)
     blocked: int = 0
+    in_block_count: int = 0
     timed_out: int = 0
 
     def release(self) -> None:
@@ -109,18 +109,29 @@ class TextGeneratorStub:
 
     def rearm(self) -> None:
         self.gate.clear()
-        self.entered.clear()
 
-    def wait_until_blocked(self, timeout: float) -> bool:
-        return self.entered.wait(timeout)
+    def wait_until_blocked(self, timeout: float, count: int = 1) -> bool:
+        """요청 `count` 개가 **동시에** 스텁 안에 멈출 때까지 기다린다.
+
+        동시성 시나리오는 두 요청이 read→save 구간에 함께 갇혀 있어야 실제
+        경합이 된다. 시작점 barrier 만으로는 직렬화돼도 통과한다.
+        """
+        with self.lock:
+            return self.lock.wait_for(
+                lambda: self.in_block_count >= count, timeout=timeout
+            )
 
     def _block(self) -> None:
         with self.lock:
             self.blocked += 1
-        self.entered.set()
-        if not self.gate.wait(STUB_BLOCK_TIMEOUT_SEC):
-            with self.lock:
+            self.in_block_count += 1
+            self.lock.notify_all()
+        released = self.gate.wait(STUB_BLOCK_TIMEOUT_SEC)
+        with self.lock:
+            self.in_block_count -= 1
+            if not released:
                 self.timed_out += 1
+            self.lock.notify_all()
 
     def __call__(self, system_instruction: str, prompt: str):
         from acting_llm.openai_client import TokenUsage
@@ -149,7 +160,8 @@ class TextGeneratorStub:
             "remaining": max(0, budget - self.calls),
             "budget": budget,
             "blocked": self.blocked,
-            "in_block": self.entered.is_set() and not self.gate.is_set(),
+            "in_block": self.in_block_count > 0,
+            "in_block_count": self.in_block_count,
             "timed_out": self.timed_out,
         }
 
@@ -225,6 +237,23 @@ class StorageStub:
         self.region = S3_FIXTURE["region"]
         self.calls: dict[str, int] = {}
         self._sizes: dict[str, int] = {}
+        # 서명 **인자**를 남긴다. URL 문자열은 opaque 라 교차 비교하지 않으므로,
+        # 무엇에 어떤 조건으로 서명했는지는 여기서만 드러난다. 이게 없으면 남의
+        # object key 를 서명하거나 method·TTL·ContentType 을 틀려도 통과한다.
+        self.presign_calls: list[dict] = []
+
+    @staticmethod
+    def object_key_shape(object_key: str) -> str:
+        """파일명만 가리고 나머지는 남긴다 — user segment 가 계약이다.
+
+        `uploads.py:_object_key` 가 `users/{user_id}/uploads/{uuid4().hex}{ext}` 를
+        만든다. 파일명은 매번 달라 비교할 수 없지만, **user segment 는 요청한
+        사용자여야 한다.** 그 UUID 는 하네스가 심볼로 정규화한다.
+        """
+        head, _, filename = object_key.rpartition("/")
+        _stem, dot, suffix = filename.partition(".")
+        masked = f"<file>{dot}{suffix}" if dot else "<file>"
+        return f"{head}/{masked}" if head else masked
 
     # 하네스는 intent 를 만들 때 크기를 알고 있으므로 그것을 기억해 HEAD 로 되돌려준다.
     def remember_size(self, object_key: str, size_bytes: int) -> None:
@@ -266,13 +295,39 @@ class StorageStub:
         path = "/".join(quote(part, safe="") for part in object_key.split("/"))
         return f"https://s3.{self.region}.amazonaws.com/{self.bucket}/{path}?{encoded}"
 
+    def _record_presign(self, **fields) -> None:
+        self.presign_calls.append(
+            {
+                "object_key": self.object_key_shape(fields.pop("object_key")),
+                **fields,
+            }
+        )
+
     def presign_upload(self, *, object_key, mime_type, size_bytes, expires_in_sec):
         self._count("presign_upload")
         self.remember_size(object_key, size_bytes)
+        self._record_presign(
+            operation="put_object",
+            http_method="PUT",
+            object_key=object_key,
+            bucket=self.bucket,
+            content_type=mime_type,
+            content_length=size_bytes,
+            expires_in_sec=expires_in_sec,
+        )
         return self._presign("PUT", object_key, expires_in_sec)
 
     def presign_playback(self, *, object_key, expires_in_sec):
         self._count("presign_playback")
+        self._record_presign(
+            operation="get_object",
+            http_method="GET",
+            object_key=object_key,
+            bucket=self.bucket,
+            content_type=None,
+            content_length=None,
+            expires_in_sec=expires_in_sec,
+        )
         return self._presign("GET", object_key, expires_in_sec)
 
     def head(self, *, object_key: str) -> StoredObjectMetadata | None:
@@ -311,7 +366,12 @@ class StorageStub:
         self._count("delete")
 
     def state(self) -> dict:
-        return {"calls": dict(sorted(self.calls.items()))}
+        return {
+            "calls": dict(sorted(self.calls.items())),
+            # 서명 인자를 순서대로 노출한다. 하네스가 symbolic 정규화를 걸어
+            # 양쪽 백엔드의 "무엇에 어떤 조건으로 서명했는지"를 비교한다.
+            "presign_calls": list(self.presign_calls),
+        }
 
 
 # --- 인증 provider ---------------------------------------------------------

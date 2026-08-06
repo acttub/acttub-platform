@@ -72,24 +72,44 @@ def _run(args, *, coverage_only: bool = False) -> int:
     runner.prepare_schemas(force=args.rebuild_schemas)
     scenarios = runner.all_scenarios(args.only)
     java_base_url = args.java_base_url if args.target == "java" else None
-    seed_findings = [] if java_base_url is not None else runner.verify_seed_parity()
-    result = runner.run_scenarios(scenarios, java_base_url=java_base_url)
-    result.findings.extend(seed_findings)
-
+    skipped: list[str] = []
     if java_base_url is None:
-        result.findings.extend(runner.verify_manifest(result))
-        result.findings.extend(runner.verify_admin_snapshot(result))
-        result.findings.extend(runner.verify_unknown_keys(result))
-        result.findings.extend(runner.verify_no_accidental_rate_limits(result))
-        if not args.only:
-            result.findings.extend(runner.verify_idempotency_transitions(result))
-        default_openapi = result.openapi_by_profile.get("default")
-        if default_openapi is not None:
-            drift = inventory.check_drift(default_openapi)
-            for problem in drift.problems:
-                result.findings.append(Finding("drift", "-", "-", problem))
+        result_seed = runner.verify_seed_parity()
+    else:
+        # java 어댑터는 자기 스키마 이름을 하네스에 알려주지 않는다(M1 범위 밖).
+        result_seed = []
+        skipped.append(
+            "seed parity — java 백엔드의 스키마 이름을 모른다 (spec/M4-llm.md 로 이관)"
+        )
+    result = runner.run_scenarios(scenarios, java_base_url=java_base_url)
+    result.findings.extend(result_seed)
+
+    # 아래 검증은 **백엔드 종류와 무관하게** 돈다. java 라고 건너뛰면
+    # "M1 하네스 전량 통과" 가 관문이 될 때 관문이 비어 있게 된다.
+    result.findings.extend(runner.verify_manifest(result))
+    result.findings.extend(runner.verify_admin_snapshot(result))
+    result.findings.extend(runner.verify_unknown_keys(result))
+    result.findings.extend(runner.verify_no_accidental_rate_limits(result))
+    if not args.only:
+        result.findings.extend(runner.verify_idempotency_transitions(result))
+    # target 스펙 자체를 커밋된 계약과 semantic 비교한다. 별도 CLI 로만 두면
+    # 판정 경로에 안 붙는다. `--only` 로 좁힌 실행에서는 밟은 경로만 본다.
+    scope = None
+    if args.only:
+        scope = {template for template, _method in result.executed}
+        skipped.append(
+            f"openapi 계약 비교 — --only 실행이라 밟은 경로 {len(scope)}개만 본다"
+        )
+    result.findings.extend(runner.verify_openapi_contract(result, scope_to=scope))
+    baseline_openapi = result.baseline_openapi_by_profile.get("default")
+    if baseline_openapi is not None:
+        drift = inventory.check_drift(baseline_openapi)
+        for problem in drift.problems:
+            result.findings.append(Finding("drift", "-", "-", problem))
 
     print(f"시나리오 {len(scenarios)}개: {', '.join(result.scenarios_run)}")
+    for reason in skipped:
+        print(f"  (건너뜀) {reason}")
     _print_findings(result.findings, args.verbose)
 
     declared, executed, missing = runner.coverage_report(result)

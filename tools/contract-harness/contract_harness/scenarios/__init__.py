@@ -45,7 +45,17 @@ SCENARIOS: tuple[Scenario, ...] = (
     Scenario(
         "expired-intent",
         inflight.expired_upload_intent,
-        description="만료된 upload intent → 409",
+        description="만료·상한초과 upload intent → 409·413",
+    ),
+    Scenario(
+        "duplicate-report",
+        inflight.duplicate_report,
+        description="같은 handoff 중복 확정 → 409 report already exists",
+    ),
+    Scenario(
+        "report-parse-error",
+        inflight.report_parse_error,
+        description="reports·confirm 의 리포트 파싱 실패 → 502",
     ),
     Scenario("reanalyze", worker.reanalyze, description="재분석 멱등 전이"),
     Scenario("concurrency", worker.concurrency, description="동시성"),

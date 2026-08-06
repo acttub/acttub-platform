@@ -72,6 +72,7 @@ class SymbolTable:
 class NormalizeResult:
     value: object
     datetime_forms: dict[str, str] = field(default_factory=dict)
+    ttl_seconds: dict[str, int] = field(default_factory=dict)
     errors: list[str] = field(default_factory=list)
 
 
@@ -153,19 +154,41 @@ def parse_datetime(value: str) -> datetime | None:
         return None
 
 
+def ttl_expectations() -> dict[str, float]:
+    """TTL 을 **소스 상수에서** 읽는다. 숫자를 박지 않는다(§기대값 소스).
+
+    필드 이름 → 기대 TTL 초. 상대 순서만 보면 30분 TTL 을 1년으로 발급하는
+    구현이 그대로 통과한다.
+    """
+    from acting_api.uploads import UPLOAD_INTENT_TTL
+
+    return {"expires_at": UPLOAD_INTENT_TTL.total_seconds()}
+
+
+# 요청 왕복·시계 오차를 흡수하는 여유. 30분 TTL 을 1년으로 바꾸는 것과는 자릿수가 다르다.
+TTL_TOLERANCE_SEC = 120.0
+# 생성 시각이 요청 시각보다 이만큼 넘게 미래면 계약 위반으로 본다.
+FUTURE_INSTANT_TOLERANCE_SEC = 120.0
+# 미래여야 하는 필드. 나머지 시각 필드는 요청 시각을 크게 넘으면 안 된다.
+FUTURE_ALLOWED_KEYS = frozenset({"expires_at", "lease_expires_at"})
+
+
 class Normalizer:
     def __init__(self, symbols: SymbolTable, *, role: str, sent_at: datetime | None):
         self.symbols = symbols
         self.role = role
         self.sent_at = sent_at
         self.datetime_forms: dict[str, str] = {}
+        self.ttl_seconds: dict[str, int] = {}
         self.errors: list[str] = []
+        self._ttl = ttl_expectations()
 
     def run(self, value) -> NormalizeResult:
         normalized = self._walk(value, "$")
         return NormalizeResult(
             value=normalized,
             datetime_forms=self.datetime_forms,
+            ttl_seconds=self.ttl_seconds,
             errors=self.errors,
         )
 
@@ -199,11 +222,39 @@ class Normalizer:
         expires = value.get("expires_at")
         if isinstance(expires, str) and self.sent_at is not None:
             moment = parse_datetime(expires)
-            if moment is not None and moment <= self.sent_at:
+            if moment is None:
+                return
+            if moment <= self.sent_at:
                 self.errors.append(
                     f"{path}: expires_at 이 요청 시각보다 앞선다 "
                     f"({expires} <= {self.sent_at.isoformat()})"
                 )
+                return
+            # TTL **길이**를 본다. 순서만 보면 30분을 1년으로 발급해도 통과한다.
+            expected = self._ttl.get("expires_at")
+            if expected is None:
+                return
+            actual = (moment - self.sent_at).total_seconds()
+            self.ttl_seconds[f"{path}.expires_at"] = round(actual)
+            if abs(actual - expected) > TTL_TOLERANCE_SEC:
+                self.errors.append(
+                    f"{path}.expires_at: TTL 이 {actual:.0f}초다. "
+                    f"소스 상수(UPLOAD_INTENT_TTL)는 {expected:.0f}초 "
+                    f"(허용오차 {TTL_TOLERANCE_SEC:.0f}초)"
+                )
+
+    def _check_instant_is_not_future(self, value: str, path: str, key: str) -> None:
+        """생성·발생 시각이 요청 시각보다 한참 미래면 계약 위반이다."""
+        if self.sent_at is None or key in FUTURE_ALLOWED_KEYS:
+            return
+        moment = parse_datetime(value)
+        if moment is None:
+            return
+        ahead = (moment - self.sent_at).total_seconds()
+        if ahead > FUTURE_INSTANT_TOLERANCE_SEC:
+            self.errors.append(
+                f"{path}: 시각이 요청 시각보다 {ahead:.0f}초 미래다 ({value})"
+            )
 
     def _walk_string(self, value: str, path: str, key: str | None):
         # ① opaque — 값 자체를 교차 비교하지 않는다 (§opaque 값 정책)
@@ -221,6 +272,7 @@ class Normalizer:
             form, errors = check_datetime(value, role=self.role, path=path)
             self.datetime_forms[path] = form
             self.errors.extend(errors)
+            self._check_instant_is_not_future(value, path, key or "")
             return DATETIME_SENTINEL
         # ③ symbolic ID
         substituted = self.symbols.substitute(value)

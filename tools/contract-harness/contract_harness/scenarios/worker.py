@@ -17,6 +17,9 @@ from contract_harness.scenarios.support import (
     require,
     session_body,
 )
+from contract_harness.stubs import STUB_BLOCK_MARKER
+
+COMPLETE_MARKER = "[[coach:complete]]"
 
 OPERATION_PROJECTION = ["external_operations", "practice_sessions"]
 
@@ -225,7 +228,11 @@ def reanalyze(ctx) -> None:
 
 
 def _parallel(backend, calls):
-    """barrier 로 정확히 같은 순간에 때린다."""
+    """barrier 로 정확히 같은 순간에 때린다.
+
+    시작점만 맞출 뿐이라 **경합 구간에 함께 머무는 것은 보장하지 않는다.**
+    read→save 구간을 실제로 겹치게 하려면 `_gated_parallel` 을 쓴다.
+    """
     barrier = threading.Barrier(len(calls))
 
     def _run(call):
@@ -234,6 +241,34 @@ def _parallel(backend, calls):
 
     with ThreadPoolExecutor(max_workers=len(calls)) as pool:
         return [future.result(timeout=60) for future in [pool.submit(_run, call) for call in calls]]
+
+
+def _gated_parallel(ctx, stub_name: str, calls, *, timeout: float = 20.0):
+    """요청 전부를 LLM 스텁 안에 **함께 가둔 뒤** 동시에 풀어준다.
+
+    `[[stub:block]]` 마커가 프롬프트에 있어야 한다. 전원이 갇힌 것을 확인하고
+    나서 release 하므로 직렬화될 수 없다 — 이게 없으면 "둘 다 200" 이 나와도
+    통과해 원자성 회귀를 놓친다.
+    """
+    stub = getattr(ctx.backend.runtime, stub_name, None)
+    require(stub is not None, f"{stub_name} 스텁 핸들이 없다 — in-process 백엔드 전용")
+    stub.rearm()
+    with ThreadPoolExecutor(max_workers=len(calls)) as pool:
+        futures = [pool.submit(call) for call in calls]
+        gated = stub.wait_until_blocked(timeout, count=len(calls))
+        blocked_now = stub.in_block_count
+        # 못 가뒀어도 일단 풀어 준다 — 안 그러면 20초 타임아웃을 그대로 기다리고
+        # 진단에 쓸 응답도 못 본다.
+        stub.release()
+        responses = [future.result(timeout=timeout + 20) for future in futures]
+    stub.rearm()
+    require(
+        gated,
+        f"{stub_name} 에 요청 {len(calls)}건이 동시에 갇히지 않았다 "
+        f"(갇힌 수 {blocked_now}건, 응답 "
+        f"{[(item.status, item.body[:120]) for item in responses]})",
+    )
+    return responses
 
 
 def concurrency(ctx) -> None:
@@ -353,7 +388,9 @@ def concurrency(ctx) -> None:
         },
     )
 
-    # ④ 같은 코치 세션 동시 reply — 턴 전량 비교 낙관적 락
+    # ④ 같은 코치 세션 동시 reply — 턴 전량 비교 낙관적 락.
+    # barrier 는 요청 **시작점**에만 있어 그것만으로는 직렬화돼도 통과한다.
+    # 두 요청을 LLM 스텁 안(=read→save 구간)에 **함께 가둔 뒤** 풀어야 실제 경합이다.
     session_id = sorted(session_ids)[0]
     ctx.control("conc.worker", "run-worker-once")
     started = ctx.call(
@@ -372,14 +409,18 @@ def concurrency(ctx) -> None:
         {**headers, "X-Request-Id": ctx.request_id(f"conc-reply-{index}")}
         for index in range(2)
     ]
-    reply_responses = _parallel(
-        ctx.backend,
+    reply_responses = _gated_parallel(
+        ctx,
+        "coach_generate",
         [
             (
                 lambda header=header, index=index: ctx.backend.request(
                     "POST",
                     "/v2/coach/reply",
-                    json={"session_id": coach_session_id, "text": f"동시 응답 {index}"},
+                    json={
+                        "session_id": coach_session_id,
+                        "text": f"동시 응답 {index} {STUB_BLOCK_MARKER}",
+                    },
                     headers=header,
                 )
             )
@@ -387,7 +428,7 @@ def concurrency(ctx) -> None:
         ],
     )
     coach_projection = ctx.backend.control("db-projection", include=["coach_sessions"])
-    success_count = sum(1 for response in reply_responses if response.status == 200)
+    statuses = sorted(response.status for response in reply_responses)
     turn_count = next(
         (
             row["turn_count"]
@@ -396,12 +437,24 @@ def concurrency(ctx) -> None:
         ),
         None,
     )
+    # 두 요청이 같은 스냅샷을 읽고 동시에 저장하려 하므로 정확히 하나만 성공한다.
+    # `_save_coach_session` 의 턴 전량 비교 낙관적 락이 나머지를 거부한다.
+    ctx.record_response(
+        "coach.reply-write-conflict",
+        method="post",
+        template="/v2/coach/reply",
+        response=max(reply_responses, key=lambda item: item.status),
+    )
     ctx.note(
         "concurrent-reply",
         {
-            "statuses_allowed": sorted(
-                {response.status in {200, 409} for response in reply_responses}
-            ),
-            "no_lost_update": turn_count == 2 + 2 * success_count,
+            "statuses": statuses,
+            "turn_count": turn_count,
+            "no_lost_update": turn_count == 4,
         },
     )
+
+    # 이긴 쪽의 턴 내용은 실행마다 달라지므로 **이 코치 세션을 이후에 관측하지
+    # 않는다.** 관측 대상은 거부된 응답(결정적)과 최종 턴 수뿐이다.
+    # 같은 handoff 중복 확정(409 report already exists)은 `inflight.py` 가
+    # 스텁 게이트로 결정적으로 만든다.

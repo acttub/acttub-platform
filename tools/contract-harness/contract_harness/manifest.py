@@ -408,6 +408,49 @@ CASES: tuple[Case, ...] = (
              "request is still processing"),),
         "lease-stolen", "reports.lease-lost", 409, "request is still processing",
     ),
+    # --- 동시 확정·동시 저장 (실제 경합을 스텁 게이트로 고정한다) -------------
+    Case(
+        "uploads.complete-too-large",
+        (key(f"{API}/uploads.py", "build_router.complete_intent", 413,
+             "upload_too_large"),),
+        "expired-intent", "uploads.complete-too-large", 413, "upload_too_large",
+        note="상한을 낮춘 배포 이전에 발급된 행을 DB 조작으로 만든다 — "
+        "상한 자체는 못 바꾸지만 그 상황이 남긴 행은 만들 수 있다",
+    ),
+    Case(
+        "coach.reply-write-conflict",
+        (key(f"{API}/coaching.py", "build_router.coach_reply", 409,
+             "session changed concurrently"),),
+        "concurrency", "coach.reply-write-conflict", 409,
+        "session changed concurrently",
+        note="두 reply 를 LLM 스텁 안에 함께 가둔 뒤 풀어 턴 전량 비교 낙관적 락을 밟는다",
+    ),
+    Case(
+        "reports.duplicate-conflict",
+        (key(f"{API}/reports.py", "build_router.create_report", 409,
+             "report already exists"),),
+        "duplicate-report", "reports.duplicate-conflict", 409,
+        "report already exists",
+        note="확인과 저장 사이에 행을 만들어 ON CONFLICT DO NOTHING 을 결정적으로 밟는다",
+    ),
+    Case(
+        "coach.confirm-duplicate-conflict",
+        (key(f"{API}/coaching.py", "build_router.coach_confirm", 409,
+             "report already exists"),),
+        "duplicate-report", "coach.confirm-duplicate-conflict", 409,
+        "report already exists",
+    ),
+    Case(
+        "reports.parse-error",
+        (key(f"{API}/reports.py", "build_router.create_report", 502, "str(exc)"),),
+        "report-parse-error", "reports.parse-error", 502, None,
+        note="저장된 리포트를 지우고 handoff 에 파싱 실패 마커를 심어 생성 경로를 연다",
+    ),
+    Case(
+        "coach.confirm-parse-error",
+        (key(f"{API}/coaching.py", "build_router.coach_confirm", 502, "str(exc)"),),
+        "report-parse-error", "coach.confirm-parse-error", 502, None,
+    ),
     Case(
         "sync.retry-exhausted",
         (key(f"{API}/sync_operations.py", "begin_sync_operation", 409,
@@ -559,38 +602,6 @@ EXCLUSIONS: tuple[Exclusion, ...] = (
         (key(f"{API}/profile.py", "build_router.update_me", 404, "user_not_found"),),
         "인증 의존성이 이미 유저를 읽은 뒤라, 같은 요청 안에서 유저가 사라져야 도달한다. "
         "API 만으로는 만들 수 없다.",
-    ),
-    Exclusion(
-        (key(f"{API}/uploads.py", "build_router.complete_intent", 413, "upload_too_large"),),
-        "상한을 낮춘 배포 이전에 발급된 pending intent 를 재검증하는 분기다. 한 프로세스 "
-        "안에서는 MAX_UPLOAD_BYTES 가 바뀌지 않아 도달할 수 없다.",
-    ),
-    Exclusion(
-        (
-            key(f"{API}/coaching.py", "build_router.coach_confirm", 409,
-                "report already exists"),
-            key(f"{API}/reports.py", "build_router.create_report", 409,
-                "report already exists"),
-        ),
-        "두 라우트 모두 handoff 의 기존 리포트를 먼저 조회해 재사용하므로, "
-        "complete_practice_report_operation 의 ON CONFLICT 가 걸리는 것은 같은 handoff 를 "
-        "동시에 확정하는 경우뿐이다. 결정적으로 재현할 수 없다.",
-    ),
-    Exclusion(
-        (key(f"{API}/coaching.py", "build_router.coach_reply", 409,
-             "session changed concurrently"),),
-        "SessionWriteConflict 는 두 요청이 같은 코치 세션의 턴을 동시에 덮어쓸 때만 난다. "
-        "동시성 시나리오가 이 경로를 밟지만 결과가 인터리빙에 좌우된다.",
-    ),
-    Exclusion(
-        (
-            key(f"{API}/coaching.py", "build_router.coach_confirm", 502, "str(exc)"),
-            key(f"{API}/reports.py", "build_router.create_report", 502, "str(exc)"),
-        ),
-        "이 두 곳에서 리포트 LLM 을 실제로 부르려면 handoff 는 확정됐는데 practice_report 는 "
-        "없는 상태가 필요하다. 코치 완료 턴이 그 자리에서 리포트를 저장하므로"
-        "(db/store.py:PostgresStore.complete_coach_reply_operation) 순차 호출로는 만들 수 없다. "
-        "같은 ReportParseError 경로는 coach_start·coach_reply 케이스가 덮는다.",
     ),
 )
 

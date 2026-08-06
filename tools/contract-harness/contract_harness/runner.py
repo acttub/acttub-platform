@@ -25,6 +25,8 @@ class RunResult:
     steps_by_scenario: dict = field(default_factory=dict)
     baseline_steps_by_scenario: dict = field(default_factory=dict)
     openapi_by_profile: dict = field(default_factory=dict)
+    baseline_openapi_by_profile: dict = field(default_factory=dict)
+    target_role: str = "fastapi"
     scenarios_run: list = field(default_factory=list)
 
     def ok(self) -> bool:
@@ -126,6 +128,10 @@ def run_scenarios(
         result.steps_by_scenario[scenario.name] = target_side.steps
         result.baseline_steps_by_scenario[scenario.name] = baseline_side.steps
         result.openapi_by_profile.setdefault(scenario.profile, target_side.openapi)
+        result.baseline_openapi_by_profile.setdefault(
+            scenario.profile, baseline_side.openapi
+        )
+        result.target_role = target_side.role
         if baseline_abort is not None:
             result.findings.append(
                 Finding("scenario", scenario.name, "-", f"baseline 중단: {baseline_abort}")
@@ -135,7 +141,9 @@ def run_scenarios(
                 Finding("scenario", scenario.name, "-", f"target 중단: {target_abort}")
             )
         result.findings.extend(compare(scenario.name, baseline_side, target_side))
-        result.executed |= coverage(baseline_side.steps)
+        # coverage 는 **검사 대상(target)** 에서 센다. baseline 에서 세면 Java 가
+        # 아무 것도 실행하지 않아도 커버리지가 찬 것처럼 보인다.
+        result.executed |= coverage(target_side.steps)
     return result
 
 
@@ -174,10 +182,18 @@ def declared_operations(openapi: dict) -> set:
 
 
 def coverage_report(result: RunResult) -> tuple[set, set, set]:
-    """(선언된 operation, 2xx 로 실행된 것, 미실행)."""
+    """(선언된 operation, 2xx 로 실행된 것, 미실행).
+
+    declared 는 **baseline** 스펙에서 구한다. target 문서에서 구하면 operation 을
+    빼 버린 백엔드일수록 커버리지가 쉬워진다.
+    """
     declared = set()
-    for openapi in result.openapi_by_profile.values():
+    for openapi in result.baseline_openapi_by_profile.values():
         declared |= declared_operations(openapi)
+    if not declared:
+        declared = declared_operations(
+            json.loads(cfg.COMMITTED_OPENAPI.read_text(encoding="utf-8"))
+        )
     executed = result.executed
     return declared, executed, declared - executed
 
@@ -185,11 +201,99 @@ def coverage_report(result: RunResult) -> tuple[set, set, set]:
 # --- manifest 대조 ---------------------------------------------------------
 
 
+def _reachable_refs(node, schemas: dict, seen: set) -> None:
+    queue = [node]
+    while queue:
+        current = queue.pop()
+        if isinstance(current, list):
+            queue.extend(current)
+            continue
+        if not isinstance(current, dict):
+            continue
+        reference = current.get("$ref")
+        if isinstance(reference, str) and reference.startswith("#/components/schemas/"):
+            name = reference.rsplit("/", 1)[-1]
+            if name not in seen and name in schemas:
+                seen.add(name)
+                queue.append(schemas[name])
+        for value in current.values():
+            if isinstance(value, (dict, list)):
+                queue.append(value)
+
+
+def _scoped_document(document: dict, templates: set) -> dict:
+    """지정한 path 들과 거기서 도달 가능한 컴포넌트만 남긴 **슬라이스**.
+
+    `--only` 로 일부만 돌릴 때는 아직 이식되지 않은 경로까지 diff 로 쏟아내지
+    않는다. 전체 실행에서는 이 함수를 쓰지 않고 전 문서를 비교한다.
+    """
+    paths = {
+        path: item
+        for path, item in document.get("paths", {}).items()
+        if path in templates
+    }
+    schemas = document.get("components", {}).get("schemas", {})
+    seen: set[str] = set()
+    _reachable_refs(paths, schemas, seen)
+    return {
+        "paths": paths,
+        "components": {
+            "schemas": {name: schemas[name] for name in sorted(seen)},
+        },
+    }
+
+
+def verify_openapi_contract(result: RunResult, *, scope_to: set | None = None) -> list[Finding]:
+    """target 스펙을 커밋된 계약과 semantic 비교한다.
+
+    `--openapi-diff` 로만 두면 판정 경로에 안 붙는다. Java 가 문서에서 제약을
+    빼는 것을 여기서 잡는다(§4 datetime 통일만 예외).
+
+    `scope_to` 가 있으면 그 path 들만 비교한다 — `--only` 로 일부만 돌릴 때
+    "아직 이식되지 않은 경로"까지 diff 로 쏟아내지 않기 위해서다. 전체 실행에서는
+    항상 전 문서를 본다.
+    """
+    from contract_harness.openapi_diff import diff_openapi
+
+    if "default" not in result.baseline_openapi_by_profile:
+        # default 프로파일 시나리오가 하나도 안 돌았다(예: --only admin).
+        return []
+    committed = json.loads(cfg.COMMITTED_OPENAPI.read_text(encoding="utf-8"))
+    findings: list[Finding] = []
+    target = result.openapi_by_profile.get("default")
+    if target and scope_to is not None:
+        committed = _scoped_document(committed, scope_to)
+        target = _scoped_document(target, scope_to)
+    if not target:
+        return [
+            Finding(
+                "openapi",
+                "-",
+                "-",
+                "target 백엔드가 OpenAPI 문서를 내지 않는다 — 계약 비교를 할 수 없다",
+            )
+        ]
+    for item in diff_openapi(committed, target, allow_datetime_change=True):
+        findings.append(Finding("openapi", "-", "-", str(item)))
+    return findings
+
+
 def verify_manifest(result: RunResult) -> list[Finding]:
     findings: list[Finding] = []
+    executed = set(result.scenarios_run)
     for case in manifest.CASES:
+        if case.scenario not in executed:
+            continue
         steps = result.steps_by_scenario.get(case.scenario)
         if steps is None:
+            findings.append(
+                Finding(
+                    "manifest",
+                    case.scenario,
+                    case.step,
+                    f"{case.case_id}: 시나리오가 돌았는데 스텝 기록이 없다",
+                )
+            )
             continue
         step = next((item for item in steps if item.id == case.step), None)
         if step is None:
@@ -331,7 +435,7 @@ def verify_unknown_keys(result: RunResult) -> list[Finding]:
     from contract_harness.inventory import allowed_unknown_key_operations
     from contract_harness.scenarios.edges import UNKNOWN_KEY_CASES
 
-    default = result.openapi_by_profile.get("default")
+    default = result.baseline_openapi_by_profile.get("default")
     steps = result.steps_by_scenario.get("unknown-keys")
     if default is None or steps is None:
         return []

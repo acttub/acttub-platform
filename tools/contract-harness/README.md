@@ -84,13 +84,39 @@ LLM 스텁이 신호가 올 때까지 멈춘다. `coaching.py:build_router.coach
 마커 주입도 같은 방식이다. 임의 SQL은 노출하지 않는다 — 조작마다 이름과 인자가
 고정돼 있어야 Java 백엔드에도 같은 형태로 옮길 수 있다.
 
+## 204·서명 인자처럼 "본문에 안 보이는 것"
+
+- **204 응답 뒤에는 반드시 후속 관측을 붙인다.** 빈 본문은 구조 diff 를 만들지 않고
+  coverage 는 2xx 여부만 세므로, 관측이 없으면 **아무것도 지우지 않고 204 만 반환하는
+  구현이 전 시나리오를 통과한다.** 삭제 후 GET 404·목록 제외, unblock 후 차단 목록·
+  글 복원, logout 후 같은 refresh token 이 401 로 확인한다.
+- **presign URL 은 값이 아니라 서명 인자를 비교한다.** URL 문자열은 opaque 이고 path 의
+  UUID 는 마스킹되므로, `stub-state.presign_calls` 에 operation·object key(사용자
+  segment 유지)·mime·크기·TTL 을 남겨 그것을 대조한다.
+- **시각은 상대 순서만 보지 않는다.** `expires_at - 요청 시각`이 소스 상수
+  (`uploads.py:UPLOAD_INTENT_TTL`)와 맞는지, 생성 시각이 요청 시각보다 미래가 아닌지
+  숫자로 단언한다. 순서만 보면 30분 TTL 을 1년으로 발급해도 통과한다.
+
+## java 대상일 때도 검증은 그대로 돈다
+
+manifest·admin 스냅샷·unknown key·레이트리밋 오염·openapi 계약 비교는 백엔드 종류와
+무관하게 돈다. coverage 의 **executed 는 target 에서**, **declared 는 baseline
+스펙에서** 센다 — 반대로 하면 문서에서 operation 을 빼 버린 백엔드일수록 커버리지가
+쉬워진다. L1 도 양쪽 다 baseline 스펙으로 검증한다(자기 스펙으로 검증하면 제약을
+지운 쪽이 느슨해진다). 지금 java 에서 못 도는 것은 건너뛴 것으로 **보고**하고
+`spec/M4-llm.md` 로 넘긴다.
+
 ## 알려진 한계
 
 - `advance-clock`은 레이트리밋 monotonic 시계와 워커 호출에 넘기는 wall clock만
   움직인다. 앱 내부의 `datetime.now(timezone.utc)`에는 주입점이 없다. 그래서 시각에
   의존하는 계약은 위 ②처럼 **DB 값**을 바꿔 재현한다.
-- 동시성 시나리오는 인터리빙과 무관한 **불변식만** 기록한다. 응답 하나하나를 비교하면
-  같은 시드로 반복 실행할 때 결과가 흔들린다.
+- 동시성 시나리오는 두 요청을 스텁 게이트에 **함께 가둔 뒤** 풀어 실제 경합을 만들고,
+  거부된 응답(결정적)과 최종 상태만 기록한다. 이긴 쪽의 본문은 실행마다 달라지므로
+  관측하지 않는다.
+- 원본 `coach_confirm` 은 두 요청이 동시에 확정하면 500 을 내기도 한다. 그래서 중복
+  확정(409 `report already exists`)은 동시 요청이 아니라 **게이트 + 행 삽입**으로
+  결정적으로 만든다(`dbops.py:SchemaOps.insert_practice_report`).
 - 스텁 게이트와 DB 조작을 쓰는 시나리오(`inflight-replay`·`lease-stolen`·
   `expired-intent`)는 백엔드의 스키마 이름을 알아야 한다. M1 시점 java 어댑터에는
   스키마가 없어 이 시나리오는 fastapi 전용이며, 실행하면 명시적으로 중단된다.

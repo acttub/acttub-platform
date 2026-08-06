@@ -153,8 +153,50 @@ def community(ctx) -> None:
         json={"body": "고친 댓글", "anonymous": False},
         headers=one,
     )
+    before_delete = ctx.call(
+        "comments-before-delete",
+        "get",
+        "/v2/community/posts/{post_id}/comments",
+        path_params={"post_id": post_id},
+        headers=one,
+    )
     ctx.call(
         "comment-delete",
+        "delete",
+        "/v2/community/comments/{comment_id}",
+        path_params={"comment_id": named_comment.parsed["id"]},
+        headers=one,
+    )
+    # 204 뒤에 관측이 없으면 아무것도 안 지우는 구현이 통과한다.
+    after_delete = ctx.call(
+        "comments-after-delete",
+        "get",
+        "/v2/community/posts/{post_id}/comments",
+        path_params={"post_id": post_id},
+        headers=one,
+    )
+    post_after_comment_delete = ctx.call(
+        "post-after-comment-delete",
+        "get",
+        "/v2/community/posts/{post_id}",
+        path_params={"post_id": post_id},
+        headers=one,
+    )
+    ctx.note(
+        "comment-delete.effect",
+        {
+            "before": len((before_delete.parsed or {}).get("comments", [])),
+            "after": len((after_delete.parsed or {}).get("comments", [])),
+            "gone": all(
+                item["id"] != named_comment.parsed["id"]
+                for item in (after_delete.parsed or {}).get("comments", [])
+            ),
+            "comment_count": post_after_comment_delete.parsed["comment_count"],
+        },
+    )
+    # 같은 댓글을 다시 지우면 이미 없는 것으로 보여야 한다.
+    ctx.call(
+        "comment-delete-again",
         "delete",
         "/v2/community/comments/{comment_id}",
         path_params={"comment_id": named_comment.parsed["id"]},
@@ -218,11 +260,65 @@ def community(ctx) -> None:
         path_params={"blocked_id": USER2},
         headers=one,
     )
+    # unblock 이 실제로 행을 지웠는지: 차단 목록이 비고 가려졌던 글이 돌아온다.
+    unblocked_list = ctx.call(
+        "blocks-after-unblock", "get", "/v2/community/blocks", headers=one
+    )
+    restored = ctx.call(
+        "posts-after-unblock",
+        "get",
+        "/v2/community/posts",
+        params={"limit": 50},
+        headers=one,
+    )
+    ctx.note(
+        "unblock.effect",
+        {
+            "block_list_empty": (unblocked_list.parsed or {}).get("blocks") == [],
+            "visible_posts": [
+                item["id"] for item in (restored.parsed or {}).get("posts", [])
+            ],
+            "restored_count": len((restored.parsed or {}).get("posts", []))
+            - len((blocked_view.parsed or {}).get("posts", [])),
+        },
+    )
 
-    ctx.call(
+    deleted_post = ctx.call(
         "post-delete",
         "delete",
         "/v2/community/posts/{post_id}",
+        path_params={"post_id": post_id},
+        headers=one,
+    )
+    require(deleted_post.status == 204, f"글 삭제가 204 가 아니다: {deleted_post.status}")
+    ctx.call(
+        "post-after-delete",
+        "get",
+        "/v2/community/posts/{post_id}",
+        path_params={"post_id": post_id},
+        headers=one,
+    )
+    listed_after_delete = ctx.call(
+        "posts-after-delete",
+        "get",
+        "/v2/community/posts",
+        params={"limit": 50},
+        headers=one,
+    )
+    ctx.note(
+        "post-delete.effect",
+        {
+            "gone_from_list": all(
+                item["id"] != post_id
+                for item in (listed_after_delete.parsed or {}).get("posts", [])
+            ),
+            "list_length": len((listed_after_delete.parsed or {}).get("posts", [])),
+        },
+    )
+    ctx.call(
+        "comments-after-post-delete",
+        "get",
+        "/v2/community/posts/{post_id}/comments",
         path_params={"post_id": post_id},
         headers=one,
     )

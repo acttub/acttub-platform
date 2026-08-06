@@ -160,17 +160,17 @@ def _compare_step(scenario, left, right, baseline, target, raw_by_id) -> list[Fi
                     f"상태코드가 다르다 baseline={left.status} target={right.status}",
                 )
             )
-        # L1 — 각 백엔드를 자기 스펙으로 검증한다
-        for side_name, step, side in (
-            ("baseline", left, baseline),
-            ("target", right, target),
-        ):
+        # L1 — **양쪽 다 baseline 스펙으로** 검증한다.
+        # 각자 자기 스펙으로 검증하면, 제약을 지운 백엔드일수록 검증이 느슨해진다
+        # (스펙 자체의 차이는 openapi semantic diff 가 따로 잡는다).
+        reference = baseline.openapi
+        for side_name, step in (("baseline", left), ("target", right)):
             if not step.schema_check or not _schema_applies(step):
                 continue
-            schema = response_schema(side.openapi, step.template, step.method, step.status)
+            schema = response_schema(reference, step.template, step.method, step.status)
             if schema is None:
                 continue
-            errors = jsonschema_lite.validate(step.parsed, schema, side.openapi)
+            errors = jsonschema_lite.validate(step.parsed, schema, reference)
             for error in errors:
                 findings.append(
                     Finding("L1", scenario, step_id, f"{side_name} 스키마 위반 — {error}")
@@ -251,6 +251,19 @@ def _compare_step(scenario, left, right, baseline, target, raw_by_id) -> list[Fi
                 scenario,
                 step_id,
                 f"{path}: datetime 표기가 다르다 baseline={form} target={other}",
+            )
+        )
+
+    for path, seconds in left_norm.ttl_seconds.items():
+        other = right_norm.ttl_seconds.get(path)
+        if other is None or abs(other - seconds) <= 5:
+            continue
+        findings.append(
+            Finding(
+                "datetime",
+                scenario,
+                step_id,
+                f"{path}: TTL 길이가 다르다 baseline={seconds}초 target={other}초",
             )
         )
 

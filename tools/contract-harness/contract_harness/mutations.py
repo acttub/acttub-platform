@@ -143,10 +143,71 @@ def _to_millis(value: str) -> str:
     return value
 
 
-def _expires_before_created(parsed, scope, status):
+def _expires_not_in_future(parsed, scope, status):
+    """expires_at 을 요청 시각보다 과거로 — "이미 만료된 채로 발급" 이다."""
     if not isinstance(parsed, dict) or "expires_at" not in parsed:
         return None
     return {**parsed, "expires_at": "2020-01-01T00:00:00.000000+00:00"}
+
+
+def _ttl_one_year(parsed, scope, status):
+    """30분 TTL 을 1년으로 발급한다. 순서만 보는 검증은 이걸 못 잡는다."""
+    if not isinstance(parsed, dict) or "expires_at" not in parsed:
+        return None
+    from datetime import datetime, timedelta, timezone
+
+    far = datetime.now(timezone.utc) + timedelta(days=365)
+    return {**parsed, "expires_at": far.strftime("%Y-%m-%dT%H:%M:%S.%f+00:00")}
+
+
+def _future_created_at(parsed, scope, status):
+    """생성 시각을 미래로 준다."""
+    if not (200 <= status < 300):
+        return None
+
+    def _walk(value):
+        if isinstance(value, dict):
+            out = {}
+            for key, item in value.items():
+                if key in {"created_at", "occurred_at"} and isinstance(item, str):
+                    out[key] = "2099-01-01T00:00:00.000000+00:00"
+                else:
+                    out[key] = _walk(item)
+            return out
+        if isinstance(value, list):
+            return [_walk(item) for item in value]
+        return value
+
+    return _walk(parsed)
+
+
+def _updated_before_created(parsed, scope, status):
+    """updated_at 을 created_at 보다 앞서게 — 의미 불변식 계층의 검출력을 증명한다."""
+    if not (200 <= status < 300):
+        return None
+
+    def _walk(value):
+        if isinstance(value, dict):
+            out = {key: _walk(item) for key, item in value.items()}
+            if isinstance(out.get("created_at"), str) and isinstance(
+                out.get("updated_at"), str
+            ):
+                from contract_harness.normalize import parse_datetime
+                from datetime import timedelta
+
+                created = parse_datetime(out["created_at"])
+                if created is not None:
+                    shifted = created - timedelta(days=1)
+                    out["updated_at"] = shifted.strftime("%Y-%m-%dT%H:%M:%S.%f%z")
+                    out["updated_at"] = (
+                        out["updated_at"][:-2] + ":" + out["updated_at"][-2:]
+                    )
+            return out
+        if isinstance(value, list):
+            return [_walk(item) for item in value]
+        return value
+
+    return _walk(parsed)
 
 
 def _uppercase_enum(parsed, scope, status):
@@ -439,6 +500,89 @@ def _patch_ignores_intent_expiry():
     return stack
 
 
+# --- 204 가 아무것도 안 하는 구현 -------------------------------------------
+
+
+def _patch_session_delete_noop():
+    """204 는 내지만 세션을 숨기지 않는다."""
+    from acting_api.db.store import PostgresStore
+
+    return patch_attr(PostgresStore, "hide_practice_session", lambda self, **kw: True)
+
+
+def _patch_community_delete_noop():
+    """글·댓글 삭제가 204 만 내고 상태를 바꾸지 않는다."""
+    from acting_api.db.community_store import CommunityStore
+
+    stack = contextlib.ExitStack()
+    stack.enter_context(
+        patch_attr(CommunityStore, "delete_post", lambda self, **kw: None)
+    )
+    stack.enter_context(
+        patch_attr(CommunityStore, "delete_comment", lambda self, **kw: None)
+    )
+    return stack
+
+
+def _patch_unblock_noop():
+    from acting_api.db.community_store import CommunityStore
+
+    return patch_attr(CommunityStore, "unblock_user", lambda self, **kw: None)
+
+
+def _patch_logout_noop():
+    """204 는 내지만 refresh token 을 revoke 하지 않는다."""
+    from acting_api.db.store import PostgresStore
+
+    return patch_attr(
+        PostgresStore, "revoke_refresh_token", lambda self, token_hash, **kw: True
+    )
+
+
+# --- presign 인자 ------------------------------------------------------------
+
+
+def _patch_presign_foreign_user():
+    """남의 user segment 가 든 object key 에 서명한다.
+
+    URL 문자열은 opaque 라 교차 비교하지 않고 path 의 UUID 는 마스킹되므로,
+    서명 **인자**를 안 보면 이 변조가 통과한다.
+    """
+    from pathlib import PurePosixPath
+    from uuid import uuid4
+
+    from acting_api import uploads
+
+    foreign = "00000000-0000-4000-8000-000000000999"
+
+    def patched(user_id, mime_type):
+        filename = f"{uuid4().hex}{uploads._object_suffix(mime_type)}"
+        return str(PurePosixPath("users", foreign, "uploads", filename))
+
+    return patch_attr(uploads, "_object_key", patched)
+
+
+def _patch_presign_drops_content_type():
+    """업로드 URL 을 ContentType·ContentLength 없이 서명한다."""
+    from contract_harness.stubs import StorageStub
+
+    original = StorageStub.presign_upload
+
+    def patched(self, *, object_key, mime_type, size_bytes, expires_in_sec):
+        url = original(
+            self,
+            object_key=object_key,
+            mime_type=mime_type,
+            size_bytes=size_bytes,
+            expires_in_sec=expires_in_sec,
+        )
+        self.presign_calls[-1]["content_type"] = None
+        self.presign_calls[-1]["content_length"] = None
+        return url
+
+    return patch_attr(StorageStub, "presign_upload", patched)
+
+
 def _patch_no_rate_limiter():
     from acting_api.ratelimit import RateLimiter
 
@@ -638,9 +782,22 @@ MUTATIONS: tuple[Mutation, ...] = (
         response_hook=json_hook(_rewrite_datetimes(_to_millis)),
     ),
     Mutation(
-        "expires-before-created", "expires_at 을 created_at 보다 앞서게 한다",
+        "expires-not-in-future", "expires_at 을 요청 시각보다 과거로 만든다",
         "main-flow", frozenset({"datetime"}),
-        response_hook=json_hook(_expires_before_created),
+        response_hook=json_hook(_expires_not_in_future),
+    ),
+    Mutation(
+        "ttl-one-year", "30분 TTL 을 1년으로 발급한다", "main-flow",
+        frozenset({"datetime"}), response_hook=json_hook(_ttl_one_year),
+    ),
+    Mutation(
+        "future-created-at", "생성 시각을 미래로 준다", "community",
+        frozenset({"datetime"}), response_hook=json_hook(_future_created_at),
+    ),
+    Mutation(
+        "updated-before-created", "updated_at 을 created_at 보다 앞서게 한다",
+        "community", frozenset({"datetime"}),
+        response_hook=json_hook(_updated_before_created),
     ),
     Mutation(
         "enum-uppercase", "enum 값을 대문자로 바꾼다", "profile",
@@ -733,6 +890,35 @@ MUTATIONS: tuple[Mutation, ...] = (
         "만료된 upload intent 를 그대로 통과시킨다",
         "expired-intent", frozenset({"manifest", "status", "L2"}),
         patch=_patch_ignores_intent_expiry,
+    ),
+    Mutation(
+        "session-delete-noop", "삭제 204 를 내고 세션을 숨기지 않는다", "main-flow",
+        frozenset({"L2", "status", "scenario", "sequence"}),
+        patch=_patch_session_delete_noop,
+    ),
+    Mutation(
+        "community-delete-noop", "글·댓글 삭제 204 를 내고 아무것도 안 지운다",
+        "community", frozenset({"L2", "status", "scenario", "sequence"}),
+        patch=_patch_community_delete_noop,
+    ),
+    Mutation(
+        "unblock-noop", "unblock 204 를 내고 차단을 풀지 않는다", "community",
+        frozenset({"L2", "scenario", "sequence"}), patch=_patch_unblock_noop,
+    ),
+    Mutation(
+        "logout-noop", "로그아웃 204 를 내고 refresh token 을 revoke 하지 않는다",
+        "main-flow", frozenset({"L2", "status", "scenario", "sequence"}),
+        patch=_patch_logout_noop,
+    ),
+    Mutation(
+        "presign-foreign-user", "남의 user segment 가 든 object key 에 서명한다",
+        "main-flow", frozenset({"L2", "symbol"}),
+        patch=_patch_presign_foreign_user,
+    ),
+    Mutation(
+        "presign-drops-content-type",
+        "업로드 URL 을 ContentType·ContentLength 없이 서명한다", "main-flow",
+        frozenset({"L2"}), patch=_patch_presign_drops_content_type,
     ),
     Mutation(
         "no-rate-limiter", "rate limiter 를 구현하지 않는다", "rate-limiter",

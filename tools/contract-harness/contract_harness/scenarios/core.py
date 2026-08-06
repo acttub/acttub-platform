@@ -253,6 +253,9 @@ def main_flow(ctx) -> None:
     )
 
     ctx.control("main.projection", "db-projection")
+    # presign URL 문자열은 opaque 라 교차 비교하지 않는다. **무엇에 어떤 조건으로
+    # 서명했는지**(operation·object key·mime·크기·TTL)는 여기서만 드러난다.
+    ctx.control("main.s3-state", "stub-state")
 
     refreshed = ctx.call(
         "refresh",
@@ -261,20 +264,64 @@ def main_flow(ctx) -> None:
         json={"refresh_token": tokens["refresh_token"]},
     )
     require(refreshed.status == 200, "refresh 실패")
-    ctx.call(
+    # 204 는 본문이 없어 구조 diff 를 만들지 않는다. **뒤에 관측을 붙이지 않으면
+    # 아무것도 지우지 않고 204 만 반환하는 구현이 그대로 통과한다.**
+    deleted = ctx.call(
         "session-delete",
         "delete",
         "/v2/practice-sessions/{session_id}",
         path_params={"session_id": session_id},
         headers=headers,
     )
+    require(deleted.status == 204, f"세션 삭제가 204 가 아니다: {deleted.status}")
     ctx.call(
+        "session-after-delete",
+        "get",
+        "/v2/practice-sessions/{session_id}",
+        path_params={"session_id": session_id},
+        headers=headers,
+    )
+    ctx.call(
+        "session-status-after-delete",
+        "get",
+        "/v2/practice-sessions/{session_id}/status",
+        path_params={"session_id": session_id},
+        headers=headers,
+    )
+    listed_after = ctx.call(
+        "sessions-list-after-delete",
+        "get",
+        "/v2/practice-sessions",
+        headers=headers,
+    )
+    ctx.note(
+        "session-delete.effect",
+        {
+            "removed_from_list": all(
+                item["session_id"] != session_id
+                for item in (listed_after.parsed or {}).get("sessions", [])
+            ),
+            "list_length": len((listed_after.parsed or {}).get("sessions", [])),
+        },
+    )
+    ctx.control("main.projection-after-delete", "db-projection")
+
+    logged_out = ctx.call(
         "logout",
         "post",
         "/v2/auth/logout",
         json={"refresh_token": refreshed.parsed["refresh_token"]},
         headers=headers,
     )
+    require(logged_out.status == 204, f"로그아웃이 204 가 아니다: {logged_out.status}")
+    # 같은 refresh token 이 더 이상 안 먹혀야 로그아웃이 실제로 일어난 것이다.
+    ctx.call(
+        "refresh-after-logout",
+        "post",
+        "/v2/auth/refresh",
+        json={"refresh_token": refreshed.parsed["refresh_token"]},
+    )
+    ctx.control("main.projection-after-logout", "db-projection", include=["refresh_tokens"])
 
 
 def coach_resume_restart(ctx) -> None:
