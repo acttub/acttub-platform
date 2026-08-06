@@ -15,6 +15,7 @@ class CoachStartReq(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     practice_session_id: uuid.UUID
+    restart: bool = False
 
 
 class CoachReplyReq(BaseModel):

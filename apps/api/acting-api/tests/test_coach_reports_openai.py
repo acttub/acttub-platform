@@ -95,6 +95,10 @@ def test_coach_start_generates_and_persists_the_first_coach_message():
         "status": "continue",
         "handoff": None,
         "report": None,
+        "turns": [
+            {"role": "actor", "text": "왜 지금 말하는지 모르겠어."},
+            {"role": "ai", "text": COACH_FOLLOWUP["message"]},
+        ],
     }
     assert len(coach.calls) == 1
     assert "## 배우의 최신 말\n왜 지금 말하는지 모르겠어." in coach.calls[0][1]
@@ -185,6 +189,7 @@ def test_coach_contract_persists_internal_handoff_without_leaking_labels():
         "status",
         "handoff",
         "report",
+        "turns",
     }
     assert started.json()["message"] == COACH_COMPLETE["message"]
     assert started.json()["status"] == "complete"
@@ -197,6 +202,116 @@ def test_coach_contract_persists_internal_handoff_without_leaking_labels():
     assert [turn.role for turn in stored.turns] == ["actor", "ai"]
     assert stored.status == "closed"
     assert store.confirmations[handoff_id].confirmed is True
+
+
+def test_coach_start_resumes_same_open_session_without_generating_again():
+    client, store, coach, _, user, headers = _application(
+        coach_responses=[COACH_FOLLOWUP]
+    )
+    started = _start(client, store, user, headers)
+    practice_session_id = next(iter(store.sessions))
+    operation_count = len(store.operations)
+
+    resumed = client.post(
+        "/v2/coach/start",
+        json={"practice_session_id": str(practice_session_id)},
+        headers={**headers, "X-Request-Id": str(uuid4())},
+    )
+
+    assert resumed.status_code == 200
+    assert resumed.json()["session_id"] == started.json()["session_id"]
+    assert resumed.json()["turns"] == started.json()["turns"]
+    assert len(coach.calls) == 1
+    assert len(store.operations) == operation_count
+
+
+def test_coach_start_resume_returns_all_stored_turns_in_order():
+    client, store, coach, _, user, headers = _application(
+        coach_responses=[COACH_FOLLOWUP, COACH_FOLLOWUP]
+    )
+    started = _start(client, store, user, headers)
+    coach_session_id = started.json()["session_id"]
+    practice_session_id = next(iter(store.sessions))
+    replied = client.post(
+        "/v2/coach/reply",
+        json={"session_id": coach_session_id, "text": "상대를 붙잡고 싶어요"},
+        headers={**headers, "X-Request-Id": str(uuid4())},
+    )
+    assert replied.status_code == 200
+
+    resumed = client.post(
+        "/v2/coach/start",
+        json={"practice_session_id": str(practice_session_id)},
+        headers={**headers, "X-Request-Id": str(uuid4())},
+    )
+
+    assert resumed.status_code == 200
+    assert resumed.json()["turns"] == [
+        {"role": turn.role, "text": turn.text}
+        for turn in store.coach_sessions[coach_session_id].turns
+    ]
+    assert resumed.json()["turns"] == replied.json()["turns"]
+    assert len(coach.calls) == 2
+
+
+def test_coach_start_restart_closes_open_session_and_creates_a_new_one():
+    client, store, coach, _, user, headers = _application(
+        coach_responses=[COACH_FOLLOWUP, COACH_FOLLOWUP]
+    )
+    started = _start(client, store, user, headers)
+    old_session_id = started.json()["session_id"]
+    practice_session_id = next(iter(store.sessions))
+
+    request_id = uuid4()
+    request_headers = {**headers, "X-Request-Id": str(request_id)}
+    request_body = {
+        "practice_session_id": str(practice_session_id),
+        "restart": True,
+    }
+    restarted = client.post(
+        "/v2/coach/start",
+        json=request_body,
+        headers=request_headers,
+    )
+    replayed = client.post(
+        "/v2/coach/start",
+        json=request_body,
+        headers=request_headers,
+    )
+
+    assert restarted.status_code == 200
+    assert replayed.content == restarted.content
+    assert restarted.json()["session_id"] != old_session_id
+    assert store.coach_sessions[old_session_id].status == "closed"
+    assert store.coach_sessions[restarted.json()["session_id"]].status == "open"
+    assert len(coach.calls) == 2
+
+
+def test_coach_start_resumes_the_oldest_of_multiple_open_sessions():
+    client, store, coach, _, user, headers = _application(
+        coach_responses=[COACH_FOLLOWUP]
+    )
+    started = _start(client, store, user, headers)
+    oldest_session_id = started.json()["session_id"]
+    practice_session_id = next(iter(store.sessions))
+    newer_session_id = str(uuid4())
+    store.coach_sessions[newer_session_id] = store.coach_sessions[
+        oldest_session_id
+    ].model_copy(
+        update={"session_id": newer_session_id, "turns": []},
+        deep=True,
+    )
+
+    resumed = client.post(
+        "/v2/coach/start",
+        json={"practice_session_id": str(practice_session_id)},
+        headers={**headers, "X-Request-Id": str(uuid4())},
+    )
+
+    assert resumed.status_code == 200
+    assert resumed.json()["session_id"] == oldest_session_id
+    assert resumed.json()["turns"] == started.json()["turns"]
+    assert len(coach.calls) == 1
 
 
 def test_actor_stop_completes_closes_and_returns_report_without_confirmation_step():

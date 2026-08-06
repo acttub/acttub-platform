@@ -759,6 +759,18 @@ class FakePlatformStore(FakeAuthStore):
             session=refreshed,
         )
 
+    def get_oldest_open_coach_session(self, *, user_id, practice_session_id):
+        for session in self.coach_sessions.values():
+            if (
+                session.practice_session_id == str(practice_session_id)
+                and session.status == "open"
+            ):
+                return self.get_owned_coach_session(
+                    user_id=user_id,
+                    coach_session_id=UUID(session.session_id),
+                )
+        return None
+
     def get_owned_report_source(self, *, user_id, coach_session_id):
         owned = self.get_owned_coach_session(
             user_id=user_id,
@@ -836,8 +848,17 @@ class FakePlatformStore(FakeAuthStore):
         handoff_json=None,
         confirmed=False,
         report_json=None,
+        restart=False,
         now=None,
     ):
+        if restart:
+            operation = self._owned_running_operation(operation_id, lease_token)
+            for existing in self.coach_sessions.values():
+                if (
+                    existing.practice_session_id == str(operation.session_id)
+                    and existing.status == "open"
+                ):
+                    existing.status = "closed"
         return self._complete_coach_operation(
             operation_id=operation_id,
             lease_token=lease_token,

@@ -17,6 +17,7 @@ from acting_api.sync_operations import (
     fail_sync_operation,
     parse_request_id,
     success_response,
+    sync_response,
     sync_request_fingerprint,
 )
 from acting_report import engine as report_engine
@@ -37,12 +38,18 @@ class PublicHandoff(_StrictResponse):
     branch_kind: Literal["analysis", "expression"]
 
 
+class PublicCoachTurn(_StrictResponse):
+    role: Literal["actor", "ai"]
+    text: str
+
+
 class CoachTurnResponse(_StrictResponse):
     session_id: UUID
     message: str
     status: Literal["continue", "complete"]
     handoff: PublicHandoff | None
     report: AnalysisReport | ExpressionReport | BlockedReport | None
+    turns: list[PublicCoachTurn]
 
 
 class CoachConfirmReq(BaseModel):
@@ -79,18 +86,34 @@ def _public_handoff(
 
 
 def _coach_payload(
-    session_id: str,
+    session,
     reply,
     handoff_id: UUID | None,
     branch: str,
     report: dict[str, Any] | None,
 ):
     return {
-        "session_id": session_id,
+        "session_id": session.session_id,
         "message": reply.message,
         "status": reply.status,
         "handoff": _public_handoff(handoff_id, branch),
         "report": report,
+        "turns": [turn.model_dump(mode="json") for turn in session.turns],
+    }
+
+
+def _resumed_coach_payload(session):
+    message = next(
+        (turn.text for turn in reversed(session.turns) if turn.role == "ai"),
+        "",
+    )
+    return {
+        "session_id": session.session_id,
+        "message": message,
+        "status": "continue",
+        "handoff": None,
+        "report": None,
+        "turns": [turn.model_dump(mode="json") for turn in session.turns],
     }
 
 
@@ -188,6 +211,25 @@ def build_router(
         if owned is None:
             raise HTTPException(status_code=404, detail="practice session not found")
         request_id = parse_request_id(x_request_id)
+        if not req.restart:
+            resumed = await run_in_threadpool(
+                store.get_oldest_open_coach_session,
+                user_id=user.id,
+                practice_session_id=owned.practice_session_id,
+            )
+            if resumed is not None:
+                if await run_in_threadpool(
+                    store.has_report_for_practice_session,
+                    owned.practice_session_id,
+                ):
+                    raise HTTPException(
+                        status_code=409,
+                        detail="report already exists for practice session",
+                    )
+                return sync_response(
+                    _resumed_coach_payload(resumed.session),
+                    request_id=request_id,
+                )
         fingerprint = sync_request_fingerprint(
             "coach_start",
             req.model_dump(mode="json"),
@@ -250,7 +292,7 @@ def build_router(
                 report.model_dump(mode="json") if report is not None else None
             )
             payload = _coach_payload(
-                session_id, reply, handoff_id, branch, report_json
+                session, reply, handoff_id, branch, report_json
             )
             await run_in_threadpool(
                 store.complete_coach_start_operation,
@@ -263,6 +305,7 @@ def build_router(
                 handoff_json=reply.handoff,
                 confirmed=report is not None,
                 report_json=report_json,
+                restart=req.restart,
             )
         except LeaseOwnershipError as exc:
             await _fail(store, claim, "lease_ownership_lost")
@@ -340,7 +383,7 @@ def build_router(
                 report.model_dump(mode="json") if report is not None else None
             )
             payload = _coach_payload(
-                str(req.session_id), reply, handoff_id, branch, report_json
+                owned.session, reply, handoff_id, branch, report_json
             )
             await run_in_threadpool(
                 store.complete_coach_reply_operation,

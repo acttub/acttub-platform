@@ -103,6 +103,13 @@ def success_response(payload: dict, claim: SyncOperationClaim) -> Response:
     return _json_response(payload, headers=claim.headers)
 
 
+def sync_response(payload: dict, *, request_id: UUID) -> Response:
+    return _json_response(
+        payload,
+        headers={"X-Request-Id": str(request_id)},
+    )
+
+
 def fail_sync_operation(
     *,
     store,

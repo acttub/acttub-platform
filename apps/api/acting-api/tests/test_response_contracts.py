@@ -134,6 +134,7 @@ RESPONSE_COMPONENT_SHAPES = {
             "status",
             "handoff",
             "report",
+            "turns",
         },
     },
     "CoachConfirmResponse": {

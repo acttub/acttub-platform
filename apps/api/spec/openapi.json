@@ -3257,6 +3257,11 @@
             "type": "string",
             "format": "uuid",
             "title": "Practice Session Id"
+          },
+          "restart": {
+            "type": "boolean",
+            "title": "Restart",
+            "default": false
           }
         },
         "additionalProperties": false,
@@ -3311,6 +3316,13 @@
               }
             ],
             "title": "Report"
+          },
+          "turns": {
+            "items": {
+              "$ref": "#/components/schemas/PublicCoachTurn"
+            },
+            "type": "array",
+            "title": "Turns"
           }
         },
         "additionalProperties": false,
@@ -3320,7 +3332,8 @@
           "message",
           "status",
           "handoff",
-          "report"
+          "report",
+          "turns"
         ],
         "title": "CoachTurnResponse"
       },
@@ -4416,6 +4429,29 @@
           "status"
         ],
         "title": "PracticeSessionStatusResponse"
+      },
+      "PublicCoachTurn": {
+        "properties": {
+          "role": {
+            "type": "string",
+            "enum": [
+              "actor",
+              "ai"
+            ],
+            "title": "Role"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "role",
+          "text"
+        ],
+        "title": "PublicCoachTurn"
       },
       "PublicHandoff": {
         "properties": {

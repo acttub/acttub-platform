@@ -81,6 +81,7 @@ export type CoachTurnResponse = {
   message: string | null;
   status: 'continue' | 'complete';
   handoff: { id: string; branch_kind: 'analysis' | 'expression' } | null;
+  turns: CoachTurn[];
 };
 
 export type CoachTurn = { role: 'ai' | 'actor'; text: string };
