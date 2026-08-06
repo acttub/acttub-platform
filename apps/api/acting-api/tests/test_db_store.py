@@ -9,7 +9,7 @@ from uuid import UUID, uuid4
 import pytest
 from alembic import command
 from alembic.config import Config
-from sqlalchemy import event, func, inspect, select, text
+from sqlalchemy import event, func, inspect, select, text, update
 from sqlalchemy.engine import make_url
 
 from acting_agent.schema import CoachSession, CoachTurn
@@ -17,11 +17,13 @@ from acting_api.auth.jwt import JwtService
 from acting_api.db.engine import create_db_engine, normalize_database_url
 from acting_api.db.models import (
     Anomaly,
+    CoachSession as DbCoachSession,
     OperationKind,
     OperationStatus,
     PracticeSession,
     PracticeStatus,
     RefreshToken,
+    SessionStatus,
     Summary,
     UploadStatus,
 )
@@ -878,6 +880,128 @@ def test_completed_coach_reply_auto_confirms_closes_and_saves_report(postgres_st
         coach_session_id=coach_session_id,
     ).session.status == "closed"
     assert store.get_practice_report_for_handoff(handoff_id) == report_json
+
+
+def test_oldest_open_coach_session_lookup_and_restart_closure(postgres_store):
+    store = postgres_store
+    now = datetime.now(timezone.utc)
+    user = store.create_user(email="coach-resume@example.com")
+    other = store.create_user(email="coach-resume-other@example.com")
+    practice = _create_practice(store, user.id, "coach-resume", now)
+    summary_id = _complete_analysis(store, user.id, practice.id, now)
+    context = store.get_owned_practice_session_context(
+        user_id=user.id,
+        practice_session_id=practice.id,
+    )
+
+    def persist_session(
+        session_id: UUID,
+        *,
+        turns: list[CoachTurn],
+        created_at: datetime,
+        restart: bool = False,
+    ) -> None:
+        lookup = store.get_or_create_external_operation(
+            user_id=user.id,
+            session_id=practice.id,
+            request_id=uuid4(),
+            kind="coach_start",
+            request_fingerprint=_hash(f"coach-resume-{session_id}"),
+        )
+        lease_token = uuid4()
+        store.claim_external_operation(
+            operation_id=lookup.operation.id,
+            lease_token=lease_token,
+            lease_duration=timedelta(minutes=10),
+            now=created_at,
+        )
+        store.complete_coach_start_operation(
+            operation_id=lookup.operation.id,
+            lease_token=lease_token,
+            coach_session=CoachSession(
+                session_id=str(session_id),
+                practice_session_id=str(practice.id),
+                summary_id=str(summary_id),
+                observation_pack=context.observation_pack,
+                actor=context.actor,
+                blockage_kind=context.actor.blockage_kind,
+                sub_branch=context.sub_branch,
+                blockage_detail=context.actor.blockage_detail,
+                turns=turns,
+            ),
+            response_payload={
+                "session_id": str(session_id),
+                "message": turns[-1].text if turns else "",
+                "status": "continue",
+                "handoff": None,
+                "report": None,
+                "turns": [turn.model_dump(mode="json") for turn in turns],
+            },
+            restart=restart,
+            now=created_at,
+        )
+        with store._session_factory.begin() as db:
+            db.execute(
+                update(DbCoachSession)
+                .where(DbCoachSession.id == session_id)
+                .values(created_at=created_at)
+            )
+
+    oldest_id = uuid4()
+    oldest_turns = [
+        CoachTurn(role="actor", text="첫 배우 말"),
+        CoachTurn(role="ai", text="첫 질문"),
+    ]
+    persist_session(oldest_id, turns=oldest_turns, created_at=now)
+    newer_id = uuid4()
+    persist_session(
+        newer_id,
+        turns=[],
+        created_at=now + timedelta(seconds=1),
+    )
+
+    resumed = store.get_oldest_open_coach_session(
+        user_id=user.id,
+        practice_session_id=practice.id,
+    )
+    assert resumed.session.session_id == str(oldest_id)
+    assert resumed.session.turns == oldest_turns
+    assert (
+        store.get_oldest_open_coach_session(
+            user_id=other.id,
+            practice_session_id=practice.id,
+        )
+        is None
+    )
+
+    restarted_id = uuid4()
+    persist_session(
+        restarted_id,
+        turns=[CoachTurn(role="ai", text="새 질문")],
+        created_at=now + timedelta(seconds=2),
+        restart=True,
+    )
+
+    assert (
+        store.get_owned_coach_session(
+            user_id=user.id, coach_session_id=oldest_id
+        ).session.status
+        == SessionStatus.CLOSED.value
+    )
+    assert (
+        store.get_owned_coach_session(
+            user_id=user.id, coach_session_id=newer_id
+        ).session.status
+        == SessionStatus.CLOSED.value
+    )
+    assert (
+        store.get_oldest_open_coach_session(
+            user_id=user.id,
+            practice_session_id=practice.id,
+        ).session.session_id
+        == str(restarted_id)
+    )
+
 
 def test_external_operation_idempotency_lease_race_and_atomic_completion(
     postgres_store,

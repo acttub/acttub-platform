@@ -251,14 +251,14 @@ S3 업로드 완료 확인. 서버가 S3 HEAD로 객체 존재·크기 일치를
 
 ## POST /v2/coach/start
 
-분석이 끝난 연습 세션으로 코칭 대화를 만들고 코치의 첫 발화를 생성합니다. 분석 실패 세션은 영상 근거 없이 시작할 수 있습니다.
+분석이 끝난 연습 세션으로 코칭 대화를 시작합니다. 같은 연습 세션에 열린 코칭 대화가 있으면 가장 먼저 만든 대화와 전체 발화 기록을 이어받으며, 이때 새 코치 발화는 생성하지 않습니다. 분석 실패 세션은 영상 근거 없이 시작할 수 있습니다.
 
-**요청**: `{"practice_session_id": "<연습 세션 ID>"}`
+**요청**: `{"practice_session_id": "<연습 세션 ID>", "restart": false}` (`restart` 기본값은 `false`. `true`이면 기존 열린 코칭 대화를 닫고 새로 시작)
 
 **응답 200**:
 
 ```json
-{"session_id": "...", "message": "그 말을 지금 꺼내는 이유부터 볼게.", "status": "continue", "handoff": null, "report": null}
+{"session_id": "...", "message": "그 말을 지금 꺼내는 이유부터 볼게.", "status": "continue", "handoff": null, "report": null, "turns": [{"role": "actor", "text": "..."}, {"role": "ai", "text": "그 말을 지금 꺼내는 이유부터 볼게."}]}
 ```
 
 | 상태 코드 | 원인 |
@@ -275,7 +275,7 @@ S3 업로드 완료 확인. 서버가 S3 HEAD로 객체 존재·크기 일치를
 
 **요청**: `{"session_id": "...", "text": "..."}`
 
-**응답 200**: `{"session_id": "...", "message": "...", "status": "continue|complete", "handoff": null|{"id":"...","branch_kind":"analysis|expression"}, "report": null|<analysis|expression|blocked>}`
+**응답 200**: `{"session_id": "...", "message": "...", "status": "continue|complete", "handoff": null|{"id":"...","branch_kind":"analysis|expression"}, "report": null|<analysis|expression|blocked>, "turns": [{"role":"actor|ai","text":"..."}]}`. `turns`는 현재까지의 전체 발화를 저장 순서대로 반환합니다.
 
 종료 규칙: 답변에 `그만`·`종료`·`끝`이 포함되면 현재 대화로 handoff를 마무리한다. `status: complete`이면 서버가 handoff를 자동 확인하고 세션을 닫은 뒤 `report`를 같은 응답에 담는다.
 

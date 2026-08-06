@@ -1145,6 +1145,40 @@ class PostgresStore:
                 session=self._agent_coach_session(data),
             )
 
+    def get_oldest_open_coach_session(
+        self, *, user_id: UUID, practice_session_id: UUID
+    ) -> OwnedCoachSessionContext | None:
+        with self._session_factory() as db:
+            coach_session_id = db.scalar(
+                select(DbCoachSession.id)
+                .join(
+                    PracticeSession,
+                    DbCoachSession.practice_session_id == PracticeSession.id,
+                )
+                .where(
+                    DbCoachSession.practice_session_id == practice_session_id,
+                    DbCoachSession.status == SessionStatus.OPEN,
+                    PracticeSession.user_id == user_id,
+                    PracticeSession.hidden_at.is_(None),
+                )
+                .order_by(DbCoachSession.created_at, DbCoachSession.id)
+                .limit(1)
+            )
+            if coach_session_id is None:
+                return None
+            data = self._load_session(
+                db,
+                coach_session_id,
+                user_id=user_id,
+                include_hidden=False,
+            )
+            if data is None:
+                return None
+            return OwnedCoachSessionContext(
+                practice_session_id=data.practice_session_id,
+                session=self._agent_coach_session(data),
+            )
+
     @staticmethod
     def _add_coach_session(db: Session, session: AgentCoachSession) -> None:
         session_id = UUID(session.session_id)
@@ -1619,6 +1653,7 @@ class PostgresStore:
         handoff_json: dict[str, Any] | None = None,
         confirmed: bool = False,
         report_json: dict[str, Any] | None = None,
+        restart: bool = False,
         now: datetime | None = None,
     ) -> bool:
         now = now or datetime.now(timezone.utc)
@@ -1630,6 +1665,15 @@ class PostgresStore:
                 raise ValueError("coach start result requires a coach_start operation")
             if confirmed:
                 coach_session.status = "closed"
+            if restart:
+                db.execute(
+                    update(DbCoachSession)
+                    .where(
+                        DbCoachSession.practice_session_id == operation.session_id,
+                        DbCoachSession.status == SessionStatus.OPEN,
+                    )
+                    .values(status=SessionStatus.CLOSED, updated_at=now)
+                )
             self._add_coach_session(db, coach_session)
             if handoff_id and branch_kind and handoff_json is not None:
                 db.add(
