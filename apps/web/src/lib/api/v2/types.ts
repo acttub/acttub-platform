@@ -5,7 +5,10 @@ export type LogoutRequest = components["schemas"]["LogoutRequest"];
 export type ConsentRequest = components["schemas"]["ConsentRequest"];
 export type UploadIntentRequest = components["schemas"]["UploadIntentRequest"];
 export type PracticeSessionRequest = components["schemas"]["PracticeSessionRequest"];
-export type CoachStartReq = components["schemas"]["CoachStartReq"];
+export type CoachStartReq = Omit<
+  components["schemas"]["CoachStartReq"],
+  "restart"
+> & { restart?: boolean };
 export type CoachReplyReq = components["schemas"]["CoachReplyReq"];
 export type CoachConfirmReq = components["schemas"]["CoachConfirmReq"];
 export type ReportReq = components["schemas"]["ReportReq"];

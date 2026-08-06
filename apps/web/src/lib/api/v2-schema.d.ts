@@ -951,6 +951,11 @@ export interface components {
              * Format: uuid
              */
             practice_session_id: string;
+            /**
+             * Restart
+             * @default false
+             */
+            restart: boolean;
         };
         /** CoachTurnResponse */
         CoachTurnResponse: {
@@ -969,6 +974,8 @@ export interface components {
             handoff: components["schemas"]["PublicHandoff"] | null;
             /** Report */
             report: components["schemas"]["AnalysisReport"] | components["schemas"]["ExpressionReport"] | components["schemas"]["BlockedReport"] | null;
+            /** Turns */
+            turns: components["schemas"]["PublicCoachTurn"][];
         };
         /** CommentListResponse */
         CommentListResponse: {
@@ -1420,6 +1427,16 @@ export interface components {
             status: "created" | "analyzing" | "analyzed" | "failed";
             /** Error Code */
             error_code?: ("gemini_timeout" | "gemini_parse_error" | "unsupported_media" | "max_attempts_exceeded") | null;
+        };
+        /** PublicCoachTurn */
+        PublicCoachTurn: {
+            /**
+             * Role
+             * @enum {string}
+             */
+            role: "actor" | "ai";
+            /** Text */
+            text: string;
         };
         /** PublicHandoff */
         PublicHandoff: {

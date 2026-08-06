@@ -302,6 +302,26 @@ function WorkspaceInner() {
     }
   }, [countStepOnce, refreshList]);
 
+  const restoreCoach = useCallback((turn: CoachTurnResponse) => {
+    coachIdRef.current = turn.session_id;
+    setCoachSessionId(turn.session_id);
+    const restored: ChatMsg[] | undefined = turn.turns?.map((message) => ({
+      role: message.role === "actor" ? "me" : "ai",
+      text: message.text,
+    }));
+    setMessages(
+      restored ?? [{ role: "ai", text: coachMessageText(turn) }],
+    );
+    const completed = completedCoachReport(turn);
+    setCoachDone(turn.status === "complete");
+    if (completed) {
+      setReport(completed);
+      setMode("note");
+      countStepOnce(activeIdRef.current, "result");
+      void refreshList();
+    }
+  }, [countStepOnce, refreshList]);
+
   const coordinatorFor = useCallback((practiceSessionId: string) => {
     if (coachCoordinatorRef.current?.sessionId === practiceSessionId) {
       return coachCoordinatorRef.current.coordinator;
@@ -317,7 +337,7 @@ function WorkspaceInner() {
           practice_session_id: practiceSessionId,
         });
         if (activeIdRef.current !== practiceSessionId) return;
-        pushAi(start);
+        restoreCoach(start);
         countStepOnce(practiceSessionId, "dialogue");
       } catch (reason) {
         if (activeIdRef.current === practiceSessionId) {
@@ -330,7 +350,7 @@ function WorkspaceInner() {
     });
     coachCoordinatorRef.current = { sessionId: practiceSessionId, coordinator };
     return coordinator;
-  }, [countStepOnce, pushAi]);
+  }, [countStepOnce, restoreCoach]);
 
   const startConversationAfterAnalysis = useCallback((practiceSessionId: string) => {
     void coordinatorFor(practiceSessionId).update("analyzed").catch(() => {});
@@ -484,9 +504,12 @@ function WorkspaceInner() {
     setCoachSessionId(null);
     coachIdRef.current = null;
     try {
-      const { data } = await startCoach({ practice_session_id: practiceSessionId });
+      const { data } = await startCoach({
+        practice_session_id: practiceSessionId,
+        restart: true,
+      });
       if (activeIdRef.current !== practiceSessionId) return;
-      pushAi(data);
+      restoreCoach(data);
     } catch {
       if (activeIdRef.current === practiceSessionId) {
         setError("대화를 다시 시작하지 못했어요. 잠시 후 다시 시도해 주세요.");
@@ -497,7 +520,7 @@ function WorkspaceInner() {
         setBusy(false);
       }
     }
-  }, [pushAi]);
+  }, [restoreCoach]);
 
   const openSession = useCallback(async (id: string) => {
     analysisControllerRef.current?.abort();

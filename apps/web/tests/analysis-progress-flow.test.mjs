@@ -172,7 +172,9 @@ test("analyzed가 되면 대화로 전환하고 coach start를 한 번만 보낸
   assert.ok(modeChange > coordinatorStart && modeChange < request);
   assert.doesNotMatch(coordinatorBlock, /setSending\(true\)/);
   assert.match(workspace, /coordinatorFor\(practiceSessionId\)\.update\(settled\.status\)/);
-  assert.match(workspace, /const \{ data: start \} = await startCoach[\s\S]*pushAi\(start\)/);
+  assert.match(workspace, /const \{ data: start \} = await startCoach[\s\S]*restoreCoach\(start\)/);
+  assert.match(workspace, /turn\.turns\?\.map[\s\S]*setMessages/);
+  assert.match(workspace, /restartAfterBlocked[\s\S]*restart: true/);
 });
 
 test("failed면 같은 진행 자리에 그냥 시작 버튼을 보이고 근거 없이 시작한다", async () => {
