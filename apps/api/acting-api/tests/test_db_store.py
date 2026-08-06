@@ -39,11 +39,15 @@ EXPECTED_TABLES = {
     "user_consents",
     "upload_intents",
     "practice_sessions",
+    "transcripts",
     "summaries",
     "anomalies",
     "coach_sessions",
     "coach_turns",
     "reports",
+    "coaching_handoffs",
+    "handoff_confirmations",
+    "practice_reports",
     "external_operations",
     "community_categories",
     "community_posts",
@@ -373,7 +377,7 @@ def test_atomic_practice_creation_idempotency_detail_and_manual_retry(postgres_s
         upload_intent_id=upload.id,
         situation="situation",
         character_context="character",
-        subtext="subtext",
+        goal="goal",
         request_id=request_id,
         request_fingerprint=fingerprint,
     )
@@ -386,7 +390,7 @@ def test_atomic_practice_creation_idempotency_detail_and_manual_retry(postgres_s
         upload_intent_id=upload.id,
         situation="situation",
         character_context="character",
-        subtext="subtext",
+        goal="goal",
         request_id=request_id,
         request_fingerprint=fingerprint,
     )
@@ -460,7 +464,7 @@ def test_concurrent_practice_creation_replays_the_winning_operation(postgres_sto
                 upload_intent_id=upload.id,
                 situation="situation",
                 character_context="character",
-                subtext="subtext",
+                goal="goal",
                 request_id=request_id,
                 request_fingerprint=_hash("concurrent-create"),
             )
@@ -555,14 +559,28 @@ def test_owned_workflow_contexts_and_atomic_sync_operation_completion(postgres_s
     user = store.create_user(email="workflow@example.com")
     other = store.create_user(email="other-workflow@example.com")
     practice = _create_practice(store, user.id, "workflow", now)
-    summary_id = _complete_analysis(store, user.id, practice.id, now)
-    owned_summary = store.get_owned_summary(
+    summary_id = _complete_analysis(
+        store,
+        user.id,
+        practice.id,
+        now,
+        transcripts=("첫 대사", "둘째 대사"),
+    )
+    owned_summary = store.get_owned_practice_session_context(
         user_id=user.id,
-        summary_id=summary_id,
+        practice_session_id=practice.id,
     )
     assert owned_summary.practice_session_id == practice.id
-    assert owned_summary.summary.summary == SUMMARY.summary
-    assert store.get_owned_summary(user_id=other.id, summary_id=summary_id) is None
+    assert owned_summary.summary_id == summary_id
+    assert owned_summary.observation_pack.model_dump() == SUMMARY.model_dump()
+    assert owned_summary.actor.goal == SUBTEXT.goal
+    assert owned_summary.transcripts == ("첫 대사", "둘째 대사")
+    assert (
+        store.get_owned_practice_session_context(
+            user_id=other.id, practice_session_id=practice.id
+        )
+        is None
+    )
 
     start_lookup = store.get_or_create_external_operation(
         user_id=user.id,
@@ -579,21 +597,34 @@ def test_owned_workflow_contexts_and_atomic_sync_operation_completion(postgres_s
         now=now,
     )
     coach_session_id = uuid4()
+    handoff_id = uuid4()
+    handoff_json = {
+        "handoff_type": "analysis",
+        "blocked_point": "왜 지금 말하는지",
+        "line_meaning": "상대를 붙잡는 말",
+        "timing_reason": "상대가 돌아서는 순간",
+        "target_effect": "상대가 멈추게 한다",
+        "scene_evidence": ["상대가 돌아선다"],
+        "actor_words": ["놓치면 끝이야"],
+        "coach_summary": "돌아서는 상대를 붙잡는다",
+        "uncertainties": [],
+    }
     coach_session = CoachSession(
         session_id=str(coach_session_id),
+        practice_session_id=str(practice.id),
         summary_id=str(summary_id),
-        summary=owned_summary.summary,
-        subtext=owned_summary.subtext,
-        turns=[CoachTurn(role="ai", text="첫 질문", action="probe_intent")],
-        question_count=1,
+        observation_pack=owned_summary.observation_pack,
+        actor=owned_summary.actor,
+        blockage_kind=owned_summary.actor.blockage_kind,
+        sub_branch=owned_summary.sub_branch,
+        blockage_detail=owned_summary.actor.blockage_detail,
+        turns=[],
     )
     start_payload = {
         "session_id": str(coach_session_id),
-        "action": "probe_intent",
-        "utterance": "첫 질문",
-        "focus_timestamp": "",
-        "done": False,
-        "reason": None,
+        "message": None,
+        "status": "continue",
+        "handoff": None,
     }
     assert store.complete_coach_start_operation(
         operation_id=start_lookup.operation.id,
@@ -607,6 +638,8 @@ def test_owned_workflow_contexts_and_atomic_sync_operation_completion(postgres_s
         coach_session_id=coach_session_id,
     )
     assert owned_coach.practice_session_id == practice.id
+    assert owned_coach.session.transcripts == ["첫 대사", "둘째 대사"]
+    assert owned_coach.session.turns == []
     assert store.get_owned_coach_session(
         user_id=other.id,
         coach_session_id=coach_session_id,
@@ -628,33 +661,62 @@ def test_owned_workflow_contexts_and_atomic_sync_operation_completion(postgres_s
     )
     owned_coach.session.turns.extend(
         [
-            CoachTurn(role="actor", text="그만할래"),
-            CoachTurn(role="ai", text="코칭 종료", action="close"),
+            CoachTurn(role="actor", text="지금 놓치면 끝이야"),
+            CoachTurn(role="ai", text="상대를 붙잡으려는 말이야"),
         ]
     )
-    owned_coach.session.status = "closed"
-    owned_coach.session.close_reason = "user_ended"
     reply_payload = {
         "session_id": str(coach_session_id),
-        "action": "close",
-        "utterance": "코칭 종료",
-        "focus_timestamp": "",
-        "done": True,
-        "reason": "user_ended",
+        "message": "상대를 붙잡으려는 말이야",
+        "status": "complete",
+        "handoff": {
+            "id": str(handoff_id),
+            "branch_kind": "analysis",
+        },
     }
     assert store.complete_coach_reply_operation(
         operation_id=reply_lookup.operation.id,
         lease_token=reply_token,
         coach_session=owned_coach.session,
         response_payload=reply_payload,
+        handoff_id=handoff_id,
+        branch_kind="analysis",
+        handoff_json=handoff_json,
         now=now,
     )
 
-    report_context = store.get_owned_report_context(
+    source = store.get_owned_report_source(
         user_id=user.id,
         coach_session_id=coach_session_id,
     )
-    assert report_context.session.status == "closed"
+    assert source.handoff_id == handoff_id
+    assert source.confirmed is False
+    source = store.confirm_latest_handoff(
+        user_id=user.id,
+        coach_session_id=coach_session_id,
+        confirmed=True,
+        rebuttal_text=None,
+        now=now,
+    )
+    assert source.confirmed is True
+
+    expression = store.create_practice_session(
+        user_id=user.id,
+        upload_intent_id=practice.upload_intent_id,
+        situation="오디션 직전",
+        character_context="불안한 배우",
+        goal="상대가 멈추게 한다",
+        blockage_kind="표현",
+        sub_branch="화술",
+        blockage_detail="대사처럼 들린다",
+        status="analyzed",
+    )
+    expression_context = store.get_owned_practice_session_context(
+        user_id=user.id,
+        practice_session_id=expression.id,
+    )
+    assert expression_context.analysis_handoff == handoff_json
+
     report_lookup = store.get_or_create_external_operation(
         user_id=user.id,
         session_id=practice.id,
@@ -669,84 +731,153 @@ def test_owned_workflow_contexts_and_atomic_sync_operation_completion(postgres_s
         lease_duration=timedelta(minutes=10),
         now=now,
     )
-    report_payload = store.complete_report_operation(
+    report_json = REPORT.model_copy(
+        update={"source_handoff_id": str(handoff_id)}
+    ).model_dump(mode="json")
+    assert store.complete_practice_report_operation(
         operation_id=report_lookup.operation.id,
         lease_token=report_token,
-        coach_session_id=coach_session_id,
-        report=REPORT,
+        practice_session_id=practice.id,
+        report_type="analysis",
+        report_json=report_json,
+        source_handoff_id=handoff_id,
+        response_payload=report_json,
         now=now,
     )
-    assert report_payload["report_count"] == 1
-    assert "user_id" not in report_payload
-    history = store.list_reports(user.id)
-    assert history[0].session_id == str(coach_session_id)
-    assert history[0].practice_session_id == str(practice.id)
+    assert store.get_practice_report_for_handoff(handoff_id) == report_json
+    history = store.list_report_summaries(user.id)
+    assert history[0].practice_session_id == practice.id
+    assert history[0].title == REPORT.title
+    assert history[0].report_type == "analysis"
     assert store.has_report_for_practice_session(practice.id) is True
     assert store.has_report_for_practice_session(uuid4()) is False
-
-    second_start_lookup = store.get_or_create_external_operation(
-        user_id=user.id,
-        session_id=practice.id,
-        request_id=uuid4(),
-        kind="coach_start",
-        request_fingerprint=_hash("second-coach-start"),
-    )
-    second_start_token = uuid4()
-    store.claim_external_operation(
-        operation_id=second_start_lookup.operation.id,
-        lease_token=second_start_token,
-        lease_duration=timedelta(minutes=10),
-        now=now,
-    )
-    second_coach_session_id = uuid4()
-    second_coach_session = coach_session.model_copy(
-        update={
-            "session_id": str(second_coach_session_id),
-            "status": "closed",
-            "close_reason": "user_ended",
-        },
-        deep=True,
-    )
-    assert store.complete_coach_start_operation(
-        operation_id=second_start_lookup.operation.id,
-        lease_token=second_start_token,
-        coach_session=second_coach_session,
-        response_payload={
-            **start_payload,
-            "session_id": str(second_coach_session_id),
-        },
-        now=now,
-    )
-    second_report_lookup = store.get_or_create_external_operation(
-        user_id=user.id,
-        session_id=practice.id,
-        request_id=uuid4(),
-        kind="report",
-        request_fingerprint=_hash("second-report"),
-    )
-    second_report_token = uuid4()
-    store.claim_external_operation(
-        operation_id=second_report_lookup.operation.id,
-        lease_token=second_report_token,
-        lease_duration=timedelta(minutes=10),
-        now=now,
-    )
-    assert (
-        store.complete_report_operation(
-            operation_id=second_report_lookup.operation.id,
-            lease_token=second_report_token,
-            coach_session_id=second_coach_session_id,
-            report=REPORT,
-            now=now,
-        )
-        is None
-    )
-    assert len(store.list_reports(user.id)) == 1
     assert store.get_external_operation(
         user_id=user.id,
         request_id=report_lookup.operation.request_id,
     ).status == OperationStatus.SUCCEEDED
 
+
+def test_completed_coach_reply_auto_confirms_closes_and_saves_report(postgres_store):
+    store = postgres_store
+    now = datetime.now(timezone.utc)
+    user = store.create_user(email="auto-confirm@example.com")
+    practice = _create_practice(store, user.id, "auto-confirm", now)
+    summary_id = _complete_analysis(store, user.id, practice.id, now)
+    context = store.get_owned_practice_session_context(
+        user_id=user.id,
+        practice_session_id=practice.id,
+    )
+    coach_session_id = uuid4()
+    coach_session = CoachSession(
+        session_id=str(coach_session_id),
+        practice_session_id=str(practice.id),
+        summary_id=str(summary_id),
+        observation_pack=context.observation_pack,
+        actor=context.actor,
+        blockage_kind=context.actor.blockage_kind,
+        sub_branch=context.sub_branch,
+        blockage_detail=context.actor.blockage_detail,
+        turns=[],
+    )
+
+    start_lookup = store.get_or_create_external_operation(
+        user_id=user.id,
+        session_id=practice.id,
+        request_id=uuid4(),
+        kind="coach_start",
+        request_fingerprint=_hash("auto-confirm-start"),
+    )
+    start_token = uuid4()
+    store.claim_external_operation(
+        operation_id=start_lookup.operation.id,
+        lease_token=start_token,
+        lease_duration=timedelta(minutes=10),
+        now=now,
+    )
+    store.complete_coach_start_operation(
+        operation_id=start_lookup.operation.id,
+        lease_token=start_token,
+        coach_session=coach_session,
+        response_payload={
+            "session_id": str(coach_session_id),
+            "message": "하나만 더 물을게.",
+            "status": "continue",
+            "handoff": None,
+            "report": None,
+        },
+        now=now,
+    )
+
+    reply_lookup = store.get_or_create_external_operation(
+        user_id=user.id,
+        session_id=practice.id,
+        request_id=uuid4(),
+        kind="coach_reply",
+        request_fingerprint=_hash("auto-confirm-reply"),
+    )
+    reply_token = uuid4()
+    store.claim_external_operation(
+        operation_id=reply_lookup.operation.id,
+        lease_token=reply_token,
+        lease_duration=timedelta(minutes=10),
+        now=now,
+    )
+    handoff_id = uuid4()
+    handoff_json = {
+        "handoff_type": "analysis",
+        "blocked_point": "왜 지금 말하는지",
+        "line_meaning": "상대를 붙잡는 말",
+        "timing_reason": "상대가 돌아서는 순간",
+        "target_effect": "상대가 멈추게 한다",
+        "scene_evidence": [],
+        "actor_words": ["놓치면 끝이야"],
+        "coach_summary": "상대를 붙잡는다",
+        "uncertainties": [],
+    }
+    report_json = REPORT.model_copy(
+        update={"source_handoff_id": str(handoff_id)}
+    ).model_dump(mode="json")
+    owned = store.get_owned_coach_session(
+        user_id=user.id,
+        coach_session_id=coach_session_id,
+    )
+    owned.session.turns.extend(
+        [
+            CoachTurn(role="actor", text="그만"),
+            CoachTurn(role="ai", text="지금까지 찾은 말로 마무리할게."),
+        ]
+    )
+    payload = {
+        "session_id": str(coach_session_id),
+        "message": "지금까지 찾은 말로 마무리할게.",
+        "status": "complete",
+        "handoff": {"id": str(handoff_id), "branch_kind": "analysis"},
+        "report": report_json,
+    }
+
+    assert store.complete_coach_reply_operation(
+        operation_id=reply_lookup.operation.id,
+        lease_token=reply_token,
+        coach_session=owned.session,
+        response_payload=payload,
+        handoff_id=handoff_id,
+        branch_kind="analysis",
+        handoff_json=handoff_json,
+        confirmed=True,
+        report_json=report_json,
+        now=now,
+    )
+
+    source = store.get_owned_report_source(
+        user_id=user.id,
+        coach_session_id=coach_session_id,
+    )
+    assert source.confirmed is True
+    assert store.get_owned_coach_session(
+        user_id=user.id,
+        coach_session_id=coach_session_id,
+    ).session.status == "closed"
+    assert store.get_practice_report_for_handoff(handoff_id) == report_json
 
 def test_external_operation_idempotency_lease_race_and_atomic_completion(
     postgres_store,
@@ -813,10 +944,10 @@ def test_external_operation_idempotency_lease_race_and_atomic_completion(
         store.complete_analysis_operation(
             operation_id=first.operation.id,
             lease_token=uuid4(),
-            summary=SUMMARY,
+            observation_pack=SUMMARY,
             model="gemini-test",
             was_compressed=False,
-            response_payload={"summary": SUMMARY.summary},
+            response_payload={"status": "analyzed"},
             now=now,
         )
     with store._session_factory() as db:
@@ -825,10 +956,10 @@ def test_external_operation_idempotency_lease_race_and_atomic_completion(
     summary_id = store.complete_analysis_operation(
         operation_id=first.operation.id,
         lease_token=winner.lease_token,
-        summary=SUMMARY,
+        observation_pack=SUMMARY,
         model="gemini-test",
         was_compressed=False,
-        response_payload={"summary": SUMMARY.summary},
+        response_payload={"status": "analyzed"},
         now=now,
     )
     completed = store.get_external_operation(user_id=user.id, request_id=request_id)
@@ -838,7 +969,7 @@ def test_external_operation_idempotency_lease_race_and_atomic_completion(
     with store._session_factory() as db:
         assert db.get(PracticeSession, practice.id).status == PracticeStatus.ANALYZED
         assert db.scalar(select(func.count(Summary.id))) == 1
-        assert db.scalar(select(func.count(Anomaly.id))) == 1
+        assert db.scalar(select(func.count(Anomaly.id))) == 0
 
 
 def test_background_claim_skips_failed_and_transient_release_requeues(
@@ -973,7 +1104,7 @@ def test_external_operation_attempt_cap_and_sweep(postgres_store):
     store.complete_analysis_operation(
         operation_id=retry.operation.id,
         lease_token=retry_token,
-        summary=SUMMARY,
+        observation_pack=SUMMARY,
         model="gemini-test",
         was_compressed=False,
         response_payload={"status": "analyzed"},
@@ -1007,7 +1138,7 @@ def _create_practice(
         upload_intent_id=upload.id,
         situation=SUBTEXT.situation,
         character_context=SUBTEXT.character,
-        subtext=SUBTEXT.subtext,
+        goal=SUBTEXT.goal,
     )
     assert session is not None
     return session
@@ -1018,6 +1149,7 @@ def _complete_analysis(
     user_id: UUID,
     session_id: UUID,
     now: datetime,
+    transcripts=(),
 ) -> UUID:
     assert store.transition_practice_session_status(
         user_id=user_id,
@@ -1042,10 +1174,11 @@ def _complete_analysis(
     return store.complete_analysis_operation(
         operation_id=lookup.operation.id,
         lease_token=lease_token,
-        summary=SUMMARY,
+        observation_pack=SUMMARY,
         model="gemini-test",
         was_compressed=False,
         response_payload={"status": "analyzed"},
+        transcripts=transcripts,
         now=now,
     )
 

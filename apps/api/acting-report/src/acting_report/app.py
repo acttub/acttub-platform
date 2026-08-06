@@ -1,19 +1,16 @@
+import os
+
 from fastapi import FastAPI
-from google import genai
-
-from acting_report.config import load_settings
-from acting_report.router import build_router
 
 
-def create_app(*, client=None, settings=None, store) -> FastAPI:
-    settings = settings or load_settings()
-    client = client or genai.Client(api_key=settings.api_key)
+def create_app() -> FastAPI:
     app = FastAPI(title="acting-report")
 
     @app.get("/health")
     def health():
-        return {"status": "ok", "model": settings.model}
-
-    app.include_router(build_router(client=client, settings=settings, store=store))
+        return {
+            "status": "ok",
+            "model": os.environ.get("OPENAI_CHAT_MODEL", "gpt-5.6-terra"),
+        }
 
     return app

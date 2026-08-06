@@ -41,10 +41,10 @@ export function RecordCard({
         <Pressable style={styles.cardTextArea} onPress={onPress}>
           <View style={styles.eyebrowRow}>
             <Feather name="activity" size={15} color={palette.textFaint} />
-            <Text style={styles.eyebrow}>연습 피드백</Text>
+            <Text style={styles.eyebrow}>연습 카드</Text>
           </View>
           <Text style={styles.cardTitle} numberOfLines={2}>
-            {item.headline}
+            {item.title}
           </Text>
           <Text style={[styles.timestamp, preview && styles.timestampPreview]}>
             {formatKoreanDateTime(item.created_at)}

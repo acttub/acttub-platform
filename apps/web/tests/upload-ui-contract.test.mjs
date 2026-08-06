@@ -51,7 +51,7 @@ test("PracticeFlow 리포트는 연습 세션으로 연결하고 결과와 영�
     practiceFlow,
     /<video key=\{playbackUrl\} controls preload="metadata" src=\{playbackUrl\} onError=\{onPlaybackError\}/,
   );
-  assert.match(practiceFlow, /practice_session_id: active\.sessionId/);
+  assert.match(practiceFlow, /practice_session_id: sessionAtStart/);
 });
 
 test("PracticeFlow는 리포트가 이미 있는 세션의 인터뷰 시작 409를 리포트 표시로 복구한다", () => {

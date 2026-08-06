@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Any, Literal
+from typing import Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Response, status
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 from starlette.concurrency import run_in_threadpool
 
 from acting_api.sync_operations import parse_request_id, sync_request_fingerprint
@@ -42,7 +42,10 @@ class PracticeSessionListItem(_StrictResponse):
     status: PracticeSessionStatus
     situation: str
     character_context: str
-    subtext: str
+    goal: str
+    blockage_kind: Literal["분석", "표현", "그 외"]
+    sub_branch: str
+    blockage_detail: str | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -56,29 +59,48 @@ class PracticeSessionStatusResponse(_StrictResponse):
     error_code: AnalysisErrorCode | None = None
 
 
-class SceneSummary(BaseModel):
-    model_config = ConfigDict(extra="allow")
+class ObservationItem(_StrictResponse):
+    start_ms: int
+    end_ms: int
+    label: str
+    confidence: float
 
+
+class ObservationPackResponse(_StrictResponse):
     summary_id: UUID
-    observation: dict[str, Any] | None = None
-    summary: str | None = None
-    intent_alignment: str | None = None
-    key_moment: str | None = None
-    key_dimension: str | None = None
-    anomalies: list[dict[str, Any]] | None = None
+    observations: list[ObservationItem]
+    uncertainties: list[str]
 
 
 class PracticeSessionDetail(PracticeSessionListItem):
     playback_url: str
-    summary: SceneSummary | None = None
+    summary: ObservationPackResponse | None = None
     error_code: AnalysisErrorCode | None = None
 
 
 class PracticeSessionRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     upload_intent_id: UUID
     situation: str = Field(min_length=1)
     character_context: str = Field(min_length=1)
-    subtext: str = Field(min_length=1)
+    goal: str = Field(min_length=1)
+    blockage_kind: Literal["분석", "표현", "그 외"]
+    sub_branch: Literal[
+        "캐릭터 분석", "대사 분석", "감정", "움직임", "화술", "표정", "그 외"
+    ]
+    blockage_detail: str | None = None
+
+    @model_validator(mode="after")
+    def validate_blockage_branch(self):
+        allowed = {
+            "분석": {"캐릭터 분석", "대사 분석", "그 외"},
+            "표현": {"감정", "움직임", "화술", "표정", "그 외"},
+            "그 외": {"그 외"},
+        }
+        if self.sub_branch not in allowed[self.blockage_kind]:
+            raise ValueError("sub_branch does not match blockage_kind")
+        return self
 
 
 def _value(value) -> str:
@@ -152,14 +174,17 @@ def build_router(*, store, storage, rate_limited_user, ungated_user) -> APIRoute
             upload_intent_id=payload.upload_intent_id,
             situation=payload.situation,
             character_context=payload.character_context,
-            subtext=payload.subtext,
+            goal=payload.goal,
+            blockage_kind=payload.blockage_kind,
+            sub_branch=payload.sub_branch,
+            blockage_detail=payload.blockage_detail,
             request_id=request_id,
             request_fingerprint=fingerprint,
         )
         if result is None:
             raise HTTPException(
                 status_code=409,
-                detail="upload_intent_not_finalized_or_already_used",
+                detail="upload_intent_not_finalized",
             )
         if result.fingerprint_mismatch:
             raise HTTPException(status_code=422, detail="request_fingerprint_mismatch")
@@ -190,7 +215,10 @@ def build_router(*, store, storage, rate_limited_user, ungated_user) -> APIRoute
                     "status": _value(session.status),
                     "situation": session.situation,
                     "character_context": session.character_context,
-                    "subtext": session.subtext,
+                    "goal": session.goal,
+                    "blockage_kind": session.blockage_kind,
+                    "sub_branch": session.sub_branch,
+                    "blockage_detail": session.blockage_detail,
                     "created_at": session.created_at,
                     "updated_at": session.updated_at,
                 }
@@ -240,7 +268,10 @@ def build_router(*, store, storage, rate_limited_user, ungated_user) -> APIRoute
             "status": _value(session.status),
             "situation": session.situation,
             "character_context": session.character_context,
-            "subtext": session.subtext,
+            "goal": session.goal,
+            "blockage_kind": session.blockage_kind,
+            "sub_branch": session.sub_branch,
+            "blockage_detail": session.blockage_detail,
             "playback_url": playback_url,
             "created_at": session.created_at,
             "updated_at": session.updated_at,
@@ -248,7 +279,8 @@ def build_router(*, store, storage, rate_limited_user, ungated_user) -> APIRoute
         if _value(session.status) == "analyzed" and detail.summary is not None:
             payload["summary"] = {
                 "summary_id": str(detail.summary.id),
-                **detail.summary.raw,
+                "observations": detail.summary.observations_json,
+                "uncertainties": detail.summary.uncertainties_json,
             }
         if _value(session.status) == "failed":
             payload["error_code"] = (

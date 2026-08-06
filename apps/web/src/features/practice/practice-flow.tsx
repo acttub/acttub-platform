@@ -9,43 +9,53 @@ import { getStoredDisplayName } from "@/features/auth/display-name";
 import { useRequireAuth } from "@/features/auth/use-require-auth";
 import { replyCoach, startCoach } from "@/lib/api/v2/coach";
 import { ApiError } from "@/lib/api/v2/errors";
-import { createReport, getReport, listReports } from "@/lib/api/v2/reports";
+import { getReport, listReports } from "@/lib/api/v2/reports";
 import {
   createPracticeSession,
   deletePracticeSession,
   getPracticeSession,
   pollSessionUntilSettled,
-  reanalyzeSession,
 } from "@/lib/api/v2/sessions";
 import type {
-  ActingReport,
   AuthUser,
-  CoachTurnResponse,
+  PracticeReport,
   PracticeSessionDetail,
   ReportRecord,
 } from "@/lib/api/v2/types";
 import { UploadError, uploadVideo } from "@/lib/api/v2/uploads";
 import { logout } from "@/lib/api/v2/auth";
 import { REVIEW_FORM_URL } from "@/lib/config/env";
-import { analysisFailure } from "@/features/practice/analysis-failure";
 import { prepareVideoUpload } from "@/lib/media/upload-preflight";
+import { PracticeReportCards } from "@/features/practice/practice-report-cards";
+import {
+  coachMessageText,
+  completedCoachReport,
+  createCoachStartCoordinator,
+  isCoachInputEnabled,
+  type CoachStartCoordinator,
+} from "@/features/practice/coach-contract";
+import { BlockageSelectionFlow } from "@/features/practice/blockage-selection";
+import type { BlockageSelection } from "@/features/practice/blockage-flow";
+import { WaitingDots } from "@/features/practice/waiting-dots";
+import {
+  buildPracticeSessionRequest,
+  submitSceneContext,
+} from "@/features/practice/practice-setup-flow";
 
 type Entry = "home" | "new" | "history";
-type Step = "home" | "history" | "video" | "context";
-type Phase = "summary" | "coaching" | "report";
+type Step = "home" | "history" | "video" | "context" | "blockage";
+type Phase = "coaching" | "report";
 type CoachTurn = {
   role: "coach" | "actor";
   text: string;
-  action?: CoachTurnResponse["action"];
 };
 type CoachState = {
   coachSessionId: string;
   turns: CoachTurn[];
   questionCount: number;
   done: boolean;
-  reason: CoachTurnResponse["reason"];
 };
-type ReportData = { report: ActingReport; reportCount: number };
+type ReportData = { report: PracticeReport; reportCount: number };
 type ResolvedReport = { record: ReportRecord; ordinal: number };
 type UploadProgressState = {
   percent: number;
@@ -92,13 +102,13 @@ function PracticeFlowInner({ entry = "new" }: { entry?: Entry }) {
   const [historyError, setHistoryError] = useState<string | null>(null);
   const [active, setActive] = useState<{ sessionId: string } | null>(null);
   const [sessionDetail, setSessionDetail] = useState<PracticeSessionDetail | null>(null);
-  const [phase, setPhase] = useState<Phase>("summary");
+  const [phase, setPhase] = useState<Phase>("coaching");
   const [coach, setCoach] = useState<CoachState | null>(null);
   const [reportData, setReportData] = useState<ReportData | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [situation, setSituation] = useState("");
   const [characterContext, setCharacterContext] = useState("");
-  const [subtext, setSubtext] = useState("");
+  const [goal, setGoal] = useState("");
   const [answer, setAnswer] = useState("");
   const [pendingAnswer, setPendingAnswer] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -114,6 +124,10 @@ function PracticeFlowInner({ entry = "new" }: { entry?: Entry }) {
   const pollControllerRef = useRef<AbortController | null>(null);
   const uploadControllerRef = useRef<AbortController | null>(null);
   const playbackRefreshAttemptedRef = useRef(false);
+  const coachCoordinatorRef = useRef<{
+    sessionId: string;
+    coordinator: CoachStartCoordinator;
+  } | null>(null);
 
   // 배우가 정한 호칭. 묻는 건 첫 로그인 때 로그인 화면에서 하고, 여기서는 읽기만 한다.
   const [storedName, setStoredName] = useState<string | null>(null);
@@ -242,9 +256,9 @@ function PracticeFlowInner({ entry = "new" }: { entry?: Entry }) {
     } catch (reason) {
       if (activeSessionRef.current === practiceSessionId) {
         setError(errorMessage(reason));
-        // 리포트는 존재하지만 본문을 못 불러왔다 — "연습 노트 만들기" CTA 대신
-        // 분석 화면으로 되돌려 잘못된 재생성을 막는다. 재진입하면 다시 조회한다.
-        setPhase("summary");
+        // 결과는 존재하지만 본문을 못 불러왔다 — "연습 노트 만들기" CTA 대신
+        // 대화 화면으로 되돌려 잘못된 재생성을 막는다. 재진입하면 다시 조회한다.
+        setPhase("coaching");
       }
       return true;
     } finally {
@@ -259,17 +273,29 @@ function PracticeFlowInner({ entry = "new" }: { entry?: Entry }) {
     setSessionDetail(session);
 
     if (session.status === "failed") {
-      setPhase("summary");
-      setError(null);
+      return;
+    }
+
+    if (
+      session.status === "analyzed" &&
+      resolveReportForSession(session.session_id, sourceReports)
+    ) {
+      await showReportRecord(session.session_id, sourceReports);
       return;
     }
 
     if (session.status === "analyzed") {
-      if (!(await showReportRecord(session.session_id, sourceReports))) {
-        setPhase("summary");
-        setError(null);
-      }
+      void coachCoordinatorFor(session.session_id).update(session.status).catch(() => {});
     }
+  }
+
+  function coachCoordinatorFor(practiceSessionId: string): CoachStartCoordinator {
+    if (coachCoordinatorRef.current?.sessionId === practiceSessionId) {
+      return coachCoordinatorRef.current.coordinator;
+    }
+    const coordinator = createCoachStartCoordinator(() => startInterview(practiceSessionId));
+    coachCoordinatorRef.current = { sessionId: practiceSessionId, coordinator };
+    return coordinator;
   }
 
   async function pollSession(sessionId: string): Promise<PracticeSessionDetail | null> {
@@ -319,6 +345,7 @@ function PracticeFlowInner({ entry = "new" }: { entry?: Entry }) {
   function clearActiveSession() {
     pollControllerRef.current?.abort();
     activeSessionRef.current = null;
+    coachCoordinatorRef.current = null;
     setActive(null);
     setSessionDetail(null);
     setError(null);
@@ -328,9 +355,10 @@ function PracticeFlowInner({ entry = "new" }: { entry?: Entry }) {
 
   function resetActiveFlow(sessionId: string) {
     activeSessionRef.current = sessionId;
+    coachCoordinatorRef.current = null;
     setActive({ sessionId });
     setSessionDetail(null);
-    setPhase("summary");
+    setPhase("coaching");
     setCoach(null);
     setReportData(null);
     setAnswer("");
@@ -346,9 +374,29 @@ function PracticeFlowInner({ entry = "new" }: { entry?: Entry }) {
     router.push(sessionDetailHref(practiceSessionId));
   }
 
-  async function begin() {
-    if (!file || !situation.trim() || !characterContext.trim() || !subtext.trim()) {
-      setError("영상, 상황, 인물 정보와 서브텍스트를 모두 입력해 주세요.");
+  function showBlockageSelection() {
+    const submission = submitSceneContext(Boolean(file), {
+      situation,
+      characterContext,
+      goal,
+    });
+    if (submission.error) {
+      setError(submission.error);
+      return;
+    }
+    setError(null);
+    setStep(submission.step);
+  }
+
+  async function begin(blockage: BlockageSelection) {
+    const submission = submitSceneContext(Boolean(file), {
+      situation,
+      characterContext,
+      goal,
+    });
+    if (!file || submission.error) {
+      setError(submission.error ?? "영상을 다시 선택해 주세요.");
+      setStep(submission.step);
       return;
     }
     setBusy(true);
@@ -372,12 +420,11 @@ function PracticeFlowInner({ entry = "new" }: { entry?: Entry }) {
           setUploadProgress({ percent: progress.percent, stage: "uploading" }),
       });
       const created = await createPracticeSession(
-        {
-          upload_intent_id: upload.intentId,
-          situation: situation.trim(),
-          character_context: characterContext.trim(),
-          subtext: subtext.trim(),
-        },
+        buildPracticeSessionRequest(
+          upload.intentId,
+          { situation, characterContext, goal },
+          blockage,
+        ),
         { signal: controller.signal },
       );
       resetActiveFlow(created.session.session_id);
@@ -402,38 +449,51 @@ function PracticeFlowInner({ entry = "new" }: { entry?: Entry }) {
     }
   }
 
-  async function startInterview() {
-    const summaryId = sessionDetail?.summary?.summary_id;
-    if (!active || !summaryId) {
+  async function startInterview(practiceSessionId?: string) {
+    const sessionAtStart = practiceSessionId ?? active?.sessionId;
+    if (!sessionAtStart) {
       setError("세션을 찾을 수 없어요");
       return;
     }
-    const sessionAtStart = active.sessionId;
     setBusy(true);
     setCoachWaiting(false);
     setError(null);
     try {
       const { data } = await startCoach(
-        { summary_id: summaryId },
+        { practice_session_id: sessionAtStart },
         { onWait: () => setCoachWaiting(true) },
       );
       if (activeSessionRef.current !== sessionAtStart) return;
+      const firstMessage = coachMessageText(data);
       const nextCoach: CoachState = {
         coachSessionId: data.session_id,
-        turns: [
-          {
-            role: "coach",
-            text: data.utterance,
-            action: data.action,
-          },
-        ],
-        questionCount: 1,
-        done: data.done,
-        reason: data.reason,
+        turns: firstMessage === null ? [] : [{ role: "coach", text: firstMessage }],
+        questionCount: firstMessage === null ? 0 : 1,
+        done: data.status === "complete",
       };
       setCoach(nextCoach);
       setReportData(null);
       setPhase("coaching");
+      const completed = completedCoachReport(data);
+      if (completed) {
+        setReportData({ report: completed, reportCount: reports.length + 1 });
+        setPhase("report");
+        if (completed.report_type !== "blocked") {
+          setReports((current) => [
+            ...current.filter((item) => item.practice_session_id !== sessionAtStart),
+            {
+              created_at: new Date().toISOString(),
+              practice_session_id: sessionAtStart,
+              report_type: completed.report_type,
+              title: completed.title,
+            },
+          ]);
+          void listReports().then(
+            (refreshed) => setReports(refreshed.reports),
+            () => {},
+          );
+        }
+      }
     } catch (reason) {
       if (activeSessionRef.current !== sessionAtStart) return;
       if (
@@ -477,22 +537,40 @@ function PracticeFlowInner({ entry = "new" }: { entry?: Entry }) {
         { onWait: () => setCoachWaiting(true) },
       );
       if (activeSessionRef.current !== sessionAtStart) return;
+      const coachMessage = coachMessageText(data);
       setCoach({
         coachSessionId: data.session_id,
         turns: [
           ...coach.turns,
           { role: "actor", text },
-          {
-            role: "coach",
-            text: data.utterance,
-            action: data.action,
-          },
+          ...(coachMessage === null
+            ? []
+            : [{ role: "coach" as const, text: coachMessage }]),
         ],
-        questionCount: coach.questionCount + 1,
-        done: data.done,
-        reason: data.reason,
+        questionCount: coach.questionCount + (coachMessage === null ? 0 : 1),
+        done: data.status === "complete",
       });
       setAnswer("");
+      const completed = completedCoachReport(data);
+      if (completed) {
+        setReportData({ report: completed, reportCount: reports.length + 1 });
+        setPhase("report");
+        if (completed.report_type !== "blocked") {
+          setReports((current) => [
+            ...current.filter((item) => item.practice_session_id !== sessionAtStart),
+            {
+              created_at: new Date().toISOString(),
+              practice_session_id: sessionAtStart,
+              report_type: completed.report_type,
+              title: completed.title,
+            },
+          ]);
+          void listReports().then(
+            (refreshed) => setReports(refreshed.reports),
+            () => {},
+          );
+        }
+      }
     } catch (reason) {
       if (activeSessionRef.current !== sessionAtStart) return;
       if (
@@ -507,126 +585,6 @@ function PracticeFlowInner({ entry = "new" }: { entry?: Entry }) {
     } finally {
       if (activeSessionRef.current === sessionAtStart) {
         setPendingAnswer(null);
-        setCoachWaiting(false);
-        setBusy(false);
-      }
-    }
-  }
-
-  async function retryAnalysis() {
-    if (!active) return;
-    setBusy(true);
-    setError(null);
-    setPhase("summary");
-    setCoach(null);
-    setReportData(null);
-    try {
-      await reanalyzeSession(active.sessionId);
-      setSessionDetail((current) =>
-        current ? { ...current, status: "analyzing", error_code: null } : current,
-      );
-      void pollSession(active.sessionId);
-    } catch (reason) {
-      if (reason instanceof ApiError && reason.status === 409) {
-        if (reason.code === "analysis_retry_exhausted") {
-          setSessionDetail((current) =>
-            current
-              ? { ...current, status: "failed", error_code: "max_attempts_exceeded" }
-              : current,
-          );
-          setError(null);
-        } else if (reason.code === "session_is_not_failed") {
-          try {
-            const refreshed = await getPracticeSession(active.sessionId);
-            if (refreshed.status === "created" || refreshed.status === "analyzing") {
-              void pollSession(active.sessionId);
-            } else {
-              await applySessionDetail(refreshed);
-            }
-          } catch (refreshError) {
-            setError(sessionErrorMessage(refreshError));
-          }
-        } else {
-          setError(errorMessage(reason));
-        }
-      } else {
-        setError(sessionErrorMessage(reason));
-      }
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function createActingReport() {
-    if (!coach || !active) return;
-    const sessionAtStart = active.sessionId;
-    setBusy(true);
-    setCoachWaiting(false);
-    setError(null);
-    // 기다리는 동안 완성될 화면의 뼈대를 먼저 보여준다 — 실패하면 아래에서 대화로 되돌린다
-    setReportData(null);
-    setPhase("report");
-    try {
-      const { data } = await createReport(
-        { session_id: coach.coachSessionId },
-        { onWait: () => setCoachWaiting(true) },
-      );
-      // 노트 목록은 어느 세션을 보고 있든 최신으로 둔다 — 화면 상태만 아래에서 가른다
-      const localRecord: ReportRecord = {
-        created_at: new Date().toISOString(),
-        practice_session_id: active.sessionId,
-        headline: data.report.headline,
-      };
-      setReports((current) => [
-        ...current.filter(
-          (item) => item.practice_session_id !== localRecord.practice_session_id,
-        ),
-        localRecord,
-      ]);
-      if (activeSessionRef.current !== sessionAtStart) return;
-      setReportData({ report: data.report, reportCount: data.report_count });
-      playbackRefreshAttemptedRef.current = false;
-      setPhase("report");
-      // 화면은 방금 만든 노트를 서버 응답(report_count)으로 바로 보여줬다. 목록 state는
-      // 낙관적 append만으론 다른 탭/기기에서 생성된 노트를 놓쳐 index 기반 서수가 서버와
-      // 어긋날 수 있으므로, 백그라운드로 canonical 목록을 다시 읽어 맞춘다(실패 시 위 append 유지).
-      void listReports().then(
-        (refreshed) => setReports(refreshed.reports),
-        () => {},
-      );
-    } catch (reason) {
-      if (
-        reason instanceof ApiError &&
-        reason.status === 409 &&
-        reason.code === "report already exists for session"
-      ) {
-        try {
-          const refreshed = await listReports();
-          setReports(refreshed.reports);
-          if (activeSessionRef.current !== sessionAtStart) return;
-          if (!(await showReportRecord(sessionAtStart, refreshed.reports))) {
-            throw new Error("완료된 연습 노트를 불러오지 못했어요.");
-          }
-        } catch (refreshError) {
-          if (activeSessionRef.current !== sessionAtStart) return;
-          setPhase("coaching");
-          setError(errorMessage(refreshError));
-        }
-      } else if (activeSessionRef.current !== sessionAtStart) {
-        return;
-      } else if (
-        reason instanceof ApiError &&
-        reason.status === 409 &&
-        reason.code === "session is still open"
-      ) {
-        setPhase("coaching");
-        setError("인터뷰가 아직 진행 중이에요");
-      } else {
-        setPhase("coaching");
-        setError(sessionErrorMessage(reason));
-      }
-    } finally {
-      if (activeSessionRef.current === sessionAtStart) {
         setCoachWaiting(false);
         setBusy(false);
       }
@@ -723,12 +681,11 @@ function PracticeFlowInner({ entry = "new" }: { entry?: Entry }) {
         coachWaiting={coachWaiting}
         error={error}
         setAnswer={setAnswer}
-        onStartCoach={startInterview}
+        onStartCoach={() => {
+          void coachCoordinatorFor(activeSessionId).startWithoutEvidence().catch(() => {});
+        }}
         onReply={reply}
-        onRetryAnalysis={retryAnalysis}
-        onCreateReport={createActingReport}
         onPlaybackError={refreshPlayback}
-        onRefreshSession={retryActiveSessionLoad}
         onDelete={deleteSession}
       />
     );
@@ -769,32 +726,63 @@ function PracticeFlowInner({ entry = "new" }: { entry?: Entry }) {
     );
   }
 
+  if (step === "blockage") {
+    return (
+      <main className="min-h-dvh bg-[#f7faff] px-4 py-6 text-[#191f28] sm:px-6 lg:px-8">
+        <div className="mx-auto w-full max-w-4xl">
+          <BlockageSelectionFlow
+            videoUrl={previewUrl ?? ""}
+            scene={{
+              situation,
+              character: characterContext,
+              goal,
+            }}
+            busy={busy}
+            onComplete={(selection) => void begin(selection)}
+          />
+          {error ? <ErrorNotice message={error} /> : null}
+        </div>
+      </main>
+    );
+  }
+
   return (
     <PracticeContextScreen
       file={file}
       previewUrl={previewUrl}
       situation={situation}
       characterContext={characterContext}
-      subtext={subtext}
+      goal={goal}
       busy={busy}
       uploadProgress={uploadProgress}
       error={error}
       onBack={returnToVideoSelection}
       onSituationChange={setSituation}
       onCharacterContextChange={setCharacterContext}
-      onSubtextChange={setSubtext}
-      onSubmit={begin}
+      onGoalChange={setGoal}
+      onSubmit={showBlockageSelection}
     />
   );
 }
 
-function TextField({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
+function TextField({
+  label,
+  value,
+  placeholder,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  placeholder: string;
+  onChange: (value: string) => void;
+}) {
   return (
     <label className="grid gap-3 text-base font-black text-[#333d4b]">
       <span className="flex items-center gap-2">{label} <RequiredBadge /></span>
       <textarea
         className="min-h-28 rounded-2xl border border-[#d1d6db] bg-white p-4 text-sm font-semibold leading-6 text-[#191f28] outline-none transition placeholder:text-[#b0b8c1] focus:border-[#3182f6]"
         value={value}
+        placeholder={placeholder}
         onChange={(event) => onChange(event.target.value)}
       />
     </label>
@@ -886,7 +874,7 @@ function PracticeHome({
               <button key={report.practice_session_id} type="button" onClick={() => onOpen(report.practice_session_id)} className="flex w-full min-w-0 items-center gap-3.5 rounded-[20px] bg-white p-4 text-left shadow-[0_16px_45px_rgba(25,31,40,0.06)] transition hover:-translate-y-0.5">
                 <span className="flex h-10 w-14 shrink-0 items-center justify-center rounded-xl bg-[linear-gradient(135deg,#0b1220,#1b2942)] text-[11px] font-black text-[#8fb4ff]">▶</span>
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-black tracking-[-0.02em]">{report.headline}</span>
+                  <span className="block truncate text-sm font-black tracking-[-0.02em]">{report.title}</span>
                   <span className="mt-0.5 block truncate text-xs font-semibold text-[#8b95a1]">{formatRelativePracticeDate(report.created_at)}</span>
                 </span>
                 <span className="shrink-0 rounded-full bg-[#e5f8ef] px-3 py-1.5 text-xs font-black text-[#009959]">완료</span>
@@ -995,28 +983,28 @@ function PracticeContextScreen({
   previewUrl,
   situation,
   characterContext,
-  subtext,
+  goal,
   busy,
   uploadProgress,
   error,
   onBack,
   onSituationChange,
   onCharacterContextChange,
-  onSubtextChange,
+  onGoalChange,
   onSubmit,
 }: {
   file: File | null;
   previewUrl: string | null;
   situation: string;
   characterContext: string;
-  subtext: string;
+  goal: string;
   busy: boolean;
   uploadProgress: UploadProgressState | null;
   error: string | null;
   onBack: () => void;
   onSituationChange: (value: string) => void;
   onCharacterContextChange: (value: string) => void;
-  onSubtextChange: (value: string) => void;
+  onGoalChange: (value: string) => void;
   onSubmit: () => void | Promise<void>;
 }) {
   return (
@@ -1073,10 +1061,10 @@ function PracticeContextScreen({
           <SceneContextForm
             situation={situation}
             characterContext={characterContext}
-            subtext={subtext}
+            goal={goal}
             onSituationChange={onSituationChange}
             onCharacterContextChange={onCharacterContextChange}
-            onSubtextChange={onSubtextChange}
+            onGoalChange={onGoalChange}
           />
 
           <div className="mt-6 grid gap-3 sm:grid-cols-[1fr_2fr]">
@@ -1088,7 +1076,7 @@ function PracticeContextScreen({
                 ? `${uploadProgress.stage === "compressing" ? "압축 중" : "업로드 중"}… ${uploadProgress.percent}%`
                 : busy
                   ? "업로드하고 분석하는 중…"
-                  : "입력 완료하고 분석 시작"}
+                  : "막히는 지점 고르기"}
             </button>
           </div>
         </form>
@@ -1100,23 +1088,23 @@ function PracticeContextScreen({
 function SceneContextForm({
   situation,
   characterContext,
-  subtext,
+  goal,
   onSituationChange,
   onCharacterContextChange,
-  onSubtextChange,
+  onGoalChange,
 }: {
   situation: string;
   characterContext: string;
-  subtext: string;
+  goal: string;
   onSituationChange: (value: string) => void;
   onCharacterContextChange: (value: string) => void;
-  onSubtextChange: (value: string) => void;
+  onGoalChange: (value: string) => void;
 }) {
   return (
     <section className="mt-6 grid gap-6 rounded-[24px] border border-[#e5e8eb] bg-white p-5 shadow-sm sm:p-7">
-      <TextField label="상황" value={situation} onChange={onSituationChange} />
-      <TextField label="인물 정보" value={characterContext} onChange={onCharacterContextChange} />
-      <TextField label="서브텍스트" value={subtext} onChange={onSubtextChange} />
+      <TextField label="상황" value={situation} placeholder="이별을 통보받은 직후, 카페에서" onChange={onSituationChange} />
+      <TextField label="인물" value={characterContext} placeholder="담담한 척하는 20대 후반 여성" onChange={onCharacterContextChange} />
+      <TextField label="목표" value={goal} placeholder="상대가 마음을 돌려 다시 앉게 만들기" onChange={onGoalChange} />
     </section>
   );
 }
@@ -1264,7 +1252,7 @@ function PracticeHistoryCard({
       <div className="px-5 py-5 text-left">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <h3 className="line-clamp-2 text-lg font-black tracking-[-0.04em]">{report.headline}</h3>
+            <h3 className="line-clamp-2 text-lg font-black tracking-[-0.04em]">{report.title}</h3>
           </div>
           <span className="shrink-0 rounded-full bg-[#e5f8ef] px-3 py-1.5 text-xs font-black text-[#009959]">완료</span>
         </div>
@@ -1337,10 +1325,7 @@ function SessionView({
   setAnswer,
   onStartCoach,
   onReply,
-  onRetryAnalysis,
-  onCreateReport,
   onPlaybackError,
-  onRefreshSession,
   onDelete,
 }: {
   session: PracticeSessionDetail;
@@ -1356,13 +1341,11 @@ function SessionView({
   setAnswer: (value: string) => void;
   onStartCoach: () => void;
   onReply: () => void;
-  onRetryAnalysis: () => void;
-  onCreateReport: () => void;
   onPlaybackError: () => void;
-  onRefreshSession: () => void;
   onDelete: () => void;
 }) {
   const analysisPending = session.status === "created" || session.status === "analyzing";
+  const analysisFailed = session.status === "failed";
   // 화면이 열려 있는 내내 자리를 지키는 안내 영역. 조건부로 붙였다 떼면 보조기술이 못 읽으므로
   // 노드는 그대로 두고 글자만 바꾼다.
   const liveStatus =
@@ -1387,20 +1370,7 @@ function SessionView({
           </div>
         </header>
 
-        {analysisPending ? (
-          <AnalysisPending
-            status={session.status === "created" ? "created" : "analyzing"}
-            error={error}
-            onRetry={onRefreshSession}
-          />
-        ) : null}
-        {session.status === "failed" ? (
-          <AnalysisFailed errorCode={session.error_code} busy={busy} onRetry={onRetryAnalysis} />
-        ) : null}
-        {session.status === "analyzed" && phase === "summary" ? (
-          <SummaryView session={session} onPlaybackError={onPlaybackError} />
-        ) : null}
-        {session.status === "analyzed" && phase === "coaching" ? (
+        {phase === "coaching" ? (
           <CoachingView
             coach={coach}
             answer={answer}
@@ -1411,19 +1381,19 @@ function SessionView({
             setAnswer={setAnswer}
             onStartCoach={onStartCoach}
             onReply={onReply}
-            onCreateReport={onCreateReport}
+            analysisPending={analysisPending}
+            analysisFailed={analysisFailed}
           />
         ) : null}
-        {session.status === "analyzed" && phase === "report" ? (
+        {phase === "report" ? (
           <Report
             reportData={reportData}
             playbackUrl={session.playback_url}
             busy={busy}
-            onCreateReport={onCreateReport}
             onPlaybackError={onPlaybackError}
           />
         ) : null}
-        {error && phase !== "coaching" && !analysisPending ? <ErrorNotice message={error} /> : null}
+        {error && phase !== "coaching" ? <ErrorNotice message={error} /> : null}
       </div>
     </main>
   );
@@ -1475,115 +1445,6 @@ function DeleteSessionControl({
   );
 }
 
-function AnalysisPending({
-  status,
-  error,
-  onRetry,
-}: {
-  status: "created" | "analyzing";
-  error: string | null;
-  onRetry: () => void;
-}) {
-  return (
-    <section aria-live="polite" className="mt-8 overflow-hidden rounded-[28px] border border-[#dce9ff] bg-white shadow-[0_14px_40px_rgba(25,31,40,0.06)]">
-      <div className="bg-[#f7faff] p-6 sm:p-8">
-        <span className="inline-flex rounded-full bg-[#eaf2ff] px-3 py-1.5 text-xs font-black text-[#2f6bff]">영상 분석</span>
-        <h2 className="mt-4 text-xl font-black tracking-[-0.04em] sm:text-3xl">
-          {status === "created" ? "분석을 준비하고 있어요" : "장면을 분석하고 있어요"}
-        </h2>
-        <p className="mt-3 max-w-2xl text-base font-bold leading-7 text-[#6b7684]">영상 속 행동과 장면 정보를 안전하게 정리하는 중이에요.</p>
-        {error ? (
-          <div className="mt-6 rounded-2xl border border-[#ffd8a8] bg-[#fff8ec] p-5">
-            <p className="font-bold leading-7 text-[#8a4b00]">{error}</p>
-            <button type="button" onClick={onRetry} className="mt-4 min-h-11 rounded-xl bg-[#9a5b00] px-4 text-sm font-black text-white transition hover:bg-[#7a4800]">
-              상태 다시 확인하기
-            </button>
-          </div>
-        ) : (
-          <div className="mt-7 h-3 overflow-hidden rounded-full bg-[#dce9ff]">
-            <div className="h-full w-3/4 animate-pulse rounded-full bg-[#3182f6]" />
-          </div>
-        )}
-      </div>
-    </section>
-  );
-}
-
-function AnalysisFailed({
-  errorCode,
-  busy,
-  onRetry,
-}: {
-  errorCode: PracticeSessionDetail["error_code"];
-  busy: boolean;
-  onRetry: () => void;
-}) {
-  const failure = analysisFailure(errorCode);
-  return (
-    <section className="mt-8 rounded-[28px] border border-[#ffd8a8] bg-[#fff8ec] p-6 shadow-[0_14px_40px_rgba(25,31,40,0.05)] sm:p-8">
-      <span className="inline-flex rounded-full bg-white px-3 py-1.5 text-xs font-black text-[#9a5b00]">분석 중단</span>
-      <h2 className="mt-4 text-xl font-black tracking-[-0.04em] text-[#8a4b00]">분석을 완료하지 못했어요</h2>
-      <p className="mt-3 font-bold leading-7 text-[#8a4b00]">{failure.message}</p>
-      {failure.retryable ? (
-        <button type="button" disabled={busy} onClick={onRetry} className="mt-6 inline-flex min-h-12 items-center justify-center rounded-2xl bg-[#2f6bff] px-5 py-3 text-sm font-black text-white transition hover:bg-[#1b64da] disabled:bg-[#b0d2ff]">
-          {busy ? "다시 분석하는 중…" : "분석 다시 시도"}
-        </button>
-      ) : (
-        <Link href="/practice/new" className="mt-6 inline-flex min-h-12 items-center justify-center rounded-2xl bg-[#191f28] px-5 py-3 text-sm font-black text-white transition hover:bg-[#333d4b]">새 연습 시작하기</Link>
-      )}
-    </section>
-  );
-}
-
-function SummaryView({
-  session,
-  onPlaybackError,
-}: {
-  session: PracticeSessionDetail;
-  onPlaybackError: () => void;
-}) {
-  const summary = session.summary;
-
-  return (
-    <section className="mt-8 grid gap-5">
-      <div className="overflow-hidden rounded-[28px] border border-[#e5e8eb] bg-white shadow-[0_14px_40px_rgba(25,31,40,0.06)]">
-        <div className="p-5 sm:p-6">
-          <span className="inline-flex rounded-full bg-[#e5f8ef] px-3 py-1.5 text-xs font-black text-[#009959]">분석 완료</span>
-          <h2 className="mt-4 text-xl font-black tracking-[-0.04em] sm:text-3xl">장면에서 보인 단서를 정리했어요</h2>
-          <p className="mt-3 font-semibold leading-7 text-[#6b7684]">분석은 정답이 아니라 다음 질문을 위한 관찰이에요.</p>
-        </div>
-        <video key={session.playback_url} controls preload="metadata" src={session.playback_url} onError={onPlaybackError} className="aspect-video w-full bg-[#111827] object-contain">
-          분석한 영상을 재생할 수 없어요.
-        </video>
-      </div>
-
-      {summary ? (
-        <>
-          <div className="grid gap-4 md:grid-cols-2">
-            {summary.summary?.trim() ? <SummarySection title="장면 요약" body={summary.summary} wide /> : null}
-            {summary.intent_alignment?.trim() ? <SummarySection title="의도 일치" body={summary.intent_alignment} /> : null}
-            {summary.key_moment?.trim() ? <SummarySection title="핵심 순간" body={summary.key_moment} tone="blue" /> : null}
-            {summary.key_dimension?.trim() ? <SummarySection title="핵심 차원" body={summary.key_dimension} /> : null}
-          </div>
-
-          {/* 관찰 기록과 특이점은 내부 산출물이라 배우에게 노출하지 않는다 (제품 가드레일).
-              질문 대화의 근거로만 쓰고 화면에는 그리지 않는다. */}
-
-          {/* 같은 장면을 다시 찍어 보게, 적었던 맥락만 새 연습으로 넘긴다 (영상은 새로 올린다) */}
-          <Link
-            href={`/practice/new?from=${encodeURIComponent(session.session_id)}`}
-            className="flex min-h-12 w-full items-center justify-center rounded-2xl bg-[#2f6bff] px-6 py-3 text-base font-black text-white shadow-[0_10px_20px_rgba(49,130,246,0.18)] transition hover:bg-[#1b64da]"
-          >
-            인터뷰 다시하기
-          </Link>
-        </>
-      ) : (
-        <p className="rounded-2xl bg-[#fff8ec] p-5 font-bold leading-7 text-[#8a4b00]">분석 요약을 불러오지 못했어요. 잠시 후 다시 확인해 주세요.</p>
-      )}
-    </section>
-  );
-}
-
 function CoachingView({
   coach,
   answer,
@@ -1594,7 +1455,8 @@ function CoachingView({
   setAnswer,
   onStartCoach,
   onReply,
-  onCreateReport,
+  analysisPending,
+  analysisFailed,
 }: {
   coach: CoachState | null;
   answer: string;
@@ -1605,18 +1467,45 @@ function CoachingView({
   setAnswer: (value: string) => void;
   onStartCoach: () => void;
   onReply: () => void;
-  onCreateReport: () => void;
+  analysisPending: boolean;
+  analysisFailed: boolean;
 }) {
   if (!coach) {
     return (
-      <section aria-live="polite" className="mt-8 rounded-[28px] border border-[#dce9ff] bg-white p-6 shadow-[0_14px_40px_rgba(25,31,40,0.06)] sm:p-8">
-        <span className="inline-flex rounded-full bg-[#eaf2ff] px-3 py-1.5 text-xs font-black text-[#2f6bff]">AI 코칭</span>
-        <h2 className="mt-4 text-xl font-black tracking-[-0.04em]">AI 코치가 첫 질문을 준비하고 있어요</h2>
-        <p className="mt-3 font-bold leading-7 text-[#6b7684]">{coachWaiting ? "코치가 생각 중이에요…" : "분석 내용을 질문으로 바꾸고 있어요."}</p>
-        {!busy && error ? (
-          <button type="button" onClick={onStartCoach} className="mt-6 min-h-12 rounded-2xl bg-[#2f6bff] px-5 py-3 text-sm font-black text-white transition hover:bg-[#1b64da]">코칭 시작 다시 시도</button>
+      <section className="mt-8 overflow-hidden rounded-[28px] border border-[#e5e8eb] bg-white shadow-[0_14px_40px_rgba(25,31,40,0.06)]">
+        {analysisPending ? (
+          <p role="status" className="border-b border-[#e5e8eb] bg-[#f7faff] px-5 py-3 text-sm font-semibold text-[#4e5968] sm:px-6">
+            같이 볼 장면을 찾고 있어요
+          </p>
         ) : null}
-        {error ? <ErrorNotice message={error} /> : null}
+        {analysisFailed ? (
+          <div className="p-5 sm:p-6">
+            <h2 className="text-lg font-black leading-7 text-[#191f28]">
+              영상을 바탕으로 질문을 준비하지 못했어요
+            </h2>
+            <p className="mt-2 text-sm font-semibold leading-6 text-[#4e5968]">
+              원하면 영상 근거 없이 대화를 시작할 수 있어요.
+            </p>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={onStartCoach}
+              className="mt-5 min-h-12 rounded-2xl bg-[#2f6bff] px-5 py-3 text-sm font-black text-white transition hover:bg-[#3182f6] disabled:bg-[#b0d2ff]"
+            >
+              {busy ? "질문 준비 중…" : "그냥 시작"}
+            </button>
+          </div>
+        ) : !error ? (
+          <div role="log" aria-live="polite" aria-label="AI 코치와 나눈 대화" className="flex min-h-[320px] items-center justify-center bg-[#f7faff] px-5 py-6 sm:px-6">
+            <p className="text-sm font-semibold text-[#8b95a1]">막히는 대목을 그대로 적어 주세요.</p>
+          </div>
+        ) : null}
+        {!analysisFailed && !busy && error ? (
+          <div className="p-5 sm:p-6">
+            <button type="button" onClick={onStartCoach} className="min-h-12 rounded-2xl bg-[#2f6bff] px-5 py-3 text-sm font-black text-white transition hover:bg-[#2f6bff]">코칭 시작 다시 시도</button>
+            <ErrorNotice message={error} />
+          </div>
+        ) : null}
       </section>
     );
   }
@@ -1624,9 +1513,20 @@ function CoachingView({
   const currentQuestion = [...coach.turns]
     .reverse()
     .find((turn) => turn.role === "coach");
+  const inputEnabled = isCoachInputEnabled({
+    analysisStatus: analysisPending ? "analyzing" : analysisFailed ? "failed" : "analyzed",
+    coachSessionId: coach.coachSessionId,
+    sending: busy || coachWaiting,
+    done: coach.done,
+  });
 
   return (
     <section className="mt-8 overflow-hidden rounded-[28px] border border-[#e5e8eb] bg-white shadow-[0_14px_40px_rgba(25,31,40,0.06)]">
+      {analysisPending ? (
+        <p role="status" className="border-b border-[#e5e8eb] bg-[#f7faff] px-5 py-3 text-sm font-semibold text-[#4e5968] sm:px-6">
+          같이 볼 장면을 찾고 있어요
+        </p>
+      ) : null}
       <header className="flex items-center justify-between gap-3 border-b border-[#e5e8eb] px-5 py-4 sm:px-6">
         <div className="flex items-center gap-3">
           <span aria-hidden="true" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#2f6bff] text-xs font-black text-white">AI</span>
@@ -1662,8 +1562,7 @@ function CoachingView({
           <div className="flex items-end gap-2">
             <span aria-hidden="true" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#2f6bff] text-[10px] font-black text-white">AI</span>
             <div className="rounded-2xl rounded-bl-md border border-[#e5e8eb] bg-white px-4 py-3 shadow-sm">
-              <span className="sr-only">코치가 답변을 쓰고 있어요</span>
-              <TypingDots />
+              <WaitingDots />
             </div>
           </div>
         ) : null}
@@ -1671,33 +1570,31 @@ function CoachingView({
 
       <div className="border-t border-[#e5e8eb] bg-white p-4 sm:p-5">
         {coach.done ? (
-          <div className="rounded-2xl border border-[#dce9ff] bg-[#f7faff] p-5">
-            <p className="text-xs font-black text-[#2f6bff]">코칭 완료</p>
-            <h3 className="mt-2 text-xl font-black tracking-[-0.035em]">{coachDoneMessage(coach.reason)}</h3>
-            <p className="mt-2 font-semibold leading-7 text-[#6b7684]">대화를 바탕으로 이번 연기의 핵심을 연습 노트로 정리해 보세요.</p>
-            <button type="button" disabled={busy} onClick={onCreateReport} className="mt-5 min-h-12 w-full rounded-2xl bg-[#2f6bff] px-5 py-3 text-sm font-black text-white transition hover:bg-[#1b64da] disabled:bg-[#b0d2ff] sm:w-auto">
-              {busy ? "연습 노트를 만드는 중…" : "연습 노트 만들기"}
-            </button>
-          </div>
+          <p role="status" className="rounded-2xl bg-[#f7faff] px-4 py-3 text-sm font-semibold text-[#4e5968]">
+            연습 노트로 이동하고 있어요…
+          </p>
         ) : (
           <>
+            <p className="mb-2 text-xs font-semibold text-[#8b95a1]">
+              &apos;그만&apos;이라고 쓰면 언제든 마칠 수 있어요
+            </p>
             <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
               <textarea
                 aria-label="답변"
                 rows={3}
                 className="min-h-24 flex-1 resize-y rounded-2xl border border-[#d1d6db] bg-white p-4 text-[15px] font-semibold leading-6 outline-none transition placeholder:text-[#b0b8c1] focus:border-[#3182f6] focus:ring-4 focus:ring-[#e8f3ff] disabled:bg-[#f2f4f6]"
                 value={answer}
-                disabled={busy || coachWaiting}
+                disabled={!inputEnabled}
                 placeholder="질문을 듣고 떠오른 생각을 편하게 적어 주세요."
                 onChange={(event) => setAnswer(event.target.value)}
                 onKeyDown={(event) => {
-                  if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing && answer.trim() && !busy && !coachWaiting) {
+                  if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing && answer.trim() && inputEnabled) {
                     event.preventDefault();
                     onReply();
                   }
                 }}
               />
-              <button type="button" disabled={busy || coachWaiting || !answer.trim()} onClick={onReply} className="min-h-12 shrink-0 rounded-2xl bg-[#2f6bff] px-6 py-3 text-sm font-black text-white transition hover:bg-[#1b64da] disabled:bg-[#b0d2ff]">
+              <button type="button" disabled={!inputEnabled || !answer.trim()} onClick={onReply} className="min-h-12 shrink-0 rounded-2xl bg-[#2f6bff] px-6 py-3 text-sm font-black text-white transition hover:bg-[#1b64da] disabled:bg-[#b0d2ff]">
                 {busy || coachWaiting ? "보내는 중…" : "답변 보내기"}
               </button>
             </div>
@@ -1707,20 +1604,6 @@ function CoachingView({
         {error ? <ErrorNotice message={error} /> : null}
       </div>
     </section>
-  );
-}
-
-function TypingDots() {
-  return (
-    <span aria-hidden="true" className="flex h-5 items-center gap-1.5">
-      {[0, 160, 320].map((delayMs) => (
-        <span
-          key={delayMs}
-          className="h-2 w-2 animate-bounce rounded-full bg-[#b0b8c1]"
-          style={{ animationDelay: String(delayMs) + "ms" }}
-        />
-      ))}
-    </span>
   );
 }
 
@@ -1741,13 +1624,11 @@ function Report({
   reportData,
   playbackUrl,
   busy,
-  onCreateReport,
   onPlaybackError,
 }: {
   reportData: ReportData | null;
   playbackUrl: string;
   busy: boolean;
-  onCreateReport: () => void;
   onPlaybackError: () => void;
 }) {
   // 만드는 동안에는 완성될 화면과 같은 자리에 글자 자리만 비워 둔다
@@ -1759,7 +1640,7 @@ function Report({
         <span className="inline-flex rounded-full bg-[#eaf2ff] px-3 py-1.5 text-xs font-black text-[#2f6bff]">코칭 완료</span>
         <h2 className="mt-3 text-lg font-black tracking-[-0.04em] sm:mt-4 sm:text-3xl">연습 노트를 만들어 보세요</h2>
         <p className="mt-2.5 max-w-2xl text-sm font-bold leading-6 text-[#6b7684] sm:mt-3 sm:text-base sm:leading-7">나눈 대화를 바탕으로 다음 연습에 가져갈 한 문장을 정리해요.</p>
-        <button type="button" onClick={onCreateReport} className="mt-6 min-h-12 rounded-2xl bg-[#2f6bff] px-5 py-3 text-sm font-black text-white transition hover:bg-[#1b64da]">연습 노트 만들기</button>
+        <p className="mt-6 text-sm font-semibold text-[#4e5968]">잠시 후에도 열리지 않으면 연습 기록에서 다시 확인해 주세요.</p>
       </section>
     );
   }
@@ -1767,37 +1648,23 @@ function Report({
   const report = reportData.report;
   return (
     <section className="mt-8 grid gap-4">
-      <header className="rounded-[28px] bg-[#2f6bff] p-5 text-white shadow-[0_16px_36px_rgba(49,130,246,0.2)] sm:p-8">
-        <p className="text-xs font-black text-white/75 sm:text-sm">{reportData.reportCount}번째 연습 노트</p>
-        <h2 className="mt-2 text-lg font-black leading-snug tracking-[-0.04em] sm:mt-3 sm:text-4xl">{report.headline}</h2>
-      </header>
-      <div className="overflow-hidden rounded-[24px] border border-[#e5e8eb] bg-white shadow-[0_8px_24px_rgba(25,31,40,0.035)]">
-        <video key={playbackUrl} controls preload="metadata" src={playbackUrl} onError={onPlaybackError} className="aspect-video w-full bg-[#111827] object-contain">
-          분석한 영상을 재생할 수 없어요.
-        </video>
-      </div>
-      <article className="rounded-[24px] border border-[#dce9ff] bg-[#f7faff] p-4 sm:p-6">
-        <p className="text-xs font-black text-[#2f6bff]">다시 본 순간</p>
-        <h3 className="mt-2 text-base font-black tracking-[-0.035em] sm:text-xl">영상에서 눈에 남은 곳</h3>
-        <p className="mt-3 inline-flex rounded-full bg-white px-3 py-1.5 text-xs font-black text-[#4e5968] sm:text-sm">
-          {report.biggest_problem.start}–{report.biggest_problem.end}
-        </p>
-        <p className="mt-3 whitespace-pre-wrap text-sm font-semibold leading-6 text-[#333d4b] sm:mt-4 sm:text-base sm:leading-7">{report.biggest_problem.description}</p>
-      </article>
-      <div className="grid gap-4 md:grid-cols-2">
-        <ReportSection title="장면에서 찾은 근거" body={report.evidence} />
-        <ReportSection title="스스로 발견한 점" body={report.self_discovery} />
-        <ReportSection title="다음 연습" body={report.next_step} tone="action" wide />
-      </div>
+      <PracticeReportCards report={report} />
+      {report.report_type !== "blocked" ? (
+        <div className="overflow-hidden rounded-[24px] border border-[#e5e8eb] bg-white shadow-[0_8px_24px_rgba(25,31,40,0.035)]">
+          <video key={playbackUrl} controls preload="metadata" src={playbackUrl} onError={onPlaybackError} className="aspect-video w-full bg-[#111827] object-contain">
+            분석한 영상을 재생할 수 없어요.
+          </video>
+        </div>
+      ) : null}
       {/* 연습 노트가 나온 뒤에만 보인다 — 마치기를 누르면 후기 페이지로 넘어간다 */}
-      <aside className="rounded-[24px] border border-[#dce9ff] bg-white p-5 shadow-[0_8px_24px_rgba(25,31,40,0.035)] sm:flex sm:items-center sm:justify-between sm:gap-6 sm:p-6">
+      {report.report_type !== "blocked" ? <aside className="rounded-[24px] border border-[#dce9ff] bg-white p-5 shadow-[0_8px_24px_rgba(25,31,40,0.035)] sm:flex sm:items-center sm:justify-between sm:gap-6 sm:p-6">
         <div>
           <h3 className="text-base font-black tracking-[-0.035em] sm:text-lg">이번 연습은 어떠셨나요?</h3>
           <p className="mt-2 text-sm font-semibold leading-6 text-[#4e5968] sm:text-base sm:leading-7">짧은 설문으로 경험을 알려 주시면 더 나은 연기 코치를 만드는 데 활용할게요.</p>
         </div>
         {/* 새 창으로 연다 — 보던 연습 노트 화면을 유지한 채 후기를 남길 수 있게 */}
         <a href={REVIEW_FORM_URL} target="_blank" rel="noopener noreferrer" aria-label="연습 마치고 후기 남기기 (새 창)" className="mt-5 inline-flex min-h-12 shrink-0 items-center justify-center rounded-2xl bg-[#2f6bff] px-5 py-3 text-sm font-black text-white transition hover:bg-[#1b64da] sm:mt-0">연습 마치기 ↗</a>
-      </aside>
+      </aside> : null}
     </section>
   );
 }
@@ -1844,63 +1711,4 @@ function SkeletonLines({ className = "" }: { className?: string }) {
       <div className="h-4 w-2/3 rounded-full bg-[#eef1f4]" />
     </div>
   );
-}
-
-function SummarySection({
-  title,
-  body,
-  tone = "default",
-  wide = false,
-}: {
-  title: string;
-  body: string;
-  tone?: "default" | "blue";
-  wide?: boolean;
-}) {
-  return (
-    <article className={(wide ? "md:col-span-2 " : "") + "rounded-[24px] border p-5 shadow-[0_8px_24px_rgba(25,31,40,0.035)] sm:p-6 " + (tone === "blue" ? "border-[#dce9ff] bg-[#f7faff]" : "border-[#e5e8eb] bg-white")}>
-      <h3 className="text-base font-black tracking-[-0.035em] sm:text-lg">{title}</h3>
-      <p className="mt-2.5 whitespace-pre-wrap text-sm font-semibold leading-6 text-[#4e5968] sm:mt-3 sm:text-base sm:leading-7">{body}</p>
-    </article>
-  );
-}
-
-function ReportSection({
-  title,
-  body,
-  tone = "default",
-  wide = false,
-}: {
-  title: string;
-  body: string;
-  tone?: "default" | "positive" | "action";
-  wide?: boolean;
-}) {
-  const toneClass = tone === "positive"
-    ? "border-[#c9efdc] bg-[#f0fbf6]"
-    : tone === "action"
-      ? "border-[#dce9ff] bg-[#f7faff]"
-      : "border-[#e5e8eb] bg-white";
-
-  return (
-    <article className={(wide ? "md:col-span-2 " : "") + "rounded-[24px] border p-5 shadow-[0_8px_24px_rgba(25,31,40,0.035)] sm:p-6 " + toneClass}>
-      <h3 className="text-base font-black tracking-[-0.035em] sm:text-lg">{title}</h3>
-      <p className="mt-2.5 whitespace-pre-wrap text-sm font-semibold leading-6 text-[#4e5968] sm:mt-3 sm:text-base sm:leading-7">{body}</p>
-    </article>
-  );
-}
-
-function coachDoneMessage(reason: CoachState["reason"]): string {
-  switch (reason) {
-    case "gap_stated":
-      return "핵심 지점을 찾았어요";
-    case "exhausted":
-      return "이 장면에서 나눌 질문을 충분히 살펴봤어요";
-    case "limit":
-      return "최대 10개 질문에 도달했어요";
-    case "user_ended":
-      return "인터뷰를 마무리했어요";
-    default:
-      return "인터뷰를 마무리했어요";
-  }
 }

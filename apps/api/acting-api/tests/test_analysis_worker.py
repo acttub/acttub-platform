@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 import os
+from types import SimpleNamespace
 from uuid import UUID, uuid4
 
 import pytest
@@ -11,13 +12,17 @@ from acting_agent.config import Settings as AgentSettings
 from acting_api.analysis_worker import (
     AnalysisResult,
     AnalysisWorker,
+    SummaryAnalyzer,
+    TRANSCRIPTION_SYSTEM_PROMPT,
     UnsupportedMediaError,
+    transcript_segments_from_text,
 )
 from acting_api.app import create_app
 from acting_api.config import GatewaySettings
 from acting_api.db.models import OperationStatus, PracticeStatus, UploadStatus
 from acting_api.storage import S3Storage
 from acting_report.config import Settings as ReportSettings
+from acting_summary import compress as compress_mod
 from acting_summary import summarizer as summarizer_mod
 from acting_summary.config import Settings as SummarySettings
 from api_test_support import FakeClient, SUMMARY
@@ -30,12 +35,15 @@ from platform_test_support import (
 
 class FakeAnalyzer:
     def __init__(self, *, result=None, error=None):
-        self.result = result or AnalysisResult(summary=SUMMARY, was_compressed=False)
+        self.result = result or AnalysisResult(
+            observation_pack=SUMMARY, was_compressed=False
+        )
         self.error = error
         self.paths = []
         self.contents = []
 
-    def analyze(self, video_path, session):
+    def analyze(self, video_path, session, *, duration_ms=None):
+        assert duration_ms == 1000
         self.paths.append(video_path)
         with open(video_path, "rb") as video:
             self.contents.append(video.read())
@@ -44,7 +52,12 @@ class FakeAnalyzer:
         return self.result
 
 
-def _pending_analysis(*, content=b"video-bytes"):
+def _pending_analysis(
+    *,
+    content=b"video-bytes",
+    blockage_kind="그 외",
+    sub_branch="그 외",
+):
     store = FakePlatformStore()
     user = store.create_user()
     upload = finalized_upload(store, user.id, content_size=len(content))
@@ -53,7 +66,9 @@ def _pending_analysis(*, content=b"video-bytes"):
         upload_intent_id=upload.id,
         situation="situation",
         character_context="character",
-        subtext="subtext",
+        goal="goal",
+        blockage_kind=blockage_kind,
+        sub_branch=sub_branch,
         request_id=uuid4(),
         request_fingerprint="a" * 64,
     )
@@ -63,6 +78,147 @@ def _pending_analysis(*, content=b"video-bytes"):
     )
     storage = S3Storage(bucket="videos", client=client)
     return store, created.session, created.operation, storage
+
+
+def test_transcription_system_prompt_matches_so_source_character_for_character():
+    assert TRANSCRIPTION_SYSTEM_PROMPT == """너는 연기 영상의 음성을 한국어로 받아쓴다.
+
+- 실제로 들리는 발화만 적고, 해석·요약·화자 이름·행동 묘사를 넣지 않는다.
+- 앞뒤 대사의 연결이 보이도록 모든 발화를 정확한 순서로 적는다.
+- 대사 하나마다 줄을 바꾼다. 시각, 화자 표지, 글머리표는 붙이지 않는다.
+- 알아듣지 못한 부분을 문맥으로 지어내지 않는다. 발화가 없거나 전혀 알아들을 수 없으면 빈 문자열을 낸다."""
+
+
+def test_transcript_segments_split_newlines_and_sentence_punctuation():
+    assert transcript_segments_from_text(
+        "첫 문장. 다음 문장?\r\n\r\n셋！ 넷\n   \n마지막"
+    ) == ("첫 문장.", "다음 문장?", "셋！", "넷", "마지막")
+
+
+@pytest.mark.parametrize("blockage_kind", ["표현", "그 외"])
+def test_non_analysis_sessions_do_not_call_transcription(
+    monkeypatch,
+    tmp_path,
+    blockage_kind,
+):
+    monkeypatch.setattr(compress_mod, "compress_for_gemini", lambda path: path)
+    monkeypatch.setattr(summarizer_mod, "summarize", lambda *args, **kwargs: SUMMARY)
+
+    def unexpected_call(*args, **kwargs):
+        raise AssertionError("transcription must not run")
+
+    analyzer = SummaryAnalyzer(
+        client=object(),
+        model="gemini-test",
+        extract_audio=unexpected_call,
+        transcribe_audio=unexpected_call,
+    )
+    result = analyzer.analyze(
+        str(tmp_path / "video.mp4"),
+        SimpleNamespace(
+            blockage_kind=blockage_kind,
+            situation="상황",
+            character_context="인물",
+            goal="목적",
+            blockage_detail="상세",
+        ),
+        duration_ms=1000,
+    )
+
+    assert result.observation_pack == SUMMARY
+    assert result.transcripts == ()
+
+
+def test_analysis_transcribes_after_gemini_and_cleans_audio(monkeypatch, tmp_path):
+    events = []
+    monkeypatch.setattr(compress_mod, "compress_for_gemini", lambda path: path)
+
+    def summarize(*args, **kwargs):
+        events.append("gemini")
+        return SUMMARY
+
+    audio_dir = tmp_path / "transcription-job"
+    audio_path = audio_dir / "audio.mp3"
+
+    def extract_audio(video_path, duration_ms):
+        events.append("extract")
+        assert duration_ms == 120_000
+        audio_dir.mkdir()
+        audio_path.write_bytes(b"mp3")
+        return audio_path
+
+    def transcribe_audio(path, system_prompt):
+        events.append("transcribe")
+        assert path == audio_path
+        assert system_prompt == TRANSCRIPTION_SYSTEM_PROMPT
+        return "첫 대사. 다음 대사?\n마지막 대사", object()
+
+    monkeypatch.setattr(summarizer_mod, "summarize", summarize)
+    analyzer = SummaryAnalyzer(
+        client=object(),
+        model="gemini-test",
+        extract_audio=extract_audio,
+        transcribe_audio=transcribe_audio,
+    )
+
+    result = analyzer.analyze(
+        str(tmp_path / "video.mp4"),
+        SimpleNamespace(
+            blockage_kind="분석",
+            situation="상황",
+            character_context="인물",
+            goal="목적",
+            blockage_detail="상세",
+        ),
+        duration_ms=1000,
+    )
+
+    assert events == ["gemini", "extract", "transcribe"]
+    assert result.transcripts == ("첫 대사.", "다음 대사?", "마지막 대사")
+    assert not audio_path.exists()
+    assert not audio_dir.exists()
+
+
+def test_transcription_failure_still_saves_observation_and_marks_analyzed(
+    monkeypatch,
+    tmp_path,
+):
+    store, session, operation, storage = _pending_analysis(
+        blockage_kind="분석",
+        sub_branch="대사 분석",
+    )
+    monkeypatch.setattr(compress_mod, "compress_for_gemini", lambda path: path)
+    monkeypatch.setattr(summarizer_mod, "summarize", lambda *args, **kwargs: SUMMARY)
+    audio_dir = tmp_path / "failed-transcription"
+    audio_path = audio_dir / "audio.mp3"
+
+    def extract_audio(video_path, duration_ms):
+        audio_dir.mkdir()
+        audio_path.write_bytes(b"mp3")
+        return audio_path
+
+    def fail_transcription(path, system_prompt):
+        raise RuntimeError("offline transcription failure")
+
+    worker = AnalysisWorker(
+        store=store,
+        storage=storage,
+        analyzer=SummaryAnalyzer(
+            client=object(),
+            model="gemini-test",
+            extract_audio=extract_audio,
+            transcribe_audio=fail_transcription,
+        ),
+        model="gemini-test",
+    )
+
+    assert worker.run_once() is True
+    assert session.status == PracticeStatus.ANALYZED
+    assert operation.status == OperationStatus.SUCCEEDED
+    assert next(iter(store.summaries.values())).raw == SUMMARY.model_dump(mode="json")
+    assert store.transcripts[session.id] == []
+    assert not audio_path.exists()
+    assert not audio_dir.exists()
 
 
 def test_worker_cycle_claims_downloads_analyzes_and_atomically_completes():

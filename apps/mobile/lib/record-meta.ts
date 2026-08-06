@@ -10,11 +10,19 @@ import type { RecordMeta } from '@/components/record-card';
 export const RECORD_META_CONCURRENCY = 4;
 
 type ReportLike = {
-  report?: { biggest_problem?: { dimension?: string; start?: string; end?: string } | null } | null;
+  report?: unknown;
 };
 
 export function toRecordMeta(detail: ReportLike | null | undefined): RecordMeta {
-  const problem = detail?.report?.biggest_problem;
+  const report = detail?.report;
+  const problem =
+    report && typeof report === 'object' && 'biggest_problem' in report
+      ? (report.biggest_problem as {
+          dimension?: string;
+          start?: string;
+          end?: string;
+        } | null)
+      : null;
   return {
     dimension: problem?.dimension ?? '',
     start: problem?.start ?? '',

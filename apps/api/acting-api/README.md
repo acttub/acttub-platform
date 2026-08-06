@@ -10,12 +10,13 @@ uv sync
 DATABASE_URL=postgresql://localhost/acting uv run alembic -c acting-api/alembic.ini upgrade head
 # S3를 쓰려면 자격증명이 필요합니다. AWS_PROFILE=<본인 profile>을 앞에 붙이거나
 # AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY를 함께 주세요(아래 환경 변수 참고).
-DEVELOPMENT_AUTH_PROVIDER=1 DATABASE_URL=postgresql://localhost/acting JWT_SECRET=... GEMINI_API_KEY=... S3_BUCKET=... AWS_REGION=ap-northeast-2 uv run uvicorn acting_api.app:create_app --factory --host 127.0.0.1 --port 8000
+DEVELOPMENT_AUTH_PROVIDER=1 DATABASE_URL=postgresql://localhost/acting JWT_SECRET=... GEMINI_API_KEY=... OPENAI_API_KEY=... OPENAI_CHAT_MODEL=... S3_BUCKET=... AWS_REGION=ap-northeast-2 uv run uvicorn acting_api.app:create_app --factory --host 127.0.0.1 --port 8000
 ```
 
 ### 환경 변수
 
-- `DATABASE_URL`, `JWT_SECRET`, `GEMINI_API_KEY`는 필수이며, 누락 시 앱이 기동하지 않습니다.
+- `DATABASE_URL`, `JWT_SECRET`, `GEMINI_API_KEY`는 필수이며, 누락 시 앱이 기동하지 않습니다. `GEMINI_API_KEY`는 영상 분석(layer 1)에만 사용합니다.
+- 코칭(layer 2)과 리포트(layer 3)는 `OPENAI_API_KEY`와 `OPENAI_CHAT_MODEL`을 사용합니다. 키가 없으면 해당 호출이 실패하며, `OPENAI_CHAT_MODEL`의 기본값은 `gpt-5.6-terra`입니다.
 - `GOOGLE_OAUTH_CLIENT_ID`는 선택 override입니다. 미설정 시 웹과 동일한 공개 OAuth client ID를 기본값으로 사용합니다.
 - `DEVELOPMENT_AUTH_PROVIDER`는 선택 사항이며 기본값은 비활성입니다. `1` 또는 `true`일 때만 로컬 개발용 `development` 로그인 provider를 등록합니다.
 - `S3_BUCKET`과 `AWS_REGION`은 함께 설정하거나 함께 생략합니다. 설정하면 boto3 기본 자격증명 체인(환경변수·공유 profile·instance role 등)을 사용하며, 자격증명을 찾지 못하면 앱이 기동하지 않습니다. 로컬에서 access key를 직접 쓸 때는 `AWS_ACCESS_KEY_ID`와 `AWS_SECRET_ACCESS_KEY`를 함께 설정하고, 임시 자격증명이면 `AWS_SESSION_TOKEN`도 추가합니다. S3 설정을 생략하면 앱은 기동하고 업로드·재생 API가 503을 반환하며 분석 워커는 시작하지 않습니다.
@@ -77,9 +78,10 @@ curl -X POST http://127.0.0.1:8000/v2/auth/login \
 | GET | /v2/practice-sessions/{id} | 세션 상태·재생 URL·분석 결과 조회 |
 | POST | /v2/practice-sessions/{id}/analyze | 실패 세션 재분석 |
 | DELETE | /v2/practice-sessions/{id} | 세션 소프트 삭제 |
-| POST | /v2/coach/start | 내 summary로 코치 대화 시작 |
-| POST | /v2/coach/reply | 내 코치 세션에 답변 |
-| POST | /v2/reports | 종료된 내 코치 세션의 리포트 생성 |
+| POST | /v2/coach/start | 분석이 끝난 내 연습 세션으로 코치 첫 발화 생성 |
+| POST | /v2/coach/reply | 내 코치 세션에 배우 메시지를 보내고, 완료 시 handoff 자동 확인·리포트 생성 |
+| POST | /v2/coach/confirm | 호환용 수동 확인·반박 경로(현재 화면 흐름에서는 사용하지 않음) |
+| POST | /v2/reports | 확인된 handoff의 리포트 생성 |
 | GET | /v2/reports | 내 리포트 이력 조회 |
 
 연습 세션 생성과 재분석 요청은 202를 반환합니다. 클라이언트는 `GET /v2/practice-sessions/{id}`를 약 10초 간격으로 조회하며, 실패 시 `gemini_timeout`, `gemini_parse_error`, `unsupported_media`, `max_attempts_exceeded` 중 하나를 `error_code`로 받습니다.
@@ -87,11 +89,11 @@ curl -X POST http://127.0.0.1:8000/v2/auth/login \
 ## 호출 예시
 
 ```bash
-# 1) 분석된 연습 세션의 summary_id로 코치 대화 시작
+# 1) 연습 세션 ID로 코치 대화 시작
 curl -X POST https://<host>/v2/coach/start \
   -H "Authorization: Bearer <access-token>" \
   -H "X-Request-Id: <uuid>" -H "Content-Type: application/json" \
-  -d '{"summary_id": "<summary_id>"}'
+  -d '{"practice_session_id": "<practice_session_id>"}'
 
 # 2) 대화 이어가기
 curl -X POST https://<host>/v2/coach/reply \
@@ -99,7 +101,13 @@ curl -X POST https://<host>/v2/coach/reply \
   -H "X-Request-Id: <uuid>" -H "Content-Type: application/json" \
   -d '{"session_id": "<1의 session_id>", "text": "대사가 기억 안 났어요"}'
 
-# 3) 리포트 생성 (세션이 close된 뒤)
+# 3) 호환용 수동 확인 경로(일반 화면 흐름은 2의 complete 응답에서 이미 리포트를 받음)
+curl -X POST https://<host>/v2/coach/confirm \
+  -H "Authorization: Bearer <access-token>" \
+  -H "X-Request-Id: <uuid>" -H "Content-Type: application/json" \
+  -d '{"coach_session_id": "<session_id>", "confirmed": true, "rebuttal_text": null}'
+
+# 4) 이미 확인된 handoff의 리포트 다시 조회·생성
 curl -X POST https://<host>/v2/reports \
   -H "Authorization: Bearer <access-token>" \
   -H "X-Request-Id: <uuid>" -H "Content-Type: application/json" \
@@ -119,8 +127,8 @@ DB 통합 테스트는 `RUN_DB_TESTS=1`이 없으면 skip됩니다.
 ## 구조
 
 - 루트 uv workspace가 네 프로젝트를 관리합니다. v2 라우터는 하위 프로젝트의 엔진과 요청 스키마만 import해 사용합니다.
-- genai 클라이언트 1개를 분석 워커와 코치·리포트 엔진에 공유 주입합니다.
-- SQLAlchemy v2 스키마 13개 테이블·엔진·Alembic·PostgreSQL store는 acting-api에만 두고, 동일 store를 라우터에 주입합니다.
+- Google GenAI 클라이언트는 분석 워커(layer 1)에만 주입합니다. 코치·리포트 엔진은 `acting-llm`의 OpenAI Responses 호출을 사용합니다.
+- SQLAlchemy v2 스키마·엔진·Alembic·PostgreSQL store는 acting-api에만 두고, 동일 store를 라우터에 주입합니다. 새 코칭 결과는 `coaching_handoffs`, 확인은 `handoff_confirmations`, 새 리포트는 `practice_reports`에 저장하며 기존 `reports`에는 새로 쓰지 않습니다.
 - 보호된 v2 API의 사용자별 rate limit은 FastAPI 의존성으로 적용하고, login·refresh·logout은 사용자를 확인한 뒤 같은 limiter를 직접 적용합니다.
 - 분석 워커는 S3 응답을 1MiB 청크로 임시 파일에 저장한 뒤 acting-summary에 파일 경로를 전달합니다. 다운로드 응답 ETag가 업로드 확정 시 저장한 ETag와 같을 때만 분석하며, Google GenAI Files API에도 경로를 넘기므로 영상 전체를 Python 메모리에 적재하지 않습니다.
 - Gemini 도메인 오류만 공개 error code와 함께 세션을 실패 처리합니다. S3·DB 같은 일시적 인프라 오류나 ETag 변경은 operation을 `pending`으로 되돌려 시도 예산 안에서 재선점하고, 3회 소진 시 sweep이 `max_attempts_exceeded`로 마감합니다.
