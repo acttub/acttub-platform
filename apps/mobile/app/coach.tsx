@@ -56,7 +56,6 @@ export default function CoachScreen() {
   const [connecting, setConnecting] = useState(true);
   const [waiting, setWaiting] = useState(false);
   const [done, setDone] = useState(false);
-  const [rebuttal, setRebuttal] = useState('');
   const [error, setError] = useState<string | null>(null);
 
   // 사용자가 올린 원본(또는 서버 재생 URL) 영상을 재생한다 (practice.videoUri).
@@ -85,8 +84,15 @@ export default function CoachScreen() {
           practice.turns.push({ role: 'ai', text: reply.message });
           setMessages((m) => [...m, { role: 'ai', text: reply.message as string }]);
         }
-        if (reply.report) practice.report = reply.report;
-        if (reply.status === 'complete') setDone(true);
+        if (reply.status === 'complete') {
+          setDone(true);
+          // 카드는 대화가 정리되는 순간 응답에 실려 온다(웹과 같은 계약).
+          // 따로 확인받지 않고 바로 넘긴다.
+          if (reply.report) {
+            practice.report = reply.report;
+            router.replace('/report');
+          }
+        }
       } else {
         setError(result.message);
       }
@@ -148,32 +154,15 @@ export default function CoachScreen() {
         if (reply.status !== 'complete') practice.questionCount += 1;
         setMessages((m) => [...m, { role: 'ai', text: message }]);
       }
-      // 대화가 정리되면 카드가 응답에 실려 온다. 확인 단계에서 다시 만들지 않는다.
-      if (reply.report) practice.report = reply.report;
-      if (reply.status === 'complete') setDone(true);
+      if (reply.status === 'complete') {
+        setDone(true);
+        if (reply.report) {
+          practice.report = reply.report;
+          router.replace('/report');
+        }
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : '전송에 실패했어요.');
-    } finally {
-      setWaiting(false);
-    }
-  };
-
-  const confirmFinding = async (confirmed: boolean) => {
-    if (!practice.coachSessionId) return;
-    const reason = rebuttal.trim();
-    if (!confirmed && !reason) return;
-    setWaiting(true);
-    setError(null);
-    try {
-      const response = await api.coachConfirm(
-        practice.coachSessionId,
-        confirmed,
-        confirmed ? undefined : reason,
-      );
-      practice.report = response.report;
-      router.push('/report');
-    } catch (err) {
-      setError(err instanceof Error ? err.message : '오늘 정리를 만들지 못했어요.');
     } finally {
       setWaiting(false);
     }
@@ -241,24 +230,11 @@ export default function CoachScreen() {
 
         {done ? (
           <View>
-            <Text style={styles.confirmTitle}>코치가 짚은 지점이 지금은 맞게 느껴지나요?</Text>
-            <Pressable style={styles.reportButton} onPress={() => void confirmFinding(true)}>
-              <Text style={styles.reportButtonText}>이제 맞아요</Text>
-            </Pressable>
-            <TextInput
-              style={styles.rebuttalInput}
-              placeholder="어떤 점이 다른지 적어 주세요"
-              placeholderTextColor={palette.textDim}
-              value={rebuttal}
-              onChangeText={setRebuttal}
-              multiline
-            />
-            <Pressable
-              style={[styles.reportButton, !rebuttal.trim() && styles.sendDisabled]}
-              disabled={!rebuttal.trim()}
-              onPress={() => void confirmFinding(false)}>
-              <Text style={styles.reportButtonText}>아직 달라요</Text>
-            </Pressable>
+            {/* status 는 complete 인데 카드가 안 온 경우(막힌 대화 등). 확인 단계를
+                따로 두지 않는다 — 웹도 카드가 오면 바로 넘어간다. */}
+            <Text style={styles.confirmTitle}>
+              오늘 대화는 여기까지예요. 정리가 만들어지면 바로 보여드릴게요.
+            </Text>
           </View>
         ) : (
           <View>
@@ -365,27 +341,11 @@ const styles = StyleSheet.create({
   },
   sendDisabled: { opacity: 0.4 },
   sendText: { color: '#fff', fontWeight: '700' },
-  reportButton: {
-    margin: 12,
-    backgroundColor: palette.blue,
-    borderRadius: 16,
-    padding: 17,
-    alignItems: 'center',
-  },
-  reportButtonText: { color: '#FFFFFF', fontSize: 16, fontWeight: '800' },
   confirmTitle: {
     color: palette.text,
     fontSize: 15,
     fontWeight: '800',
     textAlign: 'center',
     marginTop: 12,
-  },
-  rebuttalInput: {
-    marginHorizontal: 12,
-    minHeight: 88,
-    borderRadius: 16,
-    backgroundColor: palette.bgSoft,
-    padding: 14,
-    color: palette.text,
   },
 });
