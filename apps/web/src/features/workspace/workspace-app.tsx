@@ -295,12 +295,18 @@ function WorkspaceInner() {
     const completed = completedCoachReport(turn);
     setCoachDone(turn.status === "complete");
     if (completed) {
+      // 노트는 받아 두되 화면은 그대로 둔다 — 마지막 인사를 읽고 배우가 직접 넘어간다.
       setReport(completed);
-      setMode("note");
-      countStepOnce(activeIdRef.current, "result");
       void refreshList();
     }
-  }, [countStepOnce, refreshList]);
+  }, [refreshList]);
+
+  // 대화를 끝낸 뒤 배우가 직접 누를 때만 노트로 넘긴다. 지난 연습을 여는 경로는
+  // 이미 노트가 목적지라 여기를 거치지 않는다.
+  const openNote = useCallback(() => {
+    setMode("note");
+    countStepOnce(activeIdRef.current, "result");
+  }, [countStepOnce]);
 
   const restoreCoach = useCallback((turn: CoachTurnResponse) => {
     coachIdRef.current = turn.session_id;
@@ -315,12 +321,12 @@ function WorkspaceInner() {
     const completed = completedCoachReport(turn);
     setCoachDone(turn.status === "complete");
     if (completed) {
+      // 첫 응답이 곧바로 complete 로 오는 경우다. 재개 응답은 항상 continue 라 여기 오지 않는다.
+      // 이때도 화면은 그대로 두고 배우가 정리보기를 누를 때 넘긴다.
       setReport(completed);
-      setMode("note");
-      countStepOnce(activeIdRef.current, "result");
       void refreshList();
     }
-  }, [countStepOnce, refreshList]);
+  }, [refreshList]);
 
   const coordinatorFor = useCallback((practiceSessionId: string) => {
     if (coachCoordinatorRef.current?.sessionId === practiceSessionId) {
@@ -727,7 +733,7 @@ function WorkspaceInner() {
           <p className="min-w-0 flex-1 truncate text-[15px] font-black tracking-[-0.03em]">
             {detail?.situation?.trim() || "새 연습"}
           </p>
-          <StatusChip mode={mode} />
+          <StatusChip mode={mode} done={coachDone} />
           {activeId ? (
             <div className="ml-auto flex shrink-0 items-center gap-2">
               <button
@@ -791,6 +797,9 @@ function WorkspaceInner() {
                 error={error}
                 scrollRef={chatScrollRef}
                 onSend={() => void send()}
+                done={coachDone}
+                noteReady={report !== null}
+                onOpenNote={openNote}
               />
             )}
           </div>
@@ -1453,6 +1462,9 @@ function ChatPanel({
   error,
   scrollRef,
   onSend,
+  done,
+  noteReady,
+  onOpenNote,
 }: {
   messages: ChatMsg[];
   answer: string;
@@ -1462,13 +1474,16 @@ function ChatPanel({
   error: string | null;
   scrollRef: React.RefObject<HTMLDivElement | null>;
   onSend: () => void;
+  done: boolean;
+  noteReady: boolean;
+  onOpenNote: () => void;
 }) {
   return (
     <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-[18px] bg-white shadow-[0_12px_36px_rgba(25,31,40,0.06)] sm:rounded-[20px]">
       <div className="flex items-center gap-3 border-b border-[#edf0f3] px-4 py-3 sm:px-5">
         <span className="flex items-center gap-2 text-xs font-black text-[#4e5968] sm:text-[13.5px]">
           <span className="h-1.5 w-1.5 rounded-full bg-[#03b26c]" />
-          현재 장면을 바탕으로 질문하고 있어요
+          {done ? "이번 대화는 여기까지예요" : "현재 장면을 바탕으로 질문하고 있어요"}
         </span>
       </div>
       <div
@@ -1496,33 +1511,51 @@ function ChatPanel({
       </div>
 
       <div className="border-t border-[#edf0f3] p-3 sm:p-3.5">
-        <p className="mb-2 text-xs font-semibold text-[#8b95a1]">
-          &apos;그만&apos;이라고 쓰면 언제든 마칠 수 있어요
-        </p>
-        <div className="flex items-center gap-2.5">
-          <input
-            value={answer}
-            disabled={!inputEnabled}
-            placeholder="답을 편하게 적어 주세요"
-            onChange={(event) => setAnswer(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" && !event.nativeEvent.isComposing && answer.trim() && inputEnabled) {
-                event.preventDefault();
-                onSend();
-              }
-            }}
-            className="h-12 min-w-0 flex-1 rounded-full border border-[#e5e8eb] bg-[#f8fbff] px-5 text-base font-semibold outline-none transition placeholder:text-[#b0b8c1] focus:border-[#3182f6] focus:bg-white disabled:bg-[#f2f4f6] sm:h-14"
-          />
-          <button
-            type="button"
-            onClick={onSend}
-            disabled={!inputEnabled || !answer.trim()}
-            aria-label="답변 보내기"
-            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#3182f6] text-lg font-black text-white shadow-[0_8px_20px_rgba(49,130,246,0.24)] transition hover:bg-[#1b64da] disabled:bg-[#c9d3df] disabled:shadow-none sm:h-14 sm:w-14"
-          >
-            ↑
-          </button>
-        </div>
+        {done ? (
+          <div className="flex flex-col items-center gap-3 py-1">
+            <p role="status" className="text-sm font-semibold text-[#4e5968]">
+              {noteReady ? "지금까지 이야기한 걸 정리해 뒀어요." : "정리하고 있어요…"}
+            </p>
+            <button
+              type="button"
+              onClick={onOpenNote}
+              disabled={!noteReady}
+              className="min-h-12 w-full rounded-2xl bg-[#3182f6] px-6 py-3 text-sm font-black text-white transition hover:bg-[#1b64da] disabled:bg-[#c9d3df] sm:w-auto sm:min-w-[220px]"
+            >
+              정리보기
+            </button>
+          </div>
+        ) : (
+          <>
+            <p className="mb-2 text-xs font-semibold text-[#8b95a1]">
+              &apos;그만&apos;이라고 쓰면 언제든 마칠 수 있어요
+            </p>
+            <div className="flex items-center gap-2.5">
+              <input
+                value={answer}
+                disabled={!inputEnabled}
+                placeholder="답을 편하게 적어 주세요"
+                onChange={(event) => setAnswer(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" && !event.nativeEvent.isComposing && answer.trim() && inputEnabled) {
+                    event.preventDefault();
+                    onSend();
+                  }
+                }}
+                className="h-12 min-w-0 flex-1 rounded-full border border-[#e5e8eb] bg-[#f8fbff] px-5 text-base font-semibold outline-none transition placeholder:text-[#b0b8c1] focus:border-[#3182f6] focus:bg-white disabled:bg-[#f2f4f6] sm:h-14"
+              />
+              <button
+                type="button"
+                onClick={onSend}
+                disabled={!inputEnabled || !answer.trim()}
+                aria-label="답변 보내기"
+                className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#3182f6] text-lg font-black text-white shadow-[0_8px_20px_rgba(49,130,246,0.24)] transition hover:bg-[#1b64da] disabled:bg-[#c9d3df] disabled:shadow-none sm:h-14 sm:w-14"
+              >
+                ↑
+              </button>
+            </div>
+          </>
+        )}
       </div>
       {error ? (
         <p role="alert" className="border-t border-[#edf0f3] px-4 py-3 text-sm font-bold text-[#e42939]">
@@ -1640,7 +1673,7 @@ function NotePanel({
   );
 }
 
-function StatusChip({ mode }: { mode: Mode }) {
+function StatusChip({ mode, done }: { mode: Mode; done: boolean }) {
   if (mode === "prep" || mode === "blockage") return null;
   const map: Record<Exclude<Mode, "prep" | "blockage">, [string, string]> = {
     uploading: ["업로드 중", "bg-[#e8f3ff] text-[#3182f6]"],
@@ -1648,7 +1681,10 @@ function StatusChip({ mode }: { mode: Mode }) {
     chat: ["질문 대화 중", "bg-[#e8f3ff] text-[#3182f6]"],
     note: ["연습 노트", "bg-[#e5f8ef] text-[#009959]"],
   };
-  const [label, tone] = map[mode];
+  // 대화가 끝나도 노트로 넘어가기 전까지는 mode 가 chat 이다. 그동안 "대화 중"이라고
+  // 하면 화면과 어긋나므로 끝났다고 말한다.
+  const [label, tone] =
+    mode === "chat" && done ? ["대화 마침", "bg-[#e5f8ef] text-[#009959]"] : map[mode];
   return (
     <span className={`shrink-0 rounded-full px-2.5 py-1 text-[11.5px] font-black ${tone}`}>
       {label}
