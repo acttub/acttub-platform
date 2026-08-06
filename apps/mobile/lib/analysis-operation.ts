@@ -387,6 +387,17 @@ export type AnalysisUpload = {
     character: string;
     goal: string;
   };
+  /**
+   * 배우가 고른 막히는 지점. 서버가 이 값으로 분석 코치와 표현 코치를 가른다.
+   *
+   * 이어받은 분석(앱을 껐다 켠 뒤 등)에는 없을 수 있어 null 을 허용하고, 그때는
+   * 서버 기본값('그 외')으로 보낸다.
+   */
+  blockage: {
+    blockage_kind: string;
+    sub_branch: string;
+    blockage_detail: string | null;
+  } | null;
   video: {
     uri: string;
     name: string;
@@ -431,6 +442,7 @@ export type AnalysisPipelineDependencies = ExistingSessionDependencies & {
     input: {
       upload_intent_id: string;
       scene: AnalysisUpload['scene'];
+      blockage: NonNullable<AnalysisUpload['blockage']>;
     },
     signal: AbortSignal,
   ) => Promise<{ session_id: string; status: AnalysisSessionStatus }>;
@@ -524,6 +536,12 @@ export async function runAnalysisPipeline({
         {
           upload_intent_id: intent.intent_id,
           scene: upload.scene,
+          // 고르지 않고 이어받은 분석은 서버 기본값으로 떨어뜨린다.
+          blockage: upload.blockage ?? {
+            blockage_kind: '그 외',
+            sub_branch: '그 외',
+            blockage_detail: null,
+          },
         },
         operation.signal,
       );

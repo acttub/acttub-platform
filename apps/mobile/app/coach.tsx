@@ -74,7 +74,18 @@ export default function CoachScreen() {
       if (result.ok) {
         const reply = result.response;
         practice.coachSessionId = reply.session_id;
-        practice.questionCount = 0;
+        // 서버는 열린 대화가 있으면 그대로 돌려준다. 앱을 껐다 켜도 하던 대화가
+        // 이어지도록 지난 턴을 화면에 복원한다 — 안 하면 빈 화면에서 다시 시작한
+        // 것처럼 보이는데 서버는 이어받은 상태라 질문이 중간부터 나온다.
+        const restored = reply.turns ?? [];
+        practice.turns = [...restored];
+        practice.questionCount = restored.filter((turn) => turn.role === 'ai').length;
+        setMessages(restored.map((turn) => ({ role: turn.role, text: turn.text })));
+        if (reply.message !== null && !restored.some((t) => t.text === reply.message)) {
+          practice.turns.push({ role: 'ai', text: reply.message });
+          setMessages((m) => [...m, { role: 'ai', text: reply.message as string }]);
+        }
+        if (reply.report) practice.report = reply.report;
         if (reply.status === 'complete') setDone(true);
       } else {
         setError(result.message);
@@ -137,6 +148,8 @@ export default function CoachScreen() {
         if (reply.status !== 'complete') practice.questionCount += 1;
         setMessages((m) => [...m, { role: 'ai', text: message }]);
       }
+      // 대화가 정리되면 카드가 응답에 실려 온다. 확인 단계에서 다시 만들지 않는다.
+      if (reply.report) practice.report = reply.report;
       if (reply.status === 'complete') setDone(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : '전송에 실패했어요.');

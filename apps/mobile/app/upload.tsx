@@ -103,9 +103,12 @@ export default function UploadScreen() {
           },
           video,
           durationMs,
+          // 막히는 지점은 다음 화면에서 고른다. 여기서 채우면 분기가 늘 '그 외'가 된다.
+          blockage: null,
         });
       },
-      () => router.replace('/analyzing'),
+      // 분석 전에 막히는 지점을 먼저 고른다 — 서버가 그 값으로 코치를 가른다.
+      () => router.replace('/blockage'),
     );
   };
 

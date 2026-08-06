@@ -75,7 +75,7 @@ test('M8: coachStart 첫 실패 후 같은 helper를 재호출하면 성공한�
   assert.equal(calls, 2);
 });
 
-test('M8: coachStart는 빈 대화를 열고 배우 첫 reply 전에는 코치 말풍선을 만들지 않는다', () => {
+test('M8: coachStart는 열린 대화를 화면에 복원한다', () => {
   const apiSource = readMobile('lib/api.ts');
   const coachSource = readMobile('app/coach.tsx');
   const startBlock = coachSource.slice(
@@ -83,10 +83,13 @@ test('M8: coachStart는 빈 대화를 열고 배우 첫 reply 전에는 코치 �
     coachSource.indexOf('useEffect(() => {', coachSource.indexOf('const startCoach = useCallback')),
   );
 
+  // 서버가 열린 대화를 그대로 돌려주므로(이어받기), 앱은 지난 턴을 다시 그려야 한다.
+  // 안 그리면 화면은 비어 있는데 서버는 이어받은 상태라 질문이 중간부터 나온다.
   assert.match(apiSource, /message: string \| null;/);
+  assert.match(apiSource, /report: PracticeReport \| null;/);
   assert.match(startBlock, /practice\.coachSessionId = reply\.session_id;/);
-  assert.match(startBlock, /practice\.questionCount = 0;/);
-  assert.doesNotMatch(startBlock, /turns\.push|setMessages/);
+  assert.match(startBlock, /reply\.turns/);
+  assert.match(startBlock, /setMessages\(restored/);
   assert.match(coachSource, /막히는 대목을 그대로 적어 주세요\./);
 });
 
