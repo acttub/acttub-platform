@@ -173,11 +173,11 @@ S3 업로드 완료 확인. 서버가 S3 HEAD로 객체 존재·크기 일치를
 
 연습 세션 생성 + 분석 **비동기** 시작.
 
-**요청**: `{"upload_intent_id": "...", "situation": "...", "character_context": "...", "subtext": "..."}`
+**요청**: `{"upload_intent_id": "...", "situation": "...", "character_context": "...", "goal": "...", "blockage_kind": "분석", "sub_branch": "대사 분석", "blockage_detail": "..."}`
 
 **응답 202**: `{"session_id": "...", "status": "analyzing"}`
 
-분석은 백그라운드 워커가 수행하며(수 분 소요), 완료 여부는 `GET /v2/practice-sessions/{id}/status`를 **10초 간격** 폴링으로 확인합니다. 완료·실패로 정착한 뒤 상세 API를 한 번 조회합니다.
+분석은 백그라운드 워커가 수행합니다. 코칭은 분석 완료를 기다리지 않고 `session_id`로 즉시 시작할 수 있으며, 분석 상태가 필요한 화면만 `GET /v2/practice-sessions/{id}/status`를 폴링합니다.
 
 | 상태 코드 | 원인 |
 |---|---|
@@ -192,7 +192,7 @@ S3 업로드 완료 확인. 서버가 S3 HEAD로 객체 존재·크기 일치를
 내 세션 목록 (삭제된 것 제외, 최신순).
 
 ```json
-{"sessions": [{"session_id": "...", "status": "analyzed", "situation": "...", "character_context": "...", "subtext": "...", "created_at": "...", "updated_at": "..."}]}
+{"sessions": [{"session_id": "...", "status": "analyzed", "situation": "...", "character_context": "...", "goal": "...", "created_at": "...", "updated_at": "..."}]}
 ```
 
 ---
@@ -204,15 +204,15 @@ S3 업로드 완료 확인. 서버가 S3 HEAD로 객체 존재·크기 일치를
 ```json
 {
   "session_id": "...", "status": "analyzed",
-  "situation": "...", "character_context": "...", "subtext": "...",
+  "situation": "...", "character_context": "...", "goal": "...",
   "playback_url": "https://...(서명된 GET URL)",
   "created_at": "...", "updated_at": "...",
-  "summary": {"summary_id": "...", "observation": {...}, "summary": "...", "intent_alignment": "...", "key_moment": "...", "key_dimension": "...", "anomalies": [...]}
+  "summary": {"summary_id": "...", "observations": [{"start_ms": 120, "end_ms": 430, "label": "대사가 시작된다", "confidence": 0.9}], "uncertainties": []}
 }
 ```
 
 - `status`: `created | analyzing | analyzed | failed`
-- `summary`: **analyzed일 때만** 포함 (최신 분석 결과 + `summary_id` — `/v2/coach/start`에 사용)
+- `summary`: **analyzed일 때만** 포함하는 최신 관찰 팩. 관찰 0개도 정상입니다.
 - `error_code`: **failed일 때만** 포함 — `gemini_timeout` · `gemini_parse_error` · `unsupported_media` · `max_attempts_exceeded`
 - 없는·남의·삭제된 세션 404, S3 미설정 503
 
@@ -251,34 +251,33 @@ S3 업로드 완료 확인. 서버가 S3 HEAD로 객체 존재·크기 일치를
 
 ## POST /v2/coach/start
 
-분석 요약을 바탕으로 코칭 대화를 시작합니다. 동기 호출.
+분석이 끝난 연습 세션으로 코칭 대화를 시작합니다. 같은 연습 세션에 열린 코칭 대화가 있으면 가장 먼저 만든 대화와 전체 발화 기록을 이어받으며, 이때 새 코치 발화는 생성하지 않습니다. 분석 실패 세션은 영상 근거 없이 시작할 수 있습니다.
 
-**요청**: `{"summary_id": "<GET 세션 상세의 summary_id>"}`
+**요청**: `{"practice_session_id": "<연습 세션 ID>", "restart": false}` (`restart` 기본값은 `false`. `true`이면 기존 열린 코칭 대화를 닫고 새로 시작)
 
 **응답 200**:
 
 ```json
-{"session_id": "...", "action": "probe_intent", "utterance": "...", "focus_timestamp": "00:17", "done": false, "reason": null}
+{"session_id": "...", "message": "그 말을 지금 꺼내는 이유부터 볼게.", "status": "continue", "handoff": null, "report": null, "turns": [{"role": "actor", "text": "..."}, {"role": "ai", "text": "그 말을 지금 꺼내는 이유부터 볼게."}]}
 ```
-
-- `action`: `probe_intent | dig_cause | deflect | close`
-- `reason` (done=true일 때): `gap_stated | exhausted | limit | user_ended`
 
 | 상태 코드 | 원인 |
 |---|---|
-| 404 | 없는·남의 summary — `summary not found` |
-| 409 | 해당 연습 세션에 리포트가 이미 있음 — `report already exists for practice session` / 같은 X-Request-Id가 처리 중 — `request is still processing` |
+| 404 | 없는·남의 연습 세션 — `practice session not found` |
+| 409 | 분석이 아직 끝나지 않음 — `practice session analysis is not settled` / 해당 연습 세션에 리포트가 이미 있음 — `report already exists for practice session` / 같은 X-Request-Id가 처리 중 — `request is still processing` |
 | 502 | Gemini 응답 파싱 실패 |
 
 ---
 
 ## POST /v2/coach/reply
 
-배우의 답변을 전달하고 다음 코치 발화를 받습니다.
+코치의 첫 발화에 대한 배우의 답을 전달하고 다음 코치 발화를 받습니다.
 
-**요청**: `{"session_id": "...", "text": "..."}` → **응답 200**: `/v2/coach/start`와 동일 형태.
+**요청**: `{"session_id": "...", "text": "..."}`
 
-종료 규칙: 답변에 `그만`·`종료`·`끝` 포함 → `user_ended`, 질문 10회 도달 → `limit`, 종료된 세션에 재요청 → `action: "close", done: true`.
+**응답 200**: `{"session_id": "...", "message": "...", "status": "continue|complete", "handoff": null|{"id":"...","branch_kind":"analysis|expression"}, "report": null|<analysis|expression|blocked>, "turns": [{"role":"actor|ai","text":"..."}]}`. `turns`는 현재까지의 전체 발화를 저장 순서대로 반환합니다.
+
+종료 규칙: 답변에 `그만`·`종료`·`끝`이 포함되면 현재 대화로 handoff를 마무리한다. `status: complete`이면 서버가 handoff를 자동 확인하고 세션을 닫은 뒤 `report`를 같은 응답에 담는다.
 
 | 상태 코드 | 원인 |
 |---|---|
@@ -377,14 +376,11 @@ curl -X POST $BASE/v2/uploads/intents/<intent_id>/complete -H "Authorization: Be
 curl -X POST $BASE/v2/practice-sessions \
   -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
   -H "X-Request-Id: $(uuidgen)" \
-  -d '{"upload_intent_id": "<intent_id>", "situation": "이별 통보를 받은 직후", "character_context": "감정을 억누르는 30대 직장인", "subtext": "붙잡고 싶지만 자존심 때문에 말하지 못한다"}'
+  -d '{"upload_intent_id": "<intent_id>", "situation": "이별 통보를 받은 직후", "character_context": "감정을 억누르는 30대 직장인", "goal": "상대가 떠나지 못하게 한다", "blockage_kind": "분석", "sub_branch": "대사 분석", "blockage_detail": "왜 지금 말하는지 모르겠다"}'
 
-# 5. 분석 완료까지 10초 간격 폴링 → analyzed면 summary_id 획득
-curl $BASE/v2/practice-sessions/<session_id> -H "Authorization: Bearer $TOKEN"
-
-# 6. 코칭 시작·답변
+# 5. 분석 완료를 기다리지 않고 코칭 시작·답변
 curl -X POST $BASE/v2/coach/start -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" -d '{"summary_id": "<summary_id>"}'
+  -H "Content-Type: application/json" -d '{"practice_session_id": "<session_id>"}'
 curl -X POST $BASE/v2/coach/reply -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" -d '{"session_id": "<coach_session_id>", "text": "긴장해서 그랬어요"}'
 

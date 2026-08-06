@@ -13,11 +13,12 @@ import {
   pollSessionUntilSettled,
 } from "../../lib/api/v2/sessions";
 import { startCoach, replyCoach } from "../../lib/api/v2/coach";
-import { createReport } from "../../lib/api/v2/reports";
-import type { ActingReport, CoachTurnResponse } from "../../lib/api/v2/types";
+import type { CoachTurnResponse, PracticeReport } from "../../lib/api/v2/types";
 import { prepareVideoUpload } from "../../lib/media/upload-preflight";
 import { REVIEW_FORM_URL } from "../../lib/config/env";
 import { analysisFailure } from "./analysis-failure";
+import { completedCoachReport } from "./coach-contract";
+import { PracticeReportCards } from "./practice-report-cards";
 
 type Phase = "input" | "analyzing" | "coaching" | "done";
 type ChatMsg = { role: "ai" | "me"; text: string };
@@ -137,9 +138,7 @@ function PracticeSingleInner() {
 
   const sessionIdRef = useRef<string | null>(null);
   const [reportOpen, setReportOpen] = useState(false);
-  const [report, setReport] = useState<ActingReport | null>(null);
-  const [reportCount, setReportCount] = useState(1);
-  const [reportBusy, setReportBusy] = useState(false);
+  const [report, setReport] = useState<PracticeReport | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const chatScrollRef = useRef<HTMLDivElement | null>(null);
@@ -274,10 +273,18 @@ function PracticeSingleInner() {
   };
 
   const pushAi = (turn: CoachTurnResponse) => {
-    // 코치 세션 id는 매 응답마다 회전할 수 있어 다음 reply/report에 최신 값을 쓴다
+    // 코치 세션 id는 매 응답마다 회전할 수 있어 다음 reply에 최신 값을 쓴다
     sessionIdRef.current = turn.session_id;
-    setMessages((m) => [...m, { role: "ai", text: turn.utterance }]);
-    if (turn.done) setPhase("done");
+    const message = turn.message;
+    if (message !== null) {
+      setMessages((m) => [...m, { role: "ai", text: message }]);
+    }
+    const completed = completedCoachReport(turn);
+    if (completed) {
+      setReport(completed);
+      setReportOpen(true);
+      setPhase("done");
+    }
   };
 
   const onBegin = useCallback(async () => {
@@ -314,8 +321,10 @@ function PracticeSingleInner() {
           upload_intent_id: intentId,
           situation,
           character_context: character,
-          goal,  // 아직 스펙에 없다(로컬 변경) → 아래 캐스팅으로 통과시킨다
-        } as unknown as Parameters<typeof createPracticeSession>[0],
+          goal,
+          blockage_kind: "그 외",
+          sub_branch: "그 외",
+        },
         { signal: controller.signal },
       );
       setPendingSessionId(session.session_id);
@@ -336,9 +345,9 @@ function PracticeSingleInner() {
         giveUpTimer.current = null;
       }
       if (detail.status === "failed") throw new Error(analysisFailure(detail.error_code).message);
-      const summaryId = detail.summary?.summary_id;
-      if (!summaryId) throw new Error("분석 요약을 불러오지 못했어요.");
-      const { data: start } = await startCoach({ summary_id: summaryId });
+      const { data: start } = await startCoach({
+        practice_session_id: session.session_id,
+      });
       if (controller.signal.aborted || uploadControllerRef.current !== controller) return;
       stopWaiting();
       setPhase("coaching");
@@ -378,22 +387,6 @@ function PracticeSingleInner() {
       setSending(false);
     }
   }, [chatInput, sending]);
-
-  const onOpenReport = useCallback(async () => {
-    if (!sessionIdRef.current) return;
-    setReportBusy(true);
-    setReportOpen(true);
-    try {
-      const { data } = await createReport({ session_id: sessionIdRef.current });
-      setReport(data.report);
-      setReportCount(data.report_count);
-    } catch {
-      setError("연습 노트를 만들지 못했어요. 잠시 후 다시 시도해 주세요.");
-      setReportOpen(false);
-    } finally {
-      setReportBusy(false);
-    }
-  }, []);
 
   if (!ready) return <div className="min-h-dvh bg-white" aria-busy="true" />;
 
@@ -538,13 +531,14 @@ function PracticeSingleInner() {
           </div>
 
           {phase === "done" ? (
-            <div className="border-t border-[#edf0f3] p-3">
-              <button type="button" onClick={onOpenReport} className="h-11 w-full rounded-2xl bg-[#3182f6] text-sm font-black text-white shadow-[0_8px_20px_rgba(49,130,246,0.24)] transition hover:bg-[#1b64da]">대화를 바탕으로 연습 노트 보기</button>
-            </div>
+            <p role="status" className="border-t border-[#edf0f3] p-4 text-sm font-semibold text-[#4e5968]">연습 노트로 이동하고 있어요…</p>
           ) : phase === "coaching" ? (
-            <div className="flex gap-2 border-t border-[#edf0f3] p-3">
-              <textarea value={chatInput} onChange={(e) => setChatInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); void onSend(); } }} rows={1} placeholder="답을 편하게 적어 주세요" className="h-11 flex-1 resize-none rounded-2xl border border-[#e5e8eb] bg-[#f8fbff] px-3.5 py-2.5 text-[13.5px] font-semibold outline-none focus:border-[#3182f6] focus:bg-white" />
-              <button type="button" onClick={() => void onSend()} disabled={sending || !chatInput.trim()} className="w-11 shrink-0 rounded-2xl bg-[#3182f6] text-lg font-black text-white transition hover:bg-[#1b64da] disabled:bg-[#c9d3df]">↑</button>
+            <div className="border-t border-[#edf0f3] p-3">
+              <p className="mb-2 text-xs font-semibold text-[#8b95a1]">&apos;그만&apos;이라고 쓰면 언제든 마칠 수 있어요</p>
+              <div className="flex gap-2">
+                <textarea value={chatInput} onChange={(e) => setChatInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); void onSend(); } }} rows={1} placeholder="답을 편하게 적어 주세요" className="h-11 flex-1 resize-none rounded-2xl border border-[#e5e8eb] bg-[#f8fbff] px-3.5 py-2.5 text-[13.5px] font-semibold outline-none focus:border-[#3182f6] focus:bg-white" />
+                <button type="button" onClick={() => void onSend()} disabled={sending || !chatInput.trim()} className="w-11 shrink-0 rounded-2xl bg-[#3182f6] text-lg font-black text-white transition hover:bg-[#1b64da] disabled:bg-[#c9d3df]">↑</button>
+              </div>
             </div>
           ) : null}
         </section>
@@ -575,30 +569,26 @@ function PracticeSingleInner() {
           <div className="flex max-h-[86vh] w-full max-w-xl flex-col overflow-hidden rounded-[28px] bg-white shadow-[0_24px_70px_rgba(25,31,40,0.25)]">
             <div className="flex items-start justify-between px-6 pb-3 pt-6">
               <div>
-                <span className="text-xs font-black text-[#3182f6]">{reportCount}번째 연습 노트</span>
-                <h2 className="mt-1.5 text-xl font-black tracking-[-0.04em]">{report?.headline ?? (reportBusy ? "연습 노트를 정리하는 중…" : "연습 노트")}</h2>
+                <span className="text-xs font-black text-[#3182f6]">오늘 정리</span>
+                <h2 className="mt-1.5 text-xl font-black tracking-[-0.04em]">이번 연기에서 찾은 것</h2>
               </div>
               <button type="button" onClick={() => setReportOpen(false)} className="text-2xl leading-none text-[#8b95a1]">✕</button>
             </div>
             <div className="grid gap-3 overflow-y-auto px-6 pb-6">
-              {reportBusy && !report ? (
-                <p className="rounded-2xl bg-[#f8fbff] px-4 py-8 text-center text-sm font-semibold text-[#8b95a1]">대화를 정리하고 있어요…</p>
-              ) : report ? (
-                <>
-                  <article className="rounded-3xl border border-[#dce9ff] bg-[#f7faff] p-5">
-                    <p className="text-xs font-black text-[#3182f6]">다시 본 순간</p>
-                    <h3 className="mt-1.5 text-base font-black tracking-[-0.02em]">영상에서 눈에 남은 곳</h3>
-                    <p className="mt-2 inline-flex rounded-full bg-white px-3 py-1.5 text-sm font-black text-[#4e5968]">{report.biggest_problem.start} – {report.biggest_problem.end} · {report.biggest_problem.dimension}</p>
-                    <p className="mt-3 whitespace-pre-wrap text-[13px] font-semibold leading-6 text-[#333d4b]">{report.biggest_problem.description}</p>
-                  </article>
-                  <ReportCard eyebrow="대화에서 확인한 것" title="영상과 답변에서" body={report.evidence} />
-                  <ReportCard eyebrow="배우가 스스로 남긴 문장" title="대화에서 붙잡은 말" body={report.self_discovery} />
-                  <ReportCard eyebrow="다음 테이크" title="배우가 고른 한 문장" body={report.next_step} tone="blue" />
-                </>
-              ) : null}
+              {report?.report_type === "blocked" ? (
+                <div className="grid gap-3">
+                  {messages.map((message, index) => (
+                    <div key={`${message.role}-${index}`} className="rounded-2xl bg-[#f8fbff] px-4 py-3">
+                      <p className="text-xs font-black text-[#8b95a1]">{message.role === "me" ? "나" : "코치"}</p>
+                      <p className="mt-1 whitespace-pre-wrap text-sm font-semibold leading-6 text-[#333d4b]">{message.text}</p>
+                    </div>
+                  ))}
+                  <p className="rounded-2xl bg-[#e8f3ff] px-4 py-3 text-sm font-bold leading-6 text-[#1b64da]">아직 한 번도 해보지 않아서 정리할 게 부족해요. 대화로 돌아가 한 번만 시도해 볼까요?</p>
+                </div>
+              ) : report ? <PracticeReportCards report={report} /> : null}
             </div>
             <div className="flex gap-2.5 border-t border-[#edf0f3] px-6 py-4">
-              <button type="button" onClick={() => setReportOpen(false)} className="h-11 flex-1 rounded-2xl bg-[#f8fbff] text-sm font-black text-[#4e5968] transition hover:bg-[#eef2f6]">뒤 화면 보기</button>
+              <button type="button" onClick={() => setReportOpen(false)} className="h-11 flex-1 rounded-2xl bg-[#f8fbff] text-sm font-black text-[#4e5968] transition hover:bg-[#eef2f6]">{report?.report_type === "blocked" ? "대화로 돌아가기" : "뒤 화면 보기"}</button>
               {/* 새 창으로 연다 — 같은 탭에서 나가면 화면에 떠 있는 연습 노트가 사라져
                   후기를 적고 돌아와도 방금 본 노트를 다시 볼 수 없다 */}
               <a href={REVIEW_FORM_URL} target="_blank" rel="noopener noreferrer" aria-label="연습 마치고 후기 남기기 (새 창)" className="flex h-11 flex-1 items-center justify-center rounded-2xl bg-[#3182f6] text-sm font-black text-white transition hover:bg-[#1b64da]">연습 마치기 ↗</a>
@@ -616,15 +606,5 @@ function Field({ label, value, onChange, disabled, placeholder }: { label: strin
       <label className="mb-1.5 block text-xs font-black text-[#333d4b]">{label}</label>
       <input value={value} onChange={(e) => onChange(e.target.value)} disabled={disabled} placeholder={placeholder} className="w-full rounded-2xl border border-[#e5e8eb] bg-[#f8fbff] px-3 py-2.5 text-sm font-semibold outline-none transition placeholder:text-[#b0b8c1] focus:border-[#3182f6] focus:bg-white focus:ring-4 focus:ring-[#e8f3ff]" />
     </div>
-  );
-}
-
-function ReportCard({ eyebrow, title, body, tone = "gray" }: { eyebrow: string; title: string; body: string; tone?: "gray" | "blue" }) {
-  return (
-    <article className={`rounded-3xl border p-5 ${tone === "blue" ? "border-[#dce9ff] bg-[#f7faff]" : "border-[#e5e8eb] bg-white"}`}>
-      <p className="text-xs font-black text-[#3182f6]">{eyebrow}</p>
-      <h3 className="mt-1.5 text-base font-black tracking-[-0.02em]">{title}</h3>
-      <p className="mt-2 whitespace-pre-wrap text-[13px] font-semibold leading-6 text-[#4e5968]">{body}</p>
-    </article>
   );
 }

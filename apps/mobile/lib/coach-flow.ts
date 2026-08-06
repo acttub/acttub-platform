@@ -19,11 +19,11 @@ export type CoachStartResult<T> =
   | { ok: false; message: string };
 
 export async function attemptCoachStart<T>(
-  summaryId: string,
-  start: (summaryId: string) => Promise<T>,
+  practiceSessionId: string,
+  start: (practiceSessionId: string) => Promise<T>,
 ): Promise<CoachStartResult<T>> {
   try {
-    return { ok: true, response: await start(summaryId) };
+    return { ok: true, response: await start(practiceSessionId) };
   } catch {
     return {
       ok: false,

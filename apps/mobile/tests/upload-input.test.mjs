@@ -78,11 +78,11 @@ test('F10: 분석 시작이 막혀 있으면 빠진 항목을 한 줄로 알려�
     missingUploadFieldsHint({
       situation: '',
       character: '',
-      subtext: '',
+      goal: '',
       hasVideo: false,
       agreedRights: false,
     }),
-    '영상 · 상황 · 인물 · 의도를 채워주세요',
+    '영상 · 상황 · 인물 · 목표를 채워주세요',
   );
 });
 
@@ -91,7 +91,7 @@ test('F10: 입력이 다 찼고 체크만 남았으면 체크를 안내한다', 
     missingUploadFieldsHint({
       situation: '카페',
       character: '20대 여성',
-      subtext: '무너지는 순간',
+      goal: '무너지는 순간',
       hasVideo: true,
       agreedRights: false,
     }),
@@ -104,7 +104,7 @@ test('F10: 공백만 입력한 칸은 채운 것으로 보지 않는다', () => 
     missingUploadFieldsHint({
       situation: '   ',
       character: '20대 여성',
-      subtext: '무너지는 순간',
+      goal: '무너지는 순간',
       hasVideo: true,
       agreedRights: true,
     }),
@@ -117,7 +117,7 @@ test('F10: 전부 채우면 안내 문구가 없다', () => {
     missingUploadFieldsHint({
       situation: '카페',
       character: '20대 여성',
-      subtext: '무너지는 순간',
+      goal: '무너지는 순간',
       hasVideo: true,
       agreedRights: true,
     }),

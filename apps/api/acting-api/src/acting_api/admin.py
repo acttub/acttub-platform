@@ -56,7 +56,7 @@ class AdminSession(_Strict):
     close_reason: str | None
     situation: str | None
     character_context: str | None
-    subtext: str | None
+    goal: str | None
     turns: list[AdminTurn]
     video_url: str | None
 

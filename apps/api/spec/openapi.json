@@ -1673,6 +1673,70 @@
         }
       }
     },
+    "/v2/coach/confirm": {
+      "post": {
+        "tags": [
+          "v2-coach"
+        ],
+        "summary": "Coach Confirm",
+        "operationId": "coach_confirm_v2_coach_confirm_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-Request-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Request-Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CoachConfirmReq"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoachConfirmResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v2/reports": {
       "post": {
         "tags": [
@@ -1719,7 +1783,18 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CreateReportResponse"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/AnalysisReport"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ExpressionReport"
+                    },
+                    {
+                      "$ref": "#/components/schemas/BlockedReport"
+                    }
+                  ],
+                  "title": "Response 200 Create Report V2 Reports Post"
                 }
               }
             }
@@ -1812,48 +1887,60 @@
   },
   "components": {
     "schemas": {
-      "ActingReport": {
+      "ActorTraining": {
         "properties": {
-          "headline": {
+          "title": {
             "type": "string",
-            "title": "Headline"
+            "title": "Title"
           },
-          "biggest_problem": {
-            "$ref": "#/components/schemas/BiggestProblem"
-          },
-          "evidence": {
+          "purpose": {
             "type": "string",
-            "title": "Evidence"
+            "title": "Purpose"
           },
-          "self_discovery": {
-            "type": "string",
-            "title": "Self Discovery"
+          "duration_minutes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "title": "Duration Minutes"
           },
-          "encouragement": {
-            "type": "string",
-            "title": "Encouragement"
+          "steps": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Steps"
           },
-          "next_step": {
+          "focus": {
             "type": "string",
-            "title": "Next Step"
+            "title": "Focus"
           },
-          "comparison": {
+          "success_check": {
             "type": "string",
-            "title": "Comparison"
+            "title": "Success Check"
+          },
+          "tested": {
+            "type": "boolean",
+            "const": false,
+            "title": "Tested"
           }
         },
         "additionalProperties": false,
         "type": "object",
         "required": [
-          "headline",
-          "biggest_problem",
-          "evidence",
-          "self_discovery",
-          "encouragement",
-          "next_step",
-          "comparison"
+          "title",
+          "purpose",
+          "duration_minutes",
+          "steps",
+          "focus",
+          "success_check",
+          "tested"
         ],
-        "title": "ActingReport"
+        "title": "ActorTraining"
       },
       "AdmissionNotice": {
         "properties": {
@@ -2763,6 +2850,96 @@
         ],
         "title": "AdmissionsResponse"
       },
+      "AnalysisNextTake": {
+        "properties": {
+          "direction": {
+            "type": "string",
+            "title": "Direction"
+          },
+          "tested": {
+            "type": "boolean",
+            "const": false,
+            "title": "Tested"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "direction",
+          "tested"
+        ],
+        "title": "AnalysisNextTake"
+      },
+      "AnalysisReport": {
+        "properties": {
+          "report_type": {
+            "type": "string",
+            "const": "analysis",
+            "title": "Report Type"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "actor_discovery": {
+            "type": "string",
+            "title": "Actor Discovery"
+          },
+          "line_meaning": {
+            "type": "string",
+            "title": "Line Meaning"
+          },
+          "timing_reason": {
+            "type": "string",
+            "title": "Timing Reason"
+          },
+          "target_effect": {
+            "type": "string",
+            "title": "Target Effect"
+          },
+          "next_take": {
+            "$ref": "#/components/schemas/AnalysisNextTake"
+          },
+          "acting_caution": {
+            "type": "string",
+            "title": "Acting Caution"
+          },
+          "evidence": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Evidence"
+          },
+          "uncertainties": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Uncertainties"
+          },
+          "source_handoff_id": {
+            "type": "string",
+            "title": "Source Handoff Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "report_type",
+          "title",
+          "actor_discovery",
+          "line_meaning",
+          "timing_reason",
+          "target_effect",
+          "next_take",
+          "acting_caution",
+          "evidence",
+          "uncertainties",
+          "source_handoff_id"
+        ],
+        "title": "AnalysisReport"
+      },
       "AuthUser": {
         "properties": {
           "id": {
@@ -2846,35 +3023,6 @@
         "title": "AuthorPayload",
         "description": "익명이면 `id`·`nickname` 이 비고 `alias` 만 온다.\n\n익명 글에 실제 user id 를 실어 보내면 화면에 \"익명\" 이라 적혀 있어도 클라이언트가\n같은 id 로 다른 글과 묶는다. 그래서 아예 담지 않는다."
       },
-      "BiggestProblem": {
-        "properties": {
-          "start": {
-            "type": "string",
-            "title": "Start"
-          },
-          "end": {
-            "type": "string",
-            "title": "End"
-          },
-          "dimension": {
-            "type": "string",
-            "title": "Dimension"
-          },
-          "description": {
-            "type": "string",
-            "title": "Description"
-          }
-        },
-        "additionalProperties": false,
-        "type": "object",
-        "required": [
-          "start",
-          "end",
-          "dimension",
-          "description"
-        ],
-        "title": "BiggestProblem"
-      },
       "BlockListResponse": {
         "properties": {
           "blocks": {
@@ -2934,6 +3082,30 @@
         ],
         "title": "BlockRequest"
       },
+      "BlockedReport": {
+        "properties": {
+          "report_type": {
+            "type": "string",
+            "const": "blocked",
+            "title": "Report Type"
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "confirmed_analysis_handoff_required",
+              "confirmed_expression_handoff_required"
+            ],
+            "title": "Reason"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "report_type",
+          "reason"
+        ],
+        "title": "BlockedReport"
+      },
       "CategoryListResponse": {
         "properties": {
           "categories": {
@@ -2982,6 +3154,83 @@
         ],
         "title": "CategoryPayload"
       },
+      "CoachConfirmReq": {
+        "properties": {
+          "coach_session_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Coach Session Id"
+          },
+          "confirmed": {
+            "type": "boolean",
+            "title": "Confirmed"
+          },
+          "rebuttal_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rebuttal Text"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "coach_session_id",
+          "confirmed"
+        ],
+        "title": "CoachConfirmReq"
+      },
+      "CoachConfirmResponse": {
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Session Id"
+          },
+          "confirmed": {
+            "type": "boolean",
+            "title": "Confirmed"
+          },
+          "handoff": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PublicHandoff"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "report": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AnalysisReport"
+              },
+              {
+                "$ref": "#/components/schemas/ExpressionReport"
+              },
+              {
+                "$ref": "#/components/schemas/BlockedReport"
+              }
+            ],
+            "title": "Report"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "session_id",
+          "confirmed",
+          "handoff",
+          "report"
+        ],
+        "title": "CoachConfirmResponse"
+      },
       "CoachReplyReq": {
         "properties": {
           "session_id": {
@@ -2994,6 +3243,7 @@
             "title": "Text"
           }
         },
+        "additionalProperties": false,
         "type": "object",
         "required": [
           "session_id",
@@ -3003,16 +3253,21 @@
       },
       "CoachStartReq": {
         "properties": {
-          "summary_id": {
+          "practice_session_id": {
             "type": "string",
             "format": "uuid",
-            "title": "Summary Id"
+            "title": "Practice Session Id"
+          },
+          "restart": {
+            "type": "boolean",
+            "title": "Restart",
+            "default": false
           }
         },
         "additionalProperties": false,
         "type": "object",
         "required": [
-          "summary_id"
+          "practice_session_id"
         ],
         "title": "CoachStartReq"
       },
@@ -3023,55 +3278,62 @@
             "format": "uuid",
             "title": "Session Id"
           },
-          "action": {
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "status": {
             "type": "string",
             "enum": [
-              "probe_intent",
-              "dig_cause",
-              "deflect",
-              "close"
+              "continue",
+              "complete"
             ],
-            "title": "Action"
+            "title": "Status"
           },
-          "utterance": {
-            "type": "string",
-            "title": "Utterance"
-          },
-          "focus_timestamp": {
-            "type": "string",
-            "title": "Focus Timestamp"
-          },
-          "done": {
-            "type": "boolean",
-            "title": "Done"
-          },
-          "reason": {
+          "handoff": {
             "anyOf": [
               {
-                "type": "string",
-                "enum": [
-                  "gap_stated",
-                  "exhausted",
-                  "limit",
-                  "user_ended"
-                ]
+                "$ref": "#/components/schemas/PublicHandoff"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "report": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AnalysisReport"
+              },
+              {
+                "$ref": "#/components/schemas/ExpressionReport"
+              },
+              {
+                "$ref": "#/components/schemas/BlockedReport"
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Reason"
+            "title": "Report"
+          },
+          "turns": {
+            "items": {
+              "$ref": "#/components/schemas/PublicCoachTurn"
+            },
+            "type": "array",
+            "title": "Turns"
           }
         },
         "additionalProperties": false,
         "type": "object",
         "required": [
           "session_id",
-          "action",
-          "utterance",
-          "focus_timestamp",
-          "done",
-          "reason"
+          "message",
+          "status",
+          "handoff",
+          "report",
+          "turns"
         ],
         "title": "CoachTurnResponse"
       },
@@ -3305,23 +3567,121 @@
         ],
         "title": "ConsentType"
       },
-      "CreateReportResponse": {
+      "EffectiveExperiment": {
         "properties": {
-          "report": {
-            "$ref": "#/components/schemas/ActingReport"
+          "instruction": {
+            "type": "string",
+            "title": "Instruction"
           },
-          "report_count": {
-            "type": "integer",
-            "title": "Report Count"
+          "tested": {
+            "type": "boolean",
+            "const": true,
+            "title": "Tested"
           }
         },
         "additionalProperties": false,
         "type": "object",
         "required": [
-          "report",
-          "report_count"
+          "instruction",
+          "tested"
         ],
-        "title": "CreateReportResponse"
+        "title": "EffectiveExperiment"
+      },
+      "ExpressionReport": {
+        "properties": {
+          "report_type": {
+            "type": "string",
+            "const": "expression",
+            "title": "Report Type"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "blocked_point": {
+            "type": "string",
+            "title": "Blocked Point"
+          },
+          "expression_core": {
+            "type": "string",
+            "title": "Expression Core"
+          },
+          "line_meaning": {
+            "type": "string",
+            "title": "Line Meaning"
+          },
+          "timing_reason": {
+            "type": "string",
+            "title": "Timing Reason"
+          },
+          "playable_action": {
+            "type": "string",
+            "title": "Playable Action"
+          },
+          "effective_experiment": {
+            "$ref": "#/components/schemas/EffectiveExperiment"
+          },
+          "observed_change": {
+            "type": "string",
+            "title": "Observed Change"
+          },
+          "next_take": {
+            "type": "string",
+            "title": "Next Take"
+          },
+          "acting_trap": {
+            "type": "string",
+            "title": "Acting Trap"
+          },
+          "actor_training": {
+            "$ref": "#/components/schemas/ActorTraining"
+          },
+          "evidence": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Evidence"
+          },
+          "actor_words": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Actor Words"
+          },
+          "uncertainties": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Uncertainties"
+          },
+          "source_handoff_ids": {
+            "$ref": "#/components/schemas/SourceHandoffIds"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "report_type",
+          "title",
+          "blocked_point",
+          "expression_core",
+          "line_meaning",
+          "timing_reason",
+          "playable_action",
+          "effective_experiment",
+          "observed_change",
+          "next_take",
+          "acting_trap",
+          "actor_training",
+          "evidence",
+          "actor_words",
+          "uncertainties",
+          "source_handoff_ids"
+        ],
+        "title": "ExpressionReport"
       },
       "HTTPValidationError": {
         "properties": {
@@ -3471,6 +3831,66 @@
           "status"
         ],
         "title": "MeResponse"
+      },
+      "ObservationItem": {
+        "properties": {
+          "start_ms": {
+            "type": "integer",
+            "title": "Start Ms"
+          },
+          "end_ms": {
+            "type": "integer",
+            "title": "End Ms"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "confidence": {
+            "type": "number",
+            "title": "Confidence"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "start_ms",
+          "end_ms",
+          "label",
+          "confidence"
+        ],
+        "title": "ObservationItem"
+      },
+      "ObservationPackResponse": {
+        "properties": {
+          "summary_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Summary Id"
+          },
+          "observations": {
+            "items": {
+              "$ref": "#/components/schemas/ObservationItem"
+            },
+            "type": "array",
+            "title": "Observations"
+          },
+          "uncertainties": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Uncertainties"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "summary_id",
+          "observations",
+          "uncertainties"
+        ],
+        "title": "ObservationPackResponse"
       },
       "PostListResponse": {
         "properties": {
@@ -3723,9 +4143,33 @@
             "type": "string",
             "title": "Character Context"
           },
-          "subtext": {
+          "goal": {
             "type": "string",
-            "title": "Subtext"
+            "title": "Goal"
+          },
+          "blockage_kind": {
+            "type": "string",
+            "enum": [
+              "분석",
+              "표현",
+              "그 외"
+            ],
+            "title": "Blockage Kind"
+          },
+          "sub_branch": {
+            "type": "string",
+            "title": "Sub Branch"
+          },
+          "blockage_detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Blockage Detail"
           },
           "created_at": {
             "type": "string",
@@ -3744,7 +4188,7 @@
           "summary": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/SceneSummary"
+                "$ref": "#/components/schemas/ObservationPackResponse"
               },
               {
                 "type": "null"
@@ -3776,7 +4220,9 @@
           "status",
           "situation",
           "character_context",
-          "subtext",
+          "goal",
+          "blockage_kind",
+          "sub_branch",
           "created_at",
           "updated_at",
           "playback_url"
@@ -3808,9 +4254,33 @@
             "type": "string",
             "title": "Character Context"
           },
-          "subtext": {
+          "goal": {
             "type": "string",
-            "title": "Subtext"
+            "title": "Goal"
+          },
+          "blockage_kind": {
+            "type": "string",
+            "enum": [
+              "분석",
+              "표현",
+              "그 외"
+            ],
+            "title": "Blockage Kind"
+          },
+          "sub_branch": {
+            "type": "string",
+            "title": "Sub Branch"
+          },
+          "blockage_detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Blockage Detail"
           },
           "created_at": {
             "type": "string",
@@ -3830,7 +4300,9 @@
           "status",
           "situation",
           "character_context",
-          "subtext",
+          "goal",
+          "blockage_kind",
+          "sub_branch",
           "created_at",
           "updated_at"
         ],
@@ -3870,18 +4342,54 @@
             "minLength": 1,
             "title": "Character Context"
           },
-          "subtext": {
+          "goal": {
             "type": "string",
             "minLength": 1,
-            "title": "Subtext"
+            "title": "Goal"
+          },
+          "blockage_kind": {
+            "type": "string",
+            "enum": [
+              "분석",
+              "표현",
+              "그 외"
+            ],
+            "title": "Blockage Kind"
+          },
+          "sub_branch": {
+            "type": "string",
+            "enum": [
+              "캐릭터 분석",
+              "대사 분석",
+              "감정",
+              "움직임",
+              "화술",
+              "표정",
+              "그 외"
+            ],
+            "title": "Sub Branch"
+          },
+          "blockage_detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Blockage Detail"
           }
         },
+        "additionalProperties": false,
         "type": "object",
         "required": [
           "upload_intent_id",
           "situation",
           "character_context",
-          "subtext"
+          "goal",
+          "blockage_kind",
+          "sub_branch"
         ],
         "title": "PracticeSessionRequest"
       },
@@ -3921,6 +4429,53 @@
           "status"
         ],
         "title": "PracticeSessionStatusResponse"
+      },
+      "PublicCoachTurn": {
+        "properties": {
+          "role": {
+            "type": "string",
+            "enum": [
+              "actor",
+              "ai"
+            ],
+            "title": "Role"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "role",
+          "text"
+        ],
+        "title": "PublicCoachTurn"
+      },
+      "PublicHandoff": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "branch_kind": {
+            "type": "string",
+            "enum": [
+              "analysis",
+              "expression"
+            ],
+            "title": "Branch Kind"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "branch_kind"
+        ],
+        "title": "PublicHandoff"
       },
       "RefreshRequest": {
         "properties": {
@@ -3977,7 +4532,15 @@
             "title": "Created At"
           },
           "report": {
-            "$ref": "#/components/schemas/ActingReport"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AnalysisReport"
+              },
+              {
+                "$ref": "#/components/schemas/ExpressionReport"
+              }
+            ],
+            "title": "Report"
           },
           "playback_url": {
             "type": "string",
@@ -4023,9 +4586,17 @@
             "format": "uuid",
             "title": "Practice Session Id"
           },
-          "headline": {
+          "report_type": {
             "type": "string",
-            "title": "Headline"
+            "enum": [
+              "analysis",
+              "expression"
+            ],
+            "title": "Report Type"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
           },
           "created_at": {
             "type": "string",
@@ -4037,7 +4608,8 @@
         "type": "object",
         "required": [
           "practice_session_id",
-          "headline",
+          "report_type",
+          "title",
           "created_at"
         ],
         "title": "ReportRecord"
@@ -4105,91 +4677,31 @@
         ],
         "title": "ReportRequest"
       },
-      "SceneSummary": {
+      "SourceHandoffIds": {
         "properties": {
-          "summary_id": {
+          "analysis": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Analysis"
+          },
+          "expression": {
             "type": "string",
-            "format": "uuid",
-            "title": "Summary Id"
-          },
-          "observation": {
-            "anyOf": [
-              {
-                "additionalProperties": true,
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Observation"
-          },
-          "summary": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Summary"
-          },
-          "intent_alignment": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Intent Alignment"
-          },
-          "key_moment": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Key Moment"
-          },
-          "key_dimension": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Key Dimension"
-          },
-          "anomalies": {
-            "anyOf": [
-              {
-                "items": {
-                  "additionalProperties": true,
-                  "type": "object"
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Anomalies"
+            "title": "Expression"
           }
         },
-        "additionalProperties": true,
+        "additionalProperties": false,
         "type": "object",
         "required": [
-          "summary_id"
+          "analysis",
+          "expression"
         ],
-        "title": "SceneSummary"
+        "title": "SourceHandoffIds"
       },
       "TokenPairResponse": {
         "properties": {

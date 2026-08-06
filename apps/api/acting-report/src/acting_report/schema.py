@@ -1,45 +1,78 @@
-from pydantic import BaseModel, Field
+from __future__ import annotations
+
+from typing import Literal
+
+from pydantic import BaseModel, ConfigDict
 
 
-class BiggestProblem(BaseModel):
-    start: str = Field(description="문제 구간 시작 시점 (예: 00:12)")
-    end: str = Field(description="문제 구간 끝 시점. 순간이면 start와 같게.")
-    dimension: str = Field(description="어느 축의 문제인지 (템포/움직임/표정 등)")
-    description: str = Field(
-        description="뭐가 문제였는지 전문용어 없이 쉬운 말로. 판정·점수 표현 금지."
-    )
+class _StrictModel(BaseModel):
+    model_config = ConfigDict(extra="forbid")
 
 
-class ActingReport(BaseModel):
-    headline: str = Field(
-        description="오늘 연기 한 줄 총평. 따뜻한 톤, 점수·등급 없음."
-    )
-    biggest_problem: BiggestProblem = Field(
-        description="이번 영상에서 가장 큰 문제 딱 하나. 나머지 문제는 언급하지 않는다."
-    )
-    evidence: str = Field(
-        description="영상에서 관찰된 사실(시간·수치) + 대화에서 배우가 직접 한 말 인용"
-    )
-    self_discovery: str = Field(
-        description="대화에서 배우가 스스로 깨닫고 말한 것 정리. 없으면 대화에서 드러난 배우의 생각."
-    )
-    encouragement: str = Field(description="잘한 점 한 줄. 빈말 금지, 관찰 근거 기반.")
-    next_step: str = Field(
-        description="다음 연습에서 시도해볼 구체적인 것 딱 하나. 배우가 바로 실행 가능한 수준으로."
-    )
-    comparison: str = Field(
-        default="",
-        description="이전 리포트가 있으면 '저번엔 ~였는데 이번엔 ~' 식의 변화 비교. 이전 리포트가 없으면 빈 문자열.",
-    )
+class AnalysisNextTake(_StrictModel):
+    direction: str
+    tested: Literal[False]
 
 
-class ReportRecord(BaseModel):
-    """같은 사용자의 리포트 히스토리 한 건.
+class AnalysisReport(_StrictModel):
+    report_type: Literal["analysis"]
+    title: str
+    actor_discovery: str
+    line_meaning: str
+    timing_reason: str
+    target_effect: str
+    next_take: AnalysisNextTake
+    acting_caution: str
+    evidence: list[str]
+    uncertainties: list[str]
+    source_handoff_id: str
 
-    DB에서는 코칭 대화를 coach_turns에 별도로 유지한다.
-    """
 
-    created_at: str = Field(description="ISO8601 생성 시각")
-    session_id: str
-    practice_session_id: str = ""
-    report: ActingReport
+class EffectiveExperiment(_StrictModel):
+    instruction: str
+    tested: Literal[True]
+
+
+class ActorTraining(_StrictModel):
+    title: str
+    purpose: str
+    duration_minutes: int | float
+    steps: list[str]
+    focus: str
+    success_check: str
+    tested: Literal[False]
+
+
+class SourceHandoffIds(_StrictModel):
+    analysis: str | None
+    expression: str
+
+
+class ExpressionReport(_StrictModel):
+    report_type: Literal["expression"]
+    title: str
+    blocked_point: str
+    expression_core: str
+    line_meaning: str
+    timing_reason: str
+    playable_action: str
+    effective_experiment: EffectiveExperiment
+    observed_change: str
+    next_take: str
+    acting_trap: str
+    actor_training: ActorTraining
+    evidence: list[str]
+    actor_words: list[str]
+    uncertainties: list[str]
+    source_handoff_ids: SourceHandoffIds
+
+
+class BlockedReport(_StrictModel):
+    report_type: Literal["blocked"]
+    reason: Literal[
+        "confirmed_analysis_handoff_required",
+        "confirmed_expression_handoff_required",
+    ]
+
+
+PracticeReport = AnalysisReport | ExpressionReport | BlockedReport

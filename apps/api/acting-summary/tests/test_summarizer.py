@@ -1,72 +1,24 @@
 import pytest
+from google.genai import types
 
-from acting_summary.schema import Anomaly, Observation, SceneSummary, SubText
-from acting_summary.summarizer import (
-    FileActiveTimeout,
-    SummaryParseError,
-    summarize,
+from acting_summary.prompt import OBSERVATION_SYSTEM_PROMPT
+from acting_summary.schema import ActorMaterial, ObservationPack
+from acting_summary.summarizer import FileActiveTimeout, SummaryParseError, summarize
+
+ACTOR = ActorMaterial(
+    situation="a",
+    character="b",
+    goal="c",
+    blockage_kind="분석",
+    blockage_detail="d",
+    duration_ms=1000,
 )
-
-SUBTEXT = SubText(situation="a", character="b", subtext="c")
-SUMMARY = SceneSummary(
-    observation=Observation(
-        timeline="t",
-        dialogue="d",
-        tempo="te",
-        pitch="p",
-        movement="m",
-        expression="e",
-        emotion="em",
-    ),
-    summary="s",
-    intent_alignment="i",
-    key_moment="km",
-    key_dimension="kd",
-    anomalies=[
-        Anomaly(
-            start="00:01",
-            end="00:02",
-            dimension="대사",
-            what="w",
-            why_odd="o",
-            likely_cause="c",
-            impact_on_intent="ii",
-            overlaps_key_moment=True,
-            on_key_dimension=True,
-            intent_impact="반전",
-            severity="high",
-            severity_reason="sr",
-        )
+PACK = ObservationPack(
+    observations=[
+        {"start_ms": 10, "end_ms": 20, "label": "대사가 시작된다", "confidence": 0.9}
     ],
+    uncertainties=["얼굴은 확인되지 않음"],
 )
-
-
-def _mk_anomaly(start="00:00", dimension="대사", okm=False, okd=False, impact="국소"):
-    return Anomaly(
-        start=start,
-        end="00:10",
-        dimension=dimension,
-        what="w",
-        why_odd="o",
-        likely_cause="c",
-        impact_on_intent="ii",
-        overlaps_key_moment=okm,
-        on_key_dimension=okd,
-        intent_impact=impact,
-        severity="low",  # 모델이 뭐라고 찍든 후처리가 재계산해야 함
-        severity_reason="sr",
-    )
-
-
-def _mk_summary(anomalies):
-    return SceneSummary(
-        observation=SUMMARY.observation,
-        summary="s",
-        intent_alignment="i",
-        key_moment="km",
-        key_dimension="kd",
-        anomalies=anomalies,
-    )
 
 
 class _State:
@@ -117,121 +69,130 @@ class FakeClient:
         self.models = _Models(responses)
 
 
-def test_summarize_returns_parsed_and_deletes_file():
-    client = FakeClient([_Resp(parsed=SUMMARY)])
-    out = summarize("v.mp4", SUBTEXT, client=client, model="m")
-    assert out is SUMMARY
+def test_zero_observations_is_a_normal_result_and_file_is_deleted():
+    empty = ObservationPack(observations=[], uncertainties=["사람이 보이지 않음"])
+    client = FakeClient([_Resp(parsed=empty)])
+
+    result = summarize("v.mp4", ACTOR, client=client, model="m")
+
+    assert result.observations == []
     assert client.files.deleted == ["files/abc"]
-    assert client.models.calls[0][0] == "m"
 
 
-def test_summarize_parses_text_when_no_parsed():
-    client = FakeClient([_Resp(parsed=None, text=SUMMARY.model_dump_json())])
-    out = summarize("v.mp4", SUBTEXT, client=client, model="m")
-    assert out.summary == "s"
-
-
-def test_summarize_retries_once_then_raises():
-    client = FakeClient(
-        [_Resp(parsed=None, text="not json"), _Resp(parsed=None, text="still bad")]
+def test_more_than_three_observations_are_truncated_to_three():
+    pack = ObservationPack(
+        observations=[
+            {"start_ms": i * 10, "end_ms": i * 10 + 5, "label": str(i), "confidence": 1}
+            for i in range(4)
+        ],
+        uncertainties=[],
     )
-    with pytest.raises(SummaryParseError):
-        summarize("v.mp4", SUBTEXT, client=client, model="m")
-    assert len(client.models.calls) == 2  # 1회 재시도
-    assert client.files.deleted == ["files/abc"]  # 실패해도 정리
+
+    result = summarize("v.mp4", ACTOR, client=FakeClient([_Resp(parsed=pack)]), model="m")
+
+    assert [item.label for item in result.observations] == ["0", "1", "2"]
 
 
-def test_summarize_config_is_deterministic():
-    client = FakeClient([_Resp(parsed=SUMMARY)])
-    summarize("v.mp4", SUBTEXT, client=client, model="m")
+def test_observation_past_video_duration_is_discarded():
+    pack = ObservationPack(
+        observations=[
+            {"start_ms": 0, "end_ms": 1000, "label": "유효", "confidence": 1},
+            {"start_ms": 900, "end_ms": 1001, "label": "초과", "confidence": 1},
+        ],
+        uncertainties=[],
+    )
+
+    result = summarize("v.mp4", ACTOR, client=FakeClient([_Resp(parsed=pack)]), model="m")
+
+    assert [item.label for item in result.observations] == ["유효"]
+
+
+def test_invalid_time_ranges_are_discarded():
+    pack = ObservationPack(
+        observations=[
+            {"start_ms": -1, "end_ms": 10, "label": "음수", "confidence": 1},
+            {"start_ms": 10, "end_ms": 10, "label": "빈 구간", "confidence": 1},
+        ],
+        uncertainties=[],
+    )
+
+    result = summarize("v.mp4", ACTOR, client=FakeClient([_Resp(parsed=pack)]), model="m")
+
+    assert result.observations == []
+
+
+def test_sdk_generation_settings_are_preserved():
+    client = FakeClient([_Resp(parsed=PACK)])
+
+    summarize("v.mp4", ACTOR, client=client, model="m")
+
     config = client.models.calls[0][2]
+    assert config.system_instruction == OBSERVATION_SYSTEM_PROMPT
+    assert config.response_schema is ObservationPack
     assert config.temperature == 0.0
     assert config.seed == 42
-    assert config.top_p == 0.1
-    assert config.top_k == 1
+    assert config.media_resolution == types.MediaResolution.MEDIA_RESOLUTION_LOW
 
 
-def test_summarize_cache_hit_skips_api(tmp_path):
-    video = tmp_path / "v.mp4"
-    video.write_bytes(b"fake video bytes")
-    cache_dir = tmp_path / "cache"
-
-    client1 = FakeClient([_Resp(parsed=SUMMARY)])
-    out1 = summarize(video, SUBTEXT, client=client1, model="m", cache_dir=cache_dir)
-    assert len(client1.models.calls) == 1
-
-    client2 = FakeClient([_Resp(parsed=SUMMARY)])
-    out2 = summarize(video, SUBTEXT, client=client2, model="m", cache_dir=cache_dir)
-    assert len(client2.models.calls) == 0  # 캐시 히트 → API 호출 없음
-    assert client2.files.deleted == []  # 업로드 자체를 안 함
-    assert out2 == out1
-
-
-def test_summarize_cache_miss_on_different_subtext(tmp_path):
-    video = tmp_path / "v.mp4"
-    video.write_bytes(b"fake video bytes")
-    cache_dir = tmp_path / "cache"
-
-    client1 = FakeClient([_Resp(parsed=SUMMARY)])
-    summarize(video, SUBTEXT, client=client1, model="m", cache_dir=cache_dir)
-
-    other = SubText(situation="a", character="b", subtext="다른 의도")
-    client2 = FakeClient([_Resp(parsed=SUMMARY)])
-    summarize(video, other, client=client2, model="m", cache_dir=cache_dir)
-    assert len(client2.models.calls) == 1  # 서브텍스트 다르면 새로 호출
-
-
-def test_summarize_without_cache_dir_never_writes(tmp_path):
-    video = tmp_path / "v.mp4"
-    video.write_bytes(b"fake video bytes")
-    client = FakeClient([_Resp(parsed=SUMMARY)])
-    summarize(video, SUBTEXT, client=client, model="m")
-    assert not (tmp_path / "cache").exists()
-
-
-def test_summarize_timeout_when_not_active():
-    client = FakeClient([_Resp(parsed=SUMMARY)], state="PROCESSING")
-    with pytest.raises(FileActiveTimeout):
-        summarize("v.mp4", SUBTEXT, client=client, model="m", active_timeout=0)
-
-
-def test_summarize_recomputes_severity_from_facts():
-    # 모델이 severity를 전부 low로 찍어도 사실 판단 기반으로 재계산된다
-    raw = _mk_summary(
-        [
-            _mk_anomaly(okm=True, okd=True, impact="반전"),  # 4점 → high
-            _mk_anomaly(okm=True, okd=False, impact="약화"),  # 2점 → mid
-            _mk_anomaly(
-                okm=False, okd=False, impact="반전"
-            ),  # 2점 → mid (key 무관은 high 불가)
-            _mk_anomaly(okm=False, okd=False, impact="국소"),  # 0점 → low
-        ]
+def test_text_response_is_parsed_and_bad_response_retries_once():
+    parsed = summarize(
+        "v.mp4",
+        ACTOR,
+        client=FakeClient([_Resp(text=PACK.model_dump_json())]),
+        model="m",
     )
-    client = FakeClient([_Resp(parsed=raw)])
-    out = summarize("v.mp4", SUBTEXT, client=client, model="m")
-    assert [a.severity for a in out.anomalies] == ["high", "mid", "mid", "low"]
+    assert parsed == PACK
+
+    client = FakeClient([_Resp(text="bad"), _Resp(text="still bad")])
+    with pytest.raises(SummaryParseError):
+        summarize("v.mp4", ACTOR, client=client, model="m")
+    assert len(client.models.calls) == 2
 
 
-def test_summarize_sorts_anomalies_deterministically():
-    a_low = _mk_anomaly(start="00:00", impact="국소")  # low
-    a_high = _mk_anomaly(start="00:30", okm=True, okd=True, impact="반전")  # high
-    a_mid_key = _mk_anomaly(start="00:20", okm=True, impact="약화")  # mid, key 1개
-    a_mid_late = _mk_anomaly(start="00:25", impact="반전")  # mid, key 0개
-    a_mid_early = _mk_anomaly(
-        start="00:05", impact="반전"
-    )  # mid, key 0개, 더 이른 시작
-    a_mid_axis = _mk_anomaly(
-        start="00:05", dimension="템포", impact="반전"
-    )  # 같은 시작, 뒷축
-    raw = _mk_summary([a_low, a_mid_axis, a_mid_late, a_high, a_mid_early, a_mid_key])
-    client = FakeClient([_Resp(parsed=raw)])
-    out = summarize("v.mp4", SUBTEXT, client=client, model="m")
-    starts = [(a.severity, a.start, a.dimension) for a in out.anomalies]
-    assert starts == [
-        ("high", "00:30", "대사"),  # 등급 우선
-        ("mid", "00:20", "대사"),  # 같은 등급이면 key 점수 높은 것 먼저
-        ("mid", "00:05", "대사"),  # 그다음 start 빠른 순
-        ("mid", "00:05", "템포"),  # 같은 start면 축 고정 순서
-        ("mid", "00:25", "대사"),
-        ("low", "00:00", "대사"),
-    ]
+def test_cache_hit_skips_upload_and_generation(tmp_path):
+    video = tmp_path / "v.mp4"
+    video.write_bytes(b"video")
+    cache = tmp_path / "cache"
+    first = FakeClient([_Resp(parsed=PACK)])
+    summarize(video, ACTOR, client=first, model="m", cache_dir=cache)
+    second = FakeClient([])
+
+    result = summarize(video, ACTOR, client=second, model="m", cache_dir=cache)
+
+    assert result == PACK
+    assert second.models.calls == []
+    assert second.files.deleted == []
+
+
+def test_processing_timeout_raises():
+    client = FakeClient([_Resp(parsed=PACK)], state="PROCESSING")
+    with pytest.raises(FileActiveTimeout):
+        summarize("v.mp4", ACTOR, client=client, model="m", active_timeout=0)
+
+
+@pytest.mark.parametrize(
+    ("start_ms", "end_ms", "kept"),
+    [
+        (0, 1, True),
+        (999, 1000, True),
+        (-1, 1, False),
+        (10, 10, False),
+        (999, 1001, False),
+    ],
+)
+def test_observation_time_filter_boundaries(start_ms, end_ms, kept):
+    pack = ObservationPack(
+        observations=[
+            {
+                "start_ms": start_ms,
+                "end_ms": end_ms,
+                "label": "경계 관찰",
+                "confidence": 0.5,
+            }
+        ],
+        uncertainties=[],
+    )
+    result = summarize(
+        "v.mp4", ACTOR, client=FakeClient([_Resp(parsed=pack)]), model="m"
+    )
+    assert bool(result.observations) is kept

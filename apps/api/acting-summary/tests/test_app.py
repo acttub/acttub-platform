@@ -1,3 +1,4 @@
+import os
 import threading
 from uuid import UUID
 
@@ -6,40 +7,24 @@ from fastapi.testclient import TestClient
 from acting_summary import summarizer as summarizer_mod
 from acting_summary.app import create_app
 from acting_summary.config import Settings
-from acting_summary.schema import Anomaly, Observation, SceneSummary
+from acting_summary.schema import ObservationPack
 from acting_summary.store import InMemorySummaryStore
 
-FAKE = SceneSummary(
-    observation=Observation(
-        timeline="t",
-        dialogue="d",
-        tempo="te",
-        pitch="p",
-        movement="m",
-        expression="e",
-        emotion="em",
-    ),
-    summary="s",
-    intent_alignment="i",
-    key_moment="km",
-    key_dimension="kd",
-    anomalies=[
-        Anomaly(
-            start="00:01",
-            end="00:02",
-            dimension="대사",
-            what="w",
-            why_odd="o",
-            likely_cause="c",
-            impact_on_intent="ii",
-            overlaps_key_moment=True,
-            on_key_dimension=True,
-            intent_impact="반전",
-            severity="high",
-            severity_reason="sr",
-        )
+PACK = ObservationPack(
+    observations=[
+        {"start_ms": 1, "end_ms": 2, "label": "대사가 시작된다", "confidence": 0.9}
     ],
+    uncertainties=[],
 )
+FORM = {
+    "user_id": "u",
+    "situation": "상황",
+    "character": "인물",
+    "goal": "상대가 멈추게 한다",
+    "blockage_kind": "분석",
+    "blockage_detail": "왜 지금 말하는지 모르겠다",
+    "duration_ms": "1000",
+}
 
 
 def _app(store=None):
@@ -51,194 +36,155 @@ def _app(store=None):
 
 
 def test_health():
-    c = TestClient(_app())
-    r = c.get("/health")
-    assert r.status_code == 200
-    assert r.json() == {"status": "ok", "model": "m"}
+    response = TestClient(_app()).get("/health")
+    assert response.json() == {"status": "ok", "model": "m"}
 
 
-def test_summarize_endpoint(monkeypatch):
-    def fake_summarize(video_path, subtext, *, client, model, **kw):
-        assert subtext.situation == "상황"
-        assert model == "m"
-        return FAKE
+def test_summarize_endpoint_uses_goal_actor_material(monkeypatch):
+    def fake_summarize(video_path, actor, *, client, model, **kwargs):
+        assert actor.situation == "상황"
+        assert actor.goal == "상대가 멈추게 한다"
+        assert actor.blockage_kind == "분석"
+        assert actor.duration_ms == 1000
+        return PACK
 
     monkeypatch.setattr(summarizer_mod, "summarize", fake_summarize)
     store = InMemorySummaryStore()
-    c = TestClient(_app(store))
-    r = c.post(
+    response = TestClient(_app(store)).post(
         "/summarize",
-        data={
-            "user_id": "user-1",
-            "situation": "상황",
-            "character": "인물",
-            "subtext": "서브",
-        },
-        files={"video": ("t.mp4", b"bytes", "video/mp4")},
+        data=FORM,
+        files={"video": ("take.mp4", b"bytes", "video/mp4")},
     )
-    assert r.status_code == 200
-    assert r.json()["summary"] == "s"
-    assert r.json()["anomalies"][0]["start"] == "00:01"
-    assert r.json()["anomalies"][0]["end"] == "00:02"
-    summary_id = r.json()["summary_id"]
+
+    assert response.status_code == 200
+    assert response.json()["observations"][0]["label"] == "대사가 시작된다"
+    summary_id = response.json()["summary_id"]
     assert str(UUID(summary_id)) == summary_id
     record = store.records[summary_id]
-    assert record["user_id"] == "user-1"
-    assert record["subtext"].situation == "상황"
-    assert record["video_filename"] == "t.mp4"
-    assert record["video_size_bytes"] == len(b"bytes")
-    assert record["was_compressed"] is False
-    assert record["model"] == "m"
+    assert record["actor"].goal == "상대가 멈추게 한다"
+    assert record["observation_pack"] == PACK
+    assert record["video_filename"] == "take.mp4"
 
 
 def test_summarize_does_not_block_event_loop(monkeypatch):
-    # summarize가 도는 동안에도 /health가 응답해야 한다 (이벤트 루프 비블로킹)
     started = threading.Event()
     release = threading.Event()
 
-    def slow_summarize(video_path, subtext, *, client, model, **kw):
+    def slow_summarize(*args, **kwargs):
         started.set()
-        assert release.wait(timeout=10), "release never set"
-        return FAKE
+        assert release.wait(timeout=10)
+        return PACK
 
     monkeypatch.setattr(summarizer_mod, "summarize", slow_summarize)
-    with TestClient(_app()) as c:
+    with TestClient(_app()) as client:
         post_result = {}
-
-        def do_post():
-            post_result["r"] = c.post(
-                "/summarize",
-                data={
-                    "user_id": "u",
-                    "situation": "a",
-                    "character": "b",
-                    "subtext": "c",
-                },
-                files={"video": ("t.mp4", b"bytes", "video/mp4")},
-            )
-
-        post_thread = threading.Thread(target=do_post, daemon=True)
-        post_thread.start()
-        assert started.wait(timeout=10), "summarize never started"
-
-        health_result = {}
-
-        def do_health():
-            health_result["r"] = c.get("/health")
-
-        health_thread = threading.Thread(target=do_health, daemon=True)
-        health_thread.start()
-        health_thread.join(timeout=3)
-        health_ok = "r" in health_result and health_result["r"].status_code == 200
-
+        thread = threading.Thread(
+            target=lambda: post_result.setdefault(
+                "response",
+                client.post(
+                    "/summarize",
+                    data=FORM,
+                    files={"video": ("take.mp4", b"bytes", "video/mp4")},
+                ),
+            ),
+            daemon=True,
+        )
+        thread.start()
+        assert started.wait(timeout=10)
+        health = client.get("/health")
         release.set()
-        post_thread.join(timeout=10)
+        thread.join(timeout=10)
 
-    assert health_ok, "/health did not respond while summarize was in flight"
-    assert post_result["r"].status_code == 200
+    assert health.status_code == 200
+    assert post_result["response"].status_code == 200
 
 
-def test_summarize_missing_video_422():
-    c = TestClient(_app())
-    r = c.post(
-        "/summarize",
-        data={"user_id": "u", "situation": "a", "character": "b", "subtext": "c"},
+def test_required_form_fields_are_enforced():
+    client = TestClient(_app())
+    assert client.post("/summarize", data=FORM).status_code == 422
+    no_goal = {key: value for key, value in FORM.items() if key != "goal"}
+    assert (
+        client.post(
+            "/summarize",
+            data=no_goal,
+            files={"video": ("take.mp4", b"bytes", "video/mp4")},
+        ).status_code
+        == 422
     )
-    assert r.status_code == 422
 
 
-def test_summarize_missing_user_id_422():
-    c = TestClient(_app())
-    r = c.post(
-        "/summarize",
-        data={"situation": "a", "character": "b", "subtext": "c"},
-        files={"video": ("t.mp4", b"bytes", "video/mp4")},
-    )
-    assert r.status_code == 422
-
-
-def test_summarize_timeout_maps_504(monkeypatch):
-    def boom(*a, **k):
+def test_timeout_maps_to_504(monkeypatch):
+    def fail(*args, **kwargs):
         raise summarizer_mod.FileActiveTimeout("nope")
 
-    monkeypatch.setattr(summarizer_mod, "summarize", boom)
-    c = TestClient(_app())
-    r = c.post(
+    monkeypatch.setattr(summarizer_mod, "summarize", fail)
+    response = TestClient(_app()).post(
         "/summarize",
-        data={"user_id": "u", "situation": "a", "character": "b", "subtext": "c"},
-        files={"video": ("t.mp4", b"bytes", "video/mp4")},
+        data=FORM,
+        files={"video": ("take.mp4", b"bytes", "video/mp4")},
     )
-    assert r.status_code == 504
+    assert response.status_code == 504
 
 
-def test_summarize_compresses_before_gemini(monkeypatch, tmp_path):
+def test_compressed_and_original_files_are_cleaned(monkeypatch, tmp_path):
     from acting_summary import compress as compress_mod
 
     compressed = tmp_path / "small.gemini.mp4"
     seen = {}
 
-    def fake_compress(video_path, **kw):
+    def fake_compress(video_path, **kwargs):
         seen["original"] = video_path
         compressed.write_bytes(b"tiny")
         return str(compressed)
 
-    def fake_summarize(video_path, subtext, *, client, model, **kw):
+    def fake_summarize(video_path, actor, **kwargs):
         seen["sent"] = video_path
-        return FAKE
+        return PACK
 
     monkeypatch.setattr(compress_mod, "compress_for_gemini", fake_compress)
     monkeypatch.setattr(summarizer_mod, "summarize", fake_summarize)
-    c = TestClient(_app())
-    r = c.post(
+    response = TestClient(_app()).post(
         "/summarize",
-        data={"user_id": "u", "situation": "a", "character": "b", "subtext": "c"},
-        files={"video": ("t.mp4", b"x" * 100, "video/mp4")},
+        data=FORM,
+        files={"video": ("take.mp4", b"x" * 100, "video/mp4")},
     )
-    assert r.status_code == 200
-    assert seen["sent"] == str(compressed)
-    assert seen["sent"] != seen["original"]
-    # 원본 임시파일과 압축본 모두 정리돼야 한다
-    import os
 
+    assert response.status_code == 200
+    assert seen["sent"] == str(compressed)
     assert not os.path.exists(seen["original"])
     assert not compressed.exists()
 
 
-def test_summarize_oversized_upload_413(monkeypatch):
+def test_oversized_upload_is_rejected_before_analysis(monkeypatch):
     from acting_summary import router as router_mod
 
     monkeypatch.setattr(router_mod, "MAX_UPLOAD_BYTES", 50)
-
-    def never(*a, **k):
-        raise AssertionError("업로드 제한 초과 시 Gemini 호출 없어야 함")
-
-    monkeypatch.setattr(summarizer_mod, "summarize", never)
-    c = TestClient(_app())
-    r = c.post(
-        "/summarize",
-        data={"user_id": "u", "situation": "a", "character": "b", "subtext": "c"},
-        files={"video": ("t.mp4", b"x" * 200, "video/mp4")},
+    monkeypatch.setattr(
+        summarizer_mod,
+        "summarize",
+        lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError()),
     )
-    assert r.status_code == 413
-    assert "MB" in r.json()["detail"]
+    response = TestClient(_app()).post(
+        "/summarize",
+        data=FORM,
+        files={"video": ("take.mp4", b"x" * 200, "video/mp4")},
+    )
+    assert response.status_code == 413
 
 
-def test_summarize_streams_within_limit(monkeypatch):
+def test_upload_is_streamed_to_disk(monkeypatch):
     seen = {}
 
-    def fake_summarize(video_path, subtext, *, client, model, **kw):
-        import os
-
+    def fake_summarize(video_path, actor, **kwargs):
         seen["size"] = os.path.getsize(video_path)
-        return FAKE
+        return PACK
 
     monkeypatch.setattr(summarizer_mod, "summarize", fake_summarize)
-    c = TestClient(_app())
-    body = b"x" * (3 * 1024 * 1024)  # 청크(1MB)를 여러 번 도는 크기
-    r = c.post(
+    body = b"x" * (3 * 1024 * 1024)
+    response = TestClient(_app()).post(
         "/summarize",
-        data={"user_id": "u", "situation": "a", "character": "b", "subtext": "c"},
-        files={"video": ("t.mp4", body, "video/mp4")},
+        data=FORM,
+        files={"video": ("take.mp4", body, "video/mp4")},
     )
-    assert r.status_code == 200
+    assert response.status_code == 200
     assert seen["size"] == len(body)

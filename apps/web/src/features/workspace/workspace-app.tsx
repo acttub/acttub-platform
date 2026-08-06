@@ -15,7 +15,7 @@ import wordmark from "@/assets/acttub-wordmark.png";
 import { getStoredDisplayName, loadDisplayName } from "@/features/auth/display-name";
 import { logout } from "@/lib/api/v2/auth";
 import { startCoach, replyCoach } from "@/lib/api/v2/coach";
-import { createReport, getReport, listReports } from "@/lib/api/v2/reports";
+import { getReport, listReports } from "@/lib/api/v2/reports";
 import {
   createPracticeSession,
   deletePracticeSession,
@@ -24,8 +24,8 @@ import {
   pollSessionUntilSettled,
 } from "@/lib/api/v2/sessions";
 import type {
-  ActingReport,
   CoachTurnResponse,
+  PracticeReport,
   PracticeSessionDetail,
   PracticeSessionListItem,
   ReportRecord,
@@ -40,24 +40,30 @@ import {
 } from "@/lib/analytics/ga";
 import { AppRail } from "@/features/nav/app-rail";
 import { ExitReviewModal, useExitReview } from "./exit-review";
-import { analysisFailure } from "../practice/analysis-failure";
+import { BlockageSelectionFlow } from "../practice/blockage-selection";
+import type { BlockageSelection } from "../practice/blockage-flow";
+import {
+  createCoachStartCoordinator,
+  type CoachStartCoordinator,
+  coachMessageText,
+  completedCoachReport,
+  isCoachInputEnabled,
+} from "../practice/coach-contract";
+import { WaitingDots } from "../practice/waiting-dots";
+import { PracticeReportCards } from "../practice/practice-report-cards";
+import { formatVideoDuration } from "../practice/practice-setup-flow";
+import {
+  UPLOAD_PROGRESS_END,
+  advanceProgress,
+  analysisProgress,
+  compressionProgress,
+  settleProgress,
+  uploadProgress,
+} from "../practice/analysis-progress";
 
-/** 준비 → 분석 → 대화 → 노트. 화면이 단계마다 대화 쪽으로 좁혀진다. */
-type Mode = "prep" | "analyzing" | "chat" | "note";
-type ChatMsg = { role: "ai" | "me"; text: string; at?: string };
-
-// 서버 분석 상태는 analyzing/analyzed/failed 셋뿐이라 진짜 진행률이 없다.
-// 압축·업로드에는 진짜 진행률이 있고, 서버 대기는 실측 평균 시간을 기준으로 채운다.
-const ANALYZE_LABEL = "장면을 분석하고 있어요…";
-const AVG_ANALYZE_SEC = 60;
-const SLOW_NOTICE_SEC = 180;
-// 압축·업로드·분석을 진행률 막대 하나로 잇는다. 구간마다 0으로 되돌아가면 배우에게는
-// 끝난 작업이 다시 시작되는 것으로 보인다 (2026-07-28).
-const COMPRESS_END = 20;
-const UPLOAD_END = 45;
-// 서버 대기 구간이 닿을 수 있는 최대치. 100%는 실제로 끝났을 때만 쓴다.
-const WAIT_CEILING = 92;
-const GIVE_UP_MS = 15 * 60_000;
+/** 준비 → 업로드 → 대화 → 노트. 화면이 단계마다 대화 쪽으로 좁혀진다. */
+type Mode = "prep" | "blockage" | "uploading" | "preparing" | "chat" | "note";
+type ChatMsg = { role: "ai" | "me"; text: string };
 
 export function WorkspaceApp() {
   return (
@@ -150,32 +156,35 @@ function WorkspaceInner() {
   const [character, setCharacter] = useState("");
   const [goal, setGoal] = useState("");
 
-  // 분석 대기
+  // 압축·업로드
   const [pct, setPct] = useState(0);
-  const [analyzeLabel, setAnalyzeLabel] = useState(ANALYZE_LABEL);
-  const [serverWaiting, setServerWaiting] = useState(false);
-  const [waitedSec, setWaitedSec] = useState(0);
-  const [stalled, setStalled] = useState(false);
+  const [analysisStatus, setAnalysisStatus] = useState<PracticeSessionDetail["status"] | null>(null);
+  const [videoDurationMs, setVideoDurationMs] = useState<number | null>(null);
 
   // 대화
   const [messages, setMessages] = useState<ChatMsg[]>([]);
   const [answer, setAnswer] = useState("");
   const [sending, setSending] = useState(false);
+  const [coachOpening, setCoachOpening] = useState(false);
+  const [coachSessionId, setCoachSessionId] = useState<string | null>(null);
   const [coachDone, setCoachDone] = useState(false);
   const coachIdRef = useRef<string | null>(null);
 
   // 연습 노트
-  const [report, setReport] = useState<ActingReport | null>(null);
-  const [reportCount, setReportCount] = useState(1);
+  const [report, setReport] = useState<PracticeReport | null>(null);
   const [busy, setBusy] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const chatScrollRef = useRef<HTMLDivElement | null>(null);
-  const waitTimer = useRef<ReturnType<typeof setInterval> | null>(null);
-  const waitStartedAt = useRef(0);
-  const giveUpTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const gaveUpRef = useRef(false);
   const uploadControllerRef = useRef<AbortController | null>(null);
+  const analysisControllerRef = useRef<AbortController | null>(null);
+  const analysisStartedAtRef = useRef<number | null>(null);
+  const activeIdRef = useRef<string | null>(null);
+  const urlLoadedRef = useRef<string | null>(null);
+  const coachCoordinatorRef = useRef<{
+    sessionId: string;
+    coordinator: CoachStartCoordinator;
+  } | null>(null);
 
   // 어느 연습에서 어느 단계를 이미 세었는지. 대화와 노트 확인은 한 연습 안에서 여러 번
   // 열린다 — 노트를 보다 대화로 돌아갔다 오거나, 지난 연습을 다시 열거나.
@@ -204,44 +213,50 @@ function WorkspaceInner() {
 
   useEffect(
     () => () => {
-      if (waitTimer.current) clearInterval(waitTimer.current);
-      if (giveUpTimer.current) clearTimeout(giveUpTimer.current);
       if (videoUrl) URL.revokeObjectURL(videoUrl);
       uploadControllerRef.current?.abort();
+      analysisControllerRef.current?.abort();
     },
     [videoUrl],
   );
 
-  const startWaiting = () => {
-    setAnalyzeLabel(ANALYZE_LABEL);
-    setServerWaiting(true);
-    setWaitedSec(0);
-    // 폰이 잠기면 브라우저가 interval 을 억제한다 — 콜백을 세지 말고 시계에서 뺀다.
-    waitStartedAt.current = Date.now();
-    if (waitTimer.current) clearInterval(waitTimer.current);
-    waitTimer.current = setInterval(
-      () => setWaitedSec(Math.floor((Date.now() - waitStartedAt.current) / 1000)),
-      1000,
-    );
-  };
-  const stopWaiting = () => {
-    if (waitTimer.current) clearInterval(waitTimer.current);
-    waitTimer.current = null;
-    if (giveUpTimer.current) clearTimeout(giveUpTimer.current);
-    giveUpTimer.current = null;
-    setServerWaiting(false);
-  };
+  useEffect(() => {
+    const pending =
+      mode === "preparing"
+      && analysisStatus !== "analyzed"
+      && analysisStatus !== "failed";
+    if (!pending) return;
+
+    const startedAt = analysisStartedAtRef.current ?? Date.now();
+    analysisStartedAtRef.current = startedAt;
+    const update = () => {
+      setPct((current) =>
+        advanceProgress(current, analysisProgress(Date.now() - startedAt)),
+      );
+    };
+    const timer = window.setInterval(update, 1000);
+    return () => window.clearInterval(timer);
+  }, [analysisStatus, mode]);
 
   const resetToPrep = useCallback(() => {
+    analysisControllerRef.current?.abort();
+    activeIdRef.current = null;
     setMode("prep");
     setActiveId(null);
     setDetail(null);
     setMessages([]);
     setReport(null);
     setCoachDone(false);
+    setCoachOpening(false);
+    setCoachSessionId(null);
     coachIdRef.current = null;
+    coachCoordinatorRef.current = null;
+    analysisStartedAtRef.current = null;
+    urlLoadedRef.current = null;
+    setAnalysisStatus(null);
+    setPct(0);
+    setVideoDurationMs(null);
     setError(null);
-    setStalled(false);
     setSituation("");
     setCharacter("");
     setGoal("");
@@ -251,7 +266,8 @@ function WorkspaceInner() {
       return null;
     });
     setDrawerOpen(false);
-  }, []);
+    router.replace("/practice/new");
+  }, [router]);
 
   // 후기는 대화가 시작된 뒤에만 묻는다 — 영상만 올리고 나간 사람은 답할 게 없다.
   const reviewArmed = mode === "chat" || mode === "note";
@@ -270,13 +286,114 @@ function WorkspaceInner() {
     if (wasOpenedByButton) resetToPrep();
   }, [closeReview, wasOpenedByButton, resetToPrep]);
 
-  const pushAi = (turn: CoachTurnResponse) => {
-    // 코치 세션 id 는 매 응답마다 회전할 수 있어 다음 reply/report 에 최신 값을 쓴다.
+  const pushAi = useCallback((turn: CoachTurnResponse) => {
+    // 코치 세션 id 는 매 응답마다 회전할 수 있어 다음 reply 에 최신 값을 쓴다.
     coachIdRef.current = turn.session_id;
-    const at = turn.focus_timestamp?.trim() ? turn.focus_timestamp.trim() : undefined;
-    setMessages((m) => [...m, { role: "ai", text: turn.utterance, at }]);
-    if (turn.done) setCoachDone(true);
-  };
+    setCoachSessionId(turn.session_id);
+    const message = coachMessageText(turn);
+    setMessages((m) => [...m, { role: "ai", text: message }]);
+    const completed = completedCoachReport(turn);
+    setCoachDone(turn.status === "complete");
+    if (completed) {
+      // 노트는 받아 두되 화면은 그대로 둔다 — 마지막 인사를 읽고 배우가 직접 넘어간다.
+      setReport(completed);
+      void refreshList();
+    }
+  }, [refreshList]);
+
+  // 대화를 끝낸 뒤 배우가 직접 누를 때만 노트로 넘긴다. 지난 연습을 여는 경로는
+  // 이미 노트가 목적지라 여기를 거치지 않는다.
+  const openNote = useCallback(() => {
+    setMode("note");
+    countStepOnce(activeIdRef.current, "result");
+  }, [countStepOnce]);
+
+  const restoreCoach = useCallback((turn: CoachTurnResponse) => {
+    coachIdRef.current = turn.session_id;
+    setCoachSessionId(turn.session_id);
+    const restored: ChatMsg[] | undefined = turn.turns?.map((message) => ({
+      role: message.role === "actor" ? "me" : "ai",
+      text: message.text,
+    }));
+    setMessages(
+      restored ?? [{ role: "ai", text: coachMessageText(turn) }],
+    );
+    const completed = completedCoachReport(turn);
+    setCoachDone(turn.status === "complete");
+    if (completed) {
+      // 첫 응답이 곧바로 complete 로 오는 경우다. 재개 응답은 항상 continue 라 여기 오지 않는다.
+      // 이때도 화면은 그대로 두고 배우가 정리보기를 누를 때 넘긴다.
+      setReport(completed);
+      void refreshList();
+    }
+  }, [refreshList]);
+
+  const coordinatorFor = useCallback((practiceSessionId: string) => {
+    if (coachCoordinatorRef.current?.sessionId === practiceSessionId) {
+      return coachCoordinatorRef.current.coordinator;
+    }
+
+    const coordinator = createCoachStartCoordinator(async () => {
+      if (activeIdRef.current !== practiceSessionId) return;
+      setMode("chat");
+      setCoachOpening(true);
+      setError(null);
+      try {
+        const { data: start } = await startCoach({
+          practice_session_id: practiceSessionId,
+        });
+        if (activeIdRef.current !== practiceSessionId) return;
+        restoreCoach(start);
+        countStepOnce(practiceSessionId, "dialogue");
+      } catch (reason) {
+        if (activeIdRef.current === practiceSessionId) {
+          setError("코치 연결에 실패했어요. 잠시 후 다시 시도해 주세요.");
+        }
+        throw reason;
+      } finally {
+        if (activeIdRef.current === practiceSessionId) setCoachOpening(false);
+      }
+    });
+    coachCoordinatorRef.current = { sessionId: practiceSessionId, coordinator };
+    return coordinator;
+  }, [countStepOnce, restoreCoach]);
+
+  const startConversationAfterAnalysis = useCallback((practiceSessionId: string) => {
+    void coordinatorFor(practiceSessionId).update("analyzed").catch(() => {});
+  }, [coordinatorFor]);
+
+  const startConversationWithoutEvidence = useCallback((practiceSessionId: string) => {
+    void coordinatorFor(practiceSessionId).startWithoutEvidence().catch(() => {});
+  }, [coordinatorFor]);
+
+  const trackAnalysis = useCallback((practiceSessionId: string) => {
+    analysisControllerRef.current?.abort();
+    const controller = new AbortController();
+    analysisControllerRef.current = controller;
+    void pollSessionUntilSettled(practiceSessionId, {
+      intervalMs: 4000,
+      signal: controller.signal,
+      onStatus: (status) => {
+        if (activeIdRef.current === practiceSessionId) setAnalysisStatus(status);
+      },
+    }).then(
+      (settled) => {
+        if (activeIdRef.current !== practiceSessionId || controller.signal.aborted) return;
+        setAnalysisStatus(settled.status);
+        setPct((current) => settleProgress(current, settled.status));
+        setDetail(settled);
+        void refreshList();
+        void coordinatorFor(practiceSessionId).update(settled.status).catch(() => {});
+      },
+      () => {
+        if (activeIdRef.current === practiceSessionId) {
+          setError("장면을 살펴보는 상태를 확인하지 못했어요. 잠시 후 목록에서 다시 열어 주세요.");
+        }
+      },
+    ).finally(() => {
+      if (analysisControllerRef.current === controller) analysisControllerRef.current = null;
+    });
+  }, [coordinatorFor, refreshList]);
 
   const onPickFile = (file: File | null) => {
     if (!file) return;
@@ -288,14 +405,12 @@ function WorkspaceInner() {
     setError(null);
   };
 
-  const begin = useCallback(async () => {
+  const begin = useCallback(async (blockage: BlockageSelection) => {
     if (!videoFile) return;
     setError(null);
-    setStalled(false);
-    gaveUpRef.current = false;
-    setMode("analyzing");
+    setMode("uploading");
     setPct(0);
-    setAnalyzeLabel("영상 정보를 확인하고 있어요…");
+    analysisStartedAtRef.current = null;
     uploadControllerRef.current?.abort();
     const controller = new AbortController();
     uploadControllerRef.current = controller;
@@ -303,79 +418,65 @@ function WorkspaceInner() {
       const prepared = await prepareVideoUpload(videoFile, {
         signal: controller.signal,
         onCompressionProgress: (progress) => {
-          setAnalyzeLabel("영상 압축 중…");
-          setPct(progress * COMPRESS_END);
+          setPct((current) =>
+            advanceProgress(current, compressionProgress(progress)),
+          );
         },
       });
-      setAnalyzeLabel("영상 업로드 중…");
       const { intentId } = await uploadVideo(prepared.file, {
         durationMs: prepared.durationMs,
         signal: controller.signal,
         onProgress: (progress) =>
-          setPct(COMPRESS_END + (progress.percent / 100) * (UPLOAD_END - COMPRESS_END)),
+          setPct((current) =>
+            advanceProgress(current, uploadProgress(progress.percent)),
+          ),
       });
-      startWaiting();
-      // 세 번째 칸은 화면에서 "목표"로 묻지만 API 계약은 아직 subtext 다.
-      // 백엔드가 goal 을 받게 되면 이 줄만 바꾸면 된다.
       const { session } = await createPracticeSession(
         {
           upload_intent_id: intentId,
           situation,
           character_context: character,
-          subtext: goal,
+          goal,
+          ...blockage,
         },
         { signal: controller.signal },
       );
+      activeIdRef.current = session.session_id;
+      coachCoordinatorRef.current = null;
       setActiveId(session.session_id);
+      setAnalysisStatus(session.status);
+      setVideoDurationMs(prepared.durationMs);
+      setDetail(null);
+      setPct((current) => advanceProgress(current, UPLOAD_PROGRESS_END));
+      analysisStartedAtRef.current = Date.now();
+      setMode("preparing");
+      setSending(false);
+      urlLoadedRef.current = session.session_id;
+      router.replace(`/practice/new?session=${encodeURIComponent(session.session_id)}`);
       // 업로드가 끝난 시점이 아니라 연습 세션까지 만들어진 시점에 센다.
       // 업로드만 되고 세션 생성이 실패하면 연습이 시작된 게 아니다.
       trackVideoUploaded(prepared.durationMs);
-      // 폴링 자체에는 끝이 없다 — 서버가 analyzing 에 머물면 영원히 기다린다.
-      giveUpTimer.current = setTimeout(() => {
-        gaveUpRef.current = true;
-        controller.abort();
-      }, GIVE_UP_MS);
-      const settled = await pollSessionUntilSettled(session.session_id, {
-        intervalMs: 4000,
-        signal: controller.signal,
-      });
-      // 제한시간은 폴링만 묶는다 — 여기서 풀지 않으면 뒤이은 startCoach 중에 타이머가 터진다.
-      if (giveUpTimer.current) {
-        clearTimeout(giveUpTimer.current);
-        giveUpTimer.current = null;
-      }
-      if (settled.status === "failed") {
-        throw new Error(analysisFailure(settled.error_code).message);
-      }
-      const summaryId = settled.summary?.summary_id;
-      if (!summaryId) throw new Error("분석 요약을 불러오지 못했어요.");
-      const { data: start } = await startCoach({ summary_id: summaryId });
-      if (controller.signal.aborted || uploadControllerRef.current !== controller) return;
-      stopWaiting();
-      setDetail(settled);
-      setMode("chat");
-      pushAi(start);
-      // 첫 질문이 실제로 화면에 올라온 이 지점만 "대화 시작"이다. 아래 openSession·
-      // 주소 진입에서 노트 없는 세션을 열며 chat 으로 가는 건 이어 하기라 세지 않는다.
-      countStepOnce(session.session_id, "dialogue");
+      trackAnalysis(session.session_id);
+      void getPracticeSession(session.session_id).then(
+        (loaded) => {
+          if (activeIdRef.current !== session.session_id) return;
+          setDetail(loaded);
+          setAnalysisStatus(loaded.status);
+        },
+        () => {},
+      );
       void refreshList();
     } catch (err) {
       if (uploadControllerRef.current === controller) {
-        stopWaiting();
-        if (gaveUpRef.current) {
-          setStalled(true);
-        } else {
-          setMode("prep");
-          if (!(err instanceof Error && err.name === "AbortError")) {
-            setError(err instanceof Error ? err.message : "문제가 생겼어요. 다시 시도해 주세요.");
-          }
+        setMode("prep");
+        if (!(err instanceof Error && err.name === "AbortError")) {
+          setError(err instanceof Error ? err.message : "문제가 생겼어요. 다시 시도해 주세요.");
         }
       }
     } finally {
-      stopWaiting();
       if (uploadControllerRef.current === controller) uploadControllerRef.current = null;
     }
-  }, [videoFile, situation, character, goal, refreshList, countStepOnce]);
+  }, [videoFile, situation, character, goal, refreshList, router, trackAnalysis]);
 
   const send = useCallback(async () => {
     const text = answer.trim();
@@ -394,67 +495,126 @@ function WorkspaceInner() {
     } finally {
       setSending(false);
     }
-  }, [answer, sending]);
+  }, [answer, sending, pushAi]);
 
-  const buildNote = useCallback(async () => {
-    if (!coachIdRef.current) return;
+  const restartAfterBlocked = useCallback(async () => {
+    const practiceSessionId = activeIdRef.current;
+    if (!practiceSessionId) return;
     setBusy(true);
+    setError(null);
+    setMode("chat");
+    setReport(null);
+    setMessages([]);
+    setCoachDone(false);
+    setCoachOpening(true);
+    setCoachSessionId(null);
+    coachIdRef.current = null;
     try {
-      const { data } = await createReport({ session_id: coachIdRef.current });
-      setReport(data.report);
-      setReportCount(data.report_count);
-      setMode("note");
-      // 본문까지 받아온 뒤에 센다. 실패하면 아래 catch 로 빠져 노트 화면이 뜨지 않는다.
-      countStepOnce(activeId, "result");
-      void refreshList();
+      const { data } = await startCoach({
+        practice_session_id: practiceSessionId,
+        restart: true,
+      });
+      if (activeIdRef.current !== practiceSessionId) return;
+      restoreCoach(data);
     } catch {
-      setError("연습 노트를 만들지 못했어요. 잠시 후 다시 시도해 주세요.");
+      if (activeIdRef.current === practiceSessionId) {
+        setError("대화를 다시 시작하지 못했어요. 잠시 후 다시 시도해 주세요.");
+      }
     } finally {
-      setBusy(false);
+      if (activeIdRef.current === practiceSessionId) {
+        setCoachOpening(false);
+        setBusy(false);
+      }
     }
-  }, [activeId, countStepOnce, refreshList]);
+  }, [restoreCoach]);
 
   const openSession = useCallback(async (id: string) => {
+    analysisControllerRef.current?.abort();
+    analysisStartedAtRef.current = null;
+    activeIdRef.current = id;
+    coachCoordinatorRef.current = null;
+    urlLoadedRef.current = id;
+    router.replace(`/practice/new?session=${encodeURIComponent(id)}`);
     setDrawerOpen(false);
     setError(null);
     setActiveId(id);
+    setDetail(null);
+    setPct(UPLOAD_PROGRESS_END);
+    setAnalysisStatus(null);
+    setVideoDurationMs(null);
     setMessages([]);
     setCoachDone(false);
+    setCoachOpening(false);
+    setCoachSessionId(null);
     coachIdRef.current = null;
     setBusy(true);
     try {
       const loaded = await getPracticeSession(id);
+      if (activeIdRef.current !== id) return;
       setDetail(loaded);
+      setAnalysisStatus(loaded.status);
+      if (loaded.status === "created" || loaded.status === "analyzing") {
+        setReport(null);
+        setMode("preparing");
+        trackAnalysis(id);
+        return;
+      }
+      if (loaded.status === "failed") {
+        setReport(null);
+        setMode("preparing");
+        return;
+      }
+      setPct(100);
+      setMode("chat");
       try {
         const found = await getReport(id);
+        if (activeIdRef.current !== id) return;
         setReport(found.report);
         setMode("note");
         countStepOnce(id, "result");
       } catch {
-        // 노트가 아직 없는 세션 — 장면만 보여주고 대화는 비운다.
+        if (activeIdRef.current !== id) return;
         setReport(null);
-        setMode("chat");
+        startConversationAfterAnalysis(id);
       }
     } catch {
       setError("연습을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.");
     } finally {
       setBusy(false);
     }
-  }, [countStepOnce]);
+  }, [countStepOnce, router, startConversationAfterAnalysis, trackAnalysis]);
 
   // 주소에 ?session= 이 실려 오면(연습 기록 링크·새로고침) 그 세션을 연다.
   // 클릭으로 여는 경로는 openSession 이고, 이쪽은 첫 진입만 맡는다.
-  const urlLoadedRef = useRef<string | null>(null);
   useEffect(() => {
     if (!ready || !sessionParam || urlLoadedRef.current === sessionParam) return;
     urlLoadedRef.current = sessionParam;
+    analysisStartedAtRef.current = null;
     let cancelled = false;
     void (async () => {
       try {
         const loaded = await getPracticeSession(sessionParam);
         if (cancelled) return;
+        setPct(UPLOAD_PROGRESS_END);
+        activeIdRef.current = sessionParam;
         setActiveId(sessionParam);
         setDetail(loaded);
+        setAnalysisStatus(loaded.status);
+        setVideoDurationMs(null);
+        coachCoordinatorRef.current = null;
+        if (loaded.status === "created" || loaded.status === "analyzing") {
+          setReport(null);
+          setMode("preparing");
+          trackAnalysis(sessionParam);
+          return;
+        }
+        if (loaded.status === "failed") {
+          setReport(null);
+          setMode("preparing");
+          return;
+        }
+        setPct(100);
+        setMode("chat");
         try {
           const found = await getReport(sessionParam);
           if (cancelled) return;
@@ -464,7 +624,7 @@ function WorkspaceInner() {
         } catch {
           if (cancelled) return;
           setReport(null);
-          setMode("chat");
+          startConversationAfterAnalysis(sessionParam);
         }
       } catch {
         if (!cancelled) setError("연습을 찾을 수 없어요.");
@@ -473,7 +633,7 @@ function WorkspaceInner() {
     return () => {
       cancelled = true;
     };
-  }, [ready, sessionParam, countStepOnce]);
+  }, [ready, sessionParam, countStepOnce, startConversationAfterAnalysis, trackAnalysis]);
 
   const removeSession = useCallback(async () => {
     if (!activeId) return;
@@ -492,12 +652,19 @@ function WorkspaceInner() {
   if (!ready) return <div className="min-h-dvh bg-white" aria-busy="true" />;
 
   const noteBySession = new Set(reports.map((r) => r.practice_session_id));
-  const headlineBySession = new Map(reports.map((r) => [r.practice_session_id, r.headline]));
+  const headlineBySession = new Map(reports.map((r) => [r.practice_session_id, r.title]));
   const running = sessions.filter((s) => s.status === "created" || s.status === "analyzing");
   const finished = sessions.filter((s) => s.status === "analyzed" || s.status === "failed");
-  const step: 1 | 2 | 3 = mode === "analyzing" ? 3 : videoFile ? 2 : 1;
+  const waitingForCoach = mode === "uploading" || mode === "preparing";
+  const step: 1 | 2 | 3 = waitingForCoach ? 3 : videoFile ? 2 : 1;
   const chatLeading = mode === "chat" || mode === "note";
   const displayName = nickname ?? "배우";
+  const visibleScene = {
+    situation: detail?.situation ?? situation,
+    character: detail?.character_context ?? character,
+    goal: detail?.goal ?? goal,
+  };
+  const visibleVideoUrl = detail?.playback_url ?? videoUrl;
 
   const rail = (
     <SessionRail
@@ -566,7 +733,7 @@ function WorkspaceInner() {
           <p className="min-w-0 flex-1 truncate text-[15px] font-black tracking-[-0.03em]">
             {detail?.situation?.trim() || "새 연습"}
           </p>
-          <StatusChip mode={mode} />
+          <StatusChip mode={mode} done={coachDone} />
           {activeId ? (
             <div className="ml-auto flex shrink-0 items-center gap-2">
               <button
@@ -591,7 +758,7 @@ function WorkspaceInner() {
             </div>
           ) : (
             <span className="ml-auto hidden text-xs font-semibold text-[#8b95a1] sm:block">
-              {mode === "analyzing" ? "분석이 끝나면 질문이 시작돼요" : "영상을 올리면 질문이 시작돼요"}
+              영상을 올리면 질문이 시작돼요
             </span>
           )}
         </header>
@@ -606,9 +773,13 @@ function WorkspaceInner() {
             {mode === "note" ? (
               <NotePanel
                 report={report}
-                reportCount={reportCount}
+                messages={messages}
                 busy={busy}
-                onBackToChat={() => setMode("chat")}
+                onBackToChat={
+                  report?.report_type === "blocked"
+                    ? restartAfterBlocked
+                    : () => setMode("chat")
+                }
                 onFinish={openReview}
               />
             ) : (
@@ -616,35 +787,51 @@ function WorkspaceInner() {
                 messages={messages}
                 answer={answer}
                 setAnswer={setAnswer}
-                sending={sending}
-                done={coachDone}
-                busy={busy}
+                sending={sending || coachOpening}
+                inputEnabled={isCoachInputEnabled({
+                  analysisStatus,
+                  coachSessionId,
+                  sending,
+                  done: coachDone,
+                })}
                 error={error}
                 scrollRef={chatScrollRef}
                 onSend={() => void send()}
-                onBuildNote={() => void buildNote()}
-                hasNote={Boolean(report)}
-                onSeeNote={() => setMode("note")}
+                done={coachDone}
+                noteReady={report !== null}
+                onOpenNote={openNote}
               />
             )}
+          </div>
+        ) : mode === "blockage" && videoUrl ? (
+          <div className="min-h-0 flex-1 overflow-y-auto bg-[#f7faff] px-4 py-6 sm:px-5 sm:py-8">
+            <div className="mx-auto w-full max-w-[760px]">
+              <BlockageSelectionFlow
+                videoUrl={videoUrl}
+                scene={{ situation, character, goal }}
+                busy={busy}
+                onComplete={(selection) => void begin(selection)}
+              />
+            </div>
           </div>
         ) : (
           <div className="min-h-0 flex-1 overflow-y-auto px-4 py-6 sm:px-5 sm:py-8">
             <div className="mx-auto flex w-full max-w-[760px] flex-col gap-4 sm:gap-6">
               <Stepper current={step} />
-              {videoUrl ? (
+              {visibleVideoUrl ? (
                 <VideoBox
-                  src={videoUrl}
+                  src={visibleVideoUrl}
                   caption={
-                    mode === "analyzing"
-                      ? "분석 중에도 영상은 볼 수 있어요"
+                    mode === "uploading"
+                      ? "업로드 중에도 영상은 볼 수 있어요"
                       : videoFile?.name ?? "올린 영상"
                   }
+                  onDuration={setVideoDurationMs}
                   onReselect={mode === "prep" ? () => fileInputRef.current?.click() : undefined}
                 />
-              ) : (
+              ) : mode === "prep" ? (
                 <UploadZone onClick={() => fileInputRef.current?.click()} />
-              )}
+              ) : null}
               <input
                 ref={fileInputRef}
                 type="file"
@@ -653,33 +840,32 @@ function WorkspaceInner() {
                 onChange={(event) => onPickFile(event.target.files?.[0] ?? null)}
               />
               <SceneForm
-                situation={situation}
-                character={character}
-                goal={goal}
-                locked={mode === "analyzing"}
+                situation={visibleScene.situation}
+                character={visibleScene.character}
+                goal={visibleScene.goal}
+                locked={waitingForCoach}
                 onSituation={setSituation}
                 onCharacter={setCharacter}
                 onGoal={setGoal}
               />
-              {mode === "analyzing" ? (
-                stalled ? (
-                  <StalledNotice
-                    onKeepWaiting={() => {
-                      setStalled(false);
-                      void refreshList();
-                    }}
-                    onRestart={resetToPrep}
-                  />
-                ) : (
-                  <ProgressPanel
-                    serverWaiting={serverWaiting}
-                    waitedSec={waitedSec}
-                    pct={pct}
-                    label={analyzeLabel}
-                  />
-                )
+              {mode === "uploading" ? (
+                <ProgressPanel pct={pct} durationMs={videoDurationMs} phase="upload" />
+              ) : mode === "preparing" ? (
+                <ProgressPanel
+                  pct={pct}
+                  durationMs={videoDurationMs}
+                  phase="scan"
+                  failed={analysisStatus === "failed"}
+                  starting={coachOpening}
+                  onStartWithoutEvidence={() => {
+                    if (activeId) startConversationWithoutEvidence(activeId);
+                  }}
+                />
               ) : (
-                <StartRow ready={Boolean(videoFile)} onStart={() => void begin()} />
+                <StartRow
+                  ready={Boolean(videoFile)}
+                  onStart={() => setMode("blockage")}
+                />
               )}
               {error ? (
                 <p role="alert" className="rounded-2xl bg-[#fff0f0] px-4 py-3 text-sm font-bold text-[#e42939]">
@@ -777,7 +963,7 @@ function SessionRail({
                 <RailItem
                   key={s.session_id}
                   title={s.situation?.trim() || "제목 없는 연습"}
-                  meta={`${s.status === "analyzing" ? "분석 중" : "대기 중"} · ${whenLabel(s.created_at)}`}
+                  meta={`같이 볼 장면을 찾고 있어요 · ${whenLabel(s.created_at)}`}
                   active={s.session_id === activeId}
                   dot
                   onClick={() => onOpen(s.session_id)}
@@ -965,10 +1151,12 @@ function UploadZone({ onClick }: { onClick: () => void }) {
 function VideoBox({
   src,
   caption,
+  onDuration,
   onReselect,
 }: {
   src: string;
   caption: string;
+  onDuration?: (durationMs: number) => void;
   onReselect?: () => void;
 }) {
   return (
@@ -977,6 +1165,12 @@ function VideoBox({
         src={src}
         controls
         playsInline
+        onLoadedMetadata={(event) => {
+          const seconds = event.currentTarget.duration;
+          if (onDuration && Number.isFinite(seconds) && seconds > 0) {
+            onDuration(Math.round(seconds * 1000));
+          }
+        }}
         className="aspect-video max-h-[300px] w-full rounded-[18px] bg-black object-contain sm:rounded-[20px]"
       />
       <div className="mt-2.5 flex flex-wrap items-center gap-2.5">
@@ -1015,17 +1209,15 @@ function SceneForm({
 }) {
   return (
     <section
-      className={`rounded-[18px] bg-white p-4 shadow-[0_12px_36px_rgba(25,31,40,0.05)] sm:rounded-[20px] sm:p-6 ${
-        locked ? "opacity-55" : ""
-      }`}
+      className="rounded-[18px] bg-white p-4 shadow-[0_12px_36px_rgba(25,31,40,0.05)] sm:rounded-[20px] sm:p-6"
     >
       <h2 className="text-[15px] font-black tracking-[-0.03em] sm:text-base">
         이 장면에서 무엇을 연기했는지 알려 주세요
       </h2>
       <div className="mt-3 grid gap-3">
-        <SceneField label="상황" value={situation} onChange={onSituation} disabled={locked} placeholder="예: 이별을 통보받은 직후, 카페에서" />
-        <SceneField label="인물" value={character} onChange={onCharacter} disabled={locked} placeholder="예: 담담한 척하는 20대 후반 여성" />
-        <SceneField label="목표" value={goal} onChange={onGoal} disabled={locked} placeholder="예: 상대가 마음을 돌려 다시 앉게 만들기" />
+        <SceneField label="상황" value={situation} onChange={onSituation} disabled={locked} placeholder="이별을 통보받은 직후, 카페에서" />
+        <SceneField label="인물" value={character} onChange={onCharacter} disabled={locked} placeholder="담담한 척하는 20대 후반 여성" />
+        <SceneField label="목표" value={goal} onChange={onGoal} disabled={locked} placeholder="상대가 마음을 돌려 다시 앉게 만들기" />
       </div>
     </section>
   );
@@ -1049,10 +1241,10 @@ function SceneField({
       <span className="text-xs font-black text-[#333d4b]">{label}</span>
       <input
         value={value}
-        disabled={disabled}
+        readOnly={disabled}
         placeholder={placeholder}
         onChange={(event) => onChange(event.target.value)}
-        className="h-11 w-full rounded-xl border border-[#e5e8eb] bg-[#f8fbff] px-3.5 text-base font-semibold outline-none transition placeholder:text-[#b0b8c1] focus:border-[#3182f6] focus:bg-white focus:ring-4 focus:ring-[#e8f3ff]"
+        className="h-11 w-full rounded-xl border border-[#e5e8eb] bg-[#f8fbff] px-3.5 text-base font-semibold text-[#191f28] outline-none transition placeholder:text-[#b0b8c1] focus:border-[#3182f6] focus:bg-white focus:ring-4 focus:ring-[#e8f3ff] read-only:cursor-default read-only:focus:border-[#e5e8eb] read-only:focus:bg-[#f8fbff] read-only:focus:ring-0"
       />
     </label>
   );
@@ -1076,88 +1268,71 @@ function StartRow({ ready, onStart }: { ready: boolean; onStart: () => void }) {
   );
 }
 
-/**
- * 서버 대기 구간의 표시용 진행률(0~1). 서버는 analyzing/analyzed/failed 셋만 주므로
- * 진짜 진행률이 없다 — 실측 평균 시간에 맞춘 지수 곡선으로 채운다.
- *
- * ⚠️ 이전 구현은 60초에 상한(90)에 닿고 그 뒤로는 시간상수 90초짜리 crawl만 남아서,
- * 화면상 94.5%에서 사실상 멈춰 있었다 (2026-07-28 실사용: "95%에서 멈추다 갑자기 시작").
- * 상한에 부딪히는 구간을 없애고, 평균 시점에 약 80%가 되도록 시간상수를 잡는다.
- */
-function waitingRatio(sec: number): number {
-  return 1 - Math.exp(-sec / (AVG_ANALYZE_SEC / 1.6));
-}
-
 function ProgressPanel({
-  serverWaiting,
-  waitedSec,
   pct,
-  label,
+  durationMs,
+  phase,
+  failed = false,
+  starting = false,
+  onStartWithoutEvidence,
 }: {
-  serverWaiting: boolean;
-  waitedSec: number;
   pct: number;
-  label: string;
+  durationMs: number | null;
+  phase: "upload" | "scan";
+  failed?: boolean;
+  starting?: boolean;
+  onStartWithoutEvidence?: () => void;
 }) {
-  // 업로드가 끝난 지점(UPLOAD_END)에서 이어받아 계속 오른다 — 되감기지 않는다.
-  const shownPct = serverWaiting
-    ? UPLOAD_END + (WAIT_CEILING - UPLOAD_END) * waitingRatio(waitedSec)
-    : pct;
+  if (failed) {
+    return (
+      <div aria-live="polite" className="rounded-[28px] bg-white p-5 shadow-[0_16px_48px_rgba(25,31,40,0.08)] sm:p-6">
+        <h2 className="text-lg font-black leading-7 text-[#191f28]">
+          영상을 바탕으로 질문을 준비하지 못했어요
+        </h2>
+        <p className="mt-2 text-sm font-semibold leading-6 text-[#4e5968]">
+          원하면 영상 근거 없이 대화를 시작할 수 있어요.
+        </p>
+        <button
+          type="button"
+          disabled={starting}
+          onClick={onStartWithoutEvidence}
+          className="mt-5 min-h-12 rounded-2xl bg-[#2f6bff] px-5 py-3 text-sm font-black text-white transition hover:bg-[#3182f6] disabled:bg-[#b0d2ff]"
+        >
+          {starting ? "질문 준비 중…" : "그냥 시작"}
+        </button>
+      </div>
+    );
+  }
+
+  const duration = formatVideoDuration(durationMs);
+  const waitingLabel = duration
+    ? `${duration} 영상 · 장면을 훑어보고 있어요…`
+    : "영상 길이 확인 · 장면을 훑어보고 있어요…";
+  const value = Math.round(pct);
+  const label = phase === "upload" ? "영상 올리는 중…" : waitingLabel;
+
   return (
-    <div aria-live="polite" className="rounded-[16px] bg-[#e8f3ff] px-4 py-4 sm:px-5">
+    <div aria-live="polite" className="rounded-[28px] bg-white p-5 shadow-[0_16px_48px_rgba(25,31,40,0.08)] sm:p-6">
       <div className="flex flex-wrap items-baseline gap-2.5">
         <span className="text-xl font-black tabular-nums tracking-[-0.04em] text-[#3182f6]">
-          {Math.round(shownPct)}%
+          {value}%
         </span>
-        <span className="text-xs font-semibold text-[#4e5968] sm:text-[13px]">{label}</span>
+        <span className="text-xs font-semibold text-[#4e5968] sm:text-[13px]">
+          {label}
+        </span>
       </div>
-      {/* 압축·업로드는 진짜 진행률, 서버 대기는 시간 기준 추정치다. */}
-      <div className="mt-2.5 h-2 overflow-hidden rounded-full bg-white/70">
+      <div
+        role="progressbar"
+        aria-label={`${value}% ${label}`}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={value}
+        className="mt-3 h-2 overflow-hidden rounded-full bg-[#e8f3ff]"
+      >
         <div
-          className={`h-full rounded-full bg-[#3182f6] transition-[width] ${
-            serverWaiting ? "duration-1000 ease-linear" : "duration-300"
-          }`}
-          style={{ width: `${shownPct}%` }}
+          className="h-full rounded-full bg-[#3182f6] transition-[width] duration-300"
+          style={{ width: `${value}%` }}
         />
-      </div>
-      <p className="mt-2.5 text-[11.5px] font-semibold leading-5 text-[#8b95a1]">
-        {serverWaiting && waitedSec >= SLOW_NOTICE_SEC
-          ? "장면이 길거나 앞에 기다리는 분석이 있으면 몇 분 더 걸려요. 이 화면을 닫아도 분석은 계속되고, 왼쪽 목록에서 이어볼 수 있어요."
-          : "이 화면을 닫아도 분석은 계속돼요. 끝나면 왼쪽 목록에서 이어볼 수 있어요."}
-      </p>
-    </div>
-  );
-}
-
-function StalledNotice({
-  onKeepWaiting,
-  onRestart,
-}: {
-  onKeepWaiting: () => void;
-  onRestart: () => void;
-}) {
-  return (
-    <div role="alert" className="rounded-[16px] bg-[#fff8e8] px-4 py-4 sm:px-5">
-      <p className="text-sm font-black text-[#333d4b]">분석이 예상보다 오래 걸리고 있어요</p>
-      <p className="mt-1.5 text-xs font-semibold leading-5 text-[#4e5968]">
-        영상은 이미 저장됐고 분석은 계속 진행돼요. 이 화면을 닫아도 되고, 끝나면 왼쪽 목록에서
-        이어볼 수 있어요.
-      </p>
-      <div className="mt-3 flex flex-wrap gap-2">
-        <button
-          type="button"
-          onClick={onKeepWaiting}
-          className="inline-flex h-10 items-center justify-center rounded-xl bg-[#3182f6] px-4 text-xs font-black text-white transition hover:bg-[#1b64da]"
-        >
-          목록 새로 보기
-        </button>
-        <button
-          type="button"
-          onClick={onRestart}
-          className="inline-flex h-10 items-center justify-center rounded-xl bg-white px-4 text-xs font-black text-[#4e5968] transition hover:bg-[#eef2f6]"
-        >
-          다른 영상으로 다시 하기
-        </button>
       </div>
     </div>
   );
@@ -1188,7 +1363,7 @@ function ScenePanel({
   const rows: [string, string][] = [
     ["상황", detail?.situation?.trim() || "적지 않았어요"],
     ["인물", detail?.character_context?.trim() || "적지 않았어요"],
-    ["목표", detail?.subtext?.trim() || "적지 않았어요"],
+    ["목표", detail?.goal?.trim() || "적지 않았어요"],
   ];
 
   return (
@@ -1283,40 +1458,34 @@ function ChatPanel({
   answer,
   setAnswer,
   sending,
-  done,
-  busy,
+  inputEnabled,
   error,
   scrollRef,
   onSend,
-  onBuildNote,
-  hasNote,
-  onSeeNote,
+  done,
+  noteReady,
+  onOpenNote,
 }: {
   messages: ChatMsg[];
   answer: string;
   setAnswer: (v: string) => void;
   sending: boolean;
-  done: boolean;
-  busy: boolean;
+  inputEnabled: boolean;
   error: string | null;
   scrollRef: React.RefObject<HTMLDivElement | null>;
   onSend: () => void;
-  onBuildNote: () => void;
-  hasNote: boolean;
-  onSeeNote: () => void;
+  done: boolean;
+  noteReady: boolean;
+  onOpenNote: () => void;
 }) {
   return (
     <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-[18px] bg-white shadow-[0_12px_36px_rgba(25,31,40,0.06)] sm:rounded-[20px]">
-      <div className="flex items-center justify-between gap-3 border-b border-[#edf0f3] px-4 py-3 sm:px-5">
+      <div className="flex items-center gap-3 border-b border-[#edf0f3] px-4 py-3 sm:px-5">
         <span className="flex items-center gap-2 text-xs font-black text-[#4e5968] sm:text-[13.5px]">
           <span className="h-1.5 w-1.5 rounded-full bg-[#03b26c]" />
-          현재 장면을 바탕으로 질문하고 있어요
-        </span>
-        <span className="hidden text-xs font-semibold text-[#8b95a1] sm:block">
-          &apos;그만&apos;이라고 쓰면 언제든 마칠 수 있어요
+          {done ? "이번 대화는 여기까지예요" : "현재 장면을 바탕으로 질문하고 있어요"}
         </span>
       </div>
-
       <div
         ref={scrollRef}
         role="log"
@@ -1327,56 +1496,67 @@ function ChatPanel({
         {/* justify-end 를 쓰면 안 된다 — flex 컬럼에서 넘친 내용이 위쪽으로 삐져나가
             스크롤로 닿지 않는다. 대화가 길어지면 앞 질문을 볼 수 없었다 (2026-07-28).
             대신 안쪽을 mt-auto 로 밀어, 짧은 대화는 아래에 붙고 길어지면 정상 스크롤된다. */}
-        {messages.length === 0 ? (
-          <p className="my-auto text-center text-[13px] font-semibold leading-6 text-[#b0b8c1]">
-            이 연습에는 아직 오간 질문이 없어요.
-          </p>
-        ) : (
-          <div className="mt-auto flex flex-col gap-3 sm:gap-4">
-            {messages.map((m, index) => (
-              <Bubble key={`${m.role}-${index}`} msg={m} />
-            ))}
-          </div>
-        )}
+        <div className="mt-auto flex flex-col gap-3 sm:gap-4">
+          {messages.map((m, index) => (
+            <Bubble key={`${m.role}-${index}`} msg={m} />
+          ))}
+          {sending ? (
+            <div className="flex items-end gap-2">
+              <div className="rounded-[18px] rounded-bl-[6px] bg-[#f7faff] px-4 py-3">
+                <WaitingDots />
+              </div>
+            </div>
+          ) : null}
+        </div>
       </div>
 
-      {done ? (
-        <div className="border-t border-[#edf0f3] p-3 sm:p-4">
-          <button
-            type="button"
-            disabled={busy}
-            onClick={hasNote ? onSeeNote : onBuildNote}
-            className="h-12 w-full rounded-[14px] bg-[#3182f6] text-sm font-black text-white shadow-[0_10px_24px_rgba(49,130,246,0.24)] transition hover:bg-[#1b64da] disabled:bg-[#b0d2ff]"
-          >
-            {busy ? "연습 노트를 정리하는 중…" : hasNote ? "연습 노트 보기" : "대화를 바탕으로 연습 노트 만들기"}
-          </button>
-        </div>
-      ) : (
-        <div className="flex items-center gap-2.5 border-t border-[#edf0f3] p-3 sm:p-3.5">
-          <input
-            value={answer}
-            disabled={sending}
-            placeholder="답을 편하게 적어 주세요"
-            onChange={(event) => setAnswer(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" && !event.nativeEvent.isComposing && answer.trim()) {
-                event.preventDefault();
-                onSend();
-              }
-            }}
-            className="h-12 min-w-0 flex-1 rounded-full border border-[#e5e8eb] bg-[#f8fbff] px-5 text-base font-semibold outline-none transition placeholder:text-[#b0b8c1] focus:border-[#3182f6] focus:bg-white sm:h-14"
-          />
-          <button
-            type="button"
-            onClick={onSend}
-            disabled={sending || !answer.trim()}
-            aria-label="답변 보내기"
-            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#3182f6] text-lg font-black text-white shadow-[0_8px_20px_rgba(49,130,246,0.24)] transition hover:bg-[#1b64da] disabled:bg-[#c9d3df] disabled:shadow-none sm:h-14 sm:w-14"
-          >
-            ↑
-          </button>
-        </div>
-      )}
+      <div className="border-t border-[#edf0f3] p-3 sm:p-3.5">
+        {done ? (
+          <div className="flex flex-col items-center gap-3 py-1">
+            <p role="status" className="text-sm font-semibold text-[#4e5968]">
+              {noteReady ? "지금까지 이야기한 걸 정리해 뒀어요." : "정리하고 있어요…"}
+            </p>
+            <button
+              type="button"
+              onClick={onOpenNote}
+              disabled={!noteReady}
+              className="min-h-12 w-full rounded-2xl bg-[#3182f6] px-6 py-3 text-sm font-black text-white transition hover:bg-[#1b64da] disabled:bg-[#c9d3df] sm:w-auto sm:min-w-[220px]"
+            >
+              정리보기
+            </button>
+          </div>
+        ) : (
+          <>
+            <p className="mb-2 text-xs font-semibold text-[#8b95a1]">
+              &apos;그만&apos;이라고 쓰면 언제든 마칠 수 있어요
+            </p>
+            <div className="flex items-center gap-2.5">
+              <input
+                value={answer}
+                disabled={!inputEnabled}
+                placeholder="답을 편하게 적어 주세요"
+                onChange={(event) => setAnswer(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" && !event.nativeEvent.isComposing && answer.trim() && inputEnabled) {
+                    event.preventDefault();
+                    onSend();
+                  }
+                }}
+                className="h-12 min-w-0 flex-1 rounded-full border border-[#e5e8eb] bg-[#f8fbff] px-5 text-base font-semibold outline-none transition placeholder:text-[#b0b8c1] focus:border-[#3182f6] focus:bg-white disabled:bg-[#f2f4f6] sm:h-14"
+              />
+              <button
+                type="button"
+                onClick={onSend}
+                disabled={!inputEnabled || !answer.trim()}
+                aria-label="답변 보내기"
+                className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#3182f6] text-lg font-black text-white shadow-[0_8px_20px_rgba(49,130,246,0.24)] transition hover:bg-[#1b64da] disabled:bg-[#c9d3df] disabled:shadow-none sm:h-14 sm:w-14"
+              >
+                ↑
+              </button>
+            </div>
+          </>
+        )}
+      </div>
       {error ? (
         <p role="alert" className="border-t border-[#edf0f3] px-4 py-3 text-sm font-bold text-[#e42939]">
           {error}
@@ -1409,13 +1589,13 @@ function Bubble({ msg }: { msg: ChatMsg }) {
 
 function NotePanel({
   report,
-  reportCount,
+  messages,
   busy,
   onBackToChat,
   onFinish,
 }: {
-  report: ActingReport | null;
-  reportCount: number;
+  report: PracticeReport | null;
+  messages: ChatMsg[];
   busy: boolean;
   onBackToChat: () => void;
   onFinish: () => void;
@@ -1430,42 +1610,46 @@ function NotePanel({
     );
   }
 
-  return (
-    <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-[18px] bg-white shadow-[0_12px_36px_rgba(25,31,40,0.06)] sm:rounded-[20px]">
-      <header className="border-b border-[#edf0f3] px-5 pb-4 pt-5 sm:px-6">
-        <p className="text-xs font-black text-[#3182f6]">{reportCount}번째 연습 노트</p>
-        <h2 className="mt-2 text-xl font-black leading-snug tracking-[-0.04em] sm:text-2xl">
-          {report.headline}
-        </h2>
-      </header>
-
-      <div className="grid min-h-0 flex-1 gap-3 overflow-y-auto p-4 sm:p-5">
-        <article className="rounded-[18px] border border-[#dce9ff] bg-[#f7faff] p-4 sm:p-5">
-          <p className="text-xs font-black text-[#3182f6]">다시 본 순간</p>
-          <div className="mt-1.5 flex flex-wrap items-center gap-2.5">
-            <h3 className="text-[15px] font-black tracking-[-0.03em]">영상에서 눈에 남은 곳</h3>
-            <span className="inline-flex rounded-full bg-white px-3 py-1.5 text-xs font-black text-[#3182f6]">
-              {report.biggest_problem.start} – {report.biggest_problem.end}
-            </span>
-          </div>
-          <p className="mt-2.5 whitespace-pre-wrap text-sm font-semibold leading-[1.75] text-[#333d4b]">
-            {report.biggest_problem.description}
-          </p>
-        </article>
-
-        <NoteCard title="대화에서 확인한 것" body={report.evidence} />
-
-        <article className="flex items-start gap-3.5 rounded-[18px] border border-[#e5e8eb] bg-white p-4 sm:p-5">
-          <span className="mt-0.5 h-12 w-[3px] shrink-0 rounded-full bg-[#3182f6]" />
-          <div className="min-w-0">
-            <p className="text-xs font-black text-[#3182f6]">배우님이 남긴 문장</p>
-            <p className="mt-2 whitespace-pre-wrap text-[15px] font-black leading-[1.65] tracking-[-0.02em]">
-              {report.self_discovery}
+  if (report.report_type === "blocked") {
+    return (
+      <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+        <div className="min-h-0 flex-1 overflow-y-auto bg-[#f7faff] p-4 sm:p-5">
+          <div className="grid gap-4 rounded-[24px] bg-white p-5 shadow-[0_12px_36px_rgba(25,31,40,0.06)]">
+            <div>
+              <p className="text-xs font-black text-[#3182f6]">지금까지 나눈 이야기</p>
+              <h2 className="mt-2 text-xl font-black tracking-[-0.035em]">대화에서 찾은 내용을 먼저 모아 뒀어요</h2>
+            </div>
+            <div className="grid gap-3">
+              {messages.map((message, index) => (
+                <div key={`${message.role}-${index}`} className="rounded-2xl bg-[#f8fbff] px-4 py-3">
+                  <p className="text-xs font-black text-[#8b95a1]">{message.role === "me" ? "나" : "코치"}</p>
+                  <p className="mt-1 whitespace-pre-wrap text-sm font-semibold leading-6 text-[#333d4b]">{message.text}</p>
+                </div>
+              ))}
+            </div>
+            <p className="rounded-2xl bg-[#e8f3ff] px-4 py-3 text-sm font-bold leading-6 text-[#1b64da]">
+              아직 한 번도 해보지 않아서 정리할 게 부족해요. 대화로 돌아가 한 번만 시도해 볼까요?
             </p>
           </div>
-        </article>
+        </div>
+        <div className="border-t border-[#edf0f3] p-3.5 sm:p-4">
+          <button
+            type="button"
+            disabled={busy}
+            onClick={onBackToChat}
+            className="h-12 w-full rounded-[14px] bg-[#3182f6] text-sm font-black text-white transition hover:bg-[#1b64da] disabled:bg-[#c9d3df]"
+          >
+            대화로 돌아가기
+          </button>
+        </div>
+      </section>
+    );
+  }
 
-        <NoteCard title="다음 테이크" body={report.next_step} tone="blue" />
+  return (
+    <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+      <div className="min-h-0 flex-1 overflow-y-auto bg-[#f7faff] p-4 sm:p-5">
+        <PracticeReportCards report={report} />
       </div>
 
       <div className="flex gap-2.5 border-t border-[#edf0f3] p-3.5 sm:p-4">
@@ -1489,37 +1673,18 @@ function NotePanel({
   );
 }
 
-function NoteCard({
-  title,
-  body,
-  tone = "gray",
-}: {
-  title: string;
-  body: string;
-  tone?: "gray" | "blue";
-}) {
-  return (
-    <article
-      className={`rounded-[18px] border p-4 sm:p-5 ${
-        tone === "blue" ? "border-[#dce9ff] bg-[#f7faff]" : "border-[#e5e8eb] bg-white"
-      }`}
-    >
-      <h3 className="text-[15px] font-black tracking-[-0.03em]">{title}</h3>
-      <p className="mt-2 whitespace-pre-wrap text-sm font-semibold leading-[1.75] text-[#4e5968]">
-        {body}
-      </p>
-    </article>
-  );
-}
-
-function StatusChip({ mode }: { mode: Mode }) {
-  if (mode === "prep") return null;
-  const map: Record<Exclude<Mode, "prep">, [string, string]> = {
-    analyzing: ["분석 중", "bg-[#e8f3ff] text-[#3182f6]"],
+function StatusChip({ mode, done }: { mode: Mode; done: boolean }) {
+  if (mode === "prep" || mode === "blockage") return null;
+  const map: Record<Exclude<Mode, "prep" | "blockage">, [string, string]> = {
+    uploading: ["업로드 중", "bg-[#e8f3ff] text-[#3182f6]"],
+    preparing: ["질문 준비", "bg-[#e8f3ff] text-[#3182f6]"],
     chat: ["질문 대화 중", "bg-[#e8f3ff] text-[#3182f6]"],
     note: ["연습 노트", "bg-[#e5f8ef] text-[#009959]"],
   };
-  const [label, tone] = map[mode];
+  // 대화가 끝나도 노트로 넘어가기 전까지는 mode 가 chat 이다. 그동안 "대화 중"이라고
+  // 하면 화면과 어긋나므로 끝났다고 말한다.
+  const [label, tone] =
+    mode === "chat" && done ? ["대화 마침", "bg-[#e5f8ef] text-[#009959]"] : map[mode];
   return (
     <span className={`shrink-0 rounded-full px-2.5 py-1 text-[11.5px] font-black ${tone}`}>
       {label}

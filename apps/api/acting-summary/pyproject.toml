@@ -5,6 +5,7 @@ description = "영상 + 서브텍스트 → Gemini 통합 요약 (다음 단계 
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
+    "acting-llm",
     "fastapi>=0.115",
     "uvicorn>=0.34",
     "google-genai>=2.9.0",
@@ -12,6 +13,9 @@ dependencies = [
     "python-dotenv>=1.0",
     "python-multipart>=0.0.9",
 ]
+
+[tool.uv.sources]
+acting-llm = { workspace = true }
 
 [build-system]
 requires = ["uv_build>=0.11.23,<0.12.0"]

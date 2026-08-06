@@ -67,7 +67,7 @@ export default function LoginScreen() {
           style={styles.logo}
           contentFit="contain"
         />
-        <Text style={styles.tagline}>점수가 아니라, 그 장면에서 뭘 하려 했는지</Text>
+        <Text style={styles.tagline}>그 장면에서 뭘 하려 했는지부터</Text>
       </View>
 
       <View style={styles.bottom}>

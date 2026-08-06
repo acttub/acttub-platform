@@ -19,14 +19,15 @@ from acting_api.config import GatewaySettings
 from acting_api.db.models import OperationStatus, PracticeStatus
 from acting_api.storage import S3Storage
 from acting_report.config import Settings as ReportSettings
+from acting_report import schema as report_schema
 from acting_summary.config import Settings as SummarySettings
 from api_test_support import (
     COACH_FOLLOWUP,
-    COACH_QUESTION,
+    COACH_COMPLETE,
     REPORT,
     SUMMARY,
     FakeClient,
-    FakeModelResponse,
+    FakeTextGenerator,
 )
 from auth_test_support import FakeProviderVerifier
 from platform_test_support import FakeBotoS3Client, FakePlatformStore
@@ -78,7 +79,8 @@ SUCCESS_RESPONSE_MODELS = {
     ): "PracticeSessionAcceptedResponse",
     ("post", "/v2/coach/start", "200"): "CoachTurnResponse",
     ("post", "/v2/coach/reply", "200"): "CoachTurnResponse",
-    ("post", "/v2/reports", "200"): "CreateReportResponse",
+    ("post", "/v2/coach/confirm", "200"): "CoachConfirmResponse",
+    ("post", "/v2/reports", "200"): "PracticeReport",
     ("get", "/v2/reports", "200"): "ReportHistoryResponse",
     (
         "get",
@@ -109,30 +111,34 @@ SUCCESS_RESPONSE_MODELS = {
 }
 
 RESPONSE_COMPONENT_SHAPES = {
-    "ActingReport": {
+    "AnalysisReport": {
         "required": {
-            "headline",
-            "biggest_problem",
+            "report_type",
+            "title",
+            "actor_discovery",
+            "line_meaning",
+            "timing_reason",
+            "target_effect",
+            "next_take",
+            "acting_caution",
             "evidence",
-            "self_discovery",
-            "encouragement",
-            "next_step",
-            "comparison",
+            "uncertainties",
+            "source_handoff_id",
         },
     },
     "AuthUser": {"required": {"id", "email", "status"}},
-    "BiggestProblem": {
-        "required": {"start", "end", "dimension", "description"},
-    },
     "CoachTurnResponse": {
         "required": {
             "session_id",
-            "action",
-            "utterance",
-            "focus_timestamp",
-            "done",
-            "reason",
+            "message",
+            "status",
+            "handoff",
+            "report",
+            "turns",
         },
+    },
+    "CoachConfirmResponse": {
+        "required": {"session_id", "confirmed", "handoff", "report"},
     },
     "ConsentDocument": {
         "required": {
@@ -149,7 +155,6 @@ RESPONSE_COMPONENT_SHAPES = {
     "ConsentEventResponse": {
         "required": {"id", "document_id", "action", "occurred_at"},
     },
-    "CreateReportResponse": {"required": {"report", "report_count"}},
     "HealthResponse": {
         "required": {"status", "services", "model", "keep_alive", "commit"},
     },
@@ -166,12 +171,14 @@ RESPONSE_COMPONENT_SHAPES = {
             "status",
             "situation",
             "character_context",
-            "subtext",
+            "goal",
+            "blockage_kind",
+            "sub_branch",
             "created_at",
             "updated_at",
             "playback_url",
         },
-        "optional": {"summary", "error_code"},
+        "optional": {"summary", "error_code", "blockage_detail"},
     },
     "PracticeSessionListItem": {
         "required": {
@@ -179,10 +186,13 @@ RESPONSE_COMPONENT_SHAPES = {
             "status",
             "situation",
             "character_context",
-            "subtext",
+            "goal",
+            "blockage_kind",
+            "sub_branch",
             "created_at",
             "updated_at",
         },
+        "optional": {"blockage_detail"},
     },
     "PracticeSessionListResponse": {"required": {"sessions"}},
     "PracticeSessionStatusResponse": {
@@ -202,19 +212,15 @@ RESPONSE_COMPONENT_SHAPES = {
         },
     },
     "ReportRecord": {
-        "required": {"practice_session_id", "headline", "created_at"},
-    },
-    "SceneSummary": {
-        "required": {"summary_id"},
-        "optional": {
-            "observation",
-            "summary",
-            "intent_alignment",
-            "key_moment",
-            "key_dimension",
-            "anomalies",
+        "required": {
+            "practice_session_id",
+            "report_type",
+            "title",
+            "created_at",
         },
-        "allows_extra": True,
+    },
+    "ObservationPackResponse": {
+        "required": {"summary_id", "observations", "uncertainties"},
     },
     "TokenPairResponse": {
         "required": {
@@ -297,7 +303,8 @@ RESPONSE_MODEL_LOCATIONS: dict[str, tuple[ModuleType, str]] = {
     ),
     "PracticeSessionDetail": (practice_sessions, "PracticeSessionDetail"),
     "CoachTurnResponse": (coaching, "CoachTurnResponse"),
-    "CreateReportResponse": (reports, "CreateReportResponse"),
+    "CoachConfirmResponse": (coaching, "CoachConfirmResponse"),
+    "PracticeReport": (report_schema, "PracticeReport"),
     "ReportHistoryResponse": (reports, "ReportHistoryResponse"),
     "ReportDetailResponse": (reports, "ReportDetailResponse"),
 }
@@ -314,13 +321,11 @@ def _application():
         email="actor@example.com",
         email_verified=True,
     )
-    fake_client = FakeClient(
-        [
-            FakeModelResponse(parsed=COACH_QUESTION),
-            FakeModelResponse(parsed=COACH_FOLLOWUP),
-            FakeModelResponse(parsed=REPORT),
-        ]
+    fake_client = FakeClient()
+    coach_generate = FakeTextGenerator(
+        [COACH_FOLLOWUP, COACH_FOLLOWUP, COACH_COMPLETE]
     )
+    report_generate = FakeTextGenerator([REPORT.model_dump(mode="json")])
     app = create_app(
         client=fake_client,
         gateway_settings=GatewaySettings(
@@ -336,6 +341,8 @@ def _application():
         community_store=SimpleNamespace(),
         provider_registry=ProviderRegistry([verifier]),
         s3_storage=storage,
+        coach_generate=coach_generate,
+        report_generate=report_generate,
     )
     return app, store, boto_client
 
@@ -413,6 +420,15 @@ def test_success_response_schema_matrix_is_complete_and_concrete():
         schema = openapi["paths"][path][method]["responses"][status_code][
             "content"
         ]["application/json"]["schema"]
+        if model_name == "PracticeReport":
+            assert {
+                item["$ref"] for item in schema["anyOf"]
+            } == {
+                "#/components/schemas/AnalysisReport",
+                "#/components/schemas/ExpressionReport",
+                "#/components/schemas/BlockedReport",
+            }
+            continue
         assert schema == {"$ref": f"#/components/schemas/{model_name}"}
         resolved = _resolve_refs(schema, openapi)
         assert "$ref" not in json.dumps(resolved)
@@ -499,7 +515,10 @@ def test_declared_response_models_validate_real_success_payloads_and_replays():
         "upload_intent_id": str(intent.id),
         "situation": "오디션 직전",
         "character_context": "불안한 배우",
-        "subtext": "침착한 척한다",
+        "goal": "상대가 멈추게 한다",
+        "blockage_kind": "분석",
+        "sub_branch": "대사 분석",
+        "blockage_detail": "왜 지금 말하는지 모르겠어.",
     }
     session_headers = {**headers, "X-Request-Id": str(session_request_id)}
     accepted = client.post(
@@ -526,8 +545,8 @@ def test_declared_response_models_validate_real_success_payloads_and_replays():
         store=store,
         storage=app.state.s3_storage,
         analyzer=SimpleNamespace(
-            analyze=lambda _video_path, _session: AnalysisResult(
-                summary=SUMMARY,
+            analyze=lambda _video_path, _session, duration_ms=None: AnalysisResult(
+                observation_pack=SUMMARY,
                 was_compressed=False,
             )
         ),
@@ -619,13 +638,16 @@ def test_declared_response_models_validate_real_success_payloads_and_replays():
         **headers,
         "X-Request-Id": str(coach_start_request_id),
     }
-    coach_start_body = {"summary_id": str(summary_id)}
+    coach_start_body = {"practice_session_id": str(session_id)}
     coach_start = client.post(
         "/v2/coach/start",
         json=coach_start_body,
         headers=coach_start_headers,
     )
     _assert_contract(coach_start, 200, models["CoachTurnResponse"])
+    assert coach_start.json()["message"] == COACH_FOLLOWUP["message"]
+    assert coach_start.json()["status"] == "continue"
+    assert coach_start.json()["handoff"] is None
     coach_start_replay = client.post(
         "/v2/coach/start",
         json=coach_start_body,
@@ -657,12 +679,24 @@ def test_declared_response_models_validate_real_success_payloads_and_replays():
     )
     _assert_contract(coach_reply_replay, 200, models["CoachTurnResponse"])
     assert coach_reply_replay.content == coach_reply.content
-    coach_close = client.post(
+    coach_complete = client.post(
         "/v2/coach/reply",
-        json={"session_id": coach_session_id, "text": "그만할래"},
+        json={"session_id": coach_session_id, "text": "지금 놓치면 끝이에요"},
         headers={**headers, "X-Request-Id": str(uuid4())},
     )
-    _assert_contract(coach_close, 200, models["CoachTurnResponse"])
+    _assert_contract(coach_complete, 200, models["CoachTurnResponse"])
+    assert coach_complete.json()["status"] == "complete"
+
+    confirmed = client.post(
+        "/v2/coach/confirm",
+        json={
+            "coach_session_id": coach_session_id,
+            "confirmed": True,
+            "rebuttal_text": None,
+        },
+        headers={**headers, "X-Request-Id": str(uuid4())},
+    )
+    _assert_contract(confirmed, 200, models["CoachConfirmResponse"])
 
     report_request_id = uuid4()
     report_headers = {**headers, "X-Request-Id": str(report_request_id)}
@@ -672,13 +706,13 @@ def test_declared_response_models_validate_real_success_payloads_and_replays():
         json=report_body,
         headers=report_headers,
     )
-    _assert_contract(created_report, 200, models["CreateReportResponse"])
+    _assert_contract(created_report, 200, models["PracticeReport"])
     report_replay = client.post(
         "/v2/reports",
         json=report_body,
         headers=report_headers,
     )
-    _assert_contract(report_replay, 200, models["CreateReportResponse"])
+    _assert_contract(report_replay, 200, models["PracticeReport"])
     assert report_replay.content == created_report.content
     history = client.get("/v2/reports", headers=headers)
     _assert_contract(history, 200, models["ReportHistoryResponse"])

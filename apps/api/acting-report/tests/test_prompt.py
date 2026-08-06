@@ -1,21 +1,12 @@
-from acting_report.prompt import build_prompt
-from report_test_support import PREV_RECORD, SESSION
+import hashlib
+
+from acting_report.prompt import REPORT_ANALYSIS_PROMPT, REPORT_EXPRESSION_PROMPT
 
 
-def test_prompt_contains_target_and_turns():
-    p = build_prompt(SESSION, [])
-    assert "1.2초 멈춤" in p  # 타깃 anomaly (첫 번째 = high)
-    assert "시선 이탈" not in p  # 두 번째 anomaly는 리포트에 안 들어감
-    assert "대사가 기억 안 났어요" in p  # 대화 원문
-    assert "gap_stated" in p  # 종료 사유
-
-
-def test_prompt_no_previous():
-    p = build_prompt(SESSION, [])
-    assert "이전 리포트 없음" in p
-
-
-def test_prompt_with_previous():
-    p = build_prompt(SESSION, [PREV_RECORD])
-    assert "상대를 안 보고 바닥을 봤어" in p
-    assert "2026-07-01" in p
+def test_canonical_report_prompt_hashes_are_unchanged():
+    assert hashlib.sha256(REPORT_ANALYSIS_PROMPT.encode()).hexdigest() == (
+        "92ad143112723bc151752e1f1872b195358d267b0ece9efe3bc109341d40a12d"
+    )
+    assert hashlib.sha256(REPORT_EXPRESSION_PROMPT.encode()).hexdigest() == (
+        "7ad3325affe8bca2171d5742a0e6a8f45df2609a338e383cd63f13ad10030a63"
+    )

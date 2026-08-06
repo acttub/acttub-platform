@@ -1,7 +1,7 @@
 # acting-summary
 
-연습 영상과 서브텍스트(상황·인물 설정·의도)를 Gemini로 분석해 구조화된
-`SceneSummary`를 만드는 Python 패키지입니다. 별도 HTTP 서비스로 배포하지 않고,
+연습 영상과 배우 재료(상황·캐릭터·이번 테이크의 목적)를 Gemini로 확인해
+`ObservationPack`을 만드는 Python 패키지입니다. 별도 HTTP 서비스로 배포하지 않고,
 `acting-api`의 백그라운드 분석 워커가 프로세스 안에서 직접 호출합니다.
 
 ## 분석 흐름
@@ -14,24 +14,20 @@
 
 ## 입력과 출력
 
-요약 엔진은 영상 파일 경로와 다음 `SubText` 값을 입력으로 받습니다.
+관찰 엔진은 영상 파일 경로와 다음 `ActorMaterial` 값을 입력으로 받습니다.
 
 - `situation`: 장면의 상황
 - `character`: 인물 설정
-- `subtext`: 장면에서 전달하려는 의도
+- `goal`: 이번 테이크의 목적
+- `blockage_kind`, `blockage_detail`: 배우가 고른 막힘과 상세
+- `duration_ms`: 영상 길이
 
-`SceneSummary`는 다음 필드로 구성됩니다.
+`ObservationPack`은 다음 필드로 구성됩니다.
 
-- `observation`: `timeline`, `dialogue`, `tempo`, `pitch`, `movement`,
-  `expression`, `emotion`, `extra`로 나눈 시간순 관찰
-- `summary`: 서브텍스트 대비 압축 요약
-- `intent_alignment`: 의도와 실제 연기의 정렬·이탈
-- `key_moment`: 가장 중요한 시간 구간과 그 이유
-- `key_dimension`: 가장 중요한 연기 축과 그 이유
-- `anomalies[]`: `start`/`end` 구간, 연기 축, 관찰 내용과 원인·영향,
-  우선순위 근거를 담은 이상 징후 목록
+- `observations[]`: `start_ms`, `end_ms`, `label`, `confidence`로 된 확인 가능한 사실. 0개가 정상이고 최대 3개입니다.
+- `uncertainties[]`: 영상에서 확인할 수 없었던 것
 
-`summary_id`는 `SceneSummary` 자체 필드가 아니라, `acting-api`가 저장한 요약을
+`summary_id`는 `ObservationPack` 자체 필드가 아니라, `acting-api`가 저장한 결과를
 세션 상세 응답에 포함할 때 덧붙이는 식별자입니다.
 
 ## 설정과 실행

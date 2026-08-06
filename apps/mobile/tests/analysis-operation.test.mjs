@@ -15,10 +15,10 @@ import { startCancellableCompression } from '../lib/cancellable-transfer.ts';
 
 function uploadInput() {
   return {
-    subtext: {
+    scene: {
       situation: '카페',
       character: '배우',
-      subtext: '감정을 숨긴다',
+      goal: '감정을 숨긴다',
     },
     video: {
       uri: 'file:///original.mov',
@@ -35,7 +35,7 @@ function completeDetail(sessionId = 'session-1') {
     status: 'analyzed',
     situation: '카페',
     character_context: '배우',
-    subtext: '감정을 숨긴다',
+    goal: '감정을 숨긴다',
     created_at: '2026-07-23T00:00:00Z',
     updated_at: '2026-07-23T00:01:00Z',
     playback_url: 'https://cdn.test/video.mp4',

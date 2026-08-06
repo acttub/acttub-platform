@@ -1,41 +1,39 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timedelta, timezone
 from typing import Any
 from uuid import UUID, uuid4
 
 from sqlalchemy import Engine, and_, func, or_, select, update
 from sqlalchemy.dialects.postgresql import insert
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
 
 from acting_agent.schema import CoachSession as AgentCoachSession
 from acting_agent.schema import CoachTurn as AgentCoachTurn
 from acting_agent.store import SessionWriteConflict
-from acting_agent.summary_schema import SceneSummary as AgentSceneSummary
-from acting_agent.summary_schema import SubText as AgentSubText
+from acting_agent.summary_schema import ActorMaterial as AgentActorMaterial
+from acting_agent.summary_schema import ObservationPack as AgentObservationPack
 from acting_api.db.engine import create_db_engine, create_session_factory
 from acting_api.db.models import (
-    Anomaly as DbAnomaly,
-    CloseReason,
+    CoachingHandoff,
     CoachSession as DbCoachSession,
     CoachTurn as DbCoachTurn,
     ConsentAction,
     ConsentDocument,
     ConsentType,
     ExternalOperation,
+    HandoffConfirmation,
     IdentityProvider,
-    IntentImpact,
     OperationKind,
     OperationStatus,
     PracticeSession,
+    PracticeReport as DbPracticeReport,
     PracticeStatus,
     RefreshToken,
-    Report as DbReport,
     SessionStatus,
-    Severity,
     Summary,
+    Transcript,
     TurnRole,
     UploadIntent,
     UploadStatus,
@@ -44,12 +42,7 @@ from acting_api.db.models import (
     UserIdentity,
     UserStatus,
 )
-from acting_report.schema import ActingReport, BiggestProblem, ReportRecord
-from acting_report.session_schema import CoachSession as ReportCoachSession
-from acting_report.session_schema import CoachTurn as ReportCoachTurn
-from acting_report.summary_schema import SceneSummary as ReportSceneSummary
-from acting_report.summary_schema import SubText as ReportSubText
-from acting_summary.schema import SceneSummary as SummarySceneSummary
+from acting_summary.schema import ObservationPack as SummaryObservationPack
 
 MAX_EXTERNAL_OPERATION_ATTEMPTS = 3
 
@@ -105,10 +98,14 @@ class AnalysisContext:
 
 
 @dataclass(frozen=True)
-class OwnedSummaryContext:
+class OwnedPracticeSessionContext:
     practice_session_id: UUID
-    summary: AgentSceneSummary
-    subtext: AgentSubText
+    summary_id: UUID | None
+    observation_pack: AgentObservationPack | None
+    actor: AgentActorMaterial
+    sub_branch: str
+    transcripts: tuple[str, ...]
+    analysis_handoff: dict[str, Any] | None
 
 
 @dataclass(frozen=True)
@@ -118,23 +115,31 @@ class OwnedCoachSessionContext:
 
 
 @dataclass(frozen=True)
-class OwnedReportContext:
+class OwnedReportSource:
     practice_session_id: UUID
-    session: ReportCoachSession
+    coach_session_id: UUID
+    video_summary: dict[str, Any]
+    branch_kind: str
+    handoff_id: UUID | None
+    handoff_json: dict[str, Any] | None
+    confirmed: bool
+    analysis_handoff_id: UUID | None
+    analysis_handoff_json: dict[str, Any] | None
 
 
 @dataclass(frozen=True)
-class ReportSummary:
+class PracticeReportSummary:
     practice_session_id: UUID
-    headline: str
+    report_type: str
+    title: str
     created_at: datetime
 
 
 @dataclass(frozen=True)
-class ReportDetail:
+class PracticeReportDetail:
     practice_session_id: UUID
     created_at: datetime
-    report: ActingReport
+    report: dict[str, Any]
     object_key: str
 
 
@@ -142,22 +147,22 @@ class ReportDetail:
 class _SessionData:
     practice_session_id: UUID
     session_id: UUID
-    summary_id: UUID
+    summary_id: UUID | None
     user_id: UUID
-    raw_summary: dict[str, Any]
+    observation_pack: dict[str, Any] | None
     situation: str
     character_context: str
-    subtext: str
+    goal: str
+    duration_ms: int
+    blockage_kind: str
+    sub_branch: str
+    blockage_detail: str | None
+    transcripts: tuple[str, ...]
+    conversation_summary: str
+    analysis_handoff: dict[str, Any] | None
     status: str
     close_reason: str
     turns: list[DbCoachTurn]
-
-    @property
-    def question_count(self) -> int:
-        return sum(
-            turn.role == TurnRole.AI and turn.action not in (None, "close")
-            for turn in self.turns
-        )
 
 
 class PostgresStore:
@@ -590,7 +595,10 @@ class PostgresStore:
         upload_intent_id: UUID,
         situation: str,
         character_context: str,
-        subtext: str,
+        goal: str,
+        blockage_kind: str = "그 외",
+        sub_branch: str = "그 외",
+        blockage_detail: str | None = None,
         status: PracticeStatus | str = PracticeStatus.CREATED,
     ) -> PracticeSession | None:
         row = PracticeSession(
@@ -600,7 +608,11 @@ class PostgresStore:
             status=PracticeStatus(status),
             situation=situation,
             character_context=character_context,
-            subtext=subtext,
+            goal=goal,
+            subtext=None,
+            blockage_kind=blockage_kind,
+            sub_branch=sub_branch,
+            blockage_detail=blockage_detail,
         )
         with self._session_factory.begin() as db:
             upload_exists = db.scalar(
@@ -624,7 +636,10 @@ class PostgresStore:
         upload_intent_id: UUID,
         situation: str,
         character_context: str,
-        subtext: str,
+        goal: str,
+        blockage_kind: str = "그 외",
+        sub_branch: str = "그 외",
+        blockage_detail: str | None = None,
         request_id: UUID,
         request_fingerprint: str,
     ) -> PracticeSessionOperation | None:
@@ -657,13 +672,6 @@ class PostgresStore:
                         existing.request_fingerprint != request_fingerprint
                     ),
                 )
-            if db.scalar(
-                select(PracticeSession.id).where(
-                    PracticeSession.upload_intent_id == upload_intent_id
-                )
-            ) is not None:
-                return None
-
             session = PracticeSession(
                 id=uuid4(),
                 user_id=user_id,
@@ -671,7 +679,11 @@ class PostgresStore:
                 status=PracticeStatus.ANALYZING,
                 situation=situation,
                 character_context=character_context,
-                subtext=subtext,
+                goal=goal,
+                subtext=None,
+                blockage_kind=blockage_kind,
+                sub_branch=sub_branch,
+                blockage_detail=blockage_detail,
             )
             db.add(session)
             db.flush()
@@ -1004,23 +1016,58 @@ class PostgresStore:
             )
             return bool(result.rowcount)
 
-    # ---- summaries ----
+    # ---- coaching input ----
 
-    def get_owned_summary(
-        self, *, user_id: UUID, summary_id: UUID
-    ) -> OwnedSummaryContext | None:
+    @staticmethod
+    def _confirmed_analysis_handoff(
+        db: Session,
+        *,
+        user_id: UUID,
+        upload_intent_id: UUID,
+    ) -> dict[str, Any] | None:
+        return db.scalar(
+            select(CoachingHandoff.handoff_json)
+            .join(
+                HandoffConfirmation,
+                HandoffConfirmation.coaching_handoff_id == CoachingHandoff.id,
+            )
+            .join(
+                PracticeSession,
+                CoachingHandoff.practice_session_id == PracticeSession.id,
+            )
+            .where(
+                PracticeSession.user_id == user_id,
+                PracticeSession.upload_intent_id == upload_intent_id,
+                CoachingHandoff.branch_kind == "analysis",
+                HandoffConfirmation.confirmed.is_(True),
+            )
+            .order_by(CoachingHandoff.created_at.desc(), CoachingHandoff.id.desc())
+            .limit(1)
+        )
+
+    def get_owned_practice_session_context(
+        self, *, user_id: UUID, practice_session_id: UUID
+    ) -> OwnedPracticeSessionContext | None:
         with self._session_factory() as db:
             row = db.execute(
                 select(
                     PracticeSession.id,
-                    Summary.raw,
+                    Summary.id,
+                    Summary.observations_json,
+                    Summary.uncertainties_json,
                     PracticeSession.situation,
                     PracticeSession.character_context,
-                    PracticeSession.subtext,
+                    PracticeSession.goal,
+                    PracticeSession.blockage_kind,
+                    PracticeSession.sub_branch,
+                    PracticeSession.blockage_detail,
+                    PracticeSession.upload_intent_id,
+                    UploadIntent.duration_ms,
                 )
-                .join(Summary, Summary.session_id == PracticeSession.id)
+                .outerjoin(Summary, Summary.session_id == PracticeSession.id)
+                .join(UploadIntent, UploadIntent.id == PracticeSession.upload_intent_id)
                 .where(
-                    Summary.id == summary_id,
+                    PracticeSession.id == practice_session_id,
                     PracticeSession.user_id == user_id,
                     PracticeSession.hidden_at.is_(None),
                 )
@@ -1029,18 +1076,53 @@ class PostgresStore:
                 return None
             (
                 practice_session_id,
-                raw,
+                summary_id,
+                observations,
+                uncertainties,
                 situation,
                 character_context,
-                subtext,
+                goal,
+                blockage_kind,
+                sub_branch,
+                blockage_detail,
+                upload_intent_id,
+                duration_ms,
             ) = row
-            return OwnedSummaryContext(
+            return OwnedPracticeSessionContext(
                 practice_session_id=practice_session_id,
-                summary=AgentSceneSummary.model_validate(raw),
-                subtext=AgentSubText(
+                summary_id=summary_id,
+                observation_pack=(
+                    AgentObservationPack(
+                        observations=observations,
+                        uncertainties=uncertainties,
+                    )
+                    if summary_id is not None
+                    else None
+                ),
+                actor=AgentActorMaterial(
                     situation=situation,
                     character=character_context,
-                    subtext=subtext,
+                    goal=goal,
+                    blockage_kind=blockage_kind,
+                    blockage_detail=blockage_detail or "",
+                    duration_ms=duration_ms or 0,
+                ),
+                sub_branch=sub_branch,
+                transcripts=tuple(
+                    db.scalars(
+                        select(Transcript.text)
+                        .where(Transcript.session_id == practice_session_id)
+                        .order_by(Transcript.ord)
+                    )
+                ),
+                analysis_handoff=(
+                    self._confirmed_analysis_handoff(
+                        db,
+                        user_id=user_id,
+                        upload_intent_id=upload_intent_id,
+                    )
+                    if blockage_kind == "표현"
+                    else None
                 ),
             )
 
@@ -1063,19 +1145,53 @@ class PostgresStore:
                 session=self._agent_coach_session(data),
             )
 
+    def get_oldest_open_coach_session(
+        self, *, user_id: UUID, practice_session_id: UUID
+    ) -> OwnedCoachSessionContext | None:
+        with self._session_factory() as db:
+            coach_session_id = db.scalar(
+                select(DbCoachSession.id)
+                .join(
+                    PracticeSession,
+                    DbCoachSession.practice_session_id == PracticeSession.id,
+                )
+                .where(
+                    DbCoachSession.practice_session_id == practice_session_id,
+                    DbCoachSession.status == SessionStatus.OPEN,
+                    PracticeSession.user_id == user_id,
+                    PracticeSession.hidden_at.is_(None),
+                )
+                .order_by(DbCoachSession.created_at, DbCoachSession.id)
+                .limit(1)
+            )
+            if coach_session_id is None:
+                return None
+            data = self._load_session(
+                db,
+                coach_session_id,
+                user_id=user_id,
+                include_hidden=False,
+            )
+            if data is None:
+                return None
+            return OwnedCoachSessionContext(
+                practice_session_id=data.practice_session_id,
+                session=self._agent_coach_session(data),
+            )
+
     @staticmethod
     def _add_coach_session(db: Session, session: AgentCoachSession) -> None:
         session_id = UUID(session.session_id)
         db.add(
             DbCoachSession(
                 id=session_id,
-                summary_id=UUID(session.summary_id),
-                status=SessionStatus(session.status),
-                close_reason=(
-                    CloseReason(session.close_reason)
-                    if session.close_reason
-                    else None
+                practice_session_id=UUID(session.practice_session_id),
+                summary_id=(
+                    UUID(session.summary_id) if session.summary_id is not None else None
                 ),
+                status=SessionStatus(session.status),
+                close_reason=None,
+                conversation_summary=session.conversation_summary,
             )
         )
         for index, turn in enumerate(session.turns):
@@ -1109,8 +1225,6 @@ class PostgresStore:
             if (
                 stored.role.value != incoming.role
                 or stored.text != incoming.text
-                or stored.action != incoming.action
-                or stored.focus_timestamp != incoming.focus_timestamp
             ):
                 raise SessionWriteConflict("session turns changed concurrently")
         if db_session.status == SessionStatus.CLOSED and (
@@ -1121,9 +1235,7 @@ class PostgresStore:
         for index in range(len(stored_turns), len(session.turns)):
             db.add(PostgresStore._coach_turn(session_id, index, session.turns[index]))
         db_session.status = SessionStatus(session.status)
-        db_session.close_reason = (
-            CloseReason(session.close_reason) if session.close_reason else None
-        )
+        db_session.conversation_summary = session.conversation_summary
         db_session.updated_at = now or datetime.now(timezone.utc)
 
     @staticmethod
@@ -1135,134 +1247,182 @@ class PostgresStore:
             turn_index=index,
             role=TurnRole(turn.role),
             text=turn.text,
-            action=turn.action,
-            focus_timestamp=turn.focus_timestamp,
         )
 
-    # ---- reports ----
+    # ---- coaching handoffs and reports ----
 
-    def get_owned_report_context(
+    @staticmethod
+    def _owned_report_source(
+        db: Session,
+        *,
+        user_id: UUID,
+        coach_session_id: UUID,
+    ) -> OwnedReportSource | None:
+        data = PostgresStore._load_session(
+            db,
+            coach_session_id,
+            user_id=user_id,
+            include_hidden=False,
+        )
+        if data is None:
+            return None
+        latest = db.execute(
+            select(CoachingHandoff, HandoffConfirmation.confirmed)
+            .outerjoin(
+                HandoffConfirmation,
+                HandoffConfirmation.coaching_handoff_id == CoachingHandoff.id,
+            )
+            .where(CoachingHandoff.coach_session_id == coach_session_id)
+            .order_by(CoachingHandoff.created_at.desc(), CoachingHandoff.id.desc())
+            .limit(1)
+        ).first()
+        handoff = latest[0] if latest else None
+        confirmed = bool(latest and latest[1] is True)
+        branch_kind = (
+            handoff.branch_kind
+            if handoff is not None
+            else ("expression" if data.blockage_kind == "표현" else "analysis")
+        )
+        analysis = None
+        if branch_kind == "expression":
+            analysis = db.scalar(
+                select(CoachingHandoff)
+                .join(
+                    HandoffConfirmation,
+                    HandoffConfirmation.coaching_handoff_id
+                    == CoachingHandoff.id,
+                )
+                .where(
+                    CoachingHandoff.practice_session_id
+                    == data.practice_session_id,
+                    CoachingHandoff.branch_kind == "analysis",
+                    HandoffConfirmation.confirmed.is_(True),
+                )
+                .order_by(
+                    CoachingHandoff.created_at.desc(), CoachingHandoff.id.desc()
+                )
+                .limit(1)
+            )
+        return OwnedReportSource(
+            practice_session_id=data.practice_session_id,
+            coach_session_id=data.session_id,
+            video_summary=data.observation_pack
+            or {"observations": [], "uncertainties": []},
+            branch_kind=branch_kind,
+            handoff_id=handoff.id if handoff is not None else None,
+            handoff_json=handoff.handoff_json if handoff is not None else None,
+            confirmed=confirmed,
+            analysis_handoff_id=analysis.id if analysis is not None else None,
+            analysis_handoff_json=(
+                analysis.handoff_json if analysis is not None else None
+            ),
+        )
+
+    def get_owned_report_source(
         self, *, user_id: UUID, coach_session_id: UUID
-    ) -> OwnedReportContext | None:
+    ) -> OwnedReportSource | None:
         with self._session_factory() as db:
-            data = self._load_session(
+            return self._owned_report_source(
                 db,
-                coach_session_id,
                 user_id=user_id,
-                include_hidden=False,
+                coach_session_id=coach_session_id,
             )
-            if data is None:
-                return None
-            return OwnedReportContext(
-                practice_session_id=data.practice_session_id,
-                session=self._report_coach_session(data),
+
+    def confirm_latest_handoff(
+        self,
+        *,
+        user_id: UUID,
+        coach_session_id: UUID,
+        confirmed: bool,
+        rebuttal_text: str | None,
+        now: datetime | None = None,
+    ) -> OwnedReportSource | None:
+        now = now or datetime.now(timezone.utc)
+        with self._session_factory.begin() as db:
+            source = self._owned_report_source(
+                db,
+                user_id=user_id,
+                coach_session_id=coach_session_id,
             )
+            if source is None or source.handoff_id is None:
+                return source
+            db.execute(
+                insert(HandoffConfirmation)
+                .values(
+                    coaching_handoff_id=source.handoff_id,
+                    confirmed=confirmed,
+                    rebuttal_text=rebuttal_text,
+                    updated_at=now,
+                )
+                .on_conflict_do_update(
+                    index_elements=[HandoffConfirmation.coaching_handoff_id],
+                    set_={
+                        "confirmed": confirmed,
+                        "rebuttal_text": rebuttal_text,
+                        "updated_at": now,
+                    },
+                )
+            )
+            if confirmed:
+                db.execute(
+                    update(DbCoachSession)
+                    .where(DbCoachSession.id == coach_session_id)
+                    .values(status=SessionStatus.CLOSED, updated_at=now)
+                )
+            return replace(source, confirmed=confirmed)
 
     def has_report_for_practice_session(self, practice_session_id: UUID) -> bool:
         with self._session_factory() as db:
             return (
                 db.scalar(
-                    select(DbReport.id)
-                    .join(
-                        DbCoachSession,
-                        DbReport.session_id == DbCoachSession.id,
+                    select(DbPracticeReport.id).where(
+                        DbPracticeReport.practice_session_id == practice_session_id
                     )
-                    .join(Summary, DbCoachSession.summary_id == Summary.id)
-                    .where(Summary.session_id == practice_session_id)
                 )
                 is not None
             )
 
-    @staticmethod
-    def _add_report(
-        db: Session,
-        coach_session_id: UUID,
-        report: ActingReport,
-    ) -> None:
-        db.add(
-            DbReport(
-                id=uuid4(),
-                session_id=coach_session_id,
-                headline=report.headline,
-                biggest_problem=report.biggest_problem.model_dump(mode="json"),
-                evidence=report.evidence,
-                self_discovery=report.self_discovery,
-                encouragement=report.encouragement,
-                next_step=report.next_step,
-                comparison=report.comparison,
-            )
-        )
-
-    def list_reports(self, user_id: UUID) -> list[ReportRecord]:
+    def list_report_summaries(self, user_id: UUID) -> list[PracticeReportSummary]:
         with self._session_factory() as db:
-            reports = list(
-                db.execute(
-                    select(DbReport, PracticeSession.id)
-                    .join(DbCoachSession, DbReport.session_id == DbCoachSession.id)
-                    .join(Summary, DbCoachSession.summary_id == Summary.id)
-                    .join(PracticeSession, Summary.session_id == PracticeSession.id)
-                    .where(
-                        PracticeSession.user_id == user_id,
-                        PracticeSession.hidden_at.is_(None),
-                    )
-                    .order_by(DbReport.created_at, DbReport.id)
+            rows = db.execute(
+                select(DbPracticeReport, PracticeSession.id)
+                .join(
+                    PracticeSession,
+                    DbPracticeReport.practice_session_id == PracticeSession.id,
                 )
+                .where(
+                    PracticeSession.user_id == user_id,
+                    PracticeSession.hidden_at.is_(None),
+                )
+                .order_by(DbPracticeReport.created_at, DbPracticeReport.id)
             )
             return [
-                ReportRecord(
-                    created_at=report.created_at.isoformat(),
-                    session_id=str(report.session_id),
-                    practice_session_id=str(practice_session_id),
-                    report=self._acting_report(report),
+                PracticeReportSummary(
+                    practice_session_id=practice_session_id,
+                    report_type=report.report_type,
+                    title=str(report.report_json.get("title", "")),
+                    created_at=report.created_at,
                 )
-                for report, practice_session_id in reports
+                for report, practice_session_id in rows
             ]
-
-    def list_report_summaries(self, user_id: UUID) -> list[ReportSummary]:
-        with self._session_factory() as db:
-            reports = list(
-                db.execute(
-                    select(
-                        PracticeSession.id,
-                        DbReport.headline,
-                        DbReport.created_at,
-                    )
-                    .join(DbCoachSession, DbReport.session_id == DbCoachSession.id)
-                    .join(Summary, DbCoachSession.summary_id == Summary.id)
-                    .join(PracticeSession, Summary.session_id == PracticeSession.id)
-                    .where(
-                        PracticeSession.user_id == user_id,
-                        PracticeSession.hidden_at.is_(None),
-                    )
-                    .order_by(DbReport.created_at, DbReport.id)
-                )
-            )
-            # DB 모델상 practice_session당 리포트가 여럿일 수 있다(앱 로직이 1건으로
-            # 강제하지만 방어적으로). 상세 조회의 "최신 1건" 규칙과 일치시키고 count가
-            # 부풀지 않도록 practice_session별 최신 리포트만 남긴다.
-            latest: dict[UUID, ReportSummary] = {}
-            for practice_session_id, headline, created_at in reports:
-                current = latest.get(practice_session_id)
-                if current is None or created_at > current.created_at:
-                    latest[practice_session_id] = ReportSummary(
-                        practice_session_id=practice_session_id,
-                        headline=headline,
-                        created_at=created_at,
-                    )
-            return list(latest.values())
 
     def get_report_detail_for_practice_session(
         self,
         *,
         user_id: UUID,
         practice_session_id: UUID,
-    ) -> ReportDetail | None:
+    ) -> PracticeReportDetail | None:
         with self._session_factory() as db:
             row = db.execute(
-                select(DbReport, PracticeSession.id, UploadIntent.object_key)
-                .join(DbCoachSession, DbReport.session_id == DbCoachSession.id)
-                .join(Summary, DbCoachSession.summary_id == Summary.id)
-                .join(PracticeSession, Summary.session_id == PracticeSession.id)
+                select(
+                    DbPracticeReport,
+                    PracticeSession.id,
+                    UploadIntent.object_key,
+                )
+                .join(
+                    PracticeSession,
+                    DbPracticeReport.practice_session_id == PracticeSession.id,
+                )
                 .join(
                     UploadIntent,
                     PracticeSession.upload_intent_id == UploadIntent.id,
@@ -1272,59 +1432,21 @@ class PostgresStore:
                     PracticeSession.id == practice_session_id,
                     PracticeSession.hidden_at.is_(None),
                 )
-                .order_by(DbReport.created_at.desc(), DbReport.id.desc())
+                .order_by(
+                    DbPracticeReport.created_at.desc(),
+                    DbPracticeReport.id.desc(),
+                )
                 .limit(1)
             ).first()
             if row is None:
                 return None
             report, row_practice_session_id, object_key = row
-            return ReportDetail(
+            return PracticeReportDetail(
                 practice_session_id=row_practice_session_id,
                 created_at=report.created_at,
-                report=self._acting_report(report),
+                report=report.report_json,
                 object_key=object_key,
             )
-
-    @staticmethod
-    def _acting_report(report: DbReport) -> ActingReport:
-        return ActingReport(
-            headline=report.headline,
-            biggest_problem=BiggestProblem.model_validate(report.biggest_problem),
-            evidence=report.evidence,
-            self_discovery=report.self_discovery,
-            encouragement=report.encouragement,
-            next_step=report.next_step,
-            comparison=report.comparison,
-        )
-
-    @staticmethod
-    def _is_duplicate_report_error(exc: IntegrityError) -> bool:
-        original = exc.orig
-        diagnostic = getattr(original, "diag", None)
-        return (
-            getattr(original, "sqlstate", None) == "23505"
-            and getattr(diagnostic, "constraint_name", None)
-            == "reports_session_id_key"
-        )
-
-    @staticmethod
-    def _report_count_query(user_id: UUID):
-        # 목록·서수와 같은 단위(practice_session별 1건)로 세어 중복 리포트가 있어도
-        # count가 부풀지 않게 한다.
-        # count 컬럼이 reports를 참조하지 않으므로 FROM 앵커를 reports로 명시한다.
-        # (없으면 practice_sessions가 FROM에 두 번 들어가고 reports가 빠져
-        #  Postgres가 "missing FROM-clause entry for table reports"로 거부한다.)
-        return (
-            select(func.count(func.distinct(PracticeSession.id)))
-            .select_from(DbReport)
-            .join(DbCoachSession, DbReport.session_id == DbCoachSession.id)
-            .join(Summary, DbCoachSession.summary_id == Summary.id)
-            .join(PracticeSession, Summary.session_id == PracticeSession.id)
-            .where(
-                PracticeSession.user_id == user_id,
-                PracticeSession.hidden_at.is_(None),
-            )
-        )
 
     # ---- external operations ----
 
@@ -1526,6 +1648,12 @@ class PostgresStore:
         lease_token: UUID,
         coach_session: AgentCoachSession,
         response_payload: dict[str, Any],
+        handoff_id: UUID | None = None,
+        branch_kind: str | None = None,
+        handoff_json: dict[str, Any] | None = None,
+        confirmed: bool = False,
+        report_json: dict[str, Any] | None = None,
+        restart: bool = False,
         now: datetime | None = None,
     ) -> bool:
         now = now or datetime.now(timezone.utc)
@@ -1535,7 +1663,52 @@ class PostgresStore:
                 raise LookupError("external operation not found")
             if operation.kind != OperationKind.COACH_START:
                 raise ValueError("coach start result requires a coach_start operation")
+            if confirmed:
+                coach_session.status = "closed"
+            if restart:
+                db.execute(
+                    update(DbCoachSession)
+                    .where(
+                        DbCoachSession.practice_session_id == operation.session_id,
+                        DbCoachSession.status == SessionStatus.OPEN,
+                    )
+                    .values(status=SessionStatus.CLOSED, updated_at=now)
+                )
             self._add_coach_session(db, coach_session)
+            if handoff_id and branch_kind and handoff_json is not None:
+                db.add(
+                    CoachingHandoff(
+                        id=handoff_id,
+                        coach_session_id=UUID(coach_session.session_id),
+                        practice_session_id=operation.session_id,
+                        branch_kind=branch_kind,
+                        handoff_json=handoff_json,
+                    )
+                )
+                if confirmed:
+                    db.add(
+                        HandoffConfirmation(
+                            coaching_handoff_id=handoff_id,
+                            confirmed=True,
+                            rebuttal_text=None,
+                            created_at=now,
+                            updated_at=now,
+                        )
+                    )
+                if (
+                    report_json is not None
+                    and report_json["report_type"] != "blocked"
+                ):
+                    db.add(
+                        DbPracticeReport(
+                            id=uuid4(),
+                            practice_session_id=operation.session_id,
+                            report_type=report_json["report_type"],
+                            report_json=report_json,
+                            source_handoff_id=handoff_id,
+                            created_at=now,
+                        )
+                    )
             if not self._finish_external_operation(
                 db,
                 operation_id=operation_id,
@@ -1555,6 +1728,11 @@ class PostgresStore:
         lease_token: UUID,
         coach_session: AgentCoachSession,
         response_payload: dict[str, Any],
+        handoff_id: UUID | None = None,
+        branch_kind: str | None = None,
+        handoff_json: dict[str, Any] | None = None,
+        confirmed: bool = False,
+        report_json: dict[str, Any] | None = None,
         now: datetime | None = None,
     ) -> bool:
         now = now or datetime.now(timezone.utc)
@@ -1564,7 +1742,43 @@ class PostgresStore:
                 raise LookupError("external operation not found")
             if operation.kind != OperationKind.COACH_REPLY:
                 raise ValueError("coach reply result requires a coach_reply operation")
+            if confirmed:
+                coach_session.status = "closed"
             self._save_coach_session(db, coach_session, now=now)
+            if handoff_id and branch_kind and handoff_json is not None:
+                db.add(
+                    CoachingHandoff(
+                        id=handoff_id,
+                        coach_session_id=UUID(coach_session.session_id),
+                        practice_session_id=operation.session_id,
+                        branch_kind=branch_kind,
+                        handoff_json=handoff_json,
+                    )
+                )
+                if confirmed:
+                    db.add(
+                        HandoffConfirmation(
+                            coaching_handoff_id=handoff_id,
+                            confirmed=True,
+                            rebuttal_text=None,
+                            created_at=now,
+                            updated_at=now,
+                        )
+                    )
+                if (
+                    report_json is not None
+                    and report_json["report_type"] != "blocked"
+                ):
+                    db.add(
+                        DbPracticeReport(
+                            id=uuid4(),
+                            practice_session_id=operation.session_id,
+                            report_type=report_json["report_type"],
+                            report_json=report_json,
+                            source_handoff_id=handoff_id,
+                            created_at=now,
+                        )
+                    )
             if not self._finish_external_operation(
                 db,
                 operation_id=operation_id,
@@ -1577,80 +1791,92 @@ class PostgresStore:
                 raise LeaseOwnershipError("external operation lease is not owned")
             return True
 
-    def complete_report_operation(
+    def complete_sync_operation(
         self,
         *,
         operation_id: UUID,
         lease_token: UUID,
-        coach_session_id: UUID,
-        report: ActingReport,
+        response_payload: dict[str, Any],
         now: datetime | None = None,
-    ) -> dict[str, Any] | None:
+    ) -> bool:
         now = now or datetime.now(timezone.utc)
-        db = self._session_factory()
-        try:
-            with db.begin():
-                operation = db.get(ExternalOperation, operation_id)
-                if operation is None:
-                    raise LookupError("external operation not found")
-                if operation.kind != OperationKind.REPORT:
-                    raise ValueError("report result requires a report operation")
-                practice_session_id = db.scalar(
-                    select(PracticeSession.id)
-                    .where(PracticeSession.id == operation.session_id)
-                    .with_for_update()
+        with self._session_factory.begin() as db:
+            if not self._finish_external_operation(
+                db,
+                operation_id=operation_id,
+                lease_token=lease_token,
+                status=OperationStatus.SUCCEEDED,
+                response_payload=response_payload,
+                error_code=None,
+                now=now,
+            ):
+                raise LeaseOwnershipError("external operation lease is not owned")
+            return True
+
+    def get_practice_report_for_handoff(
+        self, source_handoff_id: UUID
+    ) -> dict[str, Any] | None:
+        with self._session_factory() as db:
+            report = db.scalar(
+                select(DbPracticeReport).where(
+                    DbPracticeReport.source_handoff_id == source_handoff_id
                 )
-                if practice_session_id is None:
-                    raise LookupError("practice session not found")
-                existing_report_id = db.scalar(
-                    select(DbReport.id)
-                    .join(
-                        DbCoachSession,
-                        DbReport.session_id == DbCoachSession.id,
-                    )
-                    .join(Summary, DbCoachSession.summary_id == Summary.id)
-                    .where(Summary.session_id == practice_session_id)
+            )
+            return report.report_json if report is not None else None
+
+    def complete_practice_report_operation(
+        self,
+        *,
+        operation_id: UUID,
+        lease_token: UUID,
+        practice_session_id: UUID,
+        report_type: str,
+        report_json: dict[str, Any],
+        source_handoff_id: UUID,
+        response_payload: dict[str, Any],
+        now: datetime | None = None,
+    ) -> bool:
+        now = now or datetime.now(timezone.utc)
+        with self._session_factory.begin() as db:
+            inserted_id = db.scalar(
+                insert(DbPracticeReport)
+                .values(
+                    id=uuid4(),
+                    practice_session_id=practice_session_id,
+                    report_type=report_type,
+                    report_json=report_json,
+                    source_handoff_id=source_handoff_id,
+                    created_at=now,
                 )
-                if existing_report_id is not None:
-                    return None
-                self._add_report(db, coach_session_id, report)
-                db.flush()
-                payload = {
-                    "report": report.model_dump(mode="json"),
-                    "report_count": db.scalar(
-                        self._report_count_query(operation.user_id)
-                    )
-                    or 0,
-                }
-                if not self._finish_external_operation(
-                    db,
-                    operation_id=operation_id,
-                    lease_token=lease_token,
-                    status=OperationStatus.SUCCEEDED,
-                    response_payload=payload,
-                    error_code=None,
-                    now=now,
-                ):
-                    raise LeaseOwnershipError(
-                        "external operation lease is not owned"
-                    )
-                return payload
-        except IntegrityError as exc:
-            if self._is_duplicate_report_error(exc):
-                return None
-            raise
-        finally:
-            db.close()
+                .on_conflict_do_nothing(
+                    index_elements=[DbPracticeReport.source_handoff_id]
+                )
+                .returning(DbPracticeReport.id)
+            )
+            if inserted_id is None:
+                return False
+            if not self._finish_external_operation(
+                db,
+                operation_id=operation_id,
+                lease_token=lease_token,
+                status=OperationStatus.SUCCEEDED,
+                response_payload=response_payload,
+                error_code=None,
+                now=now,
+            ):
+                raise LeaseOwnershipError("external operation lease is not owned")
+            return True
 
     def complete_analysis_operation(
         self,
         *,
         operation_id: UUID,
         lease_token: UUID,
-        summary: SummarySceneSummary,
+        observation_pack: SummaryObservationPack,
         model: str,
         was_compressed: bool,
         response_payload: dict[str, Any],
+        transcripts: tuple[str, ...] | list[str] = (),
         now: datetime | None = None,
     ) -> UUID:
         now = now or datetime.now(timezone.utc)
@@ -1665,14 +1891,30 @@ class PostgresStore:
                 db,
                 summary_id=summary_id,
                 session_id=operation.session_id,
-                summary=summary,
+                observation_pack=observation_pack,
                 model=model,
                 was_compressed=was_compressed,
             )
+            for order, text in enumerate(transcripts):
+                db.add(
+                    Transcript(
+                        session_id=operation.session_id,
+                        ord=order,
+                        text=text,
+                    )
+                )
             db.execute(
                 update(PracticeSession)
                 .where(PracticeSession.id == operation.session_id)
                 .values(status=PracticeStatus.ANALYZED, updated_at=now)
+            )
+            db.execute(
+                update(DbCoachSession)
+                .where(
+                    DbCoachSession.practice_session_id == operation.session_id,
+                    DbCoachSession.summary_id.is_(None),
+                )
+                .values(summary_id=summary_id, updated_at=now)
             )
             payload = dict(response_payload)
             payload.setdefault("summary_id", str(summary_id))
@@ -1839,45 +2081,22 @@ class PostgresStore:
         *,
         summary_id: UUID,
         session_id: UUID,
-        summary: SummarySceneSummary,
+        observation_pack: SummaryObservationPack,
         model: str,
         was_compressed: bool,
     ) -> None:
-        raw = summary.model_dump(mode="json")
+        raw = observation_pack.model_dump(mode="json")
         db.add(
             Summary(
                 id=summary_id,
                 session_id=session_id,
-                observation=raw["observation"],
-                summary=summary.summary,
-                intent_alignment=summary.intent_alignment,
-                key_moment=summary.key_moment,
-                key_dimension=summary.key_dimension,
+                observations_json=raw["observations"],
+                uncertainties_json=raw["uncertainties"],
                 model=model,
                 was_compressed=was_compressed,
                 raw=raw,
             )
         )
-        db.flush()
-        for sort_order, anomaly in enumerate(raw["anomalies"]):
-            db.add(
-                DbAnomaly(
-                    summary_id=summary_id,
-                    sort_order=sort_order,
-                    start_ts=anomaly["start"],
-                    end_ts=anomaly["end"],
-                    dimension=anomaly["dimension"],
-                    what=anomaly["what"],
-                    why_odd=anomaly["why_odd"],
-                    likely_cause=anomaly["likely_cause"],
-                    impact_on_intent=anomaly["impact_on_intent"],
-                    overlaps_key_moment=anomaly["overlaps_key_moment"],
-                    on_key_dimension=anomaly["on_key_dimension"],
-                    intent_impact=IntentImpact(anomaly["intent_impact"]),
-                    severity=Severity(anomaly["severity"]),
-                    severity_reason=anomaly["severity_reason"],
-                )
-            )
 
     @staticmethod
     def _load_session(
@@ -1890,15 +2109,26 @@ class PostgresStore:
         query = (
             select(
                 DbCoachSession,
-                Summary.raw,
+                Summary.id,
+                Summary.observations_json,
+                Summary.uncertainties_json,
                 PracticeSession.id,
                 PracticeSession.user_id,
                 PracticeSession.situation,
                 PracticeSession.character_context,
-                PracticeSession.subtext,
+                PracticeSession.goal,
+                PracticeSession.blockage_kind,
+                PracticeSession.sub_branch,
+                PracticeSession.blockage_detail,
+                PracticeSession.upload_intent_id,
+                UploadIntent.duration_ms,
             )
-            .join(Summary, DbCoachSession.summary_id == Summary.id)
-            .join(PracticeSession, Summary.session_id == PracticeSession.id)
+            .join(
+                PracticeSession,
+                DbCoachSession.practice_session_id == PracticeSession.id,
+            )
+            .outerjoin(Summary, Summary.session_id == PracticeSession.id)
+            .join(UploadIntent, UploadIntent.id == PracticeSession.upload_intent_id)
             .where(DbCoachSession.id == session_id)
             .with_for_update(read=True, of=DbCoachSession)
         )
@@ -1911,12 +2141,19 @@ class PostgresStore:
             return None
         (
             db_session,
-            raw,
+            summary_id,
+            observations,
+            uncertainties,
             practice_session_id,
             user_id,
             situation,
             character_context,
-            subtext,
+            goal,
+            blockage_kind,
+            sub_branch,
+            blockage_detail,
+            upload_intent_id,
+            duration_ms,
         ) = row
         turns = list(
             db.scalars(
@@ -1925,15 +2162,44 @@ class PostgresStore:
                 .order_by(DbCoachTurn.turn_index)
             )
         )
+        transcripts = tuple(
+            db.scalars(
+                select(Transcript.text)
+                .where(Transcript.session_id == practice_session_id)
+                .order_by(Transcript.ord)
+            )
+        )
         return _SessionData(
             practice_session_id=practice_session_id,
             session_id=db_session.id,
-            summary_id=db_session.summary_id,
+            summary_id=summary_id,
             user_id=user_id,
-            raw_summary=raw,
+            observation_pack=(
+                {
+                    "observations": observations,
+                    "uncertainties": uncertainties,
+                }
+                if summary_id is not None
+                else None
+            ),
             situation=situation,
             character_context=character_context,
-            subtext=subtext,
+            goal=goal,
+            duration_ms=duration_ms or 0,
+            blockage_kind=blockage_kind,
+            sub_branch=sub_branch,
+            blockage_detail=blockage_detail,
+            transcripts=transcripts,
+            conversation_summary=db_session.conversation_summary,
+            analysis_handoff=(
+                PostgresStore._confirmed_analysis_handoff(
+                    db,
+                    user_id=user_id,
+                    upload_intent_id=upload_intent_id,
+                )
+                if blockage_kind == "표현"
+                else None
+            ),
             status=db_session.status.value,
             close_reason=(
                 db_session.close_reason.value if db_session.close_reason else ""
@@ -1945,44 +2211,35 @@ class PostgresStore:
     def _agent_coach_session(data: _SessionData) -> AgentCoachSession:
         return AgentCoachSession(
             session_id=str(data.session_id),
-            summary_id=str(data.summary_id),
-            summary=AgentSceneSummary.model_validate(data.raw_summary),
-            subtext=AgentSubText(
+            practice_session_id=str(data.practice_session_id),
+            summary_id=(str(data.summary_id) if data.summary_id is not None else None),
+            observation_pack=(
+                AgentObservationPack.model_validate(data.observation_pack)
+                if data.observation_pack is not None
+                else None
+            ),
+            actor=AgentActorMaterial(
                 situation=data.situation,
                 character=data.character_context,
-                subtext=data.subtext,
+                goal=data.goal,
+                blockage_kind=data.blockage_kind,
+                blockage_detail=data.blockage_detail or "",
+                duration_ms=data.duration_ms,
             ),
+            blockage_kind=data.blockage_kind,
+            sub_branch=data.sub_branch,
+            blockage_detail=data.blockage_detail,
+            transcripts=list(data.transcripts),
+            conversation_summary=data.conversation_summary,
+            analysis_handoff=data.analysis_handoff,
             turns=[
                 AgentCoachTurn(
                     role=turn.role.value,
                     text=turn.text,
-                    action=turn.action,
-                    focus_timestamp=turn.focus_timestamp,
                 )
                 for turn in data.turns
             ],
-            question_count=data.question_count,
             status=data.status,
-            close_reason=data.close_reason,
-        )
-
-    @staticmethod
-    def _report_coach_session(data: _SessionData) -> ReportCoachSession:
-        return ReportCoachSession(
-            session_id=str(data.session_id),
-            summary=ReportSceneSummary.model_validate(data.raw_summary),
-            subtext=ReportSubText(
-                situation=data.situation,
-                character=data.character_context,
-                subtext=data.subtext,
-            ),
-            turns=[
-                ReportCoachTurn(role=turn.role.value, text=turn.text)
-                for turn in data.turns
-            ],
-            question_count=data.question_count,
-            status=data.status,
-            close_reason=data.close_reason,
         )
 
     @staticmethod
@@ -2032,7 +2289,7 @@ class PostgresStore:
                 ),
                 "coach_sessions_total": total(DbCoachSession),
                 "coach_turns_total": total(DbCoachTurn),
-                "reports_total": total(DbReport),
+                "reports_total": total(DbPracticeReport),
                 "active_users_last_7d": int(active),
                 "last_signup_at": db.execute(
                     select(func.max(User.created_at))
@@ -2053,10 +2310,9 @@ class PostgresStore:
         with self._session_factory() as db:
             stmt = (
                 select(DbCoachSession, PracticeSession, UploadIntent.object_key)
-                .join(Summary, Summary.id == DbCoachSession.summary_id, isouter=True)
                 .join(
                     PracticeSession,
-                    PracticeSession.id == Summary.session_id,
+                    PracticeSession.id == DbCoachSession.practice_session_id,
                     isouter=True,
                 )
                 .join(
@@ -2103,7 +2359,7 @@ class PostgresStore:
                         "character_context": (
                             practice.character_context if practice else None
                         ),
-                        "subtext": practice.subtext if practice else None,
+                        "goal": practice.goal if practice else None,
                         "turns": [
                             {
                                 "turn_index": t.turn_index,

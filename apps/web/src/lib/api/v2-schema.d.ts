@@ -473,6 +473,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v2/coach/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Coach Confirm */
+        post: operations["coach_confirm_v2_coach_confirm_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v2/reports": {
         parameters: {
             query?: never;
@@ -512,21 +529,25 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
-        /** ActingReport */
-        ActingReport: {
-            /** Headline */
-            headline: string;
-            biggest_problem: components["schemas"]["BiggestProblem"];
-            /** Evidence */
-            evidence: string;
-            /** Self Discovery */
-            self_discovery: string;
-            /** Encouragement */
-            encouragement: string;
-            /** Next Step */
-            next_step: string;
-            /** Comparison */
-            comparison: string;
+        /** ActorTraining */
+        ActorTraining: {
+            /** Title */
+            title: string;
+            /** Purpose */
+            purpose: string;
+            /** Duration Minutes */
+            duration_minutes: number;
+            /** Steps */
+            steps: string[];
+            /** Focus */
+            focus: string;
+            /** Success Check */
+            success_check: string;
+            /**
+             * Tested
+             * @constant
+             */
+            tested: false;
         };
         /** AdmissionNotice */
         AdmissionNotice: {
@@ -771,6 +792,43 @@ export interface components {
             /** Notices */
             notices: components["schemas"]["AdmissionNotice"][];
         };
+        /** AnalysisNextTake */
+        AnalysisNextTake: {
+            /** Direction */
+            direction: string;
+            /**
+             * Tested
+             * @constant
+             */
+            tested: false;
+        };
+        /** AnalysisReport */
+        AnalysisReport: {
+            /**
+             * Report Type
+             * @constant
+             */
+            report_type: "analysis";
+            /** Title */
+            title: string;
+            /** Actor Discovery */
+            actor_discovery: string;
+            /** Line Meaning */
+            line_meaning: string;
+            /** Timing Reason */
+            timing_reason: string;
+            /** Target Effect */
+            target_effect: string;
+            next_take: components["schemas"]["AnalysisNextTake"];
+            /** Acting Caution */
+            acting_caution: string;
+            /** Evidence */
+            evidence: string[];
+            /** Uncertainties */
+            uncertainties: string[];
+            /** Source Handoff Id */
+            source_handoff_id: string;
+        };
         /** AuthUser */
         AuthUser: {
             /**
@@ -801,17 +859,6 @@ export interface components {
             /** Alias */
             alias: string | null;
         };
-        /** BiggestProblem */
-        BiggestProblem: {
-            /** Start */
-            start: string;
-            /** End */
-            end: string;
-            /** Dimension */
-            dimension: string;
-            /** Description */
-            description: string;
-        };
         /** BlockListResponse */
         BlockListResponse: {
             /** Blocks */
@@ -835,6 +882,19 @@ export interface components {
              */
             user_id: string;
         };
+        /** BlockedReport */
+        BlockedReport: {
+            /**
+             * Report Type
+             * @constant
+             */
+            report_type: "blocked";
+            /**
+             * Reason
+             * @enum {string}
+             */
+            reason: "confirmed_analysis_handoff_required" | "confirmed_expression_handoff_required";
+        };
         /** CategoryListResponse */
         CategoryListResponse: {
             /** Categories */
@@ -849,6 +909,31 @@ export interface components {
             /** Description */
             description: string | null;
         };
+        /** CoachConfirmReq */
+        CoachConfirmReq: {
+            /**
+             * Coach Session Id
+             * Format: uuid
+             */
+            coach_session_id: string;
+            /** Confirmed */
+            confirmed: boolean;
+            /** Rebuttal Text */
+            rebuttal_text?: string | null;
+        };
+        /** CoachConfirmResponse */
+        CoachConfirmResponse: {
+            /**
+             * Session Id
+             * Format: uuid
+             */
+            session_id: string;
+            /** Confirmed */
+            confirmed: boolean;
+            handoff: components["schemas"]["PublicHandoff"] | null;
+            /** Report */
+            report: components["schemas"]["AnalysisReport"] | components["schemas"]["ExpressionReport"] | components["schemas"]["BlockedReport"];
+        };
         /** CoachReplyReq */
         CoachReplyReq: {
             /**
@@ -862,10 +947,15 @@ export interface components {
         /** CoachStartReq */
         CoachStartReq: {
             /**
-             * Summary Id
+             * Practice Session Id
              * Format: uuid
              */
-            summary_id: string;
+            practice_session_id: string;
+            /**
+             * Restart
+             * @default false
+             */
+            restart: boolean;
         };
         /** CoachTurnResponse */
         CoachTurnResponse: {
@@ -874,19 +964,18 @@ export interface components {
              * Format: uuid
              */
             session_id: string;
+            /** Message */
+            message: string;
             /**
-             * Action
+             * Status
              * @enum {string}
              */
-            action: "probe_intent" | "dig_cause" | "deflect" | "close";
-            /** Utterance */
-            utterance: string;
-            /** Focus Timestamp */
-            focus_timestamp: string;
-            /** Done */
-            done: boolean;
-            /** Reason */
-            reason: ("gap_stated" | "exhausted" | "limit" | "user_ended") | null;
+            status: "continue" | "complete";
+            handoff: components["schemas"]["PublicHandoff"] | null;
+            /** Report */
+            report: components["schemas"]["AnalysisReport"] | components["schemas"]["ExpressionReport"] | components["schemas"]["BlockedReport"] | null;
+            /** Turns */
+            turns: components["schemas"]["PublicCoachTurn"][];
         };
         /** CommentListResponse */
         CommentListResponse: {
@@ -997,11 +1086,50 @@ export interface components {
          * @enum {string}
          */
         ConsentType: "terms" | "privacy" | "ai_analysis";
-        /** CreateReportResponse */
-        CreateReportResponse: {
-            report: components["schemas"]["ActingReport"];
-            /** Report Count */
-            report_count: number;
+        /** EffectiveExperiment */
+        EffectiveExperiment: {
+            /** Instruction */
+            instruction: string;
+            /**
+             * Tested
+             * @constant
+             */
+            tested: true;
+        };
+        /** ExpressionReport */
+        ExpressionReport: {
+            /**
+             * Report Type
+             * @constant
+             */
+            report_type: "expression";
+            /** Title */
+            title: string;
+            /** Blocked Point */
+            blocked_point: string;
+            /** Expression Core */
+            expression_core: string;
+            /** Line Meaning */
+            line_meaning: string;
+            /** Timing Reason */
+            timing_reason: string;
+            /** Playable Action */
+            playable_action: string;
+            effective_experiment: components["schemas"]["EffectiveExperiment"];
+            /** Observed Change */
+            observed_change: string;
+            /** Next Take */
+            next_take: string;
+            /** Acting Trap */
+            acting_trap: string;
+            actor_training: components["schemas"]["ActorTraining"];
+            /** Evidence */
+            evidence: string[];
+            /** Actor Words */
+            actor_words: string[];
+            /** Uncertainties */
+            uncertainties: string[];
+            source_handoff_ids: components["schemas"]["SourceHandoffIds"];
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -1059,6 +1187,29 @@ export interface components {
              * @enum {string}
              */
             status: "active" | "suspended";
+        };
+        /** ObservationItem */
+        ObservationItem: {
+            /** Start Ms */
+            start_ms: number;
+            /** End Ms */
+            end_ms: number;
+            /** Label */
+            label: string;
+            /** Confidence */
+            confidence: number;
+        };
+        /** ObservationPackResponse */
+        ObservationPackResponse: {
+            /**
+             * Summary Id
+             * Format: uuid
+             */
+            summary_id: string;
+            /** Observations */
+            observations: components["schemas"]["ObservationItem"][];
+            /** Uncertainties */
+            uncertainties: string[];
         };
         /** PostListResponse */
         PostListResponse: {
@@ -1171,8 +1322,17 @@ export interface components {
             situation: string;
             /** Character Context */
             character_context: string;
-            /** Subtext */
-            subtext: string;
+            /** Goal */
+            goal: string;
+            /**
+             * Blockage Kind
+             * @enum {string}
+             */
+            blockage_kind: "분석" | "표현" | "그 외";
+            /** Sub Branch */
+            sub_branch: string;
+            /** Blockage Detail */
+            blockage_detail?: string | null;
             /**
              * Created At
              * Format: date-time
@@ -1185,7 +1345,7 @@ export interface components {
             updated_at: string;
             /** Playback Url */
             playback_url: string;
-            summary?: components["schemas"]["SceneSummary"] | null;
+            summary?: components["schemas"]["ObservationPackResponse"] | null;
             /** Error Code */
             error_code?: ("gemini_timeout" | "gemini_parse_error" | "unsupported_media" | "max_attempts_exceeded") | null;
         };
@@ -1205,8 +1365,17 @@ export interface components {
             situation: string;
             /** Character Context */
             character_context: string;
-            /** Subtext */
-            subtext: string;
+            /** Goal */
+            goal: string;
+            /**
+             * Blockage Kind
+             * @enum {string}
+             */
+            blockage_kind: "분석" | "표현" | "그 외";
+            /** Sub Branch */
+            sub_branch: string;
+            /** Blockage Detail */
+            blockage_detail?: string | null;
             /**
              * Created At
              * Format: date-time
@@ -1234,8 +1403,20 @@ export interface components {
             situation: string;
             /** Character Context */
             character_context: string;
-            /** Subtext */
-            subtext: string;
+            /** Goal */
+            goal: string;
+            /**
+             * Blockage Kind
+             * @enum {string}
+             */
+            blockage_kind: "분석" | "표현" | "그 외";
+            /**
+             * Sub Branch
+             * @enum {string}
+             */
+            sub_branch: "캐릭터 분석" | "대사 분석" | "감정" | "움직임" | "화술" | "표정" | "그 외";
+            /** Blockage Detail */
+            blockage_detail?: string | null;
         };
         /** PracticeSessionStatusResponse */
         PracticeSessionStatusResponse: {
@@ -1246,6 +1427,29 @@ export interface components {
             status: "created" | "analyzing" | "analyzed" | "failed";
             /** Error Code */
             error_code?: ("gemini_timeout" | "gemini_parse_error" | "unsupported_media" | "max_attempts_exceeded") | null;
+        };
+        /** PublicCoachTurn */
+        PublicCoachTurn: {
+            /**
+             * Role
+             * @enum {string}
+             */
+            role: "actor" | "ai";
+            /** Text */
+            text: string;
+        };
+        /** PublicHandoff */
+        PublicHandoff: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Branch Kind
+             * @enum {string}
+             */
+            branch_kind: "analysis" | "expression";
         };
         /** RefreshRequest */
         RefreshRequest: {
@@ -1275,7 +1479,8 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
-            report: components["schemas"]["ActingReport"];
+            /** Report */
+            report: components["schemas"]["AnalysisReport"] | components["schemas"]["ExpressionReport"];
             /** Playback Url */
             playback_url: string;
         };
@@ -1293,8 +1498,13 @@ export interface components {
              * Format: uuid
              */
             practice_session_id: string;
-            /** Headline */
-            headline: string;
+            /**
+             * Report Type
+             * @enum {string}
+             */
+            report_type: "analysis" | "expression";
+            /** Title */
+            title: string;
             /**
              * Created At
              * Format: date-time
@@ -1329,31 +1539,12 @@ export interface components {
             /** Detail */
             detail?: string | null;
         };
-        /** SceneSummary */
-        SceneSummary: {
-            /**
-             * Summary Id
-             * Format: uuid
-             */
-            summary_id: string;
-            /** Observation */
-            observation?: {
-                [key: string]: unknown;
-            } | null;
-            /** Summary */
-            summary?: string | null;
-            /** Intent Alignment */
-            intent_alignment?: string | null;
-            /** Key Moment */
-            key_moment?: string | null;
-            /** Key Dimension */
-            key_dimension?: string | null;
-            /** Anomalies */
-            anomalies?: {
-                [key: string]: unknown;
-            }[] | null;
-        } & {
-            [key: string]: unknown;
+        /** SourceHandoffIds */
+        SourceHandoffIds: {
+            /** Analysis */
+            analysis: string | null;
+            /** Expression */
+            expression: string;
         };
         /** TokenPairResponse */
         TokenPairResponse: {
@@ -2545,6 +2736,41 @@ export interface operations {
             };
         };
     };
+    coach_confirm_v2_coach_confirm_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Request-Id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CoachConfirmReq"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CoachConfirmResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     report_history_v2_reports_get: {
         parameters: {
             query?: never;
@@ -2586,7 +2812,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["CreateReportResponse"];
+                    "application/json": components["schemas"]["AnalysisReport"] | components["schemas"]["ExpressionReport"] | components["schemas"]["BlockedReport"];
                 };
             };
             /** @description Validation Error */

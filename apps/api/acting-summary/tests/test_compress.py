@@ -1,6 +1,7 @@
 import subprocess
 from pathlib import Path
 
+from acting_llm import media
 from acting_summary import compress
 
 
@@ -8,6 +9,10 @@ def _make_file(tmp_path: Path, size: int) -> Path:
     p = tmp_path / "v.mp4"
     p.write_bytes(b"\0" * size)
     return p
+
+
+def test_compression_and_audio_extraction_share_one_ffmpeg_lock():
+    assert compress._FFMPEG_LOCK is media._FFMPEG_LOCK
 
 
 def test_small_file_skipped(tmp_path):

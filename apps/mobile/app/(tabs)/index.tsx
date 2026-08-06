@@ -105,13 +105,13 @@ export default function HomeScreen() {
           <Text style={styles.coachLabel}>AI 코치</Text>
           <Text style={styles.coachHeadline}>
             {latest
-              ? '지난 피드백을 이어 연습해 볼까요?'
-              : '영상을 올리면 원인과 처방을 돌려드려요'}
+              ? '지난 연습 카드를 이어 연습해 볼까요?'
+              : '영상을 올리면 막힌 지점과 다음 시도를 정리해요'}
           </Text>
           <Text style={styles.coachBody} numberOfLines={2}>
             {latest
-              ? latest.headline
-              : '점수 대신, 의도가 왜 안 닿았는지와 당장 해볼 처방 하나.'}
+              ? latest.title
+              : '의도가 왜 안 닿았는지와 당장 해볼 한 가지를 찾아요.'}
           </Text>
           <Text style={styles.coachCtaText}>연습 시작 →</Text>
         </Pressable>
