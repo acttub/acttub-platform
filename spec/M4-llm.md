@@ -141,6 +141,9 @@ Gemini에 나가는 요청 전체를 캡처해 Python과 비교한다. 실호출
 - [ ] 워커: **`/SPEC.md` §5-7 전이표 5행 각각을 테스트**
 - [ ] **`run_once()` 동기 훅** 제공
 - [ ] **`ANALYSIS_WORKER_ENABLED` 스위치** 제공
+- [ ] 🔎 **M1이 정의한 제어 표면 5개를 contract 프로파일에서 제공한다** — `run-worker-once`·`run-sweep`·`stub-state`·`advance-clock`·`db-projection` (`spec/M1-harness.md` §백엔드 adapter 계약). **transport 형태는 Python 하네스 어댑터와 동일해야 한다.** 이게 없으면 M1 하네스가 Java를 구동할 수 없다
+- [ ] 🔎 **contract 프로파일에서 백그라운드 워커가 뜨지 않는다.** 시간 의존 동작은 `advance-clock`으로만 일어난다
+- [ ] 🔎 **제어 표면이 운영 프로파일에 노출되지 않는다** — loopback 전용이며 기본 프로파일에서 라우트가 등록되지 않음을 테스트로 단언
 - [ ] 외부 호출이 트랜잭션 밖에 있다 (커넥션 점유 시간으로 확인)
 - [ ] **M1 하네스 전량 통과** — 여기서 처음으로 전 시나리오가 관문이 된다
 - [ ] `openapi.json` diff 0 (datetime 통일 제외)
