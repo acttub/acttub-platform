@@ -80,16 +80,23 @@ class FlywayBaselineTest {
         flywayFor(jdbcUrl).migrate();
 
         try (Connection connection = connect(jdbcUrl)) {
+            // 개수를 박아두면 apps/api 에 마이그레이션이 추가될 때마다 깨진다.
+            // alembic fingerprint fixture 에서 세어 자동으로 따라가게 한다.
+            // (fixture 는 scripts/regen-baseline.sh 가 alembic HEAD 에서 만든다)
+            List<String> alembic = SchemaFingerprint.expectedFromAlembic();
+            long expectedTables = alembic.stream().filter(l -> l.startsWith("TABLE ")).count();
+            long expectedEnums = alembic.stream().filter(l -> l.startsWith("ENUM ")).count();
+
             assertThat(scalar(connection,
                     "SELECT count(*) FROM information_schema.tables WHERE table_schema='public' "
                             + "AND table_type='BASE TABLE' AND table_name <> 'flyway_schema_history'"))
-                    .isEqualTo(20L);
+                    .isEqualTo(expectedTables);
 
             assertThat(scalar(connection,
                     "SELECT count(DISTINCT t.typname) FROM pg_type t "
                             + "JOIN pg_enum e ON e.enumtypid=t.oid "
                             + "JOIN pg_namespace n ON n.oid=t.typnamespace WHERE n.nspname='public'"))
-                    .isEqualTo(17L);
+                    .isEqualTo(expectedEnums);
 
             // /SPEC.md §5-3-6 — Hibernate 가 만들지도 검증하지도 못하는 것들.
             assertThat(scalar(connection,

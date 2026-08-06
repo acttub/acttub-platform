@@ -20,8 +20,14 @@ SELECT line FROM (
       AND table_name NOT IN ('flyway_schema_history', 'alembic_version')
 
     UNION ALL
+    -- ord 는 information_schema 의 ordinal_position 이 아니라 실제 나열 순서다.
+    -- Postgres 는 DROP COLUMN 한 자리의 번호를 재사용하지 않으므로, alembic 이
+    -- 컬럼을 지운 테이블(예: 0007 의 coach_turns)에서는 ordinal_position 에 구멍이
+    -- 남는다. 같은 스키마를 pg_dump 로 다시 만들면 그 구멍이 메워져 번호가 달라진다.
+    -- 기능적으로 같은 스키마이므로 구멍을 메운 순서로 비교한다.
     SELECT 'COLUMN ' || table_name || '.' || column_name
-           || ' ord=' || ordinal_position
+           || ' ord=' || ROW_NUMBER() OVER (
+                  PARTITION BY table_name ORDER BY ordinal_position)
            || ' type=' || udt_name
            || ' len=' || COALESCE(character_maximum_length::text, '-')
            || ' null=' || is_nullable
