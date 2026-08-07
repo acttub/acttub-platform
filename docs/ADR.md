@@ -25,6 +25,8 @@ MVP 핵심 기능의 정상 작동을 목표로 빠르게 개발한다. 단, AI 
 **트레이드오프**: 장기 백엔드가 Spring Boot인 상황에서 Next route handler에 비즈니스 로직이 커질 위험이 있다. 이를 막기 위해 UI는 `src/lib/api/*`를 통해 API를 호출하고, route handler는 얇게 유지한다.
 
 ### ADR-003: 임시 API는 `/api/v1/*` REST 계약으로 작성한다
+> **개정 (2026-08-08)**: 원래 결정은 "Next.js Route Handler를 임시 API로 사용할 수 있다"였다. 현재 `apps/web`의 하드 룰은 "서버 로직을 여기 두지 않는다"이며, API는 전부 `apps/api`(FastAPI) 소관이고 웹은 화면 렌더와 `/v2/*` 프록시만 담당한다. 예전에는 정적 export 빌드가 깨지는 것이 이 경계를 물리적으로 강제했지만, 그 모드를 걷어내면서 지금은 Route Handler를 만들어도 빌드가 통과한다 — 경계를 지키는 것은 규칙뿐이므로 이 ADR만 읽고 Route Handler를 만들지 않는다. versioned REST 계약을 선호한다는 취지 자체는 `apps/api`의 `/v2/*` 계약으로 이어졌다.
+
 **결정**: Spring Boot가 들어오기 전까지 Next.js Route Handler를 임시 API로 사용할 수 있으며, path는 `/api/v1/*` 형태의 versioned REST 계약을 선호한다.
 **이유**: 제품 초기에는 프론트엔드와 서버 흐름을 빠르게 검증해야 한다. 하지만 향후 `apps/api`로 이전할 때 프론트엔드 호출부를 크게 바꾸지 않으려면 HTTP path, method, DTO, status code가 안정적이어야 한다.
 **트레이드오프**: Next.js 내부 기능에 더 강하게 붙으면 빠를 수 있지만, 백엔드 이전 비용이 커진다. REST 계약을 먼저 고정하면 초기 구현이 약간 더 엄격해진다.

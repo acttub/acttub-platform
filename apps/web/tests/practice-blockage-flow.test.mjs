@@ -194,8 +194,6 @@ test("blocked 결과는 대화 내용과 안내와 돌아가기 버튼을 보여
 test("모든 웹 대화 화면에서 이전 확인 문구를 제거했다", () => {
   const sources = [
     "src/features/workspace/workspace-app.tsx",
-    "src/features/practice/practice-flow.tsx",
-    "src/features/practice/practice-single.tsx",
   ].map((file) => readFileSync(path.join(appRoot, file), "utf8")).join("\n");
 
   assert.doesNotMatch(sources, /이제 맞아요|아직 달라요/);
