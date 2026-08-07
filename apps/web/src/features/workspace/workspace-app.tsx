@@ -51,7 +51,10 @@ import {
 } from "../practice/coach-contract";
 import { WaitingDots } from "../practice/waiting-dots";
 import { PracticeReportCards } from "../practice/practice-report-cards";
-import { formatVideoDuration } from "../practice/practice-setup-flow";
+import {
+  buildPracticeSessionRequest,
+  formatVideoDuration,
+} from "../practice/practice-setup-flow";
 import {
   UPLOAD_PROGRESS_END,
   advanceProgress,
@@ -432,13 +435,11 @@ function WorkspaceInner() {
           ),
       });
       const { session } = await createPracticeSession(
-        {
-          upload_intent_id: intentId,
-          situation,
-          character_context: character,
-          goal,
-          ...blockage,
-        },
+        buildPracticeSessionRequest(
+          intentId,
+          { situation, characterContext: character, goal },
+          blockage,
+        ),
         { signal: controller.signal },
       );
       activeIdRef.current = session.session_id;
