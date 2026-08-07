@@ -6,7 +6,9 @@
 점수 90 이상을 유지합니다. Lighthouse CI는 기본적으로 세 번 측정하고 각 성능
 예산의 중앙값을 사용해 한 번의 이례적인 측정이 결과를 결정하지 않게 합니다.
 
-저장소 루트의 성능 명령은 다음 용도로 사용합니다.
+저장소 루트의 성능 명령은 다음 용도로 사용합니다. Lighthouse CI(`@lhci/cli`)는 웹
+전용 도구라 `apps/web`의 devDependency이며, 루트 명령은 `--filter web`으로 위임만
+합니다. `apps/web`에서 직접 `pnpm perf`를 실행해도 같습니다.
 
 - `pnpm perf` — 웹을 빌드한 뒤 Lighthouse CI 성능 예산을 검증합니다.
 - `pnpm perf:web` — 기존 빌드 결과를 대상으로 Lighthouse CI를 실행합니다.
@@ -18,7 +20,7 @@
 LHCI_RUNS=5 pnpm perf
 ```
 
-`pnpm perf:web` 실행 시 Lighthouse CI는 `pnpm --filter web start`로 **실제 배포와 같은
+`pnpm perf:web` 실행 시 Lighthouse CI는 `pnpm start`로 **실제 배포와 같은
 Next 서버**를 3000 포트에 띄워 측정합니다. `pnpm dev`가 떠 있으면 포트가 겹치므로 먼저
 내려야 합니다. 보고서는 `apps/web/artifacts/lighthouse/mobile/`에 저장되며 Git 추적
 대상에서 제외됩니다.
