@@ -50,11 +50,11 @@ Conventional Commits를 따르되, 요약은 한국어 평서형으로 씁니다
 
 ### 이슈 트래커
 
-이슈 정본은 Jira 프로젝트 `SOMA`이고, 이 환경엔 Jira CLI·MCP가 없어 에이전트는 티켓 초안만 만들고 반영은 사람이 합니다. `docs/agents/issue-tracker.md` 참고.
+이슈 정본은 Jira 프로젝트 `SOMA`이고, Atlassian 리모트 MCP(`atlassian`)로 조회·생성합니다. 상태 전이는 GitHub 연동 자동화에 맡기고 에이전트가 건드리지 않습니다. `docs/agents/issue-tracker.md` 참고.
 
 ### 트리아지 라벨
 
-기본 5종(`needs-triage` `needs-info` `ready-for-agent` `ready-for-human` `wontfix`)을 그대로 쓰되, 부여는 사람이 Jira에서 합니다. `docs/agents/triage-labels.md` 참고.
+기본 5종(`needs-triage` `needs-info` `ready-for-agent` `ready-for-human` `wontfix`)을 Jira Labels 필드에 붙입니다. `docs/agents/triage-labels.md` 참고.
 
 ### 도메인 문서
 
