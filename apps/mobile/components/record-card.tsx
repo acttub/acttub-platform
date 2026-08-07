@@ -5,12 +5,12 @@ import type { ReportRecord } from '@/lib/api';
 import { formatKoreanDateTime } from '@/lib/format';
 import { palette } from '@/constants/palette';
 
-export type RecordMeta = { dimension: string; start: string; end: string };
+export type RecordMeta = { kind: string; start: string; end: string };
 
-/** 리포트 상세의 진단 축(dimension)에서 카드 태그칩을 만든다. (시간구간은 칩에 넣지 않음) */
+/** 연습 카드가 분석인지 표현인지로 태그칩을 만든다. (시간구간은 칩에 넣지 않음) */
 export function recordChips(m?: RecordMeta): string[] {
   if (!m) return [];
-  return (m.dimension || '')
+  return (m.kind || '')
     .split(/[/·,、]/)
     .map((s) => s.trim())
     .filter(Boolean);

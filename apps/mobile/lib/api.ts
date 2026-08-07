@@ -65,6 +65,16 @@ export type SceneContext = {
   goal: string;
 };
 
+/**
+ * 배우가 고른 막히는 지점. 서버가 이걸로 분석 코치와 표현 코치를 가른다.
+ * 값의 정의와 단계 규칙은 `lib/blockage.ts`(웹과 동일)에 있다.
+ */
+export type BlockageSelection = {
+  blockage_kind: string;
+  sub_branch: string;
+  blockage_detail: string | null;
+};
+
 export type SceneSummary = {
   summary_id: string;
   observations: {
@@ -81,6 +91,8 @@ export type CoachTurnResponse = {
   message: string | null;
   status: 'continue' | 'complete';
   handoff: { id: string; branch_kind: 'analysis' | 'expression' } | null;
+  /** 대화가 정리돼 카드가 만들어졌으면 함께 온다. status==='complete' 여도 없을 수 있다. */
+  report: PracticeReport | null;
   turns: CoachTurn[];
 };
 
@@ -407,6 +419,8 @@ export const api = {
   createPracticeSession(input: {
     upload_intent_id: string;
     scene: SceneContext;
+    /** 배우가 고른 막히는 지점. 없으면 분기가 안 걸리므로 화면에서 반드시 채워 보낸다. */
+    blockage: BlockageSelection;
   }, options: ApiCallOptions = {}): Promise<PracticeSessionCreate> {
     return postIdempotent<PracticeSessionCreate>(
       '/v2/practice-sessions',
@@ -415,9 +429,9 @@ export const api = {
         situation: input.scene.situation,
         character_context: input.scene.character,
         goal: input.scene.goal,
-        blockage_kind: '그 외',
-        sub_branch: '그 외',
-        blockage_detail: null,
+        blockage_kind: input.blockage.blockage_kind,
+        sub_branch: input.blockage.sub_branch,
+        blockage_detail: input.blockage.blockage_detail,
       },
       { timeoutMs: 30_000, signal: options.signal },
     );
@@ -469,10 +483,22 @@ export const api = {
   },
 
   // 코치 -----------------------------------------------------------------------
-  coachStart(practiceSessionId: string): Promise<CoachTurnResponse> {
+  /**
+   * 질문 대화를 시작하거나 이어받는다.
+   *
+   * 서버는 열린 대화가 있으면 새로 만들지 않고 그대로 돌려준다 — 앱을 껐다 켜도
+   * 하던 대화가 이어진다. 처음부터 다시 하려면 `restart` 를 켠다.
+   */
+  coachStart(
+    practiceSessionId: string,
+    options: { restart?: boolean } = {},
+  ): Promise<CoachTurnResponse> {
     return postIdempotent<CoachTurnResponse>(
       '/v2/coach/start',
-      { practice_session_id: practiceSessionId },
+      {
+        practice_session_id: practiceSessionId,
+        ...(options.restart ? { restart: true } : {}),
+      },
       { timeoutMs: 120_000 },
     );
   },

@@ -1,28 +1,49 @@
 /**
- * acttub 디자인 토큰 v2 — Figma "UI-UX디자인 > 앱 디자인" 페이지 기준.
- * 화이트 배경 + 네이비 카드 + 블루 액센트, 히트맵은 옐로→핑크 그라데이션.
+ * acttub 디자인 토큰 — 목업(`목업-2026-08-03.pen`)의 `web-*` 변수를 옮긴 것.
+ *
+ * 앱이 예전에 쓰던 네이비 계열 토큰을 목업 값으로 갈아끼웠다. 키 이름은 그대로
+ * 두었으므로 쓰는 쪽(23개 파일)은 고칠 것 없이 색만 함께 움직인다.
+ *
+ * 화면에서 색을 직접 적지 않는다 — 목업 값이 바뀌면 여기만 고치면 되게.
  */
 export const palette = {
+  // 바탕
   bg: '#FFFFFF',
-  bgSoft: '#F2F2F7',
+  bgSoft: '#F2F4F6', // web-gray-bg
+  bgSubtle: '#F9FAFB', // web-gray-bg-2
   card: '#FFFFFF',
-  border: '#E6E9F0',
-  navy: '#0F1525',
-  navySoft: '#1B2337',
-  text: '#171D2B',
-  textDim: '#5B6378',
-  textFaint: '#9099AC',
-  checkOff: '#C7CDD9',
-  blue: '#2F55F2',
-  blueDeep: '#1E3FCC',
-  blueSoft: '#EEF2FF',
-  green: '#0E9F6E',
-  greenSoft: '#E8F6F0',
-  amber: '#F59E0B',
-  amberSoft: '#FEF4E3',
+  border: '#E5E8EB', // web-line
+  borderSoft: '#EDF0F3', // web-line-soft
+
+  // 글자 — 진한 순서
+  text: '#191F28', // web-ink
+  textStrong: '#333D4B', // web-ink-strong
+  textDim: '#4E5968', // web-ink-sub
+  textMuted: '#6B7684', // web-ink-3
+  textFaint: '#8B95A1', // web-ink-4
+  checkOff: '#B0B8C1', // web-ink-5
+
+  // 파랑
+  blue: '#3182F6', // web-blue
+  blueAlt: '#2F6BFF', // web-blue-2
+  blueDeep: '#1B64DA', // web-blue-dark
+  blueSoft: '#E8F3FF', // web-blue-soft
+  blueMist: '#F8FBFF', // web-blue-mist
+  blueLine: '#DCE9FF', // web-blue-line
+
+  // 상태
+  green: '#009959',
+  greenSoft: '#E5F8EF',
+  amber: '#8A4B00',
+  amberSoft: '#FFF8EC',
+  danger: '#E42939',
+  dangerSoft: '#FFF0F0',
+
+  // 예전 토큰 — 아직 참조하는 화면이 있어 남긴다. 새 화면에서는 쓰지 않는다.
+  navy: '#191F28',
+  navySoft: '#333D4B',
   purple: '#6E56CF',
   purpleSoft: '#F0EDFA',
-  danger: '#E5484D',
 };
 
 /**
@@ -30,4 +51,3 @@ export const palette = {
  * 값은 디자인 시안(스트릭_예시)에서 그대로 가져왔다. 단계 계산은 [[practice-activity]].
  */
 export const weekColors = ['#EDEFF4', '#F8D66E', '#F3AE74', '#EE837D', '#EC6A85'];
-
