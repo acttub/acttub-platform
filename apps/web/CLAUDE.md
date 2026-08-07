@@ -19,6 +19,8 @@ Next.js 16 App Router + React 19 + TypeScript + Tailwind CSS v4.
 - `pnpm test` — Node 테스트와 금지 카피 가드를 하나의 테스트 명령으로 실행.
 - `pnpm build` — 빌드 → `.next/standalone/`(실제 배포 산출물). 프록시 대상은 `API_ORIGIN`으로 주며, rewrites가 빌드 시점에 `routes-manifest.json`으로 굳으므로 런타임 환경변수로는 바뀌지 않습니다. **typecheck보다 먼저 돌려야 합니다** — `next-env.d.ts`·`.next/types`를 만들어야 tsc가 `*.png` import와 typedRoutes를 해석합니다.
 - `pnpm start` — 빌드 결과를 로컬에서 서빙(:3000). Lighthouse 측정이 이 명령을 씁니다.
+- `pnpm dev:lan` — 폰 등 다른 기기에서 열 때. `DEV_HOST`에 맥의 LAN IP가 필요하고 `DEV_ALLOWED_ORIGINS`도 같이 줘야 합니다(next.config 주석 참조). `0.0.0.0` 바인드는 HMR 소켓이 깨지므로 쓰지 않습니다.
+- `pnpm perf` — Lighthouse CI(`lighthouserc.cjs`). `pnpm start`를 띄워 측정하므로 `build`가 먼저 있어야 합니다. `pnpm perf:healthcheck`는 설정만 검사.
 - `pnpm generate:v2-schema` — `../api/spec/openapi.json`에서 요청 타입 재생성(`src/lib/api/v2-schema.d.ts`). 이 파일은 직접 수정 금지.
 
 ## 구조
