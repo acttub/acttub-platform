@@ -24,7 +24,10 @@ export type AdmissionTip = {
   /** practice | day_of | place | dress | document | strategy | etc */
   category: string;
   source_url?: string | null;
+  /** **글을 쓴 사람**. 학원 사이트의 수험생 글이면 personal 이다. */
   source_type: string;
+  /** 글이 올라와 있는 곳. source_type 과 다를 수 있어 함께 밝힌다. */
+  host?: string | null;
   /** 같은 말을 한 후기가 몇 건인지. 한 사람 말과 여러 사람 말은 무게가 다르다. */
   corroborations?: number | null;
   note?: string | null;

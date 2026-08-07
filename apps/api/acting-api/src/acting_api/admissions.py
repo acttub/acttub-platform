@@ -55,8 +55,15 @@ class AdmissionTip(_StrictResponse):
     category: str
     # 그 사실을 확인한 곳. 여러 후기에서 공통으로 나오면 대표 하나.
     source_url: str | None = None
+    # **글을 쓴 사람**이 누구인지. 글이 올라와 있는 도메인이 아니다.
+    # 학원 사이트의 합격수기 게시판이라도 수험생 본인이 쓴 글이면 personal 이다 —
+    # 호스팅만 보고 academy 를 붙이면 화면에서 광고로 읽혀 실제보다 신뢰도가
+    # 낮아 보인다. academy 는 학원이 직접 쓴 홍보·정리 글에만 쓴다.
     # official(대학 공식) | school(고교) | academy(입시학원) | personal(개인)
     source_type: str = "personal"
+    # 글이 올라와 있는 곳(예: "황액터스 커뮤니티"). source_type 과 다를 수 있어
+    # 화면에서 함께 밝힌다.
+    host: str | None = None
     # 같은 말을 한 후기가 몇 건인지. 한 사람 말과 여러 사람 말은 무게가 다르다.
     corroborations: int | None = None
     verified_at: str | None = None

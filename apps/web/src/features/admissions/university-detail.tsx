@@ -555,6 +555,9 @@ function TipList({ tips }: { tips: AdmissionTip[] }) {
                           후기 {tip.corroborations}건에서 확인
                         </span>
                       )}
+                    {/* 배지는 '누가 썼나'다. 학원 사이트에 올라온 수험생 글을
+                        학원 글로 찍으면 실제보다 신뢰도가 낮아 보인다.
+                        올라와 있는 곳은 host로 따로 밝힌다. */}
                     <span
                       className={`rounded-full px-2 py-0.5 text-[10px] font-black ${
                         tip.source_type === "official"
@@ -566,6 +569,11 @@ function TipList({ tips }: { tips: AdmissionTip[] }) {
                     >
                       {SOURCE_LABEL[tip.source_type] ?? tip.source_type}
                     </span>
+                    {tip.host && (
+                      <span className="text-[10px] font-bold text-[#b0b8c1]">
+                        {tip.host}
+                      </span>
+                    )}
                     {tip.source_url && (
                       <a
                         href={tip.source_url}

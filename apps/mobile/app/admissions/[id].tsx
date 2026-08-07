@@ -372,9 +372,11 @@ function TipList({ tips }: { tips: AdmissionTip[] }) {
                     <Text style={styles.trackText}>후기 {tip.corroborations}건</Text>
                   </View>
                 )}
+                {/* 배지는 '누가 썼나'다. 올라와 있는 곳은 host로 따로 밝힌다. */}
                 <Text style={styles.tag}>
                   {SOURCE_LABEL[tip.source_type] ?? tip.source_type}
                 </Text>
+                {tip.host && <Text style={styles.tipHost}>{tip.host}</Text>}
                 {tip.source_url && (
                   <Pressable onPress={() => void Linking.openURL(tip.source_url as string)}>
                     <Text style={styles.tipLink}>출처 ↗</Text>
@@ -551,6 +553,7 @@ const styles = StyleSheet.create({
   tip: { padding: 14, borderRadius: 14, backgroundColor: palette.bgSoft, gap: 6 },
   tipText: { fontSize: 12.5, fontWeight: '600', color: palette.text, lineHeight: 21 },
   tipLink: { fontSize: 11, fontWeight: '800', color: palette.blue },
+  tipHost: { fontSize: 10.5, fontWeight: '700', color: palette.checkOff },
   resource: { padding: 16, borderRadius: 14, backgroundColor: palette.card, gap: 8 },
   badge: {
     paddingHorizontal: 7,

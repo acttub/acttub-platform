@@ -758,6 +758,8 @@ export interface components {
              * @default personal
              */
             source_type: string;
+            /** Host */
+            host?: string | null;
             /** Corroborations */
             corroborations?: number | null;
             /** Verified At */
