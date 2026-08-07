@@ -1,6 +1,7 @@
 package com.acttub.actingapi.config;
 
 import java.io.IOException;
+import java.math.BigInteger;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -42,7 +43,7 @@ public class JacksonConfig {
 
     @Bean
     Jackson2ObjectMapperBuilderCustomizer acttubJacksonCustomizer() {
-        SimpleModule module = new SimpleModule("acttub-datetime");
+        SimpleModule module = new SimpleModule("acttub-contract");
         module.addSerializer(Instant.class, new JsonSerializer<>() {
             @Override
             public void serialize(Instant value, JsonGenerator gen, SerializerProvider serializers)
@@ -57,6 +58,15 @@ public class JacksonConfig {
                 gen.writeString(MICROS_UTC.format(value.toInstant()));
             }
         });
+        module.addDeserializer(Byte.class, ExactIntegerDeserializer.bytes());
+        module.addDeserializer(Byte.TYPE, ExactIntegerDeserializer.bytes());
+        module.addDeserializer(Short.class, ExactIntegerDeserializer.shorts());
+        module.addDeserializer(Short.TYPE, ExactIntegerDeserializer.shorts());
+        module.addDeserializer(Integer.class, ExactIntegerDeserializer.integers());
+        module.addDeserializer(Integer.TYPE, ExactIntegerDeserializer.integers());
+        module.addDeserializer(Long.class, ExactIntegerDeserializer.longs());
+        module.addDeserializer(Long.TYPE, ExactIntegerDeserializer.longs());
+        module.addDeserializer(BigInteger.class, ExactIntegerDeserializer.bigIntegers());
 
         return builder -> {
             builder.modules(module);
