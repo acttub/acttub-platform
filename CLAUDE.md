@@ -45,3 +45,17 @@ Conventional Commits를 따르되, 요약은 한국어 평서형으로 씁니다
 - 생성물·로컬 디렉토리는 수정 금지: `node_modules/`, `.next/`, `out/`, `.venv/`, `apps/web/src/lib/api/v2-schema.d.ts`(재생성: `pnpm --filter web generate:v2-schema`).
 - API 계약 변경은 한 PR에서: 백엔드 코드 → `apps/api/spec/openapi.json` 재생성 → 웹 타입 재생성 → 프론트 수정.
 - diff는 작게 유지하고, 가장 좁은 범위의 명령으로 먼저 검증합니다.
+
+## Agent skills
+
+### 이슈 트래커
+
+이슈 정본은 Jira 프로젝트 `SOMA`이고, Atlassian 리모트 MCP(`atlassian`)로 조회·생성합니다. 상태 전이는 GitHub 연동 자동화에 맡기고 에이전트가 건드리지 않습니다. `docs/agents/issue-tracker.md` 참고.
+
+### 트리아지 라벨
+
+기본 5종(`needs-triage` `needs-info` `ready-for-agent` `ready-for-human` `wontfix`)을 Jira Labels 필드에 붙입니다. `docs/agents/triage-labels.md` 참고.
+
+### 도메인 문서
+
+단일 컨텍스트 — 루트 `CONTEXT.md`(지연 생성) + 단일 파일 `docs/ADR.md`. `docs/agents/domain.md` 참고.
