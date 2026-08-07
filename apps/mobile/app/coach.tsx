@@ -15,7 +15,7 @@ import { api } from '@/lib/api';
 import { attemptCoachStart, canSendCoachMessage } from '@/lib/coach-flow';
 import { getPractice } from '@/lib/practice';
 import { palette } from '@/constants/palette';
-import { SceneFold } from '@/components/practice-chrome';
+import { SceneFoldBody, SceneFoldLink } from '@/components/practice-chrome';
 import { useKeyboardHeight } from '@/hooks/use-keyboard-height';
 import type { MicButtonProps } from '@/components/mic-button';
 
@@ -55,6 +55,7 @@ export default function CoachScreen() {
   const [waiting, setWaiting] = useState(false);
   const [done, setDone] = useState(false);
   const [pastOpen, setPastOpen] = useState(false);
+  const [sceneOpen, setSceneOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // 영상 재생은 SceneFold(접이식)가 맡는다 — 목업이 질문에 집중하도록 접어 둔다.
@@ -190,13 +191,21 @@ export default function CoachScreen() {
       </View>
 
       <View style={styles.strip}>
-        <SceneFold
-          videoUri={practice.videoUri || practice.playbackUrl}
-          scene={practice.scene}
-          blockage={null}
-        />
+        <View style={styles.stripRow}>
+          <View style={styles.stripText}>
+            <Text style={styles.stripTitle}>영상과 장면 보기</Text>
+            <Text style={styles.stripSub} numberOfLines={1}>
+              {practice.scene.situation.trim() || '장면을 적지 않았어요'}
+            </Text>
+          </View>
+          <SceneFoldLink
+            open={sceneOpen}
+            onToggle={() => setSceneOpen((was) => !was)}
+            label=""
+          />
+        </View>
       </View>
-
+      <SceneFoldBody open={sceneOpen} videoUri={practice.videoUri || practice.playbackUrl} />
       <View style={styles.progressHead}>
         <View style={styles.progressLeft}>
           <View style={styles.dots}>
@@ -328,6 +337,10 @@ const styles = StyleSheet.create({
   },
   statusChipText: { fontSize: 11, fontWeight: '900', color: palette.blue },
 
+  stripRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  stripText: { flex: 1, gap: 2 },
+  stripTitle: { fontSize: 13, fontWeight: '900', color: palette.textStrong },
+  stripSub: { fontSize: 11.5, fontWeight: '600', color: palette.textFaint },
   strip: {
     backgroundColor: palette.bgSubtle,
     borderBottomWidth: 1,

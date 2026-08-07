@@ -31,7 +31,13 @@ import { useAuth } from '@/lib/auth';
 import { formatSizeChange, startVideoCompression } from '@/lib/compress';
 import { startPractice, takePendingUpload, type PendingUpload } from '@/lib/practice';
 import { palette } from '@/constants/palette';
-import { PracticeFooter, ProgressRow, SceneFold, SceneSummary } from '@/components/practice-chrome';
+import {
+  PracticeFooter,
+  ProgressRow,
+  SceneFoldBody,
+  SceneFoldLink,
+  SceneSummary,
+} from '@/components/practice-chrome';
 
 /** 경과 시간 기반 단계 문구로 기다림을 설계한다(실제 진행률은 서버가 주지 않음). */
 const STAGES = [
@@ -87,6 +93,17 @@ export default function AnalyzingScreen() {
   const [abandoning, setAbandoning] = useState(false);
   // 목업이 '1분 12초 경과'를 보여준다. 얼마나 기다렸는지 보이면 덜 불안하다.
   const [elapsedSec, setElapsedSec] = useState(0);
+  const [sceneOpen, setSceneOpen] = useState(false);
+  /**
+   * 화면에 보여줄 장면·막힌 곳.
+   *
+   * uploadRef 에서 바로 읽으면 안 된다 — ref 는 값이 바뀌어도 다시 그리지 않으므로,
+   * 첫 렌더의 null 이 그대로 남아 '분석에 쓰는 내용' 이 끝까지 안 떴다.
+   */
+  const [sceneInfo, setSceneInfo] = useState<{
+    scene: PendingUpload['scene'];
+    blockage: PendingUpload['blockage'];
+  } | null>(null);
   const { confirm, dialog } = useAppDialog();
 
   // 방금 올린 로컬 원본을 대기 중 재생 (서버 업로드본·압축본이 아니라 원본).
@@ -249,6 +266,7 @@ export default function AnalyzingScreen() {
         return;
       }
       setVideoUri(pendingUpload.video.uri);
+      setSceneInfo({ scene: pendingUpload.scene, blockage: pendingUpload.blockage });
       await run(false);
     };
     void initialize();
@@ -334,8 +352,8 @@ export default function AnalyzingScreen() {
         ? '영상을 올리는 중이에요…'
         : STAGES[stage];
 
-  const scene = uploadRef.current?.scene ?? null;
-  const blockage = uploadRef.current?.blockage ?? null;
+  const scene = sceneInfo?.scene ?? null;
+  const blockage = sceneInfo?.blockage ?? null;
   const elapsedText =
     elapsedSec < 60
       ? `${elapsedSec}초 경과`
@@ -353,11 +371,9 @@ export default function AnalyzingScreen() {
       />
       <ProgressRow
         label={error ? '3단계 · 질문 준비' : '3단계 · 질문 준비 중'}
-        right={<SceneFold videoUri={videoUri} scene={scene} blockage={blockage && {
-          kind: `${blockage.blockage_kind}${blockage.sub_branch && blockage.sub_branch !== blockage.blockage_kind ? ` › ${blockage.sub_branch}` : ''}`,
-          detail: blockage.blockage_detail,
-        }} />}
+        right={<SceneFoldLink open={sceneOpen} onToggle={() => setSceneOpen((was) => !was)} />}
       />
+      <SceneFoldBody open={sceneOpen} videoUri={videoUri} />
       <ScrollView contentContainerStyle={styles.body}>
         {error ? (
           <View style={styles.errorBlock}>
@@ -383,8 +399,7 @@ export default function AnalyzingScreen() {
               <Text style={styles.elapsed}>{elapsedText}</Text>
               {sizeNote && <Text style={styles.sizeNote}>{sizeNote}</Text>}
               <Text style={styles.notice}>
-                끝날 때까지 이 화면을 켜 둔 채로 기다려 주세요. 지금 나가면 올린 영상과
-                분석이 사라져요.
+                보통 1~3분 걸려요. 끝날 때까지 이 화면을 켜 두세요.
               </Text>
             </View>
 

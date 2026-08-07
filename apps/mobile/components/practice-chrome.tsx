@@ -68,48 +68,51 @@ export function ProgressRow({
 }
 
 /**
- * 영상과 장면을 접었다 펼치는 줄.
+ * '영상 보기' 링크. 진행 줄 오른쪽에 놓는다.
  *
- * 목업은 이 흐름에서 영상을 늘 띄우지 않고 필요할 때만 펼친다 — 질문에 집중하게
- * 하려는 것이다. 다만 영상 자체를 없애지는 않는다(펼치면 그대로 재생된다).
+ * 펼친 내용은 이 링크 안에 두지 않는다 — 진행 줄은 좁은 가로 칸이라 영상이 그 안에
+ * 갇혀 찌그러진다. 상태는 화면이 들고, 본문은 SceneFoldBody 가 전폭으로 그린다.
  */
-export function SceneFold({
-  videoUri,
-  scene,
-  blockage,
+export function SceneFoldLink({
+  open,
+  onToggle,
+  label = '영상 보기',
 }: {
-  videoUri: string | null;
-  scene: SceneContext | null;
-  blockage?: { kind: string; detail: string | null } | null;
+  open: boolean;
+  onToggle: () => void;
+  label?: string;
 }) {
-  const [open, setOpen] = useState(false);
+  return (
+    <Pressable
+      onPress={onToggle}
+      accessibilityRole="button"
+      accessibilityState={{ expanded: open }}
+      hitSlop={8}>
+      <Text style={styles.foldLink}>
+        {label} {open ? '▴' : '▾'}
+      </Text>
+    </Pressable>
+  );
+}
+
+/** 펼쳤을 때의 영상. 화면 폭을 그대로 쓴다. */
+export function SceneFoldBody({
+  open,
+  videoUri,
+}: {
+  open: boolean;
+  videoUri: string | null;
+}) {
   const player = useVideoPlayer(open ? videoUri : null, (p) => {
     p.loop = false;
   });
-
+  if (!open) return null;
   return (
-    <View>
-      <Pressable
-        onPress={() => setOpen((was) => !was)}
-        accessibilityRole="button"
-        accessibilityState={{ expanded: open }}
-        hitSlop={8}>
-        <Text style={styles.foldLink}>영상·장면 보기 {open ? '▴' : '▾'}</Text>
-      </Pressable>
-      {open && (
-        <View style={styles.foldBody}>
-          {videoUri && (
-            <VideoView
-              style={styles.video}
-              player={player}
-              nativeControls
-              contentFit="contain"
-            />
-          )}
-          {scene && (
-            <SceneSummary scene={scene} blockage={blockage ?? null} />
-          )}
-        </View>
+    <View style={styles.foldBody}>
+      {videoUri ? (
+        <VideoView style={styles.video} player={player} nativeControls contentFit="contain" />
+      ) : (
+        <Text style={styles.foldEmpty}>다시 볼 수 있는 영상이 없어요.</Text>
       )}
     </View>
   );
@@ -199,7 +202,8 @@ const styles = StyleSheet.create({
   stepLabel: { fontSize: 12.5, fontWeight: '700', color: palette.textDim },
 
   foldLink: { fontSize: 12, fontWeight: '700', color: palette.textFaint },
-  foldBody: { gap: 14, paddingTop: 14 },
+  foldBody: { paddingHorizontal: 20, paddingTop: 14 },
+  foldEmpty: { fontSize: 12.5, fontWeight: '600', color: palette.textFaint },
   video: { width: '100%', aspectRatio: 16 / 9, borderRadius: 14, backgroundColor: palette.bgSoft },
 
   summaryWithTitle: { borderTopWidth: 1, borderTopColor: palette.borderSoft, paddingTop: 20 },
