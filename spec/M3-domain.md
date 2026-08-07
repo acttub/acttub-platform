@@ -4,6 +4,22 @@
 
 > **상세화 시점**: M0·M2의 findings가 나온 뒤 사이클 진입 시 그룹별로 보강한다. 지금 확정된 것은 범위·순서·위험 지점·완료 기준이다.
 
+## M2가 이미 깔아 둔 것 — 다시 만들지 않는다
+
+M3는 **엔드포인트만 얹는다.** 아래는 `spec/M2-findings.md`에서 확정돼 테스트로 고정됐다:
+
+| 기반 | 상태 |
+|---|---|
+| 엔티티 24개 · enum 컨버터 17개 · JSONB `JsonNode` | `ddl-auto: validate` 통과, 4케이스 왕복 고정 |
+| 422 계약 변환 | 예외별 type(`extra_forbidden`·`int_parsing`·`int_from_float`·`uuid_parsing`·`enum`·`string_type`·`missing`·`json_invalid`), 중첩 경로 전량 순회 + wire 이름 변환, 배열 index, 거부값 `input`, `ctx` |
+| **숫자 파싱**(`12.0`→201 / `12.5`→422) | `ExactIntegerDeserializer`로 해결. **M3 그룹 2의 위험 목록에서 뺀다** |
+| unknown key | 전역 `fail-on-unknown-properties: true` + 허용 DTO에만 `@JsonIgnoreProperties`. M3의 `/v2/practice-sessions`·`/v2/uploads/intents`는 **허용 집합**이므로 애노테이션을 붙인다 |
+| 오류 포맷 | `{"detail": <str>}`, 404·405·인증 필터에서 `ProblemDetail` 미노출 |
+| 시계 · `SKIP LOCKED` | policy matrix 확정, `SKIP LOCKED` 미도입(원본 경합 순서 보존) |
+| JWT · 레이트리밋 2종 · consent 게이트 | 완료. M3는 `consented_user` 조합을 쓰기만 한다 |
+
+M3에서 새 DTO를 만들 때 **422 형상과 unknown key 정책이 자동으로 따라오는지 확인**한다 — M2의 변환기는 루트 DTO 하드코딩이 아니라 Jackson introspection 기반이라 원칙적으로 따라오지만, 중첩·컬렉션 DTO가 M3에서 처음 등장하므로 실제로 확인한다.
+
 ## 목적
 
 LLM에 의존하지 않는 엔드포인트를 이식한다. **`db/store.py` 2,118줄 + `community_store.py` 749줄이 실제로 옮겨지는 구간**이며 가장 긴 사이클이다.
@@ -21,7 +37,7 @@ LLM에 의존하지 않는 엔드포인트를 이식한다. **`db/store.py` 2,11
 | # | 그룹 | 주된 위험 |
 |---|---|---|
 | 1 | `/v2/me`, `/v2/consents` | `DISTINCT ON` 3건(`db/store.py:PostgresStore.list_latest_consent_documents`·`.get_current_user_consents`·`.total`), nickname 정규화 |
-| 2 | `/v2/uploads` | `UPDATE...RETURNING`, presign 리전 고정, 숫자 파싱(12.0→201 / 12.5→422), unknown key 허용 |
+| 2 | `/v2/uploads` | `UPDATE...RETURNING`, presign 리전 고정, unknown key 허용 (숫자 파싱은 M2에서 해결됨 — 회귀 테스트만 확인) |
 | 3 | `/v2/practice-sessions` | **위험 함수 #2**, 조건부 키 생략, 멱등 전이표, L3 바이트 동등 |
 | 4 | `/v2/community` (16) | `community_store.py` 749줄. **위험 함수 #5**, 키셋 커서, 차단 필터, 익명 별칭 |
 | 5 | `/v2/reports` **GET 2개만** | 목록·상세. `POST`는 M4 |
@@ -33,11 +49,17 @@ LLM에 의존하지 않는 엔드포인트를 이식한다. **`db/store.py` 2,11
 
 `/SPEC.md` §7-1. 각각을 **먼저 프로토타입 + Testcontainers 테스트로 고정**한 뒤 해당 그룹을 이식한다.
 
-1. **`complete_report_operation`** — M0에서 확정한 트랜잭션 스타일 적용. **엔드포인트는 M4지만 저장 계층은 여기서.** 제약명은 **`reports_session_id_key`**이며, 사전 존재 확인 경로와 커밋 시 위반 경로를 **각각** 테스트한다.
+1. **`db/store.py:PostgresStore.complete_practice_report_operation`** — M0에서 확정한 트랜잭션 스타일 적용. **엔드포인트는 M4지만 저장 계층은 여기서.**
 
-   **M0이 증명하지 못한 것을 여기서 메운다**(적대적 리뷰 지적): M0의 중복 테스트는 23505 발생 전에 SELECT만 하므로 **부분 커밋·커넥션 오염이 없다는 것을 증명하지 못한다**. 다음을 추가한다:
-   - 같은 트랜잭션에서 **성공하는 marker write를 먼저 수행**한 뒤 23505를 일으켜 marker가 롤백되는지 확인
-   - **커넥션 풀 크기를 1로 제한**해 같은 커넥션으로 즉시 새 트랜잭션이 성공하는지 확인 (Postgres가 aborted 상태로 남지 않음)
+   ⚠ **초판은 `complete_report_operation`과 제약명 `reports_session_id_key`를 지목했다. 둘 다 존재하지 않는다.** `SOMA-302`가 리포트 계층을 `practice_reports`로 옮기면서 함수는 재작성됐고, 멱등은 `uq_practice_reports_source_handoff`에 대한 **`ON CONFLICT (source_handoff_id) DO NOTHING RETURNING`** 으로 바뀌어 **제약명 문자열을 보지 않는다**(`/SPEC.md` §6 #10). 따라서 "사전 존재 확인 경로 vs 커밋 시 위반 경로"를 나눠 테스트할 대상 자체가 없다. 산문이라 `check-refs.py`가 잡지 못한 자리다.
+
+   실제 구조는 이렇다 — 삽입이 충돌하면 `RETURNING`이 비어 `False`를 돌려주고, 삽입에 성공하면 `_finish_external_operation`이 lease 소유를 확인해 **잃었으면 `LeaseOwnershipError`로 방금 넣은 리포트까지 함께 롤백**한다.
+
+   고정할 것:
+   - 같은 `source_handoff_id` 재요청이 `False`를 받고 **새 행이 생기지 않는다**
+   - lease를 빼앗긴 상태의 완료 시도가 **삽입된 리포트까지 롤백**한다
+   - **M0의 트랜잭션 검증은 대상만 갈아 그대로 유지한다** — 같은 트랜잭션에서 성공하는 marker write를 먼저 한 뒤 실패를 일으켜 marker가 롤백되는지, 커넥션 풀을 1로 묶어 같은 커넥션에서 즉시 새 트랜잭션이 성공하는지(Postgres 가 aborted 로 남지 않음). 결론은 유효하고 대상 함수만 바뀌었다
+   - **M0 산출물 `ReportOperationIT`(13개)는 옛 구조를 프로토타이핑한 것이다**(`/SPEC.md` §7-1 "강등"). 새 함수 기준으로 재조준한다
 2. **`create_practice_session_with_analysis_operation`** — 보상 로직(`db/store.py:PostgresStore.create_practice_session_with_analysis_operation`). 유사 구조가 `db/store.py:PostgresStore.create_analysis_retry_operation`에 복제되어 있으므로 **둘을 함께** 본다
 3. **`_save_coach_session` + `_load_session`** — `FOR SHARE OF` + 턴 전량 값 비교. 저장 계층만
    - 🔁 `SOMA-304`로 코치 저장 계층에 셋이 붙었다: 신규 `db/store.py:PostgresStore.get_oldest_open_coach_session`(`created_at, id` 순 + `hidden_at IS NULL` + 소유권 조인), `.complete_coach_start_operation`의 `restart` 인자(같은 연습 세션의 열린 코치 세션을 일괄 `closed` 전이), 그리고 응답에 실리는 턴 전량(`coaching.py:PublicCoachTurn`). **정렬 기준과 일괄 전이 범위가 곧 계약이다**
@@ -83,7 +105,7 @@ LLM에 의존하지 않는 엔드포인트를 이식한다. **`db/store.py` 2,11
 - [ ] 조건부 키 생략 재현 (`summary`/`error_code`)
 - [ ] 멱등 전이표 4케이스 통과
 - [ ] `X-Request-Id` 응답 헤더 반환
-- [ ] v1 경로 5개 404
+- [ ] v1 경로 5개 404 — 🔁 `SOMA-318`이 `acting-agent`·`acting-summary`·`acting-report`의 자체 라우터를 **삭제**해 근거가 "마운트되지 않음"에서 "라우터가 없음"으로 바뀌었다. 하네스도 해당 `EXCLUSIONS`를 지웠다(`tools/contract-harness/contract_harness/manifest.py`). 계약(`/SPEC.md` §6 #14)은 그대로 유효하다
 - [ ] unknown key 허용 대상(`/v2/practice-sessions`, `/v2/uploads/intents`)이 422를 내지 않는다
 - [ ] 커뮤니티: 차단 필터가 익명 글을 숨기지 않는다 / 조회수는 증가 전 값 / nickname 내부 공백 접힘 / 커서 방향 정확
 - [ ] 동시성: 세션 생성 경합, 재분석 경합, lease 경합 (`tests/test_db_store.py:test_concurrent_practice_creation_replays_the_winning_operation`·`:test_external_operation_idempotency_lease_race_and_atomic_completion` 대응)
