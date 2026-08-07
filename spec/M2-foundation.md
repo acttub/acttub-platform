@@ -274,8 +274,12 @@ IP limiter를 빠뜨리면 **실패하는 login·refresh 시도가 무제한으�
 - [ ] 404·405와 인증 필터 진입점에서 `ProblemDetail`이 새지 않는다
 
 ### 계약
-- [ ] **M1 하네스로 `/v2/auth/*` 비교 통과**
+- [ ] **M1 하네스 `health` 시나리오를 Java 타겟으로 통과** — 하네스가 Java를 상대로 판정할 수 있음을 처음 실증하는 지점이다
 - [ ] `openapi.json` diff가 인증 경로에서 0 (datetime 통일 제외)
+
+⚠ **auth 시나리오 비교는 M2에서 달성할 수 없다.** 초판은 "`/v2/auth/*` 비교 통과"를 완료 기준에 넣었지만, 하네스가 그것을 구조적으로 막는다 — `tools/contract-harness/contract_harness/backends.py:JavaBackend`가 **"M1 시점 Java는 `/health` 뿐이다 — 제어 표면 없이 붙기만 한다. 제어 표면 5개를 만족시키는 것은 M4의 일"** 이라고 규정한다. auth 시나리오는 Google·Apple provider를 스텁으로 바꿔야 성립하는데, FastAPI 쪽은 in-process 래퍼(`wrapper.py`)로 주입하는 반면 **Java 어댑터는 base URL만 안다.** 실행하면 하네스 스스로 "seed parity — java 백엔드의 스키마 이름을 모른다 (`spec/M4-llm.md`로 이관)"을 찍는다.
+
+**옮겨 적을 필요는 없다** — `spec/M4-llm.md`가 이미 제어 표면 5개를 transport 형태(`POST /__harness/<name>`)와 요청·응답 스키마까지 완료 기준으로 갖고 있다. M2는 이 항목을 **갖지 않는 것이 맞다.**
 
 ### 결정 기록
 - [ ] 시계 소스 policy matrix와 근거가 `spec/M2-findings.md`에 있고, `updated_at >= created_at` 테스트가 있다
@@ -286,12 +290,24 @@ IP limiter를 빠뜨리면 **실패하는 login·refresh 시도가 무제한으�
 
 ```bash
 cd apps/api-java
-./gradlew test                     # Testcontainers — Docker 필요
-./gradlew bootRun &
+REQUIRE_ALEMBIC_CHECK=1 ./gradlew test     # Testcontainers — Docker 필요
+# FastApiInteropIT 가 이 안에서 uvicorn 을 직접 띄우므로 apps/api 는 uv sync 돼 있어야 한다
 
-# Python 백엔드도 띄우고 하네스로 비교 (같은 JWT_SECRET·같은 DB)
-python -m contract_harness --baseline fastapi --target java --only /v2/auth,/health
+# 하네스 비교 — Java 를 하네스 DB·스텁 모델명으로 띄운다
+DATABASE_URL='postgresql://acttub:acttub@localhost:55432/harness_claude' \
+JWT_SECRET='harness-secret' \
+GEMINI_MODEL='harness-summary-model' \
+SERVER_PORT=8099 ./gradlew bootRun &
+
+cd ../../tools/contract-harness
+../../apps/api/.venv/bin/python -m contract_harness \
+    --baseline fastapi --target java --only health \
+    --java-base-url http://127.0.0.1:8099
 ```
+
+명령 형태에 함정이 둘 있다. **`--only`는 경로가 아니라 시나리오 이름을 받고**(`health`·`refresh-rotation`·`token-corpus` 등 26종), **`action="append"`라 콤마로 묶이지 않는다** — 여러 개면 `--only a --only b`로 반복한다. 초판은 `--only /v2/auth,/health`라고 적어 두 가지를 동시에 틀렸고, 그대로는 `알 수 없는 시나리오`로 즉시 실패한다.
+
+`GEMINI_MODEL`을 하네스 값(`tools/contract-harness/contract_harness/config.py:SUMMARY_MODEL`)과 맞추지 않으면 `/health` 응답의 `$.model`에서 L2 diff가 난다 — 계약 결함이 아니라 설정 불일치다.
 
 스키마 무변경 확인 — **양쪽을 같은 canonical 덤프 함수로 뽑는다.** 옵션 없는 `pg_dump` 비교는 정상 baseline에서도 diff가 난다(`flyway_schema_history` 신규 생성, PG18의 `\restrict`/`\unrestrict`와 `SET` 프리앰블):
 

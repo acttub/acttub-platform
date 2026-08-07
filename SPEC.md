@@ -375,3 +375,4 @@ M0 문서(`spec/M0-spike.md`·`spec/M0-findings.md`)는 **그 시점의 기록**
 1. `git merge-base --is-ancestor <dev tip> <직전 SPEC 개정 커밋>` — 개정이 **실제로** 최신 dev를 보고 쓰였는지. 1차 개정은 본문에 "`SOMA-302`를 반영했다"고 적혀 있었지만 커밋 조상 관계로는 `SOMA-304`를 못 본 상태였다
 2. `git diff <직전 SPEC 개정 커밋>..origin/dev -- apps/api` — 변경이 있으면 **SPEC이 인용한 동작 서술**을 그 diff에 대고 읽는다
 3. `apps/api/spec/openapi.json`의 operation·컴포넌트·`default`·`anyOf [T,null]` 집합을 개정 시점과 비교
+4. **그 사이클 문서에 적힌 명령을 한 번씩 실제로 실행한다.** M2 진입 시 검증 명령의 `--only /v2/auth,/health`는 그대로 돌지 않았고(경로가 아니라 **시나리오 이름**을 받으며 콤마가 아니라 **반복 플래그**다), 완료 기준의 auth 비교는 하네스 `tools/contract-harness/contract_harness/backends.py:JavaBackend`가 제어 표면을 M4로 미뤄 둔 탓에 **M2에서 달성 자체가 불가능**했다. 둘 다 문서만 봐서는 알 수 없고 한 번 돌려 보면 즉시 드러난다. **적어 두고 실행한 적 없는 명령은 사양이 아니라 추측이다.**
