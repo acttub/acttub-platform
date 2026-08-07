@@ -735,6 +735,36 @@ export interface components {
             /** Note */
             note?: string | null;
         };
+        /**
+         * AdmissionTip
+         * @description 다녀온 사람들이 남긴 실전 정보. **사실만 우리 문장으로 옮긴다.**
+         *
+         *     후기 글·영상은 남의 저작물이라 문장을 그대로 가져오지 않는다. 대신 거기서
+         *     확인되는 사실("대기가 세 시간 넘는다", "고사장에 주차장이 없다")만 추려
+         *     우리가 다시 쓰고, 판단은 사용자가 하도록 원문 링크를 함께 준다.
+         *
+         *     요강에 적힌 규정은 여기가 아니라 `dress_code`·`preparation`에 넣는다.
+         *     이 필드는 **요강에 없는데 겪어 봐야 아는 것**만 담는다.
+         */
+        AdmissionTip: {
+            /** Text */
+            text: string;
+            /** Category */
+            category: string;
+            /** Source Url */
+            source_url?: string | null;
+            /**
+             * Source Type
+             * @default personal
+             */
+            source_type: string;
+            /** Corroborations */
+            corroborations?: number | null;
+            /** Verified At */
+            verified_at?: string | null;
+            /** Note */
+            note?: string | null;
+        };
         /** AdmissionUniversity */
         AdmissionUniversity: {
             /** Id */
@@ -758,6 +788,11 @@ export interface components {
              * @default []
              */
             resources: components["schemas"]["AdmissionResource"][];
+            /**
+             * Tips
+             * @default []
+             */
+            tips: components["schemas"]["AdmissionTip"][];
         };
         /**
          * AdmissionWeights

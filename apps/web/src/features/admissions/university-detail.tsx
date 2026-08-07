@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import {
   countdown,
   getUniversityAdmissions,
+  groupTips,
   isOpen,
   weightBars,
   DISCIPLINE_LABEL,
@@ -13,6 +14,7 @@ import {
   SOURCE_LABEL,
   type AdmissionNotice,
   type AdmissionResource,
+  type AdmissionTip,
   type AdmissionsResponse,
   type AdmissionUniversity,
 } from "@/lib/api/v2/admissions";
@@ -91,6 +93,8 @@ export function UniversityDetailPage({ universityId }: { universityId: string })
                   ))}
                 </div>
               )}
+
+              {university.tips.length > 0 && <TipList tips={university.tips} />}
 
               {university.resources.length > 0 && (
                 <ResourceList resources={university.resources} />
@@ -510,6 +514,81 @@ function ResultTable({ notice }: { notice: AdmissionNotice }) {
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * 다녀온 사람들이 남긴 실전 정보.
+ *
+ * 요강에 없는 것만 담는다 — 대기 시간, 고사장 가는 길, 실기실 환경처럼 겪어 봐야
+ * 아는 것들이다. 후기 글을 옮긴 게 아니라 거기서 확인한 사실을 다시 쓴 것이고,
+ * 원문 링크를 함께 줘서 판단은 읽는 사람이 하게 한다.
+ */
+function TipList({ tips }: { tips: AdmissionTip[] }) {
+  const groups = groupTips(tips);
+
+  return (
+    <section className="mt-8">
+      <h2 className="text-[15px] font-black text-[#191f28]">먼저 다녀온 사람들 이야기</h2>
+      <p className="mt-1 text-[12px] font-semibold leading-5 text-[#8b95a1]">
+        요강에 없는 것만 모았어요. 개인 후기에서 확인한 내용이라 저희가 검증한 건
+        아니고, 해마다 달라질 수 있어요.
+      </p>
+
+      <div className="mt-3 space-y-4">
+        {groups.map((group) => (
+          <div key={group.category}>
+            <p className="text-[12px] font-black text-[#4e5968]">{group.label}</p>
+            <ul className="mt-1.5 space-y-1.5">
+              {group.items.map((tip, index) => (
+                <li
+                  key={`${group.category}-${index}`}
+                  className="rounded-xl bg-[#f8fbff] px-4 py-3"
+                >
+                  <p className="text-[13px] font-semibold leading-6 text-[#191f28]">
+                    {tip.text}
+                  </p>
+                  <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1">
+                    {typeof tip.corroborations === "number" &&
+                      tip.corroborations > 1 && (
+                        <span className="rounded-full bg-[#e8f3ff] px-2 py-0.5 text-[10px] font-black text-[#3182f6]">
+                          후기 {tip.corroborations}건에서 확인
+                        </span>
+                      )}
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-[10px] font-black ${
+                        tip.source_type === "official"
+                          ? "bg-[#e8f3ff] text-[#3182f6]"
+                          : tip.source_type === "academy"
+                            ? "bg-[#fff0f0] text-[#e5484d]"
+                            : "bg-[#f2f4f6] text-[#8b95a1]"
+                      }`}
+                    >
+                      {SOURCE_LABEL[tip.source_type] ?? tip.source_type}
+                    </span>
+                    {tip.source_url && (
+                      <a
+                        href={tip.source_url}
+                        target="_blank"
+                        rel="noreferrer noopener"
+                        className="text-[11px] font-black text-[#3182f6] hover:underline"
+                      >
+                        출처 ↗
+                      </a>
+                    )}
+                  </div>
+                  {tip.note && (
+                    <p className="mt-1 text-[11px] font-semibold leading-4 text-[#8b95a1]">
+                      {tip.note}
+                    </p>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
+      </div>
+    </section>
   );
 }
 

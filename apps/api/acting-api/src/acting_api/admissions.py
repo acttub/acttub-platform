@@ -38,6 +38,31 @@ class AdmissionResource(_StrictResponse):
     verified_at: str | None = None
 
 
+class AdmissionTip(_StrictResponse):
+    """다녀온 사람들이 남긴 실전 정보. **사실만 우리 문장으로 옮긴다.**
+
+    후기 글·영상은 남의 저작물이라 문장을 그대로 가져오지 않는다. 대신 거기서
+    확인되는 사실("대기가 세 시간 넘는다", "고사장에 주차장이 없다")만 추려
+    우리가 다시 쓰고, 판단은 사용자가 하도록 원문 링크를 함께 준다.
+
+    요강에 적힌 규정은 여기가 아니라 `dress_code`·`preparation`에 넣는다.
+    이 필드는 **요강에 없는데 겪어 봐야 아는 것**만 담는다.
+    """
+
+    text: str
+    # practice(실기 준비) | day_of(시험 당일) | place(고사장·이동) | dress(복장·외모)
+    # document(서류·접수) | strategy(지원 전략) | etc
+    category: str
+    # 그 사실을 확인한 곳. 여러 후기에서 공통으로 나오면 대표 하나.
+    source_url: str | None = None
+    # official(대학 공식) | school(고교) | academy(입시학원) | personal(개인)
+    source_type: str = "personal"
+    # 같은 말을 한 후기가 몇 건인지. 한 사람 말과 여러 사람 말은 무게가 다르다.
+    corroborations: int | None = None
+    verified_at: str | None = None
+    note: str | None = None
+
+
 class AdmissionUniversity(_StrictResponse):
     id: str
     name: str
@@ -53,6 +78,7 @@ class AdmissionUniversity(_StrictResponse):
     # 전형 정보를 확인하지 못한 사정을 적는다(자동 수집 차단, JS 렌더링 등).
     note: str | None = None
     resources: list[AdmissionResource] = []
+    tips: list[AdmissionTip] = []
 
 
 class AdmissionResult(_StrictResponse):
@@ -192,6 +218,10 @@ class AdmissionsResponse(_StrictResponse):
 
 DISCIPLINES = frozenset({"acting", "musical"})
 UNIVERSITY_TYPES = frozenset({"univ", "college"})
+TIP_CATEGORIES = frozenset(
+    {"practice", "day_of", "place", "dress", "document", "strategy", "etc"}
+)
+SOURCE_TYPES = frozenset({"official", "school", "academy", "personal"})
 PRACTICAL_CATEGORIES = frozenset(
     {
         "free_acting",
@@ -215,6 +245,16 @@ def _check_enums(payload: AdmissionsResponse) -> list[str]:
     for university in payload.universities:
         if university.type is not None and university.type not in UNIVERSITY_TYPES:
             problems.append(f"{university.id}: type={university.type!r}")
+        for tip in university.tips:
+            if tip.category not in TIP_CATEGORIES:
+                problems.append(f"{university.id}: tip category={tip.category!r}")
+            if tip.source_type not in SOURCE_TYPES:
+                problems.append(f"{university.id}: tip source_type={tip.source_type!r}")
+        for resource in university.resources:
+            if resource.source_type not in SOURCE_TYPES:
+                problems.append(
+                    f"{university.id}: resource source_type={resource.source_type!r}"
+                )
 
     for notice in payload.notices:
         if notice.discipline is not None and notice.discipline not in DISCIPLINES:

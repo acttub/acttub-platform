@@ -19,6 +19,17 @@ export type AdmissionResource = {
   note?: string | null;
 };
 
+export type AdmissionTip = {
+  text: string;
+  /** practice | day_of | place | dress | document | strategy | etc */
+  category: string;
+  source_url?: string | null;
+  source_type: string;
+  /** 같은 말을 한 후기가 몇 건인지. 한 사람 말과 여러 사람 말은 무게가 다르다. */
+  corroborations?: number | null;
+  note?: string | null;
+};
+
 export type AdmissionResult = {
   year: number;
   competition_rate?: string | null;
@@ -103,6 +114,7 @@ export type AdmissionUniversity = {
   type?: string | null;
   note?: string | null;
   resources: AdmissionResource[];
+  tips: AdmissionTip[];
 };
 
 export type AdmissionsResponse = {
@@ -130,6 +142,7 @@ export function normalizeAdmissions(payload: AdmissionsResponse): AdmissionsResp
     universities: (payload.universities ?? []).map((university) => ({
       ...university,
       resources: university.resources ?? [],
+      tips: university.tips ?? [],
     })),
     notices: (payload.notices ?? []).map((notice) => ({
       ...notice,
@@ -149,6 +162,39 @@ export const SOURCE_LABEL: Record<string, string> = {
   academy: '입시학원',
   personal: '개인',
 };
+
+/** 꿀팁 분류. 시험 당일에 급한 것부터 위에 온다. 웹과 같은 순서다. */
+export const TIP_CATEGORY_LABEL: Record<string, string> = {
+  day_of: '시험 당일',
+  place: '고사장·이동',
+  practice: '실기 준비',
+  dress: '복장·외모',
+  document: '서류·접수',
+  strategy: '지원 전략',
+  etc: '그 밖에',
+};
+
+/**
+ * 꿀팁을 분류별로 묶는다. 여러 후기에서 겹쳐 나온 것을 각 묶음 위로 올린다 —
+ * 한 사람 말과 열 사람 말은 무게가 다르다. 웹과 같은 규칙이다.
+ */
+export function groupTips(tips: AdmissionTip[]) {
+  const order = Object.keys(TIP_CATEGORY_LABEL);
+  const buckets = new Map<string, AdmissionTip[]>();
+  for (const tip of tips ?? []) {
+    const key = tip.category in TIP_CATEGORY_LABEL ? tip.category : 'etc';
+    const bucket = buckets.get(key);
+    if (bucket) bucket.push(tip);
+    else buckets.set(key, [tip]);
+  }
+  return [...buckets.entries()]
+    .sort((a, b) => order.indexOf(a[0]) - order.indexOf(b[0]))
+    .map(([category, items]) => ({
+      category,
+      label: TIP_CATEGORY_LABEL[category] ?? category,
+      items: [...items].sort((a, b) => (b.corroborations ?? 1) - (a.corroborations ?? 1)),
+    }));
+}
 
 /** 실기 종목. 웹과 같은 이름·같은 순서를 쓴다. */
 export const PRACTICAL_LABEL: Record<string, string> = {
