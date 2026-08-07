@@ -3,8 +3,6 @@ import asyncio
 import pytest
 from fastapi.testclient import TestClient
 
-from acting_agent.config import Settings as AgentSettings
-from acting_report.config import Settings as ReportSettings
 from acting_summary.config import Settings as SummarySettings
 
 from acting_api.app import create_app
@@ -96,8 +94,6 @@ def _app(*, keep_alive_url=None, keep_alive_client=None):
             keep_alive_url=keep_alive_url,
         ),
         summary_settings=SummarySettings(api_key="k", model="m"),
-        agent_settings=AgentSettings(api_key="k", model="m"),
-        report_settings=ReportSettings(api_key="k", model="m"),
         store=FakePlatformStore(),
         keep_alive_client=keep_alive_client,
     )

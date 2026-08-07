@@ -90,8 +90,6 @@ def create_app(
     client=None,
     gateway_settings=None,
     summary_settings=None,
-    agent_settings=None,
-    report_settings=None,
     store=None,
     community_store=None,
     clock=time.monotonic,

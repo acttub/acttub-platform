@@ -1,11 +1,26 @@
+import uuid
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from acting_agent.summary_schema import ActorMaterial, ObservationPack
 
 BlockageKind = Literal["분석", "표현", "그 외"]
 CoachingStatus = Literal["continue", "complete"]
+
+
+class CoachStartReq(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    practice_session_id: uuid.UUID
+    restart: bool = False
+
+
+class CoachReplyReq(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    session_id: uuid.UUID
+    text: str
 
 
 class CoachTurn(BaseModel):
