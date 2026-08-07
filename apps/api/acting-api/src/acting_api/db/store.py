@@ -2258,8 +2258,17 @@ class PostgresStore:
     # 이메일·user_id 를 돌려주지 않는다. 누구인지 몰라도 무엇이 오갔는지는 보이고,
     # 토큰이 새더라도 사용자 명단이 되지는 않게 하려는 것이다.
 
-    def admin_stats(self) -> dict[str, Any]:
-        since = datetime.now(timezone.utc) - timedelta(days=7)
+    def admin_stats(self, exclude_emails: tuple[str, ...] = ()) -> dict[str, Any]:
+        """운영 지표. `exclude_emails` 에 걸리는 사용자를 뺀 `_real` 값도 같이 낸다.
+
+        team user_id 는 한 번만 구해서 아래 필터 전부가 재사용한다 — 이 엔드포인트는
+        15분마다 불리고 카운트가 20개 가까이라, 매번 이메일 조인을 새로 태우면 무거워진다.
+        `exclude_emails` 가 비면 `_real` 은 별도 쿼리 없이 포함 값을 그대로 돌려준다.
+        """
+        now = datetime.now(timezone.utc)
+        since_7d = now - timedelta(days=7)
+        since_24h = now - timedelta(hours=24)
+
         with self._session_factory() as db:
 
             def total(model, *where) -> int:
@@ -2268,29 +2277,173 @@ class PostgresStore:
                     stmt = stmt.where(clause)
                 return int(db.execute(stmt).scalar_one())
 
-            active = db.execute(
-                select(func.count(func.distinct(PracticeSession.user_id))).where(
-                    PracticeSession.created_at >= since
+            def pair(model, exclude_clause, *where) -> tuple[int, int]:
+                """(팀 포함, 팀 제외) 카운트 쌍. exclude_clause 가 없으면 값이 같다."""
+                all_ = total(model, *where)
+                if exclude_clause is None:
+                    return all_, all_
+                return all_, total(model, exclude_clause, *where)
+
+            def windowed(model, time_col, exclude_clause) -> dict[str, int]:
+                """전체·7일·24시간 × (포함, 제외) 여섯 값."""
+                t_all, t_real = pair(model, exclude_clause)
+                d7_all, d7_real = pair(model, exclude_clause, time_col >= since_7d)
+                d24_all, d24_real = pair(model, exclude_clause, time_col >= since_24h)
+                return {
+                    "total": t_all,
+                    "total_real": t_real,
+                    "7d": d7_all,
+                    "7d_real": d7_real,
+                    "24h": d24_all,
+                    "24h_real": d24_real,
+                }
+
+            def distinct_users(exclude_clause, *where) -> tuple[int, int]:
+                stmt = select(func.count(func.distinct(PracticeSession.user_id)))
+                for clause in where:
+                    stmt = stmt.where(clause)
+                all_ = int(db.execute(stmt).scalar_one())
+                if exclude_clause is None:
+                    return all_, all_
+                return all_, int(db.execute(stmt.where(exclude_clause)).scalar_one())
+
+            def returning_counts(excluded_ids: list[UUID]) -> tuple[int, int, int]:
+                """연습 세션을 1회/2회/3회 이상 만든 사용자 수."""
+                stmt = select(
+                    PracticeSession.user_id, func.count().label("n")
+                ).group_by(PracticeSession.user_id)
+                if excluded_ids:
+                    stmt = stmt.where(PracticeSession.user_id.notin_(excluded_ids))
+                sub = stmt.subquery()
+                with_session = int(
+                    db.execute(select(func.count()).select_from(sub)).scalar_one()
                 )
-            ).scalar_one()
+                two_plus = int(
+                    db.execute(
+                        select(func.count()).select_from(sub).where(sub.c.n >= 2)
+                    ).scalar_one()
+                )
+                three_plus = int(
+                    db.execute(
+                        select(func.count()).select_from(sub).where(sub.c.n >= 3)
+                    ).scalar_one()
+                )
+                return with_session, two_plus, three_plus
+
+            excluded_user_ids: list[UUID] = []
+            if exclude_emails:
+                excluded_user_ids = list(
+                    db.execute(
+                        select(User.id).where(
+                            func.lower(User.email).in_(
+                                [e.lower() for e in exclude_emails]
+                            )
+                        )
+                    ).scalars()
+                )
+
+            user_excl = practice_excl = upload_excl = None
+            coach_session_excl = coach_turn_excl = report_excl = None
+            if excluded_user_ids:
+                user_excl = User.id.notin_(excluded_user_ids)
+                practice_excl = PracticeSession.user_id.notin_(excluded_user_ids)
+                upload_excl = UploadIntent.user_id.notin_(excluded_user_ids)
+                # coach_sessions/turns·reports 는 user_id 를 직접 갖지 않는다 —
+                # practice_session 을 거쳐야 팀 계정을 골라낼 수 있다.
+                excluded_practice_ids = select(PracticeSession.id).where(
+                    PracticeSession.user_id.in_(excluded_user_ids)
+                )
+                coach_session_excl = DbCoachSession.practice_session_id.notin_(
+                    excluded_practice_ids
+                )
+                report_excl = DbPracticeReport.practice_session_id.notin_(
+                    excluded_practice_ids
+                )
+                excluded_coach_session_ids = select(DbCoachSession.id).where(
+                    DbCoachSession.practice_session_id.in_(excluded_practice_ids)
+                )
+                coach_turn_excl = DbCoachTurn.session_id.notin_(
+                    excluded_coach_session_ids
+                )
+
+            users_w = windowed(User, User.created_at, user_excl)
+            sessions_w = windowed(
+                PracticeSession, PracticeSession.created_at, practice_excl
+            )
+            coach_sessions_w = windowed(
+                DbCoachSession, DbCoachSession.created_at, coach_session_excl
+            )
+            coach_turns_w = windowed(
+                DbCoachTurn, DbCoachTurn.created_at, coach_turn_excl
+            )
+
+            uploads_total, uploads_total_real = pair(
+                UploadIntent,
+                upload_excl,
+                UploadIntent.status == UploadStatus.FINALIZED,
+            )
+            analyses_total, analyses_total_real = pair(
+                PracticeSession,
+                practice_excl,
+                PracticeSession.status == PracticeStatus.ANALYZED,
+            )
+            reports_total, reports_total_real = pair(DbPracticeReport, report_excl)
+
+            active_7d, active_7d_real = distinct_users(
+                practice_excl, PracticeSession.created_at >= since_7d
+            )
+
+            users_with_session, returning_2x, returning_3x = returning_counts([])
+            if excluded_user_ids:
+                (
+                    users_with_session_real,
+                    returning_2x_real,
+                    returning_3x_real,
+                ) = returning_counts(excluded_user_ids)
+            else:
+                users_with_session_real = users_with_session
+                returning_2x_real = returning_2x
+                returning_3x_real = returning_3x
 
             return {
-                "users_total": total(User),
-                "users_last_7d": total(User, User.created_at >= since),
-                "practice_sessions_total": total(PracticeSession),
-                "practice_sessions_last_7d": total(
-                    PracticeSession, PracticeSession.created_at >= since
-                ),
-                "uploads_finalized_total": total(
-                    UploadIntent, UploadIntent.status == UploadStatus.FINALIZED
-                ),
-                "analyses_completed_total": total(
-                    PracticeSession, PracticeSession.status == PracticeStatus.ANALYZED
-                ),
-                "coach_sessions_total": total(DbCoachSession),
-                "coach_turns_total": total(DbCoachTurn),
-                "reports_total": total(DbPracticeReport),
-                "active_users_last_7d": int(active),
+                "users_total": users_w["total"],
+                "users_total_real": users_w["total_real"],
+                "users_last_7d": users_w["7d"],
+                "users_last_7d_real": users_w["7d_real"],
+                "users_last_24h": users_w["24h"],
+                "users_last_24h_real": users_w["24h_real"],
+                "practice_sessions_total": sessions_w["total"],
+                "practice_sessions_total_real": sessions_w["total_real"],
+                "practice_sessions_last_7d": sessions_w["7d"],
+                "practice_sessions_last_7d_real": sessions_w["7d_real"],
+                "practice_sessions_last_24h": sessions_w["24h"],
+                "practice_sessions_last_24h_real": sessions_w["24h_real"],
+                "uploads_finalized_total": uploads_total,
+                "uploads_finalized_total_real": uploads_total_real,
+                "analyses_completed_total": analyses_total,
+                "analyses_completed_total_real": analyses_total_real,
+                "coach_sessions_total": coach_sessions_w["total"],
+                "coach_sessions_total_real": coach_sessions_w["total_real"],
+                "coach_sessions_last_7d": coach_sessions_w["7d"],
+                "coach_sessions_last_7d_real": coach_sessions_w["7d_real"],
+                "coach_sessions_last_24h": coach_sessions_w["24h"],
+                "coach_sessions_last_24h_real": coach_sessions_w["24h_real"],
+                "coach_turns_total": coach_turns_w["total"],
+                "coach_turns_total_real": coach_turns_w["total_real"],
+                "coach_turns_last_7d": coach_turns_w["7d"],
+                "coach_turns_last_7d_real": coach_turns_w["7d_real"],
+                "coach_turns_last_24h": coach_turns_w["24h"],
+                "coach_turns_last_24h_real": coach_turns_w["24h_real"],
+                "reports_total": reports_total,
+                "reports_total_real": reports_total_real,
+                "active_users_last_7d": active_7d,
+                "active_users_last_7d_real": active_7d_real,
+                "users_with_session": users_with_session,
+                "users_with_session_real": users_with_session_real,
+                "returning_2x": returning_2x,
+                "returning_2x_real": returning_2x_real,
+                "returning_3x": returning_3x,
+                "returning_3x_real": returning_3x_real,
                 "last_signup_at": db.execute(
                     select(func.max(User.created_at))
                 ).scalar_one_or_none(),

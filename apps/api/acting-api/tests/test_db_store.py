@@ -17,14 +17,18 @@ from acting_api.auth.jwt import JwtService
 from acting_api.db.engine import create_db_engine, normalize_database_url
 from acting_api.db.models import (
     Anomaly,
+    CoachingHandoff,
     CoachSession as DbCoachSession,
+    CoachTurn as DbCoachTurn,
     OperationKind,
     OperationStatus,
+    PracticeReport as DbPracticeReport,
     PracticeSession,
     PracticeStatus,
     RefreshToken,
     SessionStatus,
     Summary,
+    TurnRole,
     UploadStatus,
 )
 from acting_api.db.store import LeaseOwnershipError, PostgresStore
@@ -1237,6 +1241,148 @@ def test_external_operation_attempt_cap_and_sweep(postgres_store):
     assert store.sweep_max_attempts_operations(now=now + timedelta(minutes=6)) == 0
     with store._session_factory() as db:
         assert db.get(PracticeSession, practice.id).status == PracticeStatus.ANALYZED
+
+
+def test_admin_stats_windows_returning_users_and_team_exclusion(postgres_store):
+    store = postgres_store
+    now = datetime.now(timezone.utc)
+    recent = now - timedelta(hours=1)  # 24시간·7일 창 모두 안
+    mid = now - timedelta(days=3)  # 7일 창만 안
+    old = now - timedelta(days=10)  # 두 창 모두 밖
+
+    real_user = store.create_user(email="actor@example.com")
+    team_user = store.create_user(email="Team@Acttub.com")  # 대소문자 매칭 확인
+
+    def backdate_practice(practice_id: UUID, created_at: datetime, analyzed=False):
+        values = {"created_at": created_at}
+        if analyzed:
+            values["status"] = PracticeStatus.ANALYZED
+        with store._session_factory.begin() as db:
+            db.execute(
+                update(PracticeSession)
+                .where(PracticeSession.id == practice_id)
+                .values(**values)
+            )
+
+    def make_session(user_id: UUID, suffix: str, created_at: datetime, analyzed=False):
+        practice = _create_practice(store, user_id, suffix, now)
+        backdate_practice(practice.id, created_at, analyzed=analyzed)
+        return practice
+
+    def make_coach(practice_id: UUID, created_at: datetime) -> UUID:
+        coach_id = uuid4()
+        with store._session_factory.begin() as db:
+            db.add(
+                DbCoachSession(
+                    id=coach_id,
+                    practice_session_id=practice_id,
+                    status=SessionStatus.CLOSED,
+                    created_at=created_at,
+                    updated_at=created_at,
+                )
+            )
+            db.add_all(
+                [
+                    DbCoachTurn(
+                        session_id=coach_id,
+                        turn_index=i,
+                        role=TurnRole.ACTOR if i % 2 == 0 else TurnRole.AI,
+                        text=f"turn-{i}",
+                        created_at=created_at,
+                    )
+                    for i in range(2)
+                ]
+            )
+        return coach_id
+
+    def make_report(practice_id: UUID, coach_session_id: UUID) -> None:
+        handoff_id = uuid4()
+        with store._session_factory.begin() as db:
+            db.add(
+                CoachingHandoff(
+                    id=handoff_id,
+                    coach_session_id=coach_session_id,
+                    practice_session_id=practice_id,
+                    branch_kind="analysis",
+                    handoff_json={},
+                )
+            )
+            db.add(
+                DbPracticeReport(
+                    id=uuid4(),
+                    practice_session_id=practice_id,
+                    report_type="analysis",
+                    report_json={},
+                    source_handoff_id=handoff_id,
+                )
+            )
+
+    # 실사용자: 세션 3개(최근/중간/오래전) — returning_3x 에 잡혀야 한다.
+    real_recent = make_session(real_user.id, "real-recent", recent, analyzed=True)
+    real_mid = make_session(real_user.id, "real-mid", mid)
+    make_session(real_user.id, "real-old", old)
+    real_coach_recent = make_coach(real_recent.id, recent)
+    make_coach(real_mid.id, mid)
+    make_report(real_recent.id, real_coach_recent)
+
+    # 팀 계정: 세션 2개, 전부 최근 — raw 카운트엔 잡히지만 _real 에선 통째로 빠져야 한다.
+    team_recent_1 = make_session(team_user.id, "team-recent-1", recent, analyzed=True)
+    team_recent_2 = make_session(team_user.id, "team-recent-2", recent)
+    team_coach_recent = make_coach(team_recent_1.id, recent)
+    make_report(team_recent_1.id, team_coach_recent)
+
+    stats = store.admin_stats(exclude_emails=("team@acttub.com",))
+
+    expected = {
+        "users_total": 2,
+        "users_total_real": 1,
+        "users_last_7d": 2,
+        "users_last_7d_real": 1,
+        "users_last_24h": 2,
+        "users_last_24h_real": 1,
+        "practice_sessions_total": 5,
+        "practice_sessions_total_real": 3,
+        "practice_sessions_last_7d": 4,
+        "practice_sessions_last_7d_real": 2,
+        "practice_sessions_last_24h": 3,
+        "practice_sessions_last_24h_real": 1,
+        "uploads_finalized_total": 5,
+        "uploads_finalized_total_real": 3,
+        "analyses_completed_total": 2,
+        "analyses_completed_total_real": 1,
+        "coach_sessions_total": 3,
+        "coach_sessions_total_real": 2,
+        "coach_sessions_last_7d": 3,
+        "coach_sessions_last_7d_real": 2,
+        "coach_sessions_last_24h": 2,
+        "coach_sessions_last_24h_real": 1,
+        "coach_turns_total": 6,
+        "coach_turns_total_real": 4,
+        "coach_turns_last_7d": 6,
+        "coach_turns_last_7d_real": 4,
+        "coach_turns_last_24h": 4,
+        "coach_turns_last_24h_real": 2,
+        "reports_total": 2,
+        "reports_total_real": 1,
+        "active_users_last_7d": 2,
+        "active_users_last_7d_real": 1,
+        "users_with_session": 2,
+        "users_with_session_real": 1,
+        "returning_2x": 2,
+        "returning_2x_real": 1,
+        "returning_3x": 1,
+        "returning_3x_real": 1,
+    }
+    for key, value in expected.items():
+        assert stats[key] == value, key
+    assert stats["last_session_at"] == recent
+    assert stats["last_signup_at"] is not None
+
+    # exclude_emails 가 비면 _real 은 추가 쿼리 없이 포함 값과 같아진다.
+    stats_no_exclude = store.admin_stats()
+    for key in expected:
+        if key.endswith("_real"):
+            assert stats_no_exclude[key] == stats_no_exclude[key[: -len("_real")]]
 
 
 def _create_practice(
