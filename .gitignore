@@ -12,6 +12,11 @@ build/
 .env
 .env.*
 
+# python 캐시
+__pycache__/
+*.pyc
+.pytest_cache/
+
 # logs
 *.log
 pnpm-debug.log*
@@ -21,8 +26,10 @@ pnpm-debug.log*
 .idea/
 .vscode/
 
-# 에이전트가 만드는 작업용 worktree (체크아웃 사본이라 통째로 무시한다)
+# 에이전트 로컬 상태 (worktree는 체크아웃 사본, 나머지는 개인 설정이라 무시한다)
 .claude/worktrees/
+.claude/settings.local.json
+.claude/scheduled_tasks.lock
 
 # Playwright MCP가 만드는 세션 산출물(스크린샷·트레이스)
 .playwright-mcp/
