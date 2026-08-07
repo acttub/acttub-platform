@@ -145,10 +145,84 @@
           "source_type": "academy",
           "note": null,
           "verified_at": "2026-08-01"
+        },
+        {
+          "kind": "post",
+          "title": "2014학년도 동국대 합격수기 / 서제니",
+          "url": "https://www.panacting.com/2014%ED%95%99%EB%85%84%EB%8F%84-%EB%8F%99%EA%B5%AD%EB%8C%80-%EC%84%9C%EC%A0%9C%EB%8B%88/",
+          "publisher": "판연기아카데미",
+          "source_type": "academy",
+          "note": "학원 사이트에 실린 합격생 본인의 수기. 1·2차 진행 순서와 즉흥연기 방식을 적었다.",
+          "verified_at": "2026-08-07"
+        },
+        {
+          "kind": "post",
+          "title": "동국대 서울예대 연기전공 합격수기",
+          "url": "https://www.panacting.com/%EB%8F%99%EA%B5%AD%EB%8C%80-%EC%84%9C%EC%9A%B8%EC%98%88%EB%8C%80-%EC%97%B0%EA%B8%B0%EC%A0%84%EA%B3%B5-%ED%95%A9%EA%B2%A9%EC%88%98%EA%B8%B0/",
+          "publisher": "판연기아카데미",
+          "source_type": "academy",
+          "note": "동국대와 서울예대를 한 해에 치른 합격생의 수기라 두 학교 진행 방식을 비교해 볼 수 있다.",
+          "verified_at": "2026-08-07"
         }
       ],
       "region": "서울 중구",
-      "type": "univ"
+      "type": "univ",
+      "tips": [
+        {
+          "text": "응시자를 조로 나눠 대기시키고 조 안에서 번호 순으로 들어간다는 후기가 있어요. 한 조가 서른 명 정도였다고 해요.",
+          "category": "day_of",
+          "source_url": "https://www.panacting.com/2014%ED%95%99%EB%85%84%EB%8F%84-%EB%8F%99%EA%B5%AD%EB%8C%80-%EC%84%9C%EC%A0%9C%EB%8B%88/",
+          "source_type": "academy",
+          "corroborations": 1,
+          "verified_at": "2026-08-07",
+          "note": "예전 학년도 응시자의 수기라 조 인원은 해마다 다를 수 있어요."
+        },
+        {
+          "text": "고사실 바로 앞 대기 공간에서는 수험생끼리 이야기를 나누지 못하게 했다는 후기가 있어요.",
+          "category": "day_of",
+          "source_url": "https://www.panacting.com/%EB%8F%99%EA%B5%AD%EB%8C%80-%EC%84%9C%EC%9A%B8%EC%98%88%EB%8C%80-%EC%97%B0%EA%B8%B0%EC%A0%84%EA%B3%B5-%ED%95%A9%EA%B2%A9%EC%88%98%EA%B8%B0/",
+          "source_type": "academy",
+          "corroborations": 1,
+          "verified_at": "2026-08-07",
+          "note": null
+        },
+        {
+          "text": "고사실 안에서는 연기(자유 또는 지정) · 즉흥연기 · 특기가 한 번에 이어져서, 한 사람이 여러 항목을 연속으로 소화해야 한다는 후기가 여럿이에요.",
+          "category": "practice",
+          "source_url": "https://www.panacting.com/2014%ED%95%99%EB%85%84%EB%8F%84-%EB%8F%99%EA%B5%AD%EB%8C%80-%EC%84%9C%EC%A0%9C%EB%8B%88/",
+          "source_type": "academy",
+          "corroborations": 2,
+          "verified_at": "2026-08-07",
+          "note": null
+        },
+        {
+          "text": "즉흥연기는 한 줄짜리 대사를 받고 그 뒤에 이어질 상황을 상상해 연기하는 식이었다는 후기가 있어요.",
+          "category": "practice",
+          "source_url": "https://www.panacting.com/2014%ED%95%99%EB%85%84%EB%8F%84-%EB%8F%99%EA%B5%AD%EB%8C%80-%EC%84%9C%EC%A0%9C%EB%8B%88/",
+          "source_type": "academy",
+          "corroborations": 1,
+          "verified_at": "2026-08-07",
+          "note": null
+        },
+        {
+          "text": "질의응답이 쉬지 않고 이어진다는 후기가 여럿이에요. 학년·출신 지역·키·성적·지원한 다른 대학 같은 신상 질문부터 국어 문법 지식을 묻는 질문까지 나왔다고 해요.",
+          "category": "day_of",
+          "source_url": "https://www.panacting.com/2014%ED%95%99%EB%85%84%EB%8F%84-%EB%8F%99%EA%B5%AD%EB%8C%80-%EC%84%9C%EC%A0%9C%EB%8B%88/",
+          "source_type": "academy",
+          "corroborations": 2,
+          "verified_at": "2026-08-07",
+          "note": null
+        },
+        {
+          "text": "특기를 한 번 더 해 보라고 앙코르를 요청받았다는 후기가 있고, 무섭다는 소문과 달리 고사실 분위기가 편안했다는 이야기가 여러 후기에서 반복돼요.",
+          "category": "day_of",
+          "source_url": "https://www.panacting.com/%EB%8F%99%EA%B5%AD%EB%8C%80-%EC%84%9C%EC%9A%B8%EC%98%88%EB%8C%80-%EC%97%B0%EA%B8%B0%EC%A0%84%EA%B3%B5-%ED%95%A9%EA%B2%A9%EC%88%98%EA%B8%B0/",
+          "source_type": "academy",
+          "corroborations": 2,
+          "verified_at": "2026-08-07",
+          "note": null
+        }
+      ]
     },
     {
       "id": "sejong",
@@ -571,10 +645,57 @@
           "source_type": "academy",
           "note": null,
           "verified_at": "2026-08-01"
+        },
+        {
+          "kind": "post",
+          "title": "15년 정시 성균관대학교 연기예술학과 연출 합격생 실기시험 후기",
+          "url": "https://staffstudy.com/?kboard_content_redirect=1033",
+          "publisher": "스탭스터디연극영상학원",
+          "source_type": "academy",
+          "note": "학원 게시판에 실린 합격생 본인의 실기 당일 기록. 연기전공이 아니라 연출전공 정시 응시 후기다.",
+          "verified_at": "2026-08-07"
+        },
+        {
+          "kind": "post",
+          "title": "16년 정시 성균관대학교 연기예술학과 연출전공 합격생 실기시험 후기",
+          "url": "https://staffstudy.com/?kboard_content_redirect=1086",
+          "publisher": "스탭스터디연극영상학원",
+          "source_type": "academy",
+          "note": "역시 연출전공 정시 응시 후기다.",
+          "verified_at": "2026-08-07"
         }
       ],
       "region": "서울 종로",
-      "type": "univ"
+      "type": "univ",
+      "tips": [
+        {
+          "text": "2단계 전공적성평가는 하루 안에 글쓰기와 면접을 잇달아 치르는데 그 사이 대기가 길어요. 오후 늦게 입실해 작문을 본 뒤 면접까지 두 시간 넘게 기다렸다는 후기가 있어요.",
+          "category": "day_of",
+          "source_url": "https://staffstudy.com/?kboard_content_redirect=1033",
+          "source_type": "academy",
+          "corroborations": 1,
+          "verified_at": "2026-08-07",
+          "note": "연출전공 정시 응시자의 예전 학년도 후기라 지금 연기전공 일정과는 다를 수 있어요."
+        },
+        {
+          "text": "작문 시험은 제시어 하나를 받아 글을 쓰는 방식이었고, 실제로 '우정' 같은 한 단어가 주어졌다는 후기가 있어요.",
+          "category": "practice",
+          "source_url": "https://staffstudy.com/?kboard_content_redirect=1033",
+          "source_type": "academy",
+          "corroborations": 2,
+          "verified_at": "2026-08-07",
+          "note": "연출전공 응시자들의 예전 학년도 후기예요."
+        },
+        {
+          "text": "면접은 교수 세 명 앞에서 보고, 방이 크지 않아 오히려 긴장이 덜했다는 후기가 여럿이에요. 다만 타이머를 놓고 3분 안팎으로 끊어서 준비한 말을 다 못 했다는 아쉬움이 함께 나와요.",
+          "category": "day_of",
+          "source_url": "https://staffstudy.com/?kboard_content_redirect=1033",
+          "source_type": "academy",
+          "corroborations": 2,
+          "verified_at": "2026-08-07",
+          "note": "연출전공 정시 응시자들의 예전 학년도 후기예요."
+        }
+      ]
     },
     {
       "id": "seoularts",
@@ -590,11 +711,103 @@
           "source_type": "personal",
           "note": "영화과 25학번이다. 연기전공은 아니다.",
           "verified_at": "2026-08-01"
+        },
+        {
+          "kind": "post",
+          "title": "[후기]서울예대 연극과 후기",
+          "url": "https://hwangactors.com/Community/?bmode=view&idx=168345686",
+          "publisher": "황액터스연기학원 커뮤니티",
+          "source_type": "academy",
+          "note": "2025년 10월 응시자가 올린 후기. 연기전공이 아니라 연극전공(연출 쪽) 응시 후기다.",
+          "verified_at": "2026-08-07"
+        },
+        {
+          "kind": "post",
+          "title": "[후기]서울예대 연극전공 후기",
+          "url": "https://hwangactors.com/Community/?bmode=view&idx=144884766",
+          "publisher": "황액터스연기학원 커뮤니티",
+          "source_type": "academy",
+          "note": "2025년 1월 응시자의 후기. 역시 연극전공이다.",
+          "verified_at": "2026-08-07"
+        },
+        {
+          "kind": "post",
+          "title": "동국대 서울예대 연기전공 합격수기",
+          "url": "https://www.panacting.com/%EB%8F%99%EA%B5%AD%EB%8C%80-%EC%84%9C%EC%9A%B8%EC%98%88%EB%8C%80-%EC%97%B0%EA%B8%B0%EC%A0%84%EA%B3%B5-%ED%95%A9%EA%B2%A9%EC%88%98%EA%B8%B0/",
+          "publisher": "판연기아카데미",
+          "source_type": "academy",
+          "note": "연기전공 합격생 본인의 수기. 1차와 2차 진행 방식을 함께 적었다.",
+          "verified_at": "2026-08-07"
         }
       ],
       "region": "경기 안산",
       "type": "college",
-      "campus": "안산"
+      "campus": "안산",
+      "tips": [
+        {
+          "text": "2차는 개인 시험이 아니라 여럿이 함께 치르는 형태였다는 후기가 있어요. 강당에 모여 다 같이 자기소개와 몸풀기를 한 뒤 서너 명씩 팀을 짜서 즉흥연기를 했고, 주어진 대사 몇 개 중 골라 팀당 8분 남짓 진행했다고 해요.",
+          "category": "practice",
+          "source_url": "https://www.panacting.com/%EB%8F%99%EA%B5%AD%EB%8C%80-%EC%84%9C%EC%9A%B8%EC%98%88%EB%8C%80-%EC%97%B0%EA%B8%B0%EC%A0%84%EA%B3%B5-%ED%95%A9%EA%B2%A9%EC%88%98%EA%B8%B0/",
+          "source_type": "academy",
+          "corroborations": 1,
+          "verified_at": "2026-08-07",
+          "note": "예전 학년도 연기전공 합격생의 수기라 지금 방식과 다를 수 있어요."
+        },
+        {
+          "text": "1차 대기실에서 휴대폰을 걷지 않아 음원을 들으며 준비했다는 후기가 있어요.",
+          "category": "day_of",
+          "source_url": "https://www.panacting.com/%EB%8F%99%EA%B5%AD%EB%8C%80-%EC%84%9C%EC%9A%B8%EC%98%88%EB%8C%80-%EC%97%B0%EA%B8%B0%EC%A0%84%EA%B3%B5-%ED%95%A9%EA%B2%A9%EC%88%98%EA%B8%B0/",
+          "source_type": "academy",
+          "corroborations": 1,
+          "verified_at": "2026-08-07",
+          "note": "예전 학년도 수기예요. 전자기기 회수 방침은 해마다 바뀔 수 있으니 당일 안내를 따라야 해요."
+        },
+        {
+          "text": "대기실 분위기가 딱딱하지 않고, 시험을 시작하기 전에 진행 인력이나 면접관이 먼저 긴장을 풀어 준다는 후기가 여럿이에요.",
+          "category": "day_of",
+          "source_url": "https://hwangactors.com/Community/?bmode=view&idx=168345686",
+          "source_type": "academy",
+          "corroborations": 3,
+          "verified_at": "2026-08-07",
+          "note": null
+        },
+        {
+          "text": "연극전공(연출 쪽) 응시자들은 토론 워크숍을 먼저 하고 그 뒤 번호순으로 들어가 개인 특기와 질의응답을 봤다고 적었어요. 토론용 종이와 펜은 현장에서 나눠 주고, 토론 시간 자체는 생각보다 짧았다고 해요.",
+          "category": "practice",
+          "source_url": "https://hwangactors.com/Community/?bmode=view&idx=144884766",
+          "source_type": "academy",
+          "corroborations": 2,
+          "verified_at": "2026-08-07",
+          "note": "연기전공이 아니라 같은 학부 안 연극전공 응시자들의 후기예요."
+        },
+        {
+          "text": "개인 순서에서 준비한 특기 두 개를 다 시키기도 하고 하나만 보고 넘어가기도 한다는 후기가 있어요. 발표할 때 목소리가 작은 것을 선호하지 않는다고 현장에서 미리 일러 줬다고 해요.",
+          "category": "practice",
+          "source_url": "https://hwangactors.com/Community/?bmode=view&idx=144884766",
+          "source_type": "academy",
+          "corroborations": 1,
+          "verified_at": "2026-08-07",
+          "note": null
+        },
+        {
+          "text": "질의응답을 다섯 개 안팎 받는 분위기였다는 후기가 있어요. 감명 깊게 본 무대가 무엇인지, 1년에 연극을 몇 번이나 보는지처럼 평소 관극 경험을 묻는 질문이 나왔다고 해요.",
+          "category": "day_of",
+          "source_url": "https://hwangactors.com/Community/?bmode=view&idx=168345686",
+          "source_type": "academy",
+          "corroborations": 2,
+          "verified_at": "2026-08-07",
+          "note": null
+        },
+        {
+          "text": "주변 수험생과 이야기해 보니 또래이거나 나이가 비슷한 n수생이 많았고 다들 오래 준비한 티가 났다는 후기가 있어요.",
+          "category": "strategy",
+          "source_url": "https://hwangactors.com/Community/?bmode=view&idx=144884766",
+          "source_type": "academy",
+          "corroborations": 1,
+          "verified_at": "2026-08-07",
+          "note": null
+        }
+      ]
     },
     {
       "id": "mju",
