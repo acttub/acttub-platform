@@ -2627,15 +2627,6 @@
           "verified_at": "2026-08-07"
         },
         {
-          "kind": "post",
-          "title": "2025 명지전문대학교 연극영상전공 실기시험 후기",
-          "url": "https://cafe.naver.com/imonaroll/34241",
-          "publisher": "산연기학원 네이버 카페 대학시험후기 게시판",
-          "source_type": "personal",
-          "note": null,
-          "verified_at": "2026-08-07"
-        },
-        {
           "kind": "article",
           "title": "[연극영화과 입시] 2024학년도(작년) 정시 전문대학교 연기과·뮤지컬과 예비번호 추가합격 결과",
           "url": "https://blog.naver.com/kesen/223752756787",
@@ -2674,11 +2665,11 @@
           "note": null
         },
         {
-          "text": "고사장은 8층 극장이고 조명을 몇 개만 켜 둬서 평가위원 표정이 잘 보이지 않았다는 후기가 반복돼요. 반응을 보고 조절하는 연기는 통하지 않는다고 생각하는 편이 안전해요.",
+          "text": "고사장은 8층 극장이고 조명을 몇 개만 켜 둬서 평가위원 표정이 잘 보이지 않았다는 후기가 반복돼요. 평가위원은 세 명이었다는 후기가 대부분이라, 반응을 보고 조절하는 연기는 통하지 않는다고 생각하는 편이 안전해요.",
           "category": "place",
           "source_url": "https://cafe.naver.com/imonaroll/42266",
           "source_type": "personal",
-          "corroborations": 3,
+          "corroborations": 4,
           "verified_at": "2026-08-07",
           "note": null
         },
@@ -2706,15 +2697,6 @@
           "source_url": "https://cafe.naver.com/imonaroll/42266",
           "source_type": "personal",
           "corroborations": 3,
-          "verified_at": "2026-08-07",
-          "note": null
-        },
-        {
-          "text": "평가위원은 세 명이었다는 후기가 대부분이고 네 명이었다는 후기도 한 건 있어요. 질의응답은 없거나 한두 개로 아주 짧게 끝나요.",
-          "category": "day_of",
-          "source_url": "https://cafe.naver.com/imonaroll/42285",
-          "source_type": "personal",
-          "corroborations": 4,
           "verified_at": "2026-08-07",
           "note": null
         },
@@ -2991,6 +2973,15 @@
           "publisher": "산연기학원 네이버 카페 대학시험후기 게시판",
           "source_type": "personal",
           "note": "학원 카페 후기 게시판이지만 글은 수험생 본인이 쓴 거예요.",
+          "verified_at": "2026-08-07"
+        },
+        {
+          "kind": "video",
+          "title": "[2025 제 16회 졸업프로젝트] 뮤지컬 '위대한 쇼맨' A팀",
+          "url": "https://www.youtube.com/watch?v=zkWWLZIbCR8",
+          "publisher": "정화예술대학교 융합예술학부 연기전공",
+          "source_type": "official",
+          "note": "학과 공식 채널이에요. 재학생 공연 실황이라 학과 분위기를 볼 수 있어요.",
           "verified_at": "2026-08-07"
         }
       ],
@@ -4296,15 +4287,6 @@
           "kind": "video",
           "title": "2025년도 연기예술학과  일상 총정리",
           "url": "https://www.youtube.com/watch?v=agjjEqRoA2Y",
-          "publisher": "동서울대학교 연기예술학과",
-          "source_type": "official",
-          "note": null,
-          "verified_at": "2026-08-07"
-        },
-        {
-          "kind": "video",
-          "title": "JTBC 장르가머니 -  동서울대학교 연기예술학과",
-          "url": "https://www.youtube.com/watch?v=dgNIL78s1x0",
           "publisher": "동서울대학교 연기예술학과",
           "source_type": "official",
           "note": null,
