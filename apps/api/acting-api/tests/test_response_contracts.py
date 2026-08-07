@@ -8,7 +8,6 @@ from uuid import UUID, uuid4
 from fastapi.testclient import TestClient
 from pydantic import BaseModel, TypeAdapter
 
-from acting_agent.config import Settings as AgentSettings
 from acting_api import app as app_module
 from acting_api import coaching, consents, practice_sessions, reports, uploads
 from acting_api.analysis_worker import AnalysisResult, AnalysisWorker
@@ -18,7 +17,6 @@ from acting_api.auth.providers import ProviderRegistry
 from acting_api.config import GatewaySettings
 from acting_api.db.models import OperationStatus, PracticeStatus
 from acting_api.storage import S3Storage
-from acting_report.config import Settings as ReportSettings
 from acting_report import schema as report_schema
 from acting_summary.config import Settings as SummarySettings
 from api_test_support import (
@@ -333,8 +331,6 @@ def _application():
             jwt_secret=JWT_SECRET,
         ),
         summary_settings=SummarySettings(api_key="k", model="summary-model"),
-        agent_settings=AgentSettings(api_key="k", model="coach-model"),
-        report_settings=ReportSettings(api_key="k", model="report-model"),
         store=store,
         # 라우터는 만들 때 스토어를 건드리지 않는다. 스키마만 확인하는 자리라
         # 자리만 채워 커뮤니티 경로가 스펙에 들어오게 한다.

@@ -2,11 +2,11 @@
 
 ## 적용 범위·스택
 
-acting-api 백엔드. uv 파이썬 모노레포 — `acting-api`(FastAPI 게이트웨이)가 `acting-summary`·`acting-agent`·`acting-report`를 in-process로 마운트합니다 (별도 HTTP 서비스 아님). API 계약은 [API.md](API.md), 설계 결정은 [docs/design-decisions.md](docs/design-decisions.md).
+acting-api 백엔드. uv 파이썬 모노레포 — `acting-api`(FastAPI 게이트웨이)가 `acting-summary`·`acting-agent`·`acting-report`를 in-process로 마운트하고(별도 HTTP 서비스 아님), 공용 LLM·검증 유틸은 `acting-llm` 패키지에 있습니다. 워크스페이스 멤버 5개는 `pyproject.toml`이 정본입니다. API 계약은 [API.md](API.md), 설계 결정은 [docs/design-decisions.md](docs/design-decisions.md).
 
 ## 명령어 (이 디렉토리 기준)
 
-- 의존성: `uv sync --frozen --no-dev --package acting-api`
+- 의존성: `uv sync --frozen --all-packages` — 개발·테스트는 이걸 씁니다. `acting-api`가 나머지 패키지를 import하고 pytest는 dev 그룹에 있어, `--no-dev --package acting-api`(배포용 최소 설치)로 깔면 아래 테스트 명령이 돌지 않습니다.
 - 로컬 실행: `DEVELOPMENT_AUTH_PROVIDER=1 uv run uvicorn acting_api.app:create_app --factory --host 127.0.0.1 --port 8000`
 - 마이그레이션: `cd acting-api && set -a; source .env; set +a && uv run alembic upgrade head`
   (alembic은 `.env`를 스스로 읽지 않으므로 셸로 내보내야 합니다)

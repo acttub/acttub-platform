@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Literal
+from typing import Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Response
@@ -11,16 +11,20 @@ from starlette.concurrency import run_in_threadpool
 from acting_api.db.store import LeaseOwnershipError
 from acting_api.practice_sessions import PLAYBACK_URL_TTL_SEC
 from acting_api.sync_operations import (
-    SyncOperationClaim,
     begin_sync_operation,
-    fail_sync_operation,
+    fail_sync_operation_async,
+    generate_source_report,
     parse_request_id,
     success_response,
     sync_request_fingerprint,
 )
 from acting_report import engine as report_engine
-from acting_report.router import ReportReq
-from acting_report.schema import AnalysisReport, BlockedReport, ExpressionReport
+from acting_report.schema import (
+    AnalysisReport,
+    BlockedReport,
+    ExpressionReport,
+    ReportReq,
+)
 
 
 class _StrictResponse(BaseModel):
@@ -44,35 +48,6 @@ class ReportDetailResponse(_StrictResponse):
 class ReportHistoryResponse(_StrictResponse):
     count: int
     reports: list[ReportRecord]
-
-
-async def _fail(store, claim: SyncOperationClaim, error_code: str) -> None:
-    await run_in_threadpool(
-        fail_sync_operation,
-        store=store,
-        claim=claim,
-        error_code=error_code,
-    )
-
-
-def _generate_report(source, *, generate=None):
-    kwargs: dict[str, Any] = {}
-    if generate is not None:
-        kwargs["generate"] = generate
-    return report_engine.generate_report(
-        report_type=source.branch_kind,
-        video_summary=source.video_summary,
-        confirmed_handoff=source.handoff_json,
-        confirmed=source.confirmed,
-        coaching_handoff_id=str(source.handoff_id or ""),
-        analysis_handoff=source.analysis_handoff_json,
-        analysis_handoff_id=(
-            str(source.analysis_handoff_id)
-            if source.analysis_handoff_id is not None
-            else None
-        ),
-        **kwargs,
-    )
 
 
 def build_router(
@@ -135,7 +110,7 @@ def build_router(
                 if existing is not None
                 else (
                     await run_in_threadpool(
-                        _generate_report,
+                        generate_source_report,
                         source,
                         generate=report_generate,
                     )
@@ -160,20 +135,20 @@ def build_router(
                     response_payload=report,
                 )
                 if not saved:
-                    await _fail(store, claim, "report_already_exists")
+                    await fail_sync_operation_async(store, claim, "report_already_exists")
                     raise HTTPException(status_code=409, detail="report already exists")
         except report_engine.ReportParseError as exc:
-            await _fail(store, claim, "report_parse_error")
+            await fail_sync_operation_async(store, claim, "report_parse_error")
             raise HTTPException(status_code=502, detail=str(exc)) from exc
         except LeaseOwnershipError as exc:
-            await _fail(store, claim, "lease_ownership_lost")
+            await fail_sync_operation_async(store, claim, "lease_ownership_lost")
             raise HTTPException(
                 status_code=409, detail="request is still processing"
             ) from exc
         except HTTPException:
             raise
         except Exception:
-            await _fail(store, claim, "report_failed")
+            await fail_sync_operation_async(store, claim, "report_failed")
             raise
         return success_response(report, claim)
 

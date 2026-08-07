@@ -8,7 +8,7 @@
 - [ ] 이전 기록 API 개편: `GET /v2/reports/{practice_session_id}` 신설(리포트 본문+playback_url 한 번에) + `GET /v2/reports` 목록 슬림화(`practice_session_id`·`headline`·`created_at`만) — 상세 신설과 같은 PR에서 진행
 - [x] `GET /v2/practice-sessions/{id}/status` 폴링 경량 엔드포인트 신설 — 분석 대기 폴링이 상세 응답·presign 발급 없이 `{status, error_code}`만 받도록
 - [ ] 미완료 연습 이어가기 별도 페이지(리포트 없는 세션 조회 + 이어가기 UI)
-- [ ] 쓸데없는 파일들 제거하기 (안 쓰는 산출물·죽은 코드·불필요 문서 정리)
+- [ ] 쓸데없는 파일들 제거하기 (안 쓰는 산출물·죽은 코드·불필요 문서 정리) — 웹·API는 조사 완료, 4단계 실행 계획이 [docs/REFACTOR-web-api.md](docs/REFACTOR-web-api.md)에 있다. 확인된 죽은 코드: `apps/web`의 연습 화면 2벌 2,349줄(수기 src의 19%, 호출자 0)과 `apps/api`의 서브패키지 독립 앱 3벌(배포 요청이 도달 불가)
 - [ ] 원본이 10MB 이하면 압축 생략하고 그대로 업로드 (모바일 `lib/compress.ts`는 목표 6MB, 웹 `lib/media/compress-video.ts` — 작은 파일은 압축 이득보다 인코딩 대기·품질 손실이 커서 스킵)
 - [ ] 이름 입력은 최초 회원가입 때만 받기 (`apps/mobile/app/consent.tsx` — 지금은 동의 화면이 이름 입력을 항상 끼고 있고 `canProceed`가 `name.trim().length > 0`을 요구해서, 약관이 추가돼 재동의할 때도 이름을 다시 입력해야 한다. 이미 이름이 있으면 입력란을 숨기고 동의만 받도록 분리. 현재 이름은 로컬 저장(`lib/profile.ts`)이라 백엔드 프로필 API가 생기면 "최초"의 기준을 서버 값으로 옮길 것)
 - [ ] S3 instance role 전환을 며칠 관찰한 뒤 공유 IAM 사용자 `acting-api` access key를 Inactive로 전환하고, 추가 관찰 후 삭제하기 (secret은 복구 불가하므로 즉시 삭제하지 않음)

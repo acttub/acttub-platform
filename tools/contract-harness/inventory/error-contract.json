@@ -1,36 +1,6 @@
 [
   {
     "category": "http_exception",
-    "detail": "session not found",
-    "dynamic": false,
-    "key": "acting-agent/src/acting_agent/router.py:build_router.coach_reply|404|session not found",
-    "route": "POST /coach/reply",
-    "source": "acting-agent/src/acting_agent/router.py",
-    "status": 404,
-    "symbol": "build_router.coach_reply"
-  },
-  {
-    "category": "http_exception",
-    "detail": "session changed concurrently",
-    "dynamic": false,
-    "key": "acting-agent/src/acting_agent/router.py:build_router.coach_reply|409|session changed concurrently",
-    "route": "POST /coach/reply",
-    "source": "acting-agent/src/acting_agent/router.py",
-    "status": 409,
-    "symbol": "build_router.coach_reply"
-  },
-  {
-    "category": "http_exception",
-    "detail": "practice session not found",
-    "dynamic": false,
-    "key": "acting-agent/src/acting_agent/router.py:build_router.coach_start|404|practice session not found",
-    "route": "POST /coach/start",
-    "source": "acting-agent/src/acting_agent/router.py",
-    "status": 404,
-    "symbol": "build_router.coach_start"
-  },
-  {
-    "category": "http_exception",
     "detail": null,
     "dynamic": false,
     "key": "acting-api/src/acting_api/admin.py:build_router.require_token|401|None",
@@ -928,25 +898,5 @@
     "source": "acting-api/src/acting_api/uploads.py",
     "status": 503,
     "symbol": "build_router.require_storage"
-  },
-  {
-    "category": "http_exception",
-    "detail": "str(exc)",
-    "dynamic": true,
-    "key": "acting-summary/src/acting_summary/router.py:build_router.summarize_endpoint|502|str(exc)",
-    "route": "POST /summarize",
-    "source": "acting-summary/src/acting_summary/router.py",
-    "status": 502,
-    "symbol": "build_router.summarize_endpoint"
-  },
-  {
-    "category": "http_exception",
-    "detail": "str(exc)",
-    "dynamic": true,
-    "key": "acting-summary/src/acting_summary/router.py:build_router.summarize_endpoint|504|str(exc)",
-    "route": "POST /summarize",
-    "source": "acting-summary/src/acting_summary/router.py",
-    "status": 504,
-    "symbol": "build_router.summarize_endpoint"
   }
 ]

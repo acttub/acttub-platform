@@ -5,11 +5,9 @@ import importlib
 import pytest
 from fastapi.testclient import TestClient
 
-from acting_agent.config import Settings as AgentSettings
 from acting_api.app import create_app
 from acting_api.auth.providers import InvalidIdentityToken
 from acting_api.config import GatewaySettings
-from acting_report.config import Settings as ReportSettings
 from acting_summary.config import Settings as SummarySettings
 from api_test_support import FakeClient
 from auth_test_support import FakeAuthStore
@@ -33,8 +31,6 @@ def _app(*, enabled: bool, store: FakeAuthStore | None = None):
             development_auth_provider=enabled,
         ),
         summary_settings=SummarySettings(api_key="k", model="m"),
-        agent_settings=AgentSettings(api_key="k", model="m"),
-        report_settings=ReportSettings(api_key="k", model="m"),
         store=store,
     )
     return app, store

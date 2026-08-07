@@ -6,7 +6,6 @@ from uuid import uuid4
 from fastapi.testclient import TestClient
 from sqlalchemy.exc import IntegrityError
 
-from acting_agent.config import Settings as AgentSettings
 from acting_api.app import create_app
 from acting_api.auth.jwt import JwtService
 from acting_api.auth.providers import InvalidIdentityToken, ProviderRegistry
@@ -15,7 +14,6 @@ from acting_api.db.models import UserStatus
 from acting_api.db.store import IdentityAlreadyLinkedError
 from acting_api.security import hash_token
 from acting_api.storage import S3Storage
-from acting_report.config import Settings as ReportSettings
 from acting_summary.config import Settings as SummarySettings
 from api_test_support import FakeClient
 from auth_test_support import FakeAuthStore, FakeProviderVerifier
@@ -35,8 +33,6 @@ def _app(*, store=None, verifier=None, clock=None, s3_storage=None):
             jwt_secret=JWT_SECRET,
         ),
         summary_settings=SummarySettings(api_key="k", model="m"),
-        agent_settings=AgentSettings(api_key="k", model="m"),
-        report_settings=ReportSettings(api_key="k", model="m"),
         store=store,
         provider_registry=ProviderRegistry(
             verifier if isinstance(verifier, list) else [verifier]

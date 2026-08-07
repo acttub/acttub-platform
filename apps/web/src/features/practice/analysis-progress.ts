@@ -7,7 +7,7 @@ export const COMPRESS_PROGRESS_END = 5;
 export const UPLOAD_PROGRESS_END = 15;
 export const ANALYSIS_PROGRESS_LIMIT = 95;
 
-// 분석이 실제로 걸리는 시간. practice-single.tsx의 ANALYSIS_SLOW_NOTICE_SEC(180초)와 같은 선이다.
+// 분석이 실제로 걸리는 시간.
 const ANALYSIS_FILL_MS = 180_000;
 
 function clamp(value: number, min: number, max: number): number {

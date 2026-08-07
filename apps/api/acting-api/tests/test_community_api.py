@@ -13,7 +13,6 @@ from uuid import UUID, uuid4
 import pytest
 from fastapi.testclient import TestClient
 
-from acting_agent.config import Settings as AgentSettings
 from acting_api.app import create_app
 from acting_api.auth.jwt import JwtService
 from acting_api.config import GatewaySettings
@@ -29,7 +28,6 @@ from acting_api.db.community_store import (
     PostNotFound,
 )
 from acting_api.storage import S3Storage
-from acting_report.config import Settings as ReportSettings
 from acting_summary.config import Settings as SummarySettings
 from api_test_support import FakeClient
 from platform_test_support import FakeBotoS3Client, FakePlatformStore
@@ -168,8 +166,6 @@ def _application():
             jwt_secret=JWT_SECRET,
         ),
         summary_settings=SummarySettings(api_key="k", model="model-test"),
-        agent_settings=AgentSettings(api_key="k", model="model-test"),
-        report_settings=ReportSettings(api_key="k", model="model-test"),
         store=store,
         community_store=community,
         s3_storage=S3Storage(bucket="videos", client=FakeBotoS3Client()),

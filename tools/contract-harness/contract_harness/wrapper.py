@@ -13,7 +13,6 @@ from types import SimpleNamespace
 
 from sqlalchemy import text
 
-from acting_agent.config import Settings as AgentSettings
 from acting_api.analysis_worker import AnalysisWorker
 from acting_api.app import create_app
 from acting_api.auth.jwt import JwtService
@@ -21,7 +20,6 @@ from acting_api.auth.providers import ProviderRegistry
 from acting_api.config import GatewaySettings
 from acting_api.db.community_store import CommunityStore
 from acting_api.db.store import PostgresStore
-from acting_report.config import Settings as ReportSettings
 from acting_summary.config import Settings as SummarySettings
 
 from contract_harness import config as cfg
@@ -90,10 +88,6 @@ class BackendRuntime:
                 ),
                 summary_settings=SummarySettings(
                     api_key="harness", model=cfg.SUMMARY_MODEL
-                ),
-                agent_settings=AgentSettings(api_key="harness", model="harness-coach"),
-                report_settings=ReportSettings(
-                    api_key="harness", model="harness-report"
                 ),
                 store=self.store,
                 community_store=self.community_store,

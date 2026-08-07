@@ -201,7 +201,7 @@ L3-b는 L3 대상뿐 아니라 **모든 sync operation 응답**에 건다. 비�
 
 **이 원칙이 왜 절대적인가**: 초판은 "요청 바디 16개 중 7개가 unknown key 허용", "`default` 0개", "`anyOf [T,null]` 86곳"을 본문에 박아 뒀다. 넉 달 만에 각각 17개 중 5개 / 9개 / 97곳이 됐다. **박아 둔 숫자는 전부 틀렸고, 그것을 근거로 이식했다면 조용히 잘못된 구현이 나왔다.**
 
-🔁 그리고 **1차 개정에서 적은 `default` 9개는 하루도 못 가 10개가 됐다** — `SOMA-304`가 `CoachStartReq.restart: bool = False`를 넣었다(`acting-agent/router.py:CoachStartReq`). 같은 변경으로 컴포넌트도 69→70개다(`PublicCoachTurn` 신설). **이 문단의 숫자들은 예시일 뿐이며, 하네스가 읽어야 할 값은 언제나 실행 시점의 `openapi.json`과 소스다.**
+🔁 그리고 **1차 개정에서 적은 `default` 9개는 하루도 못 가 10개가 됐다** — `SOMA-304`가 `CoachStartReq.restart: bool = False`를 넣었다(`acting-agent/schema.py:CoachStartReq`). 같은 변경으로 컴포넌트도 69→70개다(`PublicCoachTurn` 신설). **이 문단의 숫자들은 예시일 뿐이며, 하네스가 읽어야 할 값은 언제나 실행 시점의 `openapi.json`과 소스다.**
 
 ### ① 성공 응답 형상
 
