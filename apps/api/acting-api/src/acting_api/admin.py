@@ -30,15 +30,43 @@ class _Strict(BaseModel):
 
 class AdminStats(_Strict):
     users_total: int
+    users_total_real: int
     users_last_7d: int
+    users_last_7d_real: int
+    users_last_24h: int
+    users_last_24h_real: int
     practice_sessions_total: int
+    practice_sessions_total_real: int
     practice_sessions_last_7d: int
+    practice_sessions_last_7d_real: int
+    practice_sessions_last_24h: int
+    practice_sessions_last_24h_real: int
     uploads_finalized_total: int
+    uploads_finalized_total_real: int
     analyses_completed_total: int
+    analyses_completed_total_real: int
     coach_sessions_total: int
+    coach_sessions_total_real: int
+    coach_sessions_last_7d: int
+    coach_sessions_last_7d_real: int
+    coach_sessions_last_24h: int
+    coach_sessions_last_24h_real: int
     coach_turns_total: int
+    coach_turns_total_real: int
+    coach_turns_last_7d: int
+    coach_turns_last_7d_real: int
+    coach_turns_last_24h: int
+    coach_turns_last_24h_real: int
     reports_total: int
+    reports_total_real: int
     active_users_last_7d: int
+    active_users_last_7d_real: int
+    users_with_session: int
+    users_with_session_real: int
+    returning_2x: int
+    returning_2x_real: int
+    returning_3x: int
+    returning_3x_real: int
     last_signup_at: datetime | None
     last_session_at: datetime | None
 
@@ -82,7 +110,9 @@ def build_router(
 
     @router.get("/stats", response_model=AdminStats, dependencies=[Depends(require_token)])
     async def stats() -> AdminStats:
-        return AdminStats(**await run_in_threadpool(store.admin_stats))
+        return AdminStats(
+            **await run_in_threadpool(store.admin_stats, exclude_emails)
+        )
 
     @router.get(
         "/sessions",
