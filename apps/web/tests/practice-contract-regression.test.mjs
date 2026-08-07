@@ -42,10 +42,6 @@ test("막힘 선택 완료 뒤 질문 재료가 준비될 때까지 진행 화�
     /createPracticeSession[\s\S]*setMode\("preparing"\)[\s\S]*trackAnalysis\(session\.session_id\)/,
   );
   assert.doesNotMatch(begin, /setMode\("chat"\)|startCoach\(/);
-
-  const practiceFlow = readWeb("src/features/practice/practice-flow.tsx");
-  assert.match(practiceFlow, /type Phase = "coaching" \| "report"/);
-  assert.doesNotMatch(practiceFlow, /type Phase = [^;]*"summary"/);
 });
 
 test("질문 준비는 기존 진행 자리에서 장면을 훑는다고 안내한다", () => {
@@ -73,7 +69,6 @@ test("코치 응답을 기다리는 동안 7px 세 점 표시가 렌더된다", 
 test("이번 변경에서 다룬 화면 카피에는 금지어가 없다", () => {
   const sources = [
     readWeb("src/features/workspace/workspace-app.tsx"),
-    readWeb("src/features/practice/practice-flow.tsx"),
     readWeb("src/features/practice/waiting-dots.tsx"),
     readRepo("apps/mobile/app/upload.tsx"),
     readRepo("apps/mobile/app/coach.tsx"),

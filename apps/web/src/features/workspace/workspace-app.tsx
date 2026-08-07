@@ -3,9 +3,6 @@
 // 홈 · 새 연습 · 연습 기록 · 세션 상세를 한 화면으로 합친 통합 워크스페이스.
 // 왼쪽에 지난 세션 바, 오른쪽을 현재 세션이 채운다.
 // 설계 정본은 새 UI 디자인 캔버스(2026-07-27)의 D1~D10 · M1~M9 화면.
-//
-// 기존 practice-flow.tsx / practice-single.tsx 는 건드리지 않았다. 라우트만 이쪽을 보게 바꿨고,
-// 되돌리려면 app/*/page.tsx 의 import 를 원래대로 돌리면 된다.
 
 import Image from "next/image";
 import Link from "next/link";
