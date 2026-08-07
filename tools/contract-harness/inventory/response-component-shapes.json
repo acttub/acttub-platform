@@ -115,6 +115,21 @@
       "order"
     ]
   },
+  "AdmissionTip": {
+    "additional_properties": false,
+    "optional": [
+      "corroborations",
+      "host",
+      "note",
+      "source_type",
+      "source_url",
+      "verified_at"
+    ],
+    "required": [
+      "category",
+      "text"
+    ]
+  },
   "AdmissionUniversity": {
     "additional_properties": false,
     "optional": [
@@ -122,6 +137,7 @@
       "note",
       "region",
       "resources",
+      "tips",
       "type",
       "verified_at"
     ],
