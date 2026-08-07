@@ -17,6 +17,7 @@ import { api } from '@/lib/api';
 import {
   countdown,
   formatSeconds,
+  groupTips,
   isOpen,
   localDate,
   periodText,
@@ -26,6 +27,7 @@ import {
   SOURCE_LABEL,
   type AdmissionNotice,
   type AdmissionResource,
+  type AdmissionTip,
   type AdmissionsResponse,
   type AdmissionUniversity,
 } from '@/lib/admissions';
@@ -95,6 +97,8 @@ export default function UniversityDetailScreen() {
               <NoticeCard key={notice.id} notice={notice} today={today} />
             ))
           )}
+
+          {university.tips.length > 0 && <TipList tips={university.tips} />}
 
           {university.resources.length > 0 && <ResourceList resources={university.resources} />}
 
@@ -343,6 +347,51 @@ function PracticalItems({ notice }: { notice: AdmissionNotice }) {
   );
 }
 
+/**
+ * 다녀온 사람들이 남긴 실전 정보. 요강에 없는 것만 담는다 — 대기 시간, 고사장
+ * 가는 길처럼 겪어 봐야 아는 것들이다. 후기 글을 옮긴 게 아니라 거기서 확인한
+ * 사실을 다시 쓴 것이고, 원문 링크를 함께 줘서 판단은 읽는 사람이 하게 한다.
+ */
+function TipList({ tips }: { tips: AdmissionTip[] }) {
+  return (
+    <View style={styles.tipBox}>
+      <Text style={styles.sectionTitle}>먼저 다녀온 사람들 이야기</Text>
+      <Text style={styles.dimSmall}>
+        요강에 없는 것만 모았어요. 개인 후기에서 확인한 내용이라 저희가 검증한 건 아니고,
+        해마다 달라질 수 있어요.
+      </Text>
+      {groupTips(tips).map((group) => (
+        <View key={group.category} style={styles.tipGroup}>
+          <Text style={styles.tipGroupLabel}>{group.label}</Text>
+          {group.items.map((tip, index) => (
+            <View key={`${group.category}-${index}`} style={styles.tip}>
+              <Text style={styles.tipText}>{tip.text}</Text>
+              <View style={styles.row}>
+                {typeof tip.corroborations === 'number' && tip.corroborations > 1 && (
+                  <View style={styles.track}>
+                    <Text style={styles.trackText}>후기 {tip.corroborations}건</Text>
+                  </View>
+                )}
+                {/* 배지는 '누가 썼나'다. 올라와 있는 곳은 host로 따로 밝힌다. */}
+                <Text style={styles.tag}>
+                  {SOURCE_LABEL[tip.source_type] ?? tip.source_type}
+                </Text>
+                {tip.host && <Text style={styles.tipHost}>{tip.host}</Text>}
+                {tip.source_url && (
+                  <Pressable onPress={() => void Linking.openURL(tip.source_url as string)}>
+                    <Text style={styles.tipLink}>출처 ↗</Text>
+                  </Pressable>
+                )}
+              </View>
+              {tip.note && <Text style={styles.dimSmall}>{tip.note}</Text>}
+            </View>
+          ))}
+        </View>
+      ))}
+    </View>
+  );
+}
+
 function ResourceList({ resources }: { resources: AdmissionResource[] }) {
   return (
     <View style={styles.resourceBox}>
@@ -498,6 +547,13 @@ const styles = StyleSheet.create({
   dim: { fontSize: 13, fontWeight: '600', color: palette.textFaint, lineHeight: 21 },
   dimSmall: { fontSize: 11.5, fontWeight: '600', color: palette.textFaint, lineHeight: 18 },
   resourceBox: { gap: 12 },
+  tipBox: { gap: 10 },
+  tipGroup: { gap: 6 },
+  tipGroupLabel: { fontSize: 11.5, fontWeight: '800', color: palette.textDim },
+  tip: { padding: 14, borderRadius: 14, backgroundColor: palette.bgSoft, gap: 6 },
+  tipText: { fontSize: 12.5, fontWeight: '600', color: palette.text, lineHeight: 21 },
+  tipLink: { fontSize: 11, fontWeight: '800', color: palette.blue },
+  tipHost: { fontSize: 10.5, fontWeight: '700', color: palette.checkOff },
   resource: { padding: 16, borderRadius: 14, backgroundColor: palette.card, gap: 8 },
   badge: {
     paddingHorizontal: 7,

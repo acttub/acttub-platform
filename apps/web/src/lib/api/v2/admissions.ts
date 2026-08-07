@@ -5,6 +5,7 @@ export type AdmissionsResponse = components["schemas"]["AdmissionsResponse"];
 export type AdmissionUniversity = components["schemas"]["AdmissionUniversity"];
 export type AdmissionNotice = components["schemas"]["AdmissionNotice"];
 export type AdmissionResource = components["schemas"]["AdmissionResource"];
+export type AdmissionTip = components["schemas"]["AdmissionTip"];
 export type AdmissionStage = components["schemas"]["AdmissionStage"];
 export type AdmissionWeights = components["schemas"]["AdmissionWeights"];
 export type AdmissionPracticalItem =
@@ -17,6 +18,41 @@ export const SOURCE_LABEL: Record<string, string> = {
   academy: "입시학원",
   personal: "개인",
 };
+
+/** 꿀팁 분류. 시험 당일에 급한 것부터 위에 오도록 순서를 정해 둔다. */
+export const TIP_CATEGORY_LABEL: Record<string, string> = {
+  day_of: "시험 당일",
+  place: "고사장·이동",
+  practice: "실기 준비",
+  dress: "복장·외모",
+  document: "서류·접수",
+  strategy: "지원 전략",
+  etc: "그 밖에",
+};
+
+/**
+ * 꿀팁을 분류별로 묶는다. 여러 후기에서 겹쳐 나온 것을 각 묶음 위로 올린다 —
+ * 한 사람 말과 열 사람 말은 무게가 다르다.
+ */
+export function groupTips(tips: AdmissionTip[]) {
+  const order = Object.keys(TIP_CATEGORY_LABEL);
+  const buckets = new Map<string, AdmissionTip[]>();
+  for (const tip of tips ?? []) {
+    const key = tip.category in TIP_CATEGORY_LABEL ? tip.category : "etc";
+    const bucket = buckets.get(key);
+    if (bucket) bucket.push(tip);
+    else buckets.set(key, [tip]);
+  }
+  return [...buckets.entries()]
+    .sort((a, b) => order.indexOf(a[0]) - order.indexOf(b[0]))
+    .map(([category, items]) => ({
+      category,
+      label: TIP_CATEGORY_LABEL[category] ?? category,
+      items: [...items].sort(
+        (a, b) => (b.corroborations ?? 1) - (a.corroborations ?? 1),
+      ),
+    }));
+}
 
 /** 실기 종목. 필터 칩과 상세 화면이 같은 이름을 써야 헷갈리지 않는다. */
 export const PRACTICAL_LABEL: Record<string, string> = {
@@ -230,6 +266,7 @@ export function normalizeAdmissions(payload: AdmissionsResponse): AdmissionsResp
     universities: (payload.universities ?? []).map((university) => ({
       ...university,
       resources: university.resources ?? [],
+      tips: university.tips ?? [],
     })),
     notices: (payload.notices ?? []).map((notice) => ({
       ...notice,
