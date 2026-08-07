@@ -13,10 +13,15 @@
 name: Deploy
 
 on:
-  # dev는 머지 즉시 반영합니다. dev로 들어오는 경로는 PR뿐이고 그 PR은 ci.yml
-  # 게이트를 통과했으므로, 여기서 테스트를 다시 돌리지 않습니다.
+  # 머지 즉시 반영합니다. 브랜치가 곧 환경입니다 — dev→dev, main→운영.
+  # 두 브랜치 모두 들어오는 경로는 PR뿐이고 그 PR은 ci.yml 게이트를 통과했으므로,
+  # 여기서 테스트를 다시 돌리지 않습니다.
+  #
+  # main 자동 배포는 운영 배포의 최대 위험이던 ref 오선택을 원천 제거합니다
+  # (6-5 참고 — Actions UI 드롭다운 기본값이 dev라 세 번 잘못 나갔습니다).
+  # 대신 main 머지가 곧 릴리스이므로, 머지 전에 되돌릴 여지를 확보해야 합니다.
   push:
-    branches: [dev]
+    branches: [dev, main]
   workflow_dispatch:
     inputs:
       environment:
@@ -33,8 +38,11 @@ on:
 # 배포는 겹치면 안 됩니다. 진행 중인 배포를 취소하면 인스턴스가 절반만 갱신된
 # 상태로 남을 수 있으므로 cancel-in-progress를 켜지 않습니다.
 # dev 배포가 prod 배포를 막지 않도록 환경별로 그룹을 나눕니다.
+#
+# 워크플로 레벨이라 잡 output(guard)을 참조할 수 없어 판정식을 인라인으로 둡니다.
+# guard의 '배포 환경 판정' 스텝과 같은 규칙이어야 합니다.
 concurrency:
-  group: deploy-${{ inputs.environment || 'dev' }}
+  group: deploy-${{ inputs.environment || (github.ref_name == 'main' && 'prod' || 'dev') }}
   cancel-in-progress: false
 
 permissions:
@@ -45,29 +53,56 @@ env:
   AWS_REGION: ap-northeast-2
 
 jobs:
+  # 배포 환경을 여기서 한 번만 정하고, 나머지 잡은 이 output만 봅니다.
+  #
+  # push 이벤트에서는 inputs.*가 전부 비어 있습니다. 그래서 판정을 각 잡에
+  # 흩어두면 main에 push해도 dev 환경으로 나가는 사고가 납니다.
+  #
   # workflow_dispatch는 "어디에 배포할까"(environment)와 "무엇을 배포할까"(ref)를
   # 따로 받습니다. ref는 Actions UI의 브랜치 드롭다운이 정하는데 기본값이
   # default branch(dev)라, 운영 배포를 하면서 브랜치를 바꾸지 않으면 운영 서버에
   # dev 브랜치 코드가 올라갑니다. 2026-08-01에 실제로 세 번 그렇게 나갔고,
   # main에 없는 마이그레이션이 운영에 실려 커뮤니티 API가 며칠간 500이었습니다.
+  # main 자동 배포가 생긴 지금 이 함정은 수동 실행 경로에만 남아 있습니다.
   guard:
     name: 사전 점검
     runs-on: ubuntu-latest
+    outputs:
+      environment: ${{ steps.env.outputs.environment }}
     steps:
+      # ref 검사보다 앞에 둡니다 — guard가 막혀도 notify가 어느 환경이었는지
+      # 말할 수 있어야 합니다.
+      - name: 배포 환경 판정
+        id: env
+        env:
+          INPUT_ENV: ${{ inputs.environment }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          if [ -n "$INPUT_ENV" ]; then
+            resolved="$INPUT_ENV"          # 수동 실행은 입력이 우선입니다
+          elif [ "$REF_NAME" = "main" ]; then
+            resolved=prod                  # 브랜치가 곧 환경입니다
+          else
+            resolved=dev
+          fi
+          echo "environment=$resolved" >> "$GITHUB_OUTPUT"
+          echo "배포 환경: $resolved (ref: $REF_NAME)"
+
       - name: 운영 배포는 main에서만
-        if: ${{ inputs.environment == 'prod' && github.ref_name != 'main' }}
+        if: ${{ steps.env.outputs.environment == 'prod' && github.ref_name != 'main' }}
         run: |
           echo "::error::운영 배포는 main 브랜치에서만 실행할 수 있습니다 (현재 ref: ${{ github.ref_name }})."
           echo "Actions 탭의 'Use workflow from' 을 main 으로 바꾸거나," >> $GITHUB_STEP_SUMMARY
           echo '`gh workflow run deploy.yml --ref main -f environment=prod` 로 실행하세요.' >> $GITHUB_STEP_SUMMARY
           exit 1
 
-  # inputs.*는 push 이벤트에서 비어 있습니다. push는 곧 dev 전체 배포이므로
-  # 기본값으로 dev·both를 씁니다.
+  # inputs.target은 push 이벤트에서 비어 있습니다. push는 곧 전체 배포이므로
+  # 기본값 both를 씁니다. 환경은 guard가 판정한 값 하나만 봅니다.
   be:
     name: back svc (FastAPI)
     needs: guard
-    environment: ${{ inputs.environment || 'dev' }}
+    environment: ${{ needs.guard.outputs.environment }}
     if: ${{ (inputs.target || 'both') != 'fe' }}
     runs-on: ubuntu-latest
     steps:
@@ -83,21 +118,21 @@ jobs:
           DEPLOY_BUCKET: ${{ vars.DEPLOY_BUCKET }}
         run: deploy/upload-api.sh
 
-      # 마이그레이션은 dev에서만 자동으로 돕니다. prod는 되돌리기 어렵고 배포와
-      # 수명주기가 달라 SSM으로 접속해 수동 실행합니다(docs/DEPLOY-VPC.md 4-3).
+      # 마이그레이션은 두 환경에서 똑같이 자동으로 돕니다. 운영만 수동으로 두면
+      # 코드는 새것·DB는 구것인 창이 생기고, 2026-08-01에 그 창으로 커뮤니티 API가
+      # 며칠간 500이었습니다. 되돌리기 어려운 건 여전하므로, 스키마를 먼저 넓히고
+      # 코드를 나중에 좁히는 순서로 통제합니다(docs/DEPLOY-VPC.md 6-4).
       - name: Install on instance
         env:
           DEPLOY_BUCKET: ${{ vars.DEPLOY_BUCKET }}
-          MIGRATE: ${{ (inputs.environment || 'dev') == 'dev' && '1' || '' }}
+          MIGRATE: "1"
         run: deploy/ssm-deploy.sh be ${{ vars.BE_INSTANCE_ID }}
 
-      # 운영은 마이그레이션이 자동으로 돌지 않으므로, 방금 올린 코드가 기대하는
-      # 리비전과 DB의 현재 리비전이 어긋난 채 방치될 수 있습니다. 2026-08-01에
-      # 그렇게 커뮤니티 API가 며칠간 500이었으므로 배포 직후 확인합니다.
-      # 배포를 막지는 않습니다 — 새 마이그레이션 파일은 배포되어야 서버에 생기니
-      # 사전 차단은 순환이 됩니다. 대신 어긋나면 잡을 실패로 표시해 드러냅니다.
-      - name: 운영 스키마 리비전 확인
-        if: ${{ inputs.environment == 'prod' }}
+      # 마이그레이션이 자동으로 돌아도 head가 갈리거나 부분 적용되면 어긋날 수
+      # 있습니다. 배포 직후 DB 리비전과 코드 리비전을 대조해 어긋나면 잡을 실패로
+      # 표시합니다. 배포를 막지는 않습니다 — 새 마이그레이션 파일은 배포되어야
+      # 서버에 생기니 사전 차단은 순환이 됩니다.
+      - name: 스키마 리비전 확인
         run: deploy/check-migration.sh ${{ vars.BE_INSTANCE_ID }}
 
   fe:
@@ -105,7 +140,7 @@ jobs:
     needs: guard
     # environment를 지정하면 GitHub가 Deployment 이벤트를 남기고, GitHub for Jira
     # 앱이 이를 Jira로 넘겨 이슈 화면에 배포 이력이 붙습니다.
-    environment: ${{ inputs.environment || 'dev' }}
+    environment: ${{ needs.guard.outputs.environment }}
     if: ${{ (inputs.target || 'both') != 'be' }}
     runs-on: ubuntu-latest
     steps:
@@ -141,3 +176,62 @@ jobs:
         env:
           DEPLOY_BUCKET: ${{ vars.DEPLOY_BUCKET }}
         run: deploy/ssm-deploy.sh fe ${{ vars.FE_INSTANCE_ID }}
+
+  # 배포 결과를 Slack #배포알림 으로 보냅니다. dev는 실패만, 운영은 성공도 알립니다.
+  # dev는 머지마다 돌아 월 60회가 넘으므로, 성공까지 보내면 두 주 만에 아무도 보지
+  # 않게 되고 정작 실패가 묻힙니다.
+  notify:
+    name: 결과 통지
+    needs: [guard, be, fe]
+    if: always()
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    # 통지가 실패해도 배포 결과를 덮지 않게 합니다 — Slack이 죽어도 배포는 초록입니다.
+    continue-on-error: true
+    steps:
+      - name: Slack 통지
+        env:
+          WEBHOOK: ${{ secrets.SLACK_WEBHOOK_DEPLOY }}
+          # guard가 실패하면 output이 비므로 표시용 기본값을 둡니다.
+          ENVIRONMENT: ${{ needs.guard.outputs.environment || 'dev' }}
+          GUARD: ${{ needs.guard.result }}
+          BE: ${{ needs.be.result }}
+          FE: ${{ needs.fe.result }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+
+          # 시크릿이 없는 포크·초기 상태에서도 워크플로가 깨지지 않게 조용히 넘어갑니다.
+          if [ -z "${WEBHOOK}" ]; then
+            echo "SLACK_WEBHOOK_DEPLOY 미설정 — 통지를 건너뜁니다."
+            exit 0
+          fi
+
+          # skipped 는 실패가 아닙니다. target=fe 배포에서는 be 가, guard 가 막으면
+          # be·fe 둘 다 skipped 로 남습니다.
+          failed=""
+          if [ "$GUARD" = "failure" ]; then failed="${failed} 사전점검"; fi
+          if [ "$BE" = "failure" ]; then failed="${failed} back"; fi
+          if [ "$FE" = "failure" ]; then failed="${failed} front"; fi
+          if [ "$GUARD" = "cancelled" ] || [ "$BE" = "cancelled" ] || [ "$FE" = "cancelled" ]; then
+            failed="${failed} (일부 취소됨)"
+          fi
+
+          if [ -n "$failed" ]; then
+            color="danger"
+            head=":rotating_light: *${ENVIRONMENT} 배포 실패* —${failed}"
+          elif [ "$ENVIRONMENT" = "prod" ]; then
+            color="good"
+            head=":white_check_mark: *운영 배포 완료*"
+          else
+            echo "dev 배포 성공 — 통지하지 않습니다."
+            exit 0
+          fi
+
+          text="${head}"$'\n'"<${RUN_URL}|실행 로그> · \`${GITHUB_SHA:0:7}\` · ${GITHUB_ACTOR}"
+
+          # 브랜치명·커밋에 따옴표가 섞여도 깨지지 않도록 payload 는 jq 로 만듭니다.
+          jq -n --arg t "$text" --arg c "$color" \
+            '{attachments:[{color:$c, text:$t, mrkdwn_in:["text"]}]}' \
+            | curl -sS -X POST -H 'Content-type: application/json' --data @- "$WEBHOOK"

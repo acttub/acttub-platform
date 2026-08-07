@@ -17,7 +17,8 @@ Acttub 플랫폼 모노레포. JS(pnpm)와 Python(uv)이 공존합니다.
 - 배포 형태(dev·운영 공통): **Next 서버가 화면을 서빙하고 `/v2/*`·`/health`를 rewrites로 FastAPI에 넘깁니다.** 두 프로세스가 분리돼 있어 브라우저에는 오리진이 하나로 보입니다(CORS 불필요).
   - 운영 `acttub.com`(`www`는 301): CloudFront → front ALB → front svc / back ALB → back svc → RDS. 전부 private subnet → [docs/DEPLOY-VPC.md](docs/DEPLOY-VPC.md)
   - 개발 `dev.acttub.com`: EC2 한 대에 Caddy + 두 프로세스 + PostgreSQL → [docs/DEPLOY-DEV.md](docs/DEPLOY-DEV.md)
-  - 배포는 `.github/workflows/deploy.yml` 하나가 담당합니다. dev는 `dev` push 시 자동(마이그레이션 포함), 운영은 Actions 탭에서 수동 실행합니다.
+  - 배포는 `.github/workflows/deploy.yml` 하나가 담당합니다. **브랜치가 곧 환경입니다** — `dev` push는 dev로, `main` push는 운영으로 자동 배포되고 마이그레이션도 양쪽 다 자동으로 돕니다. Actions 탭의 수동 실행은 재배포·부분 배포(fe/be)용으로 남아 있습니다.
+  - **`main` 머지가 곧 운영 릴리스입니다.** 스키마 변경은 먼저 넓히고(마이그레이션 머지) 코드는 나중에 좁히는 순서로 나눠서 올립니다. 한 PR에 "컬럼 삭제 + 그 컬럼 안 쓰는 코드"를 같이 넣으면 배포 중간 상태에서 깨집니다.
 
 ## 이슈 추적 (Jira 연동)
 

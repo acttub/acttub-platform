@@ -12,8 +12,9 @@ set -euo pipefail
 SIDE="${1:?fe 또는 be를 지정해주세요}"
 INSTANCE="${2:?인스턴스 ID가 필요해요 (예: i-0abc...)}"
 
-# MIGRATE=1 이면 be 설치 중에 alembic upgrade head까지 돌린다. dev 전용이다 —
-# prod는 스키마 변경을 되돌리기 어려워 수동으로 실행한다(docs/DEPLOY-VPC.md 4-3).
+# MIGRATE=1 이면 be 설치 중에 alembic upgrade head까지 돌린다. dev·운영 모두
+# 켜서 돌린다 — 운영만 수동으로 두면 코드는 새것·DB는 구것인 창이 생기고,
+# 2026-08-01에 그 창으로 커뮤니티 API가 며칠간 500이었다(docs/DEPLOY-VPC.md 6-4).
 #
 # 인용된 heredoc(<<'EOS')이라 여기서는 아무것도 확장되지 않고, 원격에서 실행될 때
 # 비로소 평가된다. SSM Run Command는 systemd가 아니라서 EnvironmentFile을 타지
