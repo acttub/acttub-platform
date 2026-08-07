@@ -12,9 +12,9 @@ from acting_agent.schema import CoachReplyReq, CoachStartReq
 from acting_agent.store import SessionWriteConflict
 from acting_api.db.store import LeaseOwnershipError
 from acting_api.sync_operations import (
-    SyncOperationClaim,
     begin_sync_operation,
-    fail_sync_operation,
+    fail_sync_operation_async,
+    generate_source_report,
     parse_request_id,
     success_response,
     sync_response,
@@ -115,35 +115,6 @@ def _resumed_coach_payload(session):
         "report": None,
         "turns": [turn.model_dump(mode="json") for turn in session.turns],
     }
-
-
-async def _fail(store, claim: SyncOperationClaim, error_code: str) -> None:
-    await run_in_threadpool(
-        fail_sync_operation,
-        store=store,
-        claim=claim,
-        error_code=error_code,
-    )
-
-
-def _generate_report(source, *, generate=None):
-    kwargs: dict[str, Any] = {}
-    if generate is not None:
-        kwargs["generate"] = generate
-    return report_engine.generate_report(
-        report_type=source.branch_kind,
-        video_summary=source.video_summary,
-        confirmed_handoff=source.handoff_json,
-        confirmed=source.confirmed,
-        coaching_handoff_id=str(source.handoff_id or ""),
-        analysis_handoff=source.analysis_handoff_json,
-        analysis_handoff_id=(
-            str(source.analysis_handoff_id)
-            if source.analysis_handoff_id is not None
-            else None
-        ),
-        **kwargs,
-    )
 
 
 def _generate_completed_turn_report(
@@ -250,7 +221,7 @@ def build_router(
             store.has_report_for_practice_session,
             owned.practice_session_id,
         ):
-            await _fail(store, claim, "report_already_exists")
+            await fail_sync_operation_async(store, claim, "report_already_exists")
             raise HTTPException(
                 status_code=409,
                 detail="report already exists for practice session",
@@ -308,15 +279,15 @@ def build_router(
                 restart=req.restart,
             )
         except LeaseOwnershipError as exc:
-            await _fail(store, claim, "lease_ownership_lost")
+            await fail_sync_operation_async(store, claim, "lease_ownership_lost")
             raise HTTPException(
                 status_code=409, detail="request is still processing"
             ) from exc
         except report_engine.ReportParseError as exc:
-            await _fail(store, claim, "report_parse_error")
+            await fail_sync_operation_async(store, claim, "report_parse_error")
             raise HTTPException(status_code=502, detail=str(exc)) from exc
         except Exception:
-            await _fail(store, claim, "coach_start_failed")
+            await fail_sync_operation_async(store, claim, "coach_start_failed")
             raise
         return success_response(payload, claim)
 
@@ -398,20 +369,20 @@ def build_router(
                 report_json=report_json,
             )
         except SessionWriteConflict as exc:
-            await _fail(store, claim, "session_write_conflict")
+            await fail_sync_operation_async(store, claim, "session_write_conflict")
             raise HTTPException(
                 status_code=409, detail="session changed concurrently"
             ) from exc
         except LeaseOwnershipError as exc:
-            await _fail(store, claim, "lease_ownership_lost")
+            await fail_sync_operation_async(store, claim, "lease_ownership_lost")
             raise HTTPException(
                 status_code=409, detail="request is still processing"
             ) from exc
         except report_engine.ReportParseError as exc:
-            await _fail(store, claim, "report_parse_error")
+            await fail_sync_operation_async(store, claim, "report_parse_error")
             raise HTTPException(status_code=502, detail=str(exc)) from exc
         except Exception:
-            await _fail(store, claim, "coach_reply_failed")
+            await fail_sync_operation_async(store, claim, "coach_reply_failed")
             raise
         return success_response(payload, claim)
 
@@ -456,7 +427,7 @@ def build_router(
                 rebuttal_text=req.rebuttal_text,
             )
             if source is None:
-                await _fail(store, claim, "session_not_found")
+                await fail_sync_operation_async(store, claim, "session_not_found")
                 raise HTTPException(status_code=404, detail="session not found")
             public_handoff = _public_handoff(
                 source.handoff_id, source.branch_kind
@@ -474,7 +445,7 @@ def build_router(
                 if existing is not None
                 else (
                     await run_in_threadpool(
-                        _generate_report,
+                        generate_source_report,
                         source,
                         generate=report_generate,
                     )
@@ -505,20 +476,20 @@ def build_router(
                     response_payload=payload,
                 )
                 if not saved:
-                    await _fail(store, claim, "report_already_exists")
+                    await fail_sync_operation_async(store, claim, "report_already_exists")
                     raise HTTPException(status_code=409, detail="report already exists")
         except report_engine.ReportParseError as exc:
-            await _fail(store, claim, "report_parse_error")
+            await fail_sync_operation_async(store, claim, "report_parse_error")
             raise HTTPException(status_code=502, detail=str(exc)) from exc
         except LeaseOwnershipError as exc:
-            await _fail(store, claim, "lease_ownership_lost")
+            await fail_sync_operation_async(store, claim, "lease_ownership_lost")
             raise HTTPException(
                 status_code=409, detail="request is still processing"
             ) from exc
         except HTTPException:
             raise
         except Exception:
-            await _fail(store, claim, "coach_confirm_failed")
+            await fail_sync_operation_async(store, claim, "coach_confirm_failed")
             raise
         return success_response(payload, claim)
 
