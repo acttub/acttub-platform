@@ -10,7 +10,9 @@
     "lint": "eslint",
     "test": "node --test tests/*.test.mjs",
     "typecheck": "tsc --noEmit",
-    "generate:v2-schema": "openapi-typescript ../api/spec/openapi.json -o src/lib/api/v2-schema.d.ts"
+    "generate:v2-schema": "openapi-typescript ../api/spec/openapi.json -o src/lib/api/v2-schema.d.ts",
+    "perf": "lhci autorun --config=lighthouserc.cjs",
+    "perf:healthcheck": "lhci healthcheck --fatal --config=lighthouserc.cjs"
   },
   "dependencies": {
     "@mediabunny/aac-encoder": "^1.50.9",
@@ -20,6 +22,7 @@
     "react-dom": "19.2.4"
   },
   "devDependencies": {
+    "@lhci/cli": "0.15.1",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^24",
     "@types/react": "^19",
