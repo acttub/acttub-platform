@@ -1132,7 +1132,117 @@
       "admission_url": "https://enter.kyonggi.ac.kr",
       "verified_at": "2026-08-01",
       "region": "경기 수원",
-      "type": "univ"
+      "type": "univ",
+      "tips": [
+        {
+          "text": "지정연기 대사는 미리 알려 주지 않고 고사장 안에서 종이로 받아요. 대기실에서 대사를 받은 뒤 준비할 수 있는 시간이 5분에서 10분 정도밖에 안 됐다는 후기가 여럿이라, 희곡 전체를 미리 읽어 두지 않으면 그 자리에서 장면을 파악하기 어려워요.",
+          "category": "day_of",
+          "source_url": "https://m.blog.naver.com/actress1215/224150358175",
+          "source_type": "academy",
+          "corroborations": 2,
+          "verified_at": "2026-08-07",
+          "note": "정시 후기 기준이에요. 수시 2단계도 같은 방식(고사 당일 추첨)이라고 요강에 적혀 있어요.",
+          "host": "정쌤 연기레슨 블로그"
+        },
+        {
+          "text": "대기실에서 이름 대신 가번호를 받고 그 번호 순서로 진행돼요. 무대 바로 앞 복도에서 대기하는 동안에는 소리를 내서 연습할 수 없었다는 후기가 있어요.",
+          "category": "day_of",
+          "source_url": "https://m.blog.naver.com/actress1215/224150358175",
+          "source_type": "academy",
+          "corroborations": 1,
+          "verified_at": "2026-08-07",
+          "note": null,
+          "host": "정쌤 연기레슨 블로그"
+        },
+        {
+          "text": "실기를 보는 곳이 연습실이 아니라 객석이 수백 석인 극장이에요. 무대 조명이 밝고 소리가 울리며, 심사위원은 객석 가운데쯤에 앉아 있어서 무대에서는 표정이 잘 안 보일 만큼 거리가 멀다는 후기가 여럿이에요.",
+          "category": "place",
+          "source_url": "https://m.blog.naver.com/jbfamily300/221775306551",
+          "source_type": "academy",
+          "corroborations": 2,
+          "verified_at": "2026-08-07",
+          "note": null,
+          "host": "JB패밀리 연기학원 블로그"
+        },
+        {
+          "text": "무대 가운데에 카메라가 놓여 연기가 녹화돼요. 인사나 질의응답 없이 바로 연기를 시작하고 끝나면 나오는 방식이었다는 후기가 여럿이에요.",
+          "category": "day_of",
+          "source_url": "https://m.blog.naver.com/actress1215/224150358175",
+          "source_type": "academy",
+          "corroborations": 2,
+          "verified_at": "2026-08-07",
+          "note": null,
+          "host": "정쌤 연기레슨 블로그"
+        },
+        {
+          "text": "분장 금지 규정을 실제로 검사해요. 대기실로 들어가기 전에 몇 명씩 묶어 화장 검사를 받았다는 후기가 있어요.",
+          "category": "dress",
+          "source_url": "https://m.blog.naver.com/jbfamily300/221775306551",
+          "source_type": "academy",
+          "corroborations": 1,
+          "verified_at": "2026-08-07",
+          "note": null,
+          "host": "JB패밀리 연기학원 블로그"
+        },
+        {
+          "text": "지정 희곡은 해마다, 그리고 수시와 정시가 따로 바뀌어요. 2025 정시는 「안티고네」, 2026 수시는 「세자매」, 2026 정시는 「진홍빛소녀」였고 2027 수시가 「뜨거운 양철 지붕 위의 고양이」예요. 작년 자료를 그대로 쓰면 안 돼요.",
+          "category": "practice",
+          "source_url": "https://m.blog.naver.com/acting_huddling/223948008438",
+          "source_type": "academy",
+          "corroborations": 3,
+          "verified_at": "2026-08-07",
+          "note": null,
+          "host": "허들링 연기레슨 블로그"
+        },
+        {
+          "text": "1차 대기실에는 남녀 구분 없이 서른 명 안팎이 함께 들어가고, 거기서 다시 2차 대기실과 연습실을 거쳐 무대로 올라가요. 대기실을 여러 번 옮겨 다니는 구조라 짐을 최소한으로 챙기는 게 편해요.",
+          "category": "day_of",
+          "source_url": "https://m.blog.naver.com/actress1215/224150358175",
+          "source_type": "academy",
+          "corroborations": 2,
+          "verified_at": "2026-08-07",
+          "note": null,
+          "host": "정쌤 연기레슨 블로그"
+        }
+      ],
+      "resources": [
+        {
+          "kind": "article",
+          "title": "2026 경기대 연기예술학과 정시 나군 입시 연기 실기 고사 후기",
+          "url": "https://m.blog.naver.com/actress1215/224150358175",
+          "publisher": "개인 맞춤형 연기레슨 전문/연기학원",
+          "source_type": "academy",
+          "note": "실기 당일 1차·2차 대기실 이동과 지정대사 배부, 무대 환경이 순서대로 적혀 있어요.",
+          "verified_at": "2026-08-07"
+        },
+        {
+          "kind": "article",
+          "title": "2020 경기대 연기학과 정시실기 후기",
+          "url": "https://m.blog.naver.com/jbfamily300/221775306551",
+          "publisher": "jbfamily300 블로그",
+          "source_type": "personal",
+          "note": "수험생 본인이 쓴 후기예요. 대기실 이동 순서와 심사위원 위치가 나와요.",
+          "verified_at": "2026-08-07"
+        },
+        {
+          "kind": "article",
+          "title": "2025 경기대 연기학과 정시, 당일 추첨 대사<안티고네> 어떤 대사가 나올까?",
+          "url": "https://blog.naver.com/answering_method/223729124236",
+          "publisher": "연영과 연기 입시 합격의 본질│입시반윤쌤",
+          "source_type": "academy",
+          "note": "당일 추첨 방식으로 지정대사가 정해지던 해의 준비 글이에요.",
+          "verified_at": "2026-08-07"
+        },
+        {
+          "kind": "article",
+          "title": "2026 경기대학교 연기학과 입시요강 지정희곡 세자매 총정리",
+          "url": "https://m.blog.naver.com/acting_huddling/223948008438",
+          "publisher": "Huddling 허들링연기레슨",
+          "source_type": "academy",
+          "note": "지정희곡이 해마다 바뀐다는 걸 확인할 수 있는 직전 학년도 글이에요.",
+          "verified_at": "2026-08-07"
+        }
+      ]
     },
     {
       "id": "daejin",
@@ -1148,7 +1258,76 @@
       "admission_url": "https://ipsi.yongin.ac.kr",
       "verified_at": "2026-08-01",
       "region": "경기 용인",
-      "type": "univ"
+      "type": "univ",
+      "tips": [
+        {
+          "text": "1단계 지정대사는 시험 당일에야 받지만, 지난 몇 해 제시대사가 학원 블로그 등에 기출로 정리돼 공개돼 있어요. 2023~2025년 것을 보면 어떤 결의 글이 나오는지 미리 가늠할 수 있어요.",
+          "category": "practice",
+          "source_url": "https://m.blog.naver.com/actingpt/224011182348",
+          "source_type": "academy",
+          "corroborations": 1,
+          "verified_at": "2026-08-07",
+          "note": null
+        },
+        {
+          "text": "당일 받는 대사가 네다섯 줄 정도로 짧게 나온 해가 있어요. 분량이 적어도 시험시간은 2분이라 짧은 글을 어떻게 채우느냐가 그대로 드러나요.",
+          "category": "day_of",
+          "source_url": "https://blog.naver.com/kesen/223815895734",
+          "source_type": "academy",
+          "corroborations": 1,
+          "verified_at": "2026-08-07",
+          "note": null,
+          "host": "산연기학원 블로그"
+        },
+        {
+          "text": "1차 대기실을 거쳐 순서대로 들어가는 방식이고, 진행이 비교적 융통성 있어서 응시 시간대를 바꿔 준 사례가 있다는 후기가 있어요.",
+          "category": "day_of",
+          "source_url": "https://m.blog.naver.com/pmpspr/221509599060",
+          "source_type": "academy",
+          "corroborations": 2,
+          "verified_at": "2026-08-07",
+          "note": null,
+          "host": "극예술스튜디오 블로그"
+        }
+      ],
+      "resources": [
+        {
+          "kind": "article",
+          "title": "[합격 후기] 용인대학교 연극학과 합격 후기",
+          "url": "https://m.blog.naver.com/pmpspr/221509599060",
+          "publisher": "단장",
+          "source_type": "personal",
+          "note": null,
+          "verified_at": "2026-08-07"
+        },
+        {
+          "kind": "article",
+          "title": "용인대학교, 수원대학교 연극영화과 1단계 시험 후기 (2025학년도 수시)",
+          "url": "https://blog.naver.com/studio_speech_act/223607889123",
+          "publisher": "강남 배우교육 | 언화 연기학원",
+          "source_type": "academy",
+          "note": null,
+          "verified_at": "2026-08-07"
+        },
+        {
+          "kind": "article",
+          "title": "#용인대학교 연극학과 기출문제 알려드리겠습니다!",
+          "url": "https://m.blog.naver.com/actingpt/224011182348",
+          "publisher": "리디트 연기학원",
+          "source_type": "academy",
+          "note": "2023~2025년 1단계 제시대사가 이미지로 정리돼 있어요.",
+          "verified_at": "2026-08-07"
+        },
+        {
+          "kind": "article",
+          "title": "2025년 3월 5주차 연극영화과 입시 속보(서울예대/상명대/용인대)",
+          "url": "https://blog.naver.com/kesen/223815895734",
+          "publisher": "산연기학원",
+          "source_type": "academy",
+          "note": null,
+          "verified_at": "2026-08-07"
+        }
+      ]
     },
     {
       "id": "ckcollege",
@@ -1157,7 +1336,104 @@
       "verified_at": "2026-08-01",
       "region": "경기 이천",
       "note": "입학처가 자동 조회를 막아 둬서 전형 정보를 옮겨 오지 못했어요. 입학처 원문에서 직접 확인해 주세요.",
-      "type": "college"
+      "type": "college",
+      "tips": [
+        {
+          "text": "이천 캠퍼스는 이천역에서 다시 버스로 20분 남짓 더 들어가야 해요. 학교 안내로는 강남에서 판교까지 15분, 판교에서 경강선으로 이천까지 20분이 걸리고, 이천역에서 12번 버스나 통학버스를 타요.",
+          "category": "place",
+          "source_url": "https://www.ck.ac.kr/",
+          "source_type": "official",
+          "corroborations": 2,
+          "verified_at": "2026-08-07",
+          "note": null,
+          "host": "청강문화산업대 공식"
+        },
+        {
+          "text": "실기고사 날에 이천역과 학교를 오가는 무료 셔틀버스를 예약제로 돌린 해가 있어요. 입학처 공지에 예약 링크가 따로 올라오니 접수 뒤 공지를 챙겨 보는 게 좋아요.",
+          "category": "place",
+          "source_url": "https://ipsi.ck.ac.kr/",
+          "source_type": "official",
+          "corroborations": 1,
+          "verified_at": "2026-08-07",
+          "note": "예전 학년도 공지에서 확인한 내용이라 운영 여부가 해마다 달라질 수 있어요.",
+          "host": "청강문화산업대 공식"
+        },
+        {
+          "text": "실기 시간을 수험생이 직접 고르는 선착순 예약제로 운영한 해가 있어요. 이천까지 이동 시간이 긴 만큼 접수하자마자 예약해야 원하는 시간대를 잡을 수 있어요.",
+          "category": "strategy",
+          "source_url": "https://m.blog.naver.com/ees2mom/224022256816",
+          "source_type": "personal",
+          "corroborations": 1,
+          "verified_at": "2026-08-07",
+          "note": null
+        },
+        {
+          "text": "전공에 따라 실기 고사장이 학교가 아니라 킨텍스나 양재aT센터 같은 외부 대형 전시장에 차려진 해가 있어요. 이천으로 갈 거라고 미리 정하지 말고 고사장 공지를 확인해야 해요.",
+          "category": "place",
+          "source_url": "https://m.blog.naver.com/claniforce/224060061110",
+          "source_type": "academy",
+          "corroborations": 2,
+          "verified_at": "2026-08-07",
+          "note": "만화·콘텐츠 계열 실기에서 확인된 사례예요. 연기 전공도 같은지는 해당 학년도 공지로 확인하세요."
+        },
+        {
+          "text": "대기실에서 이름 대신 가번호를 받고 그 번호로 진행돼요. 고사장에는 교수 세 명이 앉아 있었고 응시자가 앉을 의자가 놓여 있었다는 후기가 있어요.",
+          "category": "day_of",
+          "source_url": "https://m.blog.naver.com/kesen/224069900880",
+          "source_type": "academy",
+          "corroborations": 1,
+          "verified_at": "2026-08-07",
+          "note": "같은 공연예술스쿨의 연출극작전공 후기라 연기 전공과 다를 수 있어요.",
+          "host": "산연기학원 블로그"
+        },
+        {
+          "text": "연극영상연기전공의 지정연기 대사는 미리 공개하지 않고 시험 당일 현장에서 줘요. 뮤지컬연기전공은 현장 실기와 영상 제출 중에 고를 수 있게 한 해가 있어서, 이천까지 가기 어렵다면 그 해 요강에 영상 제출이 열려 있는지 먼저 확인해 볼 만해요.",
+          "category": "strategy",
+          "source_url": "https://m.blog.naver.com/ees2mom/224022256816",
+          "source_type": "personal",
+          "corroborations": 2,
+          "verified_at": "2026-08-07",
+          "note": null
+        }
+      ],
+      "resources": [
+        {
+          "kind": "article",
+          "title": "청강대 공연예술스쿨(뮤지컬 연기,연극영상연기 전공)수시 1차 실기 준비 가이드",
+          "url": "https://m.blog.naver.com/ees2mom/224022256816",
+          "publisher": "es2mom",
+          "source_type": "personal",
+          "note": "실기 예약제 운영과 전공별 실기 형태가 정리돼 있어요.",
+          "verified_at": "2026-08-07"
+        },
+        {
+          "kind": "article",
+          "title": "2026학년도 수시 청강문화산업대학교 연출극작전공 - 실기 시험 후기",
+          "url": "https://m.blog.naver.com/kesen/224069900880",
+          "publisher": "공연예술 입시/전공생이 알면 좋은 내용들",
+          "source_type": "academy",
+          "note": "연기 전공은 아니지만 같은 공연예술스쿨의 실기 당일 진행이 나와요.",
+          "verified_at": "2026-08-07"
+        },
+        {
+          "kind": "article",
+          "title": "'인천 만화학원' [애니포스 청라캠퍼스] 입시반_2026학년도 청강대 실기 고사 현장 &후기!",
+          "url": "https://m.blog.naver.com/claniforce/224060061110",
+          "publisher": "만화학원 애니포스 청라캠퍼스",
+          "source_type": "academy",
+          "note": "다른 전공 고사장 현장 글이지만 청강대 실기 당일 운영 방식을 볼 수 있어요.",
+          "verified_at": "2026-08-07"
+        },
+        {
+          "kind": "article",
+          "title": "[홍대 연기 학원] 2026학년도 청강문화산업대학교 연극영상연기·뮤지컬 연기 전공 입시요강 총정리!",
+          "url": "https://m.blog.naver.com/newactingmusical/223996448283",
+          "publisher": "뉴연기학원",
+          "source_type": "academy",
+          "note": null,
+          "verified_at": "2026-08-07"
+        }
+      ]
     },
     {
       "id": "shinhan",
@@ -1369,7 +1645,7 @@
           "source_type": "personal",
           "corroborations": 1,
           "verified_at": "2026-08-07",
-          "note": "본인 응시 후기가 아니라 여러 후기를 모아 정리한 글이에요.",
+          "note": null,
           "host": "인포테이너 블로그"
         },
         {
@@ -1379,7 +1655,7 @@
           "source_type": "personal",
           "corroborations": 1,
           "verified_at": "2026-08-07",
-          "note": "본인 응시 후기가 아니라 여러 후기를 모아 정리한 글이에요.",
+          "note": null,
           "host": "인포테이너 블로그"
         },
         {
@@ -1399,7 +1675,7 @@
           "source_type": "personal",
           "corroborations": 1,
           "verified_at": "2026-08-07",
-          "note": "본인 응시 후기가 아니라 여러 후기를 모아 정리한 글이에요.",
+          "note": null,
           "host": "인포테이너 블로그"
         },
         {
@@ -1409,7 +1685,7 @@
           "source_type": "personal",
           "corroborations": 1,
           "verified_at": "2026-08-07",
-          "note": "본인 응시 후기가 아니라 여러 후기를 모아 정리한 글이에요.",
+          "note": null,
           "host": "인포테이너 블로그"
         }
       ]
@@ -1695,7 +1971,105 @@
       "type": "univ",
       "verified_at": "2026-08-04",
       "note": null,
-      "resources": []
+      "resources": [
+        {
+          "kind": "article",
+          "title": "2026 가천대 연기예술학과 수시전공 연기 실기 시험 후기",
+          "url": "https://m.blog.naver.com/actress1215/224019308588",
+          "publisher": "개인 맞춤형 연기레슨 전문/연기학원",
+          "source_type": "academy",
+          "note": "1차·2차·3차 대기실 이동과 남녀 고사장 차이가 적혀 있어요.",
+          "verified_at": "2026-08-07"
+        },
+        {
+          "kind": "article",
+          "title": "[2026 가천대 모집요강] 가천대학교 연기예술학과 입시요강, 지정희곡 총정리",
+          "url": "https://m.blog.naver.com/bornstarilsan/223902380008",
+          "publisher": "본스타일산캠퍼스",
+          "source_type": "academy",
+          "note": "직전 학년도 지정희곡 목록이 있어서 해마다 바뀐다는 걸 확인할 수 있어요.",
+          "verified_at": "2026-08-07"
+        },
+        {
+          "kind": "article",
+          "title": "[홍대_연기뮤지컬입시학원] 액터스톡 - 2026학년도 가천대학교 연기예술학과 수시 경쟁률",
+          "url": "https://m.blog.naver.com/actors_talk/224017564917",
+          "publisher": "액터스톡",
+          "source_type": "academy",
+          "note": null,
+          "verified_at": "2026-08-07"
+        }
+      ],
+      "tips": [
+        {
+          "text": "2단계 지정연기는 추첨이 아니에요. 지정 희곡 네 편 가운데 한 편을 고르고 역할과 장면까지 본인이 정해 2분 이내로 준비해요. 네 편을 다 준비할 필요는 없어요.",
+          "category": "practice",
+          "source_url": "https://m.blog.naver.com/bornstarilsan/223902380008",
+          "source_type": "academy",
+          "corroborations": 2,
+          "verified_at": "2026-08-07",
+          "note": null
+        },
+        {
+          "text": "지정 희곡 목록은 해마다 통째로 바뀌어요. 2026학년도에는 「처녀비행」·「서민귀족」·「굿닥터」·「고아 뮤즈들」이었고 2027학년도가 「리어왕」·「갈매기」·「동승」·「맹진사댁 경사」예요. 작년 분석 자료를 그대로 가져다 쓰면 안 돼요.",
+          "category": "practice",
+          "source_url": "https://m.blog.naver.com/bornstarilsan/223902380008",
+          "source_type": "academy",
+          "corroborations": 1,
+          "verified_at": "2026-08-07",
+          "note": null
+        },
+        {
+          "text": "1차 대기실이 실내 체육관처럼 아주 넓어요. 마흔에서 쉰 명 단위로 함께 들어가 가번호를 받고 음악 파일을 제출했다는 후기가 있어요.",
+          "category": "day_of",
+          "source_url": "https://m.blog.naver.com/actress1215/224019308588",
+          "source_type": "academy",
+          "corroborations": 1,
+          "verified_at": "2026-08-07",
+          "note": null,
+          "host": "정쌤 연기레슨 블로그"
+        },
+        {
+          "text": "2차 대기는 같은 체육관 안 칸막이 구역에서 하고 20분쯤 연습 시간을 줬다는 후기가 있어요. 그 뒤 고사장 앞 의자에서 자기 순서를 기다려요.",
+          "category": "day_of",
+          "source_url": "https://m.blog.naver.com/actress1215/224019308588",
+          "source_type": "academy",
+          "corroborations": 1,
+          "verified_at": "2026-08-07",
+          "note": null,
+          "host": "정쌤 연기레슨 블로그"
+        },
+        {
+          "text": "남녀 고사장이 서로 다른 공간이었다는 후기가 있어요. 한쪽은 마루 바닥에 천장이 낮아 소리가 울리는 연습실이었고, 다른 쪽은 조명이 센 블랙박스 극장이었어요.",
+          "category": "place",
+          "source_url": "https://m.blog.naver.com/actress1215/224019308588",
+          "source_type": "academy",
+          "corroborations": 1,
+          "verified_at": "2026-08-07",
+          "note": null,
+          "host": "정쌤 연기레슨 블로그"
+        },
+        {
+          "text": "1단계에서 연기와 특기를 이어서 하고 둘을 합쳐 2분을 넘기지 않게 끊었다는 후기가 있어요. 연기가 끝난 뒤 나이나 경력 같은 짧은 질문을 받기도 했어요.",
+          "category": "day_of",
+          "source_url": "https://m.blog.naver.com/actress1215/224019308588",
+          "source_type": "academy",
+          "corroborations": 1,
+          "verified_at": "2026-08-07",
+          "note": null,
+          "host": "정쌤 연기레슨 블로그"
+        },
+        {
+          "text": "복장 제한이 느슨한 편이지만 특기까지 같이 하는 경우가 많아, 몸을 크게 움직여도 되는 신축성 있는 옷을 입었다는 후기가 있어요.",
+          "category": "dress",
+          "source_url": "https://m.blog.naver.com/actress1215/224019308588",
+          "source_type": "academy",
+          "corroborations": 1,
+          "verified_at": "2026-08-07",
+          "note": null,
+          "host": "정쌤 연기레슨 블로그"
+        }
+      ]
     },
     {
       "id": "sungkyul",
@@ -1816,7 +2190,127 @@
       "type": "college",
       "verified_at": "2026-08-04",
       "note": "공연예술학부 아래 연극과·뮤지컬과·방송영화연기과를 따로 뽑아요. 입학처가 자동 조회를 막아 둬서 전형 정보를 옮겨 오지 못했어요. 입학처 원문에서 직접 확인해 주세요.",
-      "resources": []
+      "resources": [
+        {
+          "kind": "article",
+          "title": "동아방송예술대학교 연기과 합격 후기",
+          "url": "https://m.blog.naver.com/lkjfdsa94/223803564918",
+          "publisher": "통액터스아카데미",
+          "source_type": "academy",
+          "note": "대기실 세 단계와 고사장 환경이 순서대로 적혀 있어요.",
+          "verified_at": "2026-08-07"
+        },
+        {
+          "kind": "article",
+          "title": "동아방송예술대 입시/실기 리얼 후기",
+          "url": "https://m.blog.naver.com/singerjihyun/223722627803",
+          "publisher": "루트보컬스튜디오",
+          "source_type": "academy",
+          "note": null,
+          "verified_at": "2026-08-07"
+        },
+        {
+          "kind": "article",
+          "title": "동아방송예술대학교 수시 지원 전 꼭 알아야 할 것들",
+          "url": "https://m.blog.naver.com/yoursunnysky/223953711927",
+          "publisher": "우루서니",
+          "source_type": "personal",
+          "note": null,
+          "verified_at": "2026-08-07"
+        },
+        {
+          "kind": "article",
+          "title": "2026정시 동아방송예술대학교 실기 준비? 합격생 루틴·준비물·점수컷",
+          "url": "https://m.blog.naver.com/patent0104/224105775999",
+          "publisher": "나는엄마다",
+          "source_type": "personal",
+          "note": null,
+          "verified_at": "2026-08-07"
+        },
+        {
+          "kind": "article",
+          "title": "동아방송예술대학교 공식 블로그",
+          "url": "https://blog.naver.com/dongah97",
+          "publisher": "동아방송예술대학교",
+          "source_type": "official",
+          "note": "실기·면접 고사 기간 셔틀버스 안내가 이 블로그에 올라와요.",
+          "verified_at": "2026-08-07"
+        }
+      ],
+      "tips": [
+        {
+          "text": "대기실을 세 번 거쳐요. 1차에서 수험표와 신분증을 확인하고 짐을 맡기고, 2차에서 당일 제시 대사를 받아 15분쯤 연습하면 대사를 다시 걷어 가요. 3차 대기실에서 대사를 한 번 더 나눠 주고 주의사항을 들은 뒤 들어가요.",
+          "category": "day_of",
+          "source_url": "https://m.blog.naver.com/lkjfdsa94/223803564918",
+          "source_type": "academy",
+          "corroborations": 1,
+          "verified_at": "2026-08-07",
+          "note": null
+        },
+        {
+          "text": "고사장은 큰 연습실 정도 크기이고 소리가 울리는 편이에요. 교수 다섯 명 정도가 앉아 있었고 심사위원들끼리 이야기를 나누는 등 분위기가 딱딱하지 않았다는 후기가 있어요.",
+          "category": "place",
+          "source_url": "https://m.blog.naver.com/lkjfdsa94/223803564918",
+          "source_type": "academy",
+          "corroborations": 1,
+          "verified_at": "2026-08-07",
+          "note": null
+        },
+        {
+          "text": "지정연기·자유연기·특기를 이어서 하는데 심사위원이 중간에 끊는 경우가 있어요. 연기가 끝나면 질의응답도 함께 진행돼요.",
+          "category": "day_of",
+          "source_url": "https://m.blog.naver.com/lkjfdsa94/223803564918",
+          "source_type": "academy",
+          "corroborations": 1,
+          "verified_at": "2026-08-07",
+          "note": null
+        },
+        {
+          "text": "안성 캠퍼스는 안성종합버스터미널에서 시내버스 37·37-1·370·380번으로 15분 남짓 거리예요. 학교가 실기·면접 고사 기간에 터미널 건너편 정류장과 학교를 오가는 셔틀버스를 운영한다고 공식 블로그에 안내한 해가 있고, 강남역과 학교를 잇는 광역버스 4402번도 다녀요.",
+          "category": "place",
+          "source_url": "https://blog.naver.com/dongah97",
+          "source_type": "official",
+          "corroborations": 2,
+          "verified_at": "2026-08-07",
+          "note": null
+        },
+        {
+          "text": "버스에서 내린 뒤에도 걸어 들어가는 거리가 꽤 있어요. 대중교통으로 갈 거면 도착 시각을 넉넉히 잡으라는 후기가 있어요.",
+          "category": "place",
+          "source_url": "https://m.blog.naver.com/singerjihyun/223722627803",
+          "source_type": "academy",
+          "corroborations": 1,
+          "verified_at": "2026-08-07",
+          "note": null
+        },
+        {
+          "text": "다섯에서 여섯 명씩 묶어 고사실 앞으로 옮긴 뒤 복도에서 기다렸다가 한 명씩 들어가는 방식이에요. 실기 기간 자체가 수시는 닷새에서 엿새, 정시는 나흘에서 이레로 길게 잡혀 있어 하루에 도는 인원이 많아요.",
+          "category": "day_of",
+          "source_url": "https://m.blog.naver.com/singerjihyun/223722627803",
+          "source_type": "academy",
+          "corroborations": 1,
+          "verified_at": "2026-08-07",
+          "note": null
+        },
+        {
+          "text": "USB에 담아 온 음악은 대기실에서 본인 확인을 마친 뒤 진행 노트북으로 옮겨요. 대기실에서는 소리 내어 목을 푸는 게 허용됐고 진행 스태프가 말을 많이 걸어 줬다는 후기가 있어요.",
+          "category": "day_of",
+          "source_url": "https://m.blog.naver.com/singerjihyun/223722627803",
+          "source_type": "academy",
+          "corroborations": 1,
+          "verified_at": "2026-08-07",
+          "note": null
+        },
+        {
+          "text": "학과에 따라 고사장 구성이 달라요. 연기과 후기에서는 교수 다섯 명이 앉아 있었다고 하고, 노래를 보는 쪽 후기에서는 심사위원이 세 명이었다고 해요. MR 소리가 목소리보다 작고 먹먹하게 들렸다는 언급도 있어요.",
+          "category": "place",
+          "source_url": "https://m.blog.naver.com/singerjihyun/223722627803",
+          "source_type": "academy",
+          "corroborations": 2,
+          "verified_at": "2026-08-07",
+          "note": "학과별·학년도별로 다를 수 있어요."
+        }
+      ]
     },
     {
       "id": "kyungmin",
