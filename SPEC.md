@@ -218,7 +218,7 @@ M1이 이 표를 소스에서 추출해 fixture로 만든다. 이후 사이클�
 
 **숫자를 완료 조건으로 쓰지 않는다.** 위 47이라는 값도 추출 방식에 따라 흔들린다(동적 502, admin 기본 401, 멀티라인 detail). committed OpenAPI는 41 operations이며 admin 2개는 `ADMIN_OPS_TOKEN`이 있을 때만 등록된다(`app.py:create_app`, `admin.py:build_router`). **소스/OpenAPI에서 생성한 inventory의 집합 동등성으로 판정**하고, 조건부 라우트는 프로파일별 inventory를 따로 둔다.
 
-### 6-3. unknown key 정책 — 전역 reject 금지
+### 6-3. unknown key 정책 — 전역 reject + DTO별 예외
 
 요청 바디 17개 중 **5개가 unknown key를 허용**한다(`additionalProperties`가 `false`가 아님):
 

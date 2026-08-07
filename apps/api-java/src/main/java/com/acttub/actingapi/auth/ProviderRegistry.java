@@ -1,0 +1,3 @@
+package com.acttub.actingapi.auth;
+import java.util.*; import org.springframework.stereotype.Component;
+@Component public class ProviderRegistry {private final Map<String,ProviderVerifier> verifiers=new HashMap<>();public ProviderRegistry(List<ProviderVerifier> values){values.forEach(v->verifiers.put(v.provider(),v));} public ProviderIdentity verify(String provider,String token){ProviderVerifier v=verifiers.get(provider.toLowerCase());if(v==null)throw new UnsupportedProviderError("unsupported provider: "+provider);return v.verify(token);} public Set<String> providers(){return Set.copyOf(verifiers.keySet());}}

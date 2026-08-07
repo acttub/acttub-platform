@@ -35,7 +35,7 @@ import org.springframework.transaction.annotation.Transactional;
  * 그래서 M0 은 예외를 <b>트랜잭션 경계 바깥</b>에서 잡는 구조를 채택했다
  * ({@link ReportOperationService}).
  */
-@SpringBootTest
+@SpringBootTest(properties = "JWT_SECRET=test-secret")
 class NaiveTransactionTrapIT {
 
     @DynamicPropertySource

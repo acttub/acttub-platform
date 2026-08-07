@@ -23,6 +23,7 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-web")
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
     implementation("org.springframework.boot:spring-boot-starter-validation")
+    implementation("org.springframework.boot:spring-boot-starter-oauth2-resource-server")
     implementation("org.flywaydb:flyway-core")
     implementation("org.flywaydb:flyway-database-postgresql")
     implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.6")
@@ -83,6 +84,15 @@ tasks.withType<Test>().configureEach {
 
 tasks.named<org.springframework.boot.gradle.tasks.bundling.BootJar>("bootJar") {
     archiveFileName = "acting-api.jar"
+}
+
+// consent 문서는 Python 원본의 manifest가 정본이다. 빌드 산출물에는 복사해 넣되
+// rollback 경로인 apps/api 파일 자체는 수정하지 않는다.
+tasks.named<org.gradle.language.jvm.tasks.ProcessResources>("processResources") {
+    from("../api/acting-api/consent_docs") {
+        include("manifest.json", "terms_v1.md", "privacy_v2.md", "ai_analysis_v1.md")
+        into("consent-docs")
+    }
 }
 
 /**

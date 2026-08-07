@@ -28,13 +28,18 @@ spring:
     # /SPEC.md §6 #3 — null 필드를 키째 실어보낸다. NON_NULL 을 전역으로 켜지 않는다.
     default-property-inclusion: always
     deserialization:
-      # 전역 거부로 두고, unknown key 를 허용하는 7개 DTO 만
+      # 전역 거부로 두고, unknown key 를 허용하는 5개 DTO 만
       # @JsonIgnoreProperties(ignoreUnknown = true) 로 연다 (/SPEC.md §6-3).
       # 반대 방향(전역 허용 + DTO 별 거부)은 Jackson 이 표현하지 못한다 —
       # ignoreUnknown=false 는 "전역을 따르라"는 뜻이라 거부를 강제하지 못한다.
       fail-on-unknown-properties: true
     serialization:
       write-dates-as-timestamps: false
+  web:
+    resources:
+      add-mappings: false
+  mvc:
+    throw-exception-if-no-handler-found: true
 
 springdoc:
   api-docs:

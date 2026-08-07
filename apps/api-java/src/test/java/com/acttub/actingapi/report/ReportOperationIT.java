@@ -51,7 +51,7 @@ import org.springframework.test.context.DynamicPropertySource;
  * 사전 SELECT 로 잡히는 경로와 INSERT 시점에 {@code reports_session_id_key} 로 터지는 경로는
  * 서로 다른 코드 경로이고, 바깥에서 보면 둘 다 {@code null} 이다.
  */
-@SpringBootTest
+@SpringBootTest(properties = "JWT_SECRET=test-secret")
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class ReportOperationIT {
 

@@ -1,0 +1,4 @@
+package com.acttub.actingapi.auth;
+import java.util.concurrent.ConcurrentHashMap; import java.util.concurrent.atomic.AtomicBoolean; import java.util.function.LongSupplier; import org.springframework.stereotype.Component;
+/** monotonic 시계 기반 분당 고정 윈도우. compute로 같은 key의 증감을 원자화한다. */
+@Component public class FixedWindowRateLimiter {private record Counter(long window,int count){} private final ConcurrentHashMap<String,Counter> counters=new ConcurrentHashMap<>();private final LongSupplier nanoClock;public FixedWindowRateLimiter(){this(System::nanoTime);} public FixedWindowRateLimiter(LongSupplier nanoClock){this.nanoClock=nanoClock;} public boolean allow(String key,int limit){long window=nanoClock.getAsLong()/60_000_000_000L;AtomicBoolean allowed=new AtomicBoolean();counters.compute(key,(ignored,old)->{int count=old==null||old.window()!=window?1:old.count()+1;allowed.set(count<=limit);return new Counter(window,count);});return allowed.get();}}

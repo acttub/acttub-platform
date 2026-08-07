@@ -52,8 +52,7 @@ public final class AlembicSchema {
      * @param databaseName 만들 DB 이름
      */
     public static List<String> materializeFingerprint(String databaseName) {
-        PostgresContainerSupport.createDatabase(databaseName);
-        upgradeHead(databaseName);
+        materializeDatabase(databaseName);
         try (Connection connection = DriverManager.getConnection(
                 PostgresContainerSupport.jdbcUrlFor(databaseName),
                 PostgresContainerSupport.POSTGRES.getUsername(),
@@ -62,6 +61,13 @@ public final class AlembicSchema {
         } catch (SQLException exc) {
             throw new IllegalStateException("failed to read the alembic schema fingerprint", exc);
         }
+    }
+
+    /** 빈 DB를 만든 뒤 현재 alembic HEAD까지 올리고 JDBC URL을 돌려준다. */
+    public static String materializeDatabase(String databaseName) {
+        PostgresContainerSupport.createDatabase(databaseName);
+        upgradeHead(databaseName);
+        return PostgresContainerSupport.jdbcUrlFor(databaseName);
     }
 
     private static void upgradeHead(String databaseName) {

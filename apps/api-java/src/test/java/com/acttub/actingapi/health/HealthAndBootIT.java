@@ -53,6 +53,7 @@ class HealthAndBootIT {
         context = new SpringApplicationBuilder(ActingApiApplication.class)
                 .properties(
                         "DATABASE_URL=" + databaseUrl,
+                        "JWT_SECRET=test-secret",
                         "server.port=0",
                         "GEMINI_MODEL=gemini-2.5-flash")
                 .run();
