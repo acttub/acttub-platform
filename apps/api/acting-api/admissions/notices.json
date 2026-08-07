@@ -2634,6 +2634,15 @@
           "source_type": "personal",
           "note": null,
           "verified_at": "2026-08-07"
+        },
+        {
+          "kind": "article",
+          "title": "[연극영화과 입시] 2024학년도(작년) 정시 전문대학교 연기과·뮤지컬과 예비번호 추가합격 결과",
+          "url": "https://blog.naver.com/kesen/223752756787",
+          "publisher": "산연기학원 블로그",
+          "source_type": "academy",
+          "note": "학원이 전문대 연기·뮤지컬과의 모집인원·지원인원·추가합격 번호를 표로 정리한 글이에요.",
+          "verified_at": "2026-08-07"
         }
       ],
       "tips": [
@@ -2708,6 +2717,16 @@
           "corroborations": 4,
           "verified_at": "2026-08-07",
           "note": null
+        },
+        {
+          "text": "지원자가 아주 많은 학과예요. 한 학원이 정리한 2024학년도 정시 결과를 보면 연극영상학과 일반 전형은 10명 모집에 975명이 지원했고 추가합격은 4번까지, 전문대졸 전형은 15명 모집에 97명이 지원해 8번까지 돌았어요. 예비번호를 받았다면 앞 번호가 아닌 이상 기대를 크게 걸기는 어려운 편이에요.",
+          "category": "strategy",
+          "source_url": "https://blog.naver.com/kesen/223752756787",
+          "source_type": "academy",
+          "corroborations": 1,
+          "verified_at": "2026-08-07",
+          "note": "학원이 정리한 2024학년도 정시 자료라 연도에 따라 달라질 수 있어요.",
+          "host": "산연기학원 블로그"
         }
       ]
     },
@@ -2925,7 +2944,35 @@
       "type": "college",
       "verified_at": "2026-08-04",
       "note": "영상연기예술학부 소속 3년제예요. 입학처가 자동 조회를 막아 둬서 전형 정보를 옮겨 오지 못했어요. 입학처 원문에서 직접 확인해 주세요.",
-      "resources": []
+      "resources": [
+        {
+          "kind": "video",
+          "title": "숭의여자대학교 연기예술과 📌실기고사 예약안내📌",
+          "url": "https://www.youtube.com/watch?v=XmihK0q8FAk",
+          "publisher": "숭의여자대학교 연기예술과",
+          "source_type": "official",
+          "note": "실기고사 일시를 직접 예약하는 절차를 학과가 직접 설명한 영상이에요.",
+          "verified_at": "2026-08-07"
+        },
+        {
+          "kind": "video",
+          "title": "🍀연기예술과☘️ 학과소개",
+          "url": "https://www.youtube.com/watch?v=X3NdqYuGWm8",
+          "publisher": "숭의여자대학교 연기예술과",
+          "source_type": "official",
+          "note": null,
+          "verified_at": "2026-08-07"
+        },
+        {
+          "kind": "post",
+          "title": "[2026 숭의여대 ✨연기예술과✨ 수시모집]",
+          "url": "https://blog.naver.com/sewc_acting/224025900295",
+          "publisher": "숭의여자대학교 연기예술과 블로그",
+          "source_type": "official",
+          "note": "학과가 직접 운영하는 블로그의 수시 모집 안내예요.",
+          "verified_at": "2026-08-07"
+        }
+      ]
     },
     {
       "id": "jeonghwa",
@@ -3004,7 +3051,35 @@
       "type": "college",
       "verified_at": "2026-08-04",
       "note": "평생교육법상 전공대학이에요. 다른 곳에 나오는 '뮤지컬과'는 지금은 없어요.",
-      "resources": []
+      "resources": [
+        {
+          "kind": "video",
+          "title": "2021학년도 국제예술대학교 연기예술과 수시2차 1단계 비대면 실기고사 예시 영상",
+          "url": "https://www.youtube.com/watch?v=-t6y7FZap4g",
+          "publisher": "국제예술대학교Kukje University of Arts",
+          "source_type": "official",
+          "note": "코로나 시기 비대면 실기 안내 영상이라 현재 방식과는 다를 수 있어요.",
+          "verified_at": "2026-08-07"
+        },
+        {
+          "kind": "video",
+          "title": "연기예술과 재학생이 들려주는 [진짜 연기예술과]",
+          "url": "https://www.youtube.com/watch?v=vcJnGeJOzpY",
+          "publisher": "국제예술대학교Kukje University of Arts",
+          "source_type": "official",
+          "note": null,
+          "verified_at": "2026-08-07"
+        },
+        {
+          "kind": "video",
+          "title": "국제예술대학교 연기예술과 1분 알아보기",
+          "url": "https://www.youtube.com/watch?v=450tHnjazNk",
+          "publisher": "국제예술대학교Kukje University of Arts",
+          "source_type": "official",
+          "note": null,
+          "verified_at": "2026-08-07"
+        }
+      ]
     },
     {
       "id": "gachon",
@@ -4261,6 +4336,15 @@
           "source_type": "personal",
           "note": null,
           "verified_at": "2026-08-07"
+        },
+        {
+          "kind": "article",
+          "title": "[연극영화과 입시] 2024학년도(작년) 정시 전문대학교 연기과·뮤지컬과 예비번호 추가합격 결과",
+          "url": "https://blog.naver.com/kesen/223752756787",
+          "publisher": "산연기학원 블로그",
+          "source_type": "academy",
+          "note": "학원이 전문대 연기·뮤지컬과의 모집인원·지원인원·추가합격 번호를 표로 정리한 글이에요.",
+          "verified_at": "2026-08-07"
         }
       ],
       "tips": [
@@ -4326,6 +4410,16 @@
           "corroborations": 3,
           "verified_at": "2026-08-07",
           "note": null
+        },
+        {
+          "text": "전공별로 따로 뽑기 때문에 경쟁 상황이 전공마다 달라요. 한 학원이 정리한 2024학년도 정시 결과를 보면 세 전공 모두 15명씩 뽑았는데 지원자는 연극전공 537명, 방송연예전공 228명, 뮤지컬전공 160명이었고, 추가합격은 뮤지컬전공이 23번까지로 가장 많이 돌았어요.",
+          "category": "strategy",
+          "source_url": "https://blog.naver.com/kesen/223752756787",
+          "source_type": "academy",
+          "corroborations": 1,
+          "verified_at": "2026-08-07",
+          "note": "학원이 정리한 2024학년도 정시 자료라 연도에 따라 달라질 수 있어요.",
+          "host": "산연기학원 블로그"
         }
       ]
     },
@@ -4338,7 +4432,46 @@
       "type": "college",
       "verified_at": "2026-08-04",
       "note": "3년제 연기영상과예요.",
-      "resources": []
+      "resources": [
+        {
+          "kind": "video",
+          "title": "[ 2025 수원과학대학교 연기영상과 홍보영상 ]",
+          "url": "https://www.youtube.com/watch?v=hlovb9AI6a8",
+          "publisher": "수원과학대학교 연기영상과",
+          "source_type": "official",
+          "note": null,
+          "verified_at": "2026-08-07"
+        },
+        {
+          "kind": "post",
+          "title": "[수원과학대학교] 항공관광과/연기영상과 수시1차 면접 및 실기고사",
+          "url": "https://blog.naver.com/sscackr/223237045697",
+          "publisher": "수원과학대학교 공식 블로그",
+          "source_type": "official",
+          "note": "고사 당일 대학이 올린 짧은 안내 글이에요.",
+          "verified_at": "2026-08-07"
+        },
+        {
+          "kind": "post",
+          "title": "[수원과학대학교][연기영상과] 2, 3학년 젊은연극제 참가작 <허물>",
+          "url": "https://blog.naver.com/sscackr/224003705307",
+          "publisher": "수원과학대학교 공식 블로그",
+          "source_type": "official",
+          "note": null,
+          "verified_at": "2026-08-07"
+        }
+      ],
+      "tips": [
+        {
+          "text": "수시 1차 실기고사는 면접을 보는 항공관광과와 같은 날 같은 캠퍼스에서 함께 치러져요. 대학 공식 블로그가 여러 해에 걸쳐 두 학과 고사를 같은 날로 안내해서, 당일 캠퍼스에 다른 학과 수험생이 많이 섞인다고 보면 돼요.",
+          "category": "place",
+          "source_url": "https://blog.naver.com/sscackr/223237045697",
+          "source_type": "official",
+          "corroborations": 2,
+          "verified_at": "2026-08-07",
+          "note": null
+        }
+      ]
     },
     {
       "id": "swwu",
@@ -4349,7 +4482,26 @@
       "type": "college",
       "verified_at": "2026-08-04",
       "note": "옛 연기영상과는 2027학년도부터 뽑지 않고 방송공연예술과로 바뀌었어요.",
-      "resources": []
+      "resources": [
+        {
+          "kind": "video",
+          "title": "수원여자대학교 연기영상과┃이곳이 브로드웨이다!┃2022학년도 학과 STORY🤞",
+          "url": "https://www.youtube.com/watch?v=oy4nLAXCjMQ",
+          "publisher": "수원여자대학교",
+          "source_type": "official",
+          "note": "방송공연예술과의 전신인 연기영상과를 소개한 대학 공식 영상이에요.",
+          "verified_at": "2026-08-07"
+        },
+        {
+          "kind": "video",
+          "title": "[VLOG] 수원여자대학교 연기영상과 | 🥇 2024 치어리딩 비하인드🤸🏻‍♀️",
+          "url": "https://www.youtube.com/watch?v=Zwh736Et_LY",
+          "publisher": "수원여대 연기영상과 연홍단",
+          "source_type": "personal",
+          "note": "재학생 동아리가 올린 학과 일상 영상이에요.",
+          "verified_at": "2026-08-07"
+        }
+      ]
     },
     {
       "id": "kmu",
@@ -4923,7 +5075,35 @@
       "type": "univ",
       "verified_at": "2026-08-04",
       "note": "입학처가 자동 조회를 막아 둬서 전형 정보를 옮겨 오지 못했어요. 입학처 원문에서 직접 확인해 주세요.",
-      "resources": []
+      "resources": [
+        {
+          "kind": "video",
+          "title": "[실기/실적전형] 2026학년도 전주대학교 수시모집 실기/실적전형 안내",
+          "url": "https://www.youtube.com/watch?v=_5InCbQecMM",
+          "publisher": "전주대학교",
+          "source_type": "official",
+          "note": "대학이 만든 2026학년도 안내 영상이라 2027학년도와 다를 수 있어요.",
+          "verified_at": "2026-08-07"
+        },
+        {
+          "kind": "link",
+          "title": "면접/실기",
+          "url": "https://iphak.jj.ac.kr/iphak/early/interview.do",
+          "publisher": "전주대학교 입학처",
+          "source_type": "official",
+          "note": "면접 기출문제·실기 안내 자료가 모이는 입학처 게시판이에요.",
+          "verified_at": "2026-08-07"
+        },
+        {
+          "kind": "link",
+          "title": "공연예술학과",
+          "url": "https://arts.jj.ac.kr/arts/index.do",
+          "publisher": "전주대학교 공연예술학과",
+          "source_type": "official",
+          "note": null,
+          "verified_at": "2026-08-07"
+        }
+      ]
     },
     {
       "id": "kdu",
@@ -4934,7 +5114,35 @@
       "type": "univ",
       "verified_at": "2026-08-04",
       "note": "학과 안에 연기·뮤지컬·연출 전공이 있지만 모집단위는 학과 하나예요.",
-      "resources": []
+      "resources": [
+        {
+          "kind": "video",
+          "title": "[극동대학교 연극연기학과] 2025학년도 극동대학교 연극연기학과 입시 Q&A !! 입시생 친구들이 궁금한 점들만 싹 모아서 왔습니다!",
+          "url": "https://www.youtube.com/watch?v=FrNx6W09SsE",
+          "publisher": "극동대학교연극연기학과",
+          "source_type": "official",
+          "note": "학과가 직접 만든 입시 Q&A 영상이에요. 2025학년도 기준이에요.",
+          "verified_at": "2026-08-07"
+        },
+        {
+          "kind": "link",
+          "title": "극동대학교연극연기학과",
+          "url": "https://www.youtube.com/@kdu_acting_theater_",
+          "publisher": "극동대학교연극연기학과",
+          "source_type": "official",
+          "note": "학과 공식 유튜브 채널이에요.",
+          "verified_at": "2026-08-07"
+        },
+        {
+          "kind": "link",
+          "title": "연극연기학과",
+          "url": "https://www.kdu.ac.kr/acting/main.do",
+          "publisher": "극동대학교",
+          "source_type": "official",
+          "note": null,
+          "verified_at": "2026-08-07"
+        }
+      ]
     },
     {
       "id": "mokwon",
@@ -4945,7 +5153,35 @@
       "type": "univ",
       "verified_at": "2026-08-04",
       "note": "뮤지컬은 따로 뽑지 않고 성악과 묶인 모집단위예요.",
-      "resources": []
+      "resources": [
+        {
+          "kind": "video",
+          "title": "[목원대학교 학과소개] 연극영화영상학부 학과 홍보영상",
+          "url": "https://www.youtube.com/watch?v=KicH_3krUE4",
+          "publisher": "목원대학교",
+          "source_type": "official",
+          "note": null,
+          "verified_at": "2026-08-07"
+        },
+        {
+          "kind": "link",
+          "title": "연극영화영상학부 (영화영상전공, 연기전공)",
+          "url": "https://www.mokwon.ac.kr/kr/html/sub01/010204.html",
+          "publisher": "목원대학교 문화콘텐츠대학",
+          "source_type": "official",
+          "note": null,
+          "verified_at": "2026-08-07"
+        },
+        {
+          "kind": "link",
+          "title": "[스탭스터디] 2019년 수시 목원대 합격생 실기시험 후기",
+          "url": "https://staffstudy.com/admitted-student/practical-examination-test/?mod=document&uid=659",
+          "publisher": "스탭스터디연극영상학원",
+          "source_type": "personal",
+          "note": "합격생 본인이 쓴 후기를 학원 사이트가 모아 둔 게시판 글이에요. 연극전공이 아니라 같은 학부 영화 계열 실기 후기이고 2019학년도 기준이라 지금과 다를 수 있어요.",
+          "verified_at": "2026-08-07"
+        }
+      ]
     },
     {
       "id": "baekseok",
@@ -5106,7 +5342,66 @@
       "type": "univ",
       "verified_at": "2026-08-04",
       "note": "공식 명칭은 연극예술학과예요. 뮤지컬학과는 연극예술학과로 합쳐져 따로 뽑지 않아요. 입학처가 자동 조회를 막아 둬서 전형 정보를 옮겨 오지 못했어요. 입학처 원문에서 직접 확인해 주세요.",
-      "resources": []
+      "resources": [
+        {
+          "kind": "link",
+          "title": "청운대학교 연극예술학과 - 합격 후기",
+          "url": "https://www.univ100.kr/admission/118",
+          "publisher": "대학백과",
+          "source_type": "personal",
+          "note": "합격생 본인들이 쓴 짧은 후기를 대학백과가 모아 둔 목록이에요.",
+          "verified_at": "2026-08-07"
+        },
+        {
+          "kind": "video",
+          "title": "청운대 연극예술학과 미리 준비하기! (필수 질의응답 체크 및 정시 모집요강 & 연극영화과)",
+          "url": "https://www.youtube.com/watch?v=wU-MaWUi5SY",
+          "publisher": "배우들의 연기노트",
+          "source_type": "academy",
+          "note": "연기 교육 채널이 만든 15초짜리 짧은 영상이고 5년 전 자료예요.",
+          "verified_at": "2026-08-07"
+        },
+        {
+          "kind": "link",
+          "title": "[청운대학교연기전공/연극영화과수시] 2024학년도 청운대학교 연극예술학과 연기전공 수시 모집요강",
+          "url": "https://www.filmmakers.co.kr/actorsinfo/17643595",
+          "publisher": "필름메이커스",
+          "source_type": "academy",
+          "note": "연기학원이 정리해 올린 지난 학년도 요강 요약 글이에요.",
+          "verified_at": "2026-08-07"
+        },
+        {
+          "kind": "link",
+          "title": "청운대학교 연극예술학과 (@cwu_theatre.official)",
+          "url": "https://www.instagram.com/cwu_theatre.official/",
+          "publisher": "청운대학교 연극예술학과",
+          "source_type": "official",
+          "note": null,
+          "verified_at": "2026-08-07"
+        }
+      ],
+      "tips": [
+        {
+          "text": "요강의 실기 과제에는 안 적혀 있지만 실기 자리에서 질의응답을 받았고 그게 연기보다 부담이었다는 후기가 있어요.",
+          "category": "day_of",
+          "source_url": "https://www.univ100.kr/admission/118/view/28778",
+          "source_type": "personal",
+          "corroborations": 2,
+          "verified_at": "2026-08-07",
+          "note": "2022학년도 수시 합격생 후기이고, 연기 교육 채널 영상도 청운대 질의응답 준비를 따로 다뤄요. 2027학년도 요강 실기 과제에는 질의응답이 명시돼 있지 않아요.",
+          "host": "대학백과 (비누커리어 주식회사 운영 입시 커뮤니티)"
+        },
+        {
+          "text": "예비 번호가 한참 뒤였는데 추가합격으로 들어왔다는 후기가 있어요. 지방 소재 학교라 최초합자 이탈이 많다는 게 후기 쪽 설명이에요.",
+          "category": "strategy",
+          "source_url": "https://www.univ100.kr/admission/118/view/30380",
+          "source_type": "personal",
+          "corroborations": 1,
+          "verified_at": "2026-08-07",
+          "note": "2023학년도 수시 합격생 후기예요.",
+          "host": "대학백과 (비누커리어 주식회사 운영 입시 커뮤니티)"
+        }
+      ]
     },
     {
       "id": "semyung",
@@ -5117,7 +5412,64 @@
       "type": "univ",
       "verified_at": "2026-08-04",
       "note": "2027학년도부터 연기예술학과에서 공연예술학과로 이름이 바뀌어요. 실기고사는 서울 대학로에서 봐요.",
-      "resources": []
+      "resources": [
+        {
+          "kind": "link",
+          "title": "[실기전형] 연기예술학과",
+          "url": "https://www.semyung.ac.kr/prog/interview/ipsi/sub01_07_02/smenterSearch.do",
+          "publisher": "세명대학교 입학홈페이지",
+          "source_type": "official",
+          "note": "고사장 주소·개인별 고사시간 조회·입실 시각이 여기에 안내돼요.",
+          "verified_at": "2026-08-07"
+        },
+        {
+          "kind": "link",
+          "title": "세명대학교 공연예술학과",
+          "url": "https://www.semyung.ac.kr/act.do",
+          "publisher": "세명대학교 공연예술학과",
+          "source_type": "official",
+          "note": null,
+          "verified_at": "2026-08-07"
+        },
+        {
+          "kind": "link",
+          "title": "서울대학로 민송아트홀 > 민송아트홀 소개",
+          "url": "https://www.semyung.ac.kr/smenter/sub05_01.do",
+          "publisher": "세명대학교",
+          "source_type": "official",
+          "note": "학과 통합으로 연기예술학과 페이지로 넘어가라는 안내가 붙어 있어요.",
+          "verified_at": "2026-08-07"
+        }
+      ],
+      "tips": [
+        {
+          "text": "실기고사장이 제천 본교가 아니라 서울 종로구 대학로 144 중원빌딩에 있는 민송아트홀이라, 수도권에서 가면 당일 이동으로 충분해요.",
+          "category": "place",
+          "source_url": "https://www.semyung.ac.kr/prog/interview/ipsi/sub01_07_02/smenterSearch.do",
+          "source_type": "official",
+          "corroborations": 2,
+          "verified_at": "2026-08-07",
+          "note": "대학 입학홈페이지 실기전형 안내와 민송아트홀 소개 페이지에서 같은 주소가 확인돼요."
+        },
+        {
+          "text": "실기는 오후에 시작하고 개인별 고사 시각이 따로 배정되기 때문에, 공지가 뜨면 조회 시스템에서 본인 시간을 확인해야 해요.",
+          "category": "day_of",
+          "source_url": "https://www.semyung.ac.kr/prog/interview/ipsi/sub01_07_02/smenterSearch.do",
+          "source_type": "official",
+          "corroborations": 1,
+          "verified_at": "2026-08-07",
+          "note": "직전 학년도 안내는 오후 1시부터 시작이었어요."
+        },
+        {
+          "text": "대학이 안내하는 도착 기준은 본인 고사 시작 30분 전이지만, 대학로까지 오는 이동 시간을 감안해 더 여유 있게 오라고 덧붙이고 있어요.",
+          "category": "day_of",
+          "source_url": "https://www.semyung.ac.kr/prog/interview/ipsi/sub01_07_02/smenterSearch.do",
+          "source_type": "official",
+          "corroborations": 1,
+          "verified_at": "2026-08-07",
+          "note": null
+        }
+      ]
     },
     {
       "id": "sangmyung",
@@ -5238,7 +5590,96 @@
       "type": "univ",
       "verified_at": "2026-08-04",
       "note": "학과는 하나지만 지원할 때 실기 유형을 연출제작과 연기 중에 골라요. 입학처가 자동 조회를 막아 둬서 전형 정보를 옮겨 오지 못했어요. 입학처 원문에서 직접 확인해 주세요.",
-      "resources": []
+      "resources": [
+        {
+          "kind": "link",
+          "title": "순천향대학교 공연영상학과 - 합격 후기",
+          "url": "https://www.univ100.kr/admission/114/4454",
+          "publisher": "대학백과",
+          "source_type": "personal",
+          "note": "합격생 본인들이 쓴 짧은 후기를 대학백과가 모아 둔 목록이에요.",
+          "verified_at": "2026-08-07"
+        },
+        {
+          "kind": "link",
+          "title": "[스탭스터디] 2018년 수시 순천향대 합격생 실기시험 후기",
+          "url": "https://staffstudy.com/admitted-student/practical-examination-test/?mod=document&uid=715",
+          "publisher": "스탭스터디연극영상학원",
+          "source_type": "personal",
+          "note": "합격생 본인 후기를 학원 사이트가 모아 둔 글이에요. 연기 유형이 아니라 영화영상연출 계열 후기예요.",
+          "verified_at": "2026-08-07"
+        },
+        {
+          "kind": "link",
+          "title": "[스탭스터디] 2019년 수시 순천향대 합격생 실기시험 후기",
+          "url": "https://staffstudy.com/admitted-student/practical-examination-test/?mod=document&uid=664",
+          "publisher": "스탭스터디연극영상학원",
+          "source_type": "personal",
+          "note": "합격생 본인 후기이고, 역시 영화영상연출 계열이에요.",
+          "verified_at": "2026-08-07"
+        },
+        {
+          "kind": "link",
+          "title": "순천향대학교 미디어랩스 공연영상학과",
+          "url": "https://home.sch.ac.kr/film/index.jsp",
+          "publisher": "순천향대학교 공연영상학과",
+          "source_type": "official",
+          "note": null,
+          "verified_at": "2026-08-07"
+        }
+      ],
+      "tips": [
+        {
+          "text": "준비한 자유표현만 보고 끝나지 않고, 심사위원이 그 자리에서 이것저것 더 시켜 보는 경우가 있다는 후기가 있어요.",
+          "category": "day_of",
+          "source_url": "https://www.univ100.kr/admission/114/4454/view/37626",
+          "source_type": "personal",
+          "corroborations": 1,
+          "verified_at": "2026-08-07",
+          "note": "2026학년도 정시 합격생 후기예요.",
+          "host": "대학백과 (비누커리어 주식회사 운영 입시 커뮤니티)"
+        },
+        {
+          "text": "질의응답에서 준비한 답변 밖의 질문이 나오는 편이고, 특기와 연결된 즉석 질문(예: 악기를 다룰 수 있는지)을 여러 지원자가 같은 해에 받았다는 후기가 있어요.",
+          "category": "day_of",
+          "source_url": "https://www.univ100.kr/admission/114/4454/view/32838",
+          "source_type": "personal",
+          "corroborations": 1,
+          "verified_at": "2026-08-07",
+          "note": "2024학년도 수시 합격생 후기이고, 본인 동기들도 같은 질문을 받았다고 적혀 있어요.",
+          "host": "대학백과 (비누커리어 주식회사 운영 입시 커뮤니티)"
+        },
+        {
+          "text": "자유표현 제한 시간을 다 쓰기 전에 종료 신호가 울린 적이 있다는 후기가 있어서, 앞부분에서 승부를 볼 수 있게 구성해 두는 편이 안전해요.",
+          "category": "practice",
+          "source_url": "https://www.univ100.kr/admission/114/4454/view/27831",
+          "source_type": "personal",
+          "corroborations": 1,
+          "verified_at": "2026-08-07",
+          "note": "2022학년도 합격생 후기라 지금 요강의 시간 배분과 다를 수 있어요.",
+          "host": "대학백과 (비누커리어 주식회사 운영 입시 커뮤니티)"
+        },
+        {
+          "text": "추가합격이 여러 차례 돌아서 예비 번호가 뒤쪽이었는데도 최종 합격한 사례가 서로 다른 학년도에 나와요.",
+          "category": "strategy",
+          "source_url": "https://www.univ100.kr/admission/114/4454",
+          "source_type": "personal",
+          "corroborations": 2,
+          "verified_at": "2026-08-07",
+          "note": "2022학년도 후기는 4차 이상 추합, 2026학년도 후기는 2차 추합이에요.",
+          "host": "대학백과 (비누커리어 주식회사 운영 입시 커뮤니티)"
+        },
+        {
+          "text": "입실 마감 시각이 지나면 고사실 문을 닫아 버린다는 후기가 있어요.",
+          "category": "day_of",
+          "source_url": "https://staffstudy.com/admitted-student/practical-examination-test/?mod=document&uid=715",
+          "source_type": "personal",
+          "corroborations": 1,
+          "verified_at": "2026-08-07",
+          "note": "2018학년도 영화영상연출 계열 후기예요. 연기 유형에도 같은지는 확인되지 않았어요.",
+          "host": "스탭스터디 실기시험 후기 게시판"
+        }
+      ]
     },
     {
       "id": "daejeon",
@@ -5249,7 +5690,26 @@
       "type": "univ",
       "verified_at": "2026-08-04",
       "note": "'공연예술콘텐츠학과'는 옛 이름이에요.",
-      "resources": []
+      "resources": [
+        {
+          "kind": "link",
+          "title": "대전대학교 공연예술영상콘텐츠학과",
+          "url": "https://www.dju.ac.kr/dpac/main.do",
+          "publisher": "대전대학교 공연예술영상콘텐츠학과",
+          "source_type": "official",
+          "note": null,
+          "verified_at": "2026-08-07"
+        },
+        {
+          "kind": "link",
+          "title": "대전대학교 입학처",
+          "url": "https://ipsi.dju.ac.kr/",
+          "publisher": "대전대학교 입학처",
+          "source_type": "official",
+          "note": "학년도별 실기고사 문제가 자료실에 PDF로 올라와요.",
+          "verified_at": "2026-08-07"
+        }
+      ]
     },
     {
       "id": "howon",
@@ -5260,7 +5720,67 @@
       "type": "univ",
       "verified_at": "2026-08-04",
       "note": "공연미디어학부에 연기·기획연출·뮤지컬 전공이 있어요. 입학처가 자동 조회를 막아 둬서 전형 정보를 옮겨 오지 못했어요. 입학처 원문에서 직접 확인해 주세요.",
-      "resources": []
+      "resources": [
+        {
+          "kind": "link",
+          "title": "호원대 공연미디어학부 연기전공",
+          "url": "https://perform.howon.kr/page/page11",
+          "publisher": "호원대학교 공연미디어학부",
+          "source_type": "official",
+          "note": null,
+          "verified_at": "2026-08-07"
+        },
+        {
+          "kind": "link",
+          "title": "호원대학교 공연미디어학부 - 합격 후기",
+          "url": "https://www.univ100.kr/admission/131/5106",
+          "publisher": "대학백과",
+          "source_type": "personal",
+          "note": "합격생 본인들이 쓴 짧은 후기 모음이에요. 연기전공보다 기획·연출전공 후기가 많아요.",
+          "verified_at": "2026-08-07"
+        },
+        {
+          "kind": "link",
+          "title": "12년 수시 호원대학교 공연미디어학부 기획,연출전공 합격생 실기시험 후기",
+          "url": "https://staffstudy.com/admitted-student/practical-examination-test/?mod=document&uid=825",
+          "publisher": "스탭스터디연극영상학원",
+          "source_type": "personal",
+          "note": "합격생 본인 후기를 학원 사이트가 모아 둔 글이에요. 2012학년도 기획·연출전공 기준이라 오래됐어요.",
+          "verified_at": "2026-08-07"
+        }
+      ],
+      "tips": [
+        {
+          "text": "공연미디어학부 수시 실기·면접을 군산 본교가 아니라 서울에서 치른 사례가 오래전부터 있어요. 2027학년도 요강도 수시 실기 장소를 서울 성내동 호원취업지원센터로 적어 뒀어요.",
+          "category": "place",
+          "source_url": "https://staffstudy.com/admitted-student/practical-examination-test/?mod=document&uid=825",
+          "source_type": "personal",
+          "corroborations": 2,
+          "verified_at": "2026-08-07",
+          "note": "2012학년도 후기와 2027학년도 요강이 같은 방향을 가리켜요. 다만 요강에 장소가 변경될 수 있다고 적혀 있어요.",
+          "host": "스탭스터디 실기시험 후기 게시판"
+        },
+        {
+          "text": "서울 고사장에서는 접수하고 대기실에서 기다리다가 차례가 되면 다른 대기실로 옮긴 뒤 고사실에 들어가는 식으로 두 번 대기했다는 후기가 있어요.",
+          "category": "day_of",
+          "source_url": "https://staffstudy.com/admitted-student/practical-examination-test/?mod=document&uid=825",
+          "source_type": "personal",
+          "corroborations": 1,
+          "verified_at": "2026-08-07",
+          "note": "2012학년도 기획·연출전공 후기라 연기전공과 다를 수 있어요.",
+          "host": "스탭스터디 실기시험 후기 게시판"
+        },
+        {
+          "text": "면접에서 외워 온 답변을 그대로 읊는 것보다 지원자가 평소 무슨 생각을 하는지를 더 듣고 싶어했다는 후기가 있어요.",
+          "category": "day_of",
+          "source_url": "https://www.univ100.kr/admission/131/5106/view/33357",
+          "source_type": "personal",
+          "corroborations": 1,
+          "verified_at": "2026-08-07",
+          "note": "2024학년도 정시 공연미디어학부 합격생 후기예요. 연기전공이 아닐 수 있어요.",
+          "host": "대학백과 (비누커리어 주식회사 운영 입시 커뮤니티)"
+        }
+      ]
     },
     {
       "id": "dongshin",
@@ -5271,7 +5791,35 @@
       "type": "univ",
       "verified_at": "2026-08-04",
       "note": "실용음악과 합쳐진 학과라 연기만 뽑는 모집단위가 아니에요. 실기도 보컬·댄스·연기·연주 중에 하나를 골라요. 입학처가 자동 조회를 막아 둬서 전형 정보를 옮겨 오지 못했어요. 입학처 원문에서 직접 확인해 주세요.",
-      "resources": []
+      "resources": [
+        {
+          "kind": "link",
+          "title": "동신대학교 뮤지컬·실용음악학과",
+          "url": "https://music.dsu.ac.kr/music/",
+          "publisher": "동신대학교 뮤지컬·실용음악학과",
+          "source_type": "official",
+          "note": "학과 홈페이지 안에 입학Q&A 게시판이 있어서 실기 관련 질문을 직접 물어볼 수 있어요.",
+          "verified_at": "2026-08-07"
+        },
+        {
+          "kind": "video",
+          "title": "무대 위의 별⭐ 동신대 뮤지컬·실용음악학과 졸업생 인터뷰",
+          "url": "https://www.youtube.com/watch?v=3hDIvbXy8ZI",
+          "publisher": "동신대학교",
+          "source_type": "official",
+          "note": null,
+          "verified_at": "2026-08-07"
+        },
+        {
+          "kind": "link",
+          "title": "동신대뮤지컬실용음악학과 (@dsu_ent)",
+          "url": "https://www.instagram.com/dsu_ent/",
+          "publisher": "동신대학교 뮤지컬·실용음악학과",
+          "source_type": "official",
+          "note": null,
+          "verified_at": "2026-08-07"
+        }
+      ]
     },
     {
       "id": "youngsan",
@@ -5282,7 +5830,26 @@
       "type": "univ",
       "verified_at": "2026-08-04",
       "note": "대학 페이지와 입학처의 모집단위 이름이 달라서 공식 명칭을 확정하지 못했어요.",
-      "resources": []
+      "resources": [
+        {
+          "kind": "link",
+          "title": "연기공연예술전공",
+          "url": "https://acting-performingarts.ysu.ac.kr/acting-performingarts/Main.do",
+          "publisher": "영산대학교",
+          "source_type": "official",
+          "note": "2027학년도 모집단위명은 K-공연방송미디어학과로 바뀌었어요.",
+          "verified_at": "2026-08-07"
+        },
+        {
+          "kind": "link",
+          "title": "와이즈유(영산대학교) 입학처",
+          "url": "https://apm.ysu.ac.kr/",
+          "publisher": "영산대학교 입학처",
+          "source_type": "official",
+          "note": null,
+          "verified_at": "2026-08-07"
+        }
+      ]
     },
     {
       "id": "daekyeung-namyangju",
