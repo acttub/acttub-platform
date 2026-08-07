@@ -8,7 +8,7 @@ from pydantic import BaseModel, ConfigDict, model_validator
 from starlette.concurrency import run_in_threadpool
 
 from acting_agent import engine as coach_engine
-from acting_agent.router import CoachReplyReq, CoachStartReq
+from acting_agent.schema import CoachReplyReq, CoachStartReq
 from acting_agent.store import SessionWriteConflict
 from acting_api.db.store import LeaseOwnershipError
 from acting_api.sync_operations import (

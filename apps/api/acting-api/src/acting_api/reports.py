@@ -19,8 +19,12 @@ from acting_api.sync_operations import (
     sync_request_fingerprint,
 )
 from acting_report import engine as report_engine
-from acting_report.router import ReportReq
-from acting_report.schema import AnalysisReport, BlockedReport, ExpressionReport
+from acting_report.schema import (
+    AnalysisReport,
+    BlockedReport,
+    ExpressionReport,
+    ReportReq,
+)
 
 
 class _StrictResponse(BaseModel):

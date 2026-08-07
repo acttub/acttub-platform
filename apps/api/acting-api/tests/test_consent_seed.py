@@ -8,11 +8,9 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.exc import IntegrityError
 
-from acting_agent.config import Settings as AgentSettings
 from acting_api.app import create_app
 from acting_api.config import GatewaySettings
 from acting_api.consents import seed_consent_documents
-from acting_report.config import Settings as ReportSettings
 from acting_summary.config import Settings as SummarySettings
 from api_test_support import FakeClient
 from auth_test_support import FakeAuthStore
@@ -170,8 +168,6 @@ def test_app_lifespan_seeds_documents_idempotently(tmp_path):
             consent_docs_dir=docs_dir,
         ),
         summary_settings=SummarySettings(api_key="k", model="m"),
-        agent_settings=AgentSettings(api_key="k", model="m"),
-        report_settings=ReportSettings(api_key="k", model="m"),
         store=store,
     )
 
@@ -193,8 +189,6 @@ def test_app_lifespan_continues_when_manifest_is_missing(tmp_path):
             consent_docs_dir=tmp_path / "missing",
         ),
         summary_settings=SummarySettings(api_key="k", model="m"),
-        agent_settings=AgentSettings(api_key="k", model="m"),
-        report_settings=ReportSettings(api_key="k", model="m"),
         store=store,
     )
 
