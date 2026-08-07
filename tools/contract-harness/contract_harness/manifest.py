@@ -20,8 +20,6 @@ def key(source_tail: str, symbol: str, status, detail) -> str:
 
 
 API = "acting-api/src/acting_api"
-AGENT = "acting-agent/src/acting_agent"
-SUMMARY = "acting-summary/src/acting_summary"
 
 
 @dataclass(frozen=True)
@@ -574,19 +572,6 @@ CASES: tuple[Case, ...] = (
 
 
 EXCLUSIONS: tuple[Exclusion, ...] = (
-    Exclusion(
-        (
-            key(f"{AGENT}/router.py", "build_router.coach_reply", 404, "session not found"),
-            key(f"{AGENT}/router.py", "build_router.coach_reply", 409,
-                "session changed concurrently"),
-            key(f"{AGENT}/router.py", "build_router.coach_start", 404,
-                "practice session not found"),
-            key(f"{SUMMARY}/router.py", "build_router.summarize_endpoint", 502, "str(exc)"),
-            key(f"{SUMMARY}/router.py", "build_router.summarize_endpoint", 504, "str(exc)"),
-        ),
-        "acting-agent·acting-summary 자체 라우터는 게이트웨이에 마운트되지 않는다. "
-        "v1 경로는 404 가 계약이다(/SPEC.md §6 #14).",
-    ),
     Exclusion(
         (key(f"{API}/app.py", "_mount_static_frontend.serve_frontend", 404, None),),
         "STATIC_DIR 이 설정된 배포에서만 등록되는 catch-all 이다. contract 프로파일은 "
