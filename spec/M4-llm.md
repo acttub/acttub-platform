@@ -30,8 +30,12 @@
 
 | 엔드포인트 | 이유 |
 |---|---|
-| `POST /v2/coach/start`, `/v2/coach/reply` | Gemini 호출 (`coaching.py:build_router.coach_start`·`.coach_reply`) |
-| **`POST /v2/reports`** | Gemini 호출 (`reports.py:build_router.create_report`). 저장 계층은 M3에서 완료 |
+| `POST /v2/coach/start`, `/v2/coach/reply` | **OpenAI** 호출 (`coaching.py:build_router.coach_start`·`.coach_reply` → `acting-agent/engine.py:_generate_validated`) |
+| **`POST /v2/reports`** | **OpenAI** 호출 (`reports.py:build_router.create_report`). 저장 계층은 M3에서 완료 |
+
+> 🔁 이 표는 1차 개정에서 "Gemini 호출"로 남아 있어 위 §공급자 표(`acting-agent`·`acting-report` = OpenAI)와 모순이었다. `SOMA-302` 이후 **이 세 엔드포인트에 Gemini는 관여하지 않는다.**
+>
+> `coach_start`는 🔁 **LLM을 호출하지 않는 경로가 하나 더 있다** — 열린 코치 세션을 이어받는 resume 분기(`SOMA-304`). 이식할 때 이 분기에서 생성 호출이 새지 않아야 한다. 판정 근거는 `spec/M1-harness.md`의 코치 resume 시나리오다.
 
 ## 산출물
 
@@ -137,6 +141,17 @@ Gemini에 나가는 요청 전체를 캡처해 Python과 비교한다. 실호출
 - [ ] 워커: **`/SPEC.md` §5-7 전이표 5행 각각을 테스트**
 - [ ] **`run_once()` 동기 훅** 제공
 - [ ] **`ANALYSIS_WORKER_ENABLED` 스위치** 제공
+- [ ] 🔎 **M1이 정의한 제어 표면 5개를 contract 프로파일에서 제공한다** — `run-worker-once`·`run-sweep`·`stub-state`·`advance-clock`·`db-projection` (`spec/M1-harness.md` §백엔드 adapter 계약). **transport 형태는 Python 하네스 어댑터와 동일해야 한다.** 이게 없으면 M1 하네스가 Java를 구동할 수 없다
+  - **M1이 확정한 transport**: `POST /__harness/<name>`, 요청·응답 모두 JSON. 요청 바디는 `advance-clock`이 `{"seconds": N}`, `db-projection`이 `{"include": [...]}`, 나머지는 `{}`다. 응답 키는 `run-worker-once` → `{"processed": n}`, `run-sweep` → `{"expired_uploads": n, "exhausted_operations": n}`, `advance-clock` → `{"offset_sec": n}`, `stub-state`·`db-projection`은 `tools/contract-harness/contract_harness/wrapper.py:BackendRuntime.control`·`.db_projection`의 형상을 그대로 따른다
+  - **외부 의존 스텁의 값은 `tools/contract-harness/contract_harness/fixtures/*.json`에서 읽는다.** 언어가 달라도 같은 파일을 읽으면 같은 값이 나온다. LLM 스텁의 분기 마커(`[[coach:complete]]` 등)와 S3 head/download 규칙(object key 접미사)이 그 파일에 정의돼 있다
+- [ ] 🔎 **LLM 스텁 게이트**: 프롬프트에 `[[stub:block]]`이 있으면 스텁이 신호가 올 때까지 멈춘다. 클레임을 잡은 뒤 LLM을 부르는 구조라, 이 게이트가 **sync operation이 running인 구간**을 결정적으로 만드는 유일한 훅이다(409 `request is still processing` 다섯 지점의 근거). 해제·재무장은 `stub-state`의 payload(`{"release": true}` / `{"rearm": true}`)로 하고, `stub-state` 응답에 `blocked`·`in_block`·`timed_out`을 싣는다. 게이트에는 상한 시간을 둬 신호를 못 받아도 매달리지 않는다
+- [ ] 🔎 **M1 에서 java 대상이라 못 돌린 검증이 여기서는 돌아야 한다.** M1 시점 java 는 `/health` 뿐이라 아래가 실제로 실행되지 않았다. 하네스 쪽 배선은 이미 되어 있으므로(`tools/contract-harness/contract_harness/cli.py` 의 실행 경로가 백엔드 종류와 무관하게 부른다) 남은 것은 java 쪽 조건뿐이다
+  - **seed parity** — 하네스가 java contract 프로파일의 스키마 이름을 알아야 두 스키마 시드 지문을 대조할 수 있다. 지금은 "스키마 이름을 모른다"는 사유로 건너뛴다
+  - **오류 계약 manifest·unknown key·레이트리밋 오염 검사** — 해당 시나리오가 java 에서 실제로 돌아야 판정이 생긴다. 시나리오가 안 돈 케이스는 조용히 통과하지 않고 건너뛴 것으로 보고된다
+  - **openapi 전 문서 semantic 비교** — `--only` 없이 돌리면 커밋된 계약 전체와 비교한다. M1 에서는 `--only /health` 슬라이스만 비교했다
+- [ ] 🔎 **contract 프로파일의 DB 스키마 이름을 하네스가 알 수 있어야 한다.** 하네스는 시간·중간 상태를 만들 때 시계를 앞당기는 대신 대상 스키마에 직접 붙어 **이름 붙은 조작**을 건다(`tools/contract-harness/contract_harness/dbops.py`: `expire_upload_intent`·`steal_lease`·`delete_practice_reports`·`inject_marker_into_handoff`). 만료 판정이 시계가 아니라 DB 값을 보기 때문에(`uploads.py:build_router.complete_intent`) 이 경로가 시계 주입보다 정확하다
+- [ ] 🔎 **contract 프로파일에서 백그라운드 워커가 뜨지 않는다.** 시간 의존 동작은 `advance-clock`으로만 일어난다
+- [ ] 🔎 **제어 표면이 운영 프로파일에 노출되지 않는다** — loopback 전용이며 기본 프로파일에서 라우트가 등록되지 않음을 테스트로 단언
 - [ ] 외부 호출이 트랜잭션 밖에 있다 (커넥션 점유 시간으로 확인)
 - [ ] **M1 하네스 전량 통과** — 여기서 처음으로 전 시나리오가 관문이 된다
 - [ ] `openapi.json` diff 0 (datetime 통일 제외)

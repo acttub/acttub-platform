@@ -104,6 +104,61 @@ jobs:
           TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
         run: uv run --package acting-api pytest acting-api/tests/test_db_store.py
 
+  # M1 계약 동등성 하네스(tools/contract-harness). M2 이후 모든 사이클의 완료 판정이
+  # 여기에 의존하므로, 하네스 자신이 깨지면 이관 전체의 판정 근거가 사라집니다.
+  contract-harness:
+    name: contract-harness (self-test · diff 0)
+    runs-on: ubuntu-latest
+    env:
+      HARNESS_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+      PYTHONPATH: ${{ github.workspace }}/tools/contract-harness
+    services:
+      postgres:
+        # 운영 RDS와 같은 메이저(/SPEC.md §2). alembic이 여기에 스키마 두 벌을 만듭니다.
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: astral-sh/setup-uv@v9.0.0
+        with:
+          python-version: "3.11"
+          enable-cache: true
+
+      - name: Sync deps
+        working-directory: apps/api
+        run: uv sync --frozen --all-packages
+
+      # 리포터·정규화·inventory 단위 테스트. DB가 필요 없습니다.
+      - name: 단위 테스트
+        working-directory: tools/contract-harness
+        run: ../../apps/api/.venv/bin/python -m pytest tests -q
+
+      # AST inventory의 모든 항목이 manifest에 연결되거나 명시적 제외 사유를 갖는지.
+      - name: 오류 계약 manifest 연결 검사
+        working-directory: tools/contract-harness
+        run: ../../apps/api/.venv/bin/python -m contract_harness --check-manifest
+
+      # 같은 FastAPI 앱을 두 독립 스키마에 대해 돌려 전 시나리오 diff 0 + 41개 operation 커버리지.
+      - name: 자기 동일성 (diff 0)
+        working-directory: tools/contract-harness
+        run: ../../apps/api/.venv/bin/python -m contract_harness --baseline fastapi --target fastapi
+
+      # 의도적으로 변조한 백엔드를 지정된 계층이 잡는지.
+      - name: 변조 감지 self-test
+        working-directory: tools/contract-harness
+        run: ../../apps/api/.venv/bin/python -m contract_harness --self-test
+
   # SOMA-287(Spring Boot 이관)의 이관 대상. 이 잡이 없던 동안 Java 통합 테스트 17개가
   # 깨진 채로 dev가 초록이었습니다 — 이관이 끝날 때까지 여기가 유일한 관문입니다.
   api-java:

@@ -1,0 +1,104 @@
+{
+  "patch /v2/community/comments/{comment_id}": {
+    "additional_properties": false,
+    "allows_unknown": false,
+    "component": "CommentWriteRequest",
+    "required_body": true
+  },
+  "patch /v2/community/posts/{post_id}": {
+    "additional_properties": false,
+    "allows_unknown": false,
+    "component": "PostUpdateRequest",
+    "required_body": true
+  },
+  "patch /v2/me": {
+    "additional_properties": false,
+    "allows_unknown": false,
+    "component": "UpdateMeRequest",
+    "required_body": true
+  },
+  "post /v2/auth/login": {
+    "additional_properties": true,
+    "allows_unknown": true,
+    "component": "LoginRequest",
+    "required_body": true
+  },
+  "post /v2/auth/logout": {
+    "additional_properties": true,
+    "allows_unknown": true,
+    "component": "LogoutRequest",
+    "required_body": true
+  },
+  "post /v2/auth/refresh": {
+    "additional_properties": true,
+    "allows_unknown": true,
+    "component": "RefreshRequest",
+    "required_body": true
+  },
+  "post /v2/coach/confirm": {
+    "additional_properties": false,
+    "allows_unknown": false,
+    "component": "CoachConfirmReq",
+    "required_body": true
+  },
+  "post /v2/coach/reply": {
+    "additional_properties": false,
+    "allows_unknown": false,
+    "component": "CoachReplyReq",
+    "required_body": true
+  },
+  "post /v2/coach/start": {
+    "additional_properties": false,
+    "allows_unknown": false,
+    "component": "CoachStartReq",
+    "required_body": true
+  },
+  "post /v2/community/blocks": {
+    "additional_properties": false,
+    "allows_unknown": false,
+    "component": "BlockRequest",
+    "required_body": true
+  },
+  "post /v2/community/posts": {
+    "additional_properties": false,
+    "allows_unknown": false,
+    "component": "PostWriteRequest",
+    "required_body": true
+  },
+  "post /v2/community/posts/{post_id}/comments": {
+    "additional_properties": false,
+    "allows_unknown": false,
+    "component": "CommentWriteRequest",
+    "required_body": true
+  },
+  "post /v2/community/reports": {
+    "additional_properties": false,
+    "allows_unknown": false,
+    "component": "ReportRequest",
+    "required_body": true
+  },
+  "post /v2/consents": {
+    "additional_properties": true,
+    "allows_unknown": true,
+    "component": "ConsentRequest",
+    "required_body": true
+  },
+  "post /v2/practice-sessions": {
+    "additional_properties": false,
+    "allows_unknown": false,
+    "component": "PracticeSessionRequest",
+    "required_body": true
+  },
+  "post /v2/reports": {
+    "additional_properties": false,
+    "allows_unknown": false,
+    "component": "ReportReq",
+    "required_body": true
+  },
+  "post /v2/uploads/intents": {
+    "additional_properties": true,
+    "allows_unknown": true,
+    "component": "UploadIntentRequest",
+    "required_body": true
+  }
+}

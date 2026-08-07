@@ -10,7 +10,7 @@ LLM에 의존하지 않는 엔드포인트를 이식한다. **`db/store.py` 2,11
 
 ## 범위 — LLM 경로는 전부 M4
 
-`/v2/coach/*`(2개)와 **`POST /v2/reports`**는 Gemini를 호출하므로(`coaching.py:build_router.coach_reply`, `reports.py:build_router.create_report`) M3에서 구현할 수 없다. M3에서는 **저장 계층만** 만들고 엔드포인트 노출은 M4가 한다.
+`/v2/coach/*`(2개)와 **`POST /v2/reports`**는 **OpenAI**를 호출하므로(`coaching.py:build_router.coach_reply`, `reports.py:build_router.create_report` → `acting-llm/openai_client.py:generate_text`) M3에서 구현할 수 없다. M3에서는 **저장 계층만** 만들고 엔드포인트 노출은 M4가 한다.
 
 이 때문에 **M3의 완료 기준은 "하네스 전량 통과"가 아니라 "구현된 path 집합에 대한 통과"다.** 전 플로우 시나리오는 coach·report 생성을 거치므로 M3에서는 구조적으로 완주할 수 없다. 전량 통과는 M4에서 처음 관문이 된다.
 
@@ -40,6 +40,7 @@ LLM에 의존하지 않는 엔드포인트를 이식한다. **`db/store.py` 2,11
    - **커넥션 풀 크기를 1로 제한**해 같은 커넥션으로 즉시 새 트랜잭션이 성공하는지 확인 (Postgres가 aborted 상태로 남지 않음)
 2. **`create_practice_session_with_analysis_operation`** — 보상 로직(`db/store.py:PostgresStore.create_practice_session_with_analysis_operation`). 유사 구조가 `db/store.py:PostgresStore.create_analysis_retry_operation`에 복제되어 있으므로 **둘을 함께** 본다
 3. **`_save_coach_session` + `_load_session`** — `FOR SHARE OF` + 턴 전량 값 비교. 저장 계층만
+   - 🔁 `SOMA-304`로 코치 저장 계층에 셋이 붙었다: 신규 `db/store.py:PostgresStore.get_oldest_open_coach_session`(`created_at, id` 순 + `hidden_at IS NULL` + 소유권 조인), `.complete_coach_start_operation`의 `restart` 인자(같은 연습 세션의 열린 코치 세션을 일괄 `closed` 전이), 그리고 응답에 실리는 턴 전량(`coaching.py:PublicCoachTurn`). **정렬 기준과 일괄 전이 범위가 곧 계약이다**
 4. **`claim_next_external_operation`** — 워커는 M4가 쓰지만 저장 계층은 여기서. lease 전이표(`/SPEC.md` §5-7)를 그대로 구현한다
 5. **`_ensure_alias`** — 아래 별도 항목
 

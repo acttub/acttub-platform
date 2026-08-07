@@ -1,0 +1,48 @@
+{
+  "practice_sessions.py:_idempotent_response": [
+    {
+      "condition": "operation_status == 'succeeded'",
+      "details": [],
+      "statuses": [
+        200
+      ]
+    },
+    {
+      "condition": "operation_status in {'pending', 'running'}",
+      "details": [],
+      "statuses": [
+        202
+      ]
+    },
+    {
+      "condition": "operation_status == 'failed'",
+      "details": [
+        "analysis_retry_exhausted"
+      ],
+      "statuses": [
+        202,
+        409
+      ]
+    },
+    {
+      "condition": "not resumed",
+      "details": [
+        "analysis_retry_exhausted"
+      ],
+      "statuses": [
+        409
+      ]
+    }
+  ],
+  "sync_operations.py:_existing_operation_response": [
+    {
+      "condition": "status == 'running' and (operation.lease_token is not None and operation.lease_expires_at is not None and (operation.lease_expires_at >= now))",
+      "details": [
+        "request is still processing"
+      ],
+      "statuses": [
+        409
+      ]
+    }
+  ]
+}
