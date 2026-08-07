@@ -12,6 +12,38 @@ import type { SceneContext } from '@/lib/api';
  * 만들면 간격과 색이 조금씩 어긋나서 한곳에 둔다.
  */
 
+/**
+ * 번호가 붙은 3단계 스텝퍼 — ①영상 올리기 ②장면 적기 ③질문 받기.
+ *
+ * 업로드 화면에 이게 없어서, 다음 화면의 '3단계 · 질문 받기' 가 맥락 없이 튀어나왔다.
+ * 지나온 단계는 체크로, 지금 단계는 진하게 둔다.
+ */
+export function Stepper({ current }: { current: 1 | 2 | 3 }) {
+  const labels = ['영상 올리기', '장면 적기', '질문 받기'];
+  return (
+    <View style={styles.stepper}>
+      {labels.map((label, index) => {
+        const step = (index + 1) as 1 | 2 | 3;
+        const passed = step < current;
+        const active = step === current;
+        return (
+          <View key={label} style={styles.stepperItem}>
+            {index > 0 && <View style={styles.stepperLine} />}
+            <View style={[styles.circle, (passed || active) && styles.circleOn]}>
+              <Text style={[styles.circleText, (passed || active) && styles.circleTextOn]}>
+                {passed ? '✓' : step}
+              </Text>
+            </View>
+            <Text style={[styles.stepperLabel, active && styles.stepperLabelOn]}>
+              {label}
+            </Text>
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
 /** 3단계 진행 막대. 지금 단계만 길고 진하다. */
 export function ProgressRow({
   label,
@@ -134,6 +166,23 @@ export function PracticeFooter() {
 }
 
 const styles = StyleSheet.create({
+  stepper: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  stepperItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  stepperLine: { width: 20, height: 1, backgroundColor: palette.border, marginRight: 2 },
+  circle: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: palette.bgSoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  circleOn: { backgroundColor: palette.blue },
+  circleText: { fontSize: 11, fontWeight: '900', color: palette.textFaint },
+  circleTextOn: { color: palette.bg },
+  stepperLabel: { fontSize: 12, fontWeight: '700', color: palette.textFaint },
+  stepperLabelOn: { fontWeight: '900', color: palette.text },
+
   progress: {
     flexDirection: 'row',
     alignItems: 'center',
