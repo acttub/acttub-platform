@@ -1,6 +1,5 @@
-import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { useVideoPlayer, VideoView } from 'expo-video';
+import { useVideoPlayer, VideoView, type VideoSource } from 'expo-video';
 
 import { palette } from '@/constants/palette';
 import type { SceneContext } from '@/lib/api';
@@ -86,8 +85,12 @@ export function SceneFoldLink({
     <Pressable
       onPress={onToggle}
       accessibilityRole="button"
+      accessibilityLabel={`${label} ${open ? '접기' : '펼치기'}`}
       accessibilityState={{ expanded: open }}
-      hitSlop={8}>
+      // 글자는 12px 인데 화면 오른쪽 끝에 붙어 있어서, 누르는 칸을 글자보다 넓게 잡는다.
+      // 애플이 권하는 최소 44pt 를 세로로 확보한다 — 손가락으로는 글자만큼 정확히 못 짚는다.
+      style={({ pressed }) => [styles.foldTarget, pressed && styles.foldTargetOn]}
+      hitSlop={{ top: 12, bottom: 12, left: 16, right: 16 }}>
       <Text style={styles.foldLink}>
         {label} {open ? '▴' : '▾'}
       </Text>
@@ -95,21 +98,29 @@ export function SceneFoldLink({
   );
 }
 
-/** 펼쳤을 때의 영상. 화면 폭을 그대로 쓴다. */
+/**
+ * 펼쳤을 때의 영상. 화면 폭을 그대로 쓴다.
+ *
+ * `videoUri` 가 문자열이 아니라 VideoSource 인 건 개발용 미리보기 때문이다 —
+ * 번들에 든 샘플 파일은 `require()` 로 들어와서 문자열 경로가 아니다.
+ */
 export function SceneFoldBody({
   open,
   videoUri,
 }: {
   open: boolean;
-  videoUri: string | null;
+  videoUri: VideoSource | null;
 }) {
   const player = useVideoPlayer(open ? videoUri : null, (p) => {
     p.loop = false;
   });
   if (!open) return null;
+  // 빈 문자열만 '없음' 으로 본다. require() 로 들어온 에셋은 숫자라 truthy 검사로는
+  // 걸러지지 않아야 한다.
+  const hasVideo = videoUri != null && videoUri !== '';
   return (
     <View style={styles.foldBody}>
-      {videoUri ? (
+      {hasVideo ? (
         <VideoView style={styles.video} player={player} nativeControls contentFit="contain" />
       ) : (
         <Text style={styles.foldEmpty}>다시 볼 수 있는 영상이 없어요.</Text>
@@ -201,6 +212,10 @@ const styles = StyleSheet.create({
   stepNow: { width: 26, height: 3, borderRadius: 9999, backgroundColor: palette.blue },
   stepLabel: { fontSize: 12.5, fontWeight: '700', color: palette.textDim },
 
+  // padding 으로 누르는 칸을 넓히고 같은 크기의 음수 margin 으로 되돌린다 — 진행 줄의
+  // 높이는 목업 그대로 두면서 손가락이 닿는 면적만 키운다.
+  foldTarget: { paddingVertical: 8, paddingHorizontal: 8, marginVertical: -8, marginHorizontal: -8 },
+  foldTargetOn: { opacity: 0.4 },
   foldLink: { fontSize: 12, fontWeight: '700', color: palette.textFaint },
   foldBody: { paddingHorizontal: 20, paddingTop: 14 },
   foldEmpty: { fontSize: 12.5, fontWeight: '600', color: palette.textFaint },

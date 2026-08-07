@@ -1,3 +1,4 @@
+import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -25,6 +26,7 @@ import { palette } from '@/constants/palette';
  * 문서 목록은 GET /v2/consents/documents, 변경은 POST /v2/consents(granted/revoked).
  */
 export default function SettingsScreen() {
+  const previewRouter = useRouter();
   const { user, signOut } = useAuth();
   const [name, setName] = useState('');
   const [savedName, setSavedName] = useState('');
@@ -168,6 +170,15 @@ export default function SettingsScreen() {
             </>
           )}
 
+          {/* 개발 빌드에서만 보인다. 영상 업로드·분석을 지나지 않고 화면만 확인하는 통로. */}
+          {__DEV__ && (
+            <Pressable
+              style={styles.previewRow}
+              onPress={() => previewRouter.push('/ui-preview')}>
+              <Text style={styles.previewText}>UI 미리보기 (개발용)</Text>
+            </Pressable>
+          )}
+
           <Pressable style={styles.logout} onPress={() => void confirmLogout()}>
             <Text style={styles.logoutText}>로그아웃</Text>
           </Pressable>
@@ -179,6 +190,16 @@ export default function SettingsScreen() {
 }
 
 const styles = StyleSheet.create({
+  previewRow: {
+    marginTop: 24,
+    borderWidth: 1,
+    borderColor: palette.borderSoft,
+    borderRadius: 14,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  previewText: { fontSize: 13.5, fontWeight: '800', color: palette.textFaint },
+
   safe: { flex: 1, backgroundColor: palette.bg },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   screenTitle: { fontSize: 22, fontWeight: '800', color: palette.text, paddingHorizontal: 20, paddingTop: 12 },

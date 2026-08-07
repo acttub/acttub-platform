@@ -1,4 +1,4 @@
-import { Stack, useRouter } from 'expo-router';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -12,6 +12,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { api, type PracticeReport } from '@/lib/api';
 import { clearPractice, getPractice, setPrefill } from '@/lib/practice';
+import { SceneFoldBody, SceneFoldLink, SceneSummary } from '@/components/practice-chrome';
+import { previewVideoSource } from '@/lib/preview-video';
 import { createOrReuseReport } from '@/lib/report-flow';
 import { palette } from '@/constants/palette';
 import { Markdown } from '@/components/markdown';
@@ -30,6 +32,11 @@ export default function ReportScreen() {
   const [loading, setLoading] = useState(true);
   const mountedRef = useRef(true);
   const requestInFlightRef = useRef(false);
+  const params = useLocalSearchParams();
+  const preview = params.preview === '1';
+  const [sceneOpen, setSceneOpen] = useState(false);
+  // 업로드한 원본이 남아 있으면 그걸, 없으면 서버가 준 재생 주소를 쓴다.
+  const sceneVideo = practice?.videoUri || practice?.playbackUrl || previewVideoSource(preview);
 
   const loadReport = useCallback(async () => {
     if (requestInFlightRef.current) return;
@@ -128,7 +135,18 @@ export default function ReportScreen() {
         <>
           <View style={styles.statusRow}>
             <Text style={styles.confirmed}>✓ 배우님과 맞춘 내용</Text>
+            <SceneFoldLink
+              open={sceneOpen}
+              onToggle={() => setSceneOpen((was) => !was)}
+              label="영상·장면 보기"
+            />
           </View>
+          <SceneFoldBody open={sceneOpen} videoUri={sceneVideo} />
+          {sceneOpen && (
+            <View style={styles.sceneSummary}>
+              <SceneSummary scene={practice.scene} blockage={null} />
+            </View>
+          )}
           <ScrollView contentContainerStyle={styles.body}>
             <View style={styles.heading}>
               <Text style={styles.title}>{display.title}</Text>
@@ -211,7 +229,12 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
 
+  sceneSummary: { paddingHorizontal: 20, paddingTop: 12 },
   statusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
     paddingVertical: 12,
     paddingHorizontal: 16,
     borderBottomWidth: 1,

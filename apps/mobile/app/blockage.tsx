@@ -1,4 +1,4 @@
-import { Stack, useRouter } from 'expo-router';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -20,7 +20,9 @@ import {
   type BlockageSubBranch,
 } from '@/lib/blockage';
 import { useKeyboardHeight } from '@/hooks/use-keyboard-height';
-import { setPendingBlockage } from '@/lib/practice';
+import { peekPendingUpload, setPendingBlockage } from '@/lib/practice';
+import { SceneFoldBody, SceneFoldLink, SceneSummary } from '@/components/practice-chrome';
+import { previewScene, previewVideoSource } from '@/lib/preview-video';
 import { palette } from '@/constants/palette';
 
 /**
@@ -75,6 +77,13 @@ export default function BlockageScreen() {
   // 고른 것과 확정을 나눈다. 목업이 라디오 + 아래 버튼 구조다.
   const [pickedKind, setPickedKind] = useState<BlockageKind | null>(null);
   const [pickedSub, setPickedSub] = useState<BlockageSubBranch | null>(null);
+  const params = useLocalSearchParams();
+  const preview = params.preview === '1';
+  const [sceneOpen, setSceneOpen] = useState(false);
+  // 소비하지 않고 읽는다 — take 로 꺼내면 다음 화면(분석)이 대기물을 못 받는다.
+  const pending = peekPendingUpload();
+  const sceneVideo = pending?.video.uri || previewVideoSource(preview);
+  const scene = pending?.scene ?? previewScene(preview);
 
   const goDetail = () => {
     const selection = completeBlockageFlow(state);
@@ -98,7 +107,16 @@ export default function BlockageScreen() {
     <SafeAreaView style={styles.safe} edges={keyboardHeight > 0 ? [] : ['bottom']}>
       <Stack.Screen options={{ title: '새 연습' }} />
       <View style={[styles.flex, { paddingBottom: keyboardHeight }]}>
-        <ProgressRow />
+        <ProgressRow
+          sceneOpen={sceneOpen}
+          onToggleScene={() => setSceneOpen((was) => !was)}
+        />
+        <SceneFoldBody open={sceneOpen} videoUri={sceneVideo} />
+        {sceneOpen && scene && (
+          <View style={styles.sceneSummary}>
+            <SceneSummary scene={scene} blockage={null} />
+          </View>
+        )}
         <ScrollView
           contentContainerStyle={styles.body}
           keyboardShouldPersistTaps="handled">
@@ -223,8 +241,13 @@ export default function BlockageScreen() {
   );
 }
 
-/** 3단계 진행 표시. 앞 두 단계는 지나왔고 지금이 세 번째다. */
-function ProgressRow() {
+/**
+ * 3단계 진행 표시. 앞 두 단계는 지나왔고 지금이 세 번째다.
+ *
+ * 접이식 상태는 화면이 든다 — 펼친 영상은 이 좁은 가로 줄 안이 아니라 아래쪽에
+ * 전폭으로 그려야 찌그러지지 않는다.
+ */
+function ProgressRow({ sceneOpen, onToggleScene }: { sceneOpen: boolean; onToggleScene: () => void }) {
   return (
     <View style={styles.progress}>
       <View style={styles.progressLeft}>
@@ -235,7 +258,7 @@ function ProgressRow() {
         </View>
         <Text style={styles.stepLabel}>3단계 · 질문 받기</Text>
       </View>
-      <Text style={styles.sceneLink}>영상·장면 보기 ▾</Text>
+      <SceneFoldLink open={sceneOpen} onToggle={onToggleScene} label="영상·장면 보기" />
     </View>
   );
 }
@@ -321,7 +344,7 @@ const styles = StyleSheet.create({
   stepDone: { width: 18, height: 3, borderRadius: 9999, backgroundColor: c.blueLine },
   stepNow: { width: 26, height: 3, borderRadius: 9999, backgroundColor: c.blue },
   stepLabel: { fontSize: 12.5, fontWeight: '700', color: c.inkSub },
-  sceneLink: { fontSize: 12, fontWeight: '700', color: c.ink4 },
+  sceneSummary: { paddingHorizontal: 20, paddingTop: 12 },
 
   body: { paddingTop: 28, paddingHorizontal: 20, paddingBottom: 20, gap: 24 },
 

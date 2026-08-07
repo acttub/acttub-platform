@@ -67,6 +67,16 @@ export function setPendingBlockage(blockage: BlockageSelection) {
   pending = { ...pending, blockage };
 }
 
+/**
+ * 소비하지 않고 들여다본다.
+ *
+ * 막히는 지점 화면이 '영상·장면 보기' 를 그리려면 대기물을 읽어야 하는데, take 로
+ * 꺼내 버리면 다음 화면(분석)이 그걸 못 받아 업로드로 되돌아간다.
+ */
+export function peekPendingUpload(): PendingUpload | null {
+  return pending;
+}
+
 export function takePendingUpload(): PendingUpload | null {
   const p = pending;
   pending = null;

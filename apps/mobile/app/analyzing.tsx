@@ -1,6 +1,6 @@
 import { getInfoAsync } from 'expo-file-system/legacy';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useVideoPlayer, VideoView } from 'expo-video';
+import { type VideoSource } from 'expo-video';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -30,6 +30,7 @@ import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { formatSizeChange, startVideoCompression } from '@/lib/compress';
 import { startPractice, takePendingUpload, type PendingUpload } from '@/lib/practice';
+import { previewVideoSource } from '@/lib/preview-video';
 import { palette } from '@/constants/palette';
 import {
   PracticeFooter,
@@ -89,10 +90,15 @@ export default function AnalyzingScreen() {
   const [uploading, setUploading] = useState(false);
   const [sizeNote, setSizeNote] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [videoUri, setVideoUri] = useState<string | null>(null);
+  // VideoSource 인 건 개발 미리보기 때문이다 — 번들 샘플은 require() 로 들어와 숫자다.
+  const [videoUri, setVideoUri] = useState<VideoSource | null>(null);
   const [abandoning, setAbandoning] = useState(false);
   // 목업이 '1분 12초 경과'를 보여준다. 얼마나 기다렸는지 보이면 덜 불안하다.
   const [elapsedSec, setElapsedSec] = useState(0);
+  // 개발 빌드에서 화면만 보려고 들어온 경우. 업로드·분석을 돌리지 않는다.
+  // 훅은 조건 밖에서 부른다 — `__DEV__ &&` 를 앞에 두면 렌더마다 훅 순서가 달라진다.
+  const params = useLocalSearchParams();
+  const preview = __DEV__ && params.preview === '1';
   const [sceneOpen, setSceneOpen] = useState(false);
   /**
    * 화면에 보여줄 장면·막힌 곳.
@@ -105,11 +111,6 @@ export default function AnalyzingScreen() {
     blockage: PendingUpload['blockage'];
   } | null>(null);
   const { confirm, dialog } = useAppDialog();
-
-  // 방금 올린 로컬 원본을 대기 중 재생 (서버 업로드본·압축본이 아니라 원본).
-  const player = useVideoPlayer(videoUri, (p) => {
-    p.loop = true;
-  });
 
   const run = useCallback(async (retryFailed = false) => {
     const operation = appAnalysisOperationOwner.start();
@@ -259,6 +260,15 @@ export default function AnalyzingScreen() {
           return;
         }
       }
+      // 개발 미리보기로 곧장 들어오면(딥링크) 대기물이 없다. 그때만 가짜로 채운다.
+      if (preview) {
+        const seed = (
+          require('@/lib/ui-preview') as typeof import('@/lib/ui-preview')
+        ).seedPreviewAnalyzing();
+        setVideoUri(previewVideoSource(true));
+        setSceneInfo({ scene: seed.scene, blockage: seed.blockage });
+        return;
+      }
       const pendingUpload = takePendingUpload();
       uploadRef.current = pendingUpload;
       if (!pendingUpload) {
@@ -360,7 +370,9 @@ export default function AnalyzingScreen() {
       : `${Math.floor(elapsedSec / 60)}분 ${elapsedSec % 60}초 경과`;
 
   return (
-    <SafeAreaView style={styles.safe}>
+    // edges 를 아래로 한정한다 — 위는 네비게이션 헤더가 이미 인셋을 먹었고, 기본값
+    // (전체)으로 두면 헤더 아래에 노치만큼 빈 칸이 한 번 더 생긴다.
+    <SafeAreaView style={styles.safe} edges={['bottom']}>
       <Stack.Screen
         options={{
           title: '새 연습',
@@ -371,7 +383,13 @@ export default function AnalyzingScreen() {
       />
       <ProgressRow
         label={error ? '3단계 · 질문 준비' : '3단계 · 질문 준비 중'}
-        right={<SceneFoldLink open={sceneOpen} onToggle={() => setSceneOpen((was) => !was)} />}
+        right={
+          <SceneFoldLink
+            open={sceneOpen}
+            onToggle={() => setSceneOpen((was) => !was)}
+            label="영상·장면 보기"
+          />
+        }
       />
       <SceneFoldBody open={sceneOpen} videoUri={videoUri} />
       <ScrollView contentContainerStyle={styles.body}>
