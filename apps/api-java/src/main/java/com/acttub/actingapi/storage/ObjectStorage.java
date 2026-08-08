@@ -1,5 +1,7 @@
 package com.acttub.actingapi.storage;
 
+import java.nio.file.Path;
+
 public interface ObjectStorage {
     String presignUpload(
             String objectKey,
@@ -7,5 +9,11 @@ public interface ObjectStorage {
             long sizeBytes,
             int expiresInSeconds);
 
+    String presignPlayback(String objectKey, int expiresInSeconds);
+
     StoredObjectMetadata head(String objectKey);
+
+    StoredObjectMetadata downloadToPath(String objectKey, Path destination);
+
+    void delete(String objectKey);
 }

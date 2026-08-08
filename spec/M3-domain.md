@@ -95,7 +95,7 @@ target 중단: login: 로그인 실패 401 b'{"detail":"invalid_provider_token"}
 |---|---|---|---|
 | 1 | `/v2/me`, `/v2/consents` | **`DISTINCT ON` 2건**(`db/store.py:PostgresStore.list_latest_consent_documents`·`.get_current_user_consents`), nickname 정규화 | 하네스 `profile`·`consent-gate` |
 | 2 | `/v2/uploads` | `UPDATE...RETURNING`, presign 리전 고정, unknown key 허용 (숫자 파싱은 M2 에서 해결 — 회귀 확인만) | 하네스 `expired-intent` + Java 통합 |
-| 3 | `/v2/practice-sessions` | **위험 함수 #2**, 조건부 키 생략, 멱등 전이표, L3 바이트 동등 | `status-codes`·`inflight-replay` 일부 + Java 통합. `main-flow` 는 coach 를 거쳐 **M3 완주 불가** |
+| 3 | `/v2/practice-sessions` | **위험 함수 #2**, 조건부 키 생략, 멱등 전이표, L3 바이트 동등 | **Java 통합 전용.** 🔁 초판은 `status-codes`·`inflight-replay` "일부"라 적었으나 **둘 다 M3 에서 완주 불가**다 — 2026-08-08 실행 확인: 두 시나리오 모두 `ctx.control(..., "run-worker-once")` 를 호출하고 그 제어는 분석 워커라 M4 다(`tools/contract-harness/contract_harness/scenarios/errors.py`·`.../inflight.py`). `main-flow` 는 coach 를 거쳐 역시 불가 |
 | 4 | `/v2/community` (16) | `community_store.py` 749줄. **위험 함수 #5**, 키셋 커서, 차단 필터, 익명 별칭 | 하네스 `community`·`community-traversal` |
 | 5 | `/v2/reports` **GET 2개만** | 목록·상세. `POST` 는 M4 | Java 통합 전용 — GET 을 밟는 시나리오가 report 생성을 선행한다 |
 | 6 | `/v2/admissions`, `/v2/admin` | 조건부 LEFT JOIN, `admin_sessions` 의 N+1(`db/store.py:PostgresStore.admin_sessions`), admin 은 조건부 등록 | `admissions` 는 하네스. **`admin` 시나리오는 `/v2/coach/start` 를 쳐서 M3 에서 완주 불가** → Java 통합 |

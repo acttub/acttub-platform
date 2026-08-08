@@ -73,6 +73,7 @@ class PydanticOpenApiCustomizer {
         }
 
         normalizeExclusiveBounds(schema);
+        stripUnboundedMaxLength(schema);
         normalizeProperties(schema);
         if (schema.getItems() != null) {
             schema.setItems(normalize(schema.getItems(), null));
@@ -121,6 +122,20 @@ class PydanticOpenApiCustomizer {
      */
     private static java.math.BigDecimal asFloatLiteral(java.math.BigDecimal value) {
         return value.scale() > 0 ? value : value.setScale(1);
+    }
+
+    /**
+     * 상한이 없다는 뜻의 {@code maxLength} 를 지운다.
+     *
+     * <p>{@code @Size(min = 1)} 은 max 기본값이 {@link Integer#MAX_VALUE} 라 springdoc 이
+     * {@code "maxLength": 2147483647} 을 문서에 싣는다. pydantic 의 {@code min_length=1} 은
+     * 하한만 내보내므로 정본에는 그 키가 아예 없다. 실제 상한이 있는 필드는 값이 다르므로
+     * 영향을 받지 않는다.
+     */
+    private static void stripUnboundedMaxLength(Schema<?> schema) {
+        if (Integer.valueOf(Integer.MAX_VALUE).equals(schema.getMaxLength())) {
+            schema.setMaxLength(null);
+        }
     }
 
     @SuppressWarnings("unchecked")

@@ -23,6 +23,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.FieldError;
+import org.springframework.validation.ObjectError;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -68,9 +69,12 @@ public class ApiErrorAdvice {
                 .map(error -> new ResolvedFieldError(error, resolveBeanPath(requestType, error.getField())))
                 .sorted((left, right) -> compareOrder(left.path().order(), right.path().order()))
                 .toList();
-        List<Map<String, Object>> errors = resolved.stream()
+        List<Map<String, Object>> errors = new ArrayList<>(resolved.stream()
                 .map(error -> field(error.error(), error.path(), input))
-                .toList();
+                .toList());
+        exception.getBindingResult().getGlobalErrors().stream()
+                .map(error -> global(error, input))
+                .forEach(errors::add);
         return ResponseEntity.status(422).body(Map.of("detail", errors));
     }
 
@@ -137,7 +141,20 @@ public class ApiErrorAdvice {
         Map<String, Object> value = error(type, path.loc(), message, input);
         if ("Positive".equals(field.getCode())) {
             value.put("ctx", Map.of("gt", 0));
+        } else if ("Size".equals(field.getCode())) {
+            value.put("ctx", Map.of("min_length", 1));
         }
+        return value;
+    }
+
+    private static Map<String, Object> global(ObjectError error, Object bodyInput) {
+        String reason = Objects.requireNonNullElse(error.getDefaultMessage(), "Invalid value");
+        Map<String, Object> value = error(
+                "value_error",
+                List.of("body"),
+                "Value error, " + reason,
+                bodyInput);
+        value.put("ctx", Map.of("error", reason));
         return value;
     }
 
@@ -147,6 +164,9 @@ public class ApiErrorAdvice {
         }
         if ("Positive".equals(code)) {
             return "greater_than";
+        }
+        if ("Size".equals(code)) {
+            return "string_too_short";
         }
         return "value_error";
     }

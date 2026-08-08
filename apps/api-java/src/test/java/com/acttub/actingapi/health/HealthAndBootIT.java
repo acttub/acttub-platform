@@ -147,6 +147,30 @@ class HealthAndBootIT {
         }
     }
 
+    @Test
+    @DisplayName("practice-session 컴포넌트 형상이 커밋된 Python OpenAPI 와 같다")
+    void practiceSessionComponentsMatchCommittedSpec() throws Exception {
+        JsonNode generated = MAPPER.readTree(get("/v3/api-docs"));
+        JsonNode committed = MAPPER.readTree(
+                java.nio.file.Path.of("../api/spec/openapi.json").toFile());
+
+        for (String component : java.util.List.of(
+                "PracticeSessionRequest",
+                "PracticeSessionAcceptedResponse",
+                "PracticeSessionCreateResponse",
+                "PracticeSessionListItem",
+                "PracticeSessionListResponse",
+                "PracticeSessionStatusResponse",
+                "ObservationItem",
+                "ObservationPackResponse",
+                "PracticeSessionDetail")) {
+            assertThat(normalizeSchemaTree(generated.at("/components/schemas/" + component)))
+                    .as(component)
+                    .isEqualTo(normalizeSchemaTree(
+                            committed.at("/components/schemas/" + component)));
+        }
+    }
+
     private static void assertSchemaTitlesAndNullability(
             JsonNode expected,
             JsonNode actual,
@@ -276,6 +300,30 @@ class HealthAndBootIT {
             copy.set("required", array);
         }
         return copy;
+    }
+
+    private static JsonNode normalizeSchemaTree(JsonNode node) {
+        JsonNode copy = node.deepCopy();
+        normalizeRequiredArrays(copy);
+        return copy;
+    }
+
+    private static void normalizeRequiredArrays(JsonNode node) {
+        if (node.isObject()) {
+            if (node.has("required") && node.get("required").isArray()) {
+                java.util.List<String> sorted = new java.util.ArrayList<>();
+                node.get("required").forEach(item -> sorted.add(item.asText()));
+                java.util.Collections.sort(sorted);
+                com.fasterxml.jackson.databind.node.ArrayNode replacement =
+                        MAPPER.createArrayNode();
+                sorted.forEach(replacement::add);
+                ((com.fasterxml.jackson.databind.node.ObjectNode) node)
+                        .set("required", replacement);
+            }
+            node.forEach(HealthAndBootIT::normalizeRequiredArrays);
+        } else if (node.isArray()) {
+            node.forEach(HealthAndBootIT::normalizeRequiredArrays);
+        }
     }
 
     @Test

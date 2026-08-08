@@ -1,16 +1,20 @@
 package com.acttub.actingapi.storage;
 
 import java.net.URI;
+import java.nio.file.Path;
 import java.time.Duration;
 
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
 import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
+import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
 import software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignRequest;
 
 /** 실제 S3 경계. presign endpoint는 global이 아니라 설정된 region에 고정한다. */
@@ -83,6 +87,38 @@ public final class AwsS3Storage implements ObjectStorage, AutoCloseable {
             }
             throw exception;
         }
+    }
+
+    @Override
+    public String presignPlayback(String objectKey, int expiresInSeconds) {
+        resolveCredentials();
+        GetObjectPresignRequest presignRequest = GetObjectPresignRequest.builder()
+                .signatureDuration(Duration.ofSeconds(expiresInSeconds))
+                .getObjectRequest(GetObjectRequest.builder()
+                        .bucket(bucket)
+                        .key(objectKey)
+                        .build())
+                .build();
+        return presigner.presignGetObject(presignRequest).url().toString();
+    }
+
+    @Override
+    public StoredObjectMetadata downloadToPath(String objectKey, Path destination) {
+        resolveCredentials();
+        var response = client.getObject(
+                GetObjectRequest.builder().bucket(bucket).key(objectKey).build(),
+                destination);
+        return new StoredObjectMetadata(
+                response.contentLength(), response.contentType(), response.eTag());
+    }
+
+    @Override
+    public void delete(String objectKey) {
+        resolveCredentials();
+        client.deleteObject(DeleteObjectRequest.builder()
+                .bucket(bucket)
+                .key(objectKey)
+                .build());
     }
 
     private void resolveCredentials() {

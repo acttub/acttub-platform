@@ -3,9 +3,10 @@ package com.acttub.actingapi.upload;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 
-import java.util.UUID;
+import java.nio.file.Path;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.UUID;
 
 import com.acttub.actingapi.auth.JwtService;
 import com.acttub.actingapi.storage.ObjectStorage;
@@ -232,6 +233,20 @@ class UploadEndpointIT {
         @Override
         public StoredObjectMetadata head(String objectKey) {
             return metadata;
+        }
+
+        @Override
+        public String presignPlayback(String objectKey, int expiresInSeconds) {
+            return "https://s3.ap-northeast-2.amazonaws.com/harness/" + objectKey;
+        }
+
+        @Override
+        public StoredObjectMetadata downloadToPath(String objectKey, Path destination) {
+            return metadata;
+        }
+
+        @Override
+        public void delete(String objectKey) {
         }
     }
 }
