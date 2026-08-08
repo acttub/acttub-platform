@@ -449,6 +449,19 @@ def profile(ctx) -> None:
         headers=headers,
     )
 
+    # USER1 은 시드 글·댓글의 작성자다. 글은 그대로 서 있고 작성자 이름만 가려진다 —
+    # 닉네임이 파기됐으므로 응답에서 "탈퇴한 사용자" 로 바뀐다.
+    ctx.call("posts-after-withdrawal", "get", "/v2/community/posts")
+    ctx.call(
+        "comments-after-withdrawal",
+        "get",
+        "/v2/community/posts/{post_id}/comments",
+        path_params={"post_id": cfg.SEED_POST_IDS[0]},
+    )
+
+    # identity 를 끊었으므로 같은 소셜 계정은 재가입이 된다 — 새 user id 여야 한다.
+    login(ctx, "signup-again", "harness-token-seed-one")
+
 
 def admissions(ctx) -> None:
     ctx.call("admissions", "get", "/v2/admissions")

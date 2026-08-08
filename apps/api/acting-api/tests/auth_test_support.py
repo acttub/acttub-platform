@@ -75,6 +75,15 @@ class FakeAuthStore:
         if row.status is not UserStatus.DEACTIVATED:
             row.status = UserStatus.DEACTIVATED
             row.deactivated_at = now
+        # 개인정보는 파기하고 identity 도 끊는다 — PostgresStore.deactivate_user 와
+        # 같은 일을 해야 한다. 여기가 어긋나면 계약 테스트가 실제와 다른 걸 통과시킨다.
+        row.email = None
+        row.nickname = None
+        for key in [
+            key for key, identity in self.identities.items()
+            if identity.user_id == user_id
+        ]:
+            del self.identities[key]
         self.revoke_all_refresh_tokens(user_id, now=now)
         return row
 

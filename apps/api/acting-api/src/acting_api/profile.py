@@ -76,11 +76,12 @@ def build_router(*, store, rate_limited_user) -> APIRouter:
 
     @router.delete("", status_code=status.HTTP_204_NO_CONTENT)
     async def delete_me(user=Depends(rate_limited_user)) -> Response:
-        """회원탈퇴. 데이터는 지우지 않고 계정을 비활성 상태로 내린다.
+        """회원탈퇴. 개인정보는 파기하고 글은 남긴다.
 
-        커뮤니티 글·연습 기록이 user_id 를 물고 있어 행을 지우면 남의 화면이 깨진다.
-        여기서는 상태만 바꾸고 refresh 토큰을 전부 끊는다. 남아 있는 액세스 토큰은
-        만료까지 유효하지만 인증 게이트가 deactivated 를 403 으로 막는다.
+        커뮤니티 글·연습 기록이 user_id 를 물고 있어 행을 지우면 남의 글타래가
+        깨진다. 그래서 행은 남기되 이메일·닉네임·identity 를 지우고 refresh 토큰을
+        전부 끊는다. 남아 있는 액세스 토큰은 만료까지 유효하지만 인증 게이트가
+        deactivated 를 403 으로 막는다. 자세한 처리는 store.deactivate_user 참조.
         """
         deactivated = await run_in_threadpool(store.deactivate_user, user.id)
         if deactivated is None:

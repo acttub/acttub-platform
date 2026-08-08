@@ -5,7 +5,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 from uuid import UUID, uuid4
 
-from sqlalchemy import Engine, and_, func, or_, select, text, update
+from sqlalchemy import Engine, and_, delete, func, or_, select, text, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -216,10 +216,20 @@ class PostgresStore:
     def deactivate_user(
         self, user_id: UUID, *, now: datetime | None = None
     ) -> User | None:
-        """탈퇴 처리. 행은 그대로 두고 상태만 바꾸고 세션을 전부 끊는다.
+        """탈퇴 처리. 행은 남기고 개인정보만 파기한다.
 
-        상태 전환과 토큰 폐기를 한 트랜잭션에 묶는다. 나눠 놓으면 사이에서 실패했을
-        때 "탈퇴했는데 refresh 는 살아 있는" 계정이 남는다.
+        행을 통째로 지우지 않는 이유: 커뮤니티 글·연습 기록이 user_id 를 참조한다.
+        지우면 남의 글타래가 깨지고 신고 처리에도 원문 작성자가 필요하다.
+
+        대신 개인을 식별하는 것은 전부 지운다 — 개인정보처리방침이 "탈퇴하면 지체
+        없이 파기한다" 고 약속했고(`consent_docs/privacy_v2.md`), 방침을 고쳐도
+        파기 의무 자체는 남는다. **여기서 지운 이메일·닉네임은 복구할 수 없다.**
+
+        identity 까지 지우므로 같은 소셜 계정으로 다시 가입할 수 있다. 새 user 가
+        생기고 과거 기록과는 이어지지 않는다.
+
+        상태 전환·파기·토큰 폐기를 한 트랜잭션에 묶는다. 나눠 놓으면 사이에서
+        실패했을 때 "탈퇴했는데 refresh 는 살아 있는" 계정이 남는다.
         """
         now = now or datetime.now(timezone.utc)
         with self._session_factory.begin() as db:
@@ -231,6 +241,9 @@ class PostgresStore:
                 row.status = UserStatus.DEACTIVATED
                 row.deactivated_at = now
                 row.updated_at = now
+            row.email = None
+            row.nickname = None
+            db.execute(delete(UserIdentity).where(UserIdentity.user_id == user_id))
             db.execute(
                 update(RefreshToken)
                 .where(
