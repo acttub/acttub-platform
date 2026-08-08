@@ -25,6 +25,7 @@ const credentialMutationQueue = createCredentialMutationQueue(
 type Listener = () => void;
 type UserListener = (user: AuthUser) => void;
 const consentRequiredListeners = new Set<Listener>();
+const accountDeactivatedListeners = new Set<Listener>();
 
 /** 토큰이 비워졌을 때(로그아웃·세션 만료) 호출된다. 구독 해제 함수를 반환. */
 export function onTokensCleared(fn: Listener): () => void {
@@ -44,6 +45,22 @@ export function onStoredUserChanged(fn: UserListener): () => void {
 
 export function emitConsentRequired(): void {
   for (const fn of consentRequiredListeners) fn();
+}
+
+/**
+ * 서버가 이 계정을 탈퇴한 것으로 볼 때 호출된다. 구독 해제 함수를 반환.
+ *
+ * 탈퇴한 뒤에도 액세스 토큰은 만료까지 형식상 유효해서, 앱이 그대로 로그인된 것처럼
+ * 보이는데 모든 보호 요청이 403 으로 막힌다. 다른 기기에서 탈퇴한 경우도 같다.
+ * 그래서 401(만료)과 달리 refresh 로 풀 수 없고, 세션을 끊어 내보내는 수밖에 없다.
+ */
+export function onAccountDeactivated(fn: Listener): () => void {
+  accountDeactivatedListeners.add(fn);
+  return () => accountDeactivatedListeners.delete(fn);
+}
+
+export function emitAccountDeactivated(): void {
+  for (const fn of accountDeactivatedListeners) fn();
 }
 
 /** 앱 시작 시 저장된 토큰을 메모리로 로드한다 (1회). */

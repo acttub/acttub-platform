@@ -109,3 +109,15 @@ export function getPractice(): Practice | null {
 export function clearPractice() {
   current = null;
 }
+
+/**
+ * 진행 중인 것과 올리려던 것을 한꺼번에 버린다. 탈퇴·계정 교체 때 쓴다.
+ *
+ * 이 둘은 모듈 변수라 로그아웃해도 남는다. 두고 가면 다음에 로그인한 사람 화면에
+ * 앞사람이 적은 장면 글이 그대로 뜬다.
+ */
+export function resetPracticeState() {
+  current = null;
+  pending = null;
+  prefill = null;
+}

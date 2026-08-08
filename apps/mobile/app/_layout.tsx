@@ -251,6 +251,10 @@ function RootNavigator() {
       <Stack.Screen name="login" options={{ headerShown: false }} />
       <Stack.Screen name="consent" options={{ headerShown: false }} />
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      <Stack.Screen
+        name="delete-account"
+        options={{ title: '회원 탈퇴', headerBackTitle: '설정' }}
+      />
       <Stack.Screen name="upload" options={{ title: '영상 올리기' }} />
       <Stack.Screen name="analyzing" options={{ title: '분석 중' }} />
       <Stack.Screen name="coach" options={{ title: '코치와 되짚기' }} />

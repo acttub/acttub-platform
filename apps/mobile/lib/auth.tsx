@@ -11,11 +11,13 @@ import {
 import { api, type AuthUser, type ConsentDocument, type TokenPair } from '@/lib/api';
 import { signOutBestEffort } from '@/lib/auth-session';
 import { getUserName, saveUserName } from '@/lib/profile';
+import { clearLocalAccountData } from '@/lib/local-account-data';
 import {
   clearTokens,
   getRefreshToken,
   getStoredUser,
   loadTokens,
+  onAccountDeactivated,
   onConsentRequired,
   onStoredUserChanged,
   onTokensCleared,
@@ -45,6 +47,11 @@ type AuthContextValue = {
   /** iOS Sign in with Apple. isAvailableAsync가 true일 때만 노출. */
   signInWithApple: () => Promise<void>;
   signOut: () => Promise<void>;
+  /**
+   * 회원탈퇴. 서버에 파기를 요청하고, 성공하면 이 기기에 남은 것까지 지운다.
+   * 되돌릴 수 없다 — 부르기 전에 반드시 확인을 받는다.
+   */
+  deleteAccount: () => Promise<void>;
   /** 약관 화면에서 필수 동의를 모두 마친 뒤 호출 → 게이트 통과. */
   clearPendingConsents: () => void;
   refreshPendingConsents: () => Promise<void>;
@@ -144,6 +151,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setConsentRequired(true);
       void refreshPendingConsents().catch(() => undefined);
     });
+    // 다른 기기에서 탈퇴했거나, 탈퇴 후 액세스 토큰이 아직 만료되지 않은 경우.
+    // refresh 로 풀 수 없으므로 세션을 끊는다.
+    const unsubDeactivated = onAccountDeactivated(() => {
+      void clearLocalAccountData().catch(() => undefined);
+      void clearTokens();
+    });
     const unsubStoredUser = onStoredUserChanged((nextUser) => {
       setUser(nextUser);
       setPendingConsents([]);
@@ -155,6 +168,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       active = false;
       unsubTokens();
       unsubConsent();
+      unsubDeactivated();
       unsubStoredUser();
     };
   }, [refreshPendingConsents]);
@@ -223,6 +237,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setStatus('signedOut');
   }, []);
 
+  const deleteAccount = useCallback(async () => {
+    // 서버가 먼저다. 여기서 실패하면(네트워크·서버 오류) 로컬을 지우지 않고 예외를
+    // 올린다 — 계정은 살아 있는데 기기에서만 로그아웃되면 탈퇴한 줄 알고 떠난다.
+    await api.deleteMe();
+    // 성공한 뒤엔 실패해도 계속 간다. 계정은 이미 사라졌으므로 여기서 멈추면
+    // 지워진 계정으로 로그인된 화면에 남는다.
+    await clearLocalAccountData().catch(() => undefined);
+    await signOutBestEffort({
+      // 서버 로그아웃은 부르지 않는다 — refresh 는 탈퇴가 이미 전부 끊었다.
+      serverLogout: async () => undefined,
+      providerLogout: async () => {
+        if (google) await google.GoogleSignin.signOut();
+      },
+      clearLocalSession: clearTokens,
+    });
+    setUser(null);
+    setStatus('signedOut');
+  }, []);
+
   const clearPendingConsents = useCallback(() => {
     setPendingConsents([]);
     setConsentRequired(false);
@@ -237,6 +270,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signInWithGoogle,
       signInWithApple,
       signOut,
+      deleteAccount,
       clearPendingConsents,
       refreshPendingConsents,
     }),
@@ -248,6 +282,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signInWithGoogle,
       signInWithApple,
       signOut,
+      deleteAccount,
       clearPendingConsents,
       refreshPendingConsents,
     ],
