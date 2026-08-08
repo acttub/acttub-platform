@@ -183,7 +183,7 @@ Python 구현의 의미를 그대로 옮긴다. 하나라도 다르면 재분석
 | 8 | S3 presign | **리전 엔드포인트 고정**. 글로벌 엔드포인트는 신규 버킷에 307 |
 | 9 | ffmpeg | 동시 실행 1개 락, 600초 타임아웃, 실패·부재 시 원본 폴백 |
 | 10 | 제약명 문자열 의존 | **`consent_documents` 유니크 위반** 판정(`consents.py:_is_consent_document_unique_error`)을 `PSQLException.getServerErrorMessage().getConstraint()`로 재현. ⚠ **대상이 바뀌었다** — 원래 여기 있던 `reports_session_id_key` 중복 판정은 `SOMA-302`로 사라졌고, 리포트 멱등은 `uq_practice_reports_source_handoff`에 대한 `ON CONFLICT DO NOTHING`으로 대체됐다(제약명 문자열을 보지 않는다) |
-| 11 | 테이블 락 획득 순서 | `upload_intents`→`external_operations`, `practice_sessions`→`practice_reports`. 바꾸면 데드락 |
+| 11 | 테이블 락 획득 순서 | `upload_intents`→`external_operations`, `practice_sessions`→`practice_reports`, `community_posts`→`community_anonymous_aliases`. 바꾸면 데드락 |
 | 12 | canonical JSON | 멱등 replay는 키 정렬 + 공백 없음 + 한글 raw UTF-8 (`sync_operations.py:_json_response`) |
 | 13 | `X-Request-Id` 응답 헤더 | 바디만 맞추면 놓친다 (`sync_operations.py:SyncOperationClaim.headers`, `practice_sessions.py:_idempotent_response`) |
 | 14 | v1 경로 404 | `/summarize`, `/coach/start`, `/coach/reply`, `/report`, `/report/history/{id}` 5개 |
