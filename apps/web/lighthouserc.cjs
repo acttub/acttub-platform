@@ -14,7 +14,9 @@ module.exports = {
       // 수동 복사를 여기서도 재현해야 하기 때문이다. `next start`는 빌드 결과를
       // 그대로 서빙하므로 그 과정이 필요 없다.
       // 3000 포트를 쓰므로 `pnpm dev`가 떠 있으면 먼저 내려야 한다.
-      startServerCommand: "pnpm --filter web start",
+      // lhci는 apps/web에서 실행되므로(루트 `pnpm perf:web`이 --filter로 위임)
+      // 아래 명령과 outputDir은 모두 apps/web 기준 경로다.
+      startServerCommand: "pnpm start",
       startServerReadyPattern: "Ready in",
       url: ["http://localhost:3000/"],
       settings: {
@@ -45,7 +47,7 @@ module.exports = {
     },
     upload: {
       target: "filesystem",
-      outputDir: "apps/web/artifacts/lighthouse/mobile",
+      outputDir: "artifacts/lighthouse/mobile",
     },
   },
 };

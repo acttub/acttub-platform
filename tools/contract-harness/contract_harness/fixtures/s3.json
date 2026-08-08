@@ -1,0 +1,37 @@
+{
+  "_note": "S3 스텁 값. 업로드는 실제로 하지 않는다 — complete 가 요구하는 HEAD 결과와 워커가 내려받을 로컬 파일 내용만 준다 (spec/M1-harness.md §구현 규약 ⑥). object key 접미사는 uploads.py:_object_suffix 가 mime subtype 에서 alnum 12자까지만 뽑는다는 점에 맞춰 골랐다.",
+  "region": "ap-northeast-2",
+  "default_object": {
+    "size_bytes": 4096,
+    "content_type": "video/mp4",
+    "etag": "\"9f86d081884c7d659a2feaa0c55ad015\""
+  },
+  "download_body_repeat_byte": "78",
+  "presign": {
+    "query_keys": [
+      "X-Amz-Algorithm",
+      "X-Amz-Credential",
+      "X-Amz-Date",
+      "X-Amz-Expires",
+      "X-Amz-SignedHeaders",
+      "X-Amz-Signature"
+    ]
+  },
+  "mime_types": {
+    "ok": "video/mp4",
+    "head_missing": "video/x-missing",
+    "head_size_mismatch": "video/x-sizebad",
+    "download_etag_mismatch": "video/x-etagbad",
+    "playback_presign_failure": "video/x-presignbad",
+    "credentials_error": "video/x-nocreds"
+  },
+  "credentials_error_suffix": ".xnocreds",
+  "head_rules": [
+    {"object_key_suffix": ".xmissing", "result": "missing"},
+    {"object_key_suffix": ".xsizebad", "result": "size_mismatch"}
+  ],
+  "download_rules": [
+    {"object_key_suffix": ".xetagbad", "result": "etag_mismatch"}
+  ],
+  "playback_presign_failure_suffix": ".xpresignbad"
+}

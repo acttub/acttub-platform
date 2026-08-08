@@ -16,6 +16,7 @@ import {
   formatSeconds,
   hasNoCsatMinimum,
   cardBadge,
+  groupTips,
   EMPTY_FILTERS,
 } from '../lib/admissions.ts';
 
@@ -283,4 +284,26 @@ test('목록 배지는 다가오는 일정 → 마감 → 미정 → 준비 중 
   assert.deepEqual(cardBadge(unknown, '2026-08-04'), { label: '일정 미정', tone: 'muted' });
   assert.deepEqual(cardBadge([], '2026-08-04'), { label: '정보 준비 중', tone: 'muted' });
   assert.equal(cardBadge([{ id: 'a', university_id: 'u' }], null), null);
+});
+
+// 한 사람 말과 열 사람 말은 무게가 다르다. 겹쳐 확인된 것이 위로 와야 한다.
+test('꿀팁은 분류별로 묶고 여러 후기에서 확인된 것을 위로 올린다', () => {
+  const groups = groupTips([
+    { text: '가', category: 'practice', source_type: 'personal', corroborations: 1 },
+    { text: '나', category: 'day_of', source_type: 'personal', corroborations: 2 },
+    { text: '다', category: 'day_of', source_type: 'personal', corroborations: 5 },
+  ]);
+  // 시험 당일이 실기 준비보다 먼저 — 급한 것부터 본다.
+  assert.deepEqual(groups.map((g) => g.category), ['day_of', 'practice']);
+  assert.deepEqual(groups[0].items.map((x) => x.text), ['다', '나']);
+});
+
+test('모르는 분류는 그 밖에로 모은다', () => {
+  const groups = groupTips([{ text: '가', category: 'zzz', source_type: 'personal' }]);
+  assert.deepEqual(groups.map((g) => g.category), ['etc']);
+  assert.equal(groups[0].label, '그 밖에');
+});
+
+test('꿀팁이 없으면 빈 배열', () => {
+  assert.deepEqual(groupTips([]), []);
 });

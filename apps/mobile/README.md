@@ -2,6 +2,9 @@
 
 This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
 
+문서: [연습 흐름 (목업 M4~M9)](docs/PRACTICE-FLOW.md) — 화면 대응표, 진행 줄·영상
+접이식 규칙, 개발용 UI 미리보기.
+
 ## Get started
 
 1. Install dependencies

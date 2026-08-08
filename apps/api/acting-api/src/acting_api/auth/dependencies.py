@@ -14,6 +14,13 @@ def user_status_value(user) -> str:
     return getattr(user.status, "value", user.status)
 
 
+# 정지와 탈퇴는 다른 코드로 구분한다 — 클라이언트가 띄울 안내가 다르고(문의하세요 /
+# 탈퇴한 계정입니다), 되돌리는 주체도 다르다. 아래 네 자리에서 같은 분기가 반복되는데,
+# 헬퍼로 접지 않는다: contract-harness 가 소스에서 리터럴 detail 을 긁어 오류 계약
+# inventory 를 만든다(tools/contract-harness/contract_harness/inventory.py).
+# 변수로 넘기면 계약이 inventory 에서 사라진다.
+
+
 def build_current_user_dependency(store, jwt_service: JwtService):
     async def current_user(
         credentials: HTTPAuthorizationCredentials | None = Security(bearer_scheme),
@@ -29,8 +36,11 @@ def build_current_user_dependency(store, jwt_service: JwtService):
         user = await run_in_threadpool(store.get_user, claims.user_id)
         if user is None:
             raise HTTPException(status_code=401, detail="invalid or missing access token")
-        if user_status_value(user) == "suspended":
+        status_value = user_status_value(user)
+        if status_value == "suspended":
             raise HTTPException(status_code=403, detail="account_suspended")
+        if status_value == "deactivated":
+            raise HTTPException(status_code=403, detail="account_deactivated")
         return user
 
     return current_user
@@ -60,8 +70,11 @@ def build_optional_user_dependency(store, jwt_service: JwtService):
         user = await run_in_threadpool(store.get_user, claims.user_id)
         if user is None:
             raise HTTPException(status_code=401, detail="invalid or missing access token")
-        if user_status_value(user) == "suspended":
+        status_value = user_status_value(user)
+        if status_value == "suspended":
             raise HTTPException(status_code=403, detail="account_suspended")
+        if status_value == "deactivated":
+            raise HTTPException(status_code=403, detail="account_deactivated")
         return user
 
     return optional_user

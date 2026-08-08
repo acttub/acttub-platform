@@ -13,14 +13,12 @@ from botocore.exceptions import (
 )
 from fastapi.testclient import TestClient
 
-from acting_agent.config import Settings as AgentSettings
 from acting_api.app import create_app
 from acting_api.auth.jwt import JwtService
 from acting_api.config import GatewaySettings
 from acting_api.db.models import OperationStatus, PracticeStatus, UploadStatus
 from acting_api.storage import S3Storage
 from acting_api.uploads import MAX_UPLOAD_BYTES
-from acting_report.config import Settings as ReportSettings
 from acting_summary.config import Settings as SummarySettings
 from api_test_support import FakeClient, SUMMARY
 from platform_test_support import (
@@ -43,8 +41,6 @@ def _application(*, store=None, s3_client=None):
             jwt_secret=JWT_SECRET,
         ),
         summary_settings=SummarySettings(api_key="k", model="model-test"),
-        agent_settings=AgentSettings(api_key="k", model="model-test"),
-        report_settings=ReportSettings(api_key="k", model="model-test"),
         store=store,
         s3_storage=storage,
     )
@@ -95,8 +91,6 @@ def test_app_builds_storage_from_injected_boto_client_without_aws_calls(monkeypa
             aws_region="ap-northeast-2",
         ),
         summary_settings=SummarySettings(api_key="k", model="m"),
-        agent_settings=AgentSettings(api_key="k", model="m"),
-        report_settings=ReportSettings(api_key="k", model="m"),
         store=store,
         s3_client=s3_client,
     )

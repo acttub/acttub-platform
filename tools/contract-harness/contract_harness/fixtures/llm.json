@@ -1,0 +1,83 @@
+{
+  "_note": "외부 의존(LLM)의 값. 언어가 달라도 같은 파일을 읽으면 같은 값이 나온다 (spec/M1-harness.md §구현 규약 ⑥). 상수는 apps/api/acting-api/tests/api_test_support.py 에서 뽑아 복제한 것이며 원본 테스트 파일은 건드리지 않는다.",
+  "observation_pack": {
+    "observations": [
+      {
+        "start_ms": 120,
+        "end_ms": 130,
+        "label": "대사 직전에 숨을 들이쉰다",
+        "confidence": 0.9
+      }
+    ],
+    "uncertainties": ["얼굴은 화면 밖이라 확인되지 않음"]
+  },
+  "transcripts": ["지금 놓치면 끝이야", "돌아서지 마"],
+  "analysis_handoff": {
+    "handoff_type": "analysis",
+    "blocked_point": "왜 이 말을 지금 하는지",
+    "line_meaning": "상대가 떠나기 전에 붙잡으려는 말",
+    "timing_reason": "상대가 돌아서려는 순간이라서",
+    "target_effect": "상대가 발걸음을 멈추게 한다",
+    "scene_evidence": ["상대가 돌아선다"],
+    "actor_words": ["지금 놓치면 끝이야"],
+    "coach_summary": "떠나려는 상대를 지금 붙잡는다",
+    "uncertainties": []
+  },
+  "coach": {
+    "budget": 24,
+    "default": {
+      "message": "지금 놓치면 끝이라는 말에서 출발하면, 상대에게 무엇을 이해시키려는 거야?",
+      "status": "continue",
+      "handoff": null
+    },
+    "by_marker": {
+      "[[coach:complete]]": {
+        "message": "지금 놓치면 끝이라서, 돌아서는 상대의 발걸음을 멈추게 하려는 말이야.",
+        "status": "complete",
+        "handoff": "$analysis_handoff"
+      },
+      "[[coach:question]]": {
+        "message": "그 말을 지금 꺼내서 상대가 어떻게 되길 바라는 거야?",
+        "status": "continue",
+        "handoff": null
+      },
+      "[[coach:complete-badreport]]": {
+        "message": "지금 놓치면 끝이라서, 돌아서는 상대의 발걸음을 멈추게 하려는 말이야.",
+        "status": "complete",
+        "handoff": {
+          "handoff_type": "analysis",
+          "blocked_point": "왜 이 말을 지금 하는지",
+          "line_meaning": "상대가 떠나기 전에 붙잡으려는 말",
+          "timing_reason": "상대가 돌아서려는 순간이라서",
+          "target_effect": "상대가 발걸음을 멈추게 한다",
+          "scene_evidence": ["상대가 돌아선다"],
+          "actor_words": ["지금 놓치면 끝이야"],
+          "coach_summary": "리포트 생성이 깨진다 [[report:parse_error]]",
+          "uncertainties": []
+        }
+      }
+    }
+  },
+  "report": {
+    "budget": 12,
+    "default": {
+      "report_type": "analysis",
+      "title": "돌아서기 전에 붙잡는 말",
+      "actor_discovery": "지금 놓치면 끝이라는 걸 발견했다.",
+      "line_meaning": "상대가 떠나기 전에 붙잡으려는 말이다.",
+      "timing_reason": "상대가 돌아서려는 순간이라 지금 말한다.",
+      "target_effect": "상대가 발걸음을 멈추게 한다.",
+      "next_take": {
+        "direction": "상대의 발걸음을 멈추게 하는 일을 시험한다.",
+        "tested": false
+      },
+      "acting_caution": "정보만 전하지 않고 상대에게 하려는 일을 놓치지 않는다.",
+      "evidence": ["상대가 돌아선다."],
+      "uncertainties": [],
+      "source_handoff_id": "00000000-0000-4000-8000-000000000001"
+    },
+    "by_marker": {
+      "[[report:parse_error]]": "<<이건 JSON 이 아니다>>"
+    }
+  }
+}

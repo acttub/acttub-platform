@@ -8,7 +8,6 @@ from uuid import UUID, uuid4
 import pytest
 from fastapi.testclient import TestClient
 
-from acting_agent.config import Settings as AgentSettings
 from acting_api.analysis_worker import (
     AnalysisResult,
     AnalysisWorker,
@@ -21,7 +20,6 @@ from acting_api.app import create_app
 from acting_api.config import GatewaySettings
 from acting_api.db.models import OperationStatus, PracticeStatus, UploadStatus
 from acting_api.storage import S3Storage
-from acting_report.config import Settings as ReportSettings
 from acting_summary import compress as compress_mod
 from acting_summary import summarizer as summarizer_mod
 from acting_summary.config import Settings as SummarySettings
@@ -461,8 +459,6 @@ def test_analysis_worker_is_started_and_stopped_by_app_lifespan():
             jwt_secret="secret",
         ),
         summary_settings=SummarySettings(api_key="k", model="m"),
-        agent_settings=AgentSettings(api_key="k", model="m"),
-        report_settings=ReportSettings(api_key="k", model="m"),
         store=FakePlatformStore(),
         analysis_worker=pool,
     )

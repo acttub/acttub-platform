@@ -1,0 +1,606 @@
+{
+  "ActorTraining": {
+    "additional_properties": false,
+    "optional": [],
+    "required": [
+      "duration_minutes",
+      "focus",
+      "purpose",
+      "steps",
+      "success_check",
+      "tested",
+      "title"
+    ]
+  },
+  "AdmissionNotice": {
+    "additional_properties": false,
+    "optional": [
+      "admission_year",
+      "announce_date",
+      "apply_end",
+      "apply_start",
+      "csat_minimum",
+      "department",
+      "designated_works",
+      "discipline",
+      "documents",
+      "dress_code",
+      "essay_questions",
+      "fee",
+      "note",
+      "practical_date",
+      "practical_date_end",
+      "practical_items",
+      "practical_task",
+      "preparation",
+      "quota",
+      "results",
+      "screening",
+      "source_url",
+      "stages",
+      "track",
+      "verified_at",
+      "weights",
+      "weights_note"
+    ],
+    "required": [
+      "id",
+      "university_id"
+    ]
+  },
+  "AdmissionPracticalItem": {
+    "additional_properties": false,
+    "optional": [
+      "count",
+      "label",
+      "note",
+      "required",
+      "stage",
+      "time_limit_sec",
+      "weight"
+    ],
+    "required": [
+      "category"
+    ]
+  },
+  "AdmissionResource": {
+    "additional_properties": false,
+    "optional": [
+      "note",
+      "verified_at"
+    ],
+    "required": [
+      "kind",
+      "publisher",
+      "source_type",
+      "title",
+      "url"
+    ]
+  },
+  "AdmissionResult": {
+    "additional_properties": false,
+    "optional": [
+      "applicants",
+      "competition_rate",
+      "fill_rate",
+      "note",
+      "practical_avg",
+      "practical_cut50",
+      "practical_cut70",
+      "quota",
+      "source_url",
+      "transcript_avg",
+      "transcript_cut50",
+      "transcript_cut70",
+      "transcript_low",
+      "verified_at",
+      "waitlist_count",
+      "waitlist_last"
+    ],
+    "required": [
+      "year"
+    ]
+  },
+  "AdmissionStage": {
+    "additional_properties": false,
+    "optional": [
+      "date",
+      "evaluates",
+      "multiple",
+      "note",
+      "weight"
+    ],
+    "required": [
+      "name",
+      "order"
+    ]
+  },
+  "AdmissionTip": {
+    "additional_properties": false,
+    "optional": [
+      "corroborations",
+      "host",
+      "note",
+      "source_type",
+      "source_url",
+      "verified_at"
+    ],
+    "required": [
+      "category",
+      "text"
+    ]
+  },
+  "AdmissionUniversity": {
+    "additional_properties": false,
+    "optional": [
+      "campus",
+      "note",
+      "region",
+      "resources",
+      "tips",
+      "type",
+      "verified_at"
+    ],
+    "required": [
+      "admission_url",
+      "id",
+      "name"
+    ]
+  },
+  "AdmissionWeights": {
+    "additional_properties": false,
+    "optional": [
+      "csat",
+      "interview",
+      "other",
+      "portfolio",
+      "practical",
+      "transcript"
+    ],
+    "required": []
+  },
+  "AdmissionsResponse": {
+    "additional_properties": false,
+    "optional": [],
+    "required": [
+      "disclaimer",
+      "notices",
+      "universities",
+      "updated_at"
+    ]
+  },
+  "AnalysisNextTake": {
+    "additional_properties": false,
+    "optional": [],
+    "required": [
+      "direction",
+      "tested"
+    ]
+  },
+  "AnalysisReport": {
+    "additional_properties": false,
+    "optional": [],
+    "required": [
+      "acting_caution",
+      "actor_discovery",
+      "evidence",
+      "line_meaning",
+      "next_take",
+      "report_type",
+      "source_handoff_id",
+      "target_effect",
+      "timing_reason",
+      "title",
+      "uncertainties"
+    ]
+  },
+  "AuthUser": {
+    "additional_properties": false,
+    "optional": [],
+    "required": [
+      "email",
+      "id",
+      "status"
+    ]
+  },
+  "AuthorPayload": {
+    "additional_properties": false,
+    "optional": [],
+    "required": [
+      "alias",
+      "id",
+      "nickname"
+    ]
+  },
+  "BlockListResponse": {
+    "additional_properties": false,
+    "optional": [],
+    "required": [
+      "blocks"
+    ]
+  },
+  "BlockPayload": {
+    "additional_properties": false,
+    "optional": [],
+    "required": [
+      "nickname",
+      "user_id"
+    ]
+  },
+  "BlockedReport": {
+    "additional_properties": false,
+    "optional": [],
+    "required": [
+      "reason",
+      "report_type"
+    ]
+  },
+  "CategoryListResponse": {
+    "additional_properties": false,
+    "optional": [],
+    "required": [
+      "categories"
+    ]
+  },
+  "CategoryPayload": {
+    "additional_properties": false,
+    "optional": [],
+    "required": [
+      "description",
+      "name",
+      "slug"
+    ]
+  },
+  "CoachConfirmResponse": {
+    "additional_properties": false,
+    "optional": [],
+    "required": [
+      "confirmed",
+      "handoff",
+      "report",
+      "session_id"
+    ]
+  },
+  "CoachTurnResponse": {
+    "additional_properties": false,
+    "optional": [],
+    "required": [
+      "handoff",
+      "message",
+      "report",
+      "session_id",
+      "status",
+      "turns"
+    ]
+  },
+  "CommentListResponse": {
+    "additional_properties": false,
+    "optional": [],
+    "required": [
+      "comments",
+      "next_cursor"
+    ]
+  },
+  "CommentPayload": {
+    "additional_properties": false,
+    "optional": [],
+    "required": [
+      "anonymous",
+      "author",
+      "body",
+      "created_at",
+      "id",
+      "mine",
+      "post_id",
+      "updated_at"
+    ]
+  },
+  "ConsentAction": {
+    "additional_properties": true,
+    "optional": [],
+    "required": []
+  },
+  "ConsentDocument": {
+    "additional_properties": false,
+    "optional": [],
+    "required": [
+      "body",
+      "id",
+      "published_at",
+      "required",
+      "title",
+      "type",
+      "version"
+    ]
+  },
+  "ConsentDocumentsResponse": {
+    "additional_properties": false,
+    "optional": [],
+    "required": [
+      "documents"
+    ]
+  },
+  "ConsentEventResponse": {
+    "additional_properties": false,
+    "optional": [],
+    "required": [
+      "action",
+      "document_id",
+      "id",
+      "occurred_at"
+    ]
+  },
+  "ConsentType": {
+    "additional_properties": true,
+    "optional": [],
+    "required": []
+  },
+  "EffectiveExperiment": {
+    "additional_properties": false,
+    "optional": [],
+    "required": [
+      "instruction",
+      "tested"
+    ]
+  },
+  "ExpressionReport": {
+    "additional_properties": false,
+    "optional": [],
+    "required": [
+      "acting_trap",
+      "actor_training",
+      "actor_words",
+      "blocked_point",
+      "effective_experiment",
+      "evidence",
+      "expression_core",
+      "line_meaning",
+      "next_take",
+      "observed_change",
+      "playable_action",
+      "report_type",
+      "source_handoff_ids",
+      "timing_reason",
+      "title",
+      "uncertainties"
+    ]
+  },
+  "HealthResponse": {
+    "additional_properties": false,
+    "optional": [],
+    "required": [
+      "commit",
+      "keep_alive",
+      "model",
+      "services",
+      "status"
+    ]
+  },
+  "LikeResponse": {
+    "additional_properties": false,
+    "optional": [],
+    "required": [
+      "like_count",
+      "liked_by_me"
+    ]
+  },
+  "MeResponse": {
+    "additional_properties": false,
+    "optional": [],
+    "required": [
+      "email",
+      "id",
+      "nickname",
+      "status"
+    ]
+  },
+  "ObservationItem": {
+    "additional_properties": false,
+    "optional": [],
+    "required": [
+      "confidence",
+      "end_ms",
+      "label",
+      "start_ms"
+    ]
+  },
+  "ObservationPackResponse": {
+    "additional_properties": false,
+    "optional": [],
+    "required": [
+      "observations",
+      "summary_id",
+      "uncertainties"
+    ]
+  },
+  "PostListResponse": {
+    "additional_properties": false,
+    "optional": [],
+    "required": [
+      "next_cursor",
+      "posts"
+    ]
+  },
+  "PostPayload": {
+    "additional_properties": false,
+    "optional": [],
+    "required": [
+      "anonymous",
+      "author",
+      "body",
+      "category_name",
+      "category_slug",
+      "comment_count",
+      "created_at",
+      "id",
+      "like_count",
+      "liked_by_me",
+      "mine",
+      "title",
+      "updated_at",
+      "view_count"
+    ]
+  },
+  "PracticeSessionAcceptedResponse": {
+    "additional_properties": false,
+    "optional": [],
+    "required": [
+      "session_id",
+      "status"
+    ]
+  },
+  "PracticeSessionCreateResponse": {
+    "additional_properties": false,
+    "optional": [
+      "summary_id"
+    ],
+    "required": [
+      "session_id",
+      "status"
+    ]
+  },
+  "PracticeSessionDetail": {
+    "additional_properties": false,
+    "optional": [
+      "blockage_detail",
+      "error_code",
+      "summary"
+    ],
+    "required": [
+      "blockage_kind",
+      "character_context",
+      "created_at",
+      "goal",
+      "playback_url",
+      "session_id",
+      "situation",
+      "status",
+      "sub_branch",
+      "updated_at"
+    ]
+  },
+  "PracticeSessionListItem": {
+    "additional_properties": false,
+    "optional": [
+      "blockage_detail"
+    ],
+    "required": [
+      "blockage_kind",
+      "character_context",
+      "created_at",
+      "goal",
+      "session_id",
+      "situation",
+      "status",
+      "sub_branch",
+      "updated_at"
+    ]
+  },
+  "PracticeSessionListResponse": {
+    "additional_properties": false,
+    "optional": [],
+    "required": [
+      "sessions"
+    ]
+  },
+  "PracticeSessionStatusResponse": {
+    "additional_properties": false,
+    "optional": [
+      "error_code"
+    ],
+    "required": [
+      "status"
+    ]
+  },
+  "PublicCoachTurn": {
+    "additional_properties": false,
+    "optional": [],
+    "required": [
+      "role",
+      "text"
+    ]
+  },
+  "PublicHandoff": {
+    "additional_properties": false,
+    "optional": [],
+    "required": [
+      "branch_kind",
+      "id"
+    ]
+  },
+  "RefreshTokenResponse": {
+    "additional_properties": false,
+    "optional": [],
+    "required": [
+      "access_token",
+      "expires_in",
+      "refresh_token",
+      "token_type"
+    ]
+  },
+  "ReportDetailResponse": {
+    "additional_properties": false,
+    "optional": [],
+    "required": [
+      "created_at",
+      "playback_url",
+      "practice_session_id",
+      "report"
+    ]
+  },
+  "ReportHistoryResponse": {
+    "additional_properties": false,
+    "optional": [],
+    "required": [
+      "count",
+      "reports"
+    ]
+  },
+  "ReportRecord": {
+    "additional_properties": false,
+    "optional": [],
+    "required": [
+      "created_at",
+      "practice_session_id",
+      "report_type",
+      "title"
+    ]
+  },
+  "SourceHandoffIds": {
+    "additional_properties": false,
+    "optional": [],
+    "required": [
+      "analysis",
+      "expression"
+    ]
+  },
+  "TokenPairResponse": {
+    "additional_properties": false,
+    "optional": [],
+    "required": [
+      "access_token",
+      "expires_in",
+      "pending_consents",
+      "refresh_token",
+      "token_type",
+      "user"
+    ]
+  },
+  "UploadCompleteResponse": {
+    "additional_properties": false,
+    "optional": [],
+    "required": [
+      "intent_id",
+      "status"
+    ]
+  },
+  "UploadIntentResponse": {
+    "additional_properties": false,
+    "optional": [],
+    "required": [
+      "expires_at",
+      "intent_id",
+      "upload_url"
+    ]
+  }
+}

@@ -1,12 +1,19 @@
 from __future__ import annotations
 
 from typing import Literal
+from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict
 
 
 class _StrictModel(BaseModel):
     model_config = ConfigDict(extra="forbid")
+
+
+class ReportReq(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    session_id: UUID
 
 
 class AnalysisNextTake(_StrictModel):

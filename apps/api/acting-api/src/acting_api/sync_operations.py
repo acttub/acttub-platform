@@ -5,12 +5,15 @@ from datetime import datetime, timedelta, timezone
 import hashlib
 import json
 import logging
+from typing import Any
 from uuid import UUID, uuid4
 
 from fastapi import HTTPException
 from fastapi.responses import Response
+from starlette.concurrency import run_in_threadpool
 
 from acting_api.db.store import LeaseOwnershipError
+from acting_report import engine as report_engine
 
 logger = logging.getLogger(__name__)
 
@@ -124,6 +127,37 @@ def fail_sync_operation(
         )
     except LeaseOwnershipError:
         logger.warning("sync operation lease ownership was lost: %s", claim.operation_id)
+
+
+async def fail_sync_operation_async(
+    store, claim: SyncOperationClaim, error_code: str
+) -> None:
+    await run_in_threadpool(
+        fail_sync_operation,
+        store=store,
+        claim=claim,
+        error_code=error_code,
+    )
+
+
+def generate_source_report(source, *, generate=None):
+    kwargs: dict[str, Any] = {}
+    if generate is not None:
+        kwargs["generate"] = generate
+    return report_engine.generate_report(
+        report_type=source.branch_kind,
+        video_summary=source.video_summary,
+        confirmed_handoff=source.handoff_json,
+        confirmed=source.confirmed,
+        coaching_handoff_id=str(source.handoff_id or ""),
+        analysis_handoff=source.analysis_handoff_json,
+        analysis_handoff_id=(
+            str(source.analysis_handoff_id)
+            if source.analysis_handoff_id is not None
+            else None
+        ),
+        **kwargs,
+    )
 
 
 def _existing_operation_response(

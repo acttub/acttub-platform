@@ -1,7 +1,7 @@
 export type AuthUser = {
   id: string;
   email: string | null;
-  status: "active" | "suspended";
+  status: "active" | "suspended" | "deactivated";
 };
 
 export type TokenPair = {

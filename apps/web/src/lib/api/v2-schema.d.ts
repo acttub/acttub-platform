@@ -168,7 +168,16 @@ export interface paths {
         get: operations["get_me_v2_me_get"];
         put?: never;
         post?: never;
-        delete?: never;
+        /**
+         * Delete Me
+         * @description 회원탈퇴. 개인정보는 파기하고 글은 남긴다.
+         *
+         *     커뮤니티 글·연습 기록이 user_id 를 물고 있어 행을 지우면 남의 글타래가
+         *     깨진다. 그래서 행은 남기되 이메일·닉네임·identity 를 지우고 refresh 토큰을
+         *     전부 끊는다. 남아 있는 액세스 토큰은 만료까지 유효하지만 인증 게이트가
+         *     deactivated 를 403 으로 막는다. 자세한 처리는 store.deactivate_user 참조.
+         */
+        delete: operations["delete_me_v2_me_delete"];
         options?: never;
         head?: never;
         /** Update Me */
@@ -735,6 +744,38 @@ export interface components {
             /** Note */
             note?: string | null;
         };
+        /**
+         * AdmissionTip
+         * @description 다녀온 사람들이 남긴 실전 정보. **사실만 우리 문장으로 옮긴다.**
+         *
+         *     후기 글·영상은 남의 저작물이라 문장을 그대로 가져오지 않는다. 대신 거기서
+         *     확인되는 사실("대기가 세 시간 넘는다", "고사장에 주차장이 없다")만 추려
+         *     우리가 다시 쓰고, 판단은 사용자가 하도록 원문 링크를 함께 준다.
+         *
+         *     요강에 적힌 규정은 여기가 아니라 `dress_code`·`preparation`에 넣는다.
+         *     이 필드는 **요강에 없는데 겪어 봐야 아는 것**만 담는다.
+         */
+        AdmissionTip: {
+            /** Text */
+            text: string;
+            /** Category */
+            category: string;
+            /** Source Url */
+            source_url?: string | null;
+            /**
+             * Source Type
+             * @default personal
+             */
+            source_type: string;
+            /** Host */
+            host?: string | null;
+            /** Corroborations */
+            corroborations?: number | null;
+            /** Verified At */
+            verified_at?: string | null;
+            /** Note */
+            note?: string | null;
+        };
         /** AdmissionUniversity */
         AdmissionUniversity: {
             /** Id */
@@ -758,6 +799,11 @@ export interface components {
              * @default []
              */
             resources: components["schemas"]["AdmissionResource"][];
+            /**
+             * Tips
+             * @default []
+             */
+            tips: components["schemas"]["AdmissionTip"][];
         };
         /**
          * AdmissionWeights
@@ -842,7 +888,7 @@ export interface components {
              * Status
              * @enum {string}
              */
-            status: "active" | "suspended";
+            status: "active" | "suspended" | "deactivated";
         };
         /**
          * AuthorPayload
@@ -1186,7 +1232,7 @@ export interface components {
              * Status
              * @enum {string}
              */
-            status: "active" | "suspended";
+            status: "active" | "suspended" | "deactivated";
         };
         /** ObservationItem */
         ObservationItem: {
@@ -1882,6 +1928,24 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["MeResponse"];
                 };
+            };
+        };
+    };
+    delete_me_v2_me_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

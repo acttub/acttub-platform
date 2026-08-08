@@ -185,6 +185,7 @@ COLUMN user_identities.provider ord=3 type=identity_provider_t len=- null=NO def
 COLUMN user_identities.provider_uid ord=4 type=text len=- null=NO default=-
 COLUMN user_identities.user_id ord=2 type=uuid len=- null=NO default=-
 COLUMN users.created_at ord=4 type=timestamptz len=- null=NO default=now()
+COLUMN users.deactivated_at ord=7 type=timestamptz len=- null=YES default=-
 COLUMN users.email ord=2 type=text len=- null=YES default=-
 COLUMN users.id ord=1 type=uuid len=- null=NO default=gen_random_uuid()
 COLUMN users.nickname ord=6 type=text len=- null=YES default=-
@@ -451,7 +452,7 @@ ENUM session_status_t = open,closed
 ENUM severity_t = high,mid,low
 ENUM turn_role_t = ai,actor
 ENUM upload_status_t = pending,finalized,expired
-ENUM user_status_t = active,suspended
+ENUM user_status_t = active,suspended,deactivated
 INDEX CREATE INDEX idx_anomalies_summary ON public.anomalies USING btree (summary_id, sort_order)
 INDEX CREATE INDEX idx_coach_sessions_practice ON public.coach_sessions USING btree (practice_session_id, created_at)
 INDEX CREATE INDEX idx_coaching_handoffs_practice_created ON public.coaching_handoffs USING btree (practice_session_id, created_at)

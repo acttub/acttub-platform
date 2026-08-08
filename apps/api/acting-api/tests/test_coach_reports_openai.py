@@ -3,12 +3,10 @@ from uuid import UUID, uuid4
 
 from fastapi.testclient import TestClient
 
-from acting_agent.config import Settings as AgentSettings
 from acting_api.app import create_app
 from acting_api.auth.jwt import JwtService
 from acting_api.config import GatewaySettings
 from acting_api.db.models import PracticeStatus
-from acting_report.config import Settings as ReportSettings
 from acting_summary.config import Settings as SummarySettings
 from api_test_support import (
     COACH_COMPLETE,
@@ -57,8 +55,6 @@ def _application(*, coach_responses=(), report_responses=()):
             jwt_secret=JWT_SECRET,
         ),
         summary_settings=SummarySettings(api_key="summary-key", model="summary-model"),
-        agent_settings=AgentSettings(),
-        report_settings=ReportSettings(),
         store=store,
         community_store=SimpleNamespace(),
         coach_generate=coach_generate,

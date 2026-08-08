@@ -22,8 +22,8 @@ GitHub Environments의 variables 값뿐이다.
 | 앞단 | Caddy (Cloudflare 뒤) | CloudFront → ALB 2단 |
 | `API_ORIGIN` | `http://127.0.0.1:8000` | `http://<back-alb-dns>` |
 | DB | 같은 박스의 PostgreSQL | RDS |
-| 배포 트리거 | `dev` 브랜치 push → 자동 | Actions 탭에서 수동 |
-| 마이그레이션 | 배포에 포함(자동) | 수동 |
+| 배포 트리거 | `dev` 브랜치 push → 자동 | `main` 브랜치 push → 자동 |
+| 마이그레이션 | 배포에 포함(자동) | 배포에 포함(자동) |
 
 기존 dev 서버(`3.38.235.185`, FastAPI 단일 프로세스가 `STATIC_DIR`로 정적 서빙)는 이
 문서로 대체된다. 새 서버를 검증한 뒤 DNS를 옮기고 폐기한다(6장).
@@ -270,9 +270,9 @@ dev는 인스턴스가 한 대라 두 잡이 같은 박스에 동시에 설치�
 충돌하지 않지만, 잡이 끝나는 순서에 따라 잠깐 새 프론트 + 옛 API 조합이 될 수 있다.
 계약이 깨지는 변경을 확인할 때는 `both` 대신 `be` → `fe` 순으로 수동 실행한다.
 
-**마이그레이션은 dev에서만 자동으로 돈다.** `deploy/ssm-deploy.sh`가 `MIGRATE=1`일 때
-`uv sync` 뒤·재시작 전에 `alembic upgrade head`를 실행한다. 운영은 되돌리기가 어려워
-지금처럼 수동이다(`DEPLOY-VPC.md` 4-3).
+**마이그레이션은 dev·운영 모두 자동으로 돈다.** `deploy/ssm-deploy.sh`가 `MIGRATE=1`일 때
+`uv sync` 뒤·재시작 전에 `alembic upgrade head`를 실행한다. 되돌리기 어려운 성질은 그대로라
+스키마를 먼저 넓히고 코드를 나중에 좁히는 순서로 통제한다(`DEPLOY-VPC.md` 6-4).
 
 ## 5. 검증 체크리스트
 

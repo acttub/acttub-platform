@@ -326,6 +326,24 @@
           }
         ]
       },
+      "delete": {
+        "tags": [
+          "v2-me"
+        ],
+        "summary": "Delete Me",
+        "description": "회원탈퇴. 개인정보는 파기하고 글은 남긴다.\n\n커뮤니티 글·연습 기록이 user_id 를 물고 있어 행을 지우면 남의 글타래가\n깨진다. 그래서 행은 남기되 이메일·닉네임·identity 를 지우고 refresh 토큰을\n전부 끊는다. 남아 있는 액세스 토큰은 만료까지 유효하지만 인증 게이트가\ndeactivated 를 403 으로 막는다. 자세한 처리는 store.deactivate_user 참조.",
+        "operationId": "delete_me_v2_me_delete",
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      },
       "patch": {
         "tags": [
           "v2-me"
@@ -2654,6 +2672,86 @@
         "title": "AdmissionStage",
         "description": "단계별 전형. 1차에서 몇 배수를 뽑는지가 지원 판단을 가른다."
       },
+      "AdmissionTip": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "category": {
+            "type": "string",
+            "title": "Category"
+          },
+          "source_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Url"
+          },
+          "source_type": {
+            "type": "string",
+            "title": "Source Type",
+            "default": "personal"
+          },
+          "host": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Host"
+          },
+          "corroborations": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Corroborations"
+          },
+          "verified_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verified At"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "text",
+          "category"
+        ],
+        "title": "AdmissionTip",
+        "description": "다녀온 사람들이 남긴 실전 정보. **사실만 우리 문장으로 옮긴다.**\n\n후기 글·영상은 남의 저작물이라 문장을 그대로 가져오지 않는다. 대신 거기서\n확인되는 사실(\"대기가 세 시간 넘는다\", \"고사장에 주차장이 없다\")만 추려\n우리가 다시 쓰고, 판단은 사용자가 하도록 원문 링크를 함께 준다.\n\n요강에 적힌 규정은 여기가 아니라 `dress_code`·`preparation`에 넣는다.\n이 필드는 **요강에 없는데 겪어 봐야 아는 것**만 담는다."
+      },
       "AdmissionUniversity": {
         "properties": {
           "id": {
@@ -2729,6 +2827,14 @@
             },
             "type": "array",
             "title": "Resources",
+            "default": []
+          },
+          "tips": {
+            "items": {
+              "$ref": "#/components/schemas/AdmissionTip"
+            },
+            "type": "array",
+            "title": "Tips",
             "default": []
           }
         },
@@ -2962,7 +3068,8 @@
             "type": "string",
             "enum": [
               "active",
-              "suspended"
+              "suspended",
+              "deactivated"
             ],
             "title": "Status"
           }
@@ -3817,7 +3924,8 @@
             "type": "string",
             "enum": [
               "active",
-              "suspended"
+              "suspended",
+              "deactivated"
             ],
             "title": "Status"
           }
