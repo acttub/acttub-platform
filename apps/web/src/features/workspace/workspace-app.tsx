@@ -551,6 +551,13 @@ function WorkspaceInner() {
     setError(null);
     setActiveId(id);
     setDetail(null);
+    // 다른 연습으로 넘어가므로 직전 연습의 로컬 원본은 버린다 — 남겨 두면
+    // visibleVideoUrl 이 그걸 먼저 잡아 남의 영상을 틀게 된다.
+    setVideoFile(null);
+    setVideoUrl((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return null;
+    });
     setPct(UPLOAD_PROGRESS_END);
     setAnalysisStatus(null);
     setVideoDurationMs(null);
@@ -676,7 +683,11 @@ function WorkspaceInner() {
     character: detail?.character_context ?? character,
     goal: detail?.goal ?? goal,
   };
-  const visibleVideoUrl = detail?.playback_url ?? videoUrl;
+  // 방금 고른 로컬 원본이 있으면 그걸 계속 재생한다. 서버 playback_url 을 먼저 쓰면
+  // 업로드가 끝나는 순간 src 가 blob → 원격으로 갈아끼워지면서 영상 자리가 한 번 비고,
+  // 다시 뜬 소스에서 onDuration 이 또 불려 진행 막대의 기준 길이까지 흔들린다.
+  // 목록에서 연 세션은 로컬 원본이 없으므로(openSession 이 지운다) 서버 주소를 쓴다.
+  const visibleVideoUrl = videoUrl ?? detail?.playback_url ?? null;
 
   const rail = (
     <SessionRail
