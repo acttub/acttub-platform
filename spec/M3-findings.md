@@ -68,6 +68,8 @@ M2 와 같은 전제였다. Codex 샌드박스가 gradle 락 파일과 로컬 �
 - `openapi.json` **전체** diff 0 (M3 는 M3 inventory slice 로 판정)
 - `auth/FixedWindowRateLimiter` 의 `advanceContractClock()`·`reset()` 이 프로덕션 `@Component` 의 공개 메서드다. contract 프로파일 전용 훅이므로 가시성을 좁히거나 프로파일로 가른다
 
+> ✅ **2026-08-08 — 아래 셋은 `spec/M4-llm.md` 3차 개정에서 §F-1(lease)·§F-2(요청 검증)·§F-3(admin stats)으로 편입됐다.** 이 절은 그 근거 기록으로 남긴다.
+
 ### 🔎 요청 검증을 캐시된 JSON 트리 기반으로 바꾼다 — 한 덩어리로 다룰 것
 
 Phase 5·6 리뷰가 **같은 뿌리에서 나온 지적 다섯**을 냈다. 개별로 고치면 부분해가 되고 서로를 무효화하므로 M4 착수 시 한 번에 처리한다.
