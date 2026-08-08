@@ -92,14 +92,18 @@ test("업로드와 장면 확인 진행률은 단조 증가하고 analyzed에서
   assert.ok(uploadProgress(50, false) < uploadProgress(50, true));
   assert.equal(analysisProgress(600_000, 47_000), ANALYSIS_PROGRESS_LIMIT);
   assert.ok(ANALYSIS_PROGRESS_LIMIT < 100);
-  // 분석 구간은 영상 길이를 시상수로 쓰는 점근 곡선이다 — 멈추지 않고 95를 넘지도 않는다.
+  // 분석 구간은 영상 길이에 비례해 찬다 — 20에서 시작해 95를 넘지 않는다.
   assert.equal(analysisProgress(0, 47_000), UPLOAD_PROGRESS_END);
-  assert.ok(analysisProgress(60_000, 47_000) > analysisProgress(30_000, 47_000));
+  assert.ok(analysisProgress(30_000, 47_000) > analysisProgress(10_000, 47_000));
   assert.ok(analysisProgress(300_000, 47_000) <= ANALYSIS_PROGRESS_LIMIT);
+  // 상한에 닿는 지점은 영상 길이의 0.9375배다. 실측(47초 영상 → 분석 41.4초)이
+  // 그보다 앞이라 분석이 끝나는 순간 막대는 아직 움직이는 중이다.
+  assert.equal(analysisProgress(0.9375 * 47_000, 47_000), ANALYSIS_PROGRESS_LIMIT);
+  assert.ok(analysisProgress(41_400, 47_000) < ANALYSIS_PROGRESS_LIMIT);
   // 긴 영상은 같은 시각에 덜 찬다.
-  assert.ok(analysisProgress(30_000, 120_000) < analysisProgress(30_000, 30_000));
+  assert.ok(analysisProgress(30_000, 120_000) < analysisProgress(30_000, 47_000));
   // 목록에서 연 세션은 길이를 모르지만 그래도 구간 안에서 움직인다.
-  const noDuration = analysisProgress(30_000, null);
+  const noDuration = analysisProgress(10_000, null);
   assert.ok(noDuration > UPLOAD_PROGRESS_END && noDuration < ANALYSIS_PROGRESS_LIMIT);
   assert.equal(settleProgress(ANALYSIS_PROGRESS_LIMIT, "analyzing"), ANALYSIS_PROGRESS_LIMIT);
   assert.equal(settleProgress(ANALYSIS_PROGRESS_LIMIT, "failed"), ANALYSIS_PROGRESS_LIMIT);
