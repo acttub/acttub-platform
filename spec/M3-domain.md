@@ -93,7 +93,7 @@ target 중단: login: 로그인 실패 401 b'{"detail":"invalid_provider_token"}
 
 | # | 그룹 | 주된 위험 | 판정 수단 |
 |---|---|---|---|
-| 1 | `/v2/me`, `/v2/consents` | **`DISTINCT ON` 2건**(`db/store.py:PostgresStore.list_latest_consent_documents`·`.get_current_user_consents`), nickname 정규화 | 하네스 `profile`·`consent-gate` |
+| 1 | `/v2/me`, `/v2/consents` | **`DISTINCT ON` 2건**(`db/store.py:PostgresStore.list_latest_consent_documents`·`.get_current_user_consents`), nickname 정규화 | 하네스 `profile`. 🔁 `consent-gate` 는 **M3 완주 불가**다 — 2026-08-08 실행 확인: 이 시나리오가 `/v2/coach/start` 와 `POST /v2/reports` 도 밟는데, 원본은 동의 게이트가 라우팅보다 먼저라 **403 `consent_required`** 를 내고 Java 는 라우트가 없어 404·405 를 낸다. 그 둘은 M4 가 노출한다. 나머지 스텝은 전부 일치한다 |
 | 2 | `/v2/uploads` | `UPDATE...RETURNING`, presign 리전 고정, unknown key 허용 (숫자 파싱은 M2 에서 해결 — 회귀 확인만) | 하네스 `expired-intent` + Java 통합 |
 | 3 | `/v2/practice-sessions` | **위험 함수 #2**, 조건부 키 생략, 멱등 전이표, L3 바이트 동등 | **Java 통합 전용.** 🔁 초판은 `status-codes`·`inflight-replay` "일부"라 적었으나 **둘 다 M3 에서 완주 불가**다 — 2026-08-08 실행 확인: 두 시나리오 모두 `ctx.control(..., "run-worker-once")` 를 호출하고 그 제어는 분석 워커라 M4 다(`tools/contract-harness/contract_harness/scenarios/errors.py`·`.../inflight.py`). `main-flow` 는 coach 를 거쳐 역시 불가 |
 | 4 | `/v2/community` (16) | `community_store.py` 749줄. **위험 함수 #5**, 키셋 커서, 차단 필터, 익명 별칭 | 하네스 `community`·`community-traversal` |

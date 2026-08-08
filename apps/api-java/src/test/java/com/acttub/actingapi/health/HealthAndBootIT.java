@@ -215,6 +215,19 @@ class HealthAndBootIT {
                         "/paths/~1v2~1auth~1login/post/responses/200/content"));
     }
 
+    @Test
+    @DisplayName("default inventory에는 조건부 admin과 M4 operation이 없다")
+    void defaultInventoryExcludesAdminAndM4Operations() throws Exception {
+        JsonNode generated = MAPPER.readTree(get("/v3/api-docs"));
+
+        assertThat(generated.at("/paths/~1v2~1admin~1stats").isMissingNode()).isTrue();
+        assertThat(generated.at("/paths/~1v2~1admin~1sessions").isMissingNode()).isTrue();
+        assertThat(generated.at("/paths/~1v2~1reports/post").isMissingNode()).isTrue();
+        assertThat(generated.at("/paths/~1v2~1coach~1start").isMissingNode()).isTrue();
+        assertThat(generated.at("/paths/~1v2~1coach~1reply").isMissingNode()).isTrue();
+        assertThat(generated.at("/paths/~1v2~1coach~1confirm").isMissingNode()).isTrue();
+    }
+
     private static void assertSchemaTitlesAndNullability(
             JsonNode expected,
             JsonNode actual,

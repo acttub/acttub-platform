@@ -172,9 +172,11 @@ class ReportOperationIT {
             connection.setAutoCommit(false);
             try {
                 try (PreparedStatement doomed = connection.prepareStatement(
+                        // report_type 은 enum 이 아니라 text 다 — 캐스팅하면 존재하지 않는
+                        // 타입이라 문법 오류로 죽고, 여기서 의도한 CHECK 제약 위반에 닿지 못한다.
                         "INSERT INTO practice_reports (id, practice_session_id, report_type,"
                                 + " report_json, source_handoff_id)"
-                                + " VALUES (?, ?, ?::practice_report_type_t, ?::jsonb, ?)")) {
+                                + " VALUES (?, ?, ?, ?::jsonb, ?)")) {
                     doomed.setObject(1, UUID.randomUUID());
                     doomed.setObject(2, scenario.practiceSessionId());
                     doomed.setString(3, "invalid-report-type");

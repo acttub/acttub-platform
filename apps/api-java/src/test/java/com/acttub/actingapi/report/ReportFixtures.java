@@ -10,13 +10,13 @@ import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /** {@code complete_practice_report_operation}에 필요한 최소 FK 체인. */
-final class ReportFixtures {
+public final class ReportFixtures {
 
     static final Instant NOW = Instant.parse("2026-08-08T02:03:04.567890Z");
 
     private final JdbcTemplate jdbc;
 
-    ReportFixtures(JdbcTemplate jdbc) {
+    public ReportFixtures(JdbcTemplate jdbc) {
         this.jdbc = jdbc;
     }
 
@@ -100,7 +100,7 @@ final class ReportFixtures {
         return sessionId;
     }
 
-    UUID insertHandoff(UUID practiceSessionId) {
+    public UUID insertHandoff(UUID practiceSessionId) {
         UUID coachSessionId = UUID.randomUUID();
         jdbc.update("""
                 INSERT INTO coach_sessions (
@@ -112,6 +112,10 @@ final class ReportFixtures {
                 VALUES (?, ?, 'closed'::session_status_t, '')
                 """, coachSessionId, practiceSessionId);
 
+        return insertHandoff(practiceSessionId, coachSessionId);
+    }
+
+    public UUID insertHandoff(UUID practiceSessionId, UUID coachSessionId) {
         UUID handoffId = UUID.randomUUID();
         jdbc.update("""
                 INSERT INTO coaching_handoffs (

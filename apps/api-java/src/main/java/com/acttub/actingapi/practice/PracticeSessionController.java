@@ -109,7 +109,7 @@ class PracticeSessionController {
                     schema = @Schema(nullable = true))
             @RequestHeader(name = "X-Request-Id", required = false) String requestIdHeader,
             HttpServletRequest request) {
-        var user = auth.rateLimitedUser(request);
+        var user = auth.consentedUser(request);
         validateLiteral("blockage_kind", body.blockageKind(), BLOCKAGE_KINDS);
         validateLiteral("sub_branch", body.subBranch(), SUB_BRANCHES);
         UUID requestId = requestId(requestIdHeader);
@@ -153,7 +153,7 @@ class PracticeSessionController {
             content = @Content(schema = @Schema(implementation = PracticeSessionListResponse.class)))
     @GetMapping
     PracticeSessionListResponse list(HttpServletRequest request) {
-        var user = auth.rateLimitedUser(request);
+        var user = auth.consentedUser(request);
         return new PracticeSessionListResponse(sessions.list(user.id()).stream()
                 .map(PracticeSessionController::listItem)
                 .toList());
@@ -178,7 +178,7 @@ class PracticeSessionController {
     PracticeSessionStatusResponse status(
             @PathVariable("session_id") UUID sessionId,
             HttpServletRequest request) {
-        var user = auth.rateLimitedUser(request);
+        var user = auth.consentedUser(request);
         PracticeSessionStore.StatusRow status = sessions.status(user.id(), sessionId);
         if (status == null) {
             throw new ApiException(404, "practice_session_not_found");
@@ -205,7 +205,7 @@ class PracticeSessionController {
     Map<String, Object> detail(
             @PathVariable("session_id") UUID sessionId,
             HttpServletRequest request) {
-        var user = auth.rateLimitedUser(request);
+        var user = auth.consentedUser(request);
         PracticeSessionStore.DetailRow detail = sessions.detail(user.id(), sessionId);
         if (detail == null) {
             throw new ApiException(404, "practice_session_not_found");
@@ -266,7 +266,7 @@ class PracticeSessionController {
                     schema = @Schema(nullable = true))
             @RequestHeader(name = "X-Request-Id", required = false) String requestIdHeader,
             HttpServletRequest request) {
-        var user = auth.rateLimitedUser(request);
+        var user = auth.consentedUser(request);
         UUID requestId = requestId(requestIdHeader);
         String fingerprint = fingerprint(Map.of("session_id", sessionId.toString()));
         PracticeSessionOperation result = operations.createAnalysisRetryOperation(
@@ -296,7 +296,7 @@ class PracticeSessionController {
     ResponseEntity<Void> delete(
             @PathVariable("session_id") UUID sessionId,
             HttpServletRequest request) {
-        var user = auth.currentUser(request);
+        var user = auth.rateLimitedUser(request);
         OffsetDateTime now = clock.instant().atOffset(ZoneOffset.UTC);
         if (!sessions.hide(user.id(), sessionId, now)) {
             throw new ApiException(404, "practice_session_not_found");

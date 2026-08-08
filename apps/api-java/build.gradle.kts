@@ -93,6 +93,10 @@ tasks.named<org.gradle.language.jvm.tasks.ProcessResources>("processResources") 
         include("manifest.json", "terms_v1.md", "privacy_v2.md", "ai_analysis_v1.md")
         into("consent-docs")
     }
+    from("../api/acting-api/admissions") {
+        include("notices.json")
+        into("admissions")
+    }
 }
 
 /**

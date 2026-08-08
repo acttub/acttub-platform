@@ -7,7 +7,9 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
+import com.acttub.actingapi.report.ReportDtos.ReportDetailResponse;
 import io.swagger.v3.core.converter.ModelConverter;
+import io.swagger.v3.core.converter.ModelConverters;
 import io.swagger.v3.core.jackson.ModelResolver;
 import io.swagger.v3.oas.models.media.ComposedSchema;
 import io.swagger.v3.oas.models.media.IntegerSchema;
@@ -38,10 +40,27 @@ class PydanticOpenApiCustomizer {
             if (openApi.getComponents() == null || openApi.getComponents().getSchemas() == null) {
                 return;
             }
-            applyFastApiValidationErrorShape(openApi.getComponents().getSchemas());
-            openApi.getComponents().getSchemas().replaceAll(
+            Map<String, Schema> schemas = openApi.getComponents().getSchemas();
+            registerReferencedSchemas(schemas, ReportDetailResponse.class);
+            applyFastApiValidationErrorShape(schemas);
+            schemas.replaceAll(
                     (modelName, schema) -> normalize(schema, modelName));
+            applyAdmissionsSchemaShape(schemas);
+            applyReportSchemaShape(schemas);
         };
+    }
+
+    /**
+     * springdoc does not merge {@code referencedSchemas} discovered below a Jackson
+     * {@code JsonNode} property into {@code components.schemas}. Resolve the annotated root
+     * through Swagger's normal converter and merge every missing referenced model before the
+     * shared pydantic normalization runs.
+     */
+    private static void registerReferencedSchemas(
+            Map<String, Schema> schemas,
+            Class<?> rootModel) {
+        ModelConverters.getInstance(true).readAll(rootModel)
+                .forEach(schemas::putIfAbsent);
     }
 
     private static void normalizeParameterSchemas(io.swagger.v3.oas.models.OpenAPI openApi) {
@@ -54,7 +73,7 @@ class PydanticOpenApiCustomizer {
                 .flatMap(operation -> operation.getParameters().stream())
                 .filter(parameter -> parameter.getSchema() != null)
                 .forEach(parameter -> parameter.setSchema(
-                        normalizeParameter(parameter.getSchema(), propertyTitle(parameter.getName()))));
+                        normalizeParameter(parameter.getSchema(), parameterTitle(parameter))));
     }
 
     private static Schema<?> normalizeParameter(Schema<?> schema, String inferredTitle) {
@@ -136,9 +155,8 @@ class PydanticOpenApiCustomizer {
      * {@code "false"} 로 나가는데, pydantic 은 {@code false} 를 낸다. 하네스 diff 는 값뿐
      * 아니라 <b>타입까지</b> 비교하므로 그대로 차이가 된다.
      *
-     * <p>정본의 {@code default} 9 개는 전부 불리언이거나 빈 배열이다(/SPEC.md §6-1) —
-     * {@code PostWriteRequest.anonymous}·{@code CommentWriteRequest.anonymous} 가 {@code false},
-     * 나머지 일곱은 admissions 계열의 {@code []} 다.
+     * <p>현재 정본의 default는 불리언, 문자열, 빈 배열만 사용한다. 어노테이션은 문자열만
+     * 받으므로 JSON 리터럴이어야 하는 불리언과 배열만 여기서 타입을 바로잡는다.
      */
     private static void normalizeDefaultLiteral(Schema<?> schema) {
         if (!(schema.getDefault() instanceof String literal)) {
@@ -175,6 +193,7 @@ class PydanticOpenApiCustomizer {
         }
 
         stripPydanticIntegerFormat(schema);
+        stripPydanticNumberFormat(schema);
         normalizeExclusiveBounds(schema);
         stripUnboundedMaxLength(schema);
         normalizeDefaultLiteral(schema);
@@ -185,6 +204,7 @@ class PydanticOpenApiCustomizer {
         normalizeSchemas(schema.getAllOf());
         normalizeSchemas(schema.getOneOf());
         normalizeSchemas(schema.getAnyOf());
+        stripAnyOfBaseType(schema);
 
         if (!isNullable(schema) || hasNullAlternative(schema)) {
             return schema;
@@ -192,11 +212,113 @@ class PydanticOpenApiCustomizer {
         return nullableAnyOf(schema);
     }
 
+    /** Pydantic does not emit a sibling {@code type} beside an {@code anyOf}. */
+    private static void stripAnyOfBaseType(Schema<?> schema) {
+        if (schema.getAnyOf() == null || schema.getAnyOf().isEmpty() || isNullable(schema)) {
+            return;
+        }
+        schema.setType(null);
+        schema.setTypes(null);
+        schema.setFormat(null);
+    }
+
     /** Pydantic의 무제한 {@code int}에는 Java {@code int32}/{@code int64} format이 없다. */
     private static void stripPydanticIntegerFormat(Schema<?> schema) {
         if ("integer".equals(schema.getType())
                 || schema.getTypes() != null && schema.getTypes().contains("integer")) {
             schema.setFormat(null);
+        }
+    }
+
+    /** Java {@code Double}의 {@code double} format은 pydantic의 무제한 number에 없다. */
+    private static void stripPydanticNumberFormat(Schema<?> schema) {
+        if ("number".equals(schema.getType())
+                || schema.getTypes() != null && schema.getTypes().contains("number")) {
+            schema.setFormat(null);
+        }
+    }
+
+    private static void applyAdmissionsSchemaShape(Map<String, Schema> schemas) {
+        setArrayDefaults(schemas, "AdmissionNotice", List.of(
+                "designated_works", "essay_questions", "stages", "practical_items", "results"));
+        setArrayDefaults(schemas, "AdmissionStage", List.of("evaluates"));
+        setArrayDefaults(schemas, "AdmissionUniversity", List.of("resources", "tips"));
+
+        Schema<?> notice = schemas.get("AdmissionNotice");
+        Schema<?> weights = schemas.get("AdmissionWeights");
+        if (notice == null || notice.getProperties() == null || weights == null) {
+            return;
+        }
+        Schema<?> nonNullWeights = unwrapNullableComponent(weights);
+        nonNullWeights.setTitle("AdmissionWeights");
+        schemas.put("AdmissionWeights", nonNullWeights);
+
+        ComposedSchema nullableWeights = new ComposedSchema();
+        Schema<?> reference = new Schema<>();
+        reference.set$ref("#/components/schemas/AdmissionWeights");
+        nullableWeights.setAnyOf(new ArrayList<>(List.of(reference, nullSchema())));
+        notice.getProperties().put("weights", nullableWeights);
+    }
+
+    private static Schema<?> unwrapNullableComponent(Schema<?> schema) {
+        if (schema.getAnyOf() == null) {
+            return schema;
+        }
+        return schema.getAnyOf().stream()
+                .filter(candidate -> !isNullSchema(candidate))
+                .findFirst()
+                .orElse(schema);
+    }
+
+    private static void setArrayDefaults(
+            Map<String, Schema> schemas,
+            String component,
+            List<String> properties) {
+        Schema<?> owner = schemas.get(component);
+        if (owner == null || owner.getProperties() == null) {
+            return;
+        }
+        for (String property : properties) {
+            Schema<?> value = (Schema<?>) owner.getProperties().get(property);
+            if (value != null) {
+                value.setDefault(new ArrayList<>());
+            }
+        }
+    }
+
+    private static void applyReportSchemaShape(Map<String, Schema> schemas) {
+        setConst(schemas, "AnalysisReport", "report_type", "analysis");
+        setConst(schemas, "ExpressionReport", "report_type", "expression");
+        setConst(schemas, "AnalysisNextTake", "tested", false);
+        setConst(schemas, "EffectiveExperiment", "tested", true);
+        setConst(schemas, "ActorTraining", "tested", false);
+
+        Schema<?> detail = schemas.get("ReportDetailResponse");
+        if (detail != null && detail.getProperties() != null) {
+            ComposedSchema report = new ComposedSchema();
+            report.setTitle("Report");
+            Schema<?> analysis = new Schema<>();
+            analysis.set$ref("#/components/schemas/AnalysisReport");
+            Schema<?> expression = new Schema<>();
+            expression.set$ref("#/components/schemas/ExpressionReport");
+            report.setAnyOf(new ArrayList<>(List.of(analysis, expression)));
+            detail.getProperties().put("report", report);
+            schemas.remove("JsonNode");
+        }
+    }
+
+    private static void setConst(
+            Map<String, Schema> schemas,
+            String component,
+            String property,
+            Object value) {
+        Schema<?> owner = schemas.get(component);
+        if (owner == null || owner.getProperties() == null) {
+            return;
+        }
+        Schema<?> field = (Schema<?>) owner.getProperties().get(property);
+        if (field != null) {
+            field.setConst(value);
         }
     }
 
@@ -210,9 +332,9 @@ class PydanticOpenApiCustomizer {
      * {@code {"minimum":0}} 이 나가 어긋난다. 이 자리에 오면 불리언 플래그는 이미 유실돼
      * 있으므로 <b>명시적으로 {@code false} 가 아닌 한</b> 배타로 본다.
      *
-     * <p>근거: 현재 정본에 <b>포함</b> 하한·상한은 0건이고 배타만 2건이다(둘 다
-     * {@code UploadIntentRequest}). 포함 경계를 쓰는 필드가 새로 생기면 이 가정이 깨지는데,
-     * 그때는 정본과 컴포넌트를 대조하는 {@code HealthAndBootIT} 의 OpenAPI 테스트가 잡는다.
+     * <p>기본 프로파일 정본의 수치 경계는 배타 2건({@code UploadIntentRequest})뿐이다.
+     * 조건부 admin 프로파일의 {@code limit}은 포함 경계라 어노테이션에
+     * {@code exclusiveMinimum=false}/{@code exclusiveMaximum=false}를 명시한다.
      */
     private static void normalizeExclusiveBounds(Schema<?> schema) {
         if (schema.getMinimum() != null && !Boolean.FALSE.equals(schema.getExclusiveMinimum())) {
@@ -318,6 +440,20 @@ class PydanticOpenApiCustomizer {
         return schema;
     }
 
+    /**
+     * 헤더 파라미터의 title 은 <b>이름 그대로</b>다.
+     *
+     * <p>정본에서 path·query 파라미터는 snake_case 를 변환하지만
+     * ({@code session_id} → {@code Session Id}) 헤더만 {@code X-Request-Id} 를 그대로 쓴다 —
+     * 헤더 이름은 이미 사람이 읽는 표기라 pydantic 이 손대지 않는다. 일반 규칙을 적용하면
+     * {@code X-request-id} 가 되어 어긋난다.
+     */
+    private static String parameterTitle(io.swagger.v3.oas.models.parameters.Parameter parameter) {
+        return "header".equals(parameter.getIn())
+                ? parameter.getName()
+                : propertyTitle(parameter.getName());
+    }
+
     private static String propertyTitle(String wireName) {
         String[] words = wireName.split("_");
         List<String> titled = new ArrayList<>(words.length);
@@ -326,7 +462,15 @@ class PydanticOpenApiCustomizer {
                 continue;
             }
             String lower = word.toLowerCase(Locale.ROOT);
-            titled.add(Character.toUpperCase(lower.charAt(0)) + lower.substring(1));
+            StringBuilder title = new StringBuilder(lower);
+            for (int index = 0; index < title.length(); index++) {
+                char character = title.charAt(index);
+                if (Character.isLetter(character)) {
+                    title.setCharAt(index, Character.toUpperCase(character));
+                    break;
+                }
+            }
+            titled.add(title.toString());
         }
         return String.join(" ", titled);
     }
