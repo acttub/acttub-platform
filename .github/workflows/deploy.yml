@@ -126,6 +126,9 @@ jobs:
         env:
           DEPLOY_BUCKET: ${{ vars.DEPLOY_BUCKET }}
           MIGRATE: "1"
+          # Sentry 릴리스. DSN·환경 이름은 인스턴스의 /etc/acttub/api.env 가 들고 있고
+          # (사람이 관리), 배포마다 바뀌는 이 값만 systemd drop-in 으로 얹습니다.
+          RELEASE: ${{ github.sha }}
         run: deploy/ssm-deploy.sh be ${{ vars.BE_INSTANCE_ID }}
 
       # 마이그레이션이 자동으로 돌아도 head가 갈리거나 부분 적용되면 어긋날 수
@@ -170,6 +173,15 @@ jobs:
           DEPLOY_BUCKET: ${{ vars.DEPLOY_BUCKET }}
           API_ORIGIN: ${{ vars.API_ORIGIN }}
           NEXT_PUBLIC_SITE_URL: ${{ vars.NEXT_PUBLIC_SITE_URL }}
+          # Sentry도 빌드 시점에 굳습니다. DSN이 비어 있으면 계측이 꺼진 번들이
+          # 나가는데, 빌드는 통과하므로 배포가 초록이어도 에러가 안 올라옵니다.
+          # 릴리스는 소스맵 업로드와 런타임이 같은 값을 봐야 스택트레이스가 풀립니다.
+          NEXT_PUBLIC_SENTRY_DSN: ${{ vars.SENTRY_DSN_WEB }}
+          NEXT_PUBLIC_SENTRY_ENV: ${{ needs.guard.outputs.environment }}
+          NEXT_PUBLIC_APP_COMMIT: ${{ github.sha }}
+          SENTRY_ORG: ${{ vars.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT_WEB }}
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
         run: deploy/upload-web.sh
 
       - name: Install on instance
