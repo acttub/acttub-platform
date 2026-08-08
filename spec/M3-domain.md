@@ -171,28 +171,28 @@ target 중단: login: 로그인 실패 401 b'{"detail":"invalid_provider_token"}
 
 ## 완료 기준 체크리스트
 
-- [ ] LLM 비의존 엔드포인트 전부 이식 (inventory 집합 동등성으로 판정)
-- [ ] **위험 함수 5개**(`/SPEC.md` §7-1 목록 그대로: creation 보상 · coach 저장 낙관적 락 · `claim_next` · `_ensure_alias` · `confirm_latest_handoff`)가 각각 Testcontainers 테스트로 고정됨
-- [ ] **강등된 `complete_practice_report_operation` 재조준 테스트**도 별도로 통과 (중복 시 `False`·새 행 없음, lease 상실 시 insert 롤백, marker 롤백, 커넥션 오염 없음)
-- [ ] **`ExternalOperationClaimer` 완성** — analyze claim 이 operation 과 practice session 을 한 트랜잭션에서 전이하고, report·coach kind 는 세션 status 를 바꾸지 않는다
-- [ ] **제어 표면 선행분이 Java 에 있다** — 스키마 reset/seed, `db-projection`, `advance-clock`, **그리고 인증 provider 스텁**. transport 는 `POST /__harness/<name>`(`spec/M4-llm.md` 확정 형태). 운영 프로파일에 노출되지 않음을 테스트로 단언
-- [ ] **contract 프로파일의 `POST /v2/auth/login` 이 `fixtures/auth_providers.json` 으로 검증**한다 — 이게 없으면 로그인으로 시작하는 시나리오 전부가 첫 스텝에서 죽는다
-- [ ] **contract 프로파일의 S3 접근이 `fixtures/s3.json` 을 따른다** — presign 쿼리 키 6개, HEAD 크기·ETag, object key 접미사 규칙, 자격증명 오류 분기
-- [ ] **하네스 어댑터 갭 5개가 메워졌다** — 토큰 직접 발급 · `JavaBackend.schema` · `JavaBackend.control` · java 쪽 시나리오 간 reset · seed parity 활성화. 판정은 `--target java --only profile` 이 **인프라 오류가 아니라 응답 diff 로** 실패하는 것이며, 그룹 1 이 끝나면 그 diff 가 0 이 된다
-- [ ] **그룹별 판정 수단이 전부 초록** — 순서 표의 "판정 수단" 열 그대로. 하네스로 완주 불가능한 그룹(3·5·6)은 Java 통합 테스트로 판정하며, **그 사실이 표에 적혀 있어야 한다**
-- [ ] L3 바이트 동등: `POST /v2/practice-sessions`, `POST /v2/practice-sessions/{id}/analyze` (각 백엔드의 최초↔replay)
-- [ ] 오류 계약이 구현 범위 안에서 status·detail까지 일치
-- [ ] **`openapi.json` 은 M3 inventory 로 slice 한 semantic diff 0** (datetime 통일 제외, admin 은 별도 프로파일). `/v2/coach/*` 3개와 `POST /v2/reports` 가 Java OpenAPI·request mapping 양쪽에 **없다**. 전체 diff 0 은 M4
-- [ ] 조건부 키 생략 재현 (`summary`/`error_code`)
-- [ ] 멱등 전이표 4케이스 통과
-- [ ] `X-Request-Id` 응답 헤더 반환
-- [ ] v1 경로 5개 404 — 🔁 `SOMA-318`이 `acting-agent`·`acting-summary`·`acting-report`의 자체 라우터를 **삭제**해 근거가 "마운트되지 않음"에서 "라우터가 없음"으로 바뀌었다. 하네스도 해당 `EXCLUSIONS`를 지웠다(`tools/contract-harness/contract_harness/manifest.py`). 계약(`/SPEC.md` §6 #14)은 그대로 유효하다
-- [ ] **`POST /v2/uploads/intents` 와 `POST /v2/consents` 가 unknown key 를 허용**한다. `POST /v2/practice-sessions` 는 `extra_forbidden` 422 를 낸다 (셋 다 회귀 테스트). 판정은 `apps/api/spec/openapi.json` 의 `additionalProperties` 로 하고 개수를 박지 않는다
-- [ ] **cross-field 검증의 422 형상** — `PracticeSessionRequest.validate_blockage_branch` 대응 규칙이 빈 `detail` 을 내지 않고 pydantic 형상과 일치한다 (`ApiErrorAdvice.invalid` 가 global error 를 읽지 않는 현 구조를 확인할 것)
-- [ ] 커뮤니티: 차단 필터가 익명 글을 숨기지 않는다 / 조회수는 증가 전 값 / nickname 내부 공백 접힘 / 커서 방향 정확
-- [ ] 동시성: 세션 생성 경합, 재분석 경합, lease 경합 (`tests/test_db_store.py:test_concurrent_practice_creation_replays_the_winning_operation`·`:test_external_operation_idempotency_lease_race_and_atomic_completion` 대응)
-- [ ] alias: 같은 사용자 동시 요청은 같은 번호, 다른 사용자는 다른 번호, **어느 쪽도 댓글이 실패하지 않는다**. 댓글 롤백 시 alias 도 롤백. **post update·delete 와 경합해도 교착하지 않고 락 순서가 고정**돼 있다
-- [ ] Java가 더 엄격해져 생긴 diff는 **확인 후 수용**으로 기록됨 (`/SPEC.md` §8-3)
+- [x] LLM 비의존 엔드포인트 전부 이식 (inventory 집합 동등성으로 판정)
+- [x] **위험 함수 5개**(`/SPEC.md` §7-1 목록 그대로: creation 보상 · coach 저장 낙관적 락 · `claim_next` · `_ensure_alias` · `confirm_latest_handoff`)가 각각 Testcontainers 테스트로 고정됨
+- [x] **강등된 `complete_practice_report_operation` 재조준 테스트**도 별도로 통과 (중복 시 `False`·새 행 없음, lease 상실 시 insert 롤백, marker 롤백, 커넥션 오염 없음)
+- [x] **`ExternalOperationClaimer` 완성** — analyze claim 이 operation 과 practice session 을 한 트랜잭션에서 전이하고, report·coach kind 는 세션 status 를 바꾸지 않는다
+- [x] **제어 표면 선행분이 Java 에 있다** — 스키마 reset/seed, `db-projection`, `advance-clock`, **그리고 인증 provider 스텁**. transport 는 `POST /__harness/<name>`(`spec/M4-llm.md` 확정 형태). 운영 프로파일에 노출되지 않음을 테스트로 단언
+- [x] **contract 프로파일의 `POST /v2/auth/login` 이 `fixtures/auth_providers.json` 으로 검증**한다 — 이게 없으면 로그인으로 시작하는 시나리오 전부가 첫 스텝에서 죽는다
+- [x] **contract 프로파일의 S3 접근이 `fixtures/s3.json` 을 따른다** — presign 쿼리 키 6개, HEAD 크기·ETag, object key 접미사 규칙, 자격증명 오류 분기
+- [x] **하네스 어댑터 갭 5개가 메워졌다** — 토큰 직접 발급 · `JavaBackend.schema` · `JavaBackend.control` · java 쪽 시나리오 간 reset · seed parity 활성화. 판정은 `--target java --only profile` 이 **인프라 오류가 아니라 응답 diff 로** 실패하는 것이며, 그룹 1 이 끝나면 그 diff 가 0 이 된다
+- [x] **그룹별 판정 수단이 전부 초록** — 순서 표의 "판정 수단" 열 그대로. 하네스로 완주 불가능한 그룹(3·5·6)은 Java 통합 테스트로 판정하며, **그 사실이 표에 적혀 있어야 한다**
+- [x] L3 바이트 동등: `POST /v2/practice-sessions`, `POST /v2/practice-sessions/{id}/analyze` (각 백엔드의 최초↔replay)
+- [x] 오류 계약이 구현 범위 안에서 status·detail까지 일치
+- [x] **`openapi.json` 은 M3 inventory 로 slice 한 semantic diff 0** (datetime 통일 제외, admin 은 별도 프로파일). `/v2/coach/*` 3개와 `POST /v2/reports` 가 Java OpenAPI·request mapping 양쪽에 **없다**. 전체 diff 0 은 M4
+- [x] 조건부 키 생략 재현 (`summary`/`error_code`)
+- [x] 멱등 전이표 4케이스 통과
+- [x] `X-Request-Id` 응답 헤더 반환
+- [x] v1 경로 5개 404 — 🔁 `SOMA-318`이 `acting-agent`·`acting-summary`·`acting-report`의 자체 라우터를 **삭제**해 근거가 "마운트되지 않음"에서 "라우터가 없음"으로 바뀌었다. 하네스도 해당 `EXCLUSIONS`를 지웠다(`tools/contract-harness/contract_harness/manifest.py`). 계약(`/SPEC.md` §6 #14)은 그대로 유효하다
+- [x] **`POST /v2/uploads/intents` 와 `POST /v2/consents` 가 unknown key 를 허용**한다. `POST /v2/practice-sessions` 는 `extra_forbidden` 422 를 낸다 (셋 다 회귀 테스트). 판정은 `apps/api/spec/openapi.json` 의 `additionalProperties` 로 하고 개수를 박지 않는다
+- [x] **cross-field 검증의 422 형상** — `PracticeSessionRequest.validate_blockage_branch` 대응 규칙이 빈 `detail` 을 내지 않고 pydantic 형상과 일치한다 (`ApiErrorAdvice.invalid` 가 global error 를 읽지 않는 현 구조를 확인할 것)
+- [x] 커뮤니티: 차단 필터가 익명 글을 숨기지 않는다 / 조회수는 증가 전 값 / nickname 내부 공백 접힘 / 커서 방향 정확
+- [x] 동시성: 세션 생성 경합, 재분석 경합, lease 경합 (`tests/test_db_store.py:test_concurrent_practice_creation_replays_the_winning_operation`·`:test_external_operation_idempotency_lease_race_and_atomic_completion` 대응)
+- [x] alias: 같은 사용자 동시 요청은 같은 번호, 다른 사용자는 다른 번호, **어느 쪽도 댓글이 실패하지 않는다**. 댓글 롤백 시 alias 도 롤백. **post update·delete 와 경합해도 교착하지 않고 락 순서가 고정**돼 있다
+- [x] Java가 더 엄격해져 생긴 diff는 **확인 후 수용**으로 기록됨 (`/SPEC.md` §8-3)
 
 ## 하지 말 것
 

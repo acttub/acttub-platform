@@ -115,6 +115,17 @@ public class ApiErrorAdvice {
             error.put("ctx", Map.of("error", parserError));
             return ResponseEntity.status(422).body(Map.of("detail", List.of(error)));
         }
+        if (exception.getRequiredType() == Integer.class
+                || exception.getRequiredType() == int.class) {
+            // 쿼리 정수 파싱 실패는 pydantic 의 int_parsing 이다. 여기서 걸러내지 않으면
+            // Spring 의 "Failed to convert value of type ..." 문자열이 그대로 나가고,
+            // loc 도 query 가 아니라 path 로 잘못 붙는다.
+            return ResponseEntity.status(422).body(Map.of("detail", List.of(error(
+                    "int_parsing",
+                    List.of("query", exception.getName()),
+                    "Input should be a valid integer, unable to parse string as an integer",
+                    exception.getValue()))));
+        }
         return ResponseEntity.status(422).body(Map.of("detail", List.of(error(
                 "value_error",
                 List.of("path", exception.getName()),

@@ -32,14 +32,20 @@ public final class PythonText {
         return value.substring(start, end);
     }
 
+    /** U+0085 NEXT LINE. 파이썬은 공백으로 보지만 자바의 두 판정 어디에도 걸리지 않는다. */
+    private static final char NEXT_LINE = '';
+
     /**
      * 파이썬 {@code str.isspace()} 대응.
      *
      * <p>{@link Character#isWhitespace(char)} 는 제어 공백(\t\n\r 등)을 잡고
      * {@link Character#isSpaceChar(char)} 는 유니코드 공백 범주(Zs·Zl·Zp)를 잡는다. NBSP 는
-     * 후자에만 걸리므로 둘의 합집합이라야 파이썬과 같아진다.
+     * 후자에만 걸리므로 둘의 합집합이라야 파이썬에 가까워지는데, {@link #NEXT_LINE} 은
+     * <b>둘 다 놓친다</b> — 파이썬에서는 참이다(실측). 그래서 따로 더한다.
      */
     public static boolean isPythonSpace(char character) {
-        return Character.isWhitespace(character) || Character.isSpaceChar(character);
+        return Character.isWhitespace(character)
+                || Character.isSpaceChar(character)
+                || character == NEXT_LINE;
     }
 }
