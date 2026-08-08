@@ -18,8 +18,16 @@ trap 'rm -rf "$STAGE" "$TARBALL"' EXIT
 
 echo "▶ 빌드 (API_ORIGIN=$API_ORIGIN)"
 # API_ORIGIN·NEXT_PUBLIC_* 는 빌드 시점에 굳는다. 런타임 환경변수로는 안 바뀐다.
+#
+# Sentry 도 같은 제약을 받는다 — DSN 이 비어 있으면 계측이 통째로 꺼진 번들이 나오므로
+# (src/lib/observability/sentry-shared.ts), 여기서 주지 않으면 배포본에 에러 추적이 없다.
+# 소스맵 업로드용 SENTRY_ORG·SENTRY_PROJECT·SENTRY_AUTH_TOKEN 은 next.config.ts 가
+# 셸 환경에서 직접 읽으므로 따로 나열하지 않는다(없으면 업로드 단계를 건너뛴다).
 API_ORIGIN="$API_ORIGIN" \
 NEXT_PUBLIC_SITE_URL="${NEXT_PUBLIC_SITE_URL:-}" \
+NEXT_PUBLIC_SENTRY_DSN="${NEXT_PUBLIC_SENTRY_DSN:-}" \
+NEXT_PUBLIC_SENTRY_ENV="${NEXT_PUBLIC_SENTRY_ENV:-}" \
+NEXT_PUBLIC_APP_COMMIT="${NEXT_PUBLIC_APP_COMMIT:-$(git rev-parse --short HEAD)}" \
   pnpm --filter web build
 
 echo "▶ 패키징 (sharp 제외)"

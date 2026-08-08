@@ -62,6 +62,12 @@ sudo -u ubuntu bash -c 'cd /svc/acttub/acttub-platform/apps/api && /usr/local/bi
 # 마이그레이션은 새 코드로, 재시작 전에 돈다(MIGRATE=1 일 때만 내용이 들어간다).
 $MIGRATE_STEP
 aws s3 cp "s3://$DEPLOY_BUCKET/be/acttub-api.service" /etc/systemd/system/acttub-api.service
+# 릴리스 이름은 배포마다 바뀌므로 drop-in 으로 얹는다. /etc/acttub/api.env 는 사람이
+# 관리하는 파일이라(DSN·환경 이름이 거기 있다) 배포 스크립트가 건드리지 않는다.
+# drop-in 의 Environment= 는 유닛의 EnvironmentFile= 보다 나중에 적용돼 이긴다.
+mkdir -p /etc/systemd/system/acttub-api.service.d
+printf '[Service]\nEnvironment=SENTRY_RELEASE=%s\n' '${RELEASE:-unknown}' \
+  > /etc/systemd/system/acttub-api.service.d/sentry-release.conf
 systemctl daemon-reload
 systemctl enable acttub-api
 # 자동 재시작 카운터를 0으로 맞춰두고 시작한다 — 아래 NRestarts 확인의 기준점이다.
