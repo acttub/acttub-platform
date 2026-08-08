@@ -141,6 +141,7 @@ LLM에 의존하지 않는 엔드포인트를 이식한다. **`db/store.py` 2,11
 | **조회수** | 상세 조회 응답은 **증가 전** `view_count`를 반환한다. 증가는 별도 원자 연산 | `community.py:build_router.get_post` |
 | **입력 정규화** | title·body는 trim. **nickname은 내부 공백까지 접는다** | `community.py:_trimmed`, `profile.py:UpdateMeRequest` |
 | **키셋 커서** | 글 목록 DESC(`:261-270`) / 댓글 목록 **ASC**(`:568-577`) — 방향이 반대다. base64 인코딩(`:133-146`)까지 그대로 | |
+| **커서 문자열 자체** | `base64url("{created_at.isoformat()}\|{id}")`, 패딩 제거. `db/community_store.py:encode_cursor`·`.decode_cursor`. ⚠ **하네스가 잡지 못한다** — `tools/contract-harness/contract_harness/normalize.py:OPAQUE_CURSOR_KEYS` 가 `next_cursor` 를 `<cursor>` 로 마스킹해 교차 비교하지 않고, 각 백엔드는 자기가 발급한 커서만 쓴다. 그런데 **M5 전환 시점에는 한쪽이 발급한 커서를 다른 쪽이 받는다.** `isoformat()` 은 `+00:00` 을 내고 §4 의 `Z` 통일은 응답 필드 얘기지 커서 내부가 아니다 — Java 는 **양쪽 표기를 모두 파싱**해야 하고, 발급은 Python 과 같은 표기로 한다. Java 통합 테스트로 고정한다 | |
 | **좋아요** | 재집계. 증감으로 되돌리지 않는다 | `/SPEC.md` §7-1 |
 | **댓글 수** | 원자적 증감. 벌크 UPDATE + 캐시 무효화 | `/SPEC.md` §7-2 |
 | **읽기 공개** | 토큰 없이 200 | `/SPEC.md` §6 #16 |
