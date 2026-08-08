@@ -13,7 +13,7 @@ M3는 **엔드포인트만 얹는다.** 아래는 `spec/M2-findings.md`에서 �
 | 엔티티 24개 · enum 컨버터 17개 · JSONB `JsonNode` | `ddl-auto: validate` 통과, 4케이스 왕복 고정 |
 | 422 계약 변환 | 예외별 type(`extra_forbidden`·`int_parsing`·`int_from_float`·`uuid_parsing`·`enum`·`string_type`·`missing`·`json_invalid`), 중첩 경로 전량 순회 + wire 이름 변환, 배열 index, 거부값 `input`, `ctx` |
 | **숫자 파싱**(`12.0`→201 / `12.5`→422) | `ExactIntegerDeserializer`로 해결. **M3 그룹 2의 위험 목록에서 뺀다** |
-| unknown key | 전역 `fail-on-unknown-properties: true` + 허용 DTO에만 `@JsonIgnoreProperties`. **M3 범위에서 허용 대상은 `POST /v2/uploads/intents` 하나뿐이다**(`uploads.py:UploadIntentRequest` 가 `extra` 미지정). ⚠ `practice_sessions.py:PracticeSessionRequest` 는 `ConfigDict(extra="forbid")` 라 **거부**한다 — `SOMA-302` 로 허용 목록에서 빠졌고 `/SPEC.md` §6-3 에 경고가 있다. 애노테이션을 붙이면 실제 계약을 깬다 |
+| unknown key | 전역 `fail-on-unknown-properties: true` + 허용 DTO에만 `@JsonIgnoreProperties`. **M3 범위의 허용 대상은 `POST /v2/uploads/intents` 와 `POST /v2/consents` 둘이다** — `uploads.py:UploadIntentRequest` 와 `consents.py:ConsentRequest` 가 둘 다 `extra` 미지정이고, `apps/api/spec/openapi.json` 에서도 둘 다 `additionalProperties` 가 없다. 🔁 **초판은 "uploads 하나뿐"이라고 적었으나 틀렸다** — `/SPEC.md` §6-3 의 허용 5개 중 `POST /v2/consents` 도 M3 범위다(나머지 셋은 auth 라 M2). 그 틀린 지시를 그대로 따르면 consent 요청이 실제 계약과 달리 422 를 낸다. ⚠ 반면 `practice_sessions.py:PracticeSessionRequest` 는 `ConfigDict(extra="forbid")` 라 **거부**한다 — `SOMA-302` 로 허용 목록에서 빠졌고 `/SPEC.md` §6-3 에 경고가 있다 |
 | 오류 포맷 | `{"detail": <str>}`, 404·405·인증 필터에서 `ProblemDetail` 미노출 |
 | 시계 · `SKIP LOCKED` | policy matrix 확정, `SKIP LOCKED` 미도입(원본 경합 순서 보존) |
 | JWT · 레이트리밋 2종 · consent 게이트 | 완료. M3는 `consented_user` 조합을 쓰기만 한다 |
@@ -59,6 +59,18 @@ LLM에 의존하지 않는 엔드포인트를 이식한다. **`db/store.py` 2,11
 | 5 | seed parity 가 java 에서 건너뛴다 | `tools/contract-harness/contract_harness/cli.py:_run` 이 java 일 때 `tools/contract-harness/contract_harness/runner.py:verify_seed_parity` 를 건너뛴다 | 갭 2 가 풀리면 조건을 없앤다. `spec/M4-llm.md` 의 같은 항목도 함께 해소된다 |
 
 **판정**: 갭이 메워졌다는 근거는 "테스트가 있다"가 아니라 **`--target java --only profile` 이 인프라 오류가 아니라 응답 diff 로 실패하는 것**이다. 그룹 1 이 끝나면 그 diff 가 0 이 된다.
+
+#### 🔎 인증 provider 스텁도 선행분이다 (2026-08-08 실행 확인)
+
+위 결정은 선행 제어 표면을 "스키마 reset/seed, `db-projection`, `advance-clock`" 셋으로 적었는데 **하나가 빠졌다.** 그룹 1·2 를 얹고 하네스를 돌리자 `consent-gate` 와 `expired-intent` 가 **첫 스텝에서 통째로 중단**됐다:
+
+```
+target 중단: login: 로그인 실패 401 b'{"detail":"invalid_provider_token"}'
+```
+
+`tools/contract-harness/contract_harness/scenarios/support.py:login` 이 `provider="google"` 로 실제 로그인을 하기 때문이다. 파이썬 백엔드는 `tools/contract-harness/contract_harness/stubs.py:ProviderVerifierStub` 이 주입돼 `tools/contract-harness/contract_harness/fixtures/auth_providers.json` 을 읽지만, Java 는 진짜 Google JWKS 를 친다.
+
+`spec/M1-harness.md` §백엔드 adapter 계약 ④ 가 이미 정한 대로 **양쪽이 같은 fixture 파일을 읽는다.** 이것은 LLM 스텁과 무관하므로 M4 로 미룰 수 없다 — **`ctx.auth()` 로 토큰을 위조하는 시나리오를 제외한 거의 모든 시나리오가 로그인으로 시작**하기 때문이다. contract 프로파일에서만 provider verifier 를 fixture 기반으로 대체하고, 기본 프로파일은 실제 검증을 그대로 쓴다. `unconfigured_providers`·`invalid_tokens`·`unsupported_provider` 분기까지 fixture 가 규정한다.
 
 그리고 **각 그룹이 어떤 시나리오로 판정되는지 표에 적는다.** 시나리오가 coach 를 거쳐 M3 에서 완주 불가능하면 그렇다고 적고, 그 그룹은 Java 통합 테스트로만 판정한다. **어느 그룹도 "하네스로 판정"이라고만 적고 넘어가지 않는다.**
 
@@ -154,7 +166,8 @@ LLM에 의존하지 않는 엔드포인트를 이식한다. **`db/store.py` 2,11
 - [ ] **위험 함수 5개**(`/SPEC.md` §7-1 목록 그대로: creation 보상 · coach 저장 낙관적 락 · `claim_next` · `_ensure_alias` · `confirm_latest_handoff`)가 각각 Testcontainers 테스트로 고정됨
 - [ ] **강등된 `complete_practice_report_operation` 재조준 테스트**도 별도로 통과 (중복 시 `False`·새 행 없음, lease 상실 시 insert 롤백, marker 롤백, 커넥션 오염 없음)
 - [ ] **`ExternalOperationClaimer` 완성** — analyze claim 이 operation 과 practice session 을 한 트랜잭션에서 전이하고, report·coach kind 는 세션 status 를 바꾸지 않는다
-- [ ] **제어 표면 선행분이 Java 에 있다** — 스키마 reset/seed, `db-projection`, `advance-clock`. transport 는 `POST /__harness/<name>`(`spec/M4-llm.md` 확정 형태). 운영 프로파일에 노출되지 않음을 테스트로 단언
+- [ ] **제어 표면 선행분이 Java 에 있다** — 스키마 reset/seed, `db-projection`, `advance-clock`, **그리고 인증 provider 스텁**. transport 는 `POST /__harness/<name>`(`spec/M4-llm.md` 확정 형태). 운영 프로파일에 노출되지 않음을 테스트로 단언
+- [ ] **contract 프로파일의 `POST /v2/auth/login` 이 `fixtures/auth_providers.json` 으로 검증**한다 — 이게 없으면 로그인으로 시작하는 시나리오 전부가 첫 스텝에서 죽는다
 - [ ] **하네스 어댑터 갭 5개가 메워졌다** — 토큰 직접 발급 · `JavaBackend.schema` · `JavaBackend.control` · java 쪽 시나리오 간 reset · seed parity 활성화. 판정은 `--target java --only profile` 이 **인프라 오류가 아니라 응답 diff 로** 실패하는 것이며, 그룹 1 이 끝나면 그 diff 가 0 이 된다
 - [ ] **그룹별 판정 수단이 전부 초록** — 순서 표의 "판정 수단" 열 그대로. 하네스로 완주 불가능한 그룹(3·5·6)은 Java 통합 테스트로 판정하며, **그 사실이 표에 적혀 있어야 한다**
 - [ ] L3 바이트 동등: `POST /v2/practice-sessions`, `POST /v2/practice-sessions/{id}/analyze` (각 백엔드의 최초↔replay)
@@ -164,7 +177,7 @@ LLM에 의존하지 않는 엔드포인트를 이식한다. **`db/store.py` 2,11
 - [ ] 멱등 전이표 4케이스 통과
 - [ ] `X-Request-Id` 응답 헤더 반환
 - [ ] v1 경로 5개 404 — 🔁 `SOMA-318`이 `acting-agent`·`acting-summary`·`acting-report`의 자체 라우터를 **삭제**해 근거가 "마운트되지 않음"에서 "라우터가 없음"으로 바뀌었다. 하네스도 해당 `EXCLUSIONS`를 지웠다(`tools/contract-harness/contract_harness/manifest.py`). 계약(`/SPEC.md` §6 #14)은 그대로 유효하다
-- [ ] **`POST /v2/uploads/intents` 만 unknown key 를 허용**한다. `POST /v2/practice-sessions` 는 `extra_forbidden` 422 를 낸다 (양쪽 다 회귀 테스트)
+- [ ] **`POST /v2/uploads/intents` 와 `POST /v2/consents` 가 unknown key 를 허용**한다. `POST /v2/practice-sessions` 는 `extra_forbidden` 422 를 낸다 (셋 다 회귀 테스트). 판정은 `apps/api/spec/openapi.json` 의 `additionalProperties` 로 하고 개수를 박지 않는다
 - [ ] **cross-field 검증의 422 형상** — `PracticeSessionRequest.validate_blockage_branch` 대응 규칙이 빈 `detail` 을 내지 않고 pydantic 형상과 일치한다 (`ApiErrorAdvice.invalid` 가 global error 를 읽지 않는 현 구조를 확인할 것)
 - [ ] 커뮤니티: 차단 필터가 익명 글을 숨기지 않는다 / 조회수는 증가 전 값 / nickname 내부 공백 접힘 / 커서 방향 정확
 - [ ] 동시성: 세션 생성 경합, 재분석 경합, lease 경합 (`tests/test_db_store.py:test_concurrent_practice_creation_replays_the_winning_operation`·`:test_external_operation_idempotency_lease_race_and_atomic_completion` 대응)

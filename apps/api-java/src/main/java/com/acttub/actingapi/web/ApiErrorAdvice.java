@@ -24,6 +24,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -45,6 +46,11 @@ public class ApiErrorAdvice {
     @ExceptionHandler(ApiException.class)
     ResponseEntity<Map<String, Object>> api(ApiException exception) {
         return body(exception.status(), exception.getMessage());
+    }
+
+    @ExceptionHandler(ApiValidationException.class)
+    ResponseEntity<Map<String, Object>> validation(ApiValidationException exception) {
+        return ResponseEntity.status(422).body(Map.of("detail", exception.detail()));
     }
 
     @ExceptionHandler(NoCredentialsError.class)
@@ -92,6 +98,26 @@ public class ApiErrorAdvice {
         return ResponseEntity.status(422).body(Map.of("detail", List.of(error)));
     }
 
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    ResponseEntity<Map<String, Object>> pathType(MethodArgumentTypeMismatchException exception) {
+        if (exception.getRequiredType() == UUID.class) {
+            Object input = exception.getValue();
+            String parserError = uuidParserError(input, exception.getMessage());
+            Map<String, Object> error = error(
+                    "uuid_parsing",
+                    List.of("path", exception.getName()),
+                    "Input should be a valid UUID, " + parserError,
+                    input);
+            error.put("ctx", Map.of("error", parserError));
+            return ResponseEntity.status(422).body(Map.of("detail", List.of(error)));
+        }
+        return ResponseEntity.status(422).body(Map.of("detail", List.of(error(
+                "value_error",
+                List.of("path", exception.getName()),
+                Objects.requireNonNullElse(exception.getMessage(), "Invalid value"),
+                exception.getValue()))));
+    }
+
     @ExceptionHandler({NoHandlerFoundException.class, NoResourceFoundException.class})
     ResponseEntity<Map<String, Object>> notFound() {
         return body(404, "Not Found");
@@ -104,12 +130,25 @@ public class ApiErrorAdvice {
 
     private Map<String, Object> field(FieldError field, ResolvedPath path, Object bodyInput) {
         boolean missing = "NotNull".equals(field.getCode());
-        String type = missing ? "missing" : "value_error";
-        String message = missing
-                ? "Field required"
+        String type = validationType(field.getCode());
+        String message = missing ? "Field required"
                 : Objects.requireNonNullElse(field.getDefaultMessage(), "Invalid value");
         Object input = valueAt(bodyInput, path.loc(), missing);
-        return error(type, path.loc(), message, input);
+        Map<String, Object> value = error(type, path.loc(), message, input);
+        if ("Positive".equals(field.getCode())) {
+            value.put("ctx", Map.of("gt", 0));
+        }
+        return value;
+    }
+
+    private static String validationType(String code) {
+        if ("NotNull".equals(code)) {
+            return "missing";
+        }
+        if ("Positive".equals(code)) {
+            return "greater_than";
+        }
+        return "value_error";
     }
 
     private Map<String, Object> jacksonError(
@@ -334,6 +373,10 @@ public class ApiErrorAdvice {
     }
 
     private static String uuidParserError(Object input, JsonMappingException exception) {
+        return uuidParserError(input, exception.getOriginalMessage());
+    }
+
+    private static String uuidParserError(Object input, String fallback) {
         if (input instanceof String value) {
             for (int index = 0; index < value.length(); index++) {
                 char character = value.charAt(index);
@@ -342,7 +385,7 @@ public class ApiErrorAdvice {
                 }
             }
         }
-        return Objects.requireNonNullElse(exception.getOriginalMessage(), "invalid UUID");
+        return Objects.requireNonNullElse(fallback, "invalid UUID");
     }
 
     private String enumExpected(Class<?> enumType) {

@@ -145,6 +145,18 @@ WHERE status = 'running'::operation_status_t
 
 `@Enumerated` 금지(§5-3-1)는 JPA 얘기였지만, **JdbcTemplate의 SQL 리터럴에서도 같은 함정이 발현한다.** enum 컬럼을 읽을 때는 `kind::text`처럼 반대 방향 캐스팅을 쓴다.
 
+**③ 읽기 캐스팅이 `ORDER BY`를 조용히 뒤집는다 (M3에서 실측).**
+
+```sql
+-- 틀렸다: 출력 컬럼 이름이 그대로 type 이라 ORDER BY 가 enum 이 아니라 그 텍스트를 본다
+SELECT DISTINCT ON (type) id, type::text, ... FROM consent_documents
+ORDER BY type, published_at DESC, id DESC
+-- 통과: ORDER BY 를 테이블로 한정한다
+ORDER BY consent_documents.type, consent_documents.published_at DESC, consent_documents.id DESC
+```
+
+Postgres의 `ORDER BY`는 **출력 별칭을 먼저** 찾는다. enum은 선언 순서로, 텍스트는 알파벳 순으로 정렬되므로 `consent_type_t`가 `terms, privacy, ai_analysis` → `ai_analysis, privacy, terms`로 뒤집힌다(실측). **`DISTINCT ON`에서는 정렬이 곧 "그룹마다 어느 행이 살아남는가"이므로 응답 순서만이 아니라 내용이 달라진다.** 컴파일도 통과하고 예외도 없다 — 통합 테스트만이 잡는다.
+
 **② `Instant`는 JDBC 파라미터로 바인딩할 수 없다.**
 
 ```
