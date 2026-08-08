@@ -56,9 +56,9 @@ test("업로드와 장면 확인 진행률은 단조 증가하고 analyzed에서
   const candidates = [
     compressionProgress(0.5),
     compressionProgress(1),
-    uploadProgress(75),
-    uploadProgress(50),
-    uploadProgress(100),
+    uploadProgress(75, true),
+    uploadProgress(50, true),
+    uploadProgress(100, true),
     analysisProgress(0),
     analysisProgress(30_000),
     analysisProgress(60_000),
@@ -72,8 +72,12 @@ test("업로드와 장면 확인 진행률은 단조 증가하고 analyzed에서
   for (let index = 1; index < values.length; index += 1) {
     assert.ok(values[index] >= values[index - 1]);
   }
-  assert.equal(uploadProgress(100), UPLOAD_PROGRESS_END);
+  assert.equal(uploadProgress(100, true), UPLOAD_PROGRESS_END);
   assert.ok(UPLOAD_PROGRESS_END < 100);
+  // 압축을 건너뛴 영상은 업로드가 0에서 시작해 같은 자리에서 끝난다.
+  assert.equal(uploadProgress(0, false), 0);
+  assert.equal(uploadProgress(100, false), UPLOAD_PROGRESS_END);
+  assert.ok(uploadProgress(50, false) < uploadProgress(50, true));
   assert.equal(analysisProgress(600_000), ANALYSIS_PROGRESS_LIMIT);
   assert.ok(ANALYSIS_PROGRESS_LIMIT < 100);
   assert.equal(settleProgress(ANALYSIS_PROGRESS_LIMIT, "analyzing"), ANALYSIS_PROGRESS_LIMIT);
