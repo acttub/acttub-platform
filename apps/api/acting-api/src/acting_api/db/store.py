@@ -5,7 +5,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 from uuid import UUID, uuid4
 
-from sqlalchemy import Engine, and_, delete, func, or_, select, update
+from sqlalchemy import Engine, and_, delete, func, or_, select, text, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -16,6 +16,8 @@ from acting_agent.summary_schema import ActorMaterial as AgentActorMaterial
 from acting_agent.summary_schema import ObservationPack as AgentObservationPack
 from acting_api.db.engine import create_db_engine, create_session_factory
 from acting_api.db.models import (
+    Anomaly,
+    CloseReason,
     CoachingHandoff,
     CoachSession as DbCoachSession,
     CoachTurn as DbCoachTurn,
@@ -2342,10 +2344,13 @@ class PostgresStore:
                     "24h_real": d24_real,
                 }
 
-            def distinct_users(exclude_clause, *where) -> tuple[int, int]:
-                stmt = select(func.count(func.distinct(PracticeSession.user_id)))
-                for clause in where:
-                    stmt = stmt.where(clause)
+            def distinct_users(exclude_clause, stmt) -> tuple[int, int]:
+                """`count(distinct ...)` select 문 하나에 exclude_clause 만 얹는다.
+
+                호출부가 select 문을 직접 만들어 넘긴다 — user_id 로 바로 거를 수
+                있는 테이블도, coach_sessions 처럼 practice_session 을 거쳐야 하는
+                테이블도 같은 헬퍼로 처리하려는 것이다.
+                """
                 all_ = int(db.execute(stmt).scalar_one())
                 if exclude_clause is None:
                     return all_, all_
@@ -2434,7 +2439,10 @@ class PostgresStore:
             reports_total, reports_total_real = pair(DbPracticeReport, report_excl)
 
             active_7d, active_7d_real = distinct_users(
-                practice_excl, PracticeSession.created_at >= since_7d
+                practice_excl,
+                select(func.count(func.distinct(PracticeSession.user_id))).where(
+                    PracticeSession.created_at >= since_7d
+                ),
             )
 
             users_with_session, returning_2x, returning_3x = returning_counts([])
@@ -2448,6 +2456,187 @@ class PostgresStore:
                 users_with_session_real = users_with_session
                 returning_2x_real = returning_2x
                 returning_3x_real = returning_3x
+
+            # ---- 어제(KST 달력 하루). 서버 타임존에 기대지 않고 UTC 위에서
+            # 직접 경계를 계산한다 — +9h 로 KST 자정을 찾은 뒤 다시 -9h 로 UTC 로 되돌린다.
+            now_kst = now + timedelta(hours=9)
+            today_kst_midnight = now_kst.replace(
+                hour=0, minute=0, second=0, microsecond=0
+            )
+            yesterday_start_utc = today_kst_midnight - timedelta(days=1, hours=9)
+            yesterday_end_utc = today_kst_midnight - timedelta(hours=9)
+
+            users_yesterday, users_yesterday_real = pair(
+                User,
+                user_excl,
+                User.created_at >= yesterday_start_utc,
+                User.created_at < yesterday_end_utc,
+            )
+            active_yesterday, active_yesterday_real = distinct_users(
+                practice_excl,
+                select(func.count(func.distinct(PracticeSession.user_id))).where(
+                    PracticeSession.created_at >= yesterday_start_utc,
+                    PracticeSession.created_at < yesterday_end_utc,
+                ),
+            )
+
+            # ---- 퍼널 단계별 distinct 사용자. 화면이 이 이름 문자열로 단계를 찾으니
+            # 그대로 쓴다.
+            uploaded_users, uploaded_users_real = distinct_users(
+                upload_excl,
+                select(func.count(func.distinct(UploadIntent.user_id))).where(
+                    UploadIntent.status == UploadStatus.FINALIZED
+                ),
+            )
+            analyzed_users, analyzed_users_real = distinct_users(
+                practice_excl,
+                select(func.count(func.distinct(PracticeSession.user_id))).where(
+                    PracticeSession.status == PracticeStatus.ANALYZED
+                ),
+            )
+            coach_join = (
+                select(func.count(func.distinct(PracticeSession.user_id)))
+                .select_from(DbCoachSession)
+                .join(
+                    PracticeSession,
+                    PracticeSession.id == DbCoachSession.practice_session_id,
+                )
+            )
+            coached_users, coached_users_real = distinct_users(
+                practice_excl, coach_join
+            )
+            closed_users, closed_users_real = distinct_users(
+                practice_excl,
+                coach_join.where(DbCoachSession.status == SessionStatus.CLOSED),
+            )
+            gap_stated_users, gap_stated_users_real = distinct_users(
+                practice_excl,
+                coach_join.where(
+                    DbCoachSession.close_reason == CloseReason.GAP_STATED
+                ),
+            )
+            funnel_steps = [
+                {
+                    "step": "가입",
+                    "users": users_w["total"],
+                    "users_real": users_w["total_real"],
+                },
+                {
+                    "step": "업로드 확정",
+                    "users": uploaded_users,
+                    "users_real": uploaded_users_real,
+                },
+                {
+                    "step": "연습 세션",
+                    "users": users_with_session,
+                    "users_real": users_with_session_real,
+                },
+                {
+                    "step": "분석 완료",
+                    "users": analyzed_users,
+                    "users_real": analyzed_users_real,
+                },
+                {
+                    "step": "코치 대화",
+                    "users": coached_users,
+                    "users_real": coached_users_real,
+                },
+                {
+                    "step": "대화 마무리",
+                    "users": closed_users,
+                    "users_real": closed_users_real,
+                },
+                {
+                    "step": "놓친 생각 말함",
+                    "users": gap_stated_users,
+                    "users_real": gap_stated_users_real,
+                },
+            ]
+
+            # ---- 종료 사유 전체 분포. 최근 50건짜리 admin_sessions 와 달리 전체를 본다.
+            # close_reason·status enum 을 SQL CASE 로 문자열과 섞으면 타입이 안 맞을
+            # 수 있어 그룹만 SQL 로, 라벨은 파이썬에서 만든다.
+            def close_reason_counts(with_team_excluded: bool) -> dict[str, int]:
+                stmt = select(
+                    DbCoachSession.close_reason,
+                    DbCoachSession.status,
+                    func.count(),
+                )
+                if with_team_excluded:
+                    stmt = stmt.join(
+                        PracticeSession,
+                        PracticeSession.id == DbCoachSession.practice_session_id,
+                    ).where(practice_excl)
+                stmt = stmt.group_by(DbCoachSession.close_reason, DbCoachSession.status)
+                counts: dict[str, int] = {}
+                for reason, session_status, n in db.execute(stmt).all():
+                    if reason is not None:
+                        label = getattr(reason, "value", reason)
+                    elif session_status == SessionStatus.OPEN:
+                        label = "진행 중"
+                    else:
+                        label = "사유 없음"
+                    counts[label] = counts.get(label, 0) + int(n)
+                return counts
+
+            close_reasons_raw = close_reason_counts(with_team_excluded=False)
+            close_reasons_real = (
+                close_reason_counts(with_team_excluded=True)
+                if excluded_user_ids
+                else close_reasons_raw
+            )
+            close_reasons = sorted(
+                (
+                    {
+                        "reason": label,
+                        "count": close_reasons_raw.get(label, 0),
+                        "count_real": close_reasons_real.get(label, 0),
+                    }
+                    for label in set(close_reasons_raw) | set(close_reasons_real)
+                ),
+                key=lambda row: row["count"],
+                reverse=True,
+            )
+
+            # ---- gap_stated 창별. 기존 pair()·coach_session_excl 을 그대로 쓴다.
+            gap_all, gap_all_real = pair(
+                DbCoachSession,
+                coach_session_excl,
+                DbCoachSession.close_reason == CloseReason.GAP_STATED,
+                DbCoachSession.status == SessionStatus.CLOSED,
+            )
+            gap_7d, gap_7d_real = pair(
+                DbCoachSession,
+                coach_session_excl,
+                DbCoachSession.close_reason == CloseReason.GAP_STATED,
+                DbCoachSession.status == SessionStatus.CLOSED,
+                DbCoachSession.created_at >= since_7d,
+            )
+            gap_24h, gap_24h_real = pair(
+                DbCoachSession,
+                coach_session_excl,
+                DbCoachSession.close_reason == CloseReason.GAP_STATED,
+                DbCoachSession.status == SessionStatus.CLOSED,
+                DbCoachSession.created_at >= since_24h,
+            )
+
+            # ---- 관찰(anomalies).
+            observations_total = total(Anomaly)
+            summaries_total = total(Summary)
+            observations_per_summary = round(
+                observations_total / max(1, summaries_total), 1
+            )
+
+            # ---- DB 크기. Postgres 가 아니거나 실패하면 None — 이거 하나 때문에
+            # 전체 응답이 죽으면 안 된다. 다른 쿼리에 영향 없게 제일 마지막에 돈다.
+            try:
+                db_size = db.execute(
+                    text(
+                        "SELECT pg_size_pretty(pg_database_size(current_database()))"
+                    )
+                ).scalar_one_or_none()
+            except Exception:
+                db_size = None
 
             return {
                 "users_total": users_w["total"],
@@ -2488,6 +2677,21 @@ class PostgresStore:
                 "returning_2x_real": returning_2x_real,
                 "returning_3x": returning_3x,
                 "returning_3x_real": returning_3x_real,
+                "users_yesterday": users_yesterday,
+                "users_yesterday_real": users_yesterday_real,
+                "active_users_yesterday": active_yesterday,
+                "active_users_yesterday_real": active_yesterday_real,
+                "funnel_steps": funnel_steps,
+                "close_reasons": close_reasons,
+                "gap_stated_24h": gap_24h,
+                "gap_stated_24h_real": gap_24h_real,
+                "gap_stated_7d": gap_7d,
+                "gap_stated_7d_real": gap_7d_real,
+                "gap_stated_all": gap_all,
+                "gap_stated_all_real": gap_all_real,
+                "db_size": db_size,
+                "observations_total": observations_total,
+                "observations_per_summary": observations_per_summary,
                 "last_signup_at": db.execute(
                     select(func.max(User.created_at))
                 ).scalar_one_or_none(),

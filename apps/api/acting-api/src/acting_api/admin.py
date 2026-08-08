@@ -28,6 +28,18 @@ class _Strict(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+class AdminFunnelStep(_Strict):
+    step: str
+    users: int
+    users_real: int
+
+
+class AdminCloseReasonCount(_Strict):
+    reason: str
+    count: int
+    count_real: int
+
+
 class AdminStats(_Strict):
     users_total: int
     users_total_real: int
@@ -67,6 +79,21 @@ class AdminStats(_Strict):
     returning_2x_real: int
     returning_3x: int
     returning_3x_real: int
+    users_yesterday: int
+    users_yesterday_real: int
+    active_users_yesterday: int
+    active_users_yesterday_real: int
+    funnel_steps: list[AdminFunnelStep]
+    close_reasons: list[AdminCloseReasonCount]
+    gap_stated_24h: int
+    gap_stated_24h_real: int
+    gap_stated_7d: int
+    gap_stated_7d_real: int
+    gap_stated_all: int
+    gap_stated_all_real: int
+    db_size: str | None
+    observations_total: int
+    observations_per_summary: float
     last_signup_at: datetime | None
     last_session_at: datetime | None
 
