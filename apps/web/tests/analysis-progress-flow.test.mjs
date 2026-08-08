@@ -52,17 +52,43 @@ test("업로드와 장면 확인은 같은 진행 패널을 이어서 쓴다", (
   );
 });
 
+test("연습 주소를 갈아끼울 때 라우터 네비게이션을 타지 않는다", () => {
+  const workspace = readWeb("src/features/workspace/workspace-app.tsx");
+
+  // router.replace 로 되돌리면 useSearchParams 를 감싼 Suspense 가 다시 걸려
+  // 업로드가 끝나는 지점에서 흰 화면이 한 번 깜빡인다.
+  assert.match(workspace, /window\.history\.replaceState\(null, "", path\)/);
+  assert.doesNotMatch(workspace, /router\.replace\(["`]\/practice\/new/);
+  assert.match(workspace, /replaceUrl\(`\/practice\/new\?session=/);
+  // 화면을 실제로 옮기는 이동은 그대로 라우터를 쓴다.
+  assert.match(workspace, /router\.replace\(`\/login\?next=/);
+});
+
+test("업로드가 끝나도 방금 고른 로컬 영상을 그대로 재생한다", () => {
+  const workspace = readWeb("src/features/workspace/workspace-app.tsx");
+
+  // 서버 playback_url 을 먼저 쓰면 업로드가 끝나는 순간 src 가 갈아끼워져
+  // 영상 자리가 비었다 돌아오고 onDuration 이 다시 불린다.
+  assert.match(workspace, /const visibleVideoUrl = videoUrl \?\? detail\?\.playback_url/);
+
+  // 대신 다른 연습을 열 때는 직전 로컬 원본을 버려야 남의 영상을 틀지 않는다.
+  const openStart = workspace.indexOf("const openSession = useCallback");
+  const openEnd = workspace.indexOf("// 주소에 ?session=", openStart);
+  const open = workspace.slice(openStart, openEnd);
+  assert.match(open, /setVideoFile\(null\)[\s\S]*URL\.revokeObjectURL\(prev\)/);
+});
+
 test("업로드와 장면 확인 진행률은 단조 증가하고 analyzed에서만 100이 된다", () => {
   const candidates = [
     compressionProgress(0.5),
     compressionProgress(1),
-    uploadProgress(75),
-    uploadProgress(50),
-    uploadProgress(100),
-    analysisProgress(0),
-    analysisProgress(30_000),
-    analysisProgress(60_000),
-    analysisProgress(120_000),
+    uploadProgress(75, true),
+    uploadProgress(50, true),
+    uploadProgress(100, true),
+    analysisProgress(0, 47_000),
+    analysisProgress(30_000, 47_000),
+    analysisProgress(60_000, 47_000),
+    analysisProgress(120_000, 47_000),
   ];
   const values = candidates.reduce(
     (all, candidate) => [...all, advanceProgress(all.at(-1), candidate)],
@@ -72,10 +98,27 @@ test("업로드와 장면 확인 진행률은 단조 증가하고 analyzed에서
   for (let index = 1; index < values.length; index += 1) {
     assert.ok(values[index] >= values[index - 1]);
   }
-  assert.equal(uploadProgress(100), UPLOAD_PROGRESS_END);
+  assert.equal(uploadProgress(100, true), UPLOAD_PROGRESS_END);
   assert.ok(UPLOAD_PROGRESS_END < 100);
-  assert.equal(analysisProgress(600_000), ANALYSIS_PROGRESS_LIMIT);
+  // 압축을 건너뛴 영상은 업로드가 0에서 시작해 같은 자리에서 끝난다.
+  assert.equal(uploadProgress(0, false), 0);
+  assert.equal(uploadProgress(100, false), UPLOAD_PROGRESS_END);
+  assert.ok(uploadProgress(50, false) < uploadProgress(50, true));
+  assert.equal(analysisProgress(600_000, 47_000), ANALYSIS_PROGRESS_LIMIT);
   assert.ok(ANALYSIS_PROGRESS_LIMIT < 100);
+  // 분석 구간은 영상 길이에 비례해 찬다 — 20에서 시작해 95를 넘지 않는다.
+  assert.equal(analysisProgress(0, 47_000), UPLOAD_PROGRESS_END);
+  assert.ok(analysisProgress(30_000, 47_000) > analysisProgress(10_000, 47_000));
+  assert.ok(analysisProgress(300_000, 47_000) <= ANALYSIS_PROGRESS_LIMIT);
+  // 상한에 닿는 지점은 영상 길이의 0.9375배다. 실측(47초 영상 → 분석 41.4초)이
+  // 그보다 앞이라 분석이 끝나는 순간 막대는 아직 움직이는 중이다.
+  assert.equal(analysisProgress(0.9375 * 47_000, 47_000), ANALYSIS_PROGRESS_LIMIT);
+  assert.ok(analysisProgress(41_400, 47_000) < ANALYSIS_PROGRESS_LIMIT);
+  // 긴 영상은 같은 시각에 덜 찬다.
+  assert.ok(analysisProgress(30_000, 120_000) < analysisProgress(30_000, 47_000));
+  // 목록에서 연 세션은 길이를 모르지만 그래도 구간 안에서 움직인다.
+  const noDuration = analysisProgress(10_000, null);
+  assert.ok(noDuration > UPLOAD_PROGRESS_END && noDuration < ANALYSIS_PROGRESS_LIMIT);
   assert.equal(settleProgress(ANALYSIS_PROGRESS_LIMIT, "analyzing"), ANALYSIS_PROGRESS_LIMIT);
   assert.equal(settleProgress(ANALYSIS_PROGRESS_LIMIT, "failed"), ANALYSIS_PROGRESS_LIMIT);
   assert.equal(settleProgress(ANALYSIS_PROGRESS_LIMIT, "analyzed"), 100);

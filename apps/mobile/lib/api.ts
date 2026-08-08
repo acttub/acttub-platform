@@ -18,6 +18,7 @@ import {
 import {
   clearTokensIfCurrent,
   commitRefreshedTokens,
+  emitAccountDeactivated,
   emitConsentRequired,
   getAccessToken,
   getAuthSessionEpoch,
@@ -54,6 +55,7 @@ const requestClient = createApiRequestClient({
   setTokens: commitRefreshedTokens,
   clearTokens: clearTokensIfCurrent,
   emitConsentRequired,
+  emitAccountDeactivated,
 });
 
 // ─── 도메인 타입 ────────────────────────────────────────────────────────────
@@ -343,6 +345,22 @@ export const api = {
     return request('/v2/consents', jsonInit({ document_id: documentId, action }), {
       requestId: true,
     });
+  },
+
+  // 내 계정 ---------------------------------------------------------------------
+  /**
+   * 회원탈퇴. 204 를 받으면 끝난다.
+   *
+   * 서버는 행을 지우지 않고 이메일·닉네임·로그인 연결을 파기하고 refresh 를 전부
+   * 끊는다. 커뮤니티에 쓴 글은 남고 작성자가 '탈퇴한 사용자' 로 바뀐다.
+   * **되돌릴 수 없다.**
+   *
+   * 401 재시도를 막지 않는다 — 서버 처리가 멱등해서(이미 탈퇴한 계정이면 최초 탈퇴
+   * 시각을 유지) 두 번 닿아도 결과가 같다. 막으면 액세스 토큰이 방금 만료된 사람만
+   * 탈퇴에 실패한다.
+   */
+  deleteMe(): Promise<void> {
+    return request<void>('/v2/me', { method: 'DELETE' }, { timeoutMs: 30_000 });
   },
 
   // 업로드 ---------------------------------------------------------------------

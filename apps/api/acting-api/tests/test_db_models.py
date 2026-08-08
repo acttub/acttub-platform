@@ -61,7 +61,11 @@ def test_metadata_has_exact_platform_v2_tables():
 
 
 def test_documented_enum_values_are_exact():
-    assert [item.value for item in UserStatus] == ["active", "suspended"]
+    assert [item.value for item in UserStatus] == [
+        "active",
+        "suspended",
+        "deactivated",
+    ]
     assert [item.value for item in IdentityProvider] == [
         "google",
         "kakao",

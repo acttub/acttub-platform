@@ -67,6 +67,18 @@ CASES: tuple[Case, ...] = (
         "error-manifest", "suspended.community", 403, "account_suspended",
     ),
     Case(
+        "auth.deactivated-current-user",
+        (key(f"{API}/auth/dependencies.py", "build_current_user_dependency.current_user",
+             403, "account_deactivated"),),
+        "error-manifest", "deactivated.me", 403, "account_deactivated",
+    ),
+    Case(
+        "auth.deactivated-optional-user",
+        (key(f"{API}/auth/dependencies.py", "build_optional_user_dependency.optional_user",
+             403, "account_deactivated"),),
+        "error-manifest", "deactivated.community", 403, "account_deactivated",
+    ),
+    Case(
         "auth.consent-gate",
         (key(f"{API}/auth/dependencies.py", "build_consent_gate_dependency.consented_user",
              403, "consent_required"),),
@@ -117,6 +129,18 @@ CASES: tuple[Case, ...] = (
         "auth.login-suspended",
         (key(f"{API}/auth/router.py", "build_router.login", 403, "account_suspended"),),
         "error-manifest", "login.suspended", 403, "account_suspended",
+    ),
+    Case(
+        "auth.login-deactivated",
+        (key(f"{API}/auth/router.py", "build_router.login", 403,
+             "account_deactivated"),),
+        "error-manifest", "login.deactivated", 403, "account_deactivated",
+    ),
+    Case(
+        "auth.refresh-deactivated",
+        (key(f"{API}/auth/router.py", "build_router.refresh", 403,
+             "account_deactivated"),),
+        "error-manifest", "refresh.deactivated", 403, "account_deactivated",
     ),
     Case(
         "auth.refresh-suspended",
@@ -584,7 +608,10 @@ EXCLUSIONS: tuple[Exclusion, ...] = (
         "처리되므로 도달할 수 없는 방어 코드다.",
     ),
     Exclusion(
-        (key(f"{API}/profile.py", "build_router.update_me", 404, "user_not_found"),),
+        (
+            key(f"{API}/profile.py", "build_router.update_me", 404, "user_not_found"),
+            key(f"{API}/profile.py", "build_router.delete_me", 404, "user_not_found"),
+        ),
         "인증 의존성이 이미 유저를 읽은 뒤라, 같은 요청 안에서 유저가 사라져야 도달한다. "
         "API 만으로는 만들 수 없다.",
     ),

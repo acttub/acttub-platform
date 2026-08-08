@@ -73,6 +73,14 @@ export function WorkspaceApp() {
   );
 }
 
+// 같은 화면에 머무르면서 주소만 갈아끼운다. router.replace 는 라우터 네비게이션을 타고,
+// 그러면 useSearchParams 를 감싼 위 Suspense 가 다시 걸려 흰 화면이 한 번 깜빡인다 —
+// 업로드가 끝나는 지점에서 새로고침처럼 보이던 게 이것이다. 화면을 실제로 옮기는
+// 로그인·로그아웃 이동은 그대로 router 를 쓴다.
+function replaceUrl(path: string): void {
+  window.history.replaceState(null, "", path);
+}
+
 function WorkspaceInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -231,12 +239,15 @@ function WorkspaceInner() {
     analysisStartedAtRef.current = startedAt;
     const update = () => {
       setPct((current) =>
-        advanceProgress(current, analysisProgress(Date.now() - startedAt)),
+        advanceProgress(
+          current,
+          analysisProgress(Date.now() - startedAt, videoDurationMs),
+        ),
       );
     };
     const timer = window.setInterval(update, 1000);
     return () => window.clearInterval(timer);
-  }, [analysisStatus, mode]);
+  }, [analysisStatus, mode, videoDurationMs]);
 
   const resetToPrep = useCallback(() => {
     analysisControllerRef.current?.abort();
@@ -266,8 +277,8 @@ function WorkspaceInner() {
       return null;
     });
     setDrawerOpen(false);
-    router.replace("/practice/new");
-  }, [router]);
+    replaceUrl("/practice/new");
+  }, []);
 
   // 후기는 대화가 시작된 뒤에만 묻는다 — 영상만 올리고 나간 사람은 답할 게 없다.
   const reviewArmed = mode === "chat" || mode === "note";
@@ -428,7 +439,10 @@ function WorkspaceInner() {
         signal: controller.signal,
         onProgress: (progress) =>
           setPct((current) =>
-            advanceProgress(current, uploadProgress(progress.percent)),
+            advanceProgress(
+              current,
+              uploadProgress(progress.percent, prepared.wasCompressed),
+            ),
           ),
       });
       const { session } = await createPracticeSession(
@@ -450,7 +464,7 @@ function WorkspaceInner() {
       setMode("preparing");
       setSending(false);
       urlLoadedRef.current = session.session_id;
-      router.replace(`/practice/new?session=${encodeURIComponent(session.session_id)}`);
+      replaceUrl(`/practice/new?session=${encodeURIComponent(session.session_id)}`);
       // 업로드가 끝난 시점이 아니라 연습 세션까지 만들어진 시점에 센다.
       // 업로드만 되고 세션 생성이 실패하면 연습이 시작된 게 아니다.
       trackVideoUploaded(prepared.durationMs);
@@ -474,7 +488,7 @@ function WorkspaceInner() {
     } finally {
       if (uploadControllerRef.current === controller) uploadControllerRef.current = null;
     }
-  }, [videoFile, situation, character, goal, refreshList, router, trackAnalysis]);
+  }, [videoFile, situation, character, goal, refreshList, trackAnalysis]);
 
   const send = useCallback(async () => {
     const text = answer.trim();
@@ -532,11 +546,18 @@ function WorkspaceInner() {
     activeIdRef.current = id;
     coachCoordinatorRef.current = null;
     urlLoadedRef.current = id;
-    router.replace(`/practice/new?session=${encodeURIComponent(id)}`);
+    replaceUrl(`/practice/new?session=${encodeURIComponent(id)}`);
     setDrawerOpen(false);
     setError(null);
     setActiveId(id);
     setDetail(null);
+    // 다른 연습으로 넘어가므로 직전 연습의 로컬 원본은 버린다 — 남겨 두면
+    // visibleVideoUrl 이 그걸 먼저 잡아 남의 영상을 틀게 된다.
+    setVideoFile(null);
+    setVideoUrl((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return null;
+    });
     setPct(UPLOAD_PROGRESS_END);
     setAnalysisStatus(null);
     setVideoDurationMs(null);
@@ -580,7 +601,7 @@ function WorkspaceInner() {
     } finally {
       setBusy(false);
     }
-  }, [countStepOnce, router, startConversationAfterAnalysis, trackAnalysis]);
+  }, [countStepOnce, startConversationAfterAnalysis, trackAnalysis]);
 
   // 주소에 ?session= 이 실려 오면(연습 기록 링크·새로고침) 그 세션을 연다.
   // 클릭으로 여는 경로는 openSession 이고, 이쪽은 첫 진입만 맡는다.
@@ -662,7 +683,11 @@ function WorkspaceInner() {
     character: detail?.character_context ?? character,
     goal: detail?.goal ?? goal,
   };
-  const visibleVideoUrl = detail?.playback_url ?? videoUrl;
+  // 방금 고른 로컬 원본이 있으면 그걸 계속 재생한다. 서버 playback_url 을 먼저 쓰면
+  // 업로드가 끝나는 순간 src 가 blob → 원격으로 갈아끼워지면서 영상 자리가 한 번 비고,
+  // 다시 뜬 소스에서 onDuration 이 또 불려 진행 막대의 기준 길이까지 흔들린다.
+  // 목록에서 연 세션은 로컬 원본이 없으므로(openSession 이 지운다) 서버 주소를 쓴다.
+  const visibleVideoUrl = videoUrl ?? detail?.playback_url ?? null;
 
   const rail = (
     <SessionRail

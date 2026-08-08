@@ -97,6 +97,45 @@ def test_created_post_appears_in_list_with_author_nickname(actors):
     assert page.items[0].category_name == "자유"
 
 
+def test_deactivated_author_is_shown_as_withdrawn_and_keeps_the_thread(actors):
+    """글은 남고 작성자만 가려진다.
+
+    탈퇴하면 닉네임이 파기되므로, 그대로 내보내면 이름 없는 글이 된다. 대신
+    "탈퇴한 사용자" 로 보여준다. 글타래는 그대로 서 있어야 한다 — 그러려고 행을
+    지우지 않는 것이다.
+    """
+    store, community, writer, reader = actors
+    created = _post(community, writer, title="떠나기 전 글")
+    community.create_comment(post_id=created.id, author_id=reader.id, body="댓글")
+
+    store.deactivate_user(writer.id)
+
+    page = community.list_posts(viewer_id=reader.id)
+    assert [item.id for item in page.items] == [created.id]
+    assert page.items[0].author.nickname == "탈퇴한 사용자"
+    # 본문과 id 는 건드리지 않는다.
+    assert page.items[0].title == "떠나기 전 글"
+    assert page.items[0].author.id == writer.id
+
+    detail = community.get_post(post_id=created.id, viewer_id=reader.id)
+    assert detail.author.nickname == "탈퇴한 사용자"
+
+    comments = community.list_comments(post_id=created.id, viewer_id=reader.id)
+    assert [item.author.nickname for item in comments.items] == ["읽는이"]
+
+
+def test_deactivated_commenter_is_shown_as_withdrawn(actors):
+    store, community, writer, reader = actors
+    created = _post(community, writer)
+    community.create_comment(post_id=created.id, author_id=reader.id, body="댓글")
+
+    store.deactivate_user(reader.id)
+
+    comments = community.list_comments(post_id=created.id, viewer_id=writer.id)
+    assert [item.author.nickname for item in comments.items] == ["탈퇴한 사용자"]
+    assert [item.body for item in comments.items] == ["댓글"]
+
+
 def test_list_filters_by_category(actors):
     _, community, writer, reader = actors
     free_post = _post(community, writer, slug="free")

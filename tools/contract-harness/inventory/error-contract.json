@@ -61,6 +61,16 @@
   },
   {
     "category": "http_exception",
+    "detail": "account_deactivated",
+    "dynamic": false,
+    "key": "acting-api/src/acting_api/auth/dependencies.py:build_current_user_dependency.current_user|403|account_deactivated",
+    "route": null,
+    "source": "acting-api/src/acting_api/auth/dependencies.py",
+    "status": 403,
+    "symbol": "build_current_user_dependency.current_user"
+  },
+  {
+    "category": "http_exception",
     "detail": "account_suspended",
     "dynamic": false,
     "key": "acting-api/src/acting_api/auth/dependencies.py:build_current_user_dependency.current_user|403|account_suspended",
@@ -77,6 +87,16 @@
     "route": null,
     "source": "acting-api/src/acting_api/auth/dependencies.py",
     "status": 401,
+    "symbol": "build_optional_user_dependency.optional_user"
+  },
+  {
+    "category": "http_exception",
+    "detail": "account_deactivated",
+    "dynamic": false,
+    "key": "acting-api/src/acting_api/auth/dependencies.py:build_optional_user_dependency.optional_user|403|account_deactivated",
+    "route": null,
+    "source": "acting-api/src/acting_api/auth/dependencies.py",
+    "status": 403,
     "symbol": "build_optional_user_dependency.optional_user"
   },
   {
@@ -141,6 +161,16 @@
   },
   {
     "category": "http_exception",
+    "detail": "account_deactivated",
+    "dynamic": false,
+    "key": "acting-api/src/acting_api/auth/router.py:build_router.login|403|account_deactivated",
+    "route": "POST /v2/auth/login",
+    "source": "acting-api/src/acting_api/auth/router.py",
+    "status": 403,
+    "symbol": "build_router.login"
+  },
+  {
+    "category": "http_exception",
     "detail": "account_suspended",
     "dynamic": false,
     "key": "acting-api/src/acting_api/auth/router.py:build_router.login|403|account_suspended",
@@ -187,6 +217,16 @@
     "route": "POST /v2/auth/refresh",
     "source": "acting-api/src/acting_api/auth/router.py",
     "status": 401,
+    "symbol": "build_router.refresh"
+  },
+  {
+    "category": "http_exception",
+    "detail": "account_deactivated",
+    "dynamic": false,
+    "key": "acting-api/src/acting_api/auth/router.py:build_router.refresh|403|account_deactivated",
+    "route": "POST /v2/auth/refresh",
+    "source": "acting-api/src/acting_api/auth/router.py",
+    "status": 403,
     "symbol": "build_router.refresh"
   },
   {
@@ -708,6 +748,16 @@
     "source": "acting-api/src/acting_api/profile.py",
     "status": 422,
     "symbol": "UpdateMeRequest._normalize"
+  },
+  {
+    "category": "http_exception",
+    "detail": "user_not_found",
+    "dynamic": false,
+    "key": "acting-api/src/acting_api/profile.py:build_router.delete_me|404|user_not_found",
+    "route": "DELETE /v2/me",
+    "source": "acting-api/src/acting_api/profile.py",
+    "status": 404,
+    "symbol": "build_router.delete_me"
   },
   {
     "category": "http_exception",

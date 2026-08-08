@@ -5,7 +5,8 @@ import jakarta.persistence.Converter;
 /** {@code user_status_t} — {@code models.py} 의 {@code UserStatus}. */
 public enum UserStatus implements PgEnum {
     ACTIVE("active"),
-    SUSPENDED("suspended");
+    SUSPENDED("suspended"),
+    DEACTIVATED("deactivated");
 
     private final String dbValue;
 

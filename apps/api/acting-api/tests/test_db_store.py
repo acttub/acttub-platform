@@ -17,6 +17,7 @@ from acting_api.auth.jwt import JwtService
 from acting_api.db.engine import create_db_engine, normalize_database_url
 from acting_api.db.models import (
     Anomaly,
+    CloseReason,
     CoachingHandoff,
     CoachSession as DbCoachSession,
     CoachTurn as DbCoachTurn,
@@ -30,6 +31,9 @@ from acting_api.db.models import (
     Summary,
     TurnRole,
     UploadStatus,
+    User,
+    UserIdentity,
+    UserStatus,
 )
 from acting_api.db.store import LeaseOwnershipError, PostgresStore
 from acting_api.security import hash_token
@@ -305,6 +309,75 @@ def test_account_consent_upload_and_practice_lifecycle(postgres_store):
     assert store.hide_practice_session(user_id=user.id, session_id=session.id, now=now)
     assert store.get_practice_session(user_id=user.id, session_id=session.id) is None
     assert store.list_practice_sessions(user.id) == []
+
+
+def test_deactivate_user_erases_identity_and_revokes_every_session(postgres_store):
+    store = postgres_store
+    now = datetime.now(timezone.utc)
+    user = store.create_user(email="leaving@example.com")
+    store.update_user_nickname(user.id, "떠나는배우")
+    store.link_user_identity(
+        user_id=user.id, provider="google", provider_uid="leaving-google"
+    )
+    for label in ("iphone", "ipad"):
+        store.issue_refresh_token(
+            user_id=user.id,
+            token_hash=_hash(label),
+            expires_at=now + timedelta(days=14),
+            device_info=label,
+            issued_at=now,
+        )
+    other = store.create_user(email="staying@example.com")
+    store.issue_refresh_token(
+        user_id=other.id,
+        token_hash=_hash("other-device"),
+        expires_at=now + timedelta(days=14),
+        issued_at=now,
+    )
+
+    deactivated = store.deactivate_user(user.id, now=now)
+
+    assert deactivated is not None
+    assert deactivated.status is UserStatus.DEACTIVATED
+    assert deactivated.deactivated_at == now
+    # 행은 남는다 — 커뮤니티 글·연습 기록이 이 id 를 참조한다.
+    assert store.get_user(user.id) is not None
+    # 개인을 식별하는 것은 전부 파기된다.
+    assert deactivated.email is None
+    assert deactivated.nickname is None
+    assert store.get_user_by_email("leaving@example.com") is None
+    assert store.get_user_by_identity("google", "leaving-google") is None
+    with store._session_factory() as db:
+        assert (
+            db.scalar(
+                select(func.count())
+                .select_from(UserIdentity)
+                .where(UserIdentity.user_id == user.id)
+            )
+            == 0
+        )
+
+    with store._session_factory() as db:
+        revoked = list(
+            db.scalars(select(RefreshToken).where(RefreshToken.user_id == user.id))
+        )
+    assert len(revoked) == 2
+    assert all(token.revoked_at == now for token in revoked)
+    # 남의 세션·계정은 건드리지 않는다.
+    assert store.get_refresh_token(_hash("other-device")).revoked_at is None
+    assert store.get_user_by_email("staying@example.com").id == other.id
+
+    # 끊어 둔 identity 자리에 같은 소셜 계정이 새 user 로 다시 들어올 수 있다.
+    fresh, _ = store.create_user_with_identity(
+        provider="google", provider_uid="leaving-google", email="leaving@example.com"
+    )
+    assert fresh.id != user.id
+    assert store.get_user_by_identity("google", "leaving-google").id == fresh.id
+
+    later = store.deactivate_user(user.id, now=now + timedelta(days=1))
+    assert later.deactivated_at == now
+
+    assert store.deactivate_user(uuid4()) is None
 
 
 def test_refresh_rotation_and_rotated_token_reuse_revokes_all(postgres_store):
@@ -1269,14 +1342,20 @@ def test_admin_stats_windows_returning_users_and_team_exclusion(postgres_store):
         backdate_practice(practice.id, created_at, analyzed=analyzed)
         return practice
 
-    def make_coach(practice_id: UUID, created_at: datetime) -> UUID:
+    def make_coach(
+        practice_id: UUID,
+        created_at: datetime,
+        status: SessionStatus = SessionStatus.CLOSED,
+        close_reason: CloseReason | None = None,
+    ) -> UUID:
         coach_id = uuid4()
         with store._session_factory.begin() as db:
             db.add(
                 DbCoachSession(
                     id=coach_id,
                     practice_session_id=practice_id,
-                    status=SessionStatus.CLOSED,
+                    status=status,
+                    close_reason=close_reason,
                     created_at=created_at,
                     updated_at=created_at,
                 )
@@ -1383,6 +1462,124 @@ def test_admin_stats_windows_returning_users_and_team_exclusion(postgres_store):
     for key in expected:
         if key.endswith("_real"):
             assert stats_no_exclude[key] == stats_no_exclude[key[: -len("_real")]]
+
+    # ---- 2차: 어제(KST)·퍼널·종료 사유 분포·gap_stated 창·관찰·DB 크기.
+    # 경계는 admin_stats 와 같은 식으로 직접 계산한다 — 테스트가 언제 도는지와
+    # 무관하게 맞아야 하고, 그래야 롤링 24시간과 달력상 어제가 실제로 다른 값이 된다.
+    stats_before = store.admin_stats(exclude_emails=("team@acttub.com",))
+
+    now_kst = now + timedelta(hours=9)
+    today_kst_midnight = now_kst.replace(hour=0, minute=0, second=0, microsecond=0)
+    yesterday_end_utc = today_kst_midnight - timedelta(hours=9)  # 오늘 KST 00:00
+    yesterday_start_utc = yesterday_end_utc - timedelta(days=1)  # 어제 KST 00:00
+    since_24h = now - timedelta(hours=24)
+
+    today_marker = yesterday_end_utc + timedelta(minutes=5)  # 오늘 KST 00:05
+    yesterday_marker = yesterday_start_utc + timedelta(seconds=1)  # 어제 KST 맨 처음 근처
+    day_before_marker = yesterday_start_utc - timedelta(hours=1)  # 그저께
+
+    # yesterday_marker 는 항상 어제 KST 창 안이지만, now 가 자정을 막 지난 극단적인
+    # 순간이 아닌 한 롤링 24시간(now-24h) 보다도 앞이다 — 그게 이번에 확인할 차이다.
+    assert yesterday_marker < since_24h
+
+    extra_user = store.create_user(email="extra@example.com")
+    with store._session_factory.begin() as db:
+        db.execute(
+            update(User).where(User.id == extra_user.id).values(created_at=yesterday_marker)
+        )
+
+    today_session = make_session(extra_user.id, "extra-today", today_marker)
+    yesterday_session = make_session(extra_user.id, "extra-yesterday", yesterday_marker)
+    make_session(extra_user.id, "extra-day-before", day_before_marker)
+
+    make_coach(
+        yesterday_session.id,
+        yesterday_marker,
+        status=SessionStatus.CLOSED,
+        close_reason=CloseReason.GAP_STATED,
+    )
+    make_coach(
+        today_session.id,
+        today_marker,
+        status=SessionStatus.OPEN,
+        close_reason=None,
+    )
+
+    stats_after = store.admin_stats(exclude_emails=("team@acttub.com",))
+
+    # 어제(KST) vs 롤링 24시간 — 핵심 확인.
+    assert stats_after["users_yesterday"] - stats_before["users_yesterday"] == 1
+    assert stats_after["users_yesterday_real"] - stats_before["users_yesterday_real"] == 1
+    assert (
+        stats_after["active_users_yesterday"]
+        - stats_before["active_users_yesterday"]
+        == 1
+    )
+    assert (
+        stats_after["active_users_yesterday_real"]
+        - stats_before["active_users_yesterday_real"]
+        == 1
+    )
+    # 어제 가입·활동은 last_24h 에는 안 잡힌다 — 다른 창이라는 증거.
+    assert stats_after["users_last_24h"] == stats_before["users_last_24h"]
+    assert (
+        stats_after["practice_sessions_last_24h"]
+        == stats_before["practice_sessions_last_24h"] + 1  # today_marker 세션만 잡힘
+    )
+
+    # 퍼널 — extra_user(비팀) 는 가입·업로드·연습세션·코치대화·마무리까지 가고
+    # 분석 완료는 안 갔다. team_user 는 real 에서 전부 빠진다.
+    funnel = {row["step"]: row for row in stats_after["funnel_steps"]}
+    assert [row["step"] for row in stats_after["funnel_steps"]] == [
+        "가입",
+        "업로드 확정",
+        "연습 세션",
+        "분석 완료",
+        "코치 대화",
+        "대화 마무리",
+        "놓친 생각 말함",
+    ]
+    assert funnel["가입"]["users"] == 3  # real, team, extra
+    assert funnel["가입"]["users_real"] == 2  # team 제외
+    assert funnel["업로드 확정"]["users"] == 3
+    assert funnel["업로드 확정"]["users_real"] == 2
+    assert funnel["연습 세션"]["users"] == 3
+    assert funnel["연습 세션"]["users_real"] == 2
+    assert funnel["분석 완료"]["users"] == 2  # real, team 만 (extra 는 분석 안 함)
+    assert funnel["분석 완료"]["users_real"] == 1
+    assert funnel["코치 대화"]["users"] == 3
+    assert funnel["코치 대화"]["users_real"] == 2
+    assert funnel["대화 마무리"]["users"] == 3  # extra 도 어제 세션이 closed
+    assert funnel["대화 마무리"]["users_real"] == 2
+    assert funnel["놓친 생각 말함"]["users"] == 1  # extra 뿐
+    assert funnel["놓친 생각 말함"]["users_real"] == 1
+
+    # 종료 사유 분포 — count 내림차순, 동률 구간 순서는 안 따진다.
+    close_reasons = {
+        row["reason"]: (row["count"], row["count_real"])
+        for row in stats_after["close_reasons"]
+    }
+    assert close_reasons["사유 없음"] == (3, 2)  # 1차에서 만든 코치 세션들
+    assert close_reasons["gap_stated"] == (1, 1)
+    assert close_reasons["진행 중"] == (1, 1)
+    counts_desc = [row["count"] for row in stats_after["close_reasons"]]
+    assert counts_desc == sorted(counts_desc, reverse=True)
+
+    # gap_stated 창 — 어제 세션은 all·7d 에는 잡히고 24h 에는 안 잡힌다.
+    assert stats_after["gap_stated_all"] - stats_before["gap_stated_all"] == 1
+    assert stats_after["gap_stated_all_real"] - stats_before["gap_stated_all_real"] == 1
+    assert stats_after["gap_stated_7d"] - stats_before["gap_stated_7d"] == 1
+    assert stats_after["gap_stated_7d_real"] - stats_before["gap_stated_7d_real"] == 1
+    assert stats_after["gap_stated_24h"] == stats_before["gap_stated_24h"]
+    assert stats_after["gap_stated_24h_real"] == stats_before["gap_stated_24h_real"]
+
+    # 관찰 — 이 테스트는 summary/anomaly 를 안 만들었으니 0 이어야 한다.
+    assert stats_after["observations_total"] == 0
+    assert stats_after["observations_per_summary"] == 0.0
+
+    # DB 크기 — 실제 Postgres 라 문자열이 나와야 한다.
+    assert isinstance(stats_after["db_size"], str)
+    assert stats_after["db_size"]
 
 
 def _create_practice(

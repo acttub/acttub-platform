@@ -168,7 +168,16 @@ export interface paths {
         get: operations["get_me_v2_me_get"];
         put?: never;
         post?: never;
-        delete?: never;
+        /**
+         * Delete Me
+         * @description 회원탈퇴. 개인정보는 파기하고 글은 남긴다.
+         *
+         *     커뮤니티 글·연습 기록이 user_id 를 물고 있어 행을 지우면 남의 글타래가
+         *     깨진다. 그래서 행은 남기되 이메일·닉네임·identity 를 지우고 refresh 토큰을
+         *     전부 끊는다. 남아 있는 액세스 토큰은 만료까지 유효하지만 인증 게이트가
+         *     deactivated 를 403 으로 막는다. 자세한 처리는 store.deactivate_user 참조.
+         */
+        delete: operations["delete_me_v2_me_delete"];
         options?: never;
         head?: never;
         /** Update Me */
@@ -879,7 +888,7 @@ export interface components {
              * Status
              * @enum {string}
              */
-            status: "active" | "suspended";
+            status: "active" | "suspended" | "deactivated";
         };
         /**
          * AuthorPayload
@@ -1223,7 +1232,7 @@ export interface components {
              * Status
              * @enum {string}
              */
-            status: "active" | "suspended";
+            status: "active" | "suspended" | "deactivated";
         };
         /** ObservationItem */
         ObservationItem: {
@@ -1919,6 +1928,24 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["MeResponse"];
                 };
+            };
+        };
+    };
+    delete_me_v2_me_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

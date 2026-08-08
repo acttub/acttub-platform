@@ -65,8 +65,8 @@ def apply_seed(database_url: str, schema: str) -> None:
         engine.dispose()
 
 
-def suspended_refresh_token() -> str:
-    """시드가 심어 두는 정지 계정용 refresh token. jti·iat 까지 고정한다."""
+def _seeded_refresh_token(subject: str, jti: str) -> str:
+    """시드가 심어 두는 refresh token. jti·iat 까지 고정한다."""
     import base64
     import hashlib
     import hmac
@@ -76,8 +76,8 @@ def suspended_refresh_token() -> str:
     payload = {
         "iss": "acting-api",
         "aud": "acting-app",
-        "sub": cfg.SEED_SUSPENDED_USER[0],
-        "jti": cfg.SEED_SUSPENDED_REFRESH_JTI,
+        "sub": subject,
+        "jti": jti,
         "token_type": "refresh",
         "iat": cfg.SEED_SUSPENDED_REFRESH_IAT,
         "exp": cfg.SEED_SUSPENDED_REFRESH_IAT + cfg.SEED_SUSPENDED_REFRESH_TTL_SEC,
@@ -97,16 +97,48 @@ def suspended_refresh_token() -> str:
     return f"{encoded}.{_b64(signature)}"
 
 
-def _seed_suspended_user(connection) -> None:
+def suspended_refresh_token() -> str:
+    return _seeded_refresh_token(
+        cfg.SEED_SUSPENDED_USER[0], cfg.SEED_SUSPENDED_REFRESH_JTI
+    )
+
+
+def deactivated_refresh_token() -> str:
+    return _seeded_refresh_token(
+        cfg.SEED_DEACTIVATED_USER[0], cfg.SEED_DEACTIVATED_REFRESH_JTI
+    )
+
+
+def _seed_blocked_user(
+    connection,
+    *,
+    user,
+    status: str,
+    identity_uid: str,
+    identity_id_n: int,
+    refresh_token: str,
+    refresh_id_n: int,
+    deactivated_at=None,
+) -> None:
+    """로그인으로는 만들 수 없는 계정 상태(정지·탈퇴)를 시드로 심는다."""
     from acting_api.security import hash_token
 
-    user_id, email, nickname = cfg.SEED_SUSPENDED_USER
+    user_id, email, nickname = user
     connection.execute(
         text(
-            "INSERT INTO users (id, email, nickname, status, created_at, updated_at)"
-            " VALUES (:id, :email, :nickname, 'suspended'::user_status_t, :ts, :ts)"
+            "INSERT INTO users (id, email, nickname, status, deactivated_at,"
+            " created_at, updated_at)"
+            " VALUES (:id, :email, :nickname, CAST(:status AS user_status_t),"
+            " :deactivated_at, :ts, :ts)"
         ),
-        {"id": UUID(user_id), "email": email, "nickname": nickname, "ts": SEED_EPOCH},
+        {
+            "id": UUID(user_id),
+            "email": email,
+            "nickname": nickname,
+            "status": status,
+            "deactivated_at": deactivated_at,
+            "ts": SEED_EPOCH,
+        },
     )
     connection.execute(
         text(
@@ -115,29 +147,50 @@ def _seed_suspended_user(connection) -> None:
             " :uid, :ts)"
         ),
         {
-            "id": UUID(f"00000000-0000-4000-8000-{159:012d}"),
+            "id": UUID(f"00000000-0000-4000-8000-{identity_id_n:012d}"),
             "user_id": UUID(user_id),
-            "uid": "harness-seed-suspended",
+            "uid": identity_uid,
             "ts": SEED_EPOCH,
         },
     )
     connection.execute(
         text(
             "INSERT INTO refresh_tokens (id, user_id, token_hash, device_info,"
-            " issued_at, expires_at) VALUES (:id, :user_id, :hash, NULL, :ts, :exp)"
+            " issued_at, expires_at, revoked_at)"
+            " VALUES (:id, :user_id, :hash, NULL, :ts, :exp, :revoked_at)"
         ),
         {
-            "id": UUID(f"00000000-0000-4000-8000-{191:012d}"),
+            "id": UUID(f"00000000-0000-4000-8000-{refresh_id_n:012d}"),
             "user_id": UUID(user_id),
-            "hash": hash_token(suspended_refresh_token()),
+            "hash": hash_token(refresh_token),
             "ts": SEED_EPOCH,
             "exp": SEED_EPOCH + timedelta(days=3650),
+            # 탈퇴는 세션을 끊는다 — 폐기된 토큰을 들고 오는 상황이 실제 모습이다.
+            "revoked_at": deactivated_at,
         },
     )
 
 
 def _seed_users(connection) -> None:
-    _seed_suspended_user(connection)
+    _seed_blocked_user(
+        connection,
+        user=cfg.SEED_SUSPENDED_USER,
+        status="suspended",
+        identity_uid="harness-seed-suspended",
+        identity_id_n=159,
+        refresh_token=suspended_refresh_token(),
+        refresh_id_n=191,
+    )
+    _seed_blocked_user(
+        connection,
+        user=cfg.SEED_DEACTIVATED_USER,
+        status="deactivated",
+        identity_uid="harness-seed-deactivated",
+        identity_id_n=160,
+        refresh_token=deactivated_refresh_token(),
+        refresh_id_n=193,
+        deactivated_at=SEED_EPOCH,
+    )
     for index, (user_id, email, nickname) in enumerate(cfg.SEED_USERS):
         connection.execute(
             text(

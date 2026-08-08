@@ -26,7 +26,7 @@ import { palette } from '@/constants/palette';
  * 문서 목록은 GET /v2/consents/documents, 변경은 POST /v2/consents(granted/revoked).
  */
 export default function SettingsScreen() {
-  const previewRouter = useRouter();
+  const router = useRouter();
   const { user, signOut } = useAuth();
   const [name, setName] = useState('');
   const [savedName, setSavedName] = useState('');
@@ -174,13 +174,21 @@ export default function SettingsScreen() {
           {__DEV__ && (
             <Pressable
               style={styles.previewRow}
-              onPress={() => previewRouter.push('/ui-preview')}>
+              onPress={() => router.push('/ui-preview')}>
               <Text style={styles.previewText}>UI 미리보기 (개발용)</Text>
             </Pressable>
           )}
 
           <Pressable style={styles.logout} onPress={() => void confirmLogout()}>
             <Text style={styles.logoutText}>로그아웃</Text>
+          </Pressable>
+
+          {/* 깊이 숨기지 않는다 — 앱스토어 심사가 계정 삭제를 앱 안에서 찾을 수 있는지 본다. */}
+          <Pressable
+            style={styles.deleteRow}
+            onPress={() => router.push('/delete-account')}
+            accessibilityRole="button">
+            <Text style={styles.deleteText}>회원 탈퇴</Text>
           </Pressable>
         </KeyboardAwareScroll>
       )}
@@ -252,4 +260,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   logoutText: { color: palette.danger, fontSize: 15, fontWeight: '700' },
+  deleteRow: { marginTop: 10, paddingVertical: 14, alignItems: 'center' },
+  deleteText: { color: palette.textFaint, fontSize: 13.5, fontWeight: '700' },
 });

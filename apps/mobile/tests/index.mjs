@@ -1,4 +1,5 @@
 import './api-request.test.mjs';
+import './account-deletion.test.mjs';
 import './blockage.test.mjs';
 import './analysis-operation.test.mjs';
 import './auth-credentials.test.mjs';

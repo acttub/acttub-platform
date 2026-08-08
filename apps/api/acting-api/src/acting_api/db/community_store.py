@@ -71,6 +71,7 @@ class Category:
 
 ANONYMOUS_POST_LABEL = "익명"
 ANONYMOUS_AUTHOR_LABEL = "글쓴이"
+DEACTIVATED_AUTHOR_LABEL = "탈퇴한 사용자"
 
 
 @dataclass(frozen=True)
@@ -87,6 +88,10 @@ class Author:
 
     @classmethod
     def named(cls, user) -> Author:
+        # 탈퇴하면 닉네임이 파기돼 비어 있다. 빈 이름을 내보내는 대신 떠난 사람임을
+        # 밝힌다 — 글은 남지만 작성자는 더 이상 이 서비스에 없다.
+        if getattr(user.status, "value", user.status) == "deactivated":
+            return cls(id=user.id, nickname=DEACTIVATED_AUTHOR_LABEL, alias=None)
         return cls(id=user.id, nickname=user.nickname, alias=None)
 
     @classmethod
@@ -725,7 +730,7 @@ class CommunityStore:
                 .where(CommunityBlock.blocker_id == blocker_id)
                 .order_by(CommunityBlock.created_at.desc())
             ).all()
-            return [Author(id=row[0].id, nickname=row[0].nickname) for row in rows]
+            return [Author.named(row[0]) for row in rows]
 
     def block_user(self, *, blocker_id: UUID, blocked_id: UUID) -> None:
         if blocker_id == blocked_id:
