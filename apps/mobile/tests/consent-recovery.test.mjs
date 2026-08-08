@@ -41,6 +41,7 @@ test('API client는 403 body를 한 번 읽고 consent_required를 emit한다', 
     emitConsentRequired: () => {
       consentEvents += 1;
     },
+    emitAccountDeactivated: () => {},
   });
 
   await assert.rejects(
