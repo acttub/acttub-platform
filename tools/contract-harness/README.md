@@ -35,7 +35,7 @@ $PY -m pytest tests -q                                        # 리포터·정�
 | 파일 | 역할 |
 |---|---|
 | `dbsetup.py` · `seed.py` | 독립 스키마 2벌 + 동일 시드(고정 UUID) |
-| `wrapper.py` | `create_app(...)`을 감싸는 ASGI 래퍼 + 제어 표면 5개 |
+| `wrapper.py` | `create_app(...)`을 감싸는 ASGI 래퍼 + 제어 표면 6개 |
 | `stubs.py` | LLM·S3·인증 provider·시계 스텁 (값은 `fixtures/*.json`) |
 | `backends.py` | fastapi(in-process) / java(base URL) 어댑터 |
 | `normalize.py` | symbolic ID · opaque 값 정책 · datetime 검증→마스킹 |
@@ -49,7 +49,7 @@ $PY -m pytest tests -q                                        # 리포터·정�
 
 ## 백엔드가 만족해야 하는 계약
 
-하네스가 백엔드에 요구하는 것은 HTTP 표면과 **제어 표면 5개**뿐이다. 그 뒤를 어떻게
+하네스가 백엔드에 요구하는 것은 HTTP 표면과 **제어 표면 6개**뿐이다. 그 뒤를 어떻게
 구현하는지는 백엔드별 자유다. 경로는 `POST /__harness/<name>`, 바디는 JSON이다.
 
 | 제어 | 의미 |
@@ -59,6 +59,7 @@ $PY -m pytest tests -q                                        # 리포터·정�
 | `stub-state` | LLM·S3·인증 스텁의 호출 횟수와 잔량 |
 | `advance-clock` | 주입 시계를 N초 전진 |
 | `db-projection` | 도메인 객체의 정규화된 DB 상태 |
+| `reset-state` | DB truncate 뒤에도 남는 시계·레이트리밋 process-local 상태 초기화 |
 
 **contract 프로파일에서 자동 워커는 뜨지 않는다.** 시간 경과에 의존하는 동작은
 전부 `advance-clock`으로만 일어난다. 이 표가 곧 M4에 넘기는 요구사항이다
@@ -73,8 +74,8 @@ LLM 스텁이 신호가 올 때까지 멈춘다. `coaching.py:build_router.coach
 `begin_sync_operation`으로 클레임을 잡은 **다음** `coach_engine.start(generate=...)`를
 부르므로, **스텁이 멈춰 있는 동안 그 operation은 running이다.** 하네스는 `stub-state`로
 멈춘 것을 확인한 뒤에만 다음 단계로 가므로 인터리빙에 의존하지 않는다. 해제는
-`stub-state`의 payload(`{"release": true}` / `{"rearm": true}`)로 한다 — 제어를 6개로
-늘리지 않으려고 기존 제어에 넣었다. 게이트에는 20초 상한이 있어 신호를 못 받아도
+`stub-state`의 payload(`{"release": true}` / `{"rearm": true}`)로 한다 — 별도 stub
+제어를 늘리지 않으려고 기존 제어에 넣었다. 게이트에는 20초 상한이 있어 신호를 못 받아도
 매달리지 않고 실패로 보고된다.
 
 **② 이름 붙은 DB 조작** (`dbops.py`). `db-projection`이 이미 그렇듯 하네스는 대상

@@ -7,14 +7,54 @@
 
 from __future__ import annotations
 
+import base64
+import hashlib
+import hmac
+import json
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from urllib.parse import quote
 
+from acting_api.auth.jwt import ACCESS_TOKEN_TTL
+
+from contract_harness import config as cfg
 from contract_harness.normalize import SymbolTable
 
 REQUEST_ID_NAMESPACE = uuid.UUID("6f9619ff-8b86-d011-b42d-00cf4fc964ff")
+
+
+def _b64url(value: bytes) -> str:
+    return base64.urlsafe_b64encode(value).rstrip(b"=").decode("ascii")
+
+
+def mint_access_token(user_id: str, *, issued_at: datetime, token_id: uuid.UUID) -> str:
+    """Python 정본과 같은 header/claims/canonical JSON으로 HS256 access token을 만든다."""
+    if issued_at.tzinfo is None:
+        raise ValueError("issued_at must be timezone-aware")
+    issued_at = issued_at.astimezone(timezone.utc)
+    expires_at = issued_at + ACCESS_TOKEN_TTL
+    header = {"alg": "HS256", "typ": "JWT"}
+    payload = {
+        "iss": "acting-api",
+        "aud": "acting-app",
+        "sub": str(uuid.UUID(str(user_id))),
+        "jti": str(token_id),
+        "token_type": "access",
+        "iat": int(issued_at.timestamp()),
+        "exp": int(expires_at.timestamp()),
+    }
+
+    def encode(value: dict) -> str:
+        return _b64url(
+            json.dumps(value, separators=(",", ":"), sort_keys=True).encode("utf-8")
+        )
+
+    signing_input = f"{encode(header)}.{encode(payload)}".encode("ascii")
+    signature = hmac.new(
+        cfg.JWT_SECRET.encode("utf-8"), signing_input, hashlib.sha256
+    ).digest()
+    return f"{signing_input.decode('ascii')}.{_b64url(signature)}"
 
 
 @dataclass
@@ -42,10 +82,18 @@ class ScenarioAbort(RuntimeError):
 
 
 class ScenarioContext:
-    def __init__(self, backend, symbols: SymbolTable, scenario: str):
+    def __init__(
+        self,
+        backend,
+        symbols: SymbolTable,
+        scenario: str,
+        *,
+        token_issued_at: datetime | None = None,
+    ):
         self.backend = backend
         self.symbols = symbols
         self.scenario = scenario
+        self.token_issued_at = token_issued_at or datetime.now(timezone.utc)
         self.steps: list[Step] = []
         self._db = None
 
@@ -93,8 +141,12 @@ class ScenarioContext:
 
     def token(self, user_id: str) -> str:
         """Python 이 발급하고 양쪽이 소비하는 access token (§채택 방식 4)."""
-        service = self.backend.runtime.jwt_service
-        return service.issue_access_token(uuid.UUID(str(user_id))).value
+        token_id = uuid.uuid5(
+            REQUEST_ID_NAMESPACE, f"{self.scenario}:access-token:{user_id}"
+        )
+        return mint_access_token(
+            user_id, issued_at=self.token_issued_at, token_id=token_id
+        )
 
     def auth(self, user_id: str, **extra) -> dict:
         return {"Authorization": f"Bearer {self.token(user_id)}", **extra}

@@ -73,14 +73,7 @@ def _run(args, *, coverage_only: bool = False) -> int:
     scenarios = runner.all_scenarios(args.only)
     java_base_url = args.java_base_url if args.target == "java" else None
     skipped: list[str] = []
-    if java_base_url is None:
-        result_seed = runner.verify_seed_parity()
-    else:
-        # java 어댑터는 자기 스키마 이름을 하네스에 알려주지 않는다(M1 범위 밖).
-        result_seed = []
-        skipped.append(
-            "seed parity — java 백엔드의 스키마 이름을 모른다 (spec/M4-llm.md 로 이관)"
-        )
+    result_seed = runner.verify_seed_parity()
     result = runner.run_scenarios(scenarios, java_base_url=java_base_url)
     result.findings.extend(result_seed)
 

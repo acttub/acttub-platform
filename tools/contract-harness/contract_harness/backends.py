@@ -1,10 +1,10 @@
 """백엔드 어댑터.
 
-하네스가 백엔드에 요구하는 것은 HTTP 표면 + 제어 표면 5개뿐이다. 그 뒤를 어떻게
+하네스가 백엔드에 요구하는 것은 HTTP 표면 + 공통 제어 표면뿐이다. 그 뒤를 어떻게
 구현하는지는 백엔드별 자유다(§백엔드 adapter 계약).
 
 - `fastapi`: 하네스가 `create_app(...)` 을 직접 불러 만든 앱을 in-process 로 띄운다.
-- `java`: M1 시점에는 `/health` 뿐이므로 base URL 로 붙는 최소 구현이다.
+- `java`: 외부 Spring Boot contract 프로파일의 base URL 로 붙는다.
 """
 
 from __future__ import annotations
@@ -147,17 +147,14 @@ class FastapiBackend(Backend):
 
 
 class JavaBackend(Backend):
-    """M1 시점 Java 는 `/health` 뿐이다 — 제어 표면 없이 붙기만 한다.
-
-    제어 표면 5개를 만족시키는 것은 M4 의 일이며 그 요구사항은
-    `spec/M4-llm.md` 로 넘어간다.
-    """
+    """외부에서 실행 중인 Spring Boot contract 프로파일에 붙는다."""
 
     role = "java"
 
     def __init__(self, name: str, base_url: str) -> None:
         self.name = name
         self.base_url = base_url.rstrip("/")
+        self.schema = cfg.TARGET_SCHEMA
         self._client: httpx.Client | None = None
 
     @contextlib.contextmanager
@@ -184,9 +181,12 @@ class JavaBackend(Backend):
         )
 
     def control(self, name: str, **payload) -> dict:
-        raise NotImplementedError(
-            "java 백엔드의 제어 표면은 M4 범위다 (spec/M1-harness.md §백엔드 adapter 계약 ③)"
+        assert name in cfg.CONTROL_SURFACE, f"unknown control surface: {name}"
+        response = self.request(
+            "POST", f"{cfg.CONTROL_PREFIX}/{name}", json=payload or {}
         )
+        assert response.status == 200, f"control {name} failed: {response.text}"
+        return response.json()
 
     def openapi(self) -> dict:
         response = self.request("GET", "/v3/api-docs")

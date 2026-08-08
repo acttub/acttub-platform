@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import base64
 import json
+import uuid
+from datetime import datetime, timezone
 
 import pytest
 
@@ -68,6 +71,56 @@ def test_same_value_gets_one_symbol_across_field_names():
         "session_id": "$coach_session_1",
         "coach_session_id": "$coach_session_1",
     }
+
+
+def test_harness_access_token_round_trips_through_real_python_jwt_service():
+    from acting_api.auth.jwt import ACCESS_TOKEN_TTL, JwtService
+    from contract_harness.framework import ScenarioContext, mint_access_token
+
+    issued_at = datetime(2026, 8, 8, 12, 34, 56, tzinfo=timezone.utc)
+    user_id = uuid.UUID("11111111-1111-4111-8111-111111111111")
+    token_id = uuid.UUID("22222222-2222-4222-8222-222222222222")
+    token = mint_access_token(
+        str(user_id), issued_at=issued_at, token_id=token_id
+    )
+
+    encoded_header = token.split(".")[0]
+    padded_header = encoded_header + "=" * (-len(encoded_header) % 4)
+    assert json.loads(base64.urlsafe_b64decode(padded_header)) == {
+        "alg": "HS256",
+        "typ": "JWT",
+    }
+    claims = JwtService(cfg.JWT_SECRET).decode_access_token(
+        token, now=issued_at
+    )
+    assert claims.user_id == user_id
+    assert claims.token_id == token_id
+    assert claims.expires_at == issued_at + ACCESS_TOKEN_TTL
+
+    baseline = ScenarioContext(
+        object(), SymbolTable(), "profile", token_issued_at=issued_at
+    )
+    target = ScenarioContext(
+        object(), SymbolTable(), "profile", token_issued_at=issued_at
+    )
+    assert baseline.token(str(user_id)) == target.token(str(user_id))
+
+
+def test_harness_clock_reset_invalidates_process_local_rate_limit_window():
+    from acting_api.ratelimit import RateLimiter
+    from contract_harness.stubs import HarnessClock
+
+    clock = HarnessClock()
+    limiter = RateLimiter(clock=clock.monotonic)
+    assert limiter.allow("caller", 1) is True
+    assert limiter.allow("caller", 1) is False
+    clock.advance(60)
+    assert limiter.allow("caller", 1) is True
+    assert limiter.allow("caller", 1) is False
+
+    clock.reset()
+    assert clock.offset == 0.0
+    assert limiter.allow("caller", 1) is True
 
 
 # --- datetime --------------------------------------------------------------

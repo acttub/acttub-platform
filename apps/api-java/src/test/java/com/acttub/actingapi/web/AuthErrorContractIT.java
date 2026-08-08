@@ -16,6 +16,7 @@ import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
+import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping;
 
 @SpringBootTest(properties = "JWT_SECRET=test-secret")
 @AutoConfigureMockMvc
@@ -32,6 +33,20 @@ class AuthErrorContractIT {
 
     @Autowired
     MockMvc mvc;
+
+    @Autowired
+    RequestMappingHandlerMapping handlerMapping;
+
+    @Test
+    void defaultProfileDoesNotRegisterHarnessRoutes() throws Exception {
+        assertThat(handlerMapping.getHandlerMethods().keySet()).noneMatch(mapping ->
+                mapping.getPatternValues().stream()
+                        .anyMatch(pattern -> pattern.startsWith("/__harness")));
+        assertThat(mvc.perform(post("/__harness/db-projection")
+                        .contentType("application/json")
+                        .content("{}"))
+                .andReturn().getResponse().getStatus()).isEqualTo(404);
+    }
 
     @Test
     void inventoryUsesDetailAndNeverProblemDetail() throws Exception {

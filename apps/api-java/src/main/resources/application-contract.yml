@@ -1,0 +1,12 @@
+spring:
+  datasource:
+    hikari:
+      schema: ${HARNESS_SCHEMA:harness_target}
+  flyway:
+    enabled: false
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        default_schema: ${HARNESS_SCHEMA:harness_target}
