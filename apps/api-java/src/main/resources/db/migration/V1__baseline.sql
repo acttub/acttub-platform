@@ -209,7 +209,8 @@ CREATE TYPE public.upload_status_t AS ENUM (
 
 CREATE TYPE public.user_status_t AS ENUM (
     'active',
-    'suspended'
+    'suspended',
+    'deactivated'
 );
 
 
@@ -637,7 +638,8 @@ CREATE TABLE public.users (
     status public.user_status_t DEFAULT 'active'::public.user_status_t NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    nickname text
+    nickname text,
+    deactivated_at timestamp with time zone
 );
 
 

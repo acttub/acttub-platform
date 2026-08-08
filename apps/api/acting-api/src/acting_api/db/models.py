@@ -11,6 +11,9 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 class UserStatus(str, enum.Enum):
     ACTIVE = "active"
     SUSPENDED = "suspended"
+    # 본인이 탈퇴한 상태. 운영자가 내린 SUSPENDED 와 구분한다 — 응답 문구도 다르고,
+    # 되돌리는 주체도 다르다(탈퇴 복구는 문의, 정지 해제는 운영 판단).
+    DEACTIVATED = "deactivated"
 
 
 class IdentityProvider(str, enum.Enum):
@@ -172,6 +175,11 @@ class User(Base):
     )
     updated_at: Mapped[datetime] = mapped_column(
         sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()
+    )
+    # 탈퇴 시각. status 로도 탈퇴 여부는 알 수 있지만, 언제 떠났는지는 보관 기간
+    # 산정과 이탈 분석에 필요해서 따로 남긴다.
+    deactivated_at: Mapped[datetime | None] = mapped_column(
+        sa.DateTime(timezone=True)
     )
 
 

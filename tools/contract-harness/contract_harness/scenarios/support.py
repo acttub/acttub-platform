@@ -19,6 +19,7 @@ def bootstrap_symbols(symbols: SymbolTable) -> None:
     for user_id, _email, _nickname in cfg.SEED_USERS:
         symbols.register(user_id, "seed_user")
     symbols.register(cfg.SEED_SUSPENDED_USER[0], "seed_suspended_user")
+    symbols.register(cfg.SEED_DEACTIVATED_USER[0], "seed_deactivated_user")
     for doc_id, *_rest in cfg.SEED_CONSENT_DOCUMENTS:
         symbols.register(doc_id, "seed_consent_document")
     for post_id in cfg.SEED_POST_IDS:

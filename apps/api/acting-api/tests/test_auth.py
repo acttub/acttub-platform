@@ -473,6 +473,75 @@ def test_bearer_dependency_rejects_invalid_token_and_suspended_user():
     assert response.status_code == 403
 
 
+def test_account_deactivation_revokes_sessions_and_blocks_re_login():
+    app, store, verifier = _app()
+    verifier.add("member", provider_uid="leaving-google")
+    client = TestClient(app)
+
+    tokens = _login(client, "member").json()
+    access, refresh = tokens["access_token"], tokens["refresh_token"]
+
+    assert client.delete("/v2/me", headers=_bearer(access)).status_code == 204
+
+    user = store.get_user_by_identity("google", "leaving-google")
+    assert user.status == UserStatus.DEACTIVATED
+    assert user.deactivated_at is not None
+    # 행은 남는다 — 커뮤니티 글·연습 기록이 이 id 를 참조한다.
+    assert store.get_user(user.id) is user
+
+    # 아직 만료되지 않은 액세스 토큰도 게이트에서 막힌다.
+    blocked = client.get("/v2/me", headers=_bearer(access))
+    assert blocked.status_code == 403
+    assert blocked.json()["detail"] == "account_deactivated"
+
+    # refresh 토큰은 탈퇴 시점에 전부 폐기됐다.
+    assert (
+        client.post("/v2/auth/refresh", json={"refresh_token": refresh}).status_code
+        == 403
+    )
+    assert all(row.revoked_at is not None for row in store.refresh_tokens.values())
+
+    # 같은 소셜 계정으로 다시 들어오려 해도 새 계정이 생기지 않는다.
+    again = _login(client, "member")
+    assert again.status_code == 403
+    assert again.json()["detail"] == "account_deactivated"
+    assert len(store.users) == 1
+
+
+def test_deactivation_needs_a_token_and_is_not_repeatable():
+    app, store, verifier = _app()
+    client = TestClient(app)
+
+    assert client.delete("/v2/me").status_code == 401
+
+    verifier.add("member", provider_uid="repeat-google")
+    access = _login(client, "member").json()["access_token"]
+    assert client.delete("/v2/me", headers=_bearer(access)).status_code == 204
+    first_seen = store.get_user_by_identity("google", "repeat-google").deactivated_at
+
+    # 두 번째 호출은 게이트에서 걸린다. 최초 탈퇴 시각은 덮이지 않는다.
+    repeated = client.delete("/v2/me", headers=_bearer(access))
+    assert repeated.status_code == 403
+    assert repeated.json()["detail"] == "account_deactivated"
+    assert store.get_user_by_identity("google", "repeat-google").deactivated_at == first_seen
+
+
+def test_suspended_and_deactivated_are_reported_as_different_reasons():
+    app, store, _ = _app()
+    client = TestClient(app)
+    jwt_service = JwtService(JWT_SECRET)
+
+    suspended = store.create_user(status=UserStatus.SUSPENDED)
+    deactivated = store.create_user()
+    store.deactivate_user(deactivated.id)
+
+    for user, detail in ((suspended, "account_suspended"), (deactivated, "account_deactivated")):
+        access = jwt_service.issue_access_token(user.id).value
+        response = client.get("/v2/me", headers=_bearer(access))
+        assert response.status_code == 403
+        assert response.json()["detail"] == detail
+
+
 def test_v2_user_rate_limit_is_60_per_fixed_window():
     app, store, _ = _app(clock=lambda: 0.0)
     user = store.create_user()

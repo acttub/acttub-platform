@@ -30,6 +30,7 @@ from acting_api.db.models import (
     Summary,
     TurnRole,
     UploadStatus,
+    UserStatus,
 )
 from acting_api.db.store import LeaseOwnershipError, PostgresStore
 from acting_api.security import hash_token
@@ -305,6 +306,54 @@ def test_account_consent_upload_and_practice_lifecycle(postgres_store):
     assert store.hide_practice_session(user_id=user.id, session_id=session.id, now=now)
     assert store.get_practice_session(user_id=user.id, session_id=session.id) is None
     assert store.list_practice_sessions(user.id) == []
+
+
+def test_deactivate_user_keeps_the_row_and_revokes_every_session(postgres_store):
+    store = postgres_store
+    now = datetime.now(timezone.utc)
+    user = store.create_user(email="leaving@example.com")
+    store.link_user_identity(
+        user_id=user.id, provider="google", provider_uid="leaving-google"
+    )
+    for label in ("iphone", "ipad"):
+        store.issue_refresh_token(
+            user_id=user.id,
+            token_hash=_hash(label),
+            expires_at=now + timedelta(days=14),
+            device_info=label,
+            issued_at=now,
+        )
+    other = store.create_user(email="staying@example.com")
+    store.issue_refresh_token(
+        user_id=other.id,
+        token_hash=_hash("other-device"),
+        expires_at=now + timedelta(days=14),
+        issued_at=now,
+    )
+
+    deactivated = store.deactivate_user(user.id, now=now)
+
+    assert deactivated is not None
+    assert deactivated.status is UserStatus.DEACTIVATED
+    assert deactivated.deactivated_at == now
+    # 행도 identity 도 남는다 — 지우면 같은 소셜 계정이 새 계정으로 되살아난다.
+    assert store.get_user(user.id) is not None
+    assert store.get_user_by_identity("google", "leaving-google").id == user.id
+    assert store.get_user_by_email("leaving@example.com").id == user.id
+
+    with store._session_factory() as db:
+        revoked = list(
+            db.scalars(select(RefreshToken).where(RefreshToken.user_id == user.id))
+        )
+    assert len(revoked) == 2
+    assert all(token.revoked_at == now for token in revoked)
+    # 남의 세션은 건드리지 않는다.
+    assert store.get_refresh_token(_hash("other-device")).revoked_at is None
+
+    later = store.deactivate_user(user.id, now=now + timedelta(days=1))
+    assert later.deactivated_at == now
+
+    assert store.deactivate_user(uuid4()) is None
 
 
 def test_refresh_rotation_and_rotated_token_reuse_revokes_all(postgres_store):

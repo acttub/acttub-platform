@@ -31,6 +31,11 @@
       "provider_uid": "harness-seed-suspended",
       "email": "suspended@harness.test",
       "email_verified": true
+    },
+    "harness-token-deactivated": {
+      "provider_uid": "harness-seed-deactivated",
+      "email": "deactivated@harness.test",
+      "email_verified": true
     }
   },
   "unsupported_provider": "kakao",

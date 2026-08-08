@@ -52,6 +52,7 @@ class FakeAuthStore:
             nickname=nickname,
             status=UserStatus(status),
             created_at=datetime.now(timezone.utc),
+            deactivated_at=None,
         )
         self.users[row.id] = row
         return row
@@ -64,6 +65,17 @@ class FakeAuthStore:
         if row is None:
             return None
         row.nickname = nickname
+        return row
+
+    def deactivate_user(self, user_id, *, now=None):
+        row = self.users.get(user_id)
+        if row is None:
+            return None
+        now = now or datetime.now(timezone.utc)
+        if row.status is not UserStatus.DEACTIVATED:
+            row.status = UserStatus.DEACTIVATED
+            row.deactivated_at = now
+        self.revoke_all_refresh_tokens(user_id, now=now)
         return row
 
     def get_user_by_email(self, email):

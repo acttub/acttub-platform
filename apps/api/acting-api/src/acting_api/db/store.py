@@ -211,6 +211,37 @@ class PostgresStore:
             db.expunge(row)
             return row
 
+    def deactivate_user(
+        self, user_id: UUID, *, now: datetime | None = None
+    ) -> User | None:
+        """탈퇴 처리. 행은 그대로 두고 상태만 바꾸고 세션을 전부 끊는다.
+
+        상태 전환과 토큰 폐기를 한 트랜잭션에 묶는다. 나눠 놓으면 사이에서 실패했을
+        때 "탈퇴했는데 refresh 는 살아 있는" 계정이 남는다.
+        """
+        now = now or datetime.now(timezone.utc)
+        with self._session_factory.begin() as db:
+            row = db.get(User, user_id)
+            if row is None:
+                return None
+            if row.status is not UserStatus.DEACTIVATED:
+                # 이미 탈퇴한 계정이면 최초 탈퇴 시각을 유지한다.
+                row.status = UserStatus.DEACTIVATED
+                row.deactivated_at = now
+                row.updated_at = now
+            db.execute(
+                update(RefreshToken)
+                .where(
+                    RefreshToken.user_id == user_id,
+                    RefreshToken.revoked_at.is_(None),
+                )
+                .values(revoked_at=now)
+            )
+            db.flush()
+            db.refresh(row)
+            db.expunge(row)
+            return row
+
     def get_user_by_email(self, email: str) -> User | None:
         with self._session_factory() as db:
             return db.scalar(select(User).where(func.lower(User.email) == email.lower()))

@@ -438,6 +438,17 @@ def profile(ctx) -> None:
         headers=headers,
     )
 
+    # 탈퇴. 204 를 주고, 같은 토큰으로 되돌아오면 403 이다. 시나리오마다 시드를
+    # 되돌리므로 여기서 USER1 을 내려도 다른 시나리오는 영향을 받지 않는다.
+    ctx.call("me-delete", "delete", "/v2/me", headers=headers)
+    ctx.call("me-after-delete", "get", "/v2/me", headers=headers)
+    ctx.call(
+        "me-delete-again",
+        "delete",
+        "/v2/me",
+        headers=headers,
+    )
+
 
 def admissions(ctx) -> None:
     ctx.call("admissions", "get", "/v2/admissions")
