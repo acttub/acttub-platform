@@ -8,6 +8,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.util.ArrayDeque;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Set;
 
 import com.acttub.actingapi.ActingApiApplication;
@@ -389,6 +390,29 @@ class HealthAndBootIT {
         // Boot 는 spring.threads.virtual.enabled=true 일 때만 이 빈을 등록한다
         // (@ConditionalOnThreading(VIRTUAL)). 설정이 조용히 빠지는 것을 이걸로 잡는다.
         assertThat(context.containsBean("tomcatVirtualThreadsProtocolHandlerCustomizer")).isTrue();
+    }
+
+    /**
+     * v1 경로 다섯은 404 다 (/SPEC.md §6 #14).
+     *
+     * <p>`SOMA-318` 이 acting-agent·acting-summary·acting-report 의 자체 라우터를 지우면서
+     * 근거가 "마운트되지 않음"에서 "라우터가 없음"으로 바뀌었지만 계약은 그대로다. 하네스에는
+     * 이 경로를 밟는 스텝이 없으므로 여기서 직접 고정한다 — 없으면 누군가 catch-all 이나
+     * 정적 리소스 매핑을 켰을 때 조용히 404 가 아니게 된다.
+     */
+    @Test
+    @DisplayName("v1 경로 다섯은 404 이고 오류 바디도 detail 형식이다")
+    void legacyV1PathsAreNotFound() throws Exception {
+        for (String path : List.of(
+                "/summarize", "/coach/start", "/coach/reply", "/report",
+                "/report/history/00000000-0000-4000-8000-000000000001")) {
+            HttpResponse<String> response = HttpClient.newHttpClient().send(
+                    HttpRequest.newBuilder(URI.create("http://localhost:" + port + path))
+                            .GET().build(),
+                    HttpResponse.BodyHandlers.ofString());
+            assertThat(response.statusCode()).as(path).isEqualTo(404);
+            assertThat(MAPPER.readTree(response.body()).has("detail")).as(path).isTrue();
+        }
     }
 
     private String get(String path) throws Exception {

@@ -11,6 +11,7 @@ import java.util.UUID;
 import com.acttub.actingapi.auth.AuthDependencies;
 import com.acttub.actingapi.web.ApiException;
 import com.acttub.actingapi.web.ApiValidationException;
+import com.acttub.actingapi.web.PythonText;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -98,12 +99,15 @@ class CommunityController {
             HttpServletRequest request) {
         UUID viewerId = optionalUserId(request);
         validateLimit(limit);
-        validateCursor(cursor);
-        CommunityStore.Page<CommunityStore.Post> page =
-                store.listPosts(viewerId, category, cursor, limit);
-        return new PostListResponse(
-                page.items().stream().map(this::postPayload).toList(),
-                page.nextCursor());
+        try {
+            CommunityStore.Page<CommunityStore.Post> page =
+                    store.listPosts(viewerId, category, cursor, limit);
+            return new PostListResponse(
+                    page.items().stream().map(this::postPayload).toList(),
+                    page.nextCursor());
+        } catch (CommunityStore.InvalidCursor exception) {
+            throw new ApiException(400, "invalid_cursor");
+        }
     }
 
     @Operation(
@@ -318,7 +322,10 @@ class CommunityController {
             HttpServletRequest request) {
         UUID viewerId = optionalUserId(request);
         validateLimit(limit);
-        validateCursor(cursor);
+        // 커서 해독은 store 안에서, **글 조회 뒤에** 일어난다 —
+        // `db/community_store.py:CommunityStore.list_comments` 가 `_load_post_row` 를 먼저 부르고
+        // 호출부가 PostNotFound 를 ValueError 보다 먼저 잡는다. 여기서 미리 검증하면
+        // "없는 글 + 잘못된 커서" 가 404 대신 400 이 된다.
         try {
             CommunityStore.Page<CommunityStore.Comment> page =
                     store.listComments(postId, viewerId, cursor, limit);
@@ -327,6 +334,8 @@ class CommunityController {
                     page.nextCursor());
         } catch (CommunityStore.PostNotFound exception) {
             throw new ApiException(404, "post_not_found");
+        } catch (CommunityStore.InvalidCursor exception) {
+            throw new ApiException(400, "invalid_cursor");
         }
     }
 
@@ -569,7 +578,8 @@ class CommunityController {
 
     private static String trimmed(String field, String raw, int maximum) {
         validateLength(field, raw, 1, maximum);
-        String trimmed = raw.strip();
+        // String.strip() 은 NBSP 를 공백으로 보지 않아 파이썬과 갈린다 — PythonText 참조.
+        String trimmed = PythonText.strip(raw);
         if (trimmed.isEmpty()) {
             throw ApiValidationException.valueError(
                     List.of("body", field),
@@ -606,26 +616,6 @@ class CommunityController {
                     "String should have at most " + maximum + " characters",
                     raw,
                     Map.of("max_length", maximum));
-        }
-    }
-
-    /**
-     * 커서를 store 에 넘기기 <b>전에</b> 해독해 본다.
-     *
-     * <p>{@code CommunityStore} 는 {@code @Repository} 라 Spring 의 예외 변환이 걸린다 —
-     * 안에서 던진 {@link IllegalArgumentException} 이 {@code InvalidDataAccessApiUsageException}
-     * 으로 감싸여 나오므로 호출부의 {@code catch (IllegalArgumentException)} 이 빗나가고,
-     * 400 {@code invalid_cursor} 대신 500 과 Spring 기본 오류 바디가 나간다
-     * (/SPEC.md §6 #1 이 금지한 형태다). 해독을 경계 밖으로 끌어내면 변환을 타지 않는다.
-     */
-    private static void validateCursor(String cursor) {
-        if (cursor == null) {
-            return;
-        }
-        try {
-            CommunityCursor.decode(cursor);
-        } catch (IllegalArgumentException exception) {
-            throw new ApiException(400, "invalid_cursor");
         }
     }
 

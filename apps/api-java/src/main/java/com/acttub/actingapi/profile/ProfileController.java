@@ -11,6 +11,7 @@ import java.util.regex.Pattern;
 import com.acttub.actingapi.auth.AuthDependencies;
 import com.acttub.actingapi.web.ApiException;
 import com.acttub.actingapi.web.ApiValidationException;
+import com.acttub.actingapi.web.PythonText;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -81,7 +82,8 @@ class ProfileController {
     }
 
     private static String normalize(String raw) {
-        String collapsed = INTERNAL_WHITESPACE.matcher(raw).replaceAll(" ").strip();
+        // 앞뒤 제거는 PythonText 로 — String.strip() 은 NBSP 를 남긴다.
+        String collapsed = PythonText.strip(INTERNAL_WHITESPACE.matcher(raw).replaceAll(" "));
         if (collapsed.isEmpty()) {
             throw ApiValidationException.valueError(
                     List.of("body", "nickname"),

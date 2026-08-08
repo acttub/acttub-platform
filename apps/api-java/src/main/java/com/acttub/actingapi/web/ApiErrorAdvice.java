@@ -154,7 +154,10 @@ public class ApiErrorAdvice {
                 List.of("body"),
                 "Value error, " + reason,
                 bodyInput);
-        value.put("ctx", Map.of("error", reason));
+        // ctx.error 는 사유 문자열이 아니라 **빈 객체**다. pydantic 의 ctx["error"] 는 ValueError
+        // 객체이고 FastAPI 의 jsonable_encoder 가 그것을 인코딩하지 못해 {} 를 내보낸다(실측).
+        // 사유는 msg 의 "Value error, " 뒤에만 남는다. ApiValidationException.valueError 와 같은 형태다.
+        value.put("ctx", Map.of("error", Map.of()));
         return value;
     }
 

@@ -66,7 +66,7 @@ class CommunityStore {
             parameters.addValue("categorySlug", categorySlug);
         }
         if (cursor != null) {
-            CommunityCursor.Cursor decoded = CommunityCursor.decode(cursor);
+            CommunityCursor.Cursor decoded = decodeCursor(cursor);
             where.append("""
 
                     AND (p.created_at < :cursorCreatedAt
@@ -231,7 +231,7 @@ class CommunityStore {
                 .addValue("fetchLimit", size + 1);
         StringBuilder cursorClause = new StringBuilder();
         if (cursor != null) {
-            CommunityCursor.Cursor decoded = CommunityCursor.decode(cursor);
+            CommunityCursor.Cursor decoded = decodeCursor(cursor);
             cursorClause.append("""
                     AND (comment.created_at > :cursorCreatedAt
                          OR (comment.created_at = :cursorCreatedAt AND comment.id > :cursorId))
@@ -730,7 +730,26 @@ class CommunityStore {
     static final class CategoryNotFound extends RuntimeException {
     }
 
+    private static CommunityCursor.Cursor decodeCursor(String cursor) {
+        try {
+            return CommunityCursor.decode(cursor);
+        } catch (IllegalArgumentException exception) {
+            throw new InvalidCursor();
+        }
+    }
+
     static final class PostNotFound extends RuntimeException {
+    }
+
+    /**
+     * 커서 해독 실패.
+     *
+     * <p>{@link IllegalArgumentException} 을 그대로 올리면 이 클래스가 {@code @Repository} 라
+     * Spring 의 예외 변환이 {@code InvalidDataAccessApiUsageException} 으로 감싸고, 호출부의
+     * catch 가 빗나가 500 과 Spring 기본 오류 바디가 나간다(/SPEC.md §6 #1 이 금지한 형태).
+     * 전용 예외는 변환 대상이 아니라 그대로 전달된다.
+     */
+    static final class InvalidCursor extends RuntimeException {
     }
 
     static final class CommentNotFound extends RuntimeException {

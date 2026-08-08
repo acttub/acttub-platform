@@ -285,8 +285,9 @@ class PracticeSessionEndpointIT {
         assertThat(detail.path("msg").textValue())
                 .isEqualTo("Value error, sub_branch does not match blockage_kind");
         assertThat(detail.path("input")).isEqualTo(mapper.readTree(invalidPair));
-        assertThat(detail.path("ctx").path("error").textValue())
-                .isEqualTo("sub_branch does not match blockage_kind");
+        // ctx.error 는 사유 문자열이 아니라 빈 객체다 — pydantic 의 ValueError 객체를 FastAPI 의
+        // jsonable_encoder 가 인코딩하지 못해 {} 가 나간다(실측). 사유는 msg 에만 남는다.
+        assertThat(detail.path("ctx")).isEqualTo(mapper.readTree("{\"error\":{}}"));
 
         MvcResult unknown = create(uploadId, UUID.randomUUID(),
                 validBody(uploadId).replace("}", ",\"surprise\":true}"));
