@@ -171,6 +171,50 @@ class HealthAndBootIT {
         }
     }
 
+    @Test
+    @DisplayName("community OpenAPI 슬라이스와 M2 잔여 컴포넌트가 Python 정본과 같다")
+    void communityAndGlobalOpenApiLeftoversMatchCommittedSpec() throws Exception {
+        JsonNode generated = MAPPER.readTree(get("/v3/api-docs"));
+        JsonNode committed = MAPPER.readTree(
+                java.nio.file.Path.of("../api/spec/openapi.json").toFile());
+
+        for (String component : java.util.List.of(
+                "CategoryPayload",
+                "CategoryListResponse",
+                "AuthorPayload",
+                "PostPayload",
+                "PostListResponse",
+                "PostWriteRequest",
+                "PostUpdateRequest",
+                "CommentPayload",
+                "CommentListResponse",
+                "CommentWriteRequest",
+                "LikeResponse",
+                "ReportRequest",
+                "BlockPayload",
+                "BlockListResponse",
+                "BlockRequest",
+                "TokenPairResponse",
+                "ValidationError")) {
+            assertThat(normalizeSchemaTree(
+                    generated.at("/components/schemas/" + component)))
+                    .as(component)
+                    .isEqualTo(normalizeSchemaTree(
+                            committed.at("/components/schemas/" + component)));
+        }
+
+        committed.path("paths").properties().stream()
+                .filter(entry -> entry.getKey().startsWith("/v2/community"))
+                .forEach(entry -> assertThat(generated.path("paths").path(entry.getKey()))
+                        .as(entry.getKey())
+                        .isEqualTo(entry.getValue()));
+
+        assertThat(generated.at(
+                "/paths/~1v2~1auth~1login/post/responses/200/content"))
+                .isEqualTo(committed.at(
+                        "/paths/~1v2~1auth~1login/post/responses/200/content"));
+    }
+
     private static void assertSchemaTitlesAndNullability(
             JsonNode expected,
             JsonNode actual,

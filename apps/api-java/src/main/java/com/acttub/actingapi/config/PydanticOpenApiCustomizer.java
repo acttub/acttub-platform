@@ -10,7 +10,9 @@ import java.util.Set;
 import io.swagger.v3.core.converter.ModelConverter;
 import io.swagger.v3.core.jackson.ModelResolver;
 import io.swagger.v3.oas.models.media.ComposedSchema;
+import io.swagger.v3.oas.models.media.IntegerSchema;
 import io.swagger.v3.oas.models.media.Schema;
+import io.swagger.v3.oas.models.media.StringSchema;
 import org.springdoc.core.customizers.OpenApiCustomizer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -31,16 +33,66 @@ class PydanticOpenApiCustomizer {
     @Bean
     OpenApiCustomizer pydanticSchemaShapeCustomizer() {
         return openApi -> {
+            normalizeResponseContentTypes(openApi);
+            normalizeParameterSchemas(openApi);
             if (openApi.getComponents() == null || openApi.getComponents().getSchemas() == null) {
                 return;
             }
-            applyFastApiValidationErrorTitles(openApi.getComponents().getSchemas());
+            applyFastApiValidationErrorShape(openApi.getComponents().getSchemas());
             openApi.getComponents().getSchemas().replaceAll(
                     (modelName, schema) -> normalize(schema, modelName));
         };
     }
 
-    private static void applyFastApiValidationErrorTitles(Map<String, Schema> schemas) {
+    private static void normalizeParameterSchemas(io.swagger.v3.oas.models.OpenAPI openApi) {
+        if (openApi.getPaths() == null) {
+            return;
+        }
+        openApi.getPaths().values().stream()
+                .flatMap(path -> path.readOperations().stream())
+                .filter(operation -> operation.getParameters() != null)
+                .flatMap(operation -> operation.getParameters().stream())
+                .filter(parameter -> parameter.getSchema() != null)
+                .forEach(parameter -> parameter.setSchema(
+                        normalizeParameter(parameter.getSchema(), propertyTitle(parameter.getName()))));
+    }
+
+    private static Schema<?> normalizeParameter(Schema<?> schema, String inferredTitle) {
+        if (schema.getTitle() == null && inferredTitle != null && schema.get$ref() == null) {
+            schema.setTitle(inferredTitle);
+        }
+        stripPydanticIntegerFormat(schema);
+        stripUnboundedMaxLength(schema);
+        if (schema.getItems() != null) {
+            schema.setItems(normalizeParameter(schema.getItems(), null));
+        }
+        if (schema.getAnyOf() != null) {
+            schema.getAnyOf().replaceAll(item -> (Schema) normalizeParameter(item, null));
+        }
+        if (!isNullable(schema) || hasNullAlternative(schema)) {
+            return schema;
+        }
+        return nullableAnyOf(schema);
+    }
+
+    private static void normalizeResponseContentTypes(io.swagger.v3.oas.models.OpenAPI openApi) {
+        if (openApi.getPaths() == null) {
+            return;
+        }
+        openApi.getPaths().values().stream()
+                .flatMap(path -> path.readOperations().stream())
+                .filter(operation -> operation.getResponses() != null)
+                .flatMap(operation -> operation.getResponses().values().stream())
+                .filter(response -> response.getContent() != null)
+                .forEach(response -> {
+                    var wildcard = response.getContent().remove("*/*");
+                    if (wildcard != null && !response.getContent().containsKey("application/json")) {
+                        response.getContent().addMediaType("application/json", wildcard);
+                    }
+                });
+    }
+
+    private static void applyFastApiValidationErrorShape(Map<String, Schema> schemas) {
         // FastAPI가 자체 생성하는 ValidationError는 일반 field-name 규칙 대신
         // Location·Message·Error Type·Context라는 명시적 title을 사용한다.
         Schema<?> validationError = schemas.get("ValidationError");
@@ -52,6 +104,56 @@ class PydanticOpenApiCustomizer {
         setTitle(validationError, "type", "Error Type");
         setTitle(validationError, "input", "Input");
         setTitle(validationError, "ctx", "Context");
+        validationError.setRequired(List.of("loc", "msg", "type"));
+
+        Schema<?> location = (Schema<?>) validationError.getProperties().get("loc");
+        if (location != null) {
+            ComposedSchema item = new ComposedSchema();
+            item.setAnyOf(new ArrayList<>(List.of(new StringSchema(), new IntegerSchema())));
+            location.setItems(item);
+        }
+
+        Schema<?> input = (Schema<?>) validationError.getProperties().get("input");
+        if (input != null) {
+            input.setType(null);
+            input.setTypes(null);
+            input.setFormat(null);
+            input.setAdditionalProperties(null);
+        }
+
+        Schema<?> context = (Schema<?>) validationError.getProperties().get("ctx");
+        if (context != null) {
+            context.setType("object");
+            context.setTypes(new LinkedHashSet<>(List.of("object")));
+            context.setAdditionalProperties(null);
+        }
+    }
+
+    /**
+     * {@code default} 를 스키마 타입에 맞는 JSON 리터럴로 바꾼다.
+     *
+     * <p>{@code @Schema(defaultValue = ...)} 는 문자열만 받기 때문에 불리언 기본값이
+     * {@code "false"} 로 나가는데, pydantic 은 {@code false} 를 낸다. 하네스 diff 는 값뿐
+     * 아니라 <b>타입까지</b> 비교하므로 그대로 차이가 된다.
+     *
+     * <p>정본의 {@code default} 9 개는 전부 불리언이거나 빈 배열이다(/SPEC.md §6-1) —
+     * {@code PostWriteRequest.anonymous}·{@code CommentWriteRequest.anonymous} 가 {@code false},
+     * 나머지 일곱은 admissions 계열의 {@code []} 다.
+     */
+    private static void normalizeDefaultLiteral(Schema<?> schema) {
+        if (!(schema.getDefault() instanceof String literal)) {
+            return;
+        }
+        if (isTypedAs(schema, "boolean") && ("true".equals(literal) || "false".equals(literal))) {
+            schema.setDefault(Boolean.valueOf(literal));
+        } else if (isTypedAs(schema, "array") && "[]".equals(literal)) {
+            schema.setDefault(new ArrayList<>());
+        }
+    }
+
+    private static boolean isTypedAs(Schema<?> schema, String type) {
+        return type.equals(schema.getType())
+                || schema.getTypes() != null && schema.getTypes().contains(type);
     }
 
     private static void setTitle(
@@ -72,8 +174,10 @@ class PydanticOpenApiCustomizer {
             schema.setTitle(inferredTitle);
         }
 
+        stripPydanticIntegerFormat(schema);
         normalizeExclusiveBounds(schema);
         stripUnboundedMaxLength(schema);
+        normalizeDefaultLiteral(schema);
         normalizeProperties(schema);
         if (schema.getItems() != null) {
             schema.setItems(normalize(schema.getItems(), null));
@@ -86,6 +190,14 @@ class PydanticOpenApiCustomizer {
             return schema;
         }
         return nullableAnyOf(schema);
+    }
+
+    /** Pydantic의 무제한 {@code int}에는 Java {@code int32}/{@code int64} format이 없다. */
+    private static void stripPydanticIntegerFormat(Schema<?> schema) {
+        if ("integer".equals(schema.getType())
+                || schema.getTypes() != null && schema.getTypes().contains("integer")) {
+            schema.setFormat(null);
+        }
     }
 
     /**
