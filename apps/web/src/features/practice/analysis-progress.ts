@@ -8,14 +8,21 @@ export const COMPRESS_PROGRESS_END = 10;
 export const UPLOAD_PROGRESS_END = 20;
 export const ANALYSIS_PROGRESS_LIMIT = 95;
 
-// 분석 구간은 남은 시간을 모른다 — 분석에 걸리는 시간은 영상 길이에 따라 달라지고,
-// 고정 시간으로 채우면 짧은 영상은 중간에서 대화로 넘어가고 긴 영상은 95에서 멈춘다
-// (2026-08-08에 180초·35초·30초로 세 번 틀렸다). 그래서 시간을 맞추지 않고
-// 영상 길이를 시상수로 쓰는 점근 곡선으로 채운다 — 느려질 뿐 멈추지 않는다.
-//   pct = 20 + 80 × (1 − e^(−경과/영상길이))
-// 다만 100은 "끝났다"여야 하므로(settleProgress) 95에서 상한을 건다.
-// 목록에서 연 세션은 영상 길이를 모르므로 그때만 이 값을 시상수로 쓴다.
-const ANALYSIS_TAU_FALLBACK_MS = 30_000;
+// 분석 구간은 영상 길이에 비례해 채운다.
+//   pct = min(95, 20 + 80 × 경과/영상길이)
+//
+// 고정 시간(180초·35초·30초로 2026-08-08에 세 번 틀렸다)이 아니라 영상 길이를 쓰는 근거는
+// 실측이다 — dev 에서 47초 영상의 분석이 41.4초 걸렸다(영상 길이의 0.88배, 2026-08-08).
+// 막대는 영상 길이의 0.94배 지점에서 95에 닿으므로, 그 비율이면 분석이 끝나는 순간
+// 90% 언저리이고 멈추는 구간이 없다.
+//
+// ⚠️ 분석이 영상 길이보다 오래 걸리면(0.94배 초과) 95에서 멈춘 채로 기다린다.
+// 그런 영상이 보이면 여기를 점근 곡선으로 바꾼다 — 20 + 80 × (1 − e^(−경과/(영상길이/2)))
+// 이면 멈추지 않고, 위 실측 비율에서 86% 언저리에 닿는다.
+//
+// 100 은 settleProgress 가 analyzed 에서만 주는 값이라 여기서는 95를 넘지 않는다.
+// 목록에서 연 세션은 영상 길이를 모르므로 그때만 이 값을 쓴다.
+const ANALYSIS_SPAN_FALLBACK_MS = 30_000;
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
@@ -37,11 +44,11 @@ export function analysisProgress(
   elapsedMs: number,
   videoDurationMs: number | null,
 ): number {
-  const tau =
+  const span =
     videoDurationMs !== null && videoDurationMs > 0
       ? videoDurationMs
-      : ANALYSIS_TAU_FALLBACK_MS;
-  const filled = 80 * (1 - Math.exp(-Math.max(elapsedMs, 0) / tau));
+      : ANALYSIS_SPAN_FALLBACK_MS;
+  const filled = 80 * (clamp(elapsedMs, 0, span) / span);
   return Math.min(ANALYSIS_PROGRESS_LIMIT, UPLOAD_PROGRESS_END + filled);
 }
 
