@@ -86,6 +86,24 @@ Codex 적대적 리뷰가 high 로 올렸다. `/SPEC.md` §5-7 은 claim·comple
 
 **M4 로 넘긴다** — 이들의 유일한 호출자가 분석 워커이고(`analysis_worker.py:AnalysisWorker.run_once`), 지금 만들면 사용처 없는 코드가 된다. 다만 M4 에서 워커보다 **먼저** 저장 계층을 세우고 §5-7 다섯 행을 각각 Testcontainers 로 고정한다 — `release` 가 `attempt_count` 를 되돌리지 않는 것과 3회 소비 후 sweep 이 `FAILED` 로 넘기는 것이 특히 응답에 드러나지 않는다.
 
+## M3 종료 직후 흡수한 dev 전진분 — 그리고 남은 것
+
+M3 를 닫자마자 `origin/dev` 가 31파일·1061줄 전진해 있었고, 그중 둘이 M3 이식분을 낡게 만들었다. `/SPEC.md` §11 이 경고한 상황이라 M4 착수 **전에** 흡수했다.
+
+### 흡수 완료
+
+| 변경 | 처리 |
+|---|---|
+| `SOMA-306` 탈퇴 — `user_status_t` 에 `deactivated`, `users.deactivated_at` (`0011_user_deactivation`) | `V1__baseline.sql`·fingerprint 는 **SOMA-306 브랜치가 이미 재생성해 뒀다**(`819ddd7`). `apps/api-java/CLAUDE.md` 의 "스키마가 바뀌는 PR 마다 regen-baseline.sh" 규칙이 지켜져 스키마 테스트가 그대로 통과했다 |
+| **인증 게이트의 `deactivated` 403** | `auth/CurrentUserService.java` 가 `SUSPENDED` 만 보고 있었다. 탈퇴는 행을 남기고 상태만 바꾸므로 **이미 발급된 액세스 토큰이 만료까지 유효**한데, 그것을 막는 것이 이 게이트뿐이다 — 빠뜨리면 탈퇴 계정이 토큰 수명 동안 API 를 계속 쓴다 |
+| **`DELETE /v2/me`** | 행을 남기고 이메일·닉네임·identity 를 파기하고 refresh 를 전량 끊는다. 상태 전환·파기·토큰 폐기를 **한 트랜잭션**에 묶었다(나누면 "탈퇴했는데 refresh 는 살아 있는" 계정이 남는다). 재탈퇴 시 최초 시각 유지 |
+
+### 🔎 아직 흡수하지 않은 것 — `/v2/admin/stats` 지표 확장
+
+`c8ce457 운영 지표에 어제(KST)·퍼널 단계·종료 사유 전체를 더한다` 가 `admin.py:AdminStats` 를 크게 늘렸다. Java 는 M3 시점 형상(26필드)에 머물러 있고, 원본에는 그 밖에 `users_yesterday`·`active_users_yesterday`·`funnel_steps`·`close_reasons`·`gap_stated_*`·`db_size`·`observations_total`·`observations_per_summary`·`last_signup_at`·`last_session_at` 등이 있다.
+
+**하네스가 잡지 못한다** — admin 2개는 `ADMIN_OPS_TOKEN` 이 있을 때만 등록돼 committed `openapi.json` 에 아예 없고(`/SPEC.md` §6-2), `admin` 시나리오는 `/v2/coach/start` 를 거쳐 M3 에서 완주 불가다. 즉 **`AdminEndpointIT` 가 초록이어도 낡은 채로 통과한다.** M4 착수 시 `admin.py:AdminStats` 와 필드 단위로 대조해 맞추고, admin 프로파일 inventory 를 committed 스펙이 아니라 **소스에서** 생성하는 판정을 세운다.
+
 ## Codex 스레드
 
 - 그룹 0: `019fdf27-2700-7c90-98e8-2c0c9b7a1ea9`

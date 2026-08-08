@@ -20,6 +20,8 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -79,6 +81,28 @@ class ProfileController {
             throw new ApiException(404, "user_not_found");
         }
         return response(updated);
+    }
+
+    @Operation(
+            summary = "Delete Me",
+            description = """
+                    회원탈퇴. 개인정보는 파기하고 글은 남긴다.
+
+                    커뮤니티 글·연습 기록이 user_id 를 물고 있어 행을 지우면 남의 글타래가
+                    깨진다. 그래서 행은 남기되 이메일·닉네임·identity 를 지우고 refresh 토큰을
+                    전부 끊는다. 남아 있는 액세스 토큰은 만료까지 유효하지만 인증 게이트가
+                    deactivated 를 403 으로 막는다. 자세한 처리는 store.deactivate_user 참조.""",
+            operationId = "delete_me_v2_me_delete",
+            tags = "v2-me",
+            security = @SecurityRequirement(name = "HTTPBearer"))
+    @ApiResponse(responseCode = "204", description = "Successful Response")
+    @DeleteMapping
+    ResponseEntity<Void> deleteMe(HttpServletRequest request) {
+        var user = auth.rateLimitedUser(request);
+        if (store.deactivate(user.id()) == null) {
+            throw new ApiException(404, "user_not_found");
+        }
+        return ResponseEntity.noContent().build();
     }
 
     private static String normalize(String raw) {
