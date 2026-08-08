@@ -76,7 +76,7 @@ SEED_DEACTIVATED_REFRESH_JTI = _uuid(192)
 SEED_CONSENT_DOCUMENTS = (
     # (id, type, version, file, title, required)
     (_uuid(201), "terms", "v1", "terms_v1.md", "이용약관", True),
-    (_uuid(202), "privacy", "v2", "privacy_v2.md", "개인정보처리방침", True),
+    (_uuid(202), "privacy", "v3", "privacy_v3.md", "개인정보처리방침", True),
     (_uuid(203), "ai_analysis", "v1", "ai_analysis_v1.md", "AI 분석 동의", True),
 )
 

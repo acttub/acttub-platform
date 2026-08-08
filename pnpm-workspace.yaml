@@ -8,5 +8,8 @@ overrides:
   uuid: 11.1.1
 
 allowBuilds:
+  # 소스맵 업로드에 쓰는 네이티브 바이너리를 postinstall에서 받는다. 막으면 빌드는
+  # 통과하지만 업로드 단계에서 스택트레이스가 난독화된 채로 남는다.
+  '@sentry/cli': true
   sharp: true
   unrs-resolver: true
