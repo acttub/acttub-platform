@@ -52,6 +52,18 @@ test("업로드와 장면 확인은 같은 진행 패널을 이어서 쓴다", (
   );
 });
 
+test("연습 주소를 갈아끼울 때 라우터 네비게이션을 타지 않는다", () => {
+  const workspace = readWeb("src/features/workspace/workspace-app.tsx");
+
+  // router.replace 로 되돌리면 useSearchParams 를 감싼 Suspense 가 다시 걸려
+  // 업로드가 끝나는 지점에서 흰 화면이 한 번 깜빡인다.
+  assert.match(workspace, /window\.history\.replaceState\(null, "", path\)/);
+  assert.doesNotMatch(workspace, /router\.replace\(["`]\/practice\/new/);
+  assert.match(workspace, /replaceUrl\(`\/practice\/new\?session=/);
+  // 화면을 실제로 옮기는 이동은 그대로 라우터를 쓴다.
+  assert.match(workspace, /router\.replace\(`\/login\?next=/);
+});
+
 test("업로드와 장면 확인 진행률은 단조 증가하고 analyzed에서만 100이 된다", () => {
   const candidates = [
     compressionProgress(0.5),
@@ -59,10 +71,10 @@ test("업로드와 장면 확인 진행률은 단조 증가하고 analyzed에서
     uploadProgress(75, true),
     uploadProgress(50, true),
     uploadProgress(100, true),
-    analysisProgress(0),
-    analysisProgress(30_000),
-    analysisProgress(60_000),
-    analysisProgress(120_000),
+    analysisProgress(0, 47_000),
+    analysisProgress(30_000, 47_000),
+    analysisProgress(60_000, 47_000),
+    analysisProgress(120_000, 47_000),
   ];
   const values = candidates.reduce(
     (all, candidate) => [...all, advanceProgress(all.at(-1), candidate)],
@@ -78,8 +90,17 @@ test("업로드와 장면 확인 진행률은 단조 증가하고 analyzed에서
   assert.equal(uploadProgress(0, false), 0);
   assert.equal(uploadProgress(100, false), UPLOAD_PROGRESS_END);
   assert.ok(uploadProgress(50, false) < uploadProgress(50, true));
-  assert.equal(analysisProgress(600_000), ANALYSIS_PROGRESS_LIMIT);
+  assert.equal(analysisProgress(600_000, 47_000), ANALYSIS_PROGRESS_LIMIT);
   assert.ok(ANALYSIS_PROGRESS_LIMIT < 100);
+  // 분석 구간은 영상 길이를 시상수로 쓰는 점근 곡선이다 — 멈추지 않고 95를 넘지도 않는다.
+  assert.equal(analysisProgress(0, 47_000), UPLOAD_PROGRESS_END);
+  assert.ok(analysisProgress(60_000, 47_000) > analysisProgress(30_000, 47_000));
+  assert.ok(analysisProgress(300_000, 47_000) <= ANALYSIS_PROGRESS_LIMIT);
+  // 긴 영상은 같은 시각에 덜 찬다.
+  assert.ok(analysisProgress(30_000, 120_000) < analysisProgress(30_000, 30_000));
+  // 목록에서 연 세션은 길이를 모르지만 그래도 구간 안에서 움직인다.
+  const noDuration = analysisProgress(30_000, null);
+  assert.ok(noDuration > UPLOAD_PROGRESS_END && noDuration < ANALYSIS_PROGRESS_LIMIT);
   assert.equal(settleProgress(ANALYSIS_PROGRESS_LIMIT, "analyzing"), ANALYSIS_PROGRESS_LIMIT);
   assert.equal(settleProgress(ANALYSIS_PROGRESS_LIMIT, "failed"), ANALYSIS_PROGRESS_LIMIT);
   assert.equal(settleProgress(ANALYSIS_PROGRESS_LIMIT, "analyzed"), 100);

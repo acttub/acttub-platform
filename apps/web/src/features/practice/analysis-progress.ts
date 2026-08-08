@@ -8,9 +8,14 @@ export const COMPRESS_PROGRESS_END = 10;
 export const UPLOAD_PROGRESS_END = 20;
 export const ANALYSIS_PROGRESS_LIMIT = 95;
 
-// 분석이 실제로 걸리는 시간. 관찰 팩 교체(2026-08-06) 뒤로는 30초대에 끝난다.
-// 여기가 실제보다 길면 막대가 중간에서 멈춘 채로 대화로 넘어간다.
-const ANALYSIS_FILL_MS = 30_000;
+// 분석 구간은 남은 시간을 모른다 — 분석에 걸리는 시간은 영상 길이에 따라 달라지고,
+// 고정 시간으로 채우면 짧은 영상은 중간에서 대화로 넘어가고 긴 영상은 95에서 멈춘다
+// (2026-08-08에 180초·35초·30초로 세 번 틀렸다). 그래서 시간을 맞추지 않고
+// 영상 길이를 시상수로 쓰는 점근 곡선으로 채운다 — 느려질 뿐 멈추지 않는다.
+//   pct = 20 + 80 × (1 − e^(−경과/영상길이))
+// 다만 100은 "끝났다"여야 하므로(settleProgress) 95에서 상한을 건다.
+// 목록에서 연 세션은 영상 길이를 모르므로 그때만 이 값을 시상수로 쓴다.
+const ANALYSIS_TAU_FALLBACK_MS = 30_000;
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
@@ -28,12 +33,16 @@ export function uploadProgress(percent: number, compressed: boolean): number {
   return start + ratio * (UPLOAD_PROGRESS_END - start);
 }
 
-export function analysisProgress(elapsedMs: number): number {
-  const ratio = clamp(elapsedMs, 0, ANALYSIS_FILL_MS) / ANALYSIS_FILL_MS;
-  return (
-    UPLOAD_PROGRESS_END
-    + ratio * (ANALYSIS_PROGRESS_LIMIT - UPLOAD_PROGRESS_END)
-  );
+export function analysisProgress(
+  elapsedMs: number,
+  videoDurationMs: number | null,
+): number {
+  const tau =
+    videoDurationMs !== null && videoDurationMs > 0
+      ? videoDurationMs
+      : ANALYSIS_TAU_FALLBACK_MS;
+  const filled = 80 * (1 - Math.exp(-Math.max(elapsedMs, 0) / tau));
+  return Math.min(ANALYSIS_PROGRESS_LIMIT, UPLOAD_PROGRESS_END + filled);
 }
 
 export function advanceProgress(current: number, candidate: number): number {
