@@ -428,7 +428,10 @@ function WorkspaceInner() {
         signal: controller.signal,
         onProgress: (progress) =>
           setPct((current) =>
-            advanceProgress(current, uploadProgress(progress.percent)),
+            advanceProgress(
+              current,
+              uploadProgress(progress.percent, prepared.wasCompressed),
+            ),
           ),
       });
       const { session } = await createPracticeSession(
