@@ -83,11 +83,10 @@ class ProfileController {
     private static String normalize(String raw) {
         String collapsed = INTERNAL_WHITESPACE.matcher(raw).replaceAll(" ").strip();
         if (collapsed.isEmpty()) {
-            throw validationError(
-                    "value_error",
+            throw ApiValidationException.valueError(
+                    List.of("body", "nickname"),
                     "Value error, nickname must not be blank",
-                    raw,
-                    Map.of("error", "nickname must not be blank"));
+                    raw);
         }
         return collapsed;
     }

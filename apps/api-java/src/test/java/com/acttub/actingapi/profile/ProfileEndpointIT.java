@@ -98,7 +98,7 @@ class ProfileEndpointIT {
                   "loc":["body","nickname"],
                   "msg":"Value error, nickname must not be blank",
                   "input":"   ",
-                  "ctx":{"error":"nickname must not be blank"}
+                  "ctx":{"error":{}}
                 }]}
                 """));
     }

@@ -4,6 +4,8 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
+import com.acttub.actingapi.domain.ConsentAction;
+import com.acttub.actingapi.domain.ConsentType;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
@@ -21,7 +23,7 @@ final class ConsentDtos {
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) UUID id,
             @Schema(
                     requiredMode = Schema.RequiredMode.REQUIRED,
-                    allowableValues = {"terms", "privacy", "ai_analysis"})
+                    implementation = ConsentType.class)
             String type,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String version,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String title,
@@ -44,7 +46,7 @@ final class ConsentDtos {
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) UUID documentId,
             @Schema(
                     requiredMode = Schema.RequiredMode.REQUIRED,
-                    allowableValues = {"granted", "declined", "revoked"})
+                    implementation = ConsentAction.class)
             String action,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) Instant occurredAt) {
     }

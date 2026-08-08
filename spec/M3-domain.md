@@ -72,6 +72,15 @@ target 중단: login: 로그인 실패 401 b'{"detail":"invalid_provider_token"}
 
 `spec/M1-harness.md` §백엔드 adapter 계약 ④ 가 이미 정한 대로 **양쪽이 같은 fixture 파일을 읽는다.** 이것은 LLM 스텁과 무관하므로 M4 로 미룰 수 없다 — **`ctx.auth()` 로 토큰을 위조하는 시나리오를 제외한 거의 모든 시나리오가 로그인으로 시작**하기 때문이다. contract 프로파일에서만 provider verifier 를 fixture 기반으로 대체하고, 기본 프로파일은 실제 검증을 그대로 쓴다. `unconfigured_providers`·`invalid_tokens`·`unsupported_provider` 분기까지 fixture 가 규정한다.
 
+**S3 스텁도 같은 부류다.** 인증을 고친 뒤 다시 돌리자 `expired-intent` 가 presign 에서 걸렸다:
+
+```
+[L2] expired-intent/expired.intent: $.upload_url.query_keys: 길이가 다르다 baseline=6 target=1
+```
+
+파이썬은 `tools/contract-harness/contract_harness/stubs.py:StorageStub` 이 주입돼
+`tools/contract-harness/contract_harness/fixtures/s3.json` 의 `presign.query_keys` 6개를 그대로 내지만, Java 는 진짜 `S3Presigner` 를 써서 자격증명 없이 서명 없는 URL 을 만든다. **M1 §④ 가 지목한 세 대상(LLM·S3·인증) 중 둘이 M3 에서 필요하다** — LLM 하나만 M4 에 남는다. HEAD 크기·ETag, object key 접미사 규칙(`head_rules`·`download_rules`), 자격증명 오류 분기까지 같은 fixture 가 규정하므로 그것을 읽어 구현한다.
+
 그리고 **각 그룹이 어떤 시나리오로 판정되는지 표에 적는다.** 시나리오가 coach 를 거쳐 M3 에서 완주 불가능하면 그렇다고 적고, 그 그룹은 Java 통합 테스트로만 판정한다. **어느 그룹도 "하네스로 판정"이라고만 적고 넘어가지 않는다.**
 
 ### `openapi.json` 판정은 slice 한다
@@ -168,6 +177,7 @@ target 중단: login: 로그인 실패 401 b'{"detail":"invalid_provider_token"}
 - [ ] **`ExternalOperationClaimer` 완성** — analyze claim 이 operation 과 practice session 을 한 트랜잭션에서 전이하고, report·coach kind 는 세션 status 를 바꾸지 않는다
 - [ ] **제어 표면 선행분이 Java 에 있다** — 스키마 reset/seed, `db-projection`, `advance-clock`, **그리고 인증 provider 스텁**. transport 는 `POST /__harness/<name>`(`spec/M4-llm.md` 확정 형태). 운영 프로파일에 노출되지 않음을 테스트로 단언
 - [ ] **contract 프로파일의 `POST /v2/auth/login` 이 `fixtures/auth_providers.json` 으로 검증**한다 — 이게 없으면 로그인으로 시작하는 시나리오 전부가 첫 스텝에서 죽는다
+- [ ] **contract 프로파일의 S3 접근이 `fixtures/s3.json` 을 따른다** — presign 쿼리 키 6개, HEAD 크기·ETag, object key 접미사 규칙, 자격증명 오류 분기
 - [ ] **하네스 어댑터 갭 5개가 메워졌다** — 토큰 직접 발급 · `JavaBackend.schema` · `JavaBackend.control` · java 쪽 시나리오 간 reset · seed parity 활성화. 판정은 `--target java --only profile` 이 **인프라 오류가 아니라 응답 diff 로** 실패하는 것이며, 그룹 1 이 끝나면 그 diff 가 0 이 된다
 - [ ] **그룹별 판정 수단이 전부 초록** — 순서 표의 "판정 수단" 열 그대로. 하네스로 완주 불가능한 그룹(3·5·6)은 Java 통합 테스트로 판정하며, **그 사실이 표에 적혀 있어야 한다**
 - [ ] L3 바이트 동등: `POST /v2/practice-sessions`, `POST /v2/practice-sessions/{id}/analyze` (각 백엔드의 최초↔replay)

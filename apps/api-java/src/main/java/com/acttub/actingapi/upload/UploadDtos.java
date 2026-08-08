@@ -20,6 +20,7 @@ final class UploadDtos {
     @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
     record UploadIntentRequest(
             @NotNull String mimeType,
+            // 경계값의 3.1 표기와 float 표현은 PydanticOpenApiCustomizer 가 맞춘다.
             @NotNull @Positive(message = "Input should be greater than 0")
             @Schema(minimum = "0", exclusiveMinimum = true) BigInteger sizeBytes,
             @Positive(message = "Input should be greater than 0")

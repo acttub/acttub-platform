@@ -84,6 +84,30 @@ class HarnessContractProfileIT {
     }
 
     @Test
+    void contractProfileLogsInWithSharedProviderFixture() throws Exception {
+        var response = mvc.perform(post("/v2/auth/login")
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "provider": "google",
+                                  "id_token": "harness-token-new-actor"
+                                }
+                                """))
+                .andReturn().getResponse();
+
+        assertThat(response.getStatus()).isEqualTo(200);
+        JsonNode body = JSON.readTree(response.getContentAsString());
+        assertThat(body.at("/user/email").textValue()).isEqualTo("new-actor@harness.test");
+    }
+
+    @Test
+    void contractProfileMapsEveryProviderFixtureFailureBranch() throws Exception {
+        assertLoginError("google", "harness-token-invalid", 401, "invalid_provider_token");
+        assertLoginError("apple", "harness-token-new-actor", 503, "provider_not_configured");
+        assertLoginError("kakao", "harness-token-new-actor", 400, "unsupported_provider");
+    }
+
+    @Test
     void controlsAdvanceResetAndRejectUnknownNames() throws Exception {
         assertThat(control("advance-clock", "{\"seconds\":1.25}"))
                 .isEqualTo(JSON.readTree("{\"offset_sec\":1.25}"));
@@ -334,6 +358,24 @@ class HarnessContractProfileIT {
                 .andReturn().getResponse();
         assertThat(response.getStatus()).isEqualTo(200);
         return JSON.readTree(response.getContentAsString());
+    }
+
+    private void assertLoginError(
+            String provider,
+            String idToken,
+            int expectedStatus,
+            String expectedDetail) throws Exception {
+        String request = JSON.writeValueAsString(java.util.Map.of(
+                "provider", provider,
+                "id_token", idToken));
+        var response = mvc.perform(post("/v2/auth/login")
+                        .contentType("application/json")
+                        .content(request))
+                .andReturn().getResponse();
+
+        assertThat(response.getStatus()).isEqualTo(expectedStatus);
+        assertThat(JSON.readTree(response.getContentAsString()))
+                .isEqualTo(JSON.readTree("{\"detail\":\"" + expectedDetail + "\"}"));
     }
 
     private static UUID id(int suffix) {

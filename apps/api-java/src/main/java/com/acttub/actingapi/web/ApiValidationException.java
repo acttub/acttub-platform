@@ -1,5 +1,6 @@
 package com.acttub.actingapi.web;
 
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -10,6 +11,19 @@ public class ApiValidationException extends RuntimeException {
     public ApiValidationException(List<Map<String, Object>> detail) {
         super("request validation failed");
         this.detail = List.copyOf(detail);
+    }
+
+    public static ApiValidationException valueError(
+            List<Object> location,
+            String message,
+            Object input) {
+        Map<String, Object> error = new LinkedHashMap<>();
+        error.put("type", "value_error");
+        error.put("loc", location);
+        error.put("msg", message);
+        error.put("input", input);
+        error.put("ctx", Map.of("error", Map.of()));
+        return new ApiValidationException(List.of(error));
     }
 
     public List<Map<String, Object>> detail() {

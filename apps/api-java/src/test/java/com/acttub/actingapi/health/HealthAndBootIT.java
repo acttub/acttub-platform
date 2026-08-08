@@ -6,6 +6,9 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.util.ArrayDeque;
+import java.util.LinkedHashSet;
+import java.util.Set;
 
 import com.acttub.actingapi.ActingApiApplication;
 import com.acttub.actingapi.support.PostgresContainerSupport;
@@ -120,6 +123,144 @@ class HealthAndBootIT {
                 .isEqualTo(normalize(committed.at("/components/schemas/HealthResponse")));
         assertThat(springdoc.at("/paths/~1health/get"))
                 .isEqualTo(committed.at("/paths/~1health/get"));
+    }
+
+    @Test
+    @DisplayName("도달 가능한 OpenAPI 컴포넌트의 title·nullable 표기가 Python 정본과 같다")
+    void reachableOpenApiComponentTitlesAndNullabilityMatchCommittedSpec() throws Exception {
+        JsonNode generated = MAPPER.readTree(get("/v3/api-docs"));
+        JsonNode committed = MAPPER.readTree(
+                java.nio.file.Path.of("../api/spec/openapi.json").toFile());
+
+        Set<String> reachable = reachableComponents(generated);
+        assertThat(reachable).isNotEmpty();
+        for (String component : reachable) {
+            JsonNode expected = committed.at("/components/schemas/" + component);
+            assertThat(expected.isMissingNode())
+                    .as("committed component %s exists", component)
+                    .isFalse();
+            JsonNode actual = generated.at("/components/schemas/" + component);
+            assertSchemaTitlesAndNullability(
+                    expected,
+                    actual,
+                    "#/components/schemas/" + component);
+        }
+    }
+
+    private static void assertSchemaTitlesAndNullability(
+            JsonNode expected,
+            JsonNode actual,
+            String path) {
+        assertThat(actual.path("title"))
+                .as("%s title", path)
+                .isEqualTo(expected.path("title"));
+        assertThat(actual.has("nullable"))
+                .as("%s uses OpenAPI 3.1 anyOf instead of nullable", path)
+                .isFalse();
+
+        boolean expectedNullable = hasNullAlternative(expected);
+        boolean actualNullable = hasNullAlternative(actual);
+        assertThat(actualNullable)
+                .as("%s nullable", path)
+                .isEqualTo(expectedNullable);
+        if (expectedNullable) {
+            assertThat(actual.path("anyOf"))
+                    .as("%s nullable anyOf", path)
+                    .isEqualTo(expected.path("anyOf"));
+        }
+
+        compareChildSchemas(expected, actual, path, "properties");
+        compareChildSchema(expected, actual, path, "items");
+        compareSchemaArray(expected, actual, path, "allOf");
+        compareSchemaArray(expected, actual, path, "oneOf");
+        compareSchemaArray(expected, actual, path, "anyOf");
+    }
+
+    private static void compareChildSchemas(
+            JsonNode expected,
+            JsonNode actual,
+            String path,
+            String field) {
+        JsonNode expectedChildren = expected.path(field);
+        if (!expectedChildren.isObject()) {
+            return;
+        }
+        expectedChildren.properties().forEach(entry -> assertSchemaTitlesAndNullability(
+                entry.getValue(),
+                actual.path(field).path(entry.getKey()),
+                path + "/" + field + "/" + entry.getKey()));
+    }
+
+    private static void compareChildSchema(
+            JsonNode expected,
+            JsonNode actual,
+            String path,
+            String field) {
+        if (expected.path(field).isObject()) {
+            assertSchemaTitlesAndNullability(
+                    expected.path(field),
+                    actual.path(field),
+                    path + "/" + field);
+        }
+    }
+
+    private static void compareSchemaArray(
+            JsonNode expected,
+            JsonNode actual,
+            String path,
+            String field) {
+        JsonNode expectedChildren = expected.path(field);
+        if (!expectedChildren.isArray()) {
+            return;
+        }
+        for (int index = 0; index < expectedChildren.size(); index++) {
+            assertSchemaTitlesAndNullability(
+                    expectedChildren.get(index),
+                    actual.path(field).path(index),
+                    path + "/" + field + "/" + index);
+        }
+    }
+
+    private static boolean hasNullAlternative(JsonNode schema) {
+        JsonNode alternatives = schema.path("anyOf");
+        if (!alternatives.isArray()) {
+            return false;
+        }
+        for (JsonNode alternative : alternatives) {
+            if ("null".equals(alternative.path("type").asText())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static Set<String> reachableComponents(JsonNode document) {
+        JsonNode schemas = document.at("/components/schemas");
+        Set<String> result = new LinkedHashSet<>();
+        ArrayDeque<JsonNode> pending = new ArrayDeque<>();
+        pending.add(document.path("paths"));
+        while (!pending.isEmpty()) {
+            JsonNode current = pending.removeFirst();
+            if (current.isObject()) {
+                current.properties().forEach(entry -> {
+                    if ("$ref".equals(entry.getKey()) && entry.getValue().isTextual()) {
+                        String prefix = "#/components/schemas/";
+                        String reference = entry.getValue().textValue();
+                        if (reference.startsWith(prefix)) {
+                            String component = reference.substring(prefix.length());
+                            if (result.add(component) && schemas.has(component)) {
+                                pending.addLast(schemas.get(component));
+                            }
+                        }
+                    } else {
+                        pending.addLast(entry.getValue());
+                    }
+                });
+            } else if (current.isArray()) {
+                current.forEach(pending::addLast);
+            }
+        }
+        return result;
     }
 
     /** required 배열 순서는 의미가 없다. springdoc 은 알파벳순, pydantic 은 선언순으로 낸다. */
