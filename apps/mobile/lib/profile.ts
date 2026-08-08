@@ -11,6 +11,15 @@ export async function saveUserName(name: string): Promise<void> {
   await SecureStore.setItemAsync(NAME_KEY, name.trim());
 }
 
+/** 탈퇴할 때 부른다. 이름은 개인정보라 기기에도 남기지 않는다. */
+export async function deleteUserName(): Promise<void> {
+  try {
+    await SecureStore.deleteItemAsync(NAME_KEY);
+  } catch {
+    // 이미 없으면 그걸로 됐다.
+  }
+}
+
 export async function getUserName(): Promise<string | null> {
   try {
     return await SecureStore.getItemAsync(NAME_KEY);

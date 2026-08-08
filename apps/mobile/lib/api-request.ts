@@ -64,6 +64,7 @@ export type ApiRequestDependencies = {
     expectation: AuthCredentialExpectation,
   ) => Promise<boolean>;
   emitConsentRequired: () => void;
+  emitAccountDeactivated: () => void;
   clock?: RequestClock;
   random?: () => number;
 };
@@ -123,7 +124,11 @@ export function friendlyError(status: number, body: unknown): string {
     case 401:
       return '로그인이 만료됐어요. 다시 로그인해주세요.';
     case 403:
-      return '이 작업을 할 권한이 없어요.';
+      // 탈퇴한 계정은 "권한이 없다" 가 아니라 계정이 사라진 것이다. 그대로 두면
+      // 왜 아무것도 안 되는지 알 수 없다.
+      return errorDetail(body) === 'account_deactivated'
+        ? '탈퇴한 계정이에요. 다시 시작하려면 새로 로그인해주세요.'
+        : '이 작업을 할 권한이 없어요.';
     case 413:
       return '영상이 너무 커서 서버가 받지 못했어요. 구간을 잘라 더 작게 올려주세요.';
     case 422:
@@ -427,8 +432,10 @@ export function createApiRequestClient(dependencies: ApiRequestDependencies) {
 
     if (!response.ok) {
       const error = toApiError(response.status, payload);
-      if (error.status === 403 && error.code === 'consent_required') {
-        dependencies.emitConsentRequired();
+      // 403 은 코드로 갈린다 — 동의는 받으면 풀리고, 탈퇴는 풀 수 없어 내보내야 한다.
+      if (error.status === 403) {
+        if (error.code === 'consent_required') dependencies.emitConsentRequired();
+        else if (error.code === 'account_deactivated') dependencies.emitAccountDeactivated();
       }
       throw error;
     }
