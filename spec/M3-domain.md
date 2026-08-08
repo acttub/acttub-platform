@@ -40,6 +40,26 @@ LLM에 의존하지 않는 엔드포인트를 이식한다. **`db/store.py` 2,11
 
 **결정(2026-08-08, 사용자 승인)**: LLM 과 무관한 제어 표면을 **M3 로 앞당긴다** — 스키마 reset/seed, `db-projection`, `advance-clock`. `run-worker-once`·`run-sweep`·`stub-state` 중 LLM 스텁에 걸리는 부분은 M4 에 남는다. transport 는 `spec/M4-llm.md` 가 확정한 `POST /__harness/<name>` 을 그대로 쓴다(M4 에서 다시 만들지 않도록).
 
+#### 🔎 하네스 어댑터 갭 5개 — Java 제어 표면만으로는 시나리오가 시작조차 못 한다
+
+**2026-08-08 실행 확인**(`/SPEC.md` §12-4). `PYTHONPATH=$PWD ../../apps/api/.venv/bin/python -m contract_harness --target java --only profile` 을 돌리면 Java 서버를 **띄우지도 않은 채** 다음으로 죽는다:
+
+```
+[scenario] profile/-: target 중단: AttributeError("'JavaBackend' object has no attribute 'runtime'")
+```
+
+`profile` 시나리오의 첫 줄이 `ctx.auth(USER1)` 이기 때문이다. 즉 **Java 쪽에 제어 표면을 아무리 잘 만들어도 하네스 어댑터를 함께 고치지 않으면 어느 시나리오도 첫 스텝을 넘지 못한다.** 위 초판 결정은 Java 쪽 산출물만 적어 이 절반을 빠뜨렸다. `tools/contract-harness` 는 `/SPEC.md` §3-4 의 "`apps/api` 수정 금지" 대상이 아니므로 고칠 수 있다.
+
+| # | 갭 | 위치 | 조치 |
+|---|---|---|---|
+| 1 | 토큰 발급이 백엔드 in-process 객체에 묶여 있다 | `tools/contract-harness/contract_harness/framework.py:ScenarioContext.token` 이 `backend.runtime.jwt_service` 를 읽는다 | `spec/M1-harness.md` §채택 방식 4 는 원래 **"Python 이 발급하고 양쪽이 소비"** 였다. 구현이 그 의도와 어긋나 있으므로 하네스가 `tools/contract-harness/contract_harness/config.py:JWT_SECRET` 으로 **직접** HS256 토큰을 만들어 양쪽에 같은 값을 준다. 헤더는 `{"alg":"HS256","typ":"JWT"}` 정확히 — `kid` 가 붙으면 `auth/jwt.py:JwtService._decode` 가 거부한다 |
+| 2 | 셋업용 DB 조작이 붙을 스키마를 모른다 | `tools/contract-harness/contract_harness/framework.py:ScenarioContext.db` 가 `backend.schema` 를 요구한다 | `JavaBackend` 에 `schema` 를 준다. Java 는 `harness_target` 스키마에 붙어 뜬다 |
+| 3 | 제어 표면 미구현 | `tools/contract-harness/contract_harness/backends.py:JavaBackend.control` 이 `NotImplementedError` | `POST /__harness/<name>` 호출로 구현. `FastapiBackend.control` 과 같은 단언(200 아니면 실패)을 건다 |
+| 4 | **시나리오 간 격리가 없다** | `tools/contract-harness/contract_harness/runner.py:_run_java_side` 가 `tools/contract-harness/contract_harness/runner.py:run_side` 와 달리 `_reset(schema)` 를 부르지 않는다 | Java 쪽에도 truncate+seed 를 건다. DB 리셋은 하네스가 파이썬에서 직접 하면 되지만 **Java 프로세스가 들고 있는 in-memory 상태**(레이트리밋 카운터, `advance-clock` 오프셋)는 앱이 지워야 한다 — 이것이 "스키마 reset/seed" 제어 표면의 실제 내용이다 |
+| 5 | seed parity 가 java 에서 건너뛴다 | `tools/contract-harness/contract_harness/cli.py:_run` 이 java 일 때 `tools/contract-harness/contract_harness/runner.py:verify_seed_parity` 를 건너뛴다 | 갭 2 가 풀리면 조건을 없앤다. `spec/M4-llm.md` 의 같은 항목도 함께 해소된다 |
+
+**판정**: 갭이 메워졌다는 근거는 "테스트가 있다"가 아니라 **`--target java --only profile` 이 인프라 오류가 아니라 응답 diff 로 실패하는 것**이다. 그룹 1 이 끝나면 그 diff 가 0 이 된다.
+
 그리고 **각 그룹이 어떤 시나리오로 판정되는지 표에 적는다.** 시나리오가 coach 를 거쳐 M3 에서 완주 불가능하면 그렇다고 적고, 그 그룹은 Java 통합 테스트로만 판정한다. **어느 그룹도 "하네스로 판정"이라고만 적고 넘어가지 않는다.**
 
 ### `openapi.json` 판정은 slice 한다
@@ -134,6 +154,7 @@ LLM에 의존하지 않는 엔드포인트를 이식한다. **`db/store.py` 2,11
 - [ ] **강등된 `complete_practice_report_operation` 재조준 테스트**도 별도로 통과 (중복 시 `False`·새 행 없음, lease 상실 시 insert 롤백, marker 롤백, 커넥션 오염 없음)
 - [ ] **`ExternalOperationClaimer` 완성** — analyze claim 이 operation 과 practice session 을 한 트랜잭션에서 전이하고, report·coach kind 는 세션 status 를 바꾸지 않는다
 - [ ] **제어 표면 선행분이 Java 에 있다** — 스키마 reset/seed, `db-projection`, `advance-clock`. transport 는 `POST /__harness/<name>`(`spec/M4-llm.md` 확정 형태). 운영 프로파일에 노출되지 않음을 테스트로 단언
+- [ ] **하네스 어댑터 갭 5개가 메워졌다** — 토큰 직접 발급 · `JavaBackend.schema` · `JavaBackend.control` · java 쪽 시나리오 간 reset · seed parity 활성화. 판정은 `--target java --only profile` 이 **인프라 오류가 아니라 응답 diff 로** 실패하는 것이며, 그룹 1 이 끝나면 그 diff 가 0 이 된다
 - [ ] **그룹별 판정 수단이 전부 초록** — 순서 표의 "판정 수단" 열 그대로. 하네스로 완주 불가능한 그룹(3·5·6)은 Java 통합 테스트로 판정하며, **그 사실이 표에 적혀 있어야 한다**
 - [ ] L3 바이트 동등: `POST /v2/practice-sessions`, `POST /v2/practice-sessions/{id}/analyze` (각 백엔드의 최초↔replay)
 - [ ] 오류 계약이 구현 범위 안에서 status·detail까지 일치
