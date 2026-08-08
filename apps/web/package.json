@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@mediabunny/aac-encoder": "^1.50.9",
+    "@sentry/nextjs": "10.69.0",
     "mediabunny": "^1.50.9",
     "next": "16.2.10",
     "react": "19.2.4",
