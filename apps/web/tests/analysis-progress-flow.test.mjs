@@ -64,6 +64,20 @@ test("연습 주소를 갈아끼울 때 라우터 네비게이션을 타지 않�
   assert.match(workspace, /router\.replace\(`\/login\?next=/);
 });
 
+test("업로드가 끝나도 방금 고른 로컬 영상을 그대로 재생한다", () => {
+  const workspace = readWeb("src/features/workspace/workspace-app.tsx");
+
+  // 서버 playback_url 을 먼저 쓰면 업로드가 끝나는 순간 src 가 갈아끼워져
+  // 영상 자리가 비었다 돌아오고 onDuration 이 다시 불린다.
+  assert.match(workspace, /const visibleVideoUrl = videoUrl \?\? detail\?\.playback_url/);
+
+  // 대신 다른 연습을 열 때는 직전 로컬 원본을 버려야 남의 영상을 틀지 않는다.
+  const openStart = workspace.indexOf("const openSession = useCallback");
+  const openEnd = workspace.indexOf("// 주소에 ?session=", openStart);
+  const open = workspace.slice(openStart, openEnd);
+  assert.match(open, /setVideoFile\(null\)[\s\S]*URL\.revokeObjectURL\(prev\)/);
+});
+
 test("업로드와 장면 확인 진행률은 단조 증가하고 analyzed에서만 100이 된다", () => {
   const candidates = [
     compressionProgress(0.5),
