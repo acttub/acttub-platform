@@ -12,7 +12,7 @@ from __future__ import annotations
 from typing import Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from starlette.concurrency import run_in_threadpool
 
@@ -29,7 +29,7 @@ class MeResponse(_StrictResponse):
     id: UUID
     email: str | None
     nickname: str | None
-    status: Literal["active", "suspended"]
+    status: Literal["active", "suspended", "deactivated"]
 
 
 class UpdateMeRequest(BaseModel):
@@ -73,5 +73,18 @@ def build_router(*, store, rate_limited_user) -> APIRouter:
         if updated is None:
             raise HTTPException(status_code=404, detail="user_not_found")
         return _payload(updated)
+
+    @router.delete("", status_code=status.HTTP_204_NO_CONTENT)
+    async def delete_me(user=Depends(rate_limited_user)) -> Response:
+        """회원탈퇴. 데이터는 지우지 않고 계정을 비활성 상태로 내린다.
+
+        커뮤니티 글·연습 기록이 user_id 를 물고 있어 행을 지우면 남의 화면이 깨진다.
+        여기서는 상태만 바꾸고 refresh 토큰을 전부 끊는다. 남아 있는 액세스 토큰은
+        만료까지 유효하지만 인증 게이트가 deactivated 를 403 으로 막는다.
+        """
+        deactivated = await run_in_threadpool(store.deactivate_user, user.id)
+        if deactivated is None:
+            raise HTTPException(status_code=404, detail="user_not_found")
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
 
     return router

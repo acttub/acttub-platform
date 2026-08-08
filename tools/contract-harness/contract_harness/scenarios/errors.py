@@ -14,7 +14,7 @@ from contract_harness.scenarios.support import (
     require,
     session_body,
 )
-from contract_harness.seed import suspended_refresh_token
+from contract_harness.seed import deactivated_refresh_token, suspended_refresh_token
 from contract_harness.stubs import S3_FIXTURE
 
 MISSING = "00000000-0000-4000-8000-000000009001"
@@ -129,6 +129,18 @@ def error_manifest(ctx) -> None:
         "suspended.community", "get", "/v2/community/posts", headers=suspended_headers
     )
 
+    # 탈퇴 계정은 정지 계정과 다른 코드로 막힌다. 잔여 액세스 토큰도 통하지 않는다.
+    deactivated_headers = {
+        "Authorization": f"Bearer {ctx.token(cfg.SEED_DEACTIVATED_USER[0])}"
+    }
+    ctx.call("deactivated.me", "get", "/v2/me", headers=deactivated_headers)
+    ctx.call(
+        "deactivated.community",
+        "get",
+        "/v2/community/posts",
+        headers=deactivated_headers,
+    )
+
     ctx.call(
         "login.unsupported-provider",
         "post",
@@ -164,6 +176,19 @@ def error_manifest(ctx) -> None:
         "post",
         "/v2/auth/refresh",
         json={"refresh_token": suspended_refresh_token()},
+    )
+    # 탈퇴한 뒤 같은 소셜 계정으로 돌아와도 새 계정이 생기지 않고 403 이다.
+    ctx.call(
+        "login.deactivated",
+        "post",
+        "/v2/auth/login",
+        json={"provider": "google", "id_token": "harness-token-deactivated"},
+    )
+    ctx.call(
+        "refresh.deactivated",
+        "post",
+        "/v2/auth/refresh",
+        json={"refresh_token": deactivated_refresh_token()},
     )
 
     tokens = login(ctx, "login", "harness-token-new-actor")

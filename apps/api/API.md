@@ -18,7 +18,7 @@
 | 상태 코드 | 의미 |
 |---|---|
 | 401 | 토큰 누락·만료·위조, 유효하지 않은 refresh 토큰 — `{"detail": "invalid or missing access token"}` |
-| 403 | 정지 계정 — `{"detail": "account_suspended"}` |
+| 403 | 정지 계정 — `{"detail": "account_suspended"}` · 탈퇴 계정 — `{"detail": "account_deactivated"}` |
 | 404 | 존재하지 않거나 **남의 리소스** (존재 노출 방지를 위해 403 대신 404) |
 | 429 | rate limit 초과 — `{"detail": "rate limit exceeded"}` |
 
@@ -89,7 +89,7 @@ AI 호출을 포함한 쓰기 요청(`/v2/practice-sessions`, `/{id}/analyze`, `
 |---|---|
 | 400 | 지원하지 않는 provider — `unsupported_provider` |
 | 401 | id_token 검증 실패 — `invalid_provider_token` |
-| 403 | 정지 계정 — `account_suspended` |
+| 403 | 정지 계정 — `account_suspended` · 탈퇴 계정 — `account_deactivated` |
 | 409 | 같은 이메일의 기존 계정 + 미검증 이메일 — `account_exists_with_different_provider` |
 | 429 | IP별 한도 초과 |
 
@@ -101,13 +101,30 @@ refresh 토큰 회전 재발급.
 
 **요청**: `{"refresh_token": "..."}` → **응답 200**: `{"access_token", "refresh_token", "token_type", "expires_in"}` (새 쌍)
 
-만료·폐기·미존재·재사용된 토큰은 전부 401 `invalid_refresh_token` (재사용 감지 시 사용자 토큰 전체 회수 후 401). 정지 계정 403. IP별 rate limit 적용.
+만료·폐기·미존재·재사용된 토큰은 전부 401 `invalid_refresh_token` (재사용 감지 시 사용자 토큰 전체 회수 후 401). 정지·탈퇴 계정 403. IP별 rate limit 적용.
 
 ---
 
 ## POST /v2/auth/logout
 
 인증 필요. `{"refresh_token": "..."}` 를 폐기하고 **204**. 본인 것이 아니거나 이미 무효면 401.
+
+---
+
+## GET · PATCH · DELETE /v2/me
+
+인증 필요. 동의 게이트는 걸지 않습니다 — 동의 화면에서 닉네임을 함께 받기 때문입니다.
+
+**GET** → 200 `{"id", "email", "nickname", "status"}`. `status`는 `active` | `suspended` | `deactivated`.
+
+**PATCH** — `{"nickname": "<1~20자>"}`. 앞뒤 공백은 잘리고 가운데 연속 공백은 하나로 접힙니다. 공백만 보내면 422, 사용자 행이 없으면 404 `user_not_found`. 닉네임 중복은 허용합니다.
+
+**DELETE** — 회원탈퇴. **204**를 반환하고 계정을 `deactivated`로 내립니다.
+
+- **데이터는 지우지 않습니다.** 커뮤니티 글·연습 기록·닉네임·이메일이 그대로 남습니다 (글이 참조하는 작성자가 사라지면 남의 화면이 깨지고, 신고 처리에도 원문 작성자가 필요합니다).
+- 해당 사용자의 refresh 토큰이 **전부 폐기**됩니다. 이미 발급된 access 토큰은 만료(30분)까지 형식상 유효하지만 모든 인증 경로가 403 `account_deactivated`로 막습니다.
+- **재로그인은 차단됩니다** — 같은 소셜 계정으로 `/v2/auth/login`을 호출해도 403 `account_deactivated`입니다. 새 계정이 생기지도 않습니다 (identity 연결이 남아 있습니다). 복구는 별도 운영 경로로 처리합니다.
+- 두 번째 호출은 게이트에서 403으로 걸리며, 최초 탈퇴 시각(`deactivated_at`)은 덮이지 않습니다.
 
 ---
 

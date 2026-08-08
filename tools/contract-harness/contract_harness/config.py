@@ -66,6 +66,12 @@ SEED_SUSPENDED_REFRESH_JTI = _uuid(190)
 SEED_SUSPENDED_REFRESH_IAT = 1767225600  # 2026-01-01T00:00:00Z
 SEED_SUSPENDED_REFRESH_TTL_SEC = 3600 * 24 * 3650
 
+# 탈퇴 계정. DELETE /v2/me 로 만들 수도 있지만, 그러면 "탈퇴 직후" 만 검사하게 된다.
+# 이미 탈퇴한 계정으로 되돌아오는 경로(로그인·refresh·잔여 액세스 토큰)를 보려면
+# 시드에 있어야 한다. refresh token 은 탈퇴 시점에 폐기된 상태로 심는다.
+SEED_DEACTIVATED_USER = (_uuid(110), "deactivated@harness.test", "떠난배우")
+SEED_DEACTIVATED_REFRESH_JTI = _uuid(192)
+
 # manifest.json 의 (type, version) 과 정확히 같아야 startup seed 가 no-op 이 된다.
 SEED_CONSENT_DOCUMENTS = (
     # (id, type, version, file, title, required)

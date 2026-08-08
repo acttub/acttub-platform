@@ -34,7 +34,10 @@ class _StrictResponse(BaseModel):
 class AuthUser(_StrictResponse):
     id: UUID
     email: str | None
-    status: Literal["active", "suspended"]
+    # suspended·deactivated 는 로그인 자체가 403 이라 실제로는 active 만 실린다.
+    # 그래도 DB 가 가질 수 있는 값은 계약도 받아야 한다 — Literal 을 좁히면 계약을
+    # 어기는 순간 응답 검증 실패로 500 이 난다.
+    status: Literal["active", "suspended", "deactivated"]
 
 
 class TokenPairResponse(_StrictResponse):
@@ -205,8 +208,11 @@ def build_router(
                 if user is None:
                     raise
 
-        if user_status_value(user) == "suspended":
+        status_value = user_status_value(user)
+        if status_value == "suspended":
             raise HTTPException(status_code=403, detail="account_suspended")
+        if status_value == "deactivated":
+            raise HTTPException(status_code=403, detail="account_deactivated")
         enforce_rate_limit(user)
         return await _issue_token_pair(
             store,
@@ -233,8 +239,11 @@ def build_router(
         user = await run_in_threadpool(store.get_user, claims.user_id)
         if user is None:
             raise HTTPException(status_code=401, detail="invalid_refresh_token")
-        if user_status_value(user) == "suspended":
+        status_value = user_status_value(user)
+        if status_value == "suspended":
             raise HTTPException(status_code=403, detail="account_suspended")
+        if status_value == "deactivated":
+            raise HTTPException(status_code=403, detail="account_deactivated")
         enforce_rate_limit(user)
 
         access = jwt_service.issue_access_token(user.id, now=now)
