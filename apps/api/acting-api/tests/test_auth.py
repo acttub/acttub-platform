@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from fastapi.testclient import TestClient
 from sqlalchemy.exc import IntegrityError
@@ -473,21 +473,32 @@ def test_bearer_dependency_rejects_invalid_token_and_suspended_user():
     assert response.status_code == 403
 
 
-def test_account_deactivation_revokes_sessions_and_blocks_re_login():
+def test_account_deactivation_erases_personal_data_and_revokes_sessions():
     app, store, verifier = _app()
-    verifier.add("member", provider_uid="leaving-google")
+    verifier.add(
+        "member",
+        provider_uid="leaving-google",
+        email="leaving@example.com",
+        email_verified=True,
+    )
     client = TestClient(app)
 
     tokens = _login(client, "member").json()
     access, refresh = tokens["access_token"], tokens["refresh_token"]
+    user_id = UUID(tokens["user"]["id"])
 
     assert client.delete("/v2/me", headers=_bearer(access)).status_code == 204
 
-    user = store.get_user_by_identity("google", "leaving-google")
+    user = store.get_user(user_id)
+    # 행은 남는다 — 커뮤니티 글·연습 기록이 이 id 를 참조한다.
+    assert user is not None
     assert user.status == UserStatus.DEACTIVATED
     assert user.deactivated_at is not None
-    # 행은 남는다 — 커뮤니티 글·연습 기록이 이 id 를 참조한다.
-    assert store.get_user(user.id) is user
+    # 개인을 식별하는 것은 전부 파기된다.
+    assert user.email is None
+    assert user.nickname is None
+    assert store.get_user_by_identity("google", "leaving-google") is None
+    assert store.get_user_by_email("leaving@example.com") is None
 
     # 아직 만료되지 않은 액세스 토큰도 게이트에서 막힌다.
     blocked = client.get("/v2/me", headers=_bearer(access))
@@ -501,11 +512,36 @@ def test_account_deactivation_revokes_sessions_and_blocks_re_login():
     )
     assert all(row.revoked_at is not None for row in store.refresh_tokens.values())
 
-    # 같은 소셜 계정으로 다시 들어오려 해도 새 계정이 생기지 않는다.
-    again = _login(client, "member")
-    assert again.status_code == 403
-    assert again.json()["detail"] == "account_deactivated"
-    assert len(store.users) == 1
+
+def test_same_social_account_can_sign_up_again_as_a_new_user():
+    """탈퇴는 계정을 지운다 — 같은 사람이 새로 시작하는 길을 막지 않는다.
+
+    identity 를 끊었으므로 로그인은 재가입이 된다. 과거 기록과 이어지지 않는
+    새 user 여야 한다.
+    """
+    app, store, verifier = _app()
+    verifier.add(
+        "member",
+        provider_uid="returning-google",
+        email="returning@example.com",
+        email_verified=True,
+    )
+    client = TestClient(app)
+
+    first = _login(client, "member").json()
+    access = first["access_token"]
+    assert client.delete("/v2/me", headers=_bearer(access)).status_code == 204
+
+    second = _login(client, "member")
+
+    assert second.status_code == 200
+    assert second.json()["user"]["id"] != first["user"]["id"]
+    assert second.json()["user"]["email"] == "returning@example.com"
+    # 떠난 계정과 새 계정이 나란히 남는다 — 옛 글의 작성자는 옛 id 그대로다.
+    assert len(store.users) == 2
+    old = store.get_user(UUID(first["user"]["id"]))
+    assert old.status == UserStatus.DEACTIVATED
+    assert old.email is None
 
 
 def test_deactivation_needs_a_token_and_is_not_repeatable():
@@ -515,15 +551,16 @@ def test_deactivation_needs_a_token_and_is_not_repeatable():
     assert client.delete("/v2/me").status_code == 401
 
     verifier.add("member", provider_uid="repeat-google")
-    access = _login(client, "member").json()["access_token"]
+    tokens = _login(client, "member").json()
+    access, user_id = tokens["access_token"], UUID(tokens["user"]["id"])
     assert client.delete("/v2/me", headers=_bearer(access)).status_code == 204
-    first_seen = store.get_user_by_identity("google", "repeat-google").deactivated_at
+    first_seen = store.get_user(user_id).deactivated_at
 
     # 두 번째 호출은 게이트에서 걸린다. 최초 탈퇴 시각은 덮이지 않는다.
     repeated = client.delete("/v2/me", headers=_bearer(access))
     assert repeated.status_code == 403
     assert repeated.json()["detail"] == "account_deactivated"
-    assert store.get_user_by_identity("google", "repeat-google").deactivated_at == first_seen
+    assert store.get_user(user_id).deactivated_at == first_seen
 
 
 def test_suspended_and_deactivated_are_reported_as_different_reasons():

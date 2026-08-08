@@ -30,6 +30,7 @@ from acting_api.db.models import (
     Summary,
     TurnRole,
     UploadStatus,
+    UserIdentity,
     UserStatus,
 )
 from acting_api.db.store import LeaseOwnershipError, PostgresStore
@@ -308,10 +309,11 @@ def test_account_consent_upload_and_practice_lifecycle(postgres_store):
     assert store.list_practice_sessions(user.id) == []
 
 
-def test_deactivate_user_keeps_the_row_and_revokes_every_session(postgres_store):
+def test_deactivate_user_erases_identity_and_revokes_every_session(postgres_store):
     store = postgres_store
     now = datetime.now(timezone.utc)
     user = store.create_user(email="leaving@example.com")
+    store.update_user_nickname(user.id, "떠나는배우")
     store.link_user_identity(
         user_id=user.id, provider="google", provider_uid="leaving-google"
     )
@@ -336,10 +338,22 @@ def test_deactivate_user_keeps_the_row_and_revokes_every_session(postgres_store)
     assert deactivated is not None
     assert deactivated.status is UserStatus.DEACTIVATED
     assert deactivated.deactivated_at == now
-    # 행도 identity 도 남는다 — 지우면 같은 소셜 계정이 새 계정으로 되살아난다.
+    # 행은 남는다 — 커뮤니티 글·연습 기록이 이 id 를 참조한다.
     assert store.get_user(user.id) is not None
-    assert store.get_user_by_identity("google", "leaving-google").id == user.id
-    assert store.get_user_by_email("leaving@example.com").id == user.id
+    # 개인을 식별하는 것은 전부 파기된다.
+    assert deactivated.email is None
+    assert deactivated.nickname is None
+    assert store.get_user_by_email("leaving@example.com") is None
+    assert store.get_user_by_identity("google", "leaving-google") is None
+    with store._session_factory() as db:
+        assert (
+            db.scalar(
+                select(func.count())
+                .select_from(UserIdentity)
+                .where(UserIdentity.user_id == user.id)
+            )
+            == 0
+        )
 
     with store._session_factory() as db:
         revoked = list(
@@ -347,8 +361,16 @@ def test_deactivate_user_keeps_the_row_and_revokes_every_session(postgres_store)
         )
     assert len(revoked) == 2
     assert all(token.revoked_at == now for token in revoked)
-    # 남의 세션은 건드리지 않는다.
+    # 남의 세션·계정은 건드리지 않는다.
     assert store.get_refresh_token(_hash("other-device")).revoked_at is None
+    assert store.get_user_by_email("staying@example.com").id == other.id
+
+    # 끊어 둔 identity 자리에 같은 소셜 계정이 새 user 로 다시 들어올 수 있다.
+    fresh, _ = store.create_user_with_identity(
+        provider="google", provider_uid="leaving-google", email="leaving@example.com"
+    )
+    assert fresh.id != user.id
+    assert store.get_user_by_identity("google", "leaving-google").id == fresh.id
 
     later = store.deactivate_user(user.id, now=now + timedelta(days=1))
     assert later.deactivated_at == now

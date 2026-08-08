@@ -331,7 +331,7 @@
           "v2-me"
         ],
         "summary": "Delete Me",
-        "description": "회원탈퇴. 데이터는 지우지 않고 계정을 비활성 상태로 내린다.\n\n커뮤니티 글·연습 기록이 user_id 를 물고 있어 행을 지우면 남의 화면이 깨진다.\n여기서는 상태만 바꾸고 refresh 토큰을 전부 끊는다. 남아 있는 액세스 토큰은\n만료까지 유효하지만 인증 게이트가 deactivated 를 403 으로 막는다.",
+        "description": "회원탈퇴. 개인정보는 파기하고 글은 남긴다.\n\n커뮤니티 글·연습 기록이 user_id 를 물고 있어 행을 지우면 남의 글타래가\n깨진다. 그래서 행은 남기되 이메일·닉네임·identity 를 지우고 refresh 토큰을\n전부 끊는다. 남아 있는 액세스 토큰은 만료까지 유효하지만 인증 게이트가\ndeactivated 를 403 으로 막는다. 자세한 처리는 store.deactivate_user 참조.",
         "operationId": "delete_me_v2_me_delete",
         "responses": {
           "204": {
