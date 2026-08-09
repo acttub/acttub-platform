@@ -133,12 +133,6 @@ def _generate_completed_turn_report(
         if session.observation_pack is not None
         else {"observations": [], "uncertainties": []}
     )
-    words = handoff.get("actor_words")
-    if words:
-        handoff = {
-            **handoff,
-            "actor_words": [w for w in words if not coach_engine.is_closing(w)],
-        }
     return report_engine.generate_report(
         report_type=branch,
         video_summary=video_summary,

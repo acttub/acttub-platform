@@ -113,7 +113,31 @@ def _generate_validated(
             status="continue",
             handoff=None,
         )
-    return reply
+    return _sanitize_actor_words(reply)
+
+
+def _sanitize_actor_words(reply: CoachReply) -> CoachReply:
+    """handoff 에서 종료어를 걷어낸다.
+
+    handoff 가 만들어지는 유일한 자리라 여기서 걸러야 새는 곳이 없다. 노트를 만드는
+    경로가 둘(완료 턴, /v2/reports 가 저장된 handoff 로 다시 만드는 경우)이라
+    소비하는 쪽에서 거르면 한쪽이 반드시 빠진다.
+
+    모델이 actor_words 를 리스트가 아닌 값으로 줄 수 있다. parse_coaching_response
+    는 handoff 가 dict 인지만 본다 -- 문자열이 오면 글자 단위로 쪼개지고 숫자가 오면
+    터진다. 문자열 원소만 남긴다.
+    """
+    if not isinstance(reply.handoff, dict):
+        return reply
+    words = reply.handoff.get("actor_words")
+    if not isinstance(words, list):
+        return reply
+    kept = [w for w in words if isinstance(w, str) and not is_closing(w)]
+    if kept == words:
+        return reply
+    return reply.model_copy(
+        update={"handoff": {**reply.handoff, "actor_words": kept}}
+    )
 
 
 def start(
