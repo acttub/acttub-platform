@@ -81,6 +81,23 @@ test("업로드가 끝나도 방금 고른 로컬 영상을 그대로 재생한�
   assert.match(open, /setVideoFile\(null\)[\s\S]*URL\.revokeObjectURL\(prev\)/);
 });
 
+test("압축 구간은 초반이 빠르고 후반이 느린 곡선으로 찬다", () => {
+  // 양 끝은 선형과 같다.
+  assert.equal(compressionProgress(0), 0);
+  assert.equal(compressionProgress(1), COMPRESS_PROGRESS_END);
+  // 같은 지점에서 선형보다 앞선다 — 시작하자마자 눈에 띄게 움직여야 한다.
+  assert.ok(compressionProgress(0.25) > 0.25 * COMPRESS_PROGRESS_END);
+  assert.ok(compressionProgress(0.5) > 0.5 * COMPRESS_PROGRESS_END);
+  // 앞 4분의 1이 뒤 4분의 1보다 훨씬 많이 채운다.
+  const firstQuarter = compressionProgress(0.25) - compressionProgress(0);
+  const lastQuarter = compressionProgress(1) - compressionProgress(0.75);
+  assert.ok(firstQuarter > lastQuarter * 5);
+  // 곡선이어도 뒤로 가지 않는다.
+  for (let step = 1; step <= 10; step += 1) {
+    assert.ok(compressionProgress(step / 10) > compressionProgress((step - 1) / 10));
+  }
+});
+
 test("업로드와 장면 확인 진행률은 단조 증가하고 analyzed에서만 100이 된다", () => {
   const candidates = [
     compressionProgress(0.5),
@@ -101,7 +118,7 @@ test("업로드와 장면 확인 진행률은 단조 증가하고 analyzed에서
   for (let index = 1; index < values.length; index += 1) {
     assert.ok(values[index] >= values[index - 1]);
   }
-  // 압축을 탄 폰 경로: 압축 0→40 · 업로드 40→80 · 분석 80→99.
+  // 압축을 탄 폰 경로: 압축 0→80 · 업로드 80→90 · 분석 90→99.
   assert.equal(compressionProgress(1), COMPRESS_PROGRESS_END);
   assert.equal(uploadProgress(0, true), COMPRESS_PROGRESS_END);
   assert.equal(uploadProgress(100, true), UPLOAD_PROGRESS_END);
@@ -121,10 +138,13 @@ test("업로드와 장면 확인 진행률은 단조 증가하고 analyzed에서
     analysisProgress(30_000, 47_000, analysisStart(true))
       > analysisProgress(10_000, 47_000, analysisStart(true)),
   );
-  // 상한에 닿는 지점은 영상 길이와 같다. 실측(47초 영상 → 분석 41.4초)이
-  // 그보다 앞이라 분석이 끝나는 순간 막대는 아직 움직이는 중이다.
-  assert.equal(analysisProgress(47_000, 47_000, analysisStart(true)), ANALYSIS_PROGRESS_LIMIT);
-  assert.ok(analysisProgress(41_400, 47_000, analysisStart(true)) < ANALYSIS_PROGRESS_LIMIT);
+  // 상한에 닿는 지점은 영상 길이의 0.45배다(47초 영상 → 21.15초).
+  assert.equal(analysisProgress(21_150, 47_000, analysisStart(true)), ANALYSIS_PROGRESS_LIMIT);
+  // 폰 실사용에서 역산한 실제 분석 시간(영상 길이의 0.44배)이 그보다 살짝 앞이라,
+  // 분석이 끝나는 순간 막대는 99 직전에서 아직 움직이는 중이고 튀는 폭이 1 미만이다.
+  const atRealEnd = analysisProgress(0.44 * 47_000, 47_000, analysisStart(true));
+  assert.ok(atRealEnd < ANALYSIS_PROGRESS_LIMIT);
+  assert.ok(atRealEnd > 98);
   // 긴 영상은 같은 시각에 덜 찬다.
   assert.ok(
     analysisProgress(30_000, 120_000, analysisStart(true))
