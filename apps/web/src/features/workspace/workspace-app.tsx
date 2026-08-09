@@ -1742,18 +1742,25 @@ function NotePanel({
               ))}
             </div>
             <p className="rounded-2xl bg-[#e8f3ff] px-4 py-3 text-sm font-bold leading-6 text-[#1b64da]">
-              오늘은 여기까지 나눴어요. 노트로 남기기엔 짧아서, 다음에 이어서 해요.
+              지금까지 나눈 이야기는 연습 노트로 남지 않아요. 다시 대화하면 이 내용은 사라지고 처음부터 시작해요.
             </p>
           </div>
         </div>
-        <div className="border-t border-[#edf0f3] p-3.5 sm:p-4">
+        <div className="flex gap-2.5 border-t border-[#edf0f3] p-3.5 sm:p-4">
+          <button
+            type="button"
+            onClick={onFinish}
+            className="h-12 flex-1 rounded-[14px] bg-[#f8fbff] text-sm font-black text-[#4e5968] transition hover:bg-[#eef2f6]"
+          >
+            연습 마치기
+          </button>
           <button
             type="button"
             disabled={busy}
             onClick={onBackToChat}
-            className="h-12 w-full rounded-[14px] bg-[#3182f6] text-sm font-black text-white transition hover:bg-[#1b64da] disabled:bg-[#c9d3df]"
+            className="h-12 flex-1 rounded-[14px] bg-[#3182f6] text-sm font-black text-white transition hover:bg-[#1b64da] disabled:bg-[#c9d3df]"
           >
-            대화로 돌아가기
+            처음부터 다시 대화하기
           </button>
         </div>
       </section>
