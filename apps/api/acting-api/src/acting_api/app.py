@@ -49,6 +49,7 @@ from acting_api.consents import (
 from acting_api.db.community_store import CommunityStore
 from acting_api.db.store import PostgresStore
 from acting_api.keepalive import keep_alive_loop
+from acting_api.observability import init_sentry
 from acting_api.practice_sessions import build_router as build_practice_router
 from acting_api.profile import build_router as build_profile_router
 from acting_api.ratelimit import RateLimiter
@@ -104,6 +105,14 @@ def create_app(
     report_generate=None,
 ) -> FastAPI:
     _ensure_app_logging()
+    # SENTRY_DSN 이 없으면 조용히 넘어간다 — 로컬과 테스트의 기본 상태다.
+    # 켜졌는지는 기동 로그로만 알 수 있어서 S3 자격증명과 같은 방식으로 남긴다.
+    if init_sentry():
+        logger.info(
+            "Sentry enabled environment=%s release=%s",
+            os.environ.get("SENTRY_ENVIRONMENT", "local"),
+            os.environ.get("SENTRY_RELEASE", "unknown"),
+        )
     gateway_settings = gateway_settings or load_gateway_settings()
     summary_settings = summary_settings or load_summary_settings()
     client = client or genai.Client(api_key=summary_settings.api_key)

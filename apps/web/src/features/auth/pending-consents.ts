@@ -8,10 +8,16 @@ const CONSENT_TYPES = new Set(["terms", "privacy", "ai_analysis"]);
  * 이 빌드가 "동의를 받았다"고 인정하는 개인정보처리방침 버전.
  * `consent_docs/manifest.json` 의 privacy 버전과 같아야 한다.
  *
- * ⚠️ **방침을 개정해 v3 를 발행하면 이 상수도 같이 올린다.** 안 올리면 v2 에만 동의한
- * 사람이 v3 동의자로 취급돼 계측 쿠키가 그대로 유지된다.
+ * ⚠️ **방침을 개정해 새 버전을 발행하면 이 상수도 같이 올린다.** 안 올리면 옛 버전에만
+ * 동의한 사람이 새 버전 동의자로 취급돼 계측 쿠키가 그대로 유지된다.
+ *
+ * 문서는 be가 기동할 때 `manifest.json`을 읽어 자동으로 발행한다(`seed_consent_documents`).
+ * deploy.yml의 fe·be 잡은 **나란히 돌아 순서가 정해져 있지 않으므로**, fe가 먼저 뜨면
+ * 새 버전이 아직 발행되지 않은 창이 잠깐 생긴다. 그 사이에는 아무도 동의자로 인정되지
+ * 않아 계측 쿠키가 꺼지는데, 어차피 버전을 올리는 개정은 전원에게 재동의를 띄우므로
+ * 그대로 둔다. 창이 문제가 될 개정이라면 be를 먼저 배포한 뒤 fe를 올린다.
  */
-export const EXPECTED_PRIVACY_VERSION = "v2";
+export const EXPECTED_PRIVACY_VERSION = "v3";
 
 function localStorage(): Storage | null {
   if (typeof window === "undefined") return null;

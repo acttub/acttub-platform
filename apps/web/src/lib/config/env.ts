@@ -24,6 +24,14 @@ export const APPLE_REDIRECT_PATH = "/login";
 // S3 버킷 CORS가 설정되기 전에는 브라우저 직접 PUT이 막히므로 목킹 모드로 우회한다.
 export const MOCK_S3_UPLOAD = process.env.NEXT_PUBLIC_MOCK_S3_UPLOAD === "1";
 
+// Sentry는 세 변수를 빌드 시점에 읽는다(src/lib/observability/sentry-shared.ts).
+// 여기서 값을 내보내지 않고 위치만 적어 둔다 — 계측 코드 밖에서 참조할 일이 없다.
+//   NEXT_PUBLIC_SENTRY_DSN   비어 있으면 Sentry를 켜지 않는다. 로컬 개발의 기본값이다.
+//   NEXT_PUBLIC_SENTRY_ENV   dev · prod. 없으면 local로 잡힌다.
+//   NEXT_PUBLIC_APP_COMMIT   릴리스 이름. deploy.yml이 github.sha를 넣는다.
+// 소스맵 업로드용 SENTRY_ORG·SENTRY_PROJECT·SENTRY_AUTH_TOKEN은 빌드 전용이라
+// 브라우저로 나가지 않는다(next.config.ts).
+
 export const LOGIN_PATH = "/login";
 
 // 연습을 마친 배우가 넘어가는 후기 페이지.

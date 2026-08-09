@@ -1,3 +1,4 @@
+import { withSentryConfig } from "@sentry/nextjs";
 import type { NextConfig } from "next";
 
 // rewrites로 acting-api를 same-origin 프록시해 CORS 없이 호출한다. 이 프록시는
@@ -37,4 +38,37 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+/**
+ * Sentry 빌드 플러그인. 하는 일은 소스맵 업로드 하나뿐이고, 이벤트를 보낼지 말지는
+ * `src/lib/observability/sentry-shared.ts`의 DSN이 정한다.
+ *
+ * 세 가지를 일부러 끄거나 좁혀 두었다.
+ *
+ * - `tunnelRoute`: **쓰지 않는다.** 광고 차단기를 우회하려고 Route Handler를 만드는
+ *   기능인데, 그러면 "서버 로직은 apps/web에 두지 않는다"는 경계가 무너진다
+ *   (apps/web/CLAUDE.md). 차단기에 막히는 이벤트는 감수한다.
+ * - `deleteSourcemapsAfterUpload`: 업로드한 소스맵을 산출물에서 지운다. `.next/standalone/`이
+ *   그대로 EC2로 올라가므로 남겨 두면 배포물이 커지고 소스가 서버에 놓인다.
+ * - `sourcemaps.disable`: 토큰이 없으면 업로드 단계를 건너뛴다. 로컬 `pnpm build`가
+ *   토큰 없이도 통과해야 한다.
+ */
+export default withSentryConfig(nextConfig, {
+  org: process.env.SENTRY_ORG,
+  project: process.env.SENTRY_PROJECT,
+  authToken: process.env.SENTRY_AUTH_TOKEN,
+  // CI 로그에는 업로드 결과를 남기고 로컬에서는 조용히 지나간다.
+  silent: !process.env.CI,
+  // 클라이언트 번들 전체로 업로드 범위를 넓히지 않는다 — 산출물만 커진다.
+  widenClientFileUpload: false,
+  disableLogger: true,
+  // Vercel에 배포하지 않는다. EC2 + systemd다(docs/DEPLOY-VPC.md).
+  automaticVercelMonitors: false,
+  // 업로드하는 소스맵에 붙는 릴리스 이름은 런타임 init의 release와 **정확히 같아야**
+  // 한다. 어긋나면 업로드는 성공하는데 이슈 화면의 스택트레이스는 난독화된 채로 남는다.
+  // 자동 감지(git)에 맡기지 않고 같은 환경변수를 양쪽이 읽게 못박는다.
+  release: { name: process.env.NEXT_PUBLIC_APP_COMMIT },
+  sourcemaps: {
+    disable: !process.env.SENTRY_AUTH_TOKEN,
+    deleteSourcemapsAfterUpload: true,
+  },
+});
