@@ -1688,7 +1688,7 @@ function NotePanel({
               ))}
             </div>
             <p className="rounded-2xl bg-[#e8f3ff] px-4 py-3 text-sm font-bold leading-6 text-[#1b64da]">
-              아직 한 번도 해보지 않아서 정리할 게 부족해요. 대화로 돌아가 한 번만 시도해 볼까요?
+              오늘은 여기까지 나눴어요. 노트로 남기기엔 짧아서, 다음에 이어서 해요.
             </p>
           </div>
         </div>

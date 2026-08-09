@@ -54,6 +54,7 @@ export default function CoachScreen() {
   const [connecting, setConnecting] = useState(true);
   const [waiting, setWaiting] = useState(false);
   const [done, setDone] = useState(false);
+  const [noteSkipped, setNoteSkipped] = useState(false);
   const [pastOpen, setPastOpen] = useState(false);
   const [sceneOpen, setSceneOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -87,7 +88,11 @@ export default function CoachScreen() {
           // 따로 확인받지 않고 바로 넘긴다.
           if (reply.report) {
             practice.report = reply.report;
-            router.replace('/report');
+            if (reply.report.report_type === 'blocked') {
+              setNoteSkipped(true);
+            } else {
+              router.replace('/report');
+            }
           }
         }
       } else {
@@ -155,7 +160,14 @@ export default function CoachScreen() {
         setDone(true);
         if (reply.report) {
           practice.report = reply.report;
-          router.replace('/report');
+          // 노트가 안 만들어진 종료는 노트 화면으로 넘기지 않는다. replace 로 넘기면
+          // coach 라우트가 사라져서 그 화면의 '대화로 돌아가기'가 갈 곳을 잃고,
+          // 세션은 이미 닫혀 있어 더 답할 수도 없다.
+          if (reply.report.report_type === 'blocked') {
+            setNoteSkipped(true);
+          } else {
+            router.replace('/report');
+          }
         }
       }
     } catch (err) {
@@ -264,7 +276,9 @@ export default function CoachScreen() {
 
           {done && (
             <Text style={styles.doneText}>
-              오늘 대화는 여기까지예요. 정리가 만들어지면 바로 보여드릴게요.
+              {noteSkipped
+                ? '오늘은 여기까지 나눴어요. 노트로 남기기엔 짧아서, 다음에 이어서 해요.'
+                : '오늘 대화는 여기까지예요. 정리가 만들어지면 바로 보여드릴게요.'}
             </Text>
           )}
         </ScrollView>
