@@ -6,7 +6,9 @@ import "./ts-module-loader.mjs";
 
 process.env.NEXT_PUBLIC_API_BASE_URL = "";
 
-const { UploadError, uploadVideo } = await import("../src/lib/api/v2/uploads.ts");
+const { UploadError, finalizeUpload, uploadVideo } = await import(
+  "../src/lib/api/v2/uploads.ts"
+);
 const { MAX_DURATION_MS, MAX_UPLOAD_BYTES } = await import("../src/lib/config/env.ts");
 
 const originalFetch = globalThis.fetch;
@@ -25,6 +27,40 @@ afterEach(() => {
 test("클라이언트 업로드 제한은 100MB와 5분이다", () => {
   assert.equal(MAX_UPLOAD_BYTES, 100 * 1024 * 1024);
   assert.equal(MAX_DURATION_MS, 300_000);
+});
+
+test("finalize:false 는 완료 처리를 미루고 finalizeUpload 가 마저 한다", async () => {
+  // 완료된 인텐트는 만료 스윕이 회수하지 않는다(PENDING 만 본다). 배우가 연습을
+  // 시작하겠다고 하기 전에 완료해 두면 도중에 그만둔 영상이 S3 에 영영 남는다.
+  const order = [];
+  const file = new File(["video-bytes"], "take.mp4", { type: "video/mp4" });
+
+  globalThis.fetch = async (url) => {
+    if (String(url) === "/v2/uploads/intents") {
+      order.push("intent");
+      return jsonResponse({
+        intent_id: "intent-9",
+        upload_url: "https://s3.example/upload",
+        expires_at: "2026-07-18T00:00:00Z",
+      });
+    }
+    assert.equal(String(url), "/v2/uploads/intents/intent-9/complete");
+    order.push("complete");
+    return jsonResponse({ intent_id: "intent-9", status: "finalized" });
+  };
+
+  const uploader = async () => {
+    order.push("put");
+  };
+
+  assert.deepEqual(
+    await uploadVideo(file, { uploader, finalize: false }),
+    { intentId: "intent-9" },
+  );
+  assert.deepEqual(order, ["intent", "put"]);
+
+  await finalizeUpload("intent-9");
+  assert.deepEqual(order, ["intent", "put", "complete"]);
 });
 
 test("uploadVideo는 intent, S3 PUT, complete 순서와 서명 MIME을 지킨다", async () => {
