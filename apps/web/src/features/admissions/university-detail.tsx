@@ -46,7 +46,7 @@ export function UniversityDetailPage({ universityId }: { universityId: string })
 
   return (
     <RailLayout>
-      <main className="min-h-dvh">
+      <main className="h-full">
         <div className="mx-auto w-full max-w-[760px] px-5 py-10">
           <Link
             href="/admissions"

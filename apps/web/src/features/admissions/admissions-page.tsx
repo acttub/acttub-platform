@@ -87,7 +87,7 @@ export function AdmissionsPage() {
 
   return (
     <RailLayout>
-      <main className="min-h-dvh">
+      <main className="h-full">
       <div className="mx-auto w-full max-w-[760px] px-5 py-10">
         <h1 className="text-[26px] font-black tracking-[-0.03em] text-[#191f28]">
           연기 입시 정보

@@ -35,7 +35,6 @@ import {
   trackResultViewed,
   trackVideoUploaded,
 } from "@/lib/analytics/ga";
-import { AppRail } from "@/features/nav/app-rail";
 import { ExitReviewModal, useExitReview } from "./exit-review";
 import { BlockageSelectionFlow } from "../practice/blockage-selection";
 import type { BlockageSelection } from "../practice/blockage-flow";
@@ -53,9 +52,9 @@ import {
   formatVideoDuration,
 } from "../practice/practice-setup-flow";
 import {
-  UPLOAD_PROGRESS_END,
   advanceProgress,
   analysisProgress,
+  analysisStart,
   compressionProgress,
   settleProgress,
   uploadProgress,
@@ -168,6 +167,9 @@ function WorkspaceInner() {
   const [pct, setPct] = useState(0);
   const [analysisStatus, setAnalysisStatus] = useState<PracticeSessionDetail["status"] | null>(null);
   const [videoDurationMs, setVideoDurationMs] = useState<number | null>(null);
+  // 분석 막대가 어디서 시작하는지는 압축을 탔는지에 달렸다(압축 80 · 무압축 60).
+  // 목록·주소로 연 세션은 압축 여부를 모르므로 무압축 쪽으로 둔다.
+  const [analysisStartPct, setAnalysisStartPct] = useState(analysisStart(false));
 
   // 대화
   const [messages, setMessages] = useState<ChatMsg[]>([]);
@@ -241,13 +243,13 @@ function WorkspaceInner() {
       setPct((current) =>
         advanceProgress(
           current,
-          analysisProgress(Date.now() - startedAt, videoDurationMs),
+          analysisProgress(Date.now() - startedAt, videoDurationMs, analysisStartPct),
         ),
       );
     };
     const timer = window.setInterval(update, 1000);
     return () => window.clearInterval(timer);
-  }, [analysisStatus, mode, videoDurationMs]);
+  }, [analysisStartPct, analysisStatus, mode, videoDurationMs]);
 
   const resetToPrep = useCallback(() => {
     analysisControllerRef.current?.abort();
@@ -426,9 +428,14 @@ function WorkspaceInner() {
     const controller = new AbortController();
     uploadControllerRef.current = controller;
     try {
+      // 압축이 "돌았는지"로 구간을 가른다. prepared.wasCompressed 는 결과물을 썼는지라
+      // 압축을 다 돌리고도 원본보다 크면 false 가 되고, 그러면 막대가 이미 40까지
+      // 올라간 채 업로드 구간이 0부터 시작해 40에서 한참 멈춰 있게 된다.
+      let compressionRan = false;
       const prepared = await prepareVideoUpload(videoFile, {
         signal: controller.signal,
         onCompressionProgress: (progress) => {
+          compressionRan = true;
           setPct((current) =>
             advanceProgress(current, compressionProgress(progress)),
           );
@@ -441,7 +448,7 @@ function WorkspaceInner() {
           setPct((current) =>
             advanceProgress(
               current,
-              uploadProgress(progress.percent, prepared.wasCompressed),
+              uploadProgress(progress.percent, compressionRan),
             ),
           ),
       });
@@ -459,7 +466,9 @@ function WorkspaceInner() {
       setAnalysisStatus(session.status);
       setVideoDurationMs(prepared.durationMs);
       setDetail(null);
-      setPct((current) => advanceProgress(current, UPLOAD_PROGRESS_END));
+      const startPct = analysisStart(compressionRan);
+      setAnalysisStartPct(startPct);
+      setPct((current) => advanceProgress(current, startPct));
       analysisStartedAtRef.current = Date.now();
       setMode("preparing");
       setSending(false);
@@ -558,7 +567,8 @@ function WorkspaceInner() {
       if (prev) URL.revokeObjectURL(prev);
       return null;
     });
-    setPct(UPLOAD_PROGRESS_END);
+    setAnalysisStartPct(analysisStart(false));
+    setPct(analysisStart(false));
     setAnalysisStatus(null);
     setVideoDurationMs(null);
     setMessages([]);
@@ -614,7 +624,8 @@ function WorkspaceInner() {
       try {
         const loaded = await getPracticeSession(sessionParam);
         if (cancelled) return;
-        setPct(UPLOAD_PROGRESS_END);
+        setAnalysisStartPct(analysisStart(false));
+        setPct(analysisStart(false));
         activeIdRef.current = sessionParam;
         setActiveId(sessionParam);
         setDetail(loaded);
@@ -708,9 +719,6 @@ function WorkspaceInner() {
 
   return (
     <div className="flex h-dvh overflow-hidden bg-white text-[#191f28]">
-      {/* 앱 전체 네비. 세션 바보다 한 겹 바깥이고, 여기서 입시·커뮤니티로 나간다. */}
-      <AppRail />
-
       {/* 데스크톱: 붙박이 세션 바. 질문이 시작되면 접혀서 대화에 자리를 내준다. */}
       <div className="hidden lg:flex">{rail}</div>
 
@@ -757,33 +765,58 @@ function WorkspaceInner() {
             {detail?.situation?.trim() || "새 연습"}
           </p>
           <StatusChip mode={mode} done={coachDone} />
-          {activeId ? (
-            <div className="ml-auto flex shrink-0 items-center gap-2">
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => void removeSession()}
-                className="h-8 rounded-[10px] border border-[#f1aeb5] px-3 text-xs font-black text-[#e03131] transition hover:bg-[#fff5f5] disabled:text-[#f1aeb5]"
-              >
-                삭제
-              </button>
-              {reviewArmed ? (
+          {/* 오른쪽 끝은 한 덩어리로 묶는다 — ml-auto 를 두 군데 주면 남는 폭을 나눠 갖는다. */}
+          <div className="ml-auto flex shrink-0 items-center gap-2">
+            {activeId ? (
+              <>
                 <button
                   type="button"
-                  onClick={openReview}
-                  aria-label="연습 마치기"
-                  title="연습 마치기"
-                  className="flex h-8 w-8 items-center justify-center rounded-[10px] bg-[#f2f4f6] text-sm font-black text-[#4e5968] transition hover:bg-[#e5e8eb]"
+                  disabled={busy}
+                  onClick={() => void removeSession()}
+                  className="h-8 rounded-[10px] border border-[#f1aeb5] px-3 text-xs font-black text-[#e03131] transition hover:bg-[#fff5f5] disabled:text-[#f1aeb5]"
                 >
-                  ✕
+                  삭제
                 </button>
-              ) : null}
-            </div>
-          ) : (
-            <span className="ml-auto hidden text-xs font-semibold text-[#8b95a1] sm:block">
-              영상을 올리면 질문이 시작돼요
-            </span>
-          )}
+                {reviewArmed ? (
+                  <button
+                    type="button"
+                    onClick={openReview}
+                    aria-label="연습 마치기"
+                    title="연습 마치기"
+                    className="flex h-8 w-8 items-center justify-center rounded-[10px] bg-[#f2f4f6] text-sm font-black text-[#4e5968] transition hover:bg-[#e5e8eb]"
+                  >
+                    ✕
+                  </button>
+                ) : null}
+              </>
+            ) : (
+              <span className="hidden text-xs font-semibold text-[#8b95a1] sm:block">
+                영상을 올리면 질문이 시작돼요
+              </span>
+            )}
+            {/* 좌측 레일을 걷어내고(2026-08-09) 그 길을 이 바 오른쪽 끝으로 옮겼다.
+                연습이 열려 있는 폰 화면에서는 숨긴다 — 삭제·마치기·상태칩까지 한 줄에
+                서면 375px에서 제목에 40px밖에 안 남는다. */}
+            <nav
+              aria-label="주요 메뉴"
+              className={`items-center gap-1 border-l border-[#edf0f3] pl-2 ${
+                activeId ? "hidden sm:flex" : "flex"
+              }`}
+            >
+              <Link
+                href="/admissions"
+                className="flex h-8 items-center rounded-[10px] px-2 text-xs font-black text-[#8b95a1] transition hover:bg-[#f2f4f6] hover:text-[#4e5968]"
+              >
+                입시
+              </Link>
+              <Link
+                href="/community"
+                className="flex h-8 items-center rounded-[10px] px-2 text-xs font-black text-[#8b95a1] transition hover:bg-[#f2f4f6] hover:text-[#4e5968]"
+              >
+                커뮤
+              </Link>
+            </nav>
+          </div>
         </header>
 
         {chatLeading ? (
@@ -1034,7 +1067,7 @@ function SessionRail({
         </div>
       )}
 
-      {/* 커뮤니티·입시로 나가는 길은 AppRail 이 맡는다. 여기 두면 두 군데가 된다. */}
+      {/* 커뮤니티·입시로 나가는 길은 위 헤더 오른쪽 끝이 맡는다. 여기 두면 두 군데가 된다. */}
       <div
         className={`mt-auto flex items-center border-t border-[#edf0f3] ${
           open ? "justify-between px-4 py-3.5" : "justify-center py-3.5"
