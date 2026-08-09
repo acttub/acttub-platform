@@ -44,8 +44,9 @@ $PY -m pytest tests -q                                        # 리포터·정�
 | `inventory.py` | 기대값을 **소스/OpenAPI에서 생성** (하드코딩 금지) |
 | `manifest.py` | 오류 계약 실행 manifest + 명시적 제외 사유 |
 | `openapi_diff.py` | 전체 문서 semantic diff 리포터 |
-| `mutations.py` | 변조 27건 (self-test) |
-| `scenarios/` | 시나리오 21개 |
+| `mutations.py` | 변조 38건 (self-test) |
+| `scenarios/` | 시나리오 26개 |
+| `scenarios/gate.py` | LLM 스텁 게이트를 `stub-state` 제어 경유로만 다룬다 (§게이트) |
 
 ## 백엔드가 만족해야 하는 계약
 
@@ -118,6 +119,10 @@ manifest·admin 스냅샷·unknown key·레이트리밋 오염·openapi 계약 �
 - 원본 `coach_confirm` 은 두 요청이 동시에 확정하면 500 을 내기도 한다. 그래서 중복
   확정(409 `report already exists`)은 동시 요청이 아니라 **게이트 + 행 삽입**으로
   결정적으로 만든다(`dbops.py:SchemaOps.insert_practice_report`).
-- 스텁 게이트와 DB 조작을 쓰는 시나리오(`inflight-replay`·`lease-stolen`·
-  `expired-intent`)는 백엔드의 스키마 이름을 알아야 한다. M1 시점 java 어댑터에는
-  스키마가 없어 이 시나리오는 fastapi 전용이며, 실행하면 명시적으로 중단된다.
+- **스텁 게이트는 더 이상 백엔드를 가리지 않는다.** 대기·재무장·해제가 전부
+  `stub-state` 제어 경유이므로(`scenarios/gate.py`) 양쪽 백엔드가 같은 코드를 밟는다.
+  전에는 시나리오가 `backend.runtime` 에서 핸들을 직접 꺼내 in-process 전용이었고,
+  java 타겟에서는 `AttributeError` 로 죽었다(`spec/M4-llm.md` §G).
+- 다만 **DB 조작을 쓰는 시나리오**(`inflight-replay`·`lease-stolen`·`expired-intent`)는
+  여전히 백엔드의 스키마 이름을 알아야 한다 — `dbops.py` 의 이름 붙은 조작이 대상
+  스키마에 직접 붙는다. java contract 프로파일이 스키마 이름을 알리는 것은 M4 몫이다.

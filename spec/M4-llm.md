@@ -2,11 +2,14 @@
 
 **공통 규칙은 `/SPEC.md`를 따른다. 이 문서는 M4 사이클에만 적용된다.**
 
-- BASE_REF: `2d0e12a` (2026-08-08 **4차 개정**)
+- BASE_REF: `4ef7cab` (2026-08-09 **5차 개정**)
   - **3차** — `6102ef8`「AI 3개 층을 관찰 팩·질문 대화·연습 카드로 교체한다」를 반영해 사실 오류 11건을 고쳤다. 2차 개정(`8fdca45`)은 그 커밋 **이전** 시점이었다
-  - **4차** — Codex 적대적 비판이 낸 지적 10건을 전부 소스로 재검증해 반영했다. **그중 셋은 3차 개정 자신의 오류**였다
+  - **4차**(`2d0e12a` 기준) — Codex 적대적 비판이 낸 지적 10건을 전부 소스로 재검증해 반영했다. **그중 셋은 3차 개정 자신의 오류**였다
+  - **5차** — `/SPEC.md` §12 진입 점검 4단계를 **실제로 돌려** 고쳤다. dev 전진분(`SOMA-326` Sentry)을 흡수하고, §G를 구현하면서 그 규모가 4차 개정이 쓴 것보다 훨씬 작다는 것을 확인했다
 
 > ⚠ **이 문서는 두 번 틀렸고, 두 번째 수정도 부분적으로 틀렸다.** 3차 개정은 2차의 오류 11건을 고쳤지만 스스로 셋을 새로 만들었다 — 재시도 횟수를 하나 많게 적었고, ffmpeg 호출 수를 과장했으며, 비활성 유틸리티(응답 캐시)를 운영 계약으로 격상시켰다. `/SPEC.md` §12가 말하는 "적어 두고 실행한 적 없는 것"은 **문서를 고치는 작업 자체에도 적용된다.** 이 문서의 단정적인 문장을 만나면 소스를 열어라.
+>
+> 🔧 **5차 개정은 그 반대 방향의 오류도 하나 찾았다** — 4차 개정의 §G는 실재하는 결함을 정확히 짚었지만 **작업량을 과대평가**했다. 사양이 "이것이 없으면 전량 통과가 불가능하다"고 쓴 항목의 실제 diff는 시나리오 3곳이었다. 위험을 과장하는 것도 드리프트다.
 
 ## 3차 개정이 고친 것 — 2차 개정본이 틀렸던 자리
 
@@ -43,7 +46,17 @@ Codex 적대적 비판이 냈고, 전부 소스로 재검증해 **10건 모두 �
 
 ## 목적
 
-`acting-summary`·`acting-agent`·`acting-report`·`acting-llm`과 분석 워커를 옮기고, M3에서 미뤄둔 LLM 의존 엔드포인트를 노출한다. **이 사이클이 끝나면 파이썬에 남는 기능이 없다.**
+`acting-summary`·`acting-agent`·`acting-report`·`acting-llm`과 분석 워커를 옮기고, M3에서 미뤄둔 LLM 의존 엔드포인트를 노출한다. **이 사이클이 끝나면 파이썬에 남는 기능이 없다**(단 `observability.py`는 M5로 이월 — §A-0).
+
+### 착수 순서 — 뒤집으면 두 번 일한다
+
+1. ✅ **§G 하네스 게이트 추상화** — 없으면 "전량 통과"가 원리적으로 불가능하다. **선행 완료**(`89b728f`)
+2. **§F-2 요청 검증 구조 전환** — 새 라우트를 **열기 전에** 끝낸다. 나중에 하면 coach·reports의 422 경로를 두 번 만든다
+3. **§F-1 lease 저장 계층** — 워커보다 **먼저** 세우고 두 claim의 갈래를 Testcontainers로 고정한다
+4. **§A~§D LLM 층과 워커** — 그 위에 얹는다
+5. **§G-2 · §F-3** — Java 타겟 게이트 시나리오 완주와 admin 대조는 위가 다 선 뒤에만 판정된다
+
+Phase 3은 **Codex 단독**이다(`/SPEC.md` §11, 2026-08-09 사용자 결정).
 
 ### A-0. 공급자 지형 (먼저 읽는다)
 
@@ -64,6 +77,17 @@ Codex 적대적 비판이 냈고, 전부 소스로 재검증해 **10건 모두 �
 | **`GEMINI_API_KEY`** | 없음 | 🔎 **부팅이 실패한다.** `acting-summary/config.py:load_settings`가 `RuntimeError`를 던지고 `app.py:create_app`이 부팅 중 이를 호출한다. **OpenAI와 정반대다** |
 | **`GEMINI_MODEL`** | **`gemini-2.5-flash`** (`acting-summary/config.py:DEFAULT_MODEL`) | 기본값 사용 |
 | `ANALYSIS_LEASE_SEC` | **1800** (`config.py:DEFAULT_ANALYSIS_LEASE_SEC`) | 기본값 사용 |
+| **`SENTRY_DSN`** | 없음 | 조용히 넘어간다 — 켜지 않는다 (`observability.py:init_sentry`). **M5 대상**, 아래 참조 |
+| **`SENTRY_ENVIRONMENT`** | `local` | 기본값 사용 |
+| **`SENTRY_RELEASE`** | `unknown` | 기본값 사용 |
+
+#### 🔎 Sentry(`SOMA-326`)는 M4가 이식하지 않는다 — M5 산출물이다
+
+5차 개정에서 흡수한 dev 전진분이다. `observability.py`(88줄)가 신설돼 `app.py:create_app`이 부팅 시 `observability.py:init_sentry`를 부른다. **`openapi.json`은 변하지 않았으므로 계약 동등성 판정 밖이다** — 하네스도 이 층을 보지 않는다(`SENTRY_DSN`이 없어 꺼진 채로 돈다).
+
+- **M4는 이 층을 이식하지 않는다.** M4는 이미 §A~§G로 가장 큰 사이클이고, 관측 배선은 LLM 계약과 무관하다
+- **M5 컷오버 산출물에 넣는다.** Java 프로세스가 파이썬을 대체하는 순간 에러 수집이 끊기면 안 된다. 웹(`apps/web/src/lib/observability/sentry-shared.ts`)과 같은 원칙 — DSN 없으면 미기동, 주소의 UUID를 `<id>`로 가림, `send_default_pii=False`, 트레이싱 미사용
+- **"파이썬 기능 잔여 0" 판정에서는 `observability.py`를 이식 대상으로 센다.** 비활성 유틸리티(`_cache_path`·`clip_head`)와 달리 운영에서 실제로 켜져 있다(dev·운영 배포 완료)
 
 **OpenAI는 SDK를 쓰지 않는다.** 파이썬도 `httpx`로 REST를 직접 친다. Java도 `RestClient` 동형 이식이 기본안이며, 재시도 상수를 값까지 옮긴다:
 
@@ -267,19 +291,24 @@ M3 Phase 5·6 리뷰가 같은 뿌리에서 나온 지적 넷을 냈다. 개별�
 
 다만 하네스는 이 경로를 덮을 수 있다 — `tools/contract-harness/contract_harness/config.py:ADMIN_OPS_TOKEN`이 고정값으로 있어 **양쪽 백엔드 모두 admin 라우터가 등록된 채로 뜬다.** M3에서 `admin` 시나리오가 못 돈 이유는 토큰이 아니라 `/v2/coach/start` 미존재였고, 그것이 M4에서 열린다. **`admin` 시나리오 diff 0을 F-3의 관문으로 삼는다.**
 
-### G. 🔎 하네스 게이트 추상화 — 이것이 없으면 "전량 통과"가 불가능하다
+### G. ✅ 하네스 게이트 추상화 — **선행 작업으로 완료**(`89b728f`)
 
-**4차 개정 신설.** 3차 개정본은 "하네스 쪽 배선은 이미 되어 있으므로 남은 것은 java 쪽 조건뿐"이라고 적었다. **틀렸다.**
+**4차 개정 신설, 5차 개정에서 구현 완료.** 3차 개정본은 "하네스 쪽 배선은 이미 되어 있으므로 남은 것은 java 쪽 조건뿐"이라고 적었다. **틀렸다.**
 
-`tools/contract-harness/contract_harness/scenarios/inflight.py`와 `tools/contract-harness/contract_harness/scenarios/worker.py`의 게이트 헬퍼는 HTTP 제어 표면이 아니라 **`ctx.backend.runtime`을 직접 읽는다** — `getattr(ctx.backend.runtime, stub_name, None)`으로 스텁 핸들을 꺼내 `wait_until_blocked()`·`rearm()`·`release()`·`in_block_count`를 호출한다. 소스에도 "in-process 백엔드 전용"이라고 적혀 있다.
+`tools/contract-harness/contract_harness/scenarios/inflight.py`와 `tools/contract-harness/contract_harness/scenarios/worker.py`의 게이트 헬퍼는 HTTP 제어 표면이 아니라 **`ctx.backend.runtime`을 직접 읽었다**. `tools/contract-harness/contract_harness/backends.py:JavaBackend`에는 `runtime` 속성이 없으므로(`_client`만 있다), Java가 M4 기능과 제어 표면을 전부 올바르게 구현해도 게이트 시나리오는 `AttributeError`로 죽었다. **진입 점검에서 실제로 재현해 확인했다** — `AttributeError: 'JavaBackend' object has no attribute 'runtime'`.
 
-`tools/contract-harness/contract_harness/backends.py:JavaBackend`에는 `runtime` 속성이 **없다**(`_client`만 있다). 그런데 러너는 백엔드 종류와 무관하게 `scenario.run(ctx)`를 부른다. 따라서 **Java가 M4 기능과 제어 표면을 전부 올바르게 구현해도 `inflight-replay`·`concurrency` 등 게이트 시나리오는 `AttributeError`로 죽는다.**
+M2·M3에서 두 번 나온 "완료 기준이 도구 능력보다 앞선다"가 세 번째로 재현된 것이다. `/SPEC.md` §3-4의 "기존 `apps/api` 수정 금지"는 `tools/`에 적용되지 않는다.
 
-M2·M3에서 두 번 나온 "완료 기준이 도구 능력보다 앞선다"가 세 번째로 재현된 것이다. **M4는 하네스 자체를 고치는 것을 산출물에 포함한다** — `/SPEC.md` §3-4의 "기존 `apps/api` 수정 금지"는 `tools/` 에 적용되지 않는다.
+**🔧 다만 4차 개정은 규모를 과대평가했다.** `tools/contract-harness/contract_harness/stubs.py:TextGeneratorStub.state`가 이미 `blocked`·`in_block`·`in_block_count`·`timed_out`을 `stub-state` 응답에 싣고 있었고, release·rearm도 이미 제어 payload 경유였다. 실제로 남아 있던 것은 **`backend.runtime` 직접 접근 3곳**뿐이다.
 
-- 게이트 대기·재무장·해제를 **전부 `Backend.control("stub-state", ...)` 경유로 추상화**한다. 시나리오에서 `backend.runtime` 접근을 제거한다
-- `stub-state` 응답에 `blocked`·`in_block`(진입 수)·`timed_out`을 실어, 대기는 **`in_block` 폴링**으로 한다. Python in-process 백엔드도 같은 경로를 타야 한다(양쪽이 같은 코드를 밟아야 이 추상화가 검증된다)
-- **Java 대상 self-test를 완료 기준에 넣는다** — 추상화가 실제로 Java를 구동하는지 확인하지 않으면 이 항목은 또 "적어 두고 실행한 적 없는 것"이 된다
+**구현된 형상** — `tools/contract-harness/contract_harness/scenarios/gate.py` 신설:
+
+- 게이트 대기·재무장·해제를 전부 `Backend.control("stub-state", ...)` 경유로 모았다. 시나리오에 `backend.runtime` 접근이 **0건**이다(AST 검사로 고정)
+- 대기는 **`in_block_count` 폴링**이다. 🔎 **폴링은 `ctx.backend.control`(비기록)로 한다** — `ctx.control`은 스텝을 시나리오 기록에 남기므로, 백엔드마다 폴링 횟수가 달라지면 그 스텝 수가 그대로 L2 diff가 된다. 확인이 끝난 뒤 호출부가 `ctx.control`을 한 번 부르는 현행 스텝 수를 유지한다
+- `stub-state` payload가 **`stub` 이름**을 받는다. 동시성 시나리오는 특정 스텁만 풀어야 하는데, 이름 없이 전부 푸는 것과 구별이 필요하다. 이름이 없으면 게이트 있는 스텁 전부가 대상이다(종전 동작)
+- 양쪽 백엔드가 같은 코드를 밟으므로 추상화 자체가 매 실행마다 검증된다
+
+**🔎 Java 대상 self-test는 아직 성립하지 않는다.** 게이트 시나리오는 LLM 스텁을 통과해야 하므로 **Java에 LLM 층이 선 뒤에야** 실제로 구동된다. 지금 검증된 것은 ①fastapi↔fastapi 26개 diff 0 유지 ②`JavaBackend`에서 `AttributeError`가 사라지고 제어 표면까지 도달한다는 것 둘이다. **완전한 self-test는 §B·§C·§D가 선 뒤 완료 기준으로 확인한다** — 이것을 M4의 마지막 관문으로 남긴다.
 
 ## 검증 — 관문은 golden, smoke는 참고
 
@@ -350,14 +379,15 @@ M2·M3에서 두 번 나온 "완료 기준이 도구 능력보다 앞선다"가 
 - [ ] **`ANALYSIS_WORKER_ENABLED` 스위치** 제공
 - [ ] **F-2 요청 검증 구조 전환** — 422 다건 누적 · 명시적 null 구분 · `literal_error` 판별자 · 게이트가 바디 검증보다 먼저. **새 라우트를 열기 전에 끝낸다**
 - [ ] **F-3 admin stats 55필드 + 중첩 모델 둘**, 소스 기반 inventory 대조 검사, `admin` 시나리오 diff 0
-- [ ] **G. 하네스 게이트 추상화** — 시나리오에서 `backend.runtime` 접근 제거, `stub-state`의 `in_block` 폴링으로 전환, **Java 대상 self-test 통과**
+- [x] **G. 하네스 게이트 추상화** — 시나리오에서 `backend.runtime` 접근 제거, `stub-state`의 `in_block_count` 폴링으로 전환 (`89b728f`, 선행 완료)
+- [ ] **G-2. 게이트 시나리오가 Java 대상으로 실제 완주한다** — §G의 나머지 절반. §B·§C·§D가 선 뒤에만 성립하므로 **M4의 마지막 관문**이다. `inflight-replay`·`lease-stolen`·`report-parse-error`·`concurrency` 넷이 java 타겟에서 diff 0
 - [ ] 🔎 **제어 표면의 나머지 셋을 채운다** — `run-worker-once`·`run-sweep`·`stub-state`. 🔁 3차 개정본의 "5개"는 틀렸다. `tools/contract-harness/contract_harness/config.py:CONTROL_SURFACE`는 **6개**이고 M3가 `advance-clock`·`db-projection`·`reset-state`를 채웠다(`harness/HarnessController.java`)
   - **M1이 확정한 transport**: `POST /__harness/<name>`, 요청·응답 모두 JSON. 요청 바디는 `advance-clock`이 `{"seconds": N}`, `db-projection`이 `{"include": [...]}`, 나머지는 `{}`다. 응답 키는 `run-worker-once` → `{"processed": n}`, `run-sweep` → `{"expired_uploads": n, "exhausted_operations": n}`, `advance-clock` → `{"offset_sec": n}`, `stub-state`·`db-projection`은 `tools/contract-harness/contract_harness/wrapper.py:BackendRuntime.control`·`tools/contract-harness/contract_harness/wrapper.py:BackendRuntime.db_projection`의 형상을 그대로 따른다
   - **외부 의존 스텁의 값은 `tools/contract-harness/contract_harness/fixtures/`에서 읽는다**(`llm.json`·`s3.json`·`auth_providers.json`). **`llm.json`에는 계약이 셋 있다:**
     - **`budget`** — coach 24회·report 12회. 스텁 호출 예산이며 초과 시의 동작이 시나리오 판정에 쓰인다
     - **`$` 참조** — `by_marker["[[coach:complete]]"].handoff`의 값이 문자열 `"$analysis_handoff"`다. 최상위 `analysis_handoff` 객체로 **치환해서** 돌려줘야 한다
     - **마커는 프롬프트 전체에서 찾는다.** `[[report:parse_error]]`는 coach 응답의 `coach_summary` 안에 실려 리포트 프롬프트로 전파되고, 그때 스텁이 **JSON이 아닌 문자열**을 돌려줘 `ReportParseError` → 502 경로를 연다
-- [ ] 🔎 **LLM 스텁 게이트**: 프롬프트에 `[[stub:block]]`(`tools/contract-harness/contract_harness/stubs.py:STUB_BLOCK_MARKER`)이 있으면 스텁이 신호가 올 때까지 멈춘다. 클레임을 잡은 뒤 LLM을 부르는 구조라, 이 게이트가 **sync operation이 running인 구간**을 결정적으로 만드는 유일한 훅이다(409 `request is still processing` 다섯 지점의 근거). 해제·재무장은 `stub-state`의 payload(`{"release": true}` / `{"rearm": true}`)로 하고, `stub-state` 응답에 `blocked`·`in_block`·`timed_out`을 싣는다. 게이트에는 상한 시간을 둬 신호를 못 받아도 매달리지 않는다
+- [ ] 🔎 **LLM 스텁 게이트**: 프롬프트에 `[[stub:block]]`(`tools/contract-harness/contract_harness/stubs.py:STUB_BLOCK_MARKER`)이 있으면 스텁이 신호가 올 때까지 멈춘다. 클레임을 잡은 뒤 LLM을 부르는 구조라, 이 게이트가 **sync operation이 running인 구간**을 결정적으로 만드는 유일한 훅이다(409 `request is still processing` 다섯 지점의 근거). 해제·재무장은 `stub-state`의 payload(`{"release": true}` / `{"rearm": true}`)로 한다. 🔧 **payload에 `{"stub": "coach_generate"}` 처럼 이름을 주면 그 스텁만** 건드리고, 없으면 게이트 있는 스텁 전부가 대상이다(§G에서 확정). 응답에는 스텁마다 `calls`·`remaining`·`budget`·`blocked`·`in_block`·**`in_block_count`**·`timed_out`을 싣는다 — 하네스의 대기가 `in_block_count` 폴링이므로 이 필드가 없으면 게이트 시나리오가 진행하지 못한다. 게이트에는 상한 시간을 둬 신호를 못 받아도 매달리지 않는다(파이썬은 `tools/contract-harness/contract_harness/stubs.py:STUB_BLOCK_TIMEOUT_SEC` 20초, 넘기면 `timed_out` 증가)
 - [ ] 🔎 **M1에서 java 대상이라 못 돌린 검증이 여기서는 돌아야 한다**
   - **seed parity** — 하네스가 java contract 프로파일의 스키마 이름을 알아야 두 스키마 시드 지문을 대조할 수 있다. 지금은 "스키마 이름을 모른다"는 사유로 건너뛴다
   - **오류 계약 manifest·unknown key·레이트리밋 오염 검사** — 해당 시나리오가 java에서 실제로 돌아야 판정이 생긴다
@@ -371,7 +401,7 @@ M2·M3에서 두 번 나온 "완료 기준이 도구 능력보다 앞선다"가 
 - [ ] **M1 하네스 전량 통과** — G가 선행되어야 성립한다
 - [ ] `openapi.json` **전체** diff 0 (datetime 통일 제외)
 - [ ] 실 LLM smoke 통과 (참고 지표)
-- [ ] **파이썬 기능 잔여 0** — 이식되지 않은 기능 목록이 비어 있음을 확인. 비활성 유틸리티(`_cache_path`·`clip_head`)는 별도로 표시한다
+- [ ] **파이썬 기능 잔여 0** — 이식되지 않은 기능 목록이 비어 있음을 확인. 비활성 유틸리티(`_cache_path`·`clip_head`)는 별도로 표시하고, **`observability.py`는 M5로 이월했음을 명시**한다(§A-0)
 
 ## 하지 말 것
 

@@ -51,6 +51,18 @@ vCPU도 1개다. JVM 기동 시 CPU 스파이크가 t2.micro의 버스트 크레
 
 **주의**: `apps/api`를 아직 지우지 않았으므로 alembic 리비전 정보도 DB에 남아 있다. 두 도구가 같은 DB를 보는 상태를 M6까지 유지한다 — 롤백 시 alembic이 필요하다.
 
+### D. 🔎 Sentry 이식 (`SOMA-326`, M4에서 이월)
+
+**M4가 이식하지 않기로 한 층이다**(`spec/M4-llm.md` §A-0). 계약 동등성 밖이라 하네스가 보지 않지만, **Java가 파이썬을 대체하는 순간 백엔드 에러 수집이 끊긴다** — 컷오버에서 가장 관측이 필요한 시점에 눈을 잃는 것이므로 여기서 닫는다.
+
+파이썬 원본은 `observability.py`(88줄)이고 `app.py:create_app`이 부팅 시 부른다. 옮길 계약:
+
+- **`SENTRY_DSN`이 없으면 켜지 않는다.** 로컬·테스트의 기본 상태이며, 이 가드가 없으면 테스트가 이벤트를 밖으로 쏜다
+- `SENTRY_ENVIRONMENT`(기본 `local`)·`SENTRY_RELEASE`(기본 `unknown`). 릴리스는 커밋 SHA이고 `deploy/ssm-deploy.sh`가 systemd drop-in으로 넣는다 — **환경변수 이름과 주입 경로를 유지하면 배포 스크립트를 건드리지 않는다**
+- **주소 스크러빙** — 경로의 UUID를 `<id>`로 바꾸고 쿼리·조각을 버린다(`observability.py:scrub_url`). `send_default_pii=False`가 쿠키·헤더·IP를 막지만 **주소는 그 대상이 아니다**. breadcrumb의 `data.url`도 같이 훑는다
+- 트레이싱은 켜지 않는다(`traces_sample_rate=0.0`) — 1단계는 에러만 본다
+- 프로젝트는 `acttub-api` 하나를 dev·운영이 공유하고 `environment` 태그로 나눈다. **DSN은 인스턴스 `/etc/acttub/api.env`에 있다**(런타임 주입, 빌드에 넣지 않는다)
+
 ## 전환 절차
 
 ### ⚠️ 워커 owner는 항상 정확히 하나
@@ -102,6 +114,7 @@ dev 관찰이 끝나고 사용자가 승인하면 같은 순서. 운영은 fe/be
 - [ ] 환경변수 이름이 기존과 동일
 - [ ] `deploy/upload-api.sh`·`ssm-deploy.sh`가 jar 경로를 다룬다
 - [ ] 기동 실패가 배포 판정에 잡힌다 (`NRestarts` 확인 — `Type=simple`은 크래시루프도 active로 읽힌다)
+- [ ] **Sentry 이식**(§D) — DSN 없으면 미기동, 주소 UUID 스크러빙, `environment`·`release` 태그. **DSN 없는 상태에서 테스트가 이벤트를 쏘지 않음을 단언**
 
 ### dev 전환
 - [ ] dev 인스턴스 업그레이드 완료
@@ -110,6 +123,7 @@ dev 관찰이 끝나고 사용자가 승인하면 같은 순서. 운영은 fe/be
 - [ ] **관문 A** — 프록시 전환 후 브라우저 플로우 확인 (사용자)
 - [ ] **관문 B** — 워커 owner를 Python → Java로 넘김. **겹치는 순간 없음**을 로그로 확인
 - [ ] 워커 전환 직후 분석 1건 완주
+- [ ] **Sentry에 Java 이벤트가 실제로 도착한다** — 컷오버 시점에 수집이 끊기지 않았음을 대시보드로 확인
 - [ ] 업로드 → 분석 → 코치 → 리포트 전 플로우 동작
 - [ ] **Java 발급 토큰을 Python이 검증**하는 M2 테스트가 여전히 통과 (롤백 안전성)
 - [ ] 1주 관찰 중 오류율·응답시간이 기존과 동등
