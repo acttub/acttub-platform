@@ -1,6 +1,8 @@
 import json
 
-from acting_agent.engine import parse_coaching_response, reply, start
+import pytest
+
+from acting_agent.engine import is_closing, parse_coaching_response, reply, start
 from acting_agent.prompt import safe_template
 from acting_agent.schema import CoachSession, CoachTurn
 from acting_llm.openai_client import TokenUsage
@@ -40,6 +42,47 @@ def _start(*, actor=ACTOR, observation_pack=SUMMARY):
         generate=FakeGenerate([OPENING]),
     )
     return session
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("그만", True),
+        ("종료", True),
+        ("끝", True),
+        ("여기까지", True),
+        ("여기서 그만할게", True),
+        ("이제 그만할게요", True),
+        ("그만할래요", True),
+        ("그만하자", True),
+        ("그만하고 싶어요", True),
+        ("종료할게요", True),
+        ("그만.", True),
+        ("그만!", True),
+        ("이제 그만", True),
+        ("아 그만", True),
+        ("여기서 종료", True),
+        ("그만요", True),
+        ("종료할래요", True),
+        ("종료하자", True),
+        ("그만하고싶어요", True),
+        ("그렇그만", False),
+        ("안 그만할래요", False),
+        ("못 그만두겠어요", False),
+        ("그만하기엔 아쉬워요", False),
+        ("그만두기엔 아직", False),
+        ("종료됐어요", False),
+        ("그만큼 힘들었어요", False),
+        ("끝까지 못 갔어요", False),
+        ("대사 끝부분에서 막혔어요", False),
+        ("끝났어요", False),
+        ("그 장면 그만큼은 됐어요", False),
+        ("그만 좀 웃겨요", False),
+        ("그만 하고 다시 갈까요", False),
+    ],
+)
+def test_is_closing_only_accepts_explicit_closing_requests(text, expected):
+    assert is_closing(text) is expected
 
 
 def test_complete_with_null_handoff_is_downgraded_to_continue():
