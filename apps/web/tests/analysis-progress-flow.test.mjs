@@ -18,9 +18,12 @@ const {
 );
 const {
   ANALYSIS_PROGRESS_LIMIT,
+  COMPRESS_PROGRESS_END,
+  UPLOAD_ONLY_PROGRESS_END,
   UPLOAD_PROGRESS_END,
   advanceProgress,
   analysisProgress,
+  analysisStart,
   compressionProgress,
   settleProgress,
   uploadProgress,
@@ -85,10 +88,10 @@ test("업로드와 장면 확인 진행률은 단조 증가하고 analyzed에서
     uploadProgress(75, true),
     uploadProgress(50, true),
     uploadProgress(100, true),
-    analysisProgress(0, 47_000),
-    analysisProgress(30_000, 47_000),
-    analysisProgress(60_000, 47_000),
-    analysisProgress(120_000, 47_000),
+    analysisProgress(0, 47_000, analysisStart(true)),
+    analysisProgress(30_000, 47_000, analysisStart(true)),
+    analysisProgress(60_000, 47_000, analysisStart(true)),
+    analysisProgress(120_000, 47_000, analysisStart(true)),
   ];
   const values = candidates.reduce(
     (all, candidate) => [...all, advanceProgress(all.at(-1), candidate)],
@@ -98,27 +101,40 @@ test("업로드와 장면 확인 진행률은 단조 증가하고 analyzed에서
   for (let index = 1; index < values.length; index += 1) {
     assert.ok(values[index] >= values[index - 1]);
   }
+  // 압축을 탄 폰 경로: 압축 0→40 · 업로드 40→80 · 분석 80→99.
+  assert.equal(compressionProgress(1), COMPRESS_PROGRESS_END);
+  assert.equal(uploadProgress(0, true), COMPRESS_PROGRESS_END);
   assert.equal(uploadProgress(100, true), UPLOAD_PROGRESS_END);
   assert.ok(UPLOAD_PROGRESS_END < 100);
-  // 압축을 건너뛴 영상은 업로드가 0에서 시작해 같은 자리에서 끝난다.
+  // 압축을 건너뛴 노트북 경로: 업로드 0→60 · 분석 60→99.
   assert.equal(uploadProgress(0, false), 0);
-  assert.equal(uploadProgress(100, false), UPLOAD_PROGRESS_END);
+  assert.equal(uploadProgress(100, false), UPLOAD_ONLY_PROGRESS_END);
+  assert.ok(UPLOAD_ONLY_PROGRESS_END < UPLOAD_PROGRESS_END);
+  // 압축을 탄 쪽이 같은 업로드 진행률에서 항상 앞선다 — 앞 구간을 이미 채웠기 때문이다.
   assert.ok(uploadProgress(50, false) < uploadProgress(50, true));
-  assert.equal(analysisProgress(600_000, 47_000), ANALYSIS_PROGRESS_LIMIT);
+  // 분석 구간은 두 경로 모두 자기 시작점에서 출발한다.
+  assert.equal(analysisProgress(0, 47_000, analysisStart(true)), UPLOAD_PROGRESS_END);
+  assert.equal(analysisProgress(0, 47_000, analysisStart(false)), UPLOAD_ONLY_PROGRESS_END);
+  assert.equal(analysisProgress(600_000, 47_000, analysisStart(true)), ANALYSIS_PROGRESS_LIMIT);
   assert.ok(ANALYSIS_PROGRESS_LIMIT < 100);
-  // 분석 구간은 영상 길이에 비례해 찬다 — 20에서 시작해 95를 넘지 않는다.
-  assert.equal(analysisProgress(0, 47_000), UPLOAD_PROGRESS_END);
-  assert.ok(analysisProgress(30_000, 47_000) > analysisProgress(10_000, 47_000));
-  assert.ok(analysisProgress(300_000, 47_000) <= ANALYSIS_PROGRESS_LIMIT);
-  // 상한에 닿는 지점은 영상 길이의 0.9375배다. 실측(47초 영상 → 분석 41.4초)이
+  assert.ok(
+    analysisProgress(30_000, 47_000, analysisStart(true))
+      > analysisProgress(10_000, 47_000, analysisStart(true)),
+  );
+  // 상한에 닿는 지점은 영상 길이와 같다. 실측(47초 영상 → 분석 41.4초)이
   // 그보다 앞이라 분석이 끝나는 순간 막대는 아직 움직이는 중이다.
-  assert.equal(analysisProgress(0.9375 * 47_000, 47_000), ANALYSIS_PROGRESS_LIMIT);
-  assert.ok(analysisProgress(41_400, 47_000) < ANALYSIS_PROGRESS_LIMIT);
+  assert.equal(analysisProgress(47_000, 47_000, analysisStart(true)), ANALYSIS_PROGRESS_LIMIT);
+  assert.ok(analysisProgress(41_400, 47_000, analysisStart(true)) < ANALYSIS_PROGRESS_LIMIT);
   // 긴 영상은 같은 시각에 덜 찬다.
-  assert.ok(analysisProgress(30_000, 120_000) < analysisProgress(30_000, 47_000));
-  // 목록에서 연 세션은 길이를 모르지만 그래도 구간 안에서 움직인다.
-  const noDuration = analysisProgress(10_000, null);
-  assert.ok(noDuration > UPLOAD_PROGRESS_END && noDuration < ANALYSIS_PROGRESS_LIMIT);
+  assert.ok(
+    analysisProgress(30_000, 120_000, analysisStart(true))
+      < analysisProgress(30_000, 47_000, analysisStart(true)),
+  );
+  // 목록에서 연 세션은 길이도 압축 여부도 모르지만 그래도 구간 안에서 움직인다.
+  const noDuration = analysisProgress(10_000, null, analysisStart(false));
+  assert.ok(
+    noDuration > UPLOAD_ONLY_PROGRESS_END && noDuration < ANALYSIS_PROGRESS_LIMIT,
+  );
   assert.equal(settleProgress(ANALYSIS_PROGRESS_LIMIT, "analyzing"), ANALYSIS_PROGRESS_LIMIT);
   assert.equal(settleProgress(ANALYSIS_PROGRESS_LIMIT, "failed"), ANALYSIS_PROGRESS_LIMIT);
   assert.equal(settleProgress(ANALYSIS_PROGRESS_LIMIT, "analyzed"), 100);

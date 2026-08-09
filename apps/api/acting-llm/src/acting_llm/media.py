@@ -1,3 +1,4 @@
+import os
 import shutil
 import subprocess
 import tempfile
@@ -5,8 +6,26 @@ import threading
 from pathlib import Path
 
 _FFMPEG_TIMEOUT_SECONDS = 120
-# 512MB 인스턴스에서 ffmpeg 2개가 겹치면 OOM — 세 호출 모두 한 번에 하나만 돌린다.
+# ffmpeg 2개가 겹치면 작은 인스턴스에서 OOM — 세 호출 모두 한 번에 하나만 돌린다.
+# 대신 한 번에 도는 그 하나가 코어를 다 쓰게 아래 ffmpeg_threads()로 스레드를 준다.
 _FFMPEG_LOCK = threading.Lock()
+
+# 스레드 수 상한. 이보다 코어가 많아도 인코딩 이득이 급격히 줄고 메모리만 는다.
+_FFMPEG_MAX_THREADS = 4
+
+
+def ffmpeg_threads() -> str:
+    """ffmpeg -threads 값.
+
+    2026-08-09까지 "1"로 박혀 있었다. 근거는 Render 무료 티어(0.1 CPU · 512MB)였는데
+    운영이 EC2로 옮겨간 뒤에도 그대로여서, 코어를 놀리면서 분석이 느렸다.
+    락으로 동시 실행을 이미 막아 두었으므로 한 번에 도는 하나는 코어를 다 써도 된다.
+    FFMPEG_THREADS 로 덮어쓸 수 있다(작은 인스턴스로 되돌릴 때 "1").
+    """
+    override = os.environ.get("FFMPEG_THREADS", "").strip()
+    if override:
+        return override
+    return str(max(1, min(_FFMPEG_MAX_THREADS, os.cpu_count() or 1)))
 
 
 def clip_head(src_path: str | Path, duration_ms: int | float) -> Path:
@@ -21,7 +40,7 @@ def clip_head(src_path: str | Path, duration_ms: int | float) -> Path:
                 "-loglevel",
                 "error",
                 "-threads",
-                "1",
+                ffmpeg_threads(),
                 "-i",
                 str(src_path),
                 "-t",
@@ -63,7 +82,7 @@ def extract_audio(src_path: str | Path, duration_ms: int | float) -> Path:
                 "-loglevel",
                 "error",
                 "-threads",
-                "1",
+                ffmpeg_threads(),
                 "-i",
                 str(src_path),
                 "-t",
