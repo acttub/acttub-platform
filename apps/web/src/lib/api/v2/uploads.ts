@@ -42,6 +42,12 @@ export type UploadVideoOptions = {
   onProgress?: (progress: UploadProgress) => void;
   signal?: AbortSignal;
   uploader?: S3Uploader;
+  /**
+   * false 면 S3 PUT 까지만 하고 완료 처리는 finalizeUpload 로 미룬다.
+   * 완료된 인텐트는 만료 스윕이 회수하지 않으므로(PENDING 만 본다), 배우가 아직
+   * 연습을 시작하겠다고 하기 전에 완료해 두면 도중에 그만둔 영상이 S3 에 영영 남는다.
+   */
+  finalize?: boolean;
 };
 
 type UploadRequestOptions = {
@@ -345,6 +351,8 @@ export async function uploadVideo(
     throw asUploadError("put", error, "영상을 업로드하지 못했어요.");
   }
 
+  if (options.finalize === false) return { intentId: intent.intent_id };
+
   try {
     throwIfAborted("complete", options.signal);
     await completeUploadIntent(intent.intent_id, { signal: options.signal });
@@ -360,4 +368,29 @@ export async function uploadVideo(
   }
 
   return { intentId: intent.intent_id };
+}
+
+/** finalize:false 로 올린 인텐트를 뒤늦게 완료 처리한다. */
+export async function finalizeUpload(
+  intentId: string,
+  options: UploadRequestOptions = {},
+): Promise<void> {
+  try {
+    throwIfAborted("complete", options.signal);
+    await completeUploadIntent(intentId, { signal: options.signal });
+  } catch (error) {
+    if (
+      MOCK_S3_UPLOAD
+      && error instanceof ApiError
+      && error.status === 409
+      && (error.code === "upload_not_found" || error.detail === "upload_not_found")
+    ) {
+      throw new UploadError(
+        "complete",
+        "mock 업로드는 실제 S3 객체가 없어 finalize 불가 — S3 CORS 설정 또는 백엔드 스토리지 페이크 필요",
+        error,
+      );
+    }
+    throw asUploadError("complete", error, "업로드 완료 확인에 실패했어요.");
+  }
 }
