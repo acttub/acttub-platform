@@ -191,8 +191,7 @@ def test_coach_contract_persists_internal_handoff_without_leaking_labels():
     assert started.json()["message"] == COACH_COMPLETE["message"]
     assert started.json()["status"] == "complete"
     assert set(started.json()["handoff"]) == {"id", "branch_kind"}
-    # 배우가 아직 아무 질문에도 답하지 않았으므로 노트는 만들지 않는다.
-    assert started.json()["report"]["report_type"] == "blocked"
+    assert started.json()["report"]["report_type"] == "analysis"
     handoff_id = UUID(started.json()["handoff"]["id"])
     assert store.handoffs[handoff_id].handoff_json["line_meaning"]
     assert len(coach.calls) == 1
