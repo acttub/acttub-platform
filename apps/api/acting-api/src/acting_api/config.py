@@ -8,7 +8,9 @@ from acting_api.db.engine import normalize_database_url
 
 DEFAULT_KEEP_ALIVE_INTERVAL_SEC = 600
 DEFAULT_ANALYSIS_WORKER_CONCURRENCY = 1
-DEFAULT_ANALYSIS_WORKER_POLL_INTERVAL_SEC = 2.0
+# 놀고 있을 때 다음 분석을 집어 오는 간격. 업로드를 마친 배우의 첫 대기에 그대로
+# 붙으므로 2.0에서 0.5로 줄였다(2026-08-09). 조회 한 번이라 DB 부담이 거의 없다.
+DEFAULT_ANALYSIS_WORKER_POLL_INTERVAL_SEC = 0.5
 DEFAULT_ANALYSIS_LEASE_SEC = 1800
 DEFAULT_ANALYSIS_SWEEP_INTERVAL_SEC = 60.0
 DEFAULT_CONSENT_DOCS_DIR = Path(__file__).resolve().parents[2] / "consent_docs"

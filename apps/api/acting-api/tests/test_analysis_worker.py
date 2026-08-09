@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 import os
+import threading
 from types import SimpleNamespace
 from uuid import UUID, uuid4
 
@@ -127,7 +128,7 @@ def test_non_analysis_sessions_do_not_call_transcription(
     assert result.transcripts == ()
 
 
-def test_analysis_transcribes_after_gemini_and_cleans_audio(monkeypatch, tmp_path):
+def test_analysis_transcribes_alongside_gemini_and_cleans_audio(monkeypatch, tmp_path):
     events = []
     monkeypatch.setattr(compress_mod, "compress_for_gemini", lambda path: path)
 
@@ -171,9 +172,53 @@ def test_analysis_transcribes_after_gemini_and_cleans_audio(monkeypatch, tmp_pat
         duration_ms=1000,
     )
 
-    assert events == ["gemini", "extract", "transcribe"]
+    # 관찰 팩과 전사는 겹쳐 돌므로 셋의 순서는 고정되지 않는다.
+    # 전사 안에서의 순서(오디오 추출 → 받아쓰기)만 지켜지면 된다.
+    assert sorted(events) == ["extract", "gemini", "transcribe"]
+    assert events.index("extract") < events.index("transcribe")
     assert result.transcripts == ("첫 대사.", "다음 대사?", "마지막 대사")
     assert not audio_path.exists()
+    assert not audio_dir.exists()
+
+
+def test_transcription_starts_before_gemini_finishes(monkeypatch, tmp_path):
+    """전사가 관찰 팩 뒤로 밀리면 배우는 두 대기를 더한 만큼 기다린다."""
+    monkeypatch.setattr(compress_mod, "compress_for_gemini", lambda path: path)
+    extract_started = threading.Event()
+    audio_dir = tmp_path / "overlap-transcription"
+    audio_path = audio_dir / "audio.mp3"
+
+    def extract_audio(video_path, duration_ms):
+        extract_started.set()
+        audio_dir.mkdir()
+        audio_path.write_bytes(b"mp3")
+        return audio_path
+
+    def summarize(*args, **kwargs):
+        assert extract_started.wait(10), "전사가 관찰 팩과 겹쳐서 시작하지 않았다"
+        return SUMMARY
+
+    monkeypatch.setattr(summarizer_mod, "summarize", summarize)
+    analyzer = SummaryAnalyzer(
+        client=object(),
+        model="gemini-test",
+        extract_audio=extract_audio,
+        transcribe_audio=lambda path, system_prompt: ("대사", object()),
+    )
+
+    result = analyzer.analyze(
+        str(tmp_path / "video.mp4"),
+        SimpleNamespace(
+            blockage_kind="분석",
+            situation="상황",
+            character_context="인물",
+            goal="목적",
+            blockage_detail="상세",
+        ),
+        duration_ms=1000,
+    )
+
+    assert result.transcripts == ("대사",)
     assert not audio_dir.exists()
 
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 import logging
@@ -104,6 +105,11 @@ class SummaryAnalyzer:
     ) -> AnalysisResult:
         duration_ms = _video_duration_ms(video_path, duration_ms)
         send_path = video_path
+        # 전사는 관찰 팩과 입력도 결과도 겹치지 않는다(원본 오디오 vs 압축 영상).
+        # 순차로 돌리면 배우는 두 대기를 더한 만큼 기다린다 — 겹쳐서 돌린다.
+        # ffmpeg 구간은 _FFMPEG_LOCK 이 여전히 하나씩 태우고, 겹치는 건 두 모델 호출이다.
+        pool = ThreadPoolExecutor(max_workers=1)
+        pending = pool.submit(self._transcribe, video_path, session.blockage_kind)
         try:
             send_path = compress_mod.compress_for_gemini(video_path)
             observation_pack = summarizer_mod.summarize(
@@ -119,7 +125,15 @@ class SummaryAnalyzer:
                 client=self._client,
                 model=self.model,
             )
-            transcripts = self._transcribe(video_path, session.blockage_kind)
+        except BaseException:
+            # 관찰 팩이 실패하면 전사를 기다리지 않는다. 기다리면 전사가 자기
+            # 타임아웃을 다 쓰는 동안(분 단위) 워커 하나가 묶여 다음 분석을 못 잡는다.
+            # 이미 시작한 전사는 배경에서 알아서 끝나고 결과는 버려진다.
+            pool.shutdown(wait=False, cancel_futures=True)
+            raise
+        else:
+            transcripts = self._collect_transcripts(pending)
+            pool.shutdown(wait=False)
             return AnalysisResult(
                 observation_pack=observation_pack,
                 was_compressed=(send_path != video_path),
@@ -128,6 +142,16 @@ class SummaryAnalyzer:
         finally:
             if send_path != video_path:
                 Path(send_path).unlink(missing_ok=True)
+
+    @staticmethod
+    def _collect_transcripts(pending) -> tuple[str, ...]:
+        try:
+            return pending.result()
+        except Exception:
+            # _transcribe 는 이미 자기 예외를 삼키지만, 여기서 새는 것까지 막는다 —
+            # 전사가 없다고 분석 전체를 실패시키지는 않는다.
+            logger.warning("transcription task failed", exc_info=True)
+            return ()
 
     def _transcribe(self, video_path: str, blockage_kind: str) -> tuple[str, ...]:
         if blockage_kind != "분석":
@@ -302,7 +326,9 @@ class AnalysisWorkerPool:
         *,
         worker: AnalysisWorker,
         concurrency: int = 1,
-        poll_interval_sec: float = 2.0,
+        # 놀고 있을 때 다음 분석을 집어 오는 간격. 배우가 업로드를 마친 직후라
+        # 이 값이 그대로 첫 대기에 붙는다. 조회 한 번이라 0.5초로 줄여도 부담이 없다.
+        poll_interval_sec: float = 0.5,
         sweep_interval_sec: float = 60.0,
         monotonic=time.monotonic,
     ):
