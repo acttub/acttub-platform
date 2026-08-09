@@ -133,6 +133,12 @@ def _generate_completed_turn_report(
         if session.observation_pack is not None
         else {"observations": [], "uncertainties": []}
     )
+    words = handoff.get("actor_words")
+    if words:
+        handoff = {
+            **handoff,
+            "actor_words": [w for w in words if not coach_engine.is_closing(w)],
+        }
     return report_engine.generate_report(
         report_type=branch,
         video_summary=video_summary,
@@ -141,6 +147,38 @@ def _generate_completed_turn_report(
         coaching_handoff_id=str(handoff_id),
         analysis_handoff=session.analysis_handoff,
         **kwargs,
+    )
+
+
+_MIN_ANSWERS_FOR_REPORT = 2
+
+
+def _report_for_completed_turn(
+    session,
+    *,
+    branch: Literal["analysis", "expression"],
+    handoff_id: UUID,
+    handoff: dict[str, Any] | None,
+    generate=None,
+) -> PracticeReport:
+    """배우가 실제로 답한 게 거의 없으면 노트를 만들지 않는다.
+
+    첫 actor 턴은 대화가 아니라 폼에 적은 목표·막힌 지점이므로(engine.start) 빼고 센다.
+    """
+    answers = [t for t in session.turns if t.role == "actor"][1:]
+    answered = sum(1 for t in answers if not coach_engine.is_closing(t.text))
+    if handoff is None or answered < _MIN_ANSWERS_FOR_REPORT:
+        return (
+            report_engine.BLOCKED_ANALYSIS_REPORT
+            if branch == "analysis"
+            else report_engine.BLOCKED_EXPRESSION_REPORT
+        )
+    return _generate_completed_turn_report(
+        session,
+        branch=branch,
+        handoff_id=handoff_id,
+        handoff=handoff,
+        generate=generate,
     )
 
 
@@ -249,14 +287,14 @@ def build_router(
             handoff_id = uuid4() if reply.status == "complete" else None
             report = (
                 await run_in_threadpool(
-                    _generate_completed_turn_report,
+                    _report_for_completed_turn,
                     session,
                     branch=branch,
                     handoff_id=handoff_id,
                     handoff=reply.handoff,
                     generate=report_generate,
                 )
-                if handoff_id is not None and reply.handoff is not None
+                if handoff_id is not None
                 else None
             )
             report_json = (
@@ -340,14 +378,14 @@ def build_router(
             handoff_id = uuid4() if reply.status == "complete" else None
             report = (
                 await run_in_threadpool(
-                    _generate_completed_turn_report,
+                    _report_for_completed_turn,
                     owned.session,
                     branch=branch,
                     handoff_id=handoff_id,
                     handoff=reply.handoff,
                     generate=report_generate,
                 )
-                if handoff_id is not None and reply.handoff is not None
+                if handoff_id is not None
                 else None
             )
             report_json = (

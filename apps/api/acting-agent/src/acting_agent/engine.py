@@ -17,7 +17,15 @@ log = logging.getLogger(__name__)
 
 GenerateText = Callable[[str, str], tuple[str, TokenUsage]]
 _FENCED_JSON = re.compile(r"^```(?:json)?\s*([\s\S]*?)\s*```$", re.IGNORECASE)
-_CLOSING_WORDS = ("그만", "종료", "끝")
+_CLOSING_STRIP = re.compile(r"""[\s.,!?~…·'"]+""")
+# 이 넷은 발화 전체가 그 말일 때만 종료로 본다. "끝"은 한 글자라
+# "끝까지", "끝나고" 같은 정상 답변에 항상 걸린다.
+_CLOSING_EXACT = frozenset({"그만", "종료", "끝", "여기까지"})
+# 짧은 발화 안에서만 부분 일치를 허용한다 ("여기서 그만할게").
+_CLOSING_LOOSE = ("그만", "종료")
+_CLOSING_LOOSE_MAX_LEN = 10
+# "그만큼"은 종료와 무관하게 흔히 쓰인다.
+_CLOSING_FALSE_FRIENDS = ("그만큼",)
 _CLOSING_TURN_INSTRUCTION = """
 
 ## 배우의 마무리 요청
@@ -26,6 +34,22 @@ _CLOSING_TURN_INSTRUCTION = """
 아직 확인하지 못한 내용은 uncertainties에 남긴다.
 실험 전이라도 현재까지의 handoff를 작성해 status를 complete로 출력한다.
 """.rstrip()
+
+
+def is_closing(text: str) -> bool:
+    """배우가 대화를 끝내겠다고 한 말인지 판정한다.
+
+    오탐이 미탐보다 훨씬 비싸다. 오탐이면 답변 도중에 세션이 끊기고, 미탐이면
+    배우가 '그만'을 한 번 더 치면 된다. 그래서 길게 설명하는 문장은 종료로 보지 않는다.
+    """
+    stripped = _CLOSING_STRIP.sub("", text)
+    if stripped in _CLOSING_EXACT:
+        return True
+    if len(stripped) > _CLOSING_LOOSE_MAX_LEN:
+        return False
+    if any(word in stripped for word in _CLOSING_FALSE_FRIENDS):
+        return False
+    return any(word in stripped for word in _CLOSING_LOOSE)
 
 
 def parse_coaching_response(raw_text: str) -> CoachReply:
@@ -130,7 +154,7 @@ def reply(
     generate: GenerateText = generate_text,
 ) -> CoachReply:
     user_message = actor_text
-    if any(word in actor_text for word in _CLOSING_WORDS):
+    if is_closing(actor_text):
         user_message += _CLOSING_TURN_INSTRUCTION
     response = _generate_validated(session, user_message, generate=generate)
     session.turns.append(CoachTurn(role="actor", text=actor_text))

@@ -9,6 +9,7 @@ from acting_api.config import GatewaySettings
 from acting_api.db.models import PracticeStatus
 from acting_summary.config import Settings as SummarySettings
 from api_test_support import (
+    ANALYSIS_HANDOFF,
     COACH_COMPLETE,
     COACH_FOLLOWUP,
     REPORT,
@@ -190,7 +191,8 @@ def test_coach_contract_persists_internal_handoff_without_leaking_labels():
     assert started.json()["message"] == COACH_COMPLETE["message"]
     assert started.json()["status"] == "complete"
     assert set(started.json()["handoff"]) == {"id", "branch_kind"}
-    assert started.json()["report"]["report_type"] == "analysis"
+    # 배우가 아직 아무 질문에도 답하지 않았으므로 노트는 만들지 않는다.
+    assert started.json()["report"]["report_type"] == "blocked"
     handoff_id = UUID(started.json()["handoff"]["id"])
     assert store.handoffs[handoff_id].handoff_json["line_meaning"]
     assert len(coach.calls) == 1
@@ -312,10 +314,24 @@ def test_coach_start_resumes_the_oldest_of_multiple_open_sessions():
 
 def test_actor_stop_completes_closes_and_returns_report_without_confirmation_step():
     client, store, coach, _, user, headers = _application(
-        coach_responses=[COACH_FOLLOWUP, COACH_COMPLETE],
+        coach_responses=[
+            COACH_FOLLOWUP,
+            COACH_FOLLOWUP,
+            COACH_FOLLOWUP,
+            COACH_COMPLETE,
+        ],
         report_responses=[REPORT.model_dump(mode="json")],
     )
     started = _start(client, store, user, headers)
+    for answer in ("상대를 붙잡고 싶었어요", "말이 안 통한다고 느꼈어요"):
+        assert (
+            client.post(
+                "/v2/coach/reply",
+                json={"session_id": started.json()["session_id"], "text": answer},
+                headers={**headers, "X-Request-Id": str(uuid4())},
+            ).status_code
+            == 200
+        )
 
     completed = client.post(
         "/v2/coach/reply",
@@ -331,6 +347,59 @@ def test_actor_stop_completes_closes_and_returns_report_without_confirmation_ste
     assert store.confirmations[handoff_id].confirmed is True
     assert store.coach_sessions[started.json()["session_id"]].status == "closed"
     assert handoff_id in store.practice_reports
+
+
+def test_stop_without_answers_returns_blocked_and_stores_no_report():
+    client, store, _, report_generate, user, headers = _application(
+        coach_responses=[COACH_FOLLOWUP, COACH_COMPLETE],
+        report_responses=[REPORT.model_dump(mode="json")],
+    )
+    started = _start(client, store, user, headers)
+
+    completed = client.post(
+        "/v2/coach/reply",
+        json={"session_id": started.json()["session_id"], "text": "그만"},
+        headers={**headers, "X-Request-Id": str(uuid4())},
+    )
+
+    assert completed.status_code == 200
+    assert completed.json()["report"]["report_type"] == "blocked"
+    assert store.practice_reports == {}
+    assert report_generate.calls == []
+    assert store.coach_sessions[started.json()["session_id"]].status == "closed"
+
+
+def test_closing_word_is_not_copied_into_the_note():
+    handoff = {
+        **ANALYSIS_HANDOFF,
+        "actor_words": ["그만", "상대를 붙잡고 싶었어요"],
+    }
+    client, store, _, report_generate, user, headers = _application(
+        coach_responses=[
+            COACH_FOLLOWUP,
+            COACH_FOLLOWUP,
+            COACH_FOLLOWUP,
+            {**COACH_COMPLETE, "handoff": handoff},
+        ],
+        report_responses=[REPORT.model_dump(mode="json")],
+    )
+    started = _start(client, store, user, headers)
+    for answer in ("상대를 붙잡고 싶었어요", "말이 안 통한다고 느꼈어요"):
+        client.post(
+            "/v2/coach/reply",
+            json={"session_id": started.json()["session_id"], "text": answer},
+            headers={**headers, "X-Request-Id": str(uuid4())},
+        )
+
+    client.post(
+        "/v2/coach/reply",
+        json={"session_id": started.json()["session_id"], "text": "그만"},
+        headers={**headers, "X-Request-Id": str(uuid4())},
+    )
+
+    sent_to_report = report_generate.calls[-1][1]
+    assert "상대를 붙잡고 싶었어요" in sent_to_report
+    assert '"그만"' not in sent_to_report
 
 
 def test_expression_stop_before_experiment_returns_blocked_but_auto_confirms():
@@ -501,7 +570,7 @@ def test_reports_endpoint_blocks_unconfirmed_handoff_without_model_call():
     started = _start(client, store, user, headers)
     handoff_id = UUID(started.json()["handoff"]["id"])
     store.confirmations[handoff_id].confirmed = False
-    store.practice_reports.pop(handoff_id)
+    store.practice_reports.pop(handoff_id, None)
     report_calls = len(report_generate.calls)
 
     response = client.post(
