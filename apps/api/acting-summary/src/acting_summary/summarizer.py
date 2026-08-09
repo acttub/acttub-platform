@@ -70,7 +70,9 @@ def summarize(
     model: str,
     # 압축 폴백으로 수백 MB 원본이 올라오면 Files API 처리(ACTIVE 전환)가 오래 걸린다
     active_timeout: float = 300.0,
-    poll_interval: float = 2.0,
+    # ACTIVE 전환은 보통 1~2초에 끝난다. 2초 간격이면 그 대기의 절반이 폴링 지연이라
+    # 0.4초로 줄인다 — 요청은 상태 조회 한 번이라 비용이 거의 없다.
+    poll_interval: float = 0.4,
     cache_dir=None,
 ) -> ObservationPack:
     prompt = buildObservationPrompt(actor)

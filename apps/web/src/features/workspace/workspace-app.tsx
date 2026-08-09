@@ -384,7 +384,11 @@ function WorkspaceInner() {
     const controller = new AbortController();
     analysisControllerRef.current = controller;
     void pollSessionUntilSettled(practiceSessionId, {
-      intervalMs: 4000,
+      // 분석이 끝나도 이 간격만큼은 화면이 모른다. 4초 → 3초로만 줄인다.
+      // 더 줄이지 않는 이유는 사용자당 60회/분 제한을 이 폴링이 혼자 먹기 때문이다
+      // (3초면 20회/분, 두 탭이어도 40회/분). client.ts 에 429 백오프가 생기기
+      // 전까지는 429 한 번에 폴링이 끊기고 화면이 오류로 남는다.
+      intervalMs: 3000,
       signal: controller.signal,
       onStatus: (status) => {
         if (activeIdRef.current === practiceSessionId) setAnalysisStatus(status);
