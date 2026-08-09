@@ -113,6 +113,8 @@ export async function compressVideo(
 
         return {
           codec: "avc",
+          // 폰 브라우저에서 소프트웨어 인코더로 떨어지면 압축만 몇 배 느려진다.
+          hardwareAcceleration: "prefer-hardware",
           bitrate: computeVideoBitrate(durationSec),
           forceTranscode: true,
           ...computeOutputDimensions(displayWidth, displayHeight),
