@@ -186,7 +186,7 @@ test("blocked 결과는 대화 내용과 안내와 돌아가기 버튼을 보여
 
   assert.match(workspace, /report\.report_type === "blocked"/);
   assert.match(workspace, /messages\.map/);
-  assert.match(workspace, /아직 한 번도 해보지 않아서 정리할 게 부족해요/);
+  assert.match(workspace, /오늘은 여기까지 나눴어요/);
   assert.match(workspace, /대화로 돌아가기/);
   assert.doesNotMatch(workspace, /confirmed_expression_handoff_required/);
 });

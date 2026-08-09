@@ -144,6 +144,43 @@ def _generate_completed_turn_report(
     )
 
 
+_MIN_ANSWERS_FOR_REPORT = 2
+
+
+def _report_for_completed_turn(
+    session,
+    *,
+    branch: Literal["analysis", "expression"],
+    handoff_id: UUID,
+    handoff: dict[str, Any] | None,
+    generate=None,
+) -> PracticeReport:
+    """배우가 실제로 답한 게 거의 없으면 노트를 만들지 않는다.
+
+    첫 actor 턴은 대화가 아니라 폼에 적은 목표·막힌 지점이므로(engine.start) 빼고 센다.
+
+    coach_start 에는 걸지 않는다. 거기에 걸면 리포트 생성이 한 번도 돌지 않아
+    coach_start 의 502(리포트 파싱 실패) 경로가 도달 불가가 되고, 그 502로 retry
+    소진을 확인하는 계약 하네스 시나리오까지 죽는다. 첫 턴에 바로 complete 되는
+    경우는 따로 다룬다.
+    """
+    answers = [t for t in session.turns if t.role == "actor"][1:]
+    answered = sum(1 for t in answers if not coach_engine.is_closing(t.text))
+    if handoff is None or answered < _MIN_ANSWERS_FOR_REPORT:
+        return (
+            report_engine.BLOCKED_ANALYSIS_REPORT
+            if branch == "analysis"
+            else report_engine.BLOCKED_EXPRESSION_REPORT
+        )
+    return _generate_completed_turn_report(
+        session,
+        branch=branch,
+        handoff_id=handoff_id,
+        handoff=handoff,
+        generate=generate,
+    )
+
+
 def build_router(
     *,
     store,
@@ -340,14 +377,14 @@ def build_router(
             handoff_id = uuid4() if reply.status == "complete" else None
             report = (
                 await run_in_threadpool(
-                    _generate_completed_turn_report,
+                    _report_for_completed_turn,
                     owned.session,
                     branch=branch,
                     handoff_id=handoff_id,
                     handoff=reply.handoff,
                     generate=report_generate,
                 )
-                if handoff_id is not None and reply.handoff is not None
+                if handoff_id is not None
                 else None
             )
             report_json = (

@@ -199,6 +199,33 @@ def test_closing_word_appends_completion_instruction_but_stores_actor_words_only
     assert "## 배우의 마무리 요청" in generate.calls[0][1]
     assert "더 질문하지 말고 지금까지 모인 내용만으로" in generate.calls[0][1]
     assert session.turns[-2] == CoachTurn(role="actor", text="여기서 그만할게")
+    # 종료어는 배우가 남긴 말이 아니므로 handoff 에 남기지 않는다
+    assert result.handoff["actor_words"] == []
+
+
+def test_handoff_keeps_real_words_and_drops_non_strings():
+    response = json.dumps(
+        {
+            "message": "여기까지 정리할게.",
+            "status": "complete",
+            "handoff": {
+                "line_meaning": "붙잡으려는 말",
+                "timing_reason": "떠나려 해서",
+                "target_effect": "멈추게 하기",
+                "scene_evidence": [],
+                # 모델이 리스트 안에 문자열이 아닌 값을 섞어 보내도 터지지 않아야 한다
+                "actor_words": ["그만", "상대를 붙잡고 싶었어요", 3, None],
+                "coach_summary": "상대를 붙잡으려는 말이다",
+                "uncertainties": [],
+            },
+        },
+        ensure_ascii=False,
+    )
+    session = _start()
+
+    result = reply(session, "상대를 붙잡고 싶었어요", generate=FakeGenerate([response]))
+
+    assert result.handoff["actor_words"] == ["상대를 붙잡고 싶었어요"]
 
 
 def test_reply_keeps_latest_actor_message_out_of_recent_turns():

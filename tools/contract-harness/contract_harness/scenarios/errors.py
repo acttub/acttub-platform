@@ -398,6 +398,16 @@ def error_manifest(ctx) -> None:
     coach_session_id = started.parsed["session_id"]
     ctx.register(coach_session_id, "coach_session")
 
+    # 노트는 배우가 두 번 이상 답한 뒤에만 만들어진다 — 502 를 보려면 답을 채워야 한다
+    for idx, answer in enumerate(("상대를 붙잡고 싶었어요", "말이 안 통한다고 느꼈어요")):
+        ctx.call(
+            f"coach.reply-answer-{idx}",
+            "post",
+            "/v2/coach/reply",
+            json={"session_id": coach_session_id, "text": answer},
+            headers={**headers, "X-Request-Id": ctx.request_id(f"coach-reply-answer-{idx}")},
+        )
+
     # 리포트 파싱 실패 → 502 (동적 detail 을 스텁으로 고정한다)
     ctx.call(
         "coach.reply-502",

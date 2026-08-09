@@ -10,9 +10,9 @@ export function PracticeReportCards({ report }: { report: PracticeReport }) {
   if (!visibleReport) {
     return (
       <section className="px-6 py-10 text-center">
-        <h2 className="text-xl font-black text-[#191f28]">아직 정리할 내용이 부족해요</h2>
+        <h2 className="text-xl font-black text-[#191f28]">오늘은 여기까지 나눴어요</h2>
         <p className="mt-3 text-sm font-semibold leading-6 text-[#4e5968]">
-          대화로 돌아가 한 번 시도한 뒤, 달라진 점을 이어서 이야기해 주세요.
+          노트로 남기기엔 짧아서, 다음에 이어서 해요.
         </p>
       </section>
     );
