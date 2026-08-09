@@ -29,7 +29,7 @@ import type {
 } from "@/lib/api/v2/types";
 import { isLoggedIn } from "@/lib/auth/token-store";
 import { prepareVideoUpload } from "@/lib/media/upload-preflight";
-import { uploadVideo } from "@/lib/api/v2/uploads";
+import { finalizeUpload, uploadVideo } from "@/lib/api/v2/uploads";
 import {
   trackDialogueStarted,
   trackResultViewed,
@@ -62,6 +62,12 @@ import {
 
 /** 준비 → 업로드 → 대화 → 노트. 화면이 단계마다 대화 쪽으로 좁혀진다. */
 type Mode = "prep" | "blockage" | "uploading" | "preparing" | "chat" | "note";
+// "질문 받기"에서 먼저 띄운 압축·업로드가 남기는 것. 막힘 선택이 끝나면 begin 이 이어받는다.
+type PendingUploadResult = {
+  intentId: string;
+  durationMs: number;
+  compressionRan: boolean;
+};
 type ChatMsg = { role: "ai" | "me"; text: string };
 
 export function WorkspaceApp() {
@@ -187,6 +193,10 @@ function WorkspaceInner() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const chatScrollRef = useRef<HTMLDivElement | null>(null);
   const uploadControllerRef = useRef<AbortController | null>(null);
+  const pendingUploadRef = useRef<{
+    controller: AbortController;
+    promise: Promise<PendingUploadResult>;
+  } | null>(null);
   const analysisControllerRef = useRef<AbortController | null>(null);
   const analysisStartedAtRef = useRef<number | null>(null);
   const activeIdRef = useRef<string | null>(null);
@@ -251,7 +261,16 @@ function WorkspaceInner() {
     return () => window.clearInterval(timer);
   }, [analysisStartPct, analysisStatus, mode, videoDurationMs]);
 
+  // 미리 시작한 압축·업로드를 버린다. 끊지 않으면 배우가 떠난 뒤에도 폰이 계속 인코딩한다.
+  const discardPendingUpload = useCallback(() => {
+    pendingUploadRef.current?.controller.abort();
+    pendingUploadRef.current = null;
+    uploadControllerRef.current?.abort();
+    uploadControllerRef.current = null;
+  }, []);
+
   const resetToPrep = useCallback(() => {
+    discardPendingUpload();
     analysisControllerRef.current?.abort();
     activeIdRef.current = null;
     setMode("prep");
@@ -280,7 +299,7 @@ function WorkspaceInner() {
     });
     setDrawerOpen(false);
     replaceUrl("/practice/new");
-  }, []);
+  }, [discardPendingUpload]);
 
   // 후기는 대화가 시작된 뒤에만 묻는다 — 영상만 올리고 나간 사람은 답할 게 없다.
   const reviewArmed = mode === "chat" || mode === "note";
@@ -414,6 +433,9 @@ function WorkspaceInner() {
 
   const onPickFile = (file: File | null) => {
     if (!file) return;
+    // 고르던 영상을 바꾸면 앞서 시작한 압축·업로드는 버린다.
+    discardPendingUpload();
+    setPct(0);
     setVideoUrl((prev) => {
       if (prev) URL.revokeObjectURL(prev);
       return URL.createObjectURL(file);
@@ -422,21 +444,20 @@ function WorkspaceInner() {
     setError(null);
   };
 
-  const begin = useCallback(async (blockage: BlockageSelection) => {
-    if (!videoFile) return;
-    setError(null);
-    setMode("uploading");
-    setPct(0);
-    analysisStartedAtRef.current = null;
+  // 압축·업로드는 "질문 받기"를 누른 순간 시작해서 막힘을 고르는 동안 뒤에서 돈다.
+  // 막힘 선택이 끝난 뒤에 시작하면 배우는 고르는 시간과 올리는 시간을 더해서 기다린다.
+  const startUpload = useCallback((file: File) => {
     uploadControllerRef.current?.abort();
     const controller = new AbortController();
     uploadControllerRef.current = controller;
-    try {
+    setPct(0);
+    analysisStartedAtRef.current = null;
+    const promise = (async (): Promise<PendingUploadResult> => {
       // 압축이 "돌았는지"로 구간을 가른다. prepared.wasCompressed 는 결과물을 썼는지라
       // 압축을 다 돌리고도 원본보다 크면 false 가 되고, 그러면 막대가 이미 40까지
       // 올라간 채 업로드 구간이 0부터 시작해 40에서 한참 멈춰 있게 된다.
       let compressionRan = false;
-      const prepared = await prepareVideoUpload(videoFile, {
+      const prepared = await prepareVideoUpload(file, {
         signal: controller.signal,
         onCompressionProgress: (progress) => {
           compressionRan = true;
@@ -448,6 +469,9 @@ function WorkspaceInner() {
       const { intentId } = await uploadVideo(prepared.file, {
         durationMs: prepared.durationMs,
         signal: controller.signal,
+        // 완료 처리는 begin 으로 미룬다 — 막힘을 고르다 그만두면 완료된 인텐트는
+        // 만료 스윕이 회수하지 않아 세션 없는 영상이 S3 에 남는다.
+        finalize: false,
         onProgress: (progress) =>
           setPct((current) =>
             advanceProgress(
@@ -456,6 +480,27 @@ function WorkspaceInner() {
             ),
           ),
       });
+      return { intentId, durationMs: prepared.durationMs, compressionRan };
+    })();
+    // 막힘을 고르는 동안 실패하면 이 약속을 아무도 안 받고 있다 — 여기서 삼켜
+    // unhandled rejection 을 막고, 오류 처리는 begin 이 await 할 때 한 번만 한다.
+    promise.catch(() => undefined);
+    pendingUploadRef.current = { controller, promise };
+  }, []);
+
+  const begin = useCallback(async (blockage: BlockageSelection) => {
+    if (!videoFile) return;
+    setError(null);
+    setMode("uploading");
+    // "질문 받기"에서 미리 띄워 둔 것을 이어받는다. 없으면(재시도·직접 호출) 여기서 시작한다.
+    if (!pendingUploadRef.current) startUpload(videoFile);
+    const pending = pendingUploadRef.current;
+    if (!pending) return;
+    const { controller, promise } = pending;
+    try {
+      const { intentId, durationMs, compressionRan } = await promise;
+      // 배우가 연습을 시작하겠다고 한 지금에서야 업로드를 확정한다.
+      await finalizeUpload(intentId, { signal: controller.signal });
       const { session } = await createPracticeSession(
         buildPracticeSessionRequest(
           intentId,
@@ -468,7 +513,7 @@ function WorkspaceInner() {
       coachCoordinatorRef.current = null;
       setActiveId(session.session_id);
       setAnalysisStatus(session.status);
-      setVideoDurationMs(prepared.durationMs);
+      setVideoDurationMs(durationMs);
       setDetail(null);
       const startPct = analysisStart(compressionRan);
       setAnalysisStartPct(startPct);
@@ -480,7 +525,7 @@ function WorkspaceInner() {
       replaceUrl(`/practice/new?session=${encodeURIComponent(session.session_id)}`);
       // 업로드가 끝난 시점이 아니라 연습 세션까지 만들어진 시점에 센다.
       // 업로드만 되고 세션 생성이 실패하면 연습이 시작된 게 아니다.
-      trackVideoUploaded(prepared.durationMs);
+      trackVideoUploaded(durationMs);
       trackAnalysis(session.session_id);
       void getPracticeSession(session.session_id).then(
         (loaded) => {
@@ -500,8 +545,11 @@ function WorkspaceInner() {
       }
     } finally {
       if (uploadControllerRef.current === controller) uploadControllerRef.current = null;
+      if (pendingUploadRef.current?.controller === controller) {
+        pendingUploadRef.current = null;
+      }
     }
-  }, [videoFile, situation, character, goal, refreshList, trackAnalysis]);
+  }, [videoFile, situation, character, goal, refreshList, startUpload, trackAnalysis]);
 
   const send = useCallback(async () => {
     const text = answer.trim();
@@ -554,6 +602,8 @@ function WorkspaceInner() {
   }, [restoreCoach]);
 
   const openSession = useCallback(async (id: string) => {
+    // 올리던 영상을 두고 다른 연습으로 넘어가면 그 업로드는 갈 곳이 없다.
+    discardPendingUpload();
     analysisControllerRef.current?.abort();
     analysisStartedAtRef.current = null;
     activeIdRef.current = id;
@@ -615,7 +665,7 @@ function WorkspaceInner() {
     } finally {
       setBusy(false);
     }
-  }, [countStepOnce, startConversationAfterAnalysis, trackAnalysis]);
+  }, [countStepOnce, discardPendingUpload, startConversationAfterAnalysis, trackAnalysis]);
 
   // 주소에 ?session= 이 실려 오면(연습 기록 링크·새로고침) 그 세션을 연다.
   // 클릭으로 여는 경로는 openSession 이고, 이쪽은 첫 진입만 맡는다.
@@ -924,7 +974,11 @@ function WorkspaceInner() {
               ) : (
                 <StartRow
                   ready={Boolean(videoFile)}
-                  onStart={() => setMode("blockage")}
+                  onStart={() => {
+                    if (!videoFile) return;
+                    startUpload(videoFile);
+                    setMode("blockage");
+                  }}
                 />
               )}
               {error ? (

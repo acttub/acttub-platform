@@ -140,6 +140,31 @@ test("업로드와 장면 확인 진행률은 단조 증가하고 analyzed에서
   assert.equal(settleProgress(ANALYSIS_PROGRESS_LIMIT, "analyzed"), 100);
 });
 
+test("질문 받기를 누르면 막힘을 고르기 전에 압축·업로드가 시작된다", () => {
+  const workspace = readWeb("src/features/workspace/workspace-app.tsx");
+  const rowStart = workspace.indexOf("<StartRow");
+  const startRow = workspace.slice(rowStart, workspace.indexOf("/>", rowStart));
+  // 막힘 선택으로 넘어가기 전에 업로드를 띄운다 — 뒤로 미루면 고르는 시간과
+  // 올리는 시간을 더해서 기다리게 된다.
+  assert.match(startRow, /startUpload\(videoFile\)[\s\S]*setMode\("blockage"\)/);
+
+  const beginStart = workspace.indexOf("const begin = useCallback");
+  const beginEnd = workspace.indexOf("const send = useCallback", beginStart);
+  const begin = workspace.slice(beginStart, beginEnd);
+  // begin 은 이미 도는 업로드를 이어받는다. 여기서 다시 압축부터 하면 두 번 올린다.
+  assert.match(begin, /await promise/);
+  assert.doesNotMatch(begin, /prepareVideoUpload\(/);
+
+  // 완료 처리는 배우가 시작을 확정한 뒤에만 한다 — 미리 완료해 두면 도중에
+  // 그만둔 영상이 만료 스윕에 안 걸려 S3 에 남는다.
+  assert.match(workspace, /finalize: false/);
+  assert.match(begin, /finalizeUpload\(intentId/);
+
+  // 연습을 떠나거나 영상을 바꾸면 올리던 것을 끊는다.
+  assert.match(workspace, /const resetToPrep = useCallback\(\(\) => \{\s*discardPendingUpload\(\)/);
+  assert.match(workspace, /const onPickFile[\s\S]{0,200}discardPendingUpload\(\)/);
+});
+
 test("막힘 선택 완료 뒤에는 대화가 아니라 같은 진행 자리에서 기다린다", () => {
   const workspace = readWeb("src/features/workspace/workspace-app.tsx");
   const beginStart = workspace.indexOf("const begin = useCallback");
