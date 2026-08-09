@@ -462,3 +462,74 @@ def test_previously_unreachable_contracts_are_executed_not_excluded():
     }
     assert must_execute <= covered_keys()
     assert not (must_execute & set(excluded_keys()))
+
+
+# --- 게이트가 제어 표면 경유인지 (spec/M4-llm.md §G) -------------------------
+
+
+def test_scenarios_never_touch_the_in_process_runtime():
+    """시나리오가 `backend.runtime` 을 잡으면 Java 백엔드에서 AttributeError 다.
+
+    `backends.py:JavaBackend` 에는 `runtime` 속성이 없다. 이 검사가 없으면 게이트
+    헬퍼가 다시 in-process 전용으로 돌아가도 fastapi↔fastapi 실행은 초록이라
+    아무도 모른다 — M4 진입 점검이 실제로 그렇게 발견했다.
+
+    문자열 검색이 아니라 AST 로 본다. 산문과 docstring 이 `runtime` 을 설명하는
+    것까지 잡으면 검사가 못 쓰게 된다.
+    """
+    import ast
+    import pathlib
+
+    from contract_harness import scenarios
+
+    root = pathlib.Path(scenarios.__file__).parent
+    offenders = []
+    for path in sorted(root.glob("*.py")):
+        tree = ast.parse(path.read_text(), filename=str(path))
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Attribute) and node.attr == "runtime":
+                offenders.append(f"{path.name}:{node.lineno}")
+    assert not offenders, (
+        f"시나리오가 in-process runtime 을 직접 잡는다: {offenders}. "
+        "게이트 조작은 contract_harness.scenarios.gate 를 거친다"
+    )
+
+
+def test_gate_helpers_only_speak_the_control_surface():
+    """게이트 헬퍼는 `stub-state` 제어 하나만 쓴다 — 백엔드 종류를 몰라야 한다."""
+    from contract_harness.scenarios import gate
+
+    seen = []
+
+    class FakeBackend:
+        # `runtime` 을 일부러 두지 않는다. JavaBackend 와 같은 모양이다.
+        def control(self, name, **payload):
+            seen.append((name, payload))
+            return {"coach_generate": {"in_block": True, "in_block_count": 2}}
+
+    class FakeCtx:
+        backend = FakeBackend()
+
+    ctx = FakeCtx()
+    blocked, state = gate.poll_until_blocked(ctx, "coach_generate", count=2, timeout=1)
+    gate.release(ctx, "coach_generate")
+    gate.rearm(ctx, "coach_generate")
+    gate.release(ctx)
+
+    assert blocked and state["in_block_count"] == 2
+    assert {name for name, _ in seen} == {"stub-state"}
+    assert ("stub-state", {"release": True, "stub": "coach_generate"}) in seen
+    assert ("stub-state", {"rearm": True, "stub": "coach_generate"}) in seen
+    # 이름 없이 부르면 게이트 있는 스텁 전부가 대상이다.
+    assert ("stub-state", {"release": True}) in seen
+
+
+def test_gate_polling_is_not_recorded_as_a_scenario_step():
+    """폴링을 기록하면 백엔드마다 폴링 횟수가 달라 스텝 수가 갈린다."""
+    import inspect
+
+    from contract_harness.scenarios import gate
+
+    source = inspect.getsource(gate)
+    assert "ctx.backend.control" in source
+    assert "ctx.control(" not in source

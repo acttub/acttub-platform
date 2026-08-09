@@ -130,7 +130,21 @@ class BackendRuntime:
             # 읽기 전용이 기본이고, `release`/`rearm` 이 오면 멈춰 있는 스텁을 푼다.
             # 별도 release/rearm 제어를 늘리지 않으려고 기존 제어의 payload 로 넣었다 —
             # 스텁 게이트는 스텁 상태의 일부다.
-            for stub in (self.coach_generate, self.report_generate):
+            #
+            # `stub` 이름을 주면 그 스텁 하나만 건드린다. 동시성 시나리오는 특정
+            # 스텁에 요청을 가둬 놓고 푸는 것이 의도라, 이름 없이 전부 푸는 것과
+            # 구별해야 한다. 이름이 없으면 종전대로 게이트 있는 스텁 전부다.
+            gated = {
+                "coach_generate": self.coach_generate,
+                "report_generate": self.report_generate,
+            }
+            selected = payload.get("stub")
+            if selected is not None and selected not in gated:
+                raise KeyError(f"unknown gated stub: {selected}")
+            targets = (
+                [gated[selected]] if selected else list(gated.values())
+            )
+            for stub in targets:
                 if payload.get("release"):
                     stub.release()
                 if payload.get("rearm"):
