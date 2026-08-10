@@ -23,7 +23,7 @@ import { renderGoogleLoginButton } from "../../lib/auth/google-gis";
 import {
   detectInAppBrowser,
   externalBrowserUrl,
-  inAppBrowserNotice,
+  googleLoginNotices,
   type InAppBrowser,
 } from "../../lib/auth/in-app-browser";
 import {
@@ -199,15 +199,21 @@ function LoginForm() {
   const [uid, setUid] = useState("");
   const [email, setEmail] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [hasGoogleLoadFailed, setHasGoogleLoadFailed] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const inAppBrowser: InAppBrowser | null = useSyncExternalStore(
     subscribeNever,
     getInAppBrowserSnapshot,
     getServerInAppBrowserSnapshot,
   );
+  const googleNotices = googleLoginNotices(
+    inAppBrowser,
+    hasGoogleLoadFailed,
+  );
 
-  // 인앱 브라우저(WebView)에서는 Google이 OAuth를 차단하므로,
-  // 탈출 수단이 있는 브라우저는 기본 브라우저로 이동시키고 안내를 남긴다.
+  // 전용 탈출 수단이 있는 브라우저는 기본 브라우저로 이동시키고 안내를 남긴다.
+  // generic도 안드로이드면 intent 스킴으로 나간다. iOS generic은 탈출 수단이 없어
+  // 이동 없이 남고, GIS 로드 실패가 확인된 뒤에만 안내한다.
   useEffect(() => {
     if (!inAppBrowser) return;
     const escapeUrl = externalBrowserUrl(
@@ -271,23 +277,19 @@ function LoginForm() {
         </p>
 
         <div className="mt-9 space-y-5">
-          {inAppBrowser ? (
+          {googleNotices.inAppBrowser ? (
             <p
               role="status"
               className="rounded-2xl bg-[#fff6e5] px-4 py-3 text-sm font-bold text-[#b25c00]"
             >
-              {inAppBrowserNotice(inAppBrowser)}
+              {googleNotices.inAppBrowser}
             </p>
           ) : null}
           <GoogleLoginButton
             onCredential={(credential) =>
               void submitLogin(() => loginWith(googleProvider, { credential }))
             }
-            onLoadError={() =>
-              setErrorMessage(
-                "Google 로그인을 불러오지 못했어요. 새로고침 후 다시 시도해 주세요",
-              )
-            }
+            onLoadError={() => setHasGoogleLoadFailed(true)}
           />
 
           {/* Services ID가 설정되기 전에는 눌러도 실패만 하므로 버튼 자체를 내린다. */}
@@ -349,12 +351,12 @@ function LoginForm() {
               로그인 중...
             </p>
           ) : null}
-          {errorMessage || noticeMessage ? (
+          {errorMessage || googleNotices.loadError || noticeMessage ? (
             <p
               role="alert"
               className="rounded-2xl bg-[#fff0f0] px-4 py-3 text-sm font-bold text-[#e42939]"
             >
-              {errorMessage ?? noticeMessage}
+              {errorMessage ?? googleNotices.loadError ?? noticeMessage}
             </p>
           ) : null}
         </div>

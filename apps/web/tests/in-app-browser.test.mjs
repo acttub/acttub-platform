@@ -3,8 +3,12 @@ import { test } from "node:test";
 
 import "./ts-module-loader.mjs";
 
-const { detectInAppBrowser, externalBrowserUrl, inAppBrowserNotice } =
-  await import("../src/lib/auth/in-app-browser.ts");
+const {
+  detectInAppBrowser,
+  externalBrowserUrl,
+  googleLoginNotices,
+  inAppBrowserNotice,
+} = await import("../src/lib/auth/in-app-browser.ts");
 
 const KAKAO_UA =
   "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 KAKAOTALK 10.6.0";
@@ -12,6 +16,8 @@ const LINE_UA =
   "Mozilla/5.0 (Linux; Android 13; SM-S901N; wv) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36 Line/13.5.0/IAB";
 const INSTAGRAM_UA =
   "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 Instagram 300.0.0.23.111";
+const ANDROID_INSTAGRAM_WEBVIEW_UA =
+  "Mozilla/5.0 (Linux; Android 14; SM-S921N Build/UP1A.231005.007; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/138.0.0.0 Mobile Safari/537.36 Instagram 390.0.0.0.70 Android";
 const NAVER_UA =
   "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36 NAVER(inapp; search; 1000; 12.0.0)";
 const ANDROID_WEBVIEW_UA =
@@ -76,4 +82,45 @@ test("안내 문구는 브라우저 종류별로 제공된다", () => {
     assert.equal(typeof notice, "string");
     assert.ok(notice.includes("기본 브라우저"));
   }
+});
+
+test("아이폰 Instagram에서 GIS 로드가 성공하면 인앱 배너를 표시하지 않는다", () => {
+  const browser = detectInAppBrowser(INSTAGRAM_UA);
+
+  assert.equal(browser, "generic");
+  assert.deepEqual(googleLoginNotices(browser, false), {
+    inAppBrowser: null,
+    loadError: null,
+  });
+});
+
+test("Android Instagram WebView에서 GIS 로드가 실패하면 인앱 안내를 표시한다", () => {
+  const browser = detectInAppBrowser(ANDROID_INSTAGRAM_WEBVIEW_UA);
+
+  assert.equal(browser, "generic");
+  assert.deepEqual(googleLoginNotices(browser, true), {
+    inAppBrowser: inAppBrowserNotice("generic"),
+    loadError: null,
+  });
+});
+
+test("일반 브라우저에서 GIS 로드가 실패하면 기존 일반 오류를 표시한다", () => {
+  const browser = detectInAppBrowser(CHROME_DESKTOP_UA);
+
+  assert.equal(browser, null);
+  assert.deepEqual(googleLoginNotices(browser, true), {
+    inAppBrowser: null,
+    loadError:
+      "Google 로그인을 불러오지 못했어요. 새로고침 후 다시 시도해 주세요",
+  });
+});
+
+test("카카오톡은 GIS 로드 결과를 기다리지 않고 UA 시점에 안내를 표시한다", () => {
+  const browser = detectInAppBrowser(KAKAO_UA);
+
+  assert.equal(browser, "kakaotalk");
+  assert.deepEqual(googleLoginNotices(browser, false), {
+    inAppBrowser: inAppBrowserNotice("kakaotalk"),
+    loadError: null,
+  });
 });
