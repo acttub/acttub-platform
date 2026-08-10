@@ -210,7 +210,11 @@ function LoginForm() {
   // 탈출 수단이 있는 브라우저는 기본 브라우저로 이동시키고 안내를 남긴다.
   useEffect(() => {
     if (!inAppBrowser) return;
-    const escapeUrl = externalBrowserUrl(inAppBrowser, window.location.href);
+    const escapeUrl = externalBrowserUrl(
+      inAppBrowser,
+      window.location.href,
+      navigator.userAgent,
+    );
     if (escapeUrl) window.location.href = escapeUrl;
   }, [inAppBrowser]);
 
