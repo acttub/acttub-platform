@@ -212,8 +212,9 @@ function LoginForm() {
   );
 
   // 전용 탈출 수단이 있는 브라우저는 기본 브라우저로 이동시키고 안내를 남긴다.
-  // generic도 안드로이드면 intent 스킴으로 나간다. iOS generic은 탈출 수단이 없어
-  // 이동 없이 남고, GIS 로드 실패가 확인된 뒤에만 안내한다.
+  // generic도 안드로이드면 intent 스킴으로 나간다(안내는 없다 — 위 결정).
+  // iOS generic은 탈출 수단이 없어 이동 없이 남는다. 거기서는 GIS가 정상
+  // 로드되므로 로그인 자체는 된다.
   useEffect(() => {
     if (!inAppBrowser) return;
     const escapeUrl = externalBrowserUrl(

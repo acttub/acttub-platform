@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import { test } from "node:test";
 
 import "./ts-module-loader.mjs";
@@ -76,15 +77,15 @@ test("탈출 수단이 없는 인앱 브라우저는 이동 URL이 없다", () =
   assert.equal(externalBrowserUrl("generic", "https://acttub.com/login"), null);
 });
 
-test("안내 문구는 브라우저 종류별로 제공된다", () => {
-  for (const browser of ["kakaotalk", "line", "generic"]) {
+test("안내 문구는 자동 탈출 수단이 있는 브라우저에만 있다", () => {
+  for (const browser of ["kakaotalk", "line"]) {
     const notice = inAppBrowserNotice(browser);
     assert.equal(typeof notice, "string");
     assert.ok(notice.includes("기본 브라우저"));
   }
 });
 
-test("아이폰 Instagram에서 GIS 로드가 성공하면 인앱 배너를 표시하지 않는다", () => {
+test("아이폰 Instagram에는 어떤 안내도 표시하지 않는다", () => {
   const browser = detectInAppBrowser(INSTAGRAM_UA);
 
   assert.equal(browser, "generic");
@@ -94,14 +95,24 @@ test("아이폰 Instagram에서 GIS 로드가 성공하면 인앱 배너를 표�
   });
 });
 
-test("Android Instagram WebView에서 GIS 로드가 실패하면 인앱 안내를 표시한다", () => {
+test("Android Instagram WebView는 GIS 로드가 실패해도 안내를 표시하지 않는다", () => {
   const browser = detectInAppBrowser(ANDROID_INSTAGRAM_WEBVIEW_UA);
 
   assert.equal(browser, "generic");
   assert.deepEqual(googleLoginNotices(browser, true), {
-    inAppBrowser: inAppBrowserNotice("generic"),
+    inAppBrowser: null,
     loadError: null,
   });
+});
+
+test("generic 인앱 안내 문구는 코드에 남아 있지 않다", async () => {
+  const source = await readFile(
+    new URL("../src/lib/auth/in-app-browser.ts", import.meta.url),
+    "utf8",
+  );
+
+  assert.ok(!source.includes("새로고침해도 안 되면"));
+  assert.ok(!source.includes("앱 안 브라우저에서는"));
 });
 
 test("일반 브라우저에서 GIS 로드가 실패하면 기존 일반 오류를 표시한다", () => {
