@@ -1,13 +1,13 @@
 // 인앱 브라우저 감지·탈출.
 // 2026-08-10 실측에서 GIS 스크립트는 Android WebView("; wv)")에서만 403이었고,
 // iPhone Instagram 인앱 브라우저에서는 정상 로드됐다.
-// generic 인앱 브라우저에는 아무 안내도 띄우지 않는다 (2026-08-10 최우영 결정).
-// 자동 탈출 수단이 있는 kakaotalk·line 만 안내한다 — 그 문구는 지금 일어나는
-// 이동을 설명하는 것이라 UA 시점에 떠야 한다.
+// 인앱 브라우저에는 어떤 안내도 띄우지 않고, 가능한 경우 자동으로만 탈출한다
+// (2026-08-10 최우영 결정). 자동 이동이 실패하면 사용자는 설명 없이 인앱에 남는다.
 //
-// 안내와 탈출은 다른 축이다. generic 이어도 안드로이드면 intent 스킴으로 기본
-// 브라우저를 부를 수 있어서, 안내 없이 그냥 나간다 — 403으로 빈 버튼 자리를
-// 보기 전에. iOS는 WKWebView가 커스텀 스킴을 호스트 앱에 넘기지 않아 방법이 없다.
+// 브라우저 감지와 탈출 가능 여부는 다른 축이다. generic 이어도 안드로이드면
+// intent 스킴으로 기본 브라우저를 부를 수 있어서 그냥 나간다 — 403으로 빈 버튼
+// 자리를 보기 전에. iOS는 WKWebView가 커스텀 스킴을 호스트 앱에 넘기지 않아
+// 방법이 없다.
 // 모듈 최상위에서 window에 접근하지 않는다 (정적 프리렌더 제약).
 
 export type InAppBrowser = "kakaotalk" | "line" | "generic";
@@ -59,30 +59,19 @@ export function externalBrowserUrl(
   return null;
 }
 
-// generic 은 받지 않는다 — 안내 문구가 없는 것이 곧 그 결정이다.
-export function inAppBrowserNotice(
-  browser: Exclude<InAppBrowser, "generic">,
-): string {
-  if (browser === "kakaotalk") {
-    return "카카오톡 브라우저에서는 Google 로그인이 막혀 있어 기본 브라우저로 이동해요. 이동하지 않으면 오른쪽 아래 메뉴에서 '다른 브라우저로 열기'를 눌러 주세요";
-  }
-  return "LINE 브라우저에서는 Google 로그인이 막혀 있어 기본 브라우저로 이동해요. 이동하지 않으면 메뉴에서 '기본 브라우저로 열기'를 눌러 주세요";
-}
-
 const GOOGLE_LOAD_ERROR_NOTICE =
   "Google 로그인을 불러오지 못했어요. 새로고침 후 다시 시도해 주세요";
 
 export function googleLoginNotices(
   browser: InAppBrowser | null,
   hasLoadFailed: boolean,
-): { inAppBrowser: string | null; loadError: string | null } {
-  // generic 인앱 브라우저는 어느 쪽 문구도 받지 않는다. Android WebView 에서는
+): { loadError: string | null } {
+  // generic 인앱 브라우저는 로드 실패 문구도 받지 않는다. Android WebView 에서는
   // Google 이 gsi/client 를 403 으로 거절해 버튼이 안 그려지는데, 그 자리를
   // 설명 없이 비워 두기로 했다.
-  if (browser === "generic") return { inAppBrowser: null, loadError: null };
+  if (browser === "generic") return { loadError: null };
 
   return {
-    inAppBrowser: browser === null ? null : inAppBrowserNotice(browser),
     loadError: hasLoadFailed ? GOOGLE_LOAD_ERROR_NOTICE : null,
   };
 }

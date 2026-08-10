@@ -8,7 +8,6 @@ const {
   detectInAppBrowser,
   externalBrowserUrl,
   googleLoginNotices,
-  inAppBrowserNotice,
 } = await import("../src/lib/auth/in-app-browser.ts");
 
 const KAKAO_UA =
@@ -77,11 +76,11 @@ test("탈출 수단이 없는 인앱 브라우저는 이동 URL이 없다", () =
   assert.equal(externalBrowserUrl("generic", "https://acttub.com/login"), null);
 });
 
-test("안내 문구는 자동 탈출 수단이 있는 브라우저에만 있다", () => {
+test("카카오톡과 LINE 인앱 브라우저에는 안내 문구가 없다", () => {
   for (const browser of ["kakaotalk", "line"]) {
-    const notice = inAppBrowserNotice(browser);
-    assert.equal(typeof notice, "string");
-    assert.ok(notice.includes("기본 브라우저"));
+    const notices = googleLoginNotices(browser, false);
+    assert.deepEqual(notices, { loadError: null });
+    assert.equal("inAppBrowser" in notices, false);
   }
 });
 
@@ -90,7 +89,6 @@ test("아이폰 Instagram에는 어떤 안내도 표시하지 않는다", () => 
 
   assert.equal(browser, "generic");
   assert.deepEqual(googleLoginNotices(browser, false), {
-    inAppBrowser: null,
     loadError: null,
   });
 });
@@ -100,17 +98,18 @@ test("Android Instagram WebView는 GIS 로드가 실패해도 안내를 표시�
 
   assert.equal(browser, "generic");
   assert.deepEqual(googleLoginNotices(browser, true), {
-    inAppBrowser: null,
     loadError: null,
   });
 });
 
-test("generic 인앱 안내 문구는 코드에 남아 있지 않다", async () => {
+test("인앱 안내 문구는 코드에 남아 있지 않다", async () => {
   const source = await readFile(
     new URL("../src/lib/auth/in-app-browser.ts", import.meta.url),
     "utf8",
   );
 
+  assert.ok(!source.includes("카카오톡 브라우저에서는"));
+  assert.ok(!source.includes("LINE 브라우저에서는"));
   assert.ok(!source.includes("새로고침해도 안 되면"));
   assert.ok(!source.includes("앱 안 브라우저에서는"));
 });
@@ -120,18 +119,17 @@ test("일반 브라우저에서 GIS 로드가 실패하면 기존 일반 오류�
 
   assert.equal(browser, null);
   assert.deepEqual(googleLoginNotices(browser, true), {
-    inAppBrowser: null,
     loadError:
       "Google 로그인을 불러오지 못했어요. 새로고침 후 다시 시도해 주세요",
   });
 });
 
-test("카카오톡은 GIS 로드 결과를 기다리지 않고 UA 시점에 안내를 표시한다", () => {
+test("카카오톡도 GIS 로드 실패 시 일반 오류만 표시한다", () => {
   const browser = detectInAppBrowser(KAKAO_UA);
 
   assert.equal(browser, "kakaotalk");
-  assert.deepEqual(googleLoginNotices(browser, false), {
-    inAppBrowser: inAppBrowserNotice("kakaotalk"),
-    loadError: null,
+  assert.deepEqual(googleLoginNotices(browser, true), {
+    loadError:
+      "Google 로그인을 불러오지 못했어요. 새로고침 후 다시 시도해 주세요",
   });
 });

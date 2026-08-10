@@ -211,8 +211,8 @@ function LoginForm() {
     hasGoogleLoadFailed,
   );
 
-  // 전용 탈출 수단이 있는 브라우저는 기본 브라우저로 이동시키고 안내를 남긴다.
-  // generic도 안드로이드면 intent 스킴으로 나간다(안내는 없다 — 위 결정).
+  // 전용 탈출 수단이 있는 브라우저는 안내 없이 기본 브라우저로 이동시킨다.
+  // generic도 안드로이드면 intent 스킴으로 나간다.
   // iOS generic은 탈출 수단이 없어 이동 없이 남는다. 거기서는 GIS가 정상
   // 로드되므로 로그인 자체는 된다.
   useEffect(() => {
@@ -278,14 +278,6 @@ function LoginForm() {
         </p>
 
         <div className="mt-9 space-y-5">
-          {googleNotices.inAppBrowser ? (
-            <p
-              role="status"
-              className="rounded-2xl bg-[#fff6e5] px-4 py-3 text-sm font-bold text-[#b25c00]"
-            >
-              {googleNotices.inAppBrowser}
-            </p>
-          ) : null}
           <GoogleLoginButton
             onCredential={(credential) =>
               void submitLogin(() => loginWith(googleProvider, { credential }))
