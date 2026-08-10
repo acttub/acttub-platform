@@ -69,11 +69,14 @@ def _ensure_app_logging() -> None:
     일어났는지 확인하는 유일한 증거라 반드시 보여야 한다.
 
     root 레벨은 건드리지 않는다 — WARNING으로 두어야 서드파티 라이브러리의
-    INFO 로그가 쏟아지지 않는다.
+    INFO 로그가 쏟아지지 않는다. 그래서 우리 패키지는 여기에 하나씩 올려야 한다.
+    `acting_summary` 는 1층 Gemini 구간(소요 시간·thinking 토큰·재시도)을 INFO로
+    남기는데, 빠뜨리면 그 줄이 root의 WARNING에 걸려 조용히 사라진다(SOMA-350).
     """
     if not logging.getLogger().handlers:
         logging.basicConfig()
-    logging.getLogger("acting_api").setLevel(logging.INFO)
+    for name in ("acting_api", "acting_summary"):
+        logging.getLogger(name).setLevel(logging.INFO)
 
 
 class HealthResponse(BaseModel):

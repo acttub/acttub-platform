@@ -123,6 +123,7 @@ def test_credential_method_log_survives_without_forcing_the_log_level(
     # 위 테스트는 caplog.at_level로 레벨을 강제해서, 실제 서버에서 앱 로거의 INFO가
     # 통째로 버려지던 것을 잡지 못했다. 여기서는 강제하지 않고 기동만 시킨다.
     logging.getLogger("acting_api").setLevel(logging.NOTSET)
+    logging.getLogger("acting_summary").setLevel(logging.NOTSET)
     session = FakeBotoSession(credentials=SimpleNamespace(method="iam-role"))
     monkeypatch.setattr("acting_api.app.boto3.Session", lambda: session)
     settings = GatewaySettings(
@@ -135,4 +136,7 @@ def test_credential_method_log_survives_without_forcing_the_log_level(
     _app(gateway_settings=settings)
 
     assert logging.getLogger("acting_api").level == logging.INFO
+    # 1층 Gemini 구간 로그(SOMA-350)는 acting_summary 로거로 나간다. root가 WARNING이라
+    # 여기서 올려 주지 않으면 그 줄이 조용히 사라진다.
+    assert logging.getLogger("acting_summary").level == logging.INFO
     assert "S3 credential method=iam-role" in caplog.text
