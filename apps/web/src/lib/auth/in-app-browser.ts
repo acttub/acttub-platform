@@ -4,6 +4,10 @@
 // generic 인앱 브라우저에는 아무 안내도 띄우지 않는다 (2026-08-10 최우영 결정).
 // 자동 탈출 수단이 있는 kakaotalk·line 만 안내한다 — 그 문구는 지금 일어나는
 // 이동을 설명하는 것이라 UA 시점에 떠야 한다.
+//
+// 안내와 탈출은 다른 축이다. generic 이어도 안드로이드면 intent 스킴으로 기본
+// 브라우저를 부를 수 있어서, 안내 없이 그냥 나간다 — 403으로 빈 버튼 자리를
+// 보기 전에. iOS는 WKWebView가 커스텀 스킴을 호스트 앱에 넘기지 않아 방법이 없다.
 // 모듈 최상위에서 window에 접근하지 않는다 (정적 프리렌더 제약).
 
 export type InAppBrowser = "kakaotalk" | "line" | "generic";
@@ -26,6 +30,7 @@ export function detectInAppBrowser(userAgent: string): InAppBrowser | null {
 export function externalBrowserUrl(
   browser: InAppBrowser,
   currentUrl: string,
+  userAgent: string,
 ): string | null {
   if (browser === "kakaotalk") {
     return `kakaotalk://web/openExternal?url=${encodeURIComponent(currentUrl)}`;
@@ -37,6 +42,20 @@ export function externalBrowserUrl(
     url.searchParams.set(LINE_ESCAPE_PARAM, "1");
     return url.toString();
   }
+
+  // Android는 intent 스킴으로 기본 브라우저를 부를 수 있다.
+  // package를 못박지 않는다 — 크롬이 없는 기기(삼성 인터넷만 쓰는 갤럭시)에서 실패하고,
+  // 그때 쓰는 S.browser_fallback_url은 intent를 해석한 쪽이 처리하는 관례라
+  // 인스타 웹뷰가 구현하지 않았으면 에러 화면으로 끝난다.
+  if (/Android/i.test(userAgent)) {
+    return (
+      "intent://" +
+      currentUrl.split("#")[0].replace(/^https?:\/\//, "") +
+      "#Intent;scheme=https;end"
+    );
+  }
+
+  // iOS: WKWebView가 커스텀 스킴을 호스트 앱에 넘기지 않는다. 안내 문구가 최선이다.
   return null;
 }
 
