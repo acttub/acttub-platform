@@ -1,7 +1,9 @@
 // 인앱 브라우저 감지·탈출.
 // 2026-08-10 실측에서 GIS 스크립트는 Android WebView("; wv)")에서만 403이었고,
-// iPhone Instagram 인앱 브라우저에서는 정상 로드됐다. 따라서 generic UA만으로
-// Google 로그인 차단을 단정하지 않고 실제 GIS 로드 실패와 함께 판단한다.
+// iPhone Instagram 인앱 브라우저에서는 정상 로드됐다.
+// generic 인앱 브라우저에는 아무 안내도 띄우지 않는다 (2026-08-10 최우영 결정).
+// 자동 탈출 수단이 있는 kakaotalk·line 만 안내한다 — 그 문구는 지금 일어나는
+// 이동을 설명하는 것이라 UA 시점에 떠야 한다.
 // 모듈 최상위에서 window에 접근하지 않는다 (정적 프리렌더 제약).
 
 export type InAppBrowser = "kakaotalk" | "line" | "generic";
@@ -38,16 +40,14 @@ export function externalBrowserUrl(
   return null;
 }
 
-export function inAppBrowserNotice(browser: InAppBrowser): string {
+// generic 은 받지 않는다 — 안내 문구가 없는 것이 곧 그 결정이다.
+export function inAppBrowserNotice(
+  browser: Exclude<InAppBrowser, "generic">,
+): string {
   if (browser === "kakaotalk") {
     return "카카오톡 브라우저에서는 Google 로그인이 막혀 있어 기본 브라우저로 이동해요. 이동하지 않으면 오른쪽 아래 메뉴에서 '다른 브라우저로 열기'를 눌러 주세요";
   }
-  if (browser === "line") {
-    return "LINE 브라우저에서는 Google 로그인이 막혀 있어 기본 브라우저로 이동해요. 이동하지 않으면 메뉴에서 '기본 브라우저로 열기'를 눌러 주세요";
-  }
-  // generic은 UA가 아니라 GIS 로드 실패로만 뜨는데, 그 실패가 Android WebView
-  // 차단인지 일시적인 네트워크 문제인지 화면에서 구분할 수 없다. 둘 다 답이 되게 쓴다.
-  return "Google 로그인을 불러오지 못했어요. 새로고침해도 안 되면 Chrome이나 Safari 같은 기본 브라우저에서 열어 주세요";
+  return "LINE 브라우저에서는 Google 로그인이 막혀 있어 기본 브라우저로 이동해요. 이동하지 않으면 메뉴에서 '기본 브라우저로 열기'를 눌러 주세요";
 }
 
 const GOOGLE_LOAD_ERROR_NOTICE =
@@ -57,15 +57,13 @@ export function googleLoginNotices(
   browser: InAppBrowser | null,
   hasLoadFailed: boolean,
 ): { inAppBrowser: string | null; loadError: string | null } {
-  const shouldShowInAppBrowserNotice =
-    browser !== null && (browser !== "generic" || hasLoadFailed);
+  // generic 인앱 브라우저는 어느 쪽 문구도 받지 않는다. Android WebView 에서는
+  // Google 이 gsi/client 를 403 으로 거절해 버튼이 안 그려지는데, 그 자리를
+  // 설명 없이 비워 두기로 했다.
+  if (browser === "generic") return { inAppBrowser: null, loadError: null };
 
   return {
-    inAppBrowser: shouldShowInAppBrowserNotice
-      ? inAppBrowserNotice(browser)
-      : null,
-    // generic은 같은 실패를 더 구체적인 인앱 안내로 설명한다.
-    loadError:
-      hasLoadFailed && browser !== "generic" ? GOOGLE_LOAD_ERROR_NOTICE : null,
+    inAppBrowser: browser === null ? null : inAppBrowserNotice(browser),
+    loadError: hasLoadFailed ? GOOGLE_LOAD_ERROR_NOTICE : null,
   };
 }
