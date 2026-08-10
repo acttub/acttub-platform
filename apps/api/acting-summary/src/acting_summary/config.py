@@ -4,7 +4,9 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-DEFAULT_MODEL = "gemini-2.5-flash"
+# 운영이 실제로 쓰는 모델과 같은 값이어야 한다. 예전 기본값(gemini-2.5-flash)은
+# GEMINI_MODEL 이 빠지거나 오타 났을 때 아무 표시 없이 다른 모델로 분석하게 만들었다.
+DEFAULT_MODEL = "gemini-3-flash-preview"
 
 
 @dataclass
