@@ -1,3 +1,5 @@
+import logging
+
 import pytest
 from google.genai import types
 
@@ -147,6 +149,55 @@ def test_text_response_is_parsed_and_bad_response_retries_once():
     with pytest.raises(SummaryParseError):
         summarize("v.mp4", ACTOR, client=client, model="m")
     assert len(client.models.calls) == 2
+
+
+class _Usage:
+    def __init__(self, prompt, output, thinking):
+        self.prompt_token_count = prompt
+        self.candidates_token_count = output
+        self.thoughts_token_count = thinking
+
+
+def _log_lines(caplog):
+    return [
+        record.getMessage()
+        for record in caplog.records
+        if record.name == "acting_summary.summarizer"
+    ]
+
+
+def test_generation_is_logged_with_timing_and_token_counts(caplog):
+    response = _Resp(parsed=PACK)
+    response.usage_metadata = _Usage(10846, 315, 4284)
+
+    with caplog.at_level(logging.INFO, logger="acting_summary.summarizer"):
+        summarize("v.mp4", ACTOR, client=FakeClient([response]), model="m")
+
+    lines = _log_lines(caplog)
+    assert len(lines) == 1
+    assert "model=m" in lines[0]
+    assert "attempts=1" in lines[0]
+    assert "prompt_tokens=10846" in lines[0]
+    assert "output_tokens=315" in lines[0]
+    assert "thinking_tokens=4284" in lines[0]
+    assert "elapsed=" in lines[0]
+
+
+def test_parse_retry_is_visible_in_the_log(caplog):
+    client = FakeClient([_Resp(text="bad"), _Resp(parsed=PACK)])
+
+    with caplog.at_level(logging.INFO, logger="acting_summary.summarizer"):
+        summarize("v.mp4", ACTOR, client=client, model="m")
+
+    assert len(client.models.calls) == 2
+    assert "attempts=2" in _log_lines(caplog)[0]
+
+
+def test_missing_usage_metadata_does_not_break_logging(caplog):
+    with caplog.at_level(logging.INFO, logger="acting_summary.summarizer"):
+        summarize("v.mp4", ACTOR, client=FakeClient([_Resp(parsed=PACK)]), model="m")
+
+    assert "thinking_tokens=None" in _log_lines(caplog)[0]
 
 
 def test_cache_hit_skips_upload_and_generation(tmp_path):
