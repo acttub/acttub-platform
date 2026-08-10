@@ -41,6 +41,14 @@ test("login page always renders Google and development form only in next dev", (
     source,
     /<GoogleLoginButton[\s\S]*process\.env\.NODE_ENV === "development"/,
   );
+  assert.match(
+    source,
+    /const googleNotices = googleLoginNotices\(\s*inAppBrowser,\s*hasGoogleLoadFailed,\s*\)/,
+  );
+  assert.match(
+    source,
+    /onLoadError=\{\(\) => setHasGoogleLoadFailed\(true\)\}/,
+  );
   assert.match(source, /개발용 테스트 로그인을 사용해요/);
 });
 
@@ -66,7 +74,10 @@ test("login page has one shared submit status region", () => {
   const source = readSource("src/app/login/page.tsx");
 
   assert.equal(
-    occurrenceCount(source, /errorMessage \|\| noticeMessage/g),
+    occurrenceCount(
+      source,
+      /errorMessage \|\| googleNotices\.loadError \|\| noticeMessage/g,
+    ),
     1,
   );
   assert.equal(occurrenceCount(source, /로그인 중\.\.\./g), 1);
