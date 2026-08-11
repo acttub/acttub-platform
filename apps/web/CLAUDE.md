@@ -18,6 +18,7 @@ Next.js 16 App Router + React 19 + TypeScript + Tailwind CSS v4.
 - `pnpm lint` · `pnpm typecheck`
 - `pnpm test` — Node 테스트와 금지 카피 가드를 하나의 테스트 명령으로 실행.
 - `pnpm build` — 빌드 → `.next/standalone/`(실제 배포 산출물). 프록시 대상은 `API_ORIGIN`으로 주며, rewrites가 빌드 시점에 `routes-manifest.json`으로 굳으므로 런타임 환경변수로는 바뀌지 않습니다. **typecheck보다 먼저 돌려야 합니다** — `next-env.d.ts`·`.next/types`를 만들어야 tsc가 `*.png` import와 typedRoutes를 해석합니다.
+  - ⚠️ **`--webpack` 을 떼지 마세요.** Next 16의 기본 번들러는 Turbopack인데, Turbopack 산출물에서는 **Amplitude 세션 리플레이가 조용히 죽습니다.** 리플레이 SDK가 rrweb 레코더를 동적 import 로 불러오는데 그 청크가 `SyntaxError: Invalid or unexpected token` 으로 깨지고, SDK 는 예외를 삼킨 뒤(`Failed to load rrweb-record module:`) null 을 반환합니다. 빌드도 배포도 초록이고 이벤트도 정상이라 **녹화만 0건인 증상으로는 원인을 찾기 어렵습니다.** 2026-08-11 에 같은 코드로 두 번 빌드해 확인했습니다 — Turbopack 은 업로드 0건, webpack 은 `api-sr.amplitude.com/sessions/v2/track` 200 이 6건. 자세한 내용은 [ANALYTICS.md](ANALYTICS.md) §1(2).
 - `pnpm start` — 빌드 결과를 로컬에서 서빙(:3000). Lighthouse 측정이 이 명령을 씁니다.
 - `pnpm dev:lan` — 폰 등 다른 기기에서 열 때. `DEV_HOST`에 맥의 LAN IP가 필요하고 `DEV_ALLOWED_ORIGINS`도 같이 줘야 합니다(next.config 주석 참조). `0.0.0.0` 바인드는 HMR 소켓이 깨지므로 쓰지 않습니다.
 - `pnpm perf` — Lighthouse CI(`lighthouserc.cjs`). `pnpm start`를 띄워 측정하므로 `build`가 먼저 있어야 합니다. `pnpm perf:healthcheck`는 설정만 검사.
