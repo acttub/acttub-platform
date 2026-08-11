@@ -31,6 +31,11 @@ export const MOCK_S3_UPLOAD = process.env.NEXT_PUBLIC_MOCK_S3_UPLOAD === "1";
 //   NEXT_PUBLIC_APP_COMMIT   릴리스 이름. deploy.yml이 github.sha를 넣는다.
 // 소스맵 업로드용 SENTRY_ORG·SENTRY_PROJECT·SENTRY_AUTH_TOKEN은 빌드 전용이라
 // 브라우저로 나가지 않는다(next.config.ts).
+//
+// Amplitude도 같은 방식이다(src/lib/analytics/amplitude.ts).
+//   NEXT_PUBLIC_AMPLITUDE_API_KEY  비어 있으면 계측을 켜지 않고 콘솔에 경고를 남긴다.
+//                                  환경별로 다른 프로젝트 키를 넣어 통계를 나눈다.
+// 로컬에서 확인하려면 apps/web/.env.local 에 넣는다(.env* 는 커밋되지 않는다).
 
 export const LOGIN_PATH = "/login";
 

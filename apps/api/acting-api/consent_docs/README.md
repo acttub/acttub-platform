@@ -45,3 +45,20 @@ curl -s https://dev.acttub.com/v2/consents/documents   # documents 3개
 
   재동의 비용이 크므로 **수탁자가 늘어날 때마다 올리지 않고 묶어서 올린다.** 모니터링을
   더 붙이기로 한 상태라(Grafana·제품 분석 도구), 그 둘은 확정된 뒤 v4로 한 번에 낸다.
+
+### privacy_v4 (초안, 아직 발행하지 않음)
+
+`privacy_v4.md`는 **Amplitude(제품 분석)를 위탁 현황에 추가하는 초안**이다. 파일만 있고
+`manifest.json`은 여전히 v3를 가리키며, 웹의 `EXPECTED_PRIVACY_VERSION`도 `"v3"`다.
+**의도한 상태다** — 발행하는 순간 기존 동의자 전원에게 재동의가 뜨므로, 아래가 다 끝난 뒤에만 올린다.
+
+1. 시행일 확정 (초안은 `2026-09-01`을 적어 두었다) → 본문 3곳(상단·개정 이력·하단)을 함께 고친다
+2. Grafana를 같이 낼지 결정 → 낸다면 5항 표에 행을 추가하고 개정 이력 문구를 고친다
+3. 서비스 내 공지 (14항이 "개정 사유 및 시행일을 명시하여 공지"를 약속한다)
+4. `manifest.json`의 privacy 항목을 v4로, `apps/web/src/features/auth/pending-consents.ts`의
+   `EXPECTED_PRIVACY_VERSION`을 `"v4"`로
+5. 시행일에 `publish` 실행 + 운영 환경에 `NEXT_PUBLIC_AMPLITUDE_API_KEY` 주입
+
+⚠️ **순서가 뒤집히면 안 된다.** 방침 5항에 Amplitude가 없는 상태에서 키를 먼저 넣으면
+고지 없이 이용 기록을 제3자에게 넘기게 된다. 계측 코드는 키가 없으면 아무 일도 하지 않으므로
+(`apps/web/ANALYTICS.md` §1(5)), 코드를 먼저 머지해도 안전하다.

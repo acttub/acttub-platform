@@ -29,12 +29,29 @@ import type {
 } from "@/lib/api/v2/types";
 import { isLoggedIn } from "@/lib/auth/token-store";
 import { prepareVideoUpload } from "@/lib/media/upload-preflight";
-import { finalizeUpload, uploadVideo } from "@/lib/api/v2/uploads";
+import { finalizeUpload, UploadError, uploadVideo } from "@/lib/api/v2/uploads";
 import {
   trackDialogueStarted,
   trackResultViewed,
   trackVideoUploaded,
 } from "@/lib/analytics/ga";
+import {
+  trackPracticeAbandoned,
+  trackPracticeAnalysisSettled,
+  trackPracticeBlockageStarted,
+  trackPracticeBlockageSubmitted,
+  trackPracticeDialogueCompleted,
+  trackPracticeDialogueStartFailed,
+  trackPracticeDialogueStarted,
+  trackPracticeDialogueTurnFailed,
+  trackPracticeDialogueTurnSent,
+  trackPracticeHistoryOpened,
+  trackPracticePrepOpened,
+  trackPracticeResultViewed,
+  trackPracticeSessionCreated,
+  trackPracticeUploadFailed,
+  trackPracticeVideoSelected,
+} from "@/lib/analytics/amplitude";
 import { ExitReviewModal, useExitReview } from "./exit-review";
 import { BlockageSelectionFlow } from "../practice/blockage-selection";
 import type { BlockageSelection } from "../practice/blockage-flow";
@@ -91,6 +108,24 @@ function replaceUrl(path: string): void {
   window.history.replaceState(null, "", path);
 }
 
+/** API turns의 첫 actor 항목은 장면 폼 값이라 대화에서 실제로 보낸 답변 수에서 뺀다. */
+function dialogueTurnCount(turn: CoachTurnResponse): number {
+  return Math.max(
+    0,
+    turn.turns.filter((message) => message.role === "actor").length - 1,
+  );
+}
+
+/** 백엔드와 같은 네 종료 표현을 분류하되, 원문은 계측 함수에 넘기지 않는다. */
+function isActorClosing(text: string): boolean {
+  const stripped = text.replace(/[\s.,!?~…·'"]/g, "");
+  if (["그만", "종료", "끝", "여기까지"].includes(stripped)) return true;
+  if (stripped.length > 10) return false;
+  return /(?:^|\s)(?:그만|종료)(?:(?:할게|할래)(?:요)?|하자|하고\s*싶어요?|요|용)?[\s.,!?~…·'"]*$/.test(
+    text,
+  );
+}
+
 function WorkspaceInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -99,6 +134,7 @@ function WorkspaceInner() {
   // 캐시를 초기값으로 써야 인증 게이트가 열린 첫 화면부터 호칭이 바뀌어 보이지 않는다.
   const [nickname, setNickname] = useState<string | null>(() => getStoredDisplayName());
   const [ready, setReady] = useState(false);
+  const initialPrepTrackedRef = useRef(false);
   useEffect(() => {
     if (!isLoggedIn()) {
       const search = typeof window === "undefined" ? "" : window.location.search;
@@ -108,6 +144,12 @@ function WorkspaceInner() {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- 클라이언트 전용 인증 확인 후 1회 게이트
     setReady(true);
   }, [router]);
+
+  useEffect(() => {
+    if (!ready || initialPrepTrackedRef.current) return;
+    initialPrepTrackedRef.current = true;
+    trackPracticePrepOpened("new");
+  }, [ready]);
 
   useEffect(() => {
     if (!ready) return;
@@ -191,6 +233,7 @@ function WorkspaceInner() {
   const [coachSessionId, setCoachSessionId] = useState<string | null>(null);
   const [coachDone, setCoachDone] = useState(false);
   const coachIdRef = useRef<string | null>(null);
+  const dialogueTurnCountRef = useRef(0);
 
   // 연습 노트
   const [report, setReport] = useState<PracticeReport | null>(null);
@@ -210,6 +253,11 @@ function WorkspaceInner() {
     sessionId: string;
     coordinator: CoachStartCoordinator;
   } | null>(null);
+  const practiceAnalyticsContextRef = useRef<{
+    kind: BlockageSelection["blockage_kind"];
+    subBranch: BlockageSelection["sub_branch"];
+    withEvidence: boolean;
+  } | null>(null);
 
   // 어느 연습에서 어느 단계를 이미 세었는지. 대화와 노트 확인은 한 연습 안에서 여러 번
   // 열린다 — 노트를 보다 대화로 돌아갔다 오거나, 지난 연습을 다시 열거나.
@@ -220,13 +268,14 @@ function WorkspaceInner() {
   // 세션 id 는 열쇠로만 쓰고 GA4 로 보내지 않는다. 보내는 값은 ga.ts 가 정하고,
   // 그 파일이 주소에서 식별자를 씻어내는 이유가 여기에도 그대로 적용된다.
   const countStepOnce = useCallback(
-    (practiceSessionId: string | null, stepName: "dialogue" | "result") => {
-      if (!practiceSessionId) return;
+    (practiceSessionId: string | null, stepName: "dialogue" | "result"): boolean => {
+      if (!practiceSessionId) return false;
       const key = `${practiceSessionId}:${stepName}`;
-      if (countedStepsRef.current.has(key)) return;
+      if (countedStepsRef.current.has(key)) return false;
       countedStepsRef.current.add(key);
       if (stepName === "dialogue") trackDialogueStarted();
       else trackResultViewed();
+      return true;
     },
     [],
   );
@@ -235,6 +284,21 @@ function WorkspaceInner() {
     const el = chatScrollRef.current;
     if (el) el.scrollTop = el.scrollHeight;
   }, [messages, mode]);
+
+  const abandonmentSnapshotRef = useRef<{ mode: Mode; pct: number }>({ mode, pct });
+  useEffect(() => {
+    abandonmentSnapshotRef.current = { mode, pct };
+  }, [mode, pct]);
+
+  useEffect(
+    () => () => {
+      const snapshot = abandonmentSnapshotRef.current;
+      if (snapshot.mode === "preparing" || snapshot.mode === "chat") {
+        trackPracticeAbandoned(snapshot.mode, dialogueTurnCountRef.current, snapshot.pct);
+      }
+    },
+    [],
+  );
 
   useEffect(
     () => () => {
@@ -279,6 +343,7 @@ function WorkspaceInner() {
   const resetToPrep = useCallback(() => {
     discardPendingUpload();
     analysisControllerRef.current?.abort();
+    trackPracticePrepOpened("reset");
     activeIdRef.current = null;
     setMode("prep");
     setActiveId(null);
@@ -289,7 +354,9 @@ function WorkspaceInner() {
     setCoachOpening(false);
     setCoachSessionId(null);
     coachIdRef.current = null;
+    dialogueTurnCountRef.current = 0;
     coachCoordinatorRef.current = null;
+    practiceAnalyticsContextRef.current = null;
     analysisStartedAtRef.current = null;
     urlLoadedRef.current = null;
     setAnalysisStatus(null);
@@ -316,7 +383,7 @@ function WorkspaceInner() {
     openFromButton: openReview,
     close: closeReview,
     markDone: markReviewDone,
-  } = useExitReview(reviewArmed);
+  } = useExitReview(reviewArmed, mode === "note" ? "note" : "chat");
 
   // 마치기로 연 후기 창을 닫으면 연습을 끝낸 것으로 보고 새 연습 준비 화면으로 돌아간다.
   // 커서 이탈·뒤로가기로 뜬 창은 보던 화면을 그대로 둔다.
@@ -326,31 +393,52 @@ function WorkspaceInner() {
     if (wasOpenedByButton) resetToPrep();
   }, [closeReview, wasOpenedByButton, resetToPrep]);
 
-  const pushAi = useCallback((turn: CoachTurnResponse) => {
-    // 코치 세션 id 는 매 응답마다 회전할 수 있어 다음 reply 에 최신 값을 쓴다.
-    coachIdRef.current = turn.session_id;
-    setCoachSessionId(turn.session_id);
-    const message = coachMessageText(turn);
-    setMessages((m) => [...m, { role: "ai", text: message }]);
-    const completed = completedCoachReport(turn);
-    setCoachDone(turn.status === "complete");
-    if (completed) {
-      // 노트는 받아 두되 화면은 그대로 둔다 — 마지막 인사를 읽고 배우가 직접 넘어간다.
-      setReport(completed);
-      void refreshList();
-    }
-  }, [refreshList]);
+  const pushAi = useCallback(
+    (
+      turn: CoachTurnResponse,
+      endedBy: "coach" | "actor_closing" = "coach",
+    ) => {
+      // 코치 세션 id 는 매 응답마다 회전할 수 있어 다음 reply 에 최신 값을 쓴다.
+      coachIdRef.current = turn.session_id;
+      setCoachSessionId(turn.session_id);
+      dialogueTurnCountRef.current = dialogueTurnCount(turn);
+      const message = coachMessageText(turn);
+      setMessages((m) => [...m, { role: "ai", text: message }]);
+      const completed = completedCoachReport(turn);
+      setCoachDone(turn.status === "complete");
+      if (turn.status === "complete") {
+        trackPracticeDialogueCompleted(
+          dialogueTurnCountRef.current,
+          completed?.report_type ?? "blocked",
+          endedBy,
+        );
+      }
+      if (completed) {
+        // 노트는 받아 두되 화면은 그대로 둔다 — 마지막 인사를 읽고 배우가 직접 넘어간다.
+        setReport(completed);
+        void refreshList();
+      }
+    },
+    [refreshList],
+  );
 
   // 대화를 끝낸 뒤 배우가 직접 누를 때만 노트로 넘긴다. 지난 연습을 여는 경로는
   // 이미 노트가 목적지라 여기를 거치지 않는다.
   const openNote = useCallback(() => {
     setMode("note");
-    countStepOnce(activeIdRef.current, "result");
-  }, [countStepOnce]);
+    if (report && countStepOnce(activeIdRef.current, "result")) {
+      trackPracticeResultViewed(
+        report.report_type,
+        dialogueTurnCountRef.current,
+        "current",
+      );
+    }
+  }, [countStepOnce, report]);
 
   const restoreCoach = useCallback((turn: CoachTurnResponse) => {
     coachIdRef.current = turn.session_id;
     setCoachSessionId(turn.session_id);
+    dialogueTurnCountRef.current = dialogueTurnCount(turn);
     const restored: ChatMsg[] | undefined = turn.turns?.map((message) => ({
       role: message.role === "actor" ? "me" : "ai",
       text: message.text,
@@ -360,6 +448,13 @@ function WorkspaceInner() {
     );
     const completed = completedCoachReport(turn);
     setCoachDone(turn.status === "complete");
+    if (turn.status === "complete") {
+      trackPracticeDialogueCompleted(
+        dialogueTurnCountRef.current,
+        completed?.report_type ?? "blocked",
+        "coach",
+      );
+    }
     if (completed) {
       // 첫 응답이 곧바로 complete 로 오는 경우다. 재개 응답은 항상 continue 라 여기 오지 않는다.
       // 이때도 화면은 그대로 두고 배우가 정리보기를 누를 때 넘긴다.
@@ -384,8 +479,18 @@ function WorkspaceInner() {
         });
         if (activeIdRef.current !== practiceSessionId) return;
         restoreCoach(start);
-        countStepOnce(practiceSessionId, "dialogue");
+        if (countStepOnce(practiceSessionId, "dialogue")) {
+          const context = practiceAnalyticsContextRef.current;
+          if (context) {
+            trackPracticeDialogueStarted(
+              context.withEvidence,
+              context.kind,
+              context.subBranch,
+            );
+          }
+        }
       } catch (reason) {
+        trackPracticeDialogueStartFailed(false);
         if (activeIdRef.current === practiceSessionId) {
           setError("코치 연결에 실패했어요. 잠시 후 다시 시도해 주세요.");
         }
@@ -403,6 +508,9 @@ function WorkspaceInner() {
   }, [coordinatorFor]);
 
   const startConversationWithoutEvidence = useCallback((practiceSessionId: string) => {
+    if (practiceAnalyticsContextRef.current) {
+      practiceAnalyticsContextRef.current.withEvidence = false;
+    }
     void coordinatorFor(practiceSessionId).startWithoutEvidence().catch(() => {});
   }, [coordinatorFor]);
 
@@ -410,6 +518,8 @@ function WorkspaceInner() {
     analysisControllerRef.current?.abort();
     const controller = new AbortController();
     analysisControllerRef.current = controller;
+    const startedAt = analysisStartedAtRef.current ?? Date.now();
+    analysisStartedAtRef.current = startedAt;
     void pollSessionUntilSettled(practiceSessionId, {
       // 분석이 끝나도 이 간격만큼은 화면이 모른다. 4초 → 3초로만 줄인다.
       // 더 줄이지 않는 이유는 사용자당 60회/분 제한을 이 폴링이 혼자 먹기 때문이다
@@ -426,6 +536,18 @@ function WorkspaceInner() {
         setAnalysisStatus(settled.status);
         setPct((current) => settleProgress(current, settled.status));
         setDetail(settled);
+        practiceAnalyticsContextRef.current = {
+          kind: settled.blockage_kind,
+          subBranch: settled.sub_branch as BlockageSelection["sub_branch"],
+          withEvidence: settled.status === "analyzed",
+        };
+        if (settled.status === "analyzed" || settled.status === "failed") {
+          trackPracticeAnalysisSettled(
+            settled.status,
+            settled.error_code,
+            Date.now() - startedAt,
+          );
+        }
         void refreshList();
         void coordinatorFor(practiceSessionId).update(settled.status).catch(() => {});
       },
@@ -441,15 +563,18 @@ function WorkspaceInner() {
 
   const onPickFile = (file: File | null) => {
     if (!file) return;
+    const isReselect = videoFile !== null;
     // 고르던 영상을 바꾸면 앞서 시작한 압축·업로드는 버린다.
     discardPendingUpload();
     setPct(0);
+    setVideoDurationMs(null);
     setVideoUrl((prev) => {
       if (prev) URL.revokeObjectURL(prev);
       return URL.createObjectURL(file);
     });
     setVideoFile(file);
     setError(null);
+    trackPracticeVideoSelected(file.size, isReselect);
   };
 
   // 압축·업로드는 "질문 받기"를 누른 순간 시작해서 막힘을 고르는 동안 뒤에서 돈다.
@@ -501,6 +626,11 @@ function WorkspaceInner() {
 
   const begin = useCallback(async (blockage: BlockageSelection) => {
     if (!videoFile) return;
+    trackPracticeBlockageSubmitted(
+      blockage.blockage_kind,
+      blockage.sub_branch,
+      blockage.blockage_detail,
+    );
     setError(null);
     setMode("uploading");
     // 현재 영상으로 미리 띄운 업로드만 이어받는다. 파일이 다르면 옛 업로드를 버리고 새로 시작한다.
@@ -510,10 +640,14 @@ function WorkspaceInner() {
       startUpload,
     );
     const { controller, promise } = pending;
+    // 업로드가 다 끝난 뒤 터지는 실패는 UploadError 가 아니라 단계를 알 길이 없다.
+    // 이 표시가 없으면 세션 생성 실패가 전부 preflight 로 기록된다.
+    let reachedSessionCreate = false;
     try {
       const { intentId, durationMs, compressionRan } = await promise;
       // 배우가 연습을 시작하겠다고 한 지금에서야 업로드를 확정한다.
       await finalizeUpload(intentId, { signal: controller.signal });
+      reachedSessionCreate = true;
       const { session } = await createPracticeSession(
         buildPracticeSessionRequest(
           intentId,
@@ -524,6 +658,11 @@ function WorkspaceInner() {
       );
       activeIdRef.current = session.session_id;
       coachCoordinatorRef.current = null;
+      practiceAnalyticsContextRef.current = {
+        kind: blockage.blockage_kind,
+        subBranch: blockage.sub_branch,
+        withEvidence: session.status === "analyzed",
+      };
       setActiveId(session.session_id);
       setAnalysisStatus(session.status);
       setVideoDurationMs(durationMs);
@@ -540,6 +679,11 @@ function WorkspaceInner() {
       // 업로드가 끝난 시점이 아니라 연습 세션까지 만들어진 시점에 센다.
       // 업로드만 되고 세션 생성이 실패하면 연습이 시작된 게 아니다.
       trackVideoUploaded(durationMs);
+      trackPracticeSessionCreated(
+        durationMs,
+        blockage.blockage_kind,
+        blockage.sub_branch,
+      );
       trackAnalysis(session.session_id);
       void getPracticeSession(session.session_id).then(
         (loaded) => {
@@ -551,6 +695,12 @@ function WorkspaceInner() {
       );
       void refreshList();
     } catch (err) {
+      trackPracticeUploadFailed(
+        err instanceof UploadError
+          ? err.stage
+          : reachedSessionCreate ? "session_create" : "preflight",
+        err,
+      );
       if (uploadControllerRef.current === controller) {
         setMode("prep");
         if (!(err instanceof Error && err.name === "AbortError")) {
@@ -568,13 +718,16 @@ function WorkspaceInner() {
   const send = useCallback(async () => {
     const text = answer.trim();
     if (!text || sending || !coachIdRef.current) return;
+    const turnIndex = dialogueTurnCountRef.current + 1;
     setMessages((m) => [...m, { role: "me", text }]);
     setAnswer("");
     setSending(true);
+    trackPracticeDialogueTurnSent(turnIndex, text);
     try {
       const { data: turn } = await replyCoach({ session_id: coachIdRef.current, text });
-      pushAi(turn);
+      pushAi(turn, isActorClosing(text) ? "actor_closing" : "coach");
     } catch {
+      trackPracticeDialogueTurnFailed(turnIndex);
       setMessages((m) => [
         ...m,
         { role: "ai", text: "(연결이 잠시 끊겼어요. 다시 답해 주세요.)" },
@@ -596,6 +749,7 @@ function WorkspaceInner() {
     setCoachOpening(true);
     setCoachSessionId(null);
     coachIdRef.current = null;
+    dialogueTurnCountRef.current = 0;
     try {
       const { data } = await startCoach({
         practice_session_id: practiceSessionId,
@@ -604,6 +758,7 @@ function WorkspaceInner() {
       if (activeIdRef.current !== practiceSessionId) return;
       restoreCoach(data);
     } catch {
+      trackPracticeDialogueStartFailed(true);
       if (activeIdRef.current === practiceSessionId) {
         setError("대화를 다시 시작하지 못했어요. 잠시 후 다시 시도해 주세요.");
       }
@@ -616,6 +771,14 @@ function WorkspaceInner() {
   }, [restoreCoach]);
 
   const openSession = useCallback(async (id: string) => {
+    const selected = sessions.find((session) => session.session_id === id);
+    if (selected) {
+      trackPracticeHistoryOpened(
+        selected.status,
+        reports.some((item) => item.practice_session_id === id),
+        (Date.now() - Date.parse(selected.created_at)) / 86_400_000,
+      );
+    }
     // 올리던 영상을 두고 다른 연습으로 넘어가면 그 업로드는 갈 곳이 없다.
     discardPendingUpload();
     analysisControllerRef.current?.abort();
@@ -645,12 +808,19 @@ function WorkspaceInner() {
     setCoachOpening(false);
     setCoachSessionId(null);
     coachIdRef.current = null;
+    dialogueTurnCountRef.current = 0;
+    practiceAnalyticsContextRef.current = null;
     setBusy(true);
     try {
       const loaded = await getPracticeSession(id);
       if (activeIdRef.current !== id) return;
       setDetail(loaded);
       setAnalysisStatus(loaded.status);
+      practiceAnalyticsContextRef.current = {
+        kind: loaded.blockage_kind,
+        subBranch: loaded.sub_branch as BlockageSelection["sub_branch"],
+        withEvidence: loaded.status === "analyzed",
+      };
       if (loaded.status === "created" || loaded.status === "analyzing") {
         setReport(null);
         setMode("preparing");
@@ -680,7 +850,14 @@ function WorkspaceInner() {
     } finally {
       setBusy(false);
     }
-  }, [countStepOnce, discardPendingUpload, startConversationAfterAnalysis, trackAnalysis]);
+  }, [
+    countStepOnce,
+    discardPendingUpload,
+    reports,
+    sessions,
+    startConversationAfterAnalysis,
+    trackAnalysis,
+  ]);
 
   // 주소에 ?session= 이 실려 오면(연습 기록 링크·새로고침) 그 세션을 연다.
   // 클릭으로 여는 경로는 openSession 이고, 이쪽은 첫 진입만 맡는다.
@@ -699,7 +876,13 @@ function WorkspaceInner() {
         setActiveId(sessionParam);
         setDetail(loaded);
         setAnalysisStatus(loaded.status);
+        practiceAnalyticsContextRef.current = {
+          kind: loaded.blockage_kind,
+          subBranch: loaded.sub_branch as BlockageSelection["sub_branch"],
+          withEvidence: loaded.status === "analyzed",
+        };
         setVideoDurationMs(null);
+        dialogueTurnCountRef.current = 0;
         setAnalysisElapsedMs(0);
         coachCoordinatorRef.current = null;
         if (loaded.status === "created" || loaded.status === "analyzing") {
@@ -995,6 +1178,7 @@ function WorkspaceInner() {
                     if (!videoFile) return;
                     startUpload(videoFile);
                     setMode("blockage");
+                    trackPracticeBlockageStarted();
                   }}
                 />
               )}
