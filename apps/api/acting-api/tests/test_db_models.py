@@ -91,6 +91,7 @@ def test_documented_enum_values_are_exact():
         "coach_start",
         "coach_reply",
         "report",
+        "memory_update",
     ]
     assert [item.value for item in OperationStatus] == [
         "pending",

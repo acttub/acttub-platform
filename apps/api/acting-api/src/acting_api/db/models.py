@@ -82,6 +82,9 @@ class OperationKind(str, enum.Enum):
     COACH_START = "coach_start"
     COACH_REPLY = "coach_reply"
     REPORT = "report"
+    # 배우 기억 갱신. 연습이 끝난 뒤 뒤에서 돈다 -- 배우가 기다리는 화면에 붙이면
+    # 이미 느린 마무리 경로에 모델 호출이 하나 더 얹힌다.
+    MEMORY_UPDATE = "memory_update"
 
 
 class OperationStatus(str, enum.Enum):
