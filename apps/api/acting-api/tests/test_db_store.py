@@ -1814,3 +1814,61 @@ def test_actor_memory_disappears_with_the_user(postgres_store):
             {"u": user.id},
         )
     assert left == 0
+
+
+def test_prior_context_carries_the_card_of_the_same_practice_when_reopened(
+    postgres_store,
+):
+    """같은 연습을 다시 열면, 그때 만든 카드가 곧 "해보기로 한 것" 이다.
+
+    이번 연습을 빼고 지난 연습만 보면, 배우가 방금 마친 연습을 다시 열었을 때
+    코치가 정작 그 연습에서 정한 방향을 모른 채 시작한다.
+    """
+    store = postgres_store
+    user = store.create_user()
+    now = datetime.now(timezone.utc)
+    practice = _create_practice(store, user.id, "reopen", now)
+
+    coach_id = uuid4()
+    handoff_id = uuid4()
+    with store._session_factory.begin() as db:
+        db.add(
+            DbCoachSession(
+                id=coach_id,
+                practice_session_id=practice.id,
+                status=SessionStatus.CLOSED,
+                conversation_summary="지난번엔 호흡 이야기를 했다",
+                close_reason=CloseReason.GAP_STATED,
+            )
+        )
+        db.add(
+            CoachingHandoff(
+                id=handoff_id,
+                coach_session_id=coach_id,
+                practice_session_id=practice.id,
+                branch_kind="analysis",
+                handoff_json={},
+            )
+        )
+        db.add(
+            DbPracticeReport(
+                id=uuid4(),
+                practice_session_id=practice.id,
+                report_type="analysis",
+                report_json={
+                    "report_type": "analysis",
+                    "next_take": {
+                        "direction": "한 박자 늦게 말해보기",
+                        "tested": False,
+                    },
+                },
+                source_handoff_id=handoff_id,
+            )
+        )
+
+    context = store.get_prior_practice_context(
+        user_id=user.id, practice_session_id=practice.id
+    )
+
+    assert context.earlier_conversation == "지난번엔 호흡 이야기를 했다"
+    assert context.pending_takes == ("한 박자 늦게 말해보기",)
