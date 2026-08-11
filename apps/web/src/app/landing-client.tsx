@@ -20,9 +20,10 @@ const blockageChoices = [
   "마지막 대사가 갑자기 튀는 것 같아요",
   "감정이 한 가지로만 보여요",
   "상대의 말을 듣는 느낌이 안 나요",
-  "왜 이 행동을 하는지 납득되지 않아요",
   "직접 적기",
 ] as const;
+
+const sampleBlockage = blockageChoices[0];
 
 const firstAnswerChoices = [
   "상대가 붙잡아 주길 기대했어요",
@@ -43,8 +44,6 @@ const discoveries: Record<string, string> = {
     "떠나려는 마음과 붙잡히고 싶은 마음이 마지막 대사 직전에 함께 머물러 있었어요.",
   "상대의 말을 듣는 느낌이 안 나요":
     "상대의 반응을 기다리는 짧은 멈춤을 더 오래 바라보면 장면의 관계가 선명해져요.",
-  "왜 이 행동을 하는지 납득되지 않아요":
-    "이 행동은 상대가 나를 한 번 더 붙잡아 주기를 바라는 기대에서 시작됐어요.",
 };
 
 const defaultDiscovery =
@@ -52,36 +51,45 @@ const defaultDiscovery =
 
 const learningReferences = [
   {
-    title: "영상의 구체적인 순간에서 시작",
+    title: "장면을 다시 보게 합니다",
+    description:
+      "영상의 특정 순간을 보며 당시의 생각과 선택을 떠올립니다.",
+    linkLabel: "자극 회상 연구 참고 →",
     source:
       "자극 회상(stimulated recall) 기법 · Schön, 『The Reflective Practitioner』(1983)",
   },
   {
-    title: "정답보다 자기 설명을 돕는 질문",
+    title: "스스로 말하게 합니다",
+    description:
+      "해석을 먼저 알려주기보다 질문을 통해 자기 언어로 설명하게 합니다.",
+    linkLabel: "자기설명 효과 연구 참고 →",
     source: "Chi 외, 자기설명 효과 · Cognitive Science (1989·1994)",
   },
   {
-    title: "다음 시도의 행동으로 연결",
+    title: "다음 테이크로 가져갑니다",
+    description:
+      "대화를 끝내는 대신 다음 시도에서 확인할 행동 하나를 남깁니다.",
+    linkLabel: "의도적 연습·목표 설정 연구 참고 →",
     source:
       "Ericsson 외, 의도적 연습 · Psychological Review (1993) · Locke & Latham 목표 설정 이론",
   },
 ] as const;
 
 const principles = [
-  { mark: "×", text: "연기를 심사하지 않아요.", positive: false },
+  { mark: "×", text: "연기를 심사하지 않습니다", positive: false },
   {
     mark: "×",
-    text: "장면의 해석을 먼저 단정하지 않아요.",
+    text: "해석을 먼저 정하지 않습니다",
     positive: false,
   },
   {
     mark: "✓",
-    text: "영상에서 확인된 순간부터 질문해요.",
+    text: "영상 속 순간에서 질문합니다",
     positive: true,
   },
   {
     mark: "✓",
-    text: "마지막 선택은 배우가 직접 만들어요.",
+    text: "마지막 선택은 배우가 만듭니다",
     positive: true,
   },
 ] as const;
@@ -113,7 +121,7 @@ export default function LandingClient() {
       if (!track || !window.matchMedia("(min-width: 768px)").matches) return;
 
       const bounds = track.getBoundingClientRect();
-      const scrollDistance = Math.max(track.offsetHeight - 600, 1);
+      const scrollDistance = Math.max(track.offsetHeight - 520, 1);
       const progress = Math.min(Math.max((80 - bounds.top) / scrollDistance, 0), 1);
       const nextStep: DemoStep =
         progress < 0.25 ? 0 : progress < 0.5 ? 1 : progress < 0.75 ? 2 : 3;
@@ -140,12 +148,16 @@ export default function LandingClient() {
   }, []);
 
   const desktopStep = Math.max(desktopScrollStep, journeyStep) as DemoStep;
-  const noteDiscovery = chosenBlockage
-    ? (discoveries[chosenBlockage] ?? defaultDiscovery)
-    : defaultDiscovery;
+  const activeBlockage = chosenBlockage ?? sampleBlockage;
+  const noteDiscovery = discoveries[activeBlockage] ?? defaultDiscovery;
 
   const useSample = () => {
     setSampleReady(true);
+    setBlockageDraft(sampleBlockage);
+    setChosenBlockage(sampleBlockage);
+    setDirectEntry(false);
+    setFirstAnswer(null);
+    setSecondAnswer(null);
     setJourneyStep((current) => Math.max(current, 1) as DemoStep);
   };
 
@@ -190,6 +202,7 @@ export default function LandingClient() {
     directEntry,
     firstAnswer,
     secondAnswer,
+    activeBlockage,
     noteDiscovery,
     onUseSample: useSample,
     onSelectBlockage: selectBlockage,
@@ -201,67 +214,50 @@ export default function LandingClient() {
 
   return (
     <main className="min-h-dvh overflow-x-clip bg-white text-[#191f28]">
-      <header className="sticky top-0 z-30 border-b border-[#edf0f3]/80 bg-white/90 px-5 backdrop-blur-xl">
-        <nav className="mx-auto flex h-16 max-w-[1120px] items-center justify-between">
+      <header className="sticky top-0 z-30 bg-white/80 px-5 backdrop-blur-xl">
+        <nav className="mx-auto flex h-14 max-w-[1120px] items-center justify-between">
           <Link href="/" aria-label="Acttub 홈" className="shrink-0">
-            <Image src={wordmark} alt="Acttub" priority className="h-6 w-auto" />
+            <Image src={wordmark} alt="Acttub" priority className="h-[22px] w-auto" />
           </Link>
-          <div className="flex items-center gap-6">
-            <div className="hidden items-center gap-6 text-sm font-semibold text-[#4e5968] md:flex">
-              <a
-                href="#mini-practice"
-                className="transition-colors hover:text-[#191f28] focus-visible:rounded focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#3182f6]"
-              >
-                연습 방식
-              </a>
-              <a
-                href="#principles"
-                className="transition-colors hover:text-[#191f28] focus-visible:rounded focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#3182f6]"
-              >
-                Acttub의 원칙
-              </a>
-            </div>
-            <Link
-              href={practiceLoginHref}
-              prefetch={false}
-              className="inline-flex h-10 items-center justify-center whitespace-nowrap rounded-xl bg-[#3182f6] px-[18px] text-[15px] font-bold tracking-[-0.3px] text-white transition-colors hover:bg-[#1b64da] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#3182f6]"
-            >
-              연습 시작하기
-            </Link>
-          </div>
+          <Link
+            href={practiceLoginHref}
+            prefetch={false}
+            className="inline-flex h-9 items-center justify-center whitespace-nowrap rounded-xl bg-[#3182f6] px-4 text-sm font-bold tracking-[-0.3px] text-white transition-colors hover:bg-[#1b64da] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#3182f6]"
+          >
+            연습 시작하기
+          </Link>
         </nav>
       </header>
 
       <section className="bg-[linear-gradient(180deg,#e8f3ff_0%,#f8fbff_58%,#ffffff_100%)] px-5 pb-16 pt-14 md:pb-28 md:pt-24">
         <div className="mx-auto grid max-w-[1120px] items-center gap-7 md:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)] md:gap-8 xl:grid-cols-[440px_minmax(0,1fr)] xl:gap-11">
           <div className="flex min-w-0 flex-col items-start">
-            <p className="text-[13px] font-bold leading-[19px] tracking-[-0.2px] text-[#3182f6] md:text-sm md:leading-5">
-              연기 영상 기반 질문 연습
-            </p>
-            <h1 className="mt-[18px] text-[25px] font-black leading-[29px] tracking-[-1.25px] md:text-[34px] md:leading-[40px] md:tracking-[-1.7px] xl:text-[38px] xl:leading-[43px] xl:tracking-[-1.9px]">
-              정답을 정해주지 않고,
+            <h1 className="text-[27px] font-black leading-[33px] tracking-[-1.35px] md:text-[34px] md:leading-[40px] md:tracking-[-1.7px] xl:text-[38px] xl:leading-[43px] xl:tracking-[-1.9px]">
+              혼자 찍은 연기,
               <br />
-              다시 보게 합니다.
+              혼자만 보고 끝내고 있나요?
             </h1>
-            <p className="mt-7 text-base font-semibold leading-[26px] text-[#4e5968]">
-              영상에서 놓친 순간을 함께 보고 질문을 건네요.
+            <p className="mt-6 text-[15px] font-semibold leading-[25px] text-[#4e5968] md:text-base md:leading-[26px]">
+              영상을 올리고 막힌 지점을 적으면,
+              <br />
+              Acttub이 장면 속 순간을 짚어 질문합니다.
               <br />
               답하다 보면 다음 테이크에서 붙잡을 한 문장이 남습니다.
             </p>
-            <div className="mt-9 flex w-full flex-col items-stretch gap-3 xl:flex-row xl:items-center xl:gap-5">
+            <div className="mt-8 flex w-full flex-col items-stretch gap-3 xl:flex-row xl:items-center xl:gap-5">
+              <a
+                href="#mini-practice"
+                className="inline-flex h-14 w-full shrink-0 items-center justify-center whitespace-nowrap rounded-2xl bg-[#3182f6] px-7 text-base font-black text-white shadow-[0_8px_20px_rgba(49,130,246,0.24)] transition-colors hover:bg-[#1b64da] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#3182f6] xl:w-auto"
+              >
+                샘플 영상으로 30초 체험하기
+              </a>
               <Link
                 href={practiceLoginHref}
                 prefetch={false}
-                className="inline-flex h-14 w-full shrink-0 items-center justify-center whitespace-nowrap rounded-2xl bg-[#3182f6] px-7 text-base font-black text-white shadow-[0_8px_20px_rgba(49,130,246,0.24)] transition-colors hover:bg-[#1b64da] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#3182f6] xl:w-auto"
-              >
-                내 영상으로 연습 시작하기
-              </Link>
-              <a
-                href="#mini-practice"
                 className="inline-flex min-h-6 items-center whitespace-nowrap text-base font-bold text-[#4e5968] transition-colors hover:text-[#191f28] focus-visible:rounded focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#3182f6]"
               >
-                30초로 직접 체험하기 →
-              </a>
+                내 영상으로 시작하기 →
+              </Link>
             </div>
           </div>
 
@@ -271,7 +267,7 @@ export default function LandingClient() {
 
       <section
         id="mini-practice"
-        className="scroll-mt-16 bg-[#f9fafb] px-5 py-16 md:px-8 md:py-24"
+        className="scroll-mt-14 bg-[#f9fafb] px-5 py-10 md:px-8 md:py-[72px]"
       >
         <div className="mx-auto max-w-[1120px]">
           <h2 className="text-center text-[24px] font-black leading-[31px] tracking-[-1.2px] md:text-[32px] md:leading-[42px] md:tracking-[-1.6px]">
@@ -281,12 +277,12 @@ export default function LandingClient() {
             샘플 장면으로 Acttub의 전체 연습 흐름을 직접 따라가 보세요.
           </p>
 
-          <div className="mt-9 md:hidden">
+          <div className="mt-6 md:hidden">
             <MobilePracticeFlow currentStep={journeyStep} {...flowProps} />
           </div>
 
-          <div ref={desktopTrackRef} className="mt-12 hidden h-[900px] md:block">
-            <div className="sticky top-20 grid grid-cols-[minmax(180px,240px)_minmax(0,1fr)] items-start gap-6 lg:gap-12">
+          <div ref={desktopTrackRef} className="mt-9 hidden h-[680px] md:block">
+            <div className="sticky top-16 grid grid-cols-[minmax(180px,240px)_minmax(0,1fr)] items-start gap-6 lg:gap-12">
               <DemoProgress currentStep={desktopStep} />
               <DesktopPracticeScreen currentStep={desktopStep} {...flowProps} />
             </div>
@@ -296,91 +292,88 @@ export default function LandingClient() {
 
       <section
         id="principles"
-        className="scroll-mt-16 bg-white px-5 py-[72px] md:px-8 md:py-28"
+        className="scroll-mt-14 bg-white px-5 py-[72px] md:px-8 md:py-24"
       >
         <div className="mx-auto max-w-[1120px]">
           <p className="text-sm font-black text-[#3182f6]">연습 설계 원칙</p>
           <h2 className="mt-3 text-[26px] font-black leading-[35px] tracking-[-1.3px] md:text-[36px] md:leading-[46px] md:tracking-[-1.8px]">
-            왜 이런 방식으로 연습하나요?
+            정답을 정해주지 않고,
+            <br />
+            다시 보게 합니다.
           </h2>
 
-          <div className="mt-9 grid gap-4 md:grid-cols-3">
-            {learningReferences.map((reference, index) => (
+          <h3 className="mt-10 text-xl font-black leading-[30px] tracking-[-0.6px] md:mt-12 md:text-2xl">
+            왜 질문으로 연습하나요?
+          </h3>
+          <div className="mt-5 grid gap-4 md:grid-cols-3">
+            {learningReferences.map((reference) => (
               <article
                 key={reference.title}
-                className="flex min-h-[220px] flex-col rounded-[20px] border border-[#e5e8eb] bg-[#f9fafb] p-6"
+                className="flex min-h-[210px] flex-col rounded-[28px] border border-[#e5e8eb] bg-[#f9fafb] p-6"
               >
-                <p className="text-xs font-black text-[#3182f6]">
-                  {String(index + 1).padStart(2, "0")}
-                </p>
-                <h3 className="mt-4 text-xl font-black leading-[30px] tracking-[-0.6px]">
+                <h4 className="text-xl font-black leading-[30px] tracking-[-0.6px]">
                   {reference.title}
-                </h3>
-                <p className="mt-auto pt-6 text-[13px] font-semibold leading-[21px] text-[#6b7684]">
-                  {reference.source}
+                </h4>
+                <p className="mt-3 text-[15px] font-semibold leading-6 text-[#4e5968]">
+                  {reference.description}
                 </p>
+                <a
+                  href="#references"
+                  className="mt-auto pt-6 text-[13px] font-semibold leading-[21px] text-[#8b95a1] transition-colors hover:text-[#4e5968] focus-visible:rounded focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#3182f6]"
+                >
+                  {reference.linkLabel}
+                </a>
               </article>
             ))}
           </div>
 
-          <details className="mt-6 rounded-[20px] border border-[#e5e8eb] bg-white px-5 py-1 md:px-6">
+          <details
+            id="references"
+            className="mt-6 scroll-mt-20 rounded-[20px] border border-[#e5e8eb] bg-white px-5 py-1 md:px-6"
+          >
             <summary className="cursor-pointer py-5 text-[15px] font-black focus-visible:rounded focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#3182f6]">
               참고한 자료 전체 보기
             </summary>
-            <div className="grid gap-8 border-t border-[#edf0f3] py-6 md:grid-cols-2">
-              <ReferenceGroup title="학습 연구">
-                {learningReferences.map((reference) => (
-                  <li key={reference.title}>
-                    {reference.title} — {reference.source}
-                  </li>
-                ))}
-              </ReferenceGroup>
-              <ReferenceGroup title="연기 훈련 서적">
-                <li>스타니슬랍스키 『배우 수업』</li>
-                <li>우타 하겐 『Respect for Acting』(1973)</li>
-                <li>샌포드 마이즈너 『Sanford Meisner on Acting』(1987)</li>
-                <li>데클란 도넬란 『The Actor and the Target』(2002)</li>
-              </ReferenceGroup>
-            </div>
+            <ul className="space-y-2 border-t border-[#edf0f3] py-6 text-[13px] font-semibold leading-[21px] text-[#4e5968]">
+              <li>{learningReferences[0].source}</li>
+              <li>{learningReferences[1].source}</li>
+              <li>{learningReferences[2].source}</li>
+              <li>
+                연기 훈련 서적: 스타니슬랍스키 『배우 수업』 / 우타 하겐
+                『Respect for Acting』(1973) / 샌포드 마이즈너 『Sanford
+                Meisner on Acting』(1987) / 데클란 도넬란 『The Actor and the
+                Target』(2002)
+              </li>
+            </ul>
           </details>
 
           <p className="mt-5 text-sm font-semibold leading-6 text-[#6b7684]">
             위 자료는 Acttub의 질문 구조를 설계할 때 참고한 자료이며, Acttub 자체의 효과를 직접 검증한 연구는 아닙니다.
           </p>
-        </div>
-      </section>
 
-      <section className="bg-[#f9fafb] px-5 py-[72px] md:px-16 md:py-28">
-        <div className="mx-auto max-w-[720px]">
-          <p className="text-[15px] font-black text-[#3182f6]">Acttub의 원칙</p>
-          <h2 className="mt-4 text-[25px] font-black leading-[33px] tracking-[-1.25px] md:text-[34px] md:leading-[44px] md:tracking-[-1.7px]">
-            <span className="md:hidden">정답을 알려주는</span>
-            <span className="hidden md:inline">정답을 알려주는 연기 AI가 아닙니다.</span>
-            <span className="md:hidden">
-              <br />연기 AI가 아닙니다.
-            </span>
-          </h2>
-          <p className="mt-3 text-[19px] font-bold leading-[30px] text-[#4e5968]">
-            Acttub은 장면을 단정하지 않아요.
-          </p>
-          <ul className="mt-8 space-y-1.5">
-            {principles.map((principle) => (
-              <li
-                key={principle.text}
-                className="flex items-center gap-3 py-1.5 text-base font-semibold leading-6"
-              >
-                <span
-                  aria-hidden="true"
-                  className={`flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-full bg-[#f2f4f6] text-xs font-black ${
-                    principle.positive ? "text-[#3182f6]" : "text-[#8b95a1]"
-                  }`}
+          <div className="mt-12 rounded-[28px] bg-[#f7faff] p-6 md:mt-16 md:p-8">
+            <h3 className="text-xl font-black leading-[30px] tracking-[-0.6px]">
+              Acttub이 하지 않는 것
+            </h3>
+            <ul className="mt-5 grid gap-1.5 md:grid-cols-2 md:gap-x-10">
+              {principles.map((principle) => (
+                <li
+                  key={principle.text}
+                  className="flex items-center gap-3 py-1.5 text-base font-semibold leading-6"
                 >
-                  {principle.mark}
-                </span>
-                <span>{principle.text}</span>
-              </li>
-            ))}
-          </ul>
+                  <span
+                    aria-hidden="true"
+                    className={`flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-full bg-white text-xs font-black ${
+                      principle.positive ? "text-[#3182f6]" : "text-[#8b95a1]"
+                    }`}
+                  >
+                    {principle.mark}
+                  </span>
+                  <span>{principle.text}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
         </div>
       </section>
 
@@ -388,7 +381,9 @@ export default function LandingClient() {
         <div className="mx-auto flex max-w-[1120px] flex-col items-start justify-between gap-6 md:flex-row md:items-center md:gap-10">
           <div className="space-y-4">
             <h2 className="text-[26px] font-black leading-[35px] tracking-[-1.3px] md:text-[48px] md:leading-[60px] md:tracking-[-2.4px]">
-              오늘 연기를 그냥 넘기지 마세요
+              오늘 찍은 장면을
+              <br />
+              그냥 저장해두지 마세요.
             </h2>
             <p className="text-base font-semibold leading-[26px] text-[#8b95a1]">
               오늘 찍은 장면으로 한 번 더 연습해보세요.
@@ -429,6 +424,7 @@ type FlowProps = {
   directEntry: boolean;
   firstAnswer: string | null;
   secondAnswer: string | null;
+  activeBlockage: string;
   noteDiscovery: string;
   onUseSample: () => void;
   onSelectBlockage: (choice: (typeof blockageChoices)[number]) => void;
@@ -565,7 +561,7 @@ function DesktopPracticeScreen({
   return (
     <div
       data-session-step={currentStep + 1}
-      className="relative h-[600px] w-full max-w-[640px] min-w-0 justify-self-end overflow-hidden rounded-[20px] border border-[#e5e8eb] bg-white shadow-[0_16px_44px_0_#191f281f]"
+      className="relative h-[520px] w-full max-w-[640px] min-w-0 justify-self-end overflow-hidden rounded-[20px] border border-[#e5e8eb] bg-white shadow-[0_16px_44px_0_#191f281f]"
       aria-live="polite"
     >
       <SessionPanel active={currentStep === 0}>
@@ -625,7 +621,7 @@ function MobilePracticeFlow({
   ...flowProps
 }: FlowProps & { currentStep: DemoStep }) {
   return (
-    <div className="space-y-5">
+    <div className="space-y-2.5">
       <MobileStepCard step={0} currentStep={currentStep}>
         <UploadStepContent
           compact
@@ -664,7 +660,7 @@ function MobileStepCard({
   return (
     <article className="overflow-hidden rounded-[20px] border border-[#e5e8eb] bg-white shadow-[0_12px_32px_0_#191f2812]">
       <div
-        className={`flex items-center gap-3 border-b border-[#edf0f3] px-4 py-4 text-[15px] font-black ${
+        className={`flex items-center gap-3 border-b border-[#edf0f3] px-4 py-2.5 text-[15px] font-black ${
           active ? "bg-[#e8f3ff] text-[#3182f6]" : "text-[#8b95a1]"
         }`}
         aria-current={active ? "step" : undefined}
@@ -689,11 +685,11 @@ function UploadStepContent({
   onUseSample: () => void;
 }) {
   return (
-    <div className={compact ? "bg-[#f7faff] p-4" : "flex h-full flex-col bg-[#f7faff] p-6"}>
+    <div className={compact ? "bg-[#f7faff] p-3.5" : "flex h-full flex-col bg-[#f7faff] p-4"}>
       {!compact ? <ScreenLabel number="01" name="영상 넣기" /> : null}
       {sampleReady ? (
         <FadeIn>
-          <div className={compact ? "" : "mt-5"}>
+          <div className={compact ? "" : "mt-3"}>
             <SampleStill
               className="aspect-video max-h-[300px] w-full rounded-[18px] bg-black object-contain sm:rounded-[20px]"
               showChips
@@ -709,16 +705,16 @@ function UploadStepContent({
         </FadeIn>
       ) : (
         <div
-          className={`${compact ? "h-[200px]" : "mt-5 min-h-[200px] flex-1"} flex w-full flex-col items-center justify-center gap-2 rounded-[18px] border-[1.5px] border-dashed border-[#cfe0f5] bg-[#f8fbff] px-4 text-center transition hover:border-[#3182f6] hover:bg-[#e8f3ff] sm:rounded-[20px]`}
+          className={`${compact ? "h-[140px]" : "mt-3 min-h-[160px] flex-1"} flex w-full flex-col items-center justify-center gap-1.5 rounded-[18px] border-[1.5px] border-dashed border-[#cfe0f5] bg-[#f8fbff] px-4 text-center transition hover:border-[#3182f6] hover:bg-[#e8f3ff] sm:rounded-[20px]`}
         >
           {/* 넣을 자리에 들어갈 영상을 그대로 채운다.
               ＋ 배지까지 함께 두면 이미 있는 상태와 비어 있는 상태가 겹쳐 보인다. */}
           <SampleStill
-            className="aspect-video w-full max-w-[200px] rounded-xl sm:max-w-[360px]"
+            className="aspect-video w-full max-w-[160px] rounded-xl sm:max-w-[300px]"
             filename="sample_take.mp4"
             showChips
           />
-          <p className="mt-1 block text-[15px] font-black tracking-[-0.02em] text-[#333d4b] sm:text-[17px]">
+          <p className="block text-[14px] font-black tracking-[-0.02em] text-[#333d4b] sm:text-[16px]">
             연기 영상을 여기에 넣어요
           </p>
           <p className="block text-xs font-semibold text-[#8b95a1] sm:text-[13px]">
@@ -731,7 +727,7 @@ function UploadStepContent({
         tabIndex={interactive ? 0 : -1}
         disabled={!interactive}
         onClick={onUseSample}
-        className="mt-4 h-12 w-full rounded-[14px] bg-[#3182f6] px-6 text-[15px] font-black text-white shadow-[0_10px_24px_rgba(49,130,246,0.24)] transition hover:bg-[#1b64da] disabled:bg-[#c9d3df] disabled:shadow-none sm:w-auto focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#3182f6] disabled:cursor-default"
+        className="mt-3 h-11 w-full rounded-[14px] bg-[#3182f6] px-6 text-[15px] font-black text-white shadow-[0_10px_24px_rgba(49,130,246,0.24)] transition hover:bg-[#1b64da] disabled:bg-[#c9d3df] disabled:shadow-none sm:w-auto focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#3182f6] disabled:cursor-default"
       >
         {sampleReady ? "샘플 영상 다시 보기" : "샘플 영상으로 체험하기"}
       </button>
@@ -751,7 +747,7 @@ function BlockageStepContent({
 }: FlowProps & { compact: boolean; interactive: boolean }) {
   const canStart = blockageDraft.trim().length > 0;
   return (
-    <div className={compact ? "bg-[#f7faff] p-4" : "flex h-full flex-col overflow-y-auto bg-[#f7faff] p-5"}>
+    <div className={compact ? "bg-[#f7faff] p-3.5" : "flex h-full flex-col overflow-y-auto bg-[#f7faff] p-4"}>
       {!compact ? <ScreenLabel number="02" name="막힌 지점 적기" /> : null}
       {sampleReady ? (
         <UploadedSampleStrip compact={compact} />
@@ -765,7 +761,7 @@ function BlockageStepContent({
       >
         이 장면을 연습하면서 가장 마음에 걸린 부분은 무엇인가요?
       </p>
-      <div className="mt-3 grid gap-4">
+      <div className="mt-3 grid gap-2">
         {blockageChoices.map((choice) => {
           const selected =
             choice === "직접 적기" ? directEntry : blockageDraft === choice;
@@ -780,26 +776,23 @@ function BlockageStepContent({
           );
         })}
       </div>
-      <textarea
-        rows={1}
-        value={blockageDraft}
-        readOnly={!directEntry}
-        disabled={!interactive}
-        onChange={(event) => onWriteBlockage(event.target.value)}
-        placeholder={
-          directEntry
-            ? "마음에 걸린 부분을 직접 적어 주세요"
-            : "예: 마지막 대사가 갑자기 튀는 것 같아요"
-        }
-        aria-label="마음에 걸린 부분"
-        className="mt-2.5 h-12 w-full resize-none overflow-y-auto rounded-[28px] bg-white p-4 text-base font-semibold leading-6 text-[#191f28] shadow-[0_16px_48px_rgba(25,31,40,0.08)] outline-none placeholder:text-[#4e5968] focus:ring-2 focus:ring-[#3182f6] disabled:bg-[#f8fbff]"
-      />
+      {directEntry ? (
+        <textarea
+          rows={1}
+          value={blockageDraft}
+          disabled={!interactive}
+          onChange={(event) => onWriteBlockage(event.target.value)}
+          placeholder="마음에 걸린 부분을 직접 적어 주세요"
+          aria-label="마음에 걸린 부분"
+          className="mt-2.5 h-11 w-full resize-none overflow-y-auto rounded-[28px] bg-white px-4 py-2.5 text-[15px] font-semibold leading-6 text-[#191f28] shadow-[0_16px_48px_rgba(25,31,40,0.08)] outline-none placeholder:text-[#4e5968] focus:ring-2 focus:ring-[#3182f6] disabled:bg-[#f8fbff]"
+        />
+      ) : null}
       <button
         type="button"
         tabIndex={interactive ? 0 : -1}
         disabled={!interactive || !canStart}
         onClick={onStartQuestions}
-        className="mt-2.5 h-12 w-full rounded-[14px] bg-[#3182f6] px-6 text-[15px] font-black text-white shadow-[0_10px_24px_rgba(49,130,246,0.24)] transition hover:bg-[#1b64da] disabled:bg-[#c9d3df] disabled:shadow-none sm:w-auto focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#3182f6] disabled:cursor-not-allowed"
+        className="mt-2.5 h-11 w-full rounded-[14px] bg-[#3182f6] px-6 text-[15px] font-black text-white shadow-[0_10px_24px_rgba(49,130,246,0.24)] transition hover:bg-[#1b64da] disabled:bg-[#c9d3df] disabled:shadow-none sm:w-auto focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#3182f6] disabled:cursor-not-allowed"
       >
         질문 시작하기
       </button>
@@ -810,7 +803,7 @@ function BlockageStepContent({
 function UploadedSampleStrip({ compact }: { compact: boolean }) {
   return (
     <div
-      className={`${compact ? "" : "mt-3"} flex min-w-0 items-center gap-3 rounded-[18px] bg-white p-2.5 shadow-[0_12px_36px_rgba(25,31,40,0.05)]`}
+      className={`${compact ? "" : "mt-2.5"} flex min-w-0 items-center gap-3 rounded-[18px] bg-white p-2 shadow-[0_12px_36px_rgba(25,31,40,0.05)]`}
     >
       <div className="relative h-10 w-[72px] shrink-0 overflow-hidden rounded-lg bg-[#d1d6db]">
         <Image
@@ -829,10 +822,35 @@ function UploadedSampleStrip({ compact }: { compact: boolean }) {
   );
 }
 
+function SessionContext({ blockage }: { blockage: string }) {
+  return (
+    <div className="flex min-w-0 items-center gap-3 border-b border-[#edf0f3] bg-[#f8fbff] px-3 py-2.5 sm:px-4">
+      <div className="relative h-9 w-16 shrink-0 overflow-hidden rounded-lg bg-[#d1d6db]">
+        <Image
+          src="/landing/sample-take.png"
+          alt="00:31 샘플 장면"
+          fill
+          sizes="64px"
+          className="object-cover object-center"
+        />
+      </div>
+      <div className="min-w-0">
+        <p className="text-[11px] font-black text-[#3182f6]">
+          02에서 고른 막힌 지점 · 00:31
+        </p>
+        <p className="truncate text-[13px] font-bold text-[#333d4b]">
+          {blockage}
+        </p>
+      </div>
+    </div>
+  );
+}
+
 function QuestionStepContent({
   compact,
   interactive,
   chosenBlockage,
+  activeBlockage,
   firstAnswer,
   secondAnswer,
   onChooseFirstAnswer,
@@ -848,28 +866,25 @@ function QuestionStepContent({
   };
 
   return (
-    <div className={compact ? "bg-[#f7faff] p-4" : "flex h-full min-h-0 flex-col bg-[#f7faff] p-5"}>
+    <div className={compact ? "bg-[#f7faff] p-3.5" : "flex h-full min-h-0 flex-col bg-[#f7faff] p-4"}>
       {!compact ? <ScreenLabel number="03" name="질문으로 풀기" /> : null}
-      <section className={`${compact ? "min-h-[560px]" : "mt-3"} flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-[18px] bg-white shadow-[0_12px_36px_rgba(25,31,40,0.06)] sm:rounded-[20px]`}>
+      <section className={`${compact ? "min-h-[260px]" : "mt-2.5"} flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-[18px] bg-white shadow-[0_12px_36px_rgba(25,31,40,0.06)] sm:rounded-[20px]`}>
         <div className="flex items-center gap-3 border-b border-[#edf0f3] px-4 py-3 sm:px-5">
           <span className="flex items-center gap-2 text-xs font-black text-[#4e5968] sm:text-[13.5px]">
             <span className="h-1.5 w-1.5 rounded-full bg-[#03b26c]" />
             현재 장면을 바탕으로 질문하고 있어요
           </span>
         </div>
-        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-3.5 sm:p-4">
-          <div className="mt-auto flex flex-col gap-3 sm:gap-4">
-            <DemoCoachBubble
-              eyebrow="지금 풀고 있는 지점"
-              text={chosenBlockage ?? "02에서 마음에 걸린 부분을 먼저 골라 주세요."}
-            />
+        <SessionContext blockage={activeBlockage} />
+        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-3 sm:p-3.5">
+          <div className="mt-auto flex flex-col gap-2.5 sm:gap-3">
             <DemoCoachBubble
               eyebrow="영상에서 확인된 순간 · 00:31"
               text="마지막 대사 직전, 시선이 아래로 내려가고 잠시 멈춰 있어요."
             />
             <DemoCoachBubble
               eyebrow="질문 1"
-              text="이 말을 하기 직전, 상대에게서 어떤 반응을 기대했나요?"
+              text={`“${activeBlockage}”라고 느낀 이 순간, 상대에게서 어떤 반응을 기대했나요?`}
             />
             {firstAnswer ? (
               <DemoMineBubble text={firstAnswer} />
@@ -887,7 +902,7 @@ function QuestionStepContent({
             )}
             {firstAnswer ? (
               <FadeIn>
-                <div className="flex flex-col gap-3 sm:gap-4">
+                <div className="flex flex-col gap-2.5 sm:gap-3">
                   <DemoCoachBubble
                     eyebrow="질문 2"
                     text="그 기대가 시선과 멈춤에 드러난다면, 다음에는 무엇을 해볼까요?"
@@ -939,44 +954,55 @@ function QuestionStepContent({
 function NoteStepContent({
   compact,
   interactive,
-  chosenBlockage,
-  firstAnswer,
+  activeBlockage,
   secondAnswer,
   noteDiscovery,
 }: FlowProps & { compact: boolean; interactive: boolean }) {
+  const nextTakeSentence =
+    secondAnswer ?? "시선을 피하지 않고 한 박자 더 기다려요.";
+
   return (
-    <div className={compact ? "bg-[#f7faff] p-4" : "flex h-full min-h-0 flex-col bg-[#f7faff] p-5"}>
+    <div className={compact ? "bg-[#f7faff] p-3.5" : "flex h-full min-h-0 flex-col bg-[#f7faff] p-4"}>
       {!compact ? <ScreenLabel number="04" name="연습 노트 받기" /> : null}
-      <div className={`${compact ? "" : "mt-4"} min-h-0 flex-1 overflow-y-auto`}>
-        {/* 마지막 문장이 잘리면 체험의 결말이 사라진다. 노트가 스크롤 없이 들어가도록 묶어 둔다. */}
-        <div className="grid gap-3">
-          <header className="rounded-[28px] bg-[#3182f6] px-6 py-4 text-white shadow-[0_16px_48px_rgba(25,31,40,0.08)]">
-            <p className="text-xs font-black">오늘 정리</p>
-            <h2 className="mt-1 text-xl font-black leading-tight tracking-[-0.04em]">
-              연습 노트
-            </h2>
-          </header>
-          <NoteRow
-            label="처음 막힌 지점"
-            text={chosenBlockage ?? "02에서 고른 문장이 여기에 이어져요."}
-          />
-          <NoteRow
-            label="대화에서 발견한 것"
-            text={
-              firstAnswer ? `“${firstAnswer}”\n${noteDiscovery}` : noteDiscovery
-            }
-          />
-          <NoteRow
-            label="다음 테이크에서 붙잡을 문장"
-            text={secondAnswer ?? "시선을 피하지 않고 한 박자 더 기다려요."}
-          />
-        </div>
+      <div className={`${compact ? "" : "mt-2.5"} min-h-0 flex-1 overflow-y-auto`}>
+        <article className="rounded-[28px] bg-white p-4 shadow-[0_16px_48px_rgba(25,31,40,0.08)] sm:p-5">
+          <span className="inline-flex items-center rounded-lg bg-[#e8f3ff] px-2.5 py-1 text-xs font-black text-[#3182f6]">
+            00:31 장면 다시 보기
+          </span>
+
+          <div className="mt-3 rounded-[18px] bg-[#f8fbff] px-4 py-3">
+            <p className="text-[11px] font-black text-[#8b95a1]">
+              처음 막힌 지점
+            </p>
+            <p className="mt-1 text-sm font-bold leading-5 text-[#333d4b]">
+              {activeBlockage}
+            </p>
+          </div>
+
+          <div className="mt-4">
+            <h3 className="text-sm font-black text-[#191f28]">
+              오늘 발견한 것
+            </h3>
+            <p className="mt-1.5 text-sm font-semibold leading-6 text-[#4e5968]">
+              {noteDiscovery}
+            </p>
+          </div>
+
+          <div className="mt-4 rounded-[20px] bg-[#e8f3ff] p-4">
+            <h3 className="text-xs font-black text-[#3182f6]">
+              다음 테이크에서 붙잡을 한 문장
+            </h3>
+            <blockquote className="mt-2 text-[25px] font-black leading-[32px] tracking-[-1px] text-[#191f28] md:text-[30px] md:leading-[38px] md:tracking-[-1.5px]">
+              “{nextTakeSentence}”
+            </blockquote>
+          </div>
+        </article>
       </div>
       <Link
         href={practiceLoginHref}
         prefetch={false}
         tabIndex={interactive ? 0 : -1}
-        className="mt-4 inline-flex h-12 w-full shrink-0 items-center justify-center rounded-[14px] bg-[#3182f6] px-4 text-[15px] font-black text-white transition-colors hover:bg-[#1b64da] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#3182f6]"
+        className="mt-3 inline-flex h-11 w-full shrink-0 items-center justify-center rounded-[14px] bg-[#3182f6] px-4 text-[15px] font-black text-white transition-colors hover:bg-[#1b64da] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#3182f6]"
       >
         내 영상으로 같은 방식으로 연습하기 →
       </Link>
@@ -1009,9 +1035,11 @@ function BlockageChoiceButton({
       aria-pressed={selected}
       disabled={disabled}
       onClick={onClick}
-      className={`min-h-10 w-full rounded-[28px] bg-white px-6 py-2 text-left shadow-[0_16px_48px_rgba(25,31,40,0.08)] transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#3182f6] disabled:cursor-not-allowed disabled:text-[#b0b8c1] ${selected ? "ring-2 ring-[#3182f6]" : ""}`}
+      className={`min-h-10 w-full rounded-[28px] bg-white px-5 py-2 text-left shadow-[0_16px_48px_rgba(25,31,40,0.08)] transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#3182f6] disabled:cursor-not-allowed disabled:text-[#b0b8c1] ${selected ? "ring-2 ring-[#3182f6]" : ""}`}
     >
-      <span className="block text-lg font-black text-[#191f28]">{text}</span>
+      <span className="block text-[15px] font-black leading-6 text-[#191f28]">
+        {text}
+      </span>
     </button>
   );
 }
@@ -1060,34 +1088,6 @@ function DemoAnswerButton({
       >
         {text}
       </button>
-    </div>
-  );
-}
-
-function NoteRow({ label, text }: { label: string; text: string }) {
-  return (
-    <article className="rounded-[28px] bg-white p-5 shadow-[0_16px_48px_rgba(25,31,40,0.08)]">
-      <h3 className="text-base font-black text-[#191f28]">{label}</h3>
-      <p className="mt-3 whitespace-pre-wrap text-sm font-semibold leading-7 text-[#4e5968]">
-        {text}
-      </p>
-    </article>
-  );
-}
-
-function ReferenceGroup({
-  title,
-  children,
-}: {
-  title: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div>
-      <h3 className="text-[15px] font-black">{title}</h3>
-      <ul className="mt-3 space-y-2 text-[13px] font-semibold leading-[21px] text-[#4e5968]">
-        {children}
-      </ul>
     </div>
   );
 }
