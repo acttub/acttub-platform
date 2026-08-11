@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import wordmark from "../assets/acttub-wordmark.png";
 import { isLoggedIn } from "../lib/auth/token-store";
@@ -41,13 +41,29 @@ const practiceLoginHref = "/login?next=/practice/new";
 
 export default function LandingClient() {
   const router = useRouter();
+  const heroCtaRef = useRef<HTMLAnchorElement>(null);
+  // 히어로 버튼이 화면에 있는 동안에는 하단 고정 버튼을 숨긴다.
+  // 같은 버튼 두 개가 동시에 보이면 어느 쪽을 눌러야 하는지 흐려진다.
+  const [heroCtaHidden, setHeroCtaHidden] = useState(false);
 
   useEffect(() => {
     if (isLoggedIn()) router.replace("/home");
   }, [router]);
 
+  useEffect(() => {
+    const heroCta = heroCtaRef.current;
+    if (!heroCta) return;
+
+    const observer = new IntersectionObserver(([entry]) =>
+      setHeroCtaHidden(!entry.isIntersecting),
+    );
+    observer.observe(heroCta);
+    return () => observer.disconnect();
+  }, []);
+
   return (
-    <main className="min-h-dvh overflow-hidden bg-white text-[#191f28]">
+    /* pb-[84px]: 좁은 화면 하단 고정 CTA가 마지막 섹션을 가리지 않도록 비워둔다. */
+    <main className="min-h-dvh overflow-hidden bg-white pb-[84px] text-[#191f28] sm:pb-0">
       <header className="sticky top-0 z-20 border-b border-[#edf0f3]/80 bg-white/90 px-5 backdrop-blur-xl">
         <nav className="mx-auto flex h-16 max-w-6xl items-center justify-between">
           <Link href="/" aria-label="Acttub 홈" className="shrink-0">
@@ -74,46 +90,62 @@ export default function LandingClient() {
 
         <div className="relative mx-auto flex max-w-6xl flex-col items-center">
           <p className="rounded-full bg-white/85 px-4 py-2 text-sm font-black text-[#3182f6] shadow-sm">
-            연기 영상 기반 질문 연습
+            혼자 연습하는 배우를 위한
           </p>
-          <h1 className="mt-8 max-w-5xl text-4xl font-black leading-[1.06] tracking-[-0.065em] sm:text-6xl lg:text-7xl">
-            같이 연기 연습해요!
+          <h1 className="mt-8 max-w-5xl text-4xl font-black leading-[1.14] tracking-[-0.06em] sm:text-6xl sm:leading-[1.06] lg:text-7xl">
+            혼자 찍은 연기,
+            <br />
+            혼자 보지 마세요
           </h1>
-          <p className="mt-7 max-w-3xl text-lg font-semibold leading-8 text-[#4e5968] sm:text-xl">
-            연기 영상을 올리면 세심한 분석을 도와줘요
+          <p className="mt-6 max-w-2xl text-lg font-semibold leading-8 text-[#4e5968] sm:mt-7 sm:max-w-3xl sm:text-xl">
+            영상을 올리면 장면을 같이 뜯어보는 질문을 드려요. 답하다 보면 다음
+            테이크에서 바꿀 한 가지가 잡혀요.
           </p>
 
-          <div className="mt-9 flex w-full max-w-lg flex-col gap-3 sm:flex-row sm:justify-center">
+          <div className="mt-9 flex w-full max-w-lg flex-col items-center gap-3 sm:flex-row sm:justify-center">
             <Link
+              ref={heroCtaRef}
               href={practiceLoginHref}
               prefetch={false}
-              className="inline-flex h-14 items-center justify-center rounded-2xl bg-[#191f28] px-7 text-base font-black text-white shadow-[0_18px_40px_rgba(25,31,40,0.18)] transition hover:-translate-y-0.5 hover:bg-[#333d4b]"
+              className="inline-flex h-14 w-full items-center justify-center rounded-2xl bg-[#191f28] px-7 text-base font-black text-white shadow-[0_18px_40px_rgba(25,31,40,0.18)] transition hover:-translate-y-0.5 hover:bg-[#333d4b] sm:w-auto"
             >
-              무료로 사용하기
+              무료로 시작하기
             </Link>
             <a
               href="#flow"
-              className="inline-flex h-14 items-center justify-center rounded-2xl bg-white px-7 text-base font-black text-[#333d4b] shadow-[0_18px_40px_rgba(25,31,40,0.08)] transition hover:-translate-y-0.5"
+              className="inline-flex h-12 items-center justify-center px-2 text-base font-bold text-[#6b7684] underline underline-offset-4 transition hover:text-[#191f28] sm:h-14 sm:rounded-2xl sm:bg-white sm:px-7 sm:font-black sm:text-[#333d4b] sm:no-underline sm:shadow-[0_18px_40px_rgba(25,31,40,0.08)] sm:hover:-translate-y-0.5"
             >
-              어떻게 쓰는지 보기
+              어떻게 쓰는지 먼저 보기
             </a>
           </div>
 
+          <p className="mt-4 text-sm font-bold text-[#8b95a1]">
+            구글 계정으로 3초 · 카드 등록 없이 무료
+          </p>
+
           <div className="mt-16 w-full rounded-[44px] bg-white/85 p-4 shadow-[0_34px_100px_rgba(49,130,246,0.2)] backdrop-blur">
             <div className="grid gap-4 rounded-[32px] bg-white p-4 lg:grid-cols-[1fr_56px_1.05fr_56px_1fr] lg:items-center lg:p-6">
-              <ProductPanel eyebrow="영상 업로드" title="오늘 연습한 장면" tone="gray">
-                <div className="mt-5 rounded-[28px] bg-[#191f28] p-4 text-white shadow-[0_20px_45px_rgba(25,31,40,0.18)]">
-                  <div className="aspect-video rounded-2xl bg-[linear-gradient(135deg,#4e5968,#dbeafe)] p-3 text-left">
-                    <span className="rounded-full bg-white/90 px-2.5 py-1 text-xs font-black text-[#3182f6]">
-                      take_03.mov
-                    </span>
+              {/* 입력 패널은 아래 "서비스 흐름" 섹션과 내용이 겹친다.
+                  좁은 화면에서는 첫 화면이 길어지기만 하므로 넓은 화면에서만 보인다. */}
+              <div className="hidden lg:block">
+                <ProductPanel
+                  eyebrow="영상 업로드"
+                  title="오늘 연습한 장면"
+                  tone="gray"
+                >
+                  <div className="mt-5 rounded-[28px] bg-[#191f28] p-4 text-white shadow-[0_20px_45px_rgba(25,31,40,0.18)]">
+                    <div className="aspect-video rounded-2xl bg-[linear-gradient(135deg,#4e5968,#dbeafe)] p-3 text-left">
+                      <span className="rounded-full bg-white/90 px-2.5 py-1 text-xs font-black text-[#3182f6]">
+                        take_03.mov
+                      </span>
+                    </div>
+                    <div className="mt-4 grid gap-2 text-left text-sm font-bold text-[#d1d6db]">
+                      <span>상황: 오디션 독백</span>
+                      <span>목표: 상대의 확인을 얻기</span>
+                    </div>
                   </div>
-                  <div className="mt-4 grid gap-2 text-left text-sm font-bold text-[#d1d6db]">
-                    <span>상황: 오디션 독백</span>
-                    <span>목표: 상대의 확인을 얻기</span>
-                  </div>
-                </div>
-              </ProductPanel>
+                </ProductPanel>
+              </div>
 
               <FlowArrow />
 
@@ -230,12 +262,32 @@ export default function LandingClient() {
           <Link
             href={practiceLoginHref}
             prefetch={false}
-            className="inline-flex h-16 items-center justify-center rounded-2xl bg-white px-8 text-lg font-black text-[#191f28] transition hover:-translate-y-0.5"
+            className="inline-flex h-16 w-full items-center justify-center rounded-2xl bg-white px-8 text-lg font-black text-[#191f28] transition hover:-translate-y-0.5 md:w-auto"
           >
-            무료로 사용하기
+            무료로 시작하기
           </Link>
         </div>
       </section>
+
+      {/* 광고로 들어온 트래픽은 대부분 좁은 화면이고 스크롤 도중 이탈한다.
+          어디까지 내려가 있든 시작 버튼이 손에 닿도록 하단에 고정한다. */}
+      <div
+        aria-hidden={!heroCtaHidden}
+        className={`fixed inset-x-0 bottom-0 z-30 border-t border-[#edf0f3] bg-white/95 px-5 pb-[max(12px,env(safe-area-inset-bottom))] pt-3 backdrop-blur-xl transition-transform duration-200 sm:hidden ${
+          heroCtaHidden
+            ? "translate-y-0"
+            : "pointer-events-none translate-y-full"
+        }`}
+      >
+        <Link
+          href={practiceLoginHref}
+          prefetch={false}
+          tabIndex={heroCtaHidden ? undefined : -1}
+          className="flex h-13 w-full items-center justify-center rounded-2xl bg-[#191f28] text-base font-black text-white"
+        >
+          무료로 시작하기
+        </Link>
+      </div>
     </main>
   );
 }
