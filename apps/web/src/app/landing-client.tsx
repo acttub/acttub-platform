@@ -458,8 +458,8 @@ function HeroProductCard() {
           </div>
         </div>
         <div className="flex items-center gap-2" aria-label="답변 입력 예시">
-          <div className="flex h-10 min-w-0 flex-1 items-center rounded-full bg-[#f2f4f6] px-4 text-[13px] font-semibold text-[#8b95a1]">
-            답을 편하게 적어 주세요
+          <div className="flex h-10 min-w-0 flex-1 items-center truncate rounded-full bg-[#f2f4f6] px-4 text-[13px] font-semibold text-[#191f28]">
+            미안하다는 말을 기다렸던 것 같아요
           </div>
           <span
             aria-hidden="true"
@@ -690,15 +690,15 @@ function UploadStepContent({
             compact ? "min-h-[210px]" : "mt-5 flex-1"
           }`}
         >
-          <span
-            aria-hidden="true"
-            className="flex h-12 w-12 items-center justify-center rounded-full bg-[#f2f4f6] text-xl font-black text-[#6b7684]"
-          >
-            ↑
-          </span>
+          {/* 빈 상자만 두면 무엇을 넣는 자리인지 와닿지 않는다. 들어갈 영상을 미리 보여준다. */}
+          <SampleStill
+            className="aspect-video w-full max-w-[248px] rounded-xl opacity-80"
+            filename="sample_take.mp4"
+            showChips
+          />
           <p className="mt-4 text-base font-black">연기 영상을 여기에 넣어 주세요</p>
           <p className="mt-1.5 text-sm font-semibold leading-6 text-[#8b95a1]">
-            이 체험에서는 준비된 샘플 영상을 사용해요.
+            이 체험에서는 위 샘플 영상을 사용해요.
           </p>
         </div>
       )}
@@ -762,7 +762,11 @@ function BlockageStepContent({
         readOnly={!directEntry}
         disabled={!interactive}
         onChange={(event) => onWriteBlockage(event.target.value)}
-        placeholder={directEntry ? "마음에 걸린 부분을 직접 적어 주세요" : "위에서 하나를 골라 주세요"}
+        placeholder={
+          directEntry
+            ? "마음에 걸린 부분을 직접 적어 주세요"
+            : "예: 마지막 대사가 갑자기 튀는 것 같아요"
+        }
         aria-label="마음에 걸린 부분"
         className="mt-3 h-12 w-full rounded-xl border border-[#d1d6db] bg-white px-3.5 text-[14px] font-semibold outline-none placeholder:text-[#b0b8c1] focus:border-[#3182f6] focus:ring-2 focus:ring-[#e8f3ff] disabled:bg-[#f9fafb]"
       />
