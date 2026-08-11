@@ -24,8 +24,21 @@ GA4는 `consent: denied` 상태에서 쿠키 없이 히트를 보내지만, **Am
 ### (2) autocapture와 세션 리플레이가 켜져 있다
 
 ```ts
-amplitude.initAll(API_KEY, {"analytics":{"autocapture":true},"sessionReplay":{"sampleRate":1}});
+amplitude.add(sessionReplayPlugin({ sampleRate: 1 }));   // init 앞에 붙여야 첫 세션부터 잡힌다
+amplitude.init(API_KEY, undefined, { autocapture: true });
 ```
+
+> **`@amplitude/unified` 의 `initAll` 을 쓰지 않는다.** `initAll` 은 analytics·session replay 에
+> 더해 **experiment 와 engagement(가이드·설문)까지 조건 없이 초기화한다** — unified 소스에
+> engagement 를 끄는 옵션이 없다(`unified.js` 의 `add(EngagementPlugin(...))` 이 무조건 실행된다).
+>
+> 2026-08-11 로컬 확인에서 `cdn.amplitude.com/engagement-browser/...` 청크 15개+와
+> `gs.amplitude.com/sdk/v1/{config,decide,state}` 호출이 붙는 것을 보고 걷어냈다. Engagement 는
+> 앱 안에 가이드·설문 UI 를 띄울 수 있는 기능이라 쓰지도 않는데 켜 둘 이유가 없고, 방침 v4 에
+> 고지된 경로도 아니다. 걷어내면서 SDK 청크가 gzip **115KB → 90KB** 로 줄었다.
+>
+> 지금은 analytics 와 session replay 둘만 명시적으로 붙인다 — Amplitude 의 Next.js 가이드가
+> 쓰는 방식이다. 나중에 experiment 나 가이드가 필요해지면 그때 해당 플러그인만 추가한다.
 
 **2026-08-11 최우영 결정으로 자동 수집과 화면 녹화를 전부 켰다.** 그래서 아래가 Amplitude로 나간다 — 방침이 이걸 전부 고지해야 하고, 이 목록이 곧 방침 6항의 수집 항목이다:
 
