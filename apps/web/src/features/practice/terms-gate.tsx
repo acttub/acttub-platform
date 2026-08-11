@@ -8,9 +8,15 @@ import { useDisplayNameGate } from "@/features/auth/use-display-name-gate";
 import {
   clearPendingConsents,
   getPendingConsents as getStoredPendingConsents,
+  hasAcceptedCurrentPrivacy,
   markPrivacyVersionAccepted,
   savePendingConsents,
 } from "@/features/auth/pending-consents";
+import {
+  setAmplitudeUser,
+  startAmplitude,
+  trackConsentSubmitted,
+} from "@/lib/analytics/amplitude";
 import { logout } from "@/lib/api/v2/auth";
 import {
   getPendingConsents as fetchPendingConsents,
@@ -20,7 +26,7 @@ import {
 import { ApiError } from "@/lib/api/v2/errors";
 import type { ConsentDocument } from "@/lib/api/v2/types";
 import { sanitizeNextPath } from "@/lib/auth/next-path";
-import { isLoggedIn } from "@/lib/auth/token-store";
+import { getStoredUser, isLoggedIn } from "@/lib/auth/token-store";
 
 type ReadyState = {
   kind: "ready";
@@ -166,6 +172,7 @@ function TermsGateContent() {
           result.reason.code === "consent_document_not_found",
       );
       if (accountSuspended || documentsChanged) {
+        trackConsentSubmitted("forced_logout");
         clearPendingConsents();
         await logout();
         const params = new URLSearchParams({
@@ -191,6 +198,7 @@ function TermsGateContent() {
       }
 
       if (failedDocuments.length > 0) {
+        trackConsentSubmitted("partial_fail");
         savePendingConsents(failedDocuments);
         setSubmitError(
           `${failedDocuments.length}개 동의 항목을 처리하지 못했어요. 다시 시도하면 실패한 항목만 요청해요.`,
@@ -203,6 +211,13 @@ function TermsGateContent() {
       // 다음 개정 때 계측 쿠키가 저절로 유지되지 않는다(pending-consents.ts 참고).
       const acceptedPrivacy = state.documents.find((document) => document.type === "privacy");
       if (acceptedPrivacy) markPrivacyVersionAccepted(acceptedPrivacy.version);
+      if (isLoggedIn() && hasAcceptedCurrentPrivacy()) {
+        // 이 순간부터만 SDK를 켠다. 앞서 실패한 제출 이벤트를 소급해서 보내지는 않는다.
+        startAmplitude();
+        const storedUser = getStoredUser();
+        if (storedUser) setAmplitudeUser(storedUser.id);
+      }
+      trackConsentSubmitted("ok");
       await enterApp(sanitizeNextPath(searchParams.get("next")));
     } finally {
       setSubmitting(false);

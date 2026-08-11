@@ -2,6 +2,10 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { REVIEW_FORM_URL } from "@/lib/config/env";
+import {
+  trackExitReviewOpened,
+  trackExitReviewSubmitted,
+} from "@/lib/analytics/amplitude";
 import { canAskAutomatically } from "./exit-review-policy";
 
 /** 후기 창을 어디서 열었는지. 폼의 방문 기록에 그대로 실려 창구별로 나눠 볼 수 있다. */
@@ -34,12 +38,15 @@ function writeLocal(key: string, value: string) {
  * 헤더의 마치기(직접 누름), 데스크톱에서 커서가 화면 위로 빠져나갈 때,
  * 그리고 사이트를 아예 벗어나는 뒤로가기.
  */
-export function useExitReview(armed: boolean) {
+export function useExitReview(armed: boolean, mode: "chat" | "note") {
   const [trigger, setTrigger] = useState<ExitReviewTrigger | null>(null);
   const askedRef = useRef(false);
   const guardPushedRef = useRef(false);
 
-  const openFromButton = useCallback(() => setTrigger("x"), []);
+  const openFromButton = useCallback(() => {
+    trackExitReviewOpened("x", mode);
+    setTrigger("x");
+  }, [mode]);
   const close = useCallback(() => setTrigger(null), []);
   const markDone = useCallback(() => writeLocal(DONE_KEY, "1"), []);
 
@@ -47,8 +54,9 @@ export function useExitReview(armed: boolean) {
     if (askedRef.current) return;
     askedRef.current = true;
     writeLocal(ASKED_AT_KEY, String(Date.now()));
+    trackExitReviewOpened(next, mode);
     setTrigger((previous) => previous ?? next);
-  }, []);
+  }, [mode]);
 
   useEffect(() => {
     if (!armed) return;
@@ -112,8 +120,10 @@ export function ExitReviewModal({
       if (!frameRef.current || event.source !== frameRef.current.contentWindow) return;
       const data = event.data as { type?: string; action?: string } | null;
       if (!data || data.type !== "acttub-review") return;
-      if (data.action === "submitted") onSubmitted();
-      else if (data.action === "close") onClose();
+      if (data.action === "submitted") {
+        trackExitReviewSubmitted(trigger);
+        onSubmitted();
+      } else if (data.action === "close") onClose();
     };
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") onClose();
@@ -124,7 +134,7 @@ export function ExitReviewModal({
       window.removeEventListener("message", onMessage);
       window.removeEventListener("keydown", onKeyDown);
     };
-  }, [onClose, onSubmitted]);
+  }, [onClose, onSubmitted, trigger]);
 
   return (
     <div

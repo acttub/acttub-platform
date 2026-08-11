@@ -31,7 +31,14 @@ import {
   developmentProvider,
   googleProvider,
   loginWith,
+  type LoginProvider,
 } from "../../lib/auth/providers";
+import {
+  resetAmplitudeUser,
+  startAmplitude,
+  trackLoginCompleted,
+  trackLoginFailed,
+} from "../../lib/analytics/amplitude";
 import { sanitizeNextPath } from "../../lib/auth/next-path";
 import {
   APPLE_CLIENT_ID,
@@ -40,6 +47,7 @@ import {
 } from "../../lib/config/env";
 import {
   clearPendingConsents,
+  hasAcceptedCurrentPrivacy,
   savePendingConsents,
 } from "../../features/auth/pending-consents";
 
@@ -230,7 +238,10 @@ function LoginForm() {
   // 약관 동의가 남은 신규 계정은 /terms를 거치므로 그쪽에도 같은 관문이 있다.
   const { pendingDestination, enterApp, resolveName } = useDisplayNameGate();
 
-  async function submitLogin(request: () => ReturnType<typeof loginWith>) {
+  async function submitLogin(
+    provider: LoginProvider,
+    request: () => ReturnType<typeof loginWith>,
+  ) {
     if (isSubmitting) return;
 
     setErrorMessage(null);
@@ -239,16 +250,22 @@ function LoginForm() {
       const result = await request();
       if (result.pending_consents.length > 0) {
         savePendingConsents(result.pending_consents);
+        // 동의가 남은 계정은 아직 계측을 켤 수 없다. 직전 계정의 동의로 켜져 있었더라도
+        // 여기서 끈다. 이 로그인은 세지 않는다 — 동의 화면을 지나 consent_submitted 로 잡힌다.
+        resetAmplitudeUser();
         router.replace(`/terms?next=${encodeURIComponent(nextPath)}`);
         return;
       }
 
       clearPendingConsents();
+      if (hasAcceptedCurrentPrivacy()) startAmplitude();
+      trackLoginCompleted(provider.name);
       // 여기서 계측 동의를 표시하지 않는다. 대기 중인 동의가 비어 있다는 것만으로는
       // 어느 버전에 동의했는지 알 수 없고, 서버에 문서가 발행되지 않았을 때도 비어 있다.
       // 표시는 동의 화면(terms-gate)에서 실제로 문서를 제출할 때만 한다.
       await enterApp(nextPath);
     } catch (error) {
+      trackLoginFailed(provider.name, error);
       setErrorMessage(loginErrorMessage(error));
     } finally {
       setIsSubmitting(false);
@@ -257,7 +274,10 @@ function LoginForm() {
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    await submitLogin(() => loginWith(developmentProvider, { uid, email }));
+    await submitLogin(
+      developmentProvider,
+      () => loginWith(developmentProvider, { uid, email }),
+    );
   }
 
   return (
@@ -280,7 +300,10 @@ function LoginForm() {
         <div className="mt-9 space-y-5">
           <GoogleLoginButton
             onCredential={(credential) =>
-              void submitLogin(() => loginWith(googleProvider, { credential }))
+              void submitLogin(
+                googleProvider,
+                () => loginWith(googleProvider, { credential }),
+              )
             }
             onLoadError={() => setHasGoogleLoadFailed(true)}
           />
@@ -290,7 +313,10 @@ function LoginForm() {
             <AppleLoginButton
               disabled={isSubmitting}
               onIdToken={(credential) =>
-                void submitLogin(() => loginWith(appleProvider, { credential }))
+                void submitLogin(
+                  appleProvider,
+                  () => loginWith(appleProvider, { credential }),
+                )
               }
               onError={setErrorMessage}
             />
