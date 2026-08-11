@@ -188,8 +188,8 @@ export default function MemoryScreen() {
                 <View style={styles.cardHead}>
                   <Text style={styles.label}>{label}</Text>
                   {item ? (
-                    <Text style={item.written_by_actor ? styles.tagMine : styles.tagCoach}>
-                      {item.written_by_actor ? '내가 고침' : '코치가 적음'}
+                    <Text style={item.edited_by_me ? styles.tagMine : styles.tagCoach}>
+                      {item.edited_by_me ? '내가 고침' : '코치가 적음'}
                     </Text>
                   ) : (
                     <Text style={styles.tagEmpty}>비어 있음</Text>
@@ -207,7 +207,7 @@ export default function MemoryScreen() {
                   maxLength={1000}
                 />
 
-                {item?.source_practice_session_id && !item.written_by_actor && (
+                {item?.source_practice_session_id && !item.edited_by_me && (
                   <Pressable
                     onPress={() =>
                       router.push({

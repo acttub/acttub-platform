@@ -105,10 +105,9 @@ export type MemoryItem = {
   field: MemoryField;
   value: string;
   /** true 면 배우가 직접 쓰거나 고친 칸이다. 코치는 이 칸을 덮지 않는다. */
-  written_by_actor: boolean;
+  edited_by_me: boolean;
   /** 이 말이 나온 연습. 배우가 "왜 이렇게 적혔지" 를 되짚을 근거다. */
   source_practice_session_id: string | null;
-  updated_at: string;
 };
 
 /**

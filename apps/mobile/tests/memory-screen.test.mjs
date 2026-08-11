@@ -43,7 +43,7 @@ test('칸마다 누가 적었는지 구분해 보여준다', () => {
   // 내가 고친 칸은 코치가 덮지 않는다는 걸 알아야 고치는 의미가 생긴다.
   const source = readSource('app/memory.tsx');
 
-  assert.match(source, /written_by_actor/);
+  assert.match(source, /edited_by_me/);
   assert.match(source, /내가 고침/);
   assert.match(source, /코치가 적음/);
 });
