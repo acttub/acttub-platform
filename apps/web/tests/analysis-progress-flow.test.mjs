@@ -17,6 +17,7 @@ const {
   "../src/features/practice/coach-contract.ts"
 );
 const {
+  ANALYSIS_DEADLINE_MS,
   ANALYSIS_PROGRESS_LIMIT,
   COMPRESS_PROGRESS_END,
   UPLOAD_ONLY_PROGRESS_END,
@@ -25,6 +26,7 @@ const {
   analysisProgress,
   analysisStart,
   compressionProgress,
+  isAnalysisPastDeadline,
   settleProgress,
   uploadProgress,
 } = await import(
@@ -45,6 +47,8 @@ test("업로드와 장면 확인은 같은 진행 패널을 이어서 쓴다", (
     /mode === "uploading" \? \([\s\S]*?<ProgressPanel[\s\S]*?mode === "preparing" \? \([\s\S]*?<ProgressPanel/,
   );
   assert.match(panel, /\{value\}%/);
+  assert.match(panel, /style=\{\{ width: `\$\{width\}%` \}\}/);
+  assert.doesNotMatch(panel, /style=\{\{ width: `\$\{value\}%` \}\}/);
   assert.match(panel, /영상 올리는 중…/);
   assert.match(panel, /\$\{duration\} 영상 · 장면을 훑어보고 있어요…/);
   assert.match(panel, /role="progressbar"/);
@@ -132,19 +136,27 @@ test("업로드와 장면 확인 진행률은 단조 증가하고 analyzed에서
   // 분석 구간은 두 경로 모두 자기 시작점에서 출발한다.
   assert.equal(analysisProgress(0, 47_000, analysisStart(true)), UPLOAD_PROGRESS_END);
   assert.equal(analysisProgress(0, 47_000, analysisStart(false)), UPLOAD_ONLY_PROGRESS_END);
-  assert.equal(analysisProgress(600_000, 47_000, analysisStart(true)), ANALYSIS_PROGRESS_LIMIT);
+  assert.ok(analysisProgress(600_000, 47_000, analysisStart(true)) < ANALYSIS_PROGRESS_LIMIT);
   assert.ok(ANALYSIS_PROGRESS_LIMIT < 100);
   assert.ok(
     analysisProgress(30_000, 47_000, analysisStart(true))
       > analysisProgress(10_000, 47_000, analysisStart(true)),
   );
-  // 상한에 닿는 지점은 영상 길이의 0.45배다(47초 영상 → 21.15초).
-  assert.equal(analysisProgress(21_150, 47_000, analysisStart(true)), ANALYSIS_PROGRESS_LIMIT);
+  // 선형 구간 끝은 영상 길이의 0.45배다(47초 영상 → 21.15초).
+  const span = 21_150;
+  assert.equal(analysisProgress(span, 47_000, analysisStart(true)), 95);
+  // 경계 양쪽에서 95로 이어지고, 지난 직후에도 계속 증가한다.
+  assert.ok(Math.abs(analysisProgress(span - 1, 47_000, analysisStart(true)) - 95) < 0.001);
+  assert.ok(Math.abs(analysisProgress(span + 1, 47_000, analysisStart(true)) - 95) < 0.001);
+  assert.ok(
+    analysisProgress(span + 1, 47_000, analysisStart(true))
+      > analysisProgress(span, 47_000, analysisStart(true)),
+  );
   // 폰 실사용에서 역산한 실제 분석 시간(영상 길이의 0.44배)이 그보다 살짝 앞이라,
-  // 분석이 끝나는 순간 막대는 99 직전에서 아직 움직이는 중이고 튀는 폭이 1 미만이다.
+  // 분석이 끝나는 순간 막대는 95 직전에서 아직 움직이는 중이다.
   const atRealEnd = analysisProgress(0.44 * 47_000, 47_000, analysisStart(true));
-  assert.ok(atRealEnd < ANALYSIS_PROGRESS_LIMIT);
-  assert.ok(atRealEnd > 98);
+  assert.ok(atRealEnd < 95);
+  assert.ok(atRealEnd > 94);
   // 긴 영상은 같은 시각에 덜 찬다.
   assert.ok(
     analysisProgress(30_000, 120_000, analysisStart(true))
@@ -158,6 +170,40 @@ test("업로드와 장면 확인 진행률은 단조 증가하고 analyzed에서
   assert.equal(settleProgress(ANALYSIS_PROGRESS_LIMIT, "analyzing"), ANALYSIS_PROGRESS_LIMIT);
   assert.equal(settleProgress(ANALYSIS_PROGRESS_LIMIT, "failed"), ANALYSIS_PROGRESS_LIMIT);
   assert.equal(settleProgress(ANALYSIS_PROGRESS_LIMIT, "analyzed"), 100);
+});
+
+test("250초 동안 분석해도 진행률은 멈추지 않고 단조 증가한다", () => {
+  const values = Array.from(
+    { length: 251 },
+    (_, seconds) => analysisProgress(seconds * 1000, 47_000, analysisStart(true)),
+  );
+
+  for (let index = 1; index < values.length; index += 1) {
+    assert.ok(values[index] > values[index - 1]);
+  }
+  assert.ok(values.at(-1) < ANALYSIS_PROGRESS_LIMIT);
+});
+
+test("분석 목표 시간 60초를 넘기면 진행 중임을 다시 안내한다", () => {
+  assert.equal(isAnalysisPastDeadline(ANALYSIS_DEADLINE_MS), false);
+  assert.equal(isAnalysisPastDeadline(ANALYSIS_DEADLINE_MS + 1), true);
+
+  const workspace = readWeb("src/features/workspace/workspace-app.tsx");
+  const panelStart = workspace.indexOf("function ProgressPanel");
+  const panelEnd = workspace.indexOf("function IntroLine", panelStart);
+  const panel = workspace.slice(panelStart, panelEnd);
+  assert.match(
+    panel,
+    /isAnalysisPastDeadline\(elapsedMs\)[\s\S]*평소보다 오래 걸리고 있어요 · 장면을 계속 살펴보고 있어요…/,
+  );
+  assert.match(
+    workspace,
+    /const elapsedMs = Date\.now\(\) - startedAt;[\s\S]*setAnalysisElapsedMs\(elapsedMs\)/,
+  );
+  assert.match(
+    workspace,
+    /phase="scan"[\s\S]{0,100}elapsedMs=\{analysisElapsedMs\}/,
+  );
 });
 
 test("질문 받기를 누르면 막힘을 고르기 전에 압축·업로드가 시작된다", () => {

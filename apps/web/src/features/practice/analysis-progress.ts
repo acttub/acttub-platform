@@ -12,10 +12,11 @@ import type { PracticeSessionStatus } from "@/lib/api/v2/types";
 export const COMPRESS_PROGRESS_END = 80;
 export const UPLOAD_PROGRESS_END = 90;
 export const UPLOAD_ONLY_PROGRESS_END = 60;
-export const ANALYSIS_PROGRESS_LIMIT = 99;
+export const ANALYSIS_PROGRESS_LIMIT = 99.5;
 
-// 분석 구간은 영상 길이의 일정 비율을 채움 기간으로 쓴다.
-//   pct = min(99, 시작 + (99 − 시작) × 경과/(영상길이 × ANALYSIS_SPAN_RATIO))
+// 분석 구간은 영상 길이의 일정 비율까지 선형으로 채우고, 그 뒤에는 점근 곡선으로 잇는다.
+//   경과 ≤ 채움 기간: 시작 + (95 − 시작) × 경과/채움 기간
+//   경과 > 채움 기간: 95 + (99.5 − 95) × (1 − e^(−(경과−채움 기간)/채움 기간))
 //
 // 고정 시간(180초·35초·30초로 2026-08-08에 세 번 틀렸다)이 아니라 영상 길이를 쓰는 근거는
 // 실측이다 — dev 에서 47초 영상의 분석이 41.4초 걸렸다(영상 길이의 0.88배, 2026-08-08).
@@ -23,17 +24,19 @@ export const ANALYSIS_PROGRESS_LIMIT = 99;
 // 비율 0.45 는 2026-08-09 폰 실사용에서 역산했다. 그때 막대는 채움 기간 = 영상 길이
 // (비율 1.0)였는데 분석이 끝난 지점이 94% 였다 → 실제 분석 시간 = (94−90)/9 ≈ 영상 길이의
 // 0.44배. 0.88배에서 절반으로 준 건 SOMA-334 로 업로드본이 서버 재압축 기준(15MB) 아래로
-// 들어가 서버 ffmpeg 단계가 통째로 빠졌기 때문이다. 0.45 면 분석이 끝나는 순간 막대가
-// 98% 언저리라 대화로 넘어갈 때 튀지 않는다.
-//
-// ⚠️ 분석이 그 기간보다 오래 걸리면 99에서 멈춘 채로 기다린다. 비율을 줄일수록 그 위험이
-// 커지므로 0.45 아래로는 내리지 않는다. 그래도 멈추는 영상이 보이면 점근 곡선으로 바꾼다 —
-// 시작 + (99 − 시작) × (1 − e^(−경과/채움기간)) 이면 멈추지 않는다.
+// 들어가 서버 ffmpeg 단계가 통째로 빠졌기 때문이다. 이 비율은 그대로 두고 정상 종료가 예상되는
+// 채움 기간 끝을 95로 맞춰 대화로 넘어갈 때의 튐을 작게 한다. 순수 점근 곡선은 같은 시점에
+// 구간의 63%밖에 채우지 못해 정상 종료 때 크게 뛴다.
 const ANALYSIS_SPAN_RATIO = 0.45;
-//
-// 100 은 settleProgress 가 analyzed 에서만 주는 값이라 여기서는 99를 넘지 않는다.
+// 정상 종료 시점에는 95까지 채워 두되, 늦어지는 분석에도 계속 움직일 꼬리 구간을 남긴다.
+const ANALYSIS_LINEAR_PROGRESS_END = 95;
+// 99.5에는 도달하지 않고 가까워지기만 한다. 화면에서 반올림해도 analyzed 전에는 99로 보인다.
+// 100은 settleProgress가 analyzed에서만 주는 값이다.
 // 목록에서 연 세션은 영상 길이를 모르므로 그때만 이 값을 쓴다.
 const ANALYSIS_SPAN_FALLBACK_MS = 30_000;
+
+// SOMA-351에서 정한 목표 시간을 넘기면 멈춘 것으로 오해하지 않게 진행 중인 일을 다시 알린다.
+export const ANALYSIS_DEADLINE_MS = 60_000;
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
@@ -73,9 +76,22 @@ export function analysisProgress(
     videoDurationMs !== null && videoDurationMs > 0
       ? videoDurationMs * ANALYSIS_SPAN_RATIO
       : ANALYSIS_SPAN_FALLBACK_MS;
-  const filled =
-    (ANALYSIS_PROGRESS_LIMIT - startPct) * (clamp(elapsedMs, 0, span) / span);
-  return Math.min(ANALYSIS_PROGRESS_LIMIT, startPct + filled);
+  const elapsed = Math.max(0, elapsedMs);
+  if (elapsed <= span) {
+    const filled =
+      (ANALYSIS_LINEAR_PROGRESS_END - startPct) * (elapsed / span);
+    return startPct + filled;
+  }
+
+  const tailElapsed = elapsed - span;
+  const tailFilled =
+    (ANALYSIS_PROGRESS_LIMIT - ANALYSIS_LINEAR_PROGRESS_END)
+    * (1 - Math.exp(-tailElapsed / span));
+  return ANALYSIS_LINEAR_PROGRESS_END + tailFilled;
+}
+
+export function isAnalysisPastDeadline(elapsedMs: number): boolean {
+  return elapsedMs > ANALYSIS_DEADLINE_MS;
 }
 
 export function advanceProgress(current: number, candidate: number): number {

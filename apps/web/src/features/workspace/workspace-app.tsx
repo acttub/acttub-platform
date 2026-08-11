@@ -56,6 +56,7 @@ import {
   analysisProgress,
   analysisStart,
   compressionProgress,
+  isAnalysisPastDeadline,
   settleProgress,
   uploadProgress,
 } from "../practice/analysis-progress";
@@ -173,6 +174,7 @@ function WorkspaceInner() {
   const [pct, setPct] = useState(0);
   const [analysisStatus, setAnalysisStatus] = useState<PracticeSessionDetail["status"] | null>(null);
   const [videoDurationMs, setVideoDurationMs] = useState<number | null>(null);
+  const [analysisElapsedMs, setAnalysisElapsedMs] = useState(0);
   // 분석 막대가 어디서 시작하는지는 압축을 탔는지에 달렸다(압축 80 · 무압축 60).
   // 목록·주소로 연 세션은 압축 여부를 모르므로 무압축 쪽으로 둔다.
   const [analysisStartPct, setAnalysisStartPct] = useState(analysisStart(false));
@@ -250,10 +252,12 @@ function WorkspaceInner() {
     const startedAt = analysisStartedAtRef.current ?? Date.now();
     analysisStartedAtRef.current = startedAt;
     const update = () => {
+      const elapsedMs = Date.now() - startedAt;
+      setAnalysisElapsedMs(elapsedMs);
       setPct((current) =>
         advanceProgress(
           current,
-          analysisProgress(Date.now() - startedAt, videoDurationMs, analysisStartPct),
+          analysisProgress(elapsedMs, videoDurationMs, analysisStartPct),
         ),
       );
     };
@@ -288,6 +292,7 @@ function WorkspaceInner() {
     setAnalysisStatus(null);
     setPct(0);
     setVideoDurationMs(null);
+    setAnalysisElapsedMs(0);
     setError(null);
     setSituation("");
     setCharacter("");
@@ -451,6 +456,7 @@ function WorkspaceInner() {
     const controller = new AbortController();
     uploadControllerRef.current = controller;
     setPct(0);
+    setAnalysisElapsedMs(0);
     analysisStartedAtRef.current = null;
     const promise = (async (): Promise<PendingUploadResult> => {
       // 압축이 "돌았는지"로 구간을 가른다. prepared.wasCompressed 는 결과물을 썼는지라
@@ -519,6 +525,7 @@ function WorkspaceInner() {
       setAnalysisStartPct(startPct);
       setPct((current) => advanceProgress(current, startPct));
       analysisStartedAtRef.current = Date.now();
+      setAnalysisElapsedMs(0);
       setMode("preparing");
       setSending(false);
       urlLoadedRef.current = session.session_id;
@@ -625,6 +632,7 @@ function WorkspaceInner() {
     setPct(analysisStart(false));
     setAnalysisStatus(null);
     setVideoDurationMs(null);
+    setAnalysisElapsedMs(0);
     setMessages([]);
     setCoachDone(false);
     setCoachOpening(false);
@@ -685,6 +693,7 @@ function WorkspaceInner() {
         setDetail(loaded);
         setAnalysisStatus(loaded.status);
         setVideoDurationMs(null);
+        setAnalysisElapsedMs(0);
         coachCoordinatorRef.current = null;
         if (loaded.status === "created" || loaded.status === "analyzing") {
           setReport(null);
@@ -965,6 +974,7 @@ function WorkspaceInner() {
                   pct={pct}
                   durationMs={videoDurationMs}
                   phase="scan"
+                  elapsedMs={analysisElapsedMs}
                   failed={analysisStatus === "failed"}
                   starting={coachOpening}
                   onStartWithoutEvidence={() => {
@@ -1386,6 +1396,7 @@ function ProgressPanel({
   pct,
   durationMs,
   phase,
+  elapsedMs = 0,
   failed = false,
   starting = false,
   onStartWithoutEvidence,
@@ -1393,6 +1404,7 @@ function ProgressPanel({
   pct: number;
   durationMs: number | null;
   phase: "upload" | "scan";
+  elapsedMs?: number;
   failed?: boolean;
   starting?: boolean;
   onStartWithoutEvidence?: () => void;
@@ -1419,10 +1431,13 @@ function ProgressPanel({
   }
 
   const duration = formatVideoDuration(durationMs);
-  const waitingLabel = duration
-    ? `${duration} 영상 · 장면을 훑어보고 있어요…`
-    : "영상 길이 확인 · 장면을 훑어보고 있어요…";
+  const waitingLabel = isAnalysisPastDeadline(elapsedMs)
+    ? "평소보다 오래 걸리고 있어요 · 장면을 계속 살펴보고 있어요…"
+    : duration
+      ? `${duration} 영상 · 장면을 훑어보고 있어요…`
+      : "영상 길이 확인 · 장면을 훑어보고 있어요…";
   const value = Math.round(pct);
+  const width = Math.min(100, Math.max(0, pct));
   const label = phase === "upload" ? "영상 올리는 중…" : waitingLabel;
 
   return (
@@ -1445,7 +1460,7 @@ function ProgressPanel({
       >
         <div
           className="h-full rounded-full bg-[#3182f6] transition-[width] duration-300"
-          style={{ width: `${value}%` }}
+          style={{ width: `${width}%` }}
         />
       </div>
     </div>
