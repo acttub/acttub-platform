@@ -7,7 +7,7 @@
 | 파일 | type | version | title | required |
 | --- | --- | --- | --- | --- |
 | `terms_v1.md` | `terms` | `v1` | 이용약관 | ✅ |
-| `privacy_v3.md` | `privacy` | `v3` | 개인정보처리방침 | ✅ |
+| `privacy_v4.md` | `privacy` | `v4` | 개인정보처리방침 | ✅ |
 | `ai_analysis_v1.md` | `ai_analysis` | `v1` | AI 분석 동의 | ✅ |
 
 > `ConsentType` enum은 이 3종만 지원(`db/models.py`). 선택 동의(연구/홍보 등)는 enum + 마이그레이션 확장 필요.
@@ -20,7 +20,7 @@ uv run python -m acting_api.consents publish \
   --type terms --version v1 --title "이용약관" --file consent_docs/terms_v1.md --required
 
 uv run python -m acting_api.consents publish \
-  --type privacy --version v3 --title "개인정보처리방침" --file consent_docs/privacy_v3.md --required
+  --type privacy --version v4 --title "개인정보처리방침" --file consent_docs/privacy_v4.md --required
 
 uv run python -m acting_api.consents publish \
   --type ai_analysis --version v1 --title "AI 분석 동의" --file consent_docs/ai_analysis_v1.md --required
@@ -40,25 +40,46 @@ curl -s https://dev.acttub.com/v2/consents/documents   # documents 3개
 - 본문은 **법률 자문 아닌 실무 초안** — 특히 얼굴/감정 = 민감정보 소지가 있어 배포 전 법률 검토 권장.
 - 본문 수정 시 `--version`을 올려(v2 …) 재발행하면 최신본이 노출된다.
   ⚠️ **버전을 올리면 기존 동의자 전원에게 재동의가 뜬다.** 옛 버전 문서 파일은 지우지 않는다 —
-  그 버전에 동의한 기록이 남아 있다. `privacy_v2`(2026-07-29)는 웹 이용 통계(Google Analytics)를
-  위탁 현황에 추가한 개정이고, `privacy_v3`(2026-08-15)는 오류 기록(Sentry)을 추가한 개정이다.
+  그 버전에 동의한 기록이 남아 있다.
 
-  재동의 비용이 크므로 **수탁자가 늘어날 때마다 올리지 않고 묶어서 올린다.** 모니터링을
-  더 붙이기로 한 상태라(Grafana·제품 분석 도구), 그 둘은 확정된 뒤 v4로 한 번에 낸다.
+  - `privacy_v2`(2026-07-29) — 웹 이용 통계(Google Analytics) 위탁 추가
+  - `privacy_v3`(2026-08-15 시행 예정) — 오류 기록(Sentry) 추가. **시행 전에 v4로 대체됐다.**
+    파일은 남겨 둔다: 이 버전으로 발행돼 있던 동안 동의한 기록이 있다.
+  - `privacy_v4`(2026-08-11) — v3 내용을 전부 포함하고 이용 행태 분석(Amplitude)과
+    **화면 기록(세션 리플레이)** 을 추가한 개정. **현재 발행 대상.**
 
-### privacy_v4 (초안, 아직 발행하지 않음)
+## v4 발행 절차
 
-`privacy_v4.md`는 **Amplitude(제품 분석)를 위탁 현황에 추가하는 초안**이다. 파일만 있고
-`manifest.json`은 여전히 v3를 가리키며, 웹의 `EXPECTED_PRIVACY_VERSION`도 `"v3"`다.
-**의도한 상태다** — 발행하는 순간 기존 동의자 전원에게 재동의가 뜨므로, 아래가 다 끝난 뒤에만 올린다.
+⚠️ **배포가 곧 발행이다.** 위 CLI 는 수동 발행용이고, 평소에는 **be 가 기동할 때
+`manifest.json` 을 읽어 아직 없는 문서를 자동으로 발행한다**(`app.py` 의 `lifespan` →
+`seed_consent_documents`). `manifest.json` 이 v4 를 가리키는 채로 **운영에 be 를 배포하면
+그 순간 v4 가 발행되고 기존 동의자 175명 전원에게 동의 화면이 다시 뜬다.**
 
-1. 시행일 확정 (초안은 `2026-09-01`을 적어 두었다) → 본문 3곳(상단·개정 이력·하단)을 함께 고친다
-2. Grafana를 같이 낼지 결정 → 낸다면 5항 표에 행을 추가하고 개정 이력 문구를 고친다
-3. 서비스 내 공지 (14항이 "개정 사유 및 시행일을 명시하여 공지"를 약속한다)
-4. `manifest.json`의 privacy 항목을 v4로, `apps/web/src/features/auth/pending-consents.ts`의
-   `EXPECTED_PRIVACY_VERSION`을 `"v4"`로
-5. 시행일에 `publish` 실행 + 운영 환경에 `NEXT_PUBLIC_AMPLITUDE_API_KEY` 주입
+그래서 순서는 이렇다:
 
-⚠️ **순서가 뒤집히면 안 된다.** 방침 5항에 Amplitude가 없는 상태에서 키를 먼저 넣으면
-고지 없이 이용 기록을 제3자에게 넘기게 된다. 계측 코드는 키가 없으면 아무 일도 하지 않으므로
-(`apps/web/ANALYTICS.md` §1(5)), 코드를 먼저 머지해도 안전하다.
+1. **서비스 내 공지를 먼저 띄운다** — 14항이 "개정 사유 및 시행일을 명시하여 공지"를
+   약속한다. 시행일은 `2026-08-11`. 바꾸려면 본문 3곳(상단·개정 이력·하단)을 함께 고친다.
+2. **운영에 배포한다** — 이 시점에 v4 가 발행되고 재동의가 시작된다.
+   dev 는 먼저 배포해서 동의 화면이 정상으로 뜨는지 확인한다.
+3. **운영 Environment 변수 `AMPLITUDE_API_KEY_WEB` 주입 후 다시 배포한다** — 이때부터
+   수집이 시작된다. dev·운영에 **서로 다른 프로젝트 키**를 넣는다(호스트로 거르지 않아
+   같은 키면 통계가 섞인다).
+
+> `EXPECTED_PRIVACY_VERSION`(fe)과 manifest(be)는 나란히 배포돼 순서가 정해져 있지 않다.
+> fe 가 먼저 뜨면 v4 를 기대하는데 아직 v3 만 발행된 창이 잠깐 생기고, 그동안은 아무도
+> 동의자로 인정되지 않아 계측이 꺼진다. 재동의를 띄우는 개정에서는 어차피 전원이 다시
+> 동의하므로 그대로 둔다(`pending-consents.ts` 주석 참고).
+
+> **harness 시드도 같이 올려야 한다.** `tools/contract-harness/contract_harness/config.py` 의
+> `SEED_CONSENT_DOCUMENTS` 가 이 manifest 를 미러링한다. 어긋나면 앱이 새 버전을 추가로
+> 발행해 시드 유저의 필수 동의가 비고, contract-harness 전 시나리오가 403 으로 죽는다.
+> 이제 `test_seed_consent_documents_match_committed_manifest` 가 이 어긋남을 잡는다.
+
+⚠️ **순서가 뒤집히면 안 된다.** 방침이 발행되지 않은 상태에서 키를 먼저 넣으면 고지 없이
+이용 기록과 화면 녹화를 제3자에게 넘기게 된다. `deploy.yml` 의 `계측 키가 방침 고지보다
+앞서지 않는지` 가드가 이 조합을 배포 시점에 막지만, 가드는 마지막 방어선이지 절차가 아니다.
+
+> Grafana 는 v4 에 넣지 않았다(2026-08-11 결정). 아직 코드에 없어 무엇을 보낼지 정해지지
+> 않았고, 기다리면 Amplitude 까지 같이 늦어진다. 실제로 붙이고 **Grafana Cloud 로 사용자
+> 식별자가 섞인 로그를 보내게 되면** 그때 v5 로 낸다. 자체 호스팅이거나 서버 지표만 보내면
+> 위탁이 아니라 방침을 건드릴 필요가 없다.
