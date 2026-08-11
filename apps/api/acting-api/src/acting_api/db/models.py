@@ -91,6 +91,29 @@ class OperationStatus(str, enum.Enum):
     FAILED = "failed"
 
 
+class ActorMemoryField(str, enum.Enum):
+    """코치가 연습을 넘어 기억하는 6칸.
+
+    화면에 이 이름이 그대로 나가면 안 된다 — 내부 용어다.
+    """
+
+    # 배우만 쓴다. 영상·목소리에서 추론하지 않는다.
+    GENDER = "gender"
+    AGE = "age"
+    GOAL = "goal"
+    # "약점·개선점"이 아니라 배우가 연습마다 직접 고른 막히는 지점이 쌓인 것이다.
+    BLOCKAGE = "blockage"
+    # 본인이 생각하는 화법과 실제 화법. 이 둘의 차이가 대화를 닫는 기준이라
+    # 연습 하나를 넘어 남긴다.
+    SPEECH_SELF = "speech_self"
+    SPEECH_ACTUAL = "speech_actual"
+
+
+class ActorMemoryAuthor(str, enum.Enum):
+    ACTOR = "actor"
+    AGENT = "agent"
+
+
 class ContentStatus(str, enum.Enum):
     """글·댓글의 노출 상태. 삭제해도 행은 남긴다 — 신고 처리에 원문이 필요하다."""
 
@@ -141,6 +164,8 @@ turn_role_enum = _enum(TurnRole, "turn_role_t")
 operation_kind_enum = _enum(OperationKind, "operation_kind_t")
 operation_status_enum = _enum(OperationStatus, "operation_status_t")
 content_status_enum = _enum(ContentStatus, "content_status_t")
+actor_memory_field_enum = _enum(ActorMemoryField, "actor_memory_field_t")
+actor_memory_author_enum = _enum(ActorMemoryAuthor, "actor_memory_author_t")
 report_target_type_enum = _enum(ReportTargetType, "report_target_type_t")
 report_reason_enum = _enum(ReportReason, "report_reason_t")
 report_status_enum = _enum(ReportStatus, "report_status_t")
@@ -564,6 +589,63 @@ class HandoffConfirmation(Base):
         sa.Boolean, nullable=False, default=False, server_default=sa.false()
     )
     rebuttal_text: Mapped[str | None] = mapped_column(sa.Text)
+    created_at: Mapped[datetime] = mapped_column(
+        sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()
+    )
+
+
+class ActorMemoryEntry(Base):
+    """코치가 배우를 기억하는 6칸. 한 칸이 한 행이다.
+
+    에이전트가 채우고 배우가 나중에 고친다. 그래서 `written_by` 가 핵심이다 —
+    'actor' 인 칸은 에이전트가 덮지 않는다. 이 규칙이 없으면 배우가 고쳐도
+    다음 연습에 되돌아가고, 고치는 화면 자체가 무의미해진다.
+    """
+
+    __tablename__ = "actor_memory_entries"
+    __table_args__ = (
+        sa.UniqueConstraint("user_id", "field", name="uq_actor_memory_user_field"),
+        sa.CheckConstraint(
+            "char_length(value) <= 1000", name="ck_actor_memory_value_length"
+        ),
+        sa.CheckConstraint(
+            "btrim(value) <> ''", name="ck_actor_memory_value_not_blank"
+        ),
+        # 성별·나이는 배우만 쓴다. 코드 한 곳이 뚫려도 들어가지 못하게 DB에서 막는다.
+        sa.CheckConstraint(
+            "field NOT IN ('gender', 'age') OR written_by = 'actor'",
+            name="ck_actor_memory_demographics_actor_only",
+        ),
+        sa.Index("idx_actor_memory_user", "user_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        postgresql.UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+        server_default=sa.text("gen_random_uuid()"),
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        postgresql.UUID(as_uuid=True),
+        sa.ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    field: Mapped[ActorMemoryField] = mapped_column(
+        actor_memory_field_enum, nullable=False
+    )
+    value: Mapped[str] = mapped_column(sa.Text, nullable=False)
+    written_by: Mapped[ActorMemoryAuthor] = mapped_column(
+        actor_memory_author_enum, nullable=False
+    )
+    # 에이전트가 쓴 칸의 근거가 된 연습. 배우가 "이게 왜 이렇게 적혔지" 를 볼 수
+    # 있어야 고칠지 판단이 선다. 그 연습이 지워져도 칸 자체는 남긴다.
+    source_practice_session_id: Mapped[uuid.UUID | None] = mapped_column(
+        postgresql.UUID(as_uuid=True),
+        sa.ForeignKey("practice_sessions.id", ondelete="SET NULL"),
+    )
     created_at: Mapped[datetime] = mapped_column(
         sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()
     )

@@ -1,3 +1,11 @@
+COLUMN actor_memory_entries.created_at ord=7 type=timestamptz len=- null=NO default=now()
+COLUMN actor_memory_entries.field ord=3 type=actor_memory_field_t len=- null=NO default=-
+COLUMN actor_memory_entries.id ord=1 type=uuid len=- null=NO default=gen_random_uuid()
+COLUMN actor_memory_entries.source_practice_session_id ord=6 type=uuid len=- null=YES default=-
+COLUMN actor_memory_entries.updated_at ord=8 type=timestamptz len=- null=NO default=now()
+COLUMN actor_memory_entries.user_id ord=2 type=uuid len=- null=NO default=-
+COLUMN actor_memory_entries.value ord=4 type=text len=- null=NO default=-
+COLUMN actor_memory_entries.written_by ord=5 type=actor_memory_author_t len=- null=NO default=-
 COLUMN anomalies.dimension ord=6 type=text len=- null=NO default=-
 COLUMN anomalies.end_ts ord=5 type=text len=- null=NO default=-
 COLUMN anomalies.id ord=1 type=int8 len=- null=NO default=nextval('anomalies_id_seq'::regclass)
@@ -191,6 +199,20 @@ COLUMN users.id ord=1 type=uuid len=- null=NO default=gen_random_uuid()
 COLUMN users.nickname ord=6 type=text len=- null=YES default=-
 COLUMN users.status ord=3 type=user_status_t len=- null=NO default='active'::user_status_t
 COLUMN users.updated_at ord=5 type=timestamptz len=- null=NO default=now()
+CONSTRAINT actor_memory_entries actor_memory_entries_created_at_not_null NOT NULL created_at
+CONSTRAINT actor_memory_entries actor_memory_entries_field_not_null NOT NULL field
+CONSTRAINT actor_memory_entries actor_memory_entries_id_not_null NOT NULL id
+CONSTRAINT actor_memory_entries actor_memory_entries_pkey PRIMARY KEY (id)
+CONSTRAINT actor_memory_entries actor_memory_entries_source_practice_session_id_fkey FOREIGN KEY (source_practice_session_id) REFERENCES practice_sessions(id) ON DELETE SET NULL
+CONSTRAINT actor_memory_entries actor_memory_entries_updated_at_not_null NOT NULL updated_at
+CONSTRAINT actor_memory_entries actor_memory_entries_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+CONSTRAINT actor_memory_entries actor_memory_entries_user_id_not_null NOT NULL user_id
+CONSTRAINT actor_memory_entries actor_memory_entries_value_not_null NOT NULL value
+CONSTRAINT actor_memory_entries actor_memory_entries_written_by_not_null NOT NULL written_by
+CONSTRAINT actor_memory_entries ck_actor_memory_demographics_actor_only CHECK (((field <> ALL (ARRAY['gender'::actor_memory_field_t, 'age'::actor_memory_field_t])) OR (written_by = 'actor'::actor_memory_author_t)))
+CONSTRAINT actor_memory_entries ck_actor_memory_value_length CHECK ((char_length(value) <= 1000))
+CONSTRAINT actor_memory_entries ck_actor_memory_value_not_blank CHECK ((btrim(value) <> ''::text))
+CONSTRAINT actor_memory_entries uq_actor_memory_user_field UNIQUE (user_id, field)
 CONSTRAINT anomalies anomalies_dimension_not_null NOT NULL dimension
 CONSTRAINT anomalies anomalies_end_ts_not_null NOT NULL end_ts
 CONSTRAINT anomalies anomalies_id_not_null NOT NULL id
@@ -436,6 +458,8 @@ CONSTRAINT users users_id_not_null NOT NULL id
 CONSTRAINT users users_pkey PRIMARY KEY (id)
 CONSTRAINT users users_status_not_null NOT NULL status
 CONSTRAINT users users_updated_at_not_null NOT NULL updated_at
+ENUM actor_memory_author_t = actor,agent
+ENUM actor_memory_field_t = gender,age,goal,blockage,speech_self,speech_actual
 ENUM close_reason_t = gap_stated,exhausted,limit,user_ended
 ENUM consent_action_t = granted,declined,revoked
 ENUM consent_type_t = terms,privacy,ai_analysis
@@ -453,6 +477,7 @@ ENUM severity_t = high,mid,low
 ENUM turn_role_t = ai,actor
 ENUM upload_status_t = pending,finalized,expired
 ENUM user_status_t = active,suspended,deactivated
+INDEX CREATE INDEX idx_actor_memory_user ON public.actor_memory_entries USING btree (user_id)
 INDEX CREATE INDEX idx_anomalies_summary ON public.anomalies USING btree (summary_id, sort_order)
 INDEX CREATE INDEX idx_coach_sessions_practice ON public.coach_sessions USING btree (practice_session_id, created_at)
 INDEX CREATE INDEX idx_coaching_handoffs_practice_created ON public.coaching_handoffs USING btree (practice_session_id, created_at)
@@ -483,6 +508,7 @@ INDEX CREATE INDEX idx_upload_intents_expiry ON public.upload_intents USING btre
 INDEX CREATE INDEX idx_upload_intents_user_created ON public.upload_intents USING btree (user_id, created_at DESC)
 INDEX CREATE INDEX idx_user_consents_current ON public.user_consents USING btree (user_id, document_id, occurred_at DESC)
 INDEX CREATE INDEX idx_user_identities_user ON public.user_identities USING btree (user_id)
+INDEX CREATE UNIQUE INDEX actor_memory_entries_pkey ON public.actor_memory_entries USING btree (id)
 INDEX CREATE UNIQUE INDEX anomalies_pkey ON public.anomalies USING btree (id)
 INDEX CREATE UNIQUE INDEX coach_sessions_pkey ON public.coach_sessions USING btree (id)
 INDEX CREATE UNIQUE INDEX coach_turns_pkey ON public.coach_turns USING btree (id)
@@ -509,6 +535,7 @@ INDEX CREATE UNIQUE INDEX summaries_session_id_key ON public.summaries USING btr
 INDEX CREATE UNIQUE INDEX transcripts_pkey ON public.transcripts USING btree (id)
 INDEX CREATE UNIQUE INDEX upload_intents_object_key_key ON public.upload_intents USING btree (object_key)
 INDEX CREATE UNIQUE INDEX upload_intents_pkey ON public.upload_intents USING btree (id)
+INDEX CREATE UNIQUE INDEX uq_actor_memory_user_field ON public.actor_memory_entries USING btree (user_id, field)
 INDEX CREATE UNIQUE INDEX uq_coach_turns_session_index ON public.coach_turns USING btree (session_id, turn_index)
 INDEX CREATE UNIQUE INDEX uq_community_alias_post_ordinal ON public.community_anonymous_aliases USING btree (post_id, ordinal)
 INDEX CREATE UNIQUE INDEX uq_community_alias_post_user ON public.community_anonymous_aliases USING btree (post_id, user_id)
@@ -526,6 +553,7 @@ INDEX CREATE UNIQUE INDEX users_email_key ON public.users USING btree (email)
 INDEX CREATE UNIQUE INDEX users_pkey ON public.users USING btree (id)
 SEQUENCE anomalies_id_seq type=bigint
 SEQUENCE coach_turns_id_seq type=bigint
+TABLE actor_memory_entries
 TABLE anomalies
 TABLE coach_sessions
 TABLE coach_turns

@@ -19,6 +19,7 @@ SCENARIOS: tuple[Scenario, ...] = (
     Scenario("community", community.community, description="커뮤니티 16개 경로"),
     Scenario("community-traversal", community.cursor_traversal, description="커서 순회"),
     Scenario("profile", community.profile, description="/v2/me"),
+    Scenario("actor-memory", community.actor_memory, description="/v2/me/memory 6칸"),
     Scenario("admissions", community.admissions, description="입시 공개 조회"),
     Scenario(
         "admin",

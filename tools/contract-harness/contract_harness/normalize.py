@@ -22,12 +22,14 @@ DATETIME_RE = re.compile(
 
 DATETIME_SENTINEL = "<datetime>"
 CURSOR_SENTINEL = "<cursor>"
-COMMIT_SENTINEL = "<commit>"
+ENV_SENTINEL = "<env>"
 
 OPAQUE_TOKEN_KEYS = frozenset({"access_token", "refresh_token"})
 OPAQUE_CURSOR_KEYS = frozenset({"next_cursor"})
 OPAQUE_URL_KEYS = frozenset({"playback_url", "upload_url", "video_url"})
-MASKED_KEYS = frozenset({"commit"})
+# 배포·환경마다 달라지는 값. 두 구현이 합의할 대상이 아니라 실행된 자리의 산물이라
+# 값 자체는 비교하지 않는다 — 있는지/문자열인지만 본다.
+ENV_VALUE_KEYS = frozenset({"commit", "db_size"})
 
 
 class SymbolError(RuntimeError):
@@ -265,8 +267,8 @@ class Normalizer:
             return CURSOR_SENTINEL
         if key in OPAQUE_URL_KEYS:
             return url_shape(value)
-        if key in MASKED_KEYS:
-            return COMMIT_SENTINEL
+        if key in ENV_VALUE_KEYS:
+            return ENV_SENTINEL
         # ② datetime — 검증하고 나서 마스킹한다
         if DATETIME_RE.match(value):
             form, errors = check_datetime(value, role=self.role, path=path)
