@@ -1,5 +1,15 @@
 [
   {
+    "category": "pydantic_validator",
+    "detail": "value must not be blank",
+    "dynamic": false,
+    "key": "acting-api/src/acting_api/actor_memory.py:UpdateMemoryRequest._normalize|422|value must not be blank",
+    "route": null,
+    "source": "acting-api/src/acting_api/actor_memory.py",
+    "status": 422,
+    "symbol": "UpdateMemoryRequest._normalize"
+  },
+  {
     "category": "http_exception",
     "detail": null,
     "dynamic": false,
