@@ -9,16 +9,23 @@
  * 1) **동의 전에는 SDK를 초기화하지 않는다.** 호출부가 로그인과 최신 방침 동의를
  *    확인한 뒤 startAmplitude를 부른다. 그 전에 생긴 이벤트는 쌓지 않고 버린다.
  *
- * 2) **자동 수집은 통째로 끈다.** 기본 page view는 쿼리가 붙은 전체 주소를 보내고,
- *    element interactions는 사용자가 쓴 장면 제목과 버튼 문구까지 읽을 수 있다.
- *    그래서 autocapture의 개별 기능을 고르는 대신 false 하나로 전부 막는다.
+ * 2) **autocapture 와 화면 녹화는 켜져 있다**(2026-08-11 최우영 결정). 그래서 전체 주소·
+ *    클릭한 요소의 텍스트·화면 기록이 수탁사로 나간다. 무엇이 나가는지는 방침 v4 6항과
+ *    `ANALYTICS.md` §1(2)에 그대로 적혀 있다.
  *
  * 3) **속성은 아래 래퍼가 만든 화이트리스트만 보낸다.** 세션 id·파일명·대화 본문을
  *    호출부에서 실수로 넘길 자리가 없도록 원본 숫자와 텍스트는 여기서 버킷과 boolean으로
  *    바꾼다. 오류도 메시지 원문 대신 HTTP 상태나 정해 둔 코드만 남긴다.
+ *
+ * ⚠️ **`@amplitude/unified` 의 `initAll` 을 쓰지 않는다.** 그건 analytics·session replay 에
+ * 더해 **experiment 와 engagement(가이드·설문)까지 조건 없이 초기화한다**(unified 의
+ * `initAll` 에 engagement 를 끄는 옵션이 없다). 2026-08-11 로컬 확인에서 CDN 청크 15개+와
+ * `gs.amplitude.com` 호출이 붙는 것을 보고 걷어냈다. 지금은 analytics 와 session replay
+ * 둘만 명시적으로 붙인다 — Amplitude 의 Next.js 가이드가 쓰는 방식이다.
  */
 
-import * as amplitude from "@amplitude/unified";
+import * as amplitude from "@amplitude/analytics-browser";
+import { sessionReplayPlugin } from "@amplitude/plugin-session-replay-browser";
 import { toDurationBucket } from "./ga";
 import { scrubUrl } from "../observability/sentry-shared";
 
@@ -68,7 +75,11 @@ export function startAmplitude(): void {
   measuring = true;
   if (started) return;
   started = true;
-  amplitude.initAll(apiKey, {"analytics":{"autocapture":true},"sessionReplay":{"sampleRate":1}});
+  // 리플레이 플러그인은 init 앞에 붙여야 첫 세션부터 잡힌다.
+  // ⚠️ 여기 sampleRate 는 최종값이 아니다 — Amplitude 프로젝트의 원격 설정이 덮는다.
+  //    실제 적용값은 sr-client-cfg.amplitude.com 응답에서 확인한다(ANALYTICS.md §1(2)).
+  amplitude.add(sessionReplayPlugin({ sampleRate: 1 }));
+  amplitude.init(apiKey, undefined, { autocapture: true });
   amplitude.track('Viewed Home Page', { prompt_version: 'BA400.4' }); // helps improve this setup flow — safe to remove once you've verified the event lands
 }
 

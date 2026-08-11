@@ -24,8 +24,21 @@ GA4는 `consent: denied` 상태에서 쿠키 없이 히트를 보내지만, **Am
 ### (2) autocapture와 세션 리플레이가 켜져 있다
 
 ```ts
-amplitude.initAll(API_KEY, {"analytics":{"autocapture":true},"sessionReplay":{"sampleRate":1}});
+amplitude.add(sessionReplayPlugin({ sampleRate: 1 }));   // init 앞에 붙여야 첫 세션부터 잡힌다
+amplitude.init(API_KEY, undefined, { autocapture: true });
 ```
+
+> **`@amplitude/unified` 의 `initAll` 을 쓰지 않는다.** `initAll` 은 analytics·session replay 에
+> 더해 **experiment 와 engagement(가이드·설문)까지 조건 없이 초기화한다** — unified 소스에
+> engagement 를 끄는 옵션이 없다(`unified.js` 의 `add(EngagementPlugin(...))` 이 무조건 실행된다).
+>
+> 2026-08-11 로컬 확인에서 `cdn.amplitude.com/engagement-browser/...` 청크 15개+와
+> `gs.amplitude.com/sdk/v1/{config,decide,state}` 호출이 붙는 것을 보고 걷어냈다. Engagement 는
+> 앱 안에 가이드·설문 UI 를 띄울 수 있는 기능이라 쓰지도 않는데 켜 둘 이유가 없고, 방침 v4 에
+> 고지된 경로도 아니다. 걷어내면서 SDK 청크가 gzip **115KB → 90KB** 로 줄었다.
+>
+> 지금은 analytics 와 session replay 둘만 명시적으로 붙인다 — Amplitude 의 Next.js 가이드가
+> 쓰는 방식이다. 나중에 experiment 나 가이드가 필요해지면 그때 해당 플러그인만 추가한다.
 
 **2026-08-11 최우영 결정으로 자동 수집과 화면 녹화를 전부 켰다.** 그래서 아래가 Amplitude로 나간다 — 방침이 이걸 전부 고지해야 하고, 이 목록이 곧 방침 6항의 수집 항목이다:
 
@@ -36,6 +49,45 @@ amplitude.initAll(API_KEY, {"analytics":{"autocapture":true},"sessionReplay":{"s
 수동으로 쏘는 21개 이벤트는 그대로 §1(7)의 화이트리스트를 지킨다. 자동 수집을 켰다고 **우리가 만드는 payload까지 느슨해지지는 않는다** — 두 경로는 별개다.
 
 ⚠️ **마스킹은 설정하지 않았다.** Amplitude Session Replay는 텍스트·입력을 가리는 옵션을 따로 제공한다. 지금 설정은 받은 지침 그대로이고, 마스킹을 넣으려면 여기서부터 손대면 된다.
+
+#### ⚠️ 빌드는 반드시 webpack 으로 — Turbopack 에서는 녹화가 죽는다
+
+`package.json` 의 `build` 가 **`next build --webpack`** 인 이유다. **떼면 세션 리플레이가 조용히 죽는다.**
+
+리플레이 SDK 는 rrweb 레코더를 **동적 import** 로 늦게 불러온다(`getRecordFunction`). Turbopack 이 만든 그 청크가 `SyntaxError: Invalid or unexpected token` 으로 깨지는데, SDK 가 예외를 삼키고 null 을 돌려주므로 녹화가 **시작조차 되지 않는다**:
+
+```js
+case 3:
+  this.loggerProvider.warn("Failed to load rrweb-record module:", n);
+  return [2, null];      // ← 여기로 빠진다
+```
+
+증상이 고약하다 — 빌드도 배포도 초록이고, 이벤트는 정상으로 들어가고, `AMP_SR_START` 키와 리플레이 ID 까지 멀쩡히 생긴다. **IndexedDB 에 리플레이 버퍼 DB 가 없는 것**(`AMP_diagnostics_*` 하나만 있음)과 `api-sr.amplitude.com` 요청이 0건인 것으로만 구분된다.
+
+2026-08-11 에 같은 코드로 두 번 빌드해 확인했다:
+
+| 번들러 | 콘솔 | 리플레이 업로드 |
+| --- | --- | --- |
+| Turbopack (기본) | `Uncaught SyntaxError` | **0건** |
+| webpack (`--webpack`) | 깨끗 | **`sessions/v2/track` 200 × 6** |
+
+#### ⚠️ 코드의 `sampleRate` 는 서버 원격 설정에 덮인다
+
+**`initAll` 에 넣은 `sampleRate: 1` 이 최종 값이 아니다.** SDK 는 기동할 때
+`https://sr-client-cfg.amplitude.com/config/<key>?config_group=browser` 를 받아 그 값을 쓴다.
+Amplitude 가 Admin 에서 정한 개인정보 설정을 존중하도록 그렇게 설계돼 있고, **원격 설정이
+로드에 실패하면 아예 한 세션도 캡처하지 않는다.**
+
+2026-08-11 에 이것 때문에 리플레이가 하나도 안 잡혔다. 코드는 100% 인데 서버 응답이:
+
+```json
+"sessionReplay": { "sr_sampling_config": { "capture_enabled": true, "sample_rate": 0.01 } }
+```
+
+**1%** 였다. 100세션에 1개만 녹화되니 테스트 몇 번으로는 영원히 안 보인다.
+
+**녹화가 안 보이면 코드를 고치기 전에 저 URL 을 먼저 찍어봐라.** `capture_enabled` 와
+`sample_rate` 가 실제 적용값이다. 바꾸는 곳은 코드가 아니라 **Amplitude 프로젝트 설정**이다.
 
 화면 전환은 autocapture와 별개로 `screen_viewed`도 직접 쏜다 — 이쪽은 주소가 씻긴 값이라 퍼널의 시작점으로 쓸 수 있다.
 
@@ -204,7 +256,7 @@ GA4는 `isMeasuredHost()`로 로컬 트래픽을 막지만, Amplitude는 그 가
 
 | 항목 | 무료 한도 | 지금 설정에서 소진되는 속도 |
 | --- | --- | --- |
-| 세션 리플레이 | 10,000 replay/월 | `sampleRate: 1` → **모든 세션이 녹화된다. 월 1만 세션에서 한도 도달** |
+| 세션 리플레이 | 10,000 replay/월 | 100% 로 두면 **모든 세션이 녹화된다. 월 1만 세션에서 한도 도달** (단, 실제 비율은 코드가 아니라 **서버 원격 설정**이 정한다 — 위 ⚠️ 참고) |
 | 이벤트 | 2,000,000 건/월 | autocapture 포함 세션당 대략 30~60건 → 월 3~6만 세션 수준 |
 
 **리플레이가 이벤트보다 4배 먼저 막힌다.** 넘길 것 같으면 `sampleRate`를 낮춘다(`amplitude.ts`의 `initAll` 옵션). 0.1이면 10만 세션까지 버티고, 재현 가능한 표본으로는 대개 충분하다.
