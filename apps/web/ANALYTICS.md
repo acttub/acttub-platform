@@ -37,6 +37,24 @@ amplitude.initAll(API_KEY, {"analytics":{"autocapture":true},"sessionReplay":{"s
 
 ⚠️ **마스킹은 설정하지 않았다.** Amplitude Session Replay는 텍스트·입력을 가리는 옵션을 따로 제공한다. 지금 설정은 받은 지침 그대로이고, 마스킹을 넣으려면 여기서부터 손대면 된다.
 
+#### ⚠️ 코드의 `sampleRate` 는 서버 원격 설정에 덮인다
+
+**`initAll` 에 넣은 `sampleRate: 1` 이 최종 값이 아니다.** SDK 는 기동할 때
+`https://sr-client-cfg.amplitude.com/config/<key>?config_group=browser` 를 받아 그 값을 쓴다.
+Amplitude 가 Admin 에서 정한 개인정보 설정을 존중하도록 그렇게 설계돼 있고, **원격 설정이
+로드에 실패하면 아예 한 세션도 캡처하지 않는다.**
+
+2026-08-11 에 이것 때문에 리플레이가 하나도 안 잡혔다. 코드는 100% 인데 서버 응답이:
+
+```json
+"sessionReplay": { "sr_sampling_config": { "capture_enabled": true, "sample_rate": 0.01 } }
+```
+
+**1%** 였다. 100세션에 1개만 녹화되니 테스트 몇 번으로는 영원히 안 보인다.
+
+**녹화가 안 보이면 코드를 고치기 전에 저 URL 을 먼저 찍어봐라.** `capture_enabled` 와
+`sample_rate` 가 실제 적용값이다. 바꾸는 곳은 코드가 아니라 **Amplitude 프로젝트 설정**이다.
+
 화면 전환은 autocapture와 별개로 `screen_viewed`도 직접 쏜다 — 이쪽은 주소가 씻긴 값이라 퍼널의 시작점으로 쓸 수 있다.
 
 ### (3) 주소는 경로만, UUID는 가린다
@@ -204,7 +222,7 @@ GA4는 `isMeasuredHost()`로 로컬 트래픽을 막지만, Amplitude는 그 가
 
 | 항목 | 무료 한도 | 지금 설정에서 소진되는 속도 |
 | --- | --- | --- |
-| 세션 리플레이 | 10,000 replay/월 | `sampleRate: 1` → **모든 세션이 녹화된다. 월 1만 세션에서 한도 도달** |
+| 세션 리플레이 | 10,000 replay/월 | 100% 로 두면 **모든 세션이 녹화된다. 월 1만 세션에서 한도 도달** (단, 실제 비율은 코드가 아니라 **서버 원격 설정**이 정한다 — 위 ⚠️ 참고) |
 | 이벤트 | 2,000,000 건/월 | autocapture 포함 세션당 대략 30~60건 → 월 3~6만 세션 수준 |
 
 **리플레이가 이벤트보다 4배 먼저 막힌다.** 넘길 것 같으면 `sampleRate`를 낮춘다(`amplitude.ts`의 `initAll` 옵션). 0.1이면 10만 세션까지 버티고, 재현 가능한 표본으로는 대개 충분하다.
