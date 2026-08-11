@@ -48,17 +48,32 @@ curl -s https://dev.acttub.com/v2/consents/documents   # documents 3개
   - `privacy_v4`(2026-08-12) — v3 내용을 전부 포함하고 이용 행태 분석(Amplitude)과
     **화면 기록(세션 리플레이)** 을 추가한 개정. **현재 발행 대상.**
 
-## v4 발행 절차 (아직 서버에 publish 하지 않았다)
+## v4 발행 절차
 
-`manifest.json` 과 `EXPECTED_PRIVACY_VERSION` 은 이미 v4 를 가리킨다. 남은 것은 **공지와
-서버 publish** 다. 순서를 지켜야 한다.
+⚠️ **배포가 곧 발행이다.** 위 CLI 는 수동 발행용이고, 평소에는 **be 가 기동할 때
+`manifest.json` 을 읽어 아직 없는 문서를 자동으로 발행한다**(`app.py` 의 `lifespan` →
+`seed_consent_documents`). `manifest.json` 이 v4 를 가리키는 채로 **운영에 be 를 배포하면
+그 순간 v4 가 발행되고 기존 동의자 175명 전원에게 동의 화면이 다시 뜬다.**
 
-1. **서비스 내 공지** — 14항이 "개정 사유 및 시행일을 명시하여 공지"를 약속한다.
-   시행일은 `2026-08-12`. 바꾸려면 본문 3곳(상단·개정 이력·하단)을 함께 고친다.
-2. **시행일에 서버에서 publish** — 위 발행 명령의 privacy 줄을 실행한다.
-   이 시점부터 기존 동의자 전원에게 동의 화면이 다시 뜬다.
-3. **운영 Environment 변수 `AMPLITUDE_API_KEY_WEB` 주입 후 재배포** — 이때부터 수집이 시작된다.
-   dev·운영에 **서로 다른 프로젝트 키**를 넣는다(호스트로 거르지 않아 같은 키면 통계가 섞인다).
+그래서 순서는 이렇다:
+
+1. **서비스 내 공지를 먼저 띄운다** — 14항이 "개정 사유 및 시행일을 명시하여 공지"를
+   약속한다. 시행일은 `2026-08-12`. 바꾸려면 본문 3곳(상단·개정 이력·하단)을 함께 고친다.
+2. **운영에 배포한다** — 이 시점에 v4 가 발행되고 재동의가 시작된다.
+   dev 는 먼저 배포해서 동의 화면이 정상으로 뜨는지 확인한다.
+3. **운영 Environment 변수 `AMPLITUDE_API_KEY_WEB` 주입 후 다시 배포한다** — 이때부터
+   수집이 시작된다. dev·운영에 **서로 다른 프로젝트 키**를 넣는다(호스트로 거르지 않아
+   같은 키면 통계가 섞인다).
+
+> `EXPECTED_PRIVACY_VERSION`(fe)과 manifest(be)는 나란히 배포돼 순서가 정해져 있지 않다.
+> fe 가 먼저 뜨면 v4 를 기대하는데 아직 v3 만 발행된 창이 잠깐 생기고, 그동안은 아무도
+> 동의자로 인정되지 않아 계측이 꺼진다. 재동의를 띄우는 개정에서는 어차피 전원이 다시
+> 동의하므로 그대로 둔다(`pending-consents.ts` 주석 참고).
+
+> **harness 시드도 같이 올려야 한다.** `tools/contract-harness/contract_harness/config.py` 의
+> `SEED_CONSENT_DOCUMENTS` 가 이 manifest 를 미러링한다. 어긋나면 앱이 새 버전을 추가로
+> 발행해 시드 유저의 필수 동의가 비고, contract-harness 전 시나리오가 403 으로 죽는다.
+> 이제 `test_seed_consent_documents_match_committed_manifest` 가 이 어긋남을 잡는다.
 
 ⚠️ **순서가 뒤집히면 안 된다.** 방침이 발행되지 않은 상태에서 키를 먼저 넣으면 고지 없이
 이용 기록과 화면 녹화를 제3자에게 넘기게 된다. `deploy.yml` 의 `계측 키가 방침 고지보다
