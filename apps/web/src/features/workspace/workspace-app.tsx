@@ -443,9 +443,6 @@ function WorkspaceInner() {
     if (!file) return;
     // 고르던 영상을 바꾸면 앞서 시작한 압축·업로드는 버린다.
     discardPendingUpload();
-    // 임시 계측(SOMA-355) — 원인이 잡히면 지운다. 미리보기는 새 영상인데 옛 영상이
-    // 분석된 사례가 있어, 브라우저가 넘긴 File 과 실제로 압축·업로드한 File 을 대조한다.
-    console.info("[SOMA-355] picked", file.name, file.size, file.lastModified);
     setPct(0);
     setVideoUrl((prev) => {
       if (prev) URL.revokeObjectURL(prev);
@@ -469,9 +466,6 @@ function WorkspaceInner() {
       // 압축을 다 돌리고도 원본보다 크면 false 가 되고, 그러면 막대가 이미 40까지
       // 올라간 채 업로드 구간이 0부터 시작해 40에서 한참 멈춰 있게 된다.
       let compressionRan = false;
-      // 임시 계측(SOMA-355) — 위 picked 줄과 이 줄이 다르면 상태·ref 경로 문제이고,
-      // 같은데도 옛 영상이 분석되면 브라우저가 넘긴 File 자체가 옛것이다.
-      console.info("[SOMA-355] uploading", file.name, file.size, file.lastModified);
       const prepared = await prepareVideoUpload(file, {
         signal: controller.signal,
         onCompressionProgress: (progress) => {
