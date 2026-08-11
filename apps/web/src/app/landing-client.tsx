@@ -953,10 +953,11 @@ function NoteStepContent({
     <div className={compact ? "bg-[#f7faff] p-4" : "flex h-full min-h-0 flex-col bg-[#f7faff] p-5"}>
       {!compact ? <ScreenLabel number="04" name="연습 노트 받기" /> : null}
       <div className={`${compact ? "" : "mt-4"} min-h-0 flex-1 overflow-y-auto`}>
-        <div className="grid gap-4">
-          <header className="rounded-[28px] bg-[#3182f6] p-6 text-white shadow-[0_16px_48px_rgba(25,31,40,0.08)]">
-            <p className="text-sm font-black">오늘 정리</p>
-            <h2 className="mt-2 text-2xl font-black leading-tight tracking-[-0.04em]">
+        {/* 마지막 문장이 잘리면 체험의 결말이 사라진다. 노트가 스크롤 없이 들어가도록 묶어 둔다. */}
+        <div className="grid gap-3">
+          <header className="rounded-[28px] bg-[#3182f6] px-6 py-4 text-white shadow-[0_16px_48px_rgba(25,31,40,0.08)]">
+            <p className="text-xs font-black">오늘 정리</p>
+            <h2 className="mt-1 text-xl font-black leading-tight tracking-[-0.04em]">
               연습 노트
             </h2>
           </header>
@@ -966,7 +967,9 @@ function NoteStepContent({
           />
           <NoteRow
             label="대화에서 발견한 것"
-            text={firstAnswer ? `${firstAnswer} ${noteDiscovery}` : noteDiscovery}
+            text={
+              firstAnswer ? `“${firstAnswer}”\n${noteDiscovery}` : noteDiscovery
+            }
           />
           <NoteRow
             label="다음 테이크에서 붙잡을 문장"
