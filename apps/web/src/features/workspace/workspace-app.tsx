@@ -1068,6 +1068,14 @@ function WorkspaceInner() {
               >
                 커뮤
               </Link>
+              {/* 코치가 나에 대해 적어 둔 것. 틀린 내용을 되돌릴 수 있는 유일한
+                  자리라 숨기지 않는다. */}
+              <Link
+                href="/memory"
+                className="flex h-8 items-center rounded-[10px] px-2 text-xs font-black text-[#8b95a1] transition hover:bg-[#f2f4f6] hover:text-[#4e5968]"
+              >
+                기억
+              </Link>
             </nav>
           </div>
         </header>
