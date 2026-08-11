@@ -59,6 +59,10 @@ import {
   settleProgress,
   uploadProgress,
 } from "../practice/analysis-progress";
+import {
+  uploadForCurrentFile,
+  type PendingVideoUpload,
+} from "./pending-video-upload";
 
 /** 준비 → 업로드 → 대화 → 노트. 화면이 단계마다 대화 쪽으로 좁혀진다. */
 type Mode = "prep" | "blockage" | "uploading" | "preparing" | "chat" | "note";
@@ -193,10 +197,9 @@ function WorkspaceInner() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const chatScrollRef = useRef<HTMLDivElement | null>(null);
   const uploadControllerRef = useRef<AbortController | null>(null);
-  const pendingUploadRef = useRef<{
-    controller: AbortController;
-    promise: Promise<PendingUploadResult>;
-  } | null>(null);
+  const pendingUploadRef = useRef<PendingVideoUpload<PendingUploadResult> | null>(
+    null,
+  );
   const analysisControllerRef = useRef<AbortController | null>(null);
   const analysisStartedAtRef = useRef<number | null>(null);
   const activeIdRef = useRef<string | null>(null);
@@ -435,6 +438,9 @@ function WorkspaceInner() {
     if (!file) return;
     // 고르던 영상을 바꾸면 앞서 시작한 압축·업로드는 버린다.
     discardPendingUpload();
+    // 임시 계측(SOMA-355) — 원인이 잡히면 지운다. 미리보기는 새 영상인데 옛 영상이
+    // 분석된 사례가 있어, 브라우저가 넘긴 File 과 실제로 압축·업로드한 File 을 대조한다.
+    console.info("[SOMA-355] picked", file.name, file.size, file.lastModified);
     setPct(0);
     setVideoUrl((prev) => {
       if (prev) URL.revokeObjectURL(prev);
@@ -446,7 +452,7 @@ function WorkspaceInner() {
 
   // 압축·업로드는 "질문 받기"를 누른 순간 시작해서 막힘을 고르는 동안 뒤에서 돈다.
   // 막힘 선택이 끝난 뒤에 시작하면 배우는 고르는 시간과 올리는 시간을 더해서 기다린다.
-  const startUpload = useCallback((file: File) => {
+  const startUpload = useCallback((file: File): PendingVideoUpload<PendingUploadResult> => {
     uploadControllerRef.current?.abort();
     const controller = new AbortController();
     uploadControllerRef.current = controller;
@@ -457,6 +463,9 @@ function WorkspaceInner() {
       // 압축을 다 돌리고도 원본보다 크면 false 가 되고, 그러면 막대가 이미 40까지
       // 올라간 채 업로드 구간이 0부터 시작해 40에서 한참 멈춰 있게 된다.
       let compressionRan = false;
+      // 임시 계측(SOMA-355) — 위 picked 줄과 이 줄이 다르면 상태·ref 경로 문제이고,
+      // 같은데도 옛 영상이 분석되면 브라우저가 넘긴 File 자체가 옛것이다.
+      console.info("[SOMA-355] uploading", file.name, file.size, file.lastModified);
       const prepared = await prepareVideoUpload(file, {
         signal: controller.signal,
         onCompressionProgress: (progress) => {
@@ -485,17 +494,21 @@ function WorkspaceInner() {
     // 막힘을 고르는 동안 실패하면 이 약속을 아무도 안 받고 있다 — 여기서 삼켜
     // unhandled rejection 을 막고, 오류 처리는 begin 이 await 할 때 한 번만 한다.
     promise.catch(() => undefined);
-    pendingUploadRef.current = { controller, promise };
+    const pending = { file, controller, promise };
+    pendingUploadRef.current = pending;
+    return pending;
   }, []);
 
   const begin = useCallback(async (blockage: BlockageSelection) => {
     if (!videoFile) return;
     setError(null);
     setMode("uploading");
-    // "질문 받기"에서 미리 띄워 둔 것을 이어받는다. 없으면(재시도·직접 호출) 여기서 시작한다.
-    if (!pendingUploadRef.current) startUpload(videoFile);
-    const pending = pendingUploadRef.current;
-    if (!pending) return;
+    // 현재 영상으로 미리 띄운 업로드만 이어받는다. 파일이 다르면 옛 업로드를 버리고 새로 시작한다.
+    const pending = uploadForCurrentFile(
+      pendingUploadRef.current,
+      videoFile,
+      startUpload,
+    );
     const { controller, promise } = pending;
     try {
       const { intentId, durationMs, compressionRan } = await promise;
