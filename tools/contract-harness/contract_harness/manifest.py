@@ -486,6 +486,12 @@ CASES: tuple[Case, ...] = (
              "nickname must not be blank"),),
         "request-validation", "nickname.blank", 422, None,
     ),
+    Case(
+        "memory.value-blank",
+        (key(f"{API}/actor_memory.py", "UpdateMemoryRequest._normalize", 422,
+             "value must not be blank"),),
+        "request-validation", "memory.value-blank", 422, None,
+    ),
     # --- community --------------------------------------------------------
     Case(
         "community.post-not-found",
