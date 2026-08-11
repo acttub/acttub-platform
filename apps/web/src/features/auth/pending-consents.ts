@@ -17,7 +17,7 @@ const CONSENT_TYPES = new Set(["terms", "privacy", "ai_analysis"]);
  * 않아 계측 쿠키가 꺼지는데, 어차피 버전을 올리는 개정은 전원에게 재동의를 띄우므로
  * 그대로 둔다. 창이 문제가 될 개정이라면 be를 먼저 배포한 뒤 fe를 올린다.
  */
-export const EXPECTED_PRIVACY_VERSION = "v3";
+export const EXPECTED_PRIVACY_VERSION = "v4";
 
 function localStorage(): Storage | null {
   if (typeof window === "undefined") return null;
