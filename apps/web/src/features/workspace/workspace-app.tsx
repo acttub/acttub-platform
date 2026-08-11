@@ -59,6 +59,10 @@ import {
   settleProgress,
   uploadProgress,
 } from "../practice/analysis-progress";
+import {
+  uploadForCurrentFile,
+  type PendingVideoUpload,
+} from "./pending-video-upload";
 
 /** 준비 → 업로드 → 대화 → 노트. 화면이 단계마다 대화 쪽으로 좁혀진다. */
 type Mode = "prep" | "blockage" | "uploading" | "preparing" | "chat" | "note";
@@ -193,10 +197,9 @@ function WorkspaceInner() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const chatScrollRef = useRef<HTMLDivElement | null>(null);
   const uploadControllerRef = useRef<AbortController | null>(null);
-  const pendingUploadRef = useRef<{
-    controller: AbortController;
-    promise: Promise<PendingUploadResult>;
-  } | null>(null);
+  const pendingUploadRef = useRef<PendingVideoUpload<PendingUploadResult> | null>(
+    null,
+  );
   const analysisControllerRef = useRef<AbortController | null>(null);
   const analysisStartedAtRef = useRef<number | null>(null);
   const activeIdRef = useRef<string | null>(null);
@@ -446,7 +449,7 @@ function WorkspaceInner() {
 
   // 압축·업로드는 "질문 받기"를 누른 순간 시작해서 막힘을 고르는 동안 뒤에서 돈다.
   // 막힘 선택이 끝난 뒤에 시작하면 배우는 고르는 시간과 올리는 시간을 더해서 기다린다.
-  const startUpload = useCallback((file: File) => {
+  const startUpload = useCallback((file: File): PendingVideoUpload<PendingUploadResult> => {
     uploadControllerRef.current?.abort();
     const controller = new AbortController();
     uploadControllerRef.current = controller;
@@ -485,17 +488,21 @@ function WorkspaceInner() {
     // 막힘을 고르는 동안 실패하면 이 약속을 아무도 안 받고 있다 — 여기서 삼켜
     // unhandled rejection 을 막고, 오류 처리는 begin 이 await 할 때 한 번만 한다.
     promise.catch(() => undefined);
-    pendingUploadRef.current = { controller, promise };
+    const pending = { file, controller, promise };
+    pendingUploadRef.current = pending;
+    return pending;
   }, []);
 
   const begin = useCallback(async (blockage: BlockageSelection) => {
     if (!videoFile) return;
     setError(null);
     setMode("uploading");
-    // "질문 받기"에서 미리 띄워 둔 것을 이어받는다. 없으면(재시도·직접 호출) 여기서 시작한다.
-    if (!pendingUploadRef.current) startUpload(videoFile);
-    const pending = pendingUploadRef.current;
-    if (!pending) return;
+    // 현재 영상으로 미리 띄운 업로드만 이어받는다. 파일이 다르면 옛 업로드를 버리고 새로 시작한다.
+    const pending = uploadForCurrentFile(
+      pendingUploadRef.current,
+      videoFile,
+      startUpload,
+    );
     const { controller, promise } = pending;
     try {
       const { intentId, durationMs, compressionRan } = await promise;
