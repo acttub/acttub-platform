@@ -41,6 +41,8 @@ from acting_api.admin import build_router as build_admin_router
 from acting_api.admissions import build_router as build_admissions_router
 from acting_api.auth.router import build_router as build_auth_router
 from acting_api.coaching import build_router as build_coaching_router
+from acting_api.memory_worker import MemoryUpdateWorker
+from acting_llm.openai_client import generate_text
 from acting_api.community import build_router as build_community_router
 from acting_api.config import load_gateway_settings
 from acting_api.consents import (
@@ -104,6 +106,7 @@ def create_app(
     s3_client=None,
     s3_storage=None,
     analysis_worker=None,
+    memory_worker=None,
     analyzer=None,
     coach_generate=None,
     report_generate=None,
@@ -178,6 +181,18 @@ def create_app(
             sweep_interval_sec=gateway_settings.analysis_sweep_interval_sec,
         )
 
+    if memory_worker is None and isinstance(store, PostgresStore):
+        # 분석이 쓰던 작업 풀을 그대로 쓴다. 하나씩만 돌려도 밀리지 않는다 --
+        # 연습 마무리마다가 아니라 몇 번에 한 번만 잡이 생긴다.
+        memory_worker = AnalysisWorkerPool(
+            worker=MemoryUpdateWorker(
+                store=store,
+                generate=coach_generate or generate_text,
+            ),
+            concurrency=1,
+            poll_interval_sec=gateway_settings.analysis_worker_poll_interval_sec,
+        )
+
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         try:
@@ -205,11 +220,15 @@ def create_app(
         app.state.keep_alive_task = task
         if analysis_worker is not None:
             analysis_worker.start()
+        if memory_worker is not None:
+            memory_worker.start()
         try:
             yield
         finally:
             if analysis_worker is not None:
                 analysis_worker.stop()
+            if memory_worker is not None:
+                memory_worker.stop()
             if task:
                 task.cancel()
             if owned_client:
