@@ -100,6 +100,24 @@ export type CoachTurnResponse = {
 
 export type CoachTurn = { role: 'ai' | 'actor'; text: string };
 
+/** 코치가 배우에 대해 기억하고 있는 한 칸. */
+export type MemoryItem = {
+  field: MemoryField;
+  value: string;
+  /** true 면 배우가 직접 쓰거나 고친 칸이다. 코치는 이 칸을 덮지 않는다. */
+  written_by_actor: boolean;
+  /** 이 말이 나온 연습. 배우가 "왜 이렇게 적혔지" 를 되짚을 근거다. */
+  source_practice_session_id: string | null;
+  updated_at: string;
+};
+
+/**
+ * 화면에 여는 칸. 성별·나이(gender·age)는 아직 열지 않는다 — 배우에게 열어 주는
+ * 순간 개인정보 수집 항목이 느는 것이라 동의 문서 확인이 먼저다. 지금 코치도
+ * 이 4칸만 쓴다.
+ */
+export type MemoryField = 'goal' | 'blockage' | 'speech_self' | 'speech_actual';
+
 export type AnalysisReport = {
   report_type: 'analysis';
   title: string;
@@ -361,6 +379,43 @@ export const api = {
    */
   deleteMe(): Promise<void> {
     return request<void>('/v2/me', { method: 'DELETE' }, { timeoutMs: 30_000 });
+  },
+
+  // 코치의 기억 -----------------------------------------------------------------
+  /**
+   * 코치가 나에 대해 기억하는 것 전부. 빈 칸은 행이 없으므로 4개보다 적게 온다.
+   */
+  actorMemory(): Promise<{ items: MemoryItem[] }> {
+    return request('/v2/me/memory', {}, { timeoutMs: 15_000 });
+  },
+
+  /**
+   * 한 칸을 고친다. 배우가 고친 칸은 이후 코치가 덮어쓰지 않는다.
+   */
+  saveActorMemory(field: MemoryField, value: string): Promise<MemoryItem> {
+    return request(
+      `/v2/me/memory/${encodeURIComponent(field)}`,
+      {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ value }),
+      },
+      { timeoutMs: 15_000 },
+    );
+  },
+
+  /** 한 칸을 지운다. 없는 칸을 지워도 성공이다. */
+  deleteActorMemory(field: MemoryField): Promise<void> {
+    return request<void>(
+      `/v2/me/memory/${encodeURIComponent(field)}`,
+      { method: 'DELETE' },
+      { timeoutMs: 15_000 },
+    );
+  },
+
+  /** 기억을 통째로 지운다. */
+  deleteAllActorMemory(): Promise<void> {
+    return request<void>('/v2/me/memory', { method: 'DELETE' }, { timeoutMs: 15_000 });
   },
 
   // 업로드 ---------------------------------------------------------------------

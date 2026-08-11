@@ -170,6 +170,20 @@ export default function SettingsScreen() {
             </>
           )}
 
+          {/* 코치가 나에 대해 적어 둔 것. 틀린 내용을 되돌릴 수 있는 유일한 자리라
+              동의·탈퇴처럼 눈에 띄는 위치에 둔다. */}
+          <Text style={styles.sectionTitle}>코치의 기억</Text>
+          <Text style={styles.sectionHint}>
+            코치가 나에 대해 무엇을 기억하는지 보고 고칠 수 있어요.
+          </Text>
+          <Pressable
+            style={styles.memoryRow}
+            onPress={() => router.push('/memory')}
+            accessibilityRole="button">
+            <Text style={styles.memoryText}>코치가 기억하는 것</Text>
+            <Text style={styles.memoryChevron}>›</Text>
+          </Pressable>
+
           {/* 개발 빌드에서만 보인다. 영상 업로드·분석을 지나지 않고 화면만 확인하는 통로. */}
           {__DEV__ && (
             <Pressable
@@ -198,6 +212,19 @@ export default function SettingsScreen() {
 }
 
 const styles = StyleSheet.create({
+  memoryRow: {
+    marginTop: 8,
+    borderWidth: 1,
+    borderColor: palette.borderSoft,
+    borderRadius: 14,
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  memoryText: { fontSize: 15, color: palette.text },
+  memoryChevron: { fontSize: 20, color: palette.checkOff },
   previewRow: {
     marginTop: 24,
     borderWidth: 1,
