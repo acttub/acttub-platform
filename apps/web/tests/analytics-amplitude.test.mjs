@@ -8,17 +8,31 @@ import "./ts-module-loader.mjs";
 // 최소 API를 바꿔 끼우면 실제 코드가 init/track을 불렀는지를 그대로 관찰할 수 있다.
 const amplitudeMockUrl = `data:text/javascript,${encodeURIComponent(`
 const calls = globalThis.__amplitudeCalls;
-export const initAll = (...args) => calls.push(["initAll", ...args]);
+export const init = (...args) => calls.push(["init", ...args]);
+export const add = (...args) => calls.push(["add", ...args]);
 export const track = (...args) => calls.push(["track", ...args]);
 export const setUserId = (...args) => calls.push(["setUserId", ...args]);
 export const reset = (...args) => calls.push(["reset", ...args]);
 `)}`;
 
+// 리플레이는 별도 플러그인으로 붙인다. unified 의 initAll 은 engagement 까지 조건 없이
+// 초기화해서 쓰지 않는다 — 그래서 "initAll 을 부르지 않는다"도 아래에서 검사한다.
+const replayMockUrl = `data:text/javascript,${encodeURIComponent(`
+const calls = globalThis.__amplitudeCalls;
+export const sessionReplayPlugin = (options) => {
+  calls.push(["sessionReplayPlugin", options]);
+  return { name: "session-replay" };
+};
+`)}`;
+
 globalThis.__amplitudeCalls = [];
 registerHooks({
   resolve(specifier, context, nextResolve) {
-    if (specifier === "@amplitude/unified") {
+    if (specifier === "@amplitude/analytics-browser") {
       return { url: amplitudeMockUrl, shortCircuit: true };
+    }
+    if (specifier === "@amplitude/plugin-session-replay-browser") {
+      return { url: replayMockUrl, shortCircuit: true };
     }
     return nextResolve(specifier, context);
   },
@@ -77,7 +91,7 @@ test("API 키가 없으면 init도 track도 하지 않는다", () => {
     trackPracticePrepOpened("new");
   });
 
-  assert.equal(callsOf("initAll").length, 0);
+  assert.equal(callsOf("init").length, 0);
   assert.equal(callsOf("track").length, 0);
 });
 
@@ -89,12 +103,17 @@ test("키가 있으면 계약된 옵션으로 한 번만 초기화하고 검증 
     startAmplitude();
   });
 
-  const initCalls = callsOf("initAll");
+  const initCalls = callsOf("init");
   assert.equal(initCalls.length, 1);
-  assert.deepEqual(initCalls[0].slice(1), [
-    "test-key",
-    { analytics: { autocapture: true }, sessionReplay: { sampleRate: 1 } },
-  ]);
+  assert.deepEqual(initCalls[0].slice(1), ["test-key", undefined, { autocapture: true }]);
+
+  // 리플레이는 별도 플러그인이고, init 앞에 붙어야 첫 세션부터 잡힌다.
+  const pluginCalls = callsOf("sessionReplayPlugin");
+  assert.equal(pluginCalls.length, 1);
+  assert.deepEqual(pluginCalls[0][1], { sampleRate: 1 });
+  assert.equal(callsOf("add").length, 1);
+  const order = globalThis.__amplitudeCalls.map(([name]) => name);
+  assert.ok(order.indexOf("add") < order.indexOf("init"));
 
   // 로드 시점 이벤트는 init 직후에 붙는다 — 클릭 없이 설치가 확인된다.
   const verification = callsOf("track").find(([, event]) => event === "Viewed Home Page");
