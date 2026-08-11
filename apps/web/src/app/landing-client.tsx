@@ -436,7 +436,7 @@ type FlowProps = {
 
 function HeroProductCard() {
   return (
-    <div className="flex w-full max-w-[560px] min-w-0 flex-col gap-3 justify-self-end rounded-[20px] bg-[#f7faff] p-3 shadow-[0_16px_44px_0_#191f281f]">
+    <div className="flex w-full max-w-[560px] min-w-0 flex-col gap-3 justify-self-end rounded-[20px] bg-[#f7faff] p-3 shadow-[0_12px_36px_rgba(25,31,40,0.06)]">
       <div className="rounded-[18px] bg-white p-3 shadow-[0_12px_36px_rgba(25,31,40,0.05)]">
         <SampleStill
           className="aspect-video w-full rounded-xl bg-black object-contain"
@@ -561,7 +561,7 @@ function DesktopPracticeScreen({
   return (
     <div
       data-session-step={currentStep + 1}
-      className="relative h-[520px] w-full max-w-[640px] min-w-0 justify-self-end overflow-hidden rounded-[20px] border border-[#e5e8eb] bg-white shadow-[0_16px_44px_0_#191f281f]"
+      className="relative h-[520px] w-full max-w-[640px] min-w-0 justify-self-end overflow-hidden rounded-[20px] border border-[#e5e8eb] bg-white shadow-[0_12px_36px_rgba(25,31,40,0.06)]"
       aria-live="polite"
     >
       <SessionPanel active={currentStep === 0}>
@@ -658,7 +658,7 @@ function MobileStepCard({
 }) {
   const active = step === currentStep;
   return (
-    <article className="overflow-hidden rounded-[20px] border border-[#e5e8eb] bg-white shadow-[0_12px_32px_0_#191f2812]">
+    <article className="overflow-hidden rounded-[20px] border border-[#e5e8eb] bg-white shadow-[0_12px_36px_rgba(25,31,40,0.05)]">
       <div
         className={`flex items-center gap-3 border-b border-[#edf0f3] px-4 py-2.5 text-[15px] font-black ${
           active ? "bg-[#e8f3ff] text-[#3182f6]" : "text-[#8b95a1]"
