@@ -490,7 +490,7 @@ CASES: tuple[Case, ...] = (
         "memory.value-blank",
         (key(f"{API}/actor_memory.py", "UpdateMemoryRequest._normalize", 422,
              "value must not be blank"),),
-        "request-validation", "memory.value-blank", 422, None,
+        "actor-memory", "memory-put-blank", 422, None,
     ),
     # --- community --------------------------------------------------------
     Case(
