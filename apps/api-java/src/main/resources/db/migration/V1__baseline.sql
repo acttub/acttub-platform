@@ -13,7 +13,6 @@
 --
 -- 주의: --no-owner --no-privileges 라 owner/ACL 은 담기지 않는다. extension 과
 -- sequence 의 last_value 도 마찬가지다. M6 의 재해복구 리허설에서 별도로 확인한다.
-
 --
 -- PostgreSQL database dump
 --
@@ -123,7 +122,8 @@ CREATE TYPE public.operation_kind_t AS ENUM (
     'analyze',
     'coach_start',
     'coach_reply',
-    'report'
+    'report',
+    'memory_update'
 );
 
 
