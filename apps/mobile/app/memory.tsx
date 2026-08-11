@@ -5,7 +5,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppDialog } from '@/components/app-dialog';
 import { KeyboardAwareScroll } from '@/components/keyboard-aware-scroll';
-import { api, type MemoryField, type MemoryItem } from '@/lib/api';
+import {
+  api,
+  ACTOR_ONLY_MEMORY_FIELDS,
+  type MemoryField,
+  type MemoryItem,
+} from '@/lib/api';
 import { palette } from '@/constants/palette';
 
 /**
@@ -20,11 +25,23 @@ import { palette } from '@/constants/palette';
  * - **누가 적었는지** — 내가 고친 칸은 코치가 다시 덮지 않는다는 걸 알아야
  *   고치는 의미가 생긴다.
  *
- * 성별·나이는 아직 열지 않았다. 배우에게 열어 주는 순간 개인정보 수집 항목이
- * 느는 것이라 동의 문서 확인이 먼저다.
+ * 성별·나이는 **배우만 쓰는 칸**이다. 코치는 영상이나 말투에서 추론하지 않는다.
+ * 데이터베이스가 코치의 쓰기를 막고 있어서, 이 화면이 그 칸을 채우는 유일한 통로다.
  */
 
 const FIELDS: { field: MemoryField; label: string; hint: string; placeholder: string }[] = [
+  {
+    field: 'gender',
+    label: '성별',
+    hint: '코치는 짐작하지 않아요. 적어 두면 참고합니다',
+    placeholder: '예) 여성',
+  },
+  {
+    field: 'age',
+    label: '나이',
+    hint: '코치는 짐작하지 않아요. 적어 두면 참고합니다',
+    placeholder: '예) 19살',
+  },
   {
     field: 'goal',
     label: '목표',
@@ -189,10 +206,14 @@ export default function MemoryScreen() {
                   <Text style={styles.label}>{label}</Text>
                   {item ? (
                     <Text style={item.edited_by_me ? styles.tagMine : styles.tagCoach}>
-                      {item.edited_by_me ? '내가 고침' : '코치가 적음'}
+                      {item.edited_by_me ? '내가 적음' : '코치가 적음'}
                     </Text>
                   ) : (
-                    <Text style={styles.tagEmpty}>비어 있음</Text>
+                    <Text style={styles.tagEmpty}>
+                      {ACTOR_ONLY_MEMORY_FIELDS.includes(field)
+                        ? '내가 적는 칸'
+                        : '비어 있음'}
+                    </Text>
                   )}
                 </View>
                 <Text style={styles.hint}>{hint}</Text>

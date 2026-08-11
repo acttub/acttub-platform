@@ -7,10 +7,15 @@ export type MemoryResponse = components["schemas"]["MemoryResponse"];
 /**
  * 배우가 화면에서 다루는 칸.
  *
- * 성별·나이는 아직 열지 않는다 — 배우에게 열어 주는 순간 개인정보 수집 항목이
- * 느는 것이라 동의 문서 확인이 먼저다. 지금은 코치도 이 넷만 쓴다.
+ * 성별·나이는 **배우만 쓴다.** 코치는 영상이나 말투에서 추론하지 않는다 — 틀리면
+ * 그 상태로 이후 모든 연습의 전제가 되고, 민감정보 추론이기도 하다. 데이터베이스
+ * 제약(ck_actor_memory_demographics_actor_only)이 이걸 실제로 막고 있어서,
+ * 여기 화면이 그 칸을 채울 수 있는 유일한 통로다.
  */
+export const ACTOR_ONLY_FIELDS = ["gender", "age"] as const;
+
 export const MEMORY_FIELDS = [
+  ...ACTOR_ONLY_FIELDS,
   "goal",
   "blockage",
   "speech_self",
@@ -18,6 +23,11 @@ export const MEMORY_FIELDS = [
 ] as const;
 
 export type MemoryField = (typeof MEMORY_FIELDS)[number];
+
+/** 코치가 절대 쓰지 않는 칸인지. 화면에서 다르게 안내한다. */
+export function isActorOnlyField(field: MemoryField): boolean {
+  return (ACTOR_ONLY_FIELDS as readonly string[]).includes(field);
+}
 
 /** 서버가 거부하는 길이. 화면에서 미리 막지 않으면 저장 순간에야 실패한다. */
 export const MEMORY_VALUE_MAX_LENGTH = 1000;

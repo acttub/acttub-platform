@@ -111,11 +111,22 @@ export type MemoryItem = {
 };
 
 /**
- * 화면에 여는 칸. 성별·나이(gender·age)는 아직 열지 않는다 — 배우에게 열어 주는
- * 순간 개인정보 수집 항목이 느는 것이라 동의 문서 확인이 먼저다. 지금 코치도
- * 이 4칸만 쓴다.
+ * 화면에 여는 칸.
+ *
+ * 성별·나이는 **배우만 쓴다.** 코치는 영상이나 말투에서 추론하지 않는다 — 틀리면
+ * 그 상태로 이후 모든 연습의 전제가 되고, 민감정보 추론이기도 하다. 데이터베이스
+ * 제약이 코치의 쓰기를 막고 있어서, 화면이 그 칸을 채우는 유일한 통로다.
  */
-export type MemoryField = 'goal' | 'blockage' | 'speech_self' | 'speech_actual';
+export type MemoryField =
+  | 'gender'
+  | 'age'
+  | 'goal'
+  | 'blockage'
+  | 'speech_self'
+  | 'speech_actual';
+
+/** 코치가 절대 쓰지 않는 칸. 화면에서 다르게 안내한다. */
+export const ACTOR_ONLY_MEMORY_FIELDS: readonly MemoryField[] = ['gender', 'age'];
 
 export type AnalysisReport = {
   report_type: 'analysis';
