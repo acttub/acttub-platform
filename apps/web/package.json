@@ -15,7 +15,7 @@
     "perf:healthcheck": "lhci healthcheck --fatal --config=lighthouserc.cjs"
   },
   "dependencies": {
-    "@amplitude/analytics-browser": "^2.45.5",
+    "@amplitude/unified": "^1.1.28",
     "@mediabunny/aac-encoder": "^1.50.9",
     "@sentry/nextjs": "10.69.0",
     "mediabunny": "^1.50.9",

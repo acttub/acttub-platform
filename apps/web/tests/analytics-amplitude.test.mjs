@@ -8,7 +8,7 @@ import "./ts-module-loader.mjs";
 // 최소 API를 바꿔 끼우면 실제 코드가 init/track을 불렀는지를 그대로 관찰할 수 있다.
 const amplitudeMockUrl = `data:text/javascript,${encodeURIComponent(`
 const calls = globalThis.__amplitudeCalls;
-export const init = (...args) => calls.push(["init", ...args]);
+export const initAll = (...args) => calls.push(["initAll", ...args]);
 export const track = (...args) => calls.push(["track", ...args]);
 export const setUserId = (...args) => calls.push(["setUserId", ...args]);
 export const reset = (...args) => calls.push(["reset", ...args]);
@@ -17,7 +17,7 @@ export const reset = (...args) => calls.push(["reset", ...args]);
 globalThis.__amplitudeCalls = [];
 registerHooks({
   resolve(specifier, context, nextResolve) {
-    if (specifier === "@amplitude/analytics-browser") {
+    if (specifier === "@amplitude/unified") {
       return { url: amplitudeMockUrl, shortCircuit: true };
     }
     return nextResolve(specifier, context);
@@ -77,38 +77,29 @@ test("API 키가 없으면 init도 track도 하지 않는다", () => {
     trackPracticePrepOpened("new");
   });
 
-  assert.equal(callsOf("init").length, 0);
+  assert.equal(callsOf("initAll").length, 0);
   assert.equal(callsOf("track").length, 0);
 });
 
-test("실서비스가 아닌 호스트에서는 init도 track도 하지 않는다", () => {
+// 키가 스위치다. 여러 번 불려도 SDK 인스턴스는 하나여야 device_id 와 세션이 갈라지지 않는다.
+test("키가 있으면 계약된 옵션으로 한 번만 초기화하고 검증 이벤트를 보낸다", () => {
   process.env.NEXT_PUBLIC_AMPLITUDE_API_KEY = "test-key";
-  withFakeWindow("localhost", () => {
-    startAmplitude();
-    trackPracticePrepOpened("new");
-  });
-
-  assert.equal(callsOf("init").length, 0);
-  assert.equal(callsOf("track").length, 0);
-});
-
-test("autocapture를 통째로 끄고 여러 번 불러도 한 번만 초기화한다", () => {
   withFakeWindow("acttub.com", () => {
     startAmplitude();
     startAmplitude();
   });
 
-  const initCalls = callsOf("init");
+  const initCalls = callsOf("initAll");
   assert.equal(initCalls.length, 1);
   assert.deepEqual(initCalls[0].slice(1), [
     "test-key",
-    undefined,
-    {
-      autocapture: false,
-      identityStorage: "localStorage",
-      serverZone: "US",
-    },
+    { analytics: { autocapture: true }, sessionReplay: { sampleRate: 1 } },
   ]);
+
+  // 로드 시점 이벤트는 init 직후에 붙는다 — 클릭 없이 설치가 확인된다.
+  const verification = callsOf("track").find(([, event]) => event === "Viewed Home Page");
+  assert.ok(verification);
+  assert.deepEqual(verification[2], { prompt_version: "BA400.4" });
 });
 
 // 원본 숫자가 경계에서 한 구간씩 밀리면 퍼널 분포가 조용히 틀어지므로 양쪽 값을 못박는다.

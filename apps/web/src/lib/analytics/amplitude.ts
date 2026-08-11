@@ -18,8 +18,8 @@
  *    바꾼다. 오류도 메시지 원문 대신 HTTP 상태나 정해 둔 코드만 남긴다.
  */
 
-import * as amplitude from "@amplitude/analytics-browser";
-import { isMeasuredHost, toDurationBucket } from "./ga";
+import * as amplitude from "@amplitude/unified";
+import { toDurationBucket } from "./ga";
 import { scrubUrl } from "../observability/sentry-shared";
 
 export { toDurationBucket } from "./ga";
@@ -50,22 +50,26 @@ let started = false;
 // 보내지 않는다. 다시 동의 조건을 만족해 startAmplitude가 불리면 같은 인스턴스를 켠다.
 let measuring = false;
 
-/** Amplitude를 켠다. API 키·실서비스 호스트·동의 게이트 중 하나라도 없으면 조용히 끝난다. */
+/**
+ * Amplitude를 켠다. 호출부가 로그인과 최신 방침 동의를 확인한 뒤에만 부른다.
+ *
+ * 켜고 끄는 스위치는 API 키 하나다. 환경별로 다른 키를 넣어 프로젝트를 나눈다 —
+ * `NEXT_PUBLIC_*`는 빌드 시점에 번들에 새겨지므로, 배포에서 키를 빼면 조용히 아무 일도
+ * 일어나지 않는다. 그래서 없을 때 경고를 남긴다.
+ */
 export function startAmplitude(): void {
-  const apiKey = process.env.NEXT_PUBLIC_AMPLITUDE_API_KEY ?? "";
-  if (!apiKey) return;
   if (typeof window === "undefined") return;
-  if (!isMeasuredHost(window.location.hostname)) return;
+  const apiKey = process.env.NEXT_PUBLIC_AMPLITUDE_API_KEY ?? "";
+  if (!apiKey) {
+    console.warn("Amplitude API key missing — analytics disabled");
+    return;
+  }
 
   measuring = true;
   if (started) return;
-  amplitude.init(apiKey, undefined, {
-    // 일부 자동 기능만 끄면 새 기본 기능이 SDK 업데이트 때 다시 켜질 수 있어 통째로 끈다.
-    autocapture: false,
-    identityStorage: "localStorage",
-    serverZone: "US",
-  });
   started = true;
+  amplitude.initAll(apiKey, {"analytics":{"autocapture":true},"sessionReplay":{"sampleRate":1}});
+  amplitude.track('Viewed Home Page', { prompt_version: 'BA400.4' }); // helps improve this setup flow — safe to remove once you've verified the event lands
 }
 
 let sentUserId: string | null = null;

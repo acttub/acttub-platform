@@ -179,6 +179,11 @@ jobs:
           NEXT_PUBLIC_SENTRY_DSN: ${{ vars.SENTRY_DSN_WEB }}
           NEXT_PUBLIC_SENTRY_ENV: ${{ needs.guard.outputs.environment }}
           NEXT_PUBLIC_APP_COMMIT: ${{ github.sha }}
+          # Amplitude도 빌드 시점에 굳습니다. 키가 비면 계측이 꺼진 번들이 나갑니다.
+          # dev와 운영에 서로 다른 프로젝트 키를 넣어 통계를 나눕니다 — 호스트로
+          # 거르지 않으므로 같은 키를 두 환경에 주면 데이터가 한 프로젝트에 섞입니다.
+          # ⚠️ 개인정보처리방침에 Amplitude 위탁이 발행되기 전에는 비워 둡니다.
+          NEXT_PUBLIC_AMPLITUDE_API_KEY: ${{ vars.AMPLITUDE_API_KEY_WEB }}
           SENTRY_ORG: ${{ vars.SENTRY_ORG }}
           SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT_WEB }}
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}

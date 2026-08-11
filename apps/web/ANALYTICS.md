@@ -21,30 +21,33 @@ GA4는 `consent: denied` 상태에서 쿠키 없이 히트를 보내지만, **Am
 
 동의 전에 쌓인 이벤트는 **버린다.** 큐에 모았다가 동의 후 흘려보내지 않는다. 그렇게 하면 "동의 전에는 수집하지 않는다"는 약속이 "동의 전에는 전송하지 않는다"로 슬쩍 바뀐다.
 
-### (2) autocapture는 전부 끈다
+### (2) autocapture와 세션 리플레이가 켜져 있다
 
 ```ts
-amplitude.init(API_KEY, undefined, {
-  autocapture: false,   // ← 통째로 끈다. 개별 플래그로 켜지 않는다.
-  identityStorage: "localStorage",
-  serverZone: "US",
-})
+amplitude.initAll(API_KEY, {"analytics":{"autocapture":true},"sessionReplay":{"sampleRate":1}});
 ```
 
-Browser SDK 2.10+ 는 **기본이 켜짐**이다. 켜두면 두 가지가 새어 나간다:
+**2026-08-11 최우영 결정으로 자동 수집과 화면 녹화를 전부 켰다.** 그래서 아래가 Amplitude로 나간다 — 방침이 이걸 전부 고지해야 하고, 이 목록이 곧 방침 6항의 수집 항목이다:
 
-- **페이지뷰**가 `location.href`를 통째로 싣는다 → `/practice/history?session=<uuid>`, `/community/post?id=<uuid>`, `/login?next=<경로>`
-- **element interactions**가 클릭한 요소의 텍스트를 싣는다 → 좌측 레일 항목 제목은 **사용자가 직접 쓴 상황 텍스트**다(`workspace-app.tsx`의 `headlineBySession`). 커뮤니티 글 제목도 마찬가지다.
+- **전체 주소** — autocapture 페이지뷰가 `location.href`를 통째로 싣는다: `/practice/history?session=<uuid>`, `/community/post?id=<uuid>`, `/login?next=<경로>`
+- **클릭한 요소의 텍스트** — 좌측 레일 항목 제목은 **사용자가 직접 쓴 상황 텍스트**다(`workspace-app.tsx`의 `headlineBySession`). 커뮤니티 글 제목도 같다.
+- **화면 녹화 100%** — `sampleRate: 1`. 연습 영상이 재생되는 화면, 장면 3칸, 코치 대화 전문, 연습 노트가 전부 들어간다.
 
-화면 전환은 `screen_viewed`로 **직접** 쏜다.
+수동으로 쏘는 21개 이벤트는 그대로 §1(7)의 화이트리스트를 지킨다. 자동 수집을 켰다고 **우리가 만드는 payload까지 느슨해지지는 않는다** — 두 경로는 별개다.
+
+⚠️ **마스킹은 설정하지 않았다.** Amplitude Session Replay는 텍스트·입력을 가리는 옵션을 따로 제공한다. 지금 설정은 받은 지침 그대로이고, 마스킹을 넣으려면 여기서부터 손대면 된다.
+
+화면 전환은 autocapture와 별개로 `screen_viewed`도 직접 쏜다 — 이쪽은 주소가 씻긴 값이라 퍼널의 시작점으로 쓸 수 있다.
 
 ### (3) 주소는 경로만, UUID는 가린다
 
 `scrubUrl()`(`src/lib/observability/sentry-shared.ts`)을 재사용한다 — 쿼리·해시를 떼고 경로의 UUID를 `<id>`로 치환한다. 허용 목록이 아니라 제거 방식이라 **새 쿼리가 생겨도 자동으로 걸러진다.** GA4의 `toTrackedQuery`는 캠페인 파라미터를 남겨야 해서 허용 목록을 쓰지만, Amplitude는 캠페인을 볼 필요가 없으므로 더 강한 쪽을 쓴다.
 
-### (4) 실서비스 호스트에서만 돈다
+### (4) 환경은 호스트가 아니라 키로 나눈다
 
-`isMeasuredHost()`(`ga.ts`)를 재사용한다. dev 서버가 같은 빌드를 서빙하므로 가드가 없으면 개발 트래픽이 섞인다.
+GA4는 `isMeasuredHost()`로 로컬 트래픽을 막지만, Amplitude는 그 가드를 두지 않는다. **환경별로 다른 프로젝트 키를 주입해 통계를 나눈다** — Sentry가 `NEXT_PUBLIC_SENTRY_ENV`로 하는 것과 같은 방식이고, 이래야 로컬에서 설치를 확인할 수 있다.
+
+그래서 **dev와 운영에 같은 키를 주면 두 환경의 데이터가 한 프로젝트에 섞인다.** `deploy.yml`의 `AMPLITUDE_API_KEY_WEB`을 환경별로 다르게 둘 것.
 
 ### (5) 켜고 끄는 스위치는 API 키 하나다
 
@@ -86,6 +89,8 @@ Browser SDK 2.10+ 는 **기본이 켜짐**이다. 켜두면 두 가지가 새어
 ## 3. 이벤트 사전 (1차 21개)
 
 이벤트를 더 늘리기 전에 **이 21개로 답이 나오는지 먼저 본다.** 커뮤니티·입시 계측은 2차로 미룬다 — 지금 답해야 할 질문(퍼널 이탈·리텐션·대화 품질)에 필요 없다.
+
+> **설치 검증용 임시 이벤트 1개가 따로 있다.** `Viewed Home Page` — `startAmplitude()`의 `initAll` 바로 뒤에서 한 번 발생하며 `{ prompt_version: "BA400.4" }`를 싣는다. Amplitude Setup 페이지의 라이브 피드에 이 이름이 뜨는 것으로 설치를 확인한다. **확인이 끝나면 지운다** — 아래 21개와 달리 제품 질문에 답하지 않는다.
 
 ### A. 연습 퍼널 — "어디서 나가나"
 
