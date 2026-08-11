@@ -1,11 +1,17 @@
 import logging
 
+import httpx
 import pytest
 from google.genai import types
 
 from acting_summary.prompt import OBSERVATION_SYSTEM_PROMPT
 from acting_summary.schema import ActorMaterial, ObservationPack
-from acting_summary.summarizer import FileActiveTimeout, SummaryParseError, summarize
+from acting_summary.summarizer import (
+    FileActiveTimeout,
+    SummaryDeadlineTimeout,
+    SummaryParseError,
+    summarize,
+)
 
 ACTOR = ActorMaterial(
     situation="a",
@@ -44,11 +50,16 @@ class _Files:
     def __init__(self, state="ACTIVE"):
         self._state = state
         self.deleted = []
+        self.upload_configs = []
+        self.uploaded = []
 
-    def upload(self, file):
-        return _File("files/abc", self._state)
+    def upload(self, file, config=None):
+        self.upload_configs.append(config)
+        uploaded = _File("files/abc", self._state)
+        self.uploaded.append(uploaded)
+        return uploaded
 
-    def get(self, name):
+    def get(self, name, config=None):
         return _File(name, self._state)
 
     def delete(self, name):
@@ -62,7 +73,10 @@ class _Models:
 
     def generate_content(self, model, contents, config):
         self.calls.append((model, contents, config))
-        return self._responses.pop(0)
+        response = self._responses.pop(0)
+        if isinstance(response, Exception):
+            raise response
+        return response
 
 
 class FakeClient:
@@ -133,7 +147,64 @@ def test_sdk_generation_settings_are_preserved():
     assert config.response_schema is ObservationPack
     assert config.temperature == 0.0
     assert config.seed == 42
+    assert config.thinking_config.thinking_level == types.ThinkingLevel.LOW
+    assert 0 < config.http_options.timeout <= 75_000
     assert config.media_resolution == types.MediaResolution.MEDIA_RESOLUTION_LOW
+    upload_config = client.files.upload_configs[0]
+    assert 0 < upload_config.http_options.timeout <= 75_000
+
+
+def test_upload_and_generation_share_the_75_second_budget(monkeypatch):
+    now = 0.0
+    client = FakeClient([_Resp(parsed=PACK)])
+    upload = client.files.upload
+
+    def slow_upload(*args, **kwargs):
+        nonlocal now
+        now = 20.0
+        return upload(*args, **kwargs)
+
+    client.files.upload = slow_upload
+    monkeypatch.setattr("acting_summary.summarizer.time.monotonic", lambda: now)
+
+    summarize("v.mp4", ACTOR, client=client, model="m")
+
+    assert client.files.upload_configs[0].http_options.timeout == 75_000
+    assert client.models.calls[0][2].http_options.timeout == 55_000
+
+
+def test_generation_timeout_retries_once_with_minimal_and_reuses_file(caplog):
+    client = FakeClient([httpx.ReadTimeout("slow generation"), _Resp(parsed=PACK)])
+
+    with caplog.at_level(logging.INFO, logger="acting_summary.summarizer"):
+        result = summarize("v.mp4", ACTOR, client=client, model="m")
+
+    assert result == PACK
+    assert len(client.files.uploaded) == 1
+    assert len(client.models.calls) == 2
+    first = client.models.calls[0]
+    fallback = client.models.calls[1]
+    assert first[2].thinking_config.thinking_level == types.ThinkingLevel.LOW
+    assert fallback[2].thinking_config.thinking_level == types.ThinkingLevel.MINIMAL
+    assert fallback[2].http_options.timeout == 75_000
+    assert first[1][0] is fallback[1][0] is client.files.uploaded[0]
+    assert "attempts=2" in _log_lines(caplog)[0]
+    assert "path=deadline_minimal_fallback" in _log_lines(caplog)[0]
+
+
+def test_minimal_fallback_timeout_is_not_retried():
+    client = FakeClient(
+        [httpx.ReadTimeout("slow generation"), httpx.ReadTimeout("slow fallback")]
+    )
+
+    with pytest.raises(SummaryDeadlineTimeout, match="minimal fallback"):
+        summarize("v.mp4", ACTOR, client=client, model="m")
+
+    assert len(client.models.calls) == 2
+    assert (
+        client.models.calls[1][2].thinking_config.thinking_level
+        == types.ThinkingLevel.MINIMAL
+    )
 
 
 def test_text_response_is_parsed_and_bad_response_retries_once():
@@ -177,6 +248,7 @@ def test_generation_is_logged_with_timing_and_token_counts(caplog):
     assert len(lines) == 1
     assert "model=m" in lines[0]
     assert "attempts=1" in lines[0]
+    assert "path=normal" in lines[0]
     assert "prompt_tokens=10846" in lines[0]
     assert "output_tokens=315" in lines[0]
     assert "thinking_tokens=4284" in lines[0]
@@ -191,6 +263,11 @@ def test_parse_retry_is_visible_in_the_log(caplog):
 
     assert len(client.models.calls) == 2
     assert "attempts=2" in _log_lines(caplog)[0]
+    assert "path=normal" in _log_lines(caplog)[0]
+    assert all(
+        call[2].thinking_config.thinking_level == types.ThinkingLevel.LOW
+        for call in client.models.calls
+    )
 
 
 def test_missing_usage_metadata_does_not_break_logging(caplog):
