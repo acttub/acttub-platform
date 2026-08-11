@@ -9,6 +9,7 @@ import {
   deleteMemoryField,
   getMemory,
   saveMemoryField,
+  isActorOnlyField,
   MEMORY_VALUE_MAX_LENGTH,
   type MemoryField,
   type MemoryItem,
@@ -25,6 +26,10 @@ import {
  * - **어느 연습에서 나온 말인지** — 근거를 봐야 고칠지 판단이 선다.
  * - **누가 적었는지** — 내가 고친 칸은 코치가 다시 덮지 않는다는 걸 알아야
  *   고치는 의미가 생긴다.
+ *
+ * 성별·나이는 **배우만 쓰는 칸**이다. 코치는 영상이나 말투에서 추론하지 않는다.
+ * 데이터베이스가 코치의 쓰기를 막고 있어서, 이 화면이 그 칸을 채울 수 있는
+ * 유일한 통로다.
  */
 
 const FIELDS: {
@@ -33,6 +38,18 @@ const FIELDS: {
   hint: string;
   placeholder: string;
 }[] = [
+  {
+    field: "gender",
+    label: "성별",
+    hint: "코치는 짐작하지 않아요. 적어 두면 참고합니다",
+    placeholder: "예) 여성",
+  },
+  {
+    field: "age",
+    label: "나이",
+    hint: "코치는 짐작하지 않아요. 적어 두면 참고합니다",
+    placeholder: "예) 19살",
+  },
   {
     field: "goal",
     label: "목표",
@@ -205,6 +222,7 @@ export function MemoryPanel() {
               const draft = drafts[field] ?? "";
               const dirty = draft.trim() !== (item?.value ?? "");
               const canSave = dirty && draft.trim().length > 0;
+              const actorOnly = isActorOnlyField(field);
               return (
                 <section
                   key={field}
@@ -220,11 +238,11 @@ export function MemoryPanel() {
                           item.edited_by_me ? "text-[#4e5968]" : "text-[#3182f6]"
                         }`}
                       >
-                        {item.edited_by_me ? "내가 고침" : "코치가 적음"}
+                        {item.edited_by_me ? "내가 적음" : "코치가 적음"}
                       </span>
                     ) : (
                       <span className="shrink-0 text-[12px] text-[#b0b8c1]">
-                        비어 있음
+                        {actorOnly ? "내가 적는 칸" : "비어 있음"}
                       </span>
                     )}
                   </div>

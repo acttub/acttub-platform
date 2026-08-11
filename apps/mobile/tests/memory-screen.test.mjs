@@ -23,20 +23,27 @@ test('설정에서 기억 화면으로 들어가는 길이 있다', () => {
   assert.match(source, /router\.push\('\/memory'\)/);
 });
 
-test('네 칸을 모두 보여준다', () => {
+test('여섯 칸을 모두 보여준다', () => {
   const source = readSource('app/memory.tsx');
 
-  for (const field of ['goal', 'blockage', 'speech_self', 'speech_actual']) {
+  for (const field of [
+    'gender',
+    'age',
+    'goal',
+    'blockage',
+    'speech_self',
+    'speech_actual',
+  ]) {
     assert.match(source, new RegExp(`field: '${field}'`), `${field} 칸이 없다`);
   }
 });
 
-test('성별·나이는 아직 열지 않는다', () => {
-  // 배우에게 열어 주는 순간 개인정보 수집 항목이 느는 것이라 동의 문서 확인이 먼저다.
-  const source = readSource('app/memory.tsx');
-
-  assert.doesNotMatch(source, /field: 'gender'/);
-  assert.doesNotMatch(source, /field: 'age'/);
+test('성별·나이는 배우만 쓰는 칸으로 다룬다', () => {
+  // 코치는 영상이나 말투에서 짐작하지 않는다. 데이터베이스가 코치의 쓰기를 막고
+  // 있어서, 이 화면이 그 칸을 채우는 유일한 통로다.
+  assert.match(readSource('lib/api.ts'), /ACTOR_ONLY_MEMORY_FIELDS/);
+  assert.match(readSource('app/memory.tsx'), /내가 적는 칸/);
+  assert.match(readSource('app/memory.tsx'), /짐작하지 않아요/);
 });
 
 test('칸마다 누가 적었는지 구분해 보여준다', () => {
@@ -44,7 +51,7 @@ test('칸마다 누가 적었는지 구분해 보여준다', () => {
   const source = readSource('app/memory.tsx');
 
   assert.match(source, /edited_by_me/);
-  assert.match(source, /내가 고침/);
+  assert.match(source, /내가 적음/);
   assert.match(source, /코치가 적음/);
 });
 
