@@ -50,6 +50,27 @@ amplitude.init(API_KEY, undefined, { autocapture: true });
 
 ⚠️ **마스킹은 설정하지 않았다.** Amplitude Session Replay는 텍스트·입력을 가리는 옵션을 따로 제공한다. 지금 설정은 받은 지침 그대로이고, 마스킹을 넣으려면 여기서부터 손대면 된다.
 
+#### ⚠️ 빌드는 반드시 webpack 으로 — Turbopack 에서는 녹화가 죽는다
+
+`package.json` 의 `build` 가 **`next build --webpack`** 인 이유다. **떼면 세션 리플레이가 조용히 죽는다.**
+
+리플레이 SDK 는 rrweb 레코더를 **동적 import** 로 늦게 불러온다(`getRecordFunction`). Turbopack 이 만든 그 청크가 `SyntaxError: Invalid or unexpected token` 으로 깨지는데, SDK 가 예외를 삼키고 null 을 돌려주므로 녹화가 **시작조차 되지 않는다**:
+
+```js
+case 3:
+  this.loggerProvider.warn("Failed to load rrweb-record module:", n);
+  return [2, null];      // ← 여기로 빠진다
+```
+
+증상이 고약하다 — 빌드도 배포도 초록이고, 이벤트는 정상으로 들어가고, `AMP_SR_START` 키와 리플레이 ID 까지 멀쩡히 생긴다. **IndexedDB 에 리플레이 버퍼 DB 가 없는 것**(`AMP_diagnostics_*` 하나만 있음)과 `api-sr.amplitude.com` 요청이 0건인 것으로만 구분된다.
+
+2026-08-11 에 같은 코드로 두 번 빌드해 확인했다:
+
+| 번들러 | 콘솔 | 리플레이 업로드 |
+| --- | --- | --- |
+| Turbopack (기본) | `Uncaught SyntaxError` | **0건** |
+| webpack (`--webpack`) | 깨끗 | **`sessions/v2/track` 200 × 6** |
+
 #### ⚠️ 코드의 `sampleRate` 는 서버 원격 설정에 덮인다
 
 **`initAll` 에 넣은 `sampleRate: 1` 이 최종 값이 아니다.** SDK 는 기동할 때
