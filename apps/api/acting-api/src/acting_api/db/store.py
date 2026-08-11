@@ -1591,7 +1591,9 @@ class PostgresStore:
                 .order_by(DbCoachSession.created_at.desc())
                 .limit(1)
             )
-            # 이번 것 말고, 가장 최근 연습에서 나온 카드.
+            # 가장 최근에 나온 카드. 이번 연습 것도 포함한다 -- 같은 연습을 다시
+            # 열었다면 그때 만든 카드가 바로 "지난번에 해보기로 한 것" 이다.
+            # 새 연습이면 자연히 지난 연습 카드가 가장 최근이 된다.
             report_json = db.scalar(
                 select(DbPracticeReport.report_json)
                 .join(
@@ -1600,7 +1602,6 @@ class PostgresStore:
                 )
                 .where(
                     PracticeSession.user_id == user_id,
-                    PracticeSession.id != practice_session_id,
                     PracticeSession.hidden_at.is_(None),
                 )
                 .order_by(DbPracticeReport.created_at.desc())
