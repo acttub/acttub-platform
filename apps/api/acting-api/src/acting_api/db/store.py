@@ -1551,11 +1551,11 @@ class PostgresStore:
                 db.scalars(
                     select(DbCoachTurn.text)
                     .join(
-                        CoachSession,
-                        DbCoachTurn.session_id == CoachSession.id,
+                        DbCoachSession,
+                        DbCoachTurn.session_id == DbCoachSession.id,
                     )
                     .where(
-                        CoachSession.practice_session_id == practice_session_id,
+                        DbCoachSession.practice_session_id == practice_session_id,
                         DbCoachTurn.role == TurnRole.ACTOR,
                     )
                     .order_by(DbCoachTurn.turn_index)
