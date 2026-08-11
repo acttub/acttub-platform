@@ -709,22 +709,17 @@ function UploadStepContent({
         </FadeIn>
       ) : (
         <div
-          className={`${compact ? "" : "mt-5"} flex h-[200px] w-full flex-col items-center justify-center gap-2 rounded-[18px] border-[1.5px] border-dashed border-[#cfe0f5] bg-[#f8fbff] px-4 text-center transition hover:border-[#3182f6] hover:bg-[#e8f3ff] sm:h-[300px] sm:rounded-[20px]`}
+          className={`${compact ? "h-[200px]" : "mt-5 min-h-[200px] flex-1"} flex w-full flex-col items-center justify-center gap-2 rounded-[18px] border-[1.5px] border-dashed border-[#cfe0f5] bg-[#f8fbff] px-4 text-center transition hover:border-[#3182f6] hover:bg-[#e8f3ff] sm:rounded-[20px]`}
         >
-          {/* 빈 상자만 두면 무엇을 넣는 자리인지 와닿지 않는다. 들어갈 영상을 미리 보여준다. */}
+          {/* 넣을 자리에 들어갈 영상을 그대로 채운다.
+              ＋ 배지까지 함께 두면 이미 있는 상태와 비어 있는 상태가 겹쳐 보인다. */}
           <SampleStill
-            className="aspect-video w-full max-w-[132px] rounded-xl opacity-80 sm:max-w-[210px]"
+            className="aspect-video w-full max-w-[200px] rounded-xl sm:max-w-[360px]"
             filename="sample_take.mp4"
             showChips
           />
-          <span className="flex h-12 w-12 items-center justify-center rounded-full bg-white text-2xl font-black text-[#3182f6] shadow-[0_8px_20px_rgba(49,130,246,0.12)] sm:h-14 sm:w-14">
-            ＋
-          </span>
           <p className="mt-1 block text-[15px] font-black tracking-[-0.02em] text-[#333d4b] sm:text-[17px]">
-            연기 영상을 여기에 넣어 주세요
-          </p>
-          <p className="block text-xs font-semibold text-[#8b95a1] sm:text-[13px]">
-            이 체험에서는 위 샘플 영상을 사용해요.
+            연기 영상을 여기에 넣어요
           </p>
           <p className="block text-xs font-semibold text-[#8b95a1] sm:text-[13px]">
             MP4 · MOV · 5분 이내 · 끌어다 놓아도 돼요
