@@ -478,7 +478,7 @@ function HeroProductCard() {
             <button
               type="button"
               aria-label="답변 보내기 예시"
-              className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#3182f6] text-lg font-black text-white shadow-[0_8px_20px_rgba(49,130,246,0.24)] transition hover:bg-[#1b64da] disabled:bg-[#c9d3df] disabled:shadow-none sm:h-14 sm:w-14"
+              className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#3182f6] text-lg font-black text-white shadow-[0_8px_20px_rgba(49,130,246,0.24)] transition hover:bg-[#1b64da] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#3182f6] disabled:bg-[#c9d3df] disabled:shadow-none sm:h-14 sm:w-14"
             >
               ↑
             </button>
@@ -512,10 +512,10 @@ function SampleStill({
       />
       {showChips ? (
         <>
-          <span className="absolute right-3.5 top-3.5 rounded-lg bg-black/55 px-2.5 py-1 text-[11px] font-bold text-white">
+          <span className="absolute right-3.5 top-3.5 rounded-lg bg-black/55 px-2.5 py-1 text-[11.5px] font-bold text-white">
             00:31
           </span>
-          <span className="absolute bottom-3.5 left-3.5 max-w-[calc(100%_-_28px)] truncate rounded-lg bg-black/55 px-2.5 py-1 text-[11px] font-bold text-white">
+          <span className="absolute bottom-3.5 left-3.5 max-w-[calc(100%_-_28px)] truncate rounded-lg bg-black/55 px-2.5 py-1 text-[11.5px] font-bold text-white">
             {filename}
           </span>
         </>
@@ -532,17 +532,30 @@ function DemoProgress({ currentStep }: { currentStep: DemoStep }) {
       </p>
       <ol className="mt-5 space-y-1" aria-label="체험 단계">
         {demoSteps.map((step, index) => {
+          const completed = index < currentStep;
           const active = currentStep === index;
           return (
             <li
               key={step.number}
               aria-current={active ? "step" : undefined}
-              className={`flex min-h-12 items-center gap-3 rounded-xl px-3 text-[15px] font-black transition-colors ${
-                active ? "bg-[#e8f3ff] text-[#3182f6]" : "text-[#8b95a1]"
-              }`}
+              className="flex min-h-12 items-center gap-3"
             >
-              <span className="text-xs">{step.number}</span>
-              <span>{step.name}</span>
+              <span
+                className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11.5px] font-black ${
+                  completed || active
+                    ? "bg-[#3182f6] text-white"
+                    : "bg-[#f2f4f6] text-[#b0b8c1]"
+                }`}
+              >
+                {completed ? "✓" : step.number}
+              </span>
+              <span
+                className={`text-xs font-bold sm:text-[13px] ${
+                  active ? "font-black text-[#191f28]" : "text-[#8b95a1]"
+                }`}
+              >
+                {step.name}
+              </span>
             </li>
           );
         })}
@@ -561,7 +574,7 @@ function DesktopPracticeScreen({
   return (
     <div
       data-session-step={currentStep + 1}
-      className="relative h-[520px] w-full max-w-[640px] min-w-0 justify-self-end overflow-hidden rounded-[20px] border border-[#e5e8eb] bg-white shadow-[0_12px_36px_rgba(25,31,40,0.06)]"
+      className="relative h-[520px] w-full max-w-[640px] min-w-0 justify-self-end overflow-hidden rounded-[20px] bg-white shadow-[0_12px_36px_rgba(25,31,40,0.05)]"
       aria-live="polite"
     >
       <SessionPanel active={currentStep === 0}>
@@ -657,16 +670,29 @@ function MobileStepCard({
   children: React.ReactNode;
 }) {
   const active = step === currentStep;
+  const completed = step < currentStep;
   return (
-    <article className="overflow-hidden rounded-[20px] border border-[#e5e8eb] bg-white shadow-[0_12px_36px_rgba(25,31,40,0.05)]">
+    <article className="overflow-hidden rounded-[20px] bg-white shadow-[0_12px_36px_rgba(25,31,40,0.05)]">
       <div
-        className={`flex items-center gap-3 border-b border-[#edf0f3] px-4 py-2.5 text-[15px] font-black ${
-          active ? "bg-[#e8f3ff] text-[#3182f6]" : "text-[#8b95a1]"
-        }`}
+        className="flex items-center gap-3 border-b border-[#edf0f3] px-4 py-2.5"
         aria-current={active ? "step" : undefined}
       >
-        <span className="text-xs">{demoSteps[step].number}</span>
-        <span>{demoSteps[step].name}</span>
+        <span
+          className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11.5px] font-black ${
+            completed || active
+              ? "bg-[#3182f6] text-white"
+              : "bg-[#f2f4f6] text-[#b0b8c1]"
+          }`}
+        >
+          {completed ? "✓" : demoSteps[step].number}
+        </span>
+        <span
+          className={`text-xs font-bold sm:text-[13px] ${
+            active ? "font-black text-[#191f28]" : "text-[#8b95a1]"
+          }`}
+        >
+          {demoSteps[step].name}
+        </span>
       </div>
       {children}
     </article>
@@ -685,13 +711,15 @@ function UploadStepContent({
   onUseSample: () => void;
 }) {
   return (
-    <div className={compact ? "bg-[#f7faff] p-3.5" : "flex h-full flex-col bg-[#f7faff] p-4"}>
+    <div className={compact ? "bg-[#f7faff] p-3.5" : "flex h-full flex-col overflow-y-auto bg-[#f7faff] p-4"}>
       {!compact ? <ScreenLabel number="01" name="영상 넣기" /> : null}
       {sampleReady ? (
         <FadeIn>
-          <div className={compact ? "" : "mt-3"}>
+          <div
+            className={`${compact ? "" : "mt-3"} rounded-[18px] border-[1.5px] border-dashed border-[#cfe0f5] bg-[#f8fbff] p-3 sm:rounded-[20px]`}
+          >
             <SampleStill
-              className="aspect-video max-h-[300px] w-full rounded-[18px] bg-black object-contain sm:rounded-[20px]"
+              className="aspect-video max-h-[180px] w-full rounded-xl bg-black object-contain"
               showChips
               filename="sample_take.mp4"
             />
@@ -699,8 +727,11 @@ function UploadStepContent({
               <span className="min-w-0 flex-1 truncate text-xs font-semibold text-[#8b95a1]">
                 sample_take.mp4
               </span>
-              <p className="text-sm font-bold text-[#4e5968]">샘플 영상이 준비됐어요.</p>
+              <p className="text-xs font-bold text-[#4e5968]">샘플 영상이 준비됐어요.</p>
             </div>
+          </div>
+          <div className="mt-3">
+            <SceneRowsExample />
           </div>
         </FadeIn>
       ) : (
@@ -714,7 +745,7 @@ function UploadStepContent({
             filename="sample_take.mp4"
             showChips
           />
-          <p className="block text-[14px] font-black tracking-[-0.02em] text-[#333d4b] sm:text-[16px]">
+          <p className="block text-[15px] font-black tracking-[-0.02em] text-[#333d4b]">
             연기 영상을 여기에 넣어요
           </p>
           <p className="block text-xs font-semibold text-[#8b95a1] sm:text-[13px]">
@@ -732,6 +763,35 @@ function UploadStepContent({
         {sampleReady ? "샘플 영상 다시 보기" : "샘플 영상으로 체험하기"}
       </button>
     </div>
+  );
+}
+
+function SceneRowsExample() {
+  const rows = [
+    ["상황", "이별을 통보받은 직후, 카페에서"],
+    ["인물", "담담한 척하는 20대 후반 여성"],
+    ["목표", "상대가 마음을 돌려 다시 앉게 만들기"],
+  ] as const;
+
+  return (
+    <section className="rounded-[18px] bg-white p-4 shadow-[0_12px_36px_rgba(25,31,40,0.05)] sm:rounded-[20px] sm:p-6">
+      <h2 className="text-base font-black tracking-[-0.03em]">
+        이 장면에서 무엇을 연기했는지 알려 주세요
+      </h2>
+      <dl className="mt-3 grid gap-3">
+        {rows.map(([label, value]) => (
+          <div
+            key={label}
+            className="grid gap-1.5 sm:grid-cols-[56px_minmax(0,1fr)] sm:items-center sm:gap-3"
+          >
+            <dt className="text-xs font-black text-[#333d4b]">{label}</dt>
+            <dd className="flex h-11 w-full items-center rounded-xl border border-[#e5e8eb] bg-[#f8fbff] px-3.5 text-base font-semibold text-[#191f28]">
+              {value}
+            </dd>
+          </div>
+        ))}
+      </dl>
+    </section>
   );
 }
 
@@ -784,7 +844,7 @@ function BlockageStepContent({
           onChange={(event) => onWriteBlockage(event.target.value)}
           placeholder="마음에 걸린 부분을 직접 적어 주세요"
           aria-label="마음에 걸린 부분"
-          className="mt-2.5 h-11 w-full resize-none overflow-y-auto rounded-[28px] bg-white px-4 py-2.5 text-[15px] font-semibold leading-6 text-[#191f28] shadow-[0_16px_48px_rgba(25,31,40,0.08)] outline-none placeholder:text-[#4e5968] focus:ring-2 focus:ring-[#3182f6] disabled:bg-[#f8fbff]"
+          className="mt-2.5 h-11 w-full resize-none overflow-y-auto rounded-xl border border-[#e5e8eb] bg-white px-4 py-2.5 text-[15px] font-semibold leading-[1.7] text-[#191f28] outline-none placeholder:text-[#4e5968] focus:border-[#3182f6] focus:ring-2 focus:ring-[#e8f3ff] disabled:bg-[#f8fbff]"
         />
       ) : null}
       <button
@@ -835,7 +895,7 @@ function SessionContext({ blockage }: { blockage: string }) {
         />
       </div>
       <div className="min-w-0">
-        <p className="text-[11px] font-black text-[#3182f6]">
+        <p className="text-[11.5px] font-black text-[#3182f6]">
           02에서 고른 막힌 지점 · 00:31
         </p>
         <p className="truncate text-[13px] font-bold text-[#333d4b]">
@@ -870,7 +930,7 @@ function QuestionStepContent({
       {!compact ? <ScreenLabel number="03" name="질문으로 풀기" /> : null}
       <section className={`${compact ? "min-h-[260px]" : "mt-2.5"} flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-[18px] bg-white shadow-[0_12px_36px_rgba(25,31,40,0.06)] sm:rounded-[20px]`}>
         <div className="flex items-center gap-3 border-b border-[#edf0f3] px-4 py-3 sm:px-5">
-          <span className="flex items-center gap-2 text-xs font-black text-[#4e5968] sm:text-[13.5px]">
+          <span className="flex items-center gap-2 text-xs font-black text-[#4e5968]">
             <span className="h-1.5 w-1.5 rounded-full bg-[#03b26c]" />
             현재 장면을 바탕으로 질문하고 있어요
           </span>
@@ -933,14 +993,14 @@ function QuestionStepContent({
               disabled={!interactive || !ready || Boolean(secondAnswer)}
               aria-label="체험 답변 입력"
               placeholder="아래 답변 중 하나를 골라 주세요"
-              className="h-12 min-w-0 flex-1 rounded-full border border-[#e5e8eb] bg-[#f8fbff] px-5 text-base font-semibold outline-none transition placeholder:text-[#b0b8c1] focus:border-[#3182f6] focus:bg-white disabled:bg-[#f2f4f6] sm:h-14"
+              className="h-12 min-w-0 flex-1 rounded-full border border-[#e5e8eb] bg-[#f8fbff] px-5 text-[15px] font-semibold leading-[1.7] outline-none transition placeholder:text-[#b0b8c1] focus:border-[#3182f6] focus:bg-white disabled:bg-[#f2f4f6] sm:h-14"
             />
             <button
               type="button"
               disabled={!interactive || !ready || Boolean(secondAnswer)}
               onClick={sendSuggestedAnswer}
               aria-label="추천 답변 보내기"
-              className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#3182f6] text-lg font-black text-white shadow-[0_8px_20px_rgba(49,130,246,0.24)] transition hover:bg-[#1b64da] disabled:bg-[#c9d3df] disabled:shadow-none sm:h-14 sm:w-14"
+              className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#3182f6] text-lg font-black text-white shadow-[0_8px_20px_rgba(49,130,246,0.24)] transition hover:bg-[#1b64da] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#3182f6] disabled:bg-[#c9d3df] disabled:shadow-none sm:h-14 sm:w-14"
             >
               ↑
             </button>
@@ -971,19 +1031,19 @@ function NoteStepContent({
           </span>
 
           <div className="mt-3 rounded-[18px] bg-[#f8fbff] px-4 py-3">
-            <p className="text-[11px] font-black text-[#8b95a1]">
+            <p className="text-[11.5px] font-black text-[#8b95a1]">
               처음 막힌 지점
             </p>
-            <p className="mt-1 text-sm font-bold leading-5 text-[#333d4b]">
+            <p className="mt-1 text-[15px] font-bold leading-[1.7] text-[#333d4b]">
               {activeBlockage}
             </p>
           </div>
 
           <div className="mt-4">
-            <h3 className="text-sm font-black text-[#191f28]">
+            <h3 className="text-base font-black text-[#191f28]">
               오늘 발견한 것
             </h3>
-            <p className="mt-1.5 text-sm font-semibold leading-6 text-[#4e5968]">
+            <p className="mt-1.5 text-[15px] font-semibold leading-[1.7] text-[#4e5968]">
               {noteDiscovery}
             </p>
           </div>
@@ -992,7 +1052,7 @@ function NoteStepContent({
             <h3 className="text-xs font-black text-[#3182f6]">
               다음 테이크에서 붙잡을 한 문장
             </h3>
-            <blockquote className="mt-2 text-[25px] font-black leading-[32px] tracking-[-1px] text-[#191f28] md:text-[30px] md:leading-[38px] md:tracking-[-1.5px]">
+            <blockquote className="mt-2 text-2xl font-black leading-8 tracking-[-1px] text-[#191f28]">
               “{nextTakeSentence}”
             </blockquote>
           </div>
@@ -1012,7 +1072,7 @@ function NoteStepContent({
 
 function ScreenLabel({ number, name }: { number: string; name: string }) {
   return (
-    <p className="text-[13px] font-black text-[#3182f6]">
+    <p className="text-xs font-black text-[#3182f6]">
       {number} {name}
     </p>
   );
@@ -1035,9 +1095,9 @@ function BlockageChoiceButton({
       aria-pressed={selected}
       disabled={disabled}
       onClick={onClick}
-      className={`min-h-10 w-full rounded-[28px] bg-white px-5 py-2 text-left shadow-[0_16px_48px_rgba(25,31,40,0.08)] transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#3182f6] disabled:cursor-not-allowed disabled:text-[#b0b8c1] ${selected ? "ring-2 ring-[#3182f6]" : ""}`}
+      className={`min-h-10 w-full rounded-xl border border-[#e5e8eb] bg-white px-4 py-2 text-left transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#3182f6] disabled:cursor-not-allowed disabled:text-[#b0b8c1] ${selected ? "border-[#3182f6] ring-2 ring-[#e8f3ff]" : ""}`}
     >
-      <span className="block text-[15px] font-black leading-6 text-[#191f28]">
+      <span className="block text-[15px] font-black leading-[1.7] text-[#191f28]">
         {text}
       </span>
     </button>
