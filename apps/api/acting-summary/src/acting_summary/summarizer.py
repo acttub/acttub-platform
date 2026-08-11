@@ -13,11 +13,16 @@ from acting_summary.schema import ActorMaterial, ObservationPack
 
 logger = logging.getLogger(__name__)
 
-# 정상 실측 15.6/29.2/39.2/61.4/73.0/74.5초는 살리되 250.3/351.5초 폭주는
-# 끊도록, 요청자가 정한 목표 60초·데드라인 75초를 적용한다.
-SUMMARY_DEADLINE_SECONDS = 75.0
-# MINIMAL 재호출도 무한 대기하지 않도록 별도의 새 75초 데드라인을 쓴다.
-MINIMAL_FALLBACK_TIMEOUT_SECONDS = 75.0
+# 사고 등급은 HIGH 로 둔다(최우영 결정, 2026-08-11). LOW 는 같은 영상에서 33.7초→6.6초로
+# 5배 빨랐지만, 관찰 품질을 시간보다 앞에 둔 선택이다.
+#
+# 그래서 데드라인은 75초가 아니라 100초다. HIGH 실측 8건
+# (15.6/28.5/29.2/33.7/39.2/61.4/73.0/74.5초) 중 2건이 73초를 넘는데, 75초로 자르면
+# 정상 실행 4건 중 1건이 폴백으로 떨어져 HIGH 를 고른 이유가 사라진다.
+SUMMARY_DEADLINE_SECONDS = 100.0
+# 폴백은 MINIMAL 이 아니라 LOW 다 — 잘렸을 때도 쓸 만한 관찰이 나와야 한다.
+# LOW 실측이 6.6초라 30초면 넉넉하고, 최악은 100+30=130초에서 닫힌다.
+FALLBACK_TIMEOUT_SECONDS = 30.0
 
 
 class FileActiveTimeout(Exception):
@@ -214,7 +219,7 @@ def summarize(
             # 별도로 처리해 두 경로의 사유와 횟수가 섞이지 않게 한다.
             for _ in range(2):
                 config = _generation_config(
-                    types.ThinkingLevel.LOW,
+                    types.ThinkingLevel.HIGH,
                     _remaining_seconds(primary_deadline),
                 )
                 attempts += 1
@@ -237,8 +242,8 @@ def summarize(
                 raise
             try:
                 config = _generation_config(
-                    types.ThinkingLevel.MINIMAL,
-                    MINIMAL_FALLBACK_TIMEOUT_SECONDS,
+                    types.ThinkingLevel.LOW,
+                    FALLBACK_TIMEOUT_SECONDS,
                 )
                 attempts += 1
                 response = client.models.generate_content(
