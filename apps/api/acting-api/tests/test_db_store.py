@@ -16,7 +16,6 @@ from acting_agent.schema import CoachSession, CoachTurn
 from acting_api.auth.jwt import JwtService
 from acting_api.db.engine import create_db_engine, normalize_database_url
 from acting_api.db.models import (
-    ActorMemoryField,
     Anomaly,
     CloseReason,
     CoachingHandoff,
@@ -59,7 +58,6 @@ EXPECTED_TABLES = {
     "coaching_handoffs",
     "handoff_confirmations",
     "practice_reports",
-    "actor_memory_entries",
     "external_operations",
     "community_categories",
     "community_posts",
@@ -1654,163 +1652,3 @@ def _complete_analysis(
 
 def _hash(value: str) -> str:
     return hashlib.sha256(value.encode()).hexdigest()
-
-
-def _memory_insert(store, user_id, field, value, written_by):
-    """기억 한 칸을 직접 넣는다. 저장 계층이 아직 없어 SQL 로 제약만 검증한다."""
-    with store._engine.begin() as connection:
-        connection.execute(
-            text(
-                "INSERT INTO actor_memory_entries (user_id, field, value, written_by)"
-                " VALUES (:u, :f, :v, :w)"
-            ),
-            {"u": user_id, "f": field, "v": value, "w": written_by},
-        )
-
-
-def test_actor_memory_keeps_one_row_per_field(postgres_store):
-    store = postgres_store
-    user = store.create_user(email="memory-actor@example.com")
-    _memory_insert(store, user.id, "goal", "입시 준비", "agent")
-
-    # 같은 칸을 두 번 넣을 수 없다. 갱신은 덮어쓰기여야 한다.
-    with pytest.raises(Exception) as excinfo:
-        _memory_insert(store, user.id, "goal", "취미", "agent")
-    assert "uq_actor_memory_user_field" in str(excinfo.value)
-
-
-def test_actor_memory_refuses_agent_written_demographics(postgres_store):
-    """성별·나이를 에이전트가 못 넣는다 -- 영상에서 추론해 넣는 경로를 DB가 막는다."""
-    store = postgres_store
-    user = store.create_user(email="memory-demo@example.com")
-
-    for field in ("gender", "age"):
-        with pytest.raises(Exception) as excinfo:
-            _memory_insert(store, user.id, field, "무언가", "agent")
-        assert "ck_actor_memory_demographics_actor_only" in str(excinfo.value)
-
-    # 배우가 직접 쓰는 건 된다.
-    _memory_insert(store, user.id, "gender", "여성", "actor")
-    _memory_insert(store, user.id, "age", "22", "actor")
-
-
-def test_actor_memory_refuses_blank_and_oversized_values(postgres_store):
-    store = postgres_store
-    user = store.create_user(email="memory-bounds@example.com")
-
-    # 빈 칸은 값이 아니라 행이 없는 것으로 표현한다.
-    with pytest.raises(Exception) as excinfo:
-        _memory_insert(store, user.id, "goal", "   ", "agent")
-    assert "ck_actor_memory_value_not_blank" in str(excinfo.value)
-
-    # 한 칸이 길어지면 프롬프트에서 대화 맥락을 밀어낸다.
-    with pytest.raises(Exception) as excinfo:
-        _memory_insert(store, user.id, "goal", "가" * 1001, "agent")
-    assert "ck_actor_memory_value_length" in str(excinfo.value)
-
-    _memory_insert(store, user.id, "goal", "가" * 1000, "agent")
-
-
-def test_agent_updates_its_own_fields_but_never_the_actors(postgres_store):
-    """이 표의 핵심 규칙 -- 배우가 손댄 칸은 에이전트가 덮지 못한다."""
-    store = postgres_store
-    user = store.create_user(email="memory-authority@example.com")
-    practice = _create_practice(store, user.id, "memory", datetime.now(timezone.utc))
-
-    first = store.write_actor_memory_as_agent(
-        user_id=user.id,
-        field=ActorMemoryField.GOAL,
-        value="입시 준비",
-        source_practice_session_id=practice.id,
-    )
-    assert first.value == "입시 준비"
-    assert first.written_by_actor is False
-
-    # 에이전트끼리는 덮는다 -- 연습이 쌓이면 기억이 갱신되어야 한다.
-    second = store.write_actor_memory_as_agent(
-        user_id=user.id,
-        field=ActorMemoryField.GOAL,
-        value="입시 준비(수시)",
-        source_practice_session_id=practice.id,
-    )
-    assert second.value == "입시 준비(수시)"
-
-    # 배우가 고치면 이긴다.
-    edited = store.write_actor_memory_as_actor(
-        user_id=user.id, field=ActorMemoryField.GOAL, value="취미로 하는 중"
-    )
-    assert edited.value == "취미로 하는 중"
-    assert edited.written_by_actor is True
-
-    # 그 뒤로는 에이전트가 갱신을 시도해도 건너뛴다.
-    skipped = store.write_actor_memory_as_agent(
-        user_id=user.id,
-        field=ActorMemoryField.GOAL,
-        value="입시 준비(정시)",
-        source_practice_session_id=practice.id,
-    )
-    assert skipped is None
-    kept = {item.field: item for item in store.list_actor_memory(user.id)}
-    assert kept["goal"].value == "취미로 하는 중"
-    assert kept["goal"].written_by_actor is True
-
-
-def test_agent_never_writes_gender_or_age(postgres_store):
-    store = postgres_store
-    user = store.create_user(email="memory-agent-demo@example.com")
-    practice = _create_practice(store, user.id, "memory", datetime.now(timezone.utc))
-
-    for field in (ActorMemoryField.GENDER, ActorMemoryField.AGE):
-        assert (
-            store.write_actor_memory_as_agent(
-                user_id=user.id,
-                field=field,
-                value="추론한 값",
-                source_practice_session_id=practice.id,
-            )
-            is None
-        )
-    assert store.list_actor_memory(user.id) == []
-
-    store.write_actor_memory_as_actor(
-        user_id=user.id, field=ActorMemoryField.GENDER, value="여성"
-    )
-    assert [item.field for item in store.list_actor_memory(user.id)] == ["gender"]
-
-
-def test_actor_deletes_one_field_or_everything(postgres_store):
-    store = postgres_store
-    user = store.create_user(email="memory-delete@example.com")
-    store.write_actor_memory_as_actor(
-        user_id=user.id, field=ActorMemoryField.GENDER, value="여성"
-    )
-    store.write_actor_memory_as_actor(
-        user_id=user.id, field=ActorMemoryField.AGE, value="22"
-    )
-
-    assert (
-        store.delete_actor_memory(user_id=user.id, field=ActorMemoryField.AGE) == 1
-    )
-    assert [item.field for item in store.list_actor_memory(user.id)] == ["gender"]
-
-    assert store.delete_actor_memory(user_id=user.id) == 1
-    assert store.list_actor_memory(user.id) == []
-
-
-def test_actor_memory_disappears_with_the_user(postgres_store):
-    """탈퇴는 행을 지우지 않지만, 기억은 남기지 않는다."""
-    store = postgres_store
-    user = store.create_user(email="memory-cascade@example.com")
-    _memory_insert(store, user.id, "goal", "입시 준비", "agent")
-
-    with store._engine.begin() as connection:
-        connection.execute(
-            text("DELETE FROM users WHERE id = :u"), {"u": user.id}
-        )
-        left = connection.scalar(
-            text(
-                "SELECT count(*) FROM actor_memory_entries WHERE user_id = :u"
-            ),
-            {"u": user.id},
-        )
-    assert left == 0

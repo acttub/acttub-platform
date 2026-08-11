@@ -394,23 +394,6 @@
       "status"
     ]
   },
-  "MemoryItem": {
-    "additional_properties": false,
-    "optional": [],
-    "required": [
-      "edited_by_me",
-      "field",
-      "source_practice_session_id",
-      "value"
-    ]
-  },
-  "MemoryResponse": {
-    "additional_properties": false,
-    "optional": [],
-    "required": [
-      "items"
-    ]
-  },
   "ObservationItem": {
     "additional_properties": false,
     "optional": [],

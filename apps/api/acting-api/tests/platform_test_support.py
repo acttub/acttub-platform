@@ -113,55 +113,6 @@ class FakePlatformStore(FakeAuthStore):
         self.handoffs = {}
         self.confirmations = {}
         self.practice_reports = {}
-        # (user_id, field) -> SimpleNamespace. 진짜 저장소와 같은 규칙을 흉내낸다 —
-        # 배우가 쓴 칸은 에이전트가 덮지 않는다.
-        self.actor_memory: dict[tuple, SimpleNamespace] = {}
-
-    def list_actor_memory(self, user_id):
-        return [
-            entry
-            for (owner, _field), entry in sorted(self.actor_memory.items(), key=lambda kv: kv[0][1])
-            if owner == user_id
-        ]
-
-    def write_actor_memory_as_actor(self, *, user_id, field, value, now=None):
-        entry = SimpleNamespace(
-            field=field.value,
-            value=value,
-            written_by_actor=True,
-            source_practice_session_id=None,
-            updated_at=datetime.now(timezone.utc),
-        )
-        self.actor_memory[(user_id, field.value)] = entry
-        return entry
-
-    def write_actor_memory_as_agent(
-        self, *, user_id, field, value, source_practice_session_id, now=None
-    ):
-        if field.value in ("gender", "age"):
-            return None
-        existing = self.actor_memory.get((user_id, field.value))
-        if existing is not None and existing.written_by_actor:
-            return None
-        entry = SimpleNamespace(
-            field=field.value,
-            value=value,
-            written_by_actor=False,
-            source_practice_session_id=source_practice_session_id,
-            updated_at=datetime.now(timezone.utc),
-        )
-        self.actor_memory[(user_id, field.value)] = entry
-        return entry
-
-    def delete_actor_memory(self, *, user_id, field=None):
-        keys = [
-            key
-            for key in self.actor_memory
-            if key[0] == user_id and (field is None or key[1] == field.value)
-        ]
-        for key in keys:
-            del self.actor_memory[key]
-        return len(keys)
 
     def create_upload_intent(
         self,

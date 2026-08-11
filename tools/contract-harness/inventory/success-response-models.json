@@ -11,7 +11,6 @@
   "get /v2/consents/documents 200": "ConsentDocumentsResponse",
   "get /v2/consents/pending 200": "ConsentDocumentsResponse",
   "get /v2/me 200": "MeResponse",
-  "get /v2/me/memory 200": "MemoryResponse",
   "get /v2/practice-sessions 200": "PracticeSessionListResponse",
   "get /v2/practice-sessions/{session_id} 200": "PracticeSessionDetail",
   "get /v2/practice-sessions/{session_id}/status 200": "PracticeSessionStatusResponse",
@@ -35,6 +34,5 @@
   "post /v2/practice-sessions/{session_id}/analyze 202": "PracticeSessionAcceptedResponse",
   "post /v2/reports 200": "AnalysisReport | BlockedReport | ExpressionReport",
   "post /v2/uploads/intents 201": "UploadIntentResponse",
-  "post /v2/uploads/intents/{intent_id}/complete 200": "UploadCompleteResponse",
-  "put /v2/me/memory/{field} 200": "MemoryItem"
+  "post /v2/uploads/intents/{intent_id}/complete 200": "UploadCompleteResponse"
 }

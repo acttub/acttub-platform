@@ -531,8 +531,6 @@ UNKNOWN_KEY_CASES = (
      {"coach_session_id": MISSING_COACH_SESSION_ID, "confirmed": True}),
     ("reports", "post", "/v2/reports", {}, {"session_id": MISSING_COACH_SESSION_ID}),
     ("me", "patch", "/v2/me", {}, {"nickname": "이름"}),
-    ("me-memory", "put", "/v2/me/memory/{field}", {"field": "goal"},
-     {"value": "입시 준비"}),
     ("community-posts", "post", "/v2/community/posts", {},
      {"category_slug": "free", "title": "t", "body": "b", "anonymous": False}),
     ("community-post-patch", "patch", "/v2/community/posts/{post_id}",

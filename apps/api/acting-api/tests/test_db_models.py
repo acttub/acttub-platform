@@ -43,7 +43,6 @@ EXPECTED_TABLES = {
     "coaching_handoffs",
     "handoff_confirmations",
     "practice_reports",
-    "actor_memory_entries",
     "external_operations",
     "community_categories",
     "community_posts",
