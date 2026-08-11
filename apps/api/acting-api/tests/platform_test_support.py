@@ -116,6 +116,15 @@ class FakePlatformStore(FakeAuthStore):
         # (user_id, field) -> SimpleNamespace. 진짜 저장소와 같은 규칙을 흉내낸다 —
         # 배우가 쓴 칸은 에이전트가 덮지 않는다.
         self.actor_memory: dict[tuple, SimpleNamespace] = {}
+        self.prior_earlier_conversation = None
+        self.prior_pending_takes = ()
+
+    # 코치가 대화를 시작할 때 읽는 지난 것들. 테스트가 직접 채운다.
+    def get_prior_practice_context(self, *, user_id, practice_session_id):
+        return SimpleNamespace(
+            earlier_conversation=self.prior_earlier_conversation,
+            pending_takes=self.prior_pending_takes,
+        )
 
     def list_actor_memory(self, user_id):
         return [

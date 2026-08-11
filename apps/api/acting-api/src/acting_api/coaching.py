@@ -9,7 +9,7 @@ from pydantic import BaseModel, ConfigDict, model_validator
 from starlette.concurrency import run_in_threadpool
 
 from acting_agent import engine as coach_engine
-from acting_agent.schema import CoachReplyReq, CoachStartReq
+from acting_agent.schema import CoachReplyReq, CoachStartReq, PriorContext
 from acting_agent.store import SessionWriteConflict
 from acting_api.db.store import LeaseOwnershipError
 from acting_api.memory_worker import should_update_memory
@@ -120,6 +120,37 @@ def _resumed_coach_payload(session):
 
 
 log = logging.getLogger(__name__)
+
+
+async def _build_prior_context(
+    store,
+    *,
+    user_id: UUID,
+    practice_session_id: UUID,
+) -> PriorContext:
+    """코치가 알고 시작해야 하는 지난 것들을 모은다.
+
+    모으다 실패해도 대화는 시작돼야 한다. 참고 사항이 없다고 연습을 못 하게 하는
+    것은 배우 입장에서 말이 안 된다 -- 그래서 실패하면 빈 것으로 시작한다.
+    """
+    try:
+        memory = {
+            item.field: item.value
+            for item in await run_in_threadpool(store.list_actor_memory, user_id)
+        }
+        context = await run_in_threadpool(
+            store.get_prior_practice_context,
+            user_id=user_id,
+            practice_session_id=practice_session_id,
+        )
+        return PriorContext(
+            memory=memory,
+            earlier_conversation=context.earlier_conversation,
+            pending_takes=context.pending_takes,
+        )
+    except Exception:
+        log.warning("지난 연습 참고 사항을 모으지 못했다: %s", practice_session_id, exc_info=True)
+        return PriorContext()
 
 
 async def _schedule_memory_update(
@@ -299,6 +330,11 @@ def build_router(
                 detail="report already exists for practice session",
             )
         session_id = str(uuid4())
+        prior = await _build_prior_context(
+            store,
+            user_id=user.id,
+            practice_session_id=owned.practice_session_id,
+        )
         try:
             generation_kwargs = (
                 {"generate": coach_generate} if coach_generate is not None else {}
@@ -315,6 +351,7 @@ def build_router(
                 sub_branch=owned.sub_branch,
                 transcripts=owned.transcripts,
                 analysis_handoff=owned.analysis_handoff,
+                prior=prior,
                 **generation_kwargs,
             )
             branch = _branch_kind(owned.actor.blockage_kind)

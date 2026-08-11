@@ -1160,6 +1160,67 @@ def _turn_budget_block(session: CoachSession) -> str:
     return "\n".join(lines)
 
 
+# 지난 것을 담는 칸의 상한. 넘으면 앞에서부터 자른다.
+# 지난 연습이 길다고 이번 대화의 예산을 밀어내면 안 된다 -- 코치가 봐야 하는 건
+# 어디까지나 지금 배우가 하는 말이다.
+PRIOR_CONTEXT_MAX_CHARS = 1200
+
+_MEMORY_LABELS = {
+    "gender": "성별",
+    "age": "나이",
+    "goal": "배우가 말한 목표",
+    "blockage": "배우가 반복해서 고른 막히는 지점",
+    "speech_self": "배우가 스스로 말하는 자기 화법",
+    "speech_actual": "실제로 말한 방식",
+}
+
+
+def _clip(text: str, budget: int) -> str:
+    if len(text) <= budget:
+        return text
+    return text[: max(0, budget - 1)].rstrip() + "…"
+
+
+def _prior_context_block(session: CoachSession) -> str:
+    """지난 것을 프롬프트에 넣는다. 없으면 칸 자체를 만들지 않는다.
+
+    빈 제목만 남기면 모델이 그 자리를 지어내 채운다. 첫 연습에서는 지금까지와
+    똑같은 프롬프트가 나가야 한다.
+    """
+    prior = session.prior
+    if prior is None or prior.is_empty():
+        return ""
+
+    lines: list[str] = [
+        "## 배우에 대해 지금까지 알고 있는 것",
+        "지난 연습에서 정리된 참고 사항이다. **영상 근거가 아니다** — 이걸로 이번"
+        " 영상의 장면을 말하지 않는다. 배우가 지난번에 한 말이므로 그대로 읊지 말고,"
+        " 이번 대화에서 확인할 거리로만 쓴다.",
+    ]
+
+    if prior.memory:
+        lines.append("")
+        for name, label in _MEMORY_LABELS.items():
+            value = prior.memory.get(name)
+            if value:
+                lines.append(f"- {label}: {value}")
+
+    if prior.earlier_conversation:
+        lines.append("")
+        lines.append("### 같은 연습에서 지난번에 나눈 이야기")
+        lines.append(prior.earlier_conversation)
+
+    if prior.pending_takes:
+        lines.append("")
+        lines.append("### 지난 연습에서 해보기로 했지만 아직 안 해본 것")
+        lines.extend(f"- {take}" for take in prior.pending_takes)
+        lines.append(
+            "해봤는지 이번 대화에서 물어볼 수 있다. 다만 안 했다고 다그치지 않는다."
+        )
+
+    return _clip("\n".join(lines), PRIOR_CONTEXT_MAX_CHARS) + "\n\n"
+
+
 def build_chat_prompt(session: CoachSession, user_message: str) -> str:
     recent_turns = session.turns[-8:]
     history = _turn_lines(recent_turns) or "이전 대화 없음"
@@ -1171,7 +1232,8 @@ def build_chat_prompt(session: CoachSession, user_message: str) -> str:
         transcript_block = f"\n## 영상에서 받아쓴 대사\n{transcript_lines}\n"
     analysis_handoff = _analysis_handoff_block(session)
     expression_input = _expression_input_block(session)
-    return f"""## 배우가 쓴 것
+    prior = _prior_context_block(session)
+    return f"""{prior}## 배우가 쓴 것
 - 상황: {session.actor.situation}
 - 캐릭터: {session.actor.character}
 - 이번 테이크의 목적: {session.actor.goal}

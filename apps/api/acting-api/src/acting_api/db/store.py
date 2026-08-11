@@ -133,6 +133,49 @@ class OwnedReportSource:
     analysis_handoff_json: dict[str, Any] | None
 
 
+def pending_takes_from_report(report_json) -> tuple[str, ...]:
+    """카드에서 "해보기로 했지만 아직 안 해본 것" 만 꺼낸다.
+
+    카드는 해본 것(`tested=True`)과 안 해본 것을 구분해 들고 있다. 다음 연습에서
+    물어볼 거리는 안 해본 것뿐이다 -- 이미 해본 걸 또 권하면 코치가 대화를 안 듣고
+    있다는 인상을 준다.
+
+    카드 모양이 달라져도 여기서 터지지 않는다. 대화 시작이 이것 때문에 실패하면
+    안 된다.
+    """
+    if not isinstance(report_json, dict):
+        return ()
+
+    takes: list[str] = []
+
+    def _add(value) -> None:
+        if isinstance(value, str) and value.strip():
+            takes.append(value.strip())
+
+    next_take = report_json.get("next_take")
+    if isinstance(next_take, dict) and next_take.get("tested") is False:
+        _add(next_take.get("direction"))
+
+    training = report_json.get("actor_training")
+    if isinstance(training, list):
+        for item in training:
+            if isinstance(item, dict) and item.get("tested") is False:
+                _add(item.get("title"))
+
+    return tuple(takes)
+
+
+@dataclass(frozen=True)
+class PriorPracticeContext:
+    """코치가 대화를 시작할 때 알고 있어야 하는 지난 것들.
+
+    셋 다 비어 있을 수 있다 -- 첫 연습이 그렇다.
+    """
+
+    earlier_conversation: str | None
+    pending_takes: tuple[str, ...]
+
+
 @dataclass(frozen=True)
 class MemoryUpdateMaterial:
     """기억을 갱신할 때 읽는 연습 하나치 재료.
@@ -1528,6 +1571,45 @@ class PostgresStore:
                 transcripts=transcripts,
                 actor_messages=actor_messages,
             )
+
+    def get_prior_practice_context(
+        self, *, user_id: UUID, practice_session_id: UUID
+    ) -> PriorPracticeContext:
+        """같은 연습의 지난 대화와, 지난 연습에서 아직 안 해본 것을 모은다."""
+        with self._session_factory() as db:
+            earlier = db.scalar(
+                select(DbCoachSession.conversation_summary)
+                .join(
+                    PracticeSession,
+                    DbCoachSession.practice_session_id == PracticeSession.id,
+                )
+                .where(
+                    DbCoachSession.practice_session_id == practice_session_id,
+                    DbCoachSession.status == SessionStatus.CLOSED,
+                    PracticeSession.user_id == user_id,
+                )
+                .order_by(DbCoachSession.created_at.desc())
+                .limit(1)
+            )
+            # 이번 것 말고, 가장 최근 연습에서 나온 카드.
+            report_json = db.scalar(
+                select(DbPracticeReport.report_json)
+                .join(
+                    PracticeSession,
+                    DbPracticeReport.practice_session_id == PracticeSession.id,
+                )
+                .where(
+                    PracticeSession.user_id == user_id,
+                    PracticeSession.id != practice_session_id,
+                    PracticeSession.hidden_at.is_(None),
+                )
+                .order_by(DbPracticeReport.created_at.desc())
+                .limit(1)
+            )
+        return PriorPracticeContext(
+            earlier_conversation=(earlier or "").strip() or None,
+            pending_takes=pending_takes_from_report(report_json),
+        )
 
     def count_confirmed_practices(self, user_id: UUID) -> int:
         """배우가 마무리까지 간 연습이 몇 번인지.
