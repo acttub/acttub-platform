@@ -50,6 +50,7 @@ Codex 적대적 비판이 냈고, 전부 소스로 재검증해 **10건 모두 �
 
 ### 착수 순서 — 뒤집으면 두 번 일한다
 
+0. ✅ **관문 ③ production-envelope 스파이크** — SDK 채택 확정. 여기서 막혔다면 §A가 raw REST로 바뀌었다
 1. ✅ **§G 하네스 게이트 추상화** — 없으면 "전량 통과"가 원리적으로 불가능하다. **선행 완료**(`89b728f`)
 2. **§F-2 요청 검증 구조 전환** — 새 라우트를 **열기 전에** 끝낸다. 나중에 하면 coach·reports의 422 경로를 두 번 만든다
 3. **§F-1 lease 저장 계층** — 워커보다 **먼저** 세우고 두 claim의 갈래를 Testcontainers로 고정한다
@@ -336,17 +337,23 @@ M2·M3에서 두 번 나온 "완료 기준이 도구 능력보다 앞선다"가 
 - `acting-report/engine.py:build_report_input`·`acting-report/engine.py:_expression_ready` — 차단 경로 두 사유 문자열
 - `acting-report/engine.py:_parse_report` — handoff id 주입 형상(analysis는 `source_handoff_id`, expression은 `source_handoff_ids` dict)
 
-### 관문 ③ production-envelope 스파이크 (**Phase 3 착수 전** 필수)
+### ✅ 관문 ③ production-envelope 스파이크 — **통과, SDK 채택 확정**(2026-08-12)
 
-**M0의 Gemini PASS는 6초·80KB 영상 1건이다.** SDK에 세 API가 존재한다는 것만 보였고 실제 부하·실패 경로는 건드리지 않았다. **SDK 채택은 잠정 결정이며 아래를 통과해야 확정된다:**
+**M0의 Gemini PASS는 6초·80KB 영상 1건이었다.** SDK에 세 API가 존재한다는 것만 보였고 실제 부하·실패 경로는 건드리지 않아, SDK 채택이 잠정 결정으로 낮춰져 있었다. `ProductionEnvelopeSpikeTest`가 4건 전부 통과해 **확정으로 올린다. raw REST 전환은 없다.**
 
-- 예상 최대 크기의 post-compression 파일 업로드
-- **압축 실패 시의 원본**(15MB 초과) 업로드 — SDK의 다중 chunk 경로가 열린다
-- JSON 파싱 첫 실패 후 재시도 성공 / **2회 모두 실패**
-- **`files.delete` 예외 주입** → 분석 성공 결과가 뒤집히지 않는지
-- 워커 lease 3회 시도 예산 소진 경로
+| 항목 | 결과 |
+|---|---|
+| post-compression 업로드 → 폴링 → 구조화 출력 | ✅ **2,445,640 B** |
+| **압축 실패 시의 원본**(15MB 초과) 업로드 — 다중 chunk | ✅ **98,414,903 B → 23.5초에 ACTIVE** |
+| 파싱 첫 실패 후 재시도 성공 / 2회 모두 실패 | ✅ 총 2회 시도 (`spike/ParseRetryLoop.java`) |
+| **`files.delete` 예외 주입** | ✅ 삼키면 분석 결과가 남는다 |
+| 워커 lease 3회 예산 소진 | ⏳ **§F-1로 이월** — Java에 sweep 대응물이 아직 없다 |
 
-여기서 막히면 raw REST 경로로 전환한다. M0는 그 가능성을 배제하지 못했다.
+🔎 **압축률이 2.5%다.** 운영에서 Gemini로 가는 것은 보통 2~3MB이고 98MB가 그대로 가는 것은 압축 실패 시뿐이다 — **다중 chunk는 예외 경로**다. 다만 그 경로가 열리는 것을 확인했으므로 §A의 폴백 5경로를 그대로 옮겨도 업로드에서 막히지 않는다.
+
+⚠ 합성 영상이라 **분석 품질은 보지 않았다**(`observations=1`). 프롬프트 정확도는 관문 ①의 요청 golden이 판정한다.
+
+**부수 사실**: `google-genai`를 `testImplementation` → `implementation`으로 올리면 `bootJar`가 약 12MB 늘어난다(70 → 82MB). M5의 인스턴스 판단과 함께 본다.
 
 ### 참고 ④ 실 LLM smoke (비결정적)
 
@@ -374,7 +381,7 @@ M2·M3에서 두 번 나온 "완료 기준이 도구 능력보다 앞선다"가 
 - [ ] Files API 업로드·폴링(300초/2초)·삭제. 타임아웃 시 `FileActiveTimeout` 상당
 - [ ] OpenAI 재시도 상수 4회·1→2→4초·`{429,503}`·120초, **오류 메시지 문자열 두 종**
 - [ ] **환경변수 계약**: `GEMINI_API_KEY` 없으면 **부팅 실패**, `OPENAI_API_KEY` 없으면 **호출 시점 실패**, `GEMINI_MODEL` 기본 `gemini-2.5-flash`
-- [ ] 워커: **`/SPEC.md` §5-7 전이표 5행 + claim 두 갈래(FAILED 재선점 / FAILED 건너뜀) + lease 15분·1800초를 각각 Testcontainers로 테스트** (F-1, 워커보다 먼저)
+- [ ] 워커: **`/SPEC.md` §5-7 전이표 5행 + claim 두 갈래(FAILED 재선점 / FAILED 건너뜀) + lease 15분·1800초를 각각 Testcontainers로 테스트** (F-1, 워커보다 먼저). **관문 ③에서 이월된 "lease 3회 예산 소진"도 여기서 닫는다**
 - [ ] **`run_once()` 동기 훅** 제공
 - [ ] **`ANALYSIS_WORKER_ENABLED` 스위치** 제공
 - [ ] **F-2 요청 검증 구조 전환** — 422 다건 누적 · 명시적 null 구분 · `literal_error` 판별자 · 게이트가 바디 검증보다 먼저. **새 라우트를 열기 전에 끝낸다**
