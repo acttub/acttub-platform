@@ -30,6 +30,7 @@ from acting_api.db.models import (
     RefreshToken,
     SessionStatus,
     Summary,
+    Transcript,
     TurnRole,
     UploadStatus,
     User,
@@ -1872,3 +1873,72 @@ def test_prior_context_carries_the_card_of_the_same_practice_when_reopened(
 
     assert context.earlier_conversation == "지난번엔 호흡 이야기를 했다"
     assert context.pending_takes == ("한 박자 늦게 말해보기",)
+
+
+def test_memory_update_material_reads_the_actors_own_words(postgres_store):
+    """기억 갱신 재료를 실제 데이터베이스에서 읽어 온다.
+
+    이 함수는 워커만 부르고 워커 시험은 가짜 저장소를 쓴다. 그래서 실제 SQL 이
+    한 번도 안 돌아 이름 오타(NameError)가 배포까지 갔던 적이 있다. 여기서 진짜로
+    한 번 돌린다.
+
+    코치가 한 말은 담지 않는다 — 코치가 제안한 표현이 배우 본인의 말로 굳으면
+    기억이 배우가 아니라 코치를 기록하게 된다.
+    """
+    store = postgres_store
+    user = store.create_user()
+    now = datetime.now(timezone.utc)
+    practice = _create_practice(store, user.id, "material", now)
+
+    coach_id = uuid4()
+    with store._session_factory.begin() as db:
+        db.add(
+            DbCoachSession(
+                id=coach_id,
+                practice_session_id=practice.id,
+                status=SessionStatus.CLOSED,
+                conversation_summary="",
+                close_reason=CloseReason.GAP_STATED,
+            )
+        )
+        db.add_all(
+            [
+                DbCoachTurn(
+                    session_id=coach_id,
+                    turn_index=0,
+                    role=TurnRole.ACTOR,
+                    text="차분하게 말하려고 했어요",
+                ),
+                DbCoachTurn(
+                    session_id=coach_id,
+                    turn_index=1,
+                    role=TurnRole.AI,
+                    text="코치가 한 말은 담기지 않아야 한다",
+                ),
+            ]
+        )
+        db.add(Transcript(session_id=practice.id, ord=0, text="나는 괜찮아."))
+
+    material = store.get_memory_update_material(practice_session_id=practice.id)
+
+    assert material is not None
+    assert material.user_id == user.id
+    assert material.actor_messages == ("차분하게 말하려고 했어요",)
+    assert material.transcripts == ("나는 괜찮아.",)
+    assert material.blockage_kind == practice.blockage_kind
+
+
+def test_memory_update_material_is_none_for_a_hidden_practice(postgres_store):
+    """배우가 지운 연습으로는 기억을 갱신하지 않는다."""
+    store = postgres_store
+    user = store.create_user()
+    now = datetime.now(timezone.utc)
+    practice = _create_practice(store, user.id, "hidden-material", now)
+    with store._session_factory.begin() as db:
+        db.execute(
+            update(PracticeSession)
+            .where(PracticeSession.id == practice.id)
+            .values(hidden_at=now)
+        )
+
+    assert store.get_memory_update_material(practice_session_id=practice.id) is None
