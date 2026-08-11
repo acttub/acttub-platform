@@ -36,6 +36,7 @@ from acting_api.auth.development import DevelopmentProviderVerifier
 from acting_api.auth.google import GoogleProviderVerifier
 from acting_api.auth.jwt import JwtService
 from acting_api.auth.providers import ProviderRegistry
+from acting_api.actor_memory import build_router as build_actor_memory_router
 from acting_api.admin import build_router as build_admin_router
 from acting_api.admissions import build_router as build_admissions_router
 from acting_api.auth.router import build_router as build_auth_router
@@ -299,6 +300,13 @@ def create_app(
         build_profile_router(
             store=store,
             rate_limited_user=rate_limited_user,
+        )
+    )
+    # 기억은 연습 기록에서 파생된 개인 정보라 동의를 마친 계정만 본다.
+    app.include_router(
+        build_actor_memory_router(
+            store=store,
+            rate_limited_user=consented_user,
         )
     )
     if community_store is not None:

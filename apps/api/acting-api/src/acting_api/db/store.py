@@ -16,6 +16,9 @@ from acting_agent.summary_schema import ActorMaterial as AgentActorMaterial
 from acting_agent.summary_schema import ObservationPack as AgentObservationPack
 from acting_api.db.engine import create_db_engine, create_session_factory
 from acting_api.db.models import (
+    ActorMemoryAuthor,
+    ActorMemoryEntry,
+    ActorMemoryField,
     Anomaly,
     CloseReason,
     CoachingHandoff,
@@ -127,6 +130,22 @@ class OwnedReportSource:
     confirmed: bool
     analysis_handoff_id: UUID | None
     analysis_handoff_json: dict[str, Any] | None
+
+
+@dataclass(frozen=True)
+class ActorMemoryItem:
+    """기억 한 칸.
+
+    `written_by_actor` 가 True 면 배우가 직접 쓰거나 고친 칸이다. 에이전트는
+    이 칸을 덮지 않는다. `source_practice_session_id` 는 배우가 "이게 왜 이렇게
+    적혔지" 를 확인할 근거다 -- 근거를 못 보면 고칠지 판단이 안 선다.
+    """
+
+    field: str
+    value: str
+    written_by_actor: bool
+    source_practice_session_id: UUID | None
+    updated_at: datetime
 
 
 @dataclass(frozen=True)
@@ -1416,6 +1435,144 @@ class PostgresStore:
                     .values(status=SessionStatus.CLOSED, updated_at=now)
                 )
             return replace(source, confirmed=confirmed)
+
+    # --- 배우 기억 (유저.md) ------------------------------------------------
+
+    def list_actor_memory(self, user_id: UUID) -> list[ActorMemoryItem]:
+        """한 배우의 기억 칸을 전부 읽는다.
+
+        프롬프트를 만들 때도, 배우에게 보여줄 때도 이걸 쓴다. 빈 칸은 행이
+        없는 것이므로 6개보다 적게 돌아올 수 있다.
+        """
+        with self._session_factory() as db:
+            rows = db.scalars(
+                select(ActorMemoryEntry)
+                .where(ActorMemoryEntry.user_id == user_id)
+                .order_by(ActorMemoryEntry.field)
+            ).all()
+            return [
+                ActorMemoryItem(
+                    field=row.field.value,
+                    value=row.value,
+                    written_by_actor=row.written_by is ActorMemoryAuthor.ACTOR,
+                    source_practice_session_id=row.source_practice_session_id,
+                    updated_at=row.updated_at,
+                )
+                for row in rows
+            ]
+
+    def write_actor_memory_as_actor(
+        self,
+        *,
+        user_id: UUID,
+        field: ActorMemoryField,
+        value: str,
+        now: datetime | None = None,
+    ) -> ActorMemoryItem:
+        """배우가 직접 쓰거나 고친다. 항상 이긴다."""
+        return self._upsert_actor_memory(
+            user_id=user_id,
+            field=field,
+            value=value,
+            author=ActorMemoryAuthor.ACTOR,
+            source_practice_session_id=None,
+            now=now,
+        )
+
+    def write_actor_memory_as_agent(
+        self,
+        *,
+        user_id: UUID,
+        field: ActorMemoryField,
+        value: str,
+        source_practice_session_id: UUID,
+        now: datetime | None = None,
+    ) -> ActorMemoryItem | None:
+        """에이전트가 갱신한다. 배우가 손댄 칸은 건드리지 않는다.
+
+        건너뛴 경우 None 을 돌려준다 -- 호출하는 쪽이 "덮어썼다" 고 착각하지
+        않게 하려는 것이다. 성별·나이는 DB 제약이 막으므로 여기서 미리 걸러
+        불필요한 예외를 만들지 않는다.
+        """
+        if field in (ActorMemoryField.GENDER, ActorMemoryField.AGE):
+            return None
+        return self._upsert_actor_memory(
+            user_id=user_id,
+            field=field,
+            value=value,
+            author=ActorMemoryAuthor.AGENT,
+            source_practice_session_id=source_practice_session_id,
+            now=now,
+        )
+
+    def _upsert_actor_memory(
+        self,
+        *,
+        user_id: UUID,
+        field: ActorMemoryField,
+        value: str,
+        author: ActorMemoryAuthor,
+        source_practice_session_id: UUID | None,
+        now: datetime | None,
+    ) -> ActorMemoryItem | None:
+        """한 칸을 넣거나 고친다.
+
+        에이전트 갱신은 `written_by = 'actor'` 인 행을 건너뛴다. 읽고 나서
+        판단하면 그 사이 배우가 고친 것을 덮을 수 있어, 조건을 UPDATE 문 안에
+        둬서 한 번의 문장으로 끝낸다.
+        """
+        stamp = now or datetime.now(timezone.utc)
+        statement = (
+            insert(ActorMemoryEntry)
+            .values(
+                user_id=user_id,
+                field=field,
+                value=value,
+                written_by=author,
+                source_practice_session_id=source_practice_session_id,
+                created_at=stamp,
+                updated_at=stamp,
+            )
+            .on_conflict_do_update(
+                constraint="uq_actor_memory_user_field",
+                set_={
+                    "value": value,
+                    "written_by": author,
+                    "source_practice_session_id": source_practice_session_id,
+                    "updated_at": stamp,
+                },
+                where=(
+                    text("true")
+                    if author is ActorMemoryAuthor.ACTOR
+                    else ActorMemoryEntry.written_by != ActorMemoryAuthor.ACTOR.value
+                ),
+            )
+            .returning(ActorMemoryEntry)
+        )
+        with self._session_factory() as db:
+            row = db.scalars(statement).first()
+            db.commit()
+            if row is None:
+                return None
+            return ActorMemoryItem(
+                field=row.field.value,
+                value=row.value,
+                written_by_actor=row.written_by is ActorMemoryAuthor.ACTOR,
+                source_practice_session_id=row.source_practice_session_id,
+                updated_at=row.updated_at,
+            )
+
+    def delete_actor_memory(
+        self, *, user_id: UUID, field: ActorMemoryField | None = None
+    ) -> int:
+        """배우가 기억을 지운다. 칸을 지정하지 않으면 전부 지운다."""
+        condition = ActorMemoryEntry.user_id == user_id
+        if field is not None:
+            condition = and_(condition, ActorMemoryEntry.field == field)
+        with self._session_factory() as db:
+            removed = db.execute(delete(ActorMemoryEntry).where(condition)).rowcount
+            db.commit()
+            return removed or 0
 
     def has_report_for_practice_session(self, practice_session_id: UUID) -> bool:
         with self._session_factory() as db:

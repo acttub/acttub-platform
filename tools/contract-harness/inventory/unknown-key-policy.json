@@ -100,5 +100,11 @@
     "allows_unknown": true,
     "component": "UploadIntentRequest",
     "required_body": true
+  },
+  "put /v2/me/memory/{field}": {
+    "additional_properties": false,
+    "allows_unknown": false,
+    "component": "UpdateMemoryRequest",
+    "required_body": true
   }
 }
