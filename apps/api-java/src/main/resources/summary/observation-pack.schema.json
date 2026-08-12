@@ -1,0 +1,26 @@
+{
+  "type": "OBJECT",
+  "description": "acting-summary/schema.py 의 ObservationPack 을 Gemini responseSchema 로 옮긴 것. M0 스파이크가 쓰던 SceneSummary 는 SOMA-302 로 사라졌다.",
+  "properties": {
+    "observations": {
+      "type": "ARRAY",
+      "description": "구간별 관찰. 후처리(_filter_observations)가 유효성 검사 후 앞 3개로 자른다.",
+      "items": {
+        "type": "OBJECT",
+        "properties": {
+          "start_ms": {"type": "INTEGER", "description": "관찰 시작 시각(ms)"},
+          "end_ms": {"type": "INTEGER", "description": "관찰 종료 시각(ms). start_ms 보다 커야 한다."},
+          "label": {"type": "STRING", "description": "그 구간에서 관찰된 것"},
+          "confidence": {"type": "NUMBER", "description": "0.0~1.0"}
+        },
+        "required": ["start_ms", "end_ms", "label", "confidence"]
+      }
+    },
+    "uncertainties": {
+      "type": "ARRAY",
+      "description": "영상만으로는 판단할 수 없었던 것. 없으면 빈 리스트.",
+      "items": {"type": "STRING"}
+    }
+  },
+  "required": ["observations", "uncertainties"]
+}

@@ -34,8 +34,7 @@ dependencies {
     // PSQLException.getServerErrorMessage().getConstraint() 를 컴파일 타임에 참조한다 (/SPEC.md §6 #10).
     implementation("org.postgresql:postgresql")
 
-    // M0 스파이크 전용. SDK 채택이 확정되면 M4 에서 implementation 으로 올린다.
-    testImplementation("com.google.genai:google-genai:1.57.0")
+    implementation("com.google.genai:google-genai:1.57.0")
 
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("org.testcontainers:junit-jupiter")

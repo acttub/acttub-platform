@@ -59,6 +59,7 @@ class HealthAndBootIT {
                         "DATABASE_URL=" + databaseUrl,
                         "JWT_SECRET=test-secret",
                         "server.port=0",
+                        "GEMINI_API_KEY=test-not-a-real-key",
                         "GEMINI_MODEL=gemini-2.5-flash")
                 .run();
         port = ((ServletWebServerApplicationContext) context).getWebServer().getPort();
