@@ -409,6 +409,8 @@ M2·M3에서 두 번 나온 "완료 기준이 도구 능력보다 앞선다"가 
 - [x] 🔎 **contract 프로파일에서 백그라운드 워커가 뜨지 않는다.** 시간 의존 동작은 `advance-clock`으로만 일어난다
 - [x] 🔎 **제어 표면이 운영 프로파일에 노출되지 않는다** — loopback 전용이며 기본 프로파일에서 라우트가 등록되지 않음을 테스트로 단언
 - [ ] `auth/FixedWindowRateLimiter.java`의 `advanceContractClock()`·`reset()`을 contract 프로파일로 가르거나 가시성을 좁힌다 (M3 잔여)
+  - 🔧 **시도했다가 되돌렸다**(2026-08-12). 시스템 프로퍼티로 프로파일을 보게 했더니 Spring 테스트는 `@ActiveProfiles`를 쓰지 그 프로퍼티를 세우지 않아 **9건이 깨졌다.** 단위 테스트가 `new FixedWindowRateLimiter(clock)`으로 직접 만들어 쓰므로 생성자에 스프링 의존성을 들일 수도 없다.
+  - **다음 시도의 방향**: `@Component`를 떼고 `@Profile("contract")` / `@Profile("!contract")`로 빈을 둘로 나눠 "제어 허용" 플래그를 생성자로 넣는다. 운영 코드에서 이 둘을 부르는 곳은 없으므로 **위험은 낮고 순수한 방어**다
 - [x] 🔎 **`spec/check-refs.py`를 보강한다** — 지금은 `spec/check-refs.py:SYMBOL_REF`가 완전한 `` `파일.py:심볼` ``만 인식해 축약(":_parse")과 산문 파일명("engine.py")을 통과시킨다. **이 문서가 세 번 틀린 근본 원인이다.** 코드 블록 밖의 `.py` 표기가 `SYMBOL_REF`에 매치되지 않으면 실패시키는 검사를 추가해, 다음 사이클이 같은 구멍에 빠지지 않게 한다
 - [ ] 외부 호출이 트랜잭션 밖에 있다 (커넥션 점유 시간으로 확인)
 - [x] **M1 하네스 전량 통과** — G가 선행되어야 성립한다
@@ -417,7 +419,8 @@ M2·M3에서 두 번 나온 "완료 기준이 도구 능력보다 앞선다"가 
     - **springdoc 메타데이터 4건**: `$.info.title`(`acting-api` vs `OpenAPI definition`) · `$.info.version`(`0.1.0` vs `v0`) · `$.info.description` 누락 · `$.servers`(springdoc 이 생성한 URL, 원본에는 없다)
     - **admin 6건**: `ADMIN_OPS_TOKEN` 을 주고 띄우면 admin 라우트 2개와 스키마 4개가 문서에 실린다. 원본은 그 상태의 스펙을 커밋하지 않았으므로(§6-2) **전체 diff 실행에서는 토큰 없이 띄워야 하고, `admin` 시나리오만 토큰을 준 인스턴스로 돌려야 한다.** 하네스가 java 백엔드를 어떻게 띄우는지에 이 구분이 없다 — §F-3 에서 함께 정한다
 - [ ] 실 LLM smoke 통과 (참고 지표)
-- [ ] **파이썬 기능 잔여 0** — 이식되지 않은 기능 목록이 비어 있음을 확인. 비활성 유틸리티(`_cache_path`·`clip_head`)는 별도로 표시하고, **`observability.py`는 M5로 이월했음을 명시**한다(§A-0)
+- [x] **파이썬 기능 잔여 0** — 2026-08-12 모듈 단위로 대조했다. `acting_api` 19개 모듈과 패키지 넷이 전부 Java 패키지에 대응한다(`admin`·`admissions`→`admission`·`analysis_worker`→`analysis`·`app`→`ActingApiApplication`·`coaching`→`coach`·`community`·`config`·`consents`→`consent`·`keepalive`→`health`·`practice_sessions`→`practice`·`profile`·`ratelimit`→`auth`·`reports`→`report`·`security`→`auth`·`storage`·`sync_operations`→`operation`·`uploads`→`upload`, `acting-agent`→`coach`·`acting-llm`→`llm`·`acting-report`→`report`·`acting-summary`→`summary`).
+  - **이식하지 않은 것은 셋뿐이고 전부 의도된 것이다**: `observability.py`(**M5 이월**, §A-0) · 비활성 유틸리티 `acting-summary/summarizer.py:_cache_path`·`acting-llm/media.py:clip_head`(운영 호출자가 없다)
 
 ## 하지 말 것
 
