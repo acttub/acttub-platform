@@ -812,12 +812,8 @@ function QuestionStepContent({
         <SessionContext blockage={activeBlockage} />
         <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-3 sm:p-3.5">
           <div className="mt-auto flex flex-col gap-2.5 sm:gap-3">
+            <DemoCoachBubble text="00:31, 마지막 대사 직전이에요. 시선이 아래로 내려가고 잠시 멈춰 있어요." />
             <DemoCoachBubble
-              eyebrow="영상에서 확인된 순간 · 00:31"
-              text="마지막 대사 직전, 시선이 아래로 내려가고 잠시 멈춰 있어요."
-            />
-            <DemoCoachBubble
-              eyebrow="질문 1"
               text={`“${activeBlockage}”라고 느낀 이 순간, 상대에게서 어떤 반응을 기대했나요?`}
             />
             {/* 고르기 전의 선택지는 대화에 넣지 않는다. 파란 말풍선으로 두면
@@ -826,10 +822,7 @@ function QuestionStepContent({
             {firstAnswer ? (
               <FadeIn>
                 <div className="flex flex-col gap-2.5 sm:gap-3">
-                  <DemoCoachBubble
-                    eyebrow="질문 2"
-                    text="그 기대가 시선과 멈춤에 드러난다면, 다음에는 무엇을 해볼까요?"
-                  />
+                  <DemoCoachBubble text="그 기대가 시선과 멈춤에 드러난다면, 다음에는 무엇을 해볼까요?" />
                   {secondAnswer ? <DemoMineBubble text={secondAnswer} /> : null}
                 </div>
               </FadeIn>
@@ -990,7 +983,8 @@ function MoreChoicesButton({
   );
 }
 
-function DemoCoachBubble({ eyebrow, text }: { eyebrow: string; text: string }) {
+/** 제품의 말풍선에는 라벨이 없다. 눈썹을 달면 대화가 아니라 주석 달린 도해로 읽힌다. */
+function DemoCoachBubble({ text }: { text: string }) {
   return (
     <div className="flex items-end gap-2 justify-start">
       <span
@@ -998,7 +992,6 @@ function DemoCoachBubble({ eyebrow, text }: { eyebrow: string; text: string }) {
         className="h-7 w-7 shrink-0 rounded-full bg-linear-to-br from-link to-link-hover"
       />
       <div className="max-w-[82%] whitespace-pre-wrap rounded-[18px] rounded-bl-[6px] bg-surface-subtle px-4 py-3 text-body font-body text-text-strong">
-        <span className="block text-label font-emphasis text-link">{eyebrow}</span>
         {text}
       </div>
     </div>
