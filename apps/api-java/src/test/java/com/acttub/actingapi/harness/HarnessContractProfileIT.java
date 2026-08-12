@@ -239,11 +239,18 @@ class HarnessContractProfileIT {
     }
 
     @Test
-    void injectedJwtClockObservesHarnessOffset() throws Exception {
+    void jwtClockIsNotMovedByTheHarnessOffset() throws Exception {
+        // 🔎 **JWT 는 `advance-clock` 에 딸려가지 않는다.** 원본 하네스 wrapper 가
+        // `JwtService(cfg.JWT_SECRET)` 로 **시계를 주입하지 않고** 레이트리밋 monotonic 과
+        // 워커에 넘기는 시각만 앞당기기 때문이다.
+        //
+        // 뒤집으면 시나리오가 시계를 앞당기는 순간 액세스 토큰(TTL 30분)이 만료돼
+        // 뒤따르는 요청이 전부 401 이 된다 — `worker-failure` 가 3시간을 앞당긴 뒤
+        // status 조회에서 실제로 그렇게 죽었다. M2 는 하네스가 java 를 구동하지 못하던
+        // 시점이라 이 가정이 검증된 적이 없었다.
         String token = jwt.issueAccessToken(USER).value();
         control("advance-clock", "{\"seconds\":1801}");
-        assertThatThrownBy(() -> jwt.decodeAccessToken(token))
-                .isInstanceOf(JwtService.TokenValidationException.class);
+        assertThat(jwt.decodeAccessToken(token).userId()).isEqualTo(USER);
     }
 
     @Test

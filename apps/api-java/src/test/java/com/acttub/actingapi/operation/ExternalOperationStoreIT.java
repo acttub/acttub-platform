@@ -162,7 +162,7 @@ class ExternalOperationStoreIT {
         assertThat(syncOperation.get("attempt_count")).isEqualTo(1);
         assertThat(syncOperation.get("lease_token")).isEqualTo(syncLeaseToken);
         assertThat(syncOperation.get("error_code")).isNull();
-        assertThat(syncOperation.get("response_payload")).isNull();
+        assertThat(syncOperation.get("response_payload")).isEqualTo("null");
         assertThat(operationLeaseExpiresAt(failedOperationId))
                 .isEqualTo(NOW.plus(Duration.ofMinutes(15)).atOffset(ZoneOffset.UTC));
         assertThat(operationUpdatedAt(failedOperationId))
@@ -213,7 +213,7 @@ class ExternalOperationStoreIT {
         Map<String, Object> released = operation(operationId);
         assertThat(released.get("status")).isEqualTo("pending");
         assertThat(released.get("attempt_count")).isEqualTo(1);
-        assertThat(released.get("response_payload")).isNull();
+        assertThat(released.get("response_payload")).isEqualTo("null");
         assertThat(released.get("error_code")).isNull();
         assertThat(released.get("lease_token")).isNull();
         assertThat(released.get("lease_expires_at")).isNull();
@@ -261,6 +261,7 @@ class ExternalOperationStoreIT {
         Map<String, Object> failed = operation(operationId);
         assertThat(failed.get("status")).isEqualTo("failed");
         assertThat(failed.get("error_code")).isEqualTo(errorCode);
+        assertThat(failed.get("response_payload")).isEqualTo("null");
         assertThat(failed.get("lease_token")).isNull();
         assertThat(failed.get("lease_expires_at")).isNull();
         assertThat(session(sessionId).get("status")).isEqualTo("failed");
@@ -295,6 +296,7 @@ class ExternalOperationStoreIT {
         assertThat(swept.get("attempt_count"))
                 .isEqualTo(ExternalOperationClaimer.MAX_EXTERNAL_OPERATION_ATTEMPTS);
         assertThat(swept.get("error_code")).isEqualTo("max_attempts_exceeded");
+        assertThat(swept.get("response_payload")).isEqualTo("null");
         assertThat(session(sessionId).get("status")).isEqualTo("failed");
         assertThat(claimer.sweepMaxAttempts(NOW.plusSeconds(12)))
                 .as("max_attempts_exceeded makes the sweep idempotent")

@@ -14,7 +14,10 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.TransactionTemplate;
 
-/** 원본의 blocking + 재평가 시맨틱을 보존한다. 의도적으로 {@code SKIP LOCKED}가 없다. */
+/**
+ * 원본의 blocking + 재평가 시맨틱을 보존한다. 의도적으로 {@code SKIP LOCKED}가 없다.
+ * Python SQLAlchemy의 JSONB {@code None}은 SQL NULL이 아니라 JSON 리터럴 {@code null}이다.
+ */
 @Repository
 public class ExternalOperationClaimer {
 
@@ -71,7 +74,7 @@ public class ExternalOperationClaimer {
             int released = jdbc.update("""
                     UPDATE external_operations
                     SET status = 'pending'::operation_status_t,
-                        response_payload = NULL,
+                        response_payload = 'null'::jsonb,
                         error_code = NULL,
                         lease_token = NULL,
                         lease_expires_at = NULL,
@@ -106,7 +109,7 @@ public class ExternalOperationClaimer {
                     lease_token = ?,
                     lease_expires_at = ?,
                     error_code = NULL,
-                    response_payload = NULL,
+                    response_payload = 'null'::jsonb,
                     updated_at = ?
                 WHERE id = ?
                   AND attempt_count < ?
@@ -139,7 +142,7 @@ public class ExternalOperationClaimer {
                     lease_token = ?,
                     lease_expires_at = ?,
                     error_code = NULL,
-                    response_payload = NULL,
+                    response_payload = 'null'::jsonb,
                     updated_at = ?
                 WHERE id = (
                     SELECT id
@@ -217,7 +220,7 @@ public class ExternalOperationClaimer {
         int finished = jdbc.update("""
                 UPDATE external_operations
                 SET status = 'failed'::operation_status_t,
-                    response_payload = NULL,
+                    response_payload = 'null'::jsonb,
                     error_code = ?,
                     lease_token = NULL,
                     lease_expires_at = NULL,
@@ -237,7 +240,7 @@ public class ExternalOperationClaimer {
                 UPDATE external_operations
                 SET status = 'failed'::operation_status_t,
                     error_code = ?,
-                    response_payload = NULL,
+                    response_payload = 'null'::jsonb,
                     lease_token = NULL,
                     lease_expires_at = NULL,
                     updated_at = ?

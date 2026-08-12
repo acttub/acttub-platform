@@ -135,8 +135,14 @@ def worker_failure(ctx) -> None:
         headers=headers,
     )
     ctx.note("sweep.expected", {"expected_error_code": "max_attempts_exceeded"})
+    # status 를 먼저 본다 — 200 이 아니면 `parsed` 에 error_code 자체가 없어서
+    # KeyError 로 죽고, 그러면 **왜 실패했는지가 응답째로 사라진다.**
     require(
-        swept.parsed["error_code"] == "max_attempts_exceeded",
+        swept.status == 200,
+        f"sweep 후 status 조회가 200 이 아니다: {swept.status} {swept.parsed}",
+    )
+    require(
+        swept.parsed.get("error_code") == "max_attempts_exceeded",
         f"sweep 후 error_code 가 max_attempts_exceeded 가 아니다: {swept.parsed}",
     )
 

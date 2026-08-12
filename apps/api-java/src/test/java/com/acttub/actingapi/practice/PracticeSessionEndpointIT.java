@@ -6,11 +6,14 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 
 import java.nio.file.Path;
+import java.time.Duration;
+import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.UUID;
 
 import com.acttub.actingapi.auth.JwtService;
+import com.acttub.actingapi.operation.ExternalOperationClaimer;
 import com.acttub.actingapi.storage.ObjectStorage;
 import com.acttub.actingapi.storage.StoredObjectMetadata;
 import com.acttub.actingapi.support.PostgresContainerSupport;
@@ -62,6 +65,9 @@ class PracticeSessionEndpointIT {
 
     @Autowired
     ObjectMapper mapper;
+
+    @Autowired
+    ExternalOperationClaimer operations;
 
     @BeforeEach
     void setUp() {
@@ -216,11 +222,50 @@ class PracticeSessionEndpointIT {
                 "SELECT status::text FROM external_operations WHERE request_id=?",
                 String.class, requestId)).isEqualTo("pending");
         assertThat(jdbc.queryForObject(
-                "SELECT response_payload IS NULL FROM external_operations WHERE request_id=?",
+                """
+                SELECT response_payload = 'null'::jsonb
+                FROM external_operations
+                WHERE request_id=?
+                """,
                 Boolean.class, requestId)).isTrue();
         assertThat(jdbc.queryForObject(
                 "SELECT status::text FROM practice_sessions WHERE id=?",
                 String.class, sessionId)).isEqualTo("analyzing");
+    }
+
+    @Test
+    void exhaustedWorkerRetriesSweepSessionAndReplayAsAnalysisRetryExhausted()
+            throws Exception {
+        UUID uploadId = insertUpload(USER_ID, "finalized", "video.mp4");
+        UUID requestId = UUID.randomUUID();
+        MvcResult created = create(uploadId, requestId, validBody(uploadId));
+        UUID operationId = jdbc.queryForObject(
+                "SELECT id FROM external_operations WHERE request_id=?",
+                UUID.class,
+                requestId);
+        Instant base = NOW.toInstant();
+
+        for (int attempt = 1;
+                attempt <= ExternalOperationClaimer.MAX_EXTERNAL_OPERATION_ATTEMPTS;
+                attempt++) {
+            UUID leaseToken = UUID.randomUUID();
+            Instant attemptAt = base.plusSeconds(attempt);
+            assertThat(operations.claimNext(
+                    "analyze", leaseToken, Duration.ofSeconds(1800), attemptAt))
+                    .isEqualTo(operationId);
+            assertThat(operations.release(
+                    operationId, leaseToken, attemptAt.plusMillis(1))).isTrue();
+        }
+
+        assertThat(operations.sweepMaxAttempts(base.plusSeconds(3600))).isEqualTo(1);
+        UUID sessionId = UUID.fromString(json(created).path("session_id").textValue());
+        JsonNode status = json(mvc.perform(get("/v2/practice-sessions/{id}/status", sessionId)
+                        .header("Authorization", bearer(USER_ID)))
+                .andReturn());
+        assertThat(status).isEqualTo(mapper.readTree(
+                "{\"status\":\"failed\",\"error_code\":\"max_attempts_exceeded\"}"));
+        assertError(create(uploadId, requestId, validBody(uploadId)),
+                409, "analysis_retry_exhausted");
     }
 
     @Test

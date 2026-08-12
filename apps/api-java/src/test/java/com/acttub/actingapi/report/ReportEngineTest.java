@@ -85,6 +85,20 @@ class ReportEngineTest {
     void parsingRejectsNonObjectAndSchemaViolations() {
         ReportEngine engine = new ReportEngine(new RecordingGenerator(), MAPPER);
 
+        assertThatThrownBy(() -> engine.parseReport("<not-json>", "analysis", "id", null))
+                .isInstanceOf(ReportParseError.class)
+                .hasMessage("Expecting value: line 1 column 1 (char 0)");
+        assertThatThrownBy(() -> engine.parseReport("   ", "analysis", "id", null))
+                .isInstanceOf(ReportParseError.class)
+                .hasMessage("Expecting value: line 1 column 1 (char 0)");
+        assertThatThrownBy(() -> engine.parseReport(
+                "[\n  1,\n  <]", "analysis", "id", null))
+                .isInstanceOf(ReportParseError.class)
+                .hasMessage("Expecting value: line 3 column 3 (char 9)");
+        assertThatThrownBy(() -> engine.parseReport("{\n  <}", "analysis", "id", null))
+                .isInstanceOf(ReportParseError.class)
+                .hasMessage("Expecting property name enclosed in double quotes: "
+                        + "line 2 column 3 (char 4)");
         assertThatThrownBy(() -> engine.parseReport("[]", "analysis", "id", null))
                 .isInstanceOf(ReportParseError.class)
                 .hasMessage("report response is not an object");

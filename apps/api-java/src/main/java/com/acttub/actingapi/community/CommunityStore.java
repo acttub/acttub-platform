@@ -90,7 +90,9 @@ class CommunityStore {
                        p.anonymous,
                        category.slug AS category_slug,
                        category.name AS category_name,
-                       author.nickname AS author_nickname,
+                       CASE WHEN author.status = 'deactivated'::user_status_t
+                            THEN '탈퇴한 사용자'
+                            ELSE author.nickname END AS author_nickname,
                        p.title,
                        p.body,
                        p.like_count,
@@ -245,7 +247,9 @@ class CommunityStore {
                        comment.post_id,
                        comment.author_id,
                        comment.anonymous,
-                       author.nickname AS author_nickname,
+                       CASE WHEN author.status = 'deactivated'::user_status_t
+                            THEN '탈퇴한 사용자'
+                            ELSE author.nickname END AS author_nickname,
                        comment.body,
                        comment.created_at,
                        comment.updated_at
@@ -327,7 +331,9 @@ class CommunityStore {
                            comment.post_id,
                            comment.author_id,
                            comment.anonymous,
-                           author.nickname AS author_nickname,
+                           CASE WHEN author.status = 'deactivated'::user_status_t
+                            THEN '탈퇴한 사용자'
+                            ELSE author.nickname END AS author_nickname,
                            comment.body,
                            comment.created_at,
                            comment.updated_at,
@@ -454,7 +460,9 @@ class CommunityStore {
                        p.anonymous,
                        category.slug AS category_slug,
                        category.name AS category_name,
-                       author.nickname AS author_nickname,
+                       CASE WHEN author.status = 'deactivated'::user_status_t
+                            THEN '탈퇴한 사용자'
+                            ELSE author.nickname END AS author_nickname,
                        p.title,
                        p.body,
                        p.like_count,
@@ -484,7 +492,9 @@ class CommunityStore {
                        p.anonymous,
                        category.slug AS category_slug,
                        category.name AS category_name,
-                       author.nickname AS author_nickname,
+                       CASE WHEN author.status = 'deactivated'::user_status_t
+                            THEN '탈퇴한 사용자'
+                            ELSE author.nickname END AS author_nickname,
                        p.title,
                        p.body,
                        p.like_count,
@@ -551,7 +561,9 @@ class CommunityStore {
                        comment.post_id,
                        comment.author_id,
                        comment.anonymous,
-                       author.nickname AS author_nickname,
+                       CASE WHEN author.status = 'deactivated'::user_status_t
+                            THEN '탈퇴한 사용자'
+                            ELSE author.nickname END AS author_nickname,
                        comment.body,
                        comment.created_at,
                        comment.updated_at,

@@ -119,11 +119,15 @@ public class ReportEngine {
         String original = rawText.strip();
         Matcher fenced = FENCED_JSON.matcher(original);
         String jsonText = fenced.matches() ? fenced.group(1).strip() : original;
+        if (jsonText.isEmpty()) {
+            throw new ReportParseError(PythonJsonDecodeError.expectingValueAtStart());
+        }
         JsonNode parsed;
         try {
             parsed = mapper.readTree(jsonText);
         } catch (JsonProcessingException exception) {
-            throw new ReportParseError(exception.getOriginalMessage(), exception);
+            throw new ReportParseError(
+                    PythonJsonDecodeError.format(exception, jsonText), exception);
         }
         if (parsed == null || !parsed.isObject()) {
             throw new ReportParseError("report response is not an object");

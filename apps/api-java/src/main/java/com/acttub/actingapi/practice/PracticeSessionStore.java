@@ -135,7 +135,8 @@ class PracticeSessionStore {
             jdbc.update("""
                     UPDATE external_operations
                     SET status='pending'::operation_status_t,error_code=NULL,
-                        response_payload=NULL,updated_at=?
+                        -- SQLAlchemy JSONB None과 같은 JSON 리터럴 null이다.
+                        response_payload='null'::jsonb,updated_at=?
                     WHERE id=?
                     """, now, operationId);
             return true;
