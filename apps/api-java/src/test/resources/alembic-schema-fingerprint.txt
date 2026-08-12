@@ -189,6 +189,14 @@ COLUMN users.deactivated_at ord=7 type=timestamptz len=- null=YES default=-
 COLUMN users.email ord=2 type=text len=- null=YES default=-
 COLUMN users.id ord=1 type=uuid len=- null=NO default=gen_random_uuid()
 COLUMN users.nickname ord=6 type=text len=- null=YES default=-
+COLUMN users.signup_first_seen_at ord=15 type=timestamptz len=- null=YES default=-
+COLUMN users.signup_landing_path ord=14 type=varchar len=255 null=YES default=-
+COLUMN users.signup_referrer_host ord=13 type=varchar len=255 null=YES default=-
+COLUMN users.signup_utm_campaign ord=10 type=varchar len=255 null=YES default=-
+COLUMN users.signup_utm_content ord=11 type=varchar len=255 null=YES default=-
+COLUMN users.signup_utm_medium ord=9 type=varchar len=255 null=YES default=-
+COLUMN users.signup_utm_source ord=8 type=varchar len=255 null=YES default=-
+COLUMN users.signup_utm_term ord=12 type=varchar len=255 null=YES default=-
 COLUMN users.status ord=3 type=user_status_t len=- null=NO default='active'::user_status_t
 COLUMN users.updated_at ord=5 type=timestamptz len=- null=NO default=now()
 CONSTRAINT anomalies anomalies_dimension_not_null NOT NULL dimension
