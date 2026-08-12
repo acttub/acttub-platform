@@ -682,7 +682,15 @@ CREATE TABLE public.users (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     nickname text,
-    deactivated_at timestamp with time zone
+    deactivated_at timestamp with time zone,
+    signup_utm_source character varying(255),
+    signup_utm_medium character varying(255),
+    signup_utm_campaign character varying(255),
+    signup_utm_content character varying(255),
+    signup_utm_term character varying(255),
+    signup_referrer_host character varying(255),
+    signup_landing_path character varying(255),
+    signup_first_seen_at timestamp with time zone
 );
 
 

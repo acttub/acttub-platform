@@ -60,11 +60,13 @@ AI 호출을 포함한 쓰기 요청(`/v2/practice-sessions`, `/{id}/analyze`, `
 |---|---|---|
 | `provider` | str | `"google"` \| `"apple"` (로컬 opt-in: `"development"`) |
 | `id_token` | str | google=OIDC id_token, apple="Sign in with Apple" identityToken(JWT — 네이티브는 앱 SDK, 웹은 Apple JS가 발급). development는 로컬 테스트 토큰(`<uid>` 또는 `<uid>:<email>`)이며 email은 미검증으로 취급되어 기존 계정에 자동 연결되지 않고 신규 계정에도 저장되지 않음 |
+| `signup_attribution` | object \| null | 선택. first-touch `utm_source`·`utm_medium`·`utm_campaign`·`utm_content`·`utm_term`, `referrer_host`, `landing_path`, `first_seen_at`(ISO 8601). 신규 계정을 만들 때만 저장 |
 
 ### 처리 규칙
 
 - `(provider, provider_uid)`가 이미 등록돼 있으면 그 계정으로 로그인.
 - 처음이면: id_token의 이메일이 기존 계정과 일치할 때 **email_verified가 참인 경우에만** 기존 계정에 identity를 자동 연결, 미검증이면 409. 그 외에는 신규 계정 생성 (이메일은 검증된 경우에만 저장, 아니면 NULL).
+- `signup_attribution` 문자열은 제어문자를 제거하고 255자로 제한하며 빈 값은 NULL로 저장합니다. 객체가 잘못돼도 유입 정보만 버리고 로그인은 계속합니다. 기존 계정 로그인이나 기존 이메일에 identity를 연결하는 분기에서는 무시합니다.
 
 ### 응답 200
 
