@@ -820,30 +820,9 @@ function QuestionStepContent({
               eyebrow="질문 1"
               text={`“${activeBlockage}”라고 느낀 이 순간, 상대에게서 어떤 반응을 기대했나요?`}
             />
-            {firstAnswer ? (
-              <DemoMineBubble text={firstAnswer} />
-            ) : (
-              <div className="flex flex-col items-end gap-2">
-                {(showAllFirstAnswers
-                  ? firstAnswerChoices
-                  : firstAnswerChoices.slice(0, 2)
-                ).map((answer) => (
-                  <DemoAnswerButton
-                    key={answer}
-                    text={answer}
-                    disabled={!interactive || !ready}
-                    onClick={() => onChooseFirstAnswer(answer)}
-                  />
-                ))}
-                <MoreChoicesButton
-                  expanded={showAllFirstAnswers}
-                  disabled={!interactive || !ready}
-                  onClick={() =>
-                    setShowAllFirstAnswers((current) => !current)
-                  }
-                />
-              </div>
-            )}
+            {/* 고르기 전의 선택지는 대화에 넣지 않는다. 파란 말풍선으로 두면
+                아직 하지 않은 말을 이미 한 것처럼 보인다. 아래 입력줄로 뺐다. */}
+            {firstAnswer ? <DemoMineBubble text={firstAnswer} /> : null}
             {firstAnswer ? (
               <FadeIn>
                 <div className="flex flex-col gap-2.5 sm:gap-3">
@@ -851,42 +830,51 @@ function QuestionStepContent({
                     eyebrow="질문 2"
                     text="그 기대가 시선과 멈춤에 드러난다면, 다음에는 무엇을 해볼까요?"
                   />
-                  {secondAnswer ? (
-                    <DemoMineBubble text={secondAnswer} />
-                  ) : (
-                    <div className="flex flex-col items-end gap-2">
-                      {(showAllSecondAnswers
-                        ? secondAnswerChoices
-                        : secondAnswerChoices.slice(0, 2)
-                      ).map((answer) => (
-                        <DemoAnswerButton
-                          key={answer}
-                          text={answer}
-                          disabled={!interactive}
-                          onClick={() => onChooseSecondAnswer(answer)}
-                        />
-                      ))}
-                      <MoreChoicesButton
-                        expanded={showAllSecondAnswers}
-                        disabled={!interactive}
-                        onClick={() =>
-                          setShowAllSecondAnswers((current) => !current)
-                        }
-                      />
-                    </div>
-                  )}
+                  {secondAnswer ? <DemoMineBubble text={secondAnswer} /> : null}
                 </div>
               </FadeIn>
             ) : null}
           </div>
         </div>
         <div className="border-t border-border-subtle p-3 sm:p-3.5">
+          {!secondAnswer ? (
+            <div className="mb-2.5 flex flex-wrap items-center gap-2">
+              {(firstAnswer
+                ? showAllSecondAnswers
+                  ? secondAnswerChoices
+                  : secondAnswerChoices.slice(0, 2)
+                : showAllFirstAnswers
+                  ? firstAnswerChoices
+                  : firstAnswerChoices.slice(0, 2)
+              ).map((answer) => (
+                <DemoAnswerButton
+                  key={answer}
+                  text={answer}
+                  disabled={!interactive || !ready}
+                  onClick={() =>
+                    firstAnswer
+                      ? onChooseSecondAnswer(answer)
+                      : onChooseFirstAnswer(answer)
+                  }
+                />
+              ))}
+              <MoreChoicesButton
+                expanded={firstAnswer ? showAllSecondAnswers : showAllFirstAnswers}
+                disabled={!interactive || !ready}
+                onClick={() =>
+                  firstAnswer
+                    ? setShowAllSecondAnswers((current) => !current)
+                    : setShowAllFirstAnswers((current) => !current)
+                }
+              />
+            </div>
+          ) : null}
           <div className="flex items-center gap-2.5">
             <input
               readOnly
               disabled={!interactive || !ready || Boolean(secondAnswer)}
               aria-label="체험 답변 입력"
-              placeholder="아래 답변 중 하나를 골라 주세요"
+              placeholder="위 답변 중 하나를 골라 주세요"
               className="h-12 min-w-0 flex-1 rounded-full border border-border-default bg-surface-subtle px-5 text-body font-body outline-none transition placeholder:text-text-muted focus:border-link focus:bg-white disabled:bg-surface-muted sm:h-14"
             />
             <button
@@ -1037,16 +1025,14 @@ function DemoAnswerButton({
   onClick: () => void;
 }) {
   return (
-    <div className="flex w-full items-end gap-2 justify-end">
-      <button
-        type="button"
-        disabled={disabled}
-        onClick={onClick}
-        className="max-w-[82%] whitespace-pre-wrap rounded-[18px] rounded-br-[6px] bg-link px-4 py-3 text-left text-body font-body text-white transition hover:bg-link-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-link disabled:cursor-not-allowed disabled:bg-control-disabled"
-      >
-        {text}
-      </button>
-    </div>
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      className="inline-flex min-h-10 items-center whitespace-nowrap rounded-full border border-border-default bg-white px-4 py-2 text-body-sm font-emphasis text-text-strong transition hover:border-link hover:text-link focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-link disabled:cursor-not-allowed disabled:text-text-disabled"
+    >
+      {text}
+    </button>
   );
 }
 
