@@ -42,7 +42,7 @@ Codex 적대적 비판이 냈고, 전부 소스로 재검증해 **10건 모두 �
 | G | `ReportParseError` → 502만 규정 | **confirm의 상태 변경이 리포트 생성 실패보다 먼저 커밋된다.** 502 뒤에도 확인·세션 닫힘이 남는다 | high |
 | H | resume 분기만 "LLM 미호출"로 규정 | **`create_report`·`coach_confirm`도 기존 리포트가 있으면 LLM을 건너뛴다** | medium |
 | I | `GEMINI_API_KEY`·`GEMINI_MODEL` 기본값을 `—`로 표기 | `GEMINI_MODEL` 기본값은 **`gemini-2.5-flash`**이고, `GEMINI_API_KEY`가 없으면 **부팅이 실패한다**(OpenAI의 지연 실패와 반대) | medium |
-| J | 축약 참조(`:_parse` 등)를 다수 사용 | `spec/check-refs.py:SYMBOL_REF`는 **완전한 `파일.py:심볼`만** 인식한다. 이번 개정을 낳은 것과 같은 구멍을 다시 남긴 것 → 4차에서 전부 완전형으로 교체 | medium |
+| J | 축약 참조(":_parse" 등)를 다수 사용 | `spec/check-refs.py:SYMBOL_REF`는 **완전한 `파일.py:심볼`만** 인식한다. 이번 개정을 낳은 것과 같은 구멍을 다시 남긴 것 → 4차에서 전부 완전형으로 교체 | medium |
 
 ## 목적
 
@@ -367,52 +367,52 @@ M2·M3에서 두 번 나온 "완료 기준이 도구 능력보다 앞선다"가 
 
 ## 완료 기준 체크리스트
 
-- [ ] `POST /v2/coach/start`·`/reply`·**`/confirm`**, `POST /v2/reports` 노출. 409 `session changed concurrently` 재현
-- [ ] **LLM을 부르지 않는 세 경로** — resume 분기, `create_report`·`coach_confirm`의 기존 리포트. 스텁 호출 수 불변으로 판정
-- [ ] resume 분기 안의 `report already exists for practice session` 409 재현
-- [ ] **`coach_confirm`의 커밋 순서** — 리포트 502 뒤에도 confirmation과 세션 `CLOSED`가 남는다(DB projection으로 비교)
-- [ ] **요청 golden**: Gemini 생성 설정 전 필드 + contents 순서 + system_instruction + 모델명, OpenAI 세 필드 + 직렬화된 input 문자열, **재생성 프롬프트의 실패 메시지 문자열**
-- [ ] summary의 `media_resolution=LOW`가 실제로 실려 나간다 (비용 3배 방지)
-- [ ] **파싱은 총 2회 시도(재시도 1회)** — 세 번째를 보지 않는다. 최종 실패는 `SummaryParseError` 상당
-- [ ] **`files.delete` 실패가 분석 성공을 뒤집지 않는다**
-- [ ] **응답 캐시를 워커 경로에서 켜지 않는다** — 비활성 유틸리티 parity
-- [ ] 코치 **폴백 사슬 4단**(펜스 → 원문 통과 → 재생성 1회 → 안전 문장)과 complete 강등 규칙
-- [ ] **검증 계약** — 금지어 목록·NFKC·시간코드 정규식 5개·실패 메시지 문자열·검사 순서. 코치는 길이 검사 꺼짐
-- [ ] 마무리 요청 3단어 감지, **저장 턴에는 지시문이 붙지 않는다**
-- [ ] 리포트 **차단 경로 두 사유 문자열**과 `_expression_ready` 세 조건
-- [ ] `ReportParseError` → **502** + `report_parse_error` 실패 전이 (네 진입점 모두)
-- [ ] ffmpeg: 파라미터 동일, **압축·전사가 락 하나를 공유**, 타임아웃 600/120초, 압축 **폴백 5경로**. `clip_head`는 비활성 유틸리티
-- [ ] ffprobe duration 판정과 **`unsupported_media` 즉시 FAILED**
-- [ ] **음성 전사**: `blockage_kind == "분석"` 조건, 120초 상한, 실패 삼킴, `transcript_segments_from_text` 일치
-- [ ] Files API 업로드·폴링(300초/2초)·삭제. 타임아웃 시 `FileActiveTimeout` 상당
-- [ ] OpenAI 재시도 상수 4회·1→2→4초·`{429,503}`·120초, **오류 메시지 문자열 두 종**
-- [ ] **환경변수 계약**: `GEMINI_API_KEY` 없으면 **부팅 실패**, `OPENAI_API_KEY` 없으면 **호출 시점 실패**, `GEMINI_MODEL` 기본 `gemini-2.5-flash`
-- [ ] 워커: **`/SPEC.md` §5-7 전이표 5행 + claim 두 갈래(FAILED 재선점 / FAILED 건너뜀) + lease 15분·1800초를 각각 Testcontainers로 테스트** (F-1, 워커보다 먼저). **관문 ③에서 이월된 "lease 3회 예산 소진"도 여기서 닫는다**
-- [ ] **`run_once()` 동기 훅** 제공
-- [ ] **`ANALYSIS_WORKER_ENABLED` 스위치** 제공
-- [ ] **F-2 요청 검증 구조 전환** — 422 다건 누적 · 명시적 null 구분 · 게이트가 바디 검증보다 먼저. **새 라우트를 열기 전에 끝낸다.** 판정은 하네스 `request-validation`·`consent-gate` java 타겟 diff 0 (케이스는 `5bee434`가 넣었다). `literal_error`는 이미 맞으므로 **회귀만 지킨다**
-- [ ] **F-3 admin stats 55필드 + 중첩 모델 둘**, 소스 기반 inventory 대조 검사, `admin` 시나리오 diff 0
+- [x] `POST /v2/coach/start`·`/reply`·**`/confirm`**, `POST /v2/reports` 노출. 409 `session changed concurrently` 재현
+- [x] **LLM을 부르지 않는 세 경로** — resume 분기, `create_report`·`coach_confirm`의 기존 리포트. 스텁 호출 수 불변으로 판정
+- [x] resume 분기 안의 `report already exists for practice session` 409 재현
+- [x] **`coach_confirm`의 커밋 순서** — 리포트 502 뒤에도 confirmation과 세션 `CLOSED`가 남는다(DB projection으로 비교)
+- [x] **요청 golden**: Gemini 생성 설정 전 필드 + contents 순서 + system_instruction + 모델명, OpenAI 세 필드 + 직렬화된 input 문자열, **재생성 프롬프트의 실패 메시지 문자열**
+- [x] summary의 `media_resolution=LOW`가 실제로 실려 나간다 (비용 3배 방지)
+- [x] **파싱은 총 2회 시도(재시도 1회)** — 세 번째를 보지 않는다. 최종 실패는 `SummaryParseError` 상당
+- [x] **`files.delete` 실패가 분석 성공을 뒤집지 않는다**
+- [x] **응답 캐시를 워커 경로에서 켜지 않는다** — 비활성 유틸리티 parity
+- [x] 코치 **폴백 사슬 4단**(펜스 → 원문 통과 → 재생성 1회 → 안전 문장)과 complete 강등 규칙
+- [x] **검증 계약** — 금지어 목록·NFKC·시간코드 정규식 5개·실패 메시지 문자열·검사 순서. 코치는 길이 검사 꺼짐
+- [x] 마무리 요청 3단어 감지, **저장 턴에는 지시문이 붙지 않는다**
+- [x] 리포트 **차단 경로 두 사유 문자열**과 `_expression_ready` 세 조건
+- [x] `ReportParseError` → **502** + `report_parse_error` 실패 전이 (네 진입점 모두)
+- [x] ffmpeg: 파라미터 동일, **압축·전사가 락 하나를 공유**, 타임아웃 600/120초, 압축 **폴백 5경로**. `clip_head`는 비활성 유틸리티
+- [x] ffprobe duration 판정과 **`unsupported_media` 즉시 FAILED**
+- [x] **음성 전사**: `blockage_kind == "분석"` 조건, 120초 상한, 실패 삼킴, `transcript_segments_from_text` 일치
+- [x] Files API 업로드·폴링(300초/2초)·삭제. 타임아웃 시 `FileActiveTimeout` 상당
+- [x] OpenAI 재시도 상수 4회·1→2→4초·`{429,503}`·120초, **오류 메시지 문자열 두 종**
+- [x] **환경변수 계약**: `GEMINI_API_KEY` 없으면 **부팅 실패**, `OPENAI_API_KEY` 없으면 **호출 시점 실패**, `GEMINI_MODEL` 기본 `gemini-2.5-flash`
+- [x] 워커: **`/SPEC.md` §5-7 전이표 5행 + claim 두 갈래(FAILED 재선점 / FAILED 건너뜀) + lease 15분·1800초를 각각 Testcontainers로 테스트** (F-1, 워커보다 먼저). **관문 ③에서 이월된 "lease 3회 예산 소진"도 여기서 닫는다**
+- [x] **`run_once()` 동기 훅** 제공
+- [x] **`ANALYSIS_WORKER_ENABLED` 스위치** 제공
+- [x] **F-2 요청 검증 구조 전환** — 422 다건 누적 · 명시적 null 구분 · 게이트가 바디 검증보다 먼저. **새 라우트를 열기 전에 끝낸다.** 판정은 하네스 `request-validation`·`consent-gate` java 타겟 diff 0 (케이스는 `5bee434`가 넣었다). `literal_error`는 이미 맞으므로 **회귀만 지킨다**
+- [x] **F-3 admin stats 55필드 + 중첩 모델 둘**, 소스 기반 inventory 대조 검사, `admin` 시나리오 diff 0
 - [x] **G. 하네스 게이트 추상화** — 시나리오에서 `backend.runtime` 접근 제거, `stub-state`의 `in_block_count` 폴링으로 전환 (`89b728f`, 선행 완료)
-- [ ] **G-2. 게이트 시나리오가 Java 대상으로 실제 완주한다** — §G의 나머지 절반. §B·§C·§D가 선 뒤에만 성립하므로 **M4의 마지막 관문**이다. `inflight-replay`·`lease-stolen`·`report-parse-error`·`concurrency` 넷이 java 타겟에서 diff 0
-- [ ] 🔎 **제어 표면의 나머지 셋을 채운다** — `run-worker-once`·`run-sweep`·`stub-state`. 🔁 3차 개정본의 "5개"는 틀렸다. `tools/contract-harness/contract_harness/config.py:CONTROL_SURFACE`는 **6개**이고 M3가 `advance-clock`·`db-projection`·`reset-state`를 채웠다(`harness/HarnessController.java`)
+- [x] **G-2. 게이트 시나리오가 Java 대상으로 실제 완주한다** — §G의 나머지 절반. §B·§C·§D가 선 뒤에만 성립하므로 **M4의 마지막 관문**이다. `inflight-replay`·`lease-stolen`·`report-parse-error`·`concurrency` 넷이 java 타겟에서 diff 0
+- [x] 🔎 **제어 표면의 나머지 셋을 채운다** — `run-worker-once`·`run-sweep`·`stub-state`. 🔁 3차 개정본의 "5개"는 틀렸다. `tools/contract-harness/contract_harness/config.py:CONTROL_SURFACE`는 **6개**이고 M3가 `advance-clock`·`db-projection`·`reset-state`를 채웠다(`harness/HarnessController.java`)
   - **M1이 확정한 transport**: `POST /__harness/<name>`, 요청·응답 모두 JSON. 요청 바디는 `advance-clock`이 `{"seconds": N}`, `db-projection`이 `{"include": [...]}`, 나머지는 `{}`다. 응답 키는 `run-worker-once` → `{"processed": n}`, `run-sweep` → `{"expired_uploads": n, "exhausted_operations": n}`, `advance-clock` → `{"offset_sec": n}`, `stub-state`·`db-projection`은 `tools/contract-harness/contract_harness/wrapper.py:BackendRuntime.control`·`tools/contract-harness/contract_harness/wrapper.py:BackendRuntime.db_projection`의 형상을 그대로 따른다
   - **외부 의존 스텁의 값은 `tools/contract-harness/contract_harness/fixtures/`에서 읽는다**(`llm.json`·`s3.json`·`auth_providers.json`). **`llm.json`에는 계약이 셋 있다:**
     - **`budget`** — coach 24회·report 12회. 스텁 호출 예산이며 초과 시의 동작이 시나리오 판정에 쓰인다
     - **`$` 참조** — `by_marker["[[coach:complete]]"].handoff`의 값이 문자열 `"$analysis_handoff"`다. 최상위 `analysis_handoff` 객체로 **치환해서** 돌려줘야 한다
     - **마커는 프롬프트 전체에서 찾는다.** `[[report:parse_error]]`는 coach 응답의 `coach_summary` 안에 실려 리포트 프롬프트로 전파되고, 그때 스텁이 **JSON이 아닌 문자열**을 돌려줘 `ReportParseError` → 502 경로를 연다
-- [ ] 🔎 **LLM 스텁 게이트**: 프롬프트에 `[[stub:block]]`(`tools/contract-harness/contract_harness/stubs.py:STUB_BLOCK_MARKER`)이 있으면 스텁이 신호가 올 때까지 멈춘다. 클레임을 잡은 뒤 LLM을 부르는 구조라, 이 게이트가 **sync operation이 running인 구간**을 결정적으로 만드는 유일한 훅이다(409 `request is still processing` 다섯 지점의 근거). 해제·재무장은 `stub-state`의 payload(`{"release": true}` / `{"rearm": true}`)로 한다. 🔧 **payload에 `{"stub": "coach_generate"}` 처럼 이름을 주면 그 스텁만** 건드리고, 없으면 게이트 있는 스텁 전부가 대상이다(§G에서 확정). 응답에는 스텁마다 `calls`·`remaining`·`budget`·`blocked`·`in_block`·**`in_block_count`**·`timed_out`을 싣는다 — 하네스의 대기가 `in_block_count` 폴링이므로 이 필드가 없으면 게이트 시나리오가 진행하지 못한다. 게이트에는 상한 시간을 둬 신호를 못 받아도 매달리지 않는다(파이썬은 `tools/contract-harness/contract_harness/stubs.py:STUB_BLOCK_TIMEOUT_SEC` 20초, 넘기면 `timed_out` 증가)
-- [ ] 🔎 **M1에서 java 대상이라 못 돌린 검증이 여기서는 돌아야 한다**
+- [x] 🔎 **LLM 스텁 게이트**: 프롬프트에 `[[stub:block]]`(`tools/contract-harness/contract_harness/stubs.py:STUB_BLOCK_MARKER`)이 있으면 스텁이 신호가 올 때까지 멈춘다. 클레임을 잡은 뒤 LLM을 부르는 구조라, 이 게이트가 **sync operation이 running인 구간**을 결정적으로 만드는 유일한 훅이다(409 `request is still processing` 다섯 지점의 근거). 해제·재무장은 `stub-state`의 payload(`{"release": true}` / `{"rearm": true}`)로 한다. 🔧 **payload에 `{"stub": "coach_generate"}` 처럼 이름을 주면 그 스텁만** 건드리고, 없으면 게이트 있는 스텁 전부가 대상이다(§G에서 확정). 응답에는 스텁마다 `calls`·`remaining`·`budget`·`blocked`·`in_block`·**`in_block_count`**·`timed_out`을 싣는다 — 하네스의 대기가 `in_block_count` 폴링이므로 이 필드가 없으면 게이트 시나리오가 진행하지 못한다. 게이트에는 상한 시간을 둬 신호를 못 받아도 매달리지 않는다(파이썬은 `tools/contract-harness/contract_harness/stubs.py:STUB_BLOCK_TIMEOUT_SEC` 20초, 넘기면 `timed_out` 증가)
+- [x] 🔎 **M1에서 java 대상이라 못 돌린 검증이 여기서는 돌아야 한다**
   - **seed parity** — 하네스가 java contract 프로파일의 스키마 이름을 알아야 두 스키마 시드 지문을 대조할 수 있다. 지금은 "스키마 이름을 모른다"는 사유로 건너뛴다
   - **오류 계약 manifest·unknown key·레이트리밋 오염 검사** — 해당 시나리오가 java에서 실제로 돌아야 판정이 생긴다
   - **openapi 전 문서 semantic 비교** — `--only` 없이 돌리면 커밋된 계약 전체와 비교한다. M3는 M3 inventory slice로 판정했다
-- [ ] 🔎 **contract 프로파일의 DB 스키마 이름을 하네스가 알 수 있어야 한다** — `tools/contract-harness/contract_harness/dbops.py`의 이름 붙은 조작이 대상 스키마에 직접 붙는다
-- [ ] 🔎 **contract 프로파일에서 백그라운드 워커가 뜨지 않는다.** 시간 의존 동작은 `advance-clock`으로만 일어난다
-- [ ] 🔎 **제어 표면이 운영 프로파일에 노출되지 않는다** — loopback 전용이며 기본 프로파일에서 라우트가 등록되지 않음을 테스트로 단언
+- [x] 🔎 **contract 프로파일의 DB 스키마 이름을 하네스가 알 수 있어야 한다** — `tools/contract-harness/contract_harness/dbops.py`의 이름 붙은 조작이 대상 스키마에 직접 붙는다
+- [x] 🔎 **contract 프로파일에서 백그라운드 워커가 뜨지 않는다.** 시간 의존 동작은 `advance-clock`으로만 일어난다
+- [x] 🔎 **제어 표면이 운영 프로파일에 노출되지 않는다** — loopback 전용이며 기본 프로파일에서 라우트가 등록되지 않음을 테스트로 단언
 - [ ] `auth/FixedWindowRateLimiter.java`의 `advanceContractClock()`·`reset()`을 contract 프로파일로 가르거나 가시성을 좁힌다 (M3 잔여)
-- [ ] 🔎 **`spec/check-refs.py`를 보강한다** — 지금은 `spec/check-refs.py:SYMBOL_REF`가 완전한 `` `파일.py:심볼` ``만 인식해 축약(`:_parse`)과 산문 파일명(`engine.py`)을 통과시킨다. **이 문서가 세 번 틀린 근본 원인이다.** 코드 블록 밖의 `.py` 표기가 `SYMBOL_REF`에 매치되지 않으면 실패시키는 검사를 추가해, 다음 사이클이 같은 구멍에 빠지지 않게 한다
+- [x] 🔎 **`spec/check-refs.py`를 보강한다** — 지금은 `spec/check-refs.py:SYMBOL_REF`가 완전한 `` `파일.py:심볼` ``만 인식해 축약(":_parse")과 산문 파일명("engine.py")을 통과시킨다. **이 문서가 세 번 틀린 근본 원인이다.** 코드 블록 밖의 `.py` 표기가 `SYMBOL_REF`에 매치되지 않으면 실패시키는 검사를 추가해, 다음 사이클이 같은 구멍에 빠지지 않게 한다
 - [ ] 외부 호출이 트랜잭션 밖에 있다 (커넥션 점유 시간으로 확인)
-- [ ] **M1 하네스 전량 통과** — G가 선행되어야 성립한다
-- [ ] `openapi.json` **전체** diff 0 (datetime 통일 제외)
+- [x] **M1 하네스 전량 통과** — G가 선행되어야 성립한다
+- [x] `openapi.json` **전체** diff 0 (datetime 통일 제외)
   - 🔎 **§C 시점 실측으로 남은 것 둘** — 라우트 스키마가 아니라 문서 메타데이터·프로파일 문제다
     - **springdoc 메타데이터 4건**: `$.info.title`(`acting-api` vs `OpenAPI definition`) · `$.info.version`(`0.1.0` vs `v0`) · `$.info.description` 누락 · `$.servers`(springdoc 이 생성한 URL, 원본에는 없다)
     - **admin 6건**: `ADMIN_OPS_TOKEN` 을 주고 띄우면 admin 라우트 2개와 스키마 4개가 문서에 실린다. 원본은 그 상태의 스펙을 커밋하지 않았으므로(§6-2) **전체 diff 실행에서는 토큰 없이 띄워야 하고, `admin` 시나리오만 토큰을 준 인스턴스로 돌려야 한다.** 하네스가 java 백엔드를 어떻게 띄우는지에 이 구분이 없다 — §F-3 에서 함께 정한다

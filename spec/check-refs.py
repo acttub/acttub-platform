@@ -76,6 +76,49 @@ def defined_names(path: Path) -> set[str]:
     return names
 
 
+#: 백틱 안의 `...py...` 토큰 (완전형·축약형 모두).
+_BACKTICKED_PY = re.compile(r"`([^`]*?\.py[^`]*?)`")
+#: 백틱 안에서 콜론으로 시작하는 토큰 — 파일이 빠진 축약이다.
+_BACKTICKED_ABBREV = re.compile(r"`(:[^`\s]+)`")
+#: 그 중 검사기가 실제로 확인하는 형태 — `파일.py:심볼`.
+_FULL_FORM = re.compile(r"^[\w./-]+\.py:[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*$")
+#: 파일만 가리키는 것은 허용한다(디렉토리 설명·명령줄 등). 심볼을 붙일 수 없는 자리다.
+_FILE_ONLY = re.compile(r"^[\w./-]+\.py$")
+
+
+#: `:_parse` 처럼 파일 없이 심볼만 적은 축약. 어느 파일인지 알 수 없어 검사가 불가능하다.
+_ABBREVIATED = re.compile(r"^:[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*$")
+
+
+def bare_py_mentions(line: str) -> list[str]:
+    """검사기가 확인하지 못하는 소스 참조 표기를 찾는다.
+
+    통과시키는 것:
+      - `db/store.py:PostgresStore.claim_next_external_operation` (완전형 — 검사됨)
+      - `analysis_worker.py` (파일만 — 심볼을 붙일 수 없는 자리가 있다)
+      - 명령줄·디렉토리명·형식을 설명하는 메타 표기
+    잡는 것:
+      - `:_parse` 같은 축약 — **어느 파일인지 알 수 없어 영영 검사되지 않는다**
+      - `engine.py 의 _parse` 같은 혼합 토큰
+    """
+    found = []
+    for token in _BACKTICKED_PY.findall(line) + _BACKTICKED_ABBREV.findall(line):
+        token = token.strip()
+        if _FULL_FORM.match(token) or _FILE_ONLY.match(token):
+            continue
+        if _ABBREVIATED.match(token):
+            found.append(token)
+            continue
+        # 명령줄·산문은 공백으로 가른다. 한글이 섞인 것은 형식 설명이다.
+        if " " in token or re.search(r"[가-힣]", token):
+            continue
+        # `.pytest_cache` 처럼 `.py` 뒤에 글자가 이어지는 것은 소스 참조가 아니다.
+        if not re.search(r"\.py(?::|$)", token):
+            continue
+        found.append(token)
+    return found
+
+
 def main() -> int:
     errors: list[str] = []
     warnings: list[str] = []
@@ -104,6 +147,17 @@ def main() -> int:
                 continue
             for short, _ in LINE_REF.findall(line):
                 warnings.append(f"{where}  라인 번호 참조: {short} — 심볼로 바꾸세요 (/SPEC.md §12)")
+
+            # 🔎 `SYMBOL_REF` 를 빠져나가는 `.py` 표기를 잡는다.
+            #
+            # 검사기가 완전한 `파일.py:심볼` 만 인식하므로, 축약(`:_parse`)이나 산문
+            # 파일명(`engine.py 를 옮긴다`)은 **검사 대상이 아니었다.** M4 사양이 세 번
+            # 틀린 근본 원인이다 — 존재하지 않는 파일 넷을 이식 대상으로 적어 두고도
+            # 참조 검사는 200건 전부 통과시켰다.
+            for bare in bare_py_mentions(line):
+                warnings.append(
+                    f"{where}  검사되지 않는 .py 표기: {bare} — "
+                    f"`파일.py:심볼` 형식으로 바꾸세요 (/SPEC.md §12)")
 
     for w in warnings:
         print(f"⚠  {w}")
