@@ -353,7 +353,7 @@ M2·M3에서 두 번 나온 "완료 기준이 도구 능력보다 앞선다"가 
 | **압축 실패 시의 원본**(15MB 초과) 업로드 — 다중 chunk | ✅ **98,414,903 B → 23.5초에 ACTIVE** |
 | 파싱 첫 실패 후 재시도 성공 / 2회 모두 실패 | ✅ 총 2회 시도 (`spike/ParseRetryLoop.java`) |
 | **`files.delete` 예외 주입** | ✅ 삼키면 분석 결과가 남는다 |
-| 워커 lease 3회 예산 소진 | ⏳ **§F-1로 이월** — Java에 sweep 대응물이 아직 없다 |
+| 워커 lease 3회 예산 소진 | ✅ **§F-1에서 닫았다** — `transientErrorsConsumeThreeAttemptsBeforeIdempotentSweepFailsOperationAndSession` |
 
 🔎 **압축률이 2.5%다.** 운영에서 Gemini로 가는 것은 보통 2~3MB이고 98MB가 그대로 가는 것은 압축 실패 시뿐이다 — **다중 chunk는 예외 경로**다. 다만 그 경로가 열리는 것을 확인했으므로 §A의 폴백 5경로를 그대로 옮겨도 업로드에서 막히지 않는다.
 

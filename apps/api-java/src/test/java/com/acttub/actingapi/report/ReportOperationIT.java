@@ -5,11 +5,13 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
+import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.Map;
 import java.util.UUID;
 
+import com.acttub.actingapi.operation.ExternalOperationClaimer;
 import com.acttub.actingapi.support.PostgresContainerSupport;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -56,6 +58,9 @@ class ReportOperationIT {
     ReportOperationWork work;
 
     @Autowired
+    ExternalOperationClaimer claimer;
+
+    @Autowired
     PlatformTransactionManager transactionManager;
 
     ReportFixtures fixtures;
@@ -96,13 +101,29 @@ class ReportOperationIT {
     @Test
     void lostLeaseRollsBackTheJustInsertedPracticeReport() {
         ReportFixtures.Scenario scenario = fixtures.create();
+        jdbc.update("""
+                UPDATE external_operations
+                SET lease_expires_at = ?
+                WHERE id = ?
+                """,
+                ReportFixtures.NOW.minusSeconds(1).atOffset(ZoneOffset.UTC),
+                scenario.operationId());
+        UUID replacementLeaseToken = UUID.randomUUID();
+        assertThat(claimer.claimById(
+                scenario.operationId(),
+                replacementLeaseToken,
+                Duration.ofMinutes(15),
+                ReportFixtures.NOW))
+                .isEqualTo(scenario.operationId());
 
-        assertThatThrownBy(() -> complete(scenario, UUID.randomUUID()))
+        assertThatThrownBy(() -> complete(scenario, scenario.leaseToken()))
                 .isInstanceOf(LeaseOwnershipException.class)
                 .hasMessage("external operation lease is not owned");
 
         assertThat(reportCount(scenario.sourceHandoffId())).isZero();
         assertThat(operation(scenario.operationId()).get("status")).isEqualTo("running");
+        assertThat(operation(scenario.operationId()).get("lease_token"))
+                .isEqualTo(replacementLeaseToken);
     }
 
     @Test

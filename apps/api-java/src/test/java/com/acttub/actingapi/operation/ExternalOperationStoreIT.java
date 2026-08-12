@@ -18,9 +18,13 @@ import java.util.concurrent.TimeUnit;
 
 import javax.sql.DataSource;
 
+import com.acttub.actingapi.report.LeaseOwnershipException;
 import com.acttub.actingapi.support.PostgresContainerSupport;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.dao.DataAccessException;
@@ -56,6 +60,11 @@ class ExternalOperationStoreIT {
 
     @Autowired
     ExternalOperationStore store;
+
+    @BeforeEach
+    void clearDatabase() {
+        jdbc.execute("TRUNCATE TABLE users RESTART IDENTITY CASCADE");
+    }
 
     @AfterEach
     void removeTestTriggers() {
@@ -123,6 +132,205 @@ class ExternalOperationStoreIT {
             assertThat(sessionUpdatedAt(sessionId))
                     .isEqualTo(originalUpdatedAt.atOffset(ZoneOffset.UTC));
         }
+    }
+
+    @Test
+    void claimByIdReclaimsFailedOperationWhileClaimNextSkipsItAndUsesSeparateLeaseDurations() {
+        UUID userId = insertUser();
+        UUID failedSessionId = insertSession(
+                userId, insertFinalizedUpload(userId), "failed", NOW.minusSeconds(30));
+        UUID failedOperationId = insertOperation(
+                userId, failedSessionId, "analyze", "failed", NOW.minusSeconds(20));
+        jdbc.update("""
+                UPDATE external_operations
+                SET error_code = 'gemini_timeout',
+                    response_payload = '{"stale":true}'::jsonb
+                WHERE id = ?
+                """, failedOperationId);
+
+        assertThat(claimer.claimNext(
+                "analyze", UUID.randomUUID(), Duration.ofSeconds(1800), NOW))
+                .as("worker claim-next must not immediately reclaim failed work")
+                .isNull();
+
+        UUID syncLeaseToken = UUID.randomUUID();
+        assertThat(claimer.claimById(
+                failedOperationId, syncLeaseToken, Duration.ofMinutes(15), NOW))
+                .isEqualTo(failedOperationId);
+        Map<String, Object> syncOperation = operation(failedOperationId);
+        assertThat(syncOperation.get("status")).isEqualTo("running");
+        assertThat(syncOperation.get("attempt_count")).isEqualTo(1);
+        assertThat(syncOperation.get("lease_token")).isEqualTo(syncLeaseToken);
+        assertThat(syncOperation.get("error_code")).isNull();
+        assertThat(syncOperation.get("response_payload")).isNull();
+        assertThat(operationLeaseExpiresAt(failedOperationId))
+                .isEqualTo(NOW.plus(Duration.ofMinutes(15)).atOffset(ZoneOffset.UTC));
+        assertThat(operationUpdatedAt(failedOperationId))
+                .isEqualTo(NOW.atOffset(ZoneOffset.UTC));
+
+        UUID workerSessionId = insertSession(
+                userId, insertFinalizedUpload(userId), "failed", NOW.minusSeconds(10));
+        UUID workerOperationId = insertOperation(
+                userId, workerSessionId, "analyze", "pending", NOW.minusSeconds(5));
+        UUID workerLeaseToken = UUID.randomUUID();
+        assertThat(claimer.claimNext(
+                "analyze", workerLeaseToken, Duration.ofSeconds(1800), NOW))
+                .isEqualTo(workerOperationId);
+        assertThat(operationLeaseExpiresAt(workerOperationId))
+                .isEqualTo(NOW.plusSeconds(1800).atOffset(ZoneOffset.UTC));
+    }
+
+    @Test
+    void failReturnsFalseWhenOperationDoesNotExist() {
+        assertThat(claimer.fail(
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                "gemini_timeout",
+                true,
+                NOW))
+                .isFalse();
+    }
+
+    @Test
+    void releaseClearsLeaseAndFailurePayloadWithoutRefundingAttempt() {
+        UUID userId = insertUser();
+        UUID sessionId = insertSession(
+                userId, insertFinalizedUpload(userId), "failed", NOW.minusSeconds(30));
+        UUID operationId = insertOperation(
+                userId, sessionId, "analyze", "pending", NOW.minusSeconds(10));
+        UUID leaseToken = UUID.randomUUID();
+        assertThat(claimer.claimNext(
+                "analyze", leaseToken, Duration.ofSeconds(1800), NOW))
+                .isEqualTo(operationId);
+        jdbc.update("""
+                UPDATE external_operations
+                SET error_code = 'transient', response_payload = '{"stale":true}'::jsonb
+                WHERE id = ?
+                """, operationId);
+
+        assertThat(claimer.release(operationId, leaseToken, NOW.plusSeconds(1))).isTrue();
+
+        Map<String, Object> released = operation(operationId);
+        assertThat(released.get("status")).isEqualTo("pending");
+        assertThat(released.get("attempt_count")).isEqualTo(1);
+        assertThat(released.get("response_payload")).isNull();
+        assertThat(released.get("error_code")).isNull();
+        assertThat(released.get("lease_token")).isNull();
+        assertThat(released.get("lease_expires_at")).isNull();
+    }
+
+    @Test
+    void releaseRejectsALeaseTokenThatIsNotOwned() {
+        UUID userId = insertUser();
+        UUID sessionId = insertSession(
+                userId, insertFinalizedUpload(userId), "failed", NOW.minusSeconds(30));
+        UUID operationId = insertOperation(
+                userId, sessionId, "analyze", "pending", NOW.minusSeconds(10));
+        UUID leaseToken = UUID.randomUUID();
+        assertThat(claimer.claimNext(
+                "analyze", leaseToken, Duration.ofSeconds(1800), NOW))
+                .isEqualTo(operationId);
+
+        assertThatThrownBy(() -> claimer.release(
+                operationId, UUID.randomUUID(), NOW.plusSeconds(1)))
+                .isInstanceOf(LeaseOwnershipException.class);
+
+        Map<String, Object> operation = operation(operationId);
+        assertThat(operation.get("status")).isEqualTo("running");
+        assertThat(operation.get("attempt_count")).isEqualTo(1);
+        assertThat(operation.get("lease_token")).isEqualTo(leaseToken);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"gemini_timeout", "gemini_parse_error", "unsupported_media"})
+    void terminalAnalysisErrorsImmediatelyFailOperationAndSession(String errorCode) {
+        UUID userId = insertUser();
+        UUID sessionId = insertSession(
+                userId, insertFinalizedUpload(userId), "failed", NOW.minusSeconds(30));
+        UUID operationId = insertOperation(
+                userId, sessionId, "analyze", "pending", NOW.minusSeconds(10));
+        UUID leaseToken = UUID.randomUUID();
+        assertThat(claimer.claimNext(
+                "analyze", leaseToken, Duration.ofSeconds(1800), NOW))
+                .isEqualTo(operationId);
+
+        assertThat(claimer.fail(
+                operationId, leaseToken, errorCode, true, NOW.plusSeconds(1)))
+                .isTrue();
+
+        Map<String, Object> failed = operation(operationId);
+        assertThat(failed.get("status")).isEqualTo("failed");
+        assertThat(failed.get("error_code")).isEqualTo(errorCode);
+        assertThat(failed.get("lease_token")).isNull();
+        assertThat(failed.get("lease_expires_at")).isNull();
+        assertThat(session(sessionId).get("status")).isEqualTo("failed");
+    }
+
+    @Test
+    void transientErrorsConsumeThreeAttemptsBeforeIdempotentSweepFailsOperationAndSession() {
+        UUID userId = insertUser();
+        UUID sessionId = insertSession(
+                userId, insertFinalizedUpload(userId), "failed", NOW.minusSeconds(30));
+        UUID operationId = insertOperation(
+                userId, sessionId, "analyze", "pending", NOW.minusSeconds(10));
+
+        for (int attempt = 1; attempt <= ExternalOperationClaimer.MAX_EXTERNAL_OPERATION_ATTEMPTS;
+                attempt++) {
+            Instant attemptAt = NOW.plusSeconds(attempt);
+            UUID leaseToken = UUID.randomUUID();
+            assertThat(claimer.claimNext(
+                    "analyze", leaseToken, Duration.ofSeconds(1800), attemptAt))
+                    .isEqualTo(operationId);
+            assertThat(claimer.release(operationId, leaseToken, attemptAt.plusMillis(1)))
+                    .isTrue();
+            assertThat(operation(operationId).get("attempt_count")).isEqualTo(attempt);
+        }
+        assertThat(claimer.claimNext(
+                "analyze", UUID.randomUUID(), Duration.ofSeconds(1800), NOW.plusSeconds(10)))
+                .isNull();
+
+        assertThat(claimer.sweepMaxAttempts(NOW.plusSeconds(11))).isEqualTo(1);
+        Map<String, Object> swept = operation(operationId);
+        assertThat(swept.get("status")).isEqualTo("failed");
+        assertThat(swept.get("attempt_count"))
+                .isEqualTo(ExternalOperationClaimer.MAX_EXTERNAL_OPERATION_ATTEMPTS);
+        assertThat(swept.get("error_code")).isEqualTo("max_attempts_exceeded");
+        assertThat(session(sessionId).get("status")).isEqualTo("failed");
+        assertThat(claimer.sweepMaxAttempts(NOW.plusSeconds(12)))
+                .as("max_attempts_exceeded makes the sweep idempotent")
+                .isZero();
+    }
+
+    @Test
+    void failedLeaseOwnershipRollsBackSessionTransition() {
+        UUID userId = insertUser();
+        UUID sessionId = insertSession(
+                userId, insertFinalizedUpload(userId), "failed", NOW.minusSeconds(30));
+        UUID operationId = insertOperation(
+                userId, sessionId, "analyze", "pending", NOW.minusSeconds(10));
+        UUID oldLeaseToken = UUID.randomUUID();
+        assertThat(claimer.claimNext(
+                "analyze", oldLeaseToken, Duration.ofSeconds(1), NOW))
+                .isEqualTo(operationId);
+        UUID newLeaseToken = UUID.randomUUID();
+        assertThat(claimer.claimById(
+                operationId, newLeaseToken, Duration.ofMinutes(15), NOW.plusSeconds(2)))
+                .isEqualTo(operationId);
+
+        assertThatThrownBy(() -> claimer.fail(
+                operationId,
+                oldLeaseToken,
+                "gemini_timeout",
+                true,
+                NOW.plusSeconds(3)))
+                .isInstanceOf(LeaseOwnershipException.class);
+
+        Map<String, Object> operation = operation(operationId);
+        assertThat(operation.get("status")).isEqualTo("running");
+        assertThat(operation.get("lease_token")).isEqualTo(newLeaseToken);
+        assertThat(session(sessionId).get("status"))
+                .as("session failure must roll back when operation lease ownership was lost")
+                .isEqualTo("analyzing");
     }
 
     @Test
@@ -380,7 +588,10 @@ class ExternalOperationStoreIT {
                 SELECT
                     status::text AS status,
                     attempt_count,
-                    lease_token
+                    lease_token,
+                    lease_expires_at,
+                    error_code,
+                    response_payload::text AS response_payload
                 FROM external_operations
                 WHERE id = ?
                 """, operationId);
@@ -397,6 +608,14 @@ class ExternalOperationStoreIT {
     private OffsetDateTime operationUpdatedAt(UUID operationId) {
         return jdbc.queryForObject("""
                 SELECT updated_at
+                FROM external_operations
+                WHERE id = ?
+                """, OffsetDateTime.class, operationId);
+    }
+
+    private OffsetDateTime operationLeaseExpiresAt(UUID operationId) {
+        return jdbc.queryForObject("""
+                SELECT lease_expires_at
                 FROM external_operations
                 WHERE id = ?
                 """, OffsetDateTime.class, operationId);
