@@ -190,9 +190,12 @@ export default function LandingClient() {
       </header>
 
       <section className="bg-linear-to-b from-link-soft via-surface-subtle to-white px-5 pb-16 pt-14 md:pb-28 md:pt-24">
-        <div className="mx-auto grid max-w-[1120px] items-center gap-7 md:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)] md:gap-8 xl:grid-cols-[440px_minmax(0,1fr)] xl:gap-11">
+        {/* 2열은 xl 부터. 그 아래에서 왼쪽 칼럼을 나누면 40px 한글 제목이
+            "혼자만 보고 끝내고 있 / 나요?" 처럼 낱말 중간에서 끊긴다. */}
+        <div className="mx-auto grid max-w-[1120px] items-center gap-7 md:gap-8 xl:grid-cols-[440px_minmax(0,1fr)] xl:gap-11">
           <div className="flex min-w-0 flex-col items-start">
-            <h1 className="text-display font-heading tracking-[-0.04em]">
+            {/* 390px 에서 40px 이면 "혼자만 보고 끝내고 있 / 나요?" 로 끊긴다. */}
+            <h1 className="text-h2 font-heading tracking-[-0.04em] sm:text-display">
               혼자 찍은 연기,
               <br />
               혼자만 보고 끝내고 있나요?
@@ -204,10 +207,10 @@ export default function LandingClient() {
               <br />
               답하다 보면 다음 테이크에서 붙잡을 한 문장이 남습니다.
             </p>
-            <div className="mt-8 flex w-full flex-col items-stretch gap-3 xl:flex-row xl:items-center xl:gap-5">
+            <div className="mt-8 flex w-full flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:gap-5">
               <a
                 href="#mini-practice"
-                className="inline-flex h-14 w-full shrink-0 items-center justify-center whitespace-nowrap rounded-2xl bg-link px-7 text-body font-emphasis text-white shadow-[0_8px_20px_rgba(49,130,246,0.24)] transition-colors hover:bg-link-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-link xl:w-auto"
+                className="inline-flex h-14 w-full shrink-0 items-center justify-center whitespace-nowrap rounded-2xl bg-link px-7 text-body font-emphasis text-white shadow-[0_8px_20px_rgba(49,130,246,0.24)] transition-colors hover:bg-link-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-link sm:w-auto"
               >
                 샘플 영상으로 30초 체험하기
               </a>
