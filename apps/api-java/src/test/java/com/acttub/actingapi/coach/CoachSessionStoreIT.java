@@ -16,6 +16,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
 import com.acttub.actingapi.support.PostgresContainerSupport;
+import com.fasterxml.jackson.databind.JsonNode;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -326,6 +327,47 @@ class CoachSessionStoreIT {
     }
 
     @Test
+    void coachReplyCompletionAppendsTurnsAndFinishesItsOperationAtomically() {
+        UUID userId = fixtures.insertUser();
+        CoachStorageFixtures.Practice practice = fixtures.insertPractice(userId);
+        UUID summaryId = fixtures.insertSummary(practice.id());
+        UUID sessionId = UUID.randomUUID();
+        List<CoachTurnSnapshot> original = List.of(
+                new CoachTurnSnapshot("actor", "첫 배우 말"),
+                new CoachTurnSnapshot("ai", "첫 질문"));
+        fixtures.insertCoachSession(
+                sessionId, practice.id(), summaryId, "open", CREATED_AT, original);
+        UUID leaseToken = UUID.randomUUID();
+        UUID operationId = insertRunningCoachReplyOperation(userId, practice.id(), leaseToken);
+        CoachSessionSnapshot loaded = store.getOwnedCoachSession(userId, sessionId).session();
+        List<CoachTurnSnapshot> allTurns = new ArrayList<>(loaded.turns());
+        allTurns.add(new CoachTurnSnapshot("actor", "다음 배우 말"));
+        allTurns.add(new CoachTurnSnapshot("ai", "다음 질문"));
+        CoachSessionSnapshot completed = loaded.withTurns(allTurns);
+        JsonNode payload = CoachStorageFixtures.responsePayload(allTurns);
+
+        assertThat(store.completeCoachReplyOperation(
+                operationId,
+                leaseToken,
+                completed,
+                payload,
+                null,
+                null,
+                null,
+                false,
+                null,
+                CoachStorageFixtures.NOW)).isTrue();
+
+        assertThat(store.getOwnedCoachSession(userId, sessionId).session().turns())
+                .containsExactlyElementsOf(allTurns);
+        assertThat(jdbc.queryForMap("""
+                SELECT status::text AS status, response_payload::text AS payload
+                FROM external_operations WHERE id = ?
+                """, operationId))
+                .containsEntry("status", "succeeded");
+    }
+
+    @Test
     void confirmationUpsertTransitionsFalseToTrueAndClosesOnlyRequestedCoachSession() {
         UUID userId = fixtures.insertUser();
         CoachStorageFixtures.Practice practice = fixtures.insertPractice(userId);
@@ -425,6 +467,28 @@ class CoachSessionStoreIT {
         fixtures.insertCoachSession(
                 sessionId, practice.id(), summaryId, status, CREATED_AT, turns);
         return new Scenario(userId, practice.id(), sessionId);
+    }
+
+    private UUID insertRunningCoachReplyOperation(
+            UUID userId, UUID practiceSessionId, UUID leaseToken) {
+        UUID operationId = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO external_operations (
+                    id, session_id, user_id, request_id, kind, status,
+                    attempt_count, request_fingerprint, lease_token, lease_expires_at
+                ) VALUES (
+                    ?, ?, ?, ?, 'coach_reply'::operation_kind_t,
+                    'running'::operation_status_t, 1, ?, ?, ?
+                )
+                """,
+                operationId,
+                practiceSessionId,
+                userId,
+                UUID.randomUUID(),
+                "0".repeat(64),
+                leaseToken,
+                CoachStorageFixtures.NOW.plusSeconds(300).atOffset(ZoneOffset.UTC));
+        return operationId;
     }
 
     private CoachSessionSnapshot append(

@@ -413,6 +413,9 @@ M2·M3에서 두 번 나온 "완료 기준이 도구 능력보다 앞선다"가 
 - [ ] 외부 호출이 트랜잭션 밖에 있다 (커넥션 점유 시간으로 확인)
 - [ ] **M1 하네스 전량 통과** — G가 선행되어야 성립한다
 - [ ] `openapi.json` **전체** diff 0 (datetime 통일 제외)
+  - 🔎 **§C 시점 실측으로 남은 것 둘** — 라우트 스키마가 아니라 문서 메타데이터·프로파일 문제다
+    - **springdoc 메타데이터 4건**: `$.info.title`(`acting-api` vs `OpenAPI definition`) · `$.info.version`(`0.1.0` vs `v0`) · `$.info.description` 누락 · `$.servers`(springdoc 이 생성한 URL, 원본에는 없다)
+    - **admin 6건**: `ADMIN_OPS_TOKEN` 을 주고 띄우면 admin 라우트 2개와 스키마 4개가 문서에 실린다. 원본은 그 상태의 스펙을 커밋하지 않았으므로(§6-2) **전체 diff 실행에서는 토큰 없이 띄워야 하고, `admin` 시나리오만 토큰을 준 인스턴스로 돌려야 한다.** 하네스가 java 백엔드를 어떻게 띄우는지에 이 구분이 없다 — §F-3 에서 함께 정한다
 - [ ] 실 LLM smoke 통과 (참고 지표)
 - [ ] **파이썬 기능 잔여 0** — 이식되지 않은 기능 목록이 비어 있음을 확인. 비활성 유틸리티(`_cache_path`·`clip_head`)는 별도로 표시하고, **`observability.py`는 M5로 이월했음을 명시**한다(§A-0)
 

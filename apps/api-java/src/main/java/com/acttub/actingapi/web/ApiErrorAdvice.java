@@ -46,7 +46,9 @@ public class ApiErrorAdvice {
 
     @ExceptionHandler(ApiException.class)
     ResponseEntity<Map<String, Object>> api(ApiException exception) {
-        return body(exception.status(), exception.getMessage());
+        var response = ResponseEntity.status(exception.status());
+        exception.headers().forEach(response::header);
+        return response.body(Map.of("detail", exception.getMessage()));
     }
 
     @ExceptionHandler(ApiValidationException.class)

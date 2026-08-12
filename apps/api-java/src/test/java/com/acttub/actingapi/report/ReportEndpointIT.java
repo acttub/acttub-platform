@@ -116,17 +116,24 @@ class ReportEndpointIT {
     }
 
     @Test
-    void postRouteIsAbsentFromMappingsAndOpenApi() throws Exception {
+    void postRouteIsOpenAndItsOpenApiMatchesCommittedPythonSpec() throws Exception {
         var response = mvc.perform(post("/v2/reports")
                         .header("Authorization", bearer(USER)))
                 .andReturn().getResponse();
-        assertThat(response.getStatus()).isEqualTo(405);
+        assertThat(response.getStatus()).isEqualTo(422);
 
         JsonNode openapi = body(get("/v3/api-docs"));
-        assertThat(openapi.at("/paths/~1v2~1reports/post").isMissingNode()).isTrue();
+        JsonNode expected = mapper.readTree(Path.of("../api/spec/openapi.json").toFile());
+        assertThat(openapi.at("/paths/~1v2~1reports/post"))
+                .isEqualTo(expected.at("/paths/~1v2~1reports/post"));
         assertThat(openapi.at("/paths/~1v2~1reports/get").isMissingNode()).isFalse();
         assertThat(openapi.at("/paths/~1v2~1reports~1{practice_session_id}/get").isMissingNode())
                 .isFalse();
+        for (String component : List.of("ReportReq", "BlockedReport")) {
+            assertThat(normalize(openapi.at("/components/schemas/" + component)))
+                    .as(component)
+                    .isEqualTo(normalize(expected.at("/components/schemas/" + component)));
+        }
     }
 
     @Test

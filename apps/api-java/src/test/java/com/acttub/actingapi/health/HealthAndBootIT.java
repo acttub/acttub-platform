@@ -218,16 +218,19 @@ class HealthAndBootIT {
     }
 
     @Test
-    @DisplayName("default inventory에는 조건부 admin과 M4 operation이 없다")
-    void defaultInventoryExcludesAdminAndM4Operations() throws Exception {
+    @DisplayName("default inventory에는 조건부 admin operation이 없다")
+    void defaultInventoryExcludesAdminOperations() throws Exception {
         JsonNode generated = MAPPER.readTree(get("/v3/api-docs"));
 
+        // admin 둘은 ADMIN_OPS_TOKEN 이 있을 때만 등록된다 (/SPEC.md §6-2).
         assertThat(generated.at("/paths/~1v2~1admin~1stats").isMissingNode()).isTrue();
         assertThat(generated.at("/paths/~1v2~1admin~1sessions").isMissingNode()).isTrue();
-        assertThat(generated.at("/paths/~1v2~1reports/post").isMissingNode()).isTrue();
-        assertThat(generated.at("/paths/~1v2~1coach~1start").isMissingNode()).isTrue();
-        assertThat(generated.at("/paths/~1v2~1coach~1reply").isMissingNode()).isTrue();
-        assertThat(generated.at("/paths/~1v2~1coach~1confirm").isMissingNode()).isTrue();
+
+        // M4 라우트 넷은 §C 에서 열렸다 — 이제 있어야 한다.
+        assertThat(generated.at("/paths/~1v2~1reports/post").isMissingNode()).isFalse();
+        assertThat(generated.at("/paths/~1v2~1coach~1start").isMissingNode()).isFalse();
+        assertThat(generated.at("/paths/~1v2~1coach~1reply").isMissingNode()).isFalse();
+        assertThat(generated.at("/paths/~1v2~1coach~1confirm").isMissingNode()).isFalse();
     }
 
     private static void assertSchemaTitlesAndNullability(

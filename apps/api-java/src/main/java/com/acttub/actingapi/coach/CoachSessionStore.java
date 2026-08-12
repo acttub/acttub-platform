@@ -55,6 +55,27 @@ public class CoachSessionStore {
         });
     }
 
+    public String getPracticeSessionStatus(UUID userId, UUID practiceSessionId) {
+        return transactionTemplate.execute(
+                status -> work.practiceSessionStatus(userId, practiceSessionId));
+    }
+
+    public OwnedPracticeSessionContext getOwnedPracticeSessionContext(
+            UUID userId, UUID practiceSessionId) {
+        return transactionTemplate.execute(
+                status -> work.ownedPracticeSessionContext(userId, practiceSessionId));
+    }
+
+    public boolean hasReportForPracticeSession(UUID practiceSessionId) {
+        return Boolean.TRUE.equals(transactionTemplate.execute(
+                status -> work.hasReportForPracticeSession(practiceSessionId)));
+    }
+
+    public JsonNode getPracticeReportForHandoff(UUID handoffId) {
+        return transactionTemplate.execute(
+                status -> work.practiceReportForHandoff(handoffId));
+    }
+
     /** 저장소 수준 optimistic-lock 검증을 위한 transaction boundary. */
     public void saveCoachSession(CoachSessionSnapshot session, Instant now) {
         OffsetDateTime savedAt = utc(now);
@@ -100,6 +121,44 @@ public class CoachSessionStore {
                         handoffId,
                         reportJson,
                         completedAt);
+            }
+            work.finishExternalOperation(
+                    operationId, leaseToken, responsePayload, completedAt);
+            return true;
+        });
+        return Boolean.TRUE.equals(completed);
+    }
+
+    public boolean completeCoachReplyOperation(
+            UUID operationId,
+            UUID leaseToken,
+            CoachSessionSnapshot coachSession,
+            JsonNode responsePayload,
+            UUID handoffId,
+            String branchKind,
+            JsonNode handoffJson,
+            boolean confirmed,
+            JsonNode reportJson,
+            Instant now) {
+        OffsetDateTime completedAt = utc(now);
+        Boolean completed = transactionTemplate.execute(status -> {
+            CoachSessionWork.OperationRow operation =
+                    work.requireCoachReplyOperation(operationId);
+            CoachSessionSnapshot storedSession = confirmed
+                    ? coachSession.withStatus("closed")
+                    : coachSession;
+            work.saveCoachSession(storedSession, completedAt);
+            if (handoffId != null && branchKind != null && handoffJson != null) {
+                work.addHandoff(
+                        handoffId,
+                        storedSession.sessionId(),
+                        operation.practiceSessionId(),
+                        branchKind,
+                        handoffJson,
+                        confirmed,
+                        completedAt);
+                work.addPracticeReportIfPresent(
+                        operation.practiceSessionId(), handoffId, reportJson, completedAt);
             }
             work.finishExternalOperation(
                     operationId, leaseToken, responsePayload, completedAt);

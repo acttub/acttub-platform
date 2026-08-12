@@ -196,6 +196,102 @@ public class CoachSessionWork {
         return ids.isEmpty() ? null : ids.getFirst();
     }
 
+    public String practiceSessionStatus(UUID userId, UUID practiceSessionId) {
+        List<String> values = jdbc.queryForList("""
+                SELECT status::text
+                FROM practice_sessions
+                WHERE id = ? AND user_id = ? AND hidden_at IS NULL
+                """, String.class, practiceSessionId, userId);
+        return values.isEmpty() ? null : values.getFirst();
+    }
+
+    public OwnedPracticeSessionContext ownedPracticeSessionContext(
+            UUID userId, UUID practiceSessionId) {
+        List<PracticeContextRow> rows = jdbc.query("""
+                SELECT
+                    ps.id AS practice_session_id,
+                    ps.user_id,
+                    ps.situation,
+                    ps.character_context,
+                    ps.goal,
+                    ps.blockage_kind,
+                    ps.sub_branch,
+                    ps.blockage_detail,
+                    ps.upload_intent_id,
+                    ui.duration_ms,
+                    s.id AS summary_id,
+                    s.observations_json::text AS observations_json,
+                    s.uncertainties_json::text AS uncertainties_json
+                FROM practice_sessions ps
+                JOIN upload_intents ui ON ui.id = ps.upload_intent_id
+                LEFT JOIN summaries s ON s.session_id = ps.id
+                WHERE ps.id = ? AND ps.user_id = ? AND ps.hidden_at IS NULL
+                """, (row, number) -> new PracticeContextRow(
+                row.getObject("practice_session_id", UUID.class),
+                row.getObject("user_id", UUID.class),
+                row.getString("situation"),
+                row.getString("character_context"),
+                row.getString("goal"),
+                row.getString("blockage_kind"),
+                row.getString("sub_branch"),
+                row.getString("blockage_detail"),
+                row.getObject("upload_intent_id", UUID.class),
+                row.getObject("duration_ms", Integer.class),
+                row.getObject("summary_id", UUID.class),
+                parseJson(row.getString("observations_json")),
+                parseJson(row.getString("uncertainties_json"))),
+                practiceSessionId,
+                userId);
+        if (rows.isEmpty()) {
+            return null;
+        }
+        PracticeContextRow row = rows.getFirst();
+        ObjectNode pack = null;
+        if (row.summaryId() != null) {
+            pack = objectMapper.createObjectNode();
+            pack.set("observations", row.observations());
+            pack.set("uncertainties", row.uncertainties());
+        }
+        List<String> transcripts = jdbc.queryForList("""
+                SELECT text FROM transcripts WHERE session_id = ? ORDER BY ord
+                """, String.class, practiceSessionId);
+        JsonNode analysisHandoff = "표현".equals(row.blockageKind())
+                ? findConfirmedAnalysisHandoff(row.userId(), row.uploadIntentId())
+                : null;
+        return new OwnedPracticeSessionContext(
+                row.practiceSessionId(),
+                row.summaryId(),
+                row.userId(),
+                pack,
+                row.situation(),
+                row.characterContext(),
+                row.goal(),
+                row.durationMs() == null ? 0 : row.durationMs(),
+                row.blockageKind(),
+                row.subBranch(),
+                row.blockageDetail(),
+                transcripts,
+                analysisHandoff);
+    }
+
+    public boolean hasReportForPracticeSession(UUID practiceSessionId) {
+        Boolean value = jdbc.queryForObject("""
+                SELECT EXISTS (
+                    SELECT 1 FROM practice_reports WHERE practice_session_id = ?
+                )
+                """, Boolean.class, practiceSessionId);
+        return Boolean.TRUE.equals(value);
+    }
+
+    public JsonNode practiceReportForHandoff(UUID handoffId) {
+        List<String> values = jdbc.queryForList("""
+                SELECT report_json::text
+                FROM practice_reports
+                WHERE source_handoff_id = ?
+                """, String.class, handoffId);
+        return values.isEmpty() ? null : parseJson(values.getFirst());
+    }
+
     public void addCoachSession(CoachSessionSnapshot session) {
         jdbc.update("""
                 INSERT INTO coach_sessions (
@@ -320,6 +416,15 @@ public class CoachSessionWork {
     }
 
     public OperationRow requireCoachStartOperation(UUID operationId) {
+        return requireOperation(operationId, "coach_start", "coach start");
+    }
+
+    public OperationRow requireCoachReplyOperation(UUID operationId) {
+        return requireOperation(operationId, "coach_reply", "coach reply");
+    }
+
+    private OperationRow requireOperation(
+            UUID operationId, String expectedKind, String label) {
         List<OperationRow> rows = jdbc.query("""
                 SELECT session_id, kind::text AS kind
                 FROM external_operations
@@ -333,9 +438,9 @@ public class CoachSessionWork {
             throw new LookupError("external operation not found");
         }
         OperationRow operation = rows.getFirst();
-        if (!"coach_start".equals(operation.kind())) {
+        if (!expectedKind.equals(operation.kind())) {
             throw new IllegalArgumentException(
-                    "coach start result requires a coach_start operation");
+                    label + " result requires a " + expectedKind + " operation");
         }
         return operation;
     }
@@ -522,6 +627,22 @@ public class CoachSessionWork {
             String blockageDetail,
             UUID uploadIntentId,
             Integer durationMs) {
+    }
+
+    private record PracticeContextRow(
+            UUID practiceSessionId,
+            UUID userId,
+            String situation,
+            String characterContext,
+            String goal,
+            String blockageKind,
+            String subBranch,
+            String blockageDetail,
+            UUID uploadIntentId,
+            Integer durationMs,
+            UUID summaryId,
+            JsonNode observations,
+            JsonNode uncertainties) {
     }
 
     private record HandoffRow(

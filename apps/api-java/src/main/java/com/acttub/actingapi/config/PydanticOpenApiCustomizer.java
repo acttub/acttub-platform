@@ -7,6 +7,9 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
+import com.acttub.actingapi.coach.CoachDtos.CoachConfirmResponse;
+import com.acttub.actingapi.coach.CoachDtos.CoachTurnResponse;
+import com.acttub.actingapi.report.ReportDtos.BlockedReport;
 import com.acttub.actingapi.report.ReportDtos.ReportDetailResponse;
 import io.swagger.v3.core.converter.ModelConverter;
 import io.swagger.v3.core.converter.ModelConverters;
@@ -42,11 +45,15 @@ class PydanticOpenApiCustomizer {
             }
             Map<String, Schema> schemas = openApi.getComponents().getSchemas();
             registerReferencedSchemas(schemas, ReportDetailResponse.class);
+            registerReferencedSchemas(schemas, CoachTurnResponse.class);
+            registerReferencedSchemas(schemas, CoachConfirmResponse.class);
+            registerReferencedSchemas(schemas, BlockedReport.class);
             applyFastApiValidationErrorShape(schemas);
             schemas.replaceAll(
                     (modelName, schema) -> normalize(schema, modelName));
             applyAdmissionsSchemaShape(schemas);
             applyReportSchemaShape(schemas);
+            applyCoachSchemaShape(schemas);
         };
     }
 
@@ -108,6 +115,13 @@ class PydanticOpenApiCustomizer {
                     if (wildcard != null && !response.getContent().containsKey("application/json")) {
                         response.getContent().addMediaType("application/json", wildcard);
                     }
+                    // 인라인 응답 스키마도 anyOf 옆의 type 을 떨어뜨린다. 컴포넌트 순회는
+                    // 여기까지 오지 않아서, `POST /v2/reports` 처럼 세 리포트 형을 anyOf 로
+                    // 직접 문서화한 자리에 반환 타입의 `type: string` 이 남아 있었다.
+                    response.getContent().values().stream()
+                            .map(io.swagger.v3.oas.models.media.MediaType::getSchema)
+                            .filter(java.util.Objects::nonNull)
+                            .forEach(PydanticOpenApiCustomizer::stripAnyOfBaseType);
                 });
     }
 
@@ -292,6 +306,7 @@ class PydanticOpenApiCustomizer {
         setConst(schemas, "AnalysisNextTake", "tested", false);
         setConst(schemas, "EffectiveExperiment", "tested", true);
         setConst(schemas, "ActorTraining", "tested", false);
+        setConst(schemas, "BlockedReport", "report_type", "blocked");
 
         Schema<?> detail = schemas.get("ReportDetailResponse");
         if (detail != null && detail.getProperties() != null) {
@@ -305,6 +320,47 @@ class PydanticOpenApiCustomizer {
             detail.getProperties().put("report", report);
             schemas.remove("JsonNode");
         }
+    }
+
+    private static void applyCoachSchemaShape(Map<String, Schema> schemas) {
+        Schema<?> turn = schemas.get("CoachTurnResponse");
+        if (turn != null && turn.getProperties() != null) {
+            turn.getProperties().put("handoff", nullableReference("PublicHandoff", null));
+            turn.getProperties().put("report", reportUnion(true));
+        }
+        Schema<?> confirm = schemas.get("CoachConfirmResponse");
+        if (confirm != null && confirm.getProperties() != null) {
+            confirm.getProperties().put("handoff", nullableReference("PublicHandoff", null));
+            confirm.getProperties().put("report", reportUnion(false));
+        }
+        schemas.remove("JsonNode");
+    }
+
+    private static Schema<?> reportUnion(boolean nullable) {
+        ComposedSchema report = new ComposedSchema();
+        report.setTitle("Report");
+        List<Schema> alternatives = new ArrayList<>();
+        alternatives.add(reference("AnalysisReport"));
+        alternatives.add(reference("ExpressionReport"));
+        alternatives.add(reference("BlockedReport"));
+        if (nullable) {
+            alternatives.add(nullSchema());
+        }
+        report.setAnyOf(alternatives);
+        return report;
+    }
+
+    private static Schema<?> nullableReference(String component, String title) {
+        ComposedSchema nullable = new ComposedSchema();
+        nullable.setTitle(title);
+        nullable.setAnyOf(new ArrayList<>(List.of(reference(component), nullSchema())));
+        return nullable;
+    }
+
+    private static Schema<?> reference(String component) {
+        Schema<?> reference = new Schema<>();
+        reference.set$ref("#/components/schemas/" + component);
+        return reference;
     }
 
     private static void setConst(

@@ -8,9 +8,15 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import com.fasterxml.jackson.databind.annotation.JsonNaming;
 import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.validation.constraints.NotNull;
 
 public final class ReportDtos {
     private ReportDtos() {
+    }
+
+    @Schema(name = "ReportReq", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
+    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
+    public record ReportReq(@NotNull UUID sessionId) {
     }
 
     @Schema(name = "ReportRecord", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
@@ -57,7 +63,7 @@ public final class ReportDtos {
 
     @Schema(name = "AnalysisReport", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
     @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
-    record AnalysisReport(
+    public record AnalysisReport(
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED, _const = "analysis")
             String reportType,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String title,
@@ -105,7 +111,7 @@ public final class ReportDtos {
 
     @Schema(name = "ExpressionReport", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
     @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
-    record ExpressionReport(
+    public record ExpressionReport(
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED, _const = "expression")
             String reportType,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String title,
@@ -123,5 +129,19 @@ public final class ReportDtos {
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) List<String> actorWords,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) List<String> uncertainties,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) SourceHandoffIds sourceHandoffIds) {
+    }
+
+    @Schema(name = "BlockedReport", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
+    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
+    public record BlockedReport(
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, _const = "blocked")
+            String reportType,
+            @Schema(
+                    requiredMode = Schema.RequiredMode.REQUIRED,
+                    allowableValues = {
+                        "confirmed_analysis_handoff_required",
+                        "confirmed_expression_handoff_required"
+                    })
+            String reason) {
     }
 }
