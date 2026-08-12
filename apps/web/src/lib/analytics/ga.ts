@@ -64,13 +64,17 @@ export function toTrackedPath(pathname: string): string {
  * 식별자를 구글로 넘기게 된다 — 인스타에서 들어오면 `fbclid` 가 자동으로 붙으므로
  * 실제로 흔하다. 채널은 우리가 붙인 `utm_source` 로 센다.
  */
-const CAMPAIGN_PARAMS = new Set([
+export const SIGNUP_UTM_PARAMS = [
   // GA4 수동 태깅
   "utm_source",
   "utm_medium",
   "utm_campaign",
   "utm_term",
   "utm_content",
+] as const;
+
+const CAMPAIGN_PARAMS = new Set<string>([
+  ...SIGNUP_UTM_PARAMS,
   "utm_id",
   "utm_source_platform",
   "utm_creative_format",

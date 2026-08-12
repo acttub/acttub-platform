@@ -162,6 +162,34 @@ def test_development_identity_provider_is_persisted_after_migration(postgres_sto
     )
 
 
+def test_create_user_with_identity_persists_signup_attribution(postgres_store):
+    first_seen_at = datetime(2026, 7, 1, 12, 34, 56, tzinfo=timezone.utc)
+    user, identity = postgres_store.create_user_with_identity(
+        provider="google",
+        provider_uid="attributed-google-user",
+        email="attributed@example.com",
+        signup_utm_source="stage",
+        signup_utm_medium="subproject",
+        signup_utm_campaign="summer",
+        signup_utm_content="hero",
+        signup_utm_term="acting",
+        signup_referrer_host="search.example",
+        signup_landing_path="/login",
+        signup_first_seen_at=first_seen_at,
+    )
+
+    stored = postgres_store.get_user(user.id)
+    assert identity.user_id == user.id
+    assert stored.signup_utm_source == "stage"
+    assert stored.signup_utm_medium == "subproject"
+    assert stored.signup_utm_campaign == "summer"
+    assert stored.signup_utm_content == "hero"
+    assert stored.signup_utm_term == "acting"
+    assert stored.signup_referrer_host == "search.example"
+    assert stored.signup_landing_path == "/login"
+    assert stored.signup_first_seen_at == first_seen_at
+
+
 def test_0003_renames_existing_dev_identity_to_development(postgres_schema):
     scoped_url, alembic_config = postgres_schema
     command.upgrade(alembic_config, "0002_add_dev_identity_provider")
@@ -1328,6 +1356,17 @@ def test_admin_stats_windows_returning_users_and_team_exclusion(postgres_store):
 
     real_user = store.create_user(email="actor@example.com")
     team_user = store.create_user(email="Team@Acttub.com")  # 대소문자 매칭 확인
+    with store._session_factory.begin() as db:
+        db.execute(
+            update(User)
+            .where(User.id == real_user.id)
+            .values(signup_utm_source="stage")
+        )
+        db.execute(
+            update(User)
+            .where(User.id == team_user.id)
+            .values(signup_utm_source="voice")
+        )
 
     def backdate_practice(practice_id: UUID, created_at: datetime, analyzed=False):
         values = {"created_at": created_at}
@@ -1556,6 +1595,16 @@ def test_admin_stats_windows_returning_users_and_team_exclusion(postgres_store):
     assert funnel["대화 마무리"]["users_real"] == 2
     assert funnel["놓친 생각 말함"]["users"] == 1  # extra 뿐
     assert funnel["놓친 생각 말함"]["users_real"] == 1
+
+    signup_sources = {
+        row["source"]: (row["users"], row["users_real"])
+        for row in stats_after["signup_sources"]
+    }
+    assert signup_sources == {
+        "(직접/미상)": (1, 1),
+        "stage": (1, 1),
+        "voice": (1, 0),
+    }
 
     # 종료 사유 분포 — count 내림차순, 동률 구간 순서는 안 따진다.
     close_reasons = {

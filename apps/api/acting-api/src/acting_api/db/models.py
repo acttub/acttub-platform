@@ -209,6 +209,16 @@ class User(Base):
     deactivated_at: Mapped[datetime | None] = mapped_column(
         sa.DateTime(timezone=True)
     )
+    signup_utm_source: Mapped[str | None] = mapped_column(sa.String(255))
+    signup_utm_medium: Mapped[str | None] = mapped_column(sa.String(255))
+    signup_utm_campaign: Mapped[str | None] = mapped_column(sa.String(255))
+    signup_utm_content: Mapped[str | None] = mapped_column(sa.String(255))
+    signup_utm_term: Mapped[str | None] = mapped_column(sa.String(255))
+    signup_referrer_host: Mapped[str | None] = mapped_column(sa.String(255))
+    signup_landing_path: Mapped[str | None] = mapped_column(sa.String(255))
+    signup_first_seen_at: Mapped[datetime | None] = mapped_column(
+        sa.DateTime(timezone=True)
+    )
 
 
 class UserIdentity(Base):

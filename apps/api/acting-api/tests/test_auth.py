@@ -93,6 +93,112 @@ def test_existing_identity_logs_into_same_user():
     assert len(store.identities) == 1
 
 
+def test_signup_attribution_is_saved_only_when_a_new_account_is_created():
+    app, store, verifier = _app()
+    verifier.add("provider-token", provider_uid="google-attributed")
+    client = TestClient(app)
+    first_seen = "2026-07-01T12:34:56Z"
+    first = client.post(
+        "/v2/auth/login",
+        json={
+            "provider": "google",
+            "id_token": "provider-token",
+            "signup_attribution": {
+                "utm_source": "stage",
+                "utm_medium": "subproject",
+                "utm_campaign": "summer",
+                "utm_content": "hero",
+                "utm_term": "acting",
+                "referrer_host": "search.example",
+                "landing_path": "/login",
+                "first_seen_at": first_seen,
+            },
+        },
+    )
+    assert first.status_code == 200
+    user = store.users[UUID(first.json()["user"]["id"])]
+    assert user.signup_utm_source == "stage"
+    assert user.signup_utm_medium == "subproject"
+    assert user.signup_utm_campaign == "summer"
+    assert user.signup_utm_content == "hero"
+    assert user.signup_utm_term == "acting"
+    assert user.signup_referrer_host == "search.example"
+    assert user.signup_landing_path == "/login"
+    assert user.signup_first_seen_at == datetime(
+        2026, 7, 1, 12, 34, 56, tzinfo=timezone.utc
+    )
+
+    second = client.post(
+        "/v2/auth/login",
+        json={
+            "provider": "google",
+            "id_token": "provider-token",
+            "signup_attribution": {
+                "utm_source": "voice",
+                "landing_path": "/another",
+                "first_seen_at": "2026-07-02T00:00:00Z",
+            },
+        },
+    )
+    assert second.status_code == 200
+    assert user.signup_utm_source == "stage"
+    assert user.signup_landing_path == "/login"
+
+
+def test_signup_attribution_strings_are_sanitized_without_breaking_login():
+    app, store, verifier = _app()
+    verifier.add("provider-token", provider_uid="google-sanitized")
+
+    response = TestClient(app).post(
+        "/v2/auth/login",
+        json={
+            "provider": "google",
+            "id_token": "provider-token",
+            "signup_attribution": {
+                "utm_source": "x" * 300,
+                "utm_medium": "so\u0000c\nial\u007f",
+                "utm_campaign": " \u0000\n ",
+                "landing_path": "/login",
+                "first_seen_at": "2026-07-01T00:00:00Z",
+            },
+        },
+    )
+
+    assert response.status_code == 200
+    user = store.users[UUID(response.json()["user"]["id"])]
+    assert user.signup_utm_source == "x" * 255
+    assert user.signup_utm_medium == "social"
+    assert user.signup_utm_campaign is None
+
+
+def test_invalid_or_missing_signup_attribution_does_not_break_login():
+    malformed_app, malformed_store, malformed_verifier = _app()
+    malformed_verifier.add("provider-token", provider_uid="google-malformed")
+    malformed = TestClient(malformed_app).post(
+        "/v2/auth/login",
+        json={
+            "provider": "google",
+            "id_token": "provider-token",
+            "signup_attribution": {
+                "utm_source": ["not", "a", "string"],
+                "first_seen_at": "not-a-date",
+            },
+        },
+    )
+    assert malformed.status_code == 200
+    malformed_user = malformed_store.users[UUID(malformed.json()["user"]["id"])]
+    assert malformed_user.signup_utm_source is None
+    assert malformed_user.signup_first_seen_at is None
+
+    legacy_app, legacy_store, legacy_verifier = _app()
+    legacy_verifier.add("provider-token", provider_uid="google-legacy")
+    legacy = _login(TestClient(legacy_app))
+    assert legacy.status_code == 200
+    legacy_user = legacy_store.users[UUID(legacy.json()["user"]["id"])]
+    assert legacy_user.signup_utm_source is None
+    assert legacy_user.signup_first_seen_at is None
+
+
 def test_verified_email_collision_links_identity():
     app, store, verifier = _app()
     user = store.create_user(email="same@example.com")

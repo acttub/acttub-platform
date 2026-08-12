@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+import unicodedata
 from datetime import datetime, timezone
 from typing import Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, ValidationError, field_validator
 from sqlalchemy.exc import IntegrityError
 from starlette.concurrency import run_in_threadpool
 
@@ -56,9 +57,88 @@ class RefreshTokenResponse(_StrictResponse):
     expires_in: int
 
 
+class SignupAttribution(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    utm_source: str | None = None
+    utm_medium: str | None = None
+    utm_campaign: str | None = None
+    utm_content: str | None = None
+    utm_term: str | None = None
+    referrer_host: str | None = None
+    landing_path: str | None = None
+    first_seen_at: datetime | None = None
+
+    @field_validator(
+        "utm_source",
+        "utm_medium",
+        "utm_campaign",
+        "utm_content",
+        "utm_term",
+        "referrer_host",
+        "landing_path",
+        mode="before",
+    )
+    @classmethod
+    def sanitize_string(cls, value):
+        if value is None:
+            return None
+        if not isinstance(value, str):
+            return None
+        cleaned = "".join(
+            character
+            for character in value
+            if unicodedata.category(character) != "Cc"
+        ).strip()
+        return cleaned[:255] or None
+
+
 class LoginRequest(BaseModel):
     provider: str
     id_token: str
+    signup_attribution: SignupAttribution | None = None
+
+    @field_validator("signup_attribution", mode="before")
+    @classmethod
+    def discard_invalid_attribution(cls, value):
+        if value is None:
+            return None
+        if not isinstance(value, (dict, SignupAttribution)):
+            return None
+        if isinstance(value, dict):
+            string_fields = (
+                "utm_source",
+                "utm_medium",
+                "utm_campaign",
+                "utm_content",
+                "utm_term",
+                "referrer_host",
+                "landing_path",
+            )
+            if any(
+                field in value
+                and value[field] is not None
+                and not isinstance(value[field], str)
+                for field in string_fields
+            ):
+                return None
+            if (
+                "first_seen_at" in value
+                and value["first_seen_at"] is not None
+                and not isinstance(value["first_seen_at"], str)
+            ):
+                return None
+        try:
+            attribution = SignupAttribution.model_validate(value)
+        except (ValidationError, TypeError, ValueError):
+            # 유입 정보는 부가 데이터다. 잘못됐다고 인증 자체를 422로 막지 않는다.
+            return None
+        if (
+            attribution.first_seen_at is not None
+            and attribution.first_seen_at.tzinfo is None
+        ):
+            return None
+        return attribution
 
 
 class RefreshRequest(BaseModel):
@@ -198,6 +278,46 @@ def build_router(
                         provider=provider,
                         provider_uid=identity.provider_uid,
                         email=email if identity.email_verified else None,
+                        signup_utm_source=(
+                            payload.signup_attribution.utm_source
+                            if payload.signup_attribution
+                            else None
+                        ),
+                        signup_utm_medium=(
+                            payload.signup_attribution.utm_medium
+                            if payload.signup_attribution
+                            else None
+                        ),
+                        signup_utm_campaign=(
+                            payload.signup_attribution.utm_campaign
+                            if payload.signup_attribution
+                            else None
+                        ),
+                        signup_utm_content=(
+                            payload.signup_attribution.utm_content
+                            if payload.signup_attribution
+                            else None
+                        ),
+                        signup_utm_term=(
+                            payload.signup_attribution.utm_term
+                            if payload.signup_attribution
+                            else None
+                        ),
+                        signup_referrer_host=(
+                            payload.signup_attribution.referrer_host
+                            if payload.signup_attribution
+                            else None
+                        ),
+                        signup_landing_path=(
+                            payload.signup_attribution.landing_path
+                            if payload.signup_attribution
+                            else None
+                        ),
+                        signup_first_seen_at=(
+                            payload.signup_attribution.first_seen_at
+                            if payload.signup_attribution
+                            else None
+                        ),
                     )
             except (IntegrityError, IdentityAlreadyLinkedError):
                 user = await run_in_threadpool(

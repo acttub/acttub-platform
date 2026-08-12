@@ -1262,6 +1262,7 @@ export interface components {
             provider: string;
             /** Id Token */
             id_token: string;
+            signup_attribution?: components["schemas"]["SignupAttribution"] | null;
         };
         /** LogoutRequest */
         LogoutRequest: {
@@ -1654,6 +1655,25 @@ export interface components {
             reason: "spam" | "abuse" | "sexual" | "privacy" | "other";
             /** Detail */
             detail?: string | null;
+        };
+        /** SignupAttribution */
+        SignupAttribution: {
+            /** Utm Source */
+            utm_source?: string | null;
+            /** Utm Medium */
+            utm_medium?: string | null;
+            /** Utm Campaign */
+            utm_campaign?: string | null;
+            /** Utm Content */
+            utm_content?: string | null;
+            /** Utm Term */
+            utm_term?: string | null;
+            /** Referrer Host */
+            referrer_host?: string | null;
+            /** Landing Path */
+            landing_path?: string | null;
+            /** First Seen At */
+            first_seen_at?: string | null;
         };
         /** SourceHandoffIds */
         SourceHandoffIds: {
