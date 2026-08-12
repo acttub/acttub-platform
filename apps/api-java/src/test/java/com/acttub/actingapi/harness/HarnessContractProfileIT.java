@@ -134,6 +134,92 @@ class HarnessContractProfileIT {
     }
 
     @Test
+    void workerSweepAndStubControlsExposeTheRemainingContractSurface() throws Exception {
+        assertThat(control("run-worker-once", "{}"))
+                .isEqualTo(JSON.readTree("{\"processed\":0}"));
+        assertThat(control("run-sweep", "{}"))
+                .isEqualTo(JSON.readTree(
+                        "{\"expired_uploads\":0,\"exhausted_operations\":0}"));
+
+        JsonNode state = control("stub-state", "{}");
+        assertThat(state.fieldNames()).toIterable().containsExactly(
+                "coach_generate", "report_generate", "analyzer", "s3");
+        assertThat(state.at("/coach_generate/budget").asInt()).isEqualTo(24);
+        assertThat(state.at("/report_generate/budget").asInt()).isEqualTo(12);
+        for (String name : java.util.List.of("coach_generate", "report_generate")) {
+            assertThat(state.at("/" + name).fieldNames()).toIterable().containsExactly(
+                    "calls", "remaining", "budget", "blocked", "in_block",
+                    "in_block_count", "timed_out");
+        }
+        assertThat(state.at("/analyzer/calls").isIntegralNumber()).isTrue();
+        assertThat(state.at("/s3/calls").isObject()).isTrue();
+
+        assertThat(control("stub-state", "{\"release\":true}"))
+                .isNotNull();
+        assertThat(control("stub-state", "{\"rearm\":true,\"stub\":\"coach_generate\"}"))
+                .isNotNull();
+    }
+
+    @Test
+    void controlsRejectNonLoopbackCallers() throws Exception {
+        var response = mvc.perform(post("/__harness/stub-state")
+                        .with(request -> {
+                            request.setRemoteAddr("203.0.113.10");
+                            return request;
+                        })
+                        .contentType("application/json")
+                        .content("{}"))
+                .andReturn().getResponse();
+        assertThat(response.getStatus()).isEqualTo(404);
+    }
+
+    @Test
+    void runWorkerOnceUsesFixtureAnalyzerAndCommitsAnalysisAtomically() throws Exception {
+        OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+        jdbc.update("INSERT INTO users(id, status) VALUES (?, 'active'::user_status_t)", USER);
+        jdbc.update("""
+                INSERT INTO upload_intents(
+                    id, user_id, status, storage_provider, object_key, mime_type,
+                    size_bytes, duration_ms, etag, expires_at, finalized_at)
+                VALUES (?, ?, 'finalized'::upload_status_t, 's3', ?, 'video/mp4',
+                        4096, 1000, ?, ?, ?)
+                """, UPLOAD_1, USER, "users/contract/uploads/take.mp4",
+                "\"9f86d081884c7d659a2feaa0c55ad015\"", now.plusHours(1), now);
+        jdbc.update("""
+                INSERT INTO practice_sessions(
+                    id, user_id, upload_intent_id, status, situation,
+                    character_context, blockage_kind, sub_branch, goal,
+                    created_at, updated_at)
+                VALUES (?, ?, ?, 'analyzing'::practice_status_t, '상황',
+                        '인물', '분석', '대사 분석', '목표', ?, ?)
+                """, PRACTICE_1, USER, UPLOAD_1, now, now);
+        jdbc.update("""
+                INSERT INTO external_operations(
+                    session_id, user_id, request_id, kind, status,
+                    request_fingerprint, created_at, updated_at)
+                VALUES (?, ?, ?, 'analyze'::operation_kind_t,
+                        'pending'::operation_status_t, ?, ?, ?)
+                """, PRACTICE_1, USER, REQUEST_1, "a".repeat(64), now, now);
+
+        assertThat(control("run-worker-once", "{}"))
+                .isEqualTo(JSON.readTree("{\"processed\":1}"));
+
+        assertThat(jdbc.queryForObject(
+                "SELECT status::text FROM external_operations WHERE request_id=?",
+                String.class, REQUEST_1)).isEqualTo("succeeded");
+        assertThat(jdbc.queryForObject(
+                "SELECT status::text FROM practice_sessions WHERE id=?",
+                String.class, PRACTICE_1)).isEqualTo("analyzed");
+        assertThat(jdbc.queryForObject(
+                "SELECT count(*) FROM summaries WHERE session_id=?",
+                Integer.class, PRACTICE_1)).isEqualTo(1);
+        assertThat(jdbc.queryForList(
+                "SELECT text FROM transcripts WHERE session_id=? ORDER BY ord",
+                String.class, PRACTICE_1)).containsExactly(
+                        "지금 놓치면 끝이야", "돌아서지 마");
+    }
+
+    @Test
     void injectedJwtClockObservesHarnessOffset() throws Exception {
         String token = jwt.issueAccessToken(USER).value();
         control("advance-clock", "{\"seconds\":1801}");

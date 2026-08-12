@@ -8,9 +8,12 @@ import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
@@ -25,10 +28,12 @@ import org.springframework.stereotype.Component;
 @Component
 @Primary
 @Profile("contract")
-final class ContractObjectStorage implements ObjectStorage {
+public final class ContractObjectStorage implements ObjectStorage {
     private final Document fixture;
     private final String bucket;
     private final Map<String, Long> sizes = new ConcurrentHashMap<>();
+    private final Map<String, Integer> calls = new ConcurrentHashMap<>();
+    private final List<Map<String, Object>> presignCalls = new CopyOnWriteArrayList<>();
 
     @Autowired
     ContractObjectStorage(
@@ -62,12 +67,18 @@ final class ContractObjectStorage implements ObjectStorage {
             String mimeType,
             long sizeBytes,
             int expiresInSeconds) {
+        count("presign_upload");
         sizes.put(objectKey, sizeBytes);
+        recordPresign(
+                "put_object", "PUT", objectKey, mimeType, sizeBytes, expiresInSeconds);
         return presign("PUT", objectKey, expiresInSeconds);
     }
 
     @Override
     public String presignPlayback(String objectKey, int expiresInSeconds) {
+        count("presign_playback");
+        recordPresign(
+                "get_object", "GET", objectKey, null, null, expiresInSeconds);
         if (objectKey.endsWith(fixture.playbackPresignFailureSuffix())) {
             throw new RuntimeException("harness: presign failed");
         }
@@ -76,6 +87,7 @@ final class ContractObjectStorage implements ObjectStorage {
 
     @Override
     public StoredObjectMetadata head(String objectKey) {
+        count("head");
         if ("missing".equals(rule(fixture.headRules(), objectKey))) {
             return null;
         }
@@ -91,6 +103,7 @@ final class ContractObjectStorage implements ObjectStorage {
 
     @Override
     public StoredObjectMetadata downloadToPath(String objectKey, Path destination) {
+        count("download_to_path");
         long size = sizes.getOrDefault(objectKey, fixture.defaultObject().sizeBytes());
         byte[] content = new byte[Math.toIntExact(size)];
         java.util.Arrays.fill(content, (byte) Integer.parseInt(fixture.downloadBodyRepeatByte()));
@@ -114,7 +127,56 @@ final class ContractObjectStorage implements ObjectStorage {
 
     @Override
     public void delete(String objectKey) {
-        sizes.remove(objectKey);
+        count("delete");
+    }
+
+    public Map<String, Object> state() {
+        Map<String, Object> state = new LinkedHashMap<>();
+        state.put("calls", new TreeMap<>(calls));
+        state.put("presign_calls", List.copyOf(presignCalls));
+        return state;
+    }
+
+    /**
+     * 시나리오 사이에 호출 기록을 비운다.
+     *
+     * <p>저장된 객체 자체는 지우지 않는다 — 시드가 심은 것과 앞 시나리오가 올린 것은
+     * DB truncate·재시드가 관리한다. 여기서 되돌리는 것은 <b>관측 기록</b>뿐이다.
+     */
+    public void resetCallLog() {
+        calls.clear();
+        presignCalls.clear();
+    }
+
+    private void count(String name) {
+        calls.merge(name, 1, Integer::sum);
+    }
+
+    private void recordPresign(
+            String operation,
+            String method,
+            String objectKey,
+            String contentType,
+            Long contentLength,
+            int expiresInSeconds) {
+        Map<String, Object> call = new LinkedHashMap<>();
+        call.put("object_key", objectKeyShape(objectKey));
+        call.put("operation", operation);
+        call.put("http_method", method);
+        call.put("bucket", bucket);
+        call.put("content_type", contentType);
+        call.put("content_length", contentLength);
+        call.put("expires_in_sec", expiresInSeconds);
+        presignCalls.add(call);
+    }
+
+    private static String objectKeyShape(String objectKey) {
+        int slash = objectKey.lastIndexOf('/');
+        String head = slash < 0 ? "" : objectKey.substring(0, slash);
+        String filename = slash < 0 ? objectKey : objectKey.substring(slash + 1);
+        int dot = filename.indexOf('.');
+        String masked = dot < 0 ? "<file>" : "<file>" + filename.substring(dot);
+        return head.isEmpty() ? masked : head + "/" + masked;
     }
 
     private String presign(String verb, String objectKey, int expiresInSeconds) {
