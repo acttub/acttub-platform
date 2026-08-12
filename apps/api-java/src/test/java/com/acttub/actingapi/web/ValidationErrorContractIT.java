@@ -78,7 +78,7 @@ class ValidationErrorContractIT {
     void unknownRootPropertyHasExtraForbiddenError() throws Exception {
         assertError(
                 "/__test/validation/shape",
-                "{\"surprise\":1}",
+                "{\"child\":{\"inner_name\":\"ok\"},\"surprise\":1}",
                 """
                 {"detail":[{"type":"extra_forbidden","loc":["body","surprise"],
                   "msg":"Extra inputs are not permitted","input":1}]}

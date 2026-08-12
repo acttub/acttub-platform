@@ -130,9 +130,8 @@ class CommunityController {
             @Valid @RequestBody PostWriteRequest body,
             HttpServletRequest request) {
         UUID authorId = authorId(request);
-        validateMinimum("category_slug", body.categorySlug());
-        String title = trimmed("title", body.title(), 100);
-        String postBody = trimmed("body", body.body(), 5000);
+        String title = trimmed("title", body.title());
+        String postBody = trimmed("body", body.body());
         try {
             CommunityStore.Post post = store.createPost(
                     authorId,
@@ -203,8 +202,8 @@ class CommunityController {
             return postPayload(store.updatePost(
                     postId,
                     authorId,
-                    trimmed("title", body.title(), 100),
-                    trimmed("body", body.body(), 5000)));
+                    trimmed("title", body.title()),
+                    trimmed("body", body.body())));
         } catch (CommunityStore.PostNotFound exception) {
             throw new ApiException(404, "post_not_found");
         } catch (CommunityStore.NotAuthor exception) {
@@ -363,7 +362,7 @@ class CommunityController {
             CommunityStore.Comment comment = store.createComment(
                     postId,
                     authorId(request),
-                    trimmed("body", body.body(), 1000),
+                    trimmed("body", body.body()),
                     body.anonymous());
             return ResponseEntity.status(201).body(commentPayload(comment));
         } catch (CommunityStore.PostNotFound exception) {
@@ -395,7 +394,7 @@ class CommunityController {
             return commentPayload(store.updateComment(
                     commentId,
                     authorId(request),
-                    trimmed("body", body.body(), 1000)));
+                    trimmed("body", body.body())));
         } catch (CommunityStore.CommentNotFound exception) {
             throw new ApiException(404, "comment_not_found");
         } catch (CommunityStore.NotAuthor exception) {
@@ -451,7 +450,6 @@ class CommunityController {
                 body.reason(),
                 REPORT_REASONS,
                 "'spam', 'abuse', 'sexual', 'privacy' or 'other'");
-        validateMaximum("detail", body.detail(), 500);
         try {
             store.createReport(
                     authorId(request),
@@ -576,8 +574,7 @@ class CommunityController {
                 comment.updatedAt());
     }
 
-    private static String trimmed(String field, String raw, int maximum) {
-        validateLength(field, raw, 1, maximum);
+    private static String trimmed(String field, String raw) {
         // String.strip() 은 NBSP 를 공백으로 보지 않아 파이썬과 갈린다 — PythonText 참조.
         String trimmed = PythonText.strip(raw);
         if (trimmed.isEmpty()) {
@@ -587,36 +584,6 @@ class CommunityController {
                     raw);
         }
         return trimmed;
-    }
-
-    private static void validateMinimum(String field, String raw) {
-        validateLength(field, raw, 1, Integer.MAX_VALUE);
-    }
-
-    private static void validateMaximum(String field, String raw, int maximum) {
-        if (raw != null) {
-            validateLength(field, raw, 0, maximum);
-        }
-    }
-
-    private static void validateLength(String field, String raw, int minimum, int maximum) {
-        int length = raw.codePointCount(0, raw.length());
-        if (length < minimum) {
-            throw validationError(
-                    "string_too_short",
-                    List.of("body", field),
-                    "String should have at least " + minimum + " character",
-                    raw,
-                    Map.of("min_length", minimum));
-        }
-        if (length > maximum) {
-            throw validationError(
-                    "string_too_long",
-                    List.of("body", field),
-                    "String should have at most " + maximum + " characters",
-                    raw,
-                    Map.of("max_length", maximum));
-        }
     }
 
     private static void validateLimit(Integer limit) {

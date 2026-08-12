@@ -69,7 +69,11 @@ final class CommunityDtos {
             @NotNull @Schema(minLength = 1) String categorySlug,
             @NotNull @Schema(minLength = 1, maxLength = 100) String title,
             @NotNull @Schema(minLength = 1, maxLength = 5000) String body,
-            @Schema(defaultValue = "false") boolean anonymous) {
+            @Schema(defaultValue = "false") Boolean anonymous) {
+        PostWriteRequest {
+            // 트리 선검증이 명시적 null 을 거부한 뒤이므로 여기의 null 은 키 생략만 뜻한다.
+            anonymous = anonymous == null ? Boolean.FALSE : anonymous;
+        }
     }
 
     @Schema(name = "PostUpdateRequest", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
@@ -101,7 +105,10 @@ final class CommunityDtos {
     @Schema(name = "CommentWriteRequest", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
     record CommentWriteRequest(
             @NotNull @Schema(minLength = 1, maxLength = 1000) String body,
-            @Schema(defaultValue = "false") boolean anonymous) {
+            @Schema(defaultValue = "false") Boolean anonymous) {
+        CommentWriteRequest {
+            anonymous = anonymous == null ? Boolean.FALSE : anonymous;
+        }
     }
 
     @Schema(name = "LikeResponse", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)

@@ -361,7 +361,7 @@ class PydanticOpenApiCustomizer {
     /**
      * 상한이 없다는 뜻의 {@code maxLength} 를 지운다.
      *
-     * <p>{@code @Size(min = 1)} 은 max 기본값이 {@link Integer#MAX_VALUE} 라 springdoc 이
+     * <p>{@code @Schema(minLength = 1)} 은 max 기본값이 {@link Integer#MAX_VALUE} 라 springdoc 이
      * {@code "maxLength": 2147483647} 을 문서에 싣는다. pydantic 의 {@code min_length=1} 은
      * 하한만 내보내므로 정본에는 그 키가 아예 없다. 실제 상한이 있는 필드는 값이 다르므로
      * 영향을 받지 않는다.

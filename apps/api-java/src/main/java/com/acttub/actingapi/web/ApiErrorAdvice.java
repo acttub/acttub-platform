@@ -185,7 +185,7 @@ public class ApiErrorAdvice {
         return "value_error";
     }
 
-    private Map<String, Object> jacksonError(
+    Map<String, Object> jacksonError(
             JsonMappingException exception,
             List<Object> loc,
             Object input) {
@@ -198,6 +198,9 @@ public class ApiErrorAdvice {
                 : null;
         if (target == String.class) {
             return error("string_type", loc, "Input should be a valid string", input);
+        }
+        if (target == boolean.class || target == Boolean.class) {
+            return error("bool_type", loc, "Input should be a valid boolean", input);
         }
         if (isIntegral(target)) {
             if (hasFractionalPart(input)) {
@@ -240,6 +243,48 @@ public class ApiErrorAdvice {
                 loc,
                 Objects.requireNonNullElse(exception.getOriginalMessage(), "Invalid value"),
                 input);
+    }
+
+    Map<String, Object> nullTypeError(Class<?> target, List<Object> loc) {
+        if (target == String.class) {
+            return error("string_type", loc, "Input should be a valid string", null);
+        }
+        if (target == boolean.class || target == Boolean.class) {
+            return error("bool_type", loc, "Input should be a valid boolean", null);
+        }
+        if (isIntegral(target)) {
+            return error("int_type", loc, "Input should be a valid integer", null);
+        }
+        if (target == float.class || target == Float.class
+                || target == double.class || target == Double.class
+                || target == java.math.BigDecimal.class) {
+            return error("float_type", loc, "Input should be a valid number", null);
+        }
+        if (target == UUID.class) {
+            return error(
+                    "uuid_type",
+                    loc,
+                    "UUID input should be a string, bytes or UUID object",
+                    null);
+        }
+        if (target.isEnum()) {
+            String expected = enumExpected(target);
+            Map<String, Object> value = error(
+                    "enum", loc, "Input should be " + expected, null);
+            value.put("ctx", Map.of("expected", expected));
+            return value;
+        }
+        if (Collection.class.isAssignableFrom(target) || target.isArray()) {
+            return error("list_type", loc, "Input should be a valid list", null);
+        }
+        if (Map.class.isAssignableFrom(target)) {
+            return error("dict_type", loc, "Input should be a valid dictionary", null);
+        }
+        return error(
+                "model_type",
+                loc,
+                "Input should be a valid dictionary or object to extract fields from",
+                null);
     }
 
     private ResolvedPath resolveJacksonPath(List<JsonMappingException.Reference> references) {
@@ -492,6 +537,15 @@ public class ApiErrorAdvice {
         value.put("msg", message);
         value.put("input", input);
         return value;
+    }
+
+    /** 요청 트리 선검증도 advice 와 정확히 같은 pydantic 오류 형상을 사용한다. */
+    static Map<String, Object> validationError(
+            String type,
+            List<Object> loc,
+            String message,
+            Object input) {
+        return error(type, loc, message, input);
     }
 
     private static ResponseEntity<Map<String, Object>> body(int status, String detail) {

@@ -113,6 +113,8 @@ class CommunityEndpointIT {
 
         assertThat(mvc.perform(get("/v2/community/posts").param("limit", "50"))
                 .andReturn().getResponse().getStatus()).isEqualTo(200);
+
+        assertPostValidationContract();
     }
 
     @Test
@@ -234,6 +236,63 @@ class CommunityEndpointIT {
                 "SELECT like_count FROM community_posts WHERE id = ?",
                 Integer.class,
                 postId)).isEqualTo(1);
+    }
+
+    private void assertPostValidationContract() throws Exception {
+        assertPostValidation(
+                "{\"category_slug\":\"free\",\"title\":\"\",\"body\":\"\",\"anonymous\":false}",
+                """
+                {"detail":[
+                  {"type":"string_too_short","loc":["body","title"],
+                   "msg":"String should have at least 1 character","input":"",
+                   "ctx":{"min_length":1}},
+                  {"type":"string_too_short","loc":["body","body"],
+                   "msg":"String should have at least 1 character","input":"",
+                   "ctx":{"min_length":1}}
+                ]}
+                """);
+        assertPostValidation(
+                "{\"category_slug\":\"free\",\"title\":1,\"body\":2,\"anonymous\":false}",
+                """
+                {"detail":[
+                  {"type":"string_type","loc":["body","title"],
+                   "msg":"Input should be a valid string","input":1},
+                  {"type":"string_type","loc":["body","body"],
+                   "msg":"Input should be a valid string","input":2}
+                ]}
+                """);
+        assertPostValidation(
+                "{\"category_slug\":\"free\",\"title\":\"제목\",\"body\":\"본문\",\"anonymous\":null}",
+                """
+                {"detail":[{"type":"bool_type","loc":["body","anonymous"],
+                  "msg":"Input should be a valid boolean","input":null}]}
+                """);
+        assertPostValidation(
+                "{\"category_slug\":\"free\",\"title\":null,\"body\":\"본문\"}",
+                """
+                {"detail":[{"type":"string_type","loc":["body","title"],
+                  "msg":"Input should be a valid string","input":null}]}
+                """);
+
+        var omitted = mvc.perform(post("/v2/community/posts")
+                        .header("Authorization", bearer(VIEWER))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"category_slug\":\"free\",\"title\":\"제목\",\"body\":\"본문\"}"))
+                .andReturn().getResponse();
+        assertThat(omitted.getStatus()).isEqualTo(201);
+        assertThat(mapper.readTree(omitted.getContentAsString()).path("anonymous").booleanValue())
+                .isFalse();
+    }
+
+    private void assertPostValidation(String request, String expected) throws Exception {
+        var response = mvc.perform(post("/v2/community/posts")
+                        .header("Authorization", bearer(VIEWER))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(request))
+                .andReturn().getResponse();
+        assertThat(response.getStatus()).isEqualTo(422);
+        assertThat(mapper.readTree(response.getContentAsString()))
+                .isEqualTo(mapper.readTree(expected));
     }
 
     private UUID createAfterLatch(

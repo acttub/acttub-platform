@@ -155,7 +155,7 @@ class UploadEndpointIT {
         var blocked = mvc.perform(post("/v2/uploads/intents")
                         .header("Authorization", bearer())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"mime_type\":\"video/mp4\",\"size_bytes\":12}"))
+                        .content("{\"mime_type\":\"video/mp4\",\"size_bytes\":-1}"))
                 .andReturn().getResponse();
         assertThat(blocked.getStatus()).isEqualTo(403);
         assertThat(mapper.readTree(blocked.getContentAsString()).path("detail").textValue())

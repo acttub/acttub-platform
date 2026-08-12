@@ -11,7 +11,6 @@ import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import com.fasterxml.jackson.databind.annotation.JsonNaming;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Size;
 
 final class PracticeSessionDtos {
     private PracticeSessionDtos() {
@@ -24,11 +23,11 @@ final class PracticeSessionDtos {
     @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
     record PracticeSessionRequest(
             @NotNull UUID uploadIntentId,
-            @NotNull @Size(min = 1, message = "String should have at least 1 character")
+            @NotNull @Schema(minLength = 1)
             String situation,
-            @NotNull @Size(min = 1, message = "String should have at least 1 character")
+            @NotNull @Schema(minLength = 1)
             String characterContext,
-            @NotNull @Size(min = 1, message = "String should have at least 1 character")
+            @NotNull @Schema(minLength = 1)
             String goal,
             @NotNull @Schema(allowableValues = {"분석", "표현", "그 외"}) String blockageKind,
             @NotNull @Schema(allowableValues = {
