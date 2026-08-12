@@ -273,10 +273,16 @@ media_resolution    = MEDIA_RESOLUTION_LOW
 
 M3 Phase 5·6 리뷰가 같은 뿌리에서 나온 지적 넷을 냈다. 개별로 고치면 부분해가 되고 서로를 무효화한다.
 
-1. **422가 오류를 하나만 담는다.** pydantic은 필드 오류를 전부 모으는데 Java는 순차 검증이라 첫 건에서 멈춘다. 빈 title+body는 원본이 **2건**을 낸다(실측). `community.py:PostWriteRequest`, `practice_sessions.py`의 literal 두 필드, community 신고의 `target_type`·`reason`이 해당한다
-2. **명시적 `null`과 생략을 구분하지 못한다.** `anonymous`가 primitive `boolean`이라 Jackson이 `null`을 `false`로 바꾼다 — 원본은 `bool_type` 422다(실측). `@NotNull` 위반을 전부 `missing`으로 분류하는 것도 같은 문제로, 원본은 명시적 null에 `string_type`을 낸다
-3. **`literal_error`를 `enum`으로 낸다.** 판별자 자체가 다르다
-4. **게이트가 바디 검증보다 늦게 돈다.** Spring은 `@Valid @RequestBody`를 메서드 진입 전에 평가하는데 FastAPI는 `Depends`를 먼저 푼다. 미동의·미인증·레이트리밋 상태에서 잘못된 바디를 보내면 Java 422 · Python 403/401/429로 갈린다
+> 🔧 **2026-08-12 실측으로 넷 중 셋만 성립한다.** 하네스에 케이스를 넣어 java 타겟으로 돌린 결과다(`5bee434`). **이 지적들은 M3 리뷰가 소스를 읽어 찾은 것이라 그때까지 실행 판정이 없었다** — 그래서 하나는 이미 맞는 것으로 드러났고, 하나는 발현 조건이 좁았다. 아래 각 항목의 🔎 표시가 실측 결과다.
+
+1. **422가 오류를 하나만 담는다.** pydantic은 필드 오류를 전부 모으는데 Java는 순차 검증이라 첫 건에서 멈춘다. 빈 title+body는 원본이 **2건**을 낸다.
+   🔎 **성립.** `accumulate.two-blank-fields`·`accumulate.two-type-errors` 둘 다 `detail` 길이가 baseline 2 · target 1이다. 길이 제약이 `@Schema`(문서용)에만 있고 Bean Validation 제약이 아니라, 실제 검증을 컨트롤러의 `validateMinimum`·`trimmed`가 순차로 하며 첫 실패에서 throw하기 때문이다
+2. **명시적 `null`과 생략을 구분하지 못한다.** `anonymous`가 primitive `boolean`이라 Jackson이 `null`을 `false`로 바꾼다.
+   🔎 **성립. 가장 심각하다** — `anonymous: null`이 원본은 422 `bool_type`인데 Java는 **201로 글이 실제 생성된다.** 또 `title: null`은 원본이 `string_type`·`"Input should be a valid string"`·`input=null`인데 Java는 `missing`·`"Field required"`·`input`이 **바디 전체**다
+3. ~~**`literal_error`를 `enum`으로 낸다.**~~
+   🔎 **성립하지 않는다. 이미 맞다.** community 신고의 `target_type`·`reason`도, `practice_sessions`의 `blockage_kind`·`sub_branch`도 diff가 없다. 컨트롤러가 수동 검증해 `ApiValidationException`으로 내는 경로라 Jackson enum 역직렬화(`ApiErrorAdvice`의 `"enum"` 분기)를 타지 않는다. **그 분기는 현재 어느 요청 DTO도 밟지 않는다** — 새 라우트에서 enum 타입 필드를 만들면 그때 발현한다
+4. **게이트가 바디 검증보다 늦게 돈다.** Spring은 `@Valid @RequestBody`를 메서드 진입 전에 평가하는데 FastAPI는 `Depends`를 먼저 푼다.
+   🔎 **성립하지만 조건이 좁다.** 인증은 이미 맞다 — `auth/AccessTokenFilter.java`가 **필터 단계**라 인자 해석보다 먼저 돈다. 어긋나는 것은 **동의 게이트 + Bean Validation 제약이 붙은 DTO** 조합이다: `uploads-invalid-body`(`size_bytes: -1`, `@Positive`)가 원본 403 `consent_required` · Java 422다. 같은 상황에서 `community-write-invalid-body`는 맞는데, 그 DTO에는 `@NotNull`만 있어 바디가 통과한 뒤 컨트롤러의 동의 검사에 먼저 걸리기 때문이다
 
 **넷은 요청 바디를 DTO로 바인딩하기 전에** 캐시된 JSON 트리를 순회하며 "존재 여부·타입·누적"을 판정하고, 라우트별 인증·레이트리밋·동의 정책을 그 앞에 두는 구조라야 한꺼번에 풀린다. `web/RequestBodyCachingFilter.java`가 이미 원본 바디를 들고 있어 토대는 있다.
 
@@ -384,7 +390,7 @@ M2·M3에서 두 번 나온 "완료 기준이 도구 능력보다 앞선다"가 
 - [ ] 워커: **`/SPEC.md` §5-7 전이표 5행 + claim 두 갈래(FAILED 재선점 / FAILED 건너뜀) + lease 15분·1800초를 각각 Testcontainers로 테스트** (F-1, 워커보다 먼저). **관문 ③에서 이월된 "lease 3회 예산 소진"도 여기서 닫는다**
 - [ ] **`run_once()` 동기 훅** 제공
 - [ ] **`ANALYSIS_WORKER_ENABLED` 스위치** 제공
-- [ ] **F-2 요청 검증 구조 전환** — 422 다건 누적 · 명시적 null 구분 · `literal_error` 판별자 · 게이트가 바디 검증보다 먼저. **새 라우트를 열기 전에 끝낸다**
+- [ ] **F-2 요청 검증 구조 전환** — 422 다건 누적 · 명시적 null 구분 · 게이트가 바디 검증보다 먼저. **새 라우트를 열기 전에 끝낸다.** 판정은 하네스 `request-validation`·`consent-gate` java 타겟 diff 0 (케이스는 `5bee434`가 넣었다). `literal_error`는 이미 맞으므로 **회귀만 지킨다**
 - [ ] **F-3 admin stats 55필드 + 중첩 모델 둘**, 소스 기반 inventory 대조 검사, `admin` 시나리오 diff 0
 - [x] **G. 하네스 게이트 추상화** — 시나리오에서 `backend.runtime` 접근 제거, `stub-state`의 `in_block_count` 폴링으로 전환 (`89b728f`, 선행 완료)
 - [ ] **G-2. 게이트 시나리오가 Java 대상으로 실제 완주한다** — §G의 나머지 절반. §B·§C·§D가 선 뒤에만 성립하므로 **M4의 마지막 관문**이다. `inflight-replay`·`lease-stolen`·`report-parse-error`·`concurrency` 넷이 java 타겟에서 diff 0
