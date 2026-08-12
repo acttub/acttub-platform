@@ -4,7 +4,7 @@ final class AuthDtos {private AuthDtos(){}
     @JsonIgnoreProperties(ignoreUnknown=true) record LoginRequest(@NotNull String provider,@NotNull @JsonProperty("id_token") String idToken){}
     @JsonIgnoreProperties(ignoreUnknown=true) record RefreshRequest(@NotNull @JsonProperty("refresh_token") String refreshToken){}
     @JsonIgnoreProperties(ignoreUnknown=true) record LogoutRequest(@NotNull @JsonProperty("refresh_token") String refreshToken){}
-    @Schema(name="AuthUser",additionalProperties=Schema.AdditionalPropertiesValue.FALSE) @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class) record AuthUser(@Schema(requiredMode=Schema.RequiredMode.REQUIRED) UUID id,@Schema(requiredMode=Schema.RequiredMode.REQUIRED,nullable=true) String email,@Schema(requiredMode=Schema.RequiredMode.REQUIRED,allowableValues={"active","suspended"}) String status){}
+    @Schema(name="AuthUser",additionalProperties=Schema.AdditionalPropertiesValue.FALSE) @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class) record AuthUser(@Schema(requiredMode=Schema.RequiredMode.REQUIRED) UUID id,@Schema(requiredMode=Schema.RequiredMode.REQUIRED,nullable=true) String email,@Schema(requiredMode=Schema.RequiredMode.REQUIRED,allowableValues={"active","suspended","deactivated"}) String status){}
     @Schema(
             name = "ConsentDocument",
             additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
