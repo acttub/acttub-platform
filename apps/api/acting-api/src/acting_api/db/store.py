@@ -281,8 +281,28 @@ class PostgresStore:
         provider_uid: str,
         email: str | None = None,
         status: UserStatus | str = UserStatus.ACTIVE,
+        signup_utm_source: str | None = None,
+        signup_utm_medium: str | None = None,
+        signup_utm_campaign: str | None = None,
+        signup_utm_content: str | None = None,
+        signup_utm_term: str | None = None,
+        signup_referrer_host: str | None = None,
+        signup_landing_path: str | None = None,
+        signup_first_seen_at: datetime | None = None,
     ) -> tuple[User, UserIdentity]:
-        user = User(id=uuid4(), email=email, status=UserStatus(status))
+        user = User(
+            id=uuid4(),
+            email=email,
+            status=UserStatus(status),
+            signup_utm_source=signup_utm_source,
+            signup_utm_medium=signup_utm_medium,
+            signup_utm_campaign=signup_utm_campaign,
+            signup_utm_content=signup_utm_content,
+            signup_utm_term=signup_utm_term,
+            signup_referrer_host=signup_referrer_host,
+            signup_landing_path=signup_landing_path,
+            signup_first_seen_at=signup_first_seen_at,
+        )
         identity = UserIdentity(
             id=uuid4(),
             user_id=user.id,
@@ -2553,6 +2573,43 @@ class PostgresStore:
                 },
             ]
 
+            # ---- 가입 first-touch UTM source. 과거 계정과 direct 유입은 한 버킷으로
+            # 묶어 전체 가입 수와 합계가 언제나 맞게 한다.
+            direct_source = "(직접/미상)"
+            source_label = func.coalesce(
+                func.nullif(User.signup_utm_source, ""), direct_source
+            ).label("source")
+
+            def source_counts(excluded_ids: list[UUID]) -> dict[str, int]:
+                stmt = (
+                    select(source_label, func.count().label("users"))
+                    .select_from(User)
+                    .group_by(source_label)
+                )
+                if excluded_ids:
+                    stmt = stmt.where(User.id.notin_(excluded_ids))
+                return {
+                    str(row.source): int(row.users)
+                    for row in db.execute(stmt)
+                }
+
+            all_sources = source_counts([])
+            real_sources = (
+                source_counts(excluded_user_ids)
+                if excluded_user_ids
+                else all_sources
+            )
+            signup_sources = [
+                {
+                    "source": source,
+                    "users": users,
+                    "users_real": real_sources.get(source, 0),
+                }
+                for source, users in sorted(
+                    all_sources.items(), key=lambda item: (-item[1], item[0])
+                )
+            ]
+
             # ---- 종료 사유 전체 분포. 최근 50건짜리 admin_sessions 와 달리 전체를 본다.
             # close_reason·status enum 을 SQL CASE 로 문자열과 섞으면 타입이 안 맞을
             # 수 있어 그룹만 SQL 로, 라벨은 파이썬에서 만든다.
@@ -2682,6 +2739,7 @@ class PostgresStore:
                 "active_users_yesterday": active_yesterday,
                 "active_users_yesterday_real": active_yesterday_real,
                 "funnel_steps": funnel_steps,
+                "signup_sources": signup_sources,
                 "close_reasons": close_reasons,
                 "gap_stated_24h": gap_24h,
                 "gap_stated_24h_real": gap_24h_real,

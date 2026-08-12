@@ -95,9 +95,30 @@ class FakeAuthStore:
         return self.users.get(identity.user_id) if identity else None
 
     def create_user_with_identity(
-        self, *, provider, provider_uid, email=None, status=UserStatus.ACTIVE
+        self,
+        *,
+        provider,
+        provider_uid,
+        email=None,
+        status=UserStatus.ACTIVE,
+        signup_utm_source=None,
+        signup_utm_medium=None,
+        signup_utm_campaign=None,
+        signup_utm_content=None,
+        signup_utm_term=None,
+        signup_referrer_host=None,
+        signup_landing_path=None,
+        signup_first_seen_at=None,
     ):
         user = self.create_user(email=email, status=status)
+        user.signup_utm_source = signup_utm_source
+        user.signup_utm_medium = signup_utm_medium
+        user.signup_utm_campaign = signup_utm_campaign
+        user.signup_utm_content = signup_utm_content
+        user.signup_utm_term = signup_utm_term
+        user.signup_referrer_host = signup_referrer_host
+        user.signup_landing_path = signup_landing_path
+        user.signup_first_seen_at = signup_first_seen_at
         identity = self.link_user_identity(
             user_id=user.id,
             provider=provider,
