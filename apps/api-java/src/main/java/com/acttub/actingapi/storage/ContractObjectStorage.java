@@ -27,7 +27,7 @@ import org.springframework.stereotype.Component;
 /** contract 프로파일에서 외부 S3 호출을 막는 결정적 경계 구현. */
 @Component
 @Primary
-@Profile("contract")
+@Profile("contract & !nostorage")
 public final class ContractObjectStorage implements ObjectStorage {
     private final Document fixture;
     private final String bucket;

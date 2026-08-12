@@ -25,6 +25,7 @@ import com.acttub.actingapi.practice.PracticeSessionDtos.PracticeSessionListResp
 import com.acttub.actingapi.practice.PracticeSessionDtos.PracticeSessionRequest;
 import com.acttub.actingapi.practice.PracticeSessionDtos.PracticeSessionStatusResponse;
 import com.acttub.actingapi.storage.ObjectStorage;
+import com.acttub.actingapi.storage.NoCredentialsError;
 import com.acttub.actingapi.web.ApiException;
 import com.acttub.actingapi.web.ApiValidationException;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -211,7 +212,7 @@ class PracticeSessionController {
             throw new ApiException(404, "practice_session_not_found");
         }
         ObjectStorage storage = configuredStorage.orElseThrow(
-                () -> new ApiException(503, "storage_not_configured"));
+                () -> new NoCredentialsError("storage is not configured"));
         String playbackUrl = storage.presignPlayback(
                 detail.objectKey(), PLAYBACK_URL_TTL_SECONDS);
         PracticeSessionStore.SessionRow row = detail.session();

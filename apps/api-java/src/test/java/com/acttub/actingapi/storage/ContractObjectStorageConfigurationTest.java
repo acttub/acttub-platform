@@ -32,6 +32,17 @@ class ContractObjectStorageConfigurationTest {
                 });
     }
 
+    @Test
+    void noStorageProfileSuppressesTheContractStorageBean() {
+        runner.withPropertyValues(
+                        "spring.profiles.active=contract,nostorage",
+                        "contract.s3-fixture="
+                                + "../../tools/contract-harness/contract_harness/fixtures/s3.json")
+                .run(context -> assertThat(context)
+                        .hasNotFailed()
+                        .doesNotHaveBean(ObjectStorage.class));
+    }
+
     static class MapperConfiguration {
         @Bean
         ObjectMapper objectMapper() {

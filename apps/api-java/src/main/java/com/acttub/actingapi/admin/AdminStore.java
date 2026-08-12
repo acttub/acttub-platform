@@ -1,12 +1,21 @@
 package com.acttub.actingapi.admin;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.Clock;
 import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
+import com.acttub.actingapi.admin.AdminDtos.AdminCloseReasonCount;
+import com.acttub.actingapi.admin.AdminDtos.AdminFunnelStep;
 import com.acttub.actingapi.admin.AdminDtos.AdminStats;
 import com.acttub.actingapi.admin.AdminDtos.AdminTurn;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -65,8 +74,75 @@ class AdminStore {
                 "",
                 "practice_session_id NOT IN (SELECT id FROM practice_sessions WHERE user_id IN (%s))",
                 excludedUsers);
-        Pair active7d = distinctPracticeUsers(since7d, excludedUsers);
+        Pair active7d = distinctUsers(
+                "practice_sessions", "user_id", "created_at>=?", "user_id",
+                excludedUsers, since7d);
         Returning returning = returning(excludedUsers);
+
+        OffsetDateTime yesterdayStart = now.atZoneSameInstant(ZoneId.of("Asia/Seoul"))
+                .toLocalDate().minusDays(1).atStartOfDay(ZoneId.of("Asia/Seoul"))
+                .toOffsetDateTime();
+        OffsetDateTime yesterdayEnd = yesterdayStart.plusDays(1);
+        Pair usersYesterday = pair(
+                "users", "created_at>=? AND created_at<?", "id", excludedUsers,
+                yesterdayStart, yesterdayEnd);
+        Pair activeYesterday = distinctUsers(
+                "practice_sessions", "user_id", "created_at>=? AND created_at<?", "user_id",
+                excludedUsers, yesterdayStart, yesterdayEnd);
+
+        Pair uploadedUsers = distinctUsers(
+                "upload_intents", "user_id", "status='finalized'::upload_status_t", "user_id",
+                excludedUsers);
+        Pair analyzedUsers = distinctUsers(
+                "practice_sessions", "user_id", "status='analyzed'::practice_status_t", "user_id",
+                excludedUsers);
+        String coachJoin = "coach_sessions coach JOIN practice_sessions practice "
+                + "ON practice.id=coach.practice_session_id";
+        Pair coachedUsers = distinctUsers(
+                coachJoin, "practice.user_id", "", "practice.user_id", excludedUsers);
+        Pair closedUsers = distinctUsers(
+                coachJoin, "practice.user_id", "coach.status='closed'::session_status_t",
+                "practice.user_id", excludedUsers);
+        Pair gapUsers = distinctUsers(
+                coachJoin, "practice.user_id",
+                "coach.close_reason='gap_stated'::close_reason_t", "practice.user_id",
+                excludedUsers);
+        List<AdminFunnelStep> funnelSteps = List.of(
+                new AdminFunnelStep("가입", users.total(), users.totalReal()),
+                new AdminFunnelStep("업로드 확정", uploadedUsers.all(), uploadedUsers.real()),
+                new AdminFunnelStep(
+                        "연습 세션", returning.withSession(), returning.withSessionReal()),
+                new AdminFunnelStep("분석 완료", analyzedUsers.all(), analyzedUsers.real()),
+                new AdminFunnelStep("코치 대화", coachedUsers.all(), coachedUsers.real()),
+                new AdminFunnelStep("대화 마무리", closedUsers.all(), closedUsers.real()),
+                new AdminFunnelStep("놓친 생각 말함", gapUsers.all(), gapUsers.real()));
+
+        List<AdminCloseReasonCount> closeReasons = closeReasonCounts(excludedUsers);
+        String gapWhere = "close_reason='gap_stated'::close_reason_t "
+                + "AND status='closed'::session_status_t";
+        String coachExclusion = "practice_session_id NOT IN "
+                + "(SELECT id FROM practice_sessions WHERE user_id IN (%s))";
+        Pair gapAll = pair("coach_sessions", gapWhere, coachExclusion, excludedUsers);
+        Pair gap7d = pair(
+                "coach_sessions", and(gapWhere, "created_at>=?"), coachExclusion,
+                excludedUsers, since7d);
+        Pair gap24h = pair(
+                "coach_sessions", and(gapWhere, "created_at>=?"), coachExclusion,
+                excludedUsers, since24h);
+
+        long observationsTotal = count("anomalies", "", List.of());
+        long summariesTotal = count("summaries", "", List.of());
+        double observationsPerSummary = BigDecimal.valueOf(
+                        (double) observationsTotal / Math.max(1L, summariesTotal))
+                .setScale(1, RoundingMode.HALF_EVEN)
+                .doubleValue();
+        String dbSize;
+        try {
+            dbSize = jdbc.queryForObject(
+                    "SELECT pg_size_pretty(pg_database_size(current_database()))", String.class);
+        } catch (RuntimeException exception) {
+            dbSize = null;
+        }
 
         return new AdminStats(
                 users.total(), users.totalReal(), users.last7d(), users.last7dReal(),
@@ -84,6 +160,12 @@ class AdminStore {
                 returning.withSession(), returning.withSessionReal(),
                 returning.twice(), returning.twiceReal(),
                 returning.thrice(), returning.thriceReal(),
+                usersYesterday.all(), usersYesterday.real(),
+                activeYesterday.all(), activeYesterday.real(),
+                funnelSteps, closeReasons,
+                gap24h.all(), gap24h.real(), gap7d.all(), gap7d.real(),
+                gapAll.all(), gapAll.real(), dbSize,
+                observationsTotal, observationsPerSummary,
                 maximum("users", "created_at"),
                 maximum("practice_sessions", "created_at"));
     }
@@ -210,22 +292,69 @@ class AdminStore {
         return value == null ? 0L : value;
     }
 
-    private Pair distinctPracticeUsers(OffsetDateTime since, List<UUID> excludedUsers) {
-        Long all = jdbc.queryForObject("""
-                SELECT count(DISTINCT user_id)
-                FROM practice_sessions
-                WHERE created_at >= ?
-                """, Long.class, since);
+    private Pair distinctUsers(
+            String from,
+            String userColumn,
+            String baseWhere,
+            String exclusion,
+            List<UUID> excludedUsers,
+            Object... baseArguments) {
+        String prefix = "SELECT count(DISTINCT " + userColumn + ") FROM " + from;
+        Long all = jdbc.queryForObject(
+                prefix + (baseWhere.isBlank() ? "" : " WHERE " + baseWhere),
+                Long.class, baseArguments);
         if (excludedUsers.isEmpty()) {
             return new Pair(value(all), value(all));
         }
-        List<Object> arguments = new ArrayList<>();
-        arguments.add(since);
+        List<Object> arguments = new ArrayList<>(List.of(baseArguments));
         arguments.addAll(excludedUsers);
-        Long real = jdbc.queryForObject("SELECT count(DISTINCT user_id) FROM practice_sessions "
-                + "WHERE created_at >= ? AND user_id NOT IN ("
-                + placeholders(excludedUsers.size()) + ")", Long.class, arguments.toArray());
+        String realWhere = and(baseWhere,
+                exclusion + " NOT IN (" + placeholders(excludedUsers.size()) + ")");
+        Long real = jdbc.queryForObject(
+                prefix + " WHERE " + realWhere, Long.class, arguments.toArray());
         return new Pair(value(all), value(real));
+    }
+
+    private List<AdminCloseReasonCount> closeReasonCounts(List<UUID> excludedUsers) {
+        Map<String, Long> all = closeReasonCounts(false, excludedUsers);
+        Map<String, Long> real = excludedUsers.isEmpty()
+                ? all : closeReasonCounts(true, excludedUsers);
+        LinkedHashSet<String> labels = new LinkedHashSet<>(all.keySet());
+        labels.addAll(real.keySet());
+        return labels.stream()
+                .map(label -> new AdminCloseReasonCount(
+                        label, all.getOrDefault(label, 0L), real.getOrDefault(label, 0L)))
+                .sorted(Comparator.comparingLong(AdminCloseReasonCount::count).reversed())
+                .toList();
+    }
+
+    private Map<String, Long> closeReasonCounts(
+            boolean excludeTeam,
+            List<UUID> excludedUsers) {
+        StringBuilder sql = new StringBuilder("""
+                SELECT coach.close_reason::text AS close_reason,
+                       coach.status::text AS status,
+                       count(*) AS count
+                FROM coach_sessions coach
+                """);
+        List<Object> arguments = new ArrayList<>();
+        if (excludeTeam) {
+            sql.append("JOIN practice_sessions practice ON practice.id=coach.practice_session_id ")
+                    .append("WHERE practice.user_id NOT IN (")
+                    .append(placeholders(excludedUsers.size()))
+                    .append(") ");
+            arguments.addAll(excludedUsers);
+        }
+        sql.append("GROUP BY coach.close_reason,coach.status");
+        Map<String, Long> counts = new LinkedHashMap<>();
+        jdbc.query(sql.toString(), result -> {
+            String reason = result.getString("close_reason");
+            String label = reason != null
+                    ? reason
+                    : "open".equals(result.getString("status")) ? "진행 중" : "사유 없음";
+            counts.merge(label, result.getLong("count"), Long::sum);
+        }, arguments.toArray());
+        return counts;
     }
 
     private Returning returning(List<UUID> excludedUsers) {

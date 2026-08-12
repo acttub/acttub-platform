@@ -6,6 +6,8 @@ import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import com.fasterxml.jackson.databind.annotation.JsonNaming;
@@ -95,7 +97,10 @@ final class PracticeSessionDtos {
             String status,
             @Schema(nullable = true, allowableValues = {
                 "gemini_timeout", "gemini_parse_error", "unsupported_media", "max_attempts_exceeded"
-            }) String errorCode) {
+            })
+            @JsonProperty("error_code")
+            @JsonInclude(JsonInclude.Include.ALWAYS)
+            String errorCode) {
     }
 
     @Schema(

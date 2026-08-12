@@ -12,6 +12,24 @@ final class AdminDtos {
     private AdminDtos() {
     }
 
+    @Schema(name = "AdminFunnelStep", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
+    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
+    record AdminFunnelStep(
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String step,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) long users,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) long usersReal) {
+    }
+
+    @Schema(
+            name = "AdminCloseReasonCount",
+            additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
+    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
+    record AdminCloseReasonCount(
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String reason,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) long count,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) long countReal) {
+    }
+
     @Schema(name = "AdminStats", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
     @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
     record AdminStats(
@@ -75,6 +93,27 @@ final class AdminDtos {
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) long returning3x,
             @JsonProperty("returning_3x_real")
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) long returning3xReal,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) long usersYesterday,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) long usersYesterdayReal,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) long activeUsersYesterday,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) long activeUsersYesterdayReal,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED)
+            List<AdminFunnelStep> funnelSteps,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED)
+            List<AdminCloseReasonCount> closeReasons,
+            @JsonProperty("gap_stated_24h")
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) long gapStated24h,
+            @JsonProperty("gap_stated_24h_real")
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) long gapStated24hReal,
+            @JsonProperty("gap_stated_7d")
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) long gapStated7d,
+            @JsonProperty("gap_stated_7d_real")
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) long gapStated7dReal,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) long gapStatedAll,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) long gapStatedAllReal,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true) String dbSize,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) long observationsTotal,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) double observationsPerSummary,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true)
             OffsetDateTime lastSignupAt,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true)

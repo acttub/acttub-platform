@@ -17,6 +17,7 @@ import com.acttub.actingapi.report.ReportDtos.ReportHistoryResponse;
 import com.acttub.actingapi.report.ReportDtos.ReportReq;
 import com.acttub.actingapi.report.ReportDtos.ReportRecord;
 import com.acttub.actingapi.storage.ObjectStorage;
+import com.acttub.actingapi.storage.NoCredentialsError;
 import com.acttub.actingapi.web.ApiException;
 import com.fasterxml.jackson.databind.JsonNode;
 import io.swagger.v3.oas.annotations.Operation;
@@ -199,7 +200,7 @@ class ReportController {
             throw new ApiException(404, "report_not_found");
         }
         ObjectStorage storage = configuredStorage.orElseThrow(
-                () -> new ApiException(503, "storage_not_configured"));
+                () -> new NoCredentialsError("storage is not configured"));
         String playbackUrl = storage.presignPlayback(
                 detail.objectKey(), PLAYBACK_URL_TTL_SECONDS);
         return new ReportDetailResponse(

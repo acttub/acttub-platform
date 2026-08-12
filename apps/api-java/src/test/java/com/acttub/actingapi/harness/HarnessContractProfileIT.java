@@ -108,6 +108,25 @@ class HarnessContractProfileIT {
     }
 
     @Test
+    void contractClientHostHeaderSeparatesAuthenticationRateLimitKeys() throws Exception {
+        for (int index = 0; index < 60; index++) {
+            assertThat(loginFrom("testclient")).isEqualTo(200);
+        }
+        assertThat(loginFrom("testclient")).isEqualTo(429);
+        // 🔎 **다른 유저로** 확인해야 IP 키만 본다. 유저 레이트리밋도 60/분이라 같은
+        // 계정으로 60번을 쓰면 IP 를 바꿔도 유저 키가 이미 소진돼 429 가 난다 —
+        // 그러면 이 테스트가 헤더의 효과를 판정하지 못한다.
+        assertThat(loginFrom("10.0.0.9", "harness-token-second-actor")).isEqualTo(200);
+
+        // 같은 헤더가 제어 표면의 loopback 제한을 우회할 수는 없다.
+        assertThat(mvc.perform(post("/__harness/stub-state")
+                        .header(ContractClientHostFilter.HEADER, "203.0.113.10")
+                        .contentType("application/json")
+                        .content("{}"))
+                .andReturn().getResponse().getStatus()).isEqualTo(200);
+    }
+
+    @Test
     void controlsAdvanceResetAndRejectUnknownNames() throws Exception {
         assertThat(control("advance-clock", "{\"seconds\":1.25}"))
                 .isEqualTo(JSON.readTree("{\"offset_sec\":1.25}"));
@@ -462,6 +481,20 @@ class HarnessContractProfileIT {
         assertThat(response.getStatus()).isEqualTo(expectedStatus);
         assertThat(JSON.readTree(response.getContentAsString()))
                 .isEqualTo(JSON.readTree("{\"detail\":\"" + expectedDetail + "\"}"));
+    }
+
+    private int loginFrom(String host) throws Exception {
+        return loginFrom(host, "harness-token-new-actor");
+    }
+
+    private int loginFrom(String host, String idToken) throws Exception {
+        return mvc.perform(post("/v2/auth/login")
+                        .header(ContractClientHostFilter.HEADER, host)
+                        .contentType("application/json")
+                        .content("""
+                                {"provider":"google","id_token":"%s"}
+                                """.formatted(idToken)))
+                .andReturn().getResponse().getStatus();
     }
 
     private static UUID id(int suffix) {

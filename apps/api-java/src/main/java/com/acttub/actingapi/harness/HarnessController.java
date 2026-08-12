@@ -10,6 +10,7 @@ import com.acttub.actingapi.analysis.AnalysisWorker;
 import com.acttub.actingapi.auth.FixedWindowRateLimiter;
 import io.swagger.v3.oas.annotations.Hidden;
 import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.annotation.Profile;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -33,12 +34,12 @@ public class HarnessController {
             OffsettableClock clock,
             FixedWindowRateLimiter rateLimiter,
             DbProjectionService projection,
-            AnalysisWorker worker,
+            ObjectProvider<AnalysisWorker> worker,
             ContractStubState stubs) {
         this.clock = clock;
         this.rateLimiter = rateLimiter;
         this.projection = projection;
-        this.worker = worker;
+        this.worker = worker.getIfAvailable();
         this.stubs = stubs;
     }
 
@@ -53,7 +54,7 @@ public class HarnessController {
         Map<String, Object> body = payload == null ? Map.of() : payload;
         return switch (name) {
             case "run-worker-once" -> ResponseEntity.ok(
-                    Map.of("processed", worker.runOnce() ? 1 : 0));
+                    Map.of("processed", worker != null && worker.runOnce() ? 1 : 0));
             case "run-sweep" -> ResponseEntity.ok(runSweep());
             case "stub-state" -> ResponseEntity.ok(stubs.control(body));
             case "advance-clock" -> ResponseEntity.ok(advanceClock(body));
@@ -66,6 +67,9 @@ public class HarnessController {
     }
 
     private Map<String, Object> runSweep() {
+        if (worker == null) {
+            return Map.of("expired_uploads", 0, "exhausted_operations", 0);
+        }
         AnalysisWorker.SweepResult result = worker.sweep();
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("expired_uploads", result.expiredUploads());

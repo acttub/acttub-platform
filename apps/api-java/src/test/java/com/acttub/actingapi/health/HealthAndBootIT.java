@@ -96,6 +96,11 @@ class HealthAndBootIT {
         JsonNode doc = MAPPER.readTree(get("/v3/api-docs"));
 
         assertThat(doc.get("openapi").asText()).startsWith("3.1");
+        assertThat(doc.at("/info/title").textValue()).isEqualTo("acting-api");
+        assertThat(doc.at("/info/version").textValue()).isEqualTo("0.1.0");
+        assertThat(doc.at("/info/description").textValue()).isEqualTo(
+                "연기 분석 플랫폼 API v2. Bearer access token을 사용합니다.");
+        assertThat(doc.has("servers")).isFalse();
 
         JsonNode schema = doc.at("/components/schemas/HealthResponse");
         assertThat(schema.isMissingNode()).isFalse();

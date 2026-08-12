@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Map;
 
 import com.acttub.actingapi.storage.ContractObjectStorage;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
@@ -20,10 +21,10 @@ public class ContractStubState {
     public ContractStubState(
             ContractTextGenerator text,
             ContractAnalysisProcessor analyzer,
-            ContractObjectStorage storage) {
+            ObjectProvider<ContractObjectStorage> storage) {
         this.text = text;
         this.analyzer = analyzer;
-        this.storage = storage;
+        this.storage = storage.getIfAvailable();
     }
 
     /**
@@ -36,7 +37,9 @@ public class ContractStubState {
     public void reset() {
         text.reset();
         analyzer.reset();
-        storage.resetCallLog();
+        if (storage != null) {
+            storage.resetCallLog();
+        }
     }
 
     public Map<String, Object> control(Map<String, Object> payload) {
@@ -61,7 +64,8 @@ public class ContractStubState {
         state.put("coach_generate", text.coachState());
         state.put("report_generate", text.reportState());
         state.put("analyzer", analyzer.state());
-        state.put("s3", storage.state());
+        state.put("s3", storage == null ? Map.of("calls", Map.of(), "presign_calls", List.of())
+                : storage.state());
         return state;
     }
 }

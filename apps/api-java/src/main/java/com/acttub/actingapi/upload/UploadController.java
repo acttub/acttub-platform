@@ -11,6 +11,7 @@ import java.util.UUID;
 import com.acttub.actingapi.auth.AuthDependencies;
 import com.acttub.actingapi.domain.UploadStatus;
 import com.acttub.actingapi.storage.ObjectStorage;
+import com.acttub.actingapi.storage.NoCredentialsError;
 import com.acttub.actingapi.storage.StoredObjectMetadata;
 import com.acttub.actingapi.upload.UploadDtos.UploadCompleteResponse;
 import com.acttub.actingapi.upload.UploadDtos.UploadIntentRequest;
@@ -156,7 +157,8 @@ class UploadController {
     }
 
     private ObjectStorage requireStorage() {
-        return configuredStorage.orElseThrow(() -> new ApiException(503, "storage_not_configured"));
+        return configuredStorage.orElseThrow(
+                () -> new NoCredentialsError("storage is not configured"));
     }
 
     private static UploadCompleteResponse completed(UUID intentId) {

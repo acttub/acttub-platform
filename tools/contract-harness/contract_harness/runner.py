@@ -101,6 +101,7 @@ def run_scenarios(
     *,
     target_mutation=None,
     java_base_url: str | None = None,
+    java_profile_base_urls: dict[str, str] | None = None,
 ) -> RunResult:
     result = RunResult()
     for scenario in scenarios:
@@ -109,7 +110,10 @@ def run_scenarios(
             "baseline", cfg.BASELINE_SCHEMA, profile=scenario.profile
         )
         if java_base_url is not None:
-            target_backend = JavaBackend("java", java_base_url)
+            profile_urls = java_profile_base_urls or {}
+            selected_url = profile_urls.get(scenario.profile, java_base_url)
+            target_backend = JavaBackend(
+                "java", selected_url, profile=scenario.profile)
         else:
             target_backend = make_backend(
                 "target",

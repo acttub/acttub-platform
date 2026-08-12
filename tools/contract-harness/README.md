@@ -25,6 +25,20 @@ $PY -m contract_harness --dump-inventory inventory            # 기대값 fixtur
 $PY -m pytest tests -q                                        # 리포터·정규화 단위 테스트
 ```
 
+Java 전체 판정은 Spring profile·환경변수가 기동 시 고정되므로 인스턴스 셋을 쓴다.
+기본 인스턴스에는 `ADMIN_OPS_TOKEN`을 주지 않고, admin 인스턴스에만 준다.
+nostorage 인스턴스는 `contract,nostorage` profile로 띄운다.
+
+```bash
+$PY -m contract_harness --baseline fastapi --target java \
+    --java-base-url http://127.0.0.1:8099 \
+    --java-admin-base-url http://127.0.0.1:8100 \
+    --java-nostorage-base-url http://127.0.0.1:8101
+```
+
+세 인스턴스는 같은 `HARNESS_SCHEMA`를 쓰되 시나리오가 순차 실행되므로, 하네스의
+truncate·재시드와 `reset-state` 경계를 그대로 공유한다.
+
 - DB: `HARNESS_DATABASE_URL`(기본 `postgresql://acttub:acttub@localhost:55432/harness_claude`).
   `harness_baseline`·`harness_target` 스키마 두 벌을 만들어 alembic head까지 올린다.
   실행 사이에는 TRUNCATE + 재시드로 되돌린다(`--rebuild-schemas`로 강제 재생성).

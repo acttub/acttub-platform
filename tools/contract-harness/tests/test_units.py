@@ -533,3 +533,52 @@ def test_gate_polling_is_not_recorded_as_a_scenario_step():
     source = inspect.getsource(gate)
     assert "ctx.backend.control" in source
     assert "ctx.control(" not in source
+
+
+def test_backend_client_host_uses_the_same_header_signal_for_both_adapters():
+    from contract_harness.backends import FastapiBackend, JavaBackend
+
+    backends = (
+        FastapiBackend("fastapi", database_url="unused", schema="unused"),
+        JavaBackend("java", "http://127.0.0.1:8099"),
+    )
+    for backend in backends:
+        backend.set_client_host("10.0.0.9")
+        assert backend._request_headers({"Authorization": "Bearer token"}) == {
+            "Authorization": "Bearer token",
+            cfg.CLIENT_HOST_HEADER: "10.0.0.9",
+        }
+
+    from contract_harness.wrapper import HarnessASGI
+
+    scope = {
+        "headers": [(cfg.CLIENT_HOST_HEADER.lower().encode(), b"10.0.0.9")],
+        "client": ("testclient", 50000),
+    }
+    rewritten = HarnessASGI._with_contract_client(scope)
+    assert rewritten["client"] == ("10.0.0.9", 50000)
+    assert scope["client"] == ("testclient", 50000)
+
+
+def test_java_conditional_profiles_require_and_select_separate_instances():
+    from types import SimpleNamespace
+
+    from contract_harness.cli import _java_profile_base_urls
+    from contract_harness.scenarios import BY_NAME
+
+    args = SimpleNamespace(
+        target="java",
+        java_base_url="http://127.0.0.1:8099",
+        java_admin_base_url="http://127.0.0.1:8100",
+        java_nostorage_base_url="http://127.0.0.1:8101",
+    )
+    assert _java_profile_base_urls(
+        args, [BY_NAME["health"], BY_NAME["admin"], BY_NAME["no-storage"]]
+    ) == {
+        "admin": "http://127.0.0.1:8100",
+        "nostorage": "http://127.0.0.1:8101",
+    }
+
+    args.java_nostorage_base_url = None
+    with pytest.raises(SystemExit, match="--java-nostorage-base-url"):
+        _java_profile_base_urls(args, [BY_NAME["no-storage"]])

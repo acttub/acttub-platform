@@ -32,6 +32,14 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--baseline", default="fastapi", choices=["fastapi"])
     parser.add_argument("--target", default="fastapi", choices=["fastapi", "java"])
     parser.add_argument("--java-base-url", default="http://127.0.0.1:8080")
+    parser.add_argument(
+        "--java-admin-base-url",
+        help="ADMIN_OPS_TOKEN 을 준 contract 인스턴스 URL (admin 시나리오 전용)",
+    )
+    parser.add_argument(
+        "--java-nostorage-base-url",
+        help="contract,nostorage 프로파일 인스턴스 URL (no-storage 시나리오 전용)",
+    )
     parser.add_argument("--only", action="append", default=[])
     parser.add_argument("--self-test", action="store_true")
     parser.add_argument("--mutation", action="append", default=[])
@@ -72,9 +80,14 @@ def _run(args, *, coverage_only: bool = False) -> int:
     runner.prepare_schemas(force=args.rebuild_schemas)
     scenarios = runner.all_scenarios(args.only)
     java_base_url = args.java_base_url if args.target == "java" else None
+    java_profile_base_urls = _java_profile_base_urls(args, scenarios)
     skipped: list[str] = []
     result_seed = runner.verify_seed_parity()
-    result = runner.run_scenarios(scenarios, java_base_url=java_base_url)
+    result = runner.run_scenarios(
+        scenarios,
+        java_base_url=java_base_url,
+        java_profile_base_urls=java_profile_base_urls,
+    )
     result.findings.extend(result_seed)
 
     # 아래 검증은 **백엔드 종류와 무관하게** 돈다. java 라고 건너뛰면
@@ -123,6 +136,29 @@ def _run(args, *, coverage_only: bool = False) -> int:
         )
     print(runner.summarize(result))
     return 0 if result.ok() else 1
+
+
+def _java_profile_base_urls(args, scenarios) -> dict[str, str] | None:
+    if args.target != "java":
+        return None
+    configured = {
+        "admin": args.java_admin_base_url,
+        "nostorage": args.java_nostorage_base_url,
+    }
+    required = {scenario.profile for scenario in scenarios} - {"default"}
+    missing = sorted(profile for profile in required if not configured.get(profile))
+    if missing:
+        flags = ", ".join(f"--java-{profile}-base-url" for profile in missing)
+        raise SystemExit(
+            "java의 조건부 프로파일은 별도 인스턴스여야 한다. 빠진 인자: " + flags
+        )
+    selected = {profile: configured[profile] for profile in required}
+    urls = [args.java_base_url, *selected.values()]
+    if len({url.rstrip("/") for url in urls}) != len(urls):
+        raise SystemExit(
+            "기본·admin·nostorage Java URL은 서로 다른 Spring 인스턴스여야 한다"
+        )
+    return selected
 
 
 def _print_findings(findings, verbose: bool) -> None:

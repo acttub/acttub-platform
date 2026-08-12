@@ -295,10 +295,26 @@ class HarnessASGI:
         if scope["type"] == "http" and scope["path"].startswith(cfg.CONTROL_PREFIX):
             await self._control(scope, receive, send)
             return
+        scope = self._with_contract_client(scope)
         if self.response_mutation is None:
             await self.inner(scope, receive, send)
             return
         await self._mutating(scope, receive, send)
+
+    @staticmethod
+    def _with_contract_client(scope):
+        """HTTP·in-process 백엔드가 같은 헤더 신호로 rate-limit origin 을 바꾼다."""
+        header = cfg.CLIENT_HOST_HEADER.lower().encode("ascii")
+        host = next(
+            (value.decode("utf-8") for key, value in scope.get("headers", []) if key.lower() == header),
+            None,
+        )
+        if host is None:
+            return scope
+        copied = dict(scope)
+        port = (scope.get("client") or (None, 50000))[1]
+        copied["client"] = (host, port)
+        return copied
 
     async def _control(self, scope, receive, send):
         name = scope["path"][len(cfg.CONTROL_PREFIX) :].lstrip("/")

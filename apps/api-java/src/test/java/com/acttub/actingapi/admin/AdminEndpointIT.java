@@ -82,6 +82,12 @@ class AdminEndpointIT {
         realFinalCoach = insertCoach(realFinal, NOW.minusMinutes(30));
         realPendingCoach = insertCoach(realPending, NOW.minusMinutes(20));
         UUID teamCoach = insertCoach(team, NOW.minusMinutes(10));
+        jdbc.update("""
+                UPDATE coach_sessions
+                SET status='closed'::session_status_t,
+                    close_reason='gap_stated'::close_reason_t
+                WHERE id=?
+                """, realFinalCoach);
         insertTurn(realFinalCoach, 0, "actor", "첫 질문");
         insertTurn(realPendingCoach, 0, "ai", "두 번째 답변");
         insertTurn(teamCoach, 0, "actor", "팀 대화");
@@ -110,6 +116,20 @@ class AdminEndpointIT {
         assertThat(stats.path("returning_2x").longValue()).isEqualTo(1);
         assertThat(stats.path("returning_2x_real").longValue()).isEqualTo(1);
         assertThat(stats.path("returning_3x").longValue()).isZero();
+        assertThat(stats.fieldNames()).toIterable().hasSize(55);
+        assertThat(stats.path("funnel_steps")).hasSize(7);
+        assertThat(stats.at("/funnel_steps/0/step").textValue()).isEqualTo("가입");
+        assertThat(stats.at("/funnel_steps/4/step").textValue()).isEqualTo("코치 대화");
+        assertThat(stats.path("close_reasons")).hasSize(2);
+        assertThat(stats.at("/close_reasons/0/reason").textValue()).isEqualTo("진행 중");
+        assertThat(stats.at("/close_reasons/0/count").longValue()).isEqualTo(2);
+        assertThat(stats.at("/close_reasons/0/count_real").longValue()).isEqualTo(1);
+        assertThat(stats.at("/close_reasons/1/reason").textValue()).isEqualTo("gap_stated");
+        assertThat(stats.path("gap_stated_all").longValue()).isOne();
+        assertThat(stats.path("gap_stated_all_real").longValue()).isOne();
+        assertThat(stats.path("observations_total").longValue()).isZero();
+        assertThat(stats.path("observations_per_summary").doubleValue()).isZero();
+        assertThat(stats.path("db_size").isTextual()).isTrue();
         assertThat(stats.path("last_signup_at").textValue()).endsWith("Z");
         assertThat(stats.path("last_session_at").textValue()).endsWith("Z");
     }

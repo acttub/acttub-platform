@@ -32,6 +32,10 @@ PY=../../apps/api/.venv/bin/python
 $PY -m contract_harness --baseline fastapi --target java --java-base-url http://127.0.0.1:8099
 ```
 
+전체 시나리오는 기본(`contract`, ADMIN_OPS_TOKEN 없음), admin(`contract`, 토큰 있음),
+nostorage(`contract,nostorage`) 인스턴스를 각각 띄우고 하네스의
+`--java-admin-base-url`·`--java-nostorage-base-url`로 전달합니다.
+
 ## Testcontainers는 Postgres 18입니다
 
 운영 RDS가 18.4라 컨테이너도 **18**로 맞춥니다. PG18은 NOT NULL을 `pg_constraint`로 물질화하는 등 카탈로그가 달라, **16에서 통과한 스키마 검증이 운영을 보증하지 않습니다.** 버전을 BOM에 맡기지 않고 `build.gradle.kts`에 고정해 둡니다.
