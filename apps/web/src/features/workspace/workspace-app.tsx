@@ -1991,7 +1991,10 @@ function ChatPanel({
             </div>
           </div>
         ) : null}
-        <div className="shrink-0 py-5 sm:py-7">
+        {/* shrink-0 을 쓰면 안 된다 — 안드로이드는 키보드가 뜨면 레이아웃 뷰포트가
+            줄어드는데, 그때 질문이 줄지 못하고 넘쳐 입력칸 위로 겹쳐 그려졌다.
+            (iOS 사파리는 뷰포트가 안 줄어서 이 증상이 안 보인다, 2026-08-13 실측) */}
+        <div className="min-h-0 shrink overflow-y-auto py-5 sm:py-7">
           {currentQuestion ? (
             <h2 className="whitespace-pre-wrap text-2xl font-black leading-[1.4] tracking-[-0.035em] text-[#191f28] sm:text-[28px]">
               {currentQuestion.text}
