@@ -23,11 +23,21 @@ echo "CURRENT=$(sudo -u ubuntu env DATABASE_URL="$DB_URL" /usr/local/bin/uv run 
 echo "HEAD=$(sudo -u ubuntu env DATABASE_URL="$DB_URL" /usr/local/bin/uv run --no-dev alembic heads 2>/dev/null | grep -oE '^[0-9a-z_]+' | head -1)"
 EOS
 
+# ssm-deploy.sh 와 같은 방식으로 base64 한 줄로 넘긴다. `--parameters commands="[...]"`
+# 축약 문법은 JSON 의 \n 이스케이프를 해석하지 않아서, 여러 줄 스크립트가 한 줄로
+# 뭉개진 채 도착한다(원격에서 `set: Illegal option -c`). 그러면 출력이 비어 이 검사가
+# 항상 "(확인 실패)" 로 끝난다 — 2026-08-13 에 dev·운영 둘 다 그 상태였다.
+if base64 --help 2>&1 | grep -q ' -w'; then
+  B64=$(printf '%s' "$REMOTE" | base64 -w0)   # GNU (Actions runner)
+else
+  B64=$(printf '%s' "$REMOTE" | base64)       # BSD (맥)
+fi
+
 CMD_ID=$(aws ssm send-command \
   --instance-ids "$INSTANCE" \
   --document-name AWS-RunShellScript \
   --region "$REGION" \
-  --parameters commands="[$(printf '%s' "$REMOTE" | jq -Rs .)]" \
+  --parameters "commands=[\"echo $B64 | base64 -d | bash\"]" \
   --query 'Command.CommandId' --output text)
 
 aws ssm wait command-executed \
