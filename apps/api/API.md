@@ -60,7 +60,7 @@ AI 호출을 포함한 쓰기 요청(`/v2/practice-sessions`, `/{id}/analyze`, `
 |---|---|---|
 | `provider` | str | `"google"` \| `"apple"` (로컬 opt-in: `"development"`) |
 | `id_token` | str | google=OIDC id_token, apple="Sign in with Apple" identityToken(JWT — 네이티브는 앱 SDK, 웹은 Apple JS가 발급). development는 로컬 테스트 토큰(`<uid>` 또는 `<uid>:<email>`)이며 email은 미검증으로 취급되어 기존 계정에 자동 연결되지 않고 신규 계정에도 저장되지 않음 |
-| `signup_attribution` | object \| null | 선택. first-touch `utm_source`·`utm_medium`·`utm_campaign`·`utm_content`·`utm_term`, `referrer_host`, `landing_path`, `first_seen_at`(ISO 8601). 신규 계정을 만들 때만 저장 |
+| `signup_attribution` | object \| null | 선택. first-touch `utm_source`·`utm_medium`·`utm_campaign`·`utm_id`·`utm_content`·`utm_term`, `referrer_host`, `landing_path`, `first_seen_at`(ISO 8601). 신규 계정을 만들 때만 저장 |
 
 ### 처리 규칙
 

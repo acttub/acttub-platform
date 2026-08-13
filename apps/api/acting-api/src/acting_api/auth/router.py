@@ -63,6 +63,7 @@ class SignupAttribution(BaseModel):
     utm_source: str | None = None
     utm_medium: str | None = None
     utm_campaign: str | None = None
+    utm_id: str | None = None
     utm_content: str | None = None
     utm_term: str | None = None
     referrer_host: str | None = None
@@ -73,6 +74,7 @@ class SignupAttribution(BaseModel):
         "utm_source",
         "utm_medium",
         "utm_campaign",
+        "utm_id",
         "utm_content",
         "utm_term",
         "referrer_host",
@@ -110,6 +112,7 @@ class LoginRequest(BaseModel):
                 "utm_source",
                 "utm_medium",
                 "utm_campaign",
+                "utm_id",
                 "utm_content",
                 "utm_term",
                 "referrer_host",
@@ -290,6 +293,11 @@ def build_router(
                         ),
                         signup_utm_campaign=(
                             payload.signup_attribution.utm_campaign
+                            if payload.signup_attribution
+                            else None
+                        ),
+                        signup_utm_id=(
+                            payload.signup_attribution.utm_id
                             if payload.signup_attribution
                             else None
                         ),

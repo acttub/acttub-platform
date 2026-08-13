@@ -212,6 +212,9 @@ class User(Base):
     signup_utm_source: Mapped[str | None] = mapped_column(sa.String(255))
     signup_utm_medium: Mapped[str | None] = mapped_column(sa.String(255))
     signup_utm_campaign: Mapped[str | None] = mapped_column(sa.String(255))
+    signup_utm_id: Mapped[str | None] = mapped_column(
+        sa.String(255), nullable=True
+    )
     signup_utm_content: Mapped[str | None] = mapped_column(sa.String(255))
     signup_utm_term: Mapped[str | None] = mapped_column(sa.String(255))
     signup_referrer_host: Mapped[str | None] = mapped_column(sa.String(255))
