@@ -116,7 +116,8 @@ class AdminEndpointIT {
         assertThat(stats.path("returning_2x").longValue()).isEqualTo(1);
         assertThat(stats.path("returning_2x_real").longValue()).isEqualTo(1);
         assertThat(stats.path("returning_3x").longValue()).isZero();
-        assertThat(stats.fieldNames()).toIterable().hasSize(55);
+        // 56 = 55 + signup_sources (dev SOMA-331). 원본 `admin.py:AdminStats` 와 같은 수다.
+        assertThat(stats.fieldNames()).toIterable().hasSize(56);
         assertThat(stats.path("funnel_steps")).hasSize(7);
         assertThat(stats.at("/funnel_steps/0/step").textValue()).isEqualTo("가입");
         assertThat(stats.at("/funnel_steps/4/step").textValue()).isEqualTo("코치 대화");

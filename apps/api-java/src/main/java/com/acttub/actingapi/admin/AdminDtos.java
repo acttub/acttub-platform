@@ -21,6 +21,16 @@ final class AdminDtos {
     }
 
     @Schema(
+            name = "AdminSignupSourceCount",
+            additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
+    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
+    record AdminSignupSourceCount(
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String source,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) long users,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) long usersReal) {
+    }
+
+    @Schema(
             name = "AdminCloseReasonCount",
             additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
     @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
@@ -99,6 +109,8 @@ final class AdminDtos {
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) long activeUsersYesterdayReal,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED)
             List<AdminFunnelStep> funnelSteps,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED)
+            List<AdminSignupSourceCount> signupSources,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED)
             List<AdminCloseReasonCount> closeReasons,
             @JsonProperty("gap_stated_24h")

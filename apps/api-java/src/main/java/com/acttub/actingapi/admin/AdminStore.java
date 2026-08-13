@@ -15,6 +15,7 @@ import java.util.Map;
 import java.util.UUID;
 
 import com.acttub.actingapi.admin.AdminDtos.AdminCloseReasonCount;
+import com.acttub.actingapi.admin.AdminDtos.AdminSignupSourceCount;
 import com.acttub.actingapi.admin.AdminDtos.AdminFunnelStep;
 import com.acttub.actingapi.admin.AdminDtos.AdminStats;
 import com.acttub.actingapi.admin.AdminDtos.AdminTurn;
@@ -162,7 +163,7 @@ class AdminStore {
                 returning.thrice(), returning.thriceReal(),
                 usersYesterday.all(), usersYesterday.real(),
                 activeYesterday.all(), activeYesterday.real(),
-                funnelSteps, closeReasons,
+                funnelSteps, signupSourceCounts(excludedUsers), closeReasons,
                 gap24h.all(), gap24h.real(), gap7d.all(), gap7d.real(),
                 gapAll.all(), gapAll.real(), dbSize,
                 observationsTotal, observationsPerSummary,
@@ -313,6 +314,43 @@ class AdminStore {
         Long real = jdbc.queryForObject(
                 prefix + " WHERE " + realWhere, Long.class, arguments.toArray());
         return new Pair(value(all), value(real));
+    }
+
+    /**
+     * 가입 first-touch UTM source. 과거 계정과 direct 유입은 한 버킷으로 묶어
+     * 전체 가입 수와 합계가 언제나 맞게 한다 ({@code store.py:source_counts}).
+     */
+    private List<AdminSignupSourceCount> signupSourceCounts(List<UUID> excludedUsers) {
+        Map<String, Long> all = sourceCountsByLabel(List.of());
+        Map<String, Long> real = excludedUsers.isEmpty()
+                ? all : sourceCountsByLabel(excludedUsers);
+        // 원본 정렬: users 내림차순, 같으면 source 오름차순. users_real 은 없으면 0.
+        return all.entrySet().stream()
+                .sorted(Comparator.comparingLong((Map.Entry<String, Long> entry) -> entry.getValue())
+                        .reversed()
+                        .thenComparing(Map.Entry::getKey))
+                .map(entry -> new AdminSignupSourceCount(
+                        entry.getKey(), entry.getValue(), real.getOrDefault(entry.getKey(), 0L)))
+                .toList();
+    }
+
+    private Map<String, Long> sourceCountsByLabel(List<UUID> excludedUsers) {
+        StringBuilder sql = new StringBuilder(
+                "SELECT coalesce(nullif(signup_utm_source,''),'(직접/미상)') AS source, "
+                        + "count(*) AS users FROM users ");
+        List<Object> arguments = new ArrayList<>();
+        if (!excludedUsers.isEmpty()) {
+            sql.append("WHERE id NOT IN (")
+                    .append(placeholders(excludedUsers.size()))
+                    .append(") ");
+            arguments.addAll(excludedUsers);
+        }
+        sql.append("GROUP BY source");
+        Map<String, Long> counts = new LinkedHashMap<>();
+        jdbc.query(sql.toString(), rs -> {
+            counts.put(rs.getString("source"), rs.getLong("users"));
+        }, arguments.toArray());
+        return counts;
     }
 
     private List<AdminCloseReasonCount> closeReasonCounts(List<UUID> excludedUsers) {
