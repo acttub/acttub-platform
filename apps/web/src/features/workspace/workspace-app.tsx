@@ -1753,11 +1753,14 @@ function ScenePanel({
 
   return (
     <>
-      {/* 폰: 대화 위 접이식 스트립 한 줄 */}
+      {/* 폰: 대화 위 접이식 스트립 한 줄.
+          화면이 낮으면 감춘다 — 안드로이드는 키보드가 뜨면 뷰포트가 380px대로 줄어드는데,
+          이 줄이 남아 있으면 질문이 밀려 나가 답을 쓰는 동안 질문을 못 본다.
+          키보드가 내려가면 다시 나온다. (iOS는 뷰포트가 안 줄어 해당 없음) */}
       <button
         type="button"
         onClick={() => setMobileOpen(true)}
-        className="flex shrink-0 items-center gap-2.5 overflow-hidden rounded-[16px] bg-[#f9fafb] px-3 py-2.5 text-left lg:hidden"
+        className="flex shrink-0 items-center gap-2.5 overflow-hidden rounded-[16px] bg-[#f9fafb] px-3 py-2.5 text-left lg:hidden [@media(max-height:560px)]:hidden"
       >
         <span className="flex h-8 w-[52px] shrink-0 items-center justify-center rounded-lg bg-[#1b2942] text-[10px] font-black text-white">
           ▶
@@ -1994,9 +1997,12 @@ function ChatPanel({
         {/* shrink-0 을 쓰면 안 된다 — 안드로이드는 키보드가 뜨면 레이아웃 뷰포트가
             줄어드는데, 그때 질문이 줄지 못하고 넘쳐 입력칸 위로 겹쳐 그려졌다.
             (iOS 사파리는 뷰포트가 안 줄어서 이 증상이 안 보인다, 2026-08-13 실측) */}
-        <div className="min-h-0 shrink overflow-y-auto py-5 sm:py-7">
+        <div className="min-h-0 shrink overflow-y-auto py-5 sm:py-7 [@media(max-height:560px)]:py-2">
+          {/* 낮은 화면(안드로이드 키보드)에서는 두 줄로 깔끔하게 자른다 —
+              그냥 스크롤로 두면 글자가 반 줄에서 잘려 깨진 것처럼 보인다.
+              키보드를 내리면 전문이 다시 보인다. */}
           {currentQuestion ? (
-            <h2 className="whitespace-pre-wrap text-2xl font-black leading-[1.4] tracking-[-0.035em] text-[#191f28] sm:text-[28px]">
+            <h2 className="whitespace-pre-wrap text-2xl font-black leading-[1.4] tracking-[-0.035em] text-[#191f28] sm:text-[28px] [@media(max-height:560px)]:line-clamp-2">
               {currentQuestion.text}
             </h2>
           ) : null}
@@ -2056,7 +2062,9 @@ function ChatPanel({
                 {answer.length} / 300
               </span>
             </div>
-            <div className="grid grid-cols-2 gap-2.5">
+            {/* 낮은 화면(안드로이드 키보드)에서는 접는다 — 답을 쓰기 시작한 뒤에 누르는 것이
+                아니라 막혔을 때 누르는 버튼이라, 질문 자리를 내주는 편이 낫다. */}
+            <div className="grid grid-cols-2 gap-2.5 [@media(max-height:560px)]:hidden">
               <button
                 type="button"
                 onClick={() => sendPreset("잘 모르겠어요")}
@@ -2082,7 +2090,7 @@ function ChatPanel({
             >
               이 답으로 다음 질문 →
             </button>
-            <p className="text-xs font-semibold text-[#8b95a1]">
+            <p className="text-xs font-semibold text-[#8b95a1] [@media(max-height:560px)]:hidden">
               &apos;그만&apos;이라고 쓰면 언제든 마칠 수 있어요
             </p>
           </div>
