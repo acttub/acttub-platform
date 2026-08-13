@@ -202,6 +202,7 @@ COLUMN users.signup_landing_path ord=14 type=varchar len=255 null=YES default=-
 COLUMN users.signup_referrer_host ord=13 type=varchar len=255 null=YES default=-
 COLUMN users.signup_utm_campaign ord=10 type=varchar len=255 null=YES default=-
 COLUMN users.signup_utm_content ord=11 type=varchar len=255 null=YES default=-
+COLUMN users.signup_utm_id ord=16 type=varchar len=255 null=YES default=-
 COLUMN users.signup_utm_medium ord=9 type=varchar len=255 null=YES default=-
 COLUMN users.signup_utm_source ord=8 type=varchar len=255 null=YES default=-
 COLUMN users.signup_utm_term ord=12 type=varchar len=255 null=YES default=-

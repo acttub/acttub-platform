@@ -45,7 +45,7 @@ function withFakeBrowser(href, referrer, storage, run) {
 test("두 번째 방문의 UTM이 first-touch를 덮어쓰지 않는다", () => {
   const storage = new FakeStorage();
   withFakeBrowser(
-    "https://acttub.com/login?utm_source=stage&utm_campaign=first",
+    "https://acttub.com/login?utm_source=stage&utm_campaign=first&utm_id=stage%7Csummer%7Chero",
     "https://search.example/result?q=acting",
     storage,
     () => captureSignupAttribution(new Date("2026-07-01T00:00:00Z")),
@@ -61,6 +61,7 @@ test("두 번째 방문의 UTM이 first-touch를 덮어쓰지 않는다", () => 
     assert.deepEqual(getSignupAttribution(new Date("2026-07-02T00:00:00Z")), {
       utm_source: "stage",
       utm_campaign: "first",
+      utm_id: "stage|summer|hero",
       referrer_host: "search.example",
       landing_path: "/login",
       first_seen_at: "2026-07-01T00:00:00.000Z",
@@ -90,6 +91,10 @@ test("30일이 지난 저장값은 버리고 현재 방문을 새로 기록한�
         landing_path: "/login",
         first_seen_at: "2026-07-02T00:00:00.000Z",
       });
+      assert.equal(
+        getSignupAttribution(new Date("2026-07-02T00:00:00Z"))?.utm_id,
+        undefined,
+      );
     },
   );
 });
@@ -97,7 +102,7 @@ test("30일이 지난 저장값은 버리고 현재 방문을 새로 기록한�
 test("가입 유입 허용목록 밖의 쿼리 파라미터는 저장하지 않는다", () => {
   const storage = new FakeStorage();
   withFakeBrowser(
-    "https://acttub.com/?utm_source=worldcup&utm_id=private&gclid=click&fbclid=meta&next=/home",
+    "https://acttub.com/?utm_source=worldcup&gclid=click&fbclid=meta&next=/home",
     "",
     storage,
     () => {
