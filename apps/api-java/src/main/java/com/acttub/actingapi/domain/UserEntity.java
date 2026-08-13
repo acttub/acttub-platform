@@ -6,11 +6,8 @@ import java.util.UUID;
 import jakarta.persistence.Column;
 import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
-import jakarta.persistence.Id;
 import jakarta.persistence.Table;
-import jakarta.persistence.Transient;
 import org.hibernate.annotations.JdbcType;
-import org.springframework.data.domain.Persistable;
 
 /**
  * {@code users} — M0 의 {@code ddl-auto: validate} 검증용 매핑 2종 중 하나.
@@ -21,11 +18,7 @@ import org.springframework.data.domain.Persistable;
  */
 @Entity
 @Table(name = "users")
-public class UserEntity implements Persistable<UUID> {
-
-    @Id
-    @Column(name = "id", nullable = false)
-    private UUID id;
+public class UserEntity extends AppGeneratedUuidEntity {
 
     @Column(name = "email")
     private String email;
@@ -45,33 +38,14 @@ public class UserEntity implements Persistable<UUID> {
     private Instant updatedAt;
 
     /** {@code save()} 직전까지만 true. 영속화 후에는 false 가 되어 재저장 시 merge 로 넘어간다. */
-    @Transient
-    private boolean isNew = true;
-
     protected UserEntity() {
     }
 
     public UserEntity(UUID id, String email, UserStatus status, String nickname) {
-        this.id = id;
+        super(id);
         this.email = email;
         this.status = status;
         this.nickname = nickname;
-    }
-
-    @Override
-    public UUID getId() {
-        return id;
-    }
-
-    @Override
-    public boolean isNew() {
-        return isNew;
-    }
-
-    @jakarta.persistence.PostPersist
-    @jakarta.persistence.PostLoad
-    void markNotNew() {
-        this.isNew = false;
     }
 
     public String getEmail() {

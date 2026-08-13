@@ -105,6 +105,25 @@ def consent_gate_matrix(ctx) -> None:
         headers=headers,
     )
 
+    # 🔎 게이트가 **바디 검증보다 먼저** 돈다 (spec/M4-llm.md §F-2 지적 4).
+    # FastAPI 는 Depends 를 먼저 풀므로 바디가 아무리 잘못돼도 403 이다. Spring 은
+    # `@Valid @RequestBody` 를 메서드 진입 전에 평가하므로 순서를 맞추지 않으면 422 가 된다.
+    # 위의 community-write 는 바디가 **유효**해서 이 순서를 판정하지 못한다.
+    ctx.call(
+        "community-write-invalid-body",
+        "post",
+        "/v2/community/posts",
+        json={"category_slug": "free", "title": "", "body": ""},
+        headers=headers,
+    )
+    ctx.call(
+        "uploads-invalid-body",
+        "post",
+        "/v2/uploads/intents",
+        json={"mime_type": "video/mp4", "size_bytes": -1},
+        headers=headers,
+    )
+
     grant_all_consents(ctx, "gate", headers)
     ctx.call("sessions-list-after", "get", "/v2/practice-sessions", headers=headers)
 
@@ -435,6 +454,88 @@ def request_validation(ctx) -> None:
             json=payload,
             headers={**headers, "X-Request-Id": ctx.request_id(f"confirm-{name}")},
         )
+
+    # --- pydantic 검증의 **구조**가 재현되는가 (spec/M4-llm.md §F-2) -------------
+    #
+    # 이 네 케이스가 없으면 §F-2 의 결함이 하네스에 하나도 드러나지 않는다 —
+    # M3 리뷰가 소스를 읽어 찾은 것이라 실행 판정이 없었다. 전부 community 라우트로
+    # 만든다(coach·reports 는 M4 에서 열리므로 그 전에도 돌아야 한다).
+
+    # ① 오류 누적 — pydantic 은 필드 오류를 **전부** 모은다. 순차 검증이면 첫 건에서 멈춘다.
+    ctx.call(
+        "accumulate.two-blank-fields",
+        "post",
+        "/v2/community/posts",
+        json={"category_slug": "free", "title": "", "body": "", "anonymous": False},
+        headers=headers,
+    )
+    # 타입 오류도 함께 쌓이는지 — 문자열 자리에 숫자를 둘 넣는다.
+    ctx.call(
+        "accumulate.two-type-errors",
+        "post",
+        "/v2/community/posts",
+        json={"category_slug": "free", "title": 1, "body": 2, "anonymous": False},
+        headers=headers,
+    )
+
+    # ② 명시적 null 과 생략은 다르다 — 기본값이 있어도 null 은 타입 오류다.
+    ctx.call(
+        "explicit-null.anonymous",
+        "post",
+        "/v2/community/posts",
+        json={"category_slug": "free", "title": "제목", "body": "본문", "anonymous": None},
+        headers=headers,
+    )
+    omitted = ctx.call(
+        "omitted.anonymous",
+        "post",
+        "/v2/community/posts",
+        json={"category_slug": "free", "title": "제목", "body": "본문"},
+        headers=headers,
+    )
+    # 생략은 기본값(false)으로 통과한다 — 유일하게 성공하는 케이스라 심볼을 발급한다.
+    if omitted.status == 201:
+        ctx.register(omitted.parsed["id"], "post")
+    # 필수 필드의 명시적 null 은 missing 이 아니라 타입 오류다.
+    ctx.call(
+        "explicit-null.title",
+        "post",
+        "/v2/community/posts",
+        json={"category_slug": "free", "title": None, "body": "본문"},
+        headers=headers,
+    )
+
+    # ③ Literal 위반의 판별자 — pydantic 은 literal_error 이고 ctx 형상도 다르다.
+    ctx.call(
+        "literal.report-reason",
+        "post",
+        "/v2/community/reports",
+        json={"target_type": "post", "target_id": MISSING_SESSION_ID, "reason": "없는사유"},
+        headers=headers,
+    )
+    ctx.call(
+        "literal.report-target-type",
+        "post",
+        "/v2/community/reports",
+        json={"target_type": "없는대상", "target_id": MISSING_SESSION_ID, "reason": "spam"},
+        headers=headers,
+    )
+
+    # ④ 게이트가 바디 검증보다 **먼저** 돈다 — FastAPI 는 Depends 를 먼저 푼다.
+    #    토큰 없이 잘못된 바디를 보내면 422 가 아니라 401 이어야 한다.
+    ctx.call(
+        "gate-before-body.unauthenticated",
+        "post",
+        "/v2/community/posts",
+        json={"category_slug": "free", "title": "", "body": ""},
+    )
+    ctx.call(
+        "gate-before-body.bad-token",
+        "post",
+        "/v2/community/posts",
+        json={"category_slug": "free", "title": "", "body": ""},
+        headers={"Authorization": "Bearer not-a-token"},
+    )
 
     # 커뮤니티 trim + 길이 경계
     one = ctx.auth(cfg.SEED_USER_IDS[0])

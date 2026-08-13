@@ -176,8 +176,23 @@ class FlywayBaselineTest {
                 assertThat(rs.getString(1)).isEqualTo("반전,약화,국소");
             }
 
-            // 0005 의 시드 데이터도 V1 이 들고 있어야 한다.
-            assertThat(scalar(connection, "SELECT count(*) FROM community_categories")).isEqualTo(3L);
+            // 0005 의 시드 데이터도 V1 이 전체 값 그대로 들고 있어야 한다.
+            assertThat(categoryRows(connection)).containsExactly(
+                    "free|자유|연습하다 든 생각, 근황, 잡담|10",
+                    "admission|입시 Q&A|실기·전형·준비 과정에서 막힌 것 묻기|20",
+                    "info|정보공유|공고·후기·자료처럼 남에게 도움 되는 것|30");
+        }
+    }
+
+    @Test
+    @DisplayName("V1 시드의 정렬된 전체 행 값이 실행 중 alembic의 정본과 같다")
+    void seedRowsMatchLiveAlembic() throws Exception {
+        requireOrSkipAlembic();
+        String flywayUrl = PostgresContainerSupport.createDatabase("flyway_seed");
+        flywayFor(flywayUrl).migrate();
+        String alembicUrl = AlembicSchema.materializeDatabase("alembic_seed");
+        try (Connection flyway = connect(flywayUrl); Connection alembic = connect(alembicUrl)) {
+            assertThat(categoryRows(flyway)).containsExactlyElementsOf(categoryRows(alembic));
         }
     }
 
@@ -259,6 +274,17 @@ class FlywayBaselineTest {
         try (Statement st = connection.createStatement(); ResultSet rs = st.executeQuery(sql)) {
             rs.next();
             return rs.getLong(1);
+        }
+    }
+
+    private static List<String> categoryRows(Connection connection) throws SQLException {
+        try (Statement st = connection.createStatement(); ResultSet rs = st.executeQuery(
+                "SELECT slug,name,description,sort_order FROM community_categories ORDER BY sort_order,slug")) {
+            java.util.ArrayList<String> rows = new java.util.ArrayList<>();
+            while (rs.next()) {
+                rows.add(rs.getString(1) + "|" + rs.getString(2) + "|" + rs.getString(3) + "|" + rs.getInt(4));
+            }
+            return rows;
         }
     }
 

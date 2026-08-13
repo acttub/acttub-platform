@@ -1,0 +1,18 @@
+spring:
+  datasource:
+    hikari:
+      schema: ${HARNESS_SCHEMA:harness_target}
+  flyway:
+    enabled: false
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        default_schema: ${HARNESS_SCHEMA:harness_target}
+
+contract:
+  # 로컬·CI는 apps/api-java 에서 기동한다. 다른 실행기는 환경변수로 절대경로를 줄 수 있다.
+  auth-provider-fixture: ${HARNESS_AUTH_PROVIDER_FIXTURE:../../tools/contract-harness/contract_harness/fixtures/auth_providers.json}
+  s3-fixture: ${HARNESS_S3_FIXTURE:../../tools/contract-harness/contract_harness/fixtures/s3.json}
+  llm-fixture: ${HARNESS_LLM_FIXTURE:../../tools/contract-harness/contract_harness/fixtures/llm.json}

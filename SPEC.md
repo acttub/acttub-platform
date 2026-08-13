@@ -96,7 +96,7 @@ Jackson 설정: `WRITE_DATES_AS_TIMESTAMPS=false`, `Instant` 또는 `OffsetDateT
 
    **매핑 방법 (M0에서 실증)**: `@JdbcTypeCode(SqlTypes.NAMED_ENUM)`과 `AttributeConverter`는 **공존할 수 없다.** 둘을 같이 걸면 EntityManagerFactory 생성이 `Cannot read the array length because "values" is null`로 죽는다. → **커스텀 `JdbcType`**(`setObject(..., Types.OTHER)`)으로 값을 바인딩한다. M0의 `PgEnum`/`PgEnumJdbcType`/`PgEnumConverter`가 그 구현이다.
 2. **UUID PK 22개** (PK 24개 − BIGSERIAL 2개). 대부분 앱에서 `uuid4()` 생성이고, `CoachSession.id`만 외부(agent 모듈의 문자열 파싱, `db/store.py:PostgresStore._add_coach_session`)에서 온다. `HandoffConfirmation`은 PK가 `coaching_handoff_id`로 **FK 겸 PK**다. Spring Data `save()`는 `@Id`가 non-null이면 `merge()`를 호출해 불필요한 SELECT가 붙는다. → 앱 생성 PK 전부 `Persistable<UUID>` 구현 또는 `em.persist()` 직접, 그리고 **INSERT 전 SELECT가 없음을 전수 검증**한다.
-3. **`server_default` vs `default` 이원화.** JPA에는 "앱 측 default" 개념이 없다. 필드 초기화값을 주면 항상 INSERT에 실려 `server_default`가 발동하지 않는다. 컬럼별로 판정한다. `db/models.py:CoachTurn`·`Report`의 `''` 기본값 컬럼은 null로 두면 NOT NULL 위반이고, `summaries.observations_json`/`.uncertainties_json`·`coach_sessions.conversation_summary`도 같은 부류다.
+3. **`server_default` vs `default` 이원화.** JPA에는 "앱 측 default" 개념이 없다. 필드 초기화값을 주면 항상 INSERT에 실려 `server_default`가 발동하지 않는다. 컬럼별로 판정한다. `''` 기본값 컬럼은 `db/models.py:CoachSession`의 `conversation_summary`와 `db/models.py:Report`의 `comparison` 둘이며 null로 두면 NOT NULL 위반이다. 🔁 초판은 이 자리에 `CoachTurn`을 적었으나 그 컬럼(`focus_timestamp`)은 `0007`이 삭제했다. `summaries.observations_json`/`.uncertainties_json`도 같은 부류다.
 4. **JSONB 8개** — `summaries.observation`(NULL 허용)/`.raw`/`.observations_json`/`.uncertainties_json`, `coaching_handoffs.handoff_json`, `practice_reports.report_json`, `reports.biggest_problem`, `external_operations.response_payload`(NULL 허용). **JSON null(`'null'::jsonb`)과 SQL NULL을 구분**한다. 현재 코드는 SQL NULL을 의도한다(`db/store.py:PostgresStore.claim_external_operation` 계열).
 5. **BIGSERIAL PK 2개** — `Anomaly.id`, `CoachTurn.id`. `IDENTITY` 전략은 JDBC 배치 INSERT를 막는다.
 6. **부분 인덱스 3개와 CHECK 제약 4개**(`ck_practice_sessions_blockage_branch`·`ck_coaching_handoffs_branch_kind`·`ck_practice_reports_report_type`·`ck_community_blocks_not_self`)는 Hibernate가 만들 수도 검증할 수도 없다. Flyway가 DDL을 소유해야 하는 결정적 이유다.
@@ -145,6 +145,18 @@ WHERE status = 'running'::operation_status_t
 
 `@Enumerated` 금지(§5-3-1)는 JPA 얘기였지만, **JdbcTemplate의 SQL 리터럴에서도 같은 함정이 발현한다.** enum 컬럼을 읽을 때는 `kind::text`처럼 반대 방향 캐스팅을 쓴다.
 
+**③ 읽기 캐스팅이 `ORDER BY`를 조용히 뒤집는다 (M3에서 실측).**
+
+```sql
+-- 틀렸다: 출력 컬럼 이름이 그대로 type 이라 ORDER BY 가 enum 이 아니라 그 텍스트를 본다
+SELECT DISTINCT ON (type) id, type::text, ... FROM consent_documents
+ORDER BY type, published_at DESC, id DESC
+-- 통과: ORDER BY 를 테이블로 한정한다
+ORDER BY consent_documents.type, consent_documents.published_at DESC, consent_documents.id DESC
+```
+
+Postgres의 `ORDER BY`는 **출력 별칭을 먼저** 찾는다. enum은 선언 순서로, 텍스트는 알파벳 순으로 정렬되므로 `consent_type_t`가 `terms, privacy, ai_analysis` → `ai_analysis, privacy, terms`로 뒤집힌다(실측). **`DISTINCT ON`에서는 정렬이 곧 "그룹마다 어느 행이 살아남는가"이므로 응답 순서만이 아니라 내용이 달라진다.** 컴파일도 통과하고 예외도 없다 — 통합 테스트만이 잡는다.
+
 **② `Instant`는 JDBC 파라미터로 바인딩할 수 없다.**
 
 ```
@@ -174,7 +186,7 @@ Python 구현의 의미를 그대로 옮긴다. 하나라도 다르면 재분석
 | # | 항목 | 조치 |
 |---|---|---|
 | 1 | 오류 포맷 `{"detail": <str>}` | Spring 기본 `ProblemDetail`을 **반드시** 오버라이드. 422 validation만 `detail`이 **배열** |
-| 2 | unknown key 정책 | **DTO별로 옮긴다. 전역 `FAIL_ON_UNKNOWN_PROPERTIES=true` 금지** (§6-3) |
+| 2 | unknown key 정책 | **전역 `FAIL_ON_UNKNOWN_PROPERTIES=true` + 허용 DTO에만 `@JsonIgnoreProperties(ignoreUnknown = true)`** (§6-3). 반대 방향은 M0에서 시도해 실패했다 |
 | 3 | null 필드 **포함** | `@JsonInclude(NON_NULL)` **전역 사용 금지** (§6-1) |
 | 4 | datetime | 전 엔드포인트 `Z` + 마이크로초 6자리 (§4). **JDBC 바인딩은 `OffsetDateTime`** (§5-8) |
 | 5 | enum 표기 | `AttributeConverter` 17개. **`@Enumerated` 금지** |
@@ -183,7 +195,7 @@ Python 구현의 의미를 그대로 옮긴다. 하나라도 다르면 재분석
 | 8 | S3 presign | **리전 엔드포인트 고정**. 글로벌 엔드포인트는 신규 버킷에 307 |
 | 9 | ffmpeg | 동시 실행 1개 락, 600초 타임아웃, 실패·부재 시 원본 폴백 |
 | 10 | 제약명 문자열 의존 | **`consent_documents` 유니크 위반** 판정(`consents.py:_is_consent_document_unique_error`)을 `PSQLException.getServerErrorMessage().getConstraint()`로 재현. ⚠ **대상이 바뀌었다** — 원래 여기 있던 `reports_session_id_key` 중복 판정은 `SOMA-302`로 사라졌고, 리포트 멱등은 `uq_practice_reports_source_handoff`에 대한 `ON CONFLICT DO NOTHING`으로 대체됐다(제약명 문자열을 보지 않는다) |
-| 11 | 테이블 락 획득 순서 | `upload_intents`→`external_operations`, `practice_sessions`→`practice_reports`. 바꾸면 데드락 |
+| 11 | 테이블 락 획득 순서 | `upload_intents`→`external_operations`, `practice_sessions`→`practice_reports`, `community_posts`→`community_anonymous_aliases`. 바꾸면 데드락 |
 | 12 | canonical JSON | 멱등 replay는 키 정렬 + 공백 없음 + 한글 raw UTF-8 (`sync_operations.py:_json_response`) |
 | 13 | `X-Request-Id` 응답 헤더 | 바디만 맞추면 놓친다 (`sync_operations.py:SyncOperationClaim.headers`, `practice_sessions.py:_idempotent_response`) |
 | 14 | v1 경로 404 | `/summarize`, `/coach/start`, `/coach/reply`, `/report`, `/report/history/{id}` 5개 |
@@ -218,7 +230,7 @@ M1이 이 표를 소스에서 추출해 fixture로 만든다. 이후 사이클�
 
 **숫자를 완료 조건으로 쓰지 않는다.** 위 47이라는 값도 추출 방식에 따라 흔들린다(동적 502, admin 기본 401, 멀티라인 detail). committed OpenAPI는 41 operations이며 admin 2개는 `ADMIN_OPS_TOKEN`이 있을 때만 등록된다(`app.py:create_app`, `admin.py:build_router`). **소스/OpenAPI에서 생성한 inventory의 집합 동등성으로 판정**하고, 조건부 라우트는 프로파일별 inventory를 따로 둔다.
 
-### 6-3. unknown key 정책 — 전역 reject 금지
+### 6-3. unknown key 정책 — 전역 reject + DTO별 예외
 
 요청 바디 17개 중 **5개가 unknown key를 허용**한다(`additionalProperties`가 `false`가 아님):
 
@@ -240,7 +252,7 @@ record LoginRequest(...) {}      // 위 5개에만
 
 **반대 방향(전역 허용 + DTO별 거부)은 Jackson이 표현하지 못한다** — M0에서 실제로 시도해 실패했다. `ignoreUnknown = false`는 "거부하라"가 아니라 **"전역 설정을 따르라"**는 뜻이라 기본값과 다를 바 없고, 예외가 나지 않는다.
 
-Spring Boot 기본값은 `false`(무시)이고 Pydantic 기본값과 같지만, **그 기본을 쓰면 거부해야 할 9개를 닫을 수단이 없다.** 그래서 전역을 뒤집고 7개를 여는 쪽이 유일한 구현이다.
+Spring Boot 기본값은 `false`(무시)이고 Pydantic 기본값과 같지만, **그 기본을 쓰면 거부해야 할 12개를 닫을 수단이 없다.** 그래서 전역을 뒤집고 5개를 여는 쪽이 유일한 구현이다.
 
 애노테이션이 붙는 5개는 Python에서 `extra`를 명시하지 않은 집합과 정확히 같아야 한다. **개수를 박지 말고 `openapi.json`에서 생성한다** — 방금 7→5로 바뀐 것이 그 이유다. M1이 **요청 17개 전부에 unknown-field 회귀 테스트**를 둔다.
 
@@ -331,8 +343,9 @@ CI는 러너의 Docker 버전이 달라 동작이 갈릴 수 있다. `ci.yml:69-
 | ~~M0~~ | ~~Gemini Java SDK가 Files API 업로드·`PROCESSING` 폴링·`responseSchema`를 지원하는가~~ → **M0에서 해결(지원함)**. 단 **영상 분석 한 층에만 해당한다** — 아래 참조 |
 | M4 | **OpenAI 클라이언트를 어떻게 만들 것인가.** `SOMA-302`가 코치·리포트를 Gemini에서 OpenAI(`POST /v1/responses`)로 옮겼고, 파이썬 구현도 SDK가 아니라 `httpx` REST 직접 호출이다. 기본안은 `RestClient` 동형 이식 — `spec/M4-llm.md` §A-0 |
 | M0 | 위험 함수 #1의 트랜잭션 관리 스타일 — 선언적 `@Transactional` vs `TransactionTemplate` |
-| M2 | 시계 소스 통일 — DB `now()` vs 앱 `Instant.now()`. 현재 혼재하며 리스 만료 비교(`db/store.py:PostgresStore.claim_external_operation`·`.claim_next_external_operation`·`.sweep_max_attempts_operations`)에 영향 |
-| M2 | `SKIP LOCKED` 도입 여부 (기본 방침: 원본 동작 우선) |
+| M2 | 시계 소스 — **DB 트랜잭션 시계 / 앱 wall clock / monotonic 세 층의 policy matrix**. 하나로 통일하는 문제가 아니다(JWT는 epoch, `ratelimit.py:RateLimiter`는 monotonic이 의도). 리스 만료 비교(`db/store.py:PostgresStore.claim_external_operation`·`.claim_next_external_operation`·`.sweep_max_attempts_operations`)에 영향 |
+| M2 | `SKIP LOCKED` 도입 여부 (기본 방침: 원본 동작 우선). 판별 테스트 없이는 결정이 검증되지 않는다 — 기존 테스트는 두 방식을 구분하지 못한다 |
+| M2 | **JSONB 8개의 canonical Java 표현** — `JsonNode` vs 타입 컬렉션 vs JSON 문자열. 엔티티 24개를 만든 뒤 M3에서 뒤집으면 repository·service·테스트 전반이 재작업이다 |
 | M5 | ~~dev 인스턴스 업그레이드~~ → **확정: dev·운영 be 둘 다 t3.small 이상 필수.** 운영 be도 t2.micro 954MB이고 **swap이 0**이라 병행 기동이 불가능하다(2026-08-06 실측, `spec/M5-cutover.md` §B). 비용 발생 — 사용자 승인 대상 |
 
 ## 11. 진행 방식
@@ -341,7 +354,9 @@ CI는 러너의 Docker 버전이 달라 동작이 갈릴 수 있다. `ci.yml:69-
 
 Phase 1(SPEC 확정) → 2(Codex 설계 비판) → **3(이중 구현 + 대조)** → 4(실행 검증) → 5(Claude 리뷰 루프) → 6(Codex 최종 관문) → 7(마무리 커밋)
 
-**Phase 3은 이중 구현이다.** 같은 SPEC으로 Codex(worktree A)와 Claude 서브에이전트(worktree B)가 독립 병렬 작업하고, SPEC 기준으로 대조해 차이 목록을 만든 뒤, 베이스를 정하고 상대 구현의 우월한 부분을 이식해 단일 구현을 확정한다. M1 이후에는 하네스 통과율이 객관 지표가 된다.
+**Phase 3의 기본형은 이중 구현이다.** 같은 SPEC으로 Codex(worktree A)와 Claude 서브에이전트(worktree B)가 독립 병렬 작업하고, SPEC 기준으로 대조해 차이 목록을 만든 뒤, 베이스를 정하고 상대 구현의 우월한 부분을 이식해 단일 구현을 확정한다. M1 이후에는 하네스 통과율이 객관 지표가 된다.
+
+**사이클별로 단독 구현을 택할 수 있다.** 이중 구현은 비용이 두 배이므로, 완료 기준이 충분히 촘촘해 Phase 5~6 리뷰만으로 오류가 드러난다면 단독으로 간다. **M2는 사용자 결정으로 Codex 단독**이다(2026-08-08) — 대신 Phase 2 비판에서 나온 완료 기준 강화를 전부 반영했다. **M4도 사용자 결정으로 Codex 단독**이다(2026-08-09) — M4는 대부분 "그대로 옮기기"라 설계 여지가 좁고(프롬프트 1219줄 복사·상수 이식·폴백 사슬 재현), 판정이 요청 golden + 결정적 후처리로 촘촘하다.
 
 사용자 개입은 2회 — 전체 SPEC 묶음 승인(지금), M5 운영 전환 직전. 그 사이 사이클은 자동 연쇄한다.
 
@@ -372,3 +387,4 @@ M0 문서(`spec/M0-spike.md`·`spec/M0-findings.md`)는 **그 시점의 기록**
 1. `git merge-base --is-ancestor <dev tip> <직전 SPEC 개정 커밋>` — 개정이 **실제로** 최신 dev를 보고 쓰였는지. 1차 개정은 본문에 "`SOMA-302`를 반영했다"고 적혀 있었지만 커밋 조상 관계로는 `SOMA-304`를 못 본 상태였다
 2. `git diff <직전 SPEC 개정 커밋>..origin/dev -- apps/api` — 변경이 있으면 **SPEC이 인용한 동작 서술**을 그 diff에 대고 읽는다
 3. `apps/api/spec/openapi.json`의 operation·컴포넌트·`default`·`anyOf [T,null]` 집합을 개정 시점과 비교
+4. **그 사이클 문서에 적힌 명령을 한 번씩 실제로 실행한다.** M2 진입 시 검증 명령의 `--only /v2/auth,/health`는 그대로 돌지 않았고(경로가 아니라 **시나리오 이름**을 받으며 콤마가 아니라 **반복 플래그**다), 완료 기준의 auth 비교는 하네스 `tools/contract-harness/contract_harness/backends.py:JavaBackend`가 제어 표면을 M4로 미뤄 둔 탓에 **M2에서 달성 자체가 불가능**했다. 둘 다 문서만 봐서는 알 수 없고 한 번 돌려 보면 즉시 드러난다. **적어 두고 실행한 적 없는 명령은 사양이 아니라 추측이다.**

@@ -128,9 +128,23 @@ class BackendRuntime:
             return {"expired_uploads": expired, "exhausted_operations": exhausted}
         if name == "stub-state":
             # 읽기 전용이 기본이고, `release`/`rearm` 이 오면 멈춰 있는 스텁을 푼다.
-            # 제어를 6개로 늘리지 않으려고 기존 제어의 payload 로 넣었다 —
+            # 별도 release/rearm 제어를 늘리지 않으려고 기존 제어의 payload 로 넣었다 —
             # 스텁 게이트는 스텁 상태의 일부다.
-            for stub in (self.coach_generate, self.report_generate):
+            #
+            # `stub` 이름을 주면 그 스텁 하나만 건드린다. 동시성 시나리오는 특정
+            # 스텁에 요청을 가둬 놓고 푸는 것이 의도라, 이름 없이 전부 푸는 것과
+            # 구별해야 한다. 이름이 없으면 종전대로 게이트 있는 스텁 전부다.
+            gated = {
+                "coach_generate": self.coach_generate,
+                "report_generate": self.report_generate,
+            }
+            selected = payload.get("stub")
+            if selected is not None and selected not in gated:
+                raise KeyError(f"unknown gated stub: {selected}")
+            targets = (
+                [gated[selected]] if selected else list(gated.values())
+            )
+            for stub in targets:
                 if payload.get("release"):
                     stub.release()
                 if payload.get("rearm"):
@@ -146,6 +160,9 @@ class BackendRuntime:
             return {"offset_sec": self.clock.advance(seconds)}
         if name == "db-projection":
             return self.db_projection(payload.get("include"))
+        if name == "reset-state":
+            self.clock.reset()
+            return {"reset": True}
         raise KeyError(name)
 
     # -- DB projection ----------------------------------------------------
@@ -278,10 +295,26 @@ class HarnessASGI:
         if scope["type"] == "http" and scope["path"].startswith(cfg.CONTROL_PREFIX):
             await self._control(scope, receive, send)
             return
+        scope = self._with_contract_client(scope)
         if self.response_mutation is None:
             await self.inner(scope, receive, send)
             return
         await self._mutating(scope, receive, send)
+
+    @staticmethod
+    def _with_contract_client(scope):
+        """HTTP·in-process 백엔드가 같은 헤더 신호로 rate-limit origin 을 바꾼다."""
+        header = cfg.CLIENT_HOST_HEADER.lower().encode("ascii")
+        host = next(
+            (value.decode("utf-8") for key, value in scope.get("headers", []) if key.lower() == header),
+            None,
+        )
+        if host is None:
+            return scope
+        copied = dict(scope)
+        port = (scope.get("client") or (None, 50000))[1]
+        copied["client"] = (host, port)
+        return copied
 
     async def _control(self, scope, receive, send):
         name = scope["path"][len(cfg.CONTROL_PREFIX) :].lstrip("/")

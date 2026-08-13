@@ -44,14 +44,20 @@ echo "▶ alembic upgrade head"
     uv run alembic upgrade head 2>&1 | tail -3
 )
 
-echo "▶ 시드 블록 보존"
-# 시드는 alembic 의 op.bulk_insert 로 들어가 pg_dump --schema-only 에 잡히지 않는다.
-# 기존 V1 의 시드 블록을 그대로 이어 붙인다. 시드 테이블이 늘면 여기를 손봐야 한다.
-SEED="$(awk '/^-- 커뮤니티 카테고리 시드/,0' "$V1")"
-if [ -z "$SEED" ]; then
-  echo "  !! 기존 V1 에서 시드 블록을 찾지 못했다. 수동 확인이 필요하다." >&2
+echo "▶ alembic 결과 DB에서 시드 행 추출"
+# 정본은 0005의 _SEED_CATEGORIES다. alembic을 실제로 적용한 DB에서 네 필드를 읽으므로
+# 기존 V1을 복사해 둘이 같이 낡는 자기참조가 생기지 않는다.
+SEED_ROWS="$(docker exec "$CONTAINER" psql -U regen -d regen -tA -c \
+  "SELECT format('    (%L, %L, %L, %s)%s', slug, name, description, sort_order, CASE WHEN row_number() OVER (ORDER BY sort_order, slug) = count(*) OVER () THEN ';' ELSE ',' END) FROM community_categories ORDER BY sort_order, slug")"
+if [ -z "$SEED_ROWS" ]; then
+  echo "  !! alembic 결과 DB에서 community_categories 시드를 찾지 못했다." >&2
   exit 1
 fi
+SEED="-- 커뮤니티 카테고리 시드 (alembic 0005 _SEED_CATEGORIES 정본에서 추출)
+-- id/created_at/is_active는 alembic과 동일하게 server_default를 사용한다.
+
+INSERT INTO public.community_categories (slug, name, description, sort_order) VALUES
+$SEED_ROWS"
 
 echo "▶ V1__baseline.sql 재생성"
 {

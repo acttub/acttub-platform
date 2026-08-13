@@ -6,11 +6,8 @@ import java.util.UUID;
 import jakarta.persistence.Column;
 import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
-import jakarta.persistence.Id;
 import jakarta.persistence.Table;
-import jakarta.persistence.Transient;
 import org.hibernate.annotations.JdbcType;
-import org.springframework.data.domain.Persistable;
 
 /**
  * {@code practice_sessions} — 부분 인덱스
@@ -21,11 +18,7 @@ import org.springframework.data.domain.Persistable;
  */
 @Entity
 @Table(name = "practice_sessions")
-public class PracticeSessionEntity implements Persistable<UUID> {
-
-    @Id
-    @Column(name = "id", nullable = false)
-    private UUID id;
+public class PracticeSessionEntity extends AppGeneratedUuidEntity {
 
     @Column(name = "user_id", nullable = false)
     private UUID userId;
@@ -73,16 +66,13 @@ public class PracticeSessionEntity implements Persistable<UUID> {
     @Column(name = "updated_at", nullable = false, insertable = false, updatable = false)
     private Instant updatedAt;
 
-    @Transient
-    private boolean isNew = true;
-
     protected PracticeSessionEntity() {
     }
 
     public PracticeSessionEntity(UUID id, UUID userId, UUID uploadIntentId, PracticeStatus status,
             String situation, String characterContext, String subtext,
             String blockageKind, String subBranch, String goal) {
-        this.id = id;
+        super(id);
         this.userId = userId;
         this.uploadIntentId = uploadIntentId;
         this.status = status;
@@ -92,22 +82,6 @@ public class PracticeSessionEntity implements Persistable<UUID> {
         this.blockageKind = blockageKind;
         this.subBranch = subBranch;
         this.goal = goal;
-    }
-
-    @Override
-    public UUID getId() {
-        return id;
-    }
-
-    @Override
-    public boolean isNew() {
-        return isNew;
-    }
-
-    @jakarta.persistence.PostPersist
-    @jakarta.persistence.PostLoad
-    void markNotNew() {
-        this.isNew = false;
     }
 
     public UUID getUserId() {

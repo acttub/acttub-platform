@@ -1,6 +1,7 @@
 package com.acttub.actingapi.config;
 
 import java.io.IOException;
+import java.math.BigInteger;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -9,7 +10,10 @@ import java.time.format.DateTimeFormatter;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonSerializer;
 import com.fasterxml.jackson.databind.SerializerProvider;
+import com.fasterxml.jackson.databind.cfg.CoercionAction;
+import com.fasterxml.jackson.databind.cfg.CoercionInputShape;
 import com.fasterxml.jackson.databind.module.SimpleModule;
+import com.fasterxml.jackson.databind.type.LogicalType;
 import org.springframework.boot.autoconfigure.jackson.Jackson2ObjectMapperBuilderCustomizer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -39,7 +43,7 @@ public class JacksonConfig {
 
     @Bean
     Jackson2ObjectMapperBuilderCustomizer acttubJacksonCustomizer() {
-        SimpleModule module = new SimpleModule("acttub-datetime");
+        SimpleModule module = new SimpleModule("acttub-contract");
         module.addSerializer(Instant.class, new JsonSerializer<>() {
             @Override
             public void serialize(Instant value, JsonGenerator gen, SerializerProvider serializers)
@@ -54,13 +58,29 @@ public class JacksonConfig {
                 gen.writeString(MICROS_UTC.format(value.toInstant()));
             }
         });
+        module.addDeserializer(Byte.class, ExactIntegerDeserializer.bytes());
+        module.addDeserializer(Byte.TYPE, ExactIntegerDeserializer.bytes());
+        module.addDeserializer(Short.class, ExactIntegerDeserializer.shorts());
+        module.addDeserializer(Short.TYPE, ExactIntegerDeserializer.shorts());
+        module.addDeserializer(Integer.class, ExactIntegerDeserializer.integers());
+        module.addDeserializer(Integer.TYPE, ExactIntegerDeserializer.integers());
+        module.addDeserializer(Long.class, ExactIntegerDeserializer.longs());
+        module.addDeserializer(Long.TYPE, ExactIntegerDeserializer.longs());
+        module.addDeserializer(BigInteger.class, ExactIntegerDeserializer.bigIntegers());
 
         return builder -> {
             builder.modules(module);
             builder.featuresToDisable(
-                    com.fasterxml.jackson.databind.SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+                    com.fasterxml.jackson.databind.SerializationFeature.WRITE_DATES_AS_TIMESTAMPS,
+                    com.fasterxml.jackson.databind.MapperFeature.ALLOW_COERCION_OF_SCALARS);
             builder.featuresToEnable(
                     com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
+            builder.postConfigurer(objectMapper -> {
+                var textual = objectMapper.coercionConfigFor(LogicalType.Textual);
+                textual.setCoercion(CoercionInputShape.Integer, CoercionAction.Fail);
+                textual.setCoercion(CoercionInputShape.Float, CoercionAction.Fail);
+                textual.setCoercion(CoercionInputShape.Boolean, CoercionAction.Fail);
+            });
         };
     }
 }

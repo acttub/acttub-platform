@@ -13,13 +13,14 @@
 --
 -- 주의: --no-owner --no-privileges 라 owner/ACL 은 담기지 않는다. extension 과
 -- sequence 의 last_value 도 마찬가지다. M6 의 재해복구 리허설에서 별도로 확인한다.
+
 --
 -- PostgreSQL database dump
 --
 
 
--- Dumped from database version 18.4 (Homebrew)
--- Dumped by pg_dump version 18.4 (Homebrew)
+-- Dumped from database version 18.4
+-- Dumped by pg_dump version 18.4
 
 
 --
@@ -1556,12 +1557,10 @@ ALTER TABLE ONLY public.user_identities
 
 
 
--- 커뮤니티 카테고리 시드 (alembic 0005 op.bulk_insert 대응)
--- id 는 DB 가 gen_random_uuid() 로 만든다 — alembic 도 동일하게 동작했다.
---
+-- 커뮤니티 카테고리 시드 (alembic 0005 _SEED_CATEGORIES 정본에서 추출)
+-- id/created_at/is_active는 alembic과 동일하게 server_default를 사용한다.
 
 INSERT INTO public.community_categories (slug, name, description, sort_order) VALUES
     ('free', '자유', '연습하다 든 생각, 근황, 잡담', 10),
     ('admission', '입시 Q&A', '실기·전형·준비 과정에서 막힌 것 묻기', 20),
-    ('info', '정보공유', '공고·후기·자료처럼 남에게 도움 되는 것', 30)
-ON CONFLICT (slug) DO NOTHING;
+    ('info', '정보공유', '공고·후기·자료처럼 남에게 도움 되는 것', 30);

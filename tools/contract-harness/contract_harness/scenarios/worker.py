@@ -10,6 +10,7 @@ import threading
 from concurrent.futures import ThreadPoolExecutor
 
 from contract_harness import config as cfg
+from contract_harness.scenarios import gate
 from contract_harness.scenarios.support import (
     create_upload,
     grant_all_consents,
@@ -134,8 +135,14 @@ def worker_failure(ctx) -> None:
         headers=headers,
     )
     ctx.note("sweep.expected", {"expected_error_code": "max_attempts_exceeded"})
+    # status 를 먼저 본다 — 200 이 아니면 `parsed` 에 error_code 자체가 없어서
+    # KeyError 로 죽고, 그러면 **왜 실패했는지가 응답째로 사라진다.**
     require(
-        swept.parsed["error_code"] == "max_attempts_exceeded",
+        swept.status == 200,
+        f"sweep 후 status 조회가 200 이 아니다: {swept.status} {swept.parsed}",
+    )
+    require(
+        swept.parsed.get("error_code") == "max_attempts_exceeded",
         f"sweep 후 error_code 가 max_attempts_exceeded 가 아니다: {swept.parsed}",
     )
 
@@ -249,19 +256,22 @@ def _gated_parallel(ctx, stub_name: str, calls, *, timeout: float = 20.0):
     `[[stub:block]]` 마커가 프롬프트에 있어야 한다. 전원이 갇힌 것을 확인하고
     나서 release 하므로 직렬화될 수 없다 — 이게 없으면 "둘 다 200" 이 나와도
     통과해 원자성 회귀를 놓친다.
+
+    게이트 조작은 전부 `stub-state` 제어 경유다(`contract_harness.scenarios.gate`).
+    스텁 핸들을 직접 잡으면 Java 백엔드에서 돌지 않는다.
     """
-    stub = getattr(ctx.backend.runtime, stub_name, None)
-    require(stub is not None, f"{stub_name} 스텁 핸들이 없다 — in-process 백엔드 전용")
-    stub.rearm()
+    gate.rearm(ctx, stub_name)
     with ThreadPoolExecutor(max_workers=len(calls)) as pool:
         futures = [pool.submit(call) for call in calls]
-        gated = stub.wait_until_blocked(timeout, count=len(calls))
-        blocked_now = stub.in_block_count
+        gated, state = gate.poll_until_blocked(
+            ctx, stub_name, count=len(calls), timeout=timeout
+        )
+        blocked_now = state["in_block_count"]
         # 못 가뒀어도 일단 풀어 준다 — 안 그러면 20초 타임아웃을 그대로 기다리고
         # 진단에 쓸 응답도 못 본다.
-        stub.release()
+        gate.release(ctx, stub_name)
         responses = [future.result(timeout=timeout + 20) for future in futures]
-    stub.rearm()
+    gate.rearm(ctx, stub_name)
     require(
         gated,
         f"{stub_name} 에 요청 {len(calls)}건이 동시에 갇히지 않았다 "

@@ -3,8 +3,10 @@ package com.acttub.actingapi.domain;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.acttub.actingapi.support.PostgresContainerSupport;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
@@ -15,6 +17,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.data.jpa.repository.support.JpaEntityInformationSupport;
+import org.springframework.data.jpa.repository.support.SimpleJpaRepository;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.transaction.annotation.Transactional;
@@ -32,8 +36,8 @@ import org.springframework.transaction.annotation.Transactional;
  *   <li>{@code Persistable} 덕분에 신규 저장에 <b>SELECT 가 앞서지 않는다</b> (/SPEC.md §5-3-2)</li>
  * </ul>
  */
-@SpringBootTest(properties = "spring.jpa.properties.hibernate.session_factory.statement_inspector="
-        + "com.acttub.actingapi.domain.EntityMappingIT$RecordingInspector")
+@SpringBootTest(properties = {"spring.jpa.properties.hibernate.session_factory.statement_inspector="
+        + "com.acttub.actingapi.domain.EntityMappingIT$RecordingInspector", "JWT_SECRET=test-secret"})
 class EntityMappingIT {
 
     @DynamicPropertySource
@@ -62,6 +66,26 @@ class EntityMappingIT {
     SessionFactory sessionFactory;
     @PersistenceContext
     EntityManager entityManager;
+
+    @Test
+    @DisplayName("JPA metamodel은 관계 매핑 없이 정확히 24개 엔티티를 포함한다")
+    void mapsExactlyTwentyFourEntities() {
+        Set<Class<?>> entities = entityManager.getMetamodel().getEntities().stream()
+                .map(jakarta.persistence.metamodel.Type::getJavaType)
+                .collect(java.util.stream.Collectors.toSet());
+        assertThat(entities).hasSize(24);
+        assertThat(entities).allMatch(type -> type.getSimpleName().endsWith("Entity"));
+        assertThat(entities).allMatch(type -> java.util.Arrays.stream(type.getDeclaredFields())
+                .noneMatch(field -> java.util.Arrays.stream(field.getAnnotations())
+                        .anyMatch(annotation -> Set.of("ManyToOne", "OneToMany", "OneToOne", "ManyToMany", "Enumerated")
+                                .contains(annotation.annotationType().getSimpleName()))));
+        // 19 = 원본 17 + 배우 기억 2(field·author). 엔티티는 아직 없어 24개 그대로다.
+        assertThat(PgEnumCatalogVerifier.typeCount()).isEqualTo(19);
+        long jsonNodes = entities.stream().flatMap(type -> java.util.Arrays.stream(type.getDeclaredFields()))
+                .filter(field -> field.getType().equals(com.fasterxml.jackson.databind.JsonNode.class))
+                .count();
+        assertThat(jsonNodes).isEqualTo(8);
+    }
 
     @Test
     @Transactional
@@ -137,5 +161,81 @@ class EntityMappingIT {
 
         // 영속화 뒤에는 더 이상 신규가 아니다 → 재저장 시 merge 로 간다.
         assertThat(entity.isNew()).isFalse();
+    }
+
+    @Test
+    @Transactional
+    @DisplayName("앱 생성 UUID 엔티티 20종의 실제 Spring Data save()가 INSERT 전 SELECT를 내지 않는다")
+    void allTwentyAppGeneratedIdsUsePersistOnSave() {
+        RecordingInspector.STATEMENTS.clear();
+        UUID userId=UUID.randomUUID(), otherUserId=UUID.randomUUID(), documentId=UUID.randomUUID();
+        UUID uploadId=UUID.randomUUID(), practiceId=UUID.randomUUID(), summaryId=UUID.randomUUID();
+        UUID coachId=UUID.randomUUID(), handoffId=UUID.randomUUID(), categoryId=UUID.randomUUID(), postId=UUID.randomUUID();
+        var object=JsonNodeFactory.instance.objectNode().put("k","v");
+        var array=JsonNodeFactory.instance.arrayNode().add("v");
+
+        save(UserEntity.class,new UserEntity(userId,"all-"+userId+"@example.test",UserStatus.ACTIVE,"n"));
+        save(UserEntity.class,new UserEntity(otherUserId,"other-"+userId+"@example.test",UserStatus.ACTIVE,"n"));
+        save(UserIdentityEntity.class,new UserIdentityEntity(UUID.randomUUID(),userId,IdentityProvider.GOOGLE,"uid-"+userId));
+        save(RefreshTokenEntity.class,new RefreshTokenEntity(UUID.randomUUID(),userId,"a".repeat(64),null,java.time.Instant.now().plusSeconds(60)));
+        save(ConsentDocumentEntity.class,new ConsentDocumentEntity(documentId,ConsentType.TERMS,"v-"+userId,"t","b",true));
+        save(UserConsentEntity.class,new UserConsentEntity(UUID.randomUUID(),userId,documentId,ConsentAction.GRANTED));
+        save(UploadIntentEntity.class,new UploadIntentEntity(uploadId,userId,UploadStatus.PENDING,"s3","key-"+userId,"video/mp4",1,java.time.Instant.now().plusSeconds(60)));
+        save(PracticeSessionEntity.class,new PracticeSessionEntity(practiceId,userId,uploadId,PracticeStatus.ANALYZING,"s","c",null,"분석","캐릭터 분석","g"));
+        save(TranscriptEntity.class,new TranscriptEntity(UUID.randomUUID(),practiceId,0,"text"));
+        save(SummaryEntity.class,new SummaryEntity(summaryId,practiceId,"model",object,array,array));
+        entityManager.flush();
+
+        CoachSessionEntity coach=new CoachSessionEntity(coachId,practiceId,SessionStatus.OPEN); coach.close(CloseReason.USER_ENDED);
+        entityManager.persist(coach); entityManager.persist(new CoachTurnEntity(coachId,0,TurnRole.AI,"text")); entityManager.flush();
+        save(CoachingHandoffEntity.class,new CoachingHandoffEntity(handoffId,coachId,practiceId,"analysis",object));
+        entityManager.flush();
+        entityManager.persist(new HandoffConfirmationEntity(handoffId,true,null));
+        save(PracticeReportEntity.class,new PracticeReportEntity(UUID.randomUUID(),practiceId,"analysis",object,handoffId));
+        save(ReportEntity.class,new ReportEntity(UUID.randomUUID(),coachId,"h",object,"e","s","c","n"));
+        save(ExternalOperationEntity.class,new ExternalOperationEntity(UUID.randomUUID(),practiceId,userId,UUID.randomUUID(),OperationKind.ANALYZE,OperationStatus.PENDING,"b".repeat(64)));
+        save(CommunityCategoryEntity.class,new CommunityCategoryEntity(categoryId,"slug-"+userId,"name",null,100));
+        save(CommunityPostEntity.class,new CommunityPostEntity(postId,categoryId,userId,"t","b",ContentStatus.VISIBLE));
+        save(CommunityCommentEntity.class,new CommunityCommentEntity(UUID.randomUUID(),postId,userId,"b",ContentStatus.VISIBLE));
+        save(CommunityAnonymousAliasEntity.class,new CommunityAnonymousAliasEntity(UUID.randomUUID(),postId,userId,1));
+        save(CommunityPostLikeEntity.class,new CommunityPostLikeEntity(UUID.randomUUID(),postId,userId));
+        save(CommunityReportEntity.class,new CommunityReportEntity(UUID.randomUUID(),userId,ReportTargetType.POST,postId,ReportReason.SPAM,ReportStatus.PENDING));
+        save(CommunityBlockEntity.class,new CommunityBlockEntity(UUID.randomUUID(),userId,otherUserId));
+        entityManager.persist(new AnomalyEntity(summaryId,IntentImpact.REVERSAL,Severity.HIGH));
+        entityManager.flush();
+
+        List<String> statements=List.copyOf(RecordingInspector.STATEMENTS);
+        assertThat(statements.stream().filter(sql->sql.startsWith("insert into "))
+                .map(sql->sql.substring("insert into ".length()).split(" ")[0]).distinct()).hasSize(24);
+        assertThat(statements).noneMatch(sql->sql.stripLeading().toLowerCase().startsWith("select"));
+        assertThat(jdbc.queryForObject("SELECT intent_impact::text FROM anomalies WHERE summary_id=?",String.class,summaryId)).isEqualTo("반전");
+    }
+
+    @Test
+    @Transactional
+    @DisplayName("JsonNode는 객체·배열·SQL NULL·JSON null을 실제 jsonb 왕복에서 구분한다")
+    void jsonbPreservesFourCases() {
+        UUID user=UUID.randomUUID(),sqlNullUpload=UUID.randomUUID(),jsonNullUpload=UUID.randomUUID();
+        UUID sqlNullPractice=UUID.randomUUID(),jsonNullPractice=UUID.randomUUID();
+        entityManager.persist(new UserEntity(user,"json-"+user+"@example.test",UserStatus.ACTIVE,null)); entityManager.flush();
+        jdbc.update("INSERT INTO upload_intents(id,user_id,status,storage_provider,object_key,mime_type,size_bytes,expires_at) VALUES (?,?, 'pending'::upload_status_t,'s3',?,'video/mp4',1,now()), (?,?, 'pending'::upload_status_t,'s3',?,'video/mp4',1,now())",sqlNullUpload,user,"json-sql-null-"+user,jsonNullUpload,user,"json-null-"+user);
+        entityManager.persist(new PracticeSessionEntity(sqlNullPractice,user,sqlNullUpload,PracticeStatus.CREATED,"s","c",null,"분석","캐릭터 분석","g"));
+        entityManager.persist(new PracticeSessionEntity(jsonNullPractice,user,jsonNullUpload,PracticeStatus.CREATED,"s","c",null,"분석","캐릭터 분석","g")); entityManager.flush();
+        UUID sqlNull=UUID.randomUUID(),jsonNull=UUID.randomUUID();
+        SummaryEntity first=new SummaryEntity(sqlNull,sqlNullPractice,"m",JsonNodeFactory.instance.objectNode(),JsonNodeFactory.instance.arrayNode(),JsonNodeFactory.instance.arrayNode());
+        first.setObservation(null); entityManager.persist(first);
+        SummaryEntity second=new SummaryEntity(jsonNull,jsonNullPractice,"m",JsonNodeFactory.instance.objectNode(),JsonNodeFactory.instance.arrayNode(),JsonNodeFactory.instance.arrayNode());
+        second.setObservation(JsonNodeFactory.instance.nullNode()); entityManager.persist(second); entityManager.flush(); entityManager.clear();
+        assertThat(jdbc.queryForObject("SELECT observation IS NULL FROM summaries WHERE id=?",Boolean.class,sqlNull)).isTrue();
+        assertThat(jdbc.queryForObject("SELECT observation='null'::jsonb FROM summaries WHERE id=?",Boolean.class,jsonNull)).isTrue();
+        assertThat(entityManager.find(SummaryEntity.class,sqlNull).getObservation()).isNull();
+        assertThat(entityManager.find(SummaryEntity.class,jsonNull).getObservation().isNull()).isTrue();
+        assertThat(entityManager.find(SummaryEntity.class,jsonNull).getRaw().isObject()).isTrue();
+        assertThat(entityManager.find(SummaryEntity.class,jsonNull).getObservationsJson().isArray()).isTrue();
+    }
+
+    private <T> T save(Class<T> type,T entity){
+        var information=JpaEntityInformationSupport.getEntityInformation(type,entityManager);
+        return new SimpleJpaRepository<T,UUID>(information,entityManager).save(entity);
     }
 }

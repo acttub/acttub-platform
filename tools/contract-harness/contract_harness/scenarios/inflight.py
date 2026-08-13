@@ -19,6 +19,7 @@ from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor
 
+from contract_harness.scenarios.gate import poll_until_blocked, rearm as gate_rearm
 from contract_harness.scenarios.support import (
     create_analyzed_session,
     create_upload,
@@ -37,19 +38,17 @@ REPORT_PARSE_ERROR_MARKER = "[[report:parse_error]]"
 
 def _wait_until_blocked(ctx, step_id: str, stub: str) -> None:
     """스텁이 실제로 멈춘 것을 확인한다. 못 멈추면 시나리오를 실패로 끝낸다."""
-    handle = getattr(ctx.backend.runtime, stub, None)
+    blocked, state = poll_until_blocked(ctx, stub, timeout=BLOCK_WAIT_SEC)
     require(
-        handle is not None,
-        f"{stub} 스텁 핸들을 찾을 수 없다 — 이 시나리오는 in-process 백엔드 전용이다",
+        blocked,
+        f"{stub} 스텁이 {BLOCK_WAIT_SEC}초 안에 멈추지 않았다 (마지막 상태: {state})",
     )
+    # 여기서 한 번만 기록한다 — 폴링까지 기록하면 백엔드마다 폴링 횟수가 달라
+    # 스텝 수가 갈린다.
+    recorded = ctx.control(step_id, "stub-state")
     require(
-        handle.wait_until_blocked(BLOCK_WAIT_SEC),
-        f"{stub} 스텁이 {BLOCK_WAIT_SEC}초 안에 멈추지 않았다",
-    )
-    state = ctx.control(step_id, "stub-state")
-    require(
-        state[stub]["in_block"],
-        f"stub-state 가 {stub} 를 멈춘 것으로 보고하지 않는다: {state[stub]}",
+        recorded[stub]["in_block"],
+        f"stub-state 가 {stub} 를 멈춘 것으로 보고하지 않는다: {recorded[stub]}",
     )
 
 
@@ -406,7 +405,7 @@ def duplicate_report(ctx) -> None:
             coach_session_id=coach_session_id,
             marker=STUB_BLOCK_MARKER,
         )
-        ctx.backend.runtime.report_generate.rearm()
+        gate_rearm(ctx, "report_generate")
         with ThreadPoolExecutor(max_workers=1) as pool:
             pending = pool.submit(
                 ctx.backend.request,

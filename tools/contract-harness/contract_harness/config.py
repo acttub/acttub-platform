@@ -33,14 +33,16 @@ AWS_REGION = "ap-northeast-2"
 SUMMARY_MODEL = "harness-summary-model"
 
 CONTROL_PREFIX = "/__harness"
+CLIENT_HOST_HEADER = "X-Contract-Client-Host"
 
-# 제어 표면 5개 (§백엔드 adapter 계약 ①). 이름은 양쪽 백엔드가 공유하는 계약이다.
+# 이름은 양쪽 백엔드가 공유하는 계약이다.
 CONTROL_SURFACE = (
     "run-worker-once",
     "run-sweep",
     "stub-state",
     "advance-clock",
     "db-projection",
+    "reset-state",
 )
 
 
