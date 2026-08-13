@@ -34,7 +34,78 @@ public final class CoachPrompt {
             "7번째 응답: 방향 선택 구간",
             "8번째 응답: 마지막 응답");
 
+    /**
+     * 지난 것을 담는 칸의 상한. 넘으면 앞에서부터 자른다 — 지난 연습이 길다고 이번
+     * 대화의 예산을 밀어내면 안 된다.
+     */
+    private static final int PRIOR_CONTEXT_MAX_CHARS = 1200;
+
+    /** 순서가 프롬프트에 그대로 나간다 (`prompt.py:_MEMORY_LABELS`). */
+    private static final java.util.LinkedHashMap<String, String> MEMORY_LABELS =
+            new java.util.LinkedHashMap<>();
+
+    static {
+        MEMORY_LABELS.put("gender", "성별");
+        MEMORY_LABELS.put("age", "나이");
+        MEMORY_LABELS.put("goal", "배우가 말한 목표");
+        MEMORY_LABELS.put("blockage", "배우가 반복해서 고른 막히는 지점");
+        MEMORY_LABELS.put("speech_self", "배우가 스스로 말하는 자기 화법");
+        MEMORY_LABELS.put("speech_actual", "실제로 말한 방식");
+    }
+
     private CoachPrompt() {
+    }
+
+    /**
+     * 지난 것을 프롬프트에 넣는다 (`prompt.py:_prior_context_block`).
+     *
+     * <p><b>없으면 칸 자체를 만들지 않는다</b> — 빈 제목만 남기면 모델이 그 자리를 지어내
+     * 채운다. 첫 연습에서는 지금까지와 똑같은 프롬프트가 나가야 한다.
+     */
+    static String priorContextBlock(PriorContext prior) {
+        if (prior == null || prior.isEmpty()) {
+            return "";
+        }
+        List<String> lines = new ArrayList<>();
+        lines.add("## 배우에 대해 지금까지 알고 있는 것");
+        lines.add("지난 연습에서 정리된 참고 사항이다. **영상 근거가 아니다** — 이걸로 이번"
+                + " 영상의 장면을 말하지 않는다. 배우가 지난번에 한 말이므로 그대로 읊지 말고,"
+                + " 이번 대화에서 확인할 거리로만 쓴다.");
+
+        if (!prior.memory().isEmpty()) {
+            lines.add("");
+            MEMORY_LABELS.forEach((name, label) -> {
+                String value = prior.memory().get(name);
+                if (value != null && !value.isEmpty()) {
+                    lines.add("- " + label + ": " + value);
+                }
+            });
+        }
+
+        if (prior.earlierConversation() != null) {
+            lines.add("");
+            lines.add("### 같은 연습에서 지난번에 나눈 이야기");
+            lines.add(prior.earlierConversation());
+        }
+
+        if (!prior.pendingTakes().isEmpty()) {
+            lines.add("");
+            lines.add("### 지난 연습에서 해보기로 했지만 아직 안 해본 것");
+            prior.pendingTakes().forEach(take -> lines.add("- " + take));
+            lines.add("해봤는지 이번 대화에서 물어볼 수 있다. 다만 안 했다고 다그치지 않는다.");
+        }
+
+        return clip(String.join("\n", lines), PRIOR_CONTEXT_MAX_CHARS) + "\n\n";
+    }
+
+    /** 파이썬 {@code _clip}: 코드포인트 기준으로 세고 자른 뒤 rstrip + 말줄임표. */
+    private static String clip(String text, int budget) {
+        int length = text.codePointCount(0, text.length());
+        if (length <= budget) {
+            return text;
+        }
+        int end = text.offsetByCodePoints(0, Math.max(0, budget - 1));
+        return com.acttub.actingapi.web.PythonText.rstrip(text.substring(0, end)) + "…";
     }
 
     public static String select(String blockageKind) {
@@ -62,7 +133,8 @@ public final class CoachPrompt {
             transcriptBlock = "\n## 영상에서 받아쓴 대사\n" + transcriptLines + "\n";
         }
 
-        return "## 배우가 쓴 것\n"
+        return priorContextBlock(session.prior())
+                + "## 배우가 쓴 것\n"
                 + "- 상황: " + session.situation() + "\n"
                 + "- 캐릭터: " + session.characterContext() + "\n"
                 + "- 이번 테이크의 목적: " + session.goal() + "\n"

@@ -32,6 +32,18 @@ public final class PythonText {
         return value.substring(start, end);
     }
 
+    /** 파이썬 {@code str.rstrip()} 과 같은 기준으로 뒤쪽 공백만 제거한다. */
+    public static String rstrip(String value) {
+        if (value == null) {
+            return null;
+        }
+        int end = value.length();
+        while (end > 0 && isPythonSpace(value.charAt(end - 1))) {
+            end--;
+        }
+        return value.substring(0, end);
+    }
+
     /** U+0085 NEXT LINE. 파이썬은 공백으로 보지만 자바의 두 판정 어디에도 걸리지 않는다. */
     private static final char NEXT_LINE = '';
 

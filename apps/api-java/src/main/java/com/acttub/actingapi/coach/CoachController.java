@@ -1,6 +1,8 @@
 package com.acttub.actingapi.coach;
 
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import com.acttub.actingapi.auth.AuthDependencies;
@@ -53,6 +55,9 @@ class CoachController {
     private final SyncOperationService operations;
     private final AuthDependencies auth;
     private final ObjectMapper mapper;
+    private final com.acttub.actingapi.memory.MemoryStore memory;
+    private static final org.slf4j.Logger LOG =
+            org.slf4j.LoggerFactory.getLogger(CoachController.class);
 
     CoachController(
             CoachSessionStore sessions,
@@ -61,7 +66,8 @@ class CoachController {
             ReportOperationService reportOperations,
             SyncOperationService operations,
             AuthDependencies auth,
-            ObjectMapper mapper) {
+            ObjectMapper mapper,
+            com.acttub.actingapi.memory.MemoryStore memory) {
         this.sessions = sessions;
         this.coach = coach;
         this.reports = reports;
@@ -69,6 +75,63 @@ class CoachController {
         this.operations = operations;
         this.auth = auth;
         this.mapper = mapper;
+        this.memory = memory;
+    }
+
+    /**
+     * 코치가 알고 시작해야 하는 지난 것들 (`coaching.py:_build_prior_context`).
+     *
+     * <p><b>모으다 실패해도 대화는 시작돼야 한다.</b> 참고 사항이 없다고 연습을 못 하게
+     * 하는 것은 배우 입장에서 말이 안 된다 — 실패하면 빈 것으로 시작한다.
+     */
+    private PriorContext priorContext(UUID userId, UUID practiceSessionId) {
+        try {
+            Map<String, String> memoryValues = new LinkedHashMap<>();
+            memory.list(userId).forEach(row -> memoryValues.put(row.field(), row.value()));
+            var context = memory.priorContext(userId, practiceSessionId);
+            return new PriorContext(
+                    memoryValues, context.earlierConversation(), context.pendingTakes());
+        } catch (RuntimeException failure) {
+            LOG.warn("지난 연습 참고 사항을 모으지 못했다: {}", practiceSessionId, failure);
+            return PriorContext.EMPTY;
+        }
+    }
+
+    /**
+     * 연습을 마쳤으면 기억 갱신을 뒤에서 돌도록 큐에 넣는다 (`coaching.py:_schedule_memory_update`).
+     *
+     * <p>여기서 직접 갱신하지 않는 이유는 속도다 — 이 응답은 이미 성적표를 만드느라 느린데
+     * 모델 호출을 하나 더 얹으면 배우가 그만큼 더 기다린다. <b>큐에 넣다 실패해도 삼킨다</b> —
+     * 기억은 있으면 좋은 것이지, 없다고 방금 끝낸 연습을 실패로 돌려줄 일은 아니다.
+     */
+    private void scheduleMemoryUpdate(UUID userId, UUID practiceSessionId, boolean confirmed) {
+        if (!confirmed) {
+            return;
+        }
+        try {
+            if (!shouldUpdateMemory(memory.countConfirmedPractices(userId))) {
+                return;
+            }
+            memory.enqueueMemoryUpdate(userId, practiceSessionId);
+        } catch (RuntimeException failure) {
+            LOG.warn("기억 갱신 예약에 실패했다: {}", practiceSessionId, failure);
+        }
+    }
+
+    /**
+     * 이번 연습 뒤에 기억을 갱신할 차례인지 (`memory_worker.py:should_update_memory`).
+     *
+     * <p>첫 연습에는 바로 채운다 — 그래야 두 번째 연습부터 코치가 쓸 것이 생긴다. 그 뒤로는
+     * 몇 번에 한 번만 돈다. 매번 돌리면 한 번의 이상한 대화가 곧장 기억이 된다.
+     */
+    static boolean shouldUpdateMemory(long confirmedPracticeCount) {
+        if (confirmedPracticeCount <= 0) {
+            return false;
+        }
+        if (confirmedPracticeCount == 1) {
+            return true;
+        }
+        return confirmedPracticeCount % 3 == 0;
     }
 
     @Operation(
@@ -137,7 +200,8 @@ class CoachController {
         }
 
         try {
-            CoachResult result = coach.start(owned.newCoachSession(UUID.randomUUID()));
+            CoachResult result = coach.start(owned.newCoachSession(UUID.randomUUID())
+                    .withPrior(priorContext(user.id(), owned.practiceSessionId())));
             CompletedTurn completed = completeTurn(result.session(), result.reply());
             ObjectNode payload = coachPayload(
                     result.session(), result.reply(), completed.handoffId(),
@@ -325,6 +389,7 @@ class CoachController {
                     throw new ApiException(409, "report already exists");
                 }
             }
+            scheduleMemoryUpdate(user.id(), source.practiceSessionId(), req.confirmed());
             return operations.success(payload, claim);
         } catch (ReportParseError exception) {
             operations.fail(claim, "report_parse_error");

@@ -56,13 +56,15 @@ class CoachControllerTest {
     private final AuthDependencies auth = mock(AuthDependencies.class);
     private final HttpServletRequest request = mock(HttpServletRequest.class);
     private final ObjectMapper mapper = new ObjectMapper();
+    private final com.acttub.actingapi.memory.MemoryStore memory =
+            mock(com.acttub.actingapi.memory.MemoryStore.class);
 
     private CoachController controller;
 
     @BeforeEach
     void setUp() {
         controller = new CoachController(
-                sessions, coach, reports, reportOperations, operations, auth, mapper);
+                sessions, coach, reports, reportOperations, operations, auth, mapper, memory);
         when(auth.consentedUser(request)).thenReturn(
                 new AuthStore.User(USER_ID, "coach@test", UserStatus.ACTIVE));
         when(operations.requestId(any())).thenReturn(REQUEST_ID);
