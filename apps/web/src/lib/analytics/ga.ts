@@ -69,13 +69,13 @@ export const SIGNUP_UTM_PARAMS = [
   "utm_source",
   "utm_medium",
   "utm_campaign",
+  "utm_id",
   "utm_term",
   "utm_content",
 ] as const;
 
 const CAMPAIGN_PARAMS = new Set<string>([
   ...SIGNUP_UTM_PARAMS,
-  "utm_id",
   "utm_source_platform",
   "utm_creative_format",
   "utm_marketing_tactic",
