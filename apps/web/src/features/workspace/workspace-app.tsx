@@ -118,6 +118,17 @@ function dialogueTurnCount(turn: CoachTurnResponse): number {
   );
 }
 
+function questionOrdinal(questionCount: number): string {
+  const ordinals = [
+    "첫 번째 질문",
+    "두 번째 질문",
+    "세 번째 질문",
+    "네 번째 질문",
+    "다섯 번째 질문",
+  ];
+  return ordinals[questionCount - 1] ?? `${questionCount}번째 질문`;
+}
+
 /** 백엔드와 같은 네 종료 표현을 분류하되, 원문은 계측 함수에 넘기지 않는다. */
 function isActorClosing(text: string): boolean {
   const stripped = text.replace(/[\s.,!?~…·'"]/g, "");
@@ -717,8 +728,8 @@ function WorkspaceInner() {
     }
   }, [videoFile, situation, character, goal, refreshList, startUpload, trackAnalysis]);
 
-  const send = useCallback(async () => {
-    const text = answer.trim();
+  const send = useCallback(async (reply?: string) => {
+    const text = (reply ?? answer).trim();
     if (!text || sending || !coachIdRef.current) return;
     const turnIndex = dialogueTurnCountRef.current + 1;
     setMessages((m) => [...m, { role: "me", text }]);
@@ -943,6 +954,7 @@ function WorkspaceInner() {
   const waitingForCoach = mode === "uploading" || mode === "preparing";
   const step: 1 | 2 | 3 = waitingForCoach ? 3 : videoFile ? 2 : 1;
   const chatLeading = mode === "chat" || mode === "note";
+  const questionCount = messages.filter((message) => message.role === "ai").length;
   const displayName = nickname ?? "배우";
   const visibleScene = {
     situation: detail?.situation ?? situation,
@@ -1017,9 +1029,16 @@ function WorkspaceInner() {
           </button>
           {/* flex-1 이 없으면 상황이 길 때 이 줄이 헤더 밖으로 밀려 나간다 */}
           {activeId ? (
-            <p className="min-w-0 flex-1 truncate text-[15px] font-black tracking-[-0.03em]">
-              {detail?.situation?.trim() || "새 연습"}
-            </p>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-[15px] font-black leading-4 tracking-[-0.03em]">
+                {detail?.situation?.trim() || "새 연습"}
+              </p>
+              {mode === "chat" && questionCount > 0 ? (
+                <p className="mt-0.5 truncate text-[11px] font-semibold leading-4 text-[#8b95a1] sm:hidden">
+                  {questionOrdinal(questionCount)}
+                </p>
+              ) : null}
+            </div>
           ) : (
             <div className="flex min-w-0 flex-1 flex-col justify-center sm:contents">
               <p className="truncate text-[15px] font-black tracking-[-0.03em] sm:min-w-0 sm:flex-1">
@@ -1039,7 +1058,7 @@ function WorkspaceInner() {
                   type="button"
                   disabled={busy}
                   onClick={() => void removeSession()}
-                  className="h-8 rounded-[10px] border border-[#f1aeb5] px-3 text-xs font-black text-[#e03131] transition hover:bg-[#fff5f5] disabled:text-[#f1aeb5]"
+                  className="hidden h-8 rounded-[10px] border border-[#f1aeb5] px-3 text-xs font-black text-[#e03131] transition hover:bg-[#fff5f5] disabled:text-[#f1aeb5] sm:block"
                 >
                   삭제
                 </button>
@@ -1106,6 +1125,7 @@ function WorkspaceInner() {
               />
             ) : (
               <ChatPanel
+                key={activeId ?? "new"}
                 messages={messages}
                 answer={answer}
                 setAnswer={setAnswer}
@@ -1118,7 +1138,7 @@ function WorkspaceInner() {
                 })}
                 error={error}
                 scrollRef={chatScrollRef}
-                onSend={() => void send()}
+                onSend={(reply) => void send(reply)}
                 done={coachDone}
                 noteReady={report !== null}
                 onOpenNote={openNote}
@@ -1693,41 +1713,120 @@ function ScenePanel({
   open: boolean;
   onToggle: () => void;
 }) {
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const mobileVideoRef = useRef<HTMLVideoElement | null>(null);
   const rows: [string, string][] = [
     ["상황", detail?.situation?.trim() || "적지 않았어요"],
     ["인물", detail?.character_context?.trim() || "적지 않았어요"],
     ["목표", detail?.goal?.trim() || "적지 않았어요"],
   ];
+  const blockage = [detail?.blockage_kind?.trim(), detail?.sub_branch?.trim()]
+    .filter(Boolean)
+    .join(" › ") || "적지 않았어요";
+  const mobileRows: [string, string][] = [...rows, ["막힌 곳", blockage]];
+  const observations = detail?.summary?.observations ?? [];
+  const blockageDetail = detail?.blockage_detail?.trim();
+
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setMobileOpen(false);
+    };
+    document.addEventListener("keydown", closeOnEscape);
+    return () => document.removeEventListener("keydown", closeOnEscape);
+  }, [mobileOpen]);
+
+  const playObservation = (startMs: number) => {
+    const video = mobileVideoRef.current;
+    if (!video) return;
+    video.currentTime = startMs / 1000;
+    void video.play().catch(() => {});
+  };
 
   return (
     <>
       {/* 폰: 대화 위 접이식 스트립 한 줄 */}
-      <details className="group shrink-0 overflow-hidden rounded-[16px] bg-[#f9fafb] lg:hidden">
-        <summary className="flex cursor-pointer list-none items-center gap-2.5 px-3 py-2.5">
-          <span className="flex h-8 w-[52px] shrink-0 items-center justify-center rounded-lg bg-[#1b2942] text-[10px] font-black text-white">
-            ▶
+      <button
+        type="button"
+        onClick={() => setMobileOpen(true)}
+        className="flex shrink-0 items-center gap-2.5 overflow-hidden rounded-[16px] bg-[#f9fafb] px-3 py-2.5 text-left lg:hidden"
+      >
+        <span className="flex h-8 w-[52px] shrink-0 items-center justify-center rounded-lg bg-[#1b2942] text-[10px] font-black text-white">
+          ▶
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-[13px] font-black text-[#333d4b]">영상과 장면 보기</span>
+          <span className="block truncate text-[11.5px] font-semibold text-[#8b95a1]">
+            {detail?.situation?.trim() || "장면을 적지 않았어요"}
           </span>
-          <span className="min-w-0 flex-1">
-            <span className="block text-[13px] font-black text-[#333d4b]">영상과 장면 보기</span>
-            <span className="block truncate text-[11.5px] font-semibold text-[#8b95a1]">
-              {detail?.situation?.trim() || "장면을 적지 않았어요"}
-            </span>
-          </span>
-          <span aria-hidden="true" className="text-xs font-black text-[#8b95a1]">▾</span>
-        </summary>
-        <div className="px-3 pb-3">
-          {detail?.playback_url ? (
-            <video
-              key={detail.playback_url}
-              src={detail.playback_url}
-              controls
-              preload="metadata"
-              className="aspect-video w-full rounded-xl bg-black object-contain"
-            />
-          ) : null}
-          <SceneRows rows={rows} />
+        </span>
+        <span aria-hidden="true" className="text-xs font-black text-[#8b95a1]">▾</span>
+      </button>
+
+      {mobileOpen ? (
+        <div
+          className="fixed inset-0 z-50 flex items-end bg-[#0f141e]/45 lg:hidden"
+          onClick={(event) => {
+            if (event.target === event.currentTarget) setMobileOpen(false);
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="영상과 장면 보기"
+            className="max-h-[calc(100dvh-12px)] w-full overflow-y-auto rounded-t-[24px] bg-white p-4"
+          >
+            {detail?.playback_url ? (
+              <video
+                ref={mobileVideoRef}
+                key={detail.playback_url}
+                src={detail.playback_url}
+                controls
+                preload="metadata"
+                className="aspect-video w-full rounded-xl bg-black object-contain"
+              />
+            ) : null}
+            {observations.length > 0 ? (
+              <div className="mt-4">
+                <div className="flex flex-wrap items-baseline gap-2">
+                  <p className="text-[13.5px] font-black">관찰 시점</p>
+                  <p className="text-[11.5px] font-semibold text-[#8b95a1]">
+                    누르면 그 구간부터 재생돼요
+                  </p>
+                </div>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {observations.map((observation, index) => (
+                    <button
+                      key={`${observation.start_ms}-${index}`}
+                      type="button"
+                      onClick={() => playObservation(observation.start_ms)}
+                      className="rounded-full bg-[#e8f3ff] px-3 py-1.5 text-xs font-black tabular-nums text-[#1b64da]"
+                    >
+                      {formatObservationTime(observation.start_ms)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+            <SceneRows rows={mobileRows} />
+            {blockageDetail ? (
+              <div className="mt-4">
+                <p className="text-[11.5px] font-black text-[#8b95a1]">내가 막힌다고 쓴 글</p>
+                <blockquote className="mt-1 break-words rounded-[16px] bg-[#f8fbff] px-4 py-3 text-[12.5px] font-semibold leading-5 text-[#333d4b]">
+                  {blockageDetail}
+                </blockquote>
+              </div>
+            ) : null}
+            <button
+              type="button"
+              onClick={() => setMobileOpen(false)}
+              className="mt-4 flex h-11 w-full items-center justify-center rounded-[10px] bg-[#f2f4f6] text-xs font-black text-[#4e5968] transition hover:bg-[#eef2f6]"
+            >
+              접기
+            </button>
+          </div>
         </div>
-      </details>
+      ) : null}
 
       {/* 데스크톱: 접히는 왼쪽 패널 */}
       {open ? (
@@ -1772,6 +1871,13 @@ function ScenePanel({
   );
 }
 
+function formatObservationTime(startMs: number): string {
+  const totalSeconds = Math.max(0, Math.floor(startMs / 1000));
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+}
+
 function SceneRows({ rows }: { rows: [string, string][] }) {
   return (
     <dl className="mt-3 grid gap-2">
@@ -1806,41 +1912,94 @@ function ChatPanel({
   inputEnabled: boolean;
   error: string | null;
   scrollRef: React.RefObject<HTMLDivElement | null>;
-  onSend: () => void;
+  onSend: (reply?: string) => void;
   done: boolean;
   noteReady: boolean;
   onOpenNote: () => void;
 }) {
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const firstQuestionIndex = messages.findIndex((message) => message.role === "ai");
+  const dialogueMessages = firstQuestionIndex >= 0 ? messages.slice(firstQuestionIndex) : [];
+  const currentQuestionIndex = dialogueMessages.findLastIndex((message) => message.role === "ai");
+  const currentQuestion = currentQuestionIndex >= 0 ? dialogueMessages[currentQuestionIndex] : null;
+  const pastMessages = currentQuestionIndex >= 0
+    ? dialogueMessages.slice(0, currentQuestionIndex)
+    : [];
+  const pastPairCount = pastMessages.filter((message) => message.role === "me").length;
+  const questionCount = dialogueMessages.filter((message) => message.role === "ai").length;
+
+  const sendPreset = (reply: string) => {
+    setAnswer(reply);
+    onSend(reply);
+  };
+
   return (
     <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-[18px] bg-white shadow-[0_12px_36px_rgba(25,31,40,0.06)] sm:rounded-[20px]">
-      <div className="flex items-center gap-3 border-b border-[#edf0f3] px-4 py-3 sm:px-5">
-        <span className="flex items-center gap-2 text-xs font-black text-[#4e5968] sm:text-[13.5px]">
-          <span className="h-1.5 w-1.5 rounded-full bg-[#03b26c]" />
-          {done ? "이번 대화는 여기까지예요" : "현재 장면을 바탕으로 질문하고 있어요"}
-        </span>
-      </div>
+      {done ? (
+        <div className="flex items-center gap-3 border-b border-[#edf0f3] px-4 py-3 sm:px-5">
+          <span className="flex items-center gap-2 text-xs font-black text-[#4e5968] sm:text-[13.5px]">
+            <span className="h-1.5 w-1.5 rounded-full bg-[#03b26c]" />
+            {done ? "이번 대화는 여기까지예요" : "현재 장면을 바탕으로 질문하고 있어요"}
+          </span>
+        </div>
+      ) : (
+        <div className="flex shrink-0 items-center gap-3 border-b border-[#edf0f3] px-4 py-3 sm:px-5">
+          <div className="flex min-w-0 items-center gap-1.5">
+            {Array.from({ length: questionCount }, (_, index) => (
+              <span key={index} className="h-1 w-4 rounded-full bg-[#3182f6]" />
+            ))}
+          </div>
+          <p className="shrink-0 text-xs font-black text-[#4e5968] sm:text-[13.5px]">
+            {questionOrdinal(Math.max(1, questionCount))}
+          </p>
+          {pastPairCount > 0 ? (
+            <button
+              type="button"
+              aria-expanded={historyOpen}
+              onClick={() => setHistoryOpen((value) => !value)}
+              className="ml-auto shrink-0 text-xs font-black text-[#8b95a1]"
+            >
+              지난 문답 {pastPairCount} ▾
+            </button>
+          ) : null}
+        </div>
+      )}
+
       <div
-        ref={scrollRef}
         role="log"
         aria-live="polite"
         aria-label="질문과 답변"
-        className="flex min-h-0 flex-1 flex-col overflow-y-auto p-3.5 sm:p-4"
+        className="flex min-h-0 flex-1 flex-col px-4 sm:px-5"
       >
-        {/* justify-end 를 쓰면 안 된다 — flex 컬럼에서 넘친 내용이 위쪽으로 삐져나가
-            스크롤로 닿지 않는다. 대화가 길어지면 앞 질문을 볼 수 없었다 (2026-07-28).
-            대신 안쪽을 mt-auto 로 밀어, 짧은 대화는 아래에 붙고 길어지면 정상 스크롤된다. */}
-        <div className="mt-auto flex flex-col gap-3 sm:gap-4">
-          {messages.map((m, index) => (
-            <Bubble key={`${m.role}-${index}`} msg={m} />
-          ))}
+        {historyOpen && pastPairCount > 0 ? (
+          <div
+            ref={scrollRef}
+            className="min-h-0 flex-1 overflow-y-auto border-b border-[#edf0f3] py-4"
+          >
+            <div className="flex flex-col gap-3 sm:gap-4">
+              {pastMessages.map((message, index) => (
+                <Bubble key={`${message.role}-${index}`} msg={message} />
+              ))}
+            </div>
+          </div>
+        ) : null}
+        <div className="shrink-0 py-5 sm:py-7">
+          {currentQuestion ? (
+            <h2 className="whitespace-pre-wrap text-2xl font-black leading-[1.4] tracking-[-0.035em] text-[#191f28] sm:text-[28px]">
+              {currentQuestion.text}
+            </h2>
+          ) : null}
           {sending ? (
-            <div className="flex items-end gap-2">
+            <div className="mt-4 flex items-end gap-2">
               <div className="rounded-[18px] rounded-bl-[6px] bg-[#f7faff] px-4 py-3">
                 <WaitingDots />
               </div>
             </div>
           ) : null}
         </div>
+        {/* 남는 높이는 질문 아래로 흘린다 — 위에 두면 질문이 입력칸까지 밀려 내려간다.
+            지난 문답을 펼쳤을 때는 그 영역이 남는 높이를 다 가져야 해서 두지 않는다. */}
+        {historyOpen && pastPairCount > 0 ? null : <div className="min-h-0 flex-1" />}
       </div>
 
       <div className="border-t border-[#edf0f3] p-3 sm:p-3.5">
@@ -1859,35 +2018,63 @@ function ChatPanel({
             </button>
           </div>
         ) : (
-          <>
-            <p className="mb-2 text-xs font-semibold text-[#8b95a1]">
-              &apos;그만&apos;이라고 쓰면 언제든 마칠 수 있어요
-            </p>
-            <div className="flex items-center gap-2.5">
-              <input
+          <div className="grid gap-2.5">
+            <div className="relative">
+              <textarea
                 value={answer}
                 disabled={!inputEnabled}
+                maxLength={300}
+                rows={3}
                 placeholder="답을 편하게 적어 주세요"
                 onChange={(event) => setAnswer(event.target.value)}
                 onKeyDown={(event) => {
-                  if (event.key === "Enter" && !event.nativeEvent.isComposing && answer.trim() && inputEnabled) {
+                  if (
+                    event.key === "Enter"
+                    && (event.metaKey || event.ctrlKey)
+                    && !event.nativeEvent.isComposing
+                    && answer.trim()
+                    && inputEnabled
+                  ) {
                     event.preventDefault();
                     onSend();
                   }
                 }}
-                className="h-12 min-w-0 flex-1 rounded-full border border-[#e5e8eb] bg-[#f8fbff] px-5 text-base font-semibold outline-none transition placeholder:text-[#b0b8c1] focus:border-[#3182f6] focus:bg-white disabled:bg-[#f2f4f6] sm:h-14"
+                className="h-[104px] w-full resize-none rounded-[16px] border border-[#e5e8eb] bg-[#f8fbff] px-4 pb-3 pt-8 text-base font-semibold outline-none transition placeholder:text-[#b0b8c1] focus:border-[#3182f6] focus:bg-white disabled:bg-[#f2f4f6]"
               />
+              <span className="pointer-events-none absolute right-4 top-3 text-[11.5px] font-semibold tabular-nums text-[#8b95a1]">
+                {answer.length} / 300
+              </span>
+            </div>
+            <div className="grid grid-cols-2 gap-2.5">
               <button
                 type="button"
-                onClick={onSend}
-                disabled={!inputEnabled || !answer.trim()}
-                aria-label="답변 보내기"
-                className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#3182f6] text-lg font-black text-white shadow-[0_8px_20px_rgba(49,130,246,0.24)] transition hover:bg-[#1b64da] disabled:bg-[#c9d3df] disabled:shadow-none sm:h-14 sm:w-14"
+                onClick={() => sendPreset("잘 모르겠어요")}
+                disabled={sending || !inputEnabled}
+                className="h-10 rounded-[10px] bg-[#f2f4f6] px-3 text-xs font-black text-[#4e5968] transition hover:bg-[#eef2f6] disabled:text-[#b0b8c1]"
               >
-                ↑
+                잘 모르겠어요
+              </button>
+              <button
+                type="button"
+                onClick={() => sendPreset("제가 되물을게요")}
+                disabled={sending || !inputEnabled}
+                className="h-10 rounded-[10px] bg-[#f2f4f6] px-3 text-xs font-black text-[#4e5968] transition hover:bg-[#eef2f6] disabled:text-[#b0b8c1]"
+              >
+                제가 되물을게요
               </button>
             </div>
-          </>
+            <button
+              type="button"
+              onClick={() => onSend()}
+              disabled={sending || !inputEnabled || !answer.trim()}
+              className="min-h-12 w-full rounded-[16px] bg-[#3182f6] px-6 py-3 text-sm font-black text-white transition hover:bg-[#1b64da] disabled:bg-[#c9d3df]"
+            >
+              이 답으로 다음 질문 →
+            </button>
+            <p className="text-xs font-semibold text-[#8b95a1]">
+              &apos;그만&apos;이라고 쓰면 언제든 마칠 수 있어요
+            </p>
+          </div>
         )}
       </div>
       {error ? (
