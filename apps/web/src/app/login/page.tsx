@@ -23,7 +23,7 @@ import { renderGoogleLoginButton } from "../../lib/auth/google-gis";
 import {
   detectInAppBrowser,
   externalBrowserUrl,
-  inAppBrowserNotice,
+  googleLoginNotices,
   type InAppBrowser,
 } from "../../lib/auth/in-app-browser";
 import {
@@ -31,7 +31,14 @@ import {
   developmentProvider,
   googleProvider,
   loginWith,
+  type LoginProvider,
 } from "../../lib/auth/providers";
+import {
+  resetAmplitudeUser,
+  startAmplitude,
+  trackLoginCompleted,
+  trackLoginFailed,
+} from "../../lib/analytics/amplitude";
 import { sanitizeNextPath } from "../../lib/auth/next-path";
 import {
   APPLE_CLIENT_ID,
@@ -40,6 +47,7 @@ import {
 } from "../../lib/config/env";
 import {
   clearPendingConsents,
+  hasAcceptedCurrentPrivacy,
   savePendingConsents,
 } from "../../features/auth/pending-consents";
 
@@ -199,18 +207,29 @@ function LoginForm() {
   const [uid, setUid] = useState("");
   const [email, setEmail] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [hasGoogleLoadFailed, setHasGoogleLoadFailed] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const inAppBrowser: InAppBrowser | null = useSyncExternalStore(
     subscribeNever,
     getInAppBrowserSnapshot,
     getServerInAppBrowserSnapshot,
   );
+  const googleNotices = googleLoginNotices(
+    inAppBrowser,
+    hasGoogleLoadFailed,
+  );
 
-  // 인앱 브라우저(WebView)에서는 Google이 OAuth를 차단하므로,
-  // 탈출 수단이 있는 브라우저는 기본 브라우저로 이동시키고 안내를 남긴다.
+  // 전용 탈출 수단이 있는 브라우저는 안내 없이 기본 브라우저로 이동시킨다.
+  // generic도 안드로이드면 intent 스킴으로 나간다.
+  // iOS generic은 탈출 수단이 없어 이동 없이 남는다. 거기서는 GIS가 정상
+  // 로드되므로 로그인 자체는 된다.
   useEffect(() => {
     if (!inAppBrowser) return;
-    const escapeUrl = externalBrowserUrl(inAppBrowser, window.location.href);
+    const escapeUrl = externalBrowserUrl(
+      inAppBrowser,
+      window.location.href,
+      navigator.userAgent,
+    );
     if (escapeUrl) window.location.href = escapeUrl;
   }, [inAppBrowser]);
 
@@ -219,7 +238,10 @@ function LoginForm() {
   // 약관 동의가 남은 신규 계정은 /terms를 거치므로 그쪽에도 같은 관문이 있다.
   const { pendingDestination, enterApp, resolveName } = useDisplayNameGate();
 
-  async function submitLogin(request: () => ReturnType<typeof loginWith>) {
+  async function submitLogin(
+    provider: LoginProvider,
+    request: () => ReturnType<typeof loginWith>,
+  ) {
     if (isSubmitting) return;
 
     setErrorMessage(null);
@@ -228,16 +250,22 @@ function LoginForm() {
       const result = await request();
       if (result.pending_consents.length > 0) {
         savePendingConsents(result.pending_consents);
+        // 동의가 남은 계정은 아직 계측을 켤 수 없다. 직전 계정의 동의로 켜져 있었더라도
+        // 여기서 끈다. 이 로그인은 세지 않는다 — 동의 화면을 지나 consent_submitted 로 잡힌다.
+        resetAmplitudeUser();
         router.replace(`/terms?next=${encodeURIComponent(nextPath)}`);
         return;
       }
 
       clearPendingConsents();
+      if (hasAcceptedCurrentPrivacy()) startAmplitude();
+      trackLoginCompleted(provider.name);
       // 여기서 계측 동의를 표시하지 않는다. 대기 중인 동의가 비어 있다는 것만으로는
       // 어느 버전에 동의했는지 알 수 없고, 서버에 문서가 발행되지 않았을 때도 비어 있다.
       // 표시는 동의 화면(terms-gate)에서 실제로 문서를 제출할 때만 한다.
       await enterApp(nextPath);
     } catch (error) {
+      trackLoginFailed(provider.name, error);
       setErrorMessage(loginErrorMessage(error));
     } finally {
       setIsSubmitting(false);
@@ -246,7 +274,10 @@ function LoginForm() {
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    await submitLogin(() => loginWith(developmentProvider, { uid, email }));
+    await submitLogin(
+      developmentProvider,
+      () => loginWith(developmentProvider, { uid, email }),
+    );
   }
 
   return (
@@ -267,23 +298,14 @@ function LoginForm() {
         </p>
 
         <div className="mt-9 space-y-5">
-          {inAppBrowser ? (
-            <p
-              role="status"
-              className="rounded-2xl bg-[#fff6e5] px-4 py-3 text-sm font-bold text-[#b25c00]"
-            >
-              {inAppBrowserNotice(inAppBrowser)}
-            </p>
-          ) : null}
           <GoogleLoginButton
             onCredential={(credential) =>
-              void submitLogin(() => loginWith(googleProvider, { credential }))
-            }
-            onLoadError={() =>
-              setErrorMessage(
-                "Google 로그인을 불러오지 못했어요. 새로고침 후 다시 시도해 주세요",
+              void submitLogin(
+                googleProvider,
+                () => loginWith(googleProvider, { credential }),
               )
             }
+            onLoadError={() => setHasGoogleLoadFailed(true)}
           />
 
           {/* Services ID가 설정되기 전에는 눌러도 실패만 하므로 버튼 자체를 내린다. */}
@@ -291,7 +313,10 @@ function LoginForm() {
             <AppleLoginButton
               disabled={isSubmitting}
               onIdToken={(credential) =>
-                void submitLogin(() => loginWith(appleProvider, { credential }))
+                void submitLogin(
+                  appleProvider,
+                  () => loginWith(appleProvider, { credential }),
+                )
               }
               onError={setErrorMessage}
             />
@@ -345,12 +370,12 @@ function LoginForm() {
               로그인 중...
             </p>
           ) : null}
-          {errorMessage || noticeMessage ? (
+          {errorMessage || googleNotices.loadError || noticeMessage ? (
             <p
               role="alert"
               className="rounded-2xl bg-[#fff0f0] px-4 py-3 text-sm font-bold text-[#e42939]"
             >
-              {errorMessage ?? noticeMessage}
+              {errorMessage ?? googleNotices.loadError ?? noticeMessage}
             </p>
           ) : null}
         </div>

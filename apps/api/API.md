@@ -60,11 +60,13 @@ AI 호출을 포함한 쓰기 요청(`/v2/practice-sessions`, `/{id}/analyze`, `
 |---|---|---|
 | `provider` | str | `"google"` \| `"apple"` (로컬 opt-in: `"development"`) |
 | `id_token` | str | google=OIDC id_token, apple="Sign in with Apple" identityToken(JWT — 네이티브는 앱 SDK, 웹은 Apple JS가 발급). development는 로컬 테스트 토큰(`<uid>` 또는 `<uid>:<email>`)이며 email은 미검증으로 취급되어 기존 계정에 자동 연결되지 않고 신규 계정에도 저장되지 않음 |
+| `signup_attribution` | object \| null | 선택. first-touch `utm_source`·`utm_medium`·`utm_campaign`·`utm_content`·`utm_term`, `referrer_host`, `landing_path`, `first_seen_at`(ISO 8601). 신규 계정을 만들 때만 저장 |
 
 ### 처리 규칙
 
 - `(provider, provider_uid)`가 이미 등록돼 있으면 그 계정으로 로그인.
 - 처음이면: id_token의 이메일이 기존 계정과 일치할 때 **email_verified가 참인 경우에만** 기존 계정에 identity를 자동 연결, 미검증이면 409. 그 외에는 신규 계정 생성 (이메일은 검증된 경우에만 저장, 아니면 NULL).
+- `signup_attribution` 문자열은 제어문자를 제거하고 255자로 제한하며 빈 값은 NULL로 저장합니다. 객체가 잘못돼도 유입 정보만 버리고 로그인은 계속합니다. 기존 계정 로그인이나 기존 이메일에 identity를 연결하는 분기에서는 무시합니다.
 
 ### 응답 200
 
@@ -136,6 +138,33 @@ refresh 토큰 회전 재발급.
 - **같은 소셜 계정으로 다시 가입할 수 있습니다** — identity를 끊었으므로 `/v2/auth/login`이 **새 user**를 만듭니다. 과거 기록과는 이어지지 않습니다.
 - 두 번째 호출은 게이트에서 403으로 걸리며, 최초 탈퇴 시각(`deactivated_at`)은 덮이지 않습니다.
 - `login`·`refresh`의 403 `account_deactivated`는 identity가 남아 있는 비정상 상태(과거 데이터, 파기 실패)를 막는 방어선으로 유지됩니다.
+
+---
+
+## GET · PUT · DELETE /v2/me/memory
+
+인증 + **동의 필요**. 코치가 연습을 넘어 기억하는 6칸입니다 — 연습 기록에서 파생된 개인 정보라 동의를 마친 계정만 봅니다.
+
+칸은 `gender` · `age` · `goal` · `blockage` · `speech_self` · `speech_actual` 여섯입니다. **에이전트가 채우고 배우가 고칩니다.**
+
+**GET** → 200 `{"items": [...]}`. 아직 채워지지 않은 칸은 **빠진 채로** 옵니다(빈 문자열이 아니라 항목 자체가 없음).
+
+| 필드 | 뜻 |
+|---|---|
+| `field` | 위 여섯 중 하나 |
+| `value` | 내용 |
+| `edited_by_me` | `true`면 배우가 직접 쓰거나 고친 칸. **이후 에이전트가 덮지 않습니다** |
+| `source_practice_session_id` | 에이전트가 적은 칸의 근거가 된 연습. 배우가 쓴 칸은 `null` |
+
+**PUT `/{field}`** — `{"value": "<1~1000자>"}` → 200. 앞뒤 공백은 잘리고 가운데 연속 공백은 하나로 접힙니다. 공백만 보내거나 1000자를 넘기면 422, 모르는 칸 이름도 422.
+
+여기서 쓴 칸은 `edited_by_me: true`가 되어 **에이전트 갱신에서 제외됩니다.** 되돌리려면 지우면 되고, 지우면 다음 연습부터 에이전트가 다시 채웁니다.
+
+**DELETE `/{field}`** — 한 칸을 지우고 **204**. 이미 없어도 204입니다(지우려는 결과가 같으므로).
+
+**DELETE** — 기억을 통째로 지우고 **204**.
+
+**성별·나이는 배우만 씁니다.** 영상이나 목소리에서 추론하지 않습니다 — 저장 계층이 에이전트 경로를 막고, DB 제약(`ck_actor_memory_demographics_actor_only`)이 최종 방어선입니다.
 
 ---
 

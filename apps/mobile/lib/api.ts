@@ -100,6 +100,34 @@ export type CoachTurnResponse = {
 
 export type CoachTurn = { role: 'ai' | 'actor'; text: string };
 
+/** 코치가 배우에 대해 기억하고 있는 한 칸. */
+export type MemoryItem = {
+  field: MemoryField;
+  value: string;
+  /** true 면 배우가 직접 쓰거나 고친 칸이다. 코치는 이 칸을 덮지 않는다. */
+  edited_by_me: boolean;
+  /** 이 말이 나온 연습. 배우가 "왜 이렇게 적혔지" 를 되짚을 근거다. */
+  source_practice_session_id: string | null;
+};
+
+/**
+ * 화면에 여는 칸.
+ *
+ * 성별·나이는 **배우만 쓴다.** 코치는 영상이나 말투에서 추론하지 않는다 — 틀리면
+ * 그 상태로 이후 모든 연습의 전제가 되고, 민감정보 추론이기도 하다. 데이터베이스
+ * 제약이 코치의 쓰기를 막고 있어서, 화면이 그 칸을 채우는 유일한 통로다.
+ */
+export type MemoryField =
+  | 'gender'
+  | 'age'
+  | 'goal'
+  | 'blockage'
+  | 'speech_self'
+  | 'speech_actual';
+
+/** 코치가 절대 쓰지 않는 칸. 화면에서 다르게 안내한다. */
+export const ACTOR_ONLY_MEMORY_FIELDS: readonly MemoryField[] = ['gender', 'age'];
+
 export type AnalysisReport = {
   report_type: 'analysis';
   title: string;
@@ -361,6 +389,43 @@ export const api = {
    */
   deleteMe(): Promise<void> {
     return request<void>('/v2/me', { method: 'DELETE' }, { timeoutMs: 30_000 });
+  },
+
+  // 코치의 기억 -----------------------------------------------------------------
+  /**
+   * 코치가 나에 대해 기억하는 것 전부. 빈 칸은 행이 없으므로 4개보다 적게 온다.
+   */
+  actorMemory(): Promise<{ items: MemoryItem[] }> {
+    return request('/v2/me/memory', {}, { timeoutMs: 15_000 });
+  },
+
+  /**
+   * 한 칸을 고친다. 배우가 고친 칸은 이후 코치가 덮어쓰지 않는다.
+   */
+  saveActorMemory(field: MemoryField, value: string): Promise<MemoryItem> {
+    return request(
+      `/v2/me/memory/${encodeURIComponent(field)}`,
+      {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ value }),
+      },
+      { timeoutMs: 15_000 },
+    );
+  },
+
+  /** 한 칸을 지운다. 없는 칸을 지워도 성공이다. */
+  deleteActorMemory(field: MemoryField): Promise<void> {
+    return request<void>(
+      `/v2/me/memory/${encodeURIComponent(field)}`,
+      { method: 'DELETE' },
+      { timeoutMs: 15_000 },
+    );
+  },
+
+  /** 기억을 통째로 지운다. */
+  deleteAllActorMemory(): Promise<void> {
+    return request<void>('/v2/me/memory', { method: 'DELETE' }, { timeoutMs: 15_000 });
   },
 
   // 업로드 ---------------------------------------------------------------------

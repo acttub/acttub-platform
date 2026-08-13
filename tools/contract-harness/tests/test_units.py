@@ -582,3 +582,26 @@ def test_java_conditional_profiles_require_and_select_separate_instances():
     args.java_nostorage_base_url = None
     with pytest.raises(SystemExit, match="--java-nostorage-base-url"):
         _java_profile_base_urls(args, [BY_NAME["no-storage"]])
+
+
+def test_seed_consent_documents_match_committed_manifest():
+    """harness 시드와 `consent_docs/manifest.json` 은 같은 문서 집합이어야 한다.
+
+    앱은 startup 에 manifest 를 읽어 아직 없는 문서를 발행한다(`seed_consent_documents`).
+    시드가 옛 버전을 넣어 두면 앱이 새 버전을 **추가로** 발행하고, 그 문서는 시드 유저가
+    동의한 적이 없어 필수 동의가 하나 빈다. 그러면 전 시나리오가 403 consent_required 로
+    중단되고, 새 문서 id 가 기동마다 달라져 self-identity diff 까지 터진다.
+
+    2026-08-11 privacy v4 로 올리면서 실제로 그렇게 깨졌다(diff 201건). seed.py 주석이
+    이 결합을 산문으로만 적어 두고 있어서 아무도 막지 못했다.
+    """
+    manifest_path = cfg.ACTING_API_ROOT / "consent_docs" / "manifest.json"
+    committed = [
+        (item["type"], item["version"], item["file"], item["title"], item["required"])
+        for item in json.loads(manifest_path.read_text(encoding="utf-8"))
+    ]
+    seeded = [
+        (doc_type, version, filename, title, required)
+        for _id, doc_type, version, filename, title, required in cfg.SEED_CONSENT_DOCUMENTS
+    ]
+    assert seeded == committed

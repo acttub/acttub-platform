@@ -17,11 +17,16 @@ const {
   "../src/features/practice/coach-contract.ts"
 );
 const {
+  ANALYSIS_DEADLINE_MS,
   ANALYSIS_PROGRESS_LIMIT,
+  COMPRESS_PROGRESS_END,
+  UPLOAD_ONLY_PROGRESS_END,
   UPLOAD_PROGRESS_END,
   advanceProgress,
   analysisProgress,
+  analysisStart,
   compressionProgress,
+  isAnalysisPastDeadline,
   settleProgress,
   uploadProgress,
 } = await import(
@@ -42,6 +47,8 @@ test("업로드와 장면 확인은 같은 진행 패널을 이어서 쓴다", (
     /mode === "uploading" \? \([\s\S]*?<ProgressPanel[\s\S]*?mode === "preparing" \? \([\s\S]*?<ProgressPanel/,
   );
   assert.match(panel, /\{value\}%/);
+  assert.match(panel, /style=\{\{ width: `\$\{width\}%` \}\}/);
+  assert.doesNotMatch(panel, /style=\{\{ width: `\$\{value\}%` \}\}/);
   assert.match(panel, /영상 올리는 중…/);
   assert.match(panel, /\$\{duration\} 영상 · 장면을 훑어보고 있어요…/);
   assert.match(panel, /role="progressbar"/);
@@ -78,6 +85,23 @@ test("업로드가 끝나도 방금 고른 로컬 영상을 그대로 재생한�
   assert.match(open, /setVideoFile\(null\)[\s\S]*URL\.revokeObjectURL\(prev\)/);
 });
 
+test("압축 구간은 초반이 빠르고 후반이 느린 곡선으로 찬다", () => {
+  // 양 끝은 선형과 같다.
+  assert.equal(compressionProgress(0), 0);
+  assert.equal(compressionProgress(1), COMPRESS_PROGRESS_END);
+  // 같은 지점에서 선형보다 앞선다 — 시작하자마자 눈에 띄게 움직여야 한다.
+  assert.ok(compressionProgress(0.25) > 0.25 * COMPRESS_PROGRESS_END);
+  assert.ok(compressionProgress(0.5) > 0.5 * COMPRESS_PROGRESS_END);
+  // 앞 4분의 1이 뒤 4분의 1보다 훨씬 많이 채운다.
+  const firstQuarter = compressionProgress(0.25) - compressionProgress(0);
+  const lastQuarter = compressionProgress(1) - compressionProgress(0.75);
+  assert.ok(firstQuarter > lastQuarter * 5);
+  // 곡선이어도 뒤로 가지 않는다.
+  for (let step = 1; step <= 10; step += 1) {
+    assert.ok(compressionProgress(step / 10) > compressionProgress((step - 1) / 10));
+  }
+});
+
 test("업로드와 장면 확인 진행률은 단조 증가하고 analyzed에서만 100이 된다", () => {
   const candidates = [
     compressionProgress(0.5),
@@ -85,10 +109,10 @@ test("업로드와 장면 확인 진행률은 단조 증가하고 analyzed에서
     uploadProgress(75, true),
     uploadProgress(50, true),
     uploadProgress(100, true),
-    analysisProgress(0, 47_000),
-    analysisProgress(30_000, 47_000),
-    analysisProgress(60_000, 47_000),
-    analysisProgress(120_000, 47_000),
+    analysisProgress(0, 47_000, analysisStart(true)),
+    analysisProgress(30_000, 47_000, analysisStart(true)),
+    analysisProgress(60_000, 47_000, analysisStart(true)),
+    analysisProgress(120_000, 47_000, analysisStart(true)),
   ];
   const values = candidates.reduce(
     (all, candidate) => [...all, advanceProgress(all.at(-1), candidate)],
@@ -98,30 +122,113 @@ test("업로드와 장면 확인 진행률은 단조 증가하고 analyzed에서
   for (let index = 1; index < values.length; index += 1) {
     assert.ok(values[index] >= values[index - 1]);
   }
+  // 압축을 탄 폰 경로: 압축 0→80 · 업로드 80→90 · 분석 90→99.
+  assert.equal(compressionProgress(1), COMPRESS_PROGRESS_END);
+  assert.equal(uploadProgress(0, true), COMPRESS_PROGRESS_END);
   assert.equal(uploadProgress(100, true), UPLOAD_PROGRESS_END);
   assert.ok(UPLOAD_PROGRESS_END < 100);
-  // 압축을 건너뛴 영상은 업로드가 0에서 시작해 같은 자리에서 끝난다.
+  // 압축을 건너뛴 노트북 경로: 업로드 0→60 · 분석 60→99.
   assert.equal(uploadProgress(0, false), 0);
-  assert.equal(uploadProgress(100, false), UPLOAD_PROGRESS_END);
+  assert.equal(uploadProgress(100, false), UPLOAD_ONLY_PROGRESS_END);
+  assert.ok(UPLOAD_ONLY_PROGRESS_END < UPLOAD_PROGRESS_END);
+  // 압축을 탄 쪽이 같은 업로드 진행률에서 항상 앞선다 — 앞 구간을 이미 채웠기 때문이다.
   assert.ok(uploadProgress(50, false) < uploadProgress(50, true));
-  assert.equal(analysisProgress(600_000, 47_000), ANALYSIS_PROGRESS_LIMIT);
+  // 분석 구간은 두 경로 모두 자기 시작점에서 출발한다.
+  assert.equal(analysisProgress(0, 47_000, analysisStart(true)), UPLOAD_PROGRESS_END);
+  assert.equal(analysisProgress(0, 47_000, analysisStart(false)), UPLOAD_ONLY_PROGRESS_END);
+  assert.ok(analysisProgress(600_000, 47_000, analysisStart(true)) < ANALYSIS_PROGRESS_LIMIT);
   assert.ok(ANALYSIS_PROGRESS_LIMIT < 100);
-  // 분석 구간은 영상 길이에 비례해 찬다 — 20에서 시작해 95를 넘지 않는다.
-  assert.equal(analysisProgress(0, 47_000), UPLOAD_PROGRESS_END);
-  assert.ok(analysisProgress(30_000, 47_000) > analysisProgress(10_000, 47_000));
-  assert.ok(analysisProgress(300_000, 47_000) <= ANALYSIS_PROGRESS_LIMIT);
-  // 상한에 닿는 지점은 영상 길이의 0.9375배다. 실측(47초 영상 → 분석 41.4초)이
-  // 그보다 앞이라 분석이 끝나는 순간 막대는 아직 움직이는 중이다.
-  assert.equal(analysisProgress(0.9375 * 47_000, 47_000), ANALYSIS_PROGRESS_LIMIT);
-  assert.ok(analysisProgress(41_400, 47_000) < ANALYSIS_PROGRESS_LIMIT);
+  assert.ok(
+    analysisProgress(30_000, 47_000, analysisStart(true))
+      > analysisProgress(10_000, 47_000, analysisStart(true)),
+  );
+  // 선형 구간 끝은 영상 길이의 0.45배다(47초 영상 → 21.15초).
+  const span = 21_150;
+  assert.equal(analysisProgress(span, 47_000, analysisStart(true)), 95);
+  // 경계 양쪽에서 95로 이어지고, 지난 직후에도 계속 증가한다.
+  assert.ok(Math.abs(analysisProgress(span - 1, 47_000, analysisStart(true)) - 95) < 0.001);
+  assert.ok(Math.abs(analysisProgress(span + 1, 47_000, analysisStart(true)) - 95) < 0.001);
+  assert.ok(
+    analysisProgress(span + 1, 47_000, analysisStart(true))
+      > analysisProgress(span, 47_000, analysisStart(true)),
+  );
+  // 폰 실사용에서 역산한 실제 분석 시간(영상 길이의 0.44배)이 그보다 살짝 앞이라,
+  // 분석이 끝나는 순간 막대는 95 직전에서 아직 움직이는 중이다.
+  const atRealEnd = analysisProgress(0.44 * 47_000, 47_000, analysisStart(true));
+  assert.ok(atRealEnd < 95);
+  assert.ok(atRealEnd > 94);
   // 긴 영상은 같은 시각에 덜 찬다.
-  assert.ok(analysisProgress(30_000, 120_000) < analysisProgress(30_000, 47_000));
-  // 목록에서 연 세션은 길이를 모르지만 그래도 구간 안에서 움직인다.
-  const noDuration = analysisProgress(10_000, null);
-  assert.ok(noDuration > UPLOAD_PROGRESS_END && noDuration < ANALYSIS_PROGRESS_LIMIT);
+  assert.ok(
+    analysisProgress(30_000, 120_000, analysisStart(true))
+      < analysisProgress(30_000, 47_000, analysisStart(true)),
+  );
+  // 목록에서 연 세션은 길이도 압축 여부도 모르지만 그래도 구간 안에서 움직인다.
+  const noDuration = analysisProgress(10_000, null, analysisStart(false));
+  assert.ok(
+    noDuration > UPLOAD_ONLY_PROGRESS_END && noDuration < ANALYSIS_PROGRESS_LIMIT,
+  );
   assert.equal(settleProgress(ANALYSIS_PROGRESS_LIMIT, "analyzing"), ANALYSIS_PROGRESS_LIMIT);
   assert.equal(settleProgress(ANALYSIS_PROGRESS_LIMIT, "failed"), ANALYSIS_PROGRESS_LIMIT);
   assert.equal(settleProgress(ANALYSIS_PROGRESS_LIMIT, "analyzed"), 100);
+});
+
+test("250초 동안 분석해도 진행률은 멈추지 않고 단조 증가한다", () => {
+  const values = Array.from(
+    { length: 251 },
+    (_, seconds) => analysisProgress(seconds * 1000, 47_000, analysisStart(true)),
+  );
+
+  for (let index = 1; index < values.length; index += 1) {
+    assert.ok(values[index] > values[index - 1]);
+  }
+  assert.ok(values.at(-1) < ANALYSIS_PROGRESS_LIMIT);
+});
+
+test("분석 목표 시간 60초를 넘기면 진행 중임을 다시 안내한다", () => {
+  assert.equal(isAnalysisPastDeadline(ANALYSIS_DEADLINE_MS), false);
+  assert.equal(isAnalysisPastDeadline(ANALYSIS_DEADLINE_MS + 1), true);
+
+  const workspace = readWeb("src/features/workspace/workspace-app.tsx");
+  const panelStart = workspace.indexOf("function ProgressPanel");
+  const panelEnd = workspace.indexOf("function IntroLine", panelStart);
+  const panel = workspace.slice(panelStart, panelEnd);
+  assert.match(
+    panel,
+    /isAnalysisPastDeadline\(elapsedMs\)[\s\S]*평소보다 오래 걸리고 있어요 · 장면을 계속 살펴보고 있어요…/,
+  );
+  assert.match(
+    workspace,
+    /const elapsedMs = Date\.now\(\) - startedAt;[\s\S]*setAnalysisElapsedMs\(elapsedMs\)/,
+  );
+  assert.match(
+    workspace,
+    /phase="scan"[\s\S]{0,100}elapsedMs=\{analysisElapsedMs\}/,
+  );
+});
+
+test("질문 받기를 누르면 막힘을 고르기 전에 압축·업로드가 시작된다", () => {
+  const workspace = readWeb("src/features/workspace/workspace-app.tsx");
+  const rowStart = workspace.indexOf("<StartRow");
+  const startRow = workspace.slice(rowStart, workspace.indexOf("/>", rowStart));
+  // 막힘 선택으로 넘어가기 전에 업로드를 띄운다 — 뒤로 미루면 고르는 시간과
+  // 올리는 시간을 더해서 기다리게 된다.
+  assert.match(startRow, /startUpload\(videoFile\)[\s\S]*setMode\("blockage"\)/);
+
+  const beginStart = workspace.indexOf("const begin = useCallback");
+  const beginEnd = workspace.indexOf("const send = useCallback", beginStart);
+  const begin = workspace.slice(beginStart, beginEnd);
+  // begin 은 이미 도는 업로드를 이어받는다. 여기서 다시 압축부터 하면 두 번 올린다.
+  assert.match(begin, /await promise/);
+  assert.doesNotMatch(begin, /prepareVideoUpload\(/);
+
+  // 완료 처리는 배우가 시작을 확정한 뒤에만 한다 — 미리 완료해 두면 도중에
+  // 그만둔 영상이 만료 스윕에 안 걸려 S3 에 남는다.
+  assert.match(workspace, /finalize: false/);
+  assert.match(begin, /finalizeUpload\(intentId/);
+
+  // 연습을 떠나거나 영상을 바꾸면 올리던 것을 끊는다.
+  assert.match(workspace, /const resetToPrep = useCallback\(\(\) => \{\s*discardPendingUpload\(\)/);
+  assert.match(workspace, /const onPickFile[\s\S]{0,200}discardPendingUpload\(\)/);
 });
 
 test("막힘 선택 완료 뒤에는 대화가 아니라 같은 진행 자리에서 기다린다", () => {

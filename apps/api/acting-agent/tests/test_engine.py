@@ -1,6 +1,8 @@
 import json
 
-from acting_agent.engine import parse_coaching_response, reply, start
+import pytest
+
+from acting_agent.engine import is_closing, parse_coaching_response, reply, start
 from acting_agent.prompt import safe_template
 from acting_agent.schema import CoachSession, CoachTurn
 from acting_llm.openai_client import TokenUsage
@@ -40,6 +42,47 @@ def _start(*, actor=ACTOR, observation_pack=SUMMARY):
         generate=FakeGenerate([OPENING]),
     )
     return session
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("그만", True),
+        ("종료", True),
+        ("끝", True),
+        ("여기까지", True),
+        ("여기서 그만할게", True),
+        ("이제 그만할게요", True),
+        ("그만할래요", True),
+        ("그만하자", True),
+        ("그만하고 싶어요", True),
+        ("종료할게요", True),
+        ("그만.", True),
+        ("그만!", True),
+        ("이제 그만", True),
+        ("아 그만", True),
+        ("여기서 종료", True),
+        ("그만요", True),
+        ("종료할래요", True),
+        ("종료하자", True),
+        ("그만하고싶어요", True),
+        ("그렇그만", False),
+        ("안 그만할래요", False),
+        ("못 그만두겠어요", False),
+        ("그만하기엔 아쉬워요", False),
+        ("그만두기엔 아직", False),
+        ("종료됐어요", False),
+        ("그만큼 힘들었어요", False),
+        ("끝까지 못 갔어요", False),
+        ("대사 끝부분에서 막혔어요", False),
+        ("끝났어요", False),
+        ("그 장면 그만큼은 됐어요", False),
+        ("그만 좀 웃겨요", False),
+        ("그만 하고 다시 갈까요", False),
+    ],
+)
+def test_is_closing_only_accepts_explicit_closing_requests(text, expected):
+    assert is_closing(text) is expected
 
 
 def test_complete_with_null_handoff_is_downgraded_to_continue():
@@ -199,6 +242,33 @@ def test_closing_word_appends_completion_instruction_but_stores_actor_words_only
     assert "## 배우의 마무리 요청" in generate.calls[0][1]
     assert "더 질문하지 말고 지금까지 모인 내용만으로" in generate.calls[0][1]
     assert session.turns[-2] == CoachTurn(role="actor", text="여기서 그만할게")
+    # 종료어는 배우가 남긴 말이 아니므로 handoff 에 남기지 않는다
+    assert result.handoff["actor_words"] == []
+
+
+def test_handoff_keeps_real_words_and_drops_non_strings():
+    response = json.dumps(
+        {
+            "message": "여기까지 정리할게.",
+            "status": "complete",
+            "handoff": {
+                "line_meaning": "붙잡으려는 말",
+                "timing_reason": "떠나려 해서",
+                "target_effect": "멈추게 하기",
+                "scene_evidence": [],
+                # 모델이 리스트 안에 문자열이 아닌 값을 섞어 보내도 터지지 않아야 한다
+                "actor_words": ["그만", "상대를 붙잡고 싶었어요", 3, None],
+                "coach_summary": "상대를 붙잡으려는 말이다",
+                "uncertainties": [],
+            },
+        },
+        ensure_ascii=False,
+    )
+    session = _start()
+
+    result = reply(session, "상대를 붙잡고 싶었어요", generate=FakeGenerate([response]))
+
+    assert result.handoff["actor_words"] == ["상대를 붙잡고 싶었어요"]
 
 
 def test_reply_keeps_latest_actor_message_out_of_recent_turns():

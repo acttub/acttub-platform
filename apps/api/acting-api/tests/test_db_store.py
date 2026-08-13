@@ -16,6 +16,7 @@ from acting_agent.schema import CoachSession, CoachTurn
 from acting_api.auth.jwt import JwtService
 from acting_api.db.engine import create_db_engine, normalize_database_url
 from acting_api.db.models import (
+    ActorMemoryField,
     Anomaly,
     CloseReason,
     CoachingHandoff,
@@ -29,6 +30,7 @@ from acting_api.db.models import (
     RefreshToken,
     SessionStatus,
     Summary,
+    Transcript,
     TurnRole,
     UploadStatus,
     User,
@@ -58,6 +60,7 @@ EXPECTED_TABLES = {
     "coaching_handoffs",
     "handoff_confirmations",
     "practice_reports",
+    "actor_memory_entries",
     "external_operations",
     "community_categories",
     "community_posts",
@@ -157,6 +160,34 @@ def test_development_identity_provider_is_persisted_after_migration(postgres_sto
         ).id
         == user.id
     )
+
+
+def test_create_user_with_identity_persists_signup_attribution(postgres_store):
+    first_seen_at = datetime(2026, 7, 1, 12, 34, 56, tzinfo=timezone.utc)
+    user, identity = postgres_store.create_user_with_identity(
+        provider="google",
+        provider_uid="attributed-google-user",
+        email="attributed@example.com",
+        signup_utm_source="stage",
+        signup_utm_medium="subproject",
+        signup_utm_campaign="summer",
+        signup_utm_content="hero",
+        signup_utm_term="acting",
+        signup_referrer_host="search.example",
+        signup_landing_path="/login",
+        signup_first_seen_at=first_seen_at,
+    )
+
+    stored = postgres_store.get_user(user.id)
+    assert identity.user_id == user.id
+    assert stored.signup_utm_source == "stage"
+    assert stored.signup_utm_medium == "subproject"
+    assert stored.signup_utm_campaign == "summer"
+    assert stored.signup_utm_content == "hero"
+    assert stored.signup_utm_term == "acting"
+    assert stored.signup_referrer_host == "search.example"
+    assert stored.signup_landing_path == "/login"
+    assert stored.signup_first_seen_at == first_seen_at
 
 
 def test_0003_renames_existing_dev_identity_to_development(postgres_schema):
@@ -1325,6 +1356,17 @@ def test_admin_stats_windows_returning_users_and_team_exclusion(postgres_store):
 
     real_user = store.create_user(email="actor@example.com")
     team_user = store.create_user(email="Team@Acttub.com")  # 대소문자 매칭 확인
+    with store._session_factory.begin() as db:
+        db.execute(
+            update(User)
+            .where(User.id == real_user.id)
+            .values(signup_utm_source="stage")
+        )
+        db.execute(
+            update(User)
+            .where(User.id == team_user.id)
+            .values(signup_utm_source="voice")
+        )
 
     def backdate_practice(practice_id: UUID, created_at: datetime, analyzed=False):
         values = {"created_at": created_at}
@@ -1554,6 +1596,16 @@ def test_admin_stats_windows_returning_users_and_team_exclusion(postgres_store):
     assert funnel["놓친 생각 말함"]["users"] == 1  # extra 뿐
     assert funnel["놓친 생각 말함"]["users_real"] == 1
 
+    signup_sources = {
+        row["source"]: (row["users"], row["users_real"])
+        for row in stats_after["signup_sources"]
+    }
+    assert signup_sources == {
+        "(직접/미상)": (1, 1),
+        "stage": (1, 1),
+        "voice": (1, 0),
+    }
+
     # 종료 사유 분포 — count 내림차순, 동률 구간 순서는 안 따진다.
     close_reasons = {
         row["reason"]: (row["count"], row["count_real"])
@@ -1652,3 +1704,290 @@ def _complete_analysis(
 
 def _hash(value: str) -> str:
     return hashlib.sha256(value.encode()).hexdigest()
+
+
+def _memory_insert(store, user_id, field, value, written_by):
+    """기억 한 칸을 직접 넣는다. 저장 계층이 아직 없어 SQL 로 제약만 검증한다."""
+    with store._engine.begin() as connection:
+        connection.execute(
+            text(
+                "INSERT INTO actor_memory_entries (user_id, field, value, written_by)"
+                " VALUES (:u, :f, :v, :w)"
+            ),
+            {"u": user_id, "f": field, "v": value, "w": written_by},
+        )
+
+
+def test_actor_memory_keeps_one_row_per_field(postgres_store):
+    store = postgres_store
+    user = store.create_user(email="memory-actor@example.com")
+    _memory_insert(store, user.id, "goal", "입시 준비", "agent")
+
+    # 같은 칸을 두 번 넣을 수 없다. 갱신은 덮어쓰기여야 한다.
+    with pytest.raises(Exception) as excinfo:
+        _memory_insert(store, user.id, "goal", "취미", "agent")
+    assert "uq_actor_memory_user_field" in str(excinfo.value)
+
+
+def test_actor_memory_refuses_agent_written_demographics(postgres_store):
+    """성별·나이를 에이전트가 못 넣는다 -- 영상에서 추론해 넣는 경로를 DB가 막는다."""
+    store = postgres_store
+    user = store.create_user(email="memory-demo@example.com")
+
+    for field in ("gender", "age"):
+        with pytest.raises(Exception) as excinfo:
+            _memory_insert(store, user.id, field, "무언가", "agent")
+        assert "ck_actor_memory_demographics_actor_only" in str(excinfo.value)
+
+    # 배우가 직접 쓰는 건 된다.
+    _memory_insert(store, user.id, "gender", "여성", "actor")
+    _memory_insert(store, user.id, "age", "22", "actor")
+
+
+def test_actor_memory_refuses_blank_and_oversized_values(postgres_store):
+    store = postgres_store
+    user = store.create_user(email="memory-bounds@example.com")
+
+    # 빈 칸은 값이 아니라 행이 없는 것으로 표현한다.
+    with pytest.raises(Exception) as excinfo:
+        _memory_insert(store, user.id, "goal", "   ", "agent")
+    assert "ck_actor_memory_value_not_blank" in str(excinfo.value)
+
+    # 한 칸이 길어지면 프롬프트에서 대화 맥락을 밀어낸다.
+    with pytest.raises(Exception) as excinfo:
+        _memory_insert(store, user.id, "goal", "가" * 1001, "agent")
+    assert "ck_actor_memory_value_length" in str(excinfo.value)
+
+    _memory_insert(store, user.id, "goal", "가" * 1000, "agent")
+
+
+def test_agent_updates_its_own_fields_but_never_the_actors(postgres_store):
+    """이 표의 핵심 규칙 -- 배우가 손댄 칸은 에이전트가 덮지 못한다."""
+    store = postgres_store
+    user = store.create_user(email="memory-authority@example.com")
+    practice = _create_practice(store, user.id, "memory", datetime.now(timezone.utc))
+
+    first = store.write_actor_memory_as_agent(
+        user_id=user.id,
+        field=ActorMemoryField.GOAL,
+        value="입시 준비",
+        source_practice_session_id=practice.id,
+    )
+    assert first.value == "입시 준비"
+    assert first.written_by_actor is False
+
+    # 에이전트끼리는 덮는다 -- 연습이 쌓이면 기억이 갱신되어야 한다.
+    second = store.write_actor_memory_as_agent(
+        user_id=user.id,
+        field=ActorMemoryField.GOAL,
+        value="입시 준비(수시)",
+        source_practice_session_id=practice.id,
+    )
+    assert second.value == "입시 준비(수시)"
+
+    # 배우가 고치면 이긴다.
+    edited = store.write_actor_memory_as_actor(
+        user_id=user.id, field=ActorMemoryField.GOAL, value="취미로 하는 중"
+    )
+    assert edited.value == "취미로 하는 중"
+    assert edited.written_by_actor is True
+
+    # 그 뒤로는 에이전트가 갱신을 시도해도 건너뛴다.
+    skipped = store.write_actor_memory_as_agent(
+        user_id=user.id,
+        field=ActorMemoryField.GOAL,
+        value="입시 준비(정시)",
+        source_practice_session_id=practice.id,
+    )
+    assert skipped is None
+    kept = {item.field: item for item in store.list_actor_memory(user.id)}
+    assert kept["goal"].value == "취미로 하는 중"
+    assert kept["goal"].written_by_actor is True
+
+
+def test_agent_never_writes_gender_or_age(postgres_store):
+    store = postgres_store
+    user = store.create_user(email="memory-agent-demo@example.com")
+    practice = _create_practice(store, user.id, "memory", datetime.now(timezone.utc))
+
+    for field in (ActorMemoryField.GENDER, ActorMemoryField.AGE):
+        assert (
+            store.write_actor_memory_as_agent(
+                user_id=user.id,
+                field=field,
+                value="추론한 값",
+                source_practice_session_id=practice.id,
+            )
+            is None
+        )
+    assert store.list_actor_memory(user.id) == []
+
+    store.write_actor_memory_as_actor(
+        user_id=user.id, field=ActorMemoryField.GENDER, value="여성"
+    )
+    assert [item.field for item in store.list_actor_memory(user.id)] == ["gender"]
+
+
+def test_actor_deletes_one_field_or_everything(postgres_store):
+    store = postgres_store
+    user = store.create_user(email="memory-delete@example.com")
+    store.write_actor_memory_as_actor(
+        user_id=user.id, field=ActorMemoryField.GENDER, value="여성"
+    )
+    store.write_actor_memory_as_actor(
+        user_id=user.id, field=ActorMemoryField.AGE, value="22"
+    )
+
+    assert (
+        store.delete_actor_memory(user_id=user.id, field=ActorMemoryField.AGE) == 1
+    )
+    assert [item.field for item in store.list_actor_memory(user.id)] == ["gender"]
+
+    assert store.delete_actor_memory(user_id=user.id) == 1
+    assert store.list_actor_memory(user.id) == []
+
+
+def test_actor_memory_disappears_with_the_user(postgres_store):
+    """탈퇴는 행을 지우지 않지만, 기억은 남기지 않는다."""
+    store = postgres_store
+    user = store.create_user(email="memory-cascade@example.com")
+    _memory_insert(store, user.id, "goal", "입시 준비", "agent")
+
+    with store._engine.begin() as connection:
+        connection.execute(
+            text("DELETE FROM users WHERE id = :u"), {"u": user.id}
+        )
+        left = connection.scalar(
+            text(
+                "SELECT count(*) FROM actor_memory_entries WHERE user_id = :u"
+            ),
+            {"u": user.id},
+        )
+    assert left == 0
+
+
+def test_prior_context_carries_the_card_of_the_same_practice_when_reopened(
+    postgres_store,
+):
+    """같은 연습을 다시 열면, 그때 만든 카드가 곧 "해보기로 한 것" 이다.
+
+    이번 연습을 빼고 지난 연습만 보면, 배우가 방금 마친 연습을 다시 열었을 때
+    코치가 정작 그 연습에서 정한 방향을 모른 채 시작한다.
+    """
+    store = postgres_store
+    user = store.create_user()
+    now = datetime.now(timezone.utc)
+    practice = _create_practice(store, user.id, "reopen", now)
+
+    coach_id = uuid4()
+    handoff_id = uuid4()
+    with store._session_factory.begin() as db:
+        db.add(
+            DbCoachSession(
+                id=coach_id,
+                practice_session_id=practice.id,
+                status=SessionStatus.CLOSED,
+                conversation_summary="지난번엔 호흡 이야기를 했다",
+                close_reason=CloseReason.GAP_STATED,
+            )
+        )
+        db.add(
+            CoachingHandoff(
+                id=handoff_id,
+                coach_session_id=coach_id,
+                practice_session_id=practice.id,
+                branch_kind="analysis",
+                handoff_json={},
+            )
+        )
+        db.add(
+            DbPracticeReport(
+                id=uuid4(),
+                practice_session_id=practice.id,
+                report_type="analysis",
+                report_json={
+                    "report_type": "analysis",
+                    "next_take": {
+                        "direction": "한 박자 늦게 말해보기",
+                        "tested": False,
+                    },
+                },
+                source_handoff_id=handoff_id,
+            )
+        )
+
+    context = store.get_prior_practice_context(
+        user_id=user.id, practice_session_id=practice.id
+    )
+
+    assert context.earlier_conversation == "지난번엔 호흡 이야기를 했다"
+    assert context.pending_takes == ("한 박자 늦게 말해보기",)
+
+
+def test_memory_update_material_reads_the_actors_own_words(postgres_store):
+    """기억 갱신 재료를 실제 데이터베이스에서 읽어 온다.
+
+    이 함수는 워커만 부르고 워커 시험은 가짜 저장소를 쓴다. 그래서 실제 SQL 이
+    한 번도 안 돌아 이름 오타(NameError)가 배포까지 갔던 적이 있다. 여기서 진짜로
+    한 번 돌린다.
+
+    코치가 한 말은 담지 않는다 — 코치가 제안한 표현이 배우 본인의 말로 굳으면
+    기억이 배우가 아니라 코치를 기록하게 된다.
+    """
+    store = postgres_store
+    user = store.create_user()
+    now = datetime.now(timezone.utc)
+    practice = _create_practice(store, user.id, "material", now)
+
+    coach_id = uuid4()
+    with store._session_factory.begin() as db:
+        db.add(
+            DbCoachSession(
+                id=coach_id,
+                practice_session_id=practice.id,
+                status=SessionStatus.CLOSED,
+                conversation_summary="",
+                close_reason=CloseReason.GAP_STATED,
+            )
+        )
+        db.add_all(
+            [
+                DbCoachTurn(
+                    session_id=coach_id,
+                    turn_index=0,
+                    role=TurnRole.ACTOR,
+                    text="차분하게 말하려고 했어요",
+                ),
+                DbCoachTurn(
+                    session_id=coach_id,
+                    turn_index=1,
+                    role=TurnRole.AI,
+                    text="코치가 한 말은 담기지 않아야 한다",
+                ),
+            ]
+        )
+        db.add(Transcript(session_id=practice.id, ord=0, text="나는 괜찮아."))
+
+    material = store.get_memory_update_material(practice_session_id=practice.id)
+
+    assert material is not None
+    assert material.user_id == user.id
+    assert material.actor_messages == ("차분하게 말하려고 했어요",)
+    assert material.transcripts == ("나는 괜찮아.",)
+    assert material.blockage_kind == practice.blockage_kind
+
+
+def test_memory_update_material_is_none_for_a_hidden_practice(postgres_store):
+    """배우가 지운 연습으로는 기억을 갱신하지 않는다."""
+    store = postgres_store
+    user = store.create_user()
+    now = datetime.now(timezone.utc)
+    practice = _create_practice(store, user.id, "hidden-material", now)
+    with store._session_factory.begin() as db:
+        db.execute(
+            update(PracticeSession)
+            .where(PracticeSession.id == practice.id)
+            .values(hidden_at=now)
+        )
+
+    assert store.get_memory_update_material(practice_session_id=practice.id) is None

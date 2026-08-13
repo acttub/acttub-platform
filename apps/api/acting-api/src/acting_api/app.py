@@ -36,10 +36,13 @@ from acting_api.auth.development import DevelopmentProviderVerifier
 from acting_api.auth.google import GoogleProviderVerifier
 from acting_api.auth.jwt import JwtService
 from acting_api.auth.providers import ProviderRegistry
+from acting_api.actor_memory import build_router as build_actor_memory_router
 from acting_api.admin import build_router as build_admin_router
 from acting_api.admissions import build_router as build_admissions_router
 from acting_api.auth.router import build_router as build_auth_router
 from acting_api.coaching import build_router as build_coaching_router
+from acting_api.memory_worker import MemoryUpdateWorker
+from acting_llm.openai_client import generate_text
 from acting_api.community import build_router as build_community_router
 from acting_api.config import load_gateway_settings
 from acting_api.consents import (
@@ -69,11 +72,14 @@ def _ensure_app_logging() -> None:
     일어났는지 확인하는 유일한 증거라 반드시 보여야 한다.
 
     root 레벨은 건드리지 않는다 — WARNING으로 두어야 서드파티 라이브러리의
-    INFO 로그가 쏟아지지 않는다.
+    INFO 로그가 쏟아지지 않는다. 그래서 우리 패키지는 여기에 하나씩 올려야 한다.
+    `acting_summary` 는 1층 Gemini 구간(소요 시간·thinking 토큰·재시도)을 INFO로
+    남기는데, 빠뜨리면 그 줄이 root의 WARNING에 걸려 조용히 사라진다(SOMA-350).
     """
     if not logging.getLogger().handlers:
         logging.basicConfig()
-    logging.getLogger("acting_api").setLevel(logging.INFO)
+    for name in ("acting_api", "acting_summary"):
+        logging.getLogger(name).setLevel(logging.INFO)
 
 
 class HealthResponse(BaseModel):
@@ -100,6 +106,7 @@ def create_app(
     s3_client=None,
     s3_storage=None,
     analysis_worker=None,
+    memory_worker=None,
     analyzer=None,
     coach_generate=None,
     report_generate=None,
@@ -174,6 +181,18 @@ def create_app(
             sweep_interval_sec=gateway_settings.analysis_sweep_interval_sec,
         )
 
+    if memory_worker is None and isinstance(store, PostgresStore):
+        # 분석이 쓰던 작업 풀을 그대로 쓴다. 하나씩만 돌려도 밀리지 않는다 --
+        # 연습 마무리마다가 아니라 몇 번에 한 번만 잡이 생긴다.
+        memory_worker = AnalysisWorkerPool(
+            worker=MemoryUpdateWorker(
+                store=store,
+                generate=coach_generate or generate_text,
+            ),
+            concurrency=1,
+            poll_interval_sec=gateway_settings.analysis_worker_poll_interval_sec,
+        )
+
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         try:
@@ -201,11 +220,15 @@ def create_app(
         app.state.keep_alive_task = task
         if analysis_worker is not None:
             analysis_worker.start()
+        if memory_worker is not None:
+            memory_worker.start()
         try:
             yield
         finally:
             if analysis_worker is not None:
                 analysis_worker.stop()
+            if memory_worker is not None:
+                memory_worker.stop()
             if task:
                 task.cancel()
             if owned_client:
@@ -296,6 +319,13 @@ def create_app(
         build_profile_router(
             store=store,
             rate_limited_user=rate_limited_user,
+        )
+    )
+    # 기억은 연습 기록에서 파생된 개인 정보라 동의를 마친 계정만 본다.
+    app.include_router(
+        build_actor_memory_router(
+            store=store,
+            rate_limited_user=consented_user,
         )
     )
     if community_store is not None:

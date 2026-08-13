@@ -43,6 +43,7 @@ EXPECTED_TABLES = {
     "coaching_handoffs",
     "handoff_confirmations",
     "practice_reports",
+    "actor_memory_entries",
     "external_operations",
     "community_categories",
     "community_posts",
@@ -90,6 +91,7 @@ def test_documented_enum_values_are_exact():
         "coach_start",
         "coach_reply",
         "report",
+        "memory_update",
     ]
     assert [item.value for item in OperationStatus] == [
         "pending",

@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { getStoredUser, isLoggedIn } from "@/lib/auth/token-store";
 import { onSessionEvent } from "@/lib/auth/session-events";
 import { hasAcceptedCurrentPrivacy } from "@/features/auth/pending-consents";
+import { captureSignupAttribution } from "@/features/auth/signup-attribution";
 import {
   clearAnalyticsUser,
   grantAnalyticsConsent,
@@ -12,6 +13,12 @@ import {
   startAnalytics,
   trackPageView,
 } from "@/lib/analytics/ga";
+import {
+  resetAmplitudeUser,
+  setAmplitudeUser,
+  startAmplitude,
+  trackScreenViewed,
+} from "@/lib/analytics/amplitude";
 
 /**
  * user_id 는 쿠키와 똑같은 조건에서만 붙인다. consent 가 denied 여도 gtag 는 쿠키 없는
@@ -22,11 +29,16 @@ function syncAnalyticsUser(): void {
   if (isLoggedIn() && hasAcceptedCurrentPrivacy()) {
     const storedUser = getStoredUser();
     if (storedUser) {
+      // 로그인 이벤트는 화면 이동보다 먼저 온다. 여기서도 켜야 돌아온 사용자의 로그인
+      // 완료 이벤트가 다음 pathname을 기다리다 유실되지 않는다.
+      startAmplitude();
       setAnalyticsUser(storedUser.id);
+      setAmplitudeUser(storedUser.id);
       return;
     }
   }
   clearAnalyticsUser();
+  resetAmplitudeUser();
 }
 
 /**
@@ -45,11 +57,18 @@ export function Analytics() {
   const pathname = usePathname();
 
   useEffect(() => {
+    // 가입 유입은 동의·로그인 전 첫 진입에서 잡아야 한다. GA 전송 게이트와 무관한 로컬 기록이다.
+    captureSignupAttribution();
     startAnalytics();
-    if (isLoggedIn() && hasAcceptedCurrentPrivacy()) grantAnalyticsConsent();
+    if (isLoggedIn() && hasAcceptedCurrentPrivacy()) {
+      grantAnalyticsConsent();
+      // GA4처럼 denied 상태로 먼저 켜지 않는다. 동의 조건을 통과한 뒤에만 init한다.
+      startAmplitude();
+    }
     // page_view 보다 먼저 붙여야 동의 직후 첫 화면부터 사람에 묶인다.
     syncAnalyticsUser();
     trackPageView(pathname);
+    trackScreenViewed(pathname);
   }, [pathname]);
 
   // 로그아웃과 재동의 요구는 화면 전환 없이도 일어난다 — 같은 탭에서 로그아웃 버튼을

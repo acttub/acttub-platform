@@ -40,6 +40,12 @@ class AdminCloseReasonCount(_Strict):
     count_real: int
 
 
+class AdminSignupSourceCount(_Strict):
+    source: str
+    users: int
+    users_real: int
+
+
 class AdminStats(_Strict):
     users_total: int
     users_total_real: int
@@ -84,6 +90,7 @@ class AdminStats(_Strict):
     active_users_yesterday: int
     active_users_yesterday_real: int
     funnel_steps: list[AdminFunnelStep]
+    signup_sources: list[AdminSignupSourceCount]
     close_reasons: list[AdminCloseReasonCount]
     gap_stated_24h: int
     gap_stated_24h_real: int

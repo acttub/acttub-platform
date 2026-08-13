@@ -29,13 +29,29 @@ import type {
 } from "@/lib/api/v2/types";
 import { isLoggedIn } from "@/lib/auth/token-store";
 import { prepareVideoUpload } from "@/lib/media/upload-preflight";
-import { uploadVideo } from "@/lib/api/v2/uploads";
+import { finalizeUpload, UploadError, uploadVideo } from "@/lib/api/v2/uploads";
 import {
   trackDialogueStarted,
   trackResultViewed,
   trackVideoUploaded,
 } from "@/lib/analytics/ga";
-import { AppRail } from "@/features/nav/app-rail";
+import {
+  trackPracticeAbandoned,
+  trackPracticeAnalysisSettled,
+  trackPracticeBlockageStarted,
+  trackPracticeBlockageSubmitted,
+  trackPracticeDialogueCompleted,
+  trackPracticeDialogueStartFailed,
+  trackPracticeDialogueStarted,
+  trackPracticeDialogueTurnFailed,
+  trackPracticeDialogueTurnSent,
+  trackPracticeHistoryOpened,
+  trackPracticePrepOpened,
+  trackPracticeResultViewed,
+  trackPracticeSessionCreated,
+  trackPracticeUploadFailed,
+  trackPracticeVideoSelected,
+} from "@/lib/analytics/amplitude";
 import { ExitReviewModal, useExitReview } from "./exit-review";
 import { BlockageSelectionFlow } from "../practice/blockage-selection";
 import type { BlockageSelection } from "../practice/blockage-flow";
@@ -53,16 +69,27 @@ import {
   formatVideoDuration,
 } from "../practice/practice-setup-flow";
 import {
-  UPLOAD_PROGRESS_END,
   advanceProgress,
   analysisProgress,
+  analysisStart,
   compressionProgress,
+  isAnalysisPastDeadline,
   settleProgress,
   uploadProgress,
 } from "../practice/analysis-progress";
+import {
+  uploadForCurrentFile,
+  type PendingVideoUpload,
+} from "./pending-video-upload";
 
 /** 준비 → 업로드 → 대화 → 노트. 화면이 단계마다 대화 쪽으로 좁혀진다. */
 type Mode = "prep" | "blockage" | "uploading" | "preparing" | "chat" | "note";
+// "질문 받기"에서 먼저 띄운 압축·업로드가 남기는 것. 막힘 선택이 끝나면 begin 이 이어받는다.
+type PendingUploadResult = {
+  intentId: string;
+  durationMs: number;
+  compressionRan: boolean;
+};
 type ChatMsg = { role: "ai" | "me"; text: string };
 
 export function WorkspaceApp() {
@@ -81,6 +108,24 @@ function replaceUrl(path: string): void {
   window.history.replaceState(null, "", path);
 }
 
+/** API turns의 첫 actor 항목은 장면 폼 값이라 대화에서 실제로 보낸 답변 수에서 뺀다. */
+function dialogueTurnCount(turn: CoachTurnResponse): number {
+  return Math.max(
+    0,
+    turn.turns.filter((message) => message.role === "actor").length - 1,
+  );
+}
+
+/** 백엔드와 같은 네 종료 표현을 분류하되, 원문은 계측 함수에 넘기지 않는다. */
+function isActorClosing(text: string): boolean {
+  const stripped = text.replace(/[\s.,!?~…·'"]/g, "");
+  if (["그만", "종료", "끝", "여기까지"].includes(stripped)) return true;
+  if (stripped.length > 10) return false;
+  return /(?:^|\s)(?:그만|종료)(?:(?:할게|할래)(?:요)?|하자|하고\s*싶어요?|요|용)?[\s.,!?~…·'"]*$/.test(
+    text,
+  );
+}
+
 function WorkspaceInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -89,6 +134,7 @@ function WorkspaceInner() {
   // 캐시를 초기값으로 써야 인증 게이트가 열린 첫 화면부터 호칭이 바뀌어 보이지 않는다.
   const [nickname, setNickname] = useState<string | null>(() => getStoredDisplayName());
   const [ready, setReady] = useState(false);
+  const initialPrepTrackedRef = useRef(false);
   useEffect(() => {
     if (!isLoggedIn()) {
       const search = typeof window === "undefined" ? "" : window.location.search;
@@ -98,6 +144,12 @@ function WorkspaceInner() {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- 클라이언트 전용 인증 확인 후 1회 게이트
     setReady(true);
   }, [router]);
+
+  useEffect(() => {
+    if (!ready || initialPrepTrackedRef.current) return;
+    initialPrepTrackedRef.current = true;
+    trackPracticePrepOpened("new");
+  }, [ready]);
 
   useEffect(() => {
     if (!ready) return;
@@ -168,6 +220,10 @@ function WorkspaceInner() {
   const [pct, setPct] = useState(0);
   const [analysisStatus, setAnalysisStatus] = useState<PracticeSessionDetail["status"] | null>(null);
   const [videoDurationMs, setVideoDurationMs] = useState<number | null>(null);
+  const [analysisElapsedMs, setAnalysisElapsedMs] = useState(0);
+  // 분석 막대가 어디서 시작하는지는 압축을 탔는지에 달렸다(압축 80 · 무압축 60).
+  // 목록·주소로 연 세션은 압축 여부를 모르므로 무압축 쪽으로 둔다.
+  const [analysisStartPct, setAnalysisStartPct] = useState(analysisStart(false));
 
   // 대화
   const [messages, setMessages] = useState<ChatMsg[]>([]);
@@ -177,6 +233,7 @@ function WorkspaceInner() {
   const [coachSessionId, setCoachSessionId] = useState<string | null>(null);
   const [coachDone, setCoachDone] = useState(false);
   const coachIdRef = useRef<string | null>(null);
+  const dialogueTurnCountRef = useRef(0);
 
   // 연습 노트
   const [report, setReport] = useState<PracticeReport | null>(null);
@@ -185,6 +242,9 @@ function WorkspaceInner() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const chatScrollRef = useRef<HTMLDivElement | null>(null);
   const uploadControllerRef = useRef<AbortController | null>(null);
+  const pendingUploadRef = useRef<PendingVideoUpload<PendingUploadResult> | null>(
+    null,
+  );
   const analysisControllerRef = useRef<AbortController | null>(null);
   const analysisStartedAtRef = useRef<number | null>(null);
   const activeIdRef = useRef<string | null>(null);
@@ -192,6 +252,11 @@ function WorkspaceInner() {
   const coachCoordinatorRef = useRef<{
     sessionId: string;
     coordinator: CoachStartCoordinator;
+  } | null>(null);
+  const practiceAnalyticsContextRef = useRef<{
+    kind: BlockageSelection["blockage_kind"];
+    subBranch: BlockageSelection["sub_branch"];
+    withEvidence: boolean;
   } | null>(null);
 
   // 어느 연습에서 어느 단계를 이미 세었는지. 대화와 노트 확인은 한 연습 안에서 여러 번
@@ -203,13 +268,14 @@ function WorkspaceInner() {
   // 세션 id 는 열쇠로만 쓰고 GA4 로 보내지 않는다. 보내는 값은 ga.ts 가 정하고,
   // 그 파일이 주소에서 식별자를 씻어내는 이유가 여기에도 그대로 적용된다.
   const countStepOnce = useCallback(
-    (practiceSessionId: string | null, stepName: "dialogue" | "result") => {
-      if (!practiceSessionId) return;
+    (practiceSessionId: string | null, stepName: "dialogue" | "result"): boolean => {
+      if (!practiceSessionId) return false;
       const key = `${practiceSessionId}:${stepName}`;
-      if (countedStepsRef.current.has(key)) return;
+      if (countedStepsRef.current.has(key)) return false;
       countedStepsRef.current.add(key);
       if (stepName === "dialogue") trackDialogueStarted();
       else trackResultViewed();
+      return true;
     },
     [],
   );
@@ -218,6 +284,21 @@ function WorkspaceInner() {
     const el = chatScrollRef.current;
     if (el) el.scrollTop = el.scrollHeight;
   }, [messages, mode]);
+
+  const abandonmentSnapshotRef = useRef<{ mode: Mode; pct: number }>({ mode, pct });
+  useEffect(() => {
+    abandonmentSnapshotRef.current = { mode, pct };
+  }, [mode, pct]);
+
+  useEffect(
+    () => () => {
+      const snapshot = abandonmentSnapshotRef.current;
+      if (snapshot.mode === "preparing" || snapshot.mode === "chat") {
+        trackPracticeAbandoned(snapshot.mode, dialogueTurnCountRef.current, snapshot.pct);
+      }
+    },
+    [],
+  );
 
   useEffect(
     () => () => {
@@ -238,19 +319,31 @@ function WorkspaceInner() {
     const startedAt = analysisStartedAtRef.current ?? Date.now();
     analysisStartedAtRef.current = startedAt;
     const update = () => {
+      const elapsedMs = Date.now() - startedAt;
+      setAnalysisElapsedMs(elapsedMs);
       setPct((current) =>
         advanceProgress(
           current,
-          analysisProgress(Date.now() - startedAt, videoDurationMs),
+          analysisProgress(elapsedMs, videoDurationMs, analysisStartPct),
         ),
       );
     };
     const timer = window.setInterval(update, 1000);
     return () => window.clearInterval(timer);
-  }, [analysisStatus, mode, videoDurationMs]);
+  }, [analysisStartPct, analysisStatus, mode, videoDurationMs]);
+
+  // 미리 시작한 압축·업로드를 버린다. 끊지 않으면 배우가 떠난 뒤에도 폰이 계속 인코딩한다.
+  const discardPendingUpload = useCallback(() => {
+    pendingUploadRef.current?.controller.abort();
+    pendingUploadRef.current = null;
+    uploadControllerRef.current?.abort();
+    uploadControllerRef.current = null;
+  }, []);
 
   const resetToPrep = useCallback(() => {
+    discardPendingUpload();
     analysisControllerRef.current?.abort();
+    trackPracticePrepOpened("reset");
     activeIdRef.current = null;
     setMode("prep");
     setActiveId(null);
@@ -261,12 +354,15 @@ function WorkspaceInner() {
     setCoachOpening(false);
     setCoachSessionId(null);
     coachIdRef.current = null;
+    dialogueTurnCountRef.current = 0;
     coachCoordinatorRef.current = null;
+    practiceAnalyticsContextRef.current = null;
     analysisStartedAtRef.current = null;
     urlLoadedRef.current = null;
     setAnalysisStatus(null);
     setPct(0);
     setVideoDurationMs(null);
+    setAnalysisElapsedMs(0);
     setError(null);
     setSituation("");
     setCharacter("");
@@ -278,7 +374,7 @@ function WorkspaceInner() {
     });
     setDrawerOpen(false);
     replaceUrl("/practice/new");
-  }, []);
+  }, [discardPendingUpload]);
 
   // 후기는 대화가 시작된 뒤에만 묻는다 — 영상만 올리고 나간 사람은 답할 게 없다.
   const reviewArmed = mode === "chat" || mode === "note";
@@ -287,7 +383,7 @@ function WorkspaceInner() {
     openFromButton: openReview,
     close: closeReview,
     markDone: markReviewDone,
-  } = useExitReview(reviewArmed);
+  } = useExitReview(reviewArmed, mode === "note" ? "note" : "chat");
 
   // 마치기로 연 후기 창을 닫으면 연습을 끝낸 것으로 보고 새 연습 준비 화면으로 돌아간다.
   // 커서 이탈·뒤로가기로 뜬 창은 보던 화면을 그대로 둔다.
@@ -297,31 +393,52 @@ function WorkspaceInner() {
     if (wasOpenedByButton) resetToPrep();
   }, [closeReview, wasOpenedByButton, resetToPrep]);
 
-  const pushAi = useCallback((turn: CoachTurnResponse) => {
-    // 코치 세션 id 는 매 응답마다 회전할 수 있어 다음 reply 에 최신 값을 쓴다.
-    coachIdRef.current = turn.session_id;
-    setCoachSessionId(turn.session_id);
-    const message = coachMessageText(turn);
-    setMessages((m) => [...m, { role: "ai", text: message }]);
-    const completed = completedCoachReport(turn);
-    setCoachDone(turn.status === "complete");
-    if (completed) {
-      // 노트는 받아 두되 화면은 그대로 둔다 — 마지막 인사를 읽고 배우가 직접 넘어간다.
-      setReport(completed);
-      void refreshList();
-    }
-  }, [refreshList]);
+  const pushAi = useCallback(
+    (
+      turn: CoachTurnResponse,
+      endedBy: "coach" | "actor_closing" = "coach",
+    ) => {
+      // 코치 세션 id 는 매 응답마다 회전할 수 있어 다음 reply 에 최신 값을 쓴다.
+      coachIdRef.current = turn.session_id;
+      setCoachSessionId(turn.session_id);
+      dialogueTurnCountRef.current = dialogueTurnCount(turn);
+      const message = coachMessageText(turn);
+      setMessages((m) => [...m, { role: "ai", text: message }]);
+      const completed = completedCoachReport(turn);
+      setCoachDone(turn.status === "complete");
+      if (turn.status === "complete") {
+        trackPracticeDialogueCompleted(
+          dialogueTurnCountRef.current,
+          completed?.report_type ?? "blocked",
+          endedBy,
+        );
+      }
+      if (completed) {
+        // 노트는 받아 두되 화면은 그대로 둔다 — 마지막 인사를 읽고 배우가 직접 넘어간다.
+        setReport(completed);
+        void refreshList();
+      }
+    },
+    [refreshList],
+  );
 
   // 대화를 끝낸 뒤 배우가 직접 누를 때만 노트로 넘긴다. 지난 연습을 여는 경로는
   // 이미 노트가 목적지라 여기를 거치지 않는다.
   const openNote = useCallback(() => {
     setMode("note");
-    countStepOnce(activeIdRef.current, "result");
-  }, [countStepOnce]);
+    if (report && countStepOnce(activeIdRef.current, "result")) {
+      trackPracticeResultViewed(
+        report.report_type,
+        dialogueTurnCountRef.current,
+        "current",
+      );
+    }
+  }, [countStepOnce, report]);
 
   const restoreCoach = useCallback((turn: CoachTurnResponse) => {
     coachIdRef.current = turn.session_id;
     setCoachSessionId(turn.session_id);
+    dialogueTurnCountRef.current = dialogueTurnCount(turn);
     const restored: ChatMsg[] | undefined = turn.turns?.map((message) => ({
       role: message.role === "actor" ? "me" : "ai",
       text: message.text,
@@ -331,6 +448,13 @@ function WorkspaceInner() {
     );
     const completed = completedCoachReport(turn);
     setCoachDone(turn.status === "complete");
+    if (turn.status === "complete") {
+      trackPracticeDialogueCompleted(
+        dialogueTurnCountRef.current,
+        completed?.report_type ?? "blocked",
+        "coach",
+      );
+    }
     if (completed) {
       // 첫 응답이 곧바로 complete 로 오는 경우다. 재개 응답은 항상 continue 라 여기 오지 않는다.
       // 이때도 화면은 그대로 두고 배우가 정리보기를 누를 때 넘긴다.
@@ -355,8 +479,18 @@ function WorkspaceInner() {
         });
         if (activeIdRef.current !== practiceSessionId) return;
         restoreCoach(start);
-        countStepOnce(practiceSessionId, "dialogue");
+        if (countStepOnce(practiceSessionId, "dialogue")) {
+          const context = practiceAnalyticsContextRef.current;
+          if (context) {
+            trackPracticeDialogueStarted(
+              context.withEvidence,
+              context.kind,
+              context.subBranch,
+            );
+          }
+        }
       } catch (reason) {
+        trackPracticeDialogueStartFailed(false);
         if (activeIdRef.current === practiceSessionId) {
           setError("코치 연결에 실패했어요. 잠시 후 다시 시도해 주세요.");
         }
@@ -374,6 +508,9 @@ function WorkspaceInner() {
   }, [coordinatorFor]);
 
   const startConversationWithoutEvidence = useCallback((practiceSessionId: string) => {
+    if (practiceAnalyticsContextRef.current) {
+      practiceAnalyticsContextRef.current.withEvidence = false;
+    }
     void coordinatorFor(practiceSessionId).startWithoutEvidence().catch(() => {});
   }, [coordinatorFor]);
 
@@ -381,8 +518,14 @@ function WorkspaceInner() {
     analysisControllerRef.current?.abort();
     const controller = new AbortController();
     analysisControllerRef.current = controller;
+    const startedAt = analysisStartedAtRef.current ?? Date.now();
+    analysisStartedAtRef.current = startedAt;
     void pollSessionUntilSettled(practiceSessionId, {
-      intervalMs: 4000,
+      // 분석이 끝나도 이 간격만큼은 화면이 모른다. 4초 → 3초로만 줄인다.
+      // 더 줄이지 않는 이유는 사용자당 60회/분 제한을 이 폴링이 혼자 먹기 때문이다
+      // (3초면 20회/분, 두 탭이어도 40회/분). client.ts 에 429 백오프가 생기기
+      // 전까지는 429 한 번에 폴링이 끊기고 화면이 오류로 남는다.
+      intervalMs: 3000,
       signal: controller.signal,
       onStatus: (status) => {
         if (activeIdRef.current === practiceSessionId) setAnalysisStatus(status);
@@ -393,6 +536,18 @@ function WorkspaceInner() {
         setAnalysisStatus(settled.status);
         setPct((current) => settleProgress(current, settled.status));
         setDetail(settled);
+        practiceAnalyticsContextRef.current = {
+          kind: settled.blockage_kind,
+          subBranch: settled.sub_branch as BlockageSelection["sub_branch"],
+          withEvidence: settled.status === "analyzed",
+        };
+        if (settled.status === "analyzed" || settled.status === "failed") {
+          trackPracticeAnalysisSettled(
+            settled.status,
+            settled.error_code,
+            Date.now() - startedAt,
+          );
+        }
         void refreshList();
         void coordinatorFor(practiceSessionId).update(settled.status).catch(() => {});
       },
@@ -408,27 +563,38 @@ function WorkspaceInner() {
 
   const onPickFile = (file: File | null) => {
     if (!file) return;
+    const isReselect = videoFile !== null;
+    // 고르던 영상을 바꾸면 앞서 시작한 압축·업로드는 버린다.
+    discardPendingUpload();
+    setPct(0);
+    setVideoDurationMs(null);
     setVideoUrl((prev) => {
       if (prev) URL.revokeObjectURL(prev);
       return URL.createObjectURL(file);
     });
     setVideoFile(file);
     setError(null);
+    trackPracticeVideoSelected(file.size, isReselect);
   };
 
-  const begin = useCallback(async (blockage: BlockageSelection) => {
-    if (!videoFile) return;
-    setError(null);
-    setMode("uploading");
-    setPct(0);
-    analysisStartedAtRef.current = null;
+  // 압축·업로드는 "질문 받기"를 누른 순간 시작해서 막힘을 고르는 동안 뒤에서 돈다.
+  // 막힘 선택이 끝난 뒤에 시작하면 배우는 고르는 시간과 올리는 시간을 더해서 기다린다.
+  const startUpload = useCallback((file: File): PendingVideoUpload<PendingUploadResult> => {
     uploadControllerRef.current?.abort();
     const controller = new AbortController();
     uploadControllerRef.current = controller;
-    try {
-      const prepared = await prepareVideoUpload(videoFile, {
+    setPct(0);
+    setAnalysisElapsedMs(0);
+    analysisStartedAtRef.current = null;
+    const promise = (async (): Promise<PendingUploadResult> => {
+      // 압축이 "돌았는지"로 구간을 가른다. prepared.wasCompressed 는 결과물을 썼는지라
+      // 압축을 다 돌리고도 원본보다 크면 false 가 되고, 그러면 막대가 이미 40까지
+      // 올라간 채 업로드 구간이 0부터 시작해 40에서 한참 멈춰 있게 된다.
+      let compressionRan = false;
+      const prepared = await prepareVideoUpload(file, {
         signal: controller.signal,
         onCompressionProgress: (progress) => {
+          compressionRan = true;
           setPct((current) =>
             advanceProgress(current, compressionProgress(progress)),
           );
@@ -437,14 +603,51 @@ function WorkspaceInner() {
       const { intentId } = await uploadVideo(prepared.file, {
         durationMs: prepared.durationMs,
         signal: controller.signal,
+        // 완료 처리는 begin 으로 미룬다 — 막힘을 고르다 그만두면 완료된 인텐트는
+        // 만료 스윕이 회수하지 않아 세션 없는 영상이 S3 에 남는다.
+        finalize: false,
         onProgress: (progress) =>
           setPct((current) =>
             advanceProgress(
               current,
-              uploadProgress(progress.percent, prepared.wasCompressed),
+              uploadProgress(progress.percent, compressionRan),
             ),
           ),
       });
+      return { intentId, durationMs: prepared.durationMs, compressionRan };
+    })();
+    // 막힘을 고르는 동안 실패하면 이 약속을 아무도 안 받고 있다 — 여기서 삼켜
+    // unhandled rejection 을 막고, 오류 처리는 begin 이 await 할 때 한 번만 한다.
+    promise.catch(() => undefined);
+    const pending = { file, controller, promise };
+    pendingUploadRef.current = pending;
+    return pending;
+  }, []);
+
+  const begin = useCallback(async (blockage: BlockageSelection) => {
+    if (!videoFile) return;
+    trackPracticeBlockageSubmitted(
+      blockage.blockage_kind,
+      blockage.sub_branch,
+      blockage.blockage_detail,
+    );
+    setError(null);
+    setMode("uploading");
+    // 현재 영상으로 미리 띄운 업로드만 이어받는다. 파일이 다르면 옛 업로드를 버리고 새로 시작한다.
+    const pending = uploadForCurrentFile(
+      pendingUploadRef.current,
+      videoFile,
+      startUpload,
+    );
+    const { controller, promise } = pending;
+    // 업로드가 다 끝난 뒤 터지는 실패는 UploadError 가 아니라 단계를 알 길이 없다.
+    // 이 표시가 없으면 세션 생성 실패가 전부 preflight 로 기록된다.
+    let reachedSessionCreate = false;
+    try {
+      const { intentId, durationMs, compressionRan } = await promise;
+      // 배우가 연습을 시작하겠다고 한 지금에서야 업로드를 확정한다.
+      await finalizeUpload(intentId, { signal: controller.signal });
+      reachedSessionCreate = true;
       const { session } = await createPracticeSession(
         buildPracticeSessionRequest(
           intentId,
@@ -455,19 +658,32 @@ function WorkspaceInner() {
       );
       activeIdRef.current = session.session_id;
       coachCoordinatorRef.current = null;
+      practiceAnalyticsContextRef.current = {
+        kind: blockage.blockage_kind,
+        subBranch: blockage.sub_branch,
+        withEvidence: session.status === "analyzed",
+      };
       setActiveId(session.session_id);
       setAnalysisStatus(session.status);
-      setVideoDurationMs(prepared.durationMs);
+      setVideoDurationMs(durationMs);
       setDetail(null);
-      setPct((current) => advanceProgress(current, UPLOAD_PROGRESS_END));
+      const startPct = analysisStart(compressionRan);
+      setAnalysisStartPct(startPct);
+      setPct((current) => advanceProgress(current, startPct));
       analysisStartedAtRef.current = Date.now();
+      setAnalysisElapsedMs(0);
       setMode("preparing");
       setSending(false);
       urlLoadedRef.current = session.session_id;
       replaceUrl(`/practice/new?session=${encodeURIComponent(session.session_id)}`);
       // 업로드가 끝난 시점이 아니라 연습 세션까지 만들어진 시점에 센다.
       // 업로드만 되고 세션 생성이 실패하면 연습이 시작된 게 아니다.
-      trackVideoUploaded(prepared.durationMs);
+      trackVideoUploaded(durationMs);
+      trackPracticeSessionCreated(
+        durationMs,
+        blockage.blockage_kind,
+        blockage.sub_branch,
+      );
       trackAnalysis(session.session_id);
       void getPracticeSession(session.session_id).then(
         (loaded) => {
@@ -479,6 +695,12 @@ function WorkspaceInner() {
       );
       void refreshList();
     } catch (err) {
+      trackPracticeUploadFailed(
+        err instanceof UploadError
+          ? err.stage
+          : reachedSessionCreate ? "session_create" : "preflight",
+        err,
+      );
       if (uploadControllerRef.current === controller) {
         setMode("prep");
         if (!(err instanceof Error && err.name === "AbortError")) {
@@ -487,19 +709,25 @@ function WorkspaceInner() {
       }
     } finally {
       if (uploadControllerRef.current === controller) uploadControllerRef.current = null;
+      if (pendingUploadRef.current?.controller === controller) {
+        pendingUploadRef.current = null;
+      }
     }
-  }, [videoFile, situation, character, goal, refreshList, trackAnalysis]);
+  }, [videoFile, situation, character, goal, refreshList, startUpload, trackAnalysis]);
 
   const send = useCallback(async () => {
     const text = answer.trim();
     if (!text || sending || !coachIdRef.current) return;
+    const turnIndex = dialogueTurnCountRef.current + 1;
     setMessages((m) => [...m, { role: "me", text }]);
     setAnswer("");
     setSending(true);
+    trackPracticeDialogueTurnSent(turnIndex, text);
     try {
       const { data: turn } = await replyCoach({ session_id: coachIdRef.current, text });
-      pushAi(turn);
+      pushAi(turn, isActorClosing(text) ? "actor_closing" : "coach");
     } catch {
+      trackPracticeDialogueTurnFailed(turnIndex);
       setMessages((m) => [
         ...m,
         { role: "ai", text: "(연결이 잠시 끊겼어요. 다시 답해 주세요.)" },
@@ -521,6 +749,7 @@ function WorkspaceInner() {
     setCoachOpening(true);
     setCoachSessionId(null);
     coachIdRef.current = null;
+    dialogueTurnCountRef.current = 0;
     try {
       const { data } = await startCoach({
         practice_session_id: practiceSessionId,
@@ -529,6 +758,7 @@ function WorkspaceInner() {
       if (activeIdRef.current !== practiceSessionId) return;
       restoreCoach(data);
     } catch {
+      trackPracticeDialogueStartFailed(true);
       if (activeIdRef.current === practiceSessionId) {
         setError("대화를 다시 시작하지 못했어요. 잠시 후 다시 시도해 주세요.");
       }
@@ -541,6 +771,16 @@ function WorkspaceInner() {
   }, [restoreCoach]);
 
   const openSession = useCallback(async (id: string) => {
+    const selected = sessions.find((session) => session.session_id === id);
+    if (selected) {
+      trackPracticeHistoryOpened(
+        selected.status,
+        reports.some((item) => item.practice_session_id === id),
+        (Date.now() - Date.parse(selected.created_at)) / 86_400_000,
+      );
+    }
+    // 올리던 영상을 두고 다른 연습으로 넘어가면 그 업로드는 갈 곳이 없다.
+    discardPendingUpload();
     analysisControllerRef.current?.abort();
     analysisStartedAtRef.current = null;
     activeIdRef.current = id;
@@ -558,20 +798,29 @@ function WorkspaceInner() {
       if (prev) URL.revokeObjectURL(prev);
       return null;
     });
-    setPct(UPLOAD_PROGRESS_END);
+    setAnalysisStartPct(analysisStart(false));
+    setPct(analysisStart(false));
     setAnalysisStatus(null);
     setVideoDurationMs(null);
+    setAnalysisElapsedMs(0);
     setMessages([]);
     setCoachDone(false);
     setCoachOpening(false);
     setCoachSessionId(null);
     coachIdRef.current = null;
+    dialogueTurnCountRef.current = 0;
+    practiceAnalyticsContextRef.current = null;
     setBusy(true);
     try {
       const loaded = await getPracticeSession(id);
       if (activeIdRef.current !== id) return;
       setDetail(loaded);
       setAnalysisStatus(loaded.status);
+      practiceAnalyticsContextRef.current = {
+        kind: loaded.blockage_kind,
+        subBranch: loaded.sub_branch as BlockageSelection["sub_branch"],
+        withEvidence: loaded.status === "analyzed",
+      };
       if (loaded.status === "created" || loaded.status === "analyzing") {
         setReport(null);
         setMode("preparing");
@@ -601,7 +850,14 @@ function WorkspaceInner() {
     } finally {
       setBusy(false);
     }
-  }, [countStepOnce, startConversationAfterAnalysis, trackAnalysis]);
+  }, [
+    countStepOnce,
+    discardPendingUpload,
+    reports,
+    sessions,
+    startConversationAfterAnalysis,
+    trackAnalysis,
+  ]);
 
   // 주소에 ?session= 이 실려 오면(연습 기록 링크·새로고침) 그 세션을 연다.
   // 클릭으로 여는 경로는 openSession 이고, 이쪽은 첫 진입만 맡는다.
@@ -614,12 +870,20 @@ function WorkspaceInner() {
       try {
         const loaded = await getPracticeSession(sessionParam);
         if (cancelled) return;
-        setPct(UPLOAD_PROGRESS_END);
+        setAnalysisStartPct(analysisStart(false));
+        setPct(analysisStart(false));
         activeIdRef.current = sessionParam;
         setActiveId(sessionParam);
         setDetail(loaded);
         setAnalysisStatus(loaded.status);
+        practiceAnalyticsContextRef.current = {
+          kind: loaded.blockage_kind,
+          subBranch: loaded.sub_branch as BlockageSelection["sub_branch"],
+          withEvidence: loaded.status === "analyzed",
+        };
         setVideoDurationMs(null);
+        dialogueTurnCountRef.current = 0;
+        setAnalysisElapsedMs(0);
         coachCoordinatorRef.current = null;
         if (loaded.status === "created" || loaded.status === "analyzing") {
           setReport(null);
@@ -708,9 +972,6 @@ function WorkspaceInner() {
 
   return (
     <div className="flex h-dvh overflow-hidden bg-white text-[#191f28]">
-      {/* 앱 전체 네비. 세션 바보다 한 겹 바깥이고, 여기서 입시·커뮤니티로 나간다. */}
-      <AppRail />
-
       {/* 데스크톱: 붙박이 세션 바. 질문이 시작되면 접혀서 대화에 자리를 내준다. */}
       <div className="hidden lg:flex">{rail}</div>
 
@@ -757,33 +1018,66 @@ function WorkspaceInner() {
             {detail?.situation?.trim() || "새 연습"}
           </p>
           <StatusChip mode={mode} done={coachDone} />
-          {activeId ? (
-            <div className="ml-auto flex shrink-0 items-center gap-2">
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => void removeSession()}
-                className="h-8 rounded-[10px] border border-[#f1aeb5] px-3 text-xs font-black text-[#e03131] transition hover:bg-[#fff5f5] disabled:text-[#f1aeb5]"
-              >
-                삭제
-              </button>
-              {reviewArmed ? (
+          {/* 오른쪽 끝은 한 덩어리로 묶는다 — ml-auto 를 두 군데 주면 남는 폭을 나눠 갖는다. */}
+          <div className="ml-auto flex shrink-0 items-center gap-2">
+            {activeId ? (
+              <>
                 <button
                   type="button"
-                  onClick={openReview}
-                  aria-label="연습 마치기"
-                  title="연습 마치기"
-                  className="flex h-8 w-8 items-center justify-center rounded-[10px] bg-[#f2f4f6] text-sm font-black text-[#4e5968] transition hover:bg-[#e5e8eb]"
+                  disabled={busy}
+                  onClick={() => void removeSession()}
+                  className="h-8 rounded-[10px] border border-[#f1aeb5] px-3 text-xs font-black text-[#e03131] transition hover:bg-[#fff5f5] disabled:text-[#f1aeb5]"
                 >
-                  ✕
+                  삭제
                 </button>
-              ) : null}
-            </div>
-          ) : (
-            <span className="ml-auto hidden text-xs font-semibold text-[#8b95a1] sm:block">
-              영상을 올리면 질문이 시작돼요
-            </span>
-          )}
+                {reviewArmed ? (
+                  <button
+                    type="button"
+                    onClick={openReview}
+                    aria-label="연습 마치기"
+                    title="연습 마치기"
+                    className="flex h-8 w-8 items-center justify-center rounded-[10px] bg-[#f2f4f6] text-sm font-black text-[#4e5968] transition hover:bg-[#e5e8eb]"
+                  >
+                    ✕
+                  </button>
+                ) : null}
+              </>
+            ) : (
+              <span className="hidden text-xs font-semibold text-[#8b95a1] sm:block">
+                영상을 올리면 질문이 시작돼요
+              </span>
+            )}
+            {/* 좌측 레일을 걷어내고(2026-08-09) 그 길을 이 바 오른쪽 끝으로 옮겼다.
+                연습이 열려 있는 폰 화면에서는 숨긴다 — 삭제·마치기·상태칩까지 한 줄에
+                서면 375px에서 제목에 40px밖에 안 남는다. */}
+            <nav
+              aria-label="주요 메뉴"
+              className={`items-center gap-1 border-l border-[#edf0f3] pl-2 ${
+                activeId ? "hidden sm:flex" : "flex"
+              }`}
+            >
+              <Link
+                href="/admissions"
+                className="flex h-8 items-center rounded-[10px] px-2 text-xs font-black text-[#8b95a1] transition hover:bg-[#f2f4f6] hover:text-[#4e5968]"
+              >
+                입시
+              </Link>
+              <Link
+                href="/community"
+                className="flex h-8 items-center rounded-[10px] px-2 text-xs font-black text-[#8b95a1] transition hover:bg-[#f2f4f6] hover:text-[#4e5968]"
+              >
+                커뮤
+              </Link>
+              {/* 코치가 나에 대해 적어 둔 것. 틀린 내용을 되돌릴 수 있는 유일한
+                  자리라 숨기지 않는다. */}
+              <Link
+                href="/memory"
+                className="flex h-8 items-center rounded-[10px] px-2 text-xs font-black text-[#8b95a1] transition hover:bg-[#f2f4f6] hover:text-[#4e5968]"
+              >
+                기억
+              </Link>
+            </nav>
+          </div>
         </header>
 
         {chatLeading ? (
@@ -878,6 +1172,7 @@ function WorkspaceInner() {
                   pct={pct}
                   durationMs={videoDurationMs}
                   phase="scan"
+                  elapsedMs={analysisElapsedMs}
                   failed={analysisStatus === "failed"}
                   starting={coachOpening}
                   onStartWithoutEvidence={() => {
@@ -887,7 +1182,12 @@ function WorkspaceInner() {
               ) : (
                 <StartRow
                   ready={Boolean(videoFile)}
-                  onStart={() => setMode("blockage")}
+                  onStart={() => {
+                    if (!videoFile) return;
+                    startUpload(videoFile);
+                    setMode("blockage");
+                    trackPracticeBlockageStarted();
+                  }}
                 />
               )}
               {error ? (
@@ -1034,7 +1334,7 @@ function SessionRail({
         </div>
       )}
 
-      {/* 커뮤니티·입시로 나가는 길은 AppRail 이 맡는다. 여기 두면 두 군데가 된다. */}
+      {/* 커뮤니티·입시로 나가는 길은 위 헤더 오른쪽 끝이 맡는다. 여기 두면 두 군데가 된다. */}
       <div
         className={`mt-auto flex items-center border-t border-[#edf0f3] ${
           open ? "justify-between px-4 py-3.5" : "justify-center py-3.5"
@@ -1295,6 +1595,7 @@ function ProgressPanel({
   pct,
   durationMs,
   phase,
+  elapsedMs = 0,
   failed = false,
   starting = false,
   onStartWithoutEvidence,
@@ -1302,6 +1603,7 @@ function ProgressPanel({
   pct: number;
   durationMs: number | null;
   phase: "upload" | "scan";
+  elapsedMs?: number;
   failed?: boolean;
   starting?: boolean;
   onStartWithoutEvidence?: () => void;
@@ -1328,10 +1630,13 @@ function ProgressPanel({
   }
 
   const duration = formatVideoDuration(durationMs);
-  const waitingLabel = duration
-    ? `${duration} 영상 · 장면을 훑어보고 있어요…`
-    : "영상 길이 확인 · 장면을 훑어보고 있어요…";
+  const waitingLabel = isAnalysisPastDeadline(elapsedMs)
+    ? "평소보다 오래 걸리고 있어요 · 장면을 계속 살펴보고 있어요…"
+    : duration
+      ? `${duration} 영상 · 장면을 훑어보고 있어요…`
+      : "영상 길이 확인 · 장면을 훑어보고 있어요…";
   const value = Math.round(pct);
+  const width = Math.min(100, Math.max(0, pct));
   const label = phase === "upload" ? "영상 올리는 중…" : waitingLabel;
 
   return (
@@ -1354,7 +1659,7 @@ function ProgressPanel({
       >
         <div
           className="h-full rounded-full bg-[#3182f6] transition-[width] duration-300"
-          style={{ width: `${value}%` }}
+          style={{ width: `${width}%` }}
         />
       </div>
     </div>
@@ -1651,18 +1956,25 @@ function NotePanel({
               ))}
             </div>
             <p className="rounded-2xl bg-[#e8f3ff] px-4 py-3 text-sm font-bold leading-6 text-[#1b64da]">
-              아직 한 번도 해보지 않아서 정리할 게 부족해요. 대화로 돌아가 한 번만 시도해 볼까요?
+              지금까지 나눈 이야기는 연습 노트로 남지 않아요. 다시 대화하면 이 내용은 사라지고 처음부터 시작해요.
             </p>
           </div>
         </div>
-        <div className="border-t border-[#edf0f3] p-3.5 sm:p-4">
+        <div className="flex gap-2.5 border-t border-[#edf0f3] p-3.5 sm:p-4">
+          <button
+            type="button"
+            onClick={onFinish}
+            className="h-12 flex-1 rounded-[14px] bg-[#f8fbff] text-sm font-black text-[#4e5968] transition hover:bg-[#eef2f6]"
+          >
+            연습 마치기
+          </button>
           <button
             type="button"
             disabled={busy}
             onClick={onBackToChat}
-            className="h-12 w-full rounded-[14px] bg-[#3182f6] text-sm font-black text-white transition hover:bg-[#1b64da] disabled:bg-[#c9d3df]"
+            className="h-12 flex-1 rounded-[14px] bg-[#3182f6] text-sm font-black text-white transition hover:bg-[#1b64da] disabled:bg-[#c9d3df]"
           >
-            대화로 돌아가기
+            처음부터 다시 대화하기
           </button>
         </div>
       </section>

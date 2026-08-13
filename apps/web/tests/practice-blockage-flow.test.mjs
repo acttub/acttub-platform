@@ -178,16 +178,26 @@ test("complete가 오면 버튼 없이 결과 화면으로 전환한다", () => 
   assert.doesNotMatch(workspace, /이제 맞아요|아직 달라요/);
 });
 
-test("blocked 결과는 대화 내용과 안내와 돌아가기 버튼을 보여준다", () => {
+test("blocked 결과는 대화 내용과 안내와 마치기·다시 시작 버튼을 보여준다", () => {
   const workspace = readFileSync(
     path.join(appRoot, "src/features/workspace/workspace-app.tsx"),
     "utf8",
   );
+  const blockedStart = workspace.indexOf('if (report.report_type === "blocked")');
+  const regularNoteStart = workspace.indexOf("\n  return (", blockedStart);
+  const blocked = workspace.slice(blockedStart, regularNoteStart);
 
-  assert.match(workspace, /report\.report_type === "blocked"/);
-  assert.match(workspace, /messages\.map/);
-  assert.match(workspace, /아직 한 번도 해보지 않아서 정리할 게 부족해요/);
-  assert.match(workspace, /대화로 돌아가기/);
+  assert.notEqual(blockedStart, -1);
+  assert.notEqual(regularNoteStart, -1);
+  assert.match(blocked, /messages\.map/);
+  assert.match(blocked, /지금까지 나눈 이야기는 연습 노트로 남지 않아요/);
+  assert.match(blocked, /다시 대화하면 이 내용은 사라지고 처음부터 시작해요/);
+  assert.match(blocked, /onClick=\{onFinish\}[\s\S]*연습 마치기/);
+  assert.match(
+    blocked,
+    /disabled=\{busy\}[\s\S]*onClick=\{onBackToChat\}[\s\S]*disabled:bg-\[#c9d3df\][\s\S]*처음부터 다시 대화하기/,
+  );
+  assert.doesNotMatch(blocked, /대화로 돌아가기|다음에 이어서/);
   assert.doesNotMatch(workspace, /confirmed_expression_handoff_required/);
 });
 

@@ -4,15 +4,16 @@ Gemini는 영상을 내부에서 1fps 샘플링 + 프레임당 최대 768px로 �
 분석하므로, 그 이상의 해상도·프레임레이트는 업로드 시간과 처리 실패율만
 높인다. 여기서 768px·10fps·모노 오디오로 줄여도 분석 품질은 동일하다.
 
-Render free tier는 CPU가 약하므로(0.1 CPU) ultrafast 프리셋 + 시간제한을
-걸고, 압축이 실패하거나 시간을 초과하면 원본을 그대로 사용한다.
+ultrafast 프리셋 + 시간제한을 걸고, 압축이 실패하거나 시간을 초과하면 원본을
+그대로 사용한다. 스레드 수는 ffmpeg_threads()가 인스턴스 코어 수에서 정한다
+(2026-08-09 이전에는 Render 무료 티어를 가정해 1로 박혀 있었다).
 """
 
 import shutil
 import subprocess
 from pathlib import Path
 
-from acting_llm.media import _FFMPEG_LOCK
+from acting_llm.media import _FFMPEG_LOCK, ffmpeg_threads
 
 # 이보다 작은 파일은 압축해도 이득이 적어 건너뛴다.
 MIN_BYTES = 15 * 1024 * 1024
@@ -42,9 +43,9 @@ def compress_for_gemini(
         ffmpeg,
         "-y",
         # 4K 디코더는 스레드당 프레임 버퍼를 잡아 기본(auto)이면 수백 MB를 먹는다.
-        # 512MB 인스턴스 + 0.1 CPU라 단일 스레드가 메모리·CPU 모두에서 맞다.
+        # 그래서 무제한(auto)이 아니라 ffmpeg_threads()로 코어 수만큼(최대 4) 준다.
         "-threads",
-        "1",
+        ffmpeg_threads(),
         "-i",
         str(src),
         "-vf",
@@ -68,7 +69,7 @@ def compress_for_gemini(
         "-movflags",
         "+faststart",
         "-threads",
-        "1",
+        ffmpeg_threads(),
         str(dst),
     ]
     try:
