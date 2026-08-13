@@ -82,6 +82,8 @@ import {
   type PendingVideoUpload,
 } from "./pending-video-upload";
 
+const NEW_PRACTICE_SUBTITLE = "영상을 올리면 질문이 시작돼요";
+
 /** 준비 → 업로드 → 대화 → 노트. 화면이 단계마다 대화 쪽으로 좁혀진다. */
 type Mode = "prep" | "blockage" | "uploading" | "preparing" | "chat" | "note";
 // "질문 받기"에서 먼저 띄운 압축·업로드가 남기는 것. 막힘 선택이 끝나면 begin 이 이어받는다.
@@ -1014,9 +1016,20 @@ function WorkspaceInner() {
             ☰
           </button>
           {/* flex-1 이 없으면 상황이 길 때 이 줄이 헤더 밖으로 밀려 나간다 */}
-          <p className="min-w-0 flex-1 truncate text-[15px] font-black tracking-[-0.03em]">
-            {detail?.situation?.trim() || "새 연습"}
-          </p>
+          {activeId ? (
+            <p className="min-w-0 flex-1 truncate text-[15px] font-black tracking-[-0.03em]">
+              {detail?.situation?.trim() || "새 연습"}
+            </p>
+          ) : (
+            <div className="flex min-w-0 flex-1 flex-col justify-center sm:contents">
+              <p className="truncate text-[15px] font-black tracking-[-0.03em] sm:min-w-0 sm:flex-1">
+                {detail?.situation?.trim() || "새 연습"}
+              </p>
+              <p className="truncate text-[11px] font-semibold text-[#8b95a1] sm:hidden">
+                {NEW_PRACTICE_SUBTITLE}
+              </p>
+            </div>
+          )}
           <StatusChip mode={mode} done={coachDone} />
           {/* 오른쪽 끝은 한 덩어리로 묶는다 — ml-auto 를 두 군데 주면 남는 폭을 나눠 갖는다. */}
           <div className="ml-auto flex shrink-0 items-center gap-2">
@@ -1044,7 +1057,7 @@ function WorkspaceInner() {
               </>
             ) : (
               <span className="hidden text-xs font-semibold text-[#8b95a1] sm:block">
-                영상을 올리면 질문이 시작돼요
+                {NEW_PRACTICE_SUBTITLE}
               </span>
             )}
             {/* 좌측 레일을 걷어내고(2026-08-09) 그 길을 이 바 오른쪽 끝으로 옮겼다.
