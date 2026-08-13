@@ -647,7 +647,8 @@ CREATE TABLE public.users (
     signup_utm_term character varying(255),
     signup_referrer_host character varying(255),
     signup_landing_path character varying(255),
-    signup_first_seen_at timestamp with time zone
+    signup_first_seen_at timestamp with time zone,
+    signup_utm_id character varying(255)
 );
 
 

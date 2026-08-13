@@ -1594,6 +1594,8 @@ export interface components {
             utm_medium?: string | null;
             /** Utm Campaign */
             utm_campaign?: string | null;
+            /** Utm Id */
+            utm_id?: string | null;
             /** Utm Content */
             utm_content?: string | null;
             /** Utm Term */

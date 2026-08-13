@@ -168,6 +168,7 @@ def test_create_user_with_identity_persists_signup_attribution(postgres_store):
         signup_utm_source="stage",
         signup_utm_medium="subproject",
         signup_utm_campaign="summer",
+        signup_utm_id="stage|summer|hero",
         signup_utm_content="hero",
         signup_utm_term="acting",
         signup_referrer_host="search.example",
@@ -180,11 +181,18 @@ def test_create_user_with_identity_persists_signup_attribution(postgres_store):
     assert stored.signup_utm_source == "stage"
     assert stored.signup_utm_medium == "subproject"
     assert stored.signup_utm_campaign == "summer"
+    assert stored.signup_utm_id == "stage|summer|hero"
     assert stored.signup_utm_content == "hero"
     assert stored.signup_utm_term == "acting"
     assert stored.signup_referrer_host == "search.example"
     assert stored.signup_landing_path == "/login"
     assert stored.signup_first_seen_at == first_seen_at
+
+    direct, _ = postgres_store.create_user_with_identity(
+        provider="google",
+        provider_uid="direct-google-user",
+    )
+    assert postgres_store.get_user(direct.id).signup_utm_id is None
 
 
 def test_0003_renames_existing_dev_identity_to_development(postgres_schema):

@@ -107,6 +107,7 @@ def test_signup_attribution_is_saved_only_when_a_new_account_is_created():
                 "utm_source": "stage",
                 "utm_medium": "subproject",
                 "utm_campaign": "summer",
+                "utm_id": "stage|summer|hero",
                 "utm_content": "hero",
                 "utm_term": "acting",
                 "referrer_host": "search.example",
@@ -120,6 +121,7 @@ def test_signup_attribution_is_saved_only_when_a_new_account_is_created():
     assert user.signup_utm_source == "stage"
     assert user.signup_utm_medium == "subproject"
     assert user.signup_utm_campaign == "summer"
+    assert user.signup_utm_id == "stage|summer|hero"
     assert user.signup_utm_content == "hero"
     assert user.signup_utm_term == "acting"
     assert user.signup_referrer_host == "search.example"
@@ -196,6 +198,7 @@ def test_invalid_or_missing_signup_attribution_does_not_break_login():
     assert legacy.status_code == 200
     legacy_user = legacy_store.users[UUID(legacy.json()["user"]["id"])]
     assert legacy_user.signup_utm_source is None
+    assert legacy_user.signup_utm_id is None
     assert legacy_user.signup_first_seen_at is None
 
 
