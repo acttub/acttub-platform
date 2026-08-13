@@ -22,6 +22,7 @@ from acting_api.db.models import (
     CoachingHandoff,
     CoachSession as DbCoachSession,
     CoachTurn as DbCoachTurn,
+    HandoffConfirmation,
     OperationKind,
     OperationStatus,
     PracticeReport as DbPracticeReport,
@@ -1999,3 +2000,58 @@ def test_memory_update_material_is_none_for_a_hidden_practice(postgres_store):
         )
 
     assert store.get_memory_update_material(practice_session_id=practice.id) is None
+
+
+def test_count_confirmed_practices_counts_only_confirmed_handoffs(postgres_store):
+    """`_schedule_memory_update` 가 이 값으로 갱신 주기를 판정한다.
+
+    이 함수는 **테스트가 없어서 `NameError` 를 안은 채 dev 에 머지됐다**(2026-08-13 발견).
+    호출부가 `except Exception` 으로 삼키는 자리라 배우 기억 갱신이 한 번도 큐에 들어가지
+    못했는데도 로그 한 줄 말고는 아무 표시가 없었다. 조인 이름이 다시 어긋나면 여기서 깨진다.
+    """
+    store = postgres_store
+    now = datetime.now(timezone.utc)
+    user = store.create_user(email="confirmed-count@example.com")
+
+    assert store.count_confirmed_practices(user.id) == 0
+
+    practice = _create_practice(store, user.id, "confirmed-count", now)
+    summary_id = _complete_analysis(store, user.id, practice.id, now)
+    coach_session_id = uuid4()
+    handoff_id = uuid4()
+    with store._session_factory.begin() as db:
+        db.add(
+            DbCoachSession(
+                id=coach_session_id,
+                practice_session_id=practice.id,
+                summary_id=summary_id,
+                status=SessionStatus.CLOSED,
+            )
+        )
+        db.flush()
+        db.add(
+            CoachingHandoff(
+                id=handoff_id,
+                coach_session_id=coach_session_id,
+                practice_session_id=practice.id,
+                branch_kind="analysis",
+                handoff_json={},
+            )
+        )
+        db.flush()
+        db.add(HandoffConfirmation(coaching_handoff_id=handoff_id, confirmed=False))
+
+    # 아직 확인 전이면 세지 않는다.
+    assert store.count_confirmed_practices(user.id) == 0
+
+    with store._session_factory.begin() as db:
+        db.execute(
+            update(HandoffConfirmation)
+            .where(HandoffConfirmation.coaching_handoff_id == handoff_id)
+            .values(confirmed=True)
+        )
+
+    assert store.count_confirmed_practices(user.id) == 1
+    # 다른 배우의 연습은 섞이지 않는다.
+    other = store.create_user(email="confirmed-count-other@example.com")
+    assert store.count_confirmed_practices(other.id) == 0

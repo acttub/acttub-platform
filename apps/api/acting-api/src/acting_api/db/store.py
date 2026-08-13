@@ -1651,12 +1651,12 @@ class PostgresStore:
                         HandoffConfirmation.coaching_handoff_id == CoachingHandoff.id,
                     )
                     .join(
-                        CoachSession,
-                        CoachingHandoff.coach_session_id == CoachSession.id,
+                        DbCoachSession,
+                        CoachingHandoff.coach_session_id == DbCoachSession.id,
                     )
                     .join(
                         PracticeSession,
-                        CoachSession.practice_session_id == PracticeSession.id,
+                        DbCoachSession.practice_session_id == PracticeSession.id,
                     )
                     .where(
                         PracticeSession.user_id == user_id,
