@@ -94,6 +94,14 @@ class MemoryController {
     })
     @PutMapping("/{field}")
     MemoryItem updateMemory(
+            @io.swagger.v3.oas.annotations.Parameter(
+                    name = "field",
+                    schema = @Schema(
+                            title = "Field",
+                            type = "string",
+                            allowableValues = {
+                                "gender", "age", "goal", "blockage", "speech_self", "speech_actual"
+                            }))
             @PathVariable String field,
             @Valid @RequestBody UpdateMemoryRequest body,
             HttpServletRequest request) {
