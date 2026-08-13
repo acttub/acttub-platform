@@ -79,7 +79,8 @@ class EntityMappingIT {
                 .noneMatch(field -> java.util.Arrays.stream(field.getAnnotations())
                         .anyMatch(annotation -> Set.of("ManyToOne", "OneToMany", "OneToOne", "ManyToMany", "Enumerated")
                                 .contains(annotation.annotationType().getSimpleName()))));
-        assertThat(PgEnumCatalogVerifier.typeCount()).isEqualTo(17);
+        // 19 = 원본 17 + 배우 기억 2(field·author). 엔티티는 아직 없어 24개 그대로다.
+        assertThat(PgEnumCatalogVerifier.typeCount()).isEqualTo(19);
         long jsonNodes = entities.stream().flatMap(type -> java.util.Arrays.stream(type.getDeclaredFields()))
                 .filter(field -> field.getType().equals(com.fasterxml.jackson.databind.JsonNode.class))
                 .count();

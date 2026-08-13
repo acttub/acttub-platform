@@ -10,7 +10,7 @@ import org.springframework.boot.ApplicationRunner;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
-/** 기동할 때 Java의 17개 enum과 실제 {@code pg_enum} 라벨/순서를 대조한다. */
+/** 기동할 때 Java의 19개 enum과 실제 {@code pg_enum} 라벨/순서를 대조한다. */
 @Component
 public class PgEnumCatalogVerifier implements ApplicationRunner {
     private static final Map<String, Class<? extends PgEnum>> TYPES = new LinkedHashMap<>();
@@ -32,6 +32,10 @@ public class PgEnumCatalogVerifier implements ApplicationRunner {
         TYPES.put("report_target_type_t", ReportTargetType.class);
         TYPES.put("report_reason_t", ReportReason.class);
         TYPES.put("report_status_t", ReportStatus.class);
+        // 배우 기억(dev SOMA-328). 라우트·워커는 아직 Java 에 없고 카탈로그만 맞춰 둔다 —
+        // 이 검증기는 맵 전체를 equals 로 보므로 모르는 타입이 하나라도 있으면 기동이 죽는다.
+        TYPES.put("actor_memory_field_t", ActorMemoryField.class);
+        TYPES.put("actor_memory_author_t", ActorMemoryAuthor.class);
     }
 
     private final JdbcTemplate jdbc;
