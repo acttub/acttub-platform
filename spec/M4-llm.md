@@ -182,7 +182,11 @@ media_resolution    = MEDIA_RESOLUTION_LOW
 
 이 층이 어긋나면 같은 LLM 출력이 Python에서는 재생성·안전 문장이 되고 Java에서는 그대로 노출된다. **응답과 LLM 호출 횟수가 동시에 갈린다.**
 
-**마무리 요청 감지** — `acting-agent/engine.py:reply`는 배우 텍스트에 `"그만"`·`"종료"`·`"끝"` 중 하나라도 **포함**되면 `acting-agent/engine.py:_CLOSING_TURN_INSTRUCTION`을 사용자 메시지 **뒤에 이어붙인다**(`acting-agent/engine.py:_CLOSING_WORDS`). 저장되는 턴 텍스트는 **붙이기 전의 원문**이다 — 지시문이 대화 기록에 남으면 안 된다.
+**마무리 요청 감지** — `acting-agent/engine.py:reply`는 `acting-agent/engine.py:is_closing`이 참이면 `acting-agent/engine.py:_CLOSING_TURN_INSTRUCTION`을 사용자 메시지 **뒤에 이어붙인다**. 저장되는 턴 텍스트는 **붙이기 전의 원문**이다 — 지시문이 대화 기록에 남으면 안 된다.
+
+- 판정은 **단순 포함이 아니다**(2026-08-09 dev 전진분). `acting-agent/engine.py:_CLOSING_STRIP`으로 구두점·공백을 지운 뒤 `acting-agent/engine.py:_CLOSING_EXACT`(`그만`·`종료`·`끝`·`여기까지`)와 **전체가 같을 때**만 무조건 종료다. `끝`은 한 글자라 "끝까지"·"끝나고" 같은 정상 답변에 늘 걸린다
+- 그 외에는 지운 길이가 `acting-agent/engine.py:_CLOSING_LOOSE_MAX_LEN`(10) 이하일 때만 `acting-agent/engine.py:_CLOSING_LOOSE`(`그만`·`종료`)의 부분 일치를 본다. **어절 시작**이어야 하고(오타 "그렇그만"으로 세션이 끊긴 사고가 있었다), 앞 어절이 `acting-agent/engine.py:_CLOSING_NEGATIONS`(`안`·`못`)면 아니며, 뒤는 `acting-agent/engine.py:_CLOSING_LOOSE_ENDINGS` 정규식에 **fullmatch** 해야 한다
+- **오탐이 미탐보다 비싸다** — 오탐이면 답변 도중 세션이 끊기고, 미탐이면 배우가 한 번 더 치면 된다
 
 **턴 적재 순서** — `acting-agent/engine.py:start`는 `actor`(= `blockage_detail` 또는 `goal`) → `ai`, `reply`는 `actor` → `ai`. 생성 **후에** 추가하므로 프롬프트에는 직전 턴까지만 들어간다.
 
