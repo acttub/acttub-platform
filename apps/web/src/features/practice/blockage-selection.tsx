@@ -41,14 +41,27 @@ export function BlockageSelectionFlow({
   return (
     <div className={detailStep ? "grid gap-3" : "grid gap-5"}>
       {!detailStep ? (
-        <FoldedSceneBar
-          videoUrl={videoUrl}
-          scene={scene}
-          open={videoOpen}
-          onToggle={() => setVideoOpen((current) => !current)}
-        />
+        <div
+          className={
+            videoOpen
+              ? "grid gap-5 sm:contents"
+              : "flex min-w-0 items-center justify-between gap-3 sm:contents"
+          }
+        >
+          <div className={videoOpen ? "sm:contents" : "order-2 min-w-0 shrink-0 sm:contents"}>
+            <FoldedSceneBar
+              videoUrl={videoUrl}
+              scene={scene}
+              open={videoOpen}
+              onToggle={() => setVideoOpen((current) => !current)}
+            />
+          </div>
+          <div className={videoOpen ? "sm:contents" : "order-1 min-w-0 flex-1 sm:contents"}>
+            <QuestionStepper />
+          </div>
+        </div>
       ) : null}
-      <QuestionStepper />
+      {detailStep ? <QuestionStepper /> : null}
 
       {state.step === "main" ? (
         <MainBranchScreen onChoose={(kind) => setState((current) => chooseBlockageKind(current, kind))} />
@@ -92,26 +105,36 @@ function FoldedSceneBar({
   onToggle: () => void;
 }) {
   return (
-    <section className="overflow-hidden rounded-[28px] bg-white shadow-[0_16px_48px_rgba(25,31,40,0.08)]">
+    <section
+      className={
+        open
+          ? "overflow-hidden rounded-[28px] bg-white shadow-[0_16px_48px_rgba(25,31,40,0.08)]"
+          : "overflow-visible rounded-none bg-transparent shadow-none sm:overflow-hidden sm:rounded-[28px] sm:bg-white sm:shadow-[0_16px_48px_rgba(25,31,40,0.08)]"
+      }
+    >
       <button
         type="button"
         aria-expanded={open}
         onClick={onToggle}
-        className="flex min-h-20 w-full items-center gap-4 px-5 py-4 text-left"
+        className={
+          open
+            ? "flex min-h-20 w-full items-center gap-4 px-5 py-4 text-left"
+            : "flex h-8 w-full items-center gap-1 px-0 py-0 text-left sm:h-auto sm:min-h-20 sm:gap-4 sm:px-5 sm:py-4"
+        }
       >
-        <span className="relative flex h-14 w-24 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-[#f7faff]">
+        <span className={`${open ? "flex" : "hidden sm:flex"} relative h-14 w-24 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-[#f7faff]`}>
           <video src={videoUrl} muted playsInline preload="metadata" className="h-full w-full object-cover" />
           <span className="absolute flex min-h-12 min-w-12 items-center justify-center rounded-2xl bg-[#2f6bff] text-sm font-black text-white">
             ▶
           </span>
         </span>
         <span className="min-w-0 flex-1">
-          <span className="block text-base font-black text-[#191f28]">영상과 장면 보기</span>
-          <span className="mt-1 block text-sm font-semibold text-[#4e5968]">
+          <span className={`${open ? "text-base" : "truncate text-xs sm:overflow-visible sm:text-clip sm:whitespace-normal sm:text-base"} block font-black text-[#191f28]`}>영상과 장면 보기</span>
+          <span className={`${open ? "block" : "hidden sm:block"} mt-1 text-sm font-semibold text-[#4e5968]`}>
             영상·상황·인물·목표를 다시 볼 수 있어요
           </span>
         </span>
-        <span className="text-sm font-black text-[#4e5968]" aria-hidden="true">
+        <span className={`${open ? "text-sm" : "whitespace-nowrap text-xs sm:whitespace-normal sm:text-sm"} font-black text-[#4e5968]`} aria-hidden="true">
           {open ? "접기" : "펼치기"}
         </span>
       </button>
@@ -140,13 +163,25 @@ function FoldedSceneBar({
 
 export function QuestionStepper() {
   return (
-    <ol aria-label="연습 진행 단계" className="grid grid-cols-3 gap-2 text-center text-xs font-black text-[#4e5968]">
-      <li className="flex min-h-12 items-center justify-center rounded-2xl bg-white px-2">✓ 영상 올리기</li>
-      <li className="flex min-h-12 items-center justify-center rounded-2xl bg-white px-2">✓ 장면 적기</li>
-      <li aria-current="step" className="flex min-h-12 items-center justify-center rounded-2xl bg-[#2f6bff] px-2 text-white">
-        ③ 질문 받기
-      </li>
-    </ol>
+    <>
+      <div className="flex h-7 min-w-0 items-center gap-2 sm:hidden">
+        <ol aria-label="연습 진행 단계" className="grid min-w-0 flex-1 grid-cols-3 gap-1">
+          <li className="h-[3px] rounded-full bg-[#2f6bff]"><span className="sr-only">✓ 영상 올리기</span></li>
+          <li className="h-[3px] rounded-full bg-[#2f6bff]"><span className="sr-only">✓ 장면 적기</span></li>
+          <li aria-current="step" className="h-[3px] rounded-full bg-[#2f6bff]"><span className="sr-only">③ 질문 받기</span></li>
+        </ol>
+        <span className="shrink-0 whitespace-nowrap text-xs font-black text-[#4e5968]">
+          3단계 · 질문 받기
+        </span>
+      </div>
+      <ol aria-label="연습 진행 단계" className="hidden grid-cols-3 gap-2 text-center text-xs font-black text-[#4e5968] sm:grid">
+        <li className="flex min-h-12 items-center justify-center rounded-2xl bg-white px-2">✓ 영상 올리기</li>
+        <li className="flex min-h-12 items-center justify-center rounded-2xl bg-white px-2">✓ 장면 적기</li>
+        <li aria-current="step" className="flex min-h-12 items-center justify-center rounded-2xl bg-[#2f6bff] px-2 text-white">
+          ③ 질문 받기
+        </li>
+      </ol>
+    </>
   );
 }
 
