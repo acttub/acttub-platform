@@ -104,6 +104,7 @@ class FakeAuthStore:
         signup_utm_source=None,
         signup_utm_medium=None,
         signup_utm_campaign=None,
+        signup_utm_id=None,
         signup_utm_content=None,
         signup_utm_term=None,
         signup_referrer_host=None,
@@ -114,6 +115,7 @@ class FakeAuthStore:
         user.signup_utm_source = signup_utm_source
         user.signup_utm_medium = signup_utm_medium
         user.signup_utm_campaign = signup_utm_campaign
+        user.signup_utm_id = signup_utm_id
         user.signup_utm_content = signup_utm_content
         user.signup_utm_term = signup_utm_term
         user.signup_referrer_host = signup_referrer_host

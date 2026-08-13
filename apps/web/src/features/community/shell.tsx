@@ -33,7 +33,7 @@ export function CommunityShell({
             </Link>
           )}
           <div className="mt-3 flex items-start justify-between gap-4">
-            <div>
+            <div className="min-w-0 flex-1">
               <h1 className="text-[26px] font-black tracking-[-0.03em] text-[#191f28]">
                 {title}
               </h1>
@@ -43,7 +43,7 @@ export function CommunityShell({
                 </p>
               )}
             </div>
-            {action}
+            {action ? <div className="flex shrink-0 whitespace-nowrap">{action}</div> : null}
           </div>
           {children}
         </div>
