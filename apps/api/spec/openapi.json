@@ -5050,6 +5050,17 @@
             ],
             "title": "Utm Campaign"
           },
+          "utm_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Utm Id"
+          },
           "utm_content": {
             "anyOf": [
               {
