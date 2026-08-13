@@ -25,6 +25,7 @@ public record SignupAttribution(
         @Schema(title = "Utm Source", nullable = true) @JsonProperty("utm_source") String utmSource,
         @Schema(title = "Utm Medium", nullable = true) @JsonProperty("utm_medium") String utmMedium,
         @Schema(title = "Utm Campaign", nullable = true) @JsonProperty("utm_campaign") String utmCampaign,
+        @Schema(title = "Utm Id", nullable = true) @JsonProperty("utm_id") String utmId,
         @Schema(title = "Utm Content", nullable = true) @JsonProperty("utm_content") String utmContent,
         @Schema(title = "Utm Term", nullable = true) @JsonProperty("utm_term") String utmTerm,
         @Schema(title = "Referrer Host", nullable = true) @JsonProperty("referrer_host") String referrerHost,
@@ -35,7 +36,7 @@ public record SignupAttribution(
     private static final int MAX_LENGTH = 255;
 
     private static final String[] STRING_FIELDS = {
-        "utm_source", "utm_medium", "utm_campaign", "utm_content",
+        "utm_source", "utm_medium", "utm_campaign", "utm_id", "utm_content",
         "utm_term", "referrer_host", "landing_path"
     };
 
@@ -79,6 +80,7 @@ public record SignupAttribution(
                     sanitize(node.get("utm_source")),
                     sanitize(node.get("utm_medium")),
                     sanitize(node.get("utm_campaign")),
+                    sanitize(node.get("utm_id")),
                     sanitize(node.get("utm_content")),
                     sanitize(node.get("utm_term")),
                     sanitize(node.get("referrer_host")),
