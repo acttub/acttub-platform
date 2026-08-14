@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import wordmark from "../assets/acttub-wordmark.png";
 import { isLoggedIn } from "../lib/auth/token-store";
 import { APP_HIGHLIGHTS } from "../features/app-download/app-highlights";
+import { AppDownloadButton } from "../features/app-download/app-download-button";
 import { StoreBadges } from "../features/app-download/store-badges";
 
 const productFlow = [
@@ -95,14 +96,16 @@ export default function LandingClient() {
               연기 영상을 올리면 세심한 분석을 도와줘요
             </p>
 
-            <div className="mt-9 flex w-full max-w-lg flex-col gap-3 sm:flex-row sm:justify-center">
+            {/* 버튼이 셋이라 sm 이상에서는 max-w-lg 로 한 줄에 못 선다. */}
+            <div className="mt-9 flex w-full max-w-lg flex-col gap-3 sm:max-w-3xl sm:flex-row sm:justify-center">
               <Link
                 href={practiceLoginHref}
                 prefetch={false}
                 className="inline-flex h-14 items-center justify-center rounded-2xl bg-[#191f28] px-7 text-base font-black text-white shadow-[0_18px_40px_rgba(25,31,40,0.18)] transition hover:-translate-y-0.5 hover:bg-[#333d4b]"
               >
-                무료로 사용하기
+                무료로 사용해보기
               </Link>
+              <AppDownloadButton surface="landing_hero" />
               <a
                 href="#flow"
                 className="inline-flex h-14 items-center justify-center rounded-2xl bg-white px-7 text-base font-black text-[#333d4b] shadow-[0_18px_40px_rgba(25,31,40,0.08)] transition hover:-translate-y-0.5"
@@ -111,15 +114,14 @@ export default function LandingClient() {
               </a>
             </div>
 
-            <div className="mt-10 flex flex-col items-center gap-4">
-              <p className="flex flex-wrap items-center justify-center gap-2 text-base font-bold text-[#4e5968]">
-                <span className="rounded-full bg-[#3182f6] px-2.5 py-1 text-xs font-black text-white">
-                  앱 출시
-                </span>
-                iOS · Android 앱이 나왔어요
-              </p>
-              <StoreBadges surface="landing_hero" className="justify-center" />
-            </div>
+            {/* 배지는 여기 두지 않는다 — 바로 위 버튼이 같은 일을 하고, 배지까지 세우면
+                한 화면에 앱으로 가는 길이 셋이 된다. 출시 사실만 한 줄로 남긴다. */}
+            <p className="mt-7 flex flex-wrap items-center justify-center gap-2 text-base font-bold text-[#4e5968]">
+              <span className="rounded-full bg-[#3182f6] px-2.5 py-1 text-xs font-black text-white">
+                앱 출시
+              </span>
+              iOS · Android 어디서든 받을 수 있어요
+            </p>
 
             <div className="mt-16 w-full rounded-[44px] bg-white/85 p-4 shadow-[0_34px_100px_rgba(49,130,246,0.2)] backdrop-blur">
               <div className="grid gap-4 rounded-[32px] bg-white p-4 lg:grid-cols-[1fr_56px_1.05fr_56px_1fr] lg:items-center lg:p-6">
@@ -283,7 +285,7 @@ export default function LandingClient() {
               prefetch={false}
               className="inline-flex h-16 items-center justify-center rounded-2xl bg-white px-8 text-lg font-black text-[#191f28] transition hover:-translate-y-0.5"
             >
-              무료로 사용하기
+              무료로 사용해보기
             </Link>
           </div>
         </section>
