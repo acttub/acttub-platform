@@ -44,3 +44,33 @@ export function storeHref(store: AppStore, surface: StoreLinkSurface): string {
  * 옮겨간다. 두 배지를 나란히 보여주면 한 번에 고를 수 있으므로 순서를 고정한다.
  */
 export const STORE_ORDER: readonly AppStore[] = ["app_store", "google_play"];
+
+export type MobileOs = "ios" | "android";
+
+/**
+ * 방문한 기기가 어느 스토어로 가야 하는지. 못 가리면 null 이고, 그때는 두 스토어를
+ * 다 보여주는 `/app` 으로 보낸다.
+ *
+ * 안드로이드를 먼저 본다 — 안드로이드 크롬의 UA 에도 "Safari" 와 "Mobile" 이 들어 있어
+ * 순서를 뒤집으면 서로 잡아먹는다. iPadOS 13+ 는 자기를 Macintosh 라고 말하므로
+ * 터치 포인트 수로만 갈린다(데스크톱 맥은 0).
+ */
+export function detectMobileOs(
+  userAgent: string,
+  maxTouchPoints = 0,
+): MobileOs | null {
+  if (/Android/i.test(userAgent)) return "android";
+  if (/iPhone|iPad|iPod/i.test(userAgent)) return "ios";
+  if (/Macintosh/i.test(userAgent) && maxTouchPoints > 1) return "ios";
+  return null;
+}
+
+/** 기기에 맞는 스토어 주소. 못 가리면 두 스토어를 다 보여주는 페이지. */
+export function downloadHrefFor(
+  os: MobileOs | null,
+  surface: StoreLinkSurface,
+): string {
+  if (os === "ios") return storeHref("app_store", surface);
+  if (os === "android") return storeHref("google_play", surface);
+  return "/app";
+}
