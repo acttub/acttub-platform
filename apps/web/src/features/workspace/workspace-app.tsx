@@ -6,7 +6,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { memo, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import wordmark from "@/assets/acttub-wordmark.png";
 import { getStoredDisplayName, loadDisplayName } from "@/features/auth/display-name";
@@ -701,8 +701,8 @@ function WorkspaceInner() {
       void getPracticeSession(session.session_id).then(
         (loaded) => {
           if (activeIdRef.current !== session.session_id) return;
+          // 상세 조회는 장면 정보만 채운다 — 분석 상태는 먼저 시작한 폴링만 갱신한다.
           setDetail(loaded);
-          setAnalysisStatus(loaded.status);
         },
         () => {},
       );
@@ -945,12 +945,31 @@ function WorkspaceInner() {
     }
   }, [activeId, resetToPrep, refreshList]);
 
+  const noteBySession = useMemo(
+    () => new Set(reports.map((r) => r.practice_session_id)),
+    [reports],
+  );
+  const headlineBySession = useMemo(
+    () => new Map(reports.map((r) => [r.practice_session_id, r.title])),
+    [reports],
+  );
+  const running = useMemo(
+    () => sessions.filter((s) => s.status === "created" || s.status === "analyzing"),
+    [sessions],
+  );
+  const finished = useMemo(
+    () => sessions.filter((s) => s.status === "analyzed" || s.status === "failed"),
+    [sessions],
+  );
+  const toggleRail = useCallback(() => setRailOpen((v) => !v), []);
+  const closeDrawer = useCallback(() => setDrawerOpen(false), []);
+  const reselectVideo = useCallback(() => fileInputRef.current?.click(), []);
+  const handleLogout = useCallback(() => {
+    void logout().then(() => router.replace("/login"));
+  }, [router]);
+
   if (!ready) return <div className="min-h-dvh bg-white" aria-busy="true" />;
 
-  const noteBySession = new Set(reports.map((r) => r.practice_session_id));
-  const headlineBySession = new Map(reports.map((r) => [r.practice_session_id, r.title]));
-  const running = sessions.filter((s) => s.status === "created" || s.status === "analyzing");
-  const finished = sessions.filter((s) => s.status === "analyzed" || s.status === "failed");
   const waitingForCoach = mode === "uploading" || mode === "preparing";
   const step: 1 | 2 | 3 = waitingForCoach ? 3 : videoFile ? 2 : 1;
   const chatLeading = mode === "chat" || mode === "note";
@@ -970,7 +989,7 @@ function WorkspaceInner() {
   const rail = (
     <SessionRail
       open={railOpen}
-      onToggle={() => setRailOpen((v) => !v)}
+      onToggle={toggleRail}
       onNew={resetToPrep}
       onOpen={openSession}
       running={running}
@@ -980,7 +999,7 @@ function WorkspaceInner() {
       headlines={headlineBySession}
       listError={listError}
       displayName={displayName}
-      onLogout={() => void logout().then(() => router.replace("/login"))}
+      onLogout={handleLogout}
     />
   );
 
@@ -1001,7 +1020,7 @@ function WorkspaceInner() {
             <SessionRail
               open
               drawer
-              onToggle={() => setDrawerOpen(false)}
+              onToggle={closeDrawer}
               onNew={resetToPrep}
               onOpen={openSession}
               running={running}
@@ -1011,7 +1030,7 @@ function WorkspaceInner() {
               headlines={headlineBySession}
               listError={listError}
               displayName={displayName}
-              onLogout={() => void logout().then(() => router.replace("/login"))}
+              onLogout={handleLogout}
             />
           </div>
         </div>
@@ -1186,7 +1205,7 @@ function WorkspaceInner() {
                       : videoFile?.name ?? "올린 영상"
                   }
                   onDuration={setVideoDurationMs}
-                  onReselect={mode === "prep" ? () => fileInputRef.current?.click() : undefined}
+                  onReselect={mode === "prep" ? reselectVideo : undefined}
                 />
               ) : mode === "prep" ? (
                 <UploadZone onClick={() => fileInputRef.current?.click()} />
@@ -1256,7 +1275,7 @@ function WorkspaceInner() {
 
 /* ── 왼쪽 세션 바 ─────────────────────────────────────────────── */
 
-function SessionRail({
+const SessionRail = memo(function SessionRail({
   open,
   drawer = false,
   onToggle,
@@ -1426,7 +1445,7 @@ function SessionRail({
       </div>
     </aside>
   );
-}
+});
 
 function RailGroup({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -1536,7 +1555,7 @@ function UploadZone({ onClick }: { onClick: () => void }) {
   );
 }
 
-function VideoBox({
+const VideoBox = memo(function VideoBox({
   src,
   caption,
   onDuration,
@@ -1576,9 +1595,9 @@ function VideoBox({
       </div>
     </div>
   );
-}
+});
 
-function SceneForm({
+const SceneForm = memo(function SceneForm({
   situation,
   character,
   goal,
@@ -1609,7 +1628,7 @@ function SceneForm({
       </div>
     </section>
   );
-}
+});
 
 function SceneField({
   label,
