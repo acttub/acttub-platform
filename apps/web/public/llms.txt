@@ -4,8 +4,13 @@
 
 연기 영상과 장면의 상황, 인물, 서브텍스트를 입력하면 영상과 답변에서 확인한 단서를 바탕으로 한 번에 하나씩 질문을 이어갑니다. 세션이 끝나면 답변을 정리한 연습 노트를 만들어 드리며, Acttub은 답을 단정하는 대신 함께 질문하는 파트너를 지향합니다.
 
+웹 브라우저와 iOS·Android 앱에서 모두 쓸 수 있고, 같은 계정으로 지난 연습이 이어집니다. 앱에서는 폰에 있는 영상을 그대로 올리고 질문에 마이크로 답할 수 있습니다.
+
 ## 링크
 
 - [Acttub 랜딩](https://acttub.com/)
+- [앱 다운로드 안내](https://acttub.com/app)
+- [App Store (iOS)](https://apps.apple.com/kr/app/acttub/id6793056855)
+- [Google Play (Android)](https://play.google.com/store/apps/details?id=com.acttub.app)
 - [Acttub Instagram](https://www.instagram.com/acttub_com/)
 - [문의 이메일](mailto:acttub0527@gmail.com)
