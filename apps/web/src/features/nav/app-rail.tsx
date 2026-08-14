@@ -28,6 +28,7 @@ const ITEMS: Item[] = [
   { href: "/practice/new", label: "홈", icon: "home", match: ["/practice", "/home"] },
   { href: "/admissions", label: "입시", icon: "school", match: ["/admissions"] },
   { href: "/community", label: "커뮤", icon: "chat", match: ["/community"] },
+  { href: "/app", label: "앱", icon: "phone", match: ["/app"] },
 ];
 
 export function AppRail() {
@@ -72,7 +73,7 @@ function RailLink({ item, active }: { item: Item; active: boolean }) {
   );
 }
 
-type IconName = "home" | "school" | "chat";
+type IconName = "home" | "school" | "chat" | "phone";
 
 /**
  * 유니코드 글리프(⌂ ◎ ▢)는 글자마다 실제 크기가 제각각이라 셋을 나란히 두면
@@ -106,6 +107,12 @@ function RailIcon({ name }: { name: IconName }) {
         <>
           <path d="M4 5.5h12.5v9H9l-5 3.5v-3.5H4v-9Z" />
           <path d="M20 9v9h-1.5v3l-4-3" />
+        </>
+      )}
+      {name === "phone" && (
+        <>
+          <rect x="6.5" y="2.5" width="11" height="19" rx="2.5" />
+          <path d="M10.5 18.5h3" />
         </>
       )}
     </svg>

@@ -1108,6 +1108,15 @@ function WorkspaceInner() {
               >
                 기억
               </Link>
+              {/* 앱은 폰에서 받는 것이라, 이 줄이 폰에서 숨는 상황(연습이 열려 있을 때)은
+                  드로어 하단이 대신 받는다. 옆 항목들과 달리 파란 글씨인 이유는 갓 나온
+                  길이라 눈에 걸려야 해서다. */}
+              <Link
+                href="/app"
+                className="flex h-8 items-center rounded-[10px] px-2 text-xs font-black text-[#3182f6] transition hover:bg-[#e8f3ff]"
+              >
+                앱
+              </Link>
             </nav>
           </div>
         </header>
@@ -1367,9 +1376,32 @@ function SessionRail({
         </div>
       )}
 
-      {/* 커뮤니티·입시로 나가는 길은 위 헤더 오른쪽 끝이 맡는다. 여기 두면 두 군데가 된다. */}
+      {/* 커뮤니티·입시로 나가는 길은 위 헤더 오른쪽 끝이 맡는다. 여기 두면 두 군데가 된다.
+          앱 다운로드만 예외로 드로어에 둔다 — 폰에서 연습이 열려 있으면 헤더 오른쪽 줄이
+          통째로 숨어서(375px에 제목 자리가 안 남는다) 앱으로 가는 길이 사라진다.
+          데스크톱 레일에는 넣지 않는다. 헤더가 이미 보이는 자리라 두 군데가 된다. */}
+      {drawer ? (
+        <Link
+          href="/app"
+          className="mt-auto flex items-center gap-3 border-t border-[#edf0f3] px-4 py-3.5 transition hover:bg-[#eef2f6]"
+        >
+          <span
+            aria-hidden="true"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[11px] bg-[#e8f3ff] text-[15px] font-black text-[#3182f6]"
+          >
+            ↓
+          </span>
+          <span className="min-w-0">
+            <span className="block text-[13px] font-black text-[#191f28]">앱 다운로드</span>
+            <span className="block text-[11px] font-semibold text-[#8b95a1]">
+              iOS · Android
+            </span>
+          </span>
+        </Link>
+      ) : null}
+
       <div
-        className={`mt-auto flex items-center border-t border-[#edf0f3] ${
+        className={`flex items-center border-t border-[#edf0f3] ${drawer ? "" : "mt-auto"} ${
           open ? "justify-between px-4 py-3.5" : "justify-center py-3.5"
         }`}
       >
