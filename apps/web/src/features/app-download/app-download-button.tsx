@@ -3,6 +3,7 @@
 import { useSyncExternalStore } from "react";
 
 import {
+  APP_DOWNLOAD_ATTR,
   detectMobileOs,
   downloadHrefFor,
   type MobileOs,
@@ -51,6 +52,8 @@ export function AppDownloadButton({
   return (
     <a
       href={href}
+      // 하이드레이션 전에 인라인 스크립트가 이 표식을 보고 주소를 먼저 고친다.
+      {...{ [APP_DOWNLOAD_ATTR]: surface }}
       className={`inline-flex h-14 items-center justify-center rounded-2xl bg-[#3182f6] px-7 text-base font-black text-white shadow-[0_18px_40px_rgba(49,130,246,0.28)] transition hover:-translate-y-0.5 hover:bg-[#1b64da] ${className}`}
     >
       앱 다운받기

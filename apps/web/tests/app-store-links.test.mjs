@@ -2,13 +2,16 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { test } from "node:test";
+import { runInNewContext } from "node:vm";
 
 import "./ts-module-loader.mjs";
 
 const {
+  APP_DOWNLOAD_ATTR,
   APP_STORE_URL,
   GOOGLE_PLAY_URL,
   STORE_ORDER,
+  buildAppDownloadBootstrapScript,
   detectMobileOs,
   downloadHrefFor,
   storeHref,
@@ -69,6 +72,56 @@ test("Play 주소에는 화면별 utm이 referrer로 붙고 App Store 주소는 
   assert.equal(
     playUrl.searchParams.get("referrer"),
     "utm_source=acttub_web&utm_medium=landing_footer",
+  );
+});
+
+// 하이드레이션 전에 도는 인라인 스크립트를 가짜 DOM 에서 실제로 돌려 본다.
+// 스크립트는 손으로 쓴 JS 문자열이라 `downloadHrefFor` 와 갈라질 수 있다 — 여기서 묶어 둔다.
+function runBootstrap(userAgent, maxTouchPoints, surface = "landing_hero") {
+  const element = {
+    attributes: { [APP_DOWNLOAD_ATTR]: surface, href: "/app" },
+    getAttribute(name) {
+      return this.attributes[name] ?? null;
+    },
+    setAttribute(name, value) {
+      this.attributes[name] = value;
+    },
+  };
+  const sandbox = {
+    navigator: { userAgent, maxTouchPoints },
+    document: {
+      readyState: "complete",
+      querySelectorAll: (selector) =>
+        selector === `a[${APP_DOWNLOAD_ATTR}]` ? [element] : [],
+      addEventListener() {},
+    },
+    encodeURIComponent,
+  };
+  runInNewContext(buildAppDownloadBootstrapScript(), sandbox);
+  return element.attributes.href;
+}
+
+test("인라인 스크립트는 하이드레이션 전에 downloadHrefFor 와 같은 주소를 넣는다", () => {
+  for (const [userAgent, touch] of [
+    [IPHONE_IOS26_UA, 5],
+    [ANDROID_REDUCED_UA, 5],
+    [IPHONE_UA, 5],
+    [ANDROID_UA, 5],
+    [MAC_UA, 0],
+    [MAC_UA, 5],
+  ]) {
+    const expected = downloadHrefFor(
+      detectMobileOs(userAgent, touch),
+      "landing_hero",
+    );
+    assert.equal(runBootstrap(userAgent, touch), expected, userAgent);
+  }
+});
+
+test("인라인 스크립트는 화면마다 다른 utm 을 그대로 싣는다", () => {
+  assert.equal(
+    runBootstrap(ANDROID_REDUCED_UA, 5, "landing_footer"),
+    downloadHrefFor("android", "landing_footer"),
   );
 });
 

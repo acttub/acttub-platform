@@ -74,3 +74,43 @@ export function downloadHrefFor(
   if (os === "android") return storeHref("google_play", surface);
   return "/app";
 }
+
+/** 다운로드 버튼임을 알리는 표식. 값은 어느 화면인지(surface). */
+export const APP_DOWNLOAD_ATTR = "data-app-download";
+
+/**
+ * 하이드레이션을 기다리지 않고 버튼 주소를 먼저 고쳐 주는 인라인 스크립트.
+ *
+ * ⚠️ **이게 없으면 버튼이 보이는데도 한동안 `/app` 으로 간다.** 페이지는 정적
+ * 프리렌더라 서버가 그려 둔 주소가 `/app` 이고, React 가 붙어야 스토어 주소로 바뀐다.
+ * 2026-08-14 실측(Pixel 8 에뮬레이터, 느린 4G·캐시 없음): 버튼은 1.2초에 보이는데
+ * 주소는 3.2초에야 바뀌어 **2초 동안 눌러도 `/app` 으로 갔다**. 최우영이 실제로 이걸
+ * 밟았다. 이 스크립트는 HTML 을 읽는 즉시 돌아 그 틈을 없앤다.
+ *
+ * 문서 순서상 버튼보다 뒤에 놓아야 하고(그래야 즉시 잡힌다), 혹시 앞서더라도
+ * DOMContentLoaded 에서 한 번 더 훑는다. React 가 붙은 뒤에는
+ * `AppDownloadButton` 이 같은 값을 다시 넣으므로 화면이 흔들리지 않는다.
+ *
+ * 주소는 이 파일 상수에서 찍어 내 정본이 하나로 유지되고, 판별 규칙이
+ * `detectMobileOs` 와 어긋나지 않는지는 `tests/app-store-links.test.mjs` 가 지킨다.
+ */
+export function buildAppDownloadBootstrapScript(): string {
+  return [
+    "(function(){",
+    `var IOS=${JSON.stringify(APP_STORE_URL)},AND=${JSON.stringify(GOOGLE_PLAY_URL)};`,
+    "function os(u,t){",
+    'if(/Android/i.test(u))return"android";',
+    'if(/iPhone|iPad|iPod/i.test(u))return"ios";',
+    'if(/Macintosh/i.test(u)&&t>1)return"ios";',
+    "return null}",
+    "function apply(){",
+    "var k=os(navigator.userAgent,navigator.maxTouchPoints||0);if(!k)return;",
+    `var a=document.querySelectorAll("a[${APP_DOWNLOAD_ATTR}]");`,
+    "for(var i=0;i<a.length;i++){",
+    `var s=a[i].getAttribute("${APP_DOWNLOAD_ATTR}")||"";`,
+    'a[i].setAttribute("href",k==="android"?AND+"&referrer="+encodeURIComponent("utm_source=acttub_web&utm_medium="+s):IOS)}}',
+    "apply();",
+    'if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",apply)',
+    "})()",
+  ].join("");
+}
