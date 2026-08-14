@@ -20,6 +20,9 @@ test("robots는 공개 페이지를 허용하고 API 경로를 제외한다", ()
   });
 });
 
-test("sitemap은 랜딩 URL 하나만 반환한다", () => {
-  assert.deepEqual(sitemap(), [{ url: "https://acttub.com/" }]);
+test("sitemap은 색인 대상인 랜딩과 앱 다운로드만 반환한다", () => {
+  assert.deepEqual(sitemap(), [
+    { url: "https://acttub.com/" },
+    { url: "https://acttub.com/app" },
+  ]);
 });

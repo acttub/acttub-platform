@@ -62,6 +62,35 @@ export function buildLandingMetadata(siteUrl?: string): Metadata {
   };
 }
 
+export const APP_DOWNLOAD_TITLE = "앱 다운로드";
+
+export const APP_DOWNLOAD_DESCRIPTION =
+  "acttub 앱을 App Store와 Google Play에서 받을 수 있어요. 연습실에서 찍은 영상을 폰에서 바로 올리고 질문에 말로 답해요.";
+
+/**
+ * `/app`은 랜딩과 함께 색인되는 두 번째 공개 페이지다. 인스타그램 프로필 링크가 이 주소를
+ * 가리키므로 공유 카드(og)가 랜딩과 달라야 한다.
+ */
+export function buildAppDownloadMetadata(siteUrl?: string): Metadata {
+  const resolvedSiteUrl = resolveSiteUrl(siteUrl);
+  const rootMetadata = buildRootMetadata(resolvedSiteUrl);
+
+  return {
+    ...rootMetadata,
+    title: APP_DOWNLOAD_TITLE,
+    description: APP_DOWNLOAD_DESCRIPTION,
+    alternates: {
+      canonical: "/app",
+    },
+    openGraph: {
+      ...rootMetadata.openGraph,
+      url: `${resolvedSiteUrl}/app`,
+      title: `${APP_DOWNLOAD_TITLE} | Acttub`,
+      description: APP_DOWNLOAD_DESCRIPTION,
+    },
+  };
+}
+
 export function buildNoindexMetadata(title?: string): Metadata {
   return {
     ...(title ? { title } : {}),
