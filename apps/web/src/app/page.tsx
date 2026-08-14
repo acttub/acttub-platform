@@ -25,12 +25,12 @@ export default function LandingPage() {
           dangerouslySetInnerHTML={{ __html: JSON.stringify(value) }}
         />
       ))}
-      <LandingClient />
-      {/* 버튼보다 뒤에 둔다 — 문서를 읽어 내려오다 이 자리에서 바로 주소를 고친다.
-          React 를 기다리면 느린 회선에서 2초쯤 `/app` 으로 새어 나간다. */}
+      {/* 버튼보다 앞에 둔다 — 클릭 가로채기를 먼저 걸어 두면 버튼이 아직 안 그려졌어도
+          누르는 순간 스토어로 간다. 뒤에 두면 그 사이 파싱하는 동안 `/app` 으로 샌다. */}
       <script
         dangerouslySetInnerHTML={{ __html: buildAppDownloadBootstrapScript() }}
       />
+      <LandingClient />
     </>
   );
 }

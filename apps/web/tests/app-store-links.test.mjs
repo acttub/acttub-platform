@@ -79,7 +79,12 @@ test("Play 주소에는 화면별 utm이 referrer로 붙고 App Store 주소는 
 // 스크립트는 손으로 쓴 JS 문자열이라 `downloadHrefFor` 와 갈라질 수 있다 — 여기서 묶어 둔다.
 function runBootstrap(userAgent, maxTouchPoints, surface = "landing_hero") {
   const element = {
+    nodeType: 1,
+    parentNode: null,
     attributes: { [APP_DOWNLOAD_ATTR]: surface, href: "/app" },
+    hasAttribute(name) {
+      return name in this.attributes;
+    },
     getAttribute(name) {
       return this.attributes[name] ?? null;
     },
@@ -87,18 +92,31 @@ function runBootstrap(userAgent, maxTouchPoints, surface = "landing_hero") {
       this.attributes[name] = value;
     },
   };
+  const listeners = [];
+  const location = { href: "(이동안함)" };
   const sandbox = {
     navigator: { userAgent, maxTouchPoints },
+    location,
     document: {
       readyState: "complete",
       querySelectorAll: (selector) =>
         selector === `a[${APP_DOWNLOAD_ATTR}]` ? [element] : [],
-      addEventListener() {},
+      addEventListener(type, handler, capture) {
+        listeners.push({ type, handler, capture });
+      },
     },
     encodeURIComponent,
   };
   runInNewContext(buildAppDownloadBootstrapScript(), sandbox);
-  return element.attributes.href;
+
+  const click = listeners.find((l) => l.type === "click");
+  const clickOnButton = () => {
+    let prevented = false;
+    click?.handler({ target: element, preventDefault: () => (prevented = true) });
+    return { prevented, movedTo: location.href };
+  };
+
+  return { patchedHref: element.attributes.href, click, clickOnButton };
 }
 
 test("인라인 스크립트는 하이드레이션 전에 downloadHrefFor 와 같은 주소를 넣는다", () => {
@@ -114,15 +132,41 @@ test("인라인 스크립트는 하이드레이션 전에 downloadHrefFor 와 �
       detectMobileOs(userAgent, touch),
       "landing_hero",
     );
-    assert.equal(runBootstrap(userAgent, touch), expected, userAgent);
+    assert.equal(runBootstrap(userAgent, touch).patchedHref, expected, userAgent);
   }
 });
 
 test("인라인 스크립트는 화면마다 다른 utm 을 그대로 싣는다", () => {
   assert.equal(
-    runBootstrap(ANDROID_REDUCED_UA, 5, "landing_footer"),
+    runBootstrap(ANDROID_REDUCED_UA, 5, "landing_footer").patchedHref,
     downloadHrefFor("android", "landing_footer"),
   );
+});
+
+// 주소를 고칠 틈조차 없었던 경우를 막는 본체. 리스너는 capture 로 달려야
+// React 보다 먼저 잡는다.
+test("클릭 가로채기는 capture 로 걸리고 기기에 맞는 스토어로 보낸다", () => {
+  const android = runBootstrap(ANDROID_REDUCED_UA, 5);
+  assert.equal(android.click?.capture, true);
+  assert.deepEqual(android.clickOnButton(), {
+    prevented: true,
+    movedTo: downloadHrefFor("android", "landing_hero"),
+  });
+
+  const ios = runBootstrap(IPHONE_IOS26_UA, 5);
+  assert.deepEqual(ios.clickOnButton(), {
+    prevented: true,
+    movedTo: APP_STORE_URL,
+  });
+});
+
+test("데스크톱에서는 가로채지 않고 /app 링크를 그대로 둔다", () => {
+  const desktop = runBootstrap(MAC_UA, 0);
+  assert.equal(desktop.patchedHref, "/app");
+  assert.deepEqual(desktop.clickOnButton(), {
+    prevented: false,
+    movedTo: "(이동안함)",
+  });
 });
 
 test("배지 순서는 두 스토어를 한 번씩만 담는다", () => {

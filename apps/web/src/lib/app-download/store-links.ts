@@ -79,36 +79,53 @@ export function downloadHrefFor(
 export const APP_DOWNLOAD_ATTR = "data-app-download";
 
 /**
- * 하이드레이션을 기다리지 않고 버튼 주소를 먼저 고쳐 주는 인라인 스크립트.
+ * 하이드레이션을 기다리지 않고 앱 다운로드 버튼을 스토어로 보내는 인라인 스크립트.
  *
  * ⚠️ **이게 없으면 버튼이 보이는데도 한동안 `/app` 으로 간다.** 페이지는 정적
  * 프리렌더라 서버가 그려 둔 주소가 `/app` 이고, React 가 붙어야 스토어 주소로 바뀐다.
  * 2026-08-14 실측(Pixel 8 에뮬레이터, 느린 4G·캐시 없음): 버튼은 1.2초에 보이는데
- * 주소는 3.2초에야 바뀌어 **2초 동안 눌러도 `/app` 으로 갔다**. 최우영이 실제로 이걸
- * 밟았다. 이 스크립트는 HTML 을 읽는 즉시 돌아 그 틈을 없앤다.
+ * 주소는 3.2초에야 바뀌어 **2초 동안 눌러도 `/app` 으로 갔다**. 최우영이 실제로 밟았다.
  *
- * 문서 순서상 버튼보다 뒤에 놓아야 하고(그래야 즉시 잡힌다), 혹시 앞서더라도
- * DOMContentLoaded 에서 한 번 더 훑는다. React 가 붙은 뒤에는
- * `AppDownloadButton` 이 같은 값을 다시 넣으므로 화면이 흔들리지 않는다.
+ * 두 겹으로 막는다.
  *
- * 주소는 이 파일 상수에서 찍어 내 정본이 하나로 유지되고, 판별 규칙이
- * `detectMobileOs` 와 어긋나지 않는지는 `tests/app-store-links.test.mjs` 가 지킨다.
+ * 1) **클릭 가로채기(capture)** — 이게 본체다. 리스너를 document 에 먼저 달아 두면
+ *    버튼이 아직 그려지기 전이어도 상관없다. 주소를 고칠 틈이 있었는지와 무관하게
+ *    누르는 순간 스토어로 보낸다. 그래서 이 스크립트는 **버튼보다 앞**에 둔다.
+ * 2) **주소 바꿔치기** — 상태바 미리보기·길게 눌러 복사·새 탭으로 열기가 제 주소를
+ *    보게 한다. 파싱 도중 한 번, DOMContentLoaded 에 한 번 훑는다.
+ *
+ * 처음에는 2)만 두고 스크립트를 버튼 뒤에 뒀는데, 운영 실측에서 버튼과 스크립트
+ * 사이 11KB 를 읽는 동안 185ms 가 여전히 샜다. 1)이 그 틈을 없앤다.
+ *
+ * React 가 붙은 뒤에는 `AppDownloadButton` 이 같은 값을 넣으므로 화면이 흔들리지 않는다.
+ * 주소는 이 파일 상수에서 찍어 내 정본이 하나로 유지되고, 판별 규칙이 `detectMobileOs`
+ * 와 어긋나지 않는지는 `tests/app-store-links.test.mjs` 가 스크립트를 실제로 돌려 지킨다.
  */
 export function buildAppDownloadBootstrapScript(): string {
   return [
     "(function(){",
     `var IOS=${JSON.stringify(APP_STORE_URL)},AND=${JSON.stringify(GOOGLE_PLAY_URL)};`,
+    `var ATTR=${JSON.stringify(APP_DOWNLOAD_ATTR)};`,
     "function os(u,t){",
     'if(/Android/i.test(u))return"android";',
     'if(/iPhone|iPad|iPod/i.test(u))return"ios";',
     'if(/Macintosh/i.test(u)&&t>1)return"ios";',
     "return null}",
+    "function href(s){",
+    "var k=os(navigator.userAgent,navigator.maxTouchPoints||0);if(!k)return null;",
+    'return k==="android"?AND+"&referrer="+encodeURIComponent("utm_source=acttub_web&utm_medium="+s):IOS}',
     "function apply(){",
-    "var k=os(navigator.userAgent,navigator.maxTouchPoints||0);if(!k)return;",
-    `var a=document.querySelectorAll("a[${APP_DOWNLOAD_ATTR}]");`,
+    'var a=document.querySelectorAll("a["+ATTR+"]");',
     "for(var i=0;i<a.length;i++){",
-    `var s=a[i].getAttribute("${APP_DOWNLOAD_ATTR}")||"";`,
-    'a[i].setAttribute("href",k==="android"?AND+"&referrer="+encodeURIComponent("utm_source=acttub_web&utm_medium="+s):IOS)}}',
+    'var h=href(a[i].getAttribute(ATTR)||"");',
+    'if(h)a[i].setAttribute("href",h)}}',
+    'document.addEventListener("click",function(e){',
+    "var n=e.target,a=null;",
+    "while(n&&n.nodeType===1){if(n.hasAttribute&&n.hasAttribute(ATTR)){a=n;break}n=n.parentNode}",
+    "if(!a)return;",
+    'var h=href(a.getAttribute(ATTR)||"");if(!h)return;',
+    "e.preventDefault();location.href=h",
+    "},true);",
     "apply();",
     'if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",apply)',
     "})()",
