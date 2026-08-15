@@ -20,6 +20,7 @@ from acting_api.auth.providers import ProviderRegistry
 from acting_api.config import GatewaySettings
 from acting_api.db.community_store import CommunityStore
 from acting_api.db.store import PostgresStore
+from acting_api.memory_worker import MemoryUpdateWorker
 from acting_summary.config import Settings as SummarySettings
 
 from contract_harness import config as cfg
@@ -63,6 +64,13 @@ class BackendRuntime:
             model=cfg.SUMMARY_MODEL,
         )
         self.worker_pool = WorkerPoolStub(self.worker)
+        # 실제 워커를 감싸 둔다 — 지금은 자동 실행을 막는 것이 목적이지만, 기억
+        # 갱신을 1틱씩 돌리는 제어가 생기면 여기를 그대로 쓴다.
+        self.memory_worker = MemoryUpdateWorker(
+            store=self.store,
+            generate=self.coach_generate,
+        )
+        self.memory_worker_pool = WorkerPoolStub(self.memory_worker)
         self.jwt_service = JwtService(cfg.JWT_SECRET)
         self.app = self._build_app()
 
@@ -101,6 +109,13 @@ class BackendRuntime:
                 ),
                 s3_storage=storage,
                 analysis_worker=self.worker_pool,
+                # 이것을 넘기지 않으면 `app.py:create_app` 이 진짜
+                # `MemoryUpdateWorker` 를 만들어 lifespan 에서 start() 한다.
+                # 그러면 백그라운드 스레드가 memory_update 잡을 **비결정적으로**
+                # 집어가 자기 동일성이 깨진다 — 느린 러너에서만 터져서 로컬은
+                # 초록인데 CI 만 빨간다. 시간 경과에 의존하는 동작은 제어 표면으로만
+                # 일어나야 한다.
+                memory_worker=self.memory_worker_pool,
                 analyzer=self.analyzer,
                 coach_generate=self.coach_generate,
                 report_generate=self.report_generate,
