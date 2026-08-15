@@ -79,7 +79,7 @@ systemctl is-active acttub-api
 # 크래시루프 중인 프로세스도 성공으로 읽힌다. S3 자격증명을 못 찾으면 앱이 기동을
 # 거부하므로(config.py·app.py) 이 확인이 없으면 전면 장애가 배포 성공으로 기록된다.
 # 수동 restart는 카운터를 올리지 않으니, 0이 아니면 자동 재시작이 돌았다는 뜻이다.
-test "$(systemctl show -p NRestarts --value acttub-api)" = "0"
+test "\$(systemctl show -p NRestarts --value acttub-api)" = "0"
 EOF
 )
     SERVICE=acttub-api
