@@ -181,6 +181,9 @@ jobs:
       - name: Install on instance
         env:
           DEPLOY_BUCKET: ${{ vars.DEPLOY_BUCKET }}
+          # be 잡과 같은 값을 준다. 빠뜨리면 ssm-deploy.sh 의 drop-in 이
+          # SENTRY_RELEASE=unknown 을 박아 Sentry 에서 어느 커밋인지 알 수 없다.
+          RELEASE: ${{ github.sha }}
         run: deploy/ssm-deploy.sh be-java ${{ vars.BE_INSTANCE_ID }}
 
   # DB 마다 최초 1회. alembic 이 만든 스키마에는 flyway_schema_history 가 없어
