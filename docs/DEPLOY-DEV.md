@@ -74,7 +74,7 @@ GitHub Environments의 variables 값뿐이다.
 ### 1-3. EC2
 
 - Ubuntu 24.04, **t3.small**(2GB). 2026-08-16 이전에는 t2.micro였는데, Spring Boot
-  이관(`SOMA-287`)이 JVM을 8001에 나란히 띄우려면 최소 700MB가 더 필요해 올렸다.
+  이관(`SOMA-287`)이 JVM을 8080에 나란히 띄우려면 최소 700MB가 더 필요해 올렸다.
   실측은 `spec/M5-cutover.md` §B에 있다
 - **swap 2GB**(2-1). 배포마다 도는 `uv sync`가 피크를 만들어 완충은 필요하지만, JVM이
   swap에 들어가면 GC가 힙 전체를 디스크에서 훑어 응답이 초 단위로 튄다. t2.micro

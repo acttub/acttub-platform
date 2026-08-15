@@ -84,7 +84,7 @@ EOF
 )
     SERVICE=acttub-api
     ;;
-  # 이관 병행 기동. FastAPI(be)는 그대로 두고 자바를 8001에 나란히 올린다.
+  # 이관 병행 기동. FastAPI(be)는 그대로 두고 자바를 8080에 나란히 올린다.
   # 프록시 대상이 바뀌지 않으므로 이 배포만으로는 트래픽이 이동하지 않는다.
   be-java)
     REMOTE_SCRIPT=$(cat <<EOF
@@ -115,7 +115,7 @@ systemctl is-active acttub-api-java
 # Type=simple 은 exec 직후 곧바로 active 이므로 is-active 만으로는 크래시루프도
 # 성공으로 읽힌다. 스키마 검증 실패·DB 접속 실패가 여기서 걸린다.
 test "\$(systemctl show -p NRestarts --value acttub-api-java)" = "0"
-curl -fsS --max-time 5 http://127.0.0.1:8001/health > /dev/null
+curl -fsS --max-time 5 http://127.0.0.1:8080/health > /dev/null
 EOF
 )
     SERVICE=acttub-api-java
