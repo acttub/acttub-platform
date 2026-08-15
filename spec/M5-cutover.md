@@ -92,7 +92,11 @@ vCPU도 1개다. JVM 기동 시 CPU 스파이크가 t2.micro의 버스트 크레
 - Java로 보낸 분석 요청을 **Python 워커가 완료해버려 Java 파이프라인의 결함이 관찰 기간 내내 가려진다**
 - 두 구현의 실패·재시도 의미가 다르면 같은 세션을 번갈아 처리한다
 
-→ **HTTP 전환과 워커 전환을 별개 관문으로 분리한다.** 양쪽 모두 `ANALYSIS_WORKER_ENABLED` 스위치를 갖는다(M4 산출물).
+→ **HTTP 전환과 워커 전환을 별개 관문으로 분리한다.** ~~양쪽 모두 `ANALYSIS_WORKER_ENABLED` 스위치를 갖는다(M4 산출물).~~
+
+⚠ **2026-08-16 실측 정정 — 그 스위치는 Java 에만 있다.** `AnalysisWorkerScheduler`·`MemoryWorkerScheduler` 가 `@ConditionalOnProperty("ANALYSIS_WORKER_ENABLED")` 로 걸려 있지만, 파이썬 `app.py:create_app` 은 S3 와 `PostgresStore` 가 있으면 워커를 **무조건** 만들어 lifespan 에서 start 한다. 끄는 환경변수가 없다.
+
+따라서 **owner 를 넘기려면 FastAPI 프로세스를 통째로 내려야 한다**(`systemctl disable --now`). 운영 전환 때 "FastAPI 를 살려 둔 채 워커만 끄기"가 필요하면 파이썬에 가드를 먼저 넣어야 한다 — 롤백 속도가 더 중요한 운영에서는 그쪽이 맞을 수 있다.
 
 ### 선행 — 인스턴스 업그레이드 (사용자 승인 필요)
 
@@ -142,11 +146,15 @@ dev 관찰이 끝나고 사용자가 승인하면 같은 순서. 운영은 fe/be
 - [x] Java 8080, FastAPI 8000 병행 기동. **Java 워커는 꺼진 상태**(`ANALYSIS_WORKER_ENABLED=false`, `NRestarts=0`)
 - [x] **하네스 전량 통과** — 2026-08-16 `74c9059` 기준 **27 시나리오 diff 0 · coverage 48/48 · 13.4초**
   - 🔎 하네스는 dev 서버에 물릴 수 없다. DB를 truncate·재시드하고 `contract` 프로파일(LLM·S3 스텁, `reset-state` 제어 표면)을 요구하므로 **로컬 3인스턴스로만 판정한다.** CI의 `contract-harness` 잡은 `fastapi↔fastapi`만 돌리므로 java 타겟은 사이클마다 손으로 돌려야 한다
-- [ ] **관문 A** — 프록시 전환 후 브라우저 플로우 확인 (사용자)
-- [ ] **관문 B** — 워커 owner를 Python → Java로 넘김. **겹치는 순간 없음**을 로그로 확인
-- [ ] 워커 전환 직후 분석 1건 완주
+- [x] **관문 A** — 프록시 전환 후 브라우저 플로우 확인 (사용자) — 2026-08-16. `API_ORIGIN`을 8080으로 바꾸고 fe 재배포. Next 빌드 산출물에 `127.0.0.1:8080` 6곳·`:8000` 0곳으로 굳은 것을 확인했고, 사용자가 브라우저에서 정상 동작을 확인했다
+- [x] **관문 B** — 워커 owner를 Python → Java로 넘김. **겹치는 순간 없음**을 로그로 확인 — 2026-08-16. FastAPI `disable --now`(17:01:12) → Java 재시작(17:01:33). 공백 21초, 겹침 0
+  - ⚠ **사양이 틀렸다.** "양쪽 모두 `ANALYSIS_WORKER_ENABLED` 스위치를 갖는다(M4 산출물)"고 적혀 있으나 **그 스위치는 Java 에만 있다.** 파이썬은 `app.py:create_app` 이 S3+PostgresStore 가 있으면 워커를 무조건 만들어 lifespan 에서 start 하고, 끄는 손잡이가 없다(하네스는 `create_app(analysis_worker=…)` 주입으로 피한다). 그래서 **프로세스를 통째로 내리는 것이 유일한 방법**이었다 — "FastAPI 프로세스는 살려 둔다(워커는 꺼진 채)"는 §전환 절차 7번도 성립하지 않는다
+  - 🔎 `systemctl disable` 까지 함께 했다. enabled 인 채로 두면 재부팅으로 owner 가 둘이 된다
+  - 🔎 uvicorn 정지 시 상태가 `failed` 로 보이는 것은 정상이다 — SIGTERM 종료라 exit 143 이고 유닛에 `SuccessExitStatus=143` 이 없다. 로그에는 "Application shutdown complete" 가 찍힌다
+- [x] 워커 전환 직후 분석 1건 완주 — 2026-08-16 17:07:33 `analyze` succeeded. **Java 분석 파이프라인이 운영 조건에서 처음 돌았고 실패 0건.** `summaries` 1건 생성
 - [ ] **Sentry에 Java 이벤트가 실제로 도착한다** — 컷오버 시점에 수집이 끊기지 않았음을 대시보드로 확인
-- [ ] 업로드 → 분석 → 코치 → 리포트 전 플로우 동작
+- [x] 업로드 → 분석 → 코치 → 리포트 전 플로우 동작 — 2026-08-16 사용자가 dev 에서 가입부터 코치까지 완주. `analyze`·`coach_start`·`coach_reply` 5건 전부 succeeded, `error_code` 없음
+  - 🔎 이 확인 직전 dev DB 를 시드(consent_documents·community_categories·alembic_version·flyway_schema_history) 넷만 남기고 비웠다. **그래서 위 데이터는 전부 Java 가 만든 것**이다 — 파이썬이 남긴 상태에 얹힌 것이 아니다
 - [ ] **Java 발급 토큰을 Python이 검증**하는 M2 테스트가 여전히 통과 (롤백 안전성)
 - [ ] 1주 관찰 중 오류율·응답시간이 기존과 동등
 
