@@ -1,0 +1,36 @@
+[Unit]
+Description=acttub acting-api (Spring Boot, back svc — 이관 병행 기동)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+# 파이썬과 달리 인스턴스에서 의존성을 풀지 않는다. jar 하나가 전부다.
+WorkingDirectory=/svc/acttub/api-java
+
+# 힙 상한은 직접 준다 — 컨테이너가 아니라서 MaxRAMPercentage 는 호스트 전체를 보고
+# 계산한다. api.env 에서 덮어쓸 수 있도록 EnvironmentFile 앞에 둔다.
+Environment=JAVA_OPTS=-Xmx512m
+
+# DATABASE_URL, JWT_SECRET, GEMINI_*, OPENAI_*, S3_*, AWS_*, ADMIN_OPS_TOKEN 등.
+# FastAPI 유닛과 같은 파일을 읽는다 — 환경변수 이름을 그대로 유지했기 때문이다.
+EnvironmentFile=/etc/acttub/api.env
+
+# 아래 둘은 api.env 가 덮지 못하게 EnvironmentFile 뒤에 둔다. 실수로 켜지면
+# 그 순간 운영이 바뀌는 값들이다.
+#
+# 8001 — FastAPI(8000)와 나란히 뜬다. 프록시·ALB 대상은 여전히 8000 이므로 이
+# 서비스에는 트래픽이 오지 않는다. 전환은 프록시 대상을 바꾸는 별도 관문이다.
+Environment=SERVER_PORT=8001
+# 큐 owner 는 언제나 정확히 하나다. 두 백엔드가 같은 external_operations 를 소비하면
+# 파이썬 워커가 자바로 보낸 잡을 완료해버려 자바 파이프라인의 결함이 관찰 기간 내내
+# 가려진다. 전환 전까지 owner 는 파이썬이므로 여기서는 꺼 둔다.
+Environment=ANALYSIS_WORKER_ENABLED=false
+
+ExecStart=/usr/bin/java $JAVA_OPTS -jar /svc/acttub/api-java/acting-api.jar
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

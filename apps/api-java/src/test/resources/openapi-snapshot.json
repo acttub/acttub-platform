@@ -69,6 +69,7 @@
           "required" : true,
           "schema" : {
             "type" : "string",
+            "enum" : [ "gender", "age", "goal", "blockage", "speech_self", "speech_actual" ],
             "title" : "Field"
           }
         } ],

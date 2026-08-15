@@ -124,7 +124,17 @@ class MemoryController {
                 content = @Content(schema = @Schema(ref = "#/components/schemas/HTTPValidationError")))
     })
     @DeleteMapping("/{field}")
-    ResponseEntity<Void> deleteMemoryField(@PathVariable String field, HttpServletRequest request) {
+    ResponseEntity<Void> deleteMemoryField(
+            @io.swagger.v3.oas.annotations.Parameter(
+                    name = "field",
+                    schema = @Schema(
+                            title = "Field",
+                            type = "string",
+                            allowableValues = {
+                                "gender", "age", "goal", "blockage", "speech_self", "speech_actual"
+                            }))
+            @PathVariable String field,
+            HttpServletRequest request) {
         ActorMemoryField target = field(field);
         var user = auth.rateLimitedUser(request);
         store.delete(user.id(), target);

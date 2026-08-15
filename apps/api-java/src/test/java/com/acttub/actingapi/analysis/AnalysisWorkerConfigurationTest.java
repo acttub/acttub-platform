@@ -21,14 +21,26 @@ class AnalysisWorkerConfigurationTest {
             .withBean(AnalysisProcessor.class, () -> (path, context) -> null)
             .withBean(Clock.class, Clock::systemUTC);
 
+    /**
+     * 스토리지 판정은 {@code @ConditionalOnBean} 이 아니라 런타임 {@code ObjectProvider}
+     * 로 한다(그 조건이 설정 처리 순서에 따라 워커를 통째로 빼버린 적이 있다). 그래서
+     * 스토리지가 없어도 <b>빈 정의는 남고 값만 비어 있다</b> — 주입은 전부
+     * {@code ObjectProvider} 를 거치므로 소비하는 쪽에서는 "없음" 과 같다.
+     *
+     * <p>이 검사는 격리 컨텍스트라 배선 회귀를 잡지 못한다. 그쪽은
+     * {@code AnalysisWorkerWiringIT} 가 전체 부팅으로 본다.
+     */
     @Test
     void createsWorkerOnlyWhenStorageBoundaryExists() {
-        runner.run(context -> assertThat(context).doesNotHaveBean(AnalysisWorker.class));
+        runner.run(context -> assertThat(
+                context.getBeanProvider(AnalysisWorker.class).getIfAvailable()).isNull());
 
         runner.withBean(ObjectStorage.class, EmptyStorage::new)
-                .run(context -> assertThat(context)
-                        .hasNotFailed()
-                        .hasSingleBean(AnalysisWorker.class));
+                .run(context -> {
+                    assertThat(context).hasNotFailed().hasSingleBean(AnalysisWorker.class);
+                    assertThat(context.getBeanProvider(AnalysisWorker.class).getIfAvailable())
+                            .isNotNull();
+                });
     }
 
     private static final class EmptyStore implements AnalysisStore {

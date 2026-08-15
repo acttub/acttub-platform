@@ -65,6 +65,10 @@ public class DbProjectionService {
 
     private List<Map<String, Object>> externalOperations() {
         Instant now = clock.instant();
+        // request_id 로 정렬하면 안 된다 -- 대부분의 잡은 하네스가 보낸 고정 시드
+        // 값을 갖지만 memory_update 만 서버가 연습 세션에서 유도하므로
+        // baseline·target 의 값이 다르고, 그러면 **배열 순서 자체가 갈려**
+        // 인덱스 비교가 통째로 어긋난다. created_at 은 삽입 순서라 양쪽이 같다.
         return jdbc.query("""
                 SELECT request_id, kind::text AS kind,
                        status::text AS status, attempt_count, error_code,
@@ -72,7 +76,7 @@ public class DbProjectionService {
                        lease_expires_at, session_id,
                        (response_payload IS NOT NULL) AS has_response_payload
                 FROM external_operations
-                ORDER BY request_id, kind::text
+                ORDER BY created_at, kind::text
                 """, (rs, rowNum) -> {
                     OffsetDateTime expiresAt = rs.getObject("lease_expires_at", OffsetDateTime.class);
                     Map<String, Object> row = new LinkedHashMap<>();

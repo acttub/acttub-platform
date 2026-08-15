@@ -60,9 +60,7 @@ public class ReportEngine {
                 coachingHandoffId,
                 analysisHandoff);
         if (modelInput == null) {
-            return blocked("expression".equals(reportType)
-                    ? BLOCKED_EXPRESSION_REASON
-                    : BLOCKED_ANALYSIS_REASON);
+            return blockedReport(reportType);
         }
         String raw = generate.generate(
                 ReportPrompt.select(reportType), serializeInput(modelInput)).text();
@@ -356,6 +354,13 @@ public class ReportEngine {
         if (!condition) {
             throw new IllegalArgumentException(message);
         }
+    }
+
+    /** 갈래별 차단 노트. 리포트를 만들지 않기로 한 자리에서 이 값을 그대로 쓴다. */
+    public ObjectNode blockedReport(String reportType) {
+        return blocked("expression".equals(reportType)
+                ? BLOCKED_EXPRESSION_REASON
+                : BLOCKED_ANALYSIS_REASON);
     }
 
     private ObjectNode blocked(String reason) {
