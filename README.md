@@ -6,11 +6,17 @@ Acttub 플랫폼 모노레포입니다. JavaScript는 pnpm, Python은 uv로 관�
 
 ```text
 apps/
-  web/      Next.js 웹 앱 (Next 서버 · standalone)
-  api/      FastAPI 백엔드 (acting-api)
-  mobile/   React Native 앱 자리
-packages/   공유 패키지 자리
+  web/       Next.js 웹 앱 (Next 서버 · standalone)
+  api/       FastAPI 백엔드 (acting-api) — 지금의 정본
+  api-java/  Spring Boot 이관 작업 중 (SOMA-287)
+  mobile/    Expo React Native 앱 (npm·EAS로 자립 관리)
+packages/    공유 패키지 자리
+docs/        크로스커팅 문서 (PRD · 아키텍처 · ADR · 배포)
+deploy/      배포 스크립트
 ```
+
+`SPEC.md` · `spec/` · `tools/`는 Spring Boot 이관 기간에만 있는 사양·판정 도구이고
+M6에서 폐기합니다.
 
 ## 로컬 개발
 
@@ -30,12 +36,17 @@ pnpm dev
 
 ## 검증
 
+루트 `package.json`의 scripts를 씁니다(전부 `--filter web` 위임).
+
 ```bash
-pnpm lint
+pnpm build              # typecheck 보다 먼저 — next-env.d.ts·.next/types 를 만듭니다
 pnpm typecheck
-pnpm --filter web test
-pnpm build
+pnpm lint
+pnpm --filter web test  # test 만 루트에 없습니다
 ```
+
+PR을 머지하려면 `.github/workflows/ci.yml`의 잡 넷(`web`·`api`·`contract-harness`·
+`api-java`)이 초록이어야 합니다.
 
 ## 운영
 

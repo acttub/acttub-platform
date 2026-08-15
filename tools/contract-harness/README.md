@@ -80,6 +80,12 @@ truncate·재시드와 `reset-state` 경계를 그대로 공유한다.
 전부 `advance-clock`으로만 일어난다. 이 표가 곧 M4에 넘기는 요구사항이다
 (`spec/M4-llm.md`).
 
+⚠ **워커가 늘면 `wrapper.py`의 `create_app(...)` 인자도 같이 늘린다.** `app.py:create_app`
+은 워커 인자가 `None` 이면 **진짜 워커를 만들어 lifespan 에서 `start()` 한다.** 안 넘기면
+백그라운드 스레드가 잡을 비결정적으로 집어가 자기 동일성이 깨지는데, **느린 러너에서만
+타이밍이 맞아 로컬은 초록인데 CI 만 빨간다.** 실제로 `MemoryUpdateWorker` 가 이렇게
+샜다(SOMA-358). 새 워커는 `WorkerPoolStub` 으로 감싸 start/stop 을 no-op 으로 만든다.
+
 ## 시간·중간 상태를 결정적으로 만드는 두 장치
 
 시계를 앞당기지 않고도 "만료됐다"·"처리 중이다"를 재현한다.

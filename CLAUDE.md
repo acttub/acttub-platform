@@ -9,7 +9,7 @@ Acttub 플랫폼 모노레포. JS(pnpm)와 Python(uv)이 공존합니다.
 - `apps/api-java`: Spring Boot 이관 작업 중(`SOMA-287`). 판정 기준은 루트 `SPEC.md` + `spec/M<n>-*.md`이고, 계약 동등성은 `tools/contract-harness`가 검사합니다. **이관이 끝날 때까지 정본은 `apps/api`입니다.**
 - `apps/mobile`: Expo React Native 앱. npm/EAS로 자립 관리하며 pnpm 워크스페이스에서 제외됩니다(심링크가 Metro를 깨서).
 - `packages/*`: 공유 패키지 자리. 실제 두 번째 사용처가 생긴 뒤에만 분리합니다.
-- `docs/`: 크로스커팅 문서(PRD, 아키텍처, ADR, 디자인 시스템). 앱 상세 문서는 각 앱 디렉토리에 둡니다.
+- `docs/`: 앱을 가로지르는 문서(PRD·ADR·배포·디자인)입니다. 앱 상세 문서는 각 앱 디렉토리에 둡니다. **화면·컴포넌트를 만들 때**는 [docs/UI_GUIDE.md](docs/UI_GUIDE.md)가 Acttub 적용 규칙이고 [docs/Toss-DESIGN.md](docs/Toss-DESIGN.md)가 상세 레퍼런스입니다(ADR-012).
 - `SPEC.md`·`spec/`·`tools/`: 이관 기간에만 존재하는 사양·판정 도구입니다(M6에서 폐기). `deploy/`는 배포 스크립트.
 
 네 앱 모두 각자 CLAUDE.md를 갖고 있습니다. **그 앱을 건드리기 전에 해당 파일을 읽습니다** — 아래 내용은 앱을 가로지르는 규칙만 담습니다.
@@ -19,6 +19,7 @@ Acttub 플랫폼 모노레포. JS(pnpm)와 Python(uv)이 공존합니다.
 - 개발 루프: 터미널1 `cd apps/api && DEVELOPMENT_AUTH_PROVIDER=1 uv run uvicorn acting_api.app:create_app --factory --port 8000` + 터미널2 `pnpm dev`(:3000). dev 서버가 `/v2/*`·`/health`를 8000으로 프록시하므로 CORS가 필요 없습니다.
 - 웹 검증 명령은 루트 `package.json` scripts에 있습니다(전부 `--filter web` 위임). 두 가지만 기억하면 됩니다 — `build`를 `typecheck`보다 **먼저** 돌려야 tsc가 통과하고(`next-env.d.ts`·`.next/types` 생성), `build` 산출물 `.next/standalone/`이 실제 배포물입니다. **`test`만 루트에 없습니다** — `pnpm --filter web test`로 돌립니다.
 - PR 게이트는 `.github/workflows/ci.yml`의 잡 4개(`web`·`api`·`contract-harness`·`api-java`)이고, ruleset이 required status check로 걸어둬 초록이어야 머지됩니다. **로컬에서 무엇을 돌려야 CI를 통과하는지는 이 워크플로가 정본입니다** — 앱별 명령은 각 앱 CLAUDE.md에 있습니다.
+- **`contract-harness` 잡이 빨갛거나 계약 하네스를 로컬에서 돌릴 때**는 [tools/contract-harness/README.md](tools/contract-harness/README.md)가 정본입니다(실행법·제어 표면·백엔드 계약). Postgres가 필요하고 주소는 `HARNESS_DATABASE_URL`로 바꿉니다 — **도커 대신 로컬 Postgres를 쓰면 `PGTZ=UTC`를 함께 줍니다.** 도커 이미지는 UTC로 뜨지만 brew 설치본은 시스템 타임존을 따라 datetime diff가 수백 건 납니다.
 - 배포 형태(dev·운영 공통): **Next 서버가 화면을 서빙하고 `/v2/*`·`/health`를 rewrites로 FastAPI에 넘깁니다.** 두 프로세스가 분리돼 있어 브라우저에는 오리진이 하나로 보입니다(CORS 불필요).
   - 운영 `acttub.com`(`www`는 301): CloudFront → front ALB → front svc / back ALB → back svc → RDS. 전부 private subnet → [docs/DEPLOY-VPC.md](docs/DEPLOY-VPC.md)
   - 개발 `dev.acttub.com`: EC2 한 대에 Caddy + 두 프로세스 + PostgreSQL → [docs/DEPLOY-DEV.md](docs/DEPLOY-DEV.md)
