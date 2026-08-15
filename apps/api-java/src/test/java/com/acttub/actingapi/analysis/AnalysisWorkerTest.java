@@ -13,12 +13,12 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.TimeoutException;
 
-import com.acttub.actingapi.report.LeaseOwnershipException;
+import com.acttub.actingapi.operation.LeaseOwnershipException;
 import com.acttub.actingapi.storage.ObjectStorage;
 import com.acttub.actingapi.storage.StoredObjectMetadata;
-import com.acttub.actingapi.summary.FileActiveTimeout;
-import com.acttub.actingapi.summary.ObservationPack;
-import com.acttub.actingapi.summary.SummaryParseError;
+import com.acttub.actingapi.observation.FileActiveTimeout;
+import com.acttub.actingapi.observation.ObservationPack;
+import com.acttub.actingapi.observation.SummaryParseError;
 import org.junit.jupiter.api.Test;
 
 class AnalysisWorkerTest {

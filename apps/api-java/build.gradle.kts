@@ -39,6 +39,9 @@ dependencies {
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("org.testcontainers:junit-jupiter")
     testImplementation("org.testcontainers:postgresql")
+    // 패키지 순환을 CI 에서 빨간불로 잡는다 (ADR-016). 단일 모듈이라 컴파일러가
+    // 방향을 강제하지 못하므로 이 검사가 유일한 관문이다.
+    testImplementation("com.tngtech.archunit:archunit-junit5:1.3.0")
 
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }

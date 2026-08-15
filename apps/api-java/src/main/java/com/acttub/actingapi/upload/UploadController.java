@@ -9,7 +9,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import com.acttub.actingapi.auth.AuthDependencies;
-import com.acttub.actingapi.domain.UploadStatus;
+import com.acttub.actingapi.schema.UploadStatus;
 import com.acttub.actingapi.storage.ObjectStorage;
 import com.acttub.actingapi.storage.NoCredentialsError;
 import com.acttub.actingapi.storage.StoredObjectMetadata;

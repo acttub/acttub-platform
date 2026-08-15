@@ -2,8 +2,19 @@ package com.acttub.actingapi;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.autoconfigure.domain.EntityScan;
 
+/**
+ * {@code @EntityScan}은 엔티티가 어디 사는지를 선언으로 고정한다. 엔티티는 런타임 영속화가
+ * 아니라 {@code ddl-auto: validate}가 실제 스키마를 대조하는 데 쓰이므로(CONTEXT.md의 Schema
+ * Entity), 위치가 흐려지면 무엇을 검증하는지도 흐려진다.
+ *
+ * <p><b>주의 — 이 애노테이션은 스캔 범위를 넓히는 게 아니라 좁힌다.</b> 관례 스캔은
+ * {@code com.acttub.actingapi} 전체를 본다. 여기 적힌 패키지 밖에 엔티티를 두면 조용히 검증에서
+ * 빠지므로, {@code schema/EntityMappingIT}가 엔티티 개수를 못박아 그 침묵을 빨간불로 바꾼다.
+ */
 @SpringBootApplication
+@EntityScan("com.acttub.actingapi.schema")
 public class ActingApiApplication {
 
     public static void main(String[] args) {

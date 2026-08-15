@@ -1,6 +1,6 @@
 package com.acttub.actingapi.auth;
 
-import com.acttub.actingapi.domain.UserStatus;
+import com.acttub.actingapi.schema.UserStatus;
 import com.acttub.actingapi.web.ApiException;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.stereotype.Service;

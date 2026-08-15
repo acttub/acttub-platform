@@ -9,7 +9,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
 
-import com.acttub.actingapi.domain.UploadStatus;
+import com.acttub.actingapi.schema.UploadStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 

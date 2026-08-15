@@ -1,5 +1,5 @@
 package com.acttub.actingapi.auth;
-import java.sql.ResultSet; import java.sql.SQLException; import java.time.*; import java.util.*; import com.acttub.actingapi.domain.*; import org.springframework.jdbc.core.JdbcTemplate; import org.springframework.stereotype.Repository; import org.springframework.transaction.support.TransactionTemplate;
+import java.sql.ResultSet; import java.sql.SQLException; import java.time.*; import java.util.*; import com.acttub.actingapi.schema.*; import org.springframework.jdbc.core.JdbcTemplate; import org.springframework.stereotype.Repository; import org.springframework.transaction.support.TransactionTemplate;
 @Repository public class AuthStore {
     private final JdbcTemplate jdbc;private final TransactionTemplate tx;public AuthStore(JdbcTemplate jdbc,TransactionTemplate tx){this.jdbc=jdbc;this.tx=tx;}
     public record User(UUID id,String email,UserStatus status){} public record StoredRefresh(UUID id,UUID userId,UUID replacedById,Instant expiresAt,Instant revokedAt,String deviceInfo){} public record Rotation(UUID id,boolean reused){} public record Consent(UUID id,ConsentType type,String version,String title,String body,boolean required,Instant publishedAt){}

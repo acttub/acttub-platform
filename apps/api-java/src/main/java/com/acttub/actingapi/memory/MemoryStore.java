@@ -11,8 +11,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
-import com.acttub.actingapi.domain.ActorMemoryAuthor;
-import com.acttub.actingapi.domain.ActorMemoryField;
+import com.acttub.actingapi.schema.ActorMemoryAuthor;
+import com.acttub.actingapi.schema.ActorMemoryField;
 import com.acttub.actingapi.web.PythonText;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;

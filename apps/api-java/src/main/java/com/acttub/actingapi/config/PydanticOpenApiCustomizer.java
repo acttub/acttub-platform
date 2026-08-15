@@ -35,6 +35,15 @@ class PydanticOpenApiCustomizer {
         return new PydanticPgEnumModelConverter();
     }
 
+    /**
+     * {@code coach}·{@code report}의 DTO를 여기서 직접 참조하는 것은 <b>정리가 덜 된 게 아니라
+     * 순서 제약 때문이다.</b> 아래 {@code registerReferencedSchemas} 호출들은 반드시
+     * {@code schemas.replaceAll(normalize)} <b>앞에</b> 실행돼야 하는데, 기능 패키지별
+     * {@code OpenApiCustomizer}로 쪼개면 springdoc이 커스터마이저 간 실행 순서를 보장하지 않는다.
+     *
+     * <p>이 참조는 순환이 아니므로 {@code PackageCycleTest}가 잡지 않는다. 단일 모듈을 유지하기로
+     * 했으므로(ADR-016) 상향 의존의 실질 해도 없다. 옮기려면 순서를 먼저 명시적 계약으로 만들어라.
+     */
     @Bean
     OpenApiCustomizer pydanticSchemaShapeCustomizer() {
         return openApi -> {

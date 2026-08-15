@@ -10,7 +10,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 
-import com.acttub.actingapi.domain.ConsentType;
+import com.acttub.actingapi.schema.ConsentType;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonToken;

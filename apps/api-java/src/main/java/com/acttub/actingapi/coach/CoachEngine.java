@@ -7,6 +7,8 @@ import java.util.regex.Pattern;
 
 import com.acttub.actingapi.llm.GeneratedText;
 import com.acttub.actingapi.llm.TextGenerator;
+import com.acttub.actingapi.llm.TextValidation;
+import com.acttub.actingapi.llm.TextValidator;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -89,7 +91,7 @@ public class CoachEngine {
                 systemPrompt, CoachPrompt.buildChat(session, userMessage));
         String rawText = generated.text();
         CoachReply reply = parseCoachingResponse(rawText);
-        CoachValidation validation = CoachValidator.validateTurn(reply.message(), false);
+        TextValidation validation = TextValidator.validateTurn(reply.message(), false);
         if (!validation.failures().isEmpty()) {
             generated = generate.generate(
                     systemPrompt,
@@ -99,7 +101,7 @@ public class CoachEngine {
                             rawText,
                             validation.failures()));
             reply = parseCoachingResponse(generated.text());
-            validation = CoachValidator.validateTurn(reply.message(), false);
+            validation = TextValidator.validateTurn(reply.message(), false);
         }
         if (!validation.failures().isEmpty()) {
             return new CoachReply(CoachPrompt.safeTemplate(), "continue", null);
