@@ -84,8 +84,63 @@ EOF
 )
     SERVICE=acttub-api
     ;;
+  # 이관 병행 기동. FastAPI(be)는 그대로 두고 자바를 8001에 나란히 올린다.
+  # 프록시 대상이 바뀌지 않으므로 이 배포만으로는 트래픽이 이동하지 않는다.
+  be-java)
+    REMOTE_SCRIPT=$(cat <<EOF
+set -euo pipefail
+# jar 만 보내므로 인스턴스에 JRE 가 필요하다. 없으면 여기서 깐다.
+if ! command -v java >/dev/null 2>&1; then
+  echo "▶ JRE 21 설치"
+  apt-get update -qq
+  DEBIAN_FRONTEND=noninteractive apt-get install -y -qq openjdk-21-jre-headless
+fi
+install -d -o ubuntu -g ubuntu /svc/acttub/api-java
+aws s3 cp "s3://$DEPLOY_BUCKET/be-java/latest.jar" /svc/acttub/api-java/acting-api.jar
+chown ubuntu:ubuntu /svc/acttub/api-java/acting-api.jar
+aws s3 cp "s3://$DEPLOY_BUCKET/be-java/acttub-api-java.service" /etc/systemd/system/acttub-api-java.service
+systemctl daemon-reload
+systemctl enable acttub-api-java
+systemctl reset-failed acttub-api-java || true
+systemctl restart acttub-api-java
+# JVM 기동은 파이썬보다 느리다. Flyway 검증까지 끝나야 리슨을 시작한다.
+sleep 20
+systemctl is-active acttub-api-java
+# Type=simple 은 exec 직후 곧바로 active 이므로 is-active 만으로는 크래시루프도
+# 성공으로 읽힌다. 스키마 검증 실패·DB 접속 실패가 여기서 걸린다.
+test "\$(systemctl show -p NRestarts --value acttub-api-java)" = "0"
+curl -fsS --max-time 5 http://127.0.0.1:8001/health > /dev/null
+EOF
+)
+    SERVICE=acttub-api-java
+    ;;
+  # alembic 이 만든 스키마에는 flyway_schema_history 가 없어 자바가 그대로는 뜨지
+  # 않는다. DB 마다 최초 1회만 돌린다. 이 모드는 마이그레이션을 실행하지 않는다.
+  be-java-baseline)
+    REMOTE_SCRIPT=$(cat <<EOF
+set -euo pipefail
+test -f /svc/acttub/api-java/acting-api.jar || { echo "✗ jar 가 없어요 — be-java 배포가 먼저입니다" >&2; exit 1; }
+mkdir -p /etc/systemd/system/acttub-api-java.service.d
+printf '[Service]\nEnvironment=FLYWAY_BASELINE_ONLY=true\n' \
+  > /etc/systemd/system/acttub-api-java.service.d/flyway-baseline.conf
+systemctl daemon-reload
+systemctl restart acttub-api-java
+sleep 20
+journalctl -u acttub-api-java -n 40 --no-pager | grep -i 'FLYWAY_BASELINE_ONLY' || true
+# 기록이 끝나면 즉시 되돌린다. 남겨두면 빈 DB 에서도 V1 을 건너뛰게 된다.
+rm -f /etc/systemd/system/acttub-api-java.service.d/flyway-baseline.conf
+systemctl daemon-reload
+systemctl reset-failed acttub-api-java || true
+systemctl restart acttub-api-java
+sleep 20
+systemctl is-active acttub-api-java
+test "\$(systemctl show -p NRestarts --value acttub-api-java)" = "0"
+EOF
+)
+    SERVICE=acttub-api-java
+    ;;
   *)
-    echo "✗ fe 또는 be만 지정할 수 있어요 (받은 값: $SIDE)" >&2
+    echo "✗ fe · be · be-java · be-java-baseline 중 하나여야 해요 (받은 값: $SIDE)" >&2
     exit 1
     ;;
 esac
