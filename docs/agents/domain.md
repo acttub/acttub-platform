@@ -10,7 +10,7 @@
 
 ```
 /
-├── CONTEXT.md      ← 용어집(아직 없음, /domain-modeling이 필요할 때 만듭니다)
+├── CONTEXT.md      ← 용어집 (/domain-modeling이 용어가 확정될 때 채웁니다)
 ├── docs/
 │   └── ADR.md      ← 아키텍처 결정 기록 (단일 파일, ADR-001~ 번호)
 └── apps/

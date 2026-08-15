@@ -4,8 +4,8 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
-import com.acttub.actingapi.domain.ConsentAction;
-import com.acttub.actingapi.domain.ConsentType;
+import com.acttub.actingapi.schema.ConsentAction;
+import com.acttub.actingapi.schema.ConsentType;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;

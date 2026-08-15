@@ -7,8 +7,8 @@ import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import com.acttub.actingapi.coach.CoachValidation;
-import com.acttub.actingapi.coach.CoachValidator;
+import com.acttub.actingapi.llm.TextValidation;
+import com.acttub.actingapi.llm.TextValidator;
 import com.acttub.actingapi.web.PythonText;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -119,7 +119,7 @@ public final class MemoryExtractor {
      * 그 밖의 실패(판정 어휘·타임코드 등)는 목표 칸에서도 그대로 막는다.
      */
     private static List<String> languageFailures(String name, String text) {
-        CoachValidation validation = CoachValidator.validateTurn(text, false);
+        TextValidation validation = TextValidator.validateTurn(text, false);
         if (validation.failures().isEmpty()) {
             return List.of();
         }

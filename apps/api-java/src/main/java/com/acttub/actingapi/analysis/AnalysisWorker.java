@@ -15,11 +15,11 @@ import java.util.concurrent.TimeoutException;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-import com.acttub.actingapi.report.LeaseOwnershipException;
+import com.acttub.actingapi.operation.LeaseOwnershipException;
 import com.acttub.actingapi.storage.ObjectStorage;
 import com.acttub.actingapi.storage.StoredObjectMetadata;
-import com.acttub.actingapi.summary.FileActiveTimeout;
-import com.acttub.actingapi.summary.SummaryParseError;
+import com.acttub.actingapi.observation.FileActiveTimeout;
+import com.acttub.actingapi.observation.SummaryParseError;
 
 /** 단일 분석 operation을 동기 처리하는 하네스·백그라운드 공용 진입점. */
 public class AnalysisWorker {

@@ -7,9 +7,9 @@ import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-import com.acttub.actingapi.summary.ActorMaterial;
-import com.acttub.actingapi.summary.ObservationAnalyzer;
-import com.acttub.actingapi.summary.ObservationPack;
+import com.acttub.actingapi.observation.ActorMaterial;
+import com.acttub.actingapi.observation.ObservationAnalyzer;
+import com.acttub.actingapi.observation.ObservationPack;
 
 /** duration → 압축 → 관찰 → 전사 순서를 소유하는 분석 진입점. */
 public final class SummaryAnalyzer implements AnalysisProcessor {

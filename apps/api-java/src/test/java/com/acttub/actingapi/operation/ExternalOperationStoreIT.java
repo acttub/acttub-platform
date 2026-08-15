@@ -18,7 +18,6 @@ import java.util.concurrent.TimeUnit;
 
 import javax.sql.DataSource;
 
-import com.acttub.actingapi.report.LeaseOwnershipException;
 import com.acttub.actingapi.support.PostgresContainerSupport;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;

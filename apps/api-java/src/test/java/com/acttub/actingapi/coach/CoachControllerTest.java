@@ -16,10 +16,11 @@ import java.util.UUID;
 
 import com.acttub.actingapi.auth.AuthDependencies;
 import com.acttub.actingapi.auth.AuthStore;
+import com.acttub.actingapi.report.OwnedReportSource;
 import com.acttub.actingapi.coach.CoachDtos.CoachConfirmReq;
 import com.acttub.actingapi.coach.CoachDtos.CoachReplyReq;
 import com.acttub.actingapi.coach.CoachDtos.CoachStartReq;
-import com.acttub.actingapi.domain.UserStatus;
+import com.acttub.actingapi.schema.UserStatus;
 import com.acttub.actingapi.operation.SyncOperationBegin;
 import com.acttub.actingapi.operation.SyncOperationClaim;
 import com.acttub.actingapi.operation.SyncOperationService;

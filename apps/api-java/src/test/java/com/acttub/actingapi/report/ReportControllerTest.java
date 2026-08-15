@@ -15,9 +15,7 @@ import java.util.UUID;
 
 import com.acttub.actingapi.auth.AuthDependencies;
 import com.acttub.actingapi.auth.AuthStore;
-import com.acttub.actingapi.coach.CoachSessionStore;
-import com.acttub.actingapi.coach.OwnedReportSource;
-import com.acttub.actingapi.domain.UserStatus;
+import com.acttub.actingapi.schema.UserStatus;
 import com.acttub.actingapi.operation.SyncOperationBegin;
 import com.acttub.actingapi.operation.SyncOperationClaim;
 import com.acttub.actingapi.operation.SyncOperationService;
@@ -44,7 +42,7 @@ class ReportControllerTest {
 
     private final ReportQueryStore queryStore = mock(ReportQueryStore.class);
     private final AuthDependencies auth = mock(AuthDependencies.class);
-    private final CoachSessionStore coachSessions = mock(CoachSessionStore.class);
+    private final ReportSourceProvider reportSource = mock(ReportSourceProvider.class);
     private final ReportEngine reportEngine = mock(ReportEngine.class);
     private final ReportOperationService reportOperations = mock(ReportOperationService.class);
     private final SyncOperationService syncOperations = mock(SyncOperationService.class);
@@ -59,13 +57,13 @@ class ReportControllerTest {
                 queryStore,
                 Optional.empty(),
                 auth,
-                coachSessions,
+                reportSource,
                 reportEngine,
                 reportOperations,
                 syncOperations);
         when(auth.consentedUser(request)).thenReturn(
                 new AuthStore.User(USER_ID, "report@test", UserStatus.ACTIVE));
-        when(coachSessions.getOwnedReportSource(USER_ID, SESSION_ID)).thenReturn(source());
+        when(reportSource.getOwnedReportSource(USER_ID, SESSION_ID)).thenReturn(source());
         when(syncOperations.requestId(any())).thenReturn(CLAIM.requestId());
         when(syncOperations.fingerprint(anyString(), any())).thenReturn("0".repeat(64));
         when(syncOperations.begin(any(), any(), any(), anyString(), anyString()))
@@ -79,7 +77,7 @@ class ReportControllerTest {
         JsonNode existing = mapper.readTree("""
                 {"report_type":"analysis","title":"이미 생성됨"}
                 """);
-        when(coachSessions.getPracticeReportForHandoff(HANDOFF_ID)).thenReturn(existing);
+        when(reportSource.getPracticeReportForHandoff(HANDOFF_ID)).thenReturn(existing);
 
         controller.create(new ReportReq(SESSION_ID), null, request);
 
@@ -94,7 +92,7 @@ class ReportControllerTest {
 
     @Test
     void parseFailureIs502AndMarksReportOperationWithSharedErrorCode() {
-        when(coachSessions.getPracticeReportForHandoff(HANDOFF_ID)).thenReturn(null);
+        when(reportSource.getPracticeReportForHandoff(HANDOFF_ID)).thenReturn(null);
         when(reportEngine.generateReport(any(), any(), any(),
                 org.mockito.ArgumentMatchers.anyBoolean(), any(), any(), any()))
                 .thenThrow(new ReportParseError("bad report"));

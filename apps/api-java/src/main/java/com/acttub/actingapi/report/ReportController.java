@@ -4,8 +4,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import com.acttub.actingapi.auth.AuthDependencies;
-import com.acttub.actingapi.coach.CoachSessionStore;
-import com.acttub.actingapi.coach.OwnedReportSource;
+import com.acttub.actingapi.operation.LeaseOwnershipException;
 import com.acttub.actingapi.operation.SyncOperationBegin;
 import com.acttub.actingapi.operation.SyncOperationClaim;
 import com.acttub.actingapi.operation.SyncOperationService;
@@ -46,7 +45,7 @@ class ReportController {
     private final ReportQueryStore store;
     private final Optional<ObjectStorage> configuredStorage;
     private final AuthDependencies auth;
-    private final CoachSessionStore coachSessions;
+    private final ReportSourceProvider reportSource;
     private final ReportEngine reportEngine;
     private final ReportOperationService reportOperations;
     private final SyncOperationService syncOperations;
@@ -55,14 +54,14 @@ class ReportController {
             ReportQueryStore store,
             Optional<ObjectStorage> configuredStorage,
             AuthDependencies auth,
-            CoachSessionStore coachSessions,
+            ReportSourceProvider reportSource,
             ReportEngine reportEngine,
             ReportOperationService reportOperations,
             SyncOperationService syncOperations) {
         this.store = store;
         this.configuredStorage = configuredStorage;
         this.auth = auth;
-        this.coachSessions = coachSessions;
+        this.reportSource = reportSource;
         this.reportEngine = reportEngine;
         this.reportOperations = reportOperations;
         this.syncOperations = syncOperations;
@@ -99,7 +98,7 @@ class ReportController {
             @RequestHeader(name = "X-Request-Id", required = false) String requestIdHeader,
             HttpServletRequest request) {
         var user = auth.consentedUser(request);
-        OwnedReportSource source = coachSessions.getOwnedReportSource(user.id(), req.sessionId());
+        OwnedReportSource source = reportSource.getOwnedReportSource(user.id(), req.sessionId());
         if (source == null) {
             throw new ApiException(404, "session not found");
         }
@@ -118,7 +117,7 @@ class ReportController {
         try {
             JsonNode existing = source.handoffId() == null
                     ? null
-                    : coachSessions.getPracticeReportForHandoff(source.handoffId());
+                    : reportSource.getPracticeReportForHandoff(source.handoffId());
             JsonNode report = existing == null ? generateSourceReport(source) : existing;
             if ("blocked".equals(report.path("report_type").asText()) || existing != null) {
                 syncOperations.complete(claim, report);

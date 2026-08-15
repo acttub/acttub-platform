@@ -1,26 +1,25 @@
 package com.acttub.actingapi.web;
 
-import com.acttub.actingapi.auth.ConsentGateInterceptor;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
-/** 요청 정책 게이트와 DTO 검증의 실행 순서를 고정한다. */
+/**
+ * DTO 검증 인터셉터를 건다.
+ *
+ * <p>동의 게이트는 {@code auth}가 직접 등록한다({@code AuthWebMvcConfiguration}). 실행 순서는
+ * {@link InterceptorOrder}에 모여 있다.
+ */
 @Configuration(proxyBeanMethods = false)
 class WebMvcConfiguration implements WebMvcConfigurer {
-    private final ConsentGateInterceptor consentGate;
     private final RequestBodyValidationInterceptor bodyValidation;
 
-    WebMvcConfiguration(
-            ConsentGateInterceptor consentGate,
-            RequestBodyValidationInterceptor bodyValidation) {
-        this.consentGate = consentGate;
+    WebMvcConfiguration(RequestBodyValidationInterceptor bodyValidation) {
         this.bodyValidation = bodyValidation;
     }
 
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
-        registry.addInterceptor(consentGate).order(0);
-        registry.addInterceptor(bodyValidation).order(1);
+        registry.addInterceptor(bodyValidation).order(InterceptorOrder.BODY_VALIDATION);
     }
 }

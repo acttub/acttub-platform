@@ -5,6 +5,8 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.UUID;
 
+import com.acttub.actingapi.report.OwnedReportSource;
+import com.acttub.actingapi.report.ReportSourceProvider;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -12,7 +14,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 /** Python {@code PostgresStore}의 coach-session 저장 경계. */
 @Repository
-public class CoachSessionStore {
+public class CoachSessionStore implements ReportSourceProvider {
 
     private final CoachSessionWork work;
     private final TransactionTemplate transactionTemplate;
