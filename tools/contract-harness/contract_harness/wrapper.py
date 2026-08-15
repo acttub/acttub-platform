@@ -191,6 +191,11 @@ class BackendRuntime:
                         ),
                         "has_response_payload": row.has_response_payload,
                     }
+                    # request_id 로 정렬하면 안 된다 -- 대부분의 잡은 하네스가
+                    # 보낸 고정 시드 값을 갖지만 memory_update 만 서버가 연습
+                    # 세션에서 유도하므로 baseline·target 의 값이 다르고, 그러면
+                    # **배열 순서 자체가 갈려** 인덱스 비교가 통째로 어긋난다.
+                    # created_at 은 삽입 순서라 양쪽이 같다.
                     for row in connection.execute(
                         text(
                             "SELECT request_id, kind::text AS kind,"
@@ -199,7 +204,7 @@ class BackendRuntime:
                             " lease_expires_at, session_id,"
                             " (response_payload IS NOT NULL) AS has_response_payload"
                             " FROM external_operations"
-                            " ORDER BY request_id, kind::text"
+                            " ORDER BY created_at, kind::text"
                         )
                     )
                 ]

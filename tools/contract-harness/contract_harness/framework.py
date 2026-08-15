@@ -23,6 +23,14 @@ from contract_harness.normalize import SymbolTable
 
 REQUEST_ID_NAMESPACE = uuid.UUID("6f9619ff-8b86-d011-b42d-00cf4fc964ff")
 
+# 배우 기억 갱신 잡의 request_id 는 클라이언트가 보내는 값이 아니라 서버가 연습
+# 세션에서 uuid5 로 **유도**한다(`db/store.py:PostgresStore.enqueue_memory_update`).
+# 응답 어디에도 나타나지 않아 심볼을 발급할 "생성 지점"이 없으므로, 연습 세션을
+# 등록할 때 같은 규칙으로 파생값을 함께 등록한다(§구현 규약 ①). 관측 순서로
+# 번호를 매기는 것이 아니라 **생성 규칙**을 재현하는 것이고, 그래서 이 값은
+# 마스킹되지 않고 실제로 비교된다 -- Java 도 같은 uuid5 를 만들어야 통과한다.
+MEMORY_UPDATE_NAMESPACE = uuid.UUID("6f3a1d52-8c47-4b19-9e0a-2d5c7b41f8e3")
+
 
 def _b64url(value: bytes) -> str:
     return base64.urlsafe_b64encode(value).rstrip(b"=").decode("ascii")
@@ -131,7 +139,13 @@ class ScenarioContext:
     # -- 심볼 -------------------------------------------------------------
 
     def register(self, value, kind: str) -> str:
-        return self.symbols.register(value, kind)
+        symbol = self.symbols.register(value, kind)
+        if kind == "practice_session":
+            self.symbols.register(
+                uuid.uuid5(MEMORY_UPDATE_NAMESPACE, str(value)),
+                "memory_update_request",
+            )
+        return symbol
 
     def request_id(self, tag: str) -> str:
         """양쪽 백엔드가 같은 값을 쓰는 결정적 X-Request-Id."""
