@@ -10,6 +10,7 @@ import com.acttub.actingapi.llm.GeneratedText;
 import com.acttub.actingapi.llm.TokenUsage;
 import com.acttub.actingapi.llm.TextGenerator;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 class CoachEngineTest {
@@ -75,16 +76,30 @@ class CoachEngineTest {
 
     @Test
     void closingWordsAppendInstructionOnlyToGenerationInputNotStoredTurn() {
-        for (String closing : List.of("그만", "종료", "끝")) {
+        // "끝"·"여기까지"는 발화 전체가 그 말일 때만 종료다. 어절 안에 섞인 "끝"까지
+        // 종료로 보면 "끝까지 해볼게요" 같은 정상 답변에서 세션이 끊긴다.
+        for (String closing : List.of("이제 그만", "이제 종료", "끝", "여기까지", "여기서 그만할게")) {
             RecordingGenerator generator = new RecordingGenerator("계속할게요");
-            CoachResult result = new CoachEngine(generator).reply(session(), "이제 " + closing);
+            CoachResult result = new CoachEngine(generator).reply(session(), closing);
 
             assertThat(generator.inputs.getFirst())
                     .contains("## 배우의 마무리 요청")
                     .contains("배우가 지금 대화를 마치겠다고 했다.");
             assertThat(result.session().turns().get(result.session().turns().size() - 2).text())
-                    .isEqualTo("이제 " + closing)
+                    .isEqualTo(closing)
                     .doesNotContain("## 배우의 마무리 요청");
+        }
+    }
+
+    @Test
+    @DisplayName("종료어를 품었을 뿐인 정상 답변에는 마무리 지시문이 붙지 않는다")
+    void wordBoundaryKeepsOrdinaryAnswersOutOfClosing() {
+        // 어절 경계 없는 오타 '그렇그만'으로 세션이 끊긴 사고가 있었다.
+        for (String ordinary : List.of("이제 끝", "끝까지 해볼게요", "안 그만할래요", "그렇그만")) {
+            RecordingGenerator generator = new RecordingGenerator("계속할게요");
+            new CoachEngine(generator).reply(session(), ordinary);
+
+            assertThat(generator.inputs.getFirst()).doesNotContain("## 배우의 마무리 요청");
         }
     }
 

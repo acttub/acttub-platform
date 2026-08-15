@@ -181,8 +181,16 @@ class CoachControllerTest {
         assertReportParseError(() -> controller.start(
                 new CoachStartReq(PRACTICE_ID, false), null, request));
 
+        // reply 는 답변이 2턴 미만이면 리포트를 만들지 않으므로(차단 노트) 여기서
+        // 파싱 실패 경로를 보려면 실제로 답한 턴이 있어야 한다. 첫 actor 턴은 폼 입력이라 빠진다.
+        CoachSessionSnapshot answered = snapshot("open", List.of(
+                new CoachTurnSnapshot("actor", "폼에 적은 막힌 지점"),
+                new CoachTurnSnapshot("ai", "첫 질문"),
+                new CoachTurnSnapshot("actor", "첫 답변"),
+                new CoachTurnSnapshot("ai", "다음 질문"),
+                new CoachTurnSnapshot("actor", "다음 답변")));
         stubOwnedSession();
-        when(coach.reply(any(), anyString())).thenReturn(new CoachResult(session, complete));
+        when(coach.reply(any(), anyString())).thenReturn(new CoachResult(answered, complete));
         assertReportParseError(() -> controller.reply(
                 new CoachReplyReq(SESSION_ID, "그만"), null, request));
 

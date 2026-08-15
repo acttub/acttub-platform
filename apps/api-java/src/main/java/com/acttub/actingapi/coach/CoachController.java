@@ -49,6 +49,8 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/v2/coach")
 class CoachController {
 
+    private static final int MIN_ANSWERS_FOR_REPORT = 2;
+
     private final CoachSessionStore sessions;
     private final CoachEngine coach;
     private final ReportEngine reports;
@@ -278,7 +280,7 @@ class CoachController {
 
         try {
             CoachResult result = coach.reply(owned.session(), req.text());
-            CompletedTurn completed = completeTurn(result.session(), result.reply());
+            CompletedTurn completed = completeReplyTurn(result.session(), result.reply());
             ObjectNode payload = coachPayload(
                     result.session(), result.reply(), completed.handoffId(),
                     completed.branch(), completed.report());
@@ -404,6 +406,32 @@ class CoachController {
             operations.fail(claim, "coach_confirm_failed");
             throw exception;
         }
+    }
+
+    /**
+     * 배우가 실제로 답한 게 거의 없으면 노트를 만들지 않는다.
+     *
+     * <p>첫 actor 턴은 대화가 아니라 폼에 적은 목표·막힌 지점이므로(start) 빼고 센다.
+     *
+     * <p>coach_start 에는 걸지 않는다. 거기에 걸면 리포트 생성이 한 번도 돌지 않아
+     * coach_start 의 502(리포트 파싱 실패) 경로가 도달 불가가 되고, 그 502로 retry
+     * 소진을 확인하는 계약 하네스 시나리오까지 죽는다. 첫 턴에 바로 complete 되는
+     * 경우는 따로 다룬다.
+     */
+    private CompletedTurn completeReplyTurn(CoachSessionSnapshot session, CoachReply reply) {
+        String branch = branch(session.blockageKind());
+        if (!"complete".equals(reply.status()) || reply.handoff() == null) {
+            return new CompletedTurn(branch, null, null);
+        }
+        long answered = session.turns().stream()
+                .filter(turn -> "actor".equals(turn.role()))
+                .skip(1)
+                .filter(turn -> !CoachEngine.isClosing(turn.text()))
+                .count();
+        if (answered < MIN_ANSWERS_FOR_REPORT) {
+            return new CompletedTurn(branch, UUID.randomUUID(), reports.blockedReport(branch));
+        }
+        return completeTurn(session, reply);
     }
 
     private CompletedTurn completeTurn(CoachSessionSnapshot session, CoachReply reply) {

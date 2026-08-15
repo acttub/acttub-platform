@@ -111,16 +111,30 @@ class CoachPromptParityTest {
         assertThat(CoachPrompt.safeTemplate()).isEqualTo(expectedSafe);
     }
 
+    /**
+     * 지시문 텍스트만 대조하면 부착 **조건**이 틀려도 초록이 된다. 실제로 그랬다 --
+     * 옛 구현이 `contains("끝")` 이라 "이제 끝"·"끝까지 해볼게요" 같은 정상 답변에도
+     * 지시문을 붙였는데, 파이썬을 무조건 이어붙여 기대값을 만든 탓에 통과했다.
+     * 그래서 파이썬의 `is_closing` 을 그대로 통과시킨 결과와 대조한다.
+     */
     @Test
     @EnabledIf("pythonIsAvailable")
-    @DisplayName("마무리 요청 지시문이 파이썬 원본과 완전히 같다")
+    @DisplayName("마무리 요청 판정과 지시문이 파이썬 원본과 완전히 같다")
     void closingInstructionMatchesPythonSource() {
+        List<String> cases = List.of(
+                "이제 끝", "끝", "그만", "종료", "여기까지",
+                "끝까지 해볼게요", "여기서 그만할게", "안 그만할래요", "그렇그만", "이제 그만");
         String expected = readPythonValue("""
-                from acting_agent.engine import _CLOSING_TURN_INSTRUCTION
-                value = "이제 끝" + _CLOSING_TURN_INSTRUCTION
+                from acting_agent.engine import is_closing, _CLOSING_TURN_INSTRUCTION
+                cases = ["이제 끝", "끝", "그만", "종료", "여기까지",
+                         "끝까지 해볼게요", "여기서 그만할게", "안 그만할래요", "그렇그만", "이제 그만"]
+                value = "\\n---\\n".join(
+                    c + _CLOSING_TURN_INSTRUCTION if is_closing(c) else c for c in cases
+                )
                 """);
 
-        assertThat(CoachEngine.messageForGeneration("이제 끝")).isEqualTo(expected);
+        List<String> actual = cases.stream().map(CoachEngine::messageForGeneration).toList();
+        assertThat(String.join("\n---\n", actual)).isEqualTo(expected);
     }
 
     private static CoachSessionSnapshot expressionSession() throws Exception {
