@@ -49,6 +49,7 @@ ln -sfn ../api/acting-api/.env .env    # 최초 1회. 파이썬과 같은 파일
 
 - **이미 있는 값을 덮지 않습니다.** `addLast`로 넣으므로 실제 환경변수·시스템 프로퍼티·`application.yml`이 항상 이깁니다.
 - **테스트에서는 꺼집니다.** `build.gradle.kts`의 test 태스크가 `acttub.dotenv.enabled=false`를 박습니다. **이 가드를 지우면 로컬 실 API 키가 테스트로 새어들어**, 스텁을 쓰는 줄 알았던 테스트가 진짜 호출을 하게 됩니다.
+- ⚠ **하네스용 인스턴스를 띄울 때도 꺼야 합니다** — `java -Dacttub.dotenv.enabled=false -jar …`. 하네스가 주지 않는 키(`S3_BUCKET`·`AWS_*` 등)가 `.env`에서 새어들면 판정이 로컬 환경에 좌우됩니다. 하네스는 격리된 환경이어야 재현됩니다.
 - `DatabaseUrlEnvironmentPostProcessor`보다 **먼저** 돌아야 합니다(`.env`가 `DATABASE_URL`을 공급할 수 있으므로). 순서는 `getOrder()`로 고정했고 테스트가 지킵니다.
 
 ## Testcontainers는 Postgres 18입니다

@@ -138,9 +138,10 @@ dev 관찰이 끝나고 사용자가 승인하면 같은 순서. 운영은 fe/be
 - [x] **Sentry 이식**(§D) — DSN 없으면 미기동, 주소 UUID 스크러빙, `environment`·`release` 태그. **DSN 없는 상태에서 테스트가 이벤트를 쏘지 않음을 단언**
 
 ### dev 전환
-- [ ] dev 인스턴스 업그레이드 완료
-- [ ] Java 8080, FastAPI 8000 병행 기동. **Java 워커는 꺼진 상태**
-- [ ] **하네스 전량 통과**
+- [x] dev 인스턴스 업그레이드 완료 — 2026-08-16 t3.small·EBS 10GB로 재구축, available 1214MB
+- [x] Java 8080, FastAPI 8000 병행 기동. **Java 워커는 꺼진 상태**(`ANALYSIS_WORKER_ENABLED=false`, `NRestarts=0`)
+- [x] **하네스 전량 통과** — 2026-08-16 `74c9059` 기준 **27 시나리오 diff 0 · coverage 48/48 · 13.4초**
+  - 🔎 하네스는 dev 서버에 물릴 수 없다. DB를 truncate·재시드하고 `contract` 프로파일(LLM·S3 스텁, `reset-state` 제어 표면)을 요구하므로 **로컬 3인스턴스로만 판정한다.** CI의 `contract-harness` 잡은 `fastapi↔fastapi`만 돌리므로 java 타겟은 사이클마다 손으로 돌려야 한다
 - [ ] **관문 A** — 프록시 전환 후 브라우저 플로우 확인 (사용자)
 - [ ] **관문 B** — 워커 owner를 Python → Java로 넘김. **겹치는 순간 없음**을 로그로 확인
 - [ ] 워커 전환 직후 분석 1건 완주
