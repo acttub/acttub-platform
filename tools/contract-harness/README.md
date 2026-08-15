@@ -59,7 +59,7 @@ truncate·재시드와 `reset-state` 경계를 그대로 공유한다.
 | `manifest.py` | 오류 계약 실행 manifest + 명시적 제외 사유 |
 | `openapi_diff.py` | 전체 문서 semantic diff 리포터 |
 | `mutations.py` | 변조 38건 (self-test) |
-| `scenarios/` | 시나리오 26개 |
+| `scenarios/` | 시나리오 27개 (실행하면 첫 줄에 전체 이름이 나온다) |
 | `scenarios/gate.py` | LLM 스텁 게이트를 `stub-state` 제어 경유로만 다룬다 (§게이트) |
 
 ## 백엔드가 만족해야 하는 계약
