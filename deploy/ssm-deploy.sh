@@ -99,6 +99,12 @@ install -d -o ubuntu -g ubuntu /svc/acttub/api-java
 aws s3 cp "s3://$DEPLOY_BUCKET/be-java/latest.jar" /svc/acttub/api-java/acting-api.jar
 chown ubuntu:ubuntu /svc/acttub/api-java/acting-api.jar
 aws s3 cp "s3://$DEPLOY_BUCKET/be-java/acttub-api-java.service" /etc/systemd/system/acttub-api-java.service
+# FastAPI 쪽과 같은 방식으로 릴리스를 얹는다 — 환경변수 이름을 그대로 유지했으므로
+# Sentry 에서 두 백엔드의 이벤트가 같은 커밋으로 묶인다. DSN·환경 이름은 사람이 관리하는
+# /etc/acttub/api.env 에 있고 배포 스크립트가 건드리지 않는다.
+mkdir -p /etc/systemd/system/acttub-api-java.service.d
+printf '[Service]\nEnvironment=SENTRY_RELEASE=%s\n' '${RELEASE:-unknown}' \
+  > /etc/systemd/system/acttub-api-java.service.d/sentry-release.conf
 systemctl daemon-reload
 systemctl enable acttub-api-java
 systemctl reset-failed acttub-api-java || true

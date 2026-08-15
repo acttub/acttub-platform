@@ -41,6 +41,24 @@ spring:
   mvc:
     throw-exception-if-no-handler-found: true
 
+# 파이썬 observability.py 와 같은 계약이다(spec/M5-cutover.md §D).
+#
+# **DSN 이 없으면 켜지 않는다.** 빈 문자열은 Sentry SDK 가 "비활성화" 로 규정한 값이라
+# (Sentry.initConfigurations 가 빈 DSN 을 받으면 close() 하고 끝낸다) 로컬·테스트는 기본으로
+# 조용하다. 이 가드가 없으면 테스트가 이벤트를 밖으로 쏜다.
+#
+# 환경변수 이름과 주입 경로는 파이썬과 같게 유지한다 — 릴리스는 커밋 SHA 이고
+# deploy/ssm-deploy.sh 가 systemd drop-in 으로 넣는다.
+sentry:
+  dsn: ${SENTRY_DSN:}
+  environment: ${SENTRY_ENVIRONMENT:local}
+  release: ${SENTRY_RELEASE:unknown}
+  # 쿠키·헤더·IP·요청 본문을 SDK 가 알아서 담지 않게 한다. 주소는 이 대상이 아니라서
+  # UrlScrubbingCallback 이 따로 지운다.
+  send-default-pii: false
+  # 1단계는 에러만 본다. 트레이싱은 켜지 않는다.
+  traces-sample-rate: 0.0
+
 springdoc:
   api-docs:
     # 기존 spec 이 3.1.0 이다. const/anyOf 표현이 3.0 과 다르므로 맞춘다.

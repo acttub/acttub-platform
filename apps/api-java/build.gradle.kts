@@ -36,6 +36,10 @@ dependencies {
 
     implementation("com.google.genai:google-genai:1.57.0")
 
+    // 파이썬 observability.py 대응(M5 §D). starter 가 MVC 예외를 자동으로 잡아 보내고
+    // BeforeSendCallback 빈을 물어 간다. DSN 이 비면 SDK 스스로 꺼지므로 로컬·테스트는 조용하다.
+    implementation("io.sentry:sentry-spring-boot-starter-jakarta:8.53.0")
+
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("org.testcontainers:junit-jupiter")
     testImplementation("org.testcontainers:postgresql")

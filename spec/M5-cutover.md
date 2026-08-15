@@ -63,6 +63,10 @@ vCPU도 1개다. JVM 기동 시 CPU 스파이크가 t2.micro의 버스트 크레
 - 트레이싱은 켜지 않는다(`traces_sample_rate=0.0`) — 1단계는 에러만 본다
 - 프로젝트는 `acttub-api` 하나를 dev·운영이 공유하고 `environment` 태그로 나눈다. **DSN은 인스턴스 `/etc/acttub/api.env`에 있다**(런타임 주입, 빌드에 넣지 않는다)
 
+**Java 산출물**: `io.sentry:sentry-spring-boot-starter-jakarta`가 MVC 예외 수집과 빈 등록을 맡고, 스크러빙은 `observability/UrlScrubber.java`·`observability/UrlScrubbingCallback.java`가 파이썬과 같은 규칙으로 한다. 설정은 `application.yml`의 `sentry` 블록이며 **DSN이 없거나 비면(공백 포함) SDK가 스스로 꺼진다** — `observability/SentryInitializationTest.java`가 그 가드와 대조군을 함께 단언한다.
+
+🔎 **`ssm-deploy.sh`는 결국 건드려야 했다.** 환경변수 이름은 유지했지만 `SENTRY_RELEASE` drop-in이 `be` 경로에만 있었다 — `be-java`에도 같은 방식으로 얹어야 두 백엔드의 이벤트가 같은 커밋으로 묶인다.
+
 ## 전환 절차
 
 ### ⚠️ 워커 owner는 항상 정확히 하나
@@ -114,7 +118,8 @@ dev 관찰이 끝나고 사용자가 승인하면 같은 순서. 운영은 fe/be
 - [ ] 환경변수 이름이 기존과 동일
 - [ ] `deploy/upload-api.sh`·`ssm-deploy.sh`가 jar 경로를 다룬다
 - [ ] 기동 실패가 배포 판정에 잡힌다 (`NRestarts` 확인 — `Type=simple`은 크래시루프도 active로 읽힌다)
-- [ ] **Sentry 이식**(§D) — DSN 없으면 미기동, 주소 UUID 스크러빙, `environment`·`release` 태그. **DSN 없는 상태에서 테스트가 이벤트를 쏘지 않음을 단언**
+  - 🔎 `be` 경로의 이 검사는 **동작한 적이 없었다.** heredoc이 비인용이라 `$(systemctl show ...)`가 러너에서 평가돼 원격에는 `test "" = "0"`이 갔다. 이스케이프를 고쳤으나 **실제 배포로 확인하기 전까지 이 항목은 미체크다**
+- [x] **Sentry 이식**(§D) — DSN 없으면 미기동, 주소 UUID 스크러빙, `environment`·`release` 태그. **DSN 없는 상태에서 테스트가 이벤트를 쏘지 않음을 단언**
 
 ### dev 전환
 - [ ] dev 인스턴스 업그레이드 완료
