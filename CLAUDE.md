@@ -65,4 +65,4 @@ Conventional Commits를 따르되, 요약은 한국어 평서형으로 씁니다
 
 ### 도메인 문서
 
-**도메인 용어를 정하거나 되돌리기 어려운 결정을 남길 때** — 앱이 여럿이어도 용어집은 하나입니다. 루트 `CONTEXT.md`(아직 없음, 필요할 때 생성) + 단일 파일 `docs/ADR.md`. 읽는 순서와 ADR 충돌 처리는 `docs/agents/domain.md`에 있습니다.
+**도메인 용어를 정하거나 되돌리기 어려운 결정을 남길 때** — 앱이 여럿이어도 용어집은 하나입니다. 루트 [CONTEXT.md](CONTEXT.md) + 단일 파일 `docs/ADR.md`. 읽는 순서와 ADR 충돌 처리는 `docs/agents/domain.md`에 있습니다.
