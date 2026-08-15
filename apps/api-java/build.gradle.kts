@@ -59,6 +59,10 @@ tasks.withType<Test>().configureEach {
     useJUnitPlatform()
     systemProperty("file.encoding", "UTF-8")
 
+    // 로컬 .env 를 테스트가 읽지 못하게 막는다(DotenvEnvironmentPostProcessor). 이 가드가
+    // 없으면 실 API 키가 흘러들어, 스텁을 쓰는 줄 알았던 테스트가 진짜 호출을 하게 된다.
+    systemProperty("acttub.dotenv.enabled", "false")
+
     // testcontainers 가 쓰는 docker-java 는 기본 Docker API 버전이 1.32 인데,
     // 최신 Docker Engine 은 그 버전을 400 으로 거부한다("Could not find a valid Docker environment"
     // 로 보인다). 최소로 올려 준다. 환경변수가 이미 있으면 그쪽을 존중한다.
