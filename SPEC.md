@@ -34,7 +34,7 @@
 | 인증 | nimbus-jose-jwt + 커스텀 필터. Apple/Google은 `JwtDecoder`(JWKS 캐시) |
 | S3 | AWS SDK v2 `S3Presigner` |
 | DB 버전 | **운영 RDS는 Postgres 18.4** (`db.t4g.micro`, 2026-08-06 실측). 컨테이너 이미지도 **18**로 맞춘다 — PG18은 NOT NULL을 `pg_constraint`로 물질화하는 등 카탈로그가 달라 16에서 통과한 스키마 검증이 운영을 보증하지 않는다 |
-| 테스트 | JUnit 5 + Testcontainers(Postgres **18**) + MockMvc. **버전을 BOM에 맡기지 않고 고정**하고, 외부 DB 폴백 경로를 둔다 (§8-4) |
+| 테스트 | JUnit 5 + Testcontainers(Postgres **18**) + MockMvc + **ArchUnit**(패키지 순환 검사 전용, `SOMA-392`·ADR-016에서 추가). **버전을 BOM에 맡기지 않고 고정**하고, 외부 DB 폴백 경로를 둔다 (§8-4) |
 | 디렉토리 | `apps/api-java/` (M6에서 `apps/api`로 rename) |
 
 ## 3. 하지 말 것 (스코프 제한)
@@ -42,6 +42,8 @@
 1. **DB 스키마를 바꾸지 않는다.** 마이그레이션 신규 작성 금지. Flyway는 기존 스키마를 baseline으로 받는다.
 2. **API 계약을 바꾸지 않는다.** 유일한 예외는 §4뿐이다.
 3. **스코프 밖 리팩터링 금지.** 원본의 이상해 보이는 구조는 대부분 이유가 있다(§7).
+
+   🔁 **예외 1건 (`SOMA-392`, 2026-08-15).** api-java의 패키지 순환 3개를 끊고 이름-내용 불일치를 고쳤다. 이 조항의 취지는 *원본이 내던 동작을 함부로 바꾸지 말라*는 것인데, 그 작업은 타입 이동·인터페이스 도입·패키지 rename뿐이라 **동작이 하나도 바뀌지 않는다** — springdoc 산출물이 변경 전과 121,431 bytes 동일함으로 확인했다. 판정 근거는 ADR-016이다. **이것을 일반 허가로 읽지 마라**: 동작이 걸리는 리팩터링은 여전히 금지이고, 이 예외도 계약 하네스가 살아 있는 동안(M6 이전)이라 회귀를 기계로 잡을 수 있었기에 성립했다.
 4. **기존 `apps/api`를 수정하지 않는다.** M5 전환 전까지 무손상 유지가 롤백 경로다.
 5. **성능 최적화를 명목으로 동작을 바꾸지 않는다.** 특히 §7-1.
 6. **`@ManyToOne`/`@OneToMany` 등 JPA 관계 매핑을 만들지 않는다.** 이유는 §5.
@@ -71,6 +73,10 @@ Jackson 설정: `WRITE_DATES_AS_TIMESTAMPS=false`, `Instant` 또는 `OffsetDateT
 ### 5-1. JPA로 가는 것
 
 조회 쿼리, 단순 CRUD.
+
+🔁 **이 계획은 실현되지 않았다 (2026-08-15 실측).** M3 이후 데이터 접근은 **전부** `JdbcTemplate`으로 갔다 — `JpaRepository`/`CrudRepository` 선언 **0개**, `EntityManager` 직접 사용 **0건**, `@Repository` 14개가 모두 손으로 쓴 SQL이다. §5-2가 열거하는 JPA 표현 불가 패턴(RETURNING 10건, `ON CONFLICT` 8건, `DISTINCT ON` 3건, `FOR SHARE OF`)이 store 전반에 퍼져 있어, "단순 CRUD"만 JPA로 남기는 경계가 실제 코드에서 성립하지 않았다.
+
+따라서 `schema` 패키지의 `@Entity` 24개는 **영속화 수단이 아니라 스키마 검증 장치**다 — `ddl-auto: validate`가 대조할 대상을 제공하는 것이 유일한 역할이고, 프로덕션 코드에서 한 번도 참조되지 않는다. 이 상태를 정본으로 삼는 용어가 `/CONTEXT.md`의 **Schema Entity**이며, 충돌하는 서술은 그쪽이 맞다. §5-3(엔티티 매핑 함정)은 여전히 유효하다 — 검증 장치로 쓰려면 매핑이 정확해야 하기 때문이다.
 
 **관계 매핑을 만들지 않는다.** 원본 `models.py`에 `relationship()`이 하나도 없고 전부 FK 컬럼 + 명시적 `join()`이다. UUID 컬럼만 두면 1:1로 대응되며 lazy loading·N+1·`LazyInitializationException`이 구조적으로 발생하지 않는다. 관계 매핑을 추가하는 것은 "개선"이 아니라 새 위험이다.
 

@@ -7,8 +7,8 @@ import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import com.fasterxml.jackson.databind.annotation.JsonNaming;
 import io.swagger.v3.oas.annotations.media.Schema;
 
-final class AdmissionDtos {
-    private AdmissionDtos() {
+final class AdmissionsDtos {
+    private AdmissionsDtos() {
     }
 
     @Schema(

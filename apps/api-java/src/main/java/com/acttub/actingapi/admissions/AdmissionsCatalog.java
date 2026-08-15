@@ -7,8 +7,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-import com.acttub.actingapi.admissions.AdmissionDtos.AdmissionNotice;
-import com.acttub.actingapi.admissions.AdmissionDtos.AdmissionsResponse;
+import com.acttub.actingapi.admissions.AdmissionsDtos.AdmissionNotice;
+import com.acttub.actingapi.admissions.AdmissionsDtos.AdmissionsResponse;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnResource;
 import org.springframework.core.io.ClassPathResource;

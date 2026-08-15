@@ -1,6 +1,6 @@
 package com.acttub.actingapi.admissions;
 
-import com.acttub.actingapi.admissions.AdmissionDtos.AdmissionsResponse;
+import com.acttub.actingapi.admissions.AdmissionsDtos.AdmissionsResponse;
 import com.acttub.actingapi.web.ApiException;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
