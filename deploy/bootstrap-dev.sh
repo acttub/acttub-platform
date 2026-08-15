@@ -25,13 +25,14 @@ growpart "/dev/$DISK" "$PART" || true
 resize2fs "$ROOT_SRC" || true
 df -h / | tail -1
 
-echo "=== 1. swap 4GB ==="
-# t2.micro(1GB)에서 Next·uvicorn·PostgreSQL 셋을 띄우려면 필수다. 배포마다 도는
-# uv sync가 특히 피크를 만든다.
+echo "=== 1. swap 2GB ==="
+# 배포마다 도는 uv sync가 메모리 피크를 만들므로 완충은 남겨둔다. 다만 크게 잡지
+# 않는다 — JVM이 swap에 들어가면 GC가 힙 전체를 디스크에서 훑게 되어 응답시간이
+# 초 단위로 튄다(spec/M5-cutover.md §B). t2.micro(1GB) 시절에는 4GB였다.
 if swapon --show=NAME --noheadings | grep -q '^/swapfile$'; then
   echo "  이미 있음"
 else
-  fallocate -l 4G /swapfile
+  fallocate -l 2G /swapfile
   chmod 600 /swapfile
   mkswap /swapfile >/dev/null
   swapon /swapfile

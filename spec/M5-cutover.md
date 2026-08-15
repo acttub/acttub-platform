@@ -26,19 +26,35 @@ ExecStart=/usr/bin/java -jar /svc/acttub/api/acttub-api.jar
 
 ### B. 인스턴스 — dev·운영 **둘 다** 업그레이드가 선행 조건
 
-2026-08-06 실측(SSM):
+2026-08-06 실측(SSM), dev는 2026-08-16 재구축 후 값:
 
 | | 타입 | 메모리 | swap | available | 현재 상주 |
 |---|---|---|---|---|---|
 | **운영 be** `i-08a90c20095d4ecf1` | t2.micro | 954MB | **0** | **396MB** | uvicorn 226MB |
-| dev `i-0f101fb852e26d081` | t2.micro | 954MB | 4GB | 405MB | uvicorn 163MB + next 83MB + caddy 27MB |
+| ✅ dev `i-0f713285b7de18940` | **t3.small** | 1907MB | 2GB | **1214MB** | uvicorn + next + caddy + postgres |
 | 운영 fe `i-06eda45984a6f354e` | t2.micro | — | — | — | Next (이번 변경 없음) |
 
-**운영 be는 dev와 같은 t2.micro이고 swap이 아예 없다.** 여유 396MB에 Spring Boot JVM(실사용 250~400MB)을 넣는 것 자체가 빠듯하고, **§전환 절차가 요구하는 병행 기동(uvicorn 226MB 유지 + JVM)은 물리적으로 불가능하다.** swap이 없으므로 초과 시 OOM killer가 즉시 작동한다.
+### JVM 실사용 실측 (2026-08-16)
+
+`bootJar`를 `-Xmx512m`·워커 off로 띄우고 NMT(`NativeMemoryTracking`)로 측정했다. **`-Xmx`는 힙 상한일 뿐 총 사용량이 아니다**:
+
+| 상태 | committed | 비고 |
+|---|---|---|
+| idle | 428MB | 힙은 104MB만 커밋 |
+| 요청 120건 후 | 462MB | Thread 107 · Metaspace 85 · GC 62 · Symbol 36 · Code 30 |
+| **힙이 상한까지 찼을 때** | **~817MB** | 462 − 104 + 512 |
+
+측정은 arm64(`ThreadStackSize=2048KB`)라 Linux x86_64(1024KB)에서는 Thread가 절반이다 → **Linux 추정 idle 375MB / 최대 ~817MB.**
+
+🔎 **힙 밖 고정 비용이 약 305MB다.** 그래서 `-Xmx`를 낮춰도 t2.micro(available ~390MB)에서는 힙에 쓸 수 있는 여유가 81MB밖에 남지 않아, **어떤 `-Xmx` 값으로도 성립하지 않는다.**
+
+🔎 **swap으로 메우면 안 된다.** GC는 힙 전체를 주기적으로 훑으므로 OS의 "안 쓰는 페이지를 내보낸다"는 전략과 정면으로 충돌해 thrashing이 된다. 실제로 구 dev 인스턴스는 FastAPI만으로도 11일간 스왑아웃 2.67GB·스왑인 1.28GB를 기록했다.
+
+**운영 be는 여전히 t2.micro이고 swap이 아예 없다.** 여유 396MB에 위 실측치를 넣는 것은 불가능하고, **병행 기동(uvicorn 226MB 유지 + JVM)은 물리적으로 성립하지 않는다.** swap이 없으므로 초과 시 OOM killer가 즉시 작동한다.
 
 vCPU도 1개다. JVM 기동 시 CPU 스파이크가 t2.micro의 버스트 크레딧을 소진할 수 있다.
 
-**따라서 dev와 운영 be 둘 다 t3.small(2GB) 이상으로 올린 뒤에야 이 마일스톤을 시작할 수 있다.** 이것은 선택이 아니라 선행 조건이며, 비용이 발생하므로 **사용자 승인 대상**이다.
+**dev는 2026-08-16에 t3.small로 재구축했다(EBS도 30GB→10GB). 운영 be는 아직 남아 있고, 운영 전환 전에 같은 작업이 필요하다.** 비용이 발생하므로 **사용자 승인 대상**이다.
 
 - 힙 상한은 `-Xmx`로 직접 준다 (컨테이너가 아니므로 `MaxRAMPercentage`는 부적합)
 - 업그레이드 후에도 운영 be에 swap을 두는 것은 권하지 않는다 — JVM이 swap에 들어가면 GC가 급격히 악화된다. 메모리를 충분히 주는 쪽이 맞다
