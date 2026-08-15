@@ -1,14 +1,20 @@
 package com.acttub.actingapi.storage;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.net.URI;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.time.Duration;
 
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
+import software.amazon.awssdk.core.ResponseInputStream;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
 import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
@@ -105,11 +111,19 @@ public final class AwsS3Storage implements ObjectStorage, AutoCloseable {
     @Override
     public StoredObjectMetadata downloadToPath(String objectKey, Path destination) {
         resolveCredentials();
-        var response = client.getObject(
-                GetObjectRequest.builder().bucket(bucket).key(objectKey).build(),
-                destination);
-        return new StoredObjectMetadata(
-                response.contentLength(), response.contentType(), response.eTag());
+        // 부르는 쪽이 createTempFile 로 자리를 잡아 두고 그 경로를 넘긴다. Path 를 받는
+        // getObject 오버로드는 대상이 **이미 있으면** FileAlreadyExistsException 으로
+        // 죽으므로 쓸 수 없다(동기 클라이언트에는 덮어쓰기 설정이 없다). 스트림으로 받아
+        // REPLACE_EXISTING 으로 옮긴다 — boto3 의 download_file 과 같은 의미다.
+        try (ResponseInputStream<GetObjectResponse> stream = client.getObject(
+                GetObjectRequest.builder().bucket(bucket).key(objectKey).build())) {
+            GetObjectResponse response = stream.response();
+            Files.copy(stream, destination, StandardCopyOption.REPLACE_EXISTING);
+            return new StoredObjectMetadata(
+                    response.contentLength(), response.contentType(), response.eTag());
+        } catch (IOException exception) {
+            throw new UncheckedIOException(exception);
+        }
     }
 
     @Override
