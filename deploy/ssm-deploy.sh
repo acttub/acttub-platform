@@ -108,11 +108,20 @@ systemctl enable acttub-api-java
 systemctl reset-failed acttub-api-java || true
 systemctl restart acttub-api-java
 # JVM 기동은 파이썬보다 느리다. Flyway 검증까지 끝나야 리슨을 시작한다.
-sleep 20
+#
+# 고정 sleep 은 경계에서 깨진다 — 2026-08-16 배포가 **기동 20.491초 vs sleep 20** 으로
+# 0.5초 차이로 실패했다. 같은 시각 unattended-upgrade 가 겹쳐 CPU 를 먹자 다음 기동은
+# 60초가 걸렸다(t3.small 은 2 vCPU 라 직격이다). 그래서 기다리는 시간을 늘리는 대신
+# **떴는지를 물어본다** — 빠르면 즉시 지나가고, 느리면 최대 90초까지 기다린다.
+for _ in \$(seq 1 45); do
+  curl -fsS --max-time 3 http://127.0.0.1:8080/health >/dev/null 2>&1 && break
+  sleep 2
+done
 systemctl is-active acttub-api-java
 # Type=simple 은 exec 직후 곧바로 active 이므로 is-active 만으로는 크래시루프도
 # 성공으로 읽힌다. 스키마 검증 실패·DB 접속 실패가 여기서 걸린다.
 test "\$(systemctl show -p NRestarts --value acttub-api-java)" = "0"
+# 위 루프가 타임아웃으로 끝났어도 여기까지 온다 — 배포 판정은 이 줄이 한다.
 curl -fsS --max-time 5 http://127.0.0.1:8080/health > /dev/null
 EOF
 )
@@ -129,16 +138,24 @@ printf '[Service]\nEnvironment=FLYWAY_BASELINE_ONLY=true\n' \
   > /etc/systemd/system/acttub-api-java.service.d/flyway-baseline.conf
 systemctl daemon-reload
 systemctl restart acttub-api-java
-sleep 20
+# be-java 와 같은 이유로 고정 sleep 을 쓰지 않는다(위 §be-java 주석 참조).
+for _ in \$(seq 1 45); do
+  curl -fsS --max-time 3 http://127.0.0.1:8080/health >/dev/null 2>&1 && break
+  sleep 2
+done
 journalctl -u acttub-api-java -n 40 --no-pager | grep -i 'FLYWAY_BASELINE_ONLY' || true
 # 기록이 끝나면 즉시 되돌린다. 남겨두면 빈 DB 에서도 V1 을 건너뛰게 된다.
 rm -f /etc/systemd/system/acttub-api-java.service.d/flyway-baseline.conf
 systemctl daemon-reload
 systemctl reset-failed acttub-api-java || true
 systemctl restart acttub-api-java
-sleep 20
+for _ in \$(seq 1 45); do
+  curl -fsS --max-time 3 http://127.0.0.1:8080/health >/dev/null 2>&1 && break
+  sleep 2
+done
 systemctl is-active acttub-api-java
 test "\$(systemctl show -p NRestarts --value acttub-api-java)" = "0"
+curl -fsS --max-time 5 http://127.0.0.1:8080/health > /dev/null
 EOF
 )
     SERVICE=acttub-api-java
