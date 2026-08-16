@@ -1,8 +1,8 @@
-package com.acttub.actingapi.practice;
+package com.acttub.actingapi.practice.adapter.web;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.acttub.actingapi.practice.PracticeSessionDtos.PracticeSessionStatusResponse;
+import com.acttub.actingapi.practice.adapter.web.PracticeSessionDtos.PracticeSessionStatusResponse;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
