@@ -15,10 +15,16 @@ import javax.crypto.spec.SecretKeySpec;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.acttub.actingapi.security.AccessTokenVerifier;
 import com.nimbusds.jwt.SignedJWT;
 
-/** Python {@code auth/jwt.py:JwtService}와 byte-level 호환되는 HS256 JWT. */
-public final class JwtService {
+/**
+ * Python {@code auth/jwt.py:JwtService}와 byte-level 호환되는 HS256 JWT.
+ *
+ * <p>토큰을 <b>발급</b>하는 것은 이 도메인의 일이라 여기 남고, 요청마다 그것을 <b>검증</b>하는
+ * 배관에는 {@link AccessTokenVerifier} 로만 보인다 (ADR-017).
+ */
+public final class JwtService implements AccessTokenVerifier {
     public static final long ACCESS_TTL_SECONDS=30*60;
     public static final long REFRESH_TTL_SECONDS=14*24*60*60;
     private static final Set<String> REQUIRED=Set.of("iss","aud","sub","jti","token_type","iat","exp");
@@ -39,6 +45,8 @@ public final class JwtService {
         }catch(Exception e){throw new IllegalStateException("failed to issue JWT",e);}
     }
     public TokenClaims decodeAccessToken(String token){return decode(token,"access",clock.instant());}
+    /** 배관이 보는 얼굴. 어긋난 토큰을 예외 대신 {@code null} 로 알린다 — 이유는 포트 쪽에 적었다. */
+    @Override public UUID verifyAccessToken(String token){try{return decodeAccessToken(token).userId();}catch(TokenValidationException e){return null;}}
     public TokenClaims decodeRefreshToken(String token){return decode(token,"refresh",clock.instant());}
     public TokenClaims decode(String token,String expectedType,Instant now){
         try{

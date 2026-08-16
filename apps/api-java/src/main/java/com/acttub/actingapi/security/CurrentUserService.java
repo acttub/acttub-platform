@@ -1,4 +1,6 @@
-package com.acttub.actingapi.auth;
+package com.acttub.actingapi.security;
+
+import java.util.UUID;
 
 import com.acttub.actingapi.schema.UserStatus;
 import com.acttub.actingapi.web.ApiException;
@@ -10,34 +12,33 @@ public class CurrentUserService {
 
     public static final String ATTRIBUTE = CurrentUserService.class.getName() + ".user";
 
-    private final JwtService jwt;
-    private final AuthStore store;
+    private final AccessTokenVerifier tokens;
+    private final AuthenticatedUsers users;
 
-    public CurrentUserService(JwtService jwt, AuthStore store) {
-        this.jwt = jwt;
-        this.store = store;
+    public CurrentUserService(AccessTokenVerifier tokens, AuthenticatedUsers users) {
+        this.tokens = tokens;
+        this.users = users;
     }
 
-    public AuthStore.User require(HttpServletRequest request) {
-        if (request.getAttribute(ATTRIBUTE) instanceof AuthStore.User user) {
+    public AuthenticatedUser require(HttpServletRequest request) {
+        if (request.getAttribute(ATTRIBUTE) instanceof AuthenticatedUser user) {
             return user;
         }
         String header = request.getHeader("Authorization");
         if (header == null || !header.regionMatches(true, 0, "Bearer ", 0, 7)) {
             throw new ApiException(401, "invalid or missing access token");
         }
-        try {
-            var claims = jwt.decodeAccessToken(header.substring(7));
-            var user = store.getUser(claims.userId());
-            if (user == null) {
-                throw new ApiException(401, "invalid or missing access token");
-            }
-            requireUsableStatus(user.status());
-            request.setAttribute(ATTRIBUTE, user);
-            return user;
-        } catch (JwtService.TokenValidationException e) {
+        UUID userId = tokens.verifyAccessToken(header.substring(7));
+        if (userId == null) {
             throw new ApiException(401, "invalid or missing access token");
         }
+        AuthenticatedUser user = users.find(userId);
+        if (user == null) {
+            throw new ApiException(401, "invalid or missing access token");
+        }
+        requireUsableStatus(user.status());
+        request.setAttribute(ATTRIBUTE, user);
+        return user;
     }
 
     /**
@@ -57,7 +58,7 @@ public class CurrentUserService {
         }
     }
 
-    public AuthStore.User optional(HttpServletRequest request) {
+    public AuthenticatedUser optional(HttpServletRequest request) {
         return request.getHeader("Authorization") == null ? null : require(request);
     }
 }

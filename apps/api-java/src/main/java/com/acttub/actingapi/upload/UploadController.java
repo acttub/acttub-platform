@@ -8,7 +8,7 @@ import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
 
-import com.acttub.actingapi.auth.AuthDependencies;
+import com.acttub.actingapi.security.AuthDependencies;
 import com.acttub.actingapi.schema.UploadStatus;
 import com.acttub.actingapi.storage.ObjectStorage;
 import com.acttub.actingapi.storage.NoCredentialsError;

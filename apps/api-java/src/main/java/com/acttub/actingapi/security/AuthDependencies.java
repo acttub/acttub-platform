@@ -1,4 +1,4 @@
-package com.acttub.actingapi.auth;
+package com.acttub.actingapi.security;
 
 import com.acttub.actingapi.web.ApiException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -14,31 +14,31 @@ public class AuthDependencies {
 
     private final CurrentUserService current;
     private final FixedWindowRateLimiter limiter;
-    private final AuthStore store;
+    private final AuthenticatedUsers users;
 
     public AuthDependencies(
             CurrentUserService current,
             FixedWindowRateLimiter limiter,
-            AuthStore store) {
+            AuthenticatedUsers users) {
         this.current = current;
         this.limiter = limiter;
-        this.store = store;
+        this.users = users;
     }
 
-    public AuthStore.User currentUser(HttpServletRequest request) {
+    public AuthenticatedUser currentUser(HttpServletRequest request) {
         return current.require(request);
     }
 
-    public AuthStore.User optionalUser(HttpServletRequest request) {
+    public AuthenticatedUser optionalUser(HttpServletRequest request) {
         return current.optional(request);
     }
 
-    public AuthStore.User rateLimitedUser(HttpServletRequest request) {
+    public AuthenticatedUser rateLimitedUser(HttpServletRequest request) {
         if (request != null
-                && request.getAttribute(RATE_LIMITED_ATTRIBUTE) instanceof AuthStore.User user) {
+                && request.getAttribute(RATE_LIMITED_ATTRIBUTE) instanceof AuthenticatedUser user) {
             return user;
         }
-        AuthStore.User user = currentUser(request);
+        AuthenticatedUser user = currentUser(request);
         if (!limiter.allow(user.id().toString(), 60)) {
             throw new ApiException(429, "rate limit exceeded");
         }
@@ -48,13 +48,13 @@ public class AuthDependencies {
         return user;
     }
 
-    public AuthStore.User consentedUser(HttpServletRequest request) {
+    public AuthenticatedUser consentedUser(HttpServletRequest request) {
         if (request != null
-                && request.getAttribute(CONSENTED_ATTRIBUTE) instanceof AuthStore.User user) {
+                && request.getAttribute(CONSENTED_ATTRIBUTE) instanceof AuthenticatedUser user) {
             return user;
         }
-        AuthStore.User user = rateLimitedUser(request);
-        if (store.hasPendingConsents(user.id())) {
+        AuthenticatedUser user = rateLimitedUser(request);
+        if (users.hasPendingConsents(user.id())) {
             throw new ApiException(403, "consent_required");
         }
         if (request != null) {

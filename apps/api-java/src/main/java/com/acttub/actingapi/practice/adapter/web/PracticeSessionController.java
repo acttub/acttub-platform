@@ -5,7 +5,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-import com.acttub.actingapi.auth.AuthDependencies;
+import com.acttub.actingapi.security.AuthDependencies;
 import com.acttub.actingapi.practice.adapter.web.PracticeSessionDtos.ObservationPackResponse;
 import com.acttub.actingapi.practice.adapter.web.PracticeSessionDtos.PracticeSessionAcceptedResponse;
 import com.acttub.actingapi.practice.adapter.web.PracticeSessionDtos.PracticeSessionCreateResponse;

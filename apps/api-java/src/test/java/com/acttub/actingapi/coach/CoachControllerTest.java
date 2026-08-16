@@ -14,8 +14,8 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
-import com.acttub.actingapi.auth.AuthDependencies;
-import com.acttub.actingapi.auth.AuthStore;
+import com.acttub.actingapi.security.AuthDependencies;
+import com.acttub.actingapi.security.AuthenticatedUser;
 import com.acttub.actingapi.report.OwnedReportSource;
 import com.acttub.actingapi.coach.CoachDtos.CoachConfirmReq;
 import com.acttub.actingapi.coach.CoachDtos.CoachReplyReq;
@@ -68,7 +68,7 @@ class CoachControllerTest {
         controller = new CoachController(
                 sessions, coach, reports, reportOperations, operations, responses, auth, mapper, memory);
         when(auth.consentedUser(request)).thenReturn(
-                new AuthStore.User(USER_ID, "coach@test", UserStatus.ACTIVE));
+                new AuthenticatedUser(USER_ID, "coach@test", UserStatus.ACTIVE));
         when(operations.requestId(any())).thenReturn(REQUEST_ID);
         when(operations.fingerprint(anyString(), any())).thenReturn("0".repeat(64));
         when(operations.begin(any(), any(), any(), anyString(), anyString()))

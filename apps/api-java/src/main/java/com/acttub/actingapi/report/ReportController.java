@@ -3,7 +3,7 @@ package com.acttub.actingapi.report;
 import java.util.Optional;
 import java.util.UUID;
 
-import com.acttub.actingapi.auth.AuthDependencies;
+import com.acttub.actingapi.security.AuthDependencies;
 import com.acttub.actingapi.ledger.LeaseOwnershipException;
 import com.acttub.actingapi.ledger.SyncOperationBegin;
 import com.acttub.actingapi.ledger.SyncOperationClaim;

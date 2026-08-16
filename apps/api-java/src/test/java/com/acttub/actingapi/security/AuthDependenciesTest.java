@@ -1,4 +1,4 @@
-package com.acttub.actingapi.auth;
+package com.acttub.actingapi.security;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -13,19 +13,26 @@ import org.junit.jupiter.api.Test;
 class AuthDependenciesTest {
     @Test
     void fourCompositionsPreserveOptionalRateAndConsentSemantics() {
-        var user = new AuthStore.User(UUID.randomUUID(), null, UserStatus.ACTIVE);
+        var user = new AuthenticatedUser(UUID.randomUUID(), null, UserStatus.ACTIVE);
         CurrentUserService current = new CurrentUserService(null, null) {
             @Override
-            public AuthStore.User optional(HttpServletRequest request) {
+            public AuthenticatedUser optional(HttpServletRequest request) {
                 return null;
             }
 
             @Override
-            public AuthStore.User require(HttpServletRequest request) {
+            public AuthenticatedUser require(HttpServletRequest request) {
                 return user;
             }
         };
-        AuthStore store = new AuthStore(null, null) {
+        // 사용자를 어디서 읽어오는지 이 검사는 모른다 — 게이트가 auth 없이 선다는 것이
+        // 세 갈래 분해의 실증이다 (SOMA-397 7단계).
+        AuthenticatedUsers users = new AuthenticatedUsers() {
+            @Override
+            public AuthenticatedUser find(UUID id) {
+                return user;
+            }
+
             @Override
             public boolean hasPendingConsents(UUID ignored) {
                 return true;
@@ -33,7 +40,7 @@ class AuthDependenciesTest {
         };
         HttpServletRequest request = null;
         FixedWindowRateLimiter limiter = new FixedWindowRateLimiter(() -> 1L);
-        AuthDependencies dependencies = new AuthDependencies(current, limiter, store);
+        AuthDependencies dependencies = new AuthDependencies(current, limiter, users);
 
         assertThat(dependencies.optionalUser(request)).isNull();
         assertThat(dependencies.currentUser(request)).isEqualTo(user);

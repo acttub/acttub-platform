@@ -8,7 +8,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
 
-import com.acttub.actingapi.auth.AuthDependencies;
+import com.acttub.actingapi.security.AuthDependencies;
 import com.acttub.actingapi.web.ApiException;
 import com.acttub.actingapi.web.ApiValidationException;
 import com.acttub.actingapi.web.PythonText;

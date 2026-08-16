@@ -6,7 +6,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Pattern;
 
-import com.acttub.actingapi.auth.AuthDependencies;
+import com.acttub.actingapi.security.AuthDependencies;
 import com.acttub.actingapi.schema.ActorMemoryField;
 import com.acttub.actingapi.memory.MemoryDtos.MemoryItem;
 import com.acttub.actingapi.memory.MemoryDtos.MemoryResponse;

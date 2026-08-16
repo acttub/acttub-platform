@@ -13,8 +13,8 @@ import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
 
-import com.acttub.actingapi.auth.AuthDependencies;
-import com.acttub.actingapi.auth.AuthStore;
+import com.acttub.actingapi.security.AuthDependencies;
+import com.acttub.actingapi.security.AuthenticatedUser;
 import com.acttub.actingapi.schema.UserStatus;
 import com.acttub.actingapi.ledger.SyncOperationBegin;
 import com.acttub.actingapi.ledger.SyncOperationClaim;
@@ -64,7 +64,7 @@ class ReportControllerTest {
                 syncOperations,
                 responses);
         when(auth.consentedUser(request)).thenReturn(
-                new AuthStore.User(USER_ID, "report@test", UserStatus.ACTIVE));
+                new AuthenticatedUser(USER_ID, "report@test", UserStatus.ACTIVE));
         when(reportSource.getOwnedReportSource(USER_ID, SESSION_ID)).thenReturn(source());
         when(syncOperations.requestId(any())).thenReturn(CLAIM.requestId());
         when(syncOperations.fingerprint(anyString(), any())).thenReturn("0".repeat(64));

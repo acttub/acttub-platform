@@ -36,9 +36,9 @@ class PackageLayerTest {
      * 네 층으로 재편이 끝난 도메인. 옮긴 도메인을 여기 추가하는 것이 규칙 확대의 전부다.
      *
      * <p>아직 못 거는 규칙이 하나 있다 — <b>feature끼리 직접 import 금지</b>. {@code operation}은
-     * 6단계에서 포트 뒤로 갔지만 {@code practice}가 여전히 {@code auth}(7단계)·{@code storage}·
-     * {@code web}(8단계)을 직접 참조하므로, 그 셋이 끝난 뒤에 붙는다. 13단계에서 한정을 풀 때
-     * 함께 넣는다.
+     * 6단계에서, {@code auth}는 7단계에서 포트 뒤로 갔지만 {@code practice}가 여전히
+     * {@code storage}·{@code web}을 직접 참조하므로, 그 둘이 묶음으로 간 뒤(8단계)에 붙는다.
+     * 13단계에서 한정을 풀 때 함께 넣는다.
      */
     private static final List<String> MIGRATED_FEATURES = List.of("practice");
 
