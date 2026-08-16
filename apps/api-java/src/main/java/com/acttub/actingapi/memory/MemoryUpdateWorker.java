@@ -13,7 +13,6 @@ import java.util.UUID;
 
 import com.acttub.actingapi.schema.ActorMemoryField;
 import com.acttub.actingapi.llm.TextGenerator;
-import com.acttub.actingapi.operation.ExternalOperationClaimer;
 import com.acttub.actingapi.operation.LeaseOwnershipException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -39,7 +38,7 @@ public class MemoryUpdateWorker {
     private static final Logger LOG = LoggerFactory.getLogger(MemoryUpdateWorker.class);
 
     private final MemoryStore memory;
-    private final ExternalOperationClaimer claimer;
+    private final MemoryUpdateQueue queue;
     private final JdbcTemplate jdbc;
     private final ObjectMapper mapper;
     private final TextGenerator generator;
@@ -47,13 +46,13 @@ public class MemoryUpdateWorker {
 
     public MemoryUpdateWorker(
             MemoryStore memory,
-            ExternalOperationClaimer claimer,
+            MemoryUpdateQueue queue,
             JdbcTemplate jdbc,
             ObjectMapper mapper,
             TextGenerator generator,
             Clock clock) {
         this.memory = memory;
-        this.claimer = claimer;
+        this.queue = queue;
         this.jdbc = jdbc;
         this.mapper = mapper;
         this.generator = generator;
@@ -67,7 +66,7 @@ public class MemoryUpdateWorker {
     /** 큐에서 하나 집어 처리한다. 집을 게 없으면 false. */
     public boolean runOnce(Instant now) {
         UUID leaseToken = UUID.randomUUID();
-        UUID operationId = claimer.claimNext("memory_update", leaseToken, DEFAULT_LEASE, now);
+        UUID operationId = queue.claimNext(leaseToken, DEFAULT_LEASE, now);
         if (operationId == null) {
             return false;
         }
@@ -80,9 +79,8 @@ public class MemoryUpdateWorker {
         } catch (RuntimeException failure) {
             LOG.warn("기억 갱신 실패: {}", operationId, failure);
             try {
-                // failSession=false — 연습 자체는 건드리지 않는다. 기억이 없다고 연습이
-                // 실패한 것은 아니다(원본 `fail_external_operation` 의 기본값과 같다).
-                claimer.fail(operationId, leaseToken, "memory_update_failed", false, now);
+                // 연습 자체는 건드리지 않는다 — 그 선택은 큐 계약에 적혀 있다.
+                queue.fail(operationId, leaseToken, "memory_update_failed", now);
             } catch (LeaseOwnershipException lostWhileFailing) {
                 LOG.warn("기억 갱신 실패 처리 중 lease 를 잃었다: {}", operationId);
             }
