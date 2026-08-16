@@ -49,6 +49,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--openapi-diff", nargs=2, metavar=("A", "B"))
     parser.add_argument("--dump-inventory", metavar="DIR")
     parser.add_argument("--rebuild-schemas", action="store_true")
+    parser.add_argument(
+        "--prepare-schemas",
+        action="store_true",
+        help="스키마 두 벌만 만들고 끝낸다 (java 인스턴스 기동 전에 돌린다)",
+    )
     parser.add_argument("--verbose", action="store_true")
     return parser
 
@@ -63,6 +68,8 @@ def main(argv=None) -> int:
         return _check_manifest()
     if args.dump_inventory:
         return _dump_inventory(Path(args.dump_inventory))
+    if args.prepare_schemas:
+        return _prepare_schemas(args)
     if args.self_test:
         return _self_test(args)
     if args.coverage:
@@ -70,6 +77,23 @@ def main(argv=None) -> int:
     if args.check_drift:
         return _check_drift(args)
     return _run(args)
+
+
+def _prepare_schemas(args) -> int:
+    """스키마 두 벌만 만들고 끝낸다.
+
+    java 인스턴스는 contract 프로파일에서 flyway 를 끄고 `ddl-auto: validate` 로 뜨므로
+    **스키마가 먼저 있어야 한다** — 없는 상태로 띄우면 셋 다 검증 실패로 죽는다. 그렇다고
+    스키마를 만들자고 전 시나리오 실행을 한 번 돌리는 것은 의도가 드러나지 않는다.
+    """
+    started = time.monotonic()
+    runner.prepare_schemas(force=args.rebuild_schemas)
+    elapsed = time.monotonic() - started
+    print(
+        f"스키마 준비: {cfg.BASELINE_SCHEMA} · {cfg.TARGET_SCHEMA} "
+        f"(alembic head, 소요 {elapsed:.1f}초)"
+    )
+    return 0
 
 
 # --- 기본 실행 -------------------------------------------------------------

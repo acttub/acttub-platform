@@ -19,6 +19,7 @@ $PY -m contract_harness --self-test                           # 변조 감지 �
 $PY -m contract_harness --baseline fastapi --target java --only /health \
     --java-base-url http://127.0.0.1:8099
 $PY -m contract_harness --coverage                            # 미실행 operation 보고
+$PY -m contract_harness --prepare-schemas                     # 스키마 2벌만 만들고 끝
 $PY -m contract_harness --check-manifest                      # AST inventory ↔ manifest
 $PY -m contract_harness --openapi-diff a.json b.json          # diff 리포터 단독
 $PY -m contract_harness --dump-inventory inventory            # 기대값 fixture 재생성
@@ -31,10 +32,10 @@ Java 전체 판정은 Spring profile·환경변수가 기동 시 고정되므로
 기본 인스턴스에는 `ADMIN_OPS_TOKEN`을 주지 않고, admin 인스턴스에만 준다.
 nostorage 인스턴스는 `contract,nostorage` profile로 띄운다.
 
-⚠ **스키마를 먼저 만든다.** `harness_target`은 하네스가 실행될 때 만들어지는데(`runner.py:prepare_schemas`)
-contract 프로파일은 flyway를 끄고 `ddl-auto: validate`로 뜨므로, 스키마가 없는 상태에서 인스턴스를
-먼저 띄우면 셋 다 검증 실패로 죽는다. **위의 `--baseline fastapi --target fastapi`를 한 번 돌린 뒤**
-아래로 간다.
+⚠ **스키마를 먼저 만든다.** contract 프로파일은 flyway를 끄고 `ddl-auto: validate`로 뜨므로,
+스키마가 없는 상태에서 인스턴스를 먼저 띄우면 셋 다 검증 실패로 죽는다. `--prepare-schemas`가
+그것만 한다(`--rebuild-schemas`를 함께 주면 강제 재생성). 전 시나리오 실행도 같은 일을 하지만,
+스키마를 만들자고 한 판을 통째로 돌리는 것은 의도가 드러나지 않는다.
 
 ```bash
 # 이 블록은 tools/contract-harness 에서 돈다(위 $PY 와 같은 기준).
@@ -55,6 +56,8 @@ export GEMINI_MODEL=harness-summary-model
 export HARNESS_AUTH_PROVIDER_FIXTURE="$FIX/auth_providers.json"
 export HARNESS_S3_FIXTURE="$FIX/s3.json"
 export HARNESS_LLM_FIXTURE="$FIX/llm.json"
+
+$PY -m contract_harness --prepare-schemas   # ⚠ 인스턴스보다 먼저
 
 java -Dacttub.dotenv.enabled=false -jar $JAR \
     --spring.profiles.active=contract --server.port=8099 &
@@ -87,6 +90,12 @@ contract 프로파일에는 진짜 LLM·분석 체인이 아예 서지 않는다
 
 세 인스턴스는 같은 `HARNESS_SCHEMA`를 쓰되 시나리오가 순차 실행되므로, 하네스의
 truncate·재시드와 `reset-state` 경계를 그대로 공유한다.
+
+**이 절차가 곧 CI 관문이다.** `.github/workflows/ci.yml`의 `contract-harness-java` 잡이
+PR마다 같은 순서를 돈다 — `bootJar` → `--prepare-schemas` → 세 인스턴스 → `--target java`.
+로컬에서 이 절을 바꾸면 그 잡도 같이 고친다. 실패하면 세 인스턴스의 앱 로그가 아티팩트로
+올라온다(diff만 보고는 원인을 못 좁힌다). **재시도는 넣지 않는다** — 재시도를 깔면 남은
+비결정성을 덮어 관문의 의미가 사라진다.
 
 - DB: `HARNESS_DATABASE_URL`(기본 `postgresql://acttub:acttub@localhost:55432/harness_claude`).
   `harness_baseline`·`harness_target` 스키마 두 벌을 만들어 alembic head까지 올린다.

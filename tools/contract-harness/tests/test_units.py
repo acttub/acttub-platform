@@ -642,6 +642,31 @@ def test_java_conditional_profiles_require_and_select_separate_instances():
         _java_profile_base_urls(args, [BY_NAME["no-storage"]])
 
 
+def test_prepare_schemas_stops_before_running_scenarios(monkeypatch):
+    """`--prepare-schemas` 는 스키마만 만들고 시나리오로 넘어가지 않는다.
+
+    java 인스턴스는 contract 프로파일에서 `ddl-auto: validate` 로 뜨므로 스키마가 **먼저**
+    있어야 한다. CI 잡은 이 플래그로 스키마만 만든 뒤 세 인스턴스를 띄운다. 분기가 `_run`
+    으로 새면 아직 아무 인스턴스도 없는 상태에서 java 전량 실행이 돌아 잡이 통째로 죽는다.
+    """
+    from contract_harness import cli
+
+    monkeypatch.setenv("HARNESS_LOGS", "1")  # _quiet_logs 의 전역 로깅 차단을 피한다
+    forced = []
+    monkeypatch.setattr(
+        cli.runner, "prepare_schemas", lambda *, force: forced.append(force)
+    )
+    monkeypatch.setattr(
+        cli.runner,
+        "all_scenarios",
+        lambda *args, **kwargs: pytest.fail("시나리오 실행으로 넘어갔다"),
+    )
+
+    assert cli.main(["--prepare-schemas"]) == 0
+    assert cli.main(["--prepare-schemas", "--rebuild-schemas"]) == 0
+    assert forced == [False, True]
+
+
 def test_seed_consent_documents_match_committed_manifest():
     """harness 시드와 `consent_docs/manifest.json` 은 같은 문서 집합이어야 한다.
 
