@@ -71,6 +71,14 @@ ln -sfn ../api/acting-api/.env .env    # 최초 1회. 파이썬과 같은 파일
 - `baseline-on-migrate: false` — 기존 dev·운영 DB의 baseline 기록은 애플리케이션이 아니라 별도 명령으로 합니다. 여기서 켜면 "빈 DB가 아닌데 V1을 건너뛰는" 판정을 애플리케이션이 조용히 내립니다.
 - **`V1__baseline.sql`과 `alembic-schema-fingerprint.txt`는 alembic 결과의 스냅샷입니다.** `apps/api`에 마이그레이션이 추가되면 둘 다 낡는데, `FlywayBaselineTest`는 **이 둘을 서로 비교하므로 둘 다 낡아도 초록입니다.** 스키마가 바뀌는 PR마다 `scripts/regen-baseline.sh`를 돌리고 결과를 커밋합니다.
 
+## 패키지 구조는 재편 중입니다 (SOMA-397)
+
+도메인별 헥사고날로 옮기는 중이고 **`practice`만 끝났습니다**(ADR-017). 옮긴 도메인은 네 층으로 섭니다 — `domain`(규칙을 담은 Domain Model, 프레임워크 import 금지) · `app`(서비스와 포트 선언) · `adapter`(`web`·`db`·`storage`·`sched`) · `schema`(Schema Entity). 나머지 열세 도메인은 아직 평평하고, 그게 정상입니다.
+
+- 층 방향은 `PackageLayerTest`가 강제합니다(순환은 `PackageCycleTest`가 따로 봅니다). 서브패키지로 갈리면서 저장소 클래스를 막아주던 package-private 보호가 옅어졌으므로 **이 검사가 구조를 지키는 유일한 장치입니다.**
+- ⚠ **검사 대상이 `MIGRATED_FEATURES` 목록으로 한정돼 있습니다.** 도메인을 옮기면 그 목록에 이름을 추가해야 규칙이 걸립니다 — 빠뜨리면 새로 옮긴 도메인이 아무 검사 없이 통과합니다. 안 옮긴 도메인이 빨간불을 내지 않게 하려는 한정이라, 이 대가는 의도된 것입니다.
+- 아직 못 거는 규칙이 하나 있습니다 — **feature끼리 직접 import 금지**. `practice`가 여전히 `operation`·`auth`·`storage`·`web`을 직접 참조합니다. 그 셋을 포트 뒤로 보낸 뒤(SOMA-397 6·7·8단계) 붙습니다.
+
 ## 계약 재현에서 자주 깨지는 지점
 
 - Jackson `default-property-inclusion: always` — null 필드를 키째 실어보냅니다. 전역 `NON_NULL`을 켜지 않습니다.
