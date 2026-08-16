@@ -85,7 +85,7 @@ ln -sfn ../api/acting-api/.env .env    # 최초 1회. 파이썬과 같은 파일
 - **`auth`는 7단계에서 세 갈래로 갈렸습니다.** 요청 필터·동의 게이트·레이트리미터가 **`security`**(배관)로, OIDC 검증과 프로바이더 레지스트리가 **`oidc`**(외부 연동)로 나갔고, `auth`에는 로그인·토큰 발급·가입 출처만 남았습니다. 여덟 도메인은 이제 `auth`가 아니라 `security`를 봅니다 — 배관을 보는 것은 정상이고, 금지되는 것은 feature끼리의 직접 import입니다.
   - 🔥 **방향이 뒤집힌 경우입니다.** 6단계는 feature가 feature에 포트를 요구했지만, 여기서는 **배관이 feature에 요구합니다** — `security`가 `AccessTokenVerifier`·`AuthenticatedUsers`를 선언하고 `auth`의 `JwtService`·`AuthStore`가 그것을 **직접 구현**합니다(위임 어댑터를 끼우지 않습니다). 간선은 `auth` → `security` 한 방향뿐입니다.
   - 교환 타입 `AuthenticatedUser`가 `security`에 사는 이유도 같습니다. 이것이 `auth`에 있으면 받는 여덟이 전부 `auth`를 import하게 되어, 포트를 어디에 선언하든 간선이 남습니다.
-  - `oidc` 쪽은 아직 포트가 아니라 `auth`가 직접 부릅니다. 간선이 `auth` → `oidc` 한 방향이라 순환은 없고, **어댑터 층이 외부 연동을 직접 import하는 것은 `practice/adapter/storage`와 같은 형태입니다.** 포트로 감싸는 것은 `auth`가 네 층으로 설 때입니다 — 그 단계가 13단계 목록에 빠져 있습니다(티켓 코멘트 참조).
+  - `oidc` 쪽은 아직 포트가 아니라 `auth`가 직접 부릅니다. 간선이 `auth` → `oidc` 한 방향이라 순환은 없고, **어댑터 층이 외부 연동을 직접 import하는 것은 `practice/adapter/storage`와 같은 형태입니다.** 포트로 감싸는 것은 `auth`가 네 층으로 설 때입니다 — **SOMA-397 12단계**입니다(`consent`와 같은 단계인 이유는 `auth/schema` 소유권이 겹쳐서입니다).
   - ⚠ **`security`·`oidc`가 최상위에 임시로 있는 것은 의도된 것입니다.** 지금 `platform.`·`integration.` 접두어를 붙이면 `PackageCycleTest`의 슬라이스 매처가 조각들을 한 덩어리로 묶어 **순환 검사가 조용히 0이 됩니다**(ADR-017). 묶음 이사와 매처 수정은 8단계가 함께 합니다.
 
 ## 계약 재현에서 자주 깨지는 지점
