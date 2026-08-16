@@ -29,7 +29,7 @@ import org.junit.jupiter.params.provider.MethodSource;
  * <p>패턴을 {@code ..practice.domain..} 형태로 쓰는 이유 — 최상위가 {@code feature.practice}로
  * 이사해도(도메인 배치가 끝난 뒤의 마지막 이사) 매칭이 그대로 성립한다. 여기에 절대 경로를
  * 박으면 그 이사가 이 파일을 함께 고치게 만든다. 8단계가 {@code platform}·{@code integration}을
- * 세울 때 이 파일이 안 바뀐 것이 그 증거다.
+ * 세울 때 이 파일의 <b>규칙</b>은 한 줄도 안 바뀌었다(주석만 손봤다).
  */
 class PackageLayerTest {
 

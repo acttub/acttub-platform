@@ -1,4 +1,4 @@
-package com.acttub.actingapi;
+package com.acttub.actingapi.platform.config;
 
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.annotation.EnableScheduling;

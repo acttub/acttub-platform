@@ -4,8 +4,10 @@ import static com.tngtech.archunit.library.dependencies.SlicesRuleDefinition.sli
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
 
@@ -31,7 +33,9 @@ import org.junit.jupiter.api.Test;
  * 하나로만</b> 가른다. {@code platform} 접두어가 붙는 순간 그 아래 일곱 조각이 슬라이스
  * <i>하나</i>로 뭉쳐, 조각들 사이의 순환이 검사에서 사라진다 — 그런데도 테스트는 초록이다
  * (ADR-017의 ⚠). 그래서 {@link #BY_UNIT}이 묶음 접두어를 한 겹 벗겨 <b>재편 전과 같은 단위</b>로
- * 가른다. 묶음이 늘면 {@link #BUNDLES}에 이름을 더하는 것이 전부다.
+ * 가른다. 묶음이 늘면 {@link #BUNDLES}에 이름을 더하는 것이 전부이고, <b>그것을 빠뜨리는 것이
+ * 이 파일의 진짜 실패 모드다</b> — 순환은 그것을 못 잡으므로 {@link #everyBundleIsInTheList}가
+ * 따로 잡는다.
  *
  * <p>🔎 <b>묶음 자체를 슬라이스로 삼는 것은 답이 아니었다.</b> 그렇게 하면 {@code platform ↔ analysis}
  * 같은 순환이 셋 잡히는데, 전부 {@code platform/harness}가 도메인을 참조하는 데서 온다 —
@@ -51,10 +55,17 @@ class PackageCycleTest {
     private static final List<String> BUNDLES = List.of("platform", "integration");
 
     /**
+     * 재편이 끝난 도메인이 갖는 층 이름(ADR-017). {@link #everyBundleIsInTheList}가 <b>묶음과
+     * 도메인을 가르는 데</b> 쓴다 — 최상위 패키지가 층이 아닌 하위 패키지를 거느리면 그것은
+     * 도메인이 아니라 묶음이다.
+     */
+    private static final Set<String> LAYERS = Set.of("domain", "app", "adapter", "schema");
+
+    /**
      * 슬라이스 = 묶음 안 한 조각({@code platform.web}) 또는 최상위 패키지 하나({@code analysis}).
      *
-     * <p>루트 직속 클래스({@code ActingApiApplication}·{@code SchedulingConfiguration})는 뺀다 —
-     * 종전 {@code (*)..} 매처도 이들을 잡지 않았고, 기동 진입점이라 어느 조각에도 속하지 않는다.
+     * <p>루트 직속은 {@code ActingApiApplication} 하나뿐이고 여기서 뺀다 — 종전 {@code (*)..}
+     * 매처도 그것을 잡지 않았고, 스캔 기점이라 어느 조각에도 속하지 않는다.
      */
     private static final SliceAssignment BY_UNIT = new SliceAssignment() {
 
@@ -77,10 +88,12 @@ class PackageCycleTest {
             return Optional.empty();
         }
         String[] parts = packageName.substring(ROOT.length() + 1).split("\\.");
-        if (!BUNDLES.contains(parts[0])) {
+        if (!BUNDLES.contains(parts[0]) || parts.length < 2) {
+            // 묶음 직속 클래스(...platform.Foo)는 묶음 이름 자체를 조각으로 삼는다. 지금은 그런
+            // 클래스가 없지만, 무시하면 검사에서 조용히 빠지는 자리가 하나 생긴다.
             return Optional.of(parts[0]);
         }
-        return parts.length < 2 ? Optional.empty() : Optional.of(parts[0] + "." + parts[1]);
+        return Optional.of(parts[0] + "." + parts[1]);
     }
 
     private static final JavaClasses CLASSES = new ClassFileImporter()
@@ -123,6 +136,49 @@ class PackageCycleTest {
             assertThat(units.stream().filter(unit -> unit.startsWith(bundle + ".")).toList())
                     .as("%s 묶음이 조각으로 안 갈렸다 — 할당이 빗나갔거나 이사가 덜 끝났다", bundle)
                     .hasSizeGreaterThan(1);
+        }
+    }
+
+    /**
+     * <b>묶음이 목록에서 빠지지 않았는지</b> 확인한다 — 이 파일의 진짜 실패 모드다.
+     *
+     * <p>위 {@link #everyBundleActuallySplitsIntoSlices}는 <b>목록에 있는 것</b>만 돌므로 누락된
+     * 묶음은 순회 대상조차 아니고, 순환 검사도 그 묶음이 도메인과 <b>양방향</b> 간선을 가질 때만
+     * 빨간불이 난다 — {@code integration}처럼 앱 안으로 나가는 간선이 없는 묶음은 뭉쳐도 사이클에
+     * 끼지 못해 <b>조용히 초록</b>이다(실측했다). 그래서 순환에 기대지 않고 여기서 직접 잡는다.
+     *
+     * <p>가르는 기준은 <b>하위 패키지 이름</b>이다. 재편이 끝난 도메인은 {@link #LAYERS}만
+     * 거느리므로({@code practice.domain}·{@code practice.app}…) 통과하고, 층이 아닌 것을 거느리면
+     * 그것은 묶음이다({@code platform.web}·{@code integration.oidc}). 아직 평평한 도메인과 공용
+     * {@code schema}는 하위 패키지가 없어 통과한다.
+     *
+     * <p>🔎 <b>13단계 {@code feature} 이사가 정확히 이 자리에 걸린다.</b> {@code platform/config}·
+     * {@code platform/harness}는 도메인으로 <i>들어가는</i> 간선만 갖고 도메인이 그것을 되짚지
+     * 않으므로, 접두어를 붙이고 목록을 빠뜨리면 도메인 열넷이 한 슬라이스로 뭉친 채 순환 검사가
+     * 초록이 된다. 그때 빨간불을 내는 것은 이 검사다.
+     */
+    @Test
+    void everyBundleIsInTheList() {
+        Map<String, Set<String>> childrenByTopLevel = new TreeMap<>();
+        for (JavaClass javaClass : CLASSES) {
+            String packageName = javaClass.getPackageName();
+            if (!packageName.startsWith(ROOT + ".")) {
+                continue;
+            }
+            String[] parts = packageName.substring(ROOT.length() + 1).split("\\.");
+            Set<String> children = childrenByTopLevel.computeIfAbsent(parts[0], key -> new TreeSet<>());
+            if (parts.length >= 2) {
+                children.add(parts[1]);
+            }
+        }
+
+        for (Map.Entry<String, Set<String>> entry : childrenByTopLevel.entrySet()) {
+            if (BUNDLES.contains(entry.getKey())) {
+                continue;
+            }
+            assertThat(entry.getValue())
+                    .as("%s 가 층이 아닌 하위 패키지를 거느린다 — 묶음이면 BUNDLES 에 이름을 더해라", entry.getKey())
+                    .allMatch(LAYERS::contains);
         }
     }
 }
