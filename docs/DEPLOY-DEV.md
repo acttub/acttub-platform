@@ -73,13 +73,16 @@ GitHub Environments의 variables 값뿐이다.
 
 ### 1-3. EC2
 
-- Ubuntu 24.04, **t2.micro**(프리티어). 1GB뿐이라 **swap 4GB가 필수**다(2-1) — Next·
-  uvicorn·PostgreSQL 셋이 상주하는 데다 배포마다 `uv sync`가 피크를 만든다. 메모리를
-  더 쓸 수 있으면 t3.small 이상이 편하다
+- Ubuntu 24.04, **t3.small**(2GB). 2026-08-16 이전에는 t2.micro였는데, Spring Boot
+  이관(`SOMA-287`)이 JVM을 8080에 나란히 띄우려면 최소 700MB가 더 필요해 올렸다.
+  실측은 `spec/M5-cutover.md` §B에 있다
+- **swap 2GB**(2-1). 배포마다 도는 `uv sync`가 피크를 만들어 완충은 필요하지만, JVM이
+  swap에 들어가면 GC가 힙 전체를 디스크에서 훑어 응답이 초 단위로 튄다. t2.micro
+  시절에는 4GB였다
 - 위 서브넷·보안그룹, IAM 인스턴스 프로파일은 아래 1-5
 - **키페어 없이 만든다.** 접속은 SSM으로 하므로 필요 없다
-- EBS gp3 **30GB** (프리티어 한도). 기본 8GB에 swap 4GB를 잡으면 남는 공간이 2GB도
-  안 된다 — venv·PostgreSQL 데이터·배포 아티팩트가 들어갈 자리가 없다
+- EBS gp3 **10GB**. 실사용은 약 5GB다(OS·런타임 2.5 + swap 2 + 앱 0.6). 예전 30GB는
+  프리티어 한도를 그대로 잡은 것이라 70%가 놀았다
 - **Elastic IP를 붙인다.** 서브넷의 자동 할당은 이미 실행 중인 인스턴스에 소급되지
   않고, 고정 IP라야 Cloudflare A 레코드가 재부팅에도 안전하다
 - 태그 `env=dev`, Name `acttub-dev`
@@ -180,7 +183,7 @@ aws ssm send-command --instance-ids <dev 인스턴스 ID> \
   --query 'Command.CommandId' --output text
 ```
 
-t2.micro라 5~10분 걸린다. 결과는 명령 ID로 확인한다.
+t3.small에서 90초쯤 걸린다(t2.micro 시절에는 5~10분이었다). 결과는 명령 ID로 확인한다.
 
 ```bash
 aws ssm get-command-invocation --command-id <명령 ID> \
@@ -286,12 +289,40 @@ DNS를 옮기기 전에는 퍼블릭 IP로 확인한다.
 6. 구글 로그인 → 영상 업로드 → 분석 실행
 7. `sudo -u ubuntu env DATABASE_URL=... /usr/local/bin/uv run --no-dev alembic current` — 리비전 확인
 
-## 6. DNS 전환과 기존 서버 폐기
+## 6. 인스턴스 교체 (재구축)
 
-1. 위 검증을 모두 통과시킨다
-2. Cloudflare에서 `dev.acttub.com` A 레코드를 새 인스턴스 퍼블릭 IP로 변경
-3. `curl https://dev.acttub.com/health` 확인. 문제가 생기면 **레코드를 되돌리면 끝이다** —
-   기존 서버는 아직 그대로 떠 있다
-4. 며칠 지켜본 뒤 기존 인스턴스(`3.38.235.185`)를 중지 → 스냅샷 → 종료
-5. Caddyfile의 임시 `:80` 블록을 지우고 `sudo systemctl reload caddy`
-6. 루트 `CLAUDE.md`의 "운영 형태" 서술과 dev 관련 문서를 이 구조로 갱신
+인스턴스를 새로 만들어 갈아끼우는 순서다. 2026-08-16에 t2.micro·30GB → t3.small·10GB로
+교체하며 실제로 밟은 경로다. **EBS는 축소할 수 없으므로**(확장만 된다) 볼륨을 줄이려면
+이 절차를 타야 한다.
+
+**EIP를 옮긴다 — DNS는 건드리지 않는다.** Elastic IP를 새 인스턴스에 재연결하면
+`dev.acttub.com` 레코드가 그대로 유효해 Cloudflare 전파를 기다릴 필요가 없다.
+
+1. **백업** — 구 서버에서 `pg_dump` + `api.env` + systemd 유닛을 한 디렉토리에 모으고,
+   **`sync`를 실행한 뒤** EBS 스냅샷을 뜬다
+   - 🔎 `sync`를 빠뜨리면 방금 쓴 파일이 페이지 캐시에만 있어 **스냅샷에 0바이트로 들어간다.**
+     실제로 밟았고, md5를 대조해서야 알았다. 스냅샷은 crash-consistent일 뿐이다
+2. **새 인스턴스** — 같은 AMI·SG·서브넷·IAM 프로파일·IMDSv2 설정으로 만들고
+   `bootstrap-dev.sh`를 실행한다(§2)
+3. **데이터 이전** — 스냅샷에서 볼륨을 만들어 새 인스턴스에 `/dev/sdf`로 붙이고
+   `mount -o ro`로 읽어 복사한다. **구 서버를 멈추지 않아도 된다**
+   - 같은 AMI에서 온 볼륨이라 **파일시스템 UUID가 겹친다.** device 경로로 직접 마운트한다
+   - t3는 Nitro라 `/dev/sdf`가 실제로는 `/dev/nvme1n1`로 보인다. `lsblk`로 확인한다
+   - 복사 후 **md5로 대조**한다
+4. **api.env 복원 + DB 비밀번호 정합** — `bootstrap`은 api.env가 없으면 `JWT_SECRET`과 DB
+   비밀번호를 **새로 만든다.** 구 `api.env`를 그대로 쓰려면 DB 유저 비밀번호를 거기에 맞추고,
+   비밀번호를 새로 발급했다면 `DATABASE_URL` **한 줄만** 교체한다
+   - `JWT_SECRET`이 바뀌면 dev 사용자가 전원 로그아웃된다
+   - dump는 `psql -f`가 아니라 **stdin 리다이렉션**으로 넘긴다 — `/home/ubuntu`가 750이라
+     postgres 계정이 파일을 직접 열지 못한다
+5. ⚠ **인스턴스 ID가 박힌 곳 두 군데를 함께 바꾼다.** 안 바꾸면 배포가 사라진 인스턴스로 간다
+   - GitHub `dev` 환경 변수 `BE_INSTANCE_ID`·`FE_INSTANCE_ID`
+   - `acttub-github-deploy-dev` 정책의 `ssm:SendCommand` 리소스 ARN(§1-6) —
+     전환 기간에는 **둘 다 허용**해 두고 구 인스턴스를 종료할 때 뺀다
+6. **배포**(`target=both`) 후 새 서버에서 로컬로 검증한다(§5)
+7. **EIP 재연결** — `aws ec2 associate-address --allocation-id <id> --instance-id <새 인스턴스>
+   --allow-reassociation`. 여기가 유일한 다운타임이고 수 초다
+8. `curl https://dev.acttub.com/health` 확인. 문제가 생기면 **EIP를 되돌리면 끝이다** —
+   구 서버는 아직 그대로 떠 있다
+9. 구 인스턴스를 **중지**만 해두고 며칠 지켜본 뒤 종료한다. 스냅샷은 그 뒤에 지운다
+10. 루트 `CLAUDE.md`의 "운영 형태" 서술과 dev 관련 문서를 새 구조로 갱신한다

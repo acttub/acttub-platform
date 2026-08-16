@@ -79,12 +79,12 @@ systemctl is-active acttub-api
 # 크래시루프 중인 프로세스도 성공으로 읽힌다. S3 자격증명을 못 찾으면 앱이 기동을
 # 거부하므로(config.py·app.py) 이 확인이 없으면 전면 장애가 배포 성공으로 기록된다.
 # 수동 restart는 카운터를 올리지 않으니, 0이 아니면 자동 재시작이 돌았다는 뜻이다.
-test "$(systemctl show -p NRestarts --value acttub-api)" = "0"
+test "\$(systemctl show -p NRestarts --value acttub-api)" = "0"
 EOF
 )
     SERVICE=acttub-api
     ;;
-  # 이관 병행 기동. FastAPI(be)는 그대로 두고 자바를 8001에 나란히 올린다.
+  # 이관 병행 기동. FastAPI(be)는 그대로 두고 자바를 8080에 나란히 올린다.
   # 프록시 대상이 바뀌지 않으므로 이 배포만으로는 트래픽이 이동하지 않는다.
   be-java)
     REMOTE_SCRIPT=$(cat <<EOF
@@ -99,6 +99,12 @@ install -d -o ubuntu -g ubuntu /svc/acttub/api-java
 aws s3 cp "s3://$DEPLOY_BUCKET/be-java/latest.jar" /svc/acttub/api-java/acting-api.jar
 chown ubuntu:ubuntu /svc/acttub/api-java/acting-api.jar
 aws s3 cp "s3://$DEPLOY_BUCKET/be-java/acttub-api-java.service" /etc/systemd/system/acttub-api-java.service
+# FastAPI 쪽과 같은 방식으로 릴리스를 얹는다 — 환경변수 이름을 그대로 유지했으므로
+# Sentry 에서 두 백엔드의 이벤트가 같은 커밋으로 묶인다. DSN·환경 이름은 사람이 관리하는
+# /etc/acttub/api.env 에 있고 배포 스크립트가 건드리지 않는다.
+mkdir -p /etc/systemd/system/acttub-api-java.service.d
+printf '[Service]\nEnvironment=SENTRY_RELEASE=%s\n' '${RELEASE:-unknown}' \
+  > /etc/systemd/system/acttub-api-java.service.d/sentry-release.conf
 systemctl daemon-reload
 systemctl enable acttub-api-java
 systemctl reset-failed acttub-api-java || true
@@ -109,7 +115,7 @@ systemctl is-active acttub-api-java
 # Type=simple 은 exec 직후 곧바로 active 이므로 is-active 만으로는 크래시루프도
 # 성공으로 읽힌다. 스키마 검증 실패·DB 접속 실패가 여기서 걸린다.
 test "\$(systemctl show -p NRestarts --value acttub-api-java)" = "0"
-curl -fsS --max-time 5 http://127.0.0.1:8001/health > /dev/null
+curl -fsS --max-time 5 http://127.0.0.1:8080/health > /dev/null
 EOF
 )
     SERVICE=acttub-api-java
