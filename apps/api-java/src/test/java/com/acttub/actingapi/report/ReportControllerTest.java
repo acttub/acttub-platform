@@ -13,7 +13,7 @@ import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
 
-import com.acttub.actingapi.security.AuthDependencies;
+import com.acttub.actingapi.security.AccessGate;
 import com.acttub.actingapi.security.AuthenticatedUser;
 import com.acttub.actingapi.schema.UserStatus;
 import com.acttub.actingapi.ledger.SyncOperationBegin;
@@ -41,7 +41,7 @@ class ReportControllerTest {
             UUID.fromString("70000000-0000-4000-8000-000000000017"));
 
     private final ReportQueryStore queryStore = mock(ReportQueryStore.class);
-    private final AuthDependencies auth = mock(AuthDependencies.class);
+    private final AccessGate auth = mock(AccessGate.class);
     private final ReportSourceProvider reportSource = mock(ReportSourceProvider.class);
     private final ReportEngine reportEngine = mock(ReportEngine.class);
     private final ReportOperationService reportOperations = mock(ReportOperationService.class);

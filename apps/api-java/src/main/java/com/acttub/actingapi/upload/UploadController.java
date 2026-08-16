@@ -8,7 +8,7 @@ import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
 
-import com.acttub.actingapi.security.AuthDependencies;
+import com.acttub.actingapi.security.AccessGate;
 import com.acttub.actingapi.schema.UploadStatus;
 import com.acttub.actingapi.storage.ObjectStorage;
 import com.acttub.actingapi.storage.NoCredentialsError;
@@ -41,13 +41,13 @@ class UploadController {
 
     private final UploadStore store;
     private final Optional<ObjectStorage> configuredStorage;
-    private final AuthDependencies auth;
+    private final AccessGate auth;
     private final Clock clock;
 
     UploadController(
             UploadStore store,
             Optional<ObjectStorage> configuredStorage,
-            AuthDependencies auth,
+            AccessGate auth,
             Clock clock) {
         this.store = store;
         this.configuredStorage = configuredStorage;

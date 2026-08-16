@@ -8,7 +8,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
-import com.acttub.actingapi.security.AuthDependencies;
+import com.acttub.actingapi.security.AccessGate;
 import com.acttub.actingapi.web.ApiException;
 import com.acttub.actingapi.web.ApiValidationException;
 import com.acttub.actingapi.web.PythonText;
@@ -41,9 +41,9 @@ class CommunityController {
             Set.of("spam", "abuse", "sexual", "privacy", "other");
 
     private final CommunityStore store;
-    private final AuthDependencies auth;
+    private final AccessGate auth;
 
-    CommunityController(CommunityStore store, AuthDependencies auth) {
+    CommunityController(CommunityStore store, AccessGate auth) {
         this.store = store;
         this.auth = auth;
     }

@@ -14,7 +14,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
-import com.acttub.actingapi.security.AuthDependencies;
+import com.acttub.actingapi.security.AccessGate;
 import com.acttub.actingapi.security.AuthenticatedUser;
 import com.acttub.actingapi.report.OwnedReportSource;
 import com.acttub.actingapi.coach.CoachDtos.CoachConfirmReq;
@@ -55,7 +55,7 @@ class CoachControllerTest {
     private final ReportOperationService reportOperations = mock(ReportOperationService.class);
     private final CoachOperationLedger operations = mock(CoachOperationLedger.class);
     private final CanonicalJsonResponse responses = mock(CanonicalJsonResponse.class);
-    private final AuthDependencies auth = mock(AuthDependencies.class);
+    private final AccessGate auth = mock(AccessGate.class);
     private final HttpServletRequest request = mock(HttpServletRequest.class);
     private final ObjectMapper mapper = new ObjectMapper();
     private final com.acttub.actingapi.memory.MemoryStore memory =

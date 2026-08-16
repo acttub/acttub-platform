@@ -5,7 +5,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-import com.acttub.actingapi.security.AuthDependencies;
+import com.acttub.actingapi.security.AccessGate;
 import com.acttub.actingapi.consent.ConsentDtos.ConsentDocument;
 import com.acttub.actingapi.consent.ConsentDtos.ConsentDocumentsResponse;
 import com.acttub.actingapi.consent.ConsentDtos.ConsentEventResponse;
@@ -32,10 +32,10 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/v2/consents")
 class ConsentController {
     private final ConsentStore store;
-    private final AuthDependencies auth;
+    private final AccessGate auth;
     private final Clock clock;
 
-    ConsentController(ConsentStore store, AuthDependencies auth, Clock clock) {
+    ConsentController(ConsentStore store, AccessGate auth, Clock clock) {
         this.store = store;
         this.auth = auth;
         this.clock = clock;

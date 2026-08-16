@@ -40,7 +40,7 @@ class AuthDependenciesTest {
         };
         HttpServletRequest request = null;
         FixedWindowRateLimiter limiter = new FixedWindowRateLimiter(() -> 1L);
-        AuthDependencies dependencies = new AuthDependencies(current, limiter, users);
+        AccessGate dependencies = new AccessGate(current, limiter, users);
 
         assertThat(dependencies.optionalUser(request)).isNull();
         assertThat(dependencies.currentUser(request)).isEqualTo(user);

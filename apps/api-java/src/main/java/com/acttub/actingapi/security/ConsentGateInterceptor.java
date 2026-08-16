@@ -44,9 +44,9 @@ public final class ConsentGateInterceptor implements HandlerInterceptor {
             route(HttpMethod.GET, "/v2/reports"),
             route(HttpMethod.GET, "/v2/reports/*"));
 
-    private final AuthDependencies auth;
+    private final AccessGate auth;
 
-    public ConsentGateInterceptor(AuthDependencies auth) {
+    public ConsentGateInterceptor(AccessGate auth) {
         this.auth = auth;
     }
 

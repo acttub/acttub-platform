@@ -5,7 +5,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-import com.acttub.actingapi.security.AuthDependencies;
+import com.acttub.actingapi.security.AccessGate;
 import com.acttub.actingapi.coach.CoachDtos.CoachConfirmReq;
 import com.acttub.actingapi.coach.CoachDtos.CoachConfirmResponse;
 import com.acttub.actingapi.coach.CoachDtos.CoachReplyReq;
@@ -57,7 +57,7 @@ class CoachController {
     private final ReportOperationService reportOperations;
     private final CoachOperationLedger operations;
     private final CanonicalJsonResponse responses;
-    private final AuthDependencies auth;
+    private final AccessGate auth;
     private final ObjectMapper mapper;
     private final com.acttub.actingapi.memory.MemoryStore memory;
     private static final org.slf4j.Logger LOG =
@@ -70,7 +70,7 @@ class CoachController {
             ReportOperationService reportOperations,
             CoachOperationLedger operations,
             CanonicalJsonResponse responses,
-            AuthDependencies auth,
+            AccessGate auth,
             ObjectMapper mapper,
             com.acttub.actingapi.memory.MemoryStore memory) {
         this.sessions = sessions;

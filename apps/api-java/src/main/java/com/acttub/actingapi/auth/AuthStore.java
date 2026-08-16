@@ -8,8 +8,8 @@ import java.sql.ResultSet; import java.sql.SQLException; import java.time.*; imp
     private final JdbcTemplate jdbc;private final TransactionTemplate tx;public AuthStore(JdbcTemplate jdbc,TransactionTemplate tx){this.jdbc=jdbc;this.tx=tx;}
     public record StoredRefresh(UUID id,UUID userId,UUID replacedById,Instant expiresAt,Instant revokedAt,String deviceInfo){} public record Rotation(UUID id,boolean reused){} public record Consent(UUID id,ConsentType type,String version,String title,String body,boolean required,Instant publishedAt){}
     @Override public AuthenticatedUser find(UUID id){return one("SELECT id,email,status::text FROM users WHERE id=?",id);}
-    public AuthenticatedUser getUserByEmail(String email){return one("SELECT id,email,status::text FROM users WHERE lower(email)=lower(?)",email);}
-    public AuthenticatedUser getUserByIdentity(String provider,String uid){return one("SELECT u.id,u.email,u.status::text FROM users u JOIN user_identities i ON i.user_id=u.id WHERE i.provider=?::identity_provider_t AND i.provider_uid=?",provider,uid);}
+    public AuthenticatedUser findByEmail(String email){return one("SELECT id,email,status::text FROM users WHERE lower(email)=lower(?)",email);}
+    public AuthenticatedUser findByIdentity(String provider,String uid){return one("SELECT u.id,u.email,u.status::text FROM users u JOIN user_identities i ON i.user_id=u.id WHERE i.provider=?::identity_provider_t AND i.provider_uid=?",provider,uid);}
     private AuthenticatedUser one(String sql,Object...args){List<AuthenticatedUser> values=jdbc.query(sql,(rs,n)->new AuthenticatedUser(rs.getObject(1,UUID.class),rs.getString(2),UserStatus.valueOf(rs.getString(3).toUpperCase(Locale.ROOT))),args);return values.isEmpty()?null:values.getFirst();}
     // 유입 출처는 **가입할 때만** 남긴다. 이미 있는 계정에 다시 붙이면 마지막 로그인
     // 경로가 첫 유입을 덮어써서 집계가 뒤집힌다(원본도 create 경로에만 준다).

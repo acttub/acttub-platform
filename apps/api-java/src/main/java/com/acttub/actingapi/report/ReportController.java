@@ -3,7 +3,7 @@ package com.acttub.actingapi.report;
 import java.util.Optional;
 import java.util.UUID;
 
-import com.acttub.actingapi.security.AuthDependencies;
+import com.acttub.actingapi.security.AccessGate;
 import com.acttub.actingapi.ledger.LeaseOwnershipException;
 import com.acttub.actingapi.ledger.SyncOperationBegin;
 import com.acttub.actingapi.ledger.SyncOperationClaim;
@@ -44,7 +44,7 @@ class ReportController {
 
     private final ReportQueryStore store;
     private final Optional<ObjectStorage> configuredStorage;
-    private final AuthDependencies auth;
+    private final AccessGate auth;
     private final ReportSourceProvider reportSource;
     private final ReportEngine reportEngine;
     private final ReportOperationService reportOperations;
@@ -54,7 +54,7 @@ class ReportController {
     ReportController(
             ReportQueryStore store,
             Optional<ObjectStorage> configuredStorage,
-            AuthDependencies auth,
+            AccessGate auth,
             ReportSourceProvider reportSource,
             ReportEngine reportEngine,
             ReportOperationService reportOperations,

@@ -6,17 +6,17 @@ import org.springframework.stereotype.Service;
 
 /** Python app.py의 current/optional/rate-limited/consented 네 조합을 이름 그대로 제공한다. */
 @Service
-public class AuthDependencies {
+public class AccessGate {
     private static final String RATE_LIMITED_ATTRIBUTE =
-            AuthDependencies.class.getName() + ".rateLimitedUser";
+            AccessGate.class.getName() + ".rateLimitedUser";
     private static final String CONSENTED_ATTRIBUTE =
-            AuthDependencies.class.getName() + ".consentedUser";
+            AccessGate.class.getName() + ".consentedUser";
 
     private final CurrentUserService current;
     private final FixedWindowRateLimiter limiter;
     private final AuthenticatedUsers users;
 
-    public AuthDependencies(
+    public AccessGate(
             CurrentUserService current,
             FixedWindowRateLimiter limiter,
             AuthenticatedUsers users) {

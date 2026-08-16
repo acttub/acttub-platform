@@ -5,7 +5,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-import com.acttub.actingapi.security.AuthDependencies;
+import com.acttub.actingapi.security.AccessGate;
 import com.acttub.actingapi.practice.adapter.web.PracticeSessionDtos.ObservationPackResponse;
 import com.acttub.actingapi.practice.adapter.web.PracticeSessionDtos.PracticeSessionAcceptedResponse;
 import com.acttub.actingapi.practice.adapter.web.PracticeSessionDtos.PracticeSessionCreateResponse;
@@ -58,12 +58,12 @@ import org.springframework.web.bind.annotation.RestController;
 class PracticeSessionController {
 
     private final PracticeSessionService sessions;
-    private final AuthDependencies auth;
+    private final AccessGate auth;
     private final CanonicalJson canonical;
 
     PracticeSessionController(
             PracticeSessionService sessions,
-            AuthDependencies auth,
+            AccessGate auth,
             CanonicalJson canonical) {
         this.sessions = sessions;
         this.auth = auth;
