@@ -8,7 +8,7 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.UUID;
 
-import com.acttub.actingapi.analysis.AnalysisProcessor;
+import com.acttub.actingapi.analysis.app.AnalysisProcessor;
 import com.acttub.actingapi.platform.security.FixedWindowRateLimiter;
 import com.acttub.actingapi.auth.JwtService;
 import com.acttub.actingapi.integration.media.GeminiVideoCompressor;

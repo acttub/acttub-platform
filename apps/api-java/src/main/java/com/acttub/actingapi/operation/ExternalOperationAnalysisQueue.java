@@ -4,7 +4,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.UUID;
 
-import com.acttub.actingapi.analysis.AnalysisOperationQueue;
+import com.acttub.actingapi.analysis.app.AnalysisOperationQueue;
 import org.springframework.stereotype.Component;
 
 /**

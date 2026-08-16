@@ -75,7 +75,7 @@ ln -sfn ../api/acting-api/.env .env    # 최초 1회. 파이썬과 같은 파일
 
 최상위가 **세 묶음**으로 갈립니다(ADR-017) — `platform`(배관: web·security·config·harness·health·observability·ledger) · `integration`(외부 연동: oidc·llm·storage·media·observation) · 비즈니스 도메인. **앞의 둘은 8단계에서 섰고**, 도메인 열넷을 `feature` 아래로 넣는 것은 도메인 배치가 끝난 뒤의 **마지막 이사**입니다. 공용 `schema`는 도메인별로 흩어지는 중이라 아직 최상위에 있습니다.
 
-도메인별 헥사고날로 옮기는 중이고 **`practice`(4단계)·`community`(10단계)·`report`·`coach`(9단계) 넷이 끝났습니다**. 옮긴 도메인은 네 층으로 섭니다 — `domain`(규칙을 담은 Domain Model, 프레임워크 import 금지) · `app`(서비스와 포트 선언) · `adapter`(`web`·`db`·`storage`·`sched`) · `schema`(Schema Entity). 나머지 열 도메인은 아직 평평하고, 그게 정상입니다.
+도메인별 헥사고날로 옮기는 중이고 **`practice`(4단계)·`community`(10단계)·`report`·`coach`(9단계)·`analysis`(11단계) 다섯이 끝났습니다**. 옮긴 도메인은 네 층으로 섭니다 — `domain`(규칙을 담은 Domain Model, 프레임워크 import 금지) · `app`(서비스와 포트 선언) · `adapter`(`web`·`db`·`storage`·`media`·`sched`) · `schema`(Schema Entity). 나머지 아홉 도메인은 아직 평평하고, 그게 정상입니다.
 
 - 🔥 **포트가 없음을 알리는 방법은 하나가 아닙니다**(ADR-018). `practice`는 `null`·`boolean`으로 알리지만 `community`는 **예외를 `app`에 선언하고 어댑터가 던집니다.** **정하는 단위는 연산이 아니라 포트 전체입니다** — 한 포트 안에서 방식이 둘이면 부르는 쪽이 연산마다 어느 쪽인지 기억해야 하므로, 갈래가 가장 많은 연산이 그 포트의 방식을 정합니다. `community`에서는 `updatePost`("없다"와 "내 것이 아니다"가 같은 트랜잭션·같은 잠금 안에서 갈립니다)가 그 연산이고, 그래서 `getPost`처럼 갈래가 하나인 것도 예외를 씁니다. 예외가 `app`에 살면 방향이 `adapter → app`이라 층 규칙에 맞고, 제공자와 소비자가 같은 도메인이라 시그니처에 남의 패키지 이름이 보이지도 않습니다.
 - 📌 **예외 이름은 던지는 자리에서 정직해야 합니다.** 종전 `community`는 저장소의 `PostNotFound` 하나를 컨트롤러가 `post_not_found`·`target_not_found`·`user_not_found` 셋으로 갈랐습니다 — 뜻을 정하는 곳이 던지는 곳과 멀어 예외 이름만으로는 무엇이 없다는 것인지 알 수 없었습니다. 지금은 대상이 없으면 `CommunityContentNotFound` 하나이고, **부르는 자리에서 뜻이 하나로 정해집니다**(글을 쓸 때 없을 수 있는 것은 분류뿐입니다). 상태코드로 옮기는 일은 서비스가 합니다.

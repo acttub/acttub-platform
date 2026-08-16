@@ -48,7 +48,7 @@ class PackageLayerTest {
      * 그 자리이고(9단계) 아홉 심볼로 정렬돼 있다. 완전 금지로 쓰면 이 형태가 걸린다.
      */
     private static final List<String> MIGRATED_FEATURES =
-            List.of("practice", "community", "report", "coach");
+            List.of("practice", "community", "report", "coach", "analysis");
 
     /**
      * {@code domain}이 알아서는 안 되는 것들. CONTEXT.md의 <b>Domain Model</b>은 "프레임워크를

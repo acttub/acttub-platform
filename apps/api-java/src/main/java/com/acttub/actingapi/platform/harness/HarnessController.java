@@ -6,7 +6,7 @@ import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-import com.acttub.actingapi.analysis.AnalysisWorker;
+import com.acttub.actingapi.analysis.app.AnalysisWorker;
 import com.acttub.actingapi.platform.security.FixedWindowRateLimiter;
 import io.swagger.v3.oas.annotations.Hidden;
 import jakarta.servlet.http.HttpServletRequest;
