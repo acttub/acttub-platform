@@ -87,7 +87,7 @@ public class SyncOperationService {
             UUID requestId,
             String operationKind,
             String requestFingerprint) {
-        ExternalOperationRow operation = transaction.execute(status ->
+        SyncOperationRow operation = transaction.execute(status ->
                 getOrCreate(
                         userId,
                         practiceSessionId,
@@ -106,7 +106,7 @@ public class SyncOperationService {
         UUID claimed = claimer.claimById(
                 operation.id(), leaseToken, SYNC_OPERATION_LEASE, clock.instant());
         if (claimed == null) {
-            ExternalOperationRow latest = find(userId, requestId);
+            SyncOperationRow latest = find(userId, requestId);
             cached = existingPayload(latest, requestId, clock.instant());
             if (cached != null) {
                 return SyncOperationBegin.replayed(cached);
@@ -159,7 +159,7 @@ public class SyncOperationService {
         return clock.instant();
     }
 
-    private ExternalOperationRow getOrCreate(
+    private SyncOperationRow getOrCreate(
             UUID userId,
             UUID practiceSessionId,
             UUID requestId,
@@ -188,38 +188,28 @@ public class SyncOperationService {
                 requestId,
                 kind,
                 requestFingerprint);
-        ExternalOperationRow operation = find(userId, requestId);
+        SyncOperationRow operation = find(userId, requestId);
         if (operation == null) {
             throw new IllegalStateException("external operation is missing");
         }
         return operation;
     }
 
-    private ExternalOperationRow find(UUID userId, UUID requestId) {
-        List<ExternalOperationRow> rows = jdbc.query("""
+    private SyncOperationRow find(UUID userId, UUID requestId) {
+        List<SyncOperationRow> rows = jdbc.query("""
                 SELECT
-                    id, session_id, user_id, request_id,
-                    kind::text AS kind, status::text AS status,
-                    attempt_count, request_fingerprint, lease_token, lease_expires_at,
-                    error_code, response_payload::text AS response_payload,
-                    created_at, updated_at
+                    id, status::text AS status,
+                    request_fingerprint, lease_token, lease_expires_at,
+                    response_payload::text AS response_payload
                 FROM external_operations
                 WHERE user_id = ? AND request_id = ?
-                """, (row, number) -> new ExternalOperationRow(
+                """, (row, number) -> new SyncOperationRow(
                 row.getObject("id", UUID.class),
-                row.getObject("session_id", UUID.class),
-                row.getObject("user_id", UUID.class),
-                row.getObject("request_id", UUID.class),
-                row.getString("kind"),
                 row.getString("status"),
-                row.getInt("attempt_count"),
                 row.getString("request_fingerprint"),
-                row.getObject("lease_token", UUID.class),
-                instant(row.getObject("lease_expires_at", OffsetDateTime.class)),
-                row.getString("error_code"),
                 json(row.getString("response_payload")),
-                instant(row.getObject("created_at", OffsetDateTime.class)),
-                instant(row.getObject("updated_at", OffsetDateTime.class))),
+                row.getObject("lease_token", UUID.class),
+                instant(row.getObject("lease_expires_at", OffsetDateTime.class))),
                 userId,
                 requestId);
         return rows.isEmpty() ? null : rows.getFirst();
@@ -227,7 +217,7 @@ public class SyncOperationService {
 
     /** 다시 실어 보낼 본문. 없으면 {@code null} 이고, 아직 처리 중이면 409 다. */
     private JsonNode existingPayload(
-            ExternalOperationRow operation, UUID requestId, Instant now) {
+            SyncOperationRow operation, UUID requestId, Instant now) {
         if (operation == null) {
             return null;
         }

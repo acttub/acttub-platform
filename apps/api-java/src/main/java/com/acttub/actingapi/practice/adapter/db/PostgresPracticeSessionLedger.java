@@ -1,4 +1,4 @@
-package com.acttub.actingapi.operation;
+package com.acttub.actingapi.practice.adapter.db;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -8,6 +8,10 @@ import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
 
+import com.acttub.actingapi.practice.app.ExternalOperationRow;
+import com.acttub.actingapi.practice.app.PracticeSessionLedger;
+import com.acttub.actingapi.practice.app.PracticeSessionOperation;
+import com.acttub.actingapi.practice.app.PracticeSessionRow;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -17,9 +21,14 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.TransactionTemplate;
 
-/** {@code external_operations}와 결합된 세션 생성·재분석 저장 연산. */
+/**
+ * 세션 행과 {@code external_operations} 행을 한 트랜잭션에서 함께 남긴다.
+ *
+ * <p>전파를 {@code REQUIRES_NEW} 로 고정한다 — 호출한 쪽이 이미 트랜잭션 안이어도 이 두 행은
+ * 자기 트랜잭션에서 커밋돼야, 뒤이어 실패하더라도 작업이 원장에 남는다.
+ */
 @Repository
-public class ExternalOperationStore {
+public class PostgresPracticeSessionLedger implements PracticeSessionLedger {
 
     private static final String SHA256_ERROR =
             "SHA-256 values must be 64 hexadecimal characters";
@@ -28,7 +37,7 @@ public class ExternalOperationStore {
     private final ObjectMapper objectMapper;
     private final TransactionTemplate transactionTemplate;
 
-    public ExternalOperationStore(
+    public PostgresPracticeSessionLedger(
             JdbcTemplate jdbc,
             ObjectMapper objectMapper,
             PlatformTransactionManager transactionManager) {
@@ -39,7 +48,8 @@ public class ExternalOperationStore {
                 TransactionDefinition.PROPAGATION_REQUIRES_NEW);
     }
 
-    public PracticeSessionOperation createPracticeSessionWithAnalysisOperation(
+    @Override
+    public PracticeSessionOperation createWithAnalysis(
             UUID userId,
             UUID uploadIntentId,
             String situation,
@@ -64,7 +74,8 @@ public class ExternalOperationStore {
                 requestFingerprint));
     }
 
-    public PracticeSessionOperation createAnalysisRetryOperation(
+    @Override
+    public PracticeSessionOperation createAnalysisRetry(
             UUID userId,
             UUID sessionId,
             UUID requestId,

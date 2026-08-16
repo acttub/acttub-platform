@@ -11,9 +11,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-import com.acttub.actingapi.operation.ExternalOperationRow;
-import com.acttub.actingapi.operation.ExternalOperationStore;
-import com.acttub.actingapi.operation.PracticeSessionOperation;
 import com.acttub.actingapi.practice.domain.AnalysisStatus;
 import com.acttub.actingapi.practice.domain.PracticeSession;
 import com.acttub.actingapi.practice.domain.SessionDetail;
@@ -36,14 +33,14 @@ public class PracticeSessionService {
     /** 재생 서명 주소의 수명. 파이썬과 같은 15분이며, 하네스가 이 값으로 응답을 대조한다. */
     private static final int PLAYBACK_URL_TTL_SECONDS = 15 * 60;
 
-    private final ExternalOperationStore operations;
+    private final PracticeSessionLedger operations;
     private final PracticeSessionRepository sessions;
     private final PracticePlayback playback;
     private final Clock clock;
     private final CanonicalJson canonical;
 
     public PracticeSessionService(
-            ExternalOperationStore operations,
+            PracticeSessionLedger operations,
             PracticeSessionRepository sessions,
             PracticePlayback playback,
             Clock clock,
@@ -65,7 +62,7 @@ public class PracticeSessionService {
         if (!sessions.uploadExists(userId, command.uploadIntentId())) {
             throw new ApiException(404, "upload_intent_not_found");
         }
-        PracticeSessionOperation result = operations.createPracticeSessionWithAnalysisOperation(
+        PracticeSessionOperation result = operations.createWithAnalysis(
                 userId,
                 command.uploadIntentId(),
                 command.situation(),
@@ -120,7 +117,7 @@ public class PracticeSessionService {
      * "실패 상태가 아니다" 둘이고, 정상 경로에서는 둘 다 확인할 필요가 없다.
      */
     public AnalysisOutcome reanalyze(UUID userId, UUID sessionId, UUID requestId) {
-        PracticeSessionOperation result = operations.createAnalysisRetryOperation(
+        PracticeSessionOperation result = operations.createAnalysisRetry(
                 userId,
                 sessionId,
                 requestId,
