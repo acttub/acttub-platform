@@ -266,16 +266,23 @@ Settings → Environments → **`dev`** 생성. 보호 규칙(승인자)은 걸�
 - **자동**: `dev` 브랜치에 머지되면 `fe`·`be` 두 잡이 함께 돈다. dev로 들어오는 경로는
   PR뿐이고 그 PR은 `ci.yml` 게이트를 통과했으므로 배포 워크플로는 테스트를 다시 돌리지
   않는다
-- **수동**: Actions → Deploy → Run workflow에서 환경(`dev`/`prod`)과 대상(`fe`/`be`/`both`)을
+- **수동**: Actions → Deploy → Run workflow에서 환경(`dev`/`prod`)과 대상(`fe`/`be-java`/`both`)을
   고른다
 
 dev는 인스턴스가 한 대라 두 잡이 같은 박스에 동시에 설치된다. 경로가 겹치지 않아
 충돌하지 않지만, 잡이 끝나는 순서에 따라 잠깐 새 프론트 + 옛 API 조합이 될 수 있다.
-계약이 깨지는 변경을 확인할 때는 `both` 대신 `be` → `fe` 순으로 수동 실행한다.
+계약이 깨지는 변경을 확인할 때는 `both` 대신 `be-java` → `fe` 순으로 수동 실행한다.
 
-**마이그레이션은 dev·운영 모두 자동으로 돈다.** `deploy/ssm-deploy.sh`가 `MIGRATE=1`일 때
-`uv sync` 뒤·재시작 전에 `alembic upgrade head`를 실행한다. 되돌리기 어려운 성질은 그대로라
-스키마를 먼저 넓히고 코드를 나중에 좁히는 순서로 통제한다(`DEPLOY-VPC.md` 6-4).
+**백엔드는 Spring Boot 만 배포한다**(M5 컷오버, `SOMA-394`). FastAPI 서비스는 배포 대상이
+아니다 — 8000 에 옛 코드로 계속 떠 있고 롤백 경로로만 남는다. 되돌릴 때는 `API_ORIGIN`을
+8000 으로 되돌린 뒤 `systemctl restart acttub-api` 한 번이면 디스크의 최신 소스로 뜬다.
+
+**마이그레이션은 dev·운영 모두 자동으로 돈다.** `deploy/ssm-deploy.sh migrate`가 파이썬
+소스를 갱신하고 `alembic upgrade head`를 실행한다 — alembic 이 여전히 스키마 정본이라
+(`SPEC.md` §5-5) 파이썬 코드가 인스턴스에 남아 있어야 하는 이유다. 이 모드는 `systemctl`을
+건드리지 않는다. 자바 배포보다 **먼저** 도는데, Flyway 가 `validate` 로 기동해서 스키마가
+뒤처져 있으면 자바가 아예 뜨지 못하기 때문이다. 되돌리기 어려운 성질은 그대로라 스키마를
+먼저 넓히고 코드를 나중에 좁히는 순서로 통제한다(`DEPLOY-VPC.md` 6-4).
 
 ## 5. 검증 체크리스트
 
