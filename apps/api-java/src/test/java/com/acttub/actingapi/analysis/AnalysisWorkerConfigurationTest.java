@@ -9,8 +9,8 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
-import com.acttub.actingapi.storage.ObjectStorage;
-import com.acttub.actingapi.storage.StoredObjectMetadata;
+import com.acttub.actingapi.integration.storage.ObjectStorage;
+import com.acttub.actingapi.integration.storage.StoredObjectMetadata;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 

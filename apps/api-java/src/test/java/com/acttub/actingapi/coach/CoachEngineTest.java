@@ -6,9 +6,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
-import com.acttub.actingapi.llm.GeneratedText;
-import com.acttub.actingapi.llm.TokenUsage;
-import com.acttub.actingapi.llm.TextGenerator;
+import com.acttub.actingapi.integration.llm.GeneratedText;
+import com.acttub.actingapi.integration.llm.TokenUsage;
+import com.acttub.actingapi.integration.llm.TextGenerator;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

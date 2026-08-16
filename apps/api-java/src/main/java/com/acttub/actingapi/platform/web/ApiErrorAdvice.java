@@ -9,7 +9,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 
-import com.acttub.actingapi.storage.NoCredentialsError;
+import com.acttub.actingapi.integration.storage.NoCredentialsError;
 import com.acttub.actingapi.platform.web.RequestBodyCachingFilter.CachedBodyRequest;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JavaType;

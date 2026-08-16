@@ -10,7 +10,7 @@ import java.util.Optional;
 import com.acttub.actingapi.admin.AdminDtos.AdminSession;
 import com.acttub.actingapi.admin.AdminDtos.AdminSessions;
 import com.acttub.actingapi.admin.AdminDtos.AdminStats;
-import com.acttub.actingapi.storage.ObjectStorage;
+import com.acttub.actingapi.integration.storage.ObjectStorage;
 import com.acttub.actingapi.platform.web.ApiException;
 import com.acttub.actingapi.platform.web.ApiValidationException;
 import io.swagger.v3.oas.annotations.Operation;

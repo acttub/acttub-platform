@@ -4,7 +4,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-import com.acttub.actingapi.storage.ContractObjectStorage;
+import com.acttub.actingapi.integration.storage.ContractObjectStorage;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;

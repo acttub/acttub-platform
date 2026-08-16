@@ -3,7 +3,7 @@ package com.acttub.actingapi.observation;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.acttub.actingapi.media.GeminiVideoCompressor;
+import com.acttub.actingapi.integration.media.GeminiVideoCompressor;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.genai.Client;
 import org.junit.jupiter.api.Test;

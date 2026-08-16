@@ -15,9 +15,9 @@ import java.util.List;
 import java.util.UUID;
 
 import com.acttub.actingapi.auth.JwtService;
-import com.acttub.actingapi.llm.GeneratedText;
-import com.acttub.actingapi.llm.TextGenerator;
-import com.acttub.actingapi.llm.TokenUsage;
+import com.acttub.actingapi.integration.llm.GeneratedText;
+import com.acttub.actingapi.integration.llm.TextGenerator;
+import com.acttub.actingapi.integration.llm.TokenUsage;
 import com.acttub.actingapi.support.PostgresContainerSupport;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;

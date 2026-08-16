@@ -3,8 +3,8 @@ package com.acttub.actingapi.practice.adapter.storage;
 import java.util.Optional;
 
 import com.acttub.actingapi.practice.app.PracticePlayback;
-import com.acttub.actingapi.storage.NoCredentialsError;
-import com.acttub.actingapi.storage.ObjectStorage;
+import com.acttub.actingapi.integration.storage.NoCredentialsError;
+import com.acttub.actingapi.integration.storage.ObjectStorage;
 import org.springframework.stereotype.Component;
 
 /**

@@ -48,7 +48,7 @@ class PackageCycleTest {
      * 접두어를 한 겹 벗길 묶음. 아직 최상위에 있는 비즈니스 도메인은 여기 없으므로 그대로
      * 한 조각이 되고, {@code feature} 묶음으로 옮기는 마지막 이사 때 이름 하나가 늘어난다(SOMA-397).
      */
-    private static final List<String> BUNDLES = List.of("platform");
+    private static final List<String> BUNDLES = List.of("platform", "integration");
 
     /**
      * 슬라이스 = 묶음 안 한 조각({@code platform.web}) 또는 최상위 패키지 하나({@code analysis}).

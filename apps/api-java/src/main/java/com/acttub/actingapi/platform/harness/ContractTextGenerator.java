@@ -10,9 +10,9 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import com.acttub.actingapi.llm.GeneratedText;
-import com.acttub.actingapi.llm.TextGenerator;
-import com.acttub.actingapi.llm.TokenUsage;
+import com.acttub.actingapi.integration.llm.GeneratedText;
+import com.acttub.actingapi.integration.llm.TextGenerator;
+import com.acttub.actingapi.integration.llm.TokenUsage;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;

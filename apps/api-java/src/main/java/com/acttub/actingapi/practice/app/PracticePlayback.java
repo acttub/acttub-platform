@@ -11,7 +11,7 @@ public interface PracticePlayback {
     /**
      * 주어진 오브젝트를 재생할 서명 주소.
      *
-     * @throws com.acttub.actingapi.storage.NoCredentialsError 스토리지가 설정돼 있지 않을 때
+     * @throws com.acttub.actingapi.integration.storage.NoCredentialsError 스토리지가 설정돼 있지 않을 때
      */
     String url(String objectKey, int expiresInSeconds);
 }

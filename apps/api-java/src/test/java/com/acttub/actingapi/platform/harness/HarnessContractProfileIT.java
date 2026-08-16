@@ -11,7 +11,7 @@ import java.util.UUID;
 import com.acttub.actingapi.analysis.AnalysisProcessor;
 import com.acttub.actingapi.platform.security.FixedWindowRateLimiter;
 import com.acttub.actingapi.auth.JwtService;
-import com.acttub.actingapi.media.GeminiVideoCompressor;
+import com.acttub.actingapi.integration.media.GeminiVideoCompressor;
 import com.acttub.actingapi.observation.ObservationAnalyzer;
 import com.acttub.actingapi.support.PostgresContainerSupport;
 import com.fasterxml.jackson.databind.JsonNode;

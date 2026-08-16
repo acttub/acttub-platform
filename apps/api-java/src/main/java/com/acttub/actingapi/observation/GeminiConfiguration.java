@@ -1,6 +1,6 @@
 package com.acttub.actingapi.observation;
 
-import com.acttub.actingapi.media.GeminiVideoCompressor;
+import com.acttub.actingapi.integration.media.GeminiVideoCompressor;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.genai.Client;
 import org.springframework.beans.factory.annotation.Value;

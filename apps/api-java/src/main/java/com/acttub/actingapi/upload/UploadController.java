@@ -10,9 +10,9 @@ import java.util.UUID;
 
 import com.acttub.actingapi.platform.security.AccessGate;
 import com.acttub.actingapi.schema.UploadStatus;
-import com.acttub.actingapi.storage.ObjectStorage;
-import com.acttub.actingapi.storage.NoCredentialsError;
-import com.acttub.actingapi.storage.StoredObjectMetadata;
+import com.acttub.actingapi.integration.storage.ObjectStorage;
+import com.acttub.actingapi.integration.storage.NoCredentialsError;
+import com.acttub.actingapi.integration.storage.StoredObjectMetadata;
 import com.acttub.actingapi.upload.UploadDtos.UploadCompleteResponse;
 import com.acttub.actingapi.upload.UploadDtos.UploadIntentRequest;
 import com.acttub.actingapi.upload.UploadDtos.UploadIntentResponse;
