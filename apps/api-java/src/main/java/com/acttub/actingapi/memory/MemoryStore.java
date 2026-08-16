@@ -8,9 +8,13 @@ import java.time.Clock;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
+import com.acttub.actingapi.coach.app.CoachMemory;
+import com.acttub.actingapi.coach.app.PriorContext;
 import com.acttub.actingapi.schema.ActorMemoryAuthor;
 import com.acttub.actingapi.schema.ActorMemoryField;
 import com.acttub.actingapi.platform.web.PythonText;
@@ -28,7 +32,7 @@ import org.springframework.stereotype.Repository;
  * 끝낸다 — 건너뛰면 {@code RETURNING} 이 0행이라 {@code null} 이 돌아온다.
  */
 @Repository
-public class MemoryStore {
+public class MemoryStore implements CoachMemory {
     /** `store.py:_MEMORY_UPDATE_NAMESPACE` 와 같은 값이어야 잡이 멱등해진다. */
     private static final UUID MEMORY_UPDATE_NAMESPACE =
             UUID.fromString("6f3a1d52-8c47-4b19-9e0a-2d5c7b41f8e3");
@@ -143,6 +147,20 @@ public class MemoryStore {
 
     // --- 코치가 대화를 시작할 때 알고 있어야 하는 지난 것들 -----------------------
 
+    /**
+     * 코치가 알고 시작해야 하는 지난 것들을 한 묶음으로 만든다.
+     *
+     * <p>배우에 대해 적어 둔 칸들과 {@link #priorContext}가 모아 오는 지난 대화·남은 숙제를 합친다 —
+     * 코치는 그 셋이 어느 테이블에서 오는지 알 필요가 없다.
+     */
+    @Override
+    public PriorContext priorFor(UUID userId, UUID practiceSessionId) {
+        Map<String, String> values = new LinkedHashMap<>();
+        list(userId).forEach(row -> values.put(row.field(), row.value()));
+        PriorPracticeContext context = priorContext(userId, practiceSessionId);
+        return new PriorContext(values, context.earlierConversation(), context.pendingTakes());
+    }
+
     /** 같은 연습의 지난 대화와, 지난 연습에서 아직 안 해본 것 (`store.py:get_prior_practice_context`). */
     public PriorPracticeContext priorContext(UUID userId, UUID practiceSessionId) {
         List<String> earlier = jdbc.queryForList("""
@@ -221,6 +239,7 @@ public class MemoryStore {
      * 배우가 마무리까지 간 연습이 몇 번인지 (`store.py:count_confirmed_practices`).
      * 기억을 몇 번에 한 번 갱신할지 판정하는 데 쓴다.
      */
+    @Override
     public long countConfirmedPractices(UUID userId) {
         Long count = jdbc.queryForObject("""
                 SELECT count(*)
@@ -239,6 +258,7 @@ public class MemoryStore {
      * <p>{@code request_id} 를 연습에서 만들어내므로 같은 연습으로 두 번 들어와도 잡은
      * 하나다. 연습 마무리는 재시도될 수 있고, 그때마다 갱신을 다시 돌리면 모델 호출만 는다.
      */
+    @Override
     public boolean enqueueMemoryUpdate(UUID userId, UUID practiceSessionId) {
         UUID requestId = uuid5(MEMORY_UPDATE_NAMESPACE, practiceSessionId.toString());
         String fingerprint = sha256Hex("memory_update:" + practiceSessionId);

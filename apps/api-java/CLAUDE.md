@@ -75,7 +75,7 @@ ln -sfn ../api/acting-api/.env .env    # 최초 1회. 파이썬과 같은 파일
 
 최상위가 **세 묶음**으로 갈립니다(ADR-017) — `platform`(배관: web·security·config·harness·health·observability·ledger) · `integration`(외부 연동: oidc·llm·storage·media) · 비즈니스 도메인. **앞의 둘은 8단계에서 섰고**, 도메인 열넷을 `feature` 아래로 넣는 것은 도메인 배치가 끝난 뒤의 **마지막 이사**입니다. 공용 `schema`는 도메인별로 흩어지는 중이라 아직 최상위에 있습니다.
 
-도메인별 헥사고날로 옮기는 중이고 **`practice`(4단계)·`community`(10단계) 둘이 끝났습니다**. 옮긴 도메인은 네 층으로 섭니다 — `domain`(규칙을 담은 Domain Model, 프레임워크 import 금지) · `app`(서비스와 포트 선언) · `adapter`(`web`·`db`·`storage`·`sched`) · `schema`(Schema Entity). 나머지 열두 도메인은 아직 평평하고, 그게 정상입니다.
+도메인별 헥사고날로 옮기는 중이고 **`practice`(4단계)·`community`(10단계)·`report`·`coach`(9단계) 넷이 끝났습니다**. 옮긴 도메인은 네 층으로 섭니다 — `domain`(규칙을 담은 Domain Model, 프레임워크 import 금지) · `app`(서비스와 포트 선언) · `adapter`(`web`·`db`·`storage`·`sched`) · `schema`(Schema Entity). 나머지 열 도메인은 아직 평평하고, 그게 정상입니다.
 
 - 🔥 **포트가 없음을 알리는 방법은 하나가 아닙니다**(ADR-018). `practice`는 `null`·`boolean`으로 알리지만 `community`는 **예외를 `app`에 선언하고 어댑터가 던집니다.** **정하는 단위는 연산이 아니라 포트 전체입니다** — 한 포트 안에서 방식이 둘이면 부르는 쪽이 연산마다 어느 쪽인지 기억해야 하므로, 갈래가 가장 많은 연산이 그 포트의 방식을 정합니다. `community`에서는 `updatePost`("없다"와 "내 것이 아니다"가 같은 트랜잭션·같은 잠금 안에서 갈립니다)가 그 연산이고, 그래서 `getPost`처럼 갈래가 하나인 것도 예외를 씁니다. 예외가 `app`에 살면 방향이 `adapter → app`이라 층 규칙에 맞고, 제공자와 소비자가 같은 도메인이라 시그니처에 남의 패키지 이름이 보이지도 않습니다.
 - 📌 **예외 이름은 던지는 자리에서 정직해야 합니다.** 종전 `community`는 저장소의 `PostNotFound` 하나를 컨트롤러가 `post_not_found`·`target_not_found`·`user_not_found` 셋으로 갈랐습니다 — 뜻을 정하는 곳이 던지는 곳과 멀어 예외 이름만으로는 무엇이 없다는 것인지 알 수 없었습니다. 지금은 대상이 없으면 `CommunityContentNotFound` 하나이고, **부르는 자리에서 뜻이 하나로 정해집니다**(글을 쓸 때 없을 수 있는 것은 분류뿐입니다). 상태코드로 옮기는 일은 서비스가 합니다.
@@ -84,6 +84,8 @@ ln -sfn ../api/acting-api/.env .env    # 최초 1회. 파이썬과 같은 파일
 - 층 방향은 `PackageLayerTest`가 강제합니다(순환은 `PackageCycleTest`가 따로 봅니다). 서브패키지로 갈리면서 저장소 클래스를 막아주던 package-private 보호가 옅어졌으므로 **이 검사가 구조를 지키는 유일한 장치입니다.**
 - ⚠ **검사 대상이 `MIGRATED_FEATURES` 목록으로 한정돼 있습니다.** 도메인을 옮기면 그 목록에 이름을 추가해야 규칙이 걸립니다 — 빠뜨리면 새로 옮긴 도메인이 아무 검사 없이 통과합니다. 안 옮긴 도메인이 빨간불을 내지 않게 하려는 한정이라, 이 대가는 의도된 것입니다.
 - 아직 못 거는 규칙이 하나 있습니다 — **feature끼리 직접 import 금지**. `practice`가 참조하던 `storage`·`web`은 8단계에서 묶음 뒤로 갔으므로(배관·외부 연동을 보는 것은 정상입니다) 이제 걸 수 있고, 한정이 풀리는 **13단계**에 함께 들어옵니다.
+  - ⚠ **그 규칙은 "상대의 `app` 층만 허용"으로 씁니다**(ADR-019). 두 도메인이 서로를 소비하면 양쪽 다 포트를 선언할 수 없어서입니다 — 구현하는 쪽이 인터페이스를 import하므로 간선이 양방향이 되어 순환입니다. `coach`↔`report`가 그 자리였고(9단계), `coach → report/app` 한 방향 **아홉 심볼**로 정렬돼 있습니다. 반대 방향은 0입니다(`ReportSourceProvider`를 코치 어댑터가 구현합니다). **참조 폭이 늘면 그것이 두 도메인을 합쳐야 한다는 신호입니다.**
+  - 📌 그래서 **다른 도메인이 알아야 하는 타입은 `app`에 둡니다.** 성적표 본문의 공개 스키마(`report/app/PublicReport`)가 web이 아니라 app에 사는 이유가 그것입니다 — 코치 응답에도 같은 본문이 실립니다. 엔드포인트 입출력 봉투(`ReportDtos`)는 web에 남습니다.
 - ⚠ **`PackageCycleTest`의 슬라이스 할당에 묶음 이름 목록(`BUNDLES`)이 있습니다.** 묶음을 새로 만들면 여기에 이름을 더해야 그 안이 조각으로 갈립니다 — 종전 `slices().matching(…(*)..)`은 첫 하위 패키지 하나로만 가르므로, 접두어가 붙으면 조각들이 한 덩어리가 되어 그 사이의 순환이 검사에서 사라집니다. 🔥 **순환 검사는 이 누락을 못 잡습니다** — 뭉친 묶음이 도메인과 **양방향** 간선을 가질 때만 사이클이 되어서, `integration`처럼 앱 안으로 나가는 간선이 없는 묶음은 뭉쳐도 **조용히 초록**입니다(실측). 그래서 `everyBundleIsInTheList`가 따로 잡습니다 — **층(`domain`·`app`·`adapter`·`schema`)이 아닌 하위 패키지를 거느린 최상위가 목록에 없으면 실패**합니다.
 - **`operation`은 6단계에서 포트 뒤로 갔습니다.** 다섯 도메인(`practice`·`coach`·`report`·`memory`·`analysis`) 전부 `com.acttub.actingapi.operation`을 **한 줄도 import하지 않습니다.** 의존은 `operation` → 소비자 포트 한 방향뿐입니다.
   - 🔥 **교환 타입을 어디 두느냐가 이 단계의 전부였습니다.** 포트를 쓰는 쪽에 선언해도 시그니처에 `operation`의 record·예외가 들어가면 소비자 → 제공자 간선이 남고, 그러면 제공자가 그 포트를 구현하는 순간 `PackageCycleTest`가 빨간불이라 **구현을 소비자 쪽에 두는 수밖에 없어집니다**(ADR-017의 "구현은 제공하는 쪽에"가 깨지는 형태). → `SyncOperationBegin`·`SyncOperationClaim`·`LeaseOwnershipException`을 **`ledger`**(배관, 8단계에 `platform/ledger`로 갔습니다)로 올려 풀었습니다. **포트를 새로 만들 때 시그니처에 제공자 패키지 이름이 보이면 아직 안 끊긴 것입니다.**
@@ -94,6 +96,8 @@ ln -sfn ../api/acting-api/.env .env    # 최초 1회. 파이썬과 같은 파일
   - 교환 타입 `AuthenticatedUser`가 `security`에 사는 이유도 같습니다. 이것이 `auth`에 있으면 받는 여덟이 전부 `auth`를 import하게 되어, 포트를 어디에 선언하든 간선이 남습니다.
   - `oidc` 쪽은 아직 포트가 아니라 `auth`가 직접 부릅니다. 간선이 `auth` → `oidc` 한 방향이라 순환은 없고, **어댑터 층이 외부 연동을 직접 import하는 것은 `practice/adapter/storage`와 같은 형태입니다.** 포트로 감싸는 것은 `auth`가 네 층으로 설 때입니다 — **SOMA-397 12단계**입니다(`consent`와 같은 단계인 이유는 `auth/schema` 소유권이 겹쳐서입니다).
   - 🔎 갈래를 가른 7단계와 묶음으로 옮긴 8단계 사이에는 `security`·`oidc`·`ledger`가 **최상위에 임시로 살았습니다.** 접두어를 먼저 붙이면 순환 검사가 조용히 0이 되므로, 접두어와 슬라이스 할당 수정을 같은 커밋에 뒀습니다(위 ⚠, ADR-017).
+- **`memory`는 9단계에서 포트 뒤로 갔습니다.** `CoachController`가 `MemoryStore`를 직접 주입받던 자리가 `coach/app/CoachMemory` 선언으로 바뀌고 `MemoryStore`가 그것을 **직접 구현**합니다(위임 어댑터 0). 교환 타입 `PriorContext`는 소비자인 `coach`의 것이라 간선이 `memory → coach` 한 방향입니다.
+- ⚠ **응답 JSON 표기도 포트 뒤에 있습니다**(`coach/app/CoachResponseRenderer`). 코치 응답의 바이트는 **응답이면서 동시에 원장에 남는 값**이라 서비스가 그것을 만들어 원장에 넘겨야 하는데, 조립을 컨트롤러에 두면 규칙과 표기가 한 요청 안에서 두 번 오갑니다. 무엇을 담을지는 서비스가, 어떤 키로 담을지는 web 어댑터가 정합니다.
 
 ## 계약 재현에서 자주 깨지는 지점
 
