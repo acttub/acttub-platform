@@ -23,11 +23,11 @@ import com.acttub.actingapi.coach.CoachDtos.CoachStartReq;
 import com.acttub.actingapi.schema.UserStatus;
 import com.acttub.actingapi.operation.SyncOperationBegin;
 import com.acttub.actingapi.operation.SyncOperationClaim;
-import com.acttub.actingapi.operation.SyncOperationService;
 import com.acttub.actingapi.report.ReportEngine;
 import com.acttub.actingapi.report.ReportOperationService;
 import com.acttub.actingapi.report.ReportParseError;
 import com.acttub.actingapi.web.ApiException;
+import com.acttub.actingapi.web.CanonicalJsonResponse;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -53,7 +53,8 @@ class CoachControllerTest {
     private final CoachEngine coach = mock(CoachEngine.class);
     private final ReportEngine reports = mock(ReportEngine.class);
     private final ReportOperationService reportOperations = mock(ReportOperationService.class);
-    private final SyncOperationService operations = mock(SyncOperationService.class);
+    private final CoachOperationLedger operations = mock(CoachOperationLedger.class);
+    private final CanonicalJsonResponse responses = mock(CanonicalJsonResponse.class);
     private final AuthDependencies auth = mock(AuthDependencies.class);
     private final HttpServletRequest request = mock(HttpServletRequest.class);
     private final ObjectMapper mapper = new ObjectMapper();
@@ -65,7 +66,7 @@ class CoachControllerTest {
     @BeforeEach
     void setUp() {
         controller = new CoachController(
-                sessions, coach, reports, reportOperations, operations, auth, mapper, memory);
+                sessions, coach, reports, reportOperations, operations, responses, auth, mapper, memory);
         when(auth.consentedUser(request)).thenReturn(
                 new AuthStore.User(USER_ID, "coach@test", UserStatus.ACTIVE));
         when(operations.requestId(any())).thenReturn(REQUEST_ID);
@@ -84,7 +85,7 @@ class CoachControllerTest {
         when(sessions.getOldestOpenCoachSession(USER_ID, PRACTICE_ID))
                 .thenReturn(new OwnedCoachSessionContext(PRACTICE_ID, session));
         when(sessions.hasReportForPracticeSession(PRACTICE_ID)).thenReturn(false);
-        when(operations.replay(any(), any())).thenReturn(ResponseEntity.ok(new byte[0]));
+        when(responses.ok(any(), any())).thenReturn(ResponseEntity.ok(new byte[0]));
 
         controller.start(new CoachStartReq(PRACTICE_ID, false), null, request);
 
@@ -126,7 +127,7 @@ class CoachControllerTest {
         when(sessions.confirmLatestHandoff(USER_ID, SESSION_ID, true, null, operations.now()))
                 .thenReturn(source);
         when(sessions.getPracticeReportForHandoff(HANDOFF_ID)).thenReturn(existing);
-        when(operations.success(any(), any())).thenReturn(ResponseEntity.ok(new byte[0]));
+        when(responses.ok(any(), any())).thenReturn(ResponseEntity.ok(new byte[0]));
 
         controller.confirm(new CoachConfirmReq(SESSION_ID, true, null), null, request);
 

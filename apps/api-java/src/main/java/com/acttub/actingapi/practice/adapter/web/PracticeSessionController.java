@@ -15,7 +15,7 @@ import com.acttub.actingapi.practice.adapter.web.PracticeSessionDtos.PracticeSes
 import com.acttub.actingapi.practice.adapter.web.PracticeSessionDtos.PracticeSessionRequest;
 import com.acttub.actingapi.practice.adapter.web.PracticeSessionDtos.PracticeSessionStatusResponse;
 import com.acttub.actingapi.practice.app.AnalysisOutcome;
-import com.acttub.actingapi.practice.app.CanonicalJson;
+import com.acttub.actingapi.web.CanonicalJson;
 import com.acttub.actingapi.practice.app.NewPracticeSession;
 import com.acttub.actingapi.practice.app.PlayableSession;
 import com.acttub.actingapi.practice.app.PracticeSessionService;

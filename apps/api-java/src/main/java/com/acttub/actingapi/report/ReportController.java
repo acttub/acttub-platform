@@ -7,7 +7,6 @@ import com.acttub.actingapi.auth.AuthDependencies;
 import com.acttub.actingapi.operation.LeaseOwnershipException;
 import com.acttub.actingapi.operation.SyncOperationBegin;
 import com.acttub.actingapi.operation.SyncOperationClaim;
-import com.acttub.actingapi.operation.SyncOperationService;
 import com.acttub.actingapi.report.ReportDtos.AnalysisReport;
 import com.acttub.actingapi.report.ReportDtos.BlockedReport;
 import com.acttub.actingapi.report.ReportDtos.ExpressionReport;
@@ -18,6 +17,7 @@ import com.acttub.actingapi.report.ReportDtos.ReportRecord;
 import com.acttub.actingapi.storage.ObjectStorage;
 import com.acttub.actingapi.storage.NoCredentialsError;
 import com.acttub.actingapi.web.ApiException;
+import com.acttub.actingapi.web.CanonicalJsonResponse;
 import com.fasterxml.jackson.databind.JsonNode;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -48,7 +48,8 @@ class ReportController {
     private final ReportSourceProvider reportSource;
     private final ReportEngine reportEngine;
     private final ReportOperationService reportOperations;
-    private final SyncOperationService syncOperations;
+    private final ReportOperationLedger syncOperations;
+    private final CanonicalJsonResponse responses;
 
     ReportController(
             ReportQueryStore store,
@@ -57,7 +58,8 @@ class ReportController {
             ReportSourceProvider reportSource,
             ReportEngine reportEngine,
             ReportOperationService reportOperations,
-            SyncOperationService syncOperations) {
+            ReportOperationLedger syncOperations,
+            CanonicalJsonResponse responses) {
         this.store = store;
         this.configuredStorage = configuredStorage;
         this.auth = auth;
@@ -65,6 +67,7 @@ class ReportController {
         this.reportEngine = reportEngine;
         this.reportOperations = reportOperations;
         this.syncOperations = syncOperations;
+        this.responses = responses;
     }
 
     @Operation(
@@ -110,7 +113,7 @@ class ReportController {
                 "report",
                 syncOperations.fingerprint("report", req));
         if (begun.isReplay()) {
-            return begun.replay();
+            return responses.ok(begun.replayPayload(), requestId);
         }
         SyncOperationClaim claim = begun.claim();
 
@@ -136,7 +139,7 @@ class ReportController {
                     throw new ApiException(409, "report already exists");
                 }
             }
-            return syncOperations.success(report, claim);
+            return responses.ok(report, claim.requestId());
         } catch (ReportParseError exception) {
             syncOperations.fail(claim, "report_parse_error");
             throw new ApiException(502, exception.getMessage());

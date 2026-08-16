@@ -1,4 +1,4 @@
-package com.acttub.actingapi.practice.app;
+package com.acttub.actingapi.web;
 
 import java.io.IOException;
 
@@ -13,6 +13,9 @@ import org.springframework.stereotype.Component;
  *
  * <p>두 군데서 쓰이며 두 곳 다 바이트가 계약이다 — 요청 지문(SHA-256 입력)과, 멱등 응답으로
  * 다시 실어 보내는 본문. 키 순서나 공백이 흔들리면 같은 요청이 다른 지문을 갖는다.
+ *
+ * <p>도메인이 아니라 배관에 산다. 연습·코치·리포트가 같은 규칙을 쓰는데, 어느 한 도메인에 두면
+ * 나머지가 그 도메인을 통해 인코딩 규칙을 빌려 오게 된다.
  */
 @Component
 public class CanonicalJson {

@@ -13,22 +13,23 @@ import java.util.Map;
 import java.util.UUID;
 
 import com.acttub.actingapi.web.ApiException;
+import com.acttub.actingapi.web.CanonicalJson;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.TransactionTemplate;
 
-/** 동기 LLM 요청의 X-Request-Id, fingerprint, 15분 lease와 canonical replay 경계. */
+/**
+ * 동기 LLM 요청의 X-Request-Id, fingerprint, 15분 lease와 canonical replay 경계.
+ *
+ * <p><b>HTTP 를 모른다.</b> 재생할 응답이 있는지와 그 본문이 무엇인지까지만 정하고, 상태코드와
+ * 헤더로 옮기는 일은 {@code web/CanonicalJsonResponse} 가 맡는다(SOMA-397 6단계).
+ */
 @Service
 public class SyncOperationService {
 
@@ -36,6 +37,7 @@ public class SyncOperationService {
 
     private final JdbcTemplate jdbc;
     private final ObjectMapper mapper;
+    private final CanonicalJson canonical;
     private final ExternalOperationClaimer claimer;
     private final Clock clock;
     private final TransactionTemplate transaction;
@@ -43,11 +45,13 @@ public class SyncOperationService {
     public SyncOperationService(
             JdbcTemplate jdbc,
             ObjectMapper mapper,
+            CanonicalJson canonical,
             ExternalOperationClaimer claimer,
             Clock clock,
             PlatformTransactionManager transactionManager) {
         this.jdbc = jdbc;
         this.mapper = mapper;
+        this.canonical = canonical;
         this.claimer = claimer;
         this.clock = clock;
         this.transaction = new TransactionTemplate(transactionManager);
@@ -71,7 +75,7 @@ public class SyncOperationService {
         root.set("payload", mapper.valueToTree(payload));
         try {
             return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
-                    .digest(canonicalBytes(root)));
+                    .digest(canonical.bytes(root)));
         } catch (NoSuchAlgorithmException exception) {
             throw new IllegalStateException("SHA-256 is unavailable", exception);
         }
@@ -93,7 +97,7 @@ public class SyncOperationService {
         if (!operation.requestFingerprint().equals(requestFingerprint)) {
             throw new ApiException(422, "request_fingerprint_mismatch");
         }
-        ResponseEntity<byte[]> cached = existingResponse(operation, requestId, clock.instant());
+        JsonNode cached = existingPayload(operation, requestId, clock.instant());
         if (cached != null) {
             return SyncOperationBegin.replayed(cached);
         }
@@ -103,7 +107,7 @@ public class SyncOperationService {
                 operation.id(), leaseToken, SYNC_OPERATION_LEASE, clock.instant());
         if (claimed == null) {
             ExternalOperationRow latest = find(userId, requestId);
-            cached = existingResponse(latest, requestId, clock.instant());
+            cached = existingPayload(latest, requestId, clock.instant());
             if (cached != null) {
                 return SyncOperationBegin.replayed(cached);
             }
@@ -111,14 +115,6 @@ public class SyncOperationService {
         }
         return SyncOperationBegin.claimed(
                 new SyncOperationClaim(claimed, leaseToken, requestId));
-    }
-
-    public ResponseEntity<byte[]> success(JsonNode payload, SyncOperationClaim claim) {
-        return response(HttpStatus.OK, payload, claim.requestId());
-    }
-
-    public ResponseEntity<byte[]> replay(JsonNode payload, UUID requestId) {
-        return response(HttpStatus.OK, payload, requestId);
     }
 
     public void complete(SyncOperationClaim claim, JsonNode responsePayload) {
@@ -229,16 +225,16 @@ public class SyncOperationService {
         return rows.isEmpty() ? null : rows.getFirst();
     }
 
-    private ResponseEntity<byte[]> existingResponse(
+    /** 다시 실어 보낼 본문. 없으면 {@code null} 이고, 아직 처리 중이면 409 다. */
+    private JsonNode existingPayload(
             ExternalOperationRow operation, UUID requestId, Instant now) {
         if (operation == null) {
             return null;
         }
         if ("succeeded".equals(operation.status())) {
-            JsonNode payload = operation.responsePayload() == null
+            return operation.responsePayload() == null
                     ? mapper.createObjectNode()
                     : operation.responsePayload();
-            return response(HttpStatus.OK, payload, requestId);
         }
         if ("running".equals(operation.status())
                 && operation.leaseToken() != null
@@ -250,26 +246,6 @@ public class SyncOperationService {
                     Map.of("X-Request-Id", requestId.toString()));
         }
         return null;
-    }
-
-    private ResponseEntity<byte[]> response(HttpStatus status, JsonNode payload, UUID requestId) {
-        return ResponseEntity.status(status)
-                .header("X-Request-Id", requestId.toString())
-                .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
-                .body(canonicalBytes(payload));
-    }
-
-    private byte[] canonicalBytes(Object value) {
-        Object sortable = value instanceof JsonNode node
-                ? mapper.convertValue(node, Object.class)
-                : value;
-        try {
-            return mapper.writer()
-                    .with(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS)
-                    .writeValueAsBytes(sortable);
-        } catch (JsonProcessingException exception) {
-            throw new IllegalStateException("cannot encode canonical JSON", exception);
-        }
     }
 
     private JsonNode json(String value) {

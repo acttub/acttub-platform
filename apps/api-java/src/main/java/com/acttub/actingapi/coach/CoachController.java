@@ -15,7 +15,6 @@ import com.acttub.actingapi.coach.CoachDtos.PublicCoachTurn;
 import com.acttub.actingapi.coach.CoachDtos.PublicHandoff;
 import com.acttub.actingapi.operation.SyncOperationBegin;
 import com.acttub.actingapi.operation.SyncOperationClaim;
-import com.acttub.actingapi.operation.SyncOperationService;
 import com.acttub.actingapi.operation.LeaseOwnershipException;
 import com.acttub.actingapi.report.OwnedReportSource;
 import com.acttub.actingapi.report.ReportDtos.AnalysisReport;
@@ -25,6 +24,7 @@ import com.acttub.actingapi.report.ReportEngine;
 import com.acttub.actingapi.report.ReportOperationService;
 import com.acttub.actingapi.report.ReportParseError;
 import com.acttub.actingapi.web.ApiException;
+import com.acttub.actingapi.web.CanonicalJsonResponse;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -55,7 +55,8 @@ class CoachController {
     private final CoachEngine coach;
     private final ReportEngine reports;
     private final ReportOperationService reportOperations;
-    private final SyncOperationService operations;
+    private final CoachOperationLedger operations;
+    private final CanonicalJsonResponse responses;
     private final AuthDependencies auth;
     private final ObjectMapper mapper;
     private final com.acttub.actingapi.memory.MemoryStore memory;
@@ -67,7 +68,8 @@ class CoachController {
             CoachEngine coach,
             ReportEngine reports,
             ReportOperationService reportOperations,
-            SyncOperationService operations,
+            CoachOperationLedger operations,
+            CanonicalJsonResponse responses,
             AuthDependencies auth,
             ObjectMapper mapper,
             com.acttub.actingapi.memory.MemoryStore memory) {
@@ -76,6 +78,7 @@ class CoachController {
         this.reports = reports;
         this.reportOperations = reportOperations;
         this.operations = operations;
+        this.responses = responses;
         this.auth = auth;
         this.mapper = mapper;
         this.memory = memory;
@@ -183,7 +186,7 @@ class CoachController {
                 if (sessions.hasReportForPracticeSession(owned.practiceSessionId())) {
                     throw new ApiException(409, "report already exists for practice session");
                 }
-                return operations.replay(resumedPayload(resumed.session()), requestId);
+                return responses.ok(resumedPayload(resumed.session()), requestId);
             }
         }
 
@@ -194,7 +197,7 @@ class CoachController {
                 "coach_start",
                 operations.fingerprint("coach_start", req));
         if (begun.isReplay()) {
-            return begun.replay();
+            return responses.ok(begun.replayPayload(), requestId);
         }
         SyncOperationClaim claim = begun.claim();
         if (sessions.hasReportForPracticeSession(owned.practiceSessionId())) {
@@ -221,7 +224,7 @@ class CoachController {
                     completed.report(),
                     req.restart(),
                     operations.now());
-            return operations.success(payload, claim);
+            return responses.ok(payload, claim.requestId());
         } catch (LeaseOwnershipException exception) {
             operations.fail(claim, "lease_ownership_lost");
             throw new ApiException(409, "request is still processing");
@@ -274,7 +277,7 @@ class CoachController {
                 "coach_reply",
                 operations.fingerprint("coach_reply", req));
         if (begun.isReplay()) {
-            return begun.replay();
+            return responses.ok(begun.replayPayload(), requestId);
         }
         SyncOperationClaim claim = begun.claim();
 
@@ -295,7 +298,7 @@ class CoachController {
                     completed.report() != null,
                     completed.report(),
                     operations.now());
-            return operations.success(payload, claim);
+            return responses.ok(payload, claim.requestId());
         } catch (SessionWriteConflict exception) {
             operations.fail(claim, "session_write_conflict");
             throw new ApiException(409, "session changed concurrently");
@@ -349,7 +352,7 @@ class CoachController {
                 "report",
                 operations.fingerprint("coach_confirm", req));
         if (begun.isReplay()) {
-            return begun.replay();
+            return responses.ok(begun.replayPayload(), requestId);
         }
         SyncOperationClaim claim = begun.claim();
 
@@ -393,7 +396,7 @@ class CoachController {
                 }
             }
             scheduleMemoryUpdate(user.id(), source.practiceSessionId(), req.confirmed());
-            return operations.success(payload, claim);
+            return responses.ok(payload, claim.requestId());
         } catch (ReportParseError exception) {
             operations.fail(claim, "report_parse_error");
             throw new ApiException(502, exception.getMessage());
