@@ -1,4 +1,4 @@
-package com.acttub.actingapi.auth;
+package com.acttub.actingapi.oidc;
 
 import java.io.IOException;
 import java.nio.file.Path;

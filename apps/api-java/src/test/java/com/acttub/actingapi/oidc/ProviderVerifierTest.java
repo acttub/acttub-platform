@@ -1,4 +1,4 @@
-package com.acttub.actingapi.auth;
+package com.acttub.actingapi.oidc;
 import static org.assertj.core.api.Assertions.*; import java.time.Instant; import java.util.*; import org.junit.jupiter.api.Test; import org.springframework.security.oauth2.core.OAuth2Error; import org.springframework.security.oauth2.jwt.*;
 class ProviderVerifierTest {private static Jwt jwt(Map<String,Object> claims){return Jwt.withTokenValue("t").header("alg","RS256").claims(c->c.putAll(claims)).issuedAt(Instant.now()).expiresAt(Instant.now().plusSeconds(60)).build();}
     @Test void googleNormalizesClaimsAndConfiguration(){Map<String,Object> claims=new HashMap<>(Map.of("sub","g","email","","email_verified","TrUe","iss","https://accounts.google.com","aud",List.of("client")));GoogleProviderVerifier verifier=new GoogleProviderVerifier("client",token->jwt(claims));assertThat(verifier.verify("t")).isEqualTo(new ProviderIdentity("g",null,true));assertThatThrownBy(()->new GoogleProviderVerifier("",token->jwt(claims)).verify("t")).isInstanceOf(ProviderConfigurationError.class);}

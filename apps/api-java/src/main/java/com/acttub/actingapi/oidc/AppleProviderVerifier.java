@@ -1,4 +1,4 @@
-package com.acttub.actingapi.auth;
+package com.acttub.actingapi.oidc;
 import java.util.*; import org.springframework.beans.factory.annotation.*; import org.springframework.security.oauth2.core.*; import org.springframework.security.oauth2.jose.jws.SignatureAlgorithm; import org.springframework.security.oauth2.jwt.*; import org.springframework.stereotype.Component;
 @Component public class AppleProviderVerifier implements ProviderVerifier {
     public static final String DEFAULT_CLIENT_ID="com.acttub.app",ISSUER="https://appleid.apple.com",JWKS="https://appleid.apple.com/auth/keys";

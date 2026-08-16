@@ -1,4 +1,4 @@
-package com.acttub.actingapi.auth;
+package com.acttub.actingapi.oidc;
 import java.util.Set; import org.springframework.beans.factory.annotation.*; import org.springframework.security.oauth2.core.*; import org.springframework.security.oauth2.jose.jws.SignatureAlgorithm; import org.springframework.security.oauth2.jwt.*; import org.springframework.stereotype.Component;
 @Component public class GoogleProviderVerifier implements ProviderVerifier {
     public static final String DEFAULT_CLIENT_ID="462651930952-625pcnhrjib79r7990fqsdqhsterdij2.apps.googleusercontent.com";
