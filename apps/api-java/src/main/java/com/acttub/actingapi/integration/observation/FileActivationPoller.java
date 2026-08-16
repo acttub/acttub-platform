@@ -1,4 +1,4 @@
-package com.acttub.actingapi.observation;
+package com.acttub.actingapi.integration.observation;
 
 import java.time.Duration;
 import java.util.function.Function;

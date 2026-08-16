@@ -18,8 +18,8 @@ import java.util.logging.Logger;
 import com.acttub.actingapi.platform.ledger.LeaseOwnershipException;
 import com.acttub.actingapi.integration.storage.ObjectStorage;
 import com.acttub.actingapi.integration.storage.StoredObjectMetadata;
-import com.acttub.actingapi.observation.FileActiveTimeout;
-import com.acttub.actingapi.observation.SummaryParseError;
+import com.acttub.actingapi.integration.observation.FileActiveTimeout;
+import com.acttub.actingapi.integration.observation.SummaryParseError;
 
 /** 단일 분석 operation을 동기 처리하는 하네스·백그라운드 공용 진입점. */
 public class AnalysisWorker {

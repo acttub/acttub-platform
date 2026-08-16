@@ -1,7 +1,7 @@
 package com.acttub.actingapi.analysis;
 
 import com.acttub.actingapi.integration.media.GeminiVideoCompressor;
-import com.acttub.actingapi.observation.ObservationAnalyzer;
+import com.acttub.actingapi.integration.observation.ObservationAnalyzer;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

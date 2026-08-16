@@ -1,4 +1,4 @@
-package com.acttub.actingapi.observation;
+package com.acttub.actingapi.integration.observation;
 
 import com.acttub.actingapi.integration.media.GeminiVideoCompressor;
 import com.fasterxml.jackson.databind.ObjectMapper;

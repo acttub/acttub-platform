@@ -38,7 +38,7 @@ nostorage(`contract,nostorage`) 인스턴스를 각각 띄우고 하네스의
 환경변수 전량은 [하네스 README](../../tools/contract-harness/README.md)의 `java 타겟` 절이
 정본입니다** — 값은 하네스 `config.py`에서 나오므로 여기에 복사해 두지 않습니다.
 
-**contract 프로파일에는 진짜 LLM·분석 체인이 서지 않습니다.** `observation/GeminiConfiguration`과
+**contract 프로파일에는 진짜 LLM·분석 체인이 서지 않습니다.** `integration/observation/GeminiConfiguration`과
 `analysis/AnalysisConfiguration`이 `@Profile("!contract")`이라, 하네스 인스턴스는 외부 API 키
 없이 뜹니다. 🔎 **`@Primary`로는 이걸 못 합니다** — `ContractAnalysisProcessor`가 주입 경합에서
 이겨도 진짜 체인의 빈은 그대로 만들어지고, 그러다 `GEMINI_API_KEY`가 없어 컨텍스트가 죽었습니다.
@@ -73,7 +73,7 @@ ln -sfn ../api/acting-api/.env .env    # 최초 1회. 파이썬과 같은 파일
 
 ## 패키지 구조는 재편 중입니다 (SOMA-397)
 
-최상위가 **세 묶음**으로 갈립니다(ADR-017) — `platform`(배관: web·security·config·harness·health·observability·ledger) · `integration`(외부 연동: oidc·llm·storage·media) · 비즈니스 도메인. **앞의 둘은 8단계에서 섰고**, 도메인 열넷을 `feature` 아래로 넣는 것은 도메인 배치가 끝난 뒤의 **마지막 이사**입니다. 공용 `schema`는 도메인별로 흩어지는 중이라 아직 최상위에 있습니다.
+최상위가 **세 묶음**으로 갈립니다(ADR-017) — `platform`(배관: web·security·config·harness·health·observability·ledger) · `integration`(외부 연동: oidc·llm·storage·media·observation) · 비즈니스 도메인. **앞의 둘은 8단계에서 섰고**, 도메인 열넷을 `feature` 아래로 넣는 것은 도메인 배치가 끝난 뒤의 **마지막 이사**입니다. 공용 `schema`는 도메인별로 흩어지는 중이라 아직 최상위에 있습니다.
 
 도메인별 헥사고날로 옮기는 중이고 **`practice`(4단계)·`community`(10단계)·`report`·`coach`(9단계) 넷이 끝났습니다**. 옮긴 도메인은 네 층으로 섭니다 — `domain`(규칙을 담은 Domain Model, 프레임워크 import 금지) · `app`(서비스와 포트 선언) · `adapter`(`web`·`db`·`storage`·`sched`) · `schema`(Schema Entity). 나머지 열 도메인은 아직 평평하고, 그게 정상입니다.
 

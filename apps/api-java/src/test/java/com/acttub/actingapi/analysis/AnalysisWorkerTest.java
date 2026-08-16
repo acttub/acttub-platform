@@ -16,9 +16,9 @@ import java.util.concurrent.TimeoutException;
 import com.acttub.actingapi.platform.ledger.LeaseOwnershipException;
 import com.acttub.actingapi.integration.storage.ObjectStorage;
 import com.acttub.actingapi.integration.storage.StoredObjectMetadata;
-import com.acttub.actingapi.observation.FileActiveTimeout;
-import com.acttub.actingapi.observation.ObservationPack;
-import com.acttub.actingapi.observation.SummaryParseError;
+import com.acttub.actingapi.integration.observation.FileActiveTimeout;
+import com.acttub.actingapi.integration.observation.ObservationPack;
+import com.acttub.actingapi.integration.observation.SummaryParseError;
 import org.junit.jupiter.api.Test;
 
 class AnalysisWorkerTest {

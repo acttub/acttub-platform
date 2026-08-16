@@ -2,7 +2,7 @@ package com.acttub.actingapi.analysis;
 
 import java.util.List;
 
-import com.acttub.actingapi.observation.ObservationPack;
+import com.acttub.actingapi.integration.observation.ObservationPack;
 
 public record AnalysisResult(
         ObservationPack observationPack,
