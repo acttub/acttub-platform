@@ -1,18 +1,19 @@
-package com.acttub.actingapi.memory;
+package com.acttub.actingapi.memory.adapter.web;
 
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.regex.Pattern;
 
+import com.acttub.actingapi.memory.adapter.web.MemoryDtos.MemoryItem;
+import com.acttub.actingapi.memory.adapter.web.MemoryDtos.MemoryResponse;
+import com.acttub.actingapi.memory.adapter.web.MemoryDtos.UpdateMemoryRequest;
+import com.acttub.actingapi.memory.app.MemoryEntry;
+import com.acttub.actingapi.memory.app.MemoryService;
+import com.acttub.actingapi.memory.domain.MemoryValue;
 import com.acttub.actingapi.platform.security.AccessGate;
-import com.acttub.actingapi.schema.ActorMemoryField;
-import com.acttub.actingapi.memory.MemoryDtos.MemoryItem;
-import com.acttub.actingapi.memory.MemoryDtos.MemoryResponse;
-import com.acttub.actingapi.memory.MemoryDtos.UpdateMemoryRequest;
 import com.acttub.actingapi.platform.web.ApiValidationException;
-import com.acttub.actingapi.platform.web.PythonText;
+import com.acttub.actingapi.schema.ActorMemoryField;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -42,17 +43,15 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/v2/me/memory")
 class MemoryController {
-    private static final Pattern INTERNAL_WHITESPACE =
-            Pattern.compile("\\s+", Pattern.UNICODE_CHARACTER_CLASS);
     /** pydantic Literal 오류 메시지 형식: 마지막 항목만 or 로 잇는다. */
     private static final String EXPECTED_FIELDS =
             "'gender', 'age', 'goal', 'blockage', 'speech_self' or 'speech_actual'";
 
-    private final MemoryStore store;
+    private final MemoryService memory;
     private final AccessGate auth;
 
-    MemoryController(MemoryStore store, AccessGate auth) {
-        this.store = store;
+    MemoryController(MemoryService memory, AccessGate auth) {
+        this.memory = memory;
         this.auth = auth;
     }
 
@@ -69,7 +68,7 @@ class MemoryController {
     @GetMapping
     MemoryResponse getMemory(HttpServletRequest request) {
         var user = auth.rateLimitedUser(request);
-        return new MemoryResponse(store.list(user.id()).stream().map(MemoryController::item).toList());
+        return new MemoryResponse(memory.list(user.id()).stream().map(MemoryController::item).toList());
     }
 
     @Operation(
@@ -107,7 +106,7 @@ class MemoryController {
             HttpServletRequest request) {
         ActorMemoryField target = field(field);
         var user = auth.rateLimitedUser(request);
-        return item(store.writeAsActor(user.id(), target, normalize(body.value())));
+        return item(memory.write(user.id(), target, normalize(body.value())));
     }
 
     @Operation(
@@ -137,7 +136,7 @@ class MemoryController {
             HttpServletRequest request) {
         ActorMemoryField target = field(field);
         var user = auth.rateLimitedUser(request);
-        store.delete(user.id(), target);
+        memory.delete(user.id(), target);
         return ResponseEntity.noContent().build();
     }
 
@@ -151,7 +150,7 @@ class MemoryController {
     @DeleteMapping
     ResponseEntity<Void> deleteMemory(HttpServletRequest request) {
         var user = auth.rateLimitedUser(request);
-        store.delete(user.id(), null);
+        memory.deleteAll(user.id());
         return ResponseEntity.noContent().build();
     }
 
@@ -169,18 +168,17 @@ class MemoryController {
         return ActorMemoryField.valueOf(raw.toUpperCase(Locale.ROOT));
     }
 
-    /** 원본 `UpdateMemoryRequest._normalize`: `" ".join(value.split())`. */
+    /** 다듬는 것은 {@link MemoryValue} 가 하고, 여기서는 남은 게 없을 때의 응답만 정한다. */
     private static String normalize(String raw) {
-        // 앞뒤 제거는 PythonText 로 — String.strip() 은 NBSP 를 남긴다.
-        String collapsed = PythonText.strip(INTERNAL_WHITESPACE.matcher(raw).replaceAll(" "));
-        if (collapsed.isEmpty()) {
+        String normalized = MemoryValue.normalize(raw);
+        if (normalized == null) {
             throw ApiValidationException.valueError(
                     List.of("body", "value"), "Value error, value must not be blank", raw);
         }
-        return collapsed;
+        return normalized;
     }
 
-    private static MemoryItem item(MemoryStore.MemoryRow row) {
+    private static MemoryItem item(MemoryEntry row) {
         return new MemoryItem(
                 row.field(), row.value(), row.writtenByActor(), row.sourcePracticeSessionId());
     }

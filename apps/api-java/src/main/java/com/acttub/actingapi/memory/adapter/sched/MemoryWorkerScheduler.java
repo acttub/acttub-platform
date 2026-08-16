@@ -1,8 +1,9 @@
-package com.acttub.actingapi.memory;
+package com.acttub.actingapi.memory.adapter.sched;
 
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+import com.acttub.actingapi.memory.app.MemoryUpdateWorker;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;

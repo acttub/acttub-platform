@@ -1,4 +1,4 @@
-package com.acttub.actingapi.memory;
+package com.acttub.actingapi.memory.adapter.sched;
 
 import static org.assertj.core.api.Assertions.assertThat;
 

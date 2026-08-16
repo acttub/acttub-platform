@@ -1,4 +1,4 @@
-package com.acttub.actingapi.memory;
+package com.acttub.actingapi.memory.adapter.db;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
@@ -15,9 +15,13 @@ import java.util.UUID;
 
 import com.acttub.actingapi.coach.app.CoachMemory;
 import com.acttub.actingapi.coach.app.PriorContext;
+import com.acttub.actingapi.memory.app.MemoryEntry;
+import com.acttub.actingapi.memory.app.MemoryRepository;
+import com.acttub.actingapi.memory.app.MemoryUpdateMaterial;
+import com.acttub.actingapi.memory.domain.AgentMemoryWrites;
+import com.acttub.actingapi.platform.web.PythonText;
 import com.acttub.actingapi.schema.ActorMemoryAuthor;
 import com.acttub.actingapi.schema.ActorMemoryField;
-import com.acttub.actingapi.platform.web.PythonText;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -32,7 +36,7 @@ import org.springframework.stereotype.Repository;
  * 끝낸다 — 건너뛰면 {@code RETURNING} 이 0행이라 {@code null} 이 돌아온다.
  */
 @Repository
-public class MemoryStore implements CoachMemory {
+public class PostgresMemoryRepository implements MemoryRepository, CoachMemory {
     /** `store.py:_MEMORY_UPDATE_NAMESPACE` 와 같은 값이어야 잡이 멱등해진다. */
     private static final UUID MEMORY_UPDATE_NAMESPACE =
             UUID.fromString("6f3a1d52-8c47-4b19-9e0a-2d5c7b41f8e3");
@@ -41,7 +45,7 @@ public class MemoryStore implements CoachMemory {
     private final Clock clock;
     private final ObjectMapper mapper;
 
-    public MemoryStore(JdbcTemplate jdbc, Clock clock, ObjectMapper mapper) {
+    public PostgresMemoryRepository(JdbcTemplate jdbc, Clock clock, ObjectMapper mapper) {
         this.jdbc = jdbc;
         this.clock = clock;
         this.mapper = mapper;
@@ -54,7 +58,8 @@ public class MemoryStore implements CoachMemory {
      * <b>출력 alias 를 먼저 보기</b> 때문이다 — 그냥 {@code field} 라고 쓰면 아래의
      * {@code field::text} alias 를 잡아 알파벳 순으로 갈린다.
      */
-    public List<MemoryRow> list(UUID userId) {
+    @Override
+    public List<MemoryEntry> list(UUID userId) {
         return jdbc.query("""
                 SELECT field::text AS field,
                        value,
@@ -63,11 +68,12 @@ public class MemoryStore implements CoachMemory {
                 FROM actor_memory_entries
                 WHERE user_id=?
                 ORDER BY actor_memory_entries.field
-                """, MemoryStore::row, userId);
+                """, PostgresMemoryRepository::row, userId);
     }
 
     /** 배우가 직접 쓰거나 고친다. 항상 이긴다. */
-    public MemoryRow writeAsActor(UUID userId, ActorMemoryField field, String value) {
+    @Override
+    public MemoryEntry writeAsActor(UUID userId, ActorMemoryField field, String value) {
         return upsert(userId, field, value, ActorMemoryAuthor.ACTOR, null);
     }
 
@@ -77,15 +83,16 @@ public class MemoryStore implements CoachMemory {
      *
      * <p>성별·나이는 DB 제약이 막으므로 여기서 미리 걸러 불필요한 예외를 만들지 않는다.
      */
-    public MemoryRow writeAsAgent(
+    @Override
+    public MemoryEntry writeAsAgent(
             UUID userId, ActorMemoryField field, String value, UUID sourcePracticeSessionId) {
-        if (field == ActorMemoryField.GENDER || field == ActorMemoryField.AGE) {
+        if (!AgentMemoryWrites.allows(field.dbValue())) {
             return null;
         }
         return upsert(userId, field, value, ActorMemoryAuthor.AGENT, sourcePracticeSessionId);
     }
 
-    private MemoryRow upsert(
+    private MemoryEntry upsert(
             UUID userId,
             ActorMemoryField field,
             String value,
@@ -95,7 +102,7 @@ public class MemoryStore implements CoachMemory {
         String guard = author == ActorMemoryAuthor.ACTOR
                 ? "true"
                 : "actor_memory_entries.written_by <> 'actor'::actor_memory_author_t";
-        List<MemoryRow> rows = jdbc.query("""
+        List<MemoryEntry> rows = jdbc.query("""
                 INSERT INTO actor_memory_entries
                     (id,user_id,field,value,written_by,source_practice_session_id,created_at,updated_at)
                 VALUES (?,?,?::actor_memory_field_t,?,?::actor_memory_author_t,?,?,?)
@@ -110,7 +117,7 @@ public class MemoryStore implements CoachMemory {
                           written_by::text AS written_by,
                           source_practice_session_id
                 """.formatted(guard),
-                MemoryStore::row,
+                PostgresMemoryRepository::row,
                 UUID.randomUUID(),
                 userId,
                 field.dbValue(),
@@ -122,6 +129,7 @@ public class MemoryStore implements CoachMemory {
         return rows.isEmpty() ? null : rows.getFirst();
     }
 
+    @Override
     public void delete(UUID userId, ActorMemoryField field) {
         if (field == null) {
             jdbc.update("DELETE FROM actor_memory_entries WHERE user_id=?", userId);
@@ -133,17 +141,15 @@ public class MemoryStore implements CoachMemory {
                 field.dbValue());
     }
 
-    private static MemoryRow row(java.sql.ResultSet result, int rowNumber)
+    private static MemoryEntry row(java.sql.ResultSet result, int rowNumber)
             throws java.sql.SQLException {
-        return new MemoryRow(
+        return new MemoryEntry(
                 result.getString("field"),
                 result.getString("value"),
                 "actor".equals(result.getString("written_by")),
                 result.getObject("source_practice_session_id", UUID.class));
     }
 
-    public record MemoryRow(String field, String value, boolean writtenByActor, UUID sourcePracticeSessionId) {
-    }
 
     // --- 코치가 대화를 시작할 때 알고 있어야 하는 지난 것들 -----------------------
 
@@ -278,6 +284,7 @@ public class MemoryStore implements CoachMemory {
      * <p><b>배우가 한 말만 담는다</b> — 코치가 한 말까지 넣으면 코치가 제안한 표현이
      * 배우 본인의 말로 굳어 기억에 남는다.
      */
+    @Override
     public MemoryUpdateMaterial material(UUID practiceSessionId) {
         List<MemoryUpdateMaterial> sessions = jdbc.query("""
                 SELECT user_id,goal,blockage_kind,sub_branch,blockage_detail
@@ -316,16 +323,6 @@ public class MemoryStore implements CoachMemory {
     public record PriorPracticeContext(String earlierConversation, List<String> pendingTakes) {
     }
 
-    public record MemoryUpdateMaterial(
-            UUID userId,
-            UUID practiceSessionId,
-            String goal,
-            String blockageKind,
-            String subBranch,
-            String blockageDetail,
-            List<String> transcripts,
-            List<String> actorMessages) {
-    }
 
     /**
      * RFC 4122 v5 (SHA-1). {@code UUID.nameUUIDFromBytes} 는 v3(MD5)라 파이썬

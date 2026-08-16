@@ -1,4 +1,4 @@
-package com.acttub.actingapi.memory;
+package com.acttub.actingapi.memory.app;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -9,6 +9,8 @@ import java.util.regex.Pattern;
 
 import com.acttub.actingapi.integration.llm.TextValidation;
 import com.acttub.actingapi.integration.llm.TextValidator;
+import com.acttub.actingapi.memory.domain.AgentMemoryWrites;
+import com.acttub.actingapi.memory.domain.MemoryValue;
 import com.acttub.actingapi.platform.web.PythonText;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -29,13 +31,6 @@ import org.slf4j.LoggerFactory;
 public final class MemoryExtractor {
     private static final Logger LOG = LoggerFactory.getLogger(MemoryExtractor.class);
     private static final ObjectMapper MAPPER = new ObjectMapper();
-
-    /** 에이전트가 손대는 칸. 성별·나이는 배우 전용이라 여기 없다. */
-    static final List<String> AGENT_WRITABLE_FIELDS =
-            List.of("goal", "blockage", "speech_self", "speech_actual");
-
-    /** 저장 계층의 길이 상한과 같은 값. 넘으면 저장이 거부되므로 여기서 미리 버린다. */
-    static final int VALUE_MAX_LENGTH = 1000;
 
     /** 목표 칸에서만 통과시키는 결과 어휘 (`acting-llm/forbidden.py:ACTOR_GOAL_ALLOWED`). */
     private static final List<String> ACTOR_GOAL_ALLOWED = List.of("합격");
@@ -76,7 +71,7 @@ public final class MemoryExtractor {
     }
 
     static String buildExtractionPrompt(
-            MemoryStore.MemoryUpdateMaterial material, Map<String, String> existing) {
+            MemoryUpdateMaterial material, Map<String, String> existing) {
         List<String> lines = new ArrayList<>();
         lines.add("[이번 연습]");
         lines.add("- 배우가 적은 목표: " + material.goal());
@@ -100,7 +95,7 @@ public final class MemoryExtractor {
         if (existing.isEmpty()) {
             lines.add("- (아직 없음)");
         } else {
-            for (String name : AGENT_WRITABLE_FIELDS) {
+            for (String name : AgentMemoryWrites.FIELDS) {
                 String value = existing.get(name);
                 if (value != null && !value.isEmpty()) {
                     lines.add("- " + FIELD_LABELS.get(name) + ": " + value);
@@ -161,7 +156,7 @@ public final class MemoryExtractor {
      * 실패했다고 연습이 실패하면 안 된다.
      */
     public static Map<String, String> extract(
-            MemoryStore.MemoryUpdateMaterial material,
+            MemoryUpdateMaterial material,
             Map<String, String> existing,
             java.util.function.BiFunction<String, String, String> generate) {
         String rawText = generate.apply(SYSTEM_PROMPT, buildExtractionPrompt(material, existing));
@@ -175,7 +170,7 @@ public final class MemoryExtractor {
                 rejected.put(name, "배우 전용 칸");
                 return;
             }
-            if (!AGENT_WRITABLE_FIELDS.contains(name)) {
+            if (!AgentMemoryWrites.allows(name)) {
                 return;
             }
             JsonNode value = candidate.get(name);
@@ -188,7 +183,7 @@ public final class MemoryExtractor {
                 rejected.put(name, "빈 값");
                 return;
             }
-            if (text.codePointCount(0, text.length()) > VALUE_MAX_LENGTH) {
+            if (text.codePointCount(0, text.length()) > MemoryValue.MAX_LENGTH) {
                 rejected.put(name, "길이 상한 초과");
                 return;
             }

@@ -1,4 +1,4 @@
-package com.acttub.actingapi.memory;
+package com.acttub.actingapi.memory.adapter.db;
 
 import java.util.UUID;
 
@@ -18,12 +18,12 @@ class MemoryUuid5Test {
     @Test
     @DisplayName("uuid5 가 파이썬 uuid.uuid5 와 같은 값을 낸다 (v3/MD5 가 아니다)")
     void matchesPythonUuid5() {
-        assertThat(MemoryStore.uuid5(NAMESPACE, "00000000-0000-4000-8000-000000000702"))
+        assertThat(PostgresMemoryRepository.uuid5(NAMESPACE, "00000000-0000-4000-8000-000000000702"))
                 .isEqualTo(UUID.fromString("b6e55667-dd18-5982-bd36-30d2c368b89d"));
-        assertThat(MemoryStore.uuid5(NAMESPACE, "11111111-2222-4333-8444-555555555555"))
+        assertThat(PostgresMemoryRepository.uuid5(NAMESPACE, "11111111-2222-4333-8444-555555555555"))
                 .isEqualTo(UUID.fromString("ba0c6b44-0567-5185-8f6f-2bbaea425562"));
         // UUID.nameUUIDFromBytes 는 v3 라 이 값과 달라야 한다 — 실수로 갈아끼우면 여기서 걸린다.
-        assertThat(MemoryStore.uuid5(NAMESPACE, "00000000-0000-4000-8000-000000000702").version())
+        assertThat(PostgresMemoryRepository.uuid5(NAMESPACE, "00000000-0000-4000-8000-000000000702").version())
                 .isEqualTo(5);
     }
 }

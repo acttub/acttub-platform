@@ -1,7 +1,8 @@
-package com.acttub.actingapi.memory;
+package com.acttub.actingapi.memory.app;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 import com.acttub.actingapi.platform.ledger.LeaseOwnershipException;
@@ -19,6 +20,22 @@ public interface MemoryUpdateQueue {
 
     /** 갱신 대기 중인 작업 하나를 선점한다. 집을 게 없으면 {@code null}. */
     UUID claimNext(UUID leaseToken, Duration duration, Instant now);
+
+    /** 선점한 작업이 어느 연습의 것인지. */
+    UUID practiceSessionOf(UUID operationId);
+
+    /**
+     * 작업을 성공으로 닫는다. 응답에 남는 것은 <b>어느 연습이었는지와 실제로 갱신된 칸
+     * 이름들</b>이고, 그것을 어떤 키로 적을지는 원장이 정한다 — 워커는 무엇을 담을지만 안다.
+     *
+     * @throws LeaseOwnershipException 리스를 이미 다른 워커가 재선점했다
+     */
+    void complete(
+            UUID operationId,
+            UUID leaseToken,
+            UUID practiceSessionId,
+            List<String> updatedFields,
+            Instant now);
 
     /**
      * 작업을 실패로 닫는다.

@@ -1,8 +1,9 @@
-package com.acttub.actingapi.memory;
+package com.acttub.actingapi.memory.adapter.web;
 
 import java.util.List;
 import java.util.UUID;
 
+import com.acttub.actingapi.memory.domain.MemoryValue;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotNull;
@@ -11,9 +12,6 @@ import jakarta.validation.constraints.NotNull;
 final class MemoryDtos {
     private MemoryDtos() {
     }
-
-    /** 저장 계층과 같은 값이어야 한다. DB 제약(`ck_actor_memory_value_length`)이 최종 방어선이다. */
-    static final int VALUE_MAX_LENGTH = 1000;
 
     static final List<String> FIELD_NAMES =
             List.of("gender", "age", "goal", "blockage", "speech_self", "speech_actual");
@@ -44,7 +42,7 @@ final class MemoryDtos {
 
     @Schema(name = "UpdateMemoryRequest", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
     record UpdateMemoryRequest(
-            @NotNull @Schema(title = "Value", minLength = 1, maxLength = VALUE_MAX_LENGTH)
+            @NotNull @Schema(title = "Value", minLength = 1, maxLength = MemoryValue.MAX_LENGTH)
             String value) {
     }
 }
