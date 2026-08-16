@@ -151,6 +151,10 @@ dev 관찰이 끝나고 사용자가 승인하면 같은 순서. 운영은 fe/be
   - ⚠ **사양이 틀렸다.** "양쪽 모두 `ANALYSIS_WORKER_ENABLED` 스위치를 갖는다(M4 산출물)"고 적혀 있으나 **그 스위치는 Java 에만 있다.** 파이썬은 `app.py:create_app` 이 S3+PostgresStore 가 있으면 워커를 무조건 만들어 lifespan 에서 start 하고, 끄는 손잡이가 없다(하네스는 `create_app(analysis_worker=…)` 주입으로 피한다). 그래서 **프로세스를 통째로 내리는 것이 유일한 방법**이었다 — "FastAPI 프로세스는 살려 둔다(워커는 꺼진 채)"는 §전환 절차 7번도 성립하지 않는다
   - 🔎 `systemctl disable` 까지 함께 했다. enabled 인 채로 두면 재부팅으로 owner 가 둘이 된다
   - 🔎 uvicorn 정지 시 상태가 `failed` 로 보이는 것은 정상이다 — SIGTERM 종료라 exit 143 이고 유닛에 `SuccessExitStatus=143` 이 없다. 로그에는 "Application shutdown complete" 가 찍힌다
+  - 🔥 **배포가 이 관문을 두 번 되돌렸다(2026-08-16, dev).** `disable --now` 로 내려둔 FastAPI 가 다시 떠서 **워커 owner 가 둘이 된 채 45분간 방치됐다.** 큐가 비어 있어 충돌은 나지 않았다
+    1. **05:53** — `ssm-deploy.sh be` 가 `systemctl enable acttub-api` + `restart` 를 한다. **배포 경로가 관문 B 를 모른다.** → `be` 잡을 없애 원인을 제거했다(PR #206)
+    2. **06:38** — 새 `migrate` 모드가 `rm -rf apps/api` + `uv sync` 로 실행 중인 프로세스의 코드·venv 를 갈아치우자 프로세스가 죽었고, **유닛의 `Restart=always`(`RestartSec=3`)가 되살렸다.** "서비스를 건드리지 않으니 안전하다" 는 판단이 틀렸다 — systemctl 을 부르지 않아도 파일을 치우면 죽고, 죽으면 systemd 가 살린다
+    - → **운영 컷오버에서도 같은 순서로 밟는다.** `disable --now` 를 배포 **뒤에** 하거나, 파이썬에 워커 가드를 먼저 넣어야 한다. 지금 방어는 "정지 상태면 `Restart=always` 가 발동할 대상이 없다" 하나뿐이고, 이는 **누가 다시 `enable` 하지 않는다는 전제**에 기댄다
 - [x] 워커 전환 직후 분석 1건 완주 — 2026-08-16 17:07:33 `analyze` succeeded. **Java 분석 파이프라인이 운영 조건에서 처음 돌았고 실패 0건.** `summaries` 1건 생성
 - [ ] **Sentry에 Java 이벤트가 실제로 도착한다** — 컷오버 시점에 수집이 끊기지 않았음을 대시보드로 확인
 - [x] 업로드 → 분석 → 코치 → 리포트 전 플로우 동작 — 2026-08-16 사용자가 dev 에서 가입부터 코치까지 완주. `analyze`·`coach_start`·`coach_reply` 5건 전부 succeeded, `error_code` 없음
