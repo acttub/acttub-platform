@@ -25,16 +25,65 @@ $PY -m contract_harness --dump-inventory inventory            # 기대값 fixtur
 $PY -m pytest tests -q                                        # 리포터·정규화 단위 테스트
 ```
 
+## java 타겟 — 인스턴스 셋을 띄운다
+
 Java 전체 판정은 Spring profile·환경변수가 기동 시 고정되므로 인스턴스 셋을 쓴다.
 기본 인스턴스에는 `ADMIN_OPS_TOKEN`을 주지 않고, admin 인스턴스에만 준다.
 nostorage 인스턴스는 `contract,nostorage` profile로 띄운다.
 
+⚠ **스키마를 먼저 만든다.** `harness_target`은 하네스가 실행될 때 만들어지는데(`runner.py:prepare_schemas`)
+contract 프로파일은 flyway를 끄고 `ddl-auto: validate`로 뜨므로, 스키마가 없는 상태에서 인스턴스를
+먼저 띄우면 셋 다 검증 실패로 죽는다. **위의 `--baseline fastapi --target fastapi`를 한 번 돌린 뒤**
+아래로 간다.
+
 ```bash
+# 이 블록은 tools/contract-harness 에서 돈다(위 $PY 와 같은 기준).
+# ⚠ 서브셸로 감싸지 않으면 cd 가 이후 상대경로를 전부 어긋나게 한다. 그리고 bootJar 가
+#   실패해도 java 는 **옛 jar 로 조용히 뜬다** — 바꾼 코드가 아닌 것을 판정하게 되므로,
+#   이 줄이 실패하면 여기서 멈춘다.
+(cd ../../apps/api-java && ./gradlew bootJar)
+JAR=../../apps/api-java/build/libs/acting-api.jar
+FIX="$PWD/contract_harness/fixtures"
+
+# 하네스와 앱이 같은 DB 를 보게 한다. 안 정하면 하네스만 config.py 기본값으로 가고
+# 앱에는 빈 문자열이 넘어가 기동에 실패한다.
+export HARNESS_DATABASE_URL="${HARNESS_DATABASE_URL:-postgresql://acttub:acttub@localhost:55432/harness_claude}"
+export DATABASE_URL="$HARNESS_DATABASE_URL"   # 앱이 읽는 이름은 이쪽이다
+export HARNESS_SCHEMA=harness_target
+export JWT_SECRET=contract-harness-jwt-secret
+export GEMINI_MODEL=harness-summary-model
+export HARNESS_AUTH_PROVIDER_FIXTURE="$FIX/auth_providers.json"
+export HARNESS_S3_FIXTURE="$FIX/s3.json"
+export HARNESS_LLM_FIXTURE="$FIX/llm.json"
+
+java -Dacttub.dotenv.enabled=false -jar $JAR \
+    --spring.profiles.active=contract --server.port=8099 &
+ADMIN_OPS_TOKEN=contract-harness-admin-token \
+java -Dacttub.dotenv.enabled=false -jar $JAR \
+    --spring.profiles.active=contract --server.port=8100 &
+java -Dacttub.dotenv.enabled=false -jar $JAR \
+    --spring.profiles.active=contract,nostorage --server.port=8101 &
+# 세 포트의 /health가 200을 낼 때까지 기다린 뒤 실행한다
+
 $PY -m contract_harness --baseline fastapi --target java \
     --java-base-url http://127.0.0.1:8099 \
     --java-admin-base-url http://127.0.0.1:8100 \
     --java-nostorage-base-url http://127.0.0.1:8101
 ```
+
+⚠ **`-Dacttub.dotenv.enabled=false`가 판정의 전제다.** 빼면 `apps/api-java/.env`가 하네스가
+주지 않는 키를 채워 판정이 로컬 환경에 좌우된다. **외부 API 키는 하나도 필요 없다** —
+contract 프로파일에는 진짜 LLM·분석 체인이 아예 서지 않는다(`observation/GeminiConfiguration`·
+`analysis/AnalysisConfiguration`이 `@Profile("!contract")`). 값의 정본은 `config.py`다.
+
+| 환경변수 | 값 | 안 주면 |
+|---|---|---|
+| `DATABASE_URL` | `HARNESS_DATABASE_URL`과 같은 주소 | 기동 실패 |
+| `HARNESS_SCHEMA` | `harness_target` | 기본값이 같아 무해 |
+| `JWT_SECRET` | `contract-harness-jwt-secret` | 하네스가 발급한 토큰을 못 읽어 전량 401 |
+| `GEMINI_MODEL` | `harness-summary-model` | `/health`의 `$.model`이 기본값으로 나와 diff |
+| `ADMIN_OPS_TOKEN` | `contract-harness-admin-token` | **admin 인스턴스에만.** 기본 인스턴스에 주면 admin이 문서에 실려 openapi diff 6건 |
+| `HARNESS_*_FIXTURE` | `contract_harness/fixtures/*.json` | 기본값이 `apps/api-java` 기준 상대경로라, 다른 곳에서 띄우면 필요 |
 
 세 인스턴스는 같은 `HARNESS_SCHEMA`를 쓰되 시나리오가 순차 실행되므로, 하네스의
 truncate·재시드와 `reset-state` 경계를 그대로 공유한다.
