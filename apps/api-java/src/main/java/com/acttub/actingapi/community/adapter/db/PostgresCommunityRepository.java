@@ -166,8 +166,29 @@ class PostgresCommunityRepository implements CommunityRepository {
                     )
                     VALUES (?, ?, ?, ?, ?, ?, 'visible'::content_status_t)
                     """, id, categories.getFirst(), authorId, title, body, anonymous);
-            return loadVisiblePost(id, authorId);
+            return justInserted(id, authorId);
         }));
+    }
+
+    /**
+     * 방금 넣은 글을 응답에 실을 형태로 다시 읽는다.
+     *
+     * <p>🔥 <b>없으면 {@link CommunityContentNotFound} 가 아니다.</b> 이 자리의 "없음" 은 분류가
+     * 없다는 뜻이 아니라 방금 넣은 행이 조회 조건에 안 걸린다는 뜻이고(작성자가 자기 자신을
+     * 차단한 행이 남아 있으면 그렇게 된다), 서비스가 그것을 {@code category_not_found} 로 옮기면
+     * 멀쩡한 분류를 탓하게 된다. 종전에도 이 자리는 컨트롤러 catch 를 비껴 500 이었다 —
+     * 예외를 하나로 합치면서 조용히 404 가 될 뻔했다.
+     *
+     * <p>⚠ {@code updatePost} 의 같은 모양은 감싸지 않는다. 그쪽은 종전에도 컨트롤러가
+     * {@code PostNotFound} 를 잡아 404 {@code post_not_found} 였으므로 지금과 같다.
+     */
+    private CommunityPost justInserted(UUID postId, UUID authorId) {
+        try {
+            return loadVisiblePost(postId, authorId);
+        } catch (CommunityContentNotFound exception) {
+            throw new IllegalStateException(
+                    "community post is not visible right after insert", exception);
+        }
     }
 
     @Override
@@ -349,7 +370,7 @@ class PostgresCommunityRepository implements CommunityRepository {
                     WHERE id = ?
                     """, body, commentId);
             CommunityComment updated = loadComment(commentId, authorId);
-            CommunityPost post = loadPostWithoutVisibility(updated.postId());
+            CommunityPost post = parentPostOf(updated);
             return updated.named(post, aliasMap(updated.postId()).get(updated.authorId()));
         }));
     }
@@ -517,7 +538,18 @@ class PostgresCommunityRepository implements CommunityRepository {
         return rows.getFirst();
     }
 
-    private CommunityPost loadPostWithoutVisibility(UUID postId) {
+    /**
+     * 댓글이 달린 글. 표시 이름을 정하려면 글쓴이가 누구인지 알아야 하므로, 지워졌든 차단됐든
+     * 가리지 않고 읽는다.
+     *
+     * <p>🔥 <b>없으면 {@link CommunityContentNotFound} 가 아니다.</b> 댓글이 있는데 부모 글이
+     * 없는 것은 "대상을 못 찾았다" 가 아니라 외래키 불변식이 깨진 것이고, 서비스가 그것을 404 로
+     * 옮기면 깨진 데이터가 정상 응답으로 덮인다. 종전에도 이 자리는 컨트롤러 catch 를 비껴
+     * 500 이었다 — 예외를 하나로 합치면서 조용히 404 가 될 뻔했다. 같은 패키지의
+     * {@code AnonymousAliasAllocator.lockPost} 도 같은 상황에 같은 예외를 던진다.
+     */
+    private CommunityPost parentPostOf(CommunityComment comment) {
+        UUID postId = comment.postId();
         List<CommunityPost> rows = jdbc.query("""
                 SELECT p.id,
                        p.author_id,
@@ -541,7 +573,7 @@ class PostgresCommunityRepository implements CommunityRepository {
                 WHERE p.id = ?
                 """, (result, rowNumber) -> post(result, null), postId);
         if (rows.isEmpty()) {
-            throw new CommunityContentNotFound();
+            throw new IllegalStateException("community post is missing");
         }
         return rows.getFirst();
     }

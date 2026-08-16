@@ -106,6 +106,10 @@ public interface CommunityRepository {
     /**
      * 차단한다. 이미 차단했으면 아무 일도 일어나지 않는다.
      *
+     * <p><b>둘이 다른 사람인지는 부르는 쪽이 이미 확인했다.</b> 자기 자신을 차단하는 것은 저장할
+     * 것이 있느냐가 아니라 허용되느냐의 문제라 규칙 쪽에 있다 — 여기까지 내려오면 조건이
+     * 실재 확인 뒤로 밀려, 자기 자신은 늘 실재하므로 걸러지지 않는다.
+     *
      * @throws CommunityContentNotFound 그런 사용자가 없을 때
      */
     void blockUser(UUID blockerId, UUID blockedId);
