@@ -78,14 +78,14 @@ public class ReportService {
                     ? null
                     : sources.getPracticeReportForHandoff(source.handoffId());
             JsonNode report = existing == null ? reportFor(source) : existing;
-            if (ReportBranch.isBlocked(report.path("report_type").asText()) || existing != null) {
+            if (isBlocked(report) || existing != null) {
                 operations.complete(claim, report);
             } else {
                 boolean saved = practiceReports.completePracticeReportOperation(
                         claim.operationId(),
                         claim.leaseToken(),
                         source.practiceSessionId(),
-                        report.path("report_type").asText(),
+                        typeOf(report),
                         report,
                         source.handoffId(),
                         report,
@@ -112,6 +112,22 @@ public class ReportService {
 
     public List<ReportSummary> history(UUID userId) {
         return reports.listSummaries(userId);
+    }
+
+    /**
+     * 이 성적표가 <b>만들지 않기로 했다는 표시</b>인지.
+     *
+     * <p>차단 노트는 저장하지 않는다 — 다음 요청이 다시 판정해야 하기 때문이다. 그 판단이 필요한
+     * 자리가 {@code coach} 에도 있어 질문을 여기 둔다. 본문의 어느 필드가 갈래를 담는지는 성적표의
+     * 사정이지 부르는 쪽이 알 것이 아니다.
+     */
+    public boolean isBlocked(JsonNode report) {
+        return ReportBranch.isBlocked(typeOf(report));
+    }
+
+    /** 성적표가 스스로 밝힌 갈래. 저장할 때 열에 그대로 들어간다. */
+    public String typeOf(JsonNode report) {
+        return report.path("report_type").asText();
     }
 
     /**

@@ -4,9 +4,9 @@ import java.util.UUID;
 
 import com.acttub.actingapi.platform.security.AccessGate;
 import com.acttub.actingapi.platform.web.CanonicalJsonResponse;
-import com.acttub.actingapi.report.adapter.web.ReportDtos.AnalysisReport;
-import com.acttub.actingapi.report.adapter.web.ReportDtos.BlockedReport;
-import com.acttub.actingapi.report.adapter.web.ReportDtos.ExpressionReport;
+import com.acttub.actingapi.report.app.PublicReport.AnalysisReport;
+import com.acttub.actingapi.report.app.PublicReport.BlockedReport;
+import com.acttub.actingapi.report.app.PublicReport.ExpressionReport;
 import com.acttub.actingapi.report.adapter.web.ReportDtos.ReportDetailResponse;
 import com.acttub.actingapi.report.adapter.web.ReportDtos.ReportHistoryResponse;
 import com.acttub.actingapi.report.adapter.web.ReportDtos.ReportRecord;

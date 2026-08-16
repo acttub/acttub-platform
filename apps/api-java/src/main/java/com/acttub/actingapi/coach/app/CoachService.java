@@ -20,7 +20,6 @@ import com.acttub.actingapi.report.app.PracticeReportLedger;
 import com.acttub.actingapi.report.app.ReportEngine;
 import com.acttub.actingapi.report.app.ReportParseError;
 import com.acttub.actingapi.report.app.ReportService;
-import com.acttub.actingapi.report.domain.ReportBranch;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -261,14 +260,14 @@ public class CoachService {
                     source.branchKind(),
                     report);
 
-            if (ReportBranch.isBlocked(report.path("report_type").asText()) || existing != null) {
+            if (reportService.isBlocked(report) || existing != null) {
                 operations.complete(claim, payload);
             } else {
                 boolean saved = practiceReports.completePracticeReportOperation(
                         claim.operationId(),
                         claim.leaseToken(),
                         source.practiceSessionId(),
-                        report.path("report_type").asText(),
+                        reportService.typeOf(report),
                         report,
                         source.handoffId(),
                         payload,

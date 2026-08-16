@@ -3,9 +3,9 @@ package com.acttub.actingapi.coach.adapter.web;
 import java.util.List;
 import java.util.UUID;
 
-import com.acttub.actingapi.report.adapter.web.ReportDtos.AnalysisReport;
-import com.acttub.actingapi.report.adapter.web.ReportDtos.BlockedReport;
-import com.acttub.actingapi.report.adapter.web.ReportDtos.ExpressionReport;
+import com.acttub.actingapi.report.app.PublicReport.AnalysisReport;
+import com.acttub.actingapi.report.app.PublicReport.BlockedReport;
+import com.acttub.actingapi.report.app.PublicReport.ExpressionReport;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import com.fasterxml.jackson.databind.annotation.JsonNaming;
