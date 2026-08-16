@@ -91,6 +91,9 @@ truncate·재시드와 `reset-state` 경계를 그대로 공유한다.
 - DB: `HARNESS_DATABASE_URL`(기본 `postgresql://acttub:acttub@localhost:55432/harness_claude`).
   `harness_baseline`·`harness_target` 스키마 두 벌을 만들어 alembic head까지 올린다.
   실행 사이에는 TRUNCATE + 재시드로 되돌린다(`--rebuild-schemas`로 강제 재생성).
+  - ⚠ **도커 이미지 대신 로컬 설치본(brew 등)을 쓰면 `PGTZ=UTC` 를 함께 준다.** 도커
+    이미지는 UTC 로 뜨지만 로컬 설치본은 시스템 타임존을 따라, 안 주면 datetime diff 가
+    수백 건 난다. baseline·target 양쪽에 걸리므로 java 타겟만의 문제가 아니다.
 - 앱 로그는 기본으로 끈다. `HARNESS_LOGS=1`이면 그대로 보여준다.
 
 ## 구조
@@ -188,6 +191,14 @@ manifest·admin 스냅샷·unknown key·레이트리밋 오염·openapi 계약 �
 - 원본 `coach_confirm` 은 두 요청이 동시에 확정하면 500 을 내기도 한다. 그래서 중복
   확정(409 `report already exists`)은 동시 요청이 아니라 **게이트 + 행 삽입**으로
   결정적으로 만든다(`dbops.py:SchemaOps.insert_practice_report`).
+- **`release` 직후의 `in_block_count` 는 관측하지 않는다.** 게이트를 푼 그 순간 대기
+  스레드가 이미 깨어났는지는 스케줄러가 정한다 — 파이썬은 GIL 을 쥔 채 상태를 조립해
+  대개 1 이 남아 보이고, java 는 `notifyAll()` 직후 대기 스레드가 monitor 를 먼저 잡으면
+  0 이 보인다. **어느 쪽이 옳다고 할 수 없는 값이다.** 그래서 시나리오는 푼 뒤
+  `gate.poll_until_unblocked` 로 **빠져나온 것**을 확인하고 그 안정된 상태를 기록한다.
+  이 장치 없이 `release` 응답을 그대로 기록하면 `inflight-replay`·`lease-stolen`·
+  `duplicate-report` 가 이 한 필드로 산발적으로 diff 를 낸다 — 실측 **15회 중 1회**
+  (SOMA-397 2단계). 갇혀 있었다는 사실 자체는 `_wait_until_blocked` 가 따로 관측한다.
 - **스텁 게이트는 더 이상 백엔드를 가리지 않는다.** 대기·재무장·해제가 전부
   `stub-state` 제어 경유이므로(`scenarios/gate.py`) 양쪽 백엔드가 같은 코드를 밟는다.
   전에는 시나리오가 `backend.runtime` 에서 핸들을 직접 꺼내 in-process 전용이었고,
