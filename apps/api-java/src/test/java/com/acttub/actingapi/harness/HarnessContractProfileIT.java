@@ -8,8 +8,11 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.UUID;
 
+import com.acttub.actingapi.analysis.AnalysisProcessor;
 import com.acttub.actingapi.auth.FixedWindowRateLimiter;
 import com.acttub.actingapi.auth.JwtService;
+import com.acttub.actingapi.media.GeminiVideoCompressor;
+import com.acttub.actingapi.observation.ObservationAnalyzer;
 import com.acttub.actingapi.support.PostgresContainerSupport;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -19,13 +22,20 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.ApplicationContext;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 
-@SpringBootTest(properties = "JWT_SECRET=contract-harness-jwt-secret")
+// 🔎 **`GEMINI_API_KEY` 를 일부러 비운다.** `src/test/resources/application.properties` 가
+// 키를 채워 주는 바람에 이 IT 는 초록인 채로 **격리 기동만 죽어 있었다** — 실제 하네스
+// 인스턴스는 `-Dacttub.dotenv.enabled=false` 로 떠서 키를 받을 곳이 없기 때문이다.
+// 여기서 비워야 이 IT 가 하네스와 같은 조건을 재현한다.
+@SpringBootTest(properties = {
+        "JWT_SECRET=contract-harness-jwt-secret",
+        "GEMINI_API_KEY="})
 @AutoConfigureMockMvc
 @ActiveProfiles("contract")
 class HarnessContractProfileIT {
@@ -77,10 +87,27 @@ class HarnessContractProfileIT {
     @Autowired
     JwtService jwt;
 
+    @Autowired
+    ApplicationContext context;
+
     @BeforeEach
     void reset() throws Exception {
         control("reset-state", "{}");
         jdbc.execute("TRUNCATE TABLE users RESTART IDENTITY CASCADE");
+    }
+
+    /**
+     * 이 클래스가 뜬 것만으로 "키 없이 기동한다"는 절반이 증명된다. 나머지 절반은
+     * <b>진짜 분석 체인이 세워지지 않는다</b>는 것이다 — {@code @Primary} 는 주입 경합에서만
+     * 이길 뿐 빈 생성을 막지 않으므로, 그것이 서 버리면 {@code GEMINI_API_KEY} 를 다시
+     * 요구하게 된다.
+     */
+    @Test
+    void contractProfileBuildsNoRealAnalysisChain() {
+        assertThat(context.getBeanNamesForType(AnalysisProcessor.class))
+                .containsExactly("contractAnalysisProcessor");
+        assertThat(context.getBeanNamesForType(ObservationAnalyzer.class)).isEmpty();
+        assertThat(context.getBeanNamesForType(GeminiVideoCompressor.class)).isEmpty();
     }
 
     @Test

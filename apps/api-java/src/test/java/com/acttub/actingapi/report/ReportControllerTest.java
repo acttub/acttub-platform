@@ -16,11 +16,11 @@ import java.util.UUID;
 import com.acttub.actingapi.auth.AuthDependencies;
 import com.acttub.actingapi.auth.AuthStore;
 import com.acttub.actingapi.schema.UserStatus;
-import com.acttub.actingapi.operation.SyncOperationBegin;
-import com.acttub.actingapi.operation.SyncOperationClaim;
-import com.acttub.actingapi.operation.SyncOperationService;
+import com.acttub.actingapi.ledger.SyncOperationBegin;
+import com.acttub.actingapi.ledger.SyncOperationClaim;
 import com.acttub.actingapi.report.ReportDtos.ReportReq;
 import com.acttub.actingapi.web.ApiException;
+import com.acttub.actingapi.web.CanonicalJsonResponse;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -45,7 +45,8 @@ class ReportControllerTest {
     private final ReportSourceProvider reportSource = mock(ReportSourceProvider.class);
     private final ReportEngine reportEngine = mock(ReportEngine.class);
     private final ReportOperationService reportOperations = mock(ReportOperationService.class);
-    private final SyncOperationService syncOperations = mock(SyncOperationService.class);
+    private final ReportOperationLedger syncOperations = mock(ReportOperationLedger.class);
+    private final CanonicalJsonResponse responses = mock(CanonicalJsonResponse.class);
     private final HttpServletRequest request = mock(HttpServletRequest.class);
     private final ObjectMapper mapper = new ObjectMapper();
 
@@ -60,7 +61,8 @@ class ReportControllerTest {
                 reportSource,
                 reportEngine,
                 reportOperations,
-                syncOperations);
+                syncOperations,
+                responses);
         when(auth.consentedUser(request)).thenReturn(
                 new AuthStore.User(USER_ID, "report@test", UserStatus.ACTIVE));
         when(reportSource.getOwnedReportSource(USER_ID, SESSION_ID)).thenReturn(source());
@@ -69,7 +71,7 @@ class ReportControllerTest {
         when(syncOperations.begin(any(), any(), any(), anyString(), anyString()))
                 .thenReturn(SyncOperationBegin.claimed(CLAIM));
         when(syncOperations.now()).thenReturn(Instant.parse("2026-08-12T00:00:00Z"));
-        when(syncOperations.success(any(), any())).thenReturn(ResponseEntity.ok(new byte[0]));
+        when(responses.ok(any(), any())).thenReturn(ResponseEntity.ok(new byte[0]));
     }
 
     @Test

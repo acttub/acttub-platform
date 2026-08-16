@@ -13,7 +13,7 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.TimeoutException;
 
-import com.acttub.actingapi.operation.LeaseOwnershipException;
+import com.acttub.actingapi.ledger.LeaseOwnershipException;
 import com.acttub.actingapi.storage.ObjectStorage;
 import com.acttub.actingapi.storage.StoredObjectMetadata;
 import com.acttub.actingapi.observation.FileActiveTimeout;

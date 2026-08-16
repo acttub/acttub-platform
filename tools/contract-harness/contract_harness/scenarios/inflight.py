@@ -19,7 +19,12 @@ from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor
 
-from contract_harness.scenarios.gate import poll_until_blocked, rearm as gate_rearm
+from contract_harness.scenarios.gate import (
+    poll_until_blocked,
+    poll_until_unblocked,
+    rearm as gate_rearm,
+    release as gate_release,
+)
 from contract_harness.scenarios.support import (
     create_analyzed_session,
     create_upload,
@@ -52,8 +57,35 @@ def _wait_until_blocked(ctx, step_id: str, stub: str) -> None:
     )
 
 
-def _release(ctx, step_id: str) -> dict:
-    return ctx.control(step_id, "stub-state", release=True)
+def _release(ctx, step_id: str, stub: str) -> dict:
+    """멈춰 있던 요청을 풀고, **빠져나온 뒤의** 상태를 한 번 기록한다.
+
+    `release=True` 를 그대로 기록 스텝으로 쓰면 안 된다 — 그 응답의
+    `in_block_count` 는 대기 스레드가 이미 깨어났는지에 달린 값이라 백엔드마다,
+    실행마다 갈린다(`gate.poll_until_unblocked` 참조). 실제로 java 타겟에서
+    `inflight-replay`·`duplicate-report` 가 이 한 필드로 산발적으로 diff 를 냈다.
+
+    갇혀 있었다는 사실은 `_wait_until_blocked` 가 이미 관측하고 기록했다. 여기서는
+    **빠져나온 것**을 확인하고 그 안정된 상태를 남긴다 — 안 풀리면 폴링이
+    실패로 끝나므로 관측이 줄지 않는다.
+
+    푸는 것은 종전대로 게이트 있는 스텁 전부지만 **기다리는 것은 `stub` 하나**다.
+    이 스텝이 가둔 것은 그것 하나이므로, 실패 메시지가 건드린 적 없는 스텁을
+    가리키지 않는다.
+
+    ⚠ **이 스냅샷은 풀려난 핸들러가 아직 실행 중일 때 찍힌다**(응답을 기다리는
+    `pending.result()` 는 호출부에서 뒤에 온다). 지금은 게이트를 빠져나온 경로가
+    다른 스텁을 부르지 않아 안정적이다. **그 경로에 스텁 호출이 하나라도 생기면**
+    응답에 함께 실리는 `analyzer`·`s3.calls`·다른 스텁의 `calls` 가 다시 실행마다
+    갈린다 — 그때는 기록을 `pending.result()` 뒤로 옮겨야 한다.
+    """
+    gate_release(ctx)
+    unblocked, state = poll_until_unblocked(ctx, stub, timeout=BLOCK_WAIT_SEC)
+    require(
+        unblocked,
+        f"release 뒤에도 {stub} 에 갇힌 요청이 남아 있다: {state[stub]}",
+    )
+    return ctx.control(step_id, "stub-state")
 
 
 def _rearm(ctx, step_id: str) -> dict:
@@ -100,7 +132,7 @@ def in_flight_replay(ctx) -> None:
             expect_request_id=True,
         )
 
-        _release(ctx, "inflight.release")
+        _release(ctx, "inflight.release", "coach_generate")
         first = pending.result(timeout=BLOCK_WAIT_SEC + 10)
 
     ctx.note(
@@ -256,7 +288,7 @@ def _call_with_lease_steal(
         )
         _wait_until_blocked(ctx, f"{step_id}.blocked", stub)
         ctx.db_op(f"{step_id}.steal", "steal_lease", request_id=request_id)
-        _release(ctx, f"{step_id}.release")
+        _release(ctx, f"{step_id}.release", stub)
         response = pending.result(timeout=BLOCK_WAIT_SEC + 10)
     _rearm(ctx, f"{step_id}.rearm")
     ctx.record_response(
@@ -422,7 +454,7 @@ def duplicate_report(ctx) -> None:
                 practice_session_id=session_id,
                 coach_session_id=coach_session_id,
             )
-            _release(ctx, f"{tag}.release")
+            _release(ctx, f"{tag}.release", "report_generate")
             response = pending.result(timeout=BLOCK_WAIT_SEC + 10)
         _rearm(ctx, f"{tag}.rearm")
         ctx.record_response(

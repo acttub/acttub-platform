@@ -12,9 +12,16 @@ import org.springframework.boot.autoconfigure.domain.EntityScan;
  * <p><b>주의 — 이 애노테이션은 스캔 범위를 넓히는 게 아니라 좁힌다.</b> 관례 스캔은
  * {@code com.acttub.actingapi} 전체를 본다. 여기 적힌 패키지 밖에 엔티티를 두면 조용히 검증에서
  * 빠지므로, {@code schema/EntityMappingIT}가 엔티티 개수를 못박아 그 침묵을 빨간불로 바꾼다.
+ *
+ * <p>도메인별 재편(SOMA-397)이 진행되는 동안 목록이 늘어난다. 옮긴 도메인은 자기
+ * {@code <도메인>/schema} 를 갖고, 아직 안 옮긴 것은 공용 {@code schema} 에 남아 있다.
+ * <b>여기에 한 줄을 더하는 것을 잊으면 그 테이블만 검증에서 빠진다</b> — 개수 검사가 그것을 잡는다.
  */
 @SpringBootApplication
-@EntityScan("com.acttub.actingapi.schema")
+@EntityScan({
+    "com.acttub.actingapi.schema",
+    "com.acttub.actingapi.practice.schema"
+})
 public class ActingApiApplication {
 
     public static void main(String[] args) {

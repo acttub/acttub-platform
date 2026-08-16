@@ -1,4 +1,4 @@
-package com.acttub.actingapi.operation;
+package com.acttub.actingapi.practice.app;
 
 /** 세션 생성·재분석 멱등 처리 결과. */
 public record PracticeSessionOperation(

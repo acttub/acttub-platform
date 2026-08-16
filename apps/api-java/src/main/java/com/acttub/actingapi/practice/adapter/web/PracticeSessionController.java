@@ -1,35 +1,29 @@
-package com.acttub.actingapi.practice;
+package com.acttub.actingapi.practice.adapter.web;
 
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.time.Clock;
-import java.time.OffsetDateTime;
-import java.time.ZoneOffset;
-import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.UUID;
 
 import com.acttub.actingapi.auth.AuthDependencies;
-import com.acttub.actingapi.operation.ExternalOperationRow;
-import com.acttub.actingapi.operation.ExternalOperationStore;
-import com.acttub.actingapi.operation.PracticeSessionOperation;
-import com.acttub.actingapi.practice.PracticeSessionDtos.ObservationPackResponse;
-import com.acttub.actingapi.practice.PracticeSessionDtos.PracticeSessionAcceptedResponse;
-import com.acttub.actingapi.practice.PracticeSessionDtos.PracticeSessionCreateResponse;
-import com.acttub.actingapi.practice.PracticeSessionDtos.PracticeSessionDetail;
-import com.acttub.actingapi.practice.PracticeSessionDtos.PracticeSessionListItem;
-import com.acttub.actingapi.practice.PracticeSessionDtos.PracticeSessionListResponse;
-import com.acttub.actingapi.practice.PracticeSessionDtos.PracticeSessionRequest;
-import com.acttub.actingapi.practice.PracticeSessionDtos.PracticeSessionStatusResponse;
-import com.acttub.actingapi.storage.ObjectStorage;
-import com.acttub.actingapi.storage.NoCredentialsError;
+import com.acttub.actingapi.practice.adapter.web.PracticeSessionDtos.ObservationPackResponse;
+import com.acttub.actingapi.practice.adapter.web.PracticeSessionDtos.PracticeSessionAcceptedResponse;
+import com.acttub.actingapi.practice.adapter.web.PracticeSessionDtos.PracticeSessionCreateResponse;
+import com.acttub.actingapi.practice.adapter.web.PracticeSessionDtos.PracticeSessionDetail;
+import com.acttub.actingapi.practice.adapter.web.PracticeSessionDtos.PracticeSessionListItem;
+import com.acttub.actingapi.practice.adapter.web.PracticeSessionDtos.PracticeSessionListResponse;
+import com.acttub.actingapi.practice.adapter.web.PracticeSessionDtos.PracticeSessionRequest;
+import com.acttub.actingapi.practice.adapter.web.PracticeSessionDtos.PracticeSessionStatusResponse;
+import com.acttub.actingapi.practice.app.AnalysisOutcome;
+import com.acttub.actingapi.web.CanonicalJson;
+import com.acttub.actingapi.practice.app.NewPracticeSession;
+import com.acttub.actingapi.practice.app.PlayableSession;
+import com.acttub.actingapi.practice.app.PracticeSessionService;
+import com.acttub.actingapi.practice.domain.AnalysisStatus;
+import com.acttub.actingapi.practice.domain.BlockageBranch;
+import com.acttub.actingapi.practice.domain.PracticeSession;
 import com.acttub.actingapi.web.ApiException;
 import com.acttub.actingapi.web.ApiValidationException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -52,34 +46,28 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+/**
+ * {@code /v2/practice-sessions} 의 HTTP 표면. 여기 있는 것은 전부 표기의 문제다 — 누가 보냈는지,
+ * 무엇으로 왔는지, 어떤 코드와 바이트로 나가는지.
+ *
+ * <p>규칙은 {@link PracticeSessionService} 에 있다. 이 파일이 400 줄이던 시절에는 둘이 같은
+ * 메서드 안에 섞여 있어, 규칙 하나를 고치려면 요청 파싱과 응답 조립을 함께 헤집어야 했다.
+ */
 @RestController
 @RequestMapping("/v2/practice-sessions")
 class PracticeSessionController {
-    private static final int PLAYBACK_URL_TTL_SECONDS = 15 * 60;
-    private static final List<String> BLOCKAGE_KINDS = List.of("분석", "표현", "그 외");
-    private static final List<String> SUB_BRANCHES = List.of(
-            "캐릭터 분석", "대사 분석", "감정", "움직임", "화술", "표정", "그 외");
 
-    private final ExternalOperationStore operations;
-    private final PracticeSessionStore sessions;
-    private final Optional<ObjectStorage> configuredStorage;
+    private final PracticeSessionService sessions;
     private final AuthDependencies auth;
-    private final Clock clock;
     private final CanonicalJson canonical;
 
     PracticeSessionController(
-            ExternalOperationStore operations,
-            PracticeSessionStore sessions,
-            Optional<ObjectStorage> configuredStorage,
+            PracticeSessionService sessions,
             AuthDependencies auth,
-            Clock clock,
-            ObjectMapper mapper) {
-        this.operations = operations;
+            CanonicalJson canonical) {
         this.sessions = sessions;
-        this.configuredStorage = configuredStorage;
         this.auth = auth;
-        this.clock = clock;
-        this.canonical = new CanonicalJson(mapper);
+        this.canonical = canonical;
     }
 
     @Operation(
@@ -111,36 +99,18 @@ class PracticeSessionController {
             @RequestHeader(name = "X-Request-Id", required = false) String requestIdHeader,
             HttpServletRequest request) {
         var user = auth.consentedUser(request);
-        validateLiteral("blockage_kind", body.blockageKind(), BLOCKAGE_KINDS);
-        validateLiteral("sub_branch", body.subBranch(), SUB_BRANCHES);
+        validateLiteral("blockage_kind", body.blockageKind(), BlockageBranch.KINDS);
+        validateLiteral("sub_branch", body.subBranch(), BlockageBranch.SUB_BRANCHES);
         UUID requestId = requestId(requestIdHeader);
-        if (!sessions.uploadExists(user.id(), body.uploadIntentId())) {
-            throw new ApiException(404, "upload_intent_not_found");
-        }
-        Map<String, Object> fingerprintPayload = new LinkedHashMap<>();
-        fingerprintPayload.put("upload_intent_id", body.uploadIntentId().toString());
-        fingerprintPayload.put("situation", body.situation());
-        fingerprintPayload.put("character_context", body.characterContext());
-        fingerprintPayload.put("goal", body.goal());
-        fingerprintPayload.put("blockage_kind", body.blockageKind());
-        fingerprintPayload.put("sub_branch", body.subBranch());
-        fingerprintPayload.put("blockage_detail", body.blockageDetail());
-        String fingerprint = fingerprint(fingerprintPayload);
-        PracticeSessionOperation result = operations.createPracticeSessionWithAnalysisOperation(
-                user.id(),
+        NewPracticeSession command = new NewPracticeSession(
                 body.uploadIntentId(),
                 body.situation(),
                 body.characterContext(),
                 body.goal(),
                 body.blockageKind(),
                 body.subBranch(),
-                body.blockageDetail(),
-                requestId,
-                fingerprint);
-        if (result == null) {
-            throw new ApiException(409, "upload_intent_not_finalized");
-        }
-        return operationResponse(result, user.id(), requestId);
+                body.blockageDetail());
+        return json(sessions.create(user.id(), command, requestId), requestId);
     }
 
     @Operation(
@@ -180,13 +150,18 @@ class PracticeSessionController {
             @PathVariable("session_id") UUID sessionId,
             HttpServletRequest request) {
         var user = auth.consentedUser(request);
-        PracticeSessionStore.StatusRow status = sessions.status(user.id(), sessionId);
-        if (status == null) {
-            throw new ApiException(404, "practice_session_not_found");
-        }
+        AnalysisStatus status = sessions.status(user.id(), sessionId);
         return new PracticeSessionStatusResponse(status.status(), status.errorCode());
     }
 
+    /**
+     * 상세.
+     *
+     * <p>레코드가 아니라 {@code Map} 을 돌려주는 이유는 <b>키의 유무가 상태에 따라 달라지기</b>
+     * 때문이다 — 요약은 분석이 끝났을 때만, 오류 코드는 실패했을 때만 실린다. 레코드로 내면
+     * Jackson 이 항상 모든 필드를 실어, 파이썬이 내지 않던 키가 붙는다. 응답 형태의 선언은
+     * {@link PracticeSessionDetail} 이 맡아 OpenAPI 로 나간다.
+     */
     @Operation(
             summary = "Get Session",
             operationId = "get_session_v2_practice_sessions__session_id__get",
@@ -207,34 +182,27 @@ class PracticeSessionController {
             @PathVariable("session_id") UUID sessionId,
             HttpServletRequest request) {
         var user = auth.consentedUser(request);
-        PracticeSessionStore.DetailRow detail = sessions.detail(user.id(), sessionId);
-        if (detail == null) {
-            throw new ApiException(404, "practice_session_not_found");
-        }
-        ObjectStorage storage = configuredStorage.orElseThrow(
-                () -> new NoCredentialsError("storage is not configured"));
-        String playbackUrl = storage.presignPlayback(
-                detail.objectKey(), PLAYBACK_URL_TTL_SECONDS);
-        PracticeSessionStore.SessionRow row = detail.session();
+        PlayableSession playable = sessions.detail(user.id(), sessionId);
+        PracticeSession session = playable.session();
         Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put("session_id", row.id());
-        payload.put("status", row.status());
-        payload.put("situation", row.situation());
-        payload.put("character_context", row.characterContext());
-        payload.put("goal", row.goal());
-        payload.put("blockage_kind", row.blockageKind());
-        payload.put("sub_branch", row.subBranch());
-        payload.put("blockage_detail", row.blockageDetail());
-        payload.put("playback_url", playbackUrl);
-        payload.put("created_at", row.createdAt());
-        payload.put("updated_at", row.updatedAt());
-        if ("analyzed".equals(row.status()) && detail.summaryId() != null) {
-            ObservationPackResponse summary = PracticeSessionDtos.observationPack(
-                    detail.summaryId(), detail.observations(), detail.uncertainties());
+        payload.put("session_id", session.id());
+        payload.put("status", session.status());
+        payload.put("situation", session.situation());
+        payload.put("character_context", session.characterContext());
+        payload.put("goal", session.goal());
+        payload.put("blockage_kind", session.blockageKind());
+        payload.put("sub_branch", session.subBranch());
+        payload.put("blockage_detail", session.blockageDetail());
+        payload.put("playback_url", playable.playbackUrl());
+        payload.put("created_at", session.createdAt());
+        payload.put("updated_at", session.updatedAt());
+        if (playable.summary() != null) {
+            ObservationPackResponse summary =
+                    PracticeSessionDtos.observationPack(playable.summary());
             payload.put("summary", summary);
         }
-        if ("failed".equals(row.status())) {
-            payload.put("error_code", detail.errorCode());
+        if (session.failed()) {
+            payload.put("error_code", playable.errorCode());
         }
         return payload;
     }
@@ -269,16 +237,7 @@ class PracticeSessionController {
             HttpServletRequest request) {
         var user = auth.consentedUser(request);
         UUID requestId = requestId(requestIdHeader);
-        String fingerprint = fingerprint(Map.of("session_id", sessionId.toString()));
-        PracticeSessionOperation result = operations.createAnalysisRetryOperation(
-                user.id(), sessionId, requestId, fingerprint, clock.instant());
-        if (result == null) {
-            if (sessions.find(user.id(), sessionId) == null) {
-                throw new ApiException(404, "practice_session_not_found");
-            }
-            throw new ApiException(409, "session_is_not_failed");
-        }
-        return operationResponse(result, user.id(), requestId);
+        return json(sessions.reanalyze(user.id(), sessionId, requestId), requestId);
     }
 
     @Operation(
@@ -298,45 +257,21 @@ class PracticeSessionController {
             @PathVariable("session_id") UUID sessionId,
             HttpServletRequest request) {
         var user = auth.rateLimitedUser(request);
-        OffsetDateTime now = clock.instant().atOffset(ZoneOffset.UTC);
-        if (!sessions.hide(user.id(), sessionId, now)) {
-            throw new ApiException(404, "practice_session_not_found");
-        }
+        sessions.delete(user.id(), sessionId);
         return ResponseEntity.noContent().build();
     }
 
-    private ResponseEntity<byte[]> operationResponse(
-            PracticeSessionOperation result,
-            UUID userId,
-            UUID requestId) {
-        if (result.fingerprintMismatch()) {
-            throw new ApiException(422, "request_fingerprint_mismatch");
-        }
-        if (result.created()) {
-            return json(HttpStatus.ACCEPTED, sessionPayload(result.session().id()), requestId);
-        }
-        ExternalOperationRow operation = result.operation();
-        return switch (operation.status()) {
-            case "succeeded" -> {
-                JsonNode stored = operation.responsePayload();
-                Object payload = stored == null || stored.isEmpty()
-                        ? sessionPayload(result.session().id(), result.session().status())
-                        : stored;
-                yield json(HttpStatus.OK, payload, requestId);
-            }
-            case "pending", "running" ->
-                    json(HttpStatus.ACCEPTED, sessionPayload(operation.sessionId()), requestId);
-            case "failed" -> {
-                boolean resumed = sessions.resumeFailedOperation(
-                        userId,
-                        operation.id(),
-                        clock.instant().atOffset(ZoneOffset.UTC));
-                if (!resumed) {
-                    throw new ApiException(409, "analysis_retry_exhausted");
-                }
-                yield json(HttpStatus.ACCEPTED, sessionPayload(operation.sessionId()), requestId);
-            }
-            default -> throw new ApiException(409, "invalid_operation_state");
+    /** 결과를 상태코드와 본문으로 옮긴다. 어느 결과가 어느 코드인지는 이 층의 결정이다. */
+    private ResponseEntity<byte[]> json(AnalysisOutcome outcome, UUID requestId) {
+        return switch (outcome) {
+            case AnalysisOutcome.Accepted accepted ->
+                    json(HttpStatus.ACCEPTED, sessionPayload(accepted.sessionId()), requestId);
+            case AnalysisOutcome.Completed completed -> json(
+                    HttpStatus.OK,
+                    sessionPayload(completed.sessionId(), completed.status()),
+                    requestId);
+            case AnalysisOutcome.Replayed replayed ->
+                    json(HttpStatus.OK, replayed.payload(), requestId);
         };
     }
 
@@ -355,15 +290,6 @@ class PracticeSessionController {
         return Map.of("session_id", sessionId.toString(), "status", status);
     }
 
-    private String fingerprint(Map<String, Object> payload) {
-        byte[] bytes = canonical.bytes(Map.of("kind", "analyze", "payload", payload));
-        try {
-            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes));
-        } catch (NoSuchAlgorithmException exception) {
-            throw new IllegalStateException("SHA-256 is unavailable", exception);
-        }
-    }
-
     private static UUID requestId(String header) {
         if (header == null) {
             return UUID.randomUUID();
@@ -375,20 +301,21 @@ class PracticeSessionController {
         }
     }
 
-    private static PracticeSessionListItem listItem(PracticeSessionStore.SessionRow row) {
+    private static PracticeSessionListItem listItem(PracticeSession session) {
         return new PracticeSessionListItem(
-                row.id(),
-                row.status(),
-                row.situation(),
-                row.characterContext(),
-                row.goal(),
-                row.blockageKind(),
-                row.subBranch(),
-                row.blockageDetail(),
-                row.createdAt(),
-                row.updatedAt());
+                session.id(),
+                session.status(),
+                session.situation(),
+                session.characterContext(),
+                session.goal(),
+                session.blockageKind(),
+                session.subBranch(),
+                session.blockageDetail(),
+                session.createdAt(),
+                session.updatedAt());
     }
 
+    /** 파이썬 pydantic 이 리터럴 불일치에 내던 422 본문을 그대로 만든다. */
     private static void validateLiteral(String field, String input, List<String> allowed) {
         if (input == null || allowed.contains(input)) {
             return;

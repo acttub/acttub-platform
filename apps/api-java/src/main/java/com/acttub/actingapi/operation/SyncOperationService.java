@@ -12,30 +12,42 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+import com.acttub.actingapi.coach.CoachOperationLedger;
+import com.acttub.actingapi.ledger.LeaseOwnershipException;
+import com.acttub.actingapi.ledger.SyncOperationBegin;
+import com.acttub.actingapi.ledger.SyncOperationClaim;
+import com.acttub.actingapi.report.ReportOperationLedger;
 import com.acttub.actingapi.web.ApiException;
+import com.acttub.actingapi.web.CanonicalJson;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.TransactionTemplate;
 
-/** 동기 LLM 요청의 X-Request-Id, fingerprint, 15분 lease와 canonical replay 경계. */
+/**
+ * 동기 LLM 요청의 X-Request-Id, fingerprint, 15분 lease와 canonical replay 경계.
+ *
+ * <p><b>HTTP 를 모른다.</b> 재생할 응답이 있는지와 그 본문이 무엇인지까지만 정하고, 상태코드와
+ * 헤더로 옮기는 일은 {@code web/CanonicalJsonResponse} 가 맡는다(SOMA-397 6단계).
+ *
+ * <p><b>쓰는 쪽이 선언한 포트를 이쪽이 구현한다</b>(ADR-017). 두 포트의 요구가 글자까지 같아
+ * 한 클래스가 둘 다 받는다 — 갈라지는 날 여기서 갈리면 되고, 그때까지 위임만 하는 클래스를
+ * 둘 세워 둘 이유는 없다. 주고받는 타입은 어느 쪽 것도 아닌 {@code ledger} 의 것이라, coach·report
+ * 는 이 클래스의 존재를 모른 채로 선다.
+ */
 @Service
-public class SyncOperationService {
+public class SyncOperationService implements CoachOperationLedger, ReportOperationLedger {
 
     private static final Duration SYNC_OPERATION_LEASE = Duration.ofMinutes(15);
 
     private final JdbcTemplate jdbc;
     private final ObjectMapper mapper;
+    private final CanonicalJson canonical;
     private final ExternalOperationClaimer claimer;
     private final Clock clock;
     private final TransactionTemplate transaction;
@@ -43,17 +55,20 @@ public class SyncOperationService {
     public SyncOperationService(
             JdbcTemplate jdbc,
             ObjectMapper mapper,
+            CanonicalJson canonical,
             ExternalOperationClaimer claimer,
             Clock clock,
             PlatformTransactionManager transactionManager) {
         this.jdbc = jdbc;
         this.mapper = mapper;
+        this.canonical = canonical;
         this.claimer = claimer;
         this.clock = clock;
         this.transaction = new TransactionTemplate(transactionManager);
         this.transaction.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
     }
 
+    @Override
     public UUID requestId(String header) {
         if (header == null) {
             return UUID.randomUUID();
@@ -65,25 +80,27 @@ public class SyncOperationService {
         }
     }
 
+    @Override
     public String fingerprint(String kind, Object payload) {
         ObjectNode root = mapper.createObjectNode();
         root.put("kind", kind);
         root.set("payload", mapper.valueToTree(payload));
         try {
             return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
-                    .digest(canonicalBytes(root)));
+                    .digest(canonical.bytes(root)));
         } catch (NoSuchAlgorithmException exception) {
             throw new IllegalStateException("SHA-256 is unavailable", exception);
         }
     }
 
+    @Override
     public SyncOperationBegin begin(
             UUID userId,
             UUID practiceSessionId,
             UUID requestId,
             String operationKind,
             String requestFingerprint) {
-        ExternalOperationRow operation = transaction.execute(status ->
+        SyncOperationRow operation = transaction.execute(status ->
                 getOrCreate(
                         userId,
                         practiceSessionId,
@@ -93,7 +110,7 @@ public class SyncOperationService {
         if (!operation.requestFingerprint().equals(requestFingerprint)) {
             throw new ApiException(422, "request_fingerprint_mismatch");
         }
-        ResponseEntity<byte[]> cached = existingResponse(operation, requestId, clock.instant());
+        JsonNode cached = existingPayload(operation, requestId, clock.instant());
         if (cached != null) {
             return SyncOperationBegin.replayed(cached);
         }
@@ -102,8 +119,8 @@ public class SyncOperationService {
         UUID claimed = claimer.claimById(
                 operation.id(), leaseToken, SYNC_OPERATION_LEASE, clock.instant());
         if (claimed == null) {
-            ExternalOperationRow latest = find(userId, requestId);
-            cached = existingResponse(latest, requestId, clock.instant());
+            SyncOperationRow latest = find(userId, requestId);
+            cached = existingPayload(latest, requestId, clock.instant());
             if (cached != null) {
                 return SyncOperationBegin.replayed(cached);
             }
@@ -113,14 +130,7 @@ public class SyncOperationService {
                 new SyncOperationClaim(claimed, leaseToken, requestId));
     }
 
-    public ResponseEntity<byte[]> success(JsonNode payload, SyncOperationClaim claim) {
-        return response(HttpStatus.OK, payload, claim.requestId());
-    }
-
-    public ResponseEntity<byte[]> replay(JsonNode payload, UUID requestId) {
-        return response(HttpStatus.OK, payload, requestId);
-    }
-
+    @Override
     public void complete(SyncOperationClaim claim, JsonNode responsePayload) {
         OffsetDateTime now = clock.instant().atOffset(ZoneOffset.UTC);
         transaction.executeWithoutResult(status -> {
@@ -146,6 +156,7 @@ public class SyncOperationService {
         });
     }
 
+    @Override
     public void fail(SyncOperationClaim claim, String errorCode) {
         try {
             claimer.fail(
@@ -159,11 +170,12 @@ public class SyncOperationService {
         }
     }
 
+    @Override
     public Instant now() {
         return clock.instant();
     }
 
-    private ExternalOperationRow getOrCreate(
+    private SyncOperationRow getOrCreate(
             UUID userId,
             UUID practiceSessionId,
             UUID requestId,
@@ -192,53 +204,43 @@ public class SyncOperationService {
                 requestId,
                 kind,
                 requestFingerprint);
-        ExternalOperationRow operation = find(userId, requestId);
+        SyncOperationRow operation = find(userId, requestId);
         if (operation == null) {
             throw new IllegalStateException("external operation is missing");
         }
         return operation;
     }
 
-    private ExternalOperationRow find(UUID userId, UUID requestId) {
-        List<ExternalOperationRow> rows = jdbc.query("""
+    private SyncOperationRow find(UUID userId, UUID requestId) {
+        List<SyncOperationRow> rows = jdbc.query("""
                 SELECT
-                    id, session_id, user_id, request_id,
-                    kind::text AS kind, status::text AS status,
-                    attempt_count, request_fingerprint, lease_token, lease_expires_at,
-                    error_code, response_payload::text AS response_payload,
-                    created_at, updated_at
+                    id, status::text AS status,
+                    request_fingerprint, lease_token, lease_expires_at,
+                    response_payload::text AS response_payload
                 FROM external_operations
                 WHERE user_id = ? AND request_id = ?
-                """, (row, number) -> new ExternalOperationRow(
+                """, (row, number) -> new SyncOperationRow(
                 row.getObject("id", UUID.class),
-                row.getObject("session_id", UUID.class),
-                row.getObject("user_id", UUID.class),
-                row.getObject("request_id", UUID.class),
-                row.getString("kind"),
                 row.getString("status"),
-                row.getInt("attempt_count"),
                 row.getString("request_fingerprint"),
-                row.getObject("lease_token", UUID.class),
-                instant(row.getObject("lease_expires_at", OffsetDateTime.class)),
-                row.getString("error_code"),
                 json(row.getString("response_payload")),
-                instant(row.getObject("created_at", OffsetDateTime.class)),
-                instant(row.getObject("updated_at", OffsetDateTime.class))),
+                row.getObject("lease_token", UUID.class),
+                instant(row.getObject("lease_expires_at", OffsetDateTime.class))),
                 userId,
                 requestId);
         return rows.isEmpty() ? null : rows.getFirst();
     }
 
-    private ResponseEntity<byte[]> existingResponse(
-            ExternalOperationRow operation, UUID requestId, Instant now) {
+    /** 다시 실어 보낼 본문. 없으면 {@code null} 이고, 아직 처리 중이면 409 다. */
+    private JsonNode existingPayload(
+            SyncOperationRow operation, UUID requestId, Instant now) {
         if (operation == null) {
             return null;
         }
         if ("succeeded".equals(operation.status())) {
-            JsonNode payload = operation.responsePayload() == null
+            return operation.responsePayload() == null
                     ? mapper.createObjectNode()
                     : operation.responsePayload();
-            return response(HttpStatus.OK, payload, requestId);
         }
         if ("running".equals(operation.status())
                 && operation.leaseToken() != null
@@ -250,26 +252,6 @@ public class SyncOperationService {
                     Map.of("X-Request-Id", requestId.toString()));
         }
         return null;
-    }
-
-    private ResponseEntity<byte[]> response(HttpStatus status, JsonNode payload, UUID requestId) {
-        return ResponseEntity.status(status)
-                .header("X-Request-Id", requestId.toString())
-                .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
-                .body(canonicalBytes(payload));
-    }
-
-    private byte[] canonicalBytes(Object value) {
-        Object sortable = value instanceof JsonNode node
-                ? mapper.convertValue(node, Object.class)
-                : value;
-        try {
-            return mapper.writer()
-                    .with(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS)
-                    .writeValueAsBytes(sortable);
-        } catch (JsonProcessingException exception) {
-            throw new IllegalStateException("cannot encode canonical JSON", exception);
-        }
     }
 
     private JsonNode json(String value) {

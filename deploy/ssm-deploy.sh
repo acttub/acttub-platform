@@ -29,6 +29,29 @@ INSTANCE="${2:?인스턴스 ID가 필요해요 (예: i-0abc...)}"
 # 비로소 평가된다. SSM Run Command는 systemd가 아니라서 EnvironmentFile을 타지
 # 않으므로, alembic env.py가 요구하는 DATABASE_URL을 api.env에서 직접 뽑아 넘긴다
 # (값에 선행 공백이나 따옴표가 있을 수 있어 걷어낸다).
+# 자바가 리슨을 시작할 때까지 기다리는 스텝. 원격에서 평가된다(인용 heredoc).
+#
+# 고정 sleep 은 경계에서 깨진다 — 2026-08-16 배포가 **기동 20.491초 vs sleep 20** 으로
+# 0.5초 차이로 실패했다. 같은 시각 unattended-upgrade 가 겹쳐 CPU 를 먹자 다음 기동은
+# 60초가 걸렸다(t3.small 은 2 vCPU 라 직격이다). 그래서 기다리는 시간을 늘리는 대신
+# **떴는지를 물어본다** — 빠르면 즉시 지나가고, 느리면 아래 상한까지 기다린다.
+#
+# ⚠ 반복 횟수가 아니라 **경과 시간**으로 끊는다. `seq 1 45` + `sleep 2` 로 세면 curl 이
+# 매번 `--max-time 3` 까지 매달리는 최악에서 225초가 되어, 러너의 대기 상한을 넘긴
+# 채 "배포 실패" 로 읽힌다. 여기서 90초라고 하면 90초여야 그 계산이 성립한다.
+WAIT_HEALTHY_SECONDS=90
+WAIT_HEALTHY=$(cat <<EOS
+deadline=\$((SECONDS + $WAIT_HEALTHY_SECONDS))
+until curl -fsS --max-time 3 http://127.0.0.1:8080/health >/dev/null 2>&1; do
+  if [ "\$SECONDS" -ge "\$deadline" ]; then
+    echo "⚠ ${WAIT_HEALTHY_SECONDS}초 안에 /health 가 응답하지 않았어요 — 아래 검증이 판정합니다" >&2
+    break
+  fi
+  sleep 2
+done
+EOS
+)
+
 MIGRATE_STEP=$(cat <<'EOS'
 DB_URL=$(grep -m1 '^[[:space:]]*DATABASE_URL=' /etc/acttub/api.env | sed -E 's/^[[:space:]]*DATABASE_URL=//; s/^"//; s/"$//')
 [ -n "$DB_URL" ] || { echo "✗ /etc/acttub/api.env 에 DATABASE_URL이 없어요" >&2; exit 1; }
@@ -108,15 +131,7 @@ systemctl enable acttub-api-java
 systemctl reset-failed acttub-api-java || true
 systemctl restart acttub-api-java
 # JVM 기동은 파이썬보다 느리다. Flyway 검증까지 끝나야 리슨을 시작한다.
-#
-# 고정 sleep 은 경계에서 깨진다 — 2026-08-16 배포가 **기동 20.491초 vs sleep 20** 으로
-# 0.5초 차이로 실패했다. 같은 시각 unattended-upgrade 가 겹쳐 CPU 를 먹자 다음 기동은
-# 60초가 걸렸다(t3.small 은 2 vCPU 라 직격이다). 그래서 기다리는 시간을 늘리는 대신
-# **떴는지를 물어본다** — 빠르면 즉시 지나가고, 느리면 최대 90초까지 기다린다.
-for _ in \$(seq 1 45); do
-  curl -fsS --max-time 3 http://127.0.0.1:8080/health >/dev/null 2>&1 && break
-  sleep 2
-done
+$WAIT_HEALTHY
 systemctl is-active acttub-api-java
 # Type=simple 은 exec 직후 곧바로 active 이므로 is-active 만으로는 크래시루프도
 # 성공으로 읽힌다. 스키마 검증 실패·DB 접속 실패가 여기서 걸린다.
@@ -138,21 +153,15 @@ printf '[Service]\nEnvironment=FLYWAY_BASELINE_ONLY=true\n' \
   > /etc/systemd/system/acttub-api-java.service.d/flyway-baseline.conf
 systemctl daemon-reload
 systemctl restart acttub-api-java
-# be-java 와 같은 이유로 고정 sleep 을 쓰지 않는다(위 §be-java 주석 참조).
-for _ in \$(seq 1 45); do
-  curl -fsS --max-time 3 http://127.0.0.1:8080/health >/dev/null 2>&1 && break
-  sleep 2
-done
+# be-java 와 같은 이유로 고정 sleep 을 쓰지 않는다(위 §WAIT_HEALTHY 주석 참조).
+$WAIT_HEALTHY
 journalctl -u acttub-api-java -n 40 --no-pager | grep -i 'FLYWAY_BASELINE_ONLY' || true
 # 기록이 끝나면 즉시 되돌린다. 남겨두면 빈 DB 에서도 V1 을 건너뛰게 된다.
 rm -f /etc/systemd/system/acttub-api-java.service.d/flyway-baseline.conf
 systemctl daemon-reload
 systemctl reset-failed acttub-api-java || true
 systemctl restart acttub-api-java
-for _ in \$(seq 1 45); do
-  curl -fsS --max-time 3 http://127.0.0.1:8080/health >/dev/null 2>&1 && break
-  sleep 2
-done
+$WAIT_HEALTHY
 systemctl is-active acttub-api-java
 test "\$(systemctl show -p NRestarts --value acttub-api-java)" = "0"
 curl -fsS --max-time 5 http://127.0.0.1:8080/health > /dev/null
@@ -184,12 +193,42 @@ CMD_ID=$(aws ssm send-command \
 
 echo "  command id: $CMD_ID"
 
-# 실패해도 wait이 non-zero로 끝나므로, 상태는 아래에서 직접 조회해 판정한다.
-aws ssm wait command-executed --command-id "$CMD_ID" --instance-id "$INSTANCE" || true
+# 모드마다 원격이 쓰는 시간이 다르다. 이 값이 **원격 스크립트의 최악 소요보다 커야**
+# 한다 — 작으면 실제로는 성공한 배포를 InProgress 인 채로 읽고 실패로 보고한다.
+case "$SIDE" in
+  fe)               WAIT_SECONDS=180 ;;   # tar 풀기 + 재시작
+  migrate)          WAIT_SECONDS=900 ;;   # uv sync 는 콜드에서 몇 분 간다
+  be-java)          WAIT_SECONDS=420 ;;   # (JRE 설치) + jar 다운로드 + 기동 대기 90초
+  be-java-baseline) WAIT_SECONDS=600 ;;   # 재시작 둘 + 기동 대기 둘
+  # 위 case 가 $SIDE 를 이미 걸러내므로 여기 닿을 일은 없다. 그래도 둔다 — 두 case 가 130 줄
+  # 떨어져 있어 모드를 한쪽에만 추가하면 `set -u` 가 **send-command 로 배포를 이미 보낸 뒤**
+  # unbound variable 로 죽는다. 나가버린 배포를 두고 빨간불만 보게 되는, 이 스크립트가 없애려던
+  # 바로 그 혼동이다. 상한은 넘치면 기다림이 길어질 뿐이므로 최댓값으로 받는다.
+  *)                WAIT_SECONDS=900
+                    echo "  ⚠ $SIDE 의 대기 상한이 지정돼 있지 않아 ${WAIT_SECONDS}초로 받습니다" >&2 ;;
+esac
 
-STATUS=$(aws ssm get-command-invocation \
-  --command-id "$CMD_ID" --instance-id "$INSTANCE" \
-  --query 'Status' --output text)
+# ⚠ `aws ssm wait command-executed` 를 쓰지 않는다. 그 waiter 는 **5초 × 20회 = 100초**
+# 로 못박혀 있고 CLI 에 그 값을 바꾸는 플래그가 없다. 원격의 기동 대기만 90초라
+# 앞뒤 작업이 조금만 붙어도 넘기는데, 그때 `|| true` 가 타임아웃을 삼켜 상태가
+# InProgress 로 읽히고 **성공한 배포가 빨간불이 된다**(2026-08-16 발견).
+#
+# 명령이 막 접수된 순간에는 InvocationDoesNotExist 가 날 수 있어 진행 중으로 친다.
+echo "▶ 완료 대기 (최대 ${WAIT_SECONDS}초)"
+DEADLINE=$(( $(date +%s) + WAIT_SECONDS ))
+while :; do
+  STATUS=$(aws ssm get-command-invocation \
+    --command-id "$CMD_ID" --instance-id "$INSTANCE" \
+    --query 'Status' --output text 2>/dev/null || echo Pending)
+  case "$STATUS" in
+    Success|Failed|Cancelled|TimedOut) break ;;
+  esac
+  if [ "$(date +%s)" -ge "$DEADLINE" ]; then
+    TIMED_OUT=1
+    break
+  fi
+  sleep 5
+done
 
 echo "--- stdout ---"
 aws ssm get-command-invocation --command-id "$CMD_ID" --instance-id "$INSTANCE" \
@@ -199,6 +238,15 @@ STDERR=$(aws ssm get-command-invocation --command-id "$CMD_ID" --instance-id "$I
 if [ -n "$STDERR" ] && [ "$STDERR" != "None" ]; then
   echo "--- stderr ---"
   echo "$STDERR"
+fi
+
+# 기다림이 끝난 것과 배포가 실패한 것은 다르다. 둘을 같은 문구로 찍으면 멀쩡한
+# 서비스를 두고 롤백을 검토하게 된다 — 2026-08-16 에 정확히 그 혼동이 있었다.
+if [ "${TIMED_OUT:-0}" = 1 ]; then
+  echo "✗ ${WAIT_SECONDS}초 안에 끝나지 않아 판정하지 못했어요 (마지막 상태: $STATUS)" >&2
+  echo "  명령은 인스턴스에서 계속 돌고 있을 수 있습니다 — 실패로 단정하기 전에 확인하세요:" >&2
+  echo "  aws ssm get-command-invocation --command-id $CMD_ID --instance-id $INSTANCE" >&2
+  exit 1
 fi
 
 if [ "$STATUS" != "Success" ]; then

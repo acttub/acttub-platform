@@ -46,6 +46,43 @@ def poll_until_blocked(ctx, stub: str, *, count: int = 1, timeout: float):
     return True, state
 
 
+def poll_until_unblocked(ctx, stub: str | None = None, *, timeout: float):
+    """갇혀 있던 요청이 스텁에서 **빠져나올 때까지** 폴링한다.
+
+    `poll_until_blocked` 의 대칭이고, `release` **응답**을 그대로 기록하지 않기
+    위해 있다. 푼 직후의 `in_block_count` 는 대기 스레드가 이미 깨어났는지에
+    달린 값이라 백엔드마다 갈린다 — 파이썬은 GIL 을 쥔 채 상태를 조립해 대개
+    아직 1 이 보이고, java 는 `notifyAll()` 직후 대기 스레드가 monitor 를 먼저
+    잡으면 0 이 보인다. 어느 쪽이 옳다고 할 수 없는 스케줄러 의존 값이므로,
+    호출부는 이 함수로 **안정된 시점**까지 기다린 뒤 기록한다.
+
+    `stub` 을 주면 그 스텁만, 없으면 게이트를 가진 스텁 전부를 본다.
+    """
+    deadline = time.monotonic() + timeout
+    state = stub_state(ctx)
+    while _in_block_total(state, stub) > 0:
+        if time.monotonic() >= deadline:
+            return False, state
+        time.sleep(POLL_INTERVAL_SEC)
+        state = stub_state(ctx)
+    return True, state
+
+
+def _in_block_total(state: dict, stub: str | None) -> int:
+    """게이트를 가진 스텁의 `in_block_count` 합. 게이트 없는 스텁은 세지 않는다.
+
+    이름을 하드코딩하지 않고 키 존재로 가른다 — 게이트가 붙은 스텁이 늘어도
+    따라올 필요가 없고, 어느 스텁에 게이트가 있는지는 백엔드가 정한다.
+    """
+    if stub is not None:
+        return state[stub]["in_block_count"]
+    return sum(
+        value["in_block_count"]
+        for value in state.values()
+        if isinstance(value, dict) and "in_block_count" in value
+    )
+
+
 def release(ctx, stub: str | None = None) -> dict:
     """멈춰 있는 요청을 푼다(기록하지 않는다)."""
     return ctx.backend.control("stub-state", release=True, **_target(stub))

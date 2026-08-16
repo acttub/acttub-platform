@@ -524,6 +524,64 @@ def test_gate_helpers_only_speak_the_control_surface():
     assert ("stub-state", {"release": True}) in seen
 
 
+class _SequencedBackend:
+    """정해진 순서로 stub-state 를 돌려준다. 마지막 값은 이후 계속 반복한다."""
+
+    # `runtime` 을 일부러 두지 않는다. JavaBackend 와 같은 모양이다.
+    def __init__(self, *states):
+        self._states = list(states)
+
+    def control(self, name, **payload):
+        return self._states.pop(0) if len(self._states) > 1 else self._states[0]
+
+
+def _gate_state(coach_in_block: int, report_in_block: int = 0) -> dict:
+    return {
+        "coach_generate": {"in_block_count": coach_in_block},
+        "report_generate": {"in_block_count": report_in_block},
+        # 게이트가 없는 스텁들. 모양이 제각각이다.
+        "analyzer": {"calls": 3},
+        "s3": {"calls": {"presign": 2}},
+    }
+
+
+def test_gate_waits_until_the_block_actually_drains():
+    """`release` 직후의 in_block_count 는 스케줄러가 정한다 — 빠져나온 것을 본다.
+
+    파이썬은 GIL 을 쥔 채 상태를 조립해 대개 1 이 남아 보이고 java 는 0 이
+    보이기도 한다. 그 값을 그대로 기록하면 백엔드 diff 가 된다(SOMA-397 2단계).
+    """
+    from contract_harness.scenarios import gate
+
+    class FakeCtx:
+        backend = _SequencedBackend(_gate_state(1), _gate_state(1), _gate_state(0))
+
+    unblocked, state = gate.poll_until_unblocked(FakeCtx(), timeout=1)
+    assert unblocked
+    assert state["coach_generate"]["in_block_count"] == 0
+
+
+def test_gate_unblock_polling_ignores_stubs_without_a_gate():
+    """analyzer·s3 는 in_block_count 를 갖지 않는다 — 이름을 하드코딩하지 않는다."""
+    from contract_harness.scenarios import gate
+
+    assert gate._in_block_total(_gate_state(0), None) == 0
+    assert gate._in_block_total(_gate_state(1, 2), None) == 3
+    assert gate._in_block_total(_gate_state(1, 2), "report_generate") == 2
+
+
+def test_gate_unblock_polling_reports_failure_when_the_block_never_drains():
+    """안 풀리면 조용히 넘어가지 않는다 — 호출부가 실패로 끝낼 수 있어야 한다."""
+    from contract_harness.scenarios import gate
+
+    class FakeCtx:
+        backend = _SequencedBackend(_gate_state(1))
+
+    unblocked, state = gate.poll_until_unblocked(FakeCtx(), timeout=0.1)
+    assert not unblocked
+    assert state["coach_generate"]["in_block_count"] == 1
+
+
 def test_gate_polling_is_not_recorded_as_a_scenario_step():
     """폴링을 기록하면 백엔드마다 폴링 횟수가 달라 스텝 수가 갈린다."""
     import inspect
@@ -582,6 +640,31 @@ def test_java_conditional_profiles_require_and_select_separate_instances():
     args.java_nostorage_base_url = None
     with pytest.raises(SystemExit, match="--java-nostorage-base-url"):
         _java_profile_base_urls(args, [BY_NAME["no-storage"]])
+
+
+def test_prepare_schemas_stops_before_running_scenarios(monkeypatch):
+    """`--prepare-schemas` 는 스키마만 만들고 시나리오로 넘어가지 않는다.
+
+    java 인스턴스는 contract 프로파일에서 `ddl-auto: validate` 로 뜨므로 스키마가 **먼저**
+    있어야 한다. CI 잡은 이 플래그로 스키마만 만든 뒤 세 인스턴스를 띄운다. 분기가 `_run`
+    으로 새면 아직 아무 인스턴스도 없는 상태에서 java 전량 실행이 돌아 잡이 통째로 죽는다.
+    """
+    from contract_harness import cli
+
+    monkeypatch.setenv("HARNESS_LOGS", "1")  # _quiet_logs 의 전역 로깅 차단을 피한다
+    forced = []
+    monkeypatch.setattr(
+        cli.runner, "prepare_schemas", lambda *, force: forced.append(force)
+    )
+    monkeypatch.setattr(
+        cli.runner,
+        "all_scenarios",
+        lambda *args, **kwargs: pytest.fail("시나리오 실행으로 넘어갔다"),
+    )
+
+    assert cli.main(["--prepare-schemas"]) == 0
+    assert cli.main(["--prepare-schemas", "--rebuild-schemas"]) == 0
+    assert forced == [False, True]
 
 
 def test_seed_consent_documents_match_committed_manifest():

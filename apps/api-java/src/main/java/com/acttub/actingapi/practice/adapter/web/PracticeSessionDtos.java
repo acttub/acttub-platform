@@ -1,4 +1,4 @@
-package com.acttub.actingapi.practice;
+package com.acttub.actingapi.practice.adapter.web;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
@@ -6,9 +6,9 @@ import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
 
+import com.acttub.actingapi.practice.domain.ObservationPack;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import com.fasterxml.jackson.databind.annotation.JsonNaming;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -22,6 +22,9 @@ final class PracticeSessionDtos {
     @Schema(
             name = "PracticeSessionRequest",
             additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
+    // 값 하나짜리 허용 목록은 컨트롤러가, 둘의 조합은 이 애노테이션이 본다. 둘 다 근거는
+    // domain/BlockageBranch 이고, 나뉘어 있는 이유는 오류 형태다 — 조합 위반은 pydantic 이
+    // 모델 검증 오류로 내던 것이라 loc 이 다르다.
     @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
     record PracticeSessionRequest(
             @NotNull UUID uploadIntentId,
@@ -150,21 +153,16 @@ final class PracticeSessionDtos {
             }) String errorCode) {
     }
 
-    static ObservationPackResponse observationPack(
-            UUID summaryId,
-            JsonNode observations,
-            JsonNode uncertainties) {
-        List<ObservationItem> items = new java.util.ArrayList<>();
-        observations.forEach(item -> items.add(new ObservationItem(
-                item.path("start_ms").bigIntegerValue(),
-                item.path("end_ms").bigIntegerValue(),
-                item.path("label").textValue(),
-                item.path("confidence").decimalValue())));
-        List<String> uncertaintyValues = new java.util.ArrayList<>();
-        uncertainties.forEach(item -> uncertaintyValues.add(item.textValue()));
+    static ObservationPackResponse observationPack(ObservationPack pack) {
         return new ObservationPackResponse(
-                summaryId,
-                List.copyOf(items),
-                List.copyOf(uncertaintyValues));
+                pack.summaryId(),
+                pack.observations().stream()
+                        .map(item -> new ObservationItem(
+                                item.startMs(),
+                                item.endMs(),
+                                item.label(),
+                                item.confidence()))
+                        .toList(),
+                List.copyOf(pack.uncertainties()));
     }
 }

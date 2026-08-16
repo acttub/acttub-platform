@@ -18,6 +18,9 @@ import java.util.concurrent.TimeUnit;
 
 import javax.sql.DataSource;
 
+import com.acttub.actingapi.ledger.LeaseOwnershipException;
+import com.acttub.actingapi.practice.app.PracticeSessionLedger;
+import com.acttub.actingapi.practice.app.PracticeSessionOperation;
 import com.acttub.actingapi.support.PostgresContainerSupport;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -32,7 +35,7 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 
 @SpringBootTest(properties = "JWT_SECRET=test-secret")
-class ExternalOperationStoreIT {
+class ExternalOperationIT {
 
     private static final Instant NOW = Instant.parse("2026-08-08T01:02:03.456789Z");
     private static final String FINGERPRINT = "a".repeat(64);
@@ -42,7 +45,7 @@ class ExternalOperationStoreIT {
 
     @DynamicPropertySource
     static void datasource(DynamicPropertyRegistry registry) {
-        String database = PostgresContainerSupport.createDatabaseName("external_operation_store_it");
+        String database = PostgresContainerSupport.createDatabaseName("external_operation_it");
         registry.add("spring.datasource.url", () -> PostgresContainerSupport.jdbcUrlFor(database));
         registry.add("spring.datasource.username", PostgresContainerSupport.POSTGRES::getUsername);
         registry.add("spring.datasource.password", PostgresContainerSupport.POSTGRES::getPassword);
@@ -58,7 +61,7 @@ class ExternalOperationStoreIT {
     ExternalOperationClaimer claimer;
 
     @Autowired
-    ExternalOperationStore store;
+    PracticeSessionLedger store;
 
     @BeforeEach
     void clearDatabase() {
@@ -421,11 +424,11 @@ class ExternalOperationStoreIT {
             ExecutorService executor = Executors.newSingleThreadExecutor();
             try {
                 Future<PracticeSessionOperation> loser = executor.submit(() ->
-                        store.createAnalysisRetryOperation(
+                        store.createAnalysisRetry(
                                 userId, losingSessionId, requestId, FINGERPRINT, NOW));
                 awaitBlockedQuery("INSERT INTO external_operations");
 
-                PracticeSessionOperation winner = store.createAnalysisRetryOperation(
+                PracticeSessionOperation winner = store.createAnalysisRetry(
                         userId, winningSessionId, requestId, FINGERPRINT, NOW);
                 advisoryUnlock(blocker, RETRY_LOCK);
                 PracticeSessionOperation replay = loser.get(5, TimeUnit.SECONDS);
@@ -456,7 +459,7 @@ class ExternalOperationStoreIT {
         UUID sessionId = insertSession(
                 userId, insertFinalizedUpload(userId), "failed", NOW.minusSeconds(30));
         UUID requestId = UUID.randomUUID();
-        PracticeSessionOperation created = store.createAnalysisRetryOperation(
+        PracticeSessionOperation created = store.createAnalysisRetry(
                 userId, sessionId, requestId, FINGERPRINT, NOW);
         jdbc.update("""
                 UPDATE practice_sessions
@@ -464,7 +467,7 @@ class ExternalOperationStoreIT {
                 WHERE id = ?
                 """, sessionId);
 
-        PracticeSessionOperation replay = store.createAnalysisRetryOperation(
+        PracticeSessionOperation replay = store.createAnalysisRetry(
                 userId, sessionId, requestId, FINGERPRINT, NOW.plusSeconds(1));
 
         assertThat(created.created()).isTrue();
@@ -480,7 +483,7 @@ class ExternalOperationStoreIT {
             UUID uploadId,
             UUID requestId,
             String fingerprint) {
-        return store.createPracticeSessionWithAnalysisOperation(
+        return store.createWithAnalysis(
                 userId,
                 uploadId,
                 "상황",
