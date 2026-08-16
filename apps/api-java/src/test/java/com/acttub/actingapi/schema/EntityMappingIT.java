@@ -7,6 +7,13 @@ import java.util.Set;
 import java.util.UUID;
 
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
+import com.acttub.actingapi.community.schema.CommunityAnonymousAliasEntity;
+import com.acttub.actingapi.community.schema.CommunityBlockEntity;
+import com.acttub.actingapi.community.schema.CommunityCategoryEntity;
+import com.acttub.actingapi.community.schema.CommunityCommentEntity;
+import com.acttub.actingapi.community.schema.CommunityPostEntity;
+import com.acttub.actingapi.community.schema.CommunityPostLikeEntity;
+import com.acttub.actingapi.community.schema.CommunityReportEntity;
 import com.acttub.actingapi.practice.schema.PracticeSessionEntity;
 import com.acttub.actingapi.support.PostgresContainerSupport;
 import jakarta.persistence.EntityManager;

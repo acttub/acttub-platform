@@ -1,5 +1,6 @@
-package com.acttub.actingapi.schema;
+package com.acttub.actingapi.community.schema;
 import java.time.Instant; import java.util.UUID; import jakarta.persistence.*;
+import com.acttub.actingapi.schema.AppGeneratedUuidEntity;
 @Entity @Table(name="community_categories")
 public class CommunityCategoryEntity extends AppGeneratedUuidEntity {
     @Column(name="slug",nullable=false) String slug; @Column(name="name",nullable=false) String name; @Column(name="description") String description; @Column(name="sort_order",nullable=false) int sortOrder; @Column(name="is_active",nullable=false) boolean active=true;

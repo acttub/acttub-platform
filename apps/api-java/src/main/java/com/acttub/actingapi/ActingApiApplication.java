@@ -20,7 +20,8 @@ import org.springframework.boot.autoconfigure.domain.EntityScan;
 @SpringBootApplication
 @EntityScan({
     "com.acttub.actingapi.schema",
-    "com.acttub.actingapi.practice.schema"
+    "com.acttub.actingapi.practice.schema",
+    "com.acttub.actingapi.community.schema"
 })
 public class ActingApiApplication {
 

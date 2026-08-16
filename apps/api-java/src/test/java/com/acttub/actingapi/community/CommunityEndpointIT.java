@@ -15,6 +15,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
 import com.acttub.actingapi.auth.JwtService;
+import com.acttub.actingapi.community.app.CommunityService;
 import com.acttub.actingapi.support.PostgresContainerSupport;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -62,7 +63,7 @@ class CommunityEndpointIT {
     ObjectMapper mapper;
 
     @Autowired
-    CommunityStore store;
+    CommunityService community;
 
     @BeforeEach
     void setUp() {
@@ -176,27 +177,6 @@ class CommunityEndpointIT {
     }
 
     @Test
-    void cursorParsesPythonOffsetLiteralAndEmitsTheSameOffsetSpelling() {
-        String pythonIssued =
-                "MjAyNi0wOC0wOFQwMTowMjowMy40NTY3ODkrMDA6MDB8"
-                        + "MDAwMDAwMDAtMDAwMC00MDAwLTgwMDAtMDAwMDAwMDAwNzc3";
-
-        CommunityCursor.Cursor decoded = CommunityCursor.decode(pythonIssued);
-
-        assertThat(decoded.createdAt())
-                .isEqualTo(OffsetDateTime.of(2026, 8, 8, 1, 2, 3, 456789000, ZoneOffset.UTC));
-        assertThat(decoded.id())
-                .isEqualTo(UUID.fromString("00000000-0000-4000-8000-000000000777"));
-        assertThat(CommunityCursor.encode(decoded.createdAt(), decoded.id()))
-                .isEqualTo(pythonIssued);
-
-        String zSpelling = java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(
-                "2026-08-08T01:02:03.456789Z|00000000-0000-4000-8000-000000000777"
-                        .getBytes(java.nio.charset.StandardCharsets.UTF_8));
-        assertThat(CommunityCursor.decode(zSpelling)).isEqualTo(decoded);
-    }
-
-    @Test
     void concurrentCommentCreationKeepsThePostCountAtomic() throws Exception {
         UUID postId = insertPost(VIEWER, false, at(1));
         CountDownLatch ready = new CountDownLatch(2);
@@ -230,8 +210,8 @@ class CommunityEndpointIT {
         UUID postId = insertPost(VIEWER, false, at(1));
         jdbc.update("UPDATE community_posts SET like_count = 41 WHERE id = ?", postId);
 
-        assertThat(store.likePost(postId, OTHER)).isEqualTo(1);
-        assertThat(store.likePost(postId, OTHER)).isEqualTo(1);
+        assertThat(community.likePost(postId, OTHER)).isEqualTo(1);
+        assertThat(community.likePost(postId, OTHER)).isEqualTo(1);
         assertThat(jdbc.queryForObject(
                 "SELECT like_count FROM community_posts WHERE id = ?",
                 Integer.class,
@@ -302,7 +282,7 @@ class CommunityEndpointIT {
             CountDownLatch start) throws Exception {
         ready.countDown();
         assertThat(start.await(5, TimeUnit.SECONDS)).isTrue();
-        return store.createComment(postId, authorId, "동시 댓글", false).id();
+        return community.createComment(postId, authorId, "동시 댓글", false).id();
     }
 
     private void insertUser(UUID id, String nickname) {

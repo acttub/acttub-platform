@@ -1,4 +1,4 @@
-package com.acttub.actingapi.community;
+package com.acttub.actingapi.community.adapter.db;
 
 import java.nio.charset.StandardCharsets;
 import java.time.OffsetDateTime;
@@ -7,7 +7,12 @@ import java.util.Base64;
 import java.util.Locale;
 import java.util.UUID;
 
-/** Python community cursor와 교차 소비할 수 있는 opaque keyset cursor. */
+/**
+ * Python community cursor와 교차 소비할 수 있는 opaque keyset cursor.
+ *
+ * <p>저장소 옆에 사는 이유는 속이 정렬 키(생성 시각 + id)여서다 — 무엇을 담을지는 질의의
+ * {@code ORDER BY} 가 정하고, 바깥은 이것을 열어 보지 않는 문자열로만 다룬다.
+ */
 final class CommunityCursor {
     private CommunityCursor() {
     }

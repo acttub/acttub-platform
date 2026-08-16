@@ -1,4 +1,4 @@
-package com.acttub.actingapi.community;
+package com.acttub.actingapi.community.adapter.db;
 
 import java.util.List;
 import java.util.UUID;
@@ -16,13 +16,16 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
  * <p>락 순서는 항상 {@code community_posts} 다음
  * {@code community_anonymous_aliases}다. 부모 글 행을 {@code FOR UPDATE}로 잠근 뒤에만
  * 기존 번호를 읽거나 다음 번호를 삽입하므로 같은 글의 할당은 직렬화된다.
+ *
+ * <p>번호를 <b>표시 이름으로 바꾸는 규칙은 여기 없다</b> — 그것은 {@code domain} 의
+ * {@code CommunityComment.named} 가 안다. 이쪽은 번호를 발급하고 지키는 일만 한다.
  */
 @Repository
-public class AnonymousAliasAllocator {
+class AnonymousAliasAllocator {
 
     private final JdbcTemplate jdbc;
 
-    public AnonymousAliasAllocator(JdbcTemplate jdbc) {
+    AnonymousAliasAllocator(JdbcTemplate jdbc) {
         this.jdbc = jdbc;
     }
 
@@ -31,7 +34,7 @@ public class AnonymousAliasAllocator {
      *
      * @throws IllegalStateException 트랜잭션 밖에서 호출했거나 부모 글이 없을 때
      */
-    public int ensureAlias(UUID postId, UUID userId) {
+    int ensureAlias(UUID postId, UUID userId) {
         requireTransaction();
         lockPost(postId);
 

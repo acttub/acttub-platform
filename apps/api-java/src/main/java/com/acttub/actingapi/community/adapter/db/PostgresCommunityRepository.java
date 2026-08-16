@@ -1,15 +1,25 @@
-package com.acttub.actingapi.community;
+package com.acttub.actingapi.community.adapter.db;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.OffsetDateTime;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 
+import com.acttub.actingapi.community.app.CommunityContentNotFound;
+import com.acttub.actingapi.community.app.CommunityRepository;
+import com.acttub.actingapi.community.app.DuplicateReport;
+import com.acttub.actingapi.community.app.InvalidCursor;
+import com.acttub.actingapi.community.app.NotAuthor;
+import com.acttub.actingapi.community.app.Page;
+import com.acttub.actingapi.community.app.ReportingOwnContent;
+import com.acttub.actingapi.community.domain.BlockedUser;
+import com.acttub.actingapi.community.domain.CommunityCategory;
+import com.acttub.actingapi.community.domain.CommunityComment;
+import com.acttub.actingapi.community.domain.CommunityPost;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
@@ -17,8 +27,15 @@ import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.support.TransactionTemplate;
 
+/**
+ * 손으로 쓴 SQL 로 포트를 구현한다. JPA 로 가지 않는 이유는 SPEC §5-5 에 있다 — Schema Entity 는
+ * {@code ddl-auto: validate} 의 대조 대상일 뿐 호출되지 않는다.
+ *
+ * <p><b>트랜잭션 경계가 이 클래스 안에 있다.</b> 없음·소유권 판정과 그에 따른 쓰기가 한 트랜잭션·
+ * 한 잠금 안에서 끝나야 하므로, 서비스가 조회와 쓰기를 따로 부르는 형태로 가르지 않았다.
+ */
 @Repository
-class CommunityStore {
+class PostgresCommunityRepository implements CommunityRepository {
     private static final int DEFAULT_PAGE_SIZE = 20;
     private static final int MAX_PAGE_SIZE = 50;
 
@@ -27,7 +44,7 @@ class CommunityStore {
     private final TransactionTemplate transaction;
     private final AnonymousAliasAllocator aliases;
 
-    CommunityStore(
+    PostgresCommunityRepository(
             JdbcTemplate jdbc,
             TransactionTemplate transaction,
             AnonymousAliasAllocator aliases) {
@@ -37,19 +54,22 @@ class CommunityStore {
         this.aliases = aliases;
     }
 
-    List<Category> listCategories() {
+    @Override
+    public List<CommunityCategory> listCategories() {
         return jdbc.query("""
                 SELECT slug, name, description
                 FROM community_categories
                 WHERE is_active = TRUE
                 ORDER BY sort_order, slug
-                """, (result, rowNumber) -> new Category(
+                """, (result, rowNumber) -> new CommunityCategory(
                 result.getString("slug"),
                 result.getString("name"),
                 result.getString("description")));
     }
 
-    Page<Post> listPosts(UUID viewerId, String categorySlug, String cursor, Integer limit) {
+    @Override
+    public Page<CommunityPost> listPosts(
+            UUID viewerId, String categorySlug, String cursor, Integer limit) {
         int size = clampLimit(limit);
         CommunityVisibilitySpecification.Fragment visibility =
                 CommunityVisibilitySpecification.notBlocked("p", viewerId);
@@ -84,7 +104,7 @@ class CommunityStore {
                       WHERE viewer_like.post_id = p.id AND viewer_like.user_id = :viewerId
                   ) AS liked_by_me
                   """;
-        List<Post> rows = namedJdbc.query("""
+        List<CommunityPost> rows = namedJdbc.query("""
                 SELECT p.id,
                        p.author_id,
                        p.anonymous,
@@ -111,18 +131,20 @@ class CommunityStore {
                 (result, rowNumber) -> post(result, viewerId));
 
         boolean hasMore = rows.size() > size;
-        List<Post> items = hasMore ? List.copyOf(rows.subList(0, size)) : List.copyOf(rows);
+        List<CommunityPost> items = hasMore ? List.copyOf(rows.subList(0, size)) : List.copyOf(rows);
         String nextCursor = hasMore && !items.isEmpty()
                 ? CommunityCursor.encode(items.getLast().createdAt(), items.getLast().id())
                 : null;
         return new Page<>(items, nextCursor);
     }
 
-    Post getPost(UUID postId, UUID viewerId) {
+    @Override
+    public CommunityPost getPost(UUID postId, UUID viewerId) {
         return loadVisiblePost(postId, viewerId);
     }
 
-    Post createPost(
+    @Override
+    public CommunityPost createPost(
             UUID authorId,
             String categorySlug,
             String title,
@@ -135,7 +157,7 @@ class CommunityStore {
                     WHERE slug = ? AND is_active = TRUE
                     """, UUID.class, categorySlug);
             if (categories.isEmpty()) {
-                throw new CategoryNotFound();
+                throw new CommunityContentNotFound();
             }
             UUID id = UUID.randomUUID();
             jdbc.update("""
@@ -144,15 +166,37 @@ class CommunityStore {
                     )
                     VALUES (?, ?, ?, ?, ?, ?, 'visible'::content_status_t)
                     """, id, categories.getFirst(), authorId, title, body, anonymous);
-            return loadVisiblePost(id, authorId);
+            return justInserted(id, authorId);
         }));
     }
 
-    Post updatePost(UUID postId, UUID authorId, String title, String body) {
+    /**
+     * 방금 넣은 글을 응답에 실을 형태로 다시 읽는다.
+     *
+     * <p>🔥 <b>없으면 {@link CommunityContentNotFound} 가 아니다.</b> 이 자리의 "없음" 은 분류가
+     * 없다는 뜻이 아니라 방금 넣은 행이 조회 조건에 안 걸린다는 뜻이고(작성자가 자기 자신을
+     * 차단한 행이 남아 있으면 그렇게 된다), 서비스가 그것을 {@code category_not_found} 로 옮기면
+     * 멀쩡한 분류를 탓하게 된다. 종전에도 이 자리는 컨트롤러 catch 를 비껴 500 이었다 —
+     * 예외를 하나로 합치면서 조용히 404 가 될 뻔했다.
+     *
+     * <p>⚠ {@code updatePost} 의 같은 모양은 감싸지 않는다. 그쪽은 종전에도 컨트롤러가
+     * {@code PostNotFound} 를 잡아 404 {@code post_not_found} 였으므로 지금과 같다.
+     */
+    private CommunityPost justInserted(UUID postId, UUID authorId) {
+        try {
+            return loadVisiblePost(postId, authorId);
+        } catch (CommunityContentNotFound exception) {
+            throw new IllegalStateException(
+                    "community post is not visible right after insert", exception);
+        }
+    }
+
+    @Override
+    public CommunityPost updatePost(UUID postId, UUID authorId, String title, String body) {
         return required(transaction.execute(status -> {
             OwnedPost owned = ownedPost(postId, true, false);
             if (owned == null) {
-                throw new PostNotFound();
+                throw new CommunityContentNotFound();
             }
             if (!owned.authorId().equals(authorId)) {
                 throw new NotAuthor();
@@ -166,11 +210,12 @@ class CommunityStore {
         }));
     }
 
-    void deletePost(UUID postId, UUID authorId) {
+    @Override
+    public void deletePost(UUID postId, UUID authorId) {
         transaction.executeWithoutResult(status -> {
             OwnedPost owned = ownedPost(postId, false, true);
             if (owned == null) {
-                throw new PostNotFound();
+                throw new CommunityContentNotFound();
             }
             if (!owned.authorId().equals(authorId)) {
                 throw new NotAuthor();
@@ -183,7 +228,8 @@ class CommunityStore {
         });
     }
 
-    void incrementViewCount(UUID postId) {
+    @Override
+    public void incrementViewCount(UUID postId) {
         jdbc.update("""
                 UPDATE community_posts
                 SET view_count = view_count + 1
@@ -191,7 +237,8 @@ class CommunityStore {
                 """, postId);
     }
 
-    int likePost(UUID postId, UUID userId) {
+    @Override
+    public int likePost(UUID postId, UUID userId) {
         return required(transaction.execute(status -> {
             requireVisiblePost(postId);
             namedJdbc.queryForList("""
@@ -207,7 +254,8 @@ class CommunityStore {
         }));
     }
 
-    int unlikePost(UUID postId, UUID userId) {
+    @Override
+    public int unlikePost(UUID postId, UUID userId) {
         return required(transaction.execute(status -> {
             requireVisiblePost(postId);
             jdbc.update("""
@@ -218,12 +266,17 @@ class CommunityStore {
         }));
     }
 
-    Page<Comment> listComments(
+    @Override
+    public Page<CommunityComment> listComments(
             UUID postId,
             UUID viewerId,
             String cursor,
             Integer limit) {
-        Post post = loadVisiblePost(postId, viewerId);
+        // 커서 해독이 글 조회 **뒤에** 일어난다 —
+        // `db/community_store.py:CommunityStore.list_comments` 가 `_load_post_row` 를 먼저 부르고
+        // 호출부가 PostNotFound 를 ValueError 보다 먼저 잡는다. 여기서 미리 해독하면
+        // "없는 글 + 잘못된 커서" 가 404 대신 400 이 된다.
+        CommunityPost post = loadVisiblePost(postId, viewerId);
         int size = clampLimit(limit);
         CommunityVisibilitySpecification.Fragment visibility =
                 CommunityVisibilitySpecification.notBlocked("comment", viewerId);
@@ -242,7 +295,7 @@ class CommunityStore {
             parameters.addValue("cursorId", decoded.id());
         }
 
-        List<Comment> rows = namedJdbc.query("""
+        List<CommunityComment> rows = namedJdbc.query("""
                 SELECT comment.id,
                        comment.post_id,
                        comment.author_id,
@@ -265,24 +318,23 @@ class CommunityStore {
                 (result, rowNumber) -> comment(result, viewerId));
 
         boolean hasMore = rows.size() > size;
-        List<Comment> items = hasMore
-                ? new ArrayList<>(rows.subList(0, size))
-                : new ArrayList<>(rows);
-        applyAliases(post, items, aliasMap(postId));
+        List<CommunityComment> page = hasMore ? rows.subList(0, size) : rows;
+        List<CommunityComment> items = named(post, page, aliasMap(postId));
         String nextCursor = hasMore && !items.isEmpty()
                 ? CommunityCursor.encode(items.getLast().createdAt(), items.getLast().id())
                 : null;
-        return new Page<>(List.copyOf(items), nextCursor);
+        return new Page<>(items, nextCursor);
     }
 
-    Comment createComment(
+    @Override
+    public CommunityComment createComment(
             UUID postId,
             UUID authorId,
             String body,
             boolean anonymous) {
         return required(transaction.execute(status -> {
-            Post post = loadVisiblePost(postId, null);
-            if (anonymous && !(post.anonymous() && post.authorId().equals(authorId))) {
+            CommunityPost post = loadVisiblePost(postId, null);
+            if (anonymous && !post.writtenAnonymouslyBy(authorId)) {
                 aliases.ensureAlias(postId, authorId);
             }
             UUID id = UUID.randomUUID();
@@ -297,17 +349,17 @@ class CommunityStore {
                     SET comment_count = comment_count + 1
                     WHERE id = ?
                     """, postId);
-            Comment created = loadComment(id, authorId);
-            applyAliases(post, List.of(created), aliasMap(postId));
-            return created;
+            CommunityComment created = loadComment(id, authorId);
+            return created.named(post, aliasMap(postId).get(created.authorId()));
         }));
     }
 
-    Comment updateComment(UUID commentId, UUID authorId, String body) {
+    @Override
+    public CommunityComment updateComment(UUID commentId, UUID authorId, String body) {
         return required(transaction.execute(status -> {
-            Comment existing = loadComment(commentId, authorId);
-            if (existing == null || !existing.visible()) {
-                throw new CommentNotFound();
+            CommunityComment existing = loadComment(commentId, authorId);
+            if (existing == null || !existing.isVisible()) {
+                throw new CommunityContentNotFound();
             }
             if (!existing.authorId().equals(authorId)) {
                 throw new NotAuthor();
@@ -317,16 +369,16 @@ class CommunityStore {
                     SET body = ?, updated_at = now()
                     WHERE id = ?
                     """, body, commentId);
-            Comment updated = loadComment(commentId, authorId);
-            Post post = loadPostWithoutVisibility(updated.postId());
-            applyAliases(post, List.of(updated), aliasMap(updated.postId()));
-            return updated;
+            CommunityComment updated = loadComment(commentId, authorId);
+            CommunityPost post = parentPostOf(updated);
+            return updated.named(post, aliasMap(updated.postId()).get(updated.authorId()));
         }));
     }
 
-    void deleteComment(UUID commentId, UUID authorId) {
+    @Override
+    public void deleteComment(UUID commentId, UUID authorId) {
         transaction.executeWithoutResult(status -> {
-            List<Comment> rows = jdbc.query("""
+            List<CommunityComment> rows = jdbc.query("""
                     SELECT comment.id,
                            comment.post_id,
                            comment.author_id,
@@ -343,10 +395,10 @@ class CommunityStore {
                     WHERE comment.id = ?
                     FOR UPDATE OF comment
                     """, (result, rowNumber) -> commentWithStatus(result, null), commentId);
-            if (rows.isEmpty() || rows.getFirst().deleted()) {
-                throw new CommentNotFound();
+            if (rows.isEmpty() || rows.getFirst().isDeleted()) {
+                throw new CommunityContentNotFound();
             }
-            Comment existing = rows.getFirst();
+            CommunityComment existing = rows.getFirst();
             if (!existing.authorId().equals(authorId)) {
                 throw new NotAuthor();
             }
@@ -363,7 +415,8 @@ class CommunityStore {
         });
     }
 
-    void createReport(
+    @Override
+    public void createReport(
             UUID reporterId,
             String targetType,
             UUID targetId,
@@ -379,10 +432,10 @@ class CommunityStore {
                     WHERE id = ? AND status <> 'deleted'::content_status_t
                     """.formatted(table), UUID.class, targetId);
             if (authors.isEmpty()) {
-                throw new PostNotFound();
+                throw new CommunityContentNotFound();
             }
             if (authors.getFirst().equals(reporterId)) {
-                throw new NotAuthor();
+                throw new ReportingOwnContent();
             }
             try {
                 jdbc.update("""
@@ -398,7 +451,8 @@ class CommunityStore {
         });
     }
 
-    List<BlockedUser> listBlocks(UUID blockerId) {
+    @Override
+    public List<BlockedUser> listBlocks(UUID blockerId) {
         return jdbc.query("""
                 SELECT blocked.id, blocked.nickname
                 FROM users blocked
@@ -410,16 +464,14 @@ class CommunityStore {
                 result.getString("nickname")), blockerId);
     }
 
-    void blockUser(UUID blockerId, UUID blockedId) {
-        if (blockerId.equals(blockedId)) {
-            throw new NotAuthor();
-        }
+    @Override
+    public void blockUser(UUID blockerId, UUID blockedId) {
         transaction.executeWithoutResult(status -> {
             if (jdbc.queryForObject(
                     "SELECT COUNT(*) FROM users WHERE id = ?",
                     Integer.class,
                     blockedId) == 0) {
-                throw new PostNotFound();
+                throw new CommunityContentNotFound();
             }
             namedJdbc.queryForList("""
                     INSERT INTO community_blocks (id, blocker_id, blocked_id)
@@ -433,14 +485,15 @@ class CommunityStore {
         });
     }
 
-    void unblockUser(UUID blockerId, UUID blockedId) {
+    @Override
+    public void unblockUser(UUID blockerId, UUID blockedId) {
         jdbc.update("""
                 DELETE FROM community_blocks
                 WHERE blocker_id = ? AND blocked_id = ?
                 """, blockerId, blockedId);
     }
 
-    private Post loadVisiblePost(UUID postId, UUID viewerId) {
+    private CommunityPost loadVisiblePost(UUID postId, UUID viewerId) {
         CommunityVisibilitySpecification.Fragment visibility =
                 CommunityVisibilitySpecification.notBlocked("p", viewerId);
         MapSqlParameterSource parameters = new MapSqlParameterSource()
@@ -454,7 +507,7 @@ class CommunityStore {
                       WHERE viewer_like.post_id = p.id AND viewer_like.user_id = :viewerId
                   ) AS liked_by_me
                   """;
-        List<Post> rows = namedJdbc.query("""
+        List<CommunityPost> rows = namedJdbc.query("""
                 SELECT p.id,
                        p.author_id,
                        p.anonymous,
@@ -480,13 +533,24 @@ class CommunityStore {
                 """.formatted(viewerColumn, visibility.sql()), parameters,
                 (result, rowNumber) -> post(result, viewerId));
         if (rows.isEmpty()) {
-            throw new PostNotFound();
+            throw new CommunityContentNotFound();
         }
         return rows.getFirst();
     }
 
-    private Post loadPostWithoutVisibility(UUID postId) {
-        List<Post> rows = jdbc.query("""
+    /**
+     * 댓글이 달린 글. 표시 이름을 정하려면 글쓴이가 누구인지 알아야 하므로, 지워졌든 차단됐든
+     * 가리지 않고 읽는다.
+     *
+     * <p>🔥 <b>없으면 {@link CommunityContentNotFound} 가 아니다.</b> 댓글이 있는데 부모 글이
+     * 없는 것은 "대상을 못 찾았다" 가 아니라 외래키 불변식이 깨진 것이고, 서비스가 그것을 404 로
+     * 옮기면 깨진 데이터가 정상 응답으로 덮인다. 종전에도 이 자리는 컨트롤러 catch 를 비껴
+     * 500 이었다 — 예외를 하나로 합치면서 조용히 404 가 될 뻔했다. 같은 패키지의
+     * {@code AnonymousAliasAllocator.lockPost} 도 같은 상황에 같은 예외를 던진다.
+     */
+    private CommunityPost parentPostOf(CommunityComment comment) {
+        UUID postId = comment.postId();
+        List<CommunityPost> rows = jdbc.query("""
                 SELECT p.id,
                        p.author_id,
                        p.anonymous,
@@ -509,7 +573,7 @@ class CommunityStore {
                 WHERE p.id = ?
                 """, (result, rowNumber) -> post(result, null), postId);
         if (rows.isEmpty()) {
-            throw new PostNotFound();
+            throw new IllegalStateException("community post is missing");
         }
         return rows.getFirst();
     }
@@ -534,7 +598,7 @@ class CommunityStore {
                 FROM community_posts
                 WHERE id = ? AND status = 'visible'::content_status_t
                 """, Integer.class, postId) == 0) {
-            throw new PostNotFound();
+            throw new CommunityContentNotFound();
         }
     }
 
@@ -550,13 +614,13 @@ class CommunityStore {
                 RETURNING like_count
                 """, Integer.class, postId);
         if (counts.isEmpty()) {
-            throw new PostNotFound();
+            throw new CommunityContentNotFound();
         }
         return counts.getFirst();
     }
 
-    private Comment loadComment(UUID commentId, UUID viewerId) {
-        List<Comment> rows = jdbc.query("""
+    private CommunityComment loadComment(UUID commentId, UUID viewerId) {
+        List<CommunityComment> rows = jdbc.query("""
                 SELECT comment.id,
                        comment.post_id,
                        comment.author_id,
@@ -588,26 +652,19 @@ class CommunityStore {
         return result;
     }
 
-    private static void applyAliases(
-            Post post,
-            List<Comment> comments,
+    /** 익명 댓글에 표시 이름을 붙인다. 무엇으로 붙일지는 {@code domain} 이 안다. */
+    private static List<CommunityComment> named(
+            CommunityPost post,
+            List<CommunityComment> comments,
             Map<UUID, Integer> aliases) {
-        for (Comment comment : comments) {
-            if (!comment.anonymous()) {
-                continue;
-            }
-            if (post.anonymous() && comment.authorId().equals(post.authorId())) {
-                comment.alias("글쓴이");
-                continue;
-            }
-            Integer ordinal = aliases.get(comment.authorId());
-            comment.alias(ordinal == null ? "익명" : "익명" + ordinal);
-        }
+        return comments.stream()
+                .map(comment -> comment.named(post, aliases.get(comment.authorId())))
+                .toList();
     }
 
-    private static Post post(ResultSet result, UUID viewerId) throws SQLException {
+    private static CommunityPost post(ResultSet result, UUID viewerId) throws SQLException {
         UUID authorId = result.getObject("author_id", UUID.class);
-        return new Post(
+        return new CommunityPost(
                 result.getObject("id", UUID.class),
                 authorId,
                 result.getBoolean("anonymous"),
@@ -625,9 +682,9 @@ class CommunityStore {
                 result.getObject("updated_at", OffsetDateTime.class));
     }
 
-    private static Comment comment(ResultSet result, UUID viewerId) throws SQLException {
+    private static CommunityComment comment(ResultSet result, UUID viewerId) throws SQLException {
         UUID authorId = result.getObject("author_id", UUID.class);
-        return new Comment(
+        return CommunityComment.visible(
                 result.getObject("id", UUID.class),
                 result.getObject("post_id", UUID.class),
                 authorId,
@@ -636,14 +693,20 @@ class CommunityStore {
                 result.getString("body"),
                 viewerId != null && viewerId.equals(authorId),
                 result.getObject("created_at", OffsetDateTime.class),
-                result.getObject("updated_at", OffsetDateTime.class),
-                true);
+                result.getObject("updated_at", OffsetDateTime.class));
     }
 
-    private static Comment commentWithStatus(ResultSet result, UUID viewerId) throws SQLException {
-        Comment comment = comment(result, viewerId);
-        comment.status(result.getString("status"));
-        return comment;
+    private static CommunityComment commentWithStatus(ResultSet result, UUID viewerId)
+            throws SQLException {
+        return comment(result, viewerId).withStatus(result.getString("status"));
+    }
+
+    private static CommunityCursor.Cursor decodeCursor(String cursor) {
+        try {
+            return CommunityCursor.decode(cursor);
+        } catch (IllegalArgumentException exception) {
+            throw new InvalidCursor();
+        }
     }
 
     private static int clampLimit(Integer limit) {
@@ -657,122 +720,6 @@ class CommunityStore {
         return Objects.requireNonNull(value, "transaction returned no value");
     }
 
-    record Category(String slug, String name, String description) {
-    }
-
-    record Page<T>(List<T> items, String nextCursor) {
-    }
-
-    record Post(
-            UUID id,
-            UUID authorId,
-            boolean anonymous,
-            String categorySlug,
-            String categoryName,
-            String authorNickname,
-            String title,
-            String body,
-            int likeCount,
-            int commentCount,
-            int viewCount,
-            boolean likedByMe,
-            boolean mine,
-            OffsetDateTime createdAt,
-            OffsetDateTime updatedAt) {
-    }
-
-    static final class Comment {
-        private final UUID id;
-        private final UUID postId;
-        private final UUID authorId;
-        private final boolean anonymous;
-        private final String authorNickname;
-        private final String body;
-        private final boolean mine;
-        private final OffsetDateTime createdAt;
-        private final OffsetDateTime updatedAt;
-        private String alias;
-        private String status;
-
-        Comment(
-                UUID id,
-                UUID postId,
-                UUID authorId,
-                boolean anonymous,
-                String authorNickname,
-                String body,
-                boolean mine,
-                OffsetDateTime createdAt,
-                OffsetDateTime updatedAt,
-                boolean visible) {
-            this.id = id;
-            this.postId = postId;
-            this.authorId = authorId;
-            this.anonymous = anonymous;
-            this.authorNickname = authorNickname;
-            this.body = body;
-            this.mine = mine;
-            this.createdAt = createdAt;
-            this.updatedAt = updatedAt;
-            this.status = visible ? "visible" : "deleted";
-        }
-
-        UUID id() { return id; }
-        UUID postId() { return postId; }
-        UUID authorId() { return authorId; }
-        boolean anonymous() { return anonymous; }
-        String authorNickname() { return authorNickname; }
-        String body() { return body; }
-        boolean mine() { return mine; }
-        OffsetDateTime createdAt() { return createdAt; }
-        OffsetDateTime updatedAt() { return updatedAt; }
-        String alias() { return alias; }
-        boolean visible() { return "visible".equals(status); }
-        boolean deleted() { return "deleted".equals(status); }
-        void alias(String value) { alias = value; }
-        void status(String value) { status = value; }
-    }
-
-    record BlockedUser(UUID id, String nickname) {
-    }
-
     private record OwnedPost(UUID authorId) {
-    }
-
-    static final class CategoryNotFound extends RuntimeException {
-    }
-
-    private static CommunityCursor.Cursor decodeCursor(String cursor) {
-        try {
-            return CommunityCursor.decode(cursor);
-        } catch (IllegalArgumentException exception) {
-            throw new InvalidCursor();
-        }
-    }
-
-    static final class PostNotFound extends RuntimeException {
-    }
-
-    /**
-     * 커서 해독 실패.
-     *
-     * <p>{@link IllegalArgumentException} 을 그대로 올리면 이 클래스가 {@code @Repository} 라
-     * Spring 의 예외 변환이 {@code InvalidDataAccessApiUsageException} 으로 감싸고, 호출부의
-     * catch 가 빗나가 500 과 Spring 기본 오류 바디가 나간다(/SPEC.md §6 #1 이 금지한 형태).
-     * 전용 예외는 변환 대상이 아니라 그대로 전달된다.
-     */
-    static final class InvalidCursor extends RuntimeException {
-    }
-
-    static final class CommentNotFound extends RuntimeException {
-    }
-
-    static final class NotAuthor extends RuntimeException {
-    }
-
-    static final class DuplicateReport extends RuntimeException {
-        DuplicateReport(Throwable cause) {
-            super(cause);
-        }
     }
 }
