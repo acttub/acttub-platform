@@ -14,8 +14,8 @@ import java.util.UUID;
 import com.acttub.actingapi.practice.domain.AnalysisStatus;
 import com.acttub.actingapi.practice.domain.PracticeSession;
 import com.acttub.actingapi.practice.domain.SessionDetail;
-import com.acttub.actingapi.web.ApiException;
-import com.acttub.actingapi.web.CanonicalJson;
+import com.acttub.actingapi.platform.web.ApiException;
+import com.acttub.actingapi.platform.web.CanonicalJson;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.springframework.stereotype.Service;
 

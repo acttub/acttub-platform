@@ -8,10 +8,10 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
-import com.acttub.actingapi.security.AccessGate;
-import com.acttub.actingapi.web.ApiException;
-import com.acttub.actingapi.web.ApiValidationException;
-import com.acttub.actingapi.web.PythonText;
+import com.acttub.actingapi.platform.security.AccessGate;
+import com.acttub.actingapi.platform.web.ApiException;
+import com.acttub.actingapi.platform.web.ApiValidationException;
+import com.acttub.actingapi.platform.web.PythonText;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;

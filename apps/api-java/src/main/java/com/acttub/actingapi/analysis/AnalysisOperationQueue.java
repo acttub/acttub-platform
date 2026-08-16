@@ -4,7 +4,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.UUID;
 
-import com.acttub.actingapi.ledger.LeaseOwnershipException;
+import com.acttub.actingapi.platform.ledger.LeaseOwnershipException;
 
 /**
  * analysis 가 작업 큐에 요구하는 것 (ADR-017, SOMA-397 6단계).

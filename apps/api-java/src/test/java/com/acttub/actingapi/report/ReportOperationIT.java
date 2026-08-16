@@ -12,7 +12,7 @@ import java.util.Map;
 import java.util.UUID;
 
 import com.acttub.actingapi.operation.ExternalOperationClaimer;
-import com.acttub.actingapi.ledger.LeaseOwnershipException;
+import com.acttub.actingapi.platform.ledger.LeaseOwnershipException;
 import com.acttub.actingapi.support.PostgresContainerSupport;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

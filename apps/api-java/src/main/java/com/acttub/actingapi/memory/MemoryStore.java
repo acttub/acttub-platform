@@ -13,7 +13,7 @@ import java.util.UUID;
 
 import com.acttub.actingapi.schema.ActorMemoryAuthor;
 import com.acttub.actingapi.schema.ActorMemoryField;
-import com.acttub.actingapi.web.PythonText;
+import com.acttub.actingapi.platform.web.PythonText;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;

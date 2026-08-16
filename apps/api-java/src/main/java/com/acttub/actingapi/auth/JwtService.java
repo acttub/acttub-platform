@@ -15,7 +15,7 @@ import javax.crypto.spec.SecretKeySpec;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.acttub.actingapi.security.AccessTokenVerifier;
+import com.acttub.actingapi.platform.security.AccessTokenVerifier;
 import com.nimbusds.jwt.SignedJWT;
 
 /**

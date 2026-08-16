@@ -5,13 +5,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-import com.acttub.actingapi.security.AccessGate;
+import com.acttub.actingapi.platform.security.AccessGate;
 import com.acttub.actingapi.consent.ConsentDtos.ConsentDocument;
 import com.acttub.actingapi.consent.ConsentDtos.ConsentDocumentsResponse;
 import com.acttub.actingapi.consent.ConsentDtos.ConsentEventResponse;
 import com.acttub.actingapi.consent.ConsentDtos.ConsentRequest;
 import com.acttub.actingapi.schema.ConsentAction;
-import com.acttub.actingapi.web.ApiException;
+import com.acttub.actingapi.platform.web.ApiException;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;

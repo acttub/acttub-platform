@@ -1,5 +1,5 @@
 package com.acttub.actingapi.auth;
-import java.sql.ResultSet; import java.sql.SQLException; import java.time.*; import java.util.*; import com.acttub.actingapi.schema.*; import com.acttub.actingapi.security.AuthenticatedUser; import com.acttub.actingapi.security.AuthenticatedUsers; import org.springframework.jdbc.core.JdbcTemplate; import org.springframework.stereotype.Repository; import org.springframework.transaction.support.TransactionTemplate;
+import java.sql.ResultSet; import java.sql.SQLException; import java.time.*; import java.util.*; import com.acttub.actingapi.schema.*; import com.acttub.actingapi.platform.security.AuthenticatedUser; import com.acttub.actingapi.platform.security.AuthenticatedUsers; import org.springframework.jdbc.core.JdbcTemplate; import org.springframework.stereotype.Repository; import org.springframework.transaction.support.TransactionTemplate;
 /**
  * 사용자를 소유한 쪽이 배관의 포트를 <b>직접</b> 구현한다 — 위임만 하는 어댑터를 끼우지
  * 않는다 (ADR-017, SOMA-397 6단계의 {@code SyncOperationService} 와 같은 형태).

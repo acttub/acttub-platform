@@ -105,7 +105,7 @@ public final class CoachPrompt {
             return text;
         }
         int end = text.offsetByCodePoints(0, Math.max(0, budget - 1));
-        return com.acttub.actingapi.web.PythonText.rstrip(text.substring(0, end)) + "…";
+        return com.acttub.actingapi.platform.web.PythonText.rstrip(text.substring(0, end)) + "…";
     }
 
     public static String select(String blockageKind) {
