@@ -7,7 +7,7 @@ import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
 
-import com.acttub.actingapi.ledger.LeaseOwnershipException;
+import com.acttub.actingapi.platform.ledger.LeaseOwnershipException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.PlatformTransactionManager;

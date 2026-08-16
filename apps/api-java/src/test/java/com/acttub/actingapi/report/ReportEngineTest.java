@@ -6,9 +6,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.util.ArrayList;
 import java.util.List;
 
-import com.acttub.actingapi.llm.GeneratedText;
-import com.acttub.actingapi.llm.TokenUsage;
-import com.acttub.actingapi.llm.TextGenerator;
+import com.acttub.actingapi.integration.llm.GeneratedText;
+import com.acttub.actingapi.integration.llm.TokenUsage;
+import com.acttub.actingapi.integration.llm.TextGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;

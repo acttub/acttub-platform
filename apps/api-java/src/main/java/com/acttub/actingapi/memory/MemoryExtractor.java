@@ -7,9 +7,9 @@ import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import com.acttub.actingapi.llm.TextValidation;
-import com.acttub.actingapi.llm.TextValidator;
-import com.acttub.actingapi.web.PythonText;
+import com.acttub.actingapi.integration.llm.TextValidation;
+import com.acttub.actingapi.integration.llm.TextValidator;
+import com.acttub.actingapi.platform.web.PythonText;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;

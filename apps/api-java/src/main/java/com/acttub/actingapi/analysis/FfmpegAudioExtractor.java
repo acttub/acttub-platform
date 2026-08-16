@@ -10,7 +10,7 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
-import com.acttub.actingapi.media.FfmpegLock;
+import com.acttub.actingapi.integration.media.FfmpegLock;
 
 /** {@code acting_llm.media.extract_audio}의 활성 경로만 옮긴다. */
 public final class FfmpegAudioExtractor implements AudioExtractor {

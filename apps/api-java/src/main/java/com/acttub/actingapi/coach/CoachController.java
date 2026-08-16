@@ -5,7 +5,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-import com.acttub.actingapi.auth.AuthDependencies;
+import com.acttub.actingapi.platform.security.AccessGate;
 import com.acttub.actingapi.coach.CoachDtos.CoachConfirmReq;
 import com.acttub.actingapi.coach.CoachDtos.CoachConfirmResponse;
 import com.acttub.actingapi.coach.CoachDtos.CoachReplyReq;
@@ -13,9 +13,9 @@ import com.acttub.actingapi.coach.CoachDtos.CoachStartReq;
 import com.acttub.actingapi.coach.CoachDtos.CoachTurnResponse;
 import com.acttub.actingapi.coach.CoachDtos.PublicCoachTurn;
 import com.acttub.actingapi.coach.CoachDtos.PublicHandoff;
-import com.acttub.actingapi.ledger.SyncOperationBegin;
-import com.acttub.actingapi.ledger.SyncOperationClaim;
-import com.acttub.actingapi.ledger.LeaseOwnershipException;
+import com.acttub.actingapi.platform.ledger.SyncOperationBegin;
+import com.acttub.actingapi.platform.ledger.SyncOperationClaim;
+import com.acttub.actingapi.platform.ledger.LeaseOwnershipException;
 import com.acttub.actingapi.report.OwnedReportSource;
 import com.acttub.actingapi.report.ReportDtos.AnalysisReport;
 import com.acttub.actingapi.report.ReportDtos.BlockedReport;
@@ -23,8 +23,8 @@ import com.acttub.actingapi.report.ReportDtos.ExpressionReport;
 import com.acttub.actingapi.report.ReportEngine;
 import com.acttub.actingapi.report.ReportOperationService;
 import com.acttub.actingapi.report.ReportParseError;
-import com.acttub.actingapi.web.ApiException;
-import com.acttub.actingapi.web.CanonicalJsonResponse;
+import com.acttub.actingapi.platform.web.ApiException;
+import com.acttub.actingapi.platform.web.CanonicalJsonResponse;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -57,7 +57,7 @@ class CoachController {
     private final ReportOperationService reportOperations;
     private final CoachOperationLedger operations;
     private final CanonicalJsonResponse responses;
-    private final AuthDependencies auth;
+    private final AccessGate auth;
     private final ObjectMapper mapper;
     private final com.acttub.actingapi.memory.MemoryStore memory;
     private static final org.slf4j.Logger LOG =
@@ -70,7 +70,7 @@ class CoachController {
             ReportOperationService reportOperations,
             CoachOperationLedger operations,
             CanonicalJsonResponse responses,
-            AuthDependencies auth,
+            AccessGate auth,
             ObjectMapper mapper,
             com.acttub.actingapi.memory.MemoryStore memory) {
         this.sessions = sessions;

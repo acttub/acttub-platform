@@ -5,7 +5,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-import com.acttub.actingapi.auth.AuthDependencies;
+import com.acttub.actingapi.platform.security.AccessGate;
 import com.acttub.actingapi.practice.adapter.web.PracticeSessionDtos.ObservationPackResponse;
 import com.acttub.actingapi.practice.adapter.web.PracticeSessionDtos.PracticeSessionAcceptedResponse;
 import com.acttub.actingapi.practice.adapter.web.PracticeSessionDtos.PracticeSessionCreateResponse;
@@ -15,15 +15,15 @@ import com.acttub.actingapi.practice.adapter.web.PracticeSessionDtos.PracticeSes
 import com.acttub.actingapi.practice.adapter.web.PracticeSessionDtos.PracticeSessionRequest;
 import com.acttub.actingapi.practice.adapter.web.PracticeSessionDtos.PracticeSessionStatusResponse;
 import com.acttub.actingapi.practice.app.AnalysisOutcome;
-import com.acttub.actingapi.web.CanonicalJson;
+import com.acttub.actingapi.platform.web.CanonicalJson;
 import com.acttub.actingapi.practice.app.NewPracticeSession;
 import com.acttub.actingapi.practice.app.PlayableSession;
 import com.acttub.actingapi.practice.app.PracticeSessionService;
 import com.acttub.actingapi.practice.domain.AnalysisStatus;
 import com.acttub.actingapi.practice.domain.BlockageBranch;
 import com.acttub.actingapi.practice.domain.PracticeSession;
-import com.acttub.actingapi.web.ApiException;
-import com.acttub.actingapi.web.ApiValidationException;
+import com.acttub.actingapi.platform.web.ApiException;
+import com.acttub.actingapi.platform.web.ApiValidationException;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -58,12 +58,12 @@ import org.springframework.web.bind.annotation.RestController;
 class PracticeSessionController {
 
     private final PracticeSessionService sessions;
-    private final AuthDependencies auth;
+    private final AccessGate auth;
     private final CanonicalJson canonical;
 
     PracticeSessionController(
             PracticeSessionService sessions,
-            AuthDependencies auth,
+            AccessGate auth,
             CanonicalJson canonical) {
         this.sessions = sessions;
         this.auth = auth;

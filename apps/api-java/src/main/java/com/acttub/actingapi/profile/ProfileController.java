@@ -8,10 +8,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
 
-import com.acttub.actingapi.auth.AuthDependencies;
-import com.acttub.actingapi.web.ApiException;
-import com.acttub.actingapi.web.ApiValidationException;
-import com.acttub.actingapi.web.PythonText;
+import com.acttub.actingapi.platform.security.AccessGate;
+import com.acttub.actingapi.platform.web.ApiException;
+import com.acttub.actingapi.platform.web.ApiValidationException;
+import com.acttub.actingapi.platform.web.PythonText;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -34,9 +34,9 @@ class ProfileController {
     private static final Pattern INTERNAL_WHITESPACE = Pattern.compile("\\s+", Pattern.UNICODE_CHARACTER_CLASS);
 
     private final ProfileStore store;
-    private final AuthDependencies auth;
+    private final AccessGate auth;
 
-    ProfileController(ProfileStore store, AuthDependencies auth) {
+    ProfileController(ProfileStore store, AccessGate auth) {
         this.store = store;
         this.auth = auth;
     }

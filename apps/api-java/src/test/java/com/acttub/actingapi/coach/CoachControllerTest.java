@@ -14,20 +14,20 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
-import com.acttub.actingapi.auth.AuthDependencies;
-import com.acttub.actingapi.auth.AuthStore;
+import com.acttub.actingapi.platform.security.AccessGate;
+import com.acttub.actingapi.platform.security.AuthenticatedUser;
 import com.acttub.actingapi.report.OwnedReportSource;
 import com.acttub.actingapi.coach.CoachDtos.CoachConfirmReq;
 import com.acttub.actingapi.coach.CoachDtos.CoachReplyReq;
 import com.acttub.actingapi.coach.CoachDtos.CoachStartReq;
 import com.acttub.actingapi.schema.UserStatus;
-import com.acttub.actingapi.ledger.SyncOperationBegin;
-import com.acttub.actingapi.ledger.SyncOperationClaim;
+import com.acttub.actingapi.platform.ledger.SyncOperationBegin;
+import com.acttub.actingapi.platform.ledger.SyncOperationClaim;
 import com.acttub.actingapi.report.ReportEngine;
 import com.acttub.actingapi.report.ReportOperationService;
 import com.acttub.actingapi.report.ReportParseError;
-import com.acttub.actingapi.web.ApiException;
-import com.acttub.actingapi.web.CanonicalJsonResponse;
+import com.acttub.actingapi.platform.web.ApiException;
+import com.acttub.actingapi.platform.web.CanonicalJsonResponse;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -55,7 +55,7 @@ class CoachControllerTest {
     private final ReportOperationService reportOperations = mock(ReportOperationService.class);
     private final CoachOperationLedger operations = mock(CoachOperationLedger.class);
     private final CanonicalJsonResponse responses = mock(CanonicalJsonResponse.class);
-    private final AuthDependencies auth = mock(AuthDependencies.class);
+    private final AccessGate auth = mock(AccessGate.class);
     private final HttpServletRequest request = mock(HttpServletRequest.class);
     private final ObjectMapper mapper = new ObjectMapper();
     private final com.acttub.actingapi.memory.MemoryStore memory =
@@ -68,7 +68,7 @@ class CoachControllerTest {
         controller = new CoachController(
                 sessions, coach, reports, reportOperations, operations, responses, auth, mapper, memory);
         when(auth.consentedUser(request)).thenReturn(
-                new AuthStore.User(USER_ID, "coach@test", UserStatus.ACTIVE));
+                new AuthenticatedUser(USER_ID, "coach@test", UserStatus.ACTIVE));
         when(operations.requestId(any())).thenReturn(REQUEST_ID);
         when(operations.fingerprint(anyString(), any())).thenReturn("0".repeat(64));
         when(operations.begin(any(), any(), any(), anyString(), anyString()))

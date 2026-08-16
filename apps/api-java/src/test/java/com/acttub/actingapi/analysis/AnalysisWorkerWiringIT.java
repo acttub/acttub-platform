@@ -3,7 +3,7 @@ package com.acttub.actingapi.analysis;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.acttub.actingapi.ActingApiApplication;
-import com.acttub.actingapi.storage.ObjectStorage;
+import com.acttub.actingapi.integration.storage.ObjectStorage;
 import com.acttub.actingapi.support.PostgresContainerSupport;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

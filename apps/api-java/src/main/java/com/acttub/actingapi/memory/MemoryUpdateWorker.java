@@ -12,8 +12,8 @@ import java.util.Map;
 import java.util.UUID;
 
 import com.acttub.actingapi.schema.ActorMemoryField;
-import com.acttub.actingapi.llm.TextGenerator;
-import com.acttub.actingapi.ledger.LeaseOwnershipException;
+import com.acttub.actingapi.integration.llm.TextGenerator;
+import com.acttub.actingapi.platform.ledger.LeaseOwnershipException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;

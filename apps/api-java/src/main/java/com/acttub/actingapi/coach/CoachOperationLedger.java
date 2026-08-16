@@ -3,8 +3,8 @@ package com.acttub.actingapi.coach;
 import java.time.Instant;
 import java.util.UUID;
 
-import com.acttub.actingapi.ledger.SyncOperationBegin;
-import com.acttub.actingapi.ledger.SyncOperationClaim;
+import com.acttub.actingapi.platform.ledger.SyncOperationBegin;
+import com.acttub.actingapi.platform.ledger.SyncOperationClaim;
 import com.fasterxml.jackson.databind.JsonNode;
 
 /**

@@ -15,9 +15,9 @@ import java.util.concurrent.TimeoutException;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-import com.acttub.actingapi.ledger.LeaseOwnershipException;
-import com.acttub.actingapi.storage.ObjectStorage;
-import com.acttub.actingapi.storage.StoredObjectMetadata;
+import com.acttub.actingapi.platform.ledger.LeaseOwnershipException;
+import com.acttub.actingapi.integration.storage.ObjectStorage;
+import com.acttub.actingapi.integration.storage.StoredObjectMetadata;
 import com.acttub.actingapi.observation.FileActiveTimeout;
 import com.acttub.actingapi.observation.SummaryParseError;
 

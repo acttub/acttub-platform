@@ -1,3 +1,0 @@
-package com.acttub.actingapi.auth;
-import org.springframework.security.oauth2.jwt.Jwt;
-final class OidcClaims {private OidcClaims(){} static ProviderIdentity identity(Jwt jwt,String provider){Object sub=jwt.getClaims().get("sub");if(!(sub instanceof String value)||value.isEmpty())throw new InvalidIdentityToken(provider+" id_token is missing sub");Object rawEmail=jwt.getClaims().get("email");String email=rawEmail instanceof String s&&!s.isEmpty()?s:null;Object rawVerified=jwt.getClaims().getOrDefault("email_verified",false);boolean verified=Boolean.TRUE.equals(rawVerified)||(rawVerified instanceof String s&&s.equalsIgnoreCase("true"));return new ProviderIdentity(value,email,verified);}}

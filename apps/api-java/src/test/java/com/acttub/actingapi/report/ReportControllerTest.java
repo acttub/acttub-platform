@@ -13,14 +13,14 @@ import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
 
-import com.acttub.actingapi.auth.AuthDependencies;
-import com.acttub.actingapi.auth.AuthStore;
+import com.acttub.actingapi.platform.security.AccessGate;
+import com.acttub.actingapi.platform.security.AuthenticatedUser;
 import com.acttub.actingapi.schema.UserStatus;
-import com.acttub.actingapi.ledger.SyncOperationBegin;
-import com.acttub.actingapi.ledger.SyncOperationClaim;
+import com.acttub.actingapi.platform.ledger.SyncOperationBegin;
+import com.acttub.actingapi.platform.ledger.SyncOperationClaim;
 import com.acttub.actingapi.report.ReportDtos.ReportReq;
-import com.acttub.actingapi.web.ApiException;
-import com.acttub.actingapi.web.CanonicalJsonResponse;
+import com.acttub.actingapi.platform.web.ApiException;
+import com.acttub.actingapi.platform.web.CanonicalJsonResponse;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -41,7 +41,7 @@ class ReportControllerTest {
             UUID.fromString("70000000-0000-4000-8000-000000000017"));
 
     private final ReportQueryStore queryStore = mock(ReportQueryStore.class);
-    private final AuthDependencies auth = mock(AuthDependencies.class);
+    private final AccessGate auth = mock(AccessGate.class);
     private final ReportSourceProvider reportSource = mock(ReportSourceProvider.class);
     private final ReportEngine reportEngine = mock(ReportEngine.class);
     private final ReportOperationService reportOperations = mock(ReportOperationService.class);
@@ -64,7 +64,7 @@ class ReportControllerTest {
                 syncOperations,
                 responses);
         when(auth.consentedUser(request)).thenReturn(
-                new AuthStore.User(USER_ID, "report@test", UserStatus.ACTIVE));
+                new AuthenticatedUser(USER_ID, "report@test", UserStatus.ACTIVE));
         when(reportSource.getOwnedReportSource(USER_ID, SESSION_ID)).thenReturn(source());
         when(syncOperations.requestId(any())).thenReturn(CLAIM.requestId());
         when(syncOperations.fingerprint(anyString(), any())).thenReturn("0".repeat(64));

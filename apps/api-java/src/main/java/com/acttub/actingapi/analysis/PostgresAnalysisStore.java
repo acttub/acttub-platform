@@ -7,7 +7,7 @@ import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
 
-import com.acttub.actingapi.ledger.LeaseOwnershipException;
+import com.acttub.actingapi.platform.ledger.LeaseOwnershipException;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;

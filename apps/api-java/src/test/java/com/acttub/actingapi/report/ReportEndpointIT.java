@@ -13,8 +13,8 @@ import java.util.List;
 import java.util.UUID;
 
 import com.acttub.actingapi.auth.JwtService;
-import com.acttub.actingapi.storage.ObjectStorage;
-import com.acttub.actingapi.storage.StoredObjectMetadata;
+import com.acttub.actingapi.integration.storage.ObjectStorage;
+import com.acttub.actingapi.integration.storage.StoredObjectMetadata;
 import com.acttub.actingapi.support.PostgresContainerSupport;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;

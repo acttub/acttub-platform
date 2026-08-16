@@ -18,7 +18,7 @@ import java.util.concurrent.TimeUnit;
 
 import javax.sql.DataSource;
 
-import com.acttub.actingapi.ledger.LeaseOwnershipException;
+import com.acttub.actingapi.platform.ledger.LeaseOwnershipException;
 import com.acttub.actingapi.practice.app.PracticeSessionLedger;
 import com.acttub.actingapi.practice.app.PracticeSessionOperation;
 import com.acttub.actingapi.support.PostgresContainerSupport;

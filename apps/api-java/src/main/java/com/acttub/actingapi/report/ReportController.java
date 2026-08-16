@@ -3,10 +3,10 @@ package com.acttub.actingapi.report;
 import java.util.Optional;
 import java.util.UUID;
 
-import com.acttub.actingapi.auth.AuthDependencies;
-import com.acttub.actingapi.ledger.LeaseOwnershipException;
-import com.acttub.actingapi.ledger.SyncOperationBegin;
-import com.acttub.actingapi.ledger.SyncOperationClaim;
+import com.acttub.actingapi.platform.security.AccessGate;
+import com.acttub.actingapi.platform.ledger.LeaseOwnershipException;
+import com.acttub.actingapi.platform.ledger.SyncOperationBegin;
+import com.acttub.actingapi.platform.ledger.SyncOperationClaim;
 import com.acttub.actingapi.report.ReportDtos.AnalysisReport;
 import com.acttub.actingapi.report.ReportDtos.BlockedReport;
 import com.acttub.actingapi.report.ReportDtos.ExpressionReport;
@@ -14,10 +14,10 @@ import com.acttub.actingapi.report.ReportDtos.ReportDetailResponse;
 import com.acttub.actingapi.report.ReportDtos.ReportHistoryResponse;
 import com.acttub.actingapi.report.ReportDtos.ReportReq;
 import com.acttub.actingapi.report.ReportDtos.ReportRecord;
-import com.acttub.actingapi.storage.ObjectStorage;
-import com.acttub.actingapi.storage.NoCredentialsError;
-import com.acttub.actingapi.web.ApiException;
-import com.acttub.actingapi.web.CanonicalJsonResponse;
+import com.acttub.actingapi.integration.storage.ObjectStorage;
+import com.acttub.actingapi.integration.storage.NoCredentialsError;
+import com.acttub.actingapi.platform.web.ApiException;
+import com.acttub.actingapi.platform.web.CanonicalJsonResponse;
 import com.fasterxml.jackson.databind.JsonNode;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -44,7 +44,7 @@ class ReportController {
 
     private final ReportQueryStore store;
     private final Optional<ObjectStorage> configuredStorage;
-    private final AuthDependencies auth;
+    private final AccessGate auth;
     private final ReportSourceProvider reportSource;
     private final ReportEngine reportEngine;
     private final ReportOperationService reportOperations;
@@ -54,7 +54,7 @@ class ReportController {
     ReportController(
             ReportQueryStore store,
             Optional<ObjectStorage> configuredStorage,
-            AuthDependencies auth,
+            AccessGate auth,
             ReportSourceProvider reportSource,
             ReportEngine reportEngine,
             ReportOperationService reportOperations,

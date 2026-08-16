@@ -3,7 +3,7 @@ package com.acttub.actingapi.analysis;
 import java.time.Clock;
 import java.time.Duration;
 
-import com.acttub.actingapi.storage.ObjectStorage;
+import com.acttub.actingapi.integration.storage.ObjectStorage;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;

@@ -6,13 +6,13 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Pattern;
 
-import com.acttub.actingapi.auth.AuthDependencies;
+import com.acttub.actingapi.platform.security.AccessGate;
 import com.acttub.actingapi.schema.ActorMemoryField;
 import com.acttub.actingapi.memory.MemoryDtos.MemoryItem;
 import com.acttub.actingapi.memory.MemoryDtos.MemoryResponse;
 import com.acttub.actingapi.memory.MemoryDtos.UpdateMemoryRequest;
-import com.acttub.actingapi.web.ApiValidationException;
-import com.acttub.actingapi.web.PythonText;
+import com.acttub.actingapi.platform.web.ApiValidationException;
+import com.acttub.actingapi.platform.web.PythonText;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -49,9 +49,9 @@ class MemoryController {
             "'gender', 'age', 'goal', 'blockage', 'speech_self' or 'speech_actual'";
 
     private final MemoryStore store;
-    private final AuthDependencies auth;
+    private final AccessGate auth;
 
-    MemoryController(MemoryStore store, AuthDependencies auth) {
+    MemoryController(MemoryStore store, AccessGate auth) {
         this.store = store;
         this.auth = auth;
     }
