@@ -41,6 +41,11 @@ class PackageLayerTest {
      * {@code storage}·{@code web}은 8단계에서 {@code integration}·{@code platform} 뒤로 갔다.
      * 배관과 외부 연동을 보는 것은 금지 대상이 아니므로 이제 걸 수 있고, 13단계에서 한정을
      * 풀 때 함께 넣는다.
+     *
+     * <p>⚠ <b>그 규칙은 "상대의 {@code app} 층만 허용"으로 써야 한다</b>(ADR-019). 두 도메인이
+     * 서로를 소비하면 양쪽 다 포트를 선언할 수 없다 — 구현하는 쪽이 인터페이스를 import하므로
+     * 간선이 양방향이 되어 {@link PackageCycleTest}가 빨간불이다. {@code coach}→{@code report}가
+     * 그 자리이고(9단계) 아홉 심볼로 정렬돼 있다. 완전 금지로 쓰면 이 형태가 걸린다.
      */
     private static final List<String> MIGRATED_FEATURES =
             List.of("practice", "community", "report", "coach");
