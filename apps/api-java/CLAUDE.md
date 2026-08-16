@@ -77,7 +77,9 @@ ln -sfn ../api/acting-api/.env .env    # 최초 1회. 파이썬과 같은 파일
 
 - 층 방향은 `PackageLayerTest`가 강제합니다(순환은 `PackageCycleTest`가 따로 봅니다). 서브패키지로 갈리면서 저장소 클래스를 막아주던 package-private 보호가 옅어졌으므로 **이 검사가 구조를 지키는 유일한 장치입니다.**
 - ⚠ **검사 대상이 `MIGRATED_FEATURES` 목록으로 한정돼 있습니다.** 도메인을 옮기면 그 목록에 이름을 추가해야 규칙이 걸립니다 — 빠뜨리면 새로 옮긴 도메인이 아무 검사 없이 통과합니다. 안 옮긴 도메인이 빨간불을 내지 않게 하려는 한정이라, 이 대가는 의도된 것입니다.
-- 아직 못 거는 규칙이 하나 있습니다 — **feature끼리 직접 import 금지**. `practice`가 여전히 `operation`·`auth`·`storage`·`web`을 직접 참조합니다. 그 셋을 포트 뒤로 보낸 뒤(SOMA-397 6·7·8단계) 붙습니다.
+- 아직 못 거는 규칙이 하나 있습니다 — **feature끼리 직접 import 금지**. `practice`가 여전히 `auth`·`storage`를 직접 참조합니다. 그 둘을 포트·묶음 뒤로 보낸 뒤(SOMA-397 7·8단계) 붙습니다.
+- **`operation`은 6단계에서 포트 뒤로 갔습니다.** 다섯 도메인이 각자 포트를 선언하고, 원장을 아는 자리는 도메인마다 어댑터 하나입니다(`ExternalMemoryUpdateQueue`·`ExternalCoachOperationLedger`·`ExternalReportOperationLedger`·`PostgresAnalysisStore`). `practice`는 자기 원장 연산을 통째로 가져가 `operation`을 아예 참조하지 않습니다.
+  - ⚠ **제공자가 소비자 포트를 구현하면 순환이 납니다.** `LeaseOwnershipException`이 `operation`에 남아 다섯 도메인이 그것을 catch하므로, `operation`이 반대로 소비자 포트를 implement하는 순간 `PackageCycleTest`가 빨간불입니다. 그래서 어댑터를 **쓰는 쪽**에 둡니다. 예외를 함께 옮기는 것은 8단계 `platform` 묶음 신설의 몫입니다.
 
 ## 계약 재현에서 자주 깨지는 지점
 
