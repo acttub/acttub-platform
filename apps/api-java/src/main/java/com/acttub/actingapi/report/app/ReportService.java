@@ -78,6 +78,8 @@ public class ReportService {
                     ? null
                     : sources.getPracticeReportForHandoff(source.handoffId());
             JsonNode report = existing == null ? reportFor(source) : existing;
+            // ⚠ 아래 갈래는 CoachService.confirm 과 모양이 같다. 다른 것은 원장에 남기는 값
+            // 하나뿐이다 — 여기는 성적표 본문이 곧 응답이지만 저쪽은 확정 응답 전체를 남긴다.
             if (isBlocked(report) || existing != null) {
                 operations.complete(claim, report);
             } else {

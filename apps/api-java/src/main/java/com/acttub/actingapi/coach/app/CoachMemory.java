@@ -2,8 +2,6 @@ package com.acttub.actingapi.coach.app;
 
 import java.util.UUID;
 
-import com.acttub.actingapi.coach.domain.PriorContext;
-
 /**
  * coach 가 배우의 기억에 요구하는 것.
  *

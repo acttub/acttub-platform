@@ -6,6 +6,11 @@ package com.acttub.actingapi.coach.domain;
  * <p>배우가 연습을 만들 때 고른 <b>막힌 지점</b>({@code blockage_kind})이 코칭 프롬프트와 성적표의
  * 모양을 통째로 정한다. "표현"이면 표현 갈래, 나머지는 전부 분석 갈래다 — 갈래가 둘뿐이라
  * 모르는 값을 분석으로 보는 것이 종전 동작이고, 여기서 예외를 던지면 대화를 시작하지 못한다.
+ *
+ * <p>⚠ <b>{@code report/domain/ReportBranch} 가 같은 두 값을 따로 갖는다.</b> 이 문자열은
+ * {@code coaching_handoffs.branch_kind} 로 저장돼 성적표의 {@code report_type} 이 되므로, 둘이
+ * 어긋나면 만들어진 성적표가 코칭과 다른 갈래가 된다. 합치지 않은 것은 도메인이 서로의
+ * {@code domain} 층을 보지 않기 때문이고(ADR-019), 어긋남은 계약 하네스 main-flow 가 잡는다.
  */
 public final class CoachBranch {
 

@@ -6,7 +6,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import com.acttub.actingapi.coach.domain.CoachTurnSnapshot;
-import com.acttub.actingapi.coach.domain.PriorContext;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;

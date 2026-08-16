@@ -14,7 +14,6 @@ import java.util.UUID;
 
 import com.acttub.actingapi.auth.JwtService;
 import com.acttub.actingapi.integration.storage.ObjectStorage;
-import com.acttub.actingapi.report.adapter.db.PostgresReportRepository;
 import com.acttub.actingapi.report.adapter.db.ReportFixtures;
 import com.acttub.actingapi.integration.storage.StoredObjectMetadata;
 import com.acttub.actingapi.support.PostgresContainerSupport;
@@ -67,9 +66,6 @@ class ReportEndpointIT {
     @Autowired
     ObjectMapper mapper;
 
-    @Autowired
-    PostgresReportRepository store;
-
     ReportFixtures fixtures;
 
     @BeforeEach
@@ -110,8 +106,6 @@ class ReportEndpointIT {
         assertThat(detail.path("playback_url").textValue())
                 .isEqualTo("playback:first.mp4:900");
 
-        assertThat(store.hasReportForPracticeSession(first)).isTrue();
-        assertThat(store.hasReportForPracticeSession(UUID.randomUUID())).isFalse();
         assertMissing(first, OTHER);
         assertMissing(UUID.randomUUID(), USER);
         assertMissing(hidden, USER);

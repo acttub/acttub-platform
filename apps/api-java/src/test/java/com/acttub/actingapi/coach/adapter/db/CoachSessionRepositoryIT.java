@@ -35,14 +35,14 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 @SpringBootTest(properties = "JWT_SECRET=test-secret")
-class CoachSessionStoreIT {
+class CoachSessionRepositoryIT {
 
     private static final OffsetDateTime CREATED_AT =
             CoachStorageFixtures.NOW.atOffset(ZoneOffset.UTC);
 
     @DynamicPropertySource
     static void datasource(DynamicPropertyRegistry registry) {
-        String database = PostgresContainerSupport.createDatabaseName("coach_session_store_it");
+        String database = PostgresContainerSupport.createDatabaseName("coach_session_repository_it");
         registry.add("spring.datasource.url", () -> PostgresContainerSupport.jdbcUrlFor(database));
         registry.add("spring.datasource.username", PostgresContainerSupport.POSTGRES::getUsername);
         registry.add("spring.datasource.password", PostgresContainerSupport.POSTGRES::getPassword);

@@ -40,11 +40,11 @@ import org.springframework.transaction.support.TransactionTemplate;
  * 검증하려던 것("Postgres 가 커넥션을 aborted 로 남기지 않는다")은 이 편이 더 직접적이다.
  */
 @SpringBootTest(properties = "JWT_SECRET=test-secret")
-class ReportOperationIT {
+class PracticeReportLedgerIT {
 
     @DynamicPropertySource
     static void datasource(DynamicPropertyRegistry registry) {
-        String database = PostgresContainerSupport.createDatabaseName("report_operation_it");
+        String database = PostgresContainerSupport.createDatabaseName("practice_report_ledger_it");
         registry.add("spring.datasource.url", () -> PostgresContainerSupport.jdbcUrlFor(database));
         registry.add("spring.datasource.username", PostgresContainerSupport.POSTGRES::getUsername);
         registry.add("spring.datasource.password", PostgresContainerSupport.POSTGRES::getPassword);

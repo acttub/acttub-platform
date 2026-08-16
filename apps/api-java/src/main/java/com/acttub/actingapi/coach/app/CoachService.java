@@ -10,7 +10,6 @@ import com.acttub.actingapi.coach.app.CoachCommands.HandoffDecision;
 import com.acttub.actingapi.coach.domain.CoachBranch;
 import com.acttub.actingapi.coach.domain.HandoffReadiness;
 import com.acttub.actingapi.coach.domain.MemoryUpdateCadence;
-import com.acttub.actingapi.coach.domain.PriorContext;
 import com.acttub.actingapi.platform.ledger.LeaseOwnershipException;
 import com.acttub.actingapi.platform.ledger.SyncOperationBegin;
 import com.acttub.actingapi.platform.ledger.SyncOperationClaim;
@@ -260,6 +259,9 @@ public class CoachService {
                     source.branchKind(),
                     report);
 
+            // ⚠ 아래 갈래는 ReportService.create 와 모양이 같다. 합치지 않은 것은 남기는 값이
+            // 달라서다 — 여기는 확정 응답 전체(payload)를 원장에 남기고 저쪽은 성적표 본문만
+            // 남긴다. 한 함수로 모으면 그 차이가 플래그 하나가 되어 실수의 자리가 된다.
             if (reportService.isBlocked(report) || existing != null) {
                 operations.complete(claim, payload);
             } else {

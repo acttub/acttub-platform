@@ -2,7 +2,6 @@ package com.acttub.actingapi.coach.app;
 
 import java.util.List;
 import com.acttub.actingapi.coach.domain.CoachTurnSnapshot;
-import com.acttub.actingapi.coach.domain.PriorContext;
 import java.util.UUID;
 
 import com.fasterxml.jackson.databind.JsonNode;

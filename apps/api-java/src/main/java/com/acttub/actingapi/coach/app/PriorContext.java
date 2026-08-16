@@ -1,4 +1,4 @@
-package com.acttub.actingapi.coach.domain;
+package com.acttub.actingapi.coach.app;
 
 import java.util.LinkedHashMap;
 import java.util.List;

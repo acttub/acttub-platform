@@ -11,7 +11,7 @@ import com.fasterxml.jackson.databind.annotation.JsonNaming;
  * 곧 계약이다.
  *
  * <p><b>web 이 아니라 app 에 산다.</b> 성적표 본문은 코치 응답에도 그대로 실리므로 {@code coach} 가
- * 이 모양을 참조해야 하는데, feature 끼리는 상대의 <b>app</b> 층만 본다(ADR-017). 엔드포인트의
+ * 이 모양을 참조해야 하는데, feature 끼리는 상대의 <b>app</b> 층만 본다(ADR-019). 엔드포인트의
  * 입출력 봉투({@code ReportReq}·{@code ReportDetailResponse} 등)는 web 에 남는다 — 그쪽은 이
  * 도메인의 HTTP 표면이지 다른 도메인이 알 것이 아니다.
  *

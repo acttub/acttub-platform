@@ -14,7 +14,7 @@ import java.util.Map;
 import java.util.UUID;
 
 import com.acttub.actingapi.coach.app.CoachMemory;
-import com.acttub.actingapi.coach.domain.PriorContext;
+import com.acttub.actingapi.coach.app.PriorContext;
 import com.acttub.actingapi.schema.ActorMemoryAuthor;
 import com.acttub.actingapi.schema.ActorMemoryField;
 import com.acttub.actingapi.platform.web.PythonText;
@@ -147,7 +147,6 @@ public class MemoryStore implements CoachMemory {
 
     // --- 코치가 대화를 시작할 때 알고 있어야 하는 지난 것들 -----------------------
 
-    /** 같은 연습의 지난 대화와, 지난 연습에서 아직 안 해본 것 (`store.py:get_prior_practice_context`). */
     /**
      * 코치가 알고 시작해야 하는 지난 것들을 한 묶음으로 만든다.
      *
@@ -162,6 +161,7 @@ public class MemoryStore implements CoachMemory {
         return new PriorContext(values, context.earlierConversation(), context.pendingTakes());
     }
 
+    /** 같은 연습의 지난 대화와, 지난 연습에서 아직 안 해본 것 (`store.py:get_prior_practice_context`). */
     public PriorPracticeContext priorContext(UUID userId, UUID practiceSessionId) {
         List<String> earlier = jdbc.queryForList("""
                 SELECT coach.conversation_summary

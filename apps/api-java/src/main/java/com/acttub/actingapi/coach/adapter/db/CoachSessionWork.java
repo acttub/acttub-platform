@@ -26,7 +26,8 @@ import org.springframework.stereotype.Component;
  * Coach-session 저장 연산의 트랜잭션 내부 작업.
  *
  * <p>이 클래스에는 의도적으로 {@code @Transactional}이 없다. 모든 메서드는
- * {@link CoachSessionStore} 또는 이후 M4 caller가 연 트랜잭션에 참여한다.
+ * {@link PostgresCoachSessionRepository}가 연 트랜잭션에 참여한다 — <b>어느 쿼리들이 한
+ * 트랜잭션인지가 그 한 파일에 모여 보이게</b> 하려고 경계를 이쪽에 두지 않는다.
  */
 @Component
 public class CoachSessionWork {

@@ -24,24 +24,6 @@ public class PostgresReportRepository implements ReportRepository {
         this.mapper = mapper;
     }
 
-    /**
-     * 그 연습에 성적표가 이미 있는지.
-     *
-     * <p><b>포트에 없다.</b> 지금 이것을 부르는 규칙이 없기 때문이다 — 코치 쪽은 자기 저장소에
-     * 같은 질문을 따로 갖고 있다. 포트는 "쓰는 쪽이 요구하는 것"이므로 요구가 없는 연산을 거기
-     * 적으면 그 선언이 거짓이 된다.
-     */
-    public boolean hasReportForPracticeSession(UUID practiceSessionId) {
-        Boolean exists = jdbc.queryForObject("""
-                SELECT EXISTS (
-                    SELECT 1
-                    FROM practice_reports AS report
-                    WHERE report.practice_session_id = ?
-                )
-                """, Boolean.class, practiceSessionId);
-        return Boolean.TRUE.equals(exists);
-    }
-
     @Override
     public List<ReportSummary> listSummaries(UUID userId) {
         return jdbc.query("""
