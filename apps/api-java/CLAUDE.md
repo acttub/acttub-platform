@@ -73,20 +73,23 @@ ln -sfn ../api/acting-api/.env .env    # 최초 1회. 파이썬과 같은 파일
 
 ## 패키지 구조는 재편 중입니다 (SOMA-397)
 
-도메인별 헥사고날로 옮기는 중이고 **`practice`만 끝났습니다**(ADR-017). 옮긴 도메인은 네 층으로 섭니다 — `domain`(규칙을 담은 Domain Model, 프레임워크 import 금지) · `app`(서비스와 포트 선언) · `adapter`(`web`·`db`·`storage`·`sched`) · `schema`(Schema Entity). 나머지 열세 도메인은 아직 평평하고, 그게 정상입니다.
+최상위가 **세 묶음**으로 갈립니다(ADR-017) — `platform`(배관: web·security·config·harness·health·observability·ledger) · `integration`(외부 연동: oidc·llm·storage·media) · 비즈니스 도메인. **앞의 둘은 8단계에서 섰고**, 도메인 열넷을 `feature` 아래로 넣는 것은 도메인 배치가 끝난 뒤의 **마지막 이사**입니다. 공용 `schema`는 도메인별로 흩어지는 중이라 아직 최상위에 있습니다.
+
+도메인별 헥사고날로 옮기는 중이고 **`practice`만 끝났습니다**. 옮긴 도메인은 네 층으로 섭니다 — `domain`(규칙을 담은 Domain Model, 프레임워크 import 금지) · `app`(서비스와 포트 선언) · `adapter`(`web`·`db`·`storage`·`sched`) · `schema`(Schema Entity). 나머지 열세 도메인은 아직 평평하고, 그게 정상입니다.
 
 - 층 방향은 `PackageLayerTest`가 강제합니다(순환은 `PackageCycleTest`가 따로 봅니다). 서브패키지로 갈리면서 저장소 클래스를 막아주던 package-private 보호가 옅어졌으므로 **이 검사가 구조를 지키는 유일한 장치입니다.**
 - ⚠ **검사 대상이 `MIGRATED_FEATURES` 목록으로 한정돼 있습니다.** 도메인을 옮기면 그 목록에 이름을 추가해야 규칙이 걸립니다 — 빠뜨리면 새로 옮긴 도메인이 아무 검사 없이 통과합니다. 안 옮긴 도메인이 빨간불을 내지 않게 하려는 한정이라, 이 대가는 의도된 것입니다.
-- 아직 못 거는 규칙이 하나 있습니다 — **feature끼리 직접 import 금지**. `practice`가 여전히 `storage`·`web`을 직접 참조합니다. 그 둘을 묶음 뒤로 보낸 뒤(SOMA-397 8단계) 붙습니다.
+- 아직 못 거는 규칙이 하나 있습니다 — **feature끼리 직접 import 금지**. `practice`가 참조하던 `storage`·`web`은 8단계에서 묶음 뒤로 갔으므로(배관·외부 연동을 보는 것은 정상입니다) 이제 걸 수 있고, 한정이 풀리는 **13단계**에 함께 들어옵니다.
+- ⚠ **`PackageCycleTest`의 슬라이스 할당에 묶음 이름 목록(`BUNDLES`)이 있습니다.** 묶음을 새로 만들면 여기에 이름을 더해야 그 안이 조각으로 갈립니다 — 종전 `slices().matching(…(*)..)`은 첫 하위 패키지 하나로만 가르므로, 접두어가 붙으면 조각들이 한 덩어리가 되어 그 사이의 순환이 검사에서 사라집니다. **다만 조용히 초록이 되지는 않습니다** — 뭉치는 순간 `platform ↔ 도메인` 순환이 드러나 빨간불이 납니다(`platform/harness`가 도메인을 참조하고 도메인은 `platform/ledger`를 쓰는, 둘 다 의도된 간선입니다).
 - **`operation`은 6단계에서 포트 뒤로 갔습니다.** 다섯 도메인(`practice`·`coach`·`report`·`memory`·`analysis`) 전부 `com.acttub.actingapi.operation`을 **한 줄도 import하지 않습니다.** 의존은 `operation` → 소비자 포트 한 방향뿐입니다.
-  - 🔥 **교환 타입을 어디 두느냐가 이 단계의 전부였습니다.** 포트를 쓰는 쪽에 선언해도 시그니처에 `operation`의 record·예외가 들어가면 소비자 → 제공자 간선이 남고, 그러면 제공자가 그 포트를 구현하는 순간 `PackageCycleTest`가 빨간불이라 **구현을 소비자 쪽에 두는 수밖에 없어집니다**(ADR-017의 "구현은 제공하는 쪽에"가 깨지는 형태). → `SyncOperationBegin`·`SyncOperationClaim`·`LeaseOwnershipException`을 **`ledger`**(배관, 8단계에 `platform/ledger`로 갑니다)로 올려 풀었습니다. **포트를 새로 만들 때 시그니처에 제공자 패키지 이름이 보이면 아직 안 끊긴 것입니다.**
+  - 🔥 **교환 타입을 어디 두느냐가 이 단계의 전부였습니다.** 포트를 쓰는 쪽에 선언해도 시그니처에 `operation`의 record·예외가 들어가면 소비자 → 제공자 간선이 남고, 그러면 제공자가 그 포트를 구현하는 순간 `PackageCycleTest`가 빨간불이라 **구현을 소비자 쪽에 두는 수밖에 없어집니다**(ADR-017의 "구현은 제공하는 쪽에"가 깨지는 형태). → `SyncOperationBegin`·`SyncOperationClaim`·`LeaseOwnershipException`을 **`ledger`**(배관, 8단계에 `platform/ledger`로 갔습니다)로 올려 풀었습니다. **포트를 새로 만들 때 시그니처에 제공자 패키지 이름이 보이면 아직 안 끊긴 것입니다.**
   - 그 결과 위임만 하던 어댑터가 사라지고 `SyncOperationService`가 `CoachOperationLedger`·`ReportOperationLedger`를 **직접 구현**합니다. 두 포트의 요구가 글자까지 같아 한 클래스가 둘 다 받습니다 — 갈리는 날 거기서 갈리면 됩니다.
   - 워커 큐는 종류와 실패 정책만 다릅니다 — `ExternalOperationAnalysisQueue`(kind=`analyze`, 실패 시 **연습 세션도 실패**) vs `ExternalOperationMemoryQueue`(kind=`memory_update`, 연습은 건드리지 않음). 그 둘이 갈리는 유일한 자리입니다.
-- **`auth`는 7단계에서 세 갈래로 갈렸습니다.** 요청 필터·동의 게이트·레이트리미터가 **`security`**(배관)로, OIDC 검증과 프로바이더 레지스트리가 **`oidc`**(외부 연동)로 나갔고, `auth`에는 로그인·토큰 발급·가입 출처만 남았습니다. 여덟 도메인은 이제 `auth`가 아니라 `security`를 봅니다 — 배관을 보는 것은 정상이고, 금지되는 것은 feature끼리의 직접 import입니다.
+- **`auth`는 7단계에서 세 갈래로 갈렸습니다.** 요청 필터·동의 게이트·레이트리미터가 **`platform/security`**로, OIDC 검증과 프로바이더 레지스트리가 **`integration/oidc`**로 나갔고(묶음 접두어는 8단계에서 붙었습니다), `auth`에는 로그인·토큰 발급·가입 출처만 남았습니다. 여덟 도메인은 이제 `auth`가 아니라 `security`를 봅니다 — 배관을 보는 것은 정상이고, 금지되는 것은 feature끼리의 직접 import입니다.
   - 🔥 **방향이 뒤집힌 경우입니다.** 6단계는 feature가 feature에 포트를 요구했지만, 여기서는 **배관이 feature에 요구합니다** — `security`가 `AccessTokenVerifier`·`AuthenticatedUsers`를 선언하고 `auth`의 `JwtService`·`AuthStore`가 그것을 **직접 구현**합니다(위임 어댑터를 끼우지 않습니다). 간선은 `auth` → `security` 한 방향뿐입니다.
   - 교환 타입 `AuthenticatedUser`가 `security`에 사는 이유도 같습니다. 이것이 `auth`에 있으면 받는 여덟이 전부 `auth`를 import하게 되어, 포트를 어디에 선언하든 간선이 남습니다.
   - `oidc` 쪽은 아직 포트가 아니라 `auth`가 직접 부릅니다. 간선이 `auth` → `oidc` 한 방향이라 순환은 없고, **어댑터 층이 외부 연동을 직접 import하는 것은 `practice/adapter/storage`와 같은 형태입니다.** 포트로 감싸는 것은 `auth`가 네 층으로 설 때입니다 — **SOMA-397 12단계**입니다(`consent`와 같은 단계인 이유는 `auth/schema` 소유권이 겹쳐서입니다).
-  - ⚠ **`security`·`oidc`가 최상위에 임시로 있는 것은 의도된 것입니다.** 지금 `platform.`·`integration.` 접두어를 붙이면 `PackageCycleTest`의 슬라이스 매처가 조각들을 한 덩어리로 묶어 **순환 검사가 조용히 0이 됩니다**(ADR-017). 묶음 이사와 매처 수정은 8단계가 함께 합니다.
+  - 🔎 갈래를 가른 7단계와 묶음으로 옮긴 8단계 사이에는 `security`·`oidc`·`ledger`가 **최상위에 임시로 살았습니다.** 접두어를 먼저 붙이면 순환 검사가 조용히 0이 되므로, 접두어와 슬라이스 할당 수정을 같은 커밋에 뒀습니다(위 ⚠, ADR-017).
 
 ## 계약 재현에서 자주 깨지는 지점
 

@@ -27,8 +27,9 @@ import org.junit.jupiter.params.provider.MethodSource;
  * 옮긴 뒤(SOMA-397 13단계) 한정을 해제한다.
  *
  * <p>패턴을 {@code ..practice.domain..} 형태로 쓰는 이유 — 최상위가 {@code feature.practice}로
- * 이사해도(SOMA-397 8단계) 매칭이 그대로 성립한다. 여기에 절대 경로를 박으면 그 이사가
- * 이 파일을 함께 고치게 만든다.
+ * 이사해도(도메인 배치가 끝난 뒤의 마지막 이사) 매칭이 그대로 성립한다. 여기에 절대 경로를
+ * 박으면 그 이사가 이 파일을 함께 고치게 만든다. 8단계가 {@code platform}·{@code integration}을
+ * 세울 때 이 파일이 안 바뀐 것이 그 증거다.
  */
 class PackageLayerTest {
 
@@ -36,9 +37,10 @@ class PackageLayerTest {
      * 네 층으로 재편이 끝난 도메인. 옮긴 도메인을 여기 추가하는 것이 규칙 확대의 전부다.
      *
      * <p>아직 못 거는 규칙이 하나 있다 — <b>feature끼리 직접 import 금지</b>. {@code operation}은
-     * 6단계에서, {@code auth}는 7단계에서 포트 뒤로 갔지만 {@code practice}가 여전히
-     * {@code storage}·{@code web}을 직접 참조하므로, 그 둘이 묶음으로 간 뒤(8단계)에 붙는다.
-     * 13단계에서 한정을 풀 때 함께 넣는다.
+     * 6단계에서, {@code auth}는 7단계에서 포트 뒤로 갔고, {@code practice}가 참조하던
+     * {@code storage}·{@code web}은 8단계에서 {@code integration}·{@code platform} 뒤로 갔다.
+     * 배관과 외부 연동을 보는 것은 금지 대상이 아니므로 이제 걸 수 있고, 13단계에서 한정을
+     * 풀 때 함께 넣는다.
      */
     private static final List<String> MIGRATED_FEATURES = List.of("practice");
 
