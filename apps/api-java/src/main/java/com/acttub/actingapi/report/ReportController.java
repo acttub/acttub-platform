@@ -4,9 +4,9 @@ import java.util.Optional;
 import java.util.UUID;
 
 import com.acttub.actingapi.auth.AuthDependencies;
-import com.acttub.actingapi.operation.LeaseOwnershipException;
-import com.acttub.actingapi.operation.SyncOperationBegin;
-import com.acttub.actingapi.operation.SyncOperationClaim;
+import com.acttub.actingapi.ledger.LeaseOwnershipException;
+import com.acttub.actingapi.ledger.SyncOperationBegin;
+import com.acttub.actingapi.ledger.SyncOperationClaim;
 import com.acttub.actingapi.report.ReportDtos.AnalysisReport;
 import com.acttub.actingapi.report.ReportDtos.BlockedReport;
 import com.acttub.actingapi.report.ReportDtos.ExpressionReport;

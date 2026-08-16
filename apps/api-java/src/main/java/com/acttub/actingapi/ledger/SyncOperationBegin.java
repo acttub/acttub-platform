@@ -1,4 +1,4 @@
-package com.acttub.actingapi.operation;
+package com.acttub.actingapi.ledger;
 
 import com.fasterxml.jackson.databind.JsonNode;
 

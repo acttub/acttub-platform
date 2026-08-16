@@ -7,8 +7,7 @@ import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
 
-import com.acttub.actingapi.operation.ExternalOperationClaimer;
-import com.acttub.actingapi.operation.LeaseOwnershipException;
+import com.acttub.actingapi.ledger.LeaseOwnershipException;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -21,28 +20,26 @@ import org.springframework.transaction.support.TransactionTemplate;
 /** 분석 저장 전이. 각 public 변경 메서드는 외부 호출과 분리된 새 트랜잭션이다. */
 @Repository
 public class PostgresAnalysisStore implements AnalysisStore {
-    private static final String ANALYZE = "analyze";
-
     private final JdbcTemplate jdbc;
     private final ObjectMapper mapper;
-    private final ExternalOperationClaimer claimer;
+    private final AnalysisOperationQueue queue;
     private final TransactionTemplate transaction;
 
     public PostgresAnalysisStore(
             JdbcTemplate jdbc,
             ObjectMapper mapper,
-            ExternalOperationClaimer claimer,
+            AnalysisOperationQueue queue,
             PlatformTransactionManager transactionManager) {
         this.jdbc = jdbc;
         this.mapper = mapper;
-        this.claimer = claimer;
+        this.queue = queue;
         this.transaction = new TransactionTemplate(transactionManager);
         this.transaction.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
     }
 
     @Override
     public UUID claimNext(UUID leaseToken, Duration leaseDuration, Instant now) {
-        return claimer.claimNext(ANALYZE, leaseToken, leaseDuration, now);
+        return queue.claimNext(leaseToken, leaseDuration, now);
     }
 
     @Override
@@ -99,12 +96,12 @@ public class PostgresAnalysisStore implements AnalysisStore {
             UUID leaseToken,
             String errorCode,
             Instant now) {
-        return claimer.fail(operationId, leaseToken, errorCode, true, now);
+        return queue.fail(operationId, leaseToken, errorCode, now);
     }
 
     @Override
     public void release(UUID operationId, UUID leaseToken, Instant now) {
-        claimer.release(operationId, leaseToken, now);
+        queue.release(operationId, leaseToken, now);
     }
 
     @Override
@@ -122,7 +119,7 @@ public class PostgresAnalysisStore implements AnalysisStore {
 
     @Override
     public int sweepMaxAttempts(Instant now) {
-        return claimer.sweepMaxAttempts(now);
+        return queue.sweepMaxAttempts(now);
     }
 
     private UUID completeInTransaction(

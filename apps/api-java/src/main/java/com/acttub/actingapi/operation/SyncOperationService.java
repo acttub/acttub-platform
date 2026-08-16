@@ -12,6 +12,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+import com.acttub.actingapi.coach.CoachOperationLedger;
+import com.acttub.actingapi.ledger.LeaseOwnershipException;
+import com.acttub.actingapi.ledger.SyncOperationBegin;
+import com.acttub.actingapi.ledger.SyncOperationClaim;
+import com.acttub.actingapi.report.ReportOperationLedger;
 import com.acttub.actingapi.web.ApiException;
 import com.acttub.actingapi.web.CanonicalJson;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -29,9 +34,14 @@ import org.springframework.transaction.support.TransactionTemplate;
  *
  * <p><b>HTTP 를 모른다.</b> 재생할 응답이 있는지와 그 본문이 무엇인지까지만 정하고, 상태코드와
  * 헤더로 옮기는 일은 {@code web/CanonicalJsonResponse} 가 맡는다(SOMA-397 6단계).
+ *
+ * <p><b>쓰는 쪽이 선언한 포트를 이쪽이 구현한다</b>(ADR-017). 두 포트의 요구가 글자까지 같아
+ * 한 클래스가 둘 다 받는다 — 갈라지는 날 여기서 갈리면 되고, 그때까지 위임만 하는 클래스를
+ * 둘 세워 둘 이유는 없다. 주고받는 타입은 어느 쪽 것도 아닌 {@code ledger} 의 것이라, coach·report
+ * 는 이 클래스의 존재를 모른 채로 선다.
  */
 @Service
-public class SyncOperationService {
+public class SyncOperationService implements CoachOperationLedger, ReportOperationLedger {
 
     private static final Duration SYNC_OPERATION_LEASE = Duration.ofMinutes(15);
 
@@ -58,6 +68,7 @@ public class SyncOperationService {
         this.transaction.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
     }
 
+    @Override
     public UUID requestId(String header) {
         if (header == null) {
             return UUID.randomUUID();
@@ -69,6 +80,7 @@ public class SyncOperationService {
         }
     }
 
+    @Override
     public String fingerprint(String kind, Object payload) {
         ObjectNode root = mapper.createObjectNode();
         root.put("kind", kind);
@@ -81,6 +93,7 @@ public class SyncOperationService {
         }
     }
 
+    @Override
     public SyncOperationBegin begin(
             UUID userId,
             UUID practiceSessionId,
@@ -117,6 +130,7 @@ public class SyncOperationService {
                 new SyncOperationClaim(claimed, leaseToken, requestId));
     }
 
+    @Override
     public void complete(SyncOperationClaim claim, JsonNode responsePayload) {
         OffsetDateTime now = clock.instant().atOffset(ZoneOffset.UTC);
         transaction.executeWithoutResult(status -> {
@@ -142,6 +156,7 @@ public class SyncOperationService {
         });
     }
 
+    @Override
     public void fail(SyncOperationClaim claim, String errorCode) {
         try {
             claimer.fail(
@@ -155,6 +170,7 @@ public class SyncOperationService {
         }
     }
 
+    @Override
     public Instant now() {
         return clock.instant();
     }

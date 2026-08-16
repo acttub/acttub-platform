@@ -77,9 +77,11 @@ ln -sfn ../api/acting-api/.env .env    # 최초 1회. 파이썬과 같은 파일
 
 - 층 방향은 `PackageLayerTest`가 강제합니다(순환은 `PackageCycleTest`가 따로 봅니다). 서브패키지로 갈리면서 저장소 클래스를 막아주던 package-private 보호가 옅어졌으므로 **이 검사가 구조를 지키는 유일한 장치입니다.**
 - ⚠ **검사 대상이 `MIGRATED_FEATURES` 목록으로 한정돼 있습니다.** 도메인을 옮기면 그 목록에 이름을 추가해야 규칙이 걸립니다 — 빠뜨리면 새로 옮긴 도메인이 아무 검사 없이 통과합니다. 안 옮긴 도메인이 빨간불을 내지 않게 하려는 한정이라, 이 대가는 의도된 것입니다.
-- 아직 못 거는 규칙이 하나 있습니다 — **feature끼리 직접 import 금지**. `practice`가 여전히 `auth`·`storage`를 직접 참조합니다. 그 둘을 포트·묶음 뒤로 보낸 뒤(SOMA-397 7·8단계) 붙습니다.
-- **`operation`은 6단계에서 포트 뒤로 갔습니다.** 다섯 도메인이 각자 포트를 선언하고, 원장을 아는 자리는 도메인마다 어댑터 하나입니다(`ExternalMemoryUpdateQueue`·`ExternalCoachOperationLedger`·`ExternalReportOperationLedger`·`PostgresAnalysisStore`). `practice`는 자기 원장 연산을 통째로 가져가 `operation`을 아예 참조하지 않습니다.
-  - ⚠ **제공자가 소비자 포트를 구현하면 순환이 납니다.** `LeaseOwnershipException`이 `operation`에 남아 다섯 도메인이 그것을 catch하므로, `operation`이 반대로 소비자 포트를 implement하는 순간 `PackageCycleTest`가 빨간불입니다. 그래서 어댑터를 **쓰는 쪽**에 둡니다. 예외를 함께 옮기는 것은 8단계 `platform` 묶음 신설의 몫입니다.
+- 아직 못 거는 규칙이 하나 있습니다 — **feature끼리 직접 import 금지**. `practice`가 여전히 `auth`·`storage`·`web`을 직접 참조합니다. 그 셋을 포트·묶음 뒤로 보낸 뒤(SOMA-397 7·8단계) 붙습니다.
+- **`operation`은 6단계에서 포트 뒤로 갔습니다.** 다섯 도메인(`practice`·`coach`·`report`·`memory`·`analysis`) 전부 `com.acttub.actingapi.operation`을 **한 줄도 import하지 않습니다.** 의존은 `operation` → 소비자 포트 한 방향뿐입니다.
+  - 🔥 **교환 타입을 어디 두느냐가 이 단계의 전부였습니다.** 포트를 쓰는 쪽에 선언해도 시그니처에 `operation`의 record·예외가 들어가면 소비자 → 제공자 간선이 남고, 그러면 제공자가 그 포트를 구현하는 순간 `PackageCycleTest`가 빨간불이라 **구현을 소비자 쪽에 두는 수밖에 없어집니다**(ADR-017의 "구현은 제공하는 쪽에"가 깨지는 형태). → `SyncOperationBegin`·`SyncOperationClaim`·`LeaseOwnershipException`을 **`ledger`**(배관, 8단계에 `platform/ledger`로 갑니다)로 올려 풀었습니다. **포트를 새로 만들 때 시그니처에 제공자 패키지 이름이 보이면 아직 안 끊긴 것입니다.**
+  - 그 결과 위임만 하던 어댑터가 사라지고 `SyncOperationService`가 `CoachOperationLedger`·`ReportOperationLedger`를 **직접 구현**합니다. 두 포트의 요구가 글자까지 같아 한 클래스가 둘 다 받습니다 — 갈리는 날 거기서 갈리면 됩니다.
+  - 워커 큐는 종류와 실패 정책만 다릅니다 — `ExternalOperationAnalysisQueue`(kind=`analyze`, 실패 시 **연습 세션도 실패**) vs `ExternalOperationMemoryQueue`(kind=`memory_update`, 연습은 건드리지 않음). 그 둘이 갈리는 유일한 자리입니다.
 
 ## 계약 재현에서 자주 깨지는 지점
 

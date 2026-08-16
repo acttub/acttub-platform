@@ -3,8 +3,8 @@ package com.acttub.actingapi.report;
 import java.time.Instant;
 import java.util.UUID;
 
-import com.acttub.actingapi.operation.SyncOperationBegin;
-import com.acttub.actingapi.operation.SyncOperationClaim;
+import com.acttub.actingapi.ledger.SyncOperationBegin;
+import com.acttub.actingapi.ledger.SyncOperationClaim;
 import com.fasterxml.jackson.databind.JsonNode;
 
 /**
@@ -15,6 +15,10 @@ import com.fasterxml.jackson.databind.JsonNode;
  *
  * <p>{@link ReportOperationWork} 와 다르다 — 저쪽은 성적표 행을 쓰는 저장 연산이고, 이쪽은
  * 요청 하나를 한 번만 처리하게 하는 경계다.
+ *
+ * <p>주고받는 타입은 어느 도메인의 것도 아닌 {@code ledger} 의 것이다. 여기에 제공자의 타입을
+ * 적으면 "포트로 끊었다"가 이름뿐이 되고, 제공자가 이 인터페이스를 구현하는 순간 패키지 순환이
+ * 된다.
  */
 public interface ReportOperationLedger {
 

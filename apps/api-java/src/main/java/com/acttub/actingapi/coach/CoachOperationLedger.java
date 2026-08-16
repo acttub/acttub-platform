@@ -3,8 +3,8 @@ package com.acttub.actingapi.coach;
 import java.time.Instant;
 import java.util.UUID;
 
-import com.acttub.actingapi.operation.SyncOperationBegin;
-import com.acttub.actingapi.operation.SyncOperationClaim;
+import com.acttub.actingapi.ledger.SyncOperationBegin;
+import com.acttub.actingapi.ledger.SyncOperationClaim;
 import com.fasterxml.jackson.databind.JsonNode;
 
 /**
@@ -12,7 +12,12 @@ import com.fasterxml.jackson.databind.JsonNode;
  *
  * <p>코치 대화는 모델을 부르는 동안 사용자가 새로고침하거나 앱이 재시도하는 일이 잦다. 같은
  * 요청 ID 로 두 번 들어온 것을 두 번 처리하지 않는 규칙이 여기 선언돼 있고, 그것을
- * external_operations 테이블로 구현했다는 사실은 어댑터만 안다.
+ * {@code external_operations} 테이블로 구현했다는 사실은 구현하는 쪽만 안다 — coach 는 자기
+ * 요구만 적고, {@code operation} 이 그 요구를 받는다.
+ *
+ * <p>주고받는 타입은 어느 도메인의 것도 아닌 {@code ledger} 의 것이다. 여기에 제공자의 타입을
+ * 적으면 "포트로 끊었다"가 이름뿐이 되고, 제공자가 이 인터페이스를 구현하는 순간 패키지 순환이
+ * 된다.
  */
 public interface CoachOperationLedger {
 
