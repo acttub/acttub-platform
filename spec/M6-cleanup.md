@@ -57,8 +57,13 @@
 - **잡 이름이 곧 required status check의 context다.** 이름을 바꾸면 ruleset의 required check가 어긋나 머지가 막히거나 게이트가 무력화된다 — ruleset도 함께 갱신한다
 
 `.github/workflows/deploy.yml`:
-- `be` 잡의 이름 `back svc (FastAPI)` → Spring Boot로
-- `uv sync` 관련 스텝 제거
+- ~~`be` 잡의 이름 `back svc (FastAPI)` → Spring Boot로~~ — **M5 에서 선행 완료.** `be` 잡을
+  없애고 `be_java`(`back svc (Spring Boot)`)를 자동 배포로 올렸다
+- `migrate` 스텝과 `deploy/upload-api.sh` 호출 제거 — **마이그레이션 소유권을 Flyway 로
+  옮긴 뒤에만 가능하다.** 지금은 alembic 이 스키마 정본이라(§5-5) 파이썬 소스를 인스턴스에
+  보내야 하고, `ssm-deploy.sh migrate` 가 그 일만 한다
+- `guard` 의 `운영은 아직 자바 컷오버 전` 스텝 제거 — 운영 컷오버가 끝나면
+- `deploy/ssm-deploy.sh` 의 `migrate` 모드와 `deploy/check-migration.sh` 제거
 
 ### E. 잔여 정리
 

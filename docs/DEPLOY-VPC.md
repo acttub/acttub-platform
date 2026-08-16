@@ -467,8 +467,14 @@ Secrets가 아니라 Variables에 넣는다.
 
 ### 6-4. 마이그레이션은 두 환경 모두 자동으로 돈다
 
-`ssm-deploy.sh`가 be 설치 중에 `alembic upgrade head`까지 실행한다(`MIGRATE=1`).
-dev·운영이 같다 — 환경별로 다르게 두지 않는다.
+`ssm-deploy.sh migrate`가 파이썬 소스를 갱신하고 `alembic upgrade head`를 실행한다.
+백엔드 배포(`be-java`)보다 먼저 도는 별도 스텝이고, dev·운영이 같다 — 환경별로 다르게
+두지 않는다.
+
+**M5 컷오버 뒤에도 alembic 이 스키마 정본이다**(`SPEC.md` §5-5). Flyway 는 스키마를 바꾸지
+않고 `flyway_schema_history` 에 baseline 만 기록한다. 그래서 FastAPI 서비스를 더 이상
+배포하지 않게 된 뒤에도 파이썬 **소스는** 인스턴스에 계속 보낸다 — 마이그레이션 파일이
+거기 있어야 돌기 때문이다. Flyway 로 소유권을 옮기는 것은 M6 범위다.
 
 원래 운영은 수동이었다. 스키마 변경이 되돌리기 어렵다는 이유였는데, 그 대가로
 **코드는 새것·DB는 구것인 창**이 생겼다. 2026-08-01에 그 창으로 `/v2/community/posts`가
