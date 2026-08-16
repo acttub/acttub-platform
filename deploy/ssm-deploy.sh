@@ -200,6 +200,12 @@ case "$SIDE" in
   migrate)          WAIT_SECONDS=900 ;;   # uv sync 는 콜드에서 몇 분 간다
   be-java)          WAIT_SECONDS=420 ;;   # (JRE 설치) + jar 다운로드 + 기동 대기 90초
   be-java-baseline) WAIT_SECONDS=600 ;;   # 재시작 둘 + 기동 대기 둘
+  # 위 case 가 $SIDE 를 이미 걸러내므로 여기 닿을 일은 없다. 그래도 둔다 — 두 case 가 130 줄
+  # 떨어져 있어 모드를 한쪽에만 추가하면 `set -u` 가 **send-command 로 배포를 이미 보낸 뒤**
+  # unbound variable 로 죽는다. 나가버린 배포를 두고 빨간불만 보게 되는, 이 스크립트가 없애려던
+  # 바로 그 혼동이다. 상한은 넘치면 기다림이 길어질 뿐이므로 최댓값으로 받는다.
+  *)                WAIT_SECONDS=900
+                    echo "  ⚠ $SIDE 의 대기 상한이 지정돼 있지 않아 ${WAIT_SECONDS}초로 받습니다" >&2 ;;
 esac
 
 # ⚠ `aws ssm wait command-executed` 를 쓰지 않는다. 그 waiter 는 **5초 × 20회 = 100초**
