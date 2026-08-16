@@ -7,8 +7,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
-import com.acttub.actingapi.coach.CoachDtos.CoachConfirmResponse;
-import com.acttub.actingapi.coach.CoachDtos.CoachTurnResponse;
+import com.acttub.actingapi.coach.adapter.web.CoachDtos.CoachConfirmResponse;
+import com.acttub.actingapi.coach.adapter.web.CoachDtos.CoachTurnResponse;
 import com.acttub.actingapi.report.adapter.web.ReportDtos.BlockedReport;
 import com.acttub.actingapi.report.adapter.web.ReportDtos.ReportDetailResponse;
 import io.swagger.v3.core.converter.ModelConverter;

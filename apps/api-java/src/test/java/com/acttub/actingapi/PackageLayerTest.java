@@ -42,7 +42,8 @@ class PackageLayerTest {
      * 배관과 외부 연동을 보는 것은 금지 대상이 아니므로 이제 걸 수 있고, 13단계에서 한정을
      * 풀 때 함께 넣는다.
      */
-    private static final List<String> MIGRATED_FEATURES = List.of("practice", "community", "report");
+    private static final List<String> MIGRATED_FEATURES =
+            List.of("practice", "community", "report", "coach");
 
     /**
      * {@code domain}이 알아서는 안 되는 것들. CONTEXT.md의 <b>Domain Model</b>은 "프레임워크를
