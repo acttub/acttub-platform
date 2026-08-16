@@ -2,16 +2,21 @@ package com.acttub.actingapi.memory.app;
 
 import java.time.Duration;
 import java.time.Instant;
-import java.util.List;
 import java.util.UUID;
 
 import com.acttub.actingapi.platform.ledger.LeaseOwnershipException;
+import com.fasterxml.jackson.databind.JsonNode;
 
 /**
  * memory 가 작업 큐에 요구하는 것 (ADR-017, SOMA-397 6단계).
  *
  * <p>큐가 실제로는 분석과 함께 쓰는 External Operation 원장이라는 사실은 구현만 안다. 워커는
- * "하나 집는다·실패로 닫는다" 둘만 알면 되고, 그래야 큐를 바꾸는 일이 워커를 건드리지 않는다.
+ * "하나 집는다·무엇에 대한 잡인지 본다·성공으로 닫는다·실패로 닫는다" 넷만 알면 되고, 그래야
+ * 큐를 바꾸는 일이 워커를 건드리지 않는다.
+ *
+ * <p>🔎 <b>연산이 둘에서 넷으로 늘어난 것은 6단계가 흘린 것을 회수했기 때문이다</b>(11단계).
+ * 앞의 둘만 있던 동안 워커는 나머지를 {@code JdbcTemplate} 으로 직접 쳤고, 그래서 "큐를 바꾸는
+ * 일이 워커를 건드리지 않는다"가 실제로는 성립하지 않았다.
  *
  * <p>구현은 제공하는 쪽에 있다 — {@code operation/ExternalOperationMemoryQueue}. 여기서 그 이름을
  * 적는 것은 문서일 뿐이고, memory 는 그 패키지를 import 하지 않는다.
@@ -25,17 +30,15 @@ public interface MemoryUpdateQueue {
     UUID practiceSessionOf(UUID operationId);
 
     /**
-     * 작업을 성공으로 닫는다. 응답에 남는 것은 <b>어느 연습이었는지와 실제로 갱신된 칸
-     * 이름들</b>이고, 그것을 어떤 키로 적을지는 원장이 정한다 — 워커는 무엇을 담을지만 안다.
+     * 작업을 성공으로 닫고 응답 본문을 남긴다. 다음 재시도는 이 본문을 받는다.
+     *
+     * <p>본문을 만드는 것은 <b>부르는 쪽</b>이다 — {@code coach/app/CoachOperationLedger}·
+     * {@code report/app/ReportOperationLedger} 와 같은 형태다. 그 바이트가 곧 계약이라
+     * 조립을 원장으로 넘기면 계약이 도메인 밖으로 나간다.
      *
      * @throws LeaseOwnershipException 리스를 이미 다른 워커가 재선점했다
      */
-    void complete(
-            UUID operationId,
-            UUID leaseToken,
-            UUID practiceSessionId,
-            List<String> updatedFields,
-            Instant now);
+    void complete(UUID operationId, UUID leaseToken, JsonNode responsePayload, Instant now);
 
     /**
      * 작업을 실패로 닫는다.

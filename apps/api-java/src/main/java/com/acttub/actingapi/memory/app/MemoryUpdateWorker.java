@@ -13,6 +13,9 @@ import java.util.UUID;
 import com.acttub.actingapi.integration.llm.TextGenerator;
 import com.acttub.actingapi.platform.ledger.LeaseOwnershipException;
 import com.acttub.actingapi.schema.ActorMemoryField;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -34,16 +37,19 @@ public class MemoryUpdateWorker {
 
     private final MemoryRepository memory;
     private final MemoryUpdateQueue queue;
+    private final ObjectMapper mapper;
     private final TextGenerator generator;
     private final Clock clock;
 
     public MemoryUpdateWorker(
             MemoryRepository memory,
             MemoryUpdateQueue queue,
+            ObjectMapper mapper,
             TextGenerator generator,
             Clock clock) {
         this.memory = memory;
         this.queue = queue;
+        this.mapper = mapper;
         this.generator = generator;
         this.clock = clock;
     }
@@ -62,7 +68,7 @@ public class MemoryUpdateWorker {
         UUID sessionId = queue.practiceSessionOf(operationId);
         try {
             List<String> written = update(sessionId);
-            queue.complete(operationId, leaseToken, sessionId, written, now);
+            queue.complete(operationId, leaseToken, payload(sessionId, written), now);
         } catch (LeaseOwnershipException lost) {
             LOG.warn("기억 갱신 lease 를 잃었다: {}", operationId);
         } catch (RuntimeException failure) {
@@ -75,6 +81,22 @@ public class MemoryUpdateWorker {
             }
         }
         return true;
+    }
+
+    /**
+     * 응답 본문 (`memory_worker.py:run_once`).
+     *
+     * <p><b>키 이름과 순서가 곧 계약이다.</b> 이 바이트는 원장에 남아 잡이 재생될 때 그대로
+     * 나가는데, 계약 하네스는 이것을 보지 못한다 — DB 투영이 external_operations 를
+     * {@code has_response_payload}(참·거짓)로만 비교하고, 백그라운드 워커는 contract
+     * 프로파일에서 아예 뜨지 않는다.
+     */
+    private ObjectNode payload(UUID practiceSessionId, List<String> updatedFields) {
+        ObjectNode response = mapper.createObjectNode();
+        response.put("practice_session_id", practiceSessionId.toString());
+        ArrayNode fields = response.putArray("updated_fields");
+        updatedFields.forEach(fields::add);
+        return response;
     }
 
     private List<String> update(UUID practiceSessionId) {

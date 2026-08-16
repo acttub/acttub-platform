@@ -8,9 +8,9 @@ import java.util.Map;
 import com.acttub.actingapi.memory.adapter.web.MemoryDtos.MemoryItem;
 import com.acttub.actingapi.memory.adapter.web.MemoryDtos.MemoryResponse;
 import com.acttub.actingapi.memory.adapter.web.MemoryDtos.UpdateMemoryRequest;
+import com.acttub.actingapi.memory.app.BlankMemoryValue;
 import com.acttub.actingapi.memory.app.MemoryEntry;
 import com.acttub.actingapi.memory.app.MemoryService;
-import com.acttub.actingapi.memory.domain.MemoryValue;
 import com.acttub.actingapi.platform.security.AccessGate;
 import com.acttub.actingapi.platform.web.ApiValidationException;
 import com.acttub.actingapi.schema.ActorMemoryField;
@@ -106,7 +106,12 @@ class MemoryController {
             HttpServletRequest request) {
         ActorMemoryField target = field(field);
         var user = auth.rateLimitedUser(request);
-        return item(memory.write(user.id(), target, normalize(body.value())));
+        try {
+            return item(memory.write(user.id(), target, body.value()));
+        } catch (BlankMemoryValue blank) {
+            throw ApiValidationException.valueError(
+                    List.of("body", "value"), "Value error, value must not be blank", body.value());
+        }
     }
 
     @Operation(
@@ -166,16 +171,6 @@ class MemoryController {
             throw new ApiValidationException(List.of(error));
         }
         return ActorMemoryField.valueOf(raw.toUpperCase(Locale.ROOT));
-    }
-
-    /** 다듬는 것은 {@link MemoryValue} 가 하고, 여기서는 남은 게 없을 때의 응답만 정한다. */
-    private static String normalize(String raw) {
-        String normalized = MemoryValue.normalize(raw);
-        if (normalized == null) {
-            throw ApiValidationException.valueError(
-                    List.of("body", "value"), "Value error, value must not be blank", raw);
-        }
-        return normalized;
     }
 
     private static MemoryItem item(MemoryEntry row) {

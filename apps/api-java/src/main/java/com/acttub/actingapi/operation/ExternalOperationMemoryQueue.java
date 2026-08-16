@@ -4,14 +4,11 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
-import java.util.List;
 import java.util.UUID;
 
 import com.acttub.actingapi.memory.app.MemoryUpdateQueue;
 import com.acttub.actingapi.platform.ledger.LeaseOwnershipException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.fasterxml.jackson.databind.JsonNode;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
@@ -23,8 +20,8 @@ import org.springframework.stereotype.Component;
  * memory 는 이 클래스도 {@link ExternalOperationClaimer} 도 모른다.
  *
  * <p>작업 종류 문자열과 "연습을 실패시키지 않는다"는 선택이 여기서 고정된다. 워커는 호출할
- * 때마다 그 둘을 다시 정하지 않는다. <b>응답 페이로드의 키도 여기서 정해진다</b> — 그 바이트는
- * 원장에 남아 재생될 때 그대로 나가므로, 원장 형식을 아는 쪽이 적는 것이 맞다.
+ * 때마다 그 둘을 다시 정하지 않는다. <b>응답 본문은 받아서 그대로 싣기만 한다</b> — 그 바이트가
+ * 곧 계약이므로 조립은 부르는 쪽에 남는다({@code coach}·{@code report} 의 원장 포트와 같다).
  */
 @Component
 class ExternalOperationMemoryQueue implements MemoryUpdateQueue {
@@ -34,13 +31,10 @@ class ExternalOperationMemoryQueue implements MemoryUpdateQueue {
 
     private final ExternalOperationClaimer claimer;
     private final JdbcTemplate jdbc;
-    private final ObjectMapper mapper;
 
-    ExternalOperationMemoryQueue(
-            ExternalOperationClaimer claimer, JdbcTemplate jdbc, ObjectMapper mapper) {
+    ExternalOperationMemoryQueue(ExternalOperationClaimer claimer, JdbcTemplate jdbc) {
         this.claimer = claimer;
         this.jdbc = jdbc;
-        this.mapper = mapper;
     }
 
     @Override
@@ -56,15 +50,7 @@ class ExternalOperationMemoryQueue implements MemoryUpdateQueue {
 
     @Override
     public void complete(
-            UUID operationId,
-            UUID leaseToken,
-            UUID practiceSessionId,
-            List<String> updatedFields,
-            Instant now) {
-        ObjectNode response = mapper.createObjectNode();
-        response.put("practice_session_id", practiceSessionId.toString());
-        ArrayNode fields = response.putArray("updated_fields");
-        updatedFields.forEach(fields::add);
+            UUID operationId, UUID leaseToken, JsonNode responsePayload, Instant now) {
         int finished = jdbc.update("""
                 UPDATE external_operations
                 SET status = 'succeeded'::operation_status_t,
@@ -76,7 +62,7 @@ class ExternalOperationMemoryQueue implements MemoryUpdateQueue {
                 WHERE id = ?
                   AND status = 'running'::operation_status_t
                   AND lease_token = ?
-                """, response.toString(), OffsetDateTime.ofInstant(now, ZoneOffset.UTC),
+                """, responsePayload.toString(), OffsetDateTime.ofInstant(now, ZoneOffset.UTC),
                 operationId, leaseToken);
         if (finished == 0) {
             throw new LeaseOwnershipException("external operation lease is not owned");

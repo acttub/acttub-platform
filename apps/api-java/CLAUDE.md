@@ -39,7 +39,7 @@ nostorage(`contract,nostorage`) 인스턴스를 각각 띄우고 하네스의
 정본입니다** — 값은 하네스 `config.py`에서 나오므로 여기에 복사해 두지 않습니다.
 
 **contract 프로파일에는 진짜 LLM·분석 체인이 서지 않습니다.** `integration/observation/GeminiConfiguration`과
-`analysis/AnalysisConfiguration`이 `@Profile("!contract")`이라, 하네스 인스턴스는 외부 API 키
+`analysis/adapter/AnalysisConfiguration`이 `@Profile("!contract")`이라, 하네스 인스턴스는 외부 API 키
 없이 뜹니다. 🔎 **`@Primary`로는 이걸 못 합니다** — `ContractAnalysisProcessor`가 주입 경합에서
 이겨도 진짜 체인의 빈은 그대로 만들어지고, 그러다 `GEMINI_API_KEY`가 없어 컨텍스트가 죽었습니다.
 새 외부 연동을 붙일 때는 스텁으로 대체할지, contract에서 아예 세우지 않을지를 먼저 정합니다.
@@ -75,8 +75,10 @@ ln -sfn ../api/acting-api/.env .env    # 최초 1회. 파이썬과 같은 파일
 
 최상위가 **세 묶음**으로 갈립니다(ADR-017) — `platform`(배관: web·security·config·harness·health·observability·ledger) · `integration`(외부 연동: oidc·llm·storage·media·observation) · 비즈니스 도메인. **앞의 둘은 8단계에서 섰고**, 도메인 열넷을 `feature` 아래로 넣는 것은 도메인 배치가 끝난 뒤의 **마지막 이사**입니다. 공용 `schema`는 도메인별로 흩어지는 중이라 아직 최상위에 있습니다.
 
-도메인별 헥사고날로 옮기는 중이고 **`practice`(4단계)·`community`(10단계)·`report`·`coach`(9단계)·`analysis`·`memory`(11단계) 여섯이 끝났습니다**. 옮긴 도메인은 네 층으로 섭니다 — `domain`(규칙을 담은 Domain Model, 프레임워크 import 금지) · `app`(서비스와 포트 선언) · `adapter`(`web`·`db`·`storage`·`media`·`sched`) · `schema`(Schema Entity). 나머지 여덟 도메인은 아직 평평하고, 그게 정상입니다.
+도메인별 헥사고날로 옮기는 중이고 **`practice`(4단계)·`community`(10단계)·`report`·`coach`(9단계)·`analysis`·`memory`(11단계) 여섯이 끝났습니다**. 옮긴 도메인은 네 층으로 섭니다 — `domain`(규칙을 담은 Domain Model, 프레임워크 import 금지) · `app`(서비스와 포트 선언) · `adapter`(`web`·`db`·`storage`·`media`·`sched`) · `schema`(Schema Entity). 나머지 일곱 도메인은 아직 평평하고, 그게 정상입니다.
 
+- 📌 **배선(`@Configuration`)은 그 도메인 `adapter` 층의 루트에 둡니다** — `analysis/adapter/AnalysisConfiguration`·`AnalysisWorkerConfiguration`. 어느 하위 어댑터에도 속하지 않고 여럿을 조립하기 때문입니다(먼저 옮긴 다섯 도메인에 이런 파일이 없는 것은 그들이 스프링 스테레오타입만 쓰기 때문이지, 루트를 비워야 해서가 아닙니다).
+- 📌 **`domain`이 봐도 되는 것은 프레임워크가 아닌 것뿐입니다.** `memory/domain/MemoryValue`가 `platform/web/PythonText`를 봅니다 — `domain`이 배관을 보는 첫 사례이고, `domainKnowsNoFramework`가 막는 목록(스프링·JPA·Jackson·swagger)에는 없어 통과합니다. **의도한 것입니다** — 그 유틸은 파이썬 `str.strip`의 공백 집합을 재현하는 문자열 규칙이라 정규화 규칙과 같은 층에 속하고, 여기서 손으로 다시 구현하면 두 벌이 갈립니다. 이관이 끝나면 함께 사라질 것입니다.
 - ⚠ **네 층을 다 갖지 않는 도메인이 있습니다.** `memory`에는 Schema Entity가 없습니다 — `actor_memory_entries`에 대응하는 `@Entity`가 애초에 만들어진 적이 없어 **그 테이블만 `ddl-auto: validate` 밖에 있습니다**(이사에서 빠뜨린 것이 아닙니다). 그래서 `PackageLayerTest`의 한정 목록이 이름 목록이 아니라 **도메인 → 그 도메인이 가진 층** 표입니다. 없는 층을 적으면 그 규칙이 대상 0으로 조용히 통과하고, 반대로 **층이 새로 생겼는데 표에 안 적으면 그 층만 검사 밖에 남습니다** — `everyRuleActuallyHasSomethingToCheck`가 양쪽을 다 봅니다.
 
 - 🔥 **포트가 없음을 알리는 방법은 하나가 아닙니다**(ADR-018). `practice`는 `null`·`boolean`으로 알리지만 `community`는 **예외를 `app`에 선언하고 어댑터가 던집니다.** **정하는 단위는 연산이 아니라 포트 전체입니다** — 한 포트 안에서 방식이 둘이면 부르는 쪽이 연산마다 어느 쪽인지 기억해야 하므로, 갈래가 가장 많은 연산이 그 포트의 방식을 정합니다. `community`에서는 `updatePost`("없다"와 "내 것이 아니다"가 같은 트랜잭션·같은 잠금 안에서 갈립니다)가 그 연산이고, 그래서 `getPost`처럼 갈래가 하나인 것도 예외를 씁니다. 예외가 `app`에 살면 방향이 `adapter → app`이라 층 규칙에 맞고, 제공자와 소비자가 같은 도메인이라 시그니처에 남의 패키지 이름이 보이지도 않습니다.
@@ -94,14 +96,15 @@ ln -sfn ../api/acting-api/.env .env    # 최초 1회. 파이썬과 같은 파일
   - 🔥 **교환 타입을 어디 두느냐가 이 단계의 전부였습니다.** 포트를 쓰는 쪽에 선언해도 시그니처에 `operation`의 record·예외가 들어가면 소비자 → 제공자 간선이 남고, 그러면 제공자가 그 포트를 구현하는 순간 `PackageCycleTest`가 빨간불이라 **구현을 소비자 쪽에 두는 수밖에 없어집니다**(ADR-017의 "구현은 제공하는 쪽에"가 깨지는 형태). → `SyncOperationBegin`·`SyncOperationClaim`·`LeaseOwnershipException`을 **`ledger`**(배관, 8단계에 `platform/ledger`로 갔습니다)로 올려 풀었습니다. **포트를 새로 만들 때 시그니처에 제공자 패키지 이름이 보이면 아직 안 끊긴 것입니다.**
   - 그 결과 위임만 하던 어댑터가 사라지고 `SyncOperationService`가 `CoachOperationLedger`·`ReportOperationLedger`를 **직접 구현**합니다. 두 포트의 요구가 글자까지 같아 한 클래스가 둘 다 받습니다 — 갈리는 날 거기서 갈리면 됩니다.
   - 워커 큐는 종류와 실패 정책이 다릅니다 — `ExternalOperationAnalysisQueue`(kind=`analyze`, 실패 시 **연습 세션도 실패**) vs `ExternalOperationMemoryQueue`(kind=`memory_update`, 연습은 건드리지 않음).
-  - 🔥 **6단계가 memory 쪽에서 두 연산을 흘렸습니다**(11단계에서 회수). 포트가 있는데도 워커가 `JdbcTemplate`으로 `external_operations`를 직접 쳤습니다 — 잡이 어느 연습의 것인지 읽는 것과, 성공으로 닫으며 응답 페이로드를 조립하는 것. 지금은 `MemoryUpdateQueue.practiceSessionOf`·`complete`이고 **무엇을 담을지는 워커가, 어떤 키로 담을지는 원장이** 정합니다(`coach/app/CoachResponseRenderer`와 같은 가름).
-    - ⚠ **그 페이로드는 계약 하네스가 못 봅니다.** DB 투영이 external_operations를 `has_response_payload`(참·거짓)로만 비교하고, 백그라운드 워커는 contract 프로파일에서 아예 뜨지 않습니다 — **전 시나리오 diff 0을 통과해도 조용히 달라질 수 있는 자리**인데 그 바이트는 잡이 재생될 때 그대로 응답으로 나갑니다. `ExternalOperationMemoryQueueTest`가 파이썬 `memory_worker.py`의 모양에 못박아 둔 이유입니다.
+  - 🔥 **6단계가 memory 쪽에서 두 연산을 흘렸습니다**(11단계에서 회수). 포트가 있는데도 워커가 `JdbcTemplate`으로 `external_operations`를 직접 쳤습니다 — 잡이 어느 연습의 것인지 읽는 것과, 성공으로 닫는 것. 지금은 `MemoryUpdateQueue.practiceSessionOf`·`complete`입니다.
+    - 📌 **응답 본문은 부르는 쪽이 만들어 넘깁니다.** `complete(operationId, leaseToken, JsonNode, now)` — `coach/app/CoachOperationLedger`·`report/app/ReportOperationLedger`와 같은 형태입니다. 그 바이트가 곧 계약이라 조립을 원장으로 넘기면 계약이 도메인 밖으로 나갑니다(재편 중 한 번 그렇게 갔다가 되돌렸습니다).
+    - ⚠ **그 본문은 계약 하네스가 못 봅니다.** DB 투영이 external_operations를 `has_response_payload`(참·거짓)로만 비교하고, 백그라운드 워커는 contract 프로파일에서 아예 뜨지 않습니다 — **전 시나리오 diff 0을 통과해도 조용히 달라질 수 있는 자리**인데 그 바이트는 잡이 재생될 때 그대로 응답으로 나갑니다. `MemoryUpdateWorkerPayloadTest`가 파이썬 `memory_worker.py:run_once`의 모양에 못박아 둔 이유이고, **티켓의 "새 테스트를 쓰지 않는다"에 대한 예외는 이 근거 하나입니다**(seam 넷 중 어느 것도 이 바이트를 보지 못합니다).
 - **`auth`는 7단계에서 세 갈래로 갈렸습니다.** 요청 필터·동의 게이트·레이트리미터가 **`platform/security`**로, OIDC 검증과 프로바이더 레지스트리가 **`integration/oidc`**로 나갔고(묶음 접두어는 8단계에서 붙었습니다), `auth`에는 로그인·토큰 발급·가입 출처만 남았습니다. 여덟 도메인은 이제 `auth`가 아니라 `security`를 봅니다 — 배관을 보는 것은 정상이고, 금지되는 것은 feature끼리의 직접 import입니다.
   - 🔥 **방향이 뒤집힌 경우입니다.** 6단계는 feature가 feature에 포트를 요구했지만, 여기서는 **배관이 feature에 요구합니다** — `security`가 `AccessTokenVerifier`·`AuthenticatedUsers`를 선언하고 `auth`의 `JwtService`·`AuthStore`가 그것을 **직접 구현**합니다(위임 어댑터를 끼우지 않습니다). 간선은 `auth` → `security` 한 방향뿐입니다.
   - 교환 타입 `AuthenticatedUser`가 `security`에 사는 이유도 같습니다. 이것이 `auth`에 있으면 받는 여덟이 전부 `auth`를 import하게 되어, 포트를 어디에 선언하든 간선이 남습니다.
   - `oidc` 쪽은 아직 포트가 아니라 `auth`가 직접 부릅니다. 간선이 `auth` → `oidc` 한 방향이라 순환은 없고, **어댑터 층이 외부 연동을 직접 import하는 것은 `practice/adapter/storage`와 같은 형태입니다.** 포트로 감싸는 것은 `auth`가 네 층으로 설 때입니다 — **SOMA-397 12단계**입니다(`consent`와 같은 단계인 이유는 `auth/schema` 소유권이 겹쳐서입니다).
   - 🔎 갈래를 가른 7단계와 묶음으로 옮긴 8단계 사이에는 `security`·`oidc`·`ledger`가 **최상위에 임시로 살았습니다.** 접두어를 먼저 붙이면 순환 검사가 조용히 0이 되므로, 접두어와 슬라이스 할당 수정을 같은 커밋에 뒀습니다(위 ⚠, ADR-017).
-- **`memory`는 9단계에서 포트 뒤로 갔습니다.** `CoachController`가 `MemoryStore`를 직접 주입받던 자리가 `coach/app/CoachMemory` 선언으로 바뀌고 `MemoryStore`가 그것을 **직접 구현**합니다(위임 어댑터 0). 교환 타입 `PriorContext`는 소비자인 `coach`의 것이라 간선이 `memory → coach` 한 방향입니다.
+- **`memory`는 9단계에서 포트 뒤로 갔습니다.** `CoachController`가 저장소를 직접 주입받던 자리가 `coach/app/CoachMemory` 선언으로 바뀌고 `memory/adapter/db/PostgresMemoryRepository`가 그것을 **직접 구현**합니다(위임 어댑터 0). 교환 타입 `PriorContext`는 소비자인 `coach`의 것이라 간선이 `memory → coach` 한 방향입니다.
 - ⚠ **응답 JSON 표기도 포트 뒤에 있습니다**(`coach/app/CoachResponseRenderer`). 코치 응답의 바이트는 **응답이면서 동시에 원장에 남는 값**이라 서비스가 그것을 만들어 원장에 넘겨야 하는데, 조립을 컨트롤러에 두면 규칙과 표기가 한 요청 안에서 두 번 오갑니다. 무엇을 담을지는 서비스가, 어떤 키로 담을지는 web 어댑터가 정합니다.
 
 ## 계약 재현에서 자주 깨지는 지점
