@@ -1,6 +1,6 @@
-package com.acttub.actingapi.community;
+package com.acttub.actingapi.community.adapter.web;
 
-import static com.acttub.actingapi.community.CommunityDtos.*;
+import static com.acttub.actingapi.community.adapter.web.CommunityDtos.*;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -8,8 +8,11 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
+import com.acttub.actingapi.community.app.CommunityService;
+import com.acttub.actingapi.community.app.Page;
+import com.acttub.actingapi.community.domain.CommunityComment;
+import com.acttub.actingapi.community.domain.CommunityPost;
 import com.acttub.actingapi.platform.security.AccessGate;
-import com.acttub.actingapi.platform.web.ApiException;
 import com.acttub.actingapi.platform.web.ApiValidationException;
 import com.acttub.actingapi.platform.web.PythonText;
 import io.swagger.v3.oas.annotations.Operation;
@@ -33,6 +36,18 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+/**
+ * 커뮤니티의 HTTP 문.
+ *
+ * <p>남은 일은 셋이다 — 요청 주체를 확인하고, 파이썬과 같은 형태의 422 를 만들고, 도메인 객체를
+ * 응답 DTO 로 옮기는 것. <b>없음·소유권·중복은 서비스가 {@code ApiException} 으로 던지고
+ * {@code platform/web/ApiErrorAdvice} 가 받는다</b> — 종전에 여기 있던 {@code try/catch} 열셋이
+ * 저장소 예외를 오류 코드로 옮기고 있었고, 그래서 같은 예외가 자리마다 다른 뜻을 갖는 것을
+ * 이 파일을 읽어야만 알 수 있었다.
+ *
+ * <p>검증이 여기 남은 이유는 그 형태가 <b>HTTP 계약</b>이어서다. {@code loc}·{@code ctx} 까지
+ * FastAPI 가 내던 것과 같아야 하며, 그것은 규칙이 아니라 문의 모양이다.
+ */
 @RestController
 @RequestMapping(value = "/v2/community", produces = MediaType.APPLICATION_JSON_VALUE)
 class CommunityController {
@@ -40,11 +55,11 @@ class CommunityController {
     private static final Set<String> REPORT_REASONS =
             Set.of("spam", "abuse", "sexual", "privacy", "other");
 
-    private final CommunityStore store;
+    private final CommunityService community;
     private final AccessGate auth;
 
-    CommunityController(CommunityStore store, AccessGate auth) {
-        this.store = store;
+    CommunityController(CommunityService community, AccessGate auth) {
+        this.community = community;
         this.auth = auth;
     }
 
@@ -60,7 +75,7 @@ class CommunityController {
     @GetMapping("/categories")
     CategoryListResponse listCategories(HttpServletRequest request) {
         auth.optionalUser(request);
-        return new CategoryListResponse(store.listCategories().stream()
+        return new CategoryListResponse(community.listCategories().stream()
                 .map(category -> new CategoryPayload(
                         category.slug(), category.name(), category.description()))
                 .toList());
@@ -99,15 +114,10 @@ class CommunityController {
             HttpServletRequest request) {
         UUID viewerId = optionalUserId(request);
         validateLimit(limit);
-        try {
-            CommunityStore.Page<CommunityStore.Post> page =
-                    store.listPosts(viewerId, category, cursor, limit);
-            return new PostListResponse(
-                    page.items().stream().map(this::postPayload).toList(),
-                    page.nextCursor());
-        } catch (CommunityStore.InvalidCursor exception) {
-            throw new ApiException(400, "invalid_cursor");
-        }
+        Page<CommunityPost> page = community.listPosts(viewerId, category, cursor, limit);
+        return new PostListResponse(
+                page.items().stream().map(CommunityController::postPayload).toList(),
+                page.nextCursor());
     }
 
     @Operation(
@@ -132,17 +142,13 @@ class CommunityController {
         UUID authorId = authorId(request);
         String title = trimmed("title", body.title());
         String postBody = trimmed("body", body.body());
-        try {
-            CommunityStore.Post post = store.createPost(
-                    authorId,
-                    body.categorySlug(),
-                    title,
-                    postBody,
-                    body.anonymous());
-            return ResponseEntity.status(201).body(postPayload(post));
-        } catch (CommunityStore.CategoryNotFound exception) {
-            throw new ApiException(404, "category_not_found");
-        }
+        CommunityPost post = community.createPost(
+                authorId,
+                body.categorySlug(),
+                title,
+                postBody,
+                body.anonymous());
+        return ResponseEntity.status(201).body(postPayload(post));
     }
 
     @Operation(
@@ -164,17 +170,7 @@ class CommunityController {
     PostPayload getPost(
             @PathVariable("post_id") UUID postId,
             HttpServletRequest request) {
-        UUID viewerId = optionalUserId(request);
-        try {
-            CommunityStore.Post post = store.getPost(postId, viewerId);
-            PostPayload response = postPayload(post);
-            if (!post.mine()) {
-                store.incrementViewCount(postId);
-            }
-            return response;
-        } catch (CommunityStore.PostNotFound exception) {
-            throw new ApiException(404, "post_not_found");
-        }
+        return postPayload(community.view(postId, optionalUserId(request)));
     }
 
     @Operation(
@@ -198,17 +194,11 @@ class CommunityController {
             @Valid @RequestBody PostUpdateRequest body,
             HttpServletRequest request) {
         UUID authorId = authorId(request);
-        try {
-            return postPayload(store.updatePost(
-                    postId,
-                    authorId,
-                    trimmed("title", body.title()),
-                    trimmed("body", body.body())));
-        } catch (CommunityStore.PostNotFound exception) {
-            throw new ApiException(404, "post_not_found");
-        } catch (CommunityStore.NotAuthor exception) {
-            throw new ApiException(403, "not_author");
-        }
+        return postPayload(community.updatePost(
+                postId,
+                authorId,
+                trimmed("title", body.title()),
+                trimmed("body", body.body())));
     }
 
     @Operation(
@@ -227,14 +217,8 @@ class CommunityController {
     ResponseEntity<Void> deletePost(
             @PathVariable("post_id") UUID postId,
             HttpServletRequest request) {
-        try {
-            store.deletePost(postId, authorId(request));
-            return ResponseEntity.noContent().build();
-        } catch (CommunityStore.PostNotFound exception) {
-            throw new ApiException(404, "post_not_found");
-        } catch (CommunityStore.NotAuthor exception) {
-            throw new ApiException(403, "not_author");
-        }
+        community.deletePost(postId, authorId(request));
+        return ResponseEntity.noContent().build();
     }
 
     @Operation(
@@ -256,11 +240,7 @@ class CommunityController {
     LikeResponse likePost(
             @PathVariable("post_id") UUID postId,
             HttpServletRequest request) {
-        try {
-            return new LikeResponse(store.likePost(postId, authorId(request)), true);
-        } catch (CommunityStore.PostNotFound exception) {
-            throw new ApiException(404, "post_not_found");
-        }
+        return new LikeResponse(community.likePost(postId, authorId(request)), true);
     }
 
     @Operation(
@@ -282,11 +262,7 @@ class CommunityController {
     LikeResponse unlikePost(
             @PathVariable("post_id") UUID postId,
             HttpServletRequest request) {
-        try {
-            return new LikeResponse(store.unlikePost(postId, authorId(request)), false);
-        } catch (CommunityStore.PostNotFound exception) {
-            throw new ApiException(404, "post_not_found");
-        }
+        return new LikeResponse(community.unlikePost(postId, authorId(request)), false);
     }
 
     @Operation(
@@ -321,21 +297,10 @@ class CommunityController {
             HttpServletRequest request) {
         UUID viewerId = optionalUserId(request);
         validateLimit(limit);
-        // 커서 해독은 store 안에서, **글 조회 뒤에** 일어난다 —
-        // `db/community_store.py:CommunityStore.list_comments` 가 `_load_post_row` 를 먼저 부르고
-        // 호출부가 PostNotFound 를 ValueError 보다 먼저 잡는다. 여기서 미리 검증하면
-        // "없는 글 + 잘못된 커서" 가 404 대신 400 이 된다.
-        try {
-            CommunityStore.Page<CommunityStore.Comment> page =
-                    store.listComments(postId, viewerId, cursor, limit);
-            return new CommentListResponse(
-                    page.items().stream().map(this::commentPayload).toList(),
-                    page.nextCursor());
-        } catch (CommunityStore.PostNotFound exception) {
-            throw new ApiException(404, "post_not_found");
-        } catch (CommunityStore.InvalidCursor exception) {
-            throw new ApiException(400, "invalid_cursor");
-        }
+        Page<CommunityComment> page = community.listComments(postId, viewerId, cursor, limit);
+        return new CommentListResponse(
+                page.items().stream().map(CommunityController::commentPayload).toList(),
+                page.nextCursor());
     }
 
     @Operation(
@@ -358,16 +323,12 @@ class CommunityController {
             @PathVariable("post_id") UUID postId,
             @Valid @RequestBody CommentWriteRequest body,
             HttpServletRequest request) {
-        try {
-            CommunityStore.Comment comment = store.createComment(
-                    postId,
-                    authorId(request),
-                    trimmed("body", body.body()),
-                    body.anonymous());
-            return ResponseEntity.status(201).body(commentPayload(comment));
-        } catch (CommunityStore.PostNotFound exception) {
-            throw new ApiException(404, "post_not_found");
-        }
+        CommunityComment comment = community.createComment(
+                postId,
+                authorId(request),
+                trimmed("body", body.body()),
+                body.anonymous());
+        return ResponseEntity.status(201).body(commentPayload(comment));
     }
 
     @Operation(
@@ -390,16 +351,10 @@ class CommunityController {
             @PathVariable("comment_id") UUID commentId,
             @Valid @RequestBody CommentWriteRequest body,
             HttpServletRequest request) {
-        try {
-            return commentPayload(store.updateComment(
-                    commentId,
-                    authorId(request),
-                    trimmed("body", body.body())));
-        } catch (CommunityStore.CommentNotFound exception) {
-            throw new ApiException(404, "comment_not_found");
-        } catch (CommunityStore.NotAuthor exception) {
-            throw new ApiException(403, "not_author");
-        }
+        return commentPayload(community.updateComment(
+                commentId,
+                authorId(request),
+                trimmed("body", body.body())));
     }
 
     @Operation(
@@ -418,14 +373,8 @@ class CommunityController {
     ResponseEntity<Void> deleteComment(
             @PathVariable("comment_id") UUID commentId,
             HttpServletRequest request) {
-        try {
-            store.deleteComment(commentId, authorId(request));
-            return ResponseEntity.noContent().build();
-        } catch (CommunityStore.CommentNotFound exception) {
-            throw new ApiException(404, "comment_not_found");
-        } catch (CommunityStore.NotAuthor exception) {
-            throw new ApiException(403, "not_author");
-        }
+        community.deleteComment(commentId, authorId(request));
+        return ResponseEntity.noContent().build();
     }
 
     @Operation(
@@ -450,21 +399,13 @@ class CommunityController {
                 body.reason(),
                 REPORT_REASONS,
                 "'spam', 'abuse', 'sexual', 'privacy' or 'other'");
-        try {
-            store.createReport(
-                    authorId(request),
-                    body.targetType(),
-                    body.targetId(),
-                    body.reason(),
-                    body.detail());
-            return ResponseEntity.noContent().build();
-        } catch (CommunityStore.PostNotFound exception) {
-            throw new ApiException(404, "target_not_found");
-        } catch (CommunityStore.NotAuthor exception) {
-            throw new ApiException(400, "cannot_report_own");
-        } catch (CommunityStore.DuplicateReport exception) {
-            throw new ApiException(409, "already_reported");
-        }
+        community.createReport(
+                authorId(request),
+                body.targetType(),
+                body.targetId(),
+                body.reason(),
+                body.detail());
+        return ResponseEntity.noContent().build();
     }
 
     @Operation(
@@ -478,7 +419,7 @@ class CommunityController {
             content = @Content(schema = @Schema(implementation = BlockListResponse.class)))
     @GetMapping("/blocks")
     BlockListResponse listBlocks(HttpServletRequest request) {
-        return new BlockListResponse(store.listBlocks(authorId(request)).stream()
+        return new BlockListResponse(community.listBlocks(authorId(request)).stream()
                 .map(blocked -> new BlockPayload(blocked.id(), blocked.nickname()))
                 .toList());
     }
@@ -499,14 +440,8 @@ class CommunityController {
     ResponseEntity<Void> blockUser(
             @Valid @RequestBody BlockRequest body,
             HttpServletRequest request) {
-        try {
-            store.blockUser(authorId(request), body.userId());
-            return ResponseEntity.noContent().build();
-        } catch (CommunityStore.NotAuthor exception) {
-            throw new ApiException(400, "cannot_block_self");
-        } catch (CommunityStore.PostNotFound exception) {
-            throw new ApiException(404, "user_not_found");
-        }
+        community.blockUser(authorId(request), body.userId());
+        return ResponseEntity.noContent().build();
     }
 
     @Operation(
@@ -525,7 +460,7 @@ class CommunityController {
     ResponseEntity<Void> unblockUser(
             @PathVariable("blocked_id") UUID blockedId,
             HttpServletRequest request) {
-        store.unblockUser(authorId(request), blockedId);
+        community.unblockUser(authorId(request), blockedId);
         return ResponseEntity.noContent().build();
     }
 
@@ -538,7 +473,7 @@ class CommunityController {
         return auth.consentedUser(request).id();
     }
 
-    private PostPayload postPayload(CommunityStore.Post post) {
+    private static PostPayload postPayload(CommunityPost post) {
         AuthorPayload author = post.anonymous()
                 ? new AuthorPayload(null, null, "익명")
                 : new AuthorPayload(post.authorId(), post.authorNickname(), null);
@@ -559,7 +494,7 @@ class CommunityController {
                 post.updatedAt());
     }
 
-    private CommentPayload commentPayload(CommunityStore.Comment comment) {
+    private static CommentPayload commentPayload(CommunityComment comment) {
         AuthorPayload author = comment.anonymous()
                 ? new AuthorPayload(null, null, comment.alias())
                 : new AuthorPayload(comment.authorId(), comment.authorNickname(), null);

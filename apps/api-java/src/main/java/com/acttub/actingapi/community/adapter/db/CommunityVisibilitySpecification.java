@@ -1,4 +1,4 @@
-package com.acttub.actingapi.community;
+package com.acttub.actingapi.community.adapter.db;
 
 import java.util.Map;
 import java.util.UUID;

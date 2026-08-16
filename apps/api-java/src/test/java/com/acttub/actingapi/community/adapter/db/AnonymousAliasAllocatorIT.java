@@ -1,4 +1,4 @@
-package com.acttub.actingapi.community;
+package com.acttub.actingapi.community.adapter.db;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
