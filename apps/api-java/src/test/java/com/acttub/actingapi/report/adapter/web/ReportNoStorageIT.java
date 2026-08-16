@@ -1,4 +1,4 @@
-package com.acttub.actingapi.report;
+package com.acttub.actingapi.report.adapter.web;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -8,6 +8,7 @@ import java.time.ZoneOffset;
 import java.util.UUID;
 
 import com.acttub.actingapi.auth.JwtService;
+import com.acttub.actingapi.report.adapter.db.ReportFixtures;
 import com.acttub.actingapi.support.PostgresContainerSupport;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;

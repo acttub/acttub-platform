@@ -10,7 +10,7 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
 
-import com.acttub.actingapi.report.ReportFixtures;
+import com.acttub.actingapi.report.adapter.db.ReportFixtures;
 import com.acttub.actingapi.integration.storage.ObjectStorage;
 import com.acttub.actingapi.integration.storage.StoredObjectMetadata;
 import com.acttub.actingapi.support.PostgresContainerSupport;

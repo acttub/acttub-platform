@@ -1,4 +1,4 @@
-package com.acttub.actingapi.report;
+package com.acttub.actingapi.report.adapter.db;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -13,6 +13,7 @@ import java.util.UUID;
 
 import com.acttub.actingapi.operation.ExternalOperationClaimer;
 import com.acttub.actingapi.platform.ledger.LeaseOwnershipException;
+import com.acttub.actingapi.report.app.PracticeReportLedger;
 import com.acttub.actingapi.support.PostgresContainerSupport;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -53,7 +54,7 @@ class ReportOperationIT {
     JdbcTemplate jdbc;
 
     @Autowired
-    ReportOperationService service;
+    PracticeReportLedger service;
 
     @Autowired
     ReportOperationWork work;

@@ -1,4 +1,4 @@
-package com.acttub.actingapi.report;
+package com.acttub.actingapi.report.app;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -10,26 +10,18 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.Instant;
-import java.util.Optional;
 import java.util.UUID;
 
-import com.acttub.actingapi.platform.security.AccessGate;
-import com.acttub.actingapi.platform.security.AuthenticatedUser;
-import com.acttub.actingapi.schema.UserStatus;
 import com.acttub.actingapi.platform.ledger.SyncOperationBegin;
 import com.acttub.actingapi.platform.ledger.SyncOperationClaim;
-import com.acttub.actingapi.report.ReportDtos.ReportReq;
 import com.acttub.actingapi.platform.web.ApiException;
-import com.acttub.actingapi.platform.web.CanonicalJsonResponse;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.http.ResponseEntity;
 
-class ReportControllerTest {
+class ReportServiceTest {
 
     private static final UUID USER_ID = UUID.fromString("10000000-0000-4000-8000-000000000011");
     private static final UUID PRACTICE_ID = UUID.fromString("20000000-0000-4000-8000-000000000012");
@@ -40,38 +32,31 @@ class ReportControllerTest {
             UUID.fromString("60000000-0000-4000-8000-000000000016"),
             UUID.fromString("70000000-0000-4000-8000-000000000017"));
 
-    private final ReportQueryStore queryStore = mock(ReportQueryStore.class);
-    private final AccessGate auth = mock(AccessGate.class);
+    private final ReportRepository reports = mock(ReportRepository.class);
     private final ReportSourceProvider reportSource = mock(ReportSourceProvider.class);
-    private final ReportEngine reportEngine = mock(ReportEngine.class);
-    private final ReportOperationService reportOperations = mock(ReportOperationService.class);
+    private final PracticeReportLedger reportOperations = mock(PracticeReportLedger.class);
     private final ReportOperationLedger syncOperations = mock(ReportOperationLedger.class);
-    private final CanonicalJsonResponse responses = mock(CanonicalJsonResponse.class);
-    private final HttpServletRequest request = mock(HttpServletRequest.class);
+    private final ReportEngine reportEngine = mock(ReportEngine.class);
+    private final ReportPlayback playback = mock(ReportPlayback.class);
     private final ObjectMapper mapper = new ObjectMapper();
 
-    private ReportController controller;
+    private ReportService service;
 
     @BeforeEach
     void setUp() {
-        controller = new ReportController(
-                queryStore,
-                Optional.empty(),
-                auth,
+        service = new ReportService(
+                reports,
                 reportSource,
-                reportEngine,
                 reportOperations,
                 syncOperations,
-                responses);
-        when(auth.consentedUser(request)).thenReturn(
-                new AuthenticatedUser(USER_ID, "report@test", UserStatus.ACTIVE));
+                reportEngine,
+                playback);
         when(reportSource.getOwnedReportSource(USER_ID, SESSION_ID)).thenReturn(source());
         when(syncOperations.requestId(any())).thenReturn(CLAIM.requestId());
         when(syncOperations.fingerprint(anyString(), any())).thenReturn("0".repeat(64));
         when(syncOperations.begin(any(), any(), any(), anyString(), anyString()))
                 .thenReturn(SyncOperationBegin.claimed(CLAIM));
         when(syncOperations.now()).thenReturn(Instant.parse("2026-08-12T00:00:00Z"));
-        when(responses.ok(any(), any())).thenReturn(ResponseEntity.ok(new byte[0]));
     }
 
     @Test
@@ -81,7 +66,7 @@ class ReportControllerTest {
                 """);
         when(reportSource.getPracticeReportForHandoff(HANDOFF_ID)).thenReturn(existing);
 
-        controller.create(new ReportReq(SESSION_ID), null, request);
+        service.create(USER_ID, SESSION_ID, null);
 
         verify(reportEngine, never()).generateReport(any(), any(), any(),
                 org.mockito.ArgumentMatchers.anyBoolean(), any(), any(), any());
@@ -99,7 +84,7 @@ class ReportControllerTest {
                 org.mockito.ArgumentMatchers.anyBoolean(), any(), any(), any()))
                 .thenThrow(new ReportParseError("bad report"));
 
-        assertThatThrownBy(() -> controller.create(new ReportReq(SESSION_ID), null, request))
+        assertThatThrownBy(() -> service.create(USER_ID, SESSION_ID, null))
                 .isInstanceOfSatisfying(ApiException.class, exception -> {
                     assertThat(exception.status()).isEqualTo(502);
                     assertThat(exception.getMessage()).isEqualTo("bad report");

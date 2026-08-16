@@ -16,13 +16,13 @@ import com.acttub.actingapi.coach.CoachDtos.PublicHandoff;
 import com.acttub.actingapi.platform.ledger.SyncOperationBegin;
 import com.acttub.actingapi.platform.ledger.SyncOperationClaim;
 import com.acttub.actingapi.platform.ledger.LeaseOwnershipException;
-import com.acttub.actingapi.report.OwnedReportSource;
-import com.acttub.actingapi.report.ReportDtos.AnalysisReport;
-import com.acttub.actingapi.report.ReportDtos.BlockedReport;
-import com.acttub.actingapi.report.ReportDtos.ExpressionReport;
-import com.acttub.actingapi.report.ReportEngine;
-import com.acttub.actingapi.report.ReportOperationService;
-import com.acttub.actingapi.report.ReportParseError;
+import com.acttub.actingapi.report.app.OwnedReportSource;
+import com.acttub.actingapi.report.adapter.web.ReportDtos.AnalysisReport;
+import com.acttub.actingapi.report.adapter.web.ReportDtos.BlockedReport;
+import com.acttub.actingapi.report.adapter.web.ReportDtos.ExpressionReport;
+import com.acttub.actingapi.report.app.ReportEngine;
+import com.acttub.actingapi.report.app.PracticeReportLedger;
+import com.acttub.actingapi.report.app.ReportParseError;
 import com.acttub.actingapi.platform.web.ApiException;
 import com.acttub.actingapi.platform.web.CanonicalJsonResponse;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -54,7 +54,7 @@ class CoachController {
     private final CoachSessionStore sessions;
     private final CoachEngine coach;
     private final ReportEngine reports;
-    private final ReportOperationService reportOperations;
+    private final PracticeReportLedger reportOperations;
     private final CoachOperationLedger operations;
     private final CanonicalJsonResponse responses;
     private final AccessGate auth;
@@ -67,7 +67,7 @@ class CoachController {
             CoachSessionStore sessions,
             CoachEngine coach,
             ReportEngine reports,
-            ReportOperationService reportOperations,
+            PracticeReportLedger reportOperations,
             CoachOperationLedger operations,
             CanonicalJsonResponse responses,
             AccessGate auth,

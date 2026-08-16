@@ -16,7 +16,7 @@ import com.acttub.actingapi.coach.CoachOperationLedger;
 import com.acttub.actingapi.platform.ledger.LeaseOwnershipException;
 import com.acttub.actingapi.platform.ledger.SyncOperationBegin;
 import com.acttub.actingapi.platform.ledger.SyncOperationClaim;
-import com.acttub.actingapi.report.ReportOperationLedger;
+import com.acttub.actingapi.report.app.ReportOperationLedger;
 import com.acttub.actingapi.platform.web.ApiException;
 import com.acttub.actingapi.platform.web.CanonicalJson;
 import com.fasterxml.jackson.core.JsonProcessingException;

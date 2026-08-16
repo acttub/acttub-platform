@@ -1,4 +1,4 @@
-package com.acttub.actingapi.report;
+package com.acttub.actingapi.report.app;
 
 import java.io.IOException;
 import java.io.InputStream;

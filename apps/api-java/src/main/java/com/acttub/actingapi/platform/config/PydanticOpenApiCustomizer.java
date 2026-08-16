@@ -9,8 +9,8 @@ import java.util.Set;
 
 import com.acttub.actingapi.coach.CoachDtos.CoachConfirmResponse;
 import com.acttub.actingapi.coach.CoachDtos.CoachTurnResponse;
-import com.acttub.actingapi.report.ReportDtos.BlockedReport;
-import com.acttub.actingapi.report.ReportDtos.ReportDetailResponse;
+import com.acttub.actingapi.report.adapter.web.ReportDtos.BlockedReport;
+import com.acttub.actingapi.report.adapter.web.ReportDtos.ReportDetailResponse;
 import io.swagger.v3.core.converter.ModelConverter;
 import io.swagger.v3.core.converter.ModelConverters;
 import io.swagger.v3.core.jackson.ModelResolver;

@@ -1,4 +1,4 @@
-package com.acttub.actingapi.report;
+package com.acttub.actingapi.report.app;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;

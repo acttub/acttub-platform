@@ -8,6 +8,7 @@ import java.util.UUID;
 
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.acttub.actingapi.community.schema.CommunityAnonymousAliasEntity;
+import com.acttub.actingapi.report.schema.PracticeReportEntity;
 import com.acttub.actingapi.community.schema.CommunityBlockEntity;
 import com.acttub.actingapi.community.schema.CommunityCategoryEntity;
 import com.acttub.actingapi.community.schema.CommunityCommentEntity;

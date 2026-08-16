@@ -8,7 +8,7 @@ import java.util.List;
 import java.util.UUID;
 
 import com.acttub.actingapi.platform.ledger.LeaseOwnershipException;
-import com.acttub.actingapi.report.OwnedReportSource;
+import com.acttub.actingapi.report.app.OwnedReportSource;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;

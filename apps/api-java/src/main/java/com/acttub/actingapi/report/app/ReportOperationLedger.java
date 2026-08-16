@@ -1,4 +1,4 @@
-package com.acttub.actingapi.report;
+package com.acttub.actingapi.report.app;
 
 import java.time.Instant;
 import java.util.UUID;

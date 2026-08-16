@@ -5,8 +5,8 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.UUID;
 
-import com.acttub.actingapi.report.OwnedReportSource;
-import com.acttub.actingapi.report.ReportSourceProvider;
+import com.acttub.actingapi.report.app.OwnedReportSource;
+import com.acttub.actingapi.report.app.ReportSourceProvider;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.PlatformTransactionManager;

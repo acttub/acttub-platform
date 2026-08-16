@@ -1,4 +1,4 @@
-package com.acttub.actingapi.report;
+package com.acttub.actingapi.report.app;
 
 public class ReportParseError extends RuntimeException {
     public ReportParseError(String message) {

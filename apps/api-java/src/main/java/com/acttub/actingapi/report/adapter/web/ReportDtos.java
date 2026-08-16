@@ -1,4 +1,4 @@
-package com.acttub.actingapi.report;
+package com.acttub.actingapi.report.adapter.web;
 
 import java.time.OffsetDateTime;
 import java.util.List;

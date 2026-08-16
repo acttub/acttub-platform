@@ -1,4 +1,4 @@
-package com.acttub.actingapi.report;
+package com.acttub.actingapi.report.app;
 
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
@@ -8,6 +8,8 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import com.acttub.actingapi.integration.llm.TextGenerator;
+import com.acttub.actingapi.report.domain.ExpressionReadiness;
+import com.acttub.actingapi.report.domain.ReportBranch;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -21,11 +23,6 @@ public class ReportEngine {
 
     private static final Pattern FENCED_JSON = Pattern.compile(
             "^```(?:json)?\\s*([\\s\\S]*?)\\s*```$", Pattern.CASE_INSENSITIVE);
-    private static final String BLOCKED_ANALYSIS_REASON =
-            "confirmed_analysis_handoff_required";
-    private static final String BLOCKED_EXPRESSION_REASON =
-            "confirmed_expression_handoff_required";
-
     private static final Set<String> ANALYSIS_FIELDS = Set.of(
             "report_type", "title", "actor_discovery", "line_meaning",
             "timing_reason", "target_effect", "next_take", "acting_caution",
@@ -84,11 +81,11 @@ public class ReportEngine {
         ObjectNode input = mapper.createObjectNode();
         input.set("video_summary", normalizeObservationPack(videoSummary));
         input.set("confirmed_handoff", confirmedHandoff.deepCopy());
-        if ("analysis".equals(reportType)) {
+        if (ReportBranch.isAnalysis(reportType)) {
             input.set("confirmation", confirmation);
             return input;
         }
-        if (!"expression".equals(reportType)) {
+        if (!ReportBranch.isExpression(reportType)) {
             throw new IllegalArgumentException("unsupported report type: " + reportType);
         }
         if (!expressionReady(confirmedHandoff)) {
@@ -132,11 +129,11 @@ public class ReportEngine {
         }
         ObjectNode candidate = (ObjectNode) parsed;
         try {
-            if ("blocked".equals(candidate.path("report_type").asText())) {
+            if (ReportBranch.isBlocked(candidate.path("report_type").asText())) {
                 validateBlocked(candidate);
                 return candidate;
             }
-            if ("analysis".equals(reportType)) {
+            if (ReportBranch.isAnalysis(reportType)) {
                 candidate.put("source_handoff_id", sourceHandoffId);
                 validateAnalysis(candidate);
                 return candidate;
@@ -183,28 +180,33 @@ public class ReportEngine {
         return pack;
     }
 
+    /** 핸드오프 JSON 에서 판정에 쓰는 셋을 꺼내 규칙에 넘긴다. 판정 자체는 domain 이 한다. */
     private static boolean expressionReady(JsonNode handoff) {
         JsonNode experiment = handoff.get("experiment");
-        JsonNode observed = handoff.get("observed_change");
-        return experiment != null
-                && experiment.isObject()
-                && experiment.path("tested").isBoolean()
-                && experiment.path("tested").booleanValue()
-                && nonBlankText(experiment.get("instruction"))
-                && nonBlankText(observed);
+        boolean hasExperiment = experiment != null && experiment.isObject();
+        Boolean tested = hasExperiment && experiment.path("tested").isBoolean()
+                ? experiment.path("tested").booleanValue()
+                : null;
+        return ExpressionReadiness.playable(
+                tested,
+                hasExperiment ? textOrNull(experiment.get("instruction")) : null,
+                textOrNull(handoff.get("observed_change")));
+    }
+
+    private static String textOrNull(JsonNode value) {
+        return value != null && value.isTextual() ? value.textValue() : null;
     }
 
     private void validateBlocked(ObjectNode report) {
         exactFields(report, Set.of("report_type", "reason"));
-        exactText(report, "report_type", "blocked");
+        exactText(report, "report_type", ReportBranch.BLOCKED);
         String reason = text(report.get("reason"), "reason");
-        require(Set.of(BLOCKED_ANALYSIS_REASON, BLOCKED_EXPRESSION_REASON).contains(reason),
-                "invalid blocked report reason");
+        require(ReportBranch.isKnownBlockedReason(reason), "invalid blocked report reason");
     }
 
     private void validateAnalysis(ObjectNode report) {
         exactFields(report, ANALYSIS_FIELDS);
-        exactText(report, "report_type", "analysis");
+        exactText(report, "report_type", ReportBranch.ANALYSIS);
         for (String field : List.of(
                 "title", "actor_discovery", "line_meaning", "timing_reason",
                 "target_effect", "acting_caution", "source_handoff_id")) {
@@ -220,7 +222,7 @@ public class ReportEngine {
 
     private void validateExpression(ObjectNode report) {
         exactFields(report, EXPRESSION_FIELDS);
-        exactText(report, "report_type", "expression");
+        exactText(report, "report_type", ReportBranch.EXPRESSION);
         for (String field : List.of(
                 "title", "blocked_point", "expression_core", "line_meaning",
                 "timing_reason", "playable_action", "observed_change", "next_take",
@@ -325,10 +327,6 @@ public class ReportEngine {
         return value.textValue();
     }
 
-    private static boolean nonBlankText(JsonNode value) {
-        return value != null && value.isTextual() && !value.textValue().strip().isEmpty();
-    }
-
     private static void exactText(ObjectNode object, String field, String expected) {
         require(expected.equals(text(object.get(field), field)), field + " must be " + expected);
     }
@@ -358,14 +356,8 @@ public class ReportEngine {
 
     /** 갈래별 차단 노트. 리포트를 만들지 않기로 한 자리에서 이 값을 그대로 쓴다. */
     public ObjectNode blockedReport(String reportType) {
-        return blocked("expression".equals(reportType)
-                ? BLOCKED_EXPRESSION_REASON
-                : BLOCKED_ANALYSIS_REASON);
-    }
-
-    private ObjectNode blocked(String reason) {
         return mapper.createObjectNode()
-                .put("report_type", "blocked")
-                .put("reason", reason);
+                .put("report_type", ReportBranch.BLOCKED)
+                .put("reason", ReportBranch.blockedReason(reportType));
     }
 }
