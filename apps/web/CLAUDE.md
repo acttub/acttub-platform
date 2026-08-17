@@ -58,4 +58,13 @@ src/
 
 ## 테스트
 
-`tests/*.test.mjs` — `node --test`. 필요한 테스트는 `tests/ts-module-loader.mjs` 커스텀 로더를 등록합니다. 이 로더는 확장자 없는 상대 경로 import를 `.ts`로 해석하고, TypeScript transpile로 parameter property를 포함한 문법을 변환합니다(`@/` 별칭 불가). 토큰 스토어는 Node 환경에서 메모리 모드로 동작해 그대로 테스트 가능합니다.
+`tests/*.test.mjs` — `node --test`. 필요한 테스트는 `tests/ts-module-loader.mjs` 커스텀 로더를 등록합니다. 이 로더는 `.ts`·`.tsx`를 TypeScript transpile로 변환하고(parameter property·JSX 포함), 확장자 없는 상대 경로를 `.ts`→`.tsx` 순으로 풀며, **`@/` 별칭을 `src/`로 해석합니다.** 토큰 스토어는 Node 환경에서 메모리 모드로 동작해 그대로 테스트 가능합니다.
+
+**훅을 테스트할 때**는 로더에 이어 `tests/dom-setup.mjs`를 import 하고(jsdom 전역), `react`의 `act`와 `react-dom/client`의 `createRoot`로 띄웁니다. `tests/use-analysis-progress.test.mjs`가 본보기이고, 훅을 부르는 컴포넌트는 `tests/fixtures/*.tsx`에 둡니다.
+
+- **컴포넌트 마크업 단언까지는 가지 않습니다**(testing-library를 두지 않았습니다). 마크업 단언은 리팩터마다 깨지고, 그것이 아래 정규식 테스트가 실패한 방식 그대로입니다.
+- `dom-setup.mjs`는 필요한 전역만 골라 심습니다. **jsdom `window`를 통째로 복사하지 마세요** — `performance`에서 `RangeError`가 나고 jsdom `FormData`가 React 19 form action을 깹니다.
+- `act`는 production 빌드에 없습니다. 셸이 `NODE_ENV=production`을 export 하고 있으면 훅 테스트만 죽습니다.
+- `next/*` 서브패스는 Node ESM이 해석하지 못합니다(`next`에 exports 필드가 없음). `next/navigation`을 쓰는 훅은 목이 필요합니다.
+
+**`readFileSync` + 정규식으로 소스 문자열을 검사하는 테스트를 새로 쓰지 마세요.** 실행할 수 없을 때만 쓰는 마지막 수단입니다. 남아 있는 것들이 왜 위험한지는 실물이 있습니다 — 서로 반대를 주장하는 두 테스트가 둘 다 통과했고(`[\s\S]*`가 900줄 떨어진 두 심볼을 이어 붙였습니다), 동작이 반대로 바뀐 커밋에서 빨간불이 켜지지 않았습니다.
