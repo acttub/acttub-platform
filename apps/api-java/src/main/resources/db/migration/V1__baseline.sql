@@ -24,6 +24,30 @@
 
 
 --
+-- Name: actor_memory_author_t; Type: TYPE; Schema: public; Owner: -
+--
+
+CREATE TYPE public.actor_memory_author_t AS ENUM (
+    'actor',
+    'agent'
+);
+
+
+--
+-- Name: actor_memory_field_t; Type: TYPE; Schema: public; Owner: -
+--
+
+CREATE TYPE public.actor_memory_field_t AS ENUM (
+    'gender',
+    'age',
+    'goal',
+    'blockage',
+    'speech_self',
+    'speech_actual'
+);
+
+
+--
 -- Name: close_reason_t; Type: TYPE; Schema: public; Owner: -
 --
 
@@ -99,7 +123,8 @@ CREATE TYPE public.operation_kind_t AS ENUM (
     'analyze',
     'coach_start',
     'coach_reply',
-    'report'
+    'report',
+    'memory_update'
 );
 
 
@@ -214,6 +239,25 @@ CREATE TYPE public.user_status_t AS ENUM (
 );
 
 
+
+
+--
+-- Name: actor_memory_entries; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.actor_memory_entries (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    user_id uuid NOT NULL,
+    field public.actor_memory_field_t NOT NULL,
+    value text NOT NULL,
+    written_by public.actor_memory_author_t NOT NULL,
+    source_practice_session_id uuid,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT ck_actor_memory_demographics_actor_only CHECK (((field <> ALL (ARRAY['gender'::public.actor_memory_field_t, 'age'::public.actor_memory_field_t])) OR (written_by = 'actor'::public.actor_memory_author_t))),
+    CONSTRAINT ck_actor_memory_value_length CHECK ((char_length(value) <= 1000)),
+    CONSTRAINT ck_actor_memory_value_not_blank CHECK ((btrim(value) <> ''::text))
+);
 
 
 --
@@ -667,6 +711,14 @@ ALTER TABLE ONLY public.coach_turns ALTER COLUMN id SET DEFAULT nextval('public.
 
 
 --
+-- Name: actor_memory_entries actor_memory_entries_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.actor_memory_entries
+    ADD CONSTRAINT actor_memory_entries_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: anomalies anomalies_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -875,6 +927,14 @@ ALTER TABLE ONLY public.upload_intents
 
 
 --
+-- Name: actor_memory_entries uq_actor_memory_user_field; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.actor_memory_entries
+    ADD CONSTRAINT uq_actor_memory_user_field UNIQUE (user_id, field);
+
+
+--
 -- Name: coach_turns uq_coach_turns_session_index; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -992,6 +1052,13 @@ ALTER TABLE ONLY public.users
 
 ALTER TABLE ONLY public.users
     ADD CONSTRAINT users_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: idx_actor_memory_user; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_actor_memory_user ON public.actor_memory_entries USING btree (user_id);
 
 
 --
@@ -1202,6 +1269,22 @@ CREATE INDEX idx_user_consents_current ON public.user_consents USING btree (user
 --
 
 CREATE INDEX idx_user_identities_user ON public.user_identities USING btree (user_id);
+
+
+--
+-- Name: actor_memory_entries actor_memory_entries_source_practice_session_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.actor_memory_entries
+    ADD CONSTRAINT actor_memory_entries_source_practice_session_id_fkey FOREIGN KEY (source_practice_session_id) REFERENCES public.practice_sessions(id) ON DELETE SET NULL;
+
+
+--
+-- Name: actor_memory_entries actor_memory_entries_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.actor_memory_entries
+    ADD CONSTRAINT actor_memory_entries_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
 
 
 --
