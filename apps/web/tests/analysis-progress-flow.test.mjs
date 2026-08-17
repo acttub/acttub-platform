@@ -36,16 +36,14 @@ const { formatVideoDuration } = await import(
   "../src/features/practice/practice-setup-flow.ts"
 );
 
-test("업로드와 장면 확인은 같은 진행 패널을 이어서 쓴다", () => {
+// 진행 패널이 무엇을 그리는지만 본다. 막대가 언제 얼마나 차는지는
+// use-analysis-progress.test.mjs 가 훅을 실제로 돌려서 본다.
+test("진행 패널은 같은 자리에 퍼센트와 막대를 그린다", () => {
   const workspace = readWeb("src/features/workspace/workspace-app.tsx");
   const panelStart = workspace.indexOf("function ProgressPanel");
   const panelEnd = workspace.indexOf("function IntroLine", panelStart);
   const panel = workspace.slice(panelStart, panelEnd);
 
-  assert.match(
-    workspace,
-    /mode === "uploading" \? \([\s\S]*?<ProgressPanel[\s\S]*?mode === "preparing" \? \([\s\S]*?<ProgressPanel/,
-  );
   assert.match(panel, /\{value\}%/);
   assert.match(panel, /style=\{\{ width: `\$\{width\}%` \}\}/);
   assert.doesNotMatch(panel, /style=\{\{ width: `\$\{value\}%` \}\}/);
@@ -53,10 +51,6 @@ test("업로드와 장면 확인은 같은 진행 패널을 이어서 쓴다", (
   assert.match(panel, /\$\{duration\} 영상 · 장면을 훑어보고 있어요…/);
   assert.match(panel, /role="progressbar"/);
   assert.doesNotMatch(panel, /animate-pulse|value === null/);
-  assert.match(
-    workspace,
-    /mode === "uploading"[\s\S]*pct=\{pct\}[\s\S]*phase="upload"[\s\S]*mode === "preparing"[\s\S]*pct=\{pct\}[\s\S]*phase="scan"/,
-  );
 });
 
 test("연습 주소를 갈아끼울 때 라우터 네비게이션을 타지 않는다", () => {
@@ -184,6 +178,8 @@ test("250초 동안 분석해도 진행률은 멈추지 않고 단조 증가한�
   assert.ok(values.at(-1) < ANALYSIS_PROGRESS_LIMIT);
 });
 
+// 경과 시간을 재고 목표 시간을 넘겼는지 가르는 일은 훅이 한다
+// (use-analysis-progress.test.mjs). 여기서는 넘겼을 때 바뀌는 문구만 본다.
 test("분석 목표 시간 60초를 넘기면 진행 중임을 다시 안내한다", () => {
   assert.equal(isAnalysisPastDeadline(ANALYSIS_DEADLINE_MS), false);
   assert.equal(isAnalysisPastDeadline(ANALYSIS_DEADLINE_MS + 1), true);
@@ -194,15 +190,7 @@ test("분석 목표 시간 60초를 넘기면 진행 중임을 다시 안내한�
   const panel = workspace.slice(panelStart, panelEnd);
   assert.match(
     panel,
-    /isAnalysisPastDeadline\(elapsedMs\)[\s\S]*평소보다 오래 걸리고 있어요 · 장면을 계속 살펴보고 있어요…/,
-  );
-  assert.match(
-    workspace,
-    /const elapsedMs = Date\.now\(\) - startedAt;[\s\S]*setAnalysisElapsedMs\(elapsedMs\)/,
-  );
-  assert.match(
-    workspace,
-    /phase="scan"[\s\S]{0,100}elapsedMs=\{analysisElapsedMs\}/,
+    /pastDeadline[\s\S]*평소보다 오래 걸리고 있어요 · 장면을 계속 살펴보고 있어요…/,
   );
 });
 
