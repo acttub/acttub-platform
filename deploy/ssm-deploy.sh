@@ -120,9 +120,11 @@ if ! command -v java >/dev/null 2>&1; then
   DEBIAN_FRONTEND=noninteractive apt-get install -y -qq openjdk-21-jre-headless
 fi
 install -d -o ubuntu -g ubuntu /svc/acttub/api-java
-aws s3 cp "s3://$DEPLOY_BUCKET/be-java/latest.jar" /svc/acttub/api-java/acting-api.jar
+# 프리픽스가 파이썬과 같은 be/ 인 이유는 upload-api-java.sh 주석 참조 — 인스턴스
+# role 에 프리픽스 특례를 만들지 않기 위해서다.
+aws s3 cp "s3://$DEPLOY_BUCKET/be/latest.jar" /svc/acttub/api-java/acting-api.jar
 chown ubuntu:ubuntu /svc/acttub/api-java/acting-api.jar
-aws s3 cp "s3://$DEPLOY_BUCKET/be-java/acttub-api-java.service" /etc/systemd/system/acttub-api-java.service
+aws s3 cp "s3://$DEPLOY_BUCKET/be/acttub-api-java.service" /etc/systemd/system/acttub-api-java.service
 # FastAPI 쪽과 같은 방식으로 릴리스를 얹는다 — 환경변수 이름을 그대로 유지했으므로
 # Sentry 에서 두 백엔드의 이벤트가 같은 커밋으로 묶인다. DSN·환경 이름은 사람이 관리하는
 # /etc/acttub/api.env 에 있고 배포 스크립트가 건드리지 않는다.
