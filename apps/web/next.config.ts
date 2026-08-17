@@ -8,8 +8,11 @@ import type { NextConfig } from "next";
 //
 // 주의: rewrites는 빌드 시점에 routes-manifest.json으로 직렬화된다. 런타임
 // 환경변수로는 바뀌지 않으므로 API_ORIGIN은 반드시 빌드할 때 주어야 한다.
+// 기본값은 로컬 Spring Boot(:8080)다. 이관 기간에는 FastAPI(:8000)를 가리켰고,
+// 파이썬이 사라진 뒤로도 8000이 남아 있으면 **로컬 개발 루프만** 조용히 죽는다 —
+// 배포는 API_ORIGIN을 명시로 주고 CI는 컴파일만 보므로 어디서도 안 걸린다.
 const apiOrigin =
-  process.env.API_ORIGIN ?? process.env.DEV_API_ORIGIN ?? "http://127.0.0.1:8000";
+  process.env.API_ORIGIN ?? process.env.DEV_API_ORIGIN ?? "http://127.0.0.1:8080";
 
 const nextConfig: NextConfig = {
   // EC2에 node_modules 없이 배포하기 위한 자립 실행 번들(.next/standalone).

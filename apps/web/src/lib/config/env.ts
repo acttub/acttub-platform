@@ -1,4 +1,4 @@
-// "" = same-origin. next dev는 next.config rewrites가 /v2/*를 8000으로 프록시하고,
+// "" = same-origin. next dev는 next.config rewrites가 /v2/*를 8080으로 프록시하고,
 // prod는 FastAPI가 정적 파일과 API를 같은 오리진에서 서빙하므로 기본값을 바꿀 일이 없다.
 // EC2 등 별도 오리진에 API를 둘 때만 NEXT_PUBLIC_API_BASE_URL을 설정한다.
 export const API_BASE_URL = (process.env.NEXT_PUBLIC_API_BASE_URL ?? "").replace(/\/$/, "");

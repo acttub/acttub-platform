@@ -8,13 +8,13 @@ Next.js 16 App Router + React 19 + TypeScript + Tailwind CSS v4.
 
 ## 서버 로직은 여기 두지 않습니다
 
-**API·서버 로직은 전부 `apps/api`(FastAPI) 소관입니다.** Route Handler·Server Actions·middleware로 백엔드 로직을 만들지 않습니다.
+**API·서버 로직은 전부 `apps/api`(Spring Boot) 소관입니다.** Route Handler·Server Actions·middleware로 백엔드 로직을 만들지 않습니다.
 
-이전에는 정적 export 빌드가 깨지는 것이 이 경계를 물리적으로 강제했지만, 그 모드를 걷어내면서 **이제 빌드는 통과합니다.** 통과한다고 해서 허용되는 것은 아닙니다 — 백엔드가 FastAPI와 Next 양쪽으로 흩어지면 인증·권한·계약 검증이 두 곳에 생깁니다. 서버에서 해야 할 일이 보이면 `apps/api`에 엔드포인트를 추가하고 `v2` 클라이언트로 호출하세요.
+이전에는 정적 export 빌드가 깨지는 것이 이 경계를 물리적으로 강제했지만, 그 모드를 걷어내면서 **이제 빌드는 통과합니다.** 통과한다고 해서 허용되는 것은 아닙니다 — 백엔드가 `apps/api`와 Next 양쪽으로 흩어지면 인증·권한·계약 검증이 두 곳에 생깁니다. 서버에서 해야 할 일이 보이면 `apps/api`에 엔드포인트를 추가하고 `v2` 클라이언트로 호출하세요.
 
 ## 명령어 (이 디렉토리 기준)
 
-- `pnpm dev` — 개발 서버(:3000). next.config rewrites가 `/v2/*`를 `http://127.0.0.1:8000`(acting-api)으로 프록시.
+- `pnpm dev` — 개발 서버(:3000). next.config rewrites가 `/v2/*`를 `http://127.0.0.1:8080`(Spring Boot)으로 프록시.
 - `pnpm lint` · `pnpm typecheck`
 - `pnpm test` — Node 테스트와 금지 카피 가드를 하나의 테스트 명령으로 실행.
 - `pnpm build` — 빌드 → `.next/standalone/`(실제 배포 산출물). 프록시 대상은 `API_ORIGIN`으로 주며, rewrites가 빌드 시점에 `routes-manifest.json`으로 굳으므로 런타임 환경변수로는 바뀌지 않습니다. **typecheck보다 먼저 돌려야 합니다** — `next-env.d.ts`·`.next/types`를 만들어야 tsc가 `*.png` import와 typedRoutes를 해석합니다.

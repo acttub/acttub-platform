@@ -179,8 +179,10 @@ FastAPI 의 응답을 본 것**이라 **자바가 무엇을 내는지는 아무�
   `deploy/upload-api-java.sh` 와 ssm 모드 `be-java` 도 이름을 유지한다 — **`-java` 는 이제
   디렉토리가 아니라 유닛을 따르고**, 스크립트 머리말에 그렇게 적었다.
 - 자바 소스의 **출처 서술**(`acting-agent/prompt.py` 같은 것)은 역사 기록이라 두었다. 다만
-  **따라 하면 없는 경로로 가는 지시문 넷**은 고쳤다 — `regen-fingerprint.sh` 의 사용법과 안내
-  둘 · `FlywayBaselineTest` 의 실패 메시지 · `SchemaFingerprint` javadoc.
+  **따라 하면 없는 경로로 가는 지시문**은 고쳤다 — `regen-fingerprint.sh` 의 사용법과 안내
+  둘 · `FlywayBaselineTest` 의 실패 메시지 · `SchemaFingerprint` javadoc · `FlywaySupport`
+  javadoc(§7에서 추가). **처음 셌을 때 "넷" 이라고 적었는데 다섯이었다** — 리뷰가 하나를 더
+  찾았고, 그것은 지운 스크립트를 *대안으로 제시하던* 문장이라 이름으로 검색해야만 걸린다.
 
 ## 6. 6단계로 넘기는 것
 
@@ -190,8 +192,68 @@ FastAPI 의 응답을 본 것**이라 **자바가 무엇을 내는지는 아무�
   `contract-harness-java` 도 함께 뺀다. **지금 CI 잡은 `web` · `api` 둘뿐이다.**
 - 🔥 **rename 후 재배포 확인.** 한 브랜치라 머지 직후가 그 시점이다. 특히 `fe` 잡의 방침
   게이트(발견 ②)와 웹 빌드의 `notices.json`(발견 ③)이 실제 러너에서 도는 것을 본다.
+- 🔥 **dev 에서 워커가 실제로 도는지 본다**(§7 첫 항목). 유닛의 `ANALYSIS_WORKER_ENABLED=false`
+  를 걷었지만, 지금 dev·운영이 도는 근거는 인스턴스에 손으로 만든 drop-in 이다 — 무엇이
+  이기고 있는지가 레포에 없다. 배포 뒤 `systemctl show acttub-api-java -p Environment` 와
+  `/etc/systemd/system/acttub-api-java.service.d/` 를 확인하고, 남은 drop-in 이 있으면
+  걷어 유닛 하나로 정리한다.
 - `apps/api/CLAUDE.md` 전면 재작성 — 지금 이 파일은 제목부터 `apps/api-java 지침`이고,
   사라진 `REQUIRE_ALEMBIC_CHECK` · `check-refs.py` · parity 테스트 다섯을 이름으로 가리킨다.
 - 루트 `CLAUDE.md` · `CONTEXT.md` 의 `apps/api-java` 서술, `docs/DEPLOY-*.md`,
   `apps/api/API.md` 드리프트.
 - **마지막에** `SPEC.md` · `spec/` 폐기.
+
+## 7. 리뷰가 잡은 것 — 지운 것을 *근거로 인용하던* 자리들
+
+커밋 뒤 리뷰가 여섯을 찾았고 다섯을 이 브랜치에서 고쳤다. 하나같이 **삭제된 대상의 이름이
+문장에 없어** 경로 검색으로는 안 걸리는 자리다.
+
+### 🔥 `deploy/systemd/acttub-api-java.service` — 워커가 꺼진 채로 뜬다
+
+가장 무겁다. 유닛이 `Environment=ANALYSIS_WORKER_ENABLED=false` 를 **`EnvironmentFile` 뒤에**
+박아 두어 `api.env` 가 덮지 못하게 해 두었고, 주석이 그 이유를 이렇게 적고 있었다 —
+*"전환 전까지 owner 는 파이썬이므로 여기서는 꺼 둔다"*. **이 커밋이 그 파이썬을 지웠다.**
+
+`upload-api-java.sh` 가 이 유닛을 올리고 `ssm-deploy.sh be-java` 가 **매 배포마다**
+`/etc/systemd/system/` 에 덮어쓰므로, 새로 세운 인스턴스(dev 재구축·재해복구·신규 운영 be)는
+`AnalysisWorkerScheduler` 와 `MemoryWorkerScheduler` 가 **둘 다 꺼진 채로** 뜬다(같은 프로퍼티를
+공유한다). `external_operations` 를 소비하는 프로세스가 하나도 없어 **업로드가 영영 분석되지
+않는데, `/health` 도 `NRestarts=0` 도 정상이라 배포는 초록으로 끝난다.**
+
+→ 그 줄을 지웠다. 두 스케줄러가 `matchIfMissing = true` 라 **없으면 켜진다**. 사고 대응으로
+워커만 끄고 싶으면 `api.env` 나 drop-in 으로 끈다 — 박아 두었던 동안은 그것조차 불가능했다.
+
+⚠ **지금 dev·운영이 도는 것은 이 파일 덕분이 아니다.** 관문 B 때 손으로 만든 drop-in 이
+인스턴스에 남아 있어서다(배포는 `sentry-release.conf` 만 지운다). **머지 뒤 dev 에서 워커가
+실제로 도는지 확인한다** — 유닛과 drop-in 중 무엇이 이기고 있는지가 지금은 인스턴스에만 있다.
+
+### `apps/web/next.config.ts` — 로컬 개발 루프만 조용히 죽는다
+
+`apiOrigin` 기본값이 `http://127.0.0.1:8000` — 이 커밋이 지운 FastAPI 의 포트다. 배포는
+`API_ORIGIN` 을 명시로 주고 CI 는 컴파일만 보므로 **어디서도 안 걸리고**, `pnpm dev` 만
+죽은 포트로 프록시한다. → `:8080`. `env.ts`·`apps/web/CLAUDE.md` 의 같은 서술도 함께.
+
+### `consent-docs/README.md` — 배포 게이트가 가리키는 절차가 실행 불가
+
+`deploy.yml` 의 방침 게이트가 막혔을 때 운영자에게 *"`…/consent-docs/README.md` 의 순서를
+따르세요"* 라고 안내한다. **이 커밋이 그 README 의 경로를 새로 가리키게 고쳤으면서 내용은 읽지
+않았다.** 절차 전체가 지워진 파이썬 CLI(`uv run python -m acting_api.consents publish`)였고,
+4단계에서 사라진 하네스 시드까지 인용하고 있었다. → 자바 기준으로 다시 썼다("배포가 곧
+발행" · manifest 를 고치고 배포한다 · 기동 실패로 드러나지 않으니 curl 로 확인한다).
+
+### `apps/api/CLAUDE.md` 의 `.env` 심링크 — 따라 하면 설정이 사라진다
+
+`ln -sfn ../api/acting-api/.env .env` 를 그대로 실행하면 **없는 곳을 가리키는 심링크가
+만들어지고**, `bootRun` 이 설정 없이 뜬다. 이 커밋이 그 대상 파일을 지웠으므로 이 줄만
+먼저 고쳤다. 나머지 전면 재작성은 6단계 몫이다.
+
+### 루트 `CLAUDE.md` · `docs/DEPLOY-VPC.md` 의 `V2__` 경로
+
+둘 다 `apps/api-java/src/main/resources/db/migration/` 을 가리킨다. **틀리게 따라가면 비싼
+유일한 경로**라(마이그레이션은 기동의 일부고 되돌리는 길이 새 마이그레이션뿐이다) 이 두 줄만
+먼저 고쳤다.
+
+📌 **공통점.** 다섯 다 "`apps/api` 라는 문자열" 로는 안 걸린다. 하나는 *스위치 값*이고, 하나는
+*포트 번호*, 셋은 *지운 것을 대안·절차·근거로 인용하는 산문*이다. 4단계가 남긴 교훈이
+그대로 반복됐다 — **장치를 지울 땐 그 장치를 인용한 산문까지, 지우는 대상의 이름으로 전수
+검색한다.** 이번에는 `ANALYSIS_WORKER_ENABLED` · `8000` · `uv run` 이 그 이름이었다.

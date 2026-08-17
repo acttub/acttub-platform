@@ -519,7 +519,7 @@ Secrets가 아니라 Variables에 넣는다.
 `be-java` 가 그것을 설치해 재시작하면 **앱이 뜨는 도중에** Flyway 가 `db/migration` 의 마이그레이션을
 적용한다. 별도 migrate 스텝이 없고, 파이썬은 인스턴스로 가지 않는다.
 
-🔥 **스키마를 바꾸려면 `apps/api-java/src/main/resources/db/migration/` 에 `V2__` 부터 새 파일을
+🔥 **스키마를 바꾸려면 `apps/api/src/main/resources/db/migration/` 에 `V2__` 부터 새 파일을
 만든다. `V1__baseline.sql` 은 동결이다** — 고치면 dev·운영은 멀쩡한데 신규 환경만
 `checksum mismatch` 로 죽는다(재해복구가 필요한 순간에야 드러난다).
 

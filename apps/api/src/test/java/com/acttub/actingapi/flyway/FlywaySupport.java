@@ -140,10 +140,11 @@ final class FlywaySupport {
      * 생성해 fingerprint · owner · ACL · extension · sequence · 시드 실제 값 7종이 전부 같음을
      * 확인했다({@code spec/M6-findings.md}).
      *
-     * <p>⚠ <b>실행 시점에 그것을 재확인하는 검사는 이제 없다.</b> 3단계 전에는
-     * {@code FlywayBaselineTest} 가 alembic 을 직접 돌려 대조했지만, alembic 이 더 이상 전진하지
-     * 않으므로 재확인할 대상도 없어져 그 테스트를 지웠다. 파이썬이 살아 있는 5단계 전까지
-     * 되돌아가 확인하려면 {@code scripts/dr-rehearsal.sh} 가 남아 있다.
+     * <p>⚠ <b>실행 시점에 그것을 재확인하는 검사는 이제 없고, 다시 만들 수도 없다.</b> 3단계
+     * 전에는 {@code FlywayBaselineTest} 가 alembic 을 직접 돌려 대조했지만 alembic 이 더 이상
+     * 전진하지 않아 그 테스트를 지웠고, 5단계가 파이썬 트리와 리허설 스크립트를 함께 지우면서
+     * <b>대조 상대 자체가 저장소에서 사라졌다.</b> 이 fixture 가 V1 이 만드는 스키마의 유일한
+     * 기준이고, 그것이 옳다는 근거는 위 두 문서에 적힌 <b>당시의 실측</b>뿐이다.
      */
     static void applyRawBaseline(String jdbcUrl) throws SQLException, IOException {
         try (Connection connection = connect(jdbcUrl); Statement st = connection.createStatement()) {

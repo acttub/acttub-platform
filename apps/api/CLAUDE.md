@@ -32,11 +32,14 @@ Java 21 + Spring Boot 3.4. FastAPI(`apps/api`) 전면 이관 작업(`SOMA-287`)�
 `DotenvEnvironmentPostProcessor`가 **작업 디렉토리의 `.env`를 읽어 환경변수처럼 씁니다.** 로컬 개발 편의용이고, 서버에서는 아무 일도 하지 않습니다 — 배포 아티팩트는 jar 하나뿐이라 `.env`가 없고, 설정은 systemd가 `EnvironmentFile=/etc/acttub/api.env`로 주입합니다.
 
 ```bash
-ln -sfn ../api/acting-api/.env .env    # 최초 1회. 파이썬과 같은 파일을 공유합니다
-./gradlew bootRun
+./gradlew bootRun     # 이 디렉토리의 .env 를 읽습니다
 ```
 
-**심링크로 두는 이유** — 파이썬 `config.py`가 `apps/api/acting-api/.env`를 경로 계산으로 읽습니다(옮기면 FastAPI 로컬 개발이 깨집니다). 파일을 복사하면 두 벌이 갈라지므로 한 곳만 둡니다. `.gitignore`에 있어 커밋되지 않습니다.
+🔁 **`.env` 는 이 디렉토리의 실제 파일입니다(`SOMA-403` 5단계).** 이관 기간에는
+`ln -sfn ../api/acting-api/.env .env` 로 파이썬과 한 파일을 공유했습니다 — 파이썬 `config.py`
+가 자기 경로에서 `.env` 를 읽어서 옮길 수 없었기 때문입니다. **그 파이썬이 사라졌으므로 심링크를
+걷고 실파일로 두었습니다.** 옛 명령을 그대로 따르면 없는 곳을 가리키는 심링크가 만들어져
+설정 없이 기동합니다. `.gitignore`에 있어 커밋되지 않습니다.
 
 - **이미 있는 값을 덮지 않습니다.** `addLast`로 넣으므로 실제 환경변수·시스템 프로퍼티·`application.yml`이 항상 이깁니다.
 - **테스트에서는 꺼집니다.** `build.gradle.kts`의 test 태스크가 `acttub.dotenv.enabled=false`를 박습니다. **이 가드를 지우면 로컬 실 API 키가 테스트로 새어들어**, 스텁을 쓰는 줄 알았던 테스트가 진짜 호출을 하게 됩니다.

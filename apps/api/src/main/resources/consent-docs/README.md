@@ -1,7 +1,10 @@
-# 동의 문서 발행 (consent_docs)
+# 동의 문서 발행 (consent-docs)
 
 앱(모바일·웹) 로그인 시 뜨는 동의 화면은 서버에 **발행된 동의 문서**를 `GET /v2/consents/documents`로 받아 렌더한다.
-현재 dev(`dev.acttub.com`)에는 발행된 문서가 0개라 동의가 수집되지 않는다. 아래 문서 3종을 발행해야 동의 화면이 뜬다.
+
+이 디렉토리가 **발행 정본**이다. 같은 자리의 `manifest.json`이 "지금 발행 중인 판"을 가리키고,
+백엔드가 기동할 때 그것을 읽어 아직 없는 문서를 DB에 심는다
+(`consent/adapter/ConsentDocumentPublisher`). 옛 버전 `.md`도 함께 실린다 — 빈 DB 재구축 경로가 쓴다.
 
 ## 문서
 | 파일 | type | version | title | required |
@@ -10,30 +13,34 @@
 | `privacy_v4.md` | `privacy` | `v4` | 개인정보처리방침 | ✅ |
 | `ai_analysis_v1.md` | `ai_analysis` | `v1` | AI 분석 동의 | ✅ |
 
-> `ConsentType` enum은 이 3종만 지원(`db/models.py`). 선택 동의(연구/홍보 등)는 enum + 마이그레이션 확장 필요.
+> `ConsentType` enum은 이 3종만 지원(`platform/schema/ConsentType.java` + PG enum `consent_type_t`).
+> 선택 동의(연구/홍보 등)는 enum + Flyway 마이그레이션 확장이 함께 필요하다.
 
-## 발행 (서버에서 실행, `acting-api/` 기준)
-DB는 `.env`의 `DATABASE_URL`을 사용한다.
+## 발행 — **배포가 곧 발행이다**
 
-```bash
-uv run python -m acting_api.consents publish \
-  --type terms --version v1 --title "이용약관" --file consent_docs/terms_v1.md --required
+🔁 **손으로 발행하는 CLI 는 없다(`SOMA-403` 5단계).** 이관 기간에는 파이썬
+`python -m acting_api.consents publish` 를 서버에서 돌렸지만, 그 파이썬은 사라졌다. 지금은
+백엔드가 기동할 때 `ConsentDocumentPublisher` 가 `manifest.json` 을 읽어 **아직 없는 판을
+자동으로 심는다.**
 
-uv run python -m acting_api.consents publish \
-  --type privacy --version v4 --title "개인정보처리방침" --file consent_docs/privacy_v4.md --required
+그래서 새 판을 내는 절차는 이렇다.
 
-uv run python -m acting_api.consents publish \
-  --type ai_analysis --version v1 --title "AI 분석 동의" --file consent_docs/ai_analysis_v1.md --required
-```
+1. `.md` 파일을 이 디렉토리에 추가한다 (옛 파일은 **지우지 않는다**)
+2. `manifest.json` 의 해당 항목을 새 파일·새 버전으로 고친다
+3. 배포한다 — **그 순간 발행된다**
 
-consent 테이블이 없으면 먼저: `uv run alembic upgrade head`
+파일 이름은 어디에도 하드코딩돼 있지 않다. `manifest.json` 이 유일한 목록이고, `.md` 전부가
+jar 에 실린다(`build.gradle.kts` 의 `processResources`).
 
 ## 검증
 ```bash
-uv run python -m acting_api.consents list          # 3개 뜨는지
 curl -s https://dev.acttub.com/v2/consents/documents   # documents 3개
 ```
 그 후 앱에서 소셜 로그인 → 동의 화면에 3종이 필수로 뜨는지 확인.
+
+⚠ **기동 실패로 드러나지 않는다.** `ConsentDocumentPublisher` 는 어떤 실패도 기동을 막지
+않고 로그에 남길 뿐이다(문서 시딩이 안 됐다고 앱이 안 뜨면 그 편이 더 나쁘다). manifest 가
+가리키는 파일이 없거나 형식이 틀려도 **배포는 초록으로 끝나므로** 위 curl 로 확인한다.
 
 ## ⚠️ 배포 전 필수
 - 자리표시자는 **MVP 기본값으로 채움**: 운영자 `Acttub`, 시행일 `2026-07-22`, 문의 `acttub0527@gmail.com`, 개인정보 보호책임자는 운영자로 통합, 기타 수탁자 행 삭제. 정식 법인명·대표자·시행일이 확정되면 값 갱신.
@@ -50,9 +57,7 @@ curl -s https://dev.acttub.com/v2/consents/documents   # documents 3개
 
 ## v4 발행 절차
 
-⚠️ **배포가 곧 발행이다.** 위 CLI 는 수동 발행용이고, 평소에는 **be 가 기동할 때
-`manifest.json` 을 읽어 아직 없는 문서를 자동으로 발행한다**(`app.py` 의 `lifespan` →
-`seed_consent_documents`). `manifest.json` 이 v4 를 가리키는 채로 **운영에 be 를 배포하면
+⚠️ **배포가 곧 발행이다.** `manifest.json` 이 v4 를 가리키는 채로 **운영에 be 를 배포하면
 그 순간 v4 가 발행되고 기존 동의자 175명 전원에게 동의 화면이 다시 뜬다.**
 
 그래서 순서는 이렇다:
@@ -70,10 +75,9 @@ curl -s https://dev.acttub.com/v2/consents/documents   # documents 3개
 > 동의자로 인정되지 않아 계측이 꺼진다. 재동의를 띄우는 개정에서는 어차피 전원이 다시
 > 동의하므로 그대로 둔다(`pending-consents.ts` 주석 참고).
 
-> **harness 시드도 같이 올려야 한다.** `tools/contract-harness/contract_harness/config.py` 의
-> `SEED_CONSENT_DOCUMENTS` 가 이 manifest 를 미러링한다. 어긋나면 앱이 새 버전을 추가로
-> 발행해 시드 유저의 필수 동의가 비고, contract-harness 전 시나리오가 403 으로 죽는다.
-> 이제 `test_seed_consent_documents_match_committed_manifest` 가 이 어긋남을 잡는다.
+> 🔁 **계약 하네스의 시드를 함께 올리라는 항목이 여기 있었다.** 하네스는 `SOMA-403`
+> 4단계에서 폐기됐고 그 시드도 함께 사라졌으므로 더 지킬 것이 없다
+> (spec/M6-harness-retirement.md).
 
 ⚠️ **순서가 뒤집히면 안 된다.** 방침이 발행되지 않은 상태에서 키를 먼저 넣으면 고지 없이
 이용 기록과 화면 녹화를 제3자에게 넘기게 된다. `deploy.yml` 의 `계측 키가 방침 고지보다
