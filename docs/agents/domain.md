@@ -4,9 +4,8 @@
 
 ## 배치: 단일 컨텍스트
 
-`apps/web`(Next.js) · `apps/api`(FastAPI) · `apps/api-java`(Spring Boot)로 앱은 여러 개지만,
-제품 도메인 용어(연습·씬·노트·리포트 등)는 셋이 **공유**합니다. `api-java`는 `api`의 이관
-대상이라 같은 도메인의 다른 구현일 뿐입니다. 그래서 용어집은 하나로 둡니다.
+`apps/web`(Next.js) · `apps/api`(Spring Boot) · `apps/mobile`(Expo)로 앱은 여러 개지만,
+제품 도메인 용어(연습·씬·노트·리포트 등)는 셋이 **공유**합니다. 그래서 용어집은 하나로 둡니다.
 
 ```
 /

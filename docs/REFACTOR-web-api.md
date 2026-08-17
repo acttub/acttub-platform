@@ -1,6 +1,12 @@
 # 웹·API 정리 계획 (2026-08-08 아키텍처 리뷰)
 
-`apps/web`과 `apps/api`를 훑어 나온 후보를 실행 단위로 쪼갠 문서다. **작업이 끝나면 `docs/archive/`로 옮긴다** (루트 `SPEC.md`와 같은 관례).
+`apps/web`과 `apps/api`를 훑어 나온 후보를 실행 단위로 쪼갠 문서다. **작업이 끝나면 `docs/archive/`로 옮긴다.**
+
+> 🔁 **남은 것은 2단계뿐이다 (2026-08-18 확인).**
+> - **1단계 — 완료.** `workspace-app.tsx`가 `buildPracticeSessionRequest`를 호출한다.
+> - **3·4단계 — 대상이 사라졌다.** 둘 다 파이썬(`acting_summary`·`acting_agent`·`acting_report`의 도달 불가 앱, 중복 리포트 헬퍼)이 대상이었고, `SOMA-403` 5단계가 파이썬 트리를 통째로 지웠다. 아래 서술은 그 시점의 기록이다.
+>
+> 2단계를 끝내면 이 문서를 `docs/archive/`로 옮긴다.
 
 리뷰는 코드를 직접 읽어서 했고, 아래 수치와 `파일:줄` 근거는 전부 확인한 것이다. 리뷰 시점의 HEAD는 `chore/SOMA-313-repo-cleanup`이다.
 
@@ -9,13 +15,13 @@
 두 가지만 썼다.
 
 - **deletion test** — 지웠을 때 복잡도가 사라지면(호출자 0) 지운다. 여러 호출부로 흩어지면 그 module은 값을 하고 있는 것이다.
-- **응답 바이트를 움직이는가** — `apps/api`는 Spring Boot 이관(`SOMA-287`)이 도는 중이고 FastAPI가 응답 계약의 정본이다. `spec/openapi.json`을 흔드는 변경은 `apps/web`의 생성 타입과 `tools/contract-harness` 판정을 동시에 흔든다. **움직이지 않는 것만 지금 한다.**
+- **응답 바이트를 움직이는가** — 응답 계약의 정본은 Spring Boot(`apps/api`)이고, 계약을 지키는 것은 그쪽 Java 테스트다. `apps/web`은 `apps/api/spec/openapi.json`으로 타입을 생성한다. **움직이지 않는 것만 지금 한다.**
 
 ---
 
 ## 실행 단계
 
-네 단계는 독립 PR이고, 1→2와 3→4는 앞 단계가 전제다. 1·2(web)와 3·4(api)는 서로 독립이라 병렬로 가도 된다. 각 PR은 CI 4잡(`web`·`api`·`contract-harness`·`api-java`)을 통과해야 하고, 브랜치·PR 제목에 SOMA 이슈 키가 필요하다.
+네 단계는 독립 PR이고, 1→2와 3→4는 앞 단계가 전제다. 1·2(web)와 3·4(api)는 서로 독립이라 병렬로 가도 된다. 각 PR은 CI 두 잡(`web`·`api`)을 통과해야 하고, 브랜치·PR 제목에 SOMA 이슈 키가 필요하다.
 
 ### 1단계 — 씬 텍스트 trim 누락 (실제 버그)
 
@@ -112,7 +118,11 @@ const { session } = await createPracticeSession({
 
 ## 이관이 끝난 뒤로 미룬 것
 
-전부 응답 바이트나 `openapi.json`을 움직이는 항목이다. `apps/api-java` 이관이 끝나기 전에는 건드리지 않는다.
+전부 응답 바이트나 `openapi.json`을 움직이는 항목이다.
+
+> 🔁 **아래 넷은 파이썬 구조에 대한 관찰이고, 그 트리는 사라졌다.** 살아남은 것은 **오류
+> 문자열이 통일돼 있지 않다**는 사실뿐이며(그 값들은 지금도 계약이다), 자바 기준의 현황은
+> `ErrorContractInventoryTest`가 센다.
 
 - **store의 ORM 행 22개 → DTO 전환.** `db/store.py`의 22개 메서드가 `User`·`PracticeSession` 같은 ORM 행을 그대로 돌려주고, 그 값이 라우터 payload 조립에 직접 물려 있다. (`db/community_store.py`는 이미 dataclass DTO를 돌려준다 — 같은 저장소 안의 모범 사례다.)
 - **오류 문자열 통일.** `detail="..."`가 93곳, 고유값 45개, snake_case와 산문이 섞여 있다(`practice_session_not_found` vs `practice session not found`). **이 값들은 살아있는 계약이다.** 통일은 파괴적 변경이므로 이관 후 계약 변경으로 처리한다. 지금 할 수 있는 안전한 조치는 값을 **한 글자도 바꾸지 않고** 상수 module 하나로 위치만 모으는 것까지다.

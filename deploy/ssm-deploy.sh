@@ -3,14 +3,15 @@
 #
 #   DEPLOY_BUCKET=acttub-deploy deploy/ssm-deploy.sh fe i-0abc...
 #
-# 모드는 넷이다.
+# 모드는 셋이다.
 #   fe                 Next standalone 설치 + 재시작
-#   be-java            jar 설치 + 재시작. dev 에서는 이것이 트래픽을 받는 백엔드다
-#   migrate            파이썬 소스 갱신 + alembic upgrade head. **서비스를 건드리지 않는다**
-#   be-java-baseline   DB 마다 최초 1회. flyway_schema_history 만 기록한다
+#   be-java            jar 설치 + 재시작. dev·운영 모두 이것이 트래픽을 받는 백엔드다.
+#                      **마이그레이션은 이 기동 안에서 Flyway 가 돌린다**
+#   be-java-baseline   스키마는 있는데 flyway_schema_history 가 없는 DB 마다 최초 1회
 #
-# FastAPI 서비스를 배포하는 모드는 없다. M5 컷오버(SOMA-394) 뒤로 백엔드는 자바이고,
-# 파이썬은 alembic 을 돌리기 위해 소스만 남는다.
+# 배포 아티팩트는 jar 하나뿐이다. 파이썬은 인스턴스로 가지 않고 스키마 정본은 Flyway 다
+# (SOMA-403 3단계). 파이썬 소스를 보내 alembic 을 돌리던 `migrate` 모드는 파이썬과 함께
+# 5단계에서 분기째 사라졌다.
 #
 # SSM Run Command로 실행하므로 인스턴스에 네트워크로 접근하지 않는다. AWS API에
 # "이 인스턴스에서 이걸 실행해줘"라고 시키면 인스턴스의 SSM Agent가 받아 실행한다.
@@ -18,17 +19,11 @@
 set -euo pipefail
 
 : "${DEPLOY_BUCKET:?배포 버킷 이름이 필요해요 (예: DEPLOY_BUCKET=acttub-deploy)}"
-SIDE="${1:?fe · be-java · migrate · be-java-baseline 중 하나를 지정해주세요}"
+SIDE="${1:?fe · be-java · be-java-baseline 중 하나를 지정해주세요}"
 INSTANCE="${2:?인스턴스 ID가 필요해요 (예: i-0abc...)}"
 
-# migrate 모드가 원격에서 실행할 스텝이다. dev·운영 모두 배포마다 돈다 — 운영만
-# 수동으로 두면 코드는 새것·DB는 구것인 창이 생기고, 2026-08-01에 그 창으로
-# 커뮤니티 API가 며칠간 500이었다(docs/DEPLOY-VPC.md 6-4).
-#
-# 인용된 heredoc(<<'EOS')이라 여기서는 아무것도 확장되지 않고, 원격에서 실행될 때
-# 비로소 평가된다. SSM Run Command는 systemd가 아니라서 EnvironmentFile을 타지
-# 않으므로, alembic env.py가 요구하는 DATABASE_URL을 api.env에서 직접 뽑아 넘긴다
-# (값에 선행 공백이나 따옴표가 있을 수 있어 걷어낸다).
+# 원격에서 실행될 스텝들이다. 인용된 heredoc(<<'EOS')이라 여기서는 아무것도 확장되지
+# 않고, 원격에서 실행될 때 비로소 평가된다.
 # 자바가 리슨을 시작할 때까지 기다리는 스텝. 원격에서 평가된다(인용 heredoc).
 #
 # 고정 sleep 은 경계에서 깨진다 — 2026-08-16 배포가 **기동 20.491초 vs sleep 20** 으로
@@ -39,6 +34,11 @@ INSTANCE="${2:?인스턴스 ID가 필요해요 (예: i-0abc...)}"
 # ⚠ 반복 횟수가 아니라 **경과 시간**으로 끊는다. `seq 1 45` + `sleep 2` 로 세면 curl 이
 # 매번 `--max-time 3` 까지 매달리는 최악에서 225초가 되어, 러너의 대기 상한을 넘긴
 # 채 "배포 실패" 로 읽힌다. 여기서 90초라고 하면 90초여야 그 계산이 성립한다.
+#
+# 🔥 **이 시간에 Flyway 마이그레이션이 포함된다**(SOMA-403 3단계). 지금은 적용할 것이 없어
+# 즉시 지나가지만, 큰 테이블에 인덱스를 거는 `V2__` 같은 것이 들어오면 여기서 걸린다.
+# 그때는 이 값과 아래 `be-java` 의 WAIT_SECONDS 를 **함께** 올린다 — 한쪽만 올리면 성공한
+# 배포가 빨간불이 된다.
 WAIT_HEALTHY_SECONDS=90
 WAIT_HEALTHY=$(cat <<EOS
 deadline=\$((SECONDS + $WAIT_HEALTHY_SECONDS))
@@ -52,13 +52,6 @@ done
 EOS
 )
 
-MIGRATE_STEP=$(cat <<'EOS'
-DB_URL=$(grep -m1 '^[[:space:]]*DATABASE_URL=' /etc/acttub/api.env | sed -E 's/^[[:space:]]*DATABASE_URL=//; s/^"//; s/"$//')
-[ -n "$DB_URL" ] || { echo "✗ /etc/acttub/api.env 에 DATABASE_URL이 없어요" >&2; exit 1; }
-echo "▶ alembic upgrade head"
-sudo -u ubuntu env DATABASE_URL="$DB_URL" bash -c 'cd /svc/acttub/acttub-platform/apps/api/acting-api && /usr/local/bin/uv run --no-dev alembic upgrade head'
-EOS
-)
 
 case "$SIDE" in
   fe)
@@ -79,34 +72,8 @@ EOF
 )
     SERVICE=acttub-web
     ;;
-  # 마이그레이션 전용. alembic 이 여전히 스키마 정본이라(/SPEC.md §5-5) 파이썬
-  # 소스가 인스턴스에 있어야 하지만, **FastAPI 서비스는 건드리지 않는다** — 이
-  # 분기에 systemctl 이 없는 것이 핵심이다.
-  #
-  # 그래서 8000 의 FastAPI 는 옛 코드를 메모리에 든 채 계속 떠 있고, 디스크의
-  # 소스만 최신이 된다. dev 롤백(API_ORIGIN 을 8000 으로 되돌리기)은 그 상태에서
-  # `systemctl restart acttub-api` 한 번이면 최신 코드로 뜬다.
-  #
-  # ⚠ uv sync 가 .venv 를 실행 중인 프로세스 밑에서 갈아끼운다. 그 프로세스가
-  # 나중에 lazy import 를 하면 깨질 수 있다. dev 는 트래픽도 워커도 자바가 가져가
-  # 실질 위험이 없고(FastAPI 는 롤백 대기), 운영은 guard 가 이 워크플로 자체를
-  # 막는다. 운영 컷오버 뒤에는 FastAPI 를 정지시키므로 이 창도 함께 닫힌다.
-  migrate)
-    REMOTE_SCRIPT=$(cat <<EOF
-set -euo pipefail
-aws s3 cp "s3://$DEPLOY_BUCKET/be/latest.tar.gz" /tmp/api.tar.gz
-rm -rf /svc/acttub/acttub-platform/apps/api
-tar xzf /tmp/api.tar.gz -C /svc/acttub/acttub-platform/apps
-chown -R ubuntu:ubuntu /svc/acttub
-# .venv는 반드시 ubuntu 소유여야 한다 — alembic 을 그 계정으로 돌린다.
-sudo -u ubuntu bash -c 'cd /svc/acttub/acttub-platform/apps/api && /usr/local/bin/uv sync'
-$MIGRATE_STEP
-EOF
-)
-    SERVICE="alembic 마이그레이션"
-    ;;
-  # 백엔드 배포. dev 는 프록시 대상이 8080 이라(관문 A, 2026-08-16) 이 분기가 곧
-  # 트래픽을 받는 프로세스를 갈아끼운다.
+  # 백엔드 배포. dev·운영 모두 프록시 대상이 8080 이라(운영 컷오버까지 완료,
+  # 2026-08-17) 이 분기가 곧 트래픽을 받는 프로세스를 갈아끼운다.
   be-java)
     # 아래 drop-in 이 이 값을 두 이름으로 넣는다. 한 곳에서 정하지 않으면 기본값을
     # 한쪽만 고쳐도 두 이름이 조용히 갈린다.
@@ -125,13 +92,13 @@ install -d -o ubuntu -g ubuntu /svc/acttub/api-java
 aws s3 cp "s3://$DEPLOY_BUCKET/be/latest.jar" /svc/acttub/api-java/acting-api.jar
 chown ubuntu:ubuntu /svc/acttub/api-java/acting-api.jar
 aws s3 cp "s3://$DEPLOY_BUCKET/be/acttub-api-java.service" /etc/systemd/system/acttub-api-java.service
-# FastAPI 쪽과 같은 방식으로 릴리스를 얹는다 — 환경변수 이름을 그대로 유지했으므로
-# Sentry 에서 두 백엔드의 이벤트가 같은 커밋으로 묶인다. DSN·환경 이름은 사람이 관리하는
+# 릴리스를 drop-in 으로 얹는다. DSN·환경 이름은 사람이 관리하는
 # /etc/acttub/api.env 에 있고 배포 스크립트가 건드리지 않는다.
 #
 # 같은 값을 RENDER_GIT_COMMIT 으로도 넣는다 — /health 의 commit 이 그것을 읽는다(SOMA-401).
-# 이름이 RENDER_* 인 것은 옛 호스팅의 잔재지만 파이썬 정본(app.py)이 그 이름을 읽으므로
-# 이관이 끝날 때까지 유지한다. 값을 안 주면 양쪽 다 "unknown" 으로, 종전 동작 그대로다.
+# 이름이 RENDER_* 인 것은 옛 호스팅의 잔재다. 지금 그 이름을 읽는 것은
+# HealthController 이고, 바꾸려면 거기와 여기를 함께 고쳐야 한다 — 한쪽만 고치면
+# /health 의 commit 이 조용히 "unknown" 이 된다. 값을 안 주면 둘 다 "unknown" 이다.
 #
 # ⚠ 파일 이름을 sentry-release.conf 에서 바꿨으므로 **옛 파일을 같은 스텝에서 지운다.**
 # systemd 는 drop-in 을 파일명 사전순으로 읽고 나중 것이 이기는데, 하필
@@ -146,11 +113,13 @@ systemctl daemon-reload
 systemctl enable acttub-api-java
 systemctl reset-failed acttub-api-java || true
 systemctl restart acttub-api-java
-# JVM 기동은 파이썬보다 느리다. Flyway 검증까지 끝나야 리슨을 시작한다.
+# JVM 기동은 느리다. **Flyway 마이그레이션과 스키마 검증까지 끝나야**
+# 리슨을 시작한다 — 마이그레이션이 곧 기동의 일부다(SOMA-403 3단계).
 $WAIT_HEALTHY
 systemctl is-active acttub-api-java
 # Type=simple 은 exec 직후 곧바로 active 이므로 is-active 만으로는 크래시루프도
-# 성공으로 읽힌다. 스키마 검증 실패·DB 접속 실패가 여기서 걸린다.
+# 성공으로 읽힌다. **마이그레이션 실패**·스키마 검증 실패·DB 접속 실패가 여기서 걸린다.
+# 별도 마이그레이션 스텝이 없는 지금, 이 두 줄이 스키마가 코드와 맞는다는 유일한 판정이다.
 test "\$(systemctl show -p NRestarts --value acttub-api-java)" = "0"
 # 위 루프가 타임아웃으로 끝났어도 여기까지 온다 — 배포 판정은 이 줄이 한다.
 curl -fsS --max-time 5 http://127.0.0.1:8080/health > /dev/null
@@ -158,7 +127,7 @@ EOF
 )
     SERVICE=acttub-api-java
     ;;
-  # alembic 이 만든 스키마에는 flyway_schema_history 가 없어 자바가 그대로는 뜨지
+  # 이관 전부터 있던 DB 에는 flyway_schema_history 가 없어 자바가 그대로는 뜨지
   # 않는다. DB 마다 최초 1회만 돌린다. 이 모드는 마이그레이션을 실행하지 않는다.
   be-java-baseline)
     REMOTE_SCRIPT=$(cat <<EOF
@@ -186,7 +155,7 @@ EOF
     SERVICE=acttub-api-java
     ;;
   *)
-    echo "✗ fe · be-java · migrate · be-java-baseline 중 하나여야 해요 (받은 값: $SIDE)" >&2
+    echo "✗ fe · be-java · be-java-baseline 중 하나여야 해요 (받은 값: $SIDE)" >&2
     exit 1
     ;;
 esac
@@ -213,8 +182,7 @@ echo "  command id: $CMD_ID"
 # 한다 — 작으면 실제로는 성공한 배포를 InProgress 인 채로 읽고 실패로 보고한다.
 case "$SIDE" in
   fe)               WAIT_SECONDS=180 ;;   # tar 풀기 + 재시작
-  migrate)          WAIT_SECONDS=900 ;;   # uv sync 는 콜드에서 몇 분 간다
-  be-java)          WAIT_SECONDS=420 ;;   # (JRE 설치) + jar 다운로드 + 기동 대기 90초
+  be-java)          WAIT_SECONDS=420 ;;   # (JRE 설치) + jar 다운로드 + 마이그레이션 포함 기동 대기 90초
   be-java-baseline) WAIT_SECONDS=600 ;;   # 재시작 둘 + 기동 대기 둘
   # 위 case 가 $SIDE 를 이미 걸러내므로 여기 닿을 일은 없다. 그래도 둔다 — 두 case 가 130 줄
   # 떨어져 있어 모드를 한쪽에만 추가하면 `set -u` 가 **send-command 로 배포를 이미 보낸 뒤**
@@ -270,8 +238,4 @@ if [ "$STATUS" != "Success" ]; then
   exit 1
 fi
 
-if [ "$SIDE" = migrate ]; then
-  echo "✔ $SERVICE 완료 (서비스는 재시작하지 않았습니다)"
-else
-  echo "✔ $SERVICE 배포 완료"
-fi
+echo "✔ $SERVICE 배포 완료"

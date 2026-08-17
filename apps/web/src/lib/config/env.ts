@@ -1,6 +1,6 @@
-// "" = same-origin. next dev는 next.config rewrites가 /v2/*를 8000으로 프록시하고,
-// prod는 FastAPI가 정적 파일과 API를 같은 오리진에서 서빙하므로 기본값을 바꿀 일이 없다.
-// EC2 등 별도 오리진에 API를 둘 때만 NEXT_PUBLIC_API_BASE_URL을 설정한다.
+// "" = same-origin. dev·운영 모두 이 Next 서버의 rewrites가 /v2/*를 백엔드로 넘기므로
+// 브라우저에는 오리진이 하나로 보이고, 기본값을 바꿀 일이 없다.
+// 별도 오리진에 API를 둘 때만 NEXT_PUBLIC_API_BASE_URL을 설정한다.
 export const API_BASE_URL = (process.env.NEXT_PUBLIC_API_BASE_URL ?? "").replace(/\/$/, "");
 
 // NEXT_PUBLIC_SITE_URL은 정식 사이트 URL이며 기본값은 https://acttub.com이다.

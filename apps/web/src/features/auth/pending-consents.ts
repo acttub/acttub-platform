@@ -6,7 +6,7 @@ const CONSENT_TYPES = new Set(["terms", "privacy", "ai_analysis"]);
 
 /**
  * 이 빌드가 "동의를 받았다"고 인정하는 개인정보처리방침 버전.
- * `consent_docs/manifest.json` 의 privacy 버전과 같아야 한다.
+ * `apps/api/src/main/resources/consent-docs/manifest.json` 의 privacy 버전과 같아야 한다.
  *
  * ⚠️ **방침을 개정해 새 버전을 발행하면 이 상수도 같이 올린다.** 안 올리면 옛 버전에만
  * 동의한 사람이 새 버전 동의자로 취급돼 계측 쿠키가 그대로 유지된다.
