@@ -1,4 +1,4 @@
-package com.acttub.actingapi.profile;
+package com.acttub.actingapi.profile.adapter.web;
 
 import java.util.UUID;
 

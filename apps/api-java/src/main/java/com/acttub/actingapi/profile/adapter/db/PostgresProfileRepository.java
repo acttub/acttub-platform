@@ -1,37 +1,39 @@
-package com.acttub.actingapi.profile;
+package com.acttub.actingapi.profile.adapter.db;
 
 import java.util.List;
-import java.util.Locale;
 import java.util.UUID;
 
-import com.acttub.actingapi.schema.UserStatus;
+import com.acttub.actingapi.profile.app.ProfileRepository;
+import com.acttub.actingapi.profile.domain.Profile;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.support.TransactionTemplate;
 
 @Repository
-class ProfileStore {
+class PostgresProfileRepository implements ProfileRepository {
     private final JdbcTemplate jdbc;
     private final TransactionTemplate transactions;
 
-    ProfileStore(JdbcTemplate jdbc, TransactionTemplate transactions) {
+    PostgresProfileRepository(JdbcTemplate jdbc, TransactionTemplate transactions) {
         this.jdbc = jdbc;
         this.transactions = transactions;
     }
 
-    ProfileRow find(UUID userId) {
-        List<ProfileRow> rows = jdbc.query(
+    @Override
+    public Profile find(UUID userId) {
+        List<Profile> rows = jdbc.query(
                 "SELECT id,email,nickname,status::text FROM users WHERE id=?",
-                (result, rowNumber) -> new ProfileRow(
+                (result, rowNumber) -> new Profile(
                         result.getObject("id", UUID.class),
                         result.getString("email"),
                         result.getString("nickname"),
-                        UserStatus.valueOf(result.getString("status").toUpperCase(Locale.ROOT))),
+                        result.getString("status")),
                 userId);
         return rows.isEmpty() ? null : rows.getFirst();
     }
 
-    ProfileRow updateNickname(UUID userId, String nickname) {
+    @Override
+    public Profile updateNickname(UUID userId, String nickname) {
         return transactions.execute(status -> {
             int updated = jdbc.update(
                     "UPDATE users SET nickname=?,updated_at=now() WHERE id=?",
@@ -49,9 +51,15 @@ class ProfileStore {
      * refresh 토큰을 끊는다. <b>상태 전환·파기·토큰 폐기를 한 트랜잭션에 묶는다</b> — 나누면
      * 중간 실패 시 "탈퇴했는데 refresh 는 살아 있는" 계정이 남는다.
      *
+     * <p>⚠ <b>여기서 {@code user_identities}·{@code refresh_tokens} 를 함께 치는 것은 의도한
+     * 것이다.</b> 그 두 테이블의 주인은 {@code auth} 지만, 파기의 원자성이 트랜잭션 하나를
+     * 요구한다 — 포트로 갈라 두 도메인이 나눠 부르면 그 경계가 깨진다. 도메인 사이의 결합은
+     * 아니다(이 파일은 {@code auth} 를 한 줄도 import 하지 않는다).
+     *
      * <p>이미 탈퇴한 계정이면 <b>최초 탈퇴 시각을 유지</b>한다. 파기는 멱등하게 다시 돈다.
      */
-    ProfileRow deactivate(UUID userId) {
+    @Override
+    public Profile deactivate(UUID userId) {
         return transactions.execute(status -> {
             List<String> current = jdbc.queryForList(
                     "SELECT status::text FROM users WHERE id=? FOR UPDATE",
@@ -78,8 +86,5 @@ class ProfileStore {
                     """, userId);
             return find(userId);
         });
-    }
-
-    record ProfileRow(UUID id, String email, String nickname, UserStatus status) {
     }
 }

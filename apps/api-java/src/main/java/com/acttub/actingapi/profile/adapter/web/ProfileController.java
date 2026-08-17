@@ -1,17 +1,16 @@
-package com.acttub.actingapi.profile;
-
-import com.acttub.actingapi.profile.ProfileDtos.MeResponse;
-import com.acttub.actingapi.profile.ProfileDtos.UpdateMeRequest;
+package com.acttub.actingapi.profile.adapter.web;
 
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.regex.Pattern;
 
 import com.acttub.actingapi.platform.security.AccessGate;
-import com.acttub.actingapi.platform.web.ApiException;
 import com.acttub.actingapi.platform.web.ApiValidationException;
-import com.acttub.actingapi.platform.web.PythonText;
+import com.acttub.actingapi.profile.adapter.web.ProfileDtos.MeResponse;
+import com.acttub.actingapi.profile.adapter.web.ProfileDtos.UpdateMeRequest;
+import com.acttub.actingapi.profile.app.ProfileService;
+import com.acttub.actingapi.profile.domain.Nickname;
+import com.acttub.actingapi.profile.domain.Profile;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -31,13 +30,11 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/v2/me")
 class ProfileController {
-    private static final Pattern INTERNAL_WHITESPACE = Pattern.compile("\\s+", Pattern.UNICODE_CHARACTER_CLASS);
-
-    private final ProfileStore store;
+    private final ProfileService profiles;
     private final AccessGate auth;
 
-    ProfileController(ProfileStore store, AccessGate auth) {
-        this.store = store;
+    ProfileController(ProfileService profiles, AccessGate auth) {
+        this.profiles = profiles;
         this.auth = auth;
     }
 
@@ -53,7 +50,7 @@ class ProfileController {
     @GetMapping
     MeResponse getMe(HttpServletRequest request) {
         var user = auth.rateLimitedUser(request);
-        return response(store.find(user.id()));
+        return response(profiles.find(user.id()));
     }
 
     @Operation(
@@ -74,13 +71,9 @@ class ProfileController {
     @PatchMapping
     MeResponse updateMe(@Valid @RequestBody UpdateMeRequest body, HttpServletRequest request) {
         var user = auth.rateLimitedUser(request);
-        validateLength(body.nickname());
-        String nickname = normalize(body.nickname());
-        ProfileStore.ProfileRow updated = store.updateNickname(user.id(), nickname);
-        if (updated == null) {
-            throw new ApiException(404, "user_not_found");
-        }
-        return response(updated);
+        Nickname nickname = new Nickname(body.nickname());
+        validate(nickname);
+        return response(profiles.updateNickname(user.id(), nickname.normalized()));
     }
 
     @Operation(
@@ -99,39 +92,36 @@ class ProfileController {
     @DeleteMapping
     ResponseEntity<Void> deleteMe(HttpServletRequest request) {
         var user = auth.rateLimitedUser(request);
-        if (store.deactivate(user.id()) == null) {
-            throw new ApiException(404, "user_not_found");
-        }
+        profiles.deactivate(user.id());
         return ResponseEntity.noContent().build();
     }
 
-    private static String normalize(String raw) {
-        // 앞뒤 제거는 PythonText 로 — String.strip() 은 NBSP 를 남긴다.
-        String collapsed = PythonText.strip(INTERNAL_WHITESPACE.matcher(raw).replaceAll(" "));
-        if (collapsed.isEmpty()) {
-            throw ApiValidationException.valueError(
-                    List.of("body", "nickname"),
-                    "Value error, nickname must not be blank",
-                    raw);
-        }
-        return collapsed;
-    }
-
-    private static void validateLength(String raw) {
-        int length = raw.codePointCount(0, raw.length());
-        if (length == 0) {
+    /**
+     * 422 본문의 모양이 곧 계약이라 이 판정은 요청을 받는 자리에 남는다. 무엇이 어긋났는지를
+     * 아는 것은 {@link Nickname} 이고, 그것을 pydantic 과 같은 형태로 옮기는 것이 여기다.
+     *
+     * <p>길이를 <b>원본</b>으로 재고 공백 접기를 그 뒤에 보는 순서가 원본과 같다.
+     */
+    private static void validate(Nickname nickname) {
+        if (nickname.tooShort()) {
             throw validationError(
                     "string_too_short",
                     "String should have at least 1 character",
-                    raw,
+                    nickname.raw(),
                     Map.of("min_length", 1));
         }
-        if (length > 20) {
+        if (nickname.tooLong()) {
             throw validationError(
                     "string_too_long",
                     "String should have at most 20 characters",
-                    raw,
-                    Map.of("max_length", 20));
+                    nickname.raw(),
+                    Map.of("max_length", Nickname.MAX_LENGTH));
+        }
+        if (nickname.blankAfterFolding()) {
+            throw ApiValidationException.valueError(
+                    List.of("body", "nickname"),
+                    "Value error, nickname must not be blank",
+                    nickname.raw());
         }
     }
 
@@ -149,14 +139,11 @@ class ProfileController {
         return new ApiValidationException(List.of(error));
     }
 
-    private static MeResponse response(ProfileStore.ProfileRow row) {
-        if (row == null) {
-            throw new ApiException(404, "user_not_found");
-        }
+    private static MeResponse response(Profile profile) {
         return new MeResponse(
-                row.id(),
-                row.email(),
-                row.nickname(),
-                row.status().dbValue());
+                profile.id(),
+                profile.email(),
+                profile.nickname(),
+                profile.status());
     }
 }

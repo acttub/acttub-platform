@@ -68,6 +68,9 @@ class PackageLayerTest {
             "coach", FOUR_LAYERS,
             "analysis", FOUR_LAYERS,
             "upload", FOUR_LAYERS,
+            // 프로필의 Schema Entity 는 `auth/schema/UserEntity` 다 — `users` 행을 만드는 쪽이
+            // 갖는다(SOMA-397 12단계). 프로필은 이미 있는 행을 고칠 뿐이라 층이 셋이다.
+            "profile", Set.of("domain", "app", "adapter"),
             // 배우 기억은 Schema Entity 가 없다 — `actor_memory_entries` 에 대응하는 `@Entity` 가
             // 애초에 만들어진 적이 없고(그래서 그 테이블만 `ddl-auto: validate` 밖에 있다),
             // 이사에서 빠뜨린 것이 아니다. 없는 층을 선언하면 규칙이 대상 0으로 초록이 된다.
