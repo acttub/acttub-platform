@@ -12,7 +12,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 
-import com.acttub.actingapi.auth.JwtService;
+import com.acttub.actingapi.auth.app.JwtService;
 import com.acttub.actingapi.integration.storage.ObjectStorage;
 import com.acttub.actingapi.report.adapter.db.ReportFixtures;
 import com.acttub.actingapi.integration.storage.StoredObjectMetadata;

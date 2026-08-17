@@ -10,9 +10,9 @@ import java.nio.file.Paths;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
-import com.acttub.actingapi.admin.AdminDtos.AdminCloseReasonCount;
-import com.acttub.actingapi.admin.AdminDtos.AdminFunnelStep;
-import com.acttub.actingapi.admin.AdminDtos.AdminStats;
+import com.acttub.actingapi.admin.app.AdminMetrics.AdminCloseReasonCount;
+import com.acttub.actingapi.admin.app.AdminMetrics.AdminFunnelStep;
+import com.acttub.actingapi.admin.app.AdminMetrics.AdminStats;
 import com.fasterxml.jackson.databind.BeanDescription;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;

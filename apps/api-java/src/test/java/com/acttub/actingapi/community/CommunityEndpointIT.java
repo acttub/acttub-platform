@@ -14,7 +14,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
-import com.acttub.actingapi.auth.JwtService;
+import com.acttub.actingapi.auth.app.JwtService;
 import com.acttub.actingapi.community.app.CommunityService;
 import com.acttub.actingapi.support.PostgresContainerSupport;
 import com.fasterxml.jackson.databind.JsonNode;

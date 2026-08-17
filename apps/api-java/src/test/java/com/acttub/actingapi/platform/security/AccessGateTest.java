@@ -27,20 +27,12 @@ class AuthDependenciesTest {
         };
         // 사용자를 어디서 읽어오는지 이 검사는 모른다 — 게이트가 auth 없이 선다는 것이
         // 세 갈래 분해의 실증이다 (SOMA-397 7단계).
-        AuthenticatedUsers users = new AuthenticatedUsers() {
-            @Override
-            public AuthenticatedUser find(UUID id) {
-                return user;
-            }
-
-            @Override
-            public boolean hasPendingConsents(UUID ignored) {
-                return true;
-            }
-        };
+        // 동의 게이트는 별개의 포트다 — 사용자를 소유한 쪽과 동의를 소유한 쪽이 다르고,
+        // 한 포트는 한 쪽만 구현할 수 있다 (SOMA-397 12단계).
+        PendingConsentGate consents = ignored -> true;
         HttpServletRequest request = null;
         FixedWindowRateLimiter limiter = new FixedWindowRateLimiter(() -> 1L);
-        AccessGate dependencies = new AccessGate(current, limiter, users);
+        AccessGate dependencies = new AccessGate(current, limiter, consents);
 
         assertThat(dependencies.optionalUser(request)).isNull();
         assertThat(dependencies.currentUser(request)).isEqualTo(user);

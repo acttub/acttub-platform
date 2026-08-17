@@ -24,7 +24,10 @@ import org.springframework.boot.autoconfigure.domain.EntityScan;
     "com.acttub.actingapi.practice.schema",
     "com.acttub.actingapi.community.schema",
     "com.acttub.actingapi.report.schema",
-    "com.acttub.actingapi.coach.schema"
+    "com.acttub.actingapi.coach.schema",
+    "com.acttub.actingapi.upload.schema",
+    "com.acttub.actingapi.auth.schema",
+    "com.acttub.actingapi.consent.schema"
 })
 public class ActingApiApplication {
 

@@ -3,6 +3,9 @@ package com.acttub.actingapi.auth;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.acttub.actingapi.auth.adapter.db.PostgresAuthRepository;
+import com.acttub.actingapi.auth.app.JwtService;
+
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.ServerSocket;
@@ -68,7 +71,7 @@ class FastApiInteropIT {
                     PostgresContainerSupport.POSTGRES.getUsername(),
                     PostgresContainerSupport.POSTGRES.getPassword());
             JdbcTemplate jdbc = new JdbcTemplate(dataSource);
-            AuthStore store = new AuthStore(
+            PostgresAuthRepository store = new PostgresAuthRepository(
                     jdbc,
                     new TransactionTemplate(new DataSourceTransactionManager(dataSource)));
             JwtService jwt = new JwtService(JWT_SECRET, Clock.systemUTC(), JSON);
