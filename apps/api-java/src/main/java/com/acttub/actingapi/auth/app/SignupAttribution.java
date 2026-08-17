@@ -1,4 +1,4 @@
-package com.acttub.actingapi.auth;
+package com.acttub.actingapi.auth.app;
 
 import java.time.Instant;
 import java.time.OffsetDateTime;
@@ -40,7 +40,7 @@ public record SignupAttribution(
         "utm_term", "referrer_host", "landing_path"
     };
 
-    static class Deserializer extends JsonDeserializer<SignupAttribution> {
+    public static class Deserializer extends JsonDeserializer<SignupAttribution> {
 
         @Override
         public SignupAttribution deserialize(JsonParser parser, DeserializationContext context)

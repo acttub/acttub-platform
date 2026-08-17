@@ -1,4 +1,5 @@
-package com.acttub.actingapi.auth;
+package com.acttub.actingapi.auth.adapter;
+import com.acttub.actingapi.auth.app.JwtService;
 import java.time.Clock; import com.fasterxml.jackson.databind.ObjectMapper; import org.springframework.beans.factory.annotation.Value; import org.springframework.context.annotation.*;
 @Configuration
 public class AuthConfiguration {

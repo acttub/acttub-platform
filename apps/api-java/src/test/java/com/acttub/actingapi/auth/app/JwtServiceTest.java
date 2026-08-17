@@ -1,4 +1,4 @@
-package com.acttub.actingapi.auth;
+package com.acttub.actingapi.auth.app;
 import static org.assertj.core.api.Assertions.*; import java.nio.charset.StandardCharsets; import java.time.*; import java.util.*; import com.fasterxml.jackson.databind.ObjectMapper; import org.junit.jupiter.api.*;
 class JwtServiceTest {private static final Instant NOW=Instant.parse("2026-08-08T00:00:00Z");private JwtService service(){return new JwtService("비ASCII-원문-secret",Clock.fixed(NOW,ZoneOffset.UTC),new ObjectMapper());}
     @Test void headerPaddingTtlAndHashMatchPythonContract()throws Exception{var token=service().issueAccessToken(UUID.randomUUID());String[] p=token.value().split("\\.");assertThat(new String(Base64.getUrlDecoder().decode(p[0]),StandardCharsets.UTF_8)).isEqualTo("{\"alg\":\"HS256\",\"typ\":\"JWT\"}");assertThat(token.value()).doesNotContain("=");assertThat(token.expiresAt()).isEqualTo(NOW.plusSeconds(1800));assertThat(JwtService.hashToken(token.value())).matches("[0-9a-f]{64}");}

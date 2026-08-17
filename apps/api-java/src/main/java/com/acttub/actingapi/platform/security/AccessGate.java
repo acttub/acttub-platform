@@ -14,15 +14,15 @@ public class AccessGate {
 
     private final CurrentUserService current;
     private final FixedWindowRateLimiter limiter;
-    private final AuthenticatedUsers users;
+    private final PendingConsentGate consents;
 
     public AccessGate(
             CurrentUserService current,
             FixedWindowRateLimiter limiter,
-            AuthenticatedUsers users) {
+            PendingConsentGate consents) {
         this.current = current;
         this.limiter = limiter;
-        this.users = users;
+        this.consents = consents;
     }
 
     public AuthenticatedUser currentUser(HttpServletRequest request) {
@@ -54,7 +54,7 @@ public class AccessGate {
             return user;
         }
         AuthenticatedUser user = rateLimitedUser(request);
-        if (users.hasPendingConsents(user.id())) {
+        if (consents.hasPending(user.id())) {
             throw new ApiException(403, "consent_required");
         }
         if (request != null) {

@@ -1,4 +1,5 @@
-package com.acttub.actingapi.auth;
+package com.acttub.actingapi.auth.adapter.web;
+import com.acttub.actingapi.auth.app.SignupAttribution;
 import java.time.Instant; import java.util.*; import com.acttub.actingapi.schema.*; import com.fasterxml.jackson.annotation.*; import com.fasterxml.jackson.databind.PropertyNamingStrategies; import com.fasterxml.jackson.databind.annotation.JsonNaming; import io.swagger.v3.oas.annotations.media.Schema; import jakarta.validation.constraints.NotNull;
 final class AuthDtos {private AuthDtos(){}
     @JsonIgnoreProperties(ignoreUnknown=true) record LoginRequest(@NotNull String provider,@NotNull @JsonProperty("id_token") String idToken,@Schema(nullable=true) @JsonProperty("signup_attribution") SignupAttribution signupAttribution){}

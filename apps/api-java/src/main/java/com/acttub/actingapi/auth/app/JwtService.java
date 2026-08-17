@@ -1,4 +1,4 @@
-package com.acttub.actingapi.auth;
+package com.acttub.actingapi.auth.app;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;

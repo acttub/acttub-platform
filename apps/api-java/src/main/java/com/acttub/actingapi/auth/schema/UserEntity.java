@@ -1,4 +1,5 @@
-package com.acttub.actingapi.schema;
+package com.acttub.actingapi.auth.schema;
+import com.acttub.actingapi.schema.*;
 
 import java.time.Instant;
 import java.util.UUID;

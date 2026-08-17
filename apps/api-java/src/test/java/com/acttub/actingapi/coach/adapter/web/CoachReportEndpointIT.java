@@ -16,7 +16,7 @@ import java.util.UUID;
 
 import com.acttub.actingapi.coach.adapter.db.CoachStorageFixtures;
 import com.acttub.actingapi.coach.domain.CoachTurnSnapshot;
-import com.acttub.actingapi.auth.JwtService;
+import com.acttub.actingapi.auth.app.JwtService;
 import com.acttub.actingapi.integration.llm.GeneratedText;
 import com.acttub.actingapi.integration.llm.TextGenerator;
 import com.acttub.actingapi.integration.llm.TokenUsage;
