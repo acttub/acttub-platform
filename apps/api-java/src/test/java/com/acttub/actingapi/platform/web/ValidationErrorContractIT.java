@@ -2,10 +2,12 @@ package com.acttub.actingapi.platform.web;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 
 import java.util.List;
 import java.util.UUID;
 
+import com.acttub.actingapi.feature.auth.app.JwtService;
 import com.acttub.actingapi.support.PostgresContainerSupport;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -19,6 +21,7 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.ResponseEntity;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
@@ -43,6 +46,44 @@ class ValidationErrorContractIT {
 
     @Autowired
     MockMvc mvc;
+
+    @Autowired
+    JdbcTemplate jdbc;
+
+    @Autowired
+    JwtService jwt;
+
+    /**
+     * 실물 엔드포인트가 내는 도메인 검증 오류. 위의 케이스들은 합성 컨트롤러로 <b>형상</b>만
+     * 보지만, 이것은 {@code MemoryController} 가 {@code ApiValidationException} 을 직접 만드는
+     * 자리다 — {@code ctx.error} 가 사유 문자열이 아니라 <b>빈 객체</b>인 것까지가 계약이다.
+     *
+     * <p><b>계약 하네스에서 옮겨 온 기대값이다</b>(SOMA-403 2단계). 인벤토리 검사기는
+     * {@code ApiException} 만 세므로 이 부류를 보지 못한다 — 그래서 손으로 옮긴다.
+     */
+    @Test
+    void blankMemoryValueIsAFieldScopedValueError() throws Exception {
+        UUID userId = UUID.randomUUID();
+        jdbc.update("INSERT INTO users(id,status) VALUES (?,'active'::user_status_t)", userId);
+
+        MvcResult result = mvc.perform(put("/v2/me/memory/{field}", "goal")
+                        .header("Authorization", "Bearer " + jwt.issueAccessToken(userId).value())
+                        .contentType("application/json")
+                        .content("{\"value\":\"   \"}"))
+                .andReturn();
+
+        assertThat(result.getResponse().getStatus()).isEqualTo(422);
+        assertThat(JSON.readTree(result.getResponse().getContentAsString()))
+                .isEqualTo(JSON.readTree("""
+                        {"detail":[{
+                          "type":"value_error",
+                          "loc":["body","value"],
+                          "msg":"Value error, value must not be blank",
+                          "input":"   ",
+                          "ctx":{"error":{}}
+                        }]}
+                        """));
+    }
 
     @Test
     void integralFloatIsAccepted() throws Exception {

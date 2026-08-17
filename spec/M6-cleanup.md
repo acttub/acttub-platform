@@ -38,6 +38,10 @@
 
 이 이관 없이 하네스만 지우면 계약 회귀를 잡을 장치가 사라진다.
 
+✅ **이관은 `SOMA-403` 2단계에서 끝났다 — 결과는 [spec/M6-contract-migration.md](M6-contract-migration.md)가
+정본이다.** 하네스를 지울 때 **함께 사라지는 테스트**(`HarnessContractProfileIT`·
+`FastApiInteropIT`)가 무엇을 덮고 있었는지도 그 문서 §발견 2에 있다.
+
 ### C. 문서 갱신
 
 | 파일 | 내용 |

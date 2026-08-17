@@ -47,6 +47,12 @@ ACL 28 · 테이블별 행수 25 · 시드 실제 값 3. extension 은 양쪽 �
 | C-2 | V1 에 주석 한 줄을 더한 사본으로 재기동 | 경로 B 는 `Migration checksum mismatch` 로 **죽고**, 경로 A 는 **산다** |
 | C-3 | `GRANT SELECT ON users TO PUBLIC` 을 준 DB | ACL 비교가 차이를 잡는다 |
 
+🔁 **2단계 리뷰에서 초록으로 끝나는 길이 하나 더 있었던 것이 드러나 고쳤다.** `diff_dbs` 는 늘
+조건문 안에서 불려 `set -e` 가 꺼지는데, **두 쿼리가 다 실패하면 양쪽 파일이 비어 diff 가
+성공**했다 — 같아야 정상인 자리에서는 `✔ 같음 (0줄)`, 달라야 정상인 자리에서는 `✔ 차이를
+잡는다` 가 떴다. 아무것도 비교하지 않은 판정이다. 지금은 쿼리 실패를 `2` 로 갈라 양쪽 다
+실패로 보고한다(함수만 떼어 실패를 주입해 확인).
+
 C-1 이 필요한 이유가 따로 있다. 시퀀스 PK 는 `anomalies`·`coach_turns` 둘뿐이고 나머지는
 uuid 다. **그 둘이 비어 있으면 "다음 id 가 비어 있다" 가 항상 참**이라 setval 이 통째로 빠져도
 초록이 뜬다. 그래서 리허설은 `users → upload_intents → practice_sessions → summaries` 체인을

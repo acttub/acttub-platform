@@ -74,12 +74,17 @@ su_psql() { PGPASSWORD=postgres psql -U postgres -v ON_ERROR_STOP=1 "$@"; }
 as_app()  { PGPASSWORD="$APP_PW" psql -U "$APP_ROLE" -v ON_ERROR_STOP=1 "$@"; }
 
 # ── 검사 --------------------------------------------------------------------
-# 두 DB 에 같은 쿼리를 던져 결과 파일을 만들고, 같으면 0 · 다르면 1 을 준다.
-# 판정은 부르는 쪽이 한다 — §C 는 **달라야** 정상인 자리라 반대 판정이 필요하다.
+# 두 DB 에 같은 쿼리를 던져 결과 파일을 만들고, 같으면 0 · 다르면 1 · **쿼리가 실패하면 2** 를
+# 준다. 판정은 부르는 쪽이 한다 — §C 는 **달라야** 정상인 자리라 반대 판정이 필요하다.
+#
+# ⚠ 쿼리 실패를 여기서 직접 잡는 이유: 이 함수는 늘 조건문 안에서 불려 `set -e` 가 꺼진다.
+#   두 쿼리가 다 실패하면 양쪽 파일이 비어 diff 가 성공하고 **"같음 (0줄)" 이라는 초록**이 뜬다.
+#   달라야 정상인 자리에서는 반대로 "차이를 잡는다" 가 뜬다. 어느 쪽이든 아무것도 비교하지
+#   않은 판정이라, 초록으로 끝나는 길이 하나 더 생긴다.
 diff_dbs() {
   local slug="$1" left_db="$2" right_db="$3" sql="$4"
-  su_psql -d "$left_db"  -tA -q -c "$sql" > "$OUT/$slug.$left_db.txt"
-  su_psql -d "$right_db" -tA -q -c "$sql" > "$OUT/$slug.$right_db.txt"
+  su_psql -d "$left_db"  -tA -q -c "$sql" > "$OUT/$slug.$left_db.txt"  || return 2
+  su_psql -d "$right_db" -tA -q -c "$sql" > "$OUT/$slug.$right_db.txt" || return 2
   diff -u "$OUT/$slug.$left_db.txt" "$OUT/$slug.$right_db.txt" > "$OUT/$slug.diff"
 }
 
@@ -87,28 +92,40 @@ slugify() { echo "$1" | tr ' /()·' '_____'; }
 
 # 같아야 정상인 비교.
 compare() {
-  local title="$1" left_db="$2" right_db="$3" sql="$4" slug
+  local title="$1" left_db="$2" right_db="$3" sql="$4" slug status=0
   slug="$(slugify "$title")"
-  if diff_dbs "$slug" "$left_db" "$right_db" "$sql"; then
-    printf '  ✔ %-24s 같음 (%s줄)\n' "$title" \
-      "$(wc -l < "$OUT/$slug.$left_db.txt" | tr -d ' ')"
-  else
-    printf '  ✘ %-24s 다름\n' "$title"
-    sed -n '1,40p' "$OUT/$slug.diff" | sed 's/^/      /'
-    FAILURES=$((FAILURES + 1))
-  fi
+  diff_dbs "$slug" "$left_db" "$right_db" "$sql" || status=$?
+  case "$status" in
+    0)
+      printf '  ✔ %-24s 같음 (%s줄)\n' "$title" \
+        "$(wc -l < "$OUT/$slug.$left_db.txt" | tr -d ' ')"
+      ;;
+    1)
+      printf '  ✘ %-24s 다름\n' "$title"
+      sed -n '1,40p' "$OUT/$slug.diff" | sed 's/^/      /'
+      FAILURES=$((FAILURES + 1))
+      ;;
+    *)
+      fail "$title — 쿼리가 실패했다 (비교하지 못했다)"
+      ;;
+  esac
 }
 
 # 달라야 정상인 비교 — 검사기가 차이를 실제로 잡는지 보는 자리다.
 expect_differs() {
-  local title="$1" left_db="$2" right_db="$3" sql="$4" slug
+  local title="$1" left_db="$2" right_db="$3" sql="$4" slug status=0
   slug="$(slugify "$title")"
-  if diff_dbs "$slug" "$left_db" "$right_db" "$sql"; then
-    fail "$title — 차이를 넣었는데 검사기가 같다고 한다"
-  else
-    printf '  ✔ %-24s 차이를 잡는다 (%s줄)\n' "$title" \
-      "$(grep -c '^[+-][^+-]' "$OUT/$slug.diff" || true)"
-  fi
+  diff_dbs "$slug" "$left_db" "$right_db" "$sql" || status=$?
+  case "$status" in
+    0) fail "$title — 차이를 넣었는데 검사기가 같다고 한다" ;;
+    1)
+      printf '  ✔ %-24s 차이를 잡는다 (%s줄)\n' "$title" \
+        "$(grep -c '^[+-][^+-]' "$OUT/$slug.diff" || true)"
+      ;;
+    # 쿼리 실패도 "다름" 으로 읽히는 자리다. 여기서 갈라내지 않으면 아무것도 비교하지 않은
+    # 실행이 반증 성공으로 기록된다.
+    *) fail "$title — 쿼리가 실패했다 (차이를 확인하지 못했다)" ;;
+  esac
 }
 
 # 비교 대상이 없는 관찰. 판정하지 않고 값을 남긴다.

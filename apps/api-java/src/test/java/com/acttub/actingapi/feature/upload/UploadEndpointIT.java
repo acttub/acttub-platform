@@ -28,6 +28,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
 @SpringBootTest(properties = "JWT_SECRET=test-secret")
 @AutoConfigureMockMvc
@@ -144,6 +145,62 @@ class UploadEndpointIT {
                 .isEqualTo("upload_intent_not_found");
     }
 
+    /**
+     * 발급 거절 둘. <b>거르는 순서가 응답을 가른다</b> — 영상이 아니면서 상한도 넘긴 요청은
+     * 413 이 아니라 415 다. 순서를 뒤집으면 이 요청 하나가 조용히 다른 코드를 받는다.
+     *
+     * <p>계약 하네스에서 옮겨 온 기대값이다(SOMA-403 2단계).
+     */
+    @Test
+    void intentCreationRejectsNonVideoBeforeItWeighsTheSize() throws Exception {
+        long overLimit = 100L * 1024 * 1024 + 1;
+
+        assertError(post("/v2/uploads/intents")
+                        .header("Authorization", bearer())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"mime_type\":\"audio/mpeg\",\"size_bytes\":12}"),
+                415, "unsupported_media_type");
+        assertError(post("/v2/uploads/intents")
+                        .header("Authorization", bearer())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"mime_type\":\"video/mp4\",\"size_bytes\":" + overLimit + "}"),
+                413, "upload_too_large");
+        assertError(post("/v2/uploads/intents")
+                        .header("Authorization", bearer())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"mime_type\":\"audio/mpeg\",\"size_bytes\":" + overLimit + "}"),
+                415, "unsupported_media_type");
+    }
+
+    /**
+     * 확정 거절 셋 — 올라온 것이 없다 · 크기가 어긋난다 · 발급 당시엔 통과했지만 지금 상한을
+     * 넘는다. 셋 다 200 과 같은 요청으로 도달하므로 응답 코드만이 차이를 알린다.
+     *
+     * <p>마지막 것은 <b>상한을 낮춘 배포 이전에 발급된 행</b>이다. 상한은 상수라 테스트가 바꿀
+     * 수 없지만 그 상황이 남긴 행은 만들 수 있다 — 하네스도 같은 방식으로 재현했다.
+     */
+    @Test
+    void completionRejectsMissingObjectSizeMismatchAndRowsOverTheCurrentLimit() throws Exception {
+        UUID missing = createIntent();
+        storage.metadata = null;
+        assertError(post("/v2/uploads/intents/{id}/complete", missing)
+                        .header("Authorization", bearer()),
+                409, "upload_not_found");
+
+        UUID mismatched = createIntent();
+        storage.metadata = new StoredObjectMetadata(13, "video/mp4", "\"etag-13\"");
+        assertError(post("/v2/uploads/intents/{id}/complete", mismatched)
+                        .header("Authorization", bearer()),
+                409, "upload_size_mismatch");
+
+        UUID oversized = createIntent();
+        jdbc.update("UPDATE upload_intents SET size_bytes=? WHERE id=?",
+                100L * 1024 * 1024 + 1, oversized);
+        assertError(post("/v2/uploads/intents/{id}/complete", oversized)
+                        .header("Authorization", bearer()),
+                413, "upload_too_large");
+    }
+
     @Test
     void uploadsUseTheExistingConsentedUserGate() throws Exception {
         UUID document = UUID.fromString("00000000-0000-4000-8000-000000000201");
@@ -205,6 +262,16 @@ class UploadEndpointIT {
 
     private String bearer() {
         return "Bearer " + jwt.issueAccessToken(USER_ID).value();
+    }
+
+    private void assertError(
+            MockHttpServletRequestBuilder request, int status, String detail) throws Exception {
+        var response = mvc.perform(request).andReturn().getResponse();
+        assertThat(response.getStatus())
+                .as("기대한 상태코드 %d, detail=%s", status, detail)
+                .isEqualTo(status);
+        assertThat(mapper.readTree(response.getContentAsString()))
+                .isEqualTo(mapper.readTree("{\"detail\":\"" + detail + "\"}"));
     }
 
     @TestConfiguration(proxyBeanMethods = false)
