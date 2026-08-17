@@ -1119,6 +1119,14 @@ function WorkspaceInner() {
               >
                 커뮤
               </Link>
+              {/* 코치가 나에 대해 적어 둔 것. 틀린 내용을 되돌릴 수 있는 유일한
+                  자리라 숨기지 않는다. */}
+              <Link
+                href="/memory"
+                className="flex h-8 items-center rounded-[10px] px-2 text-xs font-black text-[#8b95a1] transition hover:bg-[#f2f4f6] hover:text-[#4e5968]"
+              >
+                기억
+              </Link>
               {/* 앱은 폰에서 받는 것이라, 이 줄이 폰에서 숨는 상황(연습이 열려 있을 때)은
                   드로어 하단이 대신 받는다. 옆 항목들과 달리 파란 글씨인 이유는 갓 나온
                   길이라 눈에 걸려야 해서다. */}

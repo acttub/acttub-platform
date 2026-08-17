@@ -11,7 +11,7 @@ from acting_llm.openai_client import TokenUsage, generate_text
 from acting_llm.validate import validate_turn
 
 from acting_agent import prompt as prompt_mod
-from acting_agent.schema import CoachReply, CoachSession, CoachTurn
+from acting_agent.schema import CoachReply, CoachSession, CoachTurn, PriorContext
 
 log = logging.getLogger(__name__)
 
@@ -172,6 +172,7 @@ def start(
     sub_branch: str,
     transcripts: list[str] | tuple[str, ...] = (),
     analysis_handoff: dict | None = None,
+    prior: PriorContext | None = None,
     generate: GenerateText = generate_text,
 ) -> tuple[CoachSession, CoachReply]:
     session = CoachSession(
@@ -185,6 +186,7 @@ def start(
         blockage_detail=actor.blockage_detail or None,
         transcripts=list(transcripts),
         analysis_handoff=analysis_handoff,
+        prior=prior or PriorContext(),
     )
     latest = actor.blockage_detail or actor.goal
     response = _generate_validated(session, latest, generate=generate)

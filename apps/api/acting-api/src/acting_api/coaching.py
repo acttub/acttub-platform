@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from typing import Any, Literal
 from uuid import UUID, uuid4
 
@@ -8,9 +9,10 @@ from pydantic import BaseModel, ConfigDict, model_validator
 from starlette.concurrency import run_in_threadpool
 
 from acting_agent import engine as coach_engine
-from acting_agent.schema import CoachReplyReq, CoachStartReq
+from acting_agent.schema import CoachReplyReq, CoachStartReq, PriorContext
 from acting_agent.store import SessionWriteConflict
 from acting_api.db.store import LeaseOwnershipError
+from acting_api.memory_worker import should_update_memory
 from acting_api.sync_operations import (
     begin_sync_operation,
     fail_sync_operation_async,
@@ -115,6 +117,70 @@ def _resumed_coach_payload(session):
         "report": None,
         "turns": [turn.model_dump(mode="json") for turn in session.turns],
     }
+
+
+log = logging.getLogger(__name__)
+
+
+async def _build_prior_context(
+    store,
+    *,
+    user_id: UUID,
+    practice_session_id: UUID,
+) -> PriorContext:
+    """코치가 알고 시작해야 하는 지난 것들을 모은다.
+
+    모으다 실패해도 대화는 시작돼야 한다. 참고 사항이 없다고 연습을 못 하게 하는
+    것은 배우 입장에서 말이 안 된다 -- 그래서 실패하면 빈 것으로 시작한다.
+    """
+    try:
+        memory = {
+            item.field: item.value
+            for item in await run_in_threadpool(store.list_actor_memory, user_id)
+        }
+        context = await run_in_threadpool(
+            store.get_prior_practice_context,
+            user_id=user_id,
+            practice_session_id=practice_session_id,
+        )
+        return PriorContext(
+            memory=memory,
+            earlier_conversation=context.earlier_conversation,
+            pending_takes=context.pending_takes,
+        )
+    except Exception:
+        log.warning("지난 연습 참고 사항을 모으지 못했다: %s", practice_session_id, exc_info=True)
+        return PriorContext()
+
+
+async def _schedule_memory_update(
+    store,
+    *,
+    user_id: UUID,
+    practice_session_id: UUID,
+    confirmed: bool,
+) -> None:
+    """연습을 마쳤으면 기억 갱신을 뒤에서 돌도록 큐에 넣는다.
+
+    여기서 직접 갱신하지 않는 이유는 속도다 -- 이 응답은 이미 성적표를 만드느라
+    느린데 모델 호출을 하나 더 얹으면 배우가 그만큼 더 기다린다.
+
+    큐에 넣다 실패해도 삼킨다. 기억은 있으면 좋은 것이지, 없다고 방금 끝낸
+    연습을 실패로 돌려줄 일은 아니다.
+    """
+    if not confirmed:
+        return
+    try:
+        count = await run_in_threadpool(store.count_confirmed_practices, user_id)
+        if not should_update_memory(count):
+            return
+        await run_in_threadpool(
+            store.enqueue_memory_update,
+            user_id=user_id,
+            practice_session_id=practice_session_id,
+        )
+    except Exception:
+        log.warning("기억 갱신 예약에 실패했다: %s", practice_session_id, exc_info=True)
 
 
 def _generate_completed_turn_report(
@@ -264,6 +330,11 @@ def build_router(
                 detail="report already exists for practice session",
             )
         session_id = str(uuid4())
+        prior = await _build_prior_context(
+            store,
+            user_id=user.id,
+            practice_session_id=owned.practice_session_id,
+        )
         try:
             generation_kwargs = (
                 {"generate": coach_generate} if coach_generate is not None else {}
@@ -280,6 +351,7 @@ def build_router(
                 sub_branch=owned.sub_branch,
                 transcripts=owned.transcripts,
                 analysis_handoff=owned.analysis_handoff,
+                prior=prior,
                 **generation_kwargs,
             )
             branch = _branch_kind(owned.actor.blockage_kind)
@@ -515,6 +587,12 @@ def build_router(
                 if not saved:
                     await fail_sync_operation_async(store, claim, "report_already_exists")
                     raise HTTPException(status_code=409, detail="report already exists")
+            await _schedule_memory_update(
+                store,
+                user_id=user.id,
+                practice_session_id=source.practice_session_id,
+                confirmed=req.confirmed,
+            )
         except report_engine.ReportParseError as exc:
             await fail_sync_operation_async(store, claim, "report_parse_error")
             raise HTTPException(status_code=502, detail=str(exc)) from exc

@@ -57,17 +57,33 @@ class HarnessClock:
     def __init__(self) -> None:
         self._offset = 0.0
         self._base = 1_000_000.0
+        self._seen_windows: set[int] = set()
+        self._lock = threading.Lock()
 
     def monotonic(self) -> float:
-        return self._base + self._offset
+        with self._lock:
+            value = self._base + self._offset
+            self._seen_windows.add(int(value // 60))
+            return value
 
     def advance(self, seconds: float) -> float:
-        self._offset += float(seconds)
-        return self._offset
+        with self._lock:
+            self._offset += float(seconds)
+            return self._offset
+
+    def reset(self) -> None:
+        with self._lock:
+            self._offset = 0.0
+            # create_app 안의 RateLimiter는 이 clock callable만 보유한다. 이전에
+            # 관찰되지 않은 window로 옮기면 저장된 counter가 전부 무효가 된다.
+            self._base += 60.0
+            while int(self._base // 60) in self._seen_windows:
+                self._base += 60.0
 
     @property
     def offset(self) -> float:
-        return self._offset
+        with self._lock:
+            return self._offset
 
 
 # --- LLM -----------------------------------------------------------------

@@ -3,7 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 from datetime import datetime, timedelta, timezone
 from typing import Any
-from uuid import UUID, uuid4
+from hashlib import sha256
+from uuid import UUID, uuid4, uuid5
 
 from sqlalchemy import Engine, and_, delete, func, or_, select, text, update
 from sqlalchemy.dialects.postgresql import insert
@@ -16,6 +17,9 @@ from acting_agent.summary_schema import ActorMaterial as AgentActorMaterial
 from acting_agent.summary_schema import ObservationPack as AgentObservationPack
 from acting_api.db.engine import create_db_engine, create_session_factory
 from acting_api.db.models import (
+    ActorMemoryAuthor,
+    ActorMemoryEntry,
+    ActorMemoryField,
     Anomaly,
     CloseReason,
     CoachingHandoff,
@@ -129,6 +133,83 @@ class OwnedReportSource:
     analysis_handoff_json: dict[str, Any] | None
 
 
+def pending_takes_from_report(report_json) -> tuple[str, ...]:
+    """카드에서 "해보기로 했지만 아직 안 해본 것" 만 꺼낸다.
+
+    카드는 해본 것(`tested=True`)과 안 해본 것을 구분해 들고 있다. 다음 연습에서
+    물어볼 거리는 안 해본 것뿐이다 -- 이미 해본 걸 또 권하면 코치가 대화를 안 듣고
+    있다는 인상을 준다.
+
+    카드 모양이 달라져도 여기서 터지지 않는다. 대화 시작이 이것 때문에 실패하면
+    안 된다.
+    """
+    if not isinstance(report_json, dict):
+        return ()
+
+    takes: list[str] = []
+
+    def _add(value) -> None:
+        if isinstance(value, str) and value.strip():
+            takes.append(value.strip())
+
+    next_take = report_json.get("next_take")
+    if isinstance(next_take, dict) and next_take.get("tested") is False:
+        _add(next_take.get("direction"))
+
+    training = report_json.get("actor_training")
+    if isinstance(training, list):
+        for item in training:
+            if isinstance(item, dict) and item.get("tested") is False:
+                _add(item.get("title"))
+
+    return tuple(takes)
+
+
+@dataclass(frozen=True)
+class PriorPracticeContext:
+    """코치가 대화를 시작할 때 알고 있어야 하는 지난 것들.
+
+    셋 다 비어 있을 수 있다 -- 첫 연습이 그렇다.
+    """
+
+    earlier_conversation: str | None
+    pending_takes: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class MemoryUpdateMaterial:
+    """기억을 갱신할 때 읽는 연습 하나치 재료.
+
+    새로 쌓는 데이터가 없다 -- 배우가 적은 연습 기록, 영상에서 받아쓴 대사,
+    대화에서 배우가 한 말은 이미 남고 있던 것들이다.
+    """
+
+    user_id: UUID
+    practice_session_id: UUID
+    goal: str
+    blockage_kind: str
+    sub_branch: str
+    blockage_detail: str | None
+    transcripts: tuple[str, ...]
+    actor_messages: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class ActorMemoryItem:
+    """기억 한 칸.
+
+    `written_by_actor` 가 True 면 배우가 직접 쓰거나 고친 칸이다. 에이전트는
+    이 칸을 덮지 않는다. `source_practice_session_id` 는 배우가 "이게 왜 이렇게
+    적혔지" 를 확인할 근거다 -- 근거를 못 보면 고칠지 판단이 안 선다.
+    """
+
+    field: str
+    value: str
+    written_by_actor: bool
+    source_practice_session_id: UUID | None
+    updated_at: datetime
+
+
 @dataclass(frozen=True)
 class PracticeReportSummary:
     practice_session_id: UUID
@@ -165,6 +246,11 @@ class _SessionData:
     status: str
     close_reason: str
     turns: list[DbCoachTurn]
+
+
+# 같은 연습에서 기억 갱신 잡이 두 번 생기지 않도록 request_id 를 연습 id 로부터
+# 만들어낸다. 고정 네임스페이스라 재시도해도 같은 값이 나온다.
+_MEMORY_UPDATE_NAMESPACE = UUID("6f3a1d52-8c47-4b19-9e0a-2d5c7b41f8e3")
 
 
 class PostgresStore:
@@ -1438,6 +1524,295 @@ class PostgresStore:
                     .values(status=SessionStatus.CLOSED, updated_at=now)
                 )
             return replace(source, confirmed=confirmed)
+
+    # --- 배우 기억 (유저.md) ------------------------------------------------
+
+    def list_actor_memory(self, user_id: UUID) -> list[ActorMemoryItem]:
+        """한 배우의 기억 칸을 전부 읽는다.
+
+        프롬프트를 만들 때도, 배우에게 보여줄 때도 이걸 쓴다. 빈 칸은 행이
+        없는 것이므로 6개보다 적게 돌아올 수 있다.
+        """
+        with self._session_factory() as db:
+            rows = db.scalars(
+                select(ActorMemoryEntry)
+                .where(ActorMemoryEntry.user_id == user_id)
+                .order_by(ActorMemoryEntry.field)
+            ).all()
+            return [
+                ActorMemoryItem(
+                    field=row.field.value,
+                    value=row.value,
+                    written_by_actor=row.written_by is ActorMemoryAuthor.ACTOR,
+                    source_practice_session_id=row.source_practice_session_id,
+                    updated_at=row.updated_at,
+                )
+                for row in rows
+            ]
+
+    def get_memory_update_material(
+        self, *, practice_session_id: UUID
+    ) -> MemoryUpdateMaterial | None:
+        """기억 갱신 잡이 읽을 재료를 모은다.
+
+        배우가 한 말만 담는다 -- 코치가 한 말까지 넣으면 코치가 제안한 표현이
+        배우 본인의 말로 굳어 기억에 남는다.
+        """
+        with self._session_factory() as db:
+            session = db.get(PracticeSession, practice_session_id)
+            if session is None or session.hidden_at is not None:
+                return None
+            transcripts = tuple(
+                db.scalars(
+                    select(Transcript.text)
+                    .where(Transcript.session_id == practice_session_id)
+                    .order_by(Transcript.ord)
+                ).all()
+            )
+            actor_messages = tuple(
+                db.scalars(
+                    select(DbCoachTurn.text)
+                    .join(
+                        DbCoachSession,
+                        DbCoachTurn.session_id == DbCoachSession.id,
+                    )
+                    .where(
+                        DbCoachSession.practice_session_id == practice_session_id,
+                        DbCoachTurn.role == TurnRole.ACTOR,
+                    )
+                    .order_by(DbCoachTurn.turn_index)
+                ).all()
+            )
+            return MemoryUpdateMaterial(
+                user_id=session.user_id,
+                practice_session_id=practice_session_id,
+                goal=session.goal,
+                blockage_kind=session.blockage_kind,
+                sub_branch=session.sub_branch,
+                blockage_detail=session.blockage_detail,
+                transcripts=transcripts,
+                actor_messages=actor_messages,
+            )
+
+    def get_prior_practice_context(
+        self, *, user_id: UUID, practice_session_id: UUID
+    ) -> PriorPracticeContext:
+        """같은 연습의 지난 대화와, 지난 연습에서 아직 안 해본 것을 모은다."""
+        with self._session_factory() as db:
+            earlier = db.scalar(
+                select(DbCoachSession.conversation_summary)
+                .join(
+                    PracticeSession,
+                    DbCoachSession.practice_session_id == PracticeSession.id,
+                )
+                .where(
+                    DbCoachSession.practice_session_id == practice_session_id,
+                    DbCoachSession.status == SessionStatus.CLOSED,
+                    PracticeSession.user_id == user_id,
+                )
+                .order_by(DbCoachSession.created_at.desc())
+                .limit(1)
+            )
+            # 가장 최근에 나온 카드. 이번 연습 것도 포함한다 -- 같은 연습을 다시
+            # 열었다면 그때 만든 카드가 바로 "지난번에 해보기로 한 것" 이다.
+            # 새 연습이면 자연히 지난 연습 카드가 가장 최근이 된다.
+            report_json = db.scalar(
+                select(DbPracticeReport.report_json)
+                .join(
+                    PracticeSession,
+                    DbPracticeReport.practice_session_id == PracticeSession.id,
+                )
+                .where(
+                    PracticeSession.user_id == user_id,
+                    PracticeSession.hidden_at.is_(None),
+                )
+                .order_by(DbPracticeReport.created_at.desc())
+                .limit(1)
+            )
+        return PriorPracticeContext(
+            earlier_conversation=(earlier or "").strip() or None,
+            pending_takes=pending_takes_from_report(report_json),
+        )
+
+    def count_confirmed_practices(self, user_id: UUID) -> int:
+        """배우가 마무리까지 간 연습이 몇 번인지.
+
+        기억을 매번 갱신하면 한 번의 이상한 대화가 곧장 반영되고, 너무 드물게
+        하면 효과를 볼 때까지 오래 걸린다. 첫 연습에는 바로 채우고 그 뒤로는
+        몇 번에 한 번만 도는데, 그 판정에 쓰는 값이다.
+        """
+        with self._session_factory() as db:
+            return int(
+                db.scalar(
+                    select(func.count())
+                    .select_from(HandoffConfirmation)
+                    .join(
+                        CoachingHandoff,
+                        HandoffConfirmation.coaching_handoff_id == CoachingHandoff.id,
+                    )
+                    .join(
+                        DbCoachSession,
+                        CoachingHandoff.coach_session_id == DbCoachSession.id,
+                    )
+                    .join(
+                        PracticeSession,
+                        DbCoachSession.practice_session_id == PracticeSession.id,
+                    )
+                    .where(
+                        PracticeSession.user_id == user_id,
+                        HandoffConfirmation.confirmed.is_(True),
+                    )
+                )
+                or 0
+            )
+
+    def enqueue_memory_update(
+        self,
+        *,
+        user_id: UUID,
+        practice_session_id: UUID,
+    ) -> bool:
+        """기억 갱신을 뒤에서 돌도록 큐에 넣는다.
+
+        request_id 를 연습에서 만들어내므로 같은 연습으로 두 번 들어와도 잡은
+        하나다. 이미 있으면 False 를 돌려준다 -- 연습 마무리는 재시도될 수 있고,
+        그때마다 갱신을 다시 돌리면 모델 호출만 늘어난다.
+        """
+        request_id = uuid5(_MEMORY_UPDATE_NAMESPACE, str(practice_session_id))
+        fingerprint = sha256(f"memory_update:{practice_session_id}".encode()).hexdigest()
+        with self._session_factory.begin() as db:
+            inserted = db.scalar(
+                insert(ExternalOperation)
+                .values(
+                    id=uuid4(),
+                    session_id=practice_session_id,
+                    user_id=user_id,
+                    request_id=request_id,
+                    kind=OperationKind.MEMORY_UPDATE,
+                    request_fingerprint=fingerprint,
+                )
+                .on_conflict_do_nothing(
+                    index_elements=[
+                        ExternalOperation.user_id,
+                        ExternalOperation.request_id,
+                    ]
+                )
+                .returning(ExternalOperation.id)
+            )
+            return inserted is not None
+
+    def write_actor_memory_as_actor(
+        self,
+        *,
+        user_id: UUID,
+        field: ActorMemoryField,
+        value: str,
+        now: datetime | None = None,
+    ) -> ActorMemoryItem:
+        """배우가 직접 쓰거나 고친다. 항상 이긴다."""
+        return self._upsert_actor_memory(
+            user_id=user_id,
+            field=field,
+            value=value,
+            author=ActorMemoryAuthor.ACTOR,
+            source_practice_session_id=None,
+            now=now,
+        )
+
+    def write_actor_memory_as_agent(
+        self,
+        *,
+        user_id: UUID,
+        field: ActorMemoryField,
+        value: str,
+        source_practice_session_id: UUID,
+        now: datetime | None = None,
+    ) -> ActorMemoryItem | None:
+        """에이전트가 갱신한다. 배우가 손댄 칸은 건드리지 않는다.
+
+        건너뛴 경우 None 을 돌려준다 -- 호출하는 쪽이 "덮어썼다" 고 착각하지
+        않게 하려는 것이다. 성별·나이는 DB 제약이 막으므로 여기서 미리 걸러
+        불필요한 예외를 만들지 않는다.
+        """
+        if field in (ActorMemoryField.GENDER, ActorMemoryField.AGE):
+            return None
+        return self._upsert_actor_memory(
+            user_id=user_id,
+            field=field,
+            value=value,
+            author=ActorMemoryAuthor.AGENT,
+            source_practice_session_id=source_practice_session_id,
+            now=now,
+        )
+
+    def _upsert_actor_memory(
+        self,
+        *,
+        user_id: UUID,
+        field: ActorMemoryField,
+        value: str,
+        author: ActorMemoryAuthor,
+        source_practice_session_id: UUID | None,
+        now: datetime | None,
+    ) -> ActorMemoryItem | None:
+        """한 칸을 넣거나 고친다.
+
+        에이전트 갱신은 `written_by = 'actor'` 인 행을 건너뛴다. 읽고 나서
+        판단하면 그 사이 배우가 고친 것을 덮을 수 있어, 조건을 UPDATE 문 안에
+        둬서 한 번의 문장으로 끝낸다.
+        """
+        stamp = now or datetime.now(timezone.utc)
+        statement = (
+            insert(ActorMemoryEntry)
+            .values(
+                user_id=user_id,
+                field=field,
+                value=value,
+                written_by=author,
+                source_practice_session_id=source_practice_session_id,
+                created_at=stamp,
+                updated_at=stamp,
+            )
+            .on_conflict_do_update(
+                constraint="uq_actor_memory_user_field",
+                set_={
+                    "value": value,
+                    "written_by": author,
+                    "source_practice_session_id": source_practice_session_id,
+                    "updated_at": stamp,
+                },
+                where=(
+                    text("true")
+                    if author is ActorMemoryAuthor.ACTOR
+                    else ActorMemoryEntry.written_by != ActorMemoryAuthor.ACTOR.value
+                ),
+            )
+            .returning(ActorMemoryEntry)
+        )
+        with self._session_factory() as db:
+            row = db.scalars(statement).first()
+            db.commit()
+            if row is None:
+                return None
+            return ActorMemoryItem(
+                field=row.field.value,
+                value=row.value,
+                written_by_actor=row.written_by is ActorMemoryAuthor.ACTOR,
+                source_practice_session_id=row.source_practice_session_id,
+                updated_at=row.updated_at,
+            )
+
+    def delete_actor_memory(
+        self, *, user_id: UUID, field: ActorMemoryField | None = None
+    ) -> int:
+        """배우가 기억을 지운다. 칸을 지정하지 않으면 전부 지운다."""
+        condition = ActorMemoryEntry.user_id == user_id
+        if field is not None:
+            condition = and_(condition, ActorMemoryEntry.field == field)
+        with self._session_factory() as db:
+            removed = db.execute(delete(ActorMemoryEntry).where(condition)).rowcount
+            db.commit()
+            return removed or 0
 
     def has_report_for_practice_session(self, practice_session_id: UUID) -> bool:
         with self._session_factory() as db:

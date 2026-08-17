@@ -87,6 +87,8 @@ SUCCESS_RESPONSE_MODELS = {
     ): "ReportDetailResponse",
     ("get", "/v2/me", "200"): "MeResponse",
     ("patch", "/v2/me", "200"): "MeResponse",
+    ("get", "/v2/me/memory", "200"): "MemoryResponse",
+    ("put", "/v2/me/memory/{field}", "200"): "MemoryItem",
     ("get", "/v2/community/categories", "200"): "CategoryListResponse",
     ("get", "/v2/community/posts", "200"): "PostListResponse",
     ("post", "/v2/community/posts", "201"): "PostPayload",

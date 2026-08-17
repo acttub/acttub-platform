@@ -32,6 +32,14 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--baseline", default="fastapi", choices=["fastapi"])
     parser.add_argument("--target", default="fastapi", choices=["fastapi", "java"])
     parser.add_argument("--java-base-url", default="http://127.0.0.1:8080")
+    parser.add_argument(
+        "--java-admin-base-url",
+        help="ADMIN_OPS_TOKEN 을 준 contract 인스턴스 URL (admin 시나리오 전용)",
+    )
+    parser.add_argument(
+        "--java-nostorage-base-url",
+        help="contract,nostorage 프로파일 인스턴스 URL (no-storage 시나리오 전용)",
+    )
     parser.add_argument("--only", action="append", default=[])
     parser.add_argument("--self-test", action="store_true")
     parser.add_argument("--mutation", action="append", default=[])
@@ -41,6 +49,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--openapi-diff", nargs=2, metavar=("A", "B"))
     parser.add_argument("--dump-inventory", metavar="DIR")
     parser.add_argument("--rebuild-schemas", action="store_true")
+    parser.add_argument(
+        "--prepare-schemas",
+        action="store_true",
+        help="스키마 두 벌만 만들고 끝낸다 (java 인스턴스 기동 전에 돌린다)",
+    )
     parser.add_argument("--verbose", action="store_true")
     return parser
 
@@ -55,6 +68,8 @@ def main(argv=None) -> int:
         return _check_manifest()
     if args.dump_inventory:
         return _dump_inventory(Path(args.dump_inventory))
+    if args.prepare_schemas:
+        return _prepare_schemas(args)
     if args.self_test:
         return _self_test(args)
     if args.coverage:
@@ -62,6 +77,23 @@ def main(argv=None) -> int:
     if args.check_drift:
         return _check_drift(args)
     return _run(args)
+
+
+def _prepare_schemas(args) -> int:
+    """스키마 두 벌만 만들고 끝낸다.
+
+    java 인스턴스는 contract 프로파일에서 flyway 를 끄고 `ddl-auto: validate` 로 뜨므로
+    **스키마가 먼저 있어야 한다** — 없는 상태로 띄우면 셋 다 검증 실패로 죽는다. 그렇다고
+    스키마를 만들자고 전 시나리오 실행을 한 번 돌리는 것은 의도가 드러나지 않는다.
+    """
+    started = time.monotonic()
+    runner.prepare_schemas(force=args.rebuild_schemas)
+    elapsed = time.monotonic() - started
+    print(
+        f"스키마 준비: {cfg.BASELINE_SCHEMA} · {cfg.TARGET_SCHEMA} "
+        f"(alembic head, 소요 {elapsed:.1f}초)"
+    )
+    return 0
 
 
 # --- 기본 실행 -------------------------------------------------------------
@@ -72,16 +104,14 @@ def _run(args, *, coverage_only: bool = False) -> int:
     runner.prepare_schemas(force=args.rebuild_schemas)
     scenarios = runner.all_scenarios(args.only)
     java_base_url = args.java_base_url if args.target == "java" else None
+    java_profile_base_urls = _java_profile_base_urls(args, scenarios)
     skipped: list[str] = []
-    if java_base_url is None:
-        result_seed = runner.verify_seed_parity()
-    else:
-        # java 어댑터는 자기 스키마 이름을 하네스에 알려주지 않는다(M1 범위 밖).
-        result_seed = []
-        skipped.append(
-            "seed parity — java 백엔드의 스키마 이름을 모른다 (spec/M4-llm.md 로 이관)"
-        )
-    result = runner.run_scenarios(scenarios, java_base_url=java_base_url)
+    result_seed = runner.verify_seed_parity()
+    result = runner.run_scenarios(
+        scenarios,
+        java_base_url=java_base_url,
+        java_profile_base_urls=java_profile_base_urls,
+    )
     result.findings.extend(result_seed)
 
     # 아래 검증은 **백엔드 종류와 무관하게** 돈다. java 라고 건너뛰면
@@ -130,6 +160,29 @@ def _run(args, *, coverage_only: bool = False) -> int:
         )
     print(runner.summarize(result))
     return 0 if result.ok() else 1
+
+
+def _java_profile_base_urls(args, scenarios) -> dict[str, str] | None:
+    if args.target != "java":
+        return None
+    configured = {
+        "admin": args.java_admin_base_url,
+        "nostorage": args.java_nostorage_base_url,
+    }
+    required = {scenario.profile for scenario in scenarios} - {"default"}
+    missing = sorted(profile for profile in required if not configured.get(profile))
+    if missing:
+        flags = ", ".join(f"--java-{profile}-base-url" for profile in missing)
+        raise SystemExit(
+            "java의 조건부 프로파일은 별도 인스턴스여야 한다. 빠진 인자: " + flags
+        )
+    selected = {profile: configured[profile] for profile in required}
+    urls = [args.java_base_url, *selected.values()]
+    if len({url.rstrip("/") for url in urls}) != len(urls):
+        raise SystemExit(
+            "기본·admin·nostorage Java URL은 서로 다른 Spring 인스턴스여야 한다"
+        )
+    return selected
 
 
 def _print_findings(findings, verbose: bool) -> None:

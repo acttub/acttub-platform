@@ -1,10 +1,10 @@
 """백엔드 어댑터.
 
-하네스가 백엔드에 요구하는 것은 HTTP 표면 + 제어 표면 5개뿐이다. 그 뒤를 어떻게
+하네스가 백엔드에 요구하는 것은 HTTP 표면 + 공통 제어 표면뿐이다. 그 뒤를 어떻게
 구현하는지는 백엔드별 자유다(§백엔드 adapter 계약).
 
 - `fastapi`: 하네스가 `create_app(...)` 을 직접 불러 만든 앱을 in-process 로 띄운다.
-- `java`: M1 시점에는 `/health` 뿐이므로 base URL 로 붙는 최소 구현이다.
+- `java`: 외부 Spring Boot contract 프로파일의 base URL 로 붙는다.
 """
 
 from __future__ import annotations
@@ -47,6 +47,9 @@ class Backend:
     name: str
     role: str
 
+    def __init__(self) -> None:
+        self._client_host: str | None = None
+
     def request(self, method, path, *, json=None, headers=None, params=None) -> Response:
         raise NotImplementedError
 
@@ -63,6 +66,16 @@ class Backend:
     def reset_state(self) -> None:
         pass
 
+    def set_client_host(self, host: str) -> None:
+        """계약 실행기가 보낸 신뢰 가능한 요청 origin 을 다음 요청들에 싣는다."""
+        self._client_host = host
+
+    def _request_headers(self, headers) -> dict[str, str] | None:
+        merged = dict(headers or {})
+        if self._client_host is not None:
+            merged[cfg.CLIENT_HOST_HEADER] = self._client_host
+        return merged or None
+
 
 class FastapiBackend(Backend):
     role = "fastapi"
@@ -76,6 +89,7 @@ class FastapiBackend(Backend):
         profile: str = "default",
         mutation=None,
     ) -> None:
+        super().__init__()
         self.name = name
         self.database_url = database_url
         self.schema = schema
@@ -117,7 +131,7 @@ class FastapiBackend(Backend):
         assert self._client is not None, "backend session is not open"
         sent_at = datetime.now(timezone.utc)
         response = self._client.request(
-            method, path, json=json, headers=headers, params=params
+            method, path, json=json, headers=self._request_headers(headers), params=params
         )
         return Response(
             status=response.status_code,
@@ -126,12 +140,6 @@ class FastapiBackend(Backend):
             sent_at=sent_at,
             received_at=datetime.now(timezone.utc),
         )
-
-    def set_client_host(self, host: str) -> None:
-        """IP 레이트리밋 키를 가르기 위해 요청 origin 을 바꾼다."""
-        assert self._client is not None
-        transport = self._client._transport
-        transport.client = (host, 50000)
 
     def control(self, name: str, **payload) -> dict:
         assert name in cfg.CONTROL_SURFACE, f"unknown control surface: {name}"
@@ -147,17 +155,16 @@ class FastapiBackend(Backend):
 
 
 class JavaBackend(Backend):
-    """M1 시점 Java 는 `/health` 뿐이다 — 제어 표면 없이 붙기만 한다.
-
-    제어 표면 5개를 만족시키는 것은 M4 의 일이며 그 요구사항은
-    `spec/M4-llm.md` 로 넘어간다.
-    """
+    """외부에서 실행 중인 Spring Boot contract 프로파일에 붙는다."""
 
     role = "java"
 
-    def __init__(self, name: str, base_url: str) -> None:
+    def __init__(self, name: str, base_url: str, *, profile: str = "default") -> None:
+        super().__init__()
         self.name = name
         self.base_url = base_url.rstrip("/")
+        self.profile = profile
+        self.schema = cfg.TARGET_SCHEMA
         self._client: httpx.Client | None = None
 
     @contextlib.contextmanager
@@ -173,7 +180,7 @@ class JavaBackend(Backend):
         assert self._client is not None, "backend session is not open"
         sent_at = datetime.now(timezone.utc)
         response = self._client.request(
-            method, path, json=json, headers=headers, params=params
+            method, path, json=json, headers=self._request_headers(headers), params=params
         )
         return Response(
             status=response.status_code,
@@ -184,9 +191,12 @@ class JavaBackend(Backend):
         )
 
     def control(self, name: str, **payload) -> dict:
-        raise NotImplementedError(
-            "java 백엔드의 제어 표면은 M4 범위다 (spec/M1-harness.md §백엔드 adapter 계약 ③)"
+        assert name in cfg.CONTROL_SURFACE, f"unknown control surface: {name}"
+        response = self.request(
+            "POST", f"{cfg.CONTROL_PREFIX}/{name}", json=payload or {}
         )
+        assert response.status == 200, f"control {name} failed: {response.text}"
+        return response.json()
 
     def openapi(self) -> dict:
         response = self.request("GET", "/v3/api-docs")

@@ -4,6 +4,7 @@ import { Suspense, useEffect, useMemo, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { NamePrompt } from "@/features/auth/name-prompt";
+import { ConsentMarkdown } from "@/features/practice/consent-markdown";
 import { useDisplayNameGate } from "@/features/auth/use-display-name-gate";
 import {
   clearPendingConsents,
@@ -380,9 +381,9 @@ function ConsentDocumentCard({
         <div
           id={bodyId}
           tabIndex={0}
-          className="mt-5 max-h-64 overflow-y-auto whitespace-pre-wrap rounded-2xl bg-[#f9fafb] p-4 text-sm leading-6 text-[#4e5968] outline-none focus:ring-2 focus:ring-[#90c2ff]"
+          className="mt-5 max-h-64 overflow-y-auto rounded-2xl bg-[#f9fafb] p-4 outline-none focus:ring-2 focus:ring-[#90c2ff]"
         >
-          {document.body}
+          <ConsentMarkdown source={document.body} />
         </div>
 
         {interactive ? (

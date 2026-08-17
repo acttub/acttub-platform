@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import base64
 import json
+import uuid
+from datetime import datetime, timezone
 
 import pytest
 
@@ -68,6 +71,56 @@ def test_same_value_gets_one_symbol_across_field_names():
         "session_id": "$coach_session_1",
         "coach_session_id": "$coach_session_1",
     }
+
+
+def test_harness_access_token_round_trips_through_real_python_jwt_service():
+    from acting_api.auth.jwt import ACCESS_TOKEN_TTL, JwtService
+    from contract_harness.framework import ScenarioContext, mint_access_token
+
+    issued_at = datetime(2026, 8, 8, 12, 34, 56, tzinfo=timezone.utc)
+    user_id = uuid.UUID("11111111-1111-4111-8111-111111111111")
+    token_id = uuid.UUID("22222222-2222-4222-8222-222222222222")
+    token = mint_access_token(
+        str(user_id), issued_at=issued_at, token_id=token_id
+    )
+
+    encoded_header = token.split(".")[0]
+    padded_header = encoded_header + "=" * (-len(encoded_header) % 4)
+    assert json.loads(base64.urlsafe_b64decode(padded_header)) == {
+        "alg": "HS256",
+        "typ": "JWT",
+    }
+    claims = JwtService(cfg.JWT_SECRET).decode_access_token(
+        token, now=issued_at
+    )
+    assert claims.user_id == user_id
+    assert claims.token_id == token_id
+    assert claims.expires_at == issued_at + ACCESS_TOKEN_TTL
+
+    baseline = ScenarioContext(
+        object(), SymbolTable(), "profile", token_issued_at=issued_at
+    )
+    target = ScenarioContext(
+        object(), SymbolTable(), "profile", token_issued_at=issued_at
+    )
+    assert baseline.token(str(user_id)) == target.token(str(user_id))
+
+
+def test_harness_clock_reset_invalidates_process_local_rate_limit_window():
+    from acting_api.ratelimit import RateLimiter
+    from contract_harness.stubs import HarnessClock
+
+    clock = HarnessClock()
+    limiter = RateLimiter(clock=clock.monotonic)
+    assert limiter.allow("caller", 1) is True
+    assert limiter.allow("caller", 1) is False
+    clock.advance(60)
+    assert limiter.allow("caller", 1) is True
+    assert limiter.allow("caller", 1) is False
+
+    clock.reset()
+    assert clock.offset == 0.0
+    assert limiter.allow("caller", 1) is True
 
 
 # --- datetime --------------------------------------------------------------
@@ -409,6 +462,209 @@ def test_previously_unreachable_contracts_are_executed_not_excluded():
     }
     assert must_execute <= covered_keys()
     assert not (must_execute & set(excluded_keys()))
+
+
+# --- 게이트가 제어 표면 경유인지 (spec/M4-llm.md §G) -------------------------
+
+
+def test_scenarios_never_touch_the_in_process_runtime():
+    """시나리오가 `backend.runtime` 을 잡으면 Java 백엔드에서 AttributeError 다.
+
+    `backends.py:JavaBackend` 에는 `runtime` 속성이 없다. 이 검사가 없으면 게이트
+    헬퍼가 다시 in-process 전용으로 돌아가도 fastapi↔fastapi 실행은 초록이라
+    아무도 모른다 — M4 진입 점검이 실제로 그렇게 발견했다.
+
+    문자열 검색이 아니라 AST 로 본다. 산문과 docstring 이 `runtime` 을 설명하는
+    것까지 잡으면 검사가 못 쓰게 된다.
+    """
+    import ast
+    import pathlib
+
+    from contract_harness import scenarios
+
+    root = pathlib.Path(scenarios.__file__).parent
+    offenders = []
+    for path in sorted(root.glob("*.py")):
+        tree = ast.parse(path.read_text(), filename=str(path))
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Attribute) and node.attr == "runtime":
+                offenders.append(f"{path.name}:{node.lineno}")
+    assert not offenders, (
+        f"시나리오가 in-process runtime 을 직접 잡는다: {offenders}. "
+        "게이트 조작은 contract_harness.scenarios.gate 를 거친다"
+    )
+
+
+def test_gate_helpers_only_speak_the_control_surface():
+    """게이트 헬퍼는 `stub-state` 제어 하나만 쓴다 — 백엔드 종류를 몰라야 한다."""
+    from contract_harness.scenarios import gate
+
+    seen = []
+
+    class FakeBackend:
+        # `runtime` 을 일부러 두지 않는다. JavaBackend 와 같은 모양이다.
+        def control(self, name, **payload):
+            seen.append((name, payload))
+            return {"coach_generate": {"in_block": True, "in_block_count": 2}}
+
+    class FakeCtx:
+        backend = FakeBackend()
+
+    ctx = FakeCtx()
+    blocked, state = gate.poll_until_blocked(ctx, "coach_generate", count=2, timeout=1)
+    gate.release(ctx, "coach_generate")
+    gate.rearm(ctx, "coach_generate")
+    gate.release(ctx)
+
+    assert blocked and state["in_block_count"] == 2
+    assert {name for name, _ in seen} == {"stub-state"}
+    assert ("stub-state", {"release": True, "stub": "coach_generate"}) in seen
+    assert ("stub-state", {"rearm": True, "stub": "coach_generate"}) in seen
+    # 이름 없이 부르면 게이트 있는 스텁 전부가 대상이다.
+    assert ("stub-state", {"release": True}) in seen
+
+
+class _SequencedBackend:
+    """정해진 순서로 stub-state 를 돌려준다. 마지막 값은 이후 계속 반복한다."""
+
+    # `runtime` 을 일부러 두지 않는다. JavaBackend 와 같은 모양이다.
+    def __init__(self, *states):
+        self._states = list(states)
+
+    def control(self, name, **payload):
+        return self._states.pop(0) if len(self._states) > 1 else self._states[0]
+
+
+def _gate_state(coach_in_block: int, report_in_block: int = 0) -> dict:
+    return {
+        "coach_generate": {"in_block_count": coach_in_block},
+        "report_generate": {"in_block_count": report_in_block},
+        # 게이트가 없는 스텁들. 모양이 제각각이다.
+        "analyzer": {"calls": 3},
+        "s3": {"calls": {"presign": 2}},
+    }
+
+
+def test_gate_waits_until_the_block_actually_drains():
+    """`release` 직후의 in_block_count 는 스케줄러가 정한다 — 빠져나온 것을 본다.
+
+    파이썬은 GIL 을 쥔 채 상태를 조립해 대개 1 이 남아 보이고 java 는 0 이
+    보이기도 한다. 그 값을 그대로 기록하면 백엔드 diff 가 된다(SOMA-397 2단계).
+    """
+    from contract_harness.scenarios import gate
+
+    class FakeCtx:
+        backend = _SequencedBackend(_gate_state(1), _gate_state(1), _gate_state(0))
+
+    unblocked, state = gate.poll_until_unblocked(FakeCtx(), timeout=1)
+    assert unblocked
+    assert state["coach_generate"]["in_block_count"] == 0
+
+
+def test_gate_unblock_polling_ignores_stubs_without_a_gate():
+    """analyzer·s3 는 in_block_count 를 갖지 않는다 — 이름을 하드코딩하지 않는다."""
+    from contract_harness.scenarios import gate
+
+    assert gate._in_block_total(_gate_state(0), None) == 0
+    assert gate._in_block_total(_gate_state(1, 2), None) == 3
+    assert gate._in_block_total(_gate_state(1, 2), "report_generate") == 2
+
+
+def test_gate_unblock_polling_reports_failure_when_the_block_never_drains():
+    """안 풀리면 조용히 넘어가지 않는다 — 호출부가 실패로 끝낼 수 있어야 한다."""
+    from contract_harness.scenarios import gate
+
+    class FakeCtx:
+        backend = _SequencedBackend(_gate_state(1))
+
+    unblocked, state = gate.poll_until_unblocked(FakeCtx(), timeout=0.1)
+    assert not unblocked
+    assert state["coach_generate"]["in_block_count"] == 1
+
+
+def test_gate_polling_is_not_recorded_as_a_scenario_step():
+    """폴링을 기록하면 백엔드마다 폴링 횟수가 달라 스텝 수가 갈린다."""
+    import inspect
+
+    from contract_harness.scenarios import gate
+
+    source = inspect.getsource(gate)
+    assert "ctx.backend.control" in source
+    assert "ctx.control(" not in source
+
+
+def test_backend_client_host_uses_the_same_header_signal_for_both_adapters():
+    from contract_harness.backends import FastapiBackend, JavaBackend
+
+    backends = (
+        FastapiBackend("fastapi", database_url="unused", schema="unused"),
+        JavaBackend("java", "http://127.0.0.1:8099"),
+    )
+    for backend in backends:
+        backend.set_client_host("10.0.0.9")
+        assert backend._request_headers({"Authorization": "Bearer token"}) == {
+            "Authorization": "Bearer token",
+            cfg.CLIENT_HOST_HEADER: "10.0.0.9",
+        }
+
+    from contract_harness.wrapper import HarnessASGI
+
+    scope = {
+        "headers": [(cfg.CLIENT_HOST_HEADER.lower().encode(), b"10.0.0.9")],
+        "client": ("testclient", 50000),
+    }
+    rewritten = HarnessASGI._with_contract_client(scope)
+    assert rewritten["client"] == ("10.0.0.9", 50000)
+    assert scope["client"] == ("testclient", 50000)
+
+
+def test_java_conditional_profiles_require_and_select_separate_instances():
+    from types import SimpleNamespace
+
+    from contract_harness.cli import _java_profile_base_urls
+    from contract_harness.scenarios import BY_NAME
+
+    args = SimpleNamespace(
+        target="java",
+        java_base_url="http://127.0.0.1:8099",
+        java_admin_base_url="http://127.0.0.1:8100",
+        java_nostorage_base_url="http://127.0.0.1:8101",
+    )
+    assert _java_profile_base_urls(
+        args, [BY_NAME["health"], BY_NAME["admin"], BY_NAME["no-storage"]]
+    ) == {
+        "admin": "http://127.0.0.1:8100",
+        "nostorage": "http://127.0.0.1:8101",
+    }
+
+    args.java_nostorage_base_url = None
+    with pytest.raises(SystemExit, match="--java-nostorage-base-url"):
+        _java_profile_base_urls(args, [BY_NAME["no-storage"]])
+
+
+def test_prepare_schemas_stops_before_running_scenarios(monkeypatch):
+    """`--prepare-schemas` 는 스키마만 만들고 시나리오로 넘어가지 않는다.
+
+    java 인스턴스는 contract 프로파일에서 `ddl-auto: validate` 로 뜨므로 스키마가 **먼저**
+    있어야 한다. CI 잡은 이 플래그로 스키마만 만든 뒤 세 인스턴스를 띄운다. 분기가 `_run`
+    으로 새면 아직 아무 인스턴스도 없는 상태에서 java 전량 실행이 돌아 잡이 통째로 죽는다.
+    """
+    from contract_harness import cli
+
+    monkeypatch.setenv("HARNESS_LOGS", "1")  # _quiet_logs 의 전역 로깅 차단을 피한다
+    forced = []
+    monkeypatch.setattr(
+        cli.runner, "prepare_schemas", lambda *, force: forced.append(force)
+    )
+    monkeypatch.setattr(
+        cli.runner,
+        "all_scenarios",
+        lambda *args, **kwargs: pytest.fail("시나리오 실행으로 넘어갔다"),
+    )
+
+    assert cli.main(["--prepare-schemas"]) == 0
+    assert cli.main(["--prepare-schemas", "--rebuild-schemas"]) == 0
+    assert forced == [False, True]
 
 
 def test_seed_consent_documents_match_committed_manifest():

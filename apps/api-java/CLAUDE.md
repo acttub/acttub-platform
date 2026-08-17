@@ -19,7 +19,7 @@ Java 21 + Spring Boot 3.4. FastAPI(`apps/api`) 전면 이관 작업(`SOMA-287`)�
 - `./gradlew test` — JUnit 5 + Testcontainers. **Docker 필요.**
 - `REQUIRE_ALEMBIC_CHECK=1 ./gradlew test` — CI와 같은 조건. 이 변수가 없으면 `FlywayBaselineTest`가 alembic을 못 돌릴 때 **조용히 건너뛰고 초록**이 됩니다.
 - `./gradlew bootJar` — `acting-api.jar` 생성.
-- `./gradlew bootRun` — 로컬 기동(:8080). `DATABASE_URL` 필요.
+- `./gradlew bootRun` — 로컬 기동(:8080). 설정은 아래 `.env`가 공급합니다.
 - `scripts/regen-baseline.sh` — baseline 스냅샷 재생성(아래 참조). Docker + uv 필요.
 - 루트에서 `python3 spec/check-refs.py` — SPEC이 가리키는 심볼이 소스에 실재하는지.
 
@@ -32,6 +32,35 @@ PY=../../apps/api/.venv/bin/python
 $PY -m contract_harness --baseline fastapi --target java --java-base-url http://127.0.0.1:8099
 ```
 
+전체 시나리오는 기본(`contract`, ADMIN_OPS_TOKEN 없음), admin(`contract`, 토큰 있음),
+nostorage(`contract,nostorage`) 인스턴스를 각각 띄우고 하네스의
+`--java-admin-base-url`·`--java-nostorage-base-url`로 전달합니다. **기동 명령과 필요한
+환경변수 전량은 [하네스 README](../../tools/contract-harness/README.md)의 `java 타겟` 절이
+정본입니다** — 값은 하네스 `config.py`에서 나오므로 여기에 복사해 두지 않습니다.
+
+**contract 프로파일에는 진짜 LLM·분석 체인이 서지 않습니다.** `integration/observation/GeminiConfiguration`과
+`analysis/adapter/AnalysisConfiguration`이 `@Profile("!contract")`이라, 하네스 인스턴스는 외부 API 키
+없이 뜹니다. 🔎 **`@Primary`로는 이걸 못 합니다** — `ContractAnalysisProcessor`가 주입 경합에서
+이겨도 진짜 체인의 빈은 그대로 만들어지고, 그러다 `GEMINI_API_KEY`가 없어 컨텍스트가 죽었습니다.
+새 외부 연동을 붙일 때는 스텁으로 대체할지, contract에서 아예 세우지 않을지를 먼저 정합니다.
+
+## 로컬 설정은 `.env`, 서버는 systemd입니다
+
+`DotenvEnvironmentPostProcessor`가 **작업 디렉토리의 `.env`를 읽어 환경변수처럼 씁니다.** 로컬 개발 편의용이고, 서버에서는 아무 일도 하지 않습니다 — 배포 아티팩트는 jar 하나뿐이라 `.env`가 없고, 설정은 systemd가 `EnvironmentFile=/etc/acttub/api.env`로 주입합니다.
+
+```bash
+ln -sfn ../api/acting-api/.env .env    # 최초 1회. 파이썬과 같은 파일을 공유합니다
+./gradlew bootRun
+```
+
+**심링크로 두는 이유** — 파이썬 `config.py`가 `apps/api/acting-api/.env`를 경로 계산으로 읽습니다(옮기면 FastAPI 로컬 개발이 깨집니다). 파일을 복사하면 두 벌이 갈라지므로 한 곳만 둡니다. `.gitignore`에 있어 커밋되지 않습니다.
+
+- **이미 있는 값을 덮지 않습니다.** `addLast`로 넣으므로 실제 환경변수·시스템 프로퍼티·`application.yml`이 항상 이깁니다.
+- **테스트에서는 꺼집니다.** `build.gradle.kts`의 test 태스크가 `acttub.dotenv.enabled=false`를 박습니다. **이 가드를 지우면 로컬 실 API 키가 테스트로 새어들어**, 스텁을 쓰는 줄 알았던 테스트가 진짜 호출을 하게 됩니다.
+- ⚠ **하네스용 인스턴스를 띄울 때도 꺼야 합니다** — `java -Dacttub.dotenv.enabled=false -jar …`. 하네스가 주지 않는 키(`S3_BUCKET`·`AWS_*` 등)가 `.env`에서 새어들면 판정이 로컬 환경에 좌우됩니다. 하네스는 격리된 환경이어야 재현됩니다.
+  - 🔎 **이 원칙이 코드보다 앞서 있던 적이 있습니다.** `.env`가 `GEMINI_API_KEY`를 채워주는 동안 아무도 격리 기동을 해보지 않아, dotenv를 끄면 컨텍스트가 죽는 상태가 오래 남아 있었습니다(`SOMA-397` 1단계). **`src/test/resources/application.properties`가 같은 키를 주므로 테스트도 이걸 못 잡습니다** — `HarnessContractProfileIT`가 그래서 `GEMINI_API_KEY=`를 일부러 비웁니다.
+- `DatabaseUrlEnvironmentPostProcessor`보다 **먼저** 돌아야 합니다(`.env`가 `DATABASE_URL`을 공급할 수 있으므로). 순서는 `getOrder()`로 고정했고 테스트가 지킵니다.
+
 ## Testcontainers는 Postgres 18입니다
 
 운영 RDS가 18.4라 컨테이너도 **18**로 맞춥니다. PG18은 NOT NULL을 `pg_constraint`로 물질화하는 등 카탈로그가 달라, **16에서 통과한 스키마 검증이 운영을 보증하지 않습니다.** 버전을 BOM에 맡기지 않고 `build.gradle.kts`에 고정해 둡니다.
@@ -41,6 +70,64 @@ $PY -m contract_harness --baseline fastapi --target java --java-base-url http://
 - `ddl-auto: validate` 고정. `create`/`update`는 절대 금지(SPEC §2).
 - `baseline-on-migrate: false` — 기존 dev·운영 DB의 baseline 기록은 애플리케이션이 아니라 별도 명령으로 합니다. 여기서 켜면 "빈 DB가 아닌데 V1을 건너뛰는" 판정을 애플리케이션이 조용히 내립니다.
 - **`V1__baseline.sql`과 `alembic-schema-fingerprint.txt`는 alembic 결과의 스냅샷입니다.** `apps/api`에 마이그레이션이 추가되면 둘 다 낡는데, `FlywayBaselineTest`는 **이 둘을 서로 비교하므로 둘 다 낡아도 초록입니다.** 스키마가 바뀌는 PR마다 `scripts/regen-baseline.sh`를 돌리고 결과를 커밋합니다.
+
+## 패키지 구조
+
+최상위가 **세 묶음**입니다 — `feature`(비즈니스 도메인 12) · `platform`(배관: web·security·config·harness·health·observability·ledger·operation·schema) · `integration`(외부 연동: oidc·llm·storage·media·observation). 루트에 남는 것은 스캔 기점 `ActingApiApplication` 하나입니다.
+
+각 도메인은 `domain`(규칙을 담은 Domain Model, 프레임워크 import 금지) · `app`(서비스와 포트 선언) · `adapter`(`web`·`db`·`storage`·`media`·`sched`·`resource`, 어느 하위에도 안 속하고 여럿을 조립하는 배선 `@Configuration`은 그 층의 루트) · `schema`(Schema Entity)로 서되 **가진 층만큼만**입니다.
+
+📌 **왜 이 형태인지, 재편 중 무엇을 실측했는지는 [ADR-017~020](../../docs/ADR.md)이 정본입니다** — 층을 왜 다 세우지 않는지(ADR-020), 포트가 실패를 어떻게 알리는지(ADR-018), 서로를 소비하는 두 도메인을 어떻게 정렬하는지(ADR-019). 아래는 **그 결정을 지키며 코드를 고칠 때 필요한 것**만 담습니다.
+
+### 구조를 지키는 것은 검사 둘뿐입니다
+
+서브패키지로 갈리면서 저장소 클래스를 막아주던 package-private 보호가 옅어졌습니다. `PackageLayerTest`(층 방향)와 `PackageCycleTest`(순환)가 **구조를 지키는 유일한 장치입니다.**
+
+⚠ **둘 다 손으로 관리하는 목록을 돌므로, 목록에서 빠진 것은 영원히 못 봅니다.** 새로 만들 때 함께 고칠 곳:
+
+- **도메인을 추가하면** `PackageLayerTest.FEATURE_LAYERS` — 이름 목록이 아니라 「도메인 → 그 도메인이 가진 층」 표입니다. 없는 층을 적으면 그 규칙이 대상 0으로 조용히 통과하고, 층이 새로 생겼는데 안 적으면 그 층만 검사 밖에 남습니다(`everyRuleActuallyHasSomethingToCheck`가 양쪽을 봅니다). 층별 규칙은 표에서 대상을 끌어옵니다(`featuresWithDomain`·`featuresWithSchema`) — 목록 전체를 넘기면 층이 없는 도메인에서 깨집니다.
+  - `FEATURE_LAYERS`는 열 쌍을 넘어 `Map.ofEntries`입니다. `Map.of`는 열 쌍까지만 받습니다.
+- **묶음을 추가하면** `PackageCycleTest.BUNDLES` — 여기 이름을 더해야 그 안이 조각으로 갈립니다. 안 더하면 조각들이 한 덩어리가 되어 그 사이의 순환이 검사에서 사라지는데, **순환 검사는 이 누락을 못 잡습니다**(뭉친 묶음이 양방향 간선을 가질 때만 사이클이 됩니다). `everyBundleIsInTheList`가 대신 잡습니다.
+- 같은 부류의 구멍을 막는 검사 셋이 더 있습니다 — `everyFeatureIsInTheTable`(실물과 표 대조) · `everyFeatureSubpackageIsALayer`(`feature/practice/util` 같은 층 아닌 하위 패키지) · `nothingLivesOutsideTheBundles`(루트에 만든 도메인 — 자식이 층 이름이면 `everyBundleIsInTheList`를 통과해 버립니다).
+- 📌 **`featuresSeeOnlyEachOthersAppLayer`의 대상 패턴만 절대 경로입니다**(`com.acttub.actingapi.feature.<이름>..`). 상대형으로 두면 배관에 같은 이름의 조각이 생기는 순간(`platform/admin`) 규칙이 거기까지 번져 "배관은 대상 밖"이라는 전제가 깨집니다.
+
+### 도메인끼리는 상대의 `app` 층만 봅니다
+
+`featuresSeeOnlyEachOthersAppLayer`가 겁니다. 배관·외부 연동을 보는 것은 금지 대상이 아니고(`auth/app/AuthService`가 `integration/oidc`를 직접 부릅니다), 배관이 도메인 포트를 구현하는 것도 대상 밖입니다(`platform/security`·`platform/operation`이 그 형태입니다).
+
+- 📌 지금 걸린 도메인 간 간선은 셋뿐이고, 각각 포트 하나가 실체입니다 — `coach`→`report` 12(`ReportSourceProvider`를 코치 어댑터가 구현) · `consent`→`auth` 2(`auth/app/PendingConsentDocuments`) · `memory`→`coach` 2(`coach/app/CoachMemory`를 `memory/adapter/db/PostgresMemoryRepository`가 직접 구현, 교환 타입 `PriorContext`는 소비자인 `coach`의 것). **참조 폭이 늘면 그것이 두 도메인을 합쳐야 한다는 신호입니다**(ADR-019). 검사는 폭을 세지 않습니다 — 세면 숫자가 곧 유지보수 대상이 되고, 판단은 사람이 해야 합니다.
+- 📌 그래서 **다른 도메인이 알아야 하는 타입은 `app`에 둡니다.** `report/app/PublicReport`가 web이 아니라 app에 사는 이유가 그것입니다 — 코치 응답에도 같은 본문이 실립니다. 엔드포인트 입출력 봉투(`ReportDtos`)는 web에 남습니다.
+- 📌 **집계하거나 읽어 온 것이 곧 응답인 도메인은 그 형태를 `app`에 둡니다** — `admissions/app/Admissions`·`admin/app/AdminMetrics`. 중간 표현을 따로 만들면 필드 수십 개가 두 벌이 되고 그 어긋남을 웹은 컴파일 타임에 잡지 못합니다.
+- 📌 **포트를 새로 만들 때 시그니처에 제공자 패키지 이름이 보이면 아직 안 끊긴 것입니다.** 교환 타입은 어느 쪽의 것도 아닌 자리에 둡니다(ADR-017).
+
+### 포트를 새로 만들 때
+
+- 📌 **자원을 준 포트가 그것을 거둡니다.** `AudioExtractor.discard`가 그 형태입니다 — 부르는 쪽이 "추출물이 임시 디렉토리 안에 홀로 산다"는 구현 사정을 알고 있으면, 디렉토리를 쓰지 않는 추출기로 갈아끼울 때 엉뚱한 곳을 지웁니다.
+- 📌 **응답 본문은 부르는 쪽이 만들어 넘깁니다** — `complete(operationId, leaseToken, JsonNode, now)`(`coach/app/CoachOperationLedger`·`report/app/ReportOperationLedger`·`MemoryUpdateQueue`). 그 바이트가 곧 계약이라 조립을 원장으로 넘기면 계약이 도메인 밖으로 나갑니다.
+- ⚠ **응답 JSON 표기도 포트 뒤에 있습니다**(`coach/app/CoachResponseRenderer`). 코치 응답의 바이트는 응답이면서 동시에 원장에 남는 값이라, 조립을 컨트롤러에 두면 규칙과 표기가 한 요청 안에서 두 번 오갑니다. **무엇을** 담을지는 서비스가, **어떤 키로** 담을지는 web 어댑터가 정합니다.
+- 위임만 하는 포트는 끼우지 않습니다 — `oidc`가 그래서 포트 없이 `auth/app/AuthService`가 직접 부릅니다. 외부 연동을 보는 것은 금지 대상이 아니고 간선도 한 방향이라, 인터페이스만 늘고 얻는 것이 없습니다.
+
+### 검사도 하네스도 보지 못하는 자리
+
+🔥 **워커 응답 본문** — DB 투영이 `external_operations`를 `has_response_payload`(참·거짓)로만 비교하고 백그라운드 워커는 contract 프로파일에서 아예 뜨지 않습니다. **전 시나리오 diff 0을 통과해도 조용히 달라질 수 있는데** 그 바이트는 잡이 재생될 때 그대로 응답으로 나갑니다. `MemoryUpdateWorkerPayloadTest`가 파이썬 `memory_worker.py:run_once`의 모양에 못박아 둔 이유입니다.
+
+🔥 **조건부 빈이 있는 도메인에 서비스를 끼워 넣을 때는 조건을 함께 옮깁니다.** `admissions`(`@ConditionalOnResource`)·`admin`(`@ConditionalOnExpression`)이 그렇습니다 — 컨트롤러와 저장소만 조건부이던 자리에 서비스가 끼면 **그 서비스가 없는 빈을 요구해 컨텍스트가 기동하지 못합니다.** 하네스도 테스트도 이 자리를 보지 못합니다(리소스나 토큰이 없는 기동으로 인스턴스를 띄우는 시나리오가 없습니다 — `admissions-missing`은 "없는 대학"이지 "없는 카탈로그"가 아닙니다).
+
+🔥 **불변식이 깨진 자리는 "없음"이 아닙니다.** 대상이 없다는 예외를 한 연산이 두 경로로 던지면 뜻이 뭉개집니다 — 넣은 직후 다시 못 읽은 것을 `CommunityContentNotFound`로 내면 500이던 것이 404가 되어 멀쩡한 분류를 탓합니다. 그런 자리는 `IllegalStateException`으로 냅니다. **하네스는 이 부류를 못 잡습니다**(도달하려면 파손된 데이터가 필요합니다).
+
+### 알아 둘 예외 넷
+
+- **`platform/schema`는 사라지지 않습니다.** 공유 enum 열아홉은 도메인으로 못 갑니다 — `PgEnumCatalogVerifier`가 맵 전체 equals로 대조하느라 전부 정적 참조하는데 그 검증기가 배관이라, 흩으면 순환입니다. 거기 사는 것은 "배관이 소유한 스키마 + 어느 도메인의 것도 아닌 어휘"입니다.
+- **`platform/ledger`와 `platform/operation`이 갈려 있는 것은 실수가 아닙니다.** 교환 타입은 `ledger`, 구현은 `operation` — 합치면 순환입니다(실제로 합쳐 확인했습니다). **같은 묶음 안이라고 한 조각이 되는 것은 아닙니다.**
+- **`domain`이 배관을 보는 자리가 하나 있습니다** — `memory/domain/MemoryValue`가 `platform/web/PythonText`를 봅니다. `domainKnowsNoFramework`가 막는 목록(스프링·JPA·Jackson·swagger)에 없어 통과하며, **의도한 것입니다**: 그 유틸은 파이썬 `str.strip`의 공백 집합을 재현하는 문자열 규칙이라 정규화 규칙과 같은 층에 속합니다. 이관이 끝나면 함께 사라집니다.
+- **SQL이 남의 테이블을 치는 것은 패키지 의존이 아니라** 구조 검사에 걸리지 않습니다. 탈퇴는 `profile`이 `user_identities`·`refresh_tokens`를 함께 칩니다 — 그 두 테이블의 주인은 `auth`지만 파기의 원자성이 트랜잭션 하나를 요구합니다. `admin`도 같은 형태로 도메인을 가로질러 셉니다.
+
+### 자주 헷갈리는 자리 둘
+
+- ⚠ **동의 목록을 내는 곳이 둘이고, 합치면 안 됩니다.** `/v2/consents/pending`은 최신 문서를 자바에서 걸러 **종류 순**으로, 로그인 응답은 SQL 한 문장으로 **발행 시각 순**으로 냅니다. 파이썬 정본이 두 자리를 그렇게 갈라 두었고 각각 다른 엔드포인트의 응답입니다. 양쪽 주석이 서로를 가리킵니다.
+- ⚠ **워커 큐 둘은 실패 정책이 다릅니다** — `ExternalOperationAnalysisQueue`(kind=`analyze`, 실패 시 **연습 세션도 실패**) vs `ExternalOperationMemoryQueue`(kind=`memory_update`, 연습은 건드리지 않음).
+
+📌 `memory`에 Schema Entity가 없는 것은 이사 누락이 아닙니다 — `actor_memory_entries`에 대응하는 `@Entity`가 애초에 만들어진 적이 없고, **그 테이블만 `ddl-auto: validate` 밖에 있습니다**(→ SOMA-398).
 
 ## 계약 재현에서 자주 깨지는 지점
 
@@ -53,7 +140,10 @@ $PY -m contract_harness --baseline fastapi --target java --java-base-url http://
 
 ## CI
 
-`.github/workflows/ci.yml`의 `api-java` 잡이 이 디렉토리의 유일한 관문입니다 — 이 잡이 없던 동안 Java 통합 테스트 17개가 깨진 채로 dev가 초록이었습니다. Java 잡인데도 파이썬 워크스페이스를 함께 설치하는데, `FlywayBaselineTest`가 `apps/api`의 alembic을 실제로 돌려 스키마를 대조하기 때문입니다.
+`.github/workflows/ci.yml`의 잡 **둘**이 이 디렉토리를 지킵니다.
+
+- **`api-java`** — `./gradlew test`. 이 잡이 없던 동안 Java 통합 테스트 17개가 깨진 채로 dev가 초록이었습니다. Java 잡인데도 파이썬 워크스페이스를 함께 설치하는데, `FlywayBaselineTest`가 `apps/api`의 alembic을 실제로 돌려 스키마를 대조하기 때문입니다.
+- **`contract-harness-java`** — 세 인스턴스를 띄우고 `--target java`로 전 시나리오를 돌려 **FastAPI와의 계약 동등성**을 봅니다(`SOMA-397` 3단계). 테스트가 초록이어도 응답 바이트가 어긋날 수 있고, 웹은 FastAPI 스펙으로 타입을 생성하므로 그것을 컴파일 타임에 못 잡습니다. 절차의 정본은 [하네스 README](../../tools/contract-harness/README.md)의 `java 타겟` 절이고, 잡은 그것을 그대로 옮긴 것입니다.
 
 ## 사이클 진입 전 점검 (검사기로 대체 불가)
 

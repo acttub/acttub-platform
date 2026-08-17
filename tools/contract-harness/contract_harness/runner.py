@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import traceback
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 
 from contract_harness import config as cfg, dbsetup, manifest, seed
 from contract_harness.backends import FastapiBackend, JavaBackend
@@ -74,13 +75,15 @@ def verify_seed_parity() -> list[Finding]:
     return []
 
 
-def run_side(scenario, backend, schema):
+def run_side(scenario, backend, schema, *, token_issued_at=None):
     _reset(schema)
     symbols = SymbolTable()
     bootstrap_symbols(symbols)
     abort = None
     with backend.session() as opened:
-        ctx = ScenarioContext(opened, symbols, scenario.name)
+        ctx = ScenarioContext(
+            opened, symbols, scenario.name, token_issued_at=token_issued_at
+        )
         try:
             scenario.run(ctx)
         except ScenarioAbort as exc:
@@ -98,14 +101,19 @@ def run_scenarios(
     *,
     target_mutation=None,
     java_base_url: str | None = None,
+    java_profile_base_urls: dict[str, str] | None = None,
 ) -> RunResult:
     result = RunResult()
     for scenario in scenarios:
+        token_issued_at = datetime.now(timezone.utc)
         baseline_backend = make_backend(
             "baseline", cfg.BASELINE_SCHEMA, profile=scenario.profile
         )
         if java_base_url is not None:
-            target_backend = JavaBackend("java", java_base_url)
+            profile_urls = java_profile_base_urls or {}
+            selected_url = profile_urls.get(scenario.profile, java_base_url)
+            target_backend = JavaBackend(
+                "java", selected_url, profile=scenario.profile)
         else:
             target_backend = make_backend(
                 "target",
@@ -114,13 +122,21 @@ def run_scenarios(
                 mutation=target_mutation,
             )
         baseline_side, baseline_abort = run_side(
-            scenario, baseline_backend, cfg.BASELINE_SCHEMA
+            scenario,
+            baseline_backend,
+            cfg.BASELINE_SCHEMA,
+            token_issued_at=token_issued_at,
         )
         if java_base_url is not None:
-            target_side, target_abort = _run_java_side(scenario, target_backend)
+            target_side, target_abort = _run_java_side(
+                scenario, target_backend, token_issued_at=token_issued_at
+            )
         else:
             target_side, target_abort = run_side(
-                scenario, target_backend, cfg.TARGET_SCHEMA
+                scenario,
+                target_backend,
+                cfg.TARGET_SCHEMA,
+                token_issued_at=token_issued_at,
             )
         result.scenarios_run.append(scenario.name)
         # manifest·admin 스냅샷·unknown key 판정은 **검사 대상(target)** 을 본다.
@@ -147,14 +163,22 @@ def run_scenarios(
     return result
 
 
-def _run_java_side(scenario, backend):
+def _run_java_side(scenario, backend, *, token_issued_at=None):
+    _reset(backend.schema)
     symbols = SymbolTable()
     bootstrap_symbols(symbols)
     abort = None
     with backend.session() as opened:
-        ctx = ScenarioContext(opened, symbols, scenario.name)
+        ctx = ScenarioContext(
+            opened, symbols, scenario.name, token_issued_at=token_issued_at
+        )
         try:
-            scenario.run(ctx)
+            opened.control("reset-state")
+        except Exception as exc:  # noqa: BLE001 - 연결 실패를 명시적 finding 으로 바꾼다
+            abort = f"java reset-state 제어 호출 실패: {exc!r}"
+        try:
+            if abort is None:
+                scenario.run(ctx)
         except ScenarioAbort as exc:
             abort = str(exc)
         except Exception as exc:  # noqa: BLE001

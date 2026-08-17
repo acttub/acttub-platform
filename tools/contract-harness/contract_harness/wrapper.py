@@ -20,6 +20,7 @@ from acting_api.auth.providers import ProviderRegistry
 from acting_api.config import GatewaySettings
 from acting_api.db.community_store import CommunityStore
 from acting_api.db.store import PostgresStore
+from acting_api.memory_worker import MemoryUpdateWorker
 from acting_summary.config import Settings as SummarySettings
 
 from contract_harness import config as cfg
@@ -63,6 +64,13 @@ class BackendRuntime:
             model=cfg.SUMMARY_MODEL,
         )
         self.worker_pool = WorkerPoolStub(self.worker)
+        # 실제 워커를 감싸 둔다 — 지금은 자동 실행을 막는 것이 목적이지만, 기억
+        # 갱신을 1틱씩 돌리는 제어가 생기면 여기를 그대로 쓴다.
+        self.memory_worker = MemoryUpdateWorker(
+            store=self.store,
+            generate=self.coach_generate,
+        )
+        self.memory_worker_pool = WorkerPoolStub(self.memory_worker)
         self.jwt_service = JwtService(cfg.JWT_SECRET)
         self.app = self._build_app()
 
@@ -101,6 +109,13 @@ class BackendRuntime:
                 ),
                 s3_storage=storage,
                 analysis_worker=self.worker_pool,
+                # 이것을 넘기지 않으면 `app.py:create_app` 이 진짜
+                # `MemoryUpdateWorker` 를 만들어 lifespan 에서 start() 한다.
+                # 그러면 백그라운드 스레드가 memory_update 잡을 **비결정적으로**
+                # 집어가 자기 동일성이 깨진다 — 느린 러너에서만 터져서 로컬은
+                # 초록인데 CI 만 빨간다. 시간 경과에 의존하는 동작은 제어 표면으로만
+                # 일어나야 한다.
+                memory_worker=self.memory_worker_pool,
                 analyzer=self.analyzer,
                 coach_generate=self.coach_generate,
                 report_generate=self.report_generate,
@@ -128,9 +143,23 @@ class BackendRuntime:
             return {"expired_uploads": expired, "exhausted_operations": exhausted}
         if name == "stub-state":
             # 읽기 전용이 기본이고, `release`/`rearm` 이 오면 멈춰 있는 스텁을 푼다.
-            # 제어를 6개로 늘리지 않으려고 기존 제어의 payload 로 넣었다 —
+            # 별도 release/rearm 제어를 늘리지 않으려고 기존 제어의 payload 로 넣었다 —
             # 스텁 게이트는 스텁 상태의 일부다.
-            for stub in (self.coach_generate, self.report_generate):
+            #
+            # `stub` 이름을 주면 그 스텁 하나만 건드린다. 동시성 시나리오는 특정
+            # 스텁에 요청을 가둬 놓고 푸는 것이 의도라, 이름 없이 전부 푸는 것과
+            # 구별해야 한다. 이름이 없으면 종전대로 게이트 있는 스텁 전부다.
+            gated = {
+                "coach_generate": self.coach_generate,
+                "report_generate": self.report_generate,
+            }
+            selected = payload.get("stub")
+            if selected is not None and selected not in gated:
+                raise KeyError(f"unknown gated stub: {selected}")
+            targets = (
+                [gated[selected]] if selected else list(gated.values())
+            )
+            for stub in targets:
                 if payload.get("release"):
                     stub.release()
                 if payload.get("rearm"):
@@ -146,6 +175,9 @@ class BackendRuntime:
             return {"offset_sec": self.clock.advance(seconds)}
         if name == "db-projection":
             return self.db_projection(payload.get("include"))
+        if name == "reset-state":
+            self.clock.reset()
+            return {"reset": True}
         raise KeyError(name)
 
     # -- DB projection ----------------------------------------------------
@@ -174,6 +206,11 @@ class BackendRuntime:
                         ),
                         "has_response_payload": row.has_response_payload,
                     }
+                    # request_id 로 정렬하면 안 된다 -- 대부분의 잡은 하네스가
+                    # 보낸 고정 시드 값을 갖지만 memory_update 만 서버가 연습
+                    # 세션에서 유도하므로 baseline·target 의 값이 다르고, 그러면
+                    # **배열 순서 자체가 갈려** 인덱스 비교가 통째로 어긋난다.
+                    # created_at 은 삽입 순서라 양쪽이 같다.
                     for row in connection.execute(
                         text(
                             "SELECT request_id, kind::text AS kind,"
@@ -182,7 +219,7 @@ class BackendRuntime:
                             " lease_expires_at, session_id,"
                             " (response_payload IS NOT NULL) AS has_response_payload"
                             " FROM external_operations"
-                            " ORDER BY request_id, kind::text"
+                            " ORDER BY created_at, kind::text"
                         )
                     )
                 ]
@@ -278,10 +315,26 @@ class HarnessASGI:
         if scope["type"] == "http" and scope["path"].startswith(cfg.CONTROL_PREFIX):
             await self._control(scope, receive, send)
             return
+        scope = self._with_contract_client(scope)
         if self.response_mutation is None:
             await self.inner(scope, receive, send)
             return
         await self._mutating(scope, receive, send)
+
+    @staticmethod
+    def _with_contract_client(scope):
+        """HTTP·in-process 백엔드가 같은 헤더 신호로 rate-limit origin 을 바꾼다."""
+        header = cfg.CLIENT_HOST_HEADER.lower().encode("ascii")
+        host = next(
+            (value.decode("utf-8") for key, value in scope.get("headers", []) if key.lower() == header),
+            None,
+        )
+        if host is None:
+            return scope
+        copied = dict(scope)
+        port = (scope.get("client") or (None, 50000))[1]
+        copied["client"] = (host, port)
+        return copied
 
     async def _control(self, scope, receive, send):
         name = scope["path"][len(cfg.CONTROL_PREFIX) :].lstrip("/")
