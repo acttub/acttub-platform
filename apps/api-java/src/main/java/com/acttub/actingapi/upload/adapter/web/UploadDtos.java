@@ -1,4 +1,4 @@
-package com.acttub.actingapi.upload;
+package com.acttub.actingapi.upload.adapter.web;
 
 import java.math.BigInteger;
 import java.time.Instant;

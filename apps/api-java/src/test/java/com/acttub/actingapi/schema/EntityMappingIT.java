@@ -23,6 +23,7 @@ import com.acttub.actingapi.community.schema.CommunityPostEntity;
 import com.acttub.actingapi.community.schema.CommunityPostLikeEntity;
 import com.acttub.actingapi.community.schema.CommunityReportEntity;
 import com.acttub.actingapi.practice.schema.PracticeSessionEntity;
+import com.acttub.actingapi.upload.schema.UploadIntentEntity;
 import com.acttub.actingapi.support.PostgresContainerSupport;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;

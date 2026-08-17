@@ -1,4 +1,4 @@
-package com.acttub.actingapi.upload;
+package com.acttub.actingapi.upload.adapter.web;
 
 import io.swagger.v3.oas.models.media.Schema;
 import org.springdoc.core.customizers.OpenApiCustomizer;

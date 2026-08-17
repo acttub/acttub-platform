@@ -1,5 +1,6 @@
-package com.acttub.actingapi.schema;
+package com.acttub.actingapi.upload.schema;
 import java.time.Instant; import java.util.UUID; import jakarta.persistence.*; import org.hibernate.annotations.JdbcType;
+import com.acttub.actingapi.schema.AppGeneratedUuidEntity; import com.acttub.actingapi.schema.PgEnumJdbcType; import com.acttub.actingapi.schema.UploadStatus;
 @Entity @Table(name="upload_intents")
 public class UploadIntentEntity extends AppGeneratedUuidEntity {
     @Column(name="user_id",nullable=false) UUID userId;

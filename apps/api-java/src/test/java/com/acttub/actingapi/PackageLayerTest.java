@@ -67,6 +67,7 @@ class PackageLayerTest {
             "report", FOUR_LAYERS,
             "coach", FOUR_LAYERS,
             "analysis", FOUR_LAYERS,
+            "upload", FOUR_LAYERS,
             // 배우 기억은 Schema Entity 가 없다 — `actor_memory_entries` 에 대응하는 `@Entity` 가
             // 애초에 만들어진 적이 없고(그래서 그 테이블만 `ddl-auto: validate` 밖에 있다),
             // 이사에서 빠뜨린 것이 아니다. 없는 층을 선언하면 규칙이 대상 0으로 초록이 된다.

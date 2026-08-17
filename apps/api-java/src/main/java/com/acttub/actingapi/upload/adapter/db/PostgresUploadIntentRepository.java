@@ -1,4 +1,4 @@
-package com.acttub.actingapi.upload;
+package com.acttub.actingapi.upload.adapter.db;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -6,22 +6,23 @@ import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
-import java.util.Locale;
 import java.util.UUID;
 
-import com.acttub.actingapi.schema.UploadStatus;
+import com.acttub.actingapi.upload.app.UploadIntentRepository;
+import com.acttub.actingapi.upload.domain.UploadIntent;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
 @Repository
-class UploadStore {
+public class PostgresUploadIntentRepository implements UploadIntentRepository {
     private final JdbcTemplate jdbc;
 
-    UploadStore(JdbcTemplate jdbc) {
+    PostgresUploadIntentRepository(JdbcTemplate jdbc) {
         this.jdbc = jdbc;
     }
 
-    UploadIntentRow create(
+    @Override
+    public UploadIntent create(
             UUID userId,
             String objectKey,
             String mimeType,
@@ -45,22 +46,24 @@ class UploadStore {
         return find(userId, id);
     }
 
-    UploadIntentRow find(UUID userId, UUID intentId) {
-        List<UploadIntentRow> rows = jdbc.query("""
+    @Override
+    public UploadIntent find(UUID userId, UUID intentId) {
+        List<UploadIntent> rows = jdbc.query("""
                 SELECT id,user_id,status::text,storage_provider,object_key,mime_type,
                        size_bytes,duration_ms,etag,created_at,expires_at,finalized_at
                 FROM upload_intents
                 WHERE id=? AND user_id=?
-                """, UploadStore::intent, intentId, userId);
+                """, PostgresUploadIntentRepository::intent, intentId, userId);
         return rows.isEmpty() ? null : rows.getFirst();
     }
 
-    UploadIntentRow finalizeIntent(
+    @Override
+    public UploadIntent finalizeIntent(
             UUID userId,
             UUID intentId,
             String etag,
             Instant now) {
-        List<UploadIntentRow> rows = jdbc.query("""
+        List<UploadIntent> rows = jdbc.query("""
                 UPDATE upload_intents
                 SET status='finalized'::upload_status_t,finalized_at=?,etag=?
                 WHERE id=? AND user_id=?
@@ -69,7 +72,7 @@ class UploadStore {
                 RETURNING id,user_id,status::text,storage_provider,object_key,mime_type,
                           size_bytes,duration_ms,etag,created_at,expires_at,finalized_at
                 """,
-                UploadStore::intent,
+                PostgresUploadIntentRepository::intent,
                 now.atOffset(ZoneOffset.UTC),
                 etag,
                 intentId,
@@ -78,12 +81,12 @@ class UploadStore {
         return rows.isEmpty() ? null : rows.getFirst();
     }
 
-    private static UploadIntentRow intent(ResultSet result, int rowNumber) throws SQLException {
+    private static UploadIntent intent(ResultSet result, int rowNumber) throws SQLException {
         OffsetDateTime finalized = result.getObject("finalized_at", OffsetDateTime.class);
-        return new UploadIntentRow(
+        return new UploadIntent(
                 result.getObject("id", UUID.class),
                 result.getObject("user_id", UUID.class),
-                UploadStatus.valueOf(result.getString("status").toUpperCase(Locale.ROOT)),
+                result.getString("status"),
                 result.getString("storage_provider"),
                 result.getString("object_key"),
                 result.getString("mime_type"),
@@ -93,20 +96,5 @@ class UploadStore {
                 result.getObject("created_at", OffsetDateTime.class).toInstant(),
                 result.getObject("expires_at", OffsetDateTime.class).toInstant(),
                 finalized == null ? null : finalized.toInstant());
-    }
-
-    record UploadIntentRow(
-            UUID id,
-            UUID userId,
-            UploadStatus status,
-            String storageProvider,
-            String objectKey,
-            String mimeType,
-            long sizeBytes,
-            Integer durationMs,
-            String etag,
-            Instant createdAt,
-            Instant expiresAt,
-            Instant finalizedAt) {
     }
 }

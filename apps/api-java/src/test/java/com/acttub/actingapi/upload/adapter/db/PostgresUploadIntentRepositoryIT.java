@@ -1,4 +1,4 @@
-package com.acttub.actingapi.upload;
+package com.acttub.actingapi.upload.adapter.db;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -7,6 +7,7 @@ import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 
+import com.acttub.actingapi.upload.domain.UploadIntent;
 import com.acttub.actingapi.support.PostgresContainerSupport;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -17,13 +18,13 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 
 @SpringBootTest(properties = "JWT_SECRET=test-secret")
-class UploadStoreIT {
+class PostgresUploadIntentRepositoryIT {
     private static final UUID USER_ID =
             UUID.fromString("00000000-0000-4000-8000-000000000101");
 
     @DynamicPropertySource
     static void database(DynamicPropertyRegistry registry) {
-        String name = PostgresContainerSupport.createDatabaseName("upload_store");
+        String name = PostgresContainerSupport.createDatabaseName("upload_repo");
         registry.add("spring.datasource.url", () -> PostgresContainerSupport.jdbcUrlFor(name));
         registry.add("spring.datasource.username", PostgresContainerSupport.POSTGRES::getUsername);
         registry.add("spring.datasource.password", PostgresContainerSupport.POSTGRES::getPassword);
@@ -33,7 +34,7 @@ class UploadStoreIT {
     JdbcTemplate jdbc;
 
     @Autowired
-    UploadStore store;
+    PostgresUploadIntentRepository store;
 
     @BeforeEach
     void setUp() {
@@ -43,7 +44,7 @@ class UploadStoreIT {
 
     @Test
     void concurrentConditionalFinalizationReturnsTheUpdatedRowExactlyOnce() throws Exception {
-        UploadStore.UploadIntentRow intent = store.create(
+        UploadIntent intent = store.create(
                 USER_ID,
                 "users/" + USER_ID + "/uploads/concurrent.mp4",
                 "video/mp4",
