@@ -8,9 +8,9 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.UUID;
 
-import com.acttub.actingapi.analysis.app.AnalysisProcessor;
+import com.acttub.actingapi.feature.analysis.app.AnalysisProcessor;
 import com.acttub.actingapi.platform.security.FixedWindowRateLimiter;
-import com.acttub.actingapi.auth.app.JwtService;
+import com.acttub.actingapi.feature.auth.app.JwtService;
 import com.acttub.actingapi.integration.media.GeminiVideoCompressor;
 import com.acttub.actingapi.integration.observation.ObservationAnalyzer;
 import com.acttub.actingapi.support.PostgresContainerSupport;

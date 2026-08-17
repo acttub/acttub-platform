@@ -12,11 +12,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-import com.acttub.actingapi.coach.app.CoachOperationLedger;
+import com.acttub.actingapi.feature.coach.app.CoachOperationLedger;
 import com.acttub.actingapi.platform.ledger.LeaseOwnershipException;
 import com.acttub.actingapi.platform.ledger.SyncOperationBegin;
 import com.acttub.actingapi.platform.ledger.SyncOperationClaim;
-import com.acttub.actingapi.report.app.ReportOperationLedger;
+import com.acttub.actingapi.feature.report.app.ReportOperationLedger;
 import com.acttub.actingapi.platform.web.ApiException;
 import com.acttub.actingapi.platform.web.CanonicalJson;
 import com.fasterxml.jackson.core.JsonProcessingException;

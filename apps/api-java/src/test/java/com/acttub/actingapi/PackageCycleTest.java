@@ -49,10 +49,11 @@ class PackageCycleTest {
     private static final String ROOT = "com.acttub.actingapi";
 
     /**
-     * 접두어를 한 겹 벗길 묶음. 아직 최상위에 있는 비즈니스 도메인은 여기 없으므로 그대로
-     * 한 조각이 되고, {@code feature} 묶음으로 옮기는 마지막 이사 때 이름 하나가 늘어난다(SOMA-397).
+     * 접두어를 한 겹 벗길 묶음. 셋이 전부이고 최상위에 다른 것은 없다(SOMA-397 13단계).
+     * 도메인은 {@code feature} 아래 한 겹 들어가 있으므로, 벗기면 재편 전과 같은 단위
+     * ({@code practice}·{@code coach})로 갈린다.
      */
-    private static final List<String> BUNDLES = List.of("platform", "integration");
+    private static final List<String> BUNDLES = List.of("feature", "platform", "integration");
 
     /**
      * 재편이 끝난 도메인이 갖는 층 이름(ADR-017). {@link #everyBundleIsInTheList}가 <b>묶음과
@@ -152,10 +153,11 @@ class PackageCycleTest {
      * 그것은 묶음이다({@code platform.web}·{@code integration.oidc}). 아직 평평한 도메인과 공용
      * {@code schema}는 하위 패키지가 없어 통과한다.
      *
-     * <p>🔎 <b>13단계 {@code feature} 이사가 정확히 이 자리에 걸린다.</b> {@code platform/config}·
-     * {@code platform/harness}는 도메인으로 <i>들어가는</i> 간선만 갖고 도메인이 그것을 되짚지
-     * 않으므로, 접두어를 붙이고 목록을 빠뜨리면 도메인 열넷이 한 슬라이스로 뭉친 채 순환 검사가
-     * 초록이 된다. 그때 빨간불을 내는 것은 이 검사다.
+     * <p>🔎 <b>13단계 {@code feature} 이사가 정확히 이 자리에 걸렸다 — 실측했다.</b>
+     * {@code platform/config}·{@code platform/harness}는 도메인으로 <i>들어가는</i> 간선만 갖고
+     * 도메인이 그것을 되짚지 않으므로, 접두어를 붙이고 {@link #BUNDLES}를 빠뜨린 채 돌리면
+     * 도메인 열둘이 한 슬라이스로 뭉치는데도 {@link #packagesAreFreeOfCycles}가 <b>초록</b>이다.
+     * 그때 유일하게 빨간불을 낸 것이 이 검사다.
      */
     @Test
     void everyBundleIsInTheList() {

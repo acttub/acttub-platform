@@ -6,7 +6,7 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.UUID;
 
-import com.acttub.actingapi.memory.app.MemoryUpdateQueue;
+import com.acttub.actingapi.feature.memory.app.MemoryUpdateQueue;
 import com.acttub.actingapi.platform.ledger.LeaseOwnershipException;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.springframework.jdbc.core.JdbcTemplate;

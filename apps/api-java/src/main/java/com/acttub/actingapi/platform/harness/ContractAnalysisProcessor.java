@@ -8,10 +8,10 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import com.acttub.actingapi.analysis.app.AnalysisContext;
-import com.acttub.actingapi.analysis.app.AnalysisProcessor;
-import com.acttub.actingapi.analysis.app.AnalysisResult;
-import com.acttub.actingapi.analysis.app.UnsupportedMediaError;
+import com.acttub.actingapi.feature.analysis.app.AnalysisContext;
+import com.acttub.actingapi.feature.analysis.app.AnalysisProcessor;
+import com.acttub.actingapi.feature.analysis.app.AnalysisResult;
+import com.acttub.actingapi.feature.analysis.app.UnsupportedMediaError;
 import com.acttub.actingapi.integration.observation.FileActiveTimeout;
 import com.acttub.actingapi.integration.observation.ObservationPack;
 import com.acttub.actingapi.integration.observation.SummaryParseError;
