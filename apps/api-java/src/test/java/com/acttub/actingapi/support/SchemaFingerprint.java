@@ -11,11 +11,17 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 스키마를 정렬된 텍스트 줄로 뽑는다. alembic 이 만든 스키마와 Flyway V1 이 만든 스키마를 비교한다.
+ * 스키마를 정렬된 텍스트 줄로 뽑는다. Flyway 마이그레이션이 만든 스키마를 기대값과 비교한다.
  *
- * <p>기대값 fixture {@code alembic-schema-fingerprint.txt} 는
- * {@code apps/api/acting-api} 의 {@code alembic upgrade head} 결과에서 같은 SQL 로 떠 왔다.
- * 재생성 방법은 M0-findings.md 에 적었다.
+ * <p>기대값 fixture {@code baseline-schema-fingerprint.txt} 는 <b>Flyway 가 빈 DB 에 V1 이후
+ * 전부를 적용한 결과</b>다. 재생성은 손이 아니라 {@code apps/api-java/scripts/regen-fingerprint.sh}
+ * 가 한다.
+ *
+ * <p>🔁 <b>정본이 옮겨졌다({@code SOMA-403} 3단계).</b> 이 fixture 는 원래 alembic 결과의
+ * 스냅샷이었고, 그래서 {@code V1__baseline.sql} 과 <b>둘이 같이 낡으면 초록이 뜨는</b> 자기참조가
+ * 있었다. 지금은 Flyway 가 스키마 정본이라 "V1 이 만드는 것" 이 곧 기대값이고, V1 은 동결이다
+ * ({@code FlywayBaselineTest.baselineIsFrozen} 이 checksum 을 못박는다). 자기참조가 아니라
+ * 회귀 검사다.
  */
 public final class SchemaFingerprint {
 
@@ -46,15 +52,16 @@ public final class SchemaFingerprint {
         }
     }
 
-    public static List<String> expectedFromAlembic() {
+    /** 커밋된 기대값 — Flyway 마이그레이션 전체를 빈 DB 에 적용한 결과. */
+    public static List<String> expected() {
         try (InputStream in = SchemaFingerprint.class
-                .getResourceAsStream("/alembic-schema-fingerprint.txt")) {
+                .getResourceAsStream("/baseline-schema-fingerprint.txt")) {
             if (in == null) {
-                throw new IllegalStateException("alembic-schema-fingerprint.txt not on the classpath");
+                throw new IllegalStateException("baseline-schema-fingerprint.txt not on the classpath");
             }
             return new String(in.readAllBytes(), StandardCharsets.UTF_8).lines().toList();
         } catch (IOException exc) {
-            throw new IllegalStateException("failed to read the alembic fingerprint fixture", exc);
+            throw new IllegalStateException("failed to read the schema fingerprint fixture", exc);
         }
     }
 }

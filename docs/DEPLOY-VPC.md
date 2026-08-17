@@ -319,6 +319,11 @@ systemctl status acttub-web --no-pager
 
 ### 4-2. back svc (FastAPI)
 
+> 🔁 **은퇴한 절차다.** 배포되는 백엔드는 Spring Boot 하나이고(`deploy/upload-api-java.sh` →
+> `ssm-deploy.sh be-java`), 여기 나오는 `upload-api.sh` 도 파이썬 소스도 배포에 실리지 않는다
+> (`SOMA-403` 3단계). **이 장 전체가 FastAPI 기준이라 6단계에서 jar 기준으로 다시 쓴다** —
+> 그때까지 이 절을 따라 하지 않는다.
+
 여기도 git이 필요 없다. 파이썬 소스를 그대로 보내고 인스턴스에서는 의존성만 받는다.
 `uv.lock`에 git 의존성이 없어(확인함) `uv sync`는 PyPI만 본다.
 
@@ -350,14 +355,57 @@ sudo systemctl daemon-reload && sudo systemctl enable --now acttub-api
 
 ### 4-3. DB 마이그레이션
 
-back svc EC2가 이미 DB에 붙는 머신이므로, SSM으로 들어가 거기서 실행하면 된다.
-별도 터널이 필요 없다.
+**손으로 돌리는 절차가 없다.** 스키마 정본이 Flyway 라(`SPEC.md` §5-5) 마이그레이션은 자바가
+기동하며 스스로 적용한다 — 배포가 곧 마이그레이션이다.
+
+마이그레이션이 실패하면 앱이 리슨을 시작하지 못하고 배포 잡이 그 자리에서 실패한다.
+그때 볼 것은 인스턴스의 로그다. back svc EC2가 이미 DB에 붙는 머신이라 별도 터널이 필요 없다.
 
 ```bash
 aws ssm start-session --target <back-svc-instance-id>
-cd /svc/acttub/acttub-platform/apps/api/acting-api
-uv run alembic upgrade head
+sudo journalctl -u acttub-api-java -n 200 --no-pager | grep -i flyway
 ```
+
+기동할 때마다 Flyway가 결과를 INFO로 찍는다(`application.yml`이 `org.flywaydb: INFO`를 켠다).
+적용한 것이 없으면 `Current version of schema "public": 1`, 적용했으면
+`Successfully applied N migration(s)`, 실패했으면 그 자리에 예외가 남는다.
+
+**DB를 직접 볼 때만 `psql`이 필요한데, back svc 인스턴스에는 깔려 있지 않다**(RDS를 쓰므로
+jar와 JRE 말고는 아무것도 설치하지 않는다). 필요하면 그때 받는다:
+
+```bash
+sudo apt-get install -y postgresql-client
+DB_URL=$(sudo grep -m1 '^[[:space:]]*DATABASE_URL=' /etc/acttub/api.env | sed -E 's/^[[:space:]]*DATABASE_URL=//; s/^"//; s/"$//')
+psql "$DB_URL" -c 'SELECT installed_rank, version, type, success, installed_on FROM flyway_schema_history ORDER BY installed_rank'
+```
+
+dev는 인스턴스에 PostgreSQL이 함께 깔려 있어(`bootstrap-dev.sh`) `psql`이 이미 있다.
+
+**DB 는 손댈 것이 없다.** Postgres 는 DDL 이 트랜잭션 안에서 돌므로 실패한 마이그레이션은
+**부분 적용도 이력도 남기지 않는다** — 원인을 고쳐 다시 배포하면 그만이고, 이력 행을 지우거나
+`flyway repair` 를 돌릴 필요가 없다. 추정이 아니라 실측이다
+(`FlywayForwardMigrationTest.aFailedMigrationLeavesNothingBehind` 가 앞 문장은 성공하고 뒤 문장이
+깨지는 마이그레이션으로 확인한다).
+
+예외는 마이그레이션이 트랜잭션을 스스로 쪼개는 경우다(`CREATE INDEX CONCURRENTLY` 등). 그런 것을
+쓸 거면 **되돌리는 방법을 그 PR 에서 함께 정한다.**
+
+### 4-4. 나쁜 마이그레이션은 배포 실패가 아니라 중단이다
+
+🔥 **3단계에서 폭발 반경이 커졌다.** 예전에는 `migrate` 가 배포보다 **먼저** 도는 별도 스텝이라,
+실패해도 옛 프로세스가 그대로 떠 있었다 — 서비스는 살아 있고 배포만 빨간불이었다. 지금은
+마이그레이션이 `systemctl restart` **뒤에** 돈다. 옛 프로세스는 이미 죽었고 새 프로세스는 뜨지
+못하므로, **나쁜 마이그레이션 = 서비스 중단**이다.
+
+**down 마이그레이션이 없다.** 되돌리는 경로는 하나뿐이다:
+
+1. 문제 마이그레이션을 **되돌리는 새 마이그레이션**(`V<다음>__…`)을 만들어 배포한다.
+   이미 적용된 것을 `V1` 처럼 고쳐서 지우려 하면 checksum 이 어긋나 신규 환경이 죽는다.
+2. 스키마가 아니라 **코드**가 문제면 이전 jar 로 되돌린다 — `deploy.yml` 을 이전 커밋 SHA 로
+   수동 실행한다. **단 그 jar 가 새 스키마에서 뜨는지는 별개다**(`ddl-auto: validate`).
+
+그래서 §6-4 의 "스키마를 먼저 넓히고 코드를 나중에 좁힌다" 가 이제 권고가 아니라 **유일한
+안전망**이다. 넓히는 변경만 나가면 옛 jar 도 새 스키마에서 그대로 뜬다.
 
 ## 5. 검증 체크리스트
 
@@ -465,21 +513,21 @@ Secrets가 아니라 Variables에 넣는다.
 `API_ORIGIN`을 바꾸면 **반드시 fe를 재배포해야 한다.** 빌드 시점에 굳는 값이라 인스턴스만
 재시작해서는 반영되지 않는다.
 
-### 6-4. 마이그레이션은 두 환경 모두 자동으로 돈다
+### 6-4. 마이그레이션은 자바 기동의 일부다
 
-`ssm-deploy.sh migrate`가 파이썬 소스를 갱신하고 `alembic upgrade head`를 실행한다.
-백엔드 배포(`be-java`)보다 먼저 도는 별도 스텝이고, dev·운영이 같다 — 환경별로 다르게
-두지 않는다.
+**스키마 정본은 Flyway다**(`SPEC.md` §5-5, `SOMA-403` 3단계). 배포 아티팩트는 jar 하나뿐이고,
+`be-java` 가 그것을 설치해 재시작하면 **앱이 뜨는 도중에** Flyway 가 `db/migration` 의 마이그레이션을
+적용한다. 별도 migrate 스텝이 없고, 파이썬은 인스턴스로 가지 않는다.
 
-**M5 컷오버 뒤에도 alembic 이 스키마 정본이다**(`SPEC.md` §5-5). Flyway 는 스키마를 바꾸지
-않고 `flyway_schema_history` 에 baseline 만 기록한다. 그래서 FastAPI 서비스를 더 이상
-배포하지 않게 된 뒤에도 파이썬 **소스는** 인스턴스에 계속 보낸다 — 마이그레이션 파일이
-거기 있어야 돌기 때문이다. Flyway 로 소유권을 옮기는 것은 M6 범위다.
+🔥 **스키마를 바꾸려면 `apps/api-java/src/main/resources/db/migration/` 에 `V2__` 부터 새 파일을
+만든다. `V1__baseline.sql` 은 동결이다** — 고치면 dev·운영은 멀쩡한데 신규 환경만
+`checksum mismatch` 로 죽는다(재해복구가 필요한 순간에야 드러난다).
 
-원래 운영은 수동이었다. 스키마 변경이 되돌리기 어렵다는 이유였는데, 그 대가로
-**코드는 새것·DB는 구것인 창**이 생겼다. 2026-08-01에 그 창으로 `/v2/community/posts`가
-며칠간 500이었다(`column community_posts.anonymous does not exist`). 자동으로 돌리는 쪽이
-창을 없앤다.
+**어긋난 채로 초록이 뜨는 창이 구조적으로 사라졌다.** 마이그레이션이 실패하면 앱이 리슨을
+시작하지 못하고, `be-java` 의 health·`NRestarts` 검사가 그 자리에서 배포를 실패로 만든다.
+예전에는 마이그레이션이 별도 스텝이라 부분 적용이 성공으로 읽힐 수 있었고, 2026-08-01에 그 창으로
+`/v2/community/posts` 가 며칠간 500이었다(`column community_posts.anonymous does not exist`).
+`deploy/check-migration.sh` 는 그 창을 사후에 대조하던 장치라 이제 아무도 부르지 않는다.
 
 되돌리기 어려운 성질은 그대로다. 그래서 **순서로 통제한다**:
 
@@ -489,13 +537,13 @@ Secrets가 아니라 Variables에 넣는다.
 > - 컬럼 삭제·이름 변경 → **PR을 둘로 나눈다.** ① 새 컬럼을 쓰도록 코드를 바꿔 배포,
 >   ② 다음 릴리스에서 옛 컬럼을 지운다. 한 PR에 합치면 배포 중간 상태에서 깨진다.
 
-배포 직후 `deploy/check-migration.sh`가 DB 리비전과 코드 리비전을 대조하고, 어긋나면
-잡을 실패로 표시한다(→ Slack `#배포알림`). 자동으로 돌았는데도 어긋났다면 마이그레이션이
-실패했거나 부분만 적용된 것이므로, 실행 로그의 `▶ alembic upgrade head` 출력을 먼저 본다.
-복구 절차는 4-3.
+마이그레이션이 실패하면 배포 로그에 Flyway 예외가 그대로 남고 `be-java` 잡이 빨개진다
+(→ Slack `#배포알림`). **그때 서비스는 이미 내려가 있다** — 4-4가 그 이유와 되돌리는 경로를,
+4-3이 로그·이력 확인법을 담는다.
 
-배포를 막지는 않는다 — 새 마이그레이션 파일은 배포되어야 서버에 생기므로 사전 차단은
-순환이 된다.
+**빈 DB 에서 시작하는 신규 환경·재해복구**에는 baseline 절차가 필요 없다 — Flyway 가 V1 부터
+그대로 적용한다. 운영 데이터를 부어야 하는 경우의 순서는 `spec/M6-findings.md` §3에 실측으로
+확인된 것이 있다(마이그레이션 장부 둘을 덤프에서 빼고, 앱이 심는 것과 V1 이 심는 것을 먼저 비운다).
 
 ### 6-5. 브랜치가 곧 환경이다
 

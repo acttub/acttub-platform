@@ -5,19 +5,16 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.sql.Connection;
-import java.sql.DriverManager;
-import java.sql.SQLException;
-import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 /**
- * {@code apps/api} 의 alembic 을 <b>실행 시점에</b> 돌려 스키마 fingerprint 를 뜬다.
+ * {@code apps/api} 의 alembic 을 <b>실행 시점에</b> 돌려 파이썬이 쓰던 스키마를 세운다.
  *
- * <p>왜 필요한가: {@code alembic-schema-fingerprint.txt} 와 {@code V1__baseline.sql} 은 둘 다
- * alembic 결과의 스냅샷이다. 이 둘을 서로 비교하면 <b>둘이 같이 낡아도 초록이 뜬다</b> —
- * dev 가 {@code 0006 → 0010} 으로 전진하는 동안 실제로 그렇게 됐다. 기대값을 파일이 아니라
- * <b>지금 이 순간의 alembic HEAD</b> 에서 뽑아야 그 구멍이 막힌다.
+ * <p>🔁 <b>스키마 정본이 아니다({@code SOMA-403} 3단계).</b> Flyway 가 스키마를 소유하게 되면서
+ * fingerprint 대조는 {@code V1__baseline.sql} 기준으로 옮겼다. 지금 이 클래스가 남아 있는 이유는
+ * {@code FastApiInteropIT} 하나뿐이다 — 자바와 <b>파이썬 백엔드</b>가 같은 DB 를 공유할 때
+ * 토큰·세션이 서로 통하는지 보려면 파이썬이 인식하는 스키마가 필요하다. 파이썬이 사라지는
+ * 5단계에서 그 테스트와 함께 지운다.
  *
  * <p>{@code uv} 가 없거나 파이썬 워크스페이스가 동기화되지 않은 환경에서는 돌 수 없다.
  * 그런 곳에서는 {@link #isAvailable()} 이 {@code false} 를 주고 호출자가 건너뛴다.
@@ -44,23 +41,6 @@ public final class AlembicSchema {
     /** uv 가 PATH 에 있고 alembic 디렉토리가 제자리에 있는가. */
     public static boolean isAvailable() {
         return Files.isDirectory(apiRoot().resolve("alembic")) && uvExecutable() != null;
-    }
-
-    /**
-     * 컨테이너 안에 빈 DB 를 만들고 {@code alembic upgrade head} 를 돌린 뒤 fingerprint 를 준다.
-     *
-     * @param databaseName 만들 DB 이름
-     */
-    public static List<String> materializeFingerprint(String databaseName) {
-        materializeDatabase(databaseName);
-        try (Connection connection = DriverManager.getConnection(
-                PostgresContainerSupport.jdbcUrlFor(databaseName),
-                PostgresContainerSupport.POSTGRES.getUsername(),
-                PostgresContainerSupport.POSTGRES.getPassword())) {
-            return SchemaFingerprint.of(connection);
-        } catch (SQLException exc) {
-            throw new IllegalStateException("failed to read the alembic schema fingerprint", exc);
-        }
     }
 
     /** 빈 DB를 만든 뒤 현재 alembic HEAD까지 올리고 JDBC URL을 돌려준다. */

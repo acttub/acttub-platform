@@ -1,119 +1,81 @@
 package com.acttub.actingapi.flyway;
 
+import static com.acttub.actingapi.flyway.FlywaySupport.applyRawBaseline;
+import static com.acttub.actingapi.flyway.FlywaySupport.baselineSql;
+import static com.acttub.actingapi.flyway.FlywaySupport.committedCount;
+import static com.acttub.actingapi.flyway.FlywaySupport.connect;
+import static com.acttub.actingapi.flyway.FlywaySupport.dataSource;
+import static com.acttub.actingapi.flyway.FlywaySupport.flywayFor;
+import static com.acttub.actingapi.flyway.FlywaySupport.scalar;
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.io.IOException;
-import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.List;
 
-import com.acttub.actingapi.support.AlembicSchema;
 import com.acttub.actingapi.support.PostgresContainerSupport;
 import com.acttub.actingapi.support.SchemaFingerprint;
 import org.flywaydb.core.Flyway;
 import org.flywaydb.core.api.MigrationInfo;
 import org.flywaydb.core.api.CoreMigrationType;
 import org.flywaydb.core.api.output.MigrateResult;
-import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.springframework.jdbc.datasource.SimpleDriverDataSource;
+import org.junit.jupiter.api.io.TempDir;
 
 /**
- * {@code /SPEC.md} §5-5 의 두 경로를 <b>둘 다</b> 돌린다.
+ * {@code V1__baseline.sql} 이 지금 스키마를 그대로 세우는지, 그리고 <b>앞으로도 그대로일지</b>를 본다.
  *
  * <ul>
- *   <li>(a) 빈 DB → {@code V1__baseline.sql} 실행 → alembic 결과와 스키마가 같아야 한다.
- *       M6 에서 파이썬을 지우면 이것이 <b>유일한 스키마 생성 수단</b>이 된다.</li>
- *   <li>(b) 이미 alembic 이 만들어 둔 DB → 같은 V1 버전으로 baseline <b>기록만</b>.
- *       DDL 이 돌면 안 된다.</li>
+ *   <li>(a) 빈 DB → V1 실행 → 커밋된 fingerprint 와 같아야 한다. 파이썬이 사라진 뒤 이것이
+ *       <b>유일한 스키마 생성 수단</b>이다.</li>
+ *   <li>(b) 이미 스키마가 있는 DB → 같은 V1 버전으로 baseline <b>기록만</b>. DDL 이 돌면 안 된다.</li>
+ *   <li>(c) V1 은 <b>동결</b>이다 — checksum 을 못박는다.</li>
  * </ul>
+ *
+ * <p>거기서 앞으로 가는 길(V2 이후)은 {@link FlywayForwardMigrationTest} 가 본다.
  */
 class FlywayBaselineTest {
 
-    private static Flyway flywayFor(String jdbcUrl) {
-        return Flyway.configure()
-                .dataSource(dataSource(jdbcUrl))
-                .locations("classpath:db/migration")
-                .baselineVersion("1")
-                .baselineDescription("baseline")
-                .load();
-    }
+    /**
+     * 빈 DB 에 V1 을 적용했을 때 Flyway 가 이력에 남기는 checksum.
+     *
+     * <p>손으로 정한 값이 아니라 <b>Flyway 가 계산한 값</b>이고, 실측 출처는
+     * {@code spec/M6-findings.md} 발견 1 이다.
+     */
+    private static final long FROZEN_BASELINE_CHECKSUM = -1135202796L;
 
-    private static SimpleDriverDataSource dataSource(String jdbcUrl) {
-        SimpleDriverDataSource ds = new SimpleDriverDataSource();
-        ds.setDriverClass(org.postgresql.Driver.class);
-        ds.setUrl(jdbcUrl);
-        ds.setUsername(PostgresContainerSupport.POSTGRES.getUsername());
-        ds.setPassword(PostgresContainerSupport.POSTGRES.getPassword());
-        return ds;
-    }
+    @TempDir
+    Path tamperedMigrations;
 
     // ---- (a) 빈 DB 재구축 ----
 
-    /**
-     * 커밋된 fixture 가 <b>지금의</b> alembic HEAD 와 같은지 본다.
-     *
-     * <p>이것이 없으면 {@link #freshDatabaseRebuildMatchesAlembic()} 은 자기참조다 —
-     * {@code V1__baseline.sql} 과 {@code alembic-schema-fingerprint.txt} 는 둘 다 alembic 의
-     * 스냅샷이라 <b>같이 낡으면 둘을 비교해도 초록이 뜬다</b>. 실제로 dev 가 {@code 0006 → 0010}
-     * 으로 전진하는 동안 그렇게 됐다. 여기서 기대값을 파일이 아니라 실행 시점의 alembic 에서
-     * 뽑아 그 구멍을 막는다.
-     *
-     * <p>둘을 합치면 {@code V1 == fixture == alembic HEAD} 가 성립한다.
-     */
     @Test
-    @DisplayName("커밋된 fingerprint 가 지금의 alembic HEAD 와 같다 (자기참조 차단)")
-    void committedFingerprintMatchesLiveAlembic() {
-        requireOrSkipAlembic();
-
-        List<String> live = AlembicSchema.materializeFingerprint("alembic_live");
-        List<String> committed = SchemaFingerprint.expectedFromAlembic();
-
-        assertThat(committed)
-                .as("apps/api 에 마이그레이션이 추가됐다. "
-                        + "apps/api-java/scripts/regen-baseline.sh 를 돌리고 두 파일을 커밋하세요.")
-                .containsExactlyElementsOf(live);
-    }
-
-    /**
-     * {@code uv} 가 없으면 건너뛴다 — 단, {@code REQUIRE_ALEMBIC_CHECK=1} 이면 실패시킨다.
-     * 건너뛰기가 조용한 초록으로 되돌아가지 않게 하는 장치이고, CI 는 이 값을 켠다.
-     */
-    private static void requireOrSkipAlembic() {
-        if (AlembicSchema.isAvailable()) {
-            return;
-        }
-        if (AlembicSchema.isRequired()) {
-            throw new IllegalStateException(
-                    "REQUIRE_ALEMBIC_CHECK=1 인데 alembic 을 돌릴 수 없다 "
-                            + "(uv 가 PATH 에 없거나 " + AlembicSchema.apiRoot() + " 가 제자리에 없다)");
-        }
-        Assumptions.abort("uv 가 없어 alembic 대조를 건너뛴다 "
-                + "(REQUIRE_ALEMBIC_CHECK=1 을 주면 실패로 바꾼다)");
-    }
-
-    @Test
-    @DisplayName("빈 DB 에 V1 을 실행하면 alembic upgrade head 와 스키마가 완전히 같다")
-    void freshDatabaseRebuildMatchesAlembic() throws Exception {
+    @DisplayName("빈 DB 에 마이그레이션 전부를 실행하면 커밋된 fingerprint 와 완전히 같다")
+    void freshDatabaseRebuildMatchesTheCommittedFingerprint() throws Exception {
         String jdbcUrl = PostgresContainerSupport.createDatabase("flyway_fresh");
 
         MigrateResult result = flywayFor(jdbcUrl).migrate();
 
-        assertThat(result.migrationsExecuted).isEqualTo(1);
-        assertThat(result.migrations.get(0).version).isEqualTo("1");
+        // 개수를 박지 않는다 — V2__ 가 들어오면 이 검사가 따라가야 한다(FlywaySupport 주석).
+        assertThat(result.migrationsExecuted).isEqualTo(committedCount());
+        assertThat(result.migrations.get(0).version)
+                .as("V1 이 맨 앞이다 — 빈 DB 는 baseline 이 아니라 V1 을 실제로 실행한다")
+                .isEqualTo("1");
 
         try (Connection connection = connect(jdbcUrl)) {
             List<String> actual = SchemaFingerprint.of(connection);
-            List<String> expected = SchemaFingerprint.expectedFromAlembic();
 
             // 차이가 있으면 어느 줄인지 그대로 보여준다 — "diff 0" 이 완료 기준이다.
-            assertThat(actual).containsExactlyElementsOf(expected);
+            assertThat(actual)
+                    .as("스키마를 바꿨다면 apps/api-java/scripts/regen-fingerprint.sh 를 돌리고 "
+                            + "결과를 함께 커밋하세요.")
+                    .containsExactlyElementsOf(SchemaFingerprint.expected());
         }
     }
 
@@ -124,17 +86,15 @@ class FlywayBaselineTest {
         flywayFor(jdbcUrl).migrate();
 
         try (Connection connection = connect(jdbcUrl)) {
-            // 개수를 박아두면 apps/api 에 마이그레이션이 추가될 때마다 깨진다.
-            // alembic fingerprint fixture 에서 세어 자동으로 따라가게 한다.
-            // (fixture 는 scripts/regen-baseline.sh 가 alembic HEAD 에서 만들고,
-            //  committedFingerprintMatchesLiveAlembic 이 그것이 낡지 않았음을 보장한다)
-            List<String> alembic = SchemaFingerprint.expectedFromAlembic();
-            long expectedTables = alembic.stream().filter(l -> l.startsWith("TABLE ")).count();
-            long expectedEnums = alembic.stream().filter(l -> l.startsWith("ENUM ")).count();
-            long expectedPartialIndexes = alembic.stream()
+            // 개수를 박아두면 스키마가 바뀔 때마다 두 곳을 고쳐야 한다.
+            // 커밋된 fingerprint 에서 세어 자동으로 따라가게 한다.
+            List<String> expected = SchemaFingerprint.expected();
+            long expectedTables = expected.stream().filter(l -> l.startsWith("TABLE ")).count();
+            long expectedEnums = expected.stream().filter(l -> l.startsWith("ENUM ")).count();
+            long expectedPartialIndexes = expected.stream()
                     .filter(l -> l.startsWith("INDEX ") && l.contains(" WHERE ")).count();
             // PG18 은 NOT NULL 도 pg_constraint 에 물질화하므로(contype='n') 정의 텍스트로 가른다.
-            long expectedChecks = alembic.stream()
+            long expectedChecks = expected.stream()
                     .filter(l -> l.startsWith("CONSTRAINT ") && l.contains(" CHECK (")).count();
 
             assertThat(scalar(connection,
@@ -176,23 +136,11 @@ class FlywayBaselineTest {
                 assertThat(rs.getString(1)).isEqualTo("반전,약화,국소");
             }
 
-            // 0005 의 시드 데이터도 V1 이 전체 값 그대로 들고 있어야 한다.
+            // 시드 데이터도 V1 이 전체 값 그대로 들고 있어야 한다.
             assertThat(categoryRows(connection)).containsExactly(
                     "free|자유|연습하다 든 생각, 근황, 잡담|10",
                     "admission|입시 Q&A|실기·전형·준비 과정에서 막힌 것 묻기|20",
                     "info|정보공유|공고·후기·자료처럼 남에게 도움 되는 것|30");
-        }
-    }
-
-    @Test
-    @DisplayName("V1 시드의 정렬된 전체 행 값이 실행 중 alembic의 정본과 같다")
-    void seedRowsMatchLiveAlembic() throws Exception {
-        requireOrSkipAlembic();
-        String flywayUrl = PostgresContainerSupport.createDatabase("flyway_seed");
-        flywayFor(flywayUrl).migrate();
-        String alembicUrl = AlembicSchema.materializeDatabase("alembic_seed");
-        try (Connection flyway = connect(flywayUrl); Connection alembic = connect(alembicUrl)) {
-            assertThat(categoryRows(flyway)).containsExactlyElementsOf(categoryRows(alembic));
         }
     }
 
@@ -204,7 +152,6 @@ class FlywayBaselineTest {
         String jdbcUrl = PostgresContainerSupport.createDatabase("flyway_existing");
 
         // dev·운영의 현 상태 재현: alembic 이 만들어 둔 스키마.
-        // V1__baseline.sql 이 alembic 결과와 바이트 단위로 같음은 위 테스트가 보장하므로 그대로 실행한다.
         applyRawBaseline(jdbcUrl);
 
         List<String> before;
@@ -234,11 +181,15 @@ class FlywayBaselineTest {
         assertThat(applied[0].getVersion().getVersion()).isEqualTo("1");
 
         // baseline 이후 migrate 를 다시 불러도 V1 은 실행되지 않는다(같은 버전이므로 건너뛴다).
+        // ⚠ "아무것도 안 돈다" 로 세지 않는다 — V2__ 가 생기면 그것은 **돌아야 맞고**, 그때
+        // 이 검사가 깨지면 안 된다. 여기서 보는 것은 V1 하나다.
         MigrateResult second = flywayFor(jdbcUrl).migrate();
-        assertThat(second.migrationsExecuted).isZero();
+        assertThat(second.migrations)
+                .as("baseline 으로 기록된 V1 은 다시 실행되지 않는다")
+                .noneMatch(applied2 -> "1".equals(applied2.version));
 
         try (Connection connection = connect(jdbcUrl)) {
-            assertThat(SchemaFingerprint.of(connection)).isEqualTo(before);
+            // V1 의 시드 INSERT 가 다시 돌았다면 여기가 3을 넘는다.
             assertThat(scalar(connection, "SELECT count(*) FROM community_categories")).isEqualTo(3L);
         }
     }
@@ -262,19 +213,58 @@ class FlywayBaselineTest {
                 .hasMessageContaining("no schema history table");
     }
 
-    // ---- helpers ----
+    // ---- (c) V1 동결 ----
 
-    private static Connection connect(String jdbcUrl) throws SQLException {
-        return DriverManager.getConnection(jdbcUrl,
-                PostgresContainerSupport.POSTGRES.getUsername(),
-                PostgresContainerSupport.POSTGRES.getPassword());
+    /**
+     * <b>V1 을 고치면 dev·운영은 멀쩡한데 신규 환경만 죽는다.</b>
+     *
+     * <p>두 경로의 이력이 다르기 때문이다 — dev·운영은 {@code << Flyway Baseline >>}(type=BASELINE)
+     * 이라 <b>checksum 이 아예 없고</b>, 신규 환경은 V1 을 SQL 로 밟아 checksum 을 갖는다. 그래서
+     * V1 을 수정하면 그 자리에서는 아무 일도 일어나지 않고, <b>재해복구가 필요한 순간에</b>
+     * {@code Migration checksum mismatch} 로 드러난다({@code spec/M6-findings.md} 발견 1 — 관측이
+     * 아니라 재현했다).
+     *
+     * <p>스키마를 바꿔야 하면 V1 이 아니라 {@code V2__} 로 들어간다.
+     */
+    @Test
+    @DisplayName("V1 은 동결이다 — checksum 을 못박는다")
+    void baselineIsFrozen() throws Exception {
+        String jdbcUrl = PostgresContainerSupport.createDatabase("flyway_frozen");
+        flywayFor(jdbcUrl).migrate();
+
+        try (Connection connection = connect(jdbcUrl)) {
+            assertThat(baselineChecksum(connection))
+                    .as("V1__baseline.sql 은 동결이다. 스키마 변경은 V2__ 로 새 파일을 만드세요 — "
+                            + "V1 을 고치면 dev·운영은 멀쩡하고 신규 환경만 기동하지 못합니다.")
+                    .isEqualTo(FROZEN_BASELINE_CHECKSUM);
+        }
     }
 
-    private static long scalar(Connection connection, String sql) throws SQLException {
-        try (Statement st = connection.createStatement(); ResultSet rs = st.executeQuery(sql)) {
-            rs.next();
-            return rs.getLong(1);
+    /** 반증 — 위 상수가 실제로 V1 의 내용에 묶여 있는지. 주석 한 줄로도 움직여야 한다. */
+    @Test
+    @DisplayName("반증 — V1 이 한 줄이라도 바뀌면 checksum 이 움직인다")
+    void theFrozenChecksumMovesWhenV1Changes() throws Exception {
+        Files.writeString(tamperedMigrations.resolve("V1__baseline.sql"),
+                baselineSql() + "\n-- 반증용 주석 한 줄\n", StandardCharsets.UTF_8);
+
+        String jdbcUrl = PostgresContainerSupport.createDatabase("flyway_tampered");
+        Flyway.configure()
+                .dataSource(dataSource(jdbcUrl))
+                // 변조본만 본다 — classpath 를 함께 주면 같은 버전이 둘이 되어 죽는다.
+                .locations(FlywaySupport.locationOf(tamperedMigrations))
+                .load()
+                .migrate();
+
+        try (Connection connection = connect(jdbcUrl)) {
+            assertThat(baselineChecksum(connection)).isNotEqualTo(FROZEN_BASELINE_CHECKSUM);
         }
+    }
+
+    // ---- helpers ----
+
+    private static long baselineChecksum(Connection connection) throws SQLException {
+        return scalar(connection,
+                "SELECT checksum FROM flyway_schema_history WHERE version='1'");
     }
 
     private static List<String> categoryRows(Connection connection) throws SQLException {
@@ -285,17 +275,6 @@ class FlywayBaselineTest {
                 rows.add(rs.getString(1) + "|" + rs.getString(2) + "|" + rs.getString(3) + "|" + rs.getInt(4));
             }
             return rows;
-        }
-    }
-
-    private static void applyRawBaseline(String jdbcUrl) throws SQLException, IOException {
-        String sql;
-        try (InputStream in = FlywayBaselineTest.class
-                .getResourceAsStream("/db/migration/V1__baseline.sql")) {
-            sql = new String(in.readAllBytes(), StandardCharsets.UTF_8);
-        }
-        try (Connection connection = connect(jdbcUrl); Statement st = connection.createStatement()) {
-            st.execute(sql);
         }
     }
 }

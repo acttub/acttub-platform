@@ -106,7 +106,7 @@ Jackson 설정: `WRITE_DATES_AS_TIMESTAMPS=false`, `Instant` 또는 `OffsetDateT
 4. **JSONB 8개** — `summaries.observation`(NULL 허용)/`.raw`/`.observations_json`/`.uncertainties_json`, `coaching_handoffs.handoff_json`, `practice_reports.report_json`, `reports.biggest_problem`, `external_operations.response_payload`(NULL 허용). **JSON null(`'null'::jsonb`)과 SQL NULL을 구분**한다. 현재 코드는 SQL NULL을 의도한다(`db/store.py:PostgresStore.claim_external_operation` 계열).
 5. **BIGSERIAL PK 2개** — `Anomaly.id`, `CoachTurn.id`. `IDENTITY` 전략은 JDBC 배치 INSERT를 막는다.
 6. **부분 인덱스 3개와 CHECK 제약 4개**(`ck_practice_sessions_blockage_branch`·`ck_coaching_handoffs_branch_kind`·`ck_practice_reports_report_type`·`ck_community_blocks_not_self`)는 Hibernate가 만들 수도 검증할 수도 없다. Flyway가 DDL을 소유해야 하는 결정적 이유다.
-   **개수를 SPEC에 박지 않는다** — `FlywayBaselineTest`가 alembic fingerprint에서 세어 따라간다.
+   **개수를 SPEC에 박지 않는다** — `FlywayBaselineTest`가 커밋된 fingerprint(`baseline-schema-fingerprint.txt`)에서 세어 따라간다.
    특히 `ck_practice_sessions_blockage_branch`는 `blockage_kind`×`sub_branch` 조합을 묶으므로 **테스트 픽스처가 임의의 값을 넣으면 INSERT가 거부된다.**
 7. **`CommunityReport.target_id`는 의도적으로 FK가 없다**(글/댓글 양쪽을 가리킴, `db/models.py:CommunityReport` 주석).
 
@@ -119,16 +119,22 @@ Jackson 설정: `WRITE_DATES_AS_TIMESTAMPS=false`, `Instant` 또는 `OffsetDateT
 
 ### 5-5. Flyway 전략 — baseline만으로는 부족하다
 
-**`V1__baseline.sql`에 현 스키마 전체(24 테이블 + 17 enum 타입 + 인덱스 + 제약 + 초기 커뮤니티 데이터)를 동결한다.** alembic `0001`~`0010`이 만든 최종 결과를 덤프해 만든다. 재생성은 손이 아니라 `apps/api-java/scripts/regen-baseline.sh`가 한다.
+🔁 **스키마 정본이 Flyway로 넘어왔다 (`SOMA-403` 3단계).** 스키마 변경은 alembic이 아니라 Flyway 마이그레이션으로 들어가고, 배포는 파이썬 소스 없이 jar 하나만 보낸다 — 마이그레이션이 **앱 기동의 일부**다. 아래는 그 뒤의 규칙이다.
+
+**`V1__baseline.sql`에 현 스키마 전체(24 테이블 + 17 enum 타입 + 인덱스 + 제약 + 초기 커뮤니티 데이터)가 동결돼 있다.** alembic HEAD가 만든 최종 결과를 덤프해 만들었다.
 
 - **빈 DB**: V1을 실행해 스키마를 재구축한다. 이것이 없으면 신규 환경·재해 복구가 불가능하다
 - **기존 DB(dev·운영)**: 같은 V1 버전으로 `baseline`을 기록만 한다. DDL은 실행하지 않는다
 
+🔥 **V1은 동결이다. 스키마 변경은 `V2__`부터 새 파일로 들어간다.** 두 경로의 이력이 다르기 때문이다 — dev·운영은 `<< Flyway Baseline >>`(type=BASELINE)이라 **checksum이 없고**, 신규 환경은 V1을 SQL로 밟아 checksum을 갖는다. **V1을 고치면 dev·운영은 멀쩡한데 신규 환경만 `checksum mismatch`로 기동하지 못한다** — 재해복구가 필요한 순간에야 드러난다. 관측이 아니라 재현한 것이고(`spec/M6-findings.md` 발견 1), `FlywayBaselineTest.baselineIsFrozen`이 checksum을 못박아 막는다.
+
 **"스키마 diff 0" 기준에서 `flyway_schema_history` 테이블은 명시적으로 제외한다** — baseline 자체가 이 테이블을 만들기 때문에, 제외하지 않으면 기준이 항상 실패한다.
 
-**빈 DB 재구축 테스트를 완료 기준에 넣는다.** M6에서 alembic을 지우면 이 경로가 유일한 스키마 생성 수단이 된다.
+**기대값 fixture는 `baseline-schema-fingerprint.txt`이고, 재생성은 손이 아니라 `apps/api-java/scripts/regen-fingerprint.sh`가 한다**(Docker만 필요). 스키마가 바뀌는 PR마다 돌려 결과를 함께 커밋한다.
 
-**기대값을 커밋된 fixture 하나에만 의존시키지 않는다.** `V1__baseline.sql`과 `alembic-schema-fingerprint.txt`는 둘 다 alembic 결과의 스냅샷이라, 서로 비교하면 **둘이 같이 낡아도 초록이 뜬다.** dev가 `0006 → 0010`으로 전진하는 동안 실제로 그렇게 됐다. `FlywayBaselineTest.committedFingerprintMatchesLiveAlembic`이 **실행 시점에 alembic을 직접 돌려** fixture와 대조해 이 구멍을 막는다. CI는 `REQUIRE_ALEMBIC_CHECK=1`로 건너뛰기를 금지한다.
+**앞으로 가는 길이 뚫려 있는지는 따로 본다.** dev·운영에서 Flyway가 마이그레이션을 실행한 적은 **한 번도 없다** — V1은 기록만 됐다. `FlywayForwardMigrationTest`가 그 경로(BASELINE 이력만 있는 DB)에 임시 V2를 통과시켜 확인하고, **baseline이 마이그레이션보다 높으면 조용히 건너뛰는 것**을 반증으로 함께 보인다.
+
+🔎 **fixture 자기참조는 정본이 옮겨오며 해소됐다.** 예전에는 `V1__baseline.sql`과 fixture가 **둘 다 alembic 결과의 스냅샷**이라 서로 비교하면 둘이 같이 낡아도 초록이 떴다(dev가 `0006 → 0010`으로 전진하는 동안 실제로 그랬다). 지금은 V1이 정본이고 동결이므로, fixture와의 비교는 자기참조가 아니라 회귀 검사다.
 
 ### 5-6. `DATABASE_URL` 변환
 
@@ -290,7 +296,8 @@ Spring Boot 기본값은 `false`(무시)이고 Pydantic 기본값과 같지만, 
 ### 8-1. 매 사이클 공통
 
 - Testcontainers(Postgres 18) 통합 테스트 통과 — **`ci.yml`의 `api-java` 잡이 PR마다 돌린다**
-- 스키마 fixture 드리프트 검사 통과 (`REQUIRE_ALEMBIC_CHECK=1`, §5-5)
+- 스키마 fixture 드리프트 검사 통과 (`FlywayBaselineTest`, §5-5). 어긋나면 `scripts/regen-fingerprint.sh`
+- 파이썬 대조 테스트(프롬프트·관리자 스키마·FastAPI interop)는 `REQUIRE_ALEMBIC_CHECK=1`이 있어야 건너뛰지 않는다 — CI가 켠다. **이름과 달리 alembic 과는 무관하고, "`apps/api`의 venv 가 있어야 한다"는 뜻이다**(§5-5에서 스키마 대조가 빠진 뒤로)
 - SPEC 참조 드리프트 검사 통과 (§12)
 - M1 이후: 계약 동등성 하네스 통과
 - `openapi.json` diff 0 (§4 항목 제외)

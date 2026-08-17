@@ -150,6 +150,10 @@ PG18 은 NOT NULL 을 `pg_constraint` 에 별도 제약(`contype='n'`)으로 물
 
 **fixture 재생성 방법** (컨테이너 버전을 바꿀 때):
 
+> 🔁 **아래 절차는 은퇴했다 (`SOMA-403` 3단계).** 정본이 alembic 이 아니라 Flyway 라서
+> fixture 는 `baseline-schema-fingerprint.txt` 로 이름이 바뀌었고, 재생성은
+> `apps/api-java/scripts/regen-fingerprint.sh` 가 한다(Docker 만 필요). 아래는 M0 당시의 기록이다.
+
 ```bash
 docker run -d --name pgref -e POSTGRES_PASSWORD=p -e POSTGRES_USER=u -p 55433:5432 postgres:18
 docker exec pgref psql -U u -d postgres -c 'CREATE DATABASE ref'

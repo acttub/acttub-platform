@@ -298,8 +298,12 @@ jobs:
       run:
         working-directory: apps/api-java
     env:
-      # FlywayBaselineTest가 alembic을 못 돌리면 건너뛰지 말고 실패하게 합니다.
-      # 건너뛰기를 허용하면 "둘 다 낡아도 초록"인 자기참조 상태로 되돌아갑니다.
+      # 파이썬 정본과 대조하는 테스트들(프롬프트 셋·관리자 스키마·FastAPI interop)이
+      # venv를 못 찾을 때 건너뛰지 말고 실패하게 합니다.
+      #
+      # ⚠ 이름과 달리 alembic과는 무관합니다 — 스키마 대조는 Flyway 기준으로 옮겨갔고
+      # (SOMA-403 3단계) 이 변수에는 "apps/api의 venv가 있어야 한다"는 뜻만 남았습니다.
+      # 파이썬이 사라지는 5단계에서 이 변수와 아래 uv 스텝이 함께 사라집니다.
       REQUIRE_ALEMBIC_CHECK: "1"
     steps:
       - uses: actions/checkout@v7
@@ -311,14 +315,14 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
-      # FlywayBaselineTest가 apps/api의 alembic을 실제로 돌려 스키마를 대조합니다.
-      # 그래서 Java 잡인데도 파이썬 워크스페이스가 필요합니다.
+      # 프롬프트·관리자 스키마·FastAPI interop을 파이썬 정본과 대조하는 테스트 다섯이
+      # apps/api의 venv를 요구합니다. 그래서 Java 잡인데도 파이썬 워크스페이스가 필요합니다.
       - uses: astral-sh/setup-uv@v9.0.0
         with:
           python-version: "3.11"
           enable-cache: true
 
-      - name: Sync python deps (alembic 대조용)
+      - name: Sync python deps (파이썬 정본 대조용)
         working-directory: apps/api
         run: uv sync --frozen --all-packages
 

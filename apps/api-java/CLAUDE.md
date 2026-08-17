@@ -17,10 +17,10 @@ Java 21 + Spring Boot 3.4. FastAPI(`apps/api`) 전면 이관 작업(`SOMA-287`)�
 ## 명령어 (이 디렉토리 기준)
 
 - `./gradlew test` — JUnit 5 + Testcontainers. **Docker 필요.**
-- `REQUIRE_ALEMBIC_CHECK=1 ./gradlew test` — CI와 같은 조건. 이 변수가 없으면 `FlywayBaselineTest`가 alembic을 못 돌릴 때 **조용히 건너뛰고 초록**이 됩니다.
+- `REQUIRE_ALEMBIC_CHECK=1 ./gradlew test` — CI와 같은 조건. 이 변수가 없으면 **파이썬 소스와 대조하는 테스트들**(`CoachPromptParityTest`·`ReportPromptParityTest`·`PromptParityTest`·`AdminSchemaParityTest`·`FastApiInteropIT`)이 `apps/api`의 venv를 못 찾을 때 **조용히 건너뛰고 초록**이 됩니다. ⚠ **이름과 달리 alembic과는 무관합니다** — 스키마 대조가 Flyway 기준으로 옮겨간 뒤로 "파이썬 워크스페이스가 있어야 한다"는 뜻만 남았습니다. 파이썬이 사라지는 `SOMA-403` 5단계에서 이 변수도 함께 사라집니다.
 - `./gradlew bootJar` — `acting-api.jar` 생성.
 - `./gradlew bootRun` — 로컬 기동(:8080). 설정은 아래 `.env`가 공급합니다.
-- `scripts/regen-baseline.sh` — baseline 스냅샷 재생성(아래 참조). Docker + uv 필요.
+- `scripts/regen-fingerprint.sh` — 스키마 fixture 재생성(아래 참조). **Docker만** 필요합니다.
 - `scripts/dr-rehearsal.sh` — 재해복구 리허설. `V1__baseline.sql` 만으로 세운 환경이 alembic 경로와 같은지, 덤프를 부은 뒤에도 앱이 서는지 본다. Docker + uv + JDK 필요. 결과는 [spec/M6-findings.md](../../spec/M6-findings.md)에 있고, **파이썬이 사라지는 `SOMA-403` 5단계에서 이 스크립트도 함께 지웁니다**(비교 대상이 없어집니다).
 - 루트에서 `python3 spec/check-refs.py` — SPEC이 가리키는 심볼이 소스에 실재하는지.
 
@@ -68,9 +68,14 @@ ln -sfn ../api/acting-api/.env .env    # 최초 1회. 파이썬과 같은 파일
 
 ## 스키마는 Flyway가 소유합니다
 
+**정본입니다** — alembic이 아니라 여기가 스키마를 정합니다(`SOMA-403` 3단계). 배포는 jar만 보내고 마이그레이션은 **기동 중에** Flyway가 돌립니다.
+
 - `ddl-auto: validate` 고정. `create`/`update`는 절대 금지(SPEC §2).
 - `baseline-on-migrate: false` — 기존 dev·운영 DB의 baseline 기록은 애플리케이션이 아니라 별도 명령으로 합니다. 여기서 켜면 "빈 DB가 아닌데 V1을 건너뛰는" 판정을 애플리케이션이 조용히 내립니다.
-- **`V1__baseline.sql`과 `alembic-schema-fingerprint.txt`는 alembic 결과의 스냅샷입니다.** `apps/api`에 마이그레이션이 추가되면 둘 다 낡는데, `FlywayBaselineTest`는 **이 둘을 서로 비교하므로 둘 다 낡아도 초록입니다.** 스키마가 바뀌는 PR마다 `scripts/regen-baseline.sh`를 돌리고 결과를 커밋합니다.
+- 🔥 **`V1__baseline.sql`은 동결입니다. 스키마 변경은 `V2__`부터 새 파일로 만듭니다.** V1을 고치면 dev·운영은 **멀쩡한데 신규 환경만** `checksum mismatch`로 기동하지 못합니다 — 두 경로의 이력이 다르기 때문입니다(dev·운영은 type=BASELINE이라 checksum이 아예 없습니다). 재해복구가 필요한 순간에야 드러나므로 `FlywayBaselineTest.baselineIsFrozen`이 checksum을 못박아 막습니다.
+- **스키마를 바꿨으면 `scripts/regen-fingerprint.sh`를 돌리고 `baseline-schema-fingerprint.txt`를 함께 커밋합니다.** 그 fixture가 "마이그레이션이 만드는 스키마"의 기대값이고 `FlywayBaselineTest`가 대조합니다.
+- ⚠ **dev·운영에서 Flyway가 마이그레이션을 실행한 적은 한 번도 없습니다** — V1은 기록만 됐고 V2는 아직 없습니다. 그 경로가 실제로 뚫려 있는지는 `FlywayForwardMigrationTest`가 임시 V2를 통과시켜 봅니다. **baseline이 마이그레이션보다 높으면 예외 없이 조용히 건너뛰므로**(같은 테스트의 반증), 새 마이그레이션이 안 도는 것 같으면 거기부터 의심합니다.
+- `baseline 관련 값을 테스트에서 명시하지 않습니다`(`FlywaySupport.flywayFor`) — `application.yml`이 주지 않으므로 실물은 Flyway 기본값입니다. 명시하면 실물과 다른 DB를 세워 놓고 "dev·운영 재현"이라 부르게 됩니다.
 
 ## 패키지 구조
 
@@ -143,7 +148,7 @@ ln -sfn ../api/acting-api/.env .env    # 최초 1회. 파이썬과 같은 파일
 
 `.github/workflows/ci.yml`의 잡 **둘**이 이 디렉토리를 지킵니다.
 
-- **`api-java`** — `./gradlew test`. 이 잡이 없던 동안 Java 통합 테스트 17개가 깨진 채로 dev가 초록이었습니다. Java 잡인데도 파이썬 워크스페이스를 함께 설치하는데, `FlywayBaselineTest`가 `apps/api`의 alembic을 실제로 돌려 스키마를 대조하기 때문입니다.
+- **`api-java`** — `./gradlew test`. 이 잡이 없던 동안 Java 통합 테스트 17개가 깨진 채로 dev가 초록이었습니다. Java 잡인데도 파이썬 워크스페이스를 함께 설치하는데, **프롬프트·관리자 스키마·FastAPI interop을 파이썬 정본과 대조하는 테스트 다섯**이 `apps/api`의 venv를 요구하기 때문입니다(위 `REQUIRE_ALEMBIC_CHECK` 참조). 스키마 대조는 더 이상 여기 없습니다 — Flyway가 정본입니다.
 - **`contract-harness-java`** — 세 인스턴스를 띄우고 `--target java`로 전 시나리오를 돌려 **FastAPI와의 계약 동등성**을 봅니다(`SOMA-397` 3단계). 테스트가 초록이어도 응답 바이트가 어긋날 수 있고, 웹은 FastAPI 스펙으로 타입을 생성하므로 그것을 컴파일 타임에 못 잡습니다. 절차의 정본은 [하네스 README](../../tools/contract-harness/README.md)의 `java 타겟` 절이고, 잡은 그것을 그대로 옮긴 것입니다.
 
 ## 사이클 진입 전 점검 (검사기로 대체 불가)

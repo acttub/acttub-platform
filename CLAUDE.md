@@ -25,7 +25,7 @@ Acttub 플랫폼 모노레포. JS(pnpm)와 Python(uv)이 공존합니다.
   - 운영 `acttub.com`(`www`는 301): CloudFront → front ALB → front svc / back ALB → back svc → RDS. 전부 private subnet → [docs/DEPLOY-VPC.md](docs/DEPLOY-VPC.md)
   - 개발 `dev.acttub.com`: EC2 한 대에 Caddy + 두 프로세스 + PostgreSQL → [docs/DEPLOY-DEV.md](docs/DEPLOY-DEV.md)
   - 배포는 `.github/workflows/deploy.yml` 하나가 담당합니다. **브랜치가 곧 환경입니다** — `dev` push는 dev로, `main` push는 운영으로 자동 배포되고 마이그레이션도 양쪽 다 자동으로 돕니다. Actions 탭의 수동 실행은 재배포·부분 배포(fe/be-java)용으로 남아 있습니다.
-  - **백엔드는 Spring Boot만 배포합니다.** FastAPI 서비스는 배포 대상이 아니고, 파이썬 소스만 마이그레이션용으로 인스턴스에 올라갑니다(alembic이 여전히 스키마 정본 — SPEC §5-5).
+  - **백엔드는 Spring Boot만 배포합니다.** 배포 아티팩트는 jar 하나뿐이고 파이썬은 인스턴스로 가지 않습니다 — **스키마 정본이 Flyway라(SPEC §5-5) 마이그레이션이 jar 기동의 일부**입니다. 스키마를 바꾸려면 `apps/api-java/src/main/resources/db/migration/`에 `V2__`부터 새 파일을 만듭니다. **`V1__baseline.sql`은 동결입니다** — 고치면 dev·운영은 멀쩡하고 신규 환경만 죽습니다.
   - **`main` 머지가 곧 운영 릴리스입니다.** 스키마 변경은 먼저 넓히고(마이그레이션 머지) 코드는 나중에 좁히는 순서로 나눠서 올립니다. 한 PR에 "컬럼 삭제 + 그 컬럼 안 쓰는 코드"를 같이 넣으면 배포 중간 상태에서 깨집니다.
 
 ## 이슈 추적 (Jira 연동)

@@ -63,11 +63,12 @@
 `.github/workflows/deploy.yml`:
 - ~~`be` 잡의 이름 `back svc (FastAPI)` → Spring Boot로~~ — **M5 에서 선행 완료.** `be` 잡을
   없애고 `be_java`(`back svc (Spring Boot)`)를 자동 배포로 올렸다
-- `migrate` 스텝과 `deploy/upload-api.sh` 호출 제거 — **마이그레이션 소유권을 Flyway 로
-  옮긴 뒤에만 가능하다.** 지금은 alembic 이 스키마 정본이라(§5-5) 파이썬 소스를 인스턴스에
-  보내야 하고, `ssm-deploy.sh migrate` 가 그 일만 한다
+- ~~`migrate` 스텝과 `deploy/upload-api.sh` 호출 제거~~ — ✅ **`SOMA-403` 3단계에서 끝났다.**
+  스키마 정본이 Flyway 로 넘어가 마이그레이션이 jar 기동의 일부가 됐고, `be_java` 잡에서
+  파이썬 업로드·`migrate`·`스키마 리비전 확인` 세 스텝이 사라졌다. **스크립트 파일 자체**
+  (`ssm-deploy.sh` 의 `migrate` 모드·`check-migration.sh`·`upload-api.sh`)는 5단계에서 지운다 —
+  지금은 은퇴 표시만 달려 있고 아무도 부르지 않는다
 - `guard` 의 `운영은 아직 자바 컷오버 전` 스텝 제거 — 운영 컷오버가 끝나면
-- `deploy/ssm-deploy.sh` 의 `migrate` 모드와 `deploy/check-migration.sh` 제거
 
 ### E. 잔여 정리
 

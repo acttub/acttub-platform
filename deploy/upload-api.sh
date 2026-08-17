@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
-# back svc 배포 아티팩트를 만들어 S3에 올린다. 로컬(맥)에서 실행한다.
+# 🔁 **은퇴한 스크립트다 — 배포 워크플로가 부르지 않는다**(SOMA-403 3단계). 스키마 정본이
+# Flyway 로 넘어가 파이썬 소스를 인스턴스에 보낼 이유가 없어졌다. 배포 아티팩트는 jar
+# 하나뿐이다(upload-api-java.sh). 파이썬이 사라지는 5단계에서 이 파일을 지운다.
+#
+# 파이썬 back svc 배포 아티팩트를 만들어 S3에 올린다. 로컬(맥)에서 실행한다.
 #
 #   DEPLOY_BUCKET=acttub-deploy deploy/upload-api.sh
 #

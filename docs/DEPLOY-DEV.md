@@ -277,12 +277,19 @@ dev는 인스턴스가 한 대라 두 잡이 같은 박스에 동시에 설치�
 아니다 — 8000 에 옛 코드로 계속 떠 있고 롤백 경로로만 남는다. 되돌릴 때는 `API_ORIGIN`을
 8000 으로 되돌린 뒤 `systemctl restart acttub-api` 한 번이면 디스크의 최신 소스로 뜬다.
 
-**마이그레이션은 dev·운영 모두 자동으로 돈다.** `deploy/ssm-deploy.sh migrate`가 파이썬
-소스를 갱신하고 `alembic upgrade head`를 실행한다 — alembic 이 여전히 스키마 정본이라
-(`SPEC.md` §5-5) 파이썬 코드가 인스턴스에 남아 있어야 하는 이유다. 이 모드는 `systemctl`을
-건드리지 않는다. 자바 배포보다 **먼저** 도는데, Flyway 가 `validate` 로 기동해서 스키마가
-뒤처져 있으면 자바가 아예 뜨지 못하기 때문이다. 되돌리기 어려운 성질은 그대로라 스키마를
-먼저 넓히고 코드를 나중에 좁히는 순서로 통제한다(`DEPLOY-VPC.md` 6-4).
+**마이그레이션은 자바 기동의 일부다.** 스키마 정본이 Flyway 라(`SPEC.md` §5-5, `SOMA-403`
+3단계) 배포는 jar 하나만 보내고, 앱이 뜨는 도중에 Flyway 가 `db/migration` 을 적용한다. 별도
+migrate 스텝이 없고 파이썬은 인스턴스로 가지 않는다. 스키마 변경은 `V2__` 부터 새 파일로
+들어가고 **`V1__baseline.sql` 은 동결이다.** 되돌리기 어려운 성질은 그대로라 스키마를 먼저
+넓히고 코드를 나중에 좁히는 순서로 통제한다(`DEPLOY-VPC.md` 6-4).
+
+⚠ **나쁜 마이그레이션은 배포 실패가 아니라 중단이다** — 마이그레이션이 `systemctl restart`
+뒤에 돌기 때문에 옛 프로세스는 이미 죽어 있다. dev 는 인스턴스가 한 대라 8000 의 FastAPI 로
+잠시 돌릴 여지가 있지만(아래 참조), 되돌리는 경로는 `DEPLOY-VPC.md` 4-4 가 정본이다.
+
+⚠ **8000 의 FastAPI 를 롤백 경로로 쓸 때는 스키마를 확인한다.** 그쪽 코드는 배포 때 갱신되지
+않으므로 디스크의 소스가 오래됐을 수 있고, Flyway 가 적용한 `V2__` 이후는 alembic 이 모른다.
+소스를 최신으로 올리려면 `deploy/ssm-deploy.sh migrate` 를 손으로 부른다(배포는 부르지 않는다).
 
 ## 5. 검증 체크리스트
 
@@ -294,7 +301,7 @@ DNS를 옮기기 전에는 퍼블릭 IP로 확인한다.
 4. `curl http://<퍼블릭 IP>/` — Caddy 경유
 5. 브라우저로 접속 → 스타일·JS 정상 (standalone의 `.next/static` 병합 검증)
 6. 구글 로그인 → 영상 업로드 → 분석 실행
-7. `sudo -u ubuntu env DATABASE_URL=... /usr/local/bin/uv run --no-dev alembic current` — 리비전 확인
+7. `sudo -u ubuntu psql "$DATABASE_URL" -c 'SELECT version, type, success FROM flyway_schema_history ORDER BY installed_rank'` — 적용된 마이그레이션 확인. dev 는 `1 | BASELINE` 로 시작한다
 
 ## 6. 인스턴스 교체 (재구축)
 

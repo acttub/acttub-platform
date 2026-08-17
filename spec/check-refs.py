@@ -27,6 +27,10 @@ PY_ROOTS = [
     "apps/api/acting-report/src",
     "apps/api/acting-llm/src",
     "apps/api",
+    # 하네스 자산을 자바로 옮기며(SOMA-403 2단계) M6-contract-migration.md 가
+    # `manifest.py:CASES` 처럼 하네스 소스를 가리키게 됐다. **하네스를 지우는 4단계에서
+    # 이 줄도 함께 지운다** — 그때 그 문서의 표도 정리 대상이다.
+    "tools/contract-harness/contract_harness",
     "",
 ]
 

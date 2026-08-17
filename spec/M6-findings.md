@@ -79,6 +79,12 @@ uuid 다. **그 둘이 비어 있으면 "다음 id 가 비어 있다" 가 항상
 → `apps/api-java/scripts/regen-baseline.sh` 는 V1 을 다시 만드는 도구라 **3단계에서 은퇴한다**
    (alembic 이 정본인 동안에만 성립하던 도구다).
 
+✅ **3단계에서 둘 다 반영했다.** 동결은 `FlywayBaselineTest.baselineIsFrozen` 이 checksum
+`-1135202796` 을 못박아 강제하고(반증: V1 사본에 주석 한 줄 → 값이 움직인다), regen 도구는
+Flyway 기준 `scripts/regen-fingerprint.sh` 로 갈아탔다. V1 파일 자체는 **헤더 주석이 낡은 채로
+남는다** — 고치면 이 발견이 말하는 그 일이 벌어진다. 안내는
+[`db/migration/README.md`](../apps/api-java/src/main/resources/db/migration/README.md) 가 대신 진다.
+
 ### 발견 2 — V1 이 스키마와 시드의 전부가 아니다
 
 `feature/consent/adapter/ConsentDocumentPublisher`(`ApplicationRunner`)가 **기동할 때마다**
@@ -168,6 +174,6 @@ pg_dump --data-only --disable-triggers \
 
 | 단계 | 반영할 것 |
 |---|---|
-| 3 (Flyway 정본화) | V1 동결 · 스키마 변경은 `V2__` 부터 · `regen-baseline.sh` 은퇴 (발견 1) |
+| 3 (Flyway 정본화) | ✅ 끝났다 — 결과는 [M6-flyway-ownership.md](M6-flyway-ownership.md) 가 정본이다. V1 동결 · 스키마 변경은 `V2__` 부터 · `regen-baseline.sh` 은퇴 (발견 1) |
 | 5 (파이썬 삭제) | `dr-rehearsal.sh` 도 함께 삭제 — 경로 A 가 alembic 을 요구한다 |
 | 6 (문서) | §3 절차를 `docs/DEPLOY-VPC.md` 로 옮긴다 |

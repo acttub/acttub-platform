@@ -152,7 +152,7 @@ MVP 핵심 기능의 정상 작동을 목표로 빠르게 개발한다. 단, AI 
 
 ### ADR-016: api-java를 단일 Gradle 모듈로 유지한다
 **결정**: `apps/api-java`를 Gradle 멀티 모듈로 쪼개지 않는다. 패키지 의존 방향은 모듈 경계가 아니라 ArchUnit의 순환 금지 검사로 강제하고, 공유 타입은 커널 패키지를 새로 만들지 않고 각자 제 역할의 패키지에 둔다.
-**이유**: 멀티 모듈이 주는 것은 의존 방향의 컴파일 타임 강제 하나인데, 대가로 프로젝트 디렉토리 기준 상대경로(`build.gradle.kts`의 `../api/acting-api/*` 리소스 복사, `AlembicSchema`, `application-contract.yml`, `regen-baseline.sh`)와 배포 산출물 경로(`deploy/upload-api-java.sh`), CI 리포트 경로가 동시에 깨진다. 무엇보다 `@ComponentScan`·`@EntityScan`·`@EnableJpaRepositories`가 하나도 없어 스캔이 순수 패키지 관례에 얹혀 있고, Schema Entity가 스캔 범위를 벗어나면 `ddl-auto: validate`가 **검증 대상 0개로 조용히 통과**한다.
+**이유**: 멀티 모듈이 주는 것은 의존 방향의 컴파일 타임 강제 하나인데, 대가로 프로젝트 디렉토리 기준 상대경로(`build.gradle.kts`의 `../api/acting-api/*` 리소스 복사, `AlembicSchema`, `application-contract.yml`, `regen-fingerprint.sh`)와 배포 산출물 경로(`deploy/upload-api-java.sh`), CI 리포트 경로가 동시에 깨진다. 무엇보다 `@ComponentScan`·`@EntityScan`·`@EnableJpaRepositories`가 하나도 없어 스캔이 순수 패키지 관례에 얹혀 있고, Schema Entity가 스캔 범위를 벗어나면 `ddl-auto: validate`가 **검증 대상 0개로 조용히 통과**한다.
 **트레이드오프**: 층 규칙이 컴파일 타임이 아니라 테스트로만 강제되므로, 검사를 지우면 아무도 막지 못한다. 두 번째 배포 산출물이 필요해지거나(워커 분리 등) 순환이 계속 새어나오면 재검토한다.
 
 ### ADR-017: api-java를 도메인별 헥사고날로 재편한다
