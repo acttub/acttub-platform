@@ -70,8 +70,15 @@ def upgrade() -> None:
     # `op.create_table` 에는 checkfirst 가 없다. 표가 이미 있으면 건너뛴다 --
     # raw `CREATE TABLE IF NOT EXISTS` 로 다시 쓰지 않는 이유는 제약 이름·기본값이
     # 0012 와 미묘하게 갈릴 수 있어서다. 아래는 0012 의 정의를 그대로 옮긴 것이다.
+    #
+    # ⚠ **스키마를 이름에 박지 않는다.** 0012 의 `op.create_table` 이 스키마를 명시하지
+    # 않아 `search_path` 를 따르므로, 존재 검사도 같은 규칙이어야 한다. `public.` 을
+    # 박았더니 계약 하네스가 빨간불이었다 -- 하네스는 `-csearch_path=<스키마>` 로 격리된
+    # 스키마에 스키마를 세우는데(`dbsetup.py`), 검사만 `public` 을 보니 표를 못 찾고
+    # `create_table` 이 돌아 DuplicateTable 로 죽었다. 로컬은 search_path 가 public 이라
+    # 두 표기가 같은 답을 내서 드러나지 않았다.
     if bind.execute(
-        sa.text("SELECT to_regclass('public.actor_memory_entries')")
+        sa.text("SELECT to_regclass('actor_memory_entries')")
     ).scalar() is None:
         op.create_table(
             "actor_memory_entries",
