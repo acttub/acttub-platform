@@ -13,7 +13,7 @@ import java.time.ZoneOffset;
 import java.util.UUID;
 
 import com.acttub.actingapi.auth.app.JwtService;
-import com.acttub.actingapi.operation.ExternalOperationClaimer;
+import com.acttub.actingapi.platform.operation.ExternalOperationClaimer;
 import com.acttub.actingapi.integration.storage.ObjectStorage;
 import com.acttub.actingapi.integration.storage.StoredObjectMetadata;
 import com.acttub.actingapi.support.PostgresContainerSupport;

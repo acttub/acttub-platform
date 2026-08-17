@@ -11,7 +11,7 @@ import java.time.ZoneOffset;
 import java.util.Map;
 import java.util.UUID;
 
-import com.acttub.actingapi.operation.ExternalOperationClaimer;
+import com.acttub.actingapi.platform.operation.ExternalOperationClaimer;
 import com.acttub.actingapi.platform.ledger.LeaseOwnershipException;
 import com.acttub.actingapi.report.app.PracticeReportLedger;
 import com.acttub.actingapi.support.PostgresContainerSupport;

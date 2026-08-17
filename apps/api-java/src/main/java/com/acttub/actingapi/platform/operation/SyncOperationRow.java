@@ -1,4 +1,4 @@
-package com.acttub.actingapi.operation;
+package com.acttub.actingapi.platform.operation;
 
 import java.time.Instant;
 import java.util.UUID;

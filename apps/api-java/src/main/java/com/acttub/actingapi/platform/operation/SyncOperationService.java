@@ -1,4 +1,4 @@
-package com.acttub.actingapi.operation;
+package com.acttub.actingapi.platform.operation;
 
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -39,6 +39,12 @@ import org.springframework.transaction.support.TransactionTemplate;
  * 한 클래스가 둘 다 받는다 — 갈라지는 날 여기서 갈리면 되고, 그때까지 위임만 하는 클래스를
  * 둘 세워 둘 이유는 없다. 주고받는 타입은 어느 쪽 것도 아닌 {@code ledger} 의 것이라, coach·report
  * 는 이 클래스의 존재를 모른 채로 선다.
+ *
+ * <p>🔥 <b>그래서 이 구현은 {@code platform/ledger} 안에 못 들어간다.</b> 같은 조각이 되면
+ * 이쪽이 도메인의 포트를 구현하고(platform.ledger → coach) 도메인은 반대로 교환 타입을 쓰므로
+ * (coach → platform.ledger) 간선이 양방향이 되어 {@code PackageCycleTest} 가 빨간불이다.
+ * 실제로 합쳐 보면 순환이 여섯 잡힌다. 교환 타입과 구현이 같은 배관 안에서 조각으로 갈려
+ * 있는 것은 그 때문이다(SOMA-397 13단계).
  */
 @Service
 public class SyncOperationService implements CoachOperationLedger, ReportOperationLedger {

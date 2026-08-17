@@ -1,4 +1,4 @@
-package com.acttub.actingapi.operation;
+package com.acttub.actingapi.platform.operation;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
