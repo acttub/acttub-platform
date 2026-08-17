@@ -15,7 +15,6 @@ import time
 from uuid import uuid4
 
 from acting_llm.media import extract_audio as default_extract_audio
-from acting_llm.openai_client import transcribe_audio as default_transcribe_audio
 from acting_api.db.store import LeaseOwnershipError
 from acting_summary import compress as compress_mod
 from acting_summary import summarizer as summarizer_mod
@@ -27,8 +26,8 @@ TRANSCRIPTION_SYSTEM_PROMPT = """너는 연기 영상의 음성을 한국어로 
 
 - 실제로 들리는 발화만 적고, 해석·요약·화자 이름·행동 묘사를 넣지 않는다.
 - 앞뒤 대사의 연결이 보이도록 모든 발화를 정확한 순서로 적는다.
-- 대사 하나마다 줄을 바꾼다. 시각, 화자 표지, 글머리표는 붙이지 않는다.
-- 알아듣지 못한 부분을 문맥으로 지어내지 않는다. 발화가 없거나 전혀 알아들을 수 없으면 빈 문자열을 낸다."""
+- 대사 하나마다 배열의 문자열 항목 하나를 쓴다. 시각, 화자 표지, 글머리표는 붙이지 않는다.
+- 알아듣지 못한 부분을 문맥으로 지어내지 않는다. 발화가 없거나 전혀 알아들을 수 없으면 빈 배열을 낸다."""
 TRANSCRIPTION_MAX_DURATION_MS = 120_000
 
 
@@ -92,8 +91,8 @@ class SummaryAnalyzer:
         *,
         client,
         model: str,
+        transcribe_audio,
         extract_audio=default_extract_audio,
-        transcribe_audio=default_transcribe_audio,
     ):
         self._client = client
         self.model = model
@@ -167,8 +166,12 @@ class SummaryAnalyzer:
                 TRANSCRIPTION_SYSTEM_PROMPT,
             )
             return transcript_segments_from_text(text)
-        except Exception:
-            logger.warning("transcription failed; continuing analysis", exc_info=True)
+        except Exception as exc:
+            logger.warning(
+                "transcription failed; continuing analysis provider=gemini reason=%s",
+                exc,
+                exc_info=True,
+            )
             return ()
         finally:
             if audio_path is not None:

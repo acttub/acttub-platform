@@ -21,9 +21,9 @@ acting-api 백엔드. uv 파이썬 모노레포 — `acting-api`(FastAPI 게이�
 
 `acting-api/.env` — config.py가 이 경로를 하드코딩으로 읽습니다. 키: `DATABASE_URL`, `JWT_SECRET`, `GEMINI_API_KEY`, **`OPENAI_API_KEY`**, `DEVELOPMENT_AUTH_PROVIDER`(로컬 development 로그인 opt-in), `GOOGLE_OAUTH_CLIENT_ID`(선택 override), S3 설정(`S3_BUCKET`/`AWS_REGION` — 함께 설정하거나 생략, 없으면 업로드 503), 선택 자격증명(`AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY` — 반드시 한 쌍, `AWS_SESSION_TOKEN`은 임시 자격증명일 때 추가. 미설정 시 boto3 기본 체인이 instance role 등을 탐색), `STATIC_DIR`(선택 — 웹 정적 빌드 서빙, 지정 시 디렉토리가 존재해야 기동).
 
-**AI 키가 둘로 갈립니다** — 영상 분석은 Gemini(`GEMINI_API_KEY`), 코치·리포트·음성 전사는 OpenAI(`OPENAI_API_KEY`)입니다. 모델은 기본값이 있어 생략해도 됩니다(`OPENAI_CHAT_MODEL`, `OPENAI_TRANSCRIBE_MODEL`).
+**AI 키가 둘로 갈립니다** — 영상 관찰·음성 전사는 Gemini(`GEMINI_API_KEY`), 코치·리포트는 OpenAI(`OPENAI_API_KEY`)입니다. 모델은 기본값이 있어 생략해도 됩니다(`GEMINI_MODEL`, `GEMINI_TRANSCRIBE_MODEL`, `OPENAI_CHAT_MODEL`). `OPENAI_TRANSCRIBE_MODEL`은 M5 환경변수 호환 계약 때문에 남아 있지만 FastAPI 전사 경로에서는 쓰지 않습니다.
 
-**`OPENAI_API_KEY`는 없어도 앱이 기동합니다.** `GatewaySettings`가 이 키를 모르고 `openai_client.py`가 호출 시점에 `os.environ`으로 직접 읽기 때문입니다(`S3_BUCKET`이 자격증명 없으면 기동을 막는 것과 다릅니다). 그래서 로그인·업로드·분석까지 다 통과한 뒤 **코치를 시작하는 순간 500**이 납니다. 더 조용한 쪽은 음성 전사로, 실패해도 `WARNING:acting_api.analysis_worker:transcription failed; continuing analysis`만 남기고 **대사 없이 분석된 세션이 만들어집니다** — 화면에는 아무 표시도 없습니다. "코치 연결에 실패했어요"를 만나면 이 키부터 확인하세요.
+**`OPENAI_API_KEY`는 없어도 앱이 기동합니다.** `GatewaySettings`가 이 키를 모르고 `openai_client.py`가 호출 시점에 `os.environ`으로 직접 읽기 때문입니다(`S3_BUCKET`이 자격증명 없으면 기동을 막는 것과 다릅니다). 그래서 로그인·업로드·분석까지 다 통과한 뒤 **코치를 시작하는 순간 500**이 납니다. 음성 전사는 기동 필수인 `GEMINI_API_KEY`와 앱의 단일 Gemini 클라이언트를 사용합니다. 전사 호출 자체가 실패하면 분석은 계속되어 대사 없는 세션이 만들어질 수 있지만, 로그에는 `provider=gemini`와 실패 원인이 함께 남습니다. "코치 연결에 실패했어요"를 만나면 `OPENAI_API_KEY`부터 확인하세요.
 
 ## 계약 변경 절차 (한 PR로)
 

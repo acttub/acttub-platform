@@ -66,7 +66,7 @@ Phase 3은 **Codex 단독**이다(`/SPEC.md` §11, 2026-08-09 사용자 결정).
 | `acting-summary` — 영상 관찰 | **Gemini** | Files API 업로드 → `PROCESSING` 폴링 → `generate_content` | `acting-summary/summarizer.py:summarize` |
 | `acting-agent` — 코치 | **OpenAI** | `POST https://api.openai.com/v1/responses` | `acting-agent/engine.py:_generate_validated` |
 | `acting-report` — 리포트 | **OpenAI** | 같은 클라이언트 | `acting-report/engine.py:generate_report` |
-| 음성 전사 | **OpenAI** | `POST /v1/audio/transcriptions` | `acting-llm/openai_client.py:transcribe_audio` |
+| 음성 전사 | **Gemini** | Files API `audio/mpeg` 업로드 → `generate_content` 구조화 출력 | `acting-llm/gemini_client.py:transcribe_audio` |
 
 **환경변수 이름과 기본값을 유지한다**(`/SPEC.md` §5-6과 같은 이유 — M5에서 배포 문서·양쪽 서버 `api.env`를 건드리지 않기 위해).
 
@@ -74,9 +74,10 @@ Phase 3은 **Codex 단독**이다(`/SPEC.md` §11, 2026-08-09 사용자 결정).
 |---|---|---|
 | `OPENAI_API_KEY` | 없음 | **부팅은 된다.** `acting-llm/openai_client.py:_required_configuration`이 호출 시점에 `os.environ`을 읽어 `RuntimeError`를 던진다 — 로그인·업로드·분석까지 통과한 뒤 **코치를 시작하는 순간** 실패한다. 이 지연 실패를 그대로 재현한다 |
 | `OPENAI_CHAT_MODEL` | `gpt-5.6-terra` | — |
-| `OPENAI_TRANSCRIBE_MODEL` | `gpt-transcribe` | — |
+| `OPENAI_TRANSCRIBE_MODEL` | `gpt-transcribe` | 🔎 M5 환경변수 호환을 위해 유지한다. FastAPI 전사 경로에서는 사용하지 않는다 |
 | **`GEMINI_API_KEY`** | 없음 | 🔎 **부팅이 실패한다.** `acting-summary/config.py:load_settings`가 `RuntimeError`를 던지고 `app.py:create_app`이 부팅 중 이를 호출한다. **OpenAI와 정반대다** |
 | **`GEMINI_MODEL`** | **`gemini-2.5-flash`** (`acting-summary/config.py:DEFAULT_MODEL`) | 기본값 사용 |
+| **`GEMINI_TRANSCRIBE_MODEL`** | **`gemini-2.5-flash`** (`acting-llm/gemini_client.py:DEFAULT_TRANSCRIBE_MODEL`) | preview가 아닌 안정판 기본값 사용 |
 | `ANALYSIS_LEASE_SEC` | **1800** (`config.py:DEFAULT_ANALYSIS_LEASE_SEC`) | 기본값 사용 |
 | **`SENTRY_DSN`** | 없음 | 조용히 넘어간다 — 켜지 않는다 (`observability.py:init_sentry`). **M5 대상**, 아래 참조 |
 | **`SENTRY_ENVIRONMENT`** | `local` | 기본값 사용 |
@@ -230,7 +231,8 @@ media_resolution    = MEDIA_RESOLUTION_LOW
 🔎 **음성 전사** (`analysis_worker.py:SummaryAnalyzer._transcribe`)
 - **`blockage_kind != "분석"`이면 건너뛴다.** 한글 리터럴이 분기 조건이다
 - `acting-llm/media.py:extract_audio`로 앞 **120초**(`analysis_worker.py:TRANSCRIPTION_MAX_DURATION_MS`)를 mp3(`libmp3lame -q:a 4`)로 뽑아 `transcribe_audio`에 넘긴다. 시스템 프롬프트는 `analysis_worker.py:TRANSCRIPTION_SYSTEM_PROMPT`(한국어 4개 규칙) 원문 그대로
-- **모든 예외를 삼킨다** — `logger.warning("transcription failed; continuing analysis")`만 남기고 빈 튜플을 돌려준다. 대사 없는 분석이 정상 완료된다
+- `app.py`가 영상 관찰과 같은 `genai.Client`를 주입한다. Files API에 `audio/mpeg`로 올리고 `response_mime_type="application/json"` + `response_schema=list[str]`로 대사 배열만 받은 뒤 코드에서 줄바꿈으로 조인한다
+- **모든 예외를 삼킨다** — `provider=gemini`와 예외 원인을 WARNING에 남기고 빈 튜플을 돌려준다. 대사 없는 분석이 정상 완료된다
 - `finally`에서 임시 디렉토리를 통째로 지운다(`shutil.rmtree(parent)`)
 - 후처리 `analysis_worker.py:transcript_segments_from_text` — CRLF/CR을 LF로 정규화 → 줄 단위 분할 → 각 줄을 **문장부호 `.!?。！？` 뒤 공백**에서 다시 분할 → strip 후 빈 줄 제거. **결정적이므로 golden 대상이다**
 
@@ -329,10 +331,10 @@ M2·M3에서 두 번 나온 "완료 기준이 도구 능력보다 앞선다"가 
 
 나가는 요청 전체를 캡처해 Python과 비교한다. 실호출 없이 스텁으로 한다.
 
-- **Gemini**: 생성 설정 전 필드(temperature·top_p·top_k·seed·media_resolution·response_mime_type·response_schema) + `contents` 배열의 **순서와 내용** + `system_instruction` + 모델명(**기본값 `gemini-2.5-flash`**)
+- **Gemini 관찰**: 생성 설정 전 필드(temperature·top_p·top_k·seed·media_resolution·response_mime_type·response_schema) + `contents` 배열의 **순서와 내용** + `system_instruction` + 모델명(**기본값 `gemini-2.5-flash`**)
+- **Gemini 전사**: Files API 업로드 MIME `audio/mpeg` + `contents=[uploaded]` + `system_instruction` + `response_mime_type=application/json` + `response_schema=list[str]` + 모델명(**기본값 `gemini-2.5-flash`**)
 - **OpenAI**: 요청 바디 `{model, instructions, input}` 세 필드. `input`은 **직렬화된 문자열까지** 비교한다 — 리포트는 `indent=2`·`ensure_ascii=False`가, 코치는 `build_chat_prompt` 출력이 그 자리에 온다
 - **재생성 요청**: `build_regeneration_prompt`에 실린 **검증 실패 메시지 문자열**까지 비교한다
-- **전사**: multipart 필드(`model`·`response_format=json`·`prompt`)와 파일 파트 이름(`audio.mp3`·`audio/mpeg`)
 - **호출 횟수**: LLM을 부르지 않는 세 경로(§범위)에서 스텁 호출 수가 **증가하지 않는다**
 
 ### 관문 ② 결정적 후처리 test (필수)
@@ -387,10 +389,10 @@ M2·M3에서 두 번 나온 "완료 기준이 도구 능력보다 앞선다"가 
 - [x] `ReportParseError` → **502** + `report_parse_error` 실패 전이 (네 진입점 모두)
 - [x] ffmpeg: 파라미터 동일, **압축·전사가 락 하나를 공유**, 타임아웃 600/120초, 압축 **폴백 5경로**. `clip_head`는 비활성 유틸리티
 - [x] ffprobe duration 판정과 **`unsupported_media` 즉시 FAILED**
-- [x] **음성 전사**: `blockage_kind == "분석"` 조건, 120초 상한, 실패 삼킴, `transcript_segments_from_text` 일치
+- [x] **음성 전사**: Gemini Files API + 문자열 배열 스키마, `blockage_kind == "분석"` 조건, 120초 상한, 공급자·원인 로그 후 실패 삼킴, `transcript_segments_from_text` 일치
 - [x] Files API 업로드·폴링(300초/2초)·삭제. 타임아웃 시 `FileActiveTimeout` 상당
 - [x] OpenAI 재시도 상수 4회·1→2→4초·`{429,503}`·120초, **오류 메시지 문자열 두 종**
-- [x] **환경변수 계약**: `GEMINI_API_KEY` 없으면 **부팅 실패**, `OPENAI_API_KEY` 없으면 **호출 시점 실패**, `GEMINI_MODEL` 기본 `gemini-2.5-flash`
+- [x] **환경변수 계약**: `GEMINI_API_KEY` 없으면 **부팅 실패**, `OPENAI_API_KEY` 없으면 **호출 시점 실패**, `GEMINI_TRANSCRIBE_MODEL` 기본 안정판 `gemini-2.5-flash`, `OPENAI_TRANSCRIBE_MODEL` 이름 유지
 - [x] 워커: **`/SPEC.md` §5-7 전이표 5행 + claim 두 갈래(FAILED 재선점 / FAILED 건너뜀) + lease 15분·1800초를 각각 Testcontainers로 테스트** (F-1, 워커보다 먼저). **관문 ③에서 이월된 "lease 3회 예산 소진"도 여기서 닫는다**
 - [x] **`run_once()` 동기 훅** 제공
 - [x] **`ANALYSIS_WORKER_ENABLED` 스위치** 제공

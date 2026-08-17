@@ -10,13 +10,14 @@ uv sync
 DATABASE_URL=postgresql://localhost/acting uv run alembic -c acting-api/alembic.ini upgrade head
 # S3를 쓰려면 자격증명이 필요합니다. AWS_PROFILE=<본인 profile>을 앞에 붙이거나
 # AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY를 함께 주세요(아래 환경 변수 참고).
-DEVELOPMENT_AUTH_PROVIDER=1 DATABASE_URL=postgresql://localhost/acting JWT_SECRET=... GEMINI_API_KEY=... OPENAI_API_KEY=... OPENAI_CHAT_MODEL=... S3_BUCKET=... AWS_REGION=ap-northeast-2 uv run uvicorn acting_api.app:create_app --factory --host 127.0.0.1 --port 8000
+DEVELOPMENT_AUTH_PROVIDER=1 DATABASE_URL=postgresql://localhost/acting JWT_SECRET=... GEMINI_API_KEY=... GEMINI_TRANSCRIBE_MODEL=... OPENAI_API_KEY=... OPENAI_CHAT_MODEL=... S3_BUCKET=... AWS_REGION=ap-northeast-2 uv run uvicorn acting_api.app:create_app --factory --host 127.0.0.1 --port 8000
 ```
 
 ### 환경 변수
 
-- `DATABASE_URL`, `JWT_SECRET`, `GEMINI_API_KEY`는 필수이며, 누락 시 앱이 기동하지 않습니다. `GEMINI_API_KEY`는 영상 분석(layer 1)에만 사용합니다.
+- `DATABASE_URL`, `JWT_SECRET`, `GEMINI_API_KEY`는 필수이며, 누락 시 앱이 기동하지 않습니다. `GEMINI_API_KEY`는 영상 관찰과 음성 전사(layer 1)에 함께 사용합니다. 전사 모델은 `GEMINI_TRANSCRIBE_MODEL`로 바꾸며 기본값은 안정판 `gemini-2.5-flash`입니다.
 - 코칭(layer 2)과 리포트(layer 3)는 `OPENAI_API_KEY`와 `OPENAI_CHAT_MODEL`을 사용합니다. 키가 없으면 해당 호출이 실패하며, `OPENAI_CHAT_MODEL`의 기본값은 `gpt-5.6-terra`입니다.
+- `OPENAI_TRANSCRIBE_MODEL`은 이관 중 환경변수 이름 호환을 위해 유지하지만 FastAPI 전사 경로에서는 사용하지 않습니다.
 - `GOOGLE_OAUTH_CLIENT_ID`는 선택 override입니다. 미설정 시 웹과 동일한 공개 OAuth client ID를 기본값으로 사용합니다.
 - `DEVELOPMENT_AUTH_PROVIDER`는 선택 사항이며 기본값은 비활성입니다. `1` 또는 `true`일 때만 로컬 개발용 `development` 로그인 provider를 등록합니다.
 - `S3_BUCKET`과 `AWS_REGION`은 함께 설정하거나 함께 생략합니다. 설정하면 boto3 기본 자격증명 체인(환경변수·공유 profile·instance role 등)을 사용하며, 자격증명을 찾지 못하면 앱이 기동하지 않습니다. 로컬에서 access key를 직접 쓸 때는 `AWS_ACCESS_KEY_ID`와 `AWS_SECRET_ACCESS_KEY`를 함께 설정하고, 임시 자격증명이면 `AWS_SESSION_TOKEN`도 추가합니다. S3 설정을 생략하면 앱은 기동하고 업로드·재생 API가 503을 반환하며 분석 워커는 시작하지 않습니다.

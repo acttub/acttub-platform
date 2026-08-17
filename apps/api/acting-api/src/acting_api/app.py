@@ -1,5 +1,6 @@
 import asyncio
 from datetime import timedelta
+from functools import partial
 import logging
 import os
 import time
@@ -42,7 +43,6 @@ from acting_api.admissions import build_router as build_admissions_router
 from acting_api.auth.router import build_router as build_auth_router
 from acting_api.coaching import build_router as build_coaching_router
 from acting_api.memory_worker import MemoryUpdateWorker
-from acting_llm.openai_client import generate_text
 from acting_api.community import build_router as build_community_router
 from acting_api.config import load_gateway_settings
 from acting_api.consents import (
@@ -59,6 +59,8 @@ from acting_api.ratelimit import RateLimiter
 from acting_api.reports import build_router as build_reports_router
 from acting_api.storage import S3Storage
 from acting_api.uploads import build_router as build_uploads_router
+from acting_llm import gemini_client
+from acting_llm.openai_client import generate_text
 from acting_summary.config import load_settings as load_summary_settings
 
 logger = logging.getLogger(__name__)
@@ -167,6 +169,10 @@ def create_app(
         analyzer = analyzer or SummaryAnalyzer(
             client=client,
             model=summary_settings.model,
+            transcribe_audio=partial(
+                gemini_client.transcribe_audio,
+                client=client,
+            ),
         )
         analysis_worker = AnalysisWorkerPool(
             worker=AnalysisWorker(

@@ -71,7 +71,10 @@ def test_generate_text_sends_plain_response_request_and_returns_usage(
     }
 
 
-def test_transcribe_audio_sends_mp3_multipart(monkeypatch, tmp_path):
+def test_legacy_openai_transcribe_contract_and_model_variable_remain(
+    monkeypatch,
+    tmp_path,
+):
     captured = []
     response = _FakeResponse(200, {"text": "받아쓰기", "usage": {}})
     monkeypatch.setenv("OPENAI_API_KEY", "test-key")

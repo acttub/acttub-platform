@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+import logging
 import os
 import threading
 from types import SimpleNamespace
@@ -20,7 +21,9 @@ from acting_api.analysis_worker import (
 from acting_api.app import create_app
 from acting_api.config import GatewaySettings
 from acting_api.db.models import OperationStatus, PracticeStatus, UploadStatus
+from acting_api.db.store import PostgresStore
 from acting_api.storage import S3Storage
+from acting_llm import gemini_client
 from acting_summary import compress as compress_mod
 from acting_summary import summarizer as summarizer_mod
 from acting_summary.config import Settings as SummarySettings
@@ -84,8 +87,8 @@ def test_transcription_system_prompt_matches_so_source_character_for_character()
 
 - 실제로 들리는 발화만 적고, 해석·요약·화자 이름·행동 묘사를 넣지 않는다.
 - 앞뒤 대사의 연결이 보이도록 모든 발화를 정확한 순서로 적는다.
-- 대사 하나마다 줄을 바꾼다. 시각, 화자 표지, 글머리표는 붙이지 않는다.
-- 알아듣지 못한 부분을 문맥으로 지어내지 않는다. 발화가 없거나 전혀 알아들을 수 없으면 빈 문자열을 낸다."""
+- 대사 하나마다 배열의 문자열 항목 하나를 쓴다. 시각, 화자 표지, 글머리표는 붙이지 않는다.
+- 알아듣지 못한 부분을 문맥으로 지어내지 않는다. 발화가 없거나 전혀 알아들을 수 없으면 빈 배열을 낸다."""
 
 
 def test_transcript_segments_split_newlines_and_sentence_punctuation():
@@ -225,6 +228,7 @@ def test_transcription_starts_before_gemini_finishes(monkeypatch, tmp_path):
 def test_transcription_failure_still_saves_observation_and_marks_analyzed(
     monkeypatch,
     tmp_path,
+    caplog,
 ):
     store, session, operation, storage = _pending_analysis(
         blockage_kind="분석",
@@ -255,13 +259,39 @@ def test_transcription_failure_still_saves_observation_and_marks_analyzed(
         model="gemini-test",
     )
 
-    assert worker.run_once() is True
+    with caplog.at_level(logging.WARNING, logger="acting_api.analysis_worker"):
+        assert worker.run_once() is True
     assert session.status == PracticeStatus.ANALYZED
     assert operation.status == OperationStatus.SUCCEEDED
     assert next(iter(store.summaries.values())).raw == SUMMARY.model_dump(mode="json")
     assert store.transcripts[session.id] == []
+    assert "provider=gemini" in caplog.text
+    assert "reason=offline transcription failure" in caplog.text
     assert not audio_path.exists()
     assert not audio_dir.exists()
+
+
+def test_app_injects_the_existing_gemini_client_into_transcription():
+    client = FakeClient()
+    store = object.__new__(PostgresStore)
+
+    app = create_app(
+        client=client,
+        gateway_settings=GatewaySettings(
+            database_url="postgresql+psycopg://unused/unused",
+            jwt_secret="secret",
+        ),
+        summary_settings=SummarySettings(api_key="k", model="m"),
+        store=store,
+        community_store=SimpleNamespace(),
+        s3_storage=object(),
+        memory_worker=object(),
+    )
+
+    analyzer = app.state.analysis_worker.worker.analyzer
+    assert analyzer._client is client
+    assert analyzer._transcribe_audio.func is gemini_client.transcribe_audio
+    assert analyzer._transcribe_audio.keywords == {"client": client}
 
 
 def test_worker_cycle_claims_downloads_analyzes_and_atomically_completes():
