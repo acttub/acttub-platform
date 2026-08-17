@@ -5,7 +5,7 @@
 #
 # 모드는 넷이다.
 #   fe                 Next standalone 설치 + 재시작
-#   be-java            jar 설치 + 재시작. dev 에서는 이것이 트래픽을 받는 백엔드다
+#   be-java            jar 설치 + 재시작. dev·운영 모두 이것이 트래픽을 받는 백엔드다
 #   migrate            파이썬 소스 갱신 + alembic upgrade head. **서비스를 건드리지 않는다**
 #   be-java-baseline   DB 마다 최초 1회. flyway_schema_history 만 기록한다
 #

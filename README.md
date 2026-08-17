@@ -52,6 +52,6 @@ PR을 머지하려면 `.github/workflows/ci.yml`의 잡 다섯(`web`·`api`·`co
 
 `pnpm build`가 만든 Next 서버(standalone)가 화면을 서빙하고, `/v2/*`·`/health`를
 rewrites로 백엔드에 넘깁니다. 브라우저에는 오리진이 하나로 보여 CORS가 필요 없습니다.
-그 백엔드는 환경마다 다릅니다 — dev는 Spring Boot, 운영은 아직 FastAPI입니다(SOMA-394).
+그 백엔드는 dev·운영 모두 Spring Boot입니다(SOMA-394 운영 컷오버 완료).
 배포 절차는 운영 [docs/DEPLOY-VPC.md](docs/DEPLOY-VPC.md), 개발
 [docs/DEPLOY-DEV.md](docs/DEPLOY-DEV.md)를 참고하세요.
