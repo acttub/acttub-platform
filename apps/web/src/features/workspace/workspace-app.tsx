@@ -357,6 +357,9 @@ function WorkspaceInner() {
     setAnalysisStatus(null);
     reportProgress({ type: "reset" });
     setError(null);
+    // 연습을 여는 중에 새 연습으로 나가면 그 조회의 finally 는 남의 화면을 건드리지
+    // 않으려고 busy 를 두고 간다. 화면을 처음으로 되돌리는 여기가 그걸 푸는 자리다.
+    setBusy(false);
     setSituation("");
     setCharacter("");
     setGoal("");
@@ -837,9 +840,15 @@ function WorkspaceInner() {
         startConversationAfterAnalysis(id);
       }
     } catch {
-      setError("연습을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.");
+      // 그새 다른 연습으로 넘어갔으면 이 실패는 지금 화면과 상관이 없다 —
+      // 안쪽 가드와 같은 이유이고, 여기만 빠져 있었다.
+      if (activeIdRef.current === id) {
+        setError("연습을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.");
+      }
     } finally {
-      setBusy(false);
+      // 남의 요청이 지금 화면의 로딩을 풀면 안 된다. 이 가드로 두고 가는 busy 는
+      // 다음 openSession 이 다시 켜거나 resetToPrep 이 푼다.
+      if (activeIdRef.current === id) setBusy(false);
     }
   }, [
     countStepOnce,
@@ -858,10 +867,16 @@ function WorkspaceInner() {
     if (!ready || !sessionParam || urlLoadedRef.current === sessionParam) return;
     urlLoadedRef.current = sessionParam;
     let cancelled = false;
+    // cancelled 만으로는 부족하다 — effect 가 다시 도는 경우만 막는다. 기다리는 사이
+    // 배우가 목록에서 다른 연습을 열었으면 그쪽이 지금 화면이고, 이 응답은 거기 닿으면
+    // 안 된다. activeIdRef 가 비어 있는 첫 진입은 이 세션이 자리를 잡는 경우라 통과시킨다.
+    const superseded = () =>
+      cancelled ||
+      (activeIdRef.current !== null && activeIdRef.current !== sessionParam);
     void (async () => {
       try {
         const loaded = await getPracticeSession(sessionParam);
-        if (cancelled) return;
+        if (superseded()) return;
         // 주소로 연 세션도 압축 여부·영상 길이를 모른다 — openSession 과 같은 자리에서 출발한다.
         reportProgress({ type: "reset" });
         activeIdRef.current = sessionParam;
@@ -890,17 +905,17 @@ function WorkspaceInner() {
         setMode("chat");
         try {
           const found = await getReport(sessionParam);
-          if (cancelled) return;
+          if (superseded()) return;
           setReport(found.report);
           setMode("note");
           countStepOnce(sessionParam, "result");
         } catch {
-          if (cancelled) return;
+          if (superseded()) return;
           setReport(null);
           startConversationAfterAnalysis(sessionParam);
         }
       } catch {
-        if (!cancelled) setError("연습을 찾을 수 없어요.");
+        if (!superseded()) setError("연습을 찾을 수 없어요.");
       }
     })();
     return () => {
