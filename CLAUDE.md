@@ -21,11 +21,11 @@ Acttub 플랫폼 모노레포. JS(pnpm)와 Python(uv)이 공존합니다.
 - PR 게이트는 `.github/workflows/ci.yml`의 잡 5개(`web`·`api`·`contract-harness`·`contract-harness-java`·`api-java`)입니다. **잡을 추가해도 자동으로 관문이 되지는 않습니다** — 머지를 막는 것은 ruleset의 required status check이고, 그 목록은 레포 설정에 따로 있습니다. **context 문자열은 잡 id가 아니라 `name:` 값 전체**여야 합니다(예: `contract-harness-java (java 계약 diff 0)`). 어긋나면 영원히 pending인 관문이 생깁니다. **하네스 잡이 둘로 갈린 이유** — `contract-harness`는 하네스 자신이 건강한지(self-test·자기동일성)를, `contract-harness-java`는 Java가 FastAPI 계약을 재현하는지를 봅니다. **로컬에서 무엇을 돌려야 CI를 통과하는지는 이 워크플로가 정본입니다** — 앱별 명령은 각 앱 CLAUDE.md에 있습니다.
 - **`contract-harness` 잡이 빨갛거나 계약 하네스를 로컬에서 돌릴 때**는 [tools/contract-harness/README.md](tools/contract-harness/README.md)가 정본입니다(실행법·제어 표면·백엔드 계약). Postgres가 필요하고 주소는 `HARNESS_DATABASE_URL`로 바꿉니다 — **도커 대신 로컬 Postgres를 쓰면 `PGTZ=UTC`를 함께 줍니다.** 도커 이미지는 UTC로 뜨지만 brew 설치본은 시스템 타임존을 따라 datetime diff가 수백 건 납니다.
 - 배포 형태(dev·운영 공통): **Next 서버가 화면을 서빙하고 `/v2/*`·`/health`를 rewrites로 백엔드에 넘깁니다.** 두 프로세스가 분리돼 있어 브라우저에는 오리진이 하나로 보입니다(CORS 불필요).
-  - **그 백엔드가 환경마다 다릅니다** — dev는 Spring Boot(:8080, M5 컷오버 완료), 운영은 아직 FastAPI입니다. 운영 컷오버가 끝날 때까지의 과도기입니다(`SOMA-394`).
+  - **그 백엔드는 dev·운영 모두 Spring Boot(:8080)입니다.** 2026-08-17 운영 컷오버로 과도기가 끝났습니다(`SOMA-394`).
   - 운영 `acttub.com`(`www`는 301): CloudFront → front ALB → front svc / back ALB → back svc → RDS. 전부 private subnet → [docs/DEPLOY-VPC.md](docs/DEPLOY-VPC.md)
   - 개발 `dev.acttub.com`: EC2 한 대에 Caddy + 두 프로세스 + PostgreSQL → [docs/DEPLOY-DEV.md](docs/DEPLOY-DEV.md)
   - 배포는 `.github/workflows/deploy.yml` 하나가 담당합니다. **브랜치가 곧 환경입니다** — `dev` push는 dev로, `main` push는 운영으로 자동 배포되고 마이그레이션도 양쪽 다 자동으로 돕니다. Actions 탭의 수동 실행은 재배포·부분 배포(fe/be-java)용으로 남아 있습니다.
-  - **백엔드는 Spring Boot만 배포합니다.** FastAPI 서비스는 배포 대상이 아니고, 파이썬 소스만 마이그레이션용으로 인스턴스에 올라갑니다(alembic이 여전히 스키마 정본 — SPEC §5-5). **운영 배포는 `guard`가 막아 둔 상태입니다** — 운영은 FastAPI가 트래픽을 받는데 이 워크플로가 그것을 갱신하지 않기 때문입니다.
+  - **백엔드는 Spring Boot만 배포합니다.** FastAPI 서비스는 배포 대상이 아니고, 파이썬 소스만 마이그레이션용으로 인스턴스에 올라갑니다(alembic이 여전히 스키마 정본 — SPEC §5-5).
   - **`main` 머지가 곧 운영 릴리스입니다.** 스키마 변경은 먼저 넓히고(마이그레이션 머지) 코드는 나중에 좁히는 순서로 나눠서 올립니다. 한 PR에 "컬럼 삭제 + 그 컬럼 안 쓰는 코드"를 같이 넣으면 배포 중간 상태에서 깨집니다.
 
 ## 이슈 추적 (Jira 연동)

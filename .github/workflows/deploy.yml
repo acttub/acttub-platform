@@ -32,8 +32,8 @@ on:
       target:
         description: 배포 대상
         type: choice
-        # be-java 가 백엔드 배포입니다. dev 는 프록시 대상이 8080 이라 이 잡이 곧
-        # 트래픽을 받는 프로세스를 갱신합니다(관문 A·B 통과, 2026-08-16).
+        # be-java 가 백엔드 배포입니다. dev·운영 모두 프록시 대상이 8080 이라 이 잡이
+        # 곧 트래픽을 받는 프로세스를 갱신합니다(운영 컷오버까지 완료, 2026-08-17).
         # FastAPI 는 더 이상 배포하지 않습니다 — alembic 이 여전히 스키마 정본이라
         # 소스와 마이그레이션만 be-java 안에서 갱신하고, 서비스는 건드리지 않습니다.
         options: [fe, be-java, both, be-java-baseline]
@@ -101,42 +101,8 @@ jobs:
           echo '`gh workflow run deploy.yml --ref main -f environment=prod` 로 실행하세요.' >> $GITHUB_STEP_SUMMARY
           exit 1
 
-      # M5 컷오버(SOMA-394)가 dev 에서만 끝났습니다. 운영은 아직 FastAPI 가 트래픽을
-      # 받는데, 이 워크플로는 더 이상 FastAPI 를 배포하지 않습니다. 그대로 두면 main
-      # 머지가 운영에 아무것도 반영하지 않은 채 초록으로 끝나므로 — 조용한 동결이
-      # 배포 성공으로 기록되므로 — 여기서 멈춥니다.
-      #
-      # 운영 컷오버(spec/M5-cutover.md 6장: 한산한 시간대 실행·같은 검증 통과·롤백
-      # 경로 사전 확인)가 끝나면 이 스텝을 지웁니다.
-      #
-      # 막는 것은 **전체 배포(both)뿐입니다.** target 을 명시한 수동 실행은 통과시킵니다 —
-      # 운영 컷오버 자체가 be-java-baseline → be-java → fe 를 하나씩 돌리는 절차라,
-      # 여기서 싸잡아 막으면 컷오버를 할 방법이 없어집니다.
-      - name: 운영은 아직 자바 컷오버 전
-        if: ${{ steps.env.outputs.environment == 'prod' && (inputs.target || 'both') == 'both' }}
-        run: |
-          echo "::error::운영은 아직 FastAPI 가 트래픽을 받습니다. 이 워크플로는 FastAPI 를 배포하지 않으므로 운영에 반영되지 않습니다."
-          {
-            echo "### 운영 전체 배포를 멈췄습니다"
-            echo ""
-            echo "이 워크플로는 백엔드로 **Spring Boot 만** 배포합니다(\`SOMA-394\` M5 컷오버)."
-            echo "dev 는 프록시 대상이 8080 이라 그대로 성립하지만, 운영은 아직 FastAPI 가"
-            echo "트래픽을 받습니다. 이대로 나가면 운영에 코드가 반영되지 않은 채 배포가"
-            echo "성공으로 기록됩니다."
-            echo ""
-            echo "**운영 컷오버를 먼저 끝내세요** — \`spec/M5-cutover.md\` 6장:"
-            echo "- 한산한 시간대 실행"
-            echo "- 같은 검증 통과"
-            echo "- 롤백 경로가 실제로 동작함을 사전 확인"
-            echo ""
-            echo "컷오버 절차 자체는 \`target\` 을 골라 수동 실행하면 통과합니다"
-            echo "(\`be-java-baseline\` → \`be-java\` → \`API_ORIGIN\` 변경 후 \`fe\`)."
-            echo "끝나면 이 워크플로의 \`운영은 아직 자바 컷오버 전\` 스텝을 지웁니다."
-          } >> "$GITHUB_STEP_SUMMARY"
-          exit 1
-
-  # 백엔드 배포입니다. 2026-08-16 M5 컷오버(SOMA-394) 관문 A·B 를 통과해 dev 의
-  # 프록시 대상이 8080 이 되었으므로, 이 잡이 곧 트래픽을 받는 프로세스를 갱신합니다.
+  # 백엔드 배포입니다. 2026-08-17 운영 컷오버(SOMA-394)까지 끝나 dev·운영 모두
+  # 프록시 대상이 8080 이므로, 이 잡이 곧 트래픽을 받는 프로세스를 갱신합니다.
   #
   # inputs.target은 push 이벤트에서 비어 있습니다. push는 곧 전체 배포이므로
   # 기본값 both를 씁니다. 환경은 guard가 판정한 값 하나만 봅니다.
@@ -379,8 +345,8 @@ jobs:
             color="danger"
             head=":rotating_light: *${ENVIRONMENT} 배포 실패* —${failed}"
           elif [ "$FE" = "skipped" ] && [ "$BE_JAVA" != "skipped" ]; then
-            # 백엔드만 올린 실행입니다. dev 는 프록시 대상이 8080 이라 이것만으로
-            # 트래픽을 받는 프로세스가 갈립니다 — 화면은 그대로라는 뜻입니다.
+            # 백엔드만 올린 실행입니다. dev·운영 모두 프록시 대상이 8080 이라
+            # 이것만으로 트래픽을 받는 프로세스가 갈립니다 — 화면은 그대로라는 뜻입니다.
             color="good"
             head=":package: *${ENVIRONMENT} 백엔드(자바)만 갱신* (화면 변경 없음)"
           elif [ "$ENVIRONMENT" = "prod" ]; then

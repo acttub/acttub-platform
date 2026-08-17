@@ -5,7 +5,7 @@
 #
 # 모드는 넷이다.
 #   fe                 Next standalone 설치 + 재시작
-#   be-java            jar 설치 + 재시작. dev 에서는 이것이 트래픽을 받는 백엔드다
+#   be-java            jar 설치 + 재시작. dev·운영 모두 이것이 트래픽을 받는 백엔드다
 #   migrate            파이썬 소스 갱신 + alembic upgrade head. **서비스를 건드리지 않는다**
 #   be-java-baseline   DB 마다 최초 1회. flyway_schema_history 만 기록한다
 #
@@ -88,9 +88,9 @@ EOF
   # `systemctl restart acttub-api` 한 번이면 최신 코드로 뜬다.
   #
   # ⚠ uv sync 가 .venv 를 실행 중인 프로세스 밑에서 갈아끼운다. 그 프로세스가
-  # 나중에 lazy import 를 하면 깨질 수 있다. dev 는 트래픽도 워커도 자바가 가져가
-  # 실질 위험이 없고(FastAPI 는 롤백 대기), 운영은 guard 가 이 워크플로 자체를
-  # 막는다. 운영 컷오버 뒤에는 FastAPI 를 정지시키므로 이 창도 함께 닫힌다.
+  # 나중에 lazy import 를 하면 깨질 수 있다. dev·운영 모두 트래픽도 워커도 자바가
+  # 가져가 실질 위험이 없다(FastAPI 는 롤백 대기). 파이썬을 걷어내는 SOMA-403
+  # 5단계에서 이 분기 자체가 사라지므로 그때 창도 함께 닫힌다.
   migrate)
     REMOTE_SCRIPT=$(cat <<EOF
 set -euo pipefail
@@ -105,8 +105,8 @@ EOF
 )
     SERVICE="alembic 마이그레이션"
     ;;
-  # 백엔드 배포. dev 는 프록시 대상이 8080 이라(관문 A, 2026-08-16) 이 분기가 곧
-  # 트래픽을 받는 프로세스를 갈아끼운다.
+  # 백엔드 배포. dev·운영 모두 프록시 대상이 8080 이라(운영 컷오버까지 완료,
+  # 2026-08-17) 이 분기가 곧 트래픽을 받는 프로세스를 갈아끼운다.
   be-java)
     # 아래 drop-in 이 이 값을 두 이름으로 넣는다. 한 곳에서 정하지 않으면 기본값을
     # 한쪽만 고쳐도 두 이름이 조용히 갈린다.
