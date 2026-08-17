@@ -23,15 +23,22 @@ echo "▶ 빌드"
 
 [ -f "$JAR" ] || { echo "✗ jar 를 찾지 못했어요: $JAR" >&2; exit 1; }
 
+# 프리픽스는 파이썬과 같은 be/ 다. be/ 는 "back svc 인스턴스에 갈 산출물" 이라는
+# 뜻이고 jar 도 그것이다. 파일 이름이 겹치지 않는다 — .jar 대 .tar.gz,
+# acttub-api-java.service 대 acttub-api.service.
+#
+# 따로 be-java/ 를 두면 인스턴스 role 에 프리픽스를 하나 더 허용해야 한다. 운영
+# 정책(acttub-be-deploy)은 be/* 로 좁혀 둔 상태라 그 특례가 손으로 관리되는 IAM 에만
+# 남고 레포에는 안 남는다 — 2026-08-17 운영 컷오버가 그 403 으로 한 번 멈췄다.
 echo "▶ 업로드 ($(du -h "$JAR" | cut -f1))"
-aws s3 cp "$JAR" "s3://$DEPLOY_BUCKET/be-java/$TAG.jar"
-aws s3 cp "$JAR" "s3://$DEPLOY_BUCKET/be-java/latest.jar"
+aws s3 cp "$JAR" "s3://$DEPLOY_BUCKET/be/$TAG.jar"
+aws s3 cp "$JAR" "s3://$DEPLOY_BUCKET/be/latest.jar"
 aws s3 cp deploy/systemd/acttub-api-java.service \
-  "s3://$DEPLOY_BUCKET/be-java/acttub-api-java.service"
+  "s3://$DEPLOY_BUCKET/be/acttub-api-java.service"
 
 cat <<EOF
 
-✔ 업로드 완료: s3://$DEPLOY_BUCKET/be-java/$TAG.jar
+✔ 업로드 완료: s3://$DEPLOY_BUCKET/be/$TAG.jar
 
 설치는 SSM 으로 합니다:
 
