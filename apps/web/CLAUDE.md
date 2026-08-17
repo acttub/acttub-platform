@@ -32,7 +32,7 @@ src/
   features/   화면 모듈 (practice-flow, terms-gate, auth 가드)
   lib/
     api/v2/   acting-api v2 클라이언트 (도메인별 모듈)
-    auth/     토큰 스토어·refresh·로그인 provider
+    auth/     토큰 스토어·refresh·Google/Apple SDK 어댑터
     config/   env 스위치 (선택 변수는 env.ts 주석이 단일 문서)
 ```
 

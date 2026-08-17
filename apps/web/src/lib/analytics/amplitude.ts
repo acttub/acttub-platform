@@ -47,7 +47,7 @@ type AnalysisErrorCode =
   | "max_attempts_exceeded";
 type ReportType = "analysis" | "expression" | "blocked";
 type PracticeStatus = "created" | "analyzing" | "analyzed" | "failed";
-type LoginProvider = "development" | "google" | "apple";
+export type LoginProvider = "development" | "google" | "apple";
 // `session_create` 는 UploadError 가 아니다. 업로드가 다 끝난 뒤 세션 생성에서 터지는
 // 실패인데, 이걸 preflight 로 묶으면 "영상이 문제였다"와 "서버가 거절했다"가 한 칸에 섞인다.
 type UploadStage = "preflight" | "intent" | "put" | "complete" | "session_create";

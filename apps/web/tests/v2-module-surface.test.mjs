@@ -22,23 +22,11 @@ const internalSymbols = [
   ["src/lib/api/v2/uploads.ts", "completeUploadIntent", "function"],
 ];
 
-const intentionalExports = [
-  ["src/lib/auth/providers.ts", "developmentProvider", "const"],
-  ["src/lib/auth/providers.ts", "googleProvider", "const"],
-];
-
 const moduleNamespaces = new Map(
   await Promise.all(
-    [
-      ...new Set(
-        [...internalSymbols, ...intentionalExports].map(
-          ([relativePath]) => relativePath,
-        ),
-      ),
-    ].map(async (relativePath) => [
-      relativePath,
-      await import(`../${relativePath}`),
-    ]),
+    [...new Set(internalSymbols.map(([relativePath]) => relativePath))].map(
+      async (relativePath) => [relativePath, await import(`../${relativePath}`)],
+    ),
   ),
 );
 
@@ -59,24 +47,6 @@ test("internal execution symbols keep declarations without being exported", () =
 
   assert.deepEqual(missingDeclarations, []);
   assert.deepEqual(leakedExports, []);
-});
-
-test("login providers remain intentional module exports", () => {
-  const missingDeclarations = [];
-  const missingExports = [];
-
-  for (const [relativePath, symbol, declarationKind] of intentionalExports) {
-    const source = readSource(relativePath);
-    const declaration = new RegExp(
-      `\\bexport\\s+${declarationKind}\\s+${symbol}\\b`,
-    );
-
-    if (!declaration.test(source)) missingDeclarations.push(symbol);
-    if (!(symbol in moduleNamespaces.get(relativePath))) missingExports.push(symbol);
-  }
-
-  assert.deepEqual(missingDeclarations, []);
-  assert.deepEqual(missingExports, []);
 });
 
 test("RefreshRequest alias is absent from the handwritten v2 types", () => {
