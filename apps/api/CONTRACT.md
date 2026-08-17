@@ -7,7 +7,8 @@
 
 > **§ 번호는 다시 매기지 않는다.** 자바 소스·테스트·`application.yml`·`build.gradle.kts` 가
 > `(apps/api/CONTRACT.md §5-4)` 처럼 **번호로** 이 규칙들을 인용한다
-> (`grep -rn "CONTRACT.md §" src` 로 센다). 번호를 정리하면 그 인용이 전부 조용히 어긋나므로,
+> (`grep -rn "CONTRACT.md §" src build.gradle.kts` 로 센다 — **`build.gradle.kts` 는 `src`
+> 밖이라 빠뜨리기 쉽다**). 번호를 정리하면 그 인용이 전부 조용히 어긋나므로,
 > 이관 사양(`SOMA-287`)에서 쓰던 번호를 그대로 이어받았다. §1·§3·§9~§12 가 없는 것은 그 장들이
 > 이관 절차였기 때문이다(`SOMA-403` 6단계에서 폐기). 원문은
 > [docs/archive/soma287/SPEC.md](../../docs/archive/soma287/SPEC.md) 에 있다.
@@ -53,7 +54,12 @@ Jackson 설정: `WRITE_DATES_AS_TIMESTAMPS=false`, `Instant` 또는 `OffsetDateT
 
 따라서 `schema` 패키지의 `@Entity` 는 **영속화 수단이 아니라 스키마 검증 장치**다 —
 `ddl-auto: validate` 가 대조할 대상을 제공하는 것이 유일한 역할이고, 프로덕션 코드에서 한 번도
-참조되지 않는다. 이 상태를 정본으로 삼는 용어가 `/CONTEXT.md` 의 **Schema Entity** 이며,
+참조되지 않는다.
+
+⚠ **Entity 수와 테이블 수가 같지 않다.** `actor_memory_entries` 에 대응하는 `@Entity` 가 애초에
+만들어진 적이 없어 **그 테이블만 `ddl-auto: validate` 밖에 있다**(→ SOMA-398). 둘이 어긋난
+만큼이 검증 밖이라는 뜻이므로, 새 테이블을 만들 때 Entity 를 함께 만들지 않으면 그 테이블은
+조용히 검증 대상에서 빠진다. 이 상태를 정본으로 삼는 용어가 `/CONTEXT.md` 의 **Schema Entity** 이며,
 충돌하는 서술은 그쪽이 맞다. §5-3(엔티티 매핑 함정)은 그래도 유효하다 — 검증 장치로 쓰려면
 매핑이 정확해야 하기 때문이다.
 
@@ -75,17 +81,20 @@ Jackson 설정: `WRITE_DATES_AS_TIMESTAMPS=false`, `Instant` 또는 `OffsetDateT
 
 ### 5-3. 엔티티 매핑 함정
 
-1. **네이티브 Postgres enum 17종.** DB 저장값이 소문자이고 `IntentImpact` 는 **값이 한글**
+1. **네이티브 Postgres enum.** DB 저장값이 소문자이고 `IntentImpact` 는 **값이 한글**
    (`"반전"`/`"약화"`/`"국소"`)이다. `@Enumerated(EnumType.STRING)` 은 varchar 바인딩이라 PG 가
    `operator does not exist` 로 거부한다. → **`@Enumerated` 금지.**
+
+   **종수를 문서에 박지 않는다** — `PgEnumCatalogVerifier` 의 맵이 정본이고 맵 전체를
+   `equals` 로 대조하므로, 한 종을 더하거나 빼면 그 검증기가 곧바로 말해 준다.
 
    **매핑 방법**: `@JdbcTypeCode(SqlTypes.NAMED_ENUM)` 과 `AttributeConverter` 는 **공존할 수
    없다.** 둘을 같이 걸면 EntityManagerFactory 생성이
    `Cannot read the array length because "values" is null` 로 죽는다. → **커스텀 `JdbcType`**
    (`setObject(…, Types.OTHER)`)으로 값을 바인딩한다.
    `platform/schema` 의 `PgEnum`·`PgEnumJdbcType`·`PgEnumConverter` 가 그 구현이다.
-2. **UUID PK 22개** (PK 24개 − BIGSERIAL 2개). 대부분 앱에서 생성하고, `CoachSession.id` 만
-   외부에서 온다. `HandoffConfirmation` 은 PK 가 `coaching_handoff_id` 로 **FK 겸 PK** 다.
+2. **PK 는 BIGSERIAL 둘을 뺀 나머지가 전부 UUID 다.** 대부분 앱에서 생성하고,
+   `CoachSession.id` 만 외부에서 온다. `HandoffConfirmation` 은 PK 가 `coaching_handoff_id` 로 **FK 겸 PK** 다.
    Spring Data `save()` 는 `@Id` 가 non-null 이면 `merge()` 를 호출해 불필요한 SELECT 가
    붙는다. → 앱 생성 PK 는 `Persistable<UUID>` 구현(`AppGeneratedUuidEntity`), 그리고
    **INSERT 전 SELECT 가 없음을 검증**한다(`EntityMappingIT`).
@@ -100,14 +109,14 @@ Jackson 설정: `WRITE_DATES_AS_TIMESTAMPS=false`, `Instant` 또는 `OffsetDateT
    **JSON null(`'null'::jsonb`)과 SQL NULL 을 구분한다.** 현재 코드는 SQL NULL 을 의도한다.
 5. **BIGSERIAL PK 2개** — `Anomaly.id`, `CoachTurn.id`. `IDENTITY` 전략은 JDBC 배치 INSERT 를
    막는다.
-6. **부분 인덱스 3개와 CHECK 제약 4개**(`ck_practice_sessions_blockage_branch`·
-   `ck_coaching_handoffs_branch_kind`·`ck_practice_reports_report_type`·
-   `ck_community_blocks_not_self`)는 Hibernate 가 만들 수도 검증할 수도 없다. Flyway 가 DDL 을
+6. **부분 인덱스와 CHECK 제약**은 Hibernate 가 만들 수도 검증할 수도 없다. Flyway 가 DDL 을
    소유해야 하는 결정적 이유다.
-   **개수를 문서에 박지 않는다** — `FlywayBaselineTest` 가 커밋된 fingerprint
-   (`baseline-schema-fingerprint.txt`)에서 세어 따라간다.
-   특히 `ck_practice_sessions_blockage_branch` 는 `blockage_kind`×`sub_branch` 조합을 묶으므로
-   **테스트 픽스처가 임의의 값을 넣으면 INSERT 가 거부된다.**
+   **개수도 목록도 문서에 박지 않는다** — `FlywayBaselineTest` 가 커밋된 fingerprint
+   (`baseline-schema-fingerprint.txt`)에서 세어 따라간다. 지금 무엇이 걸려 있는지는 거기서
+   본다: `grep -o 'ck_[a-z_]*' src/test/resources/baseline-schema-fingerprint.txt | sort -u`.
+   ⚠ **픽스처를 쓰기 전에 그 표를 본다.** `ck_practice_sessions_blockage_branch` 는
+   `blockage_kind`×`sub_branch` 조합을 묶고, `actor_memory_entries` 에는 값의 공백·길이·
+   대상 조합을 묶는 제약이 걸려 있다 — **임의의 값을 넣으면 INSERT 가 거부된다.**
 7. **`community_reports.target_id` 는 의도적으로 FK 가 없다** — 글과 댓글 양쪽을 가리킨다.
 
 ### 5-4. 트랜잭션 경계
@@ -117,15 +126,16 @@ Jackson 설정: `WRITE_DATES_AS_TIMESTAMPS=false`, `Instant` 또는 `OffsetDateT
    `release` 는 각각 별도 트랜잭션 메서드다. `TransactionBoundaryTest` 가 지킨다.
 2. **내부 헬퍼에 `@Transactional` 을 붙이지 않는다.** 호출자 트랜잭션에 참여하는 것이
    의도다. self-invocation 함정과 겹친다.
-3. **`@Modifying` 에는 `clearAutomatically=true, flushAutomatically=true`.** 벌크 UPDATE 는
-   1차 캐시를 우회하므로 이후 같은 트랜잭션에서 엔티티를 계속 쓰는 코드가 stale 해진다.
+3. **벌크 UPDATE 뒤에 같은 트랜잭션에서 읽은 값을 믿지 않는다.** 지금은 데이터 접근이 전부
+   `JdbcTemplate` 이라 1차 캐시가 없지만(§5-1), Spring Data 저장소를 들이면 이 함정이 함께
+   들어온다.
 
 ### 5-5. Flyway 가 스키마를 소유한다
 
 **정본이다.** 스키마 변경은 Flyway 마이그레이션으로 들어가고, 배포는 jar 하나만 보낸다 —
 마이그레이션이 **앱 기동의 일부**다.
 
-**`V1__baseline.sql` 에 스키마 전체(24 테이블 + 17 enum 타입 + 인덱스 + 제약 + 초기 커뮤니티
+**`V1__baseline.sql` 에 스키마 전체(테이블 + enum 타입 + 인덱스 + 제약 + 초기 커뮤니티
 데이터)가 동결돼 있다.**
 
 - **빈 DB**: V1 을 실행해 스키마를 재구축한다. 이것이 없으면 신규 환경·재해 복구가 불가능하다
@@ -223,7 +233,7 @@ Postgres 의 `ORDER BY` 는 **출력 별칭을 먼저** 찾는다. enum 은 선�
 | 2 | unknown key 정책 | **전역 `FAIL_ON_UNKNOWN_PROPERTIES=true` + 허용 DTO 에만 `@JsonIgnoreProperties(ignoreUnknown = true)`**(§6-3). 반대 방향은 표현 불가 |
 | 3 | null 필드 **포함** | `@JsonInclude(NON_NULL)` **전역 사용 금지**(§6-1) |
 | 4 | datetime | 전 엔드포인트 `Z` + 마이크로초 6자리(§4). **JDBC 바인딩은 `OffsetDateTime`**(§5-8) |
-| 5 | enum 표기 | `AttributeConverter` 17개. **`@Enumerated` 금지** |
+| 5 | enum 표기 | 종마다 `AttributeConverter`. **`@Enumerated` 금지**(§5-3-1) |
 | 6 | refresh 회전 | 소진 토큰 재사용 시 **해당 유저 전 세션 무효화**(의도된 동작) |
 | 7 | 404 | "없음" 과 "남의 리소스" 를 구분하지 않는다(존재 노출 방지) |
 | 8 | S3 presign | **리전 엔드포인트 고정.** 글로벌 엔드포인트는 신규 버킷에 307 |
@@ -240,16 +250,18 @@ Postgres 의 `ORDER BY` 는 **출력 별칭을 먼저** 찾는다. enum 은 선�
 
 | 동작 | 대상 |
 |---|---|
-| **required + `null` 값을 실어 보냄**(14) | `AuthUser.email`, `MeResponse.email`/`.nickname`, `CoachTurnResponse.handoff`/`.report`, `CoachConfirmResponse.handoff`, `SourceHandoffIds.analysis`, `PostListResponse.next_cursor`, `CommentListResponse.next_cursor`, `AuthorPayload.id`/`.nickname`/`.alias`, `CategoryPayload.description`, `BlockPayload.nickname` |
+| **required + `null` 값을 실어 보냄** | `AuthUser.email`, `MeResponse.email`/`.nickname`, `CoachTurnResponse.handoff`/`.report`, `CoachConfirmResponse.handoff`, `SourceHandoffIds.analysis`, `PostListResponse.next_cursor`, `CommentListResponse.next_cursor`, `AuthorPayload.id`/`.nickname`/`.alias`, `CategoryPayload.description`, `BlockPayload.nickname`, `MemoryItem.source_practice_session_id` |
 | **optional + 조건부로 키를 추가** | `PracticeSessionDetail.summary`(status 가 `analyzed` 이고 summary 가 있을 때만), `.error_code`(`failed` 일 때만) |
 | **optional 인데 항상 포함** | `PracticeSessionStatusResponse.error_code` |
 
 같은 이름의 필드가 엔드포인트마다 다르게 동작한다. DTO 를 분리하거나 직렬화를 수동 제어한다.
 
-`default` 가 붙은 필드 9개는 전부 컬렉션 기본값이거나 불리언이고
-(`AdmissionNotice` 5개·`AdmissionStage.evaluates`·`AdmissionUniversity.resources` 가 `[]`,
-`PostWriteRequest.anonymous`·`CommentWriteRequest.anonymous` 가 `false`),
-**`anyOf [T, null]` 과 겹치지 않는다.**
+⚠ **위 목록을 손으로 세지 않는다** — 도메인이 늘면 낡는다(실제로 `memory` 가 들어오며 한 줄이
+빠진 채였다). 스펙에서 뽑는다: 각 컴포넌트의 `required` 에 있으면서 `anyOf` 에 `type: null` 이
+섞인 속성이 그 집합이다.
+
+`default` 가 붙은 필드는 **`anyOf [T, null]` 과 겹치지 않는다** — default 가 있으면 nullable 로
+선언되지 않는다. 대부분 컬렉션 기본값(`[]`)이나 불리언이다.
 
 ### 6-2. 오류 계약은 `openapi.json` 에 없다
 

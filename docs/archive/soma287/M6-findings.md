@@ -83,7 +83,7 @@ uuid 다. **그 둘이 비어 있으면 "다음 id 가 비어 있다" 가 항상
 `-1135202796` 을 못박아 강제하고(반증: V1 사본에 주석 한 줄 → 값이 움직인다), regen 도구는
 Flyway 기준 `scripts/regen-fingerprint.sh` 로 갈아탔다. V1 파일 자체는 **헤더 주석이 낡은 채로
 남는다** — 고치면 이 발견이 말하는 그 일이 벌어진다. 안내는
-[`db/migration/README.md`](../apps/api-java/src/main/resources/db/migration/README.md) 가 대신 진다.
+[`db/migration/README.md`](../../../apps/api/src/main/resources/db/migration/README.md) 가 대신 진다.
 
 ### 발견 2 — V1 이 스키마와 시드의 전부가 아니다
 

@@ -15,7 +15,7 @@
 두 가지만 썼다.
 
 - **deletion test** — 지웠을 때 복잡도가 사라지면(호출자 0) 지운다. 여러 호출부로 흩어지면 그 module은 값을 하고 있는 것이다.
-- **응답 바이트를 움직이는가** — 응답 계약의 정본은 Spring Boot(`apps/api`)이고, 계약을 지키는 것은 그쪽 Java 테스트다. `apps/web`은 `spec/openapi.json`으로 타입을 생성한다. **움직이지 않는 것만 지금 한다.**
+- **응답 바이트를 움직이는가** — 응답 계약의 정본은 Spring Boot(`apps/api`)이고, 계약을 지키는 것은 그쪽 Java 테스트다. `apps/web`은 `apps/api/spec/openapi.json`으로 타입을 생성한다. **움직이지 않는 것만 지금 한다.**
 
 ---
 
