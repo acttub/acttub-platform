@@ -1,4 +1,4 @@
-package com.acttub.actingapi.admin;
+package com.acttub.actingapi.admin.app;
 
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -8,13 +8,21 @@ import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import com.fasterxml.jackson.databind.annotation.JsonNaming;
 import io.swagger.v3.oas.annotations.media.Schema;
 
-final class AdminDtos {
-    private AdminDtos() {
+/**
+ * 관리자가 보는 지표의 공개 스키마.
+ *
+ * <p>이 도메인은 <b>집계한 것이 곧 응답</b>이라 형태를 web 이 아니라 여기에 둔다 —
+ * {@code report/app/PublicReport}·{@code admissions/app/Admissions} 와 같은 자리다. 중간
+ * 표현을 따로 만들면 일흔 개 남짓한 필드를 두 벌로 두게 되고, 파이썬 정본과의 필드 순서를
+ * 못박은 {@code AdminSchemaParityTest} 도 어느 쪽을 봐야 할지 갈린다.
+ */
+public final class AdminMetrics {
+    private AdminMetrics() {
     }
 
     @Schema(name = "AdminFunnelStep", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
     @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
-    record AdminFunnelStep(
+    public record AdminFunnelStep(
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String step,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) long users,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) long usersReal) {
@@ -24,7 +32,7 @@ final class AdminDtos {
             name = "AdminSignupSourceCount",
             additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
     @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
-    record AdminSignupSourceCount(
+    public record AdminSignupSourceCount(
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String source,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) long users,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) long usersReal) {
@@ -34,7 +42,7 @@ final class AdminDtos {
             name = "AdminCloseReasonCount",
             additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
     @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
-    record AdminCloseReasonCount(
+    public record AdminCloseReasonCount(
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String reason,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) long count,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) long countReal) {
@@ -42,7 +50,7 @@ final class AdminDtos {
 
     @Schema(name = "AdminStats", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
     @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
-    record AdminStats(
+    public record AdminStats(
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) long usersTotal,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) long usersTotalReal,
             @JsonProperty("users_last_7d")
@@ -134,7 +142,7 @@ final class AdminDtos {
 
     @Schema(name = "AdminTurn", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
     @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
-    record AdminTurn(
+    public record AdminTurn(
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) int turnIndex,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String role,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String text) {
@@ -142,7 +150,7 @@ final class AdminDtos {
 
     @Schema(name = "AdminSession", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
     @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
-    record AdminSession(
+    public record AdminSession(
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String coachSessionId,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) OffsetDateTime createdAt,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true) String status,
@@ -157,7 +165,7 @@ final class AdminDtos {
 
     @Schema(name = "AdminSessions", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
     @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
-    record AdminSessions(
+    public record AdminSessions(
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) List<AdminSession> sessions,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) int playbackExpiresInSec) {
     }

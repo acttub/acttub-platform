@@ -1,4 +1,4 @@
-package com.acttub.actingapi.admin;
+package com.acttub.actingapi.admin.adapter.db;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -14,25 +14,35 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-import com.acttub.actingapi.admin.AdminDtos.AdminCloseReasonCount;
-import com.acttub.actingapi.admin.AdminDtos.AdminSignupSourceCount;
-import com.acttub.actingapi.admin.AdminDtos.AdminFunnelStep;
-import com.acttub.actingapi.admin.AdminDtos.AdminStats;
-import com.acttub.actingapi.admin.AdminDtos.AdminTurn;
+import com.acttub.actingapi.admin.app.AdminMetrics.AdminCloseReasonCount;
+import com.acttub.actingapi.admin.app.AdminMetrics.AdminSignupSourceCount;
+import com.acttub.actingapi.admin.app.AdminMetrics.AdminFunnelStep;
+import com.acttub.actingapi.admin.app.AdminMetrics.AdminStats;
+import com.acttub.actingapi.admin.app.AdminMetrics.AdminTurn;
+import com.acttub.actingapi.admin.app.AdminMetricsRepository;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
+/**
+ * 지표를 손으로 쓴 SQL 로 집계한다. 파이썬 {@code db/store.py} 의 질의를 그대로 옮긴 것이라
+ * <b>세는 방식이 곧 계약</b>이고, 여기서 한 줄을 고치면 운영 지표가 조용히 달라진다.
+ *
+ * <p>사람이 읽는 말로 옮기는 자리(마감 사유가 없는 세션을 "진행 중"·"사유 없음"으로 가르는
+ * 것, 유입 출처가 빈 계정을 "(직접/미상)" 한 버킷으로 묶는 것)도 여기 있다. SQL 이 낸
+ * {@code null} 을 해석하는 일이고, 그 해석이 집계·정렬과 같은 문장 안에서 나야 합계가 맞는다.
+ */
 @Repository
-class AdminStore {
+class PostgresAdminMetricsRepository implements AdminMetricsRepository {
     private final JdbcTemplate jdbc;
     private final Clock clock;
 
-    AdminStore(JdbcTemplate jdbc, Clock clock) {
+    PostgresAdminMetricsRepository(JdbcTemplate jdbc, Clock clock) {
         this.jdbc = jdbc;
         this.clock = clock;
     }
 
-    AdminStats stats(List<String> excludeEmails) {
+    @Override
+    public AdminStats stats(List<String> excludeEmails) {
         OffsetDateTime now = clock.instant().atOffset(ZoneOffset.UTC);
         OffsetDateTime since7d = now.minusDays(7);
         OffsetDateTime since24h = now.minusHours(24);
@@ -171,7 +181,8 @@ class AdminStore {
                 maximum("practice_sessions", "created_at"));
     }
 
-    List<SessionRow> sessions(int limit, List<String> excludeEmails) {
+    @Override
+    public List<SessionRow> sessions(int limit, List<String> excludeEmails) {
         StringBuilder sql = new StringBuilder("""
                 SELECT
                     coach.id,
@@ -441,18 +452,6 @@ class AdminStore {
 
     private static long value(Long value) {
         return value == null ? 0L : value;
-    }
-
-    record SessionRow(
-            UUID coachSessionId,
-            OffsetDateTime createdAt,
-            String status,
-            String closeReason,
-            String situation,
-            String characterContext,
-            String goal,
-            List<AdminTurn> turns,
-            String objectKey) {
     }
 
     private record SessionBaseRow(

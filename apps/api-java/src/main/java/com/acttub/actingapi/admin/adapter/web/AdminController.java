@@ -1,16 +1,14 @@
-package com.acttub.actingapi.admin;
+package com.acttub.actingapi.admin.adapter.web;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
-import java.util.ArrayList;
-import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Optional;
+import java.util.Map;
 
-import com.acttub.actingapi.admin.AdminDtos.AdminSession;
-import com.acttub.actingapi.admin.AdminDtos.AdminSessions;
-import com.acttub.actingapi.admin.AdminDtos.AdminStats;
-import com.acttub.actingapi.integration.storage.ObjectStorage;
+import com.acttub.actingapi.admin.app.AdminMetrics.AdminSessions;
+import com.acttub.actingapi.admin.app.AdminMetrics.AdminStats;
+import com.acttub.actingapi.admin.app.AdminService;
 import com.acttub.actingapi.platform.web.ApiException;
 import com.acttub.actingapi.platform.web.ApiValidationException;
 import io.swagger.v3.oas.annotations.Operation;
@@ -31,26 +29,14 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/v2/admin")
 @ConditionalOnExpression("T(org.springframework.util.StringUtils).hasText('${ADMIN_OPS_TOKEN:}')")
 class AdminController {
-    private static final int PLAYBACK_TTL_SECONDS = 3600;
     private static final int MAX_SESSIONS = 50;
 
-    private final AdminStore store;
-    private final Optional<ObjectStorage> configuredStorage;
+    private final AdminService admin;
     private final byte[] expectedAuthorization;
-    private final List<String> excludeEmails;
 
-    AdminController(
-            AdminStore store,
-            Optional<ObjectStorage> configuredStorage,
-            @Value("${ADMIN_OPS_TOKEN}") String adminToken,
-            @Value("${ADMIN_OPS_EXCLUDE_EMAILS:}") String excludeEmails) {
-        this.store = store;
-        this.configuredStorage = configuredStorage;
+    AdminController(AdminService admin, @Value("${ADMIN_OPS_TOKEN}") String adminToken) {
+        this.admin = admin;
         this.expectedAuthorization = ("Bearer " + adminToken).getBytes(StandardCharsets.UTF_8);
-        this.excludeEmails = Arrays.stream(excludeEmails.split(","))
-                .map(String::strip)
-                .filter(value -> !value.isEmpty())
-                .toList();
     }
 
     @Operation(summary = "Stats", operationId = "stats_v2_admin_stats_get", tags = "admin")
@@ -68,7 +54,7 @@ class AdminController {
     AdminStats stats(
             @RequestHeader(name = "authorization", defaultValue = "") String authorization) {
         requireToken(authorization);
-        return store.stats(excludeEmails);
+        return admin.stats();
     }
 
     @Operation(summary = "Sessions", operationId = "sessions_v2_admin_sessions_get", tags = "admin")
@@ -96,23 +82,10 @@ class AdminController {
         requireToken(authorization);
         int limit = parseLimit(rawLimit);
         validateLimit(limit);
-        List<AdminSession> sessions = new ArrayList<>();
-        for (AdminStore.SessionRow row : store.sessions(limit, excludeEmails)) {
-            String videoUrl = playbackUrl(row.objectKey());
-            sessions.add(new AdminSession(
-                    row.coachSessionId().toString(),
-                    row.createdAt(),
-                    row.status(),
-                    row.closeReason(),
-                    row.situation(),
-                    row.characterContext(),
-                    row.goal(),
-                    row.turns(),
-                    videoUrl));
-        }
-        return new AdminSessions(List.copyOf(sessions), PLAYBACK_TTL_SECONDS);
+        return admin.sessions(limit);
     }
 
+    /** 길이가 달라도 같은 시간이 걸리도록 {@link MessageDigest#isEqual} 로 견준다. */
     private void requireToken(String authorization) {
         byte[] actual = authorization.getBytes(StandardCharsets.UTF_8);
         if (!MessageDigest.isEqual(actual, expectedAuthorization)) {
@@ -124,7 +97,7 @@ class AdminController {
         try {
             return Integer.parseInt(rawLimit.strip());
         } catch (NumberFormatException exception) {
-            java.util.Map<String, Object> error = new java.util.LinkedHashMap<>();
+            Map<String, Object> error = new LinkedHashMap<>();
             error.put("type", "int_parsing");
             error.put("loc", List.of("query", "limit"));
             error.put("msg", "Input should be a valid integer, unable to parse string as an integer");
@@ -158,23 +131,12 @@ class AdminController {
             String input,
             String contextKey,
             int contextValue) {
-        java.util.Map<String, Object> error = new java.util.LinkedHashMap<>();
+        Map<String, Object> error = new LinkedHashMap<>();
         error.put("type", type);
         error.put("loc", List.of("query", "limit"));
         error.put("msg", message);
         error.put("input", input);
-        error.put("ctx", java.util.Map.of(contextKey, contextValue));
+        error.put("ctx", Map.of(contextKey, contextValue));
         return new ApiValidationException(List.of(error));
-    }
-
-    private String playbackUrl(String objectKey) {
-        if (objectKey == null || configuredStorage.isEmpty()) {
-            return null;
-        }
-        try {
-            return configuredStorage.get().presignPlayback(objectKey, PLAYBACK_TTL_SECONDS);
-        } catch (Exception ignored) {
-            return null;
-        }
     }
 }

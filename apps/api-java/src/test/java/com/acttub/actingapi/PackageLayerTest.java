@@ -76,6 +76,10 @@ class PackageLayerTest {
             // 응답이라 형태는 `app` 에 산다(`report/app/PublicReport` 와 같은 자리). 네 층을
             // 세우려면 `domain` 에 넣을 것을 지어내야 하는 형태다 — ADR-017 의 판별 기준.
             "admissions", Set.of("app", "adapter"),
+            // 운영 지표도 마찬가지다 — 도메인을 가로질러 세는 일이라 자기 테이블이 없고,
+            // 집계한 것이 곧 응답이라 형태는 `app` 에 산다. 세는 방식은 SQL 이 갖고 있고,
+            // 그것이 낸 null 을 사람이 읽는 말로 옮기는 해석도 같은 문장 옆에 남는다.
+            "admin", Set.of("app", "adapter"),
             // 배우 기억은 Schema Entity 가 없다 — `actor_memory_entries` 에 대응하는 `@Entity` 가
             // 애초에 만들어진 적이 없고(그래서 그 테이블만 `ddl-auto: validate` 밖에 있다),
             // 이사에서 빠뜨린 것이 아니다. 없는 층을 선언하면 규칙이 대상 0으로 초록이 된다.
