@@ -45,12 +45,13 @@ pnpm lint
 pnpm --filter web test  # test 만 루트에 없습니다
 ```
 
-PR을 머지하려면 `.github/workflows/ci.yml`의 잡 넷(`web`·`api`·`contract-harness`·
-`api-java`)이 초록이어야 합니다.
+PR을 머지하려면 `.github/workflows/ci.yml`의 잡 다섯(`web`·`api`·`contract-harness`·
+`contract-harness-java`·`api-java`)이 초록이어야 합니다.
 
 ## 운영
 
 `pnpm build`가 만든 Next 서버(standalone)가 화면을 서빙하고, `/v2/*`·`/health`를
-rewrites로 FastAPI에 넘깁니다. 브라우저에는 오리진이 하나로 보여 CORS가 필요 없습니다.
+rewrites로 백엔드에 넘깁니다. 브라우저에는 오리진이 하나로 보여 CORS가 필요 없습니다.
+그 백엔드는 환경마다 다릅니다 — dev는 Spring Boot, 운영은 아직 FastAPI입니다(SOMA-394).
 배포 절차는 운영 [docs/DEPLOY-VPC.md](docs/DEPLOY-VPC.md), 개발
 [docs/DEPLOY-DEV.md](docs/DEPLOY-DEV.md)를 참고하세요.
