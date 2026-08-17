@@ -148,7 +148,7 @@ def test_sdk_generation_settings_are_preserved():
     assert config.response_schema is ObservationPack
     assert config.temperature == 0.0
     assert config.seed == 42
-    assert config.thinking_config.thinking_level == types.ThinkingLevel.HIGH
+    assert config.thinking_config.thinking_level == types.ThinkingLevel.LOW
     assert 0 < config.http_options.timeout <= summarizer.SUMMARY_DEADLINE_SECONDS * 1000
     assert config.media_resolution == types.MediaResolution.MEDIA_RESOLUTION_LOW
     upload_config = client.files.upload_configs[0]
@@ -192,9 +192,12 @@ def test_generation_timeout_retries_once_with_lower_level_and_reuses_file(caplog
     assert len(client.models.calls) == 2
     first = client.models.calls[0]
     fallback = client.models.calls[1]
-    assert first[2].thinking_config.thinking_level == types.ThinkingLevel.HIGH
+    # 평소도 폴백도 LOW 가 됐으므로(2026-08-13) 이 시험이 지키는 것은 등급 강등이
+    # 아니라 "폴백이 새 예산 30초로 한 번 더 돈다"는 것이다.
+    assert first[2].thinking_config.thinking_level == types.ThinkingLevel.LOW
     assert fallback[2].thinking_config.thinking_level == types.ThinkingLevel.LOW
     assert fallback[2].http_options.timeout == summarizer.FALLBACK_TIMEOUT_SECONDS * 1000
+    assert first[2].http_options.timeout != fallback[2].http_options.timeout
     assert first[1][0] is fallback[1][0] is client.files.uploaded[0]
     assert "attempts=2" in _log_lines(caplog)[0]
     assert "path=deadline_minimal_fallback" in _log_lines(caplog)[0]
@@ -273,7 +276,7 @@ def test_parse_retry_is_visible_in_the_log(caplog):
     assert "attempts=2" in _log_lines(caplog)[0]
     assert "path=normal" in _log_lines(caplog)[0]
     assert all(
-        call[2].thinking_config.thinking_level == types.ThinkingLevel.HIGH
+        call[2].thinking_config.thinking_level == types.ThinkingLevel.LOW
         for call in client.models.calls
     )
 

@@ -13,6 +13,8 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.genai.types.Content;
 import com.google.genai.types.GenerateContentConfig;
+import com.google.genai.types.ThinkingConfig;
+import com.google.genai.types.ThinkingLevel;
 import com.google.genai.types.MediaResolution;
 import com.google.genai.types.Part;
 import com.google.genai.types.Schema;
@@ -83,6 +85,13 @@ final class GeminiObservationAnalyzer implements ObservationAnalyzer {
                     .topK(1.0f)
                     .seed(42)
                     .mediaResolution(MediaResolution.Known.MEDIA_RESOLUTION_LOW)
+                    // 이 모델의 기본 사고 등급은 HIGH 다. 파이썬 판은 LOW 로 고정하는데
+                    // (summarizer.py, 최우영 결정 2026-08-13 — HIGH 는 같은 영상에서 5배
+                    // 느리고 사고 토큰이 6.3만까지 폭주) 여기만 설정이 없어 기본 HIGH 로
+                    // 돌고 있었다. 두 구현이 같은 등급으로 관찰을 만들게 맞춘다.
+                    .thinkingConfig(ThinkingConfig.builder()
+                            .thinkingLevel(new ThinkingLevel(ThinkingLevel.Known.LOW))
+                            .build())
                     .build();
             Content contents = Content.fromParts(
                     Part.fromUri(active.uri(), active.mimeType()),

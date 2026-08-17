@@ -13,15 +13,17 @@ from acting_summary.schema import ActorMaterial, ObservationPack
 
 logger = logging.getLogger(__name__)
 
-# 사고 등급은 HIGH 로 둔다(최우영 결정, 2026-08-11). LOW 는 같은 영상에서 33.7초→6.6초로
-# 5배 빨랐지만, 관찰 품질을 시간보다 앞에 둔 선택이다.
+# 사고 등급은 LOW 로 둔다(최우영 결정, 2026-08-13 — 2026-08-11 의 HIGH 결정을 되돌림).
+# HIGH 는 같은 영상에서 33.7초 vs LOW 6.6초로 5배 느렸고, 2026-08-13 운영 5건 중 1건이
+# 96.5초로 100초 예산을 사실상 다 먹고 폴백에 실려 겨우 성공했다. 사고 토큰도
+# 정상 1~2천 대비 6,566, 심하면 6.3만까지 폭주가 관측됐다.
 #
-# 그래서 데드라인은 75초가 아니라 100초다. HIGH 실측 8건
-# (15.6/28.5/29.2/33.7/39.2/61.4/73.0/74.5초) 중 2건이 73초를 넘는데, 75초로 자르면
-# 정상 실행 4건 중 1건이 폴백으로 떨어져 HIGH 를 고른 이유가 사라진다.
+# 데드라인 100초는 그대로 둔다 — 이 예산은 생성만이 아니라 업로드·ACTIVE 대기까지
+# 덮는데 그 두 구간의 실측이 없다. LOW 전환 후 elapsed 로그가 쌓이면 그때 자른다.
 SUMMARY_DEADLINE_SECONDS = 100.0
-# 폴백은 MINIMAL 이 아니라 LOW 다 — 잘렸을 때도 쓸 만한 관찰이 나와야 한다.
-# LOW 실측이 6.6초라 30초면 넉넉하고, 최악은 100+30=130초에서 닫힌다.
+# 폴백도 LOW 다. 평소와 등급이 같아졌으므로 폴백이 지키는 것은 등급 강등이 아니라
+# "새 예산 30초로 한 번 더 돈다"는 것이다. LOW 실측 6.6초라 30초면 넉넉하고,
+# 최악은 100+30=130초에서 닫힌다.
 FALLBACK_TIMEOUT_SECONDS = 30.0
 
 
@@ -153,7 +155,7 @@ def _generation_config(
         seed=42,
         # 이 모델의 기본 등급은 HIGH 이고, 2026-08-10 운영에서 같은 영상·같은 입력인데
         # 생각만 6.3만 토큰까지 간 실행이 두 번 나왔다(정상은 4.6천). 사고를 없애지는
-        # 않되 폭주를 억제해 목표 60초를 맞추도록 평소 등급은 LOW로 고정한다.
+        # 않되 폭주를 억제하도록 평소도 폴백도 LOW 로 고정한다(2026-08-13).
         thinking_config=types.ThinkingConfig(thinking_level=thinking_level),
         # 영상 토큰을 초당 ~300→~100(66%↓)으로. Gemini 토큰은 영상 길이 기반이라
         # 파일 크기가 아닌 이 설정이 실제 비용을 줄인다. 프레임당 258→64토큰.
@@ -219,7 +221,7 @@ def summarize(
             # 별도로 처리해 두 경로의 사유와 횟수가 섞이지 않게 한다.
             for _ in range(2):
                 config = _generation_config(
-                    types.ThinkingLevel.HIGH,
+                    types.ThinkingLevel.LOW,
                     _remaining_seconds(primary_deadline),
                 )
                 attempts += 1
