@@ -436,6 +436,15 @@ def build_router(
             return begun
         claim = begun
         branch = _branch_kind(owned.session.blockage_kind)
+        # 세션을 저장소에서 다시 조립하면 기억이 빈 채로 온다. 여기서 다시 싣지
+        # 않으면 배우가 대화 중에 "내 목표 기억해?" 라고 물어도 코치가 모른다 --
+        # 첫 질문에만 실리고 그 뒤로는 잃어버리는 구멍이 실제로 있었다. 턴마다
+        # 새로 읽으므로, 대화 중에 기억을 고치면 다음 답변부터 반영된다.
+        owned.session.prior = await _build_prior_context(
+            store,
+            user_id=user.id,
+            practice_session_id=owned.practice_session_id,
+        )
         try:
             generation_kwargs = (
                 {"generate": coach_generate} if coach_generate is not None else {}
