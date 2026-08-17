@@ -108,6 +108,9 @@ EOF
   # 백엔드 배포. dev 는 프록시 대상이 8080 이라(관문 A, 2026-08-16) 이 분기가 곧
   # 트래픽을 받는 프로세스를 갈아끼운다.
   be-java)
+    # 아래 drop-in 이 이 값을 두 이름으로 넣는다. 한 곳에서 정하지 않으면 기본값을
+    # 한쪽만 고쳐도 두 이름이 조용히 갈린다.
+    RELEASE_VALUE="${RELEASE:-unknown}"
     REMOTE_SCRIPT=$(cat <<EOF
 set -euo pipefail
 # jar 만 보내므로 인스턴스에 JRE 가 필요하다. 없으면 여기서 깐다.
@@ -123,9 +126,20 @@ aws s3 cp "s3://$DEPLOY_BUCKET/be-java/acttub-api-java.service" /etc/systemd/sys
 # FastAPI 쪽과 같은 방식으로 릴리스를 얹는다 — 환경변수 이름을 그대로 유지했으므로
 # Sentry 에서 두 백엔드의 이벤트가 같은 커밋으로 묶인다. DSN·환경 이름은 사람이 관리하는
 # /etc/acttub/api.env 에 있고 배포 스크립트가 건드리지 않는다.
+#
+# 같은 값을 RENDER_GIT_COMMIT 으로도 넣는다 — /health 의 commit 이 그것을 읽는다(SOMA-401).
+# 이름이 RENDER_* 인 것은 옛 호스팅의 잔재지만 파이썬 정본(app.py)이 그 이름을 읽으므로
+# 이관이 끝날 때까지 유지한다. 값을 안 주면 양쪽 다 "unknown" 으로, 종전 동작 그대로다.
+#
+# ⚠ 파일 이름을 sentry-release.conf 에서 바꿨으므로 **옛 파일을 같은 스텝에서 지운다.**
+# systemd 는 drop-in 을 파일명 사전순으로 읽고 나중 것이 이기는데, 하필
+# release.conf < sentry-release.conf 다 — 안 지우면 옛 파일이 나중에 읽혀
+# **새 SENTRY_RELEASE 를 지난 배포의 값으로 되돌린다.** 남는 것이 아니라 이긴다.
 mkdir -p /etc/systemd/system/acttub-api-java.service.d
-printf '[Service]\nEnvironment=SENTRY_RELEASE=%s\n' '${RELEASE:-unknown}' \
-  > /etc/systemd/system/acttub-api-java.service.d/sentry-release.conf
+rm -f /etc/systemd/system/acttub-api-java.service.d/sentry-release.conf
+printf '[Service]\nEnvironment=SENTRY_RELEASE=%s\nEnvironment=RENDER_GIT_COMMIT=%s\n' \
+  '${RELEASE_VALUE}' '${RELEASE_VALUE}' \
+  > /etc/systemd/system/acttub-api-java.service.d/release.conf
 systemctl daemon-reload
 systemctl enable acttub-api-java
 systemctl reset-failed acttub-api-java || true
