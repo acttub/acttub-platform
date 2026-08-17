@@ -1,6 +1,7 @@
 package com.acttub.actingapi.admissions.adapter.web;
 
 import com.acttub.actingapi.admissions.app.Admissions.AdmissionsResponse;
+import com.acttub.actingapi.admissions.app.AdmissionsCatalog;
 import com.acttub.actingapi.admissions.app.AdmissionsService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -15,7 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/v2/admissions")
-@ConditionalOnResource(resources = "classpath:admissions/notices.json")
+@ConditionalOnResource(resources = AdmissionsCatalog.RESOURCE)
 class AdmissionsController {
     private final AdmissionsService admissions;
 

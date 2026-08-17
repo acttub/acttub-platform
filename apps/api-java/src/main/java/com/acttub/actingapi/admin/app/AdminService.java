@@ -23,8 +23,15 @@ import org.springframework.stereotype.Service;
  * 않은 인스턴스에서 admin 이 OpenAPI 문서에 실리지 않는 것도 이 조건이 지킨다.
  */
 @Service
-@ConditionalOnExpression("T(org.springframework.util.StringUtils).hasText('${ADMIN_OPS_TOKEN:}')")
+@ConditionalOnExpression(AdminService.ENABLED_WHEN)
 public class AdminService {
+
+    /**
+     * 이 기능이 서는 조건. <b>컨트롤러와 서비스가 같은 조건을 져야 하므로</b> 리터럴을 흩지
+     * 않는다 — 하나라도 빠지면 토큰을 주지 않은 기동에서 컨텍스트가 뜨지 못한다.
+     */
+    public static final String ENABLED_WHEN =
+            "T(org.springframework.util.StringUtils).hasText('${ADMIN_OPS_TOKEN:}')";
 
     /** 재생 주소의 수명. 하네스가 이 값으로 응답을 대조한다. */
     public static final int PLAYBACK_TTL_SECONDS = 3600;

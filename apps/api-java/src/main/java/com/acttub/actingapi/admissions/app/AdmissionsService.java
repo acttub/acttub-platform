@@ -19,7 +19,7 @@ import org.springframework.stereotype.Service;
  * "없는 카탈로그"가 아니다).
  */
 @Service
-@ConditionalOnResource(resources = "classpath:admissions/notices.json")
+@ConditionalOnResource(resources = AdmissionsCatalog.RESOURCE)
 public class AdmissionsService {
     private final AdmissionsCatalog catalog;
 

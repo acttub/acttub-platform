@@ -27,7 +27,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/v2/admin")
-@ConditionalOnExpression("T(org.springframework.util.StringUtils).hasText('${ADMIN_OPS_TOKEN:}')")
+@ConditionalOnExpression(AdminService.ENABLED_WHEN)
 class AdminController {
     private static final int MAX_SESSIONS = 50;
 

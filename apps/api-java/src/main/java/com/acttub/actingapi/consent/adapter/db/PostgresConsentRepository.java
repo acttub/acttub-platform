@@ -6,6 +6,7 @@ import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 
 import com.acttub.actingapi.auth.app.PendingConsent;
@@ -14,6 +15,8 @@ import com.acttub.actingapi.consent.app.ConsentRepository;
 import com.acttub.actingapi.consent.domain.ConsentDocument;
 import com.acttub.actingapi.consent.domain.ConsentEvent;
 import com.acttub.actingapi.platform.security.PendingConsentGate;
+import com.acttub.actingapi.schema.ConsentAction;
+import com.acttub.actingapi.schema.ConsentType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
@@ -28,7 +31,7 @@ import org.springframework.stereotype.Repository;
  * (SOMA-397 12단계에서 회수).
  */
 @Repository
-public class PostgresConsentRepository
+class PostgresConsentRepository
         implements ConsentRepository, PendingConsentDocuments, PendingConsentGate {
     private final JdbcTemplate jdbc;
 
@@ -116,7 +119,7 @@ public class PostgresConsentRepository
                 """,
                 (result, rowNumber) -> new PendingConsent(
                         result.getObject(1, UUID.class),
-                        result.getString(2),
+                        type(result.getString(2)),
                         result.getString(3),
                         result.getString(4),
                         result.getString(5),
@@ -130,10 +133,28 @@ public class PostgresConsentRepository
         return !pendingFor(userId).isEmpty();
     }
 
+    /**
+     * 아는 어휘인지 확인하고 DB 값을 그대로 돌려준다.
+     *
+     * <p><b>Domain Model 이 문자열을 들되 느슨해지지는 않게 하는 자리다.</b> 열거형은
+     * {@code jakarta.persistence} 를 끌고 있어 {@code domain} 으로 들일 수 없지만, 그렇다고
+     * 어휘 밖 값을 통과시키면 재편이 실패 경로를 넓힌다 — 스키마를 먼저 넓히고 코드를 나중에
+     * 좁히는 배포 순서에서 <b>DB 에 값이 먼저, 자바가 나중</b>은 실제로 일어난다. 종전처럼
+     * 여기서 터지고 500 이 난다. ({@code practice} 가 검증 없이 문자열을 쓰는 것은 그쪽이
+     * 재편 전부터 그랬기 때문이고, 이 넷은 열거형이었다.)
+     */
+    private static String type(String raw) {
+        return ConsentType.valueOf(raw.toUpperCase(Locale.ROOT)).dbValue();
+    }
+
+    private static String action(String raw) {
+        return ConsentAction.valueOf(raw.toUpperCase(Locale.ROOT)).dbValue();
+    }
+
     private static ConsentDocument document(ResultSet result, int rowNumber) throws SQLException {
         return new ConsentDocument(
                 result.getObject("id", UUID.class),
-                result.getString("type"),
+                type(result.getString("type")),
                 result.getString("version"),
                 result.getString("title"),
                 result.getString("body"),
@@ -146,7 +167,7 @@ public class PostgresConsentRepository
                 result.getObject("id", UUID.class),
                 result.getObject("user_id", UUID.class),
                 result.getObject("document_id", UUID.class),
-                result.getString("action"),
+                action(result.getString("action")),
                 result.getObject("occurred_at", OffsetDateTime.class).toInstant());
     }
 }

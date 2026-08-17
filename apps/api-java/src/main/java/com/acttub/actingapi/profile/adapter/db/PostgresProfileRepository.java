@@ -1,10 +1,12 @@
 package com.acttub.actingapi.profile.adapter.db;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 
 import com.acttub.actingapi.profile.app.ProfileRepository;
 import com.acttub.actingapi.profile.domain.Profile;
+import com.acttub.actingapi.schema.UserStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -27,9 +29,23 @@ class PostgresProfileRepository implements ProfileRepository {
                         result.getObject("id", UUID.class),
                         result.getString("email"),
                         result.getString("nickname"),
-                        result.getString("status")),
+                        status(result.getString("status"))),
                 userId);
         return rows.isEmpty() ? null : rows.getFirst();
+    }
+
+    /**
+     * 아는 어휘인지 확인하고 DB 값을 그대로 돌려준다.
+     *
+     * <p><b>Domain Model 이 문자열을 들되 느슨해지지는 않게 하는 자리다.</b> 열거형은
+     * {@code jakarta.persistence} 를 끌고 있어 {@code domain} 으로 들일 수 없지만, 그렇다고
+     * 어휘 밖 값을 통과시키면 재편이 실패 경로를 넓힌다 — 스키마를 먼저 넓히고 코드를 나중에
+     * 좁히는 배포 순서에서 <b>DB 에 값이 먼저, 자바가 나중</b>은 실제로 일어난다. 종전처럼
+     * 여기서 터지고 500 이 난다. ({@code practice} 가 검증 없이 문자열을 쓰는 것은 그쪽이
+     * 재편 전부터 그랬기 때문이고, 이 넷은 열거형이었다.)
+     */
+    private static String status(String raw) {
+        return UserStatus.valueOf(raw.toUpperCase(Locale.ROOT)).dbValue();
     }
 
     @Override

@@ -23,7 +23,7 @@ import org.springframework.stereotype.Component;
  * 대학을 가리키는 요강을 보게 된다.
  */
 @Component
-@ConditionalOnResource(resources = "classpath:admissions/notices.json")
+@ConditionalOnResource(resources = AdmissionsCatalog.RESOURCE)
 class ClasspathAdmissionsCatalog implements AdmissionsCatalog {
     private static final Set<String> DISCIPLINES = Set.of("acting", "musical");
     private static final Set<String> UNIVERSITY_TYPES = Set.of("univ", "college");

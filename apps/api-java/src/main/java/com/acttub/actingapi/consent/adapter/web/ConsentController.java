@@ -7,6 +7,7 @@ import com.acttub.actingapi.consent.adapter.web.ConsentDtos.ConsentDocumentsResp
 import com.acttub.actingapi.consent.adapter.web.ConsentDtos.ConsentEventResponse;
 import com.acttub.actingapi.consent.adapter.web.ConsentDtos.ConsentRequest;
 import com.acttub.actingapi.consent.app.ConsentService;
+import com.acttub.actingapi.consent.domain.ConsentDocument;
 import com.acttub.actingapi.consent.domain.ConsentEvent;
 import com.acttub.actingapi.platform.security.AccessGate;
 import com.acttub.actingapi.schema.ConsentAction;
@@ -100,8 +101,7 @@ class ConsentController {
                 event.occurredAt());
     }
 
-    private static ConsentDocumentsResponse documents(
-            List<com.acttub.actingapi.consent.domain.ConsentDocument> rows) {
+    private static ConsentDocumentsResponse documents(List<ConsentDocument> rows) {
         return new ConsentDocumentsResponse(rows.stream()
                 .map(row -> new ConsentDtos.ConsentDocument(
                         row.id(),
