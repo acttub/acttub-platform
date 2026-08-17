@@ -25,6 +25,8 @@ import com.acttub.actingapi.community.schema.CommunityReportEntity;
 import com.acttub.actingapi.auth.schema.UserEntity;
 import com.acttub.actingapi.auth.schema.UserIdentityEntity;
 import com.acttub.actingapi.auth.schema.RefreshTokenEntity;
+import com.acttub.actingapi.consent.schema.ConsentDocumentEntity;
+import com.acttub.actingapi.consent.schema.UserConsentEntity;
 import com.acttub.actingapi.practice.schema.PracticeSessionEntity;
 import com.acttub.actingapi.upload.schema.UploadIntentEntity;
 import com.acttub.actingapi.support.PostgresContainerSupport;

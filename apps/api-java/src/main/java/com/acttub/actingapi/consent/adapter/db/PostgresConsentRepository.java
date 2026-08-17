@@ -1,4 +1,4 @@
-package com.acttub.actingapi.consent;
+package com.acttub.actingapi.consent.adapter.db;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -6,30 +6,33 @@ import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
-import java.util.Locale;
 import java.util.UUID;
 
 import com.acttub.actingapi.auth.app.PendingConsent;
 import com.acttub.actingapi.auth.app.PendingConsentDocuments;
+import com.acttub.actingapi.consent.app.ConsentRepository;
+import com.acttub.actingapi.consent.domain.ConsentDocument;
+import com.acttub.actingapi.consent.domain.ConsentEvent;
 import com.acttub.actingapi.platform.security.PendingConsentGate;
-import com.acttub.actingapi.schema.ConsentAction;
-import com.acttub.actingapi.schema.ConsentType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
 /**
- * 동의 문서와 그 이력을 소유한 쪽이 그것을 묻는 두 포트를 <b>직접</b> 구현한다 — 위임만 하는
- * 어댑터를 끼우지 않는다 (ADR-017, SOMA-397 6단계의 {@code SyncOperationService} 와 같은 형태).
+ * 동의 문서와 그 이력을 소유한 쪽이 그것을 묻는 <b>바깥 포트 둘도 직접</b> 구현한다 —
+ * 위임만 하는 어댑터를 끼우지 않는다 (ADR-017, SOMA-397 6단계의 {@code SyncOperationService}
+ * 와 같은 형태).
  *
- * <p>요구가 둘로 갈려 있다. 배관은 "막을 것인가"만 묻고({@link PendingConsentGate}),
- * {@code auth} 는 로그인 응답에 실을 문서 자체를 묻는다({@link PendingConsentDocuments}).
- * 종전에는 두 질문을 모두 {@code auth} 가 자기 SQL 로 답했다(SOMA-397 12단계에서 회수).
+ * <p>요구가 셋이고 그중 둘은 바깥에서 온다. 배관은 "막을 것인가"만 묻고
+ * ({@link PendingConsentGate}), {@code auth} 는 로그인 응답에 실을 문서 자체를 묻는다
+ * ({@link PendingConsentDocuments}). 종전에는 그 둘을 {@code auth} 가 자기 SQL 로 답했다
+ * (SOMA-397 12단계에서 회수).
  */
 @Repository
-public class ConsentStore implements PendingConsentDocuments, PendingConsentGate {
+public class PostgresConsentRepository
+        implements ConsentRepository, PendingConsentDocuments, PendingConsentGate {
     private final JdbcTemplate jdbc;
 
-    ConsentStore(JdbcTemplate jdbc) {
+    PostgresConsentRepository(JdbcTemplate jdbc) {
         this.jdbc = jdbc;
     }
 
@@ -43,7 +46,8 @@ public class ConsentStore implements PendingConsentDocuments, PendingConsentGate
      * 텍스트는 알파벳 순으로 정렬되기 때문이다. {@code DISTINCT ON} 은 그룹마다 첫 행을 고르므로
      * 이 정렬은 결과 순서만이 아니라 <b>어느 행이 선택되는지</b>까지 좌우한다 (/SPEC.md §5-8).
      */
-    List<ConsentDocumentRow> listLatestDocuments() {
+    @Override
+    public List<ConsentDocument> listLatestDocuments() {
         return jdbc.query("""
                 SELECT DISTINCT ON(consent_documents.type)
                        id,type::text,version,title,body,required,published_at
@@ -51,33 +55,32 @@ public class ConsentStore implements PendingConsentDocuments, PendingConsentGate
                 ORDER BY consent_documents.type,
                          consent_documents.published_at DESC,
                          consent_documents.id DESC
-                """, ConsentStore::document);
+                """, PostgresConsentRepository::document);
     }
 
-    ConsentDocumentRow findDocument(UUID documentId) {
-        List<ConsentDocumentRow> rows = jdbc.query("""
+    @Override
+    public ConsentDocument findDocument(UUID documentId) {
+        List<ConsentDocument> rows = jdbc.query("""
                 SELECT id,type::text,version,title,body,required,published_at
                 FROM consent_documents
                 WHERE id=?
-                """, ConsentStore::document, documentId);
+                """, PostgresConsentRepository::document, documentId);
         return rows.isEmpty() ? null : rows.getFirst();
     }
 
-    List<UserConsentRow> getCurrentUserConsents(UUID userId) {
+    @Override
+    public List<ConsentEvent> currentConsentsOf(UUID userId) {
         return jdbc.query("""
                 SELECT DISTINCT ON(document_id)
                        id,user_id,document_id,action::text,occurred_at
                 FROM user_consents
                 WHERE user_id=?
                 ORDER BY document_id,occurred_at DESC,id DESC
-                """, ConsentStore::consent, userId);
+                """, PostgresConsentRepository::consent, userId);
     }
 
-    UserConsentRow recordConsent(
-            UUID userId,
-            UUID documentId,
-            ConsentAction action,
-            Instant occurredAt) {
+    @Override
+    public ConsentEvent record(UUID userId, UUID documentId, String action, Instant occurredAt) {
         UUID id = UUID.randomUUID();
         jdbc.update("""
                 INSERT INTO user_consents(id,user_id,document_id,action,occurred_at)
@@ -86,18 +89,20 @@ public class ConsentStore implements PendingConsentDocuments, PendingConsentGate
                 id,
                 userId,
                 documentId,
-                action.dbValue(),
+                action,
                 occurredAt.atOffset(ZoneOffset.UTC));
-        return new UserConsentRow(id, userId, documentId, action, occurredAt);
+        return new ConsentEvent(id, userId, documentId, action, occurredAt);
     }
 
     /**
-     * 아직 받지 않은 <b>필수</b> 문서. 종류마다 가장 최근 판을 고르고, 그 문서에 대한 이 사람의
-     * 마지막 행위가 {@code granted} 가 아닌 것만 남긴다.
+     * 아직 받지 않은 <b>필수</b> 문서 (`db/store.py:PostgresStore.list_pending_consents`).
+     *
+     * <p>⚠ <b>{@code ConsentService#pendingDocuments} 와 같은 것을 세지만 순서가 다르다</b> —
+     * 이쪽은 <b>발행 시각 순</b>, 그쪽은 <b>종류 순</b>이다. 파이썬 정본이 두 자리를 그렇게
+     * 갈라 두었고 각각 다른 엔드포인트의 응답이 되므로 합치지 않는다.
      *
      * <p>철회한 뒤 다시 동의한 경우까지 맞으려면 <b>마지막</b> 행위를 봐야 한다 — 그래서
-     * 안쪽 질의가 문서마다 가장 최근 한 줄을 집는다. 원본은
-     * {@code db/store.py:PostgresStore.list_pending_consents} 다.
+     * 안쪽 질의가 문서마다 가장 최근 한 줄을 집는다.
      */
     @Override
     public List<PendingConsent> pendingFor(UUID userId) {
@@ -125,10 +130,10 @@ public class ConsentStore implements PendingConsentDocuments, PendingConsentGate
         return !pendingFor(userId).isEmpty();
     }
 
-    private static ConsentDocumentRow document(ResultSet result, int rowNumber) throws SQLException {
-        return new ConsentDocumentRow(
+    private static ConsentDocument document(ResultSet result, int rowNumber) throws SQLException {
+        return new ConsentDocument(
                 result.getObject("id", UUID.class),
-                ConsentType.valueOf(result.getString("type").toUpperCase(Locale.ROOT)),
+                result.getString("type"),
                 result.getString("version"),
                 result.getString("title"),
                 result.getString("body"),
@@ -136,30 +141,12 @@ public class ConsentStore implements PendingConsentDocuments, PendingConsentGate
                 result.getObject("published_at", OffsetDateTime.class).toInstant());
     }
 
-    private static UserConsentRow consent(ResultSet result, int rowNumber) throws SQLException {
-        return new UserConsentRow(
+    private static ConsentEvent consent(ResultSet result, int rowNumber) throws SQLException {
+        return new ConsentEvent(
                 result.getObject("id", UUID.class),
                 result.getObject("user_id", UUID.class),
                 result.getObject("document_id", UUID.class),
-                ConsentAction.valueOf(result.getString("action").toUpperCase(Locale.ROOT)),
+                result.getString("action"),
                 result.getObject("occurred_at", OffsetDateTime.class).toInstant());
-    }
-
-    record ConsentDocumentRow(
-            UUID id,
-            ConsentType type,
-            String version,
-            String title,
-            String body,
-            boolean required,
-            Instant publishedAt) {
-    }
-
-    record UserConsentRow(
-            UUID id,
-            UUID userId,
-            UUID documentId,
-            ConsentAction action,
-            Instant occurredAt) {
     }
 }

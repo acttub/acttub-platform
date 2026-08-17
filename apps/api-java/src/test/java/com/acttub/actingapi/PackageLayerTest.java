@@ -81,6 +81,7 @@ class PackageLayerTest {
             // 그것이 낸 null 을 사람이 읽는 말로 옮기는 해석도 같은 문장 옆에 남는다.
             Map.entry("admin", Set.of("app", "adapter")),
             Map.entry("auth", FOUR_LAYERS),
+            Map.entry("consent", FOUR_LAYERS),
             // 배우 기억은 Schema Entity 가 없다 — `actor_memory_entries` 에 대응하는 `@Entity` 가
             // 애초에 만들어진 적이 없고(그래서 그 테이블만 `ddl-auto: validate` 밖에 있다),
             // 이사에서 빠뜨린 것이 아니다. 없는 층을 선언하면 규칙이 대상 0으로 초록이 된다.

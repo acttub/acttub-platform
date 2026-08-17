@@ -1,4 +1,5 @@
-package com.acttub.actingapi.schema;
+package com.acttub.actingapi.consent.schema;
+import com.acttub.actingapi.schema.*;
 import java.time.Instant; import java.util.UUID; import jakarta.persistence.*; import org.hibernate.annotations.JdbcType;
 @Entity @Table(name="user_consents")
 public class UserConsentEntity extends AppGeneratedUuidEntity {

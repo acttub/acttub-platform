@@ -1,4 +1,4 @@
-package com.acttub.actingapi.consent;
+package com.acttub.actingapi.consent.adapter.web;
 
 import java.time.Instant;
 import java.util.List;

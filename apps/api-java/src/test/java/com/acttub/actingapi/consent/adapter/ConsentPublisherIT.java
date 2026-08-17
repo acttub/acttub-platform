@@ -1,4 +1,4 @@
-package com.acttub.actingapi.consent;
+package com.acttub.actingapi.consent.adapter;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;

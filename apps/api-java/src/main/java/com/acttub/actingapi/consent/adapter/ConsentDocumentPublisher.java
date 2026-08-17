@@ -1,4 +1,4 @@
-package com.acttub.actingapi.consent;
+package com.acttub.actingapi.consent.adapter;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -33,6 +33,15 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
+/**
+ * 기동할 때 manifest 에 적힌 동의 문서를 DB 에 올린다.
+ *
+ * <p><b>어느 하위 어댑터에도 속하지 않아 층의 루트에 둔다</b> — 파일에서 읽어 DB 에 넣는 일이
+ * 한 몸이고, 그 사이의 판정(같은 판인데 내용이 다르면 경고만 남긴다)도 그 일의 일부다.
+ * 기동을 트리거로 삼는 인바운드 어댑터라는 점에서 {@code adapter/sched} 와 같은 성격이다.
+ *
+ * <p>어떤 실패도 기동을 막지 않는다. 문서 시딩이 안 됐다고 앱이 뜨지 않으면 그 편이 더 나쁘다.
+ */
 @Component
 public class ConsentDocumentPublisher implements ApplicationRunner {
     private static final Logger log = LoggerFactory.getLogger(ConsentDocumentPublisher.class);

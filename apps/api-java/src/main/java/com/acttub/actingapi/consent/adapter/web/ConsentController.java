@@ -1,17 +1,15 @@
-package com.acttub.actingapi.consent;
+package com.acttub.actingapi.consent.adapter.web;
 
-import java.time.Clock;
 import java.util.List;
-import java.util.Map;
-import java.util.UUID;
+import java.util.Locale;
 
+import com.acttub.actingapi.consent.adapter.web.ConsentDtos.ConsentDocumentsResponse;
+import com.acttub.actingapi.consent.adapter.web.ConsentDtos.ConsentEventResponse;
+import com.acttub.actingapi.consent.adapter.web.ConsentDtos.ConsentRequest;
+import com.acttub.actingapi.consent.app.ConsentService;
+import com.acttub.actingapi.consent.domain.ConsentEvent;
 import com.acttub.actingapi.platform.security.AccessGate;
-import com.acttub.actingapi.consent.ConsentDtos.ConsentDocument;
-import com.acttub.actingapi.consent.ConsentDtos.ConsentDocumentsResponse;
-import com.acttub.actingapi.consent.ConsentDtos.ConsentEventResponse;
-import com.acttub.actingapi.consent.ConsentDtos.ConsentRequest;
 import com.acttub.actingapi.schema.ConsentAction;
-import com.acttub.actingapi.platform.web.ApiException;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -31,14 +29,12 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/v2/consents")
 class ConsentController {
-    private final ConsentStore store;
+    private final ConsentService consents;
     private final AccessGate auth;
-    private final Clock clock;
 
-    ConsentController(ConsentStore store, AccessGate auth, Clock clock) {
-        this.store = store;
+    ConsentController(ConsentService consents, AccessGate auth) {
+        this.consents = consents;
         this.auth = auth;
-        this.clock = clock;
     }
 
     @Operation(
@@ -51,7 +47,7 @@ class ConsentController {
             content = @Content(schema = @Schema(implementation = ConsentDocumentsResponse.class)))
     @GetMapping("/documents")
     ConsentDocumentsResponse listDocuments() {
-        return documents(store.listLatestDocuments());
+        return documents(consents.latestDocuments());
     }
 
     @Operation(
@@ -66,15 +62,7 @@ class ConsentController {
     @GetMapping("/pending")
     ConsentDocumentsResponse listPendingDocuments(HttpServletRequest request) {
         var user = auth.rateLimitedUser(request);
-        Map<UUID, String> actions = store.getCurrentUserConsents(user.id()).stream()
-                .collect(java.util.stream.Collectors.toMap(
-                        ConsentStore.UserConsentRow::documentId,
-                        event -> event.action().dbValue()));
-        List<ConsentStore.ConsentDocumentRow> pending = store.listLatestDocuments().stream()
-                .filter(document -> document.required()
-                        && !"granted".equals(actions.get(document.id())))
-                .toList();
-        return documents(pending);
+        return documents(consents.pendingDocuments(user.id()));
     }
 
     @Operation(
@@ -98,34 +86,26 @@ class ConsentController {
             @Valid @RequestBody ConsentRequest body,
             HttpServletRequest request) {
         var user = auth.rateLimitedUser(request);
-        UUID documentId;
-        try {
-            documentId = UUID.fromString(body.documentId());
-        } catch (IllegalArgumentException exception) {
-            throw new ApiException(404, "consent_document_not_found");
-        }
-        if (store.findDocument(documentId) == null) {
-            throw new ApiException(404, "consent_document_not_found");
-        }
-        ConsentStore.UserConsentRow event =
-                store.recordConsent(
-                        user.id(),
-                        documentId,
-                        ConsentAction.valueOf(body.action().name().toUpperCase(java.util.Locale.ROOT)),
-                        clock.instant());
+        // 받은 이름을 DB 값으로 옮기는 자리는 여기다 — 열거형이 배관(JPA)을 끌고 있어
+        // 도메인으로 들일 수 없고, 요청의 어휘를 저장 값으로 옮기는 것은 web 의 일이다.
+        // Jackson 이 먼저 걸러 주므로 이 변환은 실패하지 않는다.
+        String action = ConsentAction
+                .valueOf(body.action().name().toUpperCase(Locale.ROOT))
+                .dbValue();
+        ConsentEvent event = consents.record(user.id(), body.documentId(), action);
         return new ConsentEventResponse(
                 event.id(),
                 event.documentId(),
-                event.action().dbValue(),
+                event.action(),
                 event.occurredAt());
     }
 
     private static ConsentDocumentsResponse documents(
-            List<ConsentStore.ConsentDocumentRow> rows) {
+            List<com.acttub.actingapi.consent.domain.ConsentDocument> rows) {
         return new ConsentDocumentsResponse(rows.stream()
-                .map(row -> new ConsentDocument(
+                .map(row -> new ConsentDtos.ConsentDocument(
                         row.id(),
-                        row.type().dbValue(),
+                        row.type(),
                         row.version(),
                         row.title(),
                         row.body(),
