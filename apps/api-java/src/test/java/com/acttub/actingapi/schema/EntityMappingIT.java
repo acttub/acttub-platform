@@ -7,6 +7,9 @@ import java.util.Set;
 import java.util.UUID;
 
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
+import com.acttub.actingapi.analysis.schema.AnomalyEntity;
+import com.acttub.actingapi.analysis.schema.SummaryEntity;
+import com.acttub.actingapi.analysis.schema.TranscriptEntity;
 import com.acttub.actingapi.coach.schema.CoachSessionEntity;
 import com.acttub.actingapi.coach.schema.CoachTurnEntity;
 import com.acttub.actingapi.coach.schema.CoachingHandoffEntity;

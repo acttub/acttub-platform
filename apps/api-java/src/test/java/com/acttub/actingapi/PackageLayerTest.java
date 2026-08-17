@@ -4,6 +4,8 @@ import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import com.tngtech.archunit.base.DescribedPredicate;
 import com.tngtech.archunit.core.domain.JavaClass;
@@ -33,8 +35,20 @@ import org.junit.jupiter.params.provider.MethodSource;
  */
 class PackageLayerTest {
 
+    /** 층 이름 전부. 목록에 <b>없는</b> 층이 생겼는지 보는 데도 쓴다. */
+    private static final List<String> LAYERS = List.of("domain", "app", "adapter", "schema");
+
+    private static final Set<String> FOUR_LAYERS = Set.copyOf(LAYERS);
+
     /**
-     * 네 층으로 재편이 끝난 도메인. 옮긴 도메인을 여기 추가하는 것이 규칙 확대의 전부다.
+     * 재편이 끝난 도메인과 <b>그 도메인이 실제로 가진 층</b>. 옮긴 도메인을 여기 추가하는 것이
+     * 규칙 확대의 전부다.
+     *
+     * <p><b>층까지 적는 이유</b> — 도메인이 넷을 다 갖는다는 보장이 없다. 값이 층 이름 목록이
+     * 아니라 그냥 도메인 이름이던 때는 "넷 다 있다"가 전제였고, 그 전제가 깨지는 도메인
+     * (`memory`)이 11단계에 나왔다. 없는 층을 선언하면 그 규칙이 대상 0으로 조용히 통과하고,
+     * 반대로 층이 새로 생겼는데 여기 안 적으면 그 층만 검사 밖에 남는다 —
+     * {@link #everyRuleActuallyHasSomethingToCheck}가 양쪽을 다 본다.
      *
      * <p>아직 못 거는 규칙이 하나 있다 — <b>feature끼리 직접 import 금지</b>. {@code operation}은
      * 6단계에서, {@code auth}는 7단계에서 포트 뒤로 갔고, {@code practice}가 참조하던
@@ -47,8 +61,16 @@ class PackageLayerTest {
      * 간선이 양방향이 되어 {@link PackageCycleTest}가 빨간불이다. {@code coach}→{@code report}가
      * 그 자리이고(9단계) 아홉 심볼로 정렬돼 있다. 완전 금지로 쓰면 이 형태가 걸린다.
      */
-    private static final List<String> MIGRATED_FEATURES =
-            List.of("practice", "community", "report", "coach");
+    private static final Map<String, Set<String>> MIGRATED_FEATURES = Map.of(
+            "practice", FOUR_LAYERS,
+            "community", FOUR_LAYERS,
+            "report", FOUR_LAYERS,
+            "coach", FOUR_LAYERS,
+            "analysis", FOUR_LAYERS,
+            // 배우 기억은 Schema Entity 가 없다 — `actor_memory_entries` 에 대응하는 `@Entity` 가
+            // 애초에 만들어진 적이 없고(그래서 그 테이블만 `ddl-auto: validate` 밖에 있다),
+            // 이사에서 빠뜨린 것이 아니다. 없는 층을 선언하면 규칙이 대상 0으로 초록이 된다.
+            "memory", Set.of("domain", "app", "adapter"));
 
     /**
      * {@code domain}이 알아서는 안 되는 것들. CONTEXT.md의 <b>Domain Model</b>은 "프레임워크를
@@ -68,7 +90,16 @@ class PackageLayerTest {
             .importPackages("com.acttub.actingapi");
 
     static List<String> migratedFeatures() {
-        return MIGRATED_FEATURES;
+        return MIGRATED_FEATURES.keySet().stream().sorted().toList();
+    }
+
+    /** {@code schema} 층을 실제로 가진 도메인만. 없는 도메인에 걸면 대상 0으로 초록이 된다. */
+    static List<String> featuresWithSchema() {
+        return MIGRATED_FEATURES.entrySet().stream()
+                .filter(entry -> entry.getValue().contains("schema"))
+                .map(Map.Entry::getKey)
+                .sorted()
+                .toList();
     }
 
     @ParameterizedTest(name = "{0}")
@@ -96,6 +127,9 @@ class PackageLayerTest {
     void layersPointOneWay(String feature) {
         Architectures.layeredArchitecture()
                 .consideringOnlyDependenciesInLayers()
+                // 층 하나가 비어도 규칙 자체는 성립한다 — 어느 도메인이 어느 층을 갖는지는
+                // MIGRATED_FEATURES 가 정하고, 그 목록이 실물과 맞는지는 아래 검사가 본다.
+                .withOptionalLayers(true)
                 .layer("domain").definedBy(layerOf(feature, "domain"))
                 .layer("app").definedBy(layerOf(feature, "app"))
                 .layer("adapter").definedBy(layerOf(feature, "adapter"))
@@ -116,7 +150,7 @@ class PackageLayerTest {
      * SQL과 두 벌이 되고, 그때부터 {@code validate}가 무엇을 보증하는지 흐려진다.
      */
     @ParameterizedTest(name = "{0}")
-    @MethodSource("migratedFeatures")
+    @MethodSource("featuresWithSchema")
     void schemaEntitiesAreNeverCalled(String feature) {
         noClasses()
                 .that()
@@ -145,11 +179,22 @@ class PackageLayerTest {
                 .as("한정 목록이 비면 위 규칙 전부가 검사 대상 없이 통과한다")
                 .isNotEmpty();
 
-        for (String feature : MIGRATED_FEATURES) {
-            for (String layer : List.of("domain", "app", "adapter", "schema")) {
-                assertThat(countIn(layerOf(feature, layer)))
-                        .as("%s의 %s 층에 클래스가 없다 — 층 이름이 바뀌었거나 목록에 오타가 있다", feature, layer)
-                        .isPositive();
+        for (Map.Entry<String, Set<String>> feature : MIGRATED_FEATURES.entrySet()) {
+            for (String layer : LAYERS) {
+                long classes = countIn(layerOf(feature.getKey(), layer));
+                if (feature.getValue().contains(layer)) {
+                    assertThat(classes)
+                            .as("%s의 %s 층에 클래스가 없다 — 층 이름이 바뀌었거나 목록에 오타가 있다",
+                                    feature.getKey(), layer)
+                            .isPositive();
+                } else {
+                    // 반대 방향도 본다. 층이 새로 생겼는데 목록에 안 적으면 그 층만 규칙 밖에
+                    // 남는데, 위 규칙들은 그것을 알아채지 못한다.
+                    assertThat(classes)
+                            .as("%s가 %s 층을 갖게 됐는데 목록에 없다 — 그 층만 검사에서 빠진다",
+                                    feature.getKey(), layer)
+                            .isZero();
+                }
             }
         }
     }

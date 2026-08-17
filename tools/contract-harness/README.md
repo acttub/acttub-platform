@@ -76,8 +76,8 @@ $PY -m contract_harness --baseline fastapi --target java \
 
 ⚠ **`-Dacttub.dotenv.enabled=false`가 판정의 전제다.** 빼면 `apps/api-java/.env`가 하네스가
 주지 않는 키를 채워 판정이 로컬 환경에 좌우된다. **외부 API 키는 하나도 필요 없다** —
-contract 프로파일에는 진짜 LLM·분석 체인이 아예 서지 않는다(`observation/GeminiConfiguration`·
-`analysis/AnalysisConfiguration`이 `@Profile("!contract")`). 값의 정본은 `config.py`다.
+contract 프로파일에는 진짜 LLM·분석 체인이 아예 서지 않는다(`integration/observation/GeminiConfiguration`·
+`analysis/adapter/AnalysisConfiguration`이 `@Profile("!contract")`). 값의 정본은 `config.py`다.
 
 | 환경변수 | 값 | 안 주면 |
 |---|---|---|
