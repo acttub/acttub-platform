@@ -25,9 +25,9 @@ JWT_SECRET = "prior-context-test-secret"
 _FOLLOWUP = json.dumps({"message": "무엇이 달랐나요?", "status": "continue"})
 
 
-def _application():
+def _application(coach_responses=None):
     store = FakePlatformStore()
-    coach_generate = FakeTextGenerator([_FOLLOWUP])
+    coach_generate = FakeTextGenerator(coach_responses or [_FOLLOWUP])
     app = create_app(
         client=FakeClient(),
         gateway_settings=GatewaySettings(
@@ -112,3 +112,61 @@ def test_a_broken_reader_does_not_block_the_conversation():
     _start(client, store, user, headers)
 
     assert coach.calls, "참고 사항 조회가 실패했다고 대화가 막히면 안 된다"
+
+
+def test_memory_reaches_reply_turns_too():
+    """대화 중에 "내 목표 기억해?" 라고 물으면 코치가 알아야 한다.
+
+    기억이 첫 질문에만 실리고 답변 턴에서 사라지는 구멍이 실제로 있었다 —
+    dev 에서 배우가 물어봤더니 코치가 "기억하고 있는 정보는 없어" 라고 답했다.
+    """
+    client, store, coach, user, headers = _application(
+        coach_responses=[_FOLLOWUP, _FOLLOWUP]
+    )
+    store.actor_memory[(user.id, "goal")] = SimpleNamespace(
+        field="goal",
+        value="입시 합격",
+        written_by_actor=True,
+        source_practice_session_id=None,
+        updated_at=None,
+    )
+
+    started = _start(client, store, user, headers)
+    session_id = started.json()["session_id"]
+
+    response = client.post(
+        "/v2/coach/reply",
+        json={"session_id": session_id, "text": "내 목표 기억해?"},
+        headers={**headers, "X-Request-Id": str(uuid4())},
+    )
+
+    assert response.status_code == 200, response.text
+    assert "입시 합격" in coach.calls[-1][1]
+
+
+def test_memory_edited_mid_conversation_reaches_the_next_reply():
+    """턴마다 새로 읽으므로, 대화 중에 고친 기억은 다음 답변부터 반영된다."""
+    client, store, coach, user, headers = _application(
+        coach_responses=[_FOLLOWUP, _FOLLOWUP]
+    )
+
+    started = _start(client, store, user, headers)
+    session_id = started.json()["session_id"]
+
+    # 대화가 시작된 뒤에 배우가 기억 화면에서 목표를 적는다.
+    store.actor_memory[(user.id, "goal")] = SimpleNamespace(
+        field="goal",
+        value="오디션 통과",
+        written_by_actor=True,
+        source_practice_session_id=None,
+        updated_at=None,
+    )
+
+    response = client.post(
+        "/v2/coach/reply",
+        json={"session_id": session_id, "text": "다음 질문 주세요"},
+        headers={**headers, "X-Request-Id": str(uuid4())},
+    )
+
+    assert response.status_code == 200, response.text
+    assert "오디션 통과" in coach.calls[-1][1]

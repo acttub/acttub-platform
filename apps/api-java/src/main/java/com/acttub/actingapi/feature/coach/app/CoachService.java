@@ -184,7 +184,13 @@ public class CoachService {
         SyncOperationClaim claim = begun.claim();
 
         try {
-            CoachResult result = coach.reply(owned.session(), command.text());
+            // 세션을 저장소에서 다시 조립하면 기억이 빈 채로 온다. 여기서 다시 싣지
+            // 않으면 배우가 대화 중에 "내 목표 기억해?" 라고 물어도 코치가 모른다 —
+            // 첫 질문에만 실리고 그 뒤로는 잃어버리는 구멍이 실제로 있었다. 턴마다
+            // 새로 읽으므로, 대화 중에 기억을 고치면 다음 답변부터 반영된다.
+            CoachSessionSnapshot session = owned.session()
+                    .withPrior(priorContext(userId, owned.practiceSessionId()));
+            CoachResult result = coach.reply(session, command.text());
             CompletedTurn completed = completeReplyTurn(result.session(), result.reply());
             ObjectNode payload = renderer.turn(
                     result.session(), result.reply(), completed.handoffId(),

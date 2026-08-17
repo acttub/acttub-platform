@@ -12,6 +12,7 @@ import static org.mockito.Mockito.when;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import com.acttub.actingapi.feature.coach.app.CoachCommands.ActorMessage;
@@ -251,6 +252,30 @@ class CoachServiceTest {
                 });
 
         verify(operations).fail(CLAIM, "session_write_conflict");
+    }
+
+    @Test
+    void replyReloadsActorMemorySoTheCoachKeepsItMidConversation() {
+        // 기억이 첫 질문에만 실리고 답변 턴에서 사라지는 구멍이 실제로 있었다 —
+        // dev 에서 배우가 "내 나이 기억해?" 라고 묻자 코치가 모른다고 답했다.
+        // 턴마다 다시 읽으므로, 대화 중에 고친 기억도 다음 답변부터 반영된다.
+        CoachSessionSnapshot session = snapshot("open", List.of());
+        CoachReply reply = new CoachReply("다음 질문", "continue", null);
+        stubOwnedSession();
+        when(memory.priorFor(USER_ID, PRACTICE_ID)).thenReturn(new PriorContext(
+                Map.of("goal", "입시 합격"), null, List.of()));
+        when(coach.reply(any(), anyString())).thenReturn(new CoachResult(session, reply));
+        when(ledger.completeCoachReplyOperation(
+                any(), any(), any(), any(), any(), any(), any(),
+                org.mockito.ArgumentMatchers.anyBoolean(), any(), any()))
+                .thenReturn(true);
+
+        service.reply(USER_ID, new ActorMessage(SESSION_ID, "내 목표 기억해?"), null);
+
+        org.mockito.ArgumentCaptor<CoachSessionSnapshot> passed =
+                org.mockito.ArgumentCaptor.forClass(CoachSessionSnapshot.class);
+        verify(coach).reply(passed.capture(), anyString());
+        assertThat(passed.getValue().prior().memory()).containsEntry("goal", "입시 합격");
     }
 
     private void assertReportParseError(Runnable invocation) {
