@@ -148,10 +148,13 @@ class PackageCycleTest {
      * 빨간불이 난다 — {@code integration}처럼 앱 안으로 나가는 간선이 없는 묶음은 뭉쳐도 사이클에
      * 끼지 못해 <b>조용히 초록</b>이다(실측했다). 그래서 순환에 기대지 않고 여기서 직접 잡는다.
      *
-     * <p>가르는 기준은 <b>하위 패키지 이름</b>이다. 재편이 끝난 도메인은 {@link #LAYERS}만
-     * 거느리므로({@code practice.domain}·{@code practice.app}…) 통과하고, 층이 아닌 것을 거느리면
-     * 그것은 묶음이다({@code platform.web}·{@code integration.oidc}). 아직 평평한 도메인과 공용
-     * {@code schema}는 하위 패키지가 없어 통과한다.
+     * <p>가르는 기준은 <b>하위 패키지 이름</b>이다. 층이 아닌 것을 거느린 최상위는 묶음이다
+     * ({@code platform.web}·{@code integration.oidc}).
+     *
+     * <p>⚠ <b>{@code feature}가 목록에 들어가면서 이 검사는 도메인의 자식을 더는 보지 않는다.</b>
+     * 재편 전에는 도메인이 최상위였으므로 {@code practice}의 자식이 층인지도 여기서 함께 걸렸는데,
+     * 지금은 묶음이라 통째로 건너뛴다. 그 몫은 {@code PackageLayerTest.everyFeatureSubpackageIsALayer}
+     * 가 받는다 — 안 옮겼으면 {@code feature/practice/util} 같은 패키지를 아무도 못 본다.
      *
      * <p>🔎 <b>13단계 {@code feature} 이사가 정확히 이 자리에 걸렸다 — 실측했다.</b>
      * {@code platform/config}·{@code platform/harness}는 도메인으로 <i>들어가는</i> 간선만 갖고
@@ -159,6 +162,31 @@ class PackageCycleTest {
      * 도메인 열둘이 한 슬라이스로 뭉치는데도 {@link #packagesAreFreeOfCycles}가 <b>초록</b>이다.
      * 그때 유일하게 빨간불을 낸 것이 이 검사다.
      */
+    /**
+     * <b>묶음 밖에 사는 것이 없는지</b> 확인한다 (SOMA-397 13단계).
+     *
+     * <p>⚠ 위 {@link #everyBundleIsInTheList}는 <b>층이 아닌 자식을 거느린</b> 최상위만 걸러낸다.
+     * 그래서 루트에 도메인을 하나 만들면({@code com.acttub.actingapi.newthing.app}) 자식이 층
+     * 이름이라 통과하고, {@code PackageLayerTest}는 {@code feature} 아래만 훑으므로 그 도메인은
+     * <b>네 층 규칙도 도메인 간 규칙도 받지 않는다.</b> 가상의 실패 모드가 아니다 — 7단계가
+     * {@code security}·{@code oidc}·{@code ledger}를 8단계까지 루트에 임시로 두었다.
+     *
+     * <p>재편이 끝난 지금 루트 직속은 스캔 기점 {@code ActingApiApplication} 하나뿐이고, 최상위
+     * 패키지는 묶음 셋이 전부다. <b>넷째가 생기면 그것이 어느 묶음인지부터 정해야 한다.</b>
+     */
+    @Test
+    void nothingLivesOutsideTheBundles() {
+        Set<String> topLevel = CLASSES.stream()
+                .map(JavaClass::getPackageName)
+                .filter(name -> name.startsWith(ROOT + "."))
+                .map(name -> name.substring(ROOT.length() + 1).split("\\.")[0])
+                .collect(Collectors.toCollection(TreeSet::new));
+
+        assertThat(topLevel)
+                .as("묶음 밖 최상위 패키지가 있다 — 그것은 어느 구조 규칙도 받지 않는다")
+                .isEqualTo(new TreeSet<>(BUNDLES));
+    }
+
     @Test
     void everyBundleIsInTheList() {
         Map<String, Set<String>> childrenByTopLevel = new TreeMap<>();

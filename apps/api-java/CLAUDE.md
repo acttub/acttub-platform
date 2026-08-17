@@ -98,6 +98,10 @@ ln -sfn ../api/acting-api/.env .env    # 최초 1회. 파이썬과 같은 파일
 - 층 방향은 `PackageLayerTest`가 강제합니다(순환은 `PackageCycleTest`가 따로 봅니다). 서브패키지로 갈리면서 저장소 클래스를 막아주던 package-private 보호가 옅어졌으므로 **이 검사가 구조를 지키는 유일한 장치입니다.**
 - **한정은 13단계에서 풀렸습니다.** 재편이 도는 동안에는 검사 대상이 이미 옮긴 도메인으로 한정돼 있었습니다(안 옮긴 도메인이 빨간불을 내지 않게). 지금은 반대로 **`feature` 아래 전부가 층 표(`FEATURE_LAYERS`)에 있어야 합니다** — `everyFeatureIsInTheTable`이 실물과 표를 대조합니다.
   - 🔥 **"한정 해제"의 실체가 그 검사입니다.** 표를 도는 검사는 표에서 **빠진** 도메인을 영원히 못 봅니다 — 도메인을 새로 만들고 표에 안 적으면 그 도메인 통째가 검사 밖입니다. `PackageCycleTest.everyBundleIsInTheList`와 같은 부류입니다.
+  - ⚠ **그 부류의 구멍이 13단계 리뷰에서 둘 더 나왔고, 검사 둘을 새로 세웠습니다**(둘 다 주입해서 빨간불을 확인했습니다).
+    - `everyFeatureSubpackageIsALayer` — `feature/practice/util` 처럼 **층이 아닌 하위 패키지**는 아무도 보지 않았습니다. 재편 전에는 도메인이 최상위라 `everyBundleIsInTheList`가 겸했는데, `feature`가 묶음이 되면서 그 검사가 통째로 건너뜁니다.
+    - `nothingLivesOutsideTheBundles` — **루트에 만든 도메인**(`com.acttub.actingapi.newthing.app`)은 자식이 층 이름이라 `everyBundleIsInTheList`를 통과하고, `PackageLayerTest`는 `feature` 아래만 훑어 네 층 규칙도 도메인 간 규칙도 안 받았습니다. 7단계가 `security`·`oidc`·`ledger`를 루트에 임시로 둔 선례가 있어 가상의 실패 모드가 아닙니다.
+  - 📌 **`featuresSeeOnlyEachOthersAppLayer`의 대상 패턴만 절대 경로입니다**(`com.acttub.actingapi.feature.<이름>..`). 상대형으로 두면 배관에 같은 이름의 조각이 생기는 순간(`platform/admin`) 규칙이 거기까지 번져 "배관은 대상 밖"이라는 전제가 깨집니다 — 실제로 겹치게 만들어 확인했습니다.
 - **feature끼리 직접 import 금지**는 `featuresSeeOnlyEachOthersAppLayer`가 겁니다. 배관·외부 연동을 보는 것은 금지 대상이 아니고(`auth/app/AuthService`가 `integration/oidc`를 직접 부릅니다), 반대로 배관이 도메인 포트를 구현하는 것도 대상 밖입니다(`platform/security`·`platform/operation`이 그 형태입니다).
   - ⚠ **그 규칙은 "상대의 `app` 층만 허용"입니다**(ADR-019). 두 도메인이 서로를 소비하면 양쪽 다 포트를 선언할 수 없어서입니다 — 구현하는 쪽이 인터페이스를 import하므로 간선이 양방향이 되어 순환입니다. `coach`↔`report`가 그 자리였고(9단계), `coach → report/app` 한 방향으로 정렬돼 있습니다. 반대 방향은 0입니다(`ReportSourceProvider`를 코치 어댑터가 구현합니다).
   - 📌 지금 걸린 도메인 간 간선은 셋뿐입니다 — `coach`→`report` 12 · `consent`→`auth` 2 · `memory`→`coach` 2. **참조 폭이 늘면 그것이 두 도메인을 합쳐야 한다는 신호입니다**(ADR-019). 검사는 폭을 세지 않습니다 — 세면 숫자가 곧 유지보수 대상이 되고, 판단은 사람이 해야 합니다.

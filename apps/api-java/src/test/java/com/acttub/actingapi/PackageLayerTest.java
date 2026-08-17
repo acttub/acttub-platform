@@ -6,8 +6,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.TreeSet;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import com.tngtech.archunit.base.DescribedPredicate;
@@ -238,15 +238,46 @@ class PackageLayerTest {
      */
     @Test
     void everyFeatureIsInTheTable() {
-        Set<String> actual = CLASSES.stream()
-                .map(JavaClass::getPackageName)
-                .filter(name -> name.startsWith(FEATURE_ROOT + "."))
-                .map(name -> name.substring(FEATURE_ROOT.length() + 1).split("\\.")[0])
-                .collect(Collectors.toCollection(TreeSet::new));
-
-        assertThat(actual)
+        assertThat(childrenByFeature().keySet())
                 .as("feature 아래 도메인과 층 표가 어긋난다 — 표에 없는 도메인은 검사 밖에 남는다")
                 .isEqualTo(new TreeSet<>(FEATURE_LAYERS.keySet()));
+    }
+
+    /**
+     * 도메인이 <b>층만</b> 거느리는지 본다.
+     *
+     * <p>⚠ <b>이 검사는 13단계에 새로 필요해졌다.</b> 종전에는 도메인이 최상위에 있어
+     * {@link PackageCycleTest#everyBundleIsInTheList}가 같은 것을 봤다 — "층이 아닌 하위 패키지를
+     * 거느린 최상위" 를 걸러내면서 도메인의 자식도 함께 검사했다. 그런데 {@code feature}가
+     * {@code BUNDLES}에 들어가면서 그 검사가 이 묶음을 통째로 건너뛴다.
+     *
+     * <p>🔥 <b>그러면 {@code feature/practice/util} 같은 패키지를 아무도 못 본다</b> —
+     * {@link #everyFeatureIsInTheTable}은 첫 마디만 보고, {@link #everyRuleActuallyHasSomethingToCheck}는
+     * {@link #LAYERS} 넷만 순회하며, {@link #layersPointOneWay}는 {@code consideringOnlyDependenciesInLayers()}
+     * 라 선언 안 된 패키지를 무시한다. 실제로 만들어 넷 다 초록인 것을 확인했다.
+     */
+    @Test
+    void everyFeatureSubpackageIsALayer() {
+        childrenByFeature().forEach((feature, children) -> assertThat(children)
+                .as("%s 가 층이 아닌 하위 패키지를 거느린다 — 층 규칙 어느 것도 그것을 보지 않는다", feature)
+                .allMatch(LAYERS::contains));
+    }
+
+    /** 도메인 → 그 도메인이 실제로 거느린 하위 패키지. 위 두 검사가 같은 실물을 본다. */
+    private static Map<String, Set<String>> childrenByFeature() {
+        Map<String, Set<String>> children = new TreeMap<>();
+        for (JavaClass javaClass : CLASSES) {
+            String packageName = javaClass.getPackageName();
+            if (!packageName.startsWith(FEATURE_ROOT + ".")) {
+                continue;
+            }
+            String[] parts = packageName.substring(FEATURE_ROOT.length() + 1).split("\\.");
+            Set<String> layers = children.computeIfAbsent(parts[0], key -> new TreeSet<>());
+            if (parts.length >= 2) {
+                layers.add(parts[1]);
+            }
+        }
+        return children;
     }
 
     /**
@@ -262,9 +293,11 @@ class PackageLayerTest {
      */
     @Test
     void everyRuleActuallyHasSomethingToCheck() {
+        // 둘 미만이면 featuresSeeOnlyEachOthersAppLayer 의 금지 목록이 비어 그 규칙이 공허하게
+        // 초록이 된다 — that() 대상은 있으므로 ArchUnit 도 그것을 실패로 치지 않는다.
         assertThat(FEATURE_LAYERS)
-                .as("한정 목록이 비면 위 규칙 전부가 검사 대상 없이 통과한다")
-                .isNotEmpty();
+                .as("층 표가 둘 미만이면 위 규칙 일부가 검사 대상 없이 통과한다")
+                .hasSizeGreaterThan(1);
 
         for (Map.Entry<String, Set<String>> feature : FEATURE_LAYERS.entrySet()) {
             for (String layer : LAYERS) {
@@ -286,8 +319,17 @@ class PackageLayerTest {
         }
     }
 
+    /**
+     * ⚠ <b>여기만 절대 경로다.</b> {@code ..admin..} 상대형으로 두면 배관에 같은 이름의 조각이
+     * 생기는 순간({@code platform/admin}) 규칙 대상이 거기까지 번져, "배관이 도메인 포트를
+     * 구현하는 것은 대상 밖" 이라는 이 규칙의 전제가 깨진다. 오늘 초록인 것은 이름이 겹치지
+     * 않아서일 뿐이라 — 실제로 겹치게 만들어 빨간불을 확인했다.
+     *
+     * <p>{@link #layerOf}가 상대형인 것과는 반대다. 그쪽은 도메인이 어디로 이사해도 성립해야
+     * 하는 패턴이고, 이쪽은 <b>{@code feature} 아래인지</b>가 규칙의 뜻 자체다.
+     */
     private static String featureOf(String feature) {
-        return "..%s..".formatted(feature);
+        return "%s.%s..".formatted(FEATURE_ROOT, feature);
     }
 
     private static String layerOf(String feature, String layer) {
