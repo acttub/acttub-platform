@@ -9,13 +9,13 @@
 두 가지만 썼다.
 
 - **deletion test** — 지웠을 때 복잡도가 사라지면(호출자 0) 지운다. 여러 호출부로 흩어지면 그 module은 값을 하고 있는 것이다.
-- **응답 바이트를 움직이는가** — `apps/api`는 Spring Boot 이관(`SOMA-287`)이 도는 중이고 FastAPI가 응답 계약의 정본이다. `spec/openapi.json`을 흔드는 변경은 `apps/web`의 생성 타입과 `tools/contract-harness` 판정을 동시에 흔든다. **움직이지 않는 것만 지금 한다.**
+- **응답 바이트를 움직이는가** — 응답 계약의 정본은 Spring Boot(`apps/api-java`)로 넘어갔다(`SOMA-394`). 계약을 지키는 것은 그쪽 Java 테스트이고, `apps/web`은 여전히 `spec/openapi.json`으로 타입을 생성한다. **움직이지 않는 것만 지금 한다.**
 
 ---
 
 ## 실행 단계
 
-네 단계는 독립 PR이고, 1→2와 3→4는 앞 단계가 전제다. 1·2(web)와 3·4(api)는 서로 독립이라 병렬로 가도 된다. 각 PR은 CI 4잡(`web`·`api`·`contract-harness`·`api-java`)을 통과해야 하고, 브랜치·PR 제목에 SOMA 이슈 키가 필요하다.
+네 단계는 독립 PR이고, 1→2와 3→4는 앞 단계가 전제다. 1·2(web)와 3·4(api)는 서로 독립이라 병렬로 가도 된다. 각 PR은 CI 3잡(`web`·`api`·`api-java`)을 통과해야 하고, 브랜치·PR 제목에 SOMA 이슈 키가 필요하다.
 
 ### 1단계 — 씬 텍스트 trim 누락 (실제 버그)
 

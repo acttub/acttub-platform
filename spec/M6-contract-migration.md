@@ -155,9 +155,13 @@ manifest 92 케이스 중 8 건은 detail 이 고정 문자열이 아니다(422 
 → 둘 다 이번에 메웠고, 인벤토리는 `return body(…)` 까지 세도록 넓혔다. 표로 셀 수 없는 422 는
 **검사기 문서에 무엇이 지키는지 이름으로 적어 두었다.**
 
-## 5. 4단계로 넘기는 것
+## 5. 4단계로 넘긴 것 — ✅ 끝났다
 
-- `tools/contract-harness/` 삭제 · CI 잡 `contract-harness`·`contract-harness-java` 제거
-- **ruleset 의 required status check 를 잡 목록과 맞춘다** — 순서를 틀리면 영원히 pending 인
-  관문이 생긴다
-- `HarnessContractProfileIT` 와 `contract` 프로파일 관련 코드의 처리 판단 (§발견 2)
+결과 정본은 [M6-harness-retirement.md](M6-harness-retirement.md) 다.
+
+- ✅ `tools/contract-harness/` 삭제 · CI 잡 `contract-harness`·`contract-harness-java` 제거
+- 🔥 **ruleset 의 required status check 는 아직 맞추지 않았다** — 5단계의 잡 개명과 함께
+  머지 직전에 한 번에 한다. 지운 잡을 required 로 남기면 영원히 오지 않는 관문이 된다
+- ✅ `HarnessContractProfileIT` 와 `contract` 프로파일 관련 코드는 **함께 지웠다**(§발견 2).
+  다시 세어 보니 비어 있던 것은 **분석 완료 트랜잭션 하나**였고 `PostgresAnalysisStoreIT` 로
+  메웠다

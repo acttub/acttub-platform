@@ -45,8 +45,8 @@ pnpm lint
 pnpm --filter web test  # test 만 루트에 없습니다
 ```
 
-PR을 머지하려면 `.github/workflows/ci.yml`의 잡 다섯(`web`·`api`·`contract-harness`·
-`contract-harness-java`·`api-java`)이 초록이어야 합니다.
+PR을 머지하려면 `.github/workflows/ci.yml`의 잡 셋(`web`·`api`·`api-java`)이 초록이어야
+합니다.
 
 ## 운영
 

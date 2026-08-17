@@ -33,7 +33,7 @@ public class AdminService {
     public static final String ENABLED_WHEN =
             "T(org.springframework.util.StringUtils).hasText('${ADMIN_OPS_TOKEN:}')";
 
-    /** 재생 주소의 수명. 하네스가 이 값으로 응답을 대조한다. */
+    /** 재생 주소의 수명. 파이썬 정본과 같은 1시간이고, 응답에 그대로 실린다. */
     public static final int PLAYBACK_TTL_SECONDS = 3600;
 
     private final AdminMetricsRepository metrics;

@@ -37,11 +37,11 @@ import org.junit.jupiter.api.Test;
  * 이 파일의 진짜 실패 모드다</b> — 순환은 그것을 못 잡으므로 {@link #everyBundleIsInTheList}가
  * 따로 잡는다.
  *
- * <p>🔎 <b>묶음 자체를 슬라이스로 삼는 것은 답이 아니었다.</b> 그렇게 하면 {@code platform ↔ analysis}
- * 같은 순환이 셋 잡히는데, 전부 {@code platform/harness}가 도메인을 참조하는 데서 온다 —
- * 하네스 스텁은 진짜 구현을 대체하므로 도메인을 알아야 하고(ADR-017의 "대체 구현은 진짜 구현
- * 옆에"), 도메인은 반대로 {@code platform/ledger}의 교환 타입을 쓴다. 둘 다 설계상 의도된
- * 간선이라 금지할 것이 아니다. 금지 대상은 <b>feature끼리의 직접 import</b>이고, 그 규칙은
+ * <p>🔎 <b>묶음 자체를 슬라이스로 삼는 것은 답이 아니었다.</b> 그렇게 하면 배관 안의 어떤 조각이
+ * 도메인을 참조하는 것만으로 {@code platform ↔ 도메인} 순환이 잡히는데, 도메인은 반대로
+ * {@code platform/ledger}의 교환 타입을 쓰기 때문이다. 둘 다 설계상 의도된 간선이라 금지할
+ * 것이 아니다. (이 판단을 끌어냈던 예시 {@code platform/harness}는 `SOMA-403` 4단계에서
+ * 사라졌지만, 같은 형태는 {@code platform/security}·{@code platform/operation}이 그대로 갖는다.) 금지 대상은 <b>feature끼리의 직접 import</b>이고, 그 규칙은
  * 한정이 풀리는 SOMA-397 13단계에 {@link PackageLayerTest}로 들어온다.
  */
 class PackageCycleTest {
@@ -157,8 +157,8 @@ class PackageCycleTest {
      * 가 받는다 — 안 옮겼으면 {@code feature/practice/util} 같은 패키지를 아무도 못 본다.
      *
      * <p>🔎 <b>13단계 {@code feature} 이사가 정확히 이 자리에 걸렸다 — 실측했다.</b>
-     * {@code platform/config}·{@code platform/harness}는 도메인으로 <i>들어가는</i> 간선만 갖고
-     * 도메인이 그것을 되짚지 않으므로, 접두어를 붙이고 {@link #BUNDLES}를 빠뜨린 채 돌리면
+     * {@code platform/config} 처럼 도메인으로 <i>들어가는</i> 간선만 갖고 도메인이 그것을
+     * 되짚지 않는 조각이 있으므로, 접두어를 붙이고 {@link #BUNDLES}를 빠뜨린 채 돌리면
      * 도메인 열둘이 한 슬라이스로 뭉치는데도 {@link #packagesAreFreeOfCycles}가 <b>초록</b>이다.
      * 그때 유일하게 빨간불을 낸 것이 이 검사다.
      */

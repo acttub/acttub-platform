@@ -10,7 +10,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.context.annotation.Profile;
 import org.springframework.core.task.TaskRejectedException;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
@@ -24,12 +23,11 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
  * 풀을 그대로 쓰기 위한 자리일 뿐이다.
  *
  * <p>스위치를 분석 워커와 공유한다. 둘은 같은 {@code external_operations} 큐를 소비하므로
- * "이 프로세스가 큐 owner인가"가 하나의 질문이다. 스위치를 나누면 컷오버에서 한쪽만
- * 넘기는 사고가 열린다 — 워커를 늘렸을 때 따라가지 못해 하네스가 비결정적으로 깨진
- * 전례가 이미 있다.
+ * "이 프로세스가 큐 owner인가"가 하나의 질문이다. 스위치를 나누면 한쪽만 켠 프로세스가
+ * 생겨 두 소비자가 같은 잡을 나눠 집는다 — 워커를 늘렸을 때 스위치가 따라가지 못해
+ * 비결정적으로 깨진 전례가 이미 있다.
  */
 @Configuration(proxyBeanMethods = false)
-@Profile("!contract")
 @ConditionalOnProperty(
         name = "ANALYSIS_WORKER_ENABLED",
         havingValue = "true",

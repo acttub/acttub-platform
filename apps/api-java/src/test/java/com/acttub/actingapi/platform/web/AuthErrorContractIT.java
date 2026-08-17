@@ -20,7 +20,6 @@ import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
-import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping;
 
 @SpringBootTest(properties = {
         "JWT_SECRET=test-secret",
@@ -49,20 +48,6 @@ class AuthErrorContractIT {
     @Autowired
     JwtService jwt;
 
-    @Autowired
-    RequestMappingHandlerMapping handlerMapping;
-
-    @Test
-    void defaultProfileDoesNotRegisterHarnessRoutes() throws Exception {
-        assertThat(handlerMapping.getHandlerMethods().keySet()).noneMatch(mapping ->
-                mapping.getPatternValues().stream()
-                        .anyMatch(pattern -> pattern.startsWith("/__harness")));
-        assertThat(mvc.perform(post("/__harness/db-projection")
-                        .contentType("application/json")
-                        .content("{}"))
-                .andReturn().getResponse().getStatus()).isEqualTo(404);
-    }
-
     @Test
     void inventoryUsesDetailAndNeverProblemDetail() throws Exception {
         assertResponse(get("/missing"), 404, "{\"detail\":\"Not Found\"}");
@@ -86,8 +71,8 @@ class AuthErrorContractIT {
      * 프로바이더(503)</b>가 각각 다른 코드다.
      *
      * <p><b>계약 하네스에서 옮겨 온 기대값이다</b>(SOMA-403 2단계). 뒤의 둘을 단언하던 곳이
-     * {@code HarnessContractProfileIT} 뿐이었는데, 그것은 하네스 전용 {@code contract}
-     * 프로파일을 띄우므로 <b>4단계에서 하네스와 함께 사라진다.</b>
+     * {@code HarnessContractProfileIT} 뿐이었고, 그것은 4단계에서 하네스와 함께 사라졌다.
+     * <b>지금 이 셋을 지키는 것은 여기뿐이다.</b>
      */
     @Test
     void loginSeparatesUnknownProviderUntrustedTokenAndMissingConfiguration() throws Exception {

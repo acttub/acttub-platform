@@ -9,14 +9,12 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.context.annotation.Profile;
 import org.springframework.core.task.TaskRejectedException;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
 /** Spring 스케줄러가 유휴 폴을 시작하고, 실제 일감은 제한된 데몬 풀에서 비운다. */
 @Configuration(proxyBeanMethods = false)
-@Profile("!contract")
 @ConditionalOnProperty(
         name = "ANALYSIS_WORKER_ENABLED",
         havingValue = "true",

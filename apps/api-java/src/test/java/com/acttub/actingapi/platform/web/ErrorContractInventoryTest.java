@@ -20,8 +20,8 @@ import org.junit.jupiter.api.Test;
  *
  * <p><b>계약 하네스의 {@code --check-manifest} 를 옮겨 온 것이다</b>(SOMA-403 2단계). 하네스는
  * 파이썬 소스에서 오류 발생 지점을 뽑아 실행 manifest 와 대조하고, <b>연결되지 않은 지점이 하나라도
- * 있으면 실패했다.</b> 하네스가 사라지면 그 방어선도 사라져 — 새 오류를 테스트 없이 넣어도 아무도
- * 모르게 된다. 여기가 그 자리를 대신한다.
+ * 있으면 실패했다.</b> 그 하네스는 4단계에서 사라졌으므로 <b>지금 이 방어선은 여기 하나뿐이다</b> —
+ * 이 표가 느슨해지면 새 오류를 테스트 없이 넣어도 아무도 모르게 된다.
  *
  * <p>표에 없는 {@code new ApiException} 이 생기면 {@link #everySiteInTheSourceIsInTheTable} 이,
  * 사라진 지점이 표에 남아 있으면 {@link #everyRowStillExistsInTheSource} 가, 커버한다고 적어 둔

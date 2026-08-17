@@ -20,7 +20,7 @@ import org.springframework.stereotype.Service;
 @Service
 public class UploadService {
 
-    /** 파이썬과 같은 100MiB. 하네스가 이 경계로 413 을 대조한다. */
+    /** 파이썬과 같은 100MiB. 이 경계를 넘으면 413 이다. */
     public static final long MAX_UPLOAD_BYTES = 100L * 1024 * 1024;
 
     /** 서명 주소와 의도의 수명. 둘이 같은 값이어야 주소가 살아 있는 동안만 확정된다. */

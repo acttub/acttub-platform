@@ -12,15 +12,13 @@ class MemoryWorkerSchedulerTest {
             .withUserConfiguration(MemoryWorkerScheduler.class);
 
     /**
-     * 분석 워커와 스위치를 공유한다. 큐가 하나이므로 owner도 하나여야 하고, 컷오버에서
-     * 한쪽만 넘기면 두 백엔드가 같은 잡을 나눠 집는다.
+     * 분석 워커와 스위치를 공유한다 — 같은 {@code external_operations} 큐를 소비하므로
+     * "이 프로세스가 큐 owner인가"가 하나의 질문이다. 스위치를 나누면 한쪽만 켠 프로세스가
+     * 생겨 두 소비자가 같은 잡을 나눠 집는다.
      */
     @Test
-    @DisplayName("contract 프로파일과 꺼진 스위치는 기억 갱신 풀을 만들지 않는다")
-    void contractProfileAndDisabledSwitchNeverCreateBackgroundPool() {
-        runner.withPropertyValues("spring.profiles.active=contract")
-                .run(context -> assertThat(context)
-                        .doesNotHaveBean("memoryWorkerExecutor"));
+    @DisplayName("꺼진 스위치는 기억 갱신 풀을 만들지 않는다")
+    void disabledSwitchNeverCreatesBackgroundPool() {
         runner.withPropertyValues("ANALYSIS_WORKER_ENABLED=false")
                 .run(context -> assertThat(context)
                         .doesNotHaveBean("memoryWorkerExecutor"));

@@ -10,7 +10,8 @@ Java 21 + Spring Boot 3.4. FastAPI(`apps/api`) 전면 이관 작업(`SOMA-287`)�
 
 1. 루트 [SPEC.md](../../SPEC.md) — 모든 사이클 공통 규칙. §2 기술 스택은 확정이고 변경 금지.
 2. `spec/M<n>-*.md` — 해당 마일스톤 문서.
-3. [tools/contract-harness/README.md](../../tools/contract-harness/README.md) — 계약 동등성 판정 도구.
+
+계약 동등성 하네스는 `SOMA-403` 4단계에서 폐기했습니다. **그것이 보던 계약이 지금 어느 테스트에 있는지는 [spec/M6-contract-migration.md](../../spec/M6-contract-migration.md)가 정본입니다** — 오류 계약 인벤토리는 `ErrorContractInventoryTest`가 지점 수까지 셉니다.
 
 소스 참조는 **`파일:심볼` 형식**입니다. 라인 번호를 쓰지 않습니다(SPEC §12).
 
@@ -24,26 +25,7 @@ Java 21 + Spring Boot 3.4. FastAPI(`apps/api`) 전면 이관 작업(`SOMA-287`)�
 - `scripts/dr-rehearsal.sh` — 재해복구 리허설. `V1__baseline.sql` 만으로 세운 환경이 alembic 경로와 같은지, 덤프를 부은 뒤에도 앱이 서는지 본다. Docker + uv + JDK 필요. 결과는 [spec/M6-findings.md](../../spec/M6-findings.md)에 있고, **파이썬이 사라지는 `SOMA-403` 5단계에서 이 스크립트도 함께 지웁니다**(비교 대상이 없어집니다).
 - 루트에서 `python3 spec/check-refs.py` — SPEC이 가리키는 심볼이 소스에 실재하는지.
 
-계약 동등성 검사는 `apps/api`의 uv 가상환경을 그대로 씁니다(새 의존성을 들이지 않습니다):
-
-```bash
-cd apps/api && uv sync --frozen --all-packages    # 최초 1회
-cd tools/contract-harness
-PY=../../apps/api/.venv/bin/python
-$PY -m contract_harness --baseline fastapi --target java --java-base-url http://127.0.0.1:8099
-```
-
-전체 시나리오는 기본(`contract`, ADMIN_OPS_TOKEN 없음), admin(`contract`, 토큰 있음),
-nostorage(`contract,nostorage`) 인스턴스를 각각 띄우고 하네스의
-`--java-admin-base-url`·`--java-nostorage-base-url`로 전달합니다. **기동 명령과 필요한
-환경변수 전량은 [하네스 README](../../tools/contract-harness/README.md)의 `java 타겟` 절이
-정본입니다** — 값은 하네스 `config.py`에서 나오므로 여기에 복사해 두지 않습니다.
-
-**contract 프로파일에는 진짜 LLM·분석 체인이 서지 않습니다.** `integration/observation/GeminiConfiguration`과
-`analysis/adapter/AnalysisConfiguration`이 `@Profile("!contract")`이라, 하네스 인스턴스는 외부 API 키
-없이 뜹니다. 🔎 **`@Primary`로는 이걸 못 합니다** — `ContractAnalysisProcessor`가 주입 경합에서
-이겨도 진짜 체인의 빈은 그대로 만들어지고, 그러다 `GEMINI_API_KEY`가 없어 컨텍스트가 죽었습니다.
-새 외부 연동을 붙일 때는 스텁으로 대체할지, contract에서 아예 세우지 않을지를 먼저 정합니다.
+**`contract` 스프링 프로파일은 하네스와 함께 사라졌습니다.** 스텁 프로바이더·스텁 스토리지·스텁 LLM·제어 표면(`/__harness/*`)과 `@Profile("!contract")` 열두 자리가 전부 그때 걷혔습니다. 프로파일로 외부 연동을 끄던 자리가 없으므로, **지금 앱은 어떤 모드로 뜨든 진짜 연동을 세우고 그 키를 요구합니다.**
 
 ## 로컬 설정은 `.env`, 서버는 systemd입니다
 
@@ -58,8 +40,8 @@ ln -sfn ../api/acting-api/.env .env    # 최초 1회. 파이썬과 같은 파일
 
 - **이미 있는 값을 덮지 않습니다.** `addLast`로 넣으므로 실제 환경변수·시스템 프로퍼티·`application.yml`이 항상 이깁니다.
 - **테스트에서는 꺼집니다.** `build.gradle.kts`의 test 태스크가 `acttub.dotenv.enabled=false`를 박습니다. **이 가드를 지우면 로컬 실 API 키가 테스트로 새어들어**, 스텁을 쓰는 줄 알았던 테스트가 진짜 호출을 하게 됩니다.
-- ⚠ **하네스용 인스턴스를 띄울 때도 꺼야 합니다** — `java -Dacttub.dotenv.enabled=false -jar …`. 하네스가 주지 않는 키(`S3_BUCKET`·`AWS_*` 등)가 `.env`에서 새어들면 판정이 로컬 환경에 좌우됩니다. 하네스는 격리된 환경이어야 재현됩니다.
-  - 🔎 **이 원칙이 코드보다 앞서 있던 적이 있습니다.** `.env`가 `GEMINI_API_KEY`를 채워주는 동안 아무도 격리 기동을 해보지 않아, dotenv를 끄면 컨텍스트가 죽는 상태가 오래 남아 있었습니다(`SOMA-397` 1단계). **`src/test/resources/application.properties`가 같은 키를 주므로 테스트도 이걸 못 잡습니다** — `HarnessContractProfileIT`가 그래서 `GEMINI_API_KEY=`를 일부러 비웁니다.
+- ⚠ **격리해서 띄울 때는 손으로 꺼야 합니다** — `java -Dacttub.dotenv.enabled=false -jar …`. 안 끄면 주지 않은 키(`S3_BUCKET`·`AWS_*` 등)가 `.env`에서 새어들어, 그 환경이 무엇을 요구하는지가 로컬 사정에 좌우됩니다.
+  - 🔎 **이 원칙이 코드보다 앞서 있던 적이 있습니다.** `.env`가 `GEMINI_API_KEY`를 채워주는 동안 아무도 격리 기동을 해보지 않아, dotenv를 끄면 컨텍스트가 죽는 상태가 오래 남아 있었습니다(`SOMA-397` 1단계). **`src/test/resources/application.properties`가 같은 키를 주므로 테스트도 이걸 못 잡습니다** — 키를 비운 채 전체 컨텍스트를 띄우던 `HarnessContractProfileIT`가 그 방어였는데, 하네스와 함께 사라졌습니다(`SOMA-403` 4단계). **키 없이 뜨는 모드가 이제 없어 요구 자체가 사라진 것**이지, 다른 테스트가 대신 보고 있는 것이 아닙니다.
 - `DatabaseUrlEnvironmentPostProcessor`보다 **먼저** 돌아야 합니다(`.env`가 `DATABASE_URL`을 공급할 수 있으므로). 순서는 `getOrder()`로 고정했고 테스트가 지킵니다.
 
 ## Testcontainers는 Postgres 18입니다
@@ -113,13 +95,17 @@ ln -sfn ../api/acting-api/.env .env    # 최초 1회. 파이썬과 같은 파일
 - ⚠ **응답 JSON 표기도 포트 뒤에 있습니다**(`coach/app/CoachResponseRenderer`). 코치 응답의 바이트는 응답이면서 동시에 원장에 남는 값이라, 조립을 컨트롤러에 두면 규칙과 표기가 한 요청 안에서 두 번 오갑니다. **무엇을** 담을지는 서비스가, **어떤 키로** 담을지는 web 어댑터가 정합니다.
 - 위임만 하는 포트는 끼우지 않습니다 — `oidc`가 그래서 포트 없이 `auth/app/AuthService`가 직접 부릅니다. 외부 연동을 보는 것은 금지 대상이 아니고 간선도 한 방향이라, 인터페이스만 늘고 얻는 것이 없습니다.
 
-### 검사도 하네스도 보지 못하는 자리
+### 검사가 보지 못하는 자리
 
-🔥 **워커 응답 본문** — DB 투영이 `external_operations`를 `has_response_payload`(참·거짓)로만 비교하고 백그라운드 워커는 contract 프로파일에서 아예 뜨지 않습니다. **전 시나리오 diff 0을 통과해도 조용히 달라질 수 있는데** 그 바이트는 잡이 재생될 때 그대로 응답으로 나갑니다. `MemoryUpdateWorkerPayloadTest`가 파이썬 `memory_worker.py:run_once`의 모양에 못박아 둔 이유입니다.
+⚠ 아래는 **계약 하네스가 살아 있을 때도** 사각지대였던 자리입니다. 하네스가 사라진 지금(`SOMA-403` 4단계) 응답 바이트를 통째로 대조하는 그물마저 없으니, 여기를 건드릴 때는 테스트를 함께 세우는 수밖에 없습니다.
 
-🔥 **조건부 빈이 있는 도메인에 서비스를 끼워 넣을 때는 조건을 함께 옮깁니다.** `admissions`(`@ConditionalOnResource`)·`admin`(`@ConditionalOnExpression`)이 그렇습니다 — 컨트롤러와 저장소만 조건부이던 자리에 서비스가 끼면 **그 서비스가 없는 빈을 요구해 컨텍스트가 기동하지 못합니다.** 하네스도 테스트도 이 자리를 보지 못합니다(리소스나 토큰이 없는 기동으로 인스턴스를 띄우는 시나리오가 없습니다 — `admissions-missing`은 "없는 대학"이지 "없는 카탈로그"가 아닙니다).
+🔥 **워커 응답 본문** — 백그라운드 워커가 만드는 바이트는 어떤 응답 대조에도 걸리지 않았습니다. 그 바이트는 잡이 재생될 때 그대로 응답으로 나갑니다. `MemoryUpdateWorkerPayloadTest`가 파이썬 `memory_worker.py:run_once`의 모양에 못박아 둔 이유입니다.
 
-🔥 **불변식이 깨진 자리는 "없음"이 아닙니다.** 대상이 없다는 예외를 한 연산이 두 경로로 던지면 뜻이 뭉개집니다 — 넣은 직후 다시 못 읽은 것을 `CommunityContentNotFound`로 내면 500이던 것이 404가 되어 멀쩡한 분류를 탓합니다. 그런 자리는 `IllegalStateException`으로 냅니다. **하네스는 이 부류를 못 잡습니다**(도달하려면 파손된 데이터가 필요합니다).
+🔥 **저장소 트랜잭션의 커밋 순서** — 응답만 보는 대조는 "무엇이 어떤 순서로 커밋됐는가"를 보지 못하고, 가짜 저장소를 쓰는 단위 테스트는 SQL이 틀려도 초록입니다. 실 DB를 쓰는 통합 테스트만 잡습니다 — `ExternalOperationIT`(claim·fail·release)와 `PostgresAnalysisStoreIT`(분석 완료)가 그 자리입니다.
+
+🔥 **조건부 빈이 있는 도메인에 서비스를 끼워 넣을 때는 조건을 함께 옮깁니다.** `admissions`(`@ConditionalOnResource`)·`admin`(`@ConditionalOnExpression`)이 그렇습니다 — 컨트롤러와 저장소만 조건부이던 자리에 서비스가 끼면 **그 서비스가 없는 빈을 요구해 컨텍스트가 기동하지 못합니다.** 리소스나 토큰이 없는 기동을 띄워 보는 테스트가 없어 이 자리는 아무도 보지 못합니다.
+
+🔥 **불변식이 깨진 자리는 "없음"이 아닙니다.** 대상이 없다는 예외를 한 연산이 두 경로로 던지면 뜻이 뭉개집니다 — 넣은 직후 다시 못 읽은 것을 `CommunityContentNotFound`로 내면 500이던 것이 404가 되어 멀쩡한 분류를 탓합니다. 그런 자리는 `IllegalStateException`으로 냅니다. 도달하려면 파손된 데이터가 필요해 어떤 검사도 밟지 못합니다.
 
 ### 알아 둘 예외 넷
 
@@ -146,10 +132,9 @@ ln -sfn ../api/acting-api/.env .env    # 최초 1회. 파이썬과 같은 파일
 
 ## CI
 
-`.github/workflows/ci.yml`의 잡 **둘**이 이 디렉토리를 지킵니다.
+`.github/workflows/ci.yml`의 잡 **`api-java` 하나**가 이 디렉토리를 지킵니다 — `./gradlew test`. 이 잡이 없던 동안 Java 통합 테스트 17개가 깨진 채로 dev가 초록이었습니다. Java 잡인데도 파이썬 워크스페이스를 함께 설치하는데, **프롬프트·관리자 스키마·FastAPI interop을 파이썬 정본과 대조하는 테스트 다섯**이 `apps/api`의 venv를 요구하기 때문입니다(위 `REQUIRE_ALEMBIC_CHECK` 참조). 스키마 대조는 더 이상 여기 없습니다 — Flyway가 정본입니다.
 
-- **`api-java`** — `./gradlew test`. 이 잡이 없던 동안 Java 통합 테스트 17개가 깨진 채로 dev가 초록이었습니다. Java 잡인데도 파이썬 워크스페이스를 함께 설치하는데, **프롬프트·관리자 스키마·FastAPI interop을 파이썬 정본과 대조하는 테스트 다섯**이 `apps/api`의 venv를 요구하기 때문입니다(위 `REQUIRE_ALEMBIC_CHECK` 참조). 스키마 대조는 더 이상 여기 없습니다 — Flyway가 정본입니다.
-- **`contract-harness-java`** — 세 인스턴스를 띄우고 `--target java`로 전 시나리오를 돌려 **FastAPI와의 계약 동등성**을 봅니다(`SOMA-397` 3단계). 테스트가 초록이어도 응답 바이트가 어긋날 수 있고, 웹은 FastAPI 스펙으로 타입을 생성하므로 그것을 컴파일 타임에 못 잡습니다. 절차의 정본은 [하네스 README](../../tools/contract-harness/README.md)의 `java 타겟` 절이고, 잡은 그것을 그대로 옮긴 것입니다.
+⚠ **하네스 잡 둘이 `SOMA-403` 4단계에서 사라졌습니다.** 응답 바이트를 FastAPI와 대조하던 그 관문이 없으므로, **계약을 지키는 것은 이제 이 잡 안의 Java 테스트뿐입니다.** 무엇이 어디로 옮겨졌는지는 [spec/M6-contract-migration.md](../../spec/M6-contract-migration.md)에 있습니다. 잡을 지웠으면 **ruleset의 required status check에서도 빼야 합니다** — 남겨 두면 영원히 오지 않는 관문이 됩니다.
 
 ## 사이클 진입 전 점검 (검사기로 대체 불가)
 

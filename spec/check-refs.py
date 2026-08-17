@@ -27,15 +27,25 @@ PY_ROOTS = [
     "apps/api/acting-report/src",
     "apps/api/acting-llm/src",
     "apps/api",
-    # 하네스 자산을 자바로 옮기며(SOMA-403 2단계) M6-contract-migration.md 가
-    # `manifest.py:CASES` 처럼 하네스 소스를 가리키게 됐다. **하네스를 지우는 4단계에서
-    # 이 줄도 함께 지운다** — 그때 그 문서의 표도 정리 대상이다.
-    "tools/contract-harness/contract_harness",
     "",
 ]
 
 # 그 시점의 기록이라 라인 참조를 유지한다 (/SPEC.md §12).
 SKIP_LINE_CHECK = {"M0-spike.md", "M0-findings.md"}
+
+# 폐기된 도구를 가리키는 역사 기록. 계약 하네스는 `SOMA-403` 4단계에서 지워졌고,
+# M1~M4 문서가 그 소스를 가리키는 것은 **그 시점의 기록**이라 고칠 대상이 아니다
+# (M0 의 라인 참조를 유지하는 것과 같은 이유). 6단계에서 spec/ 자체가 폐기되면
+# 이 면제도 함께 사라진다.
+#
+# ⚠ **면제는 "그 파일이 없다" 에만 걸린다.** 실재하는 파일의 심볼이 사라진 것은 그대로
+# 오류다. 면제 건수를 끝에 찍는 이유도 같다 — 조용히 넘어가면 "검사했다" 로 읽힌다.
+RETIRED_PREFIXES = ("tools/contract-harness/",)
+RETIRED_FILES = {"manifest.py"}
+
+
+def is_retired(short: str) -> bool:
+    return short.startswith(RETIRED_PREFIXES) or short in RETIRED_FILES
 
 # `db/store.py:PostgresStore.claim_next_external_operation` / `models.py:IntentImpact`
 SYMBOL_REF = re.compile(r"`([\w./-]+\.py):([A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*)`")
@@ -127,6 +137,7 @@ def main() -> int:
     errors: list[str] = []
     warnings: list[str] = []
     checked = 0
+    retired = 0
 
     for spec in spec_files():
         text = spec.read_text(encoding="utf-8")
@@ -137,6 +148,9 @@ def main() -> int:
                 checked += 1
                 target = resolve(short)
                 if target is None:
+                    if is_retired(short):
+                        retired += 1
+                        continue
                     errors.append(f"{where}  파일 없음: {short}")
                     continue
                 names = defined_names(target)
@@ -168,7 +182,8 @@ def main() -> int:
     for e in errors:
         print(f"✗  {e}")
 
-    print(f"\n심볼 참조 {checked}건 검사 · 오류 {len(errors)} · 경고 {len(warnings)}")
+    print(f"\n심볼 참조 {checked}건 검사 · 오류 {len(errors)} · 경고 {len(warnings)}"
+          f" · 폐기된 도구 참조 {retired}건 면제")
     if errors:
         print("\nSPEC 이 가리키는 심볼이 소스에 없습니다. 소스가 바뀌었다면 SPEC 을 고치세요.")
         return 1

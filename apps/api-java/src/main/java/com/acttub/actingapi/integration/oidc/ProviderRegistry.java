@@ -5,11 +5,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
 @Component
-@Profile("!contract")
 public class ProviderRegistry {
     private final Map<String, ProviderVerifier> verifiers = new HashMap<>();
 

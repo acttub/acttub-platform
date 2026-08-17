@@ -21,11 +21,9 @@ import org.springframework.core.env.SystemEnvironmentPropertySource;
  * 자르기가 도는 경로는 어느 테스트도 지나지 않았다. 변수 이름이 갈려도 그쪽은 초록으로
  * 남는다 — 미설정과 이름 오타가 같은 답({@code "unknown"})을 내기 때문이다.
  *
- * <p>⚠ <b>계약 하네스도 이 자리를 보지 못한다.</b> {@code normalize.py} 의
- * {@code ENV_VALUE_KEYS = {"commit", "db_size"}} 가 값을 {@code ENV_SENTINEL} 로
- * 마스킹하기 때문이다 — 두 구현이 서로 다른 커밋에서 떠 있는 것이 정상이라 값을 맞댈 수
- * 없어서다. 그래서 <b>전 시나리오 diff 0 을 통과해도 조용히 갈릴 수 있는 자리</b>이고,
- * 여기서 못박아 둔다.
+ * <p>⚠ <b>응답을 맞대는 검사로는 이 자리를 볼 수 없다.</b> 커밋 해시는 뜬 빌드마다 다른 것이
+ * 정상이라 어떤 대조도 값을 고정할 수 없다(사라진 계약 하네스도 이 키를 마스킹했다). 그래서
+ * <b>조용히 갈릴 수 있는 자리</b>이고, 여기서 못박아 둔다.
  *
  * <p>배포가 주는 것은 프로퍼티가 아니라 systemd {@code Environment=} 이므로 값을
  * {@link SystemEnvironmentPropertySource} 로 심는다 — OS 환경변수 자체는 프로세스 안에서

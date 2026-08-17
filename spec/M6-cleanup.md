@@ -29,6 +29,11 @@
 
 ### B. 하네스 폐기
 
+✅ **`SOMA-403` 4단계에서 끝났다 — 결과는 [spec/M6-harness-retirement.md](M6-harness-retirement.md)가
+정본이다.** `tools/contract-harness/` 78 파일과 CI 잡 둘이 사라졌고, `contract` 스프링
+프로파일도 함께 걷혔다(fixture 가 전부 하네스 안에 있어 남길 수 없다). 🔥 **ruleset 의
+required status check 를 아직 맞추지 않았다** — 5단계의 잡 개명과 함께 머지 직전에 한다.
+
 `tools/contract-harness/` 삭제. 비교 대상이 사라지므로 유지할 수 없다.
 
 **대신 하네스가 검증하던 것 중 남길 가치가 있는 것을 Java 테스트로 옮긴다**:
@@ -82,8 +87,8 @@
   - `apps/mobile/scripts/`의 `build-fonts.py`·`make_store_assets.py`는 정상 도구다. **검사 범위를 `apps/api`로 한정한다** — `apps` 전체로 잡으면 영원히 실패하거나 무관한 파일을 지우게 된다
 - [ ] **alembic 삭제 전 빈 DB 재구축 검증** — V1 실행만으로 전체 스키마가 만들어진다
 - [ ] rename 후 **재배포해 dev에서 동작 확인**
-- [ ] 하네스가 검증하던 계약 항목이 Java 테스트로 이관됨 (오류 40종·응답 형상·멱등 전이)
-- [ ] 하네스 삭제
+- [x] 하네스가 검증하던 계약 항목이 Java 테스트로 이관됨 (오류 40종·응답 형상·멱등 전이) — 2단계
+- [x] 하네스 삭제 — 4단계. `contract` 프로파일도 함께 걷혔다
 - [ ] `pnpm lint` · `pnpm typecheck` · `pnpm --filter web test` · `pnpm build` 통과
 - [ ] `./gradlew build test` 통과
 - [ ] CI 두 잡이 초록. **ruleset의 required check 이름이 새 잡 이름과 일치**

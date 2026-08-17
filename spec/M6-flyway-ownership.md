@@ -148,6 +148,6 @@ down 마이그레이션이 없으니 되돌리는 경로는 "되돌리는 새 �
 
 | 단계 | 반영할 것 |
 |---|---|
-| 4 (하네스 폐기) | `check-refs.py` 의 `tools/contract-harness/contract_harness` 줄과 `M6-contract-migration.md` 의 하네스 참조를 함께 정리 (발견 4) |
+| 4 (하네스 폐기) | ✅ 끝났다 — `check-refs.py` 의 스캔 경로를 지우고, M1\~M4 문서가 가리키는 폐기 도구 참조 34건은 **건수를 찍으며 면제**하도록 바꿨다 ([M6-harness-retirement.md](M6-harness-retirement.md) §6) |
 | 5 (파이썬 삭제) | 죽은 스크립트 셋 삭제 — `ssm-deploy.sh` 의 `migrate` 분기 · `check-migration.sh` · `upload-api.sh`. 은퇴 표시만 달려 있고 아무도 부르지 않는다. `REQUIRE_ALEMBIC_CHECK` 와 CI 의 uv 스텝도 이때 사라진다 (발견 2) |
 | 6 (문서) | `DEPLOY-VPC.md` §4-2 는 여전히 FastAPI 수동 설치 절차다. §4-3·6-4 는 이번에 Flyway 기준으로 고쳤다 |

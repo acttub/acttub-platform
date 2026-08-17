@@ -44,9 +44,9 @@ public class PgEnumCatalogVerifier implements ApplicationRunner {
     @Override
     public void run(ApplicationArguments args) {
         Map<String, List<String>> actual = new LinkedHashMap<>();
-        // 스키마를 'public' 으로 박으면 contract 프로파일(harness_target)에서 **엉뚱한
-        // 스키마를 검증한다.** 운영에서는 둘이 같아 눈에 띄지 않다가, 하네스 DB 처럼
-        // public 만 낡은 환경에서 기동이 죽는다(실제로 그렇게 죽었다).
+        // 스키마를 'public' 으로 박으면 **접속이 다른 스키마를 보고 있을 때 엉뚱한
+        // 스키마를 검증한다.** 운영에서는 둘이 같아 눈에 띄지 않다가, public 만 낡은
+        // 환경에서 기동이 죽는다(실제로 그렇게 죽은 적이 있다).
         // current_schema() 는 Hikari 가 설정한 스키마를 그대로 돌려준다.
         jdbc.query("""
                 SELECT t.typname, e.enumlabel

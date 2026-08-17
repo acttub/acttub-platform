@@ -22,9 +22,8 @@ import org.springframework.context.ConfigurableApplicationContext;
  * 큐에 pending 으로 남아 화면이 영원히 "장면을 살펴보고 있어요" 에 머물렀다.
  *
  * <p><b>격리 컨텍스트로는 이 회귀를 잡지 못한다.</b> {@code ApplicationContextRunner}
- * 는 설정 클래스를 직접 지정해 순서가 달라지므로 그 조건이 통과해버린다. 하네스도
- * 볼 수 없다 — contract 프로파일에서 백그라운드 워커를 띄우지 않는 것이 전제다.
- * 그래서 전체 부팅으로만 확인된다.
+ * 는 설정 클래스를 직접 지정해 순서가 달라지므로 그 조건이 통과해버린다. 그래서 전체
+ * 부팅으로만 확인된다.
  */
 class AnalysisWorkerWiringIT {
 

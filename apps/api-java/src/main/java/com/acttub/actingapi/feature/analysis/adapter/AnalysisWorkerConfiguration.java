@@ -24,9 +24,9 @@ class AnalysisWorkerConfiguration {
      * 사이에서는 설정 클래스 처리 순서에 따라 결과가 갈린다. 실제로 그렇게 갈렸다:
      * {@code StorageConfiguration#objectStorage} 는 matched 인데
      * {@code @ConditionalOnBean} 은 "did not find any beans" 로 워커를 통째로
-     * 빼버렸고, 분석 잡이 큐에 pending 으로 영원히 남았다. 하네스는 contract
-     * 프로파일에서 백그라운드 워커를 띄우지 않는 것이 전제라 이 구멍을 볼 수 없고,
-     * 격리 컨텍스트로 도는 단위 테스트도 순서가 달라 통과했다.
+     * 빼버렸고, 분석 잡이 큐에 pending 으로 영원히 남았다. 격리 컨텍스트로 도는 단위
+     * 테스트는 설정 클래스를 직접 지정해 순서가 달라지므로 이 구멍을 통과시킨다 —
+     * 전체 부팅으로만 잡힌다({@code AnalysisWorkerWiringIT}).
      *
      * <p>{@code ObjectProvider} 로 받아 런타임에 판정하면 순서와 무관해진다.
      */

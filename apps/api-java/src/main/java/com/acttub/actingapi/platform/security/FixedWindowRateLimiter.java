@@ -2,14 +2,15 @@ package com.acttub.actingapi.platform.security;
 
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongSupplier;
 
 /**
  * monotonic 시계 기반 분당 고정 윈도우. compute로 같은 key의 증감을 원자화한다.
  *
- * <p>빈 등록은 {@link RateLimiterConfiguration}이 프로파일별로 한다 — 아래 제어
- * 메서드 둘은 하네스의 것이라 운영 빈에서는 동작하지 않아야 한다.
+ * <p>⚠ <b>카운터는 process-local 이고 지우는 수단이 없다.</b> DB 를 {@code TRUNCATE} 해도
+ * 남으므로, 한 컨텍스트 안에서 같은 키를 쓰는 테스트를 여럿 두면 앞의 것이 깎아 놓은 창에
+ * 뒤의 것이 걸린다. 비우는 메서드를 다시 들이지 않는 것은 <b>운영 빈이 레이트리밋을 스스로
+ * 풀 수 있게 되기 때문</b>이다 — 테스트는 키나 컨텍스트를 나눠서 푼다.
  */
 public class FixedWindowRateLimiter {
     private record Counter(long window, int count) {
@@ -17,24 +18,17 @@ public class FixedWindowRateLimiter {
 
     private final ConcurrentHashMap<String, Counter> counters = new ConcurrentHashMap<>();
     private final LongSupplier nanoClock;
-    private final AtomicLong contractOffsetNanos = new AtomicLong();
-    private final boolean contractControlAllowed;
 
     public FixedWindowRateLimiter() {
         this(System::nanoTime);
     }
 
     public FixedWindowRateLimiter(LongSupplier nanoClock) {
-        this(nanoClock, false);
-    }
-
-    public FixedWindowRateLimiter(LongSupplier nanoClock, boolean contractControlAllowed) {
         this.nanoClock = nanoClock;
-        this.contractControlAllowed = contractControlAllowed;
     }
 
     public boolean allow(String key, int limit) {
-        long now = nanoClock.getAsLong() + contractOffsetNanos.get();
+        long now = nanoClock.getAsLong();
         long window = now / 60_000_000_000L;
         AtomicBoolean allowed = new AtomicBoolean();
         counters.compute(key, (ignored, old) -> {
@@ -43,24 +37,5 @@ public class FixedWindowRateLimiter {
             return new Counter(window, count);
         });
         return allowed.get();
-    }
-
-    /** contract 제어 시계가 움직인 만큼 monotonic 윈도우도 함께 움직인다. */
-    public void advanceContractClock(long nanos) {
-        requireContractControl();
-        contractOffsetNanos.addAndGet(nanos);
-    }
-
-    /** DB truncate로 없어지지 않는 process-local 상태를 초기화한다. */
-    public void reset() {
-        requireContractControl();
-        counters.clear();
-        contractOffsetNanos.set(0L);
-    }
-
-    private void requireContractControl() {
-        if (!contractControlAllowed) {
-            throw new IllegalStateException("레이트리밋 제어는 contract 프로파일에서만 쓴다");
-        }
     }
 }

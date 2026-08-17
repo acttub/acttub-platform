@@ -10,7 +10,7 @@ package com.acttub.actingapi.feature.coach.domain;
  * <p>⚠ <b>{@code report/domain/ReportBranch} 가 같은 두 값을 따로 갖는다.</b> 이 문자열은
  * {@code coaching_handoffs.branch_kind} 로 저장돼 성적표의 {@code report_type} 이 되므로, 둘이
  * 어긋나면 만들어진 성적표가 코칭과 다른 갈래가 된다. 합치지 않은 것은 도메인이 서로의
- * {@code domain} 층을 보지 않기 때문이고(ADR-019), 어긋남은 계약 하네스 main-flow 가 잡는다.
+ * {@code domain} 층을 보지 않기 때문이다(ADR-019).
  */
 public final class CoachBranch {
 

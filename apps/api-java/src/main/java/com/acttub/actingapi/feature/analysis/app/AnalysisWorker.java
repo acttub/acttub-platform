@@ -21,7 +21,7 @@ import com.acttub.actingapi.integration.storage.StoredObjectMetadata;
 import com.acttub.actingapi.integration.observation.FileActiveTimeout;
 import com.acttub.actingapi.integration.observation.SummaryParseError;
 
-/** 단일 분석 operation을 동기 처리하는 하네스·백그라운드 공용 진입점. */
+/** 단일 분석 operation 을 동기 처리하는 진입점. 백그라운드 스케줄러가 이것을 반복 호출한다. */
 public class AnalysisWorker {
     public static final Duration DEFAULT_LEASE = Duration.ofSeconds(1800);
 

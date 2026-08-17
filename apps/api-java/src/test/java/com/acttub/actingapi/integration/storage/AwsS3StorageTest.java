@@ -34,7 +34,7 @@ class AwsS3StorageTest {
      * {@code getObject(request, Path)} 오버로드를 쓰면 <b>매번</b>
      * {@code FileAlreadyExistsException} 으로 죽는다. 실제로 그렇게 죽어서 분석이
      * 세 번 재시도 끝에 {@code max_attempts_exceeded} 로 끝났다. 되돌리기 쉬운
-     * 한 줄이라 소스로 고정한다 — 스텁 스토리지를 쓰는 하네스는 이 경로를 타지 않는다.
+     * 한 줄이라 소스로 고정한다 — 진짜 S3 를 세우지 않는 테스트는 이 경로를 타지 않는다.
      */
     @Test
     @DisplayName("다운로드에 덮어쓰기 불가능한 Path 오버로드를 쓰지 않는다")

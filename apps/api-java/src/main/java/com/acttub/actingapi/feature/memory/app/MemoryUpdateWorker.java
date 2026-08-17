@@ -87,9 +87,8 @@ public class MemoryUpdateWorker {
      * 응답 본문 (`memory_worker.py:run_once`).
      *
      * <p><b>키 이름과 순서가 곧 계약이다.</b> 이 바이트는 원장에 남아 잡이 재생될 때 그대로
-     * 나가는데, 계약 하네스는 이것을 보지 못한다 — DB 투영이 external_operations 를
-     * {@code has_response_payload}(참·거짓)로만 비교하고, 백그라운드 워커는 contract
-     * 프로파일에서 아예 뜨지 않는다.
+     * 나가는데, <b>엔드포인트 응답을 보는 검사로는 여기에 닿지 못한다</b> — 백그라운드에서
+     * 만들어져 나중에 재생되기 때문이다. 아래 테스트가 모양을 못박아 둔 이유다.
      */
     private ObjectNode payload(UUID practiceSessionId, List<String> updatedFields) {
         ObjectNode response = mapper.createObjectNode();

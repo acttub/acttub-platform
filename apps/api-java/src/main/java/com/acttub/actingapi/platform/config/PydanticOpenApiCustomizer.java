@@ -175,8 +175,8 @@ class PydanticOpenApiCustomizer {
      * {@code default} 를 스키마 타입에 맞는 JSON 리터럴로 바꾼다.
      *
      * <p>{@code @Schema(defaultValue = ...)} 는 문자열만 받기 때문에 불리언 기본값이
-     * {@code "false"} 로 나가는데, pydantic 은 {@code false} 를 낸다. 하네스 diff 는 값뿐
-     * 아니라 <b>타입까지</b> 비교하므로 그대로 차이가 된다.
+     * {@code "false"} 로 나가는데, pydantic 은 {@code false} 를 낸다. 정본과 <b>타입까지</b>
+     * 달라지므로 그대로 차이가 된다.
      *
      * <p>현재 정본의 default는 불리언, 문자열, 빈 배열만 사용한다. 어노테이션은 문자열만
      * 받으므로 JSON 리터럴이어야 하는 불리언과 배열만 여기서 타입을 바로잡는다.
@@ -417,7 +417,7 @@ class PydanticOpenApiCustomizer {
     /**
      * 정수여도 소수점을 남긴다 — pydantic 은 수치 제약을 float 로 내보내
      * 정본이 {@code 0.0} 인데, {@code BigDecimal("0")} 은 {@code 0} 으로 직렬화된다.
-     * 하네스의 openapi diff 는 값뿐 아니라 <b>타입까지</b> 비교하므로 그 차이가 그대로 잡힌다.
+     * 정본은 값뿐 아니라 <b>타입까지</b> 다르므로 그 차이가 그대로 새어나간다.
      */
     private static java.math.BigDecimal asFloatLiteral(java.math.BigDecimal value) {
         return value.scale() > 0 ? value : value.setScale(1);

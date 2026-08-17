@@ -21,8 +21,14 @@ import org.springframework.test.web.servlet.MockMvc;
  * springdoc 산출물을 커밋된 스냅샷에 대고 고정한다.
  *
  * <p>이 JSON이 곧 API 계약서다. 패키지를 옮기거나 DTO를 건드릴 때 스키마 이름·형상이 조용히
- * 바뀌면 {@code apps/web}의 생성 타입이 어긋난다. <b>M6에서 계약 하네스를 지우고 나면 이 테스트가
- * 스펙 회귀를 잡는 유일한 장치가 된다</b>(spec/M6-cleanup.md §B).
+ * 바뀌면 {@code apps/web}의 생성 타입이 어긋난다.
+ *
+ * <p>⚠ <b>이 테스트가 보는 것은 "springdoc 산출물이 의도 없이 바뀌지 않았는가" 뿐이다.</b>
+ * 대조 상대가 <b>커밋된 자기 스냅샷</b>이므로, {@code UPDATE_OPENAPI_SNAPSHOT=1} 로 다시 뜨면
+ * 무엇을 바꿨든 초록이 된다. 사라진 계약 하네스는 이것과 다른 일을 했다 — Java 산출물을
+ * <b>{@code apps/api/spec/openapi.json}(웹이 타입을 생성하는 그 파일)</b> 에 semantic diff 로
+ * 맞댔다. <b>그 대조는 `SOMA-403` 4단계 이후 아무도 하지 않는다</b>(spec/M6-harness-retirement.md §3).
+ * 스냅샷을 다시 뜰 때 diff 를 눈으로 보라는 아래 지시가 그래서 형식이 아니다.
  *
  * <p><b>스펙이 의도적으로 바뀌었다면</b> {@code UPDATE_OPENAPI_SNAPSHOT=1 ./gradlew test
  * --tests '*OpenApiSnapshotIT*'}로 스냅샷을 다시 뜨고 <b>diff를 눈으로 확인한 뒤</b> 커밋한다.

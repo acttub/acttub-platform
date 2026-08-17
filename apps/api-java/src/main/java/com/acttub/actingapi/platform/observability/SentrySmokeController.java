@@ -5,7 +5,6 @@ import java.util.Map;
 import io.sentry.Sentry;
 import io.sentry.protocol.SentryId;
 import io.swagger.v3.oas.annotations.Hidden;
-import org.springframework.context.annotation.Profile;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -27,20 +26,16 @@ import org.springframework.web.bind.annotation.RestController;
  * </ul>
  *
  * <p><b>왜 {@code @Hidden} 인가</b> — 이 라우트가 springdoc 산출물에 실리면 관문 둘이 함께 깨진다.
- * {@code OpenApiSnapshotIT} 가 커밋된 스냅샷과 어긋나고, 계약 하네스의 openapi diff 도 난다
- * (파이썬에 없는 라우트이므로). {@code HarnessController} 가 같은 이유로 쓰는 방식이다.
+ * {@code OpenApiSnapshotIT} 가 커밋된 스냅샷과 어긋나고, 웹이 생성하는 타입도 함께 흔들린다
+ * (파이썬 스펙에 없는 라우트이므로).
  *
  * <p><b>왜 {@code /v2} 밖인가</b> — Next 의 rewrites 가 {@code /v2/*} 와 {@code /health} 만 백엔드로
  * 넘긴다. 그래서 이 경로는 {@code dev.acttub.com} 으로 접근되지 않고 인스턴스 안에서만 닿는다
  * (SSM 접속 후 {@code curl 127.0.0.1:8080/__sentry/...}). 공개 도메인에 500 을 내는 버튼을
  * 열지 않기 위한 것이고, 별도의 토큰 가드를 두지 않은 이유이기도 하다.
- *
- * <p>{@code contract} 프로파일에서는 등록하지 않는다 — 하네스 인스턴스에 없어도 되고,
- * 계약 판정 대상에 섞이지 않는 편이 깨끗하다.
  */
 @Hidden
 @RestController
-@Profile("!contract")
 @RequestMapping("/__sentry")
 public class SentrySmokeController {
 

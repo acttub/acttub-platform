@@ -11,10 +11,7 @@ class AnalysisWorkerSchedulerTest {
             .withUserConfiguration(AnalysisWorkerScheduler.class);
 
     @Test
-    void contractProfileAndDisabledSwitchNeverCreateBackgroundPool() {
-        runner.withPropertyValues("spring.profiles.active=contract")
-                .run(context -> assertThat(context)
-                        .doesNotHaveBean("analysisWorkerExecutor"));
+    void disabledSwitchNeverCreatesBackgroundPool() {
         runner.withPropertyValues("ANALYSIS_WORKER_ENABLED=false")
                 .run(context -> assertThat(context)
                         .doesNotHaveBean("analysisWorkerExecutor"));

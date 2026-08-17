@@ -14,9 +14,8 @@ import org.springframework.stereotype.Service;
  *
  * <p>⚠ <b>요강 파일이 없으면 이 기능은 통째로 없다.</b> 그래서 컨트롤러·카탈로그·서비스 셋이
  * 같은 {@code @ConditionalOnResource} 를 진다 — 하나라도 빠지면 그 빈이 없는 카탈로그를
- * 요구해 <b>컨텍스트가 기동하지 못한다.</b> 🔎 계약 하네스는 이것을 보지 못한다(리소스가 없는
- * 기동으로 인스턴스를 띄우는 시나리오가 없다. {@code admissions-missing} 은 "없는 대학"이지
- * "없는 카탈로그"가 아니다).
+ * 요구해 <b>컨텍스트가 기동하지 못한다.</b> 🔎 <b>이것을 보는 검사가 없다</b> — 요강 파일이
+ * 없는 상태로 컨텍스트를 띄워 보는 테스트가 없기 때문이다.
  */
 @Service
 @ConditionalOnResource(resources = AdmissionsCatalog.RESOURCE)

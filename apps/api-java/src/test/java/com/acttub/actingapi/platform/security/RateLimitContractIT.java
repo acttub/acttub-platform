@@ -34,12 +34,12 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
  * 앞의 것이 소진시킨 카운터에 뒤의 것이 걸려, 검사가 자기 경로를 밟았는지 알 수 없다. 그래서
  * 케이스마다 사용자를 새로 만든다.
  *
- * <p>⚠ <b>IP 키는 새로 만들 수 없다.</b> {@code auth-ip:127.0.0.1} 하나를 로그인·갱신이 함께
- * 쓰고, 카운터는 process-local 이라 {@code TRUNCATE} 로도 지워지지 않으며
- * {@code FixedWindowRateLimiter.reset()} 은 {@code contract} 프로파일에서만 동작한다. 지금은
- * 이 클래스에서 그 키를 쓰는 것이 갱신 하나뿐이라 성립한다 — <b>여기에 로그인이나 갱신 케이스를
- * 더하면 이미 깎인 창에 걸려 {@code isGreaterThan(60)} 이 깨진다.</b> 그때는 케이스를 클래스로
- * 갈라 컨텍스트를 나눠야 한다.
+ * <p>⚠ <b>IP 키는 새로 만들 수도 지울 수도 없다.</b> {@code auth-ip:127.0.0.1} 하나를 로그인·갱신이
+ * 함께 쓰고, 카운터는 process-local 이라 {@code TRUNCATE} 로도 지워지지 않는다. <b>비우는 수단이
+ * 아예 없다</b> — 한때 {@code FixedWindowRateLimiter.reset()} 이 있었지만 하네스 제어 표면이라
+ * `SOMA-403` 4단계에 함께 사라졌다. 지금은 이 클래스에서 그 키를 쓰는 것이 갱신 하나뿐이라
+ * 성립한다 — <b>여기에 로그인이나 갱신 케이스를 더하면 이미 깎인 창에 걸려
+ * {@code isGreaterThan(60)} 이 깨진다.</b> 그때는 케이스를 클래스로 갈라 컨텍스트를 나눠야 한다.
  */
 @SpringBootTest(properties = "JWT_SECRET=test-secret")
 @AutoConfigureMockMvc

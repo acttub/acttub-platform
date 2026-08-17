@@ -10,7 +10,7 @@ import java.util.List;
  *
  * <p>대화를 여는 자리({@code coach_start})에는 이 관문을 걸지 않는다. 거기에 걸면 성적표 생성이
  * 한 번도 돌지 않아 파싱 실패(502) 경로가 도달 불가가 되고, 그 502 로 재시도 소진을 확인하는
- * 계약 하네스 시나리오까지 죽는다.
+ * 테스트까지 죽는다.
  */
 public final class HandoffReadiness {
 

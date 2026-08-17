@@ -30,7 +30,7 @@ import org.springframework.stereotype.Service;
 @Service
 public class PracticeSessionService {
 
-    /** 재생 서명 주소의 수명. 파이썬과 같은 15분이며, 하네스가 이 값으로 응답을 대조한다. */
+    /** 재생 서명 주소의 수명. 파이썬과 같은 15분이고, 응답에 그대로 실린다. */
     private static final int PLAYBACK_URL_TTL_SECONDS = 15 * 60;
 
     private final PracticeSessionLedger operations;

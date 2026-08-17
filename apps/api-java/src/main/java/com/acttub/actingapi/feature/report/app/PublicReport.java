@@ -17,7 +17,8 @@ import com.fasterxml.jackson.databind.annotation.JsonNaming;
  *
  * <p>이 record 들은 <b>호출되지 않는다.</b> 실제 본문은 모델이 낸 JSON 을 {@code ReportEngine} 이
  * 검증한 {@code JsonNode} 이고, 여기 있는 것은 springdoc 이 읽어 OpenAPI 문서를 만드는 선언이다.
- * 그래서 필드가 어긋나도 컴파일이 막아 주지 않는다 — 지키는 것은 엔진의 검증과 계약 하네스다.
+ * 그래서 필드가 어긋나도 컴파일이 막아 주지 않는다 — 지키는 것은 엔진의 검증과
+ * {@code OpenApiSnapshotIT} 다.
  */
 public final class PublicReport {
 

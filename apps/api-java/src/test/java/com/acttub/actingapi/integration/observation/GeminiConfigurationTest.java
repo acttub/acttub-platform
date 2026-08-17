@@ -48,22 +48,6 @@ class GeminiConfigurationTest {
                         .isEqualTo("gemini-test-model"));
     }
 
-    /**
-     * 하네스 인스턴스는 {@code -Dacttub.dotenv.enabled=false} 로 떠서 키를 받을 곳이 없다.
-     * 위 세 테스트가 대조군이다 — {@code !contract} 에서는 키를 요구하고 층을 세운다.
-     */
-    @Test
-    void contractProfileNeitherRequiresTheKeyNorBuildsTheObservationLayer() {
-        runner.withPropertyValues("spring.profiles.active=contract")
-                .run(context -> {
-                    assertThat(context).hasNotFailed();
-                    assertThat(context).doesNotHaveBean(GeminiSettings.class);
-                    assertThat(context).doesNotHaveBean(Client.class);
-                    assertThat(context).doesNotHaveBean(ObservationAnalyzer.class);
-                    assertThat(context).doesNotHaveBean(GeminiVideoCompressor.class);
-                });
-    }
-
     @Configuration(proxyBeanMethods = false)
     static class MapperConfiguration {
         @Bean

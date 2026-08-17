@@ -6,18 +6,17 @@ import com.google.genai.Client;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.context.annotation.Profile;
 
 /**
- * contract 프로파일에는 진짜 분석 체인이 존재하지 않는다({@code AnalysisConfiguration} 도 같다).
+ * 관측 층(Gemini)의 배선.
  *
- * <p>{@code ContractAnalysisProcessor} 가 {@code @Primary} 로 주입 경합에서 이기지만
- * <b>{@code @Primary} 는 빈 생성을 막지 않는다</b> — 조건이 없으면 쓰이지도 않는 이 설정이
- * contract 에서도 로드돼 {@code GEMINI_API_KEY} 가 비면 컨텍스트가 죽는다. 하네스 인스턴스는
- * {@code -Dacttub.dotenv.enabled=false} 로 띄우므로 그 키를 받을 곳이 없다.
+ * <p>📌 <b>키가 없으면 기동이 죽는다.</b> 한때 이 설정을 프로파일로 걷어내 키 없이 뜨는 모드가
+ * 있었지만(계약 하네스용 {@code contract} 프로파일), 그 모드는 `SOMA-403` 4단계에서 사라졌다.
+ * 대체를 만든다면 {@code @Primary} 로는 안 된다 — <b>주입 경합에서 이겨도 빈 생성은 막지
+ * 못하므로</b> 진짜 체인이 그대로 서고 키를 다시 요구한다. 조건을 걸어 <b>아예 세우지 않는</b>
+ * 쪽이라야 한다.
  */
 @Configuration(proxyBeanMethods = false)
-@Profile("!contract")
 class GeminiConfiguration {
 
     static final String DEFAULT_MODEL = "gemini-2.5-flash";
