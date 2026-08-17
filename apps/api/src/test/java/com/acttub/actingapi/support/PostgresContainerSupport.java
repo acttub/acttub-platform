@@ -65,7 +65,7 @@ public final class PostgresContainerSupport {
                 + "/" + database;
     }
 
-    /** 실제 배포에서 쓰는 {@code postgresql://user:pass@host:port/db} 형태 (/SPEC.md §5-6). */
+    /** 실제 배포에서 쓰는 {@code postgresql://user:pass@host:port/db} 형태 (apps/api/CONTRACT.md §5-6). */
     public static String deployStyleUrl(String database) {
         return "postgresql://" + POSTGRES.getUsername() + ":" + POSTGRES.getPassword()
                 + "@" + POSTGRES.getHost() + ":" + POSTGRES.getFirstMappedPort() + "/" + database;

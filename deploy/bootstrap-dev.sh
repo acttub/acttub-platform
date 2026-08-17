@@ -28,7 +28,7 @@ df -h / | tail -1
 echo "=== 1. swap 2GB ==="
 # Next 빌드 산출물 전개와 JVM 기동이 겹치는 순간을 위해 완충은 남겨둔다. 다만 크게
 # 잡지 않는다 — JVM이 swap에 들어가면 GC가 힙 전체를 디스크에서 훑게 되어 응답시간이
-# 초 단위로 튄다(spec/M5-cutover.md §B). t2.micro(1GB) 시절에는 4GB였다.
+# 초 단위로 튄다(docs/archive/soma287/M5-cutover.md §B). t2.micro(1GB) 시절에는 4GB였다.
 if swapon --show=NAME --noheadings | grep -q '^/swapfile$'; then
   echo "  이미 있음"
 else

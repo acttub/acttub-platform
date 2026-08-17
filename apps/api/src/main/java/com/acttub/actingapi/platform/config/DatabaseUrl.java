@@ -12,7 +12,7 @@ import java.net.URLDecoder;
  * ({@code deploy/bootstrap-dev.sh}, {@code docs/DEPLOY-VPC.md}). Python 은 SQLAlchemy 가
  * 이 URI 를 그대로 받지만 Hikari 는 {@code jdbc:postgresql://…} 를 요구한다.
  * 환경변수 이름을 바꾸면 dev·운영 양쪽 api.env 를 동시에 손봐야 하므로 이름은 유지하고
- * 여기서 변환만 한다 (/SPEC.md §5-6).
+ * 여기서 변환만 한다 (apps/api/CONTRACT.md §5-6).
  */
 public record DatabaseUrl(String jdbcUrl, String username, String password) {
 

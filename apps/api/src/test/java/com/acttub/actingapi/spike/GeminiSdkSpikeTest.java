@@ -29,7 +29,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 
 /**
- * Google GenAI <b>Java</b> SDK 능력 확인 (/SPEC.md §10, M0-spike.md C).
+ * Google GenAI <b>Java</b> SDK 능력 확인 (docs/archive/soma287/M0-spike.md C).
  *
  * <p>M4 전체가 이 결과 위에 선다. 검증 대상은 셋이다.
  * <ol>

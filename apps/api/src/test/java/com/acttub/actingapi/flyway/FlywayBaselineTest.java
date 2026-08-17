@@ -46,7 +46,7 @@ class FlywayBaselineTest {
      * 빈 DB 에 V1 을 적용했을 때 Flyway 가 이력에 남기는 checksum.
      *
      * <p>손으로 정한 값이 아니라 <b>Flyway 가 계산한 값</b>이고, 실측 출처는
-     * {@code spec/M6-findings.md} 발견 1 이다.
+     * {@code docs/archive/soma287/M6-findings.md} 발견 1 이다.
      */
     private static final long FROZEN_BASELINE_CHECKSUM = -1135202796L;
 
@@ -108,7 +108,7 @@ class FlywayBaselineTest {
                             + "JOIN pg_namespace n ON n.oid=t.typnamespace WHERE n.nspname='public'"))
                     .isEqualTo(expectedEnums);
 
-            // /SPEC.md §5-3-6 — Hibernate 가 만들지도 검증하지도 못하는 것들.
+            // apps/api/CONTRACT.md §5-3-6 — Hibernate 가 만들지도 검증하지도 못하는 것들.
             assertThat(scalar(connection,
                     "SELECT count(*) FROM pg_indexes WHERE schemaname='public' "
                             + "AND indexdef LIKE '%WHERE%'"))
@@ -126,7 +126,7 @@ class FlywayBaselineTest {
                             + "WHERE conname='uq_practice_reports_source_handoff'"))
                     .isEqualTo(1L);
 
-            // 한글 라벨 enum. values_callable 때문에 DB 값이 한글이다 (/SPEC.md §5-3-1).
+            // 한글 라벨 enum. values_callable 때문에 DB 값이 한글이다 (apps/api/CONTRACT.md §5-3-1).
             try (Statement st = connection.createStatement();
                     ResultSet rs = st.executeQuery(
                             "SELECT string_agg(e.enumlabel, ',' ORDER BY e.enumsortorder) "
@@ -221,7 +221,7 @@ class FlywayBaselineTest {
      * <p>두 경로의 이력이 다르기 때문이다 — dev·운영은 {@code << Flyway Baseline >>}(type=BASELINE)
      * 이라 <b>checksum 이 아예 없고</b>, 신규 환경은 V1 을 SQL 로 밟아 checksum 을 갖는다. 그래서
      * V1 을 수정하면 그 자리에서는 아무 일도 일어나지 않고, <b>재해복구가 필요한 순간에</b>
-     * {@code Migration checksum mismatch} 로 드러난다({@code spec/M6-findings.md} 발견 1 — 관측이
+     * {@code Migration checksum mismatch} 로 드러난다({@code docs/archive/soma287/M6-findings.md} 발견 1 — 관측이
      * 아니라 재현했다).
      *
      * <p>스키마를 바꿔야 하면 V1 이 아니라 {@code V2__} 로 들어간다.

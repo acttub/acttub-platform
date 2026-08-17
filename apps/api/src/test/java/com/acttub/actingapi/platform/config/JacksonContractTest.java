@@ -20,7 +20,7 @@ import org.springframework.context.annotation.Import;
  * 직렬화 계약 회귀 테스트. {@code @JsonTest} 라 DB 가 필요 없다.
  *
  * <p>여기서 깨지면 프론트가 조용히 깨진다 — {@code apps/web} 이
- * {@code spec/openapi.json} 으로 타입을 만들기 때문이다 (/SPEC.md §1).
+ * {@code spec/openapi.json} 으로 타입을 만들기 때문이다.
  */
 @JsonTest
 // @JsonTest 는 임의의 @Configuration 을 스캔하지 않는다. 실제 앱이 쓰는 그 설정을 그대로 끌어와야
@@ -54,7 +54,7 @@ class JacksonContractTest {
     }
 
     @Test
-    @DisplayName("Instant 는 Z + 마이크로초 6자리 고정으로 나온다 (/SPEC.md §4)")
+    @DisplayName("Instant 는 Z + 마이크로초 6자리 고정으로 나온다 (apps/api/CONTRACT.md §4)")
     void instantUsesSixFractionalDigits() throws Exception {
         String json = objectMapper.writeValueAsString(
                 new HasInstant(Instant.parse("2026-08-06T01:02:03.456789Z")));
@@ -90,7 +90,7 @@ class JacksonContractTest {
     }
 
     @Test
-    @DisplayName("null 필드는 키째 실려 나간다 — @JsonInclude(NON_NULL) 전역 사용 금지 (/SPEC.md §6 #3)")
+    @DisplayName("null 필드는 키째 실려 나간다 — @JsonInclude(NON_NULL) 전역 사용 금지 (apps/api/CONTRACT.md §6 #3)")
     void nullFieldsAreEmitted() throws Exception {
         String json = objectMapper.writeValueAsString(new Nullable(null, "x"));
 
@@ -98,7 +98,7 @@ class JacksonContractTest {
     }
 
     @Test
-    @DisplayName("전역 기본은 unknown key 거부 (/SPEC.md §6-3)")
+    @DisplayName("전역 기본은 unknown key 거부 (apps/api/CONTRACT.md §6-3)")
     void unknownKeyRejectedByDefault() {
         assertThatThrownBy(() -> objectMapper
                 .readValue("{\"value\":\"a\",\"extra\":1}", StrictRequest.class))
@@ -106,7 +106,7 @@ class JacksonContractTest {
     }
 
     @Test
-    @DisplayName("허용 DTO 는 @JsonIgnoreProperties(ignoreUnknown=true) 로 연다 (/SPEC.md §6-3)")
+    @DisplayName("허용 DTO 는 @JsonIgnoreProperties(ignoreUnknown=true) 로 연다 (apps/api/CONTRACT.md §6-3)")
     void unknownKeyAllowedPerDto() throws Exception {
         LenientRequest parsed = objectMapper
                 .readValue("{\"value\":\"a\",\"extra\":1}", LenientRequest.class);

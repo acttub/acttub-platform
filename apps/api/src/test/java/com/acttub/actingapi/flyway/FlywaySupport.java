@@ -138,7 +138,7 @@ final class FlywaySupport {
      * <p>그 DB 들은 alembic 이 스키마를 만들었고 {@code flyway_schema_history} 가 없다. 여기서
      * alembic 대신 V1 을 쓰는 근거는 <b>1단계 재해복구 리허설의 실측</b>이다 — 두 경로를 독립
      * 생성해 fingerprint · owner · ACL · extension · sequence · 시드 실제 값 7종이 전부 같음을
-     * 확인했다({@code spec/M6-findings.md}).
+     * 확인했다({@code docs/archive/soma287/M6-findings.md}).
      *
      * <p>⚠ <b>실행 시점에 그것을 재확인하는 검사는 이제 없고, 다시 만들 수도 없다.</b> 3단계
      * 전에는 {@code FlywayBaselineTest} 가 alembic 을 직접 돌려 대조했지만 alembic 이 더 이상

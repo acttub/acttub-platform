@@ -6,7 +6,7 @@ package com.acttub.actingapi.platform.schema;
  * <p>Python 쪽 {@code sa.Enum(..., values_callable=...)} 때문에 DB 에 들어가는 문자열은
  * Python enum 의 {@code .value} 다 — Java enum 상수 이름과 다르다(소문자, 일부는 한글).
  * 그래서 {@code @Enumerated(EnumType.STRING)} 을 쓸 수 없고
- * {@link jakarta.persistence.AttributeConverter} 로만 매핑한다 (/SPEC.md §5-3-1).
+ * {@link jakarta.persistence.AttributeConverter} 로만 매핑한다 (apps/api/CONTRACT.md §5-3-1).
  */
 public interface PgEnum {
 

@@ -13,9 +13,9 @@ import org.hibernate.annotations.JdbcType;
 /**
  * {@code users} — M0 의 {@code ddl-auto: validate} 검증용 매핑 2종 중 하나.
  *
- * <p>관계 매핑({@code @ManyToOne} 등)을 만들지 않는다 (/SPEC.md §5-1).
+ * <p>관계 매핑({@code @ManyToOne} 등)을 만들지 않는다 (apps/api/CONTRACT.md §5-1).
  * PK 는 앱에서 {@code UUID.randomUUID()} 로 만들고 {@link Persistable} 로 신규 여부를 알려
- * {@code save()} 가 SELECT-then-INSERT 로 새지 않게 한다 (/SPEC.md §5-3-2).
+ * {@code save()} 가 SELECT-then-INSERT 로 새지 않게 한다 (apps/api/CONTRACT.md §5-3-2).
  */
 @Entity
 @Table(name = "users")

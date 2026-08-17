@@ -15,7 +15,7 @@ import org.hibernate.annotations.JdbcType;
 /**
  * {@code practice_sessions} — 부분 인덱스
  * {@code idx_practice_sessions_user_visible_created ... WHERE hidden_at IS NULL} 가 걸려 있어
- * {@code ddl-auto: validate} 가 부분 인덱스를 어떻게 다루는지 확인하는 대상이다 (/SPEC.md §5-3-6).
+ * {@code ddl-auto: validate} 가 부분 인덱스를 어떻게 다루는지 확인하는 대상이다 (apps/api/CONTRACT.md §5-3-6).
  *
  * <p>{@code user_id}/{@code upload_intent_id} 는 FK 컬럼을 UUID 로만 들고 있는다 — 관계 매핑 금지.
  */
@@ -46,7 +46,7 @@ public class PracticeSessionEntity extends AppGeneratedUuidEntity {
     /**
      * {@code blockage_kind}/{@code sub_branch}/{@code goal} 은 alembic {@code 0010} 이 NOT NULL 로
      * 추가했다. 게다가 앞의 둘은 {@code ck_practice_sessions_blockage_branch} CHECK 제약이 묶는
-     * 조합만 허용한다 — 값을 아무거나 넣으면 INSERT 가 거부된다 (/SPEC.md §5-3-6).
+     * 조합만 허용한다 — 값을 아무거나 넣으면 INSERT 가 거부된다 (apps/api/CONTRACT.md §5-3-6).
      */
     @Column(name = "blockage_kind", nullable = false)
     private String blockageKind;

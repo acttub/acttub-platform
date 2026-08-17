@@ -8,7 +8,7 @@
 # 없으면 스키마를 아예 바꿀 수 없다. **스키마가 바뀌는 PR 마다 이것을 돌리고 결과를 커밋한다.**
 #
 # ⚠ V1__baseline.sql 은 동결이다 — 이 스크립트는 V1 을 만들지 않는다. 고치면 dev·운영은
-#   멀쩡하고 신규 환경만 checksum mismatch 로 죽는다(spec/M6-findings.md 발견 1).
+#   멀쩡하고 신규 환경만 checksum mismatch 로 죽는다(docs/archive/soma287/M6-findings.md 발견 1).
 #   스키마 변경은 V2__ 부터 새 파일로 들어간다.
 #
 # 필요한 것: Docker 뿐이다. (alembic 이 정본이던 시절의 regen-baseline.sh 를 대체한다 —

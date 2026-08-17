@@ -26,7 +26,7 @@ import org.springframework.context.ConfigurableApplicationContext;
  *
  * <p>한 번의 기동으로 M0 완료 기준 여러 개를 동시에 확인한다.
  * <ul>
- *   <li>{@code postgresql://user:pass@host:port/db} 로 부팅 (/SPEC.md §5-6)</li>
+ *   <li>{@code postgresql://user:pass@host:port/db} 로 부팅 (apps/api/CONTRACT.md §5-6)</li>
  *   <li>기동 중 Flyway 가 빈 DB 를 V1 로 재구축 → Hibernate {@code ddl-auto: validate} 통과</li>
  *   <li>{@code GET /health} 가 기존 계약과 같은 형상</li>
  *   <li>springdoc {@code /v3/api-docs} 의 {@code HealthResponse}</li>
@@ -120,7 +120,7 @@ class HealthAndBootIT {
     void defaultInventoryExcludesAdminOperations() throws Exception {
         JsonNode generated = MAPPER.readTree(get("/v3/api-docs"));
 
-        // admin 둘은 ADMIN_OPS_TOKEN 이 있을 때만 등록된다 (/SPEC.md §6-2).
+        // admin 둘은 ADMIN_OPS_TOKEN 이 있을 때만 등록된다 (apps/api/CONTRACT.md §6-2).
         assertThat(generated.at("/paths/~1v2~1admin~1stats").isMissingNode()).isTrue();
         assertThat(generated.at("/paths/~1v2~1admin~1sessions").isMissingNode()).isTrue();
 
@@ -132,7 +132,7 @@ class HealthAndBootIT {
     }
 
     @Test
-    @DisplayName("virtual threads 가 켜져 있다 (/SPEC.md §2)")
+    @DisplayName("virtual threads 가 켜져 있다 (apps/api/CONTRACT.md §2)")
     void virtualThreadsAreEnabled() {
         // Boot 는 spring.threads.virtual.enabled=true 일 때만 이 빈을 등록한다
         // (@ConditionalOnThreading(VIRTUAL)). 설정이 조용히 빠지는 것을 이걸로 잡는다.
@@ -140,7 +140,7 @@ class HealthAndBootIT {
     }
 
     /**
-     * v1 경로 다섯은 404 다 (/SPEC.md §6 #14).
+     * v1 경로 다섯은 404 다 (apps/api/CONTRACT.md §6 #14).
      *
      * <p>`SOMA-318` 이 acting-agent·acting-summary·acting-report 의 자체 라우터를 지우면서
      * 근거가 "마운트되지 않음"에서 "라우터가 없음"으로 바뀌었지만 계약은 그대로다. 이 경로를

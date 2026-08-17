@@ -52,7 +52,7 @@ final class ConsentDtos {
     }
 
     // consents.py:ConsentRequest 가 extra 를 지정하지 않아 unknown key 를 받는다.
-    // openapi.json 의 ConsentRequest 에도 additionalProperties 가 없다 (/SPEC.md §6-3 의 허용 5개 중 하나).
+    // openapi.json 의 ConsentRequest 에도 additionalProperties 가 없다 (apps/api/CONTRACT.md §6-3 의 허용 5개 중 하나).
     @JsonIgnoreProperties(ignoreUnknown = true)
     @Schema(name = "ConsentRequest")
     record ConsentRequest(

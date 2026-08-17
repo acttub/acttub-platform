@@ -31,7 +31,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 
 /**
- * M4 관문 ③ — production-envelope 스파이크 (`spec/M4-llm.md` 검증 §관문 ③).
+ * M4 관문 ③ — production-envelope 스파이크 (`docs/archive/soma287/M4-llm.md` 검증 §관문 ③).
  *
  * <p><b>M0 의 Gemini PASS 는 6초·80KB 영상 1건이었다.</b> SDK 에 세 API 가 존재한다는 것만
  * 보였고 실제 부하·실패 경로는 건드리지 않았다. 그래서 SDK 채택은 <b>잠정 결정</b>으로

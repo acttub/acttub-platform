@@ -8,7 +8,7 @@ import jakarta.persistence.AttributeConverter;
 /**
  * {@link PgEnum} 공통 컨버터 뼈대. 서브클래스는 {@code @Converter} 를 붙이고 enum 클래스만 넘긴다.
  *
- * <p>M0 은 검증에 필요한 2종만 만든다. 17종 전량은 M2 에서 채운다 (/SPEC.md §5-3-1).
+ * <p>M0 은 검증에 필요한 2종만 만든다. 17종 전량은 M2 에서 채운다 (apps/api/CONTRACT.md §5-3-1).
  */
 public abstract class PgEnumConverter<E extends Enum<E> & PgEnum>
         implements AttributeConverter<E, String> {

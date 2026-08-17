@@ -56,7 +56,7 @@ import org.springframework.transaction.annotation.Transactional;
  *        Hibernate 는 인덱스·CHECK 를 검증 대상으로 보지 않는다.)</li>
  *   <li>네이티브 Postgres enum 컬럼이 {@link jakarta.persistence.AttributeConverter} +
  *       {@link PgEnumJdbcType} 조합으로 읽고 쓰인다</li>
- *   <li>{@code Persistable} 덕분에 신규 저장에 <b>SELECT 가 앞서지 않는다</b> (/SPEC.md §5-3-2)</li>
+ *   <li>{@code Persistable} 덕분에 신규 저장에 <b>SELECT 가 앞서지 않는다</b> (apps/api/CONTRACT.md §5-3-2)</li>
  * </ul>
  */
 @SpringBootTest(properties = {"spring.jpa.properties.hibernate.session_factory.statement_inspector="
@@ -122,7 +122,7 @@ class EntityMappingIT {
         UserEntity loaded = entityManager.find(UserEntity.class, id);
         assertThat(loaded.getStatus()).isEqualTo(UserStatus.ACTIVE);
         assertThat(loaded.getNickname()).isEqualTo("닉네임");
-        // server_default 가 발동했다 — 필드 초기화값을 주지 않은 결과다 (/SPEC.md §5-3-3).
+        // server_default 가 발동했다 — 필드 초기화값을 주지 않은 결과다 (apps/api/CONTRACT.md §5-3-3).
         assertThat(loaded.getCreatedAt()).isNotNull();
 
         // DB 에 실제로 들어간 값은 Python enum 의 .value 다.
@@ -165,7 +165,7 @@ class EntityMappingIT {
 
     @Test
     @Transactional
-    @DisplayName("Persistable 구현 덕분에 신규 INSERT 앞에 SELECT 가 붙지 않는다 (/SPEC.md §5-3-2)")
+    @DisplayName("Persistable 구현 덕분에 신규 INSERT 앞에 SELECT 가 붙지 않는다 (apps/api/CONTRACT.md §5-3-2)")
     void newEntityDoesNotSelectBeforeInsert() {
         RecordingInspector.STATEMENTS.clear();
 

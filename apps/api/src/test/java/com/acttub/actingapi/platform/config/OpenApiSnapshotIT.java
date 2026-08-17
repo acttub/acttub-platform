@@ -28,7 +28,7 @@ import org.springframework.test.web.servlet.MockMvc;
  * 경로에 있던 것은 FastAPI 가 뽑은 스펙이었고, 계약 하네스가 Java 산출물을 그것에 semantic
  * diff 로 맞대고 있었다. 하네스는 4단계에서 사라졌고 파이썬 스펙은 5단계에서 사라진다 —
  * <b>넘기기 직전에 그 대조를 한 번 실측했다: 양쪽 스펙에서 생성한 웹 타입이 키 순서를
- * 맞추면 diff 0 이었다</b>(경로 32/32 · 컴포넌트 75/75 동일, spec/M6-python-removal.md).
+ * 맞추면 diff 0 이었다</b>(경로 32/32 · 컴포넌트 75/75 동일, docs/archive/soma287/M6-python-removal.md).
  *
  * <p>⚠ <b>이제 이 테스트가 보는 것은 "springdoc 산출물이 의도 없이 바뀌지 않았는가" 뿐이다.</b>
  * 대조 상대가 <b>커밋된 자기 스냅샷</b>이므로 {@code UPDATE_OPENAPI_SNAPSHOT=1} 로 다시 뜨면

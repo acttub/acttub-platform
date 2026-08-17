@@ -47,7 +47,7 @@ class PostgresConsentRepository
      * 먼저 본다. 한정하지 않으면 enum 이 아니라 <b>그 텍스트</b>로 정렬돼
      * {@code terms, privacy} 가 {@code privacy, terms} 로 뒤집힌다 — enum 은 선언 순서로,
      * 텍스트는 알파벳 순으로 정렬되기 때문이다. {@code DISTINCT ON} 은 그룹마다 첫 행을 고르므로
-     * 이 정렬은 결과 순서만이 아니라 <b>어느 행이 선택되는지</b>까지 좌우한다 (/SPEC.md §5-8).
+     * 이 정렬은 결과 순서만이 아니라 <b>어느 행이 선택되는지</b>까지 좌우한다 (apps/api/CONTRACT.md §5-8).
      */
     @Override
     public List<ConsentDocument> listLatestDocuments() {

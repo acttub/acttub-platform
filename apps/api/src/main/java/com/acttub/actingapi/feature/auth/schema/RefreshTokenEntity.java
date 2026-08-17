@@ -8,7 +8,7 @@ public class RefreshTokenEntity extends AppGeneratedUuidEntity {
     @Column(name="user_id",nullable=false) UUID userId;
     @Column(name="replaced_by_id") UUID replacedById;
     // bpchar 이라 JdbcTypeCode 를 함께 준다. columnDefinition 만으로는 Hibernate 가 String 을
-    // VARCHAR 로 보고 ddl-auto: validate 가 CHAR 컬럼과 불일치로 죽는다 (/spec/M2-foundation.md B).
+    // VARCHAR 로 보고 ddl-auto: validate 가 CHAR 컬럼과 불일치로 죽는다 (docs/archive/soma287/M2-foundation.md B).
     @Pattern(regexp="[0-9a-f]{64}") @JdbcTypeCode(SqlTypes.CHAR) @Column(name="token_hash",nullable=false,columnDefinition="char(64)") String tokenHash;
     @Column(name="device_info") String deviceInfo;
     @Column(name="issued_at",nullable=false,insertable=false,updatable=false) Instant issuedAt;

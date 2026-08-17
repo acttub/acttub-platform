@@ -2,7 +2,7 @@
 -- 같은지 비교하는 데 쓴다. pg_dump 를 JUnit 안에서 부를 수 없어 카탈로그 조회로 대신한다.
 --
 -- 제외: flyway_schema_history, alembic_version — 마이그레이션 도구가 각자 만드는 장부이고
--- baseline 자체가 전자를 만들기 때문에 포함하면 기준이 항상 실패한다 (/SPEC.md §5-5).
+-- baseline 자체가 전자를 만들기 때문에 포함하면 기준이 항상 실패한다 (apps/api/CONTRACT.md §5-5).
 SELECT line FROM (
     SELECT 'ENUM ' || t.typname || ' = '
            || string_agg(e.enumlabel, ',' ORDER BY e.enumsortorder) AS line

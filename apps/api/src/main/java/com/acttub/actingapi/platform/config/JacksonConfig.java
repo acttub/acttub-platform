@@ -19,7 +19,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 /**
- * 직렬화 계약을 못 박는다 (/SPEC.md §4, §6).
+ * 직렬화 계약을 못 박는다 (apps/api/CONTRACT.md §4, §6).
  *
  * <ul>
  *   <li>datetime 은 전 엔드포인트 {@code ...Z} + 마이크로초 <b>6자리 고정</b>.
@@ -27,7 +27,7 @@ import org.springframework.context.annotation.Configuration;
  *   <li>{@code @JsonInclude(NON_NULL)} 을 전역으로 켜지 않는다 — null 필드를 키째 실어보내야 한다.
  *       (Spring Boot 기본이 ALWAYS 라 "켜지 않는다"가 곧 구현이다. 회귀 테스트로 고정한다.)</li>
  *   <li>{@code FAIL_ON_UNKNOWN_PROPERTIES} 는 전역 true, 허용 DTO 만
- *       {@code @JsonIgnoreProperties(ignoreUnknown = true)} 로 연다 (/SPEC.md §6-3).
+ *       {@code @JsonIgnoreProperties(ignoreUnknown = true)} 로 연다 (apps/api/CONTRACT.md §6-3).
  *       Jackson 은 반대 방향을 표현하지 못한다 — {@code ignoreUnknown=false} 는
  *       "전역을 따르라"는 뜻이라 DTO 별 거부를 강제할 수 없다.</li>
  * </ul>

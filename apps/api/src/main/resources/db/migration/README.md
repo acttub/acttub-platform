@@ -1,6 +1,6 @@
 # 마이그레이션
 
-**스키마 정본은 여기다**(`SPEC.md` §5-5, `SOMA-403` 3단계). 배포는 jar 하나만 보내고,
+**스키마 정본은 여기다**(`apps/api/CONTRACT.md` §5-5, `SOMA-403` 3단계). 배포는 jar 하나만 보내고,
 앱이 뜨는 도중에 Flyway 가 이 디렉토리를 적용한다 — 별도 마이그레이션 명령이 없다.
 
 ## 스키마를 바꾸려면
@@ -22,7 +22,7 @@
 
 **V1 을 수정하면 dev·운영은 멀쩡한데 신규 환경만 `Migration checksum mismatch` 로 기동하지
 못한다.** 지금은 신규 환경이 없어 아무도 모르고, 재해복구가 필요한 바로 그 순간에 드러난다.
-관측이 아니라 재현한 것이다 — `spec/M6-findings.md` 발견 1·§C-2.
+관측이 아니라 재현한 것이다 — `docs/archive/soma287/M6-findings.md` 발견 1·§C-2.
 
 `FlywayBaselineTest.baselineIsFrozen` 이 위 checksum 을 못박아 이 실수를 CI 에서 잡는다.
 **값의 정본은 그 테스트의 `FROZEN_BASELINE_CHECKSUM` 이다** — 위 표는 설명이고, 어긋나면

@@ -77,7 +77,7 @@ curl -s https://dev.acttub.com/v2/consents/documents   # documents 3개
 
 > 🔁 **계약 하네스의 시드를 함께 올리라는 항목이 여기 있었다.** 하네스는 `SOMA-403`
 > 4단계에서 폐기됐고 그 시드도 함께 사라졌으므로 더 지킬 것이 없다
-> (spec/M6-harness-retirement.md).
+> (docs/archive/soma287/M6-harness-retirement.md).
 
 ⚠️ **순서가 뒤집히면 안 된다.** 방침이 발행되지 않은 상태에서 키를 먼저 넣으면 고지 없이
 이용 기록과 화면 녹화를 제3자에게 넘기게 된다. `deploy.yml` 의 `계측 키가 방침 고지보다

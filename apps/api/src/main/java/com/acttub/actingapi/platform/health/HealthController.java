@@ -14,11 +14,11 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 public class HealthController {
 
-    /** {@code acting-summary} 가 쓰는 Gemini 모델명. 기본값은 {@code acting_summary/config.py} 와 같다. */
+    /** 영상 분석이 쓰는 Gemini 모델명. 기본값은 이관 전 파이썬 구현과 같게 두었다. */
     private final String model;
-    /** Python 은 {@code bool(gateway_settings.keep_alive_url)} 로 낸다 — URL 이 설정돼 있으면 true. */
+    /** URL 이 설정돼 있으면 true — 파이썬이 {@code bool(keep_alive_url)} 로 내던 값과 같다. */
     private final boolean keepAlive;
-    /** Python 은 {@code RENDER_GIT_COMMIT[:7]}, 미설정 시 {@code "unknown"}. */
+    /** {@code RENDER_GIT_COMMIT} 의 앞 7자, 미설정 시 {@code "unknown"}. */
     private final String commit;
 
     public HealthController(

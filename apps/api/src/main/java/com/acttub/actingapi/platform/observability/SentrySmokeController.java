@@ -11,7 +11,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 /**
  * Sentry 로 이벤트가 실제로 도착하는지 실행으로 확인하는 <b>일회용</b> 컨트롤러다.
- * {@code spec/M5-cutover.md} 의 "Sentry 에 Java 이벤트가 실제로 도착한다" 항목을 닫기 위한 것이고,
+ * {@code docs/archive/soma287/M5-cutover.md} 의 "Sentry 에 Java 이벤트가 실제로 도착한다" 항목을 닫기 위한 것이고,
  * <b>확인이 끝나면 지운다.</b>
  *
  * <p>경로가 둘인 이유는 <b>Sentry 로 가는 길이 둘이고 성질이 다르기 때문</b>이다.

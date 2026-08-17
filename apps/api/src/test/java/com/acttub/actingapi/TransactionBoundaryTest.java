@@ -16,7 +16,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 /**
- * 외부 호출(S3·LLM)을 트랜잭션 안에 넣지 않는다 (/SPEC.md §5-4).
+ * 외부 호출(S3·LLM)을 트랜잭션 안에 넣지 않는다 (apps/api/CONTRACT.md §5-4).
  *
  * <p>{@code claim → (수십 초) → complete} 흐름에서 커넥션을 쥔 채 Gemini·OpenAI를
  * 기다리면 풀이 마른다. 지금은 트랜잭션을 여는 store 계층과 외부 호출 계층이 타입

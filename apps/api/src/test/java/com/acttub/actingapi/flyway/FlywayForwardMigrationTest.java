@@ -88,7 +88,7 @@ class FlywayForwardMigrationTest {
         String jdbcUrl = baselinedDatabase("forward_baselined");
 
         // 먼저 출발점이 정말 dev·운영과 같은 모양인지 본다. 이것이 어긋나면 아래 초록은
-        // 다른 DB 에 대한 판정이다 (spec/M6-findings.md 발견 1 의 표).
+        // 다른 DB 에 대한 판정이다 (docs/archive/soma287/M6-findings.md 발견 1 의 표).
         try (Connection connection = connect(jdbcUrl)) {
             assertThat(historyRows(connection))
                     .as("dev·운영은 BASELINE 한 줄뿐이고 checksum 이 없다")

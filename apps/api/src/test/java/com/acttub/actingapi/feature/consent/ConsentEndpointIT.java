@@ -127,7 +127,7 @@ class ConsentEndpointIT {
     /**
      * consents.py:ConsentRequest 는 extra 를 지정하지 않아 unknown key 를 <b>받는다</b>.
      * openapi.json 의 ConsentRequest 에도 additionalProperties 가 없다 —
-     * /SPEC.md §6-3 이 허용 목록 5개에 POST /v2/consents 를 넣은 근거이며, 그중 M3 범위는
+     * apps/api/CONTRACT.md §6-3 이 허용 목록 5개에 POST /v2/consents 를 넣은 근거이며, 그중 M3 범위는
      * 이것과 POST /v2/uploads/intents 둘이다.
      */
     @Test

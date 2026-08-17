@@ -92,13 +92,13 @@ install -d -o ubuntu -g ubuntu /svc/acttub/api-java
 aws s3 cp "s3://$DEPLOY_BUCKET/be/latest.jar" /svc/acttub/api-java/acting-api.jar
 chown ubuntu:ubuntu /svc/acttub/api-java/acting-api.jar
 aws s3 cp "s3://$DEPLOY_BUCKET/be/acttub-api-java.service" /etc/systemd/system/acttub-api-java.service
-# 파이썬 쪽에서 쓰던 방식 그대로 릴리스를 얹는다 — 환경변수 이름을 유지했으므로
-# Sentry 에서 두 백엔드의 이벤트가 같은 커밋으로 묶인다. DSN·환경 이름은 사람이 관리하는
+# 릴리스를 drop-in 으로 얹는다. DSN·환경 이름은 사람이 관리하는
 # /etc/acttub/api.env 에 있고 배포 스크립트가 건드리지 않는다.
 #
 # 같은 값을 RENDER_GIT_COMMIT 으로도 넣는다 — /health 의 commit 이 그것을 읽는다(SOMA-401).
-# 이름이 RENDER_* 인 것은 옛 호스팅의 잔재지만 파이썬 정본(app.py)이 그 이름을 읽으므로
-# 이관이 끝날 때까지 유지한다. 값을 안 주면 양쪽 다 "unknown" 으로, 종전 동작 그대로다.
+# 이름이 RENDER_* 인 것은 옛 호스팅의 잔재다. 지금 그 이름을 읽는 것은
+# HealthController 이고, 바꾸려면 거기와 여기를 함께 고쳐야 한다 — 한쪽만 고치면
+# /health 의 commit 이 조용히 "unknown" 이 된다. 값을 안 주면 둘 다 "unknown" 이다.
 #
 # ⚠ 파일 이름을 sentry-release.conf 에서 바꿨으므로 **옛 파일을 같은 스텝에서 지운다.**
 # systemd 는 drop-in 을 파일명 사전순으로 읽고 나중 것이 이기는데, 하필
@@ -113,7 +113,7 @@ systemctl daemon-reload
 systemctl enable acttub-api-java
 systemctl reset-failed acttub-api-java || true
 systemctl restart acttub-api-java
-# JVM 기동은 파이썬보다 느리다. **Flyway 마이그레이션과 스키마 검증까지 끝나야**
+# JVM 기동은 느리다. **Flyway 마이그레이션과 스키마 검증까지 끝나야**
 # 리슨을 시작한다 — 마이그레이션이 곧 기동의 일부다(SOMA-403 3단계).
 $WAIT_HEALTHY
 systemctl is-active acttub-api-java
