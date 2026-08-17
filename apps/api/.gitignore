@@ -1,12 +1,6 @@
+build/
+.gradle/
+!gradle/wrapper/gradle-wrapper.jar
+bin/
+out/
 .env
-.venv/
-__pycache__/
-*.pyc
-.pytest_cache/
-.ruff_cache/
-.cache/
-.superpowers/
-*.log
-*.html
-!spec/*.html
-*.tmp

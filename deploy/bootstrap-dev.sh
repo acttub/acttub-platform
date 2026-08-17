@@ -26,8 +26,8 @@ resize2fs "$ROOT_SRC" || true
 df -h / | tail -1
 
 echo "=== 1. swap 2GB ==="
-# 배포마다 도는 uv sync가 메모리 피크를 만들므로 완충은 남겨둔다. 다만 크게 잡지
-# 않는다 — JVM이 swap에 들어가면 GC가 힙 전체를 디스크에서 훑게 되어 응답시간이
+# Next 빌드 산출물 전개와 JVM 기동이 겹치는 순간을 위해 완충은 남겨둔다. 다만 크게
+# 잡지 않는다 — JVM이 swap에 들어가면 GC가 힙 전체를 디스크에서 훑게 되어 응답시간이
 # 초 단위로 튄다(spec/M5-cutover.md §B). t2.micro(1GB) 시절에는 4GB였다.
 if swapon --show=NAME --noheadings | grep -q '^/swapfile$'; then
   echo "  이미 있음"
@@ -61,17 +61,14 @@ if command -v node >/dev/null && node -v | grep -q '^v24'; then echo "  이미 �
 fi
 node -v
 
-echo "=== 5. uv ==="
-# 홈이 아니라 /usr/local/bin에 둔다. SSM 접속 계정(ssm-user)과 서비스 실행 계정
-# (ubuntu)이 다르기 때문에, 홈에 두면 서비스가 uv를 찾지 못한다.
-if [ -x /usr/local/bin/uv ]; then echo "  이미 있음"; else
-  curl -LsSf https://astral.sh/uv/install.sh \
-    | env UV_INSTALL_DIR=/usr/local/bin INSTALLER_NO_MODIFY_PATH=1 sh >/dev/null
+echo "=== 5. JRE 21 ==="
+# 백엔드 배포 아티팩트는 jar 하나뿐이라 인스턴스에 필요한 것은 JRE 다(SOMA-403 5단계).
+# ssm-deploy.sh 의 be-java 모드도 없으면 여기서 깔지만, 첫 배포를 4분짜리 apt 설치로
+# 시작하지 않도록 새 서버를 세울 때 미리 깐다. 둘 다 멱등이다.
+if command -v java >/dev/null; then echo "  이미 있음"; else
+  DEBIAN_FRONTEND=noninteractive apt-get install -y -qq openjdk-21-jre-headless
 fi
-/usr/local/bin/uv --version
-# 파이썬은 uv로 받지 않고 시스템 것을 쓴다 — uv가 받는 파이썬도 실행 계정의 홈에
-# 깔려 같은 문제가 반복된다. requires-python >= 3.11 이면 그대로 쓴다.
-python3 --version
+java -version
 
 echo "=== 6. PostgreSQL ==="
 apt-get install -y -qq postgresql
@@ -104,10 +101,11 @@ fi
 
 echo "=== 7. 서비스 디렉토리 ==="
 # 배포가 여기에 아티팩트를 푼다. 유닛의 WorkingDirectory와 맞아야 한다.
-mkdir -p /svc/acttub/web /svc/acttub/acttub-platform/apps/api
+# 백엔드는 jar 한 개가 /svc/acttub/api-java/acting-api.jar 로 간다 — 디렉토리 이름은
+# systemd 유닛(acttub-api-java)을 따르고, 소스 트리의 이름(apps/api)과는 무관하다.
+mkdir -p /svc/acttub/web /svc/acttub/api-java
 chown -R ubuntu:ubuntu /svc/acttub
-chmod 755 /svc /svc/acttub /svc/acttub/web /svc/acttub/acttub-platform \
-          /svc/acttub/acttub-platform/apps /svc/acttub/acttub-platform/apps/api
+chmod 755 /svc /svc/acttub /svc/acttub/web /svc/acttub/api-java
 
 echo "=== 8. Caddy ==="
 if command -v caddy >/dev/null; then echo "  이미 있음"; else

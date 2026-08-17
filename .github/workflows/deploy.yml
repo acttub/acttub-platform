@@ -204,10 +204,10 @@ jobs:
             exit 0
           fi
 
-          MANIFEST=apps/api/acting-api/consent_docs/manifest.json
+          MANIFEST=apps/api/src/main/resources/consent-docs/manifest.json
           PRIVACY_FILE=$(jq -r '.[] | select(.type=="privacy") | .file' "$MANIFEST")
           PRIVACY_VERSION=$(jq -r '.[] | select(.type=="privacy") | .version' "$MANIFEST")
-          PRIVACY_PATH="apps/api/acting-api/consent_docs/$PRIVACY_FILE"
+          PRIVACY_PATH="apps/api/src/main/resources/consent-docs/$PRIVACY_FILE"
 
           if ! grep -q "Amplitude" "$PRIVACY_PATH"; then
             echo "::error::발행 중인 개인정보처리방침($PRIVACY_FILE)에 Amplitude 위탁 고지가 없는데 계측 키가 설정돼 있습니다."
@@ -217,7 +217,7 @@ jobs:
               echo "화면 녹화가 수탁사로 전송됩니다."
               echo ""
               echo "**둘 중 하나를 하세요.**"
-              echo "1. 방침을 먼저 발행한다 — \`apps/api/acting-api/consent_docs/README.md\` 의 순서를 따르세요."
+              echo "1. 방침을 먼저 발행한다 — \`apps/api/src/main/resources/consent-docs/README.md\` 의 순서를 따르세요."
               echo "2. 지금 배포에서 계측을 끈다 — 이 환경의 \`AMPLITUDE_API_KEY_WEB\` 변수를 비우세요."
             } >> "$GITHUB_STEP_SUMMARY"
             exit 1

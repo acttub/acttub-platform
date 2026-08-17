@@ -12,6 +12,10 @@
 
 ### A. 디렉토리 정리
 
+✅ **`SOMA-403` 5단계에서 끝났다 — 결과는 [spec/M6-python-removal.md](M6-python-removal.md)가
+정본이다.** 파이썬 트리가 자바 빌드·자바 테스트·배포 게이트·웹 빌드·웹 테스트에 물려 있던
+자리 다섯이 티켓 밖에 있었다(그 문서 §2). 아래는 그 시점의 계획이다.
+
 1. **재해복구 리허설을 통과하기 전에는 alembic을 지우지 않는다.** `apps/api`가 사라지면 `V1__baseline.sql`이 신규 환경·재해 복구의 **유일한 스키마 생성 수단**이 된다.
 
    M0의 검증은 카탈로그 fingerprint 비교였고 **다음을 보지 않는다**(적대적 리뷰 지적):
@@ -83,17 +87,17 @@ required status check 를 아직 맞추지 않았다** — 5단계의 잡 개명
 
 ## 완료 기준 체크리스트
 
-- [ ] `apps/api`가 Java 프로젝트다. **`find apps/api -name "*.py" | wc -l` → 0**
+- [x] `apps/api`가 Java 프로젝트다. **`find apps/api -name "*.py" | wc -l` → 0** — 5단계
   - `apps/mobile/scripts/`의 `build-fonts.py`·`make_store_assets.py`는 정상 도구다. **검사 범위를 `apps/api`로 한정한다** — `apps` 전체로 잡으면 영원히 실패하거나 무관한 파일을 지우게 된다
-- [ ] **alembic 삭제 전 빈 DB 재구축 검증** — V1 실행만으로 전체 스키마가 만들어진다
+- [x] **alembic 삭제 전 빈 DB 재구축 검증** — V1 실행만으로 전체 스키마가 만들어진다 — 1단계
 - [ ] rename 후 **재배포해 dev에서 동작 확인**
 - [x] 하네스가 검증하던 계약 항목이 Java 테스트로 이관됨 (오류 40종·응답 형상·멱등 전이) — 2단계
 - [x] 하네스 삭제 — 4단계. `contract` 프로파일도 함께 걷혔다
-- [ ] `pnpm lint` · `pnpm typecheck` · `pnpm --filter web test` · `pnpm build` 통과
-- [ ] `./gradlew build test` 통과
+- [x] `pnpm lint` · `pnpm typecheck` · `pnpm --filter web test` · `pnpm build` 통과 — 5단계
+- [x] `./gradlew build test` 통과 — 5단계 (클래스 85 · 388 테스트 · 실패 0)
 - [ ] CI 두 잡이 초록. **ruleset의 required check 이름이 새 잡 이름과 일치**
 - [ ] 문서 6종 갱신. `API.md` 드리프트 해소
-- [ ] `uv.lock`·`pyproject.toml` 삭제
+- [x] `uv.lock`·`pyproject.toml` 삭제 — 5단계 (`apps/api` 트리와 함께)
 - [ ] 배포 워크플로가 jar 기준으로 동작 (dev 실배포로 확인)
 
 ## 하지 말 것

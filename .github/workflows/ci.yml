@@ -55,72 +55,19 @@ jobs:
       - name: Test
         run: pnpm --filter web test
 
+  # 백엔드의 유일한 관문입니다. 계약 하네스 잡 둘(`contract-harness`·
+  # `contract-harness-java`)이 SOMA-403 4단계에서 사라졌고, 그것들이 보던 계약은
+  # Java 테스트로 옮겨져 이 잡 안에서 돕니다(spec/M6-contract-migration.md).
+  #
+  # ⚠ 잡 이름을 `api-java (…)` 에서 바꿨습니다(SOMA-403 5단계, 파이썬 잡이 사라지면서).
+  # **잡 이름이 곧 required status check 의 context 라 ruleset 도 함께 갱신해야 합니다** —
+  # 옛 이름을 required 로 남겨 두면 영원히 오지 않는 관문이 됩니다.
   api:
-    name: api (pytest · DB 통합)
+    name: api (gradle test · Testcontainers)
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: apps/api
-    # config가 .env 없이도 뜨도록 더미 값을 주입. 일반 테스트는 fake session이라
-    # 실접속하지 않고, DB 통합 테스트만 아래 Postgres 서비스에 붙습니다.
-    env:
-      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
-      JWT_SECRET: ci-test-secret-not-a-real-key
-    services:
-      postgres:
-        image: postgres:16-alpine
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: postgres
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U postgres"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-    steps:
-      - uses: actions/checkout@v7
-
-      # setup-uv는 v8부터 메이저 별칭 태그(vN)를 두지 않습니다 — 정확한 버전으로 고정합니다.
-      - uses: astral-sh/setup-uv@v9.0.0
-        with:
-          python-version: "3.11"
-          enable-cache: true
-
-      # 워크스페이스 전체(acting-api가 acting-agent/report/summary를 import) + dev 그룹(pytest).
-      - name: Sync deps
-        run: uv sync --frozen --all-packages
-
-      # AGENTS.md 기본 테스트 명령. RUN_DB_TESTS 없으면 test_db_store.py는 skip.
-      - name: Test (fake store)
-        run: uv run --package acting-api pytest
-
-      # #29 500 장애가 새어나간 갭. 실제 Postgres에 스키마를 만들고 마이그레이션을 돌려 검증.
-      - name: Test (PostgreSQL 통합)
-        env:
-          RUN_DB_TESTS: "1"
-          TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
-        run: uv run --package acting-api pytest acting-api/tests/test_db_store.py
-
-  # Spring Boot 백엔드의 유일한 관문입니다. 계약 하네스 잡 둘(`contract-harness`·
-  # `contract-harness-java`)이 SOMA-403 4단계에서 사라졌고, 그것들이 보던 계약은
-  # Java 테스트로 옮겨져 이 잡 안에서 돕니다(spec/M6-contract-migration.md).
-  api-java:
-    name: api-java (gradle test · Testcontainers)
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: apps/api-java
-    env:
-      # 파이썬 정본과 대조하는 테스트들(프롬프트 셋·관리자 스키마·FastAPI interop)이
-      # venv를 못 찾을 때 건너뛰지 말고 실패하게 합니다.
-      #
-      # ⚠ 이름과 달리 alembic과는 무관합니다 — 스키마 대조는 Flyway 기준으로 옮겨갔고
-      # (SOMA-403 3단계) 이 변수에는 "apps/api의 venv가 있어야 한다"는 뜻만 남았습니다.
-      # 파이썬이 사라지는 5단계에서 이 변수와 아래 uv 스텝이 함께 사라집니다.
-      REQUIRE_ALEMBIC_CHECK: "1"
     steps:
       - uses: actions/checkout@v7
 
@@ -131,23 +78,6 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
-      # 프롬프트·관리자 스키마·FastAPI interop을 파이썬 정본과 대조하는 테스트 다섯이
-      # apps/api의 venv를 요구합니다. 그래서 Java 잡인데도 파이썬 워크스페이스가 필요합니다.
-      - uses: astral-sh/setup-uv@v9.0.0
-        with:
-          python-version: "3.11"
-          enable-cache: true
-
-      - name: Sync python deps (파이썬 정본 대조용)
-        working-directory: apps/api
-        run: uv sync --frozen --all-packages
-
-      # SPEC이 가리키는 심볼이 소스에 실재하는지 봅니다(/SPEC.md §12).
-      # 라인 번호 참조가 dev 전진마다 조용히 낡던 문제를 막습니다.
-      - name: SPEC 참조 드리프트 검사
-        working-directory: ${{ github.workspace }}
-        run: python3 spec/check-refs.py
-
       # Testcontainers가 postgres:18-alpine을 띄웁니다(운영 RDS와 같은 메이저).
       # 러너에 Docker가 기본 탑재돼 있고, DOCKER_API_VERSION은 build.gradle.kts가 채웁니다.
       - name: Test
@@ -157,5 +87,5 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: api-java-test-report
-          path: apps/api-java/build/reports/tests/test
+          name: api-test-report
+          path: apps/api/build/reports/tests/test

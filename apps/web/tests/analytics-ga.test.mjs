@@ -188,7 +188,10 @@ test("기대하는 방침 버전이 발행 매니페스트와 같다", async () 
   );
   const manifest = JSON.parse(
     readFileSync(
-      new URL("../../api/acting-api/consent_docs/manifest.json", import.meta.url),
+      new URL(
+        "../../api/src/main/resources/consent-docs/manifest.json",
+        import.meta.url,
+      ),
       "utf8",
     ),
   );

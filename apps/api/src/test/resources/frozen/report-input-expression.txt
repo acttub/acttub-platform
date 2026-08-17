@@ -1,0 +1,25 @@
+{
+  "video_summary": {
+    "observations": [],
+    "uncertainties": []
+  },
+  "confirmed_handoff": {
+    "experiment": {
+      "tested": true,
+      "instruction": "한 번 멈춘다"
+    },
+    "observed_change": "말이 선명해졌다"
+  },
+  "analysis_handoff": null,
+  "expression_handoff": {
+    "experiment": {
+      "tested": true,
+      "instruction": "한 번 멈춘다"
+    },
+    "observed_change": "말이 선명해졌다"
+  },
+  "confirmation": {
+    "confirmed": true,
+    "coaching_handoff_id": "expression-id"
+  }
+}
