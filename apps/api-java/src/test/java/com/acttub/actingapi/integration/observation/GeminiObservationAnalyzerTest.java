@@ -18,6 +18,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.genai.types.Content;
 import com.google.genai.types.GenerateContentConfig;
 import com.google.genai.types.MediaResolution;
+import com.google.genai.types.ThinkingLevel;
 import com.google.genai.types.Part;
 import org.junit.jupiter.api.Test;
 
@@ -56,6 +57,9 @@ class GeminiObservationAnalyzerTest {
         assertThat(config.seed()).contains(42);
         assertThat(config.mediaResolution())
                 .contains(new MediaResolution(MediaResolution.Known.MEDIA_RESOLUTION_LOW));
+        // 설정이 없으면 이 모델의 기본 등급 HIGH 로 돈다 — 파이썬 판과 같게 LOW 를 못박는다.
+        assertThat(config.thinkingConfig().orElseThrow().thinkingLevel())
+                .contains(new ThinkingLevel(ThinkingLevel.Known.LOW));
         assertThat(config.responseMimeType()).contains("application/json");
         assertThat(sha256(config.systemInstruction().orElseThrow().text()))
                 .isEqualTo("b73330b8c3d7e3f37e1786d893837771e84de9b1adf54558bd18dd1d25ac2c95");
