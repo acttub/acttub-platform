@@ -71,6 +71,11 @@ class PackageLayerTest {
             // 프로필의 Schema Entity 는 `auth/schema/UserEntity` 다 — `users` 행을 만드는 쪽이
             // 갖는다(SOMA-397 12단계). 프로필은 이미 있는 행을 고칠 뿐이라 층이 셋이다.
             "profile", Set.of("domain", "app", "adapter"),
+            // 입시 요강에는 Domain Model 도 Schema Entity 도 없다. 요강은 우리가 쓰는 데이터가
+            // 아니라 바깥에서 통째로 들어오는 문서라 그것에 걸리는 행위 규칙이 없고, 문서가 곧
+            // 응답이라 형태는 `app` 에 산다(`report/app/PublicReport` 와 같은 자리). 네 층을
+            // 세우려면 `domain` 에 넣을 것을 지어내야 하는 형태다 — ADR-017 의 판별 기준.
+            "admissions", Set.of("app", "adapter"),
             // 배우 기억은 Schema Entity 가 없다 — `actor_memory_entries` 에 대응하는 `@Entity` 가
             // 애초에 만들어진 적이 없고(그래서 그 테이블만 `ddl-auto: validate` 밖에 있다),
             // 이사에서 빠뜨린 것이 아니다. 없는 층을 선언하면 규칙이 대상 0으로 초록이 된다.
@@ -97,17 +102,32 @@ class PackageLayerTest {
         return MIGRATED_FEATURES.keySet().stream().sorted().toList();
     }
 
-    /** {@code schema} 층을 실제로 가진 도메인만. 없는 도메인에 걸면 대상 0으로 초록이 된다. */
-    static List<String> featuresWithSchema() {
+    /**
+     * 그 층을 실제로 가진 도메인만.
+     *
+     * <p>층별 규칙에 <b>층이 없는 도메인을 넘기면 안 된다.</b> {@code that()} 으로 대상을 좁힌
+     * 규칙은 ArchUnit 이 대상 0을 스스로 실패로 치고({@link #domainKnowsNoFramework}),
+     * 그렇지 않은 규칙은 반대로 대상 0으로 조용히 통과한다
+     * ({@link #schemaEntitiesAreNeverCalled}). 어느 쪽이든 층 표가 답을 갖고 있다.
+     */
+    private static List<String> featuresWith(String layer) {
         return MIGRATED_FEATURES.entrySet().stream()
-                .filter(entry -> entry.getValue().contains("schema"))
+                .filter(entry -> entry.getValue().contains(layer))
                 .map(Map.Entry::getKey)
                 .sorted()
                 .toList();
     }
 
+    static List<String> featuresWithDomain() {
+        return featuresWith("domain");
+    }
+
+    static List<String> featuresWithSchema() {
+        return featuresWith("schema");
+    }
+
     @ParameterizedTest(name = "{0}")
-    @MethodSource("migratedFeatures")
+    @MethodSource("featuresWithDomain")
     void domainKnowsNoFramework(String feature) {
         noClasses()
                 .that()

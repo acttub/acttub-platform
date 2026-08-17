@@ -1,7 +1,7 @@
-package com.acttub.actingapi.admissions;
+package com.acttub.actingapi.admissions.adapter.web;
 
-import com.acttub.actingapi.admissions.AdmissionsDtos.AdmissionsResponse;
-import com.acttub.actingapi.platform.web.ApiException;
+import com.acttub.actingapi.admissions.app.Admissions.AdmissionsResponse;
+import com.acttub.actingapi.admissions.app.AdmissionsService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -17,10 +17,10 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/v2/admissions")
 @ConditionalOnResource(resources = "classpath:admissions/notices.json")
 class AdmissionsController {
-    private final AdmissionsCatalog catalog;
+    private final AdmissionsService admissions;
 
-    AdmissionsController(AdmissionsCatalog catalog) {
-        this.catalog = catalog;
+    AdmissionsController(AdmissionsService admissions) {
+        this.admissions = admissions;
     }
 
     @Operation(
@@ -33,7 +33,7 @@ class AdmissionsController {
             content = @Content(schema = @Schema(implementation = AdmissionsResponse.class)))
     @GetMapping
     AdmissionsResponse list() {
-        return catalog.all();
+        return admissions.all();
     }
 
     @Operation(
@@ -52,10 +52,6 @@ class AdmissionsController {
     })
     @GetMapping("/{university_id}")
     AdmissionsResponse university(@PathVariable("university_id") String universityId) {
-        AdmissionsResponse response = catalog.university(universityId);
-        if (response == null) {
-            throw new ApiException(404, "university_not_found");
-        }
-        return response;
+        return admissions.university(universityId);
     }
 }

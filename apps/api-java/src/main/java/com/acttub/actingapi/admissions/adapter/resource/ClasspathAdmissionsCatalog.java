@@ -1,4 +1,4 @@
-package com.acttub.actingapi.admissions;
+package com.acttub.actingapi.admissions.adapter.resource;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -7,16 +7,24 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-import com.acttub.actingapi.admissions.AdmissionsDtos.AdmissionNotice;
-import com.acttub.actingapi.admissions.AdmissionsDtos.AdmissionsResponse;
+import com.acttub.actingapi.admissions.app.Admissions.AdmissionsResponse;
+import com.acttub.actingapi.admissions.app.AdmissionsCatalog;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnResource;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Component;
 
+/**
+ * 카탈로그를 classpath JSON 한 벌에서 읽는다.
+ *
+ * <p><b>무결성 검사가 여기 있는 이유</b> — 바깥에서 들어온 문서가 우리가 아는 형태인지 보는
+ * 일이라 어댑터의 책임이다. 기동 때 한 번 돌고, 어긋나면 컨텍스트가 뜨지 않는다. 잘못된
+ * 카탈로그로 서비스가 도는 것보다 안 뜨는 편이 낫다 — 입시생이 광고를 정보로 읽거나 없는
+ * 대학을 가리키는 요강을 보게 된다.
+ */
 @Component
 @ConditionalOnResource(resources = "classpath:admissions/notices.json")
-class AdmissionsCatalog {
+class ClasspathAdmissionsCatalog implements AdmissionsCatalog {
     private static final Set<String> DISCIPLINES = Set.of("acting", "musical");
     private static final Set<String> UNIVERSITY_TYPES = Set.of("univ", "college");
     private static final Set<String> TIP_CATEGORIES = Set.of(
@@ -37,7 +45,7 @@ class AdmissionsCatalog {
 
     private final AdmissionsResponse payload;
 
-    AdmissionsCatalog(ObjectMapper mapper) {
+    ClasspathAdmissionsCatalog(ObjectMapper mapper) {
         ClassPathResource resource = new ClassPathResource("admissions/notices.json");
         try (InputStream input = resource.getInputStream()) {
             payload = mapper.readValue(input, AdmissionsResponse.class);
@@ -47,26 +55,9 @@ class AdmissionsCatalog {
         validate(payload);
     }
 
-    AdmissionsResponse all() {
+    @Override
+    public AdmissionsResponse all() {
         return payload;
-    }
-
-    AdmissionsResponse university(String universityId) {
-        var university = payload.universities().stream()
-                .filter(value -> value.id().equals(universityId))
-                .findFirst()
-                .orElse(null);
-        if (university == null) {
-            return null;
-        }
-        List<AdmissionNotice> notices = payload.notices().stream()
-                .filter(value -> value.universityId().equals(universityId))
-                .toList();
-        return new AdmissionsResponse(
-                payload.updatedAt(),
-                payload.disclaimer(),
-                List.of(university),
-                notices);
     }
 
     private static void validate(AdmissionsResponse value) {

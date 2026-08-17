@@ -1,4 +1,4 @@
-package com.acttub.actingapi.admissions;
+package com.acttub.actingapi.admissions.app;
 
 import java.util.List;
 
@@ -7,8 +7,16 @@ import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import com.fasterxml.jackson.databind.annotation.JsonNaming;
 import io.swagger.v3.oas.annotations.media.Schema;
 
-final class AdmissionsDtos {
-    private AdmissionsDtos() {
+/**
+ * 입시 요강 카탈로그의 공개 스키마. 이 도메인은 <b>이 문서가 곧 응답</b>이라 형태를 web 이
+ * 아니라 여기에 둔다 — {@code report/app/PublicReport} 가 app 에 사는 것과 같은 이유이며,
+ * 카탈로그를 읽어 오는 어댑터와 그것을 거르는 서비스가 함께 이 타입으로 말한다.
+ *
+ * <p>여기에 도메인 표현을 따로 만들고 web 에서 다시 옮기는 안은 택하지 않았다. 필드 수십 개를
+ * 두 벌로 두면 계약이 어긋날 지점만 늘고, 그 어긋남을 웹은 컴파일 타임에 잡지 못한다.
+ */
+public final class Admissions {
+    private Admissions() {
     }
 
     @Schema(
@@ -18,7 +26,7 @@ final class AdmissionsDtos {
                     + "늘어놓으면 입시생이 광고를 정보로 읽는다.",
             additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
     @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
-    record AdmissionResource(
+    public record AdmissionResource(
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String kind,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String title,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String url,
@@ -38,7 +46,7 @@ final class AdmissionsDtos {
                     + "이 필드는 **요강에 없는데 겪어 봐야 아는 것**만 담는다.",
             additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
     @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
-    record AdmissionTip(
+    public record AdmissionTip(
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String text,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String category,
             @Schema(nullable = true) String sourceUrl,
@@ -47,7 +55,7 @@ final class AdmissionsDtos {
             @Schema(nullable = true) Integer corroborations,
             @Schema(nullable = true) String verifiedAt,
             @Schema(nullable = true) String note) {
-        AdmissionTip {
+        public AdmissionTip {
             sourceType = sourceType == null ? "personal" : sourceType;
         }
     }
@@ -56,7 +64,7 @@ final class AdmissionsDtos {
             name = "AdmissionUniversity",
             additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
     @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
-    record AdmissionUniversity(
+    public record AdmissionUniversity(
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String id,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String name,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String admissionUrl,
@@ -67,7 +75,7 @@ final class AdmissionsDtos {
             @Schema(nullable = true) String note,
             List<AdmissionResource> resources,
             List<AdmissionTip> tips) {
-        AdmissionUniversity {
+        public AdmissionUniversity {
             resources = immutable(resources);
             tips = immutable(tips);
         }
@@ -78,7 +86,7 @@ final class AdmissionsDtos {
             description = "전년도 입시결과. 대학이 공개한 값만 담고, 나머지는 None으로 남긴다.",
             additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
     @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
-    record AdmissionResult(
+    public record AdmissionResult(
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) int year,
             @Schema(nullable = true) Integer quota,
             @Schema(nullable = true) Integer applicants,
@@ -105,7 +113,7 @@ final class AdmissionsDtos {
                     + "지원 전략을 통째로 그르친다. 판독이 조금이라도 애매하면 전부 None으로 두고\n"
                     + "`AdmissionNotice.weights_note`에 원문 표기를 그대로 옮겨 적는다.",
             additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
-    record AdmissionWeights(
+    public record AdmissionWeights(
             @Schema(nullable = true) Double practical,
             @Schema(nullable = true) Double transcript,
             @Schema(nullable = true) Double csat,
@@ -118,7 +126,7 @@ final class AdmissionsDtos {
             name = "AdmissionStage",
             description = "단계별 전형. 1차에서 몇 배수를 뽑는지가 지원 판단을 가른다.",
             additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
-    record AdmissionStage(
+    public record AdmissionStage(
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) int order,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String name,
             @Schema(nullable = true) String date,
@@ -126,7 +134,7 @@ final class AdmissionsDtos {
             @Schema(nullable = true) String multiple,
             @Schema(nullable = true) Double weight,
             @Schema(nullable = true) String note) {
-        AdmissionStage {
+        public AdmissionStage {
             evaluates = immutable(evaluates);
         }
     }
@@ -138,7 +146,7 @@ final class AdmissionsDtos {
                     + "category로 다 담기지 않는 경우 `note`에 원문을 남긴다.",
             additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
     @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
-    record AdmissionPracticalItem(
+    public record AdmissionPracticalItem(
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String category,
             @Schema(nullable = true) String label,
             @JsonProperty("required") @Schema(nullable = true) Boolean requiredValue,
@@ -153,7 +161,7 @@ final class AdmissionsDtos {
             name = "AdmissionNotice",
             additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
     @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
-    record AdmissionNotice(
+    public record AdmissionNotice(
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String id,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String universityId,
             @Schema(nullable = true) String department,
@@ -183,7 +191,7 @@ final class AdmissionsDtos {
             @Schema(nullable = true) String sourceUrl,
             @Schema(nullable = true) String verifiedAt,
             @Schema(nullable = true) String note) {
-        AdmissionNotice {
+        public AdmissionNotice {
             designatedWorks = immutable(designatedWorks);
             essayQuestions = immutable(essayQuestions);
             stages = immutable(stages);
@@ -196,12 +204,12 @@ final class AdmissionsDtos {
             name = "AdmissionsResponse",
             additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
     @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
-    record AdmissionsResponse(
+    public record AdmissionsResponse(
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String updatedAt,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String disclaimer,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) List<AdmissionUniversity> universities,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) List<AdmissionNotice> notices) {
-        AdmissionsResponse {
+        public AdmissionsResponse {
             universities = immutable(universities);
             notices = immutable(notices);
         }
