@@ -71,11 +71,14 @@ ln -sfn ../api/acting-api/.env .env    # 최초 1회. 파이썬과 같은 파일
 - `baseline-on-migrate: false` — 기존 dev·운영 DB의 baseline 기록은 애플리케이션이 아니라 별도 명령으로 합니다. 여기서 켜면 "빈 DB가 아닌데 V1을 건너뛰는" 판정을 애플리케이션이 조용히 내립니다.
 - **`V1__baseline.sql`과 `alembic-schema-fingerprint.txt`는 alembic 결과의 스냅샷입니다.** `apps/api`에 마이그레이션이 추가되면 둘 다 낡는데, `FlywayBaselineTest`는 **이 둘을 서로 비교하므로 둘 다 낡아도 초록입니다.** 스키마가 바뀌는 PR마다 `scripts/regen-baseline.sh`를 돌리고 결과를 커밋합니다.
 
-## 패키지 구조는 재편 중입니다 (SOMA-397)
+## 패키지 구조 (SOMA-397 완료)
 
-최상위가 **세 묶음**으로 갈립니다(ADR-017) — `platform`(배관: web·security·config·harness·health·observability·ledger) · `integration`(외부 연동: oidc·llm·storage·media·observation) · 비즈니스 도메인. **앞의 둘은 8단계에서 섰고**, 도메인 열넷을 `feature` 아래로 넣는 것은 도메인 배치가 끝난 뒤의 **마지막 이사**입니다. 공용 `schema`는 도메인별로 흩어지는 중이라 아직 최상위에 있습니다.
+최상위가 **세 묶음**입니다(ADR-017) — `feature`(비즈니스 도메인 12) · `platform`(배관: web·security·config·harness·health·observability·ledger·operation·schema) · `integration`(외부 연동: oidc·llm·storage·media·observation). 루트에 남는 것은 스캔 기점 `ActingApiApplication` 하나입니다.
 
-도메인별 헥사고날로 옮기는 중이고 **열둘이 끝났습니다** — `practice`(4단계) · `community`(10단계) · `report`·`coach`(9단계) · `analysis`·`memory`(11단계) · `upload`·`profile`·`admissions`·`admin`·`auth`·`consent`(12단계). 옮긴 도메인은 `domain`(규칙을 담은 Domain Model, 프레임워크 import 금지) · `app`(서비스와 포트 선언) · `adapter`(`web`·`db`·`storage`·`media`·`sched`·`resource`) · `schema`(Schema Entity)로 섭니다. 남은 것은 13단계(`feature` 이사 + ArchUnit 한정 해제)뿐입니다.
+각 도메인은 `domain`(규칙을 담은 Domain Model, 프레임워크 import 금지) · `app`(서비스와 포트 선언) · `adapter`(`web`·`db`·`storage`·`media`·`sched`·`resource`) · `schema`(Schema Entity)로 섭니다 — **가진 층만큼만**(아래 ADR-020).
+
+- ⚠ **공용 `schema`는 사라지지 않고 `platform/schema`로 갔습니다.** "Schema Entity는 도메인 옆에"가 끝까지 가지 않습니다 — **enum 열아홉은 도메인으로 못 갑니다.** `PgEnumCatalogVerifier`가 `pg_enum` 카탈로그를 **맵 전체 equals**로 대조하느라 열아홉을 전부 정적으로 참조하는데, 그 검증기가 배관에 있어서 enum을 흩으면 배관 → 도메인 간선이 생기고, 도메인은 반대로 `PgEnumJdbcType`·`AppGeneratedUuidEntity`를 쓰므로 양방향이 되어 순환입니다. `schemaEntitiesAreNeverCalled`에도 걸립니다. 🔎 4단계가 `PracticeStatus`를 공용에 남긴 것이 이 이유였습니다. **거기 사는 것은 "배관이 소유한 스키마 + 어느 도메인의 것도 아닌 어휘"입니다** — PgEnum 배관 4 · `AppGeneratedUuidEntity` · 공유 enum 19 · 원장 `ExternalOperationEntity`.
+- ⚠ **`platform/ledger`와 `platform/operation`이 갈려 있는 것은 실수가 아닙니다.** 교환 타입은 `ledger`, 구현은 `operation`입니다 — 합치면 구현이 도메인 포트를 구현하고(`platform.ledger → coach`) 도메인은 반대로 교환 타입을 쓰므로(`coach → platform.ledger`) 순환입니다. 13단계에서 실제로 합쳐 **순환 여섯**을 확인하고 되돌렸습니다. **같은 묶음 안이라고 한 조각이 되는 것은 아닙니다.**
 
 - ⚠ **네 층을 다 갖는 도메인이 오히려 흔하지 않습니다**(ADR-020). 층은 넣을 것이 실재하는 만큼만 세웁니다 — `admissions`·`admin`은 `domain`과 `schema` 둘 다 없고(요강은 바깥에서 통째로 들어오는 문서라 행위 규칙이 없고, 운영 지표는 도메인을 가로질러 세는 일이라 자기 테이블이 없습니다), `memory`·`profile`은 `schema`가 없습니다. 🔎 **판별 기준은 11단계 `observation`과 같은 것이고 결론만 다릅니다** — 엔드포인트가 있으면 도메인이고, 그때는 묶음으로 보내지 않고 **가진 층만으로** 세웁니다.
 - 📌 **집계하거나 읽어 온 것이 곧 응답인 도메인은 그 형태를 `app`에 둡니다** — `admissions/app/Admissions`·`admin/app/AdminMetrics`가 `report/app/PublicReport`와 같은 자리입니다. 중간 표현을 따로 만들면 필드 수십 개가 두 벌이 되고 그 어긋남을 웹은 컴파일 타임에 잡지 못합니다.
@@ -83,9 +86,9 @@ ln -sfn ../api/acting-api/.env .env    # 최초 1회. 파이썬과 같은 파일
 
 - 📌 **배선(`@Configuration`)은 그 도메인 `adapter` 층의 루트에 둡니다** — `analysis/adapter/AnalysisConfiguration`·`AnalysisWorkerConfiguration`. 어느 하위 어댑터에도 속하지 않고 여럿을 조립하기 때문입니다(먼저 옮긴 다섯 도메인에 이런 파일이 없는 것은 그들이 스프링 스테레오타입만 쓰기 때문이지, 루트를 비워야 해서가 아닙니다).
 - 📌 **`domain`이 봐도 되는 것은 프레임워크가 아닌 것뿐입니다.** `memory/domain/MemoryValue`가 `platform/web/PythonText`를 봅니다 — `domain`이 배관을 보는 첫 사례이고, `domainKnowsNoFramework`가 막는 목록(스프링·JPA·Jackson·swagger)에는 없어 통과합니다. **의도한 것입니다** — 그 유틸은 파이썬 `str.strip`의 공백 집합을 재현하는 문자열 규칙이라 정규화 규칙과 같은 층에 속하고, 여기서 손으로 다시 구현하면 두 벌이 갈립니다. 이관이 끝나면 함께 사라질 것입니다.
-- ⚠ **그래서 `PackageLayerTest`의 한정 목록이 이름 목록이 아니라 「도메인 → 그 도메인이 가진 층」 표입니다.** 없는 층을 적으면 그 규칙이 대상 0으로 조용히 통과하고, 반대로 **층이 새로 생겼는데 표에 안 적으면 그 층만 검사 밖에 남습니다** — `everyRuleActuallyHasSomethingToCheck`가 양쪽을 다 봅니다. `memory`에 Schema Entity가 없는 것은 이사 누락이 아니라 `actor_memory_entries`에 대응하는 `@Entity`가 애초에 만들어진 적이 없어서이고, **그 테이블만 `ddl-auto: validate` 밖에 있습니다**(→ SOMA-398).
+- ⚠ **그래서 `PackageLayerTest`의 `FEATURE_LAYERS`가 이름 목록이 아니라 「도메인 → 그 도메인이 가진 층」 표입니다.** 없는 층을 적으면 그 규칙이 대상 0으로 조용히 통과하고, 반대로 **층이 새로 생겼는데 표에 안 적으면 그 층만 검사 밖에 남습니다** — `everyRuleActuallyHasSomethingToCheck`가 양쪽을 다 봅니다. `memory`에 Schema Entity가 없는 것은 이사 누락이 아니라 `actor_memory_entries`에 대응하는 `@Entity`가 애초에 만들어진 적이 없어서이고, **그 테이블만 `ddl-auto: validate` 밖에 있습니다**(→ SOMA-398).
   - 🔥 **층별 규칙은 그 표에서 대상을 끌어와야 합니다**(`featuresWithDomain`·`featuresWithSchema`). 목록 전체를 넘기면 층이 없는 도메인에서 **두 방향으로** 깨집니다 — `that()`으로 대상을 좁힌 규칙(`domainKnowsNoFramework`)은 ArchUnit이 대상 0을 실패로 쳐서 빨간불이 나고, 그렇지 않은 규칙(`schemaEntitiesAreNeverCalled`)은 반대로 대상 0으로 통과합니다.
-  - `MIGRATED_FEATURES`가 열 쌍을 넘어 `Map.ofEntries`입니다. `Map.of`는 열 쌍까지만 받습니다.
+  - `FEATURE_LAYERS`가 열 쌍을 넘어 `Map.ofEntries`입니다. `Map.of`는 열 쌍까지만 받습니다.
 
 - 🔥 **포트가 없음을 알리는 방법은 하나가 아닙니다**(ADR-018). `practice`는 `null`·`boolean`으로 알리지만 `community`는 **예외를 `app`에 선언하고 어댑터가 던집니다.** **정하는 단위는 연산이 아니라 포트 전체입니다** — 한 포트 안에서 방식이 둘이면 부르는 쪽이 연산마다 어느 쪽인지 기억해야 하므로, 갈래가 가장 많은 연산이 그 포트의 방식을 정합니다. `community`에서는 `updatePost`("없다"와 "내 것이 아니다"가 같은 트랜잭션·같은 잠금 안에서 갈립니다)가 그 연산이고, 그래서 `getPost`처럼 갈래가 하나인 것도 예외를 씁니다. 예외가 `app`에 살면 방향이 `adapter → app`이라 층 규칙에 맞고, 제공자와 소비자가 같은 도메인이라 시그니처에 남의 패키지 이름이 보이지도 않습니다.
 - 📌 **예외 이름은 던지는 자리에서 정직해야 합니다.** 종전 `community`는 저장소의 `PostNotFound` 하나를 컨트롤러가 `post_not_found`·`target_not_found`·`user_not_found` 셋으로 갈랐습니다 — 뜻을 정하는 곳이 던지는 곳과 멀어 예외 이름만으로는 무엇이 없다는 것인지 알 수 없었습니다. 지금은 대상이 없으면 `CommunityContentNotFound` 하나이고, **부르는 자리에서 뜻이 하나로 정해집니다**(글을 쓸 때 없을 수 있는 것은 분류뿐입니다). 상태코드로 옮기는 일은 서비스가 합니다.
@@ -93,12 +96,19 @@ ln -sfn ../api/acting-api/.env .env    # 최초 1회. 파이썬과 같은 파일
 
 - 📌 **자원을 준 포트가 그것을 거둡니다.** `SummaryAnalyzer`(app)가 `FfmpegAudioExtractor.deleteTree(audioPath.getParent())`를 부르던 자리가 그랬습니다 — "추출물이 임시 디렉토리 안에 홀로 산다"는 구현 사정을 부르는 쪽이 알고 있어서, 디렉토리를 쓰지 않는 추출기로 갈아끼우면 엉뚱한 곳을 지웁니다. `AudioExtractor.discard`로 올렸고, **층으로 가르지 않았으면 드러나지 않았을 간선입니다**(11단계).
 - 층 방향은 `PackageLayerTest`가 강제합니다(순환은 `PackageCycleTest`가 따로 봅니다). 서브패키지로 갈리면서 저장소 클래스를 막아주던 package-private 보호가 옅어졌으므로 **이 검사가 구조를 지키는 유일한 장치입니다.**
-- ⚠ **검사 대상이 `MIGRATED_FEATURES` 목록으로 한정돼 있습니다.** 도메인을 옮기면 그 목록에 이름을 추가해야 규칙이 걸립니다 — 빠뜨리면 새로 옮긴 도메인이 아무 검사 없이 통과합니다. 안 옮긴 도메인이 빨간불을 내지 않게 하려는 한정이라, 이 대가는 의도된 것입니다.
-- 아직 못 거는 규칙이 하나 있습니다 — **feature끼리 직접 import 금지**. `practice`가 참조하던 `storage`·`web`은 8단계에서 묶음 뒤로 갔으므로(배관·외부 연동을 보는 것은 정상입니다) 이제 걸 수 있고, 한정이 풀리는 **13단계**에 함께 들어옵니다.
-  - ⚠ **그 규칙은 "상대의 `app` 층만 허용"으로 씁니다**(ADR-019). 두 도메인이 서로를 소비하면 양쪽 다 포트를 선언할 수 없어서입니다 — 구현하는 쪽이 인터페이스를 import하므로 간선이 양방향이 되어 순환입니다. `coach`↔`report`가 그 자리였고(9단계), `coach → report/app` 한 방향 **아홉 심볼**로 정렬돼 있습니다. 반대 방향은 0입니다(`ReportSourceProvider`를 코치 어댑터가 구현합니다). **참조 폭이 늘면 그것이 두 도메인을 합쳐야 한다는 신호입니다.**
+- **한정은 13단계에서 풀렸습니다.** 재편이 도는 동안에는 검사 대상이 이미 옮긴 도메인으로 한정돼 있었습니다(안 옮긴 도메인이 빨간불을 내지 않게). 지금은 반대로 **`feature` 아래 전부가 층 표(`FEATURE_LAYERS`)에 있어야 합니다** — `everyFeatureIsInTheTable`이 실물과 표를 대조합니다.
+  - 🔥 **"한정 해제"의 실체가 그 검사입니다.** 표를 도는 검사는 표에서 **빠진** 도메인을 영원히 못 봅니다 — 도메인을 새로 만들고 표에 안 적으면 그 도메인 통째가 검사 밖입니다. `PackageCycleTest.everyBundleIsInTheList`와 같은 부류입니다.
+  - ⚠ **그 부류의 구멍이 13단계 리뷰에서 둘 더 나왔고, 검사 둘을 새로 세웠습니다**(둘 다 주입해서 빨간불을 확인했습니다).
+    - `everyFeatureSubpackageIsALayer` — `feature/practice/util` 처럼 **층이 아닌 하위 패키지**는 아무도 보지 않았습니다. 재편 전에는 도메인이 최상위라 `everyBundleIsInTheList`가 겸했는데, `feature`가 묶음이 되면서 그 검사가 통째로 건너뜁니다.
+    - `nothingLivesOutsideTheBundles` — **루트에 만든 도메인**(`com.acttub.actingapi.newthing.app`)은 자식이 층 이름이라 `everyBundleIsInTheList`를 통과하고, `PackageLayerTest`는 `feature` 아래만 훑어 네 층 규칙도 도메인 간 규칙도 안 받았습니다. 7단계가 `security`·`oidc`·`ledger`를 루트에 임시로 둔 선례가 있어 가상의 실패 모드가 아닙니다.
+  - 📌 **`featuresSeeOnlyEachOthersAppLayer`의 대상 패턴만 절대 경로입니다**(`com.acttub.actingapi.feature.<이름>..`). 상대형으로 두면 배관에 같은 이름의 조각이 생기는 순간(`platform/admin`) 규칙이 거기까지 번져 "배관은 대상 밖"이라는 전제가 깨집니다 — 실제로 겹치게 만들어 확인했습니다.
+- **feature끼리 직접 import 금지**는 `featuresSeeOnlyEachOthersAppLayer`가 겁니다. 배관·외부 연동을 보는 것은 금지 대상이 아니고(`auth/app/AuthService`가 `integration/oidc`를 직접 부릅니다), 반대로 배관이 도메인 포트를 구현하는 것도 대상 밖입니다(`platform/security`·`platform/operation`이 그 형태입니다).
+  - ⚠ **그 규칙은 "상대의 `app` 층만 허용"입니다**(ADR-019). 두 도메인이 서로를 소비하면 양쪽 다 포트를 선언할 수 없어서입니다 — 구현하는 쪽이 인터페이스를 import하므로 간선이 양방향이 되어 순환입니다. `coach`↔`report`가 그 자리였고(9단계), `coach → report/app` 한 방향으로 정렬돼 있습니다. 반대 방향은 0입니다(`ReportSourceProvider`를 코치 어댑터가 구현합니다).
+  - 📌 지금 걸린 도메인 간 간선은 셋뿐입니다 — `coach`→`report` 12 · `consent`→`auth` 2 · `memory`→`coach` 2. **참조 폭이 늘면 그것이 두 도메인을 합쳐야 한다는 신호입니다**(ADR-019). 검사는 폭을 세지 않습니다 — 세면 숫자가 곧 유지보수 대상이 되고, 판단은 사람이 해야 합니다.
   - 📌 그래서 **다른 도메인이 알아야 하는 타입은 `app`에 둡니다.** 성적표 본문의 공개 스키마(`report/app/PublicReport`)가 web이 아니라 app에 사는 이유가 그것입니다 — 코치 응답에도 같은 본문이 실립니다. 엔드포인트 입출력 봉투(`ReportDtos`)는 web에 남습니다.
 - ⚠ **`PackageCycleTest`의 슬라이스 할당에 묶음 이름 목록(`BUNDLES`)이 있습니다.** 묶음을 새로 만들면 여기에 이름을 더해야 그 안이 조각으로 갈립니다 — 종전 `slices().matching(…(*)..)`은 첫 하위 패키지 하나로만 가르므로, 접두어가 붙으면 조각들이 한 덩어리가 되어 그 사이의 순환이 검사에서 사라집니다. 🔥 **순환 검사는 이 누락을 못 잡습니다** — 뭉친 묶음이 도메인과 **양방향** 간선을 가질 때만 사이클이 되어서, `integration`처럼 앱 안으로 나가는 간선이 없는 묶음은 뭉쳐도 **조용히 초록**입니다(실측). 그래서 `everyBundleIsInTheList`가 따로 잡습니다 — **층(`domain`·`app`·`adapter`·`schema`)이 아닌 하위 패키지를 거느린 최상위가 목록에 없으면 실패**합니다.
-- **`operation`은 6단계에서 포트 뒤로 갔습니다.** 다섯 도메인(`practice`·`coach`·`report`·`memory`·`analysis`) 전부 `com.acttub.actingapi.operation`을 **한 줄도 import하지 않습니다.** 의존은 `operation` → 소비자 포트 한 방향뿐입니다.
+  - 🔎 **13단계 `feature` 이사가 정확히 그 자리에 걸렸습니다 — 실측했습니다.** 목록을 안 고친 채 돌리면 도메인 열둘이 한 슬라이스로 뭉치는데도 `packagesAreFreeOfCycles`는 **초록**이었고, 빨간불을 낸 것은 `everyBundleIsInTheList` 하나뿐이었습니다.
+- **`operation`은 6단계에서 포트 뒤로 갔고 13단계에서 `platform/operation`이 됐습니다.** 다섯 도메인(`practice`·`coach`·`report`·`memory`·`analysis`) 전부 `com.acttub.actingapi.platform.operation`을 **한 줄도 import하지 않습니다.** 의존은 `operation` → 소비자 포트 한 방향뿐입니다. 배관인 근거는 엔드포인트가 없고(ADR-020의 갈림길), `external_operations` 한 테이블이 analyze·memory_update·coach·report를 함께 담기 때문입니다.
   - 🔥 **교환 타입을 어디 두느냐가 이 단계의 전부였습니다.** 포트를 쓰는 쪽에 선언해도 시그니처에 `operation`의 record·예외가 들어가면 소비자 → 제공자 간선이 남고, 그러면 제공자가 그 포트를 구현하는 순간 `PackageCycleTest`가 빨간불이라 **구현을 소비자 쪽에 두는 수밖에 없어집니다**(ADR-017의 "구현은 제공하는 쪽에"가 깨지는 형태). → `SyncOperationBegin`·`SyncOperationClaim`·`LeaseOwnershipException`을 **`ledger`**(배관, 8단계에 `platform/ledger`로 갔습니다)로 올려 풀었습니다. **포트를 새로 만들 때 시그니처에 제공자 패키지 이름이 보이면 아직 안 끊긴 것입니다.**
   - 그 결과 위임만 하던 어댑터가 사라지고 `SyncOperationService`가 `CoachOperationLedger`·`ReportOperationLedger`를 **직접 구현**합니다. 두 포트의 요구가 글자까지 같아 한 클래스가 둘 다 받습니다 — 갈리는 날 거기서 갈리면 됩니다.
   - 워커 큐는 종류와 실패 정책이 다릅니다 — `ExternalOperationAnalysisQueue`(kind=`analyze`, 실패 시 **연습 세션도 실패**) vs `ExternalOperationMemoryQueue`(kind=`memory_update`, 연습은 건드리지 않음).

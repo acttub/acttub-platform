@@ -2,7 +2,7 @@ package com.acttub.actingapi.platform.security;
 
 import java.util.UUID;
 
-import com.acttub.actingapi.schema.UserStatus;
+import com.acttub.actingapi.platform.schema.UserStatus;
 import com.acttub.actingapi.platform.web.ApiException;
 
 /**
