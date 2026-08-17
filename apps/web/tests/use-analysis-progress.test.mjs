@@ -9,6 +9,7 @@ import { window } from "./dom-setup.mjs";
 const {
   ANALYSIS_TICK_MS,
   INITIAL_ANALYSIS_PROGRESS,
+  analysisEventsForStatus,
   analysisProgressReducer,
 } = await import("../src/features/practice/use-analysis-progress.ts");
 const {
@@ -159,27 +160,45 @@ test("영상 길이는 분석이 시작된 뒤에 알게 돼도 그때부터 곡
   assert.ok(informed.pct < blind.pct);
 });
 
-test("목록에서 연 세션은 상태마다 지금 화면과 같은 자리에서 시작한다", () => {
-  const restore = (status) => {
-    const opened = play([
-      [{ type: "reset" }],
-      [{ type: "analyze", compressed: false }],
-    ]);
-    return status === "created" || status === "analyzing"
-      ? opened
-      : reduce(opened, { type: "settle", status });
-  };
+test("불러온 세션은 상태마다 지금 화면과 같은 자리에서 시작한다", () => {
+  // 화면은 이 목록을 그대로 흘려 넣는다. 끝난 세션도 분석 구간을 한 번 지나가야
+  // 실패한 세션이 제 시작점에 서고 끝난 세션이 100 이 된다.
+  const restore = (status) =>
+    play(
+      analysisEventsForStatus(status, false).map((event) => [event]),
+      reduce(INITIAL_ANALYSIS_PROGRESS, { type: "reset" }),
+    );
 
   assert.equal(restore("created").pct, UPLOAD_ONLY_PROGRESS_END);
   assert.equal(restore("created").waiting, true);
   assert.equal(restore("analyzing").pct, UPLOAD_ONLY_PROGRESS_END);
+  assert.equal(restore("analyzing").waiting, true);
   assert.equal(restore("failed").pct, UPLOAD_ONLY_PROGRESS_END);
   assert.equal(restore("failed").waiting, false);
   assert.equal(restore("analyzed").pct, 100);
   assert.equal(restore("analyzed").waiting, false);
 });
 
-test("경과 시간은 analyze 시각부터 재고 목표 시간을 넘기면 pastDeadline 이 선다", () => {
+test("이미 끝난 세션은 분석 구간에 들어서자마자 멈춘다 — 타이머가 남지 않는다", () => {
+  // 이 목록이 짧아지면(settle 이 빠지면) 조회가 실패하거나 다른 세션으로 넘어간
+  // 자리에 1초 타이머가 남는다. 그것이 첫 배선에서 실제로 났던 버그다.
+  assert.deepEqual(analysisEventsForStatus("created", false), [
+    { type: "analyze", compressed: false },
+  ]);
+  assert.deepEqual(analysisEventsForStatus("analyzing", true), [
+    { type: "analyze", compressed: true },
+  ]);
+  assert.deepEqual(analysisEventsForStatus("failed", false), [
+    { type: "analyze", compressed: false },
+    { type: "settle", status: "failed" },
+  ]);
+  assert.deepEqual(analysisEventsForStatus("analyzed", true), [
+    { type: "analyze", compressed: true },
+    { type: "settle", status: "analyzed" },
+  ]);
+});
+
+test("경과 시간은 analyze 시각부터 잰다", () => {
   const started = reduce(
     INITIAL_ANALYSIS_PROGRESS,
     { type: "analyze", compressed: true },

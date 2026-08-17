@@ -68,7 +68,10 @@ import {
   buildPracticeSessionRequest,
   formatVideoDuration,
 } from "../practice/practice-setup-flow";
-import { useAnalysisProgress } from "../practice/use-analysis-progress";
+import {
+  analysisEventsForStatus,
+  useAnalysisProgress,
+} from "../practice/use-analysis-progress";
 import {
   uploadForCurrentFile,
   type PendingVideoUpload,
@@ -312,6 +315,17 @@ function WorkspaceInner() {
       analysisControllerRef.current?.abort();
     },
     [videoUrl],
+  );
+
+  // 세션 하나가 분석 구간에 들어섰음을 알린다. 조회가 끝난 뒤에만 부른다 —
+  // 미리 부르면 조회가 실패한 자리에 1초 타이머가 그대로 남는다.
+  const enterAnalysis = useCallback(
+    (status: PracticeSessionDetail["status"], compressed: boolean) => {
+      for (const event of analysisEventsForStatus(status, compressed)) {
+        reportProgress(event);
+      }
+    },
+    [reportProgress],
   );
 
   // 미리 시작한 압축·업로드를 버린다. 끊지 않으면 배우가 떠난 뒤에도 폰이 계속 인코딩한다.
@@ -640,7 +654,7 @@ function WorkspaceInner() {
       setAnalysisStatus(session.status);
       setDetail(null);
       reportProgress({ type: "duration", videoDurationMs: durationMs });
-      reportProgress({ type: "analyze", compressed: compressionRan });
+      enterAnalysis(session.status, compressionRan);
       setMode("preparing");
       setSending(false);
       urlLoadedRef.current = session.session_id;
@@ -687,6 +701,7 @@ function WorkspaceInner() {
     situation,
     character,
     goal,
+    enterAnalysis,
     refreshList,
     reportProgress,
     startUpload,
@@ -775,9 +790,8 @@ function WorkspaceInner() {
       if (prev) URL.revokeObjectURL(prev);
       return null;
     });
-    // 목록에서 연 세션은 압축을 탔는지도 영상 길이도 모른다 — 무압축 쪽 시작점에서 출발한다.
+    // 분석 구간 진입은 조회가 끝난 뒤 enterAnalysis 가 알린다.
     reportProgress({ type: "reset" });
-    reportProgress({ type: "analyze", compressed: false });
     setAnalysisStatus(null);
     setMessages([]);
     setCoachDone(false);
@@ -792,6 +806,8 @@ function WorkspaceInner() {
       if (activeIdRef.current !== id) return;
       setDetail(loaded);
       setAnalysisStatus(loaded.status);
+      // 목록에서 연 세션은 압축을 탔는지도 영상 길이도 모른다 — 무압축 쪽 시작점에서 출발한다.
+      enterAnalysis(loaded.status, false);
       practiceAnalyticsContextRef.current = {
         kind: loaded.blockage_kind,
         subBranch: loaded.sub_branch as BlockageSelection["sub_branch"],
@@ -805,11 +821,9 @@ function WorkspaceInner() {
       }
       if (loaded.status === "failed") {
         setReport(null);
-        reportProgress({ type: "settle", status: loaded.status });
         setMode("preparing");
         return;
       }
-      reportProgress({ type: "settle", status: loaded.status });
       setMode("chat");
       try {
         const found = await getReport(id);
@@ -830,6 +844,7 @@ function WorkspaceInner() {
   }, [
     countStepOnce,
     discardPendingUpload,
+    enterAnalysis,
     reportProgress,
     reports,
     sessions,
@@ -849,11 +864,11 @@ function WorkspaceInner() {
         if (cancelled) return;
         // 주소로 연 세션도 압축 여부·영상 길이를 모른다 — openSession 과 같은 자리에서 출발한다.
         reportProgress({ type: "reset" });
-        reportProgress({ type: "analyze", compressed: false });
         activeIdRef.current = sessionParam;
         setActiveId(sessionParam);
         setDetail(loaded);
         setAnalysisStatus(loaded.status);
+        enterAnalysis(loaded.status, false);
         practiceAnalyticsContextRef.current = {
           kind: loaded.blockage_kind,
           subBranch: loaded.sub_branch as BlockageSelection["sub_branch"],
@@ -869,11 +884,9 @@ function WorkspaceInner() {
         }
         if (loaded.status === "failed") {
           setReport(null);
-          reportProgress({ type: "settle", status: loaded.status });
           setMode("preparing");
           return;
         }
-        reportProgress({ type: "settle", status: loaded.status });
         setMode("chat");
         try {
           const found = await getReport(sessionParam);
@@ -897,6 +910,7 @@ function WorkspaceInner() {
     ready,
     sessionParam,
     countStepOnce,
+    enterAnalysis,
     reportProgress,
     startConversationAfterAnalysis,
     trackAnalysis,
@@ -1200,7 +1214,12 @@ function WorkspaceInner() {
                 onGoal={setGoal}
               />
               {mode === "uploading" ? (
-                <ProgressPanel pct={pct} durationMs={videoDurationMs} phase="upload" />
+                <ProgressPanel
+                  pct={pct}
+                  durationMs={videoDurationMs}
+                  phase="upload"
+                  pastDeadline={false}
+                />
               ) : mode === "preparing" ? (
                 <ProgressPanel
                   pct={pct}
@@ -1652,7 +1671,7 @@ function ProgressPanel({
   pct,
   durationMs,
   phase,
-  pastDeadline = false,
+  pastDeadline,
   failed = false,
   starting = false,
   onStartWithoutEvidence,
@@ -1660,8 +1679,11 @@ function ProgressPanel({
   pct: number;
   durationMs: number | null;
   phase: "upload" | "scan";
-  /** 분석 목표 시간을 넘겼는가. 진행률 훅이 정해서 내려 준다. */
-  pastDeadline?: boolean;
+  /**
+   * 분석 목표 시간을 넘겼는가. 진행률 훅이 정해서 내려 준다.
+   * 기본값을 두지 않는다 — 두면 호출부에서 이 줄이 사라져도 아무도 모른다.
+   */
+  pastDeadline: boolean;
   failed?: boolean;
   starting?: boolean;
   onStartWithoutEvidence?: () => void;

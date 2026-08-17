@@ -131,6 +131,24 @@ export function analysisProgressReducer(
   }
 }
 
+/**
+ * 불러온 세션 하나를 진행률에 어떻게 알릴지 정한다.
+ *
+ * 이미 끝난 세션도 분석 구간에 한 번 들여놓고 곧바로 멈춘다 — 그래야 실패한 세션이
+ * 제 시작점에 서고(막대는 감춰지지만 자리는 맞다) 끝난 세션이 100 이 된다.
+ * **불러오기가 끝난 뒤에만 부른다.** 미리 부르면 조회가 실패하거나 그 사이 다른
+ * 세션으로 넘어갔을 때 멈출 사람이 없어 타이머가 남는다.
+ */
+export function analysisEventsForStatus(
+  status: PracticeSessionStatus,
+  compressed: boolean,
+): AnalysisProgressEvent[] {
+  const enter: AnalysisProgressEvent = { type: "analyze", compressed };
+  return status === "analyzed" || status === "failed"
+    ? [enter, { type: "settle", status }]
+    : [enter];
+}
+
 export type AnalysisProgress = {
   pct: number;
   elapsedMs: number;
