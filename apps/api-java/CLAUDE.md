@@ -21,6 +21,7 @@ Java 21 + Spring Boot 3.4. FastAPI(`apps/api`) 전면 이관 작업(`SOMA-287`)�
 - `./gradlew bootJar` — `acting-api.jar` 생성.
 - `./gradlew bootRun` — 로컬 기동(:8080). 설정은 아래 `.env`가 공급합니다.
 - `scripts/regen-baseline.sh` — baseline 스냅샷 재생성(아래 참조). Docker + uv 필요.
+- `scripts/dr-rehearsal.sh` — 재해복구 리허설. `V1__baseline.sql` 만으로 세운 환경이 alembic 경로와 같은지, 덤프를 부은 뒤에도 앱이 서는지 본다. Docker + uv + JDK 필요. 결과는 [spec/M6-findings.md](../../spec/M6-findings.md)에 있고, **파이썬이 사라지는 `SOMA-403` 5단계에서 이 스크립트도 함께 지웁니다**(비교 대상이 없어집니다).
 - 루트에서 `python3 spec/check-refs.py` — SPEC이 가리키는 심볼이 소스에 실재하는지.
 
 계약 동등성 검사는 `apps/api`의 uv 가상환경을 그대로 씁니다(새 의존성을 들이지 않습니다):
