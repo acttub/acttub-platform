@@ -1,4 +1,4 @@
-package com.acttub.actingapi.schema;
+package com.acttub.actingapi.platform.schema;
 import jakarta.persistence.Converter;
 public enum UploadStatus implements PgEnum {
     PENDING("pending"), FINALIZED("finalized"), EXPIRED("expired");

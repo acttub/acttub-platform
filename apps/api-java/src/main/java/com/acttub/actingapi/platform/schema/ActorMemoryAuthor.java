@@ -1,4 +1,4 @@
-package com.acttub.actingapi.schema;
+package com.acttub.actingapi.platform.schema;
 import jakarta.persistence.Converter;
 /** 배우 기억의 칸을 누가 썼는지. 배우가 쓴 칸은 에이전트가 덮지 않는다. */
 public enum ActorMemoryAuthor implements PgEnum {

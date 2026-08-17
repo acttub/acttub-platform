@@ -1,10 +1,10 @@
 package com.acttub.actingapi.community.schema;
 import java.time.Instant; import java.util.UUID; import jakarta.persistence.*; import org.hibernate.annotations.JdbcType;
-import com.acttub.actingapi.schema.AppGeneratedUuidEntity;
-import com.acttub.actingapi.schema.PgEnumJdbcType;
-import com.acttub.actingapi.schema.ReportReason;
-import com.acttub.actingapi.schema.ReportStatus;
-import com.acttub.actingapi.schema.ReportTargetType;
+import com.acttub.actingapi.platform.schema.AppGeneratedUuidEntity;
+import com.acttub.actingapi.platform.schema.PgEnumJdbcType;
+import com.acttub.actingapi.platform.schema.ReportReason;
+import com.acttub.actingapi.platform.schema.ReportStatus;
+import com.acttub.actingapi.platform.schema.ReportTargetType;
 @Entity @Table(name="community_reports")
 public class CommunityReportEntity extends AppGeneratedUuidEntity {
     @Column(name="reporter_id",nullable=false) UUID reporterId;

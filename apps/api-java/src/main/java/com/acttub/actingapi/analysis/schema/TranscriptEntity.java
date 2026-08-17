@@ -1,5 +1,5 @@
 package com.acttub.actingapi.analysis.schema;
-import com.acttub.actingapi.schema.AppGeneratedUuidEntity; import java.util.UUID; import jakarta.persistence.*;
+import com.acttub.actingapi.platform.schema.AppGeneratedUuidEntity; import java.util.UUID; import jakarta.persistence.*;
 @Entity @Table(name="transcripts")
 public class TranscriptEntity extends AppGeneratedUuidEntity {
     @Column(name="session_id",nullable=false) UUID sessionId; @Column(name="ord",nullable=false) int ord; @Column(name="text",nullable=false) String text;

@@ -5,7 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.UUID;
 
-import com.acttub.actingapi.schema.UserStatus;
+import com.acttub.actingapi.platform.schema.UserStatus;
 import com.acttub.actingapi.platform.web.ApiException;
 import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.Test;

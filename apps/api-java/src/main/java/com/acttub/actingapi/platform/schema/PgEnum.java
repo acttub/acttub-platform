@@ -1,4 +1,4 @@
-package com.acttub.actingapi.schema;
+package com.acttub.actingapi.platform.schema;
 
 /**
  * 네이티브 Postgres enum 컬럼에 저장되는 값을 가진 Java enum.

@@ -1,4 +1,4 @@
-package com.acttub.actingapi.schema;
+package com.acttub.actingapi.platform.schema;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -16,6 +16,7 @@ import com.acttub.actingapi.coach.schema.CoachingHandoffEntity;
 import com.acttub.actingapi.coach.schema.HandoffConfirmationEntity;
 import com.acttub.actingapi.community.schema.CommunityAnonymousAliasEntity;
 import com.acttub.actingapi.report.schema.PracticeReportEntity;
+import com.acttub.actingapi.report.schema.ReportEntity;
 import com.acttub.actingapi.community.schema.CommunityBlockEntity;
 import com.acttub.actingapi.community.schema.CommunityCategoryEntity;
 import com.acttub.actingapi.community.schema.CommunityCommentEntity;
@@ -59,7 +60,7 @@ import org.springframework.transaction.annotation.Transactional;
  * </ul>
  */
 @SpringBootTest(properties = {"spring.jpa.properties.hibernate.session_factory.statement_inspector="
-        + "com.acttub.actingapi.schema.EntityMappingIT$RecordingInspector", "JWT_SECRET=test-secret"})
+        + "com.acttub.actingapi.platform.schema.EntityMappingIT$RecordingInspector", "JWT_SECRET=test-secret"})
 class EntityMappingIT {
 
     @DynamicPropertySource

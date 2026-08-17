@@ -1,4 +1,4 @@
-package com.acttub.actingapi.schema;
+package com.acttub.actingapi.platform.schema;
 import jakarta.persistence.Converter;
 public enum CloseReason implements PgEnum {
     GAP_STATED("gap_stated"), EXHAUSTED("exhausted"), LIMIT("limit"), USER_ENDED("user_ended");

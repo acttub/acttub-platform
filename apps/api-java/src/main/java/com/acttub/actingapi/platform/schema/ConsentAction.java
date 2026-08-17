@@ -1,4 +1,4 @@
-package com.acttub.actingapi.schema;
+package com.acttub.actingapi.platform.schema;
 import jakarta.persistence.Converter;
 public enum ConsentAction implements PgEnum {
     GRANTED("granted"), DECLINED("declined"), REVOKED("revoked");

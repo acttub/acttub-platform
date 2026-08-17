@@ -1,8 +1,8 @@
 package com.acttub.actingapi.coach.schema;
 import java.time.Instant; import java.util.UUID; import jakarta.persistence.*; import org.hibernate.annotations.JdbcType;
-import com.acttub.actingapi.schema.SessionStatus;
-import com.acttub.actingapi.schema.CloseReason;
-import com.acttub.actingapi.schema.PgEnumJdbcType;
+import com.acttub.actingapi.platform.schema.SessionStatus;
+import com.acttub.actingapi.platform.schema.CloseReason;
+import com.acttub.actingapi.platform.schema.PgEnumJdbcType;
 @Entity @Table(name="coach_sessions")
 public class CoachSessionEntity {
     @Id @Column(name="id",nullable=false) UUID id; @Column(name="practice_session_id",nullable=false) UUID practiceSessionId; @Column(name="summary_id") UUID summaryId;

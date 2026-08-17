@@ -1,4 +1,4 @@
-package com.acttub.actingapi.schema;
+package com.acttub.actingapi.platform.schema;
 import jakarta.persistence.Converter;
 /** 배우 기억의 칸. 순서는 `0012_actor_memory.py` 의 enum 정의 순서다. */
 public enum ActorMemoryField implements PgEnum {

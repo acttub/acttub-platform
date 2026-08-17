@@ -6,7 +6,7 @@ import java.util.UUID;
 
 import com.acttub.actingapi.profile.app.ProfileRepository;
 import com.acttub.actingapi.profile.domain.Profile;
-import com.acttub.actingapi.schema.UserStatus;
+import com.acttub.actingapi.platform.schema.UserStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.support.TransactionTemplate;

@@ -1,5 +1,5 @@
 package com.acttub.actingapi.analysis.schema;
-import com.acttub.actingapi.schema.IntentImpact; import com.acttub.actingapi.schema.PgEnumJdbcType; import com.acttub.actingapi.schema.Severity; import java.util.UUID; import jakarta.persistence.*; import org.hibernate.annotations.JdbcType;
+import com.acttub.actingapi.platform.schema.IntentImpact; import com.acttub.actingapi.platform.schema.PgEnumJdbcType; import com.acttub.actingapi.platform.schema.Severity; import java.util.UUID; import jakarta.persistence.*; import org.hibernate.annotations.JdbcType;
 @Entity @Table(name="anomalies")
 public class AnomalyEntity {
     @Id @GeneratedValue(strategy=GenerationType.IDENTITY) @Column(name="id") Long id;

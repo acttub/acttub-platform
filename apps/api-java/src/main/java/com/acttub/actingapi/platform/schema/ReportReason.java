@@ -1,4 +1,4 @@
-package com.acttub.actingapi.schema;
+package com.acttub.actingapi.platform.schema;
 import jakarta.persistence.Converter;
 public enum ReportReason implements PgEnum {
     SPAM("spam"), ABUSE("abuse"), SEXUAL("sexual"), PRIVACY("privacy"), OTHER("other");

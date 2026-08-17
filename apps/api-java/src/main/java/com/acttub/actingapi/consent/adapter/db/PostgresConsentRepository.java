@@ -15,8 +15,8 @@ import com.acttub.actingapi.consent.app.ConsentRepository;
 import com.acttub.actingapi.consent.domain.ConsentDocument;
 import com.acttub.actingapi.consent.domain.ConsentEvent;
 import com.acttub.actingapi.platform.security.PendingConsentGate;
-import com.acttub.actingapi.schema.ConsentAction;
-import com.acttub.actingapi.schema.ConsentType;
+import com.acttub.actingapi.platform.schema.ConsentAction;
+import com.acttub.actingapi.platform.schema.ConsentType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 

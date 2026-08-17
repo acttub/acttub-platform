@@ -1,4 +1,4 @@
-package com.acttub.actingapi.schema;
+package com.acttub.actingapi.platform.schema;
 import jakarta.persistence.Converter;
 public enum IntentImpact implements PgEnum {
     REVERSAL("반전"), WEAKENING("약화"), LOCAL("국소");

@@ -3,7 +3,7 @@ package com.acttub.actingapi.memory.app;
 import java.util.List;
 import java.util.UUID;
 
-import com.acttub.actingapi.schema.ActorMemoryField;
+import com.acttub.actingapi.platform.schema.ActorMemoryField;
 
 /**
  * memory 가 자기 저장소에 요구하는 것 (ADR-017).

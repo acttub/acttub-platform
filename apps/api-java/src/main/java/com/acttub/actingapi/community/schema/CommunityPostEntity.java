@@ -1,8 +1,8 @@
 package com.acttub.actingapi.community.schema;
 import java.time.Instant; import java.util.UUID; import jakarta.persistence.*; import org.hibernate.annotations.JdbcType;
-import com.acttub.actingapi.schema.AppGeneratedUuidEntity;
-import com.acttub.actingapi.schema.ContentStatus;
-import com.acttub.actingapi.schema.PgEnumJdbcType;
+import com.acttub.actingapi.platform.schema.AppGeneratedUuidEntity;
+import com.acttub.actingapi.platform.schema.ContentStatus;
+import com.acttub.actingapi.platform.schema.PgEnumJdbcType;
 @Entity @Table(name="community_posts")
 public class CommunityPostEntity extends AppGeneratedUuidEntity {
     @Column(name="category_id",nullable=false) UUID categoryId; @Column(name="author_id",nullable=false) UUID authorId; @Column(name="title",nullable=false) String title; @Column(name="body",nullable=false) String body; @Column(name="anonymous",nullable=false) boolean anonymous;

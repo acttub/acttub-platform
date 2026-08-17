@@ -1,4 +1,4 @@
-package com.acttub.actingapi.schema;
+package com.acttub.actingapi.platform.schema;
 import jakarta.persistence.Converter;
 public enum Severity implements PgEnum {
     HIGH("high"), MID("mid"), LOW("low");

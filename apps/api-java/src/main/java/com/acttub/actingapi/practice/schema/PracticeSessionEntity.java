@@ -3,9 +3,9 @@ package com.acttub.actingapi.practice.schema;
 import java.time.Instant;
 import java.util.UUID;
 
-import com.acttub.actingapi.schema.AppGeneratedUuidEntity;
-import com.acttub.actingapi.schema.PgEnumJdbcType;
-import com.acttub.actingapi.schema.PracticeStatus;
+import com.acttub.actingapi.platform.schema.AppGeneratedUuidEntity;
+import com.acttub.actingapi.platform.schema.PgEnumJdbcType;
+import com.acttub.actingapi.platform.schema.PracticeStatus;
 import jakarta.persistence.Column;
 import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;

@@ -1,6 +1,6 @@
 package com.acttub.actingapi.coach.schema;
 import java.time.Instant; import java.util.UUID; import com.fasterxml.jackson.databind.JsonNode; import jakarta.persistence.*; import org.hibernate.annotations.JdbcTypeCode; import org.hibernate.type.SqlTypes;
-import com.acttub.actingapi.schema.AppGeneratedUuidEntity;
+import com.acttub.actingapi.platform.schema.AppGeneratedUuidEntity;
 @Entity @Table(name="coaching_handoffs")
 public class CoachingHandoffEntity extends AppGeneratedUuidEntity {
     @Column(name="coach_session_id",nullable=false) UUID coachSessionId; @Column(name="practice_session_id",nullable=false) UUID practiceSessionId; @Column(name="branch_kind",nullable=false) String branchKind;

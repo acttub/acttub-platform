@@ -1,4 +1,4 @@
-package com.acttub.actingapi.schema;
+package com.acttub.actingapi.platform.schema;
 import jakarta.persistence.Converter;
 public enum ContentStatus implements PgEnum {
     VISIBLE("visible"), HIDDEN("hidden"), DELETED("deleted");

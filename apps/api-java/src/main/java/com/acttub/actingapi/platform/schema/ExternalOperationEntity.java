@@ -1,4 +1,4 @@
-package com.acttub.actingapi.schema;
+package com.acttub.actingapi.platform.schema;
 import java.time.Instant; import java.util.UUID; import com.fasterxml.jackson.databind.JsonNode; import jakarta.persistence.*; import jakarta.validation.constraints.Pattern; import org.hibernate.annotations.JdbcType; import org.hibernate.annotations.JdbcTypeCode; import org.hibernate.type.SqlTypes;
 @Entity @Table(name="external_operations")
 public class ExternalOperationEntity extends AppGeneratedUuidEntity {

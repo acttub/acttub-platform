@@ -12,7 +12,7 @@ import java.util.UUID;
 import com.acttub.actingapi.integration.llm.GeneratedText;
 import com.acttub.actingapi.integration.llm.TextGenerator;
 import com.acttub.actingapi.integration.llm.TokenUsage;
-import com.acttub.actingapi.schema.ActorMemoryField;
+import com.acttub.actingapi.platform.schema.ActorMemoryField;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.DisplayName;

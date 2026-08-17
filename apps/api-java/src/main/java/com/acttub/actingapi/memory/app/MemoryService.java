@@ -4,7 +4,7 @@ import java.util.List;
 import java.util.UUID;
 
 import com.acttub.actingapi.memory.domain.MemoryValue;
-import com.acttub.actingapi.schema.ActorMemoryField;
+import com.acttub.actingapi.platform.schema.ActorMemoryField;
 import org.springframework.stereotype.Service;
 
 /**

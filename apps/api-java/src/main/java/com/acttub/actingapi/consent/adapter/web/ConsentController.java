@@ -10,7 +10,7 @@ import com.acttub.actingapi.consent.app.ConsentService;
 import com.acttub.actingapi.consent.domain.ConsentDocument;
 import com.acttub.actingapi.consent.domain.ConsentEvent;
 import com.acttub.actingapi.platform.security.AccessGate;
-import com.acttub.actingapi.schema.ConsentAction;
+import com.acttub.actingapi.platform.schema.ConsentAction;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;

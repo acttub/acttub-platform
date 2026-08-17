@@ -1,4 +1,4 @@
-package com.acttub.actingapi.schema;
+package com.acttub.actingapi.platform.schema;
 import jakarta.persistence.Converter;
 public enum OperationStatus implements PgEnum {
     PENDING("pending"), RUNNING("running"), SUCCEEDED("succeeded"), FAILED("failed");

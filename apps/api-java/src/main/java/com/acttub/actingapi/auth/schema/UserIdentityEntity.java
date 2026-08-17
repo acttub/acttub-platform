@@ -1,5 +1,5 @@
 package com.acttub.actingapi.auth.schema;
-import com.acttub.actingapi.schema.*;
+import com.acttub.actingapi.platform.schema.*;
 import java.time.Instant; import java.util.UUID;
 import jakarta.persistence.*; import org.hibernate.annotations.JdbcType;
 @Entity @Table(name="user_identities")

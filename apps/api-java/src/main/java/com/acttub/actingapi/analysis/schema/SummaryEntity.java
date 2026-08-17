@@ -1,5 +1,5 @@
 package com.acttub.actingapi.analysis.schema;
-import com.acttub.actingapi.schema.AppGeneratedUuidEntity; import java.time.Instant; import java.util.UUID; import com.fasterxml.jackson.databind.JsonNode; import jakarta.persistence.*; import org.hibernate.annotations.JdbcTypeCode; import org.hibernate.type.SqlTypes;
+import com.acttub.actingapi.platform.schema.AppGeneratedUuidEntity; import java.time.Instant; import java.util.UUID; import com.fasterxml.jackson.databind.JsonNode; import jakarta.persistence.*; import org.hibernate.annotations.JdbcTypeCode; import org.hibernate.type.SqlTypes;
 @Entity @Table(name="summaries")
 public class SummaryEntity extends AppGeneratedUuidEntity {
     @Column(name="session_id",nullable=false) UUID sessionId;

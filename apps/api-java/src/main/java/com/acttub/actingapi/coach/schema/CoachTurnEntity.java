@@ -1,7 +1,7 @@
 package com.acttub.actingapi.coach.schema;
 import java.time.Instant; import java.util.UUID; import jakarta.persistence.*; import org.hibernate.annotations.JdbcType;
-import com.acttub.actingapi.schema.TurnRole;
-import com.acttub.actingapi.schema.PgEnumJdbcType;
+import com.acttub.actingapi.platform.schema.TurnRole;
+import com.acttub.actingapi.platform.schema.PgEnumJdbcType;
 @Entity @Table(name="coach_turns")
 public class CoachTurnEntity {
     @Id @GeneratedValue(strategy=GenerationType.IDENTITY) @Column(name="id") Long id; @Column(name="session_id",nullable=false) UUID sessionId; @Column(name="turn_index",nullable=false) int turnIndex;

@@ -1,4 +1,4 @@
-package com.acttub.actingapi.schema;
+package com.acttub.actingapi.platform.schema;
 import jakarta.persistence.Converter;
 public enum ConsentType implements PgEnum {
     TERMS("terms"), PRIVACY("privacy"), AI_ANALYSIS("ai_analysis");

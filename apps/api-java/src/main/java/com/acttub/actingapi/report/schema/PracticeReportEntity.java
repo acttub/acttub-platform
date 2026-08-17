@@ -1,6 +1,6 @@
 package com.acttub.actingapi.report.schema;
 import java.time.Instant; import java.util.UUID; import com.fasterxml.jackson.databind.JsonNode; import jakarta.persistence.*; import org.hibernate.annotations.JdbcTypeCode; import org.hibernate.type.SqlTypes;
-import com.acttub.actingapi.schema.AppGeneratedUuidEntity;
+import com.acttub.actingapi.platform.schema.AppGeneratedUuidEntity;
 @Entity @Table(name="practice_reports")
 public class PracticeReportEntity extends AppGeneratedUuidEntity {
     @Column(name="practice_session_id",nullable=false) UUID practiceSessionId; @Column(name="report_type",nullable=false) String reportType;
