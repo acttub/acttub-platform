@@ -12,10 +12,10 @@ import {
   authorName,
   getCategories,
   getPosts,
-  type CommunityCategory,
   type CommunityPost,
 } from "@/lib/api/v2/community";
 import { errorMessage } from "@/lib/api/v2/errors";
+import { useResource } from "@/lib/react/use-resource";
 import { useOptionalAuth } from "@/features/auth/use-optional-auth";
 import { CommunityShell, Notice, PrimaryButton, relativeTime } from "./shell";
 
@@ -24,7 +24,14 @@ const ALL = "all";
 export function CommunityBoard() {
   // 가입 전에도 읽을 수 있다. 글쓰기 버튼만 로그인으로 보낸다.
   const { loggedIn } = useOptionalAuth();
-  const [categories, setCategories] = useState<CommunityCategory[]>([]);
+  // 탭을 못 받아도 전체 목록은 볼 수 있다. 실패를 화면에 알리지 않는 것이 일부러이므로
+  // 이 조회의 state 는 읽지 않고 답만 꺼낸다.
+  const categoryList = useResource(
+    "categories",
+    (_, signal) => getCategories({ signal }),
+    "게시판을 불러오지 못했어요.",
+  );
+  const categories = categoryList.state === "ready" ? categoryList.data : [];
   const [active, setActive] = useState<string>(ALL);
   const [posts, setPosts] = useState<CommunityPost[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
@@ -33,16 +40,6 @@ export function CommunityBoard() {
   const [error, setError] = useState<string | null>(null);
   // 정적 export라 서버 시각이 없다. 목록이 온 뒤에 한 번 읽어 프리렌더와 어긋나지 않게 한다.
   const [now, setNow] = useState<number | null>(null);
-
-  useEffect(() => {
-    const controller = new AbortController();
-    getCategories({ signal: controller.signal })
-      .then(setCategories)
-      .catch(() => {
-        // 탭이 없어도 전체 목록은 볼 수 있다. 굳이 화면을 막지 않는다.
-      });
-    return () => controller.abort();
-  }, []);
 
   // 탭을 바꾸는 순간 목록을 비우고 다시 부른다. setState 는 effect 안이 아니라
   // 이 이벤트 핸들러에서 한다 — effect 안에서 부르면 렌더가 한 번 더 돈다.
