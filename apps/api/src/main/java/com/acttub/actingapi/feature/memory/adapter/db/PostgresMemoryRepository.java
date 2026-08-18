@@ -167,10 +167,24 @@ public class PostgresMemoryRepository implements MemoryRepository, CoachMemory {
         return new PriorContext(values, context.earlierConversation(), context.pendingTakes());
     }
 
-    /** 같은 연습의 지난 대화와, 지난 연습에서 아직 안 해본 것 (`store.py:get_prior_practice_context`). */
+    /** 지난 대화 발췌에 담는 마지막 턴 수. 여섯이면 배우·코치 세 왕복이다. */
+    private static final int EXCERPT_TURNS = 6;
+
+    /** 발췌 한 턴의 길이 상한. 프롬프트 쪽 전체 상한(1,200자)을 발췌가 다 먹지 않게 한다. */
+    private static final int EXCERPT_TURN_CHARS = 120;
+
+    /**
+     * 같은 연습의 지난 대화와, 지난 연습에서 아직 안 해본 것.
+     *
+     * <p>지난 대화는 요약 칸이 아니라 <b>저장된 턴에서 발췌</b>한다. 요약 칸
+     * ({@code conversation_summary})은 채우는 코드가 없어 늘 빈 값이었고, 그래서
+     * "같은 연습 다시 열기"가 사실상 빈 껍데기였다 — dev 실측으로 닫힌 대화 5건
+     * 전부 요약이 비어 있었다. 턴 원문은 이미 남아 있으므로 모델 호출 없이 진짜
+     * 재료를 쓸 수 있고, 요약과 달리 지어낼 여지도 없다.
+     */
     public PriorPracticeContext priorContext(UUID userId, UUID practiceSessionId) {
-        List<String> earlier = jdbc.queryForList("""
-                SELECT coach.conversation_summary
+        List<UUID> closed = jdbc.queryForList("""
+                SELECT coach.id
                 FROM coach_sessions coach
                 JOIN practice_sessions practice ON practice.id=coach.practice_session_id
                 WHERE coach.practice_session_id=?
@@ -178,7 +192,8 @@ public class PostgresMemoryRepository implements MemoryRepository, CoachMemory {
                   AND practice.user_id=?
                 ORDER BY coach.created_at DESC
                 LIMIT 1
-                """, String.class, practiceSessionId, userId);
+                """, UUID.class, practiceSessionId, userId);
+        String excerpt = closed.isEmpty() ? null : conversationExcerpt(closed.getFirst());
         // 가장 최근에 나온 카드. 이번 연습 것도 포함한다 — 같은 연습을 다시 열었다면
         // 그때 만든 카드가 바로 "지난번에 해보기로 한 것" 이다.
         List<String> report = jdbc.queryForList("""
@@ -189,10 +204,36 @@ public class PostgresMemoryRepository implements MemoryRepository, CoachMemory {
                 ORDER BY card.created_at DESC
                 LIMIT 1
                 """, String.class, userId);
-        String summary = earlier.isEmpty() ? null : PythonText.strip(earlier.getFirst());
         return new PriorPracticeContext(
-                summary == null || summary.isEmpty() ? null : summary,
+                excerpt,
                 pendingTakes(report.isEmpty() ? null : report.getFirst()));
+    }
+
+    /**
+     * 닫힌 대화의 마지막 턴들을 "배우:/코치:" 줄로 발췌한다.
+     *
+     * <p>마지막 {@value #EXCERPT_TURNS}턴만 쓴다 — 대화의 끝이 그 연습에서 도달한
+     * 지점이다. 턴 하나가 길면 {@value #EXCERPT_TURN_CHARS}자에서 자른다.
+     */
+    private String conversationExcerpt(UUID coachSessionId) {
+        List<String> lines = jdbc.query("""
+                SELECT role, text FROM (
+                    SELECT turn.role, turn.text, turn.turn_index
+                    FROM coach_turns turn
+                    WHERE turn.session_id=?
+                    ORDER BY turn.turn_index DESC
+                    LIMIT %d
+                ) latest ORDER BY latest.turn_index
+                """.formatted(EXCERPT_TURNS), (result, rowNumber) -> {
+            String speaker = "actor".equals(result.getString("role")) ? "배우" : "코치";
+            String text = PythonText.strip(result.getString("text"));
+            if (text.codePointCount(0, text.length()) > EXCERPT_TURN_CHARS) {
+                int end = text.offsetByCodePoints(0, EXCERPT_TURN_CHARS);
+                text = text.substring(0, end).stripTrailing() + "…";
+            }
+            return speaker + ": " + text;
+        }, coachSessionId);
+        return lines.isEmpty() ? null : String.join("\n", lines);
     }
 
     /**
