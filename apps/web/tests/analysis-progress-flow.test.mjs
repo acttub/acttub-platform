@@ -70,7 +70,9 @@ test("업로드가 끝나도 방금 고른 로컬 영상을 그대로 재생한�
 
   // 서버 playback_url 을 먼저 쓰면 업로드가 끝나는 순간 src 가 갈아끼워져
   // 영상 자리가 비었다 돌아오고 onDuration 이 다시 불린다.
-  assert.match(workspace, /const visibleVideoUrl = videoUrl \?\? detail\?\.playback_url/);
+  // 우선순위 자체는 tests/workspace-view.test.mjs 가 실행으로 지킨다 — 여기서는
+  // 화면이 그 판단을 거쳐서 영상을 튼다는 배선만 본다.
+  assert.match(workspace, /src=\{body\.video\.src\}/);
 
   // 대신 다른 연습을 열 때는 직전 로컬 원본을 버려야 남의 영상을 틀지 않는다.
   const openStart = workspace.indexOf("const openSession = useCallback");
@@ -336,7 +338,7 @@ test("failed면 같은 진행 자리에 그냥 시작 버튼을 보이고 근거
   assert.match(panel, /starting \? "질문 준비 중…" : "그냥 시작"/);
   assert.match(
     workspace,
-    /failed=\{analysisStatus === "failed"\}[\s\S]*startConversationWithoutEvidence\(activeId\)/,
+    /failed=\{body\.footer\.failed\}[\s\S]*startConversationWithoutEvidence\(activeId\)/,
   );
 });
 
@@ -345,7 +347,7 @@ test("장면 확인 중에도 상황·인물·목표는 읽기 전용으로 남�
 
   assert.match(
     workspace,
-    /<SceneForm[\s\S]*situation=\{visibleScene\.situation\}[\s\S]*character=\{visibleScene\.character\}[\s\S]*goal=\{visibleScene\.goal\}[\s\S]*locked=\{waitingForCoach\}/,
+    /<SceneForm[\s\S]*situation=\{visibleScene\.situation\}[\s\S]*character=\{visibleScene\.character\}[\s\S]*goal=\{visibleScene\.goal\}[\s\S]*locked=\{body\.sceneLocked\}/,
   );
   assert.match(workspace, /readOnly=\{disabled\}/);
 });

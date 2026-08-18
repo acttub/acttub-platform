@@ -76,11 +76,14 @@ import {
   uploadForCurrentFile,
   type PendingVideoUpload,
 } from "./pending-video-upload";
+import {
+  describeWorkspaceView,
+  type Mode,
+  type WorkspaceStatusChip,
+} from "./workspace-view";
 
 const NEW_PRACTICE_SUBTITLE = "영상을 올리면 질문이 시작돼요";
 
-/** 준비 → 업로드 → 대화 → 노트. 화면이 단계마다 대화 쪽으로 좁혀진다. */
-type Mode = "prep" | "blockage" | "uploading" | "preparing" | "chat" | "note";
 // "질문 받기"에서 먼저 띄운 압축·업로드가 남기는 것. 막힘 선택이 끝나면 begin 이 이어받는다.
 type PendingUploadResult = {
   intentId: string;
@@ -394,14 +397,28 @@ function WorkspaceInner() {
     });
   }, [detail, resetToPrep]);
 
+  // 지금 상태가 무엇을 그리는지는 전부 이 순수 함수가 정한다. 렌더보다 위에 있는 이유는
+  // 바로 아래 후기 훅이 그 결과를 인자로 받기 때문이다 — 훅은 조건부로 부를 수 없다.
+  const view = describeWorkspaceView({
+    mode,
+    videoFile: videoFile ? { name: videoFile.name } : null,
+    videoUrl,
+    playbackUrl: detail?.playback_url ?? null,
+    analysisStatus,
+    coachDone,
+    reportType: report?.report_type ?? null,
+    continueFrom,
+  });
+  const body = view.body;
+
   // 후기는 대화가 시작된 뒤에만 묻는다 — 영상만 올리고 나간 사람은 답할 게 없다.
-  const reviewArmed = mode === "chat" || mode === "note";
+  const reviewArmed = view.review.armed;
   const {
     trigger: reviewTrigger,
     openFromButton: openReview,
     close: closeReview,
     markDone: markReviewDone,
-  } = useExitReview(reviewArmed, mode === "note" ? "note" : "chat");
+  } = useExitReview(reviewArmed, view.review.kind);
 
   // 마치기로 연 후기 창을 닫으면 연습을 끝낸 것으로 보고 새 연습 준비 화면으로 돌아간다.
   // 커서 이탈·뒤로가기로 뜬 창은 보던 화면을 그대로 둔다.
@@ -812,7 +829,7 @@ function WorkspaceInner() {
     setActiveId(id);
     setDetail(null);
     // 다른 연습으로 넘어가므로 직전 연습의 로컬 원본은 버린다 — 남겨 두면
-    // visibleVideoUrl 이 그걸 먼저 잡아 남의 영상을 틀게 된다.
+    // 화면이 로컬 원본을 서버 주소보다 먼저 잡아 남의 영상을 틀게 된다.
     setVideoFile(null);
     setVideoUrl((prev) => {
       if (prev) URL.revokeObjectURL(prev);
@@ -996,9 +1013,6 @@ function WorkspaceInner() {
 
   if (!ready) return <div className="min-h-dvh bg-white" aria-busy="true" />;
 
-  const waitingForCoach = mode === "uploading" || mode === "preparing";
-  const step: 1 | 2 | 3 = waitingForCoach ? 3 : videoFile ? 2 : 1;
-  const chatLeading = mode === "chat" || mode === "note";
   const questionCount = messages.filter((message) => message.role === "ai").length;
   const displayName = nickname ?? "배우";
   const visibleScene = {
@@ -1006,11 +1020,6 @@ function WorkspaceInner() {
     character: detail?.character_context ?? character,
     goal: detail?.goal ?? goal,
   };
-  // 방금 고른 로컬 원본이 있으면 그걸 계속 재생한다. 서버 playback_url 을 먼저 쓰면
-  // 업로드가 끝나는 순간 src 가 blob → 원격으로 갈아끼워지면서 영상 자리가 한 번 비고,
-  // 다시 뜬 소스에서 onDuration 이 또 불려 진행 막대의 기준 길이까지 흔들린다.
-  // 목록에서 연 세션은 로컬 원본이 없으므로(openSession 이 지운다) 서버 주소를 쓴다.
-  const visibleVideoUrl = videoUrl ?? detail?.playback_url ?? null;
 
   const rail = (
     <SessionRail
@@ -1078,7 +1087,7 @@ function WorkspaceInner() {
               <p className="truncate text-[15px] font-black leading-4 tracking-[-0.03em]">
                 {detail?.situation?.trim() || "새 연습"}
               </p>
-              {mode === "chat" && questionCount > 0 ? (
+              {body.kind === "chat" && questionCount > 0 ? (
                 <p className="mt-0.5 truncate text-[11px] font-semibold leading-4 text-[#8b95a1] sm:hidden">
                   {questionOrdinal(questionCount)}
                 </p>
@@ -1094,7 +1103,7 @@ function WorkspaceInner() {
               </p>
             </div>
           )}
-          <StatusChip mode={mode} done={coachDone} />
+          <StatusChip chip={view.statusChip} />
           {/* 오른쪽 끝은 한 덩어리로 묶는다 — ml-auto 를 두 군데 주면 남는 폭을 나눠 갖는다. */}
           <div className="ml-auto flex shrink-0 items-center gap-2">
             {activeId ? (
@@ -1166,20 +1175,20 @@ function WorkspaceInner() {
           </div>
         </header>
 
-        {chatLeading ? (
+        {body.kind === "chat" || body.kind === "note" ? (
           <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden p-3 sm:p-4 lg:flex-row">
             <ScenePanel
               detail={detail}
               open={scenePanelOpen}
               onToggle={() => setScenePanelOpen((v) => !v)}
             />
-            {mode === "note" ? (
+            {body.kind === "note" ? (
               <NotePanel
                 report={report}
                 messages={messages}
                 busy={busy}
                 onBackToChat={
-                  report?.report_type === "blocked"
+                  body.backTo === "restart"
                     ? restartAfterBlocked
                     : () => setMode("chat")
                 }
@@ -1202,17 +1211,17 @@ function WorkspaceInner() {
                 error={error}
                 scrollRef={chatScrollRef}
                 onSend={(reply) => void send(reply)}
-                done={coachDone}
-                noteReady={report !== null}
+                done={body.done}
+                noteReady={body.noteReady}
                 onOpenNote={openNote}
               />
             )}
           </div>
-        ) : mode === "blockage" && videoUrl ? (
+        ) : body.kind === "blockage" ? (
           <div className="min-h-0 flex-1 overflow-y-auto bg-[#f7faff] px-4 py-6 sm:px-5 sm:py-8">
             <div className="mx-auto w-full max-w-[760px]">
               <BlockageSelectionFlow
-                videoUrl={videoUrl}
+                videoUrl={body.videoUrl}
                 scene={{ situation, character, goal }}
                 busy={busy}
                 onComplete={(selection) => void begin(selection)}
@@ -1222,15 +1231,15 @@ function WorkspaceInner() {
         ) : (
           <div className="min-h-0 flex-1 overflow-y-auto px-4 py-6 sm:px-5 sm:py-8">
             <div className="mx-auto flex w-full max-w-[760px] flex-col gap-4 sm:gap-6">
-              <Stepper current={step} />
-              {continueFrom ? (
+              <Stepper current={body.step} />
+              {body.continueBanner ? (
                 <div className="flex items-center justify-between gap-3 rounded-2xl bg-[#e8f3ff] px-4 py-3">
                   <p className="text-sm font-bold leading-6 text-[#1b64da]">
-                    {continueFrom.label
-                      ? `「${continueFrom.label}」 연습의 대화를 이어받아요`
+                    {body.continueBanner.label
+                      ? `「${body.continueBanner.label}」 연습의 대화를 이어받아요`
                       : "지난 연습의 대화를 이어받아요"}
                   </p>
-                  {mode === "prep" ? (
+                  {body.continueBanner.dismissible ? (
                     <button
                       type="button"
                       onClick={() => setContinueFrom(null)}
@@ -1241,20 +1250,16 @@ function WorkspaceInner() {
                   ) : null}
                 </div>
               ) : null}
-              {visibleVideoUrl ? (
+              {body.video.kind === "player" ? (
                 <VideoBox
-                  src={visibleVideoUrl}
-                  caption={
-                    mode === "uploading"
-                      ? "업로드 중에도 영상은 볼 수 있어요"
-                      : videoFile?.name ?? "올린 영상"
-                  }
+                  src={body.video.src}
+                  caption={body.video.caption}
                   onDuration={(durationMs) =>
                     reportProgress({ type: "duration", videoDurationMs: durationMs })
                   }
-                  onReselect={mode === "prep" ? reselectVideo : undefined}
+                  onReselect={body.video.reselectable ? reselectVideo : undefined}
                 />
-              ) : mode === "prep" ? (
+              ) : body.video.kind === "upload-zone" ? (
                 <UploadZone onClick={() => fileInputRef.current?.click()} />
               ) : null}
               <input
@@ -1268,38 +1273,38 @@ function WorkspaceInner() {
                 situation={visibleScene.situation}
                 character={visibleScene.character}
                 goal={visibleScene.goal}
-                locked={waitingForCoach}
+                locked={body.sceneLocked}
                 onSituation={setSituation}
                 onCharacter={setCharacter}
                 onGoal={setGoal}
               />
-              {mode === "uploading" ? (
+              {body.footer.kind === "start" ? (
+                <StartRow
+                  ready={body.footer.ready}
+                  onStart={() => {
+                    if (!videoFile) return;
+                    startUpload(videoFile);
+                    setMode("blockage");
+                    trackPracticeBlockageStarted();
+                  }}
+                />
+              ) : body.footer.phase === "upload" ? (
                 <ProgressPanel
                   pct={pct}
                   durationMs={videoDurationMs}
                   phase="upload"
                   pastDeadline={false}
                 />
-              ) : mode === "preparing" ? (
+              ) : (
                 <ProgressPanel
                   pct={pct}
                   durationMs={videoDurationMs}
                   phase="scan"
                   pastDeadline={pastDeadline}
-                  failed={analysisStatus === "failed"}
+                  failed={body.footer.failed}
                   starting={coachOpening}
                   onStartWithoutEvidence={() => {
                     if (activeId) startConversationWithoutEvidence(activeId);
-                  }}
-                />
-              ) : (
-                <StartRow
-                  ready={Boolean(videoFile)}
-                  onStart={() => {
-                    if (!videoFile) return;
-                    startUpload(videoFile);
-                    setMode("blockage");
-                    trackPracticeBlockageStarted();
                   }}
                 />
               )}
@@ -2411,18 +2416,16 @@ function NotePanel({
   );
 }
 
-function StatusChip({ mode, done }: { mode: Mode; done: boolean }) {
-  if (mode === "prep" || mode === "blockage") return null;
-  const map: Record<Exclude<Mode, "prep" | "blockage">, [string, string]> = {
+function StatusChip({ chip }: { chip: WorkspaceStatusChip | null }) {
+  if (!chip) return null;
+  const map: Record<WorkspaceStatusChip, [string, string]> = {
     uploading: ["업로드 중", "bg-[#e8f3ff] text-[#3182f6]"],
     preparing: ["질문 준비", "bg-[#e8f3ff] text-[#3182f6]"],
     chat: ["질문 대화 중", "bg-[#e8f3ff] text-[#3182f6]"],
+    "chat-done": ["대화 마침", "bg-[#e5f8ef] text-[#009959]"],
     note: ["연습 노트", "bg-[#e5f8ef] text-[#009959]"],
   };
-  // 대화가 끝나도 노트로 넘어가기 전까지는 mode 가 chat 이다. 그동안 "대화 중"이라고
-  // 하면 화면과 어긋나므로 끝났다고 말한다.
-  const [label, tone] =
-    mode === "chat" && done ? ["대화 마침", "bg-[#e5f8ef] text-[#009959]"] : map[mode];
+  const [label, tone] = map[chip];
   return (
     <span className={`shrink-0 rounded-full px-2.5 py-1 text-[11.5px] font-black ${tone}`}>
       {label}

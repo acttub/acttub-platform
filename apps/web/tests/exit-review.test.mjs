@@ -61,7 +61,10 @@ test("커서 이탈은 데스크톱에서만 건다", () => {
 
 
 test("대화가 시작된 뒤에만 후기를 묻는다", () => {
-  assert.match(workspace, /const reviewArmed = mode === "chat" \|\| mode === "note";/);
+  // 어느 화면에서 묻는지는 tests/workspace-view.test.mjs 가 실행으로 지킨다 —
+  // 여기서는 후기 훅이 그 판단을 그대로 받아 간다는 배선을 본다.
+  assert.match(workspace, /const reviewArmed = view\.review\.armed;/);
+  assert.match(workspace, /useExitReview\(reviewArmed, view\.review\.kind\)/);
 });
 
 test("연습 노트의 마치기도 새 창이 아니라 같은 후기 창을 연다", () => {
