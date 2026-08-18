@@ -85,6 +85,10 @@ export function MemoryPanel() {
   const [savedField, setSavedField] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // 이 조회도 useResource 로 접히지 않는다 — 답으로 세우는 items·drafts 를 저장·한 칸
+  // 지우기·전부 지우기·타이핑 네 길이 계속 바꾼다. 훅이 데이터를 들면 그 갱신을 얹을
+  // 자리가 없어 override 표와 "전부 지웠음" 표시를 따로 들어야 하고, 그러면 상태가
+  // 줄기는커녕 늘어난다.
   useEffect(() => {
     if (!ready) return;
     const controller = new AbortController();

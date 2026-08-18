@@ -52,6 +52,9 @@ export function CommunityBoard() {
     setError(null);
   }
 
+  // 이 조회는 useResource 로 접히지 않는다 — 답이 화면의 전부가 아니라 **첫 장**이고,
+  // 더 보기가 그 위에 쌓는다(loadMore). 훅이 데이터를 들면 쌓을 자리가 없다. 위
+  // selectCategory 가 렌더 밖에서 미리 비우는 것도 함께 옮길 수 없다.
   useEffect(() => {
     const controller = new AbortController();
     getPosts({

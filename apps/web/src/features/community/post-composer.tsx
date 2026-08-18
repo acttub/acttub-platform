@@ -58,6 +58,11 @@ export function PostComposer({ postId }: { postId?: string }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // 아래 두 조회도 useResource 로 접히지 않는다 — 이 화면은 오류를 그리는 자리가 하나이고
+  // 조회 둘과 저장 하나가 그것을 나눠 쓴다. 훅이 오류를 들면 submit() 의 setError(null) 이
+  // 조회 실패를 지우지 못하고, 훅의 message 를 state 로 옮기는 이펙트는
+  // react-hooks/set-state-in-effect 가 막는다. 뒤엣것은 답을 폼 초기값으로 심는 일이라
+  // 훅이 들어도 같은 값을 state 가 한 벌 더 들어야 한다.
   useEffect(() => {
     if (!ready || editing) return;
     const controller = new AbortController();
