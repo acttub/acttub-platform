@@ -24,7 +24,7 @@ import {
   listConsentDocuments,
   recordConsent,
 } from "@/lib/api/v2/consents";
-import { ApiError } from "@/lib/api/v2/errors";
+import { ApiError, errorMessage } from "@/lib/api/v2/errors";
 import type { ConsentDocument } from "@/lib/api/v2/types";
 import { sanitizeNextPath } from "@/lib/auth/next-path";
 import { getStoredUser, isLoggedIn } from "@/lib/auth/token-store";
@@ -102,7 +102,7 @@ function TermsGateContent() {
         if (!active) return;
         setState({
           kind: "error",
-          message: error instanceof Error ? error.message : "약관 문서를 불러오지 못했어요.",
+          message: errorMessage(error, "약관 문서를 불러오지 못했어요."),
         });
       }
     }

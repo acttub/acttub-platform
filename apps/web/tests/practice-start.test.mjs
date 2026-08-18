@@ -208,6 +208,19 @@ test("Error 가 아닌 것이 던져지면 보여 줄 말을 대신 채운다", 
   assert.equal(result.cause, "웬 문자열");
 });
 
+test("Error 인데 할 말이 비어 있어도 화면이 빈 줄을 그리지 않는다", async () => {
+  apiStub();
+
+  // 서버가 detail 을 빈 문자열로 주면 ApiError.message 가 빈다. 옛 코드는 그것을 그대로
+  // 화면에 실어 오류 자리가 아무 말도 없이 떴다.
+  const result = await startPractice(
+    startInput({ upload: Promise.reject(new Error("")) }),
+  );
+
+  assert.equal(result.ok, false);
+  assert.equal(result.message, "문제가 생겼어요. 다시 시도해 주세요.");
+});
+
 // --- startVideoUpload ---
 
 /** prepareVideoUpload 자리에 끼우는 가짜. 압축 진행률을 부를지 고를 수 있다. */

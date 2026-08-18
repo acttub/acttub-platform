@@ -13,13 +13,13 @@ import {
   updatePost,
   type CommunityCategory,
 } from "@/lib/api/v2/community";
+import { errorMessage } from "@/lib/api/v2/errors";
 import { useRequireAuth } from "@/features/auth/use-require-auth";
 import {
   AnonymousToggle,
   CommunityShell,
   Notice,
   PrimaryButton,
-  errorMessage,
 } from "./shell";
 
 const TITLE_MAX = 100;

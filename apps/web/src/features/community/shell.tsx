@@ -127,10 +127,6 @@ export function relativeTime(iso: string, now: number | null): string {
   });
 }
 
-export function errorMessage(cause: unknown, fallback: string): string {
-  return cause instanceof Error && cause.message ? cause.message : fallback;
-}
-
 /** 익명 토글. 글쓰기와 댓글 두 곳에서 같은 모양으로 쓴다. */
 export function AnonymousToggle({
   checked,

@@ -1,6 +1,6 @@
 import { MAX_DURATION_MS, MAX_UPLOAD_BYTES, MOCK_S3_UPLOAD } from "../../config/env";
 import { apiFetch } from "./client";
-import { ApiError } from "./errors";
+import { ApiError, errorMessage } from "./errors";
 import type {
   UploadCompleteResponse,
   UploadIntentRequest,
@@ -69,17 +69,13 @@ function abortError(signal?: AbortSignal): Error {
   return error;
 }
 
-function messageOf(error: unknown, fallback: string): string {
-  return error instanceof Error && error.message ? error.message : fallback;
-}
-
 function asUploadError(
   stage: UploadStage,
   error: unknown,
   fallback: string,
 ): UploadError {
   if (error instanceof UploadError) return error;
-  return new UploadError(stage, messageOf(error, fallback), error);
+  return new UploadError(stage, errorMessage(error, fallback), error);
 }
 
 function emitProgress(

@@ -22,6 +22,7 @@ import {
   type CommunityComment,
   type CommunityPost,
 } from "@/lib/api/v2/community";
+import { errorMessage } from "@/lib/api/v2/errors";
 import { useOptionalAuth } from "@/features/auth/use-optional-auth";
 import { ItemMenu, ModerationDialog, type ModerationTarget } from "./moderation";
 import {
@@ -30,7 +31,6 @@ import {
   Notice,
   PrimaryButton,
   QuietButton,
-  errorMessage,
   relativeTime,
 } from "./shell";
 

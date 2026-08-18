@@ -15,8 +15,9 @@ import {
   type CommunityCategory,
   type CommunityPost,
 } from "@/lib/api/v2/community";
+import { errorMessage } from "@/lib/api/v2/errors";
 import { useOptionalAuth } from "@/features/auth/use-optional-auth";
-import { CommunityShell, Notice, PrimaryButton, errorMessage, relativeTime } from "./shell";
+import { CommunityShell, Notice, PrimaryButton, relativeTime } from "./shell";
 
 const ALL = "all";
 

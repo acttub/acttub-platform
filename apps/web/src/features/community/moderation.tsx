@@ -14,7 +14,8 @@ import {
   type ReportReason,
   type ReportTargetType,
 } from "@/lib/api/v2/community";
-import { errorMessage, PrimaryButton, QuietButton } from "./shell";
+import { errorMessage } from "@/lib/api/v2/errors";
+import { PrimaryButton, QuietButton } from "./shell";
 
 export type ModerationTarget = {
   type: ReportTargetType;
