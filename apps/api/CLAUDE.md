@@ -140,5 +140,3 @@ Java 21 + Spring Boot 3.4. **dev·운영 모두 여기가 트래픽을 받습니
 ⚠ **`OpenApiSnapshotIT`는 자기 스냅샷과 비교합니다.** `UPDATE_OPENAPI_SNAPSHOT=1`로 다시 뜨면 무엇을 바꿨든 초록입니다. 바깥 정본이 사라졌으므로 이 한계는 **구조적**이고, **스냅샷 diff를 눈으로 보는 것이 유일한 방어**입니다.
 
 **잡 이름이 곧 required status check의 context입니다.** 이름을 바꾸거나 잡을 지우면 ruleset의 required check에서도 함께 고칩니다 — 어긋나면 **영원히 오지 않는 관문**이 생겨 이후 PR이 전부 막힙니다.
-
-🔥 **`SOMA-403` 머지 시점에 아직 맞추지 않았습니다.** 4단계가 `contract-harness`·`contract-harness-java`를 지웠고 5단계가 `api-java (…)`를 `api (…)`로 개명했습니다. **머지 직전에 ruleset을 `web (lint · typecheck · test · build)`·`api (gradle test · Testcontainers)` 둘로 맞추고 이 문단을 지웁니다.**
