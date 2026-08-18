@@ -98,11 +98,18 @@ export function MemoryPanel() {
           Object.fromEntries(res.items.map((i) => [i.field, i.value])),
         );
       } catch {
+        // 취소된 조회는 실패가 아니다. 세션이 만료되거나 다른 탭에서 로그아웃하면
+        // useRequireAuth 가 ready 를 다시 눕히고(use-require-auth.ts 의 redirectToLogin)
+        // 이 이펙트가 정리되며 조회를 끊는데, 그것을 걸러내지 않아 로그인 화면으로
+        // 넘어가기 전에 "불러오지 못했어요" 가 스쳤다.
+        if (controller.signal.aborted) return;
         // 못 불러왔을 때 빈 화면과 구분돼야 한다. 빈 상태로 보이면 배우가
         // "코치가 아무것도 모르는구나" 로 잘못 읽는다.
         setError("지금은 불러오지 못했어요. 잠시 후 새로고침해 주세요.");
       } finally {
-        setLoading(false);
+        // 끊긴 조회가 로딩을 끄면, ready 가 다시 서서 새로 물을 때 로딩 표시 없이
+        // 빈 화면이 먼저 보인다. loading 은 한 번 false 가 되면 다시 true 로 서지 않는다.
+        if (!controller.signal.aborted) setLoading(false);
       }
     })();
     return () => controller.abort();
