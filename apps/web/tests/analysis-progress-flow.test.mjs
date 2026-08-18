@@ -18,22 +18,6 @@ function between(source, startMarker, endMarker) {
   return source.slice(start, end);
 }
 
-/**
- * 노트가 있는지 물어본 답이 그대로 전이에 실리는지. 목록에서 여는 길과 주소로 여는
- * 길이 같은 모양이라 둘이 이것을 공유한다(주소 사본은 커밋 5 가 없앤다).
- * 성공·실패 가지를 각각 잘라 본다 — 한 창에 이어 놓으면 어느 가지에 무엇이 있는지
- * 가리지 못하고 등장 순서만 보게 된다.
- */
-function assertNoteLookup(scope, idArg) {
-  const found = between(scope, `const found = await getReport(${idArg})`, "} catch {");
-  assert.match(found, /dispatch\(\{ type: "noteLoaded", report: found\.report \}\)/);
-  assert.doesNotMatch(found, /report: null/);
-
-  const missing = between(scope, "} catch {", "startConversationAfterAnalysis");
-  assert.match(missing, /dispatch\(\{ type: "noteLoaded", report: null \}\)/);
-  assert.doesNotMatch(missing, /report: found\.report/);
-}
-
 const {
   coachMessageText,
   createCoachStartCoordinator,
@@ -427,45 +411,73 @@ test("막힌 대화를 처음부터 다시 열 때도 코치를 부르는 자리
   assert.match(restart, /setMessages\(\[\]\)/);
 });
 
-test("주소로 연 연습도 노트 조회 결과를 그대로 전이에 싣는다", () => {
+test("두 진입 경로가 같은 자리에서 화면을 옮기고 같은 자리에서 결과를 적는다", () => {
   const workspace = readWeb("src/features/workspace/workspace-app.tsx");
+  // 창을 deps 배열 앞에서 끊는다 — 삼키면 호출을 통째로 지워도 deps 에 남은 이름이
+  // 단언을 통과시킨다. 아래에서 이름이 아니라 부르는 모양으로 겨누는 것도 같은 이유다.
+  const byList = between(workspace, "const openSession = useCallback", "  }, [");
   const byUrl = between(
     workspace,
     "// 주소에 ?session= 이 실려 오면",
-    "const removeSession = useCallback",
-  );
-  assertNoteLookup(byUrl, "sessionParam");
-});
-
-test("복구한 세션은 대기 상태만 진행 자리를 거치고 analyzed면 대화로 간다", () => {
-  const workspace = readWeb("src/features/workspace/workspace-app.tsx");
-  const restore = between(
-    workspace,
-    "const openSession = useCallback",
-    "// 주소에 ?session=",
+    "    return () => {",
   );
 
   // 조회 전 진입 구간은 지난 연습의 흔적을 걷어낸다. 이 전이가 빠지면 앞 연습의
-  // "대화 마침"·훑어보기 실패 표시가 새로 연 화면에 그대로 남는다.
-  // 무엇을 걷어내는지는 tests/workspace-state.test.mjs 가 실행으로 지킨다.
-  const entry = between(restore, "const openSession = useCallback", "await getPracticeSession");
+  // "대화 마침"·훑어보기 실패 표시가 새로 연 화면에 그대로 남는다. 주소로 여는 길은
+  // 첫 진입만 맡아 걷어낼 흔적이 없다. 무엇을 걷어내는지는
+  // tests/workspace-state.test.mjs 가 실행으로 지킨다.
+  const entry = between(byList, "const openSession = useCallback", "await loadPracticeSession");
   assert.match(entry, /dispatch\(\{ type: "sessionOpening" \}\)/);
 
-  // 받아 온 상태로 화면을 먼저 옮기고, 그다음에 폴링·노트 조회로 갈린다.
-  // 어느 상태가 어느 자리로 가는지는 tests/workspace-state.test.mjs 가 실행으로 지킨다.
-  assert.match(
-    restore,
-    /dispatch\(\{ type: "sessionLoaded", status: loaded\.status \}\)[\s\S]*loaded\.status === "created" \|\| loaded\.status === "analyzing"[\s\S]*trackAnalysis\(id\)/,
+  // 두 길 다 받아 온 연습을 같은 자리로 넘기고, 열어 본 결과도 같은 자리에 적는다.
+  // 사본이 하나로 합쳐진 뒤로 이 배선이 그 합쳐짐 자체를 지킨다.
+  assert.match(byList, /onLoaded: showLoadedSession,/, "목록: 화면 옮기기");
+  assert.match(byList, /applyLoadOutcome\(result, id\)/, "목록: 결과 적기");
+  assert.match(byUrl, /showLoadedSession\(loaded\)/, "주소: 화면 옮기기");
+  assert.match(byUrl, /applyLoadOutcome\(result, sessionParam\)/, "주소: 결과 적기");
+
+  // 화면을 옮기는 그 한 자리가 실제로 이 전이를 싣는지. 어느 상태가 어느 화면으로
+  // 가는지는 tests/workspace-state.test.mjs 가 실행으로 지킨다.
+  const show = between(
+    workspace,
+    "const showLoadedSession = useCallback",
+    "const applyLoadOutcome = useCallback",
   );
-  // 훑어보기가 실패한 연습은 그 자리에서 멈춘다 — 폴링도 코치도 부르지 않는다.
-  const failedBranch = between(
-    restore,
-    'if (loaded.status === "failed")',
-    "const found = await getReport",
+  assert.match(show, /dispatch\(\{ type: "sessionLoaded", status: loaded\.status \}\)/);
+});
+
+test("열어 본 결과가 어느 자리로 가는지는 한 곳에서 갈린다", () => {
+  const workspace = readWeb("src/features/workspace/workspace-app.tsx");
+  // 목록에서 여는 길과 주소로 여는 길이 이 하나를 공유한다. 무엇이 그 결과를 정하는지는
+  // tests/session-loading.test.mjs 가, 각 전이가 화면을 어디로 옮기는지는
+  // tests/workspace-state.test.mjs 가 실행으로 지킨다 — 여기서는 배선만 본다.
+  const apply = between(
+    workspace,
+    "const applyLoadOutcome = useCallback",
+    "const openSession = useCallback",
   );
-  assert.match(failedBranch, /return;/);
-  assert.doesNotMatch(failedBranch, /trackAnalysis|startCoach|coachStarting|getReport/);
-  // 노트가 있으면 그것을 실어 노트 화면으로, 없으면 없다고 실어 대화 자리로 간다.
-  // 어느 쪽이 어느 자리인지는 tests/workspace-state.test.mjs 가 실행으로 지킨다.
-  assertNoteLookup(restore, "id");
+
+  assert.match(between(apply, 'case "analyzing":', 'case "note":'), /trackAnalysis\(id\)/);
+
+  // 가지를 각각 잘라 본다 — 한 창에 이어 놓으면 어느 가지에 무엇이 있는지 가리지
+  // 못하고 등장 순서만 보게 된다. 노트 가지는 옛 코드의 try 경계를 그대로 들고 있어
+  // 자기 안에서 한 번 더 갈린다.
+  const noteFound = between(apply, 'case "note":', "} catch {");
+  assert.match(noteFound, /dispatch\(\{ type: "noteLoaded", report: result\.report \}\)/);
+  assert.match(noteFound, /countStepOnce\(id, "result"\)/);
+  assert.doesNotMatch(noteFound, /report: null/);
+
+  // 그 자리가 터지면 노트가 없는 것과 같은 길로 간다 — 옛 코드의 안쪽 catch 다.
+  const noteFailed = between(apply, "} catch {", 'case "noNote":');
+  assert.match(noteFailed, /dispatch\(\{ type: "noteLoaded", report: null \}\)/);
+  assert.match(noteFailed, /startConversationAfterAnalysis\(id\)/);
+  assert.doesNotMatch(noteFailed, /result\.report/);
+
+  const noNote = between(apply, 'case "noNote":', 'case "analysisFailed":');
+  assert.match(noNote, /dispatch\(\{ type: "noteLoaded", report: null \}\)/);
+  assert.match(noNote, /startConversationAfterAnalysis\(id\)/);
+  assert.doesNotMatch(noNote, /result\.report/);
+
+  // 훑어보기가 실패한 연습과 자리를 뺏긴 응답은 나란히 아무것도 하지 않는다.
+  assert.match(apply, /case "analysisFailed":\s*case "superseded":\s*return;/);
 });

@@ -21,7 +21,7 @@ import wordmark from "@/assets/acttub-wordmark.png";
 import { getStoredDisplayName, loadDisplayName } from "@/features/auth/display-name";
 import { logout } from "@/lib/api/v2/auth";
 import { startCoach, replyCoach } from "@/lib/api/v2/coach";
-import { getReport, listReports } from "@/lib/api/v2/reports";
+import { listReports } from "@/lib/api/v2/reports";
 import {
   deletePracticeSession,
   getPracticeSession,
@@ -86,6 +86,10 @@ import {
   type PendingUploadResult,
   type PracticeStartFailure,
 } from "./practice-start";
+import {
+  loadPracticeSession,
+  type SessionLoadOutcome,
+} from "./session-loading";
 import {
   abandonedStage,
   currentReport,
@@ -786,6 +790,62 @@ function WorkspaceInner() {
     }
   }, [restoreCoach]);
 
+  // 받아 온 연습으로 화면을 옮긴다. 두 진입 경로가 이 자리를 공유하고, 그 앞뒤로
+  // 저마다 더 하는 일(주소로 온 길은 자기 자리부터 잡는다)은 각자에게 남는다.
+  const showLoadedSession = useCallback((loaded: PracticeSessionDetail) => {
+    setDetail(loaded);
+    // 목록·주소로 연 세션은 압축을 탔는지도 영상 길이도 모른다 — 무압축 쪽 시작점에서 출발한다.
+    enterAnalysis(loaded.status, false);
+    practiceAnalyticsContextRef.current = {
+      kind: loaded.blockage_kind,
+      subBranch: loaded.sub_branch as BlockageSelection["sub_branch"],
+      withEvidence: loaded.status === "analyzed",
+    };
+    dispatch({ type: "sessionLoaded", status: loaded.status });
+  }, [enterAnalysis]);
+
+  // 열어 본 결과를 화면에 적는다. 목록에서 여는 길과 주소로 여는 길이 이것을 함께
+  // 쓴다 — 결과를 적는 이 대목에서 갈리는 것은 못 불러왔을 때의 문구뿐이라 그것만
+  // 부르는 쪽에 남는다(loadFailed 는 여기까지 오지 않는다). 두 길이 그 밖에 저마다
+  // 다르게 하는 일은 이 함수보다 앞에 있다.
+  const applyLoadOutcome = useCallback(
+    (result: Exclude<SessionLoadOutcome, { kind: "loadFailed" }>, id: string) => {
+      switch (result.kind) {
+        case "analyzing":
+          trackAnalysis(id);
+          return;
+        case "note":
+          // 옛 코드에서 이 둘은 노트 조회의 try 안에 있었다 — 여기서 터지면 노트가
+          // 없는 것과 같은 길로 갔고, 그 경계를 그대로 둔다. 조회와 달리 사이에
+          // 기다림이 없어 자리를 뺏길 틈도 없다.
+          try {
+            dispatch({ type: "noteLoaded", report: result.report });
+            countStepOnce(id, "result");
+          } catch {
+            dispatch({ type: "noteLoaded", report: null });
+            startConversationAfterAnalysis(id);
+          }
+          return;
+        case "noNote":
+          dispatch({ type: "noteLoaded", report: null });
+          startConversationAfterAnalysis(id);
+          return;
+        // 훑어보기가 실패한 연습은 그 자리에서 멈추고 — 폴링도 코치도 부르지 않는다 —
+        // 자리를 뺏긴 응답은 남의 화면을 건드리지 않는다. 둘을 한 자리로 접지 않는
+        // 것은 무엇을 안 하는지가 서로 다른 까닭이기 때문이다.
+        case "analysisFailed":
+        case "superseded":
+          return;
+        default: {
+          // 결과가 하나 늘면 여기서 걸린다 — 안 그러면 조용히 아무것도 안 한다.
+          const unhandled: never = result;
+          return unhandled;
+        }
+      }
+    },
+    [countStepOnce, startConversationAfterAnalysis, trackAnalysis],
+  );
+
   const openSession = useCallback(async (id: string) => {
     const selected = sessions.find((session) => session.session_id === id);
     if (selected) {
@@ -818,53 +878,36 @@ function WorkspaceInner() {
     dialogueTurnCountRef.current = 0;
     practiceAnalyticsContextRef.current = null;
     setBusy(true);
+    const isCurrent = () => activeIdRef.current === id;
     try {
-      const loaded = await getPracticeSession(id);
-      if (activeIdRef.current !== id) return;
-      setDetail(loaded);
-      // 목록에서 연 세션은 압축을 탔는지도 영상 길이도 모른다 — 무압축 쪽 시작점에서 출발한다.
-      enterAnalysis(loaded.status, false);
-      practiceAnalyticsContextRef.current = {
-        kind: loaded.blockage_kind,
-        subBranch: loaded.sub_branch as BlockageSelection["sub_branch"],
-        withEvidence: loaded.status === "analyzed",
-      };
-      dispatch({ type: "sessionLoaded", status: loaded.status });
-      if (loaded.status === "created" || loaded.status === "analyzing") {
-        trackAnalysis(id);
-        return;
-      }
-      if (loaded.status === "failed") return;
-      try {
-        const found = await getReport(id);
-        if (activeIdRef.current !== id) return;
-        dispatch({ type: "noteLoaded", report: found.report });
-        countStepOnce(id, "result");
-      } catch {
-        if (activeIdRef.current !== id) return;
-        dispatch({ type: "noteLoaded", report: null });
-        startConversationAfterAnalysis(id);
-      }
+      const result = await loadPracticeSession({
+        sessionId: id,
+        isCurrent,
+        onLoaded: showLoadedSession,
+      });
+      // 못 불러온 것을 아래 catch 로 합류시킨다. 화면을 옮기다 터진 것과 같은 문구를
+      // 같은 가드로 띄우던 옛 자리를 그대로 두려는 것이고, 오류 처리기를 try 안에
+      // 두지 않아 한 실패가 두 번 세어지지도 않는다.
+      if (result.kind === "loadFailed") throw result.cause;
+      applyLoadOutcome(result, id);
     } catch {
       // 그새 다른 연습으로 넘어갔으면 이 실패는 지금 화면과 상관이 없다 —
       // 안쪽 가드와 같은 이유이고, 여기만 빠져 있었다.
-      if (activeIdRef.current === id) {
+      if (isCurrent()) {
         setError("연습을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.");
       }
     } finally {
       // 남의 요청이 지금 화면의 로딩을 풀면 안 된다. 이 가드로 두고 가는 busy 는
       // 다음 openSession 이 다시 켜거나 resetToPrep 이 푼다.
-      if (activeIdRef.current === id) setBusy(false);
+      if (isCurrent()) setBusy(false);
     }
   }, [
-    countStepOnce,
+    applyLoadOutcome,
     discardPendingUpload,
-    enterAnalysis,
     reportProgress,
     reports,
     sessions,
-    startConversationAfterAnalysis,
-    trackAnalysis,
+    showLoadedSession,
   ]);
 
   // 주소에 ?session= 이 실려 오면(연습 기록 링크·새로고침) 그 세션을 연다.
@@ -881,37 +924,22 @@ function WorkspaceInner() {
       (activeIdRef.current !== null && activeIdRef.current !== sessionParam);
     void (async () => {
       try {
-        const loaded = await getPracticeSession(sessionParam);
-        if (superseded()) return;
-        // 주소로 연 세션도 압축 여부·영상 길이를 모른다 — openSession 과 같은 자리에서 출발한다.
-        reportProgress({ type: "reset" });
-        activeIdRef.current = sessionParam;
-        setActiveId(sessionParam);
-        setDetail(loaded);
-        enterAnalysis(loaded.status, false);
-        practiceAnalyticsContextRef.current = {
-          kind: loaded.blockage_kind,
-          subBranch: loaded.sub_branch as BlockageSelection["sub_branch"],
-          withEvidence: loaded.status === "analyzed",
-        };
-        dialogueTurnCountRef.current = 0;
-        coachCoordinatorRef.current = null;
-        dispatch({ type: "sessionLoaded", status: loaded.status });
-        if (loaded.status === "created" || loaded.status === "analyzing") {
-          trackAnalysis(sessionParam);
-          return;
-        }
-        if (loaded.status === "failed") return;
-        try {
-          const found = await getReport(sessionParam);
-          if (superseded()) return;
-          dispatch({ type: "noteLoaded", report: found.report });
-          countStepOnce(sessionParam, "result");
-        } catch {
-          if (superseded()) return;
-          dispatch({ type: "noteLoaded", report: null });
-          startConversationAfterAnalysis(sessionParam);
-        }
+        const result = await loadPracticeSession({
+          sessionId: sessionParam,
+          isCurrent: () => !superseded(),
+          onLoaded: (loaded) => {
+            // 주소로 온 길은 자기 자리부터 잡는다 — 목록에서 여는 길은 조회 전에
+            // 이미 잡고 들어온다. 두 ref 대입은 화면을 옮기기 전에 끝내 둔다.
+            reportProgress({ type: "reset" });
+            activeIdRef.current = sessionParam;
+            setActiveId(sessionParam);
+            dialogueTurnCountRef.current = 0;
+            coachCoordinatorRef.current = null;
+            showLoadedSession(loaded);
+          },
+        });
+        if (result.kind === "loadFailed") throw result.cause;
+        applyLoadOutcome(result, sessionParam);
       } catch {
         if (!superseded()) setError("연습을 찾을 수 없어요.");
       }
@@ -922,11 +950,9 @@ function WorkspaceInner() {
   }, [
     ready,
     sessionParam,
-    countStepOnce,
-    enterAnalysis,
+    applyLoadOutcome,
     reportProgress,
-    startConversationAfterAnalysis,
-    trackAnalysis,
+    showLoadedSession,
   ]);
 
   const removeSession = useCallback(async () => {
