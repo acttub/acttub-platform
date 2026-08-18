@@ -58,6 +58,7 @@ public class PostgresPracticeSessionLedger implements PracticeSessionLedger {
             String blockageKind,
             String subBranch,
             String blockageDetail,
+            UUID continuedFrom,
             UUID requestId,
             String requestFingerprint) {
         validateSha256(requestFingerprint);
@@ -70,6 +71,7 @@ public class PostgresPracticeSessionLedger implements PracticeSessionLedger {
                 blockageKind,
                 subBranch,
                 blockageDetail,
+                continuedFrom,
                 requestId,
                 requestFingerprint));
     }
@@ -97,6 +99,7 @@ public class PostgresPracticeSessionLedger implements PracticeSessionLedger {
             String blockageKind,
             String subBranch,
             String blockageDetail,
+            UUID continuedFrom,
             UUID requestId,
             String requestFingerprint) {
         if (!lockFinalizedUpload(userId, uploadIntentId)) {
@@ -121,7 +124,8 @@ public class PostgresPracticeSessionLedger implements PracticeSessionLedger {
                     subtext,
                     blockage_kind,
                     sub_branch,
-                    blockage_detail
+                    blockage_detail,
+                    continued_from
                 )
                 VALUES (
                     ?,
@@ -132,6 +136,7 @@ public class PostgresPracticeSessionLedger implements PracticeSessionLedger {
                     ?,
                     ?,
                     NULL,
+                    ?,
                     ?,
                     ?,
                     ?
@@ -145,7 +150,8 @@ public class PostgresPracticeSessionLedger implements PracticeSessionLedger {
                 goal,
                 blockageKind,
                 subBranch,
-                blockageDetail);
+                blockageDetail,
+                continuedFrom);
 
         UUID operationId = insertAnalyzeOperation(
                 sessionId, userId, requestId, requestFingerprint);

@@ -121,6 +121,46 @@ class PostgresMemoryRepositoryPriorIT {
     }
 
     @Test
+    void aPracticeContinuedFromAChosenPracticeCarriesThatConversationOverTheLatest() {
+        // 끝난 연습의 카드에서 "이어서 새 연습" 을 눌렀다 — 가장 최근 대화가 아니라
+        // 고른 연습의 대화가 실려야 한다 (SOMA-417).
+        UUID userId = insertUser("choose@example.com");
+        UUID chosen = insertPractice(userId);
+        UUID chosenCoach = insertCoach(chosen, "closed", NOW.minusDays(3));
+        insertTurn(chosenCoach, 0, "actor", "고른 연습의 대화");
+        UUID latest = insertPractice(userId);
+        UUID latestCoach = insertCoach(latest, "closed", NOW);
+        insertTurn(latestCoach, 0, "actor", "가장 최근 연습의 대화");
+        UUID fresh = insertPractice(userId, chosen);
+
+        PostgresMemoryRepository.PriorPracticeContext context =
+                repository.priorContext(userId, fresh);
+
+        assertThat(context.earlierConversation())
+                .contains("고른 연습의 대화")
+                .doesNotContain("가장 최근 연습의 대화");
+        assertThat(context.fromSamePractice()).isFalse();
+    }
+
+    @Test
+    void aHiddenChosenPracticeFallsBackToTheLatestConversation() {
+        // 고른 연습이 그 사이 숨겨졌다 — 지운 대화를 되살리지 않고 최근 대화로 물러난다.
+        UUID userId = insertUser("choose-hidden@example.com");
+        UUID chosen = insertPractice(userId);
+        UUID chosenCoach = insertCoach(chosen, "closed", NOW.minusDays(3));
+        insertTurn(chosenCoach, 0, "actor", "숨겨진 연습의 대화");
+        jdbc.update("UPDATE practice_sessions SET hidden_at=? WHERE id=?", NOW, chosen);
+        UUID latest = insertPractice(userId);
+        UUID latestCoach = insertCoach(latest, "closed", NOW);
+        insertTurn(latestCoach, 0, "actor", "가장 최근 연습의 대화");
+        UUID fresh = insertPractice(userId, chosen);
+
+        assertThat(repository.priorContext(userId, fresh).earlierConversation())
+                .contains("가장 최근 연습의 대화")
+                .doesNotContain("숨겨진 연습의 대화");
+    }
+
+    @Test
     void aHiddenPracticesConversationDoesNotComeBack() {
         // 배우가 지운 연습의 대화가 새 연습에서 되살아나면 안 된다.
         UUID userId = insertUser("hidden@example.com");
@@ -143,6 +183,10 @@ class PostgresMemoryRepositoryPriorIT {
     }
 
     private UUID insertPractice(UUID userId) {
+        return insertPractice(userId, null);
+    }
+
+    private UUID insertPractice(UUID userId, UUID continuedFrom) {
         UUID uploadId = UUID.randomUUID();
         jdbc.update("""
                 INSERT INTO upload_intents (
@@ -154,10 +198,10 @@ class PostgresMemoryRepositoryPriorIT {
         jdbc.update("""
                 INSERT INTO practice_sessions (
                     id,user_id,upload_intent_id,status,situation,character_context,goal,
-                    blockage_kind,sub_branch,created_at,updated_at
+                    blockage_kind,sub_branch,continued_from,created_at,updated_at
                 ) VALUES (?, ?, ?, 'analyzed'::practice_status_t, '상황', '배우', '목표',
-                    '분석', '캐릭터 분석', ?, ?)
-                """, practiceId, userId, uploadId, NOW, NOW);
+                    '분석', '캐릭터 분석', ?, ?, ?)
+                """, practiceId, userId, uploadId, continuedFrom, NOW, NOW);
         return practiceId;
     }
 

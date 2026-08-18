@@ -2203,6 +2203,15 @@
               "type" : "null"
             } ],
             "title" : "Blockage Detail"
+          },
+          "continued_from" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "format" : "uuid"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Continued From"
           }
         },
         "required" : [ "blockage_kind", "character_context", "goal", "situation", "sub_branch", "upload_intent_id" ],

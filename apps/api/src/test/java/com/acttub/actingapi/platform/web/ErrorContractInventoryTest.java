@@ -131,7 +131,7 @@ class ErrorContractInventoryTest {
 
             covered("feature.practice.adapter.web.PracticeSessionController|422|invalid X-Request-Id",
                     1, "feature.practice.PracticeSessionEndpointIT"),
-            covered("feature.practice.app.PracticeSessionService|404|practice_session_not_found", 4,
+            covered("feature.practice.app.PracticeSessionService|404|practice_session_not_found", 5,
                     "feature.practice.PracticeSessionEndpointIT"),
             covered("feature.practice.app.PracticeSessionService|404|upload_intent_not_found", 1,
                     "feature.practice.PracticeSessionEndpointIT"),

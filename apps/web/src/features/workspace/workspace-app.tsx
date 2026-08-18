@@ -248,6 +248,13 @@ function WorkspaceInner() {
   const [report, setReport] = useState<PracticeReport | null>(null);
   const [busy, setBusy] = useState(false);
 
+  // 끝난 연습에서 "이어서 새 연습" 을 눌러 왔는지. 세션을 만들 때 실어 보내면
+  // 코치가 (가장 최근이 아니라) 이 연습의 대화를 이어받는다 (SOMA-417).
+  const [continueFrom, setContinueFrom] = useState<{
+    id: string;
+    label: string | null;
+  } | null>(null);
+
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const chatScrollRef = useRef<HTMLDivElement | null>(null);
   const uploadControllerRef = useRef<AbortController | null>(null);
@@ -363,6 +370,7 @@ function WorkspaceInner() {
     setSituation("");
     setCharacter("");
     setGoal("");
+    setContinueFrom(null);
     setVideoFile(null);
     setVideoUrl((prev) => {
       if (prev) URL.revokeObjectURL(prev);
@@ -371,6 +379,20 @@ function WorkspaceInner() {
     setDrawerOpen(false);
     replaceUrl("/practice/new");
   }, [discardPendingUpload, reportProgress]);
+
+  // 끝난 연습의 노트에서 "이어서 새 연습" — 새 연습 준비 화면으로 가되, 코치가 이
+  // 연습의 대화를 이어받도록 표시해 둔다. resetToPrep 이 표시를 지우므로 그 뒤에 켠다.
+  const continueFromCurrent = useCallback(() => {
+    const id = activeIdRef.current;
+    if (!id) return;
+    const situationLabel = detail?.situation.trim();
+    resetToPrep();
+    setContinueFrom({
+      id,
+      // 자리표시자(".")로 채워진 장면은 이름이 못 된다.
+      label: situationLabel && situationLabel.length > 1 ? situationLabel : null,
+    });
+  }, [detail, resetToPrep]);
 
   // 후기는 대화가 시작된 뒤에만 묻는다 — 영상만 올리고 나간 사람은 답할 게 없다.
   const reviewArmed = mode === "chat" || mode === "note";
@@ -643,9 +665,11 @@ function WorkspaceInner() {
           intentId,
           { situation, characterContext: character, goal },
           blockage,
+          continueFrom?.id,
         ),
         { signal: controller.signal },
       );
+      setContinueFrom(null);
       activeIdRef.current = session.session_id;
       coachCoordinatorRef.current = null;
       practiceAnalyticsContextRef.current = {
@@ -704,6 +728,7 @@ function WorkspaceInner() {
     situation,
     character,
     goal,
+    continueFrom,
     enterAnalysis,
     refreshList,
     reportProgress,
@@ -800,6 +825,7 @@ function WorkspaceInner() {
     setCoachDone(false);
     setCoachOpening(false);
     setCoachSessionId(null);
+    setContinueFrom(null);
     coachIdRef.current = null;
     dialogueTurnCountRef.current = 0;
     practiceAnalyticsContextRef.current = null;
@@ -1158,6 +1184,7 @@ function WorkspaceInner() {
                     : () => setMode("chat")
                 }
                 onFinish={openReview}
+                onContinueNext={continueFromCurrent}
               />
             ) : (
               <ChatPanel
@@ -1196,6 +1223,24 @@ function WorkspaceInner() {
           <div className="min-h-0 flex-1 overflow-y-auto px-4 py-6 sm:px-5 sm:py-8">
             <div className="mx-auto flex w-full max-w-[760px] flex-col gap-4 sm:gap-6">
               <Stepper current={step} />
+              {continueFrom ? (
+                <div className="flex items-center justify-between gap-3 rounded-2xl bg-[#e8f3ff] px-4 py-3">
+                  <p className="text-sm font-bold leading-6 text-[#1b64da]">
+                    {continueFrom.label
+                      ? `「${continueFrom.label}」 연습의 대화를 이어받아요`
+                      : "지난 연습의 대화를 이어받아요"}
+                  </p>
+                  {mode === "prep" ? (
+                    <button
+                      type="button"
+                      onClick={() => setContinueFrom(null)}
+                      className="shrink-0 text-xs font-black text-[#8b95a1] transition hover:text-[#4e5968]"
+                    >
+                      이어받지 않기
+                    </button>
+                  ) : null}
+                </div>
+              ) : null}
               {visibleVideoUrl ? (
                 <VideoBox
                   src={visibleVideoUrl}
@@ -2194,12 +2239,14 @@ function NotePanel({
   busy,
   onBackToChat,
   onFinish,
+  onContinueNext,
 }: {
   report: PracticeReport | null;
   messages: ChatMsg[];
   busy: boolean;
   onBackToChat: () => void;
   onFinish: () => void;
+  onContinueNext: () => void;
 }) {
   if (!report) {
     return (
@@ -2260,22 +2307,32 @@ function NotePanel({
         <PracticeReportCards report={report} />
       </div>
 
-      <div className="flex gap-2.5 border-t border-[#edf0f3] p-3.5 sm:p-4">
+      <div className="grid gap-2.5 border-t border-[#edf0f3] p-3.5 sm:p-4">
+        {/* 새 영상을 올려도 코치가 이 연습의 대화를 이어받는다 (SOMA-417) */}
         <button
           type="button"
-          onClick={onBackToChat}
-          className="h-12 flex-1 rounded-[14px] bg-[#f8fbff] text-sm font-black text-[#4e5968] transition hover:bg-[#eef2f6]"
+          onClick={onContinueNext}
+          className="h-12 rounded-[14px] bg-[#e8f3ff] text-sm font-black text-[#1b64da] transition hover:bg-[#d8eaff]"
         >
-          대화 다시 보기
+          이 연습에 이어서 새 연습
         </button>
-        {/* 헤더의 마치기와 같은 후기 창을 연다 — 새 창으로 새면 남겼는지 알 수 없다 */}
-        <button
-          type="button"
-          onClick={onFinish}
-          className="h-12 flex-1 rounded-[14px] bg-[#3182f6] text-sm font-black text-white transition hover:bg-[#1b64da]"
-        >
-          연습 마치기
-        </button>
+        <div className="flex gap-2.5">
+          <button
+            type="button"
+            onClick={onBackToChat}
+            className="h-12 flex-1 rounded-[14px] bg-[#f8fbff] text-sm font-black text-[#4e5968] transition hover:bg-[#eef2f6]"
+          >
+            대화 다시 보기
+          </button>
+          {/* 헤더의 마치기와 같은 후기 창을 연다 — 새 창으로 새면 남겼는지 알 수 없다 */}
+          <button
+            type="button"
+            onClick={onFinish}
+            className="h-12 flex-1 rounded-[14px] bg-[#3182f6] text-sm font-black text-white transition hover:bg-[#1b64da]"
+          >
+            연습 마치기
+          </button>
+        </div>
       </div>
     </section>
   );
