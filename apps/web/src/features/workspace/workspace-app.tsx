@@ -23,7 +23,6 @@ import { logout } from "@/lib/api/v2/auth";
 import { startCoach, replyCoach } from "@/lib/api/v2/coach";
 import { getReport, listReports } from "@/lib/api/v2/reports";
 import {
-  createPracticeSession,
   deletePracticeSession,
   getPracticeSession,
   listPracticeSessions,
@@ -37,8 +36,6 @@ import type {
   ReportRecord,
 } from "@/lib/api/v2/types";
 import { isLoggedIn } from "@/lib/auth/token-store";
-import { prepareVideoUpload } from "@/lib/media/upload-preflight";
-import { finalizeUpload, UploadError, uploadVideo } from "@/lib/api/v2/uploads";
 import {
   trackDialogueStarted,
   trackResultViewed,
@@ -73,10 +70,7 @@ import {
 } from "../practice/coach-contract";
 import { WaitingDots } from "../practice/waiting-dots";
 import { PracticeReportCards } from "../practice/practice-report-cards";
-import {
-  buildPracticeSessionRequest,
-  formatVideoDuration,
-} from "../practice/practice-setup-flow";
+import { formatVideoDuration } from "../practice/practice-setup-flow";
 import {
   analysisEventsForStatus,
   useAnalysisProgress,
@@ -85,6 +79,13 @@ import {
   uploadForCurrentFile,
   type PendingVideoUpload,
 } from "./pending-video-upload";
+import {
+  describeStartFailure,
+  startPractice,
+  startVideoUpload,
+  type PendingUploadResult,
+  type PracticeStartFailure,
+} from "./practice-start";
 import {
   abandonedStage,
   currentReport,
@@ -101,12 +102,6 @@ import {
 
 const NEW_PRACTICE_SUBTITLE = "영상을 올리면 질문이 시작돼요";
 
-// "질문 받기"에서 먼저 띄운 압축·업로드가 남기는 것. 막힘 선택이 끝나면 begin 이 이어받는다.
-type PendingUploadResult = {
-  intentId: string;
-  durationMs: number;
-  compressionRan: boolean;
-};
 type ChatMsg = { role: "ai" | "me"; text: string };
 
 export function WorkspaceApp() {
@@ -626,44 +621,12 @@ function WorkspaceInner() {
     trackPracticeVideoSelected(file.size, isReselect);
   };
 
-  // 압축·업로드는 "질문 받기"를 누른 순간 시작해서 막힘을 고르는 동안 뒤에서 돈다.
-  // 막힘 선택이 끝난 뒤에 시작하면 배우는 고르는 시간과 올리는 시간을 더해서 기다린다.
+  // 올리는 일 자체는 practice-start 가 한다. 여기 남는 것은 "지금 도는 업로드가
+  // 무엇인가" 를 들고 있는 두 ref 뿐이다.
   const startUpload = useCallback((file: File): PendingVideoUpload<PendingUploadResult> => {
     uploadControllerRef.current?.abort();
-    const controller = new AbortController();
-    uploadControllerRef.current = controller;
-    reportProgress({ type: "reset" });
-    const promise = (async (): Promise<PendingUploadResult> => {
-      // 압축이 "돌았는지"로 구간을 가른다. prepared.wasCompressed 는 결과물을 썼는지라
-      // 압축을 다 돌리고도 원본보다 크면 false 가 되고, 그러면 막대가 이미 40까지
-      // 올라간 채 업로드 구간이 0부터 시작해 40에서 한참 멈춰 있게 된다.
-      let compressionRan = false;
-      const prepared = await prepareVideoUpload(file, {
-        signal: controller.signal,
-        onCompressionProgress: (progress) => {
-          compressionRan = true;
-          reportProgress({ type: "compress", ratio: progress });
-        },
-      });
-      const { intentId } = await uploadVideo(prepared.file, {
-        durationMs: prepared.durationMs,
-        signal: controller.signal,
-        // 완료 처리는 begin 으로 미룬다 — 막힘을 고르다 그만두면 완료된 인텐트는
-        // 만료 스윕이 회수하지 않아 세션 없는 영상이 S3 에 남는다.
-        finalize: false,
-        onProgress: (progress) =>
-          reportProgress({
-            type: "upload",
-            percent: progress.percent,
-            compressed: compressionRan,
-          }),
-      });
-      return { intentId, durationMs: prepared.durationMs, compressionRan };
-    })();
-    // 막힘을 고르는 동안 실패하면 이 약속을 아무도 안 받고 있다 — 여기서 삼켜
-    // unhandled rejection 을 막고, 오류 처리는 begin 이 await 할 때 한 번만 한다.
-    promise.catch(() => undefined);
-    const pending = { file, controller, promise };
+    const pending = startVideoUpload(file, { onProgress: reportProgress });
+    uploadControllerRef.current = pending.controller;
     pendingUploadRef.current = pending;
     return pending;
   }, [reportProgress]);
@@ -680,29 +643,43 @@ function WorkspaceInner() {
     setError(null);
     dispatch({ type: "uploadStarted" });
     // 현재 영상으로 미리 띄운 업로드만 이어받는다. 파일이 다르면 옛 업로드를 버리고 새로 시작한다.
-    const pending = uploadForCurrentFile(
+    const { controller, promise } = uploadForCurrentFile(
       pendingUploadRef.current,
       video.file,
       startUpload,
     );
-    const { controller, promise } = pending;
-    // 업로드가 다 끝난 뒤 터지는 실패는 UploadError 가 아니라 Upload Stage 를 알 길이 없다.
-    // 이 표시가 없으면 세션 생성 실패가 전부 preflight 로 기록된다.
-    let reachedSessionCreate = false;
+    const reportFailure = (failure: PracticeStartFailure) => {
+      trackPracticeUploadFailed(failure.stage, failure.cause);
+      // 지금 도는 업로드가 아니면 화면은 이미 다른 것을 그리고 있다.
+      if (uploadControllerRef.current !== controller) return;
+      dispatch({ type: "uploadFailed" });
+      if (!failure.aborted) setError(failure.message);
+    };
+    const releaseUpload = () => {
+      if (uploadControllerRef.current === controller) uploadControllerRef.current = null;
+      if (pendingUploadRef.current?.controller === controller) {
+        pendingUploadRef.current = null;
+      }
+    };
+    const started = await startPractice({
+      upload: promise,
+      signal: controller.signal,
+      scene: { situation, characterContext: character, goal },
+      blockage,
+      continueFromId: continueFrom?.id,
+    });
+    // 실패 처리를 아래 try 안에 두면, 이 처리 자신이 터졌을 때 catch 가 같은 실패를
+    // 한 번 더 센다 — 옛 코드에서는 실패 처리가 catch 안에 있어 그럴 수 없었다.
+    if (!started.ok) {
+      try {
+        reportFailure(started);
+      } finally {
+        releaseUpload();
+      }
+      return;
+    }
     try {
-      const { intentId, durationMs, compressionRan } = await promise;
-      // 배우가 연습을 시작하겠다고 한 지금에서야 업로드를 확정한다.
-      await finalizeUpload(intentId, { signal: controller.signal });
-      reachedSessionCreate = true;
-      const { session } = await createPracticeSession(
-        buildPracticeSessionRequest(
-          intentId,
-          { situation, characterContext: character, goal },
-          blockage,
-          continueFrom?.id,
-        ),
-        { signal: controller.signal },
-      );
+      const { session, durationMs, compressionRan } = started;
       activeIdRef.current = session.session_id;
       coachCoordinatorRef.current = null;
       practiceAnalyticsContextRef.current = {
@@ -737,23 +714,12 @@ function WorkspaceInner() {
       );
       void refreshList();
     } catch (err) {
-      trackPracticeUploadFailed(
-        err instanceof UploadError
-          ? err.stage
-          : reachedSessionCreate ? "session_create" : "preflight",
-        err,
-      );
-      if (uploadControllerRef.current === controller) {
-        dispatch({ type: "uploadFailed" });
-        if (!(err instanceof Error && err.name === "AbortError")) {
-          setError(err instanceof Error ? err.message : "문제가 생겼어요. 다시 시도해 주세요.");
-        }
-      }
+      // 시작 자체의 실패는 결과로 오므로, 여기 닿는 것은 세션을 받아 화면을 갈아
+      // 끼우는 도중의 예외뿐이다. 옛 코드가 그것을 세션 생성 실패와 한 자리에
+      // 세고 있었고, 그대로 둔다.
+      reportFailure(describeStartFailure("session_create", err));
     } finally {
-      if (uploadControllerRef.current === controller) uploadControllerRef.current = null;
-      if (pendingUploadRef.current?.controller === controller) {
-        pendingUploadRef.current = null;
-      }
+      releaseUpload();
     }
   }, [
     screen,

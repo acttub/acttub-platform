@@ -241,15 +241,15 @@ test("질문 받기를 누르면 막힘을 고르기 전에 압축·업로드가
 
   const beginStart = workspace.indexOf("const begin = useCallback");
   const beginEnd = workspace.indexOf("const send = useCallback", beginStart);
+  assert.ok(beginStart !== -1 && beginEnd > beginStart, "begin 자리를 못 찾았다");
   const begin = workspace.slice(beginStart, beginEnd);
-  // begin 은 이미 도는 업로드를 이어받는다. 여기서 다시 압축부터 하면 두 번 올린다.
-  assert.match(begin, /await promise/);
-  assert.doesNotMatch(begin, /prepareVideoUpload\(/);
+  // begin 은 이미 도는 업로드를 이어받는다. 여기서 다시 띄우면 두 번 올린다.
+  assert.match(begin, /startPractice\(\{\s*upload: promise,/);
+  assert.doesNotMatch(begin, /prepareVideoUpload\(|startVideoUpload\(/);
 
-  // 완료 처리는 배우가 시작을 확정한 뒤에만 한다 — 미리 완료해 두면 도중에
-  // 그만둔 영상이 만료 스윕에 안 걸려 S3 에 남는다.
-  assert.match(workspace, /finalize: false/);
-  assert.match(begin, /finalizeUpload\(intentId/);
+  // 완료 처리를 시작 확정까지 미루는 것(미리 하면 도중에 그만둔 영상이 만료
+  // 스윕에 안 걸려 S3 에 남는다)은 practice-start 로 옮겨갔고,
+  // tests/practice-start.test.mjs 가 실행으로 지킨다.
 
   // 연습을 떠나거나 영상을 바꾸면 올리던 것을 끊는다.
   // 되돌리는 길은 이어받기를 켜고 가는 것과 안 켜고 가는 것 둘이고, 둘 다 이 자리를 지난다.
@@ -265,13 +265,14 @@ test("막힘 선택 완료 뒤에는 대화가 아니라 같은 진행 자리에
   const workspace = readWeb("src/features/workspace/workspace-app.tsx");
   const beginStart = workspace.indexOf("const begin = useCallback");
   const beginEnd = workspace.indexOf("const send = useCallback", beginStart);
+  assert.ok(beginStart !== -1 && beginEnd > beginStart, "begin 자리를 못 찾았다");
   const begin = workspace.slice(beginStart, beginEnd);
 
   // 그 전이가 무엇으로 가는지는 tests/workspace-state.test.mjs 가 실행으로 지킨다 —
-  // 여기서는 세션 생성과 폴링 사이 어디에 그것이 놓이는지를 본다.
+  // 여기서는 세션을 받은 자리와 폴링 사이 어디에 그것이 놓이는지를 본다.
   assert.match(
     begin,
-    /createPracticeSession[\s\S]*dispatch\(\{ type: "sessionCreated", status: session\.status \}\)[\s\S]*trackAnalysis\(session\.session_id\)/,
+    /startPractice\([\s\S]*dispatch\(\{ type: "sessionCreated", status: session\.status \}\)[\s\S]*trackAnalysis\(session\.session_id\)/,
   );
   assert.doesNotMatch(begin, /type: "coachStarting"|startCoach\(/);
 });
