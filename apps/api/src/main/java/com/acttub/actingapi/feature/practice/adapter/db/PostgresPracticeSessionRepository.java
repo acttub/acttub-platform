@@ -70,6 +70,17 @@ class PostgresPracticeSessionRepository implements PracticeSessionRepository {
     }
 
     @Override
+    public UUID parentOf(UUID userId, UUID sessionId) {
+        List<UUID> rows = jdbc.query("""
+                SELECT ps.continued_from
+                FROM practice_sessions ps
+                WHERE ps.id=? AND ps.user_id=? AND ps.hidden_at IS NULL
+                """, (row, number) -> row.getObject("continued_from", UUID.class),
+                sessionId, userId);
+        return rows.isEmpty() ? null : rows.getFirst();
+    }
+
+    @Override
     public AnalysisStatus status(UUID userId, UUID sessionId) {
         List<AnalysisStatus> rows = jdbc.query("""
                 SELECT ps.status::text AS status,
@@ -169,7 +180,8 @@ class PostgresPracticeSessionRepository implements PracticeSessionRepository {
         return """
                 SELECT ps.id,ps.user_id,ps.upload_intent_id,ps.status::text AS status,
                     ps.situation,ps.character_context,ps.goal,ps.blockage_kind,
-                    ps.sub_branch,ps.blockage_detail,ps.created_at,ps.updated_at
+                    ps.sub_branch,ps.blockage_detail,ps.continued_from,
+                    ps.created_at,ps.updated_at
                 FROM practice_sessions ps
                 """;
     }
@@ -186,6 +198,7 @@ class PostgresPracticeSessionRepository implements PracticeSessionRepository {
                 row.getString("blockage_kind"),
                 row.getString("sub_branch"),
                 row.getString("blockage_detail"),
+                row.getObject("continued_from", UUID.class),
                 row.getObject("created_at", OffsetDateTime.class),
                 row.getObject("updated_at", OffsetDateTime.class));
     }

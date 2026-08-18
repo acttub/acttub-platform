@@ -80,6 +80,7 @@ final class PracticeSessionDtos {
             String blockageKind,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String subBranch,
             @Schema(nullable = true) String blockageDetail,
+            @Schema(nullable = true) UUID continuedFrom,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) OffsetDateTime createdAt,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) OffsetDateTime updatedAt) {
     }

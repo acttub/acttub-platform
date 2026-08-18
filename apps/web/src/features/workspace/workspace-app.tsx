@@ -1357,6 +1357,28 @@ const SessionRail = memo(function SessionRail({
   onLogout: () => void;
 }) {
   const width = drawer ? "w-[300px]" : open ? "w-[280px]" : "w-16";
+  // 이어한 연습(continued_from)을 부모 밑에 차수로 묶는다 (SOMA-418). 부모가 목록에
+  // 없으면(숨김 등) 자식을 낱개로 승격한다 — 고아를 빈 묶음에 매달면 접근이 사라진다.
+  const finishedIds = new Set(finished.map((s) => s.session_id));
+  const childrenByRoot = new Map<string, PracticeSessionListItem[]>();
+  const roots: PracticeSessionListItem[] = [];
+  for (const s of finished) {
+    const parent = s.continued_from;
+    if (parent && parent !== s.session_id && finishedIds.has(parent)) {
+      childrenByRoot.set(parent, [...(childrenByRoot.get(parent) ?? []), s]);
+    } else {
+      roots.push(s);
+    }
+  }
+  childrenByRoot.forEach((list) =>
+    list.sort((a, b) => a.created_at.localeCompare(b.created_at)),
+  );
+  // 묶음은 가장 최근 차수 기준으로 띄운다 — 어제 이어한 묶음이 목록 바닥에 있으면 못 찾는다.
+  const newestOf = (s: PracticeSessionListItem) => {
+    const kids = childrenByRoot.get(s.session_id);
+    return kids?.length ? kids[kids.length - 1].created_at : s.created_at;
+  };
+  roots.sort((a, b) => newestOf(b).localeCompare(newestOf(a)));
   return (
     <aside
       className={`flex h-full shrink-0 flex-col border-r border-[#edf0f3] bg-[#f9fafb] ${width}`}
@@ -1413,16 +1435,32 @@ const SessionRail = memo(function SessionRail({
                 첫 영상을 올리면 여기에 쌓여요.
               </p>
             ) : (
-              finished.map((s) => (
-                <RailItem
-                  key={s.session_id}
-                  // ?? 는 빈 문자열을 통과시킨다 — 상황을 안 적은 세션이 제목 없이 렌더됐다.
-                  // 진행 중 목록(위)은 || 를 써서 여기만 어긋나 있었다.
-                  title={headlines.get(s.session_id)?.trim() || s.situation?.trim() || "제목 없는 연습"}
-                  meta={`${whenLabel(s.created_at)}${hasNote.has(s.session_id) ? " · 문장 남김" : ""}`}
-                  active={s.session_id === activeId}
-                  onClick={() => onOpen(s.session_id)}
-                />
+              roots.map((s) => (
+                <div key={s.session_id}>
+                  <RailItem
+                    // ?? 는 빈 문자열을 통과시킨다 — 상황을 안 적은 세션이 제목 없이 렌더됐다.
+                    // 진행 중 목록(위)은 || 를 써서 여기만 어긋나 있었다.
+                    title={headlines.get(s.session_id)?.trim() || s.situation?.trim() || "제목 없는 연습"}
+                    meta={`${whenLabel(s.created_at)}${hasNote.has(s.session_id) ? " · 문장 남김" : ""}`}
+                    active={s.session_id === activeId}
+                    onClick={() => onOpen(s.session_id)}
+                  />
+                  {(childrenByRoot.get(s.session_id) ?? []).map((child, index) => (
+                    <div
+                      key={child.session_id}
+                      className="ml-4 border-l-2 border-[#e5e8eb] pl-1.5"
+                    >
+                      <RailItem
+                        title={headlines.get(child.session_id)?.trim() || `${index + 2}차 연습`}
+                        meta={`${index + 2}차 · ${whenLabel(child.created_at)}${
+                          hasNote.has(child.session_id) ? " · 문장 남김" : ""
+                        }`}
+                        active={child.session_id === activeId}
+                        onClick={() => onOpen(child.session_id)}
+                      />
+                    </div>
+                  ))}
+                </div>
               ))
             )}
           </RailGroup>

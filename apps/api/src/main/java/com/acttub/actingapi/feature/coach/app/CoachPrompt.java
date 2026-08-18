@@ -83,6 +83,12 @@ public final class CoachPrompt {
             });
         }
 
+        if (!prior.sceneHistory().isEmpty()) {
+            lines.add("");
+            lines.add("### 이 장면에서 지금까지");
+            prior.sceneHistory().forEach(row -> lines.add("- " + row));
+        }
+
         if (prior.earlierConversation() != null) {
             lines.add("");
             lines.add(prior.fromSamePractice()

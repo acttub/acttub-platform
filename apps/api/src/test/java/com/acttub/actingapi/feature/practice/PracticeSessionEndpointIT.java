@@ -283,6 +283,41 @@ class PracticeSessionEndpointIT {
     }
 
     @Test
+    void continuingFromAChildAttachesToTheParentInstead() throws Exception {
+        // 묶음의 깊이는 2로 고정된다 — 자식에서 이어가면 손자가 아니라 형제가 된다 (SOMA-418).
+        UUID uploadA = insertUpload(USER_ID, "finalized", "chain-a.mp4");
+        UUID parent = UUID.fromString(json(create(
+                uploadA, UUID.randomUUID(), validBody(uploadA))).path("session_id").textValue());
+        UUID uploadB = insertUpload(USER_ID, "finalized", "chain-b.mp4");
+        UUID child = UUID.fromString(json(create(uploadB, UUID.randomUUID(),
+                withContinuedFrom(validBody(uploadB), parent))).path("session_id").textValue());
+        UUID uploadC = insertUpload(USER_ID, "finalized", "chain-c.mp4");
+        UUID third = UUID.fromString(json(create(uploadC, UUID.randomUUID(),
+                withContinuedFrom(validBody(uploadC), child))).path("session_id").textValue());
+
+        assertThat(jdbc.queryForObject(
+                "SELECT continued_from FROM practice_sessions WHERE id=?", UUID.class, child))
+                .isEqualTo(parent);
+        assertThat(jdbc.queryForObject(
+                "SELECT continued_from FROM practice_sessions WHERE id=?", UUID.class, third))
+                .isEqualTo(parent);
+
+        // 목록이 묶음 재료(continued_from)를 싣는다 — 화면이 이걸로 묶는다.
+        JsonNode listed = json(mvc.perform(get("/v2/practice-sessions")
+                        .header("Authorization", bearer(USER_ID)))
+                .andReturn());
+        for (JsonNode item : listed.path("sessions")) {
+            String id = item.path("session_id").textValue();
+            if (id.equals(parent.toString())) {
+                assertThat(item.path("continued_from").isNull()).isTrue();
+            } else {
+                assertThat(item.path("continued_from").textValue())
+                        .isEqualTo(parent.toString());
+            }
+        }
+    }
+
+    @Test
     void reanalysisHasTheSameIdempotentContract() throws Exception {
         UUID uploadId = insertUpload(USER_ID, "finalized", "video.mp4");
         UUID sessionId = UUID.fromString(json(create(
@@ -432,6 +467,12 @@ class PracticeSessionEndpointIT {
 
     private String bearer(UUID userId) {
         return "Bearer " + jwt.issueAccessToken(userId).value();
+    }
+
+    private static String withContinuedFrom(String body, UUID continuedFrom) {
+        return body.replace(
+                "\"blockage_detail\":null",
+                "\"blockage_detail\":null,\"continued_from\":\"" + continuedFrom + "\"");
     }
 
     private static String validBody(UUID uploadId) {

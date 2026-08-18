@@ -1319,6 +1319,8 @@ export interface components {
             sub_branch: string;
             /** Blockage Detail */
             blockage_detail?: string | null;
+            /** Continued From */
+            continued_from?: string | null;
             /**
              * Created At
              * Format: date-time
