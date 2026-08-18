@@ -269,6 +269,20 @@ class PracticeSessionEndpointIT {
     }
 
     @Test
+    void continuingFromAnInvisiblePracticeIsRejected() throws Exception {
+        // 없는(또는 남의·숨긴) 연습을 이어받겠다고 지정하면 세션을 만들지 않는다 (SOMA-417).
+        UUID uploadId = insertUpload(USER_ID, "finalized", "video.mp4");
+        String body = validBody(uploadId).replace(
+                "\"blockage_detail\":null",
+                "\"blockage_detail\":null,\"continued_from\":\"" + UUID.randomUUID() + "\"");
+
+        assertError(create(uploadId, UUID.randomUUID(), body),
+                404, "practice_session_not_found");
+        assertThat(jdbc.queryForObject(
+                "SELECT count(*) FROM practice_sessions", Integer.class)).isZero();
+    }
+
+    @Test
     void reanalysisHasTheSameIdempotentContract() throws Exception {
         UUID uploadId = insertUpload(USER_ID, "finalized", "video.mp4");
         UUID sessionId = UUID.fromString(json(create(
