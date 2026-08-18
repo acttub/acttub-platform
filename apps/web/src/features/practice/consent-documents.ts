@@ -38,6 +38,10 @@ export async function loadConsentDocuments(
   if (isLoggedIn()) {
     const serverPending = await fetchPendingConsents({ signal });
     if (serverPending.documents.length > 0) {
+      // ⚠ 여기는 취소를 보지 않는다. 답이 온 **뒤에** 화면을 떠나면 옛 코드는(`active`
+      // 플래그로 감쌌으므로) 심지 않았는데 여기서는 심는다. 해롭지 않다고 보고 그대로
+      // 둔다 — 서버가 "받을 동의가 남았다" 고 답한 것은 화면을 떠나도 참이고, 다음
+      // 진입이 서버를 다시 묻지 않게 하는 것이 이 캐시의 일이다.
       savePendingConsents(serverPending.documents);
       return { mode: "pending", documents: serverPending.documents };
     }

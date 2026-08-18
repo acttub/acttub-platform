@@ -1,8 +1,9 @@
 // 서버에서 하나를 읽어 화면에 그리는 일. 화면 아홉이 같은 마흔 줄을 저마다 다시 썼다 —
 // `useState` 셋(데이터·로딩·오류) + `useEffect` 안의 `AbortController` + `.catch` 로
 // 메시지 뽑기 + `finally` 로 로딩 끄기 + 정리에서 abort. 다시 쓰는 동안 갈라진 것이
-// 넷이고, 그중 둘은 조용한 버그다 — 취소를 걸러내지 않아 화면을 떠나며 오류를 그리고
-// (`memory-panel`), 오류 내용을 세워 두고는 렌더에서 버린다(`university-detail`).
+// 넷이고, 그중 하나는 조용한 버그였다 — 취소를 걸러내지 않아 화면을 떠나며 오류를
+// 그렸다(`memory-panel`). 오류 내용을 세워 두고 렌더에서 버리는 자리도 있는데
+// (`university-detail`), 그쪽은 목록 화면과 갈린 문구 정책이라 이 연작이 일부러 보존했다.
 //
 // 여기 담긴 것은 그 아홉이 **공유하는 것만**이다. 접히지 않는 것은 부르는 자리에 남는다 —
 // 목록 누적(cursor), 폼 초기값 시딩, 응답을 여러 상태로 흩어 담기. 그 셋을 억지로
@@ -27,7 +28,10 @@ export type Resource<T> =
   /**
    * 응답이 왔다. `receivedAt` 은 그 순간의 시각이다 — 페이지를 전부 빌드 시점에
    * 프리렌더하므로 서버 시각이 없고, 화면이 "3시간 전"·"마감 D-2" 를 재려면 응답이 온
-   * 뒤에 한 번 읽은 시각이 필요하다. 그것을 넷이 저마다 `setNow(Date.now())` 로 세웠다.
+   * 뒤에 한 번 읽은 시각이 필요하다. 그 시각을 답과 따로 든 자리가 넷인데 모양이 둘로
+   * 갈렸다 — `setNow(Date.now())` 둘(커뮤니티 목록·글 상세)과 `setToday(localDate())`
+   * 둘(입시 두 화면). 이것이 흡수한 것은 뒤엣 둘뿐이다. 앞엣 둘은 답을 그 뒤 사용자
+   * 행동이 바꾸는 자리라 이 훅으로 접히지 않았다.
    */
   | { state: "ready"; data: T; receivedAt: number }
   | { state: "failed"; message: string };
@@ -52,20 +56,20 @@ export function useResource<T>(
   fallbackMessage: string,
 ): Resource<T> {
   const [resource, setResource] = useState<Resource<T>>(() => beforeAnswer(key));
-  const [asked, setAsked] = useState(key);
+  const [askedKey, setAskedKey] = useState(key);
 
   // 키가 바뀐 **그 렌더에서** 되돌린다. 이펙트에서 하면 두 가지가 어긋난다 — 옛 답이 한
   // 프레임 그려지고(그것이 "남의 것을 든 화면"이다), 렌더가 한 번 더 돈다.
   //
   // 아래 `return` 이 옛 `resource` 를 그대로 주는데도 괜찮은 까닭: 렌더 중 setState 는
-  // React 가 이 렌더의 출력을 **통째로 버리고** 다시 부르게 하고, `setAsked` 가 늘 다른
+  // React 가 이 렌더의 출력을 **통째로 버리고** 다시 부르게 하고, `setAskedKey` 가 늘 다른
   // 값이라 그 재호출이 반드시 일어난다. 그래서 여기서 돌려주는 것은 화면에 닿지 않는다.
   // 돌려줄 값을 따로 골라 보았지만 관측되는 차이가 없어 걷었다(반증 R10).
   //
   // ⚠ 여기서 곧바로 return 하지 않는다 — 그러면 아래 `useEffect` 가 조건부 호출이 되어
   // 훅 순서가 깨진다(`react-hooks/rules-of-hooks` 가 막는다).
-  if (key !== asked) {
-    setAsked(key);
+  if (key !== askedKey) {
+    setAskedKey(key);
     setResource(beforeAnswer(key));
   }
 

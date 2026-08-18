@@ -36,7 +36,7 @@ function useProbe(initialKey: string | null): ResourceProbeValue {
 
   const resource = useResource(
     key,
-    // 인라인 화살표인 것이 일부러다 — 부르는 자리 아홉이 전부 이렇게 적는다. 매 렌더
+    // 인라인 화살표인 것이 일부러다 — 부르는 자리 넷이 전부 이렇게 적는다. 매 렌더
     // 새 함수가 되고, 이 훅이 그것을 의존성에 싣지 않는다는 것이 여기서 검사된다.
     (asked, signal) =>
       new Promise<string>((resolve, reject) => {

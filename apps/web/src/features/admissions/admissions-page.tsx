@@ -21,7 +21,7 @@ import {
 import { useResource } from "@/lib/react/use-resource";
 import { RailLayout } from "@/features/nav/app-rail";
 
-import { localDate } from "./local-date";
+import { answeredAdmissions } from "./answered";
 import { StatusLine } from "./status-line";
 
 const TYPE_LABEL: Record<string, string> = {
@@ -38,10 +38,7 @@ export function AdmissionsPage() {
   const [filters, setFilters] = useState<AdmissionFilters>(EMPTY_FILTERS);
   const [filterOpen, setFilterOpen] = useState(false);
 
-  const answered = admissions.state === "ready" ? admissions : null;
-  const payload = answered?.data ?? null;
-  // 답이 온 시각을 오늘로 읽는다 — 렌더 중에 읽으면 프리렌더된 HTML 과 어긋난다.
-  const today = answered ? localDate(answered.receivedAt) : null;
+  const { payload, today } = answeredAdmissions(admissions);
 
   const groups = useMemo(
     () => (payload ? groupByUniversity(payload, today) : []),

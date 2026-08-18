@@ -19,20 +19,20 @@ import {
 import { useResource } from "@/lib/react/use-resource";
 import { RailLayout } from "@/features/nav/app-rail";
 
-import { localDate } from "./local-date";
+import { answeredAdmissions } from "./answered";
 import { StatusLine } from "./status-line";
 
 export function UniversityDetailPage({ universityId }: { universityId: string }) {
+  // 키가 대학 id 라 다른 대학으로 가면 옛 답을 버리고 로딩으로 되돌아간다. 옛 코드는
+  // 그러지 않았지만 갈린 것이 보이지는 않는다 — `[id]` 가 라우트 세그먼트이고
+  // generateStaticParams 로 대학마다 페이지가 따로 서므로 이 컴포넌트가 다시 마운트된다.
   const admissions = useResource(
     universityId,
     (id, signal) => getUniversityAdmissions(id, { signal }),
     "입시 정보를 불러오지 못했어요.",
   );
 
-  const answered = admissions.state === "ready" ? admissions : null;
-  const payload = answered?.data ?? null;
-  // 답이 온 시각을 오늘로 읽는다 — 렌더 중에 읽으면 프리렌더된 HTML 과 어긋난다.
-  const today = answered ? localDate(answered.receivedAt) : null;
+  const { payload, today } = answeredAdmissions(admissions);
 
   const university = payload?.universities[0] ?? null;
 

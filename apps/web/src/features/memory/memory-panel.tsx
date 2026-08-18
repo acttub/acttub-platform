@@ -111,8 +111,9 @@ export function MemoryPanel() {
         // "코치가 아무것도 모르는구나" 로 잘못 읽는다.
         setError("지금은 불러오지 못했어요. 잠시 후 새로고침해 주세요.");
       } finally {
-        // 끊긴 조회가 로딩을 끄면, ready 가 다시 서서 새로 물을 때 로딩 표시 없이
-        // 빈 화면이 먼저 보인다. loading 은 한 번 false 가 되면 다시 true 로 서지 않는다.
+        // 끊긴 조회는 로딩도 끄지 않는다. 다만 이것이 관측되는 길은 지금 없다 —
+        // redirectToLogin 이 곧바로 /login 으로 replace 하므로 ready 가 다시 서기 전에
+        // 이 화면이 언마운트된다. 위 catch 가드와 달리 이쪽은 방어일 뿐이다.
         if (!controller.signal.aborted) setLoading(false);
       }
     })();

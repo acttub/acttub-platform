@@ -25,7 +25,8 @@ export function CommunityBoard() {
   // 가입 전에도 읽을 수 있다. 글쓰기 버튼만 로그인으로 보낸다.
   const { loggedIn } = useOptionalAuth();
   // 탭을 못 받아도 전체 목록은 볼 수 있다. 실패를 화면에 알리지 않는 것이 일부러이므로
-  // 이 조회의 state 는 읽지 않고 답만 꺼낸다.
+  // 이 조회의 state 는 읽지 않고 답만 꺼낸다 — 아래 문구는 그래서 **렌더되지 않는다.**
+  // 훅이 그것을 필수로 받으므로 자리를 채울 뿐이다.
   const categoryList = useResource(
     "categories",
     (_, signal) => getCategories({ signal }),
