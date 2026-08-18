@@ -164,7 +164,11 @@ public class PostgresMemoryRepository implements MemoryRepository, CoachMemory {
         Map<String, String> values = new LinkedHashMap<>();
         list(userId).forEach(row -> values.put(row.field(), row.value()));
         PriorPracticeContext context = priorContext(userId, practiceSessionId);
-        return new PriorContext(values, context.earlierConversation(), context.pendingTakes());
+        return new PriorContext(
+                values,
+                context.earlierConversation(),
+                context.fromSamePractice(),
+                context.pendingTakes());
     }
 
     /** 지난 대화 발췌에 담는 마지막 턴 수. 여섯이면 배우·코치 세 왕복이다. */
@@ -193,6 +197,23 @@ public class PostgresMemoryRepository implements MemoryRepository, CoachMemory {
                 ORDER BY coach.created_at DESC
                 LIMIT 1
                 """, UUID.class, practiceSessionId, userId);
+        boolean samePractice = !closed.isEmpty();
+        if (closed.isEmpty()) {
+            // 새 영상으로 시작한 연습이다. 배우 입장에서 "이어하기" 는 같은 영상을
+            // 다시 여는 것보다 새 영상을 올리며 지난 대화가 이어지는 쪽이므로,
+            // 이 배우의 가장 최근 닫힌 대화를 대신 싣는다. 숨긴 연습은 뺀다 —
+            // 배우가 지운 연습의 대화가 되살아나면 안 된다.
+            closed = jdbc.queryForList("""
+                    SELECT coach.id
+                    FROM coach_sessions coach
+                    JOIN practice_sessions practice ON practice.id=coach.practice_session_id
+                    WHERE practice.user_id=?
+                      AND practice.hidden_at IS NULL
+                      AND coach.status='closed'::session_status_t
+                    ORDER BY coach.created_at DESC
+                    LIMIT 1
+                    """, UUID.class, userId);
+        }
         String excerpt = closed.isEmpty() ? null : conversationExcerpt(closed.getFirst());
         // 가장 최근에 나온 카드. 이번 연습 것도 포함한다 — 같은 연습을 다시 열었다면
         // 그때 만든 카드가 바로 "지난번에 해보기로 한 것" 이다.
@@ -206,6 +227,7 @@ public class PostgresMemoryRepository implements MemoryRepository, CoachMemory {
                 """, String.class, userId);
         return new PriorPracticeContext(
                 excerpt,
+                samePractice,
                 pendingTakes(report.isEmpty() ? null : report.getFirst()));
     }
 
@@ -361,7 +383,8 @@ public class PostgresMemoryRepository implements MemoryRepository, CoachMemory {
     }
 
     /** 셋 다 비어 있을 수 있다 — 첫 연습이 그렇다. */
-    public record PriorPracticeContext(String earlierConversation, List<String> pendingTakes) {
+    public record PriorPracticeContext(
+            String earlierConversation, boolean fromSamePractice, List<String> pendingTakes) {
     }
 
 

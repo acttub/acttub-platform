@@ -58,6 +58,7 @@ class PostgresMemoryRepositoryPriorIT {
                 코치: 어디서부터 막혔나요?
                 배우: 왜 지금 말하는지 모르겠어요
                 코치: 상대가 어떤 반응을 하길 바라나요?""");
+        assertThat(context.fromSamePractice()).isTrue();
     }
 
     @Test
@@ -97,6 +98,39 @@ class PostgresMemoryRepositoryPriorIT {
         UUID practiceId = insertPractice(userId);
 
         assertThat(repository.priorContext(userId, practiceId).earlierConversation()).isNull();
+    }
+
+    @Test
+    void aNewPracticeCarriesTheLastConversationFromThePreviousPractice() {
+        // 배우가 말하는 "이어하기" — 새 영상을 올려도 지난 대화가 이어진다.
+        UUID userId = insertUser("carry@example.com");
+        UUID earlier = insertPractice(userId);
+        UUID coachId = insertCoach(earlier, "closed", NOW);
+        insertTurn(coachId, 0, "actor", "호흡이 급해져요");
+        insertTurn(coachId, 1, "ai", "다음엔 한 박자 늦게 시작해 볼까요?");
+        UUID fresh = insertPractice(userId);
+
+        PostgresMemoryRepository.PriorPracticeContext context =
+                repository.priorContext(userId, fresh);
+
+        assertThat(context.earlierConversation())
+                .contains("배우: 호흡이 급해져요")
+                .contains("코치: 다음엔 한 박자 늦게 시작해 볼까요?");
+        // 다른 연습의 대화이므로 "같은 연습" 이 아니라고 표시돼야 프롬프트 제목이 맞는다.
+        assertThat(context.fromSamePractice()).isFalse();
+    }
+
+    @Test
+    void aHiddenPracticesConversationDoesNotComeBack() {
+        // 배우가 지운 연습의 대화가 새 연습에서 되살아나면 안 된다.
+        UUID userId = insertUser("hidden@example.com");
+        UUID earlier = insertPractice(userId);
+        UUID coachId = insertCoach(earlier, "closed", NOW);
+        insertTurn(coachId, 0, "actor", "지워질 대화");
+        jdbc.update("UPDATE practice_sessions SET hidden_at=? WHERE id=?", NOW, earlier);
+        UUID fresh = insertPractice(userId);
+
+        assertThat(repository.priorContext(userId, fresh).earlierConversation()).isNull();
     }
 
     private UUID insertUser(String email) {
