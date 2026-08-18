@@ -173,6 +173,23 @@ class PostgresMemoryRepositoryPriorIT {
         assertThat(repository.priorContext(userId, fresh).earlierConversation()).isNull();
     }
 
+    @Test
+    void enqueueMemoryUpdateInsertsExactlyOneJobPerPractice() {
+        // 예약이 조용히 무시된 사고(SOMA-404)의 재발 방지 — 실제 스키마에서 행이
+        // 정말 생기는지, 같은 연습으로 두 번 불러도 하나로 남는지 못박는다.
+        UUID userId = insertUser("queue@example.com");
+        UUID practiceId = insertPractice(userId);
+
+        assertThat(repository.enqueueMemoryUpdate(userId, practiceId)).isTrue();
+        assertThat(repository.enqueueMemoryUpdate(userId, practiceId)).isFalse();
+
+        Integer jobs = jdbc.queryForObject("""
+                SELECT count(*) FROM external_operations
+                WHERE session_id=? AND kind='memory_update'::operation_kind_t
+                """, Integer.class, practiceId);
+        assertThat(jobs).isEqualTo(1);
+    }
+
     private UUID insertUser(String email) {
         UUID id = UUID.randomUUID();
         jdbc.update("""
