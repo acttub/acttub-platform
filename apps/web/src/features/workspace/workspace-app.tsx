@@ -6,7 +6,16 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { memo, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  memo,
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useReducer,
+  useRef,
+  useState,
+} from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import wordmark from "@/assets/acttub-wordmark.png";
 import { getStoredDisplayName, loadDisplayName } from "@/features/auth/display-name";
@@ -77,8 +86,13 @@ import {
   type PendingVideoUpload,
 } from "./pending-video-upload";
 import {
+  abandonedStage,
+  initialWorkspaceScreen,
+  workspaceScreenReducer,
+  type WorkspaceScreen,
+} from "./workspace-state";
+import {
   describeWorkspaceView,
-  type Mode,
   type WorkspaceStatusChip,
 } from "./workspace-view";
 
@@ -215,7 +229,11 @@ function WorkspaceInner() {
   }, [ready]);
 
   // ── 현재 세션 ───────────────────────────────────────────────────
-  const [mode, setMode] = useState<Mode>("prep");
+  // 어느 화면인가는 전이 하나하나가 정한다 — 전이표는 workspace-state.ts 에 있다.
+  const [screen, dispatch] = useReducer(
+    workspaceScreenReducer,
+    initialWorkspaceScreen,
+  );
   const [activeId, setActiveId] = useState<string | null>(null);
   const [detail, setDetail] = useState<PracticeSessionDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -243,7 +261,6 @@ function WorkspaceInner() {
   const [sending, setSending] = useState(false);
   const [coachOpening, setCoachOpening] = useState(false);
   const [coachSessionId, setCoachSessionId] = useState<string | null>(null);
-  const [coachDone, setCoachDone] = useState(false);
   const coachIdRef = useRef<string | null>(null);
   const dialogueTurnCountRef = useRef(0);
 
@@ -301,18 +318,22 @@ function WorkspaceInner() {
   useEffect(() => {
     const el = chatScrollRef.current;
     if (el) el.scrollTop = el.scrollHeight;
-  }, [messages, mode]);
+  }, [messages, screen]);
 
-  const abandonmentSnapshotRef = useRef<{ mode: Mode; pct: number }>({ mode, pct });
+  const abandonmentSnapshotRef = useRef<{ screen: WorkspaceScreen; pct: number }>({
+    screen,
+    pct,
+  });
   useEffect(() => {
-    abandonmentSnapshotRef.current = { mode, pct };
-  }, [mode, pct]);
+    abandonmentSnapshotRef.current = { screen, pct };
+  }, [screen, pct]);
 
   useEffect(
     () => () => {
       const snapshot = abandonmentSnapshotRef.current;
-      if (snapshot.mode === "preparing" || snapshot.mode === "chat") {
-        trackPracticeAbandoned(snapshot.mode, dialogueTurnCountRef.current, snapshot.pct);
+      const stage = abandonedStage(snapshot.screen);
+      if (stage) {
+        trackPracticeAbandoned(stage, dialogueTurnCountRef.current, snapshot.pct);
       }
     },
     [],
@@ -351,12 +372,11 @@ function WorkspaceInner() {
     analysisControllerRef.current?.abort();
     trackPracticePrepOpened("reset");
     activeIdRef.current = null;
-    setMode("prep");
+    dispatch({ type: "reset" });
     setActiveId(null);
     setDetail(null);
     setMessages([]);
     setReport(null);
-    setCoachDone(false);
     setCoachOpening(false);
     setCoachSessionId(null);
     coachIdRef.current = null;
@@ -400,12 +420,10 @@ function WorkspaceInner() {
   // 지금 상태가 무엇을 그리는지는 전부 이 순수 함수가 정한다. 렌더보다 위에 있는 이유는
   // 바로 아래 후기 훅이 그 결과를 인자로 받기 때문이다 — 훅은 조건부로 부를 수 없다.
   const view = describeWorkspaceView({
-    mode,
+    screen,
     videoFile: videoFile ? { name: videoFile.name } : null,
     videoUrl,
     playbackUrl: detail?.playback_url ?? null,
-    analysisStatus,
-    coachDone,
     reportType: report?.report_type ?? null,
     continueFrom,
   });
@@ -440,7 +458,7 @@ function WorkspaceInner() {
       const message = coachMessageText(turn);
       setMessages((m) => [...m, { role: "ai", text: message }]);
       const completed = completedCoachReport(turn);
-      setCoachDone(turn.status === "complete");
+      dispatch({ type: "coachTurnReceived", done: turn.status === "complete" });
       if (turn.status === "complete") {
         trackPracticeDialogueCompleted(
           dialogueTurnCountRef.current,
@@ -460,7 +478,7 @@ function WorkspaceInner() {
   // 대화를 끝낸 뒤 배우가 직접 누를 때만 노트로 넘긴다. 지난 연습을 여는 경로는
   // 이미 노트가 목적지라 여기를 거치지 않는다.
   const openNote = useCallback(() => {
-    setMode("note");
+    dispatch({ type: "noteOpened" });
     if (report && countStepOnce(activeIdRef.current, "result")) {
       trackPracticeResultViewed(
         report.report_type,
@@ -482,7 +500,7 @@ function WorkspaceInner() {
       restored ?? [{ role: "ai", text: coachMessageText(turn) }],
     );
     const completed = completedCoachReport(turn);
-    setCoachDone(turn.status === "complete");
+    dispatch({ type: "coachTurnReceived", done: turn.status === "complete" });
     if (turn.status === "complete") {
       trackPracticeDialogueCompleted(
         dialogueTurnCountRef.current,
@@ -505,7 +523,7 @@ function WorkspaceInner() {
 
     const coordinator = createCoachStartCoordinator(async () => {
       if (activeIdRef.current !== practiceSessionId) return;
-      setMode("chat");
+      dispatch({ type: "coachStarting" });
       setCoachOpening(true);
       setError(null);
       try {
@@ -563,12 +581,15 @@ function WorkspaceInner() {
       intervalMs: 3000,
       signal: controller.signal,
       onStatus: (status) => {
-        if (activeIdRef.current === practiceSessionId) setAnalysisStatus(status);
+        if (activeIdRef.current !== practiceSessionId) return;
+        setAnalysisStatus(status);
+        dispatch({ type: "analysisStatusReported", status });
       },
     }).then(
       (settled) => {
         if (activeIdRef.current !== practiceSessionId || controller.signal.aborted) return;
         setAnalysisStatus(settled.status);
+        dispatch({ type: "analysisStatusReported", status: settled.status });
         reportProgress({ type: "settle", status: settled.status });
         setDetail(settled);
         practiceAnalyticsContextRef.current = {
@@ -661,7 +682,7 @@ function WorkspaceInner() {
       blockage.blockage_detail,
     );
     setError(null);
-    setMode("uploading");
+    dispatch({ type: "uploadStarted" });
     // 현재 영상으로 미리 띄운 업로드만 이어받는다. 파일이 다르면 옛 업로드를 버리고 새로 시작한다.
     const pending = uploadForCurrentFile(
       pendingUploadRef.current,
@@ -699,7 +720,7 @@ function WorkspaceInner() {
       setDetail(null);
       reportProgress({ type: "duration", videoDurationMs: durationMs });
       enterAnalysis(session.status, compressionRan);
-      setMode("preparing");
+      dispatch({ type: "sessionCreated", status: session.status });
       setSending(false);
       urlLoadedRef.current = session.session_id;
       replaceUrl(`/practice/new?session=${encodeURIComponent(session.session_id)}`);
@@ -729,7 +750,7 @@ function WorkspaceInner() {
         err,
       );
       if (uploadControllerRef.current === controller) {
-        setMode("prep");
+        dispatch({ type: "uploadFailed" });
         if (!(err instanceof Error && err.name === "AbortError")) {
           setError(err instanceof Error ? err.message : "문제가 생겼어요. 다시 시도해 주세요.");
         }
@@ -780,10 +801,9 @@ function WorkspaceInner() {
     if (!practiceSessionId) return;
     setBusy(true);
     setError(null);
-    setMode("chat");
+    dispatch({ type: "coachStarting" });
     setReport(null);
     setMessages([]);
-    setCoachDone(false);
     setCoachOpening(true);
     setCoachSessionId(null);
     coachIdRef.current = null;
@@ -839,7 +859,8 @@ function WorkspaceInner() {
     reportProgress({ type: "reset" });
     setAnalysisStatus(null);
     setMessages([]);
-    setCoachDone(false);
+    // 무엇을 열었는지 아직 모른다. 지금 화면에서 지난 연습의 흔적만 걷어낸다.
+    dispatch({ type: "sessionOpening" });
     setCoachOpening(false);
     setCoachSessionId(null);
     setContinueFrom(null);
@@ -859,23 +880,21 @@ function WorkspaceInner() {
         subBranch: loaded.sub_branch as BlockageSelection["sub_branch"],
         withEvidence: loaded.status === "analyzed",
       };
+      dispatch({ type: "sessionLoaded", status: loaded.status });
       if (loaded.status === "created" || loaded.status === "analyzing") {
         setReport(null);
-        setMode("preparing");
         trackAnalysis(id);
         return;
       }
       if (loaded.status === "failed") {
         setReport(null);
-        setMode("preparing");
         return;
       }
-      setMode("chat");
       try {
         const found = await getReport(id);
         if (activeIdRef.current !== id) return;
         setReport(found.report);
-        setMode("note");
+        dispatch({ type: "noteLoaded" });
         countStepOnce(id, "result");
       } catch {
         if (activeIdRef.current !== id) return;
@@ -934,23 +953,21 @@ function WorkspaceInner() {
         };
         dialogueTurnCountRef.current = 0;
         coachCoordinatorRef.current = null;
+        dispatch({ type: "sessionLoaded", status: loaded.status });
         if (loaded.status === "created" || loaded.status === "analyzing") {
           setReport(null);
-          setMode("preparing");
           trackAnalysis(sessionParam);
           return;
         }
         if (loaded.status === "failed") {
           setReport(null);
-          setMode("preparing");
           return;
         }
-        setMode("chat");
         try {
           const found = await getReport(sessionParam);
           if (superseded()) return;
           setReport(found.report);
-          setMode("note");
+          dispatch({ type: "noteLoaded" });
           countStepOnce(sessionParam, "result");
         } catch {
           if (superseded()) return;
@@ -1190,7 +1207,7 @@ function WorkspaceInner() {
                 onBackToChat={
                   body.backTo === "restart"
                     ? restartAfterBlocked
-                    : () => setMode("chat")
+                    : () => dispatch({ type: "chatReopened" })
                 }
                 onFinish={openReview}
                 onContinueNext={continueFromCurrent}
@@ -1206,7 +1223,7 @@ function WorkspaceInner() {
                   analysisStatus,
                   coachSessionId,
                   sending,
-                  done: coachDone,
+                  done: body.done,
                 })}
                 error={error}
                 scrollRef={chatScrollRef}
@@ -1284,7 +1301,7 @@ function WorkspaceInner() {
                   onStart={() => {
                     if (!videoFile) return;
                     startUpload(videoFile);
-                    setMode("blockage");
+                    dispatch({ type: "blockageChosen" });
                     trackPracticeBlockageStarted();
                   }}
                 />
@@ -2420,7 +2437,7 @@ function StatusChip({ chip }: { chip: WorkspaceStatusChip | null }) {
   if (!chip) return null;
   const map: Record<WorkspaceStatusChip, [string, string]> = {
     uploading: ["업로드 중", "bg-[#e8f3ff] text-[#3182f6]"],
-    preparing: ["질문 준비", "bg-[#e8f3ff] text-[#3182f6]"],
+    analyzing: ["질문 준비", "bg-[#e8f3ff] text-[#3182f6]"],
     chat: ["질문 대화 중", "bg-[#e8f3ff] text-[#3182f6]"],
     "chat-done": ["대화 마침", "bg-[#e5f8ef] text-[#009959]"],
     note: ["연습 노트", "bg-[#e5f8ef] text-[#009959]"],

@@ -39,9 +39,9 @@ test("막힘 선택 완료 뒤 질문 재료가 준비될 때까지 진행 화�
 
   assert.match(
     begin,
-    /createPracticeSession[\s\S]*setMode\("preparing"\)[\s\S]*trackAnalysis\(session\.session_id\)/,
+    /createPracticeSession[\s\S]*dispatch\(\{ type: "sessionCreated", status: session\.status \}\)[\s\S]*trackAnalysis\(session\.session_id\)/,
   );
-  assert.doesNotMatch(begin, /setMode\("chat"\)|startCoach\(/);
+  assert.doesNotMatch(begin, /type: "coachStarting"|startCoach\(/);
 });
 
 test("질문 준비는 기존 진행 자리에서 장면을 훑는다고 안내한다", () => {

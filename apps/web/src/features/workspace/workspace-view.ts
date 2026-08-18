@@ -3,27 +3,21 @@
 // 브라우저 API도 훅도 쓰지 않아 함수 호출만으로 테스트할 수 있다 —
 // 컴포넌트 마크업을 단언하지 않는다는 규칙(apps/web/CLAUDE.md)을 지키면서
 // 이 화면의 행동을 고정할 수 있는 유일한 표면이다.
+//
+// 어느 화면인가는 workspace-state.ts 가 정하고, 여기는 그 화면이 무엇을 그리는지만 정한다.
 
-import type { PracticeReport, PracticeSessionDetail } from "@/lib/api/v2/types";
+import type { PracticeReport } from "@/lib/api/v2/types";
+import type { WorkspaceScreen } from "./workspace-state";
 
-/**
- * 지금 어느 화면인가(Practice Stage). 준비 → 업로드 → 대화 → 노트로 가면서
- * 화면이 대화 쪽으로 좁혀진다. 이름은 지금 코드가 부르는 그대로 두었다 —
- * 용어집이 피하라는 "모드"이고, 판별 유니온으로 갈리면서 사라질 이름이다.
- */
-export type Mode = "prep" | "blockage" | "uploading" | "preparing" | "chat" | "note";
-
-/** 렌더가 실제로 읽는 상태만. 훅이 내려 주는 값(pct·pastDeadline 등)은 분기를 가르지 않아 뺐다. */
+/** 렌더가 실제로 읽는 값만. 훅이 내려 주는 값(pct·pastDeadline 등)은 분기를 가르지 않아 뺐다. */
 export type WorkspaceViewInput = {
-  mode: Mode;
-  /** 방금 고른 로컬 원본. 있고 없고가 스테퍼와 시작 버튼을 가르고, 이름은 영상 설명이 된다. */
+  screen: WorkspaceScreen;
+  /** 방금 고른 로컬 원본. 있고 없고가 준비 순서와 시작 버튼을 가르고, 이름은 영상 설명이 된다. */
   videoFile: { name: string } | null;
   /** 로컬 원본의 blob 주소. 서버 주소보다 먼저 쓴다. */
   videoUrl: string | null;
   /** 서버가 준 재생 주소(`detail.playback_url`). */
   playbackUrl: string | null;
-  analysisStatus: PracticeSessionDetail["status"] | null;
-  coachDone: boolean;
   /** 연습 노트가 없으면 null. */
   reportType: PracticeReport["report_type"] | null;
   continueFrom: { id: string; label: string | null } | null;
@@ -55,7 +49,7 @@ export type WorkspaceViewBody =
 /** 헤더 상태 칩의 종류. 문구와 색은 컴포넌트가 정한다. */
 export type WorkspaceStatusChip =
   | "uploading"
-  | "preparing"
+  | "analyzing"
   | "chat"
   | "chat-done"
   | "note";
@@ -71,33 +65,35 @@ const UPLOADING_CAPTION = "업로드 중에도 영상은 볼 수 있어요";
 const UPLOADED_CAPTION = "올린 영상";
 
 export function describeWorkspaceView(input: WorkspaceViewInput): WorkspaceView {
+  const { kind } = input.screen;
   return {
     body: describeBody(input),
-    statusChip: describeStatusChip(input),
+    statusChip: describeStatusChip(input.screen),
     review: {
-      armed: input.mode === "chat" || input.mode === "note",
-      kind: input.mode === "note" ? "note" : "chat",
+      armed: kind === "chat" || kind === "chatDone" || kind === "note",
+      kind: kind === "note" ? "note" : "chat",
     },
   };
 }
 
 function describeBody(input: WorkspaceViewInput): WorkspaceViewBody {
-  if (input.mode === "note") {
+  const screen = input.screen;
+  if (screen.kind === "note") {
     // 막힌 대화의 노트는 되돌아갈 대화가 없어 처음부터 다시 연다.
     return {
       kind: "note",
       backTo: input.reportType === "blocked" ? "restart" : "chat",
     };
   }
-  if (input.mode === "chat") {
+  if (screen.kind === "chat" || screen.kind === "chatDone") {
     return {
       kind: "chat",
-      done: input.coachDone,
+      done: screen.kind === "chatDone",
       noteReady: input.reportType !== null,
     };
   }
   // 막힘 선택은 영상이 있어야 선다. 없으면 준비 화면으로 흘러내린다.
-  if (input.mode === "blockage" && input.videoUrl !== null) {
+  if (screen.kind === "blockage" && input.videoUrl !== null) {
     return { kind: "blockage", videoUrl: input.videoUrl };
   }
   return describeSetup(input);
@@ -106,7 +102,11 @@ function describeBody(input: WorkspaceViewInput): WorkspaceViewBody {
 function describeSetup(
   input: WorkspaceViewInput,
 ): Extract<WorkspaceViewBody, { kind: "setup" }> {
-  const waitingForCoach = input.mode === "uploading" || input.mode === "preparing";
+  const kind = input.screen.kind;
+  const uploading = kind === "uploading";
+  const prep = kind === "prep";
+  const waitingForCoach =
+    uploading || kind === "analyzing" || kind === "analysisFailed";
   // 방금 고른 로컬 원본이 있으면 그걸 계속 재생한다. 서버 주소를 먼저 쓰면 업로드가
   // 끝나는 순간 src 가 갈아끼워지면서 영상 자리가 한 번 비고 기준 길이까지 흔들린다.
   const src = input.videoUrl ?? input.playbackUrl;
@@ -118,40 +118,41 @@ function describeSetup(
       ? {
           kind: "player",
           src,
-          caption:
-            input.mode === "uploading"
-              ? UPLOADING_CAPTION
-              : input.videoFile?.name ?? UPLOADED_CAPTION,
-          reselectable: input.mode === "prep",
+          caption: uploading
+            ? UPLOADING_CAPTION
+            : input.videoFile?.name ?? UPLOADED_CAPTION,
+          reselectable: prep,
         }
-      : input.mode === "prep"
+      : prep
         ? { kind: "upload-zone" }
         : { kind: "none" },
-    footer:
-      input.mode === "uploading"
-        ? { kind: "progress", phase: "upload" }
-        : input.mode === "preparing"
-          ? { kind: "progress", phase: "scan", failed: input.analysisStatus === "failed" }
-          : { kind: "start", ready: input.videoFile !== null },
+    footer: uploading
+      ? { kind: "progress", phase: "upload" }
+      : kind === "analyzing" || kind === "analysisFailed"
+        ? { kind: "progress", phase: "scan", failed: kind === "analysisFailed" }
+        : { kind: "start", ready: input.videoFile !== null },
     continueBanner: input.continueFrom
-      ? { label: input.continueFrom.label, dismissible: input.mode === "prep" }
+      ? { label: input.continueFrom.label, dismissible: prep }
       : null,
   };
 }
 
-function describeStatusChip(input: WorkspaceViewInput): WorkspaceStatusChip | null {
-  switch (input.mode) {
+function describeStatusChip(screen: WorkspaceScreen): WorkspaceStatusChip | null {
+  switch (screen.kind) {
     case "prep":
     case "blockage":
       return null;
     case "uploading":
       return "uploading";
-    case "preparing":
-      return "preparing";
+    case "analyzing":
+    case "analysisFailed":
+      return "analyzing";
+    case "chat":
+      return "chat";
     // 대화가 끝나도 노트로 넘어가기 전까지는 대화 화면이다. 그동안 "대화 중"이라고
     // 하면 화면과 어긋나므로 끝났다고 말한다.
-    case "chat":
-      return input.coachDone ? "chat-done" : "chat";
+    case "chatDone":
+      return "chat-done";
     case "note":
       return "note";
   }

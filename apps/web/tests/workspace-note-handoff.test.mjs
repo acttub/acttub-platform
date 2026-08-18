@@ -20,19 +20,19 @@ function block(startMarker, endMarker) {
 test("대화가 끝나도 화면을 노트로 자동 전환하지 않는다", () => {
   const pushAi = block("const pushAi = useCallback", "const openNote = useCallback");
   assert.match(pushAi, /setReport\(completed\)/);
-  assert.doesNotMatch(pushAi, /setMode\("note"\)/);
+  assert.doesNotMatch(pushAi, /noteOpened|noteLoaded/);
 });
 
 test("노트 전환과 결과 조회 집계는 배우가 누를 때만 일어난다", () => {
   const openNote = block("const openNote = useCallback", "const restoreCoach = useCallback");
-  assert.match(openNote, /setMode\("note"\)/);
+  assert.match(openNote, /dispatch\(\{ type: "noteOpened" \}\)/);
   assert.match(openNote, /countStepOnce\(activeIdRef\.current, "result"\)/);
 });
 
 test("첫 응답이 곧바로 끝나도 화면을 노트로 자동 전환하지 않는다", () => {
   const restoreCoach = block("const restoreCoach = useCallback", "const coordinatorFor = useCallback");
   assert.match(restoreCoach, /setReport\(completed\)/);
-  assert.doesNotMatch(restoreCoach, /setMode\("note"\)/);
+  assert.doesNotMatch(restoreCoach, /noteOpened|noteLoaded/);
 });
 
 test("대화가 끝나면 입력창 대신 정리보기 버튼이 나온다", () => {

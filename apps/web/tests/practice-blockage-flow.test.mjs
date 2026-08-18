@@ -165,16 +165,21 @@ test("새 선택 화면과 오늘 정리 화면에 금지 문구가 없다", () 
   assert.deepEqual(matches, []);
 });
 
-test("complete가 오면 버튼 없이 결과 화면으로 전환한다", () => {
+test("complete가 오면 코치 응답에서 노트를 꺼내 받아 둔다", () => {
   const workspace = readFileSync(
     path.join(appRoot, "src/features/workspace/workspace-app.tsx"),
     "utf8",
   );
-
-  assert.match(
-    workspace,
-    /const completed = completedCoachReport\(turn\)[\s\S]*setReport\(completed\)[\s\S]*setMode\("note"\)/,
+  // 옛 정규식은 900줄 떨어진 두 심볼을 `[\s\S]*` 로 이어 "노트 화면으로 자동 전환한다"
+  // 고 읽혔고, 그것은 tests/workspace-note-handoff.test.mjs 가 고정하는 것과 정반대였다.
+  // 노트 화면으로 넘기는 자리는 그 파일이 지킨다. 여기서는 받아 두는 쪽만 본다.
+  const pushAi = workspace.slice(
+    workspace.indexOf("const pushAi = useCallback"),
+    workspace.indexOf("const openNote = useCallback"),
   );
+
+  assert.match(pushAi, /const completed = completedCoachReport\(turn\);/);
+  assert.match(pushAi, /setReport\(completed\)/);
   assert.doesNotMatch(workspace, /이제 맞아요|아직 달라요/);
 });
 

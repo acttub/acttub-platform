@@ -202,7 +202,10 @@ test("질문 받기를 누르면 막힘을 고르기 전에 압축·업로드가
   const startRow = workspace.slice(rowStart, workspace.indexOf("/>", rowStart));
   // 막힘 선택으로 넘어가기 전에 업로드를 띄운다 — 뒤로 미루면 고르는 시간과
   // 올리는 시간을 더해서 기다리게 된다.
-  assert.match(startRow, /startUpload\(videoFile\)[\s\S]*setMode\("blockage"\)/);
+  assert.match(
+    startRow,
+    /startUpload\(videoFile\)[\s\S]*dispatch\(\{ type: "blockageChosen" \}\)/,
+  );
 
   const beginStart = workspace.indexOf("const begin = useCallback");
   const beginEnd = workspace.indexOf("const send = useCallback", beginStart);
@@ -227,11 +230,13 @@ test("막힘 선택 완료 뒤에는 대화가 아니라 같은 진행 자리에
   const beginEnd = workspace.indexOf("const send = useCallback", beginStart);
   const begin = workspace.slice(beginStart, beginEnd);
 
+  // 그 전이가 무엇으로 가는지는 tests/workspace-state.test.mjs 가 실행으로 지킨다 —
+  // 여기서는 세션 생성과 폴링 사이 어디에 그것이 놓이는지를 본다.
   assert.match(
     begin,
-    /createPracticeSession[\s\S]*setMode\("preparing"\)[\s\S]*trackAnalysis\(session\.session_id\)/,
+    /createPracticeSession[\s\S]*dispatch\(\{ type: "sessionCreated", status: session\.status \}\)[\s\S]*trackAnalysis\(session\.session_id\)/,
   );
-  assert.doesNotMatch(begin, /setMode\("chat"\)|startCoach\(/);
+  assert.doesNotMatch(begin, /type: "coachStarting"|startCoach\(/);
 });
 
 test("analyzing 동안에는 coach start를 보내지 않는다", async () => {
@@ -307,9 +312,12 @@ test("analyzed가 되면 대화로 전환하고 coach start를 한 번만 보낸
   const coordinatorStart = workspace.indexOf("const coordinator = createCoachStartCoordinator");
   const coordinatorEnd = workspace.indexOf("coachCoordinatorRef.current", coordinatorStart);
   const coordinatorBlock = workspace.slice(coordinatorStart, coordinatorEnd);
-  const modeChange = workspace.indexOf('setMode("chat")', coordinatorStart);
+  const screenChange = workspace.indexOf(
+    'dispatch({ type: "coachStarting" })',
+    coordinatorStart,
+  );
   const request = workspace.indexOf("await startCoach", coordinatorStart);
-  assert.ok(modeChange > coordinatorStart && modeChange < request);
+  assert.ok(screenChange > coordinatorStart && screenChange < request);
   assert.doesNotMatch(coordinatorBlock, /setSending\(true\)/);
   assert.match(workspace, /coordinatorFor\(practiceSessionId\)\.update\(settled\.status\)/);
   assert.match(workspace, /const \{ data: start \} = await startCoach[\s\S]*restoreCoach\(start\)/);
@@ -380,13 +388,27 @@ test("복구한 세션은 대기 상태만 진행 자리를 거치고 analyzed�
   const restoreEnd = workspace.indexOf("// 주소에 ?session=", restoreStart);
   const restore = workspace.slice(restoreStart, restoreEnd);
 
+  // 조회 전 진입 구간은 지난 연습의 흔적을 걷어낸다. 이 전이가 빠지면 앞 연습의
+  // "대화 마침"·훑어보기 실패 표시가 새로 연 화면에 그대로 남는다.
+  // 무엇을 걷어내는지는 tests/workspace-state.test.mjs 가 실행으로 지킨다.
+  const entry = restore.slice(0, restore.indexOf("await getPracticeSession"));
+  assert.match(entry, /dispatch\(\{ type: "sessionOpening" \}\)/);
+
+  // 받아 온 상태로 화면을 먼저 옮기고, 그다음에 폴링·노트 조회로 갈린다.
+  // 어느 상태가 어느 자리로 가는지는 tests/workspace-state.test.mjs 가 실행으로 지킨다.
   assert.match(
     restore,
-    /loaded\.status === "created" \|\| loaded\.status === "analyzing"[\s\S]*setMode\("preparing"\)[\s\S]*trackAnalysis\(id\)/,
+    /dispatch\(\{ type: "sessionLoaded", status: loaded\.status \}\)[\s\S]*loaded\.status === "created" \|\| loaded\.status === "analyzing"[\s\S]*trackAnalysis\(id\)/,
   );
-  assert.match(restore, /loaded\.status === "failed"[\s\S]*setMode\("preparing"\)/);
+  // 훑어보기가 실패한 연습은 그 자리에서 멈춘다 — 폴링도 코치도 부르지 않는다.
+  const failedBranch = restore.slice(
+    restore.indexOf('if (loaded.status === "failed")'),
+    restore.indexOf("const found = await getReport"),
+  );
+  assert.match(failedBranch, /return;/);
+  assert.doesNotMatch(failedBranch, /trackAnalysis|startCoach|coachStarting|getReport/);
   assert.match(
     restore,
-    /setMode\("chat"\)[\s\S]*getReport\(id\)[\s\S]*startConversationAfterAnalysis\(id\)/,
+    /getReport\(id\)[\s\S]*dispatch\(\{ type: "noteLoaded" \}\)[\s\S]*startConversationAfterAnalysis\(id\)/,
   );
 });
