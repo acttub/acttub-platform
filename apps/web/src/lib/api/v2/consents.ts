@@ -6,18 +6,22 @@ import type {
   PendingConsentsResponse,
 } from "./types";
 
-export async function listConsentDocuments(): Promise<ConsentDocumentsResponse> {
+export async function listConsentDocuments(
+  options: { signal?: AbortSignal } = {},
+): Promise<ConsentDocumentsResponse> {
   const { data } = await apiFetch<ConsentDocumentsResponse>(
     "/v2/consents/documents",
-    { method: "GET", auth: false },
+    { method: "GET", auth: false, signal: options.signal },
   );
   return data;
 }
 
-export async function getPendingConsents(): Promise<PendingConsentsResponse> {
+export async function getPendingConsents(
+  options: { signal?: AbortSignal } = {},
+): Promise<PendingConsentsResponse> {
   const { data } = await apiFetch<PendingConsentsResponse>(
     "/v2/consents/pending",
-    { method: "GET", auth: true },
+    { method: "GET", auth: true, signal: options.signal },
   );
   return data;
 }

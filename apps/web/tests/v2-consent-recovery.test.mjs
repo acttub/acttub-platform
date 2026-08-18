@@ -1,6 +1,4 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
-import path from "node:path";
 import { afterEach, beforeEach, test } from "node:test";
 
 import "./ts-module-loader.mjs";
@@ -17,7 +15,6 @@ const { clearTokens, setTokens } = await import(
 );
 
 const originalFetch = globalThis.fetch;
-const appRoot = path.resolve(import.meta.dirname, "..");
 
 beforeEach(() => {
   clearTokens();
@@ -71,15 +68,11 @@ test("getPendingConsents는 인증된 사용자 pending endpoint를 조회한다
   assert.equal(request.options.headers.get("Authorization"), "Bearer access-token");
 });
 
-test("TermsGate는 local pending이 없을 때 로그인 사용자의 pending을 서버에서 복구한다", () => {
-  const source = readFileSync(
-    path.join(appRoot, "src/features/practice/terms-gate.tsx"),
-    "utf8",
-  );
-
-  assert.match(source, /getPendingConsents as getStoredPendingConsents/);
-  assert.match(source, /getPendingConsents as fetchPendingConsents/);
-  assert.match(source, /isLoggedIn\(\)/);
-  assert.match(source, /serverPending\.documents\.length > 0/);
-  assert.doesNotMatch(source, /searchParams\.get\(["']consent["']\)/);
-});
+// 여기 있던 소스 정규식 순찰("TermsGate는 local pending이 없을 때 …")은 걷었다. 그것이
+// 고정한 넷 — 기기에 남은 것을 먼저 읽는다 · 로그인일 때만 서버에 묻는다 · 서버가 준 것이
+// 있으면 거기서 멈춘다 — 은 이제 tests/consent-documents.test.mjs 가 실제로 돌려 본다.
+// 다섯째("?consent= 쿼리로 모드를 정하지 않는다")는 그 파이프라인이 signal 하나만 받는
+// 함수가 되어 URL 에 닿을 길이 없다 — 구조가 대신한다.
+//
+// 옛 순찰이 배선(화면이 그 파이프라인을 실제로 부르는가)까지 잡았던 것은 아니다. 정규식이
+// import 문의 존재만 보므로 import 를 남기고 호출을 지워도 초록이었다.

@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useState, type FormEvent } from "react";
+import { Suspense, useMemo, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { NamePrompt } from "@/features/auth/name-prompt";
@@ -8,7 +8,6 @@ import { ConsentMarkdown } from "@/features/practice/consent-markdown";
 import { useDisplayNameGate } from "@/features/auth/use-display-name-gate";
 import {
   clearPendingConsents,
-  getPendingConsents as getStoredPendingConsents,
   hasAcceptedCurrentPrivacy,
   markPrivacyVersionAccepted,
   savePendingConsents,
@@ -19,26 +18,14 @@ import {
   trackConsentSubmitted,
 } from "@/lib/analytics/amplitude";
 import { logout } from "@/lib/api/v2/auth";
-import {
-  getPendingConsents as fetchPendingConsents,
-  listConsentDocuments,
-  recordConsent,
-} from "@/lib/api/v2/consents";
-import { ApiError, errorMessage } from "@/lib/api/v2/errors";
+import { recordConsent } from "@/lib/api/v2/consents";
+import { ApiError } from "@/lib/api/v2/errors";
 import type { ConsentDocument } from "@/lib/api/v2/types";
 import { sanitizeNextPath } from "@/lib/auth/next-path";
 import { getStoredUser, isLoggedIn } from "@/lib/auth/token-store";
+import { useResource } from "@/lib/react/use-resource";
 
-type ReadyState = {
-  kind: "ready";
-  mode: "pending" | "info";
-  documents: ConsentDocument[];
-};
-
-type LoadState =
-  | { kind: "loading" }
-  | ReadyState
-  | { kind: "error"; message: string };
+import { loadConsentDocuments } from "./consent-documents";
 
 export function TermsGate() {
   return (
@@ -51,7 +38,11 @@ export function TermsGate() {
 function TermsGateContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [state, setState] = useState<LoadState>({ kind: "loading" });
+  const consents = useResource(
+    "consents",
+    (_, signal) => loadConsentDocuments(signal),
+    "약관 문서를 불러오지 못했어요.",
+  );
   const [checkedDocumentIds, setCheckedDocumentIds] = useState<Set<string>>(
     () => new Set(),
   );
@@ -66,59 +57,12 @@ function TermsGateContent() {
   const rawNext = searchParams.get("next");
   const nextPath = rawNext ? sanitizeNextPath(rawNext) : null;
 
-  useEffect(() => {
-    let active = true;
-
-    async function loadDocuments() {
-      try {
-        const pendingDocuments = getStoredPendingConsents();
-        if (pendingDocuments.length > 0) {
-          if (active) {
-            setState({ kind: "ready", mode: "pending", documents: pendingDocuments });
-          }
-          return;
-        }
-
-        if (isLoggedIn()) {
-          const serverPending = await fetchPendingConsents();
-          if (serverPending.documents.length > 0) {
-            if (active) {
-              savePendingConsents(serverPending.documents);
-              setState({
-                kind: "ready",
-                mode: "pending",
-                documents: serverPending.documents,
-              });
-            }
-            return;
-          }
-        }
-
-        const response = await listConsentDocuments();
-        if (active) {
-          setState({ kind: "ready", mode: "info", documents: response.documents });
-        }
-      } catch (error) {
-        if (!active) return;
-        setState({
-          kind: "error",
-          message: errorMessage(error, "약관 문서를 불러오지 못했어요."),
-        });
-      }
-    }
-
-    void loadDocuments();
-    return () => {
-      active = false;
-    };
-  }, []);
-
   const requiredConsentsChecked = useMemo(() => {
-    if (state.kind !== "ready" || state.mode !== "pending") return false;
-    return state.documents
+    if (consents.state !== "ready" || consents.data.mode !== "pending") return false;
+    return consents.data.documents
       .filter((document) => document.required)
       .every((document) => checkedDocumentIds.has(document.id));
-  }, [checkedDocumentIds, state]);
+  }, [checkedDocumentIds, consents]);
 
   function updateChecked(documentId: string, checked: boolean) {
     setCheckedDocumentIds((current) => {
@@ -133,15 +77,15 @@ function TermsGateContent() {
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (
-      state.kind !== "ready" ||
-      state.mode !== "pending" ||
+      consents.state !== "ready" ||
+      consents.data.mode !== "pending" ||
       !requiredConsentsChecked ||
       submitting
     ) {
       return;
     }
 
-    const remainingDocuments = state.documents.filter(
+    const remainingDocuments = consents.data.documents.filter(
       (document) => !completedDocumentIds.has(document.id),
     );
     setSubmitting(true);
@@ -210,7 +154,9 @@ function TermsGateContent() {
       clearPendingConsents();
       // 필수 동의를 전부 서버에 기록한 순간이다. 어느 버전에 동의했는지까지 남겨야
       // 다음 개정 때 계측 쿠키가 저절로 유지되지 않는다(pending-consents.ts 참고).
-      const acceptedPrivacy = state.documents.find((document) => document.type === "privacy");
+      const acceptedPrivacy = consents.data.documents.find(
+        (document) => document.type === "privacy",
+      );
       if (acceptedPrivacy) markPrivacyVersionAccepted(acceptedPrivacy.version);
       if (isLoggedIn() && hasAcceptedCurrentPrivacy()) {
         // 이 순간부터만 SDK를 켠다. 앞서 실패한 제출 이벤트를 소급해서 보내지는 않는다.
@@ -225,19 +171,22 @@ function TermsGateContent() {
     }
   }
 
-  if (state.kind === "loading") return <TermsLoading />;
-
-  if (state.kind === "error") {
+  if (consents.state === "failed") {
     return (
       <TermsShell eyebrow="Acttub 약관" title="약관을 불러오지 못했어요">
         <p className="rounded-2xl bg-[#fff4f4] p-4 text-sm leading-6 text-[#d92d20]">
-          {state.message}
+          {consents.message}
         </p>
       </TermsShell>
     );
   }
 
-  const isPendingMode = state.mode === "pending";
+  // 키가 늘 있으므로 아직 묻지 않은 자리(idle)는 오지 않지만, 답을 꺼내려면 함께 걸러야
+  // 한다 — 유니온을 소진하지 않으면 tsc 가 data 접근을 막는다.
+  if (consents.state !== "ready") return <TermsLoading />;
+
+  const { mode, documents } = consents.data;
+  const isPendingMode = mode === "pending";
 
   return (
     <TermsShell
@@ -254,8 +203,8 @@ function TermsGateContent() {
       ) : null}
       <form onSubmit={handleSubmit}>
         <div className="space-y-5">
-          {state.documents.length > 0 ? (
-            state.documents.map((document) => {
+          {documents.length > 0 ? (
+            documents.map((document) => {
               const completed = completedDocumentIds.has(document.id);
               return (
                 <ConsentDocumentCard
