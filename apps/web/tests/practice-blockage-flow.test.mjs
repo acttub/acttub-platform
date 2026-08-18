@@ -200,9 +200,11 @@ test("blocked 결과는 대화 내용과 안내와 마치기·다시 시작 버�
   assert.match(blocked, /지금까지 나눈 이야기는 연습 노트로 남지 않아요/);
   assert.match(blocked, /다시 대화하면 이 내용은 사라지고 처음부터 시작해요/);
   assert.match(blocked, /onClick=\{onFinish\}[\s\S]*연습 마치기/);
+  // 뒤에서 도는 일이 이 길을 막을 수 있다. 무엇이 그것을 켜고 끄는지는
+  // tests/use-workspace-busy.test.mjs 가 실행으로 지킨다.
   assert.match(
     blocked,
-    /disabled=\{busy\}[\s\S]*onClick=\{onBackToChat\}[\s\S]*disabled:bg-\[#c9d3df\][\s\S]*처음부터 다시 대화하기/,
+    /disabled=\{backDisabled\}[\s\S]*onClick=\{onBackToChat\}[\s\S]*disabled:bg-\[#c9d3df\][\s\S]*처음부터 다시 대화하기/,
   );
   assert.doesNotMatch(blocked, /대화로 돌아가기|다음에 이어서/);
   assert.doesNotMatch(workspace, /confirmed_expression_handoff_required/);

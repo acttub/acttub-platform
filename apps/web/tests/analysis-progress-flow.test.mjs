@@ -239,6 +239,14 @@ test("질문 받기를 누르면 막힘을 고르기 전에 압축·업로드가
   // 되돌리는 길은 이어받기를 켜고 가는 것과 안 켜고 가는 것 둘이고, 둘 다 이 자리를 지난다.
   assert.match(workspace, /const resetTo = useCallback\(\(continueFrom: ContinueFrom \| null\) => \{\s*discardPendingUpload\(\)/);
   assert.match(workspace, /const resetToPrep = useCallback\(\(\) => resetTo\(null\)/);
+  // 되돌아가는 이 자리가 뒤에서 도는 일도 함께 놓는다. 안 놓으면 늦게 오는 조회가
+  // 자기 표시를 못 찾아 지우기 버튼이 잠긴 채 남는다. 무엇을 놓는지는
+  // tests/use-workspace-busy.test.mjs 가 실행으로 지키고, 여기서는 이 자리가
+  // 그것을 부르는지만 본다 — 창은 의존성 배열 앞에서 끊는다.
+  const resetStart = workspace.indexOf("const resetTo = useCallback");
+  const resetEnd = workspace.indexOf('replaceUrl("/practice/new")', resetStart);
+  assert.ok(resetStart !== -1 && resetEnd > resetStart, "되돌아가는 자리를 못 찾았다");
+  assert.match(workspace.slice(resetStart, resetEnd), /\n\s*clearWork\(\);/);
   const pickStart = workspace.indexOf("const onPickFile");
   const pickEnd = workspace.indexOf("const startUpload = useCallback", pickStart);
   assert.ok(pickStart !== -1 && pickEnd > pickStart, "영상 고르는 자리를 못 찾았다");

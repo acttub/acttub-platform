@@ -5,58 +5,27 @@ import assert from "node:assert/strict";
 import { before, test } from "node:test";
 
 import "./ts-module-loader.mjs";
-import { window } from "./dom-setup.mjs";
+import { mountProbe as mount } from "./mount-probe.mjs";
 
-let react;
-let createRoot;
 let Probe;
 
 before(async () => {
-  react = await import("react");
-  ({ createRoot } = await import("react-dom/client"));
   ({ ActiveSessionProbe: Probe } = await import(
     "./fixtures/active-session-probe.tsx"
   ));
 });
 
-// 훅을 붙인 컴포넌트를 띄우고, 마지막 렌더에서 본 값과 조작 손잡이를 돌려준다.
-function mountProbe() {
-  const container = window.document.createElement("div");
-  window.document.body.append(container);
-  const root = createRoot(container);
-  const seen = [];
-  react.act(() => {
-    root.render(
-      react.createElement(Probe, { onRender: (value) => seen.push(value) }),
-    );
+const mountProbe = () => mount(Probe);
+
+/**
+ * 자리를 세우면서, 아직 다시 그려지기 전인 그 자리에서 무엇이 보이는지도 함께 본다.
+ * act 콜백 안이 곧 "기다림 뒤에 돌아온 코드" 다.
+ */
+const setCurrent = (probe, sessionId, peek = () => undefined) =>
+  probe.act((active) => {
+    active.setCurrent(sessionId);
+    return peek(active);
   });
-  return {
-    get latest() {
-      return seen.at(-1);
-    },
-    /** 렌더마다 훅이 돌려준 것. 동일성은 두 렌더의 것을 견줘야 잴 수 있다. */
-    get everyRender() {
-      return seen;
-    },
-    text: () => container.textContent,
-    /**
-     * 자리를 세우면서, 아직 다시 그려지기 전인 그 자리에서 무엇이 보이는지도 함께 본다.
-     * act 는 콜백이 끝난 뒤에 렌더를 흘리므로 콜백 안이 곧 "기다림 뒤에 돌아온 코드" 다.
-     */
-    setCurrent: (sessionId, peek = () => undefined) => {
-      let peeked;
-      react.act(() => {
-        seen.at(-1).setCurrent(sessionId);
-        peeked = peek(seen.at(-1));
-      });
-      return peeked;
-    },
-    unmount: () => {
-      react.act(() => root.unmount());
-      container.remove();
-    },
-  };
-}
 
 test("아무도 없는 자리는 어느 연습이든 가질 수 있고, 아직 누구의 것도 아니다", () => {
   const probe = mountProbe();
@@ -76,7 +45,7 @@ test("자리를 세우면 그 자리에서 곧바로 가드가 답한다 — 화
   try {
     // 이 훅이 두 벌을 드는 유일한 이유다. 취소 가드는 답이 돌아온 그 자리에서 물어야
     // 하는데, 그리는 값만 있으면 다음 렌더까지 옛 연습이 아직 자리에 있다고 답한다.
-    const peeked = probe.setCurrent("s-1", (active) => ({
+    const peeked = setCurrent(probe, "s-1", (active) => ({
       guard: active.isCurrent("s-1"),
       seat: active.current(),
       drawn: active.id,
@@ -98,7 +67,7 @@ test("자리를 세우면 그 자리에서 곧바로 가드가 답한다 — 화
 test("자리를 세우면 남은 그 자리를 가질 수 없다", () => {
   const probe = mountProbe();
   try {
-    probe.setCurrent("s-1");
+    setCurrent(probe, "s-1");
     assert.equal(probe.latest.current(), "s-1");
     assert.equal(probe.latest.isCurrent("s-1"), true);
     assert.equal(probe.latest.isCurrent("s-2"), false);
@@ -115,8 +84,8 @@ test("자리를 세우면 남은 그 자리를 가질 수 없다", () => {
 test("다른 연습이 자리를 가져가면 앞엣것은 그 자리를 잃는다", () => {
   const probe = mountProbe();
   try {
-    probe.setCurrent("s-1");
-    probe.setCurrent("s-2");
+    setCurrent(probe, "s-1");
+    setCurrent(probe, "s-2");
     assert.equal(probe.latest.isCurrent("s-1"), false);
     assert.equal(probe.latest.isCurrentOrFree("s-1"), false);
     assert.equal(probe.latest.isCurrent("s-2"), true);
@@ -129,9 +98,9 @@ test("다른 연습이 자리를 가져가면 앞엣것은 그 자리를 잃는�
 test("자리를 비우면 다시 아무나 가질 수 있다", () => {
   const probe = mountProbe();
   try {
-    probe.setCurrent("s-1");
+    setCurrent(probe, "s-1");
     // 새 연습 준비 화면으로 되돌아가는 길이다.
-    probe.setCurrent(null);
+    setCurrent(probe, null);
     assert.equal(probe.latest.id, null);
     assert.equal(probe.latest.current(), null);
     assert.equal(probe.latest.isCurrent("s-1"), false);
@@ -147,7 +116,7 @@ test("자리가 바뀌어도 손잡이 넷은 같은 함수다", () => {
   const probe = mountProbe();
   try {
     const first = probe.latest;
-    probe.setCurrent("s-1");
+    setCurrent(probe, "s-1");
     const second = probe.latest;
     // 실제로 다시 그려졌는지부터 — 같은 객체를 두 번 본 것이면 아무것도 안 잰 것이다.
     assert.ok(probe.everyRender.length > 1);

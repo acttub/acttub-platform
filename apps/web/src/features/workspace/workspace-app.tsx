@@ -76,6 +76,7 @@ import {
   useAnalysisProgress,
 } from "../practice/use-analysis-progress";
 import { useActiveSession } from "./use-active-session";
+import { useWorkspaceBusy } from "./use-workspace-busy";
 import {
   uploadForCurrentFile,
   type PendingVideoUpload,
@@ -238,7 +239,7 @@ function WorkspaceInner() {
     initialWorkspaceScreen,
   );
   // 어느 연습이 지금 화면인가. 그리는 값과 기다림 뒤에 묻는 값을 함께 든다 —
-  // 취소 가드가 무엇을 통과시킬지는 전부 active-session.ts 가 정한다.
+  // 취소 가드가 무엇을 통과시킬지는 전부 use-active-session.ts 가 정한다.
   const {
     id: activeId,
     current: currentSessionId,
@@ -246,6 +247,13 @@ function WorkspaceInner() {
     isCurrentOrFree: sessionIsCurrentOrFree,
     setCurrent: setCurrentSession,
   } = useActiveSession();
+  // 화면 뒤에서 도는 일과 그것이 잠그는 것. 어느 연습의 일인지를 훅이 들고 있어
+  // 자기가 켠 것만 자기가 끈다 — use-workspace-busy.ts.
+  const {
+    disabled: busyDisabled,
+    start: startWork,
+    clear: clearWork,
+  } = useWorkspaceBusy();
   const [detail, setDetail] = useState<PracticeSessionDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -271,9 +279,6 @@ function WorkspaceInner() {
   const [coachOpening, setCoachOpening] = useState(false);
   const coachIdRef = useRef<string | null>(null);
   const dialogueTurnCountRef = useRef(0);
-
-  // 연습 노트
-  const [busy, setBusy] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const chatScrollRef = useRef<HTMLDivElement | null>(null);
@@ -398,15 +403,15 @@ function WorkspaceInner() {
     urlLoadedRef.current = null;
     reportProgress({ type: "reset" });
     setError(null);
-    // 연습을 여는 중에 새 연습으로 나가면 그 조회의 finally 는 남의 화면을 건드리지
-    // 않으려고 busy 를 두고 간다. 화면을 처음으로 되돌리는 여기가 그걸 푸는 자리다.
-    setBusy(false);
+    // 여기까지 오면 어느 연습의 일도 이 화면의 것이 아니다. 늦게 도착할 그 조회는
+    // 자기가 켠 표시를 못 찾아 아무것도 되살리지 못한다.
+    clearWork();
     setSituation("");
     setCharacter("");
     setGoal("");
     setDrawerOpen(false);
     replaceUrl("/practice/new");
-  }, [discardPendingUpload, reportProgress, setCurrentSession]);
+  }, [clearWork, discardPendingUpload, reportProgress, setCurrentSession]);
 
   const resetToPrep = useCallback(() => resetTo(null), [resetTo]);
 
@@ -774,7 +779,7 @@ function WorkspaceInner() {
   const restartAfterBlocked = useCallback(async () => {
     const practiceSessionId = currentSessionId();
     if (!practiceSessionId) return;
-    setBusy(true);
+    const doneRestarting = startWork("restartingChat", practiceSessionId);
     setError(null);
     // 지난 대화도 그 노트도 여기서 버린다 — 처음부터 다시 여는 길이다.
     dispatch({ type: "coachStarting" });
@@ -795,12 +800,12 @@ function WorkspaceInner() {
         setError("대화를 다시 시작하지 못했어요. 잠시 후 다시 시도해 주세요.");
       }
     } finally {
-      if (isCurrentSession(practiceSessionId)) {
-        setCoachOpening(false);
-        setBusy(false);
-      }
+      // 코치를 기다리는 표시는 화면의 것이라 지금 화면일 때만 내린다. 도는 일 쪽은
+      // 자기가 켠 것을 스스로 알아보므로 가드 없이 끝맺는다.
+      if (isCurrentSession(practiceSessionId)) setCoachOpening(false);
+      doneRestarting();
     }
-  }, [currentSessionId, isCurrentSession, restoreCoach]);
+  }, [currentSessionId, isCurrentSession, restoreCoach, startWork]);
 
   // 받아 온 연습으로 화면을 옮긴다. 두 진입 경로가 이 자리를 공유하고, 그 앞뒤로
   // 저마다 더 하는 일(주소로 온 길은 자기 자리부터 잡는다)은 각자에게 남는다.
@@ -888,7 +893,7 @@ function WorkspaceInner() {
     coachIdRef.current = null;
     dialogueTurnCountRef.current = 0;
     practiceAnalyticsContextRef.current = null;
-    setBusy(true);
+    const doneLoading = startWork("sessionLoading", id);
     try {
       const result = await loadPracticeSession({
         sessionId: id,
@@ -907,9 +912,10 @@ function WorkspaceInner() {
         setError("연습을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.");
       }
     } finally {
-      // 남의 요청이 지금 화면의 로딩을 풀면 안 된다. 이 가드로 두고 가는 busy 는
-      // 다음 openSession 이 다시 켜거나 resetToPrep 이 푼다.
-      if (isCurrentSession(id)) setBusy(false);
+      // 남의 요청이 지금 화면의 로딩을 풀면 안 된다 — 그것을 묻는 자리가 여기서
+      // 사라졌다. 이 조회가 켠 표시는 그 사이 다른 연습이 이어받았으면 이미 그쪽
+      // 것이고, 끝맺음은 자기 것만 끈다.
+      doneLoading();
     }
   }, [
     applyLoadOutcome,
@@ -920,6 +926,7 @@ function WorkspaceInner() {
     sessions,
     setCurrentSession,
     showLoadedSession,
+    startWork,
   ]);
 
   // 주소에 ?session= 이 실려 오면(연습 기록 링크·새로고침) 그 세션을 연다.
@@ -969,7 +976,7 @@ function WorkspaceInner() {
 
   const removeSession = useCallback(async () => {
     if (!activeId) return;
-    setBusy(true);
+    const doneDeleting = startWork("deleting", activeId);
     try {
       await deletePracticeSession(activeId);
       resetToPrep();
@@ -977,9 +984,11 @@ function WorkspaceInner() {
     } catch {
       setError("연습을 지우지 못했어요. 잠시 후 다시 시도해 주세요.");
     } finally {
-      setBusy(false);
+      // 성공한 길은 resetToPrep 이 이미 놓고 갔다. 그때는 켠 것이 남아 있지 않아
+      // 이 끝맺음이 아무 일도 하지 않는다.
+      doneDeleting();
     }
-  }, [activeId, resetToPrep, refreshList]);
+  }, [activeId, resetToPrep, refreshList, startWork]);
 
   const noteBySession = useMemo(
     () => new Set(reports.map((r) => r.practice_session_id)),
@@ -1103,7 +1112,7 @@ function WorkspaceInner() {
               <>
                 <button
                   type="button"
-                  disabled={busy}
+                  disabled={busyDisabled.remove}
                   onClick={() => void removeSession()}
                   className="hidden h-8 rounded-[10px] border border-[#f1aeb5] px-3 text-xs font-black text-[#e03131] transition hover:bg-[#fff5f5] disabled:text-[#f1aeb5] sm:block"
                 >
@@ -1179,7 +1188,7 @@ function WorkspaceInner() {
               <NotePanel
                 report={body.report}
                 messages={messages}
-                busy={busy}
+                backDisabled={busyDisabled.backToChat}
                 onBackToChat={
                   body.backTo === "restart"
                     ? restartAfterBlocked
@@ -1214,7 +1223,7 @@ function WorkspaceInner() {
               <BlockageSelectionFlow
                 videoUrl={body.videoUrl}
                 scene={{ situation, character, goal }}
-                busy={busy}
+                busy={busyDisabled.blockageSubmit}
                 onComplete={(selection) => void begin(selection)}
               />
             </div>
@@ -2303,31 +2312,25 @@ function Bubble({ msg }: { msg: ChatMsg }) {
   );
 }
 
+// 노트 없이는 이 자리에 설 수 없다 — 화면이 자기 노트를 들고 있고(workspace-state.ts)
+// 그것을 그대로 받는다. 옛 코드는 노트가 없을 때의 자리("정리하는 중이에요…")를 여기
+// 두었는데, 화면이 노트를 들게 된 뒤로는 그 자리에 닿을 길이 없어졌다.
 function NotePanel({
   report,
   messages,
-  busy,
+  backDisabled,
   onBackToChat,
   onFinish,
   onContinueNext,
 }: {
-  report: PracticeReport | null;
+  report: PracticeReport;
   messages: ChatMsg[];
-  busy: boolean;
+  /** 뒤에서 도는 일이 대화로 돌아가는 길을 막고 있는가. */
+  backDisabled: boolean;
   onBackToChat: () => void;
   onFinish: () => void;
   onContinueNext: () => void;
 }) {
-  if (!report) {
-    return (
-      <section className="flex min-h-0 flex-1 items-center justify-center rounded-[20px] bg-white p-8 text-center shadow-[0_12px_36px_rgba(25,31,40,0.06)]">
-        <p className="text-sm font-semibold text-[#8b95a1]">
-          {busy ? "연습 노트를 정리하는 중이에요…" : "아직 연습 노트가 없어요."}
-        </p>
-      </section>
-    );
-  }
-
   if (report.report_type === "blocked") {
     return (
       <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
@@ -2360,7 +2363,7 @@ function NotePanel({
           </button>
           <button
             type="button"
-            disabled={busy}
+            disabled={backDisabled}
             onClick={onBackToChat}
             className="h-12 flex-1 rounded-[14px] bg-[#3182f6] text-sm font-black text-white transition hover:bg-[#1b64da] disabled:bg-[#c9d3df]"
           >
