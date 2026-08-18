@@ -8,6 +8,7 @@ import java.time.Clock;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
+import java.time.ZoneId;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -37,6 +38,9 @@ import org.springframework.stereotype.Repository;
  */
 @Repository
 public class PostgresMemoryRepository implements MemoryRepository, CoachMemory {
+    /** 차수 날짜는 배우가 보는 시간대로 적는다 — 자정 직전 연습이 "다른 날" 이 되면 어색하다. */
+    private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
+
     /** `store.py:_MEMORY_UPDATE_NAMESPACE` 와 같은 값이어야 잡이 멱등해진다. */
     private static final UUID MEMORY_UPDATE_NAMESPACE =
             UUID.fromString("6f3a1d52-8c47-4b19-9e0a-2d5c7b41f8e3");
@@ -168,7 +172,8 @@ public class PostgresMemoryRepository implements MemoryRepository, CoachMemory {
                 values,
                 context.earlierConversation(),
                 context.fromSamePractice(),
-                context.pendingTakes());
+                context.pendingTakes(),
+                context.sceneHistory());
     }
 
     /** 지난 대화 발췌에 담는 마지막 턴 수. 여섯이면 배우·코치 세 왕복이다. */
@@ -205,11 +210,14 @@ public class PostgresMemoryRepository implements MemoryRepository, CoachMemory {
             closed = jdbc.queryForList("""
                     SELECT coach.id
                     FROM practice_sessions current
-                    JOIN practice_sessions chosen ON chosen.id=current.continued_from
-                    JOIN coach_sessions coach ON coach.practice_session_id=chosen.id
+                    JOIN practice_sessions member
+                        ON member.id=current.continued_from
+                        OR member.continued_from=current.continued_from
+                    JOIN coach_sessions coach ON coach.practice_session_id=member.id
                     WHERE current.id=?
-                      AND chosen.user_id=?
-                      AND chosen.hidden_at IS NULL
+                      AND member.user_id=?
+                      AND member.hidden_at IS NULL
+                      AND member.id <> current.id
                       AND coach.status='closed'::session_status_t
                     ORDER BY coach.created_at DESC
                     LIMIT 1
@@ -245,7 +253,81 @@ public class PostgresMemoryRepository implements MemoryRepository, CoachMemory {
         return new PriorPracticeContext(
                 excerpt,
                 samePractice,
-                pendingTakes(report.isEmpty() ? null : report.getFirst()));
+                pendingTakes(report.isEmpty() ? null : report.getFirst()),
+                sceneHistory(userId, practiceSessionId));
+    }
+
+    /**
+     * 이어한 묶음(부모+자식들)에서 차수별 카드 한 줄 요약 (SOMA-418).
+     *
+     * <p>직전 대화 6턴만으로는 3~4차째에 처음 찾은 것을 잃는다. 카드는 그 연습의 요약을
+     * 모델이 이미 정리해 둔 것이므로, 새 호출 없이 제목과 "아직 안 해본 것" 만 줄 세운다.
+     * 카드가 없는 차수(차단 노트 포함)는 조용히 건너뛴다 — 빈 줄이 남으면 모델이 지어낸다.
+     */
+    private List<String> sceneHistory(UUID userId, UUID practiceSessionId) {
+        record Round(OffsetDateTime createdAt, String cardJson) {
+        }
+        List<Round> rounds = jdbc.query("""
+                SELECT member.created_at, card.report_json::text AS card
+                FROM practice_sessions current
+                JOIN practice_sessions member
+                    ON member.id=current.continued_from
+                    OR member.continued_from=current.continued_from
+                LEFT JOIN LATERAL (
+                    SELECT report_json FROM practice_reports report
+                    WHERE report.practice_session_id=member.id
+                    ORDER BY report.created_at DESC LIMIT 1
+                ) card ON TRUE
+                WHERE current.id=?
+                  AND member.user_id=?
+                  AND member.hidden_at IS NULL
+                  AND member.id <> current.id
+                ORDER BY member.created_at
+                """, (result, rowNumber) -> new Round(
+                result.getObject("created_at", OffsetDateTime.class),
+                result.getString("card")), practiceSessionId, userId);
+        List<String> lines = new ArrayList<>();
+        for (Round round : rounds) {
+            // 차수 번호는 살아남은 줄 기준으로 센다 — 카드 없는 차수를 건너뛰며 번호에
+            // 구멍을 내면 코치가 없는 차수를 지어내 채운다.
+            String line = historyLine(lines.size() + 1, round.createdAt(), round.cardJson());
+            if (line != null) {
+                lines.add(line);
+            }
+        }
+        return List.copyOf(lines);
+    }
+
+    /** 차수 하나를 "N차(M/d): 제목 — 다음: …" 한 줄로. 카드 모양이 달라져도 터지지 않는다. */
+    private String historyLine(int ordinal, OffsetDateTime createdAt, String cardJson) {
+        if (cardJson == null) {
+            return null;
+        }
+        JsonNode card;
+        try {
+            card = mapper.readTree(cardJson);
+        } catch (JsonProcessingException notJson) {
+            return null;
+        }
+        String title = card == null ? "" : card.path("title").asText("");
+        if (title.isBlank()) {
+            return null;
+        }
+        StringBuilder line = new StringBuilder();
+        line.append(ordinal).append("차");
+        if (createdAt != null) {
+            OffsetDateTime seoul = createdAt.atZoneSameInstant(SEOUL).toOffsetDateTime();
+            line.append('(').append(seoul.getMonthValue()).append('/')
+                    .append(seoul.getDayOfMonth()).append(')');
+        }
+        line.append(": ").append(title);
+        JsonNode nextTake = card.path("next_take");
+        if (nextTake.isObject() && nextTake.path("tested").isBoolean()
+                && !nextTake.path("tested").asBoolean()
+                && nextTake.path("direction").isTextual()) {
+            line.append(" — 다음: ").append(nextTake.path("direction").asText());
+        }
+        return line.toString();
     }
 
     /**
@@ -401,7 +483,8 @@ public class PostgresMemoryRepository implements MemoryRepository, CoachMemory {
 
     /** 셋 다 비어 있을 수 있다 — 첫 연습이 그렇다. */
     public record PriorPracticeContext(
-            String earlierConversation, boolean fromSamePractice, List<String> pendingTakes) {
+            String earlierConversation, boolean fromSamePractice, List<String> pendingTakes,
+            List<String> sceneHistory) {
     }
 
 

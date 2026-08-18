@@ -30,6 +30,9 @@ public interface PracticeSessionRepository {
 
     AnalysisStatus status(UUID userId, UUID sessionId);
 
+    /** 이 연습이 어느 연습에서 이어졌는지. 없거나 남의 것·숨긴 것이면 {@code null}. */
+    UUID parentOf(UUID userId, UUID sessionId);
+
     SessionDetail detail(UUID userId, UUID sessionId);
 
     /** 목록에서 감춘다. 이미 감춰졌거나 남의 것이면 거짓. */

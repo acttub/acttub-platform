@@ -21,6 +21,8 @@ public record PracticeSession(
         String blockageKind,
         String subBranch,
         String blockageDetail,
+        // 이어한 묶음의 부모 연습. 깊이는 2로 고정된다 — 자식에서 이어가도 부모를 가리킨다.
+        UUID continuedFrom,
         OffsetDateTime createdAt,
         OffsetDateTime updatedAt) {
 

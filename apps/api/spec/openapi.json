@@ -3219,6 +3219,15 @@
             } ],
             "title" : "Blockage Detail"
           },
+          "continued_from" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "format" : "uuid"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Continued From"
+          },
           "created_at" : {
             "type" : "string",
             "format" : "date-time",

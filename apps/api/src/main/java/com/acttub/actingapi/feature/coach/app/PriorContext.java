@@ -17,16 +17,22 @@ public record PriorContext(
         // 프롬프트 제목이 갈린다 — 다른 연습의 대화를 "같은 연습" 이라고 붙이면
         // 코치가 이번 영상의 장면과 뒤섞는다.
         boolean fromSamePractice,
-        List<String> pendingTakes) {
+        List<String> pendingTakes,
+        // 이어한 묶음(부모+자식들)에서 차수별 카드 한 줄 요약. 직전 대화 6턴만으로는
+        // 3~4차째에 처음 찾은 것을 잃는다 — 카드는 이미 요약이라 모델 호출 없이 조립한다.
+        List<String> sceneHistory) {
 
-    public static final PriorContext EMPTY = new PriorContext(Map.of(), null, true, List.of());
+    public static final PriorContext EMPTY =
+            new PriorContext(Map.of(), null, true, List.of(), List.of());
 
     public PriorContext {
         memory = Map.copyOf(new LinkedHashMap<>(memory));
         pendingTakes = List.copyOf(pendingTakes);
+        sceneHistory = List.copyOf(sceneHistory);
     }
 
     public boolean isEmpty() {
-        return memory.isEmpty() && earlierConversation == null && pendingTakes.isEmpty();
+        return memory.isEmpty() && earlierConversation == null && pendingTakes.isEmpty()
+                && sceneHistory.isEmpty();
     }
 }
