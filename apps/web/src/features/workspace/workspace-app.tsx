@@ -23,7 +23,6 @@ import { logout } from "@/lib/api/v2/auth";
 import { startCoach, replyCoach } from "@/lib/api/v2/coach";
 import { listReports } from "@/lib/api/v2/reports";
 import {
-  deletePracticeSession,
   getPracticeSession,
   listPracticeSessions,
   pollSessionUntilSettled,
@@ -88,6 +87,7 @@ import {
   type PendingUploadResult,
   type PracticeStartFailure,
 } from "./practice-start";
+import { removePractice } from "./practice-removal";
 import {
   loadPracticeSession,
   type SessionLoadOutcome,
@@ -975,20 +975,40 @@ function WorkspaceInner() {
   ]);
 
   const removeSession = useCallback(async () => {
-    if (!activeId) return;
-    const doneDeleting = startWork("deleting", activeId);
+    const removing = activeId;
+    if (!removing) return;
+    const doneDeleting = startWork("deleting", removing);
     try {
-      await deletePracticeSession(activeId);
-      resetToPrep();
-      void refreshList();
-    } catch {
-      setError("연습을 지우지 못했어요. 잠시 후 다시 시도해 주세요.");
+      const outcome = await removePractice({
+        sessionId: removing,
+        isCurrent: () => isCurrentSession(removing),
+      });
+      switch (outcome.kind) {
+        case "removed":
+          resetToPrep();
+          void refreshList();
+          return;
+        // 목록에서는 사라져야 하지만 화면은 그새 연 다른 연습의 것이다.
+        case "removedSuperseded":
+          void refreshList();
+          return;
+        case "failed":
+          setError("연습을 지우지 못했어요. 잠시 후 다시 시도해 주세요.");
+          return;
+        // 못 지운 것도 남의 화면에는 띄우지 않는다.
+        case "failedSuperseded":
+          return;
+        default: {
+          const unhandled: never = outcome;
+          return unhandled;
+        }
+      }
     } finally {
-      // 성공한 길은 resetToPrep 이 이미 놓고 갔다. 그때는 켠 것이 남아 있지 않아
+      // 되돌아간 길은 resetToPrep 이 이미 놓고 갔다. 그때는 켠 것이 남아 있지 않아
       // 이 끝맺음이 아무 일도 하지 않는다.
       doneDeleting();
     }
-  }, [activeId, resetToPrep, refreshList, startWork]);
+  }, [activeId, isCurrentSession, resetToPrep, refreshList, startWork]);
 
   const noteBySession = useMemo(
     () => new Set(reports.map((r) => r.practice_session_id)),
@@ -1177,6 +1197,8 @@ function WorkspaceInner() {
           </div>
         </header>
 
+        <WorkspaceErrorBanner error={error} />
+
         {body.kind === "chat" || body.kind === "note" ? (
           <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden p-3 sm:p-4 lg:flex-row">
             <ScenePanel
@@ -1208,7 +1230,6 @@ function WorkspaceInner() {
                   coachReady: body.coachReady,
                   sending,
                 })}
-                error={error}
                 scrollRef={chatScrollRef}
                 onSend={(reply) => void send(reply)}
                 done={body.done}
@@ -1223,7 +1244,7 @@ function WorkspaceInner() {
               <BlockageSelectionFlow
                 videoUrl={body.videoUrl}
                 scene={{ situation, character, goal }}
-                busy={busyDisabled.blockageSubmit}
+                submitDisabled={busyDisabled.blockageSubmit}
                 onComplete={(selection) => void begin(selection)}
               />
             </div>
@@ -1309,11 +1330,6 @@ function WorkspaceInner() {
                   }}
                 />
               )}
-              {error ? (
-                <p role="alert" className="rounded-2xl bg-[#fff0f0] px-4 py-3 text-sm font-bold text-[#e42939]">
-                  {error}
-                </p>
-              ) : null}
               <IntroLine />
             </div>
           </div>
@@ -2095,7 +2111,6 @@ function ChatPanel({
   setAnswer,
   sending,
   inputEnabled,
-  error,
   scrollRef,
   onSend,
   done,
@@ -2107,7 +2122,6 @@ function ChatPanel({
   setAnswer: (v: string) => void;
   sending: boolean;
   inputEnabled: boolean;
-  error: string | null;
   scrollRef: React.RefObject<HTMLDivElement | null>;
   onSend: (reply?: string) => void;
   done: boolean;
@@ -2282,11 +2296,6 @@ function ChatPanel({
           </div>
         )}
       </div>
-      {error ? (
-        <p role="alert" className="border-t border-[#edf0f3] px-4 py-3 text-sm font-bold text-[#e42939]">
-          {error}
-        </p>
-      ) : null}
     </section>
   );
 }
@@ -2408,6 +2417,32 @@ function NotePanel({
         </div>
       </div>
     </section>
+  );
+}
+
+/**
+ * 화면 어디서 난 오류든 이 하나가 그린다. 헤더 바로 아래, 어느 화면인지를 가르는
+ * 분기보다 **앞**이라 무엇을 보고 있든 같은 자리에 뜬다.
+ *
+ * 옛 코드는 이것을 패널마다 따로 배선했고, 그 배선이 없는 화면(노트·막힘)에서는
+ * 오류가 조용히 사라졌다 — 노트를 보다 목록에서 다른 연습을 열었는데 그 조회가
+ * 실패하면 아무 말도 듣지 못했다.
+ *
+ * ⚠ 그 장면이 다 풀린 것은 아니다. 조회가 실패해도 화면은 **지난 연습의 노트를
+ * 그대로 들고 있다** — workspace-state.ts 의 `sessionOpening` 이 노트만 계속 드는
+ * 것은 조회가 성공했을 때 깜빡이지 않으려는 것이고, 실패했을 때 화면을 어디로
+ * 보낼지는 아직 정해진 적이 없다(SOMA-409 에 남겼다). 이제 그 위에 오류가 뜨지만
+ * 본문은 여전히 남의 노트다.
+ */
+function WorkspaceErrorBanner({ error }: { error: string | null }) {
+  if (!error) return null;
+  return (
+    <p
+      role="alert"
+      className="shrink-0 border-b border-[#edf0f3] bg-[#fff0f0] px-4 py-3 text-sm font-bold text-[#e42939] sm:px-5"
+    >
+      {error}
+    </p>
   );
 }
 

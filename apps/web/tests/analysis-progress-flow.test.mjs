@@ -253,6 +253,39 @@ test("질문 받기를 누르면 막힘을 고르기 전에 압축·업로드가
   assert.match(workspace.slice(pickStart, pickEnd), /discardPendingUpload\(\)/);
 });
 
+test("지우기가 끝난 자리는 그 연습이 아직 이 화면인지부터 묻는다", () => {
+  const workspace = readWeb("src/features/workspace/workspace-app.tsx");
+  // 지우는 동안에도 목록에서 다른 연습을 여는 길은 열려 있다. 그때 되돌리면 방금 연
+  // 그 연습을 통째로 날린다. 무엇이 그 갈림을 정하는지는 tests/practice-removal.test.mjs
+  // 가 실행으로 지키고, 여기서는 이 자리가 갈림마다 다르게 구는지만 본다 —
+  // 창은 다음 선언 앞에서 끊는다.
+  const removeStart = workspace.indexOf("const removeSession = useCallback");
+  const removeEnd = workspace.indexOf("const noteBySession", removeStart);
+  assert.ok(removeStart !== -1 && removeEnd > removeStart, "지우는 자리를 못 찾았다");
+  const remove = workspace.slice(removeStart, removeEnd);
+  assert.match(remove, /isCurrent: \(\) => isCurrentSession\(removing\),/);
+
+  const removedAt = remove.indexOf('case "removed":');
+  const supersededAt = remove.indexOf('case "removedSuperseded":');
+  const failedAt = remove.indexOf('case "failed":');
+  const failedSupersededAt = remove.indexOf('case "failedSuperseded":');
+  assert.ok(
+    removedAt !== -1 &&
+      supersededAt > removedAt &&
+      failedAt > supersededAt &&
+      failedSupersededAt > failedAt,
+    "지운 뒤의 갈림 넷을 못 찾았다",
+  );
+  // 갈림에 **닿기 전에** 되돌리면 묻는 시늉만 한 것이다 — 옛 버그가 정확히 그 모양이다.
+  assert.doesNotMatch(remove.slice(0, removedAt), /resetToPrep\(\)/);
+  // 아직 이 화면인 길에서만 되돌린다.
+  assert.match(remove.slice(removedAt, supersededAt), /\n\s*resetToPrep\(\);/);
+  // 자리를 뺏겼으면 목록만 갱신하고 화면은 건드리지 않는다.
+  assert.doesNotMatch(remove.slice(supersededAt, failedAt), /resetToPrep\(\)/);
+  // 못 지운 것도 남의 화면에는 띄우지 않는다.
+  assert.doesNotMatch(remove.slice(failedSupersededAt), /setError/);
+});
+
 test("막힘 선택 완료 뒤에는 대화가 아니라 같은 진행 자리에서 기다린다", () => {
   const workspace = readWeb("src/features/workspace/workspace-app.tsx");
   const beginStart = workspace.indexOf("const begin = useCallback");

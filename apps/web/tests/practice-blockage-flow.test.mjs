@@ -88,15 +88,24 @@ test("서술 예시는 기본 접힘이고 예를 들면 라벨을 눌러 펼친
   assert.match(blockageSelectionSource, /\{examplesOpen \? \([\s\S]*examples\.map/);
 });
 
-test("서술을 비워도 이대로 이어가기 버튼이 활성 상태로 남는다", () => {
+test("서술을 비워도 이대로 이어가기 버튼이 활성 상태로 남고, 잠겨도 문구는 그대로다", () => {
   const main = chooseBlockageKind(initialBlockageFlowState, "표현");
   const detail = chooseBlockageSubBranch(main, "감정");
 
   assert.equal(completeBlockageFlow(detail)?.blockage_detail, null);
+  // 창은 그 버튼이 사는 화면으로 끊는다 — 파일 전체를 두고 이어 붙이면 멀리 떨어진
+  // 두 심볼이 한 단언을 만족한다(apps/web/CLAUDE.md 가 실물로 경고한 모양).
+  const detailStart = blockageSelectionSource.indexOf("function DetailScreen");
+  assert.notEqual(detailStart, -1, "서술 화면을 못 찾았다");
+  const detailScreen = blockageSelectionSource.slice(detailStart);
   assert.match(
-    blockageSelectionSource,
-    /disabled=\{busy\}[\s\S]*?onClick=\{onComplete\}[\s\S]*?이대로 이어가기 →/,
+    detailScreen,
+    /disabled=\{submitDisabled\}[\s\S]*?onClick=\{onComplete\}[\s\S]*?disabled:bg-\[#c9d3df\][\s\S]*?이대로 이어가기 →/,
   );
+  // 그 잠금은 화면 뒤에서 도는 **다른** 일이 이 연습을 붙들고 있다는 뜻이다(실제로
+  // 켜지는 것은 지우는 중일 때뿐이다). 이 화면이 무언가를 진행 중이라고 말하면
+  // 거짓이 된다 — 옛 문구가 그랬다.
+  assert.doesNotMatch(blockageSelectionSource, /이어가는 중/);
 });
 
 test("서술 화면에 되돌리기 칩과 글자 수 표시가 남아 있다", () => {

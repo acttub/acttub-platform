@@ -53,6 +53,24 @@ test("노트 화면은 화면이 든 노트를 그대로 받는다", () => {
   assert.match(notePanel, /report=\{body\.report\}/);
 });
 
+test("오류는 어느 화면인지와 무관하게 껍데기 한 자리가 그린다", () => {
+  // 패널마다 배선하면 그 배선이 없는 화면에서 오류가 조용히 사라진다 — 노트를 보다
+  // 목록에서 다른 연습을 열었는데 그 조회가 실패하면 아무 말도 듣지 못하던 자리다.
+  //
+  // 그래서 **위치만으로는 부족하다**: 화면 분기보다 앞에 두고도 그 배선을 조건으로
+  // 감싸면 같은 버그가 돌아온다. 헤더와 분기 사이에 오는 것이 이 배너 하나뿐이고
+  // 그 사이에 조건이 없다는 것까지 본다.
+  const headerAt = source.indexOf("</header>");
+  const branchAt = source.indexOf('{body.kind === "chat" || body.kind === "note" ? (');
+  assert.notEqual(headerAt, -1, "헤더 끝을 못 찾았다");
+  assert.notEqual(branchAt, -1, "화면을 가르는 분기를 못 찾았다");
+  assert.ok(headerAt < branchAt, "헤더가 화면 분기 뒤에 있다");
+  assert.match(
+    source.slice(headerAt, branchAt),
+    /^<\/header>\s*<WorkspaceErrorBanner error=\{error\} \/>\s*$/,
+  );
+});
+
 test("대화 입력이 열리는지는 화면이 정한 코치 유무를 따른다", () => {
   const chatPanel = block("<ChatPanel", "onOpenNote={openNote}");
   assert.match(
