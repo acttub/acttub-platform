@@ -20,6 +20,7 @@ import { useResource } from "@/lib/react/use-resource";
 import { RailLayout } from "@/features/nav/app-rail";
 
 import { localDate } from "./local-date";
+import { StatusLine } from "./status-line";
 
 export function UniversityDetailPage({ universityId }: { universityId: string }) {
   const admissions = useResource(
@@ -52,21 +53,17 @@ export function UniversityDetailPage({ universityId }: { universityId: string })
             서버 말을 그리므로 둘이 갈려 있고, 어느 쪽으로 맞출지는 이 커밋의 일이 아니다.
           */}
           {admissions.state === "failed" && (
-            <p className="mt-8 text-sm font-semibold text-[#e5484d]">
+            <StatusLine tone="error">
               입시 정보를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.
-            </p>
+            </StatusLine>
           )}
 
           {admissions.state === "loading" && (
-            <p className="mt-8 text-sm font-semibold text-[#8b95a1]">
-              불러오는 중이에요…
-            </p>
+            <StatusLine tone="muted">불러오는 중이에요…</StatusLine>
           )}
 
           {payload && !university && (
-            <p className="mt-8 text-sm font-semibold text-[#8b95a1]">
-              해당 대학을 찾을 수 없어요.
-            </p>
+            <StatusLine tone="muted">해당 대학을 찾을 수 없어요.</StatusLine>
           )}
 
           {payload && university && (

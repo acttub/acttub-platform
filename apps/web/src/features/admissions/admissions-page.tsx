@@ -22,6 +22,7 @@ import { useResource } from "@/lib/react/use-resource";
 import { RailLayout } from "@/features/nav/app-rail";
 
 import { localDate } from "./local-date";
+import { StatusLine } from "./status-line";
 
 const TYPE_LABEL: Record<string, string> = {
   univ: "4년제",
@@ -96,13 +97,11 @@ export function AdmissionsPage() {
         )}
 
         {admissions.state === "failed" && (
-          <p className="mt-8 text-sm font-semibold text-[#e5484d]">
-            {admissions.message}
-          </p>
+          <StatusLine tone="error">{admissions.message}</StatusLine>
         )}
 
         {admissions.state === "loading" && (
-          <p className="mt-8 text-sm font-semibold text-[#8b95a1]">불러오는 중이에요…</p>
+          <StatusLine tone="muted">불러오는 중이에요…</StatusLine>
         )}
 
         {payload && (
