@@ -8,7 +8,7 @@
 // 여기는 그것으로 무엇을 그리는지만 정한다.
 
 import type { PracticeReport } from "@/lib/api/v2/types";
-import type { WorkspaceScreen } from "./workspace-state";
+import { isChatScreen, type WorkspaceScreen } from "./workspace-state";
 
 /**
  * setup 몸통을 그리는 화면들. 서로 다른 Practice Stage 넷이 같은 몸통을 쓴다 —
@@ -24,8 +24,6 @@ export type WorkspaceViewInput = {
   screen: WorkspaceScreen;
   /** 서버가 준 재생 주소(`detail.playback_url`). 로컬 원본이 없을 때 쓴다. */
   playbackUrl: string | null;
-  /** 연습 노트가 없으면 null. */
-  reportType: PracticeReport["report_type"] | null;
 };
 
 export type WorkspaceVideoSlot =
@@ -39,8 +37,14 @@ export type WorkspaceSetupFooter =
   | { kind: "progress"; phase: "scan"; failed: boolean };
 
 export type WorkspaceViewBody =
-  | { kind: "chat"; done: boolean; noteReady: boolean }
-  | { kind: "note"; backTo: "chat" | "restart" }
+  | {
+      kind: "chat";
+      done: boolean;
+      noteReady: boolean;
+      /** 코치가 붙었고 아직 대화 중이다 — 그래야 답을 보낼 수 있다. */
+      coachReady: boolean;
+    }
+  | { kind: "note"; report: PracticeReport; backTo: "chat" | "restart" }
   | { kind: "blockage"; videoUrl: string }
   | {
       kind: "setup";
@@ -75,7 +79,7 @@ export function describeWorkspaceView(input: WorkspaceViewInput): WorkspaceView 
     body: describeBody(input),
     statusChip: describeStatusChip(input.screen),
     review: {
-      armed: kind === "chat" || kind === "chatDone" || kind === "note",
+      armed: isChatScreen(input.screen) || kind === "note",
       kind: kind === "note" ? "note" : "chat",
     },
   };
@@ -87,14 +91,18 @@ function describeBody(input: WorkspaceViewInput): WorkspaceViewBody {
     // 막힌 대화의 노트는 되돌아갈 대화가 없어 처음부터 다시 연다.
     return {
       kind: "note",
-      backTo: input.reportType === "blocked" ? "restart" : "chat",
+      report: screen.report,
+      backTo: screen.report.report_type === "blocked" ? "restart" : "chat",
     };
   }
-  if (screen.kind === "chat" || screen.kind === "chatDone") {
+  if (isChatScreen(screen)) {
     return {
       kind: "chat",
       done: screen.kind === "chatDone",
-      noteReady: input.reportType !== null,
+      noteReady: screen.report !== null,
+      // 빈 코치 id 는 코치가 없는 것과 같이 다룬다 — 옛 가드가 `&& coachSessionId` 로
+      // 그것을 걸렀다. 좁히면 답을 못 보내는 세션으로 입력이 열린다.
+      coachReady: Boolean(screen.kind === "chat" && screen.coachId),
     };
   }
   // 막힘 선택은 영상 없이 설 수 없다 — 그 자리가 자기 영상을 들고 있다.
@@ -154,6 +162,8 @@ function describeStatusChip(screen: WorkspaceScreen): WorkspaceStatusChip | null
     case "analyzing":
     case "analysisFailed":
       return "analyzing";
+    // 코치를 기다리는 동안에도 화면은 대화다.
+    case "chatOpening":
     case "chat":
       return "chat";
     // 대화가 끝나도 노트로 넘어가기 전까지는 대화 화면이다. 그동안 "대화 중"이라고

@@ -56,19 +56,22 @@ export function coachMessageText(
   return turn.message;
 }
 
+/**
+ * 답을 보낼 수 있는가. 묻는 것이 둘로 줄었다.
+ *
+ * 훑어보기가 끝났는지는 여기서 묻지 않는다 — 끝나기 전에는 대화창 자체가 그려지지
+ * 않기 때문이다(`workspace-view.ts` 가 그 자리에 훑어보기 화면을 세운다).
+ * 대화가 끝났는지도 묻지 않는다 — `coachReady` 가 "코치가 붙었고 아직 대화 중" 을
+ * 뜻하므로 끝난 대화는 이미 거짓이다.
+ */
 export function isCoachInputEnabled({
-  analysisStatus,
-  coachSessionId,
+  coachReady,
   sending,
-  done,
 }: {
-  analysisStatus: PracticeSessionStatus | null;
-  coachSessionId: string | null;
+  coachReady: boolean;
   sending: boolean;
-  done: boolean;
 }): boolean {
-  const analysisSettled = analysisStatus === "analyzed" || analysisStatus === "failed";
-  return Boolean(analysisSettled && coachSessionId && !sending && !done);
+  return coachReady && !sending;
 }
 
 export function renderablePracticeReport(

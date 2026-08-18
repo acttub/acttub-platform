@@ -87,6 +87,7 @@ import {
 } from "./pending-video-upload";
 import {
   abandonedStage,
+  currentReport,
   initialWorkspaceScreen,
   pickedVideo,
   workspaceScreenReducer,
@@ -254,19 +255,16 @@ function WorkspaceInner() {
     videoDurationMs,
     report: reportProgress,
   } = useAnalysisProgress();
-  const [analysisStatus, setAnalysisStatus] = useState<PracticeSessionDetail["status"] | null>(null);
 
   // 대화
   const [messages, setMessages] = useState<ChatMsg[]>([]);
   const [answer, setAnswer] = useState("");
   const [sending, setSending] = useState(false);
   const [coachOpening, setCoachOpening] = useState(false);
-  const [coachSessionId, setCoachSessionId] = useState<string | null>(null);
   const coachIdRef = useRef<string | null>(null);
   const dialogueTurnCountRef = useRef(0);
 
   // 연습 노트
-  const [report, setReport] = useState<PracticeReport | null>(null);
   const [busy, setBusy] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -288,9 +286,9 @@ function WorkspaceInner() {
     withEvidence: boolean;
   } | null>(null);
 
-  // 어느 연습에서 어느 단계를 이미 세었는지. 대화와 노트 확인은 한 연습 안에서 여러 번
+  // 어느 연습에서 어느 Practice Stage 를 이미 세었는지. 대화와 노트 확인은 한 연습 안에서 여러 번
   // 열린다 — 노트를 보다 대화로 돌아갔다 오거나, 지난 연습을 다시 열거나.
-  // 그대로 두면 단계별 수가 부풀어 어디서 사람이 빠지는지 못 읽는다.
+  // 그대로 두면 자리별 수가 부풀어 어디서 사람이 빠지는지 못 읽는다.
   // 화면을 벗어났다 돌아오면 이 Set 은 비므로 그때는 다시 센다 — 유입경로 그래프는
   // 사람 수로 그려져 영향이 없고, 이걸 막으려면 기기에 기록을 남겨야 해서 두지 않았다.
   const countedStepsRef = useRef<Set<string>>(new Set());
@@ -382,15 +380,12 @@ function WorkspaceInner() {
     setActiveId(null);
     setDetail(null);
     setMessages([]);
-    setReport(null);
     setCoachOpening(false);
-    setCoachSessionId(null);
     coachIdRef.current = null;
     dialogueTurnCountRef.current = 0;
     coachCoordinatorRef.current = null;
     practiceAnalyticsContextRef.current = null;
     urlLoadedRef.current = null;
-    setAnalysisStatus(null);
     reportProgress({ type: "reset" });
     setError(null);
     // 연습을 여는 중에 새 연습으로 나가면 그 조회의 finally 는 남의 화면을 건드리지
@@ -423,7 +418,6 @@ function WorkspaceInner() {
   const view = describeWorkspaceView({
     screen,
     playbackUrl: detail?.playback_url ?? null,
-    reportType: report?.report_type ?? null,
   });
   const body = view.body;
 
@@ -451,12 +445,17 @@ function WorkspaceInner() {
     ) => {
       // 코치 세션 id 는 매 응답마다 회전할 수 있어 다음 reply 에 최신 값을 쓴다.
       coachIdRef.current = turn.session_id;
-      setCoachSessionId(turn.session_id);
       dialogueTurnCountRef.current = dialogueTurnCount(turn);
       const message = coachMessageText(turn);
       setMessages((m) => [...m, { role: "ai", text: message }]);
       const completed = completedCoachReport(turn);
-      dispatch({ type: "coachTurnReceived", done: turn.status === "complete" });
+      // 노트는 받아 두되 화면은 그대로 둔다 — 마지막 인사를 읽고 배우가 직접 넘어간다.
+      dispatch({
+        type: "coachTurnReceived",
+        coachId: turn.session_id,
+        done: turn.status === "complete",
+        report: completed,
+      });
       if (turn.status === "complete") {
         trackPracticeDialogueCompleted(
           dialogueTurnCountRef.current,
@@ -464,11 +463,7 @@ function WorkspaceInner() {
           endedBy,
         );
       }
-      if (completed) {
-        // 노트는 받아 두되 화면은 그대로 둔다 — 마지막 인사를 읽고 배우가 직접 넘어간다.
-        setReport(completed);
-        void refreshList();
-      }
+      if (completed) void refreshList();
     },
     [refreshList],
   );
@@ -477,18 +472,18 @@ function WorkspaceInner() {
   // 이미 노트가 목적지라 여기를 거치지 않는다.
   const openNote = useCallback(() => {
     dispatch({ type: "noteOpened" });
-    if (report && countStepOnce(activeIdRef.current, "result")) {
+    const opened = currentReport(screen);
+    if (opened && countStepOnce(activeIdRef.current, "result")) {
       trackPracticeResultViewed(
-        report.report_type,
+        opened.report_type,
         dialogueTurnCountRef.current,
         "current",
       );
     }
-  }, [countStepOnce, report]);
+  }, [countStepOnce, screen]);
 
   const restoreCoach = useCallback((turn: CoachTurnResponse) => {
     coachIdRef.current = turn.session_id;
-    setCoachSessionId(turn.session_id);
     dialogueTurnCountRef.current = dialogueTurnCount(turn);
     const restored: ChatMsg[] | undefined = turn.turns?.map((message) => ({
       role: message.role === "actor" ? "me" : "ai",
@@ -498,7 +493,14 @@ function WorkspaceInner() {
       restored ?? [{ role: "ai", text: coachMessageText(turn) }],
     );
     const completed = completedCoachReport(turn);
-    dispatch({ type: "coachTurnReceived", done: turn.status === "complete" });
+    // 첫 응답이 곧바로 complete 로 오는 경우가 있다. 재개 응답은 항상 continue 다.
+    // 그때도 화면은 그대로 두고 배우가 정리보기를 누를 때 넘긴다.
+    dispatch({
+      type: "coachTurnReceived",
+      coachId: turn.session_id,
+      done: turn.status === "complete",
+      report: completed,
+    });
     if (turn.status === "complete") {
       trackPracticeDialogueCompleted(
         dialogueTurnCountRef.current,
@@ -506,12 +508,7 @@ function WorkspaceInner() {
         "coach",
       );
     }
-    if (completed) {
-      // 첫 응답이 곧바로 complete 로 오는 경우다. 재개 응답은 항상 continue 라 여기 오지 않는다.
-      // 이때도 화면은 그대로 두고 배우가 정리보기를 누를 때 넘긴다.
-      setReport(completed);
-      void refreshList();
-    }
+    if (completed) void refreshList();
   }, [refreshList]);
 
   const coordinatorFor = useCallback((practiceSessionId: string) => {
@@ -580,13 +577,11 @@ function WorkspaceInner() {
       signal: controller.signal,
       onStatus: (status) => {
         if (activeIdRef.current !== practiceSessionId) return;
-        setAnalysisStatus(status);
         dispatch({ type: "analysisStatusReported", status });
       },
     }).then(
       (settled) => {
         if (activeIdRef.current !== practiceSessionId || controller.signal.aborted) return;
-        setAnalysisStatus(settled.status);
         dispatch({ type: "analysisStatusReported", status: settled.status });
         reportProgress({ type: "settle", status: settled.status });
         setDetail(settled);
@@ -691,7 +686,7 @@ function WorkspaceInner() {
       startUpload,
     );
     const { controller, promise } = pending;
-    // 업로드가 다 끝난 뒤 터지는 실패는 UploadError 가 아니라 단계를 알 길이 없다.
+    // 업로드가 다 끝난 뒤 터지는 실패는 UploadError 가 아니라 Upload Stage 를 알 길이 없다.
     // 이 표시가 없으면 세션 생성 실패가 전부 preflight 로 기록된다.
     let reachedSessionCreate = false;
     try {
@@ -716,7 +711,6 @@ function WorkspaceInner() {
         withEvidence: session.status === "analyzed",
       };
       setActiveId(session.session_id);
-      setAnalysisStatus(session.status);
       setDetail(null);
       reportProgress({ type: "duration", videoDurationMs: durationMs });
       enterAnalysis(session.status, compressionRan);
@@ -800,11 +794,10 @@ function WorkspaceInner() {
     if (!practiceSessionId) return;
     setBusy(true);
     setError(null);
+    // 지난 대화도 그 노트도 여기서 버린다 — 처음부터 다시 여는 길이다.
     dispatch({ type: "coachStarting" });
-    setReport(null);
     setMessages([]);
     setCoachOpening(true);
-    setCoachSessionId(null);
     coachIdRef.current = null;
     dialogueTurnCountRef.current = 0;
     try {
@@ -849,14 +842,12 @@ function WorkspaceInner() {
     setDetail(null);
     // 분석 구간 진입은 조회가 끝난 뒤 enterAnalysis 가 알린다.
     reportProgress({ type: "reset" });
-    setAnalysisStatus(null);
     setMessages([]);
     // 무엇을 열었는지 아직 모른다. 지금 화면에서 지난 연습의 흔적만 걷어낸다 —
     // 여기서 고르던 로컬 원본도 그 전이가 함께 버린다. 남겨 두면 화면이 그것을
     // 서버 주소보다 먼저 잡아 남의 영상을 틀게 된다.
     dispatch({ type: "sessionOpening" });
     setCoachOpening(false);
-    setCoachSessionId(null);
     coachIdRef.current = null;
     dialogueTurnCountRef.current = 0;
     practiceAnalyticsContextRef.current = null;
@@ -865,7 +856,6 @@ function WorkspaceInner() {
       const loaded = await getPracticeSession(id);
       if (activeIdRef.current !== id) return;
       setDetail(loaded);
-      setAnalysisStatus(loaded.status);
       // 목록에서 연 세션은 압축을 탔는지도 영상 길이도 모른다 — 무압축 쪽 시작점에서 출발한다.
       enterAnalysis(loaded.status, false);
       practiceAnalyticsContextRef.current = {
@@ -875,23 +865,18 @@ function WorkspaceInner() {
       };
       dispatch({ type: "sessionLoaded", status: loaded.status });
       if (loaded.status === "created" || loaded.status === "analyzing") {
-        setReport(null);
         trackAnalysis(id);
         return;
       }
-      if (loaded.status === "failed") {
-        setReport(null);
-        return;
-      }
+      if (loaded.status === "failed") return;
       try {
         const found = await getReport(id);
         if (activeIdRef.current !== id) return;
-        setReport(found.report);
-        dispatch({ type: "noteLoaded" });
+        dispatch({ type: "noteLoaded", report: found.report });
         countStepOnce(id, "result");
       } catch {
         if (activeIdRef.current !== id) return;
-        setReport(null);
+        dispatch({ type: "noteLoaded", report: null });
         startConversationAfterAnalysis(id);
       }
     } catch {
@@ -937,7 +922,6 @@ function WorkspaceInner() {
         activeIdRef.current = sessionParam;
         setActiveId(sessionParam);
         setDetail(loaded);
-        setAnalysisStatus(loaded.status);
         enterAnalysis(loaded.status, false);
         practiceAnalyticsContextRef.current = {
           kind: loaded.blockage_kind,
@@ -948,23 +932,18 @@ function WorkspaceInner() {
         coachCoordinatorRef.current = null;
         dispatch({ type: "sessionLoaded", status: loaded.status });
         if (loaded.status === "created" || loaded.status === "analyzing") {
-          setReport(null);
           trackAnalysis(sessionParam);
           return;
         }
-        if (loaded.status === "failed") {
-          setReport(null);
-          return;
-        }
+        if (loaded.status === "failed") return;
         try {
           const found = await getReport(sessionParam);
           if (superseded()) return;
-          setReport(found.report);
-          dispatch({ type: "noteLoaded" });
+          dispatch({ type: "noteLoaded", report: found.report });
           countStepOnce(sessionParam, "result");
         } catch {
           if (superseded()) return;
-          setReport(null);
+          dispatch({ type: "noteLoaded", report: null });
           startConversationAfterAnalysis(sessionParam);
         }
       } catch {
@@ -1194,7 +1173,7 @@ function WorkspaceInner() {
             />
             {body.kind === "note" ? (
               <NotePanel
-                report={report}
+                report={body.report}
                 messages={messages}
                 busy={busy}
                 onBackToChat={
@@ -1213,10 +1192,8 @@ function WorkspaceInner() {
                 setAnswer={setAnswer}
                 sending={sending || coachOpening}
                 inputEnabled={isCoachInputEnabled({
-                  analysisStatus,
-                  coachSessionId,
+                  coachReady: body.coachReady,
                   sending,
-                  done: body.done,
                 })}
                 error={error}
                 scrollRef={chatScrollRef}
@@ -1638,7 +1615,7 @@ function RailItem({
   );
 }
 
-/* ── 준비 단계 ────────────────────────────────────────────────── */
+/* ── 준비 화면 ────────────────────────────────────────────────── */
 
 function Stepper({ current }: { current: 1 | 2 | 3 }) {
   const steps: [string, string][] = [

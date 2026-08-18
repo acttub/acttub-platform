@@ -179,7 +179,9 @@ test("complete가 오면 코치 응답에서 노트를 꺼내 받아 둔다", ()
   );
 
   assert.match(pushAi, /const completed = completedCoachReport\(turn\);/);
-  assert.match(pushAi, /setReport\(completed\)/);
+  // 받아 둔 노트는 화면이 든다. 안 딸려 온 턴이 그것을 지우지 않는 것은
+  // tests/workspace-state.test.mjs 가 실행으로 지킨다.
+  assert.match(pushAi, /report: completed,/);
   assert.doesNotMatch(workspace, /이제 맞아요|아직 달라요/);
 });
 

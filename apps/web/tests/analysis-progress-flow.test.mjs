@@ -9,6 +9,31 @@ const appRoot = path.resolve(import.meta.dirname, "..");
 const readWeb = (relativePath) =>
   readFileSync(path.join(appRoot, relativePath), "utf8");
 
+/** 두 끝을 다 방어한다 — 못 찾으면 창이 파일 끝까지 벌어져 거짓 초록이 된다. */
+function between(source, startMarker, endMarker) {
+  const start = source.indexOf(startMarker);
+  assert.notEqual(start, -1, `${startMarker} 를 찾지 못했다`);
+  const end = source.indexOf(endMarker, start);
+  assert.notEqual(end, -1, `${endMarker} 를 찾지 못했다`);
+  return source.slice(start, end);
+}
+
+/**
+ * 노트가 있는지 물어본 답이 그대로 전이에 실리는지. 목록에서 여는 길과 주소로 여는
+ * 길이 같은 모양이라 둘이 이것을 공유한다(주소 사본은 커밋 5 가 없앤다).
+ * 성공·실패 가지를 각각 잘라 본다 — 한 창에 이어 놓으면 어느 가지에 무엇이 있는지
+ * 가리지 못하고 등장 순서만 보게 된다.
+ */
+function assertNoteLookup(scope, idArg) {
+  const found = between(scope, `const found = await getReport(${idArg})`, "} catch {");
+  assert.match(found, /dispatch\(\{ type: "noteLoaded", report: found\.report \}\)/);
+  assert.doesNotMatch(found, /report: null/);
+
+  const missing = between(scope, "} catch {", "startConversationAfterAnalysis");
+  assert.match(missing, /dispatch\(\{ type: "noteLoaded", report: null \}\)/);
+  assert.doesNotMatch(missing, /report: found\.report/);
+}
+
 const {
   coachMessageText,
   createCoachStartCoordinator,
@@ -262,27 +287,13 @@ test("analyzing 동안에는 coach start를 보내지 않는다", async () => {
   assert.equal(starts, 0);
 });
 
-test("분석 중에는 입력이 비활성이고 analyzed 뒤 세션이 열리면 활성된다", () => {
-  assert.equal(isCoachInputEnabled({
-    analysisStatus: "analyzing",
-    coachSessionId: null,
-    sending: false,
-    done: false,
-  }), false);
-  // 둘을 한꺼번에 어긋나게 두면 어느 쪽이 막는지 가리지 못한다. 훑어보기가 안 끝난
-  // 것만으로도 입력은 닫혀 있어야 한다 — 코치가 붙어 있어도 마찬가지다.
-  assert.equal(isCoachInputEnabled({
-    analysisStatus: "analyzing",
-    coachSessionId: "coach-1",
-    sending: false,
-    done: false,
-  }), false);
-  assert.equal(isCoachInputEnabled({
-    analysisStatus: "analyzed",
-    coachSessionId: "coach-1",
-    sending: false,
-    done: false,
-  }), true);
+test("코치가 붙기 전에는 입력이 비활성이고 붙으면 활성된다", () => {
+  // 훑어보기가 안 끝났다는 조건은 여기서 빠졌다 — 그때는 대화 몸통 자체가 안 그려진다
+  // (tests/workspace-view.test.mjs 의 "훑어보는 동안에는 대화 몸통 자체가 없다").
+  assert.equal(isCoachInputEnabled({ coachReady: false, sending: false }), false);
+  assert.equal(isCoachInputEnabled({ coachReady: true, sending: false }), true);
+  // 보내는 중이면 코치가 붙어 있어도 닫힌다.
+  assert.equal(isCoachInputEnabled({ coachReady: true, sending: true }), false);
 });
 
 test("대화 화면 진입 시 start message가 첫 코치 말풍선이 된다", () => {
@@ -402,16 +413,41 @@ test("영상 길이를 분과 초로 표시한다", () => {
   assert.equal(formatVideoDuration(null), null);
 });
 
+test("막힌 대화를 처음부터 다시 열 때도 코치를 부르는 자리로 간다", () => {
+  const workspace = readWeb("src/features/workspace/workspace-app.tsx");
+  const restart = between(
+    workspace,
+    "const restartAfterBlocked = useCallback",
+    "const openSession = useCallback",
+  );
+  // 이 전이가 빠지면 화면은 노트에 남은 채 대화만 비워진다. 그 자리가 무엇을
+  // 버리는지는 tests/workspace-state.test.mjs 가 실행으로 지킨다.
+  assert.match(restart, /dispatch\(\{ type: "coachStarting" \}\)/);
+  assert.match(restart, /setMessages\(\[\]\)/);
+});
+
+test("주소로 연 연습도 노트 조회 결과를 그대로 전이에 싣는다", () => {
+  const workspace = readWeb("src/features/workspace/workspace-app.tsx");
+  const byUrl = between(
+    workspace,
+    "// 주소에 ?session= 이 실려 오면",
+    "const removeSession = useCallback",
+  );
+  assertNoteLookup(byUrl, "sessionParam");
+});
+
 test("복구한 세션은 대기 상태만 진행 자리를 거치고 analyzed면 대화로 간다", () => {
   const workspace = readWeb("src/features/workspace/workspace-app.tsx");
-  const restoreStart = workspace.indexOf("const openSession = useCallback");
-  const restoreEnd = workspace.indexOf("// 주소에 ?session=", restoreStart);
-  const restore = workspace.slice(restoreStart, restoreEnd);
+  const restore = between(
+    workspace,
+    "const openSession = useCallback",
+    "// 주소에 ?session=",
+  );
 
   // 조회 전 진입 구간은 지난 연습의 흔적을 걷어낸다. 이 전이가 빠지면 앞 연습의
   // "대화 마침"·훑어보기 실패 표시가 새로 연 화면에 그대로 남는다.
   // 무엇을 걷어내는지는 tests/workspace-state.test.mjs 가 실행으로 지킨다.
-  const entry = restore.slice(0, restore.indexOf("await getPracticeSession"));
+  const entry = between(restore, "const openSession = useCallback", "await getPracticeSession");
   assert.match(entry, /dispatch\(\{ type: "sessionOpening" \}\)/);
 
   // 받아 온 상태로 화면을 먼저 옮기고, 그다음에 폴링·노트 조회로 갈린다.
@@ -421,14 +457,14 @@ test("복구한 세션은 대기 상태만 진행 자리를 거치고 analyzed�
     /dispatch\(\{ type: "sessionLoaded", status: loaded\.status \}\)[\s\S]*loaded\.status === "created" \|\| loaded\.status === "analyzing"[\s\S]*trackAnalysis\(id\)/,
   );
   // 훑어보기가 실패한 연습은 그 자리에서 멈춘다 — 폴링도 코치도 부르지 않는다.
-  const failedBranch = restore.slice(
-    restore.indexOf('if (loaded.status === "failed")'),
-    restore.indexOf("const found = await getReport"),
+  const failedBranch = between(
+    restore,
+    'if (loaded.status === "failed")',
+    "const found = await getReport",
   );
   assert.match(failedBranch, /return;/);
   assert.doesNotMatch(failedBranch, /trackAnalysis|startCoach|coachStarting|getReport/);
-  assert.match(
-    restore,
-    /getReport\(id\)[\s\S]*dispatch\(\{ type: "noteLoaded" \}\)[\s\S]*startConversationAfterAnalysis\(id\)/,
-  );
+  // 노트가 있으면 그것을 실어 노트 화면으로, 없으면 없다고 실어 대화 자리로 간다.
+  // 어느 쪽이 어느 자리인지는 tests/workspace-state.test.mjs 가 실행으로 지킨다.
+  assertNoteLookup(restore, "id");
 });

@@ -17,12 +17,14 @@ const picked = (name = "monologue.mp4", url = "blob:local") => ({
   url,
 });
 const CONTINUE = { id: "s-1", label: "면접 장면" };
+/** 코치가 준 연습 노트. 여기서 갈리는 것은 종류 하나뿐이다. */
+const NOTE = { report_type: "analysis" };
+const BLOCKED_NOTE = { report_type: "blocked" };
 
 /** 아무것도 안 한 첫 화면. 각 테스트는 필요한 것만 덮어쓴다. */
 const base = {
   screen: { kind: "prep", video: null, continueFrom: null },
   playbackUrl: null,
-  reportType: null,
 };
 
 const view = (overrides) => describeWorkspaceView({ ...base, ...overrides });
@@ -142,14 +144,58 @@ test("막힘 선택은 자기 영상을 들고 선다", () => {
 });
 
 test("대화 중에는 대화가 화면을 이끈다", () => {
-  const { body, statusChip, review } = at({ kind: "chat" });
-  assert.deepEqual(body, { kind: "chat", done: false, noteReady: false });
+  const { body, statusChip, review } = at({
+    kind: "chat",
+    coachId: "coach-1",
+    report: null,
+  });
+  assert.deepEqual(body, {
+    kind: "chat",
+    done: false,
+    noteReady: false,
+    coachReady: true,
+  });
   assert.equal(statusChip, "chat");
   assert.deepEqual(review, { armed: true, kind: "chat" });
 });
 
+test("빈 코치 id 는 코치가 없는 것과 같이 다룬다", () => {
+  // 옛 가드가 `&& coachSessionId` 로 빈 문자열을 걸렀다. 그것으로는 답을 보낼 수 없다.
+  assert.equal(
+    at({ kind: "chat", coachId: "", report: null }).body.coachReady,
+    false,
+  );
+});
+
+test("코치를 기다리는 동안에도 화면은 대화이고 입력만 잠긴다", () => {
+  const { body, statusChip, review } = at({ kind: "chatOpening", report: null });
+  assert.deepEqual(body, {
+    kind: "chat",
+    done: false,
+    noteReady: false,
+    coachReady: false,
+  });
+  assert.equal(statusChip, "chat");
+  assert.deepEqual(review, { armed: true, kind: "chat" });
+});
+
+test("훑어보는 동안에는 대화 몸통 자체가 없다", () => {
+  // 입력이 열려 있는지는 대화 몸통이 그려진 뒤에나 물을 수 있다 — 훑어보기가
+  // 끝나기 전에 답을 보낼 수 없는 것은 이 분기가 지킨다.
+  for (const screen of [
+    { kind: "analyzing", video: null },
+    { kind: "analysisFailed", video: null },
+  ]) {
+    assert.equal(at(screen).body.kind, "setup");
+  }
+});
+
 test("대화가 끝나면 화면은 그대로인 채 상태 칩만 대화 마침으로 바뀐다", () => {
-  const { body, statusChip, review } = at({ kind: "chatDone" });
+  const { body, statusChip, review } = at({
+    kind: "chatDone",
+    coachId: "coach-1",
+    report: NOTE,
+  });
   assert.equal(body.kind, "chat");
   assert.equal(body.done, true);
   assert.equal(statusChip, "chat-done");
@@ -157,36 +203,36 @@ test("대화가 끝나면 화면은 그대로인 채 상태 칩만 대화 마침
 });
 
 test("노트를 받아 두면 대화 화면에서 노트로 넘어갈 길이 열린다", () => {
-  const { body } = at({ kind: "chatDone" }, { reportType: "analysis" });
-  assert.equal(body.noteReady, true);
+  assert.equal(
+    at({ kind: "chatDone", coachId: "coach-1", report: NOTE }).body.noteReady,
+    true,
+  );
+  // 코치를 기다리는 자리에 들고 온 노트도 그 길을 연다 — 지난 연습을 여는 사이다.
+  assert.equal(at({ kind: "chatOpening", report: NOTE }).body.noteReady, true);
 });
 
-test("연습 노트 화면은 대화로 돌아가는 길을 준다", () => {
-  const { body, statusChip, review } = at(
-    { kind: "note", coachDone: true },
-    { reportType: "expression" },
-  );
-  assert.deepEqual(body, { kind: "note", backTo: "chat" });
+test("연습 노트 화면은 자기 노트를 들고 대화로 돌아가는 길을 준다", () => {
+  const priorChat = { coachId: "coach-1", done: true };
+  const { body, statusChip, review } = at({ kind: "note", report: NOTE, priorChat });
+  assert.deepEqual(body, { kind: "note", report: NOTE, backTo: "chat" });
   assert.equal(statusChip, "note");
   assert.deepEqual(review, { armed: true, kind: "note" });
 });
 
 test("막힌 대화의 노트는 돌아갈 대화가 없어 처음부터 다시 연다", () => {
-  const { body } = at({ kind: "note", coachDone: true }, { reportType: "blocked" });
+  const { body } = at({
+    kind: "note",
+    report: BLOCKED_NOTE,
+    priorChat: { coachId: "coach-1", done: true },
+  });
   assert.equal(body.backTo, "restart");
-});
-
-test("노트가 없는 노트 화면도 도달 가능하고 대화로 돌아가는 길만 남는다", () => {
-  const { body } = at({ kind: "note", coachDone: false }, { reportType: null });
-  assert.deepEqual(body, { kind: "note", backTo: "chat" });
 });
 
 test("돌아갈 대화가 있고 없고는 노트 화면이 그리는 것을 가르지 않는다", () => {
   // 그 값은 대화로 돌아갈 때 어디에 서는지만 정한다(workspace-state.test.mjs).
-  const overrides = { reportType: "analysis" };
   assert.deepEqual(
-    at({ kind: "note", coachDone: true }, overrides),
-    at({ kind: "note", coachDone: false }, overrides),
+    at({ kind: "note", report: NOTE, priorChat: { coachId: "coach-1", done: true } }),
+    at({ kind: "note", report: NOTE, priorChat: null }),
   );
 });
 
@@ -225,10 +271,16 @@ test("막힘을 고르는 동안에는 이어받기 배너가 아예 사라진�
 });
 
 test("대화·노트 화면에서는 이어받기 표시가 화면에서 사라진다", () => {
-  assert.equal("continueBanner" in at({ kind: "chat" }).body, false);
-  assert.equal("continueBanner" in at({ kind: "chatDone" }).body, false);
-  assert.equal(
-    "continueBanner" in at({ kind: "note", coachDone: true }).body,
-    false,
-  );
+  for (const screen of [
+    { kind: "chatOpening", report: null },
+    { kind: "chat", coachId: "coach-1", report: null },
+    { kind: "chatDone", coachId: "coach-1", report: NOTE },
+    { kind: "note", report: NOTE, priorChat: null },
+  ]) {
+    assert.equal(
+      "continueBanner" in at(screen).body,
+      false,
+      `${screen.kind} 에 이어받기 표시가 남았다`,
+    );
+  }
 });

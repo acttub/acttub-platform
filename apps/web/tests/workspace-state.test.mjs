@@ -1,8 +1,9 @@
 // 연습 화면이 무슨 일에 어떻게 옮겨 가는지, 그리고 그 자리가 무엇을 들고 있는지
 // 고정하는 전이표 테스트. 해체(SOMA-409) 전의 행동을 그대로 못박는 것이 목적이다 —
 // 옮기기 전에는 mode(6) 에 coachDone 과 analysisStatus === "failed" 가 곱해져 정해졌고,
-// 골라 둔 영상·이어받을 연습은 화면과 따로 노는 state 였다. 곱을 하나로 합치고
-// 데이터를 화면 안으로 들이면서 흘린 것이 있으면 여기서 빨간불이 켜져야 한다.
+// 골라 둔 영상·이어받을 연습·코치 세션·연습 노트는 화면과 따로 노는 state 였다.
+// 곱을 하나로 합치고 데이터를 화면 안으로 들이면서 흘린 것이 있으면 여기서
+// 빨간불이 켜져야 한다.
 // 그 화면이 무엇을 그리는지는 workspace-view.test.mjs 가 따로 지킨다.
 import assert from "node:assert/strict";
 import { test } from "node:test";
@@ -23,6 +24,9 @@ const OTHER_VIDEO = {
 };
 /** 끝난 연습에서 "이어서 새 연습" 을 눌러 왔을 때 이어받을 연습. */
 const CONTINUE = { id: "practice-1", label: "면접 장면" };
+/** 코치가 대화를 마치며 준 연습 노트. 전이표는 그 속을 들여다보지 않는다. */
+const NOTE = { report_type: "analysis" };
+const OTHER_NOTE = { report_type: "expression" };
 
 /** 도달 가능한 화면 전부. "어느 자리에서 와도" 를 물을 때 쓴다. */
 const EVERY_SCREEN = [
@@ -33,10 +37,15 @@ const EVERY_SCREEN = [
   { kind: "analyzing", video: VIDEO },
   { kind: "analyzing", video: null },
   { kind: "analysisFailed", video: null },
-  { kind: "chat" },
-  { kind: "chatDone" },
-  { kind: "note", coachDone: true },
-  { kind: "note", coachDone: false },
+  { kind: "chatOpening", report: null },
+  { kind: "chatOpening", report: NOTE },
+  { kind: "chat", coachId: "coach-1", report: null },
+  { kind: "chat", coachId: "coach-1", report: NOTE },
+  { kind: "chatDone", coachId: "coach-1", report: NOTE },
+  // 노트 없이 끝난 대화도 도달한다 — 코치가 노트를 안 딸려 보내고 마친 경우다.
+  { kind: "chatDone", coachId: "coach-1", report: null },
+  { kind: "note", report: NOTE, priorChat: { coachId: "coach-1", done: true } },
+  { kind: "note", report: NOTE, priorChat: null },
 ];
 
 const EMPTY_PREP = { kind: "prep", video: null, continueFrom: null };
@@ -91,7 +100,10 @@ test("이어받기를 되돌린 새 연습은 이어받을 연습을 함께 들�
   // 순서에 기대고 있었다 — 뒤집으면 배너가 뜨지 않았다. 되돌리기가 그 값을 받는
   // 지금은 켜는 액션이 이것 하나뿐이라 순서가 남지 않는다.
   assert.deepEqual(
-    advance({ kind: "note", coachDone: true }, { type: "reset", continueFrom: CONTINUE }),
+    advance(
+      { kind: "note", report: NOTE, priorChat: { coachId: "coach-1", done: true } },
+      { type: "reset", continueFrom: CONTINUE },
+    ),
     { kind: "prep", video: null, continueFrom: CONTINUE },
   );
 });
@@ -186,25 +198,43 @@ test("훑어보기 자리를 떠난 뒤 도착한 상태는 화면을 되돌리�
 
 test("다른 연습을 여는 중에는 지난 연습의 흔적만 걷어낸다", () => {
   // 무엇을 열었는지는 아직 모른다. 앞 연습이 남긴 표시만 지운다.
-  assert.deepEqual(advance({ kind: "chatDone" }, { type: "sessionOpening" }), {
-    kind: "chat",
-  });
+  // 붙어 있던 코치는 여기서 놓는다 — 그 대화는 지금 여는 연습의 것이 아니다.
+  assert.deepEqual(
+    advance({ kind: "chatDone", coachId: "coach-1", report: NOTE }, { type: "sessionOpening" }),
+    { kind: "chatOpening", report: NOTE },
+  );
+  assert.deepEqual(
+    advance({ kind: "chat", coachId: "coach-1", report: null }, { type: "sessionOpening" }),
+    { kind: "chatOpening", report: null },
+  );
   assert.deepEqual(
     advance({ kind: "analysisFailed", video: null }, { type: "sessionOpening" }),
     { kind: "analyzing", video: null },
   );
   assert.deepEqual(
-    advance({ kind: "note", coachDone: true }, { type: "sessionOpening" }),
-    { kind: "note", coachDone: false },
+    advance(
+      { kind: "note", report: NOTE, priorChat: { coachId: "coach-1", done: true } },
+      { type: "sessionOpening" },
+    ),
+    { kind: "note", report: NOTE, priorChat: null },
   );
   for (const screen of [
     EMPTY_PREP,
     { kind: "analyzing", video: null },
-    { kind: "chat" },
-    { kind: "note", coachDone: false },
+    { kind: "chatOpening", report: null },
+    { kind: "note", report: NOTE, priorChat: null },
   ]) {
     assert.deepEqual(advance(screen, { type: "sessionOpening" }), screen);
   }
+});
+
+test("다른 연습을 여는 중에도 들고 있던 노트는 조회 답이 올 때까지 남는다", () => {
+  // 무엇을 열었는지 모르는 구간이라 아직 버릴 근거가 없다. 노트가 있는지 물어본
+  // 답(noteLoaded)이 와야 그 자리가 정해진다.
+  assert.deepEqual(
+    advance({ kind: "chat", coachId: "coach-1", report: NOTE }, { type: "sessionOpening" }),
+    { kind: "chatOpening", report: NOTE },
+  );
 });
 
 test("다른 연습을 열면 여기서 고르던 영상과 이어받기는 그 자리에서 버린다", () => {
@@ -239,10 +269,16 @@ test("연 연습이 아직 대기 중이면 훑어보는 자리, 실패면 실�
     kind: "analysisFailed",
     video: null,
   });
-  // 노트가 있는지 물어보는 동안 대화 화면에 선다.
+  // 노트가 있는지 물어보는 동안 대화 화면에 선다. 코치는 아직 부르지 않았다.
   assert.deepEqual(advance(opening, { type: "sessionLoaded", status: "analyzed" }), {
-    kind: "chat",
+    kind: "chatOpening",
+    report: null,
   });
+  // 그 구간에서도 들고 있던 노트는 그대로 따라온다.
+  assert.deepEqual(
+    advance({ kind: "chatOpening", report: NOTE }, { type: "sessionLoaded", status: "analyzed" }),
+    { kind: "chatOpening", report: NOTE },
+  );
 });
 
 test("받아 온 연습은 여기서 고르던 영상을 틀지 않는다", () => {
@@ -255,40 +291,100 @@ test("받아 온 연습은 여기서 고르던 영상을 틀지 않는다", () =
 });
 
 test("지난 연습의 노트를 받아 열면 돌아갈 대화가 없다", () => {
-  assert.deepEqual(advance({ kind: "chat" }, { type: "noteLoaded" }), {
-    kind: "note",
-    coachDone: false,
-  });
+  assert.deepEqual(
+    advance({ kind: "chatOpening", report: null }, { type: "noteLoaded", report: NOTE }),
+    { kind: "note", report: NOTE, priorChat: null },
+  );
 });
 
-test("코치를 부르기 시작하면 대화 화면에 선다", () => {
+test("노트가 없더라는 답이 오면 대화 자리에 서고 들고 있던 노트도 버린다", () => {
+  // 다른 연습을 여는 사이 남아 있던 노트다. 그것을 들고 있으면 정리보기 버튼이
+  // 남의 연습 노트를 연다.
+  assert.deepEqual(
+    advance({ kind: "chatOpening", report: OTHER_NOTE }, { type: "noteLoaded", report: null }),
+    { kind: "chatOpening", report: null },
+  );
+});
+
+test("코치를 부르기 시작하면 코치 없는 대화 자리에 선다", () => {
   assert.deepEqual(
     advance({ kind: "analyzing", video: null }, { type: "coachStarting" }),
-    { kind: "chat" },
+    { kind: "chatOpening", report: null },
   );
-  // 막힌 대화를 처음부터 다시 여는 길도 같은 자리로 온다.
+  // 막힌 대화를 처음부터 다시 여는 길도 같은 자리로 온다. 그때 들고 있던 노트는
+  // 방금 버린 대화의 것이라 함께 버린다.
   assert.deepEqual(
-    advance({ kind: "note", coachDone: true }, { type: "coachStarting" }),
-    { kind: "chat" },
+    advance(
+      { kind: "note", report: NOTE, priorChat: { coachId: "coach-1", done: true } },
+      { type: "coachStarting" },
+    ),
+    { kind: "chatOpening", report: null },
   );
 });
 
 test("코치가 대화를 마쳤다고 하면 화면에 이름이 붙는다", () => {
+  const chat = { kind: "chat", coachId: "coach-1", report: null };
   assert.deepEqual(
-    advance({ kind: "chat" }, { type: "coachTurnReceived", done: true }),
-    { kind: "chatDone" },
+    advance(chat, { type: "coachTurnReceived", coachId: "coach-1", done: true, report: NOTE }),
+    { kind: "chatDone", coachId: "coach-1", report: NOTE },
   );
   assert.deepEqual(
-    advance({ kind: "chat" }, { type: "coachTurnReceived", done: false }),
-    { kind: "chat" },
+    advance(chat, { type: "coachTurnReceived", coachId: "coach-1", done: false, report: null }),
+    chat,
+  );
+});
+
+test("첫 응답이 오면 코치를 기다리던 자리가 코치를 든다", () => {
+  assert.deepEqual(
+    advance(
+      { kind: "chatOpening", report: null },
+      { type: "coachTurnReceived", coachId: "coach-1", done: false, report: null },
+    ),
+    { kind: "chat", coachId: "coach-1", report: null },
+  );
+});
+
+test("코치 세션 id 는 응답마다 갈릴 수 있고 화면이 최신 것을 든다", () => {
+  assert.deepEqual(
+    advance(
+      { kind: "chat", coachId: "coach-1", report: null },
+      { type: "coachTurnReceived", coachId: "coach-2", done: false, report: null },
+    ),
+    { kind: "chat", coachId: "coach-2", report: null },
+  );
+});
+
+test("노트가 안 딸려 온 응답은 받아 둔 노트를 지우지 않는다", () => {
+  // 노트에서 "대화 다시 보기" 로 돌아와 답을 하나 더 하면 그 턴에는 노트가 안 딸려
+  // 온다. 그때 지우면 정리보기 버튼이 사라져 노트로 돌아갈 길이 끊긴다.
+  assert.deepEqual(
+    advance(
+      { kind: "chatDone", coachId: "coach-1", report: NOTE },
+      { type: "coachTurnReceived", coachId: "coach-1", done: false, report: null },
+    ),
+    { kind: "chat", coachId: "coach-1", report: NOTE },
+  );
+  // 새 노트가 딸려 오면 그것으로 갈아치운다.
+  assert.deepEqual(
+    advance(
+      { kind: "chat", coachId: "coach-1", report: NOTE },
+      { type: "coachTurnReceived", coachId: "coach-1", done: true, report: OTHER_NOTE },
+    ),
+    { kind: "chatDone", coachId: "coach-1", report: OTHER_NOTE },
   );
 });
 
 test("코치 응답은 대화 화면 밖을 건드리지 않는다", () => {
   for (const screen of EVERY_SCREEN) {
-    if (screen.kind === "chat" || screen.kind === "chatDone") continue;
+    if (
+      screen.kind === "chatOpening" ||
+      screen.kind === "chat" ||
+      screen.kind === "chatDone"
+    ) {
+      continue;
+    }
     assert.deepEqual(
-      advance(screen, { type: "coachTurnReceived", done: true }),
+      advance(screen, { type: "coachTurnReceived", coachId: "coach-1", done: true, report: NOTE }),
       screen,
       `${screen.kind} 이 코치 응답에 움직였다`,
     );
@@ -296,46 +392,88 @@ test("코치 응답은 대화 화면 밖을 건드리지 않는다", () => {
 });
 
 test("대화를 마치고 연 노트만 돌아갈 대화를 갖는다", () => {
-  assert.deepEqual(advance({ kind: "chatDone" }, { type: "noteOpened" }), {
-    kind: "note",
-    coachDone: true,
-  });
+  assert.deepEqual(
+    advance({ kind: "chatDone", coachId: "coach-1", report: NOTE }, { type: "noteOpened" }),
+    { kind: "note", report: NOTE, priorChat: { coachId: "coach-1", done: true } },
+  );
+  // 아직 대화 중인데 노트를 열면 돌아갈 자리도 대화 중이다.
+  assert.deepEqual(
+    advance({ kind: "chat", coachId: "coach-1", report: NOTE }, { type: "noteOpened" }),
+    { kind: "note", report: NOTE, priorChat: { coachId: "coach-1", done: false } },
+  );
+  // 코치를 기다리는 사이에 열면 돌아갈 대화가 없다.
+  assert.deepEqual(
+    advance({ kind: "chatOpening", report: NOTE }, { type: "noteOpened" }),
+    { kind: "note", report: NOTE, priorChat: null },
+  );
+});
+
+test("노트 없이는 노트 화면에 서지 않는다", () => {
+  // 정리보기 버튼도 노트가 있어야 눌린다. 그 자리를 화면이 자기 데이터로 지킨다.
+  for (const screen of [
+    { kind: "chat", coachId: "coach-1", report: null },
+    { kind: "chatOpening", report: null },
+  ]) {
+    assert.deepEqual(advance(screen, { type: "noteOpened" }), screen);
+  }
 });
 
 test("노트에서 대화로 돌아가면 마쳤던 대화는 마친 자리로 돌아간다", () => {
   assert.deepEqual(
-    advance({ kind: "note", coachDone: true }, { type: "chatReopened" }),
-    { kind: "chatDone" },
+    advance(
+      { kind: "note", report: NOTE, priorChat: { coachId: "coach-1", done: true } },
+      { type: "chatReopened" },
+    ),
+    { kind: "chatDone", coachId: "coach-1", report: NOTE },
   );
-  // 목록에서 연 지난 연습은 코치가 붙은 적이 없어 빈 대화로 간다.
+  // 아직 마치지 않은 대화로 돌아가면 그 코치와 이어서 이야기한다.
   assert.deepEqual(
-    advance({ kind: "note", coachDone: false }, { type: "chatReopened" }),
-    { kind: "chat" },
+    advance(
+      { kind: "note", report: NOTE, priorChat: { coachId: "coach-2", done: false } },
+      { type: "chatReopened" },
+    ),
+    { kind: "chat", coachId: "coach-2", report: NOTE },
+  );
+  // 목록에서 연 지난 연습은 코치가 붙은 적이 없어 코치를 기다리는 자리로 간다.
+  assert.deepEqual(
+    advance({ kind: "note", report: NOTE, priorChat: null }, { type: "chatReopened" }),
+    { kind: "chatOpening", report: NOTE },
   );
 });
 
 test("대화를 마치고 노트를 열었다 돌아오기를 되풀이해도 자리가 흔들리지 않는다", () => {
-  let screen = { kind: "chat" };
+  let screen = { kind: "chat", coachId: "coach-1", report: null };
   for (let round = 0; round < 3; round += 1) {
-    screen = advance(screen, { type: "coachTurnReceived", done: true });
-    assert.deepEqual(screen, { kind: "chatDone" });
+    screen = advance(screen, {
+      type: "coachTurnReceived",
+      coachId: "coach-1",
+      done: true,
+      report: NOTE,
+    });
+    assert.deepEqual(screen, { kind: "chatDone", coachId: "coach-1", report: NOTE });
     screen = advance(screen, { type: "noteOpened" });
-    assert.deepEqual(screen, { kind: "note", coachDone: true });
+    assert.deepEqual(screen, {
+      kind: "note",
+      report: NOTE,
+      priorChat: { coachId: "coach-1", done: true },
+    });
     screen = advance(screen, { type: "chatReopened" });
-    assert.deepEqual(screen, { kind: "chatDone" });
+    assert.deepEqual(screen, { kind: "chatDone", coachId: "coach-1", report: NOTE });
   }
 });
 
 test("연습을 떠난 자리는 이미 쌓인 계측 이름 둘로만 말한다", () => {
   assert.equal(abandonedStage({ kind: "analyzing", video: null }), "preparing");
   assert.equal(abandonedStage({ kind: "analysisFailed", video: VIDEO }), "preparing");
-  assert.equal(abandonedStage({ kind: "chat" }), "chat");
-  assert.equal(abandonedStage({ kind: "chatDone" }), "chat");
+  // 코치를 기다리는 자리도 옛 코드에서는 대화 화면이었다.
+  assert.equal(abandonedStage({ kind: "chatOpening", report: null }), "chat");
+  assert.equal(abandonedStage({ kind: "chat", coachId: "coach-1", report: null }), "chat");
+  assert.equal(abandonedStage({ kind: "chatDone", coachId: "coach-1", report: NOTE }), "chat");
   for (const screen of [
     EMPTY_PREP,
     { kind: "blockage", video: VIDEO, continueFrom: null },
     { kind: "uploading", video: VIDEO, continueFrom: null },
-    { kind: "note", coachDone: true },
+    { kind: "note", report: NOTE, priorChat: null },
   ]) {
     assert.equal(abandonedStage(screen), null, `${screen.kind} 에서 이탈을 셌다`);
   }
@@ -354,10 +492,20 @@ test("같은 자리에 머무는 전이는 받은 것을 그대로 돌려준다"
     advance(analysisFailed, { type: "analysisStatusReported", status: "failed" }),
     analysisFailed,
   );
-  const chat = { kind: "chat" };
-  assert.equal(advance(chat, { type: "coachTurnReceived", done: false }), chat);
-  const note = { kind: "note", coachDone: false };
+  const chat = { kind: "chat", coachId: "coach-1", report: NOTE };
+  assert.equal(
+    advance(chat, { type: "coachTurnReceived", coachId: "coach-1", done: false, report: null }),
+    chat,
+  );
+  const opening = { kind: "chatOpening", report: NOTE };
+  assert.equal(advance(opening, { type: "sessionOpening" }), opening);
+  const note = { kind: "note", report: NOTE, priorChat: null };
   assert.equal(advance(note, { type: "sessionOpening" }), note);
+  // 코치를 기다리는 자리에 같은 답이 또 와도 그 자리에 머문다.
+  assert.equal(
+    advance(opening, { type: "sessionLoaded", status: "analyzed" }),
+    opening,
+  );
   // 이미 빈 준비 화면이면 되돌리기도 그 자리에 머문다.
   assert.equal(advance(EMPTY_PREP, { type: "reset" }), EMPTY_PREP);
   // 받아 온 연습이 이미 그 자리·같은 영상이면 폴링과 마찬가지로 멈춘다.
@@ -370,7 +518,11 @@ test("같은 자리에 머무는 전이는 받은 것을 그대로 돌려준다"
 });
 
 test("전이는 받은 화면을 그 자리에서 고치지 않는다", () => {
-  const screen = { kind: "note", coachDone: true };
+  const screen = {
+    kind: "note",
+    report: NOTE,
+    priorChat: { coachId: "coach-1", done: true },
+  };
   const before = { ...screen };
   advance(screen, { type: "chatReopened" });
   advance(screen, { type: "sessionOpening" });
