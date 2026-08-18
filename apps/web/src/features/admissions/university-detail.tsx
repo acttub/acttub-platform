@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
 
 import {
   countdown,
@@ -15,32 +14,24 @@ import {
   type AdmissionNotice,
   type AdmissionResource,
   type AdmissionTip,
-  type AdmissionsResponse,
   type AdmissionUniversity,
 } from "@/lib/api/v2/admissions";
+import { useResource } from "@/lib/react/use-resource";
 import { RailLayout } from "@/features/nav/app-rail";
 
-export function UniversityDetailPage({ universityId }: { universityId: string }) {
-  const [payload, setPayload] = useState<AdmissionsResponse | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [today, setToday] = useState<string | null>(null);
+import { localDate } from "./local-date";
 
-  useEffect(() => {
-    const controller = new AbortController();
-    getUniversityAdmissions(universityId, { signal: controller.signal })
-      .then((data) => {
-        // 정적 export라 서버 시각이 없다. 응답이 온 뒤에 읽어 프리렌더와 어긋나지 않게 한다.
-        setToday(localDate());
-        setPayload(data);
-      })
-      .catch((cause) => {
-        if (controller.signal.aborted) return;
-        setError(
-          cause instanceof Error ? cause.message : "입시 정보를 불러오지 못했어요.",
-        );
-      });
-    return () => controller.abort();
-  }, [universityId]);
+export function UniversityDetailPage({ universityId }: { universityId: string }) {
+  const admissions = useResource(
+    universityId,
+    (id, signal) => getUniversityAdmissions(id, { signal }),
+    "입시 정보를 불러오지 못했어요.",
+  );
+
+  const answered = admissions.state === "ready" ? admissions : null;
+  const payload = answered?.data ?? null;
+  // 답이 온 시각을 오늘로 읽는다 — 렌더 중에 읽으면 프리렌더된 HTML 과 어긋난다.
+  const today = answered ? localDate(answered.receivedAt) : null;
 
   const university = payload?.universities[0] ?? null;
 
@@ -55,13 +46,18 @@ export function UniversityDetailPage({ universityId }: { universityId: string })
             ← 입시 정보
           </Link>
 
-          {error && (
+          {/*
+            서버가 준 말(`admissions.message`)을 일부러 쓰지 않는다 — 옛 코드가 오류를
+            세워 두고도 렌더에서 버리고 이 문구만 그렸다. 목록 화면(admissions-page)은
+            서버 말을 그리므로 둘이 갈려 있고, 어느 쪽으로 맞출지는 이 커밋의 일이 아니다.
+          */}
+          {admissions.state === "failed" && (
             <p className="mt-8 text-sm font-semibold text-[#e5484d]">
               입시 정보를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.
             </p>
           )}
 
-          {!payload && !error && (
+          {admissions.state === "loading" && (
             <p className="mt-8 text-sm font-semibold text-[#8b95a1]">
               불러오는 중이에요…
             </p>
@@ -666,13 +662,6 @@ function formatSeconds(seconds: number): string {
   if (minutes === 0) return `${rest}초`;
   if (rest === 0) return `${minutes}분`;
   return `${minutes}분 ${rest}초`;
-}
-
-/** 사용자가 사는 시간대의 오늘. UTC로 자르면 한국 오전에 하루가 밀린다. */
-function localDate(): string {
-  const now = new Date();
-  const pad = (value: number) => String(value).padStart(2, "0");
-  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
 }
 
 function period(start?: string | null, end?: string | null): string | null {

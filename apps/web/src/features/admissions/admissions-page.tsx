@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 
 import {
   activeFilterCount,
@@ -16,10 +16,12 @@ import {
   PRACTICAL_LABEL,
   type AdmissionFilters,
   type AdmissionNotice,
-  type AdmissionsResponse,
   type AdmissionUniversity,
 } from "@/lib/api/v2/admissions";
+import { useResource } from "@/lib/react/use-resource";
 import { RailLayout } from "@/features/nav/app-rail";
+
+import { localDate } from "./local-date";
 
 const TYPE_LABEL: Record<string, string> = {
   univ: "4년제",
@@ -27,28 +29,18 @@ const TYPE_LABEL: Record<string, string> = {
 };
 
 export function AdmissionsPage() {
-  const [payload, setPayload] = useState<AdmissionsResponse | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [today, setToday] = useState<string | null>(null);
+  const admissions = useResource(
+    "admissions",
+    (_, signal) => getAdmissions({ signal }),
+    "입시 정보를 불러오지 못했어요.",
+  );
   const [filters, setFilters] = useState<AdmissionFilters>(EMPTY_FILTERS);
   const [filterOpen, setFilterOpen] = useState(false);
 
-  useEffect(() => {
-    const controller = new AbortController();
-    getAdmissions({ signal: controller.signal })
-      .then((data) => {
-        // 정적 export라 서버 시각이 없다. 응답이 온 뒤에 읽어 프리렌더와 어긋나지 않게 한다.
-        setToday(localDate());
-        setPayload(data);
-      })
-      .catch((cause) => {
-        if (controller.signal.aborted) return;
-        setError(
-          cause instanceof Error ? cause.message : "입시 정보를 불러오지 못했어요.",
-        );
-      });
-    return () => controller.abort();
-  }, []);
+  const answered = admissions.state === "ready" ? admissions : null;
+  const payload = answered?.data ?? null;
+  // 답이 온 시각을 오늘로 읽는다 — 렌더 중에 읽으면 프리렌더된 HTML 과 어긋난다.
+  const today = answered ? localDate(answered.receivedAt) : null;
 
   const groups = useMemo(
     () => (payload ? groupByUniversity(payload, today) : []),
@@ -103,9 +95,13 @@ export function AdmissionsPage() {
           </p>
         )}
 
-        {error && <p className="mt-8 text-sm font-semibold text-[#e5484d]">{error}</p>}
+        {admissions.state === "failed" && (
+          <p className="mt-8 text-sm font-semibold text-[#e5484d]">
+            {admissions.message}
+          </p>
+        )}
 
-        {!payload && !error && (
+        {admissions.state === "loading" && (
           <p className="mt-8 text-sm font-semibold text-[#8b95a1]">불러오는 중이에요…</p>
         )}
 
@@ -391,11 +387,4 @@ function Chip({
       {label}
     </button>
   );
-}
-
-/** 사용자가 사는 시간대의 오늘. UTC로 자르면 한국 오전에 하루가 밀린다. */
-function localDate(): string {
-  const now = new Date();
-  const pad = (value: number) => String(value).padStart(2, "0");
-  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
 }
