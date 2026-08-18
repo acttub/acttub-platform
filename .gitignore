@@ -12,10 +12,10 @@ build/
 .env
 .env.*
 
-# python 캐시
+# python 캐시 — 백엔드는 자바지만 apps/mobile/scripts/ 의 폰트·스토어 자산 도구가
+# 파이썬이라 남긴다. pytest 는 저장소 어디에도 없어 뺐다(SOMA-403 5단계).
 __pycache__/
 *.pyc
-.pytest_cache/
 
 # logs
 *.log

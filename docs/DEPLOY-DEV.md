@@ -1,16 +1,19 @@
 # 개발 서버 배포 절차 (단일 EC2)
 
-운영 VPC 안에 개발 전용 서브넷을 하나 만들고, EC2 **한 대**에 Next 서버·FastAPI·
+운영 VPC 안에 개발 전용 서브넷을 하나 만들고, EC2 **한 대**에 Next 서버·Spring Boot·
 PostgreSQL을 모두 올린다. 앞단은 Caddy가 맡는다.
 
 ```
 Cloudflare → EC2 1대 (운영 VPC / dev 퍼블릭 서브넷)
               └ Caddy :443
-                 └ 127.0.0.1:3000  acttub-web.service   (Next standalone)
-                     └ rewrites /v2/*, /health → 127.0.0.1:8000
-                                    acttub-api.service   (FastAPI)
-                                      └ localhost:5432   PostgreSQL
+                 └ 127.0.0.1:3000  acttub-web.service        (Next standalone)
+                     └ rewrites /v2/*, /health → 127.0.0.1:8080
+                                    acttub-api-java.service   (Spring Boot)
+                                      └ localhost:5432        PostgreSQL
 ```
+
+> 서비스 유닛 이름의 `-java`는 디렉토리가 아니라 **유닛**을 따른다. 돌고 있는 유닛을
+> 개명하려면 disable/enable이 얽히므로 `SOMA-403`에서 이름을 유지했다.
 
 **운영([`DEPLOY-VPC.md`](./DEPLOY-VPC.md))과 프로세스 구성이 같고 ALB·CloudFront만
 없다.** 그래서 `deploy/` 스크립트와 systemd 유닛을 양쪽이 그대로 공유한다. 다른 것은
@@ -20,13 +23,10 @@ GitHub Environments의 variables 값뿐이다.
 | --- | --- | --- |
 | 인스턴스 | 1대 (web+api+DB) | fe·be 2대 |
 | 앞단 | Caddy (Cloudflare 뒤) | CloudFront → ALB 2단 |
-| `API_ORIGIN` | `http://127.0.0.1:8000` | `http://<back-alb-dns>` |
+| `API_ORIGIN` | `http://127.0.0.1:8080` | `http://<back-alb-dns>` |
 | DB | 같은 박스의 PostgreSQL | RDS |
 | 배포 트리거 | `dev` 브랜치 push → 자동 | `main` 브랜치 push → 자동 |
 | 마이그레이션 | 배포에 포함(자동) | 배포에 포함(자동) |
-
-기존 dev 서버(`3.38.235.185`, FastAPI 단일 프로세스가 `STATIC_DIR`로 정적 서빙)는 이
-문서로 대체된다. 새 서버를 검증한 뒤 DNS를 옮기고 폐기한다(6장).
 
 ## 1. AWS 콘솔 체크리스트
 
@@ -39,7 +39,7 @@ GitHub Environments의 variables 값뿐이다.
   경로를 넣고 이 서브넷에 연결한다. 운영 퍼블릭 RT(`acttub-pub-rt`)를 공유해도 동작은
   하지만, 라우팅을 건드릴 때 운영 ALB까지 함께 흔들리므로 나눠 둔다
 - 서브넷 속성에서 「퍼블릭 IPv4 주소 자동 할당」을 켠다
-- NAT Gateway를 태우지 않는 이유: dev 아웃바운드(LLM 호출·apt·PyPI)가 운영 NAT의
+- NAT Gateway를 태우지 않는 이유: dev 아웃바운드(LLM 호출·apt·S3)가 운영 NAT의
   비용·대역폭에 섞이지 않게 하려는 것이다. 별도 NAT를 세우면 EC2보다 비싸다
 - 태그 `env=dev`
 
@@ -56,7 +56,7 @@ GitHub Environments의 variables 값뿐이다.
 
 - **22도 열지 않는다.** 접속은 SSM Session Manager로 한다(2장). 퍼블릭 IP가 붙는
   서버라 인바운드를 80/443로만 두는 편이 낫고, 운영과 접속 방식도 통일된다
-- **3000·8000·5432는 열지 않는다.** 전부 loopback으로만 통신한다
+- **3000·8080·5432는 열지 않는다.** 전부 loopback으로만 통신한다
 
 > **함정**: 보안그룹 이름은 VPC마다 따로 놀아서, 다른 VPC에 같은 이름의 SG가 있을 수
 > 있다. `--filters Name=group-name,Values=acttub-dev-sg`로 조회하면 **두 SG의 규칙이
@@ -75,10 +75,9 @@ GitHub Environments의 variables 값뿐이다.
 
 - Ubuntu 24.04, **t3.small**(2GB). 2026-08-16 이전에는 t2.micro였는데, Spring Boot
   이관(`SOMA-287`)이 JVM을 8080에 나란히 띄우려면 최소 700MB가 더 필요해 올렸다.
-  실측은 `spec/M5-cutover.md` §B에 있다
-- **swap 2GB**(2-1). 배포마다 도는 `uv sync`가 피크를 만들어 완충은 필요하지만, JVM이
-  swap에 들어가면 GC가 힙 전체를 디스크에서 훑어 응답이 초 단위로 튄다. t2.micro
-  시절에는 4GB였다
+  실측은 `docs/archive/soma287/M5-cutover.md` §B에 있다
+- **swap 2GB**(2-1). 완충은 필요하지만, JVM이 swap에 들어가면 GC가 힙 전체를 디스크에서
+  훑어 응답이 초 단위로 튄다. t2.micro 시절에는 4GB였다
 - 위 서브넷·보안그룹, IAM 인스턴스 프로파일은 아래 1-5
 - **키페어 없이 만든다.** 접속은 SSM으로 하므로 필요 없다
 - EBS gp3 **10GB**. 실사용은 약 5GB다(OS·런타임 2.5 + swap 2 + 앱 0.6). 예전 30GB는
@@ -201,19 +200,16 @@ aws ssm get-command-invocation --command-id <명령 ID> \
 | --- | --- |
 | `DATABASE_URL` `JWT_SECRET` `AWS_REGION` `DEVELOPMENT_AUTH_PROVIDER` | `GEMINI_API_KEY` `S3_BUCKET` `ADMIN_OPS_TOKEN` `APPLE_OAUTH_CLIENT_ID` |
 
-기존 dev 서버의 `apps/api/acting-api/.env`에서 표의 값을 옮긴다. 값 누락은 배포가 아니라
+기존 인스턴스의 `/etc/acttub/api.env`에서 표의 값을 옮긴다. 값 누락은 배포가 아니라
 런타임에 드러나므로, 양쪽 키 목록을 비교해 빠진 것이 없는지 확인한다(**줄 앞에 공백이
 있는 항목이 있다** — `grep '^KEY='`는 놓친다). 단, 아래 설명대로 S3 access key는 제외한다.
 
-S3 access key는 옮기지 않는다. boto3가 EC2 instance role 자격증명을 기본 체인으로 찾으며,
-`S3_BUCKET`·`AWS_REGION`이 있는데 자격증명을 찾지 못하면 API는 기동하지 않는다.
-
 ```bash
-grep -oE '^[[:space:]]*[A-Za-z0-9_]+=' .env | tr -d ' ='
+grep -oE '^[[:space:]]*[A-Za-z0-9_]+=' /etc/acttub/api.env | tr -d ' ='
 ```
 
-**`STATIC_DIR`은 주지 않는다.** 화면은 Next 서버가 서빙한다. 값을 주면 FastAPI가 정적
-파일까지 물면서 역할이 겹친다 — 기존 dev 서버와 가장 크게 달라지는 지점이다.
+S3 access key는 옮기지 않는다. AWS SDK가 EC2 instance role 자격증명을 기본 체인으로
+찾으므로 키를 두면 오히려 그쪽이 먼저 쓰인다.
 
 ### 2-2. 서버에 직접 들어가야 할 때
 
@@ -251,7 +247,7 @@ Settings → Environments → **`dev`** 생성. 보호 규칙(승인자)은 걸�
 | --- | --- |
 | `AWS_DEPLOY_ROLE_ARN` | `arn:aws:iam::<계정ID>:role/acttub-github-deploy-dev` |
 | `DEPLOY_BUCKET` | `acttub-deploy-dev` |
-| `API_ORIGIN` | `http://127.0.0.1:8000` |
+| `API_ORIGIN` | `http://127.0.0.1:8080` |
 | `NEXT_PUBLIC_SITE_URL` | `https://dev.acttub.com` |
 | `FE_INSTANCE_ID` | dev 인스턴스 ID |
 | `BE_INSTANCE_ID` | **같은** dev 인스턴스 ID |
@@ -263,7 +259,7 @@ Settings → Environments → **`dev`** 생성. 보호 규칙(승인자)은 걸�
 
 `.github/workflows/deploy.yml` 하나가 dev·prod를 모두 처리한다.
 
-- **자동**: `dev` 브랜치에 머지되면 `fe`·`be` 두 잡이 함께 돈다. dev로 들어오는 경로는
+- **자동**: `dev` 브랜치에 머지되면 `fe`·`be_java` 두 잡이 함께 돈다. dev로 들어오는 경로는
   PR뿐이고 그 PR은 `ci.yml` 게이트를 통과했으므로 배포 워크플로는 테스트를 다시 돌리지
   않는다
 - **수동**: Actions → Deploy → Run workflow에서 환경(`dev`/`prod`)과 대상(`fe`/`be-java`/`both`)을
@@ -273,28 +269,31 @@ dev는 인스턴스가 한 대라 두 잡이 같은 박스에 동시에 설치�
 충돌하지 않지만, 잡이 끝나는 순서에 따라 잠깐 새 프론트 + 옛 API 조합이 될 수 있다.
 계약이 깨지는 변경을 확인할 때는 `both` 대신 `be-java` → `fe` 순으로 수동 실행한다.
 
-**백엔드는 Spring Boot 만 배포한다**(M5 컷오버, `SOMA-394`). FastAPI 서비스는 배포 대상이
-아니다 — 8000 에 옛 코드로 계속 떠 있고 롤백 경로로만 남는다. 되돌릴 때는 `API_ORIGIN`을
-8000 으로 되돌린 뒤 `systemctl restart acttub-api` 한 번이면 디스크의 최신 소스로 뜬다.
+**배포되는 백엔드는 jar 하나다.** 되돌릴 때는 Actions에서 이전 커밋을 ref로 골라
+`target=be-java`로 다시 배포한다 — 인스턴스에 다른 백엔드 프로세스는 없다.
 
-**마이그레이션은 dev·운영 모두 자동으로 돈다.** `deploy/ssm-deploy.sh migrate`가 파이썬
-소스를 갱신하고 `alembic upgrade head`를 실행한다 — alembic 이 여전히 스키마 정본이라
-(`SPEC.md` §5-5) 파이썬 코드가 인스턴스에 남아 있어야 하는 이유다. 이 모드는 `systemctl`을
-건드리지 않는다. 자바 배포보다 **먼저** 도는데, Flyway 가 `validate` 로 기동해서 스키마가
-뒤처져 있으면 자바가 아예 뜨지 못하기 때문이다. 되돌리기 어려운 성질은 그대로라 스키마를
-먼저 넓히고 코드를 나중에 좁히는 순서로 통제한다(`DEPLOY-VPC.md` 6-4).
+**마이그레이션은 자바 기동의 일부다.** 스키마 정본이 Flyway 라(`apps/api/CONTRACT.md` §5-5,
+`SOMA-403` 3단계) 배포는 jar 하나만 보내고, 앱이 뜨는 도중에 Flyway 가 `db/migration` 을
+적용한다. 별도 migrate 스텝이 없다. 스키마 변경은 `V2__` 부터 새 파일로 들어가고
+**`V1__baseline.sql` 은 동결이다.** 되돌리기 어려운 성질은 그대로라 스키마를 먼저 넓히고
+코드를 나중에 좁히는 순서로 통제한다(`DEPLOY-VPC.md` 6-4).
+
+⚠ **나쁜 마이그레이션은 배포 실패가 아니라 중단이다** — 마이그레이션이 `systemctl restart`
+뒤에 돌기 때문에 옛 프로세스는 이미 죽어 있고, **jar 를 되돌려도 스키마는 돌아오지 않는다.**
+Postgres 는 실패한 마이그레이션의 이력조차 남기지 않으므로 되돌리는 길은 새 마이그레이션뿐이다
+(`DEPLOY-VPC.md` 4-4 가 정본이다).
 
 ## 5. 검증 체크리스트
 
 DNS를 옮기기 전에는 퍼블릭 IP로 확인한다.
 
-1. `systemctl status acttub-api acttub-web caddy` — 셋 다 active
-2. `curl localhost:8000/health` — 백엔드 단독
+1. `systemctl status acttub-api-java acttub-web caddy` — 셋 다 active
+2. `curl localhost:8080/health` — 백엔드 단독
 3. `curl localhost:3000/health` — Next rewrites가 백엔드로 넘기는지 (**dev·prod 공통 경로**)
 4. `curl http://<퍼블릭 IP>/` — Caddy 경유
 5. 브라우저로 접속 → 스타일·JS 정상 (standalone의 `.next/static` 병합 검증)
 6. 구글 로그인 → 영상 업로드 → 분석 실행
-7. `sudo -u ubuntu env DATABASE_URL=... /usr/local/bin/uv run --no-dev alembic current` — 리비전 확인
+7. `sudo -u ubuntu psql "$DATABASE_URL" -c 'SELECT version, type, success FROM flyway_schema_history ORDER BY installed_rank'` — 적용된 마이그레이션 확인. dev 는 `1 | BASELINE` 로 시작한다
 
 ## 6. 인스턴스 교체 (재구축)
 

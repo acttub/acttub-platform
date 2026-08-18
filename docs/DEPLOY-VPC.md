@@ -1,10 +1,9 @@
 # VPC 2계층 배포 절차 (front svc + back svc)
 
-CloudFront → front alb → front svc(Next 서버) → back alb → back svc(FastAPI) → DB 구조로
-배포한다. **운영(`acttub.com`)이 쓰는 형태다.** 개발 서버는 같은 프로세스 구성을 EC2 한
-대에 올린 축소판이므로([`DEPLOY-DEV.md`](./DEPLOY-DEV.md)) 배포 스크립트와 systemd 유닛을
-양쪽이 공유한다. 예전의 "FastAPI 단일 프로세스가 정적+API를 함께 서빙"하던 인스턴스는
-모두 폐기됐다.
+CloudFront → front alb → front svc(Next 서버) → back alb → back svc(Spring Boot) → DB
+구조로 배포한다. **운영(`acttub.com`)이 쓰는 형태다.** 개발 서버는 같은 프로세스 구성을
+EC2 한 대에 올린 축소판이므로([`DEPLOY-DEV.md`](./DEPLOY-DEV.md)) 배포 스크립트와 systemd
+유닛을 양쪽이 공유한다.
 
 가장 큰 차이는 **백엔드가 private subnet에 있어 브라우저가 직접 닿지 못한다**는 점이다.
 모든 API 호출은 front svc의 Next rewrites 프록시를 통과한다. 덕분에 브라우저 입장에서는
@@ -16,7 +15,8 @@ CloudFront 도메인 하나만 보이므로 same-origin이 유지되고 CORS 설
   `API_ORIGIN`으로 통일(`DEV_API_ORIGIN`은 폴백으로 유지).
 - `apps/web/package.json` — `build`가 standalone 산출물을 만든다. (정적 export 모드는
   더 이상 쓰지 않아 걷어냈다.)
-- `deploy/systemd/acttub-{web,api}.service` — 두 인스턴스용 유닛.
+- `deploy/systemd/acttub-web.service`·`acttub-api-java.service` — 두 인스턴스용 유닛.
+  유닛 이름의 `-java`는 디렉토리가 아니라 유닛을 따른다(`SOMA-403`에서 개명하지 않았다).
 
 ## 2. 인스턴스 부트스트랩 (런타임 설치)
 
@@ -56,25 +56,26 @@ node -v            # v24.x 확인
 sudo mkdir -p /svc/acttub/web && sudo chown ubuntu:ubuntu /svc/acttub/web
 ```
 
-### back svc — uv만
+### back svc — JRE만
+
+**손으로 깔 것이 없다.** `ssm-deploy.sh be-java`가 `java`를 찾지 못하면 그 자리에서
+`openjdk-21-jre-headless`를 설치하고 `/svc/acttub/api-java`를 만든다. 배포 아티팩트가
+jar 하나뿐이라 인스턴스에 빌드 도구도 소스도 필요 없다.
+
+미리 깔아 두려면 이렇게 한다.
 
 ```bash
-curl -LsSf https://astral.sh/uv/install.sh | sh
-# 설치는 홈(~/.local/bin)에 들어간다. 시스템 경로로 옮겨 계정에 묶이지 않게 한다.
-sudo mv ~/.local/bin/uv ~/.local/bin/uvx /usr/local/bin/
-/usr/local/bin/uv --version
+sudo apt-get update -qq
+sudo DEBIAN_FRONTEND=noninteractive apt-get install -y openjdk-21-jre-headless
+java -version      # 21.x 확인
 
-sudo mkdir -p /svc/acttub/acttub-platform/apps/api
+sudo mkdir -p /svc/acttub/api-java
 sudo chown -R ubuntu:ubuntu /svc/acttub
 ```
 
-**uv를 홈에 두면 안 된다.** SSM으로 접속하면 `ssm-user`로 들어가는데 서비스는 `ubuntu`로
-돌기 때문에, 홈에 설치하면 서비스가 uv를 찾지 못한다. `acttub-api.service`의 `ExecStart`가
-`/usr/local/bin/uv`를 가리키는 이유가 이것이다.
-
-파이썬은 `uv python install`로 받지 말고 **시스템 python3을 쓴다** — uv가 받는 파이썬도
-실행 계정의 홈에 깔려 같은 문제가 반복된다. `python3 --version`이 3.11 이상이면 그대로
-쓰면 된다(`requires-python >= 3.11`).
+**패키지로 깐다 — 홈에 두지 않는다.** SSM으로 접속하면 `ssm-user`로 들어오는데 서비스는
+`ubuntu`로 돌기 때문에, 홈에 설치한 런타임은 서비스가 찾지 못한다.
+`acttub-api-java.service`의 `ExecStart`가 `/usr/bin/java`를 가리키는 이유가 이것이다.
 
 ## 3. AWS 준비
 
@@ -120,7 +121,7 @@ aws ssm start-session --target <back-svc-instance-id> \
 | front alb | CloudFront에서 443/80 |
 | front svc | front alb SG에서 3000 |
 | back alb | front svc SG에서 80 |
-| back svc | back alb SG에서 8000 |
+| back svc | back alb SG에서 8080 |
 | DB | back svc SG에서 5432 |
 
 back svc에 직접 인바운드를 열지 않는다. 브라우저는 back alb를 볼 일이 없다.
@@ -138,7 +139,7 @@ AWS_REGION=ap-northeast-2
 ADMIN_OPS_TOKEN=<운영 대시보드 토큰>
 ```
 
-S3 자격증명은 back svc의 EC2 instance role에서 boto3 기본 체인으로 받는다. 이 파일에
+S3 자격증명은 back svc의 EC2 instance role에서 AWS SDK 기본 체인으로 받는다. 이 파일에
 `AWS_ACCESS_KEY_ID`·`AWS_SECRET_ACCESS_KEY`를 넣으면 환경변수 provider가 role보다 우선하므로
 정상 상태에서는 두 값을 두지 않는다.
 
@@ -148,22 +149,27 @@ S3 자격증명은 back svc의 EC2 instance role에서 boto3 기본 체인으로
 | 액션 | 리소스 | 쓰는 곳 |
 | --- | --- | --- |
 | `PutObject` `GetObject` | `<버킷>/*` | presign 업로드·재생, 분석 워커 다운로드 |
-| `DeleteObject` | `<버킷>/*` | 만료 upload intent 정리(`analysis_worker.sweep`) |
+| `DeleteObject` | `<버킷>/*` | 만료 upload intent 정리(분석 워커의 sweep) |
 | `ListBucket` | `<버킷>` | **없는 객체 `HeadObject`가 403 대신 404를 받게 한다** |
 
-`ListBucket`이 빠지면 S3는 없는 객체에 404가 아니라 403을 준다. 그러면 `storage.head()`가
-`None` 대신 예외를 던져 업로드 완료 API가 409 `upload_not_found` 대신 500을 낸다 — 권한이
-아니라 **동작이 바뀌므로** 빼지 않는다.
+`ListBucket`이 빠지면 S3는 없는 객체에 404가 아니라 403을 준다. 그러면
+`AwsS3Storage.head`가 null 대신 예외를 던져(404만 null로 접는다) 업로드 완료 API가
+409 `upload_not_found` 대신 500을 낸다 — 권한이 아니라 **동작이 바뀌므로** 빼지 않는다.
 
 **각 role은 자기 버킷만 허용한다.** 이것이 dev·운영 데이터 경계의 실체다. 권한을 넓힐 때도
 리소스 범위는 절대 넓히지 않는다.
 
-**`S3_BUCKET`이 있는데 자격증명을 못 찾으면 API가 아예 기동하지 않는다** — 업로드만 503이
-되는 게 아니라 로그인을 포함한 전 기능이 멈춘다. 무자격증명으로 뜬 프로세스는 botocore가
-클라이언트 생성 시점의 자격증명을 고정하는 탓에 IMDS가 회복돼도 스스로 낫지 못하므로,
-조용히 반쯤 죽은 상태로 트래픽을 받느니 기동을 거부하고 systemd가 재시도하게 두는 쪽을
-택했다. 그래서 role 권한을 손대거나 키를 지우기 전에 반드시 서비스 계정(`ubuntu`)으로
-접근을 먼저 확인한다.
+🔥 **자격증명이 없어도 API는 뜬다 — 배포는 초록으로 끝나고 업로드·재생만 503이 된다.**
+기동 시 검증하는 것은 `S3_BUCKET`↔`AWS_REGION`, `AWS_ACCESS_KEY_ID`↔`AWS_SECRET_ACCESS_KEY`가
+**짝으로** 설정됐는지뿐이다(`StorageConfiguration.validateStorageEnvironment`). 자격증명 해석은
+S3를 실제로 부르는 순간에 일어나고, 실패하면 `NoCredentialsError` → 503 `storage_not_configured`다.
+
+그래서 **role 권한을 손대거나 키를 지운 뒤에는 배포 성공을 근거로 삼지 말고 업로드 경로를
+직접 밟아 본다.** 파이썬 시절에는 무자격증명이면 기동 자체가 거부돼 배포가 알려줬지만,
+지금은 알려주지 않는다.
+
+🔎 자격증명을 매 호출마다 다시 해석하므로(`AwsS3Storage.resolveCredentials`) IMDS가 일시적으로
+막혔다가 회복되면 **재시작 없이 스스로 낫는다.**
 
 access key 방식으로 되돌려야 할 때는 **서버에 보관해 둔 사본을 쓰지 않는다.** 그 키는
 운영·개발 버킷을 모두 허용하므로, 서버에 파일로 남겨 두면 instance role로 만든 경계가
@@ -175,9 +181,6 @@ aws iam create-access-key --user-name acting-api
 
 두 값을 `api.env`에 넣고 재시작하면 환경변수 provider가 role보다 우선해 즉시 되돌아간다.
 상황이 끝나면 그 임시 키를 반드시 삭제한다.
-
-`STATIC_DIR`은 **주지 않는다**. front svc가 화면을 서빙하므로 백엔드는 API만 담당한다.
-값을 주면 FastAPI가 정적 파일을 함께 물면서 역할이 겹친다.
 
 front svc는 런타임 환경변수가 필요 없다 (아래 4-1 참고 — 웹 설정은 전부 빌드 시점에 고정된다).
 
@@ -317,47 +320,96 @@ sudo systemctl daemon-reload && sudo systemctl enable --now acttub-web
 systemctl status acttub-web --no-pager
 ```
 
-### 4-2. back svc (FastAPI)
+### 4-2. back svc (Spring Boot)
 
-여기도 git이 필요 없다. 파이썬 소스를 그대로 보내고 인스턴스에서는 의존성만 받는다.
-`uv.lock`에 git 의존성이 없어(확인함) `uv sync`는 PyPI만 본다.
-
-```bash
-# 로컬에서
-DEPLOY_BUCKET=<배포 버킷> deploy/upload-api.sh
-```
-
-`.venv`는 플랫폼 종속이라 보내지 않는다 — 인스턴스에서 `uv sync`로 새로 만든다.
-`.env`도 제외한다. 운영 값은 `/etc/acttub/api.env`가 담당한다.
+여기도 git이 필요 없다. **보내는 것은 jar 하나와 유닛 파일뿐**이다 — 소스도 빌드 도구도
+인스턴스로 가지 않는다.
 
 ```bash
-# SSM으로 접속해 인스턴스에서
-aws s3 cp s3://<배포 버킷>/be/latest.tar.gz /tmp/api.tar.gz
-sudo rm -rf /svc/acttub/acttub-platform/apps/api
-sudo tar xzf /tmp/api.tar.gz -C /svc/acttub/acttub-platform/apps
-sudo chown -R ubuntu:ubuntu /svc/acttub
-sudo -u ubuntu bash -c 'cd /svc/acttub/acttub-platform/apps/api && uv sync'
-
-aws s3 cp s3://<배포 버킷>/be/acttub-api.service /tmp/
-sudo mv /tmp/acttub-api.service /etc/systemd/system/
-sudo systemctl daemon-reload && sudo systemctl enable --now acttub-api
+# 로컬에서 (Gradle 빌드 + S3 업로드)
+DEPLOY_BUCKET=<배포 버킷> deploy/upload-api-java.sh
 ```
 
-`uv sync`는 반드시 `ubuntu` 계정으로 실행한다. SSM 접속 계정(`ssm-user`)으로 만들면
-`.venv` 소유자가 어긋나 서비스가 기동하지 못한다.
+`.env`는 올라가지 않는다. 운영 값은 `/etc/acttub/api.env`가 담당하고, 배포 스크립트는 그
+파일을 건드리지 않는다.
 
-유닛의 `ExecStart` 안 `uv` 경로는 설치 방식에 따라 다르다. `which uv`로 확인해 맞춘다.
+설치는 손으로 하지 않고 `ssm-deploy.sh`가 한다 — JRE가 없으면 깔고, jar와 유닛을 받아
+재시작한 뒤 `/health`까지 확인한다.
+
+```bash
+DEPLOY_BUCKET=<배포 버킷> deploy/ssm-deploy.sh be-java <back-svc-instance-id>
+```
+
+무엇이 실행되는지는 그 스크립트의 `be-java` 분기가 정본이다. 요약하면 이렇다.
+
+```bash
+# (인스턴스에서 스크립트가 하는 일)
+aws s3 cp s3://<배포 버킷>/be/latest.jar /svc/acttub/api-java/acting-api.jar
+aws s3 cp s3://<배포 버킷>/be/acttub-api-java.service /etc/systemd/system/
+systemctl daemon-reload && systemctl restart acttub-api-java
+```
+
+⚠ **`systemctl is-active`만으로는 판정할 수 없다.** `Type=simple`이라 exec 직후 곧바로
+active이므로 크래시루프도 성공으로 읽힌다. 그래서 스크립트가 `NRestarts=0`과
+`curl /health` 두 줄을 함께 본다 — **별도 마이그레이션 스텝이 없는 지금, 그 두 줄이 스키마가
+코드와 맞는다는 유일한 판정이다.**
+
+⚠ **JVM 기동은 느리다.** Flyway 마이그레이션과 스키마 검증까지 끝나야 리슨을 시작하므로,
+배포 대기 시간이 프론트보다 길다(스크립트가 `be-java`에 420초를 준다).
 
 ### 4-3. DB 마이그레이션
 
-back svc EC2가 이미 DB에 붙는 머신이므로, SSM으로 들어가 거기서 실행하면 된다.
-별도 터널이 필요 없다.
+**손으로 돌리는 절차가 없다.** 스키마 정본이 Flyway 라(`apps/api/CONTRACT.md` §5-5) 마이그레이션은 자바가
+기동하며 스스로 적용한다 — 배포가 곧 마이그레이션이다.
+
+마이그레이션이 실패하면 앱이 리슨을 시작하지 못하고 배포 잡이 그 자리에서 실패한다.
+그때 볼 것은 인스턴스의 로그다. back svc EC2가 이미 DB에 붙는 머신이라 별도 터널이 필요 없다.
 
 ```bash
 aws ssm start-session --target <back-svc-instance-id>
-cd /svc/acttub/acttub-platform/apps/api/acting-api
-uv run alembic upgrade head
+sudo journalctl -u acttub-api-java -n 200 --no-pager | grep -i flyway
 ```
+
+기동할 때마다 Flyway가 결과를 INFO로 찍는다(`application.yml`이 `org.flywaydb: INFO`를 켠다).
+적용한 것이 없으면 `Current version of schema "public": 1`, 적용했으면
+`Successfully applied N migration(s)`, 실패했으면 그 자리에 예외가 남는다.
+
+**DB를 직접 볼 때만 `psql`이 필요한데, back svc 인스턴스에는 깔려 있지 않다**(RDS를 쓰므로
+jar와 JRE 말고는 아무것도 설치하지 않는다). 필요하면 그때 받는다:
+
+```bash
+sudo apt-get install -y postgresql-client
+DB_URL=$(sudo grep -m1 '^[[:space:]]*DATABASE_URL=' /etc/acttub/api.env | sed -E 's/^[[:space:]]*DATABASE_URL=//; s/^"//; s/"$//')
+psql "$DB_URL" -c 'SELECT installed_rank, version, type, success, installed_on FROM flyway_schema_history ORDER BY installed_rank'
+```
+
+dev는 인스턴스에 PostgreSQL이 함께 깔려 있어(`bootstrap-dev.sh`) `psql`이 이미 있다.
+
+**DB 는 손댈 것이 없다.** Postgres 는 DDL 이 트랜잭션 안에서 돌므로 실패한 마이그레이션은
+**부분 적용도 이력도 남기지 않는다** — 원인을 고쳐 다시 배포하면 그만이고, 이력 행을 지우거나
+`flyway repair` 를 돌릴 필요가 없다. 추정이 아니라 실측이다
+(`FlywayForwardMigrationTest.aFailedMigrationLeavesNothingBehind` 가 앞 문장은 성공하고 뒤 문장이
+깨지는 마이그레이션으로 확인한다).
+
+예외는 마이그레이션이 트랜잭션을 스스로 쪼개는 경우다(`CREATE INDEX CONCURRENTLY` 등). 그런 것을
+쓸 거면 **되돌리는 방법을 그 PR 에서 함께 정한다.**
+
+### 4-4. 나쁜 마이그레이션은 배포 실패가 아니라 중단이다
+
+🔥 **3단계에서 폭발 반경이 커졌다.** 예전에는 `migrate` 가 배포보다 **먼저** 도는 별도 스텝이라,
+실패해도 옛 프로세스가 그대로 떠 있었다 — 서비스는 살아 있고 배포만 빨간불이었다. 지금은
+마이그레이션이 `systemctl restart` **뒤에** 돈다. 옛 프로세스는 이미 죽었고 새 프로세스는 뜨지
+못하므로, **나쁜 마이그레이션 = 서비스 중단**이다.
+
+**down 마이그레이션이 없다.** 되돌리는 경로는 하나뿐이다:
+
+1. 문제 마이그레이션을 **되돌리는 새 마이그레이션**(`V<다음>__…`)을 만들어 배포한다.
+   이미 적용된 것을 `V1` 처럼 고쳐서 지우려 하면 checksum 이 어긋나 신규 환경이 죽는다.
+2. 스키마가 아니라 **코드**가 문제면 이전 jar 로 되돌린다 — `deploy.yml` 을 이전 커밋 SHA 로
+   수동 실행한다. **단 그 jar 가 새 스키마에서 뜨는지는 별개다**(`ddl-auto: validate`).
+
+그래서 §6-4 의 "스키마를 먼저 넓히고 코드를 나중에 좁힌다" 가 이제 권고가 아니라 **유일한
+안전망**이다. 넓히는 변경만 나가면 옛 jar 도 새 스키마에서 그대로 뜬다.
 
 ## 5. 검증 체크리스트
 
@@ -465,21 +517,21 @@ Secrets가 아니라 Variables에 넣는다.
 `API_ORIGIN`을 바꾸면 **반드시 fe를 재배포해야 한다.** 빌드 시점에 굳는 값이라 인스턴스만
 재시작해서는 반영되지 않는다.
 
-### 6-4. 마이그레이션은 두 환경 모두 자동으로 돈다
+### 6-4. 마이그레이션은 자바 기동의 일부다
 
-`ssm-deploy.sh migrate`가 파이썬 소스를 갱신하고 `alembic upgrade head`를 실행한다.
-백엔드 배포(`be-java`)보다 먼저 도는 별도 스텝이고, dev·운영이 같다 — 환경별로 다르게
-두지 않는다.
+**스키마 정본은 Flyway다**(`apps/api/CONTRACT.md` §5-5, `SOMA-403` 3단계). 배포 아티팩트는 jar 하나뿐이고,
+`be-java` 가 그것을 설치해 재시작하면 **앱이 뜨는 도중에** Flyway 가 `db/migration` 의 마이그레이션을
+적용한다. 별도 migrate 스텝이 없다.
 
-**M5 컷오버 뒤에도 alembic 이 스키마 정본이다**(`SPEC.md` §5-5). Flyway 는 스키마를 바꾸지
-않고 `flyway_schema_history` 에 baseline 만 기록한다. 그래서 FastAPI 서비스를 더 이상
-배포하지 않게 된 뒤에도 파이썬 **소스는** 인스턴스에 계속 보낸다 — 마이그레이션 파일이
-거기 있어야 돌기 때문이다. Flyway 로 소유권을 옮기는 것은 M6 범위다.
+🔥 **스키마를 바꾸려면 `apps/api/src/main/resources/db/migration/` 에 `V2__` 부터 새 파일을
+만든다. `V1__baseline.sql` 은 동결이다** — 고치면 dev·운영은 멀쩡한데 신규 환경만
+`checksum mismatch` 로 죽는다(재해복구가 필요한 순간에야 드러난다).
 
-원래 운영은 수동이었다. 스키마 변경이 되돌리기 어렵다는 이유였는데, 그 대가로
-**코드는 새것·DB는 구것인 창**이 생겼다. 2026-08-01에 그 창으로 `/v2/community/posts`가
-며칠간 500이었다(`column community_posts.anonymous does not exist`). 자동으로 돌리는 쪽이
-창을 없앤다.
+**어긋난 채로 초록이 뜨는 창이 구조적으로 사라졌다.** 마이그레이션이 실패하면 앱이 리슨을
+시작하지 못하고, `be-java` 의 health·`NRestarts` 검사가 그 자리에서 배포를 실패로 만든다.
+예전에는 마이그레이션이 별도 스텝이라 부분 적용이 성공으로 읽힐 수 있었고, 2026-08-01에 그 창으로
+`/v2/community/posts` 가 며칠간 500이었다(`column community_posts.anonymous does not exist`).
+`deploy/check-migration.sh` 는 그 창을 사후에 대조하던 장치라 이제 아무도 부르지 않는다.
 
 되돌리기 어려운 성질은 그대로다. 그래서 **순서로 통제한다**:
 
@@ -489,13 +541,13 @@ Secrets가 아니라 Variables에 넣는다.
 > - 컬럼 삭제·이름 변경 → **PR을 둘로 나눈다.** ① 새 컬럼을 쓰도록 코드를 바꿔 배포,
 >   ② 다음 릴리스에서 옛 컬럼을 지운다. 한 PR에 합치면 배포 중간 상태에서 깨진다.
 
-배포 직후 `deploy/check-migration.sh`가 DB 리비전과 코드 리비전을 대조하고, 어긋나면
-잡을 실패로 표시한다(→ Slack `#배포알림`). 자동으로 돌았는데도 어긋났다면 마이그레이션이
-실패했거나 부분만 적용된 것이므로, 실행 로그의 `▶ alembic upgrade head` 출력을 먼저 본다.
-복구 절차는 4-3.
+마이그레이션이 실패하면 배포 로그에 Flyway 예외가 그대로 남고 `be-java` 잡이 빨개진다
+(→ Slack `#배포알림`). **그때 서비스는 이미 내려가 있다** — 4-4가 그 이유와 되돌리는 경로를,
+4-3이 로그·이력 확인법을 담는다.
 
-배포를 막지는 않는다 — 새 마이그레이션 파일은 배포되어야 서버에 생기므로 사전 차단은
-순환이 된다.
+**빈 DB 에서 시작하는 신규 환경·재해복구**에는 baseline 절차가 필요 없다 — Flyway 가 V1 부터
+그대로 적용한다. 운영 데이터를 부어야 하는 경우의 순서는 `docs/archive/soma287/M6-findings.md` §3에 실측으로
+확인된 것이 있다(마이그레이션 장부 둘을 덤프에서 빼고, 앱이 심는 것과 V1 이 심는 것을 먼저 비운다).
 
 ### 6-5. 브랜치가 곧 환경이다
 

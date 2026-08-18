@@ -2,30 +2,28 @@
 
 ## 프로젝트 구조
 
-Acttub 플랫폼 모노레포. JS(pnpm)와 Python(uv)이 공존합니다.
+Acttub 플랫폼 모노레포. JS(pnpm)와 Java(Gradle)로 갈립니다.
 
 - `apps/web`: Next.js 웹 앱. `output:'standalone'`으로 빌드해 Node 프로세스가 서빙합니다. 화면 렌더와 `/v2/*` 프록시만 담당하고, 서버 로직은 두지 않습니다.
-- `apps/api`: FastAPI 백엔드(acting-api). uv 파이썬 모노레포.
-- `apps/api-java`: Spring Boot 이관 작업 중(`SOMA-287`). 판정 기준은 루트 `SPEC.md` + `spec/M<n>-*.md`이고, 계약 동등성은 `tools/contract-harness`가 검사합니다. **이관이 끝날 때까지 정본은 `apps/api`입니다.**
+- `apps/api`: Spring Boot 백엔드(acting-api). **백엔드는 이것 하나이고 dev·운영 모두 여기가 트래픽을 받습니다.** 계약을 지키는 것은 여기 Java 테스트이며, 판정 기준은 [apps/api/CONTRACT.md](apps/api/CONTRACT.md)입니다.
 - `apps/mobile`: Expo React Native 앱. npm/EAS로 자립 관리하며 pnpm 워크스페이스에서 제외됩니다(심링크가 Metro를 깨서).
 - `packages/*`: 공유 패키지 자리. 실제 두 번째 사용처가 생긴 뒤에만 분리합니다.
-- `docs/`: 앱을 가로지르는 문서(PRD·ADR·배포·디자인)입니다. 앱 상세 문서는 각 앱 디렉토리에 둡니다. **화면·컴포넌트를 만들 때**는 [docs/UI_GUIDE.md](docs/UI_GUIDE.md)가 Acttub 적용 규칙이고 [docs/Toss-DESIGN.md](docs/Toss-DESIGN.md)가 상세 레퍼런스입니다(ADR-012).
-- `SPEC.md`·`spec/`·`tools/`: 이관 기간에만 존재하는 사양·판정 도구입니다(M6에서 폐기). `deploy/`는 배포 스크립트.
+- `docs/`: 앱을 가로지르는 문서(PRD·ADR·배포·디자인)입니다. 앱 상세 문서는 각 앱 디렉토리에 둡니다. **화면·컴포넌트를 만들 때**는 [docs/UI_GUIDE.md](docs/UI_GUIDE.md)가 Acttub 적용 규칙이고 [docs/Toss-DESIGN.md](docs/Toss-DESIGN.md)가 상세 레퍼런스입니다(ADR-012). 끝난 계획·이관 사양은 `docs/archive/`로 옮깁니다 — FastAPI→Spring Boot 이관(`SOMA-287`)의 사양과 마일스톤 기록은 `docs/archive/soma287/`에 있습니다.
+- `deploy/`는 배포 스크립트입니다.
 
-네 앱 모두 각자 CLAUDE.md를 갖고 있습니다. **그 앱을 건드리기 전에 해당 파일을 읽습니다** — 아래 내용은 앱을 가로지르는 규칙만 담습니다.
+세 앱 모두 각자 CLAUDE.md를 갖고 있습니다. **그 앱을 건드리기 전에 해당 파일을 읽습니다** — 아래 내용은 앱을 가로지르는 규칙만 담습니다.
 
 ## 실행·검증 명령
 
-- 개발 루프: 터미널1 `cd apps/api && DEVELOPMENT_AUTH_PROVIDER=1 uv run uvicorn acting_api.app:create_app --factory --port 8000` + 터미널2 `pnpm dev`(:3000). dev 서버가 `/v2/*`·`/health`를 8000으로 프록시하므로 CORS가 필요 없습니다.
+- 개발 루프: 터미널1 `cd apps/api && DEVELOPMENT_AUTH_PROVIDER=1 ./gradlew bootRun`(:8080) + 터미널2 `pnpm dev`(:3000). dev 서버가 `/v2/*`·`/health`를 8080으로 프록시하므로 CORS가 필요 없습니다.
 - 웹 검증 명령은 루트 `package.json` scripts에 있습니다(전부 `--filter web` 위임). 두 가지만 기억하면 됩니다 — `build`를 `typecheck`보다 **먼저** 돌려야 tsc가 통과하고(`next-env.d.ts`·`.next/types` 생성), `build` 산출물 `.next/standalone/`이 실제 배포물입니다. **`test`만 루트에 없습니다** — `pnpm --filter web test`로 돌립니다.
-- PR 게이트는 `.github/workflows/ci.yml`의 잡 5개(`web`·`api`·`contract-harness`·`contract-harness-java`·`api-java`)입니다. **잡을 추가해도 자동으로 관문이 되지는 않습니다** — 머지를 막는 것은 ruleset의 required status check이고, 그 목록은 레포 설정에 따로 있습니다. **context 문자열은 잡 id가 아니라 `name:` 값 전체**여야 합니다(예: `contract-harness-java (java 계약 diff 0)`). 어긋나면 영원히 pending인 관문이 생깁니다. **하네스 잡이 둘로 갈린 이유** — `contract-harness`는 하네스 자신이 건강한지(self-test·자기동일성)를, `contract-harness-java`는 Java가 FastAPI 계약을 재현하는지를 봅니다. **로컬에서 무엇을 돌려야 CI를 통과하는지는 이 워크플로가 정본입니다** — 앱별 명령은 각 앱 CLAUDE.md에 있습니다.
-- **`contract-harness` 잡이 빨갛거나 계약 하네스를 로컬에서 돌릴 때**는 [tools/contract-harness/README.md](tools/contract-harness/README.md)가 정본입니다(실행법·제어 표면·백엔드 계약). Postgres가 필요하고 주소는 `HARNESS_DATABASE_URL`로 바꿉니다 — **도커 대신 로컬 Postgres를 쓰면 `PGTZ=UTC`를 함께 줍니다.** 도커 이미지는 UTC로 뜨지만 brew 설치본은 시스템 타임존을 따라 datetime diff가 수백 건 납니다.
+- PR 게이트는 `.github/workflows/ci.yml`의 잡 2개(`web`·`api`)입니다. **잡을 추가하거나 지워도 자동으로 관문이 되고 말고 하지는 않습니다** — 머지를 막는 것은 ruleset의 required status check이고, 그 목록은 레포 설정에 따로 있습니다. **context 문자열은 잡 id가 아니라 `name:` 값 전체**여야 합니다(예: `api (gradle test · Testcontainers)`). 어긋나면 영원히 pending인 관문이 생기고, **지운 잡을 required로 남겨 두면 그 관문은 영원히 오지 않습니다.** ruleset은 현재 위 두 잡으로 맞춰져 있습니다(`SOMA-403`). **로컬에서 무엇을 돌려야 CI를 통과하는지는 이 워크플로가 정본입니다** — 앱별 명령은 각 앱 CLAUDE.md에 있습니다.
 - 배포 형태(dev·운영 공통): **Next 서버가 화면을 서빙하고 `/v2/*`·`/health`를 rewrites로 백엔드에 넘깁니다.** 두 프로세스가 분리돼 있어 브라우저에는 오리진이 하나로 보입니다(CORS 불필요).
-  - **그 백엔드가 환경마다 다릅니다** — dev는 Spring Boot(:8080, M5 컷오버 완료), 운영은 아직 FastAPI입니다. 운영 컷오버가 끝날 때까지의 과도기입니다(`SOMA-394`).
+  - **그 백엔드는 dev·운영 모두 Spring Boot(:8080)입니다.** 2026-08-17 운영 컷오버로 과도기가 끝났습니다(`SOMA-394`).
   - 운영 `acttub.com`(`www`는 301): CloudFront → front ALB → front svc / back ALB → back svc → RDS. 전부 private subnet → [docs/DEPLOY-VPC.md](docs/DEPLOY-VPC.md)
   - 개발 `dev.acttub.com`: EC2 한 대에 Caddy + 두 프로세스 + PostgreSQL → [docs/DEPLOY-DEV.md](docs/DEPLOY-DEV.md)
   - 배포는 `.github/workflows/deploy.yml` 하나가 담당합니다. **브랜치가 곧 환경입니다** — `dev` push는 dev로, `main` push는 운영으로 자동 배포되고 마이그레이션도 양쪽 다 자동으로 돕니다. Actions 탭의 수동 실행은 재배포·부분 배포(fe/be-java)용으로 남아 있습니다.
-  - **백엔드는 Spring Boot만 배포합니다.** FastAPI 서비스는 배포 대상이 아니고, 파이썬 소스만 마이그레이션용으로 인스턴스에 올라갑니다(alembic이 여전히 스키마 정본 — SPEC §5-5). **운영 배포는 `guard`가 막아 둔 상태입니다** — 운영은 FastAPI가 트래픽을 받는데 이 워크플로가 그것을 갱신하지 않기 때문입니다.
+  - **배포 아티팩트는 jar 하나뿐입니다** — **스키마 정본이 Flyway라([apps/api/CONTRACT.md](apps/api/CONTRACT.md) §5-5) 마이그레이션이 jar 기동의 일부**입니다. 스키마를 바꾸려면 `apps/api/src/main/resources/db/migration/`에 `V2__`부터 새 파일을 만듭니다. **`V1__baseline.sql`은 동결입니다** — 고치면 dev·운영은 멀쩡하고 신규 환경만 죽습니다.
   - **`main` 머지가 곧 운영 릴리스입니다.** 스키마 변경은 먼저 넓히고(마이그레이션 머지) 코드는 나중에 좁히는 순서로 나눠서 올립니다. 한 PR에 "컬럼 삭제 + 그 컬럼 안 쓰는 코드"를 같이 넣으면 배포 중간 상태에서 깨집니다.
 
 ## 이슈 추적 (Jira 연동)
@@ -43,16 +41,16 @@ Conventional Commits를 따르되, 요약은 한국어 평서형으로 씁니다
 
 - 형식: `<타입>(<스코프>): <요약>` — 예: `feat(web): 연습을 떠날 때 후기 폼을 창으로 띄운다`
 - 타입: `feat` `fix` `chore` `docs` `ci` `style` `refactor` `test`. 릴리스 브랜치 머지는 `release`를 씁니다.
-- 스코프: `web` `api` `api-java` `mobile`. 루트 설정·크로스커팅 변경은 생략합니다.
+- 스코프: `web` `api` `mobile`. 루트 설정·크로스커팅 변경은 생략합니다.
 - 요약은 마침표 없이 `~한다` 형태로 씁니다. 영어 명령형(`add`, `fix`)은 쓰지 않습니다.
 - API 계약을 깨는 변경은 타입 뒤에 `!`를 붙이고, `BREAKING CHANGE:` footer에 배포 순서 주의사항을 적습니다. 배포가 fe/be 따로 도는 구조라 순서를 틀리면 한쪽이 깨집니다.
   - 예: `feat(api)!: 씬 응답에서 legacy_id를 제거한다`
 
 ## 저장소 규칙
 
-- 패키지 매니저는 JS=pnpm, Python=uv. 다른 lockfile을 추가하지 않습니다.
-- 생성물·로컬 디렉토리는 수정 금지: `node_modules/`, `.next/`, `out/`, `.venv/`, `apps/web/src/lib/api/v2-schema.d.ts`(재생성: `pnpm --filter web generate:v2-schema`).
-- API 계약 변경은 한 PR에서: 백엔드 코드 → `apps/api/spec/openapi.json` 재생성 → 웹 타입 재생성 → 프론트 수정.
+- 패키지 매니저는 JS=pnpm, Java=Gradle wrapper. 다른 lockfile을 추가하지 않습니다.
+- 생성물·로컬 디렉토리는 수정 금지: `node_modules/`, `.next/`, `out/`, `apps/api/build/`, `apps/web/src/lib/api/v2-schema.d.ts`(재생성: `pnpm --filter web generate:v2-schema`).
+- API 계약 변경은 한 PR에서: 백엔드 코드 → `apps/api/spec/openapi.json` 재생성(`cd apps/api && UPDATE_OPENAPI_SNAPSHOT=1 ./gradlew test --tests '*OpenApiSnapshotIT*'`) → 웹 타입 재생성 → 프론트 수정. **그 스냅샷은 자기 자신과 비교하므로 diff를 눈으로 봅니다** — 무엇을 바꿨든 다시 뜨면 초록입니다. 갱신 모드는 일부러 실패로 끝납니다.
 - diff는 작게 유지하고, 가장 좁은 범위의 명령으로 먼저 검증합니다.
 
 ## Agent skills

@@ -1,5 +1,5 @@
 [Unit]
-Description=acttub acting-api (Spring Boot, back svc — 이관 병행 기동)
+Description=acttub acting-api (Spring Boot, back svc)
 After=network-online.target
 Wants=network-online.target
 
@@ -15,23 +15,25 @@ Environment=JAVA_OPTS=-Xmx512m
 
 # DATABASE_URL, JWT_SECRET, GEMINI_*, OPENAI_*, S3_*, AWS_*, ADMIN_OPS_TOKEN,
 # SENTRY_DSN·SENTRY_ENVIRONMENT 등. DSN 이 없으면 Sentry 는 켜지지 않는다.
-# FastAPI 유닛과 같은 파일을 읽는다 — 환경변수 이름을 그대로 유지했기 때문이다.
+# 이름은 파이썬 시절 그대로다 — 이관하면서 바꾸지 않았다.
 EnvironmentFile=/etc/acttub/api.env
 
-# 아래 둘은 api.env 가 덮지 못하게 EnvironmentFile 뒤에 둔다. 실수로 켜지면
-# 그 순간 운영이 바뀌는 값들이다.
-#
-# 8080 — FastAPI(8000)와 나란히 뜬다. 프록시·ALB 대상은 여전히 8000 이므로 이
-# 서비스에는 트래픽이 오지 않는다. 전환은 프록시 대상을 바꾸는 별도 관문이다.
-#
-# application.yml 의 server.port 기본값과 같은 값이라 로컬 bootRun 과 서버가 일치한다.
-# 그래도 여기 명시해 둔다 — 유닛이 포트를 고정한다는 의도가 드러나고, api.env 가
-# SERVER_PORT 를 정의하더라도 덮지 못한다.
+# 포트는 api.env 가 덮지 못하게 EnvironmentFile 뒤에 둔다. application.yml 의
+# server.port 기본값과 같은 값이라 로컬 bootRun 과 서버가 일치하고, 여기 명시해 두면
+# 유닛이 포트를 고정한다는 의도가 드러난다.
 Environment=SERVER_PORT=8080
-# 큐 owner 는 언제나 정확히 하나다. 두 백엔드가 같은 external_operations 를 소비하면
-# 파이썬 워커가 자바로 보낸 잡을 완료해버려 자바 파이프라인의 결함이 관찰 기간 내내
-# 가려진다. 전환 전까지 owner 는 파이썬이므로 여기서는 꺼 둔다.
-Environment=ANALYSIS_WORKER_ENABLED=false
+
+# 🔁 **워커 스위치를 여기서 고정하지 않는다(SOMA-403 5단계).** 이관 기간에는
+# `ANALYSIS_WORKER_ENABLED=false` 를 이 자리에 박아 두었다 — 두 백엔드가 같은
+# external_operations 를 소비하면 파이썬 워커가 자바로 보낸 잡을 완료해버려 자바
+# 파이프라인의 결함이 관찰 기간 내내 가려지기 때문이고, 그래서 큐 owner 를 파이썬
+# 하나로 묶었다. **그 파이썬이 사라졌다.** 이제 소비자는 이 프로세스뿐이므로 그 줄을
+# 지웠고, `AnalysisWorkerScheduler`·`MemoryWorkerScheduler` 의 `matchIfMissing = true`
+# 가 켜진 상태를 기본으로 만든다.
+#
+# ⚠ **박아 둔 채로 파이썬만 지웠으면 신규 인스턴스가 조용히 깨진다** — 워커 없이 떠서
+# 업로드가 영영 분석되지 않는데 /health 도 NRestarts 도 정상이라 배포는 초록이다.
+# 사고 대응으로 워커만 끄고 싶으면 api.env 나 drop-in 으로 끈다.
 
 ExecStart=/usr/bin/java $JAVA_OPTS -jar /svc/acttub/api-java/acting-api.jar
 Restart=always

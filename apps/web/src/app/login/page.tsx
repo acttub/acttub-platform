@@ -26,18 +26,14 @@ import {
   googleLoginNotices,
   type InAppBrowser,
 } from "../../lib/auth/in-app-browser";
-import {
-  appleProvider,
-  developmentProvider,
-  googleProvider,
-  loginWith,
-  type LoginProvider,
-} from "../../lib/auth/providers";
+import { login } from "../../lib/api/v2/auth";
+import type { TokenPairResponse } from "../../lib/api/v2/types";
 import {
   resetAmplitudeUser,
   startAmplitude,
   trackLoginCompleted,
   trackLoginFailed,
+  type LoginProvider,
 } from "../../lib/analytics/amplitude";
 import { sanitizeNextPath } from "../../lib/auth/next-path";
 import {
@@ -240,7 +236,7 @@ function LoginForm() {
 
   async function submitLogin(
     provider: LoginProvider,
-    request: () => ReturnType<typeof loginWith>,
+    request: () => Promise<TokenPairResponse>,
   ) {
     if (isSubmitting) return;
 
@@ -259,13 +255,13 @@ function LoginForm() {
 
       clearPendingConsents();
       if (hasAcceptedCurrentPrivacy()) startAmplitude();
-      trackLoginCompleted(provider.name);
+      trackLoginCompleted(provider);
       // 여기서 계측 동의를 표시하지 않는다. 대기 중인 동의가 비어 있다는 것만으로는
       // 어느 버전에 동의했는지 알 수 없고, 서버에 문서가 발행되지 않았을 때도 비어 있다.
       // 표시는 동의 화면(terms-gate)에서 실제로 문서를 제출할 때만 한다.
       await enterApp(nextPath);
     } catch (error) {
-      trackLoginFailed(provider.name, error);
+      trackLoginFailed(provider, error);
       setErrorMessage(loginErrorMessage(error));
     } finally {
       setIsSubmitting(false);
@@ -274,10 +270,18 @@ function LoginForm() {
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    await submitLogin(
-      developmentProvider,
-      () => loginWith(developmentProvider, { uid, email }),
-    );
+    const trimmedUid = uid.trim();
+    const trimmedEmail = email.trim();
+    await submitLogin("development", () => {
+      // input의 required는 공백 문자열을 통과시키므로 여기서 한 번 더 막는다.
+      if (!trimmedUid) {
+        throw new Error("development 로그인에는 uid가 필요합니다.");
+      }
+      return login(
+        "development",
+        trimmedEmail ? `${trimmedUid}:${trimmedEmail}` : trimmedUid,
+      );
+    });
   }
 
   return (
@@ -300,10 +304,7 @@ function LoginForm() {
         <div className="mt-9 space-y-5">
           <GoogleLoginButton
             onCredential={(credential) =>
-              void submitLogin(
-                googleProvider,
-                () => loginWith(googleProvider, { credential }),
-              )
+              void submitLogin("google", () => login("google", credential))
             }
             onLoadError={() => setHasGoogleLoadFailed(true)}
           />
@@ -313,10 +314,7 @@ function LoginForm() {
             <AppleLoginButton
               disabled={isSubmitting}
               onIdToken={(credential) =>
-                void submitLogin(
-                  appleProvider,
-                  () => loginWith(appleProvider, { credential }),
-                )
+                void submitLogin("apple", () => login("apple", credential))
               }
               onError={setErrorMessage}
             />

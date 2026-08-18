@@ -8,13 +8,13 @@ Next.js 16 App Router + React 19 + TypeScript + Tailwind CSS v4.
 
 ## 서버 로직은 여기 두지 않습니다
 
-**API·서버 로직은 전부 `apps/api`(FastAPI) 소관입니다.** Route Handler·Server Actions·middleware로 백엔드 로직을 만들지 않습니다.
+**API·서버 로직은 전부 `apps/api`(Spring Boot) 소관입니다.** Route Handler·Server Actions·middleware로 백엔드 로직을 만들지 않습니다.
 
-이전에는 정적 export 빌드가 깨지는 것이 이 경계를 물리적으로 강제했지만, 그 모드를 걷어내면서 **이제 빌드는 통과합니다.** 통과한다고 해서 허용되는 것은 아닙니다 — 백엔드가 FastAPI와 Next 양쪽으로 흩어지면 인증·권한·계약 검증이 두 곳에 생깁니다. 서버에서 해야 할 일이 보이면 `apps/api`에 엔드포인트를 추가하고 `v2` 클라이언트로 호출하세요.
+이전에는 정적 export 빌드가 깨지는 것이 이 경계를 물리적으로 강제했지만, 그 모드를 걷어내면서 **이제 빌드는 통과합니다.** 통과한다고 해서 허용되는 것은 아닙니다 — 백엔드가 `apps/api`와 Next 양쪽으로 흩어지면 인증·권한·계약 검증이 두 곳에 생깁니다. 서버에서 해야 할 일이 보이면 `apps/api`에 엔드포인트를 추가하고 `v2` 클라이언트로 호출하세요.
 
 ## 명령어 (이 디렉토리 기준)
 
-- `pnpm dev` — 개발 서버(:3000). next.config rewrites가 `/v2/*`를 `http://127.0.0.1:8000`(acting-api)으로 프록시.
+- `pnpm dev` — 개발 서버(:3000). next.config rewrites가 `/v2/*`를 `http://127.0.0.1:8080`(Spring Boot)으로 프록시.
 - `pnpm lint` · `pnpm typecheck`
 - `pnpm test` — Node 테스트와 금지 카피 가드를 하나의 테스트 명령으로 실행.
 - `pnpm build` — 빌드 → `.next/standalone/`(실제 배포 산출물). 프록시 대상은 `API_ORIGIN`으로 주며, rewrites가 빌드 시점에 `routes-manifest.json`으로 굳으므로 런타임 환경변수로는 바뀌지 않습니다. **typecheck보다 먼저 돌려야 합니다** — `next-env.d.ts`·`.next/types`를 만들어야 tsc가 `*.png` import와 typedRoutes를 해석합니다.
@@ -32,7 +32,7 @@ src/
   features/   화면 모듈 (practice-flow, terms-gate, auth 가드)
   lib/
     api/v2/   acting-api v2 클라이언트 (도메인별 모듈)
-    auth/     토큰 스토어·refresh·로그인 provider
+    auth/     토큰 스토어·refresh·Google/Apple SDK 어댑터
     config/   env 스위치 (선택 변수는 env.ts 주석이 단일 문서)
 ```
 
@@ -58,4 +58,13 @@ src/
 
 ## 테스트
 
-`tests/*.test.mjs` — `node --test`. 필요한 테스트는 `tests/ts-module-loader.mjs` 커스텀 로더를 등록합니다. 이 로더는 확장자 없는 상대 경로 import를 `.ts`로 해석하고, TypeScript transpile로 parameter property를 포함한 문법을 변환합니다(`@/` 별칭 불가). 토큰 스토어는 Node 환경에서 메모리 모드로 동작해 그대로 테스트 가능합니다.
+`tests/*.test.mjs` — `node --test`. 필요한 테스트는 `tests/ts-module-loader.mjs` 커스텀 로더를 등록합니다. 이 로더는 `.ts`·`.tsx`를 TypeScript transpile로 변환하고(parameter property·JSX 포함), 확장자 없는 상대 경로를 `.ts`→`.tsx` 순으로 풀며, **`@/` 별칭을 `src/`로 해석합니다.** 토큰 스토어는 Node 환경에서 메모리 모드로 동작해 그대로 테스트 가능합니다.
+
+**훅을 테스트할 때**는 로더에 이어 `tests/dom-setup.mjs`를 import 하고(jsdom 전역), `react`의 `act`와 `react-dom/client`의 `createRoot`로 띄웁니다. `tests/use-analysis-progress.test.mjs`가 본보기이고, 훅을 부르는 컴포넌트는 `tests/fixtures/*.tsx`에 둡니다.
+
+- **컴포넌트 마크업 단언까지는 가지 않습니다**(testing-library를 두지 않았습니다). 마크업 단언은 리팩터마다 깨지고, 그것이 아래 정규식 테스트가 실패한 방식 그대로입니다.
+- `dom-setup.mjs`는 필요한 전역만 골라 심습니다. **jsdom `window`를 통째로 복사하지 마세요** — `performance`에서 `RangeError`가 나고 jsdom `FormData`가 React 19 form action을 깹니다.
+- `act`는 production 빌드에 없습니다. 셸이 `NODE_ENV=production`을 export 하고 있으면 훅 테스트만 죽습니다.
+- `next/*` 서브패스는 Node ESM이 해석하지 못합니다(`next`에 exports 필드가 없음). `next/navigation`을 쓰는 훅은 목이 필요합니다.
+
+**`readFileSync` + 정규식으로 소스 문자열을 검사하는 테스트를 새로 쓰지 마세요.** 실행할 수 없을 때만 쓰는 마지막 수단입니다. 남아 있는 것들이 왜 위험한지는 실물이 있습니다 — 서로 반대를 주장하는 두 테스트가 둘 다 통과했고(`[\s\S]*`가 900줄 떨어진 두 심볼을 이어 붙였습니다), 동작이 반대로 바뀐 커밋에서 빨간불이 켜지지 않았습니다.

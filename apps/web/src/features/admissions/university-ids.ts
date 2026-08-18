@@ -14,7 +14,9 @@ const NOTICES_PATH = join(
   process.cwd(),
   "..",
   "api",
-  "acting-api",
+  "src",
+  "main",
+  "resources",
   "admissions",
   "notices.json",
 );
