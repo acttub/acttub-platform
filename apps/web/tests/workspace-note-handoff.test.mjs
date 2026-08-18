@@ -19,20 +19,74 @@ function block(startMarker, endMarker) {
 
 test("대화가 끝나도 화면을 노트로 자동 전환하지 않는다", () => {
   const pushAi = block("const pushAi = useCallback", "const openNote = useCallback");
-  assert.match(pushAi, /setReport\(completed\)/);
-  assert.doesNotMatch(pushAi, /setMode\("note"\)/);
+  // 코치 응답은 대화 자리의 전이만 낸다. 노트 화면으로 넘기는 전이를 여기서 내면
+  // 마지막 인사를 읽기도 전에 화면이 넘어간다.
+  // 코치 세션 id 는 응답이 준 것을 그대로 싣는다 — 화면이 그것으로 답을 보낸다.
+  assert.match(
+    pushAi,
+    /dispatch\(\{\s*type: "coachTurnReceived",\s*coachId: turn\.session_id,/,
+  );
+  assert.doesNotMatch(pushAi, /noteOpened|noteLoaded/);
+  // 목록 새로고침은 노트가 딸려 온 턴에서만 한다.
+  assert.match(pushAi, /if \(completed\) void refreshList\(\);/);
 });
 
 test("노트 전환과 결과 조회 집계는 배우가 누를 때만 일어난다", () => {
   const openNote = block("const openNote = useCallback", "const restoreCoach = useCallback");
-  assert.match(openNote, /setMode\("note"\)/);
-  assert.match(openNote, /countStepOnce\(activeIdRef\.current, "result"\)/);
+  assert.match(openNote, /dispatch\(\{ type: "noteOpened" \}\)/);
+  // 집계는 화면이 든 노트를 읽고, 그것이 있을 때만 나간다. 노트 없이 세면 그 자리에
+  // 서지도 못한 사람이 결과를 봤다고 기록된다.
+  assert.match(openNote, /const opened = currentReport\(screen\);/);
+  // 계수의 열쇠는 **지금 자리에 있는** 연습이다 — 화면이 그리는 값을 읽으면 방금
+  // 넘어온 연습에서 옛 연습의 결과를 본 것으로 기록된다. 부르는 모양으로 겨눈다:
+  // 이름으로만 물으면 바로 아래 의존성 목록이 그것을 되살린다.
+  assert.match(
+    openNote,
+    /if \(opened && countStepOnce\(currentSessionId\(\), "result"\)\)/,
+  );
+  assert.match(openNote, /opened\.report_type/);
+});
+
+test("노트 화면은 화면이 든 노트를 그대로 받는다", () => {
+  // 화면 밖 state 에서 따로 끌어오면 화면이 든 것과 어긋날 수 있다.
+  const notePanel = block("<NotePanel", "<ChatPanel");
+  assert.match(notePanel, /report=\{body\.report\}/);
+});
+
+test("오류는 어느 화면인지와 무관하게 껍데기 한 자리가 그린다", () => {
+  // 패널마다 배선하면 그 배선이 없는 화면에서 오류가 조용히 사라진다 — 노트를 보다
+  // 목록에서 다른 연습을 열었는데 그 조회가 실패하면 아무 말도 듣지 못하던 자리다.
+  //
+  // 그래서 **위치만으로는 부족하다**: 화면 분기보다 앞에 두고도 그 배선을 조건으로
+  // 감싸면 같은 버그가 돌아온다. 헤더와 분기 사이에 오는 것이 이 배너 하나뿐이고
+  // 그 사이에 조건이 없다는 것까지 본다.
+  const headerAt = source.indexOf("</header>");
+  const branchAt = source.indexOf('{body.kind === "chat" || body.kind === "note" ? (');
+  assert.notEqual(headerAt, -1, "헤더 끝을 못 찾았다");
+  assert.notEqual(branchAt, -1, "화면을 가르는 분기를 못 찾았다");
+  assert.ok(headerAt < branchAt, "헤더가 화면 분기 뒤에 있다");
+  assert.match(
+    source.slice(headerAt, branchAt),
+    /^<\/header>\s*<WorkspaceErrorBanner error=\{error\} \/>\s*$/,
+  );
+});
+
+test("대화 입력이 열리는지는 화면이 정한 코치 유무를 따른다", () => {
+  const chatPanel = block("<ChatPanel", "onOpenNote={openNote}");
+  assert.match(
+    chatPanel,
+    /inputEnabled=\{isCoachInputEnabled\(\{\s*coachReady: body\.coachReady,/,
+  );
 });
 
 test("첫 응답이 곧바로 끝나도 화면을 노트로 자동 전환하지 않는다", () => {
   const restoreCoach = block("const restoreCoach = useCallback", "const coordinatorFor = useCallback");
-  assert.match(restoreCoach, /setReport\(completed\)/);
-  assert.doesNotMatch(restoreCoach, /setMode\("note"\)/);
+  assert.match(
+    restoreCoach,
+    /dispatch\(\{\s*type: "coachTurnReceived",\s*coachId: turn\.session_id,[\s\S]{0,120}report: completed,/,
+  );
+  assert.doesNotMatch(restoreCoach, /noteOpened|noteLoaded/);
+  assert.match(restoreCoach, /if \(completed\) void refreshList\(\);/);
 });
 
 test("대화가 끝나면 입력창 대신 정리보기 버튼이 나온다", () => {
@@ -43,10 +97,28 @@ test("대화가 끝나면 입력창 대신 정리보기 버튼이 나온다", ()
   assert.match(chatPanel, /정리보기/);
 });
 
+test("노트에서 이어서 새 연습을 누르면 되돌리기가 이어받을 연습을 함께 받는다", () => {
+  const continueFromCurrent = block(
+    "const continueFromCurrent = useCallback",
+    "const view = describeWorkspaceView",
+  );
+  // 되돌리는 것과 이어받기를 켜는 것이 한 전이여야 한다. 옛 코드는 되돌린 뒤에 표시를
+  // 따로 켰고, 그 순서를 뒤집으면 배너가 뜨지 않았다. 그 전이가 무엇을 만드는지는
+  // tests/workspace-state.test.mjs 가 실행으로 지킨다 — 여기서는 배선만 본다.
+  assert.match(continueFromCurrent, /resetTo\(\{\s*id,/);
+  assert.doesNotMatch(continueFromCurrent, /resetTo\(null\)|resetToPrep\(\)/);
+
+  // 노트 화면의 버튼이 실제로 그 길로 이어져 있어야 한다.
+  const notePanel = block("<NotePanel", "<ChatPanel");
+  assert.match(notePanel, /onContinueNext=\{continueFromCurrent\}/);
+});
+
 test("대화가 끝난 화면은 아직 질문 중이라고 말하지 않는다", () => {
   const chatPanel = block("function ChatPanel({", "function Bubble({");
   assert.match(chatPanel, /done \? "이번 대화는 여기까지예요" : "현재 장면을 바탕으로 질문하고 있어요"/);
 
+  // 어느 상태에서 그 칩이 뜨는지는 tests/workspace-view.test.mjs 가 실행으로 지킨다 —
+  // 여기서는 그 상태에 붙는 문구를 본다.
   const statusChip = block("function StatusChip({", "/* ── 잡다한 것");
-  assert.match(statusChip, /mode === "chat" && done \? \["대화 마침"/);
+  assert.match(statusChip, /"chat-done": \["대화 마침"/);
 });

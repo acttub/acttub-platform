@@ -27,6 +27,7 @@
 import * as amplitude from "@amplitude/analytics-browser";
 import { sessionReplayPlugin } from "@amplitude/plugin-session-replay-browser";
 import { toDurationBucket } from "./ga";
+import type { UploadStage } from "../api/v2/uploads";
 import { scrubUrl } from "../observability/sentry-shared";
 
 export { toDurationBucket } from "./ga";
@@ -48,9 +49,11 @@ type AnalysisErrorCode =
 type ReportType = "analysis" | "expression" | "blocked";
 type PracticeStatus = "created" | "analyzing" | "analyzed" | "failed";
 export type LoginProvider = "development" | "google" | "apple";
-// `session_create` 는 UploadError 가 아니다. 업로드가 다 끝난 뒤 세션 생성에서 터지는
-// 실패인데, 이걸 preflight 로 묶으면 "영상이 문제였다"와 "서버가 거절했다"가 한 칸에 섞인다.
-type UploadStage = "preflight" | "intent" | "put" | "complete" | "session_create";
+// 연습을 시작하다 어디서 엎어졌는지. 가운데 셋(UploadStage)은 UploadError 가 스스로
+// 말하지만 양 끝 둘은 아니다. `session_create` 는 UploadError 가 아니다 — 업로드가 다
+// 끝난 뒤 세션 생성에서 터지는 실패인데, 이걸 preflight 로 묶으면 "영상이 문제였다"와
+// "서버가 거절했다"가 한 칸에 섞인다.
+export type PracticeStartFailurePoint = "preflight" | UploadStage | "session_create";
 
 let started = false;
 // SDK는 한 번만 init하되, 로그아웃·재동의 요구 뒤에는 남아 있는 인스턴스로 이벤트를
@@ -234,7 +237,10 @@ export function trackPracticeBlockageSubmitted(
   });
 }
 
-export function trackPracticeUploadFailed(stage: UploadStage, reason: unknown): void {
+export function trackPracticeUploadFailed(
+  stage: PracticeStartFailurePoint,
+  reason: unknown,
+): void {
   track("practice_upload_failed", {
     stage,
     reason_code: toSafeReasonCode(reason),

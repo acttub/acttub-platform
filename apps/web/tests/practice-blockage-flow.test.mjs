@@ -88,15 +88,24 @@ test("서술 예시는 기본 접힘이고 예를 들면 라벨을 눌러 펼친
   assert.match(blockageSelectionSource, /\{examplesOpen \? \([\s\S]*examples\.map/);
 });
 
-test("서술을 비워도 이대로 이어가기 버튼이 활성 상태로 남는다", () => {
+test("서술을 비워도 이대로 이어가기 버튼이 활성 상태로 남고, 잠겨도 문구는 그대로다", () => {
   const main = chooseBlockageKind(initialBlockageFlowState, "표현");
   const detail = chooseBlockageSubBranch(main, "감정");
 
   assert.equal(completeBlockageFlow(detail)?.blockage_detail, null);
+  // 창은 그 버튼이 사는 화면으로 끊는다 — 파일 전체를 두고 이어 붙이면 멀리 떨어진
+  // 두 심볼이 한 단언을 만족한다(apps/web/CLAUDE.md 가 실물로 경고한 모양).
+  const detailStart = blockageSelectionSource.indexOf("function DetailScreen");
+  assert.notEqual(detailStart, -1, "서술 화면을 못 찾았다");
+  const detailScreen = blockageSelectionSource.slice(detailStart);
   assert.match(
-    blockageSelectionSource,
-    /disabled=\{busy\}[\s\S]*?onClick=\{onComplete\}[\s\S]*?이대로 이어가기 →/,
+    detailScreen,
+    /disabled=\{submitDisabled\}[\s\S]*?onClick=\{onComplete\}[\s\S]*?disabled:bg-\[#c9d3df\][\s\S]*?이대로 이어가기 →/,
   );
+  // 그 잠금은 화면 뒤에서 도는 **다른** 일이 이 연습을 붙들고 있다는 뜻이다(실제로
+  // 켜지는 것은 지우는 중일 때뿐이다). 이 화면이 무언가를 진행 중이라고 말하면
+  // 거짓이 된다 — 옛 문구가 그랬다.
+  assert.doesNotMatch(blockageSelectionSource, /이어가는 중/);
 });
 
 test("서술 화면에 되돌리기 칩과 글자 수 표시가 남아 있다", () => {
@@ -165,16 +174,23 @@ test("새 선택 화면과 오늘 정리 화면에 금지 문구가 없다", () 
   assert.deepEqual(matches, []);
 });
 
-test("complete가 오면 버튼 없이 결과 화면으로 전환한다", () => {
+test("complete가 오면 코치 응답에서 노트를 꺼내 받아 둔다", () => {
   const workspace = readFileSync(
     path.join(appRoot, "src/features/workspace/workspace-app.tsx"),
     "utf8",
   );
-
-  assert.match(
-    workspace,
-    /const completed = completedCoachReport\(turn\)[\s\S]*setReport\(completed\)[\s\S]*setMode\("note"\)/,
+  // 옛 정규식은 900줄 떨어진 두 심볼을 `[\s\S]*` 로 이어 "노트 화면으로 자동 전환한다"
+  // 고 읽혔고, 그것은 tests/workspace-note-handoff.test.mjs 가 고정하는 것과 정반대였다.
+  // 노트 화면으로 넘기는 자리는 그 파일이 지킨다. 여기서는 받아 두는 쪽만 본다.
+  const pushAi = workspace.slice(
+    workspace.indexOf("const pushAi = useCallback"),
+    workspace.indexOf("const openNote = useCallback"),
   );
+
+  assert.match(pushAi, /const completed = completedCoachReport\(turn\);/);
+  // 받아 둔 노트는 화면이 든다. 안 딸려 온 턴이 그것을 지우지 않는 것은
+  // tests/workspace-state.test.mjs 가 실행으로 지킨다.
+  assert.match(pushAi, /report: completed,/);
   assert.doesNotMatch(workspace, /이제 맞아요|아직 달라요/);
 });
 
@@ -193,9 +209,11 @@ test("blocked 결과는 대화 내용과 안내와 마치기·다시 시작 버�
   assert.match(blocked, /지금까지 나눈 이야기는 연습 노트로 남지 않아요/);
   assert.match(blocked, /다시 대화하면 이 내용은 사라지고 처음부터 시작해요/);
   assert.match(blocked, /onClick=\{onFinish\}[\s\S]*연습 마치기/);
+  // 뒤에서 도는 일이 이 길을 막을 수 있다. 무엇이 그것을 켜고 끄는지는
+  // tests/use-workspace-busy.test.mjs 가 실행으로 지킨다.
   assert.match(
     blocked,
-    /disabled=\{busy\}[\s\S]*onClick=\{onBackToChat\}[\s\S]*disabled:bg-\[#c9d3df\][\s\S]*처음부터 다시 대화하기/,
+    /disabled=\{backDisabled\}[\s\S]*onClick=\{onBackToChat\}[\s\S]*disabled:bg-\[#c9d3df\][\s\S]*처음부터 다시 대화하기/,
   );
   assert.doesNotMatch(blocked, /대화로 돌아가기|다음에 이어서/);
   assert.doesNotMatch(workspace, /confirmed_expression_handoff_required/);

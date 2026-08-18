@@ -26,12 +26,17 @@ type SceneContext = {
 export function BlockageSelectionFlow({
   videoUrl,
   scene,
-  busy,
+  submitDisabled,
   onComplete,
 }: {
   videoUrl: string;
   scene: SceneContext;
-  busy: boolean;
+  /**
+   * 마지막 버튼을 잠근다. 화면 뒤에서 도는 **다른** 일이 이 연습을 붙들고 있다는
+   * 뜻이지, 이 화면이 무언가를 진행 중이라는 뜻이 아니다 — 그래서 버튼 문구는
+   * 이것으로 바뀌지 않는다(무엇이 이것을 켜는지는 `use-workspace-busy.ts`).
+   */
+  submitDisabled: boolean;
   onComplete: (selection: BlockageSelection) => void;
 }) {
   const [state, setState] = useState<BlockageFlowState>(initialBlockageFlowState);
@@ -80,7 +85,7 @@ export function BlockageSelectionFlow({
       {state.step === "detail" && state.kind && state.subBranch ? (
         <DetailScreen
           state={state}
-          busy={busy}
+          submitDisabled={submitDisabled}
           onBack={() => setState((current) => changeBlockageSubBranch(current))}
           onDetail={(detail) => setState((current) => updateBlockageDetail(current, detail))}
           onComplete={() => {
@@ -302,13 +307,13 @@ function SubBranchScreen({
 
 function DetailScreen({
   state,
-  busy,
+  submitDisabled,
   onBack,
   onDetail,
   onComplete,
 }: {
   state: BlockageFlowState;
-  busy: boolean;
+  submitDisabled: boolean;
   onBack: () => void;
   onDetail: (detail: string) => void;
   onComplete: () => void;
@@ -359,11 +364,11 @@ function DetailScreen({
           </p>
           <button
             type="button"
-            disabled={busy}
+            disabled={submitDisabled}
             onClick={onComplete}
-            className="min-h-[44px] shrink-0 rounded-2xl bg-[#2f6bff] px-5 py-2 text-sm font-black text-white transition hover:bg-[#3182f6]"
+            className="min-h-[44px] shrink-0 rounded-2xl bg-[#2f6bff] px-5 py-2 text-sm font-black text-white transition hover:bg-[#3182f6] disabled:bg-[#c9d3df]"
           >
-            {busy ? "이어가는 중…" : "이대로 이어가기 →"}
+            이대로 이어가기 →
           </button>
         </div>
       </div>

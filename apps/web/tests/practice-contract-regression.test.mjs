@@ -35,13 +35,14 @@ test("막힘 선택 완료 뒤 질문 재료가 준비될 때까지 진행 화�
   const workspace = readWeb("src/features/workspace/workspace-app.tsx");
   const beginStart = workspace.indexOf("const begin = useCallback");
   const beginEnd = workspace.indexOf("const send = useCallback", beginStart);
+  assert.ok(beginStart !== -1 && beginEnd > beginStart, "begin 자리를 못 찾았다");
   const begin = workspace.slice(beginStart, beginEnd);
 
   assert.match(
     begin,
-    /createPracticeSession[\s\S]*setMode\("preparing"\)[\s\S]*trackAnalysis\(session\.session_id\)/,
+    /startPractice\([\s\S]*dispatch\(\{ type: "sessionCreated", status: session\.status \}\)[\s\S]*trackAnalysis\(session\.session_id\)/,
   );
-  assert.doesNotMatch(begin, /setMode\("chat"\)|startCoach\(/);
+  assert.doesNotMatch(begin, /type: "coachStarting"|startCoach\(/);
 });
 
 test("질문 준비는 기존 진행 자리에서 장면을 훑는다고 안내한다", () => {
