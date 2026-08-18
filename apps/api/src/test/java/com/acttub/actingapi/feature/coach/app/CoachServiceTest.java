@@ -278,6 +278,51 @@ class CoachServiceTest {
         assertThat(passed.getValue().prior().memory()).containsEntry("goal", "입시 합격");
     }
 
+    @Test
+    void aTurnThatClosesWithACardSchedulesTheMemoryUpdate() {
+        // 확인이 대화 안에서 끝나는 흐름에서는 /confirm 이 불리지 않는다. dev 실측으로
+        // 확인 5건에 기억 갱신 잡이 0건이었다 — 예약이 confirm 에만 달려 있어서다.
+        ObjectNode handoff = mapper.createObjectNode().put("handoff_type", "analysis");
+        CoachReply complete = new CoachReply("완료", "complete", handoff);
+        CoachSessionSnapshot answered = snapshot("open", List.of(
+                new CoachTurnSnapshot("actor", "폼에 적은 막힌 지점"),
+                new CoachTurnSnapshot("ai", "첫 질문"),
+                new CoachTurnSnapshot("actor", "첫 답변"),
+                new CoachTurnSnapshot("ai", "다음 질문"),
+                new CoachTurnSnapshot("actor", "다음 답변")));
+        stubOwnedSession();
+        when(coach.reply(any(), anyString())).thenReturn(new CoachResult(answered, complete));
+        when(reports.generateReport(any(), any(), any(),
+                org.mockito.ArgumentMatchers.anyBoolean(), any(), any(), any()))
+                .thenReturn(mapper.createObjectNode().put("report_type", "analysis"));
+        when(ledger.completeCoachReplyOperation(
+                any(), any(), any(), any(), any(), any(), any(),
+                org.mockito.ArgumentMatchers.anyBoolean(), any(), any()))
+                .thenReturn(true);
+        when(memory.countConfirmedPractices(USER_ID)).thenReturn(1L);
+
+        service.reply(USER_ID, new ActorMessage(SESSION_ID, "맞아요"), null);
+
+        verify(memory).enqueueMemoryUpdate(USER_ID, PRACTICE_ID);
+    }
+
+    @Test
+    void anOngoingTurnDoesNotTouchTheMemoryQueue() {
+        // 카드 없이 이어지는 턴마다 예약이 걸리면 케이던스가 무의미해진다.
+        CoachSessionSnapshot session = snapshot("open", List.of());
+        CoachReply reply = new CoachReply("다음 질문", "continue", null);
+        stubOwnedSession();
+        when(coach.reply(any(), anyString())).thenReturn(new CoachResult(session, reply));
+        when(ledger.completeCoachReplyOperation(
+                any(), any(), any(), any(), any(), any(), any(),
+                org.mockito.ArgumentMatchers.anyBoolean(), any(), any()))
+                .thenReturn(true);
+
+        service.reply(USER_ID, new ActorMessage(SESSION_ID, "음..."), null);
+
+        verify(memory, never()).enqueueMemoryUpdate(any(), any());
+    }
+
     private void assertReportParseError(Runnable invocation) {
         assertThatThrownBy(invocation::run)
                 .isInstanceOfSatisfying(ApiException.class, exception -> {

@@ -148,6 +148,7 @@ public class CoachService {
                     completed.report(),
                     command.restart(),
                     operations.now());
+            scheduleMemoryUpdate(userId, owned.practiceSessionId(), completed.report() != null);
             return new CoachPayload(payload, claim.requestId());
         } catch (LeaseOwnershipException exception) {
             operations.fail(claim, "lease_ownership_lost");
@@ -206,6 +207,9 @@ public class CoachService {
                     completed.report() != null,
                     completed.report(),
                     operations.now());
+            // 확인이 대화 안에서 끝나는 흐름에서는 /confirm 이 불리지 않는다. 예약이 그
+            // 문에만 달려 있어 기억이 한 번도 안 쌓였다 — 턴이 카드와 함께 닫힐 때도 건다.
+            scheduleMemoryUpdate(userId, owned.practiceSessionId(), completed.report() != null);
             return new CoachPayload(payload, claim.requestId());
         } catch (SessionWriteConflict exception) {
             operations.fail(claim, "session_write_conflict");
@@ -335,7 +339,8 @@ public class CoachService {
                     memory.countConfirmedPractices(userId))) {
                 return;
             }
-            memory.enqueueMemoryUpdate(userId, practiceSessionId);
+            boolean queued = memory.enqueueMemoryUpdate(userId, practiceSessionId);
+            LOG.info("기억 갱신 예약: practice={} queued={}", practiceSessionId, queued);
         } catch (RuntimeException failure) {
             LOG.warn("기억 갱신 예약에 실패했다: {}", practiceSessionId, failure);
         }
