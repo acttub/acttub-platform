@@ -11,9 +11,15 @@ import java.util.Map;
  * <b>빈 제목만 있으면 모델이 그 자리를 지어내 채운다.</b>
  */
 public record PriorContext(
-        Map<String, String> memory, String earlierConversation, List<String> pendingTakes) {
+        Map<String, String> memory,
+        String earlierConversation,
+        // 발췌가 이 연습의 지난 대화인지(true), 다른 연습의 직전 대화인지(false).
+        // 프롬프트 제목이 갈린다 — 다른 연습의 대화를 "같은 연습" 이라고 붙이면
+        // 코치가 이번 영상의 장면과 뒤섞는다.
+        boolean fromSamePractice,
+        List<String> pendingTakes) {
 
-    public static final PriorContext EMPTY = new PriorContext(Map.of(), null, List.of());
+    public static final PriorContext EMPTY = new PriorContext(Map.of(), null, true, List.of());
 
     public PriorContext {
         memory = Map.copyOf(new LinkedHashMap<>(memory));

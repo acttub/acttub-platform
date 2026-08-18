@@ -263,7 +263,7 @@ class CoachServiceTest {
         CoachReply reply = new CoachReply("다음 질문", "continue", null);
         stubOwnedSession();
         when(memory.priorFor(USER_ID, PRACTICE_ID)).thenReturn(new PriorContext(
-                Map.of("goal", "입시 합격"), null, List.of()));
+                Map.of("goal", "입시 합격"), null, true, List.of()));
         when(coach.reply(any(), anyString())).thenReturn(new CoachResult(session, reply));
         when(ledger.completeCoachReplyOperation(
                 any(), any(), any(), any(), any(), any(), any(),

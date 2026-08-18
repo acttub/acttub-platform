@@ -85,7 +85,9 @@ public final class CoachPrompt {
 
         if (prior.earlierConversation() != null) {
             lines.add("");
-            lines.add("### 같은 연습에서 지난번에 나눈 이야기");
+            lines.add(prior.fromSamePractice()
+                    ? "### 같은 연습에서 지난번에 나눈 이야기"
+                    : "### 지난 연습에서 나눈 이야기");
             lines.add(prior.earlierConversation());
         }
 
