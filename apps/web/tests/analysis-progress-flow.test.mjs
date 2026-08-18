@@ -436,6 +436,13 @@ test("두 진입 경로가 같은 자리에서 화면을 옮기고 같은 자리
   assert.match(byUrl, /showLoadedSession\(loaded\)/, "주소: 화면 옮기기");
   assert.match(byUrl, /applyLoadOutcome\(result, sessionParam\)/, "주소: 결과 적기");
 
+  // 두 길이 자리를 잡는 시점이 갈리므로 묻는 가드도 갈린다. 주소로 온 길은 조회가
+  // 끝나야 자리를 잡아 그때까지 자리가 비어 있다 — isCurrent 로 물으면 자기 자신이
+  // 걸러져 링크로 여는 경로가 통째로 죽는다(SOMA-414 가 고친 그 버그다). 무엇을
+  // 통과시키는지는 tests/use-active-session.test.mjs 가 실행으로 지킨다.
+  assert.match(byUrl, /cancelled \|\| !sessionIsCurrentOrFree\(sessionParam\)/, "주소: 빈 자리를 통과시키는 가드");
+  assert.match(byList, /isCurrent: \(\) => isCurrentSession\(id\)/, "목록: 자리를 이미 잡고 들어온 가드");
+
   // 화면을 옮기는 그 한 자리가 실제로 이 전이를 싣는지. 어느 상태가 어느 화면으로
   // 가는지는 tests/workspace-state.test.mjs 가 실행으로 지킨다.
   const show = between(

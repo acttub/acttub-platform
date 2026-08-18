@@ -75,6 +75,7 @@ import {
   analysisEventsForStatus,
   useAnalysisProgress,
 } from "../practice/use-analysis-progress";
+import { useActiveSession } from "./use-active-session";
 import {
   uploadForCurrentFile,
   type PendingVideoUpload,
@@ -236,7 +237,15 @@ function WorkspaceInner() {
     workspaceScreenReducer,
     initialWorkspaceScreen,
   );
-  const [activeId, setActiveId] = useState<string | null>(null);
+  // 어느 연습이 지금 화면인가. 그리는 값과 기다림 뒤에 묻는 값을 함께 든다 —
+  // 취소 가드가 무엇을 통과시킬지는 전부 active-session.ts 가 정한다.
+  const {
+    id: activeId,
+    current: currentSessionId,
+    isCurrent: isCurrentSession,
+    isCurrentOrFree: sessionIsCurrentOrFree,
+    setCurrent: setCurrentSession,
+  } = useActiveSession();
   const [detail, setDetail] = useState<PracticeSessionDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -273,7 +282,10 @@ function WorkspaceInner() {
     null,
   );
   const analysisControllerRef = useRef<AbortController | null>(null);
-  const activeIdRef = useRef<string | null>(null);
+  // 주소로 이미 연 연습. 활성 세션과 값은 같지만 **주소 경로에서만** 세우는 시점이
+  // 갈린다 — 이쪽은 조회를 띄우기 전에 서서 이펙트가 다시 도는 것을 막고, 활성 세션은
+  // 조회가 끝난 뒤에 선다(그래야 첫 진입이 자기 가드에 걸리지 않는다). 목록·새 연습은
+  // 둘을 나란히 세운다. 이 시점 차이가 둘을 못 합치게 하는 이유다.
   const urlLoadedRef = useRef<string | null>(null);
   const coachCoordinatorRef = useRef<{
     sessionId: string;
@@ -374,9 +386,8 @@ function WorkspaceInner() {
     discardPendingUpload();
     analysisControllerRef.current?.abort();
     trackPracticePrepOpened("reset");
-    activeIdRef.current = null;
+    setCurrentSession(null);
     dispatch({ type: "reset", continueFrom });
-    setActiveId(null);
     setDetail(null);
     setMessages([]);
     setCoachOpening(false);
@@ -395,14 +406,14 @@ function WorkspaceInner() {
     setGoal("");
     setDrawerOpen(false);
     replaceUrl("/practice/new");
-  }, [discardPendingUpload, reportProgress]);
+  }, [discardPendingUpload, reportProgress, setCurrentSession]);
 
   const resetToPrep = useCallback(() => resetTo(null), [resetTo]);
 
   // 끝난 연습의 노트에서 "이어서 새 연습" — 새 연습 준비 화면으로 가되, 코치가 이
   // 연습의 대화를 이어받도록 표시해 둔다.
   const continueFromCurrent = useCallback(() => {
-    const id = activeIdRef.current;
+    const id = currentSessionId();
     if (!id) return;
     const situationLabel = detail?.situation.trim();
     resetTo({
@@ -410,7 +421,7 @@ function WorkspaceInner() {
       // 자리표시자(".")로 채워진 장면은 이름이 못 된다.
       label: situationLabel && situationLabel.length > 1 ? situationLabel : null,
     });
-  }, [detail, resetTo]);
+  }, [currentSessionId, detail, resetTo]);
 
   // 지금 상태가 무엇을 그리는지는 전부 이 순수 함수가 정한다. 렌더보다 위에 있는 이유는
   // 바로 아래 후기 훅이 그 결과를 인자로 받기 때문이다 — 훅은 조건부로 부를 수 없다.
@@ -472,14 +483,14 @@ function WorkspaceInner() {
   const openNote = useCallback(() => {
     dispatch({ type: "noteOpened" });
     const opened = currentReport(screen);
-    if (opened && countStepOnce(activeIdRef.current, "result")) {
+    if (opened && countStepOnce(currentSessionId(), "result")) {
       trackPracticeResultViewed(
         opened.report_type,
         dialogueTurnCountRef.current,
         "current",
       );
     }
-  }, [countStepOnce, screen]);
+  }, [countStepOnce, currentSessionId, screen]);
 
   const restoreCoach = useCallback((turn: CoachTurnResponse) => {
     coachIdRef.current = turn.session_id;
@@ -516,7 +527,7 @@ function WorkspaceInner() {
     }
 
     const coordinator = createCoachStartCoordinator(async () => {
-      if (activeIdRef.current !== practiceSessionId) return;
+      if (!isCurrentSession(practiceSessionId)) return;
       dispatch({ type: "coachStarting" });
       setCoachOpening(true);
       setError(null);
@@ -524,7 +535,7 @@ function WorkspaceInner() {
         const { data: start } = await startCoach({
           practice_session_id: practiceSessionId,
         });
-        if (activeIdRef.current !== practiceSessionId) return;
+        if (!isCurrentSession(practiceSessionId)) return;
         restoreCoach(start);
         if (countStepOnce(practiceSessionId, "dialogue")) {
           const context = practiceAnalyticsContextRef.current;
@@ -538,17 +549,17 @@ function WorkspaceInner() {
         }
       } catch (reason) {
         trackPracticeDialogueStartFailed(false);
-        if (activeIdRef.current === practiceSessionId) {
+        if (isCurrentSession(practiceSessionId)) {
           setError("코치 연결에 실패했어요. 잠시 후 다시 시도해 주세요.");
         }
         throw reason;
       } finally {
-        if (activeIdRef.current === practiceSessionId) setCoachOpening(false);
+        if (isCurrentSession(practiceSessionId)) setCoachOpening(false);
       }
     });
     coachCoordinatorRef.current = { sessionId: practiceSessionId, coordinator };
     return coordinator;
-  }, [countStepOnce, restoreCoach]);
+  }, [countStepOnce, isCurrentSession, restoreCoach]);
 
   const startConversationAfterAnalysis = useCallback((practiceSessionId: string) => {
     void coordinatorFor(practiceSessionId).update("analyzed").catch(() => {});
@@ -575,12 +586,12 @@ function WorkspaceInner() {
       intervalMs: 3000,
       signal: controller.signal,
       onStatus: (status) => {
-        if (activeIdRef.current !== practiceSessionId) return;
+        if (!isCurrentSession(practiceSessionId)) return;
         dispatch({ type: "analysisStatusReported", status });
       },
     }).then(
       (settled) => {
-        if (activeIdRef.current !== practiceSessionId || controller.signal.aborted) return;
+        if (!isCurrentSession(practiceSessionId) || controller.signal.aborted) return;
         dispatch({ type: "analysisStatusReported", status: settled.status });
         reportProgress({ type: "settle", status: settled.status });
         setDetail(settled);
@@ -600,14 +611,14 @@ function WorkspaceInner() {
         void coordinatorFor(practiceSessionId).update(settled.status).catch(() => {});
       },
       () => {
-        if (activeIdRef.current === practiceSessionId) {
+        if (isCurrentSession(practiceSessionId)) {
           setError("장면을 살펴보는 상태를 확인하지 못했어요. 잠시 후 목록에서 다시 열어 주세요.");
         }
       },
     ).finally(() => {
       if (analysisControllerRef.current === controller) analysisControllerRef.current = null;
     });
-  }, [coordinatorFor, refreshList, reportProgress]);
+  }, [coordinatorFor, isCurrentSession, refreshList, reportProgress]);
 
   const onPickFile = (file: File | null) => {
     // 영상을 고르는 길은 준비 화면에만 열려 있다. 그 밖에서 들어오면 만들어 둔
@@ -684,14 +695,13 @@ function WorkspaceInner() {
     }
     try {
       const { session, durationMs, compressionRan } = started;
-      activeIdRef.current = session.session_id;
+      setCurrentSession(session.session_id);
       coachCoordinatorRef.current = null;
       practiceAnalyticsContextRef.current = {
         kind: blockage.blockage_kind,
         subBranch: blockage.sub_branch,
         withEvidence: session.status === "analyzed",
       };
-      setActiveId(session.session_id);
       setDetail(null);
       reportProgress({ type: "duration", videoDurationMs: durationMs });
       enterAnalysis(session.status, compressionRan);
@@ -710,7 +720,7 @@ function WorkspaceInner() {
       trackAnalysis(session.session_id);
       void getPracticeSession(session.session_id).then(
         (loaded) => {
-          if (activeIdRef.current !== session.session_id) return;
+          if (!isCurrentSession(session.session_id)) return;
           // 상세 조회는 장면 정보만 채운다 — 분석 상태는 먼저 시작한 폴링만 갱신한다.
           setDetail(loaded);
         },
@@ -731,6 +741,8 @@ function WorkspaceInner() {
     character,
     goal,
     enterAnalysis,
+    isCurrentSession,
+    setCurrentSession,
     refreshList,
     reportProgress,
     startUpload,
@@ -760,7 +772,7 @@ function WorkspaceInner() {
   }, [answer, sending, pushAi]);
 
   const restartAfterBlocked = useCallback(async () => {
-    const practiceSessionId = activeIdRef.current;
+    const practiceSessionId = currentSessionId();
     if (!practiceSessionId) return;
     setBusy(true);
     setError(null);
@@ -775,20 +787,20 @@ function WorkspaceInner() {
         practice_session_id: practiceSessionId,
         restart: true,
       });
-      if (activeIdRef.current !== practiceSessionId) return;
+      if (!isCurrentSession(practiceSessionId)) return;
       restoreCoach(data);
     } catch {
       trackPracticeDialogueStartFailed(true);
-      if (activeIdRef.current === practiceSessionId) {
+      if (isCurrentSession(practiceSessionId)) {
         setError("대화를 다시 시작하지 못했어요. 잠시 후 다시 시도해 주세요.");
       }
     } finally {
-      if (activeIdRef.current === practiceSessionId) {
+      if (isCurrentSession(practiceSessionId)) {
         setCoachOpening(false);
         setBusy(false);
       }
     }
-  }, [restoreCoach]);
+  }, [currentSessionId, isCurrentSession, restoreCoach]);
 
   // 받아 온 연습으로 화면을 옮긴다. 두 진입 경로가 이 자리를 공유하고, 그 앞뒤로
   // 저마다 더 하는 일(주소로 온 길은 자기 자리부터 잡는다)은 각자에게 남는다.
@@ -858,13 +870,12 @@ function WorkspaceInner() {
     // 올리던 영상을 두고 다른 연습으로 넘어가면 그 업로드는 갈 곳이 없다.
     discardPendingUpload();
     analysisControllerRef.current?.abort();
-    activeIdRef.current = id;
+    setCurrentSession(id);
     coachCoordinatorRef.current = null;
     urlLoadedRef.current = id;
     replaceUrl(`/practice/new?session=${encodeURIComponent(id)}`);
     setDrawerOpen(false);
     setError(null);
-    setActiveId(id);
     setDetail(null);
     // 분석 구간 진입은 조회가 끝난 뒤 enterAnalysis 가 알린다.
     reportProgress({ type: "reset" });
@@ -878,11 +889,10 @@ function WorkspaceInner() {
     dialogueTurnCountRef.current = 0;
     practiceAnalyticsContextRef.current = null;
     setBusy(true);
-    const isCurrent = () => activeIdRef.current === id;
     try {
       const result = await loadPracticeSession({
         sessionId: id,
-        isCurrent,
+        isCurrent: () => isCurrentSession(id),
         onLoaded: showLoadedSession,
       });
       // 못 불러온 것을 아래 catch 로 합류시킨다. 화면을 옮기다 터진 것과 같은 문구를
@@ -893,20 +903,22 @@ function WorkspaceInner() {
     } catch {
       // 그새 다른 연습으로 넘어갔으면 이 실패는 지금 화면과 상관이 없다 —
       // 안쪽 가드와 같은 이유이고, 여기만 빠져 있었다.
-      if (isCurrent()) {
+      if (isCurrentSession(id)) {
         setError("연습을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.");
       }
     } finally {
       // 남의 요청이 지금 화면의 로딩을 풀면 안 된다. 이 가드로 두고 가는 busy 는
       // 다음 openSession 이 다시 켜거나 resetToPrep 이 푼다.
-      if (isCurrent()) setBusy(false);
+      if (isCurrentSession(id)) setBusy(false);
     }
   }, [
     applyLoadOutcome,
     discardPendingUpload,
+    isCurrentSession,
     reportProgress,
     reports,
     sessions,
+    setCurrentSession,
     showLoadedSession,
   ]);
 
@@ -918,10 +930,9 @@ function WorkspaceInner() {
     let cancelled = false;
     // cancelled 만으로는 부족하다 — effect 가 다시 도는 경우만 막는다. 기다리는 사이
     // 배우가 목록에서 다른 연습을 열었으면 그쪽이 지금 화면이고, 이 응답은 거기 닿으면
-    // 안 된다. activeIdRef 가 비어 있는 첫 진입은 이 세션이 자리를 잡는 경우라 통과시킨다.
-    const superseded = () =>
-      cancelled ||
-      (activeIdRef.current !== null && activeIdRef.current !== sessionParam);
+    // 안 된다. 자리가 비어 있는 첫 진입은 이 연습이 그것을 잡으러 온 경우라
+    // 통과시킨다 — 그것을 가르는 것이 isCurrentOrFree 다.
+    const superseded = () => cancelled || !sessionIsCurrentOrFree(sessionParam);
     void (async () => {
       try {
         const result = await loadPracticeSession({
@@ -929,10 +940,9 @@ function WorkspaceInner() {
           isCurrent: () => !superseded(),
           onLoaded: (loaded) => {
             // 주소로 온 길은 자기 자리부터 잡는다 — 목록에서 여는 길은 조회 전에
-            // 이미 잡고 들어온다. 두 ref 대입은 화면을 옮기기 전에 끝내 둔다.
+            // 이미 잡고 들어온다. 자리를 세우는 것은 화면을 옮기기 전에 끝내 둔다.
             reportProgress({ type: "reset" });
-            activeIdRef.current = sessionParam;
-            setActiveId(sessionParam);
+            setCurrentSession(sessionParam);
             dialogueTurnCountRef.current = 0;
             coachCoordinatorRef.current = null;
             showLoadedSession(loaded);
@@ -952,6 +962,8 @@ function WorkspaceInner() {
     sessionParam,
     applyLoadOutcome,
     reportProgress,
+    sessionIsCurrentOrFree,
+    setCurrentSession,
     showLoadedSession,
   ]);
 

@@ -37,9 +37,12 @@ test("노트 전환과 결과 조회 집계는 배우가 누를 때만 일어난
   // 집계는 화면이 든 노트를 읽고, 그것이 있을 때만 나간다. 노트 없이 세면 그 자리에
   // 서지도 못한 사람이 결과를 봤다고 기록된다.
   assert.match(openNote, /const opened = currentReport\(screen\);/);
+  // 계수의 열쇠는 **지금 자리에 있는** 연습이다 — 화면이 그리는 값을 읽으면 방금
+  // 넘어온 연습에서 옛 연습의 결과를 본 것으로 기록된다. 부르는 모양으로 겨눈다:
+  // 이름으로만 물으면 바로 아래 의존성 목록이 그것을 되살린다.
   assert.match(
     openNote,
-    /if \(opened && countStepOnce\(activeIdRef\.current, "result"\)\)/,
+    /if \(opened && countStepOnce\(currentSessionId\(\), "result"\)\)/,
   );
   assert.match(openNote, /opened\.report_type/);
 });
