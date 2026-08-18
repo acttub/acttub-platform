@@ -199,6 +199,23 @@ public class PostgresMemoryRepository implements MemoryRepository, CoachMemory {
                 """, UUID.class, practiceSessionId, userId);
         boolean samePractice = !closed.isEmpty();
         if (closed.isEmpty()) {
+            // 배우가 끝난 연습의 카드에서 "이어서 새 연습" 을 눌러 시작했다면 그 연습의
+            // 대화를 싣는다. 소유·숨김을 다시 확인한다 — 만들 때도 걸러지지만, 그 뒤에
+            // 숨겨진 연습의 대화가 되살아나는 길을 여기서도 막는다.
+            closed = jdbc.queryForList("""
+                    SELECT coach.id
+                    FROM practice_sessions current
+                    JOIN practice_sessions chosen ON chosen.id=current.continued_from
+                    JOIN coach_sessions coach ON coach.practice_session_id=chosen.id
+                    WHERE current.id=?
+                      AND chosen.user_id=?
+                      AND chosen.hidden_at IS NULL
+                      AND coach.status='closed'::session_status_t
+                    ORDER BY coach.created_at DESC
+                    LIMIT 1
+                    """, UUID.class, practiceSessionId, userId);
+        }
+        if (closed.isEmpty()) {
             // 새 영상으로 시작한 연습이다. 배우 입장에서 "이어하기" 는 같은 영상을
             // 다시 여는 것보다 새 영상을 올리며 지난 대화가 이어지는 쪽이므로,
             // 이 배우의 가장 최근 닫힌 대화를 대신 싣는다. 숨긴 연습은 뺀다 —

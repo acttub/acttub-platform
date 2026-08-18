@@ -62,6 +62,12 @@ public class PracticeSessionService {
         if (!sessions.uploadExists(userId, command.uploadIntentId())) {
             throw new ApiException(404, "upload_intent_not_found");
         }
+        // 이어받을 연습은 이 배우의 보이는 연습이어야 한다 — 남의 연습이나 숨긴 연습을
+        // 지정해 그 대화를 끌어오는 길을 여기서 막는다.
+        if (command.continuedFrom() != null
+                && sessions.status(userId, command.continuedFrom()) == null) {
+            throw new ApiException(404, "practice_session_not_found");
+        }
         PracticeSessionOperation result = operations.createWithAnalysis(
                 userId,
                 command.uploadIntentId(),
@@ -71,6 +77,7 @@ public class PracticeSessionService {
                 command.blockageKind(),
                 command.subBranch(),
                 command.blockageDetail(),
+                command.continuedFrom(),
                 requestId,
                 createFingerprint(command));
         if (result == null) {
@@ -188,6 +195,11 @@ public class PracticeSessionService {
         payload.put("blockage_kind", command.blockageKind());
         payload.put("sub_branch", command.subBranch());
         payload.put("blockage_detail", command.blockageDetail());
+        // 있을 때만 넣는다 — 무조건 넣으면 이 키가 없던 시절의 해시와 어긋나
+        // 같은 요청이 새 작업으로 갈린다.
+        if (command.continuedFrom() != null) {
+            payload.put("continued_from", command.continuedFrom().toString());
+        }
         return fingerprint(payload);
     }
 

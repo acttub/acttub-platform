@@ -29,6 +29,7 @@ public interface PracticeSessionLedger {
             String blockageKind,
             String subBranch,
             String blockageDetail,
+            UUID continuedFrom,
             UUID requestId,
             String requestFingerprint);
 

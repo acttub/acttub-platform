@@ -109,7 +109,8 @@ class PracticeSessionController {
                 body.goal(),
                 body.blockageKind(),
                 body.subBranch(),
-                body.blockageDetail());
+                body.blockageDetail(),
+                body.continuedFrom());
         return json(sessions.create(user.id(), command, requestId), requestId);
     }
 

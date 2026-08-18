@@ -15,5 +15,8 @@ public record NewPracticeSession(
         String goal,
         String blockageKind,
         String subBranch,
-        String blockageDetail) {
+        String blockageDetail,
+        // 끝난 연습에서 "이어서 새 연습" 으로 시작했다면 그 연습. 코치가 이 연습의
+        // 대화를 이어받는다. 없으면 가장 최근 대화를 이어받는다 (SOMA-417).
+        UUID continuedFrom) {
 }

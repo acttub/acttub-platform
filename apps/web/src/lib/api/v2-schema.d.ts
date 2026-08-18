@@ -800,6 +800,8 @@ export interface components {
             sub_branch: "캐릭터 분석" | "대사 분석" | "감정" | "움직임" | "화술" | "표정" | "그 외";
             /** Blockage Detail */
             blockage_detail?: string | null;
+            /** Continued From */
+            continued_from?: string | null;
         };
         /** PracticeSessionCreateResponse */
         PracticeSessionCreateResponse: {

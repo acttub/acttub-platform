@@ -492,6 +492,7 @@ class ExternalOperationIT {
                 "분석",
                 "캐릭터 분석",
                 null,
+                null,
                 requestId,
                 fingerprint);
     }

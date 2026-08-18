@@ -38,7 +38,8 @@ final class PracticeSessionDtos {
             @NotNull @Schema(allowableValues = {
                 "캐릭터 분석", "대사 분석", "감정", "움직임", "화술", "표정", "그 외"
             }) String subBranch,
-            @Schema(nullable = true) String blockageDetail) {
+            @Schema(nullable = true) String blockageDetail,
+            @Schema(nullable = true) UUID continuedFrom) {
     }
 
     @Schema(
