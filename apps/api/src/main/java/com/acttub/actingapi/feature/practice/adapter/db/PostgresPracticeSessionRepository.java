@@ -106,7 +106,7 @@ class PostgresPracticeSessionRepository implements PracticeSessionRepository {
                 SELECT
                     ps.id,ps.user_id,ps.upload_intent_id,ps.status::text AS status,
                     ps.situation,ps.character_context,ps.goal,ps.blockage_kind,
-                    ps.sub_branch,ps.blockage_detail,ps.created_at,ps.updated_at,
+                    ps.sub_branch,ps.blockage_detail,ps.continued_from,ps.created_at,ps.updated_at,
                     ui.object_key,
                     summary.id AS summary_id,
                     summary.observations_json::text AS observations_json,
