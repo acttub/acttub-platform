@@ -149,7 +149,7 @@ class PostgresMemoryRepositoryPriorIT {
                     id,user_id,status,storage_provider,object_key,mime_type,size_bytes,
                     expires_at,created_at
                 ) VALUES (?, ?, 'finalized'::upload_status_t, 's3', ?, 'video/mp4', 1, ?, ?)
-                """, uploadId, userId, "users/" + userId + "/take.mp4", NOW.plusDays(1), NOW);
+                """, uploadId, userId, "users/" + userId + "/" + uploadId + ".mp4", NOW.plusDays(1), NOW);
         UUID practiceId = UUID.randomUUID();
         jdbc.update("""
                 INSERT INTO practice_sessions (
