@@ -1379,6 +1379,16 @@ const SessionRail = memo(function SessionRail({
     return kids?.length ? kids[kids.length - 1].created_at : s.created_at;
   };
   roots.sort((a, b) => newestOf(b).localeCompare(newestOf(a)));
+  // 묶음은 기본으로 접는다 — 차수가 쌓일수록 목록이 길어져 다른 연습이 밀려난다.
+  // 지금 열려 있는 연습이 속한 묶음은 항상 펼친다: 접혀 있으면 내가 어디 있는지 안 보인다.
+  const [openGroups, setOpenGroups] = useState<Set<string>>(new Set());
+  const toggleGroup = (rootId: string) =>
+    setOpenGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(rootId)) next.delete(rootId);
+      else next.add(rootId);
+      return next;
+    });
   return (
     <aside
       className={`flex h-full shrink-0 flex-col border-r border-[#edf0f3] bg-[#f9fafb] ${width}`}
@@ -1445,21 +1455,46 @@ const SessionRail = memo(function SessionRail({
                     active={s.session_id === activeId}
                     onClick={() => onOpen(s.session_id)}
                   />
-                  {(childrenByRoot.get(s.session_id) ?? []).map((child, index) => (
-                    <div
-                      key={child.session_id}
-                      className="ml-4 border-l-2 border-[#e5e8eb] pl-1.5"
-                    >
-                      <RailItem
-                        title={headlines.get(child.session_id)?.trim() || `${index + 2}차 연습`}
-                        meta={`${index + 2}차 · ${whenLabel(child.created_at)}${
-                          hasNote.has(child.session_id) ? " · 문장 남김" : ""
-                        }`}
-                        active={child.session_id === activeId}
-                        onClick={() => onOpen(child.session_id)}
-                      />
-                    </div>
-                  ))}
+                  {(() => {
+                    const kids = childrenByRoot.get(s.session_id) ?? [];
+                    if (kids.length === 0) return null;
+                    const opened = openGroups.has(s.session_id)
+                        || kids.some((child) => child.session_id === activeId);
+                    return (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => toggleGroup(s.session_id)}
+                          className="ml-4 flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[11.5px] font-black text-[#8b95a1] transition hover:bg-[#eef2f6] hover:text-[#4e5968]"
+                        >
+                          <span
+                            aria-hidden="true"
+                            className={`inline-block transition-transform ${opened ? "rotate-90" : ""}`}
+                          >
+                            ▸
+                          </span>
+                          {opened ? "이어한 연습 접기" : `이어한 연습 ${kids.length}개 펼치기`}
+                        </button>
+                        {opened
+                          ? kids.map((child, index) => (
+                              <div
+                                key={child.session_id}
+                                className="ml-4 border-l-2 border-[#e5e8eb] pl-1.5"
+                              >
+                                <RailItem
+                                  title={headlines.get(child.session_id)?.trim() || `${index + 2}차 연습`}
+                                  meta={`${index + 2}차 · ${whenLabel(child.created_at)}${
+                                    hasNote.has(child.session_id) ? " · 문장 남김" : ""
+                                  }`}
+                                  active={child.session_id === activeId}
+                                  onClick={() => onOpen(child.session_id)}
+                                />
+                              </div>
+                            ))
+                          : null}
+                      </>
+                    );
+                  })()}
                 </div>
               ))
             )}
