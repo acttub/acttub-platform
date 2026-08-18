@@ -88,7 +88,9 @@ import {
 import {
   abandonedStage,
   initialWorkspaceScreen,
+  pickedVideo,
   workspaceScreenReducer,
+  type ContinueFrom,
   type WorkspaceScreen,
 } from "./workspace-state";
 import {
@@ -238,9 +240,8 @@ function WorkspaceInner() {
   const [detail, setDetail] = useState<PracticeSessionDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // 준비 단계 입력
-  const [videoFile, setVideoFile] = useState<File | null>(null);
-  const [videoUrl, setVideoUrl] = useState<string | null>(null);
+  // 준비 순서 입력. 고른 영상은 화면이 들고 있다 — 어느 자리까지 따라오는지가
+  // 그 자리의 타입으로 적혀 있다(workspace-state.ts).
   const [situation, setSituation] = useState("");
   const [character, setCharacter] = useState("");
   const [goal, setGoal] = useState("");
@@ -267,13 +268,6 @@ function WorkspaceInner() {
   // 연습 노트
   const [report, setReport] = useState<PracticeReport | null>(null);
   const [busy, setBusy] = useState(false);
-
-  // 끝난 연습에서 "이어서 새 연습" 을 눌러 왔는지. 세션을 만들 때 실어 보내면
-  // 코치가 (가장 최근이 아니라) 이 연습의 대화를 이어받는다 (SOMA-417).
-  const [continueFrom, setContinueFrom] = useState<{
-    id: string;
-    label: string | null;
-  } | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const chatScrollRef = useRef<HTMLDivElement | null>(null);
@@ -339,13 +333,23 @@ function WorkspaceInner() {
     [],
   );
 
+  // 화면이 로컬 원본을 놓는 순간 그 blob 주소도 놓아 준다.
+  const pickedUrl = pickedVideo(screen)?.url ?? null;
   useEffect(
     () => () => {
-      if (videoUrl) URL.revokeObjectURL(videoUrl);
+      if (pickedUrl) URL.revokeObjectURL(pickedUrl);
+    },
+    [pickedUrl],
+  );
+
+  // 떠날 때 남은 요청을 끊는다. 화면 안에서 영상을 갈아 끼우거나 다른 연습으로
+  // 넘어가는 길은 저마다 discardPendingUpload 로 이미 끊고 간다.
+  useEffect(
+    () => () => {
       uploadControllerRef.current?.abort();
       analysisControllerRef.current?.abort();
     },
-    [videoUrl],
+    [],
   );
 
   // 세션 하나가 분석 구간에 들어섰음을 알린다. 조회가 끝난 뒤에만 부른다 —
@@ -367,12 +371,14 @@ function WorkspaceInner() {
     uploadControllerRef.current = null;
   }, []);
 
-  const resetToPrep = useCallback(() => {
+  // 되돌아간 준비 화면이 이어받을 연습을 들고 설지까지 여기서 정한다 —
+  // 옛 코드는 되돌린 뒤에 그 표시를 따로 켜야 했고, 순서를 뒤집으면 배너가 뜨지 않았다.
+  const resetTo = useCallback((continueFrom: ContinueFrom | null) => {
     discardPendingUpload();
     analysisControllerRef.current?.abort();
     trackPracticePrepOpened("reset");
     activeIdRef.current = null;
-    dispatch({ type: "reset" });
+    dispatch({ type: "reset", continueFrom });
     setActiveId(null);
     setDetail(null);
     setMessages([]);
@@ -393,39 +399,31 @@ function WorkspaceInner() {
     setSituation("");
     setCharacter("");
     setGoal("");
-    setContinueFrom(null);
-    setVideoFile(null);
-    setVideoUrl((prev) => {
-      if (prev) URL.revokeObjectURL(prev);
-      return null;
-    });
     setDrawerOpen(false);
     replaceUrl("/practice/new");
   }, [discardPendingUpload, reportProgress]);
 
+  const resetToPrep = useCallback(() => resetTo(null), [resetTo]);
+
   // 끝난 연습의 노트에서 "이어서 새 연습" — 새 연습 준비 화면으로 가되, 코치가 이
-  // 연습의 대화를 이어받도록 표시해 둔다. resetToPrep 이 표시를 지우므로 그 뒤에 켠다.
+  // 연습의 대화를 이어받도록 표시해 둔다.
   const continueFromCurrent = useCallback(() => {
     const id = activeIdRef.current;
     if (!id) return;
     const situationLabel = detail?.situation.trim();
-    resetToPrep();
-    setContinueFrom({
+    resetTo({
       id,
       // 자리표시자(".")로 채워진 장면은 이름이 못 된다.
       label: situationLabel && situationLabel.length > 1 ? situationLabel : null,
     });
-  }, [detail, resetToPrep]);
+  }, [detail, resetTo]);
 
   // 지금 상태가 무엇을 그리는지는 전부 이 순수 함수가 정한다. 렌더보다 위에 있는 이유는
   // 바로 아래 후기 훅이 그 결과를 인자로 받기 때문이다 — 훅은 조건부로 부를 수 없다.
   const view = describeWorkspaceView({
     screen,
-    videoFile: videoFile ? { name: videoFile.name } : null,
-    videoUrl,
     playbackUrl: detail?.playback_url ?? null,
     reportType: report?.report_type ?? null,
-    continueFrom,
   });
   const body = view.body;
 
@@ -618,16 +616,17 @@ function WorkspaceInner() {
   }, [coordinatorFor, refreshList, reportProgress]);
 
   const onPickFile = (file: File | null) => {
-    if (!file) return;
-    const isReselect = videoFile !== null;
+    // 영상을 고르는 길은 준비 화면에만 열려 있다. 그 밖에서 들어오면 만들어 둔
+    // blob 주소를 놓아 줄 자리가 없다.
+    if (!file || screen.kind !== "prep") return;
+    const isReselect = screen.video !== null;
     // 고르던 영상을 바꾸면 앞서 시작한 압축·업로드는 버린다.
     discardPendingUpload();
     reportProgress({ type: "reset" });
-    setVideoUrl((prev) => {
-      if (prev) URL.revokeObjectURL(prev);
-      return URL.createObjectURL(file);
+    dispatch({
+      type: "videoPicked",
+      video: { file, url: URL.createObjectURL(file) },
     });
-    setVideoFile(file);
     setError(null);
     trackPracticeVideoSelected(file.size, isReselect);
   };
@@ -675,7 +674,9 @@ function WorkspaceInner() {
   }, [reportProgress]);
 
   const begin = useCallback(async (blockage: BlockageSelection) => {
-    if (!videoFile) return;
+    // 막힘 선택 화면만 이 길로 온다. 그 화면이 올릴 영상과 이어받을 연습을 들고 있다.
+    if (screen.kind !== "blockage") return;
+    const { video, continueFrom } = screen;
     trackPracticeBlockageSubmitted(
       blockage.blockage_kind,
       blockage.sub_branch,
@@ -686,7 +687,7 @@ function WorkspaceInner() {
     // 현재 영상으로 미리 띄운 업로드만 이어받는다. 파일이 다르면 옛 업로드를 버리고 새로 시작한다.
     const pending = uploadForCurrentFile(
       pendingUploadRef.current,
-      videoFile,
+      video.file,
       startUpload,
     );
     const { controller, promise } = pending;
@@ -707,7 +708,6 @@ function WorkspaceInner() {
         ),
         { signal: controller.signal },
       );
-      setContinueFrom(null);
       activeIdRef.current = session.session_id;
       coachCoordinatorRef.current = null;
       practiceAnalyticsContextRef.current = {
@@ -762,11 +762,10 @@ function WorkspaceInner() {
       }
     }
   }, [
-    videoFile,
+    screen,
     situation,
     character,
     goal,
-    continueFrom,
     enterAnalysis,
     refreshList,
     reportProgress,
@@ -848,22 +847,16 @@ function WorkspaceInner() {
     setError(null);
     setActiveId(id);
     setDetail(null);
-    // 다른 연습으로 넘어가므로 직전 연습의 로컬 원본은 버린다 — 남겨 두면
-    // 화면이 로컬 원본을 서버 주소보다 먼저 잡아 남의 영상을 틀게 된다.
-    setVideoFile(null);
-    setVideoUrl((prev) => {
-      if (prev) URL.revokeObjectURL(prev);
-      return null;
-    });
     // 분석 구간 진입은 조회가 끝난 뒤 enterAnalysis 가 알린다.
     reportProgress({ type: "reset" });
     setAnalysisStatus(null);
     setMessages([]);
-    // 무엇을 열었는지 아직 모른다. 지금 화면에서 지난 연습의 흔적만 걷어낸다.
+    // 무엇을 열었는지 아직 모른다. 지금 화면에서 지난 연습의 흔적만 걷어낸다 —
+    // 여기서 고르던 로컬 원본도 그 전이가 함께 버린다. 남겨 두면 화면이 그것을
+    // 서버 주소보다 먼저 잡아 남의 영상을 틀게 된다.
     dispatch({ type: "sessionOpening" });
     setCoachOpening(false);
     setCoachSessionId(null);
-    setContinueFrom(null);
     coachIdRef.current = null;
     dialogueTurnCountRef.current = 0;
     practiceAnalyticsContextRef.current = null;
@@ -1259,7 +1252,7 @@ function WorkspaceInner() {
                   {body.continueBanner.dismissible ? (
                     <button
                       type="button"
-                      onClick={() => setContinueFrom(null)}
+                      onClick={() => dispatch({ type: "continueDeclined" })}
                       className="shrink-0 text-xs font-black text-[#8b95a1] transition hover:text-[#4e5968]"
                     >
                       이어받지 않기
@@ -1299,8 +1292,9 @@ function WorkspaceInner() {
                 <StartRow
                   ready={body.footer.ready}
                   onStart={() => {
-                    if (!videoFile) return;
-                    startUpload(videoFile);
+                    const picked = screen.kind === "prep" ? screen.video : null;
+                    if (!picked) return;
+                    startUpload(picked.file);
                     dispatch({ type: "blockageChosen" });
                     trackPracticeBlockageStarted();
                   }}

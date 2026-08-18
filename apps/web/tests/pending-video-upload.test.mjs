@@ -46,9 +46,11 @@ test("제출은 현재 영상에 맞는 업로드를 고른다", () => {
   const beginEnd = workspace.indexOf("const send = useCallback", beginStart);
   const begin = workspace.slice(beginStart, beginEnd);
 
+  // 그 영상은 이제 막힘 선택 화면이 들고 있다 — 어느 화면이 무엇을 드는지는
+  // tests/workspace-state.test.mjs 가 실행으로 지킨다.
   assert.match(
     begin,
-    /uploadForCurrentFile\(\s*pendingUploadRef\.current,\s*videoFile,\s*startUpload/,
+    /uploadForCurrentFile\(\s*pendingUploadRef\.current,\s*video\.file,\s*startUpload/,
   );
 });
 

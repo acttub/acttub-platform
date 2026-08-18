@@ -1,26 +1,31 @@
-// 지금 상태가 어떤 화면을 그리는지 정하는 규칙. workspace-app.tsx 의 렌더 분기를
+// 지금 화면이 무엇을 그리는지 정하는 규칙. workspace-app.tsx 의 렌더 분기를
 // 그대로 옮긴 것이고, 옮기면서 바꾼 것은 없다.
 // 브라우저 API도 훅도 쓰지 않아 함수 호출만으로 테스트할 수 있다 —
 // 컴포넌트 마크업을 단언하지 않는다는 규칙(apps/web/CLAUDE.md)을 지키면서
 // 이 화면의 행동을 고정할 수 있는 유일한 표면이다.
 //
-// 어느 화면인가는 workspace-state.ts 가 정하고, 여기는 그 화면이 무엇을 그리는지만 정한다.
+// 어느 화면인가와 그 화면이 무엇을 들고 있는가는 workspace-state.ts 가 정하고,
+// 여기는 그것으로 무엇을 그리는지만 정한다.
 
 import type { PracticeReport } from "@/lib/api/v2/types";
 import type { WorkspaceScreen } from "./workspace-state";
 
-/** 렌더가 실제로 읽는 값만. 훅이 내려 주는 값(pct·pastDeadline 등)은 분기를 가르지 않아 뺐다. */
+/**
+ * setup 몸통을 그리는 화면들. 서로 다른 Practice Stage 넷이 같은 몸통을 쓴다 —
+ * 준비 순서(Setup Step)와는 다른 층이라 이름에 body 를 붙여 가른다.
+ */
+type SetupBodyScreen = Extract<
+  WorkspaceScreen,
+  { kind: "prep" | "uploading" | "analyzing" | "analysisFailed" }
+>;
+
+/** 화면 밖에서 오는 값만. 훅이 내려 주는 값(pct·pastDeadline 등)은 분기를 가르지 않아 뺐다. */
 export type WorkspaceViewInput = {
   screen: WorkspaceScreen;
-  /** 방금 고른 로컬 원본. 있고 없고가 준비 순서와 시작 버튼을 가르고, 이름은 영상 설명이 된다. */
-  videoFile: { name: string } | null;
-  /** 로컬 원본의 blob 주소. 서버 주소보다 먼저 쓴다. */
-  videoUrl: string | null;
-  /** 서버가 준 재생 주소(`detail.playback_url`). */
+  /** 서버가 준 재생 주소(`detail.playback_url`). 로컬 원본이 없을 때 쓴다. */
   playbackUrl: string | null;
   /** 연습 노트가 없으면 null. */
   reportType: PracticeReport["report_type"] | null;
-  continueFrom: { id: string; label: string | null } | null;
 };
 
 export type WorkspaceVideoSlot =
@@ -92,35 +97,37 @@ function describeBody(input: WorkspaceViewInput): WorkspaceViewBody {
       noteReady: input.reportType !== null,
     };
   }
-  // 막힘 선택은 영상이 있어야 선다. 없으면 준비 화면으로 흘러내린다.
-  if (screen.kind === "blockage" && input.videoUrl !== null) {
-    return { kind: "blockage", videoUrl: input.videoUrl };
+  // 막힘 선택은 영상 없이 설 수 없다 — 그 자리가 자기 영상을 들고 있다.
+  if (screen.kind === "blockage") {
+    return { kind: "blockage", videoUrl: screen.video.url };
   }
-  return describeSetup(input);
+  return describeSetup(screen, input);
 }
 
 function describeSetup(
+  screen: SetupBodyScreen,
   input: WorkspaceViewInput,
 ): Extract<WorkspaceViewBody, { kind: "setup" }> {
-  const kind = input.screen.kind;
+  const kind = screen.kind;
   const uploading = kind === "uploading";
   const prep = kind === "prep";
   const waitingForCoach =
     uploading || kind === "analyzing" || kind === "analysisFailed";
+  const video = screen.video;
   // 방금 고른 로컬 원본이 있으면 그걸 계속 재생한다. 서버 주소를 먼저 쓰면 업로드가
   // 끝나는 순간 src 가 갈아끼워지면서 영상 자리가 한 번 비고 기준 길이까지 흔들린다.
-  const src = input.videoUrl ?? input.playbackUrl;
+  const src = video?.url ?? input.playbackUrl;
+  // 이어받기는 새 연습을 만들 때까지만 뜻이 있다. 훑어보기 자리는 그것을 들지 않는다.
+  const continueFrom = prep || uploading ? screen.continueFrom : null;
   return {
     kind: "setup",
-    step: waitingForCoach ? 3 : input.videoFile ? 2 : 1,
+    step: waitingForCoach ? 3 : video ? 2 : 1,
     sceneLocked: waitingForCoach,
     video: src
       ? {
           kind: "player",
           src,
-          caption: uploading
-            ? UPLOADING_CAPTION
-            : input.videoFile?.name ?? UPLOADED_CAPTION,
+          caption: uploading ? UPLOADING_CAPTION : video?.file.name ?? UPLOADED_CAPTION,
           reselectable: prep,
         }
       : prep
@@ -130,9 +137,9 @@ function describeSetup(
       ? { kind: "progress", phase: "upload" }
       : kind === "analyzing" || kind === "analysisFailed"
         ? { kind: "progress", phase: "scan", failed: kind === "analysisFailed" }
-        : { kind: "start", ready: input.videoFile !== null },
-    continueBanner: input.continueFrom
-      ? { label: input.continueFrom.label, dismissible: prep }
+        : { kind: "start", ready: video !== null },
+    continueBanner: continueFrom
+      ? { label: continueFrom.label, dismissible: prep }
       : null,
   };
 }

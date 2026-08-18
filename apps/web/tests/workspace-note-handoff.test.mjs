@@ -43,6 +43,22 @@ test("대화가 끝나면 입력창 대신 정리보기 버튼이 나온다", ()
   assert.match(chatPanel, /정리보기/);
 });
 
+test("노트에서 이어서 새 연습을 누르면 되돌리기가 이어받을 연습을 함께 받는다", () => {
+  const continueFromCurrent = block(
+    "const continueFromCurrent = useCallback",
+    "const view = describeWorkspaceView",
+  );
+  // 되돌리는 것과 이어받기를 켜는 것이 한 전이여야 한다. 옛 코드는 되돌린 뒤에 표시를
+  // 따로 켰고, 그 순서를 뒤집으면 배너가 뜨지 않았다. 그 전이가 무엇을 만드는지는
+  // tests/workspace-state.test.mjs 가 실행으로 지킨다 — 여기서는 배선만 본다.
+  assert.match(continueFromCurrent, /resetTo\(\{\s*id,/);
+  assert.doesNotMatch(continueFromCurrent, /resetTo\(null\)|resetToPrep\(\)/);
+
+  // 노트 화면의 버튼이 실제로 그 길로 이어져 있어야 한다.
+  const notePanel = block("<NotePanel", "<ChatPanel");
+  assert.match(notePanel, /onContinueNext=\{continueFromCurrent\}/);
+});
+
 test("대화가 끝난 화면은 아직 질문 중이라고 말하지 않는다", () => {
   const chatPanel = block("function ChatPanel({", "function Bubble({");
   assert.match(chatPanel, /done \? "이번 대화는 여기까지예요" : "현재 장면을 바탕으로 질문하고 있어요"/);

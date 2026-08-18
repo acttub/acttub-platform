@@ -74,11 +74,18 @@ test("업로드가 끝나도 방금 고른 로컬 영상을 그대로 재생한�
   // 화면이 그 판단을 거쳐서 영상을 튼다는 배선만 본다.
   assert.match(workspace, /src=\{body\.video\.src\}/);
 
-  // 대신 다른 연습을 열 때는 직전 로컬 원본을 버려야 남의 영상을 틀지 않는다.
-  const openStart = workspace.indexOf("const openSession = useCallback");
-  const openEnd = workspace.indexOf("// 주소에 ?session=", openStart);
-  const open = workspace.slice(openStart, openEnd);
-  assert.match(open, /setVideoFile\(null\)[\s\S]*URL\.revokeObjectURL\(prev\)/);
+  // 화면이 로컬 원본을 놓는 순간 그 blob 주소도 놓아 준다. 어느 화면이 그것을
+  // 들고 있고 언제 놓는지는 tests/workspace-state.test.mjs 가 실행으로 지킨다.
+  const revokeStart = workspace.indexOf("const pickedUrl = pickedVideo(screen)");
+  const revokeEnd = workspace.indexOf("[pickedUrl],", revokeStart);
+  // 끝을 못 찾으면 slice 가 파일 끝까지를 창으로 잡아 아래 단언이 저절로 통과한다.
+  assert.ok(revokeStart !== -1 && revokeEnd > revokeStart, "blob 정리 자리를 못 찾았다");
+  const revokeEffect = workspace.slice(revokeStart, revokeEnd);
+  assert.match(revokeEffect, /URL\.revokeObjectURL\(pickedUrl\)/);
+
+  // 그 정리에 요청 끊기를 섞으면 안 된다 — 근거 없이 대화를 시작하는 길은
+  // 훑어보기 자리를 떠나면서 영상을 놓는데, 그때 폴링까지 함께 죽는다.
+  assert.doesNotMatch(revokeEffect, /abort\(\)/);
 });
 
 test("압축 구간은 초반이 빠르고 후반이 느린 곡선으로 찬다", () => {
@@ -204,7 +211,7 @@ test("질문 받기를 누르면 막힘을 고르기 전에 압축·업로드가
   // 올리는 시간을 더해서 기다리게 된다.
   assert.match(
     startRow,
-    /startUpload\(videoFile\)[\s\S]*dispatch\(\{ type: "blockageChosen" \}\)/,
+    /startUpload\(picked\.file\)[\s\S]*dispatch\(\{ type: "blockageChosen" \}\)/,
   );
 
   const beginStart = workspace.indexOf("const begin = useCallback");
@@ -220,8 +227,13 @@ test("질문 받기를 누르면 막힘을 고르기 전에 압축·업로드가
   assert.match(begin, /finalizeUpload\(intentId/);
 
   // 연습을 떠나거나 영상을 바꾸면 올리던 것을 끊는다.
-  assert.match(workspace, /const resetToPrep = useCallback\(\(\) => \{\s*discardPendingUpload\(\)/);
-  assert.match(workspace, /const onPickFile[\s\S]{0,200}discardPendingUpload\(\)/);
+  // 되돌리는 길은 이어받기를 켜고 가는 것과 안 켜고 가는 것 둘이고, 둘 다 이 자리를 지난다.
+  assert.match(workspace, /const resetTo = useCallback\(\(continueFrom: ContinueFrom \| null\) => \{\s*discardPendingUpload\(\)/);
+  assert.match(workspace, /const resetToPrep = useCallback\(\(\) => resetTo\(null\)/);
+  const pickStart = workspace.indexOf("const onPickFile");
+  const pickEnd = workspace.indexOf("const startUpload = useCallback", pickStart);
+  assert.ok(pickStart !== -1 && pickEnd > pickStart, "영상 고르는 자리를 못 찾았다");
+  assert.match(workspace.slice(pickStart, pickEnd), /discardPendingUpload\(\)/);
 });
 
 test("막힘 선택 완료 뒤에는 대화가 아니라 같은 진행 자리에서 기다린다", () => {
@@ -254,6 +266,14 @@ test("분석 중에는 입력이 비활성이고 analyzed 뒤 세션이 열리�
   assert.equal(isCoachInputEnabled({
     analysisStatus: "analyzing",
     coachSessionId: null,
+    sending: false,
+    done: false,
+  }), false);
+  // 둘을 한꺼번에 어긋나게 두면 어느 쪽이 막는지 가리지 못한다. 훑어보기가 안 끝난
+  // 것만으로도 입력은 닫혀 있어야 한다 — 코치가 붙어 있어도 마찬가지다.
+  assert.equal(isCoachInputEnabled({
+    analysisStatus: "analyzing",
+    coachSessionId: "coach-1",
     sending: false,
     done: false,
   }), false);
