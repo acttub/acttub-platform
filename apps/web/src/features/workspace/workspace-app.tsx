@@ -213,6 +213,10 @@ function WorkspaceInner() {
 
   // 목록은 이펙트 안에서 직접 불러온다. setState 가 await 뒤에서만 일어나야 하고
   // (동기 setState 는 연쇄 렌더를 만든다), 화면을 떠나면 늦게 온 응답을 버려야 한다.
+  //
+  // useResource 로 접히지 않는다 — 같은 답을 세우는 길이 둘이다(첫 진입인 여기, 그리고
+  // 연습을 만들거나 지운 뒤 부르는 위 refreshList). 훅이 답을 들면 그 갈아 끼우기를
+  // 밖에서 할 수 없다 (SOMA-411).
   useEffect(() => {
     if (!ready) return;
     let cancelled = false;

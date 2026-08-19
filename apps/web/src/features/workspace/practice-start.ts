@@ -1,3 +1,4 @@
+import { errorMessage } from "@/lib/api/v2/errors";
 import { createPracticeSession } from "@/lib/api/v2/sessions";
 import type { PracticeSessionCreateResponse } from "@/lib/api/v2/types";
 import {
@@ -66,7 +67,7 @@ export function describeStartFailure(
     stage: cause instanceof UploadError ? cause.stage : fallbackStage,
     // UploadError 는 감싼 원인이 중단이면 스스로 이름을 AbortError 로 단다.
     aborted: cause instanceof Error && cause.name === "AbortError",
-    message: cause instanceof Error ? cause.message : GENERIC_FAILURE_MESSAGE,
+    message: errorMessage(cause, GENERIC_FAILURE_MESSAGE),
     cause,
   };
 }
