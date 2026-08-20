@@ -37,6 +37,8 @@ export default function UploadScreen() {
   // SafeAreaView가 이미 하단 인셋을 비워두므로 그만큼 빼고 올린다([[use-keyboard-height]]).
   const keyboardVisible = keyboardHeight > 0;
   const [prefilled, setPrefilled] = useState(false);
+  // 이어서 연습 — 렌더와 무관하고 제출 시 한 번 실린다.
+  const continuedFromRef = useRef<string | null>(null);
   const [situation, setSituation] = useState('');
   const [character, setCharacter] = useState('');
   const [goal, setGoal] = useState('');
@@ -54,10 +56,12 @@ export default function UploadScreen() {
   useEffect(() => {
     const p = takePrefill();
     if (!p) return;
+    if (p.continuedFrom) continuedFromRef.current = p.continuedFrom;
+    if (!p.scene) return;
     setPrefilled(true);
-    setSituation(p.situation);
-    setCharacter(p.character);
-    setGoal(p.goal);
+    setSituation(p.scene.situation);
+    setCharacter(p.scene.character);
+    setGoal(p.scene.goal);
   }, []);
 
   const MAX_RAW_MB = 4096;
@@ -111,6 +115,7 @@ export default function UploadScreen() {
           durationMs,
           // 막히는 지점은 다음 화면에서 고른다. 여기서 채우면 분기가 늘 '그 외'가 된다.
           blockage: null,
+          continuedFrom: continuedFromRef.current,
         });
       },
       // 분석 전에 막히는 지점을 먼저 고른다 — 서버가 그 값으로 코치를 가른다.
