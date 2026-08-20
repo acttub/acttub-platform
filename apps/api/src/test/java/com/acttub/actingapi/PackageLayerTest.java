@@ -81,7 +81,11 @@ class PackageLayerTest {
             // 배우 기억은 Schema Entity 가 없다 — `actor_memory_entries` 에 대응하는 `@Entity` 가
             // 애초에 만들어진 적이 없고(그래서 그 테이블만 `ddl-auto: validate` 밖에 있다),
             // 이사에서 빠뜨린 것이 아니다. 없는 층을 선언하면 규칙이 대상 0으로 초록이 된다.
-            Map.entry("memory", Set.of("domain", "app", "adapter")));
+            Map.entry("memory", Set.of("domain", "app", "adapter")),
+            // 푸시 토큰에는 행위 규칙이 없다 — 등록은 upsert, 해제는 delete, 발송은 위탁이라
+            // domain 에 넣을 것을 지어내야 하는 형태다(ADR-017, admissions 와 같은 판별).
+            // Schema Entity 도 없다 — push_tokens 는 손 SQL 만 만진다.
+            Map.entry("push", Set.of("app", "adapter")));
 
     /**
      * {@code domain}이 알아서는 안 되는 것들. CONTEXT.md의 <b>Domain Model</b>은 "프레임워크를

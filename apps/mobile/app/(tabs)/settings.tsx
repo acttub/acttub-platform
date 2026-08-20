@@ -17,6 +17,7 @@ import { Markdown } from '@/components/markdown';
 import { api, type ConsentDocument } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { getConsentPrefs, setConsentPref } from '@/lib/consent-prefs';
+import { disablePush, enablePush, isPushEnabled } from '@/lib/notifications';
 import { getUserName, saveUserName } from '@/lib/profile';
 import { palette } from '@/constants/palette';
 
@@ -35,21 +36,31 @@ export default function SettingsScreen() {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(true);
   const [nameSaved, setNameSaved] = useState(false);
+  const [pushOn, setPushOn] = useState(true);
   const { confirm, alert, dialog } = useAppDialog();
 
   useEffect(() => {
     (async () => {
-      const [n, list, p] = await Promise.all([
+      const [n, list, p, push] = await Promise.all([
         getUserName(),
         api.consentDocuments().catch(() => ({ documents: [] as ConsentDocument[] })),
         getConsentPrefs(),
+        isPushEnabled(),
       ]);
       setName(n ?? '');
       setSavedName(n ?? '');
       setDocs(list.documents);
       setPrefs(p);
+      setPushOn(push);
       setLoading(false);
     })();
+  }, []);
+
+  const togglePush = useCallback(async (next: boolean) => {
+    // 낙관적으로 먼저 그린다 — 서버 해제/등록은 뒤에서 최선 노력으로 따라온다.
+    setPushOn(next);
+    if (next) await enablePush();
+    else await disablePush();
   }, []);
 
   const saveName = useCallback(async () => {
@@ -169,6 +180,24 @@ export default function SettingsScreen() {
               ))}
             </>
           )}
+
+          {/* 알림 — 분석 완료 푸시와 연습 리마인드를 한 토글로 켠다/끈다. */}
+          <Text style={styles.sectionTitle}>알림</Text>
+          <View style={styles.docCard}>
+            <View style={styles.docRow}>
+              <View style={styles.docTitleWrap}>
+                <Text style={styles.docTitle}>분석 완료·연습 리마인드</Text>
+              </View>
+              <Switch
+                value={pushOn}
+                onValueChange={(v) => void togglePush(v)}
+                trackColor={{ true: palette.blue, false: palette.border }}
+              />
+            </View>
+            <Text style={styles.sectionHint}>
+              영상 분석이 끝나면 알려드리고, 연습이 뜸해지면 살짝 깨워드려요.
+            </Text>
+          </View>
 
           {/* 코치가 나에 대해 적어 둔 것. 틀린 내용을 되돌릴 수 있는 유일한 자리라
               동의·탈퇴처럼 눈에 띄는 위치에 둔다. */}

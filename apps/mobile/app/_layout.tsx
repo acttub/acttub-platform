@@ -18,6 +18,7 @@ import '@/lib/global-font';
 import { logScreenView } from '@/lib/analytics';
 import { pendingAnalysisStore } from '@/lib/analysis-storage';
 import { AuthProvider, useAuth } from '@/lib/auth';
+import { configureNotificationHandling } from '@/lib/notifications';
 import {
   recoveryStatusForConsentGate,
   resolveAnalyzingBootstrapRoute,
@@ -31,6 +32,9 @@ import { palette } from '@/constants/palette';
 // 아이콘 폰트가 로드되기 전에 UI가 그려지면 탭바 아이콘이 빈칸으로 뜬다.
 // 로드가 끝날 때까지 스플래시를 유지해 아이콘 누락(회귀)을 막는다.
 SplashScreen.preventAutoHideAsync();
+
+// 포그라운드에서도 알림 배너가 뜨게 한다. 모듈이 없는 빌드에서는 아무 일도 하지 않는다.
+configureNotificationHandling();
 
 export const unstable_settings = {
   anchor: '(tabs)',
