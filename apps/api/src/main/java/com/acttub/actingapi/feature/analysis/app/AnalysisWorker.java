@@ -33,6 +33,7 @@ public class AnalysisWorker {
     private final Clock clock;
     private final Duration leaseDuration;
     private final String model;
+    private final AnalysisCompletionListener completionListener;
 
     public AnalysisWorker(
             AnalysisStore store,
@@ -41,12 +42,24 @@ public class AnalysisWorker {
             Clock clock,
             Duration leaseDuration,
             String model) {
+        this(store, storage, analyzer, clock, leaseDuration, model, null);
+    }
+
+    public AnalysisWorker(
+            AnalysisStore store,
+            ObjectStorage storage,
+            AnalysisProcessor analyzer,
+            Clock clock,
+            Duration leaseDuration,
+            String model,
+            AnalysisCompletionListener completionListener) {
         this.store = store;
         this.storage = storage;
         this.analyzer = analyzer;
         this.clock = clock;
         this.leaseDuration = leaseDuration;
         this.model = model;
+        this.completionListener = completionListener;
     }
 
     public boolean runOnce() {
@@ -80,6 +93,7 @@ public class AnalysisWorker {
             }
             AnalysisResult result = analyzer.analyze(temporary, context);
             store.complete(operationId, leaseToken, result, model, now);
+            notifyCompletion(context);
         } catch (LeaseOwnershipException exception) {
             LOGGER.warning("analysis lease ownership was lost: " + operationId);
         } catch (Exception exception) {
@@ -100,6 +114,22 @@ public class AnalysisWorker {
             }
         }
         return true;
+    }
+
+    /**
+     * 완료 전이 <b>후</b>의 통지. 예외를 여기서 삼키지 않으면 바깥 catch 가 이미 완료된
+     * operation 에 fail 을 시도한다 — 알림이 분석의 결과를 바꾸는 사고이므로 전부 로그로 끝낸다.
+     */
+    private void notifyCompletion(AnalysisContext context) {
+        if (completionListener == null) {
+            return;
+        }
+        try {
+            completionListener.onAnalysisComplete(context.sessionId());
+        } catch (Exception exception) {
+            LOGGER.log(Level.WARNING,
+                    "analysis completion notification failed: " + context.sessionId(), exception);
+        }
     }
 
     public SweepResult sweep() {

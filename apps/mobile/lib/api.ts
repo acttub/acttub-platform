@@ -391,6 +391,23 @@ export const api = {
     return request<void>('/v2/me', { method: 'DELETE' }, { timeoutMs: 30_000 });
   },
 
+  // 푸시 알림 -------------------------------------------------------------------
+  /** 이 단말의 Expo push token 을 내 것으로 등록. 서버가 토큰 기준 upsert 라 멱등하다. */
+  registerPushToken(token: string, platform: 'ios' | 'android'): Promise<void> {
+    return request<void>('/v2/push-tokens', jsonInit({ token, platform }), {
+      timeoutMs: 15_000,
+    });
+  },
+
+  /** 이 단말의 토큰을 지운다(로그아웃·알림 끄기). 없어도 204 — 멱등하다. */
+  unregisterPushToken(token: string): Promise<void> {
+    return request<void>(
+      '/v2/push-tokens',
+      { ...jsonInit({ token }), method: 'DELETE' },
+      { timeoutMs: 15_000 },
+    );
+  },
+
   // 코치의 기억 -----------------------------------------------------------------
   /**
    * 코치가 나에 대해 기억하는 것 전부. 빈 칸은 행이 없으므로 4개보다 적게 온다.

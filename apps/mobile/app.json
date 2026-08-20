@@ -70,6 +70,7 @@
       "@react-native-firebase/app",
       "@react-native-firebase/analytics",
       "@react-native-google-signin/google-signin",
+      "expo-notifications",
       "expo-secure-store",
       "expo-apple-authentication",
       "./plugins/with-rnfirebase-static.js",

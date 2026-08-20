@@ -259,6 +259,76 @@
         } ]
       }
     },
+    "/v2/push-tokens" : {
+      "post" : {
+        "tags" : [ "v2-push" ],
+        "summary" : "Register Push Token",
+        "description" : "이 단말의 Expo push token 을 현재 사용자 것으로 등록한다. 멱등.",
+        "operationId" : "register_push_token_v2_push_tokens_post",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/RegisterPushTokenRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "204" : {
+            "description" : "Successful Response"
+          },
+          "422" : {
+            "description" : "Validation Error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      },
+      "delete" : {
+        "tags" : [ "v2-push" ],
+        "summary" : "Unregister Push Token",
+        "description" : "이 단말의 토큰을 지운다. 로그아웃·알림 끄기에서 부른다. 멱등.",
+        "operationId" : "unregister_push_token_v2_push_tokens_delete",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/UnregisterPushTokenRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "204" : {
+            "description" : "Successful Response"
+          },
+          "422" : {
+            "description" : "Validation Error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      }
+    },
     "/v2/practice-sessions" : {
       "get" : {
         "tags" : [ "v2-practice" ],
@@ -2161,6 +2231,25 @@
         },
         "required" : [ "reason", "report_type" ],
         "title" : "BlockedReport"
+      },
+      "RegisterPushTokenRequest" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "token" : {
+            "type" : "string",
+            "maxLength" : 512,
+            "minLength" : 1,
+            "title" : "Token"
+          },
+          "platform" : {
+            "type" : "string",
+            "enum" : [ "ios", "android" ],
+            "title" : "Platform"
+          }
+        },
+        "required" : [ "platform", "token" ],
+        "title" : "RegisterPushTokenRequest"
       },
       "PracticeSessionRequest" : {
         "type" : "object",
@@ -4356,6 +4445,20 @@
         },
         "required" : [ "commit", "keep_alive", "model", "services", "status" ],
         "title" : "HealthResponse"
+      },
+      "UnregisterPushTokenRequest" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "token" : {
+            "type" : "string",
+            "maxLength" : 512,
+            "minLength" : 1,
+            "title" : "Token"
+          }
+        },
+        "required" : [ "token" ],
+        "title" : "UnregisterPushTokenRequest"
       }
     },
     "securitySchemes" : {

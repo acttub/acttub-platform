@@ -28,6 +28,7 @@ import {
 import { pendingAnalysisStore } from '@/lib/analysis-storage';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { rescheduleReminder } from '@/lib/notifications';
 import { formatSizeChange, startVideoCompression } from '@/lib/compress';
 import { startPractice, takePendingUpload, type PendingUpload } from '@/lib/practice';
 import { previewVideoSource } from '@/lib/preview-video';
@@ -142,6 +143,8 @@ export default function AnalyzingScreen() {
       setStage(0);
       setUploading(false);
       logEvent('analysis_start', {});
+      // 연습이 실제로 일어난 시점 — "마지막 연습 + 3일" 리마인드를 다시 건다.
+      void rescheduleReminder();
     });
 
     try {
