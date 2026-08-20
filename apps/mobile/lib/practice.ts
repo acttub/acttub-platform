@@ -40,18 +40,32 @@ export type PendingUpload = {
   video: VideoFile;
   durationMs: number | null;
   blockage: BlockageSelection | null;
+  /** 이어서 연습 — 코치가 이 연습의 대화를 이어받는다(practice_sessions.continued_from). */
+  continuedFrom: string | null;
 };
 
 let current: Practice | null = null;
 let pending: PendingUpload | null = null;
-/** 기록에서 "같은 장면 다시 찍기"로 넘어올 때 업로드 폼에 채울 의도(비교 로직 없이 프리필만). */
-let prefill: SceneContext | null = null;
 
-export function setPrefill(scene: SceneContext) {
-  prefill = scene;
+/**
+ * 끝난 연습에서 업로드 폼으로 넘어올 때 실어 보내는 것.
+ *
+ * - scene: 폼에 미리 채울 장면(비교 로직 없이 프리필만). 지난 기록 화면처럼 장면을
+ *   모르는 자리에서는 null 로 두고 이어받기만 건다.
+ * - continuedFrom: 이어서 연습 — 이 값이 실리면 코치가 그 연습의 대화를 이어받는다.
+ */
+export type PracticePrefill = {
+  scene: SceneContext | null;
+  continuedFrom: string | null;
+};
+
+let prefill: PracticePrefill | null = null;
+
+export function setPrefill(next: PracticePrefill) {
+  prefill = next;
 }
 
-export function takePrefill(): SceneContext | null {
+export function takePrefill(): PracticePrefill | null {
   const p = prefill;
   prefill = null;
   return p;

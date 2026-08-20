@@ -387,6 +387,8 @@ export type AnalysisUpload = {
     character: string;
     goal: string;
   };
+  /** 이어서 연습 — 없으면 코치가 가장 최근 대화를 이어받는다(서버 기본). */
+  continuedFrom?: string | null;
   /**
    * 배우가 고른 막히는 지점. 서버가 이 값으로 분석 코치와 표현 코치를 가른다.
    *
@@ -443,6 +445,7 @@ export type AnalysisPipelineDependencies = ExistingSessionDependencies & {
       upload_intent_id: string;
       scene: AnalysisUpload['scene'];
       blockage: NonNullable<AnalysisUpload['blockage']>;
+      continued_from: string | null;
     },
     signal: AbortSignal,
   ) => Promise<{ session_id: string; status: AnalysisSessionStatus }>;
@@ -536,6 +539,7 @@ export async function runAnalysisPipeline({
         {
           upload_intent_id: intent.intent_id,
           scene: upload.scene,
+          continued_from: upload.continuedFrom ?? null,
           // 고르지 않고 이어받은 분석은 서버 기본값으로 떨어뜨린다.
           blockage: upload.blockage ?? {
             blockage_kind: '그 외',
