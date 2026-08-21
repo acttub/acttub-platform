@@ -4,6 +4,7 @@ import { type VideoSource } from 'expo-video';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  AppState,
   BackHandler,
   Platform,
   Pressable,
@@ -52,17 +53,29 @@ const STAGES = [
 const POLL_INTERVAL_MS = 4_000;
 const POLL_TIMEOUT_MS = 10 * 60 * 1000;
 
+/**
+ * 폴링 사이 대기. 백그라운드에서 얼었다가 포그라운드로 돌아오면 남은 대기를
+ * 건너뛰고 즉시 다음 상태 확인으로 넘어간다 — 복귀하자마자 결과를 보여주기 위해.
+ */
 function abortableDelay(ms: number, signal: AbortSignal): Promise<void> {
   if (signal.aborted) return Promise.reject(signal.reason);
   return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => {
-      signal.removeEventListener('abort', onAbort);
+    const finish = () => {
+      cleanup();
       resolve();
-    }, ms);
+    };
     const onAbort = () => {
-      clearTimeout(timer);
-      signal.removeEventListener('abort', onAbort);
+      cleanup();
       reject(signal.reason);
+    };
+    const timer = setTimeout(finish, ms);
+    const appState = AppState.addEventListener('change', (state) => {
+      if (state === 'active') finish();
+    });
+    const cleanup = () => {
+      clearTimeout(timer);
+      appState.remove();
+      signal.removeEventListener('abort', onAbort);
     };
     signal.addEventListener('abort', onAbort, { once: true });
   });
@@ -420,7 +433,9 @@ export default function AnalyzingScreen() {
               <Text style={styles.elapsed}>{elapsedText}</Text>
               {sizeNote && <Text style={styles.sizeNote}>{sizeNote}</Text>}
               <Text style={styles.notice}>
-                보통 1~3분 걸려요. 끝날 때까지 이 화면을 켜 두세요.
+                {compressPct !== null || uploading
+                  ? '보통 1~3분 걸려요. 영상을 올리는 동안은 화면을 켜 두세요.'
+                  : '보통 1~3분 걸려요. 앱을 닫아 두셔도 끝나면 알림으로 알려드려요.'}
               </Text>
             </View>
 
