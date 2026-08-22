@@ -27,11 +27,13 @@ export function BlockageSelectionFlow({
   videoUrl,
   scene,
   busy,
+  onReselect,
   onComplete,
 }: {
-  videoUrl: string;
+  videoUrl?: string;
   scene: SceneContext;
   busy: boolean;
+  onReselect?: () => void;
   onComplete: (selection: BlockageSelection) => void;
 }) {
   const [state, setState] = useState<BlockageFlowState>(initialBlockageFlowState);
@@ -46,6 +48,7 @@ export function BlockageSelectionFlow({
           scene={scene}
           open={videoOpen}
           onToggle={() => setVideoOpen((current) => !current)}
+          onReselect={onReselect}
         />
       ) : null}
       <QuestionStepper />
@@ -85,11 +88,13 @@ function FoldedSceneBar({
   scene,
   open,
   onToggle,
+  onReselect,
 }: {
-  videoUrl: string;
+  videoUrl?: string;
   scene: SceneContext;
   open: boolean;
   onToggle: () => void;
+  onReselect?: () => void;
 }) {
   return (
     <section className="overflow-hidden rounded-[28px] bg-white shadow-[0_16px_48px_rgba(25,31,40,0.08)]">
@@ -100,10 +105,16 @@ function FoldedSceneBar({
         className="flex min-h-20 w-full items-center gap-4 px-5 py-4 text-left"
       >
         <span className="relative flex h-14 w-24 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-[#f7faff]">
-          <video src={videoUrl} muted playsInline preload="metadata" className="h-full w-full object-cover" />
-          <span className="absolute flex min-h-12 min-w-12 items-center justify-center rounded-2xl bg-[#2f6bff] text-sm font-black text-white">
-            ▶
-          </span>
+          {videoUrl ? (
+            <>
+              <video src={videoUrl} muted playsInline preload="metadata" className="h-full w-full object-cover" />
+              <span className="absolute flex min-h-12 min-w-12 items-center justify-center rounded-2xl bg-[#2f6bff] text-sm font-black text-white">
+                ▶
+              </span>
+            </>
+          ) : (
+            <span className="text-xs font-black text-[#3182f6]">저장됐어요</span>
+          )}
         </span>
         <span className="min-w-0 flex-1">
           <span className="block text-base font-black text-[#191f28]">영상과 장면 보기</span>
@@ -117,7 +128,22 @@ function FoldedSceneBar({
       </button>
       {open ? (
         <div className="grid gap-4 px-5 pb-5">
-          <video src={videoUrl} controls playsInline className="aspect-video w-full rounded-2xl object-contain" />
+          {videoUrl ? (
+            <video src={videoUrl} controls playsInline className="aspect-video w-full rounded-2xl object-contain" />
+          ) : (
+            <div className="flex aspect-video w-full items-center justify-center rounded-2xl bg-[#f7faff] px-6 text-center text-sm font-black text-[#4e5968]">
+              올린 영상은 저장돼 있어요
+            </div>
+          )}
+          {onReselect ? (
+            <button
+              type="button"
+              onClick={onReselect}
+              className="min-h-11 justify-self-start rounded-xl bg-[#e8f3ff] px-4 text-sm font-black text-[#1b64da]"
+            >
+              다른 영상을 골라요
+            </button>
+          ) : null}
           <dl className="grid gap-3 rounded-2xl bg-[#f7faff] p-4 text-sm">
             {[
               ["상황", scene.situation],

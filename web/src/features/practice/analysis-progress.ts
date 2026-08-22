@@ -1,14 +1,14 @@
 import type { PracticeSessionStatus } from "@/lib/api/v2/types";
 
-// 구간 경계는 최우영 지정(2026-08-08): 압축 0→40 · 업로드 40→80 · 분석 80→95.
-// 분석이 끝나는 순간 막대가 거의 차 있도록 뒤 구간을 좁혔다.
-export const COMPRESS_PROGRESS_END = 40;
-export const UPLOAD_PROGRESS_END = 80;
+// 구간 경계는 화면 비중이 아니라 실제 걸리는 시간 비중으로 나눈다.
+// 압축·업로드는 보통 수 초인데 예전 경계(12·60)는 막대의 60%를 여기에 줘서
+// 앞부분이 순식간에 차고 분석 구간만 하염없이 기어가는 것처럼 보였다.
+export const COMPRESS_PROGRESS_END = 5;
+export const UPLOAD_PROGRESS_END = 15;
 export const ANALYSIS_PROGRESS_LIMIT = 95;
 
-// 분석이 실제로 걸리는 시간. 관찰 팩 교체(2026-08-06) 뒤로는 30초대에 끝난다.
-// 여기가 실제보다 길면 막대가 중간에서 멈춘 채로 대화로 넘어간다.
-const ANALYSIS_FILL_MS = 35_000;
+// 분석이 실제로 걸리는 시간. practice-single.tsx의 ANALYSIS_SLOW_NOTICE_SEC(180초)와 같은 선이다.
+const ANALYSIS_FILL_MS = 180_000;
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));

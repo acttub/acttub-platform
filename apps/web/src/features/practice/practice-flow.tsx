@@ -52,7 +52,6 @@ type CoachTurn = {
 type CoachState = {
   coachSessionId: string;
   turns: CoachTurn[];
-  questionCount: number;
   done: boolean;
 };
 type ReportData = { report: PracticeReport; reportCount: number };
@@ -468,7 +467,6 @@ function PracticeFlowInner({ entry = "new" }: { entry?: Entry }) {
       const nextCoach: CoachState = {
         coachSessionId: data.session_id,
         turns: firstMessage === null ? [] : [{ role: "coach", text: firstMessage }],
-        questionCount: firstMessage === null ? 0 : 1,
         done: data.status === "complete",
       };
       setCoach(nextCoach);
@@ -476,8 +474,8 @@ function PracticeFlowInner({ entry = "new" }: { entry?: Entry }) {
       setPhase("coaching");
       const completed = completedCoachReport(data);
       if (completed) {
+        // 노트는 받아 두되 화면은 바꾸지 않는다 — 배우가 직접 누를 때 넘어간다.
         setReportData({ report: completed, reportCount: reports.length + 1 });
-        setPhase("report");
         if (completed.report_type !== "blocked") {
           setReports((current) => [
             ...current.filter((item) => item.practice_session_id !== sessionAtStart),
@@ -547,14 +545,13 @@ function PracticeFlowInner({ entry = "new" }: { entry?: Entry }) {
             ? []
             : [{ role: "coach" as const, text: coachMessage }]),
         ],
-        questionCount: coach.questionCount + (coachMessage === null ? 0 : 1),
         done: data.status === "complete",
       });
       setAnswer("");
       const completed = completedCoachReport(data);
       if (completed) {
+        // 노트는 받아 두되 화면은 바꾸지 않는다 — 배우가 직접 누를 때 넘어간다.
         setReportData({ report: completed, reportCount: reports.length + 1 });
-        setPhase("report");
         if (completed.report_type !== "blocked") {
           setReports((current) => [
             ...current.filter((item) => item.practice_session_id !== sessionAtStart),
@@ -685,6 +682,7 @@ function PracticeFlowInner({ entry = "new" }: { entry?: Entry }) {
           void coachCoordinatorFor(activeSessionId).startWithoutEvidence().catch(() => {});
         }}
         onReply={reply}
+        onOpenReport={() => setPhase("report")}
         onPlaybackError={refreshPlayback}
         onDelete={deleteSession}
       />
@@ -1325,6 +1323,7 @@ function SessionView({
   setAnswer,
   onStartCoach,
   onReply,
+  onOpenReport,
   onPlaybackError,
   onDelete,
 }: {
@@ -1341,6 +1340,7 @@ function SessionView({
   setAnswer: (value: string) => void;
   onStartCoach: () => void;
   onReply: () => void;
+  onOpenReport: () => void;
   onPlaybackError: () => void;
   onDelete: () => void;
 }) {
@@ -1381,6 +1381,8 @@ function SessionView({
             setAnswer={setAnswer}
             onStartCoach={onStartCoach}
             onReply={onReply}
+            reportReady={reportData !== null}
+            onOpenReport={onOpenReport}
             analysisPending={analysisPending}
             analysisFailed={analysisFailed}
           />
@@ -1455,6 +1457,8 @@ function CoachingView({
   setAnswer,
   onStartCoach,
   onReply,
+  reportReady,
+  onOpenReport,
   analysisPending,
   analysisFailed,
 }: {
@@ -1467,6 +1471,8 @@ function CoachingView({
   setAnswer: (value: string) => void;
   onStartCoach: () => void;
   onReply: () => void;
+  reportReady: boolean;
+  onOpenReport: () => void;
   analysisPending: boolean;
   analysisFailed: boolean;
 }) {
@@ -1534,7 +1540,6 @@ function CoachingView({
             <h2 className="font-black tracking-[-0.03em]">현재 장면을 바탕으로 질문하고 있어요</h2>
           </div>
         </div>
-        <span className="shrink-0 rounded-full bg-[#eaf2ff] px-3 py-1.5 text-xs font-black text-[#2f6bff]">질문 {Math.min(coach.questionCount, 10)}/10</span>
       </header>
 
       {currentQuestion ? (
@@ -1570,9 +1575,22 @@ function CoachingView({
 
       <div className="border-t border-[#e5e8eb] bg-white p-4 sm:p-5">
         {coach.done ? (
-          <p role="status" className="rounded-2xl bg-[#f7faff] px-4 py-3 text-sm font-semibold text-[#4e5968]">
-            연습 노트로 이동하고 있어요…
-          </p>
+          reportReady ? (
+            <div className="flex flex-col items-center gap-3">
+              <p role="status" className="text-sm font-semibold text-[#4e5968]">지금까지 이야기한 걸 정리해 뒀어요.</p>
+              <button
+                type="button"
+                onClick={onOpenReport}
+                className="min-h-12 w-full rounded-2xl bg-[#2f6bff] px-6 py-3 text-sm font-black text-white transition hover:bg-[#1b64da] sm:w-auto"
+              >
+                정리된 자료 보기
+              </button>
+            </div>
+          ) : (
+            <p role="status" className="rounded-2xl bg-[#f7faff] px-4 py-3 text-sm font-semibold text-[#4e5968]">
+              정리하고 있어요…
+            </p>
+          )
         ) : (
           <>
             <p className="mb-2 text-xs font-semibold text-[#8b95a1]">

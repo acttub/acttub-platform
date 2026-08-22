@@ -40,6 +40,12 @@ import {
 } from "@/lib/analytics/ga";
 import { AppRail } from "@/features/nav/app-rail";
 import { ExitReviewModal, useExitReview } from "./exit-review";
+import {
+  clearPendingPracticeUpload,
+  getPendingPracticeUpload,
+  savePendingPracticeUpload,
+  type PendingPracticeUpload,
+} from "./pending-practice-upload";
 import { BlockageSelectionFlow } from "../practice/blockage-selection";
 import type { BlockageSelection } from "../practice/blockage-flow";
 import {
@@ -64,6 +70,11 @@ import {
 /** 준비 → 업로드 → 대화 → 노트. 화면이 단계마다 대화 쪽으로 좁혀진다. */
 type Mode = "prep" | "blockage" | "uploading" | "preparing" | "chat" | "note";
 type ChatMsg = { role: "ai" | "me"; text: string };
+type UploadedVideo = Pick<
+  PendingPracticeUpload,
+  "intentId" | "fileName" | "durationMs"
+>;
+type UploadStatus = "idle" | "pending" | "fulfilled" | "rejected";
 
 export function WorkspaceApp() {
   return (
@@ -160,6 +171,7 @@ function WorkspaceInner() {
   const [pct, setPct] = useState(0);
   const [analysisStatus, setAnalysisStatus] = useState<PracticeSessionDetail["status"] | null>(null);
   const [videoDurationMs, setVideoDurationMs] = useState<number | null>(null);
+  const [pendingUpload, setPendingUpload] = useState<PendingPracticeUpload | null>(null);
 
   // 대화
   const [messages, setMessages] = useState<ChatMsg[]>([]);
@@ -176,7 +188,14 @@ function WorkspaceInner() {
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const chatScrollRef = useRef<HTMLDivElement | null>(null);
+  const videoUrlRef = useRef<string | null>(null);
   const uploadControllerRef = useRef<AbortController | null>(null);
+  const sessionCreationControllerRef = useRef<AbortController | null>(null);
+  const uploadPromiseRef = useRef<Promise<UploadedVideo> | null>(null);
+  const uploadIntentIdRef = useRef<string | null>(null);
+  const uploadErrorRef = useRef<unknown>(null);
+  const uploadStatusRef = useRef<UploadStatus>("idle");
+  const beginningRef = useRef(false);
   const analysisControllerRef = useRef<AbortController | null>(null);
   const analysisStartedAtRef = useRef<number | null>(null);
   const activeIdRef = useRef<string | null>(null);
@@ -211,14 +230,20 @@ function WorkspaceInner() {
     if (el) el.scrollTop = el.scrollHeight;
   }, [messages, mode]);
 
-  useEffect(
-    () => () => {
-      if (videoUrl) URL.revokeObjectURL(videoUrl);
+  useEffect(() => {
+    return () => {
+      if (videoUrlRef.current) URL.revokeObjectURL(videoUrlRef.current);
       uploadControllerRef.current?.abort();
+      sessionCreationControllerRef.current?.abort();
       analysisControllerRef.current?.abort();
-    },
-    [videoUrl],
-  );
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!ready) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 정적 프리렌더 뒤 클라이언트 저장소를 1회 복원한다
+    setPendingUpload(getPendingPracticeUpload());
+  }, [ready]);
 
   useEffect(() => {
     const pending =
@@ -238,7 +263,19 @@ function WorkspaceInner() {
     return () => window.clearInterval(timer);
   }, [analysisStatus, mode]);
 
+  const discardUploadAttempt = useCallback(() => {
+    uploadControllerRef.current?.abort();
+    uploadControllerRef.current = null;
+    sessionCreationControllerRef.current?.abort();
+    sessionCreationControllerRef.current = null;
+    uploadPromiseRef.current = null;
+    uploadIntentIdRef.current = null;
+    uploadErrorRef.current = null;
+    uploadStatusRef.current = "idle";
+  }, []);
+
   const resetToPrep = useCallback(() => {
+    discardUploadAttempt();
     analysisControllerRef.current?.abort();
     activeIdRef.current = null;
     setMode("prep");
@@ -261,13 +298,18 @@ function WorkspaceInner() {
     setCharacter("");
     setGoal("");
     setVideoFile(null);
-    setVideoUrl((prev) => {
-      if (prev) URL.revokeObjectURL(prev);
-      return null;
-    });
+    if (videoUrlRef.current) URL.revokeObjectURL(videoUrlRef.current);
+    videoUrlRef.current = null;
+    setVideoUrl(null);
     setDrawerOpen(false);
     router.replace("/practice/new");
-  }, [router]);
+  }, [discardUploadAttempt, router]);
+
+  const startFreshPractice = useCallback(() => {
+    clearPendingPracticeUpload();
+    setPendingUpload(null);
+    resetToPrep();
+  }, [resetToPrep]);
 
   // 후기는 대화가 시작된 뒤에만 묻는다 — 영상만 올리고 나간 사람은 답할 게 없다.
   const reviewArmed = mode === "chat" || mode === "note";
@@ -369,42 +411,147 @@ function WorkspaceInner() {
     });
   }, [coordinatorFor, refreshList]);
 
-  const onPickFile = (file: File | null) => {
-    if (!file) return;
-    setVideoUrl((prev) => {
-      if (prev) URL.revokeObjectURL(prev);
-      return URL.createObjectURL(file);
-    });
-    setVideoFile(file);
-    setError(null);
-  };
-
-  const begin = useCallback(async (blockage: BlockageSelection) => {
-    if (!videoFile) return;
-    setError(null);
-    setMode("uploading");
-    setPct(0);
-    analysisStartedAtRef.current = null;
+  const startVideoUpload = useCallback((file: File): Promise<UploadedVideo> => {
     uploadControllerRef.current?.abort();
     const controller = new AbortController();
     uploadControllerRef.current = controller;
+    uploadIntentIdRef.current = null;
+    uploadErrorRef.current = null;
+    uploadStatusRef.current = "pending";
+    setPct(0);
+    setError(null);
+    analysisStartedAtRef.current = null;
+    const scene = { situation, character, goal };
+
+    const attempt: { promise: Promise<UploadedVideo> | null } = { promise: null };
+    const promise = (async () => {
+      try {
+        const prepared = await prepareVideoUpload(file, {
+          signal: controller.signal,
+          onCompressionProgress: (progress) => {
+            if (uploadPromiseRef.current !== attempt.promise) return;
+            setPct((current) =>
+              advanceProgress(current, compressionProgress(progress)),
+            );
+          },
+        });
+        const { intentId } = await uploadVideo(prepared.file, {
+          durationMs: prepared.durationMs,
+          signal: controller.signal,
+          onProgress: (progress) => {
+            if (uploadPromiseRef.current !== attempt.promise) return;
+            setPct((current) =>
+              advanceProgress(current, uploadProgress(progress.percent)),
+            );
+          },
+        });
+        const uploaded = {
+          intentId,
+          fileName: file.name,
+          durationMs: prepared.durationMs,
+        };
+        if (uploadPromiseRef.current === attempt.promise) {
+          uploadIntentIdRef.current = intentId;
+          uploadStatusRef.current = "fulfilled";
+          setVideoDurationMs(prepared.durationMs);
+          const pending = {
+            ...uploaded,
+            ...scene,
+            savedAt: Date.now(),
+          };
+          savePendingPracticeUpload(pending);
+          setPendingUpload(pending);
+        }
+        return uploaded;
+      } catch (reason) {
+        if (uploadPromiseRef.current === attempt.promise) {
+          uploadErrorRef.current = reason;
+          uploadStatusRef.current = "rejected";
+        }
+        throw reason;
+      } finally {
+        if (uploadControllerRef.current === controller) {
+          uploadControllerRef.current = null;
+        }
+      }
+    })();
+    attempt.promise = promise;
+    uploadPromiseRef.current = promise;
+    void promise.catch(() => {});
+    return promise;
+  }, [character, goal, situation]);
+
+  const onPickFile = (file: File | null) => {
+    if (!file) return;
+    discardUploadAttempt();
+    clearPendingPracticeUpload();
+    setPendingUpload(null);
+    if (videoUrlRef.current) URL.revokeObjectURL(videoUrlRef.current);
+    const nextVideoUrl = URL.createObjectURL(file);
+    videoUrlRef.current = nextVideoUrl;
+    setVideoUrl(nextVideoUrl);
+    setVideoFile(file);
+    setVideoDurationMs(null);
+    setPct(0);
+    setError(null);
+    if (mode === "blockage") void startVideoUpload(file);
+  };
+
+  const startBlockage = useCallback(() => {
+    if (!videoFile) return;
+    void startVideoUpload(videoFile);
+    setMode("blockage");
+  }, [startVideoUpload, videoFile]);
+
+  const resumePendingPractice = useCallback(() => {
+    if (!pendingUpload) return;
+    discardUploadAttempt();
+    if (videoUrlRef.current) URL.revokeObjectURL(videoUrlRef.current);
+    videoUrlRef.current = null;
+    setVideoUrl(null);
+    setVideoFile(null);
+    setSituation(pendingUpload.situation);
+    setCharacter(pendingUpload.character);
+    setGoal(pendingUpload.goal);
+    setVideoDurationMs(pendingUpload.durationMs);
+    setPct(UPLOAD_PROGRESS_END);
+    setError(null);
+    const uploaded = {
+      intentId: pendingUpload.intentId,
+      fileName: pendingUpload.fileName,
+      durationMs: pendingUpload.durationMs,
+    };
+    uploadIntentIdRef.current = pendingUpload.intentId;
+    uploadStatusRef.current = "fulfilled";
+    uploadPromiseRef.current = Promise.resolve(uploaded);
+    setMode("blockage");
+  }, [discardUploadAttempt, pendingUpload]);
+
+  const begin = useCallback(async (blockage: BlockageSelection) => {
+    if (beginningRef.current) return;
+    beginningRef.current = true;
+    setBusy(true);
+    setError(null);
+    analysisStartedAtRef.current = null;
+    let controller: AbortController | null = null;
     try {
-      const prepared = await prepareVideoUpload(videoFile, {
-        signal: controller.signal,
-        onCompressionProgress: (progress) => {
-          setPct((current) =>
-            advanceProgress(current, compressionProgress(progress)),
-          );
-        },
-      });
-      const { intentId } = await uploadVideo(prepared.file, {
-        durationMs: prepared.durationMs,
-        signal: controller.signal,
-        onProgress: (progress) =>
-          setPct((current) =>
-            advanceProgress(current, uploadProgress(progress.percent)),
-          ),
-      });
+      const initialUpload = uploadPromiseRef.current;
+      if (!initialUpload) throw new Error("영상 업로드를 준비하지 못했어요. 다시 시도해 주세요.");
+
+      if (uploadStatusRef.current === "pending") setMode("uploading");
+      let uploaded: UploadedVideo;
+      try {
+        uploaded = await initialUpload;
+      } catch (firstError) {
+        if (firstError instanceof Error && firstError.name === "AbortError") throw firstError;
+        if (!videoFile) throw firstError;
+        setMode("uploading");
+        uploaded = await startVideoUpload(videoFile);
+      }
+
+      const intentId = uploadIntentIdRef.current ?? uploaded.intentId;
+      controller = new AbortController();
+      sessionCreationControllerRef.current = controller;
       const { session } = await createPracticeSession(
         {
           upload_intent_id: intentId,
@@ -415,11 +562,13 @@ function WorkspaceInner() {
         },
         { signal: controller.signal },
       );
+      clearPendingPracticeUpload();
+      setPendingUpload(null);
       activeIdRef.current = session.session_id;
       coachCoordinatorRef.current = null;
       setActiveId(session.session_id);
       setAnalysisStatus(session.status);
-      setVideoDurationMs(prepared.durationMs);
+      setVideoDurationMs(uploaded.durationMs);
       setDetail(null);
       setPct((current) => advanceProgress(current, UPLOAD_PROGRESS_END));
       analysisStartedAtRef.current = Date.now();
@@ -429,7 +578,7 @@ function WorkspaceInner() {
       router.replace(`/practice/new?session=${encodeURIComponent(session.session_id)}`);
       // 업로드가 끝난 시점이 아니라 연습 세션까지 만들어진 시점에 센다.
       // 업로드만 되고 세션 생성이 실패하면 연습이 시작된 게 아니다.
-      trackVideoUploaded(prepared.durationMs);
+      trackVideoUploaded(uploaded.durationMs);
       trackAnalysis(session.session_id);
       void getPracticeSession(session.session_id).then(
         (loaded) => {
@@ -441,16 +590,18 @@ function WorkspaceInner() {
       );
       void refreshList();
     } catch (err) {
-      if (uploadControllerRef.current === controller) {
-        setMode("prep");
-        if (!(err instanceof Error && err.name === "AbortError")) {
-          setError(err instanceof Error ? err.message : "문제가 생겼어요. 다시 시도해 주세요.");
-        }
+      setMode("prep");
+      if (!(err instanceof Error && err.name === "AbortError")) {
+        setError(err instanceof Error ? err.message : "문제가 생겼어요. 다시 시도해 주세요.");
       }
     } finally {
-      if (uploadControllerRef.current === controller) uploadControllerRef.current = null;
+      if (sessionCreationControllerRef.current === controller) {
+        sessionCreationControllerRef.current = null;
+      }
+      beginningRef.current = false;
+      setBusy(false);
     }
-  }, [videoFile, situation, character, goal, refreshList, router, trackAnalysis]);
+  }, [videoFile, situation, character, goal, refreshList, router, startVideoUpload, trackAnalysis]);
 
   const send = useCallback(async () => {
     const text = answer.trim();
@@ -734,6 +885,17 @@ function WorkspaceInner() {
           )}
         </header>
 
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="video/mp4,video/quicktime"
+          className="hidden"
+          onChange={(event) => {
+            onPickFile(event.currentTarget.files?.[0] ?? null);
+            event.currentTarget.value = "";
+          }}
+        />
+
         {chatLeading ? (
           <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden p-3 sm:p-4 lg:flex-row">
             <ScenePanel
@@ -771,13 +933,14 @@ function WorkspaceInner() {
               />
             )}
           </div>
-        ) : mode === "blockage" && videoUrl ? (
+        ) : mode === "blockage" ? (
           <div className="min-h-0 flex-1 overflow-y-auto bg-[#f7faff] px-4 py-6 sm:px-5 sm:py-8">
             <div className="mx-auto w-full max-w-[760px]">
               <BlockageSelectionFlow
-                videoUrl={videoUrl}
+                videoUrl={videoUrl ?? undefined}
                 scene={{ situation, character, goal }}
                 busy={busy}
+                onReselect={() => fileInputRef.current?.click()}
                 onComplete={(selection) => void begin(selection)}
               />
             </div>
@@ -785,6 +948,12 @@ function WorkspaceInner() {
         ) : (
           <div className="min-h-0 flex-1 overflow-y-auto px-4 py-6 sm:px-5 sm:py-8">
             <div className="mx-auto flex w-full max-w-[760px] flex-col gap-4 sm:gap-6">
+              {mode === "prep" && pendingUpload ? (
+                <PendingUploadBanner
+                  onResume={resumePendingPractice}
+                  onStartFresh={startFreshPractice}
+                />
+              ) : null}
               <Stepper current={step} />
               {visibleVideoUrl ? (
                 <VideoBox
@@ -800,13 +969,6 @@ function WorkspaceInner() {
               ) : mode === "prep" ? (
                 <UploadZone onClick={() => fileInputRef.current?.click()} />
               ) : null}
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="video/mp4,video/quicktime"
-                className="hidden"
-                onChange={(event) => onPickFile(event.target.files?.[0] ?? null)}
-              />
               <SceneForm
                 situation={visibleScene.situation}
                 character={visibleScene.character}
@@ -831,8 +993,13 @@ function WorkspaceInner() {
                 />
               ) : (
                 <StartRow
-                  ready={Boolean(videoFile)}
-                  onStart={() => setMode("blockage")}
+                  ready={Boolean(
+                    videoFile
+                    && situation.trim()
+                    && character.trim()
+                    && goal.trim()
+                  )}
+                  onStart={startBlockage}
                 />
               )}
               {error ? (
@@ -1218,6 +1385,28 @@ function SceneField({
   );
 }
 
+function PendingUploadBanner({
+  onResume,
+  onStartFresh,
+}: {
+  onResume: () => void;
+  onStartFresh: () => void;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-2xl bg-[#e8f3ff] px-4 py-3 text-sm font-bold text-[#1b64da]">
+      <span>아까 올리던 영상이 있어요</span>
+      <span aria-hidden="true">·</span>
+      <button type="button" onClick={onResume} className="font-black underline underline-offset-2">
+        이어서 하기
+      </button>
+      <span aria-hidden="true">/</span>
+      <button type="button" onClick={onStartFresh} className="font-black underline underline-offset-2">
+        새로 시작
+      </button>
+    </div>
+  );
+}
+
 function StartRow({ ready, onStart }: { ready: boolean; onStart: () => void }) {
   return (
     <div className="flex flex-col items-center gap-2 sm:flex-row sm:gap-3">
@@ -1230,7 +1419,9 @@ function StartRow({ ready, onStart }: { ready: boolean; onStart: () => void }) {
         질문 받기
       </button>
       <span className="text-xs font-semibold text-[#8b95a1]">
-        {ready ? "누르면 장면을 보고 질문을 만들어요" : "영상을 올리면 시작할 수 있어요"}
+        {ready
+          ? "누르면 장면을 보고 질문을 만들어요"
+          : "영상과 장면 세 칸을 채우면 시작할 수 있어요"}
       </span>
     </div>
   );
