@@ -8,6 +8,22 @@ export type SceneContextDraft = {
   goal: string;
 };
 
+/**
+ * 세 칸을 모두 비웠는가. Scene Context 는 선택 입력이고(ADR-021) 건너뛰기 버튼도,
+ * 건너뛴 연습을 세는 것도 이 함수 하나를 본다 — 두 자리가 갈리면 버튼은 떴는데
+ * 세지 않은 연습이 생긴다.
+ *
+ * 공백만 적은 것은 비운 것으로 본다. 요청 조립이 그것을 trim 해 빈 값으로 보내고
+ * 서버도 isBlank 로 같이 본다.
+ */
+export function isSceneContextBlank(scene: SceneContextDraft): boolean {
+  return (
+    !scene.situation.trim() &&
+    !scene.characterContext.trim() &&
+    !scene.goal.trim()
+  );
+}
+
 export function formatVideoDuration(durationMs: number | null): string | null {
   if (durationMs === null || !Number.isFinite(durationMs) || durationMs < 1) return null;
   const totalSeconds = Math.max(1, Math.round(durationMs / 1000));

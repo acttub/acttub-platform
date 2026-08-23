@@ -31,6 +31,40 @@ test("세션 생성 본문은 goal을 포함하고 subtext를 포함하지 않�
   assert.equal(Object.hasOwn(body, "subtext"), false);
 });
 
+// Scene Context 는 선택 입력이다(ADR-021). 비운 칸을 자리표시자로 채우던 장치가
+// 사라졌으므로 조립이 값을 어떻게 다루는지가 그대로 서버에 간다.
+test("적은 세 칸은 앞뒤 공백을 떼고 실린다", () => {
+  const body = buildPracticeSessionRequest(
+    "upload-intent-2",
+    {
+      situation: "  대표실에서 막말을 들은 직후  ",
+      characterContext: "  사과를 기다리는 신입  ",
+      goal: "  사과를 받아내기  ",
+    },
+    { blockage_kind: "분석", sub_branch: "대사 분석" },
+  );
+
+  assert.equal(body.upload_intent_id, "upload-intent-2");
+  assert.equal(body.situation, "대표실에서 막말을 들은 직후");
+  assert.equal(body.character_context, "사과를 기다리는 신입");
+  assert.equal(body.goal, "사과를 받아내기");
+});
+
+// 세 칸을 함께 본다 — 한 칸에만 값을 두면 나머지 두 칸의 빈 값 분기를 아무도
+// 밟지 않아, 조립 층에 자리표시자가 되살아나도 초록으로 지나간다.
+test("비운 세 칸은 빈 값 그대로 실린다", () => {
+  const body = buildPracticeSessionRequest(
+    "upload-intent-3",
+    { situation: "", characterContext: "   ", goal: "\n\t" },
+    { blockage_kind: "표현", sub_branch: "그 외" },
+  );
+
+  assert.equal(body.situation, "");
+  // 공백만 적은 칸은 비운 것과 같이 다룬다. 서버도 isBlank 로 같이 본다.
+  assert.equal(body.character_context, "");
+  assert.equal(body.goal, "");
+});
+
 test("막힘 선택 완료 뒤 질문 재료가 준비될 때까지 진행 화면에 머문다", () => {
   const workspace = readWeb("src/features/workspace/workspace-app.tsx");
   const beginStart = workspace.indexOf("const begin = useCallback");

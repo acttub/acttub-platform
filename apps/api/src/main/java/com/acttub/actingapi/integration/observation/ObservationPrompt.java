@@ -1,5 +1,8 @@
 package com.acttub.actingapi.integration.observation;
 
+import java.util.ArrayList;
+import java.util.List;
+
 public final class ObservationPrompt {
 
     private static final String VOICE = """
@@ -88,26 +91,55 @@ public final class ObservationPrompt {
 
             %s""".formatted(NEVER_BASE, WITH_VIDEO, VOICE);
 
+    /**
+     * Scene Context 가 통째로 빈 세션에 넣는 줄. 같은 뜻의 문장이 {@code CoachPrompt} 에도
+     * 있고, 두 프롬프트는 각자 진화하므로 문구를 공유하지 않는다 — 한쪽만 고칠 때 다른
+     * 쪽이 조용히 따라가지 않게 하는 편이 낫다.
+     */
+    private static final String SCENE_ABSENT =
+            "- 배우가 장면을 적지 않았다. 장면 맥락을 지어내지 마라.";
+
     private ObservationPrompt() {
     }
 
+    /**
+     * 배우가 쓴 것을 프롬프트에 넣는다.
+     *
+     * <p><b>빈 칸은 줄 자체를 만들지 않는다</b> — 빈 제목만 남기면 모델이 그 자리를 지어내
+     * 채운다(ADR-021). Scene Context 셋이 <b>모두</b> 비면 부재를 한 줄로 명시하고, 일부만
+     * 비면 그 줄만 빼고 부재를 말하지 않는다 — 적은 것이 있기 때문이다.
+     */
     public static String build(ActorMaterial actor) {
-        return """
-                배우가 쓴 것과 영상을 함께 확인한다.
+        List<String> lines = new ArrayList<>();
+        lines.add("배우가 쓴 것과 영상을 함께 확인한다.");
+        lines.add("");
+        if (blank(actor.situation()) && blank(actor.character()) && blank(actor.goal())) {
+            lines.add(SCENE_ABSENT);
+        } else {
+            addField(lines, "상황", actor.situation());
+            addField(lines, "캐릭터", actor.character());
+            addField(lines, "이번 테이크의 목적", actor.goal());
+        }
+        lines.add("- 배우가 고른 막히는 지점: " + actor.blockageKind());
+        addField(lines, "배우가 쓴 상세", actor.blockageDetail());
+        lines.add("");
+        lines.add("영상에 실제로 확인되는 사실만 observations 에 쓴다. 확인할 사람이 없거나 신체·얼굴·소리가 보이지 않으면 그 범주의 관찰을 만들지 않는다.");
+        lines.add("대사가 들리면 그 대사를 label 에 그대로 옮긴다 — 나중에 순간을 가리킬 때 시각 대신 대사를 쓴다.");
+        return String.join("\n", lines);
+    }
 
-                - 상황: %s
-                - 캐릭터: %s
-                - 이번 테이크의 목적: %s
-                - 배우가 고른 막히는 지점: %s
-                - 배우가 쓴 상세: %s
+    private static void addField(List<String> lines, String label, String value) {
+        if (!blank(value)) {
+            lines.add("- " + label + ": " + value);
+        }
+    }
 
-                영상에 실제로 확인되는 사실만 observations 에 쓴다. 확인할 사람이 없거나 신체·얼굴·소리가 보이지 않으면 그 범주의 관찰을 만들지 않는다.
-                대사가 들리면 그 대사를 label 에 그대로 옮긴다 — 나중에 순간을 가리킬 때 시각 대신 대사를 쓴다."""
-                .formatted(
-                        actor.situation(),
-                        actor.character(),
-                        actor.goal(),
-                        actor.blockageKind(),
-                        actor.blockageDetail());
+    /**
+     * 웹이 {@code .trim()} 해 보내지만 서버가 그 보장에 기대지 않는다. null 을 보지 않는
+     * 것은 {@link ActorMaterial} 컴팩트 생성자가 다섯 칸을 전부 {@code requireNonNull}
+     * 하기 때문이다.
+     */
+    private static boolean blank(String value) {
+        return value.isBlank();
     }
 }

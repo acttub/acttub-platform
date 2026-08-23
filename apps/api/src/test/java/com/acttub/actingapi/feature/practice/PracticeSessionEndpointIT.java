@@ -367,6 +367,48 @@ class PracticeSessionEndpointIT {
                 422, "request_fingerprint_mismatch");
     }
 
+    /**
+     * Scene Context 는 선택 입력이다(ADR-021). 뗀 것은 <b>최소 길이 제약뿐</b>이라 빈 문자열은
+     * 통과하고 {@code null} 은 여전히 422 다 — 그 구분이 지켜지는지는 두 케이스를 나란히
+     * 두어야만 확인된다.
+     */
+    @Test
+    void blankSceneContextIsAcceptedButNullAndMissingKeysAreNot() throws Exception {
+        UUID uploadId = insertUpload(USER_ID, "finalized", "blank-scene.mp4");
+
+        MvcResult blank = create(uploadId, UUID.randomUUID(), sceneBody(uploadId, "\"\""));
+        assertThat(blank.getResponse().getStatus()).isEqualTo(202);
+
+        // 빈 값 그대로 저장한다 — 자리표시자를 만들지 않는다.
+        UUID sessionId = UUID.fromString(json(blank).path("session_id").textValue());
+        JsonNode stored = detail(sessionId);
+        assertThat(stored.path("situation").textValue()).isEmpty();
+        assertThat(stored.path("character_context").textValue()).isEmpty();
+        assertThat(stored.path("goal").textValue()).isEmpty();
+
+        MvcResult nulls = create(uploadId, UUID.randomUUID(), sceneBody(uploadId, "null"));
+        assertThat(nulls.getResponse().getStatus()).isEqualTo(422);
+        assertThat(json(nulls).path("detail")).isEqualTo(mapper.readTree("""
+                [{"type":"string_type","loc":["body","situation"],
+                  "msg":"Input should be a valid string","input":null},
+                 {"type":"string_type","loc":["body","character_context"],
+                  "msg":"Input should be a valid string","input":null},
+                 {"type":"string_type","loc":["body","goal"],
+                  "msg":"Input should be a valid string","input":null}]
+                """));
+
+        // 키 부재와 null 값은 서로 다른 장치가 막는다 — 앞은 @NotNull 이 missing 으로,
+        // 뒤는 @Schema(nullable) 이 없다는 사실이 string_type 으로 낸다. 오류 형태가
+        // 계약이라 둘을 갈라 고정한다.
+        MvcResult absent = create(uploadId, UUID.randomUUID(), """
+                {"upload_intent_id":"%s","blockage_kind":"분석","sub_branch":"대사 분석",
+                 "blockage_detail":null}
+                """.formatted(uploadId));
+        assertThat(absent.getResponse().getStatus()).isEqualTo(422);
+        assertThat(json(absent).path("detail").findValuesAsText("type"))
+                .containsExactly("missing", "missing", "missing");
+    }
+
     @Test
     void crossFieldErrorEchoesWholeBodyAndUnknownKeysAreRejected() throws Exception {
         UUID uploadId = insertUpload(USER_ID, "finalized", "video.mp4");
@@ -473,6 +515,15 @@ class PracticeSessionEndpointIT {
         return body.replace(
                 "\"blockage_detail\":null",
                 "\"blockage_detail\":null,\"continued_from\":\"" + continuedFrom + "\"");
+    }
+
+    /** 장면 세 칸에 같은 JSON 값을 싣는다 — {@code "\"\""} 또는 {@code "null"}. */
+    private static String sceneBody(UUID uploadId, String sceneValue) {
+        return """
+                {"upload_intent_id":"%s","situation":%s,"character_context":%s,
+                 "goal":%s,"blockage_kind":"분석","sub_branch":"대사 분석",
+                 "blockage_detail":null}
+                """.formatted(uploadId, sceneValue, sceneValue, sceneValue);
     }
 
     private static String validBody(UUID uploadId) {

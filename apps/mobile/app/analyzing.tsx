@@ -4,6 +4,7 @@ import { type VideoSource } from 'expo-video';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  AppState,
   BackHandler,
   Platform,
   Pressable,
@@ -28,7 +29,9 @@ import {
 import { pendingAnalysisStore } from '@/lib/analysis-storage';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { rescheduleReminder } from '@/lib/notifications';
 import { formatSizeChange, startVideoCompression } from '@/lib/compress';
+import { sceneValueForDisplay } from '@/lib/upload-input';
 import { startPractice, takePendingUpload, type PendingUpload } from '@/lib/practice';
 import { previewVideoSource } from '@/lib/preview-video';
 import { palette } from '@/constants/palette';
@@ -51,17 +54,29 @@ const STAGES = [
 const POLL_INTERVAL_MS = 4_000;
 const POLL_TIMEOUT_MS = 10 * 60 * 1000;
 
+/**
+ * 폴링 사이 대기. 백그라운드에서 얼었다가 포그라운드로 돌아오면 남은 대기를
+ * 건너뛰고 즉시 다음 상태 확인으로 넘어간다 — 복귀하자마자 결과를 보여주기 위해.
+ */
 function abortableDelay(ms: number, signal: AbortSignal): Promise<void> {
   if (signal.aborted) return Promise.reject(signal.reason);
   return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => {
-      signal.removeEventListener('abort', onAbort);
+    const finish = () => {
+      cleanup();
       resolve();
-    }, ms);
+    };
     const onAbort = () => {
-      clearTimeout(timer);
-      signal.removeEventListener('abort', onAbort);
+      cleanup();
       reject(signal.reason);
+    };
+    const timer = setTimeout(finish, ms);
+    const appState = AppState.addEventListener('change', (state) => {
+      if (state === 'active') finish();
+    });
+    const cleanup = () => {
+      clearTimeout(timer);
+      appState.remove();
+      signal.removeEventListener('abort', onAbort);
     };
     signal.addEventListener('abort', onAbort, { once: true });
   });
@@ -142,6 +157,8 @@ export default function AnalyzingScreen() {
       setStage(0);
       setUploading(false);
       logEvent('analysis_start', {});
+      // 연습이 실제로 일어난 시점 — "마지막 연습 + 3일" 리마인드를 다시 건다.
+      void rescheduleReminder();
     });
 
     try {
@@ -207,10 +224,11 @@ export default function AnalyzingScreen() {
         sessionIdRef.current = result.sessionId;
         pendingHandleRef.current = operation.pendingHandle;
         const detail = result.detail;
+        // 복구 경로의 장면은 서버에서 온다 — 건너뛴 칸의 자리표시자('.')를 빈 값으로 되돌린다.
         const scene = upload?.scene ?? {
-          situation: detail.situation,
-          character: detail.character_context,
-          goal: detail.goal,
+          situation: sceneValueForDisplay(detail.situation),
+          character: sceneValueForDisplay(detail.character_context),
+          goal: sceneValueForDisplay(detail.goal),
         };
         const playbackUrl = detail.playback_url ?? null;
         startPractice({
@@ -417,7 +435,9 @@ export default function AnalyzingScreen() {
               <Text style={styles.elapsed}>{elapsedText}</Text>
               {sizeNote && <Text style={styles.sizeNote}>{sizeNote}</Text>}
               <Text style={styles.notice}>
-                보통 1~3분 걸려요. 끝날 때까지 이 화면을 켜 두세요.
+                {compressPct !== null || uploading
+                  ? '보통 1~3분 걸려요. 영상을 올리는 동안은 화면을 켜 두세요.'
+                  : '보통 1~3분 걸려요. 앱을 닫아 두셔도 끝나면 알림으로 알려드려요.'}
               </Text>
             </View>
 

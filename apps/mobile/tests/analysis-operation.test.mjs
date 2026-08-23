@@ -756,3 +756,131 @@ test('E1: recovered session 404는 stale record를 제거하고 terminal error�
   );
   assert.equal(removeCalls, 1);
 });
+
+function recoveredHandle(sessionId = 'session-1') {
+  return {
+    key: `pending:user-1:${sessionId}:old`,
+    record: {
+      schemaVersion: 1,
+      owner: 'user-1',
+      session_id: sessionId,
+    },
+  };
+}
+
+test('B1: 백그라운드 복귀 — 상태 폴링의 일시 실패 2번은 견디고 이어서 완료한다', async () => {
+  const owner = createAnalysisOperationOwner({
+    now: () => 100,
+    instanceId: 'instance-poll-retry',
+  });
+  const operation = owner.start();
+  let statusCalls = 0;
+  const result = await runAnalysisPipeline({
+    operation,
+    ownerId: 'user-1',
+    upload: null,
+    recovered: recoveredHandle(),
+    retryFailed: false,
+    dependencies: createDependencies({
+      getStatus: async () => {
+        statusCalls += 1;
+        if (statusCalls === 1) return { status: 'analyzing', error_code: null };
+        // iOS가 얼리면서 끊은 요청이 복귀 직후 이렇게 터진다.
+        if (statusCalls <= 3) throw new TypeError('Network request failed');
+        return { status: 'analyzed', error_code: null };
+      },
+    }),
+  });
+
+  assert.equal(result.sessionId, 'session-1');
+  assert.equal(statusCalls, 4);
+});
+
+test('B2: 상태 폴링이 연속 3번 실패하면 그대로 실패로 올린다', async () => {
+  const owner = createAnalysisOperationOwner({
+    now: () => 100,
+    instanceId: 'instance-poll-fail',
+  });
+  const operation = owner.start();
+  let statusCalls = 0;
+  await assert.rejects(
+    runAnalysisPipeline({
+      operation,
+      ownerId: 'user-1',
+      upload: null,
+      recovered: recoveredHandle(),
+      retryFailed: false,
+      dependencies: createDependencies({
+        getStatus: async () => {
+          statusCalls += 1;
+          if (statusCalls === 1) return { status: 'analyzing', error_code: null };
+          throw new TypeError('Network request failed');
+        },
+      }),
+    }),
+    (error) => error instanceof TypeError,
+  );
+  // prepare 1번 + 재시도 한도(STATUS_POLL_MAX_FAILURES)만큼
+  assert.equal(statusCalls, 1 + analysisOperationModule.STATUS_POLL_MAX_FAILURES);
+});
+
+test('B3: 얼어 있는 동안 시한이 지나도, 복귀 후 첫 확인이 analyzed면 완료한다', async () => {
+  const owner = createAnalysisOperationOwner({
+    now: () => 100,
+    instanceId: 'instance-poll-late',
+  });
+  const operation = owner.start();
+  let clock = 0;
+  let statusCalls = 0;
+  const result = await runAnalysisPipeline({
+    operation,
+    ownerId: 'user-1',
+    upload: null,
+    recovered: recoveredHandle(),
+    retryFailed: false,
+    dependencies: createDependencies({
+      now: () => clock,
+      pollTimeoutMs: 600_000,
+      getStatus: async () => {
+        statusCalls += 1;
+        if (statusCalls === 1) return { status: 'analyzing', error_code: null };
+        // 백그라운드에서 10분 넘게 얼어 있다가 깨어난 상황
+        clock = 10_000_000;
+        return { status: 'analyzed', error_code: null };
+      },
+    }),
+  });
+
+  assert.equal(result.sessionId, 'session-1');
+});
+
+test('B4: 복귀 후에도 여전히 analyzing이고 시한이 지났으면 시간 초과로 끝낸다', async () => {
+  const owner = createAnalysisOperationOwner({
+    now: () => 100,
+    instanceId: 'instance-poll-timeout',
+  });
+  const operation = owner.start();
+  let clock = 0;
+  let statusCalls = 0;
+  await assert.rejects(
+    runAnalysisPipeline({
+      operation,
+      ownerId: 'user-1',
+      upload: null,
+      recovered: recoveredHandle(),
+      retryFailed: false,
+      dependencies: createDependencies({
+        now: () => clock,
+        pollTimeoutMs: 600_000,
+        getStatus: async () => {
+          statusCalls += 1;
+          if (statusCalls === 1) return { status: 'analyzing', error_code: null };
+          clock = 10_000_000;
+          return { status: 'analyzing', error_code: null };
+        },
+      }),
+    }),
+    /오래 걸려요/,
+  );
+  assert.equal(statusCalls, 2);
+});

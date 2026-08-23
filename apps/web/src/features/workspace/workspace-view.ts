@@ -8,6 +8,10 @@
 // 여기는 그것으로 무엇을 그리는지만 정한다.
 
 import type { PracticeReport } from "@/lib/api/v2/types";
+import {
+  isSceneContextBlank,
+  type SceneContextDraft,
+} from "../practice/practice-setup-flow";
 import { isChatScreen, type WorkspaceScreen } from "./workspace-state";
 
 /**
@@ -24,6 +28,8 @@ export type WorkspaceViewInput = {
   screen: WorkspaceScreen;
   /** 서버가 준 재생 주소(`detail.playback_url`). 로컬 원본이 없을 때 쓴다. */
   playbackUrl: string | null;
+  /** 배우가 지금 장면 칸에 적어 둔 것. 건너뛰기를 열지 말지가 여기서 갈린다. */
+  scene: SceneContextDraft;
 };
 
 export type WorkspaceVideoSlot =
@@ -32,7 +38,8 @@ export type WorkspaceVideoSlot =
   | { kind: "none" };
 
 export type WorkspaceSetupFooter =
-  | { kind: "start"; ready: boolean }
+  /** `skippable` 은 "장면을 비운 채로 넘어갈 수 있는가". 그러려면 올릴 영상이 있어야 한다. */
+  | { kind: "start"; ready: boolean; skippable: boolean }
   | { kind: "progress"; phase: "upload" }
   | { kind: "progress"; phase: "scan"; failed: boolean };
 
@@ -145,7 +152,11 @@ function describeSetup(
       ? { kind: "progress", phase: "upload" }
       : kind === "analyzing" || kind === "analysisFailed"
         ? { kind: "progress", phase: "scan", failed: kind === "analysisFailed" }
-        : { kind: "start", ready: video !== null },
+        : {
+            kind: "start",
+            ready: video !== null,
+            skippable: video !== null && isSceneContextBlank(input.scene),
+          },
     continueBanner: continueFrom
       ? { label: continueFrom.label, dismissible: prep }
       : null,

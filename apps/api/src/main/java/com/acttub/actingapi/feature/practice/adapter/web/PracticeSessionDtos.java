@@ -28,12 +28,14 @@ final class PracticeSessionDtos {
     @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
     record PracticeSessionRequest(
             @NotNull UUID uploadIntentId,
-            @NotNull @Schema(minLength = 1)
-            String situation,
-            @NotNull @Schema(minLength = 1)
-            String characterContext,
-            @NotNull @Schema(minLength = 1)
-            String goal,
+            // Scene Context 셋은 최소 길이가 없다 — 빈 문자열이 "적지 않았다"이다(ADR-021).
+            // 키가 없는 것과 값이 null 인 것은 서로 다른 장치가 막고 오류 형태도 다르다 —
+            // 키 부재는 @NotNull 이 missing 으로, null 값은 @Schema(nullable) 이 없다는
+            // 사실이 string_type 으로 낸다(RequestBodyTreeValidator:validate). null 분기는
+            // @NotNull 을 읽지 않으므로, 여기에 nullable 을 붙이면 null 이 통과한다.
+            @NotNull String situation,
+            @NotNull String characterContext,
+            @NotNull String goal,
             @NotNull @Schema(allowableValues = {"분석", "표현", "그 외"}) String blockageKind,
             @NotNull @Schema(allowableValues = {
                 "캐릭터 분석", "대사 분석", "감정", "움직임", "화술", "표정", "그 외"
