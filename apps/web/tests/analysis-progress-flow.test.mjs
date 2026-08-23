@@ -212,25 +212,58 @@ test("분석 목표 시간 60초를 넘기면 진행 중임을 다시 안내한�
   );
 });
 
+test("건너뛰기는 화면 판단을 그대로 따르고 누르면 두 자리에 남는다", () => {
+  const workspace = readWeb("src/features/workspace/workspace-app.tsx");
+  const startRow = between(workspace, "<StartRow", "/>");
+
+  // 열고 닫는 조건은 뷰 모델이 정한다(tests/workspace-view.test.mjs 가 실행으로
+  // 지킨다). 화면이 그것을 무시하고 늘 켜면 한 칸 적은 사람에게도 버튼이 뜬다.
+  assert.match(startRow, /skippable=\{body\.footer\.skippable\}/);
+  // "버튼을 눌렀다"와 "그냥 빈 채로 진행했다"를 갈라야 안내 문구와 버튼의 효과를
+  // 따로 잰다(ADR-021). 창은 onSkip 한 칸 안으로 좁혀 둔다.
+  assert.match(startRow, /onSkip=[\s\S]{0,160}?trackPracticeSceneSkipped\(\)/);
+
+  // 완주율을 갈라 보려면 만들어진 연습마다 건너뛴 것인지가 실려야 한다. 버튼과
+  // 같은 함수를 봐야 "버튼은 떴는데 세지 않은 연습"이 생기지 않는다.
+  const begin = between(
+    workspace,
+    "const begin = useCallback",
+    "const send = useCallback",
+  );
+  assert.match(
+    begin,
+    /trackPracticeSessionCreated\([\s\S]{0,200}?isSceneContextBlank\(\{ situation, characterContext: character, goal \}\)/,
+  );
+});
+
 test("질문 받기를 누르면 막힘을 고르기 전에 압축·업로드가 시작된다", () => {
   const workspace = readWeb("src/features/workspace/workspace-app.tsx");
-  const rowStart = workspace.indexOf("<StartRow");
-  const rowEnd = workspace.indexOf("/>", rowStart);
-  assert.ok(rowStart !== -1 && rowEnd > rowStart, "StartRow 자리를 못 찾았다");
-  const startRow = workspace.slice(rowStart, rowEnd);
+  const startRow = between(workspace, "<StartRow", "/>");
+  const entry = between(
+    workspace,
+    "const enterBlockage = useCallback",
+    "const begin = useCallback",
+  );
+
   // 막힘 선택으로 넘어가기 전에 업로드를 띄운다 — 뒤로 미루면 고르는 시간과
   // 올리는 시간을 더해서 기다리게 된다. 그 순서는 이제 진입 모듈이 들고
-  // tests/blockage-entry.test.mjs 가 실행으로 지키므로, 여기서는 이 버튼이 그
+  // tests/blockage-entry.test.mjs 가 실행으로 지키므로, 여기서는 이 자리가 그
   // 모듈을 부르는지와 무엇을 건네는지만 본다.
-  assert.match(startRow, /onStart=\{\(\) =>\s*enterBlockageSelection\(\{/);
+  assert.match(entry, /enterBlockageSelection\(\{/);
   // 올릴 영상은 지금 준비 화면이 들고 있는 그것이다. 모듈은 건네받은 것을 올릴
   // 뿐이라 출처가 어긋나도 실행 테스트로는 드러나지 않는다.
-  assert.match(startRow, /video: screen\.kind === "prep" \? screen\.video : null/);
-  assert.match(startRow, /startUpload,/);
+  assert.match(entry, /video: screen\.kind === "prep" \? screen\.video : null/);
+  assert.match(entry, /startUpload,/);
   assert.match(
-    startRow,
+    entry,
     /goToBlockage: \(\) => dispatch\(\{ type: "blockageChosen" \}\)/,
   );
+
+  // 준비 화면의 두 버튼이 그 자리 하나로 모인다. 갈라 적으면 한쪽만 고치는
+  // 실수가 생기고, 건너뛴 사람만 업로드가 늦게 시작되는 식으로 어긋난다.
+  assert.match(startRow, /onStart=\{\(\) => enterBlockage\(/);
+  assert.match(startRow, /onSkip=\{\(\) =>\s*enterBlockage\(/);
+  assert.doesNotMatch(startRow, /enterBlockageSelection\(/);
 
   const beginStart = workspace.indexOf("const begin = useCallback");
   const beginEnd = workspace.indexOf("const send = useCallback", beginStart);

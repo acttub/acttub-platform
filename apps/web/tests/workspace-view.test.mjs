@@ -21,10 +21,14 @@ const CONTINUE = { id: "s-1", label: "면접 장면" };
 const NOTE = { report_type: "analysis" };
 const BLOCKED_NOTE = { report_type: "blocked" };
 
+/** 아무것도 적지 않은 Scene Context. 세 칸이 다 비면 건너뛰기가 열린다. */
+const BLANK_SCENE = { situation: "", characterContext: "", goal: "" };
+
 /** 아무것도 안 한 첫 화면. 각 테스트는 필요한 것만 덮어쓴다. */
 const base = {
   screen: { kind: "prep", video: null, continueFrom: null },
   playbackUrl: null,
+  scene: BLANK_SCENE,
 };
 
 const view = (overrides) => describeWorkspaceView({ ...base, ...overrides });
@@ -37,7 +41,8 @@ test("영상을 고르기 전 준비 화면은 첫 준비 순서에 서고 업�
   assert.equal(body.step, 1);
   assert.equal(body.sceneLocked, false);
   assert.deepEqual(body.video, { kind: "upload-zone" });
-  assert.deepEqual(body.footer, { kind: "start", ready: false });
+  // 올릴 영상이 없으면 건너뛸 것도 없다.
+  assert.deepEqual(body.footer, { kind: "start", ready: false, skippable: false });
   assert.equal(body.continueBanner, null);
   assert.equal(statusChip, null);
   assert.deepEqual(review, { armed: false, kind: "chat" });
@@ -52,7 +57,19 @@ test("영상을 고르면 준비 순서가 다음으로 올라가고 시작 버�
     caption: "monologue.mp4",
     reselectable: true,
   });
-  assert.deepEqual(body.footer, { kind: "start", ready: true });
+  assert.deepEqual(body.footer, { kind: "start", ready: true, skippable: true });
+});
+
+test("장면 세 칸이 모두 비어야 건너뛰기가 열린다", () => {
+  const screen = { kind: "prep", video: picked(), continueFrom: null };
+  const footer = (scene) => view({ screen, scene }).body.footer;
+
+  // 한 칸이라도 적었으면 감춘다 — 적어 둔 것이 말없이 버려질 걱정을 하지 않아야 한다.
+  assert.equal(footer({ ...BLANK_SCENE, situation: "카페에서" }).skippable, false);
+  assert.equal(footer({ ...BLANK_SCENE, characterContext: "20대 여성" }).skippable, false);
+  assert.equal(footer({ ...BLANK_SCENE, goal: "붙잡기" }).skippable, false);
+  // 공백만 적은 것은 비운 것과 같다. 요청 조립이 그것을 trim 해 빈 값으로 보낸다.
+  assert.equal(footer({ situation: " ", characterContext: "\n", goal: "\t" }).skippable, true);
 });
 
 test("업로드 중에는 준비 순서가 마지막에서 잠기고 영상 설명이 바뀌며 다시 고를 수 없다", () => {
