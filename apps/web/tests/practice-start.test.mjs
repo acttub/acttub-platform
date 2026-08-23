@@ -224,10 +224,10 @@ test("Error 인데 할 말이 비어 있어도 화면이 빈 줄을 그리지 �
 // --- startVideoUpload ---
 
 /** prepareVideoUpload 자리에 끼우는 가짜. 압축 진행률을 부를지 고를 수 있다. */
-function fakePrepare({ compress = null, durationMs = 7_000 } = {}) {
+function fakePrepare({ compress = null, durationMs = 7_000, compressMs = 1_500 } = {}) {
   return async (file, options) => {
     if (compress !== null) options.onCompressionProgress(compress);
-    return { file, durationMs, wasCompressed: compress !== null };
+    return { file, durationMs, wasCompressed: compress !== null, compressMs };
   };
 }
 
@@ -334,7 +334,7 @@ test("업로드를 끊으면 압축과 S3 PUT 양쪽이 함께 끊긴다", async
     onProgress: () => {},
     prepare: async (given, options) => {
       seen.push(options.signal);
-      return { file: given, durationMs: 7_000, wasCompressed: false };
+      return { file: given, durationMs: 7_000, wasCompressed: false, compressMs: 0 };
     },
     uploader: async ({ signal, onProgress }) => {
       seen.push(signal);
@@ -361,4 +361,59 @@ test("업로드마다 제 신호를 들고 나오고 그 파일을 기억한다"
 
   assert.equal(pending.file, file);
   assert.equal(pending.controller.signal.aborted, false);
+});
+
+test("SOMA-381: 업로드가 끝나면 압축·업로드 실측을 따로 담아 알린다", async () => {
+  uploadStub();
+  const file = new File([new Uint8Array(2_000_000)], "take.mp4", { type: "video/mp4" });
+  const profiles = [];
+  let clock = 10_000;
+  const pending = startVideoUpload(file, {
+    onProgress: () => {},
+    prepare: async (given, options) => {
+      options.onCompressionProgress(1);
+      return {
+        file: new File([new Uint8Array(500_000)], "take.c.mp4", { type: "video/mp4" }),
+        durationMs: 7_000,
+        wasCompressed: true,
+        compressMs: 4_200,
+      };
+    },
+    uploader: fakeUploader(),
+    onProfile: (profile) => profiles.push(profile),
+    now: () => {
+      // 업로드 시작·종료에서 한 번씩 읽는다 — 두 번째 읽기에 3초를 흘려 보낸다.
+      const at = clock;
+      clock += 3_000;
+      return at;
+    },
+  });
+  await pending.promise;
+
+  assert.equal(profiles.length, 1);
+  const profile = profiles[0];
+  assert.equal(profile.compressMs, 4_200);
+  assert.equal(profile.uploadMs, 3_000);
+  assert.equal(profile.originalBytes, 2_000_000);
+  assert.equal(profile.uploadedBytes, 500_000);
+  assert.equal(profile.wasCompressed, true);
+  assert.equal(profile.webcodecsSupported, false); // node에는 VideoEncoder가 없다
+  assert.equal(profile.videoDurationMs, 7_000);
+});
+
+test("SOMA-381: 업로드가 실패하면 실측을 알리지 않는다 — 반쪽 숫자는 평균을 오염시킨다", async () => {
+  uploadStub();
+  const file = new File([new Uint8Array(1_000)], "take.mp4", { type: "video/mp4" });
+  const profiles = [];
+  const pending = startVideoUpload(file, {
+    onProgress: () => {},
+    prepare: fakePrepare(),
+    uploader: async () => {
+      throw new Error("네트워크가 끊겼어요");
+    },
+    onProfile: (profile) => profiles.push(profile),
+  });
+  await pending.promise.catch(() => {});
+
+  assert.equal(profiles.length, 0);
 });

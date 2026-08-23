@@ -7,7 +7,11 @@ import {
   uploadVideo,
   type S3Uploader,
 } from "@/lib/api/v2/uploads";
-import type { PracticeStartFailurePoint } from "@/lib/analytics/amplitude";
+import type {
+  PracticeStartFailurePoint,
+  PracticeUploadProfile,
+} from "@/lib/analytics/amplitude";
+import { hasVideoWebCodecsSupport } from "@/lib/media/compress-video";
 import { prepareVideoUpload } from "@/lib/media/upload-preflight";
 
 import type { BlockageSelection } from "../practice/blockage-flow";
@@ -80,6 +84,13 @@ export type StartVideoUploadOptions = {
    */
   prepare?: typeof prepareVideoUpload;
   uploader?: S3Uploader;
+  /**
+   * 압축·업로드 실측이 나오면 받는다(SOMA-381). 업로드가 끝난 순간 부른다 —
+   * 막힘 선택을 하다 그만둬도 이 구간의 숫자는 이미 잰 것이라 남긴다.
+   */
+  onProfile?: (profile: PracticeUploadProfile) => void;
+  /** 계측용 시계. 테스트가 갈아 끼운다. */
+  now?: () => number;
 };
 
 /**
@@ -88,7 +99,13 @@ export type StartVideoUploadOptions = {
  */
 export function startVideoUpload(
   file: File,
-  { onProgress, prepare = prepareVideoUpload, uploader }: StartVideoUploadOptions,
+  {
+    onProgress,
+    prepare = prepareVideoUpload,
+    uploader,
+    onProfile,
+    now = () => Date.now(),
+  }: StartVideoUploadOptions,
 ): PendingVideoUpload<PendingUploadResult> {
   const controller = new AbortController();
   onProgress({ type: "reset" });
@@ -104,6 +121,7 @@ export function startVideoUpload(
         onProgress({ type: "compress", ratio: progress });
       },
     });
+    const uploadStartedAt = now();
     const { intentId } = await uploadVideo(prepared.file, {
       durationMs: prepared.durationMs,
       signal: controller.signal,
@@ -117,6 +135,15 @@ export function startVideoUpload(
           percent: progress.percent,
           compressed: compressionRan,
         }),
+    });
+    onProfile?.({
+      compressMs: prepared.compressMs,
+      uploadMs: Math.max(0, Math.round(now() - uploadStartedAt)),
+      originalBytes: file.size,
+      uploadedBytes: prepared.file.size,
+      wasCompressed: prepared.wasCompressed,
+      webcodecsSupported: hasVideoWebCodecsSupport(),
+      videoDurationMs: prepared.durationMs,
     });
     return { intentId, durationMs: prepared.durationMs, compressionRan };
   })();

@@ -56,6 +56,7 @@ import {
   trackPracticeSceneSkipped,
   trackPracticeSessionCreated,
   trackPracticeUploadFailed,
+  trackPracticeUploadProfiled,
   trackPracticeVideoSelected,
 } from "@/lib/analytics/amplitude";
 import { ExitReviewModal, useExitReview } from "./exit-review";
@@ -664,7 +665,10 @@ function WorkspaceInner() {
   // 무엇인가" 를 들고 있는 두 ref 뿐이다.
   const startUpload = useCallback((file: File): PendingVideoUpload<PendingUploadResult> => {
     uploadControllerRef.current?.abort();
-    const pending = startVideoUpload(file, { onProgress: reportProgress });
+    const pending = startVideoUpload(file, {
+      onProgress: reportProgress,
+      onProfile: trackPracticeUploadProfiled,
+    });
     uploadControllerRef.current = pending.controller;
     pendingUploadRef.current = pending;
     return pending;

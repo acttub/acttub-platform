@@ -371,3 +371,20 @@ test("packet scan 중 abort는 Input.dispose로 진행 중 read를 중단한다"
   );
   assert.ok(state.disposeCalls >= 1);
 });
+
+test("SOMA-381: 압축 구간 소요를 재서 돌려준다", async () => {
+  const file = new File([new Uint8Array(1_000)], "take.mp4", { type: "video/mp4" });
+  let clock = 0;
+  const prepared = await prepareVideoUpload(file, {
+    durationResolver: async () => 7_000,
+    compressor: async (given) => given, // 압축 스킵(원본 그대로)
+    now: () => {
+      const at = clock;
+      clock += 250; // 압축 시작·종료 두 번 읽는 사이 250ms
+      return at;
+    },
+  });
+
+  assert.equal(prepared.compressMs, 250);
+  assert.equal(prepared.wasCompressed, false);
+});
