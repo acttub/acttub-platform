@@ -157,6 +157,11 @@ export function completeBlockageFlow(
   };
 }
 
+/** 막힘 선택을 건너뛰면 보내는 값 — 서버 기본 분기('그 외')와 같다(SOMA-432). */
+export function skippedBlockageSelection(): BlockageSelection {
+  return { blockage_kind: '그 외', sub_branch: '그 외', blockage_detail: null };
+}
+
 export function blockageDetailTitle(subBranch: BlockageSubBranch): string {
   return subBranch === '그 외'
     ? '막히는 지점이 어디까지인지 적어 주세요'

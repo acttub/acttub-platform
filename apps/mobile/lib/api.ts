@@ -31,6 +31,7 @@ import {
   type PostIdempotentOptions,
 } from '@/lib/api-request';
 import {
+  sceneValueForSubmit,
   sendUploadIntent,
   type UploadIntentInput,
 } from '@/lib/upload-input';
@@ -526,9 +527,9 @@ export const api = {
       '/v2/practice-sessions',
       {
         upload_intent_id: input.upload_intent_id,
-        situation: input.scene.situation,
-        character_context: input.scene.character,
-        goal: input.scene.goal,
+        situation: sceneValueForSubmit(input.scene.situation),
+        character_context: sceneValueForSubmit(input.scene.character),
+        goal: sceneValueForSubmit(input.scene.goal),
         blockage_kind: input.blockage.blockage_kind,
         sub_branch: input.blockage.sub_branch,
         blockage_detail: input.blockage.blockage_detail,

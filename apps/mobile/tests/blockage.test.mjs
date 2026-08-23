@@ -13,6 +13,7 @@ import {
   initialBlockageFlowState,
   subBranchChoices,
   updateBlockageDetail,
+  skippedBlockageSelection,
 } from '../lib/blockage.ts';
 
 test('대분류는 웹과 같은 세 가지다', () => {
@@ -118,4 +119,12 @@ test('모든 세부에 상세 예시와 제목이 있다', () => {
     assert.ok(blockageDetailExamples(subBranch).length > 0, subBranch);
     assert.ok(blockageDetailTitle(subBranch).length > 0, subBranch);
   }
+});
+
+test('SOMA-432: 막힘 선택 건너뛰기는 서버 기본 분기(그 외)와 같은 값을 보낸다', () => {
+  assert.deepEqual(skippedBlockageSelection(), {
+    blockage_kind: '그 외',
+    sub_branch: '그 외',
+    blockage_detail: null,
+  });
 });
