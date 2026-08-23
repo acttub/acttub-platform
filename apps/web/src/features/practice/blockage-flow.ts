@@ -102,8 +102,9 @@ export function chooseBlockageKind(
   state: BlockageFlowState,
   kind: BlockageKind,
 ): BlockageFlowState {
-  // 갈아탄 대분류에는 앞서 고른 하위 갈래가 없다. 남겨 두면 그 목록에 없는 값이
-  // 실려 나간다.
+  // 갈아탄 대분류의 목록에 없는 값이 남을 수 있다("감정"은 분석의 선택지가 아니다).
+  // 양쪽에 다 있는 "그 외"까지 함께 비우는 것은 그 하나를 가려내는 것보다,
+  // 갈아탈 때마다 처음부터 고르는 편이 화면에서도 정직하기 때문이다.
   return { ...state, kind, subBranch: null };
 }
 

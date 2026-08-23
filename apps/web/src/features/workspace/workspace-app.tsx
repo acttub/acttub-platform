@@ -73,6 +73,7 @@ import { PracticeReportCards } from "../practice/practice-report-cards";
 import {
   formatVideoDuration,
   isSceneContextBlank,
+  type SceneContextDraft,
 } from "../practice/practice-setup-flow";
 import {
   analysisEventsForStatus,
@@ -271,6 +272,12 @@ function WorkspaceInner() {
   const [situation, setSituation] = useState("");
   const [character, setCharacter] = useState("");
   const [goal, setGoal] = useState("");
+  // 이 셋을 보는 자리가 셋이다 — 건너뛰기를 열지 말지, 세션 생성 요청에 실을 값,
+  // 그리고 건너뛴 연습으로 셀지. 한 벌로 묶어 그 셋이 같은 답을 보게 한다.
+  const sceneDraft = useMemo<SceneContextDraft>(
+    () => ({ situation, characterContext: character, goal }),
+    [situation, character, goal],
+  );
 
   // 압축·업로드
   // 진행률의 상태·타이머·리셋은 전부 이 훅 안에 있다. 여기서는 벌어진 일만 알린다.
@@ -444,7 +451,7 @@ function WorkspaceInner() {
     playbackUrl: detail?.playback_url ?? null,
     // 배우가 지금 칸에 적고 있는 것이다. detail 은 이미 만들어진 연습의 값이라
     // 건너뛸 수 있는지를 가르지 못한다.
-    scene: { situation, characterContext: character, goal },
+    scene: sceneDraft,
   });
   const body = view.body;
 
@@ -709,7 +716,7 @@ function WorkspaceInner() {
     const started = await startPractice({
       upload: promise,
       signal: controller.signal,
-      scene: { situation, characterContext: character, goal },
+      scene: sceneDraft,
       blockage,
       continueFromId: continueFrom?.id,
     });
@@ -746,7 +753,7 @@ function WorkspaceInner() {
         durationMs,
         blockage.blockage_kind,
         blockage.sub_branch,
-        isSceneContextBlank({ situation, characterContext: character, goal }),
+        isSceneContextBlank(sceneDraft),
       );
       trackAnalysis(session.session_id);
       void getPracticeSession(session.session_id).then(
@@ -768,9 +775,7 @@ function WorkspaceInner() {
     }
   }, [
     screen,
-    situation,
-    character,
-    goal,
+    sceneDraft,
     enterAnalysis,
     isCurrentSession,
     setCurrentSession,
@@ -1556,7 +1561,13 @@ const SessionRail = memo(function SessionRail({
               key={s.session_id}
               type="button"
               onClick={() => onOpen(s.session_id)}
-              title={s.situation}
+              // 장면을 건너뛴 연습은 아바타 글자가 다 같은 "연"이 된다. 펼친 목록과
+              // 같은 사슬을 써야 접어 둔 채로도 서로를 구분할 수 있다.
+              title={
+                headlines.get(s.session_id)?.trim()
+                || s.situation?.trim()
+                || "제목 없는 연습"
+              }
               className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-[13px] font-black transition ${
                 s.session_id === activeId
                   ? "bg-[#e8f3ff] text-[#3182f6]"

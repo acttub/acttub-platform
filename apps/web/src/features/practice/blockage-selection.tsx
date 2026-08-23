@@ -74,6 +74,17 @@ export function BlockageSelectionFlow({
         >{`고른 것 · ${state.kind}`}</BackChip>
       ) : null}
 
+      {/* 화면 제목은 상태와 무관하게 하나 선다. 고른 뒤에만 서는 자리에 두면
+          대분류를 고르는 순간 이 화면에서 h1 이 사라진다. */}
+      <ScreenHeading
+        title={chosen ? "조금만 더 알려 주세요" : "지금 연기에서 어느 쪽이 더 막히나요?"}
+        description={
+          chosen
+            ? "여기서 더 안 골라도 그대로 이어갈 수 있어요."
+            : "고른 쪽에 맞춰 질문을 준비할게요. 하나만 골라 주세요."
+        }
+      />
+
       {chosen ? null : (
         <MainBranchPicker
           onChoose={(kind) => setState((current) => chooseBlockageKind(current, kind))}
@@ -193,7 +204,7 @@ export function QuestionStepper() {
   );
 }
 
-/** 이 화면의 제목. 화면이 하나이므로 h1 도 하나뿐이다. */
+/** 이 화면의 제목. 상태와 무관하게 늘 하나 서므로 h1 은 언제나 정확히 하나다. */
 function ScreenHeading({
   title,
   description,
@@ -268,11 +279,7 @@ function ChoiceCard({
 
 function MainBranchPicker({ onChoose }: { onChoose: (kind: (typeof BLOCKAGE_CHOICES)[number]["value"]) => void }) {
   return (
-    <section className="grid gap-5">
-      <ScreenHeading
-        title="지금 연기에서 어느 쪽이 더 막히나요?"
-        description="고른 쪽에 맞춰 질문을 준비할게요. 하나만 골라 주세요."
-      />
+    <section className="grid gap-4">
       <div className="grid gap-4">
         {BLOCKAGE_CHOICES.map((choice) => (
           <ChoiceCard
@@ -338,7 +345,7 @@ function DetailPanel({
         <>
           <SectionHeading
             title={`${kind} 중에서도 어디가 가장 막히나요?`}
-            description="안 골라도 그대로 이어갈 수 있어요. 고르면 질문이 더 맞아떨어져요."
+            description="고르면 질문이 더 맞아떨어져요."
           />
           <div className="grid gap-2">
             {subChoices.map((choice) => (

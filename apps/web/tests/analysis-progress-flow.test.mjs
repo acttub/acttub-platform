@@ -232,7 +232,7 @@ test("건너뛰기는 화면 판단을 그대로 따르고 누르면 두 자리�
   );
   assert.match(
     begin,
-    /trackPracticeSessionCreated\([\s\S]{0,200}?isSceneContextBlank\(\{ situation, characterContext: character, goal \}\)/,
+    /trackPracticeSessionCreated\([\s\S]{0,200}?isSceneContextBlank\(sceneDraft\)/,
   );
 });
 

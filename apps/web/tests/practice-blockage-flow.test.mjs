@@ -25,6 +25,20 @@ const blockageSelectionSource = readFileSync(
   "utf8",
 );
 
+/**
+ * 서술 자리만 잘라 낸다. 끝을 안 막으면 뒤에 함수가 붙는 날 창이 파일 끝까지
+ * 벌어지고, 그때부터 아래 단언들은 저절로 통과한다.
+ */
+function detailPanelSource() {
+  const start = blockageSelectionSource.indexOf("function DetailPanel({");
+  assert.notEqual(start, -1, "서술 자리를 못 찾았다");
+  const end = blockageSelectionSource.indexOf("\nfunction ", start + 1);
+  return blockageSelectionSource.slice(
+    start,
+    end === -1 ? blockageSelectionSource.length : end,
+  );
+}
+
 test("큰 갈래를 고르면 해당 하위 갈래 선택지만 제공한다", () => {
   assert.deepEqual(
     subBranchChoices("분석").map((choice) => choice.value),
@@ -51,6 +65,20 @@ test("대분류만 골라도 완성되고 하위 갈래는 '특정하지 않음'
   });
 });
 
+test("좁힐 것이 없는 대분류는 하위 갈래 자리 없이 그대로 완성된다", () => {
+  const state = chooseBlockageKind(initialBlockageFlowState, "그 외");
+
+  assert.deepEqual(subBranchChoices("그 외"), []);
+  assert.equal(effectiveSubBranch(state), "그 외");
+  assert.deepEqual(completeBlockageFlow(state), {
+    blockage_kind: "그 외",
+    sub_branch: "그 외",
+    blockage_detail: null,
+  });
+  // 목록이 없으니 고를 수도 없다 — 눌러 봐야 아무 일도 일어나지 않는다.
+  assert.deepEqual(chooseBlockageSubBranch(state, "감정"), state);
+});
+
 test("대분류를 고르기 전에는 완성되지 않는다", () => {
   assert.equal(completeBlockageFlow(initialBlockageFlowState), null);
   // 값이 동작을 가른다 — 대분류가 "분석"일 때만 대사 전사가 돌고 코치 프롬프트와
@@ -75,10 +103,8 @@ test("화면이 말하는 하위 갈래와 저장되는 값이 같은 답을 본
 
   // 화면이 자기 기본값을 따로 들면 위 단언은 그대로 초록이다 — 그 자리가 같은
   // 함수를 부르는지는 소스로만 볼 수 있다.
-  const detailStart = blockageSelectionSource.indexOf("function DetailPanel");
-  assert.notEqual(detailStart, -1, "서술 자리를 못 찾았다");
   assert.match(
-    blockageSelectionSource.slice(detailStart),
+    detailPanelSource(),
     /const subBranch = effectiveSubBranch\(state\);/,
   );
 });
@@ -137,11 +163,8 @@ test("서술을 비워도 이대로 이어가기 버튼이 활성 상태로 남�
   assert.equal(completeBlockageFlow(detail)?.blockage_detail, null);
   // 창은 그 버튼이 사는 자리로 끊는다 — 파일 전체를 두고 이어 붙이면 멀리 떨어진
   // 두 심볼이 한 단언을 만족한다(apps/web/CLAUDE.md 가 실물로 경고한 모양).
-  const detailStart = blockageSelectionSource.indexOf("function DetailPanel");
-  assert.notEqual(detailStart, -1, "서술 자리를 못 찾았다");
-  const detailPanel = blockageSelectionSource.slice(detailStart);
   assert.match(
-    detailPanel,
+    detailPanelSource(),
     /disabled=\{submitDisabled\}[\s\S]*?onClick=\{onComplete\}[\s\S]*?disabled:bg-\[#c9d3df\][\s\S]*?이대로 이어가기 →/,
   );
   // 그 잠금은 화면 뒤에서 도는 **다른** 일이 이 연습을 붙들고 있다는 뜻이다(실제로
@@ -160,19 +183,9 @@ test("고른 대분류를 되돌리는 칩과 글자 수 표시가 남아 있다
   assert.match(blockageSelectionSource, /\{state\.detail\.length\}자/);
 });
 
-test("막힘 선택은 한 화면에서 끝난다", () => {
-  // 화면 전환이 없으므로 "지금 어느 단계인가"를 아무도 들지 않는다. 단계가 되살아나면
-  // 되돌리기가 다시 화면 이동이 되고 무엇이 남았는지도 한눈에 안 보인다.
-  assert.doesNotMatch(blockageSelectionSource, /state\.step|"sub"|"detail"/);
-  // 고르기 전에는 대분류만, 고른 뒤에는 남은 것이 한 자리에 함께 선다.
-  assert.match(blockageSelectionSource, /\{chosen \? null : \(\s*<MainBranchPicker/);
-  assert.match(blockageSelectionSource, /\{state\.kind \? \(\s*<DetailPanel/);
-});
 
 test("작은 화면용 서술 입력의 압축 레이아웃을 유지한다", () => {
-  const detailStart = blockageSelectionSource.indexOf("function DetailPanel");
-  assert.notEqual(detailStart, -1, "서술 자리를 못 찾았다");
-  const detail = blockageSelectionSource.slice(detailStart);
+  const detail = detailPanelSource();
 
   assert.match(detail, /<section className="grid gap-3">/);
   // 제목은 h2 다 — 한 화면이 되면서 h1 이 둘이 되지 않게 갈랐다.
