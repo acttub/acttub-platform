@@ -225,6 +225,15 @@ export function trackPracticeBlockageStarted(): void {
   track("practice_blockage_started");
 }
 
+/**
+ * "장면 없이 시작"을 눌렀다. 세션 제출 이벤트의 scene_skipped 와 나눠 두는 이유는
+ * "버튼을 눌렀다"와 "그냥 빈 채로 진행했다"를 갈라야 안내 문구와 버튼의 효과를
+ * 따로 잴 수 있기 때문이다(ADR-021).
+ */
+export function trackPracticeSceneSkipped(): void {
+  track("practice_scene_skipped");
+}
+
 export function trackPracticeBlockageSubmitted(
   kind: BlockageKind,
   subBranch: BlockageSubBranch,
@@ -251,11 +260,14 @@ export function trackPracticeSessionCreated(
   durationMs: number,
   kind: BlockageKind,
   subBranch: BlockageSubBranch,
+  /** Scene Context 세 칸을 모두 비운 채 만든 연습인가. 완주율을 갈라 보는 데 쓴다. */
+  sceneSkipped: boolean,
 ): void {
   track("practice_session_created", {
     duration_bucket: toDurationBucket(durationMs),
     kind,
     sub_branch: subBranch,
+    scene_skipped: sceneSkipped,
   });
 }
 

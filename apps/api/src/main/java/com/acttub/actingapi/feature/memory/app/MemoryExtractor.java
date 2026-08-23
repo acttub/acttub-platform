@@ -70,14 +70,29 @@ public final class MemoryExtractor {
     private MemoryExtractor() {
     }
 
+    /**
+     * 목표가 빈 칸일 때 넣는 줄.
+     *
+     * <p>부재를 <b>목표에 한정해</b> 말한다 — 관찰·코치 프롬프트의 "배우가 장면을 적지
+     * 않았다" 를 여기 그대로 옮기면 거짓이다. {@link MemoryUpdateMaterial} 은 상황·캐릭터를
+     * 담지 않아 그 둘의 유무를 알지 못하고, 이 프롬프트가 아는 Scene Context 는 목표뿐이다.
+     */
+    private static final String GOAL_ABSENT =
+            "- 배우가 목표를 적지 않았다. 목표를 지어내지 마라.";
+
     static String buildExtractionPrompt(
             MemoryUpdateMaterial material, Map<String, String> existing) {
         List<String> lines = new ArrayList<>();
         lines.add("[이번 연습]");
-        lines.add("- 배우가 적은 목표: " + material.goal());
+        // 빈 칸은 줄 자체를 만들지 않는다 — 빈 제목만 남기면 모델이 그 자리를 지어내
+        // 채운다(ADR-021). 여기서 지어낸 값은 응답으로 끝나지 않고 기억으로 저장돼
+        // 다음 연습까지 따라간다.
+        lines.add(blank(material.goal())
+                ? GOAL_ABSENT
+                : "- 배우가 적은 목표: " + material.goal());
         lines.add("- 배우가 고른 막히는 지점: "
-                + material.blockageKind() + " / " + material.subBranch());
-        if (material.blockageDetail() != null && !material.blockageDetail().isEmpty()) {
+                + material.blockageKind() + " / " + subBranchLabel(material.subBranch()));
+        if (!blank(material.blockageDetail())) {
             lines.add("- 배우가 덧붙인 설명: " + material.blockageDetail());
         }
         if (!material.transcripts().isEmpty()) {
@@ -105,6 +120,19 @@ public final class MemoryExtractor {
         lines.add("");
         lines.add("달라진 칸만 JSON 으로 출력하라.");
         return String.join("\n", lines);
+    }
+
+    /**
+     * {@code 그 외} 는 <b>"특정하지 않음"</b> 으로 적는다. 하위 갈래를 직접 고른 사람과
+     * 화면에서 안 고른 사람을 서버가 구분할 수 없는데, 이 표현은 양쪽 모두에게 참이다
+     * (ADR-021). {@code CoachPrompt:subBranchLabel} 과 같은 규칙이다.
+     */
+    private static String subBranchLabel(String subBranch) {
+        return "그 외".equals(subBranch) ? "특정하지 않음" : subBranch;
+    }
+
+    private static boolean blank(String value) {
+        return value == null || value.isBlank();
     }
 
     /**

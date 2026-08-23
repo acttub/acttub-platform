@@ -6,15 +6,16 @@ import {
   blockageDetailExamples,
   blockageDetailTitle,
   changeBlockageKind,
-  changeBlockageSubBranch,
   chooseBlockageKind,
   chooseBlockageSubBranch,
   completeBlockageFlow,
+  effectiveSubBranch,
   initialBlockageFlowState,
   subBranchChoices,
   updateBlockageDetail,
   type BlockageFlowState,
   type BlockageSelection,
+  type BlockageSubBranch,
 } from "./blockage-flow";
 
 type SceneContext = {
@@ -41,52 +42,65 @@ export function BlockageSelectionFlow({
 }) {
   const [state, setState] = useState<BlockageFlowState>(initialBlockageFlowState);
   const [videoOpen, setVideoOpen] = useState(false);
-  const detailStep = state.step === "detail";
+  const chosen = state.kind !== null;
 
   return (
-    <div className={detailStep ? "grid gap-3" : "grid gap-5"}>
-      {!detailStep ? (
-        <div
-          className={
-            videoOpen
-              ? "grid gap-5 sm:contents"
-              : "flex min-w-0 items-center justify-between gap-3 sm:contents"
-          }
-        >
-          <div className={videoOpen ? "sm:contents" : "order-2 min-w-0 shrink-0 sm:contents"}>
-            <FoldedSceneBar
-              videoUrl={videoUrl}
-              scene={scene}
-              open={videoOpen}
-              onToggle={() => setVideoOpen((current) => !current)}
-            />
-          </div>
-          <div className={videoOpen ? "sm:contents" : "order-1 min-w-0 flex-1 sm:contents"}>
-            <QuestionStepper />
-          </div>
+    <div className="grid gap-3">
+      <div
+        className={
+          videoOpen
+            ? "grid gap-5 sm:contents"
+            : "flex min-w-0 items-center justify-between gap-3 sm:contents"
+        }
+      >
+        <div className={videoOpen ? "sm:contents" : "order-2 min-w-0 shrink-0 sm:contents"}>
+          <FoldedSceneBar
+            videoUrl={videoUrl}
+            scene={scene}
+            open={videoOpen}
+            onToggle={() => setVideoOpen((current) => !current)}
+          />
         </div>
-      ) : null}
-      {detailStep ? <QuestionStepper /> : null}
+        <div className={videoOpen ? "sm:contents" : "order-1 min-w-0 flex-1 sm:contents"}>
+          <QuestionStepper />
+        </div>
+      </div>
 
-      {state.step === "main" ? (
-        <MainBranchScreen onChoose={(kind) => setState((current) => chooseBlockageKind(current, kind))} />
+      {chosen ? (
+        <BackChip
+          action="바꾸기"
+          onClick={() => setState((current) => changeBlockageKind(current))}
+          compact
+        >{`고른 것 · ${state.kind}`}</BackChip>
       ) : null}
 
-      {state.step === "sub" && state.kind ? (
-        <SubBranchScreen
+      {/* 화면 제목은 상태와 무관하게 하나 선다. 고른 뒤에만 서는 자리에 두면
+          대분류를 고르는 순간 이 화면에서 h1 이 사라진다. */}
+      <ScreenHeading
+        title={chosen ? "조금만 더 알려 주세요" : "지금 연기에서 어느 쪽이 더 막히나요?"}
+        description={
+          chosen
+            ? "여기서 더 안 골라도 그대로 이어갈 수 있어요."
+            : "고른 쪽에 맞춰 질문을 준비할게요. 하나만 골라 주세요."
+        }
+      />
+
+      {chosen ? null : (
+        <MainBranchPicker
+          onChoose={(kind) => setState((current) => chooseBlockageKind(current, kind))}
+        />
+      )}
+
+      {/* 고른 뒤에는 남은 것이 한 화면에 함께 선다 — 넘길 화면이 없으니 무엇이
+          남았는지 눈으로 보이고, 하나도 더 안 골라도 그대로 이어갈 수 있다. */}
+      {state.kind ? (
+        <DetailPanel
           state={state}
-          onChangeKind={() => setState((current) => changeBlockageKind(current))}
-          onChoose={(subBranch) =>
+          kind={state.kind}
+          submitDisabled={submitDisabled}
+          onSubBranch={(subBranch) =>
             setState((current) => chooseBlockageSubBranch(current, subBranch))
           }
-        />
-      ) : null}
-
-      {state.step === "detail" && state.kind && state.subBranch ? (
-        <DetailScreen
-          state={state}
-          submitDisabled={submitDisabled}
-          onBack={() => setState((current) => changeBlockageSubBranch(current))}
           onDetail={(detail) => setState((current) => updateBlockageDetail(current, detail))}
           onComplete={() => {
             const selection = completeBlockageFlow(state);
@@ -190,21 +204,40 @@ export function QuestionStepper() {
   );
 }
 
+/** 이 화면의 제목. 상태와 무관하게 늘 하나 서므로 h1 은 언제나 정확히 하나다. */
 function ScreenHeading({
   title,
   description,
-  compact = false,
 }: {
   title: string;
   description: string;
-  compact?: boolean;
 }) {
   return (
     <header>
-      <h1 className={`${compact ? "text-xl sm:text-2xl" : "text-2xl sm:text-3xl"} font-black leading-tight tracking-[-0.04em] text-[#191f28]`}>
+      <h1 className="text-2xl font-black leading-tight tracking-[-0.04em] text-[#191f28] sm:text-3xl">
         {title}
       </h1>
-      <p className={`${compact ? "mt-1.5 leading-5" : "mt-3 leading-6"} text-sm font-semibold text-[#4e5968] sm:text-base`}>
+      <p className="mt-3 text-sm font-semibold leading-6 text-[#4e5968] sm:text-base">
+        {description}
+      </p>
+    </header>
+  );
+}
+
+/** 한 화면 안의 작은 제목. 화면 제목(h1)은 하나뿐이라 이쪽은 h2 다. */
+function SectionHeading({
+  title,
+  description,
+}: {
+  title: string;
+  description: string;
+}) {
+  return (
+    <header>
+      <h2 className="text-lg font-black leading-tight tracking-[-0.03em] text-[#191f28] sm:text-xl">
+        {title}
+      </h2>
+      <p className="mt-1.5 text-sm font-semibold leading-5 text-[#4e5968]">
         {description}
       </p>
     </header>
@@ -214,31 +247,39 @@ function ScreenHeading({
 function ChoiceCard({
   title,
   description,
+  selected = false,
+  compact = false,
   onClick,
 }: {
   title: string;
   description: string;
+  /** 고른 것을 화면에 남긴다 — 목록이 그대로 서 있어야 눌러서 바꿀 수 있다. */
+  selected?: boolean;
+  compact?: boolean;
   onClick: () => void;
 }) {
   return (
     <button
       type="button"
+      aria-pressed={selected}
       onClick={onClick}
-      className="min-h-24 w-full rounded-[28px] bg-white px-6 py-5 text-left shadow-[0_16px_48px_rgba(25,31,40,0.08)] transition"
+      className={`w-full rounded-[28px] px-6 text-left shadow-[0_16px_48px_rgba(25,31,40,0.08)] transition ${
+        compact ? "min-h-[68px] py-3.5" : "min-h-24 py-5"
+      } ${selected ? "bg-[#eef5ff] ring-2 ring-[#2f6bff]" : "bg-white"}`}
     >
-      <span className="block text-lg font-black text-[#191f28]">{title}</span>
-      <span className="mt-2 block text-sm font-semibold text-[#4e5968]">{description}</span>
+      <span className={`block font-black text-[#191f28] ${compact ? "text-base" : "text-lg"}`}>
+        {title}
+      </span>
+      <span className={`block text-sm font-semibold text-[#4e5968] ${compact ? "mt-1" : "mt-2"}`}>
+        {description}
+      </span>
     </button>
   );
 }
 
-function MainBranchScreen({ onChoose }: { onChoose: (kind: (typeof BLOCKAGE_CHOICES)[number]["value"]) => void }) {
+function MainBranchPicker({ onChoose }: { onChoose: (kind: (typeof BLOCKAGE_CHOICES)[number]["value"]) => void }) {
   return (
-    <section className="grid gap-5">
-      <ScreenHeading
-        title="지금 연기에서 어느 쪽이 더 막히나요?"
-        description="고른 쪽에 맞춰 질문을 준비할게요. 하나만 골라 주세요."
-      />
+    <section className="grid gap-4">
       <div className="grid gap-4">
         {BLOCKAGE_CHOICES.map((choice) => (
           <ChoiceCard
@@ -274,64 +315,56 @@ function BackChip({
   );
 }
 
-function SubBranchScreen({
+function DetailPanel({
   state,
-  onChangeKind,
-  onChoose,
-}: {
-  state: BlockageFlowState;
-  onChangeKind: () => void;
-  onChoose: (subBranch: NonNullable<BlockageFlowState["subBranch"]>) => void;
-}) {
-  if (!state.kind) return null;
-  return (
-    <section className="grid gap-5">
-      <BackChip action="바꾸기" onClick={onChangeKind}>{`앞에서 고른 것 · ${state.kind}`}</BackChip>
-      <ScreenHeading
-        title={`${state.kind} 중에서도 어디가 가장 막히나요?`}
-        description={`'${state.kind}'을 조금 더 좁혀 볼게요. 하나만 골라 주세요.`}
-      />
-      <div className="grid gap-4">
-        {subBranchChoices(state.kind).map((choice) => (
-          <ChoiceCard
-            key={choice.value}
-            title={choice.value}
-            description={choice.description}
-            onClick={() => onChoose(choice.value)}
-          />
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function DetailScreen({
-  state,
+  kind,
   submitDisabled,
-  onBack,
+  onSubBranch,
   onDetail,
   onComplete,
 }: {
   state: BlockageFlowState;
+  /** 고른 대분류. 이 자리는 그것이 선 뒤에만 서므로 null 을 받지 않는다. */
+  kind: NonNullable<BlockageFlowState["kind"]>;
   submitDisabled: boolean;
-  onBack: () => void;
+  onSubBranch: (subBranch: BlockageSubBranch) => void;
   onDetail: (detail: string) => void;
   onComplete: () => void;
 }) {
   const [examplesOpen, setExamplesOpen] = useState(false);
 
-  if (!state.kind || !state.subBranch) return null;
-  const examples = blockageDetailExamples(state.subBranch);
-  const selected = state.kind === "그 외" ? state.kind : `${state.kind} · ${state.subBranch}`;
-  const action = state.kind === "그 외" ? "앞 선택 바꾸기" : `${state.subBranch} 바꾸기`;
+  const subChoices = subBranchChoices(kind);
+  // 안 고른 사람은 "그 외"로 간다. 제목과 예시가 저장되는 값과 같은 답을 보도록
+  // 그 답을 정하는 함수 하나를 함께 쓴다.
+  const subBranch = effectiveSubBranch(state);
+  const examples = blockageDetailExamples(subBranch);
 
   return (
     <section className="grid gap-3">
-      <BackChip action={action} onClick={onBack} compact>{`고른 것 · ${selected}`}</BackChip>
-      <ScreenHeading
-        title={blockageDetailTitle(state.subBranch)}
+      {subChoices.length > 0 ? (
+        <>
+          <SectionHeading
+            title={`${kind} 중에서도 어디가 가장 막히나요?`}
+            description="고르면 질문이 더 맞아떨어져요."
+          />
+          <div className="grid gap-2">
+            {subChoices.map((choice) => (
+              <ChoiceCard
+                key={choice.value}
+                title={choice.value}
+                description={choice.description}
+                selected={state.subBranch === choice.value}
+                compact
+                onClick={() => onSubBranch(choice.value)}
+              />
+            ))}
+          </div>
+        </>
+      ) : null}
+
+      <SectionHeading
+        title={blockageDetailTitle(subBranch)}
         description="어디에서 막히는지 적으면 질문이 더 정확해져요. 비워 두어도 괜찮아요."
-        compact
       />
       <div className="overflow-hidden rounded-2xl bg-[#f7faff] text-sm font-semibold text-[#4e5968]">
         <button

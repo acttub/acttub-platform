@@ -2,7 +2,6 @@ import type { PracticeSessionRequest } from "@/lib/api/v2/types";
 
 export type BlockageKind = PracticeSessionRequest["blockage_kind"];
 export type BlockageSubBranch = PracticeSessionRequest["sub_branch"];
-export type BlockageFlowStep = "main" | "sub" | "detail";
 
 export type BlockageChoice = {
   value: BlockageKind;
@@ -14,8 +13,11 @@ export type BlockageSubChoice = {
   description: string;
 };
 
+/**
+ * 한 화면이 통째로 드는 상태. 화면 전환이 없어 "지금 어느 단계인가"가 없다 —
+ * 무엇이 남았는지는 kind 가 섰는지로만 갈린다.
+ */
 export type BlockageFlowState = {
-  step: BlockageFlowStep;
   kind: BlockageKind | null;
   subBranch: BlockageSubBranch | null;
   detail: string;
@@ -87,7 +89,6 @@ const DETAIL_EXAMPLES: Record<BlockageSubBranch, readonly string[]> = {
 };
 
 export const initialBlockageFlowState: BlockageFlowState = {
-  step: "main",
   kind: null,
   subBranch: null,
   detail: "",
@@ -101,29 +102,24 @@ export function chooseBlockageKind(
   state: BlockageFlowState,
   kind: BlockageKind,
 ): BlockageFlowState {
-  return {
-    ...state,
-    kind,
-    subBranch: kind === "그 외" ? "그 외" : null,
-    step: kind === "그 외" ? "detail" : "sub",
-  };
+  // 갈아탄 대분류의 목록에 없는 값이 남을 수 있다("감정"은 분석의 선택지가 아니다).
+  // 양쪽에 다 있는 "그 외"까지 함께 비우는 것은 그 하나를 가려내는 것보다,
+  // 갈아탈 때마다 처음부터 고르는 편이 화면에서도 정직하기 때문이다.
+  return { ...state, kind, subBranch: null };
 }
 
 export function chooseBlockageSubBranch(
   state: BlockageFlowState,
   subBranch: BlockageSubBranch,
 ): BlockageFlowState {
+  // "그 외"는 좁힐 것이 없어 하위 갈래 자리 자체가 서지 않는다.
   if (!state.kind || state.kind === "그 외") return state;
-  return { ...state, subBranch, step: "detail" };
+  return { ...state, subBranch };
 }
 
+/** 적어 둔 서술은 남긴다 — 대분류를 다시 고르는 것과 적은 것을 버리는 것은 다르다. */
 export function changeBlockageKind(state: BlockageFlowState): BlockageFlowState {
-  return { ...state, step: "main", kind: null, subBranch: null };
-}
-
-export function changeBlockageSubBranch(state: BlockageFlowState): BlockageFlowState {
-  if (!state.kind || state.kind === "그 외") return changeBlockageKind(state);
-  return { ...state, step: "sub", subBranch: null };
+  return { ...state, kind: null, subBranch: null };
 }
 
 export function updateBlockageDetail(
@@ -133,11 +129,30 @@ export function updateBlockageDetail(
   return { ...state, detail };
 }
 
+/**
+ * 하위 갈래를 안 고른 사람에게 실리는 값. 화면의 제목·예시와 저장되는 값이 이 함수
+ * 하나를 봐야 "화면은 그 외인데 저장은 다른 것"으로 갈리지 않는다.
+ */
+export function effectiveSubBranch(
+  state: BlockageFlowState,
+): BlockageSubBranch {
+  return state.subBranch ?? "그 외";
+}
+
+/**
+ * 대분류만 있으면 완성된다. 하위 갈래를 안 고르면 "그 외"로 간다 — DB 의 조합 CHECK
+ * 제약이 빈 문자열을 거부하고 이 필드는 허용값 목록으로 막혀 있어 중립값을 새로
+ * 만들 수 없는데, "그 외"가 이미 "특정하지 않음"을 뜻해 직접 고른 사람과 안 고른
+ * 사람 모두에게 참이다(ADR-021).
+ *
+ * 대분류가 없으면 완성하지 않는다. 값이 동작을 가르기 때문이다 — "분석"일 때만
+ * 대사 전사가 돌고, 코치 프롬프트와 노트 틀도 여기서 갈린다.
+ */
 export function completeBlockageFlow(state: BlockageFlowState): BlockageSelection | null {
-  if (state.step !== "detail" || !state.kind || !state.subBranch) return null;
+  if (!state.kind) return null;
   return {
     blockage_kind: state.kind,
-    sub_branch: state.subBranch,
+    sub_branch: effectiveSubBranch(state),
     blockage_detail: state.detail.trim() || null,
   };
 }

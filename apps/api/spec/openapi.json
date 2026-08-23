@@ -2262,17 +2262,14 @@
           },
           "situation" : {
             "type" : "string",
-            "minLength" : 1,
             "title" : "Situation"
           },
           "character_context" : {
             "type" : "string",
-            "minLength" : 1,
             "title" : "Character Context"
           },
           "goal" : {
             "type" : "string",
-            "minLength" : 1,
             "title" : "Goal"
           },
           "blockage_kind" : {

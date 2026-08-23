@@ -7,10 +7,10 @@ import "./ts-module-loader.mjs";
 
 const {
   changeBlockageKind,
-  changeBlockageSubBranch,
   chooseBlockageKind,
   chooseBlockageSubBranch,
   completeBlockageFlow,
+  effectiveSubBranch,
   initialBlockageFlowState,
   subBranchChoices,
 } = await import("../src/features/practice/blockage-flow.ts");
@@ -25,6 +25,20 @@ const blockageSelectionSource = readFileSync(
   "utf8",
 );
 
+/**
+ * 서술 자리만 잘라 낸다. 끝을 안 막으면 뒤에 함수가 붙는 날 창이 파일 끝까지
+ * 벌어지고, 그때부터 아래 단언들은 저절로 통과한다.
+ */
+function detailPanelSource() {
+  const start = blockageSelectionSource.indexOf("function DetailPanel({");
+  assert.notEqual(start, -1, "서술 자리를 못 찾았다");
+  const end = blockageSelectionSource.indexOf("\nfunction ", start + 1);
+  return blockageSelectionSource.slice(
+    start,
+    end === -1 ? blockageSelectionSource.length : end,
+  );
+}
+
 test("큰 갈래를 고르면 해당 하위 갈래 선택지만 제공한다", () => {
   assert.deepEqual(
     subBranchChoices("분석").map((choice) => choice.value),
@@ -34,44 +48,98 @@ test("큰 갈래를 고르면 해당 하위 갈래 선택지만 제공한다", (
     subBranchChoices("표현").map((choice) => choice.value),
     ["감정", "움직임", "화술", "표정", "그 외"],
   );
-
-  const analysis = chooseBlockageKind(initialBlockageFlowState, "분석");
-  const expression = chooseBlockageKind(initialBlockageFlowState, "표현");
-  assert.equal(analysis.step, "sub");
-  assert.equal(expression.step, "sub");
-});
-
-test("그 외를 고르면 하위 갈래를 건너뛴다", () => {
-  const state = chooseBlockageKind(initialBlockageFlowState, "그 외");
-  assert.equal(state.step, "detail");
-  assert.equal(state.subBranch, "그 외");
+  // "그 외"는 좁힐 것이 없다 — 목록이 비어 하위 갈래 자리가 아예 서지 않는다.
   assert.deepEqual(subBranchChoices("그 외"), []);
 });
 
-test("바꾸기 칩은 하위 갈래와 큰 갈래의 이전 화면으로 돌아간다", () => {
-  const sub = chooseBlockageKind(initialBlockageFlowState, "표현");
-  assert.deepEqual(changeBlockageKind(sub), initialBlockageFlowState);
+test("대분류만 골라도 완성되고 하위 갈래는 '특정하지 않음'으로 간다", () => {
+  const state = chooseBlockageKind(initialBlockageFlowState, "표현");
 
-  const detail = chooseBlockageSubBranch(sub, "감정");
-  assert.deepEqual(changeBlockageSubBranch(detail), {
-    step: "sub",
-    kind: "표현",
-    subBranch: null,
-    detail: "",
+  assert.equal(state.subBranch, null);
+  // "그 외"는 서버가 이미 아는 값이고, 직접 고른 사람과 안 고른 사람 모두에게
+  // 참인 표현이다. CHECK 제약이 빈 문자열을 거부해 중립값을 새로 만들 수 없다.
+  assert.deepEqual(completeBlockageFlow(state), {
+    blockage_kind: "표현",
+    sub_branch: "그 외",
+    blockage_detail: null,
   });
-
-  const otherDetail = chooseBlockageKind(initialBlockageFlowState, "그 외");
-  assert.deepEqual(changeBlockageSubBranch(otherDetail), initialBlockageFlowState);
 });
 
-test("서술을 비워도 선택을 완성해 다음으로 넘어갈 수 있다", () => {
+test("좁힐 것이 없는 대분류는 하위 갈래 자리 없이 그대로 완성된다", () => {
+  const state = chooseBlockageKind(initialBlockageFlowState, "그 외");
+
+  assert.deepEqual(subBranchChoices("그 외"), []);
+  assert.equal(effectiveSubBranch(state), "그 외");
+  assert.deepEqual(completeBlockageFlow(state), {
+    blockage_kind: "그 외",
+    sub_branch: "그 외",
+    blockage_detail: null,
+  });
+  // 목록이 없으니 고를 수도 없다 — 눌러 봐야 아무 일도 일어나지 않는다.
+  assert.deepEqual(chooseBlockageSubBranch(state, "감정"), state);
+});
+
+test("대분류를 고르기 전에는 완성되지 않는다", () => {
+  assert.equal(completeBlockageFlow(initialBlockageFlowState), null);
+  // 값이 동작을 가른다 — 대분류가 "분석"일 때만 대사 전사가 돌고 코치 프롬프트와
+  // 노트 틀도 여기서 갈린다. 중립값을 자동으로 채우면 전사가 조용히 꺼진다.
+  assert.equal(
+    completeBlockageFlow({ ...initialBlockageFlowState, detail: "적어는 뒀다" }),
+    null,
+  );
+});
+
+test("화면이 말하는 하위 갈래와 저장되는 값이 같은 답을 본다", () => {
   const main = chooseBlockageKind(initialBlockageFlowState, "표현");
-  const detail = chooseBlockageSubBranch(main, "표정");
-  assert.deepEqual(completeBlockageFlow(detail), {
+
+  // 안 고른 사람의 화면 제목·예시가 이 답을 따라간다. 갈라 적으면 "화면은 그 외인데
+  // 저장은 다른 것"이 되고, 그 어긋남은 마크업을 못 보는 테스트에 안 걸린다.
+  assert.equal(effectiveSubBranch(main), "그 외");
+  assert.equal(completeBlockageFlow(main)?.sub_branch, effectiveSubBranch(main));
+
+  const chosen = chooseBlockageSubBranch(main, "화술");
+  assert.equal(effectiveSubBranch(chosen), "화술");
+  assert.equal(completeBlockageFlow(chosen)?.sub_branch, effectiveSubBranch(chosen));
+
+  // 화면이 자기 기본값을 따로 들면 위 단언은 그대로 초록이다 — 그 자리가 같은
+  // 함수를 부르는지는 소스로만 볼 수 있다.
+  assert.match(
+    detailPanelSource(),
+    /const subBranch = effectiveSubBranch\(state\);/,
+  );
+});
+
+test("하위 갈래를 고르면 그 값이 실린다", () => {
+  const main = chooseBlockageKind(initialBlockageFlowState, "표현");
+  const chosen = chooseBlockageSubBranch(main, "표정");
+
+  assert.deepEqual(completeBlockageFlow(chosen), {
     blockage_kind: "표현",
     sub_branch: "표정",
     blockage_detail: null,
   });
+});
+
+test("대분류를 되돌리면 하위 갈래도 함께 지운다", () => {
+  const chosen = chooseBlockageSubBranch(
+    chooseBlockageKind(initialBlockageFlowState, "표현"),
+    "감정",
+  );
+
+  assert.deepEqual(changeBlockageKind(chosen), initialBlockageFlowState);
+  // 적어 둔 서술은 남긴다 — 대분류를 다시 고르는 것과 적은 것을 버리는 것은 다르다.
+  const withDetail = { ...chosen, detail: "2분 언저리에서 얼굴이 굳어요" };
+  assert.equal(changeBlockageKind(withDetail).detail, "2분 언저리에서 얼굴이 굳어요");
+});
+
+test("대분류를 갈아타면 앞서 고른 하위 갈래는 따라가지 않는다", () => {
+  const chosen = chooseBlockageSubBranch(
+    chooseBlockageKind(initialBlockageFlowState, "표현"),
+    "감정",
+  );
+
+  // "감정"은 분석의 선택지가 아니다. 남겨 두면 목록에 없는 값이 실려 나간다.
+  assert.equal(chooseBlockageKind(chosen, "분석").subBranch, null);
 });
 
 test("서술 예시는 기본 접힘이고 예를 들면 라벨을 눌러 펼친다", () => {
@@ -93,13 +161,10 @@ test("서술을 비워도 이대로 이어가기 버튼이 활성 상태로 남�
   const detail = chooseBlockageSubBranch(main, "감정");
 
   assert.equal(completeBlockageFlow(detail)?.blockage_detail, null);
-  // 창은 그 버튼이 사는 화면으로 끊는다 — 파일 전체를 두고 이어 붙이면 멀리 떨어진
+  // 창은 그 버튼이 사는 자리로 끊는다 — 파일 전체를 두고 이어 붙이면 멀리 떨어진
   // 두 심볼이 한 단언을 만족한다(apps/web/CLAUDE.md 가 실물로 경고한 모양).
-  const detailStart = blockageSelectionSource.indexOf("function DetailScreen");
-  assert.notEqual(detailStart, -1, "서술 화면을 못 찾았다");
-  const detailScreen = blockageSelectionSource.slice(detailStart);
   assert.match(
-    detailScreen,
+    detailPanelSource(),
     /disabled=\{submitDisabled\}[\s\S]*?onClick=\{onComplete\}[\s\S]*?disabled:bg-\[#c9d3df\][\s\S]*?이대로 이어가기 →/,
   );
   // 그 잠금은 화면 뒤에서 도는 **다른** 일이 이 연습을 붙들고 있다는 뜻이다(실제로
@@ -108,21 +173,23 @@ test("서술을 비워도 이대로 이어가기 버튼이 활성 상태로 남�
   assert.doesNotMatch(blockageSelectionSource, /이어가는 중/);
 });
 
-test("서술 화면에 되돌리기 칩과 글자 수 표시가 남아 있다", () => {
+test("고른 대분류를 되돌리는 칩과 글자 수 표시가 남아 있다", () => {
+  // 칩은 이제 화면 맨 위에 하나뿐이다 — 되돌릴 것이 대분류 하나이기 때문이다.
+  // 하위 갈래는 목록이 그대로 서 있어 눌러서 바꾼다.
   assert.match(
     blockageSelectionSource,
-    /<BackChip action=\{action\} onClick=\{onBack\} compact>\{`고른 것 · \$\{selected\}`\}<\/BackChip>/,
+    /action="바꾸기"[\s\S]{0,200}?changeBlockageKind\(current\)[\s\S]{0,120}?`고른 것 · \$\{state\.kind\}`/,
   );
   assert.match(blockageSelectionSource, /\{state\.detail\.length\}자/);
 });
 
+
 test("작은 화면용 서술 입력의 압축 레이아웃을 유지한다", () => {
-  const detailStart = blockageSelectionSource.indexOf("function DetailScreen");
-  const detail = blockageSelectionSource.slice(detailStart);
+  const detail = detailPanelSource();
 
   assert.match(detail, /<section className="grid gap-3">/);
-  assert.match(detail, /<BackChip action=\{action\} onClick=\{onBack\} compact>/);
-  assert.match(detail, /<ScreenHeading[\s\S]*compact/);
+  // 제목은 h2 다 — 한 화면이 되면서 h1 이 둘이 되지 않게 갈랐다.
+  assert.match(detail, /<SectionHeading/);
   assert.match(detail, /className="flex min-h-\[44px\] w-full/);
   assert.match(detail, /className="h-\[112px\] min-h-\[112px\] max-h-\[112px\]/);
   assert.match(detail, /className="min-h-\[44px\] shrink-0/);
