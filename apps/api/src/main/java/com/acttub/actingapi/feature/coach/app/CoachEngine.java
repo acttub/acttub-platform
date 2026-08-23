@@ -67,10 +67,32 @@ public class CoachEngine {
 
     /** 새 세션의 첫 응답을 만들고 actor→ai 순서로 두 turn을 추가한다. */
     public CoachResult start(CoachSessionSnapshot session) {
-        String detail = session.blockageDetail();
-        String latest = detail == null || detail.isEmpty() ? session.goal() : detail;
+        String latest = firstActorMessage(session);
         CoachReply response = generateValidated(session, latest);
         return appendTurns(session, latest, response);
+    }
+
+    /**
+     * 첫 사용자 메시지. 막힘 상세 → 목표 → 막힘 대분류 순으로 떨어진다.
+     *
+     * <p>이 값은 <b>배우의 발화로 대화 이력에 남는다.</b> 그래서 사슬 끝이 막힘 대분류다 —
+     * 장면을 건너뛴 세션은 목표까지 비어 배우가 아무 말도 안 한 채로 대화가 열리는데,
+     * 대분류는 배우가 실제로 고른 유일한 값이라 거짓이 남지 않는다(ADR-021).
+     *
+     * <p>대분류가 비어 사슬이 값에 못 닿는 일은 <b>이 파일이 막지 않는다</b> — 요청 검증
+     * ({@code BlockageBranch.KINDS})과 {@code practice_sessions} 의 CHECK 제약이 값을
+     * 보장한다. 막힘은 건너뛸 수 없다는 결정이 그 보장의 근거다.
+     *
+     * <p>공백만 든 값도 건너뛴다 — 배우가 한 말이 아니므로 이력에 공백 한 칸을 남기지 않는다.
+     */
+    private static String firstActorMessage(CoachSessionSnapshot session) {
+        if (!CoachPrompt.blank(session.blockageDetail())) {
+            return session.blockageDetail();
+        }
+        if (!CoachPrompt.blank(session.goal())) {
+            return session.goal();
+        }
+        return session.blockageKind();
     }
 
     /** 기존 세션의 다음 응답을 만들고 actor→ai 순서로 두 turn을 추가한다. */
