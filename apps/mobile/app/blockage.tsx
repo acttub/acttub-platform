@@ -5,6 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import {
   BLOCKAGE_CHOICES,
+  skippedBlockageSelection,
   blockageDetailExamples,
   blockageDetailTitle,
   changeBlockageKind,
@@ -28,9 +29,9 @@ import { palette } from '@/constants/palette';
 /**
  * 막히는 지점 고르기 — 장면을 적은 뒤, 분석을 시작하기 전 단계.
  *
- * 서버가 이 선택으로 코치를 가르므로(분석/표현) 건너뛸 수 없다. 웹과 같은 선택지·
- * 같은 순서를 쓴다 — 플랫폼마다 다른 값을 보내면 같은 배우가 기기에 따라 다른
- * 질문을 받는다.
+ * 서버가 이 선택으로 코치를 가른다(분석/표현). 건너뛰면 '그 외'로 보낸다(SOMA-432) —
+ * 웹과 같은 선택지·같은 순서를 쓴다. 플랫폼마다 다른 값을 보내면 같은 배우가
+ * 기기에 따라 다른 질문을 받는다.
  *
  * 화면은 목업(M6.1-R · M6.1.1-R · M6.2-R)을 따른다. 고르면 바로 넘어가지 않고
  * 라디오로 표시한 뒤 아래 버튼으로 확정한다 — 잘못 눌러 단계가 넘어가지 않게.
@@ -98,6 +99,12 @@ export default function BlockageScreen() {
     setPickedSub(null);
   };
 
+  // 잘 모르겠으면 고르지 않아도 된다 — '그 외'로 보내면 코치가 대화에서 좁혀간다.
+  const skipAll = () => {
+    setPendingBlockage(skippedBlockageSelection());
+    router.replace('/analyzing');
+  };
+
   const confirmSub = () => {
     if (!pickedSub) return;
     setState((was) => chooseBlockageSubBranch(was, pickedSub));
@@ -140,11 +147,16 @@ export default function BlockageScreen() {
                   />
                 ))}
               </View>
-              <PrimaryButton
-                label="이걸로 이어가기 →"
-                disabled={!pickedKind}
-                onPress={confirmKind}
-              />
+              <View style={styles.actionBlock}>
+                <PrimaryButton
+                  label="이걸로 이어가기 →"
+                  disabled={!pickedKind}
+                  onPress={confirmKind}
+                />
+                <Pressable onPress={skipAll} accessibilityRole="button" hitSlop={8}>
+                  <Text style={styles.skip}>잘 모르겠어요 · 건너뛰기</Text>
+                </Pressable>
+              </View>
             </>
           )}
 

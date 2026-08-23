@@ -92,8 +92,8 @@ export default function UploadScreen() {
     });
   };
 
-  const canSubmit =
-    situation.trim() && character.trim() && goal.trim() && video && agreedRights;
+  // 장면 세 칸은 선택이다(SOMA-432) — 비우면 코치가 대화에서 물어본다.
+  const canSubmit = video && agreedRights;
 
   const start = () => {
     if (!canSubmit || !video) return;
@@ -177,7 +177,13 @@ export default function UploadScreen() {
           {videoError && <Text style={styles.errorText}>{videoError}</Text>}
 
           <View style={styles.sceneCard}>
-            <Text style={styles.sceneTitle}>이 장면에서 무엇을 연기했는지 알려 주세요</Text>
+            <Text style={styles.sceneTitle}>
+              이 장면에서 무엇을 연기했는지 알려 주세요
+              <Text style={styles.sceneOptional}> (선택)</Text>
+            </Text>
+            <Text style={styles.sceneOptionalHint}>
+              비워 두셔도 돼요. 적어 주시면 분석이 더 정확해져요.
+            </Text>
             <View style={styles.fields}>
               <Field
                 label="상황"
@@ -313,6 +319,8 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   sceneTitle: { fontSize: 15, fontWeight: '900', color: palette.text },
+  sceneOptional: { fontWeight: '700', color: palette.textFaint },
+  sceneOptionalHint: { fontSize: 12.5, fontWeight: '600', color: palette.textFaint, marginTop: 2 },
   fields: { gap: 12 },
   field: { gap: 6 },
   fieldLabel: { fontSize: 12.5, fontWeight: '800', color: palette.textMuted },

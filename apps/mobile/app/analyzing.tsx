@@ -31,6 +31,7 @@ import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { rescheduleReminder } from '@/lib/notifications';
 import { formatSizeChange, startVideoCompression } from '@/lib/compress';
+import { sceneValueForDisplay } from '@/lib/upload-input';
 import { startPractice, takePendingUpload, type PendingUpload } from '@/lib/practice';
 import { previewVideoSource } from '@/lib/preview-video';
 import { palette } from '@/constants/palette';
@@ -223,10 +224,11 @@ export default function AnalyzingScreen() {
         sessionIdRef.current = result.sessionId;
         pendingHandleRef.current = operation.pendingHandle;
         const detail = result.detail;
+        // 복구 경로의 장면은 서버에서 온다 — 건너뛴 칸의 자리표시자('.')를 빈 값으로 되돌린다.
         const scene = upload?.scene ?? {
-          situation: detail.situation,
-          character: detail.character_context,
-          goal: detail.goal,
+          situation: sceneValueForDisplay(detail.situation),
+          character: sceneValueForDisplay(detail.character_context),
+          goal: sceneValueForDisplay(detail.goal),
         };
         const playbackUrl = detail.playback_url ?? null;
         startPractice({
