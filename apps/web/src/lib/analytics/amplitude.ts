@@ -256,6 +256,36 @@ export function trackPracticeUploadFailed(
   });
 }
 
+export type PracticeUploadProfile = {
+  compressMs: number;
+  uploadMs: number;
+  originalBytes: number;
+  uploadedBytes: number;
+  wasCompressed: boolean;
+  webcodecsSupported: boolean;
+  videoDurationMs: number;
+};
+
+/**
+ * 브라우저 구간(압축·업로드) 실측 — SOMA-381. practice_video_selected(원본 크기)와
+ * practice_analysis_settled(서버 대기) 사이에 비어 있던 조각을 메운다.
+ *
+ * 값은 버킷이 아니라 원값이다: 이 구간을 깎는 게 목적이라 경계 몇 개로 뭉개면
+ * 개선 전후 비교가 안 된다. 압축과 업로드를 따로 싣는 이유도 같다 — 합치면
+ * 어느 쪽을 깎을지 못 정한다.
+ */
+export function trackPracticeUploadProfiled(profile: PracticeUploadProfile): void {
+  track("practice_upload_profiled", {
+    compress_ms: Math.round(profile.compressMs),
+    upload_ms: Math.round(profile.uploadMs),
+    original_bytes: profile.originalBytes,
+    uploaded_bytes: profile.uploadedBytes,
+    was_compressed: profile.wasCompressed,
+    webcodecs_supported: profile.webcodecsSupported,
+    video_duration_ms: profile.videoDurationMs,
+  });
+}
+
 export function trackPracticeSessionCreated(
   durationMs: number,
   kind: BlockageKind,
