@@ -75,7 +75,10 @@ export default function ReportScreen() {
   }, [loadReport]);
 
   const retake = () => {
-    if (practice) setPrefill(practice.scene);
+    // 같은 장면 프리필 + 이어받기 — 코치가 이 연습의 대화를 이어받는다 (SOMA-428).
+    if (practice) {
+      setPrefill({ scene: practice.scene, continuedFrom: practice.practiceSessionId });
+    }
     clearPractice();
     router.dismissAll();
     router.push('/upload');
@@ -191,7 +194,7 @@ export default function ReportScreen() {
                 <Text style={styles.ghostText}>오늘은 여기까지</Text>
               </Pressable>
               <Pressable style={styles.primary} onPress={retake}>
-                <Text style={styles.primaryText}>같은 장면 다시 찍기 →</Text>
+                <Text style={styles.primaryText}>이 연습에 이어서 다시 찍기 →</Text>
               </Pressable>
             </View>
           </ScrollView>

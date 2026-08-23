@@ -522,6 +522,8 @@ export const api = {
     scene: SceneContext;
     /** 배우가 고른 막히는 지점. 없으면 분기가 안 걸리므로 화면에서 반드시 채워 보낸다. */
     blockage: BlockageSelection;
+    /** 이어서 연습 — 코치가 이 연습의 대화를 이어받는다. 없으면 가장 최근 대화(서버 기본). */
+    continued_from?: string | null;
   }, options: ApiCallOptions = {}): Promise<PracticeSessionCreate> {
     return postIdempotent<PracticeSessionCreate>(
       '/v2/practice-sessions',
@@ -533,6 +535,7 @@ export const api = {
         blockage_kind: input.blockage.blockage_kind,
         sub_branch: input.blockage.sub_branch,
         blockage_detail: input.blockage.blockage_detail,
+        continued_from: input.continued_from ?? null,
       },
       { timeoutMs: 30_000, signal: options.signal },
     );

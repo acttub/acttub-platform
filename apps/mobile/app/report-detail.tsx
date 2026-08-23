@@ -7,6 +7,7 @@ import { useVideoPlayer, VideoView } from 'expo-video';
 import { useAppDialog } from '@/components/app-dialog';
 import { api, type ReportDetail } from '@/lib/api';
 import { deletePracticeSessionIdempotently } from '@/lib/delete-practice';
+import { setPrefill } from '@/lib/practice';
 import { formatKoreanDate } from '@/lib/format';
 import { Markdown } from '@/components/markdown';
 import { palette } from '@/constants/palette';
@@ -158,6 +159,17 @@ export default function ReportDetailScreen() {
           <Text style={styles.nextTake}>{display.next}</Text>
         </NoteSection>
 
+        {/* 이어서 연습 — 코치가 이 연습의 대화를 이어받는다. 지난 기록에는 장면
+            원문이 없어(리포트 응답에 미포함) 폼은 비운 채 이어받기만 건다 (SOMA-428). */}
+        <Pressable
+          style={styles.continueButton}
+          onPress={() => {
+            setPrefill({ scene: null, continuedFrom: practiceSessionId });
+            router.push('/upload');
+          }}>
+          <Text style={styles.continueText}>이 연습에 이어서 새 연습 →</Text>
+        </Pressable>
+
         <Pressable
           style={styles.deleteButton}
           onPress={() => void onDelete()}
@@ -237,6 +249,14 @@ const styles = StyleSheet.create({
   },
   nextTake: { fontSize: 17, fontWeight: '900', color: palette.text, lineHeight: 27 },
 
+  continueButton: {
+    marginTop: 20,
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+    backgroundColor: palette.blue,
+  },
+  continueText: { fontSize: 14.5, fontWeight: '800', color: '#fff' },
   deleteButton: {
     height: 48,
     borderRadius: 14,
