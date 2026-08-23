@@ -215,12 +215,21 @@ test("분석 목표 시간 60초를 넘기면 진행 중임을 다시 안내한�
 test("질문 받기를 누르면 막힘을 고르기 전에 압축·업로드가 시작된다", () => {
   const workspace = readWeb("src/features/workspace/workspace-app.tsx");
   const rowStart = workspace.indexOf("<StartRow");
-  const startRow = workspace.slice(rowStart, workspace.indexOf("/>", rowStart));
+  const rowEnd = workspace.indexOf("/>", rowStart);
+  assert.ok(rowStart !== -1 && rowEnd > rowStart, "StartRow 자리를 못 찾았다");
+  const startRow = workspace.slice(rowStart, rowEnd);
   // 막힘 선택으로 넘어가기 전에 업로드를 띄운다 — 뒤로 미루면 고르는 시간과
-  // 올리는 시간을 더해서 기다리게 된다.
+  // 올리는 시간을 더해서 기다리게 된다. 그 순서는 이제 진입 모듈이 들고
+  // tests/blockage-entry.test.mjs 가 실행으로 지키므로, 여기서는 이 버튼이 그
+  // 모듈을 부르는지와 무엇을 건네는지만 본다.
+  assert.match(startRow, /onStart=\{\(\) =>\s*enterBlockageSelection\(\{/);
+  // 올릴 영상은 지금 준비 화면이 들고 있는 그것이다. 모듈은 건네받은 것을 올릴
+  // 뿐이라 출처가 어긋나도 실행 테스트로는 드러나지 않는다.
+  assert.match(startRow, /video: screen\.kind === "prep" \? screen\.video : null/);
+  assert.match(startRow, /startUpload,/);
   assert.match(
     startRow,
-    /startUpload\(picked\.file\)[\s\S]*dispatch\(\{ type: "blockageChosen" \}\)/,
+    /goToBlockage: \(\) => dispatch\(\{ type: "blockageChosen" \}\)/,
   );
 
   const beginStart = workspace.indexOf("const begin = useCallback");

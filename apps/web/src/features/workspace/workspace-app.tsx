@@ -76,6 +76,7 @@ import {
 } from "../practice/use-analysis-progress";
 import { useActiveSession } from "./use-active-session";
 import { useWorkspaceBusy } from "./use-workspace-busy";
+import { enterBlockageSelection } from "./blockage-entry";
 import {
   uploadForCurrentFile,
   type PendingVideoUpload,
@@ -1306,13 +1307,14 @@ function WorkspaceInner() {
               {body.footer.kind === "start" ? (
                 <StartRow
                   ready={body.footer.ready}
-                  onStart={() => {
-                    const picked = screen.kind === "prep" ? screen.video : null;
-                    if (!picked) return;
-                    startUpload(picked.file);
-                    dispatch({ type: "blockageChosen" });
-                    trackPracticeBlockageStarted();
-                  }}
+                  onStart={() =>
+                    enterBlockageSelection({
+                      video: screen.kind === "prep" ? screen.video : null,
+                      startUpload,
+                      goToBlockage: () => dispatch({ type: "blockageChosen" }),
+                      track: trackPracticeBlockageStarted,
+                    })
+                  }
                 />
               ) : body.footer.phase === "upload" ? (
                 <ProgressPanel
