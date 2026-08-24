@@ -33,3 +33,6 @@ pnpm-debug.log*
 
 # Playwright MCP가 만드는 세션 산출물(스크린샷·트레이스)
 .playwright-mcp/
+
+# 에이전트 티켓·작업 메모 (정본은 Jira SOMA — 여기는 로컬 전용)
+.scratch/
