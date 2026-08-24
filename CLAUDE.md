@@ -26,12 +26,23 @@ Acttub 플랫폼 모노레포. JS(pnpm)와 Java(Gradle)로 갈립니다.
   - **배포 아티팩트는 jar 하나뿐입니다** — **스키마 정본이 Flyway라([apps/api/CONTRACT.md](apps/api/CONTRACT.md) §5-5) 마이그레이션이 jar 기동의 일부**입니다. 스키마를 바꾸려면 `apps/api/src/main/resources/db/migration/`에 `V2__`부터 새 파일을 만듭니다. **`V1__baseline.sql`은 동결입니다** — 고치면 dev·운영은 멀쩡하고 신규 환경만 죽습니다.
   - **`main` 머지가 곧 운영 릴리스입니다.** 스키마 변경은 먼저 넓히고(마이그레이션 머지) 코드는 나중에 좁히는 순서로 나눠서 올립니다. 한 PR에 "컬럼 삭제 + 그 컬럼 안 쓰는 코드"를 같이 넣으면 배포 중간 상태에서 깨집니다.
 
+## 브랜치·릴리스 전략
+
+정본은 [docs/BRANCHING-STRATEGY.md](docs/BRANCHING-STRATEGY.md)입니다.
+
+- 작업 브랜치는 `dev`에서 시작해 Squash merge하고, 일반 릴리스는 검증된 `dev` 전체를 `main`에 Merge commit으로 합칩니다. 선택한 커밋만 `main` 기반 브랜치에 cherry-pick하지 않습니다.
+- `release/*`는 QA 중에도 다음 개발을 `dev`에 계속 합쳐야 할 때만 `dev`에서 만들며, `main`과 `dev` 양쪽에 Merge commit으로 반영합니다.
+- `hotfix/*`는 반드시 운영 상태인 `main`에서 만들고, 운영 배포 직후 `main`을 `dev`와 열려 있는 `release/*`에 역병합합니다.
+- **`main`에서 revert로 롤백했다면 즉시 `main`을 `dev`에 역병합합니다.** 빠뜨리면 그 변경이 `dev`에는 살아 있는 채로 운영에서만 조용히 사라지고, 다음 릴리스에서도 되살아나지 않습니다(`SOMA-402` — 조용한 삭제 3건).
+- `main`, `dev`에는 직접 push하지 않습니다. `main`에 합치는 순간 운영 배포가 시작되므로 릴리스 PR에서 배포 호환성과 롤백 지점을 먼저 확인합니다.
+- **`main` 대상 PR은 ruleset이 merge commit만 허용합니다** — hotfix도 예외가 아닙니다. 커밋 하나로 남기려면 PR을 열기 전에 로컬에서 정리합니다.
+
 ## 이슈 추적 (Jira 연동)
 
-Jira 프로젝트 `SOMA`와 GitHub이 연결되어 있습니다. 브랜치·PR에 이슈 키가 있어야 상태 전이 자동화와 개발 패널 연결이 동작합니다.
+Jira 프로젝트 `SOMA`와 GitHub이 연결되어 있습니다. 작업·hotfix 브랜치와 PR에 이슈 키가 있어야 상태 전이 자동화와 개발 패널 연결이 동작합니다. 여러 이슈를 묶는 `release/*`와 릴리스 PR은 예외이며, 포함한 이슈 키를 PR 본문에 나열합니다.
 
 - 브랜치명에 이슈 키를 포함합니다: `feat/SOMA-123-exit-review-modal`. 타입 뒤·설명 앞에 두고, **키는 대문자**여야 인식됩니다.
-- PR 제목은 `SOMA-123 <한국어 요약>` 형식입니다.
+- 작업·hotfix PR 제목은 `SOMA-123 <한국어 요약>` 형식입니다. 릴리스 PR은 `release: YYYY-MM-DD <요약>` 형식을 사용합니다.
 - 커밋 메시지에는 키를 넣지 않습니다(아래 커밋 컨벤션을 그대로 씁니다). 머지 커밋에 브랜치명이 들어가므로 키는 자동으로 따라갑니다.
 - 자동 전이: 브랜치 생성 → `In Progress`, PR 오픈 → `검토 중`, PR 머지 → `Done`. `보류 중`은 수동으로만 넣고 뺍니다.
 

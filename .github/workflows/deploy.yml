@@ -3,10 +3,10 @@
 # dev·prod 두 환경이 같은 잡을 씁니다. 환경별로 다른 값(버킷·인스턴스 ID·API_ORIGIN)은
 # GitHub Environments의 variables가 담당하므로, 워크플로 안에는 환경 분기가 없습니다.
 #   - dev  : dev 브랜치에 머지되면 자동 배포. 인스턴스 한 대에 web·api가 함께 뜹니다.
-#   - prod : Actions 탭에서 수동 실행. 인스턴스가 fe·be로 나뉩니다.
+#   - prod : main 브랜치에 머지되면 자동 배포. 인스턴스가 fe·be로 나뉩니다.
 #
 # 인증은 OIDC입니다. 장기 액세스 키를 repo Secrets에 두지 않고, 실행할 때마다
-# AWS에서 임시 자격증명을 받습니다. 설정 절차는 docs/DEPLOY-VPC.md 7장 참고.
+# AWS에서 임시 자격증명을 받습니다. 설정 절차는 docs/DEPLOY-VPC.md 6-1·6-2 참고.
 #
 # 인스턴스에 SSH로 접속하지 않습니다 — SSM Run Command로 AWS에 실행을 위임하므로
 # private subnet이어도 runner에서 그대로 동작합니다.
