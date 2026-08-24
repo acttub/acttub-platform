@@ -42,6 +42,49 @@ class CoachPromptSnapshotTest {
                 .isEqualTo(FrozenValue.of("coach-chat-prompt.txt"));
     }
 
+    /**
+     * 빈 칸은 <b>줄 자체를 만들지 않는다</b>(ADR-021). 셋이 모두 비면 부재를 한 줄로
+     * 명시하고, {@code 그 외} 하위 갈래는 "특정하지 않음" 으로 적는다 — 직접 고른 사람과
+     * 안 고른 사람을 서버가 구분할 수 없는데 그 표현은 <b>양쪽 모두에게 참</b>이다.
+     */
+    @Test
+    @DisplayName("장면 세 칸이 모두 비면 부재를 명시하고 '그 외' 는 특정하지 않음이 된다")
+    void blankSceneChatPromptMatchesFrozenValue() {
+        assertThat(CoachPrompt.buildChat(blankSceneSession("", "", ""), "잘 모르겠어요"))
+                .isEqualTo(FrozenValue.of("coach-chat-prompt-blank-scene.txt"));
+    }
+
+    /** 판정은 {@code isBlank()} 다 — 웹의 {@code .trim()} 에 기대지 않는다. */
+    @Test
+    @DisplayName("공백만 든 칸도 빈 칸과 같은 프롬프트를 낸다")
+    void whitespaceOnlySceneIsTreatedAsBlank() {
+        assertThat(CoachPrompt.buildChat(blankSceneSession(" ", "\t", "\n"), "잘 모르겠어요"))
+                .isEqualTo(FrozenValue.of("coach-chat-prompt-blank-scene.txt"));
+    }
+
+    /**
+     * 장면을 <b>적어 온</b> 배우의 프롬프트도 바뀐 자리다 — 지금까지는 상세가 비면
+     * {@code - 배우가 쓴 상세: } 가 빈 채로 들어갔다.
+     */
+    @Test
+    @DisplayName("장면은 다 적고 상세만 빈 경우 상세 줄만 빠진다")
+    void blankDetailAloneDropsOnlyItsLine() {
+        CoachSessionSnapshot blankDetail = sceneSession(
+                "연습실", "지원자", "담담하게 말한다", "대사 분석", "");
+        assertThat(CoachPrompt.buildChat(blankDetail, "잘 모르겠어요"))
+                .isEqualTo(FrozenValue.of("coach-chat-prompt-blank-detail.txt"));
+    }
+
+    /** 일부만 비면 그 줄만 빠진다 — 부재를 말하지 않는다. */
+    @Test
+    @DisplayName("일부만 빈 장면은 그 줄만 빠지고 부재를 말하지 않는다")
+    void partiallyBlankSceneChatPromptMatchesFrozenValue() {
+        CoachSessionSnapshot partial = sceneSession(
+                "", "", "담담하게 말한다", "대사 분석", "이유를 모르겠다");
+        assertThat(CoachPrompt.buildChat(partial, "잘 모르겠어요"))
+                .isEqualTo(FrozenValue.of("coach-chat-prompt-partial-scene.txt"));
+    }
+
     @Test
     @DisplayName("buildRegeneration 과 safeTemplate 가 동결된 값과 완전히 같다")
     void regenerationAndSafeTemplateMatchFrozenValues() {
@@ -90,6 +133,28 @@ class CoachPromptSnapshotTest {
                 List.of(
                         new CoachTurnSnapshot("actor", "이전 질문"),
                         new CoachTurnSnapshot("ai", "이전 답변")));
+    }
+
+    private static CoachSessionSnapshot blankSceneSession(
+            String situation, String characterContext, String goal) {
+        return sceneSession(situation, characterContext, goal, "그 외", "");
+    }
+
+    /** 장면 세 칸과 하위 갈래·상세만 갈아끼운 분석 세션. 나머지는 {@link #snapshot} 기본값이다. */
+    private static CoachSessionSnapshot sceneSession(
+            String situation,
+            String characterContext,
+            String goal,
+            String subBranch,
+            String blockageDetail) {
+        CoachSessionSnapshot source = snapshot(
+                null, "분석", subBranch, blockageDetail, List.of("가지 마"), "", null, List.of());
+        return new CoachSessionSnapshot(
+                source.sessionId(), source.practiceSessionId(), source.summaryId(),
+                source.userId(), source.observationPack(), situation, characterContext, goal,
+                source.durationMs(), source.blockageKind(), source.subBranch(),
+                source.blockageDetail(), source.transcripts(), source.conversationSummary(),
+                source.analysisHandoff(), source.status(), source.closeReason(), source.turns());
     }
 
     private static CoachSessionSnapshot analysisSession() {

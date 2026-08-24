@@ -64,3 +64,15 @@ export function isStillProcessing(error: unknown): error is ApiError {
 export function isRateLimited(error: unknown): error is ApiError {
   return error instanceof ApiError && error.status === 429;
 }
+
+/**
+ * 오류를 화면에 보일 한 줄로 바꾼다.
+ *
+ * `ApiError` 는 서버가 준 detail 을 message 로 들고 오므로 대개 그대로 쓸 수 있지만,
+ * 빈 문자열이면 화면에 아무 말도 뜨지 않는다 — 그때는 부르는 자리가 준 문구로 돌아간다.
+ * `cause instanceof Error ? cause.message : fallback` 으로 적은 자리들이 이 빈 문구를
+ * 그대로 그렸다.
+ */
+export function errorMessage(cause: unknown, fallback: string): string {
+  return cause instanceof Error && cause.message ? cause.message : fallback;
+}

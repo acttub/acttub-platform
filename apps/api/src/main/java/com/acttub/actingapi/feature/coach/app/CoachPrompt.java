@@ -36,6 +36,13 @@ public final class CoachPrompt {
             "8번째 응답: 마지막 응답");
 
     /**
+     * Scene Context 가 통째로 빈 세션에 넣는 줄. 같은 뜻의 문장이 {@code ObservationPrompt}
+     * 에도 있고, 두 프롬프트는 각자 진화하므로 문구를 공유하지 않는다.
+     */
+    private static final String SCENE_ABSENT =
+            "- 배우가 장면을 적지 않았다. 장면 맥락을 지어내지 마라.";
+
+    /**
      * 지난 것을 담는 칸의 상한. 넘으면 앞에서부터 자른다 — 지난 연습이 길다고 이번
      * 대화의 예산을 밀어내면 안 된다.
      */
@@ -83,6 +90,12 @@ public final class CoachPrompt {
             });
         }
 
+        if (!prior.sceneHistory().isEmpty()) {
+            lines.add("");
+            lines.add("### 이 장면에서 지금까지");
+            prior.sceneHistory().forEach(row -> lines.add("- " + row));
+        }
+
         if (prior.earlierConversation() != null) {
             lines.add("");
             lines.add(prior.fromSamePractice()
@@ -115,6 +128,59 @@ public final class CoachPrompt {
         return "표현".equals(blockageKind) ? COACH_V3_PROMPT : COACH_V2_PROMPT;
     }
 
+    /**
+     * 배우가 쓴 것을 담는 칸.
+     *
+     * <p><b>빈 칸은 줄 자체를 만들지 않는다</b> — {@link #priorContextBlock} 이 같은 이유로
+     * 이미 그렇게 하고 있다. Scene Context 셋이 <b>모두</b> 비면 부재를 한 줄로 명시하고,
+     * 일부만 비면 그 줄만 빼고 부재를 말하지 않는다(ADR-021).
+     */
+    private static String actorMaterialBlock(CoachSessionSnapshot session) {
+        List<String> lines = new ArrayList<>();
+        lines.add("## 배우가 쓴 것");
+        if (blank(session.situation())
+                && blank(session.characterContext())
+                && blank(session.goal())) {
+            lines.add(SCENE_ABSENT);
+        } else {
+            addField(lines, "상황", session.situation());
+            addField(lines, "캐릭터", session.characterContext());
+            addField(lines, "이번 테이크의 목적", session.goal());
+        }
+        lines.add("- 배우가 고른 막히는 지점: " + session.blockageKind());
+        lines.add("- 하위 갈래: " + subBranchLabel(session.subBranch()));
+        addField(lines, "배우가 쓴 상세", session.blockageDetail());
+        lines.add("- 영상 길이: " + session.durationMs() + "ms");
+        return String.join("\n", lines) + "\n";
+    }
+
+    /**
+     * {@code 그 외} 는 <b>"특정하지 않음"</b> 으로 적는다. 하위 갈래를 직접 고른 사람과 화면에서
+     * 안 고른 사람을 서버가 구분할 수 없는데, 이 표현은 <b>양쪽 모두에게 참</b>이다(ADR-021).
+     */
+    private static String subBranchLabel(String subBranch) {
+        return "그 외".equals(subBranch) ? "특정하지 않음" : subBranch;
+    }
+
+    private static void addField(List<String> lines, String label, String value) {
+        if (!blank(value)) {
+            lines.add("- " + label + ": " + value);
+        }
+    }
+
+    /**
+     * 빈 칸 판정. {@link #empty} 와 갈라 두는 이유는 대상이 다르기 때문이다 — 저쪽은
+     * {@code conversationSummary} 가 쓰는 {@code isEmpty()} 이고, 이쪽은 배우가 쓴 칸이라
+     * 공백만 든 값도 "안 적었다" 로 본다. 웹이 {@code .trim()} 해 보내지만 서버가 그 보장에
+     * 기대지 않는다.
+     *
+     * <p>{@code CoachEngine:firstActorMessage} 가 같은 판정을 쓴다 — 프롬프트에서 뺀 칸이
+     * 첫 발화로는 남는 어긋남을 만들지 않으려면 두 자리의 기준이 같아야 한다.
+     */
+    static boolean blank(String value) {
+        return value == null || value.isBlank();
+    }
+
     public static String buildChat(
             CoachSessionSnapshot session, String userMessage) {
         List<CoachTurnSnapshot> turns = session.turns();
@@ -127,7 +193,6 @@ public final class CoachPrompt {
         String conversationSummary = empty(session.conversationSummary())
                 ? "아직 없음"
                 : session.conversationSummary();
-        String detail = session.blockageDetail() == null ? "" : session.blockageDetail();
         String transcriptBlock = "";
         if ("분석".equals(session.blockageKind()) && !session.transcripts().isEmpty()) {
             String transcriptLines = session.transcripts().stream()
@@ -137,14 +202,7 @@ public final class CoachPrompt {
         }
 
         return priorContextBlock(session.prior())
-                + "## 배우가 쓴 것\n"
-                + "- 상황: " + session.situation() + "\n"
-                + "- 캐릭터: " + session.characterContext() + "\n"
-                + "- 이번 테이크의 목적: " + session.goal() + "\n"
-                + "- 배우가 고른 막히는 지점: " + session.blockageKind() + "\n"
-                + "- 하위 갈래: " + session.subBranch() + "\n"
-                + "- 배우가 쓴 상세: " + detail + "\n"
-                + "- 영상 길이: " + session.durationMs() + "ms\n"
+                + actorMaterialBlock(session)
                 + transcriptBlock + "\n\n"
                 + "## 영상에서 확인된 것\n"
                 + "이 팩만 영상 근거로 쓴다. 이 호출에는 영상이 첨부되지 않았고 새 영상 사실을 만들면 안 된다.\n"

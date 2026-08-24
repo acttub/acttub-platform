@@ -30,6 +30,9 @@ export class AnalysisFailedError extends Error {
 type CancelResource = () => void | Promise<void>;
 const DEFAULT_CANCEL_DEADLINE_MS = 2_000;
 
+/** 상태 폴링이 연속으로 이만큼 실패해야 진짜 실패로 친다(백그라운드 복귀 직후 1~2회는 정상). */
+export const STATUS_POLL_MAX_FAILURES = 3;
+
 type PendingRecord = {
   schemaVersion: number;
   owner: string;
@@ -387,6 +390,8 @@ export type AnalysisUpload = {
     character: string;
     goal: string;
   };
+  /** 이어서 연습 — 없으면 코치가 가장 최근 대화를 이어받는다(서버 기본). */
+  continuedFrom?: string | null;
   /**
    * 배우가 고른 막히는 지점. 서버가 이 값으로 분석 코치와 표현 코치를 가른다.
    *
@@ -443,6 +448,7 @@ export type AnalysisPipelineDependencies = ExistingSessionDependencies & {
       upload_intent_id: string;
       scene: AnalysisUpload['scene'];
       blockage: NonNullable<AnalysisUpload['blockage']>;
+      continued_from: string | null;
     },
     signal: AbortSignal,
   ) => Promise<{ session_id: string; status: AnalysisSessionStatus }>;
@@ -536,6 +542,7 @@ export async function runAnalysisPipeline({
         {
           upload_intent_id: intent.intent_id,
           scene: upload.scene,
+          continued_from: upload.continuedFrom ?? null,
           // 고르지 않고 이어받은 분석은 서버 기본값으로 떨어뜨린다.
           blockage: upload.blockage ?? {
             blockage_kind: '그 외',
@@ -567,6 +574,9 @@ export async function runAnalysisPipeline({
       dependencies,
     );
     const deadline = dependencies.now() + dependencies.pollTimeoutMs;
+    // iOS가 백그라운드에서 앱을 얼리면 진행 중이던 상태 조회가 끊긴 채 복귀한다.
+    // 그 한 번의 실패로 전체를 죽이지 않도록, 연속 실패만 센다.
+    let statusFailures = 0;
     while (status.status !== 'analyzed') {
       if (status.status === 'failed') {
         throw new AnalysisFailedError(
@@ -574,13 +584,25 @@ export async function runAnalysisPipeline({
           failedMessage(status.error_code),
         );
       }
-      if (dependencies.now() >= deadline) {
-        throw new Error('분석이 예상보다 오래 걸려요. 잠시 후 기록에서 다시 확인해주세요.');
-      }
       await dependencies.delay(dependencies.pollIntervalMs, operation.signal);
       operation.checkpoint();
-      status = await dependencies.getStatus(sessionId, operation.signal);
+      try {
+        status = await dependencies.getStatus(sessionId, operation.signal);
+        statusFailures = 0;
+      } catch (error) {
+        operation.checkpoint();
+        // 404(세션 삭제)는 바깥의 stale_session 처리로 보낸다.
+        if (errorStatus(error) === 404) throw error;
+        statusFailures += 1;
+        if (statusFailures >= STATUS_POLL_MAX_FAILURES) throw error;
+        continue;
+      }
       operation.checkpoint();
+      // 타임아웃 판정은 방금 받아온 상태 뒤에 한다 — 오래 얼었다 깨어난 직후,
+      // 이미 끝난 분석을 확인도 안 해보고 시간 초과로 끝내면 안 된다.
+      if (status.status !== 'analyzed' && dependencies.now() >= deadline) {
+        throw new Error('분석이 예상보다 오래 걸려요. 잠시 후 기록에서 다시 확인해주세요.');
+      }
     }
     const detail = await readAnalyzedDetail(operation, sessionId, {
       getDetail: dependencies.getDetail,

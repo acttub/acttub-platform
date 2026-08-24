@@ -27,6 +27,14 @@ const DEFAULT_RUNTIME: CompressionRuntime = {
   loadMedia: () => import("mediabunny"),
 };
 
+/**
+ * 이 브라우저가 WebCodecs 압축을 탈 수 있는가. 계측용(SOMA-381) — 압축을 통째로
+ * 건너뛰어 원본이 그대로 올라가는 기기 비율을 드러낸다.
+ */
+export function hasVideoWebCodecsSupport(): boolean {
+  return DEFAULT_RUNTIME.hasVideoWebCodecs();
+}
+
 function compressedFileName(name: string): string {
   const baseName = name.replace(/\.[^.]+$/, "") || "video";
   return `${baseName}.mp4`;

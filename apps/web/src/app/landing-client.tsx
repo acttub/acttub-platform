@@ -7,7 +7,6 @@ import { useRouter } from "next/navigation";
 import wordmark from "../assets/acttub-wordmark.png";
 import { isLoggedIn } from "../lib/auth/token-store";
 import { APP_HIGHLIGHTS } from "../features/app-download/app-highlights";
-import { AppDownloadButton } from "../features/app-download/app-download-button";
 import { StoreBadges } from "../features/app-download/store-badges";
 
 const productFlow = [
@@ -28,10 +27,12 @@ const productFlow = [
   },
 ];
 
-const noteCards = [
-  ["관찰", "상대의 말을 들은 뒤 숨을 고르는 순간이 보여요."],
-  ["질문", "그 침묵에서 인물은 무엇을 얻고 싶었나요?"],
-  ["노트", "확신보다 확인을 원했다."],
+const heroAssurances = ["무료", "Google·Apple 로그인", "영상은 언제든 삭제"];
+
+const heroConfirmChoices: [string, boolean][] = [
+  ["맞아요", true],
+  ["아니에요", false],
+  ["잘 모르겠어요", false],
 ];
 
 const outcomes = [
@@ -80,102 +81,137 @@ export default function LandingClient() {
           </nav>
         </header>
 
-        <section className="relative bg-[linear-gradient(180deg,#eaf6ff_0%,#f8fbff_58%,#ffffff_100%)] px-5 pb-28 pt-20 text-center sm:pt-24">
-          <div className="absolute left-1/2 top-12 h-80 w-80 -translate-x-1/2 rounded-full bg-[#b6dcff]/70 blur-3xl" />
-          <div className="absolute left-[10%] top-28 hidden h-20 w-20 rotate-12 rounded-[28px] bg-white/75 shadow-[0_24px_80px_rgba(49,130,246,0.18)] md:block" />
-          <div className="absolute right-[12%] top-40 hidden h-16 w-16 -rotate-12 rounded-[24px] bg-white/75 shadow-[0_24px_80px_rgba(49,130,246,0.18)] md:block" />
+        <section className="relative overflow-hidden break-keep bg-[linear-gradient(180deg,#eaf6ff_0%,#f8fbff_58%,#ffffff_100%)] px-5 pb-16 pt-14 lg:pb-20 lg:pt-[4.25rem]">
+          <div className="absolute left-1/2 top-12 h-80 w-80 -translate-x-1/2 rounded-full bg-[#3182f6]/[0.16] blur-3xl" />
 
-          <div className="relative mx-auto flex max-w-6xl flex-col items-center">
-            <p className="rounded-full bg-white/85 px-4 py-2 text-sm font-black text-[#3182f6] shadow-sm">
-              연기 영상 기반 질문 연습
-            </p>
-            <h1 className="mt-8 max-w-5xl text-4xl font-black leading-[1.06] tracking-[-0.065em] sm:text-6xl lg:text-7xl">
-              같이 연기 연습해요!
-            </h1>
-            <p className="mt-7 max-w-3xl text-lg font-semibold leading-8 text-[#4e5968] sm:text-xl">
-              연기 영상을 올리면 세심한 분석을 도와줘요
-            </p>
+          <div className="relative mx-auto grid max-w-6xl items-center gap-11 lg:grid-cols-[minmax(0,1.04fr)_minmax(340px,0.96fr)] lg:gap-20">
+            <div>
+              <p className="text-base font-black text-[#3182f6]">
+                질문으로 다시 보는 연기 연습
+              </p>
+              <h1 className="mt-[1.1rem] text-4xl font-black leading-[1.06] tracking-[-0.065em] sm:text-5xl lg:text-6xl">
+                연기 영상 하나 올려보세요.
+              </h1>
+              <p className="mt-6 text-lg font-semibold leading-[1.8] text-[#4e5968]">
+                AI가 막힌 지점을 같이 찾아드립니다.
+              </p>
 
-            {/* 버튼이 셋이라 sm 이상에서는 max-w-lg 로 한 줄에 못 선다. */}
-            <div className="mt-9 flex w-full max-w-lg flex-col gap-3 sm:max-w-3xl sm:flex-row sm:justify-center">
-              <Link
-                href={practiceLoginHref}
-                prefetch={false}
-                className="inline-flex h-14 items-center justify-center rounded-2xl bg-[#191f28] px-7 text-base font-black text-white shadow-[0_18px_40px_rgba(25,31,40,0.18)] transition hover:-translate-y-0.5 hover:bg-[#333d4b]"
-              >
-                무료로 사용해보기
-              </Link>
-              <AppDownloadButton surface="landing_hero" />
-              <a
-                href="#flow"
-                className="inline-flex h-14 items-center justify-center rounded-2xl bg-white px-7 text-base font-black text-[#333d4b] shadow-[0_18px_40px_rgba(25,31,40,0.08)] transition hover:-translate-y-0.5"
-              >
-                어떻게 쓰는지 보기
-              </a>
-            </div>
-
-            {/* 배지는 여기 두지 않는다 — 바로 위 버튼이 같은 일을 하고, 배지까지 세우면
-                한 화면에 앱으로 가는 길이 셋이 된다. 출시 사실만 한 줄로 남긴다. */}
-            <p className="mt-7 flex flex-wrap items-center justify-center gap-2 text-base font-bold text-[#4e5968]">
-              <span className="rounded-full bg-[#3182f6] px-2.5 py-1 text-xs font-black text-white">
-                앱 출시
-              </span>
-              iOS · Android 어디서든 받을 수 있어요
-            </p>
-
-            <div className="mt-16 w-full rounded-[44px] bg-white/85 p-4 shadow-[0_34px_100px_rgba(49,130,246,0.2)] backdrop-blur">
-              <div className="grid gap-4 rounded-[32px] bg-white p-4 lg:grid-cols-[1fr_56px_1.05fr_56px_1fr] lg:items-center lg:p-6">
-                <ProductPanel eyebrow="영상 업로드" title="오늘 연습한 장면" tone="gray">
-                  <div className="mt-5 rounded-[28px] bg-[#191f28] p-4 text-white shadow-[0_20px_45px_rgba(25,31,40,0.18)]">
-                    <div className="aspect-video rounded-2xl bg-[linear-gradient(135deg,#4e5968,#dbeafe)] p-3 text-left">
-                      <span className="rounded-full bg-white/90 px-2.5 py-1 text-xs font-black text-[#3182f6]">
-                        take_03.mov
-                      </span>
-                    </div>
-                    <div className="mt-4 grid gap-2 text-left text-sm font-bold text-[#d1d6db]">
-                      <span>상황: 오디션 독백</span>
-                      <span>목표: 상대의 확인을 얻기</span>
-                    </div>
-                  </div>
-                </ProductPanel>
-
-                <FlowArrow />
-
-                <div className="mx-auto flex h-[470px] w-full max-w-[248px] flex-col rounded-[42px] border-[10px] border-[#191f28] bg-[#f9fafb] p-4 shadow-[0_30px_70px_rgba(25,31,40,0.22)]">
-                  <div className="mx-auto h-1.5 w-16 rounded-full bg-[#333d4b]" />
-                  <div className="mt-7 rounded-3xl bg-white p-4 shadow-sm">
-                    <p className="text-xs font-black text-[#3182f6]">질문 04</p>
-                    <p className="mt-3 text-lg font-black leading-6 tracking-[-0.04em]">
-                      이 침묵에서 인물은 무엇을 기대했나요?
-                    </p>
-                  </div>
-                  <div className="mt-4 space-y-3 text-left">
-                    {noteCards.map(([label, text]) => (
-                      <div key={label} className="rounded-2xl bg-white px-4 py-3 shadow-sm">
-                        <p className="text-xs font-black text-[#8b95a1]">{label}</p>
-                        <p className="mt-1 text-sm font-black leading-5 tracking-[-0.03em]">
-                          {text}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <FlowArrow />
-
-                <ProductPanel eyebrow="연습 노트" title="다음 테이크 문장" tone="blue">
-                  <div className="mt-5 rounded-[28px] bg-white p-5 text-left shadow-sm">
-                    <p className="text-sm font-black text-[#3182f6]">오늘 남긴 문장</p>
-                    <p className="mt-4 text-2xl font-black leading-8 tracking-[-0.05em]">
-                      “나는 확신보다 확인을 원했다.”
-                    </p>
-                    <div className="mt-5 rounded-2xl bg-[#f2f4f6] px-4 py-3 text-sm font-bold text-[#4e5968]">
-                      다음 연습: 대답 전 2초를 더 듣기
-                    </div>
-                  </div>
-                </ProductPanel>
+              <div className="mt-[2.1rem] flex flex-col gap-4 lg:flex-row lg:items-center">
+                <Link
+                  href={practiceLoginHref}
+                  prefetch={false}
+                  className="inline-flex h-14 items-center justify-center gap-2.5 rounded-2xl bg-[#191f28] px-[1.6rem] text-base font-black text-white shadow-[0_14px_34px_rgba(25,31,40,0.18)] transition hover:-translate-y-0.5 hover:bg-[#333d4b]"
+                >
+                  내 영상으로 질문 받아보기
+                  <span aria-hidden="true">→</span>
+                </Link>
+                <a
+                  href="#result"
+                  className="inline-flex h-14 items-center justify-center rounded-2xl bg-white px-5 text-base font-black text-[#4e5968] shadow-[0_2px_10px_rgba(25,31,40,0.08)] transition hover:-translate-y-0.5 hover:text-[#191f28]"
+                >
+                  예시 결과 먼저 보기
+                </a>
               </div>
+
+              <ul className="mt-[1.4rem] flex flex-col gap-2 text-sm font-bold text-[#8b95a1] lg:flex-row lg:flex-wrap lg:gap-[1.1rem]">
+                {heroAssurances.map((item) => (
+                  <li key={item} className="flex items-center gap-1.5">
+                    <CheckIcon />
+                    {item}
+                  </li>
+                ))}
+              </ul>
             </div>
+
+            {/* 질문의 근거가 영상 몇 초인지 보이게 한다 — 관찰만 텍스트로 띄우면
+                AI가 지어낸 문장처럼 읽힌다. 타임라인 핀과 00:14 배지가 같은 지점을 가리킨다. */}
+            <article
+              className="relative rounded-[30px] bg-white p-4 shadow-[0_34px_100px_rgba(25,31,40,0.12)] lg:p-5"
+              aria-label="Acttub 대화 예시"
+            >
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-xs font-black text-[#8b95a1]">오늘 연습한 장면</p>
+                  <h2 className="mt-1 text-lg font-black tracking-[-0.035em] lg:text-xl">
+                    오디션 독백 · take 03
+                  </h2>
+                </div>
+                <span className="shrink-0 rounded-full bg-[#e8f3ff] px-2.5 py-1 text-xs font-black text-[#1b64da]">
+                  대화 마침
+                </span>
+              </div>
+
+              <div className="relative mt-[0.9rem] aspect-[21/9] overflow-hidden rounded-[20px] bg-[linear-gradient(135deg,#4e5968,#dbeafe)] p-3">
+                <span className="inline-block rounded-full bg-white/90 px-2.5 py-1 text-xs font-black text-[#3182f6]">
+                  take_03.mov
+                </span>
+                <span
+                  aria-hidden="true"
+                  className="absolute left-1/2 top-1/2 grid h-10 w-10 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-white/85 shadow-[0_6px_20px_rgba(25,31,40,0.19)]"
+                >
+                  <span className="ml-0.5 border-y-[7px] border-l-[11px] border-y-transparent border-l-[#191f28]" />
+                </span>
+              </div>
+
+              <div className="mt-5 flex items-center gap-2.5 text-xs font-black tabular-nums text-[#8b95a1]">
+                <span>00:00</span>
+                <span className="relative h-1.5 flex-1 rounded-full bg-[#e5e8eb]">
+                  <span className="absolute inset-y-0 left-0 w-[19.4%] rounded-full bg-[#3182f6]" />
+                  <span className="absolute left-[19.4%] top-1/2 h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-[3.5px] border-[#3182f6] bg-white shadow-[0_2px_6px_rgba(25,31,40,0.2)]">
+                    <span className="absolute bottom-[155%] left-1/2 -translate-x-1/2 whitespace-nowrap text-[0.68rem] font-black text-[#3182f6]">
+                      00:14
+                    </span>
+                  </span>
+                </span>
+                <span>01:12</span>
+              </div>
+
+              <div className="mt-3 rounded-[20px] bg-[#f2f4f6] p-4">
+                <p className="text-xs font-black text-[#8b95a1]">Acttub이 본 것</p>
+                <p className="mt-1.5 font-bold leading-relaxed">
+                  <span className="mr-1.5 inline-block rounded-[7px] bg-[#191f28] px-1.5 py-0.5 text-xs font-black tabular-nums text-white">
+                    00:14
+                  </span>
+                  상대의 말을 들은 뒤 숨을 고르는 순간이 보여요. 맞나요?
+                </p>
+                <div className="mt-3 flex flex-wrap gap-1.5">
+                  {heroConfirmChoices.map(([label, picked]) => (
+                    <span
+                      key={label}
+                      className={`rounded-full px-3 py-1.5 text-sm font-extrabold ${
+                        picked
+                          ? "bg-[#3182f6] text-white"
+                          : "bg-white text-[#8b95a1] shadow-[inset_0_0_0_1.5px_#e5e8eb]"
+                      }`}
+                    >
+                      {label}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              <div className="mt-3 rounded-[20px] bg-[#e8f3ff] p-4">
+                <p className="text-xs font-black text-[#8b95a1]">Acttub의 질문</p>
+                <p className="mt-1.5 font-bold leading-relaxed">
+                  그 침묵에서 인물은 무엇을 얻고 싶었나요?
+                </p>
+              </div>
+
+              <div className="mt-3 rounded-[20px] bg-[#191f28] p-4 text-white">
+                <p className="text-xs font-black text-[#c6d3e3]">
+                  내가 남긴 문장
+                  <span className="ml-1.5 rounded-full bg-white/15 px-2 py-0.5 text-[0.7rem] font-black text-white">
+                    배우가 직접 씀
+                  </span>
+                </p>
+                <p className="mt-1.5 text-base font-extrabold leading-normal lg:text-[17px]">
+                  “나는 확신보다 확인을 원했다.”
+                </p>
+                <span className="mt-3 inline-block rounded-full bg-white/[0.12] px-3 py-1.5 text-xs font-extrabold">
+                  다음 연습 · 대답 전 2초를 더 듣기
+                </span>
+              </div>
+            </article>
           </div>
         </section>
 
@@ -332,38 +368,19 @@ export default function LandingClient() {
   );
 }
 
-function ProductPanel({
-  eyebrow,
-  title,
-  tone,
-  children,
-}: {
-  eyebrow: string;
-  title: string;
-  tone: "gray" | "blue";
-  children: React.ReactNode;
-}) {
+function CheckIcon() {
   return (
-    <div
-      className={`rounded-[32px] p-6 text-left ${
-        tone === "blue" ? "bg-[#e8f3ff]" : "bg-[#f2f4f6]"
-      }`}
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 16 16"
+      className="h-3.5 w-3.5 shrink-0"
+      fill="none"
+      stroke="#3182f6"
+      strokeWidth="2.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
     >
-      <p className="text-sm font-black text-[#3182f6]">{eyebrow}</p>
-      <h3 className="mt-3 text-3xl font-black leading-tight tracking-[-0.05em]">
-        {title}
-      </h3>
-      {children}
-    </div>
-  );
-}
-
-function FlowArrow() {
-  return (
-    <div className="hidden justify-center lg:flex" aria-hidden="true">
-      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#e8f3ff] text-2xl font-black text-[#3182f6]">
-        →
-      </div>
-    </div>
+      <path d="M3 8.5 6.5 12 13 4.5" />
+    </svg>
   );
 }

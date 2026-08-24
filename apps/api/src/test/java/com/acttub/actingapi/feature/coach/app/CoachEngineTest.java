@@ -121,7 +121,7 @@ class CoachEngineTest {
     }
 
     @Test
-    void startUsesBlockageDetailOrGoalAndStoresActorThenAi() {
+    void startFallsBackFromDetailToGoalToBlockageKindAndStoresActorThenAi() {
         RecordingGenerator detailGenerator = new RecordingGenerator("첫 답변");
         CoachResult detail = new CoachEngine(detailGenerator).start(sessionWithoutTurns());
 
@@ -131,12 +131,40 @@ class CoachEngineTest {
         assertThat(detailGenerator.inputs.getFirst()).contains("## 배우의 최신 말\n왜 지금인지 모르겠다");
 
         RecordingGenerator goalGenerator = new RecordingGenerator("첫 답변");
-        CoachSessionSnapshot blankDetail = snapshotWithDetail("");
+        CoachSessionSnapshot blankDetail = snapshotWith("", "담담하게 말한다");
         CoachResult goal = new CoachEngine(goalGenerator).start(blankDetail);
 
         assertThat(goal.session().turns().getFirst())
                 .isEqualTo(new CoachTurnSnapshot("actor", "담담하게 말한다"));
         assertThat(goalGenerator.inputs.getFirst()).contains("## 배우의 최신 말\n담담하게 말한다");
+    }
+
+    /**
+     * 장면까지 건너뛰면 목표도 비어 배우가 아무 말도 안 한 채로 대화가 열린다. 사슬 끝의
+     * 막힘 대분류는 <b>배우가 실제로 고른 유일한 값</b>이라 대화 이력에 거짓이 남지 않는다.
+     */
+    @Test
+    @DisplayName("상세도 목표도 비면 첫 발화가 막힘 대분류가 된다")
+    void startFallsBackToBlockageKindWhenSceneIsSkipped() {
+        RecordingGenerator generator = new RecordingGenerator("첫 답변");
+
+        CoachResult result = new CoachEngine(generator).start(snapshotWith("", ""));
+
+        assertThat(result.session().turns().getFirst())
+                .isEqualTo(new CoachTurnSnapshot("actor", "분석"));
+        assertThat(generator.inputs.getFirst()).contains("## 배우의 최신 말\n분석");
+    }
+
+    /** 공백만 든 값은 배우가 한 말이 아니다 — 대화 이력에 공백 한 칸을 남기지 않는다. */
+    @Test
+    @DisplayName("공백만 든 상세·목표도 건너뛰고 막힘 대분류로 떨어진다")
+    void startTreatsWhitespaceOnlyDetailAndGoalAsAbsent() {
+        RecordingGenerator generator = new RecordingGenerator("첫 답변");
+
+        CoachResult result = new CoachEngine(generator).start(snapshotWith(" ", "\t"));
+
+        assertThat(result.session().turns().getFirst())
+                .isEqualTo(new CoachTurnSnapshot("actor", "분석"));
     }
 
     private static CoachSessionSnapshot session() {
@@ -164,14 +192,15 @@ class CoachEngineTest {
     }
 
     private static CoachSessionSnapshot sessionWithoutTurns() {
-        return snapshotWithDetail("왜 지금인지 모르겠다");
+        return snapshotWith("왜 지금인지 모르겠다", "담담하게 말한다");
     }
 
-    private static CoachSessionSnapshot snapshotWithDetail(String detail) {
+    /** 첫 발화 폴백 사슬이 읽는 두 값만 갈아끼운다. 턴은 비운다. */
+    private static CoachSessionSnapshot snapshotWith(String detail, String goal) {
         CoachSessionSnapshot source = session();
         return new CoachSessionSnapshot(
                 source.sessionId(), source.practiceSessionId(), source.summaryId(), source.userId(),
-                source.observationPack(), source.situation(), source.characterContext(), source.goal(),
+                source.observationPack(), source.situation(), source.characterContext(), goal,
                 source.durationMs(), source.blockageKind(), source.subBranch(), detail,
                 source.transcripts(), source.conversationSummary(), source.analysisHandoff(),
                 source.status(), source.closeReason(), List.of());

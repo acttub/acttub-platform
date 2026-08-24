@@ -55,6 +55,7 @@ const {
   trackPracticeAbandoned,
   trackPracticeAnalysisSettled,
   trackPracticeBlockageStarted,
+  trackPracticeSceneSkipped,
   trackPracticeBlockageSubmitted,
   trackPracticeDialogueCompleted,
   trackPracticeDialogueStartFailed,
@@ -66,6 +67,7 @@ const {
   trackPracticeResultViewed,
   trackPracticeSessionCreated,
   trackPracticeUploadFailed,
+  trackPracticeUploadProfiled,
   trackPracticeVideoSelected,
   trackScreenViewed,
 } = analytics;
@@ -165,16 +167,26 @@ test("screen_viewed는 쿼리·해시를 버리고 경로 UUID를 가린다", ()
 });
 
 // 원문을 받는 래퍼에도 일부러 민감한 값을 넣는다. payload에는 분류·버킷만 남아야 한다.
-test("21개 이벤트 래퍼가 계약 속성만 보내고 금지 키를 만들지 않는다", () => {
+test("23개 이벤트 래퍼가 계약 속성만 보내고 금지 키를 만들지 않는다", () => {
   globalThis.__amplitudeCalls.length = 0;
   const sensitiveText = "배우가 직접 쓴 비밀 장면과 답변";
 
   trackPracticePrepOpened("new");
   trackPracticeVideoSelected(12 * 1024 * 1024, true);
   trackPracticeBlockageStarted();
+  trackPracticeSceneSkipped();
   trackPracticeBlockageSubmitted("분석", "대사 분석", sensitiveText);
   trackPracticeUploadFailed("put", { status: 503, message: sensitiveText });
-  trackPracticeSessionCreated(61_000, "분석", "대사 분석");
+  trackPracticeUploadProfiled({
+    compressMs: 12_345.6,
+    uploadMs: 6_789.4,
+    originalBytes: 48 * 1024 * 1024,
+    uploadedBytes: 9 * 1024 * 1024,
+    wasCompressed: true,
+    webcodecsSupported: true,
+    videoDurationMs: 61_000,
+  });
+  trackPracticeSessionCreated(61_000, "분석", "대사 분석", true);
   trackPracticeAnalysisSettled("failed", "gemini_timeout", 61_000);
   trackPracticeDialogueStarted(true, "분석", "대사 분석");
   trackPracticeDialogueStartFailed(false);
@@ -196,7 +208,7 @@ test("21개 이벤트 래퍼가 계약 속성만 보내고 금지 키를 만들�
   trackScreenViewed("/practice/1b4e28ba-2fa1-11d2-883f-0016d3cca427?query=secret");
 
   const events = callsOf("track").map(([, event, payload]) => ({ event, payload }));
-  assert.equal(events.length, 21);
+  assert.equal(events.length, 23);
   assert.deepEqual(
     events.map(({ event }) => event).sort(),
     [
@@ -217,8 +229,10 @@ test("21개 이벤트 래퍼가 계약 속성만 보내고 금지 키를 만들�
       "practice_history_opened",
       "practice_prep_opened",
       "practice_result_viewed",
+      "practice_scene_skipped",
       "practice_session_created",
       "practice_upload_failed",
+      "practice_upload_profiled",
       "practice_video_selected",
       "screen_viewed",
     ].sort(),
@@ -228,9 +242,24 @@ test("21개 이벤트 래퍼가 계약 속성만 보내고 금지 키를 만들�
     practice_prep_opened: ["entry"],
     practice_video_selected: ["is_reselect", "size_bucket"],
     practice_blockage_started: [],
+    practice_scene_skipped: [],
     practice_blockage_submitted: ["has_detail", "kind", "sub_branch"],
     practice_upload_failed: ["reason_code", "stage"],
-    practice_session_created: ["duration_bucket", "kind", "sub_branch"],
+    practice_upload_profiled: [
+      "compress_ms",
+      "original_bytes",
+      "upload_ms",
+      "uploaded_bytes",
+      "video_duration_ms",
+      "was_compressed",
+      "webcodecs_supported",
+    ],
+    practice_session_created: [
+      "duration_bucket",
+      "kind",
+      "scene_skipped",
+      "sub_branch",
+    ],
     practice_analysis_settled: ["error_code", "result", "wait_bucket"],
     practice_dialogue_started: ["kind", "sub_branch", "with_evidence"],
     practice_dialogue_start_failed: ["restart"],

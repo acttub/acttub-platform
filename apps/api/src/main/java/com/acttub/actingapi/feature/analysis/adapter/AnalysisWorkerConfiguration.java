@@ -3,6 +3,7 @@ package com.acttub.actingapi.feature.analysis.adapter;
 import java.time.Clock;
 import java.time.Duration;
 
+import com.acttub.actingapi.feature.analysis.app.AnalysisCompletionListener;
 import com.acttub.actingapi.feature.analysis.app.AnalysisProcessor;
 import com.acttub.actingapi.feature.analysis.app.AnalysisStore;
 import com.acttub.actingapi.feature.analysis.app.AnalysisWorker;
@@ -37,7 +38,9 @@ class AnalysisWorkerConfiguration {
             AnalysisProcessor analyzer,
             Clock clock,
             @Value("${ANALYSIS_LEASE_SEC:1800}") long leaseSeconds,
-            @Value("${GEMINI_MODEL:gemini-2.5-flash}") String model) {
+            @Value("${GEMINI_MODEL:gemini-2.5-flash}") String model,
+            // 완료 통지는 선택이다 — push 도메인이 구현을 내지만, 없어도 분석은 돌아야 한다.
+            ObjectProvider<AnalysisCompletionListener> completionListener) {
         if (leaseSeconds <= 0) {
             throw new IllegalStateException("analysis worker settings must be positive");
         }
@@ -46,6 +49,7 @@ class AnalysisWorkerConfiguration {
             return null;
         }
         return new AnalysisWorker(
-                store, objectStorage, analyzer, clock, Duration.ofSeconds(leaseSeconds), model);
+                store, objectStorage, analyzer, clock, Duration.ofSeconds(leaseSeconds), model,
+                completionListener.getIfAvailable());
     }
 }

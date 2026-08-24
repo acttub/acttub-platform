@@ -2,7 +2,7 @@
   "expo": {
     "name": "Acttub",
     "slug": "acting-app",
-    "version": "0.0.3",
+    "version": "0.0.5",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "actingapp",
@@ -69,7 +69,13 @@
       "expo-video",
       "@react-native-firebase/app",
       "@react-native-firebase/analytics",
-      "@react-native-google-signin/google-signin",
+      [
+        "@react-native-google-signin/google-signin",
+        {
+          "iosUrlScheme": "com.googleusercontent.apps.462651930952-ca5o968kkbucm1qg4ko1u6tepgv3beqf"
+        }
+      ],
+      "expo-notifications",
       "expo-secure-store",
       "expo-apple-authentication",
       "./plugins/with-rnfirebase-static.js",

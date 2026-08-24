@@ -12,6 +12,7 @@ import { api, type AuthUser, type ConsentDocument, type TokenPair } from '@/lib/
 import { signOutBestEffort } from '@/lib/auth-session';
 import { getUserName, saveUserName } from '@/lib/profile';
 import { clearLocalAccountData } from '@/lib/local-account-data';
+import { detachPushFromAccount, syncPushRegistration } from '@/lib/notifications';
 import {
   clearTokens,
   getRefreshToken,
@@ -188,6 +189,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setPendingConsents(pair.pending_consents ?? []);
     setConsentRequired(false);
     setStatus('signedIn');
+    // 푸시 등록은 로그인의 성패와 무관한 최선 노력 — 기다리지도, 실패를 올리지도 않는다.
+    void syncPushRegistration();
   }, []);
 
   const signInWithGoogle = useCallback(async () => {
@@ -224,6 +227,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signOut = useCallback(async () => {
     const rt = getRefreshToken();
+    // 세션이 살아 있을 때 이 단말의 푸시 토큰을 서버에서 지운다 — 로그아웃 뒤에 오는
+    // 알림은 다음 사용자의 화면에 뜬다. 실패해도 로그아웃은 계속 간다.
+    await detachPushFromAccount().catch(() => undefined);
     await signOutBestEffort({
       serverLogout: async () => {
         if (rt) await api.logout(rt);
@@ -238,6 +244,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const deleteAccount = useCallback(async () => {
+    // 리마인드 예약과 로컬 토큰 기록을 먼저 걷는다. 서버 쪽 push_tokens 는 탈퇴
+    // 트랜잭션이 전부 지우므로 여기 실패는 아무것도 남기지 않는다.
+    await detachPushFromAccount().catch(() => undefined);
     // 서버가 먼저다. 여기서 실패하면(네트워크·서버 오류) 로컬을 지우지 않고 예외를
     // 올린다 — 계정은 살아 있는데 기기에서만 로그아웃되면 탈퇴한 줄 알고 떠난다.
     await api.deleteMe();

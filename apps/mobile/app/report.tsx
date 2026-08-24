@@ -13,6 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { api, type PracticeReport } from '@/lib/api';
 import { clearPractice, getPractice, setPrefill } from '@/lib/practice';
 import { SceneFoldBody, SceneFoldLink, SceneSummary } from '@/components/practice-chrome';
+import { useExitReview } from '@/hooks/use-exit-review';
 import { previewVideoSource } from '@/lib/preview-video';
 import { createOrReuseReport } from '@/lib/report-flow';
 import { palette } from '@/constants/palette';
@@ -27,6 +28,7 @@ import { reportDisplay } from '@/lib/report-display';
 export default function ReportScreen() {
   const router = useRouter();
   const practice = getPractice();
+  const exitReview = useExitReview('finish', 'report', practice?.practiceSessionId);
   const [report, setReport] = useState<PracticeReport | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -75,15 +77,21 @@ export default function ReportScreen() {
   }, [loadReport]);
 
   const retake = () => {
-    if (practice) setPrefill(practice.scene);
+    // 같은 장면 프리필 + 이어받기 — 코치가 이 연습의 대화를 이어받는다 (SOMA-428).
+    if (practice) {
+      setPrefill({ scene: practice.scene, continuedFrom: practice.practiceSessionId });
+    }
     clearPractice();
     router.dismissAll();
     router.push('/upload');
   };
 
+  // 세션을 마칠 때 한 번만 한줄평을 묻는다(SOMA-433). 이미 물어본 사람은 바로 마친다.
   const finish = () => {
-    clearPractice();
-    router.dismissAll();
+    void exitReview.offer(() => {
+      clearPractice();
+      router.dismissAll();
+    });
   };
 
   const display = report && report.report_type !== 'blocked' ? reportDisplay(report) : null;
@@ -191,12 +199,13 @@ export default function ReportScreen() {
                 <Text style={styles.ghostText}>오늘은 여기까지</Text>
               </Pressable>
               <Pressable style={styles.primary} onPress={retake}>
-                <Text style={styles.primaryText}>같은 장면 다시 찍기 →</Text>
+                <Text style={styles.primaryText}>이 연습에 이어서 다시 찍기 →</Text>
               </Pressable>
             </View>
           </ScrollView>
         </>
       )}
+      {exitReview.element}
     </SafeAreaView>
   );
 }

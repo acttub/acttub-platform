@@ -136,6 +136,12 @@ COLUMN practice_sessions.subtext ord=7 type=text len=- null=YES default=-
 COLUMN practice_sessions.updated_at ord=10 type=timestamptz len=- null=NO default=now()
 COLUMN practice_sessions.upload_intent_id ord=3 type=uuid len=- null=NO default=-
 COLUMN practice_sessions.user_id ord=2 type=uuid len=- null=NO default=-
+COLUMN push_tokens.created_at ord=5 type=timestamptz len=- null=NO default=now()
+COLUMN push_tokens.id ord=1 type=uuid len=- null=NO default=gen_random_uuid()
+COLUMN push_tokens.platform ord=4 type=text len=- null=NO default=-
+COLUMN push_tokens.token ord=3 type=text len=- null=NO default=-
+COLUMN push_tokens.updated_at ord=6 type=timestamptz len=- null=NO default=now()
+COLUMN push_tokens.user_id ord=2 type=uuid len=- null=NO default=-
 COLUMN refresh_tokens.device_info ord=5 type=text len=- null=YES default=-
 COLUMN refresh_tokens.expires_at ord=7 type=timestamptz len=- null=NO default=-
 COLUMN refresh_tokens.id ord=1 type=uuid len=- null=NO default=gen_random_uuid()
@@ -395,6 +401,15 @@ CONSTRAINT practice_sessions practice_sessions_upload_intent_id_fkey FOREIGN KEY
 CONSTRAINT practice_sessions practice_sessions_upload_intent_id_not_null NOT NULL upload_intent_id
 CONSTRAINT practice_sessions practice_sessions_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id)
 CONSTRAINT practice_sessions practice_sessions_user_id_not_null NOT NULL user_id
+CONSTRAINT push_tokens push_tokens_created_at_not_null NOT NULL created_at
+CONSTRAINT push_tokens push_tokens_id_not_null NOT NULL id
+CONSTRAINT push_tokens push_tokens_pkey PRIMARY KEY (id)
+CONSTRAINT push_tokens push_tokens_platform_not_null NOT NULL platform
+CONSTRAINT push_tokens push_tokens_token_key UNIQUE (token)
+CONSTRAINT push_tokens push_tokens_token_not_null NOT NULL token
+CONSTRAINT push_tokens push_tokens_updated_at_not_null NOT NULL updated_at
+CONSTRAINT push_tokens push_tokens_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+CONSTRAINT push_tokens push_tokens_user_id_not_null NOT NULL user_id
 CONSTRAINT refresh_tokens refresh_tokens_expires_at_not_null NOT NULL expires_at
 CONSTRAINT refresh_tokens refresh_tokens_id_not_null NOT NULL id
 CONSTRAINT refresh_tokens refresh_tokens_issued_at_not_null NOT NULL issued_at
@@ -511,6 +526,7 @@ INDEX CREATE INDEX idx_practice_sessions_status_updated ON public.practice_sessi
 INDEX CREATE INDEX idx_practice_sessions_upload_intent ON public.practice_sessions USING btree (upload_intent_id)
 INDEX CREATE INDEX idx_practice_sessions_user ON public.practice_sessions USING btree (user_id)
 INDEX CREATE INDEX idx_practice_sessions_user_visible_created ON public.practice_sessions USING btree (user_id, created_at DESC) WHERE (hidden_at IS NULL)
+INDEX CREATE INDEX idx_push_tokens_user ON public.push_tokens USING btree (user_id)
 INDEX CREATE INDEX idx_refresh_tokens_user_expires ON public.refresh_tokens USING btree (user_id, expires_at)
 INDEX CREATE INDEX idx_reports_created ON public.reports USING btree (created_at DESC)
 INDEX CREATE INDEX idx_sessions_summary ON public.coach_sessions USING btree (summary_id)
@@ -537,6 +553,8 @@ INDEX CREATE UNIQUE INDEX external_operations_pkey ON public.external_operations
 INDEX CREATE UNIQUE INDEX handoff_confirmations_pkey ON public.handoff_confirmations USING btree (coaching_handoff_id)
 INDEX CREATE UNIQUE INDEX practice_reports_pkey ON public.practice_reports USING btree (id)
 INDEX CREATE UNIQUE INDEX practice_sessions_pkey ON public.practice_sessions USING btree (id)
+INDEX CREATE UNIQUE INDEX push_tokens_pkey ON public.push_tokens USING btree (id)
+INDEX CREATE UNIQUE INDEX push_tokens_token_key ON public.push_tokens USING btree (token)
 INDEX CREATE UNIQUE INDEX refresh_tokens_pkey ON public.refresh_tokens USING btree (id)
 INDEX CREATE UNIQUE INDEX refresh_tokens_token_hash_key ON public.refresh_tokens USING btree (token_hash)
 INDEX CREATE UNIQUE INDEX reports_pkey ON public.reports USING btree (id)
@@ -581,6 +599,7 @@ TABLE external_operations
 TABLE handoff_confirmations
 TABLE practice_reports
 TABLE practice_sessions
+TABLE push_tokens
 TABLE refresh_tokens
 TABLE reports
 TABLE summaries

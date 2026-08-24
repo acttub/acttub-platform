@@ -312,6 +312,7 @@ class PracticeSessionController {
                 session.blockageKind(),
                 session.subBranch(),
                 session.blockageDetail(),
+                session.continuedFrom(),
                 session.createdAt(),
                 session.updatedAt());
     }

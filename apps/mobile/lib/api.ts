@@ -31,6 +31,7 @@ import {
   type PostIdempotentOptions,
 } from '@/lib/api-request';
 import {
+  sceneValueForSubmit,
   sendUploadIntent,
   type UploadIntentInput,
 } from '@/lib/upload-input';
@@ -391,6 +392,23 @@ export const api = {
     return request<void>('/v2/me', { method: 'DELETE' }, { timeoutMs: 30_000 });
   },
 
+  // 푸시 알림 -------------------------------------------------------------------
+  /** 이 단말의 Expo push token 을 내 것으로 등록. 서버가 토큰 기준 upsert 라 멱등하다. */
+  registerPushToken(token: string, platform: 'ios' | 'android'): Promise<void> {
+    return request<void>('/v2/push-tokens', jsonInit({ token, platform }), {
+      timeoutMs: 15_000,
+    });
+  },
+
+  /** 이 단말의 토큰을 지운다(로그아웃·알림 끄기). 없어도 204 — 멱등하다. */
+  unregisterPushToken(token: string): Promise<void> {
+    return request<void>(
+      '/v2/push-tokens',
+      { ...jsonInit({ token }), method: 'DELETE' },
+      { timeoutMs: 15_000 },
+    );
+  },
+
   // 코치의 기억 -----------------------------------------------------------------
   /**
    * 코치가 나에 대해 기억하는 것 전부. 빈 칸은 행이 없으므로 4개보다 적게 온다.
@@ -504,17 +522,20 @@ export const api = {
     scene: SceneContext;
     /** 배우가 고른 막히는 지점. 없으면 분기가 안 걸리므로 화면에서 반드시 채워 보낸다. */
     blockage: BlockageSelection;
+    /** 이어서 연습 — 코치가 이 연습의 대화를 이어받는다. 없으면 가장 최근 대화(서버 기본). */
+    continued_from?: string | null;
   }, options: ApiCallOptions = {}): Promise<PracticeSessionCreate> {
     return postIdempotent<PracticeSessionCreate>(
       '/v2/practice-sessions',
       {
         upload_intent_id: input.upload_intent_id,
-        situation: input.scene.situation,
-        character_context: input.scene.character,
-        goal: input.scene.goal,
+        situation: sceneValueForSubmit(input.scene.situation),
+        character_context: sceneValueForSubmit(input.scene.character),
+        goal: sceneValueForSubmit(input.scene.goal),
         blockage_kind: input.blockage.blockage_kind,
         sub_branch: input.blockage.sub_branch,
         blockage_detail: input.blockage.blockage_detail,
+        continued_from: input.continued_from ?? null,
       },
       { timeoutMs: 30_000, signal: options.signal },
     );

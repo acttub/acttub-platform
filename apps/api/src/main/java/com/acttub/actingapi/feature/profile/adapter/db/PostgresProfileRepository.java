@@ -100,6 +100,9 @@ class PostgresProfileRepository implements ProfileRepository {
                     SET revoked_at=now()
                     WHERE user_id=? AND revoked_at IS NULL
                     """, userId);
+            // 푸시 토큰도 파기 트랜잭션에 넣는다 — 나누면 "탈퇴했는데 알림은 오는" 계정이
+            // 남는다. 테이블 주인은 push 지만, 여기서 함께 치는 이유는 위 refresh_tokens 와 같다.
+            jdbc.update("DELETE FROM push_tokens WHERE user_id=?", userId);
             return find(userId);
         });
     }

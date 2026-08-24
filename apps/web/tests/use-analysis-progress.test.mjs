@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 
 import "./ts-module-loader.mjs";
-import { window } from "./dom-setup.mjs";
+import { mountProbe as mount, react, window } from "./mount-probe.mjs";
 
 const {
   ANALYSIS_TICK_MS,
@@ -213,12 +213,8 @@ test("경과 시간은 analyze 시각부터 잰다", () => {
 
 // ── 여기부터는 실제로 렌더한다 ────────────────────────────────────────────────
 
-let react;
-let createRoot;
 let Probe;
 let clock;
-let container;
-let root;
 
 function installClock() {
   const realSetInterval = window.setInterval;
@@ -259,8 +255,6 @@ function installClock() {
 }
 
 before(async () => {
-  react = await import("react");
-  ({ createRoot } = await import("react-dom/client"));
   // "@/" 별칭과 .tsx 트랜스파일을 한 번에 지나간다 — 둘 중 하나라도 안 되면 여기서 죽는다.
   ({ AnalysisProgressProbe: Probe } = await import(
     "./fixtures/analysis-progress-probe.tsx"
@@ -272,38 +266,18 @@ after(() => {
   clock?.restore();
 });
 
-// 훅을 붙인 컴포넌트를 띄우고, 마지막 렌더에서 본 값과 조작 손잡이를 돌려준다.
-function mountProbe() {
-  container = window.document.createElement("div");
-  window.document.body.append(container);
-  root = createRoot(container);
-  const seen = [];
-  react.act(() => {
-    root.render(react.createElement(Probe, { onRender: (value) => seen.push(value) }));
-  });
-  return {
-    get latest() {
-      return seen.at(-1);
-    },
-    get renders() {
-      return seen.length;
-    },
-    text: () => container.textContent,
-    report: (event) => react.act(() => seen.at(-1).report(event)),
-    unmount: () => {
-      react.act(() => root.unmount());
-      container.remove();
-    },
-  };
-}
+const mountProbe = () => mount(Probe);
+
+/** 훅에 벌어진 일을 알린다. */
+const report = (probe, event) => probe.act((value) => value.report(event));
 
 test("분석에 들어가기 전에는 1초 타이머가 걸리지 않는다", () => {
   const probe = mountProbe();
   try {
     assert.equal(clock.count, 0);
-    probe.report({ type: "compress", ratio: 0.5 });
+    report(probe, { type: "compress", ratio: 0.5 });
     assert.equal(clock.count, 0);
-    probe.report({ type: "upload", percent: 50, compressed: true });
+    report(probe, { type: "upload", percent: 50, compressed: true });
     assert.equal(clock.count, 0);
   } finally {
     probe.unmount();
@@ -313,7 +287,7 @@ test("분석에 들어가기 전에는 1초 타이머가 걸리지 않는다", (
 test("분석에 들어가면 1초 타이머가 딱 하나 걸리고 막대가 화면에서 움직인다", () => {
   const probe = mountProbe();
   try {
-    probe.report({ type: "analyze", compressed: true });
+    report(probe, { type: "analyze", compressed: true });
     assert.equal(clock.count, 1);
     const [id] = [...clock.timers.keys()];
     assert.equal(clock.timers.get(id).ms, ANALYSIS_TICK_MS);
@@ -338,7 +312,7 @@ test("분석에 들어가면 1초 타이머가 딱 하나 걸리고 막대가 �
 test("목표 시간을 넘기면 pastDeadline 이 서고 그 전에는 서지 않는다", () => {
   const probe = mountProbe();
   try {
-    probe.report({ type: "analyze", compressed: true });
+    report(probe, { type: "analyze", compressed: true });
     clock.advance(ANALYSIS_DEADLINE_MS);
     react.act(() => clock.fire());
     assert.equal(probe.latest.pastDeadline, false);
@@ -354,11 +328,11 @@ test("목표 시간을 넘기면 pastDeadline 이 서고 그 전에는 서지 �
 test("settle 이 오면 타이머를 걷어내고 더 이상 막대가 움직이지 않는다", () => {
   const probe = mountProbe();
   try {
-    probe.report({ type: "analyze", compressed: true });
+    report(probe, { type: "analyze", compressed: true });
     clock.advance(20_000);
     react.act(() => clock.fire());
 
-    probe.report({ type: "settle", status: "failed" });
+    report(probe, { type: "settle", status: "failed" });
     assert.equal(clock.count, 0);
 
     const frozen = probe.latest.pct;
@@ -373,10 +347,10 @@ test("settle 이 오면 타이머를 걷어내고 더 이상 막대가 움직이
 test("reset 이 오면 타이머를 걷어내고 막대를 0 으로 되돌린다", () => {
   const probe = mountProbe();
   try {
-    probe.report({ type: "analyze", compressed: true });
+    report(probe, { type: "analyze", compressed: true });
     assert.equal(clock.count, 1);
 
-    probe.report({ type: "reset" });
+    report(probe, { type: "reset" });
     assert.equal(clock.count, 0);
     assert.equal(probe.latest.pct, 0);
     assert.equal(probe.text(), "0");
@@ -387,7 +361,7 @@ test("reset 이 오면 타이머를 걷어내고 막대를 0 으로 되돌린다
 
 test("화면을 떠나면 타이머가 남지 않는다", () => {
   const probe = mountProbe();
-  probe.report({ type: "analyze", compressed: true });
+  report(probe, { type: "analyze", compressed: true });
   assert.equal(clock.count, 1);
 
   probe.unmount();

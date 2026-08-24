@@ -44,19 +44,30 @@ export type UploadFormState = {
 /**
  * 하단에 고정된 '분석 시작'이 비활성일 때 뭐가 비었는지 알려주는 문구.
  * 버튼이 항상 보이게 되면서 "왜 안 눌리지"가 생기므로 이유를 한 줄로 붙인다.
+ * 장면 세 칸은 선택이라(SOMA-432) 영상·권리 확인만 본다.
  */
 export function missingUploadFieldsHint(state: UploadFormState): string | null {
-  const missing: string[] = [];
-  if (!state.hasVideo) missing.push('영상');
-  if (!state.situation.trim()) missing.push('상황');
-  if (!state.character.trim()) missing.push('인물');
-  if (!state.goal.trim()) missing.push('목표');
-  if (missing.length > 0) {
-    const list = missing.join(' · ');
-    return `${list}${objectParticle(missing[missing.length - 1])} 채워주세요`;
-  }
+  if (!state.hasVideo) return '영상을 채워주세요';
   if (!state.agreedRights) return '권리 확인에 체크해주세요';
   return null;
+}
+
+/**
+ * 서버는 장면 세 칸에 min_length=1을 요구한다. 빈 칸은 자리표시자로 채워 넘긴다 —
+ * 웹(fillBlankScene)과 같은 규칙이고, 코치는 두 글자 미만을 모호값으로 걸러
+ * 대화에서 되묻는다.
+ */
+export const BLANK_SCENE_PLACEHOLDER = '.';
+
+export function sceneValueForSubmit(value: string): string {
+  const trimmed = value.trim();
+  return trimmed ? trimmed : BLANK_SCENE_PLACEHOLDER;
+}
+
+/** 서버에서 돌아온 장면 값 표시용 — 자리표시자(두 글자 미만)는 빈 값으로 되돌린다. */
+export function sceneValueForDisplay(value: string): string {
+  const trimmed = value.trim();
+  return trimmed.length > 1 ? trimmed : '';
 }
 
 export async function sendUploadIntent<T>(

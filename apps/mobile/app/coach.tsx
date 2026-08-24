@@ -1,3 +1,4 @@
+import { useNavigation, usePreventRemove } from '@react-navigation/native';
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState, type ComponentType } from 'react';
 import {
@@ -12,10 +13,11 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { api } from '@/lib/api';
-import { attemptCoachStart, canSendCoachMessage } from '@/lib/coach-flow';
-import { getPractice } from '@/lib/practice';
+import { attemptCoachStart, canSendCoachMessage, coachCompletionNext } from '@/lib/coach-flow';
+import { clearPractice, getPractice } from '@/lib/practice';
 import { palette } from '@/constants/palette';
 import { SceneFoldBody, SceneFoldLink } from '@/components/practice-chrome';
+import { useExitReview } from '@/hooks/use-exit-review';
 import { useKeyboardHeight } from '@/hooks/use-keyboard-height';
 import type { MicButtonProps } from '@/components/mic-button';
 
@@ -41,6 +43,7 @@ type ChatMessage = {
  */
 export default function CoachScreen() {
   const router = useRouter();
+  const navigation = useNavigation();
   const keyboardHeight = useKeyboardHeight();
   const keyboardVisible = keyboardHeight > 0;
   const practice = getPractice();
@@ -54,12 +57,57 @@ export default function CoachScreen() {
   const [connecting, setConnecting] = useState(true);
   const [waiting, setWaiting] = useState(false);
   const [done, setDone] = useState(false);
+  // 리포트로 넘어가거나 마치는 이동은 "나가기"가 아니다 — 가로채기를 풀고 간다.
+  // 대화가 끝났어도(done) 리포트로 못 간 채 뒤로가기로 나가는 건 나가기다.
+  const [leaveAllowed, setLeaveAllowed] = useState(false);
+  // usePreventRemove 는 렌더된 값을 보므로, 풀린 상태가 반영된 다음 틱에 이동해야 다시 안 막힌다.
+  const leaveThen = useCallback((go: () => void) => {
+    setLeaveAllowed(true);
+    setTimeout(go, 0);
+  }, []);
+  const exitReview = useExitReview('leave', 'coach', practice?.practiceSessionId);
+  const finishReview = useExitReview('finish', 'coach', practice?.practiceSessionId);
   const [noteSkipped, setNoteSkipped] = useState(false);
   const [pastOpen, setPastOpen] = useState(false);
   const [sceneOpen, setSceneOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // 영상 재생은 SceneFold(접이식)가 맡는다 — 목업이 질문에 집중하도록 접어 둔다.
+
+  // 리포트 화면으로 넘어간다. 정리(report)가 아직 없어도 간다 — 그 화면이 직접 만들고,
+  // 실패하면 재시도·홈으로 버튼을 준다. 여기 남겨 두면 버튼 하나 없이 갇힌다.
+  const goToReport = useCallback(() => {
+    leaveThen(() => router.replace('/report'));
+  }, [leaveThen, router]);
+
+  // 코치가 대화를 끝냈을 때. status==='complete' 여도 report 는 없을 수 있다.
+  const completeConversation = useCallback(
+    (reply: {
+      status: 'continue' | 'complete';
+      report: NonNullable<typeof practice>['report'];
+    }) => {
+      const next = coachCompletionNext(reply);
+      if (next === 'continue' || !practice) return;
+      setDone(true);
+      if (reply.report) practice.report = reply.report;
+      if (next === 'note-skipped') {
+        // replace 로 넘기면 coach 라우트가 사라져서 리포트 화면의 '대화로 돌아가기'가
+        // 갈 곳을 잃고, 세션은 이미 닫혀 있어 더 답할 수도 없다. 여기서 마치게 한다.
+        setNoteSkipped(true);
+      } else {
+        goToReport();
+      }
+    },
+    [goToReport, practice],
+  );
+
+  // 노트 없이 끝난 대화를 마친다 — 세션 마칠 때 한 번 한줄평을 묻는다(SOMA-433).
+  const finishWithoutNote = () => {
+    void finishReview.offer(() => {
+      clearPractice();
+      leaveThen(() => router.dismissAll());
+    });
+  };
 
   const startCoach = useCallback(async () => {
     if (!practice || startInFlightRef.current) return;
@@ -82,26 +130,24 @@ export default function CoachScreen() {
           practice.turns.push({ role: 'ai', text: reply.message });
           setMessages((m) => [...m, { role: 'ai', text: reply.message as string }]);
         }
-        if (reply.status === 'complete') {
-          setDone(true);
-          // 카드는 대화가 정리되는 순간 응답에 실려 온다(웹과 같은 계약).
-          // 따로 확인받지 않고 바로 넘긴다.
-          if (reply.report) {
-            practice.report = reply.report;
-            if (reply.report.report_type === 'blocked') {
-              setNoteSkipped(true);
-            } else {
-              router.replace('/report');
-            }
-          }
-        }
+        // 카드는 대화가 정리되는 순간 응답에 실려 온다(웹과 같은 계약).
+        // 따로 확인받지 않고 바로 넘긴다.
+        completeConversation(reply);
       } else {
         setError(result.message);
       }
       setConnecting(false);
     }
     startInFlightRef.current = false;
-  }, [practice]);
+  }, [practice, completeConversation]);
+
+  // 대화 중에 뒤로가기(헤더·제스처·하드웨어)로 나가면 한 번만 한줄평을 묻는다(SOMA-433).
+  // 이미 물어본 사람은 그냥 나간다. 대화가 끝나 리포트로 넘어갈 때는 묻지 않는다.
+  // beforeRemove 를 직접 걸면 iOS 네이티브 스택이 먼저 화면을 빼 버린다(헤더 뒤로가기·스와이프).
+  // usePreventRemove 는 네이티브 쪽까지 막아 준다.
+  usePreventRemove(!leaveAllowed, ({ data }) => {
+    void exitReview.offer(() => leaveThen(() => navigation.dispatch(data.action)));
+  });
 
   useEffect(() => {
     mountedRef.current = true;
@@ -156,20 +202,7 @@ export default function CoachScreen() {
         if (reply.status !== 'complete') practice.questionCount += 1;
         setMessages((m) => [...m, { role: 'ai', text: message }]);
       }
-      if (reply.status === 'complete') {
-        setDone(true);
-        if (reply.report) {
-          practice.report = reply.report;
-          // 노트가 안 만들어진 종료는 노트 화면으로 넘기지 않는다. replace 로 넘기면
-          // coach 라우트가 사라져서 그 화면의 '대화로 돌아가기'가 갈 곳을 잃고,
-          // 세션은 이미 닫혀 있어 더 답할 수도 없다.
-          if (reply.report.report_type === 'blocked') {
-            setNoteSkipped(true);
-          } else {
-            router.replace('/report');
-          }
-        }
-      }
+      completeConversation(reply);
     } catch (err) {
       setError(err instanceof Error ? err.message : '전송에 실패했어요.');
     } finally {
@@ -275,11 +308,21 @@ export default function CoachScreen() {
           )}
 
           {done && (
-            <Text style={styles.doneText}>
-              {noteSkipped
-                ? '오늘은 여기까지 나눴어요. 노트로 남기기엔 짧아서, 다음에 이어서 해요.'
-                : '오늘 대화는 여기까지예요. 정리가 만들어지면 바로 보여드릴게요.'}
-            </Text>
+            <>
+              <Text style={styles.doneText}>
+                {noteSkipped
+                  ? '오늘은 여기까지 나눴어요. 노트로 남기기엔 짧아서, 다음에 이어서 해요.'
+                  : '오늘 대화는 여기까지예요. 정리를 만들어 보여드릴게요.'}
+              </Text>
+              <Pressable
+                style={styles.retry}
+                onPress={noteSkipped ? finishWithoutNote : goToReport}
+                accessibilityRole="button">
+                <Text style={styles.retryText}>
+                  {noteSkipped ? '연습 마치기' : '정리 보러 가기'}
+                </Text>
+              </Pressable>
+            </>
           )}
         </ScrollView>
 
@@ -332,6 +375,8 @@ export default function CoachScreen() {
           </View>
         )}
       </View>
+      {exitReview.element}
+      {finishReview.element}
     </SafeAreaView>
   );
 }

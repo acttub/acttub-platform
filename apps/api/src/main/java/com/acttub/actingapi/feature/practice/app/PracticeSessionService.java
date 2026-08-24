@@ -64,9 +64,18 @@ public class PracticeSessionService {
         }
         // 이어받을 연습은 이 배우의 보이는 연습이어야 한다 — 남의 연습이나 숨긴 연습을
         // 지정해 그 대화를 끌어오는 길을 여기서 막는다.
-        if (command.continuedFrom() != null
-                && sessions.status(userId, command.continuedFrom()) == null) {
-            throw new ApiException(404, "practice_session_not_found");
+        UUID continuedFrom = command.continuedFrom();
+        if (continuedFrom != null) {
+            if (sessions.status(userId, continuedFrom) == null) {
+                throw new ApiException(404, "practice_session_not_found");
+            }
+            // 묶음의 깊이는 2로 고정한다 — 자식에서 이어가면 손자가 아니라 같은 부모의
+            // 새 자식이 된다. 깊이를 열어 두면 몇 차례만 이어가도 사슬이 되어, 묶음
+            // 표시도 차수 세기도 사슬 전체를 걸어야 한다.
+            UUID parent = sessions.parentOf(userId, continuedFrom);
+            if (parent != null) {
+                continuedFrom = parent;
+            }
         }
         PracticeSessionOperation result = operations.createWithAnalysis(
                 userId,
@@ -77,7 +86,7 @@ public class PracticeSessionService {
                 command.blockageKind(),
                 command.subBranch(),
                 command.blockageDetail(),
-                command.continuedFrom(),
+                continuedFrom,
                 requestId,
                 createFingerprint(command));
         if (result == null) {

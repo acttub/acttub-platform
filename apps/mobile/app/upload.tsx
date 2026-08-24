@@ -37,6 +37,8 @@ export default function UploadScreen() {
   // SafeAreaView가 이미 하단 인셋을 비워두므로 그만큼 빼고 올린다([[use-keyboard-height]]).
   const keyboardVisible = keyboardHeight > 0;
   const [prefilled, setPrefilled] = useState(false);
+  // 이어서 연습 — 렌더와 무관하고 제출 시 한 번 실린다.
+  const continuedFromRef = useRef<string | null>(null);
   const [situation, setSituation] = useState('');
   const [character, setCharacter] = useState('');
   const [goal, setGoal] = useState('');
@@ -54,10 +56,12 @@ export default function UploadScreen() {
   useEffect(() => {
     const p = takePrefill();
     if (!p) return;
+    if (p.continuedFrom) continuedFromRef.current = p.continuedFrom;
+    if (!p.scene) return;
     setPrefilled(true);
-    setSituation(p.situation);
-    setCharacter(p.character);
-    setGoal(p.goal);
+    setSituation(p.scene.situation);
+    setCharacter(p.scene.character);
+    setGoal(p.scene.goal);
   }, []);
 
   const MAX_RAW_MB = 4096;
@@ -92,8 +96,8 @@ export default function UploadScreen() {
     });
   };
 
-  const canSubmit =
-    situation.trim() && character.trim() && goal.trim() && video && agreedRights;
+  // 장면 세 칸은 선택이다(SOMA-432) — 비우면 코치가 대화에서 물어본다.
+  const canSubmit = video && agreedRights;
 
   const start = () => {
     if (!canSubmit || !video) return;
@@ -111,6 +115,7 @@ export default function UploadScreen() {
           durationMs,
           // 막히는 지점은 다음 화면에서 고른다. 여기서 채우면 분기가 늘 '그 외'가 된다.
           blockage: null,
+          continuedFrom: continuedFromRef.current,
         });
       },
       // 분석 전에 막히는 지점을 먼저 고른다 — 서버가 그 값으로 코치를 가른다.
@@ -177,7 +182,13 @@ export default function UploadScreen() {
           {videoError && <Text style={styles.errorText}>{videoError}</Text>}
 
           <View style={styles.sceneCard}>
-            <Text style={styles.sceneTitle}>이 장면에서 무엇을 연기했는지 알려 주세요</Text>
+            <Text style={styles.sceneTitle}>
+              이 장면에서 무엇을 연기했는지 알려 주세요
+              <Text style={styles.sceneOptional}> (선택)</Text>
+            </Text>
+            <Text style={styles.sceneOptionalHint}>
+              비워 두셔도 돼요. 적어 주시면 분석이 더 정확해져요.
+            </Text>
             <View style={styles.fields}>
               <Field
                 label="상황"
@@ -313,6 +324,8 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   sceneTitle: { fontSize: 15, fontWeight: '900', color: palette.text },
+  sceneOptional: { fontWeight: '700', color: palette.textFaint },
+  sceneOptionalHint: { fontSize: 12.5, fontWeight: '600', color: palette.textFaint, marginTop: 2 },
   fields: { gap: 12 },
   field: { gap: 6 },
   fieldLabel: { fontSize: 12.5, fontWeight: '800', color: palette.textMuted },

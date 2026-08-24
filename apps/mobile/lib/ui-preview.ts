@@ -73,6 +73,7 @@ export function seedPendingUpload(videoUri = '') {
     video: { uri: videoUri, name: 'take_03.mov', mimeType: 'video/mp4' },
     durationMs: 72_000,
     blockage: null,
+    continuedFrom: null,
   });
 }
 
@@ -83,6 +84,7 @@ export function seedPractice(options: { withReport?: boolean; withTurns?: boolea
     video: { uri: '', name: 'take_03.mov', mimeType: 'video/mp4' },
     durationMs: 72_000,
     blockage: BLOCKAGE,
+    continuedFrom: null,
   });
   startPractice({
     practiceSessionId: 'preview-session',

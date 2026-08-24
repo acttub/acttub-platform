@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
 
 import {
   countdown,
@@ -15,32 +14,25 @@ import {
   type AdmissionNotice,
   type AdmissionResource,
   type AdmissionTip,
-  type AdmissionsResponse,
   type AdmissionUniversity,
 } from "@/lib/api/v2/admissions";
+import { useResource } from "@/lib/react/use-resource";
 import { RailLayout } from "@/features/nav/app-rail";
 
-export function UniversityDetailPage({ universityId }: { universityId: string }) {
-  const [payload, setPayload] = useState<AdmissionsResponse | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [today, setToday] = useState<string | null>(null);
+import { answeredAdmissions } from "./answered";
+import { StatusLine } from "./status-line";
 
-  useEffect(() => {
-    const controller = new AbortController();
-    getUniversityAdmissions(universityId, { signal: controller.signal })
-      .then((data) => {
-        // 정적 export라 서버 시각이 없다. 응답이 온 뒤에 읽어 프리렌더와 어긋나지 않게 한다.
-        setToday(localDate());
-        setPayload(data);
-      })
-      .catch((cause) => {
-        if (controller.signal.aborted) return;
-        setError(
-          cause instanceof Error ? cause.message : "입시 정보를 불러오지 못했어요.",
-        );
-      });
-    return () => controller.abort();
-  }, [universityId]);
+export function UniversityDetailPage({ universityId }: { universityId: string }) {
+  // 키가 대학 id 라 다른 대학으로 가면 옛 답을 버리고 로딩으로 되돌아간다. 옛 코드는
+  // 그러지 않았지만 갈린 것이 보이지는 않는다 — `[id]` 가 라우트 세그먼트이고
+  // generateStaticParams 로 대학마다 페이지가 따로 서므로 이 컴포넌트가 다시 마운트된다.
+  const admissions = useResource(
+    universityId,
+    (id, signal) => getUniversityAdmissions(id, { signal }),
+    "입시 정보를 불러오지 못했어요.",
+  );
+
+  const { payload, today } = answeredAdmissions(admissions);
 
   const university = payload?.universities[0] ?? null;
 
@@ -55,22 +47,23 @@ export function UniversityDetailPage({ universityId }: { universityId: string })
             ← 입시 정보
           </Link>
 
-          {error && (
-            <p className="mt-8 text-sm font-semibold text-[#e5484d]">
+          {/*
+            서버가 준 말(`admissions.message`)을 일부러 쓰지 않는다 — 옛 코드가 오류를
+            세워 두고도 렌더에서 버리고 이 문구만 그렸다. 목록 화면(admissions-page)은
+            서버 말을 그리므로 둘이 갈려 있고, 어느 쪽으로 맞출지는 이 커밋의 일이 아니다.
+          */}
+          {admissions.state === "failed" && (
+            <StatusLine tone="error">
               입시 정보를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.
-            </p>
+            </StatusLine>
           )}
 
-          {!payload && !error && (
-            <p className="mt-8 text-sm font-semibold text-[#8b95a1]">
-              불러오는 중이에요…
-            </p>
+          {admissions.state === "loading" && (
+            <StatusLine tone="muted">불러오는 중이에요…</StatusLine>
           )}
 
           {payload && !university && (
-            <p className="mt-8 text-sm font-semibold text-[#8b95a1]">
-              해당 대학을 찾을 수 없어요.
-            </p>
+            <StatusLine tone="muted">해당 대학을 찾을 수 없어요.</StatusLine>
           )}
 
           {payload && university && (
@@ -666,13 +659,6 @@ function formatSeconds(seconds: number): string {
   if (minutes === 0) return `${rest}초`;
   if (rest === 0) return `${minutes}분`;
   return `${minutes}분 ${rest}초`;
-}
-
-/** 사용자가 사는 시간대의 오늘. UTC로 자르면 한국 오전에 하루가 밀린다. */
-function localDate(): string {
-  const now = new Date();
-  const pad = (value: number) => String(value).padStart(2, "0");
-  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
 }
 
 function period(start?: string | null, end?: string | null): string | null {

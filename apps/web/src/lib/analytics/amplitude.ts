@@ -27,6 +27,7 @@
 import * as amplitude from "@amplitude/analytics-browser";
 import { sessionReplayPlugin } from "@amplitude/plugin-session-replay-browser";
 import { toDurationBucket } from "./ga";
+import type { UploadStage } from "../api/v2/uploads";
 import { scrubUrl } from "../observability/sentry-shared";
 
 export { toDurationBucket } from "./ga";
@@ -48,9 +49,11 @@ type AnalysisErrorCode =
 type ReportType = "analysis" | "expression" | "blocked";
 type PracticeStatus = "created" | "analyzing" | "analyzed" | "failed";
 export type LoginProvider = "development" | "google" | "apple";
-// `session_create` 는 UploadError 가 아니다. 업로드가 다 끝난 뒤 세션 생성에서 터지는
-// 실패인데, 이걸 preflight 로 묶으면 "영상이 문제였다"와 "서버가 거절했다"가 한 칸에 섞인다.
-type UploadStage = "preflight" | "intent" | "put" | "complete" | "session_create";
+// 연습을 시작하다 어디서 엎어졌는지. 가운데 셋(UploadStage)은 UploadError 가 스스로
+// 말하지만 양 끝 둘은 아니다. `session_create` 는 UploadError 가 아니다 — 업로드가 다
+// 끝난 뒤 세션 생성에서 터지는 실패인데, 이걸 preflight 로 묶으면 "영상이 문제였다"와
+// "서버가 거절했다"가 한 칸에 섞인다.
+export type PracticeStartFailurePoint = "preflight" | UploadStage | "session_create";
 
 let started = false;
 // SDK는 한 번만 init하되, 로그아웃·재동의 요구 뒤에는 남아 있는 인스턴스로 이벤트를
@@ -222,6 +225,15 @@ export function trackPracticeBlockageStarted(): void {
   track("practice_blockage_started");
 }
 
+/**
+ * "장면 없이 시작"을 눌렀다. 세션 제출 이벤트의 scene_skipped 와 나눠 두는 이유는
+ * "버튼을 눌렀다"와 "그냥 빈 채로 진행했다"를 갈라야 안내 문구와 버튼의 효과를
+ * 따로 잴 수 있기 때문이다(ADR-021).
+ */
+export function trackPracticeSceneSkipped(): void {
+  track("practice_scene_skipped");
+}
+
 export function trackPracticeBlockageSubmitted(
   kind: BlockageKind,
   subBranch: BlockageSubBranch,
@@ -234,10 +246,43 @@ export function trackPracticeBlockageSubmitted(
   });
 }
 
-export function trackPracticeUploadFailed(stage: UploadStage, reason: unknown): void {
+export function trackPracticeUploadFailed(
+  stage: PracticeStartFailurePoint,
+  reason: unknown,
+): void {
   track("practice_upload_failed", {
     stage,
     reason_code: toSafeReasonCode(reason),
+  });
+}
+
+export type PracticeUploadProfile = {
+  compressMs: number;
+  uploadMs: number;
+  originalBytes: number;
+  uploadedBytes: number;
+  wasCompressed: boolean;
+  webcodecsSupported: boolean;
+  videoDurationMs: number;
+};
+
+/**
+ * 브라우저 구간(압축·업로드) 실측 — SOMA-381. practice_video_selected(원본 크기)와
+ * practice_analysis_settled(서버 대기) 사이에 비어 있던 조각을 메운다.
+ *
+ * 값은 버킷이 아니라 원값이다: 이 구간을 깎는 게 목적이라 경계 몇 개로 뭉개면
+ * 개선 전후 비교가 안 된다. 압축과 업로드를 따로 싣는 이유도 같다 — 합치면
+ * 어느 쪽을 깎을지 못 정한다.
+ */
+export function trackPracticeUploadProfiled(profile: PracticeUploadProfile): void {
+  track("practice_upload_profiled", {
+    compress_ms: Math.round(profile.compressMs),
+    upload_ms: Math.round(profile.uploadMs),
+    original_bytes: profile.originalBytes,
+    uploaded_bytes: profile.uploadedBytes,
+    was_compressed: profile.wasCompressed,
+    webcodecs_supported: profile.webcodecsSupported,
+    video_duration_ms: profile.videoDurationMs,
   });
 }
 
@@ -245,11 +290,14 @@ export function trackPracticeSessionCreated(
   durationMs: number,
   kind: BlockageKind,
   subBranch: BlockageSubBranch,
+  /** Scene Context 세 칸을 모두 비운 채 만든 연습인가. 완주율을 갈라 보는 데 쓴다. */
+  sceneSkipped: boolean,
 ): void {
   track("practice_session_created", {
     duration_bucket: toDurationBucket(durationMs),
     kind,
     sub_branch: subBranch,
+    scene_skipped: sceneSkipped,
   });
 }
 

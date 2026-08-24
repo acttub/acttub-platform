@@ -85,6 +85,10 @@ export function MemoryPanel() {
   const [savedField, setSavedField] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // 이 조회도 useResource 로 접히지 않는다 — 답으로 세우는 items·drafts 를 저장·한 칸
+  // 지우기·전부 지우기·타이핑 네 길이 계속 바꾼다. 훅이 데이터를 들면 그 갱신을 얹을
+  // 자리가 없어 override 표와 "전부 지웠음" 표시를 따로 들어야 하고, 그러면 상태가
+  // 줄기는커녕 늘어난다.
   useEffect(() => {
     if (!ready) return;
     const controller = new AbortController();
@@ -98,11 +102,19 @@ export function MemoryPanel() {
           Object.fromEntries(res.items.map((i) => [i.field, i.value])),
         );
       } catch {
+        // 취소된 조회는 실패가 아니다. 세션이 만료되거나 다른 탭에서 로그아웃하면
+        // useRequireAuth 가 ready 를 다시 눕히고(use-require-auth.ts 의 redirectToLogin)
+        // 이 이펙트가 정리되며 조회를 끊는데, 그것을 걸러내지 않아 로그인 화면으로
+        // 넘어가기 전에 "불러오지 못했어요" 가 스쳤다.
+        if (controller.signal.aborted) return;
         // 못 불러왔을 때 빈 화면과 구분돼야 한다. 빈 상태로 보이면 배우가
         // "코치가 아무것도 모르는구나" 로 잘못 읽는다.
         setError("지금은 불러오지 못했어요. 잠시 후 새로고침해 주세요.");
       } finally {
-        setLoading(false);
+        // 끊긴 조회는 로딩도 끄지 않는다. 다만 이것이 관측되는 길은 지금 없다 —
+        // redirectToLogin 이 곧바로 /login 으로 replace 하므로 ready 가 다시 서기 전에
+        // 이 화면이 언마운트된다. 위 catch 가드와 달리 이쪽은 방어일 뿐이다.
+        if (!controller.signal.aborted) setLoading(false);
       }
     })();
     return () => controller.abort();

@@ -161,6 +161,59 @@ class PostgresMemoryRepositoryPriorIT {
     }
 
     @Test
+    void aNewChildKnowsTheSceneHistoryFromParentAndSiblings() {
+        // 묶음(부모+자식들)의 카드가 차수별 한 줄로 실린다 — 모델 호출 없이 (SOMA-418).
+        UUID userId = insertUser("history@example.com");
+        UUID parent = insertPractice(userId);
+        setCreatedAt(parent, NOW.minusDays(3));
+        UUID parentCoach = insertCoach(parent, "closed", NOW.minusDays(3));
+        insertTurn(parentCoach, 0, "actor", "1차 대화");
+        insertCard(parent, parentCoach, "두 대사의 의미를 못 찾음", NOW.minusDays(3));
+        UUID sibling = insertPractice(userId, parent);
+        setCreatedAt(sibling, NOW.minusDays(1));
+        UUID siblingCoach = insertCoach(sibling, "closed", NOW.minusDays(1));
+        insertTurn(siblingCoach, 0, "actor", "2차 대화");
+        insertCard(sibling, siblingCoach, "첫 대사는 풀렸다", NOW.minusDays(1));
+        UUID fresh = insertPractice(userId, parent);
+
+        PostgresMemoryRepository.PriorPracticeContext context =
+                repository.priorContext(userId, fresh);
+
+        assertThat(context.sceneHistory()).hasSize(2);
+        assertThat(context.sceneHistory().get(0))
+                .contains("1차").contains("두 대사의 의미를 못 찾음").contains("다음: 다음 방향");
+        assertThat(context.sceneHistory().get(1)).contains("2차").contains("첫 대사는 풀렸다");
+        // 직전 대화는 묶음에서 가장 최근에 닫힌 차수의 것이어야 한다.
+        assertThat(context.earlierConversation()).contains("2차 대화");
+    }
+
+    @Test
+    void hiddenMembersDropOutOfTheSceneHistoryAndConversation() {
+        // 배우가 지운 차수는 이력에서도 발췌에서도 되살아나지 않는다.
+        UUID userId = insertUser("history-hidden@example.com");
+        UUID parent = insertPractice(userId);
+        setCreatedAt(parent, NOW.minusDays(3));
+        UUID parentCoach = insertCoach(parent, "closed", NOW.minusDays(3));
+        insertTurn(parentCoach, 0, "actor", "1차 대화");
+        insertCard(parent, parentCoach, "남는 차수", NOW.minusDays(3));
+        UUID sibling = insertPractice(userId, parent);
+        setCreatedAt(sibling, NOW.minusDays(1));
+        UUID siblingCoach = insertCoach(sibling, "closed", NOW.minusDays(1));
+        insertTurn(siblingCoach, 0, "actor", "지워질 대화");
+        insertCard(sibling, siblingCoach, "지워질 차수", NOW.minusDays(1));
+        jdbc.update("UPDATE practice_sessions SET hidden_at=? WHERE id=?", NOW, sibling);
+        UUID fresh = insertPractice(userId, parent);
+
+        PostgresMemoryRepository.PriorPracticeContext context =
+                repository.priorContext(userId, fresh);
+
+        assertThat(context.sceneHistory()).hasSize(1);
+        assertThat(context.sceneHistory().getFirst()).contains("남는 차수");
+        assertThat(context.earlierConversation())
+                .contains("1차 대화").doesNotContain("지워질 대화");
+    }
+
+    @Test
     void aHiddenPracticesConversationDoesNotComeBack() {
         // 배우가 지운 연습의 대화가 새 연습에서 되살아나면 안 된다.
         UUID userId = insertUser("hidden@example.com");
@@ -171,6 +224,44 @@ class PostgresMemoryRepositoryPriorIT {
         UUID fresh = insertPractice(userId);
 
         assertThat(repository.priorContext(userId, fresh).earlierConversation()).isNull();
+    }
+
+    @Test
+    void enqueueMemoryUpdateInsertsExactlyOneJobPerPractice() {
+        // 예약이 조용히 무시된 사고(SOMA-404)의 재발 방지 — 실제 스키마에서 행이
+        // 정말 생기는지, 같은 연습으로 두 번 불러도 하나로 남는지 못박는다.
+        UUID userId = insertUser("queue@example.com");
+        UUID practiceId = insertPractice(userId);
+
+        assertThat(repository.enqueueMemoryUpdate(userId, practiceId)).isTrue();
+        assertThat(repository.enqueueMemoryUpdate(userId, practiceId)).isFalse();
+
+        Integer jobs = jdbc.queryForObject("""
+                SELECT count(*) FROM external_operations
+                WHERE session_id=? AND kind='memory_update'::operation_kind_t
+                """, Integer.class, practiceId);
+        assertThat(jobs).isEqualTo(1);
+    }
+
+    private void setCreatedAt(UUID practiceId, OffsetDateTime at) {
+        jdbc.update("UPDATE practice_sessions SET created_at=? WHERE id=?", at, practiceId);
+    }
+
+    private void insertCard(UUID practiceId, UUID coachId, String title, OffsetDateTime at) {
+        UUID handoffId = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO coaching_handoffs (
+                    id,coach_session_id,practice_session_id,branch_kind,handoff_json
+                ) VALUES (?, ?, ?, 'analysis', '{}'::jsonb)
+                """, handoffId, coachId, practiceId);
+        jdbc.update("""
+                INSERT INTO practice_reports (
+                    practice_session_id,report_type,report_json,source_handoff_id,created_at
+                ) VALUES (?, 'analysis', ?::jsonb, ?, ?)
+                """, practiceId,
+                "{\"report_type\":\"analysis\",\"title\":\"" + title
+                        + "\",\"next_take\":{\"direction\":\"다음 방향\",\"tested\":false}}",
+                handoffId, at);
     }
 
     private UUID insertUser(String email) {

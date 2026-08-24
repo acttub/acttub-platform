@@ -22,6 +22,7 @@ import {
   type CommunityComment,
   type CommunityPost,
 } from "@/lib/api/v2/community";
+import { errorMessage } from "@/lib/api/v2/errors";
 import { useOptionalAuth } from "@/features/auth/use-optional-auth";
 import { ItemMenu, ModerationDialog, type ModerationTarget } from "./moderation";
 import {
@@ -30,7 +31,6 @@ import {
   Notice,
   PrimaryButton,
   QuietButton,
-  errorMessage,
   relativeTime,
 } from "./shell";
 
@@ -76,6 +76,10 @@ export function PostDetail({ postId }: { postId: string | null }) {
     [postId],
   );
 
+  // 이 조회도 useResource 로 접히지 않는다 — 답으로 세우는 셋(post·comments·cursor)을
+  // 그 뒤 사용자 행동이 계속 바꾼다. 좋아요가 post 를, 댓글 쓰기·지우기가 comments 와
+  // post.comment_count 를, 더 보기가 cursor 를 손댄다. 훅이 데이터를 들면 그 갱신을
+  // 밖에서 할 수 없어 같은 답을 state 가 한 벌 더 들게 된다.
   useEffect(() => {
     if (!postId) return;
     const controller = new AbortController();
