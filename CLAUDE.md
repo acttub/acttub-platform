@@ -8,7 +8,7 @@ Acttub 플랫폼 모노레포. JS(pnpm)와 Java(Gradle)로 갈립니다.
 - `apps/api`: Spring Boot 백엔드(acting-api). **백엔드는 이것 하나이고 dev·운영 모두 여기가 트래픽을 받습니다.** 계약을 지키는 것은 여기 Java 테스트이며, 판정 기준은 [apps/api/CONTRACT.md](apps/api/CONTRACT.md)입니다.
 - `apps/mobile`: Expo React Native 앱. npm/EAS로 자립 관리하며 pnpm 워크스페이스에서 제외됩니다(심링크가 Metro를 깨서).
 - `packages/*`: 공유 패키지 자리. 실제 두 번째 사용처가 생긴 뒤에만 분리합니다.
-- `docs/`: 앱을 가로지르는 문서입니다. 앱 상세 문서는 각 앱 디렉토리에 둡니다. **디자인 문서는 `docs/design/`, 배포 문서는 `docs/deploy/`에 둡니다** — `ADR.md`·`PRD.md`·`BRANCHING-STRATEGY.md`만 `docs/` 최상위에 남습니다. **제품이 무엇이고 누구를 위한 것인지**는 [docs/PRD.md](docs/PRD.md)입니다. **화면·컴포넌트를 만들 때**는 [docs/design/UI_GUIDE.md](docs/design/UI_GUIDE.md)가 Acttub 적용 규칙이고 [docs/design/Toss-DESIGN.md](docs/design/Toss-DESIGN.md)가 상세 레퍼런스입니다(ADR-012). 끝난 계획·이관 사양은 `docs/archive/`로 옮깁니다 — FastAPI→Spring Boot 이관(`SOMA-287`)의 사양과 마일스톤 기록은 `docs/archive/soma287/`에 있습니다.
+- `docs/`: 앱을 가로지르는 문서입니다. 앱 상세 문서는 각 앱 디렉토리에 둡니다. **디자인 문서는 `docs/design/`, 배포 문서는 `docs/deploy/`에 둡니다** — 추적되는 문서는 `ADR.md`·`PRD.md`·`BRANCHING-STRATEGY.md` 셋만 `docs/` 최상위에 남습니다(디스크에 보이는 `docs/TODO.md`는 추적하지 않는 로컬 메모입니다 — `.gitignore` 참고). **제품이 무엇이고 누구를 위한 것인지**는 [docs/PRD.md](docs/PRD.md)입니다. **화면·컴포넌트를 만들 때**는 [docs/design/UI_GUIDE.md](docs/design/UI_GUIDE.md)가 Acttub 적용 규칙이고 [docs/design/Toss-DESIGN.md](docs/design/Toss-DESIGN.md)가 상세 레퍼런스입니다(ADR-012). 끝난 계획·이관 사양은 `docs/archive/`로 옮깁니다 — FastAPI→Spring Boot 이관(`SOMA-287`)의 사양과 마일스톤 기록은 `docs/archive/soma287/`에 있습니다.
 - `deploy/`는 배포 스크립트입니다.
 
 세 앱 모두 각자 CLAUDE.md를 갖고 있습니다. **그 앱을 건드리기 전에 해당 파일을 읽습니다** — 아래 내용은 앱을 가로지르는 규칙만 담습니다.
