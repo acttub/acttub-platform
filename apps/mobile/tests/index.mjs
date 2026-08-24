@@ -19,3 +19,5 @@ import './display-name.test.mjs';
 import './keyboard-overlap.test.mjs';
 import './push-policy.test.mjs';
 import './continue-practice.test.mjs';
+import './exit-review-policy.test.mjs';
+import './coach-completion.test.mjs';
