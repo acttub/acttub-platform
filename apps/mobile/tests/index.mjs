@@ -21,3 +21,4 @@ import './push-policy.test.mjs';
 import './continue-practice.test.mjs';
 import './exit-review-policy.test.mjs';
 import './coach-completion.test.mjs';
+import './moderation.test.mjs';

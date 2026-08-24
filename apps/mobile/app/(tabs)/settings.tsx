@@ -173,6 +173,8 @@ export default function SettingsScreen() {
                       value={!!prefs[doc.id]}
                       onValueChange={(v) => toggle(doc, v)}
                       trackColor={{ true: palette.blue, false: palette.border }}
+                      thumbColor="#FFFFFF"
+                      ios_backgroundColor={palette.border}
                     />
                   </View>
                   <DocBody doc={doc} />
@@ -192,6 +194,8 @@ export default function SettingsScreen() {
                 value={pushOn}
                 onValueChange={(v) => void togglePush(v)}
                 trackColor={{ true: palette.blue, false: palette.border }}
+                thumbColor="#FFFFFF"
+                ios_backgroundColor={palette.border}
               />
             </View>
             <Text style={styles.sectionHint}>

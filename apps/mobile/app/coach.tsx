@@ -17,6 +17,7 @@ import { attemptCoachStart, canSendCoachMessage, coachCompletionNext } from '@/l
 import { clearPractice, getPractice } from '@/lib/practice';
 import { palette } from '@/constants/palette';
 import { SceneFoldBody, SceneFoldLink } from '@/components/practice-chrome';
+import { useAppDialog } from '@/components/app-dialog';
 import { useExitReview } from '@/hooks/use-exit-review';
 import { useKeyboardHeight } from '@/hooks/use-keyboard-height';
 import type { MicButtonProps } from '@/components/mic-button';
@@ -71,6 +72,7 @@ export default function CoachScreen() {
   const [pastOpen, setPastOpen] = useState(false);
   const [sceneOpen, setSceneOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { confirm, dialog } = useAppDialog();
 
   // 영상 재생은 SceneFold(접이식)가 맡는다 — 목업이 질문에 집중하도록 접어 둔다.
 
@@ -180,8 +182,7 @@ export default function CoachScreen() {
     );
   }
 
-  const send = async () => {
-    const text = input.trim();
+  const sendText = async (text: string) => {
     const canSend = canSendCoachMessage({
       text,
       waiting,
@@ -208,6 +209,19 @@ export default function CoachScreen() {
     } finally {
       setWaiting(false);
     }
+  };
+
+  const send = () => sendText(input.trim());
+
+  // '그만'을 타이핑하지 않아도 버튼으로 마칠 수 있게 한다(SOMA-444).
+  // 서버는 '그만'을 받으면 대화를 정리한다 — 보내는 내용은 타이핑과 동일하다.
+  const endConversation = async () => {
+    const ok = await confirm({
+      title: '여기서 마칠까요?',
+      message: '지금까지 나눈 대화로 오늘의 정리를 만들어요.',
+      confirmLabel: '마치기',
+    });
+    if (ok) await sendText('그만');
   };
 
   const latestQuestion = [...messages].reverse().find((m) => m.role === 'ai')?.text ?? null;
@@ -371,10 +385,17 @@ export default function CoachScreen() {
                 {waiting ? '답을 듣고 생각 중이에요…' : '이 답으로 다음 질문 →'}
               </Text>
             </Pressable>
-            <Text style={styles.endHint}>‘그만’이라고 쓰면 언제든 마칠 수 있어요</Text>
+            <Pressable
+              style={styles.endBtn}
+              disabled={waiting || connecting}
+              onPress={() => void endConversation()}
+              accessibilityRole="button">
+              <Text style={styles.endHint}>그만하고 정리 만들기</Text>
+            </Pressable>
           </View>
         )}
       </View>
+      {dialog}
       {exitReview.element}
       {finishReview.element}
     </SafeAreaView>
@@ -496,5 +517,6 @@ const styles = StyleSheet.create({
   },
   sendOff: { backgroundColor: palette.blueLine },
   sendText: { fontSize: 15, fontWeight: '900', color: palette.bg },
-  endHint: { fontSize: 11.5, fontWeight: '600', color: palette.checkOff, textAlign: 'center' },
+  endHint: { fontSize: 12, fontWeight: '800', color: palette.textFaint, textAlign: 'center' },
+  endBtn: { alignSelf: 'center', paddingVertical: 8, paddingHorizontal: 16 },
 });

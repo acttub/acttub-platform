@@ -1,3 +1,4 @@
+import type { ReportPayload } from '@/lib/moderation';
 import type {
   AdmissionsResponse,
 } from './admissions';
@@ -695,6 +696,17 @@ export const api = {
     anonymous: boolean;
   }): Promise<CommunityPost> {
     return request<CommunityPost>('/v2/community/posts', jsonInit(input), { timeoutMs: 20_000 });
+  },
+
+  // 신고·차단 (SOMA-444) — 값·경로는 웹 community.ts와 동일. 신고는 204, 중복 신고는 409.
+  reportCommunityContent(input: ReportPayload): Promise<void> {
+    return request<void>('/v2/community/reports', jsonInit(input), { timeoutMs: 15_000 });
+  },
+
+  blockCommunityUser(userId: string): Promise<void> {
+    return request<void>('/v2/community/blocks', jsonInit({ user_id: userId }), {
+      timeoutMs: 15_000,
+    });
   },
 
   createCommunityComment(
