@@ -13,6 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { api, type PracticeReport } from '@/lib/api';
 import { clearPractice, getPractice, setPrefill } from '@/lib/practice';
 import { SceneFoldBody, SceneFoldLink, SceneSummary } from '@/components/practice-chrome';
+import { useExitReview } from '@/hooks/use-exit-review';
 import { previewVideoSource } from '@/lib/preview-video';
 import { createOrReuseReport } from '@/lib/report-flow';
 import { palette } from '@/constants/palette';
@@ -27,6 +28,7 @@ import { reportDisplay } from '@/lib/report-display';
 export default function ReportScreen() {
   const router = useRouter();
   const practice = getPractice();
+  const exitReview = useExitReview('finish', 'report', practice?.practiceSessionId);
   const [report, setReport] = useState<PracticeReport | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -84,9 +86,12 @@ export default function ReportScreen() {
     router.push('/upload');
   };
 
+  // 세션을 마칠 때 한 번만 한줄평을 묻는다(SOMA-433). 이미 물어본 사람은 바로 마친다.
   const finish = () => {
-    clearPractice();
-    router.dismissAll();
+    void exitReview.offer(() => {
+      clearPractice();
+      router.dismissAll();
+    });
   };
 
   const display = report && report.report_type !== 'blocked' ? reportDisplay(report) : null;
@@ -200,6 +205,7 @@ export default function ReportScreen() {
           </ScrollView>
         </>
       )}
+      {exitReview.element}
     </SafeAreaView>
   );
 }

@@ -1,3 +1,4 @@
+import { useNavigation } from '@react-navigation/native';
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState, type ComponentType } from 'react';
 import {
@@ -16,6 +17,7 @@ import { attemptCoachStart, canSendCoachMessage } from '@/lib/coach-flow';
 import { getPractice } from '@/lib/practice';
 import { palette } from '@/constants/palette';
 import { SceneFoldBody, SceneFoldLink } from '@/components/practice-chrome';
+import { useExitReview } from '@/hooks/use-exit-review';
 import { useKeyboardHeight } from '@/hooks/use-keyboard-height';
 import type { MicButtonProps } from '@/components/mic-button';
 
@@ -41,6 +43,7 @@ type ChatMessage = {
  */
 export default function CoachScreen() {
   const router = useRouter();
+  const navigation = useNavigation();
   const keyboardHeight = useKeyboardHeight();
   const keyboardVisible = keyboardHeight > 0;
   const practice = getPractice();
@@ -54,6 +57,10 @@ export default function CoachScreen() {
   const [connecting, setConnecting] = useState(true);
   const [waiting, setWaiting] = useState(false);
   const [done, setDone] = useState(false);
+  // 대화가 끝나 리포트로 넘어가는 이동은 "나가기"가 아니다 — 가로채기에서 제외하려고 ref 로 든다.
+  const doneRef = useRef(false);
+  const leaveAllowedRef = useRef(false);
+  const exitReview = useExitReview('leave', 'coach', practice?.practiceSessionId);
   const [noteSkipped, setNoteSkipped] = useState(false);
   const [pastOpen, setPastOpen] = useState(false);
   const [sceneOpen, setSceneOpen] = useState(false);
@@ -84,6 +91,7 @@ export default function CoachScreen() {
         }
         if (reply.status === 'complete') {
           setDone(true);
+        doneRef.current = true;
           // 카드는 대화가 정리되는 순간 응답에 실려 온다(웹과 같은 계약).
           // 따로 확인받지 않고 바로 넘긴다.
           if (reply.report) {
@@ -102,6 +110,19 @@ export default function CoachScreen() {
     }
     startInFlightRef.current = false;
   }, [practice]);
+
+  // 대화 중에 뒤로가기(헤더·제스처·하드웨어)로 나가면 한 번만 한줄평을 묻는다(SOMA-433).
+  // 이미 물어본 사람은 그냥 나간다. 대화가 끝나 리포트로 넘어갈 때는 묻지 않는다.
+  useEffect(() => {
+    return navigation.addListener('beforeRemove', (event) => {
+      if (doneRef.current || leaveAllowedRef.current) return;
+      event.preventDefault();
+      void exitReview.offer(() => {
+        leaveAllowedRef.current = true;
+        navigation.dispatch(event.data.action);
+      });
+    });
+  }, [navigation, exitReview]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -158,6 +179,7 @@ export default function CoachScreen() {
       }
       if (reply.status === 'complete') {
         setDone(true);
+        doneRef.current = true;
         if (reply.report) {
           practice.report = reply.report;
           // 노트가 안 만들어진 종료는 노트 화면으로 넘기지 않는다. replace 로 넘기면
@@ -332,6 +354,7 @@ export default function CoachScreen() {
           </View>
         )}
       </View>
+      {exitReview.element}
     </SafeAreaView>
   );
 }
