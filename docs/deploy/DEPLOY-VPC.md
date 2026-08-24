@@ -422,13 +422,18 @@ dev는 인스턴스에 PostgreSQL이 함께 깔려 있어(`bootstrap-dev.sh`) `p
 
 ## 6. GitHub Actions 자동 배포 (OIDC)
 
-`.github/workflows/deploy.yml`이 빌드 → S3 업로드 → SSM 설치를 한 번에 한다. Actions
-탭에서 수동 실행(`workflow_dispatch`)하며, 환경(`dev`/`prod`)과 대상(`fe`·`be`·`both`)을
-고른다.
+`.github/workflows/deploy.yml`이 빌드 → S3 업로드 → SSM 설치를 한 번에 한다.
+**브랜치가 곧 환경이다** — `dev` push는 dev로, `main` push는 운영으로 자동 배포된다.
+사람이 환경을 고를 일이 없다(왜 이렇게 갔는지는 6-5).
 
-같은 워크플로가 개발 서버 배포도 담당한다(`dev` 브랜치 push 시 자동). 환경별로 다른
-값은 GitHub Environments의 variables가 담당하므로 워크플로 안에는 환경 분기가 없다 —
-개발 서버 쪽 절차는 [`DEPLOY-DEV.md`](./DEPLOY-DEV.md)를 본다.
+Actions 탭의 수동 실행(`workflow_dispatch`)은 재배포와 부분 배포를 위해 남아 있다.
+환경(`dev`/`prod`)과 대상을 고르며, 대상은 `fe`·`be-java`·`both`·`be-java-baseline`
+넷이다 — 옛 문서가 적던 `be`는 그 목록에 없다.
+`be-java-baseline`은 스키마는 있는데 `flyway_schema_history`가 없는 DB에 최초 1회만 쓴다.
+
+같은 워크플로가 개발 서버 배포도 담당한다. 환경별로 다른 값은 GitHub Environments의
+variables가 담당하므로 워크플로 안에는 환경 분기가 없다 — 개발 서버 쪽 절차는
+[`DEPLOY-DEV.md`](./DEPLOY-DEV.md)를 본다.
 
 **runner는 인스턴스에 접속하지 않는다.** SSM Run Command로 AWS에 실행을 위임하므로
 private subnet이어도 되고, SSH 키나 VPN이 필요 없다.
@@ -523,15 +528,18 @@ Secrets가 아니라 Variables에 넣는다.
 `be-java` 가 그것을 설치해 재시작하면 **앱이 뜨는 도중에** Flyway 가 `db/migration` 의 마이그레이션을
 적용한다. 별도 migrate 스텝이 없다.
 
-🔥 **스키마를 바꾸려면 `apps/api/src/main/resources/db/migration/` 에 `V2__` 부터 새 파일을
-만든다. `V1__baseline.sql` 은 동결이다** — 고치면 dev·운영은 멀쩡한데 신규 환경만
+🔥 **스키마를 바꾸려면 `apps/api/src/main/resources/db/migration/` 에 그 디렉토리의
+가장 큰 번호 다음으로 새 파일을 만든다.** 번호를 여기 적어 두지 않는 것은 적는 순간
+낡기 때문이다 — 디렉토리가 정본이다.
+**`V1__baseline.sql` 은 동결이다** — 고치면 dev·운영은 멀쩡한데 신규 환경만
 `checksum mismatch` 로 죽는다(재해복구가 필요한 순간에야 드러난다).
 
 **어긋난 채로 초록이 뜨는 창이 구조적으로 사라졌다.** 마이그레이션이 실패하면 앱이 리슨을
 시작하지 못하고, `be-java` 의 health·`NRestarts` 검사가 그 자리에서 배포를 실패로 만든다.
 예전에는 마이그레이션이 별도 스텝이라 부분 적용이 성공으로 읽힐 수 있었고, 2026-08-01에 그 창으로
 `/v2/community/posts` 가 며칠간 500이었다(`column community_posts.anonymous does not exist`).
-`deploy/check-migration.sh` 는 그 창을 사후에 대조하던 장치라 이제 아무도 부르지 않는다.
+`deploy/check-migration.sh` 가 그 창을 사후에 대조했다. 창이 사라져 쓸모가 없어졌고,
+`SOMA-403` 이 파이썬을 걷어낼 때 함께 지웠다 — **지금 저장소에 그 파일은 없다.**
 
 되돌리기 어려운 성질은 그대로다. 그래서 **순서로 통제한다**:
 
@@ -564,8 +572,9 @@ Secrets가 아니라 Variables에 넣는다.
 
 자동 배포는 이 함정을 원천 제거한다 — 사람이 드롭다운을 고를 일이 없다.
 
-수동 실행은 재배포와 부분 배포(`target=fe|be`)를 위해 남아 있고, 그 경로에는 함정이
-그대로 있으므로 `guard` 잡이 계속 막는다. CLI로 실행하면 ref를 명시하게 되어 안전하다.
+수동 실행은 재배포·부분 배포(`target=fe`·`be-java`)와 baseline 기록을 위해 남아 있고,
+그 경로에는 함정이 그대로 있으므로 `guard` 잡이 계속 막는다. CLI로 실행하면 ref를
+명시하게 되어 안전하다.
 
 ```bash
 gh workflow run deploy.yml --ref main -f environment=prod -f target=both
