@@ -1,4 +1,4 @@
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, usePreventRemove } from '@react-navigation/native';
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState, type ComponentType } from 'react';
 import {
@@ -57,9 +57,14 @@ export default function CoachScreen() {
   const [connecting, setConnecting] = useState(true);
   const [waiting, setWaiting] = useState(false);
   const [done, setDone] = useState(false);
-  // 리포트로 넘어가거나 마치는 이동은 "나가기"가 아니다 — 가로채기에서 제외하려고 ref 로 든다.
+  // 리포트로 넘어가거나 마치는 이동은 "나가기"가 아니다 — 가로채기를 풀고 간다.
   // 대화가 끝났어도(done) 리포트로 못 간 채 뒤로가기로 나가는 건 나가기다.
-  const leaveAllowedRef = useRef(false);
+  const [leaveAllowed, setLeaveAllowed] = useState(false);
+  // usePreventRemove 는 렌더된 값을 보므로, 풀린 상태가 반영된 다음 틱에 이동해야 다시 안 막힌다.
+  const leaveThen = useCallback((go: () => void) => {
+    setLeaveAllowed(true);
+    setTimeout(go, 0);
+  }, []);
   const exitReview = useExitReview('leave', 'coach', practice?.practiceSessionId);
   const finishReview = useExitReview('finish', 'coach', practice?.practiceSessionId);
   const [noteSkipped, setNoteSkipped] = useState(false);
@@ -72,9 +77,8 @@ export default function CoachScreen() {
   // 리포트 화면으로 넘어간다. 정리(report)가 아직 없어도 간다 — 그 화면이 직접 만들고,
   // 실패하면 재시도·홈으로 버튼을 준다. 여기 남겨 두면 버튼 하나 없이 갇힌다.
   const goToReport = useCallback(() => {
-    leaveAllowedRef.current = true;
-    router.replace('/report');
-  }, [router]);
+    leaveThen(() => router.replace('/report'));
+  }, [leaveThen, router]);
 
   // 코치가 대화를 끝냈을 때. status==='complete' 여도 report 는 없을 수 있다.
   const completeConversation = useCallback(
@@ -100,9 +104,8 @@ export default function CoachScreen() {
   // 노트 없이 끝난 대화를 마친다 — 세션 마칠 때 한 번 한줄평을 묻는다(SOMA-433).
   const finishWithoutNote = () => {
     void finishReview.offer(() => {
-      leaveAllowedRef.current = true;
       clearPractice();
-      router.dismissAll();
+      leaveThen(() => router.dismissAll());
     });
   };
 
@@ -140,16 +143,11 @@ export default function CoachScreen() {
 
   // 대화 중에 뒤로가기(헤더·제스처·하드웨어)로 나가면 한 번만 한줄평을 묻는다(SOMA-433).
   // 이미 물어본 사람은 그냥 나간다. 대화가 끝나 리포트로 넘어갈 때는 묻지 않는다.
-  useEffect(() => {
-    return navigation.addListener('beforeRemove', (event) => {
-      if (leaveAllowedRef.current) return;
-      event.preventDefault();
-      void exitReview.offer(() => {
-        leaveAllowedRef.current = true;
-        navigation.dispatch(event.data.action);
-      });
-    });
-  }, [navigation, exitReview]);
+  // beforeRemove 를 직접 걸면 iOS 네이티브 스택이 먼저 화면을 빼 버린다(헤더 뒤로가기·스와이프).
+  // usePreventRemove 는 네이티브 쪽까지 막아 준다.
+  usePreventRemove(!leaveAllowed, ({ data }) => {
+    void exitReview.offer(() => leaveThen(() => navigation.dispatch(data.action)));
+  });
 
   useEffect(() => {
     mountedRef.current = true;
