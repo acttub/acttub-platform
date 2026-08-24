@@ -551,6 +551,9 @@ Secrets가 아니라 Variables에 넣는다.
 
 ### 6-5. 브랜치가 곧 환경이다
 
+브랜치·릴리스·hotfix 흐름의 정본은 [BRANCHING-STRATEGY.md](BRANCHING-STRATEGY.md)다.
+여기서는 왜 자동 배포로 갔는지만 다룬다.
+
 `main`에 머지되면 운영으로 자동 배포된다(`dev`는 dev로). **`main` 머지가 곧 릴리스다.**
 
 이 구조 이전에는 운영 배포가 수동이었고, 그게 최대 위험이었다. `workflow_dispatch`는
@@ -567,9 +570,3 @@ Secrets가 아니라 Variables에 넣는다.
 ```bash
 gh workflow run deploy.yml --ref main -f environment=prod -f target=both
 ```
-
-## 7. 아직 남은 것
-
-- 루트 `CLAUDE.md`의 "운영 형태" 서술은 아직 단일 프로세스 방식을 가리킨다. 실제 운영이
-  이 구조로 넘어간 뒤에 갱신한다 — 지금 바꾸면 현행 dev/prod 설명이 틀리게 된다.
-  (`apps/web/CLAUDE.md`는 빌드 모드가 실제로 둘이 되었으므로 이미 갱신했다.)
