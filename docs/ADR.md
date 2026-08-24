@@ -85,7 +85,7 @@ MVP 핵심 기능의 정상 작동을 목표로 빠르게 개발한다. 단, AI 
 **트레이드오프**: YouTube 콘텐츠를 직접 분석하거나 검색 품질을 높이는 기능은 제한된다. 표현도 “비슷한 프로 배우 영상”이 아니라 “참고할 수 있는 장면 예시”로 낮춰야 한다.
 
 ### ADR-012: UI 레퍼런스는 Toss 디자인 문서를 기준으로 삼는다
-**결정**: UI 구현은 `docs/Toss-DESIGN.md`를 상세 레퍼런스로 삼고, `docs/UI_GUIDE.md`에서 Acttub 전용 적용 규칙을 관리한다. 랜딩/인터뷰 UI 구조는 `docs/telta-interview-pro.md`를 참고한다.
+**결정**: UI 구현은 `docs/design/Toss-DESIGN.md`를 상세 레퍼런스로 삼고, `docs/design/UI_GUIDE.md`에서 Acttub 전용 적용 규칙을 관리한다. 랜딩/인터뷰 UI 구조는 `docs/design/telta-interview-pro.md`를 참고한다.
 **이유**: Acttub MVP는 신뢰감, 명료함, 모바일 사용성, 한국어 가독성이 중요하다. Toss 스타일의 흰 배경, 강한 타이포 위계, 파란 액션 컬러, 절제된 shadow, 명확한 컴포넌트 상태는 질문형 연습 도구와 잘 맞는다.
 **트레이드오프**: Toss 브랜드를 그대로 복제하면 Acttub만의 정체성이 약해질 수 있다. 따라서 색상과 컴포넌트 규칙은 레퍼런스로 사용하되, 카피와 제품 표면은 연기 연습 도메인에 맞춘다.
 

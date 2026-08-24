@@ -33,7 +33,7 @@ Phase 1(PR 게이트)까지 도입 완료. 그 전엔 CI 전무·전부 수동 S
 (`docs`가 아니라 [dev-server-deploy]/[prod-server-deploy] 메모 참고).
 
 - [x] Phase 1 PR 게이트 (#36): `.github/workflows/ci.yml` — dev·main 대상 PR에서 web(lint·typecheck·test·build)·api(pytest + `postgres:16-alpine` service로 `RUN_DB_TESTS=1` DB 통합) 검증. ruleset에 두 잡을 required status check로 등록해 초록이어야 머지. (함정: check context = 잡 이름 문자열 그대로라, `ci.yml` 잡 `name` 변경 시 ruleset도 함께 갱신 안 하면 dev·main 머지가 전부 막힌다)
-- [x] Phase 2 배포 자동화 (#71, 후속): `.github/workflows/deploy.yml` 하나가 dev·prod를 모두 처리. 빌드는 runner에서(재현성 확보), 전송은 S3, 설치는 SSM Run Command라 SSH 키·서버 IP를 Secrets에 두지 않는다. dev는 `dev` push 자동(마이그레이션 포함)·운영은 `workflow_dispatch`. 환경 분기는 워크플로가 아니라 GitHub Environments variables가 담당. 절차는 `docs/DEPLOY-VPC.md`(운영)·`docs/DEPLOY-DEV.md`(개발)
+- [x] Phase 2 배포 자동화 (#71, 후속): `.github/workflows/deploy.yml` 하나가 dev·prod를 모두 처리. 빌드는 runner에서(재현성 확보), 전송은 S3, 설치는 SSM Run Command라 SSH 키·서버 IP를 Secrets에 두지 않는다. dev는 `dev` push 자동(마이그레이션 포함)·운영은 `workflow_dispatch`. 환경 분기는 워크플로가 아니라 GitHub Environments variables가 담당. 절차는 `docs/deploy/DEPLOY-VPC.md`(운영)·`docs/deploy/DEPLOY-DEV.md`(개발)
   - [x] 개발 서버를 단일 EC2 구성으로 신설 → 검증 → `dev.acttub.com` DNS 전환 (#77, 2026-08-04). 구 인스턴스(`3.38.235.185`)는 **다른 AWS 계정**에 있어 그쪽에서 폐기해야 한다
   - [x] 운영 role 신뢰 정책의 `sub` 조건을 `environment:prod`로 좁힘 (2026-08-04). GitHub `prod` 환경을 먼저 만들어야 동작한다 — 없는 상태로 좁히면 다음 운영 배포가 assume 단계에서 실패
 - [ ] Phase 3 env 단일화: dev/prod `.env` 드리프트 근절(2026-07-23 dev에만 있던 `APPLE_OAUTH_CLIENT_ID`로 운영 웹 Apple 로그인만 401 난 사고) — GitHub Environments secret을 단일 소스로 배포 시 렌더링. systemd 유닛(`acting-api.service`)을 레포로 편입 + `daemon-reload`

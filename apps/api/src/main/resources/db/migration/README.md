@@ -9,7 +9,7 @@
 2. `scripts/regen-fingerprint.sh` 를 돌려 `baseline-schema-fingerprint.txt` 를 갱신한다
 3. `./gradlew test --tests '*Flyway*'` 로 확인하고 둘을 함께 커밋한다
 4. 배포는 `main`/`dev` push 하나다. **되돌리기 어려우므로 스키마를 먼저 넓히고 코드를 나중에
-   좁힌다** — 컬럼 삭제·이름 변경은 PR 을 둘로 나눈다(`docs/DEPLOY-VPC.md` 6-4)
+   좁힌다** — 컬럼 삭제·이름 변경은 PR 을 둘로 나눈다(`docs/deploy/DEPLOY-VPC.md` 6-4)
 
 ## 🔥 `V1__baseline.sql` 은 동결이다 — 한 글자도 고치지 않는다
 

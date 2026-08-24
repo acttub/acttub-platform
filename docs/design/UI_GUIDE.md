@@ -4,13 +4,13 @@
 
 이 문서는 Acttub에만 필요한 UI 판단 기준을 적는다. Toss 디자인 시스템의 세부 토큰, 컴포넌트 수치, 타이포그래피, 컬러 팔레트는 여기로 옮겨 적지 않고 아래 원문을 직접 참조한다.
 
-- 상세 레퍼런스: `docs/Toss-DESIGN.md`
+- 상세 레퍼런스: `docs/design/Toss-DESIGN.md`
 - 원본 복사 출처: `/Users/insung/Downloads/Toss-DESIGN.md`
 
 우선순위:
 
 1. Acttub 제품 정체성과 금지 표현은 이 문서가 우선한다.
-2. 시각 스타일, 토큰, 컴포넌트 수치는 `docs/Toss-DESIGN.md`를 참조한다.
+2. 시각 스타일, 토큰, 컴포넌트 수치는 `docs/design/Toss-DESIGN.md`를 참조한다.
 3. Toss와 Acttub 맥락이 충돌하면 Toss를 그대로 복제하지 않고 Acttub 제품 의도에 맞게 낮춰 적용한다.
 
 ## 디자인 원칙
@@ -38,7 +38,7 @@
 | 과한 confetti, sparkles, emoji | 연기 고민을 다루는 안전한 공간의 톤과 맞지 않는다. |
 
 ## 색상
-세부 색상값은 `docs/Toss-DESIGN.md`의 token과 color palette를 참조한다.
+세부 색상값은 `docs/design/Toss-DESIGN.md`의 token과 color palette를 참조한다.
 
 Acttub 적용 규칙:
 
@@ -50,7 +50,7 @@ Acttub 적용 규칙:
 - “좋음/나쁨”처럼 평가를 암시하는 색상 매핑은 금지한다.
 
 ## 컴포넌트
-세부 버튼, 입력, 카드, badge, tab, toast, dialog, toggle 규격은 `docs/Toss-DESIGN.md`의 component section을 참조한다.
+세부 버튼, 입력, 카드, badge, tab, toast, dialog, toggle 규격은 `docs/design/Toss-DESIGN.md`의 component section을 참조한다.
 
 Acttub 적용 규칙:
 
@@ -107,7 +107,7 @@ Upload
 - 데스크톱에서는 영상/장면 맥락 보조 패널과 질문 대화 메인 패널을 나눌 수 있다.
 
 ## 타이포그래피
-세부 font stack과 hierarchy는 `docs/Toss-DESIGN.md`의 typography section을 참조한다.
+세부 font stack과 hierarchy는 `docs/design/Toss-DESIGN.md`의 typography section을 참조한다.
 
 Acttub 적용 규칙:
 
@@ -119,7 +119,7 @@ Acttub 적용 규칙:
 - Toss Product Sans 사용 가능 여부가 확정되지 않았으면 `Pretendard`, `SF Pro KR`, `Apple SD Gothic Neo`, `Noto Sans KR`, system sans-serif 계열을 우선 검토한다.
 
 ## 애니메이션
-세부 motion 값은 `docs/Toss-DESIGN.md`의 motion section을 참조한다.
+세부 motion 값은 `docs/design/Toss-DESIGN.md`의 motion section을 참조한다.
 
 Acttub 적용 규칙:
 
@@ -129,7 +129,7 @@ Acttub 적용 규칙:
 - glow pulse, gradient background animation, dramatic reveal은 사용하지 않는다.
 
 ## 아이콘
-세부 SVG/icon 규칙은 `docs/Toss-DESIGN.md`의 iconography section을 참조한다.
+세부 SVG/icon 규칙은 `docs/design/Toss-DESIGN.md`의 iconography section을 참조한다.
 
 Acttub 적용 규칙:
 

@@ -111,6 +111,6 @@ AI와 함께하는 연기연습
 - 제품 화면은 마케팅 랜딩이 아니라 매일 쓰는 연습 도구처럼 보여야 한다.
 - AI 관련 장식 배지, 보라색 AI SaaS 느낌, gradient orb, glassmorphism, 과한 glow animation은 사용하지 않는다.
 - 참고 자료:
-  - `docs/Toss-DESIGN.md`: 디자인 시스템 상세 레퍼런스
-  - `docs/UI_GUIDE.md`: Acttub 전용 적용 규칙
-  - `docs/telta-interview-pro.md`: 랜딩/인터뷰 UI 구조 참고
+  - `docs/design/Toss-DESIGN.md`: 디자인 시스템 상세 레퍼런스
+  - `docs/design/UI_GUIDE.md`: Acttub 전용 적용 규칙
+  - `docs/design/telta-interview-pro.md`: 랜딩/인터뷰 UI 구조 참고

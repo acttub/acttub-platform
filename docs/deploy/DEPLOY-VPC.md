@@ -551,7 +551,7 @@ Secrets가 아니라 Variables에 넣는다.
 
 ### 6-5. 브랜치가 곧 환경이다
 
-브랜치·릴리스·hotfix 흐름의 정본은 [BRANCHING-STRATEGY.md](BRANCHING-STRATEGY.md)다.
+브랜치·릴리스·hotfix 흐름의 정본은 [BRANCHING-STRATEGY.md](../BRANCHING-STRATEGY.md)다.
 여기서는 왜 자동 배포로 갔는지만 다룬다.
 
 `main`에 머지되면 운영으로 자동 배포된다(`dev`는 dev로). **`main` 머지가 곧 릴리스다.**
