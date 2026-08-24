@@ -23,7 +23,7 @@ Acttub 플랫폼 모노레포. JS(pnpm)와 Java(Gradle)로 갈립니다.
   - 운영 `acttub.com`(`www`는 301): CloudFront → front ALB → front svc / back ALB → back svc → RDS. 전부 private subnet → [docs/deploy/DEPLOY-VPC.md](docs/deploy/DEPLOY-VPC.md)
   - 개발 `dev.acttub.com`: EC2 한 대에 Caddy + 두 프로세스 + PostgreSQL → [docs/deploy/DEPLOY-DEV.md](docs/deploy/DEPLOY-DEV.md)
   - 배포는 `.github/workflows/deploy.yml` 하나가 담당합니다. **브랜치가 곧 환경입니다** — `dev` push는 dev로, `main` push는 운영으로 자동 배포되고 마이그레이션도 양쪽 다 자동으로 돕니다. Actions 탭의 수동 실행은 재배포·부분 배포(fe/be-java)용으로 남아 있습니다.
-  - **배포 아티팩트는 jar 하나뿐입니다** — **스키마 정본이 Flyway라([apps/api/CONTRACT.md](apps/api/CONTRACT.md) §5-5) 마이그레이션이 jar 기동의 일부**입니다. 스키마를 바꾸려면 `apps/api/src/main/resources/db/migration/`에 `V2__`부터 새 파일을 만듭니다. **`V1__baseline.sql`은 동결입니다** — 고치면 dev·운영은 멀쩡하고 신규 환경만 죽습니다.
+  - **배포 아티팩트는 jar 하나뿐입니다** — **스키마 정본이 Flyway라([apps/api/CONTRACT.md](apps/api/CONTRACT.md) §5-5) 마이그레이션이 jar 기동의 일부**입니다. 스키마를 바꾸려면 `apps/api/src/main/resources/db/migration/`에 **거기 있는 가장 큰 번호 다음**으로 새 파일을 만듭니다. **`V1__baseline.sql`은 동결입니다** — 고치면 dev·운영은 멀쩡하고 신규 환경만 죽습니다.
   - **`main` 머지가 곧 운영 릴리스입니다.** 스키마 변경은 먼저 넓히고(마이그레이션 머지) 코드는 나중에 좁히는 순서로 나눠서 올립니다. 한 PR에 "컬럼 삭제 + 그 컬럼 안 쓰는 코드"를 같이 넣으면 배포 중간 상태에서 깨집니다.
 
 ## 브랜치·릴리스 전략
@@ -60,7 +60,7 @@ Conventional Commits를 따르되, 요약은 한국어 평서형으로 씁니다
 ## 저장소 규칙
 
 - 패키지 매니저는 JS=pnpm, Java=Gradle wrapper. 다른 lockfile을 추가하지 않습니다.
-- 생성물·로컬 디렉토리는 수정 금지: `node_modules/`, `.next/`, `out/`, `apps/api/build/`, `apps/web/src/lib/api/v2-schema.d.ts`(재생성: `pnpm --filter web generate:v2-schema`).
+- 생성물·로컬 디렉토리는 수정 금지: `node_modules/`, `.next/`, `apps/api/build/`, `apps/web/src/lib/api/v2-schema.d.ts`(재생성: `pnpm --filter web generate:v2-schema`).
 - API 계약 변경은 한 PR에서: 백엔드 코드 → `apps/api/spec/openapi.json` 재생성(`cd apps/api && UPDATE_OPENAPI_SNAPSHOT=1 ./gradlew test --tests '*OpenApiSnapshotIT*'`) → 웹 타입 재생성 → 프론트 수정. **그 스냅샷은 자기 자신과 비교하므로 diff를 눈으로 봅니다** — 무엇을 바꿨든 다시 뜨면 초록입니다. 갱신 모드는 일부러 실패로 끝납니다.
 - diff는 작게 유지하고, 가장 좁은 범위의 명령으로 먼저 검증합니다.
 

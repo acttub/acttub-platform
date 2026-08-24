@@ -29,12 +29,18 @@ Next.js 16 App Router + React 19 + TypeScript + Tailwind CSS v4.
 ```text
 src/
   app/        페이지 (전부 정적 프리렌더 + 클라이언트 렌더)
-  features/   화면 모듈 (practice-flow, terms-gate, auth 가드)
+  features/   화면 모듈 (admissions·analytics·app-download·auth·community·memory·nav·practice·workspace)
   lib/
-    api/v2/   acting-api v2 클라이언트 (도메인별 모듈)
-    auth/     토큰 스토어·refresh·Google/Apple SDK 어댑터
-    config/   env 스위치 (선택 변수는 env.ts 주석이 단일 문서)
-    react/    화면을 가로지르는 훅 (use-resource)
+    analytics/      Amplitude·GA 래퍼
+    api/v2/         acting-api v2 클라이언트 (도메인별 모듈)
+    app-download/   스토어 링크
+    auth/           토큰 스토어·refresh·Google/Apple SDK 어댑터
+    config/         env 스위치 (선택 변수는 env.ts 주석이 단일 문서)
+    media/          영상 압축·업로드 사전점검
+    observability/  Sentry 공용 설정
+    react/          화면을 가로지르는 훅 (use-resource)
+    seo/            메타데이터·JSON-LD·폰트
+    markdown.ts     동의 문서용 최소 마크다운 파서
 ```
 
 ## 정적 프리렌더 제약 (위반 시 빌드 실패 또는 런타임 오류)
