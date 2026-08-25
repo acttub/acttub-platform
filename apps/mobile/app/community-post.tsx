@@ -3,8 +3,6 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -15,6 +13,7 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAppDialog } from '@/components/app-dialog';
+import { useKeyboardHeight } from '@/hooks/use-keyboard-height';
 import { palette } from '@/constants/palette';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
@@ -46,6 +45,8 @@ export default function CommunityPostScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const insets = useSafeAreaInsets();
+  const keyboardHeight = useKeyboardHeight();
+  const keyboardVisible = keyboardHeight > 0;
   const { confirm, alert, sheet, dialog } = useAppDialog();
   const { id } = useLocalSearchParams<{ id: string }>();
   const [post, setPost] = useState<CommunityPost | null>(null);
@@ -219,10 +220,9 @@ export default function CommunityPostScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <Header onBack={() => router.back()} />
-      <KeyboardAvoidingView
-        style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={8}>
+      {/* KeyboardAvoidingView 는 안드로이드 edge-to-edge에서 계산이 어긋나 입력 바가 키보드에
+          가려진다 — 키보드 높이를 직접 받아 그만큼만 올린다([[use-keyboard-height]]). */}
+      <View style={[styles.flex, { paddingBottom: keyboardHeight }]}>
         <ScrollView contentContainerStyle={styles.body}>
           <Text style={styles.category}>{post.category_name}</Text>
           <Text style={styles.title}>{post.title}</Text>
@@ -300,7 +300,7 @@ export default function CommunityPostScreen() {
 
         {/* 하단 인셋을 직접 더한다 — SafeArea edges에 bottom을 넣으면 키보드가 올라올 때
             빈 띠가 남아서, 입력창이 홈버튼(제스처 바)에 가리지 않을 만큼만 패딩으로 채운다. */}
-        <View style={[styles.composer, { paddingBottom: 10 + Math.max(insets.bottom, 4) }]}>
+        <View style={[styles.composer, { paddingBottom: keyboardVisible ? 10 : 10 + Math.max(insets.bottom, 4) }]}>
           <Pressable
             style={styles.anonRow}
             onPress={() => setAnonymous((was) => !was)}
@@ -329,7 +329,7 @@ export default function CommunityPostScreen() {
             <Feather name="arrow-up" size={18} color="#FFFFFF" />
           </Pressable>
         </View>
-      </KeyboardAvoidingView>
+      </View>
       {dialog}
     </SafeAreaView>
   );
