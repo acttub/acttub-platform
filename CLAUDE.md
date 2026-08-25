@@ -10,6 +10,7 @@ Acttub 플랫폼 모노레포. JS(pnpm)와 Java(Gradle)로 갈립니다.
 - `packages/*`: 공유 패키지 자리. 실제 두 번째 사용처가 생긴 뒤에만 분리합니다.
 - `docs/`: 앱을 가로지르는 문서입니다. 앱 상세 문서는 각 앱 디렉토리에 둡니다. **디자인 문서는 `docs/design/`, 배포 문서는 `docs/deploy/`에 둡니다** — 추적되는 문서는 `ADR.md`·`PRD.md`·`BRANCHING-STRATEGY.md` 셋만 `docs/` 최상위에 남습니다(디스크에 보이는 `docs/TODO.md`는 추적하지 않는 로컬 메모입니다 — `.gitignore` 참고). **제품이 무엇이고 누구를 위한 것인지**는 [docs/PRD.md](docs/PRD.md)입니다. **화면·컴포넌트를 만들 때**는 [docs/design/UI_GUIDE.md](docs/design/UI_GUIDE.md)가 Acttub 적용 규칙이고 [docs/design/Toss-DESIGN.md](docs/design/Toss-DESIGN.md)가 상세 레퍼런스입니다(ADR-012). 끝난 계획·이관 사양은 `docs/archive/`로 옮깁니다 — FastAPI→Spring Boot 이관(`SOMA-287`)의 사양과 마일스톤 기록은 `docs/archive/soma287/`에 있습니다.
 - `deploy/`는 배포 스크립트입니다.
+- `.scratch/`는 **에이전트의 실행 계획 자리**입니다 — 이슈 하나당 `.scratch/<이슈키>.md` 파일 하나(ADR-022). 추적하지 않으므로 `git grep`으로는 안 보입니다. 작업을 이어받을 때 이 경로를 직접 엽니다.
 
 세 앱 모두 각자 CLAUDE.md를 갖고 있습니다. **그 앱을 건드리기 전에 해당 파일을 읽습니다** — 아래 내용은 앱을 가로지르는 규칙만 담습니다.
 
@@ -68,11 +69,11 @@ Conventional Commits를 따르되, 요약은 한국어 평서형으로 씁니다
 
 ### 이슈 트래커
 
-**이슈를 찾거나 만들 때** — 정본은 Jira 프로젝트 `SOMA`이고, Atlassian 리모트 MCP(`atlassian`)로 조회·생성합니다. 상태 전이는 GitHub 연동 자동화에 맡기고 에이전트가 건드리지 않습니다. MCP 등록 절차, 발행·조회 방법, 에이전트가 넘지 않을 쓰기 경계는 `docs/agents/issue-tracker.md`에 있습니다.
+**이슈를 찾거나 만들 때** — 이슈 정본은 Jira 프로젝트 `SOMA`이고, **이슈를 만들고 본문을 쓰는 것은 사람입니다**(ADR-022). 에이전트는 **배경 / 원하는 상태 / 완료 조건** 세 절짜리 초안만 넘기고 키를 받습니다 — 근거·조사 기록·설계 서술은 본문에 넣지 않고 `.scratch/<이슈키>.md`(추적 안 함)에 둡니다. 에이전트는 Jira에 쓰지 않고, MCP도 등록돼 있지 않아 읽지도 못하니 이슈 번호나 본문을 추측하지 않습니다. 상태 전이는 GitHub 연동 자동화에 맡기고 건드리지 않습니다. 나머지는 `docs/agents/issue-tracker.md`에 있습니다.
 
 ### 트리아지 라벨
 
-**이슈에 라벨을 붙일 때** — 기본 5종(`needs-triage` `needs-info` `ready-for-agent` `ready-for-human` `wontfix`)을 Jira Labels 필드에 그대로 씁니다. 스킬이 말하는 트리아지 역할과의 대응표는 `docs/agents/triage-labels.md`에 있습니다.
+**이슈에 라벨을 붙일 때** — 기본 5종(`needs-triage` `needs-info` `ready-for-agent` `ready-for-human` `wontfix`)을 Jira Labels 필드에 씁니다. **붙이는 것은 사람이고 에이전트는 어느 라벨인지 판단해 요청합니다**(ADR-022). 스킬이 말하는 트리아지 역할과의 대응표는 `docs/agents/triage-labels.md`에 있습니다.
 
 ### 도메인 문서
 
