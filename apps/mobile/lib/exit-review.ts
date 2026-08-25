@@ -48,6 +48,8 @@ export function oneLinerPayload(input: {
   screen: 'coach' | 'report';
   sessionId: string | null | undefined;
   userId: string | null | undefined;
+  contactEmail?: string | null;
+  contactPhone?: string | null;
 }): OneLinerPayload | null {
   return buildOneLinerPayload({
     text: input.text,
@@ -56,6 +58,8 @@ export function oneLinerPayload(input: {
     screen: input.screen,
     sessionId: input.sessionId,
     userId: input.userId,
+    contactEmail: input.contactEmail,
+    contactPhone: input.contactPhone,
   });
 }
 

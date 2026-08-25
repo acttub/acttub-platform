@@ -13,6 +13,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { palette } from '@/constants/palette';
 import {
+  CONTACT_MAX_LENGTH,
   EXIT_REVIEW_MAX_LENGTH,
   exitReviewCopy,
   sendableOneLiner,
@@ -34,11 +35,13 @@ export function ExitReviewSheet({
   visible: boolean;
   trigger: ExitReviewTrigger;
   sending: boolean;
-  onSubmit: (text: string) => void;
+  onSubmit: (text: string, contact: { email: string; phone: string }) => void;
   onSkip: () => void;
 }) {
   const insets = useSafeAreaInsets();
   const [text, setText] = useState('');
+  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
   const copy = exitReviewCopy(trigger);
   const canSubmit = sendableOneLiner(text) !== null && !sending;
 
@@ -70,10 +73,39 @@ export function ExitReviewSheet({
             </Text>
           </View>
 
+          {/* 인터뷰 연락처 — 선택. 비워도 한줄평 전송에는 영향이 없다(SOMA-433). */}
+          <Text style={styles.contactHint}>{copy.contactHint}</Text>
+          <View style={styles.contactRow}>
+            <TextInput
+              style={styles.contactInput}
+              value={email}
+              onChangeText={setEmail}
+              placeholder={copy.contactEmailPlaceholder}
+              placeholderTextColor={palette.textFaint}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoCorrect={false}
+              maxLength={CONTACT_MAX_LENGTH}
+              editable={!sending}
+              accessibilityLabel="인터뷰 연락처 이메일"
+            />
+            <TextInput
+              style={styles.contactInput}
+              value={phone}
+              onChangeText={setPhone}
+              placeholder={copy.contactPhonePlaceholder}
+              placeholderTextColor={palette.textFaint}
+              keyboardType="phone-pad"
+              maxLength={CONTACT_MAX_LENGTH}
+              editable={!sending}
+              accessibilityLabel="인터뷰 연락처 전화번호"
+            />
+          </View>
+
           <Pressable
             style={[styles.submit, !canSubmit && styles.submitOff]}
             disabled={!canSubmit}
-            onPress={() => onSubmit(text)}
+            onPress={() => onSubmit(text, { email, phone })}
             accessibilityRole="button">
             <Text style={styles.submitText}>{sending ? '보내는 중…' : copy.submit}</Text>
           </Pressable>
@@ -119,6 +151,20 @@ const styles = StyleSheet.create({
   },
   input: { fontSize: 15, fontWeight: '600', color: palette.text, lineHeight: 22, minHeight: 56, padding: 0 },
   counter: { alignSelf: 'flex-end', fontSize: 12, fontWeight: '600', color: palette.checkOff, marginTop: 6 },
+  contactHint: { fontSize: 12.5, fontWeight: '700', color: palette.textMuted, marginTop: 14 },
+  contactRow: { flexDirection: 'row', gap: 8, marginTop: 8 },
+  contactInput: {
+    flex: 1,
+    height: 44,
+    borderWidth: 1,
+    borderColor: palette.border,
+    backgroundColor: palette.bgSubtle,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    fontSize: 13.5,
+    fontWeight: '600',
+    color: palette.text,
+  },
   submit: {
     height: 54,
     borderRadius: 14,

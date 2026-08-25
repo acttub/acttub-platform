@@ -16,6 +16,9 @@ export type ExitReviewCopy = {
   submit: string;
   skip: string;
   notice: string;
+  contactHint: string;
+  contactEmailPlaceholder: string;
+  contactPhonePlaceholder: string;
 };
 
 export function exitReviewCopy(trigger: ExitReviewTrigger): ExitReviewCopy {
@@ -26,6 +29,9 @@ export function exitReviewCopy(trigger: ExitReviewTrigger): ExitReviewCopy {
     submit: trigger === 'finish' ? '한 줄 남기고 마치기' : '한 줄 남기고 나가기',
     skip: '다음에 할게요',
     notice: '답변은 개발에만 써요 · 이름은 남지 않아요 · 이번 한 번만 여쭤봐요',
+    contactHint: '인터뷰로 이야기를 더 들려주실 수 있다면 연락처를 남겨주세요 (선택)',
+    contactEmailPlaceholder: '이메일 (선택)',
+    contactPhonePlaceholder: '전화번호 (선택)',
   };
 }
 
@@ -56,6 +62,17 @@ export function anonymousUserHash(userId: string | null | undefined): string {
   return h1.toString(16).padStart(8, '0') + h2.toString(16).padStart(8, '0');
 }
 
+export const CONTACT_MAX_LENGTH = 80;
+
+/**
+ * 인터뷰 연락처(선택) — 비워도 한줄평 전송에는 아무 영향이 없다. 형식 검사로
+ * 사람을 돌려보내지 않는다: 적어 준 것 자체가 호의라 다듬기만 하고 그대로 싣는다.
+ */
+export function sendableContact(value: string | null | undefined): string | null {
+  const trimmed = value?.trim().slice(0, CONTACT_MAX_LENGTH);
+  return trimmed ? trimmed : null;
+}
+
 export type OneLinerPayload = {
   kind: 'app_oneliner';
   text: string;
@@ -64,6 +81,8 @@ export type OneLinerPayload = {
   screen: string;
   session_id: string;
   user_hash: string;
+  contact_email: string | null;
+  contact_phone: string | null;
 };
 
 export function buildOneLinerPayload(input: {
@@ -73,6 +92,8 @@ export function buildOneLinerPayload(input: {
   screen: string;
   sessionId: string | null | undefined;
   userId: string | null | undefined;
+  contactEmail?: string | null;
+  contactPhone?: string | null;
 }): OneLinerPayload | null {
   const text = sendableOneLiner(input.text);
   if (!text) return null;
@@ -84,5 +105,7 @@ export function buildOneLinerPayload(input: {
     screen: input.screen,
     session_id: input.sessionId ?? '',
     user_hash: anonymousUserHash(input.userId),
+    contact_email: sendableContact(input.contactEmail),
+    contact_phone: sendableContact(input.contactPhone),
   };
 }
