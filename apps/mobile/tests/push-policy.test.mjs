@@ -2,12 +2,15 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
-  REMINDER_AFTER_DAYS,
-  REMINDER_BODY,
-  REMINDER_TITLE,
+  NUDGE_BODY,
+  NUDGE_HOUR,
+  NUDGE_TITLE,
+  NUDGE_WINDOW_DAYS,
+  localDayKey,
+  nudgeFireDates,
   parseEnabled,
+  practicedToday,
   registrablePlatform,
-  reminderDelaySeconds,
 } from '../lib/push-policy.ts';
 
 test('푸시: 한 번도 고른 적 없으면(null) 켜짐이 기본이다', () => {
@@ -21,16 +24,44 @@ test('푸시: 명시적으로 false 를 저장했을 때만 꺼짐이다', () =>
   assert.equal(parseEnabled('garbage'), true);
 });
 
-test('리마인드: 마지막 연습에서 3일 뒤에 울린다', () => {
-  assert.equal(REMINDER_AFTER_DAYS, 3);
-  assert.equal(reminderDelaySeconds(), 3 * 24 * 60 * 60);
-  assert.equal(reminderDelaySeconds(1), 86_400);
+test('넛지: 오늘 연습 안 했고 8시 전이면 오늘 저녁 8시부터 시작한다', () => {
+  const now = new Date(2026, 7, 25, 14, 0, 0); // 8월 25일 14:00
+  const dates = nudgeFireDates(now, false);
+  assert.equal(dates.length, NUDGE_WINDOW_DAYS);
+  assert.equal(localDayKey(dates[0]), '2026-08-25');
+  assert.equal(dates[0].getHours(), NUDGE_HOUR);
+  assert.equal(dates[0].getMinutes(), 0);
 });
 
-test('리마인드: 문구가 간격과 어긋나면 거짓말이 된다', () => {
-  // 문구가 "3일" 을 말하므로 간격을 바꾸면 문구도 함께 바꿔야 한다.
-  assert.ok(REMINDER_TITLE.includes(`${REMINDER_AFTER_DAYS}일`));
-  assert.ok(REMINDER_BODY.length > 0);
+test('넛지: 오늘 연습을 했으면 내일 8시부터 시작한다', () => {
+  const now = new Date(2026, 7, 25, 14, 0, 0);
+  const dates = nudgeFireDates(now, true);
+  assert.equal(localDayKey(dates[0]), '2026-08-26');
+});
+
+test('넛지: 이미 8시가 지났으면 (연습 여부와 무관하게) 내일부터다', () => {
+  const now = new Date(2026, 7, 25, 21, 30, 0);
+  assert.equal(localDayKey(nudgeFireDates(now, false)[0]), '2026-08-26');
+  assert.equal(localDayKey(nudgeFireDates(now, true)[0]), '2026-08-26');
+});
+
+test('넛지: 하루 간격으로 이어지고 월 경계를 넘는다', () => {
+  const now = new Date(2026, 7, 30, 10, 0, 0); // 8월 30일
+  const dates = nudgeFireDates(now, false, 4);
+  assert.deepEqual(dates.map(localDayKey), ['2026-08-30', '2026-08-31', '2026-09-01', '2026-09-02']);
+  for (const d of dates) assert.equal(d.getHours(), NUDGE_HOUR);
+});
+
+test('넛지: 오늘 연습했는지는 로컬 날짜 열쇠로 가른다', () => {
+  const now = new Date(2026, 7, 25, 23, 59, 0);
+  assert.equal(practicedToday('2026-08-25', now), true);
+  assert.equal(practicedToday('2026-08-24', now), false);
+  assert.equal(practicedToday(null, now), false);
+});
+
+test('넛지: 문구가 비어 있으면 알림이 무의미하다', () => {
+  assert.ok(NUDGE_TITLE.length > 0);
+  assert.ok(NUDGE_BODY.length > 0);
 });
 
 test('푸시: 서버 계약에 있는 플랫폼(ios·android)만 등록을 시도한다', () => {

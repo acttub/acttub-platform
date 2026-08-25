@@ -1,4 +1,6 @@
 <!-- 제목은 `SOMA-123 <한국어 요약>` 형식으로 적어주세요. 키가 있어야 Jira 이슈에 연결되고 상태가 자동으로 전이됩니다. -->
+<!-- 릴리스 PR(dev → main)은 이 템플릿이 아닙니다. 아래 링크로 열면 릴리스 전용 템플릿이 붙습니다.
+     https://github.com/acttub/acttub-platform/compare/main...dev?template=release.md -->
 
 ## 변경 내용
 

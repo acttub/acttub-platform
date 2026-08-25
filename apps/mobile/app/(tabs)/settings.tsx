@@ -173,6 +173,8 @@ export default function SettingsScreen() {
                       value={!!prefs[doc.id]}
                       onValueChange={(v) => toggle(doc, v)}
                       trackColor={{ true: palette.blue, false: palette.border }}
+                      thumbColor="#FFFFFF"
+                      ios_backgroundColor={palette.border}
                     />
                   </View>
                   <DocBody doc={doc} />
@@ -192,10 +194,12 @@ export default function SettingsScreen() {
                 value={pushOn}
                 onValueChange={(v) => void togglePush(v)}
                 trackColor={{ true: palette.blue, false: palette.border }}
+                thumbColor="#FFFFFF"
+                ios_backgroundColor={palette.border}
               />
             </View>
             <Text style={styles.sectionHint}>
-              영상 분석이 끝나면 알려드리고, 연습이 뜸해지면 살짝 깨워드려요.
+              영상 분석이 끝나면 알려드리고, 오늘 연습이 없으면 저녁 8시에 살짝 깨워드려요.
             </Text>
           </View>
 
