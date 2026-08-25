@@ -2,8 +2,6 @@ import Feather from '@expo/vector-icons/Feather';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
-  KeyboardAvoidingView,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -13,6 +11,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { useKeyboardHeight } from '@/hooks/use-keyboard-height';
+
 import { palette } from '@/constants/palette';
 import { api } from '@/lib/api';
 import type { CommunityCategory } from '@/lib/community';
@@ -20,6 +20,7 @@ import type { CommunityCategory } from '@/lib/community';
 /** 글쓰기 — 카테고리 고르고 제목·본문. 익명 여부는 글마다 따로 켠다. */
 export default function CommunityNewScreen() {
   const router = useRouter();
+  const keyboardHeight = useKeyboardHeight();
   const [categories, setCategories] = useState<CommunityCategory[]>([]);
   const [slug, setSlug] = useState('');
   const [title, setTitle] = useState('');
@@ -74,10 +75,9 @@ export default function CommunityNewScreen() {
         </Pressable>
       </View>
 
-      <KeyboardAvoidingView
-        style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={8}>
+      {/* KeyboardAvoidingView 는 안드로이드 edge-to-edge에서 계산이 어긋나 입력이 키보드에
+          가려진다 — 키보드 높이를 직접 받아 그만큼만 올린다([[use-keyboard-height]]). */}
+      <View style={[styles.flex, { paddingBottom: keyboardHeight }]}>
         <ScrollView contentContainerStyle={styles.form} keyboardShouldPersistTaps="handled">
           <ScrollView
             horizontal
@@ -135,7 +135,7 @@ export default function CommunityNewScreen() {
 
           {error && <Text style={styles.error}>{error}</Text>}
         </ScrollView>
-      </KeyboardAvoidingView>
+      </View>
     </SafeAreaView>
   );
 }

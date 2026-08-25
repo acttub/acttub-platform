@@ -1,7 +1,7 @@
 import * as ImagePicker from 'expo-image-picker';
 import { Stack, useRouter } from 'expo-router';
 import { useVideoPlayer, VideoView } from 'expo-video';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type RefObject } from 'react';
 import {
   Pressable,
   ScrollView,
@@ -48,6 +48,10 @@ export default function UploadScreen() {
   const [agreedRights, setAgreedRights] = useState(false);
   const startLockRef = useRef(false);
   const [starting, setStarting] = useState(false);
+  // 키보드 "다음"으로 상황 → 인물 → 목표가 이어지고, 목표를 마치면 동의 체크가 바로 보인다.
+  const scrollRef = useRef<ScrollView>(null);
+  const characterRef = useRef<TextInput>(null);
+  const goalRef = useRef<TextInput>(null);
   // 고른 영상을 그 자리에서 확인할 수 있게 미리보기를 붙인다(목업 M5).
   const player = useVideoPlayer(video?.uri ?? null, (p) => {
     p.loop = false;
@@ -148,6 +152,7 @@ export default function UploadScreen() {
       {!prefilled && user && <FirstUploadGuide ownerId={user.id} />}
       <View style={[styles.flex, { paddingBottom: keyboardHeight }]}>
         <ScrollView
+          ref={scrollRef}
           contentContainerStyle={styles.container}
           keyboardShouldPersistTaps="handled">
           <Stepper current={video ? 2 : 1} />
@@ -195,12 +200,17 @@ export default function UploadScreen() {
                 placeholder="예: 이별을 통보받은 직후, 카페에서"
                 value={situation}
                 onChangeText={setSituation}
+                returnKeyType="next"
+                onSubmitEditing={() => characterRef.current?.focus()}
               />
               <Field
                 label="인물"
                 placeholder="예: 담담한 척하는 20대 후반 여성"
                 value={character}
                 onChangeText={setCharacter}
+                inputRef={characterRef}
+                returnKeyType="next"
+                onSubmitEditing={() => goalRef.current?.focus()}
               />
               <Field
                 label="목표"
@@ -208,6 +218,13 @@ export default function UploadScreen() {
                 value={goal}
                 onChangeText={setGoal}
                 tall
+                inputRef={goalRef}
+                returnKeyType="done"
+                onSubmitEditing={() => {
+                  // 키보드를 내리고 동의 체크(이어하기면 '이대로 이어가기')가 바로 보이게 한다.
+                  goalRef.current?.blur();
+                  setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 120);
+                }}
               />
             </View>
           </View>
@@ -229,7 +246,7 @@ export default function UploadScreen() {
             style={[styles.submit, submitDisabled && styles.submitDisabled]}
             onPress={start}
             disabled={submitDisabled}>
-            <Text style={styles.submitText}>질문 받기</Text>
+            <Text style={styles.submitText}>{prefilled ? '이대로 이어가기' : '질문 받기'}</Text>
           </Pressable>
           <Text style={styles.submitHint}>
             {canSubmit
@@ -249,23 +266,35 @@ function Field({
   value,
   onChangeText,
   tall,
+  inputRef,
+  returnKeyType,
+  onSubmitEditing,
 }: {
   label: string;
   placeholder: string;
   value: string;
   onChangeText: (text: string) => void;
   tall?: boolean;
+  inputRef?: RefObject<TextInput | null>;
+  returnKeyType?: 'next' | 'done';
+  onSubmitEditing?: () => void;
 }) {
   return (
     <View style={styles.field}>
       <Text style={styles.fieldLabel}>{label}</Text>
       <TextInput
+        ref={inputRef}
         style={[styles.input, tall && styles.inputTall]}
         placeholder={placeholder}
         placeholderTextColor={palette.checkOff}
         value={value}
         onChangeText={onChangeText}
         multiline
+        // 여러 줄 입력에서도 엔터가 줄바꿈 대신 "다음 칸"으로 가게 한다 —
+        // 세 칸 모두 한두 줄짜리라 줄바꿈보다 이어지는 흐름이 낫다.
+        submitBehavior="submit"
+        returnKeyType={returnKeyType}
+        onSubmitEditing={onSubmitEditing}
       />
     </View>
   );

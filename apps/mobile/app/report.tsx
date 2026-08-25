@@ -136,6 +136,10 @@ export default function ReportScreen() {
           <Pressable style={styles.primary} onPress={() => router.back()}>
             <Text style={styles.primaryText}>대화로 돌아가기</Text>
           </Pressable>
+          {/* 정리가 안 만들어졌어도 갇히지 않게 — 홈으로 가는 길을 항상 둔다(SOMA-444). */}
+          <Pressable style={styles.ghost} onPress={finish}>
+            <Text style={styles.ghostText}>홈으로</Text>
+          </Pressable>
         </View>
       )}
 
@@ -194,12 +198,13 @@ export default function ReportScreen() {
               <Text style={styles.nextTake}>{display.next}</Text>
             </Section>
 
+            {/* 긴 문구가 반쪽 버튼에서 줄바꿈으로 깨져서 세로로 쌓는다(SOMA-444). */}
             <View style={styles.buttonRow}>
-              <Pressable style={styles.ghost} onPress={finish}>
-                <Text style={styles.ghostText}>오늘은 여기까지</Text>
-              </Pressable>
               <Pressable style={styles.primary} onPress={retake}>
                 <Text style={styles.primaryText}>이 연습에 이어서 다시 찍기 →</Text>
+              </Pressable>
+              <Pressable style={styles.ghost} onPress={finish}>
+                <Text style={styles.ghostText}>오늘은 여기까지</Text>
               </Pressable>
             </View>
           </ScrollView>
@@ -277,9 +282,9 @@ const styles = StyleSheet.create({
   },
   nextTake: { fontSize: 17, fontWeight: '900', color: palette.text, lineHeight: 27 },
 
-  buttonRow: { flexDirection: 'row', gap: 10, paddingTop: 4 },
+  buttonRow: { gap: 10, paddingTop: 4 },
   primary: {
-    flex: 1,
+    alignSelf: 'stretch',
     height: 52,
     borderRadius: 14,
     backgroundColor: palette.blue,
@@ -288,7 +293,7 @@ const styles = StyleSheet.create({
   },
   primaryText: { fontSize: 14.5, fontWeight: '900', color: palette.bg },
   ghost: {
-    flex: 1,
+    alignSelf: 'stretch',
     height: 52,
     borderRadius: 14,
     borderWidth: 1,
