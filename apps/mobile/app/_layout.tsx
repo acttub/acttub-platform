@@ -18,7 +18,7 @@ import '@/lib/global-font';
 import { logScreenView } from '@/lib/analytics';
 import { pendingAnalysisStore } from '@/lib/analysis-storage';
 import { AuthProvider, useAuth } from '@/lib/auth';
-import { configureNotificationHandling } from '@/lib/notifications';
+import { configureNotificationHandling, syncDailyNudge } from '@/lib/notifications';
 import {
   recoveryStatusForConsentGate,
   resolveAnalyzingBootstrapRoute,
@@ -35,6 +35,8 @@ SplashScreen.preventAutoHideAsync();
 
 // 포그라운드에서도 알림 배너가 뜨게 한다. 모듈이 없는 빌드에서는 아무 일도 하지 않는다.
 configureNotificationHandling();
+// 데일리 넛지도 기동 때 한 번 맞춰 깐다 — 어제 예약분을 오늘 상태로 갱신한다(SOMA-444).
+void syncDailyNudge();
 
 export const unstable_settings = {
   anchor: '(tabs)',
