@@ -57,7 +57,7 @@ test('SOMA-433: 시트로 보내는 페이로드는 계약 키만 담고 개인�
     userId: 'user-uuid',
   });
   assert.deepEqual(Object.keys(payload).sort(), [
-    'app_version', 'kind', 'platform', 'screen', 'session_id', 'text', 'user_hash',
+    'app_version', 'contact_email', 'contact_phone', 'kind', 'platform', 'screen', 'session_id', 'text', 'user_hash',
   ]);
   assert.equal(payload.kind, 'app_oneliner');
   assert.equal(payload.text, '답을 어디까지 써야 할지 몰랐어요');
@@ -70,4 +70,39 @@ test('SOMA-433: 빈 한줄평으로는 페이로드를 만들지 않는다', () 
     buildOneLinerPayload({ text: '  ', platform: 'ios', appVersion: '', screen: 'report', sessionId: null, userId: null }),
     null,
   );
+});
+
+test('연락처: 비워도 한줄평은 전송된다 — contact 는 null 로 실린다', async () => {
+  const { buildOneLinerPayload } = await import('../lib/exit-review-policy.ts');
+  const p = buildOneLinerPayload({
+    text: '좋았어요',
+    platform: 'ios',
+    appVersion: '0.0.5',
+    screen: 'coach',
+    sessionId: 's1',
+    userId: 'u1',
+  });
+  assert.equal(p.contact_email, null);
+  assert.equal(p.contact_phone, null);
+  assert.equal(p.text, '좋았어요');
+});
+
+test('연락처: 적으면 다듬어서 싣고, 공백뿐이면 null', async () => {
+  const { buildOneLinerPayload, sendableContact, CONTACT_MAX_LENGTH } = await import(
+    '../lib/exit-review-policy.ts'
+  );
+  const p = buildOneLinerPayload({
+    text: '좋았어요',
+    platform: 'ios',
+    appVersion: '0.0.5',
+    screen: 'coach',
+    sessionId: 's1',
+    userId: 'u1',
+    contactEmail: '  a@b.com  ',
+    contactPhone: '   ',
+  });
+  assert.equal(p.contact_email, 'a@b.com');
+  assert.equal(p.contact_phone, null);
+  assert.equal(sendableContact('x'.repeat(200))?.length, CONTACT_MAX_LENGTH);
+  assert.equal(sendableContact(undefined), null);
 });

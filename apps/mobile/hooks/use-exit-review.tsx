@@ -47,8 +47,15 @@ export function useExitReview(trigger: ExitReviewTrigger, screen: 'coach' | 'rep
   );
 
   const submit = useCallback(
-    async (text: string) => {
-      const payload = oneLinerPayload({ text, screen, sessionId, userId: user?.id });
+    async (text: string, contact: { email: string; phone: string }) => {
+      const payload = oneLinerPayload({
+        text,
+        screen,
+        sessionId,
+        userId: user?.id,
+        contactEmail: contact.email,
+        contactPhone: contact.phone,
+      });
       if (!payload) return;
       setSending(true);
       await markExitReviewAsked();
@@ -71,7 +78,7 @@ export function useExitReview(trigger: ExitReviewTrigger, screen: 'coach' | 'rep
       visible={visible}
       trigger={trigger}
       sending={sending}
-      onSubmit={(text) => void submit(text)}
+      onSubmit={(text, contact) => void submit(text, contact)}
       onSkip={() => void skip()}
     />
   );
