@@ -3,13 +3,13 @@
 import { useState } from "react";
 import {
   BLOCKAGE_CHOICES,
+  BLOCKAGE_DETAIL_TITLE,
   blockageDetailExamples,
-  blockageDetailTitle,
+  blockageKindShortName,
   changeBlockageKind,
   chooseBlockageKind,
   chooseBlockageSubBranch,
   completeBlockageFlow,
-  effectiveSubBranch,
   initialBlockageFlowState,
   subBranchChoices,
   updateBlockageDetail,
@@ -66,22 +66,22 @@ export function BlockageSelectionFlow({
         </div>
       </div>
 
-      {chosen ? (
+      {state.kind ? (
         <BackChip
           action="바꾸기"
           onClick={() => setState((current) => changeBlockageKind(current))}
           compact
-        >{`고른 것 · ${state.kind}`}</BackChip>
+        >{`고른 것 · ${blockageKindShortName(state.kind)}`}</BackChip>
       ) : null}
 
       {/* 화면 제목은 상태와 무관하게 하나 선다. 고른 뒤에만 서는 자리에 두면
           대분류를 고르는 순간 이 화면에서 h1 이 사라진다. */}
       <ScreenHeading
-        title={chosen ? "조금만 더 알려 주세요" : "지금 연기에서 어느 쪽이 더 막히나요?"}
+        title={chosen ? "조금만 더 알려 주세요" : "이번 연습에서 어떤 도움을 받고 싶나요?"}
         description={
           chosen
             ? "여기서 더 안 골라도 그대로 이어갈 수 있어요."
-            : "고른 쪽에 맞춰 질문을 준비할게요. 하나만 골라 주세요."
+            : "고른 것에 따라 코치가 다르게 물어봐요."
         }
       />
 
@@ -214,7 +214,8 @@ function ScreenHeading({
 }) {
   return (
     <header>
-      <h1 className="text-2xl font-black leading-tight tracking-[-0.04em] text-[#191f28] sm:text-3xl">
+      {/* break-keep: 한글은 어절 안에서 끊으면 안 된다 — 새 제목이 좁은 화면에서 "싶/나요"로 갈렸다. */}
+      <h1 className="text-xl font-black leading-tight tracking-[-0.04em] text-[#191f28] break-keep sm:text-3xl">
         {title}
       </h1>
       <p className="mt-3 text-sm font-semibold leading-6 text-[#4e5968] sm:text-base">
@@ -284,7 +285,7 @@ function MainBranchPicker({ onChoose }: { onChoose: (kind: (typeof BLOCKAGE_CHOI
         {BLOCKAGE_CHOICES.map((choice) => (
           <ChoiceCard
             key={choice.value}
-            title={choice.value}
+            title={choice.label}
             description={choice.description}
             onClick={() => onChoose(choice.value)}
           />
@@ -334,24 +335,23 @@ function DetailPanel({
   const [examplesOpen, setExamplesOpen] = useState(false);
 
   const subChoices = subBranchChoices(kind);
-  // 안 고른 사람은 "그 외"로 간다. 제목과 예시가 저장되는 값과 같은 답을 보도록
-  // 그 답을 정하는 함수 하나를 함께 쓴다.
-  const subBranch = effectiveSubBranch(state);
-  const examples = blockageDetailExamples(subBranch);
+  // 제목·예시는 하위 갈래로 갈리지 않는다 — 갈래별 예시가 전부 막힘 서술을
+  // 요구했다. 저장되는 값은 completeBlockageFlow 가 정한다.
+  const examples = blockageDetailExamples();
 
   return (
     <section className="grid gap-3">
       {subChoices.length > 0 ? (
         <>
           <SectionHeading
-            title={`${kind} 중에서도 어디가 가장 막히나요?`}
+            title="조금 더 좁혀 볼까요?"
             description="고르면 질문이 더 맞아떨어져요."
           />
           <div className="grid gap-2">
             {subChoices.map((choice) => (
               <ChoiceCard
                 key={choice.value}
-                title={choice.value}
+                title={choice.label}
                 description={choice.description}
                 selected={state.subBranch === choice.value}
                 compact
@@ -363,8 +363,8 @@ function DetailPanel({
       ) : null}
 
       <SectionHeading
-        title={blockageDetailTitle(subBranch)}
-        description="어디에서 막히는지 적으면 질문이 더 정확해져요. 비워 두어도 괜찮아요."
+        title={BLOCKAGE_DETAIL_TITLE}
+        description="안 적어도 괜찮아요. 적으면 질문이 더 맞아떨어져요."
       />
       <div className="overflow-hidden rounded-2xl bg-[#f7faff] text-sm font-semibold text-[#4e5968]">
         <button
@@ -388,7 +388,7 @@ function DetailPanel({
           rows={4}
           value={state.detail}
           onChange={(event) => onDetail(event.target.value)}
-          placeholder="막힌 순간을 편하게 적어 주세요"
+          placeholder="편하게 적어 주세요"
           className="h-[112px] min-h-[112px] max-h-[112px] w-full resize-none overflow-y-auto rounded-[28px] bg-white p-4 text-base font-semibold leading-6 text-[#191f28] shadow-[0_16px_48px_rgba(25,31,40,0.08)] outline-none placeholder:text-[#4e5968]"
         />
         <div className="mt-2 flex items-center justify-between gap-3">

@@ -6,6 +6,7 @@ import { test } from "node:test";
 import "./ts-module-loader.mjs";
 
 const {
+  BLOCKAGE_CHOICES,
   changeBlockageKind,
   chooseBlockageKind,
   chooseBlockageSubBranch,
@@ -50,6 +51,23 @@ test("큰 갈래를 고르면 해당 하위 갈래 선택지만 제공한다", (
   );
   // "그 외"는 좁힐 것이 없다 — 목록이 비어 하위 갈래 자리가 아예 서지 않는다.
   assert.deepEqual(subBranchChoices("그 외"), []);
+});
+
+test("화면에 그리는 라벨은 저장값과 다른 문장이다", () => {
+  // 라벨 자리에 저장값을 그대로 쓰면 배우가 카드 제목으로 "그 외"를 읽는다(SOMA-454).
+  // 값은 서버가 코치를 가르는 데 쓰고, 화면은 문장을 쓴다.
+  for (const choice of BLOCKAGE_CHOICES) {
+    assert.notEqual(choice.label, choice.value, choice.value);
+    assert.ok(choice.label.length > choice.value.length, choice.value);
+  }
+});
+
+test("하위 갈래 「그 외」도 저장값을 그대로 보여주지 않는다", () => {
+  // 대분류만 고치면 다음 화면에서 배우가 카드 제목으로 "그 외"를 읽는다(SOMA-454).
+  for (const kind of ["분석", "표현"]) {
+    const other = subBranchChoices(kind).find((choice) => choice.value === "그 외");
+    assert.notEqual(other.label, "그 외", kind);
+  }
 });
 
 test("대분류만 골라도 완성되고 하위 갈래는 '특정하지 않음'으로 간다", () => {
@@ -101,12 +119,8 @@ test("화면이 말하는 하위 갈래와 저장되는 값이 같은 답을 본
   assert.equal(effectiveSubBranch(chosen), "화술");
   assert.equal(completeBlockageFlow(chosen)?.sub_branch, effectiveSubBranch(chosen));
 
-  // 화면이 자기 기본값을 따로 들면 위 단언은 그대로 초록이다 — 그 자리가 같은
-  // 함수를 부르는지는 소스로만 볼 수 있다.
-  assert.match(
-    detailPanelSource(),
-    /const subBranch = effectiveSubBranch\(state\);/,
-  );
+  // 화면은 이제 하위 갈래로 제목·예시를 가르지 않는다(상세 문안 한 벌, SOMA-454).
+  // 갈릴 표면이 없어져 그것을 지키던 소스 순찰도 함께 걷었다.
 });
 
 test("하위 갈래를 고르면 그 값이 실린다", () => {
@@ -178,7 +192,7 @@ test("고른 대분류를 되돌리는 칩과 글자 수 표시가 남아 있다
   // 하위 갈래는 목록이 그대로 서 있어 눌러서 바꾼다.
   assert.match(
     blockageSelectionSource,
-    /action="바꾸기"[\s\S]{0,200}?changeBlockageKind\(current\)[\s\S]{0,120}?`고른 것 · \$\{state\.kind\}`/,
+    /action="바꾸기"[\s\S]{0,200}?changeBlockageKind\(current\)[\s\S]{0,160}?`고른 것 · \$\{blockageKindShortName\(state\.kind\)\}`/,
   );
   assert.match(blockageSelectionSource, /\{state\.detail\.length\}자/);
 });
