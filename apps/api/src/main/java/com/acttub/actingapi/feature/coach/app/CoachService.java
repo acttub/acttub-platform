@@ -131,7 +131,8 @@ public class CoachService {
 
         try {
             CoachResult result = coach.start(owned.newCoachSession(UUID.randomUUID())
-                    .withPrior(priorContext(userId, owned.practiceSessionId())));
+                    .withPrior(priorContext(userId, owned.practiceSessionId()))
+                    .withTheory(command.theory()));
             CompletedTurn completed = completeTurn(result.session(), result.reply());
             ObjectNode payload = renderer.turn(
                     result.session(), result.reply(), completed.handoffId(),

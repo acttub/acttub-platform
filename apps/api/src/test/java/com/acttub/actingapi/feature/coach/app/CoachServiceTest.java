@@ -105,7 +105,7 @@ class CoachServiceTest {
                 .thenReturn(new OwnedCoachSessionContext(PRACTICE_ID, session));
         when(sessions.hasReportForPracticeSession(PRACTICE_ID)).thenReturn(false);
 
-        service.start(USER_ID, new CoachStart(PRACTICE_ID, false), null);
+        service.start(USER_ID, new CoachStart(PRACTICE_ID, false, null), null);
 
         verify(coach, never()).start(any());
         verify(reports, never()).generateReport(any(), any(), any(),
@@ -122,7 +122,7 @@ class CoachServiceTest {
         when(sessions.hasReportForPracticeSession(PRACTICE_ID)).thenReturn(true);
 
         assertThatThrownBy(() -> service.start(
-                USER_ID, new CoachStart(PRACTICE_ID, false), null))
+                USER_ID, new CoachStart(PRACTICE_ID, false, null), null))
                 .isInstanceOfSatisfying(ApiException.class, exception -> {
                     assertThat(exception.status()).isEqualTo(409);
                     assertThat(exception.getMessage())
@@ -215,7 +215,7 @@ class CoachServiceTest {
         when(sessions.hasReportForPracticeSession(PRACTICE_ID)).thenReturn(false);
         when(coach.start(any())).thenReturn(new CoachResult(session, complete));
         assertReportParseError(() -> service.start(
-                USER_ID, new CoachStart(PRACTICE_ID, false), null));
+                USER_ID, new CoachStart(PRACTICE_ID, false, null), null));
 
         // reply 는 답변이 2턴 미만이면 리포트를 만들지 않으므로(차단 노트) 여기서
         // 파싱 실패 경로를 보려면 실제로 답한 턴이 있어야 한다. 첫 actor 턴은 폼 입력이라 빠진다.

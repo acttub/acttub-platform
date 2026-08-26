@@ -36,6 +36,9 @@ public class CoachSessionEntity {
     @Column(name = "conversation_summary", nullable = false)
     String conversationSummary = "";
 
+    @Column(name = "theory")
+    String theory;
+
     @Column(name = "created_at", nullable = false, insertable = false, updatable = false)
     Instant createdAt;
 

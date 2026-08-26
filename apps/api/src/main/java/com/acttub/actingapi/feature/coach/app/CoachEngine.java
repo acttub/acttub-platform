@@ -141,7 +141,7 @@ public class CoachEngine {
 
     private CoachReply generateValidated(
             CoachSessionSnapshot session, String userMessage) {
-        String systemPrompt = CoachPrompt.select(session.blockageKind());
+        String systemPrompt = CoachPrompt.select(session);
         GeneratedText generated = generate.generate(
                 systemPrompt, CoachPrompt.buildChat(session, userMessage));
         String rawText = generated.text();

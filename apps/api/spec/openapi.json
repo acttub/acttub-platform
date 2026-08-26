@@ -2659,6 +2659,14 @@
             "type" : "boolean",
             "default" : false,
             "title" : "Restart"
+          },
+          "theory" : {
+            "anyOf" : [ {
+              "type" : "string"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Theory"
           }
         },
         "required" : [ "practice_session_id" ],
