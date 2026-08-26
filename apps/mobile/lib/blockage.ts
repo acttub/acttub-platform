@@ -1,5 +1,5 @@
 /**
- * 받고 싶은 도움 고르기 — 대분류 → 세부 → 상세 3단계.
+ * 막히는 지점 고르기 — 대분류 → 세부 → 상세 3단계.
  *
  * 서버가 이 선택으로 코치를 가른다(분석 코치 / 표현 코치). 예전처럼 '그 외'를 박아
  * 보내면 분기가 아예 안 걸려서 배우가 뭘 물어봐야 하는지와 무관한 질문이 나온다.
@@ -19,18 +19,8 @@ export type BlockageSubBranch =
   | '그 외';
 export type BlockageFlowStep = 'main' | 'sub' | 'detail';
 
-export type BlockageChoice = {
-  value: BlockageKind;
-  /** 화면이 그리는 문장. 저장값을 제목 자리에 그대로 쓰면 배우가 '그 외'를 읽는다. */
-  label: string;
-  description: string;
-};
-export type BlockageSubChoice = {
-  value: BlockageSubBranch;
-  /** 대분류와 같은 이유로 라벨을 따로 든다 — '그 외'가 화면에 그대로 뜨면 안 된다. */
-  label: string;
-  description: string;
-};
+export type BlockageChoice = { value: BlockageKind; description: string };
+export type BlockageSubChoice = { value: BlockageSubBranch; description: string };
 
 export type BlockageFlowState = {
   step: BlockageFlowStep;
@@ -45,67 +35,67 @@ export type BlockageSelection = {
   blockage_detail: string | null;
 };
 
-/**
- * 무엇이 막혔는지가 아니라 무엇을 도와줄지 묻는다 — 막히지 않은 배우가 문제를
- * 지어내야 했다(2026-08-25 배우 인터뷰, SOMA-454). 저장값은 그대로다.
- * 웹(`apps/web/src/features/practice/blockage-flow.ts`)과 글자까지 같아야 한다.
- */
 export const BLOCKAGE_CHOICES: readonly BlockageChoice[] = [
-  {
-    value: '분석',
-    label: '장면과 대사를 더 파고들고 싶어요',
-    description: '이 말이 왜 지금 나오는지부터 같이 봐요',
-  },
-  {
-    value: '표현',
-    label: '표현이 생각한 대로 안 나와요',
-    description: '한 번에 하나씩 바꿔가며 해봐요',
-  },
-  {
-    value: '그 외',
-    label: '잘 모르겠어요 — 못 본 걸 짚어 주세요',
-    description: '영상에서 보이는 것부터 꺼내 드려요',
-  },
+  { value: '분석', description: '문제를 읽어내기 어려워요' },
+  { value: '표현', description: '뜻은 알아도 안 나와요' },
+  { value: '그 외', description: '다른 게 막혀 있어요' },
 ];
-
-/** 되돌리기 칩처럼 좁은 자리에 쓰는 짧은 이름. 라벨 문장은 칩에 들어가지 않는다. */
-const KIND_SHORT_NAMES: Record<BlockageKind, string> = {
-  분석: '장면·대사',
-  표현: '표현',
-  '그 외': '같이 찾기',
-};
-
-export function blockageKindShortName(kind: BlockageKind): string {
-  return KIND_SHORT_NAMES[kind];
-}
 
 const SUB_BRANCH_CHOICES: Record<
   Exclude<BlockageKind, '그 외'>,
   readonly BlockageSubChoice[]
 > = {
   분석: [
-    { value: '캐릭터 분석', label: '인물', description: '인물이 무엇을 하려는지 같이 봐요' },
-    { value: '대사 분석', label: '대사', description: '이 말이 왜 지금 나오는지 같이 봐요' },
-    { value: '그 외', label: '아직 못 정했어요', description: '대화하면서 같이 찾아요' },
+    { value: '캐릭터 분석', description: '인물이 왜 그러는지 모르겠어요' },
+    { value: '대사 분석', description: '이 말을 왜 하는지 모르겠어요' },
+    { value: '그 외', description: '다른 게 막혀요' },
   ],
   표현: [
-    { value: '감정', label: '감정', description: '느낌이 어디서 갈리는지 같이 봐요' },
-    { value: '움직임', label: '움직임', description: '몸이 어디로 가는지 같이 봐요' },
-    { value: '화술', label: '말', description: '말이 어떻게 실리는지 같이 봐요' },
-    { value: '표정', label: '표정', description: '얼굴이 언제 달라지는지 같이 봐요' },
-    { value: '그 외', label: '아직 못 정했어요', description: '대화하면서 같이 찾아요' },
+    { value: '감정', description: '느낌이 안 올라와요' },
+    { value: '움직임', description: '몸이 안 따라와요' },
+    { value: '화술', description: '말이 안 실려요' },
+    { value: '표정', description: '얼굴이 굳어요' },
+    { value: '그 외', description: '다른 게 막혀요' },
   ],
 };
 
-/**
- * 상세 예시 한 벌. 하위 갈래마다 따로 두던 것을 접었다 — 갈래별 예시가 전부
- * '어디에서 막히는지'를 물어, 막히지 않은 배우에게 문제를 지어내게 했다.
- */
-const DETAIL_EXAMPLES: readonly string[] = [
-  '오늘 특히 확인하고 싶은 것',
-  '이 장면에서 이미 정해 둔 것',
-  '여러 번 해봤는데 잘 모르겠는 것',
-];
+const DETAIL_EXAMPLES: Record<BlockageSubBranch, readonly string[]> = {
+  감정: [
+    '어느 대목에서 감정이 멈추는지',
+    '그때 어떤 감정을 내려고 했는지',
+    '대신 무엇이 올라오는지',
+  ],
+  움직임: [
+    '어느 대목에서 몸이 멈추는지',
+    '그때 어떤 움직임을 하려 했는지',
+    '대신 몸에 어떤 반응이 오는지',
+  ],
+  화술: [
+    '어느 대목에서 말이 막히는지',
+    '그때 어떤 뜻을 실어 말하려 했는지',
+    '대신 목소리가 어떻게 나오는지',
+  ],
+  표정: [
+    '어느 대목에서 얼굴이 굳는지',
+    '그때 어떤 표정을 드러내려 했는지',
+    '대신 얼굴에 무엇이 남는지',
+  ],
+  '캐릭터 분석': [
+    '어느 대목에서 인물이 이해되지 않는지',
+    '인물이 무엇을 원한다고 생각했는지',
+    '어떤 행동이 특히 납득되지 않는지',
+  ],
+  '대사 분석': [
+    '어느 대목의 말이 이해되지 않는지',
+    '그 말로 무엇을 얻으려 했는지',
+    '어떤 뜻으로 읽으면 어색해지는지',
+  ],
+  '그 외': [
+    '어느 대목에서 막히는지',
+    '그때 무엇을 하려 했는지',
+    '대신 어떤 일이 생기는지',
+  ],
+};
 
 export const initialBlockageFlowState: BlockageFlowState = {
   step: 'main',
@@ -167,8 +157,19 @@ export function completeBlockageFlow(
   };
 }
 
-export const BLOCKAGE_DETAIL_TITLE = '더 알려주고 싶은 게 있으면 적어 주세요';
+/** 막힘 선택을 건너뛰면 보내는 값 — 서버 기본 분기('그 외')와 같다(SOMA-432). */
+export function skippedBlockageSelection(): BlockageSelection {
+  return { blockage_kind: '그 외', sub_branch: '그 외', blockage_detail: null };
+}
 
-export function blockageDetailExamples(): readonly string[] {
-  return DETAIL_EXAMPLES;
+export function blockageDetailTitle(subBranch: BlockageSubBranch): string {
+  return subBranch === '그 외'
+    ? '막히는 지점이 어디까지인지 적어 주세요'
+    : `${subBranch}이 어디까지 막히는지 적어 주세요`;
+}
+
+export function blockageDetailExamples(
+  subBranch: BlockageSubBranch,
+): readonly string[] {
+  return DETAIL_EXAMPLES[subBranch];
 }

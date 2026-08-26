@@ -5,9 +5,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import {
   BLOCKAGE_CHOICES,
-  BLOCKAGE_DETAIL_TITLE,
+  skippedBlockageSelection,
   blockageDetailExamples,
-  blockageKindShortName,
+  blockageDetailTitle,
   changeBlockageKind,
   changeBlockageSubBranch,
   chooseBlockageKind,
@@ -27,12 +27,11 @@ import { previewScene, previewVideoSource } from '@/lib/preview-video';
 import { palette } from '@/constants/palette';
 
 /**
- * 받고 싶은 도움 고르기 — 장면을 적은 뒤, 분석을 시작하기 전 단계.
+ * 막히는 지점 고르기 — 장면을 적은 뒤, 분석을 시작하기 전 단계.
  *
- * 서버가 이 선택으로 코치를 가른다(분석/표현). 세 번째 선택지가 '그 외'로 가므로
- * 건너뛰기 버튼은 없앴다(SOMA-454) — 같은 값을 보내는 길이 둘이면 하나는 "골랐다",
- * 하나는 "안 골랐다"로 보인다. 웹과 같은 선택지·같은 순서를 쓴다. 플랫폼마다 다른
- * 값을 보내면 같은 배우가 기기에 따라 다른 질문을 받는다.
+ * 서버가 이 선택으로 코치를 가른다(분석/표현). 건너뛰면 '그 외'로 보낸다(SOMA-432) —
+ * 웹과 같은 선택지·같은 순서를 쓴다. 플랫폼마다 다른 값을 보내면 같은 배우가
+ * 기기에 따라 다른 질문을 받는다.
  *
  * 화면은 목업(M6.1-R · M6.1.1-R · M6.2-R)을 따른다. 고르면 바로 넘어가지 않고
  * 라디오로 표시한 뒤 아래 버튼으로 확정한다 — 잘못 눌러 단계가 넘어가지 않게.
@@ -57,19 +56,19 @@ const c = {
 
 /** 목업의 대분류 예시 문구. 고른 항목에만 한 줄 더 붙는다. */
 const KIND_EXAMPLE: Record<BlockageKind, string> = {
-  분석: '예) “이 말이 왜 지금 나오는지부터 같이 보고 싶어요”',
-  표현: '예) “소리와 몸이 생각한 대로 가게 해보고 싶어요”',
-  '그 외': '예) “제가 못 본 게 있으면 짚어 주세요”',
+  분석: '예) “이 인물이 왜 이 말을 하는지부터 막혀요”',
+  표현: '예) “뜻은 아는데 소리와 몸이 안 따라와요”',
+  '그 외': '예) “무엇이 막히는지부터 잘 모르겠어요”',
 };
 
 const SUB_EXAMPLE: Record<BlockageSubBranch, string> = {
-  감정: '예) “느낌이 어디서 갈리는지 보고 싶어요”',
-  움직임: '예) “손이 어디로 가는지 보고 싶어요”',
-  화술: '예) “말이 어떻게 실리는지 보고 싶어요”',
-  표정: '예) “얼굴이 언제 달라지는지 보고 싶어요”',
-  '캐릭터 분석': '예) “이 인물이 무엇을 하려는지 보고 싶어요”',
-  '대사 분석': '예) “이 말이 왜 지금 나오는지 보고 싶어요”',
-  '그 외': '예) “아직 좁히기 어려워요 — 같이 찾아 주세요”',
+  감정: '예) “느끼려 애쓸수록 더 굳어요”',
+  움직임: '예) “손이 갈 곳을 못 찾아요”',
+  화술: '예) “말이 평평하게 나가요”',
+  표정: '예) “얼굴이 하나로 굳어요”',
+  '캐릭터 분석': '예) “이 인물이 뭘 원하는지 모르겠어요”',
+  '대사 분석': '예) “이 말을 왜 하는지 모르겠어요”',
+  '그 외': '예) “무엇이 막히는지부터 잘 모르겠어요”',
 };
 
 export default function BlockageScreen() {
@@ -100,6 +99,12 @@ export default function BlockageScreen() {
     setPickedSub(null);
   };
 
+  // 잘 모르겠으면 고르지 않아도 된다 — '그 외'로 보내면 코치가 대화에서 좁혀간다.
+  const skipAll = () => {
+    setPendingBlockage(skippedBlockageSelection());
+    router.replace('/analyzing');
+  };
+
   const confirmSub = () => {
     if (!pickedSub) return;
     setState((was) => chooseBlockageSubBranch(was, pickedSub));
@@ -125,9 +130,9 @@ export default function BlockageScreen() {
           {state.step === 'main' && (
             <>
               <View style={styles.heading}>
-                <Text style={styles.question}>이번 연습에서 어떤 도움을 받고 싶나요?</Text>
+                <Text style={styles.question}>지금 연기에서 어느 쪽이 더 막히나요?</Text>
                 <Text style={styles.subtitle}>
-                  고른 것에 따라 코치가 다르게 물어봐요.
+                  고른 쪽에 맞춰 질문을 준비할게요. 하나만 골라 주세요.
                 </Text>
               </View>
               <View style={styles.list}>
@@ -148,6 +153,9 @@ export default function BlockageScreen() {
                   disabled={!pickedKind}
                   onPress={confirmKind}
                 />
+                <Pressable onPress={skipAll} accessibilityRole="button" hitSlop={8}>
+                  <Text style={styles.skip}>잘 모르겠어요 · 건너뛰기</Text>
+                </Pressable>
               </View>
             </>
           )}
@@ -156,20 +164,24 @@ export default function BlockageScreen() {
             <>
               <View style={styles.heading}>
                 <ContextChip
-                  label={`고른 것 · ${blockageKindShortName(state.kind)}`}
+                  label={`고른 것 · ${state.kind}`}
                   onChange={() => {
                     setState((was) => changeBlockageKind(was));
                     setPickedKind(null);
                   }}
                 />
-                <Text style={styles.question}>조금 더 좁혀 볼까요?</Text>
-                <Text style={styles.subtitle}>하나만 골라 주세요.</Text>
+                <Text style={styles.question}>
+                  {state.kind} 중에서도 어디가 가장 막히나요?
+                </Text>
+                <Text style={styles.subtitle}>
+                  ‘{state.kind}’을 조금만 더 좁혀 볼게요. 하나만 골라 주세요.
+                </Text>
               </View>
               <View style={styles.list}>
                 {subBranchChoices(state.kind).map((choice) => (
                   <Option
                     key={choice.value}
-                    label={choice.label}
+                    label={choice.value}
                     description={choice.description}
                     example={SUB_EXAMPLE[choice.value]}
                     selected={pickedSub === choice.value}
@@ -190,15 +202,14 @@ export default function BlockageScreen() {
               <View style={styles.heading}>
                 <ContextChip
                   label={`고른 것 · ${
-                    state.kind === '그 외'
-                      ? blockageKindShortName(state.kind)
-                      : `${blockageKindShortName(state.kind)} › ${state.subBranch}`
+                    state.kind === '그 외' ? state.kind : `${state.kind} › ${state.subBranch}`
                   }`}
                   onChange={() => setState((was) => changeBlockageSubBranch(was))}
                 />
-                <Text style={styles.question}>{BLOCKAGE_DETAIL_TITLE}</Text>
+                <Text style={styles.question}>{blockageDetailTitle(state.subBranch)}</Text>
                 <Text style={styles.subtitle}>
-                  안 적어도 괜찮아요. 적으면 질문이 더 맞아떨어져요.
+                  어느 대목에서 그랬는지, 그때 무엇을 하려 했는지까지 적으면 질문이 더
+                  정확해져요.
                 </Text>
               </View>
 
@@ -206,7 +217,7 @@ export default function BlockageScreen() {
                 <View style={styles.exampleBlock}>
                   <Text style={styles.exampleLead}>예를 들어 —</Text>
                   <Text style={styles.exampleBody}>
-                    {blockageDetailExamples().join(' · ')}
+                    {blockageDetailExamples(state.subBranch).join(' · ')}
                   </Text>
                 </View>
                 <TextInput
@@ -350,8 +361,7 @@ const styles = StyleSheet.create({
   body: { paddingTop: 28, paddingHorizontal: 20, paddingBottom: 20, gap: 24 },
 
   heading: { gap: 10 },
-  // 웹의 text-xl(20px)과 맞춘다 — 새 제목이 길어져 23px 로는 좁은 화면에서 두 줄이 된다.
-  question: { fontSize: 20, fontWeight: '900', color: c.ink, lineHeight: 28 },
+  question: { fontSize: 23, fontWeight: '900', color: c.ink, lineHeight: 32 },
   subtitle: { fontSize: 14, fontWeight: '600', color: c.inkSub, lineHeight: 23 },
 
   chipRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },

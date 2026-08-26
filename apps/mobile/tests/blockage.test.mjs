@@ -3,8 +3,8 @@ import test from 'node:test';
 
 import {
   BLOCKAGE_CHOICES,
-  BLOCKAGE_DETAIL_TITLE,
   blockageDetailExamples,
+  blockageDetailTitle,
   changeBlockageKind,
   changeBlockageSubBranch,
   chooseBlockageKind,
@@ -13,6 +13,7 @@ import {
   initialBlockageFlowState,
   subBranchChoices,
   updateBlockageDetail,
+  skippedBlockageSelection,
 } from '../lib/blockage.ts';
 
 test('대분류는 웹과 같은 세 가지다', () => {
@@ -110,25 +111,20 @@ test('세부에서 뒤로 가면 세부 단계로만 돌아간다', () => {
   assert.equal(back.subBranch, null);
 });
 
-test('상세 제목과 예시는 하위 갈래와 무관한 한 벌이다', () => {
-  // 갈래별로 나눠 두면 예시가 전부 '어디에서 막히는지'를 묻게 된다(SOMA-454).
-  assert.ok(BLOCKAGE_DETAIL_TITLE.length > 0);
-  assert.ok(blockageDetailExamples().length > 0);
-});
-
-test('하위 갈래 「그 외」도 저장값을 그대로 보여주지 않는다', () => {
-  // 대분류만 고치면 다음 화면에서 배우가 카드 제목으로 '그 외'를 읽는다(SOMA-454).
-  for (const kind of ['분석', '표현']) {
-    const other = subBranchChoices(kind).find((choice) => choice.value === '그 외');
-    assert.notEqual(other.label, '그 외', kind);
+test('모든 세부에 상세 예시와 제목이 있다', () => {
+  const all = ['분석', '표현'].flatMap((kind) =>
+    subBranchChoices(kind).map((c) => c.value),
+  );
+  for (const subBranch of [...new Set(all), '그 외']) {
+    assert.ok(blockageDetailExamples(subBranch).length > 0, subBranch);
+    assert.ok(blockageDetailTitle(subBranch).length > 0, subBranch);
   }
 });
 
-test('화면에 그리는 라벨은 저장값과 다른 문장이다', () => {
-  // 라벨 자리에 저장값을 그대로 쓰면 배우가 카드 제목으로 '그 외'를 읽는다(SOMA-454).
-  // 값은 서버가 코치를 가르는 데 쓰고, 화면은 문장을 쓴다.
-  for (const choice of BLOCKAGE_CHOICES) {
-    assert.notEqual(choice.label, choice.value, choice.value);
-    assert.ok(choice.label.length > choice.value.length, choice.value);
-  }
+test('SOMA-432: 막힘 선택 건너뛰기는 서버 기본 분기(그 외)와 같은 값을 보낸다', () => {
+  assert.deepEqual(skippedBlockageSelection(), {
+    blockage_kind: '그 외',
+    sub_branch: '그 외',
+    blockage_detail: null,
+  });
 });
