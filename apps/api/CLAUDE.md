@@ -19,7 +19,7 @@ Java 21 + Spring Boot 3.4. **dev·운영 모두 여기가 트래픽을 받습니
 
 - `./gradlew test` — JUnit 5 + Testcontainers. **Docker 필요.** CI가 돌리는 것과 같습니다.
 - `./gradlew bootJar` — `acting-api.jar` 생성. **배포 아티팩트는 이것 하나뿐입니다.**
-- `./gradlew bootRun` — 로컬 기동(:8080). 설정은 아래 `.env`가 공급합니다.
+- `./gradlew bootRun` — 로컬 기동(:8080). 설정은 아래 `.env`가 공급합니다. 실제 OIDC 없이 로그인하려면 `DEVELOPMENT_AUTH_PROVIDER=1`을 함께 줍니다 — `integration/oidc/DevelopmentProviderVerifier`가 `1`·`true`만 인식하므로 `yes`로는 켜지지 않습니다.
 - `scripts/regen-fingerprint.sh` — 스키마 fixture 재생성(아래 참조). **Docker만** 필요합니다.
 
 **`contract` 스프링 프로파일은 하네스와 함께 사라졌습니다.** 스텁 프로바이더·스텁 스토리지·스텁 LLM·제어 표면(`/__harness/*`)과 `@Profile("!contract")` 열두 자리가 전부 그때 걷혔습니다. 프로파일로 외부 연동을 끄던 자리가 없으므로, **지금 앱은 어떤 모드로 뜨든 진짜 연동을 세우고 그 키를 요구합니다.**
