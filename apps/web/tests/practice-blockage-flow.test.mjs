@@ -62,6 +62,14 @@ test("화면에 그리는 라벨은 저장값과 다른 문장이다", () => {
   }
 });
 
+test("하위 갈래 「그 외」도 저장값을 그대로 보여주지 않는다", () => {
+  // 대분류만 고치면 다음 화면에서 배우가 카드 제목으로 "그 외"를 읽는다(SOMA-454).
+  for (const kind of ["분석", "표현"]) {
+    const other = subBranchChoices(kind).find((choice) => choice.value === "그 외");
+    assert.notEqual(other.label, "그 외", kind);
+  }
+});
+
 test("대분류만 골라도 완성되고 하위 갈래는 '특정하지 않음'으로 간다", () => {
   const state = chooseBlockageKind(initialBlockageFlowState, "표현");
 

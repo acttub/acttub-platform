@@ -25,7 +25,12 @@ export type BlockageChoice = {
   label: string;
   description: string;
 };
-export type BlockageSubChoice = { value: BlockageSubBranch; description: string };
+export type BlockageSubChoice = {
+  value: BlockageSubBranch;
+  /** 대분류와 같은 이유로 라벨을 따로 든다 — '그 외'가 화면에 그대로 뜨면 안 된다. */
+  label: string;
+  description: string;
+};
 
 export type BlockageFlowState = {
   step: BlockageFlowStep;
@@ -79,16 +84,16 @@ const SUB_BRANCH_CHOICES: Record<
   readonly BlockageSubChoice[]
 > = {
   분석: [
-    { value: '캐릭터 분석', description: '인물이 무엇을 하려는지 같이 봐요' },
-    { value: '대사 분석', description: '이 말이 왜 지금 나오는지 같이 봐요' },
-    { value: '그 외', description: '아직 좁히지 않을래요' },
+    { value: '캐릭터 분석', label: '인물', description: '인물이 무엇을 하려는지 같이 봐요' },
+    { value: '대사 분석', label: '대사', description: '이 말이 왜 지금 나오는지 같이 봐요' },
+    { value: '그 외', label: '아직 못 정했어요', description: '대화하면서 같이 찾아요' },
   ],
   표현: [
-    { value: '감정', description: '느낌이 어디서 갈리는지 같이 봐요' },
-    { value: '움직임', description: '몸이 어디로 가는지 같이 봐요' },
-    { value: '화술', description: '말이 어떻게 실리는지 같이 봐요' },
-    { value: '표정', description: '얼굴이 언제 달라지는지 같이 봐요' },
-    { value: '그 외', description: '아직 좁히지 않을래요' },
+    { value: '감정', label: '감정', description: '느낌이 어디서 갈리는지 같이 봐요' },
+    { value: '움직임', label: '움직임', description: '몸이 어디로 가는지 같이 봐요' },
+    { value: '화술', label: '말', description: '말이 어떻게 실리는지 같이 봐요' },
+    { value: '표정', label: '표정', description: '얼굴이 언제 달라지는지 같이 봐요' },
+    { value: '그 외', label: '아직 못 정했어요', description: '대화하면서 같이 찾아요' },
   ],
 };
 

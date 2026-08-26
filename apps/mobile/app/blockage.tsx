@@ -169,7 +169,7 @@ export default function BlockageScreen() {
                 {subBranchChoices(state.kind).map((choice) => (
                   <Option
                     key={choice.value}
-                    label={choice.value}
+                    label={choice.label}
                     description={choice.description}
                     example={SUB_EXAMPLE[choice.value]}
                     selected={pickedSub === choice.value}

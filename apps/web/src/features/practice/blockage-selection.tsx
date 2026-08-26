@@ -214,7 +214,8 @@ function ScreenHeading({
 }) {
   return (
     <header>
-      <h1 className="text-2xl font-black leading-tight tracking-[-0.04em] text-[#191f28] sm:text-3xl">
+      {/* break-keep: 한글은 어절 안에서 끊으면 안 된다 — 새 제목이 좁은 화면에서 "싶/나요"로 갈렸다. */}
+      <h1 className="text-2xl font-black leading-tight tracking-[-0.04em] text-[#191f28] break-keep sm:text-3xl">
         {title}
       </h1>
       <p className="mt-3 text-sm font-semibold leading-6 text-[#4e5968] sm:text-base">
@@ -344,13 +345,13 @@ function DetailPanel({
         <>
           <SectionHeading
             title="조금 더 좁혀 볼까요?"
-            description="안 골라도 그대로 이어갈 수 있어요."
+            description="고르면 질문이 더 맞아떨어져요."
           />
           <div className="grid gap-2">
             {subChoices.map((choice) => (
               <ChoiceCard
                 key={choice.value}
-                title={choice.value}
+                title={choice.label}
                 description={choice.description}
                 selected={state.subBranch === choice.value}
                 compact

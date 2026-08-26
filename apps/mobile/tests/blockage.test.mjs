@@ -116,6 +116,14 @@ test('상세 제목과 예시는 하위 갈래와 무관한 한 벌이다', () =
   assert.ok(blockageDetailExamples().length > 0);
 });
 
+test('하위 갈래 「그 외」도 저장값을 그대로 보여주지 않는다', () => {
+  // 대분류만 고치면 다음 화면에서 배우가 카드 제목으로 '그 외'를 읽는다(SOMA-454).
+  for (const kind of ['분석', '표현']) {
+    const other = subBranchChoices(kind).find((choice) => choice.value === '그 외');
+    assert.notEqual(other.label, '그 외', kind);
+  }
+});
+
 test('화면에 그리는 라벨은 저장값과 다른 문장이다', () => {
   // 라벨 자리에 저장값을 그대로 쓰면 배우가 카드 제목으로 '그 외'를 읽는다(SOMA-454).
   // 값은 서버가 코치를 가르는 데 쓰고, 화면은 문장을 쓴다.
