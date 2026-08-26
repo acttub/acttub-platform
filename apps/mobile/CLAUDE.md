@@ -17,6 +17,19 @@ Expo 54 + React Native + expo-router(파일 기반 라우팅) + TypeScript.
 - `npm run ios` · `npm run android` — 로컬 네이티브 빌드(`expo run:*`). 실행 시 prebuild가 `ios/`·`android/`를 생성합니다.
 - `npm run lint`
 - 배포 빌드·제출은 EAS(`eas.json`).
+- ⚠ **`tsc --noEmit`은 그대로 쓸 수 없습니다.** `app.json`이 `typedRoutes: true`라 라우트 타입이 `.expo/types/router.d.ts`에 생성되는데, `.expo/`는 `.gitignore`라 새 클론에는 없고 dev 서버가 만든 뒤로는 라우트를 추가해도 낡습니다. 그 상태로 돌리면 **실재하는 라우트가 전부 빨간불**이 됩니다(`/admissions`·`/memory` 등) — 코드가 아니라 생성물을 의심합니다.
+
+## 테스트
+
+`node --test tests/*.test.mjs` (이 디렉토리에서). Node가 `.ts` import를 그대로 읽으므로 웹과 달리 커스텀 로더가 없습니다.
+
+`.github/workflows/ci.yml`의 **`mobile (node --test)`** 잡이 이것을 돌립니다. **잡 이름이 곧 required status check의 context**라, 이름을 바꾸면 ruleset 둘(`main`·`dev`)도 함께 고칩니다.
+
+📌 **스위트가 외부 런타임 의존을 하나도 쓰지 않습니다** — import 하는 것은 `node:*` 빌트인과 프로젝트 `.ts` 파일뿐이고, `@/`로 들어오는 둘은 `import type`이라 지워집니다. `node_modules` 없이도 전부 통과하며 **CI 잡에 설치 단계가 없는 이유가 그것입니다.** 런타임 import를 하나 더하는 순간 그 전제가 깨지고 잡이 빨간불이 됩니다.
+
+⚠ **lint·typecheck는 그 잡에 없습니다.** `expo lint`는 Expo 전체 트리 설치가 필요해 잡이 몇 분으로 늘고, `tsc`는 위 typed routes 사정 때문에 클린 체크아웃에서 의미 있는 결과를 내지 못합니다. **둘은 여전히 사람이 봅니다.**
+
+⚠ **`tests/index.mjs`로 돌리지 않습니다.** 손으로 관리하는 import 목록이라 빠진 파일이 있고, 그 파일들은 조용히 건너뛰어집니다. 위 glob 명령이 디렉토리 전체를 봅니다.
 
 ## 네이티브 설정은 app.config.js가 소유합니다
 
@@ -36,10 +49,14 @@ Expo 54 + React Native + expo-router(파일 기반 라우팅) + TypeScript.
 
 ```text
 app/          expo-router 화면 (파일 = 라우트)
+components/   화면을 가로지르는 컴포넌트 (시트·다이얼로그·녹화 카드 등)
 lib/          API 클라이언트·토큰 스토어·도메인 로직
-plugins/      Expo config plugin (네이티브 빌드 보정)
-constants/    palette.ts
 hooks/
+constants/    palette.ts
+plugins/      Expo config plugin (네이티브 빌드 보정)
+tests/        node --test 스위트 (위 「테스트」 참조)
+scripts/      폰트·스토어 자산 생성 도구(파이썬) + reset-project
+store/        스토어 등록 문안 (listing-ko.md)
 docs/         PRACTICE-FLOW.md (연습 흐름 화면 대응표)
 ```
 

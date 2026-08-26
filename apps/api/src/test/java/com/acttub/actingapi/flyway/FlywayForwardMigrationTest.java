@@ -128,7 +128,7 @@ class FlywayForwardMigrationTest {
 
     /**
      * 마이그레이션이 <b>기동의 일부</b>가 된 지금(SOMA-403 3단계), 실패했을 때 DB 가 어떤 상태로
-     * 남는지가 운영 대응 절차의 전제다({@code docs/DEPLOY-VPC.md} §4-3).
+     * 남는지가 운영 대응 절차의 전제다({@code docs/deploy/DEPLOY-VPC.md} §4-3).
      *
      * <p>Postgres 는 DDL 이 트랜잭션 안에서 돌므로 <b>마이그레이션과 이력 기록이 함께 롤백된다</b> —
      * 실패 흔적이 남지 않고, 원인을 고쳐 다시 배포하면 그만이다. 손으로 이력을 지우거나

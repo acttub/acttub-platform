@@ -76,7 +76,7 @@ for (const [name, input] of [
   });
 }
 
-test('F10: 분석 시작이 막혀 있으면 빠진 항목을 알려준다 — 장면 칸은 선택이라 세지 않는다', () => {
+test('F10: 질문 받기가 막혀 있으면 빠진 항목을 알려준다 — 장면 칸은 선택이라 세지 않는다', () => {
   assert.equal(
     missingUploadFieldsHint({
       situation: '',

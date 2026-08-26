@@ -1,6 +1,7 @@
-# PR 게이트 CI — dev·main으로 향하는 PR에서 웹·API를 검증합니다.
-# ruleset "Require pull requests for main and dev"에 이 잡들을 required status check로
-# 추가하면, 초록불이어야만 머지가 됩니다.
+# PR 게이트 CI — dev·main으로 향하는 PR에서 웹·API·모바일을 검증합니다.
+# 이 잡들을 ruleset 의 required status check 로 넣어야 초록불이어야만 머지가 됩니다.
+# ⚠ ruleset 은 하나가 아닙니다 — "Require merge commits for main (release)"(main)과
+# "Require pull requests for dev"(dev)가 같은 목록을 따로 들고 있어 둘 다 고쳐야 합니다.
 name: CI
 
 on:
@@ -89,3 +90,32 @@ jobs:
         with:
           name: api-test-report
           path: apps/api/build/reports/tests/test
+
+  # 모바일은 pnpm 워크스페이스 밖이라(pnpm-workspace.yaml 의 !apps/mobile) 위 web
+  # 잡이 설치조차 하지 않습니다. 이 잡이 생기기 전에는 apps/mobile 만 고친 PR 이
+  # 아무것도 돌지 않은 채 초록이었습니다.
+  #
+  # 설치 단계가 없는 것은 실수가 아닙니다 — 스위트가 import 하는 것은 node: 빌트인과
+  # 프로젝트 .ts 파일뿐이고 @/ 로 들어오는 둘은 import type 이라 타입 스트리핑에
+  # 지워집니다. node_modules 를 통째로 치운 채 전부 통과하는 것을 확인했습니다.
+  # 여기에 런타임 의존이 하나라도 생기면 npm ci 가 필요해집니다.
+  #
+  # ⚠ expo lint·tsc 는 일부러 뺐습니다. expo lint 는 Expo 전체 트리 설치가 필요해
+  # 20초짜리 잡을 몇 분으로 늘리고, tsc 는 typedRoutes 타입(.expo/types, gitignore)이
+  # 클린 체크아웃에 없어 실재하는 라우트를 전부 오류로 냅니다.
+  mobile:
+    name: mobile (node --test)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/mobile
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      # .ts 를 그대로 import 합니다(Node 타입 스트리핑). 웹과 달리 커스텀 로더가 없습니다.
+      - name: Test
+        run: node --test tests/*.test.mjs

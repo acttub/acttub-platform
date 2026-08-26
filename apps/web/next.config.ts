@@ -21,7 +21,7 @@ const nextConfig: NextConfig = {
   // 이미지 최적화를 쓰지 않는다. 그럼에도 standalone 산출물에는 sharp의 플랫폼
   // 전용 바이너리가 딸려온다(Next의 의존성 트레이싱이 무조건 포함시킨다).
   // 맥에서 빌드해 리눅스로 옮길 때는 전송에서 제외한다 — 실제로 로드되지 않는다.
-  // 자세한 내용은 docs/DEPLOY-VPC.md.
+  // 자세한 내용은 docs/deploy/DEPLOY-VPC.md.
   images: { unoptimized: true },
   // 폰 등 다른 기기에서 dev 서버를 열 때 필요 (기본은 로컬만 허용).
   // 이 값만으로는 부족하다 — dev 서버가 loopback에만 붙어 있으면 폰이 소켓에
@@ -64,7 +64,7 @@ export default withSentryConfig(nextConfig, {
   // 클라이언트 번들 전체로 업로드 범위를 넓히지 않는다 — 산출물만 커진다.
   widenClientFileUpload: false,
   disableLogger: true,
-  // Vercel에 배포하지 않는다. EC2 + systemd다(docs/DEPLOY-VPC.md).
+  // Vercel에 배포하지 않는다. EC2 + systemd다(docs/deploy/DEPLOY-VPC.md).
   automaticVercelMonitors: false,
   // 업로드하는 소스맵에 붙는 릴리스 이름은 런타임 init의 release와 **정확히 같아야**
   // 한다. 어긋나면 업로드는 성공하는데 이슈 화면의 스택트레이스는 난독화된 채로 남는다.

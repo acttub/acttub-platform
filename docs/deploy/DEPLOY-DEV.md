@@ -262,8 +262,8 @@ Settings → Environments → **`dev`** 생성. 보호 규칙(승인자)은 걸�
 - **자동**: `dev` 브랜치에 머지되면 `fe`·`be_java` 두 잡이 함께 돈다. dev로 들어오는 경로는
   PR뿐이고 그 PR은 `ci.yml` 게이트를 통과했으므로 배포 워크플로는 테스트를 다시 돌리지
   않는다
-- **수동**: Actions → Deploy → Run workflow에서 환경(`dev`/`prod`)과 대상(`fe`/`be-java`/`both`)을
-  고른다
+- **수동**: Actions → Deploy → Run workflow에서 환경(`dev`/`prod`)과 대상
+  (`fe`·`be-java`·`both`·`be-java-baseline`)을 고른다 — 목록은 `DEPLOY-VPC.md` 6장이 정본이다
 
 dev는 인스턴스가 한 대라 두 잡이 같은 박스에 동시에 설치된다. 경로가 겹치지 않아
 충돌하지 않지만, 잡이 끝나는 순서에 따라 잠깐 새 프론트 + 옛 API 조합이 될 수 있다.
@@ -274,9 +274,9 @@ dev는 인스턴스가 한 대라 두 잡이 같은 박스에 동시에 설치�
 
 **마이그레이션은 자바 기동의 일부다.** 스키마 정본이 Flyway 라(`apps/api/CONTRACT.md` §5-5,
 `SOMA-403` 3단계) 배포는 jar 하나만 보내고, 앱이 뜨는 도중에 Flyway 가 `db/migration` 을
-적용한다. 별도 migrate 스텝이 없다. 스키마 변경은 `V2__` 부터 새 파일로 들어가고
-**`V1__baseline.sql` 은 동결이다.** 되돌리기 어려운 성질은 그대로라 스키마를 먼저 넓히고
-코드를 나중에 좁히는 순서로 통제한다(`DEPLOY-VPC.md` 6-4).
+적용한다. 별도 migrate 스텝이 없다. 스키마 변경은 그 디렉토리의 가장 큰 번호 다음
+파일로 들어가고 **`V1__baseline.sql` 은 동결이다.** 되돌리기 어려운 성질은
+그대로라 스키마를 먼저 넓히고 코드를 나중에 좁히는 순서로 통제한다(`DEPLOY-VPC.md` 6-4).
 
 ⚠ **나쁜 마이그레이션은 배포 실패가 아니라 중단이다** — 마이그레이션이 `systemctl restart`
 뒤에 돌기 때문에 옛 프로세스는 이미 죽어 있고, **jar 를 되돌려도 스키마는 돌아오지 않는다.**
