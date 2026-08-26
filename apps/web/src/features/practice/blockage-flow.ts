@@ -41,17 +41,17 @@ export type BlockageSelection = {
 export const BLOCKAGE_CHOICES: readonly BlockageChoice[] = [
   {
     value: "분석",
-    label: "장면과 대사를 더 파고들고 싶어요",
+    label: "대사 분석",
     description: "이 말이 왜 지금 나오는지부터 같이 봐요",
   },
   {
     value: "표현",
-    label: "표현이 생각한 대로 안 나와요",
+    label: "연기 표현",
     description: "한 번에 하나씩 바꿔가며 해봐요",
   },
   {
     value: "그 외",
-    label: "잘 모르겠어요 — 못 본 걸 짚어 주세요",
+    label: "잘 모르겠어요",
     description: "영상에서 보이는 것부터 꺼내 드려요",
   },
 ];
