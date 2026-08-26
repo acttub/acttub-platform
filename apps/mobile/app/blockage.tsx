@@ -350,7 +350,8 @@ const styles = StyleSheet.create({
   body: { paddingTop: 28, paddingHorizontal: 20, paddingBottom: 20, gap: 24 },
 
   heading: { gap: 10 },
-  question: { fontSize: 23, fontWeight: '900', color: c.ink, lineHeight: 32 },
+  // 웹의 text-xl(20px)과 맞춘다 — 새 제목이 길어져 23px 로는 좁은 화면에서 두 줄이 된다.
+  question: { fontSize: 20, fontWeight: '900', color: c.ink, lineHeight: 28 },
   subtitle: { fontSize: 14, fontWeight: '600', color: c.inkSub, lineHeight: 23 },
 
   chipRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },

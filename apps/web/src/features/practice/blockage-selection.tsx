@@ -215,7 +215,7 @@ function ScreenHeading({
   return (
     <header>
       {/* break-keep: 한글은 어절 안에서 끊으면 안 된다 — 새 제목이 좁은 화면에서 "싶/나요"로 갈렸다. */}
-      <h1 className="text-2xl font-black leading-tight tracking-[-0.04em] text-[#191f28] break-keep sm:text-3xl">
+      <h1 className="text-xl font-black leading-tight tracking-[-0.04em] text-[#191f28] break-keep sm:text-3xl">
         {title}
       </h1>
       <p className="mt-3 text-sm font-semibold leading-6 text-[#4e5968] sm:text-base">
