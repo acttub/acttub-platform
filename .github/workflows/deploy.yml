@@ -6,7 +6,7 @@
 #   - prod : main 브랜치에 머지되면 자동 배포. 인스턴스가 fe·be로 나뉩니다.
 #
 # 인증은 OIDC입니다. 장기 액세스 키를 repo Secrets에 두지 않고, 실행할 때마다
-# AWS에서 임시 자격증명을 받습니다. 설정 절차는 docs/DEPLOY-VPC.md 6-1·6-2 참고.
+# AWS에서 임시 자격증명을 받습니다. 설정 절차는 docs/deploy/DEPLOY-VPC.md 6-1·6-2 참고.
 #
 # 인스턴스에 SSH로 접속하지 않습니다 — SSM Run Command로 AWS에 실행을 위임하므로
 # private subnet이어도 runner에서 그대로 동작합니다.
@@ -117,7 +117,7 @@ jobs:
   # 창을 사후에 대조했습니다.
   #
   # ⚠ **되돌리기 어려운 것은 그대로입니다.** 스키마를 먼저 넓히고 코드를 나중에 좁히는
-  # 순서로 통제합니다(docs/DEPLOY-VPC.md 6-4).
+  # 순서로 통제합니다(docs/deploy/DEPLOY-VPC.md 6-4).
   be_java:
     name: back svc (Spring Boot)
     needs: guard

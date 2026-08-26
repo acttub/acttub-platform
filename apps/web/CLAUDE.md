@@ -21,7 +21,7 @@ Next.js 16 App Router + React 19 + TypeScript + Tailwind CSS v4.
   - ⚠️ **`--webpack` 을 떼지 마세요.** Next 16의 기본 번들러는 Turbopack인데, Turbopack 산출물에서는 **Amplitude 세션 리플레이가 조용히 죽습니다.** 리플레이 SDK가 rrweb 레코더를 동적 import 로 불러오는데 그 청크가 `SyntaxError: Invalid or unexpected token` 으로 깨지고, SDK 는 예외를 삼킨 뒤(`Failed to load rrweb-record module:`) null 을 반환합니다. 빌드도 배포도 초록이고 이벤트도 정상이라 **녹화만 0건인 증상으로는 원인을 찾기 어렵습니다.** 2026-08-11 에 같은 코드로 두 번 빌드해 확인했습니다 — Turbopack 은 업로드 0건, webpack 은 `api-sr.amplitude.com/sessions/v2/track` 200 이 6건. 자세한 내용은 [ANALYTICS.md](ANALYTICS.md) §1(2).
 - `pnpm start` — 빌드 결과를 로컬에서 서빙(:3000). Lighthouse 측정이 이 명령을 씁니다.
 - `pnpm dev:lan` — 폰 등 다른 기기에서 열 때. `DEV_HOST`에 맥의 LAN IP가 필요하고 `DEV_ALLOWED_ORIGINS`도 같이 줘야 합니다(next.config 주석 참조). `0.0.0.0` 바인드는 HMR 소켓이 깨지므로 쓰지 않습니다.
-- `pnpm perf` — Lighthouse CI(`lighthouserc.cjs`). `pnpm start`를 띄워 측정하므로 `build`가 먼저 있어야 합니다. `pnpm perf:healthcheck`는 설정만 검사.
+- `pnpm perf` — Lighthouse CI(`lighthouserc.cjs`). `pnpm start`를 띄워 측정하므로 `build`가 먼저 있어야 합니다. `pnpm perf:healthcheck`는 설정만 검사. 지켜야 하는 수치(비로그인 랜딩 `/`의 모바일 Performance 90 이상)와 예산은 [PERFORMANCE.md](PERFORMANCE.md)입니다.
 - `pnpm generate:v2-schema` — `../api/spec/openapi.json`에서 요청 타입 재생성(`src/lib/api/v2-schema.d.ts`). 이 파일은 직접 수정 금지.
 
 ## 구조
@@ -29,12 +29,18 @@ Next.js 16 App Router + React 19 + TypeScript + Tailwind CSS v4.
 ```text
 src/
   app/        페이지 (전부 정적 프리렌더 + 클라이언트 렌더)
-  features/   화면 모듈 (practice-flow, terms-gate, auth 가드)
+  features/   화면 모듈 (admissions·analytics·app-download·auth·community·memory·nav·practice·workspace)
   lib/
-    api/v2/   acting-api v2 클라이언트 (도메인별 모듈)
-    auth/     토큰 스토어·refresh·Google/Apple SDK 어댑터
-    config/   env 스위치 (선택 변수는 env.ts 주석이 단일 문서)
-    react/    화면을 가로지르는 훅 (use-resource)
+    analytics/      Amplitude·GA 래퍼
+    api/v2/         acting-api v2 클라이언트 (도메인별 모듈)
+    app-download/   스토어 링크
+    auth/           토큰 스토어·refresh·Google/Apple SDK 어댑터
+    config/         env 스위치 (선택 변수는 env.ts 주석이 단일 문서)
+    media/          영상 압축·업로드 사전점검
+    observability/  Sentry 공용 설정
+    react/          화면을 가로지르는 훅 (use-resource)
+    seo/            메타데이터·JSON-LD·폰트
+    markdown.ts     동의 문서용 최소 마크다운 파서
 ```
 
 ## 정적 프리렌더 제약 (위반 시 빌드 실패 또는 런타임 오류)

@@ -9,7 +9,7 @@ import java.net.URLDecoder;
  * 배포 환경변수 {@code DATABASE_URL} 을 JDBC 3종(url / username / password)으로 쪼갠다.
  *
  * <p>현행 값은 {@code postgresql://user:pass@host:5432/db} 형태다
- * ({@code deploy/bootstrap-dev.sh}, {@code docs/DEPLOY-VPC.md}). Python 은 SQLAlchemy 가
+ * ({@code deploy/bootstrap-dev.sh}, {@code docs/deploy/DEPLOY-VPC.md}). Python 은 SQLAlchemy 가
  * 이 URI 를 그대로 받지만 Hikari 는 {@code jdbc:postgresql://…} 를 요구한다.
  * 환경변수 이름을 바꾸면 dev·운영 양쪽 api.env 를 동시에 손봐야 하므로 이름은 유지하고
  * 여기서 변환만 한다 (apps/api/CONTRACT.md §5-6).

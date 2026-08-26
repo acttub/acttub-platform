@@ -141,7 +141,7 @@ Jackson 설정: `WRITE_DATES_AS_TIMESTAMPS=false`, `Instant` 또는 `OffsetDateT
 - **빈 DB**: V1 을 실행해 스키마를 재구축한다. 이것이 없으면 신규 환경·재해 복구가 불가능하다
 - **기존 DB(dev·운영)**: 같은 V1 버전으로 `baseline` 을 기록만 한다. DDL 은 실행하지 않는다
 
-🔥 **V1 은 동결이다. 스키마 변경은 `V2__` 부터 새 파일로 들어간다.** 두 경로의 이력이 다르기
+🔥 **V1 은 동결이다. 스키마 변경은 거기 있는 가장 큰 번호 다음으로 새 파일을 만든다.** 두 경로의 이력이 다르기
 때문이다 — dev·운영은 `<< Flyway Baseline >>`(type=BASELINE)이라 **checksum 이 없고**, 신규
 환경은 V1 을 SQL 로 밟아 checksum 을 갖는다. **V1 을 고치면 dev·운영은 멀쩡한데 신규 환경만
 `checksum mismatch` 로 기동하지 못한다** — 재해복구가 필요한 순간에야 드러난다. 관측이 아니라
@@ -154,10 +154,10 @@ Jackson 설정: `WRITE_DATES_AS_TIMESTAMPS=false`, `Instant` 또는 `OffsetDateT
 `apps/api/scripts/regen-fingerprint.sh` 가 한다**(Docker 만 필요). 스키마가 바뀌는 PR 마다
 돌려 결과를 함께 커밋한다.
 
-**앞으로 가는 길이 뚫려 있는지는 따로 본다.** dev·운영에서 Flyway 가 마이그레이션을 실행한 적은
-**한 번도 없다** — V1 은 기록만 됐다. `FlywayForwardMigrationTest` 가 그 경로(BASELINE 이력만
-있는 DB)에 임시 V2 를 통과시켜 확인하고, **baseline 이 마이그레이션보다 높으면 조용히 건너뛰는
-것**을 반증으로 함께 보인다.
+**앞으로 가는 길이 뚫려 있는지는 따로 본다.** dev·운영에서 **V1 은 기록만 됐고**(BASELINE 이력),
+실제로 실행된 것은 그 뒤 마이그레이션들이다. `FlywayForwardMigrationTest` 가 그 경로(BASELINE
+이력만 있는 DB)에 커밋하지 않는 프로브를 **다음 빈 번호로**(`FlywaySupport.nextFreeVersion()`)
+얹어 확인하고, **baseline 이 마이그레이션보다 높으면 조용히 건너뛰는 것**을 반증으로 함께 보인다.
 
 ### 5-6. `DATABASE_URL` 변환
 

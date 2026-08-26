@@ -54,5 +54,5 @@ PR을 머지하려면 `.github/workflows/ci.yml`의 잡 둘(`web`·`api`)이 초
 `pnpm build`가 만든 Next 서버(standalone)가 화면을 서빙하고, `/v2/*`·`/health`를
 rewrites로 백엔드에 넘깁니다. 브라우저에는 오리진이 하나로 보여 CORS가 필요 없습니다.
 배포 아티팩트는 jar 하나이고, 스키마 마이그레이션은 그 기동의 일부입니다.
-배포 절차는 운영 [docs/DEPLOY-VPC.md](docs/DEPLOY-VPC.md), 개발
-[docs/DEPLOY-DEV.md](docs/DEPLOY-DEV.md)를 참고하세요.
+배포 절차는 운영 [docs/deploy/DEPLOY-VPC.md](docs/deploy/DEPLOY-VPC.md), 개발
+[docs/deploy/DEPLOY-DEV.md](docs/deploy/DEPLOY-DEV.md)를 참고하세요.

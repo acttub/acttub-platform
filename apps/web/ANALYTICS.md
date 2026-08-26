@@ -236,11 +236,11 @@ GA4는 `isMeasuredHost()`로 로컬 트래픽을 막지만, Amplitude는 그 가
 
 **방침 발행이 먼저, 키 주입이 나중이다.** 순서가 바뀌면 고지 없이 이용 기록과 화면 녹화가 수탁사로 넘어가고, 이미 전송된 것은 되돌릴 수 없다.
 
-이건 기억에 맡기지 않는다 — `deploy.yml`의 **`계측 키가 방침 고지보다 앞서지 않는지`** 가드가 막는다. 키가 설정돼 있는데 `consent_docs/manifest.json`이 발행 중이라고 선언한 방침 문서에 `Amplitude` 문자열이 없으면 **배포가 실패한다.** 같은 가드가 `EXPECTED_PRIVACY_VERSION`과 manifest 버전이 어긋나는 것도 막는다 — 어긋나면 동의 게이트가 영영 안 열려 계측이 조용히 죽는다.
+이건 기억에 맡기지 않는다 — `deploy.yml`의 **`계측 키가 방침 고지보다 앞서지 않는지`** 가드가 막는다. 키가 설정돼 있는데 `consent-docs/manifest.json`이 발행 중이라고 선언한 방침 문서에 `Amplitude` 문자열이 없으면 **배포가 실패한다.** 같은 가드가 `EXPECTED_PRIVACY_VERSION`과 manifest 버전이 어긋나는 것도 막는다 — 어긋나면 동의 게이트가 영영 안 열려 계측이 조용히 죽는다.
 
 키가 비어 있으면 가드는 그냥 통과한다. 계측이 꺼진 번들이 나갈 뿐이라 안전한 상태다.
 
-발행 절차 자체는 [`apps/api/acting-api/consent_docs/README.md`](../api/acting-api/consent_docs/README.md)가 정본이다.
+발행 절차 자체는 [`apps/api/src/main/resources/consent-docs/README.md`](../api/src/main/resources/consent-docs/README.md)가 정본이다.
 
 ### 환경 변수
 
