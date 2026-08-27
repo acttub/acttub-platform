@@ -10,3 +10,8 @@ await import("./reading/match.test.ts");
 await import("./reading/stt.test.ts");
 await import("./reading/stt.dedupe.test.ts");
 await import("./reading/tts.test.ts");
+await import("./reading/play.test.ts");
+await import("./reading/cast.test.ts");
+await import("./reading/cast-noise.test.ts");
+await import("./reading/cast-pdf.test.ts");
+await import("./reading/cast-desc.test.ts");
