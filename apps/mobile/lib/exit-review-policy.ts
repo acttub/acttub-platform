@@ -5,6 +5,8 @@
  * 문구는 "한 번만 부탁드려요" 톤으로 간다(사용자 결정 2026-08-24).
  */
 
+import { translate } from './i18n.ts';
+
 export type ExitReviewTrigger = 'leave' | 'finish';
 
 export const EXIT_REVIEW_MAX_LENGTH = 100;
@@ -23,15 +25,18 @@ export type ExitReviewCopy = {
 
 export function exitReviewCopy(trigger: ExitReviewTrigger): ExitReviewCopy {
   return {
-    title: '잠깐만요… 한 줄만 부탁드려요 🥲',
-    subtitle: '딱 한 번만 여쭤볼게요. 솔직한 한 줄이 개발에 정말 큰 도움이 돼요 ㅠㅠ',
-    placeholder: '예) 질문이 날카로워서 좋았어요 · 답을 어디까지 써야 할지 몰랐어요',
-    submit: trigger === 'finish' ? '한 줄 남기고 마치기' : '한 줄 남기고 나가기',
-    skip: '다음에 할게요',
-    notice: '답변은 개발에만 써요 · 이름은 남지 않아요 · 이번 한 번만 여쭤봐요',
-    contactHint: '인터뷰로 이야기를 더 들려주실 수 있다면 연락처를 남겨주세요 (선택)',
-    contactEmailPlaceholder: '이메일 (선택)',
-    contactPhonePlaceholder: '전화번호 (선택)',
+    title: translate('exitReview.title'),
+    subtitle: translate('exitReview.subtitle'),
+    placeholder: translate('exitReview.placeholder'),
+    submit:
+      trigger === 'finish'
+        ? translate('exitReview.submitFinish')
+        : translate('exitReview.submitLeave'),
+    skip: translate('exitReview.skip'),
+    notice: translate('exitReview.notice'),
+    contactHint: translate('exitReview.contactHint'),
+    contactEmailPlaceholder: translate('exitReview.contactEmailPlaceholder'),
+    contactPhonePlaceholder: translate('exitReview.contactPhonePlaceholder'),
   };
 }
 

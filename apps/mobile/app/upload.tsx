@@ -25,6 +25,7 @@ import {
 } from '@/lib/upload-input';
 import { palette } from '@/constants/palette';
 import { Stepper } from '@/components/practice-chrome';
+import { translate as t } from '@/lib/i18n';
 
 /**
  * A2. 영상 올리기 + 의도 입력 — 영상과 "이 장면에서 뭘 하려 했는지"를 받는다.
@@ -84,12 +85,12 @@ export default function UploadScreen() {
       const durationSec = normalizedDurationMs / 1000;
       const min = Math.floor(durationSec / 60);
       const sec = Math.round(durationSec % 60);
-      setVideoError(`영상이 ${min}분 ${sec}초예요. 5분 이내로 잘라서 올려주세요.`);
+      setVideoError(t('upload.tooLong', { min, sec }));
       return;
     }
     const sizeMb = asset.fileSize ? asset.fileSize / (1024 * 1024) : 0;
     if (sizeMb > MAX_RAW_MB) {
-      setVideoError(`영상이 ${Math.round(sizeMb / 1024)}GB예요. 너무 커서 기기에서 처리할 수 없어요.`);
+      setVideoError(t('upload.tooBig', { gb: Math.round(sizeMb / 1024) }));
       return;
     }
     setDurationMs(normalizedDurationMs);
@@ -138,14 +139,14 @@ export default function UploadScreen() {
 
   const durationText =
     durationMs !== null
-      ? `${Math.floor(durationMs / 60000)}분 ${Math.round((durationMs % 60000) / 1000)}초`
+      ? t('common.minSec', { min: Math.floor(durationMs / 60000), sec: Math.round((durationMs % 60000) / 1000) })
       : null;
 
   return (
     <SafeAreaView style={styles.safe} edges={keyboardVisible ? [] : ['bottom']}>
       <Stack.Screen
         options={{
-          title: prefilled ? '같은 장면 다시 찍기' : '새 연습',
+          title: prefilled ? t('upload.titleRetake') : t('upload.titleNew'),
           headerShadowVisible: false,
         }}
       />
@@ -167,7 +168,7 @@ export default function UploadScreen() {
               />
               <View style={styles.pickedRow}>
                 <Pressable style={styles.repick} onPress={pickVideo}>
-                  <Text style={styles.repickText}>영상 다시 선택</Text>
+                  <Text style={styles.repickText}>{t('upload.repick')}</Text>
                 </Pressable>
                 <Text style={styles.pickedMeta} numberOfLines={1}>
                   {video.name}
@@ -180,32 +181,32 @@ export default function UploadScreen() {
               <View style={styles.plusCircle}>
                 <Text style={styles.plus}>＋</Text>
               </View>
-              <Text style={styles.dropTitle}>오늘의 연기 영상을 올려 주세요</Text>
-              <Text style={styles.dropHint}>MP4 · MOV · 5분 이내</Text>
+              <Text style={styles.dropTitle}>{t('upload.dropTitle')}</Text>
+              <Text style={styles.dropHint}>{t('upload.dropHint')}</Text>
             </Pressable>
           )}
           {videoError && <Text style={styles.errorText}>{videoError}</Text>}
 
           <View style={styles.sceneCard}>
             <Text style={styles.sceneTitle}>
-              이 장면에서 무엇을 연기했는지 알려 주세요
-              <Text style={styles.sceneOptional}> (선택)</Text>
+              {t('upload.sceneTitle')}
+              <Text style={styles.sceneOptional}>{t('upload.sceneOptional')}</Text>
             </Text>
             <Text style={styles.sceneOptionalHint}>
-              비워 두셔도 돼요. 적어 주시면 분석이 더 정확해져요.
+              {t('upload.sceneHint')}
             </Text>
             <View style={styles.fields}>
               <Field
-                label="상황"
-                placeholder="예: 이별을 통보받은 직후, 카페에서"
+                label={t('upload.situation')}
+                placeholder={t('upload.situationPh')}
                 value={situation}
                 onChangeText={setSituation}
                 returnKeyType="next"
                 onSubmitEditing={() => characterRef.current?.focus()}
               />
               <Field
-                label="인물"
-                placeholder="예: 담담한 척하는 20대 후반 여성"
+                label={t('upload.character')}
+                placeholder={t('upload.characterPh')}
                 value={character}
                 onChangeText={setCharacter}
                 inputRef={characterRef}
@@ -213,8 +214,8 @@ export default function UploadScreen() {
                 onSubmitEditing={() => goalRef.current?.focus()}
               />
               <Field
-                label="목표"
-                placeholder="예: 상대가 마음을 돌려 다시 앉게 만들기"
+                label={t('upload.goal')}
+                placeholder={t('upload.goalPh')}
                 value={goal}
                 onChangeText={setGoal}
                 tall
@@ -234,8 +235,7 @@ export default function UploadScreen() {
               {agreedRights && <Text style={styles.checkMark}>✓</Text>}
             </View>
             <Text style={styles.rightsText}>
-              본인이 촬영·업로드할 권리가 있고, 영상에 나오는 다른 사람의 촬영·처리 동의를
-              받았으며, 대본·음원·영상의 저작권과 초상권을 침해하지 않습니다.
+              {t('upload.rights')}
             </Text>
           </Pressable>
         </ScrollView>
@@ -246,12 +246,12 @@ export default function UploadScreen() {
             style={[styles.submit, submitDisabled && styles.submitDisabled]}
             onPress={start}
             disabled={submitDisabled}>
-            <Text style={styles.submitText}>{prefilled ? '이대로 이어가기' : '질문 받기'}</Text>
+            <Text style={styles.submitText}>{prefilled ? t('upload.submitRetake') : t('upload.submitNew')}</Text>
           </Pressable>
           <Text style={styles.submitHint}>
             {canSubmit
-              ? '누르면 장면을 보고 질문을 만들어요'
-              : missingHint || '영상을 올리면 시작할 수 있어요'}
+              ? t('upload.submitHintReady')
+              : missingHint || t('upload.submitHintDefault')}
           </Text>
         </View>
       </View>

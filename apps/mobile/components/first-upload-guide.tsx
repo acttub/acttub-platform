@@ -8,30 +8,19 @@ import {
   shouldShowFirstUploadGuide,
 } from '@/lib/first-upload-guide-state';
 import { MAX_VIDEO_DURATION_MS } from '@/lib/upload-input';
+import { translate as t } from '@/lib/i18n';
 
 const MAX_VIDEO_DURATION_MINUTES = MAX_VIDEO_DURATION_MS / 60_000;
 
 const STEPS = [
   {
     emoji: '🎬',
-    title: '영상 올리기',
-    body: `갤러리에서 오늘 연습한 장면 영상을 올려요. mp4·mov, ${MAX_VIDEO_DURATION_MINUTES}분 이내면 돼요.`,
+    title: t('firstGuide.step1Title'),
+    body: t('firstGuide.step1Body', { min: MAX_VIDEO_DURATION_MINUTES }),
   },
-  {
-    emoji: '✍️',
-    title: '장면 맥락 적기',
-    body: '상황 · 인물 · 보여주고 싶었던 의도를 짧게 적어요. 이걸 근거로 질문이 만들어져요.',
-  },
-  {
-    emoji: '▶️',
-    title: '질문 받기',
-    body: '영상과 맥락을 채우면 아래 “질문 받기” 버튼이 켜져요. 누르면 분석이 돌아가요.',
-  },
-  {
-    emoji: '💬',
-    title: '질문에 답하기',
-    body: '분석이 끝나면 질문이 하나씩 도착해요. 정답은 없어요 — 떠오르는 대로 답하면, 쌓인 답이 마지막에 연습 노트로 정리돼요.',
-  },
+  { emoji: '✍️', title: t('firstGuide.step2Title'), body: t('firstGuide.step2Body') },
+  { emoji: '▶️', title: t('firstGuide.step3Title'), body: t('firstGuide.step3Body') },
+  { emoji: '💬', title: t('firstGuide.step4Title'), body: t('firstGuide.step4Body') },
 ];
 
 export function FirstUploadGuide({ ownerId }: { ownerId: string }) {
@@ -71,7 +60,7 @@ export function FirstUploadGuide({ ownerId }: { ownerId: string }) {
       onRequestClose={close}
       statusBarTranslucent
       accessibilityRole="summary"
-      accessibilityLabel="첫 영상 업로드 가이드"
+      accessibilityLabel={t('firstGuide.a11y')}
       accessibilityViewIsModal>
       <View style={styles.backdrop}>
         <View style={styles.card}>
@@ -97,15 +86,15 @@ export function FirstUploadGuide({ ownerId }: { ownerId: string }) {
               onPress={close}
               hitSlop={8}
               accessibilityRole="button"
-              accessibilityLabel="첫 영상 업로드 가이드 건너뛰기">
-              <Text style={styles.skipText}>건너뛰기</Text>
+              accessibilityLabel={t('firstGuide.skipA11y')}>
+              <Text style={styles.skipText}>{t('firstGuide.skip')}</Text>
             </Pressable>
             <Pressable
               style={styles.next}
               onPress={next}
               accessibilityRole="button"
-              accessibilityLabel={isLast ? '가이드 닫고 시작하기' : '가이드 다음 단계'}>
-              <Text style={styles.nextText}>{isLast ? '시작하기' : '다음'}</Text>
+              accessibilityLabel={isLast ? t('firstGuide.closeA11y') : t('firstGuide.nextA11y')}>
+              <Text style={styles.nextText}>{isLast ? t('firstGuide.start') : t('firstGuide.next')}</Text>
             </Pressable>
           </View>
         </View>

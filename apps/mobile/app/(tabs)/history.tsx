@@ -13,6 +13,7 @@ import { setPrefill } from '@/lib/practice';
 import { loadRecordMeta } from '@/lib/record-meta';
 import { sortReportsNewestFirst } from '@/lib/report-order';
 import { palette } from '@/constants/palette';
+import { translate as t } from '@/lib/i18n';
 
 /**
  * 연습 기록 — 서버 정본(GET /v2/reports)의 지난 피드백 목록.
@@ -47,7 +48,7 @@ export default function HistoryScreen() {
         ),
       );
     } catch (err) {
-      setError(err instanceof Error ? err.message : '기록을 불러오지 못했어요.');
+      setError(err instanceof Error ? err.message : t('history.loadFail'));
     } finally {
       setLoading(false);
     }
@@ -85,9 +86,9 @@ export default function HistoryScreen() {
 
   const confirmDelete = async (item: ReportRecord) => {
     const ok = await confirm({
-      title: '삭제할까요?',
-      message: '이 연습 기록을 지우면 되돌릴 수 없어요.',
-      confirmLabel: '삭제',
+      title: t('history.deleteTitle'),
+      message: t('history.deleteReportMsg'),
+      confirmLabel: t('common.delete'),
       destructive: true,
     });
     if (!ok) return;
@@ -96,18 +97,18 @@ export default function HistoryScreen() {
       load();
     } catch (e) {
       await alert({
-        title: '삭제 실패',
-        message: e instanceof Error ? e.message : '삭제하지 못했어요.',
+        title: t('history.deleteFailTitle'),
+        message: e instanceof Error ? e.message : t('history.deleteFail'),
       });
     }
   };
 
   const onMenu = (item: ReportRecord) => {
     void sheet({
-      title: '이 기록',
+      title: t('history.itemMenuTitle'),
       actions: [
-        { label: '전체 보기', onPress: () => openDetail(item) },
-        { label: '삭제', destructive: true, onPress: () => void confirmDelete(item) },
+        { label: t('history.fullView'), onPress: () => openDetail(item) },
+        { label: t('common.delete'), destructive: true, onPress: () => void confirmDelete(item) },
       ],
     });
   };
@@ -124,9 +125,9 @@ export default function HistoryScreen() {
 
   const confirmDeleteSession = async (s: PracticeSessionListItem) => {
     const ok = await confirm({
-      title: '삭제할까요?',
-      message: '이 연습을 지우면 되돌릴 수 없어요.',
-      confirmLabel: '삭제',
+      title: t('history.deleteTitle'),
+      message: t('history.deleteSessionMsg'),
+      confirmLabel: t('common.delete'),
       destructive: true,
     });
     if (!ok) return;
@@ -135,18 +136,18 @@ export default function HistoryScreen() {
       load();
     } catch (e) {
       await alert({
-        title: '삭제 실패',
-        message: e instanceof Error ? e.message : '삭제하지 못했어요.',
+        title: t('history.deleteFailTitle'),
+        message: e instanceof Error ? e.message : t('history.deleteFail'),
       });
     }
   };
 
   const onSessionMenu = (s: PracticeSessionListItem) => {
     void sheet({
-      title: '아직 정리가 없는 연습이에요',
+      title: t('history.sessionMenuTitle'),
       actions: [
-        { label: '같은 장면 다시 찍기', onPress: () => retakeSession(s) },
-        { label: '삭제', destructive: true, onPress: () => void confirmDeleteSession(s) },
+        { label: t('history.retakeSame'), onPress: () => retakeSession(s) },
+        { label: t('common.delete'), destructive: true, onPress: () => void confirmDeleteSession(s) },
       ],
     });
   };
@@ -161,7 +162,7 @@ export default function HistoryScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <Text style={styles.title}>연습 기록</Text>
+      <Text style={styles.title}>{t('history.title')}</Text>
       <ScrollView contentContainerStyle={styles.list}>
         {loading && (
           <View style={styles.center}>
@@ -186,7 +187,7 @@ export default function HistoryScreen() {
                 <RecordCard
                   key={entry.session.session_id + entry.session.created_at}
                   item={sessionAsRecord(entry.session)}
-                  meta={{ kind: '아직 정리 없음', start: '', end: '' }}
+                  meta={{ kind: t('history.noSummaryKind'), start: '', end: '' }}
                   onPress={() => onSessionMenu(entry.session)}
                   onMenu={() => onSessionMenu(entry.session)}
                 />
@@ -197,7 +198,7 @@ export default function HistoryScreen() {
 
         {!loading && !error && reports.length === 0 && sessions.length === 0 && (
           <Text style={styles.empty}>
-            아직 기록이 없어요.{'\n'}첫 영상을 올리면 여기에 카드가 쌓여요.
+            {t('history.empty')}
           </Text>
         )}
       </ScrollView>

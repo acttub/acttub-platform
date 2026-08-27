@@ -1,4 +1,5 @@
 import type { RecordMeta } from '@/components/record-card';
+import { translate } from './i18n.ts';
 
 /**
  * 기록 카드에 붙일 부가정보를 채운다.
@@ -18,8 +19,8 @@ type ReportLike = {
 };
 
 const KIND_LABEL: Record<string, string> = {
-  analysis: '분석',
-  expression: '표현',
+  analysis: translate('blockage.kindLabel.분석'),
+  expression: translate('blockage.kindLabel.표현'),
 };
 
 export function toRecordMeta(detail: ReportLike | null | undefined): RecordMeta {

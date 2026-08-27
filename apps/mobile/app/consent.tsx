@@ -19,6 +19,7 @@ import { useAuth } from '@/lib/auth';
 import { saveConsentPrefs } from '@/lib/consent-prefs';
 import { getUserName, saveUserName } from '@/lib/profile';
 import { palette } from '@/constants/palette';
+import { translate as t } from '@/lib/i18n';
 
 /**
  * 약관 동의(가입 마무리) — 로그인 응답의 pending_consents(필수/선택 문서)를 받아 동의를 기록한다.
@@ -42,7 +43,7 @@ export default function ConsentScreen() {
     try {
       await refreshPendingConsents();
     } catch (err) {
-      setError(err instanceof Error ? err.message : '약관 문서를 불러오지 못했어요.');
+      setError(err instanceof Error ? err.message : t('consent.docFail'));
     } finally {
       setLoadingPending(false);
     }
@@ -89,7 +90,7 @@ export default function ConsentScreen() {
       );
       clearPendingConsents();
     } catch (err) {
-      setError(err instanceof Error ? err.message : '동의 기록에 실패했어요. 다시 시도해주세요.');
+      setError(err instanceof Error ? err.message : t('consent.agreeFail'));
     } finally {
       setBusy(false);
     }
@@ -108,7 +109,7 @@ export default function ConsentScreen() {
         </View>
         <Text style={styles.docTitle}>{doc.title}</Text>
         <Pressable hitSlop={8} onPress={() => setExpanded((e) => ({ ...e, [doc.id]: !e[doc.id] }))}>
-          <Text style={styles.viewLink}>{expanded[doc.id] ? '접기' : '보기'}</Text>
+          <Text style={styles.viewLink}>{expanded[doc.id] ? t('common.fold') : t('common.view')}</Text>
         </Pressable>
       </Pressable>
       {expanded[doc.id] && (
@@ -123,8 +124,8 @@ export default function ConsentScreen() {
     <SafeAreaView style={styles.safe} edges={keyboardVisible ? ['top'] : ['top', 'bottom']}>
       <Stack.Screen options={{ headerShown: false }} />
       <View style={styles.header}>
-        <Text style={styles.title}>가입 마무리</Text>
-        <Text style={styles.subtitle}>이름과 약관 동의만 하면 시작할 수 있어요.</Text>
+        <Text style={styles.title}>{t('consent.title')}</Text>
+        <Text style={styles.subtitle}>{t('consent.subtitle')}</Text>
       </View>
 
       <View style={[styles.flex, { paddingBottom: keyboardHeight }]}>
@@ -132,10 +133,10 @@ export default function ConsentScreen() {
         <KeyboardAwareScroll
           contentContainerStyle={styles.list}
           automaticallyAdjustKeyboardInsets={false}>
-        <Text style={styles.label}>이름</Text>
+        <Text style={styles.label}>{t('consent.nameLabel')}</Text>
         <TextInput
           style={styles.input}
-          placeholder="실명 또는 활동명"
+          placeholder={t('consent.namePlaceholder')}
           placeholderTextColor={palette.textDim}
           value={name}
           onChangeText={setName}
@@ -148,25 +149,25 @@ export default function ConsentScreen() {
             onPress={toggleAll}
             accessibilityRole="checkbox"
             accessibilityState={{ checked: allChecked }}
-            accessibilityLabel="약관 전체 동의">
+            accessibilityLabel={t('consent.allAgree')}>
             <View style={[styles.check, allChecked && styles.checkOn]}>
               {allChecked && <Feather name="check" size={14} color="#fff" />}
             </View>
-            <Text style={styles.allText}>약관 전체 동의</Text>
+            <Text style={styles.allText}>{t('consent.allAgree')}</Text>
           </Pressable>
         )}
 
         {required.length > 0 && (
           <>
-            <Text style={styles.sectionTitle}>필수 동의</Text>
+            <Text style={styles.sectionTitle}>{t('consent.required')}</Text>
             {required.map(renderDoc)}
           </>
         )}
 
         {optional.length > 0 && (
           <>
-            <Text style={styles.sectionTitle}>선택 동의 · 원하실 때만</Text>
-            <Text style={styles.sectionHint}>동의하지 않아도 서비스 이용에는 지장이 없어요.</Text>
+            <Text style={styles.sectionTitle}>{t('consent.optional')}</Text>
+            <Text style={styles.sectionHint}>{t('consent.optionalHint')}</Text>
             {optional.map(renderDoc)}
           </>
         )}
@@ -179,7 +180,7 @@ export default function ConsentScreen() {
           style={styles.retry}
           onPress={() => void loadPendingConsents()}
           disabled={loadingPending}>
-          <Text style={styles.retryText}>다시 불러오기</Text>
+          <Text style={styles.retryText}>{t('consent.reload')}</Text>
         </Pressable>
       )}
         <Pressable
@@ -189,7 +190,7 @@ export default function ConsentScreen() {
           {busy ? (
             <ActivityIndicator color="#fff" />
           ) : (
-            <Text style={styles.ctaText}>동의하고 시작하기</Text>
+            <Text style={styles.ctaText}>{t('consent.cta')}</Text>
           )}
         </Pressable>
       </View>

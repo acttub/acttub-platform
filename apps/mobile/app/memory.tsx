@@ -12,6 +12,7 @@ import {
   type MemoryItem,
 } from '@/lib/api';
 import { palette } from '@/constants/palette';
+import { translate } from '@/lib/i18n';
 
 /**
  * 코치가 나에 대해 기억하는 것 — 배우가 보고 고치는 화면.
@@ -29,44 +30,14 @@ import { palette } from '@/constants/palette';
  * 데이터베이스가 코치의 쓰기를 막고 있어서, 이 화면이 그 칸을 채우는 유일한 통로다.
  */
 
-const FIELDS: { field: MemoryField; label: string; hint: string; placeholder: string }[] = [
-  {
-    field: 'gender',
-    label: '성별',
-    hint: '코치는 짐작하지 않아요. 적어 두면 참고합니다',
-    placeholder: '예) 여성',
-  },
-  {
-    field: 'age',
-    label: '나이',
-    hint: '코치는 짐작하지 않아요. 적어 두면 참고합니다',
-    placeholder: '예) 19살',
-  },
-  {
-    field: 'goal',
-    label: '목표',
-    hint: '연습으로 이루고 싶은 것',
-    placeholder: '예) 입시에서 자유연기로 합격하기',
-  },
-  {
-    field: 'blockage',
-    label: '자주 막히는 지점',
-    hint: '연습마다 고른 것들이 쌓인 결과',
-    placeholder: '예) 대사의 의도를 잡는 게 늘 어렵다',
-  },
-  {
-    field: 'speech_self',
-    label: '내가 생각하는 내 화법',
-    hint: '대화에서 스스로 말한 것',
-    placeholder: '예) 차분하게 말하려고 한다',
-  },
-  {
-    field: 'speech_actual',
-    label: '실제로 말한 방식',
-    hint: '영상에서 받아쓴 대사를 근거로 적힌 것',
-    placeholder: '예) 문장 끝을 흐리며 빨라진다',
-  },
-];
+const FIELDS: { field: MemoryField; label: string; hint: string; placeholder: string }[] = (
+  ['gender', 'age', 'goal', 'blockage', 'speech_self', 'speech_actual'] as const
+).map((field) => ({
+  field,
+  label: translate(`memory.fields.${field}.label`),
+  hint: translate(`memory.fields.${field}.hint`),
+  placeholder: translate(`memory.fields.${field}.ph`),
+}));
 
 export default function MemoryScreen() {
   const router = useRouter();
@@ -86,7 +57,7 @@ export default function MemoryScreen() {
       setDrafts(Object.fromEntries(res.items.map((i) => [i.field, i.value])));
     } catch {
       // 못 불러와도 화면은 뜬다. 빈 상태와 구분되도록 알리기만 한다.
-      void alert({ title: '불러오지 못했어요', message: '잠시 후 다시 열어주세요.' });
+      void alert({ title: translate('memory.loadFailTitle'), message: translate('memory.loadFailBody') });
     } finally {
       setLoading(false);
     }
@@ -108,8 +79,8 @@ export default function MemoryScreen() {
         setTimeout(() => setSavedField(null), 1500);
       } catch (err) {
         void alert({
-          title: '저장하지 못했어요',
-          message: err instanceof Error ? err.message : '잠시 후 다시 시도해주세요.',
+          title: translate('memory.saveFailTitle'),
+          message: err instanceof Error ? err.message : translate('common.tryLater'),
         });
       } finally {
         setSaving(null);
@@ -121,9 +92,9 @@ export default function MemoryScreen() {
   const removeOne = useCallback(
     async (field: MemoryField, label: string) => {
       const ok = await confirm({
-        title: `'${label}'을 지울까요?`,
-        message: '코치가 다음 연습에서 이 내용을 참고하지 않게 됩니다.',
-        confirmLabel: '지우기',
+        title: translate('memory.deleteOneTitle', { label }),
+        message: translate('memory.deleteOneMsg'),
+        confirmLabel: translate('memory.deleteOneConfirm'),
         destructive: true,
       });
       if (!ok) return;
@@ -137,8 +108,8 @@ export default function MemoryScreen() {
         setDrafts((prev) => ({ ...prev, [field]: '' }));
       } catch (err) {
         void alert({
-          title: '지우지 못했어요',
-          message: err instanceof Error ? err.message : '잠시 후 다시 시도해주세요.',
+          title: translate('memory.deleteFailTitle'),
+          message: err instanceof Error ? err.message : translate('common.tryLater'),
         });
       }
     },
@@ -147,9 +118,9 @@ export default function MemoryScreen() {
 
   const removeAll = useCallback(async () => {
     const ok = await confirm({
-      title: '기억을 전부 지울까요?',
-      message: '코치가 나에 대해 알던 것이 모두 사라집니다. 되돌릴 수 없어요.',
-      confirmLabel: '전부 지우기',
+      title: translate('memory.deleteAllTitle'),
+      message: translate('memory.deleteAllMsg'),
+      confirmLabel: translate('memory.deleteAllConfirm'),
       destructive: true,
     });
     if (!ok) return;
@@ -159,8 +130,8 @@ export default function MemoryScreen() {
       setDrafts({});
     } catch (err) {
       void alert({
-        title: '지우지 못했어요',
-        message: err instanceof Error ? err.message : '잠시 후 다시 시도해주세요.',
+        title: translate('memory.deleteFailTitle'),
+        message: err instanceof Error ? err.message : translate('common.tryLater'),
       });
     }
   }, [confirm, alert]);
@@ -171,14 +142,15 @@ export default function MemoryScreen() {
     <SafeAreaView style={styles.safe} edges={['top']}>
       <View style={styles.header}>
         <Pressable onPress={() => router.back()} accessibilityRole="button" hitSlop={12}>
-          <Text style={styles.back}>← 설정</Text>
+          <Text style={styles.back}>{translate('memory.backToSettings')}</Text>
         </Pressable>
       </View>
-      <Text style={styles.screenTitle}>코치가 기억하는 것</Text>
+      <Text style={styles.screenTitle}>{translate('memory.screenTitle')}</Text>
       <Text style={styles.screenHint}>
-        연습을 마칠 때마다 코치가 여기에 적어 둡니다. 다음 연습을 시작할 때 이 내용을 참고해요.
-        {'\n'}틀린 게 있으면 고쳐주세요. <Text style={styles.bold}>고친 내용은 코치가 다시
-        바꾸지 않습니다.</Text>
+        {translate('memory.introBody')}
+        {'\n'}
+        {translate('memory.introFix')}
+        <Text style={styles.bold}>{translate('memory.introBold')}</Text>
       </Text>
 
       {loading ? (
@@ -189,10 +161,8 @@ export default function MemoryScreen() {
         <KeyboardAwareScroll contentContainerStyle={styles.list}>
           {!hasAny && (
             <View style={styles.emptyCard}>
-              <Text style={styles.emptyTitle}>아직 적힌 게 없어요</Text>
-              <Text style={styles.emptyBody}>
-                연습을 마치면 코치가 하나씩 적어 둡니다. 지금 직접 적어 두셔도 좋아요.
-              </Text>
+              <Text style={styles.emptyTitle}>{translate('memory.emptyTitle')}</Text>
+              <Text style={styles.emptyBody}>{translate('memory.emptyBody')}</Text>
             </View>
           )}
 
@@ -206,13 +176,13 @@ export default function MemoryScreen() {
                   <Text style={styles.label}>{label}</Text>
                   {item ? (
                     <Text style={item.edited_by_me ? styles.tagMine : styles.tagCoach}>
-                      {item.edited_by_me ? '내가 적음' : '코치가 적음'}
+                      {item.edited_by_me ? translate('memory.tagMine') : translate('memory.tagCoach')}
                     </Text>
                   ) : (
                     <Text style={styles.tagEmpty}>
                       {ACTOR_ONLY_MEMORY_FIELDS.includes(field)
-                        ? '내가 적는 칸'
-                        : '비어 있음'}
+                        ? translate('memory.tagActorOnly')
+                        : translate('memory.tagEmpty')}
                     </Text>
                   )}
                 </View>
@@ -237,14 +207,14 @@ export default function MemoryScreen() {
                       })
                     }
                     accessibilityRole="button">
-                    <Text style={styles.sourceLink}>이 말이 나온 연습 보기</Text>
+                    <Text style={styles.sourceLink}>{translate('memory.sourceLink')}</Text>
                   </Pressable>
                 )}
 
                 <View style={styles.actions}>
                   {!!item && (
                     <Pressable onPress={() => void removeOne(field, label)} hitSlop={8}>
-                      <Text style={styles.removeText}>지우기</Text>
+                      <Text style={styles.removeText}>{translate('memory.remove')}</Text>
                     </Pressable>
                   )}
                   <View style={styles.spacer} />
@@ -253,7 +223,7 @@ export default function MemoryScreen() {
                     onPress={() => void save(field)}
                     disabled={!dirty || !draft.trim() || saving === field}>
                     <Text style={styles.saveBtnText}>
-                      {saving === field ? '저장 중' : savedField === field ? '저장됨' : '저장'}
+                      {saving === field ? translate('common.saving') : savedField === field ? translate('common.saved') : translate('common.save')}
                     </Text>
                   </Pressable>
                 </View>
@@ -263,7 +233,7 @@ export default function MemoryScreen() {
 
           {hasAny && (
             <Pressable style={styles.removeAll} onPress={() => void removeAll()}>
-              <Text style={styles.removeAllText}>기억 전부 지우기</Text>
+              <Text style={styles.removeAllText}>{translate('memory.removeAll')}</Text>
             </Pressable>
           )}
         </KeyboardAwareScroll>

@@ -20,6 +20,7 @@ import { getConsentPrefs, setConsentPref } from '@/lib/consent-prefs';
 import { disablePush, enablePush, isPushEnabled } from '@/lib/notifications';
 import { getUserName, saveUserName } from '@/lib/profile';
 import { palette } from '@/constants/palette';
+import { translate as t } from '@/lib/i18n';
 
 /**
  * 설정 — 이미 가입된 유저도 이름 수정·선택 동의 관리·로그아웃을 할 수 있다.
@@ -80,8 +81,8 @@ export default function SettingsScreen() {
       } catch (err) {
         setPrefs((p) => ({ ...p, [doc.id]: prev })); // 실패 시 롤백
         void alert({
-          title: '변경 실패',
-          message: err instanceof Error ? err.message : '잠시 후 다시 시도해주세요.',
+          title: t('settings.changeFailTitle'),
+          message: err instanceof Error ? err.message : t('common.tryLater'),
         });
       }
     },
@@ -93,8 +94,8 @@ export default function SettingsScreen() {
 
   const confirmLogout = async () => {
     const ok = await confirm({
-      title: '로그아웃할까요?',
-      confirmLabel: '로그아웃',
+      title: t('settings.logoutTitle'),
+      confirmLabel: t('settings.logout'),
       destructive: true,
     });
     if (ok) void signOut();
@@ -109,7 +110,7 @@ export default function SettingsScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <Text style={styles.screenTitle}>설정</Text>
+      <Text style={styles.screenTitle}>{t('settings.title')}</Text>
       {loading ? (
         <View style={styles.center}>
           <ActivityIndicator color={palette.blue} />
@@ -117,13 +118,13 @@ export default function SettingsScreen() {
       ) : (
         <KeyboardAwareScroll contentContainerStyle={styles.list}>
           {/* 프로필 */}
-          <Text style={styles.sectionTitle}>프로필</Text>
+          <Text style={styles.sectionTitle}>{t('settings.profile')}</Text>
           {!!user?.email && <Text style={styles.email}>{user.email}</Text>}
-          <Text style={styles.label}>이름</Text>
+          <Text style={styles.label}>{t('settings.nameLabel')}</Text>
           <View style={styles.nameRow}>
             <TextInput
               style={styles.input}
-              placeholder="실명 또는 활동명"
+              placeholder={t('settings.namePlaceholder')}
               placeholderTextColor={palette.textDim}
               value={name}
               onChangeText={setName}
@@ -133,21 +134,21 @@ export default function SettingsScreen() {
               style={[styles.saveBtn, name.trim() === savedName && styles.saveBtnOff]}
               onPress={saveName}
               disabled={name.trim() === savedName}>
-              <Text style={styles.saveBtnText}>{nameSaved ? '저장됨' : '저장'}</Text>
+              <Text style={styles.saveBtnText}>{nameSaved ? t('common.saved') : t('common.save')}</Text>
             </Pressable>
           </View>
 
           {/* 필수 동의 (열람만) */}
           {required.length > 0 && (
             <>
-              <Text style={styles.sectionTitle}>필수 동의</Text>
+              <Text style={styles.sectionTitle}>{t('settings.requiredConsent')}</Text>
               {required.map((doc) => (
                 <View key={doc.id} style={styles.docCard}>
                   <Pressable
                     style={styles.docRow}
                     onPress={() => setExpanded((e) => ({ ...e, [doc.id]: !e[doc.id] }))}>
                     <Text style={styles.docTitle}>{doc.title}</Text>
-                    <Text style={styles.agreedTag}>동의됨</Text>
+                    <Text style={styles.agreedTag}>{t('settings.agreedTag')}</Text>
                   </Pressable>
                   <DocBody doc={doc} />
                 </View>
@@ -158,8 +159,8 @@ export default function SettingsScreen() {
           {/* 선택 동의 (토글) */}
           {optional.length > 0 && (
             <>
-              <Text style={styles.sectionTitle}>선택 동의</Text>
-              <Text style={styles.sectionHint}>언제든 켜고 끌 수 있어요.</Text>
+              <Text style={styles.sectionTitle}>{t('settings.optionalConsent')}</Text>
+              <Text style={styles.sectionHint}>{t('settings.optionalHint')}</Text>
               {optional.map((doc) => (
                 <View key={doc.id} style={styles.docCard}>
                   <View style={styles.docRow}>
@@ -167,7 +168,7 @@ export default function SettingsScreen() {
                       style={styles.docTitleWrap}
                       onPress={() => setExpanded((e) => ({ ...e, [doc.id]: !e[doc.id] }))}>
                       <Text style={styles.docTitle}>{doc.title}</Text>
-                      <Text style={styles.viewLink}>{expanded[doc.id] ? '접기' : '자세히'}</Text>
+                      <Text style={styles.viewLink}>{expanded[doc.id] ? t('common.fold') : t('common.detail')}</Text>
                     </Pressable>
                     <Switch
                       value={!!prefs[doc.id]}
@@ -184,11 +185,11 @@ export default function SettingsScreen() {
           )}
 
           {/* 알림 — 분석 완료 푸시와 연습 리마인드를 한 토글로 켠다/끈다. */}
-          <Text style={styles.sectionTitle}>알림</Text>
+          <Text style={styles.sectionTitle}>{t('settings.notifications')}</Text>
           <View style={styles.docCard}>
             <View style={styles.docRow}>
               <View style={styles.docTitleWrap}>
-                <Text style={styles.docTitle}>분석 완료·연습 리마인드</Text>
+                <Text style={styles.docTitle}>{t('settings.notifTitle')}</Text>
               </View>
               <Switch
                 value={pushOn}
@@ -199,21 +200,21 @@ export default function SettingsScreen() {
               />
             </View>
             <Text style={styles.sectionHint}>
-              영상 분석이 끝나면 알려드리고, 오늘 연습이 없으면 저녁 8시에 살짝 깨워드려요.
+              {t('settings.notifBody')}
             </Text>
           </View>
 
           {/* 코치가 나에 대해 적어 둔 것. 틀린 내용을 되돌릴 수 있는 유일한 자리라
               동의·탈퇴처럼 눈에 띄는 위치에 둔다. */}
-          <Text style={styles.sectionTitle}>코치의 기억</Text>
+          <Text style={styles.sectionTitle}>{t('settings.memorySection')}</Text>
           <Text style={styles.sectionHint}>
-            코치가 나에 대해 무엇을 기억하는지 보고 고칠 수 있어요.
+            {t('settings.memoryHint')}
           </Text>
           <Pressable
             style={styles.memoryRow}
             onPress={() => router.push('/memory')}
             accessibilityRole="button">
-            <Text style={styles.memoryText}>코치가 기억하는 것</Text>
+            <Text style={styles.memoryText}>{t('settings.memoryLink')}</Text>
             <Text style={styles.memoryChevron}>›</Text>
           </Pressable>
 
@@ -222,12 +223,12 @@ export default function SettingsScreen() {
             <Pressable
               style={styles.previewRow}
               onPress={() => router.push('/ui-preview')}>
-              <Text style={styles.previewText}>UI 미리보기 (개발용)</Text>
+              <Text style={styles.previewText}>{t('settings.uiPreview')}</Text>
             </Pressable>
           )}
 
           <Pressable style={styles.logout} onPress={() => void confirmLogout()}>
-            <Text style={styles.logoutText}>로그아웃</Text>
+            <Text style={styles.logoutText}>{t('settings.logout')}</Text>
           </Pressable>
 
           {/* 깊이 숨기지 않는다 — 앱스토어 심사가 계정 삭제를 앱 안에서 찾을 수 있는지 본다. */}
@@ -235,7 +236,7 @@ export default function SettingsScreen() {
             style={styles.deleteRow}
             onPress={() => router.push('/delete-account')}
             accessibilityRole="button">
-            <Text style={styles.deleteText}>회원 탈퇴</Text>
+            <Text style={styles.deleteText}>{t('settings.withdraw')}</Text>
           </Pressable>
         </KeyboardAwareScroll>
       )}

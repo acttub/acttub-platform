@@ -12,6 +12,7 @@ import { formatKoreanDate } from '@/lib/format';
 import { Markdown } from '@/components/markdown';
 import { palette } from '@/constants/palette';
 import { reportDisplay } from '@/lib/report-display';
+import { translate as t } from '@/lib/i18n';
 
 /**
  * 지난 피드백 상세 — 기록 화면에서 카드를 누르면 열린다.
@@ -34,7 +35,7 @@ export default function ReportDetailScreen() {
   useEffect(() => {
     let cancelled = false;
     if (!practiceSessionId) {
-      setError('기록을 불러오지 못했어요.');
+      setError(t('reportDetail.loadFail'));
       setLoading(false);
       return;
     }
@@ -49,7 +50,7 @@ export default function ReportDetailScreen() {
       })
       .catch((err) => {
         if (cancelled) return;
-        setError(err instanceof Error ? err.message : '기록을 불러오지 못했어요.');
+        setError(err instanceof Error ? err.message : t('reportDetail.loadFail'));
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -62,9 +63,9 @@ export default function ReportDetailScreen() {
   const onDelete = async () => {
     if (!practiceSessionId) return;
     const ok = await confirm({
-      title: '삭제할까요?',
-      message: '이 연습 기록을 지우면 되돌릴 수 없어요.',
-      confirmLabel: '삭제',
+      title: t('reportDetail.deleteTitle'),
+      message: t('reportDetail.deleteMsg'),
+      confirmLabel: t('common.delete'),
       destructive: true,
     });
     if (!ok) return;
@@ -75,8 +76,8 @@ export default function ReportDetailScreen() {
     } catch (err) {
       setDeleting(false);
       await alert({
-        title: '삭제 실패',
-        message: err instanceof Error ? err.message : '삭제하지 못했어요.',
+        title: t('reportDetail.deleteFailTitle'),
+        message: err instanceof Error ? err.message : t('reportDetail.deleteFail'),
       });
     }
   };
@@ -84,7 +85,7 @@ export default function ReportDetailScreen() {
   if (loading) {
     return (
       <SafeAreaView style={styles.safe}>
-        <Stack.Screen options={{ title: '연습 노트' }} />
+        <Stack.Screen options={{ title: t('reportDetail.screenTitle') }} />
         <View style={styles.center}>
           <ActivityIndicator color={palette.blue} />
         </View>
@@ -95,9 +96,9 @@ export default function ReportDetailScreen() {
   if (error || !detail) {
     return (
       <SafeAreaView style={styles.safe}>
-        <Stack.Screen options={{ title: '연습 노트' }} />
+        <Stack.Screen options={{ title: t('reportDetail.screenTitle') }} />
         <View style={styles.center}>
-          <Text style={styles.empty}>{error ?? '기록을 불러오지 못했어요.'}</Text>
+          <Text style={styles.empty}>{error ?? t('reportDetail.loadFail')}</Text>
         </View>
       </SafeAreaView>
     );
@@ -108,11 +109,11 @@ export default function ReportDetailScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['bottom']}>
-      <Stack.Screen options={{ title: '연습 노트', headerShadowVisible: false }} />
+      <Stack.Screen options={{ title: t('reportDetail.screenTitle'), headerShadowVisible: false }} />
       <View style={styles.metaRow}>
         <Text style={styles.metaText}>{formatKoreanDate(detail.created_at)}</Text>
         <View style={styles.noteChip}>
-          <Text style={styles.noteChipText}>노트</Text>
+          <Text style={styles.noteChipText}>{t('reportDetail.noteChip')}</Text>
         </View>
       </View>
       <ScrollView contentContainerStyle={styles.body}>
@@ -128,7 +129,7 @@ export default function ReportDetailScreen() {
           />
         )}
 
-        <NoteSection label="영상에서 눈에 남은 곳">
+        <NoteSection label={t('reportDetail.secEye')}>
           <Markdown source={display.blocked} />
           {!!display.evidence && (
             <View style={styles.quote}>
@@ -137,12 +138,12 @@ export default function ReportDetailScreen() {
           )}
         </NoteSection>
 
-        <NoteSection label="대화에서 확인한 것">
+        <NoteSection label={t('reportDetail.secConfirmed')}>
           <Markdown source={display.found} />
         </NoteSection>
 
         {!!display.actorWords && (
-          <NoteSection label="배우님이 남긴 문장">
+          <NoteSection label={t('reportDetail.secLine')}>
             <View style={styles.quoteBlue}>
               <Markdown source={display.actorWords} />
             </View>
@@ -150,12 +151,12 @@ export default function ReportDetailScreen() {
         )}
 
         {!!display.caution && (
-          <NoteSection label="연기할 때 조심할 점">
+          <NoteSection label={t('reportDetail.secCare')}>
             <Markdown source={display.caution} />
           </NoteSection>
         )}
 
-        <NoteSection label="다음 테이크 · 배우님이 고른 한 문장">
+        <NoteSection label={t('reportDetail.secNext')}>
           <Text style={styles.nextTake}>{display.next}</Text>
         </NoteSection>
 
@@ -167,7 +168,7 @@ export default function ReportDetailScreen() {
             setPrefill({ scene: null, continuedFrom: practiceSessionId });
             router.push('/upload');
           }}>
-          <Text style={styles.continueText}>이 연습에 이어서 새 연습 →</Text>
+          <Text style={styles.continueText}>{t('reportDetail.continueCta')}</Text>
         </Pressable>
 
         <Pressable
@@ -177,7 +178,7 @@ export default function ReportDetailScreen() {
           {deleting ? (
             <ActivityIndicator color={palette.danger} />
           ) : (
-            <Text style={styles.deleteText}>이 기록 삭제</Text>
+            <Text style={styles.deleteText}>{t('reportDetail.deleteThis')}</Text>
           )}
         </Pressable>
       </ScrollView>

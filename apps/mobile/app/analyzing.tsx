@@ -42,14 +42,10 @@ import {
   SceneFoldLink,
   SceneSummary,
 } from '@/components/practice-chrome';
+import { translate as t, translateList } from '@/lib/i18n';
 
 /** 경과 시간 기반 단계 문구로 기다림을 설계한다(실제 진행률은 서버가 주지 않음). */
-const STAGES = [
-  '장면을 처음부터 끝까지 보고 있어요…',
-  '대사·템포·움직임·표정을 뜯어보는 중…',
-  '의도와 견주어 보는 중이에요…',
-  '거의 다 됐어요. 정리하고 있어요…',
-];
+const STAGES = translateList('analyzing.stages');
 
 const POLL_INTERVAL_MS = 4_000;
 const POLL_TIMEOUT_MS = 10 * 60 * 1000;
@@ -149,7 +145,7 @@ export default function AnalyzingScreen() {
     if (!ownerId) {
       appAnalysisOperationOwner.finish(operation);
       activeOperationRef.current = null;
-      setError('로그인 정보를 불러오지 못했어요. 다시 로그인해주세요.');
+      setError(t('analyzing.loginLost'));
       return;
     }
     operation.runIfActive(() => {
@@ -249,7 +245,7 @@ export default function AnalyzingScreen() {
         pendingHandleRef.current = operation.pendingHandle;
         setCompressPct(null);
         setUploading(false);
-        const message = err instanceof Error ? err.message : '분석에 실패했어요.';
+        const message = err instanceof Error ? err.message : t('analyzing.failed');
         logEvent('analysis_failed', { reason: message.slice(0, 90) });
         setError(message);
       });
@@ -325,7 +321,7 @@ export default function AnalyzingScreen() {
       setError(
         err instanceof AnalysisTerminalError || err instanceof Error
           ? err.message
-          : '분석을 정리하지 못했어요. 다시 시도해주세요.',
+          : t('analyzing.organizeFail'),
       );
     } finally {
       setAbandoning(false);
@@ -338,10 +334,10 @@ export default function AnalyzingScreen() {
    */
   const confirmLeave = useCallback(async () => {
     const leave = await confirm({
-      title: '분석을 중단할까요?',
-      message: '지금 나가면 올린 영상과 분석이 사라져요.',
-      cancelLabel: '계속 기다리기',
-      confirmLabel: '중단하고 나가기',
+      title: t('analyzing.stopTitle'),
+      message: t('analyzing.stopMsg'),
+      cancelLabel: t('analyzing.stopCancel'),
+      confirmLabel: t('analyzing.stopConfirm'),
       destructive: true,
     });
     if (leave) void abandon();
@@ -375,17 +371,17 @@ export default function AnalyzingScreen() {
 
   const stageText =
     compressPct !== null
-      ? `영상을 가볍게 줄이는 중… ${compressPct}%`
+      ? t('analyzing.compressing', { pct: compressPct })
       : uploading
-        ? '영상을 올리는 중이에요…'
+        ? t('analyzing.uploadingVideo')
         : STAGES[stage];
 
   const scene = sceneInfo?.scene ?? null;
   const blockage = sceneInfo?.blockage ?? null;
   const elapsedText =
     elapsedSec < 60
-      ? `${elapsedSec}초 경과`
-      : `${Math.floor(elapsedSec / 60)}분 ${elapsedSec % 60}초 경과`;
+      ? t('common.secElapsed', { sec: elapsedSec })
+      : t('common.minSecElapsed', { min: Math.floor(elapsedSec / 60), sec: elapsedSec % 60 });
 
   return (
     // edges 를 아래로 한정한다 — 위는 네비게이션 헤더가 이미 인셋을 먹었고, 기본값
@@ -393,19 +389,19 @@ export default function AnalyzingScreen() {
     <SafeAreaView style={styles.safe} edges={['bottom']}>
       <Stack.Screen
         options={{
-          title: '새 연습',
+          title: t('analyzing.screenTitle'),
           headerBackVisible: false,
           gestureEnabled: false,
           headerShadowVisible: false,
         }}
       />
       <ProgressRow
-        label={error ? '3단계 · 질문 준비' : '3단계 · 질문 준비 중'}
+        label={error ? t('analyzing.stepError') : t('analyzing.stepLoading')}
         right={
           <SceneFoldLink
             open={sceneOpen}
             onToggle={() => setSceneOpen((was) => !was)}
-            label="영상·장면 보기"
+            label={t('blockage.sceneFold')}
           />
         }
       />
@@ -413,17 +409,15 @@ export default function AnalyzingScreen() {
       <ScrollView contentContainerStyle={styles.body}>
         {error ? (
           <View style={styles.errorBlock}>
-            <Text style={styles.errorTitle}>분석이 잘 안 됐어요</Text>
+            <Text style={styles.errorTitle}>{t('analyzing.errorTitle')}</Text>
             <Text style={styles.errorBody}>{error}</Text>
-            <Text style={styles.errorHint}>
-              올려주신 영상은 그대로 있으니 다시 시도해볼 수 있어요.
-            </Text>
+            <Text style={styles.errorHint}>{t('analyzing.errorBody')}</Text>
             <Pressable style={styles.retry} onPress={() => void run(true)}>
-              <Text style={styles.retryText}>다시 시도</Text>
+              <Text style={styles.retryText}>{t('common.retry')}</Text>
             </Pressable>
             <Pressable onPress={() => void abandon()} disabled={abandoning}>
               <Text style={styles.backLink}>
-                {abandoning ? '정리하는 중…' : '영상 다시 선택하기'}
+                {abandoning ? t('analyzing.cleaning') : t('analyzing.repickVideo')}
               </Text>
             </Pressable>
           </View>
@@ -436,20 +430,20 @@ export default function AnalyzingScreen() {
               {sizeNote && <Text style={styles.sizeNote}>{sizeNote}</Text>}
               <Text style={styles.notice}>
                 {compressPct !== null || uploading
-                  ? '보통 1~3분 걸려요. 영상을 올리는 동안은 화면을 켜 두세요.'
-                  : '보통 1~3분 걸려요. 앱을 닫아 두셔도 끝나면 알림으로 알려드려요.'}
+                  ? t('analyzing.keepScreenOn')
+                  : t('analyzing.canClose')}
               </Text>
             </View>
 
             {scene && (
               <SceneSummary
-                title="분석에 쓰는 내용"
+                title={t('analyzing.whatWeUse')}
                 scene={scene}
                 blockage={
                   blockage && {
-                    kind: `${blockage.blockage_kind}${
+                    kind: `${t(`blockage.kindLabel.${blockage.blockage_kind}`)}${
                       blockage.sub_branch && blockage.sub_branch !== blockage.blockage_kind
-                        ? ` › ${blockage.sub_branch}`
+                        ? ` › ${t(`blockage.kindLabel.${blockage.sub_branch}`)}`
                         : ''
                     }`,
                     detail: blockage.blockage_detail,

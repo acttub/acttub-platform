@@ -16,6 +16,7 @@ import { useKeyboardHeight } from '@/hooks/use-keyboard-height';
 import { palette } from '@/constants/palette';
 import { api } from '@/lib/api';
 import type { CommunityCategory } from '@/lib/community';
+import { translate as t } from '@/lib/i18n';
 
 /** 글쓰기 — 카테고리 고르고 제목·본문. 익명 여부는 글마다 따로 켠다. */
 export default function CommunityNewScreen() {
@@ -36,7 +37,7 @@ export default function CommunityNewScreen() {
         setCategories(r.categories);
         setSlug((current) => current || r.categories[0]?.slug || '');
       })
-      .catch(() => setError('카테고리를 불러오지 못했어요.'));
+      .catch(() => setError(t('communityNew.catFail')));
   }, []);
 
   const ready = Boolean(slug && title.trim() && body.trim()) && !busy;
@@ -54,7 +55,7 @@ export default function CommunityNewScreen() {
       // 방금 쓴 글로 바로 보낸다. 목록으로 돌아가면 내 글을 다시 찾아야 한다.
       router.replace({ pathname: '/community-post', params: { id: created.id } });
     } catch {
-      setError('글을 올리지 못했어요. 잠시 후 다시 시도해주세요.');
+      setError(t('communityNew.postFail'));
       setBusy(false);
     }
   }
@@ -62,16 +63,16 @@ export default function CommunityNewScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="닫기">
+        <Pressable onPress={() => router.back()} accessibilityRole="button" accessibilityLabel={t('common.close')}>
           <Feather name="x" size={22} color={palette.text} />
         </Pressable>
-        <Text style={styles.headerTitle}>글쓰기</Text>
+        <Text style={styles.headerTitle}>{t('communityNew.headerTitle')}</Text>
         <Pressable
           onPress={submit}
           disabled={!ready}
           accessibilityRole="button"
           style={[styles.submit, !ready && styles.submitOff]}>
-          <Text style={[styles.submitText, !ready && styles.submitTextOff]}>등록</Text>
+          <Text style={[styles.submitText, !ready && styles.submitTextOff]}>{t('communityNew.submit')}</Text>
         </Pressable>
       </View>
 
@@ -103,7 +104,7 @@ export default function CommunityNewScreen() {
             style={styles.titleInput}
             value={title}
             onChangeText={setTitle}
-            placeholder="제목"
+            placeholder={t('communityNew.titlePh')}
             placeholderTextColor={palette.textFaint}
           />
           <View style={styles.line} />
@@ -111,7 +112,7 @@ export default function CommunityNewScreen() {
             style={styles.bodyInput}
             value={body}
             onChangeText={setBody}
-            placeholder={'하고 싶은 이야기를 편하게 적어보세요.\n실기 준비, 학원, 고민 무엇이든 좋아요.'}
+            placeholder={t('communityNew.bodyPh')}
             placeholderTextColor={palette.textFaint}
             multiline
             textAlignVertical="top"
@@ -128,8 +129,8 @@ export default function CommunityNewScreen() {
               color={anonymous ? palette.blue : palette.checkOff}
             />
             <View style={styles.flex}>
-              <Text style={[styles.anonText, anonymous && styles.anonTextOn]}>익명으로 쓰기</Text>
-              <Text style={styles.anonHint}>이름 대신 익명으로 보여요.</Text>
+              <Text style={[styles.anonText, anonymous && styles.anonTextOn]}>{t('communityNew.anonToggle')}</Text>
+              <Text style={styles.anonHint}>{t('communityNew.anonHint')}</Text>
             </View>
           </Pressable>
 

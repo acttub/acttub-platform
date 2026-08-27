@@ -6,6 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAppDialog } from '@/components/app-dialog';
 import { useAuth } from '@/lib/auth';
 import { palette } from '@/constants/palette';
+import { translate as t } from '@/lib/i18n';
 
 /**
  * 회원탈퇴.
@@ -26,9 +27,9 @@ export default function DeleteAccountScreen() {
 
   const run = async () => {
     const ok = await confirm({
-      title: '정말 탈퇴할까요?',
-      message: '이메일과 이름이 지워지고 되돌릴 수 없어요.',
-      confirmLabel: '탈퇴하기',
+      title: t('deleteAccount.confirmTitle'),
+      message: t('deleteAccount.confirmMsg'),
+      confirmLabel: t('deleteAccount.confirmLabel'),
       destructive: true,
     });
     if (!ok) return;
@@ -40,43 +41,35 @@ export default function DeleteAccountScreen() {
     } catch (err) {
       setWorking(false);
       await alert({
-        title: '탈퇴하지 못했어요',
+        title: t('deleteAccount.failTitle'),
         message:
           err instanceof Error
-            ? `${err.message}\n계정은 그대로 있어요.`
-            : '잠시 후 다시 시도해주세요. 계정은 그대로 있어요.',
+            ? t('deleteAccount.failBodyKeep', { message: err.message })
+            : t('deleteAccount.failBody'),
       });
     }
   };
 
   return (
     <SafeAreaView style={styles.safe} edges={['bottom']}>
-      <Stack.Screen options={{ title: '회원 탈퇴', headerShadowVisible: false }} />
+      <Stack.Screen options={{ title: t('deleteAccount.screenTitle'), headerShadowVisible: false }} />
       <ScrollView contentContainerStyle={styles.body}>
-        <Text style={styles.title}>탈퇴하면 되돌릴 수 없어요</Text>
+        <Text style={styles.title}>{t('deleteAccount.title')}</Text>
         {!!user?.email && <Text style={styles.account}>{user.email}</Text>}
 
-        <Section label="지워지는 것">
-          <Bullet>이메일과 이름</Bullet>
-          <Bullet>소셜 로그인 연결</Bullet>
-          <Bullet>이 기기에 저장된 내 자료</Bullet>
+        <Section label={t('deleteAccount.secRemoved')}>
+          <Bullet>{t('deleteAccount.bulletEmail')}</Bullet>
+          <Bullet>{t('deleteAccount.bulletSocial')}</Bullet>
+          <Bullet>{t('deleteAccount.bulletLocal')}</Bullet>
         </Section>
 
-        <Section label="남는 것">
-          <Bullet>
-            커뮤니티에 쓴 글과 댓글. 지우면 다른 사람 글타래가 끊어져서 남기고, 작성자
-            이름만 ‘탈퇴한 사용자’로 바뀌어요.
-          </Bullet>
-          <Text style={styles.hint}>
-            먼저 지우고 싶은 글이 있으면, 탈퇴하기 전에 커뮤니티에서 직접 지워주세요.
-          </Text>
+        <Section label={t('deleteAccount.secKept')}>
+          <Bullet>{t('deleteAccount.keptBody')}</Bullet>
+          <Text style={styles.hint}>{t('deleteAccount.keptTip')}</Text>
         </Section>
 
-        <Section label="다시 시작하려면">
-          <Bullet>
-            같은 계정으로 새로 가입할 수 있어요. 다만 새 계정이라 지금까지의 연습 기록과는
-            이어지지 않아요.
-          </Bullet>
+        <Section label={t('deleteAccount.secRestart')}>
+          <Bullet>{t('deleteAccount.restartBody')}</Bullet>
         </Section>
 
         <Pressable
@@ -87,7 +80,7 @@ export default function DeleteAccountScreen() {
           {working ? (
             <ActivityIndicator color={palette.bg} />
           ) : (
-            <Text style={styles.dangerText}>탈퇴하기</Text>
+            <Text style={styles.dangerText}>{t('deleteAccount.cta')}</Text>
           )}
         </Pressable>
         <Pressable
@@ -95,7 +88,7 @@ export default function DeleteAccountScreen() {
           onPress={() => router.back()}
           disabled={working}
           accessibilityRole="button">
-          <Text style={styles.ghostText}>그대로 쓸게요</Text>
+          <Text style={styles.ghostText}>{t('deleteAccount.keep')}</Text>
         </Pressable>
       </ScrollView>
       {dialog}

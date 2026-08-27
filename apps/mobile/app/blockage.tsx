@@ -25,6 +25,7 @@ import { peekPendingUpload, setPendingBlockage } from '@/lib/practice';
 import { SceneFoldBody, SceneFoldLink, SceneSummary } from '@/components/practice-chrome';
 import { previewScene, previewVideoSource } from '@/lib/preview-video';
 import { palette } from '@/constants/palette';
+import { translate as t } from '@/lib/i18n';
 
 /**
  * 막히는 지점 고르기 — 장면을 적은 뒤, 분석을 시작하기 전 단계.
@@ -54,22 +55,9 @@ const c = {
   white: palette.bg,
 };
 
-/** 목업의 대분류 예시 문구. 고른 항목에만 한 줄 더 붙는다. */
-const KIND_EXAMPLE: Record<BlockageKind, string> = {
-  분석: '예) “이 인물이 왜 이 말을 하는지부터 막혀요”',
-  표현: '예) “뜻은 아는데 소리와 몸이 안 따라와요”',
-  '그 외': '예) “무엇이 막히는지부터 잘 모르겠어요”',
-};
-
-const SUB_EXAMPLE: Record<BlockageSubBranch, string> = {
-  감정: '예) “느끼려 애쓸수록 더 굳어요”',
-  움직임: '예) “손이 갈 곳을 못 찾아요”',
-  화술: '예) “말이 평평하게 나가요”',
-  표정: '예) “얼굴이 하나로 굳어요”',
-  '캐릭터 분석': '예) “이 인물이 뭘 원하는지 모르겠어요”',
-  '대사 분석': '예) “이 말을 왜 하는지 모르겠어요”',
-  '그 외': '예) “무엇이 막히는지부터 잘 모르겠어요”',
-};
+/** 값은 서버 계약(한국어)이라 그대로 두고, 화면 라벨·예시만 언어 파일에서 꺼낸다. */
+const kindLabel = (value: BlockageKind | BlockageSubBranch) => t(`blockage.kindLabel.${value}`);
+const example = (value: BlockageKind | BlockageSubBranch) => t(`blockage.examplePh.${value}`);
 
 export default function BlockageScreen() {
   const router = useRouter();
@@ -112,7 +100,7 @@ export default function BlockageScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={keyboardHeight > 0 ? [] : ['bottom']}>
-      <Stack.Screen options={{ title: '새 연습' }} />
+      <Stack.Screen options={{ title: t('blockage.screenTitle') }} />
       <View style={[styles.flex, { paddingBottom: keyboardHeight }]}>
         <ProgressRow
           sceneOpen={sceneOpen}
@@ -130,18 +118,16 @@ export default function BlockageScreen() {
           {state.step === 'main' && (
             <>
               <View style={styles.heading}>
-                <Text style={styles.question}>지금 연기에서 어느 쪽이 더 막히나요?</Text>
-                <Text style={styles.subtitle}>
-                  고른 쪽에 맞춰 질문을 준비할게요. 하나만 골라 주세요.
-                </Text>
+                <Text style={styles.question}>{t('blockage.q1')}</Text>
+                <Text style={styles.subtitle}>{t('blockage.q1Hint')}</Text>
               </View>
               <View style={styles.list}>
                 {BLOCKAGE_CHOICES.map((choice) => (
                   <Option
                     key={choice.value}
-                    label={choice.value}
+                    label={kindLabel(choice.value)}
                     description={choice.description}
-                    example={KIND_EXAMPLE[choice.value]}
+                    example={example(choice.value)}
                     selected={pickedKind === choice.value}
                     onPress={() => setPickedKind(choice.value)}
                   />
@@ -149,12 +135,12 @@ export default function BlockageScreen() {
               </View>
               <View style={styles.actionBlock}>
                 <PrimaryButton
-                  label="이걸로 이어가기 →"
+                  label={t('blockage.continueBtn')}
                   disabled={!pickedKind}
                   onPress={confirmKind}
                 />
                 <Pressable onPress={skipAll} accessibilityRole="button" hitSlop={8}>
-                  <Text style={styles.skip}>잘 모르겠어요 · 건너뛰기</Text>
+                  <Text style={styles.skip}>{t('blockage.dontKnowSkip')}</Text>
                 </Pressable>
               </View>
             </>
@@ -164,33 +150,33 @@ export default function BlockageScreen() {
             <>
               <View style={styles.heading}>
                 <ContextChip
-                  label={`고른 것 · ${state.kind}`}
+                  label={t('blockage.pickedChip', { label: kindLabel(state.kind) })}
                   onChange={() => {
                     setState((was) => changeBlockageKind(was));
                     setPickedKind(null);
                   }}
                 />
                 <Text style={styles.question}>
-                  {state.kind} 중에서도 어디가 가장 막히나요?
+                  {t('blockage.q2', { label: kindLabel(state.kind) })}
                 </Text>
                 <Text style={styles.subtitle}>
-                  ‘{state.kind}’을 조금만 더 좁혀 볼게요. 하나만 골라 주세요.
+                  {t('blockage.q2Hint', { label: kindLabel(state.kind) })}
                 </Text>
               </View>
               <View style={styles.list}>
                 {subBranchChoices(state.kind).map((choice) => (
                   <Option
                     key={choice.value}
-                    label={choice.value}
+                    label={kindLabel(choice.value)}
                     description={choice.description}
-                    example={SUB_EXAMPLE[choice.value]}
+                    example={example(choice.value)}
                     selected={pickedSub === choice.value}
                     onPress={() => setPickedSub(choice.value)}
                   />
                 ))}
               </View>
               <PrimaryButton
-                label="이걸로 이어가기 →"
+                label={t('blockage.continueBtn')}
                 disabled={!pickedSub}
                 onPress={confirmSub}
               />
@@ -201,51 +187,49 @@ export default function BlockageScreen() {
             <>
               <View style={styles.heading}>
                 <ContextChip
-                  label={`고른 것 · ${
-                    state.kind === '그 외' ? state.kind : `${state.kind} › ${state.subBranch}`
-                  }`}
+                  label={t('blockage.pickedChip', {
+                    label:
+                      state.kind === '그 외'
+                        ? kindLabel(state.kind)
+                        : `${kindLabel(state.kind)} › ${kindLabel(state.subBranch)}`,
+                  })}
                   onChange={() => setState((was) => changeBlockageSubBranch(was))}
                 />
                 <Text style={styles.question}>{blockageDetailTitle(state.subBranch)}</Text>
-                <Text style={styles.subtitle}>
-                  어느 대목에서 그랬는지, 그때 무엇을 하려 했는지까지 적으면 질문이 더
-                  정확해져요.
-                </Text>
+                <Text style={styles.subtitle}>{t('blockage.detailLead')}</Text>
               </View>
 
               <View style={styles.writeBlock}>
                 <View style={styles.exampleBlock}>
-                  <Text style={styles.exampleLead}>예를 들어 —</Text>
+                  <Text style={styles.exampleLead}>{t('blockage.exampleLead')}</Text>
                   <Text style={styles.exampleBody}>
                     {blockageDetailExamples(state.subBranch).join(' · ')}
                   </Text>
                 </View>
                 <TextInput
                   style={styles.input}
-                  placeholder="예) 마지막에 “그럼 나 갈게” 하고 돌아서는 대목이요."
+                  placeholder={t('blockage.detailPh')}
                   placeholderTextColor={c.ink5}
                   value={state.detail}
                   onChangeText={(text) => setState((was) => updateBlockageDetail(was, text))}
                   multiline
                 />
                 <Text style={styles.counter}>
-                  {state.detail.length}자 · 두세 문장이면 충분해요
+                  {t('blockage.charCount', { count: state.detail.length })}
                 </Text>
               </View>
 
               <View style={styles.actionBlock}>
-                <PrimaryButton label="이대로 이어가기 →" onPress={goDetail} />
+                <PrimaryButton label={t('blockage.continueDetail')} onPress={goDetail} />
                 <Pressable onPress={goDetail} accessibilityRole="button" hitSlop={8}>
-                  <Text style={styles.skip}>건너뛰기</Text>
+                  <Text style={styles.skip}>{t('blockage.skip')}</Text>
                 </Pressable>
               </View>
             </>
           )}
 
           <View style={styles.footer}>
-            <Text style={styles.footerText}>
-              영상에서 눈에 남은 곳을 묻고, 마지막 한 문장은 배우님이 직접 써요.
-            </Text>
+            <Text style={styles.footerText}>{t('blockage.intro')}</Text>
           </View>
         </ScrollView>
       </View>
@@ -268,9 +252,9 @@ function ProgressRow({ sceneOpen, onToggleScene }: { sceneOpen: boolean; onToggl
           <View style={styles.stepDone} />
           <View style={styles.stepNow} />
         </View>
-        <Text style={styles.stepLabel}>3단계 · 질문 받기</Text>
+        <Text style={styles.stepLabel}>{t('blockage.step3')}</Text>
       </View>
-      <SceneFoldLink open={sceneOpen} onToggle={onToggleScene} label="영상·장면 보기" />
+      <SceneFoldLink open={sceneOpen} onToggle={onToggleScene} label={t('blockage.sceneFold')} />
     </View>
   );
 }
@@ -314,7 +298,7 @@ function ContextChip({ label, onChange }: { label: string; onChange: () => void 
         <Text style={styles.chipText}>{label}</Text>
       </View>
       <Pressable onPress={onChange} accessibilityRole="button" hitSlop={8}>
-        <Text style={styles.chipChange}>바꾸기</Text>
+        <Text style={styles.chipChange}>{t('blockage.change')}</Text>
       </Pressable>
     </View>
   );
