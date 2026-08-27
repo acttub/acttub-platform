@@ -283,6 +283,8 @@ describe("배역 직접 고치기", () => {
     const s = parseScript(raw);
     const counts = countLinesByRole(s.lines);
     expect(counts.get("지수")).toBe(2);
-    expect(counts.get("무대")).toBe(2);
+    expect(counts.get("민준")).toBe(2);
+    // "무대" 는 무대 지시어라 배역이 아니다 — 세지 않는다
+    expect(counts.get("무대")).toBe(undefined);
   });
 });
