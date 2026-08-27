@@ -36,6 +36,7 @@ import {
   sendUploadIntent,
   type UploadIntentInput,
 } from '@/lib/upload-input';
+import { translate } from './i18n.ts';
 
 export { ApiError, NetworkError, RequestAbortError } from '@/lib/api-request';
 
@@ -488,7 +489,7 @@ export const api = {
         if (response.status < 200 || response.status >= 300) {
           throw new ApiError(
             response.status,
-            '영상 업로드에 실패했어요. 네트워크를 확인해주세요.',
+            translate('errors.uploadFail'),
           );
         }
         return { kind: 'uploaded' as const };

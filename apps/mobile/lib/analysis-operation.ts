@@ -1,3 +1,5 @@
+import { translate } from './i18n.ts';
+
 export type CancelVocabulary = 'cancel-local' | 'detach';
 
 export class OperationInactiveError extends Error {
@@ -302,13 +304,13 @@ function failedMessage(code?: string | null): string {
   switch (code) {
     case 'gemini_timeout':
     case 'max_attempts_exceeded':
-      return '분석 시간이 초과됐어요. 영상을 더 짧게 잘라서 다시 시도해주세요.';
+      return translate('analysis.timeout');
     case 'unsupported_media':
-      return '지원하지 않는 영상 형식이에요. mp4로 다시 올려주세요.';
+      return translate('analysis.badFormat');
     case 'gemini_parse_error':
-      return '분석 결과를 정리하지 못했어요. 다시 시도해주세요.';
+      return translate('analysis.summarizeFail');
     default:
-      return '분석에 실패했어요. 다시 시도해주세요.';
+      return translate('analysis.failed');
   }
 }
 
@@ -344,7 +346,7 @@ export async function prepareSessionForPolling(
     if (errorCode(error) === 'analysis_retry_exhausted') {
       throw new AnalysisTerminalError(
         'analysis_retry_exhausted',
-        '재분석 가능 횟수를 모두 사용했어요. 영상을 다시 선택해주세요.',
+        translate('analysis.retryExhausted'),
       );
     }
     throw error;
@@ -380,7 +382,7 @@ export async function readAnalyzedDetail(
   }
   throw new AnalysisTerminalError(
     'incomplete_analysis',
-    '분석 결과를 모두 불러오지 못했어요. 영상을 다시 선택해주세요.',
+    translate('analysis.partial'),
   );
 }
 
@@ -507,7 +509,7 @@ export async function runAnalysisPipeline({
       operation.markSessionCreated(sessionId);
       operation.setPendingHandle(recovered);
     } else {
-      if (!upload) throw new Error('분석할 업로드가 없어요.');
+      if (!upload) throw new Error(translate('analysis.noUpload'));
       operation.checkpoint();
       const compressed = await dependencies.compress(upload, operation);
       operation.clearCompressionCancel();
@@ -601,7 +603,7 @@ export async function runAnalysisPipeline({
       // 타임아웃 판정은 방금 받아온 상태 뒤에 한다 — 오래 얼었다 깨어난 직후,
       // 이미 끝난 분석을 확인도 안 해보고 시간 초과로 끝내면 안 된다.
       if (status.status !== 'analyzed' && dependencies.now() >= deadline) {
-        throw new Error('분석이 예상보다 오래 걸려요. 잠시 후 기록에서 다시 확인해주세요.');
+        throw new Error(translate('analysis.tookTooLong'));
       }
     }
     const detail = await readAnalyzedDetail(operation, sessionId, {
@@ -616,7 +618,7 @@ export async function runAnalysisPipeline({
       await discardPending(operation, dependencies);
       throw new AnalysisTerminalError(
         'stale_session',
-        '이미 삭제된 분석이에요. 새 영상을 선택해주세요.',
+        translate('analysis.deleted'),
       );
     }
     if (error instanceof AnalysisTerminalError) {

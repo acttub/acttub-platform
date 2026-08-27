@@ -19,6 +19,7 @@ import {
   sendableOneLiner,
   type ExitReviewTrigger,
 } from '@/lib/exit-review-policy';
+import { translate as t } from '@/lib/i18n';
 
 /**
  * 나갈 때·마칠 때 한 번 뜨는 한줄평 바텀시트(SOMA-433). 디자인은 「RN앱 반영.pen」
@@ -66,7 +67,7 @@ export function ExitReviewSheet({
               maxLength={EXIT_REVIEW_MAX_LENGTH}
               editable={!sending}
               textAlignVertical="top"
-              accessibilityLabel="한줄평"
+              accessibilityLabel={t('exitReview.a11yInput')}
             />
             <Text style={styles.counter}>
               {text.length} / {EXIT_REVIEW_MAX_LENGTH}
@@ -87,7 +88,7 @@ export function ExitReviewSheet({
               autoCorrect={false}
               maxLength={CONTACT_MAX_LENGTH}
               editable={!sending}
-              accessibilityLabel="인터뷰 연락처 이메일"
+              accessibilityLabel={t('exitReview.a11yEmail')}
             />
             <TextInput
               style={styles.contactInput}
@@ -98,7 +99,7 @@ export function ExitReviewSheet({
               keyboardType="phone-pad"
               maxLength={CONTACT_MAX_LENGTH}
               editable={!sending}
-              accessibilityLabel="인터뷰 연락처 전화번호"
+              accessibilityLabel={t('exitReview.a11yPhone')}
             />
           </View>
 
@@ -107,7 +108,7 @@ export function ExitReviewSheet({
             disabled={!canSubmit}
             onPress={() => onSubmit(text, { email, phone })}
             accessibilityRole="button">
-            <Text style={styles.submitText}>{sending ? '보내는 중…' : copy.submit}</Text>
+            <Text style={styles.submitText}>{sending ? t('exitReview.sending') : copy.submit}</Text>
           </Pressable>
           <Pressable style={styles.skip} onPress={onSkip} disabled={sending} accessibilityRole="button" hitSlop={8}>
             <Text style={styles.skipText}>{copy.skip}</Text>

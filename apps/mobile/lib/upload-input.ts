@@ -1,3 +1,5 @@
+import { translate } from './i18n.ts';
+
 export const MAX_VIDEO_DURATION_MS = 300_000;
 
 export type UploadIntentInput = {
@@ -47,8 +49,8 @@ export type UploadFormState = {
  * 장면 세 칸은 선택이라(SOMA-432) 영상·권리 확인만 본다.
  */
 export function missingUploadFieldsHint(state: UploadFormState): string | null {
-  if (!state.hasVideo) return '영상을 채워주세요';
-  if (!state.agreedRights) return '권리 확인에 체크해주세요';
+  if (!state.hasVideo) return translate('upload.missingVideo');
+  if (!state.agreedRights) return translate('upload.missingRights');
   return null;
 }
 

@@ -30,6 +30,7 @@ import {
   type ReportReason,
   type ReportTargetType,
 } from '@/lib/moderation';
+import { translate as t } from '@/lib/i18n';
 
 /** 글 상세 — 본문 + 좋아요 + 댓글. 읽기는 로그인 없이, 쓰기는 로그인 후. */
 /** 신고·차단이 붙는 대상 — 글이든 댓글이든 같은 흐름을 탄다. */
@@ -65,7 +66,7 @@ export default function CommunityPostScreen() {
       setComments(list.comments);
       setNow(Date.now());
     } catch {
-      setError('글을 불러오지 못했어요.');
+      setError(t('communityPost.loadFail'));
     }
   }, [id]);
 
@@ -109,7 +110,7 @@ export default function CommunityPostScreen() {
       setPost({ ...post, comment_count: post.comment_count + 1 });
       setDraft('');
     } catch {
-      setError('댓글을 남기지 못했어요.');
+      setError(t('communityPost.commentFail'));
     } finally {
       setBusy(false);
     }
@@ -130,7 +131,7 @@ export default function CommunityPostScreen() {
       if (targetType === 'post') router.back();
       else await load();
     } catch {
-      await alert({ title: '차단하지 못했어요', message: '잠시 후 다시 시도해주세요.' });
+      await alert({ title: t('communityPost.blockFailTitle'), message: t('common.tryLater') });
     }
   };
 
@@ -145,26 +146,25 @@ export default function CommunityPostScreen() {
       });
       if (blockable) {
         const also = await confirm({
-          title: '신고를 접수했어요',
-          message:
-            '확인하는 데 시간이 걸릴 수 있어요. 이 사람 글을 더 보고 싶지 않다면 차단할 수도 있어요.',
-          confirmLabel: '차단하기',
+          title: t('communityPost.reportedTitle'),
+          message: t('communityPost.reportedBodyWithBlock'),
+          confirmLabel: t('communityPost.blockCta'),
         });
         if (also) await doBlock(blockable, target.type);
       } else {
-        await alert({ title: '신고를 접수했어요', message: '확인하는 데 시간이 걸릴 수 있어요.' });
+        await alert({ title: t('communityPost.reportedTitle'), message: t('communityPost.reportedBody') });
       }
     } catch {
       await alert({
-        title: '신고하지 못했어요',
-        message: '이미 신고한 내용이거나, 잠시 문제가 있었어요.',
+        title: t('communityPost.reportFailTitle'),
+        message: t('communityPost.reportFailBody'),
       });
     }
   };
 
   const askReason = (target: ModerationTarget) => {
     void sheet({
-      title: '무엇이 문제인가요?',
+      title: t('communityPost.reasonTitle'),
       actions: REPORT_REASONS.map((r) => ({
         label: r.label,
         onPress: () => void submitReport(target, r.value),
@@ -174,9 +174,9 @@ export default function CommunityPostScreen() {
 
   const askBlock = async (target: ModerationTarget, userId: string) => {
     const ok = await confirm({
-      title: '이 사람을 차단할까요?',
-      message: '차단하면 이 사람의 글과 댓글이 더 이상 보이지 않아요.',
-      confirmLabel: '차단',
+      title: t('communityPost.blockTitle'),
+      message: t('communityPost.blockMsg'),
+      confirmLabel: t('communityPost.blockConfirm'),
       destructive: true,
     });
     if (ok) await doBlock(userId, target.type);
@@ -189,13 +189,13 @@ export default function CommunityPostScreen() {
       mine: target.mine,
     });
     void sheet({
-      title: target.type === 'post' ? '이 글' : '이 댓글',
+      title: target.type === 'post' ? t('communityPost.targetPost') : t('communityPost.targetComment'),
       actions: [
-        { label: '신고하기', destructive: true, onPress: () => askReason(target) },
+        { label: t('communityPost.report'), destructive: true, onPress: () => askReason(target) },
         ...(blockable
           ? [
               {
-                label: '작성자 차단하기',
+                label: t('communityPost.blockAuthor'),
                 destructive: true,
                 onPress: () => void askBlock(target, blockable),
               },
@@ -234,7 +234,7 @@ export default function CommunityPostScreen() {
             <Pressable
               hitSlop={10}
               accessibilityRole="button"
-              accessibilityLabel="글 메뉴"
+              accessibilityLabel={t('communityPost.postMenuA11y')}
               onPress={() =>
                 openModeration({
                   type: 'post',
@@ -263,7 +263,7 @@ export default function CommunityPostScreen() {
 
           <View style={styles.divider} />
 
-          <Text style={styles.commentHead}>댓글 {post.comment_count}</Text>
+          <Text style={styles.commentHead}>{t('communityPost.commentsHead', { count: post.comment_count })}</Text>
           {comments.map((comment) => (
             <View key={comment.id} style={styles.comment}>
               <View style={styles.metaRow}>
@@ -277,7 +277,7 @@ export default function CommunityPostScreen() {
                   <Pressable
                     hitSlop={10}
                     accessibilityRole="button"
-                    accessibilityLabel="댓글 메뉴"
+                    accessibilityLabel={t('communityPost.commentMenuA11y')}
                     onPress={() =>
                       openModeration({
                         type: 'comment',
@@ -294,7 +294,7 @@ export default function CommunityPostScreen() {
               <Text style={styles.commentBody}>{comment.body}</Text>
             </View>
           ))}
-          {comments.length === 0 && <Text style={styles.noComment}>첫 댓글을 남겨보세요.</Text>}
+          {comments.length === 0 && <Text style={styles.noComment}>{t('communityPost.firstComment')}</Text>}
           <View style={styles.spacer} />
         </ScrollView>
 
@@ -311,13 +311,13 @@ export default function CommunityPostScreen() {
               size={16}
               color={anonymous ? palette.blue : palette.checkOff}
             />
-            <Text style={[styles.anonText, anonymous && styles.anonTextOn]}>익명</Text>
+            <Text style={[styles.anonText, anonymous && styles.anonTextOn]}>{t('communityPost.anonTag')}</Text>
           </Pressable>
           <TextInput
             style={styles.input}
             value={draft}
             onChangeText={setDraft}
-            placeholder={user ? '댓글을 남겨보세요' : '로그인하고 댓글 남기기'}
+            placeholder={user ? t('communityPost.commentPh') : t('communityPost.commentPhLogin')}
             placeholderTextColor={palette.textFaint}
             multiline
           />
@@ -325,7 +325,7 @@ export default function CommunityPostScreen() {
             style={[styles.send, (!draft.trim() || busy) && styles.sendOff]}
             onPress={submitComment}
             accessibilityRole="button"
-            accessibilityLabel="댓글 등록">
+            accessibilityLabel={t('communityPost.submitA11y')}>
             <Feather name="arrow-up" size={18} color="#FFFFFF" />
           </Pressable>
         </View>
@@ -338,10 +338,10 @@ export default function CommunityPostScreen() {
 function Header({ onBack }: { onBack: () => void }) {
   return (
     <View style={styles.header}>
-      <Pressable onPress={onBack} accessibilityRole="button" accessibilityLabel="뒤로">
+      <Pressable onPress={onBack} accessibilityRole="button" accessibilityLabel={t('common.back')}>
         <Feather name="chevron-left" size={24} color={palette.text} />
       </Pressable>
-      <Text style={styles.headerTitle}>게시판</Text>
+      <Text style={styles.headerTitle}>{t('communityPost.headerTitle')}</Text>
     </View>
   );
 }

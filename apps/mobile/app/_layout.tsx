@@ -28,6 +28,7 @@ import {
   type PendingAnalysisHandle,
 } from '@/lib/pending-analysis';
 import { palette } from '@/constants/palette';
+import { translate as t } from '@/lib/i18n';
 
 // 아이콘 폰트가 로드되기 전에 UI가 그려지면 탭바 아이콘이 빈칸으로 뜬다.
 // 로드가 끝날 때까지 스플래시를 유지해 아이콘 누락(회귀)을 막는다.
@@ -259,12 +260,12 @@ function RootNavigator() {
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen
         name="delete-account"
-        options={{ title: '회원 탈퇴', headerBackTitle: '설정' }}
+        options={{ title: t('stack.withdraw'), headerBackTitle: t('stack.backToSettings') }}
       />
-      <Stack.Screen name="upload" options={{ title: '영상 올리기' }} />
-      <Stack.Screen name="analyzing" options={{ title: '분석 중' }} />
-      <Stack.Screen name="coach" options={{ title: '코치와 되짚기' }} />
-      <Stack.Screen name="report" options={{ title: '오늘 정리' }} />
+      <Stack.Screen name="upload" options={{ title: t('stack.upload') }} />
+      <Stack.Screen name="analyzing" options={{ title: t('stack.analyzing') }} />
+      <Stack.Screen name="coach" options={{ title: t('stack.coach') }} />
+      <Stack.Screen name="report" options={{ title: t('stack.report') }} />
       {/* 아래 셋은 화면 안에 자체 헤더가 있다. 등록해 두지 않으면 기본 헤더가
           한 겹 더 붙어 '뒤로' 버튼이 두 개로 보인다. */}
       <Stack.Screen name="admissions/index" options={{ headerShown: false }} />

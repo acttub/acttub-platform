@@ -4,13 +4,15 @@
  * RN 모듈을 로드할 수 없어 이 파일만 검사한다.)
  */
 
+import { translate } from './i18n.ts';
+
 /**
  * 데일리 넛지(SOMA-444) — 그날 연습이 없으면 저녁 8시에 한 번 알린다.
  * 예전의 "마지막 연습 + 3일" 리마인드를 대체한다(2026-08-25, 류지성 결정).
  */
 export const NUDGE_HOUR = 20;
-export const NUDGE_TITLE = '오늘 연습 아직이에요';
-export const NUDGE_BODY = '5분이면 돼요. 장면 하나만 찍어볼까요?';
+export const NUDGE_TITLE = translate('nudge.title');
+export const NUDGE_BODY = translate('nudge.body');
 
 /**
  * 로컬 알림은 반복 트리거로 "오늘만 건너뛰기" 를 할 수 없어, 앞으로 며칠치를

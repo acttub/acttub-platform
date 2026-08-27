@@ -21,6 +21,7 @@ import { useAppDialog } from '@/components/app-dialog';
 import { useExitReview } from '@/hooks/use-exit-review';
 import { useKeyboardHeight } from '@/hooks/use-keyboard-height';
 import type { MicButtonProps } from '@/components/mic-button';
+import { translate as t, translateList } from '@/lib/i18n';
 
 // 네이티브 모듈이 없는 빌드(STT 도입 전 dev client)에서도 화면이 뜨도록 가드해서 로드한다.
 let MicButton: ComponentType<MicButtonProps> | null = null;
@@ -185,7 +186,7 @@ export default function CoachScreen() {
   if (!practice) {
     return (
       <SafeAreaView style={styles.safe}>
-        <Text style={styles.errorText}>진행 중인 연습이 없어요. 홈에서 새로 시작해주세요.</Text>
+        <Text style={styles.errorText}>{t('coach.noPractice')}</Text>
       </SafeAreaView>
     );
   }
@@ -213,7 +214,7 @@ export default function CoachScreen() {
       }
       completeConversation(reply);
     } catch (err) {
-      setError(err instanceof Error ? err.message : '전송에 실패했어요.');
+      setError(err instanceof Error ? err.message : t('coach.sendFail'));
     } finally {
       setWaiting(false);
     }
@@ -225,9 +226,9 @@ export default function CoachScreen() {
   // 서버는 '그만'을 받으면 대화를 정리한다 — 보내는 내용은 타이핑과 동일하다.
   const endConversation = async () => {
     const ok = await confirm({
-      title: '여기서 마칠까요?',
-      message: '지금까지 나눈 대화로 오늘의 정리를 만들어요.',
-      confirmLabel: '마치기',
+      title: t('coach.endTitle'),
+      message: t('coach.endMsg'),
+      confirmLabel: t('coach.endConfirm'),
     });
     if (ok) await sendText('그만');
   };
@@ -247,22 +248,22 @@ export default function CoachScreen() {
     <SafeAreaView style={styles.safe} edges={keyboardVisible ? [] : ['bottom']}>
       <Stack.Screen
         options={{
-          title: practice.scene.situation.trim() || '질문 대화',
+          title: practice.scene.situation.trim() || t('coach.fallbackTitle'),
           headerShadowVisible: false,
         }}
       />
       <View style={styles.statusRow}>
         <View style={styles.statusChip}>
-          <Text style={styles.statusChipText}>{done ? '정리 중' : '질문 중'}</Text>
+          <Text style={styles.statusChipText}>{done ? t('coach.statusDone') : t('coach.statusAsking')}</Text>
         </View>
       </View>
 
       <View style={styles.strip}>
         <View style={styles.stripRow}>
           <View style={styles.stripText}>
-            <Text style={styles.stripTitle}>영상과 장면 보기</Text>
+            <Text style={styles.stripTitle}>{t('coach.stripTitle')}</Text>
             <Text style={styles.stripSub} numberOfLines={1}>
-              {practice.scene.situation.trim() || '장면을 적지 않았어요'}
+              {practice.scene.situation.trim() || t('coach.noScene')}
             </Text>
           </View>
           <SceneFoldLink
@@ -280,7 +281,7 @@ export default function CoachScreen() {
               <View key={i} style={[styles.dot, i < askedCount && styles.dotOn]} />
             ))}
           </View>
-          <Text style={styles.progressText}>{ORDINAL[Math.min(askedCount, 5)] ?? '질문'}</Text>
+          <Text style={styles.progressText}>{ORDINAL[Math.min(askedCount, 5)] ?? t('coach.ordinalFallback')}</Text>
         </View>
         {past.length > 0 && (
           <Pressable
@@ -288,7 +289,7 @@ export default function CoachScreen() {
             accessibilityRole="button"
             hitSlop={8}>
             <Text style={styles.pastToggle}>
-              지난 문답 {Math.floor(past.length / 2)} {pastOpen ? '▴' : '▾'}
+              {t('coach.pastToggle', { count: Math.floor(past.length / 2) })} {pastOpen ? '▴' : '▾'}
             </Text>
           </Pressable>
         )}
@@ -305,7 +306,7 @@ export default function CoachScreen() {
                 key={`${index}-${message.text.slice(0, 8)}`}
                 style={message.role === 'ai' ? styles.pastAi : styles.pastMine}>
                 <Text style={styles.pastLabel}>
-                  {message.role === 'ai' ? '코치' : '나'}
+                  {message.role === 'ai' ? t('coach.roleCoach') : t('coach.roleMe')}
                 </Text>
                 <Text style={styles.pastText}>{message.text}</Text>
               </View>
@@ -314,7 +315,7 @@ export default function CoachScreen() {
           {connecting && !latestQuestion ? (
             <View style={styles.loading}>
               <ActivityIndicator color={palette.blue} />
-              <Text style={styles.loadingText}>영상을 마저 정리하고 있어요…</Text>
+              <Text style={styles.loadingText}>{t('coach.wrapping')}</Text>
             </View>
           ) : (
             <View style={styles.questionBlock}>
@@ -325,23 +326,21 @@ export default function CoachScreen() {
           {error && <Text style={styles.errorText}>{error}</Text>}
           {error && !practice.coachSessionId && !waiting && !connecting && (
             <Pressable style={styles.retry} onPress={() => void startCoach()}>
-              <Text style={styles.retryText}>코치 다시 연결하기</Text>
+              <Text style={styles.retryText}>{t('coach.reconnect')}</Text>
             </Pressable>
           )}
 
           {done && (
             <>
               <Text style={styles.doneText}>
-                {noteSkipped
-                  ? '오늘은 여기까지 나눴어요. 노트로 남기기엔 짧아서, 다음에 이어서 해요.'
-                  : '오늘 대화는 여기까지예요. 정리를 만들어 보여드릴게요.'}
+                {noteSkipped ? t('coach.doneShort') : t('coach.doneNormal')}
               </Text>
               <Pressable
                 style={styles.retry}
                 onPress={noteSkipped ? finishWithoutNote : goToReport}
                 accessibilityRole="button">
                 <Text style={styles.retryText}>
-                  {noteSkipped ? '연습 마치기' : '정리 보러 가기'}
+                  {noteSkipped ? t('coach.finishBtn') : t('coach.seeSummary')}
                 </Text>
               </Pressable>
             </>
@@ -351,7 +350,7 @@ export default function CoachScreen() {
         {!done && (
           <View style={styles.composer}>
             <View style={styles.composerLabelRow}>
-              <Text style={styles.composerLabel}>기억나는 대로 적어 주세요</Text>
+              <Text style={styles.composerLabel}>{t('coach.composerLabel')}</Text>
               <Text style={styles.counter}>{input.length} / 300</Text>
             </View>
             <View style={styles.inputRow}>
@@ -363,7 +362,7 @@ export default function CoachScreen() {
               )}
               <TextInput
                 style={styles.input}
-                placeholder="예) 상대 얼굴에서 눈을 못 떼고 계속 보고 있었어요."
+                placeholder={t('coach.composerPh')}
                 placeholderTextColor={palette.checkOff}
                 value={input}
                 onChangeText={setInput}
@@ -373,7 +372,7 @@ export default function CoachScreen() {
               />
             </View>
             <View style={styles.quickRow}>
-              {['잘 모르겠어요', '제가 되물을게요'].map((label) => (
+              {[t('coach.quickDontKnow'), t('coach.quickAskBack')].map((label) => (
                 <Pressable
                   key={label}
                   style={styles.quick}
@@ -390,7 +389,7 @@ export default function CoachScreen() {
               onPress={() => void send()}
               accessibilityRole="button">
               <Text style={styles.sendText}>
-                {waiting ? '답을 듣고 생각 중이에요…' : '이 답으로 다음 질문 →'}
+                {waiting ? t('coach.thinking') : t('coach.nextQuestion')}
               </Text>
             </Pressable>
             <Pressable
@@ -398,7 +397,7 @@ export default function CoachScreen() {
               disabled={waiting || connecting}
               onPress={() => void endConversation()}
               accessibilityRole="button">
-              <Text style={styles.endHint}>그만하고 정리 만들기</Text>
+              <Text style={styles.endHint}>{t('coach.endHint')}</Text>
             </Pressable>
           </View>
         )}
@@ -410,7 +409,7 @@ export default function CoachScreen() {
   );
 }
 
-const ORDINAL = ['첫 질문', '첫 질문', '두 번째 질문', '세 번째 질문', '네 번째 질문', '마지막 질문'];
+const ORDINAL = translateList('coach.ordinal');
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
