@@ -28,6 +28,9 @@ export function SetupScreen({
   const [advanceMode, setAdvanceMode] = useState<AdvanceMode>(initialSetup?.advanceMode ?? (micSupported() ? "silence" : "manual"));
   // 준비가 끝나면 VoiceSetup 이 알려 준다 — 읽어 주는 목소리 표시를 바꾸기 위해서다.
   const [engine, setEngineState] = useState<Engine>(getEngine);
+  // 음성 모델을 다 받기 전에는 시작하지 못한다(2026-08-27 결정). 이미 켜져 있으면 바로 시작할 수 있고,
+  // 받다가 실패하면 기기 음성으로라도 시작할 수 있게 VoiceSetup 이 true 를 준다.
+  const [voiceReady, setVoiceReady] = useState(() => getEngine() === "supertonic");
 
   // 음성 준비·안내는 VoiceSetup 이 맡는다. 여기서는 아예 읽어 줄 수 없는 경우만 알린다.
   const voiceNote = ttsSupported()
@@ -106,7 +109,7 @@ export function SetupScreen({
           />
         )}
         {voiceNote && <p className="text-[11.5px] text-ink-4 px-1">{voiceNote}</p>}
-        <VoiceSetup onEngineChange={setEngineState} />
+        <VoiceSetup onEngineChange={setEngineState} onReady={setVoiceReady} />
       </div>
     </Card>
   );
@@ -136,15 +139,15 @@ export function SetupScreen({
           <div className="flex flex-col gap-4">
             {roleCard}
             {modeCard}
-            <Button size="lg" className="w-full hidden md:flex" onClick={start}>
-              연습 시작
+            <Button size="lg" className="w-full hidden md:flex" disabled={!voiceReady} onClick={start}>
+              {voiceReady ? "연습 시작" : "상대 목소리 준비 중…"}
             </Button>
           </div>
         </div>
       </div>
       <div className="md:hidden sticky bottom-0 p-4 bg-gray-bg-2/90 backdrop-blur">
-        <Button size="lg" className="w-full" onClick={start}>
-          연습 시작
+        <Button size="lg" className="w-full" disabled={!voiceReady} onClick={start}>
+          {voiceReady ? "연습 시작" : "상대 목소리 준비 중…"}
         </Button>
       </div>
     </Page>
