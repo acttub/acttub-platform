@@ -3,12 +3,13 @@
 /**
  * 자연스러운 음성을 켜는 자리.
  *
- * 모델은 100MB 를 훌쩍 넘으므로 몰래 받지 않는다 — 용량을 보여 주고 누를 때만 받는다.
- * 받지 않아도 리허설은 기기 내장 음성으로 그대로 돌아간다.
+ * 화면에 들어오면 묻지 않고 바로 모델(380MB)을 받는다 — 기기 음성이 너무 딱딱해 실제로 쓸 만하지 않아서
+ * 받을지 말지를 사람에게 넘기지 않기로 했다(2026-08-27). 진행률과 라이선스 고지만 보인다.
+ * 받다가 실패하면 그때만 기기 음성으로 떨어지고 다시 시도 버튼을 둔다.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { enableSupertonic, getEngine, isRemoteOnly, ttsSupported, waitForVoices, type Engine } from "@/lib/reading/audio/tts";
-import { downloadSize, hasCachedModels, type LoadProgress } from "@/lib/reading/audio/supertonic/engine";
+import { downloadSize, type LoadProgress } from "@/lib/reading/audio/supertonic/engine";
 import { MODEL_ATTRIBUTION } from "@/lib/reading/audio/supertonic/models";
 
 const mb = (n: number) => `${Math.round(n / 1024 / 1024)}MB`;
@@ -33,21 +34,21 @@ export function VoiceSetup({ onEngineChange }: { onEngineChange?: (e: Engine) =>
   useEffect(() => {
     let alive = true;
     void (async () => {
-      const [cached, bytes] = await Promise.all([hasCachedModels(), downloadSize()]);
+      const bytes = await downloadSize();
       if (!alive) return;
       setSize(bytes);
-      // 이미 받아 둔 것이 있으면 물어볼 것 없이 바로 켠다.
-      if (cached) {
-        setPhase("받는중");
-        try {
-          await enableSupertonic(setProgress);
-          if (alive) { setPhase("켜짐"); notify.current?.("supertonic"); }
-        } catch {
-          if (alive) setPhase("실패");
-        }
+      // 묻지 않고 항상 받는다(2026-08-27 결정). 기기 음성은 받다가 실패했을 때의 폴백일 뿐이다.
+      if (getEngine() === "supertonic") {
+        setPhase("켜짐");
         return;
       }
-      setPhase(getEngine() === "supertonic" ? "켜짐" : "받을수있음");
+      setPhase("받는중");
+      try {
+        await enableSupertonic(setProgress);
+        if (alive) { setPhase("켜짐"); notify.current?.("supertonic"); }
+      } catch {
+        if (alive) setPhase("실패");
+      }
     })();
     return () => {
       alive = false;
