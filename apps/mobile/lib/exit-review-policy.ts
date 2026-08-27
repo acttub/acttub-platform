@@ -1,8 +1,9 @@
 /**
  * 나갈 때 한줄평(SOMA-433) — 순수 로직. RN 모듈에 기대지 않아 node 테스트로 잠근다.
  *
- * 창은 사용자당 딱 한 번만 뜬다. 나가는 순간에 길게 물으면 다 이탈하므로 한 줄만 받고,
- * 문구는 "한 번만 부탁드려요" 톤으로 간다(사용자 결정 2026-08-24).
+ * 창은 한 줄을 실제로 보낼 때까지 뜬다 — 보내고 나면 다시 묻지 않는다(1회 = 제출 1회,
+ * 2026-08-27 정정). 나가는 순간에 길게 물으면 다 이탈하므로 한 줄만 받고, 문구는
+ * "한 번만 부탁드려요" 톤으로 간다(사용자 결정 2026-08-24).
  */
 
 export type ExitReviewTrigger = 'leave' | 'finish';
@@ -28,14 +29,14 @@ export function exitReviewCopy(trigger: ExitReviewTrigger): ExitReviewCopy {
     placeholder: '예) 질문이 날카로워서 좋았어요 · 답을 어디까지 써야 할지 몰랐어요',
     submit: trigger === 'finish' ? '한 줄 남기고 마치기' : '한 줄 남기고 나가기',
     skip: '다음에 할게요',
-    notice: '답변은 개발에만 써요 · 이름은 남지 않아요 · 이번 한 번만 여쭤봐요',
+    notice: '답변은 개발에만 써요 · 이름은 남지 않아요 · 한 줄 보내주시면 다시 안 여쭤봐요',
     contactHint: '인터뷰로 이야기를 더 들려주실 수 있다면 연락처를 남겨주세요 (선택)',
     contactEmailPlaceholder: '이메일 (선택)',
     contactPhonePlaceholder: '전화번호 (선택)',
   };
 }
 
-/** 한 번 물어봤으면(보냈든 건너뛰었든) 다시 안 띄운다. */
+/** 한 줄을 보낸 사람에게만 다시 안 띄운다 — 건너뛰기는 다음에 다시 여쭤본다. */
 export function shouldOfferExitReview(alreadyAsked: boolean): boolean {
   return !alreadyAsked;
 }

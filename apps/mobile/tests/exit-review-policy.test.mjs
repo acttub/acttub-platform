@@ -24,7 +24,8 @@ test('SOMA-433: 문구는 불쌍하게, 버튼만 나가기/마치기로 갈린�
   assert.equal(finish.submit, '한 줄 남기고 마치기');
   assert.equal(leave.skip, '다음에 할게요');
   assert.equal(finish.title, leave.title);
-  assert.match(leave.notice, /이번 한 번만/);
+  // 1회 = 제출 1회(2026-08-27 정정) — 보낸 뒤에만 다시 안 묻는다고 안내한다.
+  assert.match(leave.notice, /보내주시면 다시 안 여쭤봐요/);
 });
 
 test('SOMA-433: 빈 칸·공백은 보낼 수 없고, 앞뒤 공백은 잘라 보낸다', () => {

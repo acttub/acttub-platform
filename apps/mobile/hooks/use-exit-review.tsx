@@ -107,14 +107,15 @@ export function useExitReview(
     [finish, screen, sessionId, trigger, user?.id],
   );
 
+  // 건너뛰기는 '물어봤음'으로 치지 않는다 — 한 줄을 실제로 보낼 때까지는 다음에 다시
+  // 여쭤본다(2026-08-27 스펙 정정: 1회 = 제출 1회).
   const skip = useCallback(async () => {
     if (closingRef.current) return;
     closingRef.current = true;
     try {
-      await markExitReviewAsked();
       trackExitReviewSkipped(trigger);
     } catch {
-      // 위와 동일 — 마무리는 항상 진행한다.
+      // 집계 실패가 나가기를 막으면 안 된다.
     }
     finish();
   }, [finish, trigger]);

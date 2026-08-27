@@ -17,6 +17,7 @@ import {
 export const EXIT_REVIEW_ENDPOINT =
   'https://script.google.com/macros/s/AKfycbynlU4CAkxTaAqCr6JK_vh9icYADNx6mAboJXZE4x4nvrzQjvNrsvU0NA9Tq6mPYIN41w/exec';
 
+// 키 이름은 asked 지만 의미는 '한 줄을 보냈음'이다(1회 = 제출 1회, 2026-08-27 정정).
 const ASKED_KEY = 'acttub.exitReview.asked';
 
 export async function hasAskedExitReview(): Promise<boolean> {
