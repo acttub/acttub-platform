@@ -64,7 +64,15 @@ export default function CoachScreen() {
   // usePreventRemove 는 렌더된 값을 보므로, 풀린 상태가 반영된 다음 틱에 이동해야 다시 안 막힌다.
   const leaveThen = useCallback((go: () => void) => {
     setLeaveAllowed(true);
-    setTimeout(go, 0);
+    setTimeout(() => {
+      // 타이머 안의 throw 는 어떤 try/catch 에도 안 잡혀 릴리스 앱을 그대로 죽인다.
+      // 스택 상태가 어긋나 전환이 실패해도 앱은 살리고, 화면에 남게만 한다.
+      try {
+        go();
+      } catch {
+        // no-op
+      }
+    }, 0);
   }, []);
   const exitReview = useExitReview('leave', 'coach', practice?.practiceSessionId);
   const finishReview = useExitReview('finish', 'coach', practice?.practiceSessionId);
