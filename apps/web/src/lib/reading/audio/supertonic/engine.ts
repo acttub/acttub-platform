@@ -156,13 +156,8 @@ export async function downloadSize(): Promise<number> {
 /** 워커를 깨우지 않고도 어느 가중치를 쓸지 알아야 안내 문구를 그릴 수 있다. */
 async function guessVariant(): Promise<Variant> {
   if (info) return info.variant;
-  const gpu = (navigator as Navigator & { gpu?: { requestAdapter(): Promise<unknown> } }).gpu;
-  if (!gpu) return "int8";
-  try {
-    return (await gpu.requestAdapter()) ? "fp32" : "int8";
-  } catch {
-    return "int8";
-  }
+  // 장치와 무관하게 fp32 다 (worker.ts variantFor 와 같은 결정).
+  return "fp32";
 }
 
 export function currentBackend(): Backend | null {

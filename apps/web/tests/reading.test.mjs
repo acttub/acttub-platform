@@ -10,3 +10,4 @@ await import("./reading/match.test.ts");
 await import("./reading/stt.test.ts");
 await import("./reading/stt.dedupe.test.ts");
 await import("./reading/tts.test.ts");
+await import("./reading/play.test.ts");

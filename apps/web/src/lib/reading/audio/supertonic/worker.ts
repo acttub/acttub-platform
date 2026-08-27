@@ -63,7 +63,9 @@ async function pickBackend(prefer?: Backend): Promise<Backend> {
   }
 }
 
-const variantFor = (b: Backend): Variant => (b === "webgpu" ? "fp32" : "int8");
+// 가중치는 실행 장치와 무관하게 fp32(380MB)다. int8(138MB)은 폰에서 들어 보니 목소리가 뭉개져
+// 쓸 만하지 않았다(2026-08-27). 용량보다 소리가 먼저다. int8 정의는 남겨 두되 고르지 않는다.
+const variantFor = (): Variant => "fp32";
 
 async function doLoad(id: number, prefer?: Backend): Promise<void> {
   ort.env.wasm.wasmPaths = "/ort/";
@@ -75,7 +77,7 @@ async function doLoad(id: number, prefer?: Backend): Promise<void> {
   ort.env.wasm.numThreads = isolated ? Math.max(1, Math.min(4, cores - 1)) : 1;
 
   const backend = await pickBackend(prefer);
-  const variant = variantFor(backend);
+  const variant = variantFor();
   const { urls, bytes: sizes } = MODEL_VARIANTS[variant];
   const total = variantBytes(variant);
 
