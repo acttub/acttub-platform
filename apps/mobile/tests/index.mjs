@@ -24,3 +24,6 @@ import './coach-completion.test.mjs';
 import './moderation.test.mjs';
 import './history-merge.test.mjs';
 import './i18n.test.mjs';
+import './admissions.test.mjs';
+import './community.test.mjs';
+import './memory-screen.test.mjs';
