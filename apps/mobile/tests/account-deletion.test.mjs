@@ -111,21 +111,28 @@ const stripComments = (source) =>
   source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
 
 test('탈퇴 화면 문구는 글이 남는다는 것을 숨기지 않는다', () => {
+  // 문구는 현지화(SOMA-449)로 언어 파일에 산다 — 정본인 한국어 파일을 검사한다.
   const screen = stripComments(readSource('app/delete-account.tsx'));
+  const ko = readSource('locales/ko.ts');
 
-  assert.match(screen, /되돌릴 수 없/);
-  assert.match(screen, /남는 것/);
-  assert.match(screen, /탈퇴한 사용자/);
+  assert.match(ko, /되돌릴 수 없/);
+  assert.match(ko, /남는 것/);
+  assert.match(ko, /탈퇴한 사용자/);
   // 서버는 글을 지우지 않는다. 지운다고 약속하면 거짓이 된다.
-  assert.doesNotMatch(screen, /전부 삭제|모두 삭제|모든 (글|기록)이 삭제/);
-  assert.match(screen, /계정은 그대로 있어요/);
+  assert.doesNotMatch(ko, /전부 삭제|모두 삭제|모든 (글|기록)이 삭제/);
+  assert.match(ko, /계정은 그대로 있어요/);
+  // 화면이 그 문구 키를 실제로 쓴다.
+  assert.match(screen, /deleteAccount\.secKept/);
+  assert.match(screen, /deleteAccount\.keptBody/);
+  assert.match(screen, /deleteAccount\.failBody/);
 });
 
 test('설정에서 탈퇴로 들어갈 수 있다', () => {
   const settings = readSource('app/(tabs)/settings.tsx');
   const layout = readSource('app/_layout.tsx');
 
-  assert.match(settings, /회원 탈퇴/);
+  assert.match(settings, /settings\.withdraw/);
+  assert.match(readSource('locales/ko.ts'), /회원 탈퇴/);
   assert.match(settings, /push\('\/delete-account'\)/);
   assert.match(layout, /name="delete-account"/);
 });

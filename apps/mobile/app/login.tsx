@@ -6,6 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAuth } from '@/lib/auth';
 import { palette } from '@/constants/palette';
+import { translate as t } from '@/lib/i18n';
 
 // 애플 로고는 SF Symbols의 공식 심볼(apple.logo)을 쓴다. 네이티브 모듈이 없는 옛 dev client에서도
 // 화면이 뜨도록 가드해서 로드하고, 없으면 시스템 폰트의 애플 글리프로 대체한다.
@@ -50,7 +51,7 @@ export default function LoginScreen() {
     try {
       await fn();
     } catch (err) {
-      setError(err instanceof Error ? err.message : '로그인에 실패했어요. 다시 시도해주세요.');
+      setError(err instanceof Error ? err.message : t('login.failed'));
     } finally {
       setBusy(false);
     }
@@ -67,7 +68,7 @@ export default function LoginScreen() {
           style={styles.logo}
           contentFit="contain"
         />
-        <Text style={styles.tagline}>그 장면에서 뭘 하려 했는지부터</Text>
+        <Text style={styles.tagline}>{t('login.tagline')}</Text>
       </View>
 
       <View style={styles.bottom}>
@@ -76,7 +77,7 @@ export default function LoginScreen() {
           onPress={onGoogle}
           disabled={busy}
           accessibilityRole="button"
-          accessibilityLabel="Google로 계속하기">
+          accessibilityLabel={t('login.google')}>
           {busy ? (
             <ActivityIndicator color={GOOGLE_TEXT} />
           ) : (
@@ -87,7 +88,7 @@ export default function LoginScreen() {
                 style={styles.googleLogo}
                 contentFit="contain"
               />
-              <Text style={styles.googleText}>Google로 계속하기</Text>
+              <Text style={styles.googleText}>{t('login.google')}</Text>
             </>
           )}
         </Pressable>
@@ -101,18 +102,18 @@ export default function LoginScreen() {
             onPress={() => run(signInWithApple)}
             disabled={busy}
             accessibilityRole="button"
-            accessibilityLabel="Apple로 로그인">
+            accessibilityLabel={t('login.apple')}>
             {SymbolView ? (
               <SymbolView name="apple.logo" tintColor="#FFFFFF" size={23} />
             ) : (
               <Text style={styles.appleGlyph}></Text>
             )}
-            <Text style={styles.appleText}>Apple로 로그인</Text>
+            <Text style={styles.appleText}>{t('login.apple')}</Text>
           </Pressable>
         )}
 
         {error && <Text style={styles.error}>{error}</Text>}
-        <Text style={styles.legal}>계속하면 서비스 약관과 개인정보 처리방침에 동의하게 돼요.</Text>
+        <Text style={styles.legal}>{t('login.legal')}</Text>
       </View>
     </SafeAreaView>
   );

@@ -1,4 +1,5 @@
 import type { SavedPracticeReport } from '@/lib/api';
+import { translate } from './i18n.ts';
 
 export type ReportDisplay = {
   title: string;
@@ -18,7 +19,7 @@ export function reportDisplay(report: SavedPracticeReport): ReportDisplay {
       blocked: report.line_meaning,
       evidence: report.evidence.join('\n'),
       actorWords: report.target_effect,
-      next: `아직 해보지 않은 제안 · ${report.next_take.direction}`,
+      next: translate('report.untried', { direction: report.next_take.direction }),
       caution: report.acting_caution,
     };
   }

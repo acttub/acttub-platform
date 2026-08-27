@@ -1,3 +1,5 @@
+import { translate } from './i18n.ts';
+
 export type ReportPractice<T> = {
   coachSessionId: string | null;
   report: T | null;
@@ -9,7 +11,7 @@ export async function createOrReuseReport<T>(
 ): Promise<T> {
   if (practice.report) return practice.report;
   if (!practice.coachSessionId) {
-    throw new Error('코치 대화가 끝나지 않아 카드를 만들 수 없어요.');
+    throw new Error(translate('report.notDone'));
   }
   const report = await createReport(practice.coachSessionId);
   practice.report = report;

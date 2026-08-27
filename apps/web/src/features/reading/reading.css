@@ -1,0 +1,101 @@
+/* 상대역 리딩 화면 토큰 — pen 시안(RN앱 반영.pen A8·W10·D9)의 토스 톤 값. globals.css 가 가져온다.
+   bare 이름(bg-blue, text-ink…)만 정의하므로 Tailwind 기본 팔레트(blue-500 등)와 겹치지 않는다. */
+:root {
+  --rd-blue: #3182f6;
+  --rd-blue-dark: #1b64da;
+  --rd-blue-soft: #e8f3ff;
+  --rd-blue-mist: #f8fbff;
+  --rd-blue-line: #dce9ff;
+  --rd-ink: #191f28;
+  --rd-ink-strong: #333d4b;
+  --rd-ink-sub: #4e5968;
+  --rd-ink-3: #6b7684;
+  --rd-ink-4: #8b95a1;
+  --rd-ink-5: #b0b8c1;
+  --rd-line: #e5e8eb;
+  --rd-line-soft: #edf0f3;
+  --rd-gray-bg: #f2f4f6;
+  --rd-gray-bg-2: #f9fafb;
+  --rd-surface: #ffffff;
+  --rd-green: #009959;
+  --rd-green-bg: #e5f8ef;
+  --rd-warn: #8a4b00;
+  --rd-warn-bg: #fff8ec;
+  --rd-red: #e42939;
+  --rd-navy: #0f1525;
+  --rd-blue-light: #8fa5ff;
+  --rd-muted: #9fb0c9;
+  --rd-partner: #b45309;
+  --rd-partner-soft: #d9a066;
+  --rd-me-soft: #7fb0f5;
+}
+
+@theme inline {
+  --color-blue: var(--rd-blue);
+  --color-blue-dark: var(--rd-blue-dark);
+  --color-blue-soft: var(--rd-blue-soft);
+  --color-blue-mist: var(--rd-blue-mist);
+  --color-blue-line: var(--rd-blue-line);
+  --color-ink: var(--rd-ink);
+  --color-ink-strong: var(--rd-ink-strong);
+  --color-ink-sub: var(--rd-ink-sub);
+  --color-ink-3: var(--rd-ink-3);
+  --color-ink-4: var(--rd-ink-4);
+  --color-ink-5: var(--rd-ink-5);
+  --color-line: var(--rd-line);
+  --color-line-soft: var(--rd-line-soft);
+  --color-gray-bg: var(--rd-gray-bg);
+  --color-gray-bg-2: var(--rd-gray-bg-2);
+  --color-surface: var(--rd-surface);
+  --color-green: var(--rd-green);
+  --color-green-bg: var(--rd-green-bg);
+  --color-warn: var(--rd-warn);
+  --color-warn-bg: var(--rd-warn-bg);
+  --color-red: var(--rd-red);
+  --color-navy: var(--rd-navy);
+  --color-blue-light: var(--rd-blue-light);
+  --color-muted: var(--rd-muted);
+  --color-partner: var(--rd-partner);
+  --color-partner-soft: var(--rd-partner-soft);
+  --color-me-soft: var(--rd-me-soft);
+}
+
+/* 사용자 대본 글자는 임의라 시스템 한글 글꼴로 떨어뜨린다 */
+.script-text {
+  font-family: "Pretendard Variable", Pretendard, "Apple SD Gothic Neo", "Noto Sans KR", system-ui, sans-serif;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+.blur-line {
+  filter: blur(8px);
+  user-select: none;
+  pointer-events: none;
+}
+
+@keyframes rd-speaking-bar {
+  0%, 100% { transform: scaleY(0.4); }
+  50% { transform: scaleY(1); }
+}
+.bar {
+  display: inline-block;
+  width: 3px;
+  height: 16px;
+  border-radius: 2px;
+  background: var(--rd-blue);
+  transform-origin: bottom;
+  animation: rd-speaking-bar 0.9s ease-in-out infinite;
+}
+.bar:nth-child(2) { animation-delay: 0.15s; }
+.bar:nth-child(3) { animation-delay: 0.3s; }
+.bar:nth-child(4) { animation-delay: 0.45s; }
+
+@keyframes rd-pulse-ring {
+  0% { box-shadow: 0 0 0 0 rgba(49, 130, 246, 0.45); }
+  100% { box-shadow: 0 0 0 12px rgba(49, 130, 246, 0); }
+}
+.pulse-me { animation: rd-pulse-ring 1.4s ease-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .bar, .pulse-me { animation: none; }
+}

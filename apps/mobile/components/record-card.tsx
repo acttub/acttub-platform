@@ -4,6 +4,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import type { ReportRecord } from '@/lib/api';
 import { formatKoreanDateTime } from '@/lib/format';
 import { palette } from '@/constants/palette';
+import { translate as t } from '@/lib/i18n';
 
 export type RecordMeta = { kind: string; start: string; end: string };
 
@@ -41,7 +42,7 @@ export function RecordCard({
         <Pressable style={styles.cardTextArea} onPress={onPress}>
           <View style={styles.eyebrowRow}>
             <Feather name="activity" size={15} color={palette.textFaint} />
-            <Text style={styles.eyebrow}>연습 카드</Text>
+            <Text style={styles.eyebrow}>{t('recordCard.eyebrow')}</Text>
           </View>
           <Text style={styles.cardTitle} numberOfLines={2}>
             {item.title}

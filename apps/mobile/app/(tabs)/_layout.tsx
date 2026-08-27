@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { HapticTab } from '@/components/haptic-tab';
 import { palette } from '@/constants/palette';
+import { translate as t } from '@/lib/i18n';
 
 /**
  * 하단 탭 — 홈 / 기록 / [촬영(FAB)] / 게시판 / 프로필.
@@ -49,7 +50,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: '홈',
+          title: t('tabs.home'),
           tabBarIcon: ({ color, focused }) => (
             <View style={[styles.iconPill, focused && styles.iconPillActive]}>
               <Feather size={21} name="home" color={color} />
@@ -60,7 +61,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="history"
         options={{
-          title: '기록',
+          title: t('tabs.history'),
           tabBarIcon: ({ color, focused }) => (
             <View style={[styles.iconPill, focused && styles.iconPillActive]}>
               <Feather size={21} name="file-text" color={color} />
@@ -77,11 +78,11 @@ export default function TabLayout() {
               <Pressable
                 style={styles.fab}
                 accessibilityRole="button"
-                accessibilityLabel="촬영 시작"
+                accessibilityLabel={t('tabs.shootA11y')}
                 onPress={() => router.push('/upload')}>
                 <Feather name="video" size={24} color="#FFFFFF" />
               </Pressable>
-              <Text style={styles.fabLabel}>촬영</Text>
+              <Text style={styles.fabLabel}>{t('tabs.shoot')}</Text>
             </View>
           ),
         }}
@@ -89,7 +90,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="community"
         options={{
-          title: '게시판',
+          title: t('tabs.community'),
           tabBarIcon: ({ color, focused }) => (
             <View style={[styles.iconPill, focused && styles.iconPillActive]}>
               <Feather size={21} name="message-square" color={color} />
@@ -100,7 +101,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="settings"
         options={{
-          title: '프로필',
+          title: t('tabs.profile'),
           tabBarIcon: ({ color, focused }) => (
             <View style={[styles.iconPill, focused && styles.iconPillActive]}>
               <Feather size={21} name="user" color={color} />

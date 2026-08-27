@@ -23,6 +23,7 @@ import {
   type CommunityCategory,
   type CommunityPost,
 } from '@/lib/community';
+import { translate as t } from '@/lib/i18n';
 
 /** A4. 게시판 — 카테고리 칩 + 글 목록. 로그인 없이도 읽을 수 있다. */
 export default function CommunityScreen() {
@@ -49,7 +50,7 @@ export default function CommunityScreen() {
         setNow(Date.now());
         setError(null);
       } catch {
-        setError('글을 불러오지 못했어요.');
+        setError(t('community.loadFail'));
       } finally {
         setLoading(false);
         setRefreshing(false);
@@ -70,16 +71,16 @@ export default function CommunityScreen() {
     <SafeAreaView style={styles.safe} edges={['top']}>
       <View style={styles.header}>
         <View style={styles.flex}>
-          <Text style={styles.title}>게시판</Text>
-          <Text style={styles.sub}>같이 준비하는 사람들 이야기</Text>
+          <Text style={styles.title}>{t('community.title')}</Text>
+          <Text style={styles.sub}>{t('community.sub')}</Text>
         </View>
         <Pressable
           style={styles.writeBtn}
           accessibilityRole="button"
-          accessibilityLabel="글쓰기"
+          accessibilityLabel={t('community.write')}
           onPress={() => router.push(user ? '/community-new' : '/login')}>
           <Feather name="edit-3" size={16} color="#FFFFFF" />
-          <Text style={styles.writeLabel}>글쓰기</Text>
+          <Text style={styles.writeLabel}>{t('community.write')}</Text>
         </Pressable>
       </View>
 
@@ -125,7 +126,7 @@ export default function CommunityScreen() {
           {!error && posts.length === 0 && (
             <View style={styles.empty}>
               <Feather name="message-square" size={28} color={palette.checkOff} />
-              <Text style={styles.emptyText}>아직 글이 없어요.{'\n'}첫 글을 남겨보세요.</Text>
+              <Text style={styles.emptyText}>{t('community.empty')}</Text>
             </View>
           )}
           {posts.map((post) => (

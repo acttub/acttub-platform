@@ -2,6 +2,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { Platform } from 'react-native';
 
 import { startCancellableCompression } from '@/lib/cancellable-transfer';
+import { translate } from './i18n.ts';
 
 export type CompletedCompressResult = {
   kind: 'completed';
@@ -149,5 +150,5 @@ export function formatSizeChange(result: CompletedCompressResult): string | null
   if (!o || !c || result.uri === '' || c >= o) return null;
   const mb = (b: number) => (b / (1024 * 1024)).toFixed(b >= 100 * 1024 * 1024 ? 0 : 1);
   const savedPct = Math.round((1 - c / o) * 100);
-  return `영상 크기 ${mb(o)}MB → ${mb(c)}MB (${savedPct}% 감소)`;
+  return translate('compress.result', { from: mb(o), to: mb(c), pct: savedPct });
 }

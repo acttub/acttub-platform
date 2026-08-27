@@ -26,6 +26,7 @@ type Item = {
 
 const ITEMS: Item[] = [
   { href: "/practice/new", label: "홈", icon: "home", match: ["/practice", "/home"] },
+  { href: "/reading", label: "리딩", icon: "book", match: ["/reading"] },
   { href: "/admissions", label: "입시", icon: "school", match: ["/admissions"] },
   { href: "/community", label: "커뮤", icon: "chat", match: ["/community"] },
   { href: "/app", label: "앱", icon: "phone", match: ["/app"] },
@@ -73,7 +74,7 @@ function RailLink({ item, active }: { item: Item; active: boolean }) {
   );
 }
 
-type IconName = "home" | "school" | "chat" | "phone";
+type IconName = "home" | "book" | "school" | "chat" | "phone";
 
 /**
  * 유니코드 글리프(⌂ ◎ ▢)는 글자마다 실제 크기가 제각각이라 셋을 나란히 두면
@@ -95,6 +96,13 @@ function RailIcon({ name }: { name: IconName }) {
         <>
           <path d="M4 10.5 12 4l8 6.5" />
           <path d="M6 10v9.5h12V10" />
+        </>
+      )}
+      {name === "book" && (
+        <>
+          <path d="M4 5.5A2 2 0 0 1 6 3.5h13v14H6a2 2 0 0 0-2 2v-14Z" />
+          <path d="M4 19.5A2 2 0 0 0 6 21.5h13v-4" />
+          <path d="M8.5 8h6M8.5 11.5h4" />
         </>
       )}
       {name === "school" && (

@@ -19,6 +19,7 @@ import { createOrReuseReport } from '@/lib/report-flow';
 import { palette } from '@/constants/palette';
 import { Markdown } from '@/components/markdown';
 import { reportDisplay } from '@/lib/report-display';
+import { translate as t } from '@/lib/i18n';
 
 /**
  * A4. 피드백 카드 — 4블록 단일 초점형 (명세 §4).
@@ -43,12 +44,12 @@ export default function ReportScreen() {
   const loadReport = useCallback(async () => {
     if (requestInFlightRef.current) return;
     if (!practice) {
-      setError('진행 중인 연습이 없어요.');
+      setError(t('report.noPractice'));
       setLoading(false);
       return;
     }
     if (!practice.coachSessionId) {
-      setError('코치 대화가 끝나지 않아 카드를 만들 수 없어요.');
+      setError(t('report.notDone'));
       setLoading(false);
       return;
     }
@@ -60,7 +61,7 @@ export default function ReportScreen() {
       if (mountedRef.current) setReport(nextReport);
     } catch (err) {
       if (mountedRef.current) {
-        setError(err instanceof Error ? err.message : '카드를 만들지 못했어요.');
+        setError(err instanceof Error ? err.message : t('report.createFail'));
       }
     } finally {
       requestInFlightRef.current = false;
@@ -100,7 +101,7 @@ export default function ReportScreen() {
     <SafeAreaView style={styles.safe} edges={['bottom']}>
       <Stack.Screen
         options={{
-          title: practice?.scene.situation.trim() || '분석 결과',
+          title: practice?.scene.situation.trim() || t('report.fallbackTitle'),
           headerBackVisible: false,
           headerShadowVisible: false,
         }}
@@ -109,7 +110,7 @@ export default function ReportScreen() {
       {!report && loading && (
         <View style={styles.center}>
           <ActivityIndicator color={palette.blue} size="large" />
-          <Text style={styles.loadingText}>대화를 정리해서 카드를 만들고 있어요…</Text>
+          <Text style={styles.loadingText}>{t('report.making')}</Text>
         </View>
       )}
 
@@ -118,27 +119,25 @@ export default function ReportScreen() {
           <Text style={styles.errorText}>{error}</Text>
           {practice?.coachSessionId && (
             <Pressable style={styles.primary} onPress={() => void loadReport()}>
-              <Text style={styles.primaryText}>다시 시도</Text>
+              <Text style={styles.primaryText}>{t('common.retry')}</Text>
             </Pressable>
           )}
           <Pressable style={styles.ghost} onPress={finish}>
-            <Text style={styles.ghostText}>홈으로</Text>
+            <Text style={styles.ghostText}>{t('common.goHome')}</Text>
           </Pressable>
         </View>
       )}
 
       {report?.report_type === 'blocked' && (
         <View style={styles.center}>
-          <Text style={styles.title}>아직 정리가 만들어지지 않았어요</Text>
-          <Text style={styles.loadingText}>
-            대화가 조금 더 이어지면 오늘 정리를 볼 수 있어요.
-          </Text>
+          <Text style={styles.title}>{t('report.notReadyTitle')}</Text>
+          <Text style={styles.loadingText}>{t('report.notReadyBody')}</Text>
           <Pressable style={styles.primary} onPress={() => router.back()}>
-            <Text style={styles.primaryText}>대화로 돌아가기</Text>
+            <Text style={styles.primaryText}>{t('report.backToChat')}</Text>
           </Pressable>
           {/* 정리가 안 만들어졌어도 갇히지 않게 — 홈으로 가는 길을 항상 둔다(SOMA-444). */}
           <Pressable style={styles.ghost} onPress={finish}>
-            <Text style={styles.ghostText}>홈으로</Text>
+            <Text style={styles.ghostText}>{t('common.goHome')}</Text>
           </Pressable>
         </View>
       )}
@@ -146,11 +145,11 @@ export default function ReportScreen() {
       {report && report.report_type !== 'blocked' && display && practice && (
         <>
           <View style={styles.statusRow}>
-            <Text style={styles.confirmed}>✓ 배우님과 맞춘 내용</Text>
+            <Text style={styles.confirmed}>{t('report.confirmed')}</Text>
             <SceneFoldLink
               open={sceneOpen}
               onToggle={() => setSceneOpen((was) => !was)}
-              label="영상·장면 보기"
+              label={t('blockage.sceneFold')}
             />
           </View>
           <SceneFoldBody open={sceneOpen} videoUri={sceneVideo} />
@@ -163,15 +162,15 @@ export default function ReportScreen() {
             <View style={styles.heading}>
               <Text style={styles.title}>{display.title}</Text>
               <Text style={styles.subtitle}>
-                “{practice.scene.goal}” — 이걸 하려던 장면이었어요.
+                {t('report.goalQuote', { goal: practice.scene.goal })}
               </Text>
             </View>
 
-            <Section label="대화에서 찾은 것">
+            <Section label={t('report.secFound')}>
               <Markdown source={display.found} />
             </Section>
 
-            <Section label="지금 막힌 곳">
+            <Section label={t('report.secStuck')}>
               <Markdown source={display.blocked} />
               {!!display.evidence && (
                 <View style={styles.quote}>
@@ -181,7 +180,7 @@ export default function ReportScreen() {
             </Section>
 
             {!!display.actorWords && (
-              <Section label="배우님이 남긴 문장">
+              <Section label={t('report.secLine')}>
                 <View style={styles.quoteBlue}>
                   <Markdown source={display.actorWords} />
                 </View>
@@ -189,22 +188,22 @@ export default function ReportScreen() {
             )}
 
             {!!display.caution && (
-              <Section label="연기할 때 조심할 점">
+              <Section label={t('report.secCare')}>
                 <Markdown source={display.caution} />
               </Section>
             )}
 
-            <Section label="다음 테이크 · 배우님이 고른 한 문장">
+            <Section label={t('report.secNext')}>
               <Text style={styles.nextTake}>{display.next}</Text>
             </Section>
 
             {/* 긴 문구가 반쪽 버튼에서 줄바꿈으로 깨져서 세로로 쌓는다(SOMA-444). */}
             <View style={styles.buttonRow}>
               <Pressable style={styles.primary} onPress={retake}>
-                <Text style={styles.primaryText}>이 연습에 이어서 다시 찍기 →</Text>
+                <Text style={styles.primaryText}>{t('report.retakeCta')}</Text>
               </Pressable>
               <Pressable style={styles.ghost} onPress={finish}>
-                <Text style={styles.ghostText}>오늘은 여기까지</Text>
+                <Text style={styles.ghostText}>{t('report.doneToday')}</Text>
               </Pressable>
             </View>
           </ScrollView>

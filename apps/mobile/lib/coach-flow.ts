@@ -1,3 +1,5 @@
+import { translate } from './i18n.ts';
+
 export type CoachInputState = {
   text: string;
   waiting: boolean;
@@ -27,7 +29,7 @@ export async function attemptCoachStart<T>(
   } catch {
     return {
       ok: false,
-      message: '코치 연결에 실패했어요. 다시 시도해주세요.',
+      message: translate('coachFlow.connectFail'),
     };
   }
 }

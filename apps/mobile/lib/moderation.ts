@@ -3,15 +3,17 @@
  * 값은 서버 enum(/v2/community/reports)과 같아야 한다.
  */
 
+import { translate } from './i18n.ts';
+
 export type ReportTargetType = 'post' | 'comment';
 export type ReportReason = 'spam' | 'abuse' | 'sexual' | 'privacy' | 'other';
 
 export const REPORT_REASONS: { value: ReportReason; label: string }[] = [
-  { value: 'spam', label: '광고·도배' },
-  { value: 'abuse', label: '욕설·비방' },
-  { value: 'sexual', label: '선정적인 내용' },
-  { value: 'privacy', label: '개인정보 노출' },
-  { value: 'other', label: '그 밖의 문제' },
+  { value: 'spam', label: translate('moderation.spam') },
+  { value: 'abuse', label: translate('moderation.abuse') },
+  { value: 'sexual', label: translate('moderation.sexual') },
+  { value: 'privacy', label: translate('moderation.privacy') },
+  { value: 'other', label: translate('moderation.other') },
 ];
 
 /**

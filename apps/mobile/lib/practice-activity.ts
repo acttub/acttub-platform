@@ -1,5 +1,7 @@
+import { translateList } from './i18n.ts';
+
 const DAY_MS = 24 * 60 * 60 * 1000;
-const WEEKDAY_LABELS = ['월', '화', '수', '목', '금', '토', '일'];
+const WEEKDAY_LABELS = translateList('home.weekdays');
 
 export type ActivityDay = {
   /** 로컬 자정 기준 날짜 키 (YYYY-M-D). */

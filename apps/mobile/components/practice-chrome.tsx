@@ -3,6 +3,7 @@ import { useVideoPlayer, VideoView, type VideoSource } from 'expo-video';
 
 import { palette } from '@/constants/palette';
 import type { SceneContext } from '@/lib/api';
+import { translate as t, translateList } from '@/lib/i18n';
 
 /**
  * 연습 흐름(막히는 지점 → 분석 → 질문 대화)의 화면들이 공유하는 머리 부분.
@@ -18,7 +19,7 @@ import type { SceneContext } from '@/lib/api';
  * 지나온 단계는 체크로, 지금 단계는 진하게 둔다.
  */
 export function Stepper({ current }: { current: 1 | 2 | 3 }) {
-  const labels = ['영상 올리기', '장면 적기', '질문 받기'];
+  const labels = translateList('practiceChrome.steps');
   return (
     <View style={styles.stepper}>
       {labels.map((label, index) => {
@@ -75,7 +76,7 @@ export function ProgressRow({
 export function SceneFoldLink({
   open,
   onToggle,
-  label = '영상 보기',
+  label = t('practiceChrome.videoFold'),
 }: {
   open: boolean;
   onToggle: () => void;
@@ -85,7 +86,7 @@ export function SceneFoldLink({
     <Pressable
       onPress={onToggle}
       accessibilityRole="button"
-      accessibilityLabel={`${label} ${open ? '접기' : '펼치기'}`}
+      accessibilityLabel={`${label} ${open ? t('common.fold') : t('common.unfold')}`}
       accessibilityState={{ expanded: open }}
       // 글자는 12px 인데 화면 오른쪽 끝에 붙어 있어서, 누르는 칸을 글자보다 넓게 잡는다.
       // 애플이 권하는 최소 44pt 를 세로로 확보한다 — 손가락으로는 글자만큼 정확히 못 짚는다.
@@ -123,7 +124,7 @@ export function SceneFoldBody({
       {hasVideo ? (
         <VideoView style={styles.video} player={player} nativeControls contentFit="contain" />
       ) : (
-        <Text style={styles.foldEmpty}>다시 볼 수 있는 영상이 없어요.</Text>
+        <Text style={styles.foldEmpty}>{t('practiceChrome.noVideo')}</Text>
       )}
     </View>
   );
@@ -140,11 +141,11 @@ export function SceneSummary({
   title?: string;
 }) {
   const rows: [string, string][] = [
-    ['상황', scene.situation],
-    ['인물', scene.character],
-    ['목표', scene.goal],
+    [t('practiceChrome.rowSituation'), scene.situation],
+    [t('practiceChrome.rowCharacter'), scene.character],
+    [t('practiceChrome.rowGoal'), scene.goal],
   ];
-  if (blockage?.kind) rows.push(['막힌 곳', blockage.kind]);
+  if (blockage?.kind) rows.push([t('practiceChrome.rowBlockage'), blockage.kind]);
 
   return (
     <View style={title ? styles.summaryWithTitle : undefined}>
@@ -155,7 +156,7 @@ export function SceneSummary({
             <View style={styles.rowLabelCell}>
               <Text style={styles.rowLabel}>{label}</Text>
             </View>
-            <Text style={styles.rowValue}>{value.trim() || '적지 않았어요'}</Text>
+            <Text style={styles.rowValue}>{value.trim() || t('practiceChrome.notWritten')}</Text>
           </View>
         ))}
         {blockage?.detail ? (
@@ -172,9 +173,7 @@ export function SceneSummary({
 export function PracticeFooter() {
   return (
     <View style={styles.footer}>
-      <Text style={styles.footerText}>
-        영상에서 눈에 남은 곳을 묻고, 마지막 한 문장은 배우님이 직접 써요.
-      </Text>
+      <Text style={styles.footerText}>{t('practiceChrome.intro')}</Text>
     </View>
   );
 }

@@ -3,6 +3,7 @@ import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { palette } from '@/constants/palette';
+import { translate as t } from '@/lib/i18n';
 
 export type DialogAction = {
   label: string;
@@ -111,7 +112,7 @@ export function useAppDialog() {
             <Pressable
               style={({ pressed }) => [styles.sheetCancel, pressed && styles.pressed]}
               onPress={() => close(false)}>
-              <Text style={styles.sheetCancelText}>{state.options.cancelLabel ?? '취소'}</Text>
+              <Text style={styles.sheetCancelText}>{state.options.cancelLabel ?? t('common.cancel')}</Text>
             </Pressable>
           </Pressable>
         ) : (
@@ -125,7 +126,7 @@ export function useAppDialog() {
                 <Pressable
                   style={({ pressed }) => [styles.button, styles.cancel, pressed && styles.pressed]}
                   onPress={() => close(false)}>
-                  <Text style={styles.cancelText}>{state.options.cancelLabel ?? '취소'}</Text>
+                  <Text style={styles.cancelText}>{state.options.cancelLabel ?? t('common.cancel')}</Text>
                 </Pressable>
               )}
               <Pressable
@@ -136,7 +137,7 @@ export function useAppDialog() {
                   pressed && styles.pressed,
                 ]}
                 onPress={() => close(true)}>
-                <Text style={styles.confirmText}>{state.options.confirmLabel ?? '확인'}</Text>
+                <Text style={styles.confirmText}>{state.options.confirmLabel ?? t('common.confirm')}</Text>
               </Pressable>
             </View>
           </Pressable>

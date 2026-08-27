@@ -1200,6 +1200,12 @@ function WorkspaceInner() {
               }`}
             >
               <Link
+                href="/reading"
+                className="flex h-8 items-center rounded-[10px] px-2 text-xs font-black text-[#8b95a1] transition hover:bg-[#f2f4f6] hover:text-[#4e5968]"
+              >
+                리딩
+              </Link>
+              <Link
                 href="/admissions"
                 className="flex h-8 items-center rounded-[10px] px-2 text-xs font-black text-[#8b95a1] transition hover:bg-[#f2f4f6] hover:text-[#4e5968]"
               >

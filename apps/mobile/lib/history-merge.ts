@@ -5,6 +5,8 @@
  * 서버 호출은 화면이 하고, 여기는 섞고 정렬하는 순수 로직만 든다.
  */
 
+import { translate } from './i18n.ts';
+
 export type HistoryReportLike = { practice_session_id: string; created_at: string };
 export type HistorySessionLike = { session_id: string; created_at: string };
 
@@ -35,5 +37,5 @@ export function mergeHistory<R extends HistoryReportLike, S extends HistorySessi
 /** 세션 카드 제목 — 장면 메모가 없으면 대신 붙일 이름. */
 export function sessionCardTitle(situation: string | null | undefined): string {
   const t = situation?.trim();
-  return t || '장면 메모 없이 연습';
+  return t || translate('history.noSceneTitle');
 }

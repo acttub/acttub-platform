@@ -17,6 +17,7 @@ import {
   upcomingNotices,
   type AdmissionsResponse,
 } from '@/lib/admissions';
+import { translate as t } from '@/lib/i18n';
 
 const PREVIEW_COUNT = 2;
 
@@ -91,8 +92,8 @@ export default function HomeScreen() {
       <ScrollView contentContainerStyle={styles.container}>
         <View style={styles.helloRow}>
           <View style={styles.flex}>
-            <Text style={styles.hello}>{name ? `${name}님, 안녕하세요 👋` : '안녕하세요 👋'}</Text>
-            <Text style={styles.helloSub}>오늘은 어떤 장면을 연습할까요?</Text>
+            <Text style={styles.hello}>{name ? t('home.helloName', { name }) : t('home.hello')}</Text>
+            <Text style={styles.helloSub}>{t('home.helloSub')}</Text>
           </View>
         </View>
 
@@ -100,26 +101,26 @@ export default function HomeScreen() {
         <Pressable
           style={({ pressed }) => [styles.coachCard, pressed && styles.coachCardPressed]}
           accessibilityRole="button"
-          accessibilityLabel="연습 시작"
+          accessibilityLabel={t('home.startA11y')}
           onPress={() => router.push('/upload')}>
-          <Text style={styles.coachLabel}>AI 코치</Text>
+          <Text style={styles.coachLabel}>{t('home.coachLabel')}</Text>
           <Text style={styles.coachHeadline}>
             {latest
-              ? '지난 연습 카드를 이어 연습해 볼까요?'
-              : '영상을 올리면 막힌 지점과 다음 시도를 정리해요'}
+              ? t('home.headlineContinue')
+              : t('home.headlineNew')}
           </Text>
           <Text style={styles.coachBody} numberOfLines={2}>
             {latest
               ? latest.title
-              : '의도가 왜 안 닿았는지와 당장 해볼 한 가지를 찾아요.'}
+              : t('home.bodyNew')}
           </Text>
-          <Text style={styles.coachCtaText}>연습 시작 →</Text>
+          <Text style={styles.coachCtaText}>{t('home.cta')}</Text>
         </Pressable>
 
         {/* 연습 활동 — 이번 주(월~일) */}
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>연습 활동</Text>
-          <Text style={styles.sectionMeta}>이번 주 · {weekTotal}회</Text>
+          <Text style={styles.sectionTitle}>{t('home.activityTitle')}</Text>
+          <Text style={styles.sectionMeta}>{t('home.weekMeta', { count: weekTotal })}</Text>
         </View>
         <View style={styles.activityCard}>
           <View style={styles.week}>
@@ -136,7 +137,7 @@ export default function HomeScreen() {
                     day.isFuture && styles.weekCellFuture,
                     day.isToday && styles.weekCellToday,
                   ]}
-                  accessibilityLabel={`${day.label}요일 ${day.count}회`}
+                  accessibilityLabel={t('home.dayA11y', { day: day.label, count: day.count })}
                 />
                 <Text style={[styles.weekLabel, day.isToday && styles.weekLabelToday]}>
                   {day.label}
@@ -147,19 +148,19 @@ export default function HomeScreen() {
           <View style={styles.activityFooter}>
             {streak >= 1 ? (
               <View style={styles.streakChip}>
-                <Text style={styles.streak}>🔥 {streak}일 연속</Text>
+                <Text style={styles.streak}>{t('home.streak', { days: streak })}</Text>
               </View>
             ) : (
               <Text style={styles.streakEmpty}>
-                {total ? '꾸준함이 쌓이는 중이에요' : '첫 연습이 여기에 쌓여요'}
+                {total ? t('home.streakBuilding') : t('home.streakEmpty')}
               </Text>
             )}
             <View style={styles.legend}>
-              <Text style={styles.legendLabel}>적음</Text>
+              <Text style={styles.legendLabel}>{t('home.legendLow')}</Text>
               {weekColors.map((color) => (
                 <View key={color} style={[styles.legendSwatch, { backgroundColor: color }]} />
               ))}
-              <Text style={styles.legendLabel}>많음</Text>
+              <Text style={styles.legendLabel}>{t('home.legendHigh')}</Text>
             </View>
           </View>
         </View>
@@ -168,28 +169,28 @@ export default function HomeScreen() {
         <View style={styles.statRow}>
           <View style={styles.statItem}>
             <Text style={styles.statValue}>{total}</Text>
-            <Text style={styles.statLabel}>연습</Text>
+            <Text style={styles.statLabel}>{t('home.statPractice')}</Text>
           </View>
           <View style={styles.statDivider} />
           <View style={styles.statItem}>
             <Text style={styles.statValue}>{streak}</Text>
-            <Text style={styles.statLabel}>연속일</Text>
+            <Text style={styles.statLabel}>{t('home.statStreakDays')}</Text>
           </View>
         </View>
 
         {/* 최근 연습 */}
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>최근 연습</Text>
+          <Text style={styles.sectionTitle}>{t('home.recentTitle')}</Text>
           {records.length > 0 && (
             <Pressable onPress={() => router.push('/history')}>
-              <Text style={styles.sectionLink}>전체보기</Text>
+              <Text style={styles.sectionLink}>{t('common.viewAll')}</Text>
             </Pressable>
           )}
         </View>
         {recent.length === 0 ? (
           <View style={styles.emptyCard}>
             <Text style={styles.emptyText}>
-              아직 기록이 없어요.{'\n'}가운데 파란 버튼으로 첫 영상을 올려보세요.
+              {t('home.empty')}
             </Text>
           </View>
         ) : (
@@ -213,15 +214,15 @@ export default function HomeScreen() {
         {deadlines.length > 0 && (
           <>
             <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>연기 입시</Text>
+              <Text style={styles.sectionTitle}>{t('home.admissionsTitle')}</Text>
               <Pressable onPress={() => router.push('/admissions')}>
-                <Text style={styles.sectionLink}>전체보기</Text>
+                <Text style={styles.sectionLink}>{t('common.viewAll')}</Text>
               </Pressable>
             </View>
             <Pressable
               style={styles.admissionCard}
               accessibilityRole="button"
-              accessibilityLabel="연기 입시 정보 보기"
+              accessibilityLabel={t('home.admissionsA11y')}
               onPress={() => router.push('/admissions')}>
               {deadlines.map(({ university, notice, remaining }, index) => (
                 <View

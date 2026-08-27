@@ -1,3 +1,5 @@
+import { translate } from './i18n.ts';
+
 export class ApiError extends Error {
   readonly status: number;
   readonly code?: string;
@@ -18,7 +20,7 @@ export class ApiError extends Error {
 }
 
 export class NetworkError extends ApiError {
-  constructor(message = '네트워크 연결을 확인하고 다시 시도해주세요.', cause?: unknown) {
+  constructor(message = translate('errors.network'), cause?: unknown) {
     super(0, message, 'network_error', cause);
     this.name = 'NetworkError';
   }
@@ -33,8 +35,8 @@ export class RequestAbortError extends ApiError {
     super(
       0,
       kind === 'timeout'
-        ? '요청 시간이 초과됐어요. 네트워크를 확인하고 다시 시도해주세요.'
-        : '요청이 취소됐어요.',
+        ? translate('errors.timeout')
+        : translate('errors.aborted'),
       kind,
     );
     this.name = 'RequestAbortError';
@@ -122,29 +124,29 @@ function errorDetail(body: unknown): unknown {
 export function friendlyError(status: number, body: unknown): string {
   switch (status) {
     case 401:
-      return '로그인이 만료됐어요. 다시 로그인해주세요.';
+      return translate('errors.sessionExpired');
     case 403:
       // 탈퇴한 계정은 "권한이 없다" 가 아니라 계정이 사라진 것이다. 그대로 두면
       // 왜 아무것도 안 되는지 알 수 없다.
       return errorDetail(body) === 'account_deactivated'
-        ? '탈퇴한 계정이에요. 다시 시작하려면 새로 로그인해주세요.'
-        : '이 작업을 할 권한이 없어요.';
+        ? translate('errors.withdrawn')
+        : translate('errors.forbidden');
     case 413:
-      return '영상이 너무 커서 서버가 받지 못했어요. 구간을 잘라 더 작게 올려주세요.';
+      return translate('errors.tooLarge');
     case 422:
-      return '입력값을 확인해주세요. 문제가 계속되면 영상을 다시 선택해주세요.';
+      return translate('errors.badInput');
     case 429:
-      return '요청이 잠시 몰렸어요. 1분 뒤에 다시 시도해주세요.';
+      return translate('errors.rateLimited');
     case 500:
-      return '서버 오류가 발생했어요. 잠시 후 다시 시도해주세요.';
+      return translate('errors.server');
     case 502:
     case 503:
     case 504:
-      return '서버가 잠시 불안정해요. 잠시 후 다시 시도해주세요.';
+      return translate('errors.unstable');
     default: {
       const detail = errorDetail(body);
       if (typeof detail === 'string') return detail;
-      return `요청을 처리하지 못했어요. (오류 ${status})`;
+      return translate('errors.generic', { status });
     }
   }
 }
@@ -203,7 +205,7 @@ async function readPayload(response: Response): Promise<unknown> {
     text = await response.text();
   } catch (error) {
     if (error instanceof TypeError) {
-      throw new NetworkError('응답을 읽는 중 연결이 끊어졌어요. 다시 시도해주세요.', error);
+      throw new NetworkError(translate('errors.readCut'), error);
     }
     throw error;
   }
@@ -263,7 +265,7 @@ export function createApiRequestClient(dependencies: ApiRequestDependencies) {
   function sessionChangedError(): ApiError {
     return new ApiError(
       401,
-      '로그인 계정이 변경되어 요청을 중단했어요. 다시 시도해주세요.',
+      translate('errors.accountChanged'),
       'session_changed',
     );
   }
@@ -423,7 +425,7 @@ export function createApiRequestClient(dependencies: ApiRequestDependencies) {
       );
       throwIfCancelled(options.signal);
       if (refresh.kind === 'invalid') {
-        throw new ApiError(401, '로그인이 만료됐어요. 다시 로그인해주세요.', 'unauthorized');
+        throw new ApiError(401, translate('errors.sessionExpired'), 'unauthorized');
       }
       if (refresh.kind === 'session_changed') throw sessionChangedError();
       assertSameAuthSession(authSessionEpoch!);

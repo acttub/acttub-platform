@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "../features/reading/reading.css";
 
 :root {
   --background: #f2f4f6;

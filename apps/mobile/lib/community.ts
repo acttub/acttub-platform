@@ -5,6 +5,8 @@
  * 앱에서 세지 않는다 — 댓글이 커서로 나뉘어 오면 페이지마다 번호가 달라진다.
  */
 
+import { translate } from './i18n.ts';
+
 export type CommunityAuthor = {
   id?: string | null;
   nickname?: string | null;
@@ -53,8 +55,8 @@ export type CommentListResponse = { comments: CommunityComment[]; next_cursor?: 
  * 익명이면 서버가 준 alias를 그대로 쓰고, 없으면 '익명'으로 떨어뜨린다.
  */
 export function authorName(author: CommunityAuthor, anonymous: boolean): string {
-  if (anonymous) return author.alias?.trim() || '익명';
-  return author.nickname?.trim() || '배우';
+  if (anonymous) return author.alias?.trim() || translate('community.anon');
+  return author.nickname?.trim() || translate('community.actorFallback');
 }
 
 /** 목록 카드에 넣을 본문 한 줄. 줄바꿈을 공백으로 눕히고 길면 자른다. */
@@ -73,16 +75,16 @@ export function relativeTime(iso: string, now: number | null): string {
   if (Number.isNaN(at)) return '';
   const diff = Math.max(0, now - at);
   const minute = 60_000;
-  if (diff < minute) return '방금';
-  if (diff < 60 * minute) return `${Math.floor(diff / minute)}분 전`;
-  if (diff < 24 * 60 * minute) return `${Math.floor(diff / (60 * minute))}시간 전`;
+  if (diff < minute) return translate('community.justNow');
+  if (diff < 60 * minute) return translate('community.minutesAgo', { count: Math.floor(diff / minute) });
+  if (diff < 24 * 60 * minute) return translate('community.hoursAgo', { count: Math.floor(diff / (60 * minute)) });
   const days = Math.floor(diff / (24 * 60 * minute));
-  if (days < 7) return `${days}일 전`;
+  if (days < 7) return translate('community.daysAgo', { count: days });
   return new Date(at).toISOString().slice(0, 10);
 }
 
 /** 카테고리 칩에 쓸 목록. 맨 앞에 '전체'를 끼운다. */
-export const ALL_CATEGORY = { slug: '', name: '전체' } as const;
+export const ALL_CATEGORY = { slug: '' as const, name: translate('community.all') };
 
 export function categoryChips(categories: CommunityCategory[]) {
   return [ALL_CATEGORY, ...categories.map((c) => ({ slug: c.slug, name: c.name }))];
