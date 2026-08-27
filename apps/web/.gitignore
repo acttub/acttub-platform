@@ -20,3 +20,6 @@
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# onnxruntime wasm 런타임 사본 — scripts/copy-ort.mjs 가 dev/build 전에 node_modules 에서 복사한다
+/public/ort/

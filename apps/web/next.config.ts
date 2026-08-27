@@ -39,6 +39,43 @@ const nextConfig: NextConfig = {
       { source: "/health", destination: `${apiOrigin}/health` },
     ];
   },
+  // 상대역 리딩(/reading)은 브라우저 안에서 onnxruntime wasm 으로 음성을 만든다. 멀티스레드
+  // wasm 에는 SharedArrayBuffer 가 필요하고, 그건 교차 출처 격리(COOP+COEP)가 켜진 문서에만 있다.
+  // **이 경로에만** 건다 — COOP same-origin 을 사이트 전체에 걸면 Google/Apple 로그인 팝업이
+  // opener 를 잃어 로그인이 끝나지 않는다(SOMA-447). credentialless 라 외부 CSS·모델(HF CDN)은
+  // CORP 헤더 없이도 자격증명 없이 받아진다.
+  async headers() {
+    return [
+      {
+        source: "/reading/:path*",
+        headers: [
+          { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
+          { key: "Cross-Origin-Embedder-Policy", value: "credentialless" },
+        ],
+      },
+      {
+        source: "/reading",
+        headers: [
+          { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
+          { key: "Cross-Origin-Embedder-Policy", value: "credentialless" },
+        ],
+      },
+    ];
+  },
+  // hwp.js 는 파일 경로로도 읽을 수 있게 만들어져 `fs` 를 부른다. 브라우저에는 없고
+  // 우리는 바이트를 직접 넘기므로 빈 모듈로 바꾼다. 빌드는 webpack(`--webpack`), dev 는
+  // Turbopack 이라 둘 다 적는다.
+  turbopack: {
+    resolveAlias: {
+      fs: { browser: "./src/lib/reading/script/fs-stub.ts" },
+    },
+  },
+  webpack(config, { isServer }) {
+    if (!isServer) {
+      config.resolve.fallback = { ...(config.resolve.fallback ?? {}), fs: false };
+    }
+    return config;
+  },
 };
 
 /**

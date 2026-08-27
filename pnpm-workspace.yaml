@@ -11,5 +11,7 @@ allowBuilds:
   # 소스맵 업로드에 쓰는 네이티브 바이너리를 postinstall에서 받는다. 막으면 빌드는
   # 통과하지만 업로드 단계에서 스택트레이스가 난독화된 채로 남는다.
   '@sentry/cli': true
+  # onnxruntime-web(상대역 리딩)이 끌고 온다. 설치 스크립트는 코드 생성용이라 우리 쪽에서 쓸 일이 없다.
+  protobufjs: false
   sharp: true
   unrs-resolver: true
