@@ -68,11 +68,11 @@ export function SetupScreen({
         고를 수가 없으므로 접어서 쌓고, 그래도 길면 안에서 굴린다.
         대사가 많은 배역이 앞에 오게 해서 위에서부터 찾을 수 있게 한다.
       */}
-      <div className="flex flex-wrap gap-2 max-h-[280px] overflow-y-auto">
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-2 max-h-[320px] overflow-y-auto">
         {[...script.roles]
           .sort((a, b) => count(b) - count(a))
           .map((r) => (
-            <SelectCard key={r} selected={r === myRole} onClick={() => setMyRole(r)} title={r} sub={`대사 ${count(r)}줄`} />
+            <SelectCard key={r} compact selected={r === myRole} onClick={() => setMyRole(r)} title={r} sub={`${count(r)}줄`} />
           ))}
       </div>
     </Card>

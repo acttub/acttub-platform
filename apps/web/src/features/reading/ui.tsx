@@ -124,6 +124,7 @@ export function SelectCard({
   sub,
   icon,
   className = "",
+  compact = false,
 }: {
   selected: boolean;
   onClick: () => void;
@@ -131,7 +132,24 @@ export function SelectCard({
   sub?: string;
   icon?: IconName;
   className?: string;
+  /** 한 줄 배치 — 배역처럼 항목이 많아 격자에 놓을 때. 이름은 꺾이지 않고 넘치면 말줄임. */
+  compact?: boolean;
 }) {
+  if (compact) {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        className={`min-w-0 flex items-center gap-2 text-left rounded-[14px] px-3.5 py-3 border transition-colors ${
+          selected ? "bg-blue-soft border-blue border-[1.5px]" : "bg-surface border-line active:bg-gray-bg-2"
+        } ${className}`}
+      >
+        <span className={`script-text min-w-0 flex-1 truncate text-[15px] font-black [word-break:keep-all] ${selected ? "text-blue" : "text-ink"}`}>{title}</span>
+        {sub && <span className={`shrink-0 text-[12px] ${selected ? "text-blue-dark" : "text-ink-4"}`}>{sub}</span>}
+        {selected && <Icon name="circle-check" size={18} className="shrink-0 text-blue" />}
+      </button>
+    );
+  }
   return (
     <button
       type="button"
