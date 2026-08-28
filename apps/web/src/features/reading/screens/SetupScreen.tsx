@@ -65,10 +65,10 @@ export function SetupScreen({
       <CardTitle title="내 배역 고르기" sub="고른 배역은 기다리고, 나머지 배역을 소리로 읽어드려요." />
       {/*
         배역이 마흔 명 넘는 대본이 있다. 한 줄로 늘어놓으면 화면 밖으로 밀려나
-        고를 수가 없으므로 접어서 쌓고, 그래도 길면 안에서 굴린다.
+        고를 수가 없으므로 한 줄에 하나씩 세로로 쌓고, 길면 안에서 굴린다.
         대사가 많은 배역이 앞에 오게 해서 위에서부터 찾을 수 있게 한다.
       */}
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-2 max-h-[320px] overflow-y-auto">
+      <div className="flex flex-col gap-2 max-h-[360px] overflow-y-auto">
         {[...script.roles]
           .sort((a, b) => count(b) - count(a))
           .map((r) => (
