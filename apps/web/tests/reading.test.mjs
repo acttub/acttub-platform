@@ -15,3 +15,4 @@ await import("./reading/cast.test.ts");
 await import("./reading/cast-noise.test.ts");
 await import("./reading/cast-pdf.test.ts");
 await import("./reading/cast-desc.test.ts");
+await import("./reading/step.test.ts");

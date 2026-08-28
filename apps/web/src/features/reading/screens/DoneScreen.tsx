@@ -1,16 +1,10 @@
 "use client";
 
-import type { Setup, StoredScript } from "@/lib/reading/storage";
+import type { RunStats, Setup, StoredScript } from "@/lib/reading/storage";
 import { Page } from "@/features/reading/page-shell";
 import { Button, Icon } from "@/features/reading/ui";
 
-export interface RunStats {
-  mode: "read" | "quiz";
-  elapsedMs: number;
-  lineCount: number;
-  /** 암기 대조 전용 — 글자 대조 결과만 담는다 */
-  quiz?: { attempted: number; passed: number; pending: number };
-}
+export type { RunStats } from "@/lib/reading/storage";
 
 function fmt(ms: number) {
   const s = Math.floor(ms / 1000);

@@ -22,8 +22,18 @@ export interface Setup {
   advanceMode: AdvanceMode;
 }
 
+/** 리딩 한 번의 결과. 완료 화면이 보여 준다 — 페이지가 나뉘어 있어 여기 저장해 넘긴다. */
+export interface RunStats {
+  mode: Mode;
+  elapsedMs: number;
+  lineCount: number;
+  /** 암기 대조 전용 — 글자 대조 결과만 담는다 */
+  quiz?: { attempted: number; passed: number; pending: number };
+}
+
 const SCRIPT_KEY = "rehearsal.script";
 const SETUP_KEY = "rehearsal.setup";
+const STATS_KEY = "rehearsal.stats";
 
 function read<T>(key: string): T | null {
   try {
@@ -48,4 +58,6 @@ export const storage = {
   saveScript: (s: StoredScript | null) => write(SCRIPT_KEY, s),
   loadSetup: () => read<Setup>(SETUP_KEY),
   saveSetup: (s: Setup | null) => write(SETUP_KEY, s),
+  loadStats: () => read<RunStats>(STATS_KEY),
+  saveStats: (s: RunStats | null) => write(STATS_KEY, s),
 };
