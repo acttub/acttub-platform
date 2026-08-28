@@ -83,6 +83,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v2/push-tokens": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Register Push Token
+         * @description 이 단말의 Expo push token 을 현재 사용자 것으로 등록한다. 멱등.
+         */
+        post: operations["register_push_token_v2_push_tokens_post"];
+        /**
+         * Unregister Push Token
+         * @description 이 단말의 토큰을 지운다. 로그아웃·알림 끄기에서 부른다. 멱등.
+         */
+        delete: operations["unregister_push_token_v2_push_tokens_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v2/practice-sessions": {
         parameters: {
             query?: never;
@@ -775,6 +799,16 @@ export interface components {
              */
             reason: "confirmed_analysis_handoff_required" | "confirmed_expression_handoff_required";
         };
+        /** RegisterPushTokenRequest */
+        RegisterPushTokenRequest: {
+            /** Token */
+            token: string;
+            /**
+             * Platform
+             * @enum {string}
+             */
+            platform: "ios" | "android";
+        };
         /** PracticeSessionRequest */
         PracticeSessionRequest: {
             /**
@@ -1016,6 +1050,8 @@ export interface components {
              * @default false
              */
             restart: boolean;
+            /** Theory */
+            theory?: string | null;
         };
         /** CoachTurnResponse */
         CoachTurnResponse: {
@@ -1762,6 +1798,11 @@ export interface components {
             /** Commit */
             commit: string;
         };
+        /** UnregisterPushTokenRequest */
+        UnregisterPushTokenRequest: {
+            /** Token */
+            token: string;
+        };
     };
     responses: never;
     parameters: never;
@@ -1942,6 +1983,68 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["AnalysisReport"] | components["schemas"]["ExpressionReport"] | components["schemas"]["BlockedReport"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    register_push_token_v2_push_tokens_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RegisterPushTokenRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    unregister_push_token_v2_push_tokens_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UnregisterPushTokenRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

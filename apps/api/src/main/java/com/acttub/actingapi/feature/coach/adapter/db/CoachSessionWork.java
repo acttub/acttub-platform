@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.UUID;
 
 import com.acttub.actingapi.feature.coach.app.CoachSessionSnapshot;
+import com.acttub.actingapi.feature.coach.app.PriorContext;
 import com.acttub.actingapi.feature.coach.app.LookupError;
 import com.acttub.actingapi.feature.coach.app.OwnedPracticeSessionContext;
 import com.acttub.actingapi.feature.coach.app.SessionWriteConflict;
@@ -51,6 +52,7 @@ public class CoachSessionWork {
                     cs.status::text AS coach_status,
                     cs.close_reason::text AS close_reason,
                     cs.conversation_summary,
+                    cs.theory,
                     s.observations_json::text AS observations_json,
                     s.uncertainties_json::text AS uncertainties_json,
                     ps.id AS practice_session_id,
@@ -127,7 +129,9 @@ public class CoachSessionWork {
                 analysisHandoff,
                 row.status(),
                 row.closeReason() == null ? "" : row.closeReason(),
-                turns);
+                turns,
+                PriorContext.EMPTY,
+                row.theory());
     }
 
     public void saveCoachSession(CoachSessionSnapshot session, OffsetDateTime now) {
@@ -308,15 +312,17 @@ public class CoachSessionWork {
                     summary_id,
                     status,
                     close_reason,
-                    conversation_summary
+                    conversation_summary,
+                    theory
                 )
-                VALUES (?, ?, ?, ?::session_status_t, NULL, ?)
+                VALUES (?, ?, ?, ?::session_status_t, NULL, ?, ?)
                 """,
                 session.sessionId(),
                 session.practiceSessionId(),
                 session.summaryId(),
                 session.status(),
-                session.conversationSummary());
+                session.conversationSummary(),
+                session.theory());
         for (int index = 0; index < session.turns().size(); index++) {
             CoachTurnSnapshot turn = session.turns().get(index);
             jdbc.update("""
@@ -549,6 +555,7 @@ public class CoachSessionWork {
                 row.getString("coach_status"),
                 row.getString("close_reason"),
                 row.getString("conversation_summary"),
+                row.getString("theory"),
                 parseJson(row.getString("observations_json")),
                 parseJson(row.getString("uncertainties_json")),
                 row.getObject("practice_session_id", UUID.class),
@@ -623,6 +630,7 @@ public class CoachSessionWork {
             String status,
             String closeReason,
             String conversationSummary,
+            String theory,
             JsonNode observations,
             JsonNode uncertainties,
             UUID practiceSessionId,

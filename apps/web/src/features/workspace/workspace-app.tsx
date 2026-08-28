@@ -294,6 +294,9 @@ function WorkspaceInner() {
   const [answer, setAnswer] = useState("");
   const [sending, setSending] = useState(false);
   const [coachOpening, setCoachOpening] = useState(false);
+  // undefined = 아직 안 고름, null = 안 고르고 시작, string = 고른 접근법
+  const theoryRef = useRef<string | null | undefined>(undefined);
+  const [needsTheory, setNeedsTheory] = useState(false);
   const coachIdRef = useRef<string | null>(null);
   const dialogueTurnCountRef = useRef(0);
 
@@ -553,12 +556,18 @@ function WorkspaceInner() {
 
     const coordinator = createCoachStartCoordinator(async () => {
       if (!isCurrentSession(practiceSessionId)) return;
+      // 접근법을 고르기 전에는 대화를 열지 않는다 — 선택이 첫 질문부터 반영돼야 한다.
+      if (theoryRef.current === undefined) {
+        setNeedsTheory(true);
+        return;
+      }
       dispatch({ type: "coachStarting" });
       setCoachOpening(true);
       setError(null);
       try {
         const { data: start } = await startCoach({
           practice_session_id: practiceSessionId,
+          ...(theoryRef.current ? { theory: theoryRef.current } : {}),
         });
         if (!isCurrentSession(practiceSessionId)) return;
         restoreCoach(start);
@@ -810,6 +819,29 @@ function WorkspaceInner() {
       setSending(false);
     }
   }, [answer, sending, pushAi]);
+
+  // 접근법을 고르면 그때 대화를 연다.
+  const chooseTheory = useCallback(async (theory: string | null) => {
+    const practiceSessionId = currentSessionId();
+    if (!practiceSessionId) return;
+    theoryRef.current = theory;
+    setNeedsTheory(false);
+    dispatch({ type: "coachStarting" });
+    setCoachOpening(true);
+    setError(null);
+    try {
+      const { data } = await startCoach({
+        practice_session_id: practiceSessionId,
+        restart: true,
+        ...(theory ? { theory } : {}),
+      });
+      restoreCoach(data);
+    } catch {
+      setError("대화를 시작하지 못했어요. 잠시 후 다시 시도해 주세요.");
+    } finally {
+      setCoachOpening(false);
+    }
+  }, [currentSessionId, restoreCoach]);
 
   const restartAfterBlocked = useCallback(async () => {
     const practiceSessionId = currentSessionId();
@@ -1260,6 +1292,8 @@ function WorkspaceInner() {
                 onFinish={openReview}
                 onContinueNext={continueFromCurrent}
               />
+            ) : needsTheory ? (
+              <TheoryPicker onPick={(theory) => void chooseTheory(theory)} />
             ) : (
               <ChatPanel
                 key={activeId ?? "new"}
@@ -2178,6 +2212,46 @@ function SceneRows({ rows }: { rows: [string, string][] }) {
         </div>
       ))}
     </dl>
+  );
+}
+
+/* ── 접근법 선택 스텝 ─────────────────────────────────────────── */
+
+const THEORY_OPTIONS: { key: string | null; title: string; hint: string }[] = [
+  { key: null, title: "잘 모르겠어요", hint: "영상에서 보이는 것부터 꺼내 드려요" },
+  { key: "stanislavski", title: "스타니슬랍스키 이론", hint: "장면에서 무엇을 하려는지부터 — 상황과 목적, 상대에게 하는 행동" },
+  { key: "hagen", title: "우타 하겐 이론", hint: "인물과 나 사이의 거리부터 — 이 공간에서 실제로 겪고 있는 것" },
+  { key: "meisner", title: "마이즈너 이론", hint: "상대에게서 오는 것부터 — 상대가 한 행동과 그 때문에 바뀐 것" },
+  { key: "chubbuck", title: "이바나 처벅 이론", hint: "목표를 행동으로 옮기는 것부터 — 손이 하는 일, 속으로 하는 말" },
+  { key: "chekhov", title: "미하일 체홉 이론", hint: "몸과 이미지부터 — 몸짓 하나, 중심, 공간의 공기" },
+  { key: "donnellan", title: "데클란 도넬란 이론", hint: "밖에 있는 대상부터 — 지금 주의가 향하는 것" },
+  { key: "johnstone", title: "키스 존스톤 이론", hint: "관계의 힘이 움직이는 방향부터 — 누가 올라가고 누가 내려가는가" },
+  { key: "demidov", title: "니콜라이 데미도프 이론", hint: "먼저 온 반응부터 — 이유를 붙이기 전에 생긴 것" },
+];
+
+function TheoryPicker({ onPick }: { onPick: (theory: string | null) => void }) {
+  return (
+    <div className="min-h-0 flex-1 overflow-y-auto bg-[#f7faff] px-4 py-6 sm:px-5 sm:py-8">
+      <div className="mx-auto w-full max-w-[760px]">
+        <h2 className="text-[19px] font-black text-[#191f28]">어떤 방식으로 볼까요?</h2>
+        <p className="mt-1.5 text-[13.5px] text-[#6b7684]">
+          고른 것에 따라 코치가 다른 각도로 물어봐요.
+        </p>
+        <div className="mt-5 flex flex-col gap-2.5">
+          {THEORY_OPTIONS.map((option) => (
+            <button
+              key={option.key ?? "none"}
+              type="button"
+              onClick={() => onPick(option.key)}
+              className="w-full rounded-2xl bg-white px-4 py-3.5 text-left transition hover:bg-[#f2f7ff]"
+            >
+              <span className="block text-[15px] font-bold text-[#191f28]">{option.title}</span>
+              <span className="mt-0.5 block text-[13px] text-[#8b95a1]">{option.hint}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
   );
 }
 

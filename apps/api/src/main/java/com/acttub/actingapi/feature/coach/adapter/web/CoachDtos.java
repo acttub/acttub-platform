@@ -20,7 +20,9 @@ public final class CoachDtos {
     @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
     public record CoachStartReq(
             @NotNull UUID practiceSessionId,
-            @Schema(defaultValue = "false") Boolean restart) {
+            @Schema(defaultValue = "false") Boolean restart,
+            // 배우가 세션 시작 때 고른 연기 접근법. 안 고르면 null 이고 기존 코치 그대로 돈다.
+            @Schema(nullable = true) String theory) {
         public CoachStartReq {
             restart = restart == null ? Boolean.FALSE : restart;
         }

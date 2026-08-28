@@ -14,7 +14,7 @@ public final class CoachCommands {
     }
 
     /** 대화를 연다. {@code restart} 면 열려 있던 대화를 닫고 새로 시작한다. */
-    public record CoachStart(UUID practiceSessionId, boolean restart) {
+    public record CoachStart(UUID practiceSessionId, boolean restart, String theory) {
     }
 
     /** 배우가 이번 턴에 한 말. */

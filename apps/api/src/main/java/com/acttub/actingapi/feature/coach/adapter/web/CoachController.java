@@ -73,7 +73,7 @@ class CoachController {
         var user = auth.consentedUser(request);
         CoachPayload payload = coach.start(
                 user.id(),
-                new CoachStart(req.practiceSessionId(), req.restart()),
+                new CoachStart(req.practiceSessionId(), req.restart(), req.theory()),
                 requestIdHeader);
         return responses.ok(payload.body(), payload.requestId());
     }

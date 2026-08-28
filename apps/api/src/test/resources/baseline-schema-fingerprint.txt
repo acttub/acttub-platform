@@ -28,6 +28,7 @@ COLUMN coach_sessions.id ord=1 type=uuid len=- null=NO default=-
 COLUMN coach_sessions.practice_session_id ord=7 type=uuid len=- null=NO default=-
 COLUMN coach_sessions.status ord=3 type=session_status_t len=- null=NO default='open'::session_status_t
 COLUMN coach_sessions.summary_id ord=2 type=uuid len=- null=YES default=-
+COLUMN coach_sessions.theory ord=9 type=text len=- null=YES default=-
 COLUMN coach_sessions.updated_at ord=6 type=timestamptz len=- null=NO default=now()
 COLUMN coach_turns.created_at ord=6 type=timestamptz len=- null=NO default=now()
 COLUMN coach_turns.id ord=1 type=int8 len=- null=NO default=nextval('coach_turns_id_seq'::regclass)

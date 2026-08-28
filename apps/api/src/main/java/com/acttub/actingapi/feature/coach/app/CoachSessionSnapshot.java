@@ -26,12 +26,41 @@ public record CoachSessionSnapshot(
         String status,
         String closeReason,
         List<CoachTurnSnapshot> turns,
-        PriorContext prior) {
+        PriorContext prior,
+        String theory) {
 
     public CoachSessionSnapshot {
         transcripts = List.copyOf(transcripts);
         turns = List.copyOf(turns);
         prior = prior == null ? PriorContext.EMPTY : prior;
+        theory = theory == null || theory.isBlank() ? null : theory;
+    }
+
+    /** 접근법을 모르는 자리에서 쓰는 생성자. 기존 호출을 그대로 두기 위한 위임이다. */
+    public CoachSessionSnapshot(
+            UUID sessionId,
+            UUID practiceSessionId,
+            UUID summaryId,
+            UUID userId,
+            JsonNode observationPack,
+            String situation,
+            String characterContext,
+            String goal,
+            int durationMs,
+            String blockageKind,
+            String subBranch,
+            String blockageDetail,
+            List<String> transcripts,
+            String conversationSummary,
+            JsonNode analysisHandoff,
+            String status,
+            String closeReason,
+            List<CoachTurnSnapshot> turns,
+            PriorContext prior) {
+        this(sessionId, practiceSessionId, summaryId, userId, observationPack, situation,
+                characterContext, goal, durationMs, blockageKind, subBranch, blockageDetail,
+                transcripts, conversationSummary, analysisHandoff, status, closeReason, turns,
+                prior, null);
     }
 
     /**
@@ -68,7 +97,7 @@ public record CoachSessionSnapshot(
                 sessionId, practiceSessionId, summaryId, userId, observationPack, situation,
                 characterContext, goal, durationMs, blockageKind, subBranch, blockageDetail,
                 transcripts, conversationSummary, analysisHandoff, status, closeReason, turns,
-                newPrior);
+                newPrior, theory);
     }
 
     public CoachSessionSnapshot withTurns(List<CoachTurnSnapshot> newTurns) {
@@ -91,7 +120,8 @@ public record CoachSessionSnapshot(
                 status,
                 closeReason,
                 newTurns,
-                prior);
+                prior,
+                theory);
     }
 
     public CoachSessionSnapshot withStatus(String newStatus) {
@@ -114,6 +144,16 @@ public record CoachSessionSnapshot(
                 newStatus,
                 closeReason,
                 turns,
-                prior);
+                prior,
+                theory);
+    }
+
+    /** 배우가 고른 접근법을 실어 새 스냅샷을 만든다. */
+    public CoachSessionSnapshot withTheory(String newTheory) {
+        return new CoachSessionSnapshot(
+                sessionId, practiceSessionId, summaryId, userId, observationPack, situation,
+                characterContext, goal, durationMs, blockageKind, subBranch, blockageDetail,
+                transcripts, conversationSummary, analysisHandoff, status, closeReason, turns,
+                prior, newTheory);
     }
 }

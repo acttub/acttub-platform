@@ -124,6 +124,99 @@ public final class CoachPrompt {
         return com.acttub.actingapi.platform.web.PythonText.rstrip(text.substring(0, end)) + "…";
     }
 
+
+    /** 프롬프트 리소스가 있는 접근법. 값은 coach/theory/*.txt 파일 이름과 같다. */
+    private static final java.util.Set<String> THEORIES = java.util.Set.of(
+            "stanislavski", "hagen", "meisner", "chubbuck", "chekhov",
+            "donnellan", "johnstone", "demidov");
+
+    /**
+     * 접근법을 고른 세션에서 「세션의 목적」·「질문의 방향」보다 먼저 지키게 하는 지시.
+     *
+     * <p>이 블록만으로는 두 절을 이기지 못한다 — 실제로 두 절을 갈아끼우는 것은
+     * {@link #select(CoachSessionSnapshot)} 이고, 여기는 그 위에 얹는 우선순위 선언이다.
+     */
+    private static final String THEORY_SYSTEM_BLOCK = """
+
+# 이번 세션의 접근법 — 위의 「세션의 목적」·「질문의 방향」보다 우선한다
+
+배우가 이 접근법을 **직접 골랐다.** 이 세션의 대화는 처음부터 끝까지 이 각도로 진행한다.
+
+* 위 「세션의 목적」의 세 칸을 채우는 것보다, **이 각도로 배우가 자기 문장을 얻는 것이 먼저다.**
+* 위 「질문의 방향」 다섯 갈래 중 이 각도와 맞지 않는 것은 쓰지 않는다.
+* 특히 **「상대에게 바라는 변화」는 이 접근법이 그리로 이끌 때만 묻는다.** 대화가 막혔을 때 돌아가는 기본값으로 쓰지 않는다.
+* 세 칸은 마지막 응답에서 정리한다. 중간 턴에서 그 칸을 채우려고 질문의 각도를 바꾸지 않는다.
+""";
+
+    /** 세션이 고른 접근법. 모르는 이름이면 없는 것으로 본다. */
+    static String theoryOf(CoachSessionSnapshot session) {
+        String theory = session.theory();
+        return theory != null && THEORIES.contains(theory) ? theory : null;
+    }
+
+    /** 유저 프롬프트에 끼우는 질문 은행. 접근법이 없으면 빈 문자열. */
+    private static String theoryBankBlock(CoachSessionSnapshot session) {
+        String theory = theoryOf(session);
+        if (theory == null) {
+            return "";
+        }
+        return load("/coach/theory/rules.txt") + "\n\n"
+                + load("/coach/theory/" + theory + ".txt") + "\n\n";
+    }
+
+    /**
+     * 접근법을 고른 세션이면 시스템 프롬프트의 <b>뼈대 두 절을 갈아끼운다</b>.
+     *
+     * <p>「세션의 목적」과 「질문의 방향」이 대화가 어디로 가는지를 정한다 — 뒤에 몇 줄
+     * 덧붙이는 것으로는 두 절을 이기지 못한다(2026-08-26 실측: 8줄만 붙이면 3턴째부터
+     * 원래 다섯 갈래로 돌아간다). 접근법별 core 파일이 그 두 절을 통째로 대신한다.
+     */
+    public static String select(CoachSessionSnapshot session) {
+        String base = select(session.blockageKind());
+        String theory = theoryOf(session);
+        if (theory == null) {
+            return base;
+        }
+        String core = loadOrNull("/coach/theory/core/" + theory + ".txt");
+        if (core != null) {
+            int split = core.indexOf("# 질문의 방향");
+            if (split > 0) {
+                base = replaceSection(base, "# 세션의 목적", "# 입력 정보",
+                        core.substring(0, split).stripTrailing());
+                base = replaceSection(base, "# 질문의 방향", "# 선택지 사용 규칙",
+                        core.substring(split).stripTrailing());
+            }
+        }
+        return base + THEORY_SYSTEM_BLOCK;
+    }
+
+    /** heading 절을 nextHeading 직전까지 통째로 replacement 로 바꾼다. */
+    private static String replaceSection(
+            String prompt, String heading, String nextHeading, String replacement) {
+        int start = prompt.indexOf(heading);
+        if (start < 0) {
+            return prompt;
+        }
+        int end = prompt.indexOf(nextHeading, start + heading.length());
+        if (end < 0) {
+            return prompt;
+        }
+        return prompt.substring(0, start) + replacement + "\n\n" + prompt.substring(end);
+    }
+
+    /** 없으면 null. */
+    private static String loadOrNull(String resource) {
+        try (InputStream input = CoachPrompt.class.getResourceAsStream(resource)) {
+            if (input == null) {
+                return null;
+            }
+            String value = new String(input.readAllBytes(), StandardCharsets.UTF_8);
+            return value.endsWith("\n") ? value.substring(0, value.length() - 1) : value;
+        } catch (IOException exc) {
+            return null;
+        }
+    }
+
     public static String select(String blockageKind) {
         return "표현".equals(blockageKind) ? COACH_V3_PROMPT : COACH_V2_PROMPT;
     }
@@ -203,6 +296,7 @@ public final class CoachPrompt {
 
         return priorContextBlock(session.prior())
                 + actorMaterialBlock(session)
+                + theoryBankBlock(session)
                 + transcriptBlock + "\n\n"
                 + "## 영상에서 확인된 것\n"
                 + "이 팩만 영상 근거로 쓴다. 이 호출에는 영상이 첨부되지 않았고 새 영상 사실을 만들면 안 된다.\n"
