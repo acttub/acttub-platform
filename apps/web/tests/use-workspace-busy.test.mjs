@@ -29,7 +29,6 @@ test("아무 일도 안 돌면 아무것도 잠기지 않는다", () => {
     assert.deepEqual(probe.latest.disabled, {
       remove: false,
       backToChat: false,
-      blockageSubmit: false,
     });
     assert.equal(probe.text(), "none");
   } finally {
@@ -44,8 +43,6 @@ test("지난 연습을 여는 중에는 지우기와 대화 되돌리기가 잠�
     assert.deepEqual(probe.latest.disabled, {
       remove: true,
       backToChat: true,
-      // 여는 중에는 막힘을 고르는 화면이 아니다 — 그 전이가 준비 화면으로 되돌렸다.
-      blockageSubmit: false,
     });
     assert.equal(probe.text(), "remove,backToChat");
   } finally {
@@ -53,14 +50,13 @@ test("지난 연습을 여는 중에는 지우기와 대화 되돌리기가 잠�
   }
 });
 
-test("지우는 중에는 셋 다 잠긴다", () => {
+test("지우는 중에는 두 동작이 잠긴다", () => {
   const probe = mountProbe();
   try {
     start(probe, "deleting", "s-1");
     assert.deepEqual(probe.latest.disabled, {
       remove: true,
       backToChat: true,
-      blockageSubmit: true,
     });
   } finally {
     probe.unmount();
@@ -75,7 +71,6 @@ test("대화를 다시 여는 중에는 지우기만 잠긴다", () => {
       remove: true,
       // 이 길은 시작하는 순간 노트 화면을 떠나 그 버튼 자체가 사라진다.
       backToChat: false,
-      blockageSubmit: false,
     });
   } finally {
     probe.unmount();

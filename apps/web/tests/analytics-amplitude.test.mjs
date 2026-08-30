@@ -54,7 +54,7 @@ const {
   trackLoginFailed,
   trackPracticeAbandoned,
   trackPracticeAnalysisSettled,
-  trackPracticeBlockageStarted,
+  trackPracticeDetailOpened,
   trackPracticeSceneSkipped,
   trackPracticeBlockageSubmitted,
   trackPracticeDialogueCompleted,
@@ -173,7 +173,7 @@ test("23개 이벤트 래퍼가 계약 속성만 보내고 금지 키를 만들�
 
   trackPracticePrepOpened("new");
   trackPracticeVideoSelected(12 * 1024 * 1024, true);
-  trackPracticeBlockageStarted();
+  trackPracticeDetailOpened();
   trackPracticeSceneSkipped();
   trackPracticeBlockageSubmitted("분석", "대사 분석", sensitiveText);
   trackPracticeUploadFailed("put", { status: 503, message: sensitiveText });
@@ -219,7 +219,7 @@ test("23개 이벤트 래퍼가 계약 속성만 보내고 금지 키를 만들�
       "login_failed",
       "practice_abandoned",
       "practice_analysis_settled",
-      "practice_blockage_started",
+      "practice_detail_opened",
       "practice_blockage_submitted",
       "practice_dialogue_completed",
       "practice_dialogue_start_failed",
@@ -241,7 +241,7 @@ test("23개 이벤트 래퍼가 계약 속성만 보내고 금지 키를 만들�
   const allowedKeys = {
     practice_prep_opened: ["entry"],
     practice_video_selected: ["is_reselect", "size_bucket"],
-    practice_blockage_started: [],
+    practice_detail_opened: [],
     practice_scene_skipped: [],
     practice_blockage_submitted: ["has_detail", "kind", "sub_branch"],
     practice_upload_failed: ["reason_code", "stage"],

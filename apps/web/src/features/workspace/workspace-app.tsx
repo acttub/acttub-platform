@@ -15,6 +15,7 @@ import {
   useReducer,
   useRef,
   useState,
+  type ReactNode,
 } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import wordmark from "@/assets/acttub-wordmark.png";
@@ -43,8 +44,8 @@ import {
 import {
   trackPracticeAbandoned,
   trackPracticeAnalysisSettled,
-  trackPracticeBlockageStarted,
   trackPracticeBlockageSubmitted,
+  trackPracticeDetailOpened,
   trackPracticeDialogueCompleted,
   trackPracticeDialogueStartFailed,
   trackPracticeDialogueStarted,
@@ -60,8 +61,13 @@ import {
   trackPracticeVideoSelected,
 } from "@/lib/analytics/amplitude";
 import { ExitReviewModal, useExitReview } from "./exit-review";
-import { BlockageSelectionFlow } from "../practice/blockage-selection";
-import type { BlockageSelection } from "../practice/blockage-flow";
+import { BlockageFields } from "../practice/blockage-selection";
+import {
+  completeBlockageFlowWithDefault,
+  initialBlockageFlowState,
+  type BlockageFlowState,
+  type BlockageSelection,
+} from "../practice/blockage-flow";
 import {
   createCoachStartCoordinator,
   type CoachStartCoordinator,
@@ -82,7 +88,6 @@ import {
 } from "../practice/use-analysis-progress";
 import { useActiveSession } from "./use-active-session";
 import { useWorkspaceBusy } from "./use-workspace-busy";
-import { enterBlockageSelection } from "./blockage-entry";
 import {
   uploadForCurrentFile,
   type PendingVideoUpload,
@@ -273,6 +278,11 @@ function WorkspaceInner() {
   const [situation, setSituation] = useState("");
   const [character, setCharacter] = useState("");
   const [goal, setGoal] = useState("");
+  const [practiceDetailsOpen, setPracticeDetailsOpen] = useState(false);
+  const practiceDetailsTrackedRef = useRef(false);
+  const [blockageFlow, setBlockageFlow] = useState<BlockageFlowState>(
+    initialBlockageFlowState,
+  );
   // 이 셋을 보는 자리가 셋이다 — 건너뛰기를 열지 말지, 세션 생성 요청에 실을 값,
   // 그리고 건너뛴 연습으로 셀지. 한 벌로 묶어 그 셋이 같은 답을 보게 한다.
   const sceneDraft = useMemo<SceneContextDraft>(
@@ -426,6 +436,9 @@ function WorkspaceInner() {
     setSituation("");
     setCharacter("");
     setGoal("");
+    setPracticeDetailsOpen(false);
+    practiceDetailsTrackedRef.current = false;
+    setBlockageFlow(initialBlockageFlowState);
     setDrawerOpen(false);
     replaceUrl("/practice/new");
   }, [clearWork, discardPendingUpload, reportProgress, setCurrentSession]);
@@ -450,9 +463,6 @@ function WorkspaceInner() {
   const view = describeWorkspaceView({
     screen,
     playbackUrl: detail?.playback_url ?? null,
-    // 배우가 지금 칸에 적고 있는 것이다. detail 은 이미 만들어진 연습의 값이라
-    // 건너뛸 수 있는지를 가르지 못한다.
-    scene: sceneDraft,
   });
   const body = view.body;
 
@@ -674,36 +684,34 @@ function WorkspaceInner() {
     return pending;
   }, [reportProgress]);
 
-  // 준비 화면의 두 버튼("질문 받기"·"장면 없이 시작")이 함께 지나는 자리. 무엇을
-  // 세는지만 갈리고 하는 일은 같다 — 갈라 적으면 한쪽만 고치는 실수가 생긴다.
-  const enterBlockage = useCallback(
-    (track: () => void) =>
-      enterBlockageSelection({
-        video: screen.kind === "prep" ? screen.video : null,
-        startUpload,
-        goToBlockage: () => dispatch({ type: "blockageChosen" }),
-        track,
-      }),
-    [screen, startUpload],
-  );
+  const togglePracticeDetails = useCallback(() => {
+    if (!practiceDetailsOpen && !practiceDetailsTrackedRef.current) {
+      practiceDetailsTrackedRef.current = true;
+      trackPracticeDetailOpened();
+    }
+    setPracticeDetailsOpen((current) => !current);
+  }, [practiceDetailsOpen]);
 
-  const begin = useCallback(async (blockage: BlockageSelection) => {
-    // 막힘 선택 화면만 이 길로 온다. 그 화면이 올릴 영상과 이어받을 연습을 들고 있다.
-    if (screen.kind !== "blockage") return;
+  const begin = useCallback(async () => {
+    if (screen.kind !== "prep" || !screen.video) return;
     const { video, continueFrom } = screen;
-    trackPracticeBlockageSubmitted(
-      blockage.blockage_kind,
-      blockage.sub_branch,
-      blockage.blockage_detail,
-    );
+    const blockage = completeBlockageFlowWithDefault(blockageFlow);
+    if (isSceneContextBlank(sceneDraft)) trackPracticeSceneSkipped();
+    if (blockageFlow.kind) {
+      trackPracticeBlockageSubmitted(
+        blockage.blockage_kind,
+        blockage.sub_branch,
+        blockage.blockage_detail,
+      );
+    }
     setError(null);
-    dispatch({ type: "uploadStarted" });
-    // 현재 영상으로 미리 띄운 업로드만 이어받는다. 파일이 다르면 옛 업로드를 버리고 새로 시작한다.
+    // 누른 뒤에야 업로드를 띄운다. 준비 화면 하나에서 선택을 모두 끝내므로 선행 창이 없다.
     const { controller, promise } = uploadForCurrentFile(
       pendingUploadRef.current,
       video.file,
       startUpload,
     );
+    dispatch({ type: "uploadStarted" });
     const reportFailure = (failure: PracticeStartFailure) => {
       trackPracticeUploadFailed(failure.stage, failure.cause);
       // 지금 도는 업로드가 아니면 화면은 이미 다른 것을 그리고 있다.
@@ -779,6 +787,7 @@ function WorkspaceInner() {
     }
   }, [
     screen,
+    blockageFlow,
     sceneDraft,
     enterAnalysis,
     isCurrentSession,
@@ -1279,17 +1288,6 @@ function WorkspaceInner() {
               />
             )}
           </div>
-        ) : body.kind === "blockage" ? (
-          <div className="min-h-0 flex-1 overflow-y-auto bg-[#f7faff] px-4 py-6 sm:px-5 sm:py-8">
-            <div className="mx-auto w-full max-w-[760px]">
-              <BlockageSelectionFlow
-                videoUrl={body.videoUrl}
-                scene={{ situation, character, goal }}
-                submitDisabled={busyDisabled.blockageSubmit}
-                onComplete={(selection) => void begin(selection)}
-              />
-            </div>
-          </div>
         ) : (
           <div className="min-h-0 flex-1 overflow-y-auto px-4 py-6 sm:px-5 sm:py-8">
             <div className="mx-auto flex w-full max-w-[760px] flex-col gap-4 sm:gap-6">
@@ -1331,27 +1329,27 @@ function WorkspaceInner() {
                 className="hidden"
                 onChange={(event) => onPickFile(event.target.files?.[0] ?? null)}
               />
-              <SceneForm
-                situation={visibleScene.situation}
-                character={visibleScene.character}
-                goal={visibleScene.goal}
-                locked={body.sceneLocked}
-                onSituation={setSituation}
-                onCharacter={setCharacter}
-                onGoal={setGoal}
-              />
               {body.footer.kind === "start" ? (
-                <StartRow
-                  ready={body.footer.ready}
-                  skippable={body.footer.skippable}
-                  onStart={() => enterBlockage(trackPracticeBlockageStarted)}
-                  onSkip={() =>
-                    enterBlockage(() => {
-                      trackPracticeSceneSkipped();
-                      trackPracticeBlockageStarted();
-                    })
-                  }
-                />
+                <>
+                  <PracticeDetailsToggle
+                    open={practiceDetailsOpen}
+                    onToggle={togglePracticeDetails}
+                  >
+                    <SceneForm
+                      situation={visibleScene.situation}
+                      character={visibleScene.character}
+                      goal={visibleScene.goal}
+                      onSituation={setSituation}
+                      onCharacter={setCharacter}
+                      onGoal={setGoal}
+                    />
+                    <BlockageFields state={blockageFlow} onChange={setBlockageFlow} />
+                  </PracticeDetailsToggle>
+                  <StartRow
+                    ready={body.footer.ready}
+                    onStart={() => void begin()}
+                  />
+                </>
               ) : body.footer.phase === "upload" ? (
                 <ProgressPanel
                   pct={pct}
@@ -1694,11 +1692,10 @@ function RailItem({
 
 /* ── 준비 화면 ────────────────────────────────────────────────── */
 
-function Stepper({ current }: { current: 1 | 2 | 3 }) {
+function Stepper({ current }: { current: 1 | 2 }) {
   const steps: [string, string][] = [
     ["1", "영상 올리기"],
-    ["2", "장면 적기"],
-    ["3", "질문 받기"],
+    ["2", "질문 받기"],
   ];
   return (
     <ol className="flex items-center gap-2 sm:gap-3">
@@ -1792,11 +1789,39 @@ const VideoBox = memo(function VideoBox({
   );
 });
 
+function PracticeDetailsToggle({
+  open,
+  onToggle,
+  children,
+}: {
+  open: boolean;
+  onToggle: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <section className="overflow-hidden rounded-[18px] bg-[#f7faff] sm:rounded-[20px]">
+      <button
+        type="button"
+        aria-expanded={open}
+        onClick={onToggle}
+        className="flex min-h-14 w-full items-center justify-between gap-3 px-4 py-3 text-left sm:px-5"
+      >
+        <span className="text-[15px] font-black tracking-[-0.02em] text-[#333d4b]">
+          더 알려주시면 더 깊게 볼 수 있어요
+        </span>
+        <span aria-hidden="true" className="shrink-0 text-sm font-black text-[#4e5968]">
+          {open ? "접기" : "펼치기"}
+        </span>
+      </button>
+      {open ? <div className="grid gap-5 px-3 pb-4 sm:px-4 sm:pb-5">{children}</div> : null}
+    </section>
+  );
+}
+
 const SceneForm = memo(function SceneForm({
   situation,
   character,
   goal,
-  locked,
   onSituation,
   onCharacter,
   onGoal,
@@ -1804,7 +1829,6 @@ const SceneForm = memo(function SceneForm({
   situation: string;
   character: string;
   goal: string;
-  locked: boolean;
   onSituation: (v: string) => void;
   onCharacter: (v: string) => void;
   onGoal: (v: string) => void;
@@ -1816,15 +1840,13 @@ const SceneForm = memo(function SceneForm({
       <h2 className="text-[15px] font-black tracking-[-0.03em] sm:text-base">
         이 장면에서 무엇을 연기했는지 알려 주세요
       </h2>
-      {locked ? null : (
-        <p className="mt-1.5 text-[13px] font-semibold leading-5 text-[#6b7684]">
-          비워 두셔도 괜찮아요. 적어 두면 코치가 그 장면을 알고 물어봐요.
-        </p>
-      )}
+      <p className="mt-1.5 text-[13px] font-semibold leading-5 text-[#6b7684]">
+        비워 두셔도 괜찮아요. 적어 두면 코치가 그 장면을 알고 물어봐요.
+      </p>
       <div className="mt-3 grid gap-3">
-        <SceneField label="상황" value={situation} onChange={onSituation} disabled={locked} placeholder="이별을 통보받은 직후, 카페에서" />
-        <SceneField label="인물" value={character} onChange={onCharacter} disabled={locked} placeholder="담담한 척하는 20대 후반 여성" />
-        <SceneField label="목표" value={goal} onChange={onGoal} disabled={locked} placeholder="상대가 마음을 돌려 다시 앉게 만들기" />
+        <SceneField label="상황" value={situation} onChange={onSituation} placeholder="이별을 통보받은 직후, 카페에서" />
+        <SceneField label="인물" value={character} onChange={onCharacter} placeholder="담담한 척하는 20대 후반 여성" />
+        <SceneField label="목표" value={goal} onChange={onGoal} placeholder="상대가 마음을 돌려 다시 앉게 만들기" />
       </div>
     </section>
   );
@@ -1834,13 +1856,11 @@ function SceneField({
   label,
   value,
   onChange,
-  disabled,
   placeholder,
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
-  disabled: boolean;
   placeholder: string;
 }) {
   return (
@@ -1848,10 +1868,9 @@ function SceneField({
       <span className="text-xs font-black text-[#333d4b]">{label}</span>
       <input
         value={value}
-        readOnly={disabled}
         placeholder={placeholder}
         onChange={(event) => onChange(event.target.value)}
-        className="h-11 w-full rounded-xl border border-[#e5e8eb] bg-[#f8fbff] px-3.5 text-base font-semibold text-[#191f28] outline-none transition placeholder:text-[#b0b8c1] focus:border-[#3182f6] focus:bg-white focus:ring-4 focus:ring-[#e8f3ff] read-only:cursor-default read-only:focus:border-[#e5e8eb] read-only:focus:bg-[#f8fbff] read-only:focus:ring-0"
+        className="h-11 w-full rounded-xl border border-[#e5e8eb] bg-[#f8fbff] px-3.5 text-base font-semibold text-[#191f28] outline-none transition placeholder:text-[#b0b8c1] focus:border-[#3182f6] focus:bg-white focus:ring-4 focus:ring-[#e8f3ff]"
       />
     </label>
   );
@@ -1859,14 +1878,10 @@ function SceneField({
 
 function StartRow({
   ready,
-  skippable,
   onStart,
-  onSkip,
 }: {
   ready: boolean;
-  skippable: boolean;
   onStart: () => void;
-  onSkip: () => void;
 }) {
   return (
     <div className="flex flex-col items-center gap-2 sm:flex-row sm:gap-3">
@@ -1879,17 +1894,6 @@ function StartRow({
         >
           질문 받기
         </button>
-        {/* 세 칸이 다 비었을 때만 선다. 한 칸이라도 적었으면 그것이 말없이
-            버려지는 길을 만들지 않는다. */}
-        {skippable ? (
-          <button
-            type="button"
-            onClick={onSkip}
-            className="h-12 shrink-0 rounded-[14px] border border-[#e5e8eb] bg-white px-5 text-[15px] font-bold text-[#4e5968] transition hover:bg-[#f2f4f6]"
-          >
-            장면 없이 시작
-          </button>
-        ) : null}
       </div>
       <span className="text-xs font-semibold text-[#8b95a1]">
         {ready ? "누르면 장면을 보고 질문을 만들어요" : "영상을 올리면 시작할 수 있어요"}

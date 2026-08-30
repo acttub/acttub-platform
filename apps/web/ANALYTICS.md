@@ -150,13 +150,13 @@ GA4는 `isMeasuredHost()`로 로컬 트래픽을 막지만, Amplitude는 그 가
 | --- | --- | --- |
 | `practice_prep_opened` | prep 모드 진입 | `entry`: `new` \| `reset` |
 | `practice_video_selected` | 파일 선택 완료 | `size_bucket`, `is_reselect` |
-| `practice_blockage_started` | 막힘 선택 화면 진입 | — |
-| `practice_blockage_submitted` | "이대로 이어가기" | `kind`, `sub_branch`, `has_detail` |
+| `practice_detail_opened` | 준비 화면의 선택 입력 토글 첫 개봉 | — |
+| `practice_blockage_submitted` | 도움을 실제로 고른 채 시작 | `kind`, `sub_branch`, `has_detail` |
 | `practice_upload_failed` | 업로드·세션 생성 실패 | `stage`: `preflight`\|`intent`\|`put`\|`complete`\|`session_create`, `reason_code` |
 | `practice_session_created` | 세션 생성 성공 | `duration_bucket`, `kind`, `sub_branch` |
 | `practice_analysis_settled` | 분석 종료 | `result`: `analyzed`\|`failed`, `error_code`, `wait_bucket` |
 
-`practice_blockage_started` → `practice_blockage_submitted` 사이의 낙차가 **"막힘 선택이 어렵다"의 크기**다. 그리고 `blockage_submitted` → `upload_failed`는 지금 구조상 가장 아픈 이탈이다: 업로드 전처리 예외가 막힘 3단계를 **다 고른 뒤에야** 사용자에게 보인다(`startUpload`의 rejection이 `begin`의 `await`에서 처음 터진다). 6분짜리 영상을 올린 사람은 질문을 다 고르고 나서 튕긴다. 이 두 이벤트가 그 층의 크기를 처음으로 보여준다.
+`practice_detail_opened`는 선택 입력을 더 열어 본 사람만 센다. `practice_blockage_submitted`는 그중 도움 갈래를 실제로 고른 사람만 세며, 자동으로 채우는 `그 외` 기본값은 포함하지 않는다. 업로드는 준비 화면의 시작 버튼을 누른 뒤 바로 시작하고, 실패는 같은 진행 자리에서 안내한다.
 
 `error_code`는 `PracticeSessionDetail.error_code`의 4종 enum(`gemini_timeout`·`gemini_parse_error`·`unsupported_media`·`max_attempts_exceeded`)을 그대로 싣는다. 지금 화면은 이 값을 전혀 쓰지 않는다.
 
