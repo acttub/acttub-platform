@@ -2,10 +2,55 @@
   "openapi" : "3.1.0",
   "info" : {
     "title" : "acting-api",
-    "description" : "연기 분석 플랫폼 API v2. Bearer access token을 사용합니다.",
+    "description" : "연기 분석 플랫폼 API v2. *** token을 사용합니다.",
     "version" : "0.1.0"
   },
   "paths" : {
+    "/v2/practice-sessions/{session_id}/resolution" : {
+      "put" : {
+        "tags" : [ "v2-practice" ],
+        "summary" : "Record Resolution",
+        "operationId" : "record_resolution_v2_practice_sessions__session_id__resolution_put",
+        "parameters" : [ {
+          "name" : "session_id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Session Id"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ResolutionRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "204" : {
+            "description" : "No Content"
+          },
+          "422" : {
+            "description" : "Validation Error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      }
+    },
     "/v2/me/memory/{field}" : {
       "put" : {
         "tags" : [ "v2-me" ],
@@ -1853,55 +1898,31 @@
           "HTTPBearer" : [ ]
         } ]
       }
-    },
-    "/v2/practice-sessions/{session_id}/resolution" : {
-      "put" : {
-        "tags" : [ "v2-practice" ],
-        "summary" : "Record Resolution",
-        "operationId" : "record_resolution_v2_practice_sessions__session_id__resolution_put",
-        "parameters" : [ {
-          "name" : "session_id",
-          "in" : "path",
-          "required" : true,
-          "schema" : {
-            "type" : "string",
-            "format" : "uuid",
-            "title" : "Session Id"
-          }
-        } ],
-        "requestBody" : {
-          "content" : {
-            "application/json" : {
-              "schema" : {
-                "$ref" : "#/components/schemas/ResolutionRequest"
-              }
-            }
-          },
-          "required" : true
-        },
-        "responses" : {
-          "204" : {
-            "description" : "No Content"
-          },
-          "422" : {
-            "description" : "Validation Error",
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        },
-        "security" : [ {
-          "HTTPBearer" : [ ]
-        } ]
-      }
     }
   },
   "components" : {
     "schemas" : {
+      "ResolutionRequest" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "self_report" : {
+            "type" : "string",
+            "enum" : [ "resolved", "partly", "same" ],
+            "title" : "Self Report"
+          },
+          "note" : {
+            "anyOf" : [ {
+              "type" : "string"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Note"
+          }
+        },
+        "required" : [ "self_report" ],
+        "title" : "ResolutionRequest"
+      },
       "UpdateMemoryRequest" : {
         "type" : "object",
         "additionalProperties" : false,
@@ -3388,6 +3409,41 @@
         "required" : [ "sessions" ],
         "title" : "PracticeSessionListResponse"
       },
+      "BeforeAfterResponse" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "blocked_detail" : {
+            "anyOf" : [ {
+              "type" : "string"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Blocked Detail"
+          },
+          "actor_words" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string"
+            },
+            "title" : "Actor Words"
+          },
+          "confirmed" : {
+            "type" : "boolean",
+            "title" : "Confirmed"
+          },
+          "rebuttal" : {
+            "anyOf" : [ {
+              "type" : "string"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Rebuttal"
+          }
+        },
+        "required" : [ "actor_words", "blocked_detail", "confirmed", "rebuttal" ],
+        "title" : "BeforeAfterResponse"
+      },
       "ObservationItem" : {
         "type" : "object",
         "additionalProperties" : false,
@@ -3492,6 +3548,20 @@
             "format" : "date-time",
             "title" : "Updated At"
           },
+          "resolution" : {
+            "anyOf" : [ {
+              "$ref" : "#/components/schemas/ResolutionResponse"
+            }, {
+              "type" : "null"
+            } ]
+          },
+          "before_after" : {
+            "anyOf" : [ {
+              "$ref" : "#/components/schemas/BeforeAfterResponse"
+            }, {
+              "type" : "null"
+            } ]
+          },
           "playback_url" : {
             "type" : "string",
             "title" : "Playback Url"
@@ -3511,24 +3581,31 @@
               "type" : "null"
             } ],
             "title" : "Error Code"
-          },
-          "resolution" : {
-            "anyOf" : [ {
-              "$ref" : "#/components/schemas/ResolutionResponse"
-            }, {
-              "type" : "null"
-            } ]
-          },
-          "before_after" : {
-            "anyOf" : [ {
-              "$ref" : "#/components/schemas/BeforeAfterResponse"
-            }, {
-              "type" : "null"
-            } ]
           }
         },
         "required" : [ "blockage_kind", "character_context", "created_at", "goal", "playback_url", "session_id", "situation", "status", "sub_branch", "updated_at" ],
         "title" : "PracticeSessionDetail"
+      },
+      "ResolutionResponse" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "self_report" : {
+            "type" : "string",
+            "enum" : [ "resolved", "partly", "same" ],
+            "title" : "Self Report"
+          },
+          "note" : {
+            "anyOf" : [ {
+              "type" : "string"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Note"
+          }
+        },
+        "required" : [ "note", "self_report" ],
+        "title" : "ResolutionResponse"
       },
       "PracticeSessionStatusResponse" : {
         "type" : "object",
@@ -4515,83 +4592,6 @@
         },
         "required" : [ "token" ],
         "title" : "UnregisterPushTokenRequest"
-      },
-      "ResolutionRequest" : {
-        "type" : "object",
-        "additionalProperties" : false,
-        "properties" : {
-          "self_report" : {
-            "type" : "string",
-            "enum" : [ "resolved", "partly", "same" ],
-            "title" : "Self Report"
-          },
-          "note" : {
-            "anyOf" : [ {
-              "type" : "string"
-            }, {
-              "type" : "null"
-            } ],
-            "title" : "Note"
-          }
-        },
-        "required" : [ "self_report" ],
-        "title" : "ResolutionRequest"
-      },
-      "ResolutionResponse" : {
-        "type" : "object",
-        "additionalProperties" : false,
-        "properties" : {
-          "self_report" : {
-            "type" : "string",
-            "enum" : [ "resolved", "partly", "same" ],
-            "title" : "Self Report"
-          },
-          "note" : {
-            "anyOf" : [ {
-              "type" : "string"
-            }, {
-              "type" : "null"
-            } ],
-            "title" : "Note"
-          }
-        },
-        "required" : [ "note", "self_report" ],
-        "title" : "ResolutionResponse"
-      },
-      "BeforeAfterResponse" : {
-        "type" : "object",
-        "additionalProperties" : false,
-        "properties" : {
-          "blocked_detail" : {
-            "anyOf" : [ {
-              "type" : "string"
-            }, {
-              "type" : "null"
-            } ],
-            "title" : "Blocked Detail"
-          },
-          "actor_words" : {
-            "type" : "array",
-            "items" : {
-              "type" : "string"
-            },
-            "title" : "Actor Words"
-          },
-          "confirmed" : {
-            "type" : "boolean",
-            "title" : "Confirmed"
-          },
-          "rebuttal" : {
-            "anyOf" : [ {
-              "type" : "string"
-            }, {
-              "type" : "null"
-            } ],
-            "title" : "Rebuttal"
-          }
-        },
-        "required" : [ "actor_words", "blocked_detail", "confirmed", "rebuttal" ],
-        "title" : "BeforeAfterResponse"
       }
     },
     "securitySchemes" : {

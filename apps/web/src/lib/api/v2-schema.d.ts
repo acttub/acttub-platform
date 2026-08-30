@@ -4,6 +4,23 @@
  */
 
 export interface paths {
+    "/v2/practice-sessions/{session_id}/resolution": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Record Resolution */
+        put: operations["record_resolution_v2_practice_sessions__session_id__resolution_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v2/me/memory/{field}": {
         parameters: {
             query?: never;
@@ -609,27 +626,20 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/v2/practice-sessions/{session_id}/resolution": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        /** Record Resolution */
-        put: operations["record_resolution_v2_practice_sessions__session_id__resolution_put"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** ResolutionRequest */
+        ResolutionRequest: {
+            /**
+             * Self Report
+             * @enum {string}
+             */
+            self_report: "resolved" | "partly" | "same";
+            /** Note */
+            note?: string | null;
+        };
         /** UpdateMemoryRequest */
         UpdateMemoryRequest: {
             /** Value */
@@ -1388,6 +1398,17 @@ export interface components {
             /** Sessions */
             sessions: components["schemas"]["PracticeSessionListItem"][];
         };
+        /** BeforeAfterResponse */
+        BeforeAfterResponse: {
+            /** Blocked Detail */
+            blocked_detail: string | null;
+            /** Actor Words */
+            actor_words: string[];
+            /** Confirmed */
+            confirmed: boolean;
+            /** Rebuttal */
+            rebuttal: string | null;
+        };
         /** ObservationItem */
         ObservationItem: {
             /** Start Ms */
@@ -1448,13 +1469,23 @@ export interface components {
              * Format: date-time
              */
             updated_at: string;
+            resolution?: components["schemas"]["ResolutionResponse"] | null;
+            before_after?: components["schemas"]["BeforeAfterResponse"] | null;
             /** Playback Url */
             playback_url: string;
             summary?: components["schemas"]["ObservationPackResponse"] | null;
             /** Error Code */
             error_code?: ("gemini_timeout" | "gemini_parse_error" | "unsupported_media" | "max_attempts_exceeded") | null;
-            resolution?: components["schemas"]["ResolutionResponse"] | null;
-            before_after?: components["schemas"]["BeforeAfterResponse"] | null;
+        };
+        /** ResolutionResponse */
+        ResolutionResponse: {
+            /**
+             * Self Report
+             * @enum {string}
+             */
+            self_report: "resolved" | "partly" | "same";
+            /** Note */
+            note: string | null;
         };
         /** PracticeSessionStatusResponse */
         PracticeSessionStatusResponse: {
@@ -1820,37 +1851,6 @@ export interface components {
             /** Token */
             token: string;
         };
-        /** ResolutionRequest */
-        ResolutionRequest: {
-            /**
-             * Self Report
-             * @enum {string}
-             */
-            self_report: "resolved" | "partly" | "same";
-            /** Note */
-            note?: string | null;
-        };
-        /** ResolutionResponse */
-        ResolutionResponse: {
-            /**
-             * Self Report
-             * @enum {string}
-             */
-            self_report: "resolved" | "partly" | "same";
-            /** Note */
-            note: string | null;
-        };
-        /** BeforeAfterResponse */
-        BeforeAfterResponse: {
-            /** Blocked Detail */
-            blocked_detail: string | null;
-            /** Actor Words */
-            actor_words: string[];
-            /** Confirmed */
-            confirmed: boolean;
-            /** Rebuttal */
-            rebuttal: string | null;
-        };
     };
     responses: never;
     parameters: never;
@@ -1860,6 +1860,39 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    record_resolution_v2_practice_sessions__session_id__resolution_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResolutionRequest"];
+            };
+        };
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     update_memory_v2_me_memory__field__put: {
         parameters: {
             query?: never;
@@ -3258,39 +3291,6 @@ export interface operations {
         requestBody?: never;
         responses: {
             /** @description Successful Response */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    record_resolution_v2_practice_sessions__session_id__resolution_put: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                session_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ResolutionRequest"];
-            };
-        };
-        responses: {
-            /** @description No Content */
             204: {
                 headers: {
                     [name: string]: unknown;
