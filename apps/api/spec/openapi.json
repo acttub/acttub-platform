@@ -1853,6 +1853,51 @@
           "HTTPBearer" : [ ]
         } ]
       }
+    },
+    "/v2/practice-sessions/{session_id}/resolution" : {
+      "put" : {
+        "tags" : [ "v2-practice" ],
+        "summary" : "Record Resolution",
+        "operationId" : "record_resolution_v2_practice_sessions__session_id__resolution_put",
+        "parameters" : [ {
+          "name" : "session_id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Session Id"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ResolutionRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "204" : {
+            "description" : "No Content"
+          },
+          "422" : {
+            "description" : "Validation Error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      }
     }
   },
   "components" : {
@@ -3466,6 +3511,20 @@
               "type" : "null"
             } ],
             "title" : "Error Code"
+          },
+          "resolution" : {
+            "anyOf" : [ {
+              "$ref" : "#/components/schemas/ResolutionResponse"
+            }, {
+              "type" : "null"
+            } ]
+          },
+          "before_after" : {
+            "anyOf" : [ {
+              "$ref" : "#/components/schemas/BeforeAfterResponse"
+            }, {
+              "type" : "null"
+            } ]
           }
         },
         "required" : [ "blockage_kind", "character_context", "created_at", "goal", "playback_url", "session_id", "situation", "status", "sub_branch", "updated_at" ],
@@ -4456,6 +4515,83 @@
         },
         "required" : [ "token" ],
         "title" : "UnregisterPushTokenRequest"
+      },
+      "ResolutionRequest" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "self_report" : {
+            "type" : "string",
+            "enum" : [ "resolved", "partly", "same" ],
+            "title" : "Self Report"
+          },
+          "note" : {
+            "anyOf" : [ {
+              "type" : "string"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Note"
+          }
+        },
+        "required" : [ "self_report" ],
+        "title" : "ResolutionRequest"
+      },
+      "ResolutionResponse" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "self_report" : {
+            "type" : "string",
+            "enum" : [ "resolved", "partly", "same" ],
+            "title" : "Self Report"
+          },
+          "note" : {
+            "anyOf" : [ {
+              "type" : "string"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Note"
+          }
+        },
+        "required" : [ "note", "self_report" ],
+        "title" : "ResolutionResponse"
+      },
+      "BeforeAfterResponse" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "blocked_detail" : {
+            "anyOf" : [ {
+              "type" : "string"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Blocked Detail"
+          },
+          "actor_words" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string"
+            },
+            "title" : "Actor Words"
+          },
+          "confirmed" : {
+            "type" : "boolean",
+            "title" : "Confirmed"
+          },
+          "rebuttal" : {
+            "anyOf" : [ {
+              "type" : "string"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Rebuttal"
+          }
+        },
+        "required" : [ "actor_words", "blocked_detail", "confirmed", "rebuttal" ],
+        "title" : "BeforeAfterResponse"
       }
     },
     "securitySchemes" : {

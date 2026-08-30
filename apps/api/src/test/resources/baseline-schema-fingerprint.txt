@@ -129,6 +129,8 @@ COLUMN practice_sessions.created_at ord=9 type=timestamptz len=- null=NO default
 COLUMN practice_sessions.goal ord=14 type=text len=- null=NO default=-
 COLUMN practice_sessions.hidden_at ord=8 type=timestamptz len=- null=YES default=-
 COLUMN practice_sessions.id ord=1 type=uuid len=- null=NO default=gen_random_uuid()
+COLUMN practice_sessions.resolution_note ord=17 type=text len=- null=YES default=-
+COLUMN practice_sessions.resolution_self_report ord=16 type=text len=- null=YES default=-
 COLUMN practice_sessions.situation ord=5 type=text len=- null=NO default=-
 COLUMN practice_sessions.status ord=4 type=practice_status_t len=- null=NO default='created'::practice_status_t
 COLUMN practice_sessions.sub_branch ord=12 type=text len=- null=NO default=-
@@ -386,6 +388,7 @@ CONSTRAINT practice_reports practice_reports_source_handoff_id_fkey FOREIGN KEY 
 CONSTRAINT practice_reports practice_reports_source_handoff_id_not_null NOT NULL source_handoff_id
 CONSTRAINT practice_reports uq_practice_reports_source_handoff UNIQUE (source_handoff_id)
 CONSTRAINT practice_sessions ck_practice_sessions_blockage_branch CHECK ((((blockage_kind = '분석'::text) AND (sub_branch = ANY (ARRAY['캐릭터 분석'::text, '대사 분석'::text, '그 외'::text]))) OR ((blockage_kind = '표현'::text) AND (sub_branch = ANY (ARRAY['감정'::text, '움직임'::text, '화술'::text, '표정'::text, '그 외'::text]))) OR ((blockage_kind = '그 외'::text) AND (sub_branch = '그 외'::text))))
+CONSTRAINT practice_sessions ck_practice_sessions_resolution_self_report CHECK (((resolution_self_report IS NULL) OR (resolution_self_report = ANY (ARRAY['resolved'::text, 'partly'::text, 'same'::text]))))
 CONSTRAINT practice_sessions practice_sessions_blockage_kind_not_null NOT NULL blockage_kind
 CONSTRAINT practice_sessions practice_sessions_character_context_not_null NOT NULL character_context
 CONSTRAINT practice_sessions practice_sessions_continued_from_fkey FOREIGN KEY (continued_from) REFERENCES practice_sessions(id) ON DELETE SET NULL

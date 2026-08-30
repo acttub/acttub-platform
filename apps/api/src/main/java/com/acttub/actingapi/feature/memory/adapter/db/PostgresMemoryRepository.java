@@ -265,10 +265,11 @@ public class PostgresMemoryRepository implements MemoryRepository, CoachMemory {
      * 카드가 없는 차수(차단 노트 포함)는 조용히 건너뛴다 — 빈 줄이 남으면 모델이 지어낸다.
      */
     private List<String> sceneHistory(UUID userId, UUID practiceSessionId) {
-        record Round(OffsetDateTime createdAt, String cardJson) {
+        record Round(OffsetDateTime createdAt, String cardJson, String selfReport, String note) {
         }
         List<Round> rounds = jdbc.query("""
-                SELECT member.created_at, card.report_json::text AS card
+                SELECT member.created_at, card.report_json::text AS card,
+                       member.resolution_self_report AS self_report, member.resolution_note AS note
                 FROM practice_sessions current
                 JOIN practice_sessions member
                     ON member.id=current.continued_from
@@ -285,17 +286,39 @@ public class PostgresMemoryRepository implements MemoryRepository, CoachMemory {
                 ORDER BY member.created_at
                 """, (result, rowNumber) -> new Round(
                 result.getObject("created_at", OffsetDateTime.class),
-                result.getString("card")), practiceSessionId, userId);
+                result.getString("card"),
+                result.getString("self_report"),
+                result.getString("note")), practiceSessionId, userId);
         List<String> lines = new ArrayList<>();
         for (Round round : rounds) {
             // 차수 번호는 살아남은 줄 기준으로 센다 — 카드 없는 차수를 건너뛰며 번호에
             // 구멍을 내면 코치가 없는 차수를 지어내 채운다.
             String line = historyLine(lines.size() + 1, round.createdAt(), round.cardJson());
             if (line != null) {
-                lines.add(line);
+                lines.add(line + resolutionSuffix(round.selfReport(), round.note()));
             }
         }
         return List.copyOf(lines);
+    }
+
+    /**
+     * 그 차수의 자기보고를 " — 배우 자기보고: 조금 풀렸다(메모)" 로 잇는다 (SOMA-466). 답하지
+     * 않았으면 빈 문자열 — 없는 답을 줄에 만들면 코치가 지어낸다. 말은 판정이 아니라 배우 상태의
+     * 표현이고, 허용값은 {@code practice} 도메인의 것이라 여기서 다시 옮긴다(도메인끼리는 app 만
+     * 본다).
+     */
+    static String resolutionSuffix(String selfReport, String note) {
+        String label = switch (selfReport == null ? "" : selfReport) {
+            case "resolved" -> "풀렸다";
+            case "partly" -> "조금 풀렸다";
+            case "same" -> "그대로";
+            default -> null;
+        };
+        if (label == null) {
+            return "";
+        }
+        String suffix = " — 배우 자기보고: " + label;
+        return note == null || note.isBlank() ? suffix : suffix + "(" + note.strip() + ")";
     }
 
     /** 차수 하나를 "N차(M/d): 제목 — 다음: …" 한 줄로. 카드 모양이 달라져도 터지지 않는다. */

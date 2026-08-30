@@ -39,6 +39,13 @@ public interface PracticeSessionRepository {
     boolean hide(UUID userId, UUID sessionId, OffsetDateTime now);
 
     /**
+     * 배우의 자기보고를 남긴다. 다시 답하면 덮어쓴다 — 마지막 답이 배우의 답이다.
+     * 없거나 남의 것이거나 숨긴 연습이면 거짓.
+     */
+    boolean recordResolution(
+            UUID userId, UUID sessionId, String selfReport, String note, OffsetDateTime now);
+
+    /**
      * 실패한 분석 작업을 다시 대기 상태로 돌린다. 시도 횟수가 소진됐거나 다른 워커가 리스를 쥐고
      * 있으면 거짓 — 호출자는 그것을 409 로 옮긴다.
      */

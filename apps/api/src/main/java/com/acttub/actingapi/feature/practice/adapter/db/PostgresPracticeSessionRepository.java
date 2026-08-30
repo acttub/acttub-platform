@@ -9,6 +9,7 @@ import java.util.UUID;
 
 import com.acttub.actingapi.feature.practice.app.PracticeSessionRepository;
 import com.acttub.actingapi.feature.practice.domain.AnalysisStatus;
+import com.acttub.actingapi.feature.practice.domain.ClosingWords;
 import com.acttub.actingapi.feature.practice.domain.Observation;
 import com.acttub.actingapi.feature.practice.domain.ObservationPack;
 import com.acttub.actingapi.feature.practice.domain.PracticeSession;
@@ -107,7 +108,9 @@ class PostgresPracticeSessionRepository implements PracticeSessionRepository {
                     ps.id,ps.user_id,ps.upload_intent_id,ps.status::text AS status,
                     ps.situation,ps.character_context,ps.goal,ps.blockage_kind,
                     ps.sub_branch,ps.blockage_detail,ps.continued_from,ps.created_at,ps.updated_at,
+                    ps.resolution_self_report,ps.resolution_note,
                     ui.object_key,
+                    handoff.handoff_json,handoff.confirmed,handoff.rebuttal_text,
                     summary.id AS summary_id,
                     summary.observations_json::text AS observations_json,
                     summary.uncertainties_json::text AS uncertainties_json,
@@ -125,6 +128,13 @@ class PostgresPracticeSessionRepository implements PracticeSessionRepository {
                     WHERE eo.session_id=ps.id AND eo.kind='analyze'::operation_kind_t
                     ORDER BY eo.created_at DESC,eo.id DESC LIMIT 1
                 ) operation ON true
+                LEFT JOIN LATERAL (
+                    SELECT h.handoff_json::text AS handoff_json,c.confirmed,c.rebuttal_text
+                    FROM coaching_handoffs h
+                    LEFT JOIN handoff_confirmations c ON c.coaching_handoff_id=h.id
+                    WHERE h.practice_session_id=ps.id
+                    ORDER BY h.created_at DESC,h.id DESC LIMIT 1
+                ) handoff ON true
                 WHERE ps.id=? AND ps.user_id=? AND ps.hidden_at IS NULL
                 """, this::detail, sessionId, userId);
         return rows.isEmpty() ? null : rows.getFirst();
@@ -136,6 +146,15 @@ class PostgresPracticeSessionRepository implements PracticeSessionRepository {
                 UPDATE practice_sessions SET hidden_at=?,updated_at=?
                 WHERE id=? AND user_id=? AND hidden_at IS NULL
                 """, now, now, sessionId, userId) > 0;
+    }
+
+    @Override
+    public boolean recordResolution(
+            UUID userId, UUID sessionId, String selfReport, String note, OffsetDateTime now) {
+        return jdbc.update("""
+                UPDATE practice_sessions SET resolution_self_report=?,resolution_note=?,updated_at=?
+                WHERE id=? AND user_id=? AND hidden_at IS NULL
+                """, selfReport, note, now, sessionId, userId) > 0;
     }
 
     @Override
@@ -223,7 +242,36 @@ class PostgresPracticeSessionRepository implements PracticeSessionRepository {
                 session,
                 row.getString("object_key"),
                 summary,
-                row.getString("error_code"));
+                row.getString("error_code"),
+                row.getString("resolution_self_report"),
+                row.getString("resolution_note"),
+                closing(row));
+    }
+
+    /**
+     * 가장 최근 핸드오프의 {@code actor_words} 와 확인 여부. 핸드오프가 없으면 {@code null} —
+     * 대화가 아직 끝나지 않은 연습에 빈 "끝날 때 한 말" 을 만들지 않는다. 모델이
+     * {@code actor_words} 를 리스트가 아닌 값으로 줄 수 있어 문자열 원소만 남긴다.
+     */
+    private ClosingWords closing(ResultSet row) throws SQLException {
+        JsonNode handoff = json(row.getString("handoff_json"));
+        if (handoff == null) {
+            return null;
+        }
+        List<String> words = new ArrayList<>();
+        JsonNode actorWords = handoff.get("actor_words");
+        if (actorWords != null && actorWords.isArray()) {
+            actorWords.forEach(word -> {
+                if (word.isTextual() && !word.textValue().isBlank()) {
+                    words.add(word.textValue());
+                }
+            });
+        }
+        Boolean confirmed = row.getObject("confirmed", Boolean.class);
+        return new ClosingWords(
+                words,
+                Boolean.TRUE.equals(confirmed),
+                row.getString("rebuttal_text"));
     }
 
     /**

@@ -14,6 +14,9 @@ import com.acttub.actingapi.feature.practice.adapter.web.PracticeSessionDtos.Pra
 import com.acttub.actingapi.feature.practice.adapter.web.PracticeSessionDtos.PracticeSessionListResponse;
 import com.acttub.actingapi.feature.practice.adapter.web.PracticeSessionDtos.PracticeSessionRequest;
 import com.acttub.actingapi.feature.practice.adapter.web.PracticeSessionDtos.PracticeSessionStatusResponse;
+import com.acttub.actingapi.feature.practice.adapter.web.PracticeSessionDtos.ResolutionRequest;
+import com.acttub.actingapi.feature.practice.adapter.web.PracticeSessionDtos.ResolutionResponse;
+import com.acttub.actingapi.feature.practice.adapter.web.PracticeSessionDtos.BeforeAfterResponse;
 import com.acttub.actingapi.feature.practice.app.AnalysisOutcome;
 import com.acttub.actingapi.platform.web.CanonicalJson;
 import com.acttub.actingapi.feature.practice.app.NewPracticeSession;
@@ -22,6 +25,7 @@ import com.acttub.actingapi.feature.practice.app.PracticeSessionService;
 import com.acttub.actingapi.feature.practice.domain.AnalysisStatus;
 import com.acttub.actingapi.feature.practice.domain.BlockageBranch;
 import com.acttub.actingapi.feature.practice.domain.PracticeSession;
+import com.acttub.actingapi.feature.practice.domain.ResolutionSelfReport;
 import com.acttub.actingapi.platform.web.ApiException;
 import com.acttub.actingapi.platform.web.ApiValidationException;
 import io.swagger.v3.oas.annotations.Operation;
@@ -41,6 +45,7 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -197,6 +202,17 @@ class PracticeSessionController {
         payload.put("playback_url", playable.playbackUrl());
         payload.put("created_at", session.createdAt());
         payload.put("updated_at", session.updatedAt());
+        // 자기보고는 답하기 전엔 null 로 실린다 — 키가 있어야 화면이 "아직 안 물었다" 를 안다.
+        payload.put("resolution", playable.resolutionSelfReport() == null ? null
+                : new ResolutionResponse(playable.resolutionSelfReport(), playable.resolutionNote()));
+        // 전/후는 대화가 끝나 핸드오프가 있을 때만 — 빈 오른쪽을 만들지 않는다.
+        if (playable.closing() != null) {
+            payload.put("before_after", new BeforeAfterResponse(
+                    session.blockageDetail(),
+                    playable.closing().actorWords(),
+                    playable.closing().confirmed(),
+                    playable.closing().rebuttal()));
+        }
         if (playable.summary() != null) {
             ObservationPackResponse summary =
                     PracticeSessionDtos.observationPack(playable.summary());
@@ -239,6 +255,29 @@ class PracticeSessionController {
         var user = auth.consentedUser(request);
         UUID requestId = requestId(requestIdHeader);
         return json(sessions.reanalyze(user.id(), sessionId, requestId), requestId);
+    }
+
+    @Operation(
+            summary = "Record Resolution",
+            operationId = "record_resolution_v2_practice_sessions__session_id__resolution_put",
+            tags = "v2-practice",
+            security = @SecurityRequirement(name = "HTTPBearer"))
+    @ApiResponses({
+        @ApiResponse(responseCode = "204", description = "No Content"),
+        @ApiResponse(
+                responseCode = "422",
+                description = "Validation Error",
+                content = @Content(schema = @Schema(ref = "#/components/schemas/HTTPValidationError")))
+    })
+    @PutMapping("/{session_id}/resolution")
+    ResponseEntity<Void> resolve(
+            @PathVariable("session_id") UUID sessionId,
+            @Valid @RequestBody ResolutionRequest body,
+            HttpServletRequest request) {
+        var user = auth.consentedUser(request);
+        validateLiteral("self_report", body.selfReport(), ResolutionSelfReport.VALUES);
+        sessions.resolve(user.id(), sessionId, ResolutionSelfReport.parse(body.selfReport()), body.note());
+        return ResponseEntity.noContent().build();
     }
 
     @Operation(

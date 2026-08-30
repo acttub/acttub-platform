@@ -1,5 +1,6 @@
 package com.acttub.actingapi.feature.practice.app;
 
+import com.acttub.actingapi.feature.practice.domain.ClosingWords;
 import com.acttub.actingapi.feature.practice.domain.ObservationPack;
 import com.acttub.actingapi.feature.practice.domain.PracticeSession;
 
@@ -8,5 +9,8 @@ public record PlayableSession(
         PracticeSession session,
         String playbackUrl,
         ObservationPack summary,
-        String errorCode) {
+        String errorCode,
+        String resolutionSelfReport,
+        String resolutionNote,
+        ClosingWords closing) {
 }

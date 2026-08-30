@@ -14,5 +14,10 @@ public record SessionDetail(
         PracticeSession session,
         String objectKey,
         ObservationPack summary,
-        String errorCode) {
+        String errorCode,
+        // 배우 자기보고. 아직 답하지 않았으면 둘 다 null.
+        String resolutionSelfReport,
+        String resolutionNote,
+        // 대화가 끝날 때 배우가 한 말. 핸드오프가 아직 없으면 null.
+        ClosingWords closing) {
 }

@@ -94,6 +94,45 @@ final class PracticeSessionDtos {
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) List<PracticeSessionListItem> sessions) {
     }
 
+    /** 배우의 자기보고 요청. 값은 {@code ResolutionSelfReport} 의 셋뿐이고 컨트롤러가 본다. */
+    @Schema(
+            name = "ResolutionRequest",
+            additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
+    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
+    record ResolutionRequest(
+            @NotNull @Schema(allowableValues = {"resolved", "partly", "same"}) String selfReport,
+            @Schema(nullable = true) String note) {
+    }
+
+    @Schema(
+            name = "ResolutionResponse",
+            additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
+    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
+    record ResolutionResponse(
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED,
+                    allowableValues = {"resolved", "partly", "same"})
+            String selfReport,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true)
+            @JsonInclude(JsonInclude.Include.ALWAYS)
+            String note) {
+    }
+
+    /** 처음 적은 막힘과 끝날 때 배우가 한 말. 판정은 없다 — 두 인용을 나란히 둘 뿐이다. */
+    @Schema(
+            name = "BeforeAfterResponse",
+            additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
+    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
+    record BeforeAfterResponse(
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true)
+            @JsonInclude(JsonInclude.Include.ALWAYS)
+            String blockedDetail,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) List<String> actorWords,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) boolean confirmed,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true)
+            @JsonInclude(JsonInclude.Include.ALWAYS)
+            String rebuttal) {
+    }
+
     @Schema(
             name = "PracticeSessionStatusResponse",
             additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
@@ -150,6 +189,8 @@ final class PracticeSessionDtos {
             @Schema(nullable = true) String blockageDetail,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) OffsetDateTime createdAt,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) OffsetDateTime updatedAt,
+            @Schema(nullable = true) ResolutionResponse resolution,
+            @Schema(nullable = true) BeforeAfterResponse beforeAfter,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String playbackUrl,
             @Schema(nullable = true) ObservationPackResponse summary,
             @Schema(nullable = true, allowableValues = {

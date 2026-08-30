@@ -13,6 +13,7 @@ import java.util.UUID;
 
 import com.acttub.actingapi.feature.practice.domain.AnalysisStatus;
 import com.acttub.actingapi.feature.practice.domain.PracticeSession;
+import com.acttub.actingapi.feature.practice.domain.ResolutionSelfReport;
 import com.acttub.actingapi.feature.practice.domain.SessionDetail;
 import com.acttub.actingapi.platform.web.ApiException;
 import com.acttub.actingapi.platform.web.CanonicalJson;
@@ -123,7 +124,30 @@ public class PracticeSessionService {
                 session,
                 playback.url(detail.objectKey(), PLAYBACK_URL_TTL_SECONDS),
                 session.analyzed() ? detail.summary() : null,
-                detail.errorCode());
+                detail.errorCode(),
+                detail.resolutionSelfReport(),
+                detail.resolutionNote(),
+                detail.closing());
+    }
+
+    /** 자기보고 메모 상한. 한 줄이면 된다 — 긴 글은 대화에서 이미 했다. */
+    static final int RESOLUTION_NOTE_MAX_CHARS = 200;
+
+    /**
+     * 배우의 자기보고를 남긴다 (SOMA-466).
+     *
+     * <p>서버는 값을 판정하지 않고 그대로 둔다. 메모는 다듬어 빈 것은 {@code null} 로 —
+     * 공백 한 칸을 배우의 말로 남기지 않는다. 다시 답하면 덮어쓴다.
+     */
+    public void resolve(UUID userId, UUID sessionId, ResolutionSelfReport report, String note) {
+        String trimmed = note == null || note.isBlank() ? null : note.strip();
+        if (trimmed != null && trimmed.codePointCount(0, trimmed.length()) > RESOLUTION_NOTE_MAX_CHARS) {
+            throw new ApiException(422, "resolution_note_too_long");
+        }
+        OffsetDateTime now = clock.instant().atOffset(ZoneOffset.UTC);
+        if (!sessions.recordResolution(userId, sessionId, report.value(), trimmed, now)) {
+            throw new ApiException(404, "practice_session_not_found");
+        }
     }
 
     /**

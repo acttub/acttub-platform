@@ -83,6 +83,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v2/push-tokens": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Register Push Token
+         * @description 이 단말의 Expo push token 을 현재 사용자 것으로 등록한다. 멱등.
+         */
+        post: operations["register_push_token_v2_push_tokens_post"];
+        /**
+         * Unregister Push Token
+         * @description 이 단말의 토큰을 지운다. 로그아웃·알림 끄기에서 부른다. 멱등.
+         */
+        delete: operations["unregister_push_token_v2_push_tokens_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v2/practice-sessions": {
         parameters: {
             query?: never;
@@ -585,6 +609,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v2/practice-sessions/{session_id}/resolution": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Record Resolution */
+        put: operations["record_resolution_v2_practice_sessions__session_id__resolution_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -774,6 +815,16 @@ export interface components {
              * @enum {string}
              */
             reason: "confirmed_analysis_handoff_required" | "confirmed_expression_handoff_required";
+        };
+        /** RegisterPushTokenRequest */
+        RegisterPushTokenRequest: {
+            /** Token */
+            token: string;
+            /**
+             * Platform
+             * @enum {string}
+             */
+            platform: "ios" | "android";
         };
         /** PracticeSessionRequest */
         PracticeSessionRequest: {
@@ -1402,6 +1453,8 @@ export interface components {
             summary?: components["schemas"]["ObservationPackResponse"] | null;
             /** Error Code */
             error_code?: ("gemini_timeout" | "gemini_parse_error" | "unsupported_media" | "max_attempts_exceeded") | null;
+            resolution?: components["schemas"]["ResolutionResponse"] | null;
+            before_after?: components["schemas"]["BeforeAfterResponse"] | null;
         };
         /** PracticeSessionStatusResponse */
         PracticeSessionStatusResponse: {
@@ -1762,6 +1815,42 @@ export interface components {
             /** Commit */
             commit: string;
         };
+        /** UnregisterPushTokenRequest */
+        UnregisterPushTokenRequest: {
+            /** Token */
+            token: string;
+        };
+        /** ResolutionRequest */
+        ResolutionRequest: {
+            /**
+             * Self Report
+             * @enum {string}
+             */
+            self_report: "resolved" | "partly" | "same";
+            /** Note */
+            note?: string | null;
+        };
+        /** ResolutionResponse */
+        ResolutionResponse: {
+            /**
+             * Self Report
+             * @enum {string}
+             */
+            self_report: "resolved" | "partly" | "same";
+            /** Note */
+            note: string | null;
+        };
+        /** BeforeAfterResponse */
+        BeforeAfterResponse: {
+            /** Blocked Detail */
+            blocked_detail: string | null;
+            /** Actor Words */
+            actor_words: string[];
+            /** Confirmed */
+            confirmed: boolean;
+            /** Rebuttal */
+            rebuttal: string | null;
+        };
     };
     responses: never;
     parameters: never;
@@ -1942,6 +2031,68 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["AnalysisReport"] | components["schemas"]["ExpressionReport"] | components["schemas"]["BlockedReport"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    register_push_token_v2_push_tokens_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RegisterPushTokenRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    unregister_push_token_v2_push_tokens_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UnregisterPushTokenRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {
@@ -3107,6 +3258,39 @@ export interface operations {
         requestBody?: never;
         responses: {
             /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    record_resolution_v2_practice_sessions__session_id__resolution_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResolutionRequest"];
+            };
+        };
+        responses: {
+            /** @description No Content */
             204: {
                 headers: {
                     [name: string]: unknown;
