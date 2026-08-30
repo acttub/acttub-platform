@@ -2,7 +2,7 @@
   "openapi" : "3.1.0",
   "info" : {
     "title" : "acting-api",
-    "description" : "연기 분석 플랫폼 API v2. *** token을 사용합니다.",
+    "description" : "연기 분석 플랫폼 API v2. Bearer access token을 사용합니다.",
     "version" : "0.1.0"
   },
   "paths" : {
