@@ -76,6 +76,48 @@ class CoachEngineTest {
     }
 
     @Test
+    @DisplayName("이전 코치 질문을 되풀이하면 그 질문을 붙여 한 번 다시 만든다")
+    void regeneratesWhenReplyRepeatsAnEarlierCoachQuestion() {
+        RecordingGenerator generator = new RecordingGenerator(
+                "{\"message\":\"이전 답변\"}",
+                "{\"message\":\"그 순간 상대는 어디에 있었어?\"}");
+
+        CoachResult result = new CoachEngine(generator).reply(session(), "잘 모르겠어요");
+
+        assertThat(result.reply().message()).isEqualTo("그 순간 상대는 어디에 있었어?");
+        assertThat(generator.inputs).hasSize(2);
+        assertThat(generator.inputs.get(1))
+                .contains("## 서버 검증 실패")
+                .contains("같은 질문을 되풀이했습니다: \"이전 답변\"")
+                .contains("## 노출하지 않은 실패 응답\n{\"message\":\"이전 답변\"}");
+    }
+
+    @Test
+    @DisplayName("다시 만든 것도 되풀이면 안전 문장으로 대체한다 — 호출은 두 번을 넘지 않는다")
+    void usesSafeTemplateWhenRegenerationStillRepeats() {
+        RecordingGenerator generator = new RecordingGenerator("이전 답변", "이전 답변.");
+
+        CoachResult result = new CoachEngine(generator).reply(session(), "잘 모르겠어요");
+
+        assertThat(result.reply()).isEqualTo(
+                new CoachReply(CoachPrompt.safeTemplate(), "continue", null));
+        assertThat(generator.inputs).hasSize(2);
+    }
+
+    @Test
+    @DisplayName("마무리 응답(complete)은 되풀이 검사를 하지 않는다 — 질문이 아니다")
+    void completeRepliesSkipRepeatCheck() {
+        RecordingGenerator generator = new RecordingGenerator(
+                "{\"message\":\"이전 답변\",\"status\":\"complete\",\"handoff\":{\"x\":1}}");
+
+        CoachResult result = new CoachEngine(generator).reply(session(), "이제 그만");
+
+        assertThat(result.reply().status()).isEqualTo("complete");
+        assertThat(result.reply().message()).isEqualTo("이전 답변");
+        assertThat(generator.inputs).hasSize(1);
+    }
+
+    @Test
     void closingWordsAppendInstructionOnlyToGenerationInputNotStoredTurn() {
         // "끝"·"여기까지"는 발화 전체가 그 말일 때만 종료다. 어절 안에 섞인 "끝"까지
         // 종료로 보면 "끝까지 해볼게요" 같은 정상 답변에서 세션이 끊긴다.

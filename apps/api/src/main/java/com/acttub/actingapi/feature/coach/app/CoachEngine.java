@@ -2,11 +2,13 @@ package com.acttub.actingapi.feature.coach.app;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import com.acttub.actingapi.feature.coach.domain.ClosingIntent;
 import com.acttub.actingapi.feature.coach.domain.CoachTurnSnapshot;
+import com.acttub.actingapi.feature.coach.domain.RepeatedQuestion;
 import com.acttub.actingapi.integration.llm.GeneratedText;
 import com.acttub.actingapi.integration.llm.TextGenerator;
 import com.acttub.actingapi.integration.llm.TextValidation;
@@ -16,12 +18,15 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 /** OpenAI 기반 갈래 코칭 엔진. 저장과 HTTP 응답 조립은 다음 층의 책임이다. */
 @Service
 public class CoachEngine {
 
+    private static final Logger LOG = LoggerFactory.getLogger(CoachEngine.class);
     private static final ObjectMapper RESPONSE_MAPPER = new ObjectMapper();
     private static final Pattern FENCED_JSON = Pattern.compile(
             "^```(?:json)?\\s*([\\s\\S]*?)\\s*```$", Pattern.CASE_INSENSITIVE);
@@ -139,6 +144,15 @@ public class CoachEngine {
         return new CoachReply(reply.message(), reply.status(), handoff);
     }
 
+    /**
+     * 만든다 → 검사한다 → 걸리면 무엇에 걸렸는지 붙여 한 번 다시 만든다 → 그래도 걸리면
+     * 안전 문장. 검사는 출력 검사 3종({@link TextValidator})에 <b>되풀이 검사</b>를 더한
+     * 넷이다 — 같은 세션에서 이미 물은 질문을 다시 내면 통과하지 못한다. 호출 횟수는
+     * 되풀이 검사를 더하기 전과 같다(최대 2회).
+     *
+     * <p>결과를 로그 한 줄로 남긴다({@code coach_turn_validation}). 통과·재생성 통과·안전
+     * 문장 대체의 비율이 주간 품질 지표(폴백률·반복 질문율)의 원본이다.
+     */
     private CoachReply generateValidated(
             CoachSessionSnapshot session, String userMessage) {
         String systemPrompt = CoachPrompt.select(session.blockageKind());
@@ -146,22 +160,50 @@ public class CoachEngine {
                 systemPrompt, CoachPrompt.buildChat(session, userMessage));
         String rawText = generated.text();
         CoachReply reply = parseCoachingResponse(rawText);
-        TextValidation validation = TextValidator.validateTurn(reply.message(), false);
-        if (!validation.failures().isEmpty()) {
+        List<String> failures = failuresOf(session, reply);
+        String firstFailures = String.join(" | ", failures);
+        if (!failures.isEmpty()) {
             generated = generate.generate(
                     systemPrompt,
                     CoachPrompt.buildRegeneration(
                             session,
                             userMessage,
                             rawText,
-                            validation.failures()));
+                            failures));
             reply = parseCoachingResponse(generated.text());
-            validation = TextValidator.validateTurn(reply.message(), false);
+            failures = failuresOf(session, reply);
         }
-        if (!validation.failures().isEmpty()) {
+        if (!failures.isEmpty()) {
+            LOG.info("coach_turn_validation session={} outcome=fallback first_failures=\"{}\" second_failures=\"{}\"",
+                    session.sessionId(), firstFailures, String.join(" | ", failures));
             return new CoachReply(CoachPrompt.safeTemplate(), "continue", null);
         }
+        LOG.info("coach_turn_validation session={} outcome={} first_failures=\"{}\"",
+                session.sessionId(), firstFailures.isEmpty() ? "pass" : "regen_pass", firstFailures);
         return sanitizeActorWords(reply);
+    }
+
+    /** 출력 검사 3종의 실패 문구에 되풀이 실패 문구를 잇는다. 순서가 재생성 프롬프트의 번호다. */
+    private static List<String> failuresOf(CoachSessionSnapshot session, CoachReply reply) {
+        TextValidation validation = TextValidator.validateTurn(reply.message(), false);
+        List<String> failures = new ArrayList<>(validation.failures());
+        repeatFailure(session, reply).ifPresent(failures::add);
+        return failures;
+    }
+
+    /**
+     * 마무리 응답(complete)은 보지 않는다 — 질문이 아니라 정리이고, 다시 만들면 handoff 를
+     * 잃는다. 되풀이로 판정되면 <b>무엇을 되풀이했는지</b>를 문구에 그대로 넣는다.
+     * 그냥 "다시" 가 아니라 이미 물은 질문을 보여 줘야 다른 각도가 나온다.
+     */
+    private static Optional<String> repeatFailure(CoachSessionSnapshot session, CoachReply reply) {
+        if ("complete".equals(reply.status())) {
+            return Optional.empty();
+        }
+        return RepeatedQuestion.find(reply.message(), session.turns())
+                .map(match -> "같은 질문을 되풀이했습니다: \"" + match.earlier() + "\". "
+                        + "배우의 마지막 답에서 아직 다루지 않은 부분 하나를 골라 "
+                        + "다른 각도로 하나만 묻습니다.");
     }
 
     private static CoachResult appendTurns(
