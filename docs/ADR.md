@@ -101,6 +101,8 @@ MVP 핵심 기능의 정상 작동을 목표로 빠르게 개발한다. 단, AI 
 현행 계약은 `apps/api/CONTRACT.md`를 참조한다. 여기에는 결정과 이유만 기록한다.
 
 ### ADR-AI-001: Gemini 2.5 Flash + Files API로 영상을 직접 분석
+> **개정 (2026-08-30)**: 모델·Files API 결정은 그대로다 — 프로덕션 기본값은 여전히 `gemini-2.5-flash`(`GeminiConfiguration:DEFAULT_MODEL`)이고, 2026-08-04 벤치(`test/REPORT.md`)가 권한 `gemini-3-flash-preview`는 **반영되지 않았다.** 발표·문서가 3-flash를 현행처럼 적으면 안 된다. 받는 JSON의 모양은 ADR-AI-008로 바뀌었다.
+
 **결정**: 영상 분석은 `gemini-2.5-flash`에 Files API로 영상을 업로드해 모델이 직접 보게 하고, 구조화 JSON(`response_schema`)으로 받는다. 멀티모달 파인튜닝은 하지 않는다.
 **이유**: 프레임 추출·STT 등 자체 전처리 파이프라인 없이 대사·표정·움직임을 한 번에 관찰할 수 있고, MVP 단계에서 프롬프트/스키마 반복 개선이 가장 빠르다.
 **트레이드오프**: 모델 관찰 품질을 직접 제어할 수 없다. 외부 API 의존으로 비용·지연이 발생한다.
@@ -118,14 +120,23 @@ MVP 핵심 기능의 정상 작동을 목표로 빠르게 개발한다. 단, AI 
 **트레이드오프**: 최초 분석 품질에 세션 전체가 의존한다.
 
 ### ADR-AI-004: 관찰 스키마를 6축 + 이상 구간으로 고정
+> **개정 (2026-08-30) — 폐기.** 2026-08-06 관찰 층 교체 때 6축·이상 구간·severity는 스키마째 사라졌다. 현행 관찰은 ADR-AI-008이다. DB의 `anomalies` 테이블과 `summaries.summary/intent_alignment/key_moment/key_dimension` 컬럼은 이 결정의 잔재이며 코드가 읽지 않는다 — 넓히기·좁히기 순서로 정리한다.
+
 **결정**: 관찰은 timeline + 6축(대사·템포·높낮이·움직임·표정·감정) + extra로 세분화하고, 이상징후는 구간(start~end, 최소 8초)·what·whyOdd·likelyCause·impactOnIntent의 자기완결 구조로 받는다.
 **이유**: 다음 단계 챗 LLM이 영상 없이 이 JSON 하나만 읽고 질문을 만들 수 있어야 한다. 축을 고정해야 관찰 누락과 표현 흔들림이 줄어든다.
 **트레이드오프**: 스키마가 커서 프롬프트가 길고, 축에 안 맞는 관찰은 extra로 우회해야 한다.
 
 ### ADR-AI-005: severity는 모델 출력을 믿지 않고 코드로 재계산
+> **개정 (2026-08-30) — 폐기.** severity 자체가 현행 스키마에 없다(ADR-AI-004 개정). **결정성 고정(temperature 0 · seed 42 · top_k 1)과 "구간·개수는 코드가 다시 검사한다"는 원칙만 ADR-AI-008로 이관했다.**
+
 **결정**: 이상징후의 우선순위(severity)는 모델이 낸 등급을 버리고, 모델의 사실 판단 3개(keyMoment 겹침 / keyDimension 해당 / intentImpact)로부터 점수 공식으로 코드가 재계산하고 재정렬한다. 모델 호출도 temperature 0 + seed 고정이다.
 **이유**: 같은 영상에 같은 결과가 나와야 사용자 신뢰와 테스트가 가능하다. LLM은 산술·정렬을 자주 틀린다.
 **트레이드오프**: 점수 공식이 코드에 박혀 있어 우선순위 정책을 바꾸려면 배포가 필요하다.
+
+### ADR-AI-008: 관찰은 확인된 것 최대 3개와 불확실 목록뿐이며 판단을 담지 않는다
+**결정**: 영상 분석의 출력은 `{observations[{start_ms, end_ms, label, confidence}], uncertainties[]}` 하나다(`observation-pack.schema.json`, `integration/observation/ObservationPack`). 서버가 구간 유효성(시작<끝, 영상 길이 안)을 다시 검사하고 앞 3개로 자른다(`GeminiObservationAnalyzer:filter`). 관찰 0개도 정상이다. 좋다/나쁘다·원인·점수·등급이 들어갈 필드는 없다. 호출은 temperature 0 · top_k 1 · seed 42 · MEDIA_RESOLUTION_LOW · thinking LOW로 고정한다.
+**이유**: 6축을 강제하니 모델이 없는 축을 지어 채웠다(2026-08-06 교체의 발단). 필드가 적어야 지어낼 자리가 없고, 코치는 "언제 무엇이 보였는지"만 있으면 질문을 만들 수 있다. 판정 어휘는 출력 검사(`integration/llm/TextValidator`)와 화면 카피 가드가 막으므로 관찰 층에서도 같은 원칙을 스키마로 강제한다.
+**트레이드오프**: 관찰이 3개라 긴 영상은 대부분이 버려진다(권장 길이 30~120초). 배우가 "그런 적 없다"고 부인하면 그 관찰은 이후 근거에서 빠지고(`POST /coach/confirm`), 대신할 관찰은 없다. 근거 일치율·근거 없는 관찰 발생률은 전문가 라벨로만 잴 수 있다.
 
 ## AI 인터뷰·리포트
 
