@@ -63,7 +63,7 @@ class UploadEndpointIT {
     @BeforeEach
     void setUp() {
         jdbc.execute("TRUNCATE TABLE users,consent_documents RESTART IDENTITY CASCADE");
-        jdbc.update("INSERT INTO users(id,status) VALUES (?,'active'::user_status_t)", USER_ID);
+        jdbc.update("INSERT INTO users(id,status) VALUES (?,'active')", USER_ID);
         storage.metadata = new StoredObjectMetadata(12, "video/mp4", "\"etag-12\"");
     }
 
@@ -113,7 +113,7 @@ class UploadEndpointIT {
                         {"intent_id":"%s","status":"finalized"}
                         """.formatted(intentId)));
         assertThat(jdbc.queryForMap(
-                "SELECT status::text,etag,finalized_at FROM upload_intents WHERE id=?", intentId))
+                "SELECT status,etag,finalized_at FROM upload_intents WHERE id=?", intentId))
                 .containsEntry("status", "finalized")
                 .containsEntry("etag", "\"etag-12\"");
 
@@ -136,7 +136,7 @@ class UploadEndpointIT {
                 .isEqualTo("upload_intent_expired");
 
         UUID other = UUID.fromString("00000000-0000-4000-8000-000000000102");
-        jdbc.update("INSERT INTO users(id,status) VALUES (?,'active'::user_status_t)", other);
+        jdbc.update("INSERT INTO users(id,status) VALUES (?,'active')", other);
         var hidden = mvc.perform(post("/v2/uploads/intents/{id}/complete", intentId)
                         .header("Authorization", "Bearer " + jwt.issueAccessToken(other).value()))
                 .andReturn().getResponse();
@@ -206,7 +206,7 @@ class UploadEndpointIT {
         UUID document = UUID.fromString("00000000-0000-4000-8000-000000000201");
         jdbc.update("""
                 INSERT INTO consent_documents(id,type,version,title,body,required,published_at)
-                VALUES (?,'terms'::consent_type_t,'v1','약관','본문',true,?)
+                VALUES (?,'terms','v1','약관','본문',true,?)
                 """, document, OffsetDateTime.now(ZoneOffset.UTC));
 
         var blocked = mvc.perform(post("/v2/uploads/intents")
@@ -220,7 +220,7 @@ class UploadEndpointIT {
 
         jdbc.update("""
                 INSERT INTO user_consents(id,user_id,document_id,action)
-                VALUES (?,?,?,'granted'::consent_action_t)
+                VALUES (?,?,?,'granted')
                 """, UUID.randomUUID(), USER_ID, document);
         var allowed = mvc.perform(post("/v2/uploads/intents")
                         .header("Authorization", bearer())

@@ -463,7 +463,7 @@ class ExternalOperationIT {
                 userId, sessionId, requestId, FINGERPRINT, NOW);
         jdbc.update("""
                 UPDATE practice_sessions
-                SET status = 'analyzed'::practice_status_t
+                SET status = 'analyzed'
                 WHERE id = ?
                 """, sessionId);
 
@@ -501,7 +501,7 @@ class ExternalOperationIT {
         UUID id = UUID.randomUUID();
         jdbc.update("""
                 INSERT INTO users (id, email, status)
-                VALUES (?, ?, 'active'::user_status_t)
+                VALUES (?, ?, 'active')
                 """, id, id + "@example.test");
         return id;
     }
@@ -519,7 +519,7 @@ class ExternalOperationIT {
                     size_bytes,
                     expires_at
                 )
-                VALUES (?, ?, 'finalized'::upload_status_t, 's3', ?, 'video/mp4', 1, ?)
+                VALUES (?, ?, 'finalized', 's3', ?, 'video/mp4', 1, ?)
                 """,
                 id,
                 userId,
@@ -547,7 +547,7 @@ class ExternalOperationIT {
                     goal,
                     updated_at
                 )
-                VALUES (?, ?, ?, ?::practice_status_t, '상황', '인물', '분석', '캐릭터 분석', '목표', ?)
+                VALUES (?, ?, ?, ?, '상황', '인물', '분석', '캐릭터 분석', '목표', ?)
                 """,
                 id,
                 userId,
@@ -575,7 +575,7 @@ class ExternalOperationIT {
                     request_fingerprint,
                     created_at
                 )
-                VALUES (?, ?, ?, ?, ?::operation_kind_t, ?::operation_status_t, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 id,
                 sessionId,
@@ -591,7 +591,7 @@ class ExternalOperationIT {
     private Map<String, Object> operation(UUID operationId) {
         return jdbc.queryForMap("""
                 SELECT
-                    status::text AS status,
+                    status,
                     attempt_count,
                     lease_token,
                     lease_expires_at,
@@ -604,7 +604,7 @@ class ExternalOperationIT {
 
     private Map<String, Object> session(UUID sessionId) {
         return jdbc.queryForMap("""
-                SELECT status::text AS status
+                SELECT status
                 FROM practice_sessions
                 WHERE id = ?
                 """, sessionId);

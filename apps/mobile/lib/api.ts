@@ -212,7 +212,7 @@ export type ReportHistoryResponse = {
 export type AuthUser = {
   id: string;
   email: string | null;
-  status: 'active' | 'suspended';
+  status: 'active' | 'deactivated';
 };
 
 export type ConsentDocument = {
@@ -242,7 +242,7 @@ export type UploadIntent = {
   expires_at: string;
 };
 
-export type SessionStatus = 'created' | 'analyzing' | 'analyzed' | 'failed';
+export type SessionStatus = 'analyzing' | 'analyzed' | 'failed';
 
 export type PracticeSessionCreate = {
   session_id: string;

@@ -47,7 +47,7 @@ type AnalysisErrorCode =
   | "unsupported_media"
   | "max_attempts_exceeded";
 type ReportType = "analysis" | "expression" | "blocked";
-type PracticeStatus = "created" | "analyzing" | "analyzed" | "failed";
+type PracticeStatus = "analyzing" | "analyzed" | "failed";
 export type LoginProvider = "development" | "google" | "apple";
 // 연습을 시작하다 어디서 엎어졌는지. 가운데 셋(UploadStage)은 UploadError 가 스스로
 // 말하지만 양 끝 둘은 아니다. `session_create` 는 UploadError 가 아니다 — 업로드가 다
@@ -183,13 +183,12 @@ function toSafeReasonCode(reason: unknown, depth = 0): SafeReasonCode {
   return "unknown";
 }
 
-/** 로그인 실패 분류는 화면 분류기와 같은 세 코드만 통과시키고 나머지는 원문 없이 묶는다. */
+/** 로그인 실패 분류는 화면 분류기와 같은 두 코드만 통과시키고 나머지는 원문 없이 묶는다. */
 function toLoginReasonCode(reason: unknown): string {
   if (reason !== null && typeof reason === "object") {
     const error = reason as { name?: unknown; status?: unknown; code?: unknown };
     if (
       (error.status === 401 && error.code === "invalid_provider_token")
-      || (error.status === 403 && error.code === "account_suspended")
       || (error.status === 400 && error.code === "unsupported_provider")
     ) {
       return error.code;

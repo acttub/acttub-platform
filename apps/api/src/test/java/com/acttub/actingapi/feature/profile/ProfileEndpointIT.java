@@ -51,7 +51,7 @@ class ProfileEndpointIT {
     void setUp() {
         jdbc.execute("TRUNCATE TABLE users RESTART IDENTITY CASCADE");
         jdbc.update(
-                "INSERT INTO users(id,email,nickname,status) VALUES (?,?,NULL,'active'::user_status_t)",
+                "INSERT INTO users(id,email,nickname,status) VALUES (?,?,NULL,'active')",
                 USER_ID,
                 null);
     }

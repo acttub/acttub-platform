@@ -102,13 +102,6 @@ function TermsGateContent() {
         }),
       );
 
-      const accountSuspended = results.some(
-        (result) =>
-          result.status !== "fulfilled" &&
-          result.reason instanceof ApiError &&
-          result.reason.status === 403 &&
-          result.reason.code === "account_suspended",
-      );
       const documentsChanged = results.some(
         (result) =>
           result.status !== "fulfilled" &&
@@ -116,13 +109,13 @@ function TermsGateContent() {
           result.reason.status === 404 &&
           result.reason.code === "consent_document_not_found",
       );
-      if (accountSuspended || documentsChanged) {
+      if (documentsChanged) {
         trackConsentSubmitted("forced_logout");
         clearPendingConsents();
         await logout();
         const params = new URLSearchParams({
           next: sanitizeNextPath(searchParams.get("next")),
-          notice: accountSuspended ? "account_suspended" : "consents_updated",
+          notice: "consents_updated",
         });
         router.replace(`/login?${params.toString()}`);
         return;

@@ -26,7 +26,7 @@ public final class CoachStorageFixtures {
         UUID userId = UUID.randomUUID();
         jdbc.update("""
                 INSERT INTO users (id, email, status)
-                VALUES (?, ?, 'active'::user_status_t)
+                VALUES (?, ?, 'active')
                 """, userId, userId + "@coach-storage.test");
         return userId;
     }
@@ -52,7 +52,7 @@ public final class CoachStorageFixtures {
                 VALUES (
                     ?,
                     ?,
-                    'finalized'::upload_status_t,
+                    'finalized',
                     's3',
                     ?,
                     'video/mp4',
@@ -85,7 +85,7 @@ public final class CoachStorageFixtures {
                     ?,
                     ?,
                     ?,
-                    'analyzed'::practice_status_t,
+                    'analyzed',
                     '오디션 직전',
                     '불안한 배우',
                     '상대를 붙잡는다',
@@ -147,7 +147,7 @@ public final class CoachStorageFixtures {
                     created_at,
                     updated_at
                 )
-                VALUES (?, ?, ?, ?::session_status_t, '', ?, ?)
+                VALUES (?, ?, ?, ?, '', ?, ?)
                 """,
                 sessionId,
                 practiceSessionId,
@@ -159,7 +159,7 @@ public final class CoachStorageFixtures {
             CoachTurnSnapshot turn = turns.get(index);
             jdbc.update("""
                     INSERT INTO coach_turns (session_id, turn_index, role, text)
-                    VALUES (?, ?, ?::turn_role_t, ?)
+                    VALUES (?, ?, ?, ?)
                     """, sessionId, index, turn.role(), turn.text());
         }
     }
@@ -184,8 +184,8 @@ public final class CoachStorageFixtures {
                     ?,
                     ?,
                     ?,
-                    'coach_start'::operation_kind_t,
-                    'running'::operation_status_t,
+                    'coach_start',
+                    'running',
                     1,
                     ?,
                     ?,
@@ -255,7 +255,7 @@ public final class CoachStorageFixtures {
 
     public String coachStatus(UUID sessionId) {
         return jdbc.queryForObject("""
-                SELECT status::text
+                SELECT status
                 FROM coach_sessions
                 WHERE id = ?
                 """, String.class, sessionId);

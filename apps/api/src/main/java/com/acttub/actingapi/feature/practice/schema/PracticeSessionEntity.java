@@ -4,13 +4,11 @@ import java.time.Instant;
 import java.util.UUID;
 
 import com.acttub.actingapi.platform.schema.AppGeneratedUuidEntity;
-import com.acttub.actingapi.platform.schema.PgEnumJdbcType;
 import com.acttub.actingapi.platform.schema.PracticeStatus;
 import jakarta.persistence.Column;
 import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Table;
-import org.hibernate.annotations.JdbcType;
 
 /**
  * {@code practice_sessions} — 부분 인덱스
@@ -30,8 +28,7 @@ public class PracticeSessionEntity extends AppGeneratedUuidEntity {
     private UUID uploadIntentId;
 
     @Convert(converter = PracticeStatus.JpaConverter.class)
-    @JdbcType(PgEnumJdbcType.class)
-    @Column(name = "status", nullable = false, columnDefinition = "practice_status_t")
+    @Column(name = "status", nullable = false, columnDefinition = "text")
     private PracticeStatus status;
 
     @Column(name = "situation", nullable = false)

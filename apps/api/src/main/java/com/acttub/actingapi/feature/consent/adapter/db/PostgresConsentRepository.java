@@ -42,29 +42,39 @@ class PostgresConsentRepository
     /**
      * `db/store.py:PostgresStore.list_latest_consent_documents` 대응.
      *
-     * <p><b>{@code ORDER BY} 는 반드시 테이블을 한정한다.</b> {@code SELECT type::text} 는 출력
-     * 컬럼 이름을 그대로 {@code type} 으로 만들고, Postgres 의 {@code ORDER BY} 는 출력 별칭을
-     * 먼저 본다. 한정하지 않으면 enum 이 아니라 <b>그 텍스트</b>로 정렬돼
-     * {@code terms, privacy} 가 {@code privacy, terms} 로 뒤집힌다 — enum 은 선언 순서로,
-     * 텍스트는 알파벳 순으로 정렬되기 때문이다. {@code DISTINCT ON} 은 그룹마다 첫 행을 고르므로
-     * 이 정렬은 결과 순서만이 아니라 <b>어느 행이 선택되는지</b>까지 좌우한다 (apps/api/CONTRACT.md §5-8).
+     * <p><b>응답 순서는 약관·개인정보·AI 분석이다</b> — 웹의 동의 화면과 ops 대시보드가 그
+     * 순서로 그린다. {@code consent_type_t} 이던 시절에는 enum 정의 순서가 이 일을 대신했지만,
+     * text 가 된 지금은 사전순({@code ai_analysis, privacy, terms})으로 뒤집힌다.
+     * 그래서 바깥에서 {@code CASE} 로 못박는다 (SOMA-462).
+     *
+     * <p><b>안쪽 질의는 건드리지 않는다.</b> {@code DISTINCT ON} 은 {@code ORDER BY} 선행
+     * 표현식이 자기와 같기를 요구해서, 안쪽에 {@code CASE} 를 넣으면
+     * {@code SELECT DISTINCT ON expressions must match initial ORDER BY expressions} 로
+     * 거부당한다. 안쪽의 정렬은 종류마다 <b>어느 판을 고를지</b>(가장 최근 것)를 정하는
+     * 일이고, 바깥 정렬은 고른 것들을 보여줄 순서를 정하는 일이다 (apps/api/CONTRACT.md §5-8).
      */
     @Override
     public List<ConsentDocument> listLatestDocuments() {
         return jdbc.query("""
-                SELECT DISTINCT ON(consent_documents.type)
-                       id,type::text,version,title,body,required,published_at
-                FROM consent_documents
-                ORDER BY consent_documents.type,
-                         consent_documents.published_at DESC,
-                         consent_documents.id DESC
+                SELECT id,type,version,title,body,required,published_at
+                FROM (SELECT DISTINCT ON(consent_documents.type)
+                             id,type,version,title,body,required,published_at
+                      FROM consent_documents
+                      ORDER BY consent_documents.type,
+                               consent_documents.published_at DESC,
+                               consent_documents.id DESC) latest
+                ORDER BY CASE latest.type
+                             WHEN 'terms' THEN 1
+                             WHEN 'privacy' THEN 2
+                             WHEN 'ai_analysis' THEN 3
+                         END
                 """, PostgresConsentRepository::document);
     }
 
     @Override
     public ConsentDocument findDocument(UUID documentId) {
         List<ConsentDocument> rows = jdbc.query("""
-                SELECT id,type::text,version,title,body,required,published_at
+                SELECT id,type,version,title,body,required,published_at
                 FROM consent_documents
                 WHERE id=?
                 """, PostgresConsentRepository::document, documentId);
@@ -75,7 +85,7 @@ class PostgresConsentRepository
     public List<ConsentEvent> currentConsentsOf(UUID userId) {
         return jdbc.query("""
                 SELECT DISTINCT ON(document_id)
-                       id,user_id,document_id,action::text,occurred_at
+                       id,user_id,document_id,action,occurred_at
                 FROM user_consents
                 WHERE user_id=?
                 ORDER BY document_id,occurred_at DESC,id DESC
@@ -87,7 +97,7 @@ class PostgresConsentRepository
         UUID id = UUID.randomUUID();
         jdbc.update("""
                 INSERT INTO user_consents(id,user_id,document_id,action,occurred_at)
-                VALUES (?,?,?,?::consent_action_t,?)
+                VALUES (?,?,?,?,?)
                 """,
                 id,
                 userId,
@@ -111,9 +121,9 @@ class PostgresConsentRepository
     public List<PendingConsent> pendingFor(UUID userId) {
         return jdbc.query("""
                 WITH latest AS (SELECT DISTINCT ON(type) * FROM consent_documents ORDER BY type,published_at DESC,id DESC)
-                SELECT d.id,d.type::text,d.version,d.title,d.body,d.required,d.published_at
+                SELECT d.id,d.type,d.version,d.title,d.body,d.required,d.published_at
                 FROM latest d WHERE d.required AND NOT EXISTS(
-                  SELECT 1 FROM user_consents c WHERE c.user_id=? AND c.document_id=d.id AND c.action='granted'::consent_action_t
+                  SELECT 1 FROM user_consents c WHERE c.user_id=? AND c.document_id=d.id AND c.action='granted'
                   AND c.id=(SELECT c2.id FROM user_consents c2 WHERE c2.user_id=c.user_id AND c2.document_id=c.document_id ORDER BY c2.occurred_at DESC,c2.id DESC LIMIT 1))
                 ORDER BY d.published_at,d.id
                 """,

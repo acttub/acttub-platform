@@ -120,7 +120,7 @@ public class ConsentDocumentPublisher implements ApplicationRunner {
             Entry entry = value.entry();
             List<Map<String, Object>> existing = jdbc.queryForList(
                     "SELECT title,body,required FROM consent_documents "
-                            + "WHERE type=?::consent_type_t AND version=?",
+                            + "WHERE type=? AND version=?",
                     value.type().dbValue(),
                     entry.version());
             if (!existing.isEmpty()) {
@@ -147,7 +147,7 @@ public class ConsentDocumentPublisher implements ApplicationRunner {
             try {
                 jdbc.update(
                         "INSERT INTO consent_documents(id,type,version,title,body,required) "
-                                + "VALUES (?,?::consent_type_t,?,?,?,?)",
+                                + "VALUES (?,?,?,?,?,?)",
                         UUID.randomUUID(),
                         value.type().dbValue(),
                         entry.version(),

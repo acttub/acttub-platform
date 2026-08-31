@@ -185,7 +185,7 @@ class CoachReportEndpointIT {
                 WHERE coaching_handoff_id = ?
                 """, Boolean.class, handoffId)).isTrue();
         assertThat(jdbc.queryForMap("""
-                SELECT status::text AS status, error_code
+                SELECT status, error_code
                 FROM external_operations WHERE request_id = ?
                 """, requestId))
                 .containsEntry("status", "failed")
@@ -222,7 +222,7 @@ class CoachReportEndpointIT {
                 404, "practice session not found");
 
         jdbc.update("""
-                UPDATE practice_sessions SET status = 'analyzing'::practice_status_t WHERE id = ?
+                UPDATE practice_sessions SET status = 'analyzing' WHERE id = ?
                 """, practice.id());
         assertError(coachStart(userId, practice.id(), UUID.randomUUID()),
                 409, "practice session analysis is not settled");
@@ -284,7 +284,7 @@ class CoachReportEndpointIT {
 
         jdbc.update("""
                 UPDATE external_operations
-                SET status = 'failed'::operation_status_t,
+                SET status = 'failed',
                     lease_token = NULL,
                     lease_expires_at = NULL,
                     response_payload = 'null'::jsonb,
@@ -397,7 +397,7 @@ class CoachReportEndpointIT {
                 .as("리스 상실은 생성을 지난 뒤에만 난다")
                 .isEqualTo(callsBefore + 1);
         assertThat(jdbc.queryForMap("""
-                SELECT status::text AS status, error_code
+                SELECT status, error_code
                 FROM external_operations WHERE request_id = ?
                 """, requestId))
                 .as("%s 의 원장", requestId)
@@ -554,7 +554,7 @@ class CoachReportEndpointIT {
         int updated = jdbc.update("""
                 UPDATE external_operations
                 SET lease_token = gen_random_uuid()
-                WHERE request_id = ? AND status = 'running'::operation_status_t
+                WHERE request_id = ? AND status = 'running'
                 """, requestId);
         if (updated != 1) {
             throw new AssertionError(
@@ -575,7 +575,7 @@ class CoachReportEndpointIT {
     private void markRunning(UUID requestId) {
         jdbc.update("""
                 UPDATE external_operations
-                SET status = 'running'::operation_status_t,
+                SET status = 'running',
                     lease_token = gen_random_uuid(),
                     lease_expires_at = now() + interval '5 minutes',
                     response_payload = 'null'::jsonb

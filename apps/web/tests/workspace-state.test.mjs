@@ -148,7 +148,7 @@ test("올리다 실패하면 준비 화면으로 돌아가되 고른 것은 남�
 
 test("세션이 만들어지면 훑어보는 자리로 가고, 곧바로 실패로 와도 대화로 가지 않는다", () => {
   const uploading = { kind: "uploading", video: VIDEO, continueFrom: CONTINUE };
-  for (const status of ["created", "analyzing", "analyzed"]) {
+  for (const status of ["analyzing", "analyzed"]) {
     assert.deepEqual(advance(uploading, { type: "sessionCreated", status }), {
       kind: "analyzing",
       video: VIDEO,
@@ -259,12 +259,10 @@ test("다른 연습을 열면 여기서 고르던 영상과 이어받기는 그 
 
 test("연 연습이 아직 대기 중이면 훑어보는 자리, 실패면 실패 자리, 끝났으면 대화다", () => {
   const opening = { kind: "analyzing", video: null };
-  for (const status of ["created", "analyzing"]) {
-    assert.deepEqual(advance(opening, { type: "sessionLoaded", status }), {
-      kind: "analyzing",
-      video: null,
-    });
-  }
+  assert.deepEqual(advance(opening, { type: "sessionLoaded", status: "analyzing" }), {
+    kind: "analyzing",
+    video: null,
+  });
   assert.deepEqual(advance(opening, { type: "sessionLoaded", status: "failed" }), {
     kind: "analysisFailed",
     video: null,

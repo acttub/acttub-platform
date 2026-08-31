@@ -31,9 +31,6 @@ public record AuthenticatedUser(UUID id, String email, UserStatus status) {
      * 어긋난 것조차 보이지 않는다.
      */
     public void requireUsable() {
-        if (status == UserStatus.SUSPENDED) {
-            throw new ApiException(403, "account_suspended");
-        }
         if (status == UserStatus.DEACTIVATED) {
             throw new ApiException(403, "account_deactivated");
         }

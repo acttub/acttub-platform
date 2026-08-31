@@ -39,7 +39,7 @@ class PostgresUploadIntentRepositoryIT {
     @BeforeEach
     void setUp() {
         jdbc.execute("TRUNCATE TABLE users RESTART IDENTITY CASCADE");
-        jdbc.update("INSERT INTO users(id,status) VALUES (?,'active'::user_status_t)", USER_ID);
+        jdbc.update("INSERT INTO users(id,status) VALUES (?,'active')", USER_ID);
     }
 
     @Test
@@ -69,7 +69,7 @@ class PostgresUploadIntentRepositoryIT {
                     .hasSize(1);
         }
         assertThat(jdbc.queryForObject(
-                "SELECT status::text FROM upload_intents WHERE id=?", String.class, intent.id()))
+                "SELECT status FROM upload_intents WHERE id=?", String.class, intent.id()))
                 .isEqualTo("finalized");
     }
 }

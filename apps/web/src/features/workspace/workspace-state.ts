@@ -308,7 +308,7 @@ export function workspaceScreenReducer(
     case "sessionLoaded":
       // 받아 온 연습은 서버가 준 주소로 튼다. 여기서 고르던 로컬 원본을 들면
       // 남의 연습에 내 영상이 실린다.
-      if (action.status === "created" || action.status === "analyzing") {
+      if (action.status === "analyzing") {
         return analysisScreen(screen, "analyzing", null);
       }
       if (action.status === "failed") return analysisScreen(screen, "analysisFailed", null);

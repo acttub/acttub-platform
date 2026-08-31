@@ -47,7 +47,7 @@ public final class ReportFixtures {
         UUID id = UUID.randomUUID();
         jdbc.update("""
                 INSERT INTO users (id, email, status)
-                VALUES (?, ?, 'active'::user_status_t)
+                VALUES (?, ?, 'active')
                 """, id, id + "@example.test");
         return id;
     }
@@ -65,7 +65,7 @@ public final class ReportFixtures {
                     size_bytes,
                     expires_at
                 )
-                VALUES (?, ?, 'finalized'::upload_status_t, 's3', ?, 'video/mp4', 1, ?)
+                VALUES (?, ?, 'finalized', 's3', ?, 'video/mp4', 1, ?)
                 """,
                 uploadId,
                 userId,
@@ -89,7 +89,7 @@ public final class ReportFixtures {
                     ?,
                     ?,
                     ?,
-                    'analyzed'::practice_status_t,
+                    'analyzed',
                     '상황',
                     '인물',
                     '분석',
@@ -109,7 +109,7 @@ public final class ReportFixtures {
                     status,
                     conversation_summary
                 )
-                VALUES (?, ?, 'closed'::session_status_t, '')
+                VALUES (?, ?, 'closed', '')
                 """, coachSessionId, practiceSessionId);
 
         return insertHandoff(practiceSessionId, coachSessionId);
@@ -154,8 +154,8 @@ public final class ReportFixtures {
                     ?,
                     ?,
                     ?,
-                    'report'::operation_kind_t,
-                    'running'::operation_status_t,
+                    'report',
+                    'running',
                     1,
                     ?,
                     ?,

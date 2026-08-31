@@ -142,14 +142,14 @@ public class SyncOperationService implements CoachOperationLedger, ReportOperati
         transaction.executeWithoutResult(status -> {
             int finished = jdbc.update("""
                     UPDATE external_operations
-                    SET status = 'succeeded'::operation_status_t,
+                    SET status = 'succeeded',
                         response_payload = ?::jsonb,
                         error_code = NULL,
                         lease_token = NULL,
                         lease_expires_at = NULL,
                         updated_at = ?
                     WHERE id = ?
-                      AND status = 'running'::operation_status_t
+                      AND status = 'running'
                       AND lease_token = ?
                     """,
                     responsePayload.toString(),
@@ -200,7 +200,7 @@ public class SyncOperationService implements CoachOperationLedger, ReportOperati
                 INSERT INTO external_operations (
                     id, session_id, user_id, request_id, kind, request_fingerprint
                 )
-                VALUES (?, ?, ?, ?, ?::operation_kind_t, ?)
+                VALUES (?, ?, ?, ?, ?, ?)
                 ON CONFLICT (user_id, request_id) DO NOTHING
                 RETURNING id
                 """, (row, number) -> row.getObject("id", UUID.class),
@@ -220,7 +220,7 @@ public class SyncOperationService implements CoachOperationLedger, ReportOperati
     private SyncOperationRow find(UUID userId, UUID requestId) {
         List<SyncOperationRow> rows = jdbc.query("""
                 SELECT
-                    id, status::text AS status,
+                    id, status,
                     request_fingerprint, lease_token, lease_expires_at,
                     response_payload::text AS response_payload
                 FROM external_operations

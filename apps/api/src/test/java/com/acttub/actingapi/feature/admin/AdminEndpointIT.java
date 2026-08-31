@@ -10,7 +10,6 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
 
-import com.acttub.actingapi.feature.report.adapter.db.ReportFixtures;
 import com.acttub.actingapi.integration.storage.ObjectStorage;
 import com.acttub.actingapi.integration.storage.StoredObjectMetadata;
 import com.acttub.actingapi.support.PostgresContainerSupport;
@@ -64,12 +63,10 @@ class AdminEndpointIT {
 
     private UUID realFinalCoach;
     private UUID realPendingCoach;
-    private ReportFixtures reportFixtures;
 
     @BeforeEach
     void setUp() {
         jdbc.execute("TRUNCATE TABLE users, consent_documents RESTART IDENTITY CASCADE");
-        reportFixtures = new ReportFixtures(jdbc);
         insertUser(REAL_USER, "actor@example.com", NOW.minusHours(2));
         insertUser(TEAM_USER, "Team@Acttub.com", NOW.minusHours(1));
 
@@ -84,55 +81,20 @@ class AdminEndpointIT {
         UUID teamCoach = insertCoach(team, NOW.minusMinutes(10));
         jdbc.update("""
                 UPDATE coach_sessions
-                SET status='closed'::session_status_t,
-                    close_reason='gap_stated'::close_reason_t
+                SET status='closed',
+                    close_reason='gap_stated'
                 WHERE id=?
                 """, realFinalCoach);
         insertTurn(realFinalCoach, 0, "actor", "첫 질문");
         insertTurn(realPendingCoach, 0, "ai", "두 번째 답변");
         insertTurn(teamCoach, 0, "actor", "팀 대화");
-        insertReport(realFinal, realFinalCoach, NOW.minusMinutes(5));
-        insertReport(team, teamCoach, NOW.minusMinutes(4));
     }
 
+    /** 토큰이 없거나 틀리면 401 이다. 관리자 경로 전체가 이 검사 뒤에 있다. */
     @Test
-    void tokenStatsAndTeamExclusionMatchPythonSemantics() throws Exception {
+    void requestsWithoutAValidTokenAreRejected() throws Exception {
         assertUnauthorized(null);
         assertUnauthorized("Bearer nope");
-
-        JsonNode stats = authorized("/v2/admin/stats", 200);
-        assertThat(stats.path("users_total").longValue()).isEqualTo(2);
-        assertThat(stats.path("users_total_real").longValue()).isEqualTo(1);
-        assertThat(stats.path("practice_sessions_total").longValue()).isEqualTo(3);
-        assertThat(stats.path("practice_sessions_total_real").longValue()).isEqualTo(2);
-        assertThat(stats.path("uploads_finalized_total").longValue()).isEqualTo(2);
-        assertThat(stats.path("uploads_finalized_total_real").longValue()).isEqualTo(1);
-        assertThat(stats.path("coach_turns_total").longValue()).isEqualTo(3);
-        assertThat(stats.path("coach_turns_total_real").longValue()).isEqualTo(2);
-        assertThat(stats.path("reports_total").longValue()).isEqualTo(2);
-        assertThat(stats.path("reports_total_real").longValue()).isEqualTo(1);
-        assertThat(stats.path("users_with_session").longValue()).isEqualTo(2);
-        assertThat(stats.path("users_with_session_real").longValue()).isEqualTo(1);
-        assertThat(stats.path("returning_2x").longValue()).isEqualTo(1);
-        assertThat(stats.path("returning_2x_real").longValue()).isEqualTo(1);
-        assertThat(stats.path("returning_3x").longValue()).isZero();
-        // 56 = 55 + signup_sources (dev SOMA-331). 원본 `admin.py:AdminStats` 와 같은 수다.
-        assertThat(stats.fieldNames()).toIterable().hasSize(56);
-        assertThat(stats.path("funnel_steps")).hasSize(7);
-        assertThat(stats.at("/funnel_steps/0/step").textValue()).isEqualTo("가입");
-        assertThat(stats.at("/funnel_steps/4/step").textValue()).isEqualTo("코치 대화");
-        assertThat(stats.path("close_reasons")).hasSize(2);
-        assertThat(stats.at("/close_reasons/0/reason").textValue()).isEqualTo("진행 중");
-        assertThat(stats.at("/close_reasons/0/count").longValue()).isEqualTo(2);
-        assertThat(stats.at("/close_reasons/0/count_real").longValue()).isEqualTo(1);
-        assertThat(stats.at("/close_reasons/1/reason").textValue()).isEqualTo("gap_stated");
-        assertThat(stats.path("gap_stated_all").longValue()).isOne();
-        assertThat(stats.path("gap_stated_all_real").longValue()).isOne();
-        assertThat(stats.path("observations_total").longValue()).isZero();
-        assertThat(stats.path("observations_per_summary").doubleValue()).isZero();
-        assertThat(stats.path("db_size").isTextual()).isTrue();
-        assertThat(stats.path("last_signup_at").textValue()).endsWith("Z");
-        assertThat(stats.path("last_session_at").textValue()).endsWith("Z");
     }
 
     @Test
@@ -203,8 +165,7 @@ class AdminEndpointIT {
                 added.add(path);
             }
         });
-        assertThat(added).containsExactlyInAnyOrder(
-                "/v2/admin/stats", "/v2/admin/sessions");
+        assertThat(added).containsExactly("/v2/admin/sessions");
         assertThat(actual.at("/paths/~1v2~1admin~1sessions/get/parameters/0/schema/type")
                 .textValue()).isEqualTo("integer");
         assertThat(actual.at("/paths/~1v2~1admin~1sessions/get/parameters/0/schema/default")
@@ -212,7 +173,7 @@ class AdminEndpointIT {
     }
 
     private void assertUnauthorized(String authorization) throws Exception {
-        var request = get("/v2/admin/stats");
+        var request = get("/v2/admin/sessions");
         if (authorization != null) {
             request.header("Authorization", authorization);
         }
@@ -235,7 +196,7 @@ class AdminEndpointIT {
     private void insertUser(UUID id, String email, OffsetDateTime createdAt) {
         jdbc.update("""
                 INSERT INTO users (id,email,status,created_at,updated_at)
-                VALUES (?,?,'active'::user_status_t,?,?)
+                VALUES (?,?,'active',?,?)
                 """, id, email, createdAt, createdAt);
     }
 
@@ -249,14 +210,14 @@ class AdminEndpointIT {
                 INSERT INTO upload_intents (
                     id,user_id,status,storage_provider,object_key,mime_type,size_bytes,
                     expires_at,created_at
-                ) VALUES (?, ?, ?::upload_status_t, 's3', ?, 'video/mp4', 1, ?, ?)
+                ) VALUES (?, ?, ?, 's3', ?, 'video/mp4', 1, ?, ?)
                 """, uploadId, userId, uploadStatus, objectKey, createdAt.plusDays(1), createdAt);
         UUID practiceId = UUID.randomUUID();
         jdbc.update("""
                 INSERT INTO practice_sessions (
                     id,user_id,upload_intent_id,status,situation,character_context,goal,
                     blockage_kind,sub_branch,created_at,updated_at
-                ) VALUES (?, ?, ?, 'analyzed'::practice_status_t, '상황', '배우', '목표',
+                ) VALUES (?, ?, ?, 'analyzed', '상황', '배우', '목표',
                     '분석', '캐릭터 분석', ?, ?)
                 """, practiceId, userId, uploadId, createdAt, createdAt);
         return practiceId;
@@ -267,7 +228,7 @@ class AdminEndpointIT {
         jdbc.update("""
                 INSERT INTO coach_sessions (
                     id,practice_session_id,status,conversation_summary,created_at,updated_at
-                ) VALUES (?, ?, 'open'::session_status_t, '', ?, ?)
+                ) VALUES (?, ?, 'open', '', ?, ?)
                 """, coachId, practiceId, createdAt, createdAt);
         return coachId;
     }
@@ -275,20 +236,8 @@ class AdminEndpointIT {
     private void insertTurn(UUID coachId, int index, String role, String text) {
         jdbc.update("""
                 INSERT INTO coach_turns (session_id,turn_index,role,text,created_at)
-                VALUES (?, ?, ?::turn_role_t, ?, ?)
+                VALUES (?, ?, ?, ?, ?)
                 """, coachId, index, role, text, NOW);
-    }
-
-    private void insertReport(
-            UUID practiceId,
-            UUID coachSessionId,
-            OffsetDateTime createdAt) {
-        UUID sourceHandoffId = reportFixtures.insertHandoff(practiceId, coachSessionId);
-        jdbc.update("""
-                INSERT INTO practice_reports (
-                    id,practice_session_id,report_type,report_json,source_handoff_id,created_at
-                ) VALUES (?, ?, 'analysis', '{}'::jsonb, ?, ?)
-                """, UUID.randomUUID(), practiceId, sourceHandoffId, createdAt);
     }
 
     @TestConfiguration

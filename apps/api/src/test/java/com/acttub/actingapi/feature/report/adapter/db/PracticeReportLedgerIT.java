@@ -210,7 +210,7 @@ class PracticeReportLedgerIT {
                 connection.rollback();
 
                 try (PreparedStatement recovered = connection.prepareStatement(
-                        "INSERT INTO users (id, email, status) VALUES (?, ?, 'active'::user_status_t)")) {
+                        "INSERT INTO users (id, email, status) VALUES (?, ?, 'active')")) {
                     recovered.setObject(1, sameConnectionMarker);
                     recovered.setString(2, sameConnectionMarker + "@same-connection.test");
                     recovered.executeUpdate();
@@ -265,7 +265,7 @@ class PracticeReportLedgerIT {
     private void insertMarker(UUID markerId) {
         jdbc.update("""
                 INSERT INTO users (id, email, status)
-                VALUES (?, ?, 'active'::user_status_t)
+                VALUES (?, ?, 'active')
                 """, markerId, markerId + "@marker.test");
     }
 
@@ -297,7 +297,7 @@ class PracticeReportLedgerIT {
     private Map<String, Object> operation(UUID operationId) {
         return jdbc.queryForMap("""
                 SELECT
-                    status::text AS status,
+                    status,
                     lease_token,
                     lease_expires_at
                 FROM external_operations

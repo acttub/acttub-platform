@@ -60,7 +60,7 @@ function createDependencies(overrides = {}) {
     completeUpload: async () => {},
     createPracticeSession: async () => ({
       session_id: 'session-1',
-      status: 'created',
+      status: 'analyzing',
     }),
     getStatus: async () => ({ status: 'analyzed', error_code: null }),
     reanalyze: async () => ({ session_id: 'session-1', status: 'analyzing' }),
@@ -602,7 +602,7 @@ test('S2: abandon의 서버 삭제 404는 성공으로 보고 pending record를 
   assert.equal(removeCalls, 1);
 });
 
-for (const status of ['created', 'analyzing', 'analyzed', 'failed']) {
+for (const status of ['analyzing', 'analyzed', 'failed']) {
   test(`M2: status=${status}일 때 ${status === 'failed' ? 'reanalyze를 호출한다' : 'reanalyze를 호출하지 않는다'}`, async () => {
     const owner = createAnalysisOperationOwner({
       now: () => 100,

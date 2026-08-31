@@ -3,10 +3,8 @@ package com.acttub.actingapi.feature.upload.schema;
 import java.time.Instant;
 import java.util.UUID;
 import jakarta.persistence.*;
-import org.hibernate.annotations.JdbcType;
 
 import com.acttub.actingapi.platform.schema.AppGeneratedUuidEntity;
-import com.acttub.actingapi.platform.schema.PgEnumJdbcType;
 import com.acttub.actingapi.platform.schema.UploadStatus;
 
 @Entity
@@ -17,8 +15,7 @@ public class UploadIntentEntity extends AppGeneratedUuidEntity {
     UUID userId;
 
     @Convert(converter = UploadStatus.JpaConverter.class)
-    @JdbcType(PgEnumJdbcType.class)
-    @Column(name = "status", nullable = false, columnDefinition = "upload_status_t")
+    @Column(name = "status", nullable = false, columnDefinition = "text")
     UploadStatus status;
 
     @Column(name = "storage_provider", nullable = false)

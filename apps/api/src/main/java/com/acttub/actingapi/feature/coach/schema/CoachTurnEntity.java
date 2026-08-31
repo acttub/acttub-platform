@@ -3,10 +3,8 @@ package com.acttub.actingapi.feature.coach.schema;
 import java.time.Instant;
 import java.util.UUID;
 import jakarta.persistence.*;
-import org.hibernate.annotations.JdbcType;
 
 import com.acttub.actingapi.platform.schema.TurnRole;
-import com.acttub.actingapi.platform.schema.PgEnumJdbcType;
 
 @Entity
 @Table(name = "coach_turns")
@@ -24,8 +22,7 @@ public class CoachTurnEntity {
     int turnIndex;
 
     @Convert(converter = TurnRole.JpaConverter.class)
-    @JdbcType(PgEnumJdbcType.class)
-    @Column(name = "role", nullable = false, columnDefinition = "turn_role_t")
+    @Column(name = "role", nullable = false, columnDefinition = "text")
     TurnRole role;
 
     @Column(name = "text", nullable = false)

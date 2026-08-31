@@ -124,7 +124,7 @@ class RateLimitContractIT {
 
     private UUID insertUser() {
         UUID id = UUID.randomUUID();
-        jdbc.update("INSERT INTO users(id, status) VALUES (?, 'active'::user_status_t)", id);
+        jdbc.update("INSERT INTO users(id, status) VALUES (?, 'active')", id);
         return id;
     }
 

@@ -169,8 +169,6 @@ test("불러온 세션은 상태마다 지금 화면과 같은 자리에서 시�
       reduce(INITIAL_ANALYSIS_PROGRESS, { type: "reset" }),
     );
 
-  assert.equal(restore("created").pct, UPLOAD_ONLY_PROGRESS_END);
-  assert.equal(restore("created").waiting, true);
   assert.equal(restore("analyzing").pct, UPLOAD_ONLY_PROGRESS_END);
   assert.equal(restore("analyzing").waiting, true);
   assert.equal(restore("failed").pct, UPLOAD_ONLY_PROGRESS_END);
@@ -182,7 +180,7 @@ test("불러온 세션은 상태마다 지금 화면과 같은 자리에서 시�
 test("이미 끝난 세션은 분석 구간에 들어서자마자 멈춘다 — 타이머가 남지 않는다", () => {
   // 이 목록이 짧아지면(settle 이 빠지면) 조회가 실패하거나 다른 세션으로 넘어간
   // 자리에 1초 타이머가 남는다. 그것이 첫 배선에서 실제로 났던 버그다.
-  assert.deepEqual(analysisEventsForStatus("created", false), [
+  assert.deepEqual(analysisEventsForStatus("analyzing", false), [
     { type: "analyze", compressed: false },
   ]);
   assert.deepEqual(analysisEventsForStatus("analyzing", true), [

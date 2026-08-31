@@ -65,7 +65,7 @@ public class PostgresAnalysisStore implements AnalysisStore {
                 JOIN practice_sessions ps ON ps.id = eo.session_id
                 JOIN upload_intents ui ON ui.id = ps.upload_intent_id
                 WHERE eo.id = ?
-                  AND eo.kind = 'analyze'::operation_kind_t
+                  AND eo.kind = 'analyze'
                 """,
                 (row, number) -> new AnalysisContext(
                         row.getObject("operation_id", UUID.class),
@@ -113,8 +113,8 @@ public class PostgresAnalysisStore implements AnalysisStore {
         OffsetDateTime expiredAt = now.atOffset(ZoneOffset.UTC);
         List<String> result = transaction.execute(status -> jdbc.queryForList("""
                 UPDATE upload_intents
-                SET status = 'expired'::upload_status_t
-                WHERE status = 'pending'::upload_status_t
+                SET status = 'expired'
+                WHERE status = 'pending'
                   AND expires_at < ?
                 RETURNING object_key
                 """, String.class, expiredAt));
@@ -136,7 +136,7 @@ public class PostgresAnalysisStore implements AnalysisStore {
                 SELECT session_id
                 FROM external_operations
                 WHERE id = ?
-                  AND kind = 'analyze'::operation_kind_t
+                  AND kind = 'analyze'
                 """, UUID.class, operationId);
         if (sessionIds.isEmpty()) {
             throw new IllegalStateException("external operation not found");
@@ -167,7 +167,7 @@ public class PostgresAnalysisStore implements AnalysisStore {
         }
         jdbc.update("""
                 UPDATE practice_sessions
-                SET status = 'analyzed'::practice_status_t,
+                SET status = 'analyzed',
                     updated_at = ?
                 WHERE id = ?
                 """, now, sessionId);
@@ -184,14 +184,14 @@ public class PostgresAnalysisStore implements AnalysisStore {
         response.put("summary_id", summaryId.toString());
         int finished = jdbc.update("""
                 UPDATE external_operations
-                SET status = 'succeeded'::operation_status_t,
+                SET status = 'succeeded',
                     response_payload = ?::jsonb,
                     error_code = NULL,
                     lease_token = NULL,
                     lease_expires_at = NULL,
                     updated_at = ?
                 WHERE id = ?
-                  AND status = 'running'::operation_status_t
+                  AND status = 'running'
                   AND lease_token = ?
                 """, response.toString(), now, operationId, leaseToken);
         if (finished == 0) {

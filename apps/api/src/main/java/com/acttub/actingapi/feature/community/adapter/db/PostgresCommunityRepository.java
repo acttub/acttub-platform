@@ -78,7 +78,7 @@ class PostgresCommunityRepository implements CommunityRepository {
                 .addValue("fetchLimit", size + 1);
 
         StringBuilder where = new StringBuilder("""
-                p.status = 'visible'::content_status_t
+                p.status = 'visible'
                 AND %s
                 """.formatted(visibility.sql()).strip());
         if (categorySlug != null) {
@@ -110,7 +110,7 @@ class PostgresCommunityRepository implements CommunityRepository {
                        p.anonymous,
                        category.slug AS category_slug,
                        category.name AS category_name,
-                       CASE WHEN author.status = 'deactivated'::user_status_t
+                       CASE WHEN author.status = 'deactivated'
                             THEN '탈퇴한 사용자'
                             ELSE author.nickname END AS author_nickname,
                        p.title,
@@ -164,7 +164,7 @@ class PostgresCommunityRepository implements CommunityRepository {
                     INSERT INTO community_posts (
                         id, category_id, author_id, title, body, anonymous, status
                     )
-                    VALUES (?, ?, ?, ?, ?, ?, 'visible'::content_status_t)
+                    VALUES (?, ?, ?, ?, ?, ?, 'visible')
                     """, id, categories.getFirst(), authorId, title, body, anonymous);
             return justInserted(id, authorId);
         }));
@@ -222,7 +222,7 @@ class PostgresCommunityRepository implements CommunityRepository {
             }
             jdbc.update("""
                     UPDATE community_posts
-                    SET status = 'deleted'::content_status_t, updated_at = now()
+                    SET status = 'deleted', updated_at = now()
                     WHERE id = ?
                     """, postId);
         });
@@ -300,7 +300,7 @@ class PostgresCommunityRepository implements CommunityRepository {
                        comment.post_id,
                        comment.author_id,
                        comment.anonymous,
-                       CASE WHEN author.status = 'deactivated'::user_status_t
+                       CASE WHEN author.status = 'deactivated'
                             THEN '탈퇴한 사용자'
                             ELSE author.nickname END AS author_nickname,
                        comment.body,
@@ -309,7 +309,7 @@ class PostgresCommunityRepository implements CommunityRepository {
                 FROM community_comments comment
                 JOIN users author ON author.id = comment.author_id
                 WHERE comment.post_id = :postId
-                  AND comment.status = 'visible'::content_status_t
+                  AND comment.status = 'visible'
                   AND %s
                   %s
                 ORDER BY comment.created_at ASC, comment.id ASC
@@ -342,7 +342,7 @@ class PostgresCommunityRepository implements CommunityRepository {
                     INSERT INTO community_comments (
                         id, post_id, author_id, body, anonymous, status
                     )
-                    VALUES (?, ?, ?, ?, ?, 'visible'::content_status_t)
+                    VALUES (?, ?, ?, ?, ?, 'visible')
                     """, id, postId, authorId, body, anonymous);
             jdbc.update("""
                     UPDATE community_posts
@@ -383,13 +383,13 @@ class PostgresCommunityRepository implements CommunityRepository {
                            comment.post_id,
                            comment.author_id,
                            comment.anonymous,
-                           CASE WHEN author.status = 'deactivated'::user_status_t
+                           CASE WHEN author.status = 'deactivated'
                             THEN '탈퇴한 사용자'
                             ELSE author.nickname END AS author_nickname,
                            comment.body,
                            comment.created_at,
                            comment.updated_at,
-                           comment.status::text AS status
+                           comment.status
                     FROM community_comments comment
                     JOIN users author ON author.id = comment.author_id
                     WHERE comment.id = ?
@@ -404,7 +404,7 @@ class PostgresCommunityRepository implements CommunityRepository {
             }
             jdbc.update("""
                     UPDATE community_comments
-                    SET status = 'deleted'::content_status_t, updated_at = now()
+                    SET status = 'deleted', updated_at = now()
                     WHERE id = ?
                     """, commentId);
             jdbc.update("""
@@ -429,7 +429,7 @@ class PostgresCommunityRepository implements CommunityRepository {
             List<UUID> authors = jdbc.queryForList("""
                     SELECT author_id
                     FROM %s
-                    WHERE id = ? AND status <> 'deleted'::content_status_t
+                    WHERE id = ? AND status <> 'deleted'
                     """.formatted(table), UUID.class, targetId);
             if (authors.isEmpty()) {
                 throw new CommunityContentNotFound();
@@ -442,8 +442,8 @@ class PostgresCommunityRepository implements CommunityRepository {
                         INSERT INTO community_reports (
                             id, reporter_id, target_type, target_id, reason, detail, status
                         )
-                        VALUES (?, ?, ?::report_target_type_t, ?, ?::report_reason_t, ?,
-                                'pending'::report_status_t)
+                        VALUES (?, ?, ?, ?, ?, ?,
+                                'pending')
                         """, UUID.randomUUID(), reporterId, targetType, targetId, reason, detail);
             } catch (DataIntegrityViolationException exception) {
                 throw new DuplicateReport(exception);
@@ -513,7 +513,7 @@ class PostgresCommunityRepository implements CommunityRepository {
                        p.anonymous,
                        category.slug AS category_slug,
                        category.name AS category_name,
-                       CASE WHEN author.status = 'deactivated'::user_status_t
+                       CASE WHEN author.status = 'deactivated'
                             THEN '탈퇴한 사용자'
                             ELSE author.nickname END AS author_nickname,
                        p.title,
@@ -528,7 +528,7 @@ class PostgresCommunityRepository implements CommunityRepository {
                 JOIN community_categories category ON category.id = p.category_id
                 JOIN users author ON author.id = p.author_id
                 WHERE p.id = :postId
-                  AND p.status = 'visible'::content_status_t
+                  AND p.status = 'visible'
                   AND %s
                 """.formatted(viewerColumn, visibility.sql()), parameters,
                 (result, rowNumber) -> post(result, viewerId));
@@ -556,7 +556,7 @@ class PostgresCommunityRepository implements CommunityRepository {
                        p.anonymous,
                        category.slug AS category_slug,
                        category.name AS category_name,
-                       CASE WHEN author.status = 'deactivated'::user_status_t
+                       CASE WHEN author.status = 'deactivated'
                             THEN '탈퇴한 사용자'
                             ELSE author.nickname END AS author_nickname,
                        p.title,
@@ -580,8 +580,8 @@ class PostgresCommunityRepository implements CommunityRepository {
 
     private OwnedPost ownedPost(UUID postId, boolean visibleOnly, boolean lock) {
         String status = visibleOnly
-                ? "AND status = 'visible'::content_status_t"
-                : "AND status <> 'deleted'::content_status_t";
+                ? "AND status = 'visible'"
+                : "AND status <> 'deleted'";
         String lockClause = lock ? "FOR UPDATE" : "";
         List<UUID> rows = jdbc.queryForList("""
                 SELECT author_id
@@ -596,7 +596,7 @@ class PostgresCommunityRepository implements CommunityRepository {
         if (jdbc.queryForObject("""
                 SELECT COUNT(*)
                 FROM community_posts
-                WHERE id = ? AND status = 'visible'::content_status_t
+                WHERE id = ? AND status = 'visible'
                 """, Integer.class, postId) == 0) {
             throw new CommunityContentNotFound();
         }
@@ -625,13 +625,13 @@ class PostgresCommunityRepository implements CommunityRepository {
                        comment.post_id,
                        comment.author_id,
                        comment.anonymous,
-                       CASE WHEN author.status = 'deactivated'::user_status_t
+                       CASE WHEN author.status = 'deactivated'
                             THEN '탈퇴한 사용자'
                             ELSE author.nickname END AS author_nickname,
                        comment.body,
                        comment.created_at,
                        comment.updated_at,
-                       comment.status::text AS status
+                       comment.status
                 FROM community_comments comment
                 JOIN users author ON author.id = comment.author_id
                 WHERE comment.id = ?
