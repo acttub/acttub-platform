@@ -22,7 +22,7 @@ export function BlockageFields({
   onChange: (state: BlockageFlowState) => void;
 }) {
   return (
-    <section className="grid gap-4">
+    <section className="grid gap-3.5 rounded-[18px] bg-white p-3 shadow-[0_12px_36px_rgba(25,31,40,0.05)] sm:rounded-[20px] sm:p-4">
       <SectionHeading
         title="이번 연습에서 어떤 도움을 받고 싶나요?"
         description="고르지 않아도 영상에서 보이는 것부터 같이 찾아요."
@@ -54,24 +54,22 @@ function SectionHeading({
 }) {
   return (
     <header>
-      <h2 className="text-lg font-black leading-tight tracking-[-0.03em] text-[#191f28] sm:text-xl">
+      <h2 className="text-[15px] font-black leading-tight tracking-[-0.03em] text-[#191f28] sm:text-base">
         {title}
       </h2>
-      <p className="mt-1.5 text-sm font-semibold leading-5 text-[#4e5968]">
+      <p className="mt-1 text-[13px] font-semibold leading-5 text-[#6b7684]">
         {description}
       </p>
     </header>
   );
 }
 
-function ChoiceCard({
-  title,
-  description,
+function ChoiceChip({
+  label,
   selected = false,
   onClick,
 }: {
-  title: string;
-  description: string;
+  label: string;
   selected?: boolean;
   onClick: () => void;
 }) {
@@ -80,14 +78,13 @@ function ChoiceCard({
       type="button"
       aria-pressed={selected}
       onClick={onClick}
-      className={`min-h-[68px] w-full rounded-[28px] px-6 py-3.5 text-left shadow-[0_16px_48px_rgba(25,31,40,0.08)] transition ${
-        selected ? "bg-[#eef5ff] ring-2 ring-[#2f6bff]" : "bg-white"
+      className={`min-h-11 rounded-full px-3.5 py-2 text-sm font-black transition ${
+        selected
+          ? "bg-[#e8f3ff] text-[#3182f6]"
+          : "bg-[#f2f4f6] text-[#4e5968]"
       }`}
     >
-      <span className="block text-base font-black text-[#191f28]">{title}</span>
-      <span className="mt-1 block text-sm font-semibold text-[#4e5968]">
-        {description}
-      </span>
+      {label}
     </button>
   );
 }
@@ -99,17 +96,25 @@ function MainBranchPicker({
   selected: BlockageFlowState["kind"];
   onChoose: (kind: (typeof BLOCKAGE_CHOICES)[number]["value"]) => void;
 }) {
+  const selectedChoice = BLOCKAGE_CHOICES.find((choice) => choice.value === selected);
+
   return (
     <div className="grid gap-2">
-      {BLOCKAGE_CHOICES.map((choice) => (
-        <ChoiceCard
-          key={choice.value}
-          title={choice.label}
-          description={choice.description}
-          selected={selected === choice.value}
-          onClick={() => onChoose(choice.value)}
-        />
-      ))}
+      <div className="flex flex-wrap gap-2">
+        {BLOCKAGE_CHOICES.map((choice) => (
+          <ChoiceChip
+            key={choice.value}
+            label={choice.label}
+            selected={selected === choice.value}
+            onClick={() => onChoose(choice.value)}
+          />
+        ))}
+      </div>
+      {selectedChoice ? (
+        <p className="text-sm font-semibold leading-5 text-[#4e5968]">
+          {selectedChoice.description}
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -127,6 +132,7 @@ function DetailPanel({
 }) {
   const [examplesOpen, setExamplesOpen] = useState(false);
   const subChoices = subBranchChoices(kind);
+  const selectedSubChoice = subChoices.find((choice) => choice.value === state.subBranch);
   const examples = blockageDetailExamples();
 
   return (
@@ -137,17 +143,21 @@ function DetailPanel({
             title="조금 더 좁혀 볼까요?"
             description="고르면 질문이 더 맞아떨어져요."
           />
-          <div className="grid gap-2">
+          <div className="flex flex-wrap gap-2">
             {subChoices.map((choice) => (
-              <ChoiceCard
+              <ChoiceChip
                 key={choice.value}
-                title={choice.label}
-                description={choice.description}
+                label={choice.label}
                 selected={state.subBranch === choice.value}
                 onClick={() => onSubBranch(choice.value)}
               />
             ))}
           </div>
+          {selectedSubChoice ? (
+            <p className="text-sm font-semibold leading-5 text-[#4e5968]">
+              {selectedSubChoice.description}
+            </p>
+          ) : null}
         </>
       ) : null}
 

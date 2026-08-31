@@ -15,7 +15,6 @@ import {
   useReducer,
   useRef,
   useState,
-  type ReactNode,
 } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import wordmark from "@/assets/acttub-wordmark.png";
@@ -45,7 +44,6 @@ import {
   trackPracticeAbandoned,
   trackPracticeAnalysisSettled,
   trackPracticeBlockageSubmitted,
-  trackPracticeDetailOpened,
   trackPracticeDialogueCompleted,
   trackPracticeDialogueStartFailed,
   trackPracticeDialogueStarted,
@@ -82,6 +80,11 @@ import {
   isSceneContextBlank,
   type SceneContextDraft,
 } from "../practice/practice-setup-flow";
+import {
+  THEORY_CHOICES,
+  toggleTheoryChoice,
+  type TheoryChoiceId,
+} from "../practice/theory-choice";
 import {
   analysisEventsForStatus,
   useAnalysisProgress,
@@ -278,11 +281,10 @@ function WorkspaceInner() {
   const [situation, setSituation] = useState("");
   const [character, setCharacter] = useState("");
   const [goal, setGoal] = useState("");
-  const [practiceDetailsOpen, setPracticeDetailsOpen] = useState(false);
-  const practiceDetailsTrackedRef = useRef(false);
   const [blockageFlow, setBlockageFlow] = useState<BlockageFlowState>(
     initialBlockageFlowState,
   );
+  const [theoryChoice, setTheoryChoice] = useState<TheoryChoiceId | null>(null);
   // 이 셋을 보는 자리가 셋이다 — 건너뛰기를 열지 말지, 세션 생성 요청에 실을 값,
   // 그리고 건너뛴 연습으로 셀지. 한 벌로 묶어 그 셋이 같은 답을 보게 한다.
   const sceneDraft = useMemo<SceneContextDraft>(
@@ -436,9 +438,8 @@ function WorkspaceInner() {
     setSituation("");
     setCharacter("");
     setGoal("");
-    setPracticeDetailsOpen(false);
-    practiceDetailsTrackedRef.current = false;
     setBlockageFlow(initialBlockageFlowState);
+    setTheoryChoice(null);
     setDrawerOpen(false);
     replaceUrl("/practice/new");
   }, [clearWork, discardPendingUpload, reportProgress, setCurrentSession]);
@@ -684,14 +685,6 @@ function WorkspaceInner() {
     return pending;
   }, [reportProgress]);
 
-  const togglePracticeDetails = useCallback(() => {
-    if (!practiceDetailsOpen && !practiceDetailsTrackedRef.current) {
-      practiceDetailsTrackedRef.current = true;
-      trackPracticeDetailOpened();
-    }
-    setPracticeDetailsOpen((current) => !current);
-  }, [practiceDetailsOpen]);
-
   const begin = useCallback(async () => {
     if (screen.kind !== "prep" || !screen.video) return;
     const { video, continueFrom } = screen;
@@ -766,6 +759,7 @@ function WorkspaceInner() {
         blockage.blockage_kind,
         blockage.sub_branch,
         isSceneContextBlank(sceneDraft),
+        theoryChoice,
       );
       trackAnalysis(session.session_id);
       void getPracticeSession(session.session_id).then(
@@ -788,6 +782,7 @@ function WorkspaceInner() {
   }, [
     screen,
     blockageFlow,
+    theoryChoice,
     sceneDraft,
     enterAnalysis,
     isCurrentSession,
@@ -1331,10 +1326,14 @@ function WorkspaceInner() {
               />
               {body.footer.kind === "start" ? (
                 <>
-                  <PracticeDetailsToggle
-                    open={practiceDetailsOpen}
-                    onToggle={togglePracticeDetails}
-                  >
+                  <StartRow
+                    ready={body.footer.ready}
+                    onStart={() => void begin()}
+                  />
+                  <div className="grid gap-2.5 sm:gap-3">
+                    <p className="px-1 pt-1 text-sm font-semibold text-[#6b7684]">
+                      아래 내용들 중 일부만이라도 채우면 더 좋은 리뷰가 나와요
+                    </p>
                     <SceneForm
                       situation={visibleScene.situation}
                       character={visibleScene.character}
@@ -1344,11 +1343,46 @@ function WorkspaceInner() {
                       onGoal={setGoal}
                     />
                     <BlockageFields state={blockageFlow} onChange={setBlockageFlow} />
-                  </PracticeDetailsToggle>
-                  <StartRow
-                    ready={body.footer.ready}
-                    onStart={() => void begin()}
-                  />
+                    <section className="grid gap-3.5 rounded-[18px] bg-white p-3 shadow-[0_12px_36px_rgba(25,31,40,0.05)] sm:rounded-[20px] sm:p-4">
+                      <header>
+                        <h2 className="text-[15px] font-black leading-tight tracking-[-0.03em] text-[#191f28] sm:text-base">
+                          어떤 이론을 기반으로 볼까요?
+                        </h2>
+                        <p className="mt-1 text-[13px] font-semibold leading-5 text-[#6b7684]">
+                          고르지 않아도 돼요 — 그러면 코치가 골라요.
+                        </p>
+                      </header>
+                      <div className="flex flex-wrap gap-2">
+                        {THEORY_CHOICES.map((choice) => {
+                          const selected = theoryChoice === choice.id;
+                          return (
+                            <button
+                              key={choice.id}
+                              type="button"
+                              aria-pressed={selected}
+                              onClick={() =>
+                                setTheoryChoice((current) =>
+                                  toggleTheoryChoice(current, choice.id),
+                                )
+                              }
+                              className={`min-h-11 rounded-full px-3.5 py-2 text-sm font-black transition ${
+                                selected
+                                  ? "bg-[#e8f3ff] text-[#3182f6]"
+                                  : "bg-[#f2f4f6] text-[#4e5968]"
+                              }`}
+                            >
+                              {choice.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      {theoryChoice ? (
+                        <p className="text-[13px] font-semibold leading-5 text-[#4e5968]">
+                          {THEORY_CHOICES.find((choice) => choice.id === theoryChoice)?.description}
+                        </p>
+                      ) : null}
+                    </section>
+                  </div>
                 </>
               ) : body.footer.phase === "upload" ? (
                 <ProgressPanel
@@ -1789,35 +1823,6 @@ const VideoBox = memo(function VideoBox({
   );
 });
 
-function PracticeDetailsToggle({
-  open,
-  onToggle,
-  children,
-}: {
-  open: boolean;
-  onToggle: () => void;
-  children: ReactNode;
-}) {
-  return (
-    <section className="overflow-hidden rounded-[18px] bg-[#f7faff] sm:rounded-[20px]">
-      <button
-        type="button"
-        aria-expanded={open}
-        onClick={onToggle}
-        className="flex min-h-14 w-full items-center justify-between gap-3 px-4 py-3 text-left sm:px-5"
-      >
-        <span className="text-[15px] font-black tracking-[-0.02em] text-[#333d4b]">
-          더 알려주시면 더 깊게 볼 수 있어요
-        </span>
-        <span aria-hidden="true" className="shrink-0 text-sm font-black text-[#4e5968]">
-          {open ? "접기" : "펼치기"}
-        </span>
-      </button>
-      {open ? <div className="grid gap-5 px-3 pb-4 sm:px-4 sm:pb-5">{children}</div> : null}
-    </section>
-  );
-}
-
 const SceneForm = memo(function SceneForm({
   situation,
   character,
@@ -1835,15 +1840,15 @@ const SceneForm = memo(function SceneForm({
 }) {
   return (
     <section
-      className="rounded-[18px] bg-white p-4 shadow-[0_12px_36px_rgba(25,31,40,0.05)] sm:rounded-[20px] sm:p-6"
+      className="rounded-[18px] bg-white p-3 shadow-[0_12px_36px_rgba(25,31,40,0.05)] sm:rounded-[20px] sm:p-4"
     >
       <h2 className="text-[15px] font-black tracking-[-0.03em] sm:text-base">
         이 장면에서 무엇을 연기했는지 알려 주세요
       </h2>
-      <p className="mt-1.5 text-[13px] font-semibold leading-5 text-[#6b7684]">
+      <p className="mt-1 text-[13px] font-semibold leading-5 text-[#6b7684]">
         비워 두셔도 괜찮아요. 적어 두면 코치가 그 장면을 알고 물어봐요.
       </p>
-      <div className="mt-3 grid gap-3">
+      <div className="mt-2.5 grid gap-2">
         <SceneField label="상황" value={situation} onChange={onSituation} placeholder="이별을 통보받은 직후, 카페에서" />
         <SceneField label="인물" value={character} onChange={onCharacter} placeholder="담담한 척하는 20대 후반 여성" />
         <SceneField label="목표" value={goal} onChange={onGoal} placeholder="상대가 마음을 돌려 다시 앉게 만들기" />
@@ -1864,13 +1869,13 @@ function SceneField({
   placeholder: string;
 }) {
   return (
-    <label className="grid gap-1.5 sm:grid-cols-[56px_minmax(0,1fr)] sm:items-center sm:gap-3">
+    <label className="grid grid-cols-[40px_minmax(0,1fr)] items-center gap-2 sm:grid-cols-[48px_minmax(0,1fr)] sm:gap-3">
       <span className="text-xs font-black text-[#333d4b]">{label}</span>
       <input
         value={value}
         placeholder={placeholder}
         onChange={(event) => onChange(event.target.value)}
-        className="h-11 w-full rounded-xl border border-[#e5e8eb] bg-[#f8fbff] px-3.5 text-base font-semibold text-[#191f28] outline-none transition placeholder:text-[#b0b8c1] focus:border-[#3182f6] focus:bg-white focus:ring-4 focus:ring-[#e8f3ff]"
+        className="h-10 w-full rounded-xl border border-[#e5e8eb] bg-[#f8fbff] px-3 text-sm font-semibold text-[#191f28] outline-none transition placeholder:text-[#b0b8c1] focus:border-[#3182f6] focus:bg-white focus:ring-4 focus:ring-[#e8f3ff]"
       />
     </label>
   );

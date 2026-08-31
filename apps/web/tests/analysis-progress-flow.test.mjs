@@ -420,14 +420,14 @@ test("failed면 같은 진행 자리에 그냥 시작 버튼을 보이고 근거
   );
 });
 
-test("선택 입력은 준비 화면의 접힌 토글 안에 함께 선다", () => {
+test("시작 버튼이 먼저 서고, 선택 입력은 그 아래 안내 문장과 함께 선다", () => {
   const workspace = readWeb("src/features/workspace/workspace-app.tsx");
 
+  // 2026-08-30 최우영 결정 — 접힌 토글을 없애고, "질문 받기"를 선택 입력 위로 올렸다.
   assert.match(
     workspace,
-    /<PracticeDetailsToggle[\s\S]{0,500}?<SceneForm[\s\S]{0,500}?<BlockageFields/,
+    /<StartRow[\s\S]{0,700}?아래 내용들 중 일부만이라도 채우면 더 좋은 리뷰가 나와요[\s\S]{0,900}?<SceneForm[\s\S]{0,900}?<BlockageFields/,
   );
-  assert.match(workspace, /더 알려주시면 더 깊게 볼 수 있어요/);
 });
 
 test("통합 진행 자리 문구에 금지된 표현이 없다", () => {

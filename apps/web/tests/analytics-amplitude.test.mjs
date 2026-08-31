@@ -54,7 +54,6 @@ const {
   trackLoginFailed,
   trackPracticeAbandoned,
   trackPracticeAnalysisSettled,
-  trackPracticeDetailOpened,
   trackPracticeSceneSkipped,
   trackPracticeBlockageSubmitted,
   trackPracticeDialogueCompleted,
@@ -166,14 +165,26 @@ test("screen_viewed는 쿼리·해시를 버리고 경로 UUID를 가린다", ()
   assert.deepEqual(screen[2], { path: "/practice/<id>" });
 });
 
+test("practice_session_created는 고른 접근법만 theory_choice로 보낸다", () => {
+  globalThis.__amplitudeCalls.length = 0;
+
+  trackPracticeSessionCreated(61_000, "분석", "대사 분석", false, "meisner");
+  trackPracticeSessionCreated(61_000, "분석", "대사 분석", false);
+
+  const payloads = callsOf("track")
+    .filter(([, event]) => event === "practice_session_created")
+    .map(([, , payload]) => payload);
+  assert.equal(payloads[0].theory_choice, "meisner");
+  assert.equal(Object.hasOwn(payloads[1], "theory_choice"), false);
+});
+
 // 원문을 받는 래퍼에도 일부러 민감한 값을 넣는다. payload에는 분류·버킷만 남아야 한다.
-test("23개 이벤트 래퍼가 계약 속성만 보내고 금지 키를 만들지 않는다", () => {
+test("22개 이벤트 래퍼가 계약 속성만 보내고 금지 키를 만들지 않는다", () => {
   globalThis.__amplitudeCalls.length = 0;
   const sensitiveText = "배우가 직접 쓴 비밀 장면과 답변";
 
   trackPracticePrepOpened("new");
   trackPracticeVideoSelected(12 * 1024 * 1024, true);
-  trackPracticeDetailOpened();
   trackPracticeSceneSkipped();
   trackPracticeBlockageSubmitted("분석", "대사 분석", sensitiveText);
   trackPracticeUploadFailed("put", { status: 503, message: sensitiveText });
@@ -186,7 +197,7 @@ test("23개 이벤트 래퍼가 계약 속성만 보내고 금지 키를 만들�
     webcodecsSupported: true,
     videoDurationMs: 61_000,
   });
-  trackPracticeSessionCreated(61_000, "분석", "대사 분석", true);
+  trackPracticeSessionCreated(61_000, "분석", "대사 분석", true, "meisner");
   trackPracticeAnalysisSettled("failed", "gemini_timeout", 61_000);
   trackPracticeDialogueStarted(true, "분석", "대사 분석");
   trackPracticeDialogueStartFailed(false);
@@ -208,7 +219,7 @@ test("23개 이벤트 래퍼가 계약 속성만 보내고 금지 키를 만들�
   trackScreenViewed("/practice/1b4e28ba-2fa1-11d2-883f-0016d3cca427?query=secret");
 
   const events = callsOf("track").map(([, event, payload]) => ({ event, payload }));
-  assert.equal(events.length, 23);
+  assert.equal(events.length, 22);
   assert.deepEqual(
     events.map(({ event }) => event).sort(),
     [
@@ -219,7 +230,6 @@ test("23개 이벤트 래퍼가 계약 속성만 보내고 금지 키를 만들�
       "login_failed",
       "practice_abandoned",
       "practice_analysis_settled",
-      "practice_detail_opened",
       "practice_blockage_submitted",
       "practice_dialogue_completed",
       "practice_dialogue_start_failed",
@@ -241,7 +251,6 @@ test("23개 이벤트 래퍼가 계약 속성만 보내고 금지 키를 만들�
   const allowedKeys = {
     practice_prep_opened: ["entry"],
     practice_video_selected: ["is_reselect", "size_bucket"],
-    practice_detail_opened: [],
     practice_scene_skipped: [],
     practice_blockage_submitted: ["has_detail", "kind", "sub_branch"],
     practice_upload_failed: ["reason_code", "stage"],
@@ -259,6 +268,7 @@ test("23개 이벤트 래퍼가 계약 속성만 보내고 금지 키를 만들�
       "kind",
       "scene_skipped",
       "sub_branch",
+      "theory_choice",
     ],
     practice_analysis_settled: ["error_code", "result", "wait_bucket"],
     practice_dialogue_started: ["kind", "sub_branch", "with_evidence"],
