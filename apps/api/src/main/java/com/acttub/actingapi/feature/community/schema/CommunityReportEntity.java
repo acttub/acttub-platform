@@ -42,11 +42,17 @@ public class CommunityReportEntity extends AppGeneratedUuidEntity {
 
     public CommunityReportEntity(UUID id, UUID reporterId, ReportTargetType targetType,
             UUID targetId, ReportReason reason, ReportStatus status) {
+        this(id, reporterId, targetType, targetId, reason, null, status);
+    }
+
+    public CommunityReportEntity(UUID id, UUID reporterId, ReportTargetType targetType,
+            UUID targetId, ReportReason reason, String detail, ReportStatus status) {
         super(id);
         this.reporterId = reporterId;
         this.targetType = targetType;
         this.targetId = targetId;
         this.reason = reason;
+        this.detail = detail;
         this.status = status;
     }
 }

@@ -1,9 +1,12 @@
 package com.acttub.actingapi.feature.community.adapter.db;
 
+import static com.acttub.actingapi.platform.schema.NativeTuples.list;
+
 import java.util.List;
 import java.util.UUID;
 
-import org.springframework.jdbc.core.JdbcTemplate;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.Tuple;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
@@ -23,10 +26,10 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 @Repository
 class AnonymousAliasAllocator {
 
-    private final JdbcTemplate jdbc;
+    private final EntityManager entityManager;
 
-    AnonymousAliasAllocator(JdbcTemplate jdbc) {
-        this.jdbc = jdbc;
+    AnonymousAliasAllocator(EntityManager entityManager) {
+        this.entityManager = entityManager;
     }
 
     /**
@@ -38,44 +41,57 @@ class AnonymousAliasAllocator {
         requireTransaction();
         lockPost(postId);
 
-        List<Integer> existing = jdbc.queryForList("""
-                SELECT ordinal
+        List<Tuple> existing = list(entityManager.createNativeQuery("""
+                SELECT ordinal AS ordinal
                 FROM community_anonymous_aliases
-                WHERE post_id = ?
-                  AND user_id = ?
-                """, Integer.class, postId, userId);
+                WHERE post_id = :postId
+                  AND user_id = :userId
+                """, Tuple.class)
+                .setParameter("postId", postId)
+                .setParameter("userId", userId));
         if (!existing.isEmpty()) {
-            return existing.getFirst();
+            return existing.getFirst().get("ordinal", Integer.class);
         }
 
-        Integer nextOrdinal = jdbc.queryForObject("""
-                SELECT COALESCE(MAX(ordinal), 0) + 1
+        List<Tuple> nextRows = list(entityManager.createNativeQuery("""
+                SELECT COALESCE(MAX(ordinal), 0) + 1 AS next_ordinal
                 FROM community_anonymous_aliases
-                WHERE post_id = ?
-                """, Integer.class, postId);
+                WHERE post_id = :postId
+                """, Tuple.class)
+                .setParameter("postId", postId));
+        Integer nextOrdinal = nextRows.getFirst().get("next_ordinal", Integer.class);
         if (nextOrdinal == null) {
             throw new IllegalStateException("could not calculate an anonymous alias");
         }
 
-        jdbc.update("""
-                INSERT INTO community_anonymous_aliases (
-                    id,
-                    post_id,
-                    user_id,
-                    ordinal
+        List<Tuple> inserted = list(entityManager.createNativeQuery("""
+                WITH inserted AS (
+                    INSERT INTO community_anonymous_aliases (id,post_id,user_id,ordinal)
+                    VALUES (:id,:postId,:userId,:ordinal)
+                    ON CONFLICT ON CONSTRAINT uq_community_alias_post_user
+                    DO UPDATE SET user_id=EXCLUDED.user_id
+                    RETURNING ordinal
                 )
-                VALUES (?, ?, ?, ?)
-                """, UUID.randomUUID(), postId, userId, nextOrdinal);
-        return nextOrdinal;
+                SELECT ordinal AS ordinal FROM inserted
+                """, Tuple.class)
+                .setParameter("id", UUID.randomUUID())
+                .setParameter("postId", postId)
+                .setParameter("userId", userId)
+                .setParameter("ordinal", nextOrdinal));
+        if (inserted.size() != 1) {
+            throw new IllegalStateException("anonymous alias insert returned no row");
+        }
+        return inserted.getFirst().get("ordinal", Integer.class);
     }
 
     private void lockPost(UUID postId) {
-        List<UUID> posts = jdbc.queryForList("""
-                SELECT id
+        List<Tuple> posts = list(entityManager.createNativeQuery("""
+                SELECT id AS id
                 FROM community_posts
-                WHERE id = ?
+                WHERE id = :postId
                 FOR UPDATE
-                """, UUID.class, postId);
+                """, Tuple.class)
+                .setParameter("postId", postId));
         if (posts.isEmpty()) {
             throw new IllegalStateException("community post is missing");
         }

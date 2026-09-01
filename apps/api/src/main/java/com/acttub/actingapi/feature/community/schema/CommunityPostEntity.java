@@ -50,11 +50,17 @@ public class CommunityPostEntity extends AppGeneratedUuidEntity {
 
     public CommunityPostEntity(UUID id, UUID categoryId, UUID authorId, String title, String body,
             ContentStatus status) {
+        this(id, categoryId, authorId, title, body, false, status);
+    }
+
+    public CommunityPostEntity(UUID id, UUID categoryId, UUID authorId, String title, String body,
+            boolean anonymous, ContentStatus status) {
         super(id);
         this.categoryId = categoryId;
         this.authorId = authorId;
         this.title = title;
         this.body = body;
+        this.anonymous = anonymous;
         this.status = status;
     }
 }
