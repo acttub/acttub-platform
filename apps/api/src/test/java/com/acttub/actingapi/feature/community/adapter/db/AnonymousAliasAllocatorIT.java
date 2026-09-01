@@ -193,7 +193,7 @@ class AnonymousAliasAllocatorIT {
                     requiredTransaction().execute(status -> jdbc.update("""
                             /* alias-post-delete-race */
                             UPDATE community_posts
-                            SET status = 'deleted'::content_status_t,
+                            SET status = 'deleted',
                                 updated_at = now()
                             WHERE id = ?
                             """, postId)));
@@ -291,7 +291,7 @@ class AnonymousAliasAllocatorIT {
                     anonymous,
                     status
                 )
-                VALUES (?, ?, ?, 'anonymous comment', true, 'visible'::content_status_t)
+                VALUES (?, ?, ?, 'anonymous comment', true, 'visible')
                 """, commentId, postId, userId);
     }
 
@@ -307,7 +307,7 @@ class AnonymousAliasAllocatorIT {
         UUID userId = UUID.randomUUID();
         jdbc.update("""
                 INSERT INTO users (id, email, status)
-                VALUES (?, ?, 'active'::user_status_t)
+                VALUES (?, ?, 'active')
                 """, userId, userId + "@example.test");
         return userId;
     }
@@ -330,7 +330,7 @@ class AnonymousAliasAllocatorIT {
                     anonymous,
                     status
                 )
-                VALUES (?, ?, ?, 'title', 'body', false, 'visible'::content_status_t)
+                VALUES (?, ?, ?, 'title', 'body', false, 'visible')
                 """, postId, categoryId, authorId);
         return postId;
     }
@@ -374,7 +374,7 @@ class AnonymousAliasAllocatorIT {
 
     private String postStatus(UUID postId) {
         return jdbc.queryForObject(
-                "SELECT status::text FROM community_posts WHERE id = ?",
+                "SELECT status FROM community_posts WHERE id = ?",
                 String.class,
                 postId);
     }

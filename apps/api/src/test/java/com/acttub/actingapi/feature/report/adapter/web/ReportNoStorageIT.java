@@ -55,7 +55,7 @@ class ReportNoStorageIT {
         jdbc.execute("TRUNCATE TABLE users RESTART IDENTITY CASCADE");
         jdbc.update("""
                 INSERT INTO users (id,email,status)
-                VALUES (?,?,'active'::user_status_t)
+                VALUES (?,?,'active')
                 """, USER, "report-no-storage@example.test");
         // reports 라우터는 app.py 에서 rate_limited_user 자리에 consented_user 를 받는다 —
         // 동의를 주지 않으면 storage 미설정(503)에 닿기 전에 403 consent_required 가 난다.
@@ -118,14 +118,14 @@ class ReportNoStorageIT {
         jdbc.update("""
                 INSERT INTO upload_intents (
                     id,user_id,status,storage_provider,object_key,mime_type,size_bytes,expires_at
-                ) VALUES (?,?,'finalized'::upload_status_t,'s3','video.mp4','video/mp4',1,?)
+                ) VALUES (?,?,'finalized','s3','video.mp4','video/mp4',1,?)
                 """, upload, USER, NOW.plusDays(1));
         UUID practice = UUID.randomUUID();
         jdbc.update("""
                 INSERT INTO practice_sessions (
                     id,user_id,upload_intent_id,status,situation,character_context,goal,
                     blockage_kind,sub_branch
-                ) VALUES (?, ?, ?, 'analyzed'::practice_status_t, '상황', '인물', '목표',
+                ) VALUES (?, ?, ?, 'analyzed', '상황', '인물', '목표',
                     '분석', '캐릭터 분석')
                 """, practice, USER, upload);
         return practice;
@@ -139,7 +139,7 @@ class ReportNoStorageIT {
                 (rs, row) -> rs.getObject(1, UUID.class))
                 .forEach(documentId -> jdbc.update("""
                         INSERT INTO user_consents(id,user_id,document_id,action)
-                        VALUES (?,?,?,'granted'::consent_action_t)
+                        VALUES (?,?,?,'granted')
                         """, UUID.randomUUID(), USER, documentId));
     }
 }

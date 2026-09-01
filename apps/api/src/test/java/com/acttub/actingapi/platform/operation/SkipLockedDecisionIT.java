@@ -32,19 +32,19 @@ class SkipLockedDecisionIT {
             UUID user = UUID.randomUUID();
             UUID upload = UUID.randomUUID();
             UUID session = UUID.randomUUID();
-            execute(setup, "INSERT INTO users(id,status) VALUES (?,'active'::user_status_t)", user);
+            execute(setup, "INSERT INTO users(id,status) VALUES (?,'active')", user);
             execute(setup, """
                     INSERT INTO upload_intents(id,user_id,status,storage_provider,object_key,mime_type,size_bytes,expires_at)
-                    VALUES (?,?,'pending'::upload_status_t,'s3','k','video/mp4',1,now())
+                    VALUES (?,?,'pending','s3','k','video/mp4',1,now())
                     """, upload, user);
             execute(setup, """
                     INSERT INTO practice_sessions(id,user_id,upload_intent_id,status,situation,character_context,blockage_kind,sub_branch,goal)
-                    VALUES (?,?,?,'created'::practice_status_t,'s','c','분석','캐릭터 분석','g')
+                    VALUES (?,?,?,'analyzing','s','c','분석','캐릭터 분석','g')
                     """, session, user, upload);
             for (int index = 0; index < 2; index++) {
                 execute(setup, """
                         INSERT INTO external_operations(id,session_id,user_id,request_id,kind,status,request_fingerprint,created_at)
-                        VALUES (?,?,?,?,'report'::operation_kind_t,'pending'::operation_status_t,?,?)
+                        VALUES (?,?,?,?,'report','pending',?,?)
                         """, UUID.randomUUID(), session, user, UUID.randomUUID(), "a".repeat(64),
                         OffsetDateTime.now().plusNanos(index));
             }
@@ -73,7 +73,7 @@ class SkipLockedDecisionIT {
 
                     execute(first, """
                             UPDATE external_operations
-                            SET status='running'::operation_status_t,lease_token=?,lease_expires_at=now()+interval '1 minute'
+                            SET status='running',lease_token=?,lease_expires_at=now()+interval '1 minute'
                             WHERE id=?
                             """, UUID.randomUUID(), oldest);
                     first.commit();
@@ -90,11 +90,11 @@ class SkipLockedDecisionIT {
     private static UUID claim(Connection connection) throws SQLException {
         try (Statement statement = connection.createStatement();
                 ResultSet rows = statement.executeQuery("""
-                        UPDATE external_operations SET status='running'::operation_status_t
+                        UPDATE external_operations SET status='running'
                         WHERE id=(SELECT id FROM external_operations
-                                  WHERE status='pending'::operation_status_t
+                                  WHERE status='pending'
                                   ORDER BY created_at,id LIMIT 1)
-                          AND status='pending'::operation_status_t
+                          AND status='pending'
                         RETURNING id
                         """)) {
             return rows.next() ? rows.getObject(1, UUID.class) : null;

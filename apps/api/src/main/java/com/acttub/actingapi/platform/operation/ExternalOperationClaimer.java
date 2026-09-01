@@ -73,14 +73,14 @@ public class ExternalOperationClaimer {
         return Boolean.TRUE.equals(transactionTemplate.execute(status -> {
             int released = jdbc.update("""
                     UPDATE external_operations
-                    SET status = 'pending'::operation_status_t,
+                    SET status = 'pending',
                         response_payload = 'null'::jsonb,
                         error_code = NULL,
                         lease_token = NULL,
                         lease_expires_at = NULL,
                         updated_at = ?
                     WHERE id = ?
-                      AND status = 'running'::operation_status_t
+                      AND status = 'running'
                       AND lease_token = ?
                     """, releasedAt, operationId, leaseToken);
             if (released == 0) {
@@ -104,7 +104,7 @@ public class ExternalOperationClaimer {
             OffsetDateTime expiresAt) {
         List<UUID> claimed = jdbc.query("""
                 UPDATE external_operations
-                SET status = 'running'::operation_status_t,
+                SET status = 'running',
                     attempt_count = attempt_count + 1,
                     lease_token = ?,
                     lease_expires_at = ?,
@@ -114,9 +114,9 @@ public class ExternalOperationClaimer {
                 WHERE id = ?
                   AND attempt_count < ?
                   AND (
-                      (status = 'pending'::operation_status_t AND lease_token IS NULL)
-                      OR (status = 'running'::operation_status_t AND lease_expires_at < ?)
-                      OR (status = 'failed'::operation_status_t AND lease_token IS NULL)
+                      (status = 'pending' AND lease_token IS NULL)
+                      OR (status = 'running' AND lease_expires_at < ?)
+                      OR (status = 'failed' AND lease_token IS NULL)
                   )
                 RETURNING id
                 """,
@@ -137,7 +137,7 @@ public class ExternalOperationClaimer {
             OffsetDateTime expiresAt) {
         List<ClaimedOperation> claimed = jdbc.query("""
                 UPDATE external_operations
-                SET status = 'running'::operation_status_t,
+                SET status = 'running',
                     attempt_count = attempt_count + 1,
                     lease_token = ?,
                     lease_expires_at = ?,
@@ -147,20 +147,20 @@ public class ExternalOperationClaimer {
                 WHERE id = (
                     SELECT id
                     FROM external_operations
-                    WHERE kind = ?::operation_kind_t
+                    WHERE kind = ?
                       AND attempt_count < ?
                       AND (
-                          (status = 'pending'::operation_status_t AND lease_token IS NULL)
-                          OR (status = 'running'::operation_status_t AND lease_expires_at < ?)
+                          (status = 'pending' AND lease_token IS NULL)
+                          OR (status = 'running' AND lease_expires_at < ?)
                       )
                     ORDER BY created_at, id
                     LIMIT 1
                 )
-                  AND kind = ?::operation_kind_t
+                  AND kind = ?
                   AND attempt_count < ?
                   AND (
-                      (status = 'pending'::operation_status_t AND lease_token IS NULL)
-                      OR (status = 'running'::operation_status_t AND lease_expires_at < ?)
+                      (status = 'pending' AND lease_token IS NULL)
+                      OR (status = 'running' AND lease_expires_at < ?)
                   )
                 RETURNING id, session_id
                 """,
@@ -185,7 +185,7 @@ public class ExternalOperationClaimer {
         if (ANALYZE.equals(kind)) {
             jdbc.update("""
                     UPDATE practice_sessions
-                    SET status = 'analyzing'::practice_status_t,
+                    SET status = 'analyzing',
                         updated_at = ?
                     WHERE id = ?
                     """, claimedAt, operation.sessionId());
@@ -211,7 +211,7 @@ public class ExternalOperationClaimer {
         if (failSession) {
             jdbc.update("""
                     UPDATE practice_sessions
-                    SET status = 'failed'::practice_status_t,
+                    SET status = 'failed',
                         updated_at = ?
                     WHERE id = ?
                     """, failedAt, sessionIds.getFirst());
@@ -219,14 +219,14 @@ public class ExternalOperationClaimer {
 
         int finished = jdbc.update("""
                 UPDATE external_operations
-                SET status = 'failed'::operation_status_t,
+                SET status = 'failed',
                     response_payload = 'null'::jsonb,
                     error_code = ?,
                     lease_token = NULL,
                     lease_expires_at = NULL,
                     updated_at = ?
                 WHERE id = ?
-                  AND status = 'running'::operation_status_t
+                  AND status = 'running'
                   AND lease_token = ?
                 """, errorCode, failedAt, operationId, leaseToken);
         if (finished == 0) {
@@ -238,21 +238,21 @@ public class ExternalOperationClaimer {
     private int sweepMaxAttemptsInTransaction(OffsetDateTime sweptAt) {
         List<SweptOperation> swept = jdbc.query("""
                 UPDATE external_operations
-                SET status = 'failed'::operation_status_t,
+                SET status = 'failed',
                     error_code = ?,
                     response_payload = 'null'::jsonb,
                     lease_token = NULL,
                     lease_expires_at = NULL,
                     updated_at = ?
                 WHERE status IN (
-                    'pending'::operation_status_t,
-                    'running'::operation_status_t,
-                    'failed'::operation_status_t
+                    'pending',
+                    'running',
+                    'failed'
                 )
                   AND attempt_count >= ?
                   AND (error_code IS NULL OR error_code <> ?)
                   AND (lease_token IS NULL OR lease_expires_at < ?)
-                RETURNING session_id, kind::text AS kind
+                RETURNING session_id, kind
                 """,
                 (row, rowNumber) -> new SweptOperation(
                         row.getObject("session_id", UUID.class),
@@ -267,10 +267,10 @@ public class ExternalOperationClaimer {
             if (ANALYZE.equals(operation.kind())) {
                 jdbc.update("""
                         UPDATE practice_sessions
-                        SET status = 'failed'::practice_status_t,
+                        SET status = 'failed',
                             updated_at = ?
                         WHERE id = ?
-                          AND status = 'analyzing'::practice_status_t
+                          AND status = 'analyzing'
                         """, sweptAt, operation.sessionId());
             }
         }

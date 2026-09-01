@@ -58,20 +58,28 @@ public class PostgresMemoryRepository implements MemoryRepository, CoachMemory {
     /**
      * 빈 칸은 행이 없는 것이므로 6개보다 적게 돌아올 수 있다.
      *
-     * <p>정렬은 enum 정의 순서다. 테이블을 명시하는 이유는 PostgreSQL 이 ORDER BY 에서
-     * <b>출력 alias 를 먼저 보기</b> 때문이다 — 그냥 {@code field} 라고 쓰면 아래의
-     * {@code field::text} alias 를 잡아 알파벳 순으로 갈린다.
+     * <p><b>정렬은 화면이 읽는 칸 순서다</b> — 성별·나이·목표·막힘·자기 화술·실제 화술.
+     * 컬럼이 {@code actor_memory_field_t} 이던 시절에는 enum 정의 순서가 이 일을 대신했지만,
+     * text 가 된 지금은 그냥 두면 사전순({@code age, blockage, gender, …})으로 갈린다.
+     * 그래서 {@code CASE} 로 옛 순서를 못박는다 (SOMA-462).
      */
     @Override
     public List<MemoryEntry> list(UUID userId) {
         return jdbc.query("""
-                SELECT field::text AS field,
+                SELECT field,
                        value,
-                       written_by::text AS written_by,
+                       written_by,
                        source_practice_session_id
                 FROM actor_memory_entries
                 WHERE user_id=?
-                ORDER BY actor_memory_entries.field
+                ORDER BY CASE actor_memory_entries.field
+                             WHEN 'gender' THEN 1
+                             WHEN 'age' THEN 2
+                             WHEN 'goal' THEN 3
+                             WHEN 'blockage' THEN 4
+                             WHEN 'speech_self' THEN 5
+                             WHEN 'speech_actual' THEN 6
+                         END
                 """, PostgresMemoryRepository::row, userId);
     }
 
@@ -105,20 +113,20 @@ public class PostgresMemoryRepository implements MemoryRepository, CoachMemory {
         OffsetDateTime stamp = OffsetDateTime.ofInstant(clock.instant(), ZoneOffset.UTC);
         String guard = author == ActorMemoryAuthor.ACTOR
                 ? "true"
-                : "actor_memory_entries.written_by <> 'actor'::actor_memory_author_t";
+                : "actor_memory_entries.written_by <> 'actor'";
         List<MemoryEntry> rows = jdbc.query("""
                 INSERT INTO actor_memory_entries
                     (id,user_id,field,value,written_by,source_practice_session_id,created_at,updated_at)
-                VALUES (?,?,?::actor_memory_field_t,?,?::actor_memory_author_t,?,?,?)
+                VALUES (?,?,?,?,?,?,?,?)
                 ON CONFLICT ON CONSTRAINT uq_actor_memory_user_field DO UPDATE
                 SET value=EXCLUDED.value,
                     written_by=EXCLUDED.written_by,
                     source_practice_session_id=EXCLUDED.source_practice_session_id,
                     updated_at=EXCLUDED.updated_at
                 WHERE %s
-                RETURNING field::text AS field,
+                RETURNING field,
                           value,
-                          written_by::text AS written_by,
+                          written_by,
                           source_practice_session_id
                 """.formatted(guard),
                 PostgresMemoryRepository::row,
@@ -140,7 +148,7 @@ public class PostgresMemoryRepository implements MemoryRepository, CoachMemory {
             return;
         }
         jdbc.update(
-                "DELETE FROM actor_memory_entries WHERE user_id=? AND field=?::actor_memory_field_t",
+                "DELETE FROM actor_memory_entries WHERE user_id=? AND field=?",
                 userId,
                 field.dbValue());
     }
@@ -197,7 +205,7 @@ public class PostgresMemoryRepository implements MemoryRepository, CoachMemory {
                 FROM coach_sessions coach
                 JOIN practice_sessions practice ON practice.id=coach.practice_session_id
                 WHERE coach.practice_session_id=?
-                  AND coach.status='closed'::session_status_t
+                  AND coach.status='closed'
                   AND practice.user_id=?
                 ORDER BY coach.created_at DESC
                 LIMIT 1
@@ -218,7 +226,7 @@ public class PostgresMemoryRepository implements MemoryRepository, CoachMemory {
                       AND member.user_id=?
                       AND member.hidden_at IS NULL
                       AND member.id <> current.id
-                      AND coach.status='closed'::session_status_t
+                      AND coach.status='closed'
                     ORDER BY coach.created_at DESC
                     LIMIT 1
                     """, UUID.class, practiceSessionId, userId);
@@ -234,7 +242,7 @@ public class PostgresMemoryRepository implements MemoryRepository, CoachMemory {
                     JOIN practice_sessions practice ON practice.id=coach.practice_session_id
                     WHERE practice.user_id=?
                       AND practice.hidden_at IS NULL
-                      AND coach.status='closed'::session_status_t
+                      AND coach.status='closed'
                     ORDER BY coach.created_at DESC
                     LIMIT 1
                     """, UUID.class, userId);
@@ -433,7 +441,7 @@ public class PostgresMemoryRepository implements MemoryRepository, CoachMemory {
         List<UUID> inserted = jdbc.queryForList("""
                 INSERT INTO external_operations
                     (id,session_id,user_id,request_id,kind,request_fingerprint)
-                VALUES (?,?,?,?,'memory_update'::operation_kind_t,?)
+                VALUES (?,?,?,?,'memory_update',?)
                 ON CONFLICT (user_id,request_id) DO NOTHING
                 RETURNING id
                 """, UUID.class, UUID.randomUUID(), practiceSessionId, userId, requestId, fingerprint);
@@ -472,7 +480,7 @@ public class PostgresMemoryRepository implements MemoryRepository, CoachMemory {
                 SELECT turn.text
                 FROM coach_turns turn
                 JOIN coach_sessions coach ON coach.id=turn.session_id
-                WHERE coach.practice_session_id=? AND turn.role='actor'::turn_role_t
+                WHERE coach.practice_session_id=? AND turn.role='actor'
                 ORDER BY turn.turn_index
                 """, String.class, practiceSessionId);
         MemoryUpdateMaterial session = sessions.getFirst();

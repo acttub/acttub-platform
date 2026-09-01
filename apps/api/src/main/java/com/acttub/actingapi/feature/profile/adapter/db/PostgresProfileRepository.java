@@ -24,7 +24,7 @@ class PostgresProfileRepository implements ProfileRepository {
     @Override
     public Profile find(UUID userId) {
         List<Profile> rows = jdbc.query(
-                "SELECT id,email,nickname,status::text FROM users WHERE id=?",
+                "SELECT id,email,nickname,status FROM users WHERE id=?",
                 (result, rowNumber) -> new Profile(
                         result.getObject("id", UUID.class),
                         result.getString("email"),
@@ -78,7 +78,7 @@ class PostgresProfileRepository implements ProfileRepository {
     public Profile deactivate(UUID userId) {
         return transactions.execute(status -> {
             List<String> current = jdbc.queryForList(
-                    "SELECT status::text FROM users WHERE id=? FOR UPDATE",
+                    "SELECT status FROM users WHERE id=? FOR UPDATE",
                     String.class,
                     userId);
             if (current.isEmpty()) {
@@ -87,7 +87,7 @@ class PostgresProfileRepository implements ProfileRepository {
             if (!"deactivated".equals(current.getFirst())) {
                 jdbc.update("""
                         UPDATE users
-                        SET status='deactivated'::user_status_t,
+                        SET status='deactivated',
                             deactivated_at=now(),
                             updated_at=now()
                         WHERE id=?

@@ -56,16 +56,13 @@ public class AuthService {
      * 있는 계정에 붙인다. 이메일이 검증되지 않았는데 같은 주소의 계정이 있으면 409 다(그러지
      * 않으면 검증 안 된 주소를 대는 것만으로 남의 계정에 들어간다).
      */
-    public AuthenticatedUser login(
-            String rawProvider,
-            String idToken,
-            SignupAttribution attribution) {
+    public AuthenticatedUser login(String rawProvider, String idToken) {
         String provider = rawProvider.strip().toLowerCase(Locale.ROOT);
         ProviderIdentity identity = verify(provider, idToken);
 
         AuthenticatedUser user = accounts.findByIdentity(provider, identity.providerUid());
         if (user == null) {
-            user = attach(provider, identity, attribution);
+            user = attach(provider, identity);
         }
         user.requireUsable();
         return user;
@@ -179,10 +176,7 @@ public class AuthService {
      * <b>다시 조회해</b> 이긴 쪽이 만든 계정을 쓴다 — 경합을 오류로 내보내면 사용자에게는
      * 이유 없는 실패가 된다.
      */
-    private AuthenticatedUser attach(
-            String provider,
-            ProviderIdentity identity,
-            SignupAttribution attribution) {
+    private AuthenticatedUser attach(String provider, ProviderIdentity identity) {
         String email = EmailAddress.normalize(identity.email());
         AuthenticatedUser existing = email == null ? null : accounts.findByEmail(email);
         try {
@@ -196,8 +190,7 @@ public class AuthService {
             return accounts.createUserWithIdentity(
                     provider,
                     identity.providerUid(),
-                    identity.emailVerified() ? email : null,
-                    attribution);
+                    identity.emailVerified() ? email : null);
         } catch (DataIntegrityViolationException | IdentityAlreadyLinkedError race) {
             AuthenticatedUser winner = accounts.findByIdentity(provider, identity.providerUid());
             if (winner == null) {

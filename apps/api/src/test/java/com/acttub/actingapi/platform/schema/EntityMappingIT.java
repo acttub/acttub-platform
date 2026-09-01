@@ -54,8 +54,8 @@ import org.springframework.transaction.annotation.Transactional;
  *   <li>{@code ddl-auto: validate} 가 통과한다 — 컨텍스트가 뜨는 것 자체가 증거다.
  *       (부분 인덱스 3개와 CHECK 제약이 붙은 스키마에서도 validate 는 깨지지 않는다.
  *        Hibernate 는 인덱스·CHECK 를 검증 대상으로 보지 않는다.)</li>
- *   <li>네이티브 Postgres enum 컬럼이 {@link jakarta.persistence.AttributeConverter} +
- *       {@link PgEnumJdbcType} 조합으로 읽고 쓰인다</li>
+ *   <li>값 목록이 CHECK 로 걸린 text 컬럼이 {@link jakarta.persistence.AttributeConverter} 로
+ *       읽고 쓰인다 (SOMA-462 이전에는 네이티브 Postgres enum 컬럼이었다)</li>
  *   <li>{@code Persistable} 덕분에 신규 저장에 <b>SELECT 가 앞서지 않는다</b> (apps/api/CONTRACT.md §5-3-2)</li>
  * </ul>
  */
@@ -102,8 +102,6 @@ class EntityMappingIT {
                 .noneMatch(field -> java.util.Arrays.stream(field.getAnnotations())
                         .anyMatch(annotation -> Set.of("ManyToOne", "OneToMany", "OneToOne", "ManyToMany", "Enumerated")
                                 .contains(annotation.annotationType().getSimpleName()))));
-        // 19 = 원본 17 + 배우 기억 2(field·author). 엔티티는 아직 없어 24개 그대로다.
-        assertThat(PgEnumCatalogVerifier.typeCount()).isEqualTo(19);
         long jsonNodes = entities.stream().flatMap(type -> java.util.Arrays.stream(type.getDeclaredFields()))
                 .filter(field -> field.getType().equals(com.fasterxml.jackson.databind.JsonNode.class))
                 .count();
@@ -112,7 +110,7 @@ class EntityMappingIT {
 
     @Test
     @Transactional
-    @DisplayName("users: 네이티브 enum 컬럼을 컨버터로 읽고 쓴다")
+    @DisplayName("users: 값 CHECK 가 걸린 text 컬럼을 컨버터로 읽고 쓴다")
     void userRoundTrip() {
         UUID id = UUID.randomUUID();
         entityManager.persist(new UserEntity(id, "a@example.test", UserStatus.ACTIVE, "닉네임"));
@@ -126,7 +124,7 @@ class EntityMappingIT {
         assertThat(loaded.getCreatedAt()).isNotNull();
 
         // DB 에 실제로 들어간 값은 Python enum 의 .value 다.
-        assertThat(jdbc.queryForObject("SELECT status::text FROM users WHERE id = ?", String.class, id))
+        assertThat(jdbc.queryForObject("SELECT status FROM users WHERE id = ?", String.class, id))
                 .isEqualTo("active");
     }
 
@@ -141,7 +139,7 @@ class EntityMappingIT {
         entityManager.flush();
         jdbc.update("INSERT INTO upload_intents "
                 + "(id, user_id, status, storage_provider, object_key, mime_type, size_bytes, expires_at) "
-                + "VALUES (?, ?, 'pending'::upload_status_t, 's3', 'k', 'video/mp4', 1, now())",
+                + "VALUES (?, ?, 'pending', 's3', 'k', 'video/mp4', 1, now())",
                 uploadIntentId, userId);
 
         UUID id = UUID.randomUUID();
@@ -159,7 +157,7 @@ class EntityMappingIT {
         assertThat(loaded.getSubBranch()).isEqualTo("캐릭터 분석");
         assertThat(loaded.getGoal()).isEqualTo("목표");
         assertThat(loaded.getBlockageDetail()).isNull();
-        assertThat(jdbc.queryForObject("SELECT status::text FROM practice_sessions WHERE id = ?",
+        assertThat(jdbc.queryForObject("SELECT status FROM practice_sessions WHERE id = ?",
                 String.class, id)).isEqualTo("analyzing");
     }
 
@@ -171,7 +169,7 @@ class EntityMappingIT {
 
         UUID id = UUID.randomUUID();
         // Spring Data 의 save() 경로를 흉내낸다: isNew()==true 면 persist, 아니면 merge.
-        UserEntity entity = new UserEntity(id, "b@example.test", UserStatus.SUSPENDED, null);
+        UserEntity entity = new UserEntity(id, "b@example.test", UserStatus.DEACTIVATED, null);
         assertThat(entity.isNew()).isTrue();
         entityManager.persist(entity);
         entityManager.flush();
@@ -231,7 +229,7 @@ class EntityMappingIT {
         assertThat(statements.stream().filter(sql->sql.startsWith("insert into "))
                 .map(sql->sql.substring("insert into ".length()).split(" ")[0]).distinct()).hasSize(24);
         assertThat(statements).noneMatch(sql->sql.stripLeading().toLowerCase().startsWith("select"));
-        assertThat(jdbc.queryForObject("SELECT intent_impact::text FROM anomalies WHERE summary_id=?",String.class,summaryId)).isEqualTo("반전");
+        assertThat(jdbc.queryForObject("SELECT intent_impact FROM anomalies WHERE summary_id=?",String.class,summaryId)).isEqualTo("반전");
     }
 
     @Test
@@ -241,9 +239,9 @@ class EntityMappingIT {
         UUID user=UUID.randomUUID(),sqlNullUpload=UUID.randomUUID(),jsonNullUpload=UUID.randomUUID();
         UUID sqlNullPractice=UUID.randomUUID(),jsonNullPractice=UUID.randomUUID();
         entityManager.persist(new UserEntity(user,"json-"+user+"@example.test",UserStatus.ACTIVE,null)); entityManager.flush();
-        jdbc.update("INSERT INTO upload_intents(id,user_id,status,storage_provider,object_key,mime_type,size_bytes,expires_at) VALUES (?,?, 'pending'::upload_status_t,'s3',?,'video/mp4',1,now()), (?,?, 'pending'::upload_status_t,'s3',?,'video/mp4',1,now())",sqlNullUpload,user,"json-sql-null-"+user,jsonNullUpload,user,"json-null-"+user);
-        entityManager.persist(new PracticeSessionEntity(sqlNullPractice,user,sqlNullUpload,PracticeStatus.CREATED,"s","c",null,"분석","캐릭터 분석","g"));
-        entityManager.persist(new PracticeSessionEntity(jsonNullPractice,user,jsonNullUpload,PracticeStatus.CREATED,"s","c",null,"분석","캐릭터 분석","g")); entityManager.flush();
+        jdbc.update("INSERT INTO upload_intents(id,user_id,status,storage_provider,object_key,mime_type,size_bytes,expires_at) VALUES (?,?, 'pending','s3',?,'video/mp4',1,now()), (?,?, 'pending','s3',?,'video/mp4',1,now())",sqlNullUpload,user,"json-sql-null-"+user,jsonNullUpload,user,"json-null-"+user);
+        entityManager.persist(new PracticeSessionEntity(sqlNullPractice,user,sqlNullUpload,PracticeStatus.ANALYZING,"s","c",null,"분석","캐릭터 분석","g"));
+        entityManager.persist(new PracticeSessionEntity(jsonNullPractice,user,jsonNullUpload,PracticeStatus.ANALYZING,"s","c",null,"분석","캐릭터 분석","g")); entityManager.flush();
         UUID sqlNull=UUID.randomUUID(),jsonNull=UUID.randomUUID();
         SummaryEntity first=new SummaryEntity(sqlNull,sqlNullPractice,"m",JsonNodeFactory.instance.objectNode(),JsonNodeFactory.instance.arrayNode(),JsonNodeFactory.instance.arrayNode());
         first.setObservation(null); entityManager.persist(first);

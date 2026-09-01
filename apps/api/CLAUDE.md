@@ -108,7 +108,7 @@ Java 21 + Spring Boot 3.4. **dev·운영 모두 여기가 트래픽을 받습니
 
 ### 알아 둘 예외 넷
 
-- **`platform/schema`는 사라지지 않습니다.** 공유 enum 열아홉은 도메인으로 못 갑니다 — `PgEnumCatalogVerifier`가 맵 전체 equals로 대조하느라 전부 정적 참조하는데 그 검증기가 배관이라, 흩으면 순환입니다. 거기 사는 것은 "배관이 소유한 스키마 + 어느 도메인의 것도 아닌 어휘"입니다.
+- **`platform/schema`는 사라지지 않습니다.** 거기 사는 것은 "배관이 소유한 스키마 + 어느 도메인의 것도 아닌 어휘"입니다. ⚠ **공유 enum 열아홉을 그 자리에 묶어 두던 근거는 `SOMA-462`에서 사라졌습니다** — `PgEnumCatalogVerifier`가 맵 전체 equals로 열아홉을 전부 정적 참조했고 그 검증기가 배관이라 흩으면 순환이었는데, Postgres enum 타입이 없어지면서 검증기도 함께 은퇴했습니다. **흩을 수 있게 된 것이지 흩어야 한다는 뜻은 아닙니다** — 옮길지는 별도 판단이고, 지금은 그대로 둡니다.
 - **`platform/ledger`와 `platform/operation`이 갈려 있는 것은 실수가 아닙니다.** 교환 타입은 `ledger`, 구현은 `operation` — 합치면 순환입니다(실제로 합쳐 확인했습니다). **같은 묶음 안이라고 한 조각이 되는 것은 아닙니다.**
 - **`domain`이 배관을 보는 자리가 하나 있습니다** — `memory/domain/MemoryValue`가 `platform/web/PythonText`를 봅니다. `domainKnowsNoFramework`가 막는 목록(스프링·JPA·Jackson·swagger)에 없어 통과하며, **의도한 것입니다**: 그 유틸이 재현하는 공백 처리 규칙이 곧 응답 바이트라 정규화 규칙과 같은 층에 속합니다. **계약이 그대로인 한 남습니다** — 이름은 출처에서 왔지만 지금은 이 백엔드의 규칙입니다.
 - **SQL이 남의 테이블을 치는 것은 패키지 의존이 아니라** 구조 검사에 걸리지 않습니다. 탈퇴는 `profile`이 `user_identities`·`refresh_tokens`·`push_tokens`를 함께 칩니다 — 주인은 앞의 둘이 `auth`, 마지막이 `push`지만 파기의 원자성이 트랜잭션 하나를 요구합니다. `admin`도 같은 형태로 도메인을 가로질러 셉니다.

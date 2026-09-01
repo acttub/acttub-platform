@@ -48,8 +48,8 @@ public class CoachSessionWork {
                 SELECT
                     cs.id AS coach_session_id,
                     cs.summary_id,
-                    cs.status::text AS coach_status,
-                    cs.close_reason::text AS close_reason,
+                    cs.status AS coach_status,
+                    cs.close_reason,
                     cs.conversation_summary,
                     s.observations_json::text AS observations_json,
                     s.uncertainties_json::text AS uncertainties_json,
@@ -90,7 +90,7 @@ public class CoachSessionWork {
 
         SessionRow row = rows.getFirst();
         List<CoachTurnSnapshot> turns = jdbc.query("""
-                SELECT role::text AS role, text
+                SELECT role, text
                 FROM coach_turns
                 WHERE session_id = ?
                 ORDER BY turn_index
@@ -132,7 +132,7 @@ public class CoachSessionWork {
 
     public void saveCoachSession(CoachSessionSnapshot session, OffsetDateTime now) {
         List<String> statuses = jdbc.queryForList("""
-                SELECT status::text
+                SELECT status
                 FROM coach_sessions
                 WHERE id = ?
                 FOR UPDATE
@@ -142,7 +142,7 @@ public class CoachSessionWork {
         }
 
         List<CoachTurnSnapshot> storedTurns = jdbc.query("""
-                SELECT role::text AS role, text
+                SELECT role, text
                 FROM coach_turns
                 WHERE session_id = ?
                 ORDER BY turn_index
@@ -169,7 +169,7 @@ public class CoachSessionWork {
             CoachTurnSnapshot turn = session.turns().get(index);
             jdbc.update("""
                     INSERT INTO coach_turns (session_id, turn_index, role, text)
-                    VALUES (?, ?, ?::turn_role_t, ?)
+                    VALUES (?, ?, ?, ?)
                     """,
                     session.sessionId(),
                     index,
@@ -178,7 +178,7 @@ public class CoachSessionWork {
         }
         jdbc.update("""
                 UPDATE coach_sessions
-                SET status = ?::session_status_t,
+                SET status = ?,
                     conversation_summary = ?,
                     updated_at = ?
                 WHERE id = ?
@@ -195,7 +195,7 @@ public class CoachSessionWork {
                 FROM coach_sessions cs
                 JOIN practice_sessions ps ON ps.id = cs.practice_session_id
                 WHERE cs.practice_session_id = ?
-                  AND cs.status = 'open'::session_status_t
+                  AND cs.status = 'open'
                   AND ps.user_id = ?
                   AND ps.hidden_at IS NULL
                 ORDER BY cs.created_at, cs.id
@@ -206,7 +206,7 @@ public class CoachSessionWork {
 
     public String practiceSessionStatus(UUID userId, UUID practiceSessionId) {
         List<String> values = jdbc.queryForList("""
-                SELECT status::text
+                SELECT status
                 FROM practice_sessions
                 WHERE id = ? AND user_id = ? AND hidden_at IS NULL
                 """, String.class, practiceSessionId, userId);
@@ -310,7 +310,7 @@ public class CoachSessionWork {
                     close_reason,
                     conversation_summary
                 )
-                VALUES (?, ?, ?, ?::session_status_t, NULL, ?)
+                VALUES (?, ?, ?, ?, NULL, ?)
                 """,
                 session.sessionId(),
                 session.practiceSessionId(),
@@ -321,7 +321,7 @@ public class CoachSessionWork {
             CoachTurnSnapshot turn = session.turns().get(index);
             jdbc.update("""
                     INSERT INTO coach_turns (session_id, turn_index, role, text)
-                    VALUES (?, ?, ?::turn_role_t, ?)
+                    VALUES (?, ?, ?, ?)
                     """,
                     session.sessionId(),
                     index,
@@ -333,10 +333,10 @@ public class CoachSessionWork {
     public int closeOpenCoachSessions(UUID practiceSessionId, OffsetDateTime now) {
         return jdbc.update("""
                 UPDATE coach_sessions
-                SET status = 'closed'::session_status_t,
+                SET status = 'closed',
                     updated_at = ?
                 WHERE practice_session_id = ?
-                  AND status = 'open'::session_status_t
+                  AND status = 'open'
                 """, now, practiceSessionId);
     }
 
@@ -417,7 +417,7 @@ public class CoachSessionWork {
     public void closeCoachSession(UUID coachSessionId, OffsetDateTime now) {
         jdbc.update("""
                 UPDATE coach_sessions
-                SET status = 'closed'::session_status_t,
+                SET status = 'closed',
                     updated_at = ?
                 WHERE id = ?
                 """, now, coachSessionId);
@@ -434,7 +434,7 @@ public class CoachSessionWork {
     private OperationRow requireOperation(
             UUID operationId, String expectedKind, String label) {
         List<OperationRow> rows = jdbc.query("""
-                SELECT session_id, kind::text AS kind
+                SELECT session_id, kind
                 FROM external_operations
                 WHERE id = ?
                 """,
@@ -524,14 +524,14 @@ public class CoachSessionWork {
             OffsetDateTime now) {
         int finished = jdbc.update("""
                 UPDATE external_operations
-                SET status = 'succeeded'::operation_status_t,
+                SET status = 'succeeded',
                     response_payload = ?::jsonb,
                     error_code = NULL,
                     lease_token = NULL,
                     lease_expires_at = NULL,
                     updated_at = ?
                 WHERE id = ?
-                  AND status = 'running'::operation_status_t
+                  AND status = 'running'
                   AND lease_token = ?
                 """,
                 responsePayload.toString(),

@@ -367,7 +367,7 @@ class CoachSessionRepositoryIT {
         assertThat(store.getOwnedCoachSession(userId, sessionId).session().turns())
                 .containsExactlyElementsOf(allTurns);
         assertThat(jdbc.queryForMap("""
-                SELECT status::text AS status, response_payload::text AS payload
+                SELECT status, response_payload::text AS payload
                 FROM external_operations WHERE id = ?
                 """, operationId))
                 .containsEntry("status", "succeeded");
@@ -483,8 +483,8 @@ class CoachSessionRepositoryIT {
                     id, session_id, user_id, request_id, kind, status,
                     attempt_count, request_fingerprint, lease_token, lease_expires_at
                 ) VALUES (
-                    ?, ?, ?, ?, 'coach_reply'::operation_kind_t,
-                    'running'::operation_status_t, 1, ?, ?, ?
+                    ?, ?, ?, ?, 'coach_reply',
+                    'running', 1, ?, ?, ?
                 )
                 """,
                 operationId,

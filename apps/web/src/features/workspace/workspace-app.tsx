@@ -1054,7 +1054,7 @@ function WorkspaceInner() {
     [reports],
   );
   const running = useMemo(
-    () => sessions.filter((s) => s.status === "created" || s.status === "analyzing"),
+    () => sessions.filter((s) => s.status === "analyzing"),
     [sessions],
   );
   const finished = useMemo(

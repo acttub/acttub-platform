@@ -80,7 +80,7 @@ class FlywayBaselineTest {
     }
 
     @Test
-    @DisplayName("재구축된 스키마에 테이블 · enum · 부분 인덱스 · CHECK 제약이 다 있다")
+    @DisplayName("재구축된 스키마에 테이블 · 부분 인덱스 · CHECK 제약이 다 있다")
     void freshDatabaseHasTheObjectsThatHibernateCannotCreate() throws Exception {
         String jdbcUrl = PostgresContainerSupport.createDatabase("flyway_objects");
         flywayFor(jdbcUrl).migrate();
@@ -126,14 +126,14 @@ class FlywayBaselineTest {
                             + "WHERE conname='uq_practice_reports_source_handoff'"))
                     .isEqualTo(1L);
 
-            // 한글 라벨 enum. values_callable 때문에 DB 값이 한글이다 (apps/api/CONTRACT.md §5-3-1).
+            // 한글 값. values_callable 때문에 DB 값이 한글이다 (apps/api/CONTRACT.md §5-3-1).
+            // enum 이던 시절에는 타입 라벨이었고, 지금은 CHECK 안의 리터럴이다 (SOMA-462).
             try (Statement st = connection.createStatement();
                     ResultSet rs = st.executeQuery(
-                            "SELECT string_agg(e.enumlabel, ',' ORDER BY e.enumsortorder) "
-                                    + "FROM pg_enum e JOIN pg_type t ON t.oid=e.enumtypid "
-                                    + "WHERE t.typname='intent_impact_t'")) {
+                            "SELECT pg_get_constraintdef(con.oid) FROM pg_constraint con "
+                                    + "WHERE con.conname='ck_anomalies_intent_impact'")) {
                 rs.next();
-                assertThat(rs.getString(1)).isEqualTo("반전,약화,국소");
+                assertThat(rs.getString(1)).contains("'반전'", "'약화'", "'국소'");
             }
 
             // 시드 데이터도 V1 이 전체 값 그대로 들고 있어야 한다.

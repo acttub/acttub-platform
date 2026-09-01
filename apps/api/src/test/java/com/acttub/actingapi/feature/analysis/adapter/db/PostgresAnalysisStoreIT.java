@@ -217,7 +217,7 @@ class PostgresAnalysisStoreIT {
         UUID id = UUID.randomUUID();
         jdbc.update("""
                 INSERT INTO users (id, email, status)
-                VALUES (?, ?, 'active'::user_status_t)
+                VALUES (?, ?, 'active')
                 """, id, id + "@example.test");
         return id;
     }
@@ -228,7 +228,7 @@ class PostgresAnalysisStoreIT {
                 INSERT INTO upload_intents (
                     id, user_id, status, storage_provider, object_key,
                     mime_type, size_bytes, expires_at)
-                VALUES (?, ?, 'finalized'::upload_status_t, 's3', ?, 'video/mp4', 1, ?)
+                VALUES (?, ?, 'finalized', 's3', ?, 'video/mp4', 1, ?)
                 """, id, userId, "uploads/" + id + ".mp4",
                 NOW.plusSeconds(3600).atOffset(ZoneOffset.UTC));
         return id;
@@ -240,7 +240,7 @@ class PostgresAnalysisStoreIT {
                 INSERT INTO practice_sessions (
                     id, user_id, upload_intent_id, status, situation,
                     character_context, blockage_kind, sub_branch, goal, updated_at)
-                VALUES (?, ?, ?, 'created'::practice_status_t, '상황', '인물',
+                VALUES (?, ?, ?, 'analyzing', '상황', '인물',
                         '분석', '캐릭터 분석', '목표', ?)
                 """, id, userId, uploadId, NOW.minusSeconds(60).atOffset(ZoneOffset.UTC));
         return id;
@@ -256,7 +256,7 @@ class PostgresAnalysisStoreIT {
                 INSERT INTO external_operations (
                     id, session_id, user_id, request_id, kind, status,
                     request_fingerprint, created_at)
-                VALUES (?, ?, ?, ?, ?::operation_kind_t, 'pending'::operation_status_t, ?, ?)
+                VALUES (?, ?, ?, ?, ?, 'pending', ?, ?)
                 """, id, sessionId, userId, UUID.randomUUID(), kind, FINGERPRINT,
                 NOW.minusSeconds(30).atOffset(ZoneOffset.UTC));
         return id;
@@ -278,12 +278,12 @@ class PostgresAnalysisStoreIT {
 
     private String sessionStatus(UUID sessionId) {
         return jdbc.queryForObject(
-                "SELECT status::text FROM practice_sessions WHERE id = ?", String.class, sessionId);
+                "SELECT status FROM practice_sessions WHERE id = ?", String.class, sessionId);
     }
 
     private Map<String, Object> operation(UUID operationId) {
         return jdbc.queryForMap("""
-                SELECT status::text AS status, error_code, lease_token, lease_expires_at,
+                SELECT status, error_code, lease_token, lease_expires_at,
                        response_payload::text AS response_payload
                 FROM external_operations WHERE id = ?
                 """, operationId);

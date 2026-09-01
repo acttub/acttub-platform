@@ -26,17 +26,8 @@ public interface AuthRepository {
 
     AuthenticatedUser findByIdentity(String provider, String providerUid);
 
-    /**
-     * 계정과 신원을 함께 만든다.
-     *
-     * <p>유입 출처는 <b>가입할 때만</b> 남긴다 — 이미 있는 계정에 다시 붙이면 마지막 로그인
-     * 경로가 첫 유입을 덮어써서 집계가 뒤집힌다(원본도 create 경로에만 준다).
-     */
-    AuthenticatedUser createUserWithIdentity(
-            String provider,
-            String providerUid,
-            String email,
-            SignupAttribution attribution);
+    /** 계정과 신원을 함께 만든다. */
+    AuthenticatedUser createUserWithIdentity(String provider, String providerUid, String email);
 
     /**
      * 이미 있는 계정에 신원을 붙인다.

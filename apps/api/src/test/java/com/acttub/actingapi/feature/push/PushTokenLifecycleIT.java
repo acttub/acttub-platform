@@ -90,7 +90,7 @@ class PushTokenLifecycleIT {
     private UUID insertUser(String email) {
         return jdbc.queryForObject("""
                 INSERT INTO users (email, nickname, status)
-                VALUES (?, 'push-테스트', 'active'::user_status_t)
+                VALUES (?, 'push-테스트', 'active')
                 RETURNING id
                 """, UUID.class, email);
     }
@@ -101,14 +101,14 @@ class PushTokenLifecycleIT {
                     (user_id, object_key, mime_type, status, storage_provider,
                      size_bytes, expires_at)
                 VALUES (?, 'push-it/' || gen_random_uuid(), 'video/mp4',
-                        'finalized'::upload_status_t, 's3', 1024, now() + interval '1 hour')
+                        'finalized', 's3', 1024, now() + interval '1 hour')
                 RETURNING id
                 """, UUID.class, userId);
         return jdbc.queryForObject("""
                 INSERT INTO practice_sessions
-                    (user_id, upload_intent_id, situation, character_context, goal,
+                    (user_id, upload_intent_id, status, situation, character_context, goal,
                      blockage_kind, sub_branch)
-                VALUES (?, ?, '상황', '인물', '목표', '그 외'::text, '그 외'::text)
+                VALUES (?, ?, 'analyzing', '상황', '인물', '목표', '그 외', '그 외')
                 RETURNING id
                 """, UUID.class, userId, intentId);
     }

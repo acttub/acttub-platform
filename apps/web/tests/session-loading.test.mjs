@@ -65,12 +65,12 @@ function loadInput(overrides = {}) {
 }
 
 test("훑어보기가 안 끝난 연습은 폴링을 걸라고 답하고 노트를 물어보지 않는다", async () => {
-  for (const status of ["created", "analyzing"]) {
-    const calls = apiStub({ session: () => jsonResponse(detail({ status })) });
-    const result = await loadPracticeSession(loadInput());
-    assert.deepEqual(result, { kind: "analyzing" });
-    assert.deepEqual(calls, ["/v2/practice-sessions/practice-1"]);
-  }
+  const calls = apiStub({
+    session: () => jsonResponse(detail({ status: "analyzing" })),
+  });
+  const result = await loadPracticeSession(loadInput());
+  assert.deepEqual(result, { kind: "analyzing" });
+  assert.deepEqual(calls, ["/v2/practice-sessions/practice-1"]);
 });
 
 test("훑어보기가 실패한 연습은 그 자리에서 멈추고 노트를 물어보지 않는다", async () => {

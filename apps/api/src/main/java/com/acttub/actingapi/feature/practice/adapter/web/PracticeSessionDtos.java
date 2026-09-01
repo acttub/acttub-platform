@@ -60,7 +60,7 @@ final class PracticeSessionDtos {
     record PracticeSessionCreateResponse(
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) UUID sessionId,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED,
-                    allowableValues = {"created", "analyzing", "analyzed", "failed"})
+                    allowableValues = {"analyzing", "analyzed", "failed"})
             String status,
             @Schema(nullable = true) UUID summaryId) {
     }
@@ -72,7 +72,7 @@ final class PracticeSessionDtos {
     record PracticeSessionListItem(
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) UUID sessionId,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED,
-                    allowableValues = {"created", "analyzing", "analyzed", "failed"})
+                    allowableValues = {"analyzing", "analyzed", "failed"})
             String status,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String situation,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String characterContext,
@@ -100,7 +100,7 @@ final class PracticeSessionDtos {
     @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
     record PracticeSessionStatusResponse(
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED,
-                    allowableValues = {"created", "analyzing", "analyzed", "failed"})
+                    allowableValues = {"analyzing", "analyzed", "failed"})
             String status,
             @Schema(nullable = true, allowableValues = {
                 "gemini_timeout", "gemini_parse_error", "unsupported_media", "max_attempts_exceeded"
@@ -138,7 +138,7 @@ final class PracticeSessionDtos {
     record PracticeSessionDetail(
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) UUID sessionId,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED,
-                    allowableValues = {"created", "analyzing", "analyzed", "failed"})
+                    allowableValues = {"analyzing", "analyzed", "failed"})
             String status,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String situation,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String characterContext,

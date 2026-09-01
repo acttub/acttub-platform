@@ -288,7 +288,7 @@ class CommunityEndpointIT {
     private void insertUser(UUID id, String nickname) {
         jdbc.update("""
                 INSERT INTO users(id, email, nickname, status)
-                VALUES (?, NULL, ?, 'active'::user_status_t)
+                VALUES (?, NULL, ?, 'active')
                 """, id, nickname);
     }
 
@@ -302,7 +302,7 @@ class CommunityEndpointIT {
                     id, category_id, author_id, title, body, anonymous, status,
                     created_at, updated_at
                 )
-                VALUES (?, ?, ?, ?, ?, ?, 'visible'::content_status_t, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, 'visible', ?, ?)
                 """, id, categoryId, authorId, "제목 " + id, "본문", anonymous,
                 createdAt, createdAt);
         return id;
@@ -318,7 +318,7 @@ class CommunityEndpointIT {
                 INSERT INTO community_comments (
                     id, post_id, author_id, body, anonymous, status, created_at, updated_at
                 )
-                VALUES (?, ?, ?, '댓글', ?, 'visible'::content_status_t, ?, ?)
+                VALUES (?, ?, ?, '댓글', ?, 'visible', ?, ?)
                 """, id, postId, authorId, anonymous, createdAt, createdAt);
         jdbc.update("""
                 UPDATE community_posts SET comment_count = comment_count + 1 WHERE id = ?

@@ -1,11 +1,9 @@
 package com.acttub.actingapi.feature.analysis.schema;
 
 import com.acttub.actingapi.platform.schema.IntentImpact;
-import com.acttub.actingapi.platform.schema.PgEnumJdbcType;
 import com.acttub.actingapi.platform.schema.Severity;
 import java.util.UUID;
 import jakarta.persistence.*;
-import org.hibernate.annotations.JdbcType;
 
 @Entity
 @Table(name = "anomalies")
@@ -50,13 +48,11 @@ public class AnomalyEntity {
     boolean onKeyDimension;
 
     @Convert(converter = IntentImpact.JpaConverter.class)
-    @JdbcType(PgEnumJdbcType.class)
-    @Column(name = "intent_impact", nullable = false, columnDefinition = "intent_impact_t")
+    @Column(name = "intent_impact", nullable = false, columnDefinition = "text")
     IntentImpact intentImpact;
 
     @Convert(converter = Severity.JpaConverter.class)
-    @JdbcType(PgEnumJdbcType.class)
-    @Column(name = "severity", nullable = false, columnDefinition = "severity_t")
+    @Column(name = "severity", nullable = false, columnDefinition = "text")
     Severity severity;
 
     @Column(name = "severity_reason", nullable = false)

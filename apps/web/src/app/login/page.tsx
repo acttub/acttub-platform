@@ -60,13 +60,6 @@ function loginErrorMessage(error: unknown): string {
   ) {
     return "로그인 정보가 올바르지 않아요";
   }
-  if (
-    error instanceof ApiError &&
-    error.status === 403 &&
-    error.code === "account_suspended"
-  ) {
-    return "정지된 계정이에요";
-  }
   // 서버가 아직 해당 로그인 방식을 지원하지 않는 배포 상태 (400 unsupported_provider).
   if (
     error instanceof ApiError &&
@@ -195,11 +188,9 @@ function LoginForm() {
   const searchParams = useSearchParams();
   const nextPath = sanitizeNextPath(searchParams.get("next"));
   const noticeMessage =
-    searchParams.get("notice") === "account_suspended"
-      ? "정지된 계정이에요"
-      : searchParams.get("notice") === "consents_updated"
-        ? "약관 정보가 바뀌어 다시 로그인이 필요해요"
-        : null;
+    searchParams.get("notice") === "consents_updated"
+      ? "약관 정보가 바뀌어 다시 로그인이 필요해요"
+      : null;
   const [uid, setUid] = useState("");
   const [email, setEmail] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);

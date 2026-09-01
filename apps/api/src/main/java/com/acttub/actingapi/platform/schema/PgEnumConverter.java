@@ -8,7 +8,9 @@ import jakarta.persistence.AttributeConverter;
 /**
  * {@link PgEnum} 공통 컨버터 뼈대. 서브클래스는 {@code @Converter} 를 붙이고 enum 클래스만 넘긴다.
  *
- * <p>M0 은 검증에 필요한 2종만 만든다. 17종 전량은 M2 에서 채운다 (apps/api/CONTRACT.md §5-3-1).
+ * <p><b>{@code convertToEntityAttribute} 의 예외가 값 무결성의 두 번째 그물이다.</b> 첫 번째는
+ * DB 의 CHECK 제약이고, 그것을 우회해 들어온 값(수동 SQL 등)은 여기서 읽힐 때 터진다.
+ * 컬럼이 네이티브 enum 이던 시절에는 타입 자체가 그 일을 했다 (SOMA-462, CONTRACT.md §5-3-1).
  */
 public abstract class PgEnumConverter<E extends Enum<E> & PgEnum>
         implements AttributeConverter<E, String> {

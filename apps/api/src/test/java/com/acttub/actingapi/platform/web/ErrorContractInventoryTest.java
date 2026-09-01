@@ -190,8 +190,6 @@ class ErrorContractInventoryTest {
                     "platform.security.RateLimitContractIT"),
             covered("platform.security.AuthenticatedUser|403|account_deactivated", 1,
                     "feature.auth.AccountStatusContractIT"),
-            covered("platform.security.AuthenticatedUser|403|account_suspended", 1,
-                    "feature.auth.AccountStatusContractIT"),
             covered("platform.security.CurrentUserService|401|invalid or missing access token", 3,
                     "platform.web.AuthErrorContractIT"),
 

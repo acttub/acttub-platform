@@ -1,7 +1,7 @@
 export type CredentialUser = {
   id: string;
   email: string | null;
-  status: 'active' | 'suspended';
+  status: 'active' | 'deactivated';
 };
 
 export type CredentialRecord = {
