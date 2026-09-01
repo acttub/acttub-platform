@@ -22,13 +22,10 @@ const NOTE = { report_type: "analysis" };
 const BLOCKED_NOTE = { report_type: "blocked" };
 
 /** 아무것도 적지 않은 Scene Context. 세 칸이 다 비면 건너뛰기가 열린다. */
-const BLANK_SCENE = { situation: "", characterContext: "", goal: "" };
-
 /** 아무것도 안 한 첫 화면. 각 테스트는 필요한 것만 덮어쓴다. */
 const base = {
   screen: { kind: "prep", video: null, continueFrom: null },
   playbackUrl: null,
-  scene: BLANK_SCENE,
 };
 
 const view = (overrides) => describeWorkspaceView({ ...base, ...overrides });
@@ -39,10 +36,8 @@ test("영상을 고르기 전 준비 화면은 첫 준비 순서에 서고 업�
   const { body, statusChip, review } = view({});
   assert.equal(body.kind, "setup");
   assert.equal(body.step, 1);
-  assert.equal(body.sceneLocked, false);
   assert.deepEqual(body.video, { kind: "upload-zone" });
-  // 올릴 영상이 없으면 건너뛸 것도 없다.
-  assert.deepEqual(body.footer, { kind: "start", ready: false, skippable: false });
+  assert.deepEqual(body.footer, { kind: "start", ready: false });
   assert.equal(body.continueBanner, null);
   assert.equal(statusChip, null);
   assert.deepEqual(review, { armed: false, kind: "chat" });
@@ -57,19 +52,7 @@ test("영상을 고르면 준비 순서가 다음으로 올라가고 시작 버�
     caption: "monologue.mp4",
     reselectable: true,
   });
-  assert.deepEqual(body.footer, { kind: "start", ready: true, skippable: true });
-});
-
-test("장면 세 칸이 모두 비어야 건너뛰기가 열린다", () => {
-  const screen = { kind: "prep", video: picked(), continueFrom: null };
-  const footer = (scene) => view({ screen, scene }).body.footer;
-
-  // 한 칸이라도 적었으면 감춘다 — 적어 둔 것이 말없이 버려질 걱정을 하지 않아야 한다.
-  assert.equal(footer({ ...BLANK_SCENE, situation: "카페에서" }).skippable, false);
-  assert.equal(footer({ ...BLANK_SCENE, characterContext: "20대 여성" }).skippable, false);
-  assert.equal(footer({ ...BLANK_SCENE, goal: "붙잡기" }).skippable, false);
-  // 공백만 적은 것은 비운 것과 같다. 요청 조립이 그것을 trim 해 빈 값으로 보낸다.
-  assert.equal(footer({ situation: " ", characterContext: "\n", goal: "\t" }).skippable, true);
+  assert.deepEqual(body.footer, { kind: "start", ready: true });
 });
 
 test("업로드 중에는 준비 순서가 마지막에서 잠기고 영상 설명이 바뀌며 다시 고를 수 없다", () => {
@@ -78,8 +61,7 @@ test("업로드 중에는 준비 순서가 마지막에서 잠기고 영상 설�
     video: picked(),
     continueFrom: null,
   });
-  assert.equal(body.step, 3);
-  assert.equal(body.sceneLocked, true);
+  assert.equal(body.step, 2);
   assert.deepEqual(body.video, {
     kind: "player",
     src: "blob:local",
@@ -94,7 +76,7 @@ test("훑어보는 동안에는 막대가 서고 상태 칩은 질문 준비다"
   const { body, statusChip } = at({ kind: "analyzing", video: null }, {
     playbackUrl: "https://cdn/one.mp4",
   });
-  assert.equal(body.step, 3);
+  assert.equal(body.step, 2);
   assert.deepEqual(body.footer, { kind: "progress", phase: "scan", failed: false });
   assert.equal(statusChip, "analyzing");
 });
@@ -103,8 +85,7 @@ test("훑어보기가 실패해도 화면은 같은 자리에 남고 막대만 �
   // 이제 이름이 있는 상태다. 이름만 갈렸을 뿐 그리는 것은 그대로여야 한다.
   const { body, statusChip } = at({ kind: "analysisFailed", video: null });
   assert.equal(body.kind, "setup");
-  assert.equal(body.step, 3);
-  assert.equal(body.sceneLocked, true);
+  assert.equal(body.step, 2);
   assert.deepEqual(body.footer, { kind: "progress", phase: "scan", failed: true });
   assert.equal(statusChip, "analyzing");
 });
@@ -145,19 +126,8 @@ test("로컬 원본이 있으면 서버 주소보다 그것을 먼저 튼다", (
 test("영상을 골랐어도 훑어보는 중이면 준비 순서는 마지막에 잠긴다", () => {
   // 시작한 뒤에는 고른 영상이 준비 순서를 되돌리지 않는다.
   const { body } = at({ kind: "analyzing", video: picked() });
-  assert.equal(body.step, 3);
-  assert.equal(body.sceneLocked, true);
+  assert.equal(body.step, 2);
   assert.equal(body.video.reselectable, false);
-});
-
-test("막힘 선택은 자기 영상을 들고 선다", () => {
-  const { body, statusChip } = at({
-    kind: "blockage",
-    video: picked(),
-    continueFrom: null,
-  });
-  assert.deepEqual(body, { kind: "blockage", videoUrl: "blob:local" });
-  assert.equal(statusChip, null);
 });
 
 test("대화 중에는 대화가 화면을 이끈다", () => {
@@ -278,13 +248,6 @@ test("훑어보기 자리에는 이어받기 표시가 남지 않는다", () => 
   // 그 표시는 세션을 만드는 요청에 실려 가면서 할 일을 마친다.
   assert.equal(at({ kind: "analyzing", video: picked() }).body.continueBanner, null);
   assert.equal(at({ kind: "analysisFailed", video: null }).body.continueBanner, null);
-});
-
-test("막힘을 고르는 동안에는 이어받기 배너가 아예 사라진다", () => {
-  // 배너는 준비 계열 화면에만 그려진다 — 막힘 선택으로 넘어가면 표시가 통째로 없다.
-  const { body } = at({ kind: "blockage", video: picked(), continueFrom: CONTINUE });
-  assert.equal(body.kind, "blockage");
-  assert.equal("continueBanner" in body, false);
 });
 
 test("대화·노트 화면에서는 이어받기 표시가 화면에서 사라진다", () => {

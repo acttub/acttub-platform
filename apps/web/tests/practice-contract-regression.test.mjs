@@ -15,6 +15,57 @@ const readRepo = (relativePath) =>
 const { buildPracticeSessionRequest } = await import(
   "../src/features/practice/practice-setup-flow.ts"
 );
+const {
+  chooseBlockageKind,
+  chooseBlockageSubBranch,
+  completeBlockageFlowWithDefault,
+  initialBlockageFlowState,
+  updateBlockageDetail,
+} = await import("../src/features/practice/blockage-flow.ts");
+
+test("영상만 고른 시작은 빈 장면과 그 외 기본값으로 조립한다", () => {
+  const blockage = completeBlockageFlowWithDefault(initialBlockageFlowState);
+  const body = buildPracticeSessionRequest(
+    "upload-intent-video-only",
+    { situation: "", characterContext: " ", goal: "\n" },
+    blockage,
+  );
+
+  assert.deepEqual(body, {
+    upload_intent_id: "upload-intent-video-only",
+    situation: "",
+    character_context: "",
+    goal: "",
+    blockage_kind: "그 외",
+    sub_branch: "그 외",
+    blockage_detail: null,
+  });
+});
+
+test("토글에서 고른 장면과 도움 값이 요청에 그대로 조립된다", () => {
+  const kind = chooseBlockageKind(initialBlockageFlowState, "표현");
+  const subBranch = chooseBlockageSubBranch(kind, "표정");
+  const draft = updateBlockageDetail(subBranch, "  눈을 피하는 순간을 보고 싶어요  ");
+  const body = buildPracticeSessionRequest(
+    "upload-intent-with-details",
+    {
+      situation: "  카페에서 이별을 통보받은 직후  ",
+      characterContext: "  담담한 척하는 인물  ",
+      goal: "  상대를 다시 앉게 만들기  ",
+    },
+    completeBlockageFlowWithDefault(draft),
+  );
+
+  assert.deepEqual(body, {
+    upload_intent_id: "upload-intent-with-details",
+    situation: "카페에서 이별을 통보받은 직후",
+    character_context: "담담한 척하는 인물",
+    goal: "상대를 다시 앉게 만들기",
+    blockage_kind: "표현",
+    sub_branch: "표정",
+    blockage_detail: "눈을 피하는 순간을 보고 싶어요",
+  });
+});
 
 test("세션 생성 본문은 goal을 포함하고 subtext를 포함하지 않는다", () => {
   const body = buildPracticeSessionRequest(

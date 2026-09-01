@@ -28,6 +28,7 @@ import * as amplitude from "@amplitude/analytics-browser";
 import { sessionReplayPlugin } from "@amplitude/plugin-session-replay-browser";
 import { toDurationBucket } from "./ga";
 import type { UploadStage } from "../api/v2/uploads";
+import type { TheoryChoiceId } from "../../features/practice/theory-choice";
 import { scrubUrl } from "../observability/sentry-shared";
 
 export { toDurationBucket } from "./ga";
@@ -220,14 +221,9 @@ export function trackPracticeVideoSelected(sizeBytes: number, isReselect: boolea
   });
 }
 
-export function trackPracticeBlockageStarted(): void {
-  track("practice_blockage_started");
-}
-
 /**
- * "장면 없이 시작"을 눌렀다. 세션 제출 이벤트의 scene_skipped 와 나눠 두는 이유는
- * "버튼을 눌렀다"와 "그냥 빈 채로 진행했다"를 갈라야 안내 문구와 버튼의 효과를
- * 따로 잴 수 있기 때문이다(ADR-021).
+ * 시작할 때 장면 세 칸이 모두 비어 있었다. 별도 건너뛰기 버튼이 없어졌으므로
+ * 세션 생성 성공 여부와 관계없이 시작 시점의 선택 입력 상태를 센다.
  */
 export function trackPracticeSceneSkipped(): void {
   track("practice_scene_skipped");
@@ -291,12 +287,14 @@ export function trackPracticeSessionCreated(
   subBranch: BlockageSubBranch,
   /** Scene Context 세 칸을 모두 비운 채 만든 연습인가. 완주율을 갈라 보는 데 쓴다. */
   sceneSkipped: boolean,
+  theoryChoice?: TheoryChoiceId | null,
 ): void {
   track("practice_session_created", {
     duration_bucket: toDurationBucket(durationMs),
     kind,
     sub_branch: subBranch,
     scene_skipped: sceneSkipped,
+    ...(theoryChoice ? { theory_choice: theoryChoice } : {}),
   });
 }
 
