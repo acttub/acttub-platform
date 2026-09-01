@@ -1,7 +1,7 @@
 import Image from "next/image";
 
 import {
-  storeHref,
+  goHref,
   STORE_ORDER,
   type AppStore,
   type StoreLinkSurface,
@@ -55,7 +55,7 @@ export function StoreBadges({
         return (
           <a
             key={store}
-            href={storeHref(store, surface)}
+            href={goHref(store, surface)}
             className="inline-flex rounded-[10px] transition hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#3182f6]"
           >
             <Image
