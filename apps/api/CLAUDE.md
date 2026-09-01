@@ -62,7 +62,7 @@ Java 21 + Spring Boot 3.4. **dev·운영 모두 여기가 트래픽을 받습니
 
 각 도메인은 `domain`(규칙을 담은 Domain Model, 프레임워크 import 금지) · `app`(서비스와 포트 선언) · `adapter`(`web`·`db`·`storage`·`media`·`sched`·`resource`·`expo`, 어느 하위에도 안 속하고 여럿을 조립하는 배선 `@Configuration`은 그 층의 루트) · `schema`(Schema Entity)로 서되 **가진 층만큼만**입니다.
 
-📌 **SOMA-460은 JDBC→JPA 전환 중입니다.** Schema Entity는 26개 테이블을 모두 매핑하며 자기 feature의 Adapter와 영속 내부 repository만 사용할 수 있습니다. app·domain과 다른 feature는 Schema Entity나 Spring Data interface를 보면 안 됩니다. 1단계 뒤에도 운영 직접 JDBC 19개는 남아 있고 2~6단계에서 순차 교체하므로, 중간 커밋을 “JPA 전환 완료”로 읽지 않습니다. native DML `RETURNING`은 [CONTRACT.md](CONTRACT.md) §5-2·§5-8의 data-modifying CTE + alias `Tuple` 패턴을 씁니다.
+📌 **SOMA-460은 JDBC→JPA 전환 중입니다.** Schema Entity는 26개 테이블을 모두 매핑하며 자기 feature의 Adapter와 영속 내부 repository만 사용할 수 있습니다. app·domain과 다른 feature는 Schema Entity나 Spring Data interface를 보면 안 됩니다. 2단계 뒤에는 upload·consent·admin이 JPA를 사용하고 운영 직접 JDBC 15개 클래스·144개 호출은 3~6단계에서 순차 교체하므로, 중간 커밋을 “JPA 전환 완료”로 읽지 않습니다. native DML `RETURNING`은 [CONTRACT.md](CONTRACT.md) §5-2·§5-8의 data-modifying CTE + alias `Tuple` 패턴을 씁니다.
 
 📌 **왜 이 형태인지, 재편 중 무엇을 실측했는지는 [ADR-017~020](../../docs/ADR.md)이 정본입니다** — 층을 왜 다 세우지 않는지(ADR-020), 포트가 실패를 어떻게 알리는지(ADR-018), 서로를 소비하는 두 도메인을 어떻게 정렬하는지(ADR-019). 아래는 **그 결정을 지키며 코드를 고칠 때 필요한 것**만 담습니다.
 

@@ -61,4 +61,8 @@ public class ConsentDocumentEntity extends AppGeneratedUuidEntity {
     public boolean isRequired() {
         return required;
     }
+
+    public Instant getPublishedAt() {
+        return publishedAt;
+    }
 }
