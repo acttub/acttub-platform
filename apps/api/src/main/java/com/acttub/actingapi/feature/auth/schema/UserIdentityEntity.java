@@ -33,4 +33,8 @@ public class UserIdentityEntity extends AppGeneratedUuidEntity {
         this.provider = provider;
         this.providerUid = providerUid;
     }
+
+    public UUID getUserId() {
+        return userId;
+    }
 }

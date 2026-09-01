@@ -259,7 +259,8 @@ class EntityMappingIT {
         save(UserEntity.class,new UserEntity(userId,"all-"+userId+"@example.test",UserStatus.ACTIVE,"n"));
         save(UserEntity.class,new UserEntity(otherUserId,"other-"+userId+"@example.test",UserStatus.ACTIVE,"n"));
         save(UserIdentityEntity.class,new UserIdentityEntity(UUID.randomUUID(),userId,IdentityProvider.GOOGLE,"uid-"+userId));
-        save(RefreshTokenEntity.class,new RefreshTokenEntity(UUID.randomUUID(),userId,"a".repeat(64),null,java.time.Instant.now().plusSeconds(60)));
+        save(RefreshTokenEntity.class,new RefreshTokenEntity(UUID.randomUUID(),userId,"a".repeat(64),null,
+                java.time.Instant.now(),java.time.Instant.now().plusSeconds(60)));
         save(ConsentDocumentEntity.class,new ConsentDocumentEntity(documentId,ConsentType.TERMS,"v-"+userId,"t","b",true));
         save(UserConsentEntity.class,new UserConsentEntity(UUID.randomUUID(),userId,documentId,ConsentAction.GRANTED,java.time.Instant.now()));
         save(ActorMemoryEntryEntity.class,new ActorMemoryEntryEntity(UUID.randomUUID(),userId,

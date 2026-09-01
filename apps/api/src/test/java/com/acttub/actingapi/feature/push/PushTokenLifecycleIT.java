@@ -48,13 +48,20 @@ class PushTokenLifecycleIT {
         String token = "ExponentPushToken[lifecycle]";
 
         tokens.register(first, token, "ios");
+        UUID id = tokenId(token);
         tokens.register(first, token, "ios");
         assertThat(countTokens(first)).isEqualTo(1);
+        assertThat(tokenId(token)).isEqualTo(id);
 
         // 같은 폰에 다른 계정이 로그인하면 단말의 주인이 바뀐다.
         tokens.register(second, token, "android");
         assertThat(countTokens(first)).isZero();
         assertThat(countTokens(second)).isEqualTo(1);
+        assertThat(tokenId(token)).isEqualTo(id);
+        assertThat(jdbc.queryForMap(
+                "SELECT user_id,platform FROM push_tokens WHERE token=?", token))
+                .containsEntry("user_id", second)
+                .containsEntry("platform", "android");
 
         tokens.unregister(second, token);
         tokens.unregister(second, token);
@@ -117,5 +124,10 @@ class PushTokenLifecycleIT {
         Integer count = jdbc.queryForObject(
                 "SELECT count(*) FROM push_tokens WHERE user_id = ?", Integer.class, userId);
         return count == null ? 0 : count;
+    }
+
+    private UUID tokenId(String token) {
+        return jdbc.queryForObject(
+                "SELECT id FROM push_tokens WHERE token = ?", UUID.class, token);
     }
 }
