@@ -6,7 +6,7 @@ import org.springframework.boot.autoconfigure.domain.EntityScan;
 
 /**
  * {@code @EntityScan}은 Schema Entity가 어디 사는지를 선언으로 고정한다. 이 매핑은
- * {@code ddl-auto: validate}의 스키마 대조와 SOMA-460 이후 런타임 영속화에 함께 쓰이므로,
+ * {@code ddl-auto: validate}의 스키마 대조와 런타임 영속화에 함께 쓰이므로,
  * 위치가 흐려지면 검증과 읽기·쓰기 양쪽의 대상이 흐려진다.
  *
  * <p><b>주의 — 이 애노테이션은 스캔 범위를 넓히는 게 아니라 좁힌다.</b> 관례 스캔은

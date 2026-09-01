@@ -23,7 +23,7 @@
 |---|---|
 | 런타임 | Java 21 + Spring Boot 3.4, Spring Web MVC + **virtual threads** (WebFlux 금지) |
 | 빌드 | Gradle (Kotlin DSL) + wrapper, `bootJar` |
-| 영속 | Spring Data JPA + `EntityManager` native SQL로 일원화한다(ADR-024, §5-1·§5-2). **SOMA-460 전환 중**이라 5단계 뒤의 운영 직접 JDBC 3개는 6단계에서 교체한다 |
+| 영속 | Spring Data JPA + `EntityManager` native SQL로 일원화한다(ADR-024, §5-1·§5-2) |
 | 스키마 | **Flyway 가 소유**. `V1__baseline.sql` 에 스키마가 동결돼 있다(§5-5). Hibernate `ddl-auto: validate` (`create`/`update` 절대 금지) |
 | DB 연결 | `DATABASE_URL`(`postgresql://…`)을 **JDBC URL + username/password 로 변환**(§5-6). 변수 이름은 유지 |
 | 스펙 | springdoc-openapi (`openapi_3_1`) |
@@ -46,19 +46,16 @@ Jackson 설정: `WRITE_DATES_AS_TIMESTAMPS=false`, `Instant` 또는 `OffsetDateT
 
 ## 5. 영속 계층 규칙
 
-### 5-1. 운영 DB 접근은 JPA 로 일원화한다 (SOMA-460 전환 중)
+### 5-1. 운영 DB 접근은 JPA 로 일원화한다
 
 외부 seam은 기존 `app` Port이고, Postgres Adapter가 그 Port를 계속 구현한다. Adapter 내부에서
 단순 CRUD·조회는 Spring Data repository·JPQL·projection으로, PostgreSQL 의미가 필요한 연산은
 §5-2의 `EntityManager` native SQL로 구현한다. 서비스·Domain Model은 Spring Data interface,
 Schema Entity, JPA 타입을 알지 않는다.
 
-**5단계 현재 상태**: Schema Entity 26개가 모든 테이블을 매핑하고
-`actor_memory_entries`·`push_tokens`도 `ddl-auto: validate` 대상이다. upload·consent·admin과
-auth·profile·push·Community, practice·analysis·memory와 External Operation 공통 모듈은 Spring
-Data JPA와 `EntityManager`로 옮겼고, 운영 직접 JDBC는 coach·report의 3개 클래스·30개 호출이
-남았다. 이것은 6단계 전환 전 중간 상태이며, 6단계 완료 기준은 운영
-`JdbcTemplate`·`NamedParameterJdbcTemplate`·`DataSource` 직접 접근 0건이다. 테스트 fixture와
+Schema Entity 26개가 모든 테이블을 매핑하고 `actor_memory_entries`·`push_tokens`도
+`ddl-auto: validate` 대상이다. 모든 운영 DB 접근은 Spring Data JPA와 `EntityManager`를 사용하며,
+운영 `JdbcTemplate`·`NamedParameterJdbcTemplate`·`DataSource` 직접 접근은 없다. 테스트 fixture와
 JPA 밖 독립 검증에는 `JdbcTemplate`을 허용한다.
 
 Schema Entity는 스키마 검증과 런타임 영속화를 함께 맡는다. 자기 feature의 Adapter와 영속 내부
