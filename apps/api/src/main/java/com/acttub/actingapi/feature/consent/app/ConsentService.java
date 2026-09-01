@@ -9,6 +9,7 @@ import java.util.stream.Collectors;
 import com.acttub.actingapi.feature.consent.domain.ConsentDocument;
 import com.acttub.actingapi.feature.consent.domain.ConsentEntry;
 import com.acttub.actingapi.feature.consent.domain.ConsentEvent;
+import com.acttub.actingapi.platform.security.RequiredConsentGate;
 import com.acttub.actingapi.platform.web.ApiException;
 import org.springframework.stereotype.Service;
 
@@ -16,7 +17,7 @@ import org.springframework.stereotype.Service;
  * 동의 문서 조회와 기록의 규칙.
  */
 @Service
-public class ConsentService {
+public class ConsentService implements RequiredConsentGate {
     private final ConsentRepository consents;
     private final Clock clock;
 
@@ -53,6 +54,21 @@ public class ConsentService {
                 consents.currentConsentsOf(userId));
     }
 
+    @Override
+    public Status statusFor(UUID userId) {
+        ConsentEntry.Status status = ConsentEntry.evaluate(
+                        consents.listLatestDocuments().stream()
+                                .filter(ConsentDocument::required)
+                                .toList(),
+                        consents.currentConsentsOf(userId))
+                .status();
+        return switch (status) {
+            case ALLOWED -> Status.ALLOWED;
+            case DECISION_REQUIRED -> Status.DECISION_REQUIRED;
+            case BLOCKED -> Status.BLOCKED;
+        };
+    }
+
     /**
      * 동의·거절·철회를 기록한다. 덮어쓰지 않고 쌓는다 — 지금 상태는 마지막 한 줄로 정해진다.
      *
@@ -66,8 +82,12 @@ public class ConsentService {
         } catch (IllegalArgumentException notAUuid) {
             throw documentNotFound();
         }
-        if (consents.findDocument(documentId) == null) {
+        ConsentDocument document = consents.findDocument(documentId);
+        if (document == null) {
             throw documentNotFound();
+        }
+        if (document.required() && "declined".equals(action)) {
+            throw new ApiException(409, "required_consent_cannot_be_declined");
         }
         return consents.record(userId, documentId, action, clock.instant());
     }

@@ -91,6 +91,16 @@ final class ConsentDtos {
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) Instant occurredAt) {
     }
 
+    @Schema(
+            name = "RequiredConsentDeclineError",
+            additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
+    record RequiredConsentDeclineError(
+            @Schema(
+                    requiredMode = Schema.RequiredMode.REQUIRED,
+                    allowableValues = "required_consent_cannot_be_declined")
+            String detail) {
+    }
+
     // consents.py:ConsentRequest 가 extra 를 지정하지 않아 unknown key 를 받는다.
     // openapi.json 의 ConsentRequest 에도 additionalProperties 가 없다 (apps/api/CONTRACT.md §6-3 의 허용 5개 중 하나).
     @JsonIgnoreProperties(ignoreUnknown = true)

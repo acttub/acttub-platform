@@ -272,10 +272,17 @@ text 가 되면서 사전순으로 갈리므로, 순서가 화면에 보이는 �
 `default` 가 붙은 필드는 **`anyOf [T, null]` 과 겹치지 않는다** — default 가 있으면 nullable 로
 선언되지 않는다. 대부분 컬렉션 기본값(`[]`)이나 불리언이다.
 
-### 6-2. 오류 계약은 `openapi.json` 에 없다
+### 6-2. 오류 계약은 대부분 `openapi.json` 에 없다
 
-스펙의 상태코드는 `200/201/202/204/422` 뿐이다. **400·401·403·404·409·413·415·429·502·503 이
-전무**하고 422 는 자동 생성된 validation 오류뿐이다. 실제 오류는 그보다 훨씬 많다.
+스펙이 명시하는 도메인 오류는 `POST /v2/consents`의
+`409 required_consent_cannot_be_declined` 하나뿐이다. 그 밖의 상태코드는
+`200/201/202/204/422`이고, 422는 자동 생성된 validation 오류뿐이다. 실제 오류는 그보다 훨씬
+많다.
+
+필수 동의 게이트는 새 클라이언트가 인증 요청에 `X-Acttub-Consent-Entry: 1`을 보냈을 때
+미결정을 `403 consent_required`, 기존 거절·철회를 `403 consent_blocked`로 가른다. 이 헤더가
+없는 구형 클라이언트에는 둘 다 종전의 `403 consent_required`로 답한다. 어느 경우에도 막힌
+원 요청을 서버가 재실행하지 않는다.
 
 불규칙에 주의한다 — 대부분 snake_case(`upload_not_found`)인데 일부는 공백 포함 문장이다:
 `invalid or missing access token`, `session not found`, `practice session not found`,

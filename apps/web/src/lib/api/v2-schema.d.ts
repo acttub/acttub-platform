@@ -912,6 +912,14 @@ export interface components {
              */
             occurred_at: string;
         };
+        /** RequiredConsentDeclineError */
+        RequiredConsentDeclineError: {
+            /**
+             * Detail
+             * @enum {string}
+             */
+            detail: "required_consent_cannot_be_declined";
+        };
         /** ReportRequest */
         ReportRequest: {
             /**
@@ -2212,6 +2220,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ConsentEventResponse"];
+                };
+            };
+            /** @description Required consent cannot be declined */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RequiredConsentDeclineError"];
                 };
             };
             /** @description Validation Error */

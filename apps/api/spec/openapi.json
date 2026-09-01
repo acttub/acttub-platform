@@ -504,6 +504,16 @@
               }
             }
           },
+          "409" : {
+            "description" : "Required consent cannot be declined",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/RequiredConsentDeclineError"
+                }
+              }
+            }
+          },
           "422" : {
             "description" : "Validation Error",
             "content" : {
@@ -2414,6 +2424,19 @@
         },
         "required" : [ "action", "document_id", "id", "occurred_at" ],
         "title" : "ConsentEventResponse"
+      },
+      "RequiredConsentDeclineError" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "detail" : {
+            "type" : "string",
+            "enum" : [ "required_consent_cannot_be_declined" ],
+            "title" : "Detail"
+          }
+        },
+        "required" : [ "detail" ],
+        "title" : "RequiredConsentDeclineError"
       },
       "ReportRequest" : {
         "type" : "object",

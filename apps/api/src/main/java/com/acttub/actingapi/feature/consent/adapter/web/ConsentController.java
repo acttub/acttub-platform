@@ -9,6 +9,7 @@ import com.acttub.actingapi.feature.consent.adapter.web.ConsentDtos.ConsentEntry
 import com.acttub.actingapi.feature.consent.adapter.web.ConsentDtos.ConsentEntryStatus;
 import com.acttub.actingapi.feature.consent.adapter.web.ConsentDtos.ConsentEventResponse;
 import com.acttub.actingapi.feature.consent.adapter.web.ConsentDtos.ConsentRequest;
+import com.acttub.actingapi.feature.consent.adapter.web.ConsentDtos.RequiredConsentDeclineError;
 import com.acttub.actingapi.feature.consent.app.ConsentService;
 import com.acttub.actingapi.feature.consent.domain.ConsentDocument;
 import com.acttub.actingapi.feature.consent.domain.ConsentEntry;
@@ -95,6 +96,10 @@ class ConsentController {
                 responseCode = "201",
                 description = "Successful Response",
                 content = @Content(schema = @Schema(implementation = ConsentEventResponse.class))),
+        @ApiResponse(
+                responseCode = "409",
+                description = "Required consent cannot be declined",
+                content = @Content(schema = @Schema(implementation = RequiredConsentDeclineError.class))),
         @ApiResponse(
                 responseCode = "422",
                 description = "Validation Error",

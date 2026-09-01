@@ -23,6 +23,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
@@ -257,6 +258,82 @@ class ConsentEndpointIT {
                 .isEqualTo(mapper.readTree("{\"detail\":\"consent_document_not_found\"}"));
     }
 
+    @Test
+    void requiredDocumentCannotBeDeclinedAndDoesNotCreateHistory() throws Exception {
+        var rejected = mvc.perform(post("/v2/consents")
+                        .header("Authorization", bearer())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"document_id":"%s","action":"declined"}
+                                """.formatted(LATEST_TERMS_HIGH_ID)))
+                .andReturn().getResponse();
+
+        assertThat(rejected.getStatus()).isEqualTo(409);
+        assertThat(mapper.readTree(rejected.getContentAsString()))
+                .isEqualTo(mapper.readTree(
+                        "{\"detail\":\"required_consent_cannot_be_declined\"}"));
+        assertThat(consentEntry().path("documents").get(0).path("current_decision").isNull())
+                .isTrue();
+
+        var optional = mvc.perform(post("/v2/consents")
+                        .header("Authorization", bearer())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"document_id":"%s","action":"declined"}
+                                """.formatted(PRIVACY)))
+                .andReturn().getResponse();
+
+        assertThat(optional.getStatus()).isEqualTo(201);
+    }
+
+    @Test
+    void capableClientsDistinguishBlockedConsentWithoutChangingTheLegacyError() throws Exception {
+        var undecided = protectedUpload(true);
+        assertThat(undecided.getStatus()).isEqualTo(403);
+        assertThat(mapper.readTree(undecided.getContentAsString()).path("detail").textValue())
+                .isEqualTo("consent_required");
+
+        insertConsent(
+                id(301),
+                LATEST_TERMS_HIGH_ID,
+                "declined",
+                OffsetDateTime.of(2026, 1, 3, 0, 0, 0, 0, ZoneOffset.UTC));
+
+        var capable = protectedUpload(true);
+        assertThat(capable.getStatus()).isEqualTo(403);
+        assertThat(mapper.readTree(capable.getContentAsString()).path("detail").textValue())
+                .isEqualTo("consent_blocked");
+
+        var legacy = protectedUpload(false);
+        assertThat(legacy.getStatus()).isEqualTo(403);
+        assertThat(mapper.readTree(legacy.getContentAsString()).path("detail").textValue())
+                .isEqualTo("consent_required");
+
+        insertConsent(
+                id(302),
+                LATEST_TERMS_HIGH_ID,
+                "revoked",
+                OffsetDateTime.of(2026, 1, 3, 0, 0, 1, 0, ZoneOffset.UTC));
+        var revoked = protectedUpload(true);
+        assertThat(revoked.getStatus()).isEqualTo(403);
+        assertThat(mapper.readTree(revoked.getContentAsString()).path("detail").textValue())
+                .isEqualTo("consent_blocked");
+
+        JsonNode entry = consentEntry();
+        assertThat(entry.path("entry_status").textValue()).isEqualTo("blocked");
+
+        var granted = mvc.perform(post("/v2/consents")
+                        .header("Authorization", bearer())
+                        .header("X-Acttub-Consent-Entry", "1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"document_id":"%s","action":"granted"}
+                                """.formatted(LATEST_TERMS_HIGH_ID)))
+                .andReturn().getResponse();
+        assertThat(granted.getStatus()).isEqualTo(201);
+        assertThat(protectedUpload(true).getStatus()).isNotEqualTo(403);
+    }
+
     /**
      * consents.py:ConsentRequest 는 extra 를 지정하지 않아 unknown key 를 <b>받는다</b>.
      * openapi.json 의 ConsentRequest 에도 additionalProperties 가 없다 —
@@ -318,6 +395,17 @@ class ConsentEndpointIT {
                 .andReturn().getResponse();
         assertThat(response.getStatus()).isEqualTo(200);
         return mapper.readTree(response.getContentAsString());
+    }
+
+    private MockHttpServletResponse protectedUpload(boolean capable) throws Exception {
+        var request = post("/v2/uploads/intents")
+                .header("Authorization", bearer())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"mime_type\":\"video/mp4\",\"size_bytes\":12}");
+        if (capable) {
+            request.header("X-Acttub-Consent-Entry", "1");
+        }
+        return mvc.perform(request).andReturn().getResponse();
     }
 
     private String bearer() {
