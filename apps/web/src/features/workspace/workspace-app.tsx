@@ -1324,9 +1324,9 @@ function WorkspaceInner() {
                     onStart={() => void begin()}
                   />
                   <div className="grid gap-5 sm:gap-6">
-                    <div className="flex items-center gap-2.5 rounded-2xl bg-[#f0f6ff] px-4 py-3">
-                      <span aria-hidden="true" className="text-base leading-none">✨</span>
-                      <p className="text-[13px] font-bold leading-5 text-[#3d5a80]">
+                    <div className="flex items-center gap-2 rounded-xl bg-[#f4f6fa] px-3.5 py-2.5">
+                      <span aria-hidden="true" className="text-sm leading-none text-[#3182f6]">✦</span>
+                      <p className="text-xs font-semibold leading-4 text-[#4e6183]">
                         막히는 지점을 더 잘 찾기 위해 장면 정보를 간단히 물어볼게요.
                       </p>
                     </div>
@@ -1724,7 +1724,7 @@ function UploadZone({ onClick }: { onClick: () => void }) {
     <button
       type="button"
       onClick={onClick}
-      className="flex h-[200px] w-full flex-col items-center justify-center gap-2 rounded-[18px] border-[1.5px] border-dashed border-[#cfe0f5] bg-[#f8fbff] px-4 text-center transition hover:border-[#3182f6] hover:bg-[#e8f3ff] sm:h-[300px] sm:rounded-[20px]"
+      className="flex h-[200px] w-full flex-col items-center justify-center gap-2 rounded-[16px] border border-[#c9dcf8] bg-[#f8fbff] px-4 text-center transition hover:border-[#3182f6] hover:bg-[#e8f3ff] sm:h-[300px] sm:rounded-[20px]"
     >
       <span className="flex h-12 w-12 items-center justify-center rounded-full bg-white text-2xl font-black text-[#3182f6] shadow-[0_8px_20px_rgba(49,130,246,0.12)] sm:h-14 sm:w-14">
         ＋
@@ -1801,7 +1801,7 @@ const SceneForm = memo(function SceneForm({
       <h2 className="text-[15px] font-black leading-tight tracking-[-0.01em] text-[#191f28] sm:text-base">
         이 장면에서 무엇을 연기했는지 알려 주세요
       </h2>
-      <p className="mt-1 text-[13px] font-semibold leading-5 text-[#6b7684]">
+      <p className="mt-1 text-xs font-semibold leading-[18px] text-[#6b7684]">
         정확히 쓰지 않아도 괜찮아요. 작성한 내용은 질문을 만드는 데만 사용해요.
       </p>
       <div className="mt-3.5 grid gap-3.5">
@@ -1826,7 +1826,7 @@ function SceneField({
 }) {
   return (
     <label className="grid gap-1.5">
-      <span className="text-sm font-black text-[#333d4b]">{label}</span>
+      <span className="text-[13px] font-black text-[#333d4b]">{label}</span>
       <input
         value={value}
         placeholder={placeholder}

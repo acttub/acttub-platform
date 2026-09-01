@@ -25,7 +25,7 @@ export function PrepQuestionSection({
         <h2 className="text-[15px] font-black leading-tight tracking-[-0.01em] text-[#191f28] sm:text-base">
           {title}
         </h2>
-        <p className="mt-1 text-[13px] font-semibold leading-5 text-[#6b7684]">
+        <p className="mt-1 text-xs font-semibold leading-[18px] text-[#6b7684]">
           {description}
         </p>
       </header>
@@ -48,7 +48,7 @@ function ChoiceChip({
       type="button"
       aria-pressed={selected}
       onClick={onClick}
-      className={`min-h-11 rounded-full px-4 py-2 text-sm font-black transition ${
+      className={`min-h-10 flex-1 whitespace-nowrap rounded-full px-4 py-2 text-[13px] font-bold transition ${
         selected ? "bg-[#e8f3ff] text-[#3182f6]" : "bg-[#f2f4f6] text-[#4e5968]"
       }`}
     >
