@@ -82,7 +82,7 @@ export default function MobileCheck() {
   }, []);
 
   return (
-    <main style={{ maxWidth: 520, margin: "0 auto", padding: 20, fontFamily: "system-ui, sans-serif", lineHeight: 1.6 }}>
+    <main style={{ maxWidth: 520, margin: "0 auto", padding: 20, lineHeight: 1.6 }}>
       <h1 style={{ fontSize: 20, margin: "0 0 4px" }}>이 기기에서 되는지 보기</h1>
       <p style={{ fontSize: 14, color: "#666", marginTop: 0 }}>
         음성 모델을 받아 한 줄 만들어 보고, 소리까지 내 봅니다. 처음이면 시간이 걸려요.
