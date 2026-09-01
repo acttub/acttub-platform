@@ -17,16 +17,17 @@ import 'react-native-reanimated';
 import '@/lib/global-font';
 import { logScreenView } from '@/lib/analytics';
 import { pendingAnalysisStore } from '@/lib/analysis-storage';
-import { AuthProvider, useAuth } from '@/lib/auth';
-import { configureNotificationHandling, syncDailyNudge } from '@/lib/notifications';
 import {
   recoveryStatusForConsentGate,
+  routeAllowedWhileConsentBlocked,
   resolveAnalyzingBootstrapRoute,
   resolveBootstrapStep,
+  resolvePostConsentRoute,
   type BootstrapRecoveryParams,
-  type BootstrapRoute,
-  type PendingAnalysisHandle,
-} from '@/lib/pending-analysis';
+} from '@/lib/app-bootstrap';
+import { AuthProvider, useAuth } from '@/lib/auth';
+import { configureNotificationHandling, syncDailyNudge } from '@/lib/notifications';
+import type { PendingAnalysisHandle } from '@/lib/pending-analysis';
 import { palette } from '@/constants/palette';
 import { translate as t } from '@/lib/i18n';
 
@@ -55,31 +56,41 @@ const theme = {
   },
 };
 
-/** 로그인 여부에 따라 로그인 화면 ↔ 앱을 게이트한다. */
+/** 인증 → 동의 진입 → 이름 → pending 분석 순서로 최초 화면을 게이트한다. */
 function RootNavigator() {
-  const { status, user, pendingConsents, consentRequired } = useAuth();
+  const {
+    status,
+    user,
+    consentEntry,
+    profileSetupRequired,
+  } = useAuth();
   const segments = useSegments();
   const pathname = usePathname();
+  const currentRouteParams = useGlobalSearchParams<BootstrapRecoveryParams>();
   const {
     recoveryKey: currentRecoveryKey,
     sessionId: currentRecoverySessionId,
-  } = useGlobalSearchParams<BootstrapRecoveryParams>();
+  } = currentRouteParams;
   const router = useRouter();
-  const hasPendingConsents = consentRequired || pendingConsents.length > 0;
+  const hasConsentGate = consentEntry.status !== 'allowed';
   const consentGateRef = useRef({
-    active: hasPendingConsents,
+    active: hasConsentGate,
     generation: 0,
   });
-  if (consentGateRef.current.active !== hasPendingConsents) {
+  if (consentGateRef.current.active !== hasConsentGate) {
     consentGateRef.current = {
-      active: hasPendingConsents,
+      active: hasConsentGate,
       generation: consentGateRef.current.generation + 1,
     };
   }
   const consentGate = consentGateRef.current.generation;
   const completedBootstrapRef = useRef<{
     sessionKey: string;
-    route: BootstrapRoute;
+    route: Href;
+  } | null>(null);
+  const interruptedRouteRef = useRef<{
+    sessionKey: string;
+    route: Href;
   } | null>(null);
   const [recovery, setRecovery] = useState<{
     status: 'loading' | 'ready';
@@ -154,7 +165,8 @@ function RootNavigator() {
     const bootstrap = resolveBootstrapStep({
       authStatus: status,
       userId: user?.id ?? null,
-      hasPendingConsents,
+      consentEntryStatus: consentEntry.status,
+      profileSetupRequired,
       recoveryStatus: recoveryStatusForConsentGate(recovery, consentGate),
       recoveryOwner: recovery.owner,
       pending: recovery.pending,
@@ -176,8 +188,27 @@ function RootNavigator() {
     const first = segments[0] as string;
     const inLogin = first === 'login';
     const inConsent = first === 'consent';
+    const inProfileName = first === 'profile-name';
+    const inAccountManagement = routeAllowedWhileConsentBlocked(
+      segments as string[],
+    );
+
+    const rememberInterruptedRoute = () => {
+      if (!sessionKey || inLogin || inConsent || inProfileName) return;
+      if (interruptedRouteRef.current?.sessionKey === sessionKey) return;
+      const params = Object.fromEntries(
+        Object.entries(currentRouteParams).filter(([, value]) => value !== undefined),
+      );
+      interruptedRouteRef.current = {
+        sessionKey,
+        route: (Object.keys(params).length > 0
+          ? { pathname, params }
+          : pathname) as Href,
+      };
+    };
 
     if (bootstrap.stage === 'auth-gate') {
+      if (bootstrap.route === '/login') interruptedRouteRef.current = null;
       if (bootstrap.route === '/login' && !inLogin) {
         router.replace('/login' as Href);
       }
@@ -185,16 +216,50 @@ function RootNavigator() {
     }
     if (bootstrap.stage === 'consent-gate') {
       completedBootstrapRef.current = null;
-      if (!inConsent) router.replace('/consent' as Href);
+      rememberInterruptedRoute();
+      if (bootstrap.route === '/consent' && !inConsent) {
+        router.replace('/consent' as Href);
+      }
+      return;
+    }
+    if (bootstrap.stage === 'blocked-gate') {
+      completedBootstrapRef.current = null;
+      if (!inAccountManagement) {
+        rememberInterruptedRoute();
+        router.replace('/settings' as Href);
+      }
+      return;
+    }
+    if (bootstrap.stage === 'profile-gate') {
+      completedBootstrapRef.current = null;
+      if (!inProfileName) router.replace('/profile-name' as Href);
       return;
     }
     if (bootstrap.stage === 'pending-recovery' || !bootstrap.route || !sessionKey) {
       return;
     }
 
+    const interruptedRoute =
+      interruptedRouteRef.current?.sessionKey === sessionKey
+        ? interruptedRouteRef.current.route
+        : null;
+    const targetRoute = resolvePostConsentRoute(
+      bootstrap.route,
+      interruptedRoute,
+    ) as Href;
+    if (interruptedRoute) interruptedRouteRef.current = null;
+
     const completed = completedBootstrapRef.current;
     if (completed?.sessionKey === sessionKey) {
-      if (inLogin || inConsent) router.replace(completed.route as Href);
+      if (inLogin || inConsent || inProfileName) {
+        router.replace(completed.route);
+      }
+      return;
+    }
+
+    if (targetRoute !== bootstrap.route) {
+      router.replace(targetRoute);
+      completedBootstrapRef.current = { sessionKey, route: targetRoute };
       return;
     }
 
@@ -212,41 +277,49 @@ function RootNavigator() {
         router.replace(bootstrap.route as Href);
         return;
       }
-    } else if (inLogin || inConsent) {
+    } else if (inLogin || inConsent || inProfileName) {
       router.replace(bootstrap.route as Href);
     }
     completedBootstrapRef.current = {
       sessionKey,
-      route: bootstrap.route,
+      route: bootstrap.route as Href,
     };
   }, [
     status,
     user,
-    pendingConsents,
-    consentRequired,
+    consentEntry.status,
+    profileSetupRequired,
+    consentGate,
     recovery,
     segments,
     pathname,
     currentRecoveryKey,
     currentRecoverySessionId,
+    currentRouteParams,
     router,
   ]);
 
   useEffect(() => {
+    const consentScreenReady =
+      consentEntry.status === 'error' ||
+      consentEntry.status === 'decision_required' ||
+      consentEntry.status === 'blocked';
     const readyToShow =
       status === 'signedOut' ||
       (status === 'signedIn' &&
         Boolean(user) &&
-        (hasPendingConsents ||
-          (recovery.status === 'ready' && recovery.owner === user?.id)));
+        (consentScreenReady ||
+          (consentEntry.status === 'allowed' &&
+            (profileSetupRequired ||
+              (recovery.status === 'ready' && recovery.owner === user?.id)))));
     if (readyToShow) {
       void SplashScreen.hideAsync();
     }
   }, [
     status,
     user,
-    pendingConsents,
-    consentRequired,
+    consentEntry.status,
+    profileSetupRequired,
     recovery.status,
     recovery.owner,
   ]);
@@ -257,6 +330,7 @@ function RootNavigator() {
     <Stack>
       <Stack.Screen name="login" options={{ headerShown: false }} />
       <Stack.Screen name="consent" options={{ headerShown: false }} />
+      <Stack.Screen name="profile-name" options={{ headerShown: false }} />
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen
         name="delete-account"
