@@ -1323,7 +1323,7 @@ function WorkspaceInner() {
                     ready={body.footer.ready}
                     onStart={() => void begin()}
                   />
-                  <div className="grid gap-5 sm:gap-6">
+                  <div className="grid gap-8 sm:gap-9">
                     <div className="flex items-center gap-2 rounded-xl bg-[#f4f6fa] px-3.5 py-2.5">
                       <span aria-hidden="true" className="text-sm leading-none text-[#3182f6]">✦</span>
                       <p className="text-xs font-semibold leading-4 text-[#4e6183]">
@@ -1831,7 +1831,7 @@ function SceneField({
         value={value}
         placeholder={placeholder}
         onChange={(event) => onChange(event.target.value)}
-        className="h-11 w-full rounded-xl border border-[#e5e8eb] bg-[#f8fafc] px-3.5 text-sm font-semibold text-[#191f28] outline-none transition placeholder:text-[#b0b8c1] focus:border-[#3182f6] focus:bg-white focus:ring-4 focus:ring-[#e8f3ff]"
+        className="h-11 w-full rounded-xl border border-[#e5e8eb] bg-[#f8fafc] px-3.5 text-sm font-semibold text-[#191f28] outline-none transition placeholder:text-[13px] placeholder:text-[#b0b8c1] focus:border-[#3182f6] focus:bg-white focus:ring-4 focus:ring-[#e8f3ff]"
       />
     </label>
   );
