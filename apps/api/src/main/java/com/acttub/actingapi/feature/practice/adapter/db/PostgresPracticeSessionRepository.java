@@ -83,12 +83,12 @@ class PostgresPracticeSessionRepository implements PracticeSessionRepository {
     @Override
     public AnalysisStatus status(UUID userId, UUID sessionId) {
         List<AnalysisStatus> rows = jdbc.query("""
-                SELECT ps.status::text AS status,
-                    CASE WHEN ps.status='failed'::practice_status_t THEN (
+                SELECT ps.status,
+                    CASE WHEN ps.status='failed' THEN (
                         SELECT eo.error_code
                         FROM external_operations eo
                         WHERE eo.session_id=ps.id
-                          AND eo.kind='analyze'::operation_kind_t
+                          AND eo.kind='analyze'
                         ORDER BY eo.created_at DESC,eo.id DESC
                         LIMIT 1
                     ) END AS error_code
@@ -104,7 +104,7 @@ class PostgresPracticeSessionRepository implements PracticeSessionRepository {
     public SessionDetail detail(UUID userId, UUID sessionId) {
         List<SessionDetail> rows = jdbc.query("""
                 SELECT
-                    ps.id,ps.user_id,ps.upload_intent_id,ps.status::text AS status,
+                    ps.id,ps.user_id,ps.upload_intent_id,ps.status,
                     ps.situation,ps.character_context,ps.goal,ps.blockage_kind,
                     ps.sub_branch,ps.blockage_detail,ps.continued_from,ps.created_at,ps.updated_at,
                     ui.object_key,
@@ -122,7 +122,7 @@ class PostgresPracticeSessionRepository implements PracticeSessionRepository {
                 LEFT JOIN LATERAL (
                     SELECT eo.error_code
                     FROM external_operations eo
-                    WHERE eo.session_id=ps.id AND eo.kind='analyze'::operation_kind_t
+                    WHERE eo.session_id=ps.id AND eo.kind='analyze'
                     ORDER BY eo.created_at DESC,eo.id DESC LIMIT 1
                 ) operation ON true
                 WHERE ps.id=? AND ps.user_id=? AND ps.hidden_at IS NULL
@@ -145,8 +145,8 @@ class PostgresPracticeSessionRepository implements PracticeSessionRepository {
                     SELECT eo.session_id
                     FROM external_operations eo
                     WHERE eo.id=? AND eo.user_id=?
-                      AND eo.kind='analyze'::operation_kind_t
-                      AND eo.status='failed'::operation_status_t
+                      AND eo.kind='analyze'
+                      AND eo.status='failed'
                       AND eo.attempt_count<3 AND eo.lease_token IS NULL
                     FOR UPDATE
                     """, (row, number) -> new ResumeRow(row.getObject("session_id", UUID.class)),
@@ -157,16 +157,16 @@ class PostgresPracticeSessionRepository implements PracticeSessionRepository {
             UUID sessionId = rows.getFirst().sessionId();
             int session = jdbc.update("""
                     UPDATE practice_sessions
-                    SET status='analyzing'::practice_status_t,updated_at=?
+                    SET status='analyzing',updated_at=?
                     WHERE id=? AND user_id=? AND hidden_at IS NULL
-                      AND status='failed'::practice_status_t
+                      AND status='failed'
                     """, now, sessionId, userId);
             if (session == 0) {
                 return false;
             }
             jdbc.update("""
                     UPDATE external_operations
-                    SET status='pending'::operation_status_t,error_code=NULL,
+                    SET status='pending',error_code=NULL,
                         -- SQLAlchemy JSONB None과 같은 JSON 리터럴 null이다.
                         response_payload='null'::jsonb,updated_at=?
                     WHERE id=?
@@ -178,7 +178,7 @@ class PostgresPracticeSessionRepository implements PracticeSessionRepository {
 
     private String sessionSelect() {
         return """
-                SELECT ps.id,ps.user_id,ps.upload_intent_id,ps.status::text AS status,
+                SELECT ps.id,ps.user_id,ps.upload_intent_id,ps.status,
                     ps.situation,ps.character_context,ps.goal,ps.blockage_kind,
                     ps.sub_branch,ps.blockage_detail,ps.continued_from,
                     ps.created_at,ps.updated_at

@@ -81,18 +81,21 @@ Jackson 설정: `WRITE_DATES_AS_TIMESTAMPS=false`, `Instant` 또는 `OffsetDateT
 
 ### 5-3. 엔티티 매핑 함정
 
-1. **네이티브 Postgres enum.** DB 저장값이 소문자이고 `IntentImpact` 는 **값이 한글**
-   (`"반전"`/`"약화"`/`"국소"`)이다. `@Enumerated(EnumType.STRING)` 은 varchar 바인딩이라 PG 가
-   `operator does not exist` 로 거부한다. → **`@Enumerated` 금지.**
+1. **값 목록은 text 컬럼 + CHECK 다** (SOMA-462). 네이티브 Postgres enum 열아홉을 걷어냈다 —
+   Postgres 가 enum **값 삭제를 지원하지 않아**(`dropping an enum value is not implemented`)
+   죽은 값 하나를 빼려면 타입을 통째로 갈아야 했고, 값 목록이 바뀌는 것이 정상인 도메인에
+   맞지 않는 그릇이었다. 이 레포는 그 전에도 `ck_practice_reports_report_type` 처럼
+   text + CHECK 를 쓰고 있었고, 이제 그쪽으로 통일됐다.
 
-   **종수를 문서에 박지 않는다** — `PgEnumCatalogVerifier` 의 맵이 정본이고 맵 전체를
-   `equals` 로 대조하므로, 한 종을 더하거나 빼면 그 검증기가 곧바로 말해 준다.
+   **`@Enumerated(EnumType.STRING)` 은 여전히 금지다.** 이유가 바뀌었을 뿐이다 — 그것은
+   Java enum **상수 이름**을 저장하는데, DB 값은 소문자이고 `IntentImpact` 는 **한글**
+   (`"반전"`/`"약화"`/`"국소"`)이다. 값 자체가 계약이라 이름으로 바꿔 쓸 수 없다.
 
-   **매핑 방법**: `@JdbcTypeCode(SqlTypes.NAMED_ENUM)` 과 `AttributeConverter` 는 **공존할 수
-   없다.** 둘을 같이 걸면 EntityManagerFactory 생성이
-   `Cannot read the array length because "values" is null` 로 죽는다. → **커스텀 `JdbcType`**
-   (`setObject(…, Types.OTHER)`)으로 값을 바인딩한다.
-   `platform/schema` 의 `PgEnum`·`PgEnumJdbcType`·`PgEnumConverter` 가 그 구현이다.
+   **매핑 방법**: 종마다 `AttributeConverter`(`platform/schema` 의 `PgEnum`·`PgEnumConverter`).
+   컬럼이 text 라 커스텀 `JdbcType` 은 더 필요 없다 — 값 바인딩을 위해 두었던
+   `PgEnumJdbcType` 과, 기동할 때 `pg_enum` 카탈로그를 대조하던 `PgEnumCatalogVerifier` 는
+   대조할 타입이 없어져 함께 은퇴했다. **값 무결성의 그물은 이제 둘이다** — DB 의 CHECK 와,
+   모르는 값을 읽을 때 예외를 던지는 `PgEnumConverter#convertToEntityAttribute`.
 2. **PK 는 BIGSERIAL 둘을 뺀 나머지가 전부 UUID 다.** 대부분 앱에서 생성하고,
    `CoachSession.id` 만 외부에서 온다. `HandoffConfirmation` 은 PK 가 `coaching_handoff_id` 로 **FK 겸 PK** 다.
    Spring Data `save()` 는 `@Id` 가 non-null 이면 `merge()` 를 호출해 불필요한 SELECT 가
@@ -136,7 +139,8 @@ Jackson 설정: `WRITE_DATES_AS_TIMESTAMPS=false`, `Instant` 또는 `OffsetDateT
 마이그레이션이 **앱 기동의 일부**다.
 
 **`V1__baseline.sql` 에 스키마 전체(테이블 + enum 타입 + 인덱스 + 제약 + 초기 커뮤니티
-데이터)가 동결돼 있다.**
+데이터)가 동결돼 있다.** enum 타입 열아홉은 V4 가 지우지만 **V1 은 여전히 그것을 만든다** —
+동결이라 고칠 수 없고, 빈 DB 는 V1 → … → V4 를 차례로 밟아 결국 같은 자리에 닿는다.
 
 - **빈 DB**: V1 을 실행해 스키마를 재구축한다. 이것이 없으면 신규 환경·재해 복구가 불가능하다
 - **기존 DB(dev·운영)**: 같은 V1 버전으로 `baseline` 을 기록만 한다. DDL 은 실행하지 않는다
@@ -188,17 +192,19 @@ JDBC URL·username·password 로 변환한다 — `platform/config/DatabaseUrl` 
 
 **네이티브 SQL 을 쓰는 모든 곳에 적용된다.**
 
-**① enum 컬럼에는 명시 캐스팅이 필요하다.**
+**① 상태 컬럼에 캐스팅을 붙이지 않는다** (SOMA-462 에서 뒤집힌 규칙이다).
 
 ```sql
--- 실패: operation_status_t = character varying 비교를 Postgres 가 거부한다
+-- 통과: 컬럼이 text 다
 WHERE status = 'running'
--- 통과
+-- 실패: 그런 타입이 이제 없다
 WHERE status = 'running'::operation_status_t
 ```
 
-`@Enumerated` 금지(§5-3-1)는 JPA 얘기였지만, **`JdbcTemplate` 의 SQL 리터럴에서도 같은 함정이
-발현한다.** enum 컬럼을 읽을 때는 `kind::text` 처럼 반대 방향 캐스팅을 쓴다.
+컬럼이 네이티브 enum 이던 시절에는 `'running'::operation_status_t` 로 **써야만** 했고
+(`operation_status_t = character varying` 비교를 Postgres 가 거부했다), 읽을 때는 반대로
+`kind::text` 를 붙였다. 지금은 양쪽 다 불필요하고, 남아 있으면 타입이 없어 실패한다.
+파라미터도 그냥 `?` 로 둔다 — `setString` 이 맞는 타입이다.
 
 **② `Instant` 는 JDBC 파라미터로 바인딩할 수 없다.**
 
@@ -209,21 +215,24 @@ PSQLException: Can't infer the SQL type to use for an instance of java.time.Inst
 `timestamptz` 컬럼에는 **`OffsetDateTime`** 을 넘긴다(`instant.atOffset(ZoneOffset.UTC)`).
 Jackson 직렬화에서는 `Instant` 가 문제없지만 pgjdbc 바인딩에서는 실패한다 — 두 층을 구분한다.
 
-**③ 읽기 캐스팅이 `ORDER BY` 를 조용히 뒤집는다.**
+**③ 응답 순서가 뜻을 가지는 곳은 `CASE` 로 못박는다.**
 
 ```sql
--- 틀렸다: 출력 컬럼 이름이 그대로 type 이라 ORDER BY 가 enum 이 아니라 그 텍스트를 본다
-SELECT DISTINCT ON (type) id, type::text, … FROM consent_documents
-ORDER BY type, published_at DESC, id DESC
--- 통과: ORDER BY 를 테이블로 한정한다
-ORDER BY consent_documents.type, consent_documents.published_at DESC, consent_documents.id DESC
+-- 사전순으로 갈린다: ai_analysis, privacy, terms
+ORDER BY consent_documents.type
+-- 뜻대로: 약관 · 개인정보 · AI 분석
+ORDER BY CASE latest.type WHEN 'terms' THEN 1 WHEN 'privacy' THEN 2 WHEN 'ai_analysis' THEN 3 END
 ```
 
-Postgres 의 `ORDER BY` 는 **출력 별칭을 먼저** 찾는다. enum 은 선언 순서로, 텍스트는 알파벳
-순으로 정렬되므로 `consent_type_t` 가 `terms, privacy, ai_analysis` →
-`ai_analysis, privacy, terms` 로 뒤집힌다(실측). **`DISTINCT ON` 에서는 정렬이 곧 "그룹마다
-어느 행이 살아남는가" 이므로 응답 순서만이 아니라 내용이 달라진다.** 컴파일도 통과하고 예외도
-없다 — 통합 테스트만이 잡는다.
+컬럼이 enum 이던 시절에는 **선언 순서**가 정렬 순서였고, 그 순서에 뜻이 실려 있었다.
+text 가 되면서 사전순으로 갈리므로, 순서가 화면에 보이는 두 곳은 `CASE` 로 옛 순서를
+고정했다 — 동의 문서 목록(`PostgresConsentRepository#listLatestDocuments`)과 배우 기억
+항목(`PostgresMemoryRepository#list`). **어긋나도 예외가 나지 않는다** — 순서만 조용히 바뀐다.
+
+⚠ `DISTINCT ON` 이 붙은 질의는 `ORDER BY` 선행 표현식이 자기와 같기를 요구한다. 안쪽에
+`CASE` 를 넣으면 `SELECT DISTINCT ON expressions must match initial ORDER BY expressions` 로
+거부당하므로, **바깥 질의로 감싸고 거기서 정렬한다.** 안쪽 정렬은 "종류마다 어느 판을
+고르는가"를, 바깥 정렬은 "고른 것을 어떤 순서로 보이는가"를 정한다.
 
 ## 6. 계약 보존 체크리스트
 
@@ -233,7 +242,7 @@ Postgres 의 `ORDER BY` 는 **출력 별칭을 먼저** 찾는다. enum 은 선�
 | 2 | unknown key 정책 | **전역 `FAIL_ON_UNKNOWN_PROPERTIES=true` + 허용 DTO 에만 `@JsonIgnoreProperties(ignoreUnknown = true)`**(§6-3). 반대 방향은 표현 불가 |
 | 3 | null 필드 **포함** | `@JsonInclude(NON_NULL)` **전역 사용 금지**(§6-1) |
 | 4 | datetime | 전 엔드포인트 `Z` + 마이크로초 6자리(§4). **JDBC 바인딩은 `OffsetDateTime`**(§5-8) |
-| 5 | enum 표기 | 종마다 `AttributeConverter`. **`@Enumerated` 금지**(§5-3-1) |
+| 5 | 상태값 표기 | text 컬럼 + CHECK. 종마다 `AttributeConverter`, **`@Enumerated` 금지**(§5-3-1) |
 | 6 | refresh 회전 | 소진 토큰 재사용 시 **해당 유저 전 세션 무효화**(의도된 동작) |
 | 7 | 404 | "없음" 과 "남의 리소스" 를 구분하지 않는다(존재 노출 방지) |
 | 8 | S3 presign | **리전 엔드포인트 고정.** 글로벌 엔드포인트는 신규 버킷에 307 |

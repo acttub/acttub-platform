@@ -55,14 +55,14 @@ public class ReportOperationWork {
 
         int finished = jdbc.update("""
                 UPDATE external_operations
-                SET status = 'succeeded'::operation_status_t,
+                SET status = 'succeeded',
                     response_payload = ?::jsonb,
                     error_code = NULL,
                     lease_token = NULL,
                     lease_expires_at = NULL,
                     updated_at = ?
                 WHERE id = ?
-                  AND status = 'running'::operation_status_t
+                  AND status = 'running'
                   AND lease_token = ?
                 """,
                 responsePayload.toString(),

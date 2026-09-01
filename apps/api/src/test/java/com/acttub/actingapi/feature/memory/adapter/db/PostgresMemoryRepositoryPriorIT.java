@@ -238,7 +238,7 @@ class PostgresMemoryRepositoryPriorIT {
 
         Integer jobs = jdbc.queryForObject("""
                 SELECT count(*) FROM external_operations
-                WHERE session_id=? AND kind='memory_update'::operation_kind_t
+                WHERE session_id=? AND kind='memory_update'
                 """, Integer.class, practiceId);
         assertThat(jobs).isEqualTo(1);
     }
@@ -268,7 +268,7 @@ class PostgresMemoryRepositoryPriorIT {
         UUID id = UUID.randomUUID();
         jdbc.update("""
                 INSERT INTO users (id,email,status,created_at,updated_at)
-                VALUES (?,?,'active'::user_status_t,?,?)
+                VALUES (?,?,'active',?,?)
                 """, id, email, NOW, NOW);
         return id;
     }
@@ -283,14 +283,14 @@ class PostgresMemoryRepositoryPriorIT {
                 INSERT INTO upload_intents (
                     id,user_id,status,storage_provider,object_key,mime_type,size_bytes,
                     expires_at,created_at
-                ) VALUES (?, ?, 'finalized'::upload_status_t, 's3', ?, 'video/mp4', 1, ?, ?)
+                ) VALUES (?, ?, 'finalized', 's3', ?, 'video/mp4', 1, ?, ?)
                 """, uploadId, userId, "users/" + userId + "/" + uploadId + ".mp4", NOW.plusDays(1), NOW);
         UUID practiceId = UUID.randomUUID();
         jdbc.update("""
                 INSERT INTO practice_sessions (
                     id,user_id,upload_intent_id,status,situation,character_context,goal,
                     blockage_kind,sub_branch,continued_from,created_at,updated_at
-                ) VALUES (?, ?, ?, 'analyzed'::practice_status_t, '상황', '배우', '목표',
+                ) VALUES (?, ?, ?, 'analyzed', '상황', '배우', '목표',
                     '분석', '캐릭터 분석', ?, ?, ?)
                 """, practiceId, userId, uploadId, continuedFrom, NOW, NOW);
         return practiceId;
@@ -301,7 +301,7 @@ class PostgresMemoryRepositoryPriorIT {
         jdbc.update("""
                 INSERT INTO coach_sessions (
                     id,practice_session_id,status,conversation_summary,created_at,updated_at
-                ) VALUES (?, ?, ?::session_status_t, '', ?, ?)
+                ) VALUES (?, ?, ?, '', ?, ?)
                 """, coachId, practiceId, status, createdAt, createdAt);
         return coachId;
     }
@@ -309,7 +309,7 @@ class PostgresMemoryRepositoryPriorIT {
     private void insertTurn(UUID coachId, int index, String role, String text) {
         jdbc.update("""
                 INSERT INTO coach_turns (session_id,turn_index,role,text,created_at)
-                VALUES (?, ?, ?::turn_role_t, ?, ?)
+                VALUES (?, ?, ?, ?, ?)
                 """, coachId, index, role, text, NOW);
     }
 }

@@ -55,8 +55,8 @@ class ConsentPublisherIT {
     @Order(1)
     void emptyDatabaseBootPublishesWholeManifestAndRepeatIsIdempotent() throws Exception {
         assertThat(jdbc.queryForList(
-                "SELECT type::text,version,title,required,length(body) body_length "
-                        + "FROM consent_documents ORDER BY type::text"))
+                "SELECT type,version,title,required,length(body) body_length "
+                        + "FROM consent_documents ORDER BY type"))
                 .hasSize(3)
                 .allSatisfy(row -> {
                     assertThat(row.get("required")).isEqualTo(true);

@@ -131,7 +131,7 @@ public class PostgresPracticeSessionLedger implements PracticeSessionLedger {
                     ?,
                     ?,
                     ?,
-                    'analyzing'::practice_status_t,
+                    'analyzing',
                     ?,
                     ?,
                     ?,
@@ -197,7 +197,7 @@ public class PostgresPracticeSessionLedger implements PracticeSessionLedger {
 
         jdbc.update("""
                 UPDATE practice_sessions
-                SET status = 'analyzing'::practice_status_t,
+                SET status = 'analyzing',
                     updated_at = ?
                 WHERE id = ?
                 """, retriedAt, sessionId);
@@ -215,7 +215,7 @@ public class PostgresPracticeSessionLedger implements PracticeSessionLedger {
                 FROM upload_intents
                 WHERE id = ?
                   AND user_id = ?
-                  AND status = 'finalized'::upload_status_t
+                  AND status = 'finalized'
                 FOR UPDATE
                 """, UUID.class, uploadIntentId, userId);
         return !rows.isEmpty();
@@ -227,7 +227,7 @@ public class PostgresPracticeSessionLedger implements PracticeSessionLedger {
                     id,
                     user_id,
                     upload_intent_id,
-                    status::text AS status,
+                    status,
                     situation,
                     character_context,
                     goal,
@@ -262,7 +262,7 @@ public class PostgresPracticeSessionLedger implements PracticeSessionLedger {
                     kind,
                     request_fingerprint
                 )
-                VALUES (?, ?, ?, ?, 'analyze'::operation_kind_t, ?)
+                VALUES (?, ?, ?, ?, 'analyze', ?)
                 ON CONFLICT (user_id, request_id) DO NOTHING
                 RETURNING id
                 """,
@@ -323,7 +323,7 @@ public class PostgresPracticeSessionLedger implements PracticeSessionLedger {
                     id,
                     user_id,
                     upload_intent_id,
-                    status::text AS status,
+                    status,
                     situation,
                     character_context,
                     goal,
@@ -350,8 +350,8 @@ public class PostgresPracticeSessionLedger implements PracticeSessionLedger {
                     session_id,
                     user_id,
                     request_id,
-                    kind::text AS kind,
-                    status::text AS status,
+                    kind,
+                    status,
                     attempt_count,
                     request_fingerprint,
                     lease_token,

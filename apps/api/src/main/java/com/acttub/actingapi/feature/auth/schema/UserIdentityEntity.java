@@ -6,7 +6,6 @@ import java.time.Instant;
 import java.util.UUID;
 
 import jakarta.persistence.*;
-import org.hibernate.annotations.JdbcType;
 
 @Entity
 @Table(name = "user_identities")
@@ -16,8 +15,7 @@ public class UserIdentityEntity extends AppGeneratedUuidEntity {
     UUID userId;
 
     @Convert(converter = IdentityProvider.JpaConverter.class)
-    @JdbcType(PgEnumJdbcType.class)
-    @Column(name = "provider", nullable = false, columnDefinition = "identity_provider_t")
+    @Column(name = "provider", nullable = false, columnDefinition = "text")
     IdentityProvider provider;
 
     @Column(name = "provider_uid", nullable = false)

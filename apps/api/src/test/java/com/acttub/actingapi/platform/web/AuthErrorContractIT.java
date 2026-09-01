@@ -101,7 +101,7 @@ class AuthErrorContractIT {
     @Test
     void refreshAndLogoutCollapseEveryRejectionIntoOneInvalidTokenResponse() throws Exception {
         UUID userId = UUID.randomUUID();
-        jdbc.update("INSERT INTO users(id,status) VALUES (?,'active'::user_status_t)", userId);
+        jdbc.update("INSERT INTO users(id,status) VALUES (?,'active')", userId);
 
         assertResponse(
                 post("/v2/auth/refresh")

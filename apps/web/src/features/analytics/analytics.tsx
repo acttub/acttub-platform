@@ -5,7 +5,6 @@ import { usePathname } from "next/navigation";
 import { getStoredUser, isLoggedIn } from "@/lib/auth/token-store";
 import { onSessionEvent } from "@/lib/auth/session-events";
 import { hasAcceptedCurrentPrivacy } from "@/features/auth/pending-consents";
-import { captureSignupAttribution } from "@/features/auth/signup-attribution";
 import {
   clearAnalyticsUser,
   grantAnalyticsConsent,
@@ -57,8 +56,6 @@ export function Analytics() {
   const pathname = usePathname();
 
   useEffect(() => {
-    // 가입 유입은 동의·로그인 전 첫 진입에서 잡아야 한다. GA 전송 게이트와 무관한 로컬 기록이다.
-    captureSignupAttribution();
     startAnalytics();
     if (isLoggedIn() && hasAcceptedCurrentPrivacy()) {
       grantAnalyticsConsent();

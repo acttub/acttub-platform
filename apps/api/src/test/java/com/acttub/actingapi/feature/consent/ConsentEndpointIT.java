@@ -55,7 +55,7 @@ class ConsentEndpointIT {
     @BeforeEach
     void setUp() {
         jdbc.execute("TRUNCATE TABLE users,consent_documents RESTART IDENTITY CASCADE");
-        jdbc.update("INSERT INTO users(id,status) VALUES (?,'active'::user_status_t)", USER_ID);
+        jdbc.update("INSERT INTO users(id,status) VALUES (?,'active')", USER_ID);
         OffsetDateTime old = OffsetDateTime.of(2026, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC);
         OffsetDateTime latest = old.plusDays(1);
         insertDocument(OLD_TERMS, "terms", "v1", "옛 약관", true, old);
@@ -152,7 +152,7 @@ class ConsentEndpointIT {
             OffsetDateTime publishedAt) {
         jdbc.update("""
                 INSERT INTO consent_documents(id,type,version,title,body,required,published_at)
-                VALUES (?,?::consent_type_t,?,?,?, ?,?)
+                VALUES (?,?,?,?,?, ?,?)
                 """, id, type, version, title, title + " 본문", required, publishedAt);
     }
 
@@ -163,7 +163,7 @@ class ConsentEndpointIT {
             OffsetDateTime occurredAt) {
         jdbc.update("""
                 INSERT INTO user_consents(id,user_id,document_id,action,occurred_at)
-                VALUES (?,?,?,?::consent_action_t,?)
+                VALUES (?,?,?,?,?)
                 """, id, USER_ID, documentId, action, occurredAt);
     }
 

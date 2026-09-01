@@ -321,7 +321,6 @@ test("analyzing 동안에는 coach start를 보내지 않는다", async () => {
     starts += 1;
   });
 
-  assert.equal(await coordinator.update("created"), "waiting");
   assert.equal(await coordinator.update("analyzing"), "waiting");
   assert.equal(starts, 0);
 });

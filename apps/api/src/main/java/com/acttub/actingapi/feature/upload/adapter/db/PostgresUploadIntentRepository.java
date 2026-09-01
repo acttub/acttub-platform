@@ -36,7 +36,7 @@ class PostgresUploadIntentRepository implements UploadIntentRepository {
                 INSERT INTO upload_intents(
                     id,user_id,status,storage_provider,object_key,mime_type,
                     size_bytes,duration_ms,expires_at)
-                VALUES (?,?,'pending'::upload_status_t,'s3',?,?,?,?,?)
+                VALUES (?,?,'pending','s3',?,?,?,?,?)
                 """,
                 id,
                 userId,
@@ -51,7 +51,7 @@ class PostgresUploadIntentRepository implements UploadIntentRepository {
     @Override
     public UploadIntent find(UUID userId, UUID intentId) {
         List<UploadIntent> rows = jdbc.query("""
-                SELECT id,user_id,status::text,storage_provider,object_key,mime_type,
+                SELECT id,user_id,status,storage_provider,object_key,mime_type,
                        size_bytes,duration_ms,etag,created_at,expires_at,finalized_at
                 FROM upload_intents
                 WHERE id=? AND user_id=?
@@ -67,11 +67,11 @@ class PostgresUploadIntentRepository implements UploadIntentRepository {
             Instant now) {
         List<UploadIntent> rows = jdbc.query("""
                 UPDATE upload_intents
-                SET status='finalized'::upload_status_t,finalized_at=?,etag=?
+                SET status='finalized',finalized_at=?,etag=?
                 WHERE id=? AND user_id=?
-                  AND status='pending'::upload_status_t
+                  AND status='pending'
                   AND expires_at>?
-                RETURNING id,user_id,status::text,storage_provider,object_key,mime_type,
+                RETURNING id,user_id,status,storage_provider,object_key,mime_type,
                           size_bytes,duration_ms,etag,created_at,expires_at,finalized_at
                 """,
                 PostgresUploadIntentRepository::intent,

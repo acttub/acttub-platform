@@ -10,7 +10,7 @@ import java.util.*; import jakarta.servlet.http.HttpServletRequest; import jakar
     @Operation(summary="Login",operationId="login_v2_auth_login_post",tags="v2-auth") @ApiResponses({@ApiResponse(responseCode="200",description="Successful Response",content=@Content(schema=@Schema(implementation=TokenPairResponse.class))),@ApiResponse(responseCode="422",description="Validation Error",content=@Content(schema=@Schema(implementation=HTTPValidationError.class)))})
     @PostMapping("/login") TokenPairResponse login(@Valid @RequestBody LoginRequest body,HttpServletRequest request){
         ipLimit(request);
-        AuthenticatedUser user=auth.login(body.provider(),body.idToken(),body.signupAttribution());
+        AuthenticatedUser user=auth.login(body.provider(),body.idToken());
         userLimit(user);
         AuthService.TokenPair tokens=auth.issueTokens(user.id(),request.getHeader("user-agent"));
         return new TokenPairResponse(tokens.accessToken(),tokens.refreshToken(),"bearer",tokens.expiresIn(),new AuthUser(user.id(),user.email(),user.status().dbValue()),auth.pendingConsents(user.id()).stream().map(AuthController::document).toList());
