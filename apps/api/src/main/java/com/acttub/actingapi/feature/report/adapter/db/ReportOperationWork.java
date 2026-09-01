@@ -1,6 +1,6 @@
 package com.acttub.actingapi.feature.report.adapter.db;
 
-import static com.acttub.actingapi.platform.schema.NativeTuples.list;
+import static com.acttub.actingapi.platform.persistence.NativeTuples.list;
 
 import java.time.OffsetDateTime;
 import java.util.List;

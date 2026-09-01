@@ -1,6 +1,6 @@
 package com.acttub.actingapi.platform.operation;
 
-import static com.acttub.actingapi.platform.schema.NativeTuples.list;
+import static com.acttub.actingapi.platform.persistence.NativeTuples.list;
 
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;

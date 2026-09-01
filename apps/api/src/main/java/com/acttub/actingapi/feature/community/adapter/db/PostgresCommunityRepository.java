@@ -1,6 +1,6 @@
 package com.acttub.actingapi.feature.community.adapter.db;
 
-import static com.acttub.actingapi.platform.schema.NativeTuples.list;
+import static com.acttub.actingapi.platform.persistence.NativeTuples.list;
 
 import java.time.Instant;
 import java.time.OffsetDateTime;
@@ -233,15 +233,7 @@ class PostgresCommunityRepository implements CommunityRepository {
             if (!owned.authorId().equals(authorId)) {
                 throw new NotAuthor();
             }
-            entityManager.createNativeQuery("""
-                    UPDATE community_posts
-                    SET title = :title, body = :body, updated_at = now()
-                    WHERE id = :postId
-                    """)
-                    .setParameter("title", title)
-                    .setParameter("body", body)
-                    .setParameter("postId", postId)
-                    .executeUpdate();
+            posts.updateContent(postId, title, body);
             return loadVisiblePost(postId, authorId);
         }));
     }
@@ -256,13 +248,7 @@ class PostgresCommunityRepository implements CommunityRepository {
             if (!owned.authorId().equals(authorId)) {
                 throw new NotAuthor();
             }
-            entityManager.createNativeQuery("""
-                    UPDATE community_posts
-                    SET status = 'deleted', updated_at = now()
-                    WHERE id = :postId
-                    """)
-                    .setParameter("postId", postId)
-                    .executeUpdate();
+            posts.updateStatus(postId, ContentStatus.DELETED);
         });
     }
 
@@ -395,14 +381,7 @@ class PostgresCommunityRepository implements CommunityRepository {
             if (!existing.authorId().equals(authorId)) {
                 throw new NotAuthor();
             }
-            entityManager.createNativeQuery("""
-                    UPDATE community_comments
-                    SET body = :body, updated_at = now()
-                    WHERE id = :commentId
-                    """)
-                    .setParameter("body", body)
-                    .setParameter("commentId", commentId)
-                    .executeUpdate();
+            comments.updateBody(commentId, body);
             CommunityComment updated = loadComment(commentId, authorId);
             CommunityPost parent = parentPostOf(updated);
             return updated.named(parent, aliasMap(updated.postId()).get(updated.authorId()));
@@ -430,13 +409,7 @@ class PostgresCommunityRepository implements CommunityRepository {
             if (!existing.authorId().equals(authorId)) {
                 throw new NotAuthor();
             }
-            entityManager.createNativeQuery("""
-                    UPDATE community_comments
-                    SET status = 'deleted', updated_at = now()
-                    WHERE id = :commentId
-                    """)
-                    .setParameter("commentId", commentId)
-                    .executeUpdate();
+            comments.updateStatus(commentId, ContentStatus.DELETED);
             entityManager.createNativeQuery("""
                     UPDATE community_posts
                     SET comment_count = GREATEST(comment_count - 1, 0)

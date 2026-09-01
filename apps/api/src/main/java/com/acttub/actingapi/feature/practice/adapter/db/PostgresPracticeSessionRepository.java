@@ -14,7 +14,7 @@ import com.acttub.actingapi.feature.practice.domain.ObservationPack;
 import com.acttub.actingapi.feature.practice.domain.PracticeSession;
 import com.acttub.actingapi.feature.practice.domain.SessionDetail;
 import com.acttub.actingapi.feature.practice.schema.PracticeSessionEntity;
-import com.acttub.actingapi.platform.schema.NativeTuples;
+import com.acttub.actingapi.platform.persistence.NativeTuples;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -76,16 +76,7 @@ class PostgresPracticeSessionRepository implements PracticeSessionRepository {
 
     @Override
     public UUID parentOf(UUID userId, UUID sessionId) {
-        List<Tuple> rows = NativeTuples.list(entityManager.createNativeQuery("""
-                SELECT ps.continued_from AS continued_from
-                FROM practice_sessions ps
-                WHERE ps.id = :sessionId
-                  AND ps.user_id = :userId
-                  AND ps.hidden_at IS NULL
-                """, Tuple.class)
-                .setParameter("sessionId", sessionId)
-                .setParameter("userId", userId));
-        return rows.isEmpty() ? null : rows.getFirst().get("continued_from", UUID.class);
+        return sessions.findParent(userId, sessionId).orElse(null);
     }
 
     @Override

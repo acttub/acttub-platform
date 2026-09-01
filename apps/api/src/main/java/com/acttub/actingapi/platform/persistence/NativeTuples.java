@@ -1,4 +1,4 @@
-package com.acttub.actingapi.platform.schema;
+package com.acttub.actingapi.platform.persistence;
 
 import java.util.List;
 

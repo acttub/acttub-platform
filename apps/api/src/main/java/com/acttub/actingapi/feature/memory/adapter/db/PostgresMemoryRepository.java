@@ -22,7 +22,7 @@ import com.acttub.actingapi.feature.memory.app.MemoryRepository;
 import com.acttub.actingapi.feature.memory.app.MemoryUpdateMaterial;
 import com.acttub.actingapi.feature.memory.domain.AgentMemoryWrites;
 import com.acttub.actingapi.feature.memory.schema.ActorMemoryEntryEntity;
-import com.acttub.actingapi.platform.schema.NativeTuples;
+import com.acttub.actingapi.platform.persistence.NativeTuples;
 import com.acttub.actingapi.platform.web.PythonText;
 import com.acttub.actingapi.platform.schema.ActorMemoryAuthor;
 import com.acttub.actingapi.platform.schema.ActorMemoryField;

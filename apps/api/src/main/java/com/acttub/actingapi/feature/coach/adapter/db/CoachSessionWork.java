@@ -1,6 +1,6 @@
 package com.acttub.actingapi.feature.coach.adapter.db;
 
-import static com.acttub.actingapi.platform.schema.NativeTuples.list;
+import static com.acttub.actingapi.platform.persistence.NativeTuples.list;
 
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -39,10 +39,15 @@ import org.springframework.stereotype.Component;
 public class CoachSessionWork {
 
     private final EntityManager entityManager;
+    private final CoachSessionJpaRepository coachSessions;
     private final ObjectMapper objectMapper;
 
-    public CoachSessionWork(EntityManager entityManager, ObjectMapper objectMapper) {
+    public CoachSessionWork(
+            EntityManager entityManager,
+            CoachSessionJpaRepository coachSessions,
+            ObjectMapper objectMapper) {
         this.entityManager = entityManager;
+        this.coachSessions = coachSessions;
         this.objectMapper = objectMapper;
     }
 
@@ -158,18 +163,11 @@ public class CoachSessionWork {
         }
         // turn INSERT가 session 상태 갱신보다 늦춰지지 않도록 현재 SQL 순서를 고정한다.
         entityManager.flush();
-        entityManager.createNativeQuery("""
-                UPDATE coach_sessions
-                SET status = :status,
-                    conversation_summary = :conversationSummary,
-                    updated_at = :now
-                WHERE id = :sessionId
-                """)
-                .setParameter("status", session.status())
-                .setParameter("conversationSummary", session.conversationSummary())
-                .setParameter("now", now)
-                .setParameter("sessionId", session.sessionId())
-                .executeUpdate();
+        coachSessions.updateState(
+                session.sessionId(),
+                sessionStatus(session.status()),
+                session.conversationSummary(),
+                now.toInstant());
     }
 
     public UUID findOldestOpenCoachSessionId(UUID userId, UUID practiceSessionId) {
@@ -302,16 +300,11 @@ public class CoachSessionWork {
     }
 
     public int closeOpenCoachSessions(UUID practiceSessionId, OffsetDateTime now) {
-        return entityManager.createNativeQuery("""
-                UPDATE coach_sessions
-                SET status = 'closed',
-                    updated_at = :now
-                WHERE practice_session_id = :practiceSessionId
-                  AND status = 'open'
-                """)
-                .setParameter("now", now)
-                .setParameter("practiceSessionId", practiceSessionId)
-                .executeUpdate();
+        return coachSessions.closeOpenByPracticeSessionId(
+                practiceSessionId,
+                SessionStatus.OPEN,
+                SessionStatus.CLOSED,
+                now.toInstant());
     }
 
     public OwnedReportSource ownedReportSource(UUID userId, UUID coachSessionId) {
@@ -396,15 +389,8 @@ public class CoachSessionWork {
     }
 
     public void closeCoachSession(UUID coachSessionId, OffsetDateTime now) {
-        entityManager.createNativeQuery("""
-                UPDATE coach_sessions
-                SET status = 'closed',
-                    updated_at = :now
-                WHERE id = :coachSessionId
-                """)
-                .setParameter("now", now)
-                .setParameter("coachSessionId", coachSessionId)
-                .executeUpdate();
+        coachSessions.updateStatus(
+                coachSessionId, SessionStatus.CLOSED, now.toInstant());
     }
 
     public OperationRow requireCoachStartOperation(UUID operationId) {
