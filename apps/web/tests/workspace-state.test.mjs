@@ -32,7 +32,6 @@ const OTHER_NOTE = { report_type: "expression" };
 const EVERY_SCREEN = [
   { kind: "prep", video: null, continueFrom: null },
   { kind: "prep", video: VIDEO, continueFrom: CONTINUE },
-  { kind: "blockage", video: VIDEO, continueFrom: null },
   { kind: "uploading", video: VIDEO, continueFrom: CONTINUE },
   { kind: "analyzing", video: VIDEO },
   { kind: "analyzing", video: null },
@@ -118,21 +117,17 @@ test("이어받지 않기를 누르면 그 표시만 사라진다", () => {
   );
 });
 
-test("질문 받기를 누르면 막힘 선택으로, 다 고르면 업로드로 간다", () => {
+test("질문 받기를 누르면 준비 화면에서 바로 업로드로 간다", () => {
   const prep = { kind: "prep", video: VIDEO, continueFrom: CONTINUE };
-  const blockage = advance(prep, { type: "blockageChosen" });
-  // 고른 영상과 이어받을 연습이 따라간다 — 뒤에서 그 영상을 올리고 있고,
-  // 세션을 만들 때 이어받을 연습을 실어 보낸다.
-  assert.deepEqual(blockage, { kind: "blockage", video: VIDEO, continueFrom: CONTINUE });
-  assert.deepEqual(advance(blockage, { type: "uploadStarted" }), {
+  assert.deepEqual(advance(prep, { type: "uploadStarted" }), {
     kind: "uploading",
     video: VIDEO,
     continueFrom: CONTINUE,
   });
 });
 
-test("영상 없이는 막힘 선택으로 가지 않는다", () => {
-  assert.deepEqual(advance(EMPTY_PREP, { type: "blockageChosen" }), EMPTY_PREP);
+test("영상 없이는 업로드를 시작하지 않는다", () => {
+  assert.deepEqual(advance(EMPTY_PREP, { type: "uploadStarted" }), EMPTY_PREP);
 });
 
 test("올리다 실패하면 준비 화면으로 돌아가되 고른 것은 남는다", () => {
@@ -242,7 +237,6 @@ test("다른 연습을 열면 여기서 고르던 영상과 이어받기는 그 
   // 미리 시작한 압축·업로드도 이때 함께 끊긴다.
   for (const screen of [
     { kind: "prep", video: VIDEO, continueFrom: CONTINUE },
-    { kind: "blockage", video: VIDEO, continueFrom: CONTINUE },
     { kind: "uploading", video: VIDEO, continueFrom: null },
   ]) {
     assert.deepEqual(
@@ -469,7 +463,6 @@ test("연습을 떠난 자리는 이미 쌓인 계측 이름 둘로만 말한다
   assert.equal(abandonedStage({ kind: "chatDone", coachId: "coach-1", report: NOTE }), "chat");
   for (const screen of [
     EMPTY_PREP,
-    { kind: "blockage", video: VIDEO, continueFrom: null },
     { kind: "uploading", video: VIDEO, continueFrom: null },
     { kind: "note", report: NOTE, priorChat: null },
   ]) {
@@ -530,6 +523,6 @@ test("전이는 받은 화면을 그 자리에서 고치지 않는다", () => {
   const prepBefore = { ...prep };
   advance(prep, { type: "videoPicked", video: OTHER_VIDEO });
   advance(prep, { type: "continueDeclined" });
-  advance(prep, { type: "blockageChosen" });
+  advance(prep, { type: "uploadStarted" });
   assert.deepEqual(prep, prepBefore);
 });

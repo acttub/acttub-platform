@@ -8,10 +8,6 @@
 // 여기는 그것으로 무엇을 그리는지만 정한다.
 
 import type { PracticeReport } from "@/lib/api/v2/types";
-import {
-  isSceneContextBlank,
-  type SceneContextDraft,
-} from "../practice/practice-setup-flow";
 import { isChatScreen, type WorkspaceScreen } from "./workspace-state";
 
 /**
@@ -28,8 +24,6 @@ export type WorkspaceViewInput = {
   screen: WorkspaceScreen;
   /** 서버가 준 재생 주소(`detail.playback_url`). 로컬 원본이 없을 때 쓴다. */
   playbackUrl: string | null;
-  /** 배우가 지금 장면 칸에 적어 둔 것. 건너뛰기를 열지 말지가 여기서 갈린다. */
-  scene: SceneContextDraft;
 };
 
 export type WorkspaceVideoSlot =
@@ -38,8 +32,7 @@ export type WorkspaceVideoSlot =
   | { kind: "none" };
 
 export type WorkspaceSetupFooter =
-  /** `skippable` 은 "장면을 비운 채로 넘어갈 수 있는가". 그러려면 올릴 영상이 있어야 한다. */
-  | { kind: "start"; ready: boolean; skippable: boolean }
+  | { kind: "start"; ready: boolean }
   | { kind: "progress"; phase: "upload" }
   | { kind: "progress"; phase: "scan"; failed: boolean };
 
@@ -52,11 +45,9 @@ export type WorkspaceViewBody =
       coachReady: boolean;
     }
   | { kind: "note"; report: PracticeReport; backTo: "chat" | "restart" }
-  | { kind: "blockage"; videoUrl: string }
   | {
       kind: "setup";
-      step: 1 | 2 | 3;
-      sceneLocked: boolean;
+      step: 1 | 2;
       video: WorkspaceVideoSlot;
       footer: WorkspaceSetupFooter;
       continueBanner: { label: string | null; dismissible: boolean } | null;
@@ -112,10 +103,6 @@ function describeBody(input: WorkspaceViewInput): WorkspaceViewBody {
       coachReady: Boolean(screen.kind === "chat" && screen.coachId),
     };
   }
-  // 막힘 선택은 영상 없이 설 수 없다 — 그 자리가 자기 영상을 들고 있다.
-  if (screen.kind === "blockage") {
-    return { kind: "blockage", videoUrl: screen.video.url };
-  }
   return describeSetup(screen, input);
 }
 
@@ -126,8 +113,6 @@ function describeSetup(
   const kind = screen.kind;
   const uploading = kind === "uploading";
   const prep = kind === "prep";
-  const waitingForCoach =
-    uploading || kind === "analyzing" || kind === "analysisFailed";
   const video = screen.video;
   // 방금 고른 로컬 원본이 있으면 그걸 계속 재생한다. 서버 주소를 먼저 쓰면 업로드가
   // 끝나는 순간 src 가 갈아끼워지면서 영상 자리가 한 번 비고 기준 길이까지 흔들린다.
@@ -136,8 +121,7 @@ function describeSetup(
   const continueFrom = prep || uploading ? screen.continueFrom : null;
   return {
     kind: "setup",
-    step: waitingForCoach ? 3 : video ? 2 : 1,
-    sceneLocked: waitingForCoach,
+    step: prep && !video ? 1 : 2,
     video: src
       ? {
           kind: "player",
@@ -155,7 +139,6 @@ function describeSetup(
         : {
             kind: "start",
             ready: video !== null,
-            skippable: video !== null && isSceneContextBlank(input.scene),
           },
     continueBanner: continueFrom
       ? { label: continueFrom.label, dismissible: prep }
@@ -166,7 +149,6 @@ function describeSetup(
 function describeStatusChip(screen: WorkspaceScreen): WorkspaceStatusChip | null {
   switch (screen.kind) {
     case "prep":
-    case "blockage":
       return null;
     case "uploading":
       return "uploading";
