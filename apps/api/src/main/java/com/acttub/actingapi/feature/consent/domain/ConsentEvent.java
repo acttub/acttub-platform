@@ -13,4 +13,13 @@ public record ConsentEvent(
         UUID documentId,
         String action,
         Instant occurredAt) {
+
+    /** 이 결정이 필수 문서에 대한 것이면 서비스 이용을 막는가. */
+    public boolean blocksServiceWhenRequired() {
+        return switch (action) {
+            case "granted" -> false;
+            case "declined", "revoked" -> true;
+            default -> throw new IllegalStateException("unknown consent decision: " + action);
+        };
+    }
 }

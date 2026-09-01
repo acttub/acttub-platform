@@ -39,6 +39,46 @@ final class ConsentDtos {
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) List<ConsentDocument> documents) {
     }
 
+    @Schema(
+            name = "ConsentEntryDocument",
+            additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
+    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
+    record ConsentEntryDocument(
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) UUID id,
+            @Schema(
+                    requiredMode = Schema.RequiredMode.REQUIRED,
+                    implementation = ConsentType.class)
+            String type,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String version,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String title,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String body,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) boolean required,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) Instant publishedAt,
+            @Schema(
+                    requiredMode = Schema.RequiredMode.REQUIRED,
+                    nullable = true,
+                    implementation = ConsentAction.class)
+            String currentDecision) {
+    }
+
+    @Schema(name = "ConsentEntryStatus")
+    enum ConsentEntryStatus {
+        allowed,
+        decision_required,
+        blocked
+    }
+
+    @Schema(
+            name = "ConsentEntryResponse",
+            additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
+    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
+    record ConsentEntryResponse(
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) ConsentEntryStatus entryStatus,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) List<ConsentEntryDocument> documents,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED)
+            List<ConsentEntryDocument> undecidedDocuments) {
+    }
+
     @Schema(name = "ConsentEventResponse", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
     @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
     record ConsentEventResponse(

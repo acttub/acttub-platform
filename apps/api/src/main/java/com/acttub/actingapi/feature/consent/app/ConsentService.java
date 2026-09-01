@@ -7,6 +7,7 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 import com.acttub.actingapi.feature.consent.domain.ConsentDocument;
+import com.acttub.actingapi.feature.consent.domain.ConsentEntry;
 import com.acttub.actingapi.feature.consent.domain.ConsentEvent;
 import com.acttub.actingapi.platform.web.ApiException;
 import org.springframework.stereotype.Service;
@@ -43,6 +44,13 @@ public class ConsentService {
         return consents.listLatestDocuments().stream()
                 .filter(document -> document.stillNeededBy(lastActions.get(document.id())))
                 .toList();
+    }
+
+    /** 최신 문서와 현재 결정을 함께 읽어 서비스 진입 판정을 계산한다. */
+    public ConsentEntry entryFor(UUID userId) {
+        return ConsentEntry.evaluate(
+                consents.listLatestDocuments(),
+                consents.currentConsentsOf(userId));
     }
 
     /**

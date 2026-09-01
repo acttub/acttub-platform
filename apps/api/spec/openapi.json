@@ -1703,6 +1703,28 @@
         } ]
       }
     },
+    "/v2/consents/entry" : {
+      "get" : {
+        "tags" : [ "v2-consents" ],
+        "summary" : "Get Consent Entry",
+        "operationId" : "get_consent_entry_v2_consents_entry_get",
+        "responses" : {
+          "200" : {
+            "description" : "Successful Response",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ConsentEntryResponse"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      }
+    },
     "/v2/consents/documents" : {
       "get" : {
         "tags" : [ "v2-consents" ],
@@ -3436,6 +3458,80 @@
         },
         "required" : [ "documents" ],
         "title" : "ConsentDocumentsResponse"
+      },
+      "ConsentEntryDocument" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Id"
+          },
+          "type" : {
+            "$ref" : "#/components/schemas/ConsentType"
+          },
+          "version" : {
+            "type" : "string",
+            "title" : "Version"
+          },
+          "title" : {
+            "type" : "string",
+            "title" : "Title"
+          },
+          "body" : {
+            "type" : "string",
+            "title" : "Body"
+          },
+          "required" : {
+            "type" : "boolean",
+            "title" : "Required"
+          },
+          "published_at" : {
+            "type" : "string",
+            "format" : "date-time",
+            "title" : "Published At"
+          },
+          "current_decision" : {
+            "anyOf" : [ {
+              "$ref" : "#/components/schemas/ConsentAction"
+            }, {
+              "type" : "null"
+            } ]
+          }
+        },
+        "required" : [ "body", "current_decision", "id", "published_at", "required", "title", "type", "version" ],
+        "title" : "ConsentEntryDocument"
+      },
+      "ConsentEntryResponse" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "entry_status" : {
+            "$ref" : "#/components/schemas/ConsentEntryStatus"
+          },
+          "documents" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/ConsentEntryDocument"
+            },
+            "title" : "Documents"
+          },
+          "undecided_documents" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/ConsentEntryDocument"
+            },
+            "title" : "Undecided Documents"
+          }
+        },
+        "required" : [ "documents", "entry_status", "undecided_documents" ],
+        "title" : "ConsentEntryResponse"
+      },
+      "ConsentEntryStatus" : {
+        "type" : "string",
+        "enum" : [ "allowed", "decision_required", "blocked" ],
+        "title" : "ConsentEntryStatus"
       },
       "PostListResponse" : {
         "type" : "object",

@@ -115,7 +115,7 @@ Java 21 + Spring Boot 3.4. **dev·운영 모두 여기가 트래픽을 받습니
 
 ### 자주 헷갈리는 자리 둘
 
-- ⚠ **동의 목록을 내는 곳이 둘이고, 합치면 안 됩니다.** `/v2/consents/pending`은 최신 문서를 자바에서 걸러 **종류 순**으로, 로그인 응답은 SQL 한 문장으로 **발행 시각 순**으로 냅니다. 각각 다른 엔드포인트의 응답이고, 양쪽 주석이 서로를 가리킵니다.
+- ⚠ **기존 보류 동의 목록을 내는 곳이 둘이고, 합치면 안 됩니다.** `/v2/consents/pending`은 최신 문서를 자바에서 걸러 **종류 순**으로, 로그인 응답은 SQL 한 문장으로 **발행 시각 순**으로 냅니다. 각각 다른 엔드포인트의 응답이고, 양쪽 주석이 서로를 가리킵니다. 새 `/v2/consents/entry`는 이 둘을 합친 것이 아니라 최신 문서에 현재 결정을 붙여 미결정 목록과 진입 판정을 **종류 순**으로 함께 내는 별도 계약입니다.
 - ⚠ **워커 큐 둘은 실패 정책이 다릅니다** — `ExternalOperationAnalysisQueue`(kind=`analyze`, 실패 시 **연습 세션도 실패**) vs `ExternalOperationMemoryQueue`(kind=`memory_update`, 연습은 건드리지 않음).
 
 📌 `memory`에 Schema Entity가 없는 것은 이사 누락이 아닙니다 — `actor_memory_entries`에 대응하는 `@Entity`가 애초에 만들어진 적이 없고, **그 테이블만 `ddl-auto: validate` 밖에 있습니다**(→ SOMA-398).

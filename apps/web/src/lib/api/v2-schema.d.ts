@@ -507,6 +507,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v2/consents/entry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Consent Entry */
+        get: operations["get_consent_entry_v2_consents_entry_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v2/consents/documents": {
         parameters: {
             query?: never;
@@ -1435,6 +1452,42 @@ export interface components {
             /** Documents */
             documents: components["schemas"]["ConsentDocument"][];
         };
+        /** ConsentEntryDocument */
+        ConsentEntryDocument: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            type: components["schemas"]["ConsentType"];
+            /** Version */
+            version: string;
+            /** Title */
+            title: string;
+            /** Body */
+            body: string;
+            /** Required */
+            required: boolean;
+            /**
+             * Published At
+             * Format: date-time
+             */
+            published_at: string;
+            current_decision: components["schemas"]["ConsentAction"] | null;
+        };
+        /** ConsentEntryResponse */
+        ConsentEntryResponse: {
+            entry_status: components["schemas"]["ConsentEntryStatus"];
+            /** Documents */
+            documents: components["schemas"]["ConsentEntryDocument"][];
+            /** Undecided Documents */
+            undecided_documents: components["schemas"]["ConsentEntryDocument"][];
+        };
+        /**
+         * ConsentEntryStatus
+         * @enum {string}
+         */
+        ConsentEntryStatus: "allowed" | "decision_required" | "blocked";
         /** PostListResponse */
         PostListResponse: {
             /** Posts */
@@ -3059,6 +3112,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ConsentDocumentsResponse"];
+                };
+            };
+        };
+    };
+    get_consent_entry_v2_consents_entry_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConsentEntryResponse"];
                 };
             };
         };
