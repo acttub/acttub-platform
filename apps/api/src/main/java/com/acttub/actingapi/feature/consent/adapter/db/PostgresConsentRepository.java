@@ -14,7 +14,6 @@ import com.acttub.actingapi.feature.consent.domain.ConsentDocument;
 import com.acttub.actingapi.feature.consent.domain.ConsentEvent;
 import com.acttub.actingapi.feature.consent.schema.ConsentDocumentEntity;
 import com.acttub.actingapi.feature.consent.schema.UserConsentEntity;
-import com.acttub.actingapi.platform.security.PendingConsentGate;
 import com.acttub.actingapi.platform.schema.ConsentAction;
 import com.acttub.actingapi.platform.schema.ConsentType;
 import jakarta.persistence.EntityManager;
@@ -22,18 +21,17 @@ import jakarta.persistence.Tuple;
 import org.springframework.stereotype.Repository;
 
 /**
- * 동의 문서와 그 이력을 소유한 쪽이 그것을 묻는 <b>바깥 포트 둘도 직접</b> 구현한다 —
+ * 동의 문서와 그 이력을 소유한 쪽이 그것을 묻는 <b>바깥 포트도 직접</b> 구현한다 —
  * 위임만 하는 어댑터를 끼우지 않는다 (ADR-017, SOMA-397 6단계의 {@code SyncOperationService}
  * 와 같은 형태).
  *
- * <p>요구가 셋이고 그중 둘은 바깥에서 온다. 배관은 "막을 것인가"만 묻고
- * ({@link PendingConsentGate}), {@code auth} 는 로그인 응답에 실을 문서 자체를 묻는다
- * ({@link PendingConsentDocuments}). 종전에는 그 둘을 {@code auth} 가 자기 SQL 로 답했다
+ * <p>{@code auth} 는 로그인 응답에 실을 문서 자체를 묻는다({@link PendingConsentDocuments}).
+ * 필수 동의의 세 갈래 접근 판정은 문서와 결정을 함께 해석하는 {@code ConsentService}가
+ * 배관의 포트를 구현한다. 종전에는 두 질문을 모두 {@code auth} 가 자기 SQL 로 답했다
  * (SOMA-397 12단계에서 회수).
  */
 @Repository
-class PostgresConsentRepository
-        implements ConsentRepository, PendingConsentDocuments, PendingConsentGate {
+class PostgresConsentRepository implements ConsentRepository, PendingConsentDocuments {
     private final ConsentDocumentJpaRepository documents;
     private final UserConsentJpaRepository consents;
     private final EntityManager entityManager;
@@ -145,11 +143,6 @@ class PostgresConsentRepository
                         row.get("required", Boolean.class),
                         row.get("published_at", Instant.class)))
                 .toList();
-    }
-
-    @Override
-    public boolean hasPending(UUID userId) {
-        return !pendingFor(userId).isEmpty();
     }
 
     /**

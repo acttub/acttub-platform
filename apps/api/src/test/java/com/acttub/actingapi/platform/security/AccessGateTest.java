@@ -29,7 +29,7 @@ class AuthDependenciesTest {
         // 세 갈래 분해의 실증이다 (SOMA-397 7단계).
         // 동의 게이트는 별개의 포트다 — 사용자를 소유한 쪽과 동의를 소유한 쪽이 다르고,
         // 한 포트는 한 쪽만 구현할 수 있다 (SOMA-397 12단계).
-        PendingConsentGate consents = ignored -> true;
+        RequiredConsentGate consents = ignored -> RequiredConsentGate.Status.DECISION_REQUIRED;
         HttpServletRequest request = null;
         FixedWindowRateLimiter limiter = new FixedWindowRateLimiter(() -> 1L);
         AccessGate dependencies = new AccessGate(current, limiter, consents);

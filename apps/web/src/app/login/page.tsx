@@ -27,7 +27,10 @@ import {
   type InAppBrowser,
 } from "../../lib/auth/in-app-browser";
 import { login } from "../../lib/api/v2/auth";
-import type { TokenPairResponse } from "../../lib/api/v2/types";
+import type {
+  ConsentDocument,
+  TokenPairResponse,
+} from "../../lib/api/v2/types";
 import {
   resetAmplitudeUser,
   startAmplitude,
@@ -41,11 +44,11 @@ import {
   APPLE_REDIRECT_PATH,
   GOOGLE_CLIENT_ID,
 } from "../../lib/config/env";
+import { hasAcceptedCurrentPrivacy } from "../../features/auth/pending-consents";
 import {
-  clearPendingConsents,
-  hasAcceptedCurrentPrivacy,
-  savePendingConsents,
-} from "../../features/auth/pending-consents";
+  resolveConsentEntry,
+  type ConsentEntryResolution,
+} from "../../features/auth/consent-entry";
 
 // UA는 세션 동안 불변이므로 구독 없이 스냅샷만 읽는다. 서버(프리렌더)에서는 null.
 const subscribeNever = () => () => {};
@@ -196,6 +199,10 @@ function LoginForm() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [hasGoogleLoadFailed, setHasGoogleLoadFailed] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [pendingEntryCheck, setPendingEntryCheck] = useState<{
+    provider: LoginProvider;
+    fallbackDocuments: ConsentDocument[];
+  } | null>(null);
   const inAppBrowser: InAppBrowser | null = useSyncExternalStore(
     subscribeNever,
     getInAppBrowserSnapshot,
@@ -225,32 +232,70 @@ function LoginForm() {
   // 약관 동의가 남은 신규 계정은 /terms를 거치므로 그쪽에도 같은 관문이 있다.
   const { pendingDestination, enterApp, resolveName } = useDisplayNameGate();
 
+  async function finishLogin(
+    provider: LoginProvider,
+    fallbackDocuments: ConsentDocument[],
+  ) {
+    let resolution: ConsentEntryResolution;
+    try {
+      resolution = await resolveConsentEntry(nextPath, {
+        fallbackDocuments,
+      });
+    } catch {
+      setPendingEntryCheck({ provider, fallbackDocuments });
+      setErrorMessage(
+        "동의 결정을 확인하지 못했어요. 로그인은 유지되며 여기서 다시 시도할 수 있어요.",
+      );
+      return;
+    }
+
+    setPendingEntryCheck(null);
+    if (resolution.kind !== "allowed") {
+      // 서비스에 아직 들어가지 못하는 로그인은 계측을 켜거나 완료로 세지 않는다.
+      resetAmplitudeUser();
+      router.replace(resolution.destination);
+      return;
+    }
+
+    if (hasAcceptedCurrentPrivacy()) startAmplitude();
+    trackLoginCompleted(provider);
+    // 여기서 계측 동의를 표시하지 않는다. 서버가 진입을 허용했다는 결과만으로는 이 기기에
+    // 어느 개인정보처리방침 버전을 기록했는지 알 수 없다. 실제 제출 화면만 기록한다.
+    try {
+      await enterApp(nextPath);
+    } catch {
+      setPendingEntryCheck({ provider, fallbackDocuments });
+      setErrorMessage(
+        "로그인 후 정보를 확인하지 못했어요. 로그인은 유지되며 여기서 다시 시도할 수 있어요.",
+      );
+    }
+  }
+
+  async function retryEntryCheck() {
+    if (!pendingEntryCheck || isSubmitting) return;
+    setErrorMessage(null);
+    setIsSubmitting(true);
+    try {
+      await finishLogin(
+        pendingEntryCheck.provider,
+        pendingEntryCheck.fallbackDocuments,
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
   async function submitLogin(
     provider: LoginProvider,
     request: () => Promise<TokenPairResponse>,
   ) {
-    if (isSubmitting) return;
+    if (isSubmitting || pendingEntryCheck) return;
 
     setErrorMessage(null);
     setIsSubmitting(true);
     try {
       const result = await request();
-      if (result.pending_consents.length > 0) {
-        savePendingConsents(result.pending_consents);
-        // 동의가 남은 계정은 아직 계측을 켤 수 없다. 직전 계정의 동의로 켜져 있었더라도
-        // 여기서 끈다. 이 로그인은 세지 않는다 — 동의 화면을 지나 consent_submitted 로 잡힌다.
-        resetAmplitudeUser();
-        router.replace(`/terms?next=${encodeURIComponent(nextPath)}`);
-        return;
-      }
-
-      clearPendingConsents();
-      if (hasAcceptedCurrentPrivacy()) startAmplitude();
-      trackLoginCompleted(provider);
-      // 여기서 계측 동의를 표시하지 않는다. 대기 중인 동의가 비어 있다는 것만으로는
-      // 어느 버전에 동의했는지 알 수 없고, 서버에 문서가 발행되지 않았을 때도 비어 있다.
-      // 표시는 동의 화면(terms-gate)에서 실제로 문서를 제출할 때만 한다.
-      await enterApp(nextPath);
+      await finishLogin(provider, result.pending_consents);
     } catch (error) {
       trackLoginFailed(provider, error);
       setErrorMessage(loginErrorMessage(error));
@@ -303,7 +348,7 @@ function LoginForm() {
           {/* Services ID가 설정되기 전에는 눌러도 실패만 하므로 버튼 자체를 내린다. */}
           {APPLE_CLIENT_ID ? (
             <AppleLoginButton
-              disabled={isSubmitting}
+              disabled={isSubmitting || pendingEntryCheck !== null}
               onIdToken={(credential) =>
                 void submitLogin("apple", () => login("apple", credential))
               }
@@ -346,7 +391,7 @@ function LoginForm() {
 
               <button
                 type="submit"
-                disabled={isSubmitting}
+                disabled={isSubmitting || pendingEntryCheck !== null}
                 className="flex h-14 w-full items-center justify-center rounded-2xl bg-[#3182f6] text-base font-black text-white shadow-[0_12px_30px_rgba(49,130,246,0.25)] transition hover:bg-[#1b64da] disabled:cursor-wait disabled:bg-[#8fbffa]"
               >
                 개발용 로그인
@@ -366,6 +411,16 @@ function LoginForm() {
             >
               {errorMessage ?? googleNotices.loadError ?? noticeMessage}
             </p>
+          ) : null}
+          {pendingEntryCheck ? (
+            <button
+              type="button"
+              disabled={isSubmitting}
+              onClick={() => void retryEntryCheck()}
+              className="h-12 w-full rounded-2xl bg-[#3182f6] px-4 text-sm font-black text-white transition hover:bg-[#1b64da] disabled:cursor-wait disabled:bg-[#8fbffa]"
+            >
+              동의 확인 다시 시도하기
+            </button>
           ) : null}
         </div>
 

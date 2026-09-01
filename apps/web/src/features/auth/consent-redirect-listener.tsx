@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { onSessionEvent } from "@/lib/auth/session-events";
+import { clearConsentEntrySession } from "./consent-entry";
 import { createConsentRedirectHandler } from "./consent-redirect";
 
 export function ConsentRedirectListener() {
@@ -16,6 +17,7 @@ export function ConsentRedirectListener() {
         pathname: window.location.pathname,
         search: window.location.search,
       }),
+      clearConsentEntrySession,
     );
     return onSessionEvent((event) => {
       if (event !== "consent-required") return;

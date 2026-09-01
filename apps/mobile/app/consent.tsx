@@ -1,230 +1,280 @@
 import Feather from '@expo/vector-icons/Feather';
 import { Stack } from 'expo-router';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { KeyboardAwareScroll } from '@/components/keyboard-aware-scroll';
-import { useKeyboardHeight } from '@/hooks/use-keyboard-height';
 import { Markdown } from '@/components/markdown';
-import { api, type ConsentDocument } from '@/lib/api';
-import { useAuth } from '@/lib/auth';
-import { saveConsentPrefs } from '@/lib/consent-prefs';
-import { getUserName, saveUserName } from '@/lib/profile';
 import { palette } from '@/constants/palette';
+import { api, type ConsentEntryDocument } from '@/lib/api';
+import { useAuth } from '@/lib/auth';
+import {
+  canSubmitConsentDecisions,
+  documentsForConsentEntry,
+  submitConsentDecisions,
+  type ConsentChoice,
+} from '@/lib/consent-entry-submission';
+import { setConsentPref } from '@/lib/consent-prefs';
 import { translate as t } from '@/lib/i18n';
 
-/**
- * 약관 동의(가입 마무리) — 로그인 응답의 pending_consents(필수/선택 문서)를 받아 동의를 기록한다.
- * 필수(terms·privacy·ai_analysis 등)는 모두 동의해야 통과, 선택(연구·검토·연락·홍보·모델학습)은 분리 노출.
- * 이름도 함께 받는다(현재는 로컬 저장 — [[profile]], 백엔드 프로필 API 생기면 전송).
- */
+function errorMessage(error: unknown, fallback: string): string {
+  return error instanceof Error ? error.message : fallback;
+}
+
 export default function ConsentScreen() {
-  const { status, pendingConsents, clearPendingConsents, refreshPendingConsents } = useAuth();
-  const [name, setName] = useState('');
-  const [agreed, setAgreed] = useState<Record<string, boolean>>({});
+  const { status, consentEntry, refreshConsentEntry } = useAuth();
+  const [choices, setChoices] = useState<Record<string, ConsentChoice>>({});
+  const [completedDocumentIds, setCompletedDocumentIds] = useState<Set<string>>(
+    new Set(),
+  );
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [busy, setBusy] = useState(false);
-  const [loadingPending, setLoadingPending] = useState(false);
+  const [verificationOnly, setVerificationOnly] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const keyboardHeight = useKeyboardHeight();
-  const keyboardVisible = keyboardHeight > 0;
 
-  const loadPendingConsents = useCallback(async () => {
-    setLoadingPending(true);
+  const entry = consentEntry.entry;
+  const documents = useMemo(
+    () => (entry ? documentsForConsentEntry(entry) : []),
+    [entry],
+  );
+  const choiceMap = useMemo(
+    () => new Map(Object.entries(choices)),
+    [choices],
+  );
+  const requiredDocuments = useMemo(
+    () => documents.filter((document) => document.required),
+    [documents],
+  );
+  const optionalDocuments = useMemo(
+    () => documents.filter((document) => !document.required),
+    [documents],
+  );
+  const canProceed = canSubmitConsentDecisions(documents, choiceMap);
+
+  useEffect(() => {
+    setChoices({});
+    setCompletedDocumentIds(new Set());
+    setVerificationOnly(false);
     setError(null);
-    try {
-      await refreshPendingConsents();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t('consent.docFail'));
-    } finally {
-      setLoadingPending(false);
-    }
-  }, [refreshPendingConsents]);
+  }, [entry]);
 
-  useEffect(() => {
-    if (status !== 'signedIn' || pendingConsents.length > 0) return;
-    void loadPendingConsents();
-  }, [status, pendingConsents.length, loadPendingConsents]);
-
-  useEffect(() => {
-    let active = true;
-    void getUserName().then((storedName) => {
-      if (active && storedName) setName((current) => current || storedName);
-    });
-    return () => {
-      active = false;
-    };
-  }, []);
-
-  const required = useMemo(() => pendingConsents.filter((d) => d.required), [pendingConsents]);
-  const optional = useMemo(() => pendingConsents.filter((d) => !d.required), [pendingConsents]);
-
-  const canProceed =
-    pendingConsents.length > 0 && name.trim().length > 0 && required.every((d) => agreed[d.id]);
-  const allChecked = pendingConsents.length > 0 && pendingConsents.every((d) => agreed[d.id]);
-
-  const toggleAll = () => {
-    const next = !allChecked;
-    setAgreed(Object.fromEntries(pendingConsents.map((d) => [d.id, next])));
+  const choose = (documentId: string, choice: ConsentChoice) => {
+    if (busy) return;
+    setChoices((current) => ({ ...current, [documentId]: choice }));
   };
 
-  const proceed = async () => {
-    setError(null);
+  const rememberCompletedChoices = async (documentIds: readonly string[]) => {
+    await Promise.all(
+      documentIds.map(async (documentId) => {
+        const choice = choiceMap.get(documentId);
+        if (!choice) return;
+        await setConsentPref(documentId, choice === 'granted').catch(() => undefined);
+      }),
+    );
+  };
+
+  const reload = async () => {
     setBusy(true);
+    setError(null);
     try {
-      // 동의한 문서만 granted, 미동의 선택 문서는 declined로 기록.
-      for (const doc of pendingConsents) {
-        await api.recordConsent(doc.id, agreed[doc.id] ? 'granted' : 'declined');
-      }
-      await saveUserName(name);
-      await saveConsentPrefs(
-        Object.fromEntries(pendingConsents.map((d) => [d.id, !!agreed[d.id]])),
-      );
-      clearPendingConsents();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t('consent.agreeFail'));
+      await refreshConsentEntry();
+      setVerificationOnly(false);
+    } catch (cause) {
+      setError(errorMessage(cause, t('consent.docFail')));
     } finally {
       setBusy(false);
     }
   };
 
-  const renderDoc = (doc: ConsentDocument) => (
-    <View key={doc.id} style={styles.docCard}>
-      <Pressable
-        style={styles.docRow}
-        accessibilityRole="checkbox"
-        accessibilityState={{ checked: !!agreed[doc.id] }}
-        accessibilityLabel={doc.title}
-        onPress={() => setAgreed((a) => ({ ...a, [doc.id]: !a[doc.id] }))}>
-        <View style={[styles.check, agreed[doc.id] && styles.checkOn]}>
-          {agreed[doc.id] && <Feather name="check" size={14} color="#fff" />}
+  const proceed = async () => {
+    if (!entry) return;
+    setBusy(true);
+    setError(null);
+    const previousCompletedIds = completedDocumentIds;
+    const result = await submitConsentDecisions({
+      documents,
+      choices: choiceMap,
+      completedDocumentIds,
+      recordDecision: (documentId, action) =>
+        api.recordConsent(documentId, action),
+      refreshEntry: refreshConsentEntry,
+    });
+    const nextCompletedIds = new Set(result.completedDocumentIds);
+    setCompletedDocumentIds(nextCompletedIds);
+    await rememberCompletedChoices(
+      result.completedDocumentIds.filter(
+        (documentId) => !previousCompletedIds.has(documentId),
+      ),
+    );
+
+    if (result.kind === 'partial') {
+      setError(t('consent.partialFail'));
+    } else if (result.kind === 'verification_failed') {
+      setVerificationOnly(true);
+      setError(errorMessage(result.cause, t('consent.verifyFail')));
+    }
+    setBusy(false);
+  };
+
+  const renderDocument = (document: ConsentEntryDocument) => {
+    const choice = choices[document.id];
+    const completed = completedDocumentIds.has(document.id);
+    return (
+      <View key={document.id} style={styles.docCard}>
+        <View style={styles.docHead}>
+          <Text style={styles.docTitle}>{document.title}</Text>
+          <Pressable
+            hitSlop={8}
+            onPress={() =>
+              setExpanded((current) => ({
+                ...current,
+                [document.id]: !current[document.id],
+              }))
+            }>
+            <Text style={styles.viewLink}>
+              {expanded[document.id] ? t('common.fold') : t('common.view')}
+            </Text>
+          </Pressable>
         </View>
-        <Text style={styles.docTitle}>{doc.title}</Text>
-        <Pressable hitSlop={8} onPress={() => setExpanded((e) => ({ ...e, [doc.id]: !e[doc.id] }))}>
-          <Text style={styles.viewLink}>{expanded[doc.id] ? t('common.fold') : t('common.view')}</Text>
-        </Pressable>
-      </Pressable>
-      {expanded[doc.id] && (
-        <View style={styles.docBody}>
-          <Markdown source={doc.body} variant="compact" />
-        </View>
-      )}
-    </View>
-  );
+
+        {document.required ? (
+          <Pressable
+            style={[
+              styles.requiredChoice,
+              (completed || busy) && styles.choiceDisabled,
+            ]}
+            onPress={() => choose(document.id, 'granted')}
+            disabled={completed || busy}
+            accessibilityRole="checkbox"
+            accessibilityState={{
+              checked: choice === 'granted',
+              disabled: completed || busy,
+            }}>
+            <View style={[styles.check, choice === 'granted' && styles.checkOn]}>
+              {choice === 'granted' && <Feather name="check" size={14} color="#FFFFFF" />}
+            </View>
+            <Text style={styles.choiceLabel}>{t('consent.acceptRequired')}</Text>
+          </Pressable>
+        ) : (
+          <View style={styles.optionalChoices}>
+            {(['granted', 'declined'] as const).map((candidate) => {
+              const selected = choice === candidate;
+              return (
+                <Pressable
+                  key={candidate}
+                  style={[
+                    styles.choiceButton,
+                    selected && styles.choiceButtonSelected,
+                    (completed || busy) && styles.choiceDisabled,
+                  ]}
+                  onPress={() => choose(document.id, candidate)}
+                  disabled={completed || busy}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected, disabled: completed || busy }}>
+                  <Text style={[styles.choiceButtonText, selected && styles.choiceButtonTextSelected]}>
+                    {candidate === 'granted' ? t('consent.accept') : t('consent.decline')}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        )}
+
+        {completed && <Text style={styles.saved}>{t('common.saved')}</Text>}
+        {expanded[document.id] && (
+          <View style={styles.docBody}>
+            <Markdown source={document.body} variant="compact" />
+          </View>
+        )}
+      </View>
+    );
+  };
+
+  const waiting = status === 'signedIn' && consentEntry.status === 'checking';
+  const loadFailed = consentEntry.status === 'error';
 
   return (
-    <SafeAreaView style={styles.safe} edges={keyboardVisible ? ['top'] : ['top', 'bottom']}>
+    <SafeAreaView style={styles.safe}>
       <Stack.Screen options={{ headerShown: false }} />
       <View style={styles.header}>
-        <Text style={styles.title}>{t('consent.title')}</Text>
-        <Text style={styles.subtitle}>{t('consent.subtitle')}</Text>
+        <Text style={styles.title}>
+          {entry?.entry_status === 'blocked'
+            ? t('consent.blockedTitle')
+            : t('consent.title')}
+        </Text>
+        <Text style={styles.subtitle}>
+          {entry?.entry_status === 'blocked'
+            ? t('consent.blockedSubtitle')
+            : t('consent.subtitle')}
+        </Text>
       </View>
 
-      <View style={[styles.flex, { paddingBottom: keyboardHeight }]}>
-        {/* KeyboardAvoidingView가 이미 화면을 줄이므로 키보드 inset을 또 잡으면 두 번 밀린다. */}
-        <KeyboardAwareScroll
-          contentContainerStyle={styles.list}
-          automaticallyAdjustKeyboardInsets={false}>
-        <Text style={styles.label}>{t('consent.nameLabel')}</Text>
-        <TextInput
-          style={styles.input}
-          placeholder={t('consent.namePlaceholder')}
-          placeholderTextColor={palette.textDim}
-          value={name}
-          onChangeText={setName}
-          returnKeyType="done"
-        />
-
-        {pendingConsents.length > 0 && (
-          <Pressable
-            style={styles.allRow}
-            onPress={toggleAll}
-            accessibilityRole="checkbox"
-            accessibilityState={{ checked: allChecked }}
-            accessibilityLabel={t('consent.allAgree')}>
-            <View style={[styles.check, allChecked && styles.checkOn]}>
-              {allChecked && <Feather name="check" size={14} color="#fff" />}
-            </View>
-            <Text style={styles.allText}>{t('consent.allAgree')}</Text>
+      {waiting ? (
+        <View style={styles.center}>
+          <ActivityIndicator color={palette.blue} />
+        </View>
+      ) : loadFailed ? (
+        <View style={styles.center}>
+          <Text style={styles.error}>
+            {error ?? errorMessage(consentEntry.error, t('consent.docFail'))}
+          </Text>
+          <Pressable style={styles.retry} onPress={() => void reload()} disabled={busy}>
+            <Text style={styles.retryText}>{t('consent.reload')}</Text>
           </Pressable>
-        )}
+        </View>
+      ) : (
+        <>
+          <ScrollView contentContainerStyle={styles.list}>
+            {requiredDocuments.length > 0 && (
+              <Text style={styles.sectionTitle}>{t('consent.required')}</Text>
+            )}
+            {requiredDocuments.map(renderDocument)}
 
-        {required.length > 0 && (
-          <>
-            <Text style={styles.sectionTitle}>{t('consent.required')}</Text>
-            {required.map(renderDoc)}
-          </>
-        )}
+            {optionalDocuments.length > 0 && (
+              <>
+                <Text style={styles.sectionTitle}>{t('consent.optional')}</Text>
+                <Text style={styles.sectionHint}>{t('consent.optionalHint')}</Text>
+              </>
+            )}
+            {optionalDocuments.map(renderDocument)}
+          </ScrollView>
 
-        {optional.length > 0 && (
-          <>
-            <Text style={styles.sectionTitle}>{t('consent.optional')}</Text>
-            <Text style={styles.sectionHint}>{t('consent.optionalHint')}</Text>
-            {optional.map(renderDoc)}
-          </>
-        )}
-        </KeyboardAwareScroll>
-
-        {loadingPending && pendingConsents.length === 0 && <ActivityIndicator color={palette.blue} />}
-      {error && <Text style={styles.error}>{error}</Text>}
-      {error && status === 'signedIn' && pendingConsents.length === 0 && (
-        <Pressable
-          style={styles.retry}
-          onPress={() => void loadPendingConsents()}
-          disabled={loadingPending}>
-          <Text style={styles.retryText}>{t('consent.reload')}</Text>
-        </Pressable>
+          {error && <Text style={styles.error}>{error}</Text>}
+          <Pressable
+            style={[
+              styles.cta,
+              ((!canProceed && !verificationOnly) || busy) && styles.ctaDisabled,
+            ]}
+            onPress={() => void (verificationOnly ? reload() : proceed())}
+            disabled={(!canProceed && !verificationOnly) || busy}>
+            {busy ? (
+              <ActivityIndicator color="#FFFFFF" />
+            ) : (
+              <Text style={styles.ctaText}>
+                {verificationOnly ? t('consent.verifyAgain') : t('consent.cta')}
+              </Text>
+            )}
+          </Pressable>
+        </>
       )}
-        <Pressable
-          style={[styles.cta, (!canProceed || busy) && styles.ctaDisabled]}
-          onPress={proceed}
-          disabled={!canProceed || busy}>
-          {busy ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <Text style={styles.ctaText}>{t('consent.cta')}</Text>
-          )}
-        </Pressable>
-      </View>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
-  flex: { flex: 1 },
   header: { paddingHorizontal: 24, paddingTop: 16, paddingBottom: 8 },
   title: { fontSize: 24, fontWeight: '800', color: palette.text },
   subtitle: { fontSize: 14, color: palette.textDim, marginTop: 6, lineHeight: 20 },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, padding: 24 },
   list: { padding: 20, gap: 10 },
-  label: { fontSize: 13, fontWeight: '700', color: palette.text, marginBottom: 2 },
-  input: {
-    backgroundColor: palette.bgSoft,
-    borderRadius: 12,
-    padding: 14,
-    color: palette.text,
-    fontSize: 15,
-    marginBottom: 6,
-  },
-  allRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingVertical: 14,
-    paddingHorizontal: 14,
-    backgroundColor: palette.blueSoft,
-    borderRadius: 14,
-    marginTop: 4,
-  },
-  allText: { fontSize: 16, fontWeight: '800', color: palette.text },
   sectionTitle: { fontSize: 13, fontWeight: '800', color: palette.textDim, marginTop: 14 },
   sectionHint: { fontSize: 12, color: palette.textFaint, marginTop: -4, marginBottom: 2 },
   docCard: {
@@ -233,8 +283,12 @@ const styles = StyleSheet.create({
     borderColor: palette.border,
     borderRadius: 14,
     padding: 14,
+    gap: 12,
   },
-  docRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  docHead: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  docTitle: { flex: 1, fontSize: 14, color: palette.text, fontWeight: '600' },
+  viewLink: { fontSize: 13, color: palette.textDim, textDecorationLine: 'underline' },
+  requiredChoice: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   check: {
     width: 24,
     height: 24,
@@ -245,16 +299,24 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   checkOn: { backgroundColor: palette.blue, borderColor: palette.blue },
-  docTitle: { flex: 1, fontSize: 14, color: palette.text, fontWeight: '600' },
-  viewLink: { fontSize: 13, color: palette.textDim, textDecorationLine: 'underline' },
-  docBody: {
-    marginTop: 12,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: palette.border,
+  choiceLabel: { color: palette.text, fontSize: 14, fontWeight: '600' },
+  optionalChoices: { flexDirection: 'row', gap: 8 },
+  choiceButton: {
+    flex: 1,
+    alignItems: 'center',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: palette.border,
+    paddingVertical: 11,
   },
+  choiceButtonSelected: { backgroundColor: palette.blueSoft, borderColor: palette.blue },
+  choiceButtonText: { color: palette.textDim, fontSize: 14, fontWeight: '700' },
+  choiceButtonTextSelected: { color: palette.blue },
+  choiceDisabled: { opacity: 0.6 },
+  saved: { color: palette.blue, fontSize: 12, fontWeight: '700' },
+  docBody: { paddingTop: 12, borderTopWidth: 1, borderTopColor: palette.border },
   error: { color: palette.danger, textAlign: 'center', paddingHorizontal: 20, paddingBottom: 8 },
-  retry: { alignSelf: 'center', paddingHorizontal: 16, paddingVertical: 8 },
+  retry: { paddingHorizontal: 16, paddingVertical: 8 },
   retryText: { color: palette.blue, fontSize: 14, fontWeight: '700' },
   cta: {
     backgroundColor: palette.blue,
@@ -264,5 +326,5 @@ const styles = StyleSheet.create({
     margin: 20,
   },
   ctaDisabled: { opacity: 0.4 },
-  ctaText: { color: '#fff', fontSize: 16, fontWeight: '800' },
+  ctaText: { color: '#FFFFFF', fontSize: 16, fontWeight: '800' },
 });

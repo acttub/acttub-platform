@@ -14,12 +14,12 @@ public class AccessGate {
 
     private final CurrentUserService current;
     private final FixedWindowRateLimiter limiter;
-    private final PendingConsentGate consents;
+    private final RequiredConsentGate consents;
 
     public AccessGate(
             CurrentUserService current,
             FixedWindowRateLimiter limiter,
-            PendingConsentGate consents) {
+            RequiredConsentGate consents) {
         this.current = current;
         this.limiter = limiter;
         this.consents = consents;
@@ -54,7 +54,13 @@ public class AccessGate {
             return user;
         }
         AuthenticatedUser user = rateLimitedUser(request);
-        if (consents.hasPending(user.id())) {
+        RequiredConsentGate.Status status = consents.statusFor(user.id());
+        if (status == RequiredConsentGate.Status.BLOCKED
+                && request != null
+                && "1".equals(request.getHeader("X-Acttub-Consent-Entry"))) {
+            throw new ApiException(403, "consent_blocked");
+        }
+        if (status != RequiredConsentGate.Status.ALLOWED) {
             throw new ApiException(403, "consent_required");
         }
         if (request != null) {

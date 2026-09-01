@@ -37,20 +37,6 @@ export type WorkspaceDisabled = {
    * 자기가 시작하는 순간 노트 화면을 떠난다(`coachStarting` 이 화면을 대화로 옮긴다).
    */
   backToChat: boolean;
-  /**
-   * 막힘 선택의 마지막 버튼. 지우는 중만 여기 닿는다 — 다른 둘이 도는 동안에는
-   * 막힘을 고르는 화면이 아니다(여는 중이면 그 전이가 준비 화면으로 되돌렸고,
-   * 대화를 다시 여는 길은 노트에서만 열린다).
-   *
-   * 그 화면에 지울 연습이 있다는 것이 뜻밖으로 보이지만 길이 있다 — 연습을 열다
-   * 조회가 실패하거나 새 연습을 만든 뒤 화면을 옮기다 터지면 준비 화면으로 돌아오되
-   * 그 연습은 아직 지금 화면의 것이다(자리를 비우는 곳은 `resetTo` 하나뿐이다).
-   * 거기서 영상을 다시 골라 막힘 선택으로 오면 지우기 버튼이 함께 서 있다.
-   *
-   * 받는 쪽은 이것으로 버튼만 잠근다 — 문구는 그대로다. 옛 코드는 여기서 "이어가는
-   * 중…" 이라고 말했는데, 켜지는 것이 지우는 중일 때뿐이라 늘 어긋난 말이었다.
-   */
-  blockageSubmit: boolean;
 };
 
 export type WorkspaceBusy = {
@@ -105,7 +91,6 @@ export function useWorkspaceBusy(): WorkspaceBusy {
         owners.sessionLoading || owners.deleting || owners.restartingChat,
       ),
       backToChat: Boolean(owners.sessionLoading || owners.deleting),
-      blockageSubmit: Boolean(owners.deleting),
     }),
     [owners],
   );

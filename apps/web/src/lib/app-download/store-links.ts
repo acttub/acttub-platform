@@ -24,18 +24,23 @@ export type StoreLinkSurface =
 /**
  * 스토어로 나가는 주소.
  *
- * ⚠️ **웹에서 배지를 몇 번 눌렀는지는 우리 계측으로 못 본다.** GA4도 Amplitude도 로그인과
- * 방침 동의 뒤에만 켜지는데, 배지를 누르는 사람은 대부분 로그아웃 상태다. 그래서 이동
- * 흔적을 스토어 쪽에 남긴다 — Google Play는 `referrer`에 실은 utm을 Play Console 획득
- * 보고서에 그대로 보여준다. App Store는 캠페인 토큰(`ct`)이 제공자 토큰(`pt`)과 짝일 때만
- * 기록되는데 우리에겐 그 토큰이 없어서 맨 주소로 둔다. 웹 쪽 숫자는 `/app` 방문수를
- * Cloudflare에서 본다.
+ * 배지 클릭은 `/go/<os>/<surface>` 페이지로드로 Cloudflare에서 센 뒤 이 주소로 이동한다.
+ * 랜딩 대비 클릭률은 Cloudflare에서 표면별 `/go` 페이지로드를 비교한다. Google Play는
+ * `referrer`에 실은 utm을 Play Console 획득 보고서에도 그대로 보여준다. App Store는 캠페인
+ * 토큰(`ct`)이 제공자 토큰(`pt`)과 짝일 때만 기록되는데 우리에겐 그 토큰이 없어서 맨 주소로
+ * 둔다.
  */
 export function storeHref(store: AppStore, surface: StoreLinkSurface): string {
   if (store === "app_store") return APP_STORE_URL;
 
   const referrer = `utm_source=acttub_web&utm_medium=${surface}`;
   return `${GOOGLE_PLAY_URL}&referrer=${encodeURIComponent(referrer)}`;
+}
+
+/** Cloudflare가 배지 클릭을 셀 수 있도록 먼저 거치는 내부 페이지 주소. */
+export function goHref(store: AppStore, surface: StoreLinkSurface): string {
+  const os = store === "app_store" ? "ios" : "android";
+  return `/go/${os}/${surface}`;
 }
 
 /**
