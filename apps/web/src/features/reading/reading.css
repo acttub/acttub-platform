@@ -60,9 +60,7 @@
   --color-me-soft: var(--rd-me-soft);
 }
 
-/* 사용자 대본 글자는 임의라 시스템 한글 글꼴로 떨어뜨린다 */
 .script-text {
-  font-family: "Pretendard Variable", Pretendard, "Apple SD Gothic Neo", "Noto Sans KR", system-ui, sans-serif;
   word-break: keep-all;
   overflow-wrap: anywhere;
 }
