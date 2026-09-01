@@ -5,9 +5,9 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.autoconfigure.domain.EntityScan;
 
 /**
- * {@code @EntityScan}은 엔티티가 어디 사는지를 선언으로 고정한다. 엔티티는 런타임 영속화가
- * 아니라 {@code ddl-auto: validate}가 실제 스키마를 대조하는 데 쓰이므로(CONTEXT.md의 Schema
- * Entity), 위치가 흐려지면 무엇을 검증하는지도 흐려진다.
+ * {@code @EntityScan}은 Schema Entity가 어디 사는지를 선언으로 고정한다. 이 매핑은
+ * {@code ddl-auto: validate}의 스키마 대조와 SOMA-460 이후 런타임 영속화에 함께 쓰이므로,
+ * 위치가 흐려지면 검증과 읽기·쓰기 양쪽의 대상이 흐려진다.
  *
  * <p><b>주의 — 이 애노테이션은 스캔 범위를 넓히는 게 아니라 좁힌다.</b> 관례 스캔은
  * {@code com.acttub.actingapi} 전체를 본다. 여기 적힌 패키지 밖에 엔티티를 두면 조용히 검증에서
@@ -28,7 +28,9 @@ import org.springframework.boot.autoconfigure.domain.EntityScan;
     "com.acttub.actingapi.feature.coach.schema",
     "com.acttub.actingapi.feature.upload.schema",
     "com.acttub.actingapi.feature.auth.schema",
-    "com.acttub.actingapi.feature.consent.schema"
+    "com.acttub.actingapi.feature.consent.schema",
+    "com.acttub.actingapi.feature.memory.schema",
+    "com.acttub.actingapi.feature.push.schema"
 })
 public class ActingApiApplication {
 

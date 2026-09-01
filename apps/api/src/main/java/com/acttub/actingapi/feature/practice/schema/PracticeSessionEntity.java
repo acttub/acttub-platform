@@ -57,6 +57,9 @@ public class PracticeSessionEntity extends AppGeneratedUuidEntity {
     @Column(name = "goal", nullable = false)
     private String goal;
 
+    @Column(name = "continued_from")
+    private UUID continuedFrom;
+
     @Column(name = "hidden_at")
     private Instant hiddenAt;
 
@@ -122,6 +125,10 @@ public class PracticeSessionEntity extends AppGeneratedUuidEntity {
 
     public String getGoal() {
         return goal;
+    }
+
+    public UUID getContinuedFrom() {
+        return continuedFrom;
     }
 
     public Instant getHiddenAt() {

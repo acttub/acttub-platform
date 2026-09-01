@@ -30,6 +30,12 @@ public class UserEntity extends AppGeneratedUuidEntity {
     @Column(name = "nickname")
     private String nickname;
 
+    @Column(name = "role", nullable = false, insertable = false)
+    private String role;
+
+    @Column(name = "deactivated_at")
+    private Instant deactivatedAt;
+
     @Column(name = "created_at", nullable = false, insertable = false, updatable = false)
     private Instant createdAt;
 
@@ -57,6 +63,14 @@ public class UserEntity extends AppGeneratedUuidEntity {
 
     public String getNickname() {
         return nickname;
+    }
+
+    public String getRole() {
+        return role;
+    }
+
+    public Instant getDeactivatedAt() {
+        return deactivatedAt;
     }
 
     public Instant getCreatedAt() {

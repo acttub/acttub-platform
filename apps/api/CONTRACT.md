@@ -23,7 +23,7 @@
 |---|---|
 | 런타임 | Java 21 + Spring Boot 3.4, Spring Web MVC + **virtual threads** (WebFlux 금지) |
 | 빌드 | Gradle (Kotlin DSL) + wrapper, `bootJar` |
-| 영속 | `JdbcTemplate` (§5-1·§5-2) |
+| 영속 | Spring Data JPA + `EntityManager` native SQL로 일원화한다(ADR-024, §5-1·§5-2). **SOMA-460 전환 중**이라 1단계 뒤에도 운영 직접 JDBC 19개는 2~6단계에서 순차 교체한다 |
 | 스키마 | **Flyway 가 소유**. `V1__baseline.sql` 에 스키마가 동결돼 있다(§5-5). Hibernate `ddl-auto: validate` (`create`/`update` 절대 금지) |
 | DB 연결 | `DATABASE_URL`(`postgresql://…`)을 **JDBC URL + username/password 로 변환**(§5-6). 변수 이름은 유지 |
 | 스펙 | springdoc-openapi (`openapi_3_1`) |
@@ -46,38 +46,43 @@ Jackson 설정: `WRITE_DATES_AS_TIMESTAMPS=false`, `Instant` 또는 `OffsetDateT
 
 ## 5. 영속 계층 규칙
 
-### 5-1. 데이터 접근은 전부 `JdbcTemplate` 이다
+### 5-1. 운영 DB 접근은 JPA 로 일원화한다 (SOMA-460 전환 중)
 
-`JpaRepository`/`CrudRepository` 선언 **0개**, `EntityManager` 직접 사용 **0건**이다. 저장소는
-전부 손으로 쓴 SQL 이다. §5-2 가 열거하는 JPA 표현 불가 패턴이 저장소 전반에 퍼져 있어
-"단순 CRUD 만 JPA" 라는 경계가 실제 코드에서 성립하지 않았다.
+외부 seam은 기존 `app` Port이고, Postgres Adapter가 그 Port를 계속 구현한다. Adapter 내부에서
+단순 CRUD·조회는 Spring Data repository·JPQL·projection으로, PostgreSQL 의미가 필요한 연산은
+§5-2의 `EntityManager` native SQL로 구현한다. 서비스·Domain Model은 Spring Data interface,
+Schema Entity, JPA 타입을 알지 않는다.
 
-따라서 `schema` 패키지의 `@Entity` 는 **영속화 수단이 아니라 스키마 검증 장치**다 —
-`ddl-auto: validate` 가 대조할 대상을 제공하는 것이 유일한 역할이고, 프로덕션 코드에서 한 번도
-참조되지 않는다.
+**1단계 현재 상태**: Schema Entity 26개가 모든 테이블을 매핑하고
+`actor_memory_entries`·`push_tokens`도 `ddl-auto: validate` 대상이 됐다. 다만 운영 코드는 아직
+직접 JDBC 클래스 19개를 사용한다. 이것은 2~6단계 전환 중간 상태이며, 6단계 완료 기준은 운영
+`JdbcTemplate`·`NamedParameterJdbcTemplate`·`DataSource` 직접 접근 0건이다. 테스트 fixture와
+JPA 밖 독립 검증에는 `JdbcTemplate`을 허용한다.
 
-⚠ **Entity 수와 테이블 수가 같지 않다.** `actor_memory_entries` 에 대응하는 `@Entity` 가 애초에
-만들어진 적이 없어 **그 테이블만 `ddl-auto: validate` 밖에 있다**(→ SOMA-398). 둘이 어긋난
-만큼이 검증 밖이라는 뜻이므로, 새 테이블을 만들 때 Entity 를 함께 만들지 않으면 그 테이블은
-조용히 검증 대상에서 빠진다. 이 상태를 정본으로 삼는 용어가 `/CONTEXT.md` 의 **Schema Entity** 이며,
-충돌하는 서술은 그쪽이 맞다. §5-3(엔티티 매핑 함정)은 그래도 유효하다 — 검증 장치로 쓰려면
-매핑이 정확해야 하기 때문이다.
+Schema Entity는 스키마 검증과 런타임 영속화를 함께 맡는다. 자기 feature의 Adapter와 영속 내부
+repository만 Schema Entity를 사용할 수 있고, app·domain과 다른 feature에서는 접근하지 않는다.
 
-**관계 매핑을 만들지 않는다.** FK 컬럼 + 명시적 `join()` 만 쓴다. UUID 컬럼만 두면 1:1 로
-대응되며 lazy loading·N+1·`LazyInitializationException` 이 구조적으로 발생하지 않는다.
-관계 매핑을 추가하는 것은 "개선" 이 아니라 새 위험이다.
+**관계 매핑은 FK ID + 명시적 JOIN이 기본이다.** 같은 feature 안에서 같은 객체 탐색이 서로 다른
+운영 경로 둘 이상에 반복되고 명시적 JOIN보다 단순해지는 것이 증명된 경우에만 lazy 단방향 관계를
+허용한다. 그때는 명시적 fetch 계획과 쿼리 수 회귀 검사가 필요하다. 양방향 관계, JPA cascade,
+orphan removal은 금지하고 DB FK와 `ON DELETE CASCADE`를 유지한다.
 
-### 5-2. JPA 로 표현할 수 없는 것들
+### 5-2. PostgreSQL 의미가 필요한 연산은 custom native SQL 로 남긴다
 
-저장소가 쓰는 SQL 에는 아래가 퍼져 있다 — `UPDATE/INSERT … RETURNING`,
-`ON CONFLICT DO NOTHING RETURNING`, `ON CONFLICT DO UPDATE`, `DISTINCT ON`,
-`FOR SHARE OF <특정 테이블>`, 컬럼식 증감, 상관 서브쿼리로 UPDATE 대상 선택.
+`UPDATE/INSERT … RETURNING`, `ON CONFLICT`, `DISTINCT ON`, 특정 행 잠금, 컬럼식 증감,
+JSON 연산, 상관 서브쿼리 조건부 갱신은 Spring Data `save()`나 조회 후 쓰기로 풀지 않는다.
 
 - `@Modifying` 은 rowcount 만 반환하므로 **RETURNING 계열을 대체할 수 없다.**
-- `save()` 는 SELECT-then-INSERT 라 **upsert 의 동시성 보장을 깨뜨린다.** `ON CONFLICT` 를 쓰는
-  이유가 정확히 그것이다.
-- `ON CONFLICT DO UPDATE` 와 `DO NOTHING` 은 시맨틱이 다르다. 관용구를 복사할 때
-  조용히 갈린다.
+- `save()` 는 upsert가 아니며, 조회 후 쓰기는 **동시성 winner 판정을 깨뜨린다.**
+- `ON CONFLICT DO UPDATE` 와 `DO NOTHING` 은 의미가 다르므로 기존 문장과 판정을 그대로 옮긴다.
+- 반환 행은 data-modifying CTE(`WITH changed AS (… RETURNING …) SELECT …`)와
+  `EntityManager.createNativeQuery(sql, Tuple.class)`의 **별칭 기반 `Tuple`**로 매핑한다.
+  0행·1행·복합 행, DB 생성 UUID, transaction rollback, 행 잠금은
+  `src/test/java/com/acttub/actingapi/platform/schema/EntityManagerNativeSqlIT:updateReturningMapsZeroOneAndCompositeRowsByAlias`와
+  같은 파일의 `pushUpsertReturnsDatabaseGeneratedIdAndRebindsTheSameRow`가 PostgreSQL 18에서 증명한다.
+- 수동 `Object[]` 행 매핑과 직접 JDBC fallback은 허용하지 않는다.
+- native bulk SQL 앞에 필요한 변경은 `flush`하고, 뒤에 같은 Schema Entity를 계속 쓰면
+  `clear` 후 재조회한다.
 
 ### 5-3. 엔티티 매핑 함정
 
@@ -97,10 +102,14 @@ Jackson 설정: `WRITE_DATES_AS_TIMESTAMPS=false`, `Instant` 또는 `OffsetDateT
    대조할 타입이 없어져 함께 은퇴했다. **값 무결성의 그물은 이제 둘이다** — DB 의 CHECK 와,
    모르는 값을 읽을 때 예외를 던지는 `PgEnumConverter#convertToEntityAttribute`.
 2. **PK 는 BIGSERIAL 둘을 뺀 나머지가 전부 UUID 다.** 대부분 앱에서 생성하고,
-   `CoachSession.id` 만 외부에서 온다. `HandoffConfirmation` 은 PK 가 `coaching_handoff_id` 로 **FK 겸 PK** 다.
+   `CoachSession.id` 만 외부에서 오며 `push_tokens.id`는 DB default가 생성한다.
+   `HandoffConfirmation` 은 PK 가 `coaching_handoff_id` 로 **FK 겸 PK** 다.
    Spring Data `save()` 는 `@Id` 가 non-null 이면 `merge()` 를 호출해 불필요한 SELECT 가
    붙는다. → 앱 생성 PK 는 `Persistable<UUID>` 구현(`AppGeneratedUuidEntity`), 그리고
-   **INSERT 전 SELECT 가 없음을 검증**한다(`EntityMappingIT`).
+   **INSERT 전 SELECT 가 없음을 검증**한다
+   (`src/test/java/com/acttub/actingapi/platform/schema/EntityMappingIT:allTwentyOneAppGeneratedIdsUsePersistOnSave`).
+   push token은 `save()`하지 않고 native upsert의 `RETURNING`으로 DB 생성 ID를 받는다
+   (`src/test/java/com/acttub/actingapi/platform/schema/EntityManagerNativeSqlIT:pushUpsertReturnsDatabaseGeneratedIdAndRebindsTheSameRow`).
 3. **`server_default` vs 앱 측 default 이원화.** JPA 에는 "앱 측 default" 개념이 없다. 필드
    초기화값을 주면 항상 INSERT 에 실려 `server_default` 가 발동하지 않는다. 컬럼별로 판정한다.
    `''` 기본값 컬럼은 `coach_sessions.conversation_summary` 와 `reports.comparison` 둘이며
@@ -129,9 +138,11 @@ Jackson 설정: `WRITE_DATES_AS_TIMESTAMPS=false`, `Instant` 또는 `OffsetDateT
    `release` 는 각각 별도 트랜잭션 메서드다. `TransactionBoundaryTest` 가 지킨다.
 2. **내부 헬퍼에 `@Transactional` 을 붙이지 않는다.** 호출자 트랜잭션에 참여하는 것이
    의도다. self-invocation 함정과 겹친다.
-3. **벌크 UPDATE 뒤에 같은 트랜잭션에서 읽은 값을 믿지 않는다.** 지금은 데이터 접근이 전부
-   `JdbcTemplate` 이라 1차 캐시가 없지만(§5-1), Spring Data 저장소를 들이면 이 함정이 함께
-   들어온다.
+3. **기존 `TransactionTemplate` 경계와 `REQUIRES_NEW` propagation을 유지한다.** SOMA-460에서
+   경계를 `@Transactional`로 함께 다시 쓰지 않는다. JDBC autocommit 단일 DML을 EntityManager로
+   옮기면 같은 의미의 가장 좁은 `TransactionTemplate` 경계를 추가한다.
+4. **native bulk UPDATE 뒤에 같은 트랜잭션에서 읽은 managed Schema Entity를 믿지 않는다.**
+   `flush`로 실행 순서를 고정하고, bulk 뒤에는 `clear`·재조회해 1차 캐시의 낡은 값을 버린다.
 
 ### 5-5. Flyway 가 스키마를 소유한다
 
@@ -233,6 +244,22 @@ text 가 되면서 사전순으로 갈리므로, 순서가 화면에 보이는 �
 `CASE` 를 넣으면 `SELECT DISTINCT ON expressions must match initial ORDER BY expressions` 로
 거부당하므로, **바깥 질의로 감싸고 거기서 정렬한다.** 안쪽 정렬은 "종류마다 어느 판을
 고르는가"를, 바깥 정렬은 "고른 것을 어떤 순서로 보이는가"를 정한다.
+
+**④ DML `RETURNING`은 data-modifying CTE + alias `Tuple`로 읽는다.**
+
+```sql
+WITH changed AS (
+    UPDATE ...
+    RETURNING id, status
+)
+SELECT id, status FROM changed
+```
+
+Hibernate native query는 위 문장을 `Tuple.class`로 실행하고 `row.get("id", UUID.class)`처럼
+별칭으로 읽는다. 0행은 빈 목록이고 1행·복합 행도 같은 경로다. 컬럼 순서에 결합하는
+`Object[]`는 쓰지 않는다. native bulk 앞의 pending 변경은 `flush`, 뒤의 managed entity는
+`clear`·재조회한다
+(`src/test/java/com/acttub/actingapi/platform/schema/EntityManagerNativeSqlIT:explicitFlushAndClearPreserveNativeMutationOrderingAndVisibility`).
 
 ## 6. 계약 보존 체크리스트
 

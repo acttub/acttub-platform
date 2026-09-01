@@ -62,6 +62,8 @@ Java 21 + Spring Boot 3.4. **dev·운영 모두 여기가 트래픽을 받습니
 
 각 도메인은 `domain`(규칙을 담은 Domain Model, 프레임워크 import 금지) · `app`(서비스와 포트 선언) · `adapter`(`web`·`db`·`storage`·`media`·`sched`·`resource`·`expo`, 어느 하위에도 안 속하고 여럿을 조립하는 배선 `@Configuration`은 그 층의 루트) · `schema`(Schema Entity)로 서되 **가진 층만큼만**입니다.
 
+📌 **SOMA-460은 JDBC→JPA 전환 중입니다.** Schema Entity는 26개 테이블을 모두 매핑하며 자기 feature의 Adapter와 영속 내부 repository만 사용할 수 있습니다. app·domain과 다른 feature는 Schema Entity나 Spring Data interface를 보면 안 됩니다. 1단계 뒤에도 운영 직접 JDBC 19개는 남아 있고 2~6단계에서 순차 교체하므로, 중간 커밋을 “JPA 전환 완료”로 읽지 않습니다. native DML `RETURNING`은 [CONTRACT.md](CONTRACT.md) §5-2·§5-8의 data-modifying CTE + alias `Tuple` 패턴을 씁니다.
+
 📌 **왜 이 형태인지, 재편 중 무엇을 실측했는지는 [ADR-017~020](../../docs/ADR.md)이 정본입니다** — 층을 왜 다 세우지 않는지(ADR-020), 포트가 실패를 어떻게 알리는지(ADR-018), 서로를 소비하는 두 도메인을 어떻게 정렬하는지(ADR-019). 아래는 **그 결정을 지키며 코드를 고칠 때 필요한 것**만 담습니다.
 
 ### 구조를 지키는 것은 검사 둘뿐입니다
@@ -118,7 +120,7 @@ Java 21 + Spring Boot 3.4. **dev·운영 모두 여기가 트래픽을 받습니
 - ⚠ **동의 목록을 내는 곳이 둘이고, 합치면 안 됩니다.** `/v2/consents/pending`은 최신 문서를 자바에서 걸러 **종류 순**으로, 로그인 응답은 SQL 한 문장으로 **발행 시각 순**으로 냅니다. 각각 다른 엔드포인트의 응답이고, 양쪽 주석이 서로를 가리킵니다.
 - ⚠ **워커 큐 둘은 실패 정책이 다릅니다** — `ExternalOperationAnalysisQueue`(kind=`analyze`, 실패 시 **연습 세션도 실패**) vs `ExternalOperationMemoryQueue`(kind=`memory_update`, 연습은 건드리지 않음).
 
-📌 `memory`에 Schema Entity가 없는 것은 이사 누락이 아닙니다 — `actor_memory_entries`에 대응하는 `@Entity`가 애초에 만들어진 적이 없고, **그 테이블만 `ddl-auto: validate` 밖에 있습니다**(→ SOMA-398).
+📌 `src/main/java/com/acttub/actingapi/feature/memory/schema/ActorMemoryEntryEntity:ActorMemoryEntryEntity`와 `src/main/java/com/acttub/actingapi/feature/push/schema/PushTokenEntity:PushTokenEntity`는 SOMA-460 1단계에서 추가됐습니다. Actor Memory ID는 앱이 만들고 `Persistable` 신규 판정을 쓰지만, push token ID는 DB default가 만들며 `save()`가 아니라 native upsert `RETURNING`으로 받습니다.
 
 ## 계약에서 자주 깨지는 지점
 
