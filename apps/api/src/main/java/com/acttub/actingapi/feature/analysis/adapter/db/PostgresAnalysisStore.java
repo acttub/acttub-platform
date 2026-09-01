@@ -1,5 +1,7 @@
 package com.acttub.actingapi.feature.analysis.adapter.db;
 
+import static com.acttub.actingapi.platform.schema.NativeTuples.list;
+
 import java.time.Duration;
 import java.time.Instant;
 import java.time.OffsetDateTime;
@@ -11,11 +13,14 @@ import com.acttub.actingapi.feature.analysis.app.AnalysisContext;
 import com.acttub.actingapi.feature.analysis.app.AnalysisOperationQueue;
 import com.acttub.actingapi.feature.analysis.app.AnalysisResult;
 import com.acttub.actingapi.feature.analysis.app.AnalysisStore;
+import com.acttub.actingapi.feature.analysis.schema.SummaryEntity;
+import com.acttub.actingapi.feature.analysis.schema.TranscriptEntity;
 import com.acttub.actingapi.platform.ledger.LeaseOwnershipException;
-import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import org.springframework.jdbc.core.JdbcTemplate;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.Tuple;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
@@ -24,17 +29,17 @@ import org.springframework.transaction.support.TransactionTemplate;
 /** 분석 저장 전이. 각 public 변경 메서드는 외부 호출과 분리된 새 트랜잭션이다. */
 @Repository
 public class PostgresAnalysisStore implements AnalysisStore {
-    private final JdbcTemplate jdbc;
+    private final EntityManager entityManager;
     private final ObjectMapper mapper;
     private final AnalysisOperationQueue queue;
     private final TransactionTemplate transaction;
 
     public PostgresAnalysisStore(
-            JdbcTemplate jdbc,
+            EntityManager entityManager,
             ObjectMapper mapper,
             AnalysisOperationQueue queue,
             PlatformTransactionManager transactionManager) {
-        this.jdbc = jdbc;
+        this.entityManager = entityManager;
         this.mapper = mapper;
         this.queue = queue;
         this.transaction = new TransactionTemplate(transactionManager);
@@ -48,7 +53,7 @@ public class PostgresAnalysisStore implements AnalysisStore {
 
     @Override
     public AnalysisContext getContext(UUID operationId) {
-        List<AnalysisContext> rows = jdbc.query("""
+        List<Tuple> rows = list(entityManager.createNativeQuery("""
                 SELECT
                     eo.id AS operation_id,
                     ps.id AS session_id,
@@ -64,23 +69,26 @@ public class PostgresAnalysisStore implements AnalysisStore {
                 FROM external_operations eo
                 JOIN practice_sessions ps ON ps.id = eo.session_id
                 JOIN upload_intents ui ON ui.id = ps.upload_intent_id
-                WHERE eo.id = ?
+                WHERE eo.id = :operationId
                   AND eo.kind = 'analyze'
-                """,
-                (row, number) -> new AnalysisContext(
-                        row.getObject("operation_id", UUID.class),
-                        row.getObject("session_id", UUID.class),
-                        row.getString("object_key"),
-                        row.getString("mime_type"),
-                        row.getString("etag"),
-                        row.getObject("duration_ms", Integer.class),
-                        row.getString("situation"),
-                        row.getString("character_context"),
-                        row.getString("goal"),
-                        row.getString("blockage_kind"),
-                        row.getString("blockage_detail")),
-                operationId);
-        return rows.isEmpty() ? null : rows.getFirst();
+                """, Tuple.class)
+                .setParameter("operationId", operationId));
+        if (rows.isEmpty()) {
+            return null;
+        }
+        Tuple row = rows.getFirst();
+        return new AnalysisContext(
+                row.get("operation_id", UUID.class),
+                row.get("session_id", UUID.class),
+                row.get("object_key", String.class),
+                row.get("mime_type", String.class),
+                row.get("etag", String.class),
+                row.get("duration_ms", Integer.class),
+                row.get("situation", String.class),
+                row.get("character_context", String.class),
+                row.get("goal", String.class),
+                row.get("blockage_kind", String.class),
+                row.get("blockage_detail", String.class));
     }
 
     @Override
@@ -111,13 +119,20 @@ public class PostgresAnalysisStore implements AnalysisStore {
     @Override
     public List<String> sweepExpiredUploads(Instant now) {
         OffsetDateTime expiredAt = now.atOffset(ZoneOffset.UTC);
-        List<String> result = transaction.execute(status -> jdbc.queryForList("""
-                UPDATE upload_intents
-                SET status = 'expired'
-                WHERE status = 'pending'
-                  AND expires_at < ?
-                RETURNING object_key
-                """, String.class, expiredAt));
+        List<String> result = transaction.execute(status ->
+                list(entityManager.createNativeQuery("""
+                        WITH expired AS (
+                            UPDATE upload_intents
+                            SET status = 'expired'
+                            WHERE status = 'pending'
+                              AND expires_at < :expiredAt
+                            RETURNING object_key
+                        )
+                        SELECT object_key FROM expired
+                        """, Tuple.class)
+                        .setParameter("expiredAt", expiredAt)).stream()
+                        .map(row -> row.get("object_key", String.class))
+                        .toList());
         return result == null ? List.of() : result;
     }
 
@@ -132,79 +147,80 @@ public class PostgresAnalysisStore implements AnalysisStore {
             AnalysisResult result,
             String model,
             OffsetDateTime now) {
-        List<UUID> sessionIds = jdbc.queryForList("""
-                SELECT session_id
+        List<Tuple> operations = list(entityManager.createNativeQuery("""
+                SELECT session_id AS session_id
                 FROM external_operations
-                WHERE id = ?
+                WHERE id = :operationId
                   AND kind = 'analyze'
-                """, UUID.class, operationId);
-        if (sessionIds.isEmpty()) {
+                """, Tuple.class)
+                .setParameter("operationId", operationId));
+        if (operations.isEmpty()) {
             throw new IllegalStateException("external operation not found");
         }
-        UUID sessionId = sessionIds.getFirst();
+        UUID sessionId = operations.getFirst().get("session_id", UUID.class);
         UUID summaryId = UUID.randomUUID();
-        String observations = json(result.observationPack().observations());
-        String uncertainties = json(result.observationPack().uncertainties());
-        String raw = json(result.observationPack());
-        jdbc.update("""
-                INSERT INTO summaries(
-                    id, session_id, model, was_compressed, raw,
-                    observations_json, uncertainties_json)
-                VALUES (?, ?, ?, ?, ?::jsonb, ?::jsonb, ?::jsonb)
-                """,
+        JsonNode observations = mapper.valueToTree(result.observationPack().observations());
+        JsonNode uncertainties = mapper.valueToTree(result.observationPack().uncertainties());
+        JsonNode raw = mapper.valueToTree(result.observationPack());
+        entityManager.persist(new SummaryEntity(
                 summaryId,
                 sessionId,
                 model,
                 result.wasCompressed(),
                 raw,
                 observations,
-                uncertainties);
+                uncertainties));
         for (int index = 0; index < result.transcripts().size(); index++) {
-            jdbc.update("""
-                    INSERT INTO transcripts(id, session_id, ord, text)
-                    VALUES (?, ?, ?, ?)
-                    """, UUID.randomUUID(), sessionId, index, result.transcripts().get(index));
+            entityManager.persist(new TranscriptEntity(
+                    UUID.randomUUID(), sessionId, index, result.transcripts().get(index)));
         }
-        jdbc.update("""
+        // Hibernate write-behind가 뒤의 상태 전이보다 INSERT를 늦추지 않게 순서를 고정한다.
+        entityManager.flush();
+
+        entityManager.createNativeQuery("""
                 UPDATE practice_sessions
                 SET status = 'analyzed',
-                    updated_at = ?
-                WHERE id = ?
-                """, now, sessionId);
-        jdbc.update("""
+                    updated_at = :now
+                WHERE id = :sessionId
+                """)
+                .setParameter("now", now)
+                .setParameter("sessionId", sessionId)
+                .executeUpdate();
+        entityManager.createNativeQuery("""
                 UPDATE coach_sessions
-                SET summary_id = ?, updated_at = ?
-                WHERE practice_session_id = ?
+                SET summary_id = :summaryId, updated_at = :now
+                WHERE practice_session_id = :sessionId
                   AND summary_id IS NULL
-                """, summaryId, now, sessionId);
+                """)
+                .setParameter("summaryId", summaryId)
+                .setParameter("now", now)
+                .setParameter("sessionId", sessionId)
+                .executeUpdate();
 
         ObjectNode response = mapper.createObjectNode();
         response.put("session_id", sessionId.toString());
         response.put("status", "analyzed");
         response.put("summary_id", summaryId.toString());
-        int finished = jdbc.update("""
+        int finished = entityManager.createNativeQuery("""
                 UPDATE external_operations
                 SET status = 'succeeded',
-                    response_payload = ?::jsonb,
+                    response_payload = CAST(:responsePayload AS jsonb),
                     error_code = NULL,
                     lease_token = NULL,
                     lease_expires_at = NULL,
-                    updated_at = ?
-                WHERE id = ?
+                    updated_at = :now
+                WHERE id = :operationId
                   AND status = 'running'
-                  AND lease_token = ?
-                """, response.toString(), now, operationId, leaseToken);
+                  AND lease_token = :leaseToken
+                """)
+                .setParameter("responsePayload", response.toString())
+                .setParameter("now", now)
+                .setParameter("operationId", operationId)
+                .setParameter("leaseToken", leaseToken)
+                .executeUpdate();
         if (finished == 0) {
             throw new LeaseOwnershipException("external operation lease is not owned");
         }
         return summaryId;
-    }
-
-    private String json(Object value) {
-        try {
-            return mapper.writeValueAsString(value);
-        } catch (JsonProcessingException exception) {
-            throw new IllegalStateException("analysis result is not serializable", exception);
-        }
     }
 }

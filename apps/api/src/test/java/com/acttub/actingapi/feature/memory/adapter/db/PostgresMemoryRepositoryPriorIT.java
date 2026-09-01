@@ -3,9 +3,16 @@ package com.acttub.actingapi.feature.memory.adapter.db;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.acttub.actingapi.support.PostgresContainerSupport;
+import com.acttub.actingapi.platform.schema.ActorMemoryField;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -241,6 +248,78 @@ class PostgresMemoryRepositoryPriorIT {
                 WHERE session_id=? AND kind='memory_update'
                 """, Integer.class, practiceId);
         assertThat(jobs).isEqualTo(1);
+    }
+
+    @Test
+    void actorWriteWinsAnAgentRaceAndMemoryKeepsTheDisplayOrder() throws Exception {
+        UUID userId = insertUser("memory-race@example.com");
+        UUID practiceId = insertPractice(userId);
+        CountDownLatch start = new CountDownLatch(1);
+
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            Future<?> actor = executor.submit(() -> {
+                start.await();
+                return repository.writeAsActor(userId, ActorMemoryField.GOAL, "배우의 목표");
+            });
+            Future<?> agent = executor.submit(() -> {
+                start.await();
+                return repository.writeAsAgent(
+                        userId, ActorMemoryField.GOAL, "추출된 목표", practiceId);
+            });
+            start.countDown();
+            actor.get(5, TimeUnit.SECONDS);
+            agent.get(5, TimeUnit.SECONDS);
+        } finally {
+            executor.shutdownNow();
+            executor.awaitTermination(5, TimeUnit.SECONDS);
+        }
+
+        repository.writeAsActor(userId, ActorMemoryField.SPEECH_ACTUAL, "실제 화법");
+        repository.writeAsActor(userId, ActorMemoryField.GENDER, "성별");
+        repository.writeAsActor(userId, ActorMemoryField.BLOCKAGE, "막힘");
+        repository.writeAsActor(userId, ActorMemoryField.AGE, "나이");
+        repository.writeAsActor(userId, ActorMemoryField.SPEECH_SELF, "스스로 본 화법");
+
+        assertThat(repository.writeAsAgent(
+                userId, ActorMemoryField.GOAL, "뒤늦은 추출", practiceId)).isNull();
+        assertThat(repository.list(userId).stream().map(entry -> entry.field()).toList())
+                .isEqualTo(List.of(
+                        "gender", "age", "goal", "blockage", "speech_self", "speech_actual"));
+        assertThat(repository.list(userId))
+                .filteredOn(entry -> entry.field().equals("goal"))
+                .singleElement()
+                .satisfies(entry -> {
+                    assertThat(entry.value()).isEqualTo("배우의 목표");
+                    assertThat(entry.writtenByActor()).isTrue();
+                    assertThat(entry.sourcePracticeSessionId()).isNull();
+                });
+
+        repository.delete(userId, ActorMemoryField.GOAL);
+        assertThat(repository.list(userId)).noneMatch(entry -> entry.field().equals("goal"));
+        repository.delete(userId, null);
+        assertThat(repository.list(userId)).isEmpty();
+    }
+
+    @Test
+    void memoryUpdateMaterialKeepsTranscriptOrderAndOnlyActorTurns() {
+        UUID userId = insertUser("memory-material@example.com");
+        UUID practiceId = insertPractice(userId);
+        jdbc.update("""
+                INSERT INTO transcripts (id,session_id,ord,text)
+                VALUES (?, ?, 1, '두 번째 전사'), (?, ?, 0, '첫 번째 전사')
+                """, UUID.randomUUID(), practiceId, UUID.randomUUID(), practiceId);
+        UUID coachId = insertCoach(practiceId, "closed", NOW);
+        insertTurn(coachId, 0, "actor", "첫 배우 말");
+        insertTurn(coachId, 1, "ai", "코치 말");
+        insertTurn(coachId, 2, "actor", "둘째 배우 말");
+
+        var material = repository.material(practiceId);
+
+        assertThat(material.userId()).isEqualTo(userId);
+        assertThat(material.practiceSessionId()).isEqualTo(practiceId);
+        assertThat(material.transcripts()).containsExactly("첫 번째 전사", "두 번째 전사");
+        assertThat(material.actorMessages()).containsExactly("첫 배우 말", "둘째 배우 말");
     }
 
     private void setCreatedAt(UUID practiceId, OffsetDateTime at) {

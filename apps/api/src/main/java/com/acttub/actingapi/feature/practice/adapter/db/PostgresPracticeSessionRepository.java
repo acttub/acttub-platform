@@ -1,8 +1,8 @@
 package com.acttub.actingapi.feature.practice.adapter.db;
 
-import java.sql.ResultSet;
-import java.sql.SQLException;
+import java.time.Instant;
 import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -13,33 +13,36 @@ import com.acttub.actingapi.feature.practice.domain.Observation;
 import com.acttub.actingapi.feature.practice.domain.ObservationPack;
 import com.acttub.actingapi.feature.practice.domain.PracticeSession;
 import com.acttub.actingapi.feature.practice.domain.SessionDetail;
+import com.acttub.actingapi.feature.practice.schema.PracticeSessionEntity;
+import com.acttub.actingapi.platform.schema.NativeTuples;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.springframework.jdbc.core.JdbcTemplate;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.Tuple;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * 손으로 쓴 SQL 로 포트를 구현한다. JPA 로 가지 않는 이유는 SPEC §5-5 에 있다 — Schema Entity 는
- * {@code ddl-auto: validate} 의 대조 대상일 뿐 호출되지 않는다.
- *
- * <p>JSONB 를 도메인 타입으로 옮기는 일이 여기 있다. 안쪽은 Jackson 을 모르므로, 트리를 읽어
- * {@link Observation} 으로 바꾸는 것이 이 어댑터의 몫이다.
+ * 기본 세션 읽기는 Spring Data로, 복합 projection·조건부 상태 전이는 native SQL로 구현한다.
+ * JSONB를 도메인 타입으로 옮기는 일은 Jackson을 아는 이 Adapter에 남는다.
  */
 @Repository
 class PostgresPracticeSessionRepository implements PracticeSessionRepository {
-    private final JdbcTemplate jdbc;
+    private final PracticeSessionJpaRepository sessions;
+    private final EntityManager entityManager;
     private final ObjectMapper mapper;
     private final TransactionTemplate transaction;
 
     PostgresPracticeSessionRepository(
-            JdbcTemplate jdbc,
+            PracticeSessionJpaRepository sessions,
+            EntityManager entityManager,
             ObjectMapper mapper,
             PlatformTransactionManager transactionManager) {
-        this.jdbc = jdbc;
+        this.sessions = sessions;
+        this.entityManager = entityManager;
         this.mapper = mapper;
         this.transaction = new TransactionTemplate(transactionManager);
         this.transaction.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
@@ -47,189 +50,225 @@ class PostgresPracticeSessionRepository implements PracticeSessionRepository {
 
     @Override
     public boolean uploadExists(UUID userId, UUID uploadId) {
-        Integer found = jdbc.query("""
-                SELECT 1 FROM upload_intents WHERE id=? AND user_id=?
-                """, (row, number) -> 1, uploadId, userId).stream().findFirst().orElse(null);
-        return found != null;
+        return !NativeTuples.list(entityManager.createNativeQuery("""
+                SELECT id AS id
+                FROM upload_intents
+                WHERE id = :uploadId AND user_id = :userId
+                """, Tuple.class)
+                .setParameter("uploadId", uploadId)
+                .setParameter("userId", userId)).isEmpty();
     }
 
     @Override
     public PracticeSession find(UUID userId, UUID sessionId) {
-        List<PracticeSession> rows = jdbc.query(sessionSelect() + """
-                WHERE ps.id=? AND ps.user_id=? AND ps.hidden_at IS NULL
-                """, this::session, sessionId, userId);
-        return rows.isEmpty() ? null : rows.getFirst();
+        return sessions.findByIdAndUserIdAndHiddenAtIsNull(sessionId, userId)
+                .map(PostgresPracticeSessionRepository::session)
+                .orElse(null);
     }
 
     @Override
     public List<PracticeSession> list(UUID userId) {
-        return jdbc.query(sessionSelect() + """
-                WHERE ps.user_id=? AND ps.hidden_at IS NULL
-                ORDER BY ps.created_at DESC, ps.id DESC
-                """, this::session, userId);
+        return sessions.findByUserIdAndHiddenAtIsNullOrderByCreatedAtDescIdDesc(userId)
+                .stream()
+                .map(PostgresPracticeSessionRepository::session)
+                .toList();
     }
 
     @Override
     public UUID parentOf(UUID userId, UUID sessionId) {
-        List<UUID> rows = jdbc.query("""
-                SELECT ps.continued_from
+        List<Tuple> rows = NativeTuples.list(entityManager.createNativeQuery("""
+                SELECT ps.continued_from AS continued_from
                 FROM practice_sessions ps
-                WHERE ps.id=? AND ps.user_id=? AND ps.hidden_at IS NULL
-                """, (row, number) -> row.getObject("continued_from", UUID.class),
-                sessionId, userId);
-        return rows.isEmpty() ? null : rows.getFirst();
+                WHERE ps.id = :sessionId
+                  AND ps.user_id = :userId
+                  AND ps.hidden_at IS NULL
+                """, Tuple.class)
+                .setParameter("sessionId", sessionId)
+                .setParameter("userId", userId));
+        return rows.isEmpty() ? null : rows.getFirst().get("continued_from", UUID.class);
     }
 
     @Override
     public AnalysisStatus status(UUID userId, UUID sessionId) {
-        List<AnalysisStatus> rows = jdbc.query("""
+        List<Tuple> rows = NativeTuples.list(entityManager.createNativeQuery("""
                 SELECT ps.status,
-                    CASE WHEN ps.status='failed' THEN (
+                    CASE WHEN ps.status = 'failed' THEN (
                         SELECT eo.error_code
                         FROM external_operations eo
-                        WHERE eo.session_id=ps.id
-                          AND eo.kind='analyze'
-                        ORDER BY eo.created_at DESC,eo.id DESC
+                        WHERE eo.session_id = ps.id
+                          AND eo.kind = 'analyze'
+                        ORDER BY eo.created_at DESC, eo.id DESC
                         LIMIT 1
                     ) END AS error_code
                 FROM practice_sessions ps
-                WHERE ps.id=? AND ps.user_id=? AND ps.hidden_at IS NULL
-                """, (row, number) -> new AnalysisStatus(
-                        row.getString("status"), row.getString("error_code")),
-                sessionId, userId);
-        return rows.isEmpty() ? null : rows.getFirst();
+                WHERE ps.id = :sessionId
+                  AND ps.user_id = :userId
+                  AND ps.hidden_at IS NULL
+                """, Tuple.class)
+                .setParameter("sessionId", sessionId)
+                .setParameter("userId", userId));
+        if (rows.isEmpty()) {
+            return null;
+        }
+        Tuple row = rows.getFirst();
+        return new AnalysisStatus(
+                row.get("status", String.class), row.get("error_code", String.class));
     }
 
     @Override
     public SessionDetail detail(UUID userId, UUID sessionId) {
-        List<SessionDetail> rows = jdbc.query("""
+        List<Tuple> rows = NativeTuples.list(entityManager.createNativeQuery("""
                 SELECT
-                    ps.id,ps.user_id,ps.upload_intent_id,ps.status,
-                    ps.situation,ps.character_context,ps.goal,ps.blockage_kind,
-                    ps.sub_branch,ps.blockage_detail,ps.continued_from,ps.created_at,ps.updated_at,
+                    ps.id, ps.user_id, ps.upload_intent_id, ps.status,
+                    ps.situation, ps.character_context, ps.goal, ps.blockage_kind,
+                    ps.sub_branch, ps.blockage_detail, ps.continued_from,
+                    ps.created_at, ps.updated_at,
                     ui.object_key,
                     summary.id AS summary_id,
                     summary.observations_json::text AS observations_json,
                     summary.uncertainties_json::text AS uncertainties_json,
                     operation.error_code
                 FROM practice_sessions ps
-                JOIN upload_intents ui ON ui.id=ps.upload_intent_id
+                JOIN upload_intents ui ON ui.id = ps.upload_intent_id
                 LEFT JOIN LATERAL (
-                    SELECT s.id,s.observations_json,s.uncertainties_json
-                    FROM summaries s WHERE s.session_id=ps.id
-                    ORDER BY s.created_at DESC,s.id DESC LIMIT 1
+                    SELECT s.id, s.observations_json, s.uncertainties_json
+                    FROM summaries s
+                    WHERE s.session_id = ps.id
+                    ORDER BY s.created_at DESC, s.id DESC
+                    LIMIT 1
                 ) summary ON true
                 LEFT JOIN LATERAL (
                     SELECT eo.error_code
                     FROM external_operations eo
-                    WHERE eo.session_id=ps.id AND eo.kind='analyze'
-                    ORDER BY eo.created_at DESC,eo.id DESC LIMIT 1
+                    WHERE eo.session_id = ps.id AND eo.kind = 'analyze'
+                    ORDER BY eo.created_at DESC, eo.id DESC
+                    LIMIT 1
                 ) operation ON true
-                WHERE ps.id=? AND ps.user_id=? AND ps.hidden_at IS NULL
-                """, this::detail, sessionId, userId);
-        return rows.isEmpty() ? null : rows.getFirst();
+                WHERE ps.id = :sessionId
+                  AND ps.user_id = :userId
+                  AND ps.hidden_at IS NULL
+                """, Tuple.class)
+                .setParameter("sessionId", sessionId)
+                .setParameter("userId", userId));
+        return rows.isEmpty() ? null : detail(rows.getFirst());
     }
 
     @Override
     public boolean hide(UUID userId, UUID sessionId, OffsetDateTime now) {
-        return jdbc.update("""
-                UPDATE practice_sessions SET hidden_at=?,updated_at=?
-                WHERE id=? AND user_id=? AND hidden_at IS NULL
-                """, now, now, sessionId, userId) > 0;
+        return Boolean.TRUE.equals(transaction.execute(status ->
+                entityManager.createNativeQuery("""
+                        UPDATE practice_sessions
+                        SET hidden_at = :now, updated_at = :now
+                        WHERE id = :sessionId
+                          AND user_id = :userId
+                          AND hidden_at IS NULL
+                        """)
+                        .setParameter("now", now)
+                        .setParameter("sessionId", sessionId)
+                        .setParameter("userId", userId)
+                        .executeUpdate() > 0));
     }
 
     @Override
     public boolean resumeFailedOperation(UUID userId, UUID operationId, OffsetDateTime now) {
-        Boolean resumed = transaction.execute(status -> {
-            List<ResumeRow> rows = jdbc.query("""
-                    SELECT eo.session_id
+        return Boolean.TRUE.equals(transaction.execute(status -> {
+            List<Tuple> rows = NativeTuples.list(entityManager.createNativeQuery("""
+                    SELECT eo.session_id AS session_id
                     FROM external_operations eo
-                    WHERE eo.id=? AND eo.user_id=?
-                      AND eo.kind='analyze'
-                      AND eo.status='failed'
-                      AND eo.attempt_count<3 AND eo.lease_token IS NULL
+                    WHERE eo.id = :operationId
+                      AND eo.user_id = :userId
+                      AND eo.kind = 'analyze'
+                      AND eo.status = 'failed'
+                      AND eo.attempt_count < 3
+                      AND eo.lease_token IS NULL
                     FOR UPDATE
-                    """, (row, number) -> new ResumeRow(row.getObject("session_id", UUID.class)),
-                    operationId, userId);
+                    """, Tuple.class)
+                    .setParameter("operationId", operationId)
+                    .setParameter("userId", userId));
             if (rows.isEmpty()) {
                 return false;
             }
-            UUID sessionId = rows.getFirst().sessionId();
-            int session = jdbc.update("""
+            UUID sessionId = rows.getFirst().get("session_id", UUID.class);
+            int session = entityManager.createNativeQuery("""
                     UPDATE practice_sessions
-                    SET status='analyzing',updated_at=?
-                    WHERE id=? AND user_id=? AND hidden_at IS NULL
-                      AND status='failed'
-                    """, now, sessionId, userId);
+                    SET status = 'analyzing', updated_at = :now
+                    WHERE id = :sessionId
+                      AND user_id = :userId
+                      AND hidden_at IS NULL
+                      AND status = 'failed'
+                    """)
+                    .setParameter("now", now)
+                    .setParameter("sessionId", sessionId)
+                    .setParameter("userId", userId)
+                    .executeUpdate();
             if (session == 0) {
                 return false;
             }
-            jdbc.update("""
+            entityManager.createNativeQuery("""
                     UPDATE external_operations
-                    SET status='pending',error_code=NULL,
-                        -- SQLAlchemy JSONB None과 같은 JSON 리터럴 null이다.
-                        response_payload='null'::jsonb,updated_at=?
-                    WHERE id=?
-                    """, now, operationId);
+                    SET status = 'pending',
+                        error_code = NULL,
+                        response_payload = 'null'::jsonb,
+                        updated_at = :now
+                    WHERE id = :operationId
+                    """)
+                    .setParameter("now", now)
+                    .setParameter("operationId", operationId)
+                    .executeUpdate();
             return true;
-        });
-        return Boolean.TRUE.equals(resumed);
+        }));
     }
 
-    private String sessionSelect() {
-        return """
-                SELECT ps.id,ps.user_id,ps.upload_intent_id,ps.status,
-                    ps.situation,ps.character_context,ps.goal,ps.blockage_kind,
-                    ps.sub_branch,ps.blockage_detail,ps.continued_from,
-                    ps.created_at,ps.updated_at
-                FROM practice_sessions ps
-                """;
-    }
-
-    private PracticeSession session(ResultSet row, int number) throws SQLException {
+    private static PracticeSession session(PracticeSessionEntity entity) {
         return new PracticeSession(
-                row.getObject("id", UUID.class),
-                row.getObject("user_id", UUID.class),
-                row.getObject("upload_intent_id", UUID.class),
-                row.getString("status"),
-                row.getString("situation"),
-                row.getString("character_context"),
-                row.getString("goal"),
-                row.getString("blockage_kind"),
-                row.getString("sub_branch"),
-                row.getString("blockage_detail"),
-                row.getObject("continued_from", UUID.class),
-                row.getObject("created_at", OffsetDateTime.class),
-                row.getObject("updated_at", OffsetDateTime.class));
+                entity.getId(),
+                entity.getUserId(),
+                entity.getUploadIntentId(),
+                entity.getStatus().dbValue(),
+                entity.getSituation(),
+                entity.getCharacterContext(),
+                entity.getGoal(),
+                entity.getBlockageKind(),
+                entity.getSubBranch(),
+                entity.getBlockageDetail(),
+                entity.getContinuedFrom(),
+                entity.getCreatedAt().atOffset(ZoneOffset.UTC),
+                entity.getUpdatedAt().atOffset(ZoneOffset.UTC));
     }
 
-    /**
-     * 요약을 <b>분석이 끝난 세션에 한해</b> 도메인 타입으로 옮긴다.
-     *
-     * <p>실패했다가 재분석 중인 세션에도 지난 요약 행이 남아 있는데, 그것은 어차피 응답에 실리지
-     * 않는다(서비스가 상태를 보고 버린다). 그런 행까지 여기서 읽으면 <b>보여주지도 않을 데이터의
-     * 흠결이 500 이 되어 새어 나온다</b> — 옮기기 전에는 컨트롤러가 상태를 본 다음에야 변환했으므로
-     * 그 경로가 없었다.
-     */
-    private SessionDetail detail(ResultSet row, int number) throws SQLException {
-        PracticeSession session = session(row, number);
-        UUID summaryId = row.getObject("summary_id", UUID.class);
+    private static PracticeSession session(Tuple row) {
+        return new PracticeSession(
+                row.get("id", UUID.class),
+                row.get("user_id", UUID.class),
+                row.get("upload_intent_id", UUID.class),
+                row.get("status", String.class),
+                row.get("situation", String.class),
+                row.get("character_context", String.class),
+                row.get("goal", String.class),
+                row.get("blockage_kind", String.class),
+                row.get("sub_branch", String.class),
+                row.get("blockage_detail", String.class),
+                row.get("continued_from", UUID.class),
+                row.get("created_at", Instant.class).atOffset(ZoneOffset.UTC),
+                row.get("updated_at", Instant.class).atOffset(ZoneOffset.UTC));
+    }
+
+    /** 분석이 끝난 세션에 한해 Observation을 도메인 타입으로 옮긴다. */
+    private SessionDetail detail(Tuple row) {
+        PracticeSession session = session(row);
+        UUID summaryId = row.get("summary_id", UUID.class);
         ObservationPack summary = summaryId == null || !session.analyzed() ? null
                 : new ObservationPack(
                         summaryId,
-                        observations(json(row.getString("observations_json"))),
-                        uncertainties(json(row.getString("uncertainties_json"))));
+                        observations(json(row.get("observations_json", String.class))),
+                        uncertainties(json(row.get("uncertainties_json", String.class))));
         return new SessionDetail(
                 session,
-                row.getString("object_key"),
+                row.get("object_key", String.class),
                 summary,
-                row.getString("error_code"));
+                row.get("error_code", String.class));
     }
 
-    /**
-     * 관찰 배열을 읽는다. 키가 없으면 파이썬과 같이 빈 값으로 떨어진다 —
-     * {@code path} 는 없는 키에 대해 결측 노드를 주고, 그 노드는 0 과 {@code null} 로 읽힌다.
-     */
     private static List<Observation> observations(JsonNode node) {
         if (node == null) {
             return List.of();
@@ -252,17 +291,14 @@ class PostgresPracticeSessionRepository implements PracticeSessionRepository {
         return List.copyOf(values);
     }
 
-    private JsonNode json(String value) throws SQLException {
+    private JsonNode json(String value) {
         if (value == null) {
             return null;
         }
         try {
             return mapper.readTree(value);
         } catch (JsonProcessingException exception) {
-            throw new SQLException("invalid JSONB value", exception);
+            throw new IllegalStateException("practice session contains invalid JSON", exception);
         }
-    }
-
-    private record ResumeRow(UUID sessionId) {
     }
 }

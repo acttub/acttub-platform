@@ -23,7 +23,7 @@
 |---|---|
 | 런타임 | Java 21 + Spring Boot 3.4, Spring Web MVC + **virtual threads** (WebFlux 금지) |
 | 빌드 | Gradle (Kotlin DSL) + wrapper, `bootJar` |
-| 영속 | Spring Data JPA + `EntityManager` native SQL로 일원화한다(ADR-024, §5-1·§5-2). **SOMA-460 전환 중**이라 4단계 뒤에도 운영 직접 JDBC 10개는 5~6단계에서 순차 교체한다 |
+| 영속 | Spring Data JPA + `EntityManager` native SQL로 일원화한다(ADR-024, §5-1·§5-2). **SOMA-460 전환 중**이라 5단계 뒤의 운영 직접 JDBC 3개는 6단계에서 교체한다 |
 | 스키마 | **Flyway 가 소유**. `V1__baseline.sql` 에 스키마가 동결돼 있다(§5-5). Hibernate `ddl-auto: validate` (`create`/`update` 절대 금지) |
 | DB 연결 | `DATABASE_URL`(`postgresql://…`)을 **JDBC URL + username/password 로 변환**(§5-6). 변수 이름은 유지 |
 | 스펙 | springdoc-openapi (`openapi_3_1`) |
@@ -53,10 +53,11 @@ Jackson 설정: `WRITE_DATES_AS_TIMESTAMPS=false`, `Instant` 또는 `OffsetDateT
 §5-2의 `EntityManager` native SQL로 구현한다. 서비스·Domain Model은 Spring Data interface,
 Schema Entity, JPA 타입을 알지 않는다.
 
-**4단계 현재 상태**: Schema Entity 26개가 모든 테이블을 매핑하고
+**5단계 현재 상태**: Schema Entity 26개가 모든 테이블을 매핑하고
 `actor_memory_entries`·`push_tokens`도 `ddl-auto: validate` 대상이다. upload·consent·admin과
-auth·profile·push·Community는 Spring Data JPA와 `EntityManager`로 옮겼고, 운영 직접 JDBC는
-10개 클래스·87개 호출이 남았다. 이것은 5~6단계 전환 중간 상태이며, 6단계 완료 기준은 운영
+auth·profile·push·Community, practice·analysis·memory와 External Operation 공통 모듈은 Spring
+Data JPA와 `EntityManager`로 옮겼고, 운영 직접 JDBC는 coach·report의 3개 클래스·30개 호출이
+남았다. 이것은 6단계 전환 전 중간 상태이며, 6단계 완료 기준은 운영
 `JdbcTemplate`·`NamedParameterJdbcTemplate`·`DataSource` 직접 접근 0건이다. 테스트 fixture와
 JPA 밖 독립 검증에는 `JdbcTemplate`을 허용한다.
 
@@ -119,7 +120,9 @@ JSON 연산, 상관 서브쿼리 조건부 갱신은 Spring Data `save()`나 조
 4. **JSONB 8개** — `summaries.observation`(NULL 허용)/`.raw`/`.observations_json`/
    `.uncertainties_json`, `coaching_handoffs.handoff_json`, `practice_reports.report_json`,
    `reports.biggest_problem`, `external_operations.response_payload`(NULL 허용).
-   **JSON null(`'null'::jsonb`)과 SQL NULL 을 구분한다.** 현재 코드는 SQL NULL 을 의도한다.
+   **JSON null(`'null'::jsonb`)과 SQL NULL 을 구분한다.** External Operation 신규 행의 아직 없는
+   응답은 SQL NULL이고, claim·release·fail·resume·sweep가 이전 응답을 비우는 값은 Python
+   SQLAlchemy JSONB `None`과 같은 JSON null이다. 완료 응답은 JSON 객체다.
 5. **BIGSERIAL PK 2개** — `Anomaly.id`, `CoachTurn.id`. `IDENTITY` 전략은 JDBC 배치 INSERT 를
    막는다.
 6. **부분 인덱스와 CHECK 제약**은 Hibernate 가 만들 수도 검증할 수도 없다. Flyway 가 DDL 을

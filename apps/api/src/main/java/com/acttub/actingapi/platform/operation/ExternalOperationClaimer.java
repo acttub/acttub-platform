@@ -1,5 +1,7 @@
 package com.acttub.actingapi.platform.operation;
 
+import static com.acttub.actingapi.platform.schema.NativeTuples.list;
+
 import java.time.Duration;
 import java.time.Instant;
 import java.time.OffsetDateTime;
@@ -8,7 +10,8 @@ import java.util.List;
 import java.util.UUID;
 
 import com.acttub.actingapi.platform.ledger.LeaseOwnershipException;
-import org.springframework.jdbc.core.JdbcTemplate;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.Tuple;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
@@ -26,13 +29,13 @@ public class ExternalOperationClaimer {
     private static final String ANALYZE = "analyze";
     private static final String MAX_ATTEMPTS_ERROR = "max_attempts_exceeded";
 
-    private final JdbcTemplate jdbc;
+    private final EntityManager entityManager;
     private final TransactionTemplate transactionTemplate;
 
     public ExternalOperationClaimer(
-            JdbcTemplate jdbc,
+            EntityManager entityManager,
             PlatformTransactionManager transactionManager) {
-        this.jdbc = jdbc;
+        this.entityManager = entityManager;
         this.transactionTemplate = new TransactionTemplate(transactionManager);
         this.transactionTemplate.setPropagationBehavior(
                 TransactionDefinition.PROPAGATION_REQUIRES_NEW);
@@ -71,18 +74,22 @@ public class ExternalOperationClaimer {
     public boolean release(UUID operationId, UUID leaseToken, Instant now) {
         OffsetDateTime releasedAt = now.atOffset(ZoneOffset.UTC);
         return Boolean.TRUE.equals(transactionTemplate.execute(status -> {
-            int released = jdbc.update("""
+            int released = entityManager.createNativeQuery("""
                     UPDATE external_operations
                     SET status = 'pending',
                         response_payload = 'null'::jsonb,
                         error_code = NULL,
                         lease_token = NULL,
                         lease_expires_at = NULL,
-                        updated_at = ?
-                    WHERE id = ?
+                        updated_at = :releasedAt
+                    WHERE id = :operationId
                       AND status = 'running'
-                      AND lease_token = ?
-                    """, releasedAt, operationId, leaseToken);
+                      AND lease_token = :leaseToken
+                    """)
+                    .setParameter("releasedAt", releasedAt)
+                    .setParameter("operationId", operationId)
+                    .setParameter("leaseToken", leaseToken)
+                    .executeUpdate();
             if (released == 0) {
                 throw leaseOwnershipError();
             }
@@ -102,32 +109,33 @@ public class ExternalOperationClaimer {
             UUID leaseToken,
             OffsetDateTime claimedAt,
             OffsetDateTime expiresAt) {
-        List<UUID> claimed = jdbc.query("""
-                UPDATE external_operations
-                SET status = 'running',
-                    attempt_count = attempt_count + 1,
-                    lease_token = ?,
-                    lease_expires_at = ?,
-                    error_code = NULL,
-                    response_payload = 'null'::jsonb,
-                    updated_at = ?
-                WHERE id = ?
-                  AND attempt_count < ?
-                  AND (
-                      (status = 'pending' AND lease_token IS NULL)
-                      OR (status = 'running' AND lease_expires_at < ?)
-                      OR (status = 'failed' AND lease_token IS NULL)
-                  )
-                RETURNING id
-                """,
-                (row, rowNumber) -> row.getObject("id", UUID.class),
-                leaseToken,
-                expiresAt,
-                claimedAt,
-                operationId,
-                MAX_EXTERNAL_OPERATION_ATTEMPTS,
-                claimedAt);
-        return claimed.isEmpty() ? null : claimed.getFirst();
+        List<Tuple> claimed = list(entityManager.createNativeQuery("""
+                WITH claimed AS (
+                    UPDATE external_operations
+                    SET status = 'running',
+                        attempt_count = attempt_count + 1,
+                        lease_token = :leaseToken,
+                        lease_expires_at = :expiresAt,
+                        error_code = NULL,
+                        response_payload = 'null'::jsonb,
+                        updated_at = :claimedAt
+                    WHERE id = :operationId
+                      AND attempt_count < :maxAttempts
+                      AND (
+                          (status = 'pending' AND lease_token IS NULL)
+                          OR (status = 'running' AND lease_expires_at < :claimedAt)
+                          OR (status = 'failed' AND lease_token IS NULL)
+                      )
+                    RETURNING id
+                )
+                SELECT id FROM claimed
+                """, Tuple.class)
+                .setParameter("leaseToken", leaseToken)
+                .setParameter("expiresAt", expiresAt)
+                .setParameter("claimedAt", claimedAt)
+                .setParameter("operationId", operationId)
+                .setParameter("maxAttempts", MAX_EXTERNAL_OPERATION_ATTEMPTS));
+        return claimed.isEmpty() ? null : claimed.getFirst().get("id", UUID.class);
     }
 
     private UUID claimNextInTransaction(
@@ -135,62 +143,61 @@ public class ExternalOperationClaimer {
             UUID leaseToken,
             OffsetDateTime claimedAt,
             OffsetDateTime expiresAt) {
-        List<ClaimedOperation> claimed = jdbc.query("""
-                UPDATE external_operations
-                SET status = 'running',
-                    attempt_count = attempt_count + 1,
-                    lease_token = ?,
-                    lease_expires_at = ?,
-                    error_code = NULL,
-                    response_payload = 'null'::jsonb,
-                    updated_at = ?
-                WHERE id = (
-                    SELECT id
-                    FROM external_operations
-                    WHERE kind = ?
-                      AND attempt_count < ?
+        List<Tuple> claimed = list(entityManager.createNativeQuery("""
+                WITH claimed AS (
+                    UPDATE external_operations
+                    SET status = 'running',
+                        attempt_count = attempt_count + 1,
+                        lease_token = :leaseToken,
+                        lease_expires_at = :expiresAt,
+                        error_code = NULL,
+                        response_payload = 'null'::jsonb,
+                        updated_at = :claimedAt
+                    WHERE id = (
+                        SELECT id
+                        FROM external_operations
+                        WHERE kind = :kind
+                          AND attempt_count < :maxAttempts
+                          AND (
+                              (status = 'pending' AND lease_token IS NULL)
+                              OR (status = 'running' AND lease_expires_at < :claimedAt)
+                          )
+                        ORDER BY created_at, id
+                        LIMIT 1
+                    )
+                      AND kind = :kind
+                      AND attempt_count < :maxAttempts
                       AND (
                           (status = 'pending' AND lease_token IS NULL)
-                          OR (status = 'running' AND lease_expires_at < ?)
+                          OR (status = 'running' AND lease_expires_at < :claimedAt)
                       )
-                    ORDER BY created_at, id
-                    LIMIT 1
+                    RETURNING id, session_id
                 )
-                  AND kind = ?
-                  AND attempt_count < ?
-                  AND (
-                      (status = 'pending' AND lease_token IS NULL)
-                      OR (status = 'running' AND lease_expires_at < ?)
-                  )
-                RETURNING id, session_id
-                """,
-                (row, rowNumber) -> new ClaimedOperation(
-                        row.getObject("id", UUID.class),
-                        row.getObject("session_id", UUID.class)),
-                leaseToken,
-                expiresAt,
-                claimedAt,
-                kind,
-                MAX_EXTERNAL_OPERATION_ATTEMPTS,
-                claimedAt,
-                kind,
-                MAX_EXTERNAL_OPERATION_ATTEMPTS,
-                claimedAt);
+                SELECT id, session_id FROM claimed
+                """, Tuple.class)
+                .setParameter("leaseToken", leaseToken)
+                .setParameter("expiresAt", expiresAt)
+                .setParameter("claimedAt", claimedAt)
+                .setParameter("kind", kind)
+                .setParameter("maxAttempts", MAX_EXTERNAL_OPERATION_ATTEMPTS));
 
         if (claimed.isEmpty()) {
             return null;
         }
 
-        ClaimedOperation operation = claimed.getFirst();
+        Tuple operation = claimed.getFirst();
         if (ANALYZE.equals(kind)) {
-            jdbc.update("""
+            entityManager.createNativeQuery("""
                     UPDATE practice_sessions
                     SET status = 'analyzing',
-                        updated_at = ?
-                    WHERE id = ?
-                    """, claimedAt, operation.sessionId());
+                        updated_at = :claimedAt
+                    WHERE id = :sessionId
+                    """)
+                    .setParameter("claimedAt", claimedAt)
+                    .setParameter("sessionId", operation.get("session_id", UUID.class))
+                    .executeUpdate();
         }
-        return operation.id();
+        return operation.get("id", UUID.class);
     }
 
     private boolean failInTransaction(
@@ -199,36 +206,46 @@ public class ExternalOperationClaimer {
             String errorCode,
             boolean failSession,
             OffsetDateTime failedAt) {
-        List<UUID> sessionIds = jdbc.queryForList("""
-                SELECT session_id
+        List<Tuple> operations = list(entityManager.createNativeQuery("""
+                SELECT session_id AS session_id
                 FROM external_operations
-                WHERE id = ?
-                """, UUID.class, operationId);
-        if (sessionIds.isEmpty()) {
+                WHERE id = :operationId
+                """, Tuple.class)
+                .setParameter("operationId", operationId));
+        if (operations.isEmpty()) {
             return false;
         }
 
         if (failSession) {
-            jdbc.update("""
+            entityManager.createNativeQuery("""
                     UPDATE practice_sessions
                     SET status = 'failed',
-                        updated_at = ?
-                    WHERE id = ?
-                    """, failedAt, sessionIds.getFirst());
+                        updated_at = :failedAt
+                    WHERE id = :sessionId
+                    """)
+                    .setParameter("failedAt", failedAt)
+                    .setParameter(
+                            "sessionId", operations.getFirst().get("session_id", UUID.class))
+                    .executeUpdate();
         }
 
-        int finished = jdbc.update("""
+        int finished = entityManager.createNativeQuery("""
                 UPDATE external_operations
                 SET status = 'failed',
                     response_payload = 'null'::jsonb,
-                    error_code = ?,
+                    error_code = :errorCode,
                     lease_token = NULL,
                     lease_expires_at = NULL,
-                    updated_at = ?
-                WHERE id = ?
+                    updated_at = :failedAt
+                WHERE id = :operationId
                   AND status = 'running'
-                  AND lease_token = ?
-                """, errorCode, failedAt, operationId, leaseToken);
+                  AND lease_token = :leaseToken
+                """)
+                .setParameter("errorCode", errorCode)
+                .setParameter("failedAt", failedAt)
+                .setParameter("operationId", operationId)
+                .setParameter("leaseToken", leaseToken)
+                .executeUpdate();
         if (finished == 0) {
             throw leaseOwnershipError();
         }
@@ -236,42 +253,39 @@ public class ExternalOperationClaimer {
     }
 
     private int sweepMaxAttemptsInTransaction(OffsetDateTime sweptAt) {
-        List<SweptOperation> swept = jdbc.query("""
-                UPDATE external_operations
-                SET status = 'failed',
-                    error_code = ?,
-                    response_payload = 'null'::jsonb,
-                    lease_token = NULL,
-                    lease_expires_at = NULL,
-                    updated_at = ?
-                WHERE status IN (
-                    'pending',
-                    'running',
-                    'failed'
+        List<Tuple> swept = list(entityManager.createNativeQuery("""
+                WITH swept AS (
+                    UPDATE external_operations
+                    SET status = 'failed',
+                        error_code = :errorCode,
+                        response_payload = 'null'::jsonb,
+                        lease_token = NULL,
+                        lease_expires_at = NULL,
+                        updated_at = :sweptAt
+                    WHERE status IN ('pending', 'running', 'failed')
+                      AND attempt_count >= :maxAttempts
+                      AND (error_code IS NULL OR error_code <> :errorCode)
+                      AND (lease_token IS NULL OR lease_expires_at < :sweptAt)
+                    RETURNING session_id, kind
                 )
-                  AND attempt_count >= ?
-                  AND (error_code IS NULL OR error_code <> ?)
-                  AND (lease_token IS NULL OR lease_expires_at < ?)
-                RETURNING session_id, kind
-                """,
-                (row, rowNumber) -> new SweptOperation(
-                        row.getObject("session_id", UUID.class),
-                        row.getString("kind")),
-                MAX_ATTEMPTS_ERROR,
-                sweptAt,
-                MAX_EXTERNAL_OPERATION_ATTEMPTS,
-                MAX_ATTEMPTS_ERROR,
-                sweptAt);
+                SELECT session_id, kind FROM swept
+                """, Tuple.class)
+                .setParameter("errorCode", MAX_ATTEMPTS_ERROR)
+                .setParameter("sweptAt", sweptAt)
+                .setParameter("maxAttempts", MAX_EXTERNAL_OPERATION_ATTEMPTS));
 
-        for (SweptOperation operation : swept) {
-            if (ANALYZE.equals(operation.kind())) {
-                jdbc.update("""
+        for (Tuple operation : swept) {
+            if (ANALYZE.equals(operation.get("kind", String.class))) {
+                entityManager.createNativeQuery("""
                         UPDATE practice_sessions
                         SET status = 'failed',
-                            updated_at = ?
-                        WHERE id = ?
+                            updated_at = :sweptAt
+                        WHERE id = :sessionId
                           AND status = 'analyzing'
-                        """, sweptAt, operation.sessionId());
+                        """)
+                        .setParameter("sweptAt", sweptAt)
+                        .setParameter("sessionId", operation.get("session_id", UUID.class))
+                        .executeUpdate();
             }
         }
         return swept.size();
@@ -279,11 +293,5 @@ public class ExternalOperationClaimer {
 
     private static LeaseOwnershipException leaseOwnershipError() {
         return new LeaseOwnershipException("external operation lease is not owned");
-    }
-
-    private record ClaimedOperation(UUID id, UUID sessionId) {
-    }
-
-    private record SweptOperation(UUID sessionId, String kind) {
     }
 }

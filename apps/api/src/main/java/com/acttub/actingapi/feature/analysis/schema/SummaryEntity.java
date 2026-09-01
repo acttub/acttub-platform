@@ -57,9 +57,15 @@ public class SummaryEntity extends AppGeneratedUuidEntity {
 
     public SummaryEntity(UUID id, UUID sessionId, String model, JsonNode raw, JsonNode observations,
             JsonNode uncertainties) {
+        this(id, sessionId, model, false, raw, observations, uncertainties);
+    }
+
+    public SummaryEntity(UUID id, UUID sessionId, String model, boolean wasCompressed,
+            JsonNode raw, JsonNode observations, JsonNode uncertainties) {
         super(id);
         this.sessionId = sessionId;
         this.model = model;
+        this.wasCompressed = wasCompressed;
         this.raw = raw;
         this.observationsJson = observations;
         this.uncertaintiesJson = uncertainties;
