@@ -28,7 +28,7 @@ import * as amplitude from "@amplitude/analytics-browser";
 import { sessionReplayPlugin } from "@amplitude/plugin-session-replay-browser";
 import { toDurationBucket } from "./ga";
 import type { UploadStage } from "../api/v2/uploads";
-import type { TheoryChoiceId } from "../../features/practice/theory-choice";
+import type { PurposeChoiceId } from "../../features/practice/prep-choices";
 import { scrubUrl } from "../observability/sentry-shared";
 
 export { toDurationBucket } from "./ga";
@@ -287,14 +287,15 @@ export function trackPracticeSessionCreated(
   subBranch: BlockageSubBranch,
   /** Scene Context 세 칸을 모두 비운 채 만든 연습인가. 완주율을 갈라 보는 데 쓴다. */
   sceneSkipped: boolean,
-  theoryChoice?: TheoryChoiceId | null,
+  /** 어떤 연습에서 찍은 장면인지(M4 준비 화면). 서버 계약에 자리가 없어 계측에만 싣는다. */
+  practicePurpose?: PurposeChoiceId | null,
 ): void {
   track("practice_session_created", {
     duration_bucket: toDurationBucket(durationMs),
     kind,
     sub_branch: subBranch,
     scene_skipped: sceneSkipped,
-    ...(theoryChoice ? { theory_choice: theoryChoice } : {}),
+    ...(practicePurpose ? { practice_purpose: practicePurpose } : {}),
   });
 }
 

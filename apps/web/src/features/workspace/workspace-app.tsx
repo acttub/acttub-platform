@@ -59,13 +59,13 @@ import {
   trackPracticeVideoSelected,
 } from "@/lib/analytics/amplitude";
 import { ExitReviewModal, useExitReview } from "./exit-review";
-import { BlockageFields } from "../practice/blockage-selection";
+import { DifficultyFields, PurposeFields } from "../practice/prep-choice-sections";
 import {
-  completeBlockageFlowWithDefault,
-  initialBlockageFlowState,
-  type BlockageFlowState,
+  difficultySelection,
   type BlockageSelection,
-} from "../practice/blockage-flow";
+  type DifficultyChoiceId,
+  type PurposeChoiceId,
+} from "../practice/prep-choices";
 import {
   createCoachStartCoordinator,
   type CoachStartCoordinator,
@@ -80,11 +80,6 @@ import {
   isSceneContextBlank,
   type SceneContextDraft,
 } from "../practice/practice-setup-flow";
-import {
-  THEORY_CHOICES,
-  toggleTheoryChoice,
-  type TheoryChoiceId,
-} from "../practice/theory-choice";
 import {
   analysisEventsForStatus,
   useAnalysisProgress,
@@ -281,10 +276,8 @@ function WorkspaceInner() {
   const [situation, setSituation] = useState("");
   const [character, setCharacter] = useState("");
   const [goal, setGoal] = useState("");
-  const [blockageFlow, setBlockageFlow] = useState<BlockageFlowState>(
-    initialBlockageFlowState,
-  );
-  const [theoryChoice, setTheoryChoice] = useState<TheoryChoiceId | null>(null);
+  const [difficulty, setDifficulty] = useState<DifficultyChoiceId | null>(null);
+  const [purpose, setPurpose] = useState<PurposeChoiceId | null>(null);
   // 이 셋을 보는 자리가 셋이다 — 건너뛰기를 열지 말지, 세션 생성 요청에 실을 값,
   // 그리고 건너뛴 연습으로 셀지. 한 벌로 묶어 그 셋이 같은 답을 보게 한다.
   const sceneDraft = useMemo<SceneContextDraft>(
@@ -438,8 +431,8 @@ function WorkspaceInner() {
     setSituation("");
     setCharacter("");
     setGoal("");
-    setBlockageFlow(initialBlockageFlowState);
-    setTheoryChoice(null);
+    setDifficulty(null);
+    setPurpose(null);
     setDrawerOpen(false);
     replaceUrl("/practice/new");
   }, [clearWork, discardPendingUpload, reportProgress, setCurrentSession]);
@@ -688,9 +681,9 @@ function WorkspaceInner() {
   const begin = useCallback(async () => {
     if (screen.kind !== "prep" || !screen.video) return;
     const { video, continueFrom } = screen;
-    const blockage = completeBlockageFlowWithDefault(blockageFlow);
+    const blockage = difficultySelection(difficulty);
     if (isSceneContextBlank(sceneDraft)) trackPracticeSceneSkipped();
-    if (blockageFlow.kind) {
+    if (difficulty) {
       trackPracticeBlockageSubmitted(
         blockage.blockage_kind,
         blockage.sub_branch,
@@ -759,7 +752,7 @@ function WorkspaceInner() {
         blockage.blockage_kind,
         blockage.sub_branch,
         isSceneContextBlank(sceneDraft),
-        theoryChoice,
+        purpose,
       );
       trackAnalysis(session.session_id);
       void getPracticeSession(session.session_id).then(
@@ -781,8 +774,8 @@ function WorkspaceInner() {
     }
   }, [
     screen,
-    blockageFlow,
-    theoryChoice,
+    difficulty,
+    purpose,
     sceneDraft,
     enterAnalysis,
     isCurrentSession,
@@ -1330,10 +1323,13 @@ function WorkspaceInner() {
                     ready={body.footer.ready}
                     onStart={() => void begin()}
                   />
-                  <div className="grid gap-2.5 sm:gap-3">
-                    <p className="px-1 pt-1 text-sm font-semibold text-[#6b7684]">
-                      아래 내용들 중 일부만이라도 채우면 더 좋은 리뷰가 나와요
-                    </p>
+                  <div className="grid gap-5 sm:gap-6">
+                    <div className="flex items-center gap-2.5 rounded-2xl bg-[#f0f6ff] px-4 py-3">
+                      <span aria-hidden="true" className="text-base leading-none">✨</span>
+                      <p className="text-[13px] font-bold leading-5 text-[#3d5a80]">
+                        막히는 지점을 더 잘 찾기 위해 장면 정보를 간단히 물어볼게요.
+                      </p>
+                    </div>
                     <SceneForm
                       situation={visibleScene.situation}
                       character={visibleScene.character}
@@ -1342,46 +1338,8 @@ function WorkspaceInner() {
                       onCharacter={setCharacter}
                       onGoal={setGoal}
                     />
-                    <BlockageFields state={blockageFlow} onChange={setBlockageFlow} />
-                    <section className="grid gap-3.5 rounded-[18px] bg-white p-3 shadow-[0_12px_36px_rgba(25,31,40,0.05)] sm:rounded-[20px] sm:p-4">
-                      <header>
-                        <h2 className="text-[15px] font-black leading-tight tracking-[-0.03em] text-[#191f28] sm:text-base">
-                          어떤 이론을 기반으로 볼까요?
-                        </h2>
-                        <p className="mt-1 text-[13px] font-semibold leading-5 text-[#6b7684]">
-                          고르지 않아도 돼요 — 그러면 코치가 골라요.
-                        </p>
-                      </header>
-                      <div className="flex flex-wrap gap-2">
-                        {THEORY_CHOICES.map((choice) => {
-                          const selected = theoryChoice === choice.id;
-                          return (
-                            <button
-                              key={choice.id}
-                              type="button"
-                              aria-pressed={selected}
-                              onClick={() =>
-                                setTheoryChoice((current) =>
-                                  toggleTheoryChoice(current, choice.id),
-                                )
-                              }
-                              className={`min-h-11 rounded-full px-3.5 py-2 text-sm font-black transition ${
-                                selected
-                                  ? "bg-[#e8f3ff] text-[#3182f6]"
-                                  : "bg-[#f2f4f6] text-[#4e5968]"
-                              }`}
-                            >
-                              {choice.label}
-                            </button>
-                          );
-                        })}
-                      </div>
-                      {theoryChoice ? (
-                        <p className="text-[13px] font-semibold leading-5 text-[#4e5968]">
-                          {THEORY_CHOICES.find((choice) => choice.id === theoryChoice)?.description}
-                        </p>
-                      ) : null}
-                    </section>
+                    <PurposeFields selected={purpose} onChange={setPurpose} />
+                    <DifficultyFields selected={difficulty} onChange={setDifficulty} />
                   </div>
                 </>
               ) : body.footer.phase === "upload" ? (
@@ -1839,16 +1797,14 @@ const SceneForm = memo(function SceneForm({
   onGoal: (v: string) => void;
 }) {
   return (
-    <section
-      className="rounded-[18px] bg-white p-3 shadow-[0_12px_36px_rgba(25,31,40,0.05)] sm:rounded-[20px] sm:p-4"
-    >
-      <h2 className="text-[15px] font-black tracking-[-0.03em] sm:text-base">
+    <section>
+      <h2 className="text-[15px] font-black leading-tight tracking-[-0.01em] text-[#191f28] sm:text-base">
         이 장면에서 무엇을 연기했는지 알려 주세요
       </h2>
       <p className="mt-1 text-[13px] font-semibold leading-5 text-[#6b7684]">
-        비워 두셔도 괜찮아요. 적어 두면 코치가 그 장면을 알고 물어봐요.
+        정확히 쓰지 않아도 괜찮아요. 작성한 내용은 질문을 만드는 데만 사용해요.
       </p>
-      <div className="mt-2.5 grid gap-2">
+      <div className="mt-3.5 grid gap-3.5">
         <SceneField label="상황" value={situation} onChange={onSituation} placeholder="이별을 통보받은 직후, 카페에서" />
         <SceneField label="인물" value={character} onChange={onCharacter} placeholder="담담한 척하는 20대 후반 여성" />
         <SceneField label="목표" value={goal} onChange={onGoal} placeholder="상대가 마음을 돌려 다시 앉게 만들기" />
@@ -1869,13 +1825,13 @@ function SceneField({
   placeholder: string;
 }) {
   return (
-    <label className="grid grid-cols-[40px_minmax(0,1fr)] items-center gap-2 sm:grid-cols-[48px_minmax(0,1fr)] sm:gap-3">
-      <span className="text-xs font-black text-[#333d4b]">{label}</span>
+    <label className="grid gap-1.5">
+      <span className="text-sm font-black text-[#333d4b]">{label}</span>
       <input
         value={value}
         placeholder={placeholder}
         onChange={(event) => onChange(event.target.value)}
-        className="h-10 w-full rounded-xl border border-[#e5e8eb] bg-[#f8fbff] px-3 text-sm font-semibold text-[#191f28] outline-none transition placeholder:text-[#b0b8c1] focus:border-[#3182f6] focus:bg-white focus:ring-4 focus:ring-[#e8f3ff]"
+        className="h-11 w-full rounded-xl border border-[#e5e8eb] bg-[#f8fafc] px-3.5 text-sm font-semibold text-[#191f28] outline-none transition placeholder:text-[#b0b8c1] focus:border-[#3182f6] focus:bg-white focus:ring-4 focus:ring-[#e8f3ff]"
       />
     </label>
   );
@@ -1989,7 +1945,7 @@ function ProgressPanel({
 function IntroLine() {
   return (
     <p className="text-center text-xs font-semibold leading-5 text-[#8b95a1]">
-      영상에서 눈에 남은 곳을 묻고, 마지막 한 문장은 배우님이 직접 씁니다.{" "}
+      <span aria-hidden="true">🔒</span> 업로드한 영상은 분석 후 안전하게 처리돼요{" "}
       <Link href="/terms" className="font-black text-[#4e5968] underline-offset-2 hover:underline">
         안전 약속 보기
       </Link>

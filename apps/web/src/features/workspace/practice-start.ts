@@ -14,7 +14,7 @@ import type {
 import { hasVideoWebCodecsSupport } from "@/lib/media/compress-video";
 import { prepareVideoUpload } from "@/lib/media/upload-preflight";
 
-import type { BlockageSelection } from "../practice/blockage-flow";
+import type { BlockageSelection } from "../practice/prep-choices";
 import {
   buildPracticeSessionRequest,
   type SceneContextDraft,

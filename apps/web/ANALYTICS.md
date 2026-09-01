@@ -150,14 +150,14 @@ GA4는 `isMeasuredHost()`로 로컬 트래픽을 막지만, Amplitude는 그 가
 | --- | --- | --- |
 | `practice_prep_opened` | prep 모드 진입 | `entry`: `new` \| `reset` |
 | `practice_video_selected` | 파일 선택 완료 | `size_bucket`, `is_reselect` |
-| `practice_blockage_submitted` | 도움을 실제로 고른 채 시작 | `kind`, `sub_branch`, `has_detail` |
+| `practice_blockage_submitted` | 어려움을 실제로 고른 채 시작 | `kind`, `sub_branch`, `has_detail` |
 | `practice_upload_failed` | 업로드·세션 생성 실패 | `stage`: `preflight`\|`intent`\|`put`\|`complete`\|`session_create`, `reason_code` |
-| `practice_session_created` | 세션 생성 성공 | `duration_bucket`, `kind`, `sub_branch`, `scene_skipped`, 선택 시에만 `theory_choice` |
+| `practice_session_created` | 세션 생성 성공 | `duration_bucket`, `kind`, `sub_branch`, `scene_skipped`, 선택 시에만 `practice_purpose` |
 | `practice_analysis_settled` | 분석 종료 | `result`: `analyzed`\|`failed`, `error_code`, `wait_bucket` |
 
-`practice_blockage_submitted`는 도움 갈래를 실제로 고른 사람만 세며, 자동으로 채우는 `그 외` 기본값은 포함하지 않는다. 업로드는 준비 화면의 시작 버튼을 누른 뒤 바로 시작하고, 실패는 같은 진행 자리에서 안내한다.
+`practice_blockage_submitted`는 어려움 칩을 실제로 고른 사람만 세며, 자동으로 채우는 `그 외` 기본값은 포함하지 않는다. 고른 칩의 문장 라벨이 `blockage_detail`로 실리므로 이 이벤트의 `has_detail`은 고른 사람에게 항상 참이다. 업로드는 준비 화면의 시작 버튼을 누른 뒤 바로 시작하고, 실패는 같은 진행 자리에서 안내한다.
 
-`theory_choice`는 준비 화면에서 접근법을 고른 경우에만 SOMA-456의 리소스 id를 싣는다. 고르지 않았거나 고른 칩을 다시 눌러 해제한 경우에는 속성 자체를 보내지 않는다.
+`practice_purpose`는 준비 화면에서 연습 목적(입시 준비·정기 촬영·오디션 준비)을 고른 경우에만 싣는다. 고르지 않았거나 고른 칩을 다시 눌러 해제한 경우에는 속성 자체를 보내지 않는다. (이론 칩과 `theory_choice`는 M4 재구성으로 화면에서 빠지며 수집이 중단됐다 — SOMA-456 수요 검증은 다른 경로가 필요하다.)
 
 
 `error_code`는 `PracticeSessionDetail.error_code`의 4종 enum(`gemini_timeout`·`gemini_parse_error`·`unsupported_media`·`max_attempts_exceeded`)을 그대로 싣는다. 지금 화면은 이 값을 전혀 쓰지 않는다.
