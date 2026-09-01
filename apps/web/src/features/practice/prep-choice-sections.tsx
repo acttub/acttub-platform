@@ -48,7 +48,7 @@ function ChoiceChip({
       type="button"
       aria-pressed={selected}
       onClick={onClick}
-      className={`min-h-10 flex-1 whitespace-nowrap rounded-full px-4 py-2 text-[13px] font-bold transition ${
+      className={`min-h-10 flex-1 whitespace-nowrap rounded-full px-4 py-2 text-xs font-bold transition ${
         selected ? "bg-[#e8f3ff] text-[#3182f6]" : "bg-[#f2f4f6] text-[#4e5968]"
       }`}
     >
