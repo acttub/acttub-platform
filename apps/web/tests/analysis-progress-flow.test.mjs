@@ -419,14 +419,13 @@ test("failed면 같은 진행 자리에 그냥 시작 버튼을 보이고 근거
   );
 });
 
-test("시작 버튼이 먼저 서고, 선택 입력은 그 아래 안내 배너와 함께 선다", () => {
+test("시작 버튼이 먼저 서고, 선택 입력은 그 아래 안내 문장과 함께 선다", () => {
   const workspace = readWeb("src/features/workspace/workspace-app.tsx");
 
   // 2026-08-30 최우영 결정 — 접힌 토글을 없애고, "질문 받기"를 선택 입력 위로 올렸다.
-  // 2026-09-01 M4 레퍼런스 — 안내 문장을 배너로 바꾸고, 선택 입력은 장면 → 연습 목적 → 어려움 순.
   assert.match(
     workspace,
-    /<StartRow[\s\S]{0,700}?막히는 지점을 더 잘 찾기 위해 장면 정보를 간단히 물어볼게요[\s\S]{0,900}?<SceneForm[\s\S]{0,900}?<PurposeFields[\s\S]{0,300}?<DifficultyFields/,
+    /<StartRow[\s\S]{0,700}?막히는 지점을 더 잘 찾기 위해 장면 정보를 간단히 물어볼게요[\s\S]{0,900}?<SceneForm[\s\S]{0,900}?<BlockageFields/,
   );
 });
 

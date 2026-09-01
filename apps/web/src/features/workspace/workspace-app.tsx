@@ -59,13 +59,18 @@ import {
   trackPracticeVideoSelected,
 } from "@/lib/analytics/amplitude";
 import { ExitReviewModal, useExitReview } from "./exit-review";
-import { DifficultyFields, PurposeFields } from "../practice/prep-choice-sections";
+import { BlockageFields } from "../practice/blockage-selection";
 import {
-  difficultySelection,
+  completeBlockageFlowWithDefault,
+  initialBlockageFlowState,
+  type BlockageFlowState,
   type BlockageSelection,
-  type DifficultyChoiceId,
-  type PurposeChoiceId,
-} from "../practice/prep-choices";
+} from "../practice/blockage-flow";
+import {
+  THEORY_CHOICES,
+  toggleTheoryChoice,
+  type TheoryChoiceId,
+} from "../practice/theory-choice";
 import {
   createCoachStartCoordinator,
   type CoachStartCoordinator,
@@ -276,8 +281,10 @@ function WorkspaceInner() {
   const [situation, setSituation] = useState("");
   const [character, setCharacter] = useState("");
   const [goal, setGoal] = useState("");
-  const [difficulty, setDifficulty] = useState<DifficultyChoiceId | null>(null);
-  const [purpose, setPurpose] = useState<PurposeChoiceId | null>(null);
+  const [blockageFlow, setBlockageFlow] = useState<BlockageFlowState>(
+    initialBlockageFlowState,
+  );
+  const [theoryChoice, setTheoryChoice] = useState<TheoryChoiceId | null>(null);
   // 이 셋을 보는 자리가 셋이다 — 건너뛰기를 열지 말지, 세션 생성 요청에 실을 값,
   // 그리고 건너뛴 연습으로 셀지. 한 벌로 묶어 그 셋이 같은 답을 보게 한다.
   const sceneDraft = useMemo<SceneContextDraft>(
@@ -431,8 +438,8 @@ function WorkspaceInner() {
     setSituation("");
     setCharacter("");
     setGoal("");
-    setDifficulty(null);
-    setPurpose(null);
+    setBlockageFlow(initialBlockageFlowState);
+    setTheoryChoice(null);
     setDrawerOpen(false);
     replaceUrl("/practice/new");
   }, [clearWork, discardPendingUpload, reportProgress, setCurrentSession]);
@@ -681,9 +688,9 @@ function WorkspaceInner() {
   const begin = useCallback(async () => {
     if (screen.kind !== "prep" || !screen.video) return;
     const { video, continueFrom } = screen;
-    const blockage = difficultySelection(difficulty);
+    const blockage = completeBlockageFlowWithDefault(blockageFlow);
     if (isSceneContextBlank(sceneDraft)) trackPracticeSceneSkipped();
-    if (difficulty) {
+    if (blockageFlow.kind) {
       trackPracticeBlockageSubmitted(
         blockage.blockage_kind,
         blockage.sub_branch,
@@ -752,7 +759,7 @@ function WorkspaceInner() {
         blockage.blockage_kind,
         blockage.sub_branch,
         isSceneContextBlank(sceneDraft),
-        purpose,
+        theoryChoice,
       );
       trackAnalysis(session.session_id);
       void getPracticeSession(session.session_id).then(
@@ -774,8 +781,8 @@ function WorkspaceInner() {
     }
   }, [
     screen,
-    difficulty,
-    purpose,
+    blockageFlow,
+    theoryChoice,
     sceneDraft,
     enterAnalysis,
     isCurrentSession,
@@ -1338,8 +1345,46 @@ function WorkspaceInner() {
                       onCharacter={setCharacter}
                       onGoal={setGoal}
                     />
-                    <PurposeFields selected={purpose} onChange={setPurpose} />
-                    <DifficultyFields selected={difficulty} onChange={setDifficulty} />
+                    <BlockageFields state={blockageFlow} onChange={setBlockageFlow} />
+                    <section className="grid gap-3">
+                      <header>
+                        <h2 className="text-[15px] font-black leading-tight tracking-[-0.01em] text-[#191f28] sm:text-base">
+                          어떤 이론을 기반으로 볼까요?
+                        </h2>
+                        <p className="mt-1 text-xs font-semibold leading-[18px] text-[#6b7684]">
+                          고르지 않아도 돼요 — 그러면 코치가 골라요.
+                        </p>
+                      </header>
+                      <div className="flex flex-wrap gap-2">
+                        {THEORY_CHOICES.map((choice) => {
+                          const selected = theoryChoice === choice.id;
+                          return (
+                            <button
+                              key={choice.id}
+                              type="button"
+                              aria-pressed={selected}
+                              onClick={() =>
+                                setTheoryChoice((current) =>
+                                  toggleTheoryChoice(current, choice.id),
+                                )
+                              }
+                              className={`min-h-10 flex-1 whitespace-nowrap rounded-full px-4 py-2 text-[12.5px] font-bold transition ${
+                                selected
+                                  ? "bg-[#e8f3ff] text-[#3182f6]"
+                                  : "bg-[#f2f4f6] text-[#4e5968]"
+                              }`}
+                            >
+                              {choice.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      {theoryChoice ? (
+                        <p className="text-xs font-semibold leading-[18px] text-[#4e5968]">
+                          {THEORY_CHOICES.find((choice) => choice.id === theoryChoice)?.description}
+                        </p>
+                      ) : null}
+                    </section>
                   </div>
                 </>
               ) : body.footer.phase === "upload" ? (
