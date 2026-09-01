@@ -1,19 +1,17 @@
 "use client";
 
-import { useState } from "react";
 import {
   BLOCKAGE_CHOICES,
-  BLOCKAGE_DETAIL_TITLE,
-  blockageDetailExamples,
   chooseBlockageKind,
-  chooseBlockageSubBranch,
-  subBranchChoices,
   updateBlockageDetail,
   type BlockageFlowState,
-  type BlockageSubBranch,
 } from "./blockage-flow";
 
-/** 준비 화면이 드는 상태를 그대로 편집한다. 시작 버튼은 이 상태를 읽어 요청을 만든다. */
+/**
+ * 준비 화면이 드는 상태를 그대로 편집한다. 시작 버튼은 이 상태를 읽어 요청을 만든다.
+ * 하위 갈래 선택은 2026-09-01 걷어냈다 — 대분류와 상세 서술 칸 하나만 남기고,
+ * sub_branch 는 기본값 "그 외"로 간다.
+ */
 export function BlockageFields({
   state,
   onChange,
@@ -21,26 +19,41 @@ export function BlockageFields({
   state: BlockageFlowState;
   onChange: (state: BlockageFlowState) => void;
 }) {
+  const selectedChoice = BLOCKAGE_CHOICES.find((choice) => choice.value === state.kind);
+
   return (
     <section className="grid gap-3">
       <SectionHeading
         title="이번 연습에서 어떤 도움을 받고 싶나요?"
         description="고르지 않아도 영상에서 보이는 것부터 같이 찾아요."
       />
-      <MainBranchPicker
-        selected={state.kind}
-        onChoose={(kind) => onChange(chooseBlockageKind(state, kind))}
-      />
-      {state.kind ? (
-        <DetailPanel
-          state={state}
-          kind={state.kind}
-          onSubBranch={(subBranch) =>
-            onChange(chooseBlockageSubBranch(state, subBranch))
-          }
-          onDetail={(detail) => onChange(updateBlockageDetail(state, detail))}
-        />
+      <div className="flex flex-wrap gap-2">
+        {BLOCKAGE_CHOICES.map((choice) => (
+          <ChoiceChip
+            key={choice.value}
+            label={choice.label}
+            selected={state.kind === choice.value}
+            onClick={() => onChange(chooseBlockageKind(state, choice.value))}
+          />
+        ))}
+      </div>
+      {selectedChoice ? (
+        <p className="text-xs font-semibold leading-[18px] text-[#4e5968]">
+          {selectedChoice.description}
+        </p>
       ) : null}
+
+      <SectionHeading
+        title="상세히 적어 주세요"
+        description="안 적어도 괜찮아요. 적으면 질문이 더 맞아떨어져요."
+      />
+      <textarea
+        rows={4}
+        value={state.detail}
+        onChange={(event) => onChange(updateBlockageDetail(state, event.target.value))}
+        placeholder="편하게 적어 주세요"
+        className="min-h-[104px] w-full resize-none rounded-xl border border-[#e5e8eb] bg-[#f8fafc] p-3.5 text-sm font-semibold leading-6 text-[#191f28] outline-none transition placeholder:text-[13px] placeholder:text-[#b0b8c1] focus:border-[#3182f6] focus:bg-white focus:ring-4 focus:ring-[#e8f3ff]"
+      />
     </section>
   );
 }
@@ -86,114 +99,5 @@ function ChoiceChip({
     >
       {label}
     </button>
-  );
-}
-
-function MainBranchPicker({
-  selected,
-  onChoose,
-}: {
-  selected: BlockageFlowState["kind"];
-  onChoose: (kind: (typeof BLOCKAGE_CHOICES)[number]["value"]) => void;
-}) {
-  const selectedChoice = BLOCKAGE_CHOICES.find((choice) => choice.value === selected);
-
-  return (
-    <div className="grid gap-2">
-      <div className="flex flex-wrap gap-2">
-        {BLOCKAGE_CHOICES.map((choice) => (
-          <ChoiceChip
-            key={choice.value}
-            label={choice.label}
-            selected={selected === choice.value}
-            onClick={() => onChoose(choice.value)}
-          />
-        ))}
-      </div>
-      {selectedChoice ? (
-        <p className="text-sm font-semibold leading-5 text-[#4e5968]">
-          {selectedChoice.description}
-        </p>
-      ) : null}
-    </div>
-  );
-}
-
-function DetailPanel({
-  state,
-  kind,
-  onSubBranch,
-  onDetail,
-}: {
-  state: BlockageFlowState;
-  kind: NonNullable<BlockageFlowState["kind"]>;
-  onSubBranch: (subBranch: BlockageSubBranch) => void;
-  onDetail: (detail: string) => void;
-}) {
-  const [examplesOpen, setExamplesOpen] = useState(false);
-  const subChoices = subBranchChoices(kind);
-  const selectedSubChoice = subChoices.find((choice) => choice.value === state.subBranch);
-  const examples = blockageDetailExamples();
-
-  return (
-    <section className="grid gap-3">
-      {subChoices.length > 0 ? (
-        <>
-          <SectionHeading
-            title="조금 더 좁혀 볼까요?"
-            description="고르면 질문이 더 맞아떨어져요."
-          />
-          <div className="flex flex-wrap gap-2">
-            {subChoices.map((choice) => (
-              <ChoiceChip
-                key={choice.value}
-                label={choice.label}
-                selected={state.subBranch === choice.value}
-                onClick={() => onSubBranch(choice.value)}
-              />
-            ))}
-          </div>
-          {selectedSubChoice ? (
-            <p className="text-sm font-semibold leading-5 text-[#4e5968]">
-              {selectedSubChoice.description}
-            </p>
-          ) : null}
-        </>
-      ) : null}
-
-      <SectionHeading
-        title={BLOCKAGE_DETAIL_TITLE}
-        description="안 적어도 괜찮아요. 적으면 질문이 더 맞아떨어져요."
-      />
-      <div className="overflow-hidden rounded-2xl bg-[#f7faff] text-sm font-semibold text-[#4e5968]">
-        <button
-          type="button"
-          aria-expanded={examplesOpen}
-          aria-controls="blockage-detail-examples"
-          onClick={() => setExamplesOpen((current) => !current)}
-          className="flex min-h-[44px] w-full items-center justify-between px-4 text-left font-black text-[#4e5968]"
-        >
-          <span>예를 들면 —</span>
-          <span aria-hidden="true">{examplesOpen ? "접기" : "펼치기"}</span>
-        </button>
-        {examplesOpen ? (
-          <div id="blockage-detail-examples" className="grid gap-1 px-4 pb-4 leading-6">
-            {examples.map((example) => <p key={example}>· {example}</p>)}
-          </div>
-        ) : null}
-      </div>
-      <div>
-        <textarea
-          rows={4}
-          value={state.detail}
-          onChange={(event) => onDetail(event.target.value)}
-          placeholder="편하게 적어 주세요"
-          className="h-[112px] min-h-[112px] max-h-[112px] w-full resize-none overflow-y-auto rounded-[28px] bg-white p-4 text-base font-semibold leading-6 text-[#191f28] shadow-[0_16px_48px_rgba(25,31,40,0.08)] outline-none placeholder:text-[#4e5968]"
-        />
-        <p className="mt-2 text-sm font-semibold text-[#4e5968]">
-          {state.detail.length}자
-        </p>
-      </div>
-    </section>
   );
 }
