@@ -17,11 +17,14 @@ export type AuthUser = components["schemas"]["AuthUser"];
 export type ConsentType = components["schemas"]["ConsentType"];
 export type ConsentAction = components["schemas"]["ConsentAction"];
 export type ConsentDocument = components["schemas"]["ConsentDocument"];
+export type ConsentEntryDocument = components["schemas"]["ConsentEntryDocument"];
+export type ConsentEntryStatus = components["schemas"]["ConsentEntryStatus"];
 
 export type TokenPairResponse = components["schemas"]["TokenPairResponse"];
 export type RefreshTokenResponse = components["schemas"]["RefreshTokenResponse"];
 export type ConsentDocumentsResponse = components["schemas"]["ConsentDocumentsResponse"];
 export type PendingConsentsResponse = components["schemas"]["ConsentDocumentsResponse"];
+export type ConsentEntryResponse = components["schemas"]["ConsentEntryResponse"];
 export type ConsentEventResponse = components["schemas"]["ConsentEventResponse"];
 export type UploadIntentResponse = components["schemas"]["UploadIntentResponse"];
 export type UploadCompleteResponse = components["schemas"]["UploadCompleteResponse"];

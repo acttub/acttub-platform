@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist } from "next/font/google";
 import { Analytics } from "@/features/analytics/analytics";
+import { ConsentEntryBoundary } from "@/features/auth/consent-entry-boundary";
 import { ConsentRedirectListener } from "@/features/auth/consent-redirect-listener";
 import { buildRootMetadata } from "@/lib/seo/site-metadata";
 import "./globals.css";
@@ -50,7 +51,7 @@ export default function RootLayout({
             한정)은 전부 lib/analytics/ga.ts 주석에 있다. 여기서는 자리만 잡는다. */}
         <Analytics />
         <ConsentRedirectListener />
-        {children}
+        <ConsentEntryBoundary>{children}</ConsentEntryBoundary>
       </body>
     </html>
   );

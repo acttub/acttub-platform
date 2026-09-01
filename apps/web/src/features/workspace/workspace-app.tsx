@@ -19,6 +19,7 @@ import {
 import { useRouter, useSearchParams } from "next/navigation";
 import wordmark from "@/assets/acttub-wordmark.png";
 import { getStoredDisplayName, loadDisplayName } from "@/features/auth/display-name";
+import { useRequireAuth } from "@/features/auth/use-require-auth";
 import { logout } from "@/lib/api/v2/auth";
 import { startCoach, replyCoach } from "@/lib/api/v2/coach";
 import { listReports } from "@/lib/api/v2/reports";
@@ -34,7 +35,6 @@ import type {
   PracticeSessionListItem,
   ReportRecord,
 } from "@/lib/api/v2/types";
-import { isLoggedIn } from "@/lib/auth/token-store";
 import {
   trackDialogueStarted,
   trackResultViewed,
@@ -166,20 +166,11 @@ function WorkspaceInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const sessionParam = searchParams.get("session");
+  const { ready } = useRequireAuth();
 
   // 캐시를 초기값으로 써야 인증 게이트가 열린 첫 화면부터 호칭이 바뀌어 보이지 않는다.
   const [nickname, setNickname] = useState<string | null>(() => getStoredDisplayName());
-  const [ready, setReady] = useState(false);
   const initialPrepTrackedRef = useRef(false);
-  useEffect(() => {
-    if (!isLoggedIn()) {
-      const search = typeof window === "undefined" ? "" : window.location.search;
-      router.replace(`/login?next=${encodeURIComponent(`/practice/new${search}`)}`);
-      return;
-    }
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- 클라이언트 전용 인증 확인 후 1회 게이트
-    setReady(true);
-  }, [router]);
 
   useEffect(() => {
     if (!ready || initialPrepTrackedRef.current) return;

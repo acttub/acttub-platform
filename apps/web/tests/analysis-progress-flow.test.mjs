@@ -70,8 +70,7 @@ test("연습 주소를 갈아끼울 때 라우터 네비게이션을 타지 않�
   assert.match(workspace, /window\.history\.replaceState\(null, "", path\)/);
   assert.doesNotMatch(workspace, /router\.replace\(["`]\/practice\/new/);
   assert.match(workspace, /replaceUrl\(`\/practice\/new\?session=/);
-  // 화면을 실제로 옮기는 이동은 그대로 라우터를 쓴다.
-  assert.match(workspace, /router\.replace\(`\/login\?next=/);
+  // 로그인 이동은 tests/use-require-auth.test.mjs가 실제 훅 렌더로 검증한다.
 });
 
 test("업로드가 끝나도 방금 고른 로컬 영상을 그대로 재생한다", () => {
