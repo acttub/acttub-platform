@@ -38,10 +38,16 @@ public class CommunityCommentEntity extends AppGeneratedUuidEntity {
 
     public CommunityCommentEntity(UUID id, UUID postId, UUID authorId, String body,
             ContentStatus status) {
+        this(id, postId, authorId, body, false, status);
+    }
+
+    public CommunityCommentEntity(UUID id, UUID postId, UUID authorId, String body,
+            boolean anonymous, ContentStatus status) {
         super(id);
         this.postId = postId;
         this.authorId = authorId;
         this.body = body;
+        this.anonymous = anonymous;
         this.status = status;
     }
 }

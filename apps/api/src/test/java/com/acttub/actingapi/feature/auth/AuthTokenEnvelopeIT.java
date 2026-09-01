@@ -3,15 +3,21 @@ package com.acttub.actingapi.feature.auth;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.util.UUID;
+
 import com.acttub.actingapi.support.PostgresContainerSupport;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
@@ -34,6 +40,10 @@ class AuthTokenEnvelopeIT {
 
     /** 액세스 토큰 수명. {@code JwtServiceTest} 가 발급 쪽에서 같은 값을 못박는다. */
     private static final long ACCESS_TOKEN_TTL_SECONDS = 1800;
+    private static final UUID PRIVACY_DOCUMENT =
+            UUID.fromString("00000000-0000-4000-8000-000000000201");
+    private static final UUID TERMS_DOCUMENT =
+            UUID.fromString("00000000-0000-4000-8000-000000000202");
 
     @DynamicPropertySource
     static void database(DynamicPropertyRegistry registry) {
@@ -49,6 +59,16 @@ class AuthTokenEnvelopeIT {
     @Autowired
     ObjectMapper mapper;
 
+    @Autowired
+    JdbcTemplate jdbc;
+
+    @BeforeEach
+    void setUp() {
+        jdbc.execute("TRUNCATE TABLE users,consent_documents RESTART IDENTITY CASCADE");
+        insertDocument(PRIVACY_DOCUMENT, "privacy", Instant.parse("2026-01-01T00:00:00Z"));
+        insertDocument(TERMS_DOCUMENT, "terms", Instant.parse("2026-01-02T00:00:00Z"));
+    }
+
     @Test
     @DisplayName("로그인 성공 응답이 bearer 봉투와 사용자·보류 동의를 함께 낸다")
     void loginReturnsTheBearerEnvelope() throws Exception {
@@ -60,6 +80,19 @@ class AuthTokenEnvelopeIT {
                 "user", "pending_consents");
         assertThat(body.path("user").path("id").textValue()).isNotBlank();
         assertThat(body.path("pending_consents").isArray()).isTrue();
+        assertThat(body.path("pending_consents")).hasSize(2);
+    }
+
+    @Test
+    @DisplayName("로그인 보류 동의는 종류 순이 아니라 발행 시각 순으로 낸다")
+    void loginOrdersPendingConsentsByPublishedAt() throws Exception {
+        JsonNode pending = login().path("pending_consents");
+
+        assertThat(pending).hasSize(2);
+        assertThat(pending.get(0).path("id").textValue())
+                .isEqualTo(PRIVACY_DOCUMENT.toString());
+        assertThat(pending.get(1).path("id").textValue())
+                .isEqualTo(TERMS_DOCUMENT.toString());
     }
 
     @Test
@@ -98,5 +131,13 @@ class AuthTokenEnvelopeIT {
                 .as("개발 로그인이 실패했다: %s", response.getContentAsString())
                 .isEqualTo(200);
         return mapper.readTree(response.getContentAsString());
+    }
+
+    private void insertDocument(UUID id, String type, Instant publishedAt) {
+        jdbc.update("""
+                INSERT INTO consent_documents(
+                    id,type,version,title,body,required,published_at)
+                VALUES (?,?,'v1',?,?,true,?)
+                """, id, type, type, type + " body", publishedAt.atOffset(ZoneOffset.UTC));
     }
 }

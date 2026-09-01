@@ -1,10 +1,8 @@
 package com.acttub.actingapi.feature.consent.adapter.db;
 
-import java.sql.ResultSet;
-import java.sql.SQLException;
+import static com.acttub.actingapi.platform.persistence.NativeTuples.list;
+
 import java.time.Instant;
-import java.time.OffsetDateTime;
-import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
@@ -14,9 +12,12 @@ import com.acttub.actingapi.feature.auth.app.PendingConsentDocuments;
 import com.acttub.actingapi.feature.consent.app.ConsentRepository;
 import com.acttub.actingapi.feature.consent.domain.ConsentDocument;
 import com.acttub.actingapi.feature.consent.domain.ConsentEvent;
+import com.acttub.actingapi.feature.consent.schema.ConsentDocumentEntity;
+import com.acttub.actingapi.feature.consent.schema.UserConsentEntity;
 import com.acttub.actingapi.platform.schema.ConsentAction;
 import com.acttub.actingapi.platform.schema.ConsentType;
-import org.springframework.jdbc.core.JdbcTemplate;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.Tuple;
 import org.springframework.stereotype.Repository;
 
 /**
@@ -31,10 +32,17 @@ import org.springframework.stereotype.Repository;
  */
 @Repository
 class PostgresConsentRepository implements ConsentRepository, PendingConsentDocuments {
-    private final JdbcTemplate jdbc;
+    private final ConsentDocumentJpaRepository documents;
+    private final UserConsentJpaRepository consents;
+    private final EntityManager entityManager;
 
-    PostgresConsentRepository(JdbcTemplate jdbc) {
-        this.jdbc = jdbc;
+    PostgresConsentRepository(
+            ConsentDocumentJpaRepository documents,
+            UserConsentJpaRepository consents,
+            EntityManager entityManager) {
+        this.documents = documents;
+        this.consents = consents;
+        this.entityManager = entityManager;
     }
 
     /**
@@ -53,7 +61,7 @@ class PostgresConsentRepository implements ConsentRepository, PendingConsentDocu
      */
     @Override
     public List<ConsentDocument> listLatestDocuments() {
-        return jdbc.query("""
+        return list(entityManager.createNativeQuery("""
                 SELECT id,type,version,title,body,required,published_at
                 FROM (SELECT DISTINCT ON(consent_documents.type)
                              id,type,version,title,body,required,published_at
@@ -66,42 +74,41 @@ class PostgresConsentRepository implements ConsentRepository, PendingConsentDocu
                              WHEN 'privacy' THEN 2
                              WHEN 'ai_analysis' THEN 3
                          END
-                """, PostgresConsentRepository::document);
+                """, Tuple.class)).stream()
+                .map(PostgresConsentRepository::document)
+                .toList();
     }
 
     @Override
     public ConsentDocument findDocument(UUID documentId) {
-        List<ConsentDocument> rows = jdbc.query("""
-                SELECT id,type,version,title,body,required,published_at
-                FROM consent_documents
-                WHERE id=?
-                """, PostgresConsentRepository::document, documentId);
-        return rows.isEmpty() ? null : rows.getFirst();
+        return documents.findById(documentId)
+                .map(PostgresConsentRepository::document)
+                .orElse(null);
     }
 
     @Override
     public List<ConsentEvent> currentConsentsOf(UUID userId) {
-        return jdbc.query("""
+        return list(entityManager.createNativeQuery("""
                 SELECT DISTINCT ON(document_id)
                        id,user_id,document_id,action,occurred_at
                 FROM user_consents
-                WHERE user_id=?
+                WHERE user_id=:userId
                 ORDER BY document_id,occurred_at DESC,id DESC
-                """, PostgresConsentRepository::consent, userId);
+                """, Tuple.class)
+                .setParameter("userId", userId)).stream()
+                .map(PostgresConsentRepository::consent)
+                .toList();
     }
 
     @Override
     public ConsentEvent record(UUID userId, UUID documentId, String action, Instant occurredAt) {
         UUID id = UUID.randomUUID();
-        jdbc.update("""
-                INSERT INTO user_consents(id,user_id,document_id,action,occurred_at)
-                VALUES (?,?,?,?,?)
-                """,
+        consents.save(new UserConsentEntity(
                 id,
                 userId,
                 documentId,
-                action,
-                occurredAt.atOffset(ZoneOffset.UTC));
+                ConsentAction.valueOf(action.toUpperCase(Locale.ROOT)),
+                occurredAt));
         return new ConsentEvent(id, userId, documentId, action, occurredAt);
     }
 
@@ -117,23 +124,25 @@ class PostgresConsentRepository implements ConsentRepository, PendingConsentDocu
      */
     @Override
     public List<PendingConsent> pendingFor(UUID userId) {
-        return jdbc.query("""
+        return list(entityManager.createNativeQuery("""
                 WITH latest AS (SELECT DISTINCT ON(type) * FROM consent_documents ORDER BY type,published_at DESC,id DESC)
                 SELECT d.id,d.type,d.version,d.title,d.body,d.required,d.published_at
                 FROM latest d WHERE d.required AND NOT EXISTS(
-                  SELECT 1 FROM user_consents c WHERE c.user_id=? AND c.document_id=d.id AND c.action='granted'
+                  SELECT 1 FROM user_consents c WHERE c.user_id=:userId AND c.document_id=d.id AND c.action='granted'
                   AND c.id=(SELECT c2.id FROM user_consents c2 WHERE c2.user_id=c.user_id AND c2.document_id=c.document_id ORDER BY c2.occurred_at DESC,c2.id DESC LIMIT 1))
                 ORDER BY d.published_at,d.id
                 """,
-                (result, rowNumber) -> new PendingConsent(
-                        result.getObject(1, UUID.class),
-                        type(result.getString(2)),
-                        result.getString(3),
-                        result.getString(4),
-                        result.getString(5),
-                        result.getBoolean(6),
-                        result.getObject(7, OffsetDateTime.class).toInstant()),
-                userId);
+                Tuple.class)
+                .setParameter("userId", userId)).stream()
+                .map(row -> new PendingConsent(
+                        row.get("id", UUID.class),
+                        type(row.get("type", String.class)),
+                        row.get("version", String.class),
+                        row.get("title", String.class),
+                        row.get("body", String.class),
+                        row.get("required", Boolean.class),
+                        row.get("published_at", Instant.class)))
+                .toList();
     }
 
     /**
@@ -154,23 +163,35 @@ class PostgresConsentRepository implements ConsentRepository, PendingConsentDocu
         return ConsentAction.valueOf(raw.toUpperCase(Locale.ROOT)).dbValue();
     }
 
-    private static ConsentDocument document(ResultSet result, int rowNumber) throws SQLException {
+    private static ConsentDocument document(ConsentDocumentEntity entity) {
         return new ConsentDocument(
-                result.getObject("id", UUID.class),
-                type(result.getString("type")),
-                result.getString("version"),
-                result.getString("title"),
-                result.getString("body"),
-                result.getBoolean("required"),
-                result.getObject("published_at", OffsetDateTime.class).toInstant());
+                entity.getId(),
+                entity.getType().dbValue(),
+                entity.getVersion(),
+                entity.getTitle(),
+                entity.getBody(),
+                entity.isRequired(),
+                entity.getPublishedAt());
     }
 
-    private static ConsentEvent consent(ResultSet result, int rowNumber) throws SQLException {
-        return new ConsentEvent(
-                result.getObject("id", UUID.class),
-                result.getObject("user_id", UUID.class),
-                result.getObject("document_id", UUID.class),
-                action(result.getString("action")),
-                result.getObject("occurred_at", OffsetDateTime.class).toInstant());
+    private static ConsentDocument document(Tuple row) {
+        return new ConsentDocument(
+                row.get("id", UUID.class),
+                type(row.get("type", String.class)),
+                row.get("version", String.class),
+                row.get("title", String.class),
+                row.get("body", String.class),
+                row.get("required", Boolean.class),
+                row.get("published_at", Instant.class));
     }
+
+    private static ConsentEvent consent(Tuple row) {
+        return new ConsentEvent(
+                row.get("id", UUID.class),
+                row.get("user_id", UUID.class),
+                row.get("document_id", UUID.class),
+                action(row.get("action", String.class)),
+                row.get("occurred_at", Instant.class));
+    }
+
 }

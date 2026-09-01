@@ -41,8 +41,8 @@ import org.springframework.test.context.DynamicPropertySource;
  * 봤고 <b>코치 세션 연결</b>은 보지 않았다 — 같은 트랜잭션의 SQL 이라 함께 두지 않으면 그 한 줄만
  * 검사 밖에 남는다.
  *
- * <p>📌 {@code sweepExpiredUploads} 는 메우지 않았다. 하네스도 <b>0 건인 것만</b> 확인했을 뿐
- * 실질 커버리지가 없었고, 그 경로는 S3 삭제 권한 누락(M6 스코프 밖)과 얽혀 있다.
+ * <p>{@code sweepExpiredUploads} 는 변경된 행의 object key를 실제로 반환하는지 함께 본다.
+ * S3 삭제 자체는 저장소 바깥 책임이라 여기서 호출하지 않는다.
  */
 @SpringBootTest(properties = "JWT_SECRET=test-secret")
 class PostgresAnalysisStoreIT {
@@ -204,6 +204,30 @@ class PostgresAnalysisStoreIT {
                 .isZero();
     }
 
+    @Test
+    void expiredUploadSweepReturnsExactlyTheObjectKeysItChanged() {
+        UUID userId = insertUser();
+        UUID expiredOne = insertPendingUpload(userId, "uploads/expired-one.mp4", NOW.minusSeconds(2));
+        UUID expiredTwo = insertPendingUpload(userId, "uploads/expired-two.mp4", NOW.minusSeconds(1));
+        UUID active = insertPendingUpload(userId, "uploads/active.mp4", NOW.plusSeconds(1));
+        UUID finalized = insertFinalizedUpload(userId);
+
+        assertThat(store.sweepExpiredUploads(NOW))
+                .containsExactlyInAnyOrder("uploads/expired-one.mp4", "uploads/expired-two.mp4");
+        assertThat(jdbc.queryForMap(
+                "SELECT id,status FROM upload_intents WHERE id=?", expiredOne))
+                .containsEntry("status", "expired");
+        assertThat(jdbc.queryForMap(
+                "SELECT id,status FROM upload_intents WHERE id=?", expiredTwo))
+                .containsEntry("status", "expired");
+        assertThat(jdbc.queryForMap(
+                "SELECT id,status FROM upload_intents WHERE id=?", active))
+                .containsEntry("status", "pending");
+        assertThat(jdbc.queryForMap(
+                "SELECT id,status FROM upload_intents WHERE id=?", finalized))
+                .containsEntry("status", "finalized");
+    }
+
     private static AnalysisResult result() {
         return new AnalysisResult(
                 new ObservationPack(
@@ -231,6 +255,17 @@ class PostgresAnalysisStoreIT {
                 VALUES (?, ?, 'finalized', 's3', ?, 'video/mp4', 1, ?)
                 """, id, userId, "uploads/" + id + ".mp4",
                 NOW.plusSeconds(3600).atOffset(ZoneOffset.UTC));
+        return id;
+    }
+
+    private UUID insertPendingUpload(UUID userId, String objectKey, Instant expiresAt) {
+        UUID id = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO upload_intents (
+                    id, user_id, status, storage_provider, object_key,
+                    mime_type, size_bytes, expires_at)
+                VALUES (?, ?, 'pending', 's3', ?, 'video/mp4', 1, ?)
+                """, id, userId, objectKey, expiresAt.atOffset(ZoneOffset.UTC));
         return id;
     }
 

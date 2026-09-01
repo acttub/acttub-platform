@@ -57,6 +57,9 @@ public class PracticeSessionEntity extends AppGeneratedUuidEntity {
     @Column(name = "goal", nullable = false)
     private String goal;
 
+    @Column(name = "continued_from")
+    private UUID continuedFrom;
+
     @Column(name = "hidden_at")
     private Instant hiddenAt;
 
@@ -72,6 +75,14 @@ public class PracticeSessionEntity extends AppGeneratedUuidEntity {
     public PracticeSessionEntity(UUID id, UUID userId, UUID uploadIntentId, PracticeStatus status,
             String situation, String characterContext, String subtext,
             String blockageKind, String subBranch, String goal) {
+        this(id, userId, uploadIntentId, status, situation, characterContext, subtext,
+                blockageKind, subBranch, null, goal, null);
+    }
+
+    public PracticeSessionEntity(UUID id, UUID userId, UUID uploadIntentId, PracticeStatus status,
+            String situation, String characterContext, String subtext,
+            String blockageKind, String subBranch, String blockageDetail,
+            String goal, UUID continuedFrom) {
         super(id);
         this.userId = userId;
         this.uploadIntentId = uploadIntentId;
@@ -81,7 +92,9 @@ public class PracticeSessionEntity extends AppGeneratedUuidEntity {
         this.subtext = subtext;
         this.blockageKind = blockageKind;
         this.subBranch = subBranch;
+        this.blockageDetail = blockageDetail;
         this.goal = goal;
+        this.continuedFrom = continuedFrom;
     }
 
     public UUID getUserId() {
@@ -122,6 +135,10 @@ public class PracticeSessionEntity extends AppGeneratedUuidEntity {
 
     public String getGoal() {
         return goal;
+    }
+
+    public UUID getContinuedFrom() {
+        return continuedFrom;
     }
 
     public Instant getHiddenAt() {

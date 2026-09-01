@@ -47,5 +47,14 @@ FastAPI와 응답 바이트를 대조하던 parity harness는 폐기됐습니다
   배포 작업이고 신규·재해복구 DB는 V1부터 적용합니다.
 - 마이그레이션은 jar 기동의 일부입니다. 축소는 루트 지침의 호환 배포 순서를 따릅니다.
 
+## 영속
+
+- 운영 DB 접근은 Spring Data JPA와 `EntityManager`로 일원화합니다. 직접 JDBC는 테스트 fixture와
+  독립 검증에만 사용합니다.
+- Schema Entity 26개는 자기 feature의 Adapter와 영속 내부 repository만 사용합니다. app·domain과
+  다른 feature는 Schema Entity나 Spring Data interface에 의존하지 않습니다.
+- native DML `RETURNING`은 `CONTRACT.md` §5-2·§5-8의 data-modifying CTE와 alias 기반 `Tuple`
+  규칙을 따릅니다.
+
 **완료 기준:** 표에서 변경한 모든 갈래의 정본·테스트·생성물 diff를 확인했고, Java 테스트
 밖에 남는 계약 사각지대를 명시했습니다.

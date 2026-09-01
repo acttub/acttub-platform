@@ -1,5 +1,7 @@
 package com.acttub.actingapi.platform.operation;
 
+import static com.acttub.actingapi.platform.persistence.NativeTuples.list;
+
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Clock;
@@ -23,7 +25,8 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import org.springframework.jdbc.core.JdbcTemplate;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.Tuple;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
@@ -51,7 +54,7 @@ public class SyncOperationService implements CoachOperationLedger, ReportOperati
 
     private static final Duration SYNC_OPERATION_LEASE = Duration.ofMinutes(15);
 
-    private final JdbcTemplate jdbc;
+    private final EntityManager entityManager;
     private final ObjectMapper mapper;
     private final CanonicalJson canonical;
     private final ExternalOperationClaimer claimer;
@@ -59,13 +62,13 @@ public class SyncOperationService implements CoachOperationLedger, ReportOperati
     private final TransactionTemplate transaction;
 
     public SyncOperationService(
-            JdbcTemplate jdbc,
+            EntityManager entityManager,
             ObjectMapper mapper,
             CanonicalJson canonical,
             ExternalOperationClaimer claimer,
             Clock clock,
             PlatformTransactionManager transactionManager) {
-        this.jdbc = jdbc;
+        this.entityManager = entityManager;
         this.mapper = mapper;
         this.canonical = canonical;
         this.claimer = claimer;
@@ -140,22 +143,23 @@ public class SyncOperationService implements CoachOperationLedger, ReportOperati
     public void complete(SyncOperationClaim claim, JsonNode responsePayload) {
         OffsetDateTime now = clock.instant().atOffset(ZoneOffset.UTC);
         transaction.executeWithoutResult(status -> {
-            int finished = jdbc.update("""
+            int finished = entityManager.createNativeQuery("""
                     UPDATE external_operations
                     SET status = 'succeeded',
-                        response_payload = ?::jsonb,
+                        response_payload = CAST(:responsePayload AS jsonb),
                         error_code = NULL,
                         lease_token = NULL,
                         lease_expires_at = NULL,
-                        updated_at = ?
-                    WHERE id = ?
+                        updated_at = :now
+                    WHERE id = :operationId
                       AND status = 'running'
-                      AND lease_token = ?
-                    """,
-                    responsePayload.toString(),
-                    now,
-                    claim.operationId(),
-                    claim.leaseToken());
+                      AND lease_token = :leaseToken
+                    """)
+                    .setParameter("responsePayload", responsePayload.toString())
+                    .setParameter("now", now)
+                    .setParameter("operationId", claim.operationId())
+                    .setParameter("leaseToken", claim.leaseToken())
+                    .executeUpdate();
             if (finished == 0) {
                 throw new LeaseOwnershipException("external operation lease is not owned");
             }
@@ -187,29 +191,37 @@ public class SyncOperationService implements CoachOperationLedger, ReportOperati
             UUID requestId,
             String kind,
             String requestFingerprint) {
-        List<UUID> owned = jdbc.queryForList("""
-                SELECT id
+        List<Tuple> owned = list(entityManager.createNativeQuery("""
+                SELECT id AS id
                 FROM practice_sessions
-                WHERE id = ? AND user_id = ?
-                """, UUID.class, practiceSessionId, userId);
+                WHERE id = :practiceSessionId AND user_id = :userId
+                """, Tuple.class)
+                .setParameter("practiceSessionId", practiceSessionId)
+                .setParameter("userId", userId));
         if (owned.isEmpty()) {
             throw new IllegalStateException("practice session not found");
         }
         UUID operationId = UUID.randomUUID();
-        jdbc.query("""
-                INSERT INTO external_operations (
-                    id, session_id, user_id, request_id, kind, request_fingerprint
+        list(entityManager.createNativeQuery("""
+                WITH inserted AS (
+                    INSERT INTO external_operations (
+                        id, session_id, user_id, request_id, kind, request_fingerprint
+                    )
+                    VALUES (
+                        :operationId, :practiceSessionId, :userId, :requestId,
+                        :kind, :requestFingerprint
+                    )
+                    ON CONFLICT (user_id, request_id) DO NOTHING
+                    RETURNING id
                 )
-                VALUES (?, ?, ?, ?, ?, ?)
-                ON CONFLICT (user_id, request_id) DO NOTHING
-                RETURNING id
-                """, (row, number) -> row.getObject("id", UUID.class),
-                operationId,
-                practiceSessionId,
-                userId,
-                requestId,
-                kind,
-                requestFingerprint);
+                SELECT id FROM inserted
+                """, Tuple.class)
+                .setParameter("operationId", operationId)
+                .setParameter("practiceSessionId", practiceSessionId)
+                .setParameter("userId", userId)
+                .setParameter("requestId", requestId)
+                .setParameter("kind", kind)
+                .setParameter("requestFingerprint", requestFingerprint));
         SyncOperationRow operation = find(userId, requestId);
         if (operation == null) {
             throw new IllegalStateException("external operation is missing");
@@ -218,23 +230,27 @@ public class SyncOperationService implements CoachOperationLedger, ReportOperati
     }
 
     private SyncOperationRow find(UUID userId, UUID requestId) {
-        List<SyncOperationRow> rows = jdbc.query("""
+        List<Tuple> rows = list(entityManager.createNativeQuery("""
                 SELECT
                     id, status,
                     request_fingerprint, lease_token, lease_expires_at,
                     response_payload::text AS response_payload
                 FROM external_operations
-                WHERE user_id = ? AND request_id = ?
-                """, (row, number) -> new SyncOperationRow(
-                row.getObject("id", UUID.class),
-                row.getString("status"),
-                row.getString("request_fingerprint"),
-                json(row.getString("response_payload")),
-                row.getObject("lease_token", UUID.class),
-                instant(row.getObject("lease_expires_at", OffsetDateTime.class))),
-                userId,
-                requestId);
-        return rows.isEmpty() ? null : rows.getFirst();
+                WHERE user_id = :userId AND request_id = :requestId
+                """, Tuple.class)
+                .setParameter("userId", userId)
+                .setParameter("requestId", requestId));
+        if (rows.isEmpty()) {
+            return null;
+        }
+        Tuple row = rows.getFirst();
+        return new SyncOperationRow(
+                row.get("id", UUID.class),
+                row.get("status", String.class),
+                row.get("request_fingerprint", String.class),
+                json(row.get("response_payload", String.class)),
+                row.get("lease_token", UUID.class),
+                row.get("lease_expires_at", Instant.class));
     }
 
     /** 다시 실어 보낼 본문. 없으면 {@code null} 이고, 아직 처리 중이면 409 다. */
@@ -269,9 +285,5 @@ public class SyncOperationService implements CoachOperationLedger, ReportOperati
         } catch (JsonProcessingException exception) {
             throw new IllegalStateException("external operation contains invalid JSON", exception);
         }
-    }
-
-    private static Instant instant(OffsetDateTime value) {
-        return value == null ? null : value.toInstant();
     }
 }

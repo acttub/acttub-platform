@@ -2,6 +2,7 @@ package com.acttub.actingapi.feature.consent.adapter;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -10,6 +11,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.stream.Stream;
 
+import com.acttub.actingapi.feature.consent.adapter.db.ConsentDocumentJpaRepository;
 import com.acttub.actingapi.support.PostgresContainerSupport;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.MethodOrderer;
@@ -24,6 +26,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.DefaultApplicationArguments;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.core.io.ResourceLoader;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -41,6 +44,9 @@ class ConsentPublisherIT {
 
     @Autowired
     JdbcTemplate jdbc;
+
+    @Autowired
+    ConsentDocumentJpaRepository documents;
 
     @Autowired
     ConsentDocumentPublisher publisher;
@@ -69,7 +75,7 @@ class ConsentPublisherIT {
     @Order(2)
     void missingOrInvalidManifestNeverStopsStartup(@TempDir Path directory) throws Exception {
         ConsentDocumentPublisher missing = new ConsentDocumentPublisher(
-                jdbc,
+                documents,
                 mapper,
                 resources,
                 directory.resolve("missing").toString());
@@ -78,7 +84,7 @@ class ConsentPublisherIT {
 
         Files.writeString(directory.resolve("manifest.json"), "{");
         ConsentDocumentPublisher invalid = new ConsentDocumentPublisher(
-                jdbc,
+                documents,
                 mapper,
                 resources,
                 directory.toString());
@@ -106,7 +112,7 @@ class ConsentPublisherIT {
                 """.formatted(requiredMember));
 
         ConsentDocumentPublisher malformed = new ConsentDocumentPublisher(
-                jdbc,
+                documents,
                 mapper,
                 resources,
                 directory.toString());
@@ -128,7 +134,7 @@ class ConsentPublisherIT {
     @Order(4)
     void concurrentPublishIgnoresOnlyTheNamedUniqueRace() throws Exception {
         jdbc.update("DELETE FROM consent_documents");
-        ConsentDocumentPublisher other = new ConsentDocumentPublisher(jdbc, mapper, resources, "");
+        ConsentDocumentPublisher other = new ConsentDocumentPublisher(documents, mapper, resources, "");
         ExecutorService pool = Executors.newFixedThreadPool(2);
         try {
             Future<Integer> first = pool.submit(publisher::publish);
@@ -139,6 +145,26 @@ class ConsentPublisherIT {
                     Integer.class)).isEqualTo(3);
         } finally {
             pool.shutdownNow();
+        }
+    }
+
+    @Test
+    @Order(5)
+    void publishPropagatesConstraintViolationsOtherThanTheNamedUniqueRace() {
+        jdbc.update("DELETE FROM consent_documents");
+        jdbc.execute("""
+                ALTER TABLE consent_documents
+                ADD CONSTRAINT ck_test_consent_document_title
+                CHECK (title <> '이용약관')
+                """);
+        try {
+            assertThatThrownBy(publisher::publish)
+                    .isInstanceOf(DataIntegrityViolationException.class);
+        } finally {
+            jdbc.execute("""
+                    ALTER TABLE consent_documents
+                    DROP CONSTRAINT ck_test_consent_document_title
+                    """);
         }
     }
 }

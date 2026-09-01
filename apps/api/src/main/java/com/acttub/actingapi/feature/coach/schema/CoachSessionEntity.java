@@ -42,9 +42,20 @@ public class CoachSessionEntity {
     }
 
     public CoachSessionEntity(UUID id, UUID practiceSessionId, SessionStatus status) {
+        this(id, practiceSessionId, null, status, "");
+    }
+
+    public CoachSessionEntity(
+            UUID id,
+            UUID practiceSessionId,
+            UUID summaryId,
+            SessionStatus status,
+            String conversationSummary) {
         this.id = id;
         this.practiceSessionId = practiceSessionId;
+        this.summaryId = summaryId;
         this.status = status;
+        this.conversationSummary = conversationSummary;
     }
 
     public void close(CloseReason reason) {

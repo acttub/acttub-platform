@@ -1,10 +1,10 @@
 package com.acttub.actingapi.feature.coach.adapter.db;
 
-import java.sql.ResultSet;
-import java.sql.SQLException;
+import static com.acttub.actingapi.platform.persistence.NativeTuples.list;
+
 import java.time.OffsetDateTime;
-import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 
 import com.acttub.actingapi.feature.coach.app.CoachSessionSnapshot;
@@ -13,13 +13,19 @@ import com.acttub.actingapi.feature.coach.app.OwnedPracticeSessionContext;
 import com.acttub.actingapi.feature.coach.app.SessionWriteConflict;
 import com.acttub.actingapi.feature.coach.domain.CoachBranch;
 import com.acttub.actingapi.feature.coach.domain.CoachTurnSnapshot;
-import com.acttub.actingapi.platform.ledger.LeaseOwnershipException;
 import com.acttub.actingapi.feature.report.app.OwnedReportSource;
+import com.acttub.actingapi.feature.coach.schema.CoachSessionEntity;
+import com.acttub.actingapi.feature.coach.schema.CoachTurnEntity;
+import com.acttub.actingapi.feature.coach.schema.CoachingHandoffEntity;
+import com.acttub.actingapi.platform.ledger.LeaseOwnershipException;
+import com.acttub.actingapi.platform.schema.SessionStatus;
+import com.acttub.actingapi.platform.schema.TurnRole;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import org.springframework.jdbc.core.JdbcTemplate;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.Tuple;
 import org.springframework.stereotype.Component;
 
 /**
@@ -32,11 +38,16 @@ import org.springframework.stereotype.Component;
 @Component
 public class CoachSessionWork {
 
-    private final JdbcTemplate jdbc;
+    private final EntityManager entityManager;
+    private final CoachSessionJpaRepository coachSessions;
     private final ObjectMapper objectMapper;
 
-    public CoachSessionWork(JdbcTemplate jdbc, ObjectMapper objectMapper) {
-        this.jdbc = jdbc;
+    public CoachSessionWork(
+            EntityManager entityManager,
+            CoachSessionJpaRepository coachSessions,
+            ObjectMapper objectMapper) {
+        this.entityManager = entityManager;
+        this.coachSessions = coachSessions;
         this.objectMapper = objectMapper;
     }
 
@@ -67,44 +78,29 @@ public class CoachSessionWork {
                 JOIN practice_sessions ps ON ps.id = cs.practice_session_id
                 LEFT JOIN summaries s ON s.session_id = ps.id
                 JOIN upload_intents ui ON ui.id = ps.upload_intent_id
-                WHERE cs.id = ?
+                WHERE cs.id = :sessionId
                 """);
-        List<Object> arguments = new ArrayList<>();
-        arguments.add(sessionId);
         if (userId != null) {
-            sql.append(" AND ps.user_id = ?\n");
-            arguments.add(userId);
+            sql.append(" AND ps.user_id = :userId\n");
         }
         if (!includeHidden) {
             sql.append(" AND ps.hidden_at IS NULL\n");
         }
         sql.append(" FOR SHARE OF cs");
 
-        List<SessionRow> rows = jdbc.query(
-                sql.toString(),
-                this::mapSessionRow,
-                arguments.toArray());
+        var query = entityManager.createNativeQuery(sql.toString(), Tuple.class)
+                .setParameter("sessionId", sessionId);
+        if (userId != null) {
+            query.setParameter("userId", userId);
+        }
+        List<Tuple> rows = list(query);
         if (rows.isEmpty()) {
             return null;
         }
 
-        SessionRow row = rows.getFirst();
-        List<CoachTurnSnapshot> turns = jdbc.query("""
-                SELECT role, text
-                FROM coach_turns
-                WHERE session_id = ?
-                ORDER BY turn_index
-                """,
-                (result, rowNumber) -> new CoachTurnSnapshot(
-                        result.getString("role"),
-                        result.getString("text")),
-                sessionId);
-        List<String> transcripts = jdbc.queryForList("""
-                SELECT text
-                FROM transcripts
-                WHERE session_id = ?
-                ORDER BY ord
-                """, String.class, row.practiceSessionId());
+        SessionRow row = mapSessionRow(rows.getFirst());
+        List<CoachTurnSnapshot> turns = coachTurns(sessionId);
+        List<String> transcripts = transcripts(row.practiceSessionId());
         JsonNode analysisHandoff = CoachBranch.isExpressionBlockage(row.blockageKind())
                 ? findConfirmedAnalysisHandoff(row.userId(), row.uploadIntentId())
                 : null;
@@ -131,26 +127,18 @@ public class CoachSessionWork {
     }
 
     public void saveCoachSession(CoachSessionSnapshot session, OffsetDateTime now) {
-        List<String> statuses = jdbc.queryForList("""
-                SELECT status
+        List<Tuple> statuses = list(entityManager.createNativeQuery("""
+                SELECT status AS status
                 FROM coach_sessions
-                WHERE id = ?
+                WHERE id = :sessionId
                 FOR UPDATE
-                """, String.class, session.sessionId());
+                """, Tuple.class)
+                .setParameter("sessionId", session.sessionId()));
         if (statuses.isEmpty()) {
             throw new LookupError("session not found");
         }
 
-        List<CoachTurnSnapshot> storedTurns = jdbc.query("""
-                SELECT role, text
-                FROM coach_turns
-                WHERE session_id = ?
-                ORDER BY turn_index
-                """,
-                (row, rowNumber) -> new CoachTurnSnapshot(
-                        row.getString("role"),
-                        row.getString("text")),
-                session.sessionId());
+        List<CoachTurnSnapshot> storedTurns = coachTurns(session.sessionId());
         if (session.turns().size() < storedTurns.size()) {
             throw new SessionWriteConflict("session turns are stale");
         }
@@ -159,7 +147,7 @@ public class CoachSessionWork {
                 throw new SessionWriteConflict("session turns changed concurrently");
             }
         }
-        if ("closed".equals(statuses.getFirst())
+        if ("closed".equals(statuses.getFirst().get("status", String.class))
                 && (!"closed".equals(session.status())
                         || session.turns().size() > storedTurns.size())) {
             throw new SessionWriteConflict("closed session changed concurrently");
@@ -167,55 +155,54 @@ public class CoachSessionWork {
 
         for (int index = storedTurns.size(); index < session.turns().size(); index++) {
             CoachTurnSnapshot turn = session.turns().get(index);
-            jdbc.update("""
-                    INSERT INTO coach_turns (session_id, turn_index, role, text)
-                    VALUES (?, ?, ?, ?)
-                    """,
+            entityManager.persist(new CoachTurnEntity(
                     session.sessionId(),
                     index,
-                    turn.role(),
-                    turn.text());
+                    turnRole(turn.role()),
+                    turn.text()));
         }
-        jdbc.update("""
-                UPDATE coach_sessions
-                SET status = ?,
-                    conversation_summary = ?,
-                    updated_at = ?
-                WHERE id = ?
-                """,
-                session.status(),
+        // turn INSERT가 session 상태 갱신보다 늦춰지지 않도록 현재 SQL 순서를 고정한다.
+        entityManager.flush();
+        coachSessions.updateState(
+                session.sessionId(),
+                sessionStatus(session.status()),
                 session.conversationSummary(),
-                now,
-                session.sessionId());
+                now.toInstant());
     }
 
     public UUID findOldestOpenCoachSessionId(UUID userId, UUID practiceSessionId) {
-        List<UUID> ids = jdbc.queryForList("""
-                SELECT cs.id
+        List<Tuple> ids = list(entityManager.createNativeQuery("""
+                SELECT cs.id AS id
                 FROM coach_sessions cs
                 JOIN practice_sessions ps ON ps.id = cs.practice_session_id
-                WHERE cs.practice_session_id = ?
+                WHERE cs.practice_session_id = :practiceSessionId
                   AND cs.status = 'open'
-                  AND ps.user_id = ?
+                  AND ps.user_id = :userId
                   AND ps.hidden_at IS NULL
                 ORDER BY cs.created_at, cs.id
                 LIMIT 1
-                """, UUID.class, practiceSessionId, userId);
-        return ids.isEmpty() ? null : ids.getFirst();
+                """, Tuple.class)
+                .setParameter("practiceSessionId", practiceSessionId)
+                .setParameter("userId", userId));
+        return ids.isEmpty() ? null : ids.getFirst().get("id", UUID.class);
     }
 
     public String practiceSessionStatus(UUID userId, UUID practiceSessionId) {
-        List<String> values = jdbc.queryForList("""
-                SELECT status
+        List<Tuple> values = list(entityManager.createNativeQuery("""
+                SELECT status AS status
                 FROM practice_sessions
-                WHERE id = ? AND user_id = ? AND hidden_at IS NULL
-                """, String.class, practiceSessionId, userId);
-        return values.isEmpty() ? null : values.getFirst();
+                WHERE id = :practiceSessionId
+                  AND user_id = :userId
+                  AND hidden_at IS NULL
+                """, Tuple.class)
+                .setParameter("practiceSessionId", practiceSessionId)
+                .setParameter("userId", userId));
+        return values.isEmpty() ? null : values.getFirst().get("status", String.class);
     }
 
     public OwnedPracticeSessionContext ownedPracticeSessionContext(
             UUID userId, UUID practiceSessionId) {
-        List<PracticeContextRow> rows = jdbc.query("""
+        List<Tuple> rows = list(entityManager.createNativeQuery("""
                 SELECT
                     ps.id AS practice_session_id,
                     ps.user_id,
@@ -233,36 +220,23 @@ public class CoachSessionWork {
                 FROM practice_sessions ps
                 JOIN upload_intents ui ON ui.id = ps.upload_intent_id
                 LEFT JOIN summaries s ON s.session_id = ps.id
-                WHERE ps.id = ? AND ps.user_id = ? AND ps.hidden_at IS NULL
-                """, (row, number) -> new PracticeContextRow(
-                row.getObject("practice_session_id", UUID.class),
-                row.getObject("user_id", UUID.class),
-                row.getString("situation"),
-                row.getString("character_context"),
-                row.getString("goal"),
-                row.getString("blockage_kind"),
-                row.getString("sub_branch"),
-                row.getString("blockage_detail"),
-                row.getObject("upload_intent_id", UUID.class),
-                row.getObject("duration_ms", Integer.class),
-                row.getObject("summary_id", UUID.class),
-                parseJson(row.getString("observations_json")),
-                parseJson(row.getString("uncertainties_json"))),
-                practiceSessionId,
-                userId);
+                WHERE ps.id = :practiceSessionId
+                  AND ps.user_id = :userId
+                  AND ps.hidden_at IS NULL
+                """, Tuple.class)
+                .setParameter("practiceSessionId", practiceSessionId)
+                .setParameter("userId", userId));
         if (rows.isEmpty()) {
             return null;
         }
-        PracticeContextRow row = rows.getFirst();
+        PracticeContextRow row = mapPracticeContextRow(rows.getFirst());
         ObjectNode pack = null;
         if (row.summaryId() != null) {
             pack = objectMapper.createObjectNode();
             pack.set("observations", row.observations());
             pack.set("uncertainties", row.uncertainties());
         }
-        List<String> transcripts = jdbc.queryForList("""
-                SELECT text FROM transcripts WHERE session_id = ? ORDER BY ord
-                """, String.class, practiceSessionId);
+        List<String> transcripts = transcripts(practiceSessionId);
         JsonNode analysisHandoff = CoachBranch.isExpressionBlockage(row.blockageKind())
                 ? findConfirmedAnalysisHandoff(row.userId(), row.uploadIntentId())
                 : null;
@@ -283,61 +257,54 @@ public class CoachSessionWork {
     }
 
     public boolean hasReportForPracticeSession(UUID practiceSessionId) {
-        Boolean value = jdbc.queryForObject("""
+        List<Tuple> values = list(entityManager.createNativeQuery("""
                 SELECT EXISTS (
-                    SELECT 1 FROM practice_reports WHERE practice_session_id = ?
-                )
-                """, Boolean.class, practiceSessionId);
-        return Boolean.TRUE.equals(value);
+                    SELECT 1 FROM practice_reports
+                    WHERE practice_session_id = :practiceSessionId
+                ) AS present
+                """, Tuple.class)
+                .setParameter("practiceSessionId", practiceSessionId));
+        return !values.isEmpty() && Boolean.TRUE.equals(
+                values.getFirst().get("present", Boolean.class));
     }
 
     public JsonNode practiceReportForHandoff(UUID handoffId) {
-        List<String> values = jdbc.queryForList("""
-                SELECT report_json::text
+        List<Tuple> values = list(entityManager.createNativeQuery("""
+                SELECT report_json::text AS report_json
                 FROM practice_reports
-                WHERE source_handoff_id = ?
-                """, String.class, handoffId);
-        return values.isEmpty() ? null : parseJson(values.getFirst());
+                WHERE source_handoff_id = :handoffId
+                """, Tuple.class)
+                .setParameter("handoffId", handoffId));
+        return values.isEmpty()
+                ? null
+                : parseJson(values.getFirst().get("report_json", String.class));
     }
 
     public void addCoachSession(CoachSessionSnapshot session) {
-        jdbc.update("""
-                INSERT INTO coach_sessions (
-                    id,
-                    practice_session_id,
-                    summary_id,
-                    status,
-                    close_reason,
-                    conversation_summary
-                )
-                VALUES (?, ?, ?, ?, NULL, ?)
-                """,
+        entityManager.persist(new CoachSessionEntity(
                 session.sessionId(),
                 session.practiceSessionId(),
                 session.summaryId(),
-                session.status(),
-                session.conversationSummary());
+                sessionStatus(session.status()),
+                session.conversationSummary()));
         for (int index = 0; index < session.turns().size(); index++) {
             CoachTurnSnapshot turn = session.turns().get(index);
-            jdbc.update("""
-                    INSERT INTO coach_turns (session_id, turn_index, role, text)
-                    VALUES (?, ?, ?, ?)
-                    """,
+            entityManager.persist(new CoachTurnEntity(
                     session.sessionId(),
                     index,
-                    turn.role(),
-                    turn.text());
+                    turnRole(turn.role()),
+                    turn.text()));
         }
+        // 뒤의 handoff/report native SQL보다 session·turn INSERT를 먼저 실행한다.
+        entityManager.flush();
     }
 
     public int closeOpenCoachSessions(UUID practiceSessionId, OffsetDateTime now) {
-        return jdbc.update("""
-                UPDATE coach_sessions
-                SET status = 'closed',
-                    updated_at = ?
-                WHERE practice_session_id = ?
-                  AND status = 'open'
-                """, now, practiceSessionId);
+        return coachSessions.closeOpenByPracticeSessionId(
+                practiceSessionId,
+                SessionStatus.OPEN,
+                SessionStatus.CLOSED,
+                now.toInstant());
     }
 
     public OwnedReportSource ownedReportSource(UUID userId, UUID coachSessionId) {
@@ -346,7 +313,7 @@ public class CoachSessionWork {
             return null;
         }
 
-        List<HandoffRow> latest = jdbc.query("""
+        List<Tuple> latest = list(entityManager.createNativeQuery("""
                 SELECT
                     h.id,
                     h.branch_kind,
@@ -354,18 +321,19 @@ public class CoachSessionWork {
                     c.confirmed
                 FROM coaching_handoffs h
                 LEFT JOIN handoff_confirmations c ON c.coaching_handoff_id = h.id
-                WHERE h.coach_session_id = ?
+                WHERE h.coach_session_id = :coachSessionId
                 ORDER BY h.created_at DESC, h.id DESC
                 LIMIT 1
-                """, this::mapHandoff, coachSessionId);
-        HandoffRow handoff = latest.isEmpty() ? null : latest.getFirst();
+                """, Tuple.class)
+                .setParameter("coachSessionId", coachSessionId));
+        HandoffRow handoff = latest.isEmpty() ? null : mapHandoff(latest.getFirst());
         String branchKind = handoff == null
                 ? CoachBranch.of(session.blockageKind())
                 : handoff.branchKind();
 
         HandoffRow analysis = null;
         if (CoachBranch.EXPRESSION.equals(branchKind)) {
-            List<HandoffRow> rows = jdbc.query("""
+            List<Tuple> rows = list(entityManager.createNativeQuery("""
                     SELECT
                         h.id,
                         h.branch_kind,
@@ -373,13 +341,14 @@ public class CoachSessionWork {
                         c.confirmed
                     FROM coaching_handoffs h
                     JOIN handoff_confirmations c ON c.coaching_handoff_id = h.id
-                    WHERE h.practice_session_id = ?
+                    WHERE h.practice_session_id = :practiceSessionId
                       AND h.branch_kind = 'analysis'
                       AND c.confirmed IS TRUE
                     ORDER BY h.created_at DESC, h.id DESC
                     LIMIT 1
-                    """, this::mapHandoff, session.practiceSessionId());
-            analysis = rows.isEmpty() ? null : rows.getFirst();
+                    """, Tuple.class)
+                    .setParameter("practiceSessionId", session.practiceSessionId()));
+            analysis = rows.isEmpty() ? null : mapHandoff(rows.getFirst());
         }
 
         return new OwnedReportSource(
@@ -399,28 +368,29 @@ public class CoachSessionWork {
             boolean confirmed,
             String rebuttalText,
             OffsetDateTime now) {
-        jdbc.update("""
+        entityManager.createNativeQuery("""
                 INSERT INTO handoff_confirmations (
                     coaching_handoff_id,
                     confirmed,
                     rebuttal_text,
                     updated_at
                 )
-                VALUES (?, ?, ?, ?)
+                VALUES (:handoffId, :confirmed, :rebuttalText, :now)
                 ON CONFLICT (coaching_handoff_id) DO UPDATE
                 SET confirmed = EXCLUDED.confirmed,
                     rebuttal_text = EXCLUDED.rebuttal_text,
                     updated_at = EXCLUDED.updated_at
-                """, handoffId, confirmed, rebuttalText, now);
+                """)
+                .setParameter("handoffId", handoffId)
+                .setParameter("confirmed", confirmed)
+                .setParameter("rebuttalText", rebuttalText)
+                .setParameter("now", now)
+                .executeUpdate();
     }
 
     public void closeCoachSession(UUID coachSessionId, OffsetDateTime now) {
-        jdbc.update("""
-                UPDATE coach_sessions
-                SET status = 'closed',
-                    updated_at = ?
-                WHERE id = ?
-                """, now, coachSessionId);
+        coachSessions.updateStatus(
+                coachSessionId, SessionStatus.CLOSED, now.toInstant());
     }
 
     public OperationRow requireCoachStartOperation(UUID operationId) {
@@ -433,19 +403,19 @@ public class CoachSessionWork {
 
     private OperationRow requireOperation(
             UUID operationId, String expectedKind, String label) {
-        List<OperationRow> rows = jdbc.query("""
-                SELECT session_id, kind
+        List<Tuple> rows = list(entityManager.createNativeQuery("""
+                SELECT session_id AS session_id, kind AS kind
                 FROM external_operations
-                WHERE id = ?
-                """,
-                (row, rowNumber) -> new OperationRow(
-                        row.getObject("session_id", UUID.class),
-                        row.getString("kind")),
-                operationId);
+                WHERE id = :operationId
+                """, Tuple.class)
+                .setParameter("operationId", operationId));
         if (rows.isEmpty()) {
             throw new LookupError("external operation not found");
         }
-        OperationRow operation = rows.getFirst();
+        Tuple row = rows.getFirst();
+        OperationRow operation = new OperationRow(
+                row.get("session_id", UUID.class),
+                row.get("kind", String.class));
         if (!expectedKind.equals(operation.kind())) {
             throw new IllegalArgumentException(
                     label + " result requires a " + expectedKind + " operation");
@@ -461,23 +431,16 @@ public class CoachSessionWork {
             JsonNode handoffJson,
             boolean confirmed,
             OffsetDateTime now) {
-        jdbc.update("""
-                INSERT INTO coaching_handoffs (
-                    id,
-                    coach_session_id,
-                    practice_session_id,
-                    branch_kind,
-                    handoff_json
-                )
-                VALUES (?, ?, ?, ?, ?::jsonb)
-                """,
+        entityManager.persist(new CoachingHandoffEntity(
                 handoffId,
                 coachSessionId,
                 practiceSessionId,
                 branchKind,
-                handoffJson.toString());
+                handoffJson));
+        // confirmation/report의 FK가 handoff INSERT보다 먼저 실행되지 않게 한다.
+        entityManager.flush();
         if (confirmed) {
-            jdbc.update("""
+            entityManager.createNativeQuery("""
                     INSERT INTO handoff_confirmations (
                         coaching_handoff_id,
                         confirmed,
@@ -485,8 +448,11 @@ public class CoachSessionWork {
                         created_at,
                         updated_at
                     )
-                    VALUES (?, TRUE, NULL, ?, ?)
-                    """, handoffId, now, now);
+                    VALUES (:handoffId, TRUE, NULL, :now, :now)
+                    """)
+                    .setParameter("handoffId", handoffId)
+                    .setParameter("now", now)
+                    .executeUpdate();
         }
     }
 
@@ -498,7 +464,7 @@ public class CoachSessionWork {
         if (reportJson == null || "blocked".equals(reportJson.path("report_type").asText())) {
             return;
         }
-        jdbc.update("""
+        entityManager.createNativeQuery("""
                 INSERT INTO practice_reports (
                     id,
                     practice_session_id,
@@ -507,14 +473,22 @@ public class CoachSessionWork {
                     source_handoff_id,
                     created_at
                 )
-                VALUES (?, ?, ?, ?::jsonb, ?, ?)
-                """,
-                UUID.randomUUID(),
-                practiceSessionId,
-                reportJson.path("report_type").asText(),
-                reportJson.toString(),
-                handoffId,
-                now);
+                VALUES (
+                    :id,
+                    :practiceSessionId,
+                    :reportType,
+                    CAST(:reportJson AS jsonb),
+                    :handoffId,
+                    :now
+                )
+                """)
+                .setParameter("id", UUID.randomUUID())
+                .setParameter("practiceSessionId", practiceSessionId)
+                .setParameter("reportType", reportJson.path("report_type").asText())
+                .setParameter("reportJson", reportJson.toString())
+                .setParameter("handoffId", handoffId)
+                .setParameter("now", now)
+                .executeUpdate();
     }
 
     public void finishExternalOperation(
@@ -522,69 +496,125 @@ public class CoachSessionWork {
             UUID leaseToken,
             JsonNode responsePayload,
             OffsetDateTime now) {
-        int finished = jdbc.update("""
+        int finished = entityManager.createNativeQuery("""
                 UPDATE external_operations
                 SET status = 'succeeded',
-                    response_payload = ?::jsonb,
+                    response_payload = CAST(:responsePayload AS jsonb),
                     error_code = NULL,
                     lease_token = NULL,
                     lease_expires_at = NULL,
-                    updated_at = ?
-                WHERE id = ?
+                    updated_at = :now
+                WHERE id = :operationId
                   AND status = 'running'
-                  AND lease_token = ?
-                """,
-                responsePayload.toString(),
-                now,
-                operationId,
-                leaseToken);
+                  AND lease_token = :leaseToken
+                """)
+                .setParameter("responsePayload", responsePayload.toString())
+                .setParameter("now", now)
+                .setParameter("operationId", operationId)
+                .setParameter("leaseToken", leaseToken)
+                .executeUpdate();
         if (finished == 0) {
             throw new LeaseOwnershipException("external operation lease is not owned");
         }
     }
 
-    private SessionRow mapSessionRow(ResultSet row, int rowNumber) throws SQLException {
+    private SessionRow mapSessionRow(Tuple row) {
         return new SessionRow(
-                row.getObject("summary_id", UUID.class),
-                row.getString("coach_status"),
-                row.getString("close_reason"),
-                row.getString("conversation_summary"),
-                parseJson(row.getString("observations_json")),
-                parseJson(row.getString("uncertainties_json")),
-                row.getObject("practice_session_id", UUID.class),
-                row.getObject("user_id", UUID.class),
-                row.getString("situation"),
-                row.getString("character_context"),
-                row.getString("goal"),
-                row.getString("blockage_kind"),
-                row.getString("sub_branch"),
-                row.getString("blockage_detail"),
-                row.getObject("upload_intent_id", UUID.class),
-                row.getObject("duration_ms", Integer.class));
+                row.get("summary_id", UUID.class),
+                row.get("coach_status", String.class),
+                row.get("close_reason", String.class),
+                row.get("conversation_summary", String.class),
+                parseJson(row.get("observations_json", String.class)),
+                parseJson(row.get("uncertainties_json", String.class)),
+                row.get("practice_session_id", UUID.class),
+                row.get("user_id", UUID.class),
+                row.get("situation", String.class),
+                row.get("character_context", String.class),
+                row.get("goal", String.class),
+                row.get("blockage_kind", String.class),
+                row.get("sub_branch", String.class),
+                row.get("blockage_detail", String.class),
+                row.get("upload_intent_id", UUID.class),
+                row.get("duration_ms", Integer.class));
     }
 
-    private HandoffRow mapHandoff(ResultSet row, int rowNumber) throws SQLException {
+    private PracticeContextRow mapPracticeContextRow(Tuple row) {
+        return new PracticeContextRow(
+                row.get("practice_session_id", UUID.class),
+                row.get("user_id", UUID.class),
+                row.get("situation", String.class),
+                row.get("character_context", String.class),
+                row.get("goal", String.class),
+                row.get("blockage_kind", String.class),
+                row.get("sub_branch", String.class),
+                row.get("blockage_detail", String.class),
+                row.get("upload_intent_id", UUID.class),
+                row.get("duration_ms", Integer.class),
+                row.get("summary_id", UUID.class),
+                parseJson(row.get("observations_json", String.class)),
+                parseJson(row.get("uncertainties_json", String.class)));
+    }
+
+    private HandoffRow mapHandoff(Tuple row) {
         return new HandoffRow(
-                row.getObject("id", UUID.class),
-                row.getString("branch_kind"),
-                parseJson(row.getString("handoff_json")),
-                row.getObject("confirmed", Boolean.class));
+                row.get("id", UUID.class),
+                row.get("branch_kind", String.class),
+                parseJson(row.get("handoff_json", String.class)),
+                row.get("confirmed", Boolean.class));
     }
 
     private JsonNode findConfirmedAnalysisHandoff(UUID userId, UUID uploadIntentId) {
-        List<String> values = jdbc.queryForList("""
-                SELECT h.handoff_json::text
+        List<Tuple> values = list(entityManager.createNativeQuery("""
+                SELECT h.handoff_json::text AS handoff_json
                 FROM coaching_handoffs h
                 JOIN handoff_confirmations c ON c.coaching_handoff_id = h.id
                 JOIN practice_sessions ps ON ps.id = h.practice_session_id
-                WHERE ps.user_id = ?
-                  AND ps.upload_intent_id = ?
+                WHERE ps.user_id = :userId
+                  AND ps.upload_intent_id = :uploadIntentId
                   AND h.branch_kind = 'analysis'
                   AND c.confirmed IS TRUE
                 ORDER BY h.created_at DESC, h.id DESC
                 LIMIT 1
-                """, String.class, userId, uploadIntentId);
-        return values.isEmpty() ? null : parseJson(values.getFirst());
+                """, Tuple.class)
+                .setParameter("userId", userId)
+                .setParameter("uploadIntentId", uploadIntentId));
+        return values.isEmpty()
+                ? null
+                : parseJson(values.getFirst().get("handoff_json", String.class));
+    }
+
+    private List<CoachTurnSnapshot> coachTurns(UUID sessionId) {
+        return list(entityManager.createQuery("""
+                SELECT turn.role AS role, turn.text AS text
+                FROM CoachTurnEntity turn
+                WHERE turn.sessionId = :sessionId
+                ORDER BY turn.turnIndex
+                """, Tuple.class)
+                .setParameter("sessionId", sessionId)).stream()
+                .map(row -> new CoachTurnSnapshot(
+                        row.get("role", TurnRole.class).dbValue(),
+                        row.get("text", String.class)))
+                .toList();
+    }
+
+    private List<String> transcripts(UUID practiceSessionId) {
+        return list(entityManager.createNativeQuery("""
+                SELECT text AS text
+                FROM transcripts
+                WHERE session_id = :practiceSessionId
+                ORDER BY ord
+                """, Tuple.class)
+                .setParameter("practiceSessionId", practiceSessionId)).stream()
+                .map(row -> row.get("text", String.class))
+                .toList();
+    }
+
+    private SessionStatus sessionStatus(String value) {
+        return SessionStatus.valueOf(value.toUpperCase(Locale.ROOT));
+    }
+
+    private TurnRole turnRole(String value) {
+        return TurnRole.valueOf(value.toUpperCase(Locale.ROOT));
     }
 
     private JsonNode observationPack(SessionRow row) {

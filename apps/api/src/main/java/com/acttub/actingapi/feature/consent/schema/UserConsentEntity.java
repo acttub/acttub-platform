@@ -20,16 +20,22 @@ public class UserConsentEntity extends AppGeneratedUuidEntity {
     @Column(name = "action", nullable = false, columnDefinition = "text")
     ConsentAction action;
 
-    @Column(name = "occurred_at", nullable = false, insertable = false, updatable = false)
+    @Column(name = "occurred_at", nullable = false, updatable = false)
     Instant occurredAt;
 
     protected UserConsentEntity() {
     }
 
-    public UserConsentEntity(UUID id, UUID userId, UUID documentId, ConsentAction action) {
+    public UserConsentEntity(
+            UUID id,
+            UUID userId,
+            UUID documentId,
+            ConsentAction action,
+            Instant occurredAt) {
         super(id);
         this.userId = userId;
         this.documentId = documentId;
         this.action = action;
+        this.occurredAt = occurredAt;
     }
 }

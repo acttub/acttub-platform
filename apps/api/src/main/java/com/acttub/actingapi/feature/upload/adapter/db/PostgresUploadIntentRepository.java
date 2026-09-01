@@ -1,26 +1,36 @@
 package com.acttub.actingapi.feature.upload.adapter.db;
 
-import java.sql.ResultSet;
-import java.sql.SQLException;
+import static com.acttub.actingapi.platform.persistence.NativeTuples.list;
+
 import java.time.Instant;
-import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
 
-import com.acttub.actingapi.platform.schema.UploadStatus;
 import com.acttub.actingapi.feature.upload.app.UploadIntentRepository;
 import com.acttub.actingapi.feature.upload.domain.UploadIntent;
-import org.springframework.jdbc.core.JdbcTemplate;
+import com.acttub.actingapi.feature.upload.schema.UploadIntentEntity;
+import com.acttub.actingapi.platform.schema.UploadStatus;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.Tuple;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 @Repository
 class PostgresUploadIntentRepository implements UploadIntentRepository {
-    private final JdbcTemplate jdbc;
+    private final UploadIntentJpaRepository uploads;
+    private final EntityManager entityManager;
+    private final TransactionTemplate transaction;
 
-    PostgresUploadIntentRepository(JdbcTemplate jdbc) {
-        this.jdbc = jdbc;
+    PostgresUploadIntentRepository(
+            UploadIntentJpaRepository uploads,
+            EntityManager entityManager,
+            PlatformTransactionManager transactionManager) {
+        this.uploads = uploads;
+        this.entityManager = entityManager;
+        this.transaction = new TransactionTemplate(transactionManager);
     }
 
     @Override
@@ -32,31 +42,24 @@ class PostgresUploadIntentRepository implements UploadIntentRepository {
             Integer durationMs,
             Instant expiresAt) {
         UUID id = UUID.randomUUID();
-        jdbc.update("""
-                INSERT INTO upload_intents(
-                    id,user_id,status,storage_provider,object_key,mime_type,
-                    size_bytes,duration_ms,expires_at)
-                VALUES (?,?,'pending','s3',?,?,?,?,?)
-                """,
+        uploads.save(new UploadIntentEntity(
                 id,
                 userId,
+                UploadStatus.PENDING,
+                "s3",
                 objectKey,
                 mimeType,
                 sizeBytes,
                 durationMs,
-                expiresAt.atOffset(ZoneOffset.UTC));
+                expiresAt));
         return find(userId, id);
     }
 
     @Override
     public UploadIntent find(UUID userId, UUID intentId) {
-        List<UploadIntent> rows = jdbc.query("""
-                SELECT id,user_id,status,storage_provider,object_key,mime_type,
-                       size_bytes,duration_ms,etag,created_at,expires_at,finalized_at
-                FROM upload_intents
-                WHERE id=? AND user_id=?
-                """, PostgresUploadIntentRepository::intent, intentId, userId);
-        return rows.isEmpty() ? null : rows.getFirst();
+        return uploads.findByIdAndUserId(intentId, userId)
+                .map(PostgresUploadIntentRepository::intent)
+                .orElse(null);
     }
 
     @Override
@@ -65,22 +68,27 @@ class PostgresUploadIntentRepository implements UploadIntentRepository {
             UUID intentId,
             String etag,
             Instant now) {
-        List<UploadIntent> rows = jdbc.query("""
-                UPDATE upload_intents
-                SET status='finalized',finalized_at=?,etag=?
-                WHERE id=? AND user_id=?
-                  AND status='pending'
-                  AND expires_at>?
-                RETURNING id,user_id,status,storage_provider,object_key,mime_type,
-                          size_bytes,duration_ms,etag,created_at,expires_at,finalized_at
-                """,
-                PostgresUploadIntentRepository::intent,
-                now.atOffset(ZoneOffset.UTC),
-                etag,
-                intentId,
-                userId,
-                now.atOffset(ZoneOffset.UTC));
-        return rows.isEmpty() ? null : rows.getFirst();
+        return transaction.execute(status -> {
+            List<Tuple> rows = list(entityManager.createNativeQuery("""
+                    WITH finalized AS (
+                        UPDATE upload_intents
+                        SET status='finalized',finalized_at=:now,etag=:etag
+                        WHERE id=:intentId AND user_id=:userId
+                          AND status='pending'
+                          AND expires_at>:now
+                        RETURNING id,user_id,status,storage_provider,object_key,mime_type,
+                                  size_bytes,duration_ms,etag,created_at,expires_at,finalized_at
+                    )
+                    SELECT id,user_id,status,storage_provider,object_key,mime_type,
+                           size_bytes,duration_ms,etag,created_at,expires_at,finalized_at
+                    FROM finalized
+                    """, Tuple.class)
+                    .setParameter("now", now.atOffset(ZoneOffset.UTC))
+                    .setParameter("etag", etag)
+                    .setParameter("intentId", intentId)
+                    .setParameter("userId", userId));
+            return rows.isEmpty() ? null : intent(rows.getFirst());
+        });
     }
 
     /**
@@ -93,24 +101,41 @@ class PostgresUploadIntentRepository implements UploadIntentRepository {
      * 여기서 터지고 500 이 난다. ({@code practice} 가 검증 없이 문자열을 쓰는 것은 그쪽이
      * 재편 전부터 그랬기 때문이고, 이 넷은 열거형이었다.)
      */
+    private static UploadIntent intent(UploadIntentEntity entity) {
+        return new UploadIntent(
+                entity.getId(),
+                entity.getUserId(),
+                entity.getStatus().dbValue(),
+                entity.getStorageProvider(),
+                entity.getObjectKey(),
+                entity.getMimeType(),
+                entity.getSizeBytes(),
+                entity.getDurationMs(),
+                entity.getEtag(),
+                entity.getCreatedAt(),
+                entity.getExpiresAt(),
+                entity.getFinalizedAt());
+    }
+
+    private static UploadIntent intent(Tuple row) {
+        Instant finalized = row.get("finalized_at", Instant.class);
+        return new UploadIntent(
+                row.get("id", UUID.class),
+                row.get("user_id", UUID.class),
+                status(row.get("status", String.class)),
+                row.get("storage_provider", String.class),
+                row.get("object_key", String.class),
+                row.get("mime_type", String.class),
+                row.get("size_bytes", Long.class),
+                row.get("duration_ms", Integer.class),
+                row.get("etag", String.class),
+                row.get("created_at", Instant.class),
+                row.get("expires_at", Instant.class),
+                finalized);
+    }
+
     private static String status(String raw) {
         return UploadStatus.valueOf(raw.toUpperCase(Locale.ROOT)).dbValue();
     }
 
-    private static UploadIntent intent(ResultSet result, int rowNumber) throws SQLException {
-        OffsetDateTime finalized = result.getObject("finalized_at", OffsetDateTime.class);
-        return new UploadIntent(
-                result.getObject("id", UUID.class),
-                result.getObject("user_id", UUID.class),
-                status(result.getString("status")),
-                result.getString("storage_provider"),
-                result.getString("object_key"),
-                result.getString("mime_type"),
-                result.getLong("size_bytes"),
-                result.getObject("duration_ms", Integer.class),
-                result.getString("etag"),
-                result.getObject("created_at", OffsetDateTime.class).toInstant(),
-                result.getObject("expires_at", OffsetDateTime.class).toInstant(),
-                finalized == null ? null : finalized.toInstant());
-    }
 }

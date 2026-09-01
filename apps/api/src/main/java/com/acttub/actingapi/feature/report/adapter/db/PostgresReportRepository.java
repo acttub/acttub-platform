@@ -1,6 +1,9 @@
 package com.acttub.actingapi.feature.report.adapter.db;
 
-import java.time.OffsetDateTime;
+import static com.acttub.actingapi.platform.persistence.NativeTuples.list;
+
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
 
@@ -10,44 +13,48 @@ import com.acttub.actingapi.feature.report.app.ReportSummary;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.springframework.jdbc.core.JdbcTemplate;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.Tuple;
 import org.springframework.stereotype.Repository;
 
-/** 성적표 조회 포트를 손으로 쓴 SQL 로 구현한다. */
+/** 성적표 조회 포트를 별칭 기반 native projection으로 구현한다. */
 @Repository
 public class PostgresReportRepository implements ReportRepository {
-    private final JdbcTemplate jdbc;
+    private final EntityManager entityManager;
     private final ObjectMapper mapper;
 
-    PostgresReportRepository(JdbcTemplate jdbc, ObjectMapper mapper) {
-        this.jdbc = jdbc;
+    PostgresReportRepository(EntityManager entityManager, ObjectMapper mapper) {
+        this.entityManager = entityManager;
         this.mapper = mapper;
     }
 
     @Override
     public List<ReportSummary> listSummaries(UUID userId) {
-        return jdbc.query("""
+        return list(entityManager.createNativeQuery("""
                 SELECT
                     report.practice_session_id,
-                    report.report_type::text AS report_type,
+                    report.report_type AS report_type,
                     COALESCE(report.report_json ->> 'title', '') AS title,
                     report.created_at
                 FROM practice_reports AS report
                 JOIN practice_sessions AS practice
                   ON practice.id = report.practice_session_id
-                WHERE practice.user_id = ?
+                WHERE practice.user_id = :userId
                   AND practice.hidden_at IS NULL
                 ORDER BY report.created_at, report.id
-                """, (result, rowNumber) -> new ReportSummary(
-                result.getObject("practice_session_id", UUID.class),
-                result.getString("report_type"),
-                result.getString("title"),
-                result.getObject("created_at", OffsetDateTime.class)), userId);
+                """, Tuple.class)
+                .setParameter("userId", userId)).stream()
+                .map(row -> new ReportSummary(
+                        row.get("practice_session_id", UUID.class),
+                        row.get("report_type", String.class),
+                        row.get("title", String.class),
+                        row.get("created_at", Instant.class).atOffset(ZoneOffset.UTC)))
+                .toList();
     }
 
     @Override
     public ReportDetail findDetail(UUID userId, UUID practiceSessionId) {
-        List<ReportDetail> rows = jdbc.query("""
+        List<Tuple> rows = list(entityManager.createNativeQuery("""
                 SELECT
                     report.practice_session_id,
                     report.created_at,
@@ -58,17 +65,23 @@ public class PostgresReportRepository implements ReportRepository {
                   ON practice.id = report.practice_session_id
                 JOIN upload_intents AS upload
                   ON upload.id = practice.upload_intent_id
-                WHERE practice.user_id = ?
-                  AND practice.id = ?
+                WHERE practice.user_id = :userId
+                  AND practice.id = :practiceSessionId
                   AND practice.hidden_at IS NULL
                 ORDER BY report.created_at DESC, report.id DESC
                 LIMIT 1
-                """, (result, rowNumber) -> new ReportDetail(
-                result.getObject("practice_session_id", UUID.class),
-                result.getObject("created_at", OffsetDateTime.class),
-                parseJson(result.getString("report_json")),
-                result.getString("object_key")), userId, practiceSessionId);
-        return rows.isEmpty() ? null : rows.getFirst();
+                """, Tuple.class)
+                .setParameter("userId", userId)
+                .setParameter("practiceSessionId", practiceSessionId));
+        if (rows.isEmpty()) {
+            return null;
+        }
+        Tuple row = rows.getFirst();
+        return new ReportDetail(
+                row.get("practice_session_id", UUID.class),
+                row.get("created_at", Instant.class).atOffset(ZoneOffset.UTC),
+                parseJson(row.get("report_json", String.class)),
+                row.get("object_key", String.class));
     }
 
     private JsonNode parseJson(String value) {

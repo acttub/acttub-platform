@@ -51,6 +51,12 @@ public class UploadIntentEntity extends AppGeneratedUuidEntity {
     public UploadIntentEntity(UUID id, UUID userId, UploadStatus status,
             String storageProvider, String objectKey, String mimeType, long sizeBytes,
             Instant expiresAt) {
+        this(id, userId, status, storageProvider, objectKey, mimeType, sizeBytes, null, expiresAt);
+    }
+
+    public UploadIntentEntity(UUID id, UUID userId, UploadStatus status,
+            String storageProvider, String objectKey, String mimeType, long sizeBytes,
+            Integer durationMs, Instant expiresAt) {
         super(id);
         this.userId = userId;
         this.status = status;
@@ -58,6 +64,51 @@ public class UploadIntentEntity extends AppGeneratedUuidEntity {
         this.objectKey = objectKey;
         this.mimeType = mimeType;
         this.sizeBytes = sizeBytes;
+        this.durationMs = durationMs;
         this.expiresAt = expiresAt;
+    }
+
+    public UUID getUserId() {
+        return userId;
+    }
+
+    public UploadStatus getStatus() {
+        return status;
+    }
+
+    public String getStorageProvider() {
+        return storageProvider;
+    }
+
+    public String getObjectKey() {
+        return objectKey;
+    }
+
+    public String getMimeType() {
+        return mimeType;
+    }
+
+    public long getSizeBytes() {
+        return sizeBytes;
+    }
+
+    public Integer getDurationMs() {
+        return durationMs;
+    }
+
+    public String getEtag() {
+        return etag;
+    }
+
+    public Instant getCreatedAt() {
+        return createdAt;
+    }
+
+    public Instant getExpiresAt() {
+        return expiresAt;
+    }
+
+    public Instant getFinalizedAt() {
+        return finalizedAt;
     }
 }

@@ -1,5 +1,7 @@
 package com.acttub.actingapi.platform.operation;
 
+import static com.acttub.actingapi.platform.persistence.NativeTuples.list;
+
 import java.time.Duration;
 import java.time.Instant;
 import java.time.OffsetDateTime;
@@ -9,8 +11,11 @@ import java.util.UUID;
 import com.acttub.actingapi.feature.memory.app.MemoryUpdateQueue;
 import com.acttub.actingapi.platform.ledger.LeaseOwnershipException;
 import com.fasterxml.jackson.databind.JsonNode;
-import org.springframework.jdbc.core.JdbcTemplate;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.Tuple;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * memory 가 선언한 {@link MemoryUpdateQueue} 를 분석과 공용으로 쓰는 External Operation 원장으로
@@ -30,11 +35,16 @@ class ExternalOperationMemoryQueue implements MemoryUpdateQueue {
     private static final String KIND = "memory_update";
 
     private final ExternalOperationClaimer claimer;
-    private final JdbcTemplate jdbc;
+    private final EntityManager entityManager;
+    private final TransactionTemplate transaction;
 
-    ExternalOperationMemoryQueue(ExternalOperationClaimer claimer, JdbcTemplate jdbc) {
+    ExternalOperationMemoryQueue(
+            ExternalOperationClaimer claimer,
+            EntityManager entityManager,
+            PlatformTransactionManager transactionManager) {
         this.claimer = claimer;
-        this.jdbc = jdbc;
+        this.entityManager = entityManager;
+        this.transaction = new TransactionTemplate(transactionManager);
     }
 
     @Override
@@ -44,29 +54,43 @@ class ExternalOperationMemoryQueue implements MemoryUpdateQueue {
 
     @Override
     public UUID practiceSessionOf(UUID operationId) {
-        return jdbc.queryForObject(
-                "SELECT session_id FROM external_operations WHERE id=?", UUID.class, operationId);
+        var rows = list(entityManager.createNativeQuery("""
+                SELECT session_id AS session_id
+                FROM external_operations
+                WHERE id = :operationId
+                """, Tuple.class)
+                .setParameter("operationId", operationId));
+        if (rows.isEmpty()) {
+            throw new IllegalStateException("external operation is missing");
+        }
+        return rows.getFirst().get("session_id", UUID.class);
     }
 
     @Override
     public void complete(
             UUID operationId, UUID leaseToken, JsonNode responsePayload, Instant now) {
-        int finished = jdbc.update("""
-                UPDATE external_operations
-                SET status = 'succeeded',
-                    response_payload = ?::jsonb,
-                    error_code = NULL,
-                    lease_token = NULL,
-                    lease_expires_at = NULL,
-                    updated_at = ?
-                WHERE id = ?
-                  AND status = 'running'
-                  AND lease_token = ?
-                """, responsePayload.toString(), OffsetDateTime.ofInstant(now, ZoneOffset.UTC),
-                operationId, leaseToken);
-        if (finished == 0) {
-            throw new LeaseOwnershipException("external operation lease is not owned");
-        }
+        transaction.executeWithoutResult(status -> {
+            int finished = entityManager.createNativeQuery("""
+                    UPDATE external_operations
+                    SET status = 'succeeded',
+                        response_payload = CAST(:responsePayload AS jsonb),
+                        error_code = NULL,
+                        lease_token = NULL,
+                        lease_expires_at = NULL,
+                        updated_at = :now
+                    WHERE id = :operationId
+                      AND status = 'running'
+                      AND lease_token = :leaseToken
+                    """)
+                    .setParameter("responsePayload", responsePayload.toString())
+                    .setParameter("now", OffsetDateTime.ofInstant(now, ZoneOffset.UTC))
+                    .setParameter("operationId", operationId)
+                    .setParameter("leaseToken", leaseToken)
+                    .executeUpdate();
+            if (finished == 0) {
+                throw new LeaseOwnershipException("external operation lease is not owned");
+            }
+        });
     }
 
     @Override

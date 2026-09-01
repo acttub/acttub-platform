@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Stream;
 
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.acttub.actingapi.feature.analysis.schema.AnomalyEntity;
@@ -28,11 +29,14 @@ import com.acttub.actingapi.feature.auth.schema.UserIdentityEntity;
 import com.acttub.actingapi.feature.auth.schema.RefreshTokenEntity;
 import com.acttub.actingapi.feature.consent.schema.ConsentDocumentEntity;
 import com.acttub.actingapi.feature.consent.schema.UserConsentEntity;
+import com.acttub.actingapi.feature.memory.schema.ActorMemoryEntryEntity;
 import com.acttub.actingapi.feature.practice.schema.PracticeSessionEntity;
+import com.acttub.actingapi.feature.push.schema.PushTokenEntity;
 import com.acttub.actingapi.feature.upload.schema.UploadIntentEntity;
 import com.acttub.actingapi.support.PostgresContainerSupport;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
+import jakarta.persistence.Table;
 import org.hibernate.SessionFactory;
 import org.hibernate.resource.jdbc.spi.StatementInspector;
 import org.junit.jupiter.api.DisplayName;
@@ -47,7 +51,7 @@ import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 매핑 2종에 대한 검증 (M0-spike.md D-4·D-5).
+ * 전체 Schema Entity 매핑과 Spring Data 신규 판정에 대한 검증.
  *
  * <p>여기서 확인하는 것:
  * <ul>
@@ -91,12 +95,13 @@ class EntityMappingIT {
     EntityManager entityManager;
 
     @Test
-    @DisplayName("JPA metamodel은 관계 매핑 없이 정확히 24개 엔티티를 포함한다")
-    void mapsExactlyTwentyFourEntities() {
+    @DisplayName("JPA metamodel은 관계 매핑 없이 정확히 26개 엔티티를 포함한다")
+    void mapsExactlyTwentySixEntities() {
         Set<Class<?>> entities = entityManager.getMetamodel().getEntities().stream()
                 .map(jakarta.persistence.metamodel.Type::getJavaType)
                 .collect(java.util.stream.Collectors.toSet());
-        assertThat(entities).hasSize(24);
+        assertThat(entities).hasSize(26);
+        assertThat(entities).contains(ActorMemoryEntryEntity.class, PushTokenEntity.class);
         assertThat(entities).allMatch(type -> type.getSimpleName().endsWith("Entity"));
         assertThat(entities).allMatch(type -> java.util.Arrays.stream(type.getDeclaredFields())
                 .noneMatch(field -> java.util.Arrays.stream(field.getAnnotations())
@@ -106,6 +111,33 @@ class EntityMappingIT {
                 .filter(field -> field.getType().equals(com.fasterxml.jackson.databind.JsonNode.class))
                 .count();
         assertThat(jsonNodes).isEqualTo(8);
+    }
+
+    @Test
+    @DisplayName("26개 Schema Entity는 자기 테이블의 모든 컬럼을 빠짐없이 매핑한다")
+    void mapsEveryColumnOfEveryTable() {
+        Set<Class<?>> entities = entityManager.getMetamodel().getEntities().stream()
+                .map(jakarta.persistence.metamodel.Type::getJavaType)
+                .collect(java.util.stream.Collectors.toSet());
+
+        for (Class<?> entity : entities) {
+            String table = entity.getAnnotation(Table.class).name();
+            Set<String> databaseColumns = Set.copyOf(jdbc.queryForList("""
+                    SELECT column_name
+                    FROM information_schema.columns
+                    WHERE table_schema = 'public' AND table_name = ?
+                    """, String.class, table));
+            Set<String> mappedColumns = hierarchy(entity)
+                    .flatMap(type -> java.util.Arrays.stream(type.getDeclaredFields()))
+                    .map(field -> field.getAnnotation(jakarta.persistence.Column.class))
+                    .filter(java.util.Objects::nonNull)
+                    .map(jakarta.persistence.Column::name)
+                    .collect(java.util.stream.Collectors.toSet());
+
+            assertThat(mappedColumns)
+                    .as("%s가 %s의 전체 컬럼을 나타내야 한다", entity.getSimpleName(), table)
+                    .isEqualTo(databaseColumns);
+        }
     }
 
     @Test
@@ -120,12 +152,41 @@ class EntityMappingIT {
         UserEntity loaded = entityManager.find(UserEntity.class, id);
         assertThat(loaded.getStatus()).isEqualTo(UserStatus.ACTIVE);
         assertThat(loaded.getNickname()).isEqualTo("닉네임");
+        assertThat(loaded.getRole()).isEqualTo("user");
+        assertThat(loaded.getDeactivatedAt()).isNull();
         // server_default 가 발동했다 — 필드 초기화값을 주지 않은 결과다 (apps/api/CONTRACT.md §5-3-3).
         assertThat(loaded.getCreatedAt()).isNotNull();
 
         // DB 에 실제로 들어간 값은 Python enum 의 .value 다.
         assertThat(jdbc.queryForObject("SELECT status FROM users WHERE id = ?", String.class, id))
                 .isEqualTo("active");
+    }
+
+    @Test
+    @Transactional
+    @DisplayName("actor_memory_entries: 앱 생성 UUID·text converter·server default를 함께 보존한다")
+    void actorMemoryRoundTrip() {
+        UUID userId = UUID.randomUUID();
+        entityManager.persist(new UserEntity(userId, "memory@example.test", UserStatus.ACTIVE, null));
+
+        UUID id = UUID.randomUUID();
+        entityManager.persist(new ActorMemoryEntryEntity(
+                id, userId, ActorMemoryField.GOAL, "오디션 합격",
+                ActorMemoryAuthor.ACTOR, null));
+        entityManager.flush();
+        entityManager.clear();
+
+        ActorMemoryEntryEntity loaded = entityManager.find(ActorMemoryEntryEntity.class, id);
+        assertThat(loaded.getUserId()).isEqualTo(userId);
+        assertThat(loaded.getField()).isEqualTo(ActorMemoryField.GOAL);
+        assertThat(loaded.getWrittenBy()).isEqualTo(ActorMemoryAuthor.ACTOR);
+        assertThat(loaded.getValue()).isEqualTo("오디션 합격");
+        assertThat(loaded.getCreatedAt()).isNotNull();
+        assertThat(loaded.getUpdatedAt()).isNotNull();
+        assertThat(jdbc.queryForMap(
+                "SELECT field, written_by FROM actor_memory_entries WHERE id = ?", id))
+                .containsEntry("field", "goal")
+                .containsEntry("written_by", "actor");
     }
 
     @Test
@@ -186,8 +247,8 @@ class EntityMappingIT {
 
     @Test
     @Transactional
-    @DisplayName("앱 생성 UUID 엔티티 20종의 실제 Spring Data save()가 INSERT 전 SELECT를 내지 않는다")
-    void allTwentyAppGeneratedIdsUsePersistOnSave() {
+    @DisplayName("앱 생성 UUID 엔티티 21종의 실제 Spring Data save()가 INSERT 전 SELECT를 내지 않는다")
+    void allTwentyOneAppGeneratedIdsUsePersistOnSave() {
         RecordingInspector.STATEMENTS.clear();
         UUID userId=UUID.randomUUID(), otherUserId=UUID.randomUUID(), documentId=UUID.randomUUID();
         UUID uploadId=UUID.randomUUID(), practiceId=UUID.randomUUID(), summaryId=UUID.randomUUID();
@@ -198,9 +259,12 @@ class EntityMappingIT {
         save(UserEntity.class,new UserEntity(userId,"all-"+userId+"@example.test",UserStatus.ACTIVE,"n"));
         save(UserEntity.class,new UserEntity(otherUserId,"other-"+userId+"@example.test",UserStatus.ACTIVE,"n"));
         save(UserIdentityEntity.class,new UserIdentityEntity(UUID.randomUUID(),userId,IdentityProvider.GOOGLE,"uid-"+userId));
-        save(RefreshTokenEntity.class,new RefreshTokenEntity(UUID.randomUUID(),userId,"a".repeat(64),null,java.time.Instant.now().plusSeconds(60)));
+        save(RefreshTokenEntity.class,new RefreshTokenEntity(UUID.randomUUID(),userId,"a".repeat(64),null,
+                java.time.Instant.now(),java.time.Instant.now().plusSeconds(60)));
         save(ConsentDocumentEntity.class,new ConsentDocumentEntity(documentId,ConsentType.TERMS,"v-"+userId,"t","b",true));
-        save(UserConsentEntity.class,new UserConsentEntity(UUID.randomUUID(),userId,documentId,ConsentAction.GRANTED));
+        save(UserConsentEntity.class,new UserConsentEntity(UUID.randomUUID(),userId,documentId,ConsentAction.GRANTED,java.time.Instant.now()));
+        save(ActorMemoryEntryEntity.class,new ActorMemoryEntryEntity(UUID.randomUUID(),userId,
+                ActorMemoryField.GOAL,"목표",ActorMemoryAuthor.ACTOR,null));
         save(UploadIntentEntity.class,new UploadIntentEntity(uploadId,userId,UploadStatus.PENDING,"s3","key-"+userId,"video/mp4",1,java.time.Instant.now().plusSeconds(60)));
         save(PracticeSessionEntity.class,new PracticeSessionEntity(practiceId,userId,uploadId,PracticeStatus.ANALYZING,"s","c",null,"분석","캐릭터 분석","g"));
         save(TranscriptEntity.class,new TranscriptEntity(UUID.randomUUID(),practiceId,0,"text"));
@@ -227,7 +291,7 @@ class EntityMappingIT {
 
         List<String> statements=List.copyOf(RecordingInspector.STATEMENTS);
         assertThat(statements.stream().filter(sql->sql.startsWith("insert into "))
-                .map(sql->sql.substring("insert into ".length()).split(" ")[0]).distinct()).hasSize(24);
+                .map(sql->sql.substring("insert into ".length()).split(" ")[0]).distinct()).hasSize(25);
         assertThat(statements).noneMatch(sql->sql.stripLeading().toLowerCase().startsWith("select"));
         assertThat(jdbc.queryForObject("SELECT intent_impact FROM anomalies WHERE summary_id=?",String.class,summaryId)).isEqualTo("반전");
     }
@@ -258,5 +322,14 @@ class EntityMappingIT {
     private <T> T save(Class<T> type,T entity){
         var information=JpaEntityInformationSupport.getEntityInformation(type,entityManager);
         return new SimpleJpaRepository<T,UUID>(information,entityManager).save(entity);
+    }
+
+    private static Stream<Class<?>> hierarchy(Class<?> type) {
+        Stream.Builder<Class<?>> classes = Stream.builder();
+        for (Class<?> current = type; current != null && current != Object.class;
+                current = current.getSuperclass()) {
+            classes.add(current);
+        }
+        return classes.build();
     }
 }

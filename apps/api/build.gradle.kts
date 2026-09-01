@@ -57,6 +57,9 @@ tasks.withType<JavaCompile>().configureEach {
 
 tasks.withType<Test>().configureEach {
     useJUnitPlatform()
+    // Spring context가 많은 전체 스위트는 기본 512MB worker에서 후반부 OOM이 재현됐다.
+    // CI 정본 명령(./gradlew test)이 추적되지 않는 로컬 init script 없이 완주하게 고정한다.
+    maxHeapSize = "1g"
     systemProperty("file.encoding", "UTF-8")
 
     // 로컬 .env 를 테스트가 읽지 못하게 막는다(DotenvEnvironmentPostProcessor). 이 가드가
