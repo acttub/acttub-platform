@@ -9,6 +9,8 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 
 interface CommunityPostJpaRepository extends JpaRepository<CommunityPostEntity, UUID> {
+    boolean existsByIdAndStatus(UUID id, ContentStatus status);
+
     @Modifying
     @Query("""
             UPDATE CommunityPostEntity post

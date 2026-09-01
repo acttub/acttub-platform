@@ -82,6 +82,7 @@ class PostgresCommunityRepository implements CommunityRepository {
     private final CommunityCategoryJpaRepository categories;
     private final CommunityPostJpaRepository posts;
     private final CommunityCommentJpaRepository comments;
+    private final CommunityAnonymousAliasJpaRepository anonymousAliases;
     private final CommunityPostLikeJpaRepository likes;
     private final CommunityBlockJpaRepository blocks;
     private final CommunityReportJpaRepository reports;
@@ -93,6 +94,7 @@ class PostgresCommunityRepository implements CommunityRepository {
             CommunityCategoryJpaRepository categories,
             CommunityPostJpaRepository posts,
             CommunityCommentJpaRepository comments,
+            CommunityAnonymousAliasJpaRepository anonymousAliases,
             CommunityPostLikeJpaRepository likes,
             CommunityBlockJpaRepository blocks,
             CommunityReportJpaRepository reports,
@@ -102,6 +104,7 @@ class PostgresCommunityRepository implements CommunityRepository {
         this.categories = categories;
         this.posts = posts;
         this.comments = comments;
+        this.anonymousAliases = anonymousAliases;
         this.likes = likes;
         this.blocks = blocks;
         this.reports = reports;
@@ -570,13 +573,7 @@ class PostgresCommunityRepository implements CommunityRepository {
     }
 
     private void requireVisiblePost(UUID postId) {
-        List<Tuple> rows = list(entityManager.createNativeQuery("""
-                SELECT id AS id
-                FROM community_posts
-                WHERE id = :postId AND status = 'visible'
-                """, Tuple.class)
-                .setParameter("postId", postId));
-        if (rows.isEmpty()) {
+        if (!posts.existsByIdAndStatus(postId, ContentStatus.VISIBLE)) {
             throw new CommunityContentNotFound();
         }
     }
@@ -618,14 +615,8 @@ class PostgresCommunityRepository implements CommunityRepository {
 
     private Map<UUID, Integer> aliasMap(UUID postId) {
         Map<UUID, Integer> result = new HashMap<>();
-        list(entityManager.createNativeQuery("""
-                SELECT user_id AS user_id, ordinal AS ordinal
-                FROM community_anonymous_aliases
-                WHERE post_id = :postId
-                """, Tuple.class)
-                .setParameter("postId", postId)).forEach(row -> result.put(
-                        row.get("user_id", UUID.class),
-                        row.get("ordinal", Integer.class)));
+        anonymousAliases.findAliasesByPostId(postId).forEach(row -> result.put(
+                row.getUserId(), row.getOrdinal()));
         return result;
     }
 
