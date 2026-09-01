@@ -15,12 +15,16 @@ const readRepo = (relativePath) =>
 const { buildPracticeSessionRequest } = await import(
   "../src/features/practice/practice-setup-flow.ts"
 );
-const { DIFFICULTY_CHOICES, difficultySelection } = await import(
-  "../src/features/practice/prep-choices.ts"
-);
+const {
+  chooseBlockageKind,
+  chooseBlockageSubBranch,
+  completeBlockageFlowWithDefault,
+  initialBlockageFlowState,
+  updateBlockageDetail,
+} = await import("../src/features/practice/blockage-flow.ts");
 
 test("영상만 고른 시작은 빈 장면과 그 외 기본값으로 조립한다", () => {
-  const blockage = difficultySelection(null);
+  const blockage = completeBlockageFlowWithDefault(initialBlockageFlowState);
   const body = buildPracticeSessionRequest(
     "upload-intent-video-only",
     { situation: "", characterContext: " ", goal: "\n" },
@@ -38,26 +42,10 @@ test("영상만 고른 시작은 빈 장면과 그 외 기본값으로 조립한
   });
 });
 
-// DB 조합 CHECK 는 kind별 허용 sub_branch 만 통과시킨다 — 새 선택지가 늘 때
-// 표에 없는 조합이 실리면 여기서 걸린다.
-test("어려움 선택지 다섯 개가 전부 서버 허용 조합으로 옮겨진다", () => {
-  const allowed = {
-    분석: ["캐릭터 분석", "대사 분석", "그 외"],
-    표현: ["감정", "움직임", "화술", "표정", "그 외"],
-    "그 외": ["그 외"],
-  };
-  for (const choice of DIFFICULTY_CHOICES) {
-    const selection = difficultySelection(choice.id);
-    assert.ok(
-      allowed[selection.blockage_kind]?.includes(selection.sub_branch),
-      `${choice.id}: ${selection.blockage_kind}/${selection.sub_branch} 는 허용 조합이 아니다`,
-    );
-    // 코치는 배우가 고른 문장 그대로를 본다.
-    assert.equal(selection.blockage_detail, choice.label);
-  }
-});
-
-test("고른 장면과 어려움 값이 요청에 그대로 조립된다", () => {
+test("토글에서 고른 장면과 도움 값이 요청에 그대로 조립된다", () => {
+  const kind = chooseBlockageKind(initialBlockageFlowState, "표현");
+  const subBranch = chooseBlockageSubBranch(kind, "표정");
+  const draft = updateBlockageDetail(subBranch, "  눈을 피하는 순간을 보고 싶어요  ");
   const body = buildPracticeSessionRequest(
     "upload-intent-with-details",
     {
@@ -65,7 +53,7 @@ test("고른 장면과 어려움 값이 요청에 그대로 조립된다", () =>
       characterContext: "  담담한 척하는 인물  ",
       goal: "  상대를 다시 앉게 만들기  ",
     },
-    difficultySelection("gaze"),
+    completeBlockageFlowWithDefault(draft),
   );
 
   assert.deepEqual(body, {
@@ -75,7 +63,7 @@ test("고른 장면과 어려움 값이 요청에 그대로 조립된다", () =>
     goal: "상대를 다시 앉게 만들기",
     blockage_kind: "표현",
     sub_branch: "표정",
-    blockage_detail: "시선이 흔들려요",
+    blockage_detail: "눈을 피하는 순간을 보고 싶어요",
   });
 });
 

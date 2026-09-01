@@ -1,6 +1,6 @@
 import type { PracticeSessionRequest } from "@/lib/api/v2/types";
 
-import type { BlockageSelection } from "./prep-choices";
+import type { BlockageSelection } from "./blockage-flow";
 
 export type SceneContextDraft = {
   situation: string;
