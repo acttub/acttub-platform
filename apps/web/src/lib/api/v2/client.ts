@@ -42,6 +42,9 @@ function requestHeaders(
   if (auth && accessToken) {
     headers.set("Authorization", `Bearer ${accessToken}`);
   }
+  if (auth) {
+    headers.set("X-Acttub-Consent-Entry", "1");
+  }
   return headers;
 }
 
@@ -94,7 +97,10 @@ function throwResponseError(response: Response, payload: unknown): never {
     payload,
     response.headers.get("X-Request-Id") ?? undefined,
   );
-  if (error.status === 403 && error.code === "consent_required") {
+  if (
+    error.status === 403 &&
+    (error.code === "consent_required" || error.code === "consent_blocked")
+  ) {
     emitSessionEvent("consent-required");
   }
   throw error;

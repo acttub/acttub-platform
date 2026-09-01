@@ -128,6 +128,8 @@ class ErrorContractInventoryTest {
 
             covered("feature.consent.app.ConsentService|404|consent_document_not_found", 1,
                     "feature.consent.ConsentEndpointIT"),
+            covered("feature.consent.app.ConsentService|409|required_consent_cannot_be_declined", 1,
+                    "feature.consent.ConsentEndpointIT"),
 
             covered("feature.practice.adapter.web.PracticeSessionController|422|invalid X-Request-Id",
                     1, "feature.practice.PracticeSessionEndpointIT"),
@@ -186,6 +188,8 @@ class ErrorContractInventoryTest {
 
             covered("platform.security.AccessGate|403|consent_required", 1,
                     "feature.upload.UploadEndpointIT"),
+            covered("platform.security.AccessGate|403|consent_blocked", 1,
+                    "feature.consent.ConsentEndpointIT"),
             covered("platform.security.AccessGate|429|rate limit exceeded", 1,
                     "platform.security.RateLimitContractIT"),
             covered("platform.security.AuthenticatedUser|403|account_deactivated", 1,

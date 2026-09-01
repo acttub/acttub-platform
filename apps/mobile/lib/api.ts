@@ -226,6 +226,23 @@ export type ConsentDocument = {
   published_at: string;
 };
 
+export type ConsentDecision = 'granted' | 'declined' | 'revoked';
+
+export type ConsentEntryDocument = ConsentDocument & {
+  current_decision: ConsentDecision | null;
+};
+
+export type ConsentEntryStatus =
+  | 'allowed'
+  | 'decision_required'
+  | 'blocked';
+
+export type ConsentEntryResponse = {
+  entry_status: ConsentEntryStatus;
+  documents: ConsentEntryDocument[];
+  undecided_documents: ConsentEntryDocument[];
+};
+
 export type TokenPair = {
   access_token: string;
   refresh_token: string;
@@ -372,8 +389,15 @@ export const api = {
     return request('/v2/consents/pending', {}, { auth: true });
   },
 
-  recordConsent(documentId: string, action: 'granted' | 'declined' | 'revoked') {
-    return request('/v2/consents', jsonInit({ document_id: documentId, action }), {
+  consentEntry(): Promise<ConsentEntryResponse> {
+    return request('/v2/consents/entry', {}, { auth: true });
+  },
+
+  recordConsent(
+    documentId: string,
+    action: 'granted' | 'declined' | 'revoked',
+  ): Promise<void> {
+    return request<void>('/v2/consents', jsonInit({ document_id: documentId, action }), {
       requestId: true,
     });
   },

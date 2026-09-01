@@ -4,10 +4,15 @@ import java.util.List;
 import java.util.Locale;
 
 import com.acttub.actingapi.feature.consent.adapter.web.ConsentDtos.ConsentDocumentsResponse;
+import com.acttub.actingapi.feature.consent.adapter.web.ConsentDtos.ConsentEntryDocument;
+import com.acttub.actingapi.feature.consent.adapter.web.ConsentDtos.ConsentEntryResponse;
+import com.acttub.actingapi.feature.consent.adapter.web.ConsentDtos.ConsentEntryStatus;
 import com.acttub.actingapi.feature.consent.adapter.web.ConsentDtos.ConsentEventResponse;
 import com.acttub.actingapi.feature.consent.adapter.web.ConsentDtos.ConsentRequest;
+import com.acttub.actingapi.feature.consent.adapter.web.ConsentDtos.RequiredConsentDeclineError;
 import com.acttub.actingapi.feature.consent.app.ConsentService;
 import com.acttub.actingapi.feature.consent.domain.ConsentDocument;
+import com.acttub.actingapi.feature.consent.domain.ConsentEntry;
 import com.acttub.actingapi.feature.consent.domain.ConsentEvent;
 import com.acttub.actingapi.platform.security.AccessGate;
 import com.acttub.actingapi.platform.schema.ConsentAction;
@@ -67,6 +72,21 @@ class ConsentController {
     }
 
     @Operation(
+            summary = "Get Consent Entry",
+            operationId = "get_consent_entry_v2_consents_entry_get",
+            tags = "v2-consents",
+            security = @SecurityRequirement(name = "HTTPBearer"))
+    @ApiResponse(
+            responseCode = "200",
+            description = "Successful Response",
+            content = @Content(schema = @Schema(implementation = ConsentEntryResponse.class)))
+    @GetMapping("/entry")
+    ConsentEntryResponse getEntry(HttpServletRequest request) {
+        var user = auth.rateLimitedUser(request);
+        return entry(consents.entryFor(user.id()));
+    }
+
+    @Operation(
             summary = "Record Consent",
             operationId = "record_consent_v2_consents_post",
             tags = "v2-consents",
@@ -76,6 +96,10 @@ class ConsentController {
                 responseCode = "201",
                 description = "Successful Response",
                 content = @Content(schema = @Schema(implementation = ConsentEventResponse.class))),
+        @ApiResponse(
+                responseCode = "409",
+                description = "Required consent cannot be declined",
+                content = @Content(schema = @Schema(implementation = RequiredConsentDeclineError.class))),
         @ApiResponse(
                 responseCode = "422",
                 description = "Validation Error",
@@ -112,5 +136,35 @@ class ConsentController {
                         row.required(),
                         row.publishedAt()))
                 .toList());
+    }
+
+    private static ConsentEntryResponse entry(ConsentEntry entry) {
+        ConsentEntryStatus status = switch (entry.status()) {
+            case ALLOWED -> ConsentEntryStatus.allowed;
+            case DECISION_REQUIRED -> ConsentEntryStatus.decision_required;
+            case BLOCKED -> ConsentEntryStatus.blocked;
+        };
+        return new ConsentEntryResponse(
+                status,
+                entry.documents().stream().map(ConsentController::entryDocument).toList(),
+                entry.undecidedDocuments().stream()
+                        .map(ConsentController::entryDocument)
+                        .toList());
+    }
+
+    private static ConsentEntryDocument entryDocument(ConsentEntry.DocumentDecision row) {
+        ConsentDocument document = row.document();
+        String currentDecision = row.currentDecision() == null
+                ? null
+                : row.currentDecision().action();
+        return new ConsentEntryDocument(
+                document.id(),
+                document.type(),
+                document.version(),
+                document.title(),
+                document.body(),
+                document.required(),
+                document.publishedAt(),
+                currentDecision);
     }
 }

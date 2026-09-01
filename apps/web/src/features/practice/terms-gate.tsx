@@ -1,31 +1,27 @@
 "use client";
 
-import { Suspense, useMemo, useState, type FormEvent } from "react";
+import { Suspense, type FormEvent } from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { NamePrompt } from "@/features/auth/name-prompt";
-import { ConsentMarkdown } from "@/features/practice/consent-markdown";
 import { useDisplayNameGate } from "@/features/auth/use-display-name-gate";
 import {
   clearPendingConsents,
   hasAcceptedCurrentPrivacy,
   markPrivacyVersionAccepted,
-  savePendingConsents,
 } from "@/features/auth/pending-consents";
+import { ConsentMarkdown } from "@/features/practice/consent-markdown";
 import {
   setAmplitudeUser,
   startAmplitude,
   trackConsentSubmitted,
 } from "@/lib/analytics/amplitude";
-import { logout } from "@/lib/api/v2/auth";
-import { recordConsent } from "@/lib/api/v2/consents";
-import { ApiError } from "@/lib/api/v2/errors";
-import type { ConsentDocument } from "@/lib/api/v2/types";
+import type { ConsentEntryDocument } from "@/lib/api/v2/types";
 import { sanitizeNextPath } from "@/lib/auth/next-path";
 import { getStoredUser, isLoggedIn } from "@/lib/auth/token-store";
-import { useResource } from "@/lib/react/use-resource";
 
-import { loadConsentDocuments } from "./consent-documents";
+import type { ConsentChoice } from "./consent-entry-submission";
+import { useConsentEntryForm } from "./use-consent-entry-form";
 
 export function TermsGate() {
   return (
@@ -36,132 +32,44 @@ export function TermsGate() {
 }
 
 function TermsGateContent() {
-  const router = useRouter();
   const searchParams = useSearchParams();
-  const consents = useResource(
-    "consents",
-    (_, signal) => loadConsentDocuments(signal),
-    "약관 문서를 불러오지 못했어요.",
-  );
-  const [checkedDocumentIds, setCheckedDocumentIds] = useState<Set<string>>(
-    () => new Set(),
-  );
-  const [completedDocumentIds, setCompletedDocumentIds] = useState<Set<string>>(
-    () => new Set(),
-  );
-  const [submitting, setSubmitting] = useState(false);
-  const [submitError, setSubmitError] = useState<string | null>(null);
   // 신규 계정은 로그인 직후 여기로 오므로, 앱에 들여보내기 전 호칭을 이 화면에서 묻는다.
   const { pendingDestination, enterApp, resolveName } = useDisplayNameGate();
   // 로그인에서 넘어온 목적지. 그냥 약관을 읽으러 온 경우(랜딩의 "안전 약속")에는 없다.
   const rawNext = searchParams.get("next");
   const nextPath = rawNext ? sanitizeNextPath(rawNext) : null;
-
-  const requiredConsentsChecked = useMemo(() => {
-    if (consents.state !== "ready" || consents.data.mode !== "pending") return false;
-    return consents.data.documents
-      .filter((document) => document.required)
-      .every((document) => checkedDocumentIds.has(document.id));
-  }, [checkedDocumentIds, consents]);
-
-  function updateChecked(documentId: string, checked: boolean) {
-    setCheckedDocumentIds((current) => {
-      const next = new Set(current);
-      if (checked) next.add(documentId);
-      else next.delete(documentId);
-      return next;
-    });
-    setSubmitError(null);
-  }
+  const {
+    consents,
+    choices,
+    completedDocumentIds,
+    verificationPending,
+    submitting,
+    submitError,
+    decisionDocuments,
+    canSubmit,
+    retryLoad,
+    updateChoice,
+    submit,
+  } = useConsentEntryForm(async (_entry, decidedDocuments, decisions) => {
+    clearPendingConsents();
+    // 실제로 저장한 개인정보처리방침 수락만 이 기기의 계측 동의로 기록한다.
+    const acceptedPrivacy = decidedDocuments.find(
+      (document) =>
+        document.type === "privacy" && decisions.get(document.id) === "granted",
+    );
+    if (acceptedPrivacy) markPrivacyVersionAccepted(acceptedPrivacy.version);
+    if (isLoggedIn() && hasAcceptedCurrentPrivacy()) {
+      startAmplitude();
+      const storedUser = getStoredUser();
+      if (storedUser) setAmplitudeUser(storedUser.id);
+    }
+    trackConsentSubmitted("ok");
+    await enterApp(sanitizeNextPath(searchParams.get("next")));
+  });
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (
-      consents.state !== "ready" ||
-      consents.data.mode !== "pending" ||
-      !requiredConsentsChecked ||
-      submitting
-    ) {
-      return;
-    }
-
-    const remainingDocuments = consents.data.documents.filter(
-      (document) => !completedDocumentIds.has(document.id),
-    );
-    setSubmitting(true);
-    setSubmitError(null);
-
-    try {
-      const results = await Promise.allSettled(
-        remainingDocuments.map(async (document) => {
-          await recordConsent({
-            document_id: document.id,
-            action: checkedDocumentIds.has(document.id) ? "granted" : "declined",
-          });
-          return document.id;
-        }),
-      );
-
-      const documentsChanged = results.some(
-        (result) =>
-          result.status !== "fulfilled" &&
-          result.reason instanceof ApiError &&
-          result.reason.status === 404 &&
-          result.reason.code === "consent_document_not_found",
-      );
-      if (documentsChanged) {
-        trackConsentSubmitted("forced_logout");
-        clearPendingConsents();
-        await logout();
-        const params = new URLSearchParams({
-          next: sanitizeNextPath(searchParams.get("next")),
-          notice: "consents_updated",
-        });
-        router.replace(`/login?${params.toString()}`);
-        return;
-      }
-
-      const newlyCompletedIds = results.flatMap((result) =>
-        result.status === "fulfilled" ? [result.value] : [],
-      );
-      const failedDocuments = results.flatMap((result, index) =>
-        result.status !== "fulfilled" ? [remainingDocuments[index]] : [],
-      );
-      if (newlyCompletedIds.length > 0) {
-        setCompletedDocumentIds((current) => {
-          const next = new Set(current);
-          newlyCompletedIds.forEach((documentId) => next.add(documentId));
-          return next;
-        });
-      }
-
-      if (failedDocuments.length > 0) {
-        trackConsentSubmitted("partial_fail");
-        savePendingConsents(failedDocuments);
-        setSubmitError(
-          `${failedDocuments.length}개 동의 항목을 처리하지 못했어요. 다시 시도하면 실패한 항목만 요청해요.`,
-        );
-        return;
-      }
-
-      clearPendingConsents();
-      // 필수 동의를 전부 서버에 기록한 순간이다. 어느 버전에 동의했는지까지 남겨야
-      // 다음 개정 때 계측 쿠키가 저절로 유지되지 않는다(pending-consents.ts 참고).
-      const acceptedPrivacy = consents.data.documents.find(
-        (document) => document.type === "privacy",
-      );
-      if (acceptedPrivacy) markPrivacyVersionAccepted(acceptedPrivacy.version);
-      if (isLoggedIn() && hasAcceptedCurrentPrivacy()) {
-        // 이 순간부터만 SDK를 켠다. 앞서 실패한 제출 이벤트를 소급해서 보내지는 않는다.
-        startAmplitude();
-        const storedUser = getStoredUser();
-        if (storedUser) setAmplitudeUser(storedUser.id);
-      }
-      trackConsentSubmitted("ok");
-      await enterApp(sanitizeNextPath(searchParams.get("next")));
-    } finally {
-      setSubmitting(false);
-    }
+    await submit();
   }
 
   if (consents.state === "failed") {
@@ -170,25 +78,46 @@ function TermsGateContent() {
         <p className="rounded-2xl bg-[#fff4f4] p-4 text-sm leading-6 text-[#d92d20]">
           {consents.message}
         </p>
+        <button
+          type="button"
+          onClick={retryLoad}
+          className="mt-5 h-12 w-full rounded-2xl bg-[#3182f6] px-4 text-sm font-black text-white transition hover:bg-[#1b64da]"
+        >
+          다시 시도하기
+        </button>
       </TermsShell>
     );
   }
 
-  // 키가 늘 있으므로 아직 묻지 않은 자리(idle)는 오지 않지만, 답을 꺼내려면 함께 걸러야
-  // 한다 — 유니온을 소진하지 않으면 tsc 가 data 접근을 막는다.
   if (consents.state !== "ready") return <TermsLoading />;
 
   const { mode, documents } = consents.data;
-  const isPendingMode = mode === "pending";
+  const isDecisionMode = mode === "decision_required";
+  const isBlockedMode = mode === "blocked";
+  const interactiveIds = new Set(decisionDocuments.map((document) => document.id));
 
   return (
     <TermsShell
-      eyebrow={isPendingMode ? "Acttub 시작 전 확인" : "Acttub 약관"}
-      title={isPendingMode ? "계속하기 전에 확인해 주세요" : "약관 및 동의 문서"}
+      eyebrow={
+        isDecisionMode
+          ? "Acttub 시작 전 확인"
+          : isBlockedMode
+            ? "Acttub 동의 관리"
+            : "Acttub 약관"
+      }
+      title={
+        isDecisionMode
+          ? "계속하기 전에 결정해 주세요"
+          : isBlockedMode
+            ? "서비스 이용에 필요한 동의를 확인해 주세요"
+            : "약관 및 동의 문서"
+      }
       description={
-        isPendingMode
-          ? "필수 항목에 동의하면 Acttub을 계속 이용할 수 있어요. 선택 항목은 동의하지 않아도 괜찮아요."
-          : "현재 제공 중인 약관과 데이터 처리 안내를 확인할 수 있어요."
+        isDecisionMode
+          ? "필수 항목은 수락해야 하고, 선택 항목도 수락 또는 거절을 직접 골라야 해요."
+          : isBlockedMode
+            ? "필수 동의를 수락하지 않은 동안에는 일반 서비스 대신 이 동의 관리 화면을 이용할 수 있어요."
+            : "현재 제공 중인 약관과 데이터 처리 안내를 확인할 수 있어요."
       }
     >
       {pendingDestination ? (
@@ -203,11 +132,11 @@ function TermsGateContent() {
                 <ConsentDocumentCard
                   key={document.id}
                   document={document}
-                  interactive={isPendingMode}
-                  checked={checkedDocumentIds.has(document.id)}
+                  interactive={interactiveIds.has(document.id)}
+                  choice={choices.get(document.id)}
                   completed={completed}
                   disabled={submitting || completed}
-                  onCheckedChange={(checked) => updateChecked(document.id, checked)}
+                  onChoiceChange={(choice) => updateChoice(document.id, choice)}
                 />
               );
             })
@@ -218,7 +147,7 @@ function TermsGateContent() {
           )}
         </div>
 
-        {isPendingMode ? (
+        {decisionDocuments.length > 0 ? (
           <>
             {submitError ? (
               <p className="mt-5 rounded-2xl bg-[#fff4f4] p-4 text-sm leading-6 text-[#d92d20]">
@@ -227,18 +156,24 @@ function TermsGateContent() {
             ) : null}
             <button
               type="submit"
-              disabled={!requiredConsentsChecked || submitting}
+              disabled={!canSubmit || submitting}
               className="mt-8 h-14 w-full rounded-2xl bg-[#3182f6] px-5 text-base font-semibold text-white transition hover:bg-[#1b64da] disabled:cursor-not-allowed disabled:bg-[#b0d2ff]"
             >
-              {submitting ? "동의 내용을 저장하고 있어요" : "확인하고 계속하기"}
+              {submitting
+                ? "동의 내용을 확인하고 있어요"
+                : verificationPending
+                  ? "저장 결과 다시 확인하기"
+                  : isBlockedMode
+                    ? "변경사항 저장하기"
+                    : "결정 저장하고 계속하기"}
             </button>
-            <p className="mt-4 text-center text-sm leading-6 text-[#8b95a1]">
-              선택 항목을 체크하지 않으면 동의하지 않음으로 기록돼요.
-            </p>
+            {isDecisionMode ? (
+              <p className="mt-4 text-center text-sm leading-6 text-[#8b95a1]">
+                선택 항목도 체크하지 않은 상태를 거절로 간주하지 않아요.
+              </p>
+            ) : null}
           </>
         ) : nextPath ? (
-          // 동의를 이미 끝낸 뒤 이 화면이 다시 열린 경우(새로고침·뒤로가기)에는
-          // 동의 항목이 남아 있지 않아 진행 버튼이 사라진다 — 갈 곳을 잃지 않게 길을 남긴다.
           <Link
             href={nextPath}
             className="mt-8 flex h-14 w-full items-center justify-center rounded-2xl bg-[#3182f6] px-5 text-base font-semibold text-white transition hover:bg-[#1b64da]"
@@ -285,19 +220,19 @@ function TermsShell({
 }
 
 function ConsentDocumentCard({
-  checked,
+  choice,
   completed,
   disabled,
   document,
   interactive,
-  onCheckedChange,
+  onChoiceChange,
 }: {
-  checked: boolean;
+  choice: ConsentChoice | undefined;
   completed: boolean;
   disabled: boolean;
-  document: ConsentDocument;
+  document: ConsentEntryDocument;
   interactive: boolean;
-  onCheckedChange: (checked: boolean) => void;
+  onChoiceChange: (choice: ConsentChoice) => void;
 }) {
   const bodyId = `consent-document-${document.id}`;
 
@@ -317,6 +252,10 @@ function ConsentDocumentCard({
             <span className="shrink-0 rounded-full bg-[#e8f3ff] px-3 py-1 text-xs font-semibold text-[#1b64da]">
               처리 완료
             </span>
+          ) : document.current_decision ? (
+            <span className="shrink-0 rounded-full bg-[#f2f4f6] px-3 py-1 text-xs font-semibold text-[#6b7684]">
+              현재 {decisionLabel(document.current_decision)}
+            </span>
           ) : null}
         </div>
 
@@ -329,20 +268,31 @@ function ConsentDocumentCard({
         </div>
 
         {interactive ? (
-          <label className="mt-5 flex cursor-pointer items-start gap-3 text-sm font-semibold leading-6 text-[#4e5968] has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-60">
-            <input
-              type="checkbox"
-              checked={checked}
-              required={document.required}
-              disabled={disabled}
-              aria-describedby={bodyId}
-              onChange={(event) => onCheckedChange(event.target.checked)}
-              className="mt-0.5 h-5 w-5 shrink-0 accent-[#3182f6]"
+          <fieldset
+            disabled={disabled}
+            aria-describedby={bodyId}
+            className="mt-5 space-y-3 disabled:opacity-60"
+          >
+            <legend className="text-sm font-semibold text-[#4e5968]">
+              {document.required
+                ? "서비스 이용을 위해 수락해 주세요."
+                : "동의 여부를 직접 선택해 주세요."}
+            </legend>
+            <ChoiceRadio
+              name={`consent-choice-${document.id}`}
+              checked={choice === "granted"}
+              label="동의해요"
+              onChange={() => onChoiceChange("granted")}
             />
-            <span>
-              {document.title}에 {document.required ? "동의합니다." : "동의합니다. (선택)"}
-            </span>
-          </label>
+            {!document.required ? (
+              <ChoiceRadio
+                name={`consent-choice-${document.id}`}
+                checked={choice === "declined"}
+                label="동의하지 않아요"
+                onChange={() => onChoiceChange("declined")}
+              />
+            ) : null}
+          </fieldset>
         ) : null}
       </div>
 
@@ -352,6 +302,38 @@ function ConsentDocumentCard({
       </footer>
     </article>
   );
+}
+
+function ChoiceRadio({
+  checked,
+  label,
+  name,
+  onChange,
+}: {
+  checked: boolean;
+  label: string;
+  name: string;
+  onChange: () => void;
+}) {
+  return (
+    <label className="flex cursor-pointer items-center gap-3 rounded-2xl border border-[#e5e8eb] px-4 py-3 text-sm font-semibold text-[#4e5968] has-[:checked]:border-[#3182f6] has-[:checked]:bg-[#f2f7ff] has-[:disabled]:cursor-not-allowed">
+      <input
+        type="radio"
+        name={name}
+        checked={checked}
+        onChange={onChange}
+        className="h-5 w-5 shrink-0 accent-[#3182f6]"
+      />
+      <span>{label}</span>
+    </label>
+  );
+}
+
+function decisionLabel(decision: ConsentEntryDocument["current_decision"]): string {
+  if (decision === "granted") return "동의함";
+  if (decision === "declined") return "동의하지 않음";
+  if (decision === "revoked") return "철회함";
+  return "미결정";
 }
 
 function formatPublishedAt(value: string): string {

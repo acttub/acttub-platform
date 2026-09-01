@@ -4,12 +4,20 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react';
 
-import { api, type AuthUser, type ConsentDocument, type TokenPair } from '@/lib/api';
+import {
+  api,
+  type AuthUser,
+  type ConsentDocument,
+  type ConsentEntryResponse,
+  type TokenPair,
+} from '@/lib/api';
 import { signOutBestEffort } from '@/lib/auth-session';
+import { createConsentEntrySession } from '@/lib/consent-entry';
 import { getUserName, saveUserName } from '@/lib/profile';
 import { clearLocalAccountData } from '@/lib/local-account-data';
 import { detachPushFromAccount, syncPushRegistration } from '@/lib/notifications';
@@ -29,6 +37,7 @@ import {
  * 인증 상태 컨텍스트.
  * - 앱 시작 시 저장된 토큰을 로드해 로그인 여부를 판단(status).
  * - Google 로그인으로 id_token을 받아 v2 /auth/login과 교환.
+ * - 새 로그인과 저장 세션 복원 모두 동의 진입 판정을 한 번 확인.
  * - refresh 실패/로그아웃으로 토큰이 비워지면(onTokensCleared) 자동으로 signedOut.
  */
 
@@ -39,11 +48,20 @@ const IOS_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID || undefined;
 
 type AuthStatus = 'loading' | 'signedIn' | 'signedOut';
 
+export type ConsentEntryState =
+  | { status: 'checking'; entry: null; error: null }
+  | { status: 'error'; entry: null; error: unknown }
+  | {
+      status: 'allowed' | 'decision_required' | 'blocked';
+      entry: ConsentEntryResponse;
+      error: null;
+    };
+
 type AuthContextValue = {
   status: AuthStatus;
   user: AuthUser | null;
-  pendingConsents: ConsentDocument[];
-  consentRequired: boolean;
+  consentEntry: ConsentEntryState;
+  profileSetupRequired: boolean;
   signInWithGoogle: () => Promise<void>;
   /** iOS Sign in with Apple. isAvailableAsync가 true일 때만 노출. */
   signInWithApple: () => Promise<void>;
@@ -53,9 +71,8 @@ type AuthContextValue = {
    * 되돌릴 수 없다 — 부르기 전에 반드시 확인을 받는다.
    */
   deleteAccount: () => Promise<void>;
-  /** 약관 화면에서 필수 동의를 모두 마친 뒤 호출 → 게이트 통과. */
-  clearPendingConsents: () => void;
-  refreshPendingConsents: () => Promise<void>;
+  refreshConsentEntry: () => Promise<ConsentEntryResponse>;
+  completeProfileSetup: (name: string) => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -122,35 +139,98 @@ async function rememberProviderName(name: string | null | undefined): Promise<vo
   }
 }
 
+async function needsProfileSetup(): Promise<boolean> {
+  try {
+    return !(await getUserName())?.trim();
+  } catch {
+    return false;
+  }
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<AuthStatus>('loading');
   const [user, setUser] = useState<AuthUser | null>(null);
-  const [pendingConsents, setPendingConsents] = useState<ConsentDocument[]>([]);
-  const [consentRequired, setConsentRequired] = useState(false);
+  const [consentEntry, setConsentEntry] = useState<ConsentEntryState>({
+    status: 'checking',
+    entry: null,
+    error: null,
+  });
+  const [profileSetupRequired, setProfileSetupRequired] = useState(false);
+  const [consentEntrySession] = useState(() =>
+    createConsentEntrySession({
+      readEntry: () => api.consentEntry(),
+      readPending: () => api.pendingConsents(),
+    }),
+  );
+  const consentLoadGeneration = useRef(0);
 
-  const refreshPendingConsents = useCallback(async () => {
-    const { documents } = await api.pendingConsents();
-    setPendingConsents(documents);
-    setConsentRequired(documents.length > 0);
-  }, []);
+  const loadConsentEntry = useCallback(
+    async ({
+      fallbackDocuments,
+      refresh = false,
+    }: {
+      fallbackDocuments?: ConsentDocument[];
+      refresh?: boolean;
+    } = {}): Promise<ConsentEntryResponse> => {
+      const generation = ++consentLoadGeneration.current;
+      setConsentEntry({ status: 'checking', entry: null, error: null });
+      try {
+        const entry = refresh
+          ? await consentEntrySession.refresh({ fallbackDocuments })
+          : await consentEntrySession.readOnce({ fallbackDocuments });
+        if (generation === consentLoadGeneration.current) {
+          setConsentEntry({
+            status: entry.entry_status,
+            entry,
+            error: null,
+          });
+        }
+        return entry;
+      } catch (error) {
+        if (generation === consentLoadGeneration.current) {
+          setConsentEntry({ status: 'error', entry: null, error });
+        }
+        throw error;
+      }
+    },
+    [consentEntrySession],
+  );
+
+  const resetConsentEntry = useCallback(() => {
+    consentLoadGeneration.current += 1;
+    consentEntrySession.clear();
+    setConsentEntry({ status: 'checking', entry: null, error: null });
+  }, [consentEntrySession]);
+
+  const refreshConsentEntry = useCallback(
+    () => loadConsentEntry({ refresh: true }),
+    [loadConsentEntry],
+  );
 
   useEffect(() => {
     let active = true;
-    loadTokens().then((hasToken) => {
-      if (active) {
-        setUser(hasToken ? getStoredUser() : null);
-        setStatus(hasToken ? 'signedIn' : 'signedOut');
+    loadTokens().then(async (hasToken) => {
+      if (!active) return;
+      if (!hasToken) {
+        setUser(null);
+        setStatus('signedOut');
+        return;
       }
+      const requireProfileSetup = await needsProfileSetup();
+      if (!active) return;
+      setUser(getStoredUser());
+      setProfileSetupRequired(requireProfileSetup);
+      setStatus('signedIn');
+      void loadConsentEntry().catch(() => undefined);
     });
     const unsubTokens = onTokensCleared(() => {
+      resetConsentEntry();
       setUser(null);
-      setPendingConsents([]);
-      setConsentRequired(false);
+      setProfileSetupRequired(false);
       setStatus('signedOut');
     });
     const unsubConsent = onConsentRequired(() => {
-      setConsentRequired(true);
-      void refreshPendingConsents().catch(() => undefined);
+      void refreshConsentEntry().catch(() => undefined);
     });
     // 다른 기기에서 탈퇴했거나, 탈퇴 후 액세스 토큰이 아직 만료되지 않은 경우.
     // refresh 로 풀 수 없으므로 세션을 끊는다.
@@ -159,45 +239,50 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       void clearTokens();
     });
     const unsubStoredUser = onStoredUserChanged((nextUser) => {
+      resetConsentEntry();
       setUser(nextUser);
-      setPendingConsents([]);
-      setConsentRequired(true);
+      setProfileSetupRequired(true);
       setStatus('signedIn');
-      void refreshPendingConsents().catch(() => undefined);
+      void loadConsentEntry().catch(() => undefined);
+      void needsProfileSetup().then(setProfileSetupRequired);
     });
     return () => {
       active = false;
+      consentLoadGeneration.current += 1;
       unsubTokens();
       unsubConsent();
       unsubDeactivated();
       unsubStoredUser();
     };
-  }, [refreshPendingConsents]);
+  }, [loadConsentEntry, refreshConsentEntry, resetConsentEntry]);
 
-  const finishLogin = useCallback(async (pair: TokenPair) => {
-    if (__DEV__) {
-      // eslint-disable-next-line no-console
-      console.log(
-        '[auth] pending_consents:',
-        pair.pending_consents?.length ?? 0,
-        (pair.pending_consents ?? []).map((c) => `${c.type}${c.required ? '(필수)' : ''}`),
+  const finishLogin = useCallback(
+    async (pair: TokenPair, requireProfileSetup: boolean) => {
+      const committed = await setTokens(
+        pair.access_token,
+        pair.refresh_token,
+        pair.user,
       );
-    }
-    const committed = await setTokens(pair.access_token, pair.refresh_token, pair.user);
-    if (!committed) return;
-    setUser(pair.user);
-    setPendingConsents(pair.pending_consents ?? []);
-    setConsentRequired(false);
-    setStatus('signedIn');
-    // 푸시 등록은 로그인의 성패와 무관한 최선 노력 — 기다리지도, 실패를 올리지도 않는다.
-    void syncPushRegistration();
-  }, []);
+      if (!committed) return;
+      resetConsentEntry();
+      setUser(pair.user);
+      setProfileSetupRequired(requireProfileSetup);
+      setStatus('signedIn');
+      void loadConsentEntry({
+        fallbackDocuments: pair.pending_consents ?? [],
+      }).catch(() => undefined);
+      // 푸시 등록은 로그인의 성패와 무관한 최선 노력 — 기다리지도, 실패를 올리지도 않는다.
+      void syncPushRegistration();
+    },
+    [loadConsentEntry, resetConsentEntry],
+  );
 
   const signInWithGoogle = useCallback(async () => {
     const signIn = await getGoogleIdToken();
     if (!signIn?.idToken) return; // 사용자가 취소
-    await finishLogin(await api.login('google', signIn.idToken));
+    const pair = await api.login('google', signIn.idToken);
     await rememberProviderName(signIn.name);
+    await finishLogin(pair, await needsProfileSetup());
   }, [finishLogin]);
 
   const signInWithApple = useCallback(async () => {
@@ -216,13 +301,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       throw err;
     }
     if (!credential.identityToken) throw new Error('Apple 로그인 토큰을 받지 못했어요.');
-    await finishLogin(await api.login('apple', credential.identityToken));
+    const pair = await api.login('apple', credential.identityToken);
     // Apple은 최초 1회만 이름을 준다 — 그때 받아 저장해 둔다.
     await rememberProviderName(
       [credential.fullName?.familyName, credential.fullName?.givenName]
         .filter(Boolean)
         .join('') || credential.fullName?.givenName,
     );
+    await finishLogin(pair, await needsProfileSetup());
   }, [finishLogin]);
 
   const signOut = useCallback(async () => {
@@ -265,35 +351,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setStatus('signedOut');
   }, []);
 
-  const clearPendingConsents = useCallback(() => {
-    setPendingConsents([]);
-    setConsentRequired(false);
+  const completeProfileSetup = useCallback(async (name: string) => {
+    const trimmed = name.trim();
+    if (!trimmed) throw new Error('이름을 입력해주세요.');
+    await saveUserName(trimmed);
+    setProfileSetupRequired(false);
   }, []);
 
   const value = useMemo(
     () => ({
       status,
       user,
-      pendingConsents,
-      consentRequired,
+      consentEntry,
+      profileSetupRequired,
       signInWithGoogle,
       signInWithApple,
       signOut,
       deleteAccount,
-      clearPendingConsents,
-      refreshPendingConsents,
+      refreshConsentEntry,
+      completeProfileSetup,
     }),
     [
       status,
       user,
-      pendingConsents,
-      consentRequired,
+      consentEntry,
+      profileSetupRequired,
       signInWithGoogle,
       signInWithApple,
       signOut,
       deleteAccount,
-      clearPendingConsents,
-      refreshPendingConsents,
+      refreshConsentEntry,
+      completeProfileSetup,
     ],
   );
 

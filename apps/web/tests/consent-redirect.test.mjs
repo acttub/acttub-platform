@@ -38,6 +38,23 @@ test("이미 terms에 있으면 consent-required 이동을 만들지 않는다",
   assert.deepEqual(destinations, []);
 });
 
+test("403 복구는 이전 허용 판정을 버린 뒤 동의 화면으로 이동한다", () => {
+  const calls = [];
+  const handleConsentRequired = createConsentRedirectHandler(
+    (destination) => calls.push(`replace:${destination}`),
+    () => ({ pathname: "/home", search: "" }),
+    () => calls.push("clear-entry"),
+  );
+
+  handleConsentRequired();
+  handleConsentRequired();
+
+  assert.deepEqual(calls, [
+    "clear-entry",
+    "replace:/terms?next=%2Fhome",
+  ]);
+});
+
 test("root layout은 consent-required 전역 리스너를 마운트한다", () => {
   const layout = readFileSync(path.join(appRoot, "src/app/layout.tsx"), "utf8");
   const listener = readFileSync(

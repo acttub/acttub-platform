@@ -5,7 +5,7 @@ import java.sql.ResultSet; import java.sql.SQLException; import java.time.*; imp
  * 않는다 (ADR-017, SOMA-397 6단계의 {@code SyncOperationService} 와 같은 형태).
  *
  * <p>동의 여부는 여기 없다. 동의 문서와 그 이력을 소유한 쪽은 {@code consent} 이고, 게이트가
- * 묻는 것({@code PendingConsentGate})도 로그인 응답에 실리는 목록({@code auth/app/
+ * 묻는 것({@code RequiredConsentGate})도 로그인 응답에 실리는 목록({@code auth/app/
  * PendingConsentDocuments})도 그쪽이 답한다 (SOMA-397 12단계).
  */
 @Repository public class PostgresAuthRepository implements AuthRepository, AuthenticatedUsers {
