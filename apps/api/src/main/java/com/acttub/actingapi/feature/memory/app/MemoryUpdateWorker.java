@@ -12,6 +12,8 @@ import java.util.UUID;
 
 import com.acttub.actingapi.integration.llm.TextGenerator;
 import com.acttub.actingapi.platform.ledger.LeaseOwnershipException;
+import com.acttub.actingapi.platform.observability.FailureContext;
+import com.acttub.actingapi.platform.observability.FailureReporter;
 import com.acttub.actingapi.platform.schema.ActorMemoryField;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -40,18 +42,24 @@ public class MemoryUpdateWorker {
     private final ObjectMapper mapper;
     private final TextGenerator generator;
     private final Clock clock;
+    private final MemoryExtractor extractor;
+    private final FailureReporter failureReporter;
 
     public MemoryUpdateWorker(
             MemoryRepository memory,
             MemoryUpdateQueue queue,
             ObjectMapper mapper,
             TextGenerator generator,
-            Clock clock) {
+            Clock clock,
+            MemoryExtractor extractor,
+            FailureReporter failureReporter) {
         this.memory = memory;
         this.queue = queue;
         this.mapper = mapper;
         this.generator = generator;
         this.clock = clock;
+        this.extractor = extractor;
+        this.failureReporter = failureReporter;
     }
 
     public boolean runOnce() {
@@ -67,17 +75,26 @@ public class MemoryUpdateWorker {
         }
         UUID sessionId = queue.practiceSessionOf(operationId);
         try {
-            List<String> written = update(sessionId);
+            List<String> written = update(sessionId, operationId);
             queue.complete(operationId, leaseToken, payload(sessionId, written), now);
         } catch (LeaseOwnershipException lost) {
             LOG.warn("기억 갱신 lease 를 잃었다: {}", operationId);
+            failureReporter.report(
+                    lost,
+                    new FailureContext("MemoryUpdateWorker.complete", operationId));
         } catch (RuntimeException failure) {
             LOG.warn("기억 갱신 실패: {}", operationId, failure);
+            failureReporter.report(
+                    failure,
+                    new FailureContext("MemoryUpdateWorker.update", operationId));
             try {
                 // 연습 자체는 건드리지 않는다 — 그 선택은 큐 계약에 적혀 있다.
                 queue.fail(operationId, leaseToken, "memory_update_failed", now);
             } catch (LeaseOwnershipException lostWhileFailing) {
                 LOG.warn("기억 갱신 실패 처리 중 lease 를 잃었다: {}", operationId);
+                failureReporter.report(
+                        lostWhileFailing,
+                        new FailureContext("MemoryUpdateWorker.fail", operationId));
             }
         }
         return true;
@@ -98,7 +115,7 @@ public class MemoryUpdateWorker {
         return response;
     }
 
-    private List<String> update(UUID practiceSessionId) {
+    private List<String> update(UUID practiceSessionId, UUID operationId) {
         MemoryUpdateMaterial material = memory.material(practiceSessionId);
         if (material == null) {
             LOG.info("기억 갱신 재료가 없다(연습이 지워졌을 수 있다): {}", practiceSessionId);
@@ -107,10 +124,11 @@ public class MemoryUpdateWorker {
         Map<String, String> existing = new LinkedHashMap<>();
         memory.list(material.userId()).forEach(row -> existing.put(row.field(), row.value()));
 
-        Map<String, String> updates = MemoryExtractor.extract(
+        Map<String, String> updates = extractor.extract(
                 material,
                 existing,
-                (system, user) -> generator.generate(system, user).text());
+                (system, user) -> generator.generate(system, user).text(),
+                operationId);
 
         List<String> written = new ArrayList<>();
         updates.forEach((name, value) -> {

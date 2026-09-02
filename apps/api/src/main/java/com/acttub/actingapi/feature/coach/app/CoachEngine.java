@@ -2,6 +2,7 @@ package com.acttub.actingapi.feature.coach.app;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -11,6 +12,9 @@ import com.acttub.actingapi.integration.llm.GeneratedText;
 import com.acttub.actingapi.integration.llm.TextGenerator;
 import com.acttub.actingapi.integration.llm.TextValidation;
 import com.acttub.actingapi.integration.llm.TextValidator;
+import com.acttub.actingapi.platform.observability.FailureContext;
+import com.acttub.actingapi.platform.observability.FailureKind;
+import com.acttub.actingapi.platform.observability.FailureReporter;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -36,12 +40,18 @@ public class CoachEngine {
                     + "실험 전이라도 현재까지의 handoff를 작성해 status를 complete로 출력한다.";
 
     private final TextGenerator generate;
+    private final FailureReporter failureReporter;
 
-    public CoachEngine(TextGenerator generate) {
+    public CoachEngine(TextGenerator generate, FailureReporter failureReporter) {
         this.generate = generate;
+        this.failureReporter = failureReporter;
     }
 
     public static CoachReply parseCoachingResponse(String rawText) {
+        return parse(rawText).reply();
+    }
+
+    private static ParsedCoachReply parse(String rawText) {
         String original = rawText.strip();
         Matcher fenced = FENCED_JSON.matcher(original);
         String jsonText = fenced.matches() ? fenced.group(1).strip() : original;
@@ -49,29 +59,38 @@ public class CoachEngine {
         try {
             candidate = RESPONSE_MAPPER.readTree(jsonText);
         } catch (JsonProcessingException exc) {
-            return new CoachReply(original, "continue", null);
+            return new ParsedCoachReply(
+                    new CoachReply(original, "continue", null), exc);
         }
-        JsonNode message = candidate == null || !candidate.isObject()
+        if (candidate == null || candidate.isMissingNode()) {
+            return new ParsedCoachReply(
+                    new CoachReply(original, "continue", null),
+                    new IllegalStateException("coach response was empty"));
+        }
+        JsonNode message = !candidate.isObject()
                 ? null
                 : candidate.get("message");
         if (message == null || !message.isTextual()) {
-            return new CoachReply(original, "continue", null);
+            return new ParsedCoachReply(
+                    new CoachReply(original, "continue", null), null);
         }
 
         JsonNode handoff = candidate.get("handoff");
         boolean complete = "complete".equals(candidate.path("status").asText())
                 && handoff != null
                 && handoff.isObject();
-        return new CoachReply(
-                message.textValue().strip(),
-                complete ? "complete" : "continue",
-                complete ? ((ObjectNode) handoff).deepCopy() : null);
+        return new ParsedCoachReply(
+                new CoachReply(
+                        message.textValue().strip(),
+                        complete ? "complete" : "continue",
+                        complete ? ((ObjectNode) handoff).deepCopy() : null),
+                null);
     }
 
     /** 새 세션의 첫 응답을 만들고 actor→ai 순서로 두 turn을 추가한다. */
-    public CoachResult start(CoachSessionSnapshot session) {
+    public CoachResult start(CoachSessionSnapshot session, UUID operationId) {
         String latest = firstActorMessage(session);
-        CoachReply response = generateValidated(session, latest);
+        CoachReply response = generateValidated(session, latest, operationId);
         return appendTurns(session, latest, response);
     }
 
@@ -101,9 +120,10 @@ public class CoachEngine {
     }
 
     /** 기존 세션의 다음 응답을 만들고 actor→ai 순서로 두 turn을 추가한다. */
-    public CoachResult reply(CoachSessionSnapshot session, String actorText) {
+    public CoachResult reply(
+            CoachSessionSnapshot session, String actorText, UUID operationId) {
         String userMessage = messageForGeneration(actorText);
-        CoachReply response = generateValidated(session, userMessage);
+        CoachReply response = generateValidated(session, userMessage, operationId);
         return appendTurns(session, actorText, response);
     }
 
@@ -145,12 +165,12 @@ public class CoachEngine {
     }
 
     private CoachReply generateValidated(
-            CoachSessionSnapshot session, String userMessage) {
+            CoachSessionSnapshot session, String userMessage, UUID operationId) {
         String systemPrompt = CoachPrompt.select(session.blockageKind());
         GeneratedText generated = generate.generate(
                 systemPrompt, CoachPrompt.buildChat(session, userMessage));
         String rawText = generated.text();
-        CoachReply reply = parseCoachingResponse(rawText);
+        CoachReply reply = parseGeneratedResponse(rawText, operationId);
         TextValidation validation = TextValidator.validateTurn(reply.message(), false);
         if (!validation.failures().isEmpty()) {
             generated = generate.generate(
@@ -160,7 +180,7 @@ public class CoachEngine {
                             userMessage,
                             rawText,
                             validation.failures()));
-            reply = parseCoachingResponse(generated.text());
+            reply = parseGeneratedResponse(generated.text(), operationId);
             validation = TextValidator.validateTurn(reply.message(), false);
         }
         if (!validation.failures().isEmpty()) {
@@ -176,11 +196,25 @@ public class CoachEngine {
         return sanitizeActorWords(reply);
     }
 
+    private CoachReply parseGeneratedResponse(String rawText, UUID operationId) {
+        ParsedCoachReply parsed = parse(rawText);
+        if (parsed.failure() != null) {
+            failureReporter.report(
+                    parsed.failure(),
+                    FailureKind.EXTERNAL,
+                    new FailureContext("CoachEngine.responseParse", operationId));
+        }
+        return parsed.reply();
+    }
+
     private static CoachResult appendTurns(
             CoachSessionSnapshot session, String actorText, CoachReply reply) {
         List<CoachTurnSnapshot> turns = new ArrayList<>(session.turns());
         turns.add(new CoachTurnSnapshot("actor", actorText));
         turns.add(new CoachTurnSnapshot("ai", reply.message()));
         return new CoachResult(session.withTurns(turns), reply);
+    }
+
+    private record ParsedCoachReply(CoachReply reply, Throwable failure) {
     }
 }

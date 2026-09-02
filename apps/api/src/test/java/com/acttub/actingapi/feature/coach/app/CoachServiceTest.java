@@ -23,6 +23,7 @@ import com.acttub.actingapi.platform.ledger.SyncOperationBegin;
 import com.acttub.actingapi.platform.ledger.SyncOperationClaim;
 import com.acttub.actingapi.platform.observability.FailureKind;
 import com.acttub.actingapi.platform.web.ApiException;
+import com.acttub.actingapi.support.RecordingFailureReporter;
 import com.acttub.actingapi.feature.report.app.OwnedReportSource;
 import com.acttub.actingapi.feature.report.app.PracticeReportLedger;
 import com.acttub.actingapi.feature.report.app.ReportEngine;
@@ -60,6 +61,7 @@ class CoachServiceTest {
     private final CoachMemory memory = mock(CoachMemory.class);
     private final CoachResponseRenderer renderer = mock(CoachResponseRenderer.class);
     private final ObjectMapper mapper = new ObjectMapper();
+    private final RecordingFailureReporter failureReporter = new RecordingFailureReporter();
 
     private CoachService service;
 
@@ -84,7 +86,8 @@ class CoachServiceTest {
                 reports,
                 reportService,
                 reportOperations,
-                mapper);
+                mapper,
+                failureReporter);
         when(operations.requestId(any())).thenReturn(REQUEST_ID);
         when(operations.fingerprint(anyString(), any())).thenReturn("0".repeat(64));
         when(operations.begin(any(), any(), any(), anyString(), anyString()))
@@ -108,7 +111,7 @@ class CoachServiceTest {
 
         service.start(USER_ID, new CoachStart(PRACTICE_ID, false), null);
 
-        verify(coach, never()).start(any());
+        verify(coach, never()).start(any(), any());
         verify(reports, never()).generateReport(any(), any(), any(),
                 org.mockito.ArgumentMatchers.anyBoolean(), any(), any(), any());
         verify(operations, never()).begin(any(), any(), any(), anyString(), anyString());
@@ -130,7 +133,7 @@ class CoachServiceTest {
                             .isEqualTo("report already exists for practice session");
                 });
 
-        verify(coach, never()).start(any());
+        verify(coach, never()).start(any(), any());
         verify(reports, never()).generateReport(any(), any(), any(),
                 org.mockito.ArgumentMatchers.anyBoolean(), any(), any(), any());
         verify(operations, never()).begin(any(), any(), any(), anyString(), anyString());
@@ -221,7 +224,7 @@ class CoachServiceTest {
         stubStartContext();
         when(sessions.getOldestOpenCoachSession(USER_ID, PRACTICE_ID)).thenReturn(null);
         when(sessions.hasReportForPracticeSession(PRACTICE_ID)).thenReturn(false);
-        when(coach.start(any())).thenReturn(new CoachResult(session, complete));
+        when(coach.start(any(), any())).thenReturn(new CoachResult(session, complete));
         assertReportParseError(() -> service.start(
                 USER_ID, new CoachStart(PRACTICE_ID, false), null));
 
@@ -234,7 +237,7 @@ class CoachServiceTest {
                 new CoachTurnSnapshot("ai", "다음 질문"),
                 new CoachTurnSnapshot("actor", "다음 답변")));
         stubOwnedSession();
-        when(coach.reply(any(), anyString())).thenReturn(new CoachResult(answered, complete));
+        when(coach.reply(any(), anyString(), any())).thenReturn(new CoachResult(answered, complete));
         assertReportParseError(() -> service.reply(
                 USER_ID, new ActorMessage(SESSION_ID, "그만"), null));
 
@@ -246,7 +249,7 @@ class CoachServiceTest {
         CoachSessionSnapshot session = snapshot("open", List.of());
         CoachReply reply = new CoachReply("다음 질문", "continue", null);
         stubOwnedSession();
-        when(coach.reply(any(), anyString())).thenReturn(new CoachResult(session, reply));
+        when(coach.reply(any(), anyString(), any())).thenReturn(new CoachResult(session, reply));
         when(ledger.completeCoachReplyOperation(
                 any(), any(), any(), any(), any(), any(), any(),
                 org.mockito.ArgumentMatchers.anyBoolean(), any(), any()))
@@ -273,9 +276,9 @@ class CoachServiceTest {
         CoachSessionSnapshot session = snapshot("open", List.of());
         CoachReply reply = new CoachReply("다음 질문", "continue", null);
         stubOwnedSession();
-        when(memory.priorFor(USER_ID, PRACTICE_ID)).thenReturn(new PriorContext(
+        when(memory.priorFor(USER_ID, PRACTICE_ID, CLAIM.operationId())).thenReturn(new PriorContext(
                 Map.of("goal", "입시 합격"), null, true, List.of(), List.of()));
-        when(coach.reply(any(), anyString())).thenReturn(new CoachResult(session, reply));
+        when(coach.reply(any(), anyString(), any())).thenReturn(new CoachResult(session, reply));
         when(ledger.completeCoachReplyOperation(
                 any(), any(), any(), any(), any(), any(), any(),
                 org.mockito.ArgumentMatchers.anyBoolean(), any(), any()))
@@ -285,8 +288,32 @@ class CoachServiceTest {
 
         org.mockito.ArgumentCaptor<CoachSessionSnapshot> passed =
                 org.mockito.ArgumentCaptor.forClass(CoachSessionSnapshot.class);
-        verify(coach).reply(passed.capture(), anyString());
+        verify(coach).reply(passed.capture(), anyString(), any());
         assertThat(passed.getValue().prior().memory()).containsEntry("goal", "입시 합격");
+    }
+
+    @Test
+    void priorContextFailureIsReportedWhileReplyStillSucceeds() {
+        RuntimeException failure = new IllegalStateException("prior unavailable");
+        CoachSessionSnapshot session = snapshot("open", List.of());
+        CoachReply reply = new CoachReply("다음 질문", "continue", null);
+        stubOwnedSession();
+        when(memory.priorFor(USER_ID, PRACTICE_ID, CLAIM.operationId())).thenThrow(failure);
+        when(coach.reply(any(), anyString(), any())).thenReturn(new CoachResult(session, reply));
+        when(ledger.completeCoachReplyOperation(
+                any(), any(), any(), any(), any(), any(), any(),
+                org.mockito.ArgumentMatchers.anyBoolean(), any(), any()))
+                .thenReturn(true);
+
+        CoachPayload payload = service.reply(
+                USER_ID, new ActorMessage(SESSION_ID, "계속할게요"), null);
+
+        assertThat(payload).isNotNull();
+        assertThat(failureReporter.reports()).singleElement().satisfies(report -> {
+            assertThat(report.failure()).isSameAs(failure);
+            assertThat(report.context())
+                    .isEqualTo("CoachService.priorContext operation_id=" + CLAIM.operationId());
+        });
     }
 
     @Test
@@ -302,7 +329,7 @@ class CoachServiceTest {
                 new CoachTurnSnapshot("ai", "다음 질문"),
                 new CoachTurnSnapshot("actor", "다음 답변")));
         stubOwnedSession();
-        when(coach.reply(any(), anyString())).thenReturn(new CoachResult(answered, complete));
+        when(coach.reply(any(), anyString(), any())).thenReturn(new CoachResult(answered, complete));
         when(reports.generateReport(any(), any(), any(),
                 org.mockito.ArgumentMatchers.anyBoolean(), any(), any(), any()))
                 .thenReturn(mapper.createObjectNode().put("report_type", "analysis"));
@@ -318,12 +345,46 @@ class CoachServiceTest {
     }
 
     @Test
+    void memoryUpdateSchedulingFailureIsReportedWhileReplyStillSucceeds() {
+        RuntimeException failure = new IllegalStateException("queue unavailable");
+        ObjectNode handoff = mapper.createObjectNode().put("handoff_type", "analysis");
+        CoachReply complete = new CoachReply("완료", "complete", handoff);
+        CoachSessionSnapshot answered = snapshot("open", List.of(
+                new CoachTurnSnapshot("actor", "폼에 적은 막힌 지점"),
+                new CoachTurnSnapshot("ai", "첫 질문"),
+                new CoachTurnSnapshot("actor", "첫 답변"),
+                new CoachTurnSnapshot("ai", "다음 질문"),
+                new CoachTurnSnapshot("actor", "다음 답변")));
+        stubOwnedSession();
+        when(coach.reply(any(), anyString(), any())).thenReturn(new CoachResult(answered, complete));
+        when(reports.generateReport(any(), any(), any(),
+                org.mockito.ArgumentMatchers.anyBoolean(), any(), any(), any()))
+                .thenReturn(mapper.createObjectNode().put("report_type", "analysis"));
+        when(ledger.completeCoachReplyOperation(
+                any(), any(), any(), any(), any(), any(), any(),
+                org.mockito.ArgumentMatchers.anyBoolean(), any(), any()))
+                .thenReturn(true);
+        when(memory.countConfirmedPractices(USER_ID)).thenReturn(1L);
+        when(memory.enqueueMemoryUpdate(USER_ID, PRACTICE_ID)).thenThrow(failure);
+
+        CoachPayload payload = service.reply(
+                USER_ID, new ActorMessage(SESSION_ID, "맞아요"), null);
+
+        assertThat(payload).isNotNull();
+        assertThat(failureReporter.reports()).singleElement().satisfies(report -> {
+            assertThat(report.failure()).isSameAs(failure);
+            assertThat(report.context()).isEqualTo(
+                    "CoachService.scheduleMemoryUpdate operation_id=" + CLAIM.operationId());
+        });
+    }
+
+    @Test
     void anOngoingTurnDoesNotTouchTheMemoryQueue() {
         // 카드 없이 이어지는 턴마다 예약이 걸리면 케이던스가 무의미해진다.
         CoachSessionSnapshot session = snapshot("open", List.of());
         CoachReply reply = new CoachReply("다음 질문", "continue", null);
         stubOwnedSession();
-        when(coach.reply(any(), anyString())).thenReturn(new CoachResult(session, reply));
+        when(coach.reply(any(), anyString(), any())).thenReturn(new CoachResult(session, reply));
         when(ledger.completeCoachReplyOperation(
                 any(), any(), any(), any(), any(), any(), any(),
                 org.mockito.ArgumentMatchers.anyBoolean(), any(), any()))

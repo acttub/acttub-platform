@@ -4,6 +4,8 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import com.acttub.actingapi.feature.memory.app.MemoryUpdateWorker;
+import com.acttub.actingapi.platform.observability.FailureContext;
+import com.acttub.actingapi.platform.observability.FailureReporter;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
@@ -38,12 +40,15 @@ class MemoryWorkerScheduler {
 
     private final MemoryUpdateWorker worker;
     private final ThreadPoolTaskExecutor executor;
+    private final FailureReporter failureReporter;
 
     MemoryWorkerScheduler(
             ObjectProvider<MemoryUpdateWorker> worker,
-            @Qualifier("memoryWorkerExecutor") ThreadPoolTaskExecutor executor) {
+            @Qualifier("memoryWorkerExecutor") ThreadPoolTaskExecutor executor,
+            FailureReporter failureReporter) {
         this.worker = worker.getIfAvailable();
         this.executor = executor;
+        this.failureReporter = failureReporter;
     }
 
     /** Python이 concurrency를 1로 고정한다 — 연습 몇 번에 한 번만 잡이 생겨 밀리지 않는다. */
@@ -90,6 +95,9 @@ class MemoryWorkerScheduler {
         } catch (Exception exception) {
             // 기억 갱신이 실패해도 연습은 정상이다. 큐만 비우고 넘어간다.
             LOGGER.log(Level.WARNING, "memory worker cycle failed", exception);
+            failureReporter.report(
+                    exception,
+                    new FailureContext("MemoryWorkerScheduler.cycle"));
         }
     }
 }

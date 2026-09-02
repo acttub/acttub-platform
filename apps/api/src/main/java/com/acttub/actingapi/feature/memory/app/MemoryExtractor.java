@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -11,12 +12,16 @@ import com.acttub.actingapi.integration.llm.TextValidation;
 import com.acttub.actingapi.integration.llm.TextValidator;
 import com.acttub.actingapi.feature.memory.domain.AgentMemoryWrites;
 import com.acttub.actingapi.feature.memory.domain.MemoryValue;
+import com.acttub.actingapi.platform.observability.FailureContext;
+import com.acttub.actingapi.platform.observability.FailureKind;
+import com.acttub.actingapi.platform.observability.FailureReporter;
 import com.acttub.actingapi.platform.web.PythonText;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Component;
 
 /**
  * 연습 하나에서 배우 기억 4칸을 뽑아낸다 (`acting-agent/memory_extract.py`).
@@ -28,6 +33,7 @@ import org.slf4j.LoggerFactory;
  * 여기가 뚫리면 코치 대화에 걸어둔 검사가 통째로 우회된다. 통과 못 한 칸은 버리고 이전
  * 값을 그대로 둔다 — 빈 값으로 밀어내면 배우가 쓴 것까지 사라진다.
  */
+@Component
 public final class MemoryExtractor {
     private static final Logger LOG = LoggerFactory.getLogger(MemoryExtractor.class);
     private static final ObjectMapper MAPPER = new ObjectMapper();
@@ -67,7 +73,10 @@ public final class MemoryExtractor {
             {"goal": "...", "blockage": "...", "speech_self": "...", "speech_actual": "..."}
             """;
 
-    private MemoryExtractor() {
+    private final FailureReporter failureReporter;
+
+    public MemoryExtractor(FailureReporter failureReporter) {
+        this.failureReporter = failureReporter;
     }
 
     /**
@@ -163,7 +172,7 @@ public final class MemoryExtractor {
                 .toList();
     }
 
-    private static JsonNode parse(String rawText) {
+    private JsonNode parse(String rawText, UUID operationId) {
         String text = PythonText.strip(rawText == null ? "" : rawText);
         Matcher fenced = FENCED_JSON.matcher(text);
         if (fenced.matches()) {
@@ -171,10 +180,24 @@ public final class MemoryExtractor {
         }
         try {
             JsonNode candidate = MAPPER.readTree(text);
-            return candidate != null && candidate.isObject() ? candidate : MAPPER.createObjectNode();
+            if (candidate == null || candidate.isMissingNode()) {
+                reportParseFailure(
+                        new IllegalStateException("memory extraction response was empty"),
+                        operationId);
+                return MAPPER.createObjectNode();
+            }
+            return candidate.isObject() ? candidate : MAPPER.createObjectNode();
         } catch (JsonProcessingException notJson) {
+            reportParseFailure(notJson, operationId);
             return MAPPER.createObjectNode();
         }
+    }
+
+    private void reportParseFailure(Throwable failure, UUID operationId) {
+        failureReporter.report(
+                failure,
+                FailureKind.EXTERNAL,
+                new FailureContext("MemoryExtractor.responseParse", operationId));
     }
 
     /**
@@ -183,12 +206,13 @@ public final class MemoryExtractor {
      * <p>모델이 형식을 어기거나 아무것도 못 찾아도 예외를 내지 않는다 — 기억 갱신이
      * 실패했다고 연습이 실패하면 안 된다.
      */
-    public static Map<String, String> extract(
+    public Map<String, String> extract(
             MemoryUpdateMaterial material,
             Map<String, String> existing,
-            java.util.function.BiFunction<String, String, String> generate) {
+            java.util.function.BiFunction<String, String, String> generate,
+            UUID operationId) {
         String rawText = generate.apply(SYSTEM_PROMPT, buildExtractionPrompt(material, existing));
-        JsonNode candidate = parse(rawText);
+        JsonNode candidate = parse(rawText, operationId);
 
         Map<String, String> updates = new LinkedHashMap<>();
         Map<String, String> rejected = new LinkedHashMap<>();

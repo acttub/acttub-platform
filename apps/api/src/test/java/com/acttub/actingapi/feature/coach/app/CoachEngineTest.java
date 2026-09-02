@@ -8,10 +8,13 @@ import java.util.Map;
 import java.util.UUID;
 
 import com.acttub.actingapi.feature.coach.domain.CoachTurnSnapshot;
-import com.acttub.actingapi.support.FrozenValue;
 import com.acttub.actingapi.integration.llm.GeneratedText;
-import com.acttub.actingapi.integration.llm.TokenUsage;
 import com.acttub.actingapi.integration.llm.TextGenerator;
+import com.acttub.actingapi.integration.llm.TokenUsage;
+import com.acttub.actingapi.platform.observability.FailureKind;
+import com.acttub.actingapi.support.FrozenValue;
+import com.acttub.actingapi.support.RecordingFailureReporter;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -19,6 +22,9 @@ import org.junit.jupiter.api.Test;
 class CoachEngineTest {
 
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+    private static final UUID OPERATION =
+            UUID.fromString("99999999-8888-7777-6666-555555555555");
+    private final RecordingFailureReporter failureReporter = new RecordingFailureReporter();
 
     /** 7번째부터의 안전 문구. 그 외는 분석 갈래라 분석 문장을 받는다. */
     private static final Map<String, String> CLOSING_SAFE_TEMPLATE_BY_KIND = Map.of(
@@ -46,6 +52,35 @@ class CoachEngineTest {
     }
 
     @Test
+    void generatedNonJsonFallsBackAndIsReportedAsExternal() {
+        RecordingGenerator generator = new RecordingGenerator("평문 답변");
+
+        CoachResult result = engine(generator).reply(session(), "모르겠어요", OPERATION);
+
+        assertThat(result.reply()).isEqualTo(new CoachReply("평문 답변", "continue", null));
+        assertThat(failureReporter.reports()).singleElement().satisfies(report -> {
+            assertThat(report.failure()).isInstanceOf(JsonProcessingException.class);
+            assertThat(report.kind()).isEqualTo(FailureKind.EXTERNAL);
+            assertThat(report.context())
+                    .isEqualTo("CoachEngine.responseParse operation_id=" + OPERATION);
+        });
+    }
+
+    @Test
+    void emptyGeneratedResponseFallsBackAndIsReportedAsExternal() {
+        RecordingGenerator generator = new RecordingGenerator("");
+
+        CoachResult result = engine(generator).reply(session(), "모르겠어요", OPERATION);
+
+        assertThat(result.reply()).isEqualTo(new CoachReply("", "continue", null));
+        assertThat(failureReporter.reports()).singleElement().satisfies(report -> {
+            assertThat(report.kind()).isEqualTo(FailureKind.EXTERNAL);
+            assertThat(report.context())
+                    .isEqualTo("CoachEngine.responseParse operation_id=" + OPERATION);
+        });
+    }
+
+    @Test
     void completeRequiresObjectHandoffAndOtherwiseDowngrades() {
         CoachReply complete = CoachEngine.parseCoachingResponse(
                 "{\"message\":\"끝\",\"status\":\"complete\",\"handoff\":{\"x\":1}}");
@@ -62,9 +97,9 @@ class CoachEngineTest {
         RecordingGenerator generator = new RecordingGenerator(
                 "{\"message\":\"점수로 볼게요\"}",
                 "{\"message\":\"상대가 어떻게 되길 바라나요?\"}");
-        CoachEngine engine = new CoachEngine(generator);
+        CoachEngine engine = engine(generator);
 
-        CoachResult result = engine.reply(session(), "잘 모르겠어요");
+        CoachResult result = engine.reply(session(), "잘 모르겠어요", OPERATION);
 
         assertThat(result.reply().message()).isEqualTo("상대가 어떻게 되길 바라나요?");
         assertThat(generator.inputs).hasSize(2);
@@ -76,7 +111,7 @@ class CoachEngineTest {
     @Test
     void usesSafeTemplateAfterExactlyTwoInvalidGenerations() {
         RecordingGenerator generator = new RecordingGenerator("점수", "등급");
-        CoachResult result = new CoachEngine(generator).reply(session(), "모르겠어요");
+        CoachResult result = engine(generator).reply(session(), "모르겠어요", OPERATION);
 
         assertThat(result.reply()).isEqualTo(new CoachReply(
                 FrozenValue.of("coach-safe-template.txt"), "continue", null));
@@ -113,10 +148,10 @@ class CoachEngineTest {
     }
 
     /** 모델이 두 번 다 금지어로 답한 뒤 배우에게 가는 응답. */
-    private static CoachReply safeReplyAfterTwoFailures(int turnNumber, String blockageKind) {
+    private CoachReply safeReplyAfterTwoFailures(int turnNumber, String blockageKind) {
         RecordingGenerator generator = new RecordingGenerator("점수", "등급");
-        return new CoachEngine(generator)
-                .reply(sessionAtTurn(turnNumber, blockageKind), "모르겠어요")
+        return engine(generator)
+                .reply(sessionAtTurn(turnNumber, blockageKind), "모르겠어요", OPERATION)
                 .reply();
     }
 
@@ -126,7 +161,7 @@ class CoachEngineTest {
         // 종료로 보면 "끝까지 해볼게요" 같은 정상 답변에서 세션이 끊긴다.
         for (String closing : List.of("이제 그만", "이제 종료", "끝", "여기까지", "여기서 그만할게")) {
             RecordingGenerator generator = new RecordingGenerator("계속할게요");
-            CoachResult result = new CoachEngine(generator).reply(session(), closing);
+            CoachResult result = engine(generator).reply(session(), closing, OPERATION);
 
             assertThat(generator.inputs.getFirst())
                     .contains("## 배우의 마무리 요청")
@@ -143,7 +178,7 @@ class CoachEngineTest {
         // 어절 경계 없는 오타 '그렇그만'으로 세션이 끊긴 사고가 있었다.
         for (String ordinary : List.of("이제 끝", "끝까지 해볼게요", "안 그만할래요", "그렇그만")) {
             RecordingGenerator generator = new RecordingGenerator("계속할게요");
-            new CoachEngine(generator).reply(session(), ordinary);
+            engine(generator).reply(session(), ordinary, OPERATION);
 
             assertThat(generator.inputs.getFirst()).doesNotContain("## 배우의 마무리 요청");
         }
@@ -154,7 +189,7 @@ class CoachEngineTest {
         RecordingGenerator generator = new RecordingGenerator("새 답변");
         CoachSessionSnapshot before = session();
 
-        CoachResult result = new CoachEngine(generator).reply(before, "새 질문");
+        CoachResult result = engine(generator).reply(before, "새 질문", OPERATION);
 
         assertThat(generator.inputs.getFirst())
                 .doesNotContain("배우: 새 질문")
@@ -168,7 +203,7 @@ class CoachEngineTest {
     @Test
     void startFallsBackFromDetailToGoalToBlockageKindAndStoresActorThenAi() {
         RecordingGenerator detailGenerator = new RecordingGenerator("첫 답변");
-        CoachResult detail = new CoachEngine(detailGenerator).start(sessionWithoutTurns());
+        CoachResult detail = engine(detailGenerator).start(sessionWithoutTurns(), OPERATION);
 
         assertThat(detail.session().turns()).containsExactly(
                 new CoachTurnSnapshot("actor", "왜 지금인지 모르겠다"),
@@ -177,7 +212,7 @@ class CoachEngineTest {
 
         RecordingGenerator goalGenerator = new RecordingGenerator("첫 답변");
         CoachSessionSnapshot blankDetail = snapshotWith("", "담담하게 말한다");
-        CoachResult goal = new CoachEngine(goalGenerator).start(blankDetail);
+        CoachResult goal = engine(goalGenerator).start(blankDetail, OPERATION);
 
         assertThat(goal.session().turns().getFirst())
                 .isEqualTo(new CoachTurnSnapshot("actor", "담담하게 말한다"));
@@ -195,7 +230,7 @@ class CoachEngineTest {
     void startFallsBackToBlockageKindWhenSceneIsSkipped() {
         RecordingGenerator generator = new RecordingGenerator("첫 답변");
 
-        CoachResult result = new CoachEngine(generator).start(snapshotWith("", ""));
+        CoachResult result = engine(generator).start(snapshotWith("", ""), OPERATION);
 
         assertThat(result.session().turns().getFirst())
                 .isEqualTo(new CoachTurnSnapshot("actor", "분석"));
@@ -208,10 +243,14 @@ class CoachEngineTest {
     void startTreatsWhitespaceOnlyDetailAndGoalAsAbsent() {
         RecordingGenerator generator = new RecordingGenerator("첫 답변");
 
-        CoachResult result = new CoachEngine(generator).start(snapshotWith(" ", "\t"));
+        CoachResult result = engine(generator).start(snapshotWith(" ", "\t"), OPERATION);
 
         assertThat(result.session().turns().getFirst())
                 .isEqualTo(new CoachTurnSnapshot("actor", "분석"));
+    }
+
+    private CoachEngine engine(TextGenerator generator) {
+        return new CoachEngine(generator, failureReporter);
     }
 
     private static CoachSessionSnapshot session() {

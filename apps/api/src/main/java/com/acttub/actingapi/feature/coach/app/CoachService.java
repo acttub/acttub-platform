@@ -13,6 +13,8 @@ import com.acttub.actingapi.feature.coach.domain.MemoryUpdateCadence;
 import com.acttub.actingapi.platform.ledger.LeaseOwnershipException;
 import com.acttub.actingapi.platform.ledger.SyncOperationBegin;
 import com.acttub.actingapi.platform.ledger.SyncOperationClaim;
+import com.acttub.actingapi.platform.observability.FailureContext;
+import com.acttub.actingapi.platform.observability.FailureReporter;
 import com.acttub.actingapi.platform.web.ApiException;
 import com.acttub.actingapi.feature.report.app.OwnedReportSource;
 import com.acttub.actingapi.feature.report.app.PracticeReportLedger;
@@ -57,6 +59,7 @@ public class CoachService {
     private final ReportService reportService;
     private final PracticeReportLedger practiceReports;
     private final ObjectMapper mapper;
+    private final FailureReporter failureReporter;
 
     public CoachService(
             CoachSessionRepository sessions,
@@ -68,7 +71,8 @@ public class CoachService {
             ReportEngine reports,
             ReportService reportService,
             PracticeReportLedger practiceReports,
-            ObjectMapper mapper) {
+            ObjectMapper mapper,
+            FailureReporter failureReporter) {
         this.sessions = sessions;
         this.ledger = ledger;
         this.operations = operations;
@@ -79,6 +83,7 @@ public class CoachService {
         this.reportService = reportService;
         this.practiceReports = practiceReports;
         this.mapper = mapper;
+        this.failureReporter = failureReporter;
     }
 
     /**
@@ -130,8 +135,11 @@ public class CoachService {
         }
 
         try {
-            CoachResult result = coach.start(owned.newCoachSession(UUID.randomUUID())
-                    .withPrior(priorContext(userId, owned.practiceSessionId())));
+            CoachResult result = coach.start(
+                    owned.newCoachSession(UUID.randomUUID())
+                            .withPrior(priorContext(
+                                    userId, owned.practiceSessionId(), claim.operationId())),
+                    claim.operationId());
             CompletedTurn completed = completeTurn(result.session(), result.reply());
             ObjectNode payload = renderer.turn(
                     result.session(), result.reply(), completed.handoffId(),
@@ -148,7 +156,11 @@ public class CoachService {
                     completed.report(),
                     command.restart(),
                     operations.now());
-            scheduleMemoryUpdate(userId, owned.practiceSessionId(), completed.report() != null);
+            scheduleMemoryUpdate(
+                    userId,
+                    owned.practiceSessionId(),
+                    completed.report() != null,
+                    claim.operationId());
             return new CoachPayload(payload, claim.requestId());
         } catch (LeaseOwnershipException exception) {
             operations.fail(claim, "lease_ownership_lost");
@@ -190,8 +202,9 @@ public class CoachService {
             // 첫 질문에만 실리고 그 뒤로는 잃어버리는 구멍이 실제로 있었다. 턴마다
             // 새로 읽으므로, 대화 중에 기억을 고치면 다음 답변부터 반영된다.
             CoachSessionSnapshot session = owned.session()
-                    .withPrior(priorContext(userId, owned.practiceSessionId()));
-            CoachResult result = coach.reply(session, command.text());
+                    .withPrior(priorContext(
+                            userId, owned.practiceSessionId(), claim.operationId()));
+            CoachResult result = coach.reply(session, command.text(), claim.operationId());
             CompletedTurn completed = completeReplyTurn(result.session(), result.reply());
             ObjectNode payload = renderer.turn(
                     result.session(), result.reply(), completed.handoffId(),
@@ -209,7 +222,11 @@ public class CoachService {
                     operations.now());
             // 확인이 대화 안에서 끝나는 흐름에서는 /confirm 이 불리지 않는다. 예약이 그
             // 문에만 달려 있어 기억이 한 번도 안 쌓였다 — 턴이 카드와 함께 닫힐 때도 건다.
-            scheduleMemoryUpdate(userId, owned.practiceSessionId(), completed.report() != null);
+            scheduleMemoryUpdate(
+                    userId,
+                    owned.practiceSessionId(),
+                    completed.report() != null,
+                    claim.operationId());
             return new CoachPayload(payload, claim.requestId());
         } catch (SessionWriteConflict exception) {
             operations.fail(claim, "session_write_conflict");
@@ -289,7 +306,11 @@ public class CoachService {
                     throw new ApiException(409, "report already exists");
                 }
             }
-            scheduleMemoryUpdate(userId, source.practiceSessionId(), command.confirmed());
+            scheduleMemoryUpdate(
+                    userId,
+                    source.practiceSessionId(),
+                    command.confirmed(),
+                    claim.operationId());
             return new CoachPayload(payload, claim.requestId());
         } catch (CoachSessionNotFound exception) {
             operations.fail(claim, "session_not_found");
@@ -314,11 +335,15 @@ public class CoachService {
      * <p><b>모으다 실패해도 대화는 시작돼야 한다.</b> 참고 사항이 없다고 연습을 못 하게 하는 것은
      * 배우 입장에서 말이 안 된다 — 실패하면 빈 것으로 시작한다.
      */
-    private PriorContext priorContext(UUID userId, UUID practiceSessionId) {
+    private PriorContext priorContext(
+            UUID userId, UUID practiceSessionId, UUID operationId) {
         try {
-            return memory.priorFor(userId, practiceSessionId);
+            return memory.priorFor(userId, practiceSessionId, operationId);
         } catch (RuntimeException failure) {
             LOG.warn("지난 연습 참고 사항을 모으지 못했다: {}", practiceSessionId, failure);
+            failureReporter.report(
+                    failure,
+                    new FailureContext("CoachService.priorContext", operationId));
             return PriorContext.EMPTY;
         }
     }
@@ -330,7 +355,11 @@ public class CoachService {
      * 호출을 하나 더 얹으면 배우가 그만큼 더 기다린다. <b>큐에 넣다 실패해도 삼킨다</b> — 기억은
      * 있으면 좋은 것이지, 없다고 방금 끝낸 연습을 실패로 돌려줄 일은 아니다.
      */
-    private void scheduleMemoryUpdate(UUID userId, UUID practiceSessionId, boolean confirmed) {
+    private void scheduleMemoryUpdate(
+            UUID userId,
+            UUID practiceSessionId,
+            boolean confirmed,
+            UUID operationId) {
         if (!confirmed) {
             return;
         }
@@ -343,6 +372,9 @@ public class CoachService {
             LOG.info("기억 갱신 예약: practice={} queued={}", practiceSessionId, queued);
         } catch (RuntimeException failure) {
             LOG.warn("기억 갱신 예약에 실패했다: {}", practiceSessionId, failure);
+            failureReporter.report(
+                    failure,
+                    new FailureContext("CoachService.scheduleMemoryUpdate", operationId));
         }
     }
 
