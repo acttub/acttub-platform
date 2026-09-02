@@ -57,6 +57,54 @@ body {
   }
 }
 
+/* 랜딩 히어로 폰 목업 연출. 대화는 한 번만 순서대로 올라오고,
+   파형·점·떠 있는 카드는 계속 반복된다. 딜레이는 요소마다 인라인으로 준다. */
+@keyframes landing-bubble-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes landing-wave {
+  0%, 100% {
+    transform: scaleY(0.35);
+  }
+  50% {
+    transform: scaleY(1);
+  }
+}
+
+@keyframes landing-dot-bounce {
+  0%, 60%, 100% {
+    transform: translateY(0);
+  }
+  30% {
+    transform: translateY(-3px);
+  }
+}
+
+@keyframes landing-float {
+  0%, 100% {
+    transform: translateY(0) rotate(var(--float-rotate, 0deg));
+  }
+  50% {
+    transform: translateY(-6px) rotate(var(--float-rotate, 0deg));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-motion {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: rotate(var(--float-rotate, 0deg)) !important;
+  }
+}
+
 /* 앱 웹뷰(폰)에서는 데스크톱과 같은 크기가 과하게 커 보인다.
    rem 기준인 Tailwind 글자·여백을 한 번에 낮추려고 루트 크기를 줄인다(16px→14px).
    sm 브레이크포인트(640px) 경계와 맞춰 두어 태블릿 이상은 그대로 둔다.

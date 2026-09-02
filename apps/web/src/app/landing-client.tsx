@@ -104,6 +104,9 @@ const COPY = {
 } as const;
 
 const waveformHeights = [8, 15, 25, 18, 10, 23, 28, 13, 20, 9, 16, 24, 11];
+const typingDotColors = ["#8b95a1", "#b0b8c1", "#d1d6db"];
+// 대화가 위에서부터 차례로 올라오는 간격. 첫 버블은 화면이 뜬 직후 바로 나온다.
+const bubbleDelay = (order: number) => 300 + order * 800;
 const practiceLoginHref = "/login?next=/practice/new";
 
 export default function LandingClient() {
@@ -465,7 +468,10 @@ function PhoneMockup() {
         <span className="self-start rounded-full bg-[#e8f3ff] px-3 py-1 text-[13px] font-black text-[#3182f6]">
           {COPY.phone.counter}
         </span>
-        <div className="rounded-[18px] rounded-bl-[6px] border border-[#edf0f3] bg-[#f9fafb] p-4">
+        <div
+          className="landing-motion animate-[landing-bubble-in_0.5s_cubic-bezier(0,0,0.2,1)_both] rounded-[18px] rounded-bl-[6px] border border-[#edf0f3] bg-[#f9fafb] p-4"
+          style={{ animationDelay: `${bubbleDelay(0)}ms` }}
+        >
           <p className="text-sm font-bold leading-5 text-[#6b7684]">
             {COPY.phone.observation}
           </p>
@@ -473,7 +479,10 @@ function PhoneMockup() {
             {COPY.phone.question}
           </p>
         </div>
-        <div className="ml-auto flex items-center gap-2.5 rounded-[18px] rounded-br-[6px] bg-[#191f28] px-4 py-3">
+        <div
+          className="landing-motion ml-auto flex animate-[landing-bubble-in_0.5s_cubic-bezier(0,0,0.2,1)_both] items-center gap-2.5 rounded-[18px] rounded-br-[6px] bg-[#191f28] px-4 py-3"
+          style={{ animationDelay: `${bubbleDelay(1)}ms` }}
+        >
           <span className="grid h-[34px] w-[34px] shrink-0 place-items-center rounded-full bg-[#3182f6] text-white">
             <MicIcon />
           </span>
@@ -481,8 +490,11 @@ function PhoneMockup() {
             {waveformHeights.map((height, index) => (
               <span
                 key={`${height}-${index}`}
-                className="w-1 rounded-full bg-[#8fbfff]"
-                style={{ height }}
+                className="landing-motion w-1 origin-center animate-[landing-wave_1.1s_ease-in-out_infinite] rounded-full bg-[#8fbfff]"
+                style={{
+                  height,
+                  animationDelay: `${bubbleDelay(1) + index * 90}ms`,
+                }}
               />
             ))}
           </span>
@@ -490,13 +502,26 @@ function PhoneMockup() {
             {COPY.phone.duration}
           </span>
         </div>
-        <div className="ml-auto max-w-[256px] rounded-[18px] rounded-tr-[6px] bg-[#3182f6] px-4 py-3 text-[15px] font-bold leading-relaxed text-white">
+        <div
+          className="landing-motion ml-auto max-w-[256px] animate-[landing-bubble-in_0.5s_cubic-bezier(0,0,0.2,1)_both] rounded-[18px] rounded-tr-[6px] bg-[#3182f6] px-4 py-3 text-[15px] font-bold leading-relaxed text-white"
+          style={{ animationDelay: `${bubbleDelay(2)}ms` }}
+        >
           {COPY.phone.answer}
         </div>
-        <div className="flex self-start items-center gap-2 rounded-full bg-[#f2f4f6] px-3 py-2">
-          <span className="h-1.5 w-1.5 rounded-full bg-[#8b95a1]" />
-          <span className="h-1.5 w-1.5 rounded-full bg-[#b0b8c1]" />
-          <span className="h-1.5 w-1.5 rounded-full bg-[#d1d6db]" />
+        <div
+          className="landing-motion flex animate-[landing-bubble-in_0.5s_cubic-bezier(0,0,0.2,1)_both] items-center gap-2 self-start rounded-full bg-[#f2f4f6] px-3 py-2"
+          style={{ animationDelay: `${bubbleDelay(3)}ms` }}
+        >
+          {typingDotColors.map((color, index) => (
+            <span
+              key={color}
+              className="landing-motion h-1.5 w-1.5 animate-[landing-dot-bounce_1.2s_ease-in-out_infinite] rounded-full"
+              style={{
+                backgroundColor: color,
+                animationDelay: `${bubbleDelay(3) + index * 160}ms`,
+              }}
+            />
+          ))}
           <span className="text-[13px] font-bold text-[#6b7684]">
             {COPY.phone.typing}
           </span>
@@ -504,13 +529,18 @@ function PhoneMockup() {
       </div>
       {/* 위치는 %가 아니라 px — 폰 위쪽(노치·장면·타임라인)은 폭이 바뀌어도 높이가 고정이라
           px 로 두면 어느 폭에서도 "질문 04 / 07" 옆에 붙는다. %는 폭마다 다른 줄에 떨어진다. */}
-      <div className="absolute right-[-12px] top-[158px] flex rotate-[3deg] items-center gap-1.5 rounded-full bg-white px-3 py-2 shadow-[0_12px_30px_rgba(25,31,40,0.12)]">
+      <div
+        className="landing-motion absolute right-[-12px] top-[158px] flex animate-[landing-float_4s_ease-in-out_infinite] items-center gap-1.5 rounded-full bg-white px-3 py-2 shadow-[0_12px_30px_rgba(25,31,40,0.12)] [--float-rotate:3deg]"
+      >
         <EyeIcon />
         <span className="text-xs font-black text-[#191f28]">
           {COPY.phone.promise}
         </span>
       </div>
-      <div className="absolute -bottom-10 right-0 w-[232px] rotate-[-3deg] rounded-[20px] lg:-bottom-24 lg:right-[-24px] bg-white p-4 shadow-[0_20px_50px_rgba(49,130,246,0.25)]">
+      <div
+        className="landing-motion absolute -bottom-10 right-0 w-[232px] animate-[landing-float_4s_ease-in-out_infinite] rounded-[20px] bg-white p-4 shadow-[0_20px_50px_rgba(49,130,246,0.25)] [--float-rotate:-3deg] lg:-bottom-24 lg:right-[-24px]"
+        style={{ animationDelay: "-2s" }}
+      >
         <div className="flex items-center gap-1.5 text-[#3182f6]">
           <SparklesIcon />
           <span className="text-[11px] font-black">
