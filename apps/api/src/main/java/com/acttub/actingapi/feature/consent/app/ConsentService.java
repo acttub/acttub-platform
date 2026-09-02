@@ -80,7 +80,7 @@ public class ConsentService implements RequiredConsentGate {
         try {
             documentId = UUID.fromString(rawDocumentId);
         } catch (IllegalArgumentException notAUuid) {
-            throw documentNotFound();
+            throw documentNotFound(notAUuid);
         }
         ConsentDocument document = consents.findDocument(documentId);
         if (document == null) {
@@ -93,6 +93,10 @@ public class ConsentService implements RequiredConsentGate {
     }
 
     private static ApiException documentNotFound() {
-        return new ApiException(404, "consent_document_not_found");
+        return documentNotFound(null);
+    }
+
+    private static ApiException documentNotFound(Throwable cause) {
+        return new ApiException(404, "consent_document_not_found", cause);
     }
 }

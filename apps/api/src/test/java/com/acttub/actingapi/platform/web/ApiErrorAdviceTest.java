@@ -1,6 +1,7 @@
 package com.acttub.actingapi.platform.web;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -60,6 +61,49 @@ class ApiErrorAdviceTest {
         assertThat(JSON.readTree(result.getResponse().getContentAsString()))
                 .isEqualTo(JSON.readTree("{\"detail\":\"not_found\"}"));
         assertThat(reporter.reports()).isEmpty();
+    }
+
+    @Test
+    void externalApiExceptionKeepsItsResponseAndReportsTheOriginalCause() throws Exception {
+        MvcResult result = mvc.perform(get("/test/external")).andReturn();
+
+        assertThat(result.getResponse().getStatus()).isEqualTo(502);
+        assertThat(JSON.readTree(result.getResponse().getContentAsString()))
+                .isEqualTo(JSON.readTree("{\"detail\":\"upstream_failed\"}"));
+        assertThat(reporter.reports()).singleElement().satisfies(report -> {
+            assertThat(report.failure())
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessage("upstream boom");
+            assertThat(report.kind()).isEqualTo(FailureKind.EXTERNAL);
+            assertThat(report.context()).isEqualTo("ApiErrorAdvice.apiException");
+        });
+    }
+
+    @Test
+    void fourxxApiExceptionPreservesItsCause() {
+        var cause = new IllegalArgumentException("invalid value");
+
+        var exception = new ApiException(400, "invalid", cause);
+
+        assertThat(exception.getCause()).isSameAs(cause);
+    }
+
+    @Test
+    void generalConstructorRejectsServerErrors() {
+        assertThatThrownBy(() -> new ApiException(500, "x"))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void serverFailureFactoriesRequireA5xxStatusAndCause() {
+        var cause = new IllegalStateException("boom");
+
+        assertThatThrownBy(() -> ApiException.external(499, "x", cause))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> ApiException.unexpected(600, "x", cause))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> ApiException.external(500, "x", null))
+                .isInstanceOf(NullPointerException.class);
     }
 
     @Test
@@ -126,7 +170,13 @@ class ApiErrorAdviceTest {
 
         @GetMapping("/test/expected")
         void expected() {
-            throw new ApiException(404, "not_found");
+            throw new ApiException(404, "not_found", new IllegalArgumentException("missing"));
+        }
+
+        @GetMapping("/test/external")
+        void external() {
+            throw ApiException.external(
+                    502, "upstream_failed", new IllegalStateException("upstream boom"));
         }
 
         @PostMapping(value = "/test/json", consumes = MediaType.APPLICATION_JSON_VALUE)

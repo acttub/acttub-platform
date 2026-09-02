@@ -152,10 +152,10 @@ public class CoachService {
             return new CoachPayload(payload, claim.requestId());
         } catch (LeaseOwnershipException exception) {
             operations.fail(claim, "lease_ownership_lost");
-            throw new ApiException(409, "request is still processing");
+            throw new ApiException(409, "request is still processing", exception);
         } catch (ReportParseError exception) {
             operations.fail(claim, "report_parse_error");
-            throw new ApiException(502, exception.getMessage());
+            throw ApiException.external(502, exception.getMessage(), exception);
         } catch (RuntimeException exception) {
             operations.fail(claim, "coach_start_failed");
             throw exception;
@@ -213,13 +213,13 @@ public class CoachService {
             return new CoachPayload(payload, claim.requestId());
         } catch (SessionWriteConflict exception) {
             operations.fail(claim, "session_write_conflict");
-            throw new ApiException(409, "session changed concurrently");
+            throw new ApiException(409, "session changed concurrently", exception);
         } catch (LeaseOwnershipException exception) {
             operations.fail(claim, "lease_ownership_lost");
-            throw new ApiException(409, "request is still processing");
+            throw new ApiException(409, "request is still processing", exception);
         } catch (ReportParseError exception) {
             operations.fail(claim, "report_parse_error");
-            throw new ApiException(502, exception.getMessage());
+            throw ApiException.external(502, exception.getMessage(), exception);
         } catch (RuntimeException exception) {
             operations.fail(claim, "coach_reply_failed");
             throw exception;
@@ -293,13 +293,13 @@ public class CoachService {
             return new CoachPayload(payload, claim.requestId());
         } catch (CoachSessionNotFound exception) {
             operations.fail(claim, "session_not_found");
-            throw new ApiException(404, "session not found");
+            throw new ApiException(404, "session not found", exception);
         } catch (ReportParseError exception) {
             operations.fail(claim, "report_parse_error");
-            throw new ApiException(502, exception.getMessage());
+            throw ApiException.external(502, exception.getMessage(), exception);
         } catch (LeaseOwnershipException exception) {
             operations.fail(claim, "lease_ownership_lost");
-            throw new ApiException(409, "request is still processing");
+            throw new ApiException(409, "request is still processing", exception);
         } catch (ApiException exception) {
             throw exception;
         } catch (RuntimeException exception) {

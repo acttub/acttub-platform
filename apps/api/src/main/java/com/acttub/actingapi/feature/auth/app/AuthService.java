@@ -102,7 +102,7 @@ public class AuthService {
         try {
             claims = jwt.decode(refreshToken, "refresh", now);
         } catch (JwtService.TokenValidationException invalid) {
-            throw invalidRefresh();
+            throw invalidRefresh(invalid);
         }
         RefreshToken stored = accounts.getRefresh(JwtService.hashToken(refreshToken));
         if (stored == null || !stored.userId().equals(claims.userId())) {
@@ -153,7 +153,7 @@ public class AuthService {
                 throw invalidRefresh();
             }
         } catch (JwtService.TokenValidationException invalid) {
-            throw invalidRefresh();
+            throw invalidRefresh(invalid);
         }
     }
 
@@ -161,11 +161,11 @@ public class AuthService {
         try {
             return providers.verify(provider, idToken);
         } catch (UnsupportedProviderError unsupported) {
-            throw new ApiException(400, "unsupported_provider");
+            throw new ApiException(400, "unsupported_provider", unsupported);
         } catch (ProviderConfigurationError misconfigured) {
-            throw new ApiException(503, "provider_not_configured");
+            throw ApiException.unexpected(503, "provider_not_configured", misconfigured);
         } catch (InvalidIdentityToken invalid) {
-            throw new ApiException(401, "invalid_provider_token");
+            throw new ApiException(401, "invalid_provider_token", invalid);
         }
     }
 
@@ -201,7 +201,11 @@ public class AuthService {
     }
 
     private static ApiException invalidRefresh() {
-        return new ApiException(401, "invalid_refresh_token");
+        return invalidRefresh(null);
+    }
+
+    private static ApiException invalidRefresh(Throwable cause) {
+        return new ApiException(401, "invalid_refresh_token", cause);
     }
 
     /** 발급된 한 쌍. 응답으로 옮기는 일은 web 어댑터가 한다. */

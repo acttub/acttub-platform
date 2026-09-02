@@ -21,6 +21,7 @@ import com.acttub.actingapi.feature.coach.app.CoachCommands.HandoffDecision;
 import com.acttub.actingapi.feature.coach.domain.CoachTurnSnapshot;
 import com.acttub.actingapi.platform.ledger.SyncOperationBegin;
 import com.acttub.actingapi.platform.ledger.SyncOperationClaim;
+import com.acttub.actingapi.platform.observability.FailureKind;
 import com.acttub.actingapi.platform.web.ApiException;
 import com.acttub.actingapi.feature.report.app.OwnedReportSource;
 import com.acttub.actingapi.feature.report.app.PracticeReportLedger;
@@ -169,6 +170,10 @@ class CoachServiceTest {
                 .isInstanceOfSatisfying(ApiException.class, exception -> {
                     assertThat(exception.status()).isEqualTo(502);
                     assertThat(exception.getMessage()).isEqualTo("invalid report");
+                    assertThat(exception.getCause())
+                            .isInstanceOf(ReportParseError.class)
+                            .hasMessage("invalid report");
+                    assertThat(exception.failureKind()).contains(FailureKind.EXTERNAL);
                 });
 
         InOrder order = inOrder(ledger, reports, operations);
@@ -196,6 +201,9 @@ class CoachServiceTest {
                 .isInstanceOfSatisfying(ApiException.class, exception -> {
                     assertThat(exception.status()).isEqualTo(404);
                     assertThat(exception.getMessage()).isEqualTo("session not found");
+                    assertThat(exception.getCause())
+                            .isInstanceOf(CoachSessionNotFound.class)
+                            .hasMessage("coach session not found");
                 });
 
         verify(operations).fail(CLAIM, "session_not_found");
@@ -249,6 +257,9 @@ class CoachServiceTest {
                 .isInstanceOfSatisfying(ApiException.class, exception -> {
                     assertThat(exception.status()).isEqualTo(409);
                     assertThat(exception.getMessage()).isEqualTo("session changed concurrently");
+                    assertThat(exception.getCause())
+                            .isInstanceOf(SessionWriteConflict.class)
+                            .hasMessage("session turns changed concurrently");
                 });
 
         verify(operations).fail(CLAIM, "session_write_conflict");
@@ -328,6 +339,10 @@ class CoachServiceTest {
                 .isInstanceOfSatisfying(ApiException.class, exception -> {
                     assertThat(exception.status()).isEqualTo(502);
                     assertThat(exception.getMessage()).isEqualTo("bad report");
+                    assertThat(exception.getCause())
+                            .isInstanceOf(ReportParseError.class)
+                            .hasMessage("bad report");
+                    assertThat(exception.failureKind()).contains(FailureKind.EXTERNAL);
                 });
     }
 

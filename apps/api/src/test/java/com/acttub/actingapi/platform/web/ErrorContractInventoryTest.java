@@ -54,6 +54,9 @@ class ErrorContractInventoryTest {
     /** 예외를 거치지 않고 응답을 직접 만드는 유일한 자리. */
     private static final String ADVICE = "platform.web.ApiErrorAdvice";
 
+    /** 팩토리 안의 위임 생성은 호출 자리가 아니므로 한 번 더 세지 않는다. */
+    private static final String API_EXCEPTION = "platform.web.ApiException";
+
     /** detail 이 리터럴이 아닌 지점(예: {@code exception.getMessage()})의 표기. */
     private static final String DYNAMIC = "<동적>";
 
@@ -291,11 +294,13 @@ class ErrorContractInventoryTest {
                     }
                     void three() { throw new ApiException(502, exception.getMessage()); }
                     void four() { throw new ApiException(400, "괄호 ) 와 쉼표 , 가 든 문구"); }
-                    String five = \"""
+                    void five() { throw ApiException.external(502, exception.getMessage(), exception); }
+                    void six() { throw ApiException.unexpected(503, "provider_not_configured", exception); }
+                    String seven = \"""
                             텍스트 블록 안의 new ApiException(997, "블록문자열")
                             \""";
-                    Object six(int status, String detail) { return body(status, detail); }
-                    Object seven(ErrorResponse error) {
+                    Object eight(int status, String detail) { return body(status, detail); }
+                    Object nine(ErrorResponse error) {
                         return body(error.getStatusCode().value(), "internal_server_error");
                     }
                 }
@@ -305,6 +310,8 @@ class ErrorContractInventoryTest {
                 "404|post_not_found",
                 "409|request is still processing",
                 "502|" + DYNAMIC,
+                "502|" + DYNAMIC,
+                "503|provider_not_configured",
                 "400|괄호 ) 와 쉼표 , 가 든 문구");
         assertThat(scan(source, "return body")).containsExactlyInAnyOrder(
                 DYNAMIC_STATUS + "|" + DYNAMIC,
@@ -321,8 +328,10 @@ class ErrorContractInventoryTest {
                         .replace(java.io.File.separatorChar, '.')
                         .replace(PACKAGE_PREFIX, "");
                 String text = read(path);
-                for (String site : scan(text)) {
-                    found.merge(owner + "|" + site, 1, Integer::sum);
+                if (!API_EXCEPTION.equals(owner)) {
+                    for (String site : scan(text)) {
+                        found.merge(owner + "|" + site, 1, Integer::sum);
+                    }
                 }
                 // advice 는 예외를 거치지 않고 응답을 직접 만든다. 마커를 파일 하나로 한정하는
                 // 이유는 `body(` 가 흔한 이름이라 다른 곳에서 오탐이 되기 때문이다.
@@ -347,7 +356,10 @@ class ErrorContractInventoryTest {
      * {@link #DYNAMIC_STATUS} 한 자리로 세고 구체적인 400·415·503은 MockMvc 테스트가 고정한다.
      */
     private static List<String> scan(String rawSource) {
-        return scan(rawSource, "new ApiException");
+        List<String> sites = new ArrayList<>(scan(rawSource, "new ApiException"));
+        sites.addAll(scan(rawSource, "ApiException.external"));
+        sites.addAll(scan(rawSource, "ApiException.unexpected"));
+        return sites;
     }
 
     private static List<String> scan(String rawSource, String marker) {

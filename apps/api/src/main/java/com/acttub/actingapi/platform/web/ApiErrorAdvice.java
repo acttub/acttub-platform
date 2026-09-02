@@ -43,6 +43,8 @@ public class ApiErrorAdvice {
     private static final int UNKNOWN_ORDER = Integer.MAX_VALUE;
     private static final FailureContext CATCH_ALL_CONTEXT =
             new FailureContext("ApiErrorAdvice.catchAll");
+    private static final FailureContext API_EXCEPTION_CONTEXT =
+            new FailureContext("ApiErrorAdvice.apiException");
 
     private final ObjectMapper mapper;
     private final FailureReporter failureReporter;
@@ -54,6 +56,8 @@ public class ApiErrorAdvice {
 
     @ExceptionHandler(ApiException.class)
     ResponseEntity<Map<String, Object>> api(ApiException exception) {
+        exception.failureKind().ifPresent(kind -> failureReporter.report(
+                Objects.requireNonNull(exception.getCause()), kind, API_EXCEPTION_CONTEXT));
         var response = ResponseEntity.status(exception.status());
         exception.headers().forEach(response::header);
         return response.body(Map.of("detail", exception.getMessage()));
