@@ -36,11 +36,14 @@ public final class CoachPrompt {
             "8번째 응답: 마지막 응답");
 
     /**
-     * Scene Context 가 통째로 빈 세션에 넣는 줄. 같은 뜻의 문장이 {@code ObservationPrompt}
-     * 에도 있고, 두 프롬프트는 각자 진화하므로 문구를 공유하지 않는다.
+     * Scene Context 세 칸이 <b>모두</b> 빈 세션에 붙는 장면 맥락 미입력 블록의 본문. 코치가 첫 한두
+     * 응답에서 영상 관찰 하나를 근거로 장면을 묻게 한다. 배우의 답은 대화 turn 으로만 남고
+     * Scene Context 가 되지 않는다(ADR-021 개정). {@code ObservationPrompt} 는 같은 세션에
+     * 한 줄짜리 부재 안내를 따로 넣는데, 두 프롬프트는 각자 진화하므로 문구를 공유하지
+     * 않는다.
      */
-    private static final String SCENE_ABSENT =
-            "- 배우가 장면을 적지 않았다. 장면 맥락을 지어내지 마라.";
+    private static final String SCENE_CONTEXT_MISSING_TEXT =
+            load("/coach/coach-block-scene-context-missing.txt");
 
     /**
      * 지난 것을 담는 칸의 상한. 넘으면 앞에서부터 자른다 — 지난 연습이 길다고 이번
@@ -132,26 +135,39 @@ public final class CoachPrompt {
      * 배우가 쓴 것을 담는 칸.
      *
      * <p><b>빈 칸은 줄 자체를 만들지 않는다</b> — {@link #priorContextBlock} 이 같은 이유로
-     * 이미 그렇게 하고 있다. Scene Context 셋이 <b>모두</b> 비면 부재를 한 줄로 명시하고,
-     * 일부만 비면 그 줄만 빼고 부재를 말하지 않는다(ADR-021).
+     * 이미 그렇게 하고 있다. 일부만 비면 그 줄만 빠지고 부재를 말하지 않는다(ADR-021). 셋이
+     * <b>모두</b> 비면 여기서는 아무 말도 하지 않고 {@link #sceneContextMissingBlock} 이
+     * 이어서 부재와 할 일을 말한다.
      */
     private static String actorMaterialBlock(CoachSessionSnapshot session) {
         List<String> lines = new ArrayList<>();
         lines.add("## 배우가 쓴 것");
-        if (blank(session.situation())
-                && blank(session.characterContext())
-                && blank(session.goal())) {
-            lines.add(SCENE_ABSENT);
-        } else {
-            addField(lines, "상황", session.situation());
-            addField(lines, "캐릭터", session.characterContext());
-            addField(lines, "이번 테이크의 목적", session.goal());
-        }
+        addField(lines, "상황", session.situation());
+        addField(lines, "캐릭터", session.characterContext());
+        addField(lines, "이번 테이크의 목적", session.goal());
         lines.add("- 배우가 고른 막히는 지점: " + session.blockageKind());
         lines.add("- 하위 갈래: " + subBranchLabel(session.subBranch()));
         addField(lines, "배우가 쓴 상세", session.blockageDetail());
         lines.add("- 영상 길이: " + session.durationMs() + "ms");
         return String.join("\n", lines) + "\n";
+    }
+
+    /**
+     * Scene Context 세 칸이 모두 빈 세션에만 붙는다. 일부만 빈 세션은 적은 것이 있으므로
+     * 부재를 말하지 않는다(ADR-021). 없으면 칸 자체를 만들지 않는다({@link #priorContextBlock}
+     * 과 같은 이유).
+     */
+    private static String sceneContextMissingBlock(CoachSessionSnapshot session) {
+        if (!sceneContextMissing(session)) {
+            return "";
+        }
+        return "\n## 장면 맥락 미입력\n" + SCENE_CONTEXT_MISSING_TEXT + "\n";
+    }
+
+    private static boolean sceneContextMissing(CoachSessionSnapshot session) {
+        return blank(session.situation())
+                && blank(session.characterContext())
+                && blank(session.goal());
     }
 
     /**
@@ -195,6 +211,7 @@ public final class CoachPrompt {
                 : session.conversationSummary();
         return priorContextBlock(session.prior())
                 + actorMaterialBlock(session)
+                + sceneContextMissingBlock(session)
                 + transcriptBlock(session) + "\n\n"
                 + "## 영상에서 확인된 것\n"
                 + "이 팩만 영상 근거로 쓴다. 이 호출에는 영상이 첨부되지 않았고 새 영상 사실을 만들면 안 된다.\n"

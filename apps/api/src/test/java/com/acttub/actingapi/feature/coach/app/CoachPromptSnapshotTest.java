@@ -66,12 +66,13 @@ class CoachPromptSnapshotTest {
     }
 
     /**
-     * 빈 칸은 <b>줄 자체를 만들지 않는다</b>(ADR-021). 셋이 모두 비면 부재를 한 줄로
-     * 명시하고, {@code 그 외} 하위 갈래는 "특정하지 않음" 으로 적는다 — 직접 고른 사람과
-     * 안 고른 사람을 서버가 구분할 수 없는데 그 표현은 <b>양쪽 모두에게 참</b>이다.
+     * 빈 칸은 <b>줄 자체를 만들지 않는다</b>(ADR-021). 셋이 모두 비면 장면 맥락 미입력
+     * 블록이 붙어 코치가 첫 한두 응답에서 영상 근거로 장면을 묻는다(ADR-021 개정). {@code 그 외}
+     * 하위 갈래는 "특정하지 않음" 으로 적는다 — 직접 고른 사람과 안 고른 사람을 서버가 구분할
+     * 수 없는데 그 표현은 <b>양쪽 모두에게 참</b>이다.
      */
     @Test
-    @DisplayName("장면 세 칸이 모두 비면 부재를 명시하고 '그 외' 는 특정하지 않음이 된다")
+    @DisplayName("장면 세 칸이 모두 비면 장면 맥락 미입력 블록이 붙고 '그 외' 는 특정하지 않음이 된다")
     void blankSceneChatPromptMatchesFrozenValue() {
         assertThat(CoachPrompt.buildChat(blankSceneSession("", "", ""), "잘 모르겠어요"))
                 .isEqualTo(FrozenValue.of("coach-chat-prompt-blank-scene.txt"));
@@ -98,9 +99,9 @@ class CoachPromptSnapshotTest {
                 .isEqualTo(FrozenValue.of("coach-chat-prompt-blank-detail.txt"));
     }
 
-    /** 일부만 비면 그 줄만 빠진다 — 부재를 말하지 않는다. */
+    /** 일부만 비면 그 줄만 빠진다 — 부재를 말하지 않고 장면 맥락 미입력 블록도 붙지 않는다. */
     @Test
-    @DisplayName("일부만 빈 장면은 그 줄만 빠지고 부재를 말하지 않는다")
+    @DisplayName("일부만 빈 장면은 그 줄만 빠지고 장면 맥락 미입력 블록이 붙지 않는다")
     void partiallyBlankSceneChatPromptMatchesFrozenValue() {
         CoachSessionSnapshot partial = sceneSession(
                 "", "", "담담하게 말한다", "대사 분석", "이유를 모르겠다");
