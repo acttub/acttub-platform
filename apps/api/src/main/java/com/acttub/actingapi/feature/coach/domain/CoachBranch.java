@@ -23,6 +23,9 @@ public final class CoachBranch {
     /** 배우가 고르는 막힌 지점의 값. DB 에 한국어로 들어간다. */
     private static final String EXPRESSION_BLOCKAGE = "표현";
 
+    /** 막힘 선택을 건너뛰면 웹·앱 모두가 보내는 중립값(ADR-021 보강). 갈래는 분석이다. */
+    private static final String UNSPECIFIED_BLOCKAGE = "그 외";
+
     private CoachBranch() {
     }
 
@@ -38,5 +41,15 @@ public final class CoachBranch {
      */
     public static boolean isExpressionBlockage(String blockageKind) {
         return EXPRESSION_BLOCKAGE.equals(blockageKind);
+    }
+
+    /**
+     * 막힌 지점을 고르지 않은 연습인지.
+     *
+     * <p>갈래는 분석이지만 코치가 막힘을 전제로 열면 안 되는 세션이다 — 코칭 프롬프트가 그 사실을
+     * 따로 말한다. 하위 갈래의 {@code 그 외} 는 여기 해당하지 않는다(그 세션은 갈래를 고른 세션이다).
+     */
+    public static boolean isBlockageUnspecified(String blockageKind) {
+        return UNSPECIFIED_BLOCKAGE.equals(blockageKind);
     }
 }

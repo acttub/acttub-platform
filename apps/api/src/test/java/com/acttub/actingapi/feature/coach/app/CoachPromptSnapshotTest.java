@@ -57,22 +57,38 @@ class CoachPromptSnapshotTest {
                 .isEqualTo(FrozenValue.of("coach-chat-prompt-expression-transcripts.txt"));
     }
 
-    /** 그 외 갈래는 v2 본문을 쓰되 표현 전용 칸 없이, 받아쓴 대사 칸은 들어간다. */
+    /**
+     * 그 외 갈래는 v2 본문을 쓰되 표현 전용 칸 없이, 받아쓴 대사 칸은 들어간다. 갈래가
+     * {@code 그 외} 이므로 막힘 미특정 블록이 붙는다 — 코치가 막힘을 지어내지 않고 영상에서
+     * 확인된 것으로 대화를 연다.
+     */
     @Test
-    @DisplayName("그 외 갈래에도 받아쓴 대사가 있으면 그 칸이 들어간다")
+    @DisplayName("그 외 갈래에는 막힘 미특정 블록이 붙고 받아쓴 대사 칸도 들어간다")
     void otherSessionWithTranscriptsMatchesFrozenValue() throws Exception {
         assertThat(CoachPrompt.buildChat(otherSession(), "잘 모르겠어요"))
                 .isEqualTo(FrozenValue.of("coach-chat-prompt-other-transcripts.txt"));
     }
 
     /**
+     * 장면도 막힘도 건너뛴 세션 — 웹·앱 어느 쪽이든 둘 다 건너뛰면 이렇게 온다. 두 블록이
+     * 장면·막힘 순으로 나란히 붙는다.
+     */
+    @Test
+    @DisplayName("장면도 막힘도 건너뛴 그 외 갈래에는 두 블록이 장면·막힘 순으로 붙는다")
+    void otherSessionWithBlankSceneMatchesFrozenValue() throws Exception {
+        assertThat(CoachPrompt.buildChat(withScene(otherSession(), "", "", ""), "잘 모르겠어요"))
+                .isEqualTo(FrozenValue.of("coach-chat-prompt-other-blank-scene.txt"));
+    }
+
+    /**
      * 빈 칸은 <b>줄 자체를 만들지 않는다</b>(ADR-021). 셋이 모두 비면 장면 맥락 미입력
      * 블록이 붙어 코치가 첫 한두 응답에서 영상 근거로 장면을 묻는다(ADR-021 개정). {@code 그 외}
      * 하위 갈래는 "특정하지 않음" 으로 적는다 — 직접 고른 사람과 안 고른 사람을 서버가 구분할
-     * 수 없는데 그 표현은 <b>양쪽 모두에게 참</b>이다.
+     * 수 없는데 그 표현은 <b>양쪽 모두에게 참</b>이다. 같은 이유로 갈래가 분석이고 하위 갈래만
+     * {@code 그 외} 인 이 세션에는 막힘 미특정 블록이 붙지 않는다.
      */
     @Test
-    @DisplayName("장면 세 칸이 모두 비면 장면 맥락 미입력 블록이 붙고 '그 외' 는 특정하지 않음이 된다")
+    @DisplayName("세 칸 모두 빈 장면에는 미입력 블록이 붙고, 하위 갈래만 '그 외' 면 막힘 미특정 블록은 붙지 않는다")
     void blankSceneChatPromptMatchesFrozenValue() {
         assertThat(CoachPrompt.buildChat(blankSceneSession("", "", ""), "잘 모르겠어요"))
                 .isEqualTo(FrozenValue.of("coach-chat-prompt-blank-scene.txt"));
@@ -156,7 +172,7 @@ class CoachPromptSnapshotTest {
                         new CoachTurnSnapshot("ai", "이전 답변")));
     }
 
-    /** 앱이 막힘 선택을 건너뛰면 보내는 값 — 갈래·하위 갈래 모두 {@code 그 외}, 상세 없음. */
+    /** 웹·앱이 막힘 선택을 건너뛰면 보내는 값 — 갈래·하위 갈래 모두 {@code 그 외}, 상세 없음. */
     private static CoachSessionSnapshot otherSession() throws Exception {
         return snapshot(
                 observationPack(), "그 외", "그 외", "", TRANSCRIPTS,
@@ -182,8 +198,17 @@ class CoachPromptSnapshotTest {
             String goal,
             String subBranch,
             String blockageDetail) {
-        CoachSessionSnapshot source = snapshot(
-                null, "분석", subBranch, blockageDetail, List.of("가지 마"), "", null, List.of());
+        return withScene(
+                snapshot(null, "분석", subBranch, blockageDetail, List.of("가지 마"), "", null, List.of()),
+                situation, characterContext, goal);
+    }
+
+    /** 장면 세 칸만 갈아끼운 사본. */
+    private static CoachSessionSnapshot withScene(
+            CoachSessionSnapshot source,
+            String situation,
+            String characterContext,
+            String goal) {
         return new CoachSessionSnapshot(
                 source.sessionId(), source.practiceSessionId(), source.summaryId(),
                 source.userId(), source.observationPack(), situation, characterContext, goal,

@@ -34,7 +34,7 @@
 
 가능하면 다음 정보가 입력으로 제공된다.
 
-* blockage_kind: 분석
+* blockage_kind: 분석 또는 그 외
 * blocked_line: 배우가 막힌 대사 또는 장면
 * user_block: 배우가 처음 입력한 막힘
 * video_summary:

@@ -5,6 +5,7 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import com.acttub.actingapi.feature.coach.domain.CoachBranch;
 import com.acttub.actingapi.feature.coach.domain.CoachTurnSnapshot;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -44,6 +45,14 @@ public final class CoachPrompt {
      */
     private static final String SCENE_CONTEXT_MISSING_TEXT =
             load("/coach/coach-block-scene-context-missing.txt");
+
+    /**
+     * 막힘을 고르지 않은 세션에 붙는 막힘 미특정 블록의 본문. 코치가 막힘을 지어내지 않고
+     * 영상에서 확인된 것 하나를 근거로 대화를 열고, 배우가 다루고 싶은 지점을 말하면 그리로
+     * 좁히게 한다. 부착 조건은 {@link #blockageUnspecifiedBlock} 에 있다.
+     */
+    private static final String BLOCKAGE_UNSPECIFIED_TEXT =
+            load("/coach/coach-block-blockage-unspecified.txt");
 
     /**
      * 지난 것을 담는 칸의 상한. 넘으면 앞에서부터 자른다 — 지난 연습이 길다고 이번
@@ -127,6 +136,11 @@ public final class CoachPrompt {
         return com.acttub.actingapi.platform.web.PythonText.rstrip(text.substring(0, end)) + "…";
     }
 
+    /**
+     * 갈래로 시스템 프롬프트를 고른다. {@code 표현} 만 v3 이고 {@code 분석}·{@code 그 외} 는
+     * v2 다 — 그래서 v2 의 입력 정보는 {@code blockage_kind} 를 "분석 또는 그 외" 로 선언하고,
+     * {@code 그 외} 세션의 할 일은 {@link #blockageUnspecifiedBlock} 이 대화 프롬프트에서 말한다.
+     */
     public static String select(String blockageKind) {
         return "표현".equals(blockageKind) ? COACH_V3_PROMPT : COACH_V2_PROMPT;
     }
@@ -137,7 +151,8 @@ public final class CoachPrompt {
      * <p><b>빈 칸은 줄 자체를 만들지 않는다</b> — {@link #priorContextBlock} 이 같은 이유로
      * 이미 그렇게 하고 있다. 일부만 비면 그 줄만 빠지고 부재를 말하지 않는다(ADR-021). 셋이
      * <b>모두</b> 비면 여기서는 아무 말도 하지 않고 {@link #sceneContextMissingBlock} 이
-     * 이어서 부재와 할 일을 말한다.
+     * 이어서 부재와 할 일을 말한다. 막힘을 고르지 않은 세션도 같은 꼴이다 — 갈래 줄은 값
+     * {@code 그 외} 를 그대로 적고, {@link #blockageUnspecifiedBlock} 이 이어서 할 일을 말한다.
      */
     private static String actorMaterialBlock(CoachSessionSnapshot session) {
         List<String> lines = new ArrayList<>();
@@ -161,13 +176,32 @@ public final class CoachPrompt {
         if (!sceneContextMissing(session)) {
             return "";
         }
-        return "\n## 장면 맥락 미입력\n" + SCENE_CONTEXT_MISSING_TEXT + "\n";
+        return section("장면 맥락 미입력", SCENE_CONTEXT_MISSING_TEXT);
     }
 
     private static boolean sceneContextMissing(CoachSessionSnapshot session) {
         return blank(session.situation())
                 && blank(session.characterContext())
                 && blank(session.goal());
+    }
+
+    /**
+     * 갈래가 {@code 그 외} 인 세션에만 붙는다 — 웹·앱 모두가 막힘 선택을 건너뛰면 보내는
+     * 값이다(SOMA-432, ADR-021 보강). 하위 갈래만 {@code 그 외} 인 세션에는 붙지 않는다 —
+     * 그 세션은 갈래(분석·표현)를 고른 세션이고, 하위 갈래를 직접 고른 사람과 안 고른 사람은
+     * 서버가 가를 수 없다({@link #subBranchLabel}). 없으면 칸 자체를 만들지 않는다
+     * ({@link #priorContextBlock} 과 같은 이유).
+     */
+    private static String blockageUnspecifiedBlock(CoachSessionSnapshot session) {
+        if (!CoachBranch.isBlockageUnspecified(session.blockageKind())) {
+            return "";
+        }
+        return section("막힘 미특정", BLOCKAGE_UNSPECIFIED_TEXT);
+    }
+
+    /** 조건부 칸의 공통 꼴 — 앞 칸과 빈 줄 하나로 떼고 제목·본문을 잇는다. */
+    private static String section(String heading, String body) {
+        return "\n## " + heading + "\n" + body + "\n";
     }
 
     /**
@@ -212,6 +246,7 @@ public final class CoachPrompt {
         return priorContextBlock(session.prior())
                 + actorMaterialBlock(session)
                 + sceneContextMissingBlock(session)
+                + blockageUnspecifiedBlock(session)
                 + transcriptBlock(session) + "\n\n"
                 + "## 영상에서 확인된 것\n"
                 + "이 팩만 영상 근거로 쓴다. 이 호출에는 영상이 첨부되지 않았고 새 영상 사실을 만들면 안 된다.\n"
@@ -263,7 +298,7 @@ public final class CoachPrompt {
         String transcriptLines = session.transcripts().stream()
                 .map(text -> "- " + text)
                 .collect(java.util.stream.Collectors.joining("\n"));
-        return "\n## 영상에서 받아쓴 대사\n" + transcriptLines + "\n";
+        return section("영상에서 받아쓴 대사", transcriptLines);
     }
 
     private static String videoFacts(CoachSessionSnapshot session) {
