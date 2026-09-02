@@ -1,5 +1,3 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
-
 /**
  * 듀오링고식 연속일 축하 (SOMA-479).
  *
@@ -7,10 +5,23 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
  * 축하하고, 방금 본 연속일을 저장해 둔다. 같은 값으로 다시 들어오면 조용하다.
  * 연속이 끊겨 줄어든 경우도 저장만 갱신하고 축하하지 않는다.
  *
- * 판정은 순수 함수라 node 테스트로 잠근다(RN·저장소에 안 기댄다).
+ * 판정(shouldCelebrateStreak)은 순수 함수라 node 테스트로 잠근다. AsyncStorage 는
+ * 최상단에서 import 하지 않고 함수 안에서 lazy require 한다 — CI 의 mobile 잡은
+ * npm 설치 없이 도는데(전례: i18next 사고), 최상단 네이티브 import 가 있으면
+ * 순수 함수 테스트조차 모듈 로드에서 깨진다.
  */
 
 const LAST_SEEN_KEY = 'acttub.streak.lastSeen';
+
+type AsyncStorageLike = {
+  getItem(key: string): Promise<string | null>;
+  setItem(key: string, value: string): Promise<void>;
+};
+
+function storage(): AsyncStorageLike {
+  return require('@react-native-async-storage/async-storage')
+    .default as AsyncStorageLike;
+}
 
 /** 지금 연속일이 마지막으로 본 값보다 크면(=오늘 늘었으면) 축하한다. */
 export function shouldCelebrateStreak(lastSeen: number, current: number): boolean {
@@ -22,7 +33,7 @@ export function shouldCelebrateStreak(lastSeen: number, current: number): boolea
 /** 저장된 '마지막으로 본 연속일'. 없거나 깨졌으면 0. */
 export async function readLastSeenStreak(): Promise<number> {
   try {
-    const raw = await AsyncStorage.getItem(LAST_SEEN_KEY);
+    const raw = await storage().getItem(LAST_SEEN_KEY);
     if (raw === null) return 0;
     const n = Number.parseInt(raw, 10);
     return Number.isFinite(n) && n >= 0 ? n : 0;
@@ -35,7 +46,7 @@ export async function readLastSeenStreak(): Promise<number> {
 /** 방금 본 연속일을 저장한다. 실패해도 조용히 넘어간다(축하는 곁다리 기능이다). */
 export async function writeLastSeenStreak(current: number): Promise<void> {
   try {
-    await AsyncStorage.setItem(LAST_SEEN_KEY, String(Math.max(0, Math.trunc(current))));
+    await storage().setItem(LAST_SEEN_KEY, String(Math.max(0, Math.trunc(current))));
   } catch {
     // 무시 — 다음 진입에서 다시 시도된다.
   }
