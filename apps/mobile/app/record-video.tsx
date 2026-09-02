@@ -126,25 +126,26 @@ export default function RecordVideoScreen() {
           )}
         </View>
 
-        <View style={styles.bottomRow}>
-          {!recording && (
+        <View style={styles.bottomGroup}>
+          {!recording && <Text style={styles.hint}>{t('record.hint')}</Text>}
+          <View style={styles.bottomRow}>
+            {!recording && (
+              <Pressable
+                style={styles.flipBtn}
+                accessibilityLabel={t('record.flip')}
+                onPress={() => setFacing((f) => (f === 'back' ? 'front' : 'back'))}>
+                <Text style={styles.flipIcon}>⟲</Text>
+              </Pressable>
+            )}
             <Pressable
-              style={styles.flipBtn}
-              accessibilityLabel={t('record.flip')}
-              onPress={() => setFacing((f) => (f === 'back' ? 'front' : 'back'))}>
-              <Text style={styles.flipIcon}>⟲</Text>
+              accessibilityLabel={recording ? t('record.stop') : t('record.start')}
+              onPress={() => (recording ? stopRecording() : void startRecording())}
+              style={[styles.shutter, recording && styles.shutterRecording]}>
+              <View style={recording ? styles.shutterInnerStop : styles.shutterInner} />
             </Pressable>
-          )}
-          <Pressable
-            accessibilityLabel={recording ? t('record.stop') : t('record.start')}
-            onPress={() => (recording ? stopRecording() : void startRecording())}
-            style={[styles.shutter, recording && styles.shutterRecording]}>
-            <View style={recording ? styles.shutterInnerStop : styles.shutterInner} />
-          </Pressable>
-          <View style={styles.flipBtn} />
+            <View style={styles.flipBtn} />
+          </View>
         </View>
-
-        {!recording && <Text style={styles.hint}>{t('record.hint')}</Text>}
       </SafeAreaView>
     </View>
   );
@@ -175,6 +176,7 @@ const styles = StyleSheet.create({
   },
   recDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: palette.danger },
   timerText: { color: '#FFFFFF', fontSize: 15, fontWeight: '700', fontVariant: ['tabular-nums'] },
+  bottomGroup: { gap: 12 },
   bottomRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -196,7 +198,7 @@ const styles = StyleSheet.create({
   shutterRecording: { borderColor: palette.danger },
   shutterInner: { width: 60, height: 60, borderRadius: 30, backgroundColor: '#FFFFFF' },
   shutterInnerStop: { width: 30, height: 30, borderRadius: 6, backgroundColor: palette.danger },
-  hint: { color: '#FFFFFF', textAlign: 'center', fontSize: 13, paddingBottom: 16, opacity: 0.85 },
+  hint: { color: '#FFFFFF', textAlign: 'center', fontSize: 13, opacity: 0.85 },
   permSafe: { flex: 1, backgroundColor: palette.bg },
   permBody: { flex: 1, justifyContent: 'center', padding: 28, gap: 12 },
   permTitle: { fontSize: 20, fontWeight: '800', color: palette.text },
