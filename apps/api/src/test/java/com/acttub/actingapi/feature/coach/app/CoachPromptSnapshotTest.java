@@ -21,6 +21,9 @@ class CoachPromptSnapshotTest {
 
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
+    /** 두 줄짜리 받아쓴 대사 — 칸이 여러 줄을 목록으로 적는지 보이려고 둘을 쓴다. */
+    private static final List<String> TRANSCRIPTS = List.of("가지 마", "제발");
+
     private static final Map<String, String> SYSTEM_PROMPT_BY_KIND = Map.of(
             "분석", "coach-system-prompt-analysis.txt",
             "표현", "coach-system-prompt-expression.txt",
@@ -38,8 +41,28 @@ class CoachPromptSnapshotTest {
     @Test
     @DisplayName("buildChat 의 직렬화 문자열이 동결된 값과 완전히 같다")
     void chatPromptMatchesFrozenValue() throws Exception {
-        assertThat(CoachPrompt.buildChat(expressionSession(), "이번에는 멈춰봤어요"))
+        assertThat(CoachPrompt.buildChat(expressionSession(List.of()), "이번에는 멈춰봤어요"))
                 .isEqualTo(FrozenValue.of("coach-chat-prompt.txt"));
+    }
+
+    /**
+     * 받아쓴 대사 칸은 갈래로 갈리지 않는다 — 표현·그 외로 시작한 연습의 코치도 대사를
+     * 인용해 말해야 한다. 예전에는 "분석" 세션에만 넣었다.
+     */
+    @Test
+    @DisplayName("표현 갈래에도 받아쓴 대사가 있으면 그 칸이 들어간다")
+    void expressionSessionWithTranscriptsMatchesFrozenValue() throws Exception {
+        CoachSessionSnapshot expression = expressionSession(TRANSCRIPTS);
+        assertThat(CoachPrompt.buildChat(expression, "이번에는 멈춰봤어요"))
+                .isEqualTo(FrozenValue.of("coach-chat-prompt-expression-transcripts.txt"));
+    }
+
+    /** 그 외 갈래는 v2 본문을 쓰되 표현 전용 칸 없이, 받아쓴 대사 칸은 들어간다. */
+    @Test
+    @DisplayName("그 외 갈래에도 받아쓴 대사가 있으면 그 칸이 들어간다")
+    void otherSessionWithTranscriptsMatchesFrozenValue() throws Exception {
+        assertThat(CoachPrompt.buildChat(otherSession(), "잘 모르겠어요"))
+                .isEqualTo(FrozenValue.of("coach-chat-prompt-other-transcripts.txt"));
     }
 
     /**
@@ -117,22 +140,33 @@ class CoachPromptSnapshotTest {
                 .isEqualTo(FrozenValue.of("coach-closing-instruction.txt"));
     }
 
-    private static CoachSessionSnapshot expressionSession() throws Exception {
-        JsonNode observationPack = OBJECT_MAPPER.readTree("""
-                {"observations":[{"start_ms":0,"end_ms":93000,"label":"멈춘 뒤 말한다","confidence":1.0}],
-                 "uncertainties":["얼굴은 확인되지 않음"]}
-                """);
+    private static CoachSessionSnapshot expressionSession(List<String> transcripts)
+            throws Exception {
         JsonNode handoff = OBJECT_MAPPER.readTree("""
                 {"blocked_point":"말의 이유","line_meaning":"떠나지 말라는 뜻",
                  "timing_reason":"상대가 돌아섰기 때문","target_effect":"멈춰 세우기",
                  "scene_evidence":["상대가 돌아선다"],"actor_words":["붙잡고 싶다"]}
                 """);
         return snapshot(
-                observationPack, "표현", "속도", "자꾸 빨라진다", List.of(),
+                observationPack(), "표현", "속도", "자꾸 빨라진다", transcripts,
                 "앞 대사를 급히 받는다", handoff,
                 List.of(
                         new CoachTurnSnapshot("actor", "이전 질문"),
                         new CoachTurnSnapshot("ai", "이전 답변")));
+    }
+
+    /** 앱이 막힘 선택을 건너뛰면 보내는 값 — 갈래·하위 갈래 모두 {@code 그 외}, 상세 없음. */
+    private static CoachSessionSnapshot otherSession() throws Exception {
+        return snapshot(
+                observationPack(), "그 외", "그 외", "", TRANSCRIPTS,
+                "", null, List.of());
+    }
+
+    private static JsonNode observationPack() throws Exception {
+        return OBJECT_MAPPER.readTree("""
+                {"observations":[{"start_ms":0,"end_ms":93000,"label":"멈춘 뒤 말한다","confidence":1.0}],
+                 "uncertainties":["얼굴은 확인되지 않음"]}
+                """);
     }
 
     private static CoachSessionSnapshot blankSceneSession(

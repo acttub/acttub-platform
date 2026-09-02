@@ -193,17 +193,9 @@ public final class CoachPrompt {
         String conversationSummary = empty(session.conversationSummary())
                 ? "아직 없음"
                 : session.conversationSummary();
-        String transcriptBlock = "";
-        if ("분석".equals(session.blockageKind()) && !session.transcripts().isEmpty()) {
-            String transcriptLines = session.transcripts().stream()
-                    .map(text -> "- " + text)
-                    .collect(java.util.stream.Collectors.joining("\n"));
-            transcriptBlock = "\n## 영상에서 받아쓴 대사\n" + transcriptLines + "\n";
-        }
-
         return priorContextBlock(session.prior())
                 + actorMaterialBlock(session)
-                + transcriptBlock + "\n\n"
+                + transcriptBlock(session) + "\n\n"
                 + "## 영상에서 확인된 것\n"
                 + "이 팩만 영상 근거로 쓴다. 이 호출에는 영상이 첨부되지 않았고 새 영상 사실을 만들면 안 된다.\n"
                 + videoFacts(session) + "\n\n"
@@ -240,6 +232,21 @@ public final class CoachPrompt {
                 .map(turn -> ("actor".equals(turn.role()) ? "배우" : "코치")
                         + ": " + turn.text())
                 .collect(java.util.stream.Collectors.joining("\n"));
+    }
+
+    /**
+     * 영상에서 받아쓴 대사를 담는 칸. 갈래로 갈리지 않는다 — 세 갈래 모두의 코치가 대사를
+     * 인용해 말해야 한다. 없으면 칸 자체를 만들지 않는다({@link #priorContextBlock} 과 같은
+     * 이유).
+     */
+    private static String transcriptBlock(CoachSessionSnapshot session) {
+        if (session.transcripts().isEmpty()) {
+            return "";
+        }
+        String transcriptLines = session.transcripts().stream()
+                .map(text -> "- " + text)
+                .collect(java.util.stream.Collectors.joining("\n"));
+        return "\n## 영상에서 받아쓴 대사\n" + transcriptLines + "\n";
     }
 
     private static String videoFacts(CoachSessionSnapshot session) {
