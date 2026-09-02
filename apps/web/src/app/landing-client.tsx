@@ -444,9 +444,9 @@ function PhoneMockup() {
   // 제목이 밀렸다. 문장 카드가 폰 아래로 빠지는 만큼 아래 여백을 더 둔다.
   return (
     <div className="relative mx-auto mb-8 w-[330px] [zoom:.55] sm:mb-14 sm:[zoom:.85] lg:mb-24 lg:[zoom:.8]">
-      {/* 높이는 안의 대화가 딱 차는 만큼만 — 더 길면 아래가 비고, 그 빈 곳을 문장 카드가
-          덮으면서 "준비 중" 알약까지 가린다. */}
-      <div className="relative mx-auto flex aspect-[330/600] flex-col gap-4 overflow-hidden rounded-[52px] border-[10px] border-[#191f28] bg-white p-5 pt-7 shadow-[0_30px_70px_rgba(25,31,40,0.22)]">
+      {/* 높이는 대화가 찬 뒤 한 칸 여백이 남는 정도(600→660). 더 길어지면 빈 곳을
+          문장 카드가 덮으면서 "준비 중" 알약까지 가리니 늘릴 때 겹침을 확인한다. */}
+      <div className="relative mx-auto flex aspect-[330/660] flex-col gap-4 overflow-hidden rounded-[52px] border-[10px] border-[#191f28] bg-white p-5 pt-7 shadow-[0_30px_70px_rgba(25,31,40,0.22)]">
         <span className="mx-auto h-1.5 w-[72px] shrink-0 rounded-full bg-[#333d4b]" />
         <div className="flex items-center gap-3">
           <div className="relative h-[62px] w-[92px] shrink-0 overflow-hidden rounded-xl bg-gradient-to-br from-[#4e5968] to-[#dbeafe]">
