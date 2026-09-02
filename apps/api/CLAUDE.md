@@ -13,6 +13,7 @@
 | 변경 갈래 | 먼저 읽을 정본 | 최소 완료 기준 |
 |---|---|---|
 | DTO·직렬화·검증·오류 | `CONTRACT.md` §4·§6 | 관련 MockMvc/계약 테스트, OpenAPI diff, 웹·모바일 영향 확인 |
+| 예외·보고 | `CONTRACT.md` §6·[ADR-025](../../docs/ADR.md) | 5xx `ApiException`은 `external(...)`·`unexpected(...)` 팩토리로 원인과 함께 만들고, 예외를 삼키는 자리는 `FailureReporter`로 보고 여부를 드러냄 |
 | 저장소·SQL·트랜잭션 | `CONTRACT.md` §5 | 실제 Postgres를 쓰는 통합 테스트로 쿼리와 커밋 경계 확인 |
 | Entity·Flyway·제약 | `CONTRACT.md` §5-3·§5-5·§5-8 | migration·fingerprint·baseline·forward 경로 확인 |
 | feature·layer·port·패키지 의존 | [ADR-016~020](../../docs/ADR.md)과 구조 테스트 | `PackageLayerTest`·`PackageCycleTest`의 목록·비공허성 및 조건부 빈의 부팅 검사 확인 |

@@ -282,6 +282,8 @@ Hibernate native query는 위 문장을 `Tuple.class`로 실행하고 `row.get("
 | 14 | v1 경로 404 | `/summarize`, `/coach/start`, `/coach/reply`, `/report`, `/report/history/{id}` 5개 |
 | 15 | 숫자 파싱 | `size_bytes: 12.0`(정수형 float) → **201**, `12.5` → **422** |
 | 16 | 커뮤니티 읽기 공개 | 스펙엔 `security` 가 붙어 있지만 실제로는 optional — **토큰 없이 200** |
+| 17 | 미처리 예외 500 | `{"detail":"internal_server_error"}` |
+| 18 | 5xx `ApiException` | `ApiException.external(...)`·`ApiException.unexpected(...)` 팩토리로만 원인과 함께 만든다 |
 
 ### 6-1. nullable — "null 로 보낼 것" 과 "키를 생략할 것" 이 다르다
 
@@ -323,6 +325,11 @@ Hibernate native query는 위 문장을 `Tuple.class`로 실행하고 `row.get("
 `practice_session_not_found` 가 **둘 다** 있고, 409 에 `report already exists` 와
 `report already exists for practice session` 이 둘 다 있다. 라우터별로 어느 쪽인지 정확히
 갈라야 한다.
+
+미처리 예외의 500 응답은 `{"detail":"internal_server_error"}`다. 5xx
+`ApiException`은 분류와 원인을 빠뜨리지 않도록 `ApiException.external(...)`·
+`ApiException.unexpected(...)` 팩토리로만 만든다. 일반 생성자에 500 이상을 넣으면
+`IllegalArgumentException`으로 거부한다. 4xx 응답은 기존 생성자를 그대로 쓴다.
 
 **숫자를 완료 조건으로 쓰지 않는다** — 추출 방식에 따라 흔들린다(동적 502, admin 기본 401,
 멀티라인 detail). 인벤토리의 **집합 동등성**으로 판정한다. `ErrorContractInventoryTest` 가 그
