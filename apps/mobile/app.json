@@ -16,7 +16,8 @@
       "infoPlist": {
         "NSSpeechRecognitionUsageDescription": "말한 내용을 글자로 바꾸기 위해 음성 인식 권한이 필요해요.",
         "NSMicrophoneUsageDescription": "음성으로 답변을 입력하려면 마이크 접근이 필요해요.",
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSCameraUsageDescription": "연기 영상을 앱에서 바로 촬영하려면 카메라 접근이 필요해요."
       }
     },
     "android": {
@@ -30,7 +31,11 @@
       "predictiveBackGestureEnabled": false,
       "softwareKeyboardLayoutMode": "resize",
       "package": "com.acttub.app",
-      "googleServicesFile": "./google-services.json"
+      "googleServicesFile": "./google-services.json",
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "web": {
       "output": "static",
@@ -79,7 +84,15 @@
       "expo-secure-store",
       "expo-apple-authentication",
       "./plugins/with-rnfirebase-static.js",
-      "./plugins/with-non-modular-headers.js"
+      "./plugins/with-non-modular-headers.js",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "연기 영상을 앱에서 바로 촬영하려면 카메라 접근이 필요해요.",
+          "microphonePermission": "촬영 영상에 소리를 담으려면 마이크 접근이 필요해요.",
+          "recordAudioAndroid": true
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

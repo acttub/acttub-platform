@@ -1,7 +1,7 @@
 import * as ImagePicker from 'expo-image-picker';
-import { Stack, useRouter } from 'expo-router';
+import { Stack, useRouter, useFocusEffect } from 'expo-router';
 import { useVideoPlayer, VideoView } from 'expo-video';
-import { useEffect, useRef, useState, type RefObject } from 'react';
+import { useEffect, useRef, useState, type RefObject, useCallback } from 'react';
 import {
   Pressable,
   ScrollView,
@@ -18,6 +18,7 @@ import { beginAnalysisNavigation } from '@/lib/analysis-entry';
 import type { VideoFile } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { setPendingUpload, takePrefill } from '@/lib/practice';
+import { takeRecordedVideo } from '@/lib/recorded-video';
 import {
   MAX_VIDEO_DURATION_MS,
   missingUploadFieldsHint,
@@ -71,6 +72,39 @@ export default function UploadScreen() {
 
   const MAX_RAW_MB = 4096;
 
+  // 갤러리·촬영이 공통으로 쓰는 검증. 길이·용량이 상한을 넘으면 문구만 세우고 버린다.
+  const acceptVideo = (input: {
+    uri: string;
+    durationMs: number | null;
+    sizeBytes?: number | null;
+    name: string;
+    mimeType?: string | null;
+  }): void => {
+    setVideoError(null);
+    const normalizedDurationMs = normalizeVideoDurationMs(input.durationMs);
+    if (normalizedDurationMs !== null && normalizedDurationMs > MAX_VIDEO_DURATION_MS) {
+      const durationSec = normalizedDurationMs / 1000;
+      setVideoError(
+        t('upload.tooLong', {
+          min: Math.floor(durationSec / 60),
+          sec: Math.round(durationSec % 60),
+        }),
+      );
+      return;
+    }
+    const sizeMb = input.sizeBytes ? input.sizeBytes / (1024 * 1024) : 0;
+    if (sizeMb > MAX_RAW_MB) {
+      setVideoError(t('upload.tooBig', { gb: Math.round(sizeMb / 1024) }));
+      return;
+    }
+    setDurationMs(normalizedDurationMs);
+    setVideo({
+      uri: input.uri,
+      name: input.name,
+      mimeType: input.mimeType ?? 'video/mp4',
+    });
+  };
+
   const pickVideo = async () => {
     setVideoError(null);
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -80,26 +114,22 @@ export default function UploadScreen() {
     });
     if (result.canceled || !result.assets[0]) return;
     const asset = result.assets[0];
-    const normalizedDurationMs = normalizeVideoDurationMs(asset.duration);
-    if (normalizedDurationMs !== null && normalizedDurationMs > MAX_VIDEO_DURATION_MS) {
-      const durationSec = normalizedDurationMs / 1000;
-      const min = Math.floor(durationSec / 60);
-      const sec = Math.round(durationSec % 60);
-      setVideoError(t('upload.tooLong', { min, sec }));
-      return;
-    }
-    const sizeMb = asset.fileSize ? asset.fileSize / (1024 * 1024) : 0;
-    if (sizeMb > MAX_RAW_MB) {
-      setVideoError(t('upload.tooBig', { gb: Math.round(sizeMb / 1024) }));
-      return;
-    }
-    setDurationMs(normalizedDurationMs);
-    setVideo({
+    acceptVideo({
       uri: asset.uri,
+      durationMs: asset.duration ?? null,
+      sizeBytes: asset.fileSize,
       name: asset.fileName ?? 'video.mp4',
-      mimeType: asset.mimeType ?? 'video/mp4',
+      mimeType: asset.mimeType,
     });
   };
+
+  // 촬영 화면에서 돌아오면 찍은 영상을 받아 검증·적용한다 (SOMA-477).
+  useFocusEffect(
+    useCallback(() => {
+      const rec = takeRecordedVideo();
+      if (rec) acceptVideo({ uri: rec.uri, durationMs: rec.durationMs, name: rec.name });
+    }, []),
+  );
 
   // 장면 세 칸은 선택이다(SOMA-432) — 비우면 코치가 대화에서 물어본다.
   const canSubmit = video && agreedRights;
@@ -177,13 +207,21 @@ export default function UploadScreen() {
               </View>
             </View>
           ) : (
-            <Pressable style={styles.dropzone} onPress={pickVideo}>
+            <View style={styles.dropzone}>
               <View style={styles.plusCircle}>
                 <Text style={styles.plus}>＋</Text>
               </View>
               <Text style={styles.dropTitle}>{t('upload.dropTitle')}</Text>
               <Text style={styles.dropHint}>{t('upload.dropHint')}</Text>
-            </Pressable>
+              <View style={styles.pickActions}>
+                <Pressable style={styles.recordBtn} onPress={() => router.push('/record-video')}>
+                  <Text style={styles.recordBtnText}>{t('upload.recordCta')}</Text>
+                </Pressable>
+                <Pressable style={styles.galleryBtn} onPress={pickVideo}>
+                  <Text style={styles.galleryBtnText}>{t('upload.pickGallery')}</Text>
+                </Pressable>
+              </View>
+            </View>
           )}
           {videoError && <Text style={styles.errorText}>{videoError}</Text>}
 
@@ -314,6 +352,23 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
   },
+  pickActions: { flexDirection: 'row', gap: 10, marginTop: 16, alignSelf: 'stretch' },
+  recordBtn: {
+    flex: 1,
+    backgroundColor: palette.blue,
+    paddingVertical: 13,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  recordBtnText: { color: '#FFFFFF', fontSize: 15, fontWeight: '700' },
+  galleryBtn: {
+    flex: 1,
+    backgroundColor: palette.bgSoft,
+    paddingVertical: 13,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  galleryBtnText: { color: palette.textDim, fontSize: 15, fontWeight: '600' },
   plusCircle: {
     width: 48,
     height: 48,
