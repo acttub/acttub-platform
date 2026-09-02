@@ -27,3 +27,5 @@ import './i18n.test.mjs';
 import './admissions.test.mjs';
 import './community.test.mjs';
 import './memory-screen.test.mjs';
+import './recorded-video.test.mjs';
+import './in-app-recording.test.mjs';
