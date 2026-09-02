@@ -1,6 +1,6 @@
 # 홈서버 compose(SOMA-489) — dev·prod 가 같은 파일을 쓰고 차이는 .env 값뿐이다.
 #
-# 실행 위치: /svc/acttub/<env>/{compose.yml,.env,release.env}
+# 실행 위치: /svc/acttub/<env>/{compose.yml,deploy.sh,.env,release.env}
 #   .env         사람이 관리(권한 600). 시크릿·프로젝트명·리소스 상한. 배포는 건드리지 않는다.
 #   release.env  배포 스크립트가 매번 새로 쓴다. API_IMAGE·WEB_IMAGE·RENDER_GIT_COMMIT·SENTRY_RELEASE.
 #
@@ -13,7 +13,7 @@
 # 호스트 포트를 publish 하지 않는다 — 서버의 8080 은 다른 서비스(acttub-rag)가 쓰고, 노출은
 # 같은 네트워크의 cloudflared 가 web:3000 으로 직접 간다. 확인은 컨테이너 안에서 curl(api)·node fetch(web).
 #
-# 조각 01 이 api·db, 02 가 web 을 붙였다. cloudflared·backup(03·07)이 아래 자리에 붙는다.
+# 조각 01 이 api·db, 02 가 web, 03 이 cloudflared(edge 프로필)를 붙였다. backup(07)이 아래 자리에 붙는다.
 
 # 프로젝트명은 .env 가 정한다(acttub-dev·acttub-prod). 비우면 compose 가 디렉토리 이름을 쓰고 볼륨이
 # dev_pgdata 처럼 조용히 다른 이름이 되므로 여기서 요구한다. -p 플래그는 이 값보다 우선한다.
@@ -119,9 +119,40 @@ services:
           memory: ${WEB_MEM_LIMIT:-512m}
     logging: *logging
 
-  # 뒤따르는 SOMA-489 조각이 붙인다:
-  # cloudflared  profiles [edge], TUNNEL_TOKEN, web:3000
-  # backup       profiles [backup], 매일 04:00 KST pg_dump → S3
+  # ── 프로필 서비스 — .env 의 COMPOSE_PROFILES(edge,backup)가 켠다. CI 스모크의 테스트용 .env 에는 그 줄이
+  # 없어 아래는 뜨지 않고 web·api·db 만 돈다(deploy/home/smoke.sh).
+  cloudflared:
+    # 노출은 이것뿐이다 — Cloudflare Tunnel 이 밖에서 들어와 같은 네트워크의 web:3000 으로 간다(호스트 포트
+    # 없음). 호스트명 → http://web:3000 연결은 Cloudflare 대시보드(터널 설정)에 있어 compose 에는 없다.
+    # 버전을 고정한다 — latest 는 재생성 때 조용히 바뀐다. 올릴 때는 여기와 서버의 pull 이 같이 간다.
+    image: cloudflare/cloudflared:2026.8.3
+    profiles: [edge]
+    restart: unless-stopped
+    # 이미지 ENTRYPOINT 가 `cloudflared --no-autoupdate` 라 서브커맨드만 적는다. 토큰은 TUNNEL_TOKEN 환경변수로
+    # 읽는다. --metrics 는 아래 healthcheck 가 /ready 를 물을 주소(컨테이너 안에서만 열린다).
+    command: ["tunnel", "--metrics", "127.0.0.1:2000", "run"]
+    environment:
+      # ${VAR:?} 는 프로필과 무관하게 파일 전체를 치환할 때 걸린다 — 그래서 스모크의 테스트용 .env 도 쓰지 않는
+      # 값을 하나 넣는다. 토큰이 틀리면 여기가 아니라 기동이 잡는다: 형식이 틀리면 프로세스가 "token is not
+      # valid" 로 죽어 재시작을 반복하고(실측, 2026-09-03), 형식은 맞는데 연결이 안 되면 아래 healthcheck 가
+      # unhealthy 로 둔다. 어느 쪽이든 deploy.sh 의 --wait 가 빨강이다.
+      TUNNEL_TOKEN: ${TUNNEL_TOKEN:?.env 의 TUNNEL_TOKEN 이 없다 (Cloudflare Zero Trust 터널 토큰)}
+    depends_on:
+      web:
+        condition: service_healthy
+    healthcheck:
+      # 이미지에 curl 이 없다. `cloudflared tunnel ready` 가 /ready 를 부르고 엣지에 연결된 뒤에야 0 을 준다 —
+      # 밖으로 못 나가면 unhealthy 라 deploy.sh 의 --wait 가 빨강이 된다. 그래서 Cloudflare 쪽 장애 중에도 배포가
+      # 빨강이다 — 터널이 안 붙은 채 초록으로 끝나는 것보다 낫다고 보고 그렇게 둔다.
+      test: ["CMD", "cloudflared", "tunnel", "--metrics", "127.0.0.1:2000", "ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    logging: *logging
+
+  # backup       profiles [backup], 매일 04:00 KST pg_dump → S3 — SOMA-489 조각 07 이 여기에 붙인다.
+  #              deploy.sh 의 --wait 가 기다리므로 healthcheck 가 없으면 running 이면 되고, 있으면 healthy 여야 한다.
 
 volumes:
   # 프로젝트명이 앞에 붙어 acttub-<env>_pgdata 가 된다.
