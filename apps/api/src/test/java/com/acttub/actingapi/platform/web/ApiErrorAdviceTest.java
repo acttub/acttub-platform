@@ -1,12 +1,24 @@
 package com.acttub.actingapi.platform.web;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.util.Optional;
+
 import com.acttub.actingapi.platform.observability.FailureKind;
+import com.acttub.actingapi.platform.observability.SentryFailureReporter;
 import com.acttub.actingapi.support.RecordingFailureReporter;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.sentry.IScopes;
+import io.sentry.ScopeCallback;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
@@ -85,6 +97,23 @@ class ApiErrorAdviceTest {
             assertThat(report.failure()).isInstanceOf(AsyncRequestTimeoutException.class);
             assertThat(report.kind()).isEqualTo(FailureKind.UNEXPECTED);
         });
+    }
+
+    @Test
+    void repeatedUnhandledFailuresOnTheAdvicePathUseTheSentrySuppressionWindow()
+            throws Exception {
+        IScopes scopes = mock(IScopes.class);
+        var sentryReporter = new SentryFailureReporter(
+                Optional.of(scopes),
+                Clock.fixed(Instant.parse("2026-09-03T00:00:00Z"), ZoneOffset.UTC));
+        MockMvc sentryMvc = MockMvcBuilders.standaloneSetup(new FailureController())
+                .setControllerAdvice(new ApiErrorAdvice(JSON, sentryReporter))
+                .build();
+
+        sentryMvc.perform(get("/test/unhandled")).andReturn();
+        sentryMvc.perform(get("/test/unhandled")).andReturn();
+
+        verify(scopes, times(1)).captureException(any(RuntimeException.class), any(ScopeCallback.class));
     }
 
     @RestController

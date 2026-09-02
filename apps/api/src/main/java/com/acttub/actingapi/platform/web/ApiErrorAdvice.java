@@ -10,6 +10,7 @@ import java.util.Objects;
 import java.util.UUID;
 
 import com.acttub.actingapi.integration.storage.NoCredentialsError;
+import com.acttub.actingapi.platform.observability.FailureContext;
 import com.acttub.actingapi.platform.observability.FailureReporter;
 import com.acttub.actingapi.platform.web.RequestBodyCachingFilter.CachedBodyRequest;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -40,6 +41,8 @@ import org.springframework.web.util.WebUtils;
 @RestControllerAdvice
 public class ApiErrorAdvice {
     private static final int UNKNOWN_ORDER = Integer.MAX_VALUE;
+    private static final FailureContext CATCH_ALL_CONTEXT =
+            new FailureContext("ApiErrorAdvice.catchAll");
 
     private final ObjectMapper mapper;
     private final FailureReporter failureReporter;
@@ -157,10 +160,10 @@ public class ApiErrorAdvice {
             if (error.getStatusCode().is4xxClientError()) {
                 return body(status, HttpStatus.valueOf(status).getReasonPhrase());
             }
-            failureReporter.report(exception, "ApiErrorAdvice.catchAll");
+            failureReporter.report(exception, CATCH_ALL_CONTEXT);
             return body(status, "internal_server_error");
         }
-        failureReporter.report(exception, "ApiErrorAdvice.catchAll");
+        failureReporter.report(exception, CATCH_ALL_CONTEXT);
         return body(500, "internal_server_error");
     }
 
