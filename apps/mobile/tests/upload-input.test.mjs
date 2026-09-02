@@ -2,7 +2,6 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
-  BLANK_SCENE_PLACEHOLDER,
   MAX_VIDEO_DURATION_MS,
   missingUploadFieldsHint,
   sceneValueForDisplay,
@@ -136,14 +135,16 @@ test('F10: 받침 유무로 을/를을 고른다', () => {
   assert.equal(objectParticle('video'), '을');
 });
 
-test('SOMA-432: 빈 장면 칸은 자리표시자로 제출한다 — 서버 min_length=1을 넘기기 위해', () => {
-  assert.equal(sceneValueForSubmit(''), BLANK_SCENE_PLACEHOLDER);
-  assert.equal(sceneValueForSubmit('   '), BLANK_SCENE_PLACEHOLDER);
+test('빈 장면 칸과 공백만 있는 칸은 자리표시자 없이 빈 문자열로 제출한다 (ADR-021)', () => {
+  assert.equal(sceneValueForSubmit(''), '');
+  assert.equal(sceneValueForSubmit('   '), '');
   assert.equal(sceneValueForSubmit('  카페에서  '), '카페에서');
 });
 
-test('SOMA-432: 서버에서 온 자리표시자는 표시에서 빈 값으로 되돌린다', () => {
-  assert.equal(sceneValueForDisplay(BLANK_SCENE_PLACEHOLDER), '');
+test('예전 빌드가 저장한 자리표시자는 표시에서 빈 값으로 되돌리고, 한 글자 장면은 남긴다', () => {
+  assert.equal(sceneValueForDisplay('.'), '');
   assert.equal(sceneValueForDisplay(' . '), '');
+  assert.equal(sceneValueForDisplay('밤'), '밤');
+  assert.equal(sceneValueForDisplay('카페.'), '카페.');
   assert.equal(sceneValueForDisplay('카페에서'), '카페에서');
 });

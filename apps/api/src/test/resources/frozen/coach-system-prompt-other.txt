@@ -34,7 +34,7 @@
 
 가능하면 다음 정보가 입력으로 제공된다.
 
-* blockage_kind: 분석
+* blockage_kind: 분석 또는 그 외
 * blocked_line: 배우가 막힌 대사 또는 장면
 * user_block: 배우가 처음 입력한 막힘
 * video_summary:
@@ -43,6 +43,7 @@
   * 대사 전후
   * 영상에서 직접 관찰된 행동
   * 시선, 거리, 멈춤, 속도 등의 관찰 정보
+* transcript: 영상에서 받아쓴 대사(실제로 들린 발화만 순서대로 적은 것)
 * character_context:
 
   * 인물 관계

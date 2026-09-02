@@ -12,6 +12,7 @@ import { mergeHistory, sessionCardTitle } from '@/lib/history-merge';
 import { setPrefill } from '@/lib/practice';
 import { loadRecordMeta } from '@/lib/record-meta';
 import { sortReportsNewestFirst } from '@/lib/report-order';
+import { sceneValueForDisplay } from '@/lib/upload-input';
 import { palette } from '@/constants/palette';
 import { translate as t } from '@/lib/i18n';
 
@@ -116,8 +117,13 @@ export default function HistoryScreen() {
   // ---- 정리가 아직 없는 세션 카드 (SOMA-444) ----
 
   const retakeSession = (s: PracticeSessionListItem) => {
+    // 예전 빌드가 빈 칸에 채운 자리표시자('.')를 준비 화면에 미리 채우지 않는다.
     setPrefill({
-      scene: { situation: s.situation, character: s.character_context, goal: s.goal },
+      scene: {
+        situation: sceneValueForDisplay(s.situation),
+        character: sceneValueForDisplay(s.character_context),
+        goal: sceneValueForDisplay(s.goal),
+      },
       continuedFrom: null,
     });
     router.push('/upload');

@@ -55,21 +55,21 @@ export function missingUploadFieldsHint(state: UploadFormState): string | null {
 }
 
 /**
- * 서버는 장면 세 칸에 min_length=1을 요구한다. 빈 칸은 자리표시자로 채워 넘긴다 —
- * 웹(fillBlankScene)과 같은 규칙이고, 코치는 두 글자 미만을 모호값으로 걸러
- * 대화에서 되묻는다.
+ * 장면 칸은 다듬은 값 그대로 보낸다 — 비면 빈 문자열이다(ADR-021, 웹과 같은 값). 자리표시자는
+ * 만들지 않는다. 예전 빌드가 보내던 '.'은 서버가 빈 값으로 저장한다.
  */
-export const BLANK_SCENE_PLACEHOLDER = '.';
-
 export function sceneValueForSubmit(value: string): string {
-  const trimmed = value.trim();
-  return trimmed ? trimmed : BLANK_SCENE_PLACEHOLDER;
+  return value.trim();
 }
 
-/** 서버에서 돌아온 장면 값 표시용 — 자리표시자(두 글자 미만)는 빈 값으로 되돌린다. */
+/**
+ * 서버에서 돌아온 장면 값 표시용. 예전 빌드는 빈 칸을 자리표시자('.')로 채워 보냈고 그
+ * 세션들이 그대로 남아 있어, 홀로 있는 점은 빈 값으로 되돌린다. 서버가 저장할 때 걷어내는
+ * 폭과 같다 — 한 글자 장면("밤")은 그대로 보여준다.
+ */
 export function sceneValueForDisplay(value: string): string {
   const trimmed = value.trim();
-  return trimmed.length > 1 ? trimmed : '';
+  return trimmed === '.' ? '' : trimmed;
 }
 
 export async function sendUploadIntent<T>(

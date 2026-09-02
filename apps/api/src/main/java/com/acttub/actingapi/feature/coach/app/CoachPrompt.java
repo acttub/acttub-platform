@@ -5,6 +5,7 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import com.acttub.actingapi.feature.coach.domain.CoachBranch;
 import com.acttub.actingapi.feature.coach.domain.CoachTurnSnapshot;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -17,13 +18,44 @@ public final class CoachPrompt {
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
     private static final String COACH_V2_PROMPT = load("/coach/coach-v2-prompt.txt");
     private static final String COACH_V3_PROMPT = load("/coach/coach-v3-prompt.txt");
+    /**
+     * 모델 답이 두 번 검증에 걸렸을 때 서버가 대신 내는 문장. 1~6번째 응답에서만 쓴다 —
+     * 질문이라서, 7번째부터 내면 두 프롬프트가 그 응답부터 하지 말라는 "새로운 질문"이
+     * 서버 손으로 나간다.
+     */
     private static final String SAFE_TEMPLATE =
             "방금 말한 지점에서 하나만 더 볼게. "
                     + "이 말을 상대에게 건넬 때, 상대가 어떻게 되길 바라는 거야?";
 
+    /**
+     * 마지막 구간(7번째부터)의 안전 문구. 새 질문 대신 배우의 말로 정리해 달라고 청한다 —
+     * 두 프롬프트의 7번째 응답 절이 모델에 시키는 두 가지 중 둘째다. 첫째(오늘 대화에서 배우가
+     * 말한 것 하나를 되짚기)는 서버가 알 수 없어 뺀다. 분석·그 외는 다음 테이크에서 해볼 것,
+     * 표현은 다음 연습에서 유지할 것을 청한다. v3 는 실험을 못 한 세션에는 "해볼 것"을 청하라
+     * 하지만 서버는 실험 여부를 모르므로 표현은 늘 "유지할 것"이다.
+     */
+    private static final String ANALYSIS_CLOSING_SAFE_TEMPLATE =
+            "오늘 이야기한 것 가운데 다음 테이크에서 해볼 것 하나만 네 말로 정리해줄래? "
+                    + "한 줄이면 충분해.";
+    private static final String EXPRESSION_CLOSING_SAFE_TEMPLATE =
+            "오늘 이야기한 것 가운데 다음 연습에서 유지할 것 하나만 네 말로 정리해줄래? "
+                    + "한 줄이면 충분해.";
+
+    /**
+     * 코치 응답의 턴 예산. 분석·표현 갈래가 같은 값을 쓴다.
+     *
+     * <p>상한에서 대화를 끊는 값이 아니라, 매 요청 프롬프트 끝에 "## 남은 응답" 블록으로
+     * 실려 모델이 그 안에서 대화를 배분하게 하는 값이다. 서버는 이 번호를 넘어도 끊지
+     * 않는다 — 넘은 응답의 처리는 모델 프롬프트의 몫이다.
+     */
     private static final int TURN_BUDGET = 8;
+    /**
+     * 구간 경계 — 앞 두 구간의 마지막 응답 번호. 둘째 경계 다음이 마지막 구간이고, 안전
+     * 문구도 그 경계에서 질문에서 정리 청유로 바뀐다.
+     */
     private static final int OPEN_UNTIL = 3;
     private static final int NARROW_UNTIL = 6;
+    /** 구간 이름은 두 프롬프트 본문의 "## N번째 응답: ..." 제목과 글자 그대로 같아야 한다. */
     private static final List<String> ANALYSIS_PHASES = List.of(
             "1~3번째 응답: 여는 구간",
             "4~6번째 응답: 좁히는 구간",
@@ -36,11 +68,22 @@ public final class CoachPrompt {
             "8번째 응답: 마지막 응답");
 
     /**
-     * Scene Context 가 통째로 빈 세션에 넣는 줄. 같은 뜻의 문장이 {@code ObservationPrompt}
-     * 에도 있고, 두 프롬프트는 각자 진화하므로 문구를 공유하지 않는다.
+     * Scene Context 세 칸이 <b>모두</b> 빈 세션에 붙는 장면 맥락 미입력 블록의 본문. 코치가 첫 한두
+     * 응답에서 영상 관찰 하나를 근거로 장면을 묻게 한다. 배우의 답은 대화 turn 으로만 남고
+     * Scene Context 가 되지 않는다(ADR-021 개정). {@code ObservationPrompt} 는 같은 세션에
+     * 한 줄짜리 부재 안내를 따로 넣는데, 두 프롬프트는 각자 진화하므로 문구를 공유하지
+     * 않는다.
      */
-    private static final String SCENE_ABSENT =
-            "- 배우가 장면을 적지 않았다. 장면 맥락을 지어내지 마라.";
+    private static final String SCENE_CONTEXT_MISSING_TEXT =
+            load("/coach/coach-block-scene-context-missing.txt");
+
+    /**
+     * 막힘을 고르지 않은 세션에 붙는 막힘 미특정 블록의 본문. 코치가 막힘을 지어내지 않고
+     * 영상에서 확인된 것 하나를 근거로 대화를 열고, 배우가 다루고 싶은 지점을 말하면 그리로
+     * 좁히게 한다. 부착 조건은 {@link #blockageUnspecifiedBlock} 에 있다.
+     */
+    private static final String BLOCKAGE_UNSPECIFIED_TEXT =
+            load("/coach/coach-block-blockage-unspecified.txt");
 
     /**
      * 지난 것을 담는 칸의 상한. 넘으면 앞에서부터 자른다 — 지난 연습이 길다고 이번
@@ -124,34 +167,72 @@ public final class CoachPrompt {
         return com.acttub.actingapi.platform.web.PythonText.rstrip(text.substring(0, end)) + "…";
     }
 
+    /**
+     * 갈래로 시스템 프롬프트를 고른다. {@code 표현} 만 v3 이고 {@code 분석}·{@code 그 외} 는
+     * v2 다 — 그래서 v2 의 입력 정보는 {@code blockage_kind} 를 "분석 또는 그 외" 로 선언하고,
+     * {@code 그 외} 세션의 할 일은 {@link #blockageUnspecifiedBlock} 이 대화 프롬프트에서 말한다.
+     */
     public static String select(String blockageKind) {
-        return "표현".equals(blockageKind) ? COACH_V3_PROMPT : COACH_V2_PROMPT;
+        return CoachBranch.isExpressionBlockage(blockageKind) ? COACH_V3_PROMPT : COACH_V2_PROMPT;
     }
 
     /**
      * 배우가 쓴 것을 담는 칸.
      *
      * <p><b>빈 칸은 줄 자체를 만들지 않는다</b> — {@link #priorContextBlock} 이 같은 이유로
-     * 이미 그렇게 하고 있다. Scene Context 셋이 <b>모두</b> 비면 부재를 한 줄로 명시하고,
-     * 일부만 비면 그 줄만 빼고 부재를 말하지 않는다(ADR-021).
+     * 이미 그렇게 하고 있다. 일부만 비면 그 줄만 빠지고 부재를 말하지 않는다(ADR-021). 셋이
+     * <b>모두</b> 비면 여기서는 아무 말도 하지 않고 {@link #sceneContextMissingBlock} 이
+     * 이어서 부재와 할 일을 말한다. 막힘을 고르지 않은 세션도 같은 꼴이다 — 갈래 줄은 값
+     * {@code 그 외} 를 그대로 적고, {@link #blockageUnspecifiedBlock} 이 이어서 할 일을 말한다.
      */
     private static String actorMaterialBlock(CoachSessionSnapshot session) {
         List<String> lines = new ArrayList<>();
         lines.add("## 배우가 쓴 것");
-        if (blank(session.situation())
-                && blank(session.characterContext())
-                && blank(session.goal())) {
-            lines.add(SCENE_ABSENT);
-        } else {
-            addField(lines, "상황", session.situation());
-            addField(lines, "캐릭터", session.characterContext());
-            addField(lines, "이번 테이크의 목적", session.goal());
-        }
+        addField(lines, "상황", session.situation());
+        addField(lines, "캐릭터", session.characterContext());
+        addField(lines, "이번 테이크의 목적", session.goal());
         lines.add("- 배우가 고른 막히는 지점: " + session.blockageKind());
         lines.add("- 하위 갈래: " + subBranchLabel(session.subBranch()));
         addField(lines, "배우가 쓴 상세", session.blockageDetail());
         lines.add("- 영상 길이: " + session.durationMs() + "ms");
         return String.join("\n", lines) + "\n";
+    }
+
+    /**
+     * Scene Context 세 칸이 모두 빈 세션에만 붙는다. 일부만 빈 세션은 적은 것이 있으므로
+     * 부재를 말하지 않는다(ADR-021). 없으면 칸 자체를 만들지 않는다({@link #priorContextBlock}
+     * 과 같은 이유).
+     */
+    private static String sceneContextMissingBlock(CoachSessionSnapshot session) {
+        if (!sceneContextMissing(session)) {
+            return "";
+        }
+        return section("장면 맥락 미입력", SCENE_CONTEXT_MISSING_TEXT);
+    }
+
+    private static boolean sceneContextMissing(CoachSessionSnapshot session) {
+        return blank(session.situation())
+                && blank(session.characterContext())
+                && blank(session.goal());
+    }
+
+    /**
+     * 갈래가 {@code 그 외} 인 세션에만 붙는다 — 웹·앱 모두가 막힘 선택을 건너뛰면 보내는
+     * 값이다(SOMA-432, ADR-021 보강). 하위 갈래만 {@code 그 외} 인 세션에는 붙지 않는다 —
+     * 그 세션은 갈래(분석·표현)를 고른 세션이고, 하위 갈래를 직접 고른 사람과 안 고른 사람은
+     * 서버가 가를 수 없다({@link #subBranchLabel}). 없으면 칸 자체를 만들지 않는다
+     * ({@link #priorContextBlock} 과 같은 이유).
+     */
+    private static String blockageUnspecifiedBlock(CoachSessionSnapshot session) {
+        if (!CoachBranch.isBlockageUnspecified(session.blockageKind())) {
+            return "";
+        }
+        return section("막힘 미특정", BLOCKAGE_UNSPECIFIED_TEXT);
+    }
+
+    /** 조건부 칸의 공통 꼴 — 앞 칸과 빈 줄 하나로 떼고 제목·본문을 잇는다. */
+    private static String section(String heading, String body) {
+        return "\n## " + heading + "\n" + body + "\n";
     }
 
     /**
@@ -193,17 +274,11 @@ public final class CoachPrompt {
         String conversationSummary = empty(session.conversationSummary())
                 ? "아직 없음"
                 : session.conversationSummary();
-        String transcriptBlock = "";
-        if ("분석".equals(session.blockageKind()) && !session.transcripts().isEmpty()) {
-            String transcriptLines = session.transcripts().stream()
-                    .map(text -> "- " + text)
-                    .collect(java.util.stream.Collectors.joining("\n"));
-            transcriptBlock = "\n## 영상에서 받아쓴 대사\n" + transcriptLines + "\n";
-        }
-
         return priorContextBlock(session.prior())
                 + actorMaterialBlock(session)
-                + transcriptBlock + "\n\n"
+                + sceneContextMissingBlock(session)
+                + blockageUnspecifiedBlock(session)
+                + transcriptBlock(session) + "\n\n"
                 + "## 영상에서 확인된 것\n"
                 + "이 팩만 영상 근거로 쓴다. 이 호출에는 영상이 첨부되지 않았고 새 영상 사실을 만들면 안 된다.\n"
                 + videoFacts(session) + "\n\n"
@@ -231,8 +306,30 @@ public final class CoachPrompt {
                 + failedRawText;
     }
 
-    public static String safeTemplate() {
-        return SAFE_TEMPLATE;
+    /**
+     * 모델 답이 두 번 검증에 걸렸을 때 배우에게 갈 문장. 6번째까지는 질문이고, 마지막
+     * 구간(7번째부터)에서는 갈래별 정리 청유다 — 두 프롬프트가 그 응답부터 새 질문을 하지
+     * 말라고 하는데 서버가 대신 내는 문장이 질문이면 안 된다. 응답 번호는 {@link #turnNumber}
+     * 로 센다.
+     */
+    public static String safeTemplate(int turnNumber, String blockageKind) {
+        if (turnNumber <= NARROW_UNTIL) {
+            return SAFE_TEMPLATE;
+        }
+        return CoachBranch.isExpressionBlockage(blockageKind)
+                ? EXPRESSION_CLOSING_SAFE_TEMPLATE
+                : ANALYSIS_CLOSING_SAFE_TEMPLATE;
+    }
+
+    /**
+     * 지금 만들 응답의 번호. turn 개수가 아니라 코치 turn 수 + 1 이다 — 프롬프트의
+     * "현재 응답: N번째" 와 같은 셈이고, {@code CoachEngine} 의 안전 문구 판정과 그 로그도 이
+     * 번호를 쓴다.
+     */
+    static int turnNumber(CoachSessionSnapshot session) {
+        return (int) session.turns().stream()
+                .filter(turn -> "ai".equals(turn.role()))
+                .count() + 1;
     }
 
     private static String turnLines(List<CoachTurnSnapshot> turns) {
@@ -240,6 +337,21 @@ public final class CoachPrompt {
                 .map(turn -> ("actor".equals(turn.role()) ? "배우" : "코치")
                         + ": " + turn.text())
                 .collect(java.util.stream.Collectors.joining("\n"));
+    }
+
+    /**
+     * 영상에서 받아쓴 대사를 담는 칸. 갈래로 갈리지 않는다 — 세 갈래 모두의 코치가 대사를
+     * 인용해 말해야 한다. 없으면 칸 자체를 만들지 않는다({@link #priorContextBlock} 과 같은
+     * 이유).
+     */
+    private static String transcriptBlock(CoachSessionSnapshot session) {
+        if (session.transcripts().isEmpty()) {
+            return "";
+        }
+        String transcriptLines = session.transcripts().stream()
+                .map(text -> "- " + text)
+                .collect(java.util.stream.Collectors.joining("\n"));
+        return section("영상에서 받아쓴 대사", transcriptLines);
     }
 
     private static String videoFacts(CoachSessionSnapshot session) {
@@ -272,7 +384,9 @@ public final class CoachPrompt {
 
     private static String analysisHandoffBlock(CoachSessionSnapshot session) {
         JsonNode handoff = session.analysisHandoff();
-        if (!"표현".equals(session.blockageKind()) || handoff == null || handoff.isNull()) {
+        if (!CoachBranch.isExpressionBlockage(session.blockageKind())
+                || handoff == null
+                || handoff.isNull()) {
             return "";
         }
         String evidenceLines = indentedItems(handoff.get("scene_evidence"));
@@ -289,7 +403,7 @@ public final class CoachPrompt {
     private static String expressionInputBlock(CoachSessionSnapshot session) {
         JsonNode pack = session.observationPack();
         JsonNode observations = pack == null ? null : pack.get("observations");
-        if (!"표현".equals(session.blockageKind())
+        if (!CoachBranch.isExpressionBlockage(session.blockageKind())
                 || observations == null
                 || !observations.isArray()
                 || observations.isEmpty()) {
@@ -304,7 +418,7 @@ public final class CoachPrompt {
     }
 
     private static String phaseLabel(int turnNumber, String blockageKind) {
-        List<String> phases = "표현".equals(blockageKind)
+        List<String> phases = CoachBranch.isExpressionBlockage(blockageKind)
                 ? EXPRESSION_PHASES
                 : ANALYSIS_PHASES;
         if (turnNumber <= OPEN_UNTIL) {
@@ -320,9 +434,7 @@ public final class CoachPrompt {
     }
 
     private static String turnBudgetBlock(CoachSessionSnapshot session) {
-        int turnNumber = (int) session.turns().stream()
-                .filter(turn -> "ai".equals(turn.role()))
-                .count() + 1;
+        int turnNumber = turnNumber(session);
         int left = Math.max(0, TURN_BUDGET - turnNumber);
         List<String> lines = new ArrayList<>(List.of(
                 "## 남은 응답",
