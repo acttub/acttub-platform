@@ -21,10 +21,12 @@ import com.fasterxml.jackson.databind.exc.MismatchedInputException;
 import com.fasterxml.jackson.databind.exc.UnrecognizedPropertyException;
 import com.fasterxml.jackson.databind.introspect.BeanPropertyDefinition;
 import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.FieldError;
 import org.springframework.validation.ObjectError;
+import org.springframework.web.ErrorResponse;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -149,8 +151,16 @@ public class ApiErrorAdvice {
     }
 
     @ExceptionHandler(Exception.class)
-    ResponseEntity<Map<String, Object>> unexpected(Exception exception) {
-        failureReporter.report(exception, "ApiErrorAdvice.unexpected");
+    ResponseEntity<Map<String, Object>> catchAll(Exception exception) {
+        if (exception instanceof ErrorResponse error) {
+            int status = error.getStatusCode().value();
+            if (error.getStatusCode().is4xxClientError()) {
+                return body(status, HttpStatus.valueOf(status).getReasonPhrase());
+            }
+            failureReporter.report(exception, "ApiErrorAdvice.catchAll");
+            return body(status, "internal_server_error");
+        }
+        failureReporter.report(exception, "ApiErrorAdvice.catchAll");
         return body(500, "internal_server_error");
     }
 
