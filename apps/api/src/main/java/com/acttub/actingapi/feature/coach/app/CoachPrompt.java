@@ -18,13 +18,44 @@ public final class CoachPrompt {
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
     private static final String COACH_V2_PROMPT = load("/coach/coach-v2-prompt.txt");
     private static final String COACH_V3_PROMPT = load("/coach/coach-v3-prompt.txt");
+    /**
+     * 모델 답이 두 번 검증에 걸렸을 때 서버가 대신 내는 문장. 1~6번째 응답에서만 쓴다 —
+     * 질문이라서, 7번째부터 내면 두 프롬프트가 그 응답부터 하지 말라는 "새로운 질문"이
+     * 서버 손으로 나간다.
+     */
     private static final String SAFE_TEMPLATE =
             "방금 말한 지점에서 하나만 더 볼게. "
                     + "이 말을 상대에게 건넬 때, 상대가 어떻게 되길 바라는 거야?";
 
+    /**
+     * 마지막 구간(7번째부터)의 안전 문구. 새 질문 대신 배우의 말로 정리해 달라고 청한다 —
+     * 두 프롬프트의 7번째 응답 절이 모델에 시키는 두 가지 중 둘째다. 첫째(오늘 대화에서 배우가
+     * 말한 것 하나를 되짚기)는 서버가 알 수 없어 뺀다. 분석·그 외는 다음 테이크에서 해볼 것,
+     * 표현은 다음 연습에서 유지할 것을 청한다. v3 는 실험을 못 한 세션에는 "해볼 것"을 청하라
+     * 하지만 서버는 실험 여부를 모르므로 표현은 늘 "유지할 것"이다.
+     */
+    private static final String ANALYSIS_CLOSING_SAFE_TEMPLATE =
+            "오늘 이야기한 것 가운데 다음 테이크에서 해볼 것 하나만 네 말로 정리해줄래? "
+                    + "한 줄이면 충분해.";
+    private static final String EXPRESSION_CLOSING_SAFE_TEMPLATE =
+            "오늘 이야기한 것 가운데 다음 연습에서 유지할 것 하나만 네 말로 정리해줄래? "
+                    + "한 줄이면 충분해.";
+
+    /**
+     * 코치 응답의 턴 예산. 분석·표현 갈래가 같은 값을 쓴다.
+     *
+     * <p>상한에서 대화를 끊는 값이 아니라, 매 요청 프롬프트 끝에 "## 남은 응답" 블록으로
+     * 실려 모델이 그 안에서 대화를 배분하게 하는 값이다. 서버는 이 번호를 넘어도 끊지
+     * 않는다 — 넘은 응답의 처리는 모델 프롬프트의 몫이다.
+     */
     private static final int TURN_BUDGET = 8;
+    /**
+     * 구간 경계 — 앞 두 구간의 마지막 응답 번호. 둘째 경계 다음이 마지막 구간이고, 안전
+     * 문구도 그 경계에서 질문에서 정리 청유로 바뀐다.
+     */
     private static final int OPEN_UNTIL = 3;
     private static final int NARROW_UNTIL = 6;
+    /** 구간 이름은 두 프롬프트 본문의 "## N번째 응답: ..." 제목과 글자 그대로 같아야 한다. */
     private static final List<String> ANALYSIS_PHASES = List.of(
             "1~3번째 응답: 여는 구간",
             "4~6번째 응답: 좁히는 구간",
@@ -142,7 +173,7 @@ public final class CoachPrompt {
      * {@code 그 외} 세션의 할 일은 {@link #blockageUnspecifiedBlock} 이 대화 프롬프트에서 말한다.
      */
     public static String select(String blockageKind) {
-        return "표현".equals(blockageKind) ? COACH_V3_PROMPT : COACH_V2_PROMPT;
+        return CoachBranch.isExpressionBlockage(blockageKind) ? COACH_V3_PROMPT : COACH_V2_PROMPT;
     }
 
     /**
@@ -275,8 +306,30 @@ public final class CoachPrompt {
                 + failedRawText;
     }
 
-    public static String safeTemplate() {
-        return SAFE_TEMPLATE;
+    /**
+     * 모델 답이 두 번 검증에 걸렸을 때 배우에게 갈 문장. 6번째까지는 질문이고, 마지막
+     * 구간(7번째부터)에서는 갈래별 정리 청유다 — 두 프롬프트가 그 응답부터 새 질문을 하지
+     * 말라고 하는데 서버가 대신 내는 문장이 질문이면 안 된다. 응답 번호는 {@link #turnNumber}
+     * 로 센다.
+     */
+    public static String safeTemplate(int turnNumber, String blockageKind) {
+        if (turnNumber <= NARROW_UNTIL) {
+            return SAFE_TEMPLATE;
+        }
+        return CoachBranch.isExpressionBlockage(blockageKind)
+                ? EXPRESSION_CLOSING_SAFE_TEMPLATE
+                : ANALYSIS_CLOSING_SAFE_TEMPLATE;
+    }
+
+    /**
+     * 지금 만들 응답의 번호. turn 개수가 아니라 코치 turn 수 + 1 이다 — 프롬프트의
+     * "현재 응답: N번째" 와 같은 셈이고, {@code CoachEngine} 의 안전 문구 판정과 그 로그도 이
+     * 번호를 쓴다.
+     */
+    static int turnNumber(CoachSessionSnapshot session) {
+        return (int) session.turns().stream()
+                .filter(turn -> "ai".equals(turn.role()))
+                .count() + 1;
     }
 
     private static String turnLines(List<CoachTurnSnapshot> turns) {
@@ -331,7 +384,9 @@ public final class CoachPrompt {
 
     private static String analysisHandoffBlock(CoachSessionSnapshot session) {
         JsonNode handoff = session.analysisHandoff();
-        if (!"표현".equals(session.blockageKind()) || handoff == null || handoff.isNull()) {
+        if (!CoachBranch.isExpressionBlockage(session.blockageKind())
+                || handoff == null
+                || handoff.isNull()) {
             return "";
         }
         String evidenceLines = indentedItems(handoff.get("scene_evidence"));
@@ -348,7 +403,7 @@ public final class CoachPrompt {
     private static String expressionInputBlock(CoachSessionSnapshot session) {
         JsonNode pack = session.observationPack();
         JsonNode observations = pack == null ? null : pack.get("observations");
-        if (!"표현".equals(session.blockageKind())
+        if (!CoachBranch.isExpressionBlockage(session.blockageKind())
                 || observations == null
                 || !observations.isArray()
                 || observations.isEmpty()) {
@@ -363,7 +418,7 @@ public final class CoachPrompt {
     }
 
     private static String phaseLabel(int turnNumber, String blockageKind) {
-        List<String> phases = "표현".equals(blockageKind)
+        List<String> phases = CoachBranch.isExpressionBlockage(blockageKind)
                 ? EXPRESSION_PHASES
                 : ANALYSIS_PHASES;
         if (turnNumber <= OPEN_UNTIL) {
@@ -379,9 +434,7 @@ public final class CoachPrompt {
     }
 
     private static String turnBudgetBlock(CoachSessionSnapshot session) {
-        int turnNumber = (int) session.turns().stream()
-                .filter(turn -> "ai".equals(turn.role()))
-                .count() + 1;
+        int turnNumber = turnNumber(session);
         int left = Math.max(0, TURN_BUDGET - turnNumber);
         List<String> lines = new ArrayList<>(List.of(
                 "## 남은 응답",

@@ -7,6 +7,7 @@ import java.util.Map;
 import java.util.UUID;
 
 import com.acttub.actingapi.feature.coach.domain.CoachTurnSnapshot;
+import com.acttub.actingapi.integration.llm.TextValidator;
 import com.acttub.actingapi.support.FrozenValue;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -28,6 +29,12 @@ class CoachPromptSnapshotTest {
             "분석", "coach-system-prompt-analysis.txt",
             "표현", "coach-system-prompt-expression.txt",
             "그 외", "coach-system-prompt-other.txt");
+
+    /** 7번째부터의 안전 문구. 그 외는 분석 갈래라 분석 문장을 받는다. */
+    private static final Map<String, String> CLOSING_SAFE_TEMPLATE_BY_KIND = Map.of(
+            "분석", "coach-safe-template-closing-analysis.txt",
+            "그 외", "coach-safe-template-closing-analysis.txt",
+            "표현", "coach-safe-template-closing-expression.txt");
 
     @Test
     @DisplayName("select 세 갈래가 동결된 값과 완전히 같다")
@@ -134,8 +141,50 @@ class CoachPromptSnapshotTest {
                 "{\"message\":\"점수\"}",
                 List.of("금지어가 노출됐습니다: 점수", "응답에 시각이 들어 있습니다.")))
                 .isEqualTo(FrozenValue.of("coach-regeneration-prompt.txt"));
-        assertThat(CoachPrompt.safeTemplate())
-                .isEqualTo(FrozenValue.of("coach-safe-template.txt"));
+        for (int turnNumber = 1; turnNumber <= 6; turnNumber++) {
+            for (String kind : CLOSING_SAFE_TEMPLATE_BY_KIND.keySet()) {
+                assertThat(CoachPrompt.safeTemplate(turnNumber, kind))
+                        .as("blockage_kind=%s %d번째 안전 문구", kind, turnNumber)
+                        .isEqualTo(FrozenValue.of("coach-safe-template.txt"));
+            }
+        }
+    }
+
+    /**
+     * 7번째부터의 안전 문구는 질문이 아니라 정리 청유다 — 응답 번호와 갈래마다 어느 문장이
+     * 가는지를 동결한다. 예산(8)을 넘긴 9번째도 같은 문장이다.
+     */
+    @Test
+    @DisplayName("7번째부터의 안전 문구가 갈래별 정리 청유 동결값과 완전히 같다")
+    void closingSafeTemplatesMatchFrozenValues() {
+        for (int turnNumber : List.of(7, 8, 9)) {
+            CLOSING_SAFE_TEMPLATE_BY_KIND.forEach((kind, fixture) ->
+                    assertThat(CoachPrompt.safeTemplate(turnNumber, kind))
+                            .as("blockage_kind=%s %d번째 안전 문구", kind, turnNumber)
+                            .isEqualTo(FrozenValue.of(fixture)));
+        }
+    }
+
+    /** 안전 문구는 검증을 건너뛰고 나간다 — 그래서 문구 자신이 검증을 통과해야 한다. */
+    @Test
+    @DisplayName("안전 문구 세 벌 모두 서버 검증에 걸리지 않는다")
+    void safeTemplatesPassTurnValidation() {
+        for (int turnNumber : List.of(6, 7)) {
+            for (String kind : List.of("분석", "표현")) {
+                assertThat(TextValidator.validateTurn(
+                        CoachPrompt.safeTemplate(turnNumber, kind), true).failures())
+                        .as("blockage_kind=%s %d번째 안전 문구", kind, turnNumber)
+                        .isEmpty();
+            }
+        }
+    }
+
+    /** 응답 번호는 코치 turn 수 + 1 이다 — 프롬프트의 "현재 응답: N번째" 와 같은 셈이다. */
+    @Test
+    @DisplayName("응답 번호는 코치 turn 수에 1을 더한 값이다")
+    void turnNumberCountsAiTurnsPlusOne() throws Exception {
+        assertThat(CoachPrompt.turnNumber(otherSession())).isEqualTo(1);
+        assertThat(CoachPrompt.turnNumber(expressionSession(List.of()))).isEqualTo(2);
     }
 
     /**

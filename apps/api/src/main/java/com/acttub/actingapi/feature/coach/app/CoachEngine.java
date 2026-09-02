@@ -16,12 +16,15 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 /** OpenAI 기반 갈래 코칭 엔진. 저장과 HTTP 응답 조립은 다음 층의 책임이다. */
 @Service
 public class CoachEngine {
 
+    private static final Logger LOG = LoggerFactory.getLogger(CoachEngine.class);
     private static final ObjectMapper RESPONSE_MAPPER = new ObjectMapper();
     private static final Pattern FENCED_JSON = Pattern.compile(
             "^```(?:json)?\\s*([\\s\\S]*?)\\s*```$", Pattern.CASE_INSENSITIVE);
@@ -77,11 +80,13 @@ public class CoachEngine {
      *
      * <p>이 값은 <b>배우의 발화로 대화 이력에 남는다.</b> 그래서 사슬 끝이 막힘 대분류다 —
      * 장면을 건너뛴 세션은 목표까지 비어 배우가 아무 말도 안 한 채로 대화가 열리는데,
-     * 대분류는 배우가 실제로 고른 유일한 값이라 거짓이 남지 않는다(ADR-021).
+     * 대분류는 항상 값이 있는 유일한 칸이다. 배우가 직접 고른 값이면 거짓이 남지 않는다
+     * (ADR-021). 막힘까지 건너뛴 세션은 웹·앱이 보내는 건너뛰기 값 {@code 그 외} 가 그대로
+     * 첫 발화가 된다(ADR-021 보강).
      *
      * <p>대분류가 비어 사슬이 값에 못 닿는 일은 <b>이 파일이 막지 않는다</b> — 요청 검증
      * ({@code BlockageBranch.KINDS})과 {@code practice_sessions} 의 CHECK 제약이 값을
-     * 보장한다. 막힘은 건너뛸 수 없다는 결정이 그 보장의 근거다.
+     * 보장한다. 건너뛰어도 {@code 그 외} 가 저장된다는 결정이 그 보장의 근거다.
      *
      * <p>공백만 든 값도 건너뛴다 — 배우가 한 말이 아니므로 이력에 공백 한 칸을 남기지 않는다.
      */
@@ -159,7 +164,14 @@ public class CoachEngine {
             validation = TextValidator.validateTurn(reply.message(), false);
         }
         if (!validation.failures().isEmpty()) {
-            return new CoachReply(CoachPrompt.safeTemplate(), "continue", null);
+            int turnNumber = CoachPrompt.turnNumber(session);
+            LOG.warn(
+                    "코치 답이 두 번 검증에 걸려 안전 문구로 대체한다: session={} response={} failures={}",
+                    session.sessionId(), turnNumber, validation.failures());
+            return new CoachReply(
+                    CoachPrompt.safeTemplate(turnNumber, session.blockageKind()),
+                    "continue",
+                    null);
         }
         return sanitizeActorWords(reply);
     }
