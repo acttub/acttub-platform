@@ -1,13 +1,28 @@
-# 루트를 빌드 컨텍스트로 쓰는 이미지용(SOMA-489 의 웹 이미지가 이 컨텍스트를 쓴다). API 이미지는
+# 루트를 빌드 컨텍스트로 쓰는 이미지용 — 지금은 웹 이미지(apps/web/Dockerfile) 하나다. API 이미지는
 # apps/api 를 컨텍스트로 쓰고 apps/api/.dockerignore 를 따른다.
+#
+# 웹 이미지에 필요한 것은 워크스페이스 매니페스트(package.json·pnpm-lock.yaml·pnpm-workspace.yaml)와
+# apps/web, 그리고 apps/api 의 파일 하나(아래)뿐이다. 나머지는 컨텍스트 전송만 키우므로 뺀다.
 .git
 .scratch
 .claude
+.github
+docs
+deploy
+# 웹 빌드가 apps/api 에서 읽는 파일은 하나다 — /admissions/[id] 의 정적 경로 목록
+# (apps/web/src/features/admissions/university-ids.ts 가 ../api/... 를 readFileSync 한다). 그것만 예외로 들인다.
+apps/api
+!apps/api/src/main/resources/admissions/notices.json
+apps/mobile
 **/node_modules
 **/.next
-apps/api/build
-apps/api/.gradle
-apps/mobile
+**/next-env.d.ts
+**/*.tsbuildinfo
+**/artifacts
+**/.lighthouseci
 **/.env
 **/.env.*
-deploy/home/release.env
+# prebuild 산출물은 이미지 빌드 안에서 다시 만든다(copy-ort.mjs·copy-pretendard.mjs). 로컬 사본은
+# 40MB 가 넘고 설치된 버전과 어긋날 수 있다.
+apps/web/public/ort
+apps/web/public/fonts/pretendard
