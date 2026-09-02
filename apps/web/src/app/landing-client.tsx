@@ -173,7 +173,7 @@ export default function LandingClient() {
           <div className="absolute -left-24 top-1/2 h-64 w-64 rounded-full bg-white/70 blur-3xl" />
           <div
             data-reveal
-            className="relative mx-auto grid w-full max-w-6xl translate-y-6 items-center gap-4 py-4 opacity-0 transition-[opacity,transform] duration-400 ease-[cubic-bezier(0,0,0.2,1)] data-[visible=true]:translate-y-0 data-[visible=true]:opacity-100 motion-reduce:translate-y-0 motion-reduce:opacity-100 motion-reduce:transition-none sm:gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(360px,0.9fr)] lg:gap-16"
+            className="relative mx-auto grid w-full max-w-6xl translate-y-6 items-center gap-4 py-4 opacity-0 transition-[opacity,transform] duration-400 ease-[cubic-bezier(0,0,0.2,1)] data-[visible=true]:translate-y-0 data-[visible=true]:opacity-100 motion-reduce:translate-y-0 motion-reduce:opacity-100 motion-reduce:transition-none sm:gap-8 lg:grid-cols-[minmax(0,1.1fr)_minmax(300px,0.7fr)] lg:gap-12"
           >
             <div className="text-center lg:text-left">
               <div className="inline-flex items-center gap-2 rounded-full bg-white/85 px-3 py-2 shadow-[0_6px_24px_rgba(49,130,246,0.1)]">
@@ -437,8 +437,10 @@ export default function LandingClient() {
 }
 
 function PhoneMockup() {
+  // 데스크톱은 글이 주인공이라 폰을 줄인다 — 1.09 로 키웠을 때 화면 절반을 폰이 먹어
+  // 제목이 밀렸다. 문장 카드가 폰 아래로 빠지는 만큼 아래 여백을 더 둔다.
   return (
-    <div className="relative mx-auto mb-8 w-[330px] [zoom:.55] sm:mb-14 sm:[zoom:.85] lg:[zoom:1.09]">
+    <div className="relative mx-auto mb-8 w-[330px] [zoom:.55] sm:mb-14 sm:[zoom:.85] lg:mb-24 lg:[zoom:.8]">
       {/* 높이는 안의 대화가 딱 차는 만큼만 — 더 길면 아래가 비고, 그 빈 곳을 문장 카드가
           덮으면서 "준비 중" 알약까지 가린다. */}
       <div className="relative mx-auto flex aspect-[330/600] flex-col gap-4 overflow-hidden rounded-[52px] border-[10px] border-[#191f28] bg-white p-5 pt-7 shadow-[0_30px_70px_rgba(25,31,40,0.22)]">
@@ -508,7 +510,7 @@ function PhoneMockup() {
           {COPY.phone.promise}
         </span>
       </div>
-      <div className="absolute -bottom-10 right-0 w-[232px] rotate-[-3deg] rounded-[20px] lg:-bottom-16 lg:right-[-16px] bg-white p-4 shadow-[0_20px_50px_rgba(49,130,246,0.25)]">
+      <div className="absolute -bottom-10 right-0 w-[232px] rotate-[-3deg] rounded-[20px] lg:-bottom-24 lg:right-[-24px] bg-white p-4 shadow-[0_20px_50px_rgba(49,130,246,0.25)]">
         <div className="flex items-center gap-1.5 text-[#3182f6]">
           <SparklesIcon />
           <span className="text-[11px] font-black">
