@@ -23,6 +23,14 @@ function clientHref(surface: StoreLinkSurface): string {
 // 값이 바뀔 일이 없으니 구독은 빈 껍데기다. 모듈 상수로 둬서 렌더마다 다시 구독하지 않는다.
 const subscribe = () => () => {};
 
+// 높이·모서리·글자 크기는 여기서만 정한다 — className 으로 h-* 를 덧씌우면 Tailwind 가
+// 어느 쪽을 이기게 할지 보장하지 않아서 자리마다 크기가 흔들린다.
+const SIZE_CLASS = {
+  sm: "h-12 rounded-[14px] px-5 text-[15px]",
+  md: "h-14 rounded-2xl px-7 text-base",
+  lg: "h-[60px] rounded-[18px] px-7 text-lg",
+} as const;
+
 /**
  * 기기에 맞는 스토어로 바로 보내는 버튼.
  *
@@ -38,9 +46,11 @@ const subscribe = () => () => {};
  */
 export function AppDownloadButton({
   surface,
+  size = "md",
   className = "",
 }: {
   surface: StoreLinkSurface;
+  size?: "sm" | "md" | "lg";
   className?: string;
 }) {
   const href = useSyncExternalStore(
@@ -54,7 +64,7 @@ export function AppDownloadButton({
       href={href}
       // 하이드레이션 전에 인라인 스크립트가 이 표식을 보고 주소를 먼저 고친다.
       {...{ [APP_DOWNLOAD_ATTR]: surface }}
-      className={`inline-flex h-14 items-center justify-center rounded-2xl bg-[#3182f6] px-7 text-base font-black text-white shadow-[0_18px_40px_rgba(49,130,246,0.28)] transition hover:-translate-y-0.5 hover:bg-[#1b64da] ${className}`}
+      className={`inline-flex items-center justify-center bg-[#3182f6] font-black text-white shadow-[0_18px_40px_rgba(49,130,246,0.28)] transition hover:-translate-y-0.5 hover:bg-[#1b64da] ${SIZE_CLASS[size]} ${className}`}
     >
       앱 다운받기
     </a>

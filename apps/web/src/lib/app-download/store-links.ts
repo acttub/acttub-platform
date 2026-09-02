@@ -18,6 +18,8 @@ export type AppStore = "app_store" | "google_play";
 export type StoreLinkSurface =
   | "landing_hero"
   | "landing_app_section"
+  | "landing_sticky"
+  | "landing_cta"
   | "landing_footer"
   | "app_page";
 
