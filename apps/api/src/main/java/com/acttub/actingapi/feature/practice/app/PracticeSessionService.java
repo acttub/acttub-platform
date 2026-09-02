@@ -33,6 +33,15 @@ public class PracticeSessionService {
     /** 재생 서명 주소의 수명. 파이썬과 같은 15분이고, 응답에 그대로 실린다. */
     private static final int PLAYBACK_URL_TTL_SECONDS = 15 * 60;
 
+    /**
+     * 옛 클라이언트가 빈 장면 칸에 채워 보내던 자리표시자. 웹의 옛 {@code fillBlankScene} 과
+     * 앱의 옛 빌드가 서버의 최소 길이 제약을 넘기려고 쓰던 값이다. 건너뛴 장면은 빈 문자열로
+     * 저장한다는 규칙(ADR-021)을 옛 빌드의 요청에도 적용하려고 서버가 이 값을 빈 값으로
+     * 읽는다 — 그래야 코치와 목록이 "장면 있음" 으로 보지 않는다. 홀로 있는 점만 빈 값이고
+     * 점이 섞인 다른 값은 받은 그대로 저장한다.
+     */
+    private static final String BLANK_SCENE_PLACEHOLDER = ".";
+
     private final PracticeSessionLedger operations;
     private final PracticeSessionRepository sessions;
     private final PracticePlayback playback;
@@ -57,6 +66,10 @@ public class PracticeSessionService {
      *
      * <p>업로드 의도의 실재를 먼저 확인하는 이유는 응답이 달라서다 — 없으면 404,
      * 있으나 아직 확정되지 않았으면 409 다.
+     *
+     * <p>장면 칸의 자리표시자는 저장할 때만 걷어내고, 요청 지문은 받은 그대로 만든다. 지문까지
+     * 걷어낸 값으로 만들면 옛 jar 가 {@code "."} 로 남긴 지문과 어긋나, 배포를 가로지른 같은
+     * 요청의 재시도가 지문 불일치(422 {@code request_fingerprint_mismatch})로 갈린다.
      */
     public AnalysisOutcome create(UUID userId, NewPracticeSession command, UUID requestId) {
         if (!sessions.uploadExists(userId, command.uploadIntentId())) {
@@ -80,9 +93,9 @@ public class PracticeSessionService {
         PracticeSessionOperation result = operations.createWithAnalysis(
                 userId,
                 command.uploadIntentId(),
-                command.situation(),
-                command.characterContext(),
-                command.goal(),
+                blankIfPlaceholder(command.situation()),
+                blankIfPlaceholder(command.characterContext()),
+                blankIfPlaceholder(command.goal()),
                 command.blockageKind(),
                 command.subBranch(),
                 command.blockageDetail(),
@@ -93,6 +106,10 @@ public class PracticeSessionService {
             throw new ApiException(409, "upload_intent_not_finalized");
         }
         return outcome(result, userId);
+    }
+
+    private static String blankIfPlaceholder(String sceneValue) {
+        return BLANK_SCENE_PLACEHOLDER.equals(sceneValue) ? "" : sceneValue;
     }
 
     public List<PracticeSession> list(UUID userId) {

@@ -409,6 +409,46 @@ class PracticeSessionEndpointIT {
                 .containsExactly("missing", "missing", "missing");
     }
 
+    /**
+     * 옛 앱 빌드와 웹의 옛 규칙은 빈 장면 칸을 자리표시자 {@code "."} 로 채워 보냈다. 건너뛴
+     * 장면은 빈 문자열로 저장한다는 규칙(ADR-021)이 옛 빌드의 요청에도 닿도록 서버가 홀로
+     * 있는 점을 빈 문자열로 저장·응답하고, 점이 섞인 다른 값은 받은 그대로 둔다 — 두 값을 한
+     * 요청에 나란히 실어야 어디까지 빈 값으로 바꾸는지가 고정된다. 같은 본문의 재시도는
+     * 여전히 같은 응답이어야 한다 — 걷어내기가 멱등 재생(같은 요청을 다시 보내도 같은 결과)을
+     * 깨지 않는지를 함께 본다.
+     */
+    @Test
+    void lonePlaceholderDotInSceneContextIsStoredAsBlank() throws Exception {
+        UUID uploadId = insertUpload(USER_ID, "finalized", "placeholder-scene.mp4");
+        UUID requestId = UUID.randomUUID();
+        String body = """
+                {"upload_intent_id":"%s","situation":".","character_context":".",
+                 "goal":"카페.","blockage_kind":"분석","sub_branch":"대사 분석",
+                 "blockage_detail":null}
+                """.formatted(uploadId);
+
+        MvcResult created = create(uploadId, requestId, body);
+        assertThat(created.getResponse().getStatus()).isEqualTo(202);
+        MvcResult replay = create(uploadId, requestId, body);
+        assertThat(replay.getResponse().getStatus()).isEqualTo(202);
+        assertThat(replay.getResponse().getContentAsByteArray())
+                .isEqualTo(created.getResponse().getContentAsByteArray());
+
+        UUID sessionId = UUID.fromString(json(created).path("session_id").textValue());
+        JsonNode stored = detail(sessionId);
+        assertThat(stored.path("situation").textValue()).isEmpty();
+        assertThat(stored.path("character_context").textValue()).isEmpty();
+        assertThat(stored.path("goal").textValue()).isEqualTo("카페.");
+
+        JsonNode listed = json(mvc.perform(get("/v2/practice-sessions")
+                        .header("Authorization", bearer(USER_ID)))
+                .andReturn());
+        assertThat(listed.path("sessions").size()).isEqualTo(1);
+        assertThat(listed.at("/sessions/0/situation").textValue()).isEmpty();
+        assertThat(listed.at("/sessions/0/character_context").textValue()).isEmpty();
+        assertThat(listed.at("/sessions/0/goal").textValue()).isEqualTo("카페.");
+    }
+
     @Test
     void crossFieldErrorEchoesWholeBodyAndUnknownKeysAreRejected() throws Exception {
         UUID uploadId = insertUpload(USER_ID, "finalized", "video.mp4");
