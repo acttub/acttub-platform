@@ -129,7 +129,10 @@ export default function RecordVideoScreen() {
         <View style={styles.bottomGroup}>
           {!recording && <Text style={styles.hint}>{t('record.hint')}</Text>}
           <View style={styles.bottomRow}>
-            {!recording && (
+            {/* 왼쪽 슬롯: 녹화 중엔 빈 칸으로 둬서 셔터가 늘 가운데에 오게 한다. */}
+            {recording ? (
+              <View style={styles.flipBtn} />
+            ) : (
               <Pressable
                 style={styles.flipBtn}
                 accessibilityLabel={t('record.flip')}
