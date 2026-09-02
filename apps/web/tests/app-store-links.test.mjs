@@ -74,6 +74,12 @@ test("Play 주소에는 화면별 utm이 referrer로 붙고 App Store 주소는 
     playUrl.searchParams.get("referrer"),
     "utm_source=acttub_web&utm_medium=landing_footer",
   );
+
+  const stickyPlayUrl = new URL(storeHref("google_play", "landing_sticky"));
+  assert.equal(
+    stickyPlayUrl.searchParams.get("referrer"),
+    "utm_source=acttub_web&utm_medium=landing_sticky",
+  );
 });
 
 test("go 주소는 스토어와 화면의 8개 조합을 내부 경로로 바꾼다", () => {
