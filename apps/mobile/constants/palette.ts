@@ -35,6 +35,9 @@ export const palette = {
   green: '#009959',
   greenSoft: '#E5F8EF',
   amber: '#8A4B00',
+  flame: '#FF6B2C', // 연속일 불꽃 (SOMA-479)
+  flameDeep: '#E8590C',
+  flameSoft: '#FFF1E8',
   amberSoft: '#FFF8EC',
   danger: '#E42939',
   dangerSoft: '#FFF0F0',

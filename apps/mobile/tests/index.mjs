@@ -27,3 +27,4 @@ import './i18n.test.mjs';
 import './admissions.test.mjs';
 import './community.test.mjs';
 import './memory-screen.test.mjs';
+import './streak-celebration.test.mjs';
