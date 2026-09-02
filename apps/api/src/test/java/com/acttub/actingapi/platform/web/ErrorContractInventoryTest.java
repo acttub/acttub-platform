@@ -197,10 +197,13 @@ class ErrorContractInventoryTest {
             covered("platform.security.CurrentUserService|401|invalid or missing access token", 3,
                     "platform.web.AuthErrorContractIT"),
 
-            // advice 가 예외를 거치지 않고 직접 만드는 셋. 503 은 스토리지 자격증명이 없을 때
-            // 세 경로에서 나고, 404·405 는 Spring 표준 예외를 FastAPI 표기로 옮긴 것이다.
+            // advice 가 예외를 거치지 않고 직접 만드는 넷. 500 은 미처리 예외의 계약 모양이고,
+            // 503 은 스토리지 자격증명이 없을 때 세 경로에서 난다. 404·405 는 Spring 표준 예외를
+            // FastAPI 표기로 옮긴 것이다.
             covered(ADVICE + "|404|Not Found", 1, "platform.web.AuthErrorContractIT"),
             covered(ADVICE + "|405|Method Not Allowed", 1, "platform.web.AuthErrorContractIT"),
+            covered(ADVICE + "|500|internal_server_error", 1,
+                    "platform.web.ApiErrorAdviceTest"),
             covered(ADVICE + "|503|storage_not_configured", 1,
                     "feature.report.adapter.web.ReportNoStorageIT"));
 

@@ -10,6 +10,7 @@ import java.util.Objects;
 import java.util.UUID;
 
 import com.acttub.actingapi.integration.storage.NoCredentialsError;
+import com.acttub.actingapi.platform.observability.FailureReporter;
 import com.acttub.actingapi.platform.web.RequestBodyCachingFilter.CachedBodyRequest;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JavaType;
@@ -39,9 +40,11 @@ public class ApiErrorAdvice {
     private static final int UNKNOWN_ORDER = Integer.MAX_VALUE;
 
     private final ObjectMapper mapper;
+    private final FailureReporter failureReporter;
 
-    public ApiErrorAdvice(ObjectMapper mapper) {
+    public ApiErrorAdvice(ObjectMapper mapper, FailureReporter failureReporter) {
         this.mapper = mapper;
+        this.failureReporter = failureReporter;
     }
 
     @ExceptionHandler(ApiException.class)
@@ -143,6 +146,12 @@ public class ApiErrorAdvice {
     @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
     ResponseEntity<Map<String, Object>> method() {
         return body(405, "Method Not Allowed");
+    }
+
+    @ExceptionHandler(Exception.class)
+    ResponseEntity<Map<String, Object>> unexpected(Exception exception) {
+        failureReporter.report(exception, "ApiErrorAdvice.unexpected");
+        return body(500, "internal_server_error");
     }
 
     private Map<String, Object> field(FieldError field, ResolvedPath path, Object bodyInput) {
