@@ -10,6 +10,10 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
+import com.acttub.actingapi.platform.observability.FailureContext;
+import com.acttub.actingapi.platform.observability.FailureKind;
+import com.acttub.actingapi.platform.observability.FailureReporter;
+
 /** {@code acting-summary/compress.py:compress_for_gemini} 대응. */
 public final class GeminiVideoCompressor {
 
@@ -20,21 +24,24 @@ public final class GeminiVideoCompressor {
     private final Duration timeout;
     private final ExecutableFinder executableFinder;
     private final CommandRunner commandRunner;
+    private final FailureReporter failureReporter;
 
-    public GeminiVideoCompressor() {
+    public GeminiVideoCompressor(FailureReporter failureReporter) {
         this(MIN_BYTES, TIMEOUT, GeminiVideoCompressor::findExecutable,
-                GeminiVideoCompressor::runCommand);
+                GeminiVideoCompressor::runCommand, failureReporter);
     }
 
     GeminiVideoCompressor(
             long minBytes,
             Duration timeout,
             ExecutableFinder executableFinder,
-            CommandRunner commandRunner) {
+            CommandRunner commandRunner,
+            FailureReporter failureReporter) {
         this.minBytes = minBytes;
         this.timeout = timeout;
         this.executableFinder = executableFinder;
         this.commandRunner = commandRunner;
+        this.failureReporter = failureReporter;
     }
 
     public Path compress(Path videoPath) {
@@ -73,6 +80,10 @@ public final class GeminiVideoCompressor {
             });
         } catch (Exception exc) {
             deleteOutput(output);
+            failureReporter.report(
+                    exc,
+                    FailureKind.UNEXPECTED,
+                    new FailureContext("GeminiVideoCompressor.compress"));
             return videoPath;
         }
 

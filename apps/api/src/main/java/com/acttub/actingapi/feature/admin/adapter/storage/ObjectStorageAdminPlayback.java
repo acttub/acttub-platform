@@ -4,6 +4,9 @@ import java.util.Optional;
 
 import com.acttub.actingapi.feature.admin.app.AdminPlayback;
 import com.acttub.actingapi.integration.storage.ObjectStorage;
+import com.acttub.actingapi.platform.observability.FailureContext;
+import com.acttub.actingapi.platform.observability.FailureKind;
+import com.acttub.actingapi.platform.observability.FailureReporter;
 import org.springframework.stereotype.Component;
 
 /**
@@ -16,9 +19,13 @@ import org.springframework.stereotype.Component;
 @Component
 class ObjectStorageAdminPlayback implements AdminPlayback {
     private final Optional<ObjectStorage> configured;
+    private final FailureReporter failureReporter;
 
-    ObjectStorageAdminPlayback(Optional<ObjectStorage> configured) {
+    ObjectStorageAdminPlayback(
+            Optional<ObjectStorage> configured,
+            FailureReporter failureReporter) {
         this.configured = configured;
+        this.failureReporter = failureReporter;
     }
 
     @Override
@@ -28,7 +35,11 @@ class ObjectStorageAdminPlayback implements AdminPlayback {
         }
         try {
             return configured.get().presignPlayback(objectKey, expiresInSeconds);
-        } catch (Exception ignored) {
+        } catch (Exception exception) {
+            failureReporter.report(
+                    exception,
+                    FailureKind.EXTERNAL,
+                    new FailureContext("ObjectStorageAdminPlayback.url"));
             return null;
         }
     }

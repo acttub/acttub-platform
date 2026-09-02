@@ -6,6 +6,8 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.acttub.actingapi.platform.observability.FailureKind;
+import com.acttub.actingapi.support.RecordingFailureReporter;
 import org.junit.jupiter.api.Test;
 
 class KeepAlivePingerTest {
@@ -13,7 +15,8 @@ class KeepAlivePingerTest {
     @Test
     void stripsTrailingSlashesAndAppendsHealth() {
         List<String> calls = new ArrayList<>();
-        KeepAlivePinger pinger = new KeepAlivePinger("https://acttub.test///", calls::add);
+        KeepAlivePinger pinger = new KeepAlivePinger(
+                "https://acttub.test///", calls::add, new RecordingFailureReporter());
 
         pinger.ping();
 
@@ -23,11 +26,18 @@ class KeepAlivePingerTest {
 
     @Test
     void pingFailuresAreSwallowed() {
+        IllegalStateException failure = new IllegalStateException("down");
+        RecordingFailureReporter reporter = new RecordingFailureReporter();
         KeepAlivePinger pinger = new KeepAlivePinger("https://acttub.test", target -> {
-            throw new IllegalStateException("down");
-        });
+            throw failure;
+        }, reporter);
 
         assertThatCode(pinger::ping).doesNotThrowAnyException();
+        assertThat(reporter.reports()).singleElement().satisfies(report -> {
+            assertThat(report.failure()).isSameAs(failure);
+            assertThat(report.kind()).isEqualTo(FailureKind.EXTERNAL);
+            assertThat(report.context()).isEqualTo("KeepAlivePinger.ping");
+        });
     }
 
     @Test

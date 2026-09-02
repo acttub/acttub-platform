@@ -12,7 +12,9 @@ import java.util.concurrent.Future;
 import java.util.stream.Stream;
 
 import com.acttub.actingapi.feature.consent.adapter.db.ConsentDocumentJpaRepository;
+import com.acttub.actingapi.platform.observability.FailureKind;
 import com.acttub.actingapi.support.PostgresContainerSupport;
+import com.acttub.actingapi.support.RecordingFailureReporter;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
@@ -74,11 +76,13 @@ class ConsentPublisherIT {
     @Test
     @Order(2)
     void missingOrInvalidManifestNeverStopsStartup(@TempDir Path directory) throws Exception {
+        RecordingFailureReporter reporter = new RecordingFailureReporter();
         ConsentDocumentPublisher missing = new ConsentDocumentPublisher(
                 documents,
                 mapper,
                 resources,
-                directory.resolve("missing").toString());
+                directory.resolve("missing").toString(),
+                reporter);
         assertThatCode(() -> missing.run(new DefaultApplicationArguments()))
                 .doesNotThrowAnyException();
 
@@ -87,9 +91,14 @@ class ConsentPublisherIT {
                 documents,
                 mapper,
                 resources,
-                directory.toString());
+                directory.toString(),
+                reporter);
         assertThatCode(() -> invalid.run(new DefaultApplicationArguments()))
                 .doesNotThrowAnyException();
+        assertThat(reporter.reports()).singleElement().satisfies(report -> {
+            assertThat(report.kind()).isEqualTo(FailureKind.UNEXPECTED);
+            assertThat(report.context()).isEqualTo("ConsentDocumentPublisher.seed");
+        });
     }
 
     @ParameterizedTest(name = "required가 {0}이면 manifest 전체를 거부한다")
@@ -115,7 +124,8 @@ class ConsentPublisherIT {
                 documents,
                 mapper,
                 resources,
-                directory.toString());
+                directory.toString(),
+                new RecordingFailureReporter());
         assertThatCode(() -> malformed.run(new DefaultApplicationArguments()))
                 .doesNotThrowAnyException();
         assertThat(jdbc.queryForObject(
@@ -134,7 +144,12 @@ class ConsentPublisherIT {
     @Order(4)
     void concurrentPublishIgnoresOnlyTheNamedUniqueRace() throws Exception {
         jdbc.update("DELETE FROM consent_documents");
-        ConsentDocumentPublisher other = new ConsentDocumentPublisher(documents, mapper, resources, "");
+        ConsentDocumentPublisher other = new ConsentDocumentPublisher(
+                documents,
+                mapper,
+                resources,
+                "",
+                new RecordingFailureReporter());
         ExecutorService pool = Executors.newFixedThreadPool(2);
         try {
             Future<Integer> first = pool.submit(publisher::publish);

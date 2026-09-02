@@ -3,6 +3,7 @@ package com.acttub.actingapi.platform.health;
 import java.net.http.HttpClient;
 import java.time.Duration;
 
+import com.acttub.actingapi.platform.observability.FailureReporter;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.context.annotation.Bean;
@@ -25,12 +26,16 @@ class KeepAliveConfiguration {
 
     @Bean
     KeepAlivePinger keepAlivePinger(
-            @Value("${KEEP_ALIVE_URL}") String url) {
+            @Value("${KEEP_ALIVE_URL}") String url,
+            FailureReporter failureReporter) {
         Duration timeout = Duration.ofSeconds(30);
         HttpClient httpClient = HttpClient.newBuilder().connectTimeout(timeout).build();
         JdkClientHttpRequestFactory requestFactory = new JdkClientHttpRequestFactory(httpClient);
         requestFactory.setReadTimeout(timeout);
         RestClient client = RestClient.builder().requestFactory(requestFactory).build();
-        return new KeepAlivePinger(url, target -> client.get().uri(target).retrieve().toBodilessEntity());
+        return new KeepAlivePinger(
+                url,
+                target -> client.get().uri(target).retrieve().toBodilessEntity(),
+                failureReporter);
     }
 }

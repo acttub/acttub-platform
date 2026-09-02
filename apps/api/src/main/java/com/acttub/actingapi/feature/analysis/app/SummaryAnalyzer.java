@@ -11,6 +11,8 @@ import com.acttub.actingapi.feature.analysis.domain.TranscriptSegments;
 import com.acttub.actingapi.integration.observation.ActorMaterial;
 import com.acttub.actingapi.integration.observation.ObservationAnalyzer;
 import com.acttub.actingapi.integration.observation.ObservationPack;
+import com.acttub.actingapi.platform.observability.FailureContext;
+import com.acttub.actingapi.platform.observability.FailureReporter;
 
 /** duration → 압축 → 관찰 → 받아쓰기 순서를 소유하는 분석 진입점. */
 public final class SummaryAnalyzer implements AnalysisProcessor {
@@ -30,18 +32,21 @@ public final class SummaryAnalyzer implements AnalysisProcessor {
     private final ObservationAnalyzer observationAnalyzer;
     private final AudioExtractor audioExtractor;
     private final AudioTranscriber audioTranscriber;
+    private final FailureReporter failureReporter;
 
     public SummaryAnalyzer(
             DurationResolver durationProbe,
             VideoCompressor compressor,
             ObservationAnalyzer observationAnalyzer,
             AudioExtractor audioExtractor,
-            AudioTranscriber audioTranscriber) {
+            AudioTranscriber audioTranscriber,
+            FailureReporter failureReporter) {
         this.durationProbe = durationProbe;
         this.compressor = compressor;
         this.observationAnalyzer = observationAnalyzer;
         this.audioExtractor = audioExtractor;
         this.audioTranscriber = audioTranscriber;
+        this.failureReporter = failureReporter;
     }
 
     @Override
@@ -86,6 +91,9 @@ public final class SummaryAnalyzer implements AnalysisProcessor {
                     audioPath, TRANSCRIPTION_SYSTEM_PROMPT));
         } catch (Exception exception) {
             LOGGER.log(Level.WARNING, "transcription failed; continuing analysis", exception);
+            failureReporter.report(
+                    exception,
+                    new FailureContext("SummaryAnalyzer.transcription"));
             return List.of();
         } finally {
             if (audioPath != null) {
