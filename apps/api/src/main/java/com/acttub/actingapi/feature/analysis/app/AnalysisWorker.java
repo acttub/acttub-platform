@@ -16,6 +16,8 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import com.acttub.actingapi.platform.ledger.LeaseOwnershipException;
+import com.acttub.actingapi.platform.observability.FailureContext;
+import com.acttub.actingapi.platform.observability.FailureReporter;
 import com.acttub.actingapi.integration.storage.ObjectStorage;
 import com.acttub.actingapi.integration.storage.StoredObjectMetadata;
 import com.acttub.actingapi.integration.observation.FileActiveTimeout;
@@ -34,6 +36,7 @@ public class AnalysisWorker {
     private final Duration leaseDuration;
     private final String model;
     private final AnalysisCompletionListener completionListener;
+    private final FailureReporter failureReporter;
 
     public AnalysisWorker(
             AnalysisStore store,
@@ -41,8 +44,9 @@ public class AnalysisWorker {
             AnalysisProcessor analyzer,
             Clock clock,
             Duration leaseDuration,
-            String model) {
-        this(store, storage, analyzer, clock, leaseDuration, model, null);
+            String model,
+            FailureReporter failureReporter) {
+        this(store, storage, analyzer, clock, leaseDuration, model, null, failureReporter);
     }
 
     public AnalysisWorker(
@@ -52,7 +56,8 @@ public class AnalysisWorker {
             Clock clock,
             Duration leaseDuration,
             String model,
-            AnalysisCompletionListener completionListener) {
+            AnalysisCompletionListener completionListener,
+            FailureReporter failureReporter) {
         this.store = store;
         this.storage = storage;
         this.analyzer = analyzer;
@@ -60,6 +65,7 @@ public class AnalysisWorker {
         this.leaseDuration = leaseDuration;
         this.model = model;
         this.completionListener = completionListener;
+        this.failureReporter = failureReporter;
     }
 
     public boolean runOnce() {
@@ -96,9 +102,17 @@ public class AnalysisWorker {
             notifyCompletion(context);
         } catch (LeaseOwnershipException exception) {
             LOGGER.warning("analysis lease ownership was lost: " + operationId);
+            failureReporter.report(
+                    exception,
+                    new FailureContext("AnalysisWorker.complete", operationId));
         } catch (Exception exception) {
             LOGGER.log(Level.WARNING, "analysis failed: " + operationId, exception);
             String errorCode = errorCode(exception);
+            if (!"unsupported_media".equals(errorCode)) {
+                failureReporter.report(
+                        exception,
+                        new FailureContext("AnalysisWorker.analysis", operationId));
+            }
             if (errorCode == null) {
                 release(operationId, leaseToken, now);
             } else {
@@ -129,6 +143,10 @@ public class AnalysisWorker {
         } catch (Exception exception) {
             LOGGER.log(Level.WARNING,
                     "analysis completion notification failed: " + context.sessionId(), exception);
+            failureReporter.report(
+                    exception,
+                    new FailureContext(
+                            "AnalysisWorker.completionNotification", context.operationId()));
         }
     }
 
@@ -144,6 +162,9 @@ public class AnalysisWorker {
             } catch (Exception exception) {
                 LOGGER.log(Level.WARNING,
                         "expired upload object deletion failed: " + objectKey, exception);
+                failureReporter.report(
+                        exception,
+                        new FailureContext("AnalysisWorker.expiredUploadDeletion"));
             }
         }
         return new SweepResult(expired.size(), store.sweepMaxAttempts(now));
@@ -175,6 +196,9 @@ public class AnalysisWorker {
             store.fail(operationId, leaseToken, errorCode, now);
         } catch (LeaseOwnershipException exception) {
             LOGGER.warning("analysis failure lease was lost: " + operationId);
+            failureReporter.report(
+                    exception,
+                    new FailureContext("AnalysisWorker.fail", operationId));
         }
     }
 
@@ -183,6 +207,9 @@ public class AnalysisWorker {
             store.release(operationId, leaseToken, now);
         } catch (LeaseOwnershipException exception) {
             LOGGER.warning("analysis retry lease was lost: " + operationId);
+            failureReporter.report(
+                    exception,
+                    new FailureContext("AnalysisWorker.release", operationId));
         }
     }
 

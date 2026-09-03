@@ -19,9 +19,9 @@ public interface CoachMemory {
      * 이번 대화 전에 이미 있던 것들 — 배우에 대해 적어 둔 것, 지난 대화 요약, 남은 숙제.
      *
      * <p>모으다 실패하는 것을 여기서 감추지 않는다. 무엇을 하고 무엇을 포기할지는 부르는 쪽의
-     * 규칙이다.
+     * 규칙이다. {@code operationId}는 손상된 저장값을 보고할 때 원장의 작업을 함께 찾기 위한 값이다.
      */
-    PriorContext priorFor(UUID userId, UUID practiceSessionId);
+    PriorContext priorFor(UUID userId, UUID practiceSessionId, UUID operationId);
 
     /** 배우가 지금까지 확정한 연습의 수. 기억을 갱신할 차례인지 세는 데 쓴다. */
     long countConfirmedPractices(UUID userId);

@@ -268,3 +268,12 @@ MVP 핵심 기능의 정상 작동을 목표로 빠르게 개발한다. 단, AI 
 **결정**: 운영 DB 접근은 Spring Data JPA와 `EntityManager`로 일원화하고 `JdbcTemplate`·`NamedParameterJdbcTemplate`·`DataSource`를 통한 직접 쿼리를 제거한다. 기존 `app` Port와 Postgres Adapter는 남기고, Schema Entity를 스키마 검증과 런타임 영속화에 함께 쓴다. `RETURNING`·`ON CONFLICT`·행 잠금처럼 PostgreSQL 의미를 보존해야 하는 연산은 custom repository의 native SQL로 남기고, 기존 `TransactionTemplate`·`REQUIRES_NEW` 경계도 유지한다. Schema Entity는 FK ID를 기본으로 두며, 같은 객체 탐색이 운영 경로 둘 이상에서 반복되고 명시적 JOIN보다 단순해지는 경우에만 lazy 단방향 관계를 허용한다. 양방향 관계와 JPA cascade는 두지 않고 DB의 FK·`ON DELETE CASCADE`를 유지한다.
 **이유**: 목적은 ORM 객체 그래프를 넓히는 것이 아니라, 직접 JDBC와 반복되는 행 매핑을 걷어내 영속 기술을 하나로 모으는 것이다. 이 선을 지키면 도메인 규칙과 HTTP·DB 계약은 바꾸지 않으면서 영속 Adapter 안의 매핑·쿼리 기술만 교체할 수 있다. 예외적 native SQL은 `save()`나 JPQL로 풀었을 때 깨지는 원자성·잠금·정렬 의미를 보존하기 위해 남긴다.
 **트레이드오프**: 일부 쿼리가 PostgreSQL native SQL로 남아 DB 이식성과 컴파일 타임 타입 안전성을 완전히 얻지 못한다. FK ID와 명시적 JOIN을 기본으로 두므로 지속성 전이나 cascade 편의는 적지만, 숨은 SQL·N+1·의도하지 않은 삭제는 피한다. JPA 1차 캐시와 native bulk SQL을 같은 트랜잭션에서 섞을 때는 `flush`·`clear`를 명시해 낡은 Schema Entity를 믿지 않아야 한다.
+
+---
+
+## 실패 (2026-09-03)
+
+### ADR-025: 실패 분류가 Sentry 전송을 정하고, 보고는 응답기·워커가 Port로 직접 한다
+**결정**: 실패를 **Expected Rejection**·**External Failure**·**Unexpected Failure**로 가르고 HTTP 상태 코드와 분리한다. Expected Rejection은 보고하지 않고, External Failure와 Unexpected Failure는 `platform/observability`의 Port인 `FailureReporter.report(...)`로 보고한다. HTTP 실패는 `ApiErrorAdvice`가, 예외를 삼키는 워커·어댑터는 그 자리에서 Port를 직접 부르며, Sentry를 아는 구현은 `SentryFailureReporter` 하나로 둔다. 5xx `ApiException`은 원인을 받는 `ApiException.external(...)`·`ApiException.unexpected(...)` 팩토리로만 만든다. 우리가 만든 바깥 의존 예외는 내용 없는 표시 인터페이스 `ExternalFailure`를 구현하고, `FailureClassifier`는 원인 예외를 따라가며 그 표시와 남이 만든 네트워크·DB 예외를 분류한다. `SentryFailureReporter`는 보고 자리와 예외 클래스가 같은 반복을 프로세스 메모리에서 10분 동안 억제한다.
+**이유**: `ApiErrorAdvice`가 `ApiException`과 마지막 `Exception`까지 응답으로 바꾸므로 Sentry의 자동 exception resolver에는 예외가 도달하지 않는다. `exception-resolver-order`를 바꿔 Sentry를 앞세우면 보고하지 않을 4xx까지 같이 잡히고, 워커의 실패는 HTTP resolver를 아예 거치지 않는다. 따라서 응답은 정한 모양으로 내보내면서 필요한 실패만 보고하려면 분류를 아는 응답기·워커가 같은 Port를 직접 부르는 길이 필요하다. 표시 인터페이스는 기존 예외의 상위 클래스를 바꾸지 않아도 의미를 드러내고, 남이 만든 예외는 원인 유형 목록으로 같은 분류에 포함할 수 있다. 10분 창은 첫 실패는 즉시 알리되 같은 장애가 반복되어 Sentry 할당량을 채우는 것을 막는다.
+**트레이드오프**: 자동 resolver 하나에 모은 대신 새로운 응답·삼킴 자리마다 보고 여부를 판정하고 `FailureReporter`를 부르는 책임이 생긴다. `ExternalFailure`는 공통 데이터나 동작을 강제하지 못하고, 남이 만든 예외가 늘면 `FailureClassifier`의 원인 유형 목록을 유지해야 한다. 10분 억제는 보고 자리와 예외 클래스만 같으면 서로 다른 원인도 하나로 합칠 수 있고, 프로세스가 재시작되면 초기화되며, 여러 인스턴스 사이에서 공유되지 않는다.

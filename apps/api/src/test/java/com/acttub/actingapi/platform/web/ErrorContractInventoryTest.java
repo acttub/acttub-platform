@@ -54,8 +54,14 @@ class ErrorContractInventoryTest {
     /** 예외를 거치지 않고 응답을 직접 만드는 유일한 자리. */
     private static final String ADVICE = "platform.web.ApiErrorAdvice";
 
+    /** 팩토리 안의 위임 생성은 호출 자리가 아니므로 한 번 더 세지 않는다. */
+    private static final String API_EXCEPTION = "platform.web.ApiException";
+
     /** detail 이 리터럴이 아닌 지점(예: {@code exception.getMessage()})의 표기. */
     private static final String DYNAMIC = "<동적>";
+
+    /** 상태코드가 리터럴이 아닌 지점(예: {@code error.getStatusCode().value()})의 표기. */
+    private static final String DYNAMIC_STATUS = "<동적 상태>";
 
     private record Coverage(int occurrences, String testClass, String exclusion) {
     }
@@ -197,12 +203,20 @@ class ErrorContractInventoryTest {
             covered("platform.security.CurrentUserService|401|invalid or missing access token", 3,
                     "platform.web.AuthErrorContractIT"),
 
-            // advice 가 예외를 거치지 않고 직접 만드는 셋. 503 은 스토리지 자격증명이 없을 때
-            // 세 경로에서 나고, 404·405 는 Spring 표준 예외를 FastAPI 표기로 옮긴 것이다.
+            // advice 가 예외를 거치지 않고 직접 만드는 여섯 자리. 동적 상태 둘은 Spring
+            // ErrorResponse의 4xx와 5xx 갈래이며, 각각 reason phrase와 내부 오류 detail을 낸다.
+            // 500 은 그 밖의 미처리 예외, 503 은 스토리지 자격증명이 없을 때의 계약이다.
+            // 404·405 는 Spring 표준 예외를 FastAPI 표기로 옮긴 것이다.
             covered(ADVICE + "|404|Not Found", 1, "platform.web.AuthErrorContractIT"),
             covered(ADVICE + "|405|Method Not Allowed", 1, "platform.web.AuthErrorContractIT"),
+            covered(ADVICE + "|500|internal_server_error", 1,
+                    "platform.web.ApiErrorAdviceTest"),
             covered(ADVICE + "|503|storage_not_configured", 1,
-                    "feature.report.adapter.web.ReportNoStorageIT"));
+                    "feature.report.adapter.web.ReportNoStorageIT"),
+            covered(ADVICE + "|" + DYNAMIC_STATUS + "|" + DYNAMIC, 1,
+                    "platform.web.ApiErrorAdviceTest"),
+            covered(ADVICE + "|" + DYNAMIC_STATUS + "|internal_server_error", 1,
+                    "platform.web.ApiErrorAdviceTest"));
 
     @Test
     void everySiteInTheSourceIsInTheTable() {
@@ -280,9 +294,15 @@ class ErrorContractInventoryTest {
                     }
                     void three() { throw new ApiException(502, exception.getMessage()); }
                     void four() { throw new ApiException(400, "괄호 ) 와 쉼표 , 가 든 문구"); }
-                    String five = \"""
+                    void five() { throw ApiException.external(502, exception.getMessage(), exception); }
+                    void six() { throw ApiException.unexpected(503, "provider_not_configured", exception); }
+                    String seven = \"""
                             텍스트 블록 안의 new ApiException(997, "블록문자열")
                             \""";
+                    Object eight(int status, String detail) { return body(status, detail); }
+                    Object nine(ErrorResponse error) {
+                        return body(error.getStatusCode().value(), "internal_server_error");
+                    }
                 }
                 """;
 
@@ -290,7 +310,12 @@ class ErrorContractInventoryTest {
                 "404|post_not_found",
                 "409|request is still processing",
                 "502|" + DYNAMIC,
+                "502|" + DYNAMIC,
+                "503|provider_not_configured",
                 "400|괄호 ) 와 쉼표 , 가 든 문구");
+        assertThat(scan(source, "return body")).containsExactlyInAnyOrder(
+                DYNAMIC_STATUS + "|" + DYNAMIC,
+                DYNAMIC_STATUS + "|internal_server_error");
     }
 
     /** 소스 전체를 훑어 {@code 소유 클래스|상태|detail} → 횟수를 만든다. */
@@ -303,8 +328,10 @@ class ErrorContractInventoryTest {
                         .replace(java.io.File.separatorChar, '.')
                         .replace(PACKAGE_PREFIX, "");
                 String text = read(path);
-                for (String site : scan(text)) {
-                    found.merge(owner + "|" + site, 1, Integer::sum);
+                if (!API_EXCEPTION.equals(owner)) {
+                    for (String site : scan(text)) {
+                        found.merge(owner + "|" + site, 1, Integer::sum);
+                    }
                 }
                 // advice 는 예외를 거치지 않고 응답을 직접 만든다. 마커를 파일 하나로 한정하는
                 // 이유는 `body(` 가 흔한 이름이라 다른 곳에서 오탐이 되기 때문이다.
@@ -320,9 +347,19 @@ class ErrorContractInventoryTest {
         return found;
     }
 
-    /** 한 파일에서 {@code 상태|detail} 목록을 뽑는다. detail 이 리터럴이 아니면 {@link #DYNAMIC}. */
+    /**
+     * 한 파일에서 {@code 상태|detail} 목록을 뽑는다. 상태나 detail 이 리터럴이 아니어도 지점을
+     * 빼지 않고 동적 행으로 센다.
+     *
+     * <p>소스 스캐너는 {@code error.getStatusCode().value()}가 런타임에 낼 모든 값을 알 수 없다.
+     * 그렇다고 검사에서 빼면 catch-all의 계약이 다시 검사 밖으로 빠지므로, 표현식 하나를
+     * {@link #DYNAMIC_STATUS} 한 자리로 세고 구체적인 400·415·503은 MockMvc 테스트가 고정한다.
+     */
     private static List<String> scan(String rawSource) {
-        return scan(rawSource, "new ApiException");
+        List<String> sites = new ArrayList<>(scan(rawSource, "new ApiException"));
+        sites.addAll(scan(rawSource, "ApiException.external"));
+        sites.addAll(scan(rawSource, "ApiException.unexpected"));
+        return sites;
     }
 
     private static List<String> scan(String rawSource, String marker) {
@@ -341,8 +378,10 @@ class ErrorContractInventoryTest {
             List<String> arguments = arguments(source, openParen);
             String status = arguments.isEmpty() ? "" : arguments.get(0);
             String detail = arguments.size() > 1 ? arguments.get(1) : "";
-            if (status.matches("\\d+")) {
-                sites.add(status + "|" + (isStringLiteral(detail) ? unquote(detail) : DYNAMIC));
+            if (!status.isBlank()) {
+                String recordedStatus = status.matches("\\d+") ? status : DYNAMIC_STATUS;
+                sites.add(recordedStatus + "|"
+                        + (isStringLiteral(detail) ? unquote(detail) : DYNAMIC));
             }
             cursor = openParen + 1;
         }

@@ -4,6 +4,8 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import com.acttub.actingapi.feature.analysis.app.AnalysisWorker;
+import com.acttub.actingapi.platform.observability.FailureContext;
+import com.acttub.actingapi.platform.observability.FailureReporter;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -25,12 +27,15 @@ class AnalysisWorkerScheduler {
 
     private final AnalysisWorker worker;
     private final ThreadPoolTaskExecutor executor;
+    private final FailureReporter failureReporter;
 
     AnalysisWorkerScheduler(
             ObjectProvider<AnalysisWorker> worker,
-            @Qualifier("analysisWorkerExecutor") ThreadPoolTaskExecutor executor) {
+            @Qualifier("analysisWorkerExecutor") ThreadPoolTaskExecutor executor,
+            FailureReporter failureReporter) {
         this.worker = worker.getIfAvailable();
         this.executor = executor;
+        this.failureReporter = failureReporter;
     }
 
     @Bean("analysisWorkerExecutor")
@@ -93,6 +98,9 @@ class AnalysisWorkerScheduler {
             worker.sweep();
         } catch (Exception exception) {
             LOGGER.log(Level.WARNING, "analysis maintenance sweep failed", exception);
+            failureReporter.report(
+                    exception,
+                    new FailureContext("AnalysisWorkerScheduler.sweep"));
         }
     }
 
@@ -103,6 +111,9 @@ class AnalysisWorkerScheduler {
             }
         } catch (Exception exception) {
             LOGGER.log(Level.WARNING, "analysis worker cycle failed", exception);
+            failureReporter.report(
+                    exception,
+                    new FailureContext("AnalysisWorkerScheduler.cycle"));
         }
     }
 

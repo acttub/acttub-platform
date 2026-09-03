@@ -11,6 +11,8 @@ import java.util.List;
 import java.util.function.Supplier;
 
 import com.acttub.actingapi.integration.observation.ObservationPack;
+import com.acttub.actingapi.platform.observability.FailureKind;
+import com.acttub.actingapi.support.RecordingFailureReporter;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -39,7 +41,8 @@ class SummaryAnalyzerTest {
                     return new ObservationPack(List.of(), List.of());
                 },
                 extractor(() -> { order.add("extract"); return audio; }),
-                (path, prompt) -> { order.add("transcribe"); return "하나. 둘!"; });
+                (path, prompt) -> { order.add("transcribe"); return "하나. 둘!"; },
+                new RecordingFailureReporter());
 
         AnalysisResult result = analyzer.analyze(video, context("분석", null));
 
@@ -66,7 +69,8 @@ class SummaryAnalyzerTest {
                 path -> path,
                 (path, mime, actor) -> new ObservationPack(List.of(), List.of()),
                 extractor(() -> audio),
-                (path, prompt) -> "가지 마. 제발!");
+                (path, prompt) -> "가지 마. 제발!",
+                new RecordingFailureReporter());
 
         AnalysisResult result = analyzer.analyze(video, context(blockageKind, 1000));
 
@@ -79,18 +83,26 @@ class SummaryAnalyzerTest {
         Path video = Files.writeString(temporary.resolve("take.mp4"), "video");
         Path audioDirectory = Files.createDirectory(temporary.resolve("broken-audio"));
         Path audio = Files.writeString(audioDirectory.resolve("audio.mp3"), "voice");
+        IllegalStateException failure = new IllegalStateException("transcription down");
+        RecordingFailureReporter reporter = new RecordingFailureReporter();
         SummaryAnalyzer analyzer = new SummaryAnalyzer(
                 (path, declared) -> 1000,
                 path -> path,
                 (path, mime, actor) -> new ObservationPack(List.of(), List.of("불확실")),
                 extractor(() -> audio),
-                (path, prompt) -> { throw new IllegalStateException("transcription down"); });
+                (path, prompt) -> { throw failure; },
+                reporter);
 
         AnalysisResult result = analyzer.analyze(video, context("분석", 1000));
 
         assertThat(result.observationPack().uncertainties()).containsExactly("불확실");
         assertThat(result.transcripts()).isEmpty();
         assertThat(audioDirectory).doesNotExist();
+        assertThat(reporter.reports()).singleElement().satisfies(report -> {
+            assertThat(report.failure()).isSameAs(failure);
+            assertThat(report.kind()).isEqualTo(FailureKind.UNEXPECTED);
+            assertThat(report.context()).isEqualTo("SummaryAnalyzer.transcription");
+        });
     }
 
     /**

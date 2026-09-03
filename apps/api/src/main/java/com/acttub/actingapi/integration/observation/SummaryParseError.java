@@ -1,6 +1,8 @@
 package com.acttub.actingapi.integration.observation;
 
-public class SummaryParseError extends RuntimeException {
+import com.acttub.actingapi.platform.observability.ExternalFailure;
+
+public class SummaryParseError extends RuntimeException implements ExternalFailure {
     public SummaryParseError(String message) {
         super(message);
     }

@@ -13,6 +13,8 @@ import java.util.HexFormat;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 
+import com.acttub.actingapi.platform.observability.FailureKind;
+import com.acttub.actingapi.support.RecordingFailureReporter;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.genai.types.Content;
@@ -39,7 +41,8 @@ class GeminiObservationAnalyzerTest {
     void generationRequestMatchesActingSummaryGolden() throws Exception {
         StubGateway gateway = new StubGateway();
         gateway.responses.add("{\"observations\":[],\"uncertainties\":[]}");
-        ObservationAnalyzer analyzer = new GeminiObservationAnalyzer(gateway, mapper, MODEL);
+        ObservationAnalyzer analyzer = new GeminiObservationAnalyzer(
+                gateway, mapper, MODEL, new RecordingFailureReporter());
 
         ObservationPack result = analyzer.analyze(
                 Path.of("/tmp/take.video"), "video/quicktime", ACTOR);
@@ -143,12 +146,20 @@ class GeminiObservationAnalyzerTest {
         StubGateway gateway = new StubGateway();
         gateway.responses.add("{\"observations\":[],\"uncertainties\":[]}");
         gateway.deleteFailure = new IllegalStateException("already deleted");
+        RecordingFailureReporter reporter = new RecordingFailureReporter();
 
-        ObservationPack result = analyzer(gateway).analyze(
+        ObservationPack result = new GeminiObservationAnalyzer(
+                gateway, mapper, MODEL, reporter).analyze(
                 Path.of("/tmp/take.mp4"), "video/mp4", ACTOR);
 
         assertThat(result).isEqualTo(new ObservationPack(List.of(), List.of()));
         assertThat(gateway.deletedNames).containsExactly("files/take");
+        assertThat(reporter.reports()).singleElement().satisfies(report -> {
+            assertThat(report.failure()).isSameAs(gateway.deleteFailure);
+            assertThat(report.kind()).isEqualTo(FailureKind.EXTERNAL);
+            assertThat(report.context())
+                    .isEqualTo("GeminiObservationAnalyzer.fileCleanup");
+        });
     }
 
     @Test
@@ -183,7 +194,8 @@ class GeminiObservationAnalyzerTest {
                 Duration.ofSeconds(300),
                 Duration.ofSeconds(2),
                 () -> 0L,
-                duration -> { });
+                duration -> { },
+                new RecordingFailureReporter());
 
         analyzer.analyze(Path.of("/tmp/take.mp4"), "video/mp4", ACTOR);
 
@@ -194,7 +206,8 @@ class GeminiObservationAnalyzerTest {
     }
 
     private ObservationAnalyzer analyzer(StubGateway gateway) {
-        return new GeminiObservationAnalyzer(gateway, mapper, MODEL);
+        return new GeminiObservationAnalyzer(
+                gateway, mapper, MODEL, new RecordingFailureReporter());
     }
 
     private JsonNode observationSchema() throws Exception {

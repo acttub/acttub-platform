@@ -23,6 +23,9 @@ import com.acttub.actingapi.feature.memory.app.MemoryUpdateMaterial;
 import com.acttub.actingapi.feature.memory.domain.AgentMemoryWrites;
 import com.acttub.actingapi.feature.memory.schema.ActorMemoryEntryEntity;
 import com.acttub.actingapi.platform.persistence.NativeTuples;
+import com.acttub.actingapi.platform.observability.FailureContext;
+import com.acttub.actingapi.platform.observability.FailureKind;
+import com.acttub.actingapi.platform.observability.FailureReporter;
 import com.acttub.actingapi.platform.web.PythonText;
 import com.acttub.actingapi.platform.schema.ActorMemoryAuthor;
 import com.acttub.actingapi.platform.schema.ActorMemoryField;
@@ -56,18 +59,21 @@ public class PostgresMemoryRepository implements MemoryRepository, CoachMemory {
     private final Clock clock;
     private final ObjectMapper mapper;
     private final TransactionTemplate transaction;
+    private final FailureReporter failureReporter;
 
     public PostgresMemoryRepository(
             ActorMemoryEntryJpaRepository entries,
             EntityManager entityManager,
             Clock clock,
             ObjectMapper mapper,
-            PlatformTransactionManager transactionManager) {
+            PlatformTransactionManager transactionManager,
+            FailureReporter failureReporter) {
         this.entries = entries;
         this.entityManager = entityManager;
         this.clock = clock;
         this.mapper = mapper;
         this.transaction = new TransactionTemplate(transactionManager);
+        this.failureReporter = failureReporter;
     }
 
     /**
@@ -185,10 +191,10 @@ public class PostgresMemoryRepository implements MemoryRepository, CoachMemory {
      * 코치는 그 셋이 어느 테이블에서 오는지 알 필요가 없다.
      */
     @Override
-    public PriorContext priorFor(UUID userId, UUID practiceSessionId) {
+    public PriorContext priorFor(UUID userId, UUID practiceSessionId, UUID operationId) {
         Map<String, String> values = new LinkedHashMap<>();
         list(userId).forEach(row -> values.put(row.field(), row.value()));
-        PriorPracticeContext context = priorContext(userId, practiceSessionId);
+        PriorPracticeContext context = priorContext(userId, practiceSessionId, operationId);
         return new PriorContext(
                 values,
                 context.earlierConversation(),
@@ -213,6 +219,11 @@ public class PostgresMemoryRepository implements MemoryRepository, CoachMemory {
      * 재료를 쓸 수 있고, 요약과 달리 지어낼 여지도 없다.
      */
     public PriorPracticeContext priorContext(UUID userId, UUID practiceSessionId) {
+        return priorContext(userId, practiceSessionId, null);
+    }
+
+    private PriorPracticeContext priorContext(
+            UUID userId, UUID practiceSessionId, UUID operationId) {
         List<UUID> closed = NativeTuples.list(entityManager.createNativeQuery("""
                 SELECT coach.id
                 FROM coach_sessions coach
@@ -288,8 +299,8 @@ public class PostgresMemoryRepository implements MemoryRepository, CoachMemory {
         return new PriorPracticeContext(
                 excerpt,
                 samePractice,
-                pendingTakes(report.isEmpty() ? null : report.getFirst()),
-                sceneHistory(userId, practiceSessionId));
+                pendingTakes(report.isEmpty() ? null : report.getFirst(), operationId),
+                sceneHistory(userId, practiceSessionId, operationId));
     }
 
     /**
@@ -299,7 +310,8 @@ public class PostgresMemoryRepository implements MemoryRepository, CoachMemory {
      * 모델이 이미 정리해 둔 것이므로, 새 호출 없이 제목과 "아직 안 해본 것" 만 줄 세운다.
      * 카드가 없는 차수(차단 노트 포함)는 조용히 건너뛴다 — 빈 줄이 남으면 모델이 지어낸다.
      */
-    private List<String> sceneHistory(UUID userId, UUID practiceSessionId) {
+    private List<String> sceneHistory(
+            UUID userId, UUID practiceSessionId, UUID operationId) {
         record Round(OffsetDateTime createdAt, String cardJson) {
         }
         List<Round> rounds = NativeTuples.list(entityManager.createNativeQuery("""
@@ -329,7 +341,8 @@ public class PostgresMemoryRepository implements MemoryRepository, CoachMemory {
         for (Round round : rounds) {
             // 차수 번호는 살아남은 줄 기준으로 센다 — 카드 없는 차수를 건너뛰며 번호에
             // 구멍을 내면 코치가 없는 차수를 지어내 채운다.
-            String line = historyLine(lines.size() + 1, round.createdAt(), round.cardJson());
+            String line = historyLine(
+                    lines.size() + 1, round.createdAt(), round.cardJson(), operationId);
             if (line != null) {
                 lines.add(line);
             }
@@ -338,17 +351,20 @@ public class PostgresMemoryRepository implements MemoryRepository, CoachMemory {
     }
 
     /** 차수 하나를 "N차(M/d): 제목 — 다음: …" 한 줄로. 카드 모양이 달라져도 터지지 않는다. */
-    private String historyLine(int ordinal, OffsetDateTime createdAt, String cardJson) {
+    private String historyLine(
+            int ordinal,
+            OffsetDateTime createdAt,
+            String cardJson,
+            UUID operationId) {
         if (cardJson == null) {
             return null;
         }
-        JsonNode card;
-        try {
-            card = mapper.readTree(cardJson);
-        } catch (JsonProcessingException notJson) {
+        JsonNode card = parseStoredObject(
+                cardJson, "PostgresMemoryRepository.sceneHistoryParse", operationId);
+        if (card == null) {
             return null;
         }
-        String title = card == null ? "" : card.path("title").asText("");
+        String title = card.path("title").asText("");
         if (title.isBlank()) {
             return null;
         }
@@ -404,17 +420,13 @@ public class PostgresMemoryRepository implements MemoryRepository, CoachMemory {
      * <p>이미 해본 걸 또 권하면 코치가 대화를 안 듣고 있다는 인상을 준다. <b>카드 모양이
      * 달라져도 여기서 터지지 않는다</b> — 대화 시작이 이것 때문에 실패하면 안 된다.
      */
-    private List<String> pendingTakes(String reportJson) {
+    private List<String> pendingTakes(String reportJson, UUID operationId) {
         if (reportJson == null) {
             return List.of();
         }
-        JsonNode root;
-        try {
-            root = mapper.readTree(reportJson);
-        } catch (JsonProcessingException notJson) {
-            return List.of();
-        }
-        if (root == null || !root.isObject()) {
+        JsonNode root = parseStoredObject(
+                reportJson, "PostgresMemoryRepository.pendingTakesParse", operationId);
+        if (root == null) {
             return List.of();
         }
         List<String> takes = new ArrayList<>();
@@ -433,6 +445,33 @@ public class PostgresMemoryRepository implements MemoryRepository, CoachMemory {
             }
         }
         return List.copyOf(takes);
+    }
+
+    private JsonNode parseStoredObject(
+            String rawJson, String reportLocation, UUID operationId) {
+        JsonNode parsed;
+        try {
+            parsed = mapper.readTree(rawJson);
+        } catch (JsonProcessingException notJson) {
+            reportStoredJsonFailure(notJson, reportLocation, operationId);
+            return null;
+        }
+        if (parsed == null || parsed.isMissingNode() || !parsed.isObject()) {
+            reportStoredJsonFailure(
+                    new IllegalStateException("stored report is not a JSON object"),
+                    reportLocation,
+                    operationId);
+            return null;
+        }
+        return parsed;
+    }
+
+    private void reportStoredJsonFailure(
+            Throwable failure, String reportLocation, UUID operationId) {
+        failureReporter.report(
+                failure,
+                FailureKind.UNEXPECTED,
+                new FailureContext(reportLocation, operationId));
     }
 
     private static void add(List<String> takes, JsonNode value) {

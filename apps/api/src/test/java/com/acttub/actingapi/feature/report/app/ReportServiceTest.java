@@ -14,6 +14,7 @@ import java.util.UUID;
 
 import com.acttub.actingapi.platform.ledger.SyncOperationBegin;
 import com.acttub.actingapi.platform.ledger.SyncOperationClaim;
+import com.acttub.actingapi.platform.observability.FailureKind;
 import com.acttub.actingapi.platform.web.ApiException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -88,6 +89,10 @@ class ReportServiceTest {
                 .isInstanceOfSatisfying(ApiException.class, exception -> {
                     assertThat(exception.status()).isEqualTo(502);
                     assertThat(exception.getMessage()).isEqualTo("bad report");
+                    assertThat(exception.getCause())
+                            .isInstanceOf(ReportParseError.class)
+                            .hasMessage("bad report");
+                    assertThat(exception.failureKind()).contains(FailureKind.EXTERNAL);
                 });
 
         verify(syncOperations).fail(CLAIM, "report_parse_error");

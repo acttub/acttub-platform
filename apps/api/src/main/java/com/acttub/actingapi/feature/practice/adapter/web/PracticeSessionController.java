@@ -298,7 +298,7 @@ class PracticeSessionController {
         try {
             return UUID.fromString(header);
         } catch (IllegalArgumentException exception) {
-            throw new ApiException(422, "invalid X-Request-Id");
+            throw new ApiException(422, "invalid X-Request-Id", exception);
         }
     }
 

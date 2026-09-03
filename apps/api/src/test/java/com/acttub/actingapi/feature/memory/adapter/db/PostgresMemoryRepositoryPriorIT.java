@@ -2,8 +2,11 @@ package com.acttub.actingapi.feature.memory.adapter.db;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.acttub.actingapi.support.PostgresContainerSupport;
+import com.acttub.actingapi.feature.coach.app.PriorContext;
+import com.acttub.actingapi.platform.observability.FailureKind;
 import com.acttub.actingapi.platform.schema.ActorMemoryField;
+import com.acttub.actingapi.support.PostgresContainerSupport;
+import com.acttub.actingapi.support.RecordingFailureReporter;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
@@ -16,6 +19,10 @@ import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Import;
+import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -28,6 +35,7 @@ import org.springframework.test.context.DynamicPropertySource;
  * 넣은 시험만 있어서 아무도 못 잡았다. 그래서 이 시험은 실제 스키마 위에서 돈다.
  */
 @SpringBootTest(properties = "JWT_SECRET=test-secret")
+@Import(PostgresMemoryRepositoryPriorIT.FailureReporterFixture.class)
 class PostgresMemoryRepositoryPriorIT {
 
     @DynamicPropertySource
@@ -44,8 +52,13 @@ class PostgresMemoryRepositoryPriorIT {
     @Autowired
     PostgresMemoryRepository repository;
 
+    @Autowired
+    RecordingFailureReporter failureReporter;
+
     private static final OffsetDateTime NOW =
             OffsetDateTime.of(2026, 8, 18, 12, 0, 0, 0, ZoneOffset.UTC);
+    private static final UUID OPERATION =
+            UUID.fromString("99999999-8888-7777-6666-555555555555");
 
     @Test
     void reopenedPracticeCarriesAnExcerptOfTheClosedConversation() {
@@ -221,6 +234,40 @@ class PostgresMemoryRepositoryPriorIT {
     }
 
     @Test
+    void aStoredNonObjectReportIsSkippedFromPendingTakesAndReported() {
+        UUID userId = insertUser("damaged-pending@example.com");
+        UUID practiceId = insertPractice(userId);
+        UUID coachId = insertCoach(practiceId, "closed", NOW);
+        insertCardJson(practiceId, coachId, "[]", NOW);
+        int reportsBefore = failureReporter.reports().size();
+
+        PriorContext context = repository.priorFor(userId, practiceId, OPERATION);
+
+        assertThat(context.pendingTakes()).isEmpty();
+        assertNewUnexpectedReport(
+                reportsBefore, "PostgresMemoryRepository.pendingTakesParse");
+    }
+
+    @Test
+    void aStoredNonObjectReportIsSkippedFromSceneHistoryAndReported() {
+        UUID userId = insertUser("damaged-history@example.com");
+        UUID parent = insertPractice(userId);
+        setCreatedAt(parent, NOW.minusDays(3));
+        UUID parentCoach = insertCoach(parent, "closed", NOW.minusDays(3));
+        insertCardJson(parent, parentCoach, "[]", NOW.minusDays(3));
+        UUID fresh = insertPractice(userId, parent);
+        UUID freshCoach = insertCoach(fresh, "open", NOW);
+        insertCardJson(fresh, freshCoach, "{\"report_type\":\"analysis\",\"title\":\"현재\"}", NOW);
+        int reportsBefore = failureReporter.reports().size();
+
+        PriorContext context = repository.priorFor(userId, fresh, OPERATION);
+
+        assertThat(context.sceneHistory()).isEmpty();
+        assertNewUnexpectedReport(
+                reportsBefore, "PostgresMemoryRepository.sceneHistoryParse");
+    }
+
+    @Test
     void aHiddenPracticesConversationDoesNotComeBack() {
         // 배우가 지운 연습의 대화가 새 연습에서 되살아나면 안 된다.
         UUID userId = insertUser("hidden@example.com");
@@ -327,6 +374,16 @@ class PostgresMemoryRepositoryPriorIT {
     }
 
     private void insertCard(UUID practiceId, UUID coachId, String title, OffsetDateTime at) {
+        insertCardJson(
+                practiceId,
+                coachId,
+                "{\"report_type\":\"analysis\",\"title\":\"" + title
+                        + "\",\"next_take\":{\"direction\":\"다음 방향\",\"tested\":false}}",
+                at);
+    }
+
+    private void insertCardJson(
+            UUID practiceId, UUID coachId, String reportJson, OffsetDateTime at) {
         UUID handoffId = UUID.randomUUID();
         jdbc.update("""
                 INSERT INTO coaching_handoffs (
@@ -337,10 +394,18 @@ class PostgresMemoryRepositoryPriorIT {
                 INSERT INTO practice_reports (
                     practice_session_id,report_type,report_json,source_handoff_id,created_at
                 ) VALUES (?, 'analysis', ?::jsonb, ?, ?)
-                """, practiceId,
-                "{\"report_type\":\"analysis\",\"title\":\"" + title
-                        + "\",\"next_take\":{\"direction\":\"다음 방향\",\"tested\":false}}",
-                handoffId, at);
+                """, practiceId, reportJson, handoffId, at);
+    }
+
+    private void assertNewUnexpectedReport(int reportsBefore, String location) {
+        assertThat(failureReporter.reports().subList(
+                reportsBefore, failureReporter.reports().size()))
+                .singleElement()
+                .satisfies(report -> {
+                    assertThat(report.kind()).isEqualTo(FailureKind.UNEXPECTED);
+                    assertThat(report.context())
+                            .isEqualTo(location + " operation_id=" + OPERATION);
+                });
     }
 
     private UUID insertUser(String email) {
@@ -390,5 +455,14 @@ class PostgresMemoryRepositoryPriorIT {
                 INSERT INTO coach_turns (session_id,turn_index,role,text,created_at)
                 VALUES (?, ?, ?, ?, ?)
                 """, coachId, index, role, text, NOW);
+    }
+
+    @TestConfiguration(proxyBeanMethods = false)
+    static class FailureReporterFixture {
+        @Bean
+        @Primary
+        RecordingFailureReporter recordingFailureReporter() {
+            return new RecordingFailureReporter();
+        }
     }
 }

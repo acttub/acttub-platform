@@ -11,6 +11,8 @@ import java.util.UUID;
 
 import com.acttub.actingapi.feature.consent.adapter.db.ConsentDocumentJpaRepository;
 import com.acttub.actingapi.feature.consent.schema.ConsentDocumentEntity;
+import com.acttub.actingapi.platform.observability.FailureContext;
+import com.acttub.actingapi.platform.observability.FailureReporter;
 import com.acttub.actingapi.platform.schema.ConsentType;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.core.JsonParser;
@@ -51,16 +53,19 @@ public class ConsentDocumentPublisher implements ApplicationRunner {
     private final ObjectMapper mapper;
     private final ResourceLoader resources;
     private final String configuredDir;
+    private final FailureReporter failureReporter;
 
     public ConsentDocumentPublisher(
             ConsentDocumentJpaRepository documents,
             ObjectMapper mapper,
             ResourceLoader resources,
-            @Value("${CONSENT_DOCS_DIR:}") String configuredDir) {
+            @Value("${CONSENT_DOCS_DIR:}") String configuredDir,
+            FailureReporter failureReporter) {
         this.documents = documents;
         this.mapper = mapper;
         this.resources = resources;
         this.configuredDir = configuredDir;
+        this.failureReporter = failureReporter;
     }
 
     @JsonIgnoreProperties(ignoreUnknown = false)
@@ -81,6 +86,9 @@ public class ConsentDocumentPublisher implements ApplicationRunner {
             publish();
         } catch (Exception exception) {
             log.error("Consent document startup seed failed", exception);
+            failureReporter.report(
+                    exception,
+                    new FailureContext("ConsentDocumentPublisher.seed"));
         }
     }
 

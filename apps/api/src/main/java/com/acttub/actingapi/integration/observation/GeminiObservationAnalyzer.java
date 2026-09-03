@@ -8,6 +8,9 @@ import java.time.Duration;
 import java.util.List;
 import java.util.function.LongSupplier;
 
+import com.acttub.actingapi.platform.observability.FailureContext;
+import com.acttub.actingapi.platform.observability.FailureKind;
+import com.acttub.actingapi.platform.observability.FailureReporter;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -34,8 +37,13 @@ final class GeminiObservationAnalyzer implements ObservationAnalyzer {
     private final Duration pollInterval;
     private final LongSupplier nanoTime;
     private final FileActivationPoller.Sleeper sleeper;
+    private final FailureReporter failureReporter;
 
-    GeminiObservationAnalyzer(GeminiGateway gateway, ObjectMapper mapper, String model) {
+    GeminiObservationAnalyzer(
+            GeminiGateway gateway,
+            ObjectMapper mapper,
+            String model,
+            FailureReporter failureReporter) {
         this(
                 gateway,
                 mapper,
@@ -43,7 +51,8 @@ final class GeminiObservationAnalyzer implements ObservationAnalyzer {
                 ACTIVE_TIMEOUT,
                 POLL_INTERVAL,
                 System::nanoTime,
-                FileActivationPoller.Sleeper.real());
+                FileActivationPoller.Sleeper.real(),
+                failureReporter);
     }
 
     GeminiObservationAnalyzer(
@@ -53,7 +62,8 @@ final class GeminiObservationAnalyzer implements ObservationAnalyzer {
             Duration activeTimeout,
             Duration pollInterval,
             LongSupplier nanoTime,
-            FileActivationPoller.Sleeper sleeper) {
+            FileActivationPoller.Sleeper sleeper,
+            FailureReporter failureReporter) {
         this.gateway = gateway;
         this.mapper = mapper.copy()
                 .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
@@ -62,6 +72,7 @@ final class GeminiObservationAnalyzer implements ObservationAnalyzer {
         this.pollInterval = pollInterval;
         this.nanoTime = nanoTime;
         this.sleeper = sleeper;
+        this.failureReporter = failureReporter;
     }
 
     @Override
@@ -111,8 +122,12 @@ final class GeminiObservationAnalyzer implements ObservationAnalyzer {
         } finally {
             try {
                 gateway.delete(uploaded.name());
-            } catch (Exception ignored) {
+            } catch (Exception exception) {
                 // Python 원본과 같이 Files API 정리 실패가 성공한 분석을 뒤집지 않는다.
+                failureReporter.report(
+                        exception,
+                        FailureKind.EXTERNAL,
+                        new FailureContext("GeminiObservationAnalyzer.fileCleanup"));
             }
         }
     }
