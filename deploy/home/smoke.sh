@@ -9,7 +9,7 @@
 # **실제 배포 스크립트 deploy.sh 로** 띄운다. 그래서 한 번에 Dockerfile·compose·healthcheck·rewrites·
 # Flyway(빈 Postgres 에서 V1 부터)·배포 스크립트의 대기·대조 논리가 함께 걸린다.
 #
-# 무엇을 판정하나 (SOMA-489 조각 01·02·03 수락 조건) — 번호는 아래 본문의 절 번호와 같다
+# 무엇을 판정하나 (SOMA-489 조각 01·02·03·06 수락 조건) — 번호는 아래 본문의 절 번호와 같다
 #   1. apps/api 의 jar 로 API 이미지가 빌드되고 ffmpeg·ffprobe·curl 이 안에 있으며 non-root 로 돈다
 #   2. 저장소 루트를 컨텍스트로 웹 이미지가 build-arg(사이트 URL·Sentry·Amplitude·커밋)를 받아 빌드되고,
 #      안에는 standalone·.next/static·public 만 있다 — 소스 트리·.env 가 없고 prebuild 산출물(ort wasm·
@@ -24,7 +24,10 @@
 #   7. Flyway 로그에 V1 부터 db/migration 의 최대 번호까지 적용됐다
 #   8. 필수 env 하나가 빠지면 compose 가 컨테이너를 만들기 전에 이름을 찍고 거부한다
 #   9. 같은 sha 로 deploy.sh 를 다시 돌리면 초록이고 컨테이너가 하나도 바뀌지 않는다(멱등 — 두 번 해도 결과가 같다)
-#  10. deploy.sh 의 빨강 둘 — healthy 대기 시간 초과, /health 의 commit 불일치 — 가 실제로 exit≠0 이다
+#  10. restore-db.sh 왕복 — 지금 DB 를 pg_dump -Fc 로 뜬 뒤 바꾸고 복원하면 덤프 시점으로 돌아온다(행 수 --expect 일치,
+#      Flyway "up to date", 컨테이너 재생성 없음). 깨진 덤프·행 수 불일치는 exit≠0 이고 원래 DB 가 그대로다
+#      (dev 이전·복원 연습·운영 컷오버가 같은 스크립트를 쓴다)
+#  11. deploy.sh 의 빨강 둘 — healthy 대기 시간 초과, /health 의 commit 불일치 — 가 실제로 exit≠0 이다
 #      (배포 스크립트의 판정 논리 자체를 여기서 반증한다)
 #   cloudflared(edge)·backup(backup) 프로필은 테스트용 .env 에 COMPOSE_PROFILES 가 없어 빠진다.
 #
@@ -286,7 +289,59 @@ ids_after="$(compose ps -q | sort | tr '\n' ' ')"
 [ "$ids_before" = "$ids_after" ] || fail "같은 sha 인데 컨테이너가 바뀌었다: $ids_before → $ids_after"
 echo "  컨테이너 $(printf '%s' "$ids_after" | wc -w | tr -d ' ')개 그대로"
 
-# ── 10. deploy.sh 의 빨강 둘 — 판정 논리 반증 ──────────────────────────────────
+# ── 10. restore-db.sh 왕복 — 덤프 → DB 변경 → 복원 → 덤프 시점으로 돌아오고 Flyway 는 "up to date" ─────────
+# dev 이전·백업 복원 연습·운영 컷오버가 같은 스크립트를 쓴다. 반증하는 것: 실패하면(깨진 덤프·행 수 불일치) 원래 DB 가
+# 그대로 남고 api 가 다시 healthy 다, 성공하면 DB 가 덤프와 같고 컨테이너는 재생성되지 않는다.
+RESTORE_SH="$HOME_DIR/restore-db.sh"
+# db_psql <psql 인자...> — db 컨테이너 안의 psql. 사용자·DB 이름은 테스트용 .env 가 비워 둔 compose 기본값(acttub).
+db_psql() { compose exec -T db psql -X -v ON_ERROR_STOP=1 -U acttub -d acttub "$@"; }
+step "restore-db.sh: 지금 DB 를 pg_dump -Fc 로 뜨고 --counts 로 행 수를 적어 둔다"
+[ -x "$RESTORE_SH" ] || fail "복원 스크립트가 없다: deploy/home/restore-db.sh"
+compose exec -T db pg_dump -Fc -U acttub -d acttub > "$WORK/smoke.dump" || fail "db 컨테이너에서 pg_dump 가 실패했다"
+(cd "$WORK" && "$RESTORE_SH" --counts) > "$WORK/counts-before.tsv" || fail "restore-db.sh --counts 가 실패했다"
+# 7 단계의 $latest(db/migration 의 최대 버전) = 이력 행 수. 상수로 적으면 V5 가 들어오는 날 여기서 빨강이 된다.
+grep -q "$(printf '^flyway_schema_history\t%s$' "$latest")" "$WORK/counts-before.tsv" \
+  || fail "--counts 에 flyway_schema_history $latest 가 없다: $(tr '\n' ' ' < "$WORK/counts-before.tsv")"
+echo "  $(wc -c < "$WORK/smoke.dump" | tr -d ' ')B, 테이블 $(wc -l < "$WORK/counts-before.tsv" | tr -d ' ')개"
+
+step "DB 를 바꾼 뒤(smoke_marker) 깨진 덤프로 복원 → exit≠0, 바꾼 것이 그대로, api healthy"
+db_psql -q -c 'create table smoke_marker (id int); insert into smoke_marker values (1)' || fail "smoke_marker 를 만들지 못했다"
+printf 'not a dump\n' > "$WORK/broken.dump"
+if out="$(cd "$WORK" && "$RESTORE_SH" "$WORK/broken.dump" 2>&1)"; then
+  printf '%s\n' "$out"; fail "깨진 덤프인데 restore-db.sh 가 초록으로 끝났다"
+fi
+printf '%s\n' "$out" | grep -q '✗.*pg_restore' || { printf '%s\n' "$out"; fail "pg_restore 실패가 아닌 다른 이유로 실패했다"; }
+marker="$(db_psql -Atc 'select count(*) from smoke_marker')" || fail "smoke_marker 를 세지 못했다"
+[ "$marker" = "1" ] || fail "복원이 실패했는데 원래 DB 가 남아 있지 않다(smoke_marker=$marker)"
+api_health="$(compose ps --format '{{.Service}} {{.Health}}' api)"
+[ "$api_health" = "api healthy" ] || fail "실패 뒤 api 가 healthy 가 아니다: $api_health"
+printf '  %s\n' "$(printf '%s\n' "$out" | grep -m1 '✗')"
+
+step "제대로 된 덤프 + --expect 행 수 → 초록, smoke_marker 가 사라지고 Flyway 는 up to date, 컨테이너 ID 그대로"
+ids_before="$(compose ps -q | sort | tr '\n' ' ')"
+out="$(cd "$WORK" && "$RESTORE_SH" "$WORK/smoke.dump" --expect "$WORK/counts-before.tsv" 2>&1)" || { printf '%s\n' "$out"; fail "restore-db.sh 가 실패했다"; }
+printf '%s\n' "$out" | grep -q 'up to date' || { printf '%s\n' "$out"; fail "restore-db.sh 출력에 Flyway up to date 판정이 없다"; }
+ids_after="$(compose ps -q | sort | tr '\n' ' ')"
+[ "$ids_before" = "$ids_after" ] || fail "복원이 컨테이너를 재생성했다: $ids_before → $ids_after"
+marker_gone="$(db_psql -Atc "select to_regclass('public.smoke_marker') is null")" || fail "smoke_marker 유무를 묻지 못했다"
+[ "$marker_gone" = "t" ] || fail "복원 뒤에도 smoke_marker 가 남아 있다 — 덤프 상태로 돌아가지 않았다"
+(cd "$WORK" && "$RESTORE_SH" --counts) | diff "$WORK/counts-before.tsv" - >/dev/null || fail "복원 뒤 행 수가 덤프 시점과 다르다"
+expect_web /health "복원 뒤 rewrites"
+[ "$web_body" = "$json" ] || fail "복원 뒤 web 경유 /health 본문이 처음과 다르다: $web_body"
+printf '%s\n' "$out" | grep -E 'up to date|✔' | sed 's/^/  /'
+
+step "--expect 의 행 수가 다르면 exit≠0 이고 DB 는 그대로"
+sed $'s/^users\t[0-9]*$/users\t999/' "$WORK/counts-before.tsv" > "$WORK/counts-wrong.tsv"
+if out="$(cd "$WORK" && "$RESTORE_SH" "$WORK/smoke.dump" --expect "$WORK/counts-wrong.tsv" 2>&1)"; then
+  printf '%s\n' "$out"; fail "행 수가 다른데 restore-db.sh 가 초록으로 끝났다"
+fi
+printf '%s\n' "$out" | grep -q '✗.*행 수' || { printf '%s\n' "$out"; fail "행 수 불일치가 아닌 다른 이유로 실패했다"; }
+(cd "$WORK" && "$RESTORE_SH" --counts) | diff "$WORK/counts-before.tsv" - >/dev/null || fail "실패한 복원이 DB 를 바꿨다"
+api_health="$(compose ps --format '{{.Service}} {{.Health}}' api)"
+[ "$api_health" = "api healthy" ] || fail "실패 뒤 api 가 healthy 가 아니다: $api_health"
+printf '  %s\n' "$(printf '%s\n' "$out" | grep -m1 '✗')"
+
+# ── 11. deploy.sh 의 빨강 둘 — 판정 논리 반증 ──────────────────────────────────
 # 새 릴리스 값(다른 sha)은 api 를 재생성시킨다(compose 가 release.env 내용 변화를 감지). JVM 이 1초 안에
 # healthy 가 될 수 없으니 대기 상한 1초면 시간 초과로 끝나야 한다. 컨테이너는 그대로 뜨는 중이다.
 step "deploy.sh: 대기 상한 1초 + 새 sha → 시간 초과로 exit≠0"
@@ -307,4 +362,12 @@ fi
 printf '%s\n' "$out" | grep -q '✗.*commit.*다르다' || { printf '%s\n' "$out"; fail "commit 불일치가 아닌 다른 이유로 실패했다"; }
 printf '  %s\n' "$(printf '%s\n' "$out" | grep -m1 '✗')"
 
-printf '\n✔ 스모크 통과 — api·web 이미지·deploy.sh(첫 배포·멱등 재실행·빨강 둘)·compose(web+api+db)·Flyway v1→v%s·web 경유 /·/health commit %s\n' "$latest" "${COMMIT:0:7}"
+# 위 두 배포가 api 를 재생성했다 — 10 단계에서 복원한 DB 위에서 새 컨테이너가 떴다. 실제 배포(새 sha)가 하는 일과
+# 같으므로 "복원 후 재배포에서 Flyway 가 이미 적용됨으로 통과" 를 여기서 본다(컨테이너 로그는 재생성 뒤 것뿐이다).
+step "복원된 DB 위에서 재생성된 api — Flyway 는 up to date 이고 새로 적용한 것이 없다"
+logs="$(compose logs --no-color api)"
+printf '%s\n' "$logs" | grep -q 'is up to date' || fail "재생성된 api 의 Flyway 로그에 'up to date' 가 없다"
+! printf '%s\n' "$logs" | grep -q 'Successfully applied' || fail "재생성된 api 가 복원된 DB 에 마이그레이션을 새로 적용했다"
+printf '%s\n' "$logs" | grep -E 'Current version of schema|is up to date' | tail -2 | sed 's/^/  /'
+
+printf '\n✔ 스모크 통과 — api·web 이미지·deploy.sh(첫 배포·멱등 재실행·빨강 둘)·restore-db.sh(왕복·빨강 둘)·compose(web+api+db)·Flyway v1→v%s·web 경유 /·/health commit %s\n' "$latest" "${COMMIT:0:7}"
