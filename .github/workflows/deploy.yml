@@ -382,16 +382,23 @@ jobs:
           expected="${GITHUB_SHA:0:7}"
           body=""
           for i in $(seq 1 12); do
-            body="$(curl -fsS --max-time 10 "$PUBLIC_URL/health" 2>/dev/null || true)"
+            # -f 를 쓰지 않습니다 — 상태 코드와 본문 앞부분을 그대로 찍어야 DNS 미해석·Cloudflare 오류 페이지·
+            # 옛 컨테이너 응답을 로그에서 구분할 수 있습니다(첫 실행에서 "없음" 만 남아 원인을 못 봤습니다).
+            if out="$(curl -sS --max-time 10 -w '\n%{http_code}' "$PUBLIC_URL/health" 2>&1)"; then
+              code="${out##*$'\n'}"; body="${out%$'\n'*}"
+            else
+              # curl 자체가 실패하면(DNS 미해석·연결 거부) 상태는 000 이고 이유는 stderr 줄에 있습니다 — 그것을 남깁니다.
+              code="curl:${out##*$'\n'}"; body="${out%$'\n'*}"
+            fi
             got="$(printf '%s' "$body" | jq -r '.commit // empty' 2>/dev/null || true)"
-            if [ "$got" = "$expected" ]; then
+            if [ "$code" = "200" ] && [ "$got" = "$expected" ]; then
               echo "✔ $PUBLIC_URL/health → commit $got"
               exit 0
             fi
-            echo "  ($i/12) commit '${got:-없음}' ≠ $expected — 10초 뒤 재시도"
+            echo "  ($i/12) $code commit '${got:-없음}' ≠ $expected — 10초 뒤 재시도: ${body:0:160}"
             sleep 10
           done
-          echo "::error::$PUBLIC_URL/health 의 commit 이 $expected 가 아닙니다 (마지막 응답: ${body:-없음})"
+          echo "::error::$PUBLIC_URL/health 의 commit 이 $expected 가 아닙니다 (마지막: $code ${body:0:300})"
           exit 1
 
   # ── prod — AWS 길(S3 + SSM). PR ② 까지 그대로입니다 ──────────────────────────────────
