@@ -5,6 +5,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Clock;
+import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
@@ -20,14 +21,22 @@ import com.acttub.actingapi.feature.memory.app.MemoryEntry;
 import com.acttub.actingapi.feature.memory.app.MemoryRepository;
 import com.acttub.actingapi.feature.memory.app.MemoryUpdateMaterial;
 import com.acttub.actingapi.feature.memory.domain.AgentMemoryWrites;
+import com.acttub.actingapi.feature.memory.schema.ActorMemoryEntryEntity;
+import com.acttub.actingapi.platform.persistence.NativeTuples;
+import com.acttub.actingapi.platform.observability.FailureContext;
+import com.acttub.actingapi.platform.observability.FailureKind;
+import com.acttub.actingapi.platform.observability.FailureReporter;
 import com.acttub.actingapi.platform.web.PythonText;
 import com.acttub.actingapi.platform.schema.ActorMemoryAuthor;
 import com.acttub.actingapi.platform.schema.ActorMemoryField;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.springframework.jdbc.core.JdbcTemplate;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.Tuple;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * 배우 기억 6칸의 저장 계층 (`db/store.py:PostgresStore.list_actor_memory` 외).
@@ -45,34 +54,41 @@ public class PostgresMemoryRepository implements MemoryRepository, CoachMemory {
     private static final UUID MEMORY_UPDATE_NAMESPACE =
             UUID.fromString("6f3a1d52-8c47-4b19-9e0a-2d5c7b41f8e3");
 
-    private final JdbcTemplate jdbc;
+    private final ActorMemoryEntryJpaRepository entries;
+    private final EntityManager entityManager;
     private final Clock clock;
     private final ObjectMapper mapper;
+    private final TransactionTemplate transaction;
+    private final FailureReporter failureReporter;
 
-    public PostgresMemoryRepository(JdbcTemplate jdbc, Clock clock, ObjectMapper mapper) {
-        this.jdbc = jdbc;
+    public PostgresMemoryRepository(
+            ActorMemoryEntryJpaRepository entries,
+            EntityManager entityManager,
+            Clock clock,
+            ObjectMapper mapper,
+            PlatformTransactionManager transactionManager,
+            FailureReporter failureReporter) {
+        this.entries = entries;
+        this.entityManager = entityManager;
         this.clock = clock;
         this.mapper = mapper;
+        this.transaction = new TransactionTemplate(transactionManager);
+        this.failureReporter = failureReporter;
     }
 
     /**
      * 빈 칸은 행이 없는 것이므로 6개보다 적게 돌아올 수 있다.
      *
-     * <p>정렬은 enum 정의 순서다. 테이블을 명시하는 이유는 PostgreSQL 이 ORDER BY 에서
-     * <b>출력 alias 를 먼저 보기</b> 때문이다 — 그냥 {@code field} 라고 쓰면 아래의
-     * {@code field::text} alias 를 잡아 알파벳 순으로 갈린다.
+     * <p><b>정렬은 화면이 읽는 칸 순서다</b> — 성별·나이·목표·막힘·자기 화술·실제 화술.
+     * 컬럼이 {@code actor_memory_field_t} 이던 시절에는 enum 정의 순서가 이 일을 대신했지만,
+     * text 가 된 지금은 그냥 두면 사전순({@code age, blockage, gender, …})으로 갈린다.
+     * 그래서 {@code CASE} 로 옛 순서를 못박는다 (SOMA-462).
      */
     @Override
     public List<MemoryEntry> list(UUID userId) {
-        return jdbc.query("""
-                SELECT field::text AS field,
-                       value,
-                       written_by::text AS written_by,
-                       source_practice_session_id
-                FROM actor_memory_entries
-                WHERE user_id=?
-                ORDER BY actor_memory_entries.field
-                """, PostgresMemoryRepository::row, userId);
+        return entries.findOrderedByUserId(userId).stream()
+                .map(PostgresMemoryRepository::entry)
+                .toList();
     }
 
     /** 배우가 직접 쓰거나 고친다. 항상 이긴다. */
@@ -105,53 +121,64 @@ public class PostgresMemoryRepository implements MemoryRepository, CoachMemory {
         OffsetDateTime stamp = OffsetDateTime.ofInstant(clock.instant(), ZoneOffset.UTC);
         String guard = author == ActorMemoryAuthor.ACTOR
                 ? "true"
-                : "actor_memory_entries.written_by <> 'actor'::actor_memory_author_t";
-        List<MemoryEntry> rows = jdbc.query("""
-                INSERT INTO actor_memory_entries
-                    (id,user_id,field,value,written_by,source_practice_session_id,created_at,updated_at)
-                VALUES (?,?,?::actor_memory_field_t,?,?::actor_memory_author_t,?,?,?)
-                ON CONFLICT ON CONSTRAINT uq_actor_memory_user_field DO UPDATE
-                SET value=EXCLUDED.value,
-                    written_by=EXCLUDED.written_by,
-                    source_practice_session_id=EXCLUDED.source_practice_session_id,
-                    updated_at=EXCLUDED.updated_at
-                WHERE %s
-                RETURNING field::text AS field,
-                          value,
-                          written_by::text AS written_by,
-                          source_practice_session_id
-                """.formatted(guard),
-                PostgresMemoryRepository::row,
-                UUID.randomUUID(),
-                userId,
-                field.dbValue(),
-                value,
-                author.dbValue(),
-                sourcePracticeSessionId,
-                stamp,
-                stamp);
-        return rows.isEmpty() ? null : rows.getFirst();
+                : "actor_memory_entries.written_by <> 'actor'";
+        return transaction.execute(status -> {
+            List<Tuple> rows = NativeTuples.list(entityManager.createNativeQuery("""
+                    WITH upserted AS (
+                        INSERT INTO actor_memory_entries (
+                            id,user_id,field,value,written_by,
+                            source_practice_session_id,created_at,updated_at
+                        )
+                        VALUES (
+                            :id,:userId,:field,:value,:author,
+                            :sourcePracticeSessionId,:stamp,:stamp
+                        )
+                        ON CONFLICT ON CONSTRAINT uq_actor_memory_user_field DO UPDATE
+                        SET value=EXCLUDED.value,
+                            written_by=EXCLUDED.written_by,
+                            source_practice_session_id=EXCLUDED.source_practice_session_id,
+                            updated_at=EXCLUDED.updated_at
+                        WHERE %s
+                        RETURNING field,value,written_by,source_practice_session_id
+                    )
+                    SELECT field,value,written_by,source_practice_session_id FROM upserted
+                    """.formatted(guard), Tuple.class)
+                    .setParameter("id", UUID.randomUUID())
+                    .setParameter("userId", userId)
+                    .setParameter("field", field.dbValue())
+                    .setParameter("value", value)
+                    .setParameter("author", author.dbValue())
+                    .setParameter("sourcePracticeSessionId", sourcePracticeSessionId)
+                    .setParameter("stamp", stamp));
+            return rows.isEmpty() ? null : entry(rows.getFirst());
+        });
     }
 
     @Override
     public void delete(UUID userId, ActorMemoryField field) {
-        if (field == null) {
-            jdbc.update("DELETE FROM actor_memory_entries WHERE user_id=?", userId);
-            return;
-        }
-        jdbc.update(
-                "DELETE FROM actor_memory_entries WHERE user_id=? AND field=?::actor_memory_field_t",
-                userId,
-                field.dbValue());
+        transaction.executeWithoutResult(status -> {
+            if (field == null) {
+                entries.deleteAllByUserId(userId);
+            } else {
+                entries.deleteFieldByUserId(userId, field);
+            }
+        });
     }
 
-    private static MemoryEntry row(java.sql.ResultSet result, int rowNumber)
-            throws java.sql.SQLException {
+    private static MemoryEntry entry(ActorMemoryEntryEntity entity) {
         return new MemoryEntry(
-                result.getString("field"),
-                result.getString("value"),
-                "actor".equals(result.getString("written_by")),
-                result.getObject("source_practice_session_id", UUID.class));
+                entity.getField().dbValue(),
+                entity.getValue(),
+                entity.getWrittenBy() == ActorMemoryAuthor.ACTOR,
+                entity.getSourcePracticeSessionId());
+    }
+
+    private static MemoryEntry entry(Tuple row) {
+        return new MemoryEntry(
+                row.get("field", String.class),
+                row.get("value", String.class),
+                "actor".equals(row.get("written_by", String.class)),
+                row.get("source_practice_session_id", UUID.class));
     }
 
 
@@ -164,10 +191,10 @@ public class PostgresMemoryRepository implements MemoryRepository, CoachMemory {
      * 코치는 그 셋이 어느 테이블에서 오는지 알 필요가 없다.
      */
     @Override
-    public PriorContext priorFor(UUID userId, UUID practiceSessionId) {
+    public PriorContext priorFor(UUID userId, UUID practiceSessionId, UUID operationId) {
         Map<String, String> values = new LinkedHashMap<>();
         list(userId).forEach(row -> values.put(row.field(), row.value()));
-        PriorPracticeContext context = priorContext(userId, practiceSessionId);
+        PriorPracticeContext context = priorContext(userId, practiceSessionId, operationId);
         return new PriorContext(
                 values,
                 context.earlierConversation(),
@@ -192,69 +219,88 @@ public class PostgresMemoryRepository implements MemoryRepository, CoachMemory {
      * 재료를 쓸 수 있고, 요약과 달리 지어낼 여지도 없다.
      */
     public PriorPracticeContext priorContext(UUID userId, UUID practiceSessionId) {
-        List<UUID> closed = jdbc.queryForList("""
+        return priorContext(userId, practiceSessionId, null);
+    }
+
+    private PriorPracticeContext priorContext(
+            UUID userId, UUID practiceSessionId, UUID operationId) {
+        List<UUID> closed = NativeTuples.list(entityManager.createNativeQuery("""
                 SELECT coach.id
                 FROM coach_sessions coach
                 JOIN practice_sessions practice ON practice.id=coach.practice_session_id
-                WHERE coach.practice_session_id=?
-                  AND coach.status='closed'::session_status_t
-                  AND practice.user_id=?
+                WHERE coach.practice_session_id=:practiceSessionId
+                  AND coach.status='closed'
+                  AND practice.user_id=:userId
                 ORDER BY coach.created_at DESC
                 LIMIT 1
-                """, UUID.class, practiceSessionId, userId);
+                """, Tuple.class)
+                .setParameter("practiceSessionId", practiceSessionId)
+                .setParameter("userId", userId)).stream()
+                .map(row -> row.get("id", UUID.class))
+                .toList();
         boolean samePractice = !closed.isEmpty();
         if (closed.isEmpty()) {
             // 배우가 끝난 연습의 카드에서 "이어서 새 연습" 을 눌러 시작했다면 그 연습의
             // 대화를 싣는다. 소유·숨김을 다시 확인한다 — 만들 때도 걸러지지만, 그 뒤에
             // 숨겨진 연습의 대화가 되살아나는 길을 여기서도 막는다.
-            closed = jdbc.queryForList("""
+            closed = NativeTuples.list(entityManager.createNativeQuery("""
                     SELECT coach.id
                     FROM practice_sessions current
                     JOIN practice_sessions member
                         ON member.id=current.continued_from
                         OR member.continued_from=current.continued_from
                     JOIN coach_sessions coach ON coach.practice_session_id=member.id
-                    WHERE current.id=?
-                      AND member.user_id=?
+                    WHERE current.id=:practiceSessionId
+                      AND member.user_id=:userId
                       AND member.hidden_at IS NULL
                       AND member.id <> current.id
-                      AND coach.status='closed'::session_status_t
+                      AND coach.status='closed'
                     ORDER BY coach.created_at DESC
                     LIMIT 1
-                    """, UUID.class, practiceSessionId, userId);
+                    """, Tuple.class)
+                    .setParameter("practiceSessionId", practiceSessionId)
+                    .setParameter("userId", userId)).stream()
+                    .map(row -> row.get("id", UUID.class))
+                    .toList();
         }
         if (closed.isEmpty()) {
             // 새 영상으로 시작한 연습이다. 배우 입장에서 "이어하기" 는 같은 영상을
             // 다시 여는 것보다 새 영상을 올리며 지난 대화가 이어지는 쪽이므로,
             // 이 배우의 가장 최근 닫힌 대화를 대신 싣는다. 숨긴 연습은 뺀다 —
             // 배우가 지운 연습의 대화가 되살아나면 안 된다.
-            closed = jdbc.queryForList("""
+            closed = NativeTuples.list(entityManager.createNativeQuery("""
                     SELECT coach.id
                     FROM coach_sessions coach
                     JOIN practice_sessions practice ON practice.id=coach.practice_session_id
-                    WHERE practice.user_id=?
+                    WHERE practice.user_id=:userId
                       AND practice.hidden_at IS NULL
-                      AND coach.status='closed'::session_status_t
+                      AND coach.status='closed'
                     ORDER BY coach.created_at DESC
                     LIMIT 1
-                    """, UUID.class, userId);
+                    """, Tuple.class)
+                    .setParameter("userId", userId)).stream()
+                    .map(row -> row.get("id", UUID.class))
+                    .toList();
         }
         String excerpt = closed.isEmpty() ? null : conversationExcerpt(closed.getFirst());
         // 가장 최근에 나온 카드. 이번 연습 것도 포함한다 — 같은 연습을 다시 열었다면
         // 그때 만든 카드가 바로 "지난번에 해보기로 한 것" 이다.
-        List<String> report = jdbc.queryForList("""
-                SELECT card.report_json::text
+        List<String> report = NativeTuples.list(entityManager.createNativeQuery("""
+                SELECT card.report_json::text AS report_json
                 FROM practice_reports card
                 JOIN practice_sessions practice ON practice.id=card.practice_session_id
-                WHERE practice.user_id=? AND practice.hidden_at IS NULL
+                WHERE practice.user_id=:userId AND practice.hidden_at IS NULL
                 ORDER BY card.created_at DESC
                 LIMIT 1
-                """, String.class, userId);
+                """, Tuple.class)
+                .setParameter("userId", userId)).stream()
+                .map(row -> row.get("report_json", String.class))
+                .toList();
         return new PriorPracticeContext(
                 excerpt,
                 samePractice,
-                pendingTakes(report.isEmpty() ? null : report.getFirst()),
-                sceneHistory(userId, practiceSessionId));
+                pendingTakes(report.isEmpty() ? null : report.getFirst(), operationId),
+                sceneHistory(userId, practiceSessionId, operationId));
     }
 
     /**
@@ -264,10 +310,11 @@ public class PostgresMemoryRepository implements MemoryRepository, CoachMemory {
      * 모델이 이미 정리해 둔 것이므로, 새 호출 없이 제목과 "아직 안 해본 것" 만 줄 세운다.
      * 카드가 없는 차수(차단 노트 포함)는 조용히 건너뛴다 — 빈 줄이 남으면 모델이 지어낸다.
      */
-    private List<String> sceneHistory(UUID userId, UUID practiceSessionId) {
+    private List<String> sceneHistory(
+            UUID userId, UUID practiceSessionId, UUID operationId) {
         record Round(OffsetDateTime createdAt, String cardJson) {
         }
-        List<Round> rounds = jdbc.query("""
+        List<Round> rounds = NativeTuples.list(entityManager.createNativeQuery("""
                 SELECT member.created_at, card.report_json::text AS card
                 FROM practice_sessions current
                 JOIN practice_sessions member
@@ -278,19 +325,24 @@ public class PostgresMemoryRepository implements MemoryRepository, CoachMemory {
                     WHERE report.practice_session_id=member.id
                     ORDER BY report.created_at DESC LIMIT 1
                 ) card ON TRUE
-                WHERE current.id=?
-                  AND member.user_id=?
+                WHERE current.id=:practiceSessionId
+                  AND member.user_id=:userId
                   AND member.hidden_at IS NULL
                   AND member.id <> current.id
                 ORDER BY member.created_at
-                """, (result, rowNumber) -> new Round(
-                result.getObject("created_at", OffsetDateTime.class),
-                result.getString("card")), practiceSessionId, userId);
+                """, Tuple.class)
+                .setParameter("practiceSessionId", practiceSessionId)
+                .setParameter("userId", userId)).stream()
+                .map(row -> new Round(
+                        row.get("created_at", Instant.class).atOffset(ZoneOffset.UTC),
+                        row.get("card", String.class)))
+                .toList();
         List<String> lines = new ArrayList<>();
         for (Round round : rounds) {
             // 차수 번호는 살아남은 줄 기준으로 센다 — 카드 없는 차수를 건너뛰며 번호에
             // 구멍을 내면 코치가 없는 차수를 지어내 채운다.
-            String line = historyLine(lines.size() + 1, round.createdAt(), round.cardJson());
+            String line = historyLine(
+                    lines.size() + 1, round.createdAt(), round.cardJson(), operationId);
             if (line != null) {
                 lines.add(line);
             }
@@ -299,17 +351,20 @@ public class PostgresMemoryRepository implements MemoryRepository, CoachMemory {
     }
 
     /** 차수 하나를 "N차(M/d): 제목 — 다음: …" 한 줄로. 카드 모양이 달라져도 터지지 않는다. */
-    private String historyLine(int ordinal, OffsetDateTime createdAt, String cardJson) {
+    private String historyLine(
+            int ordinal,
+            OffsetDateTime createdAt,
+            String cardJson,
+            UUID operationId) {
         if (cardJson == null) {
             return null;
         }
-        JsonNode card;
-        try {
-            card = mapper.readTree(cardJson);
-        } catch (JsonProcessingException notJson) {
+        JsonNode card = parseStoredObject(
+                cardJson, "PostgresMemoryRepository.sceneHistoryParse", operationId);
+        if (card == null) {
             return null;
         }
-        String title = card == null ? "" : card.path("title").asText("");
+        String title = card.path("title").asText("");
         if (title.isBlank()) {
             return null;
         }
@@ -337,23 +392,25 @@ public class PostgresMemoryRepository implements MemoryRepository, CoachMemory {
      * 지점이다. 턴 하나가 길면 {@value #EXCERPT_TURN_CHARS}자에서 자른다.
      */
     private String conversationExcerpt(UUID coachSessionId) {
-        List<String> lines = jdbc.query("""
+        List<String> lines = NativeTuples.list(entityManager.createNativeQuery("""
                 SELECT role, text FROM (
                     SELECT turn.role, turn.text, turn.turn_index
                     FROM coach_turns turn
-                    WHERE turn.session_id=?
+                    WHERE turn.session_id=:coachSessionId
                     ORDER BY turn.turn_index DESC
                     LIMIT %d
                 ) latest ORDER BY latest.turn_index
-                """.formatted(EXCERPT_TURNS), (result, rowNumber) -> {
-            String speaker = "actor".equals(result.getString("role")) ? "배우" : "코치";
-            String text = PythonText.strip(result.getString("text"));
+                """.formatted(EXCERPT_TURNS), Tuple.class)
+                .setParameter("coachSessionId", coachSessionId)).stream()
+                .map(row -> {
+            String speaker = "actor".equals(row.get("role", String.class)) ? "배우" : "코치";
+            String text = PythonText.strip(row.get("text", String.class));
             if (text.codePointCount(0, text.length()) > EXCERPT_TURN_CHARS) {
                 int end = text.offsetByCodePoints(0, EXCERPT_TURN_CHARS);
                 text = text.substring(0, end).stripTrailing() + "…";
             }
             return speaker + ": " + text;
-        }, coachSessionId);
+        }).toList();
         return lines.isEmpty() ? null : String.join("\n", lines);
     }
 
@@ -363,17 +420,13 @@ public class PostgresMemoryRepository implements MemoryRepository, CoachMemory {
      * <p>이미 해본 걸 또 권하면 코치가 대화를 안 듣고 있다는 인상을 준다. <b>카드 모양이
      * 달라져도 여기서 터지지 않는다</b> — 대화 시작이 이것 때문에 실패하면 안 된다.
      */
-    private List<String> pendingTakes(String reportJson) {
+    private List<String> pendingTakes(String reportJson, UUID operationId) {
         if (reportJson == null) {
             return List.of();
         }
-        JsonNode root;
-        try {
-            root = mapper.readTree(reportJson);
-        } catch (JsonProcessingException notJson) {
-            return List.of();
-        }
-        if (root == null || !root.isObject()) {
+        JsonNode root = parseStoredObject(
+                reportJson, "PostgresMemoryRepository.pendingTakesParse", operationId);
+        if (root == null) {
             return List.of();
         }
         List<String> takes = new ArrayList<>();
@@ -394,6 +447,33 @@ public class PostgresMemoryRepository implements MemoryRepository, CoachMemory {
         return List.copyOf(takes);
     }
 
+    private JsonNode parseStoredObject(
+            String rawJson, String reportLocation, UUID operationId) {
+        JsonNode parsed;
+        try {
+            parsed = mapper.readTree(rawJson);
+        } catch (JsonProcessingException notJson) {
+            reportStoredJsonFailure(notJson, reportLocation, operationId);
+            return null;
+        }
+        if (parsed == null || parsed.isMissingNode() || !parsed.isObject()) {
+            reportStoredJsonFailure(
+                    new IllegalStateException("stored report is not a JSON object"),
+                    reportLocation,
+                    operationId);
+            return null;
+        }
+        return parsed;
+    }
+
+    private void reportStoredJsonFailure(
+            Throwable failure, String reportLocation, UUID operationId) {
+        failureReporter.report(
+                failure,
+                FailureKind.UNEXPECTED,
+                new FailureContext(reportLocation, operationId));
+    }
+
     private static void add(List<String> takes, JsonNode value) {
         if (value != null && value.isTextual()) {
             String stripped = PythonText.strip(value.asText());
@@ -409,15 +489,16 @@ public class PostgresMemoryRepository implements MemoryRepository, CoachMemory {
      */
     @Override
     public long countConfirmedPractices(UUID userId) {
-        Long count = jdbc.queryForObject("""
-                SELECT count(*)
+        List<Tuple> rows = NativeTuples.list(entityManager.createNativeQuery("""
+                SELECT count(*) AS confirmed_count
                 FROM handoff_confirmations confirmation
                 JOIN coaching_handoffs handoff ON handoff.id=confirmation.coaching_handoff_id
                 JOIN coach_sessions coach ON coach.id=handoff.coach_session_id
                 JOIN practice_sessions practice ON practice.id=coach.practice_session_id
-                WHERE practice.user_id=? AND confirmation.confirmed IS TRUE
-                """, Long.class, userId);
-        return count == null ? 0L : count;
+                WHERE practice.user_id=:userId AND confirmation.confirmed IS TRUE
+                """, Tuple.class)
+                .setParameter("userId", userId));
+        return rows.isEmpty() ? 0L : rows.getFirst().get("confirmed_count", Long.class);
     }
 
     /**
@@ -430,14 +511,26 @@ public class PostgresMemoryRepository implements MemoryRepository, CoachMemory {
     public boolean enqueueMemoryUpdate(UUID userId, UUID practiceSessionId) {
         UUID requestId = uuid5(MEMORY_UPDATE_NAMESPACE, practiceSessionId.toString());
         String fingerprint = sha256Hex("memory_update:" + practiceSessionId);
-        List<UUID> inserted = jdbc.queryForList("""
-                INSERT INTO external_operations
-                    (id,session_id,user_id,request_id,kind,request_fingerprint)
-                VALUES (?,?,?,?,'memory_update'::operation_kind_t,?)
-                ON CONFLICT (user_id,request_id) DO NOTHING
-                RETURNING id
-                """, UUID.class, UUID.randomUUID(), practiceSessionId, userId, requestId, fingerprint);
-        return !inserted.isEmpty();
+        return Boolean.TRUE.equals(transaction.execute(status ->
+                !NativeTuples.list(entityManager.createNativeQuery("""
+                        WITH inserted AS (
+                            INSERT INTO external_operations (
+                                id,session_id,user_id,request_id,kind,request_fingerprint
+                            )
+                            VALUES (
+                                :id,:practiceSessionId,:userId,:requestId,
+                                'memory_update',:fingerprint
+                            )
+                            ON CONFLICT (user_id,request_id) DO NOTHING
+                            RETURNING id
+                        )
+                        SELECT id FROM inserted
+                        """, Tuple.class)
+                        .setParameter("id", UUID.randomUUID())
+                        .setParameter("practiceSessionId", practiceSessionId)
+                        .setParameter("userId", userId)
+                        .setParameter("requestId", requestId)
+                        .setParameter("fingerprint", fingerprint)).isEmpty()));
     }
 
     /**
@@ -448,33 +541,44 @@ public class PostgresMemoryRepository implements MemoryRepository, CoachMemory {
      */
     @Override
     public MemoryUpdateMaterial material(UUID practiceSessionId) {
-        List<MemoryUpdateMaterial> sessions = jdbc.query("""
+        List<MemoryUpdateMaterial> sessions = NativeTuples.list(entityManager.createNativeQuery("""
                 SELECT user_id,goal,blockage_kind,sub_branch,blockage_detail
                 FROM practice_sessions
-                WHERE id=? AND hidden_at IS NULL
-                """, (result, rowNumber) -> new MemoryUpdateMaterial(
-                        result.getObject("user_id", UUID.class),
+                WHERE id=:practiceSessionId AND hidden_at IS NULL
+                """, Tuple.class)
+                .setParameter("practiceSessionId", practiceSessionId)).stream()
+                .map(row -> new MemoryUpdateMaterial(
+                        row.get("user_id", UUID.class),
                         practiceSessionId,
-                        result.getString("goal"),
-                        result.getString("blockage_kind"),
-                        result.getString("sub_branch"),
-                        result.getString("blockage_detail"),
+                        row.get("goal", String.class),
+                        row.get("blockage_kind", String.class),
+                        row.get("sub_branch", String.class),
+                        row.get("blockage_detail", String.class),
                         List.of(),
-                        List.of()),
-                practiceSessionId);
+                        List.of()))
+                .toList();
         if (sessions.isEmpty()) {
             return null;
         }
-        List<String> transcripts = jdbc.queryForList(
-                "SELECT text FROM transcripts WHERE session_id=? ORDER BY ord",
-                String.class, practiceSessionId);
-        List<String> actorMessages = jdbc.queryForList("""
+        List<String> transcripts = NativeTuples.list(entityManager.createNativeQuery("""
+                SELECT text AS text
+                FROM transcripts
+                WHERE session_id=:practiceSessionId
+                ORDER BY ord
+                """, Tuple.class)
+                .setParameter("practiceSessionId", practiceSessionId)).stream()
+                .map(row -> row.get("text", String.class))
+                .toList();
+        List<String> actorMessages = NativeTuples.list(entityManager.createNativeQuery("""
                 SELECT turn.text
                 FROM coach_turns turn
                 JOIN coach_sessions coach ON coach.id=turn.session_id
-                WHERE coach.practice_session_id=? AND turn.role='actor'::turn_role_t
+                WHERE coach.practice_session_id=:practiceSessionId AND turn.role='actor'
                 ORDER BY turn.turn_index
-                """, String.class, practiceSessionId);
+                """, Tuple.class)
+                .setParameter("practiceSessionId", practiceSessionId)).stream()
+                .map(row -> row.get("text", String.class))
+                .toList();
         MemoryUpdateMaterial session = sessions.getFirst();
         return new MemoryUpdateMaterial(
                 session.userId(), practiceSessionId, session.goal(), session.blockageKind(),

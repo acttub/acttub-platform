@@ -77,6 +77,14 @@ export function clearPendingConsents(): void {
   }
 }
 
+export function clearAcceptedPrivacyVersion(): void {
+  try {
+    localStorage()?.removeItem(ACCEPTED_PRIVACY_VERSION_KEY);
+  } catch {
+    // 저장소를 사용할 수 없으면 이미 동의 기록이 없는 것과 같다.
+  }
+}
+
 export function hasPendingConsents(): boolean {
   return getPendingConsents().length > 0;
 }

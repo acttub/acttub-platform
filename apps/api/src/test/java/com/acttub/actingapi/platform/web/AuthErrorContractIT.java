@@ -7,7 +7,10 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import java.util.UUID;
 
 import com.acttub.actingapi.feature.auth.app.JwtService;
+import com.acttub.actingapi.integration.oidc.ProviderConfigurationError;
+import com.acttub.actingapi.platform.observability.FailureKind;
 import com.acttub.actingapi.support.PostgresContainerSupport;
+import com.acttub.actingapi.support.RecordingFailureReporter;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
@@ -15,6 +18,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Import;
+import org.springframework.context.annotation.Primary;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
@@ -28,6 +35,7 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
         "DEVELOPMENT_AUTH_PROVIDER=1",
         "GOOGLE_OAUTH_CLIENT_ID="})
 @AutoConfigureMockMvc
+@Import(AuthErrorContractIT.FailureReporterFixture.class)
 class AuthErrorContractIT {
     private static final ObjectMapper JSON = new ObjectMapper();
 
@@ -47,6 +55,9 @@ class AuthErrorContractIT {
 
     @Autowired
     JwtService jwt;
+
+    @Autowired
+    RecordingFailureReporter failureReporter;
 
     @Test
     void inventoryUsesDetailAndNeverProblemDetail() throws Exception {
@@ -76,11 +87,21 @@ class AuthErrorContractIT {
      */
     @Test
     void loginSeparatesUnknownProviderUntrustedTokenAndMissingConfiguration() throws Exception {
+        int reportsBefore = failureReporter.reports().size();
+
         assertResponse(login("none", "무엇이든"), 400, "{\"detail\":\"unsupported_provider\"}");
         assertResponse(login("development", ""), 401,
                 "{\"detail\":\"invalid_provider_token\"}");
+        assertThat(failureReporter.reports()).hasSize(reportsBefore);
+
         assertResponse(login("google", "무엇이든"), 503,
                 "{\"detail\":\"provider_not_configured\"}");
+        assertThat(failureReporter.reports()).hasSize(reportsBefore + 1);
+        assertThat(failureReporter.reports().get(reportsBefore)).satisfies(report -> {
+            assertThat(report.failure()).isInstanceOf(ProviderConfigurationError.class);
+            assertThat(report.kind()).isEqualTo(FailureKind.UNEXPECTED);
+            assertThat(report.context()).isEqualTo("ApiErrorAdvice.apiException");
+        });
     }
 
     private static MockHttpServletRequestBuilder login(String provider, String idToken) {
@@ -101,7 +122,7 @@ class AuthErrorContractIT {
     @Test
     void refreshAndLogoutCollapseEveryRejectionIntoOneInvalidTokenResponse() throws Exception {
         UUID userId = UUID.randomUUID();
-        jdbc.update("INSERT INTO users(id,status) VALUES (?,'active'::user_status_t)", userId);
+        jdbc.update("INSERT INTO users(id,status) VALUES (?,'active')", userId);
 
         assertResponse(
                 post("/v2/auth/refresh")
@@ -183,5 +204,14 @@ class AuthErrorContractIT {
         MvcResult result = mvc.perform(request).andReturn();
         assertThat(result.getResponse().getStatus()).isEqualTo(status);
         return JSON.readTree(result.getResponse().getContentAsString());
+    }
+
+    @TestConfiguration(proxyBeanMethods = false)
+    static class FailureReporterFixture {
+        @Bean
+        @Primary
+        RecordingFailureReporter recordingFailureReporter() {
+            return new RecordingFailureReporter();
+        }
     }
 }

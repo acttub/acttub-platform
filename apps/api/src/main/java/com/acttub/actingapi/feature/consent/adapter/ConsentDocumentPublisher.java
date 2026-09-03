@@ -6,10 +6,13 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 
+import com.acttub.actingapi.feature.consent.adapter.db.ConsentDocumentJpaRepository;
+import com.acttub.actingapi.feature.consent.schema.ConsentDocumentEntity;
+import com.acttub.actingapi.platform.observability.FailureContext;
+import com.acttub.actingapi.platform.observability.FailureReporter;
 import com.acttub.actingapi.platform.schema.ConsentType;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.core.JsonParser;
@@ -30,7 +33,6 @@ import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.ResourceLoader;
 import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
 /**
@@ -47,20 +49,23 @@ import org.springframework.stereotype.Component;
 public class ConsentDocumentPublisher implements ApplicationRunner {
     private static final Logger log = LoggerFactory.getLogger(ConsentDocumentPublisher.class);
 
-    private final JdbcTemplate jdbc;
+    private final ConsentDocumentJpaRepository documents;
     private final ObjectMapper mapper;
     private final ResourceLoader resources;
     private final String configuredDir;
+    private final FailureReporter failureReporter;
 
     public ConsentDocumentPublisher(
-            JdbcTemplate jdbc,
+            ConsentDocumentJpaRepository documents,
             ObjectMapper mapper,
             ResourceLoader resources,
-            @Value("${CONSENT_DOCS_DIR:}") String configuredDir) {
-        this.jdbc = jdbc;
+            @Value("${CONSENT_DOCS_DIR:}") String configuredDir,
+            FailureReporter failureReporter) {
+        this.documents = documents;
         this.mapper = mapper;
         this.resources = resources;
         this.configuredDir = configuredDir;
+        this.failureReporter = failureReporter;
     }
 
     @JsonIgnoreProperties(ignoreUnknown = false)
@@ -81,6 +86,9 @@ public class ConsentDocumentPublisher implements ApplicationRunner {
             publish();
         } catch (Exception exception) {
             log.error("Consent document startup seed failed", exception);
+            failureReporter.report(
+                    exception,
+                    new FailureContext("ConsentDocumentPublisher.seed"));
         }
     }
 
@@ -118,21 +126,17 @@ public class ConsentDocumentPublisher implements ApplicationRunner {
         int published = 0;
         for (Validated value : all) {
             Entry entry = value.entry();
-            List<Map<String, Object>> existing = jdbc.queryForList(
-                    "SELECT title,body,required FROM consent_documents "
-                            + "WHERE type=?::consent_type_t AND version=?",
-                    value.type().dbValue(),
-                    entry.version());
-            if (!existing.isEmpty()) {
-                Map<String, Object> row = existing.getFirst();
+            var existing = documents.findByTypeAndVersion(value.type(), entry.version());
+            if (existing.isPresent()) {
+                ConsentDocumentEntity document = existing.get();
                 List<String> mismatch = new ArrayList<>();
-                if (!Objects.equals(row.get("title"), entry.title())) {
+                if (!Objects.equals(document.getTitle(), entry.title())) {
                     mismatch.add("title");
                 }
-                if (!Objects.equals(row.get("body"), value.body())) {
+                if (!Objects.equals(document.getBody(), value.body())) {
                     mismatch.add("body");
                 }
-                if (!Objects.equals(row.get("required"), entry.required())) {
+                if (!Objects.equals(document.isRequired(), entry.required())) {
                     mismatch.add("required");
                 }
                 if (!mismatch.isEmpty()) {
@@ -145,15 +149,13 @@ public class ConsentDocumentPublisher implements ApplicationRunner {
                 continue;
             }
             try {
-                jdbc.update(
-                        "INSERT INTO consent_documents(id,type,version,title,body,required) "
-                                + "VALUES (?,?::consent_type_t,?,?,?,?)",
+                documents.saveAndFlush(new ConsentDocumentEntity(
                         UUID.randomUUID(),
-                        value.type().dbValue(),
+                        value.type(),
                         entry.version(),
                         entry.title(),
                         value.body(),
-                        entry.required());
+                        entry.required()));
                 published++;
             } catch (DataIntegrityViolationException exception) {
                 if (!isUniqueRace(exception)) {

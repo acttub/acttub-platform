@@ -23,7 +23,7 @@
 |---|---|
 | 런타임 | Java 21 + Spring Boot 3.4, Spring Web MVC + **virtual threads** (WebFlux 금지) |
 | 빌드 | Gradle (Kotlin DSL) + wrapper, `bootJar` |
-| 영속 | `JdbcTemplate` (§5-1·§5-2) |
+| 영속 | Spring Data JPA + `EntityManager` native SQL로 일원화한다(ADR-024, §5-1·§5-2) |
 | 스키마 | **Flyway 가 소유**. `V1__baseline.sql` 에 스키마가 동결돼 있다(§5-5). Hibernate `ddl-auto: validate` (`create`/`update` 절대 금지) |
 | DB 연결 | `DATABASE_URL`(`postgresql://…`)을 **JDBC URL + username/password 로 변환**(§5-6). 변수 이름은 유지 |
 | 스펙 | springdoc-openapi (`openapi_3_1`) |
@@ -46,58 +46,69 @@ Jackson 설정: `WRITE_DATES_AS_TIMESTAMPS=false`, `Instant` 또는 `OffsetDateT
 
 ## 5. 영속 계층 규칙
 
-### 5-1. 데이터 접근은 전부 `JdbcTemplate` 이다
+### 5-1. 운영 DB 접근은 JPA 로 일원화한다
 
-`JpaRepository`/`CrudRepository` 선언 **0개**, `EntityManager` 직접 사용 **0건**이다. 저장소는
-전부 손으로 쓴 SQL 이다. §5-2 가 열거하는 JPA 표현 불가 패턴이 저장소 전반에 퍼져 있어
-"단순 CRUD 만 JPA" 라는 경계가 실제 코드에서 성립하지 않았다.
+외부 seam은 기존 `app` Port이고, Postgres Adapter가 그 Port를 계속 구현한다. Adapter 내부에서
+단순 CRUD·조회는 Spring Data repository·JPQL·projection으로, PostgreSQL 의미가 필요한 연산은
+§5-2의 `EntityManager` native SQL로 구현한다. 서비스·Domain Model은 Spring Data interface,
+Schema Entity, JPA 타입을 알지 않는다.
 
-따라서 `schema` 패키지의 `@Entity` 는 **영속화 수단이 아니라 스키마 검증 장치**다 —
-`ddl-auto: validate` 가 대조할 대상을 제공하는 것이 유일한 역할이고, 프로덕션 코드에서 한 번도
-참조되지 않는다.
+Schema Entity 26개가 모든 테이블을 매핑하고 `actor_memory_entries`·`push_tokens`도
+`ddl-auto: validate` 대상이다. 모든 운영 DB 접근은 Spring Data JPA와 `EntityManager`를 사용하며,
+운영 `JdbcTemplate`·`NamedParameterJdbcTemplate`·`DataSource` 직접 접근은 없다. 테스트 fixture와
+JPA 밖 독립 검증에는 `JdbcTemplate`을 허용한다.
 
-⚠ **Entity 수와 테이블 수가 같지 않다.** `actor_memory_entries` 에 대응하는 `@Entity` 가 애초에
-만들어진 적이 없어 **그 테이블만 `ddl-auto: validate` 밖에 있다**(→ SOMA-398). 둘이 어긋난
-만큼이 검증 밖이라는 뜻이므로, 새 테이블을 만들 때 Entity 를 함께 만들지 않으면 그 테이블은
-조용히 검증 대상에서 빠진다. 이 상태를 정본으로 삼는 용어가 `/CONTEXT.md` 의 **Schema Entity** 이며,
-충돌하는 서술은 그쪽이 맞다. §5-3(엔티티 매핑 함정)은 그래도 유효하다 — 검증 장치로 쓰려면
-매핑이 정확해야 하기 때문이다.
+Schema Entity는 스키마 검증과 런타임 영속화를 함께 맡는다. 자기 feature의 Adapter와 영속 내부
+repository만 Schema Entity를 사용할 수 있고, app·domain과 다른 feature에서는 접근하지 않는다.
 
-**관계 매핑을 만들지 않는다.** FK 컬럼 + 명시적 `join()` 만 쓴다. UUID 컬럼만 두면 1:1 로
-대응되며 lazy loading·N+1·`LazyInitializationException` 이 구조적으로 발생하지 않는다.
-관계 매핑을 추가하는 것은 "개선" 이 아니라 새 위험이다.
+**관계 매핑은 FK ID + 명시적 JOIN이 기본이다.** 같은 feature 안에서 같은 객체 탐색이 서로 다른
+운영 경로 둘 이상에 반복되고 명시적 JOIN보다 단순해지는 것이 증명된 경우에만 lazy 단방향 관계를
+허용한다. 그때는 명시적 fetch 계획과 쿼리 수 회귀 검사가 필요하다. 양방향 관계, JPA cascade,
+orphan removal은 금지하고 DB FK와 `ON DELETE CASCADE`를 유지한다.
 
-### 5-2. JPA 로 표현할 수 없는 것들
+### 5-2. PostgreSQL 의미가 필요한 연산은 custom native SQL 로 남긴다
 
-저장소가 쓰는 SQL 에는 아래가 퍼져 있다 — `UPDATE/INSERT … RETURNING`,
-`ON CONFLICT DO NOTHING RETURNING`, `ON CONFLICT DO UPDATE`, `DISTINCT ON`,
-`FOR SHARE OF <특정 테이블>`, 컬럼식 증감, 상관 서브쿼리로 UPDATE 대상 선택.
+`UPDATE/INSERT … RETURNING`, `ON CONFLICT`, `DISTINCT ON`, 특정 행 잠금, 컬럼식 증감,
+JSON 연산, 상관 서브쿼리 조건부 갱신은 Spring Data `save()`나 조회 후 쓰기로 풀지 않는다.
 
 - `@Modifying` 은 rowcount 만 반환하므로 **RETURNING 계열을 대체할 수 없다.**
-- `save()` 는 SELECT-then-INSERT 라 **upsert 의 동시성 보장을 깨뜨린다.** `ON CONFLICT` 를 쓰는
-  이유가 정확히 그것이다.
-- `ON CONFLICT DO UPDATE` 와 `DO NOTHING` 은 시맨틱이 다르다. 관용구를 복사할 때
-  조용히 갈린다.
+- `save()` 는 upsert가 아니며, 조회 후 쓰기는 **동시성 winner 판정을 깨뜨린다.**
+- `ON CONFLICT DO UPDATE` 와 `DO NOTHING` 은 의미가 다르므로 기존 문장과 판정을 그대로 옮긴다.
+- 반환 행은 data-modifying CTE(`WITH changed AS (… RETURNING …) SELECT …`)와
+  `EntityManager.createNativeQuery(sql, Tuple.class)`의 **별칭 기반 `Tuple`**로 매핑한다.
+  0행·1행·복합 행, DB 생성 UUID, transaction rollback, 행 잠금은
+  `src/test/java/com/acttub/actingapi/platform/schema/EntityManagerNativeSqlIT:updateReturningMapsZeroOneAndCompositeRowsByAlias`와
+  같은 파일의 `pushUpsertReturnsDatabaseGeneratedIdAndRebindsTheSameRow`가 PostgreSQL 18에서 증명한다.
+- 수동 `Object[]` 행 매핑과 직접 JDBC fallback은 허용하지 않는다.
+- native bulk SQL 앞에 필요한 변경은 `flush`하고, 뒤에 같은 Schema Entity를 계속 쓰면
+  `clear` 후 재조회한다.
 
 ### 5-3. 엔티티 매핑 함정
 
-1. **네이티브 Postgres enum.** DB 저장값이 소문자이고 `IntentImpact` 는 **값이 한글**
-   (`"반전"`/`"약화"`/`"국소"`)이다. `@Enumerated(EnumType.STRING)` 은 varchar 바인딩이라 PG 가
-   `operator does not exist` 로 거부한다. → **`@Enumerated` 금지.**
+1. **값 목록은 text 컬럼 + CHECK 다** (SOMA-462). 네이티브 Postgres enum 열아홉을 걷어냈다 —
+   Postgres 가 enum **값 삭제를 지원하지 않아**(`dropping an enum value is not implemented`)
+   죽은 값 하나를 빼려면 타입을 통째로 갈아야 했고, 값 목록이 바뀌는 것이 정상인 도메인에
+   맞지 않는 그릇이었다. 이 레포는 그 전에도 `ck_practice_reports_report_type` 처럼
+   text + CHECK 를 쓰고 있었고, 이제 그쪽으로 통일됐다.
 
-   **종수를 문서에 박지 않는다** — `PgEnumCatalogVerifier` 의 맵이 정본이고 맵 전체를
-   `equals` 로 대조하므로, 한 종을 더하거나 빼면 그 검증기가 곧바로 말해 준다.
+   **`@Enumerated(EnumType.STRING)` 은 여전히 금지다.** 이유가 바뀌었을 뿐이다 — 그것은
+   Java enum **상수 이름**을 저장하는데, DB 값은 소문자이고 `IntentImpact` 는 **한글**
+   (`"반전"`/`"약화"`/`"국소"`)이다. 값 자체가 계약이라 이름으로 바꿔 쓸 수 없다.
 
-   **매핑 방법**: `@JdbcTypeCode(SqlTypes.NAMED_ENUM)` 과 `AttributeConverter` 는 **공존할 수
-   없다.** 둘을 같이 걸면 EntityManagerFactory 생성이
-   `Cannot read the array length because "values" is null` 로 죽는다. → **커스텀 `JdbcType`**
-   (`setObject(…, Types.OTHER)`)으로 값을 바인딩한다.
-   `platform/schema` 의 `PgEnum`·`PgEnumJdbcType`·`PgEnumConverter` 가 그 구현이다.
+   **매핑 방법**: 종마다 `AttributeConverter`(`platform/schema` 의 `PgEnum`·`PgEnumConverter`).
+   컬럼이 text 라 커스텀 `JdbcType` 은 더 필요 없다 — 값 바인딩을 위해 두었던
+   `PgEnumJdbcType` 과, 기동할 때 `pg_enum` 카탈로그를 대조하던 `PgEnumCatalogVerifier` 는
+   대조할 타입이 없어져 함께 은퇴했다. **값 무결성의 그물은 이제 둘이다** — DB 의 CHECK 와,
+   모르는 값을 읽을 때 예외를 던지는 `PgEnumConverter#convertToEntityAttribute`.
 2. **PK 는 BIGSERIAL 둘을 뺀 나머지가 전부 UUID 다.** 대부분 앱에서 생성하고,
-   `CoachSession.id` 만 외부에서 온다. `HandoffConfirmation` 은 PK 가 `coaching_handoff_id` 로 **FK 겸 PK** 다.
+   `CoachSession.id` 만 외부에서 오며 `push_tokens.id`는 DB default가 생성한다.
+   `HandoffConfirmation` 은 PK 가 `coaching_handoff_id` 로 **FK 겸 PK** 다.
    Spring Data `save()` 는 `@Id` 가 non-null 이면 `merge()` 를 호출해 불필요한 SELECT 가
    붙는다. → 앱 생성 PK 는 `Persistable<UUID>` 구현(`AppGeneratedUuidEntity`), 그리고
-   **INSERT 전 SELECT 가 없음을 검증**한다(`EntityMappingIT`).
+   **INSERT 전 SELECT 가 없음을 검증**한다
+   (`src/test/java/com/acttub/actingapi/platform/schema/EntityMappingIT:allTwentyOneAppGeneratedIdsUsePersistOnSave`).
+   push token은 `save()`하지 않고 native upsert의 `RETURNING`으로 DB 생성 ID를 받는다
+   (`src/test/java/com/acttub/actingapi/platform/schema/EntityManagerNativeSqlIT:pushUpsertReturnsDatabaseGeneratedIdAndRebindsTheSameRow`).
 3. **`server_default` vs 앱 측 default 이원화.** JPA 에는 "앱 측 default" 개념이 없다. 필드
    초기화값을 주면 항상 INSERT 에 실려 `server_default` 가 발동하지 않는다. 컬럼별로 판정한다.
    `''` 기본값 컬럼은 `coach_sessions.conversation_summary` 와 `reports.comparison` 둘이며
@@ -106,7 +117,9 @@ Jackson 설정: `WRITE_DATES_AS_TIMESTAMPS=false`, `Instant` 또는 `OffsetDateT
 4. **JSONB 8개** — `summaries.observation`(NULL 허용)/`.raw`/`.observations_json`/
    `.uncertainties_json`, `coaching_handoffs.handoff_json`, `practice_reports.report_json`,
    `reports.biggest_problem`, `external_operations.response_payload`(NULL 허용).
-   **JSON null(`'null'::jsonb`)과 SQL NULL 을 구분한다.** 현재 코드는 SQL NULL 을 의도한다.
+   **JSON null(`'null'::jsonb`)과 SQL NULL 을 구분한다.** External Operation 신규 행의 아직 없는
+   응답은 SQL NULL이고, claim·release·fail·resume·sweep가 이전 응답을 비우는 값은 Python
+   SQLAlchemy JSONB `None`과 같은 JSON null이다. 완료 응답은 JSON 객체다.
 5. **BIGSERIAL PK 2개** — `Anomaly.id`, `CoachTurn.id`. `IDENTITY` 전략은 JDBC 배치 INSERT 를
    막는다.
 6. **부분 인덱스와 CHECK 제약**은 Hibernate 가 만들 수도 검증할 수도 없다. Flyway 가 DDL 을
@@ -126,9 +139,11 @@ Jackson 설정: `WRITE_DATES_AS_TIMESTAMPS=false`, `Instant` 또는 `OffsetDateT
    `release` 는 각각 별도 트랜잭션 메서드다. `TransactionBoundaryTest` 가 지킨다.
 2. **내부 헬퍼에 `@Transactional` 을 붙이지 않는다.** 호출자 트랜잭션에 참여하는 것이
    의도다. self-invocation 함정과 겹친다.
-3. **벌크 UPDATE 뒤에 같은 트랜잭션에서 읽은 값을 믿지 않는다.** 지금은 데이터 접근이 전부
-   `JdbcTemplate` 이라 1차 캐시가 없지만(§5-1), Spring Data 저장소를 들이면 이 함정이 함께
-   들어온다.
+3. **기존 `TransactionTemplate` 경계와 `REQUIRES_NEW` propagation을 유지한다.** SOMA-460에서
+   경계를 `@Transactional`로 함께 다시 쓰지 않는다. JDBC autocommit 단일 DML을 EntityManager로
+   옮기면 같은 의미의 가장 좁은 `TransactionTemplate` 경계를 추가한다.
+4. **native bulk UPDATE 뒤에 같은 트랜잭션에서 읽은 managed Schema Entity를 믿지 않는다.**
+   `flush`로 실행 순서를 고정하고, bulk 뒤에는 `clear`·재조회해 1차 캐시의 낡은 값을 버린다.
 
 ### 5-5. Flyway 가 스키마를 소유한다
 
@@ -136,7 +151,8 @@ Jackson 설정: `WRITE_DATES_AS_TIMESTAMPS=false`, `Instant` 또는 `OffsetDateT
 마이그레이션이 **앱 기동의 일부**다.
 
 **`V1__baseline.sql` 에 스키마 전체(테이블 + enum 타입 + 인덱스 + 제약 + 초기 커뮤니티
-데이터)가 동결돼 있다.**
+데이터)가 동결돼 있다.** enum 타입 열아홉은 V4 가 지우지만 **V1 은 여전히 그것을 만든다** —
+동결이라 고칠 수 없고, 빈 DB 는 V1 → … → V4 를 차례로 밟아 결국 같은 자리에 닿는다.
 
 - **빈 DB**: V1 을 실행해 스키마를 재구축한다. 이것이 없으면 신규 환경·재해 복구가 불가능하다
 - **기존 DB(dev·운영)**: 같은 V1 버전으로 `baseline` 을 기록만 한다. DDL 은 실행하지 않는다
@@ -188,17 +204,19 @@ JDBC URL·username·password 로 변환한다 — `platform/config/DatabaseUrl` 
 
 **네이티브 SQL 을 쓰는 모든 곳에 적용된다.**
 
-**① enum 컬럼에는 명시 캐스팅이 필요하다.**
+**① 상태 컬럼에 캐스팅을 붙이지 않는다** (SOMA-462 에서 뒤집힌 규칙이다).
 
 ```sql
--- 실패: operation_status_t = character varying 비교를 Postgres 가 거부한다
+-- 통과: 컬럼이 text 다
 WHERE status = 'running'
--- 통과
+-- 실패: 그런 타입이 이제 없다
 WHERE status = 'running'::operation_status_t
 ```
 
-`@Enumerated` 금지(§5-3-1)는 JPA 얘기였지만, **`JdbcTemplate` 의 SQL 리터럴에서도 같은 함정이
-발현한다.** enum 컬럼을 읽을 때는 `kind::text` 처럼 반대 방향 캐스팅을 쓴다.
+컬럼이 네이티브 enum 이던 시절에는 `'running'::operation_status_t` 로 **써야만** 했고
+(`operation_status_t = character varying` 비교를 Postgres 가 거부했다), 읽을 때는 반대로
+`kind::text` 를 붙였다. 지금은 양쪽 다 불필요하고, 남아 있으면 타입이 없어 실패한다.
+파라미터도 그냥 `?` 로 둔다 — `setString` 이 맞는 타입이다.
 
 **② `Instant` 는 JDBC 파라미터로 바인딩할 수 없다.**
 
@@ -209,21 +227,40 @@ PSQLException: Can't infer the SQL type to use for an instance of java.time.Inst
 `timestamptz` 컬럼에는 **`OffsetDateTime`** 을 넘긴다(`instant.atOffset(ZoneOffset.UTC)`).
 Jackson 직렬화에서는 `Instant` 가 문제없지만 pgjdbc 바인딩에서는 실패한다 — 두 층을 구분한다.
 
-**③ 읽기 캐스팅이 `ORDER BY` 를 조용히 뒤집는다.**
+**③ 응답 순서가 뜻을 가지는 곳은 `CASE` 로 못박는다.**
 
 ```sql
--- 틀렸다: 출력 컬럼 이름이 그대로 type 이라 ORDER BY 가 enum 이 아니라 그 텍스트를 본다
-SELECT DISTINCT ON (type) id, type::text, … FROM consent_documents
-ORDER BY type, published_at DESC, id DESC
--- 통과: ORDER BY 를 테이블로 한정한다
-ORDER BY consent_documents.type, consent_documents.published_at DESC, consent_documents.id DESC
+-- 사전순으로 갈린다: ai_analysis, privacy, terms
+ORDER BY consent_documents.type
+-- 뜻대로: 약관 · 개인정보 · AI 분석
+ORDER BY CASE latest.type WHEN 'terms' THEN 1 WHEN 'privacy' THEN 2 WHEN 'ai_analysis' THEN 3 END
 ```
 
-Postgres 의 `ORDER BY` 는 **출력 별칭을 먼저** 찾는다. enum 은 선언 순서로, 텍스트는 알파벳
-순으로 정렬되므로 `consent_type_t` 가 `terms, privacy, ai_analysis` →
-`ai_analysis, privacy, terms` 로 뒤집힌다(실측). **`DISTINCT ON` 에서는 정렬이 곧 "그룹마다
-어느 행이 살아남는가" 이므로 응답 순서만이 아니라 내용이 달라진다.** 컴파일도 통과하고 예외도
-없다 — 통합 테스트만이 잡는다.
+컬럼이 enum 이던 시절에는 **선언 순서**가 정렬 순서였고, 그 순서에 뜻이 실려 있었다.
+text 가 되면서 사전순으로 갈리므로, 순서가 화면에 보이는 두 곳은 `CASE` 로 옛 순서를
+고정했다 — 동의 문서 목록(`PostgresConsentRepository#listLatestDocuments`)과 배우 기억
+항목(`PostgresMemoryRepository#list`). **어긋나도 예외가 나지 않는다** — 순서만 조용히 바뀐다.
+
+⚠ `DISTINCT ON` 이 붙은 질의는 `ORDER BY` 선행 표현식이 자기와 같기를 요구한다. 안쪽에
+`CASE` 를 넣으면 `SELECT DISTINCT ON expressions must match initial ORDER BY expressions` 로
+거부당하므로, **바깥 질의로 감싸고 거기서 정렬한다.** 안쪽 정렬은 "종류마다 어느 판을
+고르는가"를, 바깥 정렬은 "고른 것을 어떤 순서로 보이는가"를 정한다.
+
+**④ DML `RETURNING`은 data-modifying CTE + alias `Tuple`로 읽는다.**
+
+```sql
+WITH changed AS (
+    UPDATE ...
+    RETURNING id, status
+)
+SELECT id, status FROM changed
+```
+
+Hibernate native query는 위 문장을 `Tuple.class`로 실행하고 `row.get("id", UUID.class)`처럼
+별칭으로 읽는다. 0행은 빈 목록이고 1행·복합 행도 같은 경로다. 컬럼 순서에 결합하는
+`Object[]`는 쓰지 않는다. native bulk 앞의 pending 변경은 `flush`, 뒤의 managed entity는
+`clear`·재조회한다
+(`src/test/java/com/acttub/actingapi/platform/schema/EntityManagerNativeSqlIT:explicitFlushAndClearPreserveNativeMutationOrderingAndVisibility`).
 
 ## 6. 계약 보존 체크리스트
 
@@ -233,7 +270,7 @@ Postgres 의 `ORDER BY` 는 **출력 별칭을 먼저** 찾는다. enum 은 선�
 | 2 | unknown key 정책 | **전역 `FAIL_ON_UNKNOWN_PROPERTIES=true` + 허용 DTO 에만 `@JsonIgnoreProperties(ignoreUnknown = true)`**(§6-3). 반대 방향은 표현 불가 |
 | 3 | null 필드 **포함** | `@JsonInclude(NON_NULL)` **전역 사용 금지**(§6-1) |
 | 4 | datetime | 전 엔드포인트 `Z` + 마이크로초 6자리(§4). **JDBC 바인딩은 `OffsetDateTime`**(§5-8) |
-| 5 | enum 표기 | 종마다 `AttributeConverter`. **`@Enumerated` 금지**(§5-3-1) |
+| 5 | 상태값 표기 | text 컬럼 + CHECK. 종마다 `AttributeConverter`, **`@Enumerated` 금지**(§5-3-1) |
 | 6 | refresh 회전 | 소진 토큰 재사용 시 **해당 유저 전 세션 무효화**(의도된 동작) |
 | 7 | 404 | "없음" 과 "남의 리소스" 를 구분하지 않는다(존재 노출 방지) |
 | 8 | S3 presign | **리전 엔드포인트 고정.** 글로벌 엔드포인트는 신규 버킷에 307 |
@@ -245,12 +282,14 @@ Postgres 의 `ORDER BY` 는 **출력 별칭을 먼저** 찾는다. enum 은 선�
 | 14 | v1 경로 404 | `/summarize`, `/coach/start`, `/coach/reply`, `/report`, `/report/history/{id}` 5개 |
 | 15 | 숫자 파싱 | `size_bytes: 12.0`(정수형 float) → **201**, `12.5` → **422** |
 | 16 | 커뮤니티 읽기 공개 | 스펙엔 `security` 가 붙어 있지만 실제로는 optional — **토큰 없이 200** |
+| 17 | 미처리 예외 500 | `{"detail":"internal_server_error"}` |
+| 18 | 5xx `ApiException` | `ApiException.external(...)`·`ApiException.unexpected(...)` 팩토리로만 원인과 함께 만든다 |
 
 ### 6-1. nullable — "null 로 보낼 것" 과 "키를 생략할 것" 이 다르다
 
 | 동작 | 대상 |
 |---|---|
-| **required + `null` 값을 실어 보냄** | `AuthUser.email`, `MeResponse.email`/`.nickname`, `CoachTurnResponse.handoff`/`.report`, `CoachConfirmResponse.handoff`, `SourceHandoffIds.analysis`, `PostListResponse.next_cursor`, `CommentListResponse.next_cursor`, `AuthorPayload.id`/`.nickname`/`.alias`, `CategoryPayload.description`, `BlockPayload.nickname`, `MemoryItem.source_practice_session_id` |
+| **required + `null` 값을 실어 보냄** | `AuthUser.email`, `MeResponse.email`/`.nickname`, `CoachTurnResponse.handoff`/`.report`, `CoachConfirmResponse.handoff`, `SourceHandoffIds.analysis`, `PostListResponse.next_cursor`, `CommentListResponse.next_cursor`, `AuthorPayload.id`/`.nickname`/`.alias`, `CategoryPayload.description`, `BlockPayload.nickname`, `MemoryItem.source_practice_session_id`, `ConsentEntryDocument.current_decision` |
 | **optional + 조건부로 키를 추가** | `PracticeSessionDetail.summary`(status 가 `analyzed` 이고 summary 가 있을 때만), `.error_code`(`failed` 일 때만) |
 | **optional 인데 항상 포함** | `PracticeSessionStatusResponse.error_code` |
 
@@ -263,10 +302,17 @@ Postgres 의 `ORDER BY` 는 **출력 별칭을 먼저** 찾는다. enum 은 선�
 `default` 가 붙은 필드는 **`anyOf [T, null]` 과 겹치지 않는다** — default 가 있으면 nullable 로
 선언되지 않는다. 대부분 컬렉션 기본값(`[]`)이나 불리언이다.
 
-### 6-2. 오류 계약은 `openapi.json` 에 없다
+### 6-2. 오류 계약은 대부분 `openapi.json` 에 없다
 
-스펙의 상태코드는 `200/201/202/204/422` 뿐이다. **400·401·403·404·409·413·415·429·502·503 이
-전무**하고 422 는 자동 생성된 validation 오류뿐이다. 실제 오류는 그보다 훨씬 많다.
+스펙이 명시하는 도메인 오류는 `POST /v2/consents`의
+`409 required_consent_cannot_be_declined` 하나뿐이다. 그 밖의 상태코드는
+`200/201/202/204/422`이고, 422는 자동 생성된 validation 오류뿐이다. 실제 오류는 그보다 훨씬
+많다.
+
+필수 동의 게이트는 새 클라이언트가 인증 요청에 `X-Acttub-Consent-Entry: 1`을 보냈을 때
+미결정을 `403 consent_required`, 기존 거절·철회를 `403 consent_blocked`로 가른다. 이 헤더가
+없는 구형 클라이언트에는 둘 다 종전의 `403 consent_required`로 답한다. 어느 경우에도 막힌
+원 요청을 서버가 재실행하지 않는다.
 
 불규칙에 주의한다 — 대부분 snake_case(`upload_not_found`)인데 일부는 공백 포함 문장이다:
 `invalid or missing access token`, `session not found`, `practice session not found`,
@@ -279,6 +325,11 @@ Postgres 의 `ORDER BY` 는 **출력 별칭을 먼저** 찾는다. enum 은 선�
 `practice_session_not_found` 가 **둘 다** 있고, 409 에 `report already exists` 와
 `report already exists for practice session` 이 둘 다 있다. 라우터별로 어느 쪽인지 정확히
 갈라야 한다.
+
+미처리 예외의 500 응답은 `{"detail":"internal_server_error"}`다. 5xx
+`ApiException`은 분류와 원인을 빠뜨리지 않도록 `ApiException.external(...)`·
+`ApiException.unexpected(...)` 팩토리로만 만든다. 일반 생성자에 500 이상을 넣으면
+`IllegalArgumentException`으로 거부한다. 4xx 응답은 기존 생성자를 그대로 쓴다.
 
 **숫자를 완료 조건으로 쓰지 않는다** — 추출 방식에 따라 흔들린다(동적 502, admin 기본 401,
 멀티라인 detail). 인벤토리의 **집합 동등성**으로 판정한다. `ErrorContractInventoryTest` 가 그

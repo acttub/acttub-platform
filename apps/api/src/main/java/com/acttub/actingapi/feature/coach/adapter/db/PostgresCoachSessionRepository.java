@@ -19,7 +19,7 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * 코치 세션의 조회·저장 포트를 손으로 쓴 SQL 로 구현한다 (Python {@code PostgresStore}).
+ * 코치 세션의 조회·저장 포트를 JPA와 native SQL로 구현한다 (Python {@code PostgresStore}).
  *
  * <p><b>이 클래스가 트랜잭션 경계다.</b> 실제 SQL 은 {@link CoachSessionWork} 가 갖고 있고 그쪽에는
  * 경계가 없다 — 어느 쿼리들이 한 트랜잭션인지가 여기 한 파일에 모여 보이게 하기 위해서다.

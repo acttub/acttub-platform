@@ -41,8 +41,6 @@ export type PriorChat = { coachId: string; done: boolean };
 export type WorkspaceScreen =
   /** 영상과 장면을 채우는 첫 화면. 영상은 아직 없을 수 있다. */
   | { kind: "prep"; video: PickedVideo | null; continueFrom: ContinueFrom | null }
-  /** 무엇이 막혔는지 고르는 중. 뒤에서는 그 영상의 압축·업로드가 이미 돌고 있다. */
-  | { kind: "blockage"; video: PickedVideo; continueFrom: ContinueFrom | null }
   /** 올리는 중. */
   | { kind: "uploading"; video: PickedVideo; continueFrom: ContinueFrom | null }
   /**
@@ -82,9 +80,7 @@ export type WorkspaceAction =
   | { type: "videoPicked"; video: PickedVideo }
   /** "이어받지 않기" — 이어받을 연습만 떼어 낸다. */
   | { type: "continueDeclined" }
-  /** "질문 받기" — 막힘을 고르러 간다. */
-  | { type: "blockageChosen" }
-  /** 막힘을 다 골라 올리기 시작했다. */
+  /** "질문 받기" — 준비 화면의 선택 입력을 들고 올리기 시작한다. */
   | { type: "uploadStarted" }
   /** 올리다 실패했다. */
   | { type: "uploadFailed" }
@@ -191,7 +187,6 @@ function noteScreen(
 export function pickedVideo(screen: WorkspaceScreen): PickedVideo | null {
   switch (screen.kind) {
     case "prep":
-    case "blockage":
     case "uploading":
     case "analyzing":
     case "analysisFailed":
@@ -236,7 +231,6 @@ export function currentReport(screen: WorkspaceScreen): PracticeReport | null {
 function carriedContinueFrom(screen: WorkspaceScreen): ContinueFrom | null {
   switch (screen.kind) {
     case "prep":
-    case "blockage":
     case "uploading":
       return screen.continueFrom;
     default:
@@ -257,17 +251,8 @@ export function workspaceScreenReducer(
     case "continueDeclined":
       if (screen.kind !== "prep") return screen;
       return prepScreen(screen, screen.video, null);
-    case "blockageChosen":
-      // 올릴 영상이 없으면 고를 막힘도 없다. 옛 코드에서는 시작 버튼의 가드가
-      // 이 자리를 지켰고, 이제 화면이 자기 데이터로 지킨다.
-      if (screen.kind !== "prep" || !screen.video) return screen;
-      return {
-        kind: "blockage",
-        video: screen.video,
-        continueFrom: screen.continueFrom,
-      };
     case "uploadStarted":
-      if (screen.kind !== "blockage") return screen;
+      if (screen.kind !== "prep" || !screen.video) return screen;
       return {
         kind: "uploading",
         video: screen.video,
@@ -308,7 +293,7 @@ export function workspaceScreenReducer(
     case "sessionLoaded":
       // 받아 온 연습은 서버가 준 주소로 튼다. 여기서 고르던 로컬 원본을 들면
       // 남의 연습에 내 영상이 실린다.
-      if (action.status === "created" || action.status === "analyzing") {
+      if (action.status === "analyzing") {
         return analysisScreen(screen, "analyzing", null);
       }
       if (action.status === "failed") return analysisScreen(screen, "analysisFailed", null);

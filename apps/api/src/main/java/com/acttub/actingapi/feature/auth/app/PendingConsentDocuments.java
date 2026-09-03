@@ -14,8 +14,8 @@ import java.util.UUID;
  * 순간 순환이다(ADR-017 의 ⚠, 6단계에서 실제로 걸렸던 자리).
  *
  * <p>🔎 <b>게이트와 다른 포트다.</b> "지금 이 요청을 막을 것인가"는
- * {@code platform/security/PendingConsentGate} 가 묻는다 — 배관이 쓰는 것이라 배관에 선언이
- * 있고, 문서의 형태를 알 이유가 없어 {@code boolean} 하나로 답한다.
+ * {@code platform/security/RequiredConsentGate} 가 묻는다 — 배관이 쓰는 것이라 배관에 선언이
+ * 있고, 최신 필수 문서의 결정을 허용·미결정·차단 세 갈래로 답한다.
  */
 public interface PendingConsentDocuments {
 

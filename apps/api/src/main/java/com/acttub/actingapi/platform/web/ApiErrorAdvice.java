@@ -10,6 +10,8 @@ import java.util.Objects;
 import java.util.UUID;
 
 import com.acttub.actingapi.integration.storage.NoCredentialsError;
+import com.acttub.actingapi.platform.observability.FailureContext;
+import com.acttub.actingapi.platform.observability.FailureReporter;
 import com.acttub.actingapi.platform.web.RequestBodyCachingFilter.CachedBodyRequest;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JavaType;
@@ -20,10 +22,12 @@ import com.fasterxml.jackson.databind.exc.MismatchedInputException;
 import com.fasterxml.jackson.databind.exc.UnrecognizedPropertyException;
 import com.fasterxml.jackson.databind.introspect.BeanPropertyDefinition;
 import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.FieldError;
 import org.springframework.validation.ObjectError;
+import org.springframework.web.ErrorResponse;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -37,15 +41,23 @@ import org.springframework.web.util.WebUtils;
 @RestControllerAdvice
 public class ApiErrorAdvice {
     private static final int UNKNOWN_ORDER = Integer.MAX_VALUE;
+    private static final FailureContext CATCH_ALL_CONTEXT =
+            new FailureContext("ApiErrorAdvice.catchAll");
+    private static final FailureContext API_EXCEPTION_CONTEXT =
+            new FailureContext("ApiErrorAdvice.apiException");
 
     private final ObjectMapper mapper;
+    private final FailureReporter failureReporter;
 
-    public ApiErrorAdvice(ObjectMapper mapper) {
+    public ApiErrorAdvice(ObjectMapper mapper, FailureReporter failureReporter) {
         this.mapper = mapper;
+        this.failureReporter = failureReporter;
     }
 
     @ExceptionHandler(ApiException.class)
     ResponseEntity<Map<String, Object>> api(ApiException exception) {
+        exception.failureKind().ifPresent(kind -> failureReporter.report(
+                Objects.requireNonNull(exception.getCause()), kind, API_EXCEPTION_CONTEXT));
         var response = ResponseEntity.status(exception.status());
         exception.headers().forEach(response::header);
         return response.body(Map.of("detail", exception.getMessage()));
@@ -143,6 +155,20 @@ public class ApiErrorAdvice {
     @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
     ResponseEntity<Map<String, Object>> method() {
         return body(405, "Method Not Allowed");
+    }
+
+    @ExceptionHandler(Exception.class)
+    ResponseEntity<Map<String, Object>> catchAll(Exception exception) {
+        if (exception instanceof ErrorResponse error) {
+            int status = error.getStatusCode().value();
+            if (error.getStatusCode().is4xxClientError()) {
+                return body(status, HttpStatus.valueOf(status).getReasonPhrase());
+            }
+            failureReporter.report(exception, CATCH_ALL_CONTEXT);
+            return body(status, "internal_server_error");
+        }
+        failureReporter.report(exception, CATCH_ALL_CONTEXT);
+        return body(500, "internal_server_error");
     }
 
     private Map<String, Object> field(FieldError field, ResolvedPath path, Object bodyInput) {

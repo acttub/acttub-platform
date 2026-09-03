@@ -220,7 +220,7 @@ export default function AnalyzingScreen() {
         sessionIdRef.current = result.sessionId;
         pendingHandleRef.current = operation.pendingHandle;
         const detail = result.detail;
-        // 복구 경로의 장면은 서버에서 온다 — 건너뛴 칸의 자리표시자('.')를 빈 값으로 되돌린다.
+        // 복구 경로의 장면은 서버에서 온다 — 예전 빌드가 빈 칸에 채운 자리표시자('.')를 빈 값으로 되돌린다.
         const scene = upload?.scene ?? {
           situation: sceneValueForDisplay(detail.situation),
           character: sceneValueForDisplay(detail.character_context),

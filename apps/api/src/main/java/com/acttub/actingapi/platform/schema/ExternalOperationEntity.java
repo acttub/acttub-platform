@@ -5,7 +5,6 @@ import java.util.UUID;
 import com.fasterxml.jackson.databind.JsonNode;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.Pattern;
-import org.hibernate.annotations.JdbcType;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
@@ -23,13 +22,11 @@ public class ExternalOperationEntity extends AppGeneratedUuidEntity {
     UUID requestId;
 
     @Convert(converter = OperationKind.JpaConverter.class)
-    @JdbcType(PgEnumJdbcType.class)
-    @Column(name = "kind", nullable = false, columnDefinition = "operation_kind_t")
+    @Column(name = "kind", nullable = false, columnDefinition = "text")
     OperationKind kind;
 
     @Convert(converter = OperationStatus.JpaConverter.class)
-    @JdbcType(PgEnumJdbcType.class)
-    @Column(name = "status", nullable = false, columnDefinition = "operation_status_t")
+    @Column(name = "status", nullable = false, columnDefinition = "text")
     OperationStatus status;
 
     @Column(name = "attempt_count", nullable = false)

@@ -11,8 +11,10 @@ import com.acttub.actingapi.feature.analysis.domain.TranscriptSegments;
 import com.acttub.actingapi.integration.observation.ActorMaterial;
 import com.acttub.actingapi.integration.observation.ObservationAnalyzer;
 import com.acttub.actingapi.integration.observation.ObservationPack;
+import com.acttub.actingapi.platform.observability.FailureContext;
+import com.acttub.actingapi.platform.observability.FailureReporter;
 
-/** duration → 압축 → 관찰 → 전사 순서를 소유하는 분석 진입점. */
+/** duration → 압축 → 관찰 → 받아쓰기 순서를 소유하는 분석 진입점. */
 public final class SummaryAnalyzer implements AnalysisProcessor {
     public static final long TRANSCRIPTION_MAX_DURATION_MS = 120_000L;
     public static final String TRANSCRIPTION_SYSTEM_PROMPT = """
@@ -30,18 +32,21 @@ public final class SummaryAnalyzer implements AnalysisProcessor {
     private final ObservationAnalyzer observationAnalyzer;
     private final AudioExtractor audioExtractor;
     private final AudioTranscriber audioTranscriber;
+    private final FailureReporter failureReporter;
 
     public SummaryAnalyzer(
             DurationResolver durationProbe,
             VideoCompressor compressor,
             ObservationAnalyzer observationAnalyzer,
             AudioExtractor audioExtractor,
-            AudioTranscriber audioTranscriber) {
+            AudioTranscriber audioTranscriber,
+            FailureReporter failureReporter) {
         this.durationProbe = durationProbe;
         this.compressor = compressor;
         this.observationAnalyzer = observationAnalyzer;
         this.audioExtractor = audioExtractor;
         this.audioTranscriber = audioTranscriber;
+        this.failureReporter = failureReporter;
     }
 
     @Override
@@ -60,7 +65,7 @@ public final class SummaryAnalyzer implements AnalysisProcessor {
                             context.blockageKind(),
                             context.blockageDetail() == null ? "" : context.blockageDetail(),
                             durationMs));
-            List<String> transcripts = transcribe(videoPath, context.blockageKind());
+            List<String> transcripts = transcribe(videoPath);
             return new AnalysisResult(observations, !sendPath.equals(videoPath), transcripts);
         } finally {
             if (!sendPath.equals(videoPath)) {
@@ -73,10 +78,12 @@ public final class SummaryAnalyzer implements AnalysisProcessor {
         }
     }
 
-    private List<String> transcribe(Path videoPath, String blockageKind) {
-        if (!"분석".equals(blockageKind)) {
-            return List.of();
-        }
+    /**
+     * 갈래와 무관하게 받아쓴다. 세 갈래(분석·표현·그 외) 모두의 코치가 대사를 인용해 말해야
+     * 하므로 갈래로 가르던 조건을 없앴다. 실패는 삼키고 빈 목록을 낸다 — 받아쓰기가 없어도
+     * 분석은 성립한다.
+     */
+    private List<String> transcribe(Path videoPath) {
         Path audioPath = null;
         try {
             audioPath = audioExtractor.extract(videoPath, TRANSCRIPTION_MAX_DURATION_MS);
@@ -84,6 +91,9 @@ public final class SummaryAnalyzer implements AnalysisProcessor {
                     audioPath, TRANSCRIPTION_SYSTEM_PROMPT));
         } catch (Exception exception) {
             LOGGER.log(Level.WARNING, "transcription failed; continuing analysis", exception);
+            failureReporter.report(
+                    exception,
+                    new FailureContext("SummaryAnalyzer.transcription"));
             return List.of();
         } finally {
             if (audioPath != null) {

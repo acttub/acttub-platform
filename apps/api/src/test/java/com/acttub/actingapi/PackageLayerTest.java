@@ -53,7 +53,8 @@ class PackageLayerTest {
      *
      * <p><b>층까지 적는 이유</b> — 도메인이 넷을 다 갖는다는 보장이 없다(ADR-020). 값이 층 이름
      * 목록이 아니라 그냥 도메인 이름이던 때는 "넷 다 있다"가 전제였고, 그 전제가 깨지는 도메인
-     * (`memory`)이 11단계에 나왔다. 없는 층을 선언하면 그 규칙이 대상 0으로 조용히 통과하고,
+     * (`memory`는 SOMA-460 전까지 그랬다)이 11단계에 나왔다. 없는 층을 선언하면 그 규칙이
+     * 대상 0으로 조용히 통과하고,
      * 반대로 층이 새로 생겼는데 여기 안 적으면 그 층만 검사 밖에 남는다 —
      * {@link #everyRuleActuallyHasSomethingToCheck}가 양쪽을 다 본다.
      */
@@ -78,14 +79,10 @@ class PackageLayerTest {
             Map.entry("admin", Set.of("app", "adapter")),
             Map.entry("auth", FOUR_LAYERS),
             Map.entry("consent", FOUR_LAYERS),
-            // 배우 기억은 Schema Entity 가 없다 — `actor_memory_entries` 에 대응하는 `@Entity` 가
-            // 애초에 만들어진 적이 없고(그래서 그 테이블만 `ddl-auto: validate` 밖에 있다),
-            // 이사에서 빠뜨린 것이 아니다. 없는 층을 선언하면 규칙이 대상 0으로 초록이 된다.
-            Map.entry("memory", Set.of("domain", "app", "adapter")),
+            Map.entry("memory", FOUR_LAYERS),
             // 푸시 토큰에는 행위 규칙이 없다 — 등록은 upsert, 해제는 delete, 발송은 위탁이라
             // domain 에 넣을 것을 지어내야 하는 형태다(ADR-017, admissions 와 같은 판별).
-            // Schema Entity 도 없다 — push_tokens 는 손 SQL 만 만진다.
-            Map.entry("push", Set.of("app", "adapter")));
+            Map.entry("push", Set.of("app", "adapter", "schema")));
 
     /**
      * {@code domain}이 알아서는 안 되는 것들. CONTEXT.md의 <b>Domain Model</b>은 "프레임워크를
@@ -98,6 +95,12 @@ class PackageLayerTest {
         "jakarta.validation..",
         "com.fasterxml.jackson..",
         "io.swagger.."
+    };
+
+    private static final String[] PERSISTENCE_FRAMEWORKS_APP_MUST_NOT_KNOW = {
+        "org.springframework.data..",
+        "org.hibernate..",
+        "jakarta.persistence.."
     };
 
     private static final JavaClasses CLASSES = new ClassFileImporter()
@@ -114,7 +117,7 @@ class PackageLayerTest {
      * <p>층별 규칙에 <b>층이 없는 도메인을 넘기면 안 된다.</b> {@code that()} 으로 대상을 좁힌
      * 규칙은 ArchUnit 이 대상 0을 스스로 실패로 치고({@link #domainKnowsNoFramework}),
      * 그렇지 않은 규칙은 반대로 대상 0으로 조용히 통과한다
-     * ({@link #schemaEntitiesAreNeverCalled}). 어느 쪽이든 층 표가 답을 갖고 있다.
+     * ({@link #schemaEntitiesStayBehindTheirAdapter}). 어느 쪽이든 층 표가 답을 갖고 있다.
      */
     private static List<String> featuresWith(String layer) {
         return FEATURE_LAYERS.entrySet().stream()
@@ -126,6 +129,10 @@ class PackageLayerTest {
 
     static List<String> featuresWithDomain() {
         return featuresWith("domain");
+    }
+
+    static List<String> featuresWithApp() {
+        return featuresWith("app");
     }
 
     static List<String> featuresWithSchema() {
@@ -145,9 +152,38 @@ class PackageLayerTest {
                 .check(CLASSES);
     }
 
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("featuresWithApp")
+    void appKnowsNoPersistenceFramework(String feature) {
+        noClasses()
+                .that()
+                .resideInAPackage(layerOf(feature, "app"))
+                .should()
+                .dependOnClassesThat()
+                .resideInAnyPackage(PERSISTENCE_FRAMEWORKS_APP_MUST_NOT_KNOW)
+                .because("app의 Port와 서비스는 영속 기술을 몰라야 한다 (CONTEXT.md, ADR-024)")
+                .check(CLASSES);
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("features")
+    void domainAndAppKnowNoSchemaEntities(String feature) {
+        noClasses()
+                .that()
+                .resideInAnyPackage(layerOf(feature, "domain"), layerOf(feature, "app"))
+                .should()
+                .dependOnClassesThat()
+                .areAnnotatedWith(jakarta.persistence.Entity.class)
+                .orShould()
+                .dependOnClassesThat()
+                .areAnnotatedWith(jakarta.persistence.MappedSuperclass.class)
+                .because("Domain Model과 app Port는 어느 묶음의 Schema Entity도 몰라야 한다 (ADR-024)")
+                .check(CLASSES);
+    }
+
     /**
-     * 층 방향은 adapter → app → domain 한 방향이다. {@code schema}는 어느 층과도 엮이지 않는다 —
-     * <b>Schema Entity</b>는 호출되지 않고 {@code ddl-auto: validate}가 대조하는 대상일 뿐이다.
+     * 층 방향은 adapter → app → domain 한 방향이다. {@code schema}는 Adapter만 사용한다 —
+     * <b>Schema Entity</b>와 영속 내부 repository가 app·domain으로 새면 안 된다.
      *
      * <p>{@code consideringOnlyDependenciesInLayers()}는 <b>이 도메인 안의 간선만</b> 본다. 밖으로
      * 나가는 것 — 배관·외부 연동, 그리고 다른 도메인 — 은 여기서 빠지고, 마지막 것은
@@ -166,7 +202,7 @@ class PackageLayerTest {
                 .layer("adapter").definedBy(layerOf(feature, "adapter"))
                 .layer("schema").definedBy(layerOf(feature, "schema"))
                 .whereLayer("adapter").mayNotBeAccessedByAnyLayer()
-                .whereLayer("schema").mayNotBeAccessedByAnyLayer()
+                .whereLayer("schema").mayOnlyBeAccessedByLayers("adapter")
                 .whereLayer("app").mayOnlyBeAccessedByLayers("adapter")
                 .whereLayer("domain").mayOnlyBeAccessedByLayers("app", "adapter")
                 .because("바깥에서 안쪽으로만 향해야 규칙이 배관을 모른 채로 남는다 (ADR-017)")
@@ -174,22 +210,22 @@ class PackageLayerTest {
     }
 
     /**
-     * Schema Entity를 아무도 호출하지 않음을 못박는다.
+     * Schema Entity를 자기 Adapter 바깥에서 호출하지 않음을 못박는다.
      *
      * <p>{@code schema/EntityMappingIT}가 개수를 세어 <b>이사 중 빠뜨림</b>을 잡는다면, 이쪽은
-     * 반대로 <b>잘못 끌어다 쓰는 것</b>을 잡는다. 엔티티를 데이터 접근에 쓰기 시작하면 손으로 쓴
-     * SQL과 두 벌이 되고, 그때부터 {@code validate}가 무엇을 보증하는지 흐려진다.
+     * 반대로 <b>영속 구현이 Adapter 밖으로 새는 것</b>을 잡는다. Schema Entity와 Spring Data
+     * repository는 자기 feature의 Adapter 내부에서만 사용한다 (ADR-024).
      */
     @ParameterizedTest(name = "{0}")
     @MethodSource("featuresWithSchema")
-    void schemaEntitiesAreNeverCalled(String feature) {
+    void schemaEntitiesStayBehindTheirAdapter(String feature) {
         noClasses()
                 .that()
-                .resideOutsideOfPackage(layerOf(feature, "schema"))
+                .resideOutsideOfPackages(layerOf(feature, "schema"), layerOf(feature, "adapter"))
                 .should()
                 .dependOnClassesThat()
                 .resideInAPackage(layerOf(feature, "schema"))
-                .because("Schema Entity는 호출되지 않는다. 데이터 접근은 손으로 쓴 SQL이 한다 (CONTEXT.md)")
+                .because("Schema Entity는 자기 feature의 Adapter 안에서만 사용한다 (CONTEXT.md, ADR-024)")
                 .check(CLASSES);
     }
 
@@ -292,8 +328,9 @@ class PackageLayerTest {
      * 빠졌다. 목록에 오타가 나거나 층 이름이 바뀌면 여기서 먼저 빨간불이 난다.
      *
      * <p><b>중복이 아니다.</b> ArchUnit이 대상 0을 스스로 실패로 치는 것은 {@code that()}으로 대상을
-     * 좁힌 규칙뿐이다. {@link #schemaEntitiesAreNeverCalled}는 {@code resideOutsideOfPackage}로
-     * 대상을 잡아 목록이 통째로 틀려도 초록이므로, 그 규칙에는 이 검사가 유일한 방어선이다.
+     * 좁힌 규칙뿐이다. {@link #schemaEntitiesStayBehindTheirAdapter}는
+     * {@code resideOutsideOfPackages}로 대상을 잡아 목록이 통째로 틀려도 초록이므로,
+     * 그 규칙에는 이 검사가 유일한 방어선이다.
      */
     @Test
     void everyRuleActuallyHasSomethingToCheck() {

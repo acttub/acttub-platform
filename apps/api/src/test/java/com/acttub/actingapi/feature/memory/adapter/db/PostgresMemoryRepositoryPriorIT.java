@@ -2,13 +2,27 @@ package com.acttub.actingapi.feature.memory.adapter.db;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.acttub.actingapi.feature.coach.app.PriorContext;
+import com.acttub.actingapi.platform.observability.FailureKind;
+import com.acttub.actingapi.platform.schema.ActorMemoryField;
 import com.acttub.actingapi.support.PostgresContainerSupport;
+import com.acttub.actingapi.support.RecordingFailureReporter;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Import;
+import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -21,6 +35,7 @@ import org.springframework.test.context.DynamicPropertySource;
  * 넣은 시험만 있어서 아무도 못 잡았다. 그래서 이 시험은 실제 스키마 위에서 돈다.
  */
 @SpringBootTest(properties = "JWT_SECRET=test-secret")
+@Import(PostgresMemoryRepositoryPriorIT.FailureReporterFixture.class)
 class PostgresMemoryRepositoryPriorIT {
 
     @DynamicPropertySource
@@ -37,8 +52,13 @@ class PostgresMemoryRepositoryPriorIT {
     @Autowired
     PostgresMemoryRepository repository;
 
+    @Autowired
+    RecordingFailureReporter failureReporter;
+
     private static final OffsetDateTime NOW =
             OffsetDateTime.of(2026, 8, 18, 12, 0, 0, 0, ZoneOffset.UTC);
+    private static final UUID OPERATION =
+            UUID.fromString("99999999-8888-7777-6666-555555555555");
 
     @Test
     void reopenedPracticeCarriesAnExcerptOfTheClosedConversation() {
@@ -214,6 +234,40 @@ class PostgresMemoryRepositoryPriorIT {
     }
 
     @Test
+    void aStoredNonObjectReportIsSkippedFromPendingTakesAndReported() {
+        UUID userId = insertUser("damaged-pending@example.com");
+        UUID practiceId = insertPractice(userId);
+        UUID coachId = insertCoach(practiceId, "closed", NOW);
+        insertCardJson(practiceId, coachId, "[]", NOW);
+        int reportsBefore = failureReporter.reports().size();
+
+        PriorContext context = repository.priorFor(userId, practiceId, OPERATION);
+
+        assertThat(context.pendingTakes()).isEmpty();
+        assertNewUnexpectedReport(
+                reportsBefore, "PostgresMemoryRepository.pendingTakesParse");
+    }
+
+    @Test
+    void aStoredNonObjectReportIsSkippedFromSceneHistoryAndReported() {
+        UUID userId = insertUser("damaged-history@example.com");
+        UUID parent = insertPractice(userId);
+        setCreatedAt(parent, NOW.minusDays(3));
+        UUID parentCoach = insertCoach(parent, "closed", NOW.minusDays(3));
+        insertCardJson(parent, parentCoach, "[]", NOW.minusDays(3));
+        UUID fresh = insertPractice(userId, parent);
+        UUID freshCoach = insertCoach(fresh, "open", NOW);
+        insertCardJson(fresh, freshCoach, "{\"report_type\":\"analysis\",\"title\":\"현재\"}", NOW);
+        int reportsBefore = failureReporter.reports().size();
+
+        PriorContext context = repository.priorFor(userId, fresh, OPERATION);
+
+        assertThat(context.sceneHistory()).isEmpty();
+        assertNewUnexpectedReport(
+                reportsBefore, "PostgresMemoryRepository.sceneHistoryParse");
+    }
+
+    @Test
     void aHiddenPracticesConversationDoesNotComeBack() {
         // 배우가 지운 연습의 대화가 새 연습에서 되살아나면 안 된다.
         UUID userId = insertUser("hidden@example.com");
@@ -238,9 +292,81 @@ class PostgresMemoryRepositoryPriorIT {
 
         Integer jobs = jdbc.queryForObject("""
                 SELECT count(*) FROM external_operations
-                WHERE session_id=? AND kind='memory_update'::operation_kind_t
+                WHERE session_id=? AND kind='memory_update'
                 """, Integer.class, practiceId);
         assertThat(jobs).isEqualTo(1);
+    }
+
+    @Test
+    void actorWriteWinsAnAgentRaceAndMemoryKeepsTheDisplayOrder() throws Exception {
+        UUID userId = insertUser("memory-race@example.com");
+        UUID practiceId = insertPractice(userId);
+        CountDownLatch start = new CountDownLatch(1);
+
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            Future<?> actor = executor.submit(() -> {
+                start.await();
+                return repository.writeAsActor(userId, ActorMemoryField.GOAL, "배우의 목표");
+            });
+            Future<?> agent = executor.submit(() -> {
+                start.await();
+                return repository.writeAsAgent(
+                        userId, ActorMemoryField.GOAL, "추출된 목표", practiceId);
+            });
+            start.countDown();
+            actor.get(5, TimeUnit.SECONDS);
+            agent.get(5, TimeUnit.SECONDS);
+        } finally {
+            executor.shutdownNow();
+            executor.awaitTermination(5, TimeUnit.SECONDS);
+        }
+
+        repository.writeAsActor(userId, ActorMemoryField.SPEECH_ACTUAL, "실제 화법");
+        repository.writeAsActor(userId, ActorMemoryField.GENDER, "성별");
+        repository.writeAsActor(userId, ActorMemoryField.BLOCKAGE, "막힘");
+        repository.writeAsActor(userId, ActorMemoryField.AGE, "나이");
+        repository.writeAsActor(userId, ActorMemoryField.SPEECH_SELF, "스스로 본 화법");
+
+        assertThat(repository.writeAsAgent(
+                userId, ActorMemoryField.GOAL, "뒤늦은 추출", practiceId)).isNull();
+        assertThat(repository.list(userId).stream().map(entry -> entry.field()).toList())
+                .isEqualTo(List.of(
+                        "gender", "age", "goal", "blockage", "speech_self", "speech_actual"));
+        assertThat(repository.list(userId))
+                .filteredOn(entry -> entry.field().equals("goal"))
+                .singleElement()
+                .satisfies(entry -> {
+                    assertThat(entry.value()).isEqualTo("배우의 목표");
+                    assertThat(entry.writtenByActor()).isTrue();
+                    assertThat(entry.sourcePracticeSessionId()).isNull();
+                });
+
+        repository.delete(userId, ActorMemoryField.GOAL);
+        assertThat(repository.list(userId)).noneMatch(entry -> entry.field().equals("goal"));
+        repository.delete(userId, null);
+        assertThat(repository.list(userId)).isEmpty();
+    }
+
+    @Test
+    void memoryUpdateMaterialKeepsTranscriptOrderAndOnlyActorTurns() {
+        UUID userId = insertUser("memory-material@example.com");
+        UUID practiceId = insertPractice(userId);
+        jdbc.update("""
+                INSERT INTO transcripts (id,session_id,ord,text)
+                VALUES (?, ?, 1, '두 번째 전사'), (?, ?, 0, '첫 번째 전사')
+                """, UUID.randomUUID(), practiceId, UUID.randomUUID(), practiceId);
+        UUID coachId = insertCoach(practiceId, "closed", NOW);
+        insertTurn(coachId, 0, "actor", "첫 배우 말");
+        insertTurn(coachId, 1, "ai", "코치 말");
+        insertTurn(coachId, 2, "actor", "둘째 배우 말");
+
+        var material = repository.material(practiceId);
+
+        assertThat(material.userId()).isEqualTo(userId);
+        assertThat(material.practiceSessionId()).isEqualTo(practiceId);
+        assertThat(material.transcripts()).containsExactly("첫 번째 전사", "두 번째 전사");
+        assertThat(material.actorMessages()).containsExactly("첫 배우 말", "둘째 배우 말");
     }
 
     private void setCreatedAt(UUID practiceId, OffsetDateTime at) {
@@ -248,6 +374,16 @@ class PostgresMemoryRepositoryPriorIT {
     }
 
     private void insertCard(UUID practiceId, UUID coachId, String title, OffsetDateTime at) {
+        insertCardJson(
+                practiceId,
+                coachId,
+                "{\"report_type\":\"analysis\",\"title\":\"" + title
+                        + "\",\"next_take\":{\"direction\":\"다음 방향\",\"tested\":false}}",
+                at);
+    }
+
+    private void insertCardJson(
+            UUID practiceId, UUID coachId, String reportJson, OffsetDateTime at) {
         UUID handoffId = UUID.randomUUID();
         jdbc.update("""
                 INSERT INTO coaching_handoffs (
@@ -258,17 +394,25 @@ class PostgresMemoryRepositoryPriorIT {
                 INSERT INTO practice_reports (
                     practice_session_id,report_type,report_json,source_handoff_id,created_at
                 ) VALUES (?, 'analysis', ?::jsonb, ?, ?)
-                """, practiceId,
-                "{\"report_type\":\"analysis\",\"title\":\"" + title
-                        + "\",\"next_take\":{\"direction\":\"다음 방향\",\"tested\":false}}",
-                handoffId, at);
+                """, practiceId, reportJson, handoffId, at);
+    }
+
+    private void assertNewUnexpectedReport(int reportsBefore, String location) {
+        assertThat(failureReporter.reports().subList(
+                reportsBefore, failureReporter.reports().size()))
+                .singleElement()
+                .satisfies(report -> {
+                    assertThat(report.kind()).isEqualTo(FailureKind.UNEXPECTED);
+                    assertThat(report.context())
+                            .isEqualTo(location + " operation_id=" + OPERATION);
+                });
     }
 
     private UUID insertUser(String email) {
         UUID id = UUID.randomUUID();
         jdbc.update("""
                 INSERT INTO users (id,email,status,created_at,updated_at)
-                VALUES (?,?,'active'::user_status_t,?,?)
+                VALUES (?,?,'active',?,?)
                 """, id, email, NOW, NOW);
         return id;
     }
@@ -283,14 +427,14 @@ class PostgresMemoryRepositoryPriorIT {
                 INSERT INTO upload_intents (
                     id,user_id,status,storage_provider,object_key,mime_type,size_bytes,
                     expires_at,created_at
-                ) VALUES (?, ?, 'finalized'::upload_status_t, 's3', ?, 'video/mp4', 1, ?, ?)
+                ) VALUES (?, ?, 'finalized', 's3', ?, 'video/mp4', 1, ?, ?)
                 """, uploadId, userId, "users/" + userId + "/" + uploadId + ".mp4", NOW.plusDays(1), NOW);
         UUID practiceId = UUID.randomUUID();
         jdbc.update("""
                 INSERT INTO practice_sessions (
                     id,user_id,upload_intent_id,status,situation,character_context,goal,
                     blockage_kind,sub_branch,continued_from,created_at,updated_at
-                ) VALUES (?, ?, ?, 'analyzed'::practice_status_t, '상황', '배우', '목표',
+                ) VALUES (?, ?, ?, 'analyzed', '상황', '배우', '목표',
                     '분석', '캐릭터 분석', ?, ?, ?)
                 """, practiceId, userId, uploadId, continuedFrom, NOW, NOW);
         return practiceId;
@@ -301,7 +445,7 @@ class PostgresMemoryRepositoryPriorIT {
         jdbc.update("""
                 INSERT INTO coach_sessions (
                     id,practice_session_id,status,conversation_summary,created_at,updated_at
-                ) VALUES (?, ?, ?::session_status_t, '', ?, ?)
+                ) VALUES (?, ?, ?, '', ?, ?)
                 """, coachId, practiceId, status, createdAt, createdAt);
         return coachId;
     }
@@ -309,7 +453,16 @@ class PostgresMemoryRepositoryPriorIT {
     private void insertTurn(UUID coachId, int index, String role, String text) {
         jdbc.update("""
                 INSERT INTO coach_turns (session_id,turn_index,role,text,created_at)
-                VALUES (?, ?, ?::turn_role_t, ?, ?)
+                VALUES (?, ?, ?, ?, ?)
                 """, coachId, index, role, text, NOW);
+    }
+
+    @TestConfiguration(proxyBeanMethods = false)
+    static class FailureReporterFixture {
+        @Bean
+        @Primary
+        RecordingFailureReporter recordingFailureReporter() {
+            return new RecordingFailureReporter();
+        }
     }
 }

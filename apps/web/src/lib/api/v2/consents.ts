@@ -1,6 +1,7 @@
 import { apiFetch } from "./client";
 import type {
   ConsentDocumentsResponse,
+  ConsentEntryResponse,
   ConsentEventResponse,
   ConsentRequest,
   PendingConsentsResponse,
@@ -21,6 +22,16 @@ export async function getPendingConsents(
 ): Promise<PendingConsentsResponse> {
   const { data } = await apiFetch<PendingConsentsResponse>(
     "/v2/consents/pending",
+    { method: "GET", auth: true, signal: options.signal },
+  );
+  return data;
+}
+
+export async function getConsentEntry(
+  options: { signal?: AbortSignal } = {},
+): Promise<ConsentEntryResponse> {
+  const { data } = await apiFetch<ConsentEntryResponse>(
+    "/v2/consents/entry",
     { method: "GET", auth: true, signal: options.signal },
   );
   return data;

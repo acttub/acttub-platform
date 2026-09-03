@@ -6,7 +6,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
@@ -21,8 +23,11 @@ import com.acttub.actingapi.feature.coach.app.OwnedCoachSessionContext;
 import com.acttub.actingapi.feature.coach.app.SessionWriteConflict;
 import com.acttub.actingapi.feature.coach.domain.CoachTurnSnapshot;
 import com.acttub.actingapi.feature.report.app.OwnedReportSource;
+import com.acttub.actingapi.platform.ledger.LeaseOwnershipException;
 import com.acttub.actingapi.support.PostgresContainerSupport;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import org.hibernate.resource.jdbc.spi.StatementInspector;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -34,11 +39,40 @@ import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
-@SpringBootTest(properties = "JWT_SECRET=test-secret")
+@SpringBootTest(properties = {
+    "JWT_SECRET=test-secret",
+    "spring.jpa.properties.hibernate.session_factory.statement_inspector="
+            + "com.acttub.actingapi.feature.coach.adapter.db."
+            + "CoachSessionRepositoryIT$RecordingInspector"
+})
 class CoachSessionRepositoryIT {
 
     private static final OffsetDateTime CREATED_AT =
             CoachStorageFixtures.NOW.atOffset(ZoneOffset.UTC);
+
+    public static class RecordingInspector implements StatementInspector {
+        private static final List<String> STATEMENTS =
+                Collections.synchronizedList(new ArrayList<>());
+
+        @Override
+        public String inspect(String sql) {
+            STATEMENTS.add(sql);
+            return sql;
+        }
+
+        static void clear() {
+            STATEMENTS.clear();
+        }
+
+        static List<String> statements() {
+            synchronized (STATEMENTS) {
+                return STATEMENTS.stream()
+                        .map(sql -> sql.strip().replaceAll("\\s+", " ")
+                                .toLowerCase(Locale.ROOT))
+                        .toList();
+            }
+        }
+    }
 
     @DynamicPropertySource
     static void datasource(DynamicPropertyRegistry registry) {
@@ -333,6 +367,77 @@ class CoachSessionRepositoryIT {
     }
 
     @Test
+    void lostCoachStartLeaseRollsBackSessionTurnsHandoffReportAndRestart() {
+        UUID userId = fixtures.insertUser();
+        CoachStorageFixtures.Practice practice = fixtures.insertPractice(userId);
+        UUID summaryId = fixtures.insertSummary(practice.id());
+        UUID previousSessionId = UUID.randomUUID();
+        fixtures.insertCoachSession(
+                previousSessionId, practice.id(), summaryId, "open", CREATED_AT, List.of());
+        UUID leaseToken = UUID.randomUUID();
+        UUID operationId = fixtures.insertRunningCoachStartOperation(
+                userId, practice.id(), leaseToken);
+        UUID newSessionId = UUID.randomUUID();
+        UUID handoffId = UUID.randomUUID();
+        List<CoachTurnSnapshot> turns = List.of(
+                new CoachTurnSnapshot("actor", "처음부터 다시 답변"),
+                new CoachTurnSnapshot("ai", "새 질문"));
+        JsonNode report = ((ObjectNode) CoachStorageFixtures.handoffJson().deepCopy())
+                .put("report_type", "analysis");
+
+        RecordingInspector.clear();
+        assertThatThrownBy(() -> store.completeCoachStartOperation(
+                operationId,
+                UUID.randomUUID(),
+                fixtures.newSnapshot(newSessionId, practice, summaryId, turns),
+                CoachStorageFixtures.responsePayload(turns),
+                handoffId,
+                "analysis",
+                CoachStorageFixtures.handoffJson(),
+                true,
+                report,
+                true,
+                CoachStorageFixtures.NOW))
+                .isInstanceOf(LeaseOwnershipException.class)
+                .hasMessage("external operation lease is not owned");
+
+        List<String> statements = RecordingInspector.statements();
+        assertThat(statements).hasSize(9);
+        assertThat(statements.get(0)).startsWith(
+                "select session_id as session_id, kind as kind from external_operations");
+        assertThat(statements.get(1)).startsWith("update coach_sessions");
+        assertThat(statements.get(2)).startsWith("insert into coach_sessions");
+        assertThat(statements.get(3)).startsWith("insert into coach_turns");
+        assertThat(statements.get(4)).startsWith("insert into coach_turns");
+        assertThat(statements.get(5)).startsWith("insert into coaching_handoffs");
+        assertThat(statements.get(6)).startsWith("insert into handoff_confirmations");
+        assertThat(statements.get(7)).startsWith("insert into practice_reports");
+        assertThat(statements.get(8)).startsWith("update external_operations");
+        assertThat(fixtures.coachStatus(previousSessionId)).isEqualTo("open");
+        assertThat(jdbc.queryForObject(
+                "SELECT count(*) FROM coach_sessions WHERE id = ?",
+                Long.class,
+                newSessionId)).isZero();
+        assertThat(jdbc.queryForObject(
+                "SELECT count(*) FROM coach_turns WHERE session_id = ?",
+                Long.class,
+                newSessionId)).isZero();
+        assertThat(jdbc.queryForObject(
+                "SELECT count(*) FROM coaching_handoffs WHERE id = ?",
+                Long.class,
+                handoffId)).isZero();
+        assertThat(jdbc.queryForObject(
+                "SELECT count(*) FROM practice_reports WHERE source_handoff_id = ?",
+                Long.class,
+                handoffId)).isZero();
+        assertThat(jdbc.queryForMap(
+                "SELECT status, lease_token FROM external_operations WHERE id = ?",
+                operationId))
+                .containsEntry("status", "running")
+                .containsEntry("lease_token", leaseToken);
+    }
+
+    @Test
     void coachReplyCompletionAppendsTurnsAndFinishesItsOperationAtomically() {
         UUID userId = fixtures.insertUser();
         CoachStorageFixtures.Practice practice = fixtures.insertPractice(userId);
@@ -367,10 +472,79 @@ class CoachSessionRepositoryIT {
         assertThat(store.getOwnedCoachSession(userId, sessionId).session().turns())
                 .containsExactlyElementsOf(allTurns);
         assertThat(jdbc.queryForMap("""
-                SELECT status::text AS status, response_payload::text AS payload
+                SELECT status, response_payload::text AS payload
                 FROM external_operations WHERE id = ?
                 """, operationId))
                 .containsEntry("status", "succeeded");
+    }
+
+    @Test
+    void lostCoachReplyLeaseRollsBackTurnsStatusHandoffAndReport() {
+        UUID userId = fixtures.insertUser();
+        CoachStorageFixtures.Practice practice = fixtures.insertPractice(userId);
+        UUID summaryId = fixtures.insertSummary(practice.id());
+        UUID sessionId = UUID.randomUUID();
+        List<CoachTurnSnapshot> original = List.of(
+                new CoachTurnSnapshot("actor", "첫 배우 말"),
+                new CoachTurnSnapshot("ai", "첫 질문"));
+        fixtures.insertCoachSession(
+                sessionId, practice.id(), summaryId, "open", CREATED_AT, original);
+        UUID leaseToken = UUID.randomUUID();
+        UUID operationId = insertRunningCoachReplyOperation(
+                userId, practice.id(), leaseToken);
+        CoachSessionSnapshot loaded = store.getOwnedCoachSession(userId, sessionId).session();
+        List<CoachTurnSnapshot> changed = new ArrayList<>(loaded.turns());
+        changed.add(new CoachTurnSnapshot("actor", "다음 배우 말"));
+        changed.add(new CoachTurnSnapshot("ai", "다음 질문"));
+        UUID handoffId = UUID.randomUUID();
+        JsonNode report = ((ObjectNode) CoachStorageFixtures.handoffJson().deepCopy())
+                .put("report_type", "analysis");
+
+        RecordingInspector.clear();
+        assertThatThrownBy(() -> store.completeCoachReplyOperation(
+                operationId,
+                UUID.randomUUID(),
+                loaded.withTurns(changed),
+                CoachStorageFixtures.responsePayload(changed),
+                handoffId,
+                "analysis",
+                CoachStorageFixtures.handoffJson(),
+                true,
+                report,
+                CoachStorageFixtures.NOW))
+                .isInstanceOf(LeaseOwnershipException.class)
+                .hasMessage("external operation lease is not owned");
+
+        List<String> statements = RecordingInspector.statements();
+        assertThat(statements).hasSize(10);
+        assertThat(statements.get(0)).startsWith(
+                "select session_id as session_id, kind as kind from external_operations");
+        assertThat(statements.get(1)).startsWith("select status as status from coach_sessions");
+        assertThat(statements.get(1)).endsWith("for update");
+        assertThat(statements.get(2)).contains("from coach_turns");
+        assertThat(statements.get(3)).startsWith("insert into coach_turns");
+        assertThat(statements.get(4)).startsWith("insert into coach_turns");
+        assertThat(statements.get(5)).startsWith("update coach_sessions");
+        assertThat(statements.get(6)).startsWith("insert into coaching_handoffs");
+        assertThat(statements.get(7)).startsWith("insert into handoff_confirmations");
+        assertThat(statements.get(8)).startsWith("insert into practice_reports");
+        assertThat(statements.get(9)).startsWith("update external_operations");
+        CoachSessionSnapshot stored = store.getOwnedCoachSession(userId, sessionId).session();
+        assertThat(stored.status()).isEqualTo("open");
+        assertThat(stored.turns()).containsExactlyElementsOf(original);
+        assertThat(jdbc.queryForObject(
+                "SELECT count(*) FROM coaching_handoffs WHERE id = ?",
+                Long.class,
+                handoffId)).isZero();
+        assertThat(jdbc.queryForObject(
+                "SELECT count(*) FROM practice_reports WHERE source_handoff_id = ?",
+                Long.class,
+                handoffId)).isZero();
+        assertThat(jdbc.queryForMap(
+                "SELECT status, lease_token FROM external_operations WHERE id = ?",
+                operationId))
+                .containsEntry("status", "running")
+                .containsEntry("lease_token", leaseToken);
     }
 
     @Test
@@ -483,8 +657,8 @@ class CoachSessionRepositoryIT {
                     id, session_id, user_id, request_id, kind, status,
                     attempt_count, request_fingerprint, lease_token, lease_expires_at
                 ) VALUES (
-                    ?, ?, ?, ?, 'coach_reply'::operation_kind_t,
-                    'running'::operation_status_t, 1, ?, ?, ?
+                    ?, ?, ?, ?, 'coach_reply',
+                    'running', 1, ?, ?, ?
                 )
                 """,
                 operationId,

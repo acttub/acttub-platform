@@ -10,7 +10,7 @@ import jakarta.persistence.PostPersist;
 import jakarta.persistence.Transient;
 import org.springframework.data.domain.Persistable;
 
-/** 앱에서 UUID를 생성하는 20개 엔티티의 Spring Data 신규 판정 규칙. */
+/** 앱에서 UUID를 생성하는 Schema Entity의 Spring Data 신규 판정 규칙. */
 @MappedSuperclass
 public abstract class AppGeneratedUuidEntity implements Persistable<UUID> {
 

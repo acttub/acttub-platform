@@ -92,9 +92,9 @@ public final class ObservationPrompt {
             %s""".formatted(NEVER_BASE, WITH_VIDEO, VOICE);
 
     /**
-     * Scene Context 가 통째로 빈 세션에 넣는 줄. 같은 뜻의 문장이 {@code CoachPrompt} 에도
-     * 있고, 두 프롬프트는 각자 진화하므로 문구를 공유하지 않는다 — 한쪽만 고칠 때 다른
-     * 쪽이 조용히 따라가지 않게 하는 편이 낫다.
+     * Scene Context 가 통째로 빈 세션에 넣는 줄. {@code CoachPrompt} 는 같은 조건에 한 줄
+     * 대신 장면 맥락 미입력 블록을 붙이고, 두 프롬프트는 각자 진화하므로 문구를 공유하지
+     * 않는다 — 한쪽만 고칠 때 다른 쪽이 조용히 따라가지 않게 하는 편이 낫다.
      */
     private static final String SCENE_ABSENT =
             "- 배우가 장면을 적지 않았다. 장면 맥락을 지어내지 마라.";

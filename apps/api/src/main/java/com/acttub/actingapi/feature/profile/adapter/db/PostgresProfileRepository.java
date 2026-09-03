@@ -1,5 +1,7 @@
 package com.acttub.actingapi.feature.profile.adapter.db;
 
+import static com.acttub.actingapi.platform.persistence.NativeTuples.list;
+
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
@@ -7,31 +9,33 @@ import java.util.UUID;
 import com.acttub.actingapi.feature.profile.app.ProfileRepository;
 import com.acttub.actingapi.feature.profile.domain.Profile;
 import com.acttub.actingapi.platform.schema.UserStatus;
-import org.springframework.jdbc.core.JdbcTemplate;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.Tuple;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 @Repository
 class PostgresProfileRepository implements ProfileRepository {
-    private final JdbcTemplate jdbc;
-    private final TransactionTemplate transactions;
+    private final EntityManager entityManager;
+    private final TransactionTemplate transaction;
 
-    PostgresProfileRepository(JdbcTemplate jdbc, TransactionTemplate transactions) {
-        this.jdbc = jdbc;
-        this.transactions = transactions;
+    PostgresProfileRepository(
+            EntityManager entityManager,
+            PlatformTransactionManager transactionManager) {
+        this.entityManager = entityManager;
+        this.transaction = new TransactionTemplate(transactionManager);
     }
 
     @Override
     public Profile find(UUID userId) {
-        List<Profile> rows = jdbc.query(
-                "SELECT id,email,nickname,status::text FROM users WHERE id=?",
-                (result, rowNumber) -> new Profile(
-                        result.getObject("id", UUID.class),
-                        result.getString("email"),
-                        result.getString("nickname"),
-                        status(result.getString("status"))),
-                userId);
-        return rows.isEmpty() ? null : rows.getFirst();
+        List<Tuple> rows = list(entityManager.createNativeQuery("""
+                SELECT id,email,nickname,status
+                FROM users
+                WHERE id=:userId
+                """, Tuple.class)
+                .setParameter("userId", userId));
+        return rows.isEmpty() ? null : profile(rows.getFirst());
     }
 
     /**
@@ -50,11 +54,15 @@ class PostgresProfileRepository implements ProfileRepository {
 
     @Override
     public Profile updateNickname(UUID userId, String nickname) {
-        return transactions.execute(status -> {
-            int updated = jdbc.update(
-                    "UPDATE users SET nickname=?,updated_at=now() WHERE id=?",
-                    nickname,
-                    userId);
+        return transaction.execute(status -> {
+            int updated = entityManager.createNativeQuery("""
+                    UPDATE users
+                    SET nickname=:nickname,updated_at=now()
+                    WHERE id=:userId
+                    """)
+                    .setParameter("nickname", nickname)
+                    .setParameter("userId", userId)
+                    .executeUpdate();
             return updated == 0 ? null : find(userId);
         });
     }
@@ -67,43 +75,73 @@ class PostgresProfileRepository implements ProfileRepository {
      * refresh 토큰을 끊는다. <b>상태 전환·파기·토큰 폐기를 한 트랜잭션에 묶는다</b> — 나누면
      * 중간 실패 시 "탈퇴했는데 refresh 는 살아 있는" 계정이 남는다.
      *
-     * <p>⚠ <b>여기서 {@code user_identities}·{@code refresh_tokens} 를 함께 치는 것은 의도한
-     * 것이다.</b> 그 두 테이블의 주인은 {@code auth} 지만, 파기의 원자성이 트랜잭션 하나를
-     * 요구한다 — 포트로 갈라 두 도메인이 나눠 부르면 그 경계가 깨진다. 도메인 사이의 결합은
-     * 아니다(이 파일은 {@code auth} 를 한 줄도 import 하지 않는다).
+     * <p>⚠ <b>여기서 {@code user_identities}·{@code refresh_tokens}·{@code push_tokens} 를 함께
+     * 치는 것은 의도한 것이다.</b> 테이블 주인은 각각 {@code auth}·{@code push} 지만 파기의
+     * 원자성이 트랜잭션 하나를 요구한다. 다른 feature의 Schema Entity를 import하면 패키지
+     * 경계를 우회하므로 이 교차 도메인 정리는 명시적 native DML로 남긴다.
      *
      * <p>이미 탈퇴한 계정이면 <b>최초 탈퇴 시각을 유지</b>한다. 파기는 멱등하게 다시 돈다.
      */
     @Override
     public Profile deactivate(UUID userId) {
-        return transactions.execute(status -> {
-            List<String> current = jdbc.queryForList(
-                    "SELECT status::text FROM users WHERE id=? FOR UPDATE",
-                    String.class,
-                    userId);
+        return transaction.execute(status -> {
+            List<Tuple> current = list(entityManager.createNativeQuery("""
+                    SELECT status
+                    FROM users
+                    WHERE id=:userId
+                    FOR UPDATE
+                    """, Tuple.class)
+                    .setParameter("userId", userId));
             if (current.isEmpty()) {
                 return null;
             }
-            if (!"deactivated".equals(current.getFirst())) {
-                jdbc.update("""
+            if (!"deactivated".equals(current.getFirst().get("status", String.class))) {
+                entityManager.createNativeQuery("""
                         UPDATE users
-                        SET status='deactivated'::user_status_t,
+                        SET status='deactivated',
                             deactivated_at=now(),
                             updated_at=now()
-                        WHERE id=?
-                        """, userId);
+                        WHERE id=:userId
+                        """)
+                        .setParameter("userId", userId)
+                        .executeUpdate();
             }
-            jdbc.update("UPDATE users SET email=NULL,nickname=NULL WHERE id=?", userId);
-            jdbc.update("DELETE FROM user_identities WHERE user_id=?", userId);
-            jdbc.update("""
+            entityManager.createNativeQuery("""
+                    UPDATE users
+                    SET email=NULL,nickname=NULL
+                    WHERE id=:userId
+                    """)
+                    .setParameter("userId", userId)
+                    .executeUpdate();
+            entityManager.createNativeQuery("""
+                    DELETE FROM user_identities
+                    WHERE user_id=:userId
+                    """)
+                    .setParameter("userId", userId)
+                    .executeUpdate();
+            entityManager.createNativeQuery("""
                     UPDATE refresh_tokens
                     SET revoked_at=now()
-                    WHERE user_id=? AND revoked_at IS NULL
-                    """, userId);
-            // 푸시 토큰도 파기 트랜잭션에 넣는다 — 나누면 "탈퇴했는데 알림은 오는" 계정이
-            // 남는다. 테이블 주인은 push 지만, 여기서 함께 치는 이유는 위 refresh_tokens 와 같다.
-            jdbc.update("DELETE FROM push_tokens WHERE user_id=?", userId);
+                    WHERE user_id=:userId
+                      AND revoked_at IS NULL
+                    """)
+                    .setParameter("userId", userId)
+                    .executeUpdate();
+            entityManager.createNativeQuery("""
+                    DELETE FROM push_tokens
+                    WHERE user_id=:userId
+                    """)
+                    .setParameter("userId", userId)
+                    .executeUpdate();
             return find(userId);
         });
+    }
+
+    private static Profile profile(Tuple row) {
+        return new Profile(
+                row.get("id", UUID.class),
+                row.get("email", String.class),
+                row.get("nickname", String.class),
+                status(row.get("status", String.class)));
     }
 }

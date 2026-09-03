@@ -39,4 +39,16 @@ public class CommunityCategoryEntity extends AppGeneratedUuidEntity {
         this.description = description;
         this.sortOrder = sortOrder;
     }
+
+    public String getSlug() {
+        return slug;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public String getDescription() {
+        return description;
+    }
 }

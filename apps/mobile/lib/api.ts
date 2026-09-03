@@ -213,7 +213,7 @@ export type ReportHistoryResponse = {
 export type AuthUser = {
   id: string;
   email: string | null;
-  status: 'active' | 'suspended';
+  status: 'active' | 'deactivated';
 };
 
 export type ConsentDocument = {
@@ -224,6 +224,23 @@ export type ConsentDocument = {
   body: string;
   required: boolean;
   published_at: string;
+};
+
+export type ConsentDecision = 'granted' | 'declined' | 'revoked';
+
+export type ConsentEntryDocument = ConsentDocument & {
+  current_decision: ConsentDecision | null;
+};
+
+export type ConsentEntryStatus =
+  | 'allowed'
+  | 'decision_required'
+  | 'blocked';
+
+export type ConsentEntryResponse = {
+  entry_status: ConsentEntryStatus;
+  documents: ConsentEntryDocument[];
+  undecided_documents: ConsentEntryDocument[];
 };
 
 export type TokenPair = {
@@ -243,7 +260,7 @@ export type UploadIntent = {
   expires_at: string;
 };
 
-export type SessionStatus = 'created' | 'analyzing' | 'analyzed' | 'failed';
+export type SessionStatus = 'analyzing' | 'analyzed' | 'failed';
 
 export type PracticeSessionCreate = {
   session_id: string;
@@ -372,8 +389,15 @@ export const api = {
     return request('/v2/consents/pending', {}, { auth: true });
   },
 
-  recordConsent(documentId: string, action: 'granted' | 'declined' | 'revoked') {
-    return request('/v2/consents', jsonInit({ document_id: documentId, action }), {
+  consentEntry(): Promise<ConsentEntryResponse> {
+    return request('/v2/consents/entry', {}, { auth: true });
+  },
+
+  recordConsent(
+    documentId: string,
+    action: 'granted' | 'declined' | 'revoked',
+  ): Promise<void> {
+    return request<void>('/v2/consents', jsonInit({ document_id: documentId, action }), {
       requestId: true,
     });
   },

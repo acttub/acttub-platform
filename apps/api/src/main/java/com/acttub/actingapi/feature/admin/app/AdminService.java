@@ -6,13 +6,12 @@ import java.util.List;
 
 import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminSession;
 import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminSessions;
-import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminStats;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.stereotype.Service;
 
 /**
- * 운영 지표 조회의 규칙. 집계 자체는 SQL 이 하고, 여기서는 <b>무엇을 빼고 세는지</b>와
+ * 운영 세션 조회의 규칙. 읽는 것은 SQL 이 하고, 여기서는 <b>어느 계정을 빼는지</b>와
  * 세션에 재생 주소를 붙이는 일을 정한다.
  *
  * <p>토큰 검사와 {@code limit} 검증은 여기 없다 — 헤더와 질의 문자열을 다루는 일이고 422 본문의
@@ -50,10 +49,6 @@ public class AdminService {
                 .map(String::strip)
                 .filter(value -> !value.isEmpty())
                 .toList();
-    }
-
-    public AdminStats stats() {
-        return metrics.stats(excludeEmails);
     }
 
     public AdminSessions sessions(int limit) {

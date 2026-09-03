@@ -61,7 +61,7 @@ export async function loadPracticeSession({
     const loaded = await getPracticeSession(sessionId);
     if (!isCurrent()) return { kind: "superseded" };
     onLoaded(loaded);
-    if (loaded.status === "created" || loaded.status === "analyzing") {
+    if (loaded.status === "analyzing") {
       return { kind: "analyzing" };
     }
     if (loaded.status === "failed") return { kind: "analysisFailed" };

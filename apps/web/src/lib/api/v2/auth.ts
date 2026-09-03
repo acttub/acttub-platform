@@ -4,10 +4,6 @@ import {
   setTokens,
 } from "../../auth/token-store";
 import { emitSessionEvent } from "../../auth/session-events";
-import {
-  clearSignupAttribution,
-  getSignupAttribution,
-} from "../../../features/auth/signup-attribution";
 import { apiFetch } from "./client";
 import type { LoginRequest, LogoutRequest, TokenPairResponse } from "./types";
 
@@ -15,19 +11,13 @@ export async function login(
   provider: LoginRequest["provider"],
   idToken: string,
 ): Promise<TokenPairResponse> {
-  const signupAttribution = getSignupAttribution();
   const { data } = await apiFetch<TokenPairResponse>("/v2/auth/login", {
     method: "POST",
-    body: {
-      provider,
-      id_token: idToken,
-      ...(signupAttribution ? { signup_attribution: signupAttribution } : {}),
-    } satisfies LoginRequest,
+    body: { provider, id_token: idToken } satisfies LoginRequest,
     auth: false,
     retryOn401: false,
   });
   setTokens(data, data.user);
-  clearSignupAttribution();
   emitSessionEvent("login");
   return data;
 }

@@ -10,6 +10,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeoutException;
 
+import com.acttub.actingapi.platform.observability.FailureKind;
+import com.acttub.actingapi.support.RecordingFailureReporter;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -30,7 +32,8 @@ class GeminiVideoCompressorTest {
                 },
                 (command, timeout) -> {
                     throw new AssertionError("ffmpeg must not run");
-                });
+                },
+                new RecordingFailureReporter());
 
         assertThat(compressor.compress(source)).isEqualTo(source);
     }
@@ -48,16 +51,24 @@ class GeminiVideoCompressorTest {
         for (Exception failure : List.of(
                 new IOException("exit 1"),
                 new TimeoutException("timed out"))) {
+            RecordingFailureReporter reporter = new RecordingFailureReporter();
             Path source = source("failure-" + failure.getClass().getSimpleName() + ".mov", 5);
             Path output = outputFor(source);
-            GeminiVideoCompressor compressor = compressor(command -> "/usr/bin/ffmpeg",
+            GeminiVideoCompressor compressor = compressor(
+                    command -> "/usr/bin/ffmpeg",
                     (command, timeout) -> {
                         Files.write(output, new byte[] {1});
                         throw failure;
-                    });
+                    },
+                    reporter);
 
             assertThat(compressor.compress(source)).isEqualTo(source);
             assertThat(output).doesNotExist();
+            assertThat(reporter.reports()).singleElement().satisfies(report -> {
+                assertThat(report.failure()).isSameAs(failure);
+                assertThat(report.kind()).isEqualTo(FailureKind.UNEXPECTED);
+                assertThat(report.context()).isEqualTo("GeminiVideoCompressor.compress");
+            });
         }
     }
 
@@ -125,7 +136,14 @@ class GeminiVideoCompressorTest {
     private GeminiVideoCompressor compressor(
             GeminiVideoCompressor.ExecutableFinder finder,
             GeminiVideoCompressor.CommandRunner runner) {
-        return new GeminiVideoCompressor(4, Duration.ofSeconds(600), finder, runner);
+        return compressor(finder, runner, new RecordingFailureReporter());
+    }
+
+    private GeminiVideoCompressor compressor(
+            GeminiVideoCompressor.ExecutableFinder finder,
+            GeminiVideoCompressor.CommandRunner runner,
+            RecordingFailureReporter reporter) {
+        return new GeminiVideoCompressor(4, Duration.ofSeconds(600), finder, runner, reporter);
     }
 
     private GeminiVideoCompressor.CommandRunner noRun() {

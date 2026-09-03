@@ -1,7 +1,7 @@
 package com.acttub.actingapi.feature.practice.adapter.db;
 
-import java.sql.ResultSet;
-import java.sql.SQLException;
+import static com.acttub.actingapi.platform.persistence.NativeTuples.list;
+
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -12,10 +12,13 @@ import com.acttub.actingapi.feature.practice.app.ExternalOperationRow;
 import com.acttub.actingapi.feature.practice.app.PracticeSessionLedger;
 import com.acttub.actingapi.feature.practice.app.PracticeSessionOperation;
 import com.acttub.actingapi.feature.practice.app.PracticeSessionRow;
+import com.acttub.actingapi.feature.practice.schema.PracticeSessionEntity;
+import com.acttub.actingapi.platform.schema.PracticeStatus;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.springframework.jdbc.core.JdbcTemplate;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.Tuple;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
@@ -33,15 +36,15 @@ public class PostgresPracticeSessionLedger implements PracticeSessionLedger {
     private static final String SHA256_ERROR =
             "SHA-256 values must be 64 hexadecimal characters";
 
-    private final JdbcTemplate jdbc;
+    private final EntityManager entityManager;
     private final ObjectMapper objectMapper;
     private final TransactionTemplate transactionTemplate;
 
     public PostgresPracticeSessionLedger(
-            JdbcTemplate jdbc,
+            EntityManager entityManager,
             ObjectMapper objectMapper,
             PlatformTransactionManager transactionManager) {
-        this.jdbc = jdbc;
+        this.entityManager = entityManager;
         this.objectMapper = objectMapper;
         this.transactionTemplate = new TransactionTemplate(transactionManager);
         this.transactionTemplate.setPropagationBehavior(
@@ -112,51 +115,27 @@ public class PostgresPracticeSessionLedger implements PracticeSessionLedger {
         }
 
         UUID sessionId = UUID.randomUUID();
-        jdbc.update("""
-                INSERT INTO practice_sessions (
-                    id,
-                    user_id,
-                    upload_intent_id,
-                    status,
-                    situation,
-                    character_context,
-                    goal,
-                    subtext,
-                    blockage_kind,
-                    sub_branch,
-                    blockage_detail,
-                    continued_from
-                )
-                VALUES (
-                    ?,
-                    ?,
-                    ?,
-                    'analyzing'::practice_status_t,
-                    ?,
-                    ?,
-                    ?,
-                    NULL,
-                    ?,
-                    ?,
-                    ?,
-                    ?
-                )
-                """,
+        PracticeSessionEntity session = new PracticeSessionEntity(
                 sessionId,
                 userId,
                 uploadIntentId,
+                PracticeStatus.ANALYZING,
                 situation,
                 characterContext,
-                goal,
+                null,
                 blockageKind,
                 subBranch,
                 blockageDetail,
+                goal,
                 continuedFrom);
+        entityManager.persist(session);
+        entityManager.flush();
 
         UUID operationId = insertAnalyzeOperation(
                 sessionId, userId, requestId, requestFingerprint);
         if (operationId == null) {
-            jdbc.update("DELETE FROM practice_sessions WHERE id = ?", sessionId);
+            entityManager.remove(session);
+            entityManager.flush();
             ExternalOperationRow winner = requireOperation(userId, requestId);
             return replay(winner, requestFingerprint, null);
         }
@@ -195,12 +174,15 @@ public class PostgresPracticeSessionLedger implements PracticeSessionLedger {
             return replay(winner, requestFingerprint, sessionId);
         }
 
-        jdbc.update("""
+        entityManager.createNativeQuery("""
                 UPDATE practice_sessions
-                SET status = 'analyzing'::practice_status_t,
-                    updated_at = ?
-                WHERE id = ?
-                """, retriedAt, sessionId);
+                SET status = 'analyzing',
+                    updated_at = :retriedAt
+                WHERE id = :sessionId
+                """)
+                .setParameter("retriedAt", retriedAt)
+                .setParameter("sessionId", sessionId)
+                .executeUpdate();
 
         return new PracticeSessionOperation(
                 requireSession(sessionId),
@@ -210,41 +192,29 @@ public class PostgresPracticeSessionLedger implements PracticeSessionLedger {
     }
 
     private boolean lockFinalizedUpload(UUID userId, UUID uploadIntentId) {
-        List<UUID> rows = jdbc.queryForList("""
-                SELECT id
+        List<Tuple> rows = list(entityManager.createNativeQuery("""
+                SELECT id AS id
                 FROM upload_intents
-                WHERE id = ?
-                  AND user_id = ?
-                  AND status = 'finalized'::upload_status_t
+                WHERE id = :uploadIntentId
+                  AND user_id = :userId
+                  AND status = 'finalized'
                 FOR UPDATE
-                """, UUID.class, uploadIntentId, userId);
+                """, Tuple.class)
+                .setParameter("uploadIntentId", uploadIntentId)
+                .setParameter("userId", userId));
         return !rows.isEmpty();
     }
 
     private PracticeSessionRow lockVisibleSession(UUID userId, UUID sessionId) {
-        List<PracticeSessionRow> rows = jdbc.query("""
-                SELECT
-                    id,
-                    user_id,
-                    upload_intent_id,
-                    status::text AS status,
-                    situation,
-                    character_context,
-                    goal,
-                    subtext,
-                    blockage_kind,
-                    sub_branch,
-                    blockage_detail,
-                    hidden_at,
-                    created_at,
-                    updated_at
-                FROM practice_sessions
-                WHERE id = ?
-                  AND user_id = ?
+        List<Tuple> rows = list(entityManager.createNativeQuery(sessionSelect() + """
+                WHERE id = :sessionId
+                  AND user_id = :userId
                   AND hidden_at IS NULL
                 FOR UPDATE
-                """, this::mapPracticeSession, sessionId, userId);
-        return rows.isEmpty() ? null : rows.getFirst();
+                """, Tuple.class)
+                .setParameter("sessionId", sessionId)
+                .setParameter("userId", userId));
+        return rows.isEmpty() ? null : practiceSession(rows.getFirst());
     }
 
     private UUID insertAnalyzeOperation(
@@ -253,26 +223,35 @@ public class PostgresPracticeSessionLedger implements PracticeSessionLedger {
             UUID requestId,
             String requestFingerprint) {
         UUID operationId = UUID.randomUUID();
-        List<UUID> inserted = jdbc.query("""
-                INSERT INTO external_operations (
-                    id,
-                    session_id,
-                    user_id,
-                    request_id,
-                    kind,
-                    request_fingerprint
+        List<Tuple> inserted = list(entityManager.createNativeQuery("""
+                WITH inserted AS (
+                    INSERT INTO external_operations (
+                        id,
+                        session_id,
+                        user_id,
+                        request_id,
+                        kind,
+                        request_fingerprint
+                    )
+                    VALUES (
+                        :operationId,
+                        :sessionId,
+                        :userId,
+                        :requestId,
+                        'analyze',
+                        :requestFingerprint
+                    )
+                    ON CONFLICT (user_id, request_id) DO NOTHING
+                    RETURNING id
                 )
-                VALUES (?, ?, ?, ?, 'analyze'::operation_kind_t, ?)
-                ON CONFLICT (user_id, request_id) DO NOTHING
-                RETURNING id
-                """,
-                (row, rowNumber) -> row.getObject("id", UUID.class),
-                operationId,
-                sessionId,
-                userId,
-                requestId,
-                requestFingerprint);
-        return inserted.isEmpty() ? null : inserted.getFirst();
+                SELECT id FROM inserted
+                """, Tuple.class)
+                .setParameter("operationId", operationId)
+                .setParameter("sessionId", sessionId)
+                .setParameter("userId", userId)
+                .setParameter("requestId", requestId)
+                .setParameter("requestFingerprint", requestFingerprint));
+        return inserted.isEmpty() ? null : inserted.getFirst().get("id", UUID.class);
     }
 
     private PracticeSessionOperation replay(
@@ -290,12 +269,12 @@ public class PostgresPracticeSessionLedger implements PracticeSessionLedger {
     }
 
     private ExternalOperationRow findOperation(UUID userId, UUID requestId) {
-        List<ExternalOperationRow> rows = jdbc.query(
-                operationSelect() + " WHERE user_id = ? AND request_id = ?",
-                this::mapExternalOperation,
-                userId,
-                requestId);
-        return rows.isEmpty() ? null : rows.getFirst();
+        List<Tuple> rows = list(entityManager.createNativeQuery(
+                operationSelect() + " WHERE user_id = :userId AND request_id = :requestId",
+                Tuple.class)
+                .setParameter("userId", userId)
+                .setParameter("requestId", requestId));
+        return rows.isEmpty() ? null : externalOperation(rows.getFirst());
     }
 
     private ExternalOperationRow requireOperation(UUID userId, UUID requestId) {
@@ -307,23 +286,32 @@ public class PostgresPracticeSessionLedger implements PracticeSessionLedger {
     }
 
     private ExternalOperationRow requireOperation(UUID operationId) {
-        List<ExternalOperationRow> rows = jdbc.query(
-                operationSelect() + " WHERE id = ?",
-                this::mapExternalOperation,
-                operationId);
+        List<Tuple> rows = list(entityManager.createNativeQuery(
+                operationSelect() + " WHERE id = :operationId", Tuple.class)
+                .setParameter("operationId", operationId));
         if (rows.isEmpty()) {
             throw new IllegalStateException("inserted external operation is missing");
         }
-        return rows.getFirst();
+        return externalOperation(rows.getFirst());
     }
 
     private PracticeSessionRow requireSession(UUID sessionId) {
-        List<PracticeSessionRow> rows = jdbc.query("""
+        List<Tuple> rows = list(entityManager.createNativeQuery(
+                sessionSelect() + " WHERE id = :sessionId", Tuple.class)
+                .setParameter("sessionId", sessionId));
+        if (rows.isEmpty()) {
+            throw new IllegalStateException("practice session is missing");
+        }
+        return practiceSession(rows.getFirst());
+    }
+
+    private static String sessionSelect() {
+        return """
                 SELECT
                     id,
                     user_id,
                     upload_intent_id,
-                    status::text AS status,
+                    status,
                     situation,
                     character_context,
                     goal,
@@ -335,23 +323,18 @@ public class PostgresPracticeSessionLedger implements PracticeSessionLedger {
                     created_at,
                     updated_at
                 FROM practice_sessions
-                WHERE id = ?
-                """, this::mapPracticeSession, sessionId);
-        if (rows.isEmpty()) {
-            throw new IllegalStateException("practice session is missing");
-        }
-        return rows.getFirst();
+                """;
     }
 
-    private String operationSelect() {
+    private static String operationSelect() {
         return """
                 SELECT
                     id,
                     session_id,
                     user_id,
                     request_id,
-                    kind::text AS kind,
-                    status::text AS status,
+                    kind,
+                    status,
                     attempt_count,
                     request_fingerprint,
                     lease_token,
@@ -364,57 +347,50 @@ public class PostgresPracticeSessionLedger implements PracticeSessionLedger {
                 """;
     }
 
-    private PracticeSessionRow mapPracticeSession(ResultSet row, int rowNumber)
-            throws SQLException {
+    private static PracticeSessionRow practiceSession(Tuple row) {
         return new PracticeSessionRow(
-                row.getObject("id", UUID.class),
-                row.getObject("user_id", UUID.class),
-                row.getObject("upload_intent_id", UUID.class),
-                row.getString("status"),
-                row.getString("situation"),
-                row.getString("character_context"),
-                row.getString("goal"),
-                row.getString("subtext"),
-                row.getString("blockage_kind"),
-                row.getString("sub_branch"),
-                row.getString("blockage_detail"),
-                instant(row, "hidden_at"),
-                instant(row, "created_at"),
-                instant(row, "updated_at"));
+                row.get("id", UUID.class),
+                row.get("user_id", UUID.class),
+                row.get("upload_intent_id", UUID.class),
+                row.get("status", String.class),
+                row.get("situation", String.class),
+                row.get("character_context", String.class),
+                row.get("goal", String.class),
+                row.get("subtext", String.class),
+                row.get("blockage_kind", String.class),
+                row.get("sub_branch", String.class),
+                row.get("blockage_detail", String.class),
+                row.get("hidden_at", Instant.class),
+                row.get("created_at", Instant.class),
+                row.get("updated_at", Instant.class));
     }
 
-    private ExternalOperationRow mapExternalOperation(ResultSet row, int rowNumber)
-            throws SQLException {
+    private ExternalOperationRow externalOperation(Tuple row) {
         return new ExternalOperationRow(
-                row.getObject("id", UUID.class),
-                row.getObject("session_id", UUID.class),
-                row.getObject("user_id", UUID.class),
-                row.getObject("request_id", UUID.class),
-                row.getString("kind"),
-                row.getString("status"),
-                row.getInt("attempt_count"),
-                row.getString("request_fingerprint"),
-                row.getObject("lease_token", UUID.class),
-                instant(row, "lease_expires_at"),
-                row.getString("error_code"),
-                json(row.getString("response_payload")),
-                instant(row, "created_at"),
-                instant(row, "updated_at"));
+                row.get("id", UUID.class),
+                row.get("session_id", UUID.class),
+                row.get("user_id", UUID.class),
+                row.get("request_id", UUID.class),
+                row.get("kind", String.class),
+                row.get("status", String.class),
+                row.get("attempt_count", Integer.class),
+                row.get("request_fingerprint", String.class),
+                row.get("lease_token", UUID.class),
+                row.get("lease_expires_at", Instant.class),
+                row.get("error_code", String.class),
+                json(row.get("response_payload", String.class)),
+                row.get("created_at", Instant.class),
+                row.get("updated_at", Instant.class));
     }
 
-    private static Instant instant(ResultSet row, String column) throws SQLException {
-        OffsetDateTime value = row.getObject(column, OffsetDateTime.class);
-        return value == null ? null : value.toInstant();
-    }
-
-    private JsonNode json(String value) throws SQLException {
+    private JsonNode json(String value) {
         if (value == null) {
             return null;
         }
         try {
             return objectMapper.readTree(value);
-        } catch (JsonProcessingException exc) {
-            throw new SQLException("invalid JSONB value", exc);
+        } catch (JsonProcessingException exception) {
+            throw new IllegalStateException("external operation contains invalid JSON", exception);
         }
     }
 

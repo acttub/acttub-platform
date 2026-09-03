@@ -52,6 +52,32 @@ test("403 consent_required는 기존 ApiError를 유지하면서 세션 이벤�
   }
 });
 
+test("403 consent_blocked도 원 요청을 재실행하지 않고 동의 판정을 다시 읽게 한다", async () => {
+  let fetchCount = 0;
+  let eventCount = 0;
+  const unsubscribe = onSessionEvent((event) => {
+    if (event === "consent-required") eventCount += 1;
+  });
+  globalThis.fetch = async () => {
+    fetchCount += 1;
+    return new Response(JSON.stringify({ detail: "consent_blocked" }), {
+      status: 403,
+      headers: { "Content-Type": "application/json" },
+    });
+  };
+
+  try {
+    await assert.rejects(
+      apiFetch("/v2/uploads/intents"),
+      (error) => error?.status === 403 && error?.code === "consent_blocked",
+    );
+    assert.equal(fetchCount, 1);
+    assert.equal(eventCount, 1);
+  } finally {
+    unsubscribe();
+  }
+});
+
 test("getPendingConsents는 인증된 사용자 pending endpoint를 조회한다", async () => {
   let request;
   globalThis.fetch = async (url, options) => {
@@ -66,6 +92,7 @@ test("getPendingConsents는 인증된 사용자 pending endpoint를 조회한다
   assert.equal(request.url, "/v2/consents/pending");
   assert.equal(request.options.method, "GET");
   assert.equal(request.options.headers.get("Authorization"), "Bearer access-token");
+  assert.equal(request.options.headers.get("X-Acttub-Consent-Entry"), "1");
 });
 
 // 여기 있던 소스 정규식 순찰("TermsGate는 local pending이 없을 때 …")은 걷었다. 단언이

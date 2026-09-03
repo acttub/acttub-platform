@@ -3,11 +3,9 @@ package com.acttub.actingapi.feature.coach.schema;
 import java.time.Instant;
 import java.util.UUID;
 import jakarta.persistence.*;
-import org.hibernate.annotations.JdbcType;
 
 import com.acttub.actingapi.platform.schema.SessionStatus;
 import com.acttub.actingapi.platform.schema.CloseReason;
-import com.acttub.actingapi.platform.schema.PgEnumJdbcType;
 
 @Entity
 @Table(name = "coach_sessions")
@@ -24,13 +22,11 @@ public class CoachSessionEntity {
     UUID summaryId;
 
     @Convert(converter = SessionStatus.JpaConverter.class)
-    @JdbcType(PgEnumJdbcType.class)
-    @Column(name = "status", nullable = false, columnDefinition = "session_status_t")
+    @Column(name = "status", nullable = false, columnDefinition = "text")
     SessionStatus status;
 
     @Convert(converter = CloseReason.JpaConverter.class)
-    @JdbcType(PgEnumJdbcType.class)
-    @Column(name = "close_reason", columnDefinition = "close_reason_t")
+    @Column(name = "close_reason", columnDefinition = "text")
     CloseReason closeReason;
 
     @Column(name = "conversation_summary", nullable = false)
@@ -46,9 +42,20 @@ public class CoachSessionEntity {
     }
 
     public CoachSessionEntity(UUID id, UUID practiceSessionId, SessionStatus status) {
+        this(id, practiceSessionId, null, status, "");
+    }
+
+    public CoachSessionEntity(
+            UUID id,
+            UUID practiceSessionId,
+            UUID summaryId,
+            SessionStatus status,
+            String conversationSummary) {
         this.id = id;
         this.practiceSessionId = practiceSessionId;
+        this.summaryId = summaryId;
         this.status = status;
+        this.conversationSummary = conversationSummary;
     }
 
     public void close(CloseReason reason) {

@@ -16,6 +16,7 @@ import com.acttub.actingapi.feature.analysis.app.AnalysisStore;
 import com.acttub.actingapi.feature.analysis.app.AnalysisWorker;
 import com.acttub.actingapi.integration.storage.ObjectStorage;
 import com.acttub.actingapi.integration.storage.StoredObjectMetadata;
+import com.acttub.actingapi.support.RecordingFailureReporter;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 
@@ -24,7 +25,8 @@ class AnalysisWorkerConfigurationTest {
             .withUserConfiguration(AnalysisWorkerConfiguration.class)
             .withBean(AnalysisStore.class, EmptyStore::new)
             .withBean(AnalysisProcessor.class, () -> (path, context) -> null)
-            .withBean(Clock.class, Clock::systemUTC);
+            .withBean(Clock.class, Clock::systemUTC)
+            .withBean(RecordingFailureReporter.class, RecordingFailureReporter::new);
 
     /**
      * 스토리지 판정은 {@code @ConditionalOnBean} 이 아니라 런타임 {@code ObjectProvider}

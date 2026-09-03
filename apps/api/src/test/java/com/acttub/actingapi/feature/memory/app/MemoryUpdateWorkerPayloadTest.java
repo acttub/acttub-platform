@@ -6,13 +6,17 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
 import com.acttub.actingapi.integration.llm.GeneratedText;
 import com.acttub.actingapi.integration.llm.TextGenerator;
 import com.acttub.actingapi.integration.llm.TokenUsage;
+import com.acttub.actingapi.platform.ledger.LeaseOwnershipException;
+import com.acttub.actingapi.platform.observability.FailureKind;
 import com.acttub.actingapi.platform.schema.ActorMemoryField;
+import com.acttub.actingapi.support.RecordingFailureReporter;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.DisplayName;
@@ -57,19 +61,83 @@ class MemoryUpdateWorkerPayloadTest {
                         + "\"updated_fields\":[]}");
     }
 
+    @Test
+    void updateFailureFailsTheOperationAndIsReported() {
+        RuntimeException failure = new IllegalStateException("memory unavailable");
+        RecordingQueue queue = new RecordingQueue();
+        RecordingFailureReporter reporter = new RecordingFailureReporter();
+
+        worker(queue, new FailingMemory(failure), "{}", reporter).runOnce();
+
+        assertThat(queue.transitions).containsExactly("fail:memory_update_failed");
+        assertThat(reporter.reports()).singleElement().satisfies(report -> {
+            assertThat(report.failure()).isSameAs(failure);
+            assertThat(report.kind()).isEqualTo(FailureKind.UNEXPECTED);
+            assertThat(report.context())
+                    .isEqualTo("MemoryUpdateWorker.update operation_id=" + OPERATION);
+        });
+    }
+
+    @Test
+    void leaseOwnershipLossWhileCompletingOrFailingIsReported() {
+        RecordingQueue completing = new RecordingQueue();
+        LeaseOwnershipException completeLoss = new LeaseOwnershipException("complete stolen");
+        completing.completeFailure = completeLoss;
+        RecordingFailureReporter completeReporter = new RecordingFailureReporter();
+
+        worker(completing, new EmptyMemory(), "{}", completeReporter).runOnce();
+
+        assertThat(completeReporter.reports()).singleElement().satisfies(report -> {
+            assertThat(report.failure()).isSameAs(completeLoss);
+            assertThat(report.context())
+                    .isEqualTo("MemoryUpdateWorker.complete operation_id=" + OPERATION);
+        });
+
+        RuntimeException updateFailure = new IllegalStateException("memory unavailable");
+        RecordingQueue failing = new RecordingQueue();
+        LeaseOwnershipException failLoss = new LeaseOwnershipException("fail stolen");
+        failing.failFailure = failLoss;
+        RecordingFailureReporter failReporter = new RecordingFailureReporter();
+
+        worker(failing, new FailingMemory(updateFailure), "{}", failReporter).runOnce();
+
+        assertThat(failReporter.reports())
+                .extracting(RecordingFailureReporter.Report::failure)
+                .containsExactly(updateFailure, failLoss);
+        assertThat(failReporter.reports())
+                .extracting(RecordingFailureReporter.Report::context)
+                .containsExactly(
+                        "MemoryUpdateWorker.update operation_id=" + OPERATION,
+                        "MemoryUpdateWorker.fail operation_id=" + OPERATION);
+    }
+
     private static MemoryUpdateWorker worker(RecordingQueue queue, String extracted) {
+        return worker(
+                queue, new EmptyMemory(), extracted, new RecordingFailureReporter());
+    }
+
+    private static MemoryUpdateWorker worker(
+            RecordingQueue queue,
+            MemoryRepository memory,
+            String extracted,
+            RecordingFailureReporter reporter) {
         return new MemoryUpdateWorker(
-                new EmptyMemory(),
+                memory,
                 queue,
                 new ObjectMapper(),
                 (system, user) -> new GeneratedText(extracted, new TokenUsage(0, 0, 0)),
-                Clock.fixed(Instant.EPOCH, ZoneOffset.UTC));
+                Clock.fixed(Instant.EPOCH, ZoneOffset.UTC),
+                new MemoryExtractor(reporter),
+                reporter);
     }
 
     /** 잡 하나를 내주고, 성공으로 닫을 때 넘어온 본문을 잡아 둔다. */
     private static final class RecordingQueue implements MemoryUpdateQueue {
         private JsonNode payload;
         private boolean claimed;
+        private final List<String> transitions = new ArrayList<>();
+        private RuntimeException completeFailure;
+        private RuntimeException failFailure;
 
         @Override
         public UUID claimNext(UUID leaseToken, Duration duration, Instant now) {
@@ -88,17 +156,23 @@ class MemoryUpdateWorkerPayloadTest {
         @Override
         public void complete(
                 UUID operationId, UUID leaseToken, JsonNode responsePayload, Instant now) {
+            if (completeFailure != null) {
+                throw completeFailure;
+            }
             payload = responsePayload;
         }
 
         @Override
         public void fail(UUID operationId, UUID leaseToken, String errorCode, Instant now) {
-            throw new AssertionError("성공 경로에서 실패로 닫으면 안 된다: " + errorCode);
+            transitions.add("fail:" + errorCode);
+            if (failFailure != null) {
+                throw failFailure;
+            }
         }
     }
 
     /** 기억이 비어 있고 쓰는 족족 받아들이는 저장소 — 여기 관심사는 응답 바이트뿐이다. */
-    private static final class EmptyMemory implements MemoryRepository {
+    private static class EmptyMemory implements MemoryRepository {
 
         @Override
         public List<MemoryEntry> list(UUID userId) {
@@ -126,6 +200,19 @@ class MemoryUpdateWorkerPayloadTest {
             return new MemoryUpdateMaterial(
                     UUID.randomUUID(), practiceSessionId, "목표", "분석", "캐릭터 분석", null,
                     List.of(), List.of());
+        }
+    }
+
+    private static final class FailingMemory extends EmptyMemory {
+        private final RuntimeException failure;
+
+        private FailingMemory(RuntimeException failure) {
+            this.failure = failure;
+        }
+
+        @Override
+        public MemoryUpdateMaterial material(UUID practiceSessionId) {
+            throw failure;
         }
     }
 }

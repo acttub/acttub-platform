@@ -225,7 +225,7 @@ class CommunityErrorContractIT {
     private void insertUser(UUID id, String nickname) {
         jdbc.update("""
                 INSERT INTO users(id, email, nickname, status)
-                VALUES (?, NULL, ?, 'active'::user_status_t)
+                VALUES (?, NULL, ?, 'active')
                 """, id, nickname);
     }
 
@@ -240,7 +240,7 @@ class CommunityErrorContractIT {
                     id, category_id, author_id, title, body, anonymous, status,
                     created_at, updated_at
                 )
-                VALUES (?, ?, ?, ?, '본문', false, 'visible'::content_status_t, ?, ?)
+                VALUES (?, ?, ?, ?, '본문', false, 'visible', ?, ?)
                 """, id, categoryId, authorId, "제목 " + id, at, at);
         return id;
     }
@@ -252,7 +252,7 @@ class CommunityErrorContractIT {
                 INSERT INTO community_comments (
                     id, post_id, author_id, body, anonymous, status, created_at, updated_at
                 )
-                VALUES (?, ?, ?, '댓글', false, 'visible'::content_status_t, ?, ?)
+                VALUES (?, ?, ?, '댓글', false, 'visible', ?, ?)
                 """, id, postId, authorId, at, at);
         jdbc.update("UPDATE community_posts SET comment_count = comment_count + 1 WHERE id = ?",
                 postId);

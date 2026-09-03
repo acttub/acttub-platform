@@ -1,7 +1,9 @@
 package com.acttub.actingapi.feature.community;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 
 import java.time.OffsetDateTime;
@@ -218,6 +220,114 @@ class CommunityEndpointIT {
                 postId)).isEqualTo(1);
     }
 
+    @Test
+    void anonymousPostAuthorKeepsTheWriterAliasOnTheirAnonymousComment() throws Exception {
+        var postResponse = mvc.perform(post("/v2/community/posts")
+                        .header("Authorization", bearer(VIEWER))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"category_slug":"free","title":"익명 글",
+                                 "body":"익명 본문","anonymous":true}
+                                """))
+                .andReturn().getResponse();
+        assertThat(postResponse.getStatus()).isEqualTo(201);
+        JsonNode createdPost = json(postResponse.getContentAsString());
+        assertThat(createdPost.path("anonymous").booleanValue()).isTrue();
+        assertThat(createdPost.path("author").path("alias").textValue()).isEqualTo("익명");
+
+        UUID postId = UUID.fromString(createdPost.path("id").textValue());
+        var commentResponse = mvc.perform(post(
+                        "/v2/community/posts/{post_id}/comments", postId)
+                        .header("Authorization", bearer(VIEWER))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"body\":\"글쓴이 댓글\",\"anonymous\":true}"))
+                .andReturn().getResponse();
+        assertThat(commentResponse.getStatus()).isEqualTo(201);
+        JsonNode createdComment = json(commentResponse.getContentAsString());
+        assertThat(createdComment.path("anonymous").booleanValue()).isTrue();
+        assertThat(createdComment.path("author").path("alias").textValue())
+                .isEqualTo("글쓴이");
+        assertThat(jdbc.queryForObject("""
+                SELECT COUNT(*)
+                FROM community_anonymous_aliases
+                WHERE post_id = ?
+                """, Integer.class, postId)).isZero();
+    }
+
+    @Test
+    void reportKeepsItsReasonAndDetail() throws Exception {
+        UUID postId = insertPost(OTHER, false, at(1));
+
+        var response = mvc.perform(post("/v2/community/reports")
+                        .header("Authorization", bearer(VIEWER))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"target_type":"post","target_id":"%s",
+                                 "reason":"other","detail":"직접 적은 신고 근거"}
+                                """.formatted(postId)))
+                .andReturn().getResponse();
+
+        assertThat(response.getStatus()).isEqualTo(204);
+        assertThat(jdbc.queryForMap("""
+                SELECT target_type, reason, detail, status
+                FROM community_reports
+                WHERE reporter_id = ? AND target_id = ?
+                """, VIEWER, postId))
+                .containsEntry("target_type", "post")
+                .containsEntry("reason", "other")
+                .containsEntry("detail", "직접 적은 신고 근거")
+                .containsEntry("status", "pending");
+    }
+
+    @Test
+    void postMutationsAdvanceUpdatedAtWithoutChangingCreatedAt() throws Exception {
+        UUID updatedPost = insertPost(VIEWER, false, at(1));
+        UUID deletedPost = insertPost(VIEWER, false, at(2));
+
+        var updateResponse = mvc.perform(patch("/v2/community/posts/{post_id}", updatedPost)
+                        .header("Authorization", bearer(VIEWER))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"바뀐 제목\",\"body\":\"바뀐 본문\"}"))
+                .andReturn().getResponse();
+        assertThat(updateResponse.getStatus()).isEqualTo(200);
+        assertThat(OffsetDateTime.parse(json(updateResponse.getContentAsString())
+                .path("updated_at").textValue())).isAfter(at(1));
+
+        var deleteResponse = mvc.perform(delete("/v2/community/posts/{post_id}", deletedPost)
+                        .header("Authorization", bearer(VIEWER)))
+                .andReturn().getResponse();
+        assertThat(deleteResponse.getStatus()).isEqualTo(204);
+
+        assertStoredTimes(updatedPost, "community_posts", at(1), "visible");
+        assertStoredTimes(deletedPost, "community_posts", at(2), "deleted");
+    }
+
+    @Test
+    void commentMutationsAdvanceUpdatedAtWithoutChangingCreatedAt() throws Exception {
+        UUID postId = insertPost(VIEWER, false, at(1));
+        UUID updatedComment = insertComment(postId, VIEWER, false, at(2));
+        UUID deletedComment = insertComment(postId, VIEWER, false, at(3));
+
+        var updateResponse = mvc.perform(patch(
+                        "/v2/community/comments/{comment_id}", updatedComment)
+                        .header("Authorization", bearer(VIEWER))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"body\":\"바뀐 댓글\"}"))
+                .andReturn().getResponse();
+        assertThat(updateResponse.getStatus()).isEqualTo(200);
+        assertThat(OffsetDateTime.parse(json(updateResponse.getContentAsString())
+                .path("updated_at").textValue())).isAfter(at(2));
+
+        var deleteResponse = mvc.perform(delete(
+                        "/v2/community/comments/{comment_id}", deletedComment)
+                        .header("Authorization", bearer(VIEWER)))
+                .andReturn().getResponse();
+        assertThat(deleteResponse.getStatus()).isEqualTo(204);
+
+        assertStoredTimes(updatedComment, "community_comments", at(2), "visible");
+        assertStoredTimes(deletedComment, "community_comments", at(3), "deleted");
+    }
+
     private void assertPostValidationContract() throws Exception {
         assertPostValidation(
                 "{\"category_slug\":\"free\",\"title\":\"\",\"body\":\"\",\"anonymous\":false}",
@@ -288,7 +398,7 @@ class CommunityEndpointIT {
     private void insertUser(UUID id, String nickname) {
         jdbc.update("""
                 INSERT INTO users(id, email, nickname, status)
-                VALUES (?, NULL, ?, 'active'::user_status_t)
+                VALUES (?, NULL, ?, 'active')
                 """, id, nickname);
     }
 
@@ -302,7 +412,7 @@ class CommunityEndpointIT {
                     id, category_id, author_id, title, body, anonymous, status,
                     created_at, updated_at
                 )
-                VALUES (?, ?, ?, ?, ?, ?, 'visible'::content_status_t, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, 'visible', ?, ?)
                 """, id, categoryId, authorId, "제목 " + id, "본문", anonymous,
                 createdAt, createdAt);
         return id;
@@ -318,7 +428,7 @@ class CommunityEndpointIT {
                 INSERT INTO community_comments (
                     id, post_id, author_id, body, anonymous, status, created_at, updated_at
                 )
-                VALUES (?, ?, ?, '댓글', ?, 'visible'::content_status_t, ?, ?)
+                VALUES (?, ?, ?, '댓글', ?, 'visible', ?, ?)
                 """, id, postId, authorId, anonymous, createdAt, createdAt);
         jdbc.update("""
                 UPDATE community_posts SET comment_count = comment_count + 1 WHERE id = ?
@@ -337,6 +447,31 @@ class CommunityEndpointIT {
                 "SELECT view_count FROM community_posts WHERE id = ?",
                 Integer.class,
                 postId);
+    }
+
+    private void assertStoredTimes(
+            UUID id,
+            String table,
+            OffsetDateTime expectedCreatedAt,
+            String expectedStatus) {
+        OffsetDateTime createdAt = jdbc.queryForObject("""
+                SELECT created_at
+                FROM %s
+                WHERE id = ?
+                """.formatted(table), OffsetDateTime.class, id);
+        OffsetDateTime updatedAt = jdbc.queryForObject("""
+                SELECT updated_at
+                FROM %s
+                WHERE id = ?
+                """.formatted(table), OffsetDateTime.class, id);
+        String status = jdbc.queryForObject("""
+                SELECT status
+                FROM %s
+                WHERE id = ?
+                """.formatted(table), String.class, id);
+        assertThat(createdAt).isEqualTo(expectedCreatedAt);
+        assertThat(updatedAt).isAfter(expectedCreatedAt);
+        assertThat(status).isEqualTo(expectedStatus);
     }
 
     private String bearer(UUID userId) {

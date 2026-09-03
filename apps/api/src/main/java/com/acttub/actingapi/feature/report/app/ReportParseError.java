@@ -1,6 +1,8 @@
 package com.acttub.actingapi.feature.report.app;
 
-public class ReportParseError extends RuntimeException {
+import com.acttub.actingapi.platform.observability.ExternalFailure;
+
+public class ReportParseError extends RuntimeException implements ExternalFailure {
     public ReportParseError(String message) {
         super(message);
     }

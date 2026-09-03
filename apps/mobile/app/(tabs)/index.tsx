@@ -18,6 +18,12 @@ import {
   type AdmissionsResponse,
 } from '@/lib/admissions';
 import { translate as t } from '@/lib/i18n';
+import { StreakBadge, StreakCelebration } from '@/components/streak-badge';
+import {
+  readLastSeenStreak,
+  shouldCelebrateStreak,
+  writeLastSeenStreak,
+} from '@/lib/streak-celebration';
 
 const PREVIEW_COUNT = 2;
 
@@ -29,6 +35,7 @@ export default function HomeScreen() {
   const [meta, setMeta] = useState<Record<string, RecordMeta>>({});
   const [savedName, setSavedName] = useState<string | null>(null);
   const [admissions, setAdmissions] = useState<AdmissionsResponse | null>(null);
+  const [celebrateStreak, setCelebrateStreak] = useState<number | null>(null);
 
   useFocusEffect(
     useCallback(() => {
@@ -81,6 +88,19 @@ export default function HomeScreen() {
   );
 
   const { days, weekTotal, streak } = useMemo(() => buildWeekActivity(records), [records]);
+
+  // 연속일이 오늘 늘었으면(마지막으로 본 값보다 크면) 딱 한 번 축하한다 (SOMA-479).
+  useEffect(() => {
+    let cancelled = false;
+    void readLastSeenStreak().then((lastSeen) => {
+      if (cancelled) return;
+      if (shouldCelebrateStreak(lastSeen, streak)) setCelebrateStreak(streak);
+      void writeLastSeenStreak(streak);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [streak]);
   const total = records.length;
 
   const latest = records[0];
@@ -89,12 +109,16 @@ export default function HomeScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
+      {celebrateStreak !== null && (
+        <StreakCelebration streak={celebrateStreak} onDone={() => setCelebrateStreak(null)} />
+      )}
       <ScrollView contentContainerStyle={styles.container}>
         <View style={styles.helloRow}>
           <View style={styles.flex}>
             <Text style={styles.hello}>{name ? t('home.helloName', { name }) : t('home.hello')}</Text>
             <Text style={styles.helloSub}>{t('home.helloSub')}</Text>
           </View>
+          <StreakBadge streak={streak} celebrate={celebrateStreak !== null} />
         </View>
 
         {/* AI 코치 카드 — 카드 전체가 '연습 시작' 버튼이다(안에 버튼을 또 두지 않는다). */}
@@ -281,7 +305,7 @@ const styles = StyleSheet.create({
   admissionDept: { marginTop: 4, fontSize: 12, fontWeight: '500', color: palette.textFaint, lineHeight: 17 },
   admissionLabel: { fontSize: 11, fontWeight: '700', color: palette.textFaint },
   container: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 140 },
-  helloRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
+  helloRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   flex: { flex: 1 },
   hello: { fontSize: 14, color: palette.textDim, marginTop: 8 },
   helloSub: { fontSize: 22, fontWeight: '800', color: palette.text, marginTop: 4, lineHeight: 30 },

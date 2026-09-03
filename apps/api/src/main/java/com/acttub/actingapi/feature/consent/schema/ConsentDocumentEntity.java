@@ -5,15 +5,13 @@ import com.acttub.actingapi.platform.schema.*;
 import java.time.Instant;
 import java.util.UUID;
 import jakarta.persistence.*;
-import org.hibernate.annotations.JdbcType;
 
 @Entity
 @Table(name = "consent_documents")
 public class ConsentDocumentEntity extends AppGeneratedUuidEntity {
 
     @Convert(converter = ConsentType.JpaConverter.class)
-    @JdbcType(PgEnumJdbcType.class)
-    @Column(name = "type", nullable = false, columnDefinition = "consent_type_t")
+    @Column(name = "type", nullable = false, columnDefinition = "text")
     ConsentType type;
 
     @Column(name = "version", nullable = false)
@@ -62,5 +60,9 @@ public class ConsentDocumentEntity extends AppGeneratedUuidEntity {
 
     public boolean isRequired() {
         return required;
+    }
+
+    public Instant getPublishedAt() {
+        return publishedAt;
     }
 }

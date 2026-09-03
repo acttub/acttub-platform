@@ -2,6 +2,7 @@ package com.acttub.actingapi.feature.consent.adapter;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -10,7 +11,10 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.stream.Stream;
 
+import com.acttub.actingapi.feature.consent.adapter.db.ConsentDocumentJpaRepository;
+import com.acttub.actingapi.platform.observability.FailureKind;
 import com.acttub.actingapi.support.PostgresContainerSupport;
+import com.acttub.actingapi.support.RecordingFailureReporter;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
@@ -24,6 +28,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.DefaultApplicationArguments;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.core.io.ResourceLoader;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -43,6 +48,9 @@ class ConsentPublisherIT {
     JdbcTemplate jdbc;
 
     @Autowired
+    ConsentDocumentJpaRepository documents;
+
+    @Autowired
     ConsentDocumentPublisher publisher;
 
     @Autowired
@@ -55,8 +63,8 @@ class ConsentPublisherIT {
     @Order(1)
     void emptyDatabaseBootPublishesWholeManifestAndRepeatIsIdempotent() throws Exception {
         assertThat(jdbc.queryForList(
-                "SELECT type::text,version,title,required,length(body) body_length "
-                        + "FROM consent_documents ORDER BY type::text"))
+                "SELECT type,version,title,required,length(body) body_length "
+                        + "FROM consent_documents ORDER BY type"))
                 .hasSize(3)
                 .allSatisfy(row -> {
                     assertThat(row.get("required")).isEqualTo(true);
@@ -68,22 +76,29 @@ class ConsentPublisherIT {
     @Test
     @Order(2)
     void missingOrInvalidManifestNeverStopsStartup(@TempDir Path directory) throws Exception {
+        RecordingFailureReporter reporter = new RecordingFailureReporter();
         ConsentDocumentPublisher missing = new ConsentDocumentPublisher(
-                jdbc,
+                documents,
                 mapper,
                 resources,
-                directory.resolve("missing").toString());
+                directory.resolve("missing").toString(),
+                reporter);
         assertThatCode(() -> missing.run(new DefaultApplicationArguments()))
                 .doesNotThrowAnyException();
 
         Files.writeString(directory.resolve("manifest.json"), "{");
         ConsentDocumentPublisher invalid = new ConsentDocumentPublisher(
-                jdbc,
+                documents,
                 mapper,
                 resources,
-                directory.toString());
+                directory.toString(),
+                reporter);
         assertThatCode(() -> invalid.run(new DefaultApplicationArguments()))
                 .doesNotThrowAnyException();
+        assertThat(reporter.reports()).singleElement().satisfies(report -> {
+            assertThat(report.kind()).isEqualTo(FailureKind.UNEXPECTED);
+            assertThat(report.context()).isEqualTo("ConsentDocumentPublisher.seed");
+        });
     }
 
     @ParameterizedTest(name = "required가 {0}이면 manifest 전체를 거부한다")
@@ -106,10 +121,11 @@ class ConsentPublisherIT {
                 """.formatted(requiredMember));
 
         ConsentDocumentPublisher malformed = new ConsentDocumentPublisher(
-                jdbc,
+                documents,
                 mapper,
                 resources,
-                directory.toString());
+                directory.toString(),
+                new RecordingFailureReporter());
         assertThatCode(() -> malformed.run(new DefaultApplicationArguments()))
                 .doesNotThrowAnyException();
         assertThat(jdbc.queryForObject(
@@ -128,7 +144,12 @@ class ConsentPublisherIT {
     @Order(4)
     void concurrentPublishIgnoresOnlyTheNamedUniqueRace() throws Exception {
         jdbc.update("DELETE FROM consent_documents");
-        ConsentDocumentPublisher other = new ConsentDocumentPublisher(jdbc, mapper, resources, "");
+        ConsentDocumentPublisher other = new ConsentDocumentPublisher(
+                documents,
+                mapper,
+                resources,
+                "",
+                new RecordingFailureReporter());
         ExecutorService pool = Executors.newFixedThreadPool(2);
         try {
             Future<Integer> first = pool.submit(publisher::publish);
@@ -139,6 +160,26 @@ class ConsentPublisherIT {
                     Integer.class)).isEqualTo(3);
         } finally {
             pool.shutdownNow();
+        }
+    }
+
+    @Test
+    @Order(5)
+    void publishPropagatesConstraintViolationsOtherThanTheNamedUniqueRace() {
+        jdbc.update("DELETE FROM consent_documents");
+        jdbc.execute("""
+                ALTER TABLE consent_documents
+                ADD CONSTRAINT ck_test_consent_document_title
+                CHECK (title <> '이용약관')
+                """);
+        try {
+            assertThatThrownBy(publisher::publish)
+                    .isInstanceOf(DataIntegrityViolationException.class);
+        } finally {
+            jdbc.execute("""
+                    ALTER TABLE consent_documents
+                    DROP CONSTRAINT ck_test_consent_document_title
+                    """);
         }
     }
 }

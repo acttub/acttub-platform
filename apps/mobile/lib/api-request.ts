@@ -292,6 +292,7 @@ export function createApiRequestClient(dependencies: ApiRequestDependencies) {
     try {
       const headers = new Headers(init.headers);
       if (options.auth !== false) {
+        headers.set('X-Acttub-Consent-Entry', '1');
         const token = dependencies.getAccessToken();
         if (token) headers.set('Authorization', `Bearer ${token}`);
       }
@@ -436,8 +437,11 @@ export function createApiRequestClient(dependencies: ApiRequestDependencies) {
       const error = toApiError(response.status, payload);
       // 403 은 코드로 갈린다 — 동의는 받으면 풀리고, 탈퇴는 풀 수 없어 내보내야 한다.
       if (error.status === 403) {
-        if (error.code === 'consent_required') dependencies.emitConsentRequired();
-        else if (error.code === 'account_deactivated') dependencies.emitAccountDeactivated();
+        if (error.code === 'consent_required' || error.code === 'consent_blocked') {
+          dependencies.emitConsentRequired();
+        } else if (error.code === 'account_deactivated') {
+          dependencies.emitAccountDeactivated();
+        }
       }
       throw error;
     }

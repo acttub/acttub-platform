@@ -39,7 +39,7 @@ public class CommunityService {
         try {
             return community.listPosts(viewerId, categorySlug, cursor, limit);
         } catch (InvalidCursor exception) {
-            throw new ApiException(400, "invalid_cursor");
+            throw new ApiException(400, "invalid_cursor", exception);
         }
     }
 
@@ -63,7 +63,7 @@ public class CommunityService {
         try {
             return community.createPost(authorId, categorySlug, title, body, anonymous);
         } catch (CommunityContentNotFound exception) {
-            throw new ApiException(404, "category_not_found");
+            throw new ApiException(404, "category_not_found", exception);
         }
     }
 
@@ -71,9 +71,9 @@ public class CommunityService {
         try {
             return community.updatePost(postId, authorId, title, body);
         } catch (CommunityContentNotFound exception) {
-            throw postNotFound();
+            throw postNotFound(exception);
         } catch (NotAuthor exception) {
-            throw notAuthor();
+            throw notAuthor(exception);
         }
     }
 
@@ -81,9 +81,9 @@ public class CommunityService {
         try {
             community.deletePost(postId, authorId);
         } catch (CommunityContentNotFound exception) {
-            throw postNotFound();
+            throw postNotFound(exception);
         } catch (NotAuthor exception) {
-            throw notAuthor();
+            throw notAuthor(exception);
         }
     }
 
@@ -91,7 +91,7 @@ public class CommunityService {
         try {
             return community.likePost(postId, userId);
         } catch (CommunityContentNotFound exception) {
-            throw postNotFound();
+            throw postNotFound(exception);
         }
     }
 
@@ -99,7 +99,7 @@ public class CommunityService {
         try {
             return community.unlikePost(postId, userId);
         } catch (CommunityContentNotFound exception) {
-            throw postNotFound();
+            throw postNotFound(exception);
         }
     }
 
@@ -108,9 +108,9 @@ public class CommunityService {
         try {
             return community.listComments(postId, viewerId, cursor, limit);
         } catch (CommunityContentNotFound exception) {
-            throw postNotFound();
+            throw postNotFound(exception);
         } catch (InvalidCursor exception) {
-            throw new ApiException(400, "invalid_cursor");
+            throw new ApiException(400, "invalid_cursor", exception);
         }
     }
 
@@ -119,7 +119,7 @@ public class CommunityService {
         try {
             return community.createComment(postId, authorId, body, anonymous);
         } catch (CommunityContentNotFound exception) {
-            throw postNotFound();
+            throw postNotFound(exception);
         }
     }
 
@@ -127,9 +127,9 @@ public class CommunityService {
         try {
             return community.updateComment(commentId, authorId, body);
         } catch (CommunityContentNotFound exception) {
-            throw commentNotFound();
+            throw commentNotFound(exception);
         } catch (NotAuthor exception) {
-            throw notAuthor();
+            throw notAuthor(exception);
         }
     }
 
@@ -137,9 +137,9 @@ public class CommunityService {
         try {
             community.deleteComment(commentId, authorId);
         } catch (CommunityContentNotFound exception) {
-            throw commentNotFound();
+            throw commentNotFound(exception);
         } catch (NotAuthor exception) {
-            throw notAuthor();
+            throw notAuthor(exception);
         }
     }
 
@@ -148,11 +148,11 @@ public class CommunityService {
         try {
             community.createReport(reporterId, targetType, targetId, reason, detail);
         } catch (CommunityContentNotFound exception) {
-            throw new ApiException(404, "target_not_found");
+            throw new ApiException(404, "target_not_found", exception);
         } catch (ReportingOwnContent exception) {
-            throw new ApiException(400, "cannot_report_own");
+            throw new ApiException(400, "cannot_report_own", exception);
         } catch (DuplicateReport exception) {
-            throw new ApiException(409, "already_reported");
+            throw new ApiException(409, "already_reported", exception);
         }
     }
 
@@ -173,7 +173,7 @@ public class CommunityService {
         try {
             community.blockUser(blockerId, blockedId);
         } catch (CommunityContentNotFound exception) {
-            throw new ApiException(404, "user_not_found");
+            throw new ApiException(404, "user_not_found", exception);
         }
     }
 
@@ -185,19 +185,19 @@ public class CommunityService {
         try {
             return community.getPost(postId, viewerId);
         } catch (CommunityContentNotFound exception) {
-            throw postNotFound();
+            throw postNotFound(exception);
         }
     }
 
-    private static ApiException postNotFound() {
-        return new ApiException(404, "post_not_found");
+    private static ApiException postNotFound(Throwable cause) {
+        return new ApiException(404, "post_not_found", cause);
     }
 
-    private static ApiException commentNotFound() {
-        return new ApiException(404, "comment_not_found");
+    private static ApiException commentNotFound(Throwable cause) {
+        return new ApiException(404, "comment_not_found", cause);
     }
 
-    private static ApiException notAuthor() {
-        return new ApiException(403, "not_author");
+    private static ApiException notAuthor(Throwable cause) {
+        return new ApiException(403, "not_author", cause);
     }
 }

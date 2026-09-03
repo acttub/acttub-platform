@@ -106,6 +106,9 @@ export function chooseBlockageKind(
   state: BlockageFlowState,
   kind: BlockageKind,
 ): BlockageFlowState {
+  // 이미 고른 것을 다시 탭하는 것은 갈아타기가 아니다 — 준비 화면에 선택지가
+  // 상시 떠 있어, 여기서 비우면 고른 하위 갈래가 소리 없이 사라진다.
+  if (state.kind === kind) return state;
   // 갈아탄 대분류의 목록에 없는 값이 남을 수 있다("감정"은 분석의 선택지가 아니다).
   // 양쪽에 다 있는 "그 외"까지 함께 비우는 것은 그 하나를 가려내는 것보다,
   // 갈아탈 때마다 처음부터 고르는 편이 화면에서도 정직하기 때문이다.
@@ -157,6 +160,17 @@ export function completeBlockageFlow(state: BlockageFlowState): BlockageSelectio
   return {
     blockage_kind: state.kind,
     sub_branch: effectiveSubBranch(state),
+    blockage_detail: state.detail.trim() || null,
+  };
+}
+
+/** 도움을 고르지 않았으면 서버가 이미 허용하는 중립값으로 요청값을 완성한다. */
+export function completeBlockageFlowWithDefault(
+  state: BlockageFlowState,
+): BlockageSelection {
+  return completeBlockageFlow(state) ?? {
+    blockage_kind: "그 외",
+    sub_branch: "그 외",
     blockage_detail: state.detail.trim() || null,
   };
 }

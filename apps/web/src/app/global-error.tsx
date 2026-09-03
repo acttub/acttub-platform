@@ -9,6 +9,7 @@
  */
 import * as Sentry from "@sentry/nextjs";
 import { useEffect } from "react";
+import { PretendardStylesheet } from "./pretendard-stylesheet";
 
 import "./globals.css";
 
@@ -26,6 +27,7 @@ export default function GlobalError({
   return (
     <html lang="ko">
       <body className="min-h-dvh flex flex-col items-center justify-center gap-6 px-6 text-center">
+        <PretendardStylesheet />
         <div className="flex flex-col gap-2">
           <h1 className="text-xl font-semibold text-gray-900">
             화면을 불러오지 못했어요

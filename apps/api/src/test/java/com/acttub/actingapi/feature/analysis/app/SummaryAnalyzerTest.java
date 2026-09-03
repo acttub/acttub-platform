@@ -11,8 +11,12 @@ import java.util.List;
 import java.util.function.Supplier;
 
 import com.acttub.actingapi.integration.observation.ObservationPack;
+import com.acttub.actingapi.platform.observability.FailureKind;
+import com.acttub.actingapi.support.RecordingFailureReporter;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class SummaryAnalyzerTest {
 
@@ -37,7 +41,8 @@ class SummaryAnalyzerTest {
                     return new ObservationPack(List.of(), List.of());
                 },
                 extractor(() -> { order.add("extract"); return audio; }),
-                (path, prompt) -> { order.add("transcribe"); return "하나. 둘!"; });
+                (path, prompt) -> { order.add("transcribe"); return "하나. 둘!"; },
+                new RecordingFailureReporter());
 
         AnalysisResult result = analyzer.analyze(video, context("분석", null));
 
@@ -49,21 +54,28 @@ class SummaryAnalyzerTest {
         assertThat(audioDirectory).doesNotExist();
     }
 
-    @Test
-    void skipsTranscriptionOutsideKoreanAnalysisBranch() throws Exception {
+    /**
+     * 받아쓰기는 갈래로 갈리지 않는다 — 표현·그 외로 시작한 연습의 코치도 대사를 인용해
+     * 말해야 한다. 예전에는 "분석" 밖에서 받아쓰기를 건너뛰었다.
+     */
+    @ParameterizedTest
+    @ValueSource(strings = {"표현", "그 외"})
+    void transcribesRegardlessOfBlockageKind(String blockageKind) throws Exception {
         Path video = Files.writeString(temporary.resolve("take.mp4"), "video");
-        int[] transcriptionCalls = {0};
+        Path audioDirectory = Files.createDirectory(temporary.resolve("audio"));
+        Path audio = Files.writeString(audioDirectory.resolve("audio.mp3"), "voice");
         SummaryAnalyzer analyzer = new SummaryAnalyzer(
                 (path, declared) -> 1000,
                 path -> path,
                 (path, mime, actor) -> new ObservationPack(List.of(), List.of()),
-                extractor(() -> { transcriptionCalls[0]++; return video; }),
-                (path, prompt) -> { transcriptionCalls[0]++; return "unexpected"; });
+                extractor(() -> audio),
+                (path, prompt) -> "가지 마. 제발!",
+                new RecordingFailureReporter());
 
-        AnalysisResult result = analyzer.analyze(video, context("표현", 1000));
+        AnalysisResult result = analyzer.analyze(video, context(blockageKind, 1000));
 
-        assertThat(transcriptionCalls[0]).isZero();
-        assertThat(result.transcripts()).isEmpty();
+        assertThat(result.transcripts()).containsExactly("가지 마.", "제발!");
+        assertThat(audioDirectory).doesNotExist();
     }
 
     @Test
@@ -71,18 +83,26 @@ class SummaryAnalyzerTest {
         Path video = Files.writeString(temporary.resolve("take.mp4"), "video");
         Path audioDirectory = Files.createDirectory(temporary.resolve("broken-audio"));
         Path audio = Files.writeString(audioDirectory.resolve("audio.mp3"), "voice");
+        IllegalStateException failure = new IllegalStateException("transcription down");
+        RecordingFailureReporter reporter = new RecordingFailureReporter();
         SummaryAnalyzer analyzer = new SummaryAnalyzer(
                 (path, declared) -> 1000,
                 path -> path,
                 (path, mime, actor) -> new ObservationPack(List.of(), List.of("불확실")),
                 extractor(() -> audio),
-                (path, prompt) -> { throw new IllegalStateException("transcription down"); });
+                (path, prompt) -> { throw failure; },
+                reporter);
 
         AnalysisResult result = analyzer.analyze(video, context("분석", 1000));
 
         assertThat(result.observationPack().uncertainties()).containsExactly("불확실");
         assertThat(result.transcripts()).isEmpty();
         assertThat(audioDirectory).doesNotExist();
+        assertThat(reporter.reports()).singleElement().satisfies(report -> {
+            assertThat(report.failure()).isSameAs(failure);
+            assertThat(report.kind()).isEqualTo(FailureKind.UNEXPECTED);
+            assertThat(report.context()).isEqualTo("SummaryAnalyzer.transcription");
+        });
     }
 
     /**

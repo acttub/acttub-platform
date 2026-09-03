@@ -6,6 +6,7 @@
  */
 
 import { translate } from './i18n.ts';
+import { sceneValueForDisplay } from './upload-input.ts';
 
 export type HistoryReportLike = { practice_session_id: string; created_at: string };
 export type HistorySessionLike = { session_id: string; created_at: string };
@@ -34,8 +35,10 @@ export function mergeHistory<R extends HistoryReportLike, S extends HistorySessi
   });
 }
 
-/** 세션 카드 제목 — 장면 메모가 없으면 대신 붙일 이름. */
+/**
+ * 세션 카드 제목 — 장면 메모가 없으면 대신 붙일 이름. 예전 빌드가 빈 칸에 채운
+ * 자리표시자('.')도 없는 것으로 본다.
+ */
 export function sessionCardTitle(situation: string | null | undefined): string {
-  const t = situation?.trim();
-  return t || translate('history.noSceneTitle');
+  return sceneValueForDisplay(situation ?? '') || translate('history.noSceneTitle');
 }

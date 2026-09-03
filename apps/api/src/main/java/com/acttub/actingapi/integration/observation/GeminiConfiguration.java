@@ -1,6 +1,7 @@
 package com.acttub.actingapi.integration.observation;
 
 import com.acttub.actingapi.integration.media.GeminiVideoCompressor;
+import com.acttub.actingapi.platform.observability.FailureReporter;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.genai.Client;
 import org.springframework.beans.factory.annotation.Value;
@@ -46,13 +47,15 @@ class GeminiConfiguration {
     ObservationAnalyzer observationAnalyzer(
             GeminiGateway gateway,
             ObjectMapper mapper,
-            GeminiSettings settings) {
-        return new GeminiObservationAnalyzer(gateway, mapper, settings.model());
+            GeminiSettings settings,
+            FailureReporter failureReporter) {
+        return new GeminiObservationAnalyzer(
+                gateway, mapper, settings.model(), failureReporter);
     }
 
     @Bean
-    GeminiVideoCompressor geminiVideoCompressor() {
-        return new GeminiVideoCompressor();
+    GeminiVideoCompressor geminiVideoCompressor(FailureReporter failureReporter) {
+        return new GeminiVideoCompressor(failureReporter);
     }
 }
 

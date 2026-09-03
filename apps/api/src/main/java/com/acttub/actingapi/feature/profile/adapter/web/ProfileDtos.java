@@ -19,7 +19,7 @@ final class ProfileDtos {
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true) String nickname,
             @Schema(
                     requiredMode = Schema.RequiredMode.REQUIRED,
-                    allowableValues = {"active", "suspended", "deactivated"})
+                    allowableValues = {"active", "deactivated"})
             String status) {
     }
 

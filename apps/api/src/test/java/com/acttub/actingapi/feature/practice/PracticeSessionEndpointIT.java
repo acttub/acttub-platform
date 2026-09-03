@@ -114,7 +114,7 @@ class PracticeSessionEndpointIT {
                 .contains("users/owner/video.mp4");
 
         UUID summaryId = insertSummary(sessionId);
-        jdbc.update("UPDATE practice_sessions SET status='analyzed'::practice_status_t WHERE id=?",
+        jdbc.update("UPDATE practice_sessions SET status='analyzed' WHERE id=?",
                 sessionId);
         JsonNode analyzedDetail = detail(sessionId);
         assertThat(analyzedDetail.path("summary").path("summary_id").textValue())
@@ -123,11 +123,11 @@ class PracticeSessionEndpointIT {
                 .isEqualTo("한국어 관찰");
         assertThat(analyzedDetail.has("error_code")).isFalse();
 
-        jdbc.update("UPDATE practice_sessions SET status='failed'::practice_status_t WHERE id=?",
+        jdbc.update("UPDATE practice_sessions SET status='failed' WHERE id=?",
                 sessionId);
         jdbc.update("""
                 UPDATE external_operations
-                SET status='failed'::operation_status_t,error_code='gemini_timeout'
+                SET status='failed',error_code='gemini_timeout'
                 WHERE session_id=?
                 """, sessionId);
         JsonNode failedDetail = detail(sessionId);
@@ -153,7 +153,7 @@ class PracticeSessionEndpointIT {
 
         jdbc.update("""
                 UPDATE external_operations
-                SET status='running'::operation_status_t,lease_token=?
+                SET status='running',lease_token=?
                 WHERE request_id=?
                 """, UUID.randomUUID(), requestId);
         MvcResult running = create(uploadId, requestId, validBody(uploadId));
@@ -164,7 +164,7 @@ class PracticeSessionEndpointIT {
         UUID summaryId = UUID.randomUUID();
         jdbc.update("""
                 UPDATE external_operations
-                SET status='succeeded'::operation_status_t,
+                SET status='succeeded',
                     response_payload=?::jsonb
                 WHERE request_id=?
                 """, """
@@ -190,11 +190,11 @@ class PracticeSessionEndpointIT {
 
         jdbc.update("""
                 UPDATE external_operations
-                SET status='failed'::operation_status_t,attempt_count=3,
+                SET status='failed',attempt_count=3,
                     lease_token=NULL,error_code='gemini_timeout'
                 WHERE request_id=?
                 """, requestId);
-        jdbc.update("UPDATE practice_sessions SET status='failed'::practice_status_t WHERE id=?",
+        jdbc.update("UPDATE practice_sessions SET status='failed' WHERE id=?",
                 sessionId);
         assertError(create(uploadId, requestId, validBody(uploadId)),
                 409, "analysis_retry_exhausted");
@@ -208,18 +208,18 @@ class PracticeSessionEndpointIT {
                 uploadId, requestId, validBody(uploadId))).path("session_id").textValue());
         jdbc.update("""
                 UPDATE external_operations
-                SET status='failed'::operation_status_t,attempt_count=1,
+                SET status='failed',attempt_count=1,
                     lease_token=NULL,error_code='gemini_timeout',response_payload='{}'::jsonb
                 WHERE request_id=?
                 """, requestId);
-        jdbc.update("UPDATE practice_sessions SET status='failed'::practice_status_t WHERE id=?",
+        jdbc.update("UPDATE practice_sessions SET status='failed' WHERE id=?",
                 sessionId);
 
         MvcResult resumed = create(uploadId, requestId, validBody(uploadId));
 
         assertThat(resumed.getResponse().getStatus()).isEqualTo(202);
         assertThat(jdbc.queryForObject(
-                "SELECT status::text FROM external_operations WHERE request_id=?",
+                "SELECT status FROM external_operations WHERE request_id=?",
                 String.class, requestId)).isEqualTo("pending");
         assertThat(jdbc.queryForObject(
                 """
@@ -229,7 +229,7 @@ class PracticeSessionEndpointIT {
                 """,
                 Boolean.class, requestId)).isTrue();
         assertThat(jdbc.queryForObject(
-                "SELECT status::text FROM practice_sessions WHERE id=?",
+                "SELECT status FROM practice_sessions WHERE id=?",
                 String.class, sessionId)).isEqualTo("analyzing");
     }
 
@@ -331,7 +331,7 @@ class PracticeSessionEndpointIT {
                         .header("Authorization", bearer(USER_ID)))
                 .andReturn(), 404, "practice_session_not_found");
 
-        jdbc.update("UPDATE practice_sessions SET status='failed'::practice_status_t WHERE id=?",
+        jdbc.update("UPDATE practice_sessions SET status='failed' WHERE id=?",
                 sessionId);
         UUID requestId = UUID.randomUUID();
         MvcResult accepted = reanalyze(sessionId, requestId);
@@ -345,7 +345,7 @@ class PracticeSessionEndpointIT {
         UUID summaryId = UUID.randomUUID();
         jdbc.update("""
                 UPDATE external_operations
-                SET status='succeeded'::operation_status_t,
+                SET status='succeeded',
                     response_payload=?::jsonb
                 WHERE request_id=?
                 """, """
@@ -361,7 +361,7 @@ class PracticeSessionEndpointIT {
         UUID otherSession = UUID.fromString(json(create(
                 otherUpload, UUID.randomUUID(), validBody(otherUpload)))
                 .path("session_id").textValue());
-        jdbc.update("UPDATE practice_sessions SET status='failed'::practice_status_t WHERE id=?",
+        jdbc.update("UPDATE practice_sessions SET status='failed' WHERE id=?",
                 otherSession);
         assertError(reanalyze(otherSession, requestId),
                 422, "request_fingerprint_mismatch");
@@ -407,6 +407,46 @@ class PracticeSessionEndpointIT {
         assertThat(absent.getResponse().getStatus()).isEqualTo(422);
         assertThat(json(absent).path("detail").findValuesAsText("type"))
                 .containsExactly("missing", "missing", "missing");
+    }
+
+    /**
+     * 옛 앱 빌드와 웹의 옛 규칙은 빈 장면 칸을 자리표시자 {@code "."} 로 채워 보냈다. 건너뛴
+     * 장면은 빈 문자열로 저장한다는 규칙(ADR-021)이 옛 빌드의 요청에도 닿도록 서버가 홀로
+     * 있는 점을 빈 문자열로 저장·응답하고, 점이 섞인 다른 값은 받은 그대로 둔다 — 두 값을 한
+     * 요청에 나란히 실어야 어디까지 빈 값으로 바꾸는지가 고정된다. 같은 본문의 재시도는
+     * 여전히 같은 응답이어야 한다 — 걷어내기가 멱등 재생(같은 요청을 다시 보내도 같은 결과)을
+     * 깨지 않는지를 함께 본다.
+     */
+    @Test
+    void lonePlaceholderDotInSceneContextIsStoredAsBlank() throws Exception {
+        UUID uploadId = insertUpload(USER_ID, "finalized", "placeholder-scene.mp4");
+        UUID requestId = UUID.randomUUID();
+        String body = """
+                {"upload_intent_id":"%s","situation":".","character_context":".",
+                 "goal":"카페.","blockage_kind":"분석","sub_branch":"대사 분석",
+                 "blockage_detail":null}
+                """.formatted(uploadId);
+
+        MvcResult created = create(uploadId, requestId, body);
+        assertThat(created.getResponse().getStatus()).isEqualTo(202);
+        MvcResult replay = create(uploadId, requestId, body);
+        assertThat(replay.getResponse().getStatus()).isEqualTo(202);
+        assertThat(replay.getResponse().getContentAsByteArray())
+                .isEqualTo(created.getResponse().getContentAsByteArray());
+
+        UUID sessionId = UUID.fromString(json(created).path("session_id").textValue());
+        JsonNode stored = detail(sessionId);
+        assertThat(stored.path("situation").textValue()).isEmpty();
+        assertThat(stored.path("character_context").textValue()).isEmpty();
+        assertThat(stored.path("goal").textValue()).isEqualTo("카페.");
+
+        JsonNode listed = json(mvc.perform(get("/v2/practice-sessions")
+                        .header("Authorization", bearer(USER_ID)))
+                .andReturn());
+        assertThat(listed.path("sessions").size()).isEqualTo(1);
+        assertThat(listed.at("/sessions/0/situation").textValue()).isEmpty();
+        assertThat(listed.at("/sessions/0/character_context").textValue()).isEmpty();
+        assertThat(listed.at("/sessions/0/goal").textValue()).isEqualTo("카페.");
     }
 
     @Test
@@ -535,7 +575,7 @@ class PracticeSessionEndpointIT {
     }
 
     private void insertUser(UUID id) {
-        jdbc.update("INSERT INTO users(id,status) VALUES (?,'active'::user_status_t)", id);
+        jdbc.update("INSERT INTO users(id,status) VALUES (?,'active')", id);
     }
 
     private UUID insertUpload(UUID userId, String status, String objectKey) {
@@ -543,7 +583,7 @@ class PracticeSessionEndpointIT {
         jdbc.update("""
                 INSERT INTO upload_intents(
                     id,user_id,status,storage_provider,object_key,mime_type,size_bytes,expires_at)
-                VALUES (?,?,?::upload_status_t,'s3',?,'video/mp4',12,?)
+                VALUES (?,?,?,'s3',?,'video/mp4',12,?)
                 """, id, userId, status, objectKey, NOW.plusHours(1));
         return id;
     }

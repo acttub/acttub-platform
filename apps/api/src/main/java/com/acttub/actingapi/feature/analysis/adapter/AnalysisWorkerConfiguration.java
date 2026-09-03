@@ -8,6 +8,7 @@ import com.acttub.actingapi.feature.analysis.app.AnalysisProcessor;
 import com.acttub.actingapi.feature.analysis.app.AnalysisStore;
 import com.acttub.actingapi.feature.analysis.app.AnalysisWorker;
 import com.acttub.actingapi.integration.storage.ObjectStorage;
+import com.acttub.actingapi.platform.observability.FailureReporter;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -40,7 +41,8 @@ class AnalysisWorkerConfiguration {
             @Value("${ANALYSIS_LEASE_SEC:1800}") long leaseSeconds,
             @Value("${GEMINI_MODEL:gemini-2.5-flash}") String model,
             // 완료 통지는 선택이다 — push 도메인이 구현을 내지만, 없어도 분석은 돌아야 한다.
-            ObjectProvider<AnalysisCompletionListener> completionListener) {
+            ObjectProvider<AnalysisCompletionListener> completionListener,
+            FailureReporter failureReporter) {
         if (leaseSeconds <= 0) {
             throw new IllegalStateException("analysis worker settings must be positive");
         }
@@ -50,6 +52,6 @@ class AnalysisWorkerConfiguration {
         }
         return new AnalysisWorker(
                 store, objectStorage, analyzer, clock, Duration.ofSeconds(leaseSeconds), model,
-                completionListener.getIfAvailable());
+                completionListener.getIfAvailable(), failureReporter);
     }
 }

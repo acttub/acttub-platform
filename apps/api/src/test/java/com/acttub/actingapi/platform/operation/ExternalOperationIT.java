@@ -11,6 +11,7 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -18,10 +19,15 @@ import java.util.concurrent.TimeUnit;
 
 import javax.sql.DataSource;
 
+import com.acttub.actingapi.feature.coach.app.CoachOperationLedger;
+import com.acttub.actingapi.feature.memory.app.MemoryUpdateQueue;
 import com.acttub.actingapi.platform.ledger.LeaseOwnershipException;
+import com.acttub.actingapi.platform.ledger.SyncOperationBegin;
 import com.acttub.actingapi.feature.practice.app.PracticeSessionLedger;
 import com.acttub.actingapi.feature.practice.app.PracticeSessionOperation;
 import com.acttub.actingapi.support.PostgresContainerSupport;
+import com.acttub.actingapi.platform.web.ApiException;
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -62,6 +68,12 @@ class ExternalOperationIT {
 
     @Autowired
     PracticeSessionLedger store;
+
+    @Autowired
+    CoachOperationLedger syncOperations;
+
+    @Autowired
+    MemoryUpdateQueue memoryQueue;
 
     @BeforeEach
     void clearDatabase() {
@@ -387,7 +399,7 @@ class ExternalOperationIT {
             try {
                 Future<PracticeSessionOperation> loser = executor.submit(
                         () -> create(userId, losingUploadId, requestId, FINGERPRINT));
-                awaitBlockedQuery("INSERT INTO practice_sessions");
+                awaitBlockedQuery("insert into practice_sessions");
 
                 PracticeSessionOperation winner = create(
                         userId, winningUploadId, requestId, FINGERPRINT);
@@ -463,7 +475,7 @@ class ExternalOperationIT {
                 userId, sessionId, requestId, FINGERPRINT, NOW);
         jdbc.update("""
                 UPDATE practice_sessions
-                SET status = 'analyzed'::practice_status_t
+                SET status = 'analyzed'
                 WHERE id = ?
                 """, sessionId);
 
@@ -476,6 +488,125 @@ class ExternalOperationIT {
         assertThat(replay.operation().id()).isEqualTo(created.operation().id());
         assertThat(replay.session().status()).isEqualTo("analyzed");
         assertThat(replay.fingerprintMismatch()).isFalse();
+    }
+
+    @Test
+    void concurrentSyncBeginsCreateOneOperationAndOnlyOneOwnsTheLease() throws Exception {
+        UUID userId = insertUser();
+        UUID sessionId = insertSession(
+                userId, insertFinalizedUpload(userId), "analyzed", NOW.minusSeconds(30));
+        UUID requestId = UUID.randomUUID();
+        CountDownLatch start = new CountDownLatch(1);
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            var work = (java.util.concurrent.Callable<BeginOutcome>) () -> {
+                start.await();
+                try {
+                    return new BeginOutcome(syncOperations.begin(
+                            userId, sessionId, requestId, "coach_start", FINGERPRINT), null);
+                } catch (ApiException exception) {
+                    return new BeginOutcome(null, exception);
+                }
+            };
+            Future<BeginOutcome> first = executor.submit(work);
+            Future<BeginOutcome> second = executor.submit(work);
+            start.countDown();
+            BeginOutcome left = first.get(5, TimeUnit.SECONDS);
+            BeginOutcome right = second.get(5, TimeUnit.SECONDS);
+
+            assertThat(java.util.stream.Stream.of(left, right)
+                    .filter(outcome -> outcome.begin() != null)
+                    .toList())
+                    .singleElement()
+                    .satisfies(outcome -> assertThat(outcome.begin().claim()).isNotNull());
+            assertThat(java.util.stream.Stream.of(left, right)
+                    .filter(outcome -> outcome.error() != null)
+                    .toList())
+                    .singleElement()
+                    .satisfies(outcome -> {
+                        assertThat(outcome.error().status()).isEqualTo(409);
+                        assertThat(outcome.error()).hasMessage("request is still processing");
+                    });
+            assertThat(operationCount(userId, requestId)).isEqualTo(1);
+        } finally {
+            executor.shutdownNow();
+            executor.awaitTermination(5, TimeUnit.SECONDS);
+        }
+    }
+
+    @Test
+    void completedSyncOperationReplaysAndStillRejectsAFingerprintMismatch() {
+        UUID userId = insertUser();
+        UUID sessionId = insertSession(
+                userId, insertFinalizedUpload(userId), "analyzed", NOW.minusSeconds(30));
+        UUID requestId = UUID.randomUUID();
+        SyncOperationBegin started = syncOperations.begin(
+                userId, sessionId, requestId, "coach_start", FINGERPRINT);
+        var payload = JsonNodeFactory.instance.objectNode().put("reply", "저장된 응답");
+
+        syncOperations.complete(started.claim(), payload);
+
+        SyncOperationBegin replay = syncOperations.begin(
+                userId, sessionId, requestId, "coach_start", FINGERPRINT);
+        assertThat(replay.isReplay()).isTrue();
+        assertThat(replay.replayPayload()).isEqualTo(payload);
+        assertThatThrownBy(() -> syncOperations.begin(
+                userId, sessionId, requestId, "coach_start", OTHER_FINGERPRINT))
+                .isInstanceOf(ApiException.class)
+                .satisfies(exception -> assertThat(((ApiException) exception).status())
+                        .isEqualTo(422))
+                .hasMessage("request_fingerprint_mismatch");
+    }
+
+    @Test
+    void memoryQueueCompletesAndFailsOnlyItsLeaseWithoutChangingThePracticeStatus() {
+        UUID userId = insertUser();
+        UUID sessionId = insertSession(
+                userId, insertFinalizedUpload(userId), "analyzed", NOW.minusSeconds(30));
+        UUID operationId = insertOperation(
+                userId, sessionId, "memory_update", "pending", NOW.minusSeconds(10));
+        UUID leaseToken = UUID.randomUUID();
+
+        assertThat(memoryQueue.claimNext(
+                leaseToken, Duration.ofMinutes(5), NOW)).isEqualTo(operationId);
+        assertThat(memoryQueue.practiceSessionOf(operationId)).isEqualTo(sessionId);
+        assertThatThrownBy(() -> memoryQueue.complete(
+                operationId,
+                UUID.randomUUID(),
+                JsonNodeFactory.instance.objectNode().put("updated", 1),
+                NOW.plusSeconds(1)))
+                .isInstanceOf(LeaseOwnershipException.class);
+
+        memoryQueue.complete(
+                operationId,
+                leaseToken,
+                JsonNodeFactory.instance.objectNode().put("updated", 1),
+                NOW.plusSeconds(2));
+
+        assertThat(operation(operationId))
+                .containsEntry("status", "succeeded")
+                .containsEntry("response_payload", "{\"updated\": 1}")
+                .containsEntry("lease_token", null);
+        assertThat(session(sessionId)).containsEntry("status", "analyzed");
+
+        UUID failedOperationId = insertOperation(
+                userId, sessionId, "memory_update", "pending", NOW.minusSeconds(5));
+        UUID failedLease = UUID.randomUUID();
+        assertThat(memoryQueue.claimNext(
+                failedLease, Duration.ofMinutes(5), NOW.plusSeconds(3)))
+                .isEqualTo(failedOperationId);
+        assertThatThrownBy(() -> memoryQueue.fail(
+                failedOperationId, UUID.randomUUID(), "gemini_timeout", NOW.plusSeconds(4)))
+                .isInstanceOf(LeaseOwnershipException.class);
+
+        memoryQueue.fail(
+                failedOperationId, failedLease, "gemini_timeout", NOW.plusSeconds(5));
+
+        assertThat(operation(failedOperationId))
+                .containsEntry("status", "failed")
+                .containsEntry("error_code", "gemini_timeout")
+                .containsEntry("lease_token", null);
+        assertThat(session(sessionId)).containsEntry("status", "analyzed");
     }
 
     private PracticeSessionOperation create(
@@ -501,7 +632,7 @@ class ExternalOperationIT {
         UUID id = UUID.randomUUID();
         jdbc.update("""
                 INSERT INTO users (id, email, status)
-                VALUES (?, ?, 'active'::user_status_t)
+                VALUES (?, ?, 'active')
                 """, id, id + "@example.test");
         return id;
     }
@@ -519,7 +650,7 @@ class ExternalOperationIT {
                     size_bytes,
                     expires_at
                 )
-                VALUES (?, ?, 'finalized'::upload_status_t, 's3', ?, 'video/mp4', 1, ?)
+                VALUES (?, ?, 'finalized', 's3', ?, 'video/mp4', 1, ?)
                 """,
                 id,
                 userId,
@@ -547,7 +678,7 @@ class ExternalOperationIT {
                     goal,
                     updated_at
                 )
-                VALUES (?, ?, ?, ?::practice_status_t, '상황', '인물', '분석', '캐릭터 분석', '목표', ?)
+                VALUES (?, ?, ?, ?, '상황', '인물', '분석', '캐릭터 분석', '목표', ?)
                 """,
                 id,
                 userId,
@@ -575,7 +706,7 @@ class ExternalOperationIT {
                     request_fingerprint,
                     created_at
                 )
-                VALUES (?, ?, ?, ?, ?::operation_kind_t, ?::operation_status_t, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 id,
                 sessionId,
@@ -591,7 +722,7 @@ class ExternalOperationIT {
     private Map<String, Object> operation(UUID operationId) {
         return jdbc.queryForMap("""
                 SELECT
-                    status::text AS status,
+                    status,
                     attempt_count,
                     lease_token,
                     lease_expires_at,
@@ -604,7 +735,7 @@ class ExternalOperationIT {
 
     private Map<String, Object> session(UUID sessionId) {
         return jdbc.queryForMap("""
-                SELECT status::text AS status
+                SELECT status
                 FROM practice_sessions
                 WHERE id = ?
                 """, sessionId);
@@ -738,5 +869,8 @@ class ExternalOperationIT {
             Thread.sleep(10);
         }
         throw new AssertionError("query did not block: " + fragment);
+    }
+
+    private record BeginOutcome(SyncOperationBegin begin, ApiException error) {
     }
 }

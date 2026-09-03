@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.acttub.actingapi.integration.media.GeminiVideoCompressor;
+import com.acttub.actingapi.platform.observability.FailureReporter;
+import com.acttub.actingapi.support.RecordingFailureReporter;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.genai.Client;
 import org.junit.jupiter.api.Test;
@@ -53,6 +55,11 @@ class GeminiConfigurationTest {
         @Bean
         ObjectMapper objectMapper() {
             return new ObjectMapper();
+        }
+
+        @Bean
+        FailureReporter failureReporter() {
+            return new RecordingFailureReporter();
         }
     }
 }

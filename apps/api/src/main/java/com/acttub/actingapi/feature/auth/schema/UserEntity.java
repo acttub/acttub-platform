@@ -8,7 +8,6 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Table;
-import org.hibernate.annotations.JdbcType;
 
 /**
  * {@code users} — M0 의 {@code ddl-auto: validate} 검증용 매핑 2종 중 하나.
@@ -25,12 +24,17 @@ public class UserEntity extends AppGeneratedUuidEntity {
     private String email;
 
     @Convert(converter = UserStatus.JpaConverter.class)
-    @JdbcType(PgEnumJdbcType.class)
-    @Column(name = "status", nullable = false, columnDefinition = "user_status_t")
+    @Column(name = "status", nullable = false, columnDefinition = "text")
     private UserStatus status;
 
     @Column(name = "nickname")
     private String nickname;
+
+    @Column(name = "role", nullable = false, insertable = false)
+    private String role;
+
+    @Column(name = "deactivated_at")
+    private Instant deactivatedAt;
 
     @Column(name = "created_at", nullable = false, insertable = false, updatable = false)
     private Instant createdAt;
@@ -59,6 +63,14 @@ public class UserEntity extends AppGeneratedUuidEntity {
 
     public String getNickname() {
         return nickname;
+    }
+
+    public String getRole() {
+        return role;
+    }
+
+    public Instant getDeactivatedAt() {
+        return deactivatedAt;
     }
 
     public Instant getCreatedAt() {

@@ -83,6 +83,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v2/push-tokens": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Register Push Token
+         * @description 이 단말의 Expo push token 을 현재 사용자 것으로 등록한다. 멱등.
+         */
+        post: operations["register_push_token_v2_push_tokens_post"];
+        /**
+         * Unregister Push Token
+         * @description 이 단말의 토큰을 지운다. 로그아웃·알림 끄기에서 부른다. 멱등.
+         */
+        delete: operations["unregister_push_token_v2_push_tokens_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v2/practice-sessions": {
         parameters: {
             query?: never;
@@ -483,6 +507,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v2/consents/entry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Consent Entry */
+        get: operations["get_consent_entry_v2_consents_entry_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v2/consents/documents": {
         parameters: {
             query?: never;
@@ -775,6 +816,16 @@ export interface components {
              */
             reason: "confirmed_analysis_handoff_required" | "confirmed_expression_handoff_required";
         };
+        /** RegisterPushTokenRequest */
+        RegisterPushTokenRequest: {
+            /** Token */
+            token: string;
+            /**
+             * Platform
+             * @enum {string}
+             */
+            platform: "ios" | "android";
+        };
         /** PracticeSessionRequest */
         PracticeSessionRequest: {
             /**
@@ -814,7 +865,7 @@ export interface components {
              * Status
              * @enum {string}
              */
-            status: "created" | "analyzing" | "analyzed" | "failed";
+            status: "analyzing" | "analyzed" | "failed";
             /** Summary Id */
             summary_id?: string | null;
         };
@@ -860,6 +911,14 @@ export interface components {
              * Format: date-time
              */
             occurred_at: string;
+        };
+        /** RequiredConsentDeclineError */
+        RequiredConsentDeclineError: {
+            /**
+             * Detail
+             * @enum {string}
+             */
+            detail: "required_consent_cannot_be_declined";
         };
         /** ReportRequest */
         ReportRequest: {
@@ -1140,28 +1199,6 @@ export interface components {
             provider: string;
             /** Id Token */
             id_token: string;
-            signup_attribution?: components["schemas"]["SignupAttribution"] | null;
-        };
-        /** SignupAttribution */
-        SignupAttribution: {
-            /** Utm Source */
-            utm_source?: string | null;
-            /** Utm Medium */
-            utm_medium?: string | null;
-            /** Utm Campaign */
-            utm_campaign?: string | null;
-            /** Utm Id */
-            utm_id?: string | null;
-            /** Utm Content */
-            utm_content?: string | null;
-            /** Utm Term */
-            utm_term?: string | null;
-            /** Referrer Host */
-            referrer_host?: string | null;
-            /** Landing Path */
-            landing_path?: string | null;
-            /** First Seen At */
-            first_seen_at?: string | null;
         };
         /** AuthUser */
         AuthUser: {
@@ -1176,7 +1213,7 @@ export interface components {
              * Status
              * @enum {string}
              */
-            status: "active" | "suspended" | "deactivated";
+            status: "active" | "deactivated";
         };
         /** ConsentDocument */
         ConsentDocument: {
@@ -1239,7 +1276,7 @@ export interface components {
              * Status
              * @enum {string}
              */
-            status: "active" | "suspended" | "deactivated";
+            status: "active" | "deactivated";
         };
         /** PostUpdateRequest */
         PostUpdateRequest: {
@@ -1303,7 +1340,7 @@ export interface components {
              * Status
              * @enum {string}
              */
-            status: "created" | "analyzing" | "analyzed" | "failed";
+            status: "analyzing" | "analyzed" | "failed";
             /** Situation */
             situation: string;
             /** Character Context */
@@ -1371,7 +1408,7 @@ export interface components {
              * Status
              * @enum {string}
              */
-            status: "created" | "analyzing" | "analyzed" | "failed";
+            status: "analyzing" | "analyzed" | "failed";
             /** Situation */
             situation: string;
             /** Character Context */
@@ -1409,7 +1446,7 @@ export interface components {
              * Status
              * @enum {string}
              */
-            status: "created" | "analyzing" | "analyzed" | "failed";
+            status: "analyzing" | "analyzed" | "failed";
             /** Error Code */
             error_code?: ("gemini_timeout" | "gemini_parse_error" | "unsupported_media" | "max_attempts_exceeded") | null;
         };
@@ -1423,6 +1460,42 @@ export interface components {
             /** Documents */
             documents: components["schemas"]["ConsentDocument"][];
         };
+        /** ConsentEntryDocument */
+        ConsentEntryDocument: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            type: components["schemas"]["ConsentType"];
+            /** Version */
+            version: string;
+            /** Title */
+            title: string;
+            /** Body */
+            body: string;
+            /** Required */
+            required: boolean;
+            /**
+             * Published At
+             * Format: date-time
+             */
+            published_at: string;
+            current_decision: components["schemas"]["ConsentAction"] | null;
+        };
+        /** ConsentEntryResponse */
+        ConsentEntryResponse: {
+            entry_status: components["schemas"]["ConsentEntryStatus"];
+            /** Documents */
+            documents: components["schemas"]["ConsentEntryDocument"][];
+            /** Undecided Documents */
+            undecided_documents: components["schemas"]["ConsentEntryDocument"][];
+        };
+        /**
+         * ConsentEntryStatus
+         * @enum {string}
+         */
+        ConsentEntryStatus: "allowed" | "decision_required" | "blocked";
         /** PostListResponse */
         PostListResponse: {
             /** Posts */
@@ -1762,6 +1835,11 @@ export interface components {
             /** Commit */
             commit: string;
         };
+        /** UnregisterPushTokenRequest */
+        UnregisterPushTokenRequest: {
+            /** Token */
+            token: string;
+        };
     };
     responses: never;
     parameters: never;
@@ -1954,6 +2032,68 @@ export interface operations {
             };
         };
     };
+    register_push_token_v2_push_tokens_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RegisterPushTokenRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    unregister_push_token_v2_push_tokens_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UnregisterPushTokenRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_sessions_v2_practice_sessions_get: {
         parameters: {
             query?: never;
@@ -2080,6 +2220,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ConsentEventResponse"];
+                };
+            };
+            /** @description Required consent cannot be declined */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RequiredConsentDeclineError"];
                 };
             };
             /** @description Validation Error */
@@ -2980,6 +3129,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ConsentDocumentsResponse"];
+                };
+            };
+        };
+    };
+    get_consent_entry_v2_consents_entry_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConsentEntryResponse"];
                 };
             };
         };

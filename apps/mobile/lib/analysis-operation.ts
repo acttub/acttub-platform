@@ -270,7 +270,7 @@ export async function abandonAnalysis(
   return 'abandon';
 }
 
-export type AnalysisSessionStatus = 'created' | 'analyzing' | 'analyzed' | 'failed';
+export type AnalysisSessionStatus = 'analyzing' | 'analyzed' | 'failed';
 
 export type AnalysisStatusPayload = {
   status: AnalysisSessionStatus;

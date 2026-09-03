@@ -3,11 +3,9 @@ package com.acttub.actingapi.feature.community.schema;
 import java.time.Instant;
 import java.util.UUID;
 import jakarta.persistence.*;
-import org.hibernate.annotations.JdbcType;
 
 import com.acttub.actingapi.platform.schema.AppGeneratedUuidEntity;
 import com.acttub.actingapi.platform.schema.ContentStatus;
-import com.acttub.actingapi.platform.schema.PgEnumJdbcType;
 
 @Entity
 @Table(name = "community_posts")
@@ -29,8 +27,7 @@ public class CommunityPostEntity extends AppGeneratedUuidEntity {
     boolean anonymous;
 
     @Convert(converter = ContentStatus.JpaConverter.class)
-    @JdbcType(PgEnumJdbcType.class)
-    @Column(name = "status", nullable = false, columnDefinition = "content_status_t")
+    @Column(name = "status", nullable = false, columnDefinition = "text")
     ContentStatus status;
 
     @Column(name = "like_count", nullable = false)
@@ -53,11 +50,17 @@ public class CommunityPostEntity extends AppGeneratedUuidEntity {
 
     public CommunityPostEntity(UUID id, UUID categoryId, UUID authorId, String title, String body,
             ContentStatus status) {
+        this(id, categoryId, authorId, title, body, false, status);
+    }
+
+    public CommunityPostEntity(UUID id, UUID categoryId, UUID authorId, String title, String body,
+            boolean anonymous, ContentStatus status) {
         super(id);
         this.categoryId = categoryId;
         this.authorId = authorId;
         this.title = title;
         this.body = body;
+        this.anonymous = anonymous;
         this.status = status;
     }
 }

@@ -31,7 +31,7 @@ public class RefreshTokenEntity extends AppGeneratedUuidEntity {
     @Column(name = "device_info")
     String deviceInfo;
 
-    @Column(name = "issued_at", nullable = false, insertable = false, updatable = false)
+    @Column(name = "issued_at", nullable = false, updatable = false)
     Instant issuedAt;
 
     @Column(name = "expires_at", nullable = false)
@@ -43,12 +43,18 @@ public class RefreshTokenEntity extends AppGeneratedUuidEntity {
     protected RefreshTokenEntity() {
     }
 
-    public RefreshTokenEntity(UUID id, UUID userId, String tokenHash, String deviceInfo,
+    public RefreshTokenEntity(
+            UUID id,
+            UUID userId,
+            String tokenHash,
+            String deviceInfo,
+            Instant issuedAt,
             Instant expiresAt) {
         super(id);
         this.userId = userId;
         this.tokenHash = tokenHash;
         this.deviceInfo = deviceInfo;
+        this.issuedAt = issuedAt;
         this.expiresAt = expiresAt;
     }
 
@@ -70,6 +76,10 @@ public class RefreshTokenEntity extends AppGeneratedUuidEntity {
 
     public Instant getRevokedAt() {
         return revokedAt;
+    }
+
+    public String getDeviceInfo() {
+        return deviceInfo;
     }
 
     public void replaceWith(UUID replacement, Instant now) {

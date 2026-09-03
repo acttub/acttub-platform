@@ -64,7 +64,7 @@ class ValidationErrorContractIT {
     @Test
     void blankMemoryValueIsAFieldScopedValueError() throws Exception {
         UUID userId = UUID.randomUUID();
-        jdbc.update("INSERT INTO users(id,status) VALUES (?,'active'::user_status_t)", userId);
+        jdbc.update("INSERT INTO users(id,status) VALUES (?,'active')", userId);
 
         MvcResult result = mvc.perform(put("/v2/me/memory/{field}", "goal")
                         .header("Authorization", "Bearer " + jwt.issueAccessToken(userId).value())

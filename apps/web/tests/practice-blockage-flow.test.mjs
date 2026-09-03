@@ -11,6 +11,7 @@ const {
   chooseBlockageKind,
   chooseBlockageSubBranch,
   completeBlockageFlow,
+  completeBlockageFlowWithDefault,
   effectiveSubBranch,
   initialBlockageFlowState,
   subBranchChoices,
@@ -107,6 +108,25 @@ test("대분류를 고르기 전에는 완성되지 않는다", () => {
   );
 });
 
+test("도움을 고르지 않아도 그 외 기본값으로 완성한다", () => {
+  assert.deepEqual(completeBlockageFlowWithDefault(initialBlockageFlowState), {
+    blockage_kind: "그 외",
+    sub_branch: "그 외",
+    blockage_detail: null,
+  });
+  assert.deepEqual(
+    completeBlockageFlowWithDefault({
+      ...initialBlockageFlowState,
+      detail: "  영상 후반의 호흡을 보고 싶어요  ",
+    }),
+    {
+      blockage_kind: "그 외",
+      sub_branch: "그 외",
+      blockage_detail: "영상 후반의 호흡을 보고 싶어요",
+    },
+  );
+});
+
 test("화면이 말하는 하위 갈래와 저장되는 값이 같은 답을 본다", () => {
   const main = chooseBlockageKind(initialBlockageFlowState, "표현");
 
@@ -156,57 +176,43 @@ test("대분류를 갈아타면 앞서 고른 하위 갈래는 따라가지 않�
   assert.equal(chooseBlockageKind(chosen, "분석").subBranch, null);
 });
 
-test("서술 예시는 기본 접힘이고 예를 들면 라벨을 눌러 펼친다", () => {
-  assert.match(
-    blockageSelectionSource,
-    /const \[examplesOpen, setExamplesOpen\] = useState\(false\)/,
+test("이미 고른 대분류를 다시 탭해도 하위 갈래는 남는다", () => {
+  const chosen = chooseBlockageSubBranch(
+    chooseBlockageKind(initialBlockageFlowState, "표현"),
+    "감정",
   );
-  assert.match(blockageSelectionSource, /aria-expanded=\{examplesOpen\}/);
-  assert.match(
-    blockageSelectionSource,
-    /onClick=\{\(\) => setExamplesOpen\(\(current\) => !current\)\}/,
-  );
-  assert.match(blockageSelectionSource, /<span>예를 들면 —<\/span>/);
-  assert.match(blockageSelectionSource, /\{examplesOpen \? \([\s\S]*examples\.map/);
+
+  // 준비 화면에는 선택지가 상시 떠 있다 — 재탭이 갈아타기로 처리되면
+  // 고른 하위 갈래가 소리 없이 "그 외"로 바뀌어 제출된다.
+  assert.equal(chooseBlockageKind(chosen, "표현"), chosen);
 });
 
-test("서술을 비워도 이대로 이어가기 버튼이 활성 상태로 남고, 잠겨도 문구는 그대로다", () => {
+test("서술 자리는 예시·펼치기 없이 상세 칸 하나만 둔다", () => {
+  // 2026-09-01 결정 — 하위 갈래·예시 접기·글자 수를 걷어내고 상세 서술 한 칸만 남겼다.
+  assert.match(blockageSelectionSource, /상세히 적어 주세요/);
+  assert.match(blockageSelectionSource, /<textarea/);
+  assert.doesNotMatch(blockageSelectionSource, /예를 들면|펼치기|examplesOpen/);
+  assert.doesNotMatch(blockageSelectionSource, /조금 더 좁혀 볼까요/);
+});
+
+test("서술을 비워도 고른 도움은 완성된다", () => {
   const main = chooseBlockageKind(initialBlockageFlowState, "표현");
   const detail = chooseBlockageSubBranch(main, "감정");
 
   assert.equal(completeBlockageFlow(detail)?.blockage_detail, null);
-  // 창은 그 버튼이 사는 자리로 끊는다 — 파일 전체를 두고 이어 붙이면 멀리 떨어진
-  // 두 심볼이 한 단언을 만족한다(apps/web/CLAUDE.md 가 실물로 경고한 모양).
-  assert.match(
-    detailPanelSource(),
-    /disabled=\{submitDisabled\}[\s\S]*?onClick=\{onComplete\}[\s\S]*?disabled:bg-\[#c9d3df\][\s\S]*?이대로 이어가기 →/,
-  );
-  // 그 잠금은 화면 뒤에서 도는 **다른** 일이 이 연습을 붙들고 있다는 뜻이다(실제로
-  // 켜지는 것은 지우는 중일 때뿐이다). 이 화면이 무언가를 진행 중이라고 말하면
-  // 거짓이 된다 — 옛 문구가 그랬다.
-  assert.doesNotMatch(blockageSelectionSource, /이어가는 중/);
 });
 
-test("고른 대분류를 되돌리는 칩과 글자 수 표시가 남아 있다", () => {
-  // 칩은 이제 화면 맨 위에 하나뿐이다 — 되돌릴 것이 대분류 하나이기 때문이다.
-  // 하위 갈래는 목록이 그대로 서 있어 눌러서 바꾼다.
-  assert.match(
-    blockageSelectionSource,
-    /action="바꾸기"[\s\S]{0,200}?changeBlockageKind\(current\)[\s\S]{0,160}?`고른 것 · \$\{blockageKindShortName\(state\.kind\)\}`/,
-  );
-  assert.match(blockageSelectionSource, /\{state\.detail\.length\}자/);
+test("고른 선택 표시가 남아 있고 글자 수 표시는 없다", () => {
+  assert.match(blockageSelectionSource, /aria-pressed=\{selected\}/);
+  assert.doesNotMatch(blockageSelectionSource, /\.length\}자/);
 });
 
 
-test("작은 화면용 서술 입력의 압축 레이아웃을 유지한다", () => {
-  const detail = detailPanelSource();
-
-  assert.match(detail, /<section className="grid gap-3">/);
+test("서술 입력은 섹션 제목이 h2 로 서고 한 칸으로 유지된다", () => {
+  assert.match(blockageSelectionSource, /<section className="grid gap-3">/);
   // 제목은 h2 다 — 한 화면이 되면서 h1 이 둘이 되지 않게 갈랐다.
-  assert.match(detail, /<SectionHeading/);
-  assert.match(detail, /className="flex min-h-\[44px\] w-full/);
-  assert.match(detail, /className="h-\[112px\] min-h-\[112px\] max-h-\[112px\]/);
-  assert.match(detail, /className="min-h-\[44px\] shrink-0/);
+  assert.match(blockageSelectionSource, /<h2 /);
+  assert.equal((blockageSelectionSource.match(/<textarea/g) ?? []).length, 1);
 });
 
 test("complete 응답의 결과를 확인 단계 없이 바로 연다", () => {

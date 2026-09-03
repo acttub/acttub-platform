@@ -7,7 +7,7 @@ export const LEGACY_USER_KEY = 'acttub.authUser';
 export type AuthCredentialUser = {
   id: string;
   email: string | null;
-  status: 'active' | 'suspended';
+  status: 'active' | 'deactivated';
 };
 
 export type AuthCredentialRecord = {
@@ -42,7 +42,7 @@ function isUser(value: unknown): value is AuthCredentialUser {
     typeof candidate.id === 'string' &&
     candidate.id.length > 0 &&
     (candidate.email === null || typeof candidate.email === 'string') &&
-    (candidate.status === 'active' || candidate.status === 'suspended')
+    (candidate.status === 'active' || candidate.status === 'deactivated')
   );
 }
 

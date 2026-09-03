@@ -35,8 +35,9 @@ test('최신이 위로 온다 — 리포트·세션 섞어서', () => {
   );
 });
 
-test('장면 메모가 없으면 대신 붙일 이름을 준다', () => {
+test('장면 메모가 없으면 대신 붙일 이름을 준다 — 예전 빌드의 자리표시자도 없는 것으로 본다', () => {
   assert.equal(sessionCardTitle('  '), '장면 메모 없이 연습');
   assert.equal(sessionCardTitle(null), '장면 메모 없이 연습');
+  assert.equal(sessionCardTitle('.'), '장면 메모 없이 연습');
   assert.equal(sessionCardTitle('이별 통보 직후'), '이별 통보 직후');
 });

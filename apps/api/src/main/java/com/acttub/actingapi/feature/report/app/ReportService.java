@@ -100,10 +100,10 @@ public class ReportService {
             return new ReportPayload(report, claim.requestId());
         } catch (ReportParseError exception) {
             operations.fail(claim, "report_parse_error");
-            throw new ApiException(502, exception.getMessage());
+            throw ApiException.external(502, exception.getMessage(), exception);
         } catch (LeaseOwnershipException exception) {
             operations.fail(claim, "lease_ownership_lost");
-            throw new ApiException(409, "request is still processing");
+            throw new ApiException(409, "request is still processing", exception);
         } catch (ApiException exception) {
             throw exception;
         } catch (RuntimeException exception) {

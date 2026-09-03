@@ -7,7 +7,6 @@ import java.util.List;
 import java.util.Map;
 
 import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminSessions;
-import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminStats;
 import com.acttub.actingapi.feature.admin.app.AdminService;
 import com.acttub.actingapi.platform.web.ApiException;
 import com.acttub.actingapi.platform.web.ApiValidationException;
@@ -37,24 +36,6 @@ class AdminController {
     AdminController(AdminService admin, @Value("${ADMIN_OPS_TOKEN}") String adminToken) {
         this.admin = admin;
         this.expectedAuthorization = ("Bearer " + adminToken).getBytes(StandardCharsets.UTF_8);
-    }
-
-    @Operation(summary = "Stats", operationId = "stats_v2_admin_stats_get", tags = "admin")
-    @ApiResponses({
-        @ApiResponse(
-                responseCode = "200",
-                description = "Successful Response",
-                content = @Content(schema = @Schema(implementation = AdminStats.class))),
-        @ApiResponse(
-                responseCode = "422",
-                description = "Validation Error",
-                content = @Content(schema = @Schema(ref = "#/components/schemas/HTTPValidationError")))
-    })
-    @GetMapping("/stats")
-    AdminStats stats(
-            @RequestHeader(name = "authorization", defaultValue = "") String authorization) {
-        requireToken(authorization);
-        return admin.stats();
     }
 
     @Operation(summary = "Sessions", operationId = "sessions_v2_admin_sessions_get", tags = "admin")

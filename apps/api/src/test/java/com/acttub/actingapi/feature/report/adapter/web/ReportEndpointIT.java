@@ -128,14 +128,14 @@ class ReportEndpointIT {
         jdbc.update("""
                 INSERT INTO upload_intents (
                     id,user_id,status,storage_provider,object_key,mime_type,size_bytes,expires_at
-                ) VALUES (?,?,'finalized'::upload_status_t,'s3',?,'video/mp4',1,?)
+                ) VALUES (?,?,'finalized','s3',?,'video/mp4',1,?)
                 """, uploadId, userId, objectKey, CREATED_AT.plusDays(1));
         UUID practiceId = UUID.randomUUID();
         jdbc.update("""
                 INSERT INTO practice_sessions (
                     id,user_id,upload_intent_id,status,situation,character_context,goal,
                     blockage_kind,sub_branch,hidden_at
-                ) VALUES (?, ?, ?, 'analyzed'::practice_status_t, '상황', '인물', '목표',
+                ) VALUES (?, ?, ?, 'analyzed', '상황', '인물', '목표',
                     '분석', '캐릭터 분석', ?)
                 """, practiceId, userId, uploadId, hiddenAt);
         return practiceId;
@@ -163,7 +163,7 @@ class ReportEndpointIT {
     private void insertUser(UUID id) {
         jdbc.update("""
                 INSERT INTO users (id,email,status)
-                VALUES (?,?,'active'::user_status_t)
+                VALUES (?,?,'active')
                 """, id, id + "@example.test");
     }
 

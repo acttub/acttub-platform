@@ -39,7 +39,32 @@ class PostgresUploadIntentRepositoryIT {
     @BeforeEach
     void setUp() {
         jdbc.execute("TRUNCATE TABLE users RESTART IDENTITY CASCADE");
-        jdbc.update("INSERT INTO users(id,status) VALUES (?,'active'::user_status_t)", USER_ID);
+        jdbc.update("INSERT INTO users(id,status) VALUES (?,'active')", USER_ID);
+    }
+
+    @Test
+    void creationReturnsStoredValuesAndDatabaseGeneratedTimestamp() {
+        Instant expiresAt = Instant.parse("2026-09-02T01:02:03.123456Z");
+
+        UploadIntent created = store.create(
+                USER_ID,
+                "users/" + USER_ID + "/uploads/created.mp4",
+                "video/mp4",
+                42,
+                1_234,
+                expiresAt);
+
+        assertThat(created.userId()).isEqualTo(USER_ID);
+        assertThat(created.status()).isEqualTo("pending");
+        assertThat(created.storageProvider()).isEqualTo("s3");
+        assertThat(created.objectKey()).endsWith("/created.mp4");
+        assertThat(created.mimeType()).isEqualTo("video/mp4");
+        assertThat(created.sizeBytes()).isEqualTo(42);
+        assertThat(created.durationMs()).isEqualTo(1_234);
+        assertThat(created.createdAt()).isNotNull();
+        assertThat(created.expiresAt()).isEqualTo(expiresAt);
+        assertThat(created.finalizedAt()).isNull();
+        assertThat(store.find(USER_ID, created.id())).isEqualTo(created);
     }
 
     @Test
@@ -69,7 +94,7 @@ class PostgresUploadIntentRepositoryIT {
                     .hasSize(1);
         }
         assertThat(jdbc.queryForObject(
-                "SELECT status::text FROM upload_intents WHERE id=?", String.class, intent.id()))
+                "SELECT status FROM upload_intents WHERE id=?", String.class, intent.id()))
                 .isEqualTo("finalized");
     }
 }

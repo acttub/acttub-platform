@@ -28,6 +28,7 @@ import * as amplitude from "@amplitude/analytics-browser";
 import { sessionReplayPlugin } from "@amplitude/plugin-session-replay-browser";
 import { toDurationBucket } from "./ga";
 import type { UploadStage } from "../api/v2/uploads";
+import type { TheoryChoiceId } from "../../features/practice/theory-choice";
 import { scrubUrl } from "../observability/sentry-shared";
 
 export { toDurationBucket } from "./ga";
@@ -47,7 +48,7 @@ type AnalysisErrorCode =
   | "unsupported_media"
   | "max_attempts_exceeded";
 type ReportType = "analysis" | "expression" | "blocked";
-type PracticeStatus = "created" | "analyzing" | "analyzed" | "failed";
+type PracticeStatus = "analyzing" | "analyzed" | "failed";
 export type LoginProvider = "development" | "google" | "apple";
 // 연습을 시작하다 어디서 엎어졌는지. 가운데 셋(UploadStage)은 UploadError 가 스스로
 // 말하지만 양 끝 둘은 아니다. `session_create` 는 UploadError 가 아니다 — 업로드가 다
@@ -183,13 +184,12 @@ function toSafeReasonCode(reason: unknown, depth = 0): SafeReasonCode {
   return "unknown";
 }
 
-/** 로그인 실패 분류는 화면 분류기와 같은 세 코드만 통과시키고 나머지는 원문 없이 묶는다. */
+/** 로그인 실패 분류는 화면 분류기와 같은 두 코드만 통과시키고 나머지는 원문 없이 묶는다. */
 function toLoginReasonCode(reason: unknown): string {
   if (reason !== null && typeof reason === "object") {
     const error = reason as { name?: unknown; status?: unknown; code?: unknown };
     if (
       (error.status === 401 && error.code === "invalid_provider_token")
-      || (error.status === 403 && error.code === "account_suspended")
       || (error.status === 400 && error.code === "unsupported_provider")
     ) {
       return error.code;
@@ -221,14 +221,9 @@ export function trackPracticeVideoSelected(sizeBytes: number, isReselect: boolea
   });
 }
 
-export function trackPracticeBlockageStarted(): void {
-  track("practice_blockage_started");
-}
-
 /**
- * "장면 없이 시작"을 눌렀다. 세션 제출 이벤트의 scene_skipped 와 나눠 두는 이유는
- * "버튼을 눌렀다"와 "그냥 빈 채로 진행했다"를 갈라야 안내 문구와 버튼의 효과를
- * 따로 잴 수 있기 때문이다(ADR-021).
+ * 시작할 때 장면 세 칸이 모두 비어 있었다. 별도 건너뛰기 버튼이 없어졌으므로
+ * 세션 생성 성공 여부와 관계없이 시작 시점의 선택 입력 상태를 센다.
  */
 export function trackPracticeSceneSkipped(): void {
   track("practice_scene_skipped");
@@ -292,12 +287,14 @@ export function trackPracticeSessionCreated(
   subBranch: BlockageSubBranch,
   /** Scene Context 세 칸을 모두 비운 채 만든 연습인가. 완주율을 갈라 보는 데 쓴다. */
   sceneSkipped: boolean,
+  theoryChoice?: TheoryChoiceId | null,
 ): void {
   track("practice_session_created", {
     duration_bucket: toDurationBucket(durationMs),
     kind,
     sub_branch: subBranch,
     scene_skipped: sceneSkipped,
+    ...(theoryChoice ? { theory_choice: theoryChoice } : {}),
   });
 }
 
