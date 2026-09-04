@@ -614,13 +614,20 @@ class CoachReportEndpointIT {
                 CREATED_AT);
     }
 
+    private static final String VALID_OBSERVATIONS =
+            "[{\"start_ms\":0,\"end_ms\":100,\"what\":\"멈춘다\","
+                    + "\"quote\":\"가지 마\",\"dimension\":\"호흡\",\"confidence\":0.9}]";
+
     private void useValidObservationPack(UUID practiceId) {
         jdbc.update("""
                 UPDATE summaries
-                SET observations_json = ?::jsonb, uncertainties_json = '[]'::jsonb
+                SET raw = ?::jsonb, observations_json = ?::jsonb,
+                    uncertainties_json = '[]'::jsonb
                 WHERE session_id = ?
                 """,
-                "[{\"start_ms\":0,\"end_ms\":100,\"label\":\"멈춘다\",\"confidence\":0.9}]",
+                "{\"scene_summary\":\"문 앞에서 돌아선다.\",\"observations\":"
+                        + VALID_OBSERVATIONS + ",\"uncertainties\":[]}",
+                VALID_OBSERVATIONS,
                 practiceId);
     }
 
