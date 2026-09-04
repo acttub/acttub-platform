@@ -92,6 +92,24 @@
           "microphonePermission": "촬영 영상에 소리를 담으려면 마이크 접근이 필요해요.",
           "recordAudioAndroid": true
         }
+      ],
+      [
+        "expo-tracking-transparency",
+        {
+          "userTrackingPermission": "맞춤 광고를 보여주고 앱을 개선하는 데 광고 식별자를 사용해요. 허용하지 않아도 모든 기능을 그대로 쓸 수 있어요."
+        }
+      ],
+      [
+        "react-native-fbsdk-next",
+        {
+          "appID": "1535408487870893",
+          "clientToken": "efe8e914d2f4a46e314ac634907dbe4e",
+          "displayName": "Acttub",
+          "scheme": "fb1535408487870893",
+          "isAutoInitEnabled": false,
+          "autoLogAppEventsEnabled": true,
+          "advertiserIDCollectionEnabled": true
+        }
       ]
     ],
     "experiments": {
