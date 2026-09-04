@@ -92,7 +92,7 @@ class ProductionEnvelopeSpikeTest {
                 assertThat(pack.observations()).isNotEmpty();
                 assertThat(pack.uncertainties()).isNotNull();
                 for (ObservationPackDto.Observation observation : pack.observations()) {
-                    assertThat(observation.label()).isNotBlank();
+                    assertThat(observation.what()).isNotBlank();
                     assertThat(observation.endMs()).isGreaterThan(observation.startMs());
                     assertThat(observation.confidence()).isBetween(0.0, 1.0);
                 }
@@ -265,13 +265,16 @@ class ProductionEnvelopeSpikeTest {
     }
 
     record ObservationPackDto(
+            @JsonProperty("scene_summary") String sceneSummary,
             List<Observation> observations,
             List<String> uncertainties) {
 
         record Observation(
                 @JsonProperty("start_ms") int startMs,
                 @JsonProperty("end_ms") int endMs,
-                String label,
+                String what,
+                String quote,
+                String dimension,
                 double confidence) {
         }
     }

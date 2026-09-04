@@ -280,7 +280,6 @@ public final class CoachPrompt {
                 + actorMaterialBlock(session)
                 + sceneContextMissingBlock(session)
                 + blockageUnspecifiedBlock(session)
-                + transcriptBlock(session) + "\n\n"
                 + "## 영상에서 확인된 것\n"
                 + "이 팩만 영상 근거로 쓴다. 이 호출에는 영상이 첨부되지 않았고 새 영상 사실을 만들면 안 된다.\n"
                 + videoFacts(session) + "\n\n"
@@ -341,47 +340,26 @@ public final class CoachPrompt {
                 .collect(java.util.stream.Collectors.joining("\n"));
     }
 
-    /**
-     * 영상에서 받아쓴 대사를 담는 칸. 갈래로 갈리지 않는다 — 세 갈래 모두의 코치가 대사를
-     * 인용해 말해야 한다. 없으면 칸 자체를 만들지 않는다({@link #priorContextBlock} 과 같은
-     * 이유).
-     */
-    private static String transcriptBlock(CoachSessionSnapshot session) {
-        if (session.transcripts().isEmpty()) {
-            return "";
-        }
-        String transcriptLines = session.transcripts().stream()
-                .map(text -> "- " + text)
-                .collect(java.util.stream.Collectors.joining("\n"));
-        return section("영상에서 받아쓴 대사", transcriptLines);
-    }
 
+    /**
+     * 영상을 본 모델이 낸 관찰을 <b>가공하지 않고 그대로</b> 넘긴다 (SOMA-490).
+     *
+     * <p>예전에는 관찰 3개를 "- 0~93000ms: 라벨" 한 줄씩으로 다시 써서 넘겼다. 그 과정에서
+     * 장면 요약도, 대사 인용도, 어느 축의 관찰인지도 사라졌다 — 코치는 영상을 보지 못하므로
+     * 이 JSON 이 유일한 영상 근거다. 줄여서 넘길 이유가 없다.
+     */
     private static String videoFacts(CoachSessionSnapshot session) {
         JsonNode pack = session.observationPack();
-        if (pack == null || pack.isNull()) {
+        if (pack == null || pack.isNull() || pack.isEmpty()) {
             return "아직 영상에서 확인된 것이 없다. 영상 이야기를 만들지 마라.";
         }
         JsonNode observations = pack.get("observations");
-        JsonNode uncertainties = pack.get("uncertainties");
         if (observations == null || !observations.isArray() || observations.isEmpty()) {
-            String uncertaintyText = joinText(uncertainties, " / ");
-            if (uncertaintyText.isEmpty()) {
-                uncertaintyText = "없음";
-            }
-            return "관찰 0개. 이것은 정상이며 영상 이야기를 새로 만들면 안 된다.\n"
-                    + "불확실: " + uncertaintyText;
+            String uncertaintyText = joinText(pack.get("uncertainties"), " / ");
+            return "관찰 0개. 영상 이야기를 새로 만들면 안 된다.\n불확실: "
+                    + (uncertaintyText.isEmpty() ? "없음" : uncertaintyText);
         }
-        List<String> lines = new ArrayList<>();
-        observations.forEach(item -> lines.add(
-                "- " + item.path("start_ms").asLong()
-                        + "~" + item.path("end_ms").asLong() + "ms: "
-                        + pythonString(item.get("label"))
-                        + " (확인 가능성 " + pythonString(item.get("confidence")) + ")"));
-        String uncertaintyText = joinText(uncertainties, " / ");
-        if (!uncertaintyText.isEmpty()) {
-            lines.add("확인되지 않은 것: " + uncertaintyText);
-        }
-        return String.join("\n", lines);
+        return compactJson(pack);
     }
 
     private static String analysisHandoffBlock(CoachSessionSnapshot session) {

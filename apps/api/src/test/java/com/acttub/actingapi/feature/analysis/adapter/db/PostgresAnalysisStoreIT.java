@@ -74,7 +74,7 @@ class PostgresAnalysisStoreIT {
     }
 
     @Test
-    void completeStoresSummaryTranscriptsAndFinishesTheOperationInOneTransaction()
+    void completeStoresSummaryAndFinishesTheOperationInOneTransaction()
             throws Exception {
         UUID userId = insertUser();
         UUID sessionId = insertSession(userId, insertFinalizedUpload(userId));
@@ -97,18 +97,18 @@ class PostgresAnalysisStoreIT {
         assertThat(summary.get("was_compressed")).isEqualTo(true);
         assertThat(mapper.readTree((String) summary.get("observations"))).isEqualTo(
                 mapper.readTree("""
-                        [{"start_ms":0,"end_ms":1200,"label":"호흡이 얕다","confidence":0.8}]
+                        [{"start_ms":0,"end_ms":1200,"what":"호흡이 얕다",
+                          "quote":"지금 놓치면 끝이야","dimension":"호흡","confidence":0.8}]
                         """));
         assertThat(mapper.readTree((String) summary.get("uncertainties")))
                 .isEqualTo(mapper.readTree("[\"조명이 어둡다\"]"));
         assertThat(mapper.readTree((String) summary.get("raw")).fieldNames()).toIterable()
-                .containsExactly("observations", "uncertainties");
+                .containsExactly("scene_summary", "observations", "uncertainties");
 
-        // 대사는 넣은 순서가 곧 ord 다 — 순서가 뒤집히면 대본이 어긋난 채로 코치에게 넘어간다.
-        assertThat(jdbc.queryForList(
-                "SELECT text FROM transcripts WHERE session_id = ? ORDER BY ord",
-                String.class, sessionId))
-                .containsExactly("지금 놓치면 끝이야", "돌아서지 마");
+        // 받아쓰기는 SOMA-490 에서 사라졌다 — 대사는 관찰의 quote 로 들어오므로
+        // 이 표에 더 쌓이지 않는다. 표 자체는 지난 연습의 기록을 위해 남아 있다.
+        assertThat(count("SELECT count(*) FROM transcripts WHERE session_id = ?", sessionId))
+                .isZero();
 
         assertThat(sessionStatus(sessionId)).isEqualTo("analyzed");
         assertThat(jdbc.queryForObject(
@@ -231,10 +231,11 @@ class PostgresAnalysisStoreIT {
     private static AnalysisResult result() {
         return new AnalysisResult(
                 new ObservationPack(
-                        List.of(new ObservationItem(0, 1200, "호흡이 얕다", 0.8)),
+                        "여자가 문 앞에서 돌아선다.",
+                        List.of(new ObservationItem(
+                                0, 1200, "호흡이 얕다", "지금 놓치면 끝이야", "호흡", 0.8)),
                         List.of("조명이 어둡다")),
-                true,
-                List.of("지금 놓치면 끝이야", "돌아서지 마"));
+                true);
     }
 
     private UUID insertUser() {

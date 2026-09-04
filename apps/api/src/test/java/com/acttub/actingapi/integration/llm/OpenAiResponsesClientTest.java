@@ -39,7 +39,7 @@ class OpenAiResponsesClientTest {
         assertThat(request.body().fieldNames()).toIterable()
                 .containsExactly("model", "instructions", "input");
         assertThat(request.body()).isEqualTo(OBJECT_MAPPER.readTree("""
-                {"model":"gpt-5.6-terra","instructions":"시스템","input":"입력 문자열"}
+                {"model":"gpt-5.6-luna","instructions":"시스템","input":"입력 문자열"}
                 """));
         assertThat(OpenAiResponsesClient.REQUEST_TIMEOUT).isEqualTo(Duration.ofSeconds(120));
     }

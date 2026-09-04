@@ -25,7 +25,14 @@ public class OpenAiResponsesClient implements TextGenerator {
             URI.create("https://api.openai.com/v1/responses");
     private static final int ATTEMPTS = 4;
     private static final Set<Integer> RETRY_STATUSES = Set.of(429, 503);
-    private static final String DEFAULT_MODEL = "gpt-5.6-terra";
+    /**
+     * 환경변수가 비었을 때 쓰는 모델. 코치가 보는 것이 관찰 팩 전문이 된 뒤로(SOMA-490)
+     * 긴 근거를 읽고 한 가지를 골라 묻는 일이 이 층의 전부라, terra 대신 luna 를 기본으로 둔다.
+     *
+     * <p>⚠ 두 서버의 {@code api.env} 는 {@code OPENAI_CHAT_MODEL} 을 직접 적어 두고 있고
+     * 환경변수가 이 기본값을 이긴다 — 배포만으로는 모델이 바뀌지 않는다.
+     */
+    private static final String DEFAULT_MODEL = "gpt-5.6-luna";
 
     private final ObjectMapper objectMapper;
     private final OpenAiHttpTransport transport;

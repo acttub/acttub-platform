@@ -62,7 +62,7 @@ public class CoachSessionWork {
                     cs.status AS coach_status,
                     cs.close_reason,
                     cs.conversation_summary,
-                    s.observations_json::text AS observations_json,
+                    s.raw::text AS observations_json,
                     s.uncertainties_json::text AS uncertainties_json,
                     ps.id AS practice_session_id,
                     ps.user_id,
@@ -215,7 +215,7 @@ public class CoachSessionWork {
                     ps.upload_intent_id,
                     ui.duration_ms,
                     s.id AS summary_id,
-                    s.observations_json::text AS observations_json,
+                    s.raw::text AS observations_json,
                     s.uncertainties_json::text AS uncertainties_json
                 FROM practice_sessions ps
                 JOIN upload_intents ui ON ui.id = ps.upload_intent_id

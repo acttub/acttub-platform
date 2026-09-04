@@ -265,10 +265,12 @@ class PostgresPracticeSessionRepository implements PracticeSessionRepository {
             return List.of();
         }
         List<Observation> items = new ArrayList<>();
+        // what 은 SOMA-490 이 되살린 이름이고, label 은 그 이전에 저장된 관찰이다.
+        // 화면 계약(label)은 그대로 두고 읽는 쪽에서만 둘 다 받는다.
         node.forEach(item -> items.add(new Observation(
                 item.path("start_ms").bigIntegerValue(),
                 item.path("end_ms").bigIntegerValue(),
-                item.path("label").textValue(),
+                item.has("what") ? item.path("what").textValue() : item.path("label").textValue(),
                 item.path("confidence").decimalValue())));
         return List.copyOf(items);
     }

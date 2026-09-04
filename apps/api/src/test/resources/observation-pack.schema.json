@@ -1,26 +1,41 @@
 {
   "type": "OBJECT",
-  "description": "acting-summary/schema.py 의 ObservationPack 을 Gemini responseSchema 로 옮긴 것. M0 스파이크가 쓰던 SceneSummary 는 SOMA-302 로 사라졌다.",
+  "description": "영상 관찰 결과. 판정(심각도·잘잘못)은 담지 않는다 — 관찰과 인용만 담고, 판단은 배우와 코치의 대화가 한다.",
   "properties": {
+    "scene_summary": {
+      "type": "STRING",
+      "description": "이 장면이 무슨 이야기인지 3~5문장. 인물이 처한 상황, 상대와 무엇을 주고받는지, 말과 행동이 어떻게 이어지는지. 평가·조언은 쓰지 않는다."
+    },
     "observations": {
       "type": "ARRAY",
-      "description": "구간별 관찰. 후처리(_filter_observations)가 유효성 검사 후 앞 3개로 자른다.",
+      "description": "구간별 관찰. 확인된 만큼 적는다.",
       "items": {
         "type": "OBJECT",
         "properties": {
           "start_ms": {"type": "INTEGER", "description": "관찰 시작 시각(ms)"},
           "end_ms": {"type": "INTEGER", "description": "관찰 종료 시각(ms). start_ms 보다 커야 한다."},
-          "label": {"type": "STRING", "description": "그 구간에서 관찰된 것"},
+          "what": {
+            "type": "STRING",
+            "description": "그 구간에서 보이고 들린 것을 구체적으로. 최대 1000자. 대사의 발음·속도·높낮이·끊김, 시선이 옮겨간 곳, 손과 몸의 움직임, 상대의 말을 받는 간격을 확인된 대로 적는다. 왜 그런지는 쓰지 않는다."
+          },
+          "quote": {
+            "type": "STRING",
+            "description": "그 구간에서 실제로 들린 대사 원문. 들리지 않았으면 빈 문자열."
+          },
+          "dimension": {
+            "type": "STRING",
+            "description": "관찰이 걸린 축. 대사 · 목소리 · 호흡 · 리듬 · 시선 · 표정 · 움직임 중 해당하는 것을 쉼표로 나열."
+          },
           "confidence": {"type": "NUMBER", "description": "0.0~1.0"}
         },
-        "required": ["start_ms", "end_ms", "label", "confidence"]
+        "required": ["start_ms", "end_ms", "what", "quote", "dimension", "confidence"]
       }
     },
     "uncertainties": {
       "type": "ARRAY",
-      "description": "영상만으로는 판단할 수 없었던 것. 없으면 빈 리스트.",
+      "description": "영상만으로는 확인할 수 없었던 것. 없으면 빈 리스트.",
       "items": {"type": "STRING"}
     }
   },
-  "required": ["observations", "uncertainties"]
+  "required": ["scene_summary", "observations", "uncertainties"]
 }
