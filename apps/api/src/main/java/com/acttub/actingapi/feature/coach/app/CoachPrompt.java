@@ -11,6 +11,7 @@ import com.acttub.actingapi.feature.coach.domain.CoachTurnSnapshot;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 
 /** acting-agent/prompt.py의 프롬프트와 입력 직렬화 계약. */
 public final class CoachPrompt {
@@ -347,6 +348,10 @@ public final class CoachPrompt {
      * <p>예전에는 관찰 3개를 "- 0~93000ms: 라벨" 한 줄씩으로 다시 써서 넘겼다. 그 과정에서
      * 장면 요약도, 대사 인용도, 어느 축의 관찰인지도 사라졌다 — 코치는 영상을 보지 못하므로
      * 이 JSON 이 유일한 영상 근거다. 줄여서 넘길 이유가 없다.
+     *
+     * <p>내용은 그대로 두되 <b>순서만</b> 다시 세운다. 팩은 {@code jsonb} 칸에 있고 그 타입은
+     * 키 순서를 보존하지 않아(짧은 이름부터 저장한다) 장면 요약이 관찰 배열 뒤로 밀려 나온다.
+     * 무슨 이야기인지를 먼저 읽고 구간을 봐야 순서대로 읽힌다.
      */
     private static String videoFacts(CoachSessionSnapshot session) {
         JsonNode pack = session.observationPack();
@@ -359,7 +364,26 @@ public final class CoachPrompt {
             return "관찰 0개. 영상 이야기를 새로 만들면 안 된다.\n불확실: "
                     + (uncertaintyText.isEmpty() ? "없음" : uncertaintyText);
         }
-        return compactJson(pack);
+        return compactJson(readingOrder(pack));
+    }
+
+    /**
+     * 장면 요약 · 관찰 · 불확실 순으로 다시 담은 사본. 팩에 그 밖의 칸이 생기면 뒤에 그대로
+     * 따라붙는다 — 여기서 걸러 내면 다시 손실이 된다.
+     */
+    private static JsonNode readingOrder(JsonNode pack) {
+        ObjectNode ordered = OBJECT_MAPPER.createObjectNode();
+        for (String field : List.of("scene_summary", "observations", "uncertainties")) {
+            if (pack.has(field)) {
+                ordered.set(field, pack.get(field));
+            }
+        }
+        pack.fields().forEachRemaining(field -> {
+            if (!ordered.has(field.getKey())) {
+                ordered.set(field.getKey(), field.getValue());
+            }
+        });
+        return ordered;
     }
 
     private static String analysisHandoffBlock(CoachSessionSnapshot session) {

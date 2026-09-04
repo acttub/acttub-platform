@@ -102,8 +102,10 @@ class PostgresAnalysisStoreIT {
                         """));
         assertThat(mapper.readTree((String) summary.get("uncertainties")))
                 .isEqualTo(mapper.readTree("[\"조명이 어둡다\"]"));
+        // jsonb 는 키 순서를 보존하지 않는다(짧은 이름부터 저장한다) — 저장된 순서가 아니라
+        // 세 칸이 다 있는지가 여기서 볼 것이고, 읽는 순서는 CoachPrompt 가 다시 세운다.
         assertThat(mapper.readTree((String) summary.get("raw")).fieldNames()).toIterable()
-                .containsExactly("scene_summary", "observations", "uncertainties");
+                .containsExactlyInAnyOrder("scene_summary", "observations", "uncertainties");
 
         // 받아쓰기는 SOMA-490 에서 사라졌다 — 대사는 관찰의 quote 로 들어오므로
         // 이 표에 더 쌓이지 않는다. 표 자체는 지난 연습의 기록을 위해 남아 있다.
