@@ -14,7 +14,6 @@ import com.acttub.actingapi.feature.analysis.app.AnalysisOperationQueue;
 import com.acttub.actingapi.feature.analysis.app.AnalysisResult;
 import com.acttub.actingapi.feature.analysis.app.AnalysisStore;
 import com.acttub.actingapi.feature.analysis.schema.SummaryEntity;
-import com.acttub.actingapi.feature.analysis.schema.TranscriptEntity;
 import com.acttub.actingapi.platform.ledger.LeaseOwnershipException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -170,10 +169,6 @@ public class PostgresAnalysisStore implements AnalysisStore {
                 raw,
                 observations,
                 uncertainties));
-        for (int index = 0; index < result.transcripts().size(); index++) {
-            entityManager.persist(new TranscriptEntity(
-                    UUID.randomUUID(), sessionId, index, result.transcripts().get(index)));
-        }
         // Hibernate write-behind가 뒤의 상태 전이보다 INSERT를 늦추지 않게 순서를 고정한다.
         entityManager.flush();
 

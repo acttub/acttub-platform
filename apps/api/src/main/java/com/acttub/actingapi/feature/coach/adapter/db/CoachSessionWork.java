@@ -62,7 +62,7 @@ public class CoachSessionWork {
                     cs.status AS coach_status,
                     cs.close_reason,
                     cs.conversation_summary,
-                    s.observations_json::text AS observations_json,
+                    s.raw::text AS observations_json,
                     s.uncertainties_json::text AS uncertainties_json,
                     ps.id AS practice_session_id,
                     ps.user_id,
@@ -215,7 +215,7 @@ public class CoachSessionWork {
                     ps.upload_intent_id,
                     ui.duration_ms,
                     s.id AS summary_id,
-                    s.observations_json::text AS observations_json,
+                    s.raw::text AS observations_json,
                     s.uncertainties_json::text AS uncertainties_json
                 FROM practice_sessions ps
                 JOIN upload_intents ui ON ui.id = ps.upload_intent_id
@@ -230,12 +230,9 @@ public class CoachSessionWork {
             return null;
         }
         PracticeContextRow row = mapPracticeContextRow(rows.getFirst());
-        ObjectNode pack = null;
-        if (row.summaryId() != null) {
-            pack = objectMapper.createObjectNode();
-            pack.set("observations", row.observations());
-            pack.set("uncertainties", row.uncertainties());
-        }
+        JsonNode pack = row.summaryId() == null
+                ? null
+                : observationPack(row.observations(), row.uncertainties());
         List<String> transcripts = transcripts(practiceSessionId);
         JsonNode analysisHandoff = CoachBranch.isExpressionBlockage(row.blockageKind())
                 ? findConfirmedAnalysisHandoff(row.userId(), row.uploadIntentId())
@@ -621,9 +618,28 @@ public class CoachSessionWork {
         if (row.summaryId() == null) {
             return null;
         }
+        return observationPack(row.observations(), row.uncertainties());
+    }
+
+    /**
+     * 코치가 볼 관찰 팩.
+     *
+     * <p>영상을 본 모델이 낸 그대로가 {@code raw} 에 있고, 코치는 그것을 통째로 읽는다
+     * (SOMA-490) — 걸러 다시 적은 {@code observations_json} 을 읽던 때는 장면 요약도 대사
+     * 인용도 코치에게 닿지 않았다. {@code raw} 가 이미 팩 한 벌이므로 다시 감싸지 않는다.
+     *
+     * <p>그 칸이 관찰 배열만 갖고 있거나 비어 있는 <b>옛 요약 행</b>도 아직 남아 있다. 그때는
+     * 예전처럼 두 칸을 모아 팩을 세운다.
+     */
+    private JsonNode observationPack(JsonNode raw, JsonNode uncertainties) {
+        if (raw != null && raw.isObject() && raw.has("observations")) {
+            return raw;
+        }
         ObjectNode pack = objectMapper.createObjectNode();
-        pack.set("observations", row.observations());
-        pack.set("uncertainties", row.uncertainties());
+        pack.set(
+                "observations",
+                raw != null && raw.isArray() ? raw : objectMapper.createArrayNode());
+        pack.set("uncertainties", uncertainties);
         return pack;
     }
 

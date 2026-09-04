@@ -26,7 +26,7 @@ import org.junit.jupiter.api.Test;
 class TransactionBoundaryTest {
 
     private static final Pattern EXTERNAL_CALL = Pattern.compile(
-            "TextGenerator|S3Presigner|S3Storage|OpenAi|Gemini|AudioTranscriber");
+            "TextGenerator|S3Presigner|S3Storage|OpenAi|Gemini");
 
     @Test
     @DisplayName("트랜잭션을 여는 클래스는 외부 호출 타입을 참조하지 않는다")

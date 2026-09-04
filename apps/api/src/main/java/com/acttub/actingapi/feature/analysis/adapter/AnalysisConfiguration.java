@@ -1,11 +1,7 @@
 package com.acttub.actingapi.feature.analysis.adapter;
 
-import com.acttub.actingapi.feature.analysis.adapter.media.FfmpegAudioExtractor;
-import com.acttub.actingapi.feature.analysis.adapter.media.OpenAiAudioTranscriber;
 import com.acttub.actingapi.feature.analysis.adapter.media.VideoDurationProbe;
 import com.acttub.actingapi.feature.analysis.app.AnalysisProcessor;
-import com.acttub.actingapi.feature.analysis.app.AudioExtractor;
-import com.acttub.actingapi.feature.analysis.app.AudioTranscriber;
 import com.acttub.actingapi.feature.analysis.app.SummaryAnalyzer;
 import com.acttub.actingapi.feature.analysis.app.VideoCompressor;
 import com.acttub.actingapi.integration.media.GeminiVideoCompressor;
@@ -36,30 +32,13 @@ class AnalysisConfiguration {
         return compressor::compress;
     }
 
-    @Bean
-    AudioExtractor analysisAudioExtractor() {
-        return new FfmpegAudioExtractor();
-    }
 
-    @Bean
-    AudioTranscriber analysisAudioTranscriber(ObjectMapper mapper) {
-        return new OpenAiAudioTranscriber(mapper);
-    }
 
     @Bean
     AnalysisProcessor summaryAnalyzer(
             VideoDurationProbe durationProbe,
             VideoCompressor compressor,
-            ObservationAnalyzer observations,
-            AudioExtractor audioExtractor,
-            AudioTranscriber audioTranscriber,
-            FailureReporter failureReporter) {
-        return new SummaryAnalyzer(
-                durationProbe,
-                compressor,
-                observations,
-                audioExtractor,
-                audioTranscriber,
-                failureReporter);
+            ObservationAnalyzer observations) {
+        return new SummaryAnalyzer(durationProbe, compressor, observations);
     }
 }

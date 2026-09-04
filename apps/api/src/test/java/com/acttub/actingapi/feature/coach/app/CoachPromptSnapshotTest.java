@@ -53,27 +53,26 @@ class CoachPromptSnapshotTest {
     }
 
     /**
-     * 받아쓴 대사 칸은 갈래로 갈리지 않는다 — 표현·그 외로 시작한 연습의 코치도 대사를
-     * 인용해 말해야 한다. 예전에는 "분석" 세션에만 넣었다.
+     * 받아쓴 대사 칸은 SOMA-490 에서 사라졌다 — 대사는 관찰의 {@code quote} 로 이미
+     * 프롬프트에 들어 있고, 같은 말을 두 번 실으면 코치가 그 목록만 붙잡고 말한다. 지난
+     * 연습에 남아 있는 대사 행이 프롬프트를 <b>바꾸지 않는다</b>는 것을 여기서 고정한다.
      */
     @Test
-    @DisplayName("표현 갈래에도 받아쓴 대사가 있으면 그 칸이 들어간다")
-    void expressionSessionWithTranscriptsMatchesFrozenValue() throws Exception {
-        CoachSessionSnapshot expression = expressionSession(TRANSCRIPTS);
-        assertThat(CoachPrompt.buildChat(expression, "이번에는 멈춰봤어요"))
-                .isEqualTo(FrozenValue.of("coach-chat-prompt-expression-transcripts.txt"));
+    @DisplayName("남아 있는 받아쓴 대사는 프롬프트를 바꾸지 않는다")
+    void leftoverTranscriptsDoNotChangeThePrompt() throws Exception {
+        assertThat(CoachPrompt.buildChat(expressionSession(TRANSCRIPTS), "이번에는 멈춰봤어요"))
+                .isEqualTo(CoachPrompt.buildChat(expressionSession(List.of()), "이번에는 멈춰봤어요"));
     }
 
     /**
-     * 그 외 갈래는 v2 본문을 쓰되 표현 전용 칸 없이, 받아쓴 대사 칸은 들어간다. 갈래가
-     * {@code 그 외} 이므로 막힘 미특정 블록이 붙는다 — 코치가 막힘을 지어내지 않고 영상에서
-     * 확인된 것으로 대화를 연다.
+     * 그 외 갈래는 v2 본문을 쓰되 표현 전용 칸 없이 간다. 갈래가 {@code 그 외} 이므로 막힘
+     * 미특정 블록이 붙는다 — 코치가 막힘을 지어내지 않고 영상에서 확인된 것으로 대화를 연다.
      */
     @Test
-    @DisplayName("그 외 갈래에는 막힘 미특정 블록이 붙고 받아쓴 대사 칸도 들어간다")
-    void otherSessionWithTranscriptsMatchesFrozenValue() throws Exception {
+    @DisplayName("그 외 갈래에는 막힘 미특정 블록이 붙는다")
+    void otherSessionMatchesFrozenValue() throws Exception {
         assertThat(CoachPrompt.buildChat(otherSession(), "잘 모르겠어요"))
-                .isEqualTo(FrozenValue.of("coach-chat-prompt-other-transcripts.txt"));
+                .isEqualTo(FrozenValue.of("coach-chat-prompt-other.txt"));
     }
 
     /**
@@ -230,7 +229,9 @@ class CoachPromptSnapshotTest {
 
     private static JsonNode observationPack() throws Exception {
         return OBJECT_MAPPER.readTree("""
-                {"observations":[{"start_ms":0,"end_ms":93000,"label":"멈춘 뒤 말한다","confidence":1.0}],
+                {"scene_summary":"여자가 문 앞에서 돌아선 상대를 붙잡는다.",
+                 "observations":[{"start_ms":0,"end_ms":93000,"what":"멈춘 뒤 말한다",
+                                  "quote":"가지 마","dimension":"호흡","confidence":1.0}],
                  "uncertainties":["얼굴은 확인되지 않음"]}
                 """);
     }

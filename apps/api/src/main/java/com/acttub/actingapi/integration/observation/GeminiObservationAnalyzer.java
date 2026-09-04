@@ -143,14 +143,34 @@ final class GeminiObservationAnalyzer implements ObservationAnalyzer {
         }
     }
 
+    /** 관찰 하나가 담을 수 있는 최대 길이. 프롬프트가 약속한 값과 같아야 한다. */
+    private static final int WHAT_MAX_CHARS = 1000;
+
+    /**
+     * 시각이 어긋난 항목만 버린다.
+     *
+     * <p><b>개수로 자르지 않는다</b> — 앞 3개만 남기던 시절, 79초 영상이 코치에게 한 줄로
+     * 도착했다(SOMA-490). 상한은 프롬프트(15개)가 모델 쪽에서 걸고, 여기서는 영상 길이를
+     * 벗어난 구간처럼 <b>쓸 수 없는 것</b>만 걸러낸다.
+     */
     private static ObservationPack filter(ObservationPack pack, long durationMs) {
         List<ObservationItem> observations = pack.observations().stream()
                 .filter(item -> item.startMs() >= 0)
                 .filter(item -> item.endMs() > item.startMs())
                 .filter(item -> item.endMs() <= durationMs)
-                .limit(3)
+                .map(GeminiObservationAnalyzer::clipWhat)
                 .toList();
-        return new ObservationPack(observations, pack.uncertainties());
+        return new ObservationPack(pack.sceneSummary(), observations, pack.uncertainties());
+    }
+
+    private static ObservationItem clipWhat(ObservationItem item) {
+        String what = item.what();
+        if (what.codePointCount(0, what.length()) <= WHAT_MAX_CHARS) {
+            return item;
+        }
+        int end = what.offsetByCodePoints(0, WHAT_MAX_CHARS);
+        return new ObservationItem(item.startMs(), item.endMs(),
+                what.substring(0, end), item.quote(), item.dimension(), item.confidence());
     }
 
     private static Schema loadSchema() {

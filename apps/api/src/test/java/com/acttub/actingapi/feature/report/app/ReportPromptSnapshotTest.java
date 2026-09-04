@@ -40,7 +40,9 @@ class ReportPromptSnapshotTest {
         JsonNode input = engine.buildReportInput(
                 "analysis",
                 MAPPER.readTree("""
-                    {"observations":[{"start_ms":0,"end_ms":100,"label":"멈춘다","confidence":0.9,"ignored":"x"}],
+                    {"scene_summary":"문 앞에서 돌아선 상대를 붙잡는다.",
+                     "observations":[{"start_ms":0,"end_ms":100,"what":"멈춘다","quote":"가지 마",
+                                      "dimension":"호흡","confidence":0.9,"ignored":"x"}],
                      "uncertainties":["얼굴은 안 보임"],"ignored":"x"}
                     """),
                 MAPPER.readTree("{\"blocked_point\":\"대사 의미\"}"),

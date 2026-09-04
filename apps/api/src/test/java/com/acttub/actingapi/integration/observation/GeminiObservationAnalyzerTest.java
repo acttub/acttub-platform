@@ -65,7 +65,7 @@ class GeminiObservationAnalyzerTest {
                 .contains(new ThinkingLevel(ThinkingLevel.Known.LOW));
         assertThat(config.responseMimeType()).contains("application/json");
         assertThat(sha256(config.systemInstruction().orElseThrow().text()))
-                .isEqualTo("b73330b8c3d7e3f37e1786d893837771e84de9b1adf54558bd18dd1d25ac2c95");
+                .isEqualTo("0133348068973129514ba50f803cc38d64e85075fa5202b10cb590996fc8d73f");
         assertThat(mapper.readTree(config.responseSchema().orElseThrow().toJson()))
                 .isEqualTo(observationSchema());
 
@@ -77,23 +77,23 @@ class GeminiObservationAnalyzerTest {
                 .contains("video/quicktime");
         assertThat(parts.get(1).text()).contains(ObservationPrompt.build(ACTOR));
         assertThat(sha256(parts.get(1).text().orElseThrow()))
-                .isEqualTo("57dfba033b9a3caa1b7bb6db09ec040015eee63c226028025d007472cfd45006");
+                .isEqualTo("50da18bef08d5e9eddf8f362e0117266acaa85e5204c910061b0e3a2e5783b04");
         assertThat(gateway.deletedNames).containsExactly("files/take");
     }
 
     @Test
-    void observationFilteringKeepsBoundaryValuesAndOnlyTheFirstThreeValidItems() {
+    void observationFilteringKeepsEveryValidItemIncludingBoundaryValues() {
         StubGateway gateway = new StubGateway();
         gateway.responses.add("""
                 {
                   "observations": [
-                    {"start_ms":0,"end_ms":1,"label":"start-zero","confidence":0.1},
-                    {"start_ms":1,"end_ms":12000,"label":"end-duration","confidence":0.2},
-                    {"start_ms":5,"end_ms":5,"label":"equal","confidence":0.5},
-                    {"start_ms":-1,"end_ms":2,"label":"negative","confidence":0.6},
-                    {"start_ms":11999,"end_ms":12001,"label":"too-late","confidence":0.7},
-                    {"start_ms":2,"end_ms":3,"label":"third","confidence":0.3},
-                    {"start_ms":3,"end_ms":4,"label":"fourth","confidence":0.4}
+                    {"start_ms":0,"end_ms":1,"what":"start-zero","confidence":0.1},
+                    {"start_ms":1,"end_ms":12000,"what":"end-duration","confidence":0.2},
+                    {"start_ms":5,"end_ms":5,"what":"equal","confidence":0.5},
+                    {"start_ms":-1,"end_ms":2,"what":"negative","confidence":0.6},
+                    {"start_ms":11999,"end_ms":12001,"what":"too-late","confidence":0.7},
+                    {"start_ms":2,"end_ms":3,"what":"third","confidence":0.3},
+                    {"start_ms":3,"end_ms":4,"what":"fourth","confidence":0.4}
                   ],
                   "uncertainties": ["얼굴이 화면 밖"]
                 }
@@ -103,8 +103,8 @@ class GeminiObservationAnalyzerTest {
                 Path.of("/tmp/take.mp4"), "video/mp4", ACTOR);
 
         assertThat(result.observations())
-                .extracting(ObservationItem::label)
-                .containsExactly("start-zero", "end-duration", "third");
+                .extracting(ObservationItem::what)
+                .containsExactly("start-zero", "end-duration", "third", "fourth");
         assertThat(result.uncertainties()).containsExactly("얼굴이 화면 밖");
     }
 
@@ -113,14 +113,14 @@ class GeminiObservationAnalyzerTest {
         StubGateway gateway = new StubGateway();
         gateway.responses.add("not-json");
         gateway.responses.add("""
-                {"observations":[{"start_ms":0,"end_ms":1,"label":"두 번째","confidence":1.0}],
+                {"observations":[{"start_ms":0,"end_ms":1,"what":"두 번째","confidence":1.0}],
                  "uncertainties":[]}
                 """);
 
         ObservationPack result = analyzer(gateway).analyze(
                 Path.of("/tmp/take.mp4"), "video/mp4", ACTOR);
 
-        assertThat(result.observations()).extracting(ObservationItem::label)
+        assertThat(result.observations()).extracting(ObservationItem::what)
                 .containsExactly("두 번째");
         assertThat(gateway.generateCalls).isEqualTo(2);
     }
@@ -152,7 +152,7 @@ class GeminiObservationAnalyzerTest {
                 gateway, mapper, MODEL, reporter).analyze(
                 Path.of("/tmp/take.mp4"), "video/mp4", ACTOR);
 
-        assertThat(result).isEqualTo(new ObservationPack(List.of(), List.of()));
+        assertThat(result).isEqualTo(new ObservationPack("", List.of(), List.of()));
         assertThat(gateway.deletedNames).containsExactly("files/take");
         assertThat(reporter.reports()).singleElement().satisfies(report -> {
             assertThat(report.failure()).isSameAs(gateway.deleteFailure);
