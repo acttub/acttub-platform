@@ -161,7 +161,13 @@ public class ReportEngine {
                 ObjectNode normalized = mapper.createObjectNode();
                 normalized.put("start_ms", integral(item.get("start_ms"), "start_ms"));
                 normalized.put("end_ms", integral(item.get("end_ms"), "end_ms"));
-                normalized.put("label", text(item.get("label"), "label"));
+                // 관찰 본문은 `what` 이다(SOMA-490). 옛 요약 행은 `label` 로 남아 있어 둘 다 받는다.
+                JsonNode what = item.has("what") ? item.get("what") : item.get("label");
+                normalized.put("what", text(what, "what"));
+                // 대사 원문과 어느 축의 관찰인지는 연습 노트가 순간을 가리킬 때 쓴다 —
+                // 있는 것을 여기서 버리면 노트도 시각으로만 순간을 가리키게 된다.
+                copyText(item, "quote", normalized);
+                copyText(item, "dimension", normalized);
                 JsonNode confidence = item.get("confidence");
                 require(confidence != null && confidence.isNumber(), "confidence must be a number");
                 normalized.put("confidence", confidence.doubleValue());
@@ -175,9 +181,20 @@ public class ReportEngine {
             uncertainties.forEach(item -> normalizedUncertainties.add(text(item, "uncertainty")));
         }
         ObjectNode pack = mapper.createObjectNode();
+        // 장면이 무슨 이야기인지가 먼저다 — 구간 관찰만으로는 노트가 장면을 통째로 알지
+        // 못한다(SOMA-490). 옛 요약 행에는 이 칸이 없어 있을 때만 싣는다.
+        copyText(value, "scene_summary", pack);
         pack.set("observations", normalizedObservations);
         pack.set("uncertainties", normalizedUncertainties);
         return pack;
+    }
+
+    /** 있으면 문자열로 옮기고, 없으면 칸 자체를 만들지 않는다. */
+    private static void copyText(JsonNode source, String field, ObjectNode target) {
+        JsonNode value = source.get(field);
+        if (value != null && value.isTextual()) {
+            target.put(field, value.textValue());
+        }
     }
 
     /** 핸드오프 JSON 에서 판정에 쓰는 셋을 꺼내 규칙에 넘긴다. 판정 자체는 domain 이 한다. */
