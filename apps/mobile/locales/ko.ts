@@ -497,7 +497,7 @@ const ko = {
     screenTitle: '영상 촬영',
     permissionTitle: '카메라와 마이크가 필요해요',
     permissionBody: '연기 영상을 앱에서 바로 찍으려면 카메라·마이크 권한을 켜 주세요.',
-    grant: '권한 허용',
+    grant: '계속',
     openSettings: '설정에서 켜기',
     flip: '카메라 전환',
     start: '촬영 시작',

@@ -517,7 +517,7 @@ const en: DeepStringShape<typeof ko> = {
     screenTitle: 'Record video',
     permissionTitle: 'Camera and mic needed',
     permissionBody: 'To record your acting right in the app, allow camera and microphone access.',
-    grant: 'Allow access',
+    grant: 'Continue',
     openSettings: 'Open settings',
     flip: 'Flip camera',
     start: 'Start recording',
