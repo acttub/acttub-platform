@@ -12,10 +12,12 @@ import {
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useRef, useState } from 'react';
+import { AppState } from 'react-native';
 import 'react-native-reanimated';
 
 import '@/lib/global-font';
 import { logScreenView } from '@/lib/analytics';
+import { initMetaSdk } from '@/lib/meta-events';
 import { pendingAnalysisStore } from '@/lib/analysis-storage';
 import {
   recoveryStatusForConsentGate,
@@ -367,6 +369,21 @@ export default function RootLayout() {
     'Pretendard-SemiBold': require('@/assets/fonts/Pretendard-SemiBold.subset.ttf'),
     'Pretendard-Bold': require('@/assets/fonts/Pretendard-Bold.subset.ttf'),
   });
+
+  // Meta SDK 초기화(SOMA-481). iOS ATT 팝업은 앱이 활성 상태일 때만 뜨므로,
+  // 아직 활성이 아니면 활성이 되는 순간까지 기다렸다가 한 번만 부른다.
+  useEffect(() => {
+    if (AppState.currentState === 'active') {
+      void initMetaSdk();
+      return;
+    }
+    const subscription = AppState.addEventListener('change', (next) => {
+      if (next !== 'active') return;
+      subscription.remove();
+      void initMetaSdk();
+    });
+    return () => subscription.remove();
+  }, []);
 
   if (!fontsLoaded) return null;
 

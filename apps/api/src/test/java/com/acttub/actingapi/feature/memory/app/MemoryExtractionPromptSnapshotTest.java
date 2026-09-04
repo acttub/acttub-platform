@@ -53,6 +53,19 @@ class MemoryExtractionPromptSnapshotTest {
                 .isEqualTo(FrozenValue.of("memory-extraction-prompt-blank-goal.txt"));
     }
 
+    /**
+     * 기억이 대사 복붙이 되던 사고(SOMA-468)의 재발 방지. "그대로 옮겨" 지시가
+     * 있던 시절 운영 기억 칸이 전부 발화 원문 인용으로 채워졌다.
+     */
+    @Test
+    @DisplayName("시스템 프롬프트는 요약을 시키고, 원문 통째 복사 지시가 없다")
+    void systemPromptDemandsSummariesNotTranscripts() {
+        assertThat(MemoryExtractor.SYSTEM_PROMPT)
+                .contains("통째로 옮겨 적지 않는다")
+                .contains("한 줄로 요약")
+                .doesNotContain("그대로 옮겨");
+    }
+
     private static MemoryUpdateMaterial material(
             String goal, String subBranch, String blockageDetail, List<String> actorMessages) {
         return new MemoryUpdateMaterial(
