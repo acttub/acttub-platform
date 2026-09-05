@@ -277,3 +277,12 @@ MVP 핵심 기능의 정상 작동을 목표로 빠르게 개발한다. 단, AI 
 **결정**: 실패를 **Expected Rejection**·**External Failure**·**Unexpected Failure**로 가르고 HTTP 상태 코드와 분리한다. Expected Rejection은 보고하지 않고, External Failure와 Unexpected Failure는 `platform/observability`의 Port인 `FailureReporter.report(...)`로 보고한다. HTTP 실패는 `ApiErrorAdvice`가, 예외를 삼키는 워커·어댑터는 그 자리에서 Port를 직접 부르며, Sentry를 아는 구현은 `SentryFailureReporter` 하나로 둔다. 5xx `ApiException`은 원인을 받는 `ApiException.external(...)`·`ApiException.unexpected(...)` 팩토리로만 만든다. 우리가 만든 바깥 의존 예외는 내용 없는 표시 인터페이스 `ExternalFailure`를 구현하고, `FailureClassifier`는 원인 예외를 따라가며 그 표시와 남이 만든 네트워크·DB 예외를 분류한다. `SentryFailureReporter`는 보고 자리와 예외 클래스가 같은 반복을 프로세스 메모리에서 10분 동안 억제한다.
 **이유**: `ApiErrorAdvice`가 `ApiException`과 마지막 `Exception`까지 응답으로 바꾸므로 Sentry의 자동 exception resolver에는 예외가 도달하지 않는다. `exception-resolver-order`를 바꿔 Sentry를 앞세우면 보고하지 않을 4xx까지 같이 잡히고, 워커의 실패는 HTTP resolver를 아예 거치지 않는다. 따라서 응답은 정한 모양으로 내보내면서 필요한 실패만 보고하려면 분류를 아는 응답기·워커가 같은 Port를 직접 부르는 길이 필요하다. 표시 인터페이스는 기존 예외의 상위 클래스를 바꾸지 않아도 의미를 드러내고, 남이 만든 예외는 원인 유형 목록으로 같은 분류에 포함할 수 있다. 10분 창은 첫 실패는 즉시 알리되 같은 장애가 반복되어 Sentry 할당량을 채우는 것을 막는다.
 **트레이드오프**: 자동 resolver 하나에 모은 대신 새로운 응답·삼킴 자리마다 보고 여부를 판정하고 `FailureReporter`를 부르는 책임이 생긴다. `ExternalFailure`는 공통 데이터나 동작을 강제하지 못하고, 남이 만든 예외가 늘면 `FailureClassifier`의 원인 유형 목록을 유지해야 한다. 10분 억제는 보고 자리와 예외 클래스만 같으면 서로 다른 원인도 하나로 합칠 수 있고, 프로세스가 재시작되면 초기화되며, 여러 인스턴스 사이에서 공유되지 않는다.
+
+---
+
+## 배포 (2026-09-06)
+
+### ADR-026: dev·운영을 환경별 Compose로 홈서버에 배포하고 S3에 DB를 백업한다
+**결정**: dev와 운영의 웹·API·PostgreSQL을 홈서버의 별도 Docker Compose 프로젝트로 실행한다. 두 환경은 Compose 정의를 공유하되 DB·볼륨·시크릿·터널·자원 상한을 분리한다. GitHub Actions가 이미지를 GHCR에 게시하고 Tailscale 임시 노드에서 전용 `deploy` 계정으로 배포한다. 공개 요청은 환경별 Cloudflare Tunnel이 받으며 호스트 포트는 공개하지 않는다. 영상 S3는 유지하고, PostgreSQL은 매일 S3에 덤프해 30일 보존하며 실제 복원으로 검증한다. 운영 전환은 현재 `main`의 앱 기능을 유지한 인프라 변경으로 진행하고, 쓰기 차단·기존 작업 완료·최종 덤프·행 내용과 스키마 대조 후 도메인을 전환한다. 기존 dev 2주 관찰 계획은 사용자의 2026-09-06 승인으로 앞당기되 검증 조건은 유지한다. AWS 자원 삭제는 별도 작업이며 이번에는 복구용으로 보존한다. 실행 절차는 [홈서버 배포](deploy/DEPLOY-HOME.md)와 [운영 전환·복구](deploy/DEPLOY-HOME-CUTOVER.md)가 정한다.
+**이유**: AWS 컴퓨트와 네트워크 구성 비용을 줄이고 로컬·CI·서버의 실행 형상을 이미지로 맞춘다. 브랜치 머지와 배포의 연결을 유지하면서 dev와 운영을 같은 절차로 검증한다. 데이터 이동 중 두 DB에 쓰기가 갈라지는 것을 막기 위해 원본을 멈추고 단일 시점의 덤프를 검증하며, 운영 복사본의 워커는 전환 전까지 끈다.
+**트레이드오프**: 운영 가용성이 가정 회선·전원·단일 호스트와 디스크에 의존하고 dev 및 다른 서비스와 자원을 공유한다. 일일 논리 백업은 RDS의 시점 복구를 대체하지 못하므로 마지막 성공 백업 뒤 쓰기는 장애 시 손실될 수 있다. 웹 설정은 빌드 시점에 고정돼 환경별 이미지가 필요하다. 홈서버에는 EC2 instance role이 없어 환경별 최소 권한 AWS 키를 관리한다. 전환 후 쓰기가 생기면 DNS만 되돌릴 수 없고, 홈서버의 최종 데이터를 AWS에 역복원·검증하는 추가 점검 시간이 필요하다. 이 결정은 운영 전환 완료나 AWS 자원 삭제 승인을 뜻하지 않는다.
