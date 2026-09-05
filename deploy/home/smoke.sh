@@ -217,9 +217,11 @@ code="${body##*$'\n'}"
 json="${body%$'\n'*}"
 echo "  $code $json"
 [ "$code" = "200" ] || fail "/health 가 $code 를 줬다"
-printf '%s' "$json" | grep -q '"status":"ok"' || fail "status 가 ok 가 아니다"
-printf '%s' "$json" | grep -Eq '"services":\["[a-z]+"' || fail "services 목록이 비었다"
-printf '%s' "$json" | grep -q "\"commit\":\"${COMMIT:0:7}\"" || fail "commit 이 ${COMMIT:0:7} 이 아니다"
+# grep -q/-m1 은 일찍 종료한다. 큰 본문·로그를 printf 로 파이프에 쓰면 SIGPIPE 가 나서
+# pipefail 이 정상 응답도 실패로 읽으므로, 변수는 <<< 로 직접 전달한다.
+grep -q '"status":"ok"' <<< "$json" || fail "status 가 ok 가 아니다"
+grep -Eq '"services":\["[a-z]+"' <<< "$json" || fail "services 목록이 비었다"
+grep -q "\"commit\":\"${COMMIT:0:7}\"" <<< "$json" || fail "commit 이 ${COMMIT:0:7} 이 아니다"
 
 # ── 6. 웹 경유 (web 컨테이너 안에서) ───────────────────────────────────────────
 # 웹 이미지에는 curl 이 없어 node 의 fetch 로 부른다. 서버는 HOSTNAME=0.0.0.0(IPv4)에 묶이므로
@@ -248,8 +250,8 @@ expect_web() {
 
 step "web 컨테이너 안에서 GET / (프리렌더된 랜딩) — build-arg 사이트 URL 이 HTML 에 새겨졌다"
 expect_web / "랜딩"
-printf '%s' "$web_body" | grep -qi '<html' || fail "/ 의 본문이 HTML 이 아니다"
-printf '%s' "$web_body" | grep -q "$SITE_URL" \
+grep -qi '<html' <<< "$web_body" || fail "/ 의 본문이 HTML 이 아니다"
+grep -q "$SITE_URL" <<< "$web_body" \
   || fail "/ 의 HTML 에 NEXT_PUBLIC_SITE_URL($SITE_URL)이 없다 — build-arg 가 번들에 들어가지 않았다"
 
 step "web 컨테이너 안에서 GET /health — rewrites 가 api:8080 으로 넘겨 본문이 api 의 것과 같다"
@@ -259,7 +261,7 @@ expect_web /health "rewrites"
 step "prebuild 산출물이 서빙된다 — /ort/*, /fonts/pretendard/*"
 expect_web /ort/ort-wasm-simd-threaded.wasm "onnxruntime wasm"
 expect_web "/fonts/pretendard/$font_ver/pretendard.css" "Pretendard"
-printf '%s' "$web_body" | grep -q '@font-face' || fail "pretendard.css 에 @font-face 가 없다"
+grep -q '@font-face' <<< "$web_body" || fail "pretendard.css 에 @font-face 가 없다"
 
 # ── 7. Flyway: V1 부터 최신까지 ────────────────────────────────────────────────
 step "Flyway 로그: V1 부터 db/migration 의 최대 버전까지 적용"
@@ -278,7 +280,7 @@ grep -v '^ADMIN_OPS_TOKEN=' "$WORK/.env" > "$WORK/.env.missing"
 if out="$(compose_with "$WORK/.env.missing" config --quiet 2>&1)"; then
   fail "ADMIN_OPS_TOKEN 없이도 compose config 가 통과했다"
 fi
-printf '%s\n' "$out" | grep -q 'ADMIN_OPS_TOKEN' || fail "거부 메시지에 ADMIN_OPS_TOKEN 이 없다: $out"
+grep -q 'ADMIN_OPS_TOKEN' <<< "$out" || fail "거부 메시지에 ADMIN_OPS_TOKEN 이 없다: $out"
 printf '  %s\n' "${out%%$'\n'*}"
 
 # ── 9. 같은 sha 재실행 → 초록·무변경 (멱등) ────────────────────────────────────
@@ -310,17 +312,17 @@ printf 'not a dump\n' > "$WORK/broken.dump"
 if out="$(cd "$WORK" && "$RESTORE_SH" "$WORK/broken.dump" 2>&1)"; then
   printf '%s\n' "$out"; fail "깨진 덤프인데 restore-db.sh 가 초록으로 끝났다"
 fi
-printf '%s\n' "$out" | grep -q '✗.*pg_restore' || { printf '%s\n' "$out"; fail "pg_restore 실패가 아닌 다른 이유로 실패했다"; }
+grep -q '✗.*pg_restore' <<< "$out" || { printf '%s\n' "$out"; fail "pg_restore 실패가 아닌 다른 이유로 실패했다"; }
 marker="$(db_psql -Atc 'select count(*) from smoke_marker')" || fail "smoke_marker 를 세지 못했다"
 [ "$marker" = "1" ] || fail "복원이 실패했는데 원래 DB 가 남아 있지 않다(smoke_marker=$marker)"
 api_health="$(compose ps --format '{{.Service}} {{.Health}}' api)"
 [ "$api_health" = "api healthy" ] || fail "실패 뒤 api 가 healthy 가 아니다: $api_health"
-printf '  %s\n' "$(printf '%s\n' "$out" | grep -m1 '✗')"
+printf '  %s\n' "$(grep -m1 '✗' <<< "$out")"
 
 step "제대로 된 덤프 + --expect 행 수 → 초록, smoke_marker 가 사라지고 Flyway 는 up to date, 컨테이너 ID 그대로"
 ids_before="$(compose ps -q | sort | tr '\n' ' ')"
 out="$(cd "$WORK" && "$RESTORE_SH" "$WORK/smoke.dump" --expect "$WORK/counts-before.tsv" 2>&1)" || { printf '%s\n' "$out"; fail "restore-db.sh 가 실패했다"; }
-printf '%s\n' "$out" | grep -q 'up to date' || { printf '%s\n' "$out"; fail "restore-db.sh 출력에 Flyway up to date 판정이 없다"; }
+grep -q 'up to date' <<< "$out" || { printf '%s\n' "$out"; fail "restore-db.sh 출력에 Flyway up to date 판정이 없다"; }
 ids_after="$(compose ps -q | sort | tr '\n' ' ')"
 [ "$ids_before" = "$ids_after" ] || fail "복원이 컨테이너를 재생성했다: $ids_before → $ids_after"
 marker_gone="$(db_psql -Atc "select to_regclass('public.smoke_marker') is null")" || fail "smoke_marker 유무를 묻지 못했다"
@@ -335,11 +337,11 @@ sed $'s/^users\t[0-9]*$/users\t999/' "$WORK/counts-before.tsv" > "$WORK/counts-w
 if out="$(cd "$WORK" && "$RESTORE_SH" "$WORK/smoke.dump" --expect "$WORK/counts-wrong.tsv" 2>&1)"; then
   printf '%s\n' "$out"; fail "행 수가 다른데 restore-db.sh 가 초록으로 끝났다"
 fi
-printf '%s\n' "$out" | grep -q '✗.*행 수' || { printf '%s\n' "$out"; fail "행 수 불일치가 아닌 다른 이유로 실패했다"; }
+grep -q '✗.*행 수' <<< "$out" || { printf '%s\n' "$out"; fail "행 수 불일치가 아닌 다른 이유로 실패했다"; }
 (cd "$WORK" && "$RESTORE_SH" --counts) | diff "$WORK/counts-before.tsv" - >/dev/null || fail "실패한 복원이 DB 를 바꿨다"
 api_health="$(compose ps --format '{{.Service}} {{.Health}}' api)"
 [ "$api_health" = "api healthy" ] || fail "실패 뒤 api 가 healthy 가 아니다: $api_health"
-printf '  %s\n' "$(printf '%s\n' "$out" | grep -m1 '✗')"
+printf '  %s\n' "$(grep -m1 '✗' <<< "$out")"
 
 # ── 11. deploy.sh 의 빨강 둘 — 판정 논리 반증 ──────────────────────────────────
 # 새 릴리스 값(다른 sha)은 api 를 재생성시킨다(compose 가 release.env 내용 변화를 감지). JVM 이 1초 안에
@@ -349,8 +351,8 @@ OTHER_SHA=deadbeef00000000000000000000000000000000
 if out="$(deploy "$OTHER_SHA" DEPLOY_WAIT_SECONDS=1 2>&1)"; then
   printf '%s\n' "$out"; fail "1초 안에 healthy 가 될 리 없는데 deploy.sh 가 초록으로 끝났다"
 fi
-printf '%s\n' "$out" | grep -q '✗.*healthy 가 되지 않았다' || { printf '%s\n' "$out"; fail "시간 초과가 아닌 다른 이유로 실패했다"; }
-printf '  %s\n' "$(printf '%s\n' "$out" | grep -m1 '✗')"
+grep -q '✗.*healthy 가 되지 않았다' <<< "$out" || { printf '%s\n' "$out"; fail "시간 초과가 아닌 다른 이유로 실패했다"; }
+printf '  %s\n' "$(grep -m1 '✗' <<< "$out")"
 
 # api 가 답하는 commit 이 배포한 sha 와 다른 상황 — 옛 컨테이너가 살아남은 채 초록이 되는 일의 재현. HealthController 는 Spring 프로퍼티 ${RENDER_GIT_COMMIT} 을 읽으므로 사람이 관리하는 .env 의
 # JAVA_TOOL_OPTIONS 로 시스템 프로퍼티를 주면 release.env 의 env 값을 이긴다 → 컨테이너는 healthy 인데 commit 이 다르다.
@@ -359,15 +361,15 @@ printf 'JAVA_TOOL_OPTIONS=-DRENDER_GIT_COMMIT=0000000stale\n' >> "$WORK/.env"
 if out="$(deploy "$COMMIT" 2>&1)"; then
   printf '%s\n' "$out"; fail "commit 이 0000000 인데 deploy.sh 가 초록으로 끝났다"
 fi
-printf '%s\n' "$out" | grep -q '✗.*commit.*다르다' || { printf '%s\n' "$out"; fail "commit 불일치가 아닌 다른 이유로 실패했다"; }
-printf '  %s\n' "$(printf '%s\n' "$out" | grep -m1 '✗')"
+grep -q '✗.*commit.*다르다' <<< "$out" || { printf '%s\n' "$out"; fail "commit 불일치가 아닌 다른 이유로 실패했다"; }
+printf '  %s\n' "$(grep -m1 '✗' <<< "$out")"
 
 # 위 두 배포가 api 를 재생성했다 — 10 단계에서 복원한 DB 위에서 새 컨테이너가 떴다. 실제 배포(새 sha)가 하는 일과
 # 같으므로 "복원 후 재배포에서 Flyway 가 이미 적용됨으로 통과" 를 여기서 본다(컨테이너 로그는 재생성 뒤 것뿐이다).
 step "복원된 DB 위에서 재생성된 api — Flyway 는 up to date 이고 새로 적용한 것이 없다"
 logs="$(compose logs --no-color api)"
-printf '%s\n' "$logs" | grep -q 'is up to date' || fail "재생성된 api 의 Flyway 로그에 'up to date' 가 없다"
-! printf '%s\n' "$logs" | grep -q 'Successfully applied' || fail "재생성된 api 가 복원된 DB 에 마이그레이션을 새로 적용했다"
+grep -q 'is up to date' <<< "$logs" || fail "재생성된 api 의 Flyway 로그에 'up to date' 가 없다"
+! grep -q 'Successfully applied' <<< "$logs" || fail "재생성된 api 가 복원된 DB 에 마이그레이션을 새로 적용했다"
 printf '%s\n' "$logs" | grep -E 'Current version of schema|is up to date' | tail -2 | sed 's/^/  /'
 
 printf '\n✔ 스모크 통과 — api·web 이미지·deploy.sh(첫 배포·멱등 재실행·빨강 둘)·restore-db.sh(왕복·빨강 둘)·compose(web+api+db)·Flyway v1→v%s·web 경유 /·/health commit %s\n' "$latest" "${COMMIT:0:7}"

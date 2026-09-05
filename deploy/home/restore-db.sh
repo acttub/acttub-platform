@@ -162,7 +162,8 @@ counts="$(psql_in "$RESTORE_DB" -c "$COUNTS_SQL")" || give_up "복원된 DB 에�
 printf '%s\n' "$counts" | sed 's/^/  /'
 tables="$(printf '%s\n' "$counts" | awk 'NF { n++ } END { print n + 0 }')"
 [ "$tables" -gt 0 ] || give_up "복원된 DB 에 테이블이 없다 — 덤프가 비었거나 다른 스키마다"
-printf '%s\n' "$counts" | grep -q "$(printf '^flyway_schema_history\t')" \
+# grep -q 는 발견 즉시 종료하므로 printf 파이프 대신 <<< 를 쓴다. 큰 출력에서도 SIGPIPE 를 피한다.
+grep -q "$(printf '^flyway_schema_history\t')" <<< "$counts" \
   || give_up "복원된 DB 에 flyway_schema_history 가 없다 — 이력 없는 덤프는 받지 않는다(api 가 V1 부터 다시 적용하려다 죽는다)"
 if [ -n "$EXPECT" ]; then
   if ! d="$(printf '%s\n' "$counts" | diff "$EXPECT" -)"; then
@@ -194,9 +195,9 @@ API_STOPPED=0
 step "Flyway 로그 — 이력이 덤프와 함께 왔으면 'up to date' 다"
 flyway="$(compose logs --no-color --since "$LOG_SINCE" api | grep -E 'Migrating schema|Successfully (applied|validated)|is up to date|Current version of schema|baseline' || true)"
 printf '%s\n' "$flyway" | sed 's/^/  /'
-if printf '%s\n' "$flyway" | grep -q 'is up to date'; then
+if grep -q 'is up to date' <<< "$flyway"; then
   verdict="up to date"
-elif printf '%s\n' "$flyway" | grep -q 'Successfully applied'; then
+elif grep -q 'Successfully applied' <<< "$flyway"; then
   verdict="$(printf '%s\n' "$flyway" | grep -oE 'Successfully applied [0-9]+ migrations?' | tail -1)"
   [ "$ALLOW_MIGRATE" = 1 ] \
     || rollback_swap "Flyway 가 마이그레이션을 새로 적용했다($verdict) — 덤프가 앱보다 낡았다. 이전·컷오버라면 덤프를 다시 뜬다. 옛 백업에서 복구하는 것이면 --allow-migrate 로 다시 돌린다. 옛 DB 로 되돌렸다"
