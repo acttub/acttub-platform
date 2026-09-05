@@ -84,6 +84,17 @@ jobs:
       - name: Test
         run: ./gradlew test --no-daemon
 
+      # 배포 산출물 검증(SOMA-489)입니다. api·web 컨테이너 이미지를 굽고(push 없음) deploy/home/compose.yml 을
+      # 실제 배포 스크립트(deploy/home/deploy.sh)로 임시 프로젝트에 띄워 web 경유 /·/health 와 commit 대조,
+      # 같은 sha 재실행의 멱등성(두 번 돌려도 결과가 같음), 배포 스크립트의 빨강 둘(대기 시간 초과·commit 불일치)까지
+      # 판정합니다.
+      # 스크립트가 jar(bootJar)를 먼저 만드는데 위 Test 가 컴파일을 끝내 두어 빠릅니다. 웹 이미지는 Docker
+      # 안에서 빌드되므로 이 잡에 node 가 없어도 됩니다. cloudflared·backup 프로필은 스모크에서 빠집니다.
+      # 잡 이름은 그대로 둡니다 — required check context 라 바꾸면 ruleset 둘도 같이 가야 합니다.
+      - name: Smoke (docker build ×2 · deploy.sh · compose)
+        working-directory: ${{ github.workspace }}
+        run: deploy/home/smoke.sh
+
       - name: Upload test report
         if: failure()
         uses: actions/upload-artifact@v4
