@@ -42,7 +42,8 @@ CREATE DATABASE restored TEMPLATE template0;
 SQL
 
 backup_run() {
-  docker run --rm --network "$PROJECT" -v "$TMP:/test" \
+  # bind mount에 만드는 0700 상태·S3 디렉터리를 Linux CI 러너도 EXIT에서 지울 수 있게 소유자를 맞춘다.
+  docker run --rm --user "$(id -u):$(id -g)" --network "$PROJECT" -v "$TMP:/test" \
     -e PATH=/test/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
     -e PGHOST="$PROJECT-db" -e PGUSER=acttub -e PGPASSWORD=smokePassword -e PGDATABASE=source \
     -e BACKUP_S3_BUCKET=acttub-db-backups -e BACKUP_S3_PREFIX=prod/ \
