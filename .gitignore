@@ -11,6 +11,8 @@ build/
 # env
 .env
 .env.*
+# 홈서버 .env 견본은 값이 비어 있어 추적한다(deploy/home/compose.yml 이 읽는 키 목록)
+!deploy/home/.env.example
 
 # python 캐시 — 백엔드는 자바지만 apps/mobile/scripts/ 의 폰트·스토어 자산 도구가
 # 파이썬이라 남긴다. pytest 는 저장소 어디에도 없어 뺐다(SOMA-403 5단계).
