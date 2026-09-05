@@ -123,6 +123,47 @@ test("스토어 배지는 최종 스토어 주소 대신 go 주소를 쓴다", (
   assert.ok(!source.includes("storeHref("));
 });
 
+test("go 주소는 스토어와 화면의 8개 조합을 내부 경로로 바꾼다", () => {
+  const surfaces = [
+    "landing_hero",
+    "landing_app_section",
+    "landing_footer",
+    "app_page",
+  ];
+
+  assert.deepEqual(
+    surfaces.flatMap((surface) => [
+      goHref("app_store", surface),
+      goHref("google_play", surface),
+    ]),
+    [
+      "/go/ios/landing_hero",
+      "/go/android/landing_hero",
+      "/go/ios/landing_app_section",
+      "/go/android/landing_app_section",
+      "/go/ios/landing_footer",
+      "/go/android/landing_footer",
+      "/go/ios/app_page",
+      "/go/android/app_page",
+    ],
+  );
+});
+
+// 배지 컴포넌트는 next/image 를 물고 있어 이 로더로는 import 하지 못한다.
+// 소스를 읽어 배선만 확인한다 — 주소 규칙 자체는 위 goHref 테스트가 지킨다.
+test("스토어 배지는 최종 스토어 주소 대신 go 주소를 쓴다", () => {
+  const source = readFileSync(
+    path.resolve(
+      import.meta.dirname,
+      "../src/features/app-download/store-badges.tsx",
+    ),
+    "utf8",
+  );
+
+  assert.ok(source.includes("goHref(store, surface)"));
+  assert.ok(!source.includes("storeHref("));
+});
+
 // 하이드레이션 전에 도는 인라인 스크립트를 가짜 DOM 에서 실제로 돌려 본다.
 // 스크립트는 손으로 쓴 JS 문자열이라 `downloadHrefFor` 와 갈라질 수 있다 — 여기서 묶어 둔다.
 function runBootstrap(userAgent, maxTouchPoints, surface = "landing_hero") {

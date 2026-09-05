@@ -1,13 +1,19 @@
-# 웹 계측 (GA4 · Amplitude)
+# 웹 계측 (Cloudflare · GA4 · Amplitude)
 
-두 도구를 **역할을 나눠** 쓴다. 하나로 합치지 않는다.
+세 도구를 **역할을 나눠** 쓴다. 하나로 합치지 않는다.
 
 | 도구 | 답하는 질문 | 코드 |
 | --- | --- | --- |
+| **Cloudflare Web Analytics** | 랜딩 대비 다운로드 배지를 얼마나 눌렀나 | 프록시 자동 비컨과 `/go/<os>/<surface>` |
 | **GA4** | 어느 채널·캠페인이 방문과 가입을 만들었나 | `src/lib/analytics/ga.ts` |
 | **Amplitude** | 들어온 사람이 제품 안에서 무엇을 하고 어디서 멈추나 | `src/lib/analytics/amplitude.ts` |
 
 GA4는 유입용 서브프로젝트 6개(voice·acti·stage·mono·pick·link)가 같은 측정 ID를 공유하므로 **빼지 않는다.** Amplitude로 대체하려 들면 채널 귀속이 깨진다.
+
+다운로드 배지는 스토어로 바로 가지 않고 `/go/<os>/<surface>`를 거친다. Cloudflare가 이
+페이지로드를 경로별로 집계하므로 **배지 클릭 수와 랜딩 대비 비율은 Cloudflare에서 본다.**
+`/go`에서는 개인정보나 별도 이벤트 payload를 수집하지 않고 경로별 페이지로드만 센다. 이
+경로 집계는 아래 GA4·Amplitude의 로그인·방침 동의 게이트와 별개다.
 
 ---
 
@@ -15,7 +21,7 @@ GA4는 유입용 서브프로젝트 6개(voice·acti·stage·mono·pick·link)�
 
 `ga.ts` 첫 주석의 원칙이 Amplitude에도 **그대로** 적용된다. 하나라도 풀면 개인정보처리방침과 어긋난다.
 
-### (1) 동의 전에는 아무것도 저장하지 않는다
+### (1) GA4·Amplitude는 동의 전에는 아무것도 저장하지 않는다
 
 GA4는 `consent: denied` 상태에서 쿠키 없이 히트를 보내지만, **Amplitude는 동의 전에는 초기화 자체를 하지 않는다.** 조건은 GA4와 동일하다 — `isLoggedIn() && hasAcceptedCurrentPrivacy()` (`src/features/analytics/analytics.tsx`).
 
