@@ -84,6 +84,12 @@ jobs:
       - name: Test
         run: ./gradlew test --no-daemon
 
+      - name: Deploy guard tests
+        working-directory: ${{ github.workspace }}
+        run: |
+          deploy/guard-test.sh
+          deploy/home/deploy-test.sh
+
       # 배포 산출물 검증(SOMA-489)입니다. api·web 컨테이너 이미지를 굽고(push 없음) deploy/home/compose.yml 을
       # 실제 배포 스크립트(deploy/home/deploy.sh)로 임시 프로젝트에 띄워 web 경유 /·/health 와 commit 대조,
       # 같은 sha 재실행의 멱등성(두 번 돌려도 결과가 같음), 배포 스크립트의 빨강 둘(대기 시간 초과·commit 불일치)까지
@@ -94,6 +100,14 @@ jobs:
       - name: Smoke (docker build ×2 · deploy.sh · compose)
         working-directory: ${{ github.workspace }}
         run: deploy/home/smoke.sh
+
+      - name: Restore (data · sequences · schema)
+        working-directory: ${{ github.workspace }}
+        run: deploy/home/restore-test.sh
+
+      - name: Backup (PostgreSQL dump · restore · scheduler · failures)
+        working-directory: ${{ github.workspace }}
+        run: deploy/home/backup-smoke.sh
 
       - name: Upload test report
         if: failure()

@@ -24,7 +24,7 @@
 #   7. Flyway 로그에 V1 부터 db/migration 의 최대 번호까지 적용됐다
 #   8. 필수 env 하나가 빠지면 compose 가 컨테이너를 만들기 전에 이름을 찍고 거부한다
 #   9. 같은 sha 로 deploy.sh 를 다시 돌리면 초록이고 컨테이너가 하나도 바뀌지 않는다(멱등 — 두 번 해도 결과가 같다)
-#  10. restore-db.sh 왕복 — 지금 DB 를 pg_dump -Fc 로 뜬 뒤 바꾸고 복원하면 덤프 시점으로 돌아온다(행 수 --expect 일치,
+#  10. restore-db.sh 왕복 — 지금 DB 를 pg_dump -Fc 로 뜬 뒤 바꾸고 복원하면 덤프 시점으로 돌아온다(행 수·manifest 일치,
 #      Flyway "up to date", 컨테이너 재생성 없음). 깨진 덤프·행 수 불일치는 exit≠0 이고 원래 DB 가 그대로다
 #      (dev 이전·복원 연습·운영 컷오버가 같은 스크립트를 쓴다)
 #  11. deploy.sh 의 빨강 둘 — healthy 대기 시간 초과, /health 의 commit 불일치 — 가 실제로 exit≠0 이다
@@ -301,6 +301,7 @@ step "restore-db.sh: 지금 DB 를 pg_dump -Fc 로 뜨고 --counts 로 행 수�
 [ -x "$RESTORE_SH" ] || fail "복원 스크립트가 없다: deploy/home/restore-db.sh"
 compose exec -T db pg_dump -Fc -U acttub -d acttub > "$WORK/smoke.dump" || fail "db 컨테이너에서 pg_dump 가 실패했다"
 (cd "$WORK" && "$RESTORE_SH" --counts) > "$WORK/counts-before.tsv" || fail "restore-db.sh --counts 가 실패했다"
+(cd "$WORK" && "$RESTORE_SH" --manifest) > "$WORK/manifest-before.tsv" || fail "restore-db.sh --manifest 가 실패했다"
 # 7 단계의 $latest(db/migration 의 최대 버전) = 이력 행 수. 상수로 적으면 V5 가 들어오는 날 여기서 빨강이 된다.
 grep -q "$(printf '^flyway_schema_history\t%s$' "$latest")" "$WORK/counts-before.tsv" \
   || fail "--counts 에 flyway_schema_history $latest 가 없다: $(tr '\n' ' ' < "$WORK/counts-before.tsv")"
@@ -319,15 +320,16 @@ api_health="$(compose ps --format '{{.Service}} {{.Health}}' api)"
 [ "$api_health" = "api healthy" ] || fail "실패 뒤 api 가 healthy 가 아니다: $api_health"
 printf '  %s\n' "$(grep -m1 '✗' <<< "$out")"
 
-step "제대로 된 덤프 + --expect 행 수 → 초록, smoke_marker 가 사라지고 Flyway 는 up to date, 컨테이너 ID 그대로"
+step "제대로 된 덤프 + --expect 행 수·--expect-manifest → 초록, smoke_marker 가 사라지고 Flyway 는 up to date, 컨테이너 ID 그대로"
 ids_before="$(compose ps -q | sort | tr '\n' ' ')"
-out="$(cd "$WORK" && "$RESTORE_SH" "$WORK/smoke.dump" --expect "$WORK/counts-before.tsv" 2>&1)" || { printf '%s\n' "$out"; fail "restore-db.sh 가 실패했다"; }
+out="$(cd "$WORK" && "$RESTORE_SH" "$WORK/smoke.dump" --expect "$WORK/counts-before.tsv" --expect-manifest "$WORK/manifest-before.tsv" 2>&1)" || { printf '%s\n' "$out"; fail "restore-db.sh 가 실패했다"; }
 grep -q 'up to date' <<< "$out" || { printf '%s\n' "$out"; fail "restore-db.sh 출력에 Flyway up to date 판정이 없다"; }
 ids_after="$(compose ps -q | sort | tr '\n' ' ')"
 [ "$ids_before" = "$ids_after" ] || fail "복원이 컨테이너를 재생성했다: $ids_before → $ids_after"
 marker_gone="$(db_psql -Atc "select to_regclass('public.smoke_marker') is null")" || fail "smoke_marker 유무를 묻지 못했다"
 [ "$marker_gone" = "t" ] || fail "복원 뒤에도 smoke_marker 가 남아 있다 — 덤프 상태로 돌아가지 않았다"
 (cd "$WORK" && "$RESTORE_SH" --counts) | diff "$WORK/counts-before.tsv" - >/dev/null || fail "복원 뒤 행 수가 덤프 시점과 다르다"
+(cd "$WORK" && "$RESTORE_SH" --manifest) | diff "$WORK/manifest-before.tsv" - >/dev/null || fail "복원 뒤 행 내용·sequence·스키마가 덤프 시점과 다르다"
 expect_web /health "복원 뒤 rewrites"
 [ "$web_body" = "$json" ] || fail "복원 뒤 web 경유 /health 본문이 처음과 다르다: $web_body"
 printf '%s\n' "$out" | grep -E 'up to date|✔' | sed 's/^/  /'

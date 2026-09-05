@@ -13,7 +13,7 @@
 # 호스트 포트를 publish 하지 않는다 — 서버의 8080 은 다른 서비스(acttub-rag)가 쓰고, 노출은
 # 같은 네트워크의 cloudflared 가 web:3000 으로 직접 간다. 확인은 컨테이너 안에서 curl(api)·node fetch(web).
 #
-# 조각 01 이 api·db, 02 가 web, 03 이 cloudflared(edge 프로필)를 붙였다. backup(07)이 아래 자리에 붙는다.
+# 조각 01 이 api·db, 02 가 web, 03 이 cloudflared(edge 프로필), 07 이 backup 프로필을 붙였다.
 
 # 프로젝트명은 .env 가 정한다(acttub-dev·acttub-prod). 비우면 compose 가 디렉토리 이름을 쓰고 볼륨이
 # dev_pgdata 처럼 조용히 다른 이름이 되므로 여기서 요구한다. -p 플래그는 이 값보다 우선한다.
@@ -151,9 +151,44 @@ services:
       start_period: 30s
     logging: *logging
 
-  # backup       profiles [backup], 매일 04:00 KST pg_dump → S3 — SOMA-489 조각 07 이 여기에 붙인다.
-  #              deploy.sh 의 --wait 가 기다리므로 healthcheck 가 없으면 running 이면 되고, 있으면 healthy 여야 한다.
+  backup:
+    # 비활성 프로필도 compose 치환은 거친다. 실제 backup 프로필 배포는 deploy.sh가 이미지 값을 요구한다.
+    image: ${BACKUP_IMAGE:-ghcr.io/acttub/acttub-platform/backup:unconfigured}
+    profiles: [backup]
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    # 백업에 필요한 값만 넣는다. API 토큰·LLM 키가 이 컨테이너에 들어가지 않는다.
+    environment:
+      PGHOST: db
+      PGUSER: ${POSTGRES_USER:-acttub}
+      PGDATABASE: ${POSTGRES_DB:-acttub}
+      PGPASSWORD: ${POSTGRES_PASSWORD:?.env 의 POSTGRES_PASSWORD 가 없다}
+      AWS_REGION: ${AWS_REGION:?.env 의 AWS_REGION 이 없다}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:?.env 의 AWS_ACCESS_KEY_ID 가 없다}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:?.env 의 AWS_SECRET_ACCESS_KEY 가 없다}
+      BACKUP_S3_BUCKET: ${BACKUP_S3_BUCKET:-acttub-db-backups}
+      # 프로필이 꺼졌을 때 빈 값을 허용한다. 켜진 서비스는 prefix를 dev/ 또는 prod/로 요구하며 실패한다.
+      BACKUP_S3_PREFIX: ${BACKUP_S3_PREFIX:-}
+      BACKUP_SCHEDULE: ${BACKUP_SCHEDULE:-04:00}
+      TZ: Asia/Seoul
+    volumes:
+      - backup_state:/var/lib/acttub-backup
+    healthcheck:
+      # 최초 백업·S3 확인이 끝나야 healthy. 성공 기록은 재생성해도 남으며 26시간이 지나거나 실패하면 빨강이다.
+      test: ["CMD", "python3", "/opt/backup/backup.py", "health"]
+      interval: 30s
+      timeout: 5s
+      retries: 1
+      start_period: 120s
+    deploy:
+      resources:
+        limits:
+          memory: ${BACKUP_MEM_LIMIT:-256m}
+    logging: *logging
 
 volumes:
   # 프로젝트명이 앞에 붙어 acttub-<env>_pgdata 가 된다.
   pgdata:
+  backup_state:
