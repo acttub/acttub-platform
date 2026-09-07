@@ -1,6 +1,6 @@
 # 마이그레이션
 
-**스키마 정본은 여기다**(`apps/api/CONTRACT.md` §5-5, `SOMA-403` 3단계). 배포는 jar 하나만 보내고,
+**스키마 정본은 여기다**(`apps/api/CONTRACT.md` §5-5, `SOMA-403` 3단계). API 이미지는 실행 jar를 포함하며,
 앱이 뜨는 도중에 Flyway 가 이 디렉토리를 적용한다 — 별도 마이그레이션 명령이 없다.
 
 ## 스키마를 바꾸려면
@@ -8,8 +8,9 @@
 1. `V<다음 번호>__<설명>.sql` 로 **새 파일**을 만든다 (이 디렉토리에서 가장 큰 번호 다음, 설명은 소문자 snake_case)
 2. `scripts/regen-fingerprint.sh` 를 돌려 `baseline-schema-fingerprint.txt` 를 갱신한다
 3. `./gradlew test --tests '*Flyway*'` 로 확인하고 둘을 함께 커밋한다
-4. 배포는 `main`/`dev` push 하나다. **되돌리기 어려우므로 스키마를 먼저 넓히고 코드를 나중에
-   좁힌다** — 컬럼 삭제·이름 변경은 PR 을 둘로 나눈다(`docs/deploy/DEPLOY-VPC.md` 6-4)
+4. 배포는 PR을 `main`/`dev`에 머지하면 시작된다. **되돌리기 어려우므로 스키마를 먼저 넓히고
+   호환 코드를 배포한 뒤 좁힌다** — 컬럼 삭제·이름 변경은 호환 배포 순서를 따른다
+   (`docs/BRANCHING-STRATEGY.md`의 「DB와 배포 안전성」)
 
 ## 🔥 `V1__baseline.sql` 은 동결이다 — 한 글자도 고치지 않는다
 

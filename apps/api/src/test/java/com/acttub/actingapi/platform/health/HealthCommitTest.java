@@ -17,7 +17,7 @@ import org.springframework.core.env.SystemEnvironmentPropertySource;
  *
  * <p>{@link HealthAndBootIT} 는 이 필드를 <b>미설정 경로에서만</b> 본다 —
  * {@code commit == "unknown"}. 그런데 배포가 넣는 것은 40자 SHA 이므로
- * ({@code deploy/ssm-deploy.sh} 의 {@code be-java} drop-in, {@code SOMA-401})
+ * ({@code deploy/home/deploy.sh} 의 {@code release.env})
  * 자르기가 도는 경로는 어느 테스트도 지나지 않았다. 변수 이름이 갈려도 그쪽은 초록으로
  * 남는다 — 미설정과 이름 오타가 같은 답({@code "unknown"})을 내기 때문이다.
  *
@@ -25,7 +25,7 @@ import org.springframework.core.env.SystemEnvironmentPropertySource;
  * 정상이라 어떤 대조도 값을 고정할 수 없다(사라진 계약 하네스도 이 키를 마스킹했다). 그래서
  * <b>조용히 갈릴 수 있는 자리</b>이고, 여기서 못박아 둔다.
  *
- * <p>배포가 주는 것은 프로퍼티가 아니라 systemd {@code Environment=} 이므로 값을
+ * <p>배포가 주는 것은 Compose 가 주입한 환경변수이므로 값을
  * {@link SystemEnvironmentPropertySource} 로 심는다 — OS 환경변수 자체는 프로세스 안에서
  * 바꿀 수 없어서, 배포가 실제로 쓰는 것과 <b>같은 종류의 소스</b>를 재현하는 것이 여기서
  * 갈 수 있는 가장 가까운 자리다. {@code @Value} 해석은 실제로 거친다.

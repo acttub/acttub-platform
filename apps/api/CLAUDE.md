@@ -27,7 +27,7 @@ FastAPI와 응답 바이트를 대조하던 parity harness는 폐기됐습니다
 ## 로컬 설정
 
 `DotenvEnvironmentPostProcessor`는 프로세스 작업 디렉터리의 `.env`를 로컬 개발 설정으로 읽고,
-서버는 systemd의 `EnvironmentFile`을 사용합니다. 실제 환경변수·시스템 프로퍼티·애플리케이션
+서버는 Compose가 `.env`·`release.env`에서 주입한 환경변수를 사용합니다. 실제 환경변수·시스템 프로퍼티·애플리케이션
 설정이 `.env`보다 우선합니다.
 
 - Gradle `test`의 `acttub.dotenv.enabled=false`를 유지합니다. 이 가드가 로컬 실 API 키의 테스트

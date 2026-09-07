@@ -32,8 +32,7 @@
   목록을 따로 가집니다.
 - **dev·운영 배포**를 바꿀 때 → [DEPLOY-HOME.md](docs/deploy/DEPLOY-HOME.md)와
   `.github/workflows/deploy.yml`을 읽습니다.
-  운영 이전·AWS 복구는 [DEPLOY-HOME-CUTOVER.md](docs/deploy/DEPLOY-HOME-CUTOVER.md),
-  보존된 AWS 배포는 [DEPLOY-VPC.md](docs/deploy/DEPLOY-VPC.md)를 함께 읽습니다.
+  이전 AWS 구성의 배경이 필요할 때만 [보관 기록](docs/archive/soma489/README.md)을 읽습니다.
 - **이슈를 제안·착수하거나 브랜치·PR을 연결**할 때 →
   [issue-tracker.md](docs/agents/issue-tracker.md). Jira 본문은 사람이 쓰고 에이전트는 초안만
   넘깁니다.
