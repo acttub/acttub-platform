@@ -13,9 +13,34 @@
 > 이관 절차였기 때문이다(`SOMA-403` 6단계에서 폐기). 원문은
 > [docs/archive/soma287/SPEC.md](../../docs/archive/soma287/SPEC.md) 에 있다.
 
-**계약의 정본은 `apps/api/spec/openapi.json` 이다.** springdoc 이 만들고 `apps/web` 이 그것으로
-타입을 생성하므로(`pnpm --filter web generate:v2-schema`), 필드 하나·nullable 하나가 어긋나면
-프론트가 조용히 깨진다.
+**행동 계약은 이 문서와 대응하는 Java 테스트가 판정한다.** `spec/openapi.json`은 springdoc이
+만드는 요청·응답 스키마 산출물이자 웹 타입 생성원이다. 오류와 상태 전이 전체를 표현하지
+않으므로, 스키마가 같아도 행동 계약의 검증은 별도로 필요하다.
+
+## 계약 변경 절차
+
+API의 요청·응답·오류·상태 전이를 바꿀 때 아래 순서를 따른다.
+
+1. 변경할 행동 계약과 대응 테스트를 확인하고 백엔드 코드를 수정한다.
+2. `apps/api`에서 다음 명령으로 OpenAPI 스냅샷을 재생성한다.
+
+   ```sh
+   UPDATE_OPENAPI_SNAPSHOT=1 ./gradlew test --tests '*OpenApiSnapshotIT*'
+   ```
+
+   갱신 모드는 파일을 쓴 뒤 **의도적으로 실패**한다. 커밋된 자기 스냅샷과 비교하는 검사이므로
+   생성된 diff가 의도한 변경만 담는지 검토하고, 갱신 변수 없이 같은 테스트를 다시 실행한다.
+3. 루트에서 `pnpm --filter web generate:v2-schema`로 웹 타입을 생성한 뒤 웹 소비자를 수정한다.
+   `apps/web/src/lib/api/v2-schema.d.ts`는 생성 명령으로만 갱신한다. 생성 타입이 없는 모바일은
+   요청·응답 타입과 모든 호출부를 직접 검색해 호환성을 확인한다.
+4. 백엔드 코드 → OpenAPI → 웹 타입 → 웹 수정과 필요한 모바일 수정을 한 PR에 담는다.
+
+**호환 배포:** DB·API 축소는 **expand → compatible code → contract** 순서로 여러 배포에
+나누며, 소비 중인 컬럼·필드를 한 배포에서 제거하지 않는다. DB의 데이터 전환과 릴리스 순서는
+[DB와 배포 안전성](../../docs/BRANCHING-STRATEGY.md#db와-배포-안전성)을 따른다.
+
+**완료 기준:** 행동 계약 테스트와 갱신 변수 없는 스냅샷 검사가 통과했고, 생성물 diff 및
+웹·모바일의 모든 영향받는 소비자를 확인했다. 축소 변경은 구·신 버전의 호환 배포 순서가 정해졌다.
 
 ## 2. 기술 스택 (확정, 변경 금지)
 
@@ -30,7 +55,7 @@
 | 인증 | nimbus-jose-jwt + 커스텀 필터. Apple/Google 은 `JwtDecoder`(JWKS 캐시) |
 | S3 | AWS SDK v2 `S3Presigner` |
 | DB 버전 | dev·운영 홈서버와 테스트는 **Postgres 18** 계열로 맞춘다(`deploy/home/compose.yml`). PG18 은 NOT NULL 을 `pg_constraint` 로 물질화하는 등 카탈로그가 달라 16 에서 통과한 스키마 검증이 운영을 보증하지 않는다 |
-| 테스트 | JUnit 5 + Testcontainers(Postgres **18**) + MockMvc + **ArchUnit**(패키지 구조 검사, ADR-016). **버전을 BOM 에 맡기지 않고 고정**하고, 외부 DB 폴백 경로를 둔다(§8-4) |
+| 테스트 | JUnit 5 + Testcontainers + MockMvc + **ArchUnit**(패키지 구조 검사, ADR-016). Testcontainers 버전 고정과 DB 실행 조건은 §8-4를 따른다 |
 
 ## 4. datetime 포맷
 
@@ -53,7 +78,7 @@ Jackson 설정: `WRITE_DATES_AS_TIMESTAMPS=false`, `Instant` 또는 `OffsetDateT
 §5-2의 `EntityManager` native SQL로 구현한다. 서비스·Domain Model은 Spring Data interface,
 Schema Entity, JPA 타입을 알지 않는다.
 
-Schema Entity 26개가 모든 테이블을 매핑하고 `actor_memory_entries`·`push_tokens`도
+Schema Entity가 모든 테이블을 매핑하고 `actor_memory_entries`·`push_tokens`도
 `ddl-auto: validate` 대상이다. 모든 운영 DB 접근은 Spring Data JPA와 `EntityManager`를 사용하며,
 운영 `JdbcTemplate`·`NamedParameterJdbcTemplate`·`DataSource` 직접 접근은 없다. 테스트 fixture와
 JPA 밖 독립 검증에는 `JdbcTemplate`을 허용한다.
@@ -156,6 +181,9 @@ JSON 연산, 상관 서브쿼리 조건부 갱신은 Spring Data `save()`나 조
 
 - **빈 DB**: V1 을 실행해 스키마를 재구축한다. 이것이 없으면 신규 환경·재해 복구가 불가능하다
 - **기존 DB(dev·운영)**: 같은 V1 버전으로 `baseline` 을 기록만 한다. DDL 은 실행하지 않는다
+
+애플리케이션의 `baseline-on-migrate`는 비활성으로 유지한다. 기존 DB의 최초 baseline은
+명시적인 배포 작업이며, 신규·재해복구 DB는 V1부터 마이그레이션을 적용한다.
 
 🔥 **V1 은 동결이다. 스키마 변경은 거기 있는 가장 큰 번호 다음으로 새 파일을 만든다.** 두 경로의 이력이 다르기
 때문이다 — dev·운영은 `<< Flyway Baseline >>`(type=BASELINE)이라 **checksum 이 없고**, 신규
@@ -396,29 +424,15 @@ Spring 은 DTO 반환 시 스키마가 강제된다. 응답 컴포넌트는 전�
 
 ### 8-4. Testcontainers ↔ 최신 Docker Engine — 반드시 필요한 설정
 
-Docker Desktop 4.78.0 / **Engine 29.5.3 / API 1.54** 에서, Testcontainers 는 기본 상태로
-`/info` 에 Status 400 을 받고 `Could not find a valid Docker environment` 로 실패한다. 소켓
-접근 자체는 되므로(`curl --unix-socket` 성공) 권한이 아니라 **API 버전 협상 실패**다.
+Docker API 버전 협상이 실패하면 소켓 접근이 가능해도 `/info`가 400으로 거부되고
+`Could not find a valid Docker environment`로 보일 수 있다.
 
-**`DOCKER_API_VERSION` 환경변수만으로는 풀리지 않는다.** docker-java 는 시스템 프로퍼티
-`api.version` 을 함께 본다. Gradle `Test` 태스크에 셋 다 준다:
-
-```kotlin
-tasks.withType<Test>().configureEach {
-    if (System.getenv("DOCKER_API_VERSION") == null) {
-        environment("DOCKER_API_VERSION", "1.41")
-        systemProperty("api.version", "1.41")          // 이게 빠지면 실패한다
-    }
-    val socket = File(System.getProperty("user.home"), ".docker/run/docker.sock")
-    if (System.getenv("DOCKER_HOST") == null && socket.exists()) {
-        environment("DOCKER_HOST", "unix://${socket.absolutePath}")
-        environment("TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE", "/var/run/docker.sock")
-    }
-}
-```
-
-Testcontainers 버전은 BOM 에 맡기지 않고 고정한다(`extra["testcontainers.version"]`). 이미지는
-운영과 같은 **`postgres:18-alpine`** 이다.
-
-CI 는 러너의 Docker 버전이 달라 동작이 갈릴 수 있다. `ci.yml` 에 Postgres 서비스가 있으므로,
-필요하면 그것을 외부 DB 로 쓰는 경로를 함께 둔다.
+- Testcontainers 버전은 BOM에 맡기지 않고 [build.gradle.kts](build.gradle.kts)의
+  `extra["testcontainers.version"]`으로 고정한다.
+- Gradle `Test` 태스크는 `DOCKER_API_VERSION` 환경변수와 `api.version` 시스템 프로퍼티에
+  같은 값을 전달한다. 외부에서 환경변수를 지정했을 때도 둘을 동기화해야 docker-java가
+  기본 버전으로 접속하는 실패를 막는다. 기본값과 macOS 소켓 설정은 이 태스크에서 확인한다.
+- 테스트 DB는 [PostgresContainerSupport](src/test/java/com/acttub/actingapi/support/PostgresContainerSupport.java)의
+  Testcontainers가 띄운다. 이미지 메이저는 §2의 운영 DB와 맞춘다.
+- CI의 Docker 조건과 실행 범위는 [ci.yml](../../.github/workflows/ci.yml)의 `api` 잡에서 확인한다.
+  DB 연결 수와 테스트 격리는 `PostgresContainerSupport` 및 `src/test/resources/application.properties`를 함께 본다.

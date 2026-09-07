@@ -2,9 +2,10 @@
 
 이 문서는 Acttub에만 필요한 UI 판단 기준을 적는다. 색상값, 컴포넌트 수치, 타이포그래피 스케일, motion 값처럼 Toss 디자인 시스템이 이미 정한 것은 여기로 옮겨 적지 않고 원문을 직접 참조한다(ADR-012).
 
-- 상세 레퍼런스: `docs/design/Toss-DESIGN.md`
-- 랜딩·인터뷰 화면 구조 참고: `docs/design/telta-interview-pro.md`
-- 화면에 쓰는 말: 루트 `CONTEXT.md`가 정본이다(ADR-013)
+- **색상·간격·타이포그래피·컴포넌트 수치·모션**을 정할 때 → [Toss-DESIGN.md](Toss-DESIGN.md)의
+  해당 절을 읽는다.
+- **랜딩·인터뷰 화면 구조**를 정할 때 → [telta-interview-pro.md](telta-interview-pro.md)를 참고한다.
+- **화면에 쓰는 용어**를 정할 때 → [CONTEXT.md](../../CONTEXT.md)를 읽는다(ADR-013).
 
 우선순위:
 

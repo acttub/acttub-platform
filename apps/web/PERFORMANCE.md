@@ -35,13 +35,9 @@ Next 서버의 `/`를 측정한 모바일 중앙값은 다음 예산을 모두 �
 - Total Blocking Time (TBT): 200밀리초 이하
 
 TBT는 반복 가능한 실험실 진단 지표이며, 필드 전용 지표인 INP를 대체하지 않습니다.
-이 문서는 성능 계약만 다루며 전체 릴리스 완료 조건을 대신하지 않습니다. 일반 변경
-검증에서는 다음 명령도 별도로 확인합니다.
-
-- `pnpm lint`
-- `pnpm typecheck`
-- `pnpm --filter web test`
-- `pnpm build`
+이 문서는 성능 계약을 다룹니다. 일반 변경 검증은
+[ci.yml](../../.github/workflows/ci.yml)의 `web` 잡에 정의된 명령과 순서를 함께 따릅니다.
+전체 릴리스 완료 조건은 [브랜치·릴리스 전략](../../docs/BRANCHING-STRATEGY.md)에서 확인합니다.
 
 ## 측정 범위
 
