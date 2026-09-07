@@ -21,9 +21,11 @@
 ## 조건부 정본
 
 - **제품 행동·범위**를 정할 때 → [docs/PRD.md](docs/PRD.md)와 [CONTEXT.md](CONTEXT.md)
-- **화면·컴포넌트·카피**를 만들 때 → [UI_GUIDE.md](docs/design/UI_GUIDE.md), 세부 레퍼런스는
-  [Toss-DESIGN.md](docs/design/Toss-DESIGN.md)
-- **API·DB·마이그레이션**을 바꿀 때 → [apps/api/CONTRACT.md](apps/api/CONTRACT.md)
+- **화면·컴포넌트·카피**를 만들 때 → [UI_GUIDE.md](docs/design/UI_GUIDE.md).
+  시각 수치와 화면 구조는 이 가이드의 작업별 레퍼런스를 이어서 읽습니다.
+- **API·DB·마이그레이션**을 바꿀 때 → [apps/api/CONTRACT.md](apps/api/CONTRACT.md).
+  API 계약 변경과 소비 중인 필드·컬럼 축소는 [계약 변경 절차](apps/api/CONTRACT.md#계약-변경-절차)를
+  함께 따릅니다.
 - **브랜치·릴리스·hotfix·revert**를 다룰 때 →
   [docs/BRANCHING-STRATEGY.md](docs/BRANCHING-STRATEGY.md). `main` 머지는 운영 배포를 시작하며
   `main`·`dev`에는 직접 push하지 않습니다.
@@ -39,18 +41,6 @@
 - **트리아지 라벨을 판단**할 때 → [triage-labels.md](docs/agents/triage-labels.md)
 - **도메인 용어를 정하거나 ADR을 제안·인용·변경하고 되돌리기 어려운 결정**을 다룰 때 →
   [domain.md](docs/agents/domain.md)
-
-## API 계약 변경
-
-- 백엔드 코드 → `apps/api/spec/openapi.json` 재생성 → 웹 타입 재생성 → 웹 수정 순서로 한 PR에
-  담고, 스키마를 자동 생성하지 않는 모바일 영향도 직접 확인합니다.
-- OpenAPI 갱신은 `apps/api`에서
-  `UPDATE_OPENAPI_SNAPSHOT=1 ./gradlew test --tests '*OpenApiSnapshotIT*'`로 수행합니다. 갱신 모드는
-  일부러 실패하며 스냅샷이 자기 자신과 비교되므로, 생성된 diff를 눈으로 판정합니다.
-- `apps/web/src/lib/api/v2-schema.d.ts`는 직접 고치지 않고
-  `pnpm --filter web generate:v2-schema`로 갱신합니다.
-- DB·API 축소는 **expand → compatible code → contract** 순서로 배포를 나눕니다. 한 배포에서
-  소비 중인 컬럼·필드를 제거하지 않습니다.
 
 ## 저장소·문서 규칙
 
