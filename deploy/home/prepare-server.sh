@@ -559,7 +559,7 @@ guide_aws() {
   print_iam_policy dev
   step "Security credentials → Create access key → 'Application running outside AWS' → 두 값을 복사"
   step "acttub-home-prod 도 같은 방법으로 — 정책의 dev 를 prod 로 바꿉니다(버킷 acttub-practice-videos-prod, prefix prod/)"
-  note "ListBucket 은 빼지 마세요. 없으면 S3 가 없는 객체에 404 대신 403 을 주어 업로드 완료 API 가 500 이 됩니다(DEPLOY-VPC.md §3-3)."
+  note "ListBucket 은 빼지 마세요. 없으면 S3 가 없는 객체에 404 대신 403 을 주어 업로드 완료 API 가 500 이 됩니다(DEPLOY-HOME.md의 S3 권한)."
   printf '\n'
   say "서버 .env 에 넣습니다($DEPLOY_USER 계정으로):"
   cmd "ssh ${DEPLOY_USER}@${SERVER_HOST}" \

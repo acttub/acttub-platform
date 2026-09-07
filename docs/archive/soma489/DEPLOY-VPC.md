@@ -1,5 +1,10 @@
 # VPC 2계층 배포 절차 (front svc + back svc)
 
+> **보관 문서 (2026-09-07)**: AWS 배포와 홈서버 이전 당시의 절차·판단을 보존한다.
+> 현재 배포·복구는 [홈서버 배포](../../deploy/DEPLOY-HOME.md)를 따른다. 아래의 EC2·RDS·ALB·
+> CloudFront·SSM 명령과 AWS 복귀 절차는 현재 운영에 사용하지 않는다. 자원 삭제 완료 여부는
+> 이 과거 절차로 판정하지 않고 정리 작업의 실행 기록과 AWS 실조회로 확인한다.
+
 CloudFront → front alb → front svc(Next 서버) → back alb → back svc(Spring Boot) → DB
 구조로 배포한다. **운영(`acttub.com`)이 쓰는 형태다.** 개발 서버는 같은 프로세스 구성을
 EC2 한 대에 올린 축소판이므로([`DEPLOY-DEV.md`](./DEPLOY-DEV.md)) 배포 스크립트와 systemd
@@ -559,7 +564,7 @@ Secrets가 아니라 Variables에 넣는다.
 
 ### 6-5. 브랜치가 곧 환경이다
 
-브랜치·릴리스·hotfix 흐름의 정본은 [BRANCHING-STRATEGY.md](../BRANCHING-STRATEGY.md)다.
+브랜치·릴리스·hotfix 흐름의 정본은 [BRANCHING-STRATEGY.md](../../BRANCHING-STRATEGY.md)다.
 여기서는 왜 자동 배포로 갔는지만 다룬다.
 
 `main`에 머지되면 운영으로 자동 배포된다(`dev`는 dev로). **`main` 머지가 곧 릴리스다.**
