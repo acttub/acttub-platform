@@ -4,7 +4,8 @@
 목표는 `dev`에서 검증한 변경을 예측 가능한 단위로 운영에 올리고, 운영과 개발
 브랜치의 내용이 갈라지는 일을 막는 것입니다.
 
-배포 인프라와 자동 배포로 간 배경은 [DEPLOY-VPC.md](deploy/DEPLOY-VPC.md) 6-5에 있습니다.
+현재 배포·복구 절차는 [홈서버 배포](deploy/DEPLOY-HOME.md)에 있습니다. 자동 배포를 도입한
+배경은 [이전 AWS 배포 기록](archive/soma489/DEPLOY-VPC.md) 6-5에 보존합니다.
 
 ## 원칙
 

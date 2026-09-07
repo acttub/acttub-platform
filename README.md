@@ -47,12 +47,13 @@ pnpm --filter web test  # test 만 루트에 없습니다
 
 백엔드는 `cd apps/api && ./gradlew test`로 검증합니다(Docker 필요).
 
-PR을 머지하려면 `.github/workflows/ci.yml`의 잡 둘(`web`·`api`)이 초록이어야 합니다.
+PR을 머지하려면 `.github/workflows/ci.yml`의 required check가 초록이어야 합니다.
 
 ## 운영
 
 `pnpm build`가 만든 Next 서버(standalone)가 화면을 서빙하고, `/v2/*`·`/health`를
 rewrites로 백엔드에 넘깁니다. 브라우저에는 오리진이 하나로 보여 CORS가 필요 없습니다.
-배포 아티팩트는 jar 하나이고, 스키마 마이그레이션은 그 기동의 일부입니다.
-배포 절차는 운영 [docs/deploy/DEPLOY-VPC.md](docs/deploy/DEPLOY-VPC.md), 개발
-[docs/deploy/DEPLOY-DEV.md](docs/deploy/DEPLOY-DEV.md)를 참고하세요.
+dev·운영은 홈서버의 별도 Compose 프로젝트로 실행합니다. Actions가 웹·API·백업 이미지를
+GHCR에 게시하고 Tailscale SSH로 배포합니다. 스키마 마이그레이션은 API 기동의 일부입니다.
+공개 요청은 Cloudflare Tunnel이 받고, 영상과 DB 백업은 S3에 보관합니다.
+배포·복구 절차는 [홈서버 배포](docs/deploy/DEPLOY-HOME.md)를 참고하세요.

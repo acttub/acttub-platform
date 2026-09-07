@@ -1,5 +1,10 @@
 # 운영 홈서버 전환·복구
 
+> **보관 문서 (2026-09-07)**: AWS 배포와 홈서버 이전 당시의 절차·판단을 보존한다.
+> 현재 배포·복구는 [홈서버 배포](../../deploy/DEPLOY-HOME.md)를 따른다. 아래의 EC2·RDS·ALB·
+> CloudFront·SSM 명령과 AWS 복귀 절차는 현재 운영에 사용하지 않는다. 자원 삭제 완료 여부는
+> 이 과거 절차로 판정하지 않고 정리 작업의 실행 기록과 AWS 실조회로 확인한다.
+
 운영 앱과 PostgreSQL을 AWS에서 `/svc/acttub/prod`의 `acttub-prod`로 옮긴다. 영상 S3와 운영 도메인은
 유지한다. 사용자는 2026-09-06에 기존 dev 2주 관찰을 앞당겨 진행하도록 승인했다. 백업·실제 복원과
 데이터 대조는 생략하지 않는다. AWS 자원 삭제는 이번 작업 범위가 아니다.
@@ -23,7 +28,7 @@
 | 유입·DNS | Cloudflare DNS 레코드 전체 값과 프록시 상태, 실제 AWS 원본 경로, `www` 리다이렉트 |
 | 복구 | 원본 AWS 앱과 DB 유지, 전환 후 홈→RDS 역복원 호환성·소요시간 확인 |
 
-운영 전환용 PR은 `main`에서 시작하고 [브랜치 전략](../BRANCHING-STRATEGY.md)에 따라 CI를 거친다.
+운영 전환용 PR은 `main`에서 시작하고 [브랜치 전략](../../BRANCHING-STRATEGY.md)에 따라 CI를 거친다.
 승인한 인프라 변경을 `main`에 Merge commit으로 합친 뒤 `dev`로 역병합한다. Actions의 운영 ref는
 `main`만 허용한다. 준비·점검 중에는 겹치는 운영 배포와 새 `main` 머지를 막아 원본 앱과 최종 덤프의
 스키마 기준을 고정한다. CI 성공, Actions 배포 성공, 운영 도메인 전환 성공을 각각 기록한다.
@@ -133,7 +138,7 @@ GROUP BY 1, 2, 3, 4;
      | psql 'service=acttub-prod-source' -X -q -v ON_ERROR_STOP=1 -At -F $'\t' > source-manifest.tsv
    ```
 
-2. [`restore-db.sh`](../../deploy/home/restore-db.sh)로 홈서버 운영 DB에 복원한다. 이 스크립트는
+2. [`restore-db.sh`](../../../deploy/home/restore-db.sh)로 홈서버 운영 DB에 복원한다. 이 스크립트는
    새 DB에 복원 → manifest 비교 → DB 이름 교체 → API 기동·Flyway 확인을 한다.
    운영에서는 `--keep-old`로 기존 대상 DB를 남긴다. 기본값은 성공 뒤 기존 DB를 삭제하므로 이 옵션을
    생략하지 않는다. 복원 전에 기존 대상 DB도 백업한다. `db-manifest.sql`·`schema-fingerprint.sql`을
@@ -148,7 +153,7 @@ GROUP BY 1, 2, 3, 4;
 3. API가 복원본으로 기동한 뒤에도 유입과 워커는 닫힌 상태여야 한다. source/target의 행 수와 내용 지문,
    스키마 정의, Flyway script/checksum/success, 시퀀스 `last_value`·`is_called`를 대조한다.
    테이블 이름과 행 수가 같다는 결과는 UPDATE 내용까지 같다는 증거가 아니다.
-4. manifest의 스키마 부분은 [`schema-fingerprint.sql`](../../apps/api/src/test/resources/schema-fingerprint.sql)을
+4. manifest의 스키마 부분은 [`schema-fingerprint.sql`](../../../apps/api/src/test/resources/schema-fingerprint.sql)을
    사용한다. 이 SQL이 제외하는 확장·함수·트리거·RLS·locale·권한은 별도로 비교한다. Flyway 이력과
    시퀀스 값은 manifest의 내용·시퀀스 부분으로 대조한다. 버전 차이로 생기는 표현 차이는 데이터 차이와 구분한다.
 5. manifest는 데이터가 정지된 상태에서 비교해야 하며 실행 시점 사이 쓰기·시퀀스 변경이 있으면 다시 만든다.
