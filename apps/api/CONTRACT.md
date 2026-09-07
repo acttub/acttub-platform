@@ -29,7 +29,7 @@
 | 스펙 | springdoc-openapi (`openapi_3_1`) |
 | 인증 | nimbus-jose-jwt + 커스텀 필터. Apple/Google 은 `JwtDecoder`(JWKS 캐시) |
 | S3 | AWS SDK v2 `S3Presigner` |
-| DB 버전 | **운영 RDS 는 Postgres 18.4**(`db.t4g.micro`). 컨테이너 이미지도 **18** 로 맞춘다 — PG18 은 NOT NULL 을 `pg_constraint` 로 물질화하는 등 카탈로그가 달라 16 에서 통과한 스키마 검증이 운영을 보증하지 않는다 |
+| DB 버전 | dev·운영 홈서버와 테스트는 **Postgres 18** 계열로 맞춘다(`deploy/home/compose.yml`). PG18 은 NOT NULL 을 `pg_constraint` 로 물질화하는 등 카탈로그가 달라 16 에서 통과한 스키마 검증이 운영을 보증하지 않는다 |
 | 테스트 | JUnit 5 + Testcontainers(Postgres **18**) + MockMvc + **ArchUnit**(패키지 구조 검사, ADR-016). **버전을 BOM 에 맡기지 않고 고정**하고, 외부 DB 폴백 경로를 둔다(§8-4) |
 
 ## 4. datetime 포맷
@@ -147,7 +147,7 @@ JSON 연산, 상관 서브쿼리 조건부 갱신은 Spring Data `save()`나 조
 
 ### 5-5. Flyway 가 스키마를 소유한다
 
-**정본이다.** 스키마 변경은 Flyway 마이그레이션으로 들어가고, 배포는 jar 하나만 보낸다 —
+**정본이다.** 스키마 변경은 Flyway 마이그레이션으로 들어가고, API 이미지는 실행 jar를 포함한다 —
 마이그레이션이 **앱 기동의 일부**다.
 
 **`V1__baseline.sql` 에 스키마 전체(테이블 + enum 타입 + 인덱스 + 제약 + 초기 커뮤니티
@@ -180,7 +180,7 @@ JSON 연산, 상관 서브쿼리 조건부 갱신은 Spring Data `save()`나 조
 배포가 주는 값은 `postgresql://user:pass@host:5432/db` 형태다. **Spring/Hikari 는
 `jdbc:postgresql://…` 를 요구한다.**
 
-**환경변수 이름은 유지하고**(dev·운영 양쪽 서버의 `api.env` 를 건드리지 않기 위해), URI 를
+**환경변수 이름은 유지하고**(로컬 설정과 서버 Compose의 주입 계약을 보존하기 위해), URI 를
 JDBC URL·username·password 로 변환한다 — `platform/config/DatabaseUrl` 과
 `DatabaseUrlEnvironmentPostProcessor`. **실제 배포 형식의 URL 로 부팅하는 테스트**를 둔다
 (`HealthAndBootIT`) — 없으면 dev·운영이 동시에 기동 실패한다.

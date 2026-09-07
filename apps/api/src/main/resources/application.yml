@@ -47,8 +47,8 @@ spring:
 # (Sentry.initConfigurations 가 빈 DSN 을 받으면 close() 하고 끝낸다) 로컬·테스트는 기본으로
 # 조용하다. 이 가드가 없으면 테스트가 이벤트를 밖으로 쏜다.
 #
-# 환경변수 이름과 주입 경로는 파이썬과 같게 유지한다 — 릴리스는 커밋 SHA 이고
-# deploy/ssm-deploy.sh 가 systemd drop-in 으로 넣는다.
+# 릴리스는 커밋 SHA 다. deploy/home/deploy.sh 가 release.env 를 쓰고
+# Compose 가 API 컨테이너의 환경변수로 주입한다.
 sentry:
   dsn: ${SENTRY_DSN:}
   environment: ${SENTRY_ENVIRONMENT:local}

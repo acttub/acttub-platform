@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # 홈서버 DB 복원 스크립트(SOMA-489). pg_dump -Fc 파일을 이 프로젝트의 db 컨테이너에 복원한다 —
-# dev 이전(dev EC2 덤프)·백업 복원 연습(S3 백업)·운영 컷오버(RDS 덤프)가 같은 길을 쓴다.
+# dev·prod 모두 S3 백업과 보관한 PostgreSQL 덤프를 같은 절차로 복원한다.
 # deploy.sh 처럼 프로젝트 디렉토리(/svc/acttub/<env>)에서 실행한다. 스택이 한 번은 deploy.sh 로 떠 있어야 한다
 # (release.env 가 있어야 compose 가 파일을 읽는다). 새 볼륨이면 먼저 deploy.sh — Flyway 가 거기 만든 빈 스키마는
 # 여기서 통째로 바뀐다.
@@ -25,7 +25,7 @@
 #   1. api 를 멈춘다(DB 연결을 끊고 복원 중 쓰기를 막는다). web·cloudflared 는 그대로라 그동안 /v2 는 502 다.
 #   2. 새 DB <db>_restore 를 만들어(template0, 컨테이너 클러스터의 기본 로케일) 거기에 pg_restore 한다.
 #      --no-owner --no-privileges   소유자는 접속 역할(POSTGRES_USER)로 통일하고 원본의 GRANT 는 가져오지 않는다
-#                                   (RDS 덤프의 rds_superuser 처럼 이 클러스터에 없는 역할이 걸리지 않게)
+#                                   (원본 클러스터에만 있던 역할 때문에 복원이 실패하지 않게)
 #      --exit-on-error --single-transaction   하나라도 실패하면 전부 취소
 #      덤프는 stdin 으로 흘린다 — 컨테이너에 파일을 두지 않는다.
 #   3. 복원된 DB 에 flyway_schema_history 가 있어야 한다(없으면 api 가 V1 부터 적용하려다 죽는다).
@@ -40,7 +40,7 @@
 #
 # --clean 으로 기존 DB 위에 덮어쓰지 않는 이유: 대상에만 있는 객체가 남아 "덤프와 같은 DB" 라는 보장이 없고, 실패하면
 # 반쯤 지워진 DB 가 남는다. 새 DB 에 복원한 뒤 이름을 바꾸면 실패해도 원본이 그대로다.
-# --create 로 DB 를 만들지 않는 이유: 덤프의 로케일(dev EC2 는 C.UTF-8)이 이 컨테이너(en_US.utf8)에 없을 수 있다.
+# --create 로 DB 를 만들지 않는 이유: 원본 덤프의 로케일이 이 컨테이너(en_US.utf8)에 없을 수 있다.
 # 클러스터 기본 로케일로 만든다 — Flyway 가 빈 볼륨에 만드는 DB 와 같은 조건이다.
 set -euo pipefail
 
@@ -50,7 +50,7 @@ fail() { printf '✗ %s\n' "$*" >&2; exit 1; }
 usage() { awk 'NR == 1 { next } /^#/ { sub(/^# ?/, ""); print; next } { exit }' "$0"; }
 
 # 테이블별 정확한 행 수(count(*), 통계 추정치가 아니다). 원본 DB 와 복원 결과를 같은 SQL 로 뽑아 diff 한다.
-# Postgres 16(dev EC2)·18(컨테이너) 양쪽에서 돈다.
+# PostgreSQL 16 이상에서 실행할 수 있다.
 COUNTS_SQL="select table_name, (xpath('/row/cnt/text()', query_to_xml(format('select count(*) as cnt from %I.%I', table_schema, table_name), false, true, '')))[1]::text::bigint as rows from information_schema.tables where table_schema = 'public' and table_type = 'BASE TABLE' order by 1;"
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"

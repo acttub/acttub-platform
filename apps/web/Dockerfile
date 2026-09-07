@@ -52,10 +52,10 @@ ARG NEXT_PUBLIC_APP_COMMIT=
 ARG SENTRY_ORG=
 ARG SENTRY_PROJECT=
 # 브라우저가 API 에 직접 가게 하는 값은 비워 둔다 — 비어 있어야 상대 경로로 나가 이 서버의 rewrites 를
-# 탄다(DEPLOY-VPC §4-1). 홈서버에서도 API 는 compose 네트워크 안에만 있어 브라우저가 닿지 못한다.
+# 탄다. API 는 compose 네트워크 안에만 있어 브라우저가 닿지 못한다.
 ENV NEXT_PUBLIC_API_BASE_URL=
 # 커밋 SHA 는 비면 안 된다 — Sentry release 가 빈 문자열이 된다(sentry-shared.ts 의 ?? "unknown" 은 빈 값을
-# 못 잡는다). upload-web.sh 는 git 으로 폴백했지만 이 컨텍스트에는 .git 이 없다. 다른 인자는 비어도 뜻이
+# 못 잡는다). 빌드 컨텍스트에는 .git 이 없으므로 SHA 를 build-arg 로 받는다. 다른 인자는 비어도 뜻이
 # 있다(사이트 URL 은 acttub.com 기본값, DSN·Amplitude 키는 비면 계측 끔).
 RUN test -n "$NEXT_PUBLIC_APP_COMMIT" \
  || { echo "build-arg NEXT_PUBLIC_APP_COMMIT 이 비어 있다 — Sentry release 이름이 된다" >&2; exit 1; }
@@ -75,7 +75,7 @@ ENV NODE_ENV=production \
     HOSTNAME=0.0.0.0
 WORKDIR /app
 # standalone 은 모노레포 트리를 유지한다 — server.js 는 apps/web/ 아래, 트레이싱된 node_modules 는
-# /app 에 놓이므로 트리 전체를 옮긴다(DEPLOY-VPC §4-1). .next/static 과 public 은 standalone 이 담지
+# /app 에 놓이므로 트리 전체를 옮긴다. .next/static 과 public 은 standalone 이 담지
 # 않아 따로 넣는다 — 빠뜨리면 스타일 없는 화면이 뜬다. sharp 는 같은 리눅스에서 빌드하므로 그대로
 # 둔다(맥에서 빌드해 옮기던 시절의 제외가 여기서는 필요 없다).
 COPY --from=build --chown=node:node /app/apps/web/.next/standalone ./

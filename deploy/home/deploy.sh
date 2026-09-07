@@ -14,7 +14,7 @@
 #      COMPOSE_PROFILES 가 정하고 이 스크립트는 그대로 따른다.
 #   2. docker compose pull        DEPLOY_PULL_POLICY=always(기본)|missing — 로컬 태그로 스모크할 때 missing
 #   3. docker compose up -d --remove-orphans --wait   DEPLOY_WAIT_SECONDS(기본 180) 안에 healthy 가 아니면 실패.
-#      크래시루프는 healthy 가 되지 못해 여기서 시간 초과로 걸린다(ssm-deploy.sh 의 NRestarts 검사에 해당).
+#      크래시루프는 healthy 가 되지 못해 여기서 시간 초과로 걸린다.
 #   4. web 컨테이너 안에서 GET /health → commit 이 sha 앞 7자와 같은지 대조. 다르면 옛 컨테이너가 답하는 것.
 #
 # 같은 sha 로 다시 돌리면 release.env 내용이 같아 compose 가 아무것도 바꾸지 않고 초록으로 끝난다(멱등).
@@ -61,7 +61,7 @@ grep -q '^COMPOSE_PROFILES=.' .env \
 # ── 1. release.env ─────────────────────────────────────────────────────────────
 # 임시 파일에 쓰고 mv 로 바꾼다 — 도중에 죽어도 반쯤 쓰인 release.env 가 남지 않는다.
 # RENDER_GIT_COMMIT 은 /health 의 commit(HealthController, 앞 7자), SENTRY_RELEASE 는 Sentry 릴리스 태그.
-# 이름이 RENDER_* 인 것은 옛 호스팅의 잔재다(ssm-deploy.sh 와 같다).
+# 이름이 RENDER_* 인 것은 기존 앱 설정과의 호환성을 유지하기 위해서다.
 step "release.env 쓰기 — commit ${SHA:0:7}, api $API_IMAGE, web $WEB_IMAGE"
 RELEASE_FILE="$(mktemp ./release.env.XXXXXX)"
 trap 'rm -f "$RELEASE_FILE"' EXIT
