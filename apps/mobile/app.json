@@ -7,7 +7,7 @@
     "icon": "./assets/images/icon.png",
     "scheme": "actingapp",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": false,
+    "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.acttub.app",
@@ -113,7 +113,8 @@
       ],
       "expo-audio",
       "onnxruntime-react-native",
-      "./plugins/with-ort-16kb.js"
+      "./plugins/with-ort-16kb.js",
+      "./plugins/with-ort-newarch.js"
     ],
     "experiments": {
       "typedRoutes": true,
