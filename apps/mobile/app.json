@@ -110,7 +110,9 @@
           "autoLogAppEventsEnabled": true,
           "advertiserIDCollectionEnabled": true
         }
-      ]
+      ],
+      "expo-audio",
+      "onnxruntime-react-native"
     ],
     "experiments": {
       "typedRoutes": true,
