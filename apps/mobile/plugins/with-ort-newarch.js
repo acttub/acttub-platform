@@ -45,6 +45,28 @@ function patchFile(file) {
   return true;
 }
 
+// 네이티브 install() 이 구 브릿지 API(CatalystInstance)로 JSCallInvoker 를 얻어서
+// bridgeless 에선 예외가 나 JSI 설치가 실패한다("OrtApi is not initialized"). ReactContext 는
+// getJSCallInvokerHolder() 를 직접 제공하므로(구/신 아키텍처 공통) .getCatalystInstance() 만 제거한다.
+function patchJava(file) {
+  if (!fs.existsSync(file)) return false;
+  let c = fs.readFileSync(file, 'utf8');
+  const already = !c.includes('getCatalystInstance().getJSCallInvokerHolder()');
+  if (!already) {
+    c = c.split('getReactApplicationContext().getCatalystInstance().getJSCallInvokerHolder()')
+      .join('getReactApplicationContext().getJSCallInvokerHolder()');
+  }
+  // catch 가 예외를 삼켜 실패 원인이 안 보인다 → logcat 에 남긴다(진단용).
+  if (c.includes('} catch (Exception e) {\n      return false;')) {
+    c = c.replace(
+      '} catch (Exception e) {\n      return false;',
+      '} catch (Exception e) {\n      android.util.Log.e("OrtSpike", "install() failed", e);\n      return false;',
+    );
+  }
+  fs.writeFileSync(file, c);
+  return true;
+}
+
 module.exports = function withOrtNewArch(config) {
   return withDangerousMod(config, [
     'android',
@@ -59,7 +81,13 @@ module.exports = function withOrtNewArch(config) {
       for (const t of targets) {
         if (patchFile(t)) any = true;
       }
-      console.log(any ? '[with-ort-newarch] ORT binding bridgeless 폴백 주입 완료' : '[with-ort-newarch] 대상 파일 없음');
+      const javaFile = path.join(
+        base, 'android', 'src', 'main', 'java', 'ai', 'onnxruntime', 'reactnative', 'OnnxruntimeModule.java',
+      );
+      const javaOk = patchJava(javaFile);
+      console.log(
+        `[with-ort-newarch] binding 폴백=${any ? 'OK' : '없음'}, 네이티브 install() bridgeless 패치=${javaOk ? 'OK' : '실패'}`,
+      );
       return cfg;
     },
   ]);
