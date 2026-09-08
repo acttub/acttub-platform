@@ -573,14 +573,14 @@ class ExternalOperationIT {
         assertThatThrownBy(() -> memoryQueue.complete(
                 operationId,
                 UUID.randomUUID(),
-                JsonNodeFactory.instance.objectNode().put("updated", 1),
+                () -> JsonNodeFactory.instance.objectNode().put("updated", 1),
                 NOW.plusSeconds(1)))
                 .isInstanceOf(LeaseOwnershipException.class);
 
         memoryQueue.complete(
                 operationId,
                 leaseToken,
-                JsonNodeFactory.instance.objectNode().put("updated", 1),
+                () -> JsonNodeFactory.instance.objectNode().put("updated", 1),
                 NOW.plusSeconds(2));
 
         assertThat(operation(operationId))

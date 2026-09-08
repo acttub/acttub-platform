@@ -10,6 +10,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 
+import com.acttub.actingapi.feature.memory.domain.AgentMemoryWrites;
 import com.acttub.actingapi.integration.llm.TextGenerator;
 import com.acttub.actingapi.platform.ledger.LeaseOwnershipException;
 import com.acttub.actingapi.platform.observability.FailureContext;
@@ -75,8 +76,10 @@ public class MemoryUpdateWorker {
         }
         UUID sessionId = queue.practiceSessionOf(operationId);
         try {
-            List<String> written = update(sessionId, operationId);
-            queue.complete(operationId, leaseToken, payload(sessionId, written), now);
+            MemoryUpdateMaterial material = memory.material(sessionId);
+            Map<String, String> updates = extract(material, operationId);
+            queue.complete(operationId, leaseToken,
+                    () -> payload(sessionId, write(material, updates)), now);
         } catch (LeaseOwnershipException lost) {
             LOG.warn("기억 갱신 lease 를 잃었다: {}", operationId);
             failureReporter.report(
@@ -115,23 +118,30 @@ public class MemoryUpdateWorker {
         return response;
     }
 
-    private List<String> update(UUID practiceSessionId, UUID operationId) {
-        MemoryUpdateMaterial material = memory.material(practiceSessionId);
+    private Map<String, String> extract(MemoryUpdateMaterial material, UUID operationId) {
         if (material == null) {
-            LOG.info("기억 갱신 재료가 없다(연습이 지워졌을 수 있다): {}", practiceSessionId);
-            return List.of();
+            LOG.info("기억 갱신 재료가 없다(연습이 지워졌을 수 있다): {}", operationId);
+            return Map.of();
         }
         Map<String, String> existing = new LinkedHashMap<>();
         memory.list(material.userId()).forEach(row -> existing.put(row.field(), row.value()));
 
-        Map<String, String> updates = extractor.extract(
+        return extractor.extract(
                 material,
                 existing,
                 (system, user) -> generator.generate(system, user).text(),
                 operationId);
+    }
 
+    /** Lease를 소유한 완료 트랜잭션 안에서만 호출한다. */
+    private List<String> write(MemoryUpdateMaterial material, Map<String, String> updates) {
         List<String> written = new ArrayList<>();
-        updates.forEach((name, value) -> {
+        // 여러 연습이 같은 배우를 갱신해도 기억 행의 잠금을 같은 순서로 얻는다.
+        for (String name : AgentMemoryWrites.FIELDS) {
+            String value = updates.get(name);
+            if (value == null) {
+                continue;
+            }
             MemoryEntry row = memory.writeAsAgent(
                     material.userId(),
                     ActorMemoryField.valueOf(name.toUpperCase(Locale.ROOT)),
@@ -141,7 +151,8 @@ public class MemoryUpdateWorker {
             if (row != null) {
                 written.add(name);
             }
-        });
-        return written;
+        }
+        // 원장 응답은 저장 순서가 아니라 기존 모델 응답의 필드 순서를 보존한다.
+        return updates.keySet().stream().filter(written::contains).toList();
     }
 }
