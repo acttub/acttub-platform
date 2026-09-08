@@ -734,6 +734,23 @@ export const api = {
     });
   },
 
+  // 내 글·댓글 삭제 (SOMA-499, App Store 1.2) — 서버가 작성자만 지우게 막는다(남의 것은 403).
+  deleteCommunityPost(postId: string): Promise<void> {
+    return request<void>(
+      `/v2/community/posts/${encodeURIComponent(postId)}`,
+      { method: 'DELETE' },
+      { timeoutMs: 15_000 },
+    );
+  },
+
+  deleteCommunityComment(commentId: string): Promise<void> {
+    return request<void>(
+      `/v2/community/comments/${encodeURIComponent(commentId)}`,
+      { method: 'DELETE' },
+      { timeoutMs: 15_000 },
+    );
+  },
+
   createCommunityComment(
     postId: string,
     input: { body: string; anonymous: boolean },

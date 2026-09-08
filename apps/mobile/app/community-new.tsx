@@ -11,6 +11,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useAppDialog } from '@/components/app-dialog';
 import { useKeyboardHeight } from '@/hooks/use-keyboard-height';
 
 import { palette } from '@/constants/palette';
@@ -22,6 +24,7 @@ import { translate as t } from '@/lib/i18n';
 export default function CommunityNewScreen() {
   const router = useRouter();
   const keyboardHeight = useKeyboardHeight();
+  const { confirm, dialog } = useAppDialog();
   const [categories, setCategories] = useState<CommunityCategory[]>([]);
   const [slug, setSlug] = useState('');
   const [title, setTitle] = useState('');
@@ -42,8 +45,30 @@ export default function CommunityNewScreen() {
 
   const ready = Boolean(slug && title.trim() && body.trim()) && !busy;
 
+  const GUIDELINES_KEY = 'acttub.community.guidelinesAgreed';
+
   async function submit() {
     if (!ready) return;
+    // 첫 글 전에 커뮤니티 규칙(무관용) 동의를 한 번 받는다 (SOMA-499, App Store 1.2).
+    let agreed = false;
+    try {
+      agreed = (await AsyncStorage.getItem(GUIDELINES_KEY)) === '1';
+    } catch {
+      agreed = false;
+    }
+    if (!agreed) {
+      const ok = await confirm({
+        title: t('communityNew.rulesTitle'),
+        message: t('communityNew.rulesMsg'),
+        confirmLabel: t('communityNew.rulesAgree'),
+      });
+      if (!ok) return;
+      try {
+        await AsyncStorage.setItem(GUIDELINES_KEY, '1');
+      } catch {
+        // 저장 실패해도 이번 글은 진행 — 다음에 다시 물어본다.
+      }
+    }
     setBusy(true);
     try {
       const created = await api.createCommunityPost({
@@ -134,14 +159,17 @@ export default function CommunityNewScreen() {
             </View>
           </Pressable>
 
+          <Text style={styles.rulesNotice}>{t('communityNew.rulesNotice')}</Text>
           {error && <Text style={styles.error}>{error}</Text>}
         </ScrollView>
       </View>
+      {dialog}
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  rulesNotice: { fontSize: 12, color: palette.textMuted, lineHeight: 18, marginTop: 8 },
   safe: { flex: 1, backgroundColor: palette.bg },
   flex: { flex: 1 },
   header: {
