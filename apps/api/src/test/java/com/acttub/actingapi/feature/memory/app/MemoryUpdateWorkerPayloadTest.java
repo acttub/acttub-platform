@@ -200,7 +200,7 @@ class MemoryUpdateWorkerPayloadTest {
         public MemoryUpdateMaterial material(UUID practiceSessionId) {
             return new MemoryUpdateMaterial(
                     UUID.randomUUID(), practiceSessionId, "목표", "분석", "캐릭터 분석", null,
-                    List.of(), List.of());
+                    List.of(), List.of(), List.of());
         }
     }
 

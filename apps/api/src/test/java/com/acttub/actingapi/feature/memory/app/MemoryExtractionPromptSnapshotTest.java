@@ -70,6 +70,6 @@ class MemoryExtractionPromptSnapshotTest {
             String goal, String subBranch, String blockageDetail, List<String> actorMessages) {
         return new MemoryUpdateMaterial(
                 USER_ID, SESSION_ID, goal, "분석", subBranch, blockageDetail,
-                List.of("가지 마"), actorMessages);
+                List.of("가지 마"), actorMessages, List.of());
     }
 }

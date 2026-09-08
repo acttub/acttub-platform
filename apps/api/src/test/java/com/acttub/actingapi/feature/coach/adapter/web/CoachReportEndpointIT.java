@@ -23,6 +23,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -85,6 +87,58 @@ class CoachReportEndpointIT {
         jdbc.execute("TRUNCATE TABLE users, consent_documents RESTART IDENTITY CASCADE");
         fixtures = new CoachStorageFixtures(jdbc);
         generator.reset();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"{}", "null", "[]", "{\"observations\":null}", "{\"legacy\":true}"})
+    void legacySplitObservationsReachCoachStartAndReply(String raw) throws Exception {
+        UUID userId = fixtures.insertUser();
+        var practice = fixtures.insertPractice(userId);
+        fixtures.insertSummary(practice.id());
+        jdbc.update("UPDATE summaries SET raw=?::jsonb WHERE session_id=?", raw, practice.id());
+        generator.enqueue(COACH_REPLY);
+
+        JsonNode started = successful(post("/v2/coach/start")
+                .contentType(MediaType.APPLICATION_JSON)
+                .header("Authorization", bearer(userId))
+                .header("X-Request-Id", UUID.randomUUID())
+                .content("{\"practice_session_id\":\"" + practice.id() + "\"}"));
+
+        assertThat(generator.lastInput).contains("멈춘 뒤 말한다", "첫 대사", "얼굴은 확인되지 않음");
+        generator.enqueue(COACH_REPLY);
+        successful(coachReply(userId, UUID.fromString(started.path("session_id").asText()), UUID.randomUUID()));
+        assertThat(generator.lastInput).contains("멈춘 뒤 말한다", "첫 대사", "얼굴은 확인되지 않음");
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void coachReadsRawPackOrLegacyRawArrayBeforeSplitValues(boolean legacyArray) throws Exception {
+        UUID userId = fixtures.insertUser();
+        var practice = fixtures.insertPractice(userId);
+        fixtures.insertSummary(practice.id());
+        if (legacyArray) {
+            jdbc.update("UPDATE summaries SET raw=raw->'observations' WHERE session_id=?", practice.id());
+        }
+        jdbc.update("""
+                UPDATE summaries SET observations_json='[{"label":"낡은 관찰","quote":"낡은 대사"}]'::jsonb
+                WHERE session_id=?
+                """, practice.id());
+        generator.enqueue(COACH_REPLY);
+        JsonNode started = successful(post("/v2/coach/start")
+                .contentType(MediaType.APPLICATION_JSON)
+                .header("Authorization", bearer(userId))
+                .header("X-Request-Id", UUID.randomUUID())
+                .content("{\"practice_session_id\":\"" + practice.id() + "\"}"));
+        assertThat(generator.lastInput).contains("멈춘 뒤 말한다", "첫 대사").doesNotContain("낡은 관찰", "낡은 대사");
+        if (!legacyArray) {
+            assertThat(generator.lastInput).contains("여자가 문 앞에서 돌아선 상대를 붙잡는다.");
+        }
+        generator.enqueue(COACH_REPLY);
+        successful(coachReply(userId, UUID.fromString(started.path("session_id").asText()), UUID.randomUUID()));
+        assertThat(generator.lastInput).contains("멈춘 뒤 말한다", "첫 대사").doesNotContain("낡은 관찰", "낡은 대사");
+        if (!legacyArray) {
+            assertThat(generator.lastInput).contains("여자가 문 앞에서 돌아선 상대를 붙잡는다.");
+        }
     }
 
     @Test
@@ -661,10 +715,12 @@ class CoachReportEndpointIT {
         private final Deque<String> responses = new ArrayDeque<>();
         private Runnable duringGeneration;
         private int calls;
+        private String lastInput;
 
         @Override
         public synchronized GeneratedText generate(String instructions, String input) {
             calls++;
+            lastInput = input;
             // ⚠ 예정에 없던 호출이면 <b>부작용을 일으키기 전에</b> 멈춘다. 순서를 뒤집으면 훅이
             // 먼저 돌아 그 실패(제약 위반·픽스처 단언)가 진짜 원인을 가린다.
             if (responses.isEmpty()) {
@@ -696,6 +752,7 @@ class CoachReportEndpointIT {
             responses.clear();
             duringGeneration = null;
             calls = 0;
+            lastInput = null;
         }
     }
 }

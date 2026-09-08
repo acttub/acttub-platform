@@ -23,6 +23,7 @@ import com.acttub.actingapi.feature.memory.app.MemoryUpdateMaterial;
 import com.acttub.actingapi.feature.memory.domain.AgentMemoryWrites;
 import com.acttub.actingapi.feature.memory.schema.ActorMemoryEntryEntity;
 import com.acttub.actingapi.platform.persistence.NativeTuples;
+import com.acttub.actingapi.integration.observation.StoredObservationPack;
 import com.acttub.actingapi.platform.observability.FailureContext;
 import com.acttub.actingapi.platform.observability.FailureKind;
 import com.acttub.actingapi.platform.observability.FailureReporter;
@@ -542,9 +543,12 @@ public class PostgresMemoryRepository implements MemoryRepository, CoachMemory {
     @Override
     public MemoryUpdateMaterial material(UUID practiceSessionId) {
         List<MemoryUpdateMaterial> sessions = NativeTuples.list(entityManager.createNativeQuery("""
-                SELECT user_id,goal,blockage_kind,sub_branch,blockage_detail
-                FROM practice_sessions
-                WHERE id=:practiceSessionId AND hidden_at IS NULL
+                SELECT ps.user_id,ps.goal,ps.blockage_kind,ps.sub_branch,ps.blockage_detail,
+                    s.raw::text AS raw_json, s.observations_json::text AS observations_json,
+                    s.uncertainties_json::text AS uncertainties_json
+                FROM practice_sessions ps
+                LEFT JOIN summaries s ON s.session_id=ps.id
+                WHERE ps.id=:practiceSessionId AND ps.hidden_at IS NULL
                 """, Tuple.class)
                 .setParameter("practiceSessionId", practiceSessionId)).stream()
                 .map(row -> new MemoryUpdateMaterial(
@@ -555,7 +559,8 @@ public class PostgresMemoryRepository implements MemoryRepository, CoachMemory {
                         row.get("sub_branch", String.class),
                         row.get("blockage_detail", String.class),
                         List.of(),
-                        List.of()))
+                        List.of(),
+                        quotations(row)))
                 .toList();
         if (sessions.isEmpty()) {
             return null;
@@ -582,7 +587,30 @@ public class PostgresMemoryRepository implements MemoryRepository, CoachMemory {
         MemoryUpdateMaterial session = sessions.getFirst();
         return new MemoryUpdateMaterial(
                 session.userId(), practiceSessionId, session.goal(), session.blockageKind(),
-                session.subBranch(), session.blockageDetail(), transcripts, actorMessages);
+                session.subBranch(), session.blockageDetail(), transcripts, actorMessages, session.quotations());
+    }
+
+    private List<String> quotations(Tuple row) {
+        try {
+            JsonNode pack = StoredObservationPack.read(
+                    observationJson(row.get("raw_json", String.class)),
+                    observationJson(row.get("observations_json", String.class)),
+                    observationJson(row.get("uncertainties_json", String.class)));
+            List<String> quotes = new ArrayList<>();
+            for (JsonNode observation : pack.path("observations")) {
+                JsonNode quote = observation.path("quote");
+                if (quote.isTextual() && !quote.textValue().isBlank()) {
+                    quotes.add(quote.textValue());
+                }
+            }
+            return List.copyOf(quotes);
+        } catch (JsonProcessingException exception) {
+            throw new IllegalStateException("stored observation JSON could not be parsed", exception);
+        }
+    }
+
+    private JsonNode observationJson(String value) throws JsonProcessingException {
+        return value == null ? null : mapper.readTree(value);
     }
 
     /** 셋 다 비어 있을 수 있다 — 첫 연습이 그렇다. */

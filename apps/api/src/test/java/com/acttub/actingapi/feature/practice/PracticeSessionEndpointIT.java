@@ -21,6 +21,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -39,10 +41,8 @@ import org.springframework.test.web.servlet.MvcResult;
 @AutoConfigureMockMvc
 @Import(PracticeSessionEndpointIT.StorageFixture.class)
 class PracticeSessionEndpointIT {
-    private static final UUID USER_ID =
-            UUID.fromString("00000000-0000-4000-8000-000000000301");
-    private static final UUID OTHER_USER_ID =
-            UUID.fromString("00000000-0000-4000-8000-000000000302");
+    private final UUID USER_ID = UUID.randomUUID();
+    private final UUID OTHER_USER_ID = UUID.randomUUID();
     private static final OffsetDateTime NOW =
             OffsetDateTime.of(2026, 8, 8, 1, 2, 3, 456789000, ZoneOffset.UTC);
 
@@ -74,6 +74,57 @@ class PracticeSessionEndpointIT {
         jdbc.execute("TRUNCATE TABLE users,consent_documents RESTART IDENTITY CASCADE");
         insertUser(USER_ID);
         insertUser(OTHER_USER_ID);
+    }
+
+    @Test
+    void detailReadsNewPackBeforeLegacySplitValues() throws Exception {
+        UUID uploadId = insertUpload(USER_ID, "finalized", "video.mp4");
+        UUID sessionId = UUID.fromString(json(create(uploadId, UUID.randomUUID(), validBody(uploadId)))
+                .path("session_id").asText());
+        insertSummary(sessionId);
+        jdbc.update("UPDATE practice_sessions SET status='analyzed' WHERE id=?", sessionId);
+        jdbc.update("UPDATE summaries SET raw=?::jsonb WHERE session_id=?", """
+                {"scene_summary":"새 장면", "observations":[
+                  {"start_ms":120,"end_ms":900,"what":"새 관찰","quote":"기다려",
+                   "dimension":"호흡","confidence":0.8}],"uncertainties":["새 불확실"]}
+                """, sessionId);
+
+        JsonNode summary = detail(sessionId).path("summary");
+        assertThat(summary.path("observations")).isEqualTo(mapper.readTree("""
+                [{"start_ms":120,"end_ms":900,"label":"새 관찰","confidence":0.8}]
+                """));
+        assertThat(summary.path("uncertainties")).isEqualTo(mapper.readTree("[\"새 불확실\"]"));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"{}", "null", "[]", "{\"observations\":null}"})
+    void detailKeepsLegacySplitObservations(String raw) throws Exception {
+        UUID uploadId = insertUpload(USER_ID, "finalized", "video.mp4");
+        UUID sessionId = UUID.fromString(json(create(uploadId, UUID.randomUUID(), validBody(uploadId)))
+                .path("session_id").asText());
+        insertSummary(sessionId);
+        jdbc.update("UPDATE practice_sessions SET status='analyzed' WHERE id=?", sessionId);
+        jdbc.update("UPDATE summaries SET raw=?::jsonb WHERE session_id=?", raw, sessionId);
+
+        JsonNode summary = detail(sessionId).path("summary");
+        assertThat(summary.path("observations")).isEqualTo(mapper.readTree("""
+                [{"start_ms":0,"end_ms":10,"label":"한국어 관찰","confidence":0.9}]
+                """));
+        assertThat(summary.path("uncertainties")).isEqualTo(mapper.readTree("[\"불확실\"]"));
+    }
+
+    @Test
+    void emptyNewPackDoesNotResurrectLegacyObservations() throws Exception {
+        UUID uploadId = insertUpload(USER_ID, "finalized", "video.mp4");
+        UUID sessionId = UUID.fromString(json(create(uploadId, UUID.randomUUID(), validBody(uploadId)))
+                .path("session_id").asText());
+        insertSummary(sessionId);
+        jdbc.update("UPDATE practice_sessions SET status='analyzed' WHERE id=?", sessionId);
+        jdbc.update("UPDATE summaries SET raw=?::jsonb WHERE session_id=?",
+                "{\"scene_summary\":\"\",\"observations\":[],\"uncertainties\":[]}", sessionId);
+
+        assertThat(detail(sessionId).at("/summary/observations")).isEmpty();
+        assertThat(detail(sessionId).at("/summary/uncertainties")).isEmpty();
     }
 
     @Test

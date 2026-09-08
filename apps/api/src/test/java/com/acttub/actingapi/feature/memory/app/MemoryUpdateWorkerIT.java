@@ -84,6 +84,101 @@ class MemoryUpdateWorkerIT {
         reporter = new RecordingFailureReporter();
     }
 
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void observationQuotesReachMemoryAsPartialSpeechEvidence(boolean withTranscript) {
+        jdbc.update("""
+                INSERT INTO summaries (id,session_id,model,was_compressed,raw,observations_json,uncertainties_json)
+                VALUES (?,?,'fixture',false,?::jsonb,'[]'::jsonb,'[]'::jsonb)
+                """, UUID.randomUUID(), sessionId, """
+                {"scene_summary":"장면을 성격으로 추론하지 않는다", "observations":[
+                  {"what":"관찰 원문은 기억 재료가 아니다","quote":"잠깐, 기다려"},
+                  {"quote":" "},{"quote":null},{"quote":123},{"what":"대사 없음"},
+                  {"quote":"내 말 좀 들어"}],"uncertainties":[]}
+                """);
+        if (withTranscript) {
+            jdbc.update("""
+                    INSERT INTO transcripts (id,session_id,ord,text)
+                    VALUES (?,?,1,'과거 둘째 대사'), (?,?,0,'과거 첫째 대사')
+                    """, UUID.randomUUID(), sessionId, UUID.randomUUID(), sessionId);
+        }
+        var input = new java.util.concurrent.atomic.AtomicReference<String>();
+        var instructions = new java.util.concurrent.atomic.AtomicReference<String>();
+        MemoryUpdateWorker worker = worker((system, user) -> {
+            assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isFalse();
+            instructions.set(system);
+            input.set(user);
+            return new GeneratedText("{\"speech_actual\":\"상대를 부른 뒤 부탁을 이어 간다\"}", new TokenUsage(0, 0, 0));
+        });
+
+        assertThat(worker.runOnce(NOW)).isTrue();
+
+        assertThat(input.get()).contains("[영상 관찰에서 발췌한 일부 대사 인용]",
+                "- 잠깐, 기다려\n- 내 말 좀 들어", "전체 받아쓰기가 아니다")
+                .doesNotContain("장면을 성격으로 추론하지 않는다", "관찰 원문은 기억 재료가 아니다", "- 123");
+        assertThat(instructions.get()).contains("인물의 대사를 배우 개인의 성격이나 심리로 추론하지 않는다");
+        if (withTranscript) {
+            assertThat(input.get()).contains("[영상에서 받아쓴 실제 대사]\n- 과거 첫째 대사\n- 과거 둘째 대사");
+        } else {
+            assertThat(input.get()).doesNotContain("[영상에서 받아쓴 실제 대사]");
+        }
+        assertThat(memory.list(userId)).containsExactly(
+                new MemoryEntry("speech_actual", "상대를 부른 뒤 부탁을 이어 간다", false, sessionId));
+        assertThat(reporter.reports()).isEmpty();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"{}", "null", "[]", "{\"legacy\":true}"})
+    void legacyQuotesRemainAvailableToMemory(String raw) {
+        jdbc.update("""
+                INSERT INTO summaries (id,session_id,model,was_compressed,raw,observations_json,uncertainties_json)
+                VALUES (?,?,'fixture',false,?::jsonb,'[{"quote":"예전 인용"}]'::jsonb,'[]'::jsonb)
+                """, UUID.randomUUID(), sessionId, raw);
+        var input = new java.util.concurrent.atomic.AtomicReference<String>();
+        assertThat(worker((system, user) -> {
+            input.set(user);
+            return generated("새 목표");
+        }).runOnce(NOW)).isTrue();
+
+        assertThat(input.get()).contains("[영상 관찰에서 발췌한 일부 대사 인용]", "- 예전 인용");
+        assertThat(memory.list(userId)).containsExactly(new MemoryEntry("goal", "새 목표", false, sessionId));
+    }
+
+    @Test
+    void legacyRawArrayQuotesTakePrecedenceOverSplitQuotes() {
+        jdbc.update("""
+                INSERT INTO summaries (id,session_id,model,was_compressed,raw,observations_json,uncertainties_json)
+                VALUES (?,?,'fixture',false,'[{"quote":"실제 과거 대사"}]'::jsonb,
+                    '[{"quote":"낡은 복사 대사"}]'::jsonb,'[]'::jsonb)
+                """, UUID.randomUUID(), sessionId);
+        var input = new java.util.concurrent.atomic.AtomicReference<String>();
+        assertThat(worker((system, user) -> {
+            input.set(user);
+            return generated("새 목표");
+        }).runOnce(NOW)).isTrue();
+
+        assertThat(input.get()).contains("[영상 관찰에서 발췌한 일부 대사 인용]", "- 실제 과거 대사")
+                .doesNotContain("낡은 복사 대사");
+        assertThat(memory.list(userId)).containsExactly(new MemoryEntry("goal", "새 목표", false, sessionId));
+    }
+
+    @Test
+    void emptyNewPackDoesNotSupplyStaleQuotesToMemory() {
+        jdbc.update("""
+                INSERT INTO summaries (id,session_id,model,was_compressed,raw,observations_json,uncertainties_json)
+                VALUES (?,?,'fixture',false,'{"scene_summary":"","observations":[],"uncertainties":[]}'::jsonb,
+                    '[{"quote":"낡은 인용"}]'::jsonb,'[]'::jsonb)
+                """, UUID.randomUUID(), sessionId);
+        var input = new java.util.concurrent.atomic.AtomicReference<String>();
+        assertThat(worker((system, user) -> {
+            input.set(user);
+            return generated("새 목표");
+        }).runOnce(NOW)).isTrue();
+
+        assertThat(input.get()).doesNotContain("낡은 인용", "[영상 관찰에서 발췌한 일부 대사 인용]");
+        assertThat(memory.list(userId)).containsExactly(new MemoryEntry("goal", "새 목표", false, sessionId));
+    }
+
     @Test
     void reassignedWorkerCannotOverwriteTheNewWorkersMemory() {
         MemoryUpdateWorker newer = worker((system, user) -> generated("새 목표"));
