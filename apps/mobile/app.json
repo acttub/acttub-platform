@@ -112,7 +112,8 @@
         }
       ],
       "expo-audio",
-      "onnxruntime-react-native"
+      "onnxruntime-react-native",
+      "./plugins/with-ort-16kb.js"
     ],
     "experiments": {
       "typedRoutes": true,
