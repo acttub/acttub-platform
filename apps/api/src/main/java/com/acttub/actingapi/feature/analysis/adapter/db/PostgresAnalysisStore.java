@@ -157,6 +157,17 @@ public class PostgresAnalysisStore implements AnalysisStore {
             throw new IllegalStateException("external operation not found");
         }
         UUID sessionId = operations.getFirst().get("session_id", UUID.class);
+        // 공유 업로드의 유효한 길이는 유지하고, 측정값은 완료 전이와 함께 원자적으로 채운다.
+        // upload_intents 잠금을 practice_sessions·external_operations 갱신보다 먼저 얻는다.
+        entityManager.createNativeQuery("""
+                UPDATE upload_intents
+                SET duration_ms = :durationMs
+                WHERE id = (SELECT upload_intent_id FROM practice_sessions WHERE id = :sessionId)
+                  AND duration_ms IS NULL
+                """)
+                .setParameter("durationMs", result.durationMs())
+                .setParameter("sessionId", sessionId)
+                .executeUpdate();
         UUID summaryId = UUID.randomUUID();
         JsonNode observations = mapper.valueToTree(result.observationPack().observations());
         JsonNode uncertainties = mapper.valueToTree(result.observationPack().uncertainties());

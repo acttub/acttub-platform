@@ -44,7 +44,7 @@ public final class SummaryAnalyzer implements AnalysisProcessor {
                             context.blockageKind(),
                             context.blockageDetail() == null ? "" : context.blockageDetail(),
                             durationMs));
-            return new AnalysisResult(observations, !sendPath.equals(videoPath));
+            return new AnalysisResult(observations, !sendPath.equals(videoPath), durationMs);
         } finally {
             if (!sendPath.equals(videoPath)) {
                 try {
