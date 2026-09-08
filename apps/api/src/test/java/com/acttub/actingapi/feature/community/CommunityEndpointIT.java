@@ -1,6 +1,7 @@
 package com.acttub.actingapi.feature.community;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.awaitility.Awaitility.await;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -10,6 +11,7 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -28,6 +30,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
@@ -208,16 +211,170 @@ class CommunityEndpointIT {
     }
 
     @Test
-    void duplicateLikeResynchronizesInsteadOfIncrementingTheCachedCount() {
+    void simultaneousLikesByDifferentUsersAreBothCounted() throws Exception {
+        UUID postId = insertPost(VIEWER, false, at(1));
+
+        assertThat(overlappingLikes(postId,
+                () -> changeLike(postId, OTHER, true),
+                () -> changeLike(postId, THIRD, true)))
+                .containsExactlyInAnyOrder(1, 2);
+
+        assertLikeState(postId, OTHER, 2, true);
+        assertLikeState(postId, THIRD, 2, true);
+    }
+
+    @Test
+    void overlappingLikeAndUnlikeKeepTheRemainingUsersLike() throws Exception {
+        UUID postId = insertPost(VIEWER, false, at(1));
+        assertThat(changeLike(postId, OTHER, true)).isEqualTo(1);
+
+        assertThat(overlappingLikes(postId,
+                () -> changeLike(postId, THIRD, true),
+                () -> changeLike(postId, OTHER, false)))
+                .containsExactly(2, 1);
+        assertLikeState(postId, OTHER, 1, false);
+        assertLikeState(postId, THIRD, 1, true);
+
+        assertThat(overlappingLikes(postId,
+                () -> changeLike(postId, THIRD, false),
+                () -> changeLike(postId, OTHER, true)))
+                .containsExactly(0, 1);
+        assertLikeState(postId, OTHER, 1, true);
+        assertLikeState(postId, THIRD, 1, false);
+    }
+
+    @Test
+    void duplicateLikeResynchronizesInsteadOfIncrementingTheCachedCount() throws Exception {
         UUID postId = insertPost(VIEWER, false, at(1));
         jdbc.update("UPDATE community_posts SET like_count = 41 WHERE id = ?", postId);
 
-        assertThat(community.likePost(postId, OTHER)).isEqualTo(1);
-        assertThat(community.likePost(postId, OTHER)).isEqualTo(1);
-        assertThat(jdbc.queryForObject(
-                "SELECT like_count FROM community_posts WHERE id = ?",
-                Integer.class,
-                postId)).isEqualTo(1);
+        assertThat(changeLike(postId, OTHER, true)).isEqualTo(1);
+        jdbc.update("UPDATE community_posts SET like_count = 41 WHERE id = ?", postId);
+        assertThat(overlappingLikes(postId,
+                () -> changeLike(postId, OTHER, true),
+                () -> changeLike(postId, OTHER, true))).containsExactly(1, 1);
+        assertLikeState(postId, OTHER, 1, true);
+
+        assertThat(changeLike(postId, THIRD, true)).isEqualTo(2);
+        assertThat(overlappingLikes(postId,
+                () -> changeLike(postId, OTHER, false),
+                () -> changeLike(postId, OTHER, false))).containsExactly(1, 1);
+        assertLikeState(postId, OTHER, 1, false);
+        assertLikeState(postId, THIRD, 1, true);
+
+        jdbc.update("UPDATE community_posts SET like_count = 41 WHERE id = ?", postId);
+        assertThat(changeLike(postId, OTHER, false)).isEqualTo(1);
+        assertLikeState(postId, OTHER, 1, false);
+        assertThat(changeLike(postId, THIRD, false)).isZero();
+        assertThat(changeLike(postId, THIRD, false)).isZero();
+        assertLikeState(postId, THIRD, 0, false);
+    }
+
+    private List<Integer> overlappingLikes(
+            UUID postId, Callable<Integer> firstRequest, Callable<Integer> secondRequest)
+            throws Exception {
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try (var connection = jdbc.getDataSource().getConnection()) {
+            connection.setAutoCommit(false);
+            try {
+                // FK checks may proceed, but both HTTP requests must overlap before release.
+                // SQL only controls timing; responses and subsequent HTTP reads decide correctness.
+                try (var lock = connection.prepareStatement(
+                        "SELECT id FROM community_posts WHERE id = ? FOR NO KEY UPDATE")) {
+                    lock.setObject(1, postId);
+                    lock.executeQuery().close();
+                }
+                Future<Integer> first = executor.submit(firstRequest);
+                awaitBlockedPostRequests(1);
+                Future<Integer> second = executor.submit(secondRequest);
+                awaitBlockedPostRequests(2);
+                connection.rollback();
+                return List.of(first.get(10, TimeUnit.SECONDS), second.get(10, TimeUnit.SECONDS));
+            } finally {
+                connection.rollback();
+            }
+        } finally {
+            executor.shutdownNow();
+            assertThat(executor.awaitTermination(10, TimeUnit.SECONDS)).isTrue();
+        }
+    }
+
+    @Test
+    void likesAndUnlikesRejectMissingHiddenAndDeletedPostsWithoutChangingLikes() throws Exception {
+        UUID postId = insertPost(VIEWER, false, at(1));
+        assertThat(changeLike(postId, OTHER, true)).isEqualTo(1);
+
+        for (String status : List.of("hidden", "deleted")) {
+            jdbc.update("UPDATE community_posts SET status = ? WHERE id = ?", status, postId);
+            assertLikeNotFound(postId, THIRD, true);
+            assertLikeNotFound(postId, OTHER, false);
+            var detail = mvc.perform(get("/v2/community/posts/{post_id}", postId))
+                    .andReturn().getResponse();
+            assertThat(detail.getStatus()).isEqualTo(404);
+            assertThat(json(detail.getContentAsString()).path("detail").textValue())
+                    .isEqualTo("post_not_found");
+
+            jdbc.update("UPDATE community_posts SET status = 'visible' WHERE id = ?", postId);
+            assertLikeState(postId, OTHER, 1, true);
+            assertLikeState(postId, THIRD, 1, false);
+        }
+        UUID missing = UUID.randomUUID();
+        assertLikeNotFound(missing, OTHER, true);
+        assertLikeNotFound(missing, OTHER, false);
+    }
+
+    private void assertLikeNotFound(UUID postId, UUID userId, boolean like) throws Exception {
+        var response = requestLike(postId, userId, like);
+        assertThat(response.getStatus()).isEqualTo(404);
+        assertThat(json(response.getContentAsString()).path("detail").textValue())
+                .isEqualTo("post_not_found");
+    }
+
+    private void awaitBlockedPostRequests(int count) {
+        await().atMost(10, TimeUnit.SECONDS).untilAsserted(() ->
+                assertThat(jdbc.queryForObject("""
+                        SELECT COUNT(*) FROM pg_stat_activity
+                        WHERE datname = current_database() AND pid <> pg_backend_pid()
+                          AND wait_event_type = 'Lock' AND query ILIKE '%community_posts%'
+                        """, Integer.class)).isEqualTo(count));
+    }
+
+    private int changeLike(UUID postId, UUID userId, boolean like) throws Exception {
+        var response = requestLike(postId, userId, like);
+        assertThat(response.getStatus()).isEqualTo(200);
+        assertThat(json(response.getContentAsString()).path("liked_by_me").booleanValue())
+                .isEqualTo(like);
+        return json(response.getContentAsString()).path("like_count").intValue();
+    }
+
+    private MockHttpServletResponse requestLike(UUID postId, UUID userId, boolean like)
+            throws Exception {
+        var request = like
+                ? post("/v2/community/posts/{post_id}/likes", postId)
+                : delete("/v2/community/posts/{post_id}/likes", postId);
+        return mvc.perform(request.header("Authorization", bearer(userId)))
+                .andReturn().getResponse();
+    }
+
+    private void assertLikeState(UUID postId, UUID viewerId, int count, boolean liked)
+            throws Exception {
+        var response = mvc.perform(get("/v2/community/posts/{post_id}", postId)
+                        .header("Authorization", bearer(viewerId)))
+                .andReturn().getResponse();
+        assertThat(response.getStatus()).isEqualTo(200);
+        JsonNode detail = json(response.getContentAsString());
+        assertThat(detail.path("like_count").intValue()).isEqualTo(count);
+        assertThat(detail.path("liked_by_me").booleanValue()).isEqualTo(liked);
+
+        var listResponse = mvc.perform(get("/v2/community/posts")
+                        .header("Authorization", bearer(viewerId)))
+                .andReturn().getResponse();
+        assertThat(listResponse.getStatus()).isEqualTo(200);
+        JsonNode posts = json(listResponse.getContentAsString()).path("posts");
+        assertThat(posts).hasSize(1);
+        assertThat(posts.get(0).path("id").textValue()).isEqualTo(postId.toString());
+        assertThat(posts.get(0).path("like_count").intValue()).isEqualTo(count);
+        assertThat(posts.get(0).path("liked_by_me").booleanValue()).isEqualTo(liked);
     }
 
     @Test
