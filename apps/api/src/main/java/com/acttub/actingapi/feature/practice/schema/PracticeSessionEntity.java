@@ -37,9 +37,6 @@ public class PracticeSessionEntity extends AppGeneratedUuidEntity {
     @Column(name = "character_context", nullable = false)
     private String characterContext;
 
-    @Column(name = "subtext")
-    private String subtext;
-
     /**
      * {@code blockage_kind}/{@code sub_branch}/{@code goal} 은 alembic {@code 0010} 이 NOT NULL 로
      * 추가했다. 게다가 앞의 둘은 {@code ck_practice_sessions_blockage_branch} CHECK 제약이 묶는
@@ -73,14 +70,14 @@ public class PracticeSessionEntity extends AppGeneratedUuidEntity {
     }
 
     public PracticeSessionEntity(UUID id, UUID userId, UUID uploadIntentId, PracticeStatus status,
-            String situation, String characterContext, String subtext,
+            String situation, String characterContext,
             String blockageKind, String subBranch, String goal) {
-        this(id, userId, uploadIntentId, status, situation, characterContext, subtext,
+        this(id, userId, uploadIntentId, status, situation, characterContext,
                 blockageKind, subBranch, null, goal, null);
     }
 
     public PracticeSessionEntity(UUID id, UUID userId, UUID uploadIntentId, PracticeStatus status,
-            String situation, String characterContext, String subtext,
+            String situation, String characterContext,
             String blockageKind, String subBranch, String blockageDetail,
             String goal, UUID continuedFrom) {
         super(id);
@@ -89,7 +86,6 @@ public class PracticeSessionEntity extends AppGeneratedUuidEntity {
         this.status = status;
         this.situation = situation;
         this.characterContext = characterContext;
-        this.subtext = subtext;
         this.blockageKind = blockageKind;
         this.subBranch = subBranch;
         this.blockageDetail = blockageDetail;
@@ -115,10 +111,6 @@ public class PracticeSessionEntity extends AppGeneratedUuidEntity {
 
     public String getCharacterContext() {
         return characterContext;
-    }
-
-    public String getSubtext() {
-        return subtext;
     }
 
     public String getBlockageKind() {

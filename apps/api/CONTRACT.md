@@ -78,8 +78,23 @@ Jackson 설정: `WRITE_DATES_AS_TIMESTAMPS=false`, `Instant` 또는 `OffsetDateT
 §5-2의 `EntityManager` native SQL로 구현한다. 서비스·Domain Model은 Spring Data interface,
 Schema Entity, JPA 타입을 알지 않는다.
 
-Schema Entity가 모든 테이블을 매핑하고 `actor_memory_entries`·`push_tokens`도
-`ddl-auto: validate` 대상이다. 모든 운영 DB 접근은 Spring Data JPA와 `EntityManager`를 사용하며,
+Schema Entity는 활성 영속 경로를 매핑하고 `actor_memory_entries`·`push_tokens`도
+`ddl-auto: validate` 대상이다. 명시적으로 은퇴한 매핑은 아래 목록으로 한정하며,
+`EntityMappingIT`가 나머지 테이블·컬럼의 매핑과 검증 대상의 비공허성을 확인한다.
+
+- 구형 `reports`: 현재 `/v2/reports`와 연습 노트는 `practice_reports`를 사용한다.
+- `summaries.observation`·`summary`·`intent_alignment`·`key_moment`·`key_dimension`:
+  현재 분석 저장자와 관찰 소비자는 사용하지 않는다.
+- `practice_sessions.subtext`: 현재 입력·코칭에서 소비하지 않아 내부 전달도 종료했다.
+- `users.role`: 현재 관리자 인증은 별도 운영 토큰이며 사용자 역할 컬럼을 사용하지 않는다.
+
+이 목록의 DB 구조와 과거 값은 그대로 보존한다. 물리 축소는 호환 코드의 dev·운영 배포와
+실제 데이터·외부 소비·백업/복원 확인 후 별도 릴리스에서 진행한다. 동결 마이그레이션과
+fingerprint는 바꾸지 않으며 `LegacyStorageCompatibilityIT`가 현재 스키마의 과거 값 보존과
+구형 구조를 제거한 격리 테스트 DB의 기동·현재 기능을 검증한다. `transcripts`, 소비 중인
+관찰·대화 요약·종료 사유, 보존 정책이 미정인 메타데이터는 이 목록에 포함하지 않는다.
+
+모든 운영 DB 접근은 Spring Data JPA와 `EntityManager`를 사용하며,
 운영 `JdbcTemplate`·`NamedParameterJdbcTemplate`·`DataSource` 직접 접근은 없다. 테스트 fixture와
 JPA 밖 독립 검증에는 `JdbcTemplate`을 허용한다.
 
@@ -131,17 +146,18 @@ JSON 연산, 상관 서브쿼리 조건부 갱신은 Spring Data `save()`나 조
    Spring Data `save()` 는 `@Id` 가 non-null 이면 `merge()` 를 호출해 불필요한 SELECT 가
    붙는다. → 앱 생성 PK 는 `Persistable<UUID>` 구현(`AppGeneratedUuidEntity`), 그리고
    **INSERT 전 SELECT 가 없음을 검증**한다
-   (`src/test/java/com/acttub/actingapi/platform/schema/EntityMappingIT:allTwentyOneAppGeneratedIdsUsePersistOnSave`).
+   (`src/test/java/com/acttub/actingapi/platform/schema/EntityMappingIT:allActiveAppGeneratedIdsUsePersistOnSave`).
    push token은 `save()`하지 않고 native upsert의 `RETURNING`으로 DB 생성 ID를 받는다
    (`src/test/java/com/acttub/actingapi/platform/schema/EntityManagerNativeSqlIT:pushUpsertReturnsDatabaseGeneratedIdAndRebindsTheSameRow`).
 3. **`server_default` vs 앱 측 default 이원화.** JPA 에는 "앱 측 default" 개념이 없다. 필드
    초기화값을 주면 항상 INSERT 에 실려 `server_default` 가 발동하지 않는다. 컬럼별로 판정한다.
-   `''` 기본값 컬럼은 `coach_sessions.conversation_summary` 와 `reports.comparison` 둘이며
-   null 로 두면 NOT NULL 위반이다. `summaries.observations_json`/`.uncertainties_json` 도 같은
-   부류다.
-4. **JSONB 8개** — `summaries.observation`(NULL 허용)/`.raw`/`.observations_json`/
-   `.uncertainties_json`, `coaching_handoffs.handoff_json`, `practice_reports.report_json`,
-   `reports.biggest_problem`, `external_operations.response_payload`(NULL 허용).
+   활성 매핑의 `coach_sessions.conversation_summary`는 `''` 기본값이며
+   null 로 두면 NOT NULL 위반이다. `summaries.observations_json`/`.uncertainties_json`도
+   같은 부류다. 구형 `reports.comparison`의 DB 기본값도 그대로 보존한다.
+4. **활성 JSONB 매핑** — `summaries.raw`/`.observations_json`/`.uncertainties_json`,
+   `coaching_handoffs.handoff_json`, `practice_reports.report_json`,
+   `external_operations.response_payload`(NULL 허용). 구형 `summaries.observation`과
+   `reports.biggest_problem`은 DB에 보존하며 활성 매핑에서 제외한다.
    **JSON null(`'null'::jsonb`)과 SQL NULL 을 구분한다.** External Operation 신규 행의 아직 없는
    응답은 SQL NULL이고, claim·release·fail·resume·sweep가 이전 응답을 비우는 값은 Python
    SQLAlchemy JSONB `None`과 같은 JSON null이다. 완료 응답은 JSON 객체다.
