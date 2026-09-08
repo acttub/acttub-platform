@@ -182,6 +182,30 @@ export default function CommunityPostScreen() {
     if (ok) await doBlock(userId, target.type);
   };
 
+  // 내 글·댓글 즉시 삭제 (SOMA-499, App Store 1.2 — 피드에서 바로 제거)
+  const confirmDelete = async (target: ModerationTarget) => {
+    const isPost = target.type === 'post';
+    const ok = await confirm({
+      title: isPost ? t('communityPost.deletePostTitle') : t('communityPost.deleteCommentTitle'),
+      message: isPost ? t('communityPost.deletePostMsg') : t('communityPost.deleteCommentMsg'),
+      confirmLabel: t('common.delete'),
+      destructive: true,
+    });
+    if (!ok) return;
+    try {
+      if (isPost) {
+        await api.deleteCommunityPost(target.id);
+        router.back();
+      } else {
+        await api.deleteCommunityComment(target.id);
+        setComments((prev) => prev.filter((c) => c.id !== target.id));
+        if (post) setPost({ ...post, comment_count: Math.max(0, post.comment_count - 1) });
+      }
+    } catch {
+      await alert({ title: t('communityPost.deleteFail'), message: t('common.tryLater') });
+    }
+  };
+
   const openModeration = (target: ModerationTarget) => {
     if (!requireLogin()) return;
     const blockable = blockableUserId(target.author, {
@@ -190,18 +214,29 @@ export default function CommunityPostScreen() {
     });
     void sheet({
       title: target.type === 'post' ? t('communityPost.targetPost') : t('communityPost.targetComment'),
-      actions: [
-        { label: t('communityPost.report'), destructive: true, onPress: () => askReason(target) },
-        ...(blockable
-          ? [
-              {
-                label: t('communityPost.blockAuthor'),
-                destructive: true,
-                onPress: () => void askBlock(target, blockable),
-              },
-            ]
-          : []),
-      ],
+      actions: target.mine
+        ? [
+            {
+              label:
+                target.type === 'post'
+                  ? t('communityPost.deletePost')
+                  : t('communityPost.deleteComment'),
+              destructive: true,
+              onPress: () => void confirmDelete(target),
+            },
+          ]
+        : [
+            { label: t('communityPost.report'), destructive: true, onPress: () => askReason(target) },
+            ...(blockable
+              ? [
+                  {
+                    label: t('communityPost.blockAuthor'),
+                    destructive: true,
+                    onPress: () => void askBlock(target, blockable),
+                  },
+                ]
+              : []),
+          ],
     });
   };
 
@@ -241,7 +276,7 @@ export default function CommunityPostScreen() {
                   id: post.id,
                   author: post.author,
                   anonymous: post.anonymous,
-                  mine: !!user && !!post.author?.id && post.author.id === user.id,
+                  mine: post.mine,
                 })
               }>
               <Feather name="more-horizontal" size={18} color={palette.textFaint} />
@@ -273,23 +308,21 @@ export default function CommunityPostScreen() {
                 <Text style={styles.metaDot}>·</Text>
                 <Text style={styles.meta}>{relativeTime(comment.created_at, now)}</Text>
                 <View style={styles.metaSpacer} />
-                {!comment.mine && (
-                  <Pressable
-                    hitSlop={10}
-                    accessibilityRole="button"
-                    accessibilityLabel={t('communityPost.commentMenuA11y')}
-                    onPress={() =>
-                      openModeration({
-                        type: 'comment',
-                        id: comment.id,
-                        author: comment.author,
-                        anonymous: comment.anonymous,
-                        mine: comment.mine,
-                      })
-                    }>
-                    <Feather name="more-horizontal" size={16} color={palette.textFaint} />
-                  </Pressable>
-                )}
+                <Pressable
+                  hitSlop={10}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('communityPost.commentMenuA11y')}
+                  onPress={() =>
+                    openModeration({
+                      type: 'comment',
+                      id: comment.id,
+                      author: comment.author,
+                      anonymous: comment.anonymous,
+                      mine: comment.mine,
+                    })
+                  }>
+                  <Feather name="more-horizontal" size={16} color={palette.textFaint} />
+                </Pressable>
               </View>
               <Text style={styles.commentBody}>{comment.body}</Text>
             </View>
