@@ -14,6 +14,7 @@ import com.acttub.actingapi.feature.analysis.app.AnalysisResult;
 import com.acttub.actingapi.feature.analysis.app.AnalysisStore;
 import com.acttub.actingapi.integration.observation.ObservationItem;
 import com.acttub.actingapi.integration.observation.ObservationPack;
+import com.acttub.actingapi.integration.observation.SpeechAnalysis;
 import com.acttub.actingapi.integration.observation.SpeechFacts;
 import com.acttub.actingapi.platform.ledger.LeaseOwnershipException;
 import com.acttub.actingapi.support.PostgresContainerSupport;
@@ -110,8 +111,22 @@ class PostgresAnalysisStoreIT {
                 .containsExactlyInAnyOrder("scene_summary", "timeline", "speech", "observations", "uncertainties");
         assertThat(mapper.readTree((String) summary.get("raw")).path("timeline").asText())
                 .isEqualTo(result.observationPack().timeline());
-        assertThat(mapper.readTree((String) summary.get("raw")).path("speech"))
-                .isEqualTo(mapper.valueToTree(result.observationPack().speech()));
+        // speech 도 같은 이유로 통째 비교하지 않는다 — jsonb 를 거치며 칸 순서가 바뀐다.
+        JsonNode speech = mapper.readTree((String) summary.get("raw")).path("speech");
+        SpeechAnalysis expected = result.observationPack().speech();
+        assertThat(speech.path("transcript").asText()).isEqualTo(expected.transcript());
+        assertThat(speech.path("avg_syllables_per_sec").asDouble())
+                .isEqualTo(expected.avgSyllablesPerSec());
+        assertThat(speech.path("pauses")).hasSize(expected.pauses().size());
+        assertThat(speech.path("chunks")).hasSize(expected.chunks().size());
+        JsonNode chunk = speech.path("chunks").get(0);
+        SpeechAnalysis.Chunk expectedChunk = expected.chunks().get(0);
+        assertThat(chunk.path("start_ms").asLong()).isEqualTo(expectedChunk.startMs());
+        assertThat(chunk.path("end_ms").asLong()).isEqualTo(expectedChunk.endMs());
+        assertThat(chunk.path("rate").asDouble()).isEqualTo(expectedChunk.rate());
+        assertThat(chunk.path("delta_pct").asInt()).isEqualTo(expectedChunk.deltaPct());
+        assertThat(chunk.path("mark").asText()).isEqualTo(expectedChunk.mark());
+        assertThat(chunk.path("text").asText()).isEqualTo(expectedChunk.text());
 
         // 새 받아쓰기는 관찰 팩의 speech에 저장한다. 옛 transcripts 표는 지난 기록만 보존한다.
         assertThat(count("SELECT count(*) FROM transcripts WHERE session_id = ?", sessionId))
