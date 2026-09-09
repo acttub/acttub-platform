@@ -2,6 +2,7 @@ package com.acttub.actingapi.integration.observation;
 
 import java.util.List;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 /**
@@ -12,12 +13,20 @@ import com.fasterxml.jackson.annotation.JsonProperty;
  */
 public record ObservationPack(
         @JsonProperty("scene_summary") String sceneSummary,
+        @JsonProperty("timeline") String timeline,
+        @JsonProperty("speech") @JsonInclude(JsonInclude.Include.NON_NULL) SpeechAnalysis speech,
         List<ObservationItem> observations,
         List<String> uncertainties) {
 
     public ObservationPack {
         sceneSummary = sceneSummary == null ? "" : sceneSummary;
+        timeline = timeline == null ? "" : timeline;
         observations = observations == null ? List.of() : List.copyOf(observations);
         uncertainties = uncertainties == null ? List.of() : List.copyOf(uncertainties);
+    }
+
+    public ObservationPack(String sceneSummary, List<ObservationItem> observations,
+            List<String> uncertainties) {
+        this(sceneSummary, "", null, observations, uncertainties);
     }
 }

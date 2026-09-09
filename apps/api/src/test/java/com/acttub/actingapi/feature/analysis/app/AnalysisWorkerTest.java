@@ -29,6 +29,49 @@ class AnalysisWorkerTest {
     private static final Instant NOW = Instant.parse("2026-08-12T00:00:00Z");
 
     @Test
+    void transcriptionFailureCompletesWithObservationAndReportsOriginalCause() {
+        FakeStore store = new FakeStore(context());
+        var failure = new SummaryParseError("transcription has no words");
+        RecordingFailureReporter reporter = new RecordingFailureReporter();
+        var observations = new ObservationPack("장면", "0:01에 말한다", null, List.of(), List.of());
+        var analyzer = new SummaryAnalyzer(
+                (path, declared) -> 1000, path -> path,
+                (path, mime, actor) -> observations,
+                path -> { throw failure; }, reporter);
+
+        assertThat(worker(store, analyzer, reporter).runOnce(NOW)).isTrue();
+
+        assertThat(store.transitions).containsExactly("claim", "complete");
+        assertThat(store.result.observationPack()).isEqualTo(observations);
+        assertThat(store.result.observationPack().speech()).isNull();
+        assertThat(reporter.reports()).singleElement().satisfies(report -> {
+            assertThat(report.failure()).isSameAs(failure);
+            assertThat(report.kind()).isEqualTo(FailureKind.EXTERNAL);
+            assertThat(report.context()).isEqualTo(
+                    "SummaryAnalyzer.speech operation_id=" + store.operationId);
+        });
+    }
+
+    @Test
+    void localAudioExtractionFailureIsUnexpectedAndStillCompletes() {
+        FakeStore store = new FakeStore(context());
+        var failure = new IllegalStateException("audio extraction failed", new java.io.IOException("ffmpeg absent"));
+        RecordingFailureReporter reporter = new RecordingFailureReporter();
+        var analyzer = new SummaryAnalyzer(
+                (path, declared) -> 1000, path -> path,
+                (path, mime, actor) -> new ObservationPack("", List.of(), List.of()),
+                path -> { throw failure; }, reporter);
+
+        worker(store, analyzer, reporter).runOnce(NOW);
+
+        assertThat(store.transitions).containsExactly("claim", "complete");
+        assertThat(reporter.reports()).singleElement().satisfies(report -> {
+            assertThat(report.failure()).isSameAs(failure);
+            assertThat(report.kind()).isEqualTo(FailureKind.UNEXPECTED);
+        });
+    }
+
+    @Test
     void externalFailuresFailOrReleaseAndAreReported() {
         assertReportedTransition(
                 new FileActiveTimeout("late"), "fail:gemini_timeout", FailureKind.EXTERNAL);
@@ -249,6 +292,7 @@ class AnalysisWorkerTest {
         private final AnalysisContext context;
         private final List<String> transitions = new ArrayList<>();
         private RuntimeException completeFailure;
+        private AnalysisResult result;
         private RuntimeException failFailure;
         private RuntimeException releaseFailure;
         private List<String> expiredUploads = List.of();
@@ -269,6 +313,7 @@ class AnalysisWorkerTest {
         @Override
         public UUID complete(UUID operation, UUID token, AnalysisResult result, String model, Instant now) {
             transitions.add("complete");
+            this.result = result;
             if (completeFailure != null) throw completeFailure;
             return UUID.randomUUID();
         }

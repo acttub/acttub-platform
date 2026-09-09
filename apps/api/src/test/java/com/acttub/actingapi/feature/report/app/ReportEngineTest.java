@@ -18,6 +18,38 @@ class ReportEngineTest {
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     @Test
+    void legacyPackWithoutTimelineOrSpeechGeneratesBothReportBranches() throws Exception {
+        for (String branch : List.of("analysis", "expression")) {
+            JsonNode old = pack();
+            assertThat(old.has("timeline")).isFalse();
+            assertThat(old.has("speech")).isFalse();
+            var generator = new RecordingGenerator(branch.equals("analysis") ? analysisReport() : expressionReport());
+            var engine = new ReportEngine(generator, MAPPER);
+            JsonNode report = engine.generateReport(branch, old,
+                    branch.equals("analysis") ? handoff() : expressionHandoff(true, "실험", "변화"),
+                    true, "handoff", null, null);
+            assertThat(report.path("report_type").asText()).isEqualTo(branch);
+            assertThat(generator.inputs).hasSize(1);
+            JsonNode normalized = MAPPER.readTree(generator.inputs.getFirst()).path("video_summary");
+            assertThat(normalized.has("timeline")).isFalse();
+            assertThat(normalized.has("speech")).isFalse();
+            assertThat(normalized.at("/observations/0/what").asText()).isEqualTo("멈춘다");
+        }
+    }
+
+    @Test
+    void normalizationPreservesTimelineAndMeasuredSpeechWhenPresent() throws Exception {
+        var pack = (com.fasterxml.jackson.databind.node.ObjectNode) pack();
+        pack.put("timeline", "0:01에 멈춘다");
+        JsonNode speech = MAPPER.readTree("{\"transcript\":\"가지 마\",\"avg_syllables_per_sec\":7.0}");
+        pack.set("speech", speech);
+        var engine = new ReportEngine(new RecordingGenerator(), MAPPER);
+        var input = engine.buildReportInput("analysis", pack, handoff(), true, "id", null);
+        assertThat(input.at("/video_summary/timeline").asText()).isEqualTo("0:01에 멈춘다");
+        assertThat(input.at("/video_summary/speech")).isEqualTo(speech);
+    }
+
+    @Test
     void unconfirmedOrMissingAnalysisHandoffIsBlockedWithoutLlmCall() throws Exception {
         RecordingGenerator generator = new RecordingGenerator();
         ReportEngine engine = new ReportEngine(generator, MAPPER);

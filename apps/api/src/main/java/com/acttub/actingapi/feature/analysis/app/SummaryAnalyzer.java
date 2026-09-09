@@ -3,36 +3,50 @@ package com.acttub.actingapi.feature.analysis.app;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executors;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 import com.acttub.actingapi.integration.observation.ActorMaterial;
 import com.acttub.actingapi.integration.observation.ObservationAnalyzer;
 import com.acttub.actingapi.integration.observation.ObservationPack;
+import com.acttub.actingapi.integration.observation.SpeechAnalysis;
+import com.acttub.actingapi.integration.observation.SpeechAnalyzer;
+import com.acttub.actingapi.platform.observability.FailureContext;
+import com.acttub.actingapi.platform.observability.FailureReporter;
 
 /**
- * duration → 압축 → 관찰 순서를 소유하는 분석 진입점.
- *
- * <p><b>별도 받아쓰기는 없다(SOMA-490).</b> 영상을 보는 모델이 소리도 함께 듣고 대사를
- * {@code quote} 에 담으므로, 같은 오디오를 다른 모델에 한 번 더 보내던 단계를 걷어냈다.
+ * AnalysisWorker의 분석 진입점. 영상 관찰과 원본 소리 계측을 병행해 한 팩으로 합친다.
  */
 public final class SummaryAnalyzer implements AnalysisProcessor {
+    private static final Logger LOGGER = Logger.getLogger(SummaryAnalyzer.class.getName());
     private final DurationResolver durationProbe;
     private final VideoCompressor compressor;
     private final ObservationAnalyzer observationAnalyzer;
+    private final SpeechAnalyzer speechAnalyzer;
+    private final FailureReporter failureReporter;
 
     public SummaryAnalyzer(
             DurationResolver durationProbe,
             VideoCompressor compressor,
-            ObservationAnalyzer observationAnalyzer) {
+            ObservationAnalyzer observationAnalyzer,
+            SpeechAnalyzer speechAnalyzer,
+            FailureReporter failureReporter) {
         this.durationProbe = durationProbe;
         this.compressor = compressor;
         this.observationAnalyzer = observationAnalyzer;
+        this.speechAnalyzer = speechAnalyzer;
+        this.failureReporter = failureReporter;
     }
 
     @Override
     public AnalysisResult analyze(Path videoPath, AnalysisContext context) {
         int durationMs = durationProbe.durationMs(videoPath, context.durationMs());
         Path sendPath = videoPath;
-        try {
+        // close가 음성 작업의 종료까지 기다려 워커가 원본을 먼저 지우지 않게 한다.
+        try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
+            var speech = CompletableFuture.supplyAsync(() -> speech(videoPath, context), executor);
             sendPath = compressor.compress(videoPath);
             ObservationPack observations = observationAnalyzer.analyze(
                     sendPath,
@@ -44,7 +58,10 @@ public final class SummaryAnalyzer implements AnalysisProcessor {
                             context.blockageKind(),
                             context.blockageDetail() == null ? "" : context.blockageDetail(),
                             durationMs));
-            return new AnalysisResult(observations, !sendPath.equals(videoPath), durationMs);
+            ObservationPack pack = new ObservationPack(
+                    observations.sceneSummary(), observations.timeline(), speech.join(),
+                    observations.observations(), observations.uncertainties());
+            return new AnalysisResult(pack, !sendPath.equals(videoPath), durationMs);
         } finally {
             if (!sendPath.equals(videoPath)) {
                 try {
@@ -56,4 +73,14 @@ public final class SummaryAnalyzer implements AnalysisProcessor {
         }
     }
 
+    private SpeechAnalysis speech(Path videoPath, AnalysisContext context) {
+        try {
+            return speechAnalyzer.analyze(videoPath);
+        } catch (Exception exception) {
+            LOGGER.log(Level.WARNING, "speech analysis failed: " + context.operationId(), exception);
+            failureReporter.report(exception,
+                    new FailureContext("SummaryAnalyzer.speech", context.operationId()));
+            return null;
+        }
+    }
 }

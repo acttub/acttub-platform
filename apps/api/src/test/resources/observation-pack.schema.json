@@ -6,6 +6,10 @@
       "type": "STRING",
       "description": "이 장면이 무슨 이야기인지 3~5문장. 인물이 처한 상황, 상대와 무엇을 주고받는지, 말과 행동이 어떻게 이어지는지. 평가·조언은 쓰지 않는다."
     },
+    "timeline": {
+      "type": "STRING",
+      "description": "영상 전체를 시간 순서대로 이어 쓴 흐름. 구간별 observations 가 따로 담지 못하는 것 — 말·시선·움직임이 같은 시점에 어떻게 겹치고 어긋나는지, 어디서 흐름이 바뀌는지 — 를 여기서 잡는다. 시각을 함께 적는다. 해석·평가·원인 추정은 쓰지 않는다."
+    },
     "observations": {
       "type": "ARRAY",
       "description": "구간별 관찰. 확인된 만큼 적는다.",
@@ -37,5 +41,5 @@
       "items": {"type": "STRING"}
     }
   },
-  "required": ["scene_summary", "observations", "uncertainties"]
+  "required": ["scene_summary", "timeline", "observations", "uncertainties"]
 }
