@@ -18,6 +18,7 @@ import com.acttub.actingapi.feature.coach.schema.CoachSessionEntity;
 import com.acttub.actingapi.feature.coach.schema.CoachTurnEntity;
 import com.acttub.actingapi.feature.coach.schema.CoachingHandoffEntity;
 import com.acttub.actingapi.platform.ledger.LeaseOwnershipException;
+import com.acttub.actingapi.integration.observation.StoredObservationPack;
 import com.acttub.actingapi.platform.schema.SessionStatus;
 import com.acttub.actingapi.platform.schema.TurnRole;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -62,7 +63,8 @@ public class CoachSessionWork {
                     cs.status AS coach_status,
                     cs.close_reason,
                     cs.conversation_summary,
-                    s.raw::text AS observations_json,
+                    s.raw::text AS raw_json,
+                    s.observations_json::text AS observations_json,
                     s.uncertainties_json::text AS uncertainties_json,
                     ps.id AS practice_session_id,
                     ps.user_id,
@@ -215,7 +217,8 @@ public class CoachSessionWork {
                     ps.upload_intent_id,
                     ui.duration_ms,
                     s.id AS summary_id,
-                    s.raw::text AS observations_json,
+                    s.raw::text AS raw_json,
+                    s.observations_json::text AS observations_json,
                     s.uncertainties_json::text AS uncertainties_json
                 FROM practice_sessions ps
                 JOIN upload_intents ui ON ui.id = ps.upload_intent_id
@@ -232,7 +235,7 @@ public class CoachSessionWork {
         PracticeContextRow row = mapPracticeContextRow(rows.getFirst());
         JsonNode pack = row.summaryId() == null
                 ? null
-                : observationPack(row.observations(), row.uncertainties());
+                : StoredObservationPack.read(row.raw(), row.observations(), row.uncertainties());
         List<String> transcripts = transcripts(practiceSessionId);
         JsonNode analysisHandoff = CoachBranch.isExpressionBlockage(row.blockageKind())
                 ? findConfirmedAnalysisHandoff(row.userId(), row.uploadIntentId())
@@ -521,6 +524,7 @@ public class CoachSessionWork {
                 row.get("coach_status", String.class),
                 row.get("close_reason", String.class),
                 row.get("conversation_summary", String.class),
+                parseJson(row.get("raw_json", String.class)),
                 parseJson(row.get("observations_json", String.class)),
                 parseJson(row.get("uncertainties_json", String.class)),
                 row.get("practice_session_id", UUID.class),
@@ -548,6 +552,7 @@ public class CoachSessionWork {
                 row.get("upload_intent_id", UUID.class),
                 row.get("duration_ms", Integer.class),
                 row.get("summary_id", UUID.class),
+                parseJson(row.get("raw_json", String.class)),
                 parseJson(row.get("observations_json", String.class)),
                 parseJson(row.get("uncertainties_json", String.class)));
     }
@@ -618,29 +623,7 @@ public class CoachSessionWork {
         if (row.summaryId() == null) {
             return null;
         }
-        return observationPack(row.observations(), row.uncertainties());
-    }
-
-    /**
-     * 코치가 볼 관찰 팩.
-     *
-     * <p>영상을 본 모델이 낸 그대로가 {@code raw} 에 있고, 코치는 그것을 통째로 읽는다
-     * (SOMA-490) — 걸러 다시 적은 {@code observations_json} 을 읽던 때는 장면 요약도 대사
-     * 인용도 코치에게 닿지 않았다. {@code raw} 가 이미 팩 한 벌이므로 다시 감싸지 않는다.
-     *
-     * <p>그 칸이 관찰 배열만 갖고 있거나 비어 있는 <b>옛 요약 행</b>도 아직 남아 있다. 그때는
-     * 예전처럼 두 칸을 모아 팩을 세운다.
-     */
-    private JsonNode observationPack(JsonNode raw, JsonNode uncertainties) {
-        if (raw != null && raw.isObject() && raw.has("observations")) {
-            return raw;
-        }
-        ObjectNode pack = objectMapper.createObjectNode();
-        pack.set(
-                "observations",
-                raw != null && raw.isArray() ? raw : objectMapper.createArrayNode());
-        pack.set("uncertainties", uncertainties);
-        return pack;
+        return StoredObservationPack.read(row.raw(), row.observations(), row.uncertainties());
     }
 
     private ObjectNode emptyObservationPack() {
@@ -669,6 +652,7 @@ public class CoachSessionWork {
             String status,
             String closeReason,
             String conversationSummary,
+            JsonNode raw,
             JsonNode observations,
             JsonNode uncertainties,
             UUID practiceSessionId,
@@ -695,6 +679,7 @@ public class CoachSessionWork {
             UUID uploadIntentId,
             Integer durationMs,
             UUID summaryId,
+            JsonNode raw,
             JsonNode observations,
             JsonNode uncertainties) {
     }

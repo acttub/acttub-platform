@@ -6,7 +6,9 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import java.nio.file.Path;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
@@ -15,6 +17,8 @@ import com.acttub.actingapi.integration.storage.StoredObjectMetadata;
 import com.acttub.actingapi.support.PostgresContainerSupport;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.hibernate.resource.jdbc.spi.StatementInspector;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -32,11 +36,24 @@ import org.springframework.test.web.servlet.MockMvc;
 @SpringBootTest(properties = {
     "JWT_SECRET=test-secret",
     "ADMIN_OPS_TOKEN=admin-secret",
-    "ADMIN_OPS_EXCLUDE_EMAILS=team@acttub.com"
+    "ADMIN_OPS_EXCLUDE_EMAILS=team@acttub.com",
+    "spring.jpa.properties.hibernate.session_factory.statement_inspector="
+            + "com.acttub.actingapi.feature.admin.AdminEndpointIT$RecordingInspector"
 })
 @AutoConfigureMockMvc
 @Import(AdminEndpointIT.StorageFixture.class)
 class AdminEndpointIT {
+    public static class RecordingInspector implements StatementInspector {
+        private static final ThreadLocal<List<String>> STATEMENTS =
+                ThreadLocal.withInitial(ArrayList::new);
+
+        @Override
+        public String inspect(String sql) {
+            STATEMENTS.get().add(sql);
+            return sql;
+        }
+    }
+
     private static final UUID REAL_USER =
             UUID.fromString("00000000-0000-4000-8000-000000000601");
     private static final UUID TEAM_USER =
@@ -63,6 +80,11 @@ class AdminEndpointIT {
 
     private UUID realFinalCoach;
     private UUID realPendingCoach;
+
+    @AfterEach
+    void clearStatements() {
+        RecordingInspector.STATEMENTS.remove();
+    }
 
     @BeforeEach
     void setUp() {
@@ -132,6 +154,57 @@ class AdminEndpointIT {
     }
 
     @Test
+    void maximumSessionListKeepsOrderedTurnsAndEmptySessionsWithinTwoQueries() throws Exception {
+        List<String> expectedIds = new ArrayList<>();
+        for (int index = 0; index < 50; index++) {
+            OffsetDateTime createdAt = NOW.plusMinutes(index);
+            UUID practice = insertPractice(REAL_USER, "batch-" + index + ".mp4", "pending", createdAt);
+            UUID coach = insertCoach(practice, createdAt);
+            expectedIds.addFirst(coach.toString());
+            if (index % 2 == 0) {
+                insertTurn(coach, 2, "ai", "답변 " + index);
+                insertTurn(coach, 0, "actor", "질문 " + index);
+            }
+        }
+
+        RecordingInspector.STATEMENTS.get().clear();
+        JsonNode response = authorized("/v2/admin/sessions?limit=50", 200);
+        assertThat(response.path("sessions")).hasSize(50);
+        List<String> actualIds = new ArrayList<>();
+        for (int position = 0; position < 50; position++) {
+            JsonNode session = response.path("sessions").get(position);
+            actualIds.add(session.path("coach_session_id").textValue());
+            int index = 49 - position;
+            JsonNode expectedTurns = index % 2 == 0
+                    ? mapper.readTree("""
+                            [{"turn_index":0,"role":"actor","text":"질문 %d"},
+                             {"turn_index":2,"role":"ai","text":"답변 %d"}]
+                            """.formatted(index, index))
+                    : mapper.readTree("[]");
+            assertThat(session.path("turns")).isEqualTo(expectedTurns);
+        }
+        assertThat(actualIds).containsExactlyElementsOf(expectedIds);
+        assertThat(RecordingInspector.STATEMENTS.get()).hasSizeLessThanOrEqualTo(2);
+
+        RecordingInspector.STATEMENTS.get().clear();
+        JsonNode limited = authorized("/v2/admin/sessions?limit=1", 200);
+        assertThat(limited.path("sessions")).hasSize(1);
+        assertThat(limited.path("sessions").get(0)).isEqualTo(response.path("sessions").get(0));
+        assertThat(RecordingInspector.STATEMENTS.get()).hasSizeLessThanOrEqualTo(2);
+    }
+
+    @Test
+    void noVisibleSessionsReturnsAnEmptyListWithoutATurnQuery() throws Exception {
+        jdbc.update("DELETE FROM coach_sessions WHERE id IN (?, ?)", realFinalCoach, realPendingCoach);
+
+        RecordingInspector.STATEMENTS.get().clear();
+        assertThat(authorized("/v2/admin/sessions", 200)).isEqualTo(mapper.readTree("""
+                {"sessions":[],"playback_expires_in_sec":3600}
+                """));
+        assertThat(RecordingInspector.STATEMENTS.get()).hasSize(1);
+    }
+
+    @Test
     void limitIsValidatedBeforeTheStoreBoundaryWithPydanticErrorShape() throws Exception {
         JsonNode below = authorized("/v2/admin/sessions?limit=0", 422);
         assertThat(below).isEqualTo(mapper.readTree("""
@@ -177,8 +250,10 @@ class AdminEndpointIT {
         if (authorization != null) {
             request.header("Authorization", authorization);
         }
+        RecordingInspector.STATEMENTS.get().clear();
         JsonNode response = json(mvc.perform(request), 401);
         assertThat(response).isEqualTo(mapper.readTree("{\"detail\":\"Unauthorized\"}"));
+        assertThat(RecordingInspector.STATEMENTS.get()).isEmpty();
     }
 
     private JsonNode authorized(String path, int status) throws Exception {

@@ -3,6 +3,7 @@ package com.acttub.actingapi.feature.memory.app;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.UUID;
+import java.util.function.Supplier;
 
 import com.acttub.actingapi.platform.ledger.LeaseOwnershipException;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -30,7 +31,12 @@ public interface MemoryUpdateQueue {
     UUID practiceSessionOf(UUID operationId);
 
     /**
-     * 작업을 성공으로 닫고 응답 본문을 남긴다. 다음 재시도는 이 본문을 받는다.
+     * Lease 소유권을 확인한 뒤 기억 저장과 작업 완료를 한 트랜잭션으로 처리한다.
+     * 재선점된 Lease는 저장 전에 거부하고, 만료만 된 Lease는 허용한다.
+     *
+     * <p>{@code writeMemoryAndPayload}는 기억을 저장하고 응답 본문을 돌려준다.
+     * 외부 호출은 이 콜백 전에 끝내야 하며, 저장 또는 완료 실패 시 전체를 롤백한다.
+     * 다음 재시도는 저장된 본문을 받는다.
      *
      * <p>본문을 만드는 것은 <b>부르는 쪽</b>이다 — {@code coach/app/CoachOperationLedger}·
      * {@code report/app/ReportOperationLedger} 와 같은 형태다. 그 바이트가 곧 계약이라
@@ -38,7 +44,8 @@ public interface MemoryUpdateQueue {
      *
      * @throws LeaseOwnershipException 리스를 이미 다른 워커가 재선점했다
      */
-    void complete(UUID operationId, UUID leaseToken, JsonNode responsePayload, Instant now);
+    void complete(
+            UUID operationId, UUID leaseToken, Supplier<JsonNode> writeMemoryAndPayload, Instant now);
 
     /**
      * 작업을 실패로 닫는다.

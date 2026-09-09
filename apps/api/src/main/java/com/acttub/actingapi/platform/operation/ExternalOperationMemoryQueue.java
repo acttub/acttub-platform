@@ -7,6 +7,7 @@ import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.UUID;
+import java.util.function.Supplier;
 
 import com.acttub.actingapi.feature.memory.app.MemoryUpdateQueue;
 import com.acttub.actingapi.platform.ledger.LeaseOwnershipException;
@@ -68,8 +69,20 @@ class ExternalOperationMemoryQueue implements MemoryUpdateQueue {
 
     @Override
     public void complete(
-            UUID operationId, UUID leaseToken, JsonNode responsePayload, Instant now) {
+            UUID operationId, UUID leaseToken, Supplier<JsonNode> writeMemoryAndPayload, Instant now) {
         transaction.executeWithoutResult(status -> {
+            // 먼저 원장 행을 잠가 재선점을 막고, 같은 트랜잭션에서 기억과 완료를 확정한다.
+            var owned = list(entityManager.createNativeQuery("""
+                    SELECT id AS id FROM external_operations
+                    WHERE id = :operationId AND status = 'running' AND lease_token = :leaseToken
+                    FOR UPDATE
+                    """, Tuple.class)
+                    .setParameter("operationId", operationId)
+                    .setParameter("leaseToken", leaseToken));
+            if (owned.isEmpty()) {
+                throw new LeaseOwnershipException("external operation lease is not owned");
+            }
+            JsonNode responsePayload = writeMemoryAndPayload.get();
             int finished = entityManager.createNativeQuery("""
                     UPDATE external_operations
                     SET status = 'succeeded',

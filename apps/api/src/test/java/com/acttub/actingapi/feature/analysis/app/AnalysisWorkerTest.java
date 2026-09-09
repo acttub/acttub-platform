@@ -109,7 +109,7 @@ class AnalysisWorkerTest {
         AnalysisWorker worker = worker(
                 store,
                 (path, context) -> new AnalysisResult(
-                        new ObservationPack("", List.of(), List.of()), false),
+                        new ObservationPack("", List.of(), List.of()), false, 1000),
                 reporter);
 
         assertThat(worker.runOnce(NOW)).isTrue();
@@ -162,7 +162,7 @@ class AnalysisWorkerTest {
                 store,
                 new FakeStorage(),
                 (path, context) -> new AnalysisResult(
-                        new ObservationPack("", List.of(), List.of()), false),
+                        new ObservationPack("", List.of(), List.of()), false, 1000),
                 Clock.fixed(NOW, ZoneOffset.UTC),
                 Duration.ofSeconds(1800),
                 "gemini-2.5-flash",

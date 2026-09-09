@@ -43,6 +43,7 @@ class SummaryAnalyzerTest {
 
             assertThat(result.observationPack().timeline()).isEqualTo("0:01에 멈춘다");
             assertThat(result.observationPack().speech()).isSameAs(speech);
+            assertThat(result.durationMs()).isEqualTo(1000);
             assertThat(result.wasCompressed()).isTrue();
             assertThat(compressed).doesNotExist();
             assertThat(video).exists();

@@ -15,6 +15,7 @@ import com.acttub.actingapi.feature.practice.domain.PracticeSession;
 import com.acttub.actingapi.feature.practice.domain.SessionDetail;
 import com.acttub.actingapi.feature.practice.schema.PracticeSessionEntity;
 import com.acttub.actingapi.platform.persistence.NativeTuples;
+import com.acttub.actingapi.integration.observation.StoredObservationPack;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -116,13 +117,14 @@ class PostgresPracticeSessionRepository implements PracticeSessionRepository {
                     ps.created_at, ps.updated_at,
                     ui.object_key,
                     summary.id AS summary_id,
+                    summary.raw::text AS raw_json,
                     summary.observations_json::text AS observations_json,
                     summary.uncertainties_json::text AS uncertainties_json,
                     operation.error_code
                 FROM practice_sessions ps
                 JOIN upload_intents ui ON ui.id = ps.upload_intent_id
                 LEFT JOIN LATERAL (
-                    SELECT s.id, s.observations_json, s.uncertainties_json
+                    SELECT s.id, s.raw, s.observations_json, s.uncertainties_json
                     FROM summaries s
                     WHERE s.session_id = ps.id
                     ORDER BY s.created_at DESC, s.id DESC
@@ -248,11 +250,15 @@ class PostgresPracticeSessionRepository implements PracticeSessionRepository {
     private SessionDetail detail(Tuple row) {
         PracticeSession session = session(row);
         UUID summaryId = row.get("summary_id", UUID.class);
+        JsonNode pack = StoredObservationPack.read(
+                json(row.get("raw_json", String.class)),
+                json(row.get("observations_json", String.class)),
+                json(row.get("uncertainties_json", String.class)));
         ObservationPack summary = summaryId == null || !session.analyzed() ? null
                 : new ObservationPack(
                         summaryId,
-                        observations(json(row.get("observations_json", String.class))),
-                        uncertainties(json(row.get("uncertainties_json", String.class))));
+                        observations(pack.path("observations")),
+                        uncertainties(pack.path("uncertainties")));
         return new SessionDetail(
                 session,
                 row.get("object_key", String.class),

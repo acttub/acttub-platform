@@ -61,7 +61,7 @@ public final class SummaryAnalyzer implements AnalysisProcessor {
             ObservationPack pack = new ObservationPack(
                     observations.sceneSummary(), observations.timeline(), speech.join(),
                     observations.observations(), observations.uncertainties());
-            return new AnalysisResult(pack, !sendPath.equals(videoPath));
+            return new AnalysisResult(pack, !sendPath.equals(videoPath), durationMs);
         } finally {
             if (!sendPath.equals(videoPath)) {
                 try {

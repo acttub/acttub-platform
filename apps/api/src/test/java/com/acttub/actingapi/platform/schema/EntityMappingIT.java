@@ -17,7 +17,6 @@ import com.acttub.actingapi.feature.coach.schema.CoachingHandoffEntity;
 import com.acttub.actingapi.feature.coach.schema.HandoffConfirmationEntity;
 import com.acttub.actingapi.feature.community.schema.CommunityAnonymousAliasEntity;
 import com.acttub.actingapi.feature.report.schema.PracticeReportEntity;
-import com.acttub.actingapi.feature.report.schema.ReportEntity;
 import com.acttub.actingapi.feature.community.schema.CommunityBlockEntity;
 import com.acttub.actingapi.feature.community.schema.CommunityCategoryEntity;
 import com.acttub.actingapi.feature.community.schema.CommunityCommentEntity;
@@ -95,12 +94,12 @@ class EntityMappingIT {
     EntityManager entityManager;
 
     @Test
-    @DisplayName("JPA metamodel은 관계 매핑 없이 정확히 26개 엔티티를 포함한다")
-    void mapsExactlyTwentySixEntities() {
+    @DisplayName("JPA metamodel은 관계 매핑 없이 정확히 25개 활성 엔티티를 포함한다")
+    void mapsExactlyTwentyFiveActiveEntities() {
         Set<Class<?>> entities = entityManager.getMetamodel().getEntities().stream()
                 .map(jakarta.persistence.metamodel.Type::getJavaType)
                 .collect(java.util.stream.Collectors.toSet());
-        assertThat(entities).hasSize(26);
+        assertThat(entities).hasSize(25);
         assertThat(entities).contains(ActorMemoryEntryEntity.class, PushTokenEntity.class);
         assertThat(entities).allMatch(type -> type.getSimpleName().endsWith("Entity"));
         assertThat(entities).allMatch(type -> java.util.Arrays.stream(type.getDeclaredFields())
@@ -110,23 +109,35 @@ class EntityMappingIT {
         long jsonNodes = entities.stream().flatMap(type -> java.util.Arrays.stream(type.getDeclaredFields()))
                 .filter(field -> field.getType().equals(com.fasterxml.jackson.databind.JsonNode.class))
                 .count();
-        assertThat(jsonNodes).isEqualTo(8);
+        assertThat(jsonNodes).isEqualTo(6);
     }
 
     @Test
-    @DisplayName("26개 Schema Entity는 자기 테이블의 모든 컬럼을 빠짐없이 매핑한다")
-    void mapsEveryColumnOfEveryTable() {
+    @DisplayName("활성 Schema Entity는 명시적으로 은퇴한 컬럼 외 전체를 매핑한다")
+    void mapsEveryActiveColumnOfEveryActiveTable() {
         Set<Class<?>> entities = entityManager.getMetamodel().getEntities().stream()
                 .map(jakarta.persistence.metamodel.Type::getJavaType)
                 .collect(java.util.stream.Collectors.toSet());
 
+        Set<String> activeTables = new java.util.HashSet<>(jdbc.queryForList("""
+                SELECT table_name FROM information_schema.tables
+                WHERE table_schema='public' AND table_type='BASE TABLE'
+                  AND table_name NOT IN ('flyway_schema_history', 'reports')
+                """, String.class));
+        assertThat(entities.stream().map(type -> type.getAnnotation(Table.class).name())
+                .collect(java.util.stream.Collectors.toSet())).isEqualTo(activeTables);
+        var retiredColumns = java.util.Map.of(
+                "summaries", Set.of("observation", "summary", "intent_alignment", "key_moment", "key_dimension"),
+                "practice_sessions", Set.of("subtext"),
+                "users", Set.of("role"));
         for (Class<?> entity : entities) {
             String table = entity.getAnnotation(Table.class).name();
-            Set<String> databaseColumns = Set.copyOf(jdbc.queryForList("""
+            Set<String> databaseColumns = new java.util.HashSet<>(jdbc.queryForList("""
                     SELECT column_name
                     FROM information_schema.columns
                     WHERE table_schema = 'public' AND table_name = ?
                     """, String.class, table));
+            databaseColumns.removeAll(retiredColumns.getOrDefault(table, Set.of()));
             Set<String> mappedColumns = hierarchy(entity)
                     .flatMap(type -> java.util.Arrays.stream(type.getDeclaredFields()))
                     .map(field -> field.getAnnotation(jakarta.persistence.Column.class))
@@ -152,7 +163,8 @@ class EntityMappingIT {
         UserEntity loaded = entityManager.find(UserEntity.class, id);
         assertThat(loaded.getStatus()).isEqualTo(UserStatus.ACTIVE);
         assertThat(loaded.getNickname()).isEqualTo("닉네임");
-        assertThat(loaded.getRole()).isEqualTo("user");
+        assertThat(jdbc.queryForObject("SELECT role FROM users WHERE id = ?", String.class, id))
+                .isEqualTo("user");
         assertThat(loaded.getDeactivatedAt()).isNull();
         // server_default 가 발동했다 — 필드 초기화값을 주지 않은 결과다 (apps/api/CONTRACT.md §5-3-3).
         assertThat(loaded.getCreatedAt()).isNotNull();
@@ -206,7 +218,7 @@ class EntityMappingIT {
         UUID id = UUID.randomUUID();
         // blockage_kind/sub_branch 는 ck_practice_sessions_blockage_branch 가 묶는 조합만 받는다.
         entityManager.persist(new PracticeSessionEntity(id, userId, uploadIntentId,
-                PracticeStatus.ANALYZING, "상황", "인물", "서브텍스트",
+                PracticeStatus.ANALYZING, "상황", "인물",
                 "분석", "캐릭터 분석", "목표"));
         entityManager.flush();
         entityManager.clear();
@@ -247,8 +259,8 @@ class EntityMappingIT {
 
     @Test
     @Transactional
-    @DisplayName("앱 생성 UUID 엔티티 21종의 실제 Spring Data save()가 INSERT 전 SELECT를 내지 않는다")
-    void allTwentyOneAppGeneratedIdsUsePersistOnSave() {
+    @DisplayName("앱 생성 UUID 활성 엔티티 20종의 실제 Spring Data save()가 INSERT 전 SELECT를 내지 않는다")
+    void allActiveAppGeneratedIdsUsePersistOnSave() {
         RecordingInspector.STATEMENTS.clear();
         UUID userId=UUID.randomUUID(), otherUserId=UUID.randomUUID(), documentId=UUID.randomUUID();
         UUID uploadId=UUID.randomUUID(), practiceId=UUID.randomUUID(), summaryId=UUID.randomUUID();
@@ -266,7 +278,7 @@ class EntityMappingIT {
         save(ActorMemoryEntryEntity.class,new ActorMemoryEntryEntity(UUID.randomUUID(),userId,
                 ActorMemoryField.GOAL,"목표",ActorMemoryAuthor.ACTOR,null));
         save(UploadIntentEntity.class,new UploadIntentEntity(uploadId,userId,UploadStatus.PENDING,"s3","key-"+userId,"video/mp4",1,java.time.Instant.now().plusSeconds(60)));
-        save(PracticeSessionEntity.class,new PracticeSessionEntity(practiceId,userId,uploadId,PracticeStatus.ANALYZING,"s","c",null,"분석","캐릭터 분석","g"));
+        save(PracticeSessionEntity.class,new PracticeSessionEntity(practiceId,userId,uploadId,PracticeStatus.ANALYZING,"s","c","분석","캐릭터 분석","g"));
         save(TranscriptEntity.class,new TranscriptEntity(UUID.randomUUID(),practiceId,0,"text"));
         save(SummaryEntity.class,new SummaryEntity(summaryId,practiceId,"model",object,array,array));
         entityManager.flush();
@@ -277,7 +289,6 @@ class EntityMappingIT {
         entityManager.flush();
         entityManager.persist(new HandoffConfirmationEntity(handoffId,true,null));
         save(PracticeReportEntity.class,new PracticeReportEntity(UUID.randomUUID(),practiceId,"analysis",object,handoffId));
-        save(ReportEntity.class,new ReportEntity(UUID.randomUUID(),coachId,"h",object,"e","s","c","n"));
         save(ExternalOperationEntity.class,new ExternalOperationEntity(UUID.randomUUID(),practiceId,userId,UUID.randomUUID(),OperationKind.ANALYZE,OperationStatus.PENDING,"b".repeat(64)));
         save(CommunityCategoryEntity.class,new CommunityCategoryEntity(categoryId,"slug-"+userId,"name",null,100));
         save(CommunityPostEntity.class,new CommunityPostEntity(postId,categoryId,userId,"t","b",ContentStatus.VISIBLE));
@@ -291,7 +302,7 @@ class EntityMappingIT {
 
         List<String> statements=List.copyOf(RecordingInspector.STATEMENTS);
         assertThat(statements.stream().filter(sql->sql.startsWith("insert into "))
-                .map(sql->sql.substring("insert into ".length()).split(" ")[0]).distinct()).hasSize(25);
+                .map(sql->sql.substring("insert into ".length()).split(" ")[0]).distinct()).hasSize(24);
         assertThat(statements).noneMatch(sql->sql.stripLeading().toLowerCase().startsWith("select"));
         assertThat(jdbc.queryForObject("SELECT intent_impact FROM anomalies WHERE summary_id=?",String.class,summaryId)).isEqualTo("반전");
     }
@@ -304,19 +315,32 @@ class EntityMappingIT {
         UUID sqlNullPractice=UUID.randomUUID(),jsonNullPractice=UUID.randomUUID();
         entityManager.persist(new UserEntity(user,"json-"+user+"@example.test",UserStatus.ACTIVE,null)); entityManager.flush();
         jdbc.update("INSERT INTO upload_intents(id,user_id,status,storage_provider,object_key,mime_type,size_bytes,expires_at) VALUES (?,?, 'pending','s3',?,'video/mp4',1,now()), (?,?, 'pending','s3',?,'video/mp4',1,now())",sqlNullUpload,user,"json-sql-null-"+user,jsonNullUpload,user,"json-null-"+user);
-        entityManager.persist(new PracticeSessionEntity(sqlNullPractice,user,sqlNullUpload,PracticeStatus.ANALYZING,"s","c",null,"분석","캐릭터 분석","g"));
-        entityManager.persist(new PracticeSessionEntity(jsonNullPractice,user,jsonNullUpload,PracticeStatus.ANALYZING,"s","c",null,"분석","캐릭터 분석","g")); entityManager.flush();
+        entityManager.persist(new PracticeSessionEntity(sqlNullPractice,user,sqlNullUpload,PracticeStatus.ANALYZING,"s","c","분석","캐릭터 분석","g"));
+        entityManager.persist(new PracticeSessionEntity(jsonNullPractice,user,jsonNullUpload,PracticeStatus.ANALYZING,"s","c","분석","캐릭터 분석","g")); entityManager.flush();
         UUID sqlNull=UUID.randomUUID(),jsonNull=UUID.randomUUID();
-        SummaryEntity first=new SummaryEntity(sqlNull,sqlNullPractice,"m",JsonNodeFactory.instance.objectNode(),JsonNodeFactory.instance.arrayNode(),JsonNodeFactory.instance.arrayNode());
-        first.setObservation(null); entityManager.persist(first);
-        SummaryEntity second=new SummaryEntity(jsonNull,jsonNullPractice,"m",JsonNodeFactory.instance.objectNode(),JsonNodeFactory.instance.arrayNode(),JsonNodeFactory.instance.arrayNode());
-        second.setObservation(JsonNodeFactory.instance.nullNode()); entityManager.persist(second); entityManager.flush(); entityManager.clear();
-        assertThat(jdbc.queryForObject("SELECT observation IS NULL FROM summaries WHERE id=?",Boolean.class,sqlNull)).isTrue();
-        assertThat(jdbc.queryForObject("SELECT observation='null'::jsonb FROM summaries WHERE id=?",Boolean.class,jsonNull)).isTrue();
-        assertThat(entityManager.find(SummaryEntity.class,sqlNull).getObservation()).isNull();
-        assertThat(entityManager.find(SummaryEntity.class,jsonNull).getObservation().isNull()).isTrue();
-        assertThat(entityManager.find(SummaryEntity.class,jsonNull).getRaw().isObject()).isTrue();
-        assertThat(entityManager.find(SummaryEntity.class,jsonNull).getObservationsJson().isArray()).isTrue();
+        ExternalOperationEntity first = new ExternalOperationEntity(sqlNull, sqlNullPractice, user,
+                UUID.randomUUID(), OperationKind.ANALYZE, OperationStatus.PENDING, "a".repeat(64));
+        ExternalOperationEntity second = new ExternalOperationEntity(jsonNull, jsonNullPractice, user,
+                UUID.randomUUID(), OperationKind.ANALYZE, OperationStatus.PENDING, "b".repeat(64));
+        second.responsePayload = JsonNodeFactory.instance.nullNode();
+        entityManager.persist(first);
+        entityManager.persist(second);
+        UUID summaryId = UUID.randomUUID();
+        entityManager.persist(new SummaryEntity(summaryId, jsonNullPractice, "m",
+                JsonNodeFactory.instance.objectNode().put("scene_summary", "장면"),
+                JsonNodeFactory.instance.arrayNode().add("관찰"), JsonNodeFactory.instance.arrayNode()));
+        entityManager.flush();
+        entityManager.clear();
+        assertThat(jdbc.queryForObject("SELECT response_payload IS NULL FROM external_operations WHERE id=?",
+                Boolean.class, sqlNull)).isTrue();
+        assertThat(jdbc.queryForObject("SELECT response_payload='null'::jsonb FROM external_operations WHERE id=?",
+                Boolean.class, jsonNull)).isTrue();
+        assertThat(entityManager.find(ExternalOperationEntity.class, sqlNull).responsePayload).isNull();
+        assertThat(entityManager.find(ExternalOperationEntity.class, jsonNull).responsePayload.isNull()).isTrue();
+        assertThat(entityManager.find(SummaryEntity.class, summaryId).getRaw())
+                .isEqualTo(JsonNodeFactory.instance.objectNode().put("scene_summary", "장면"));
+        assertThat(entityManager.find(SummaryEntity.class, summaryId).getObservationsJson())
+                .isEqualTo(JsonNodeFactory.instance.arrayNode().add("관찰"));
     }
 
     private <T> T save(Class<T> type,T entity){
