@@ -6,8 +6,8 @@ import com.acttub.actingapi.feature.analysis.app.SummaryAnalyzer;
 import com.acttub.actingapi.feature.analysis.app.VideoCompressor;
 import com.acttub.actingapi.integration.media.GeminiVideoCompressor;
 import com.acttub.actingapi.integration.observation.ObservationAnalyzer;
+import com.acttub.actingapi.integration.observation.SpeechAnalyzer;
 import com.acttub.actingapi.platform.observability.FailureReporter;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -38,7 +38,9 @@ class AnalysisConfiguration {
     AnalysisProcessor summaryAnalyzer(
             VideoDurationProbe durationProbe,
             VideoCompressor compressor,
-            ObservationAnalyzer observations) {
-        return new SummaryAnalyzer(durationProbe, compressor, observations);
+            ObservationAnalyzer observations,
+            SpeechAnalyzer speech,
+            FailureReporter failureReporter) {
+        return new SummaryAnalyzer(durationProbe, compressor, observations, speech, failureReporter);
     }
 }

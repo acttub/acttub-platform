@@ -65,7 +65,7 @@ class GeminiObservationAnalyzerTest {
                 .contains(new ThinkingLevel(ThinkingLevel.Known.LOW));
         assertThat(config.responseMimeType()).contains("application/json");
         assertThat(sha256(config.systemInstruction().orElseThrow().text()))
-                .isEqualTo("0133348068973129514ba50f803cc38d64e85075fa5202b10cb590996fc8d73f");
+                .isEqualTo("3afca67f5a4b7868497771703974f32a514f1d7f789a65683ed30a5f8bbffe2e");
         assertThat(mapper.readTree(config.responseSchema().orElseThrow().toJson()))
                 .isEqualTo(observationSchema());
 
@@ -86,6 +86,8 @@ class GeminiObservationAnalyzerTest {
         StubGateway gateway = new StubGateway();
         gateway.responses.add("""
                 {
+                  "timeline": "0:01에 시선이 흔들리며 말이 이어진다",
+                  "speech": {"transcript":"가지 마", "avg_syllables_per_sec":2.0,"pauses":[],"chunks":[]},
                   "observations": [
                     {"start_ms":0,"end_ms":1,"what":"start-zero","confidence":0.1},
                     {"start_ms":1,"end_ms":12000,"what":"end-duration","confidence":0.2},
@@ -106,6 +108,8 @@ class GeminiObservationAnalyzerTest {
                 .extracting(ObservationItem::what)
                 .containsExactly("start-zero", "end-duration", "third", "fourth");
         assertThat(result.uncertainties()).containsExactly("얼굴이 화면 밖");
+        assertThat(result.timeline()).isEqualTo("0:01에 시선이 흔들리며 말이 이어진다");
+        assertThat(result.speech().transcript()).isEqualTo("가지 마");
     }
 
     @Test
@@ -262,6 +266,12 @@ class GeminiObservationAnalyzerTest {
             config = requestedConfig;
             generateCalls++;
             return responses.removeFirst();
+        }
+
+        @Override
+        public com.google.genai.types.GenerateContentResponse generateResponse(
+                String model, Content contents, GenerateContentConfig config) {
+            throw new AssertionError("observation must use text generation");
         }
 
         @Override

@@ -359,7 +359,8 @@ public final class CoachPrompt {
             return "아직 영상에서 확인된 것이 없다. 영상 이야기를 만들지 마라.";
         }
         JsonNode observations = pack.get("observations");
-        if (observations == null || !observations.isArray() || observations.isEmpty()) {
+        if ((observations == null || !observations.isArray() || observations.isEmpty())
+                && !pack.path("speech").isObject()) {
             String uncertaintyText = joinText(pack.get("uncertainties"), " / ");
             return "관찰 0개. 영상 이야기를 새로 만들면 안 된다.\n불확실: "
                     + (uncertaintyText.isEmpty() ? "없음" : uncertaintyText);
@@ -368,12 +369,12 @@ public final class CoachPrompt {
     }
 
     /**
-     * 장면 요약 · 관찰 · 불확실 순으로 다시 담은 사본. 팩에 그 밖의 칸이 생기면 뒤에 그대로
-     * 따라붙는다 — 여기서 걸러 내면 다시 손실이 된다.
+     * 장면 요약 · 전체 흐름 · 소리에서 잰 값 · 관찰 · 불확실 순으로 다시 담은 사본.
+     * 그 밖의 칸도 뒤에 그대로 따라붙는다 — 여기서 걸러 내면 다시 손실이 된다.
      */
     private static JsonNode readingOrder(JsonNode pack) {
         ObjectNode ordered = OBJECT_MAPPER.createObjectNode();
-        for (String field : List.of("scene_summary", "observations", "uncertainties")) {
+        for (String field : List.of("scene_summary", "timeline", "speech", "observations", "uncertainties")) {
             if (pack.has(field)) {
                 ordered.set(field, pack.get(field));
             }

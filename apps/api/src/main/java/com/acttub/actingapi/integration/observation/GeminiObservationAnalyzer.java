@@ -160,7 +160,8 @@ final class GeminiObservationAnalyzer implements ObservationAnalyzer {
                 .filter(item -> item.endMs() <= durationMs)
                 .map(GeminiObservationAnalyzer::clipWhat)
                 .toList();
-        return new ObservationPack(pack.sceneSummary(), observations, pack.uncertainties());
+        return new ObservationPack(pack.sceneSummary(), pack.timeline(), pack.speech(),
+                observations, pack.uncertainties());
     }
 
     private static ObservationItem clipWhat(ObservationItem item) {

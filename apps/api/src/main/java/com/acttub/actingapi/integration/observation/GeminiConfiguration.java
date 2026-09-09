@@ -1,6 +1,7 @@
 package com.acttub.actingapi.integration.observation;
 
 import com.acttub.actingapi.integration.media.GeminiVideoCompressor;
+import com.acttub.actingapi.integration.media.AudioExtractor;
 import com.acttub.actingapi.platform.observability.FailureReporter;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.genai.Client;
@@ -51,6 +52,11 @@ class GeminiConfiguration {
             FailureReporter failureReporter) {
         return new GeminiObservationAnalyzer(
                 gateway, mapper, settings.model(), failureReporter);
+    }
+
+    @Bean
+    SpeechAnalyzer speechAnalyzer(GeminiGateway gateway, FailureReporter failureReporter) {
+        return new GeminiTranscriber(new AudioExtractor(), gateway, failureReporter);
     }
 
     @Bean

@@ -37,6 +37,7 @@ class GeminiConfigurationTest {
                             .isEqualTo("gemini-2.5-flash");
                     assertThat(context).hasSingleBean(Client.class);
                     assertThat(context).hasSingleBean(ObservationAnalyzer.class);
+                    assertThat(context).hasSingleBean(SpeechAnalyzer.class);
                     assertThat(context).hasSingleBean(GeminiVideoCompressor.class);
                 });
     }
