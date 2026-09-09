@@ -184,6 +184,10 @@ public class ReportEngine {
         // 장면이 무슨 이야기인지가 먼저다 — 구간 관찰만으로는 노트가 장면을 통째로 알지
         // 못한다(SOMA-490). 옛 요약 행에는 이 칸이 없어 있을 때만 싣는다.
         copyText(value, "scene_summary", pack);
+        copyText(value, "timeline", pack);
+        if (value.path("speech").isObject()) {
+            pack.set("speech", value.get("speech").deepCopy());
+        }
         pack.set("observations", normalizedObservations);
         pack.set("uncertainties", normalizedUncertainties);
         return pack;

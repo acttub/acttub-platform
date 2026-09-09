@@ -22,6 +22,45 @@ class CoachPromptSnapshotTest {
 
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
+    @Test
+    void oldPackWithoutTimelineOrSpeechStillBuildsForEveryBranch() throws Exception {
+        JsonNode old = observationPack();
+        assertThat(old.has("timeline")).isFalse();
+        assertThat(old.has("speech")).isFalse();
+        for (String kind : List.of("분석", "표현", "그 외")) {
+            var session = snapshot(old, kind, "그 외", "", List.of(), "", null, List.of());
+            String prompt = CoachPrompt.buildChat(session, "이유를 모르겠어요");
+            assertThat(prompt).contains("여자가 문 앞에서", "가지 마", "얼굴은 확인되지 않음");
+        }
+    }
+
+    @Test
+    void newPackIsReadInSceneTimelineSpeechObservationUncertaintyOrder() throws Exception {
+        var pack = (com.fasterxml.jackson.databind.node.ObjectNode) observationPack();
+        pack.put("timeline", "0:01에 멈추며 시선을 옮긴다");
+        pack.set("speech", OBJECT_MAPPER.readTree("{\"transcript\":\"가지 마\",\"avg_syllables_per_sec\":7.0}"));
+        var session = snapshot(pack, "분석", "그 외", "", List.of(), "", null, List.of());
+        String prompt = CoachPrompt.buildChat(session, "모르겠어요");
+        int previous = -1;
+        for (String field : List.of("scene_summary", "timeline", "speech", "observations", "uncertainties")) {
+            int index = prompt.indexOf("\"" + field + "\"");
+            assertThat(index).as(field).isGreaterThan(previous);
+            previous = index;
+        }
+        assertThat(prompt).contains("0:01에 멈추며 시선을 옮긴다", "\"avg_syllables_per_sec\":7.0");
+    }
+
+    @Test
+    void measuredSpeechIsStillAvailableWhenThereAreNoVisualObservations() throws Exception {
+        var pack = OBJECT_MAPPER.readTree("""
+                {"timeline":"0:01에 대사가 들린다", "speech":{"transcript":"가지 마"},
+                 "observations":[], "uncertainties":["사람이 화면 밖"]}
+                """);
+        var session = snapshot(pack, "분석", "그 외", "", List.of(), "", null, List.of());
+        assertThat(CoachPrompt.buildChat(session, "모르겠어요"))
+                .contains("\"speech\":{\"transcript\":\"가지 마\"}", "사람이 화면 밖");
+    }
+
     /** 두 줄짜리 받아쓴 대사 — 칸이 여러 줄을 목록으로 적는지 보이려고 둘을 쓴다. */
     private static final List<String> TRANSCRIPTS = List.of("가지 마", "제발");
 

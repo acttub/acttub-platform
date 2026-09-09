@@ -34,7 +34,7 @@ dependencies {
     // PSQLException.getServerErrorMessage().getConstraint() 를 컴파일 타임에 참조한다 (apps/api/CONTRACT.md §6 #10).
     implementation("org.postgresql:postgresql")
 
-    implementation("com.google.genai:google-genai:1.57.0")
+    implementation("com.google.genai:google-genai:1.68.0")
 
     // 파이썬 observability.py 대응(M5 §D). starter 가 MVC 예외를 자동으로 잡아 보내고
     // BeforeSendCallback 빈을 물어 간다. DSN 이 비면 SDK 스스로 꺼지므로 로컬·테스트는 조용하다.

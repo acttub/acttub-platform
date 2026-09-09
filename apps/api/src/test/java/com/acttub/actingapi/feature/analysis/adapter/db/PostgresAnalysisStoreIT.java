@@ -14,6 +14,7 @@ import com.acttub.actingapi.feature.analysis.app.AnalysisResult;
 import com.acttub.actingapi.feature.analysis.app.AnalysisStore;
 import com.acttub.actingapi.integration.observation.ObservationItem;
 import com.acttub.actingapi.integration.observation.ObservationPack;
+import com.acttub.actingapi.integration.observation.SpeechFacts;
 import com.acttub.actingapi.platform.ledger.LeaseOwnershipException;
 import com.acttub.actingapi.support.PostgresContainerSupport;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -83,7 +84,8 @@ class PostgresAnalysisStoreIT {
         assertThat(store.claimNext(leaseToken, Duration.ofMinutes(5), NOW.minusSeconds(5)))
                 .isEqualTo(operationId);
 
-        UUID summaryId = store.complete(operationId, leaseToken, result(), MODEL, NOW);
+        AnalysisResult result = result();
+        UUID summaryId = store.complete(operationId, leaseToken, result, MODEL, NOW);
 
         Map<String, Object> summary = jdbc.queryForMap("""
                 SELECT session_id, model, was_compressed,
@@ -103,12 +105,15 @@ class PostgresAnalysisStoreIT {
         assertThat(mapper.readTree((String) summary.get("uncertainties")))
                 .isEqualTo(mapper.readTree("[\"조명이 어둡다\"]"));
         // jsonb 는 키 순서를 보존하지 않는다(짧은 이름부터 저장한다) — 저장된 순서가 아니라
-        // 세 칸이 다 있는지가 여기서 볼 것이고, 읽는 순서는 CoachPrompt 가 다시 세운다.
+        // 팩의 칸이 다 있는지가 여기서 볼 것이고, 읽는 순서는 CoachPrompt 가 다시 세운다.
         assertThat(mapper.readTree((String) summary.get("raw")).fieldNames()).toIterable()
-                .containsExactlyInAnyOrder("scene_summary", "observations", "uncertainties");
+                .containsExactlyInAnyOrder("scene_summary", "timeline", "speech", "observations", "uncertainties");
+        assertThat(mapper.readTree((String) summary.get("raw")).path("timeline").asText())
+                .isEqualTo(result.observationPack().timeline());
+        assertThat(mapper.readTree((String) summary.get("raw")).path("speech"))
+                .isEqualTo(mapper.valueToTree(result.observationPack().speech()));
 
-        // 받아쓰기는 SOMA-490 에서 사라졌다 — 대사는 관찰의 quote 로 들어오므로
-        // 이 표에 더 쌓이지 않는다. 표 자체는 지난 연습의 기록을 위해 남아 있다.
+        // 새 받아쓰기는 관찰 팩의 speech에 저장한다. 옛 transcripts 표는 지난 기록만 보존한다.
         assertThat(count("SELECT count(*) FROM transcripts WHERE session_id = ?", sessionId))
                 .isZero();
 
@@ -234,6 +239,11 @@ class PostgresAnalysisStoreIT {
         return new AnalysisResult(
                 new ObservationPack(
                         "여자가 문 앞에서 돌아선다.",
+                        "0:00에 돌아서며 대사를 시작한다.",
+                        SpeechFacts.calculate("지금 놓치면 끝이야", List.of(
+                                new SpeechFacts.Word("지금", 0, .3),
+                                new SpeechFacts.Word("놓치면", .3, .6),
+                                new SpeechFacts.Word("끝이야", .6, 1.2))),
                         List.of(new ObservationItem(
                                 0, 1200, "호흡이 얕다", "지금 놓치면 끝이야", "호흡", 0.8)),
                         List.of("조명이 어둡다")),

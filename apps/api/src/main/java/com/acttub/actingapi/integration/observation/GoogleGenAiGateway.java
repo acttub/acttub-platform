@@ -5,6 +5,7 @@ import java.nio.file.Path;
 import com.google.genai.Client;
 import com.google.genai.types.Content;
 import com.google.genai.types.GenerateContentConfig;
+import com.google.genai.types.GenerateContentResponse;
 import com.google.genai.types.GetFileConfig;
 import com.google.genai.types.UploadFileConfig;
 
@@ -35,6 +36,12 @@ final class GoogleGenAiGateway implements GeminiGateway {
             Content contents,
             GenerateContentConfig config) {
         return client.models.generateContent(model, contents, config).text();
+    }
+
+    @Override
+    public GenerateContentResponse generateResponse(
+            String model, Content contents, GenerateContentConfig config) {
+        return client.models.generateContent(model, contents, config);
     }
 
     @Override
