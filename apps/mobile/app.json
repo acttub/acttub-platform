@@ -114,7 +114,8 @@
       "expo-audio",
       "onnxruntime-react-native",
       "./plugins/with-ort-16kb.js",
-      "./plugins/with-ort-newarch.js"
+      "./plugins/with-ort-newarch.js",
+      "./plugins/with-ort-register.js"
     ],
     "experiments": {
       "typedRoutes": true,
