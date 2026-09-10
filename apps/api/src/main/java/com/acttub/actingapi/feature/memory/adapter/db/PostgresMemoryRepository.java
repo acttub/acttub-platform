@@ -211,7 +211,11 @@ public class PostgresMemoryRepository implements MemoryRepository, CoachMemory {
     private static final int EXCERPT_TURN_CHARS = 120;
 
     /**
-     * 같은 연습의 지난 대화와, 지난 연습에서 아직 안 해본 것.
+     * 이어지는 연습의 지난 대화와, 거기서 아직 안 해본 것.
+     *
+     * <p><b>어디까지가 "지난" 인가</b> — 같은 연습을 다시 연 경우와, 끝난 연습에서 이어서
+     * 시작해 한 묶음이 된 경우 둘뿐이다. 그 밖의 연습은 장면도 인물도 다르므로 아무리
+     * 최근이어도 남이다(SOMA-525).
      *
      * <p>지난 대화는 요약 칸이 아니라 <b>저장된 턴에서 발췌</b>한다. 요약 칸
      * ({@code conversation_summary})은 채우는 코드가 없어 늘 빈 값이었고, 그래서
@@ -264,36 +268,29 @@ public class PostgresMemoryRepository implements MemoryRepository, CoachMemory {
                     .map(row -> row.get("id", UUID.class))
                     .toList();
         }
-        if (closed.isEmpty()) {
-            // 새 영상으로 시작한 연습이다. 배우 입장에서 "이어하기" 는 같은 영상을
-            // 다시 여는 것보다 새 영상을 올리며 지난 대화가 이어지는 쪽이므로,
-            // 이 배우의 가장 최근 닫힌 대화를 대신 싣는다. 숨긴 연습은 뺀다 —
-            // 배우가 지운 연습의 대화가 되살아나면 안 된다.
-            closed = NativeTuples.list(entityManager.createNativeQuery("""
-                    SELECT coach.id
-                    FROM coach_sessions coach
-                    JOIN practice_sessions practice ON practice.id=coach.practice_session_id
-                    WHERE practice.user_id=:userId
-                      AND practice.hidden_at IS NULL
-                      AND coach.status='closed'
-                    ORDER BY coach.created_at DESC
-                    LIMIT 1
-                    """, Tuple.class)
-                    .setParameter("userId", userId)).stream()
-                    .map(row -> row.get("id", UUID.class))
-                    .toList();
-        }
+        // 여기서 더 찾지 않는다. 두 갈래 모두 비었다면 아무 연결 없이 새로 시작한 연습이고,
+        // 그 대화에 지난 이야기를 실을 근거가 없다 — SOMA-359 는 이 자리에서 배우의 가장
+        // 최근 닫힌 대화를 대신 실었는데, 장면도 인물도 다른 연습의 이야기가 섞여 코치가
+        // 첫 응답부터 상관없는 것을 물었다(SOMA-525).
         String excerpt = closed.isEmpty() ? null : conversationExcerpt(closed.getFirst());
-        // 가장 최근에 나온 카드. 이번 연습 것도 포함한다 — 같은 연습을 다시 열었다면
+        // 가장 최근에 나온 카드. 지난 대화와 같은 울타리 안에서 찾는다 — 이번 연습과 그
+        // 연습이 속한 이어하기 묶음. 이번 연습 것도 포함한다: 같은 연습을 다시 열었다면
         // 그때 만든 카드가 바로 "지난번에 해보기로 한 것" 이다.
         List<String> report = NativeTuples.list(entityManager.createNativeQuery("""
                 SELECT card.report_json::text AS report_json
-                FROM practice_reports card
-                JOIN practice_sessions practice ON practice.id=card.practice_session_id
-                WHERE practice.user_id=:userId AND practice.hidden_at IS NULL
+                FROM practice_sessions current
+                JOIN practice_sessions member
+                    ON member.id=current.id
+                    OR member.id=current.continued_from
+                    OR member.continued_from=current.continued_from
+                JOIN practice_reports card ON card.practice_session_id=member.id
+                WHERE current.id=:practiceSessionId
+                  AND member.user_id=:userId
+                  AND member.hidden_at IS NULL
                 ORDER BY card.created_at DESC
                 LIMIT 1
                 """, Tuple.class)
+                .setParameter("practiceSessionId", practiceSessionId)
                 .setParameter("userId", userId)).stream()
                 .map(row -> row.get("report_json", String.class))
                 .toList();
