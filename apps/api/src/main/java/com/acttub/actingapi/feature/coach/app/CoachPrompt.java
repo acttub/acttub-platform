@@ -19,40 +19,15 @@ public final class CoachPrompt {
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
     private static final String COACH_V2_PROMPT = load("/coach/coach-v2-prompt.txt");
     private static final String COACH_V3_PROMPT = load("/coach/coach-v3-prompt.txt");
-    /**
-     * 모델 답이 두 번 검증에 걸렸을 때 서버가 대신 내는 문장. 1~6번째 응답에서만 쓴다 —
-     * 질문이라서, 7번째부터 내면 두 프롬프트가 그 응답부터 하지 말라는 "새로운 질문"이
-     * 서버 손으로 나간다.
-     */
-    private static final String SAFE_TEMPLATE =
-            "방금 말한 지점에서 하나만 더 볼게. "
-                    + "이 말을 상대에게 건넬 때, 상대가 어떻게 되길 바라는 거야?";
-
-    /**
-     * 마지막 구간(7번째부터)의 안전 문구. 새 질문 대신 배우의 말로 정리해 달라고 청한다 —
-     * 두 프롬프트의 7번째 응답 절이 모델에 시키는 두 가지 중 둘째다. 첫째(오늘 대화에서 배우가
-     * 말한 것 하나를 되짚기)는 서버가 알 수 없어 뺀다. 분석·그 외는 다음 테이크에서 해볼 것,
-     * 표현은 다음 연습에서 유지할 것을 청한다. v3 는 실험을 못 한 세션에는 "해볼 것"을 청하라
-     * 하지만 서버는 실험 여부를 모르므로 표현은 늘 "유지할 것"이다.
-     */
-    private static final String ANALYSIS_CLOSING_SAFE_TEMPLATE =
-            "오늘 이야기한 것 가운데 다음 테이크에서 해볼 것 하나만 네 말로 정리해줄래? "
-                    + "한 줄이면 충분해.";
-    private static final String EXPRESSION_CLOSING_SAFE_TEMPLATE =
-            "오늘 이야기한 것 가운데 다음 연습에서 유지할 것 하나만 네 말로 정리해줄래? "
-                    + "한 줄이면 충분해.";
-
+    private static final String RESPONSE_POLICY = load("/coach/coach-response-policy.txt");
     /**
      * 코치 응답의 턴 예산. 분석·표현 갈래가 같은 값을 쓴다.
      *
-     * <p>상한에서 대화를 끊는 값이 아니라, 매 요청 프롬프트 끝에 "## 남은 응답" 블록으로
-     * 실려 모델이 그 안에서 대화를 배분하게 하는 값이다. 서버는 이 번호를 넘어도 끊지
-     * 않는다 — 넘은 응답의 처리는 모델 프롬프트의 몫이다.
+     * <p>매 요청에 남은 횟수를 전달한다. 마지막 응답의 complete 상태는 서버도 검증한다.
      */
-    private static final int TURN_BUDGET = 8;
+    static final int TURN_BUDGET = 8;
     /**
-     * 구간 경계 — 앞 두 구간의 마지막 응답 번호. 둘째 경계 다음이 마지막 구간이고, 안전
-     * 문구도 그 경계에서 질문에서 정리 청유로 바뀐다.
+     * 구간 경계 — 앞 두 구간의 마지막 응답 번호.
      */
     private static final int OPEN_UNTIL = 3;
     private static final int NARROW_UNTIL = 6;
@@ -176,7 +151,8 @@ public final class CoachPrompt {
      * {@code 그 외} 세션의 할 일은 {@link #blockageUnspecifiedBlock} 이 대화 프롬프트에서 말한다.
      */
     public static String select(String blockageKind) {
-        return CoachBranch.isExpressionBlockage(blockageKind) ? COACH_V3_PROMPT : COACH_V2_PROMPT;
+        String branch = CoachBranch.isExpressionBlockage(blockageKind) ? COACH_V3_PROMPT : COACH_V2_PROMPT;
+        return branch + "\n\n" + RESPONSE_POLICY;
     }
 
     /**
@@ -268,9 +244,8 @@ public final class CoachPrompt {
     public static String buildChat(
             CoachSessionSnapshot session, String userMessage) {
         List<CoachTurnSnapshot> turns = session.turns();
-        List<CoachTurnSnapshot> recentTurns = turns.subList(
-                Math.max(0, turns.size() - 8), turns.size());
-        String history = turnLines(recentTurns);
+        // 한 세션은 코치 응답 8회다. 앞선 정정이 압축 요약에 묻히지 않도록 원문을 유지한다.
+        String history = turnLines(turns);
         if (history.isEmpty()) {
             history = "이전 대화 없음";
         }
@@ -306,21 +281,6 @@ public final class CoachPrompt {
                 + String.join("\n", numbered)
                 + "\n\n## 노출하지 않은 실패 응답\n"
                 + failedRawText;
-    }
-
-    /**
-     * 모델 답이 두 번 검증에 걸렸을 때 배우에게 갈 문장. 6번째까지는 질문이고, 마지막
-     * 구간(7번째부터)에서는 갈래별 정리 청유다 — 두 프롬프트가 그 응답부터 새 질문을 하지
-     * 말라고 하는데 서버가 대신 내는 문장이 질문이면 안 된다. 응답 번호는 {@link #turnNumber}
-     * 로 센다.
-     */
-    public static String safeTemplate(int turnNumber, String blockageKind) {
-        if (turnNumber <= NARROW_UNTIL) {
-            return SAFE_TEMPLATE;
-        }
-        return CoachBranch.isExpressionBlockage(blockageKind)
-                ? EXPRESSION_CLOSING_SAFE_TEMPLATE
-                : ANALYSIS_CLOSING_SAFE_TEMPLATE;
     }
 
     /**
@@ -390,8 +350,7 @@ public final class CoachPrompt {
     private static String analysisHandoffBlock(CoachSessionSnapshot session) {
         JsonNode handoff = session.analysisHandoff();
         if (!CoachBranch.isExpressionBlockage(session.blockageKind())
-                || handoff == null
-                || handoff.isNull()) {
+                || !hasUsableAnalysisHandoff(session)) {
             return "";
         }
         String evidenceLines = indentedItems(handoff.get("scene_evidence"));
@@ -416,10 +375,16 @@ public final class CoachPrompt {
         }
         List<String> lines = new ArrayList<>();
         observations.forEach(observation -> lines.add("  - " + compactJson(observation)));
-        String heading = session.analysisHandoff() == null || session.analysisHandoff().isNull()
+        String heading = !hasUsableAnalysisHandoff(session)
                 ? "## 표현 세션 입력 정보\n"
                 : "";
         return heading + "- video_observations:\n" + String.join("\n", lines) + "\n\n";
+    }
+
+    private static boolean hasUsableAnalysisHandoff(CoachSessionSnapshot session) {
+        JsonNode handoff = session.analysisHandoff();
+        return handoff != null && !handoff.isNull()
+                && !"unavailable".equals(handoff.path("completion_level").asText());
     }
 
     private static String phaseLabel(int turnNumber, String blockageKind) {

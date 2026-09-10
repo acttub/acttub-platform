@@ -124,7 +124,18 @@ public final class TextValidator {
 
     public static TextValidation validateTurn(
             String visibleMessage, boolean enforceSentenceLimit) {
-        List<String> forbiddenHits = scanGeneratedStrings(List.of(visibleMessage));
+        return validate(visibleMessage, enforceSentenceLimit, scanForbidden(visibleMessage));
+    }
+
+    /** 코칭에서는 근거를 설명하는 어휘를 허용한다. 관찰·노트의 기존 검증은 유지한다. */
+    public static TextValidation validateCoachTurn(String visibleMessage) {
+        List<String> descriptiveTerms = List.of("강점", "약점", "개선점", "자연스러움");
+        return validate(visibleMessage, false, scanForbidden(visibleMessage).stream()
+                .filter(hit -> !descriptiveTerms.contains(hit)).toList());
+    }
+
+    private static TextValidation validate(
+            String visibleMessage, boolean enforceSentenceLimit, List<String> forbiddenHits) {
         int length = visibleLength(visibleMessage);
         LinkedHashMap<String, Boolean> checks = new LinkedHashMap<>();
         checks.put("sentence_limit", !enforceSentenceLimit || length <= 170);

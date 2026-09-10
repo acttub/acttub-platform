@@ -312,5 +312,5 @@ test("모든 웹 대화 화면에서 이전 확인 문구를 제거했다", () =
   ].map((file) => readFileSync(path.join(appRoot, file), "utf8")).join("\n");
 
   assert.doesNotMatch(sources, /이제 맞아요|아직 달라요/);
-  assert.match(sources, /&apos;그만&apos;이라고 쓰면 언제든 마칠 수 있어요/);
+  // 종료 안내는 coach-composer.test.mjs에서 실제 렌더 결과로 확인한다.
 });

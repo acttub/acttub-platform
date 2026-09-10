@@ -4,7 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 
 import com.acttub.actingapi.feature.coach.domain.CoachTurnSnapshot;
@@ -12,7 +11,6 @@ import com.acttub.actingapi.integration.llm.GeneratedText;
 import com.acttub.actingapi.integration.llm.TextGenerator;
 import com.acttub.actingapi.integration.llm.TokenUsage;
 import com.acttub.actingapi.platform.observability.FailureKind;
-import com.acttub.actingapi.support.FrozenValue;
 import com.acttub.actingapi.support.RecordingFailureReporter;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -25,12 +23,6 @@ class CoachEngineTest {
     private static final UUID OPERATION =
             UUID.fromString("99999999-8888-7777-6666-555555555555");
     private final RecordingFailureReporter failureReporter = new RecordingFailureReporter();
-
-    /** 7번째부터의 안전 문구. 그 외는 분석 갈래라 분석 문장을 받는다. */
-    private static final Map<String, String> CLOSING_SAFE_TEMPLATE_BY_KIND = Map.of(
-            "분석", "coach-safe-template-closing-analysis.txt",
-            "그 외", "coach-safe-template-closing-analysis.txt",
-            "표현", "coach-safe-template-closing-expression.txt");
 
     @Test
     void parsesFencedAndUnfencedJson() {
@@ -68,11 +60,11 @@ class CoachEngineTest {
 
     @Test
     void emptyGeneratedResponseFallsBackAndIsReportedAsExternal() {
-        RecordingGenerator generator = new RecordingGenerator("");
+        RecordingGenerator generator = new RecordingGenerator("", "{\"message\":\"다시 설명할게요.\"}");
 
         CoachResult result = engine(generator).reply(session(), "모르겠어요", OPERATION);
 
-        assertThat(result.reply()).isEqualTo(new CoachReply("", "continue", null));
+        assertThat(result.reply()).isEqualTo(new CoachReply("다시 설명할게요.", "continue", null));
         assertThat(failureReporter.reports()).singleElement().satisfies(report -> {
             assertThat(report.kind()).isEqualTo(FailureKind.EXTERNAL);
             assertThat(report.context())
@@ -113,37 +105,22 @@ class CoachEngineTest {
         RecordingGenerator generator = new RecordingGenerator("점수", "등급");
         CoachResult result = engine(generator).reply(session(), "모르겠어요", OPERATION);
 
-        assertThat(result.reply()).isEqualTo(new CoachReply(
-                FrozenValue.of("coach-safe-template.txt"), "continue", null));
+        assertThat(result.reply().status()).isEqualTo("continue");
+        assertThat(result.reply().message()).contains("예를 들어").doesNotContain("?");
         assertThat(generator.inputs).hasSize(2);
     }
 
-    /** 6번째까지는 종전 안전 문구(질문)가 그대로 나간다. 갈래는 문장을 가르지 않는다. */
     @Test
-    @DisplayName("6번째 응답의 안전 문구는 갈래와 무관하게 종전 질문 그대로다")
-    void safeTemplateStaysAQuestionThroughSixthTurn() {
-        for (String kind : CLOSING_SAFE_TEMPLATE_BY_KIND.keySet()) {
-            assertThat(safeReplyAfterTwoFailures(6, kind))
-                    .as("blockage_kind=%s 6번째", kind)
-                    .isEqualTo(new CoachReply(
-                            FrozenValue.of("coach-safe-template.txt"), "continue", null));
-        }
-    }
-
-    /**
-     * 7번째부터는 마지막 구간이다 — 모델 답이 두 번 검증에 걸려도 새 질문을 내지 않고 배우의
-     * 말로 정리해 달라고 청한다. 분석(그 외 포함)은 다음 테이크에서 해볼 것 하나, 표현은 다음
-     * 연습에서 유지할 것 하나다. 8번째도 같은 문장이고 상태는 continue 그대로다.
-     */
-    @Test
-    @DisplayName("7번째 이상의 안전 문구는 새 질문 대신 갈래별 정리 청유다")
-    void safeTemplateBecomesClosingRequestFromSeventhTurn() {
-        for (int turnNumber : List.of(7, 8)) {
-            CLOSING_SAFE_TEMPLATE_BY_KIND.forEach((kind, fixture) ->
-                    assertThat(safeReplyAfterTwoFailures(turnNumber, kind))
-                            .as("blockage_kind=%s %d번째", kind, turnNumber)
-                            .isEqualTo(new CoachReply(
-                                    FrozenValue.of(fixture), "continue", null)));
+    void seventhFallbackExplainsWithoutDemandingSelfSummaryAndEighthCloses() {
+        for (String kind : List.of("분석", "표현", "그 외")) {
+            assertThat(safeReplyAfterTwoFailures(7, kind).message())
+                    .doesNotContain("정리해", "?", "해보고");
+            for (int turn : List.of(8, 9)) {
+                CoachReply reply = safeReplyAfterTwoFailures(turn, kind);
+                assertThat(reply.status()).isEqualTo("complete");
+                assertThat(reply.handoff().path("completion_level").asText()).isEqualTo("unavailable");
+                assertThat(reply.handoff().path("actor_words")).isEmpty();
+            }
         }
     }
 
@@ -160,9 +137,11 @@ class CoachEngineTest {
         // "끝"·"여기까지"는 발화 전체가 그 말일 때만 종료다. 어절 안에 섞인 "끝"까지
         // 종료로 보면 "끝까지 해볼게요" 같은 정상 답변에서 세션이 끊긴다.
         for (String closing : List.of("이제 그만", "이제 종료", "끝", "여기까지", "여기서 그만할게")) {
-            RecordingGenerator generator = new RecordingGenerator("계속할게요");
+            RecordingGenerator generator = new RecordingGenerator("계속할게요", "계속할게요");
             CoachResult result = engine(generator).reply(session(), closing, OPERATION);
 
+            assertThat(result.reply().status()).isEqualTo("complete");
+            assertThat(generator.inputs).hasSize(2);
             assertThat(generator.inputs.getFirst())
                     .contains("## 배우의 마무리 요청")
                     .contains("배우가 지금 대화를 마치겠다고 했다.");

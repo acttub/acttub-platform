@@ -7,11 +7,10 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import com.acttub.actingapi.feature.coach.domain.ClosingIntent;
+import com.acttub.actingapi.feature.coach.domain.CoachHelpIntent;
 import com.acttub.actingapi.feature.coach.domain.CoachTurnSnapshot;
 import com.acttub.actingapi.integration.llm.GeneratedText;
 import com.acttub.actingapi.integration.llm.TextGenerator;
-import com.acttub.actingapi.integration.llm.TextValidation;
-import com.acttub.actingapi.integration.llm.TextValidator;
 import com.acttub.actingapi.platform.observability.FailureContext;
 import com.acttub.actingapi.platform.observability.FailureKind;
 import com.acttub.actingapi.platform.observability.FailureReporter;
@@ -122,8 +121,7 @@ public class CoachEngine {
     /** 기존 세션의 다음 응답을 만들고 actor→ai 순서로 두 turn을 추가한다. */
     public CoachResult reply(
             CoachSessionSnapshot session, String actorText, UUID operationId) {
-        String userMessage = messageForGeneration(actorText);
-        CoachReply response = generateValidated(session, userMessage, operationId);
+        CoachReply response = generateValidated(session, actorText, operationId);
         return appendTurns(session, actorText, response);
     }
 
@@ -134,7 +132,7 @@ public class CoachEngine {
     }
 
     /**
-     * handoff 에서 종료어를 걷어낸다.
+     * handoff 에서 종료어와 도움 버튼 문구를 걷어낸다.
      *
      * <p>handoff 가 만들어지는 유일한 자리라 여기서 걸러야 새는 곳이 없다. 노트를 만드는
      * 경로가 둘(완료 턴, /v2/reports 가 저장된 handoff 로 다시 만드는 경우)이라
@@ -152,7 +150,8 @@ public class CoachEngine {
         }
         ArrayNode kept = RESPONSE_MAPPER.createArrayNode();
         for (JsonNode word : words) {
-            if (word.isTextual() && !ClosingIntent.isClosing(word.textValue())) {
+            if (word.isTextual() && !ClosingIntent.isClosing(word.textValue())
+                    && !CoachHelpIntent.isHelpOnly(word.textValue())) {
                 kept.add(word);
             }
         }
@@ -165,33 +164,32 @@ public class CoachEngine {
     }
 
     private CoachReply generateValidated(
-            CoachSessionSnapshot session, String userMessage, UUID operationId) {
+            CoachSessionSnapshot session, String actorText, UUID operationId) {
+        String userMessage = messageForGeneration(actorText)
+                + CoachResponsePolicy.recoveryInstruction(session, actorText);
         String systemPrompt = CoachPrompt.select(session.blockageKind());
         GeneratedText generated = generate.generate(
                 systemPrompt, CoachPrompt.buildChat(session, userMessage));
         String rawText = generated.text();
         CoachReply reply = parseGeneratedResponse(rawText, operationId);
-        TextValidation validation = TextValidator.validateTurn(reply.message(), false);
-        if (!validation.failures().isEmpty()) {
+        List<String> failures = CoachResponsePolicy.failures(session, actorText, reply);
+        if (!failures.isEmpty()) {
             generated = generate.generate(
                     systemPrompt,
                     CoachPrompt.buildRegeneration(
                             session,
                             userMessage,
                             rawText,
-                            validation.failures()));
+                            failures));
             reply = parseGeneratedResponse(generated.text(), operationId);
-            validation = TextValidator.validateTurn(reply.message(), false);
+            failures = CoachResponsePolicy.failures(session, actorText, reply);
         }
-        if (!validation.failures().isEmpty()) {
+        if (!failures.isEmpty()) {
             int turnNumber = CoachPrompt.turnNumber(session);
             LOG.warn(
                     "코치 답이 두 번 검증에 걸려 안전 문구로 대체한다: session={} response={} failures={}",
-                    session.sessionId(), turnNumber, validation.failures());
-            return new CoachReply(
-                    CoachPrompt.safeTemplate(turnNumber, session.blockageKind()),
-                    "continue",
-                    null);
+                    session.sessionId(), turnNumber, failures);
+            return CoachResponsePolicy.fallback(session, actorText);
         }
         return sanitizeActorWords(reply);
     }
