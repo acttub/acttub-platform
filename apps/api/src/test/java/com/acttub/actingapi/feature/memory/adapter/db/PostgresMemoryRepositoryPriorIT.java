@@ -120,9 +120,14 @@ class PostgresMemoryRepositoryPriorIT {
         assertThat(repository.priorContext(userId, practiceId).earlierConversation()).isNull();
     }
 
+    /**
+     * 아무 연결 없이 새로 시작한 연습은 지난 대화를 받지 않는다 (SOMA-525).
+     *
+     * <p>SOMA-359 는 여기서 배우의 가장 최근 닫힌 대화를 실었다. 장면도 인물도 다른
+     * 연습의 이야기가 섞여 코치가 첫 응답부터 상관없는 것을 물었다 — 그 자리를 비운다.
+     */
     @Test
-    void aNewPracticeCarriesTheLastConversationFromThePreviousPractice() {
-        // 배우가 말하는 "이어하기" — 새 영상을 올려도 지난 대화가 이어진다.
+    void aNewUnlinkedPracticeDoesNotCarryTheLastConversation() {
         UUID userId = insertUser("carry@example.com");
         UUID earlier = insertPractice(userId);
         UUID coachId = insertCoach(earlier, "closed", NOW);
@@ -133,11 +138,38 @@ class PostgresMemoryRepositoryPriorIT {
         PostgresMemoryRepository.PriorPracticeContext context =
                 repository.priorContext(userId, fresh);
 
-        assertThat(context.earlierConversation())
-                .contains("배우: 호흡이 급해져요")
-                .contains("코치: 다음엔 한 박자 늦게 시작해 볼까요?");
-        // 다른 연습의 대화이므로 "같은 연습" 이 아니라고 표시돼야 프롬프트 제목이 맞는다.
+        assertThat(context.earlierConversation()).isNull();
         assertThat(context.fromSamePractice()).isFalse();
+    }
+
+    /**
+     * 남의 연습에서 나온 카드가 "아직 안 해본 것" 으로 새 연습에 붙지 않는다 (SOMA-525).
+     *
+     * <p>대화만 막고 카드를 그대로 두면 같은 유출이 다른 칸으로 이어진다 — 배우는 해본 적
+     * 없는 장면의 숙제를 받는다.
+     */
+    @Test
+    void aNewUnlinkedPracticeDoesNotCarryPendingTakesFromAnotherPractice() {
+        UUID userId = insertUser("takes-scope@example.com");
+        UUID earlier = insertPractice(userId);
+        UUID earlierCoach = insertCoach(earlier, "closed", NOW);
+        insertCard(earlier, earlierCoach, "남의 차수", NOW);
+        UUID fresh = insertPractice(userId);
+
+        assertThat(repository.priorFor(userId, fresh, OPERATION).pendingTakes()).isEmpty();
+    }
+
+    /** 같은 울타리 안(이어하기 묶음)의 카드는 그대로 받는다. */
+    @Test
+    void aContinuedPracticeStillCarriesPendingTakesFromItsChain() {
+        UUID userId = insertUser("takes-chain@example.com");
+        UUID parent = insertPractice(userId);
+        UUID parentCoach = insertCoach(parent, "closed", NOW.minusDays(1));
+        insertCard(parent, parentCoach, "묶인 차수", NOW.minusDays(1));
+        UUID child = insertPractice(userId, parent);
+
+        assertThat(repository.priorFor(userId, child, OPERATION).pendingTakes())
+                .containsExactly("다음 방향");
     }
 
     @Test
@@ -162,9 +194,12 @@ class PostgresMemoryRepositoryPriorIT {
         assertThat(context.fromSamePractice()).isFalse();
     }
 
+    /**
+     * 고른 연습이 그 사이 숨겨졌다 — 지운 대화를 되살리지도, 상관없는 최근 대화로
+     * 물러나지도 않는다. 이어받을 것이 없으면 없는 채로 시작한다 (SOMA-525).
+     */
     @Test
-    void aHiddenChosenPracticeFallsBackToTheLatestConversation() {
-        // 고른 연습이 그 사이 숨겨졌다 — 지운 대화를 되살리지 않고 최근 대화로 물러난다.
+    void aHiddenChosenPracticeLeavesTheConversationEmpty() {
         UUID userId = insertUser("choose-hidden@example.com");
         UUID chosen = insertPractice(userId);
         UUID chosenCoach = insertCoach(chosen, "closed", NOW.minusDays(3));
@@ -175,9 +210,7 @@ class PostgresMemoryRepositoryPriorIT {
         insertTurn(latestCoach, 0, "actor", "가장 최근 연습의 대화");
         UUID fresh = insertPractice(userId, chosen);
 
-        assertThat(repository.priorContext(userId, fresh).earlierConversation())
-                .contains("가장 최근 연습의 대화")
-                .doesNotContain("숨겨진 연습의 대화");
+        assertThat(repository.priorContext(userId, fresh).earlierConversation()).isNull();
     }
 
     @Test
