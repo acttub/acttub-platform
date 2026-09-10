@@ -84,6 +84,16 @@ class ReportEngineTest {
     }
 
     @Test
+    void expressionDoesNotReuseAFailedAnalysisAsConfirmedInput() throws Exception {
+        JsonNode input = new ReportEngine(new RecordingGenerator(), MAPPER).buildReportInput(
+                "expression", pack(), expressionHandoff(true, "실험", "변화"), true, "expression-id",
+                MAPPER.readTree("{\"completion_level\":\"unavailable\"}"));
+
+        assertThat(input.path("analysis_handoff").isNull()).isTrue();
+        assertThat(input.at("/expression_handoff/experiment/tested").asBoolean()).isTrue();
+    }
+
+    @Test
     void expressionCallsLlmOnlyWhenAllThreeReadinessConditionsPasses() throws Exception {
         RecordingGenerator generator = new RecordingGenerator(expressionReport());
         JsonNode report = new ReportEngine(generator, MAPPER).generateReport(

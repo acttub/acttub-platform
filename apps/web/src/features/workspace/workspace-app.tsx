@@ -1,5 +1,7 @@
 "use client";
 
+import { CoachComposer } from "./coach-composer";
+
 // 홈 · 새 연습 · 연습 기록 · 세션 상세를 한 화면으로 합친 통합 워크스페이스.
 // 왼쪽에 지난 세션 바, 오른쪽을 현재 세션이 채운다.
 // 설계 정본은 새 UI 디자인 캔버스(2026-07-27)의 D1~D10 · M1~M9 화면.
@@ -2216,11 +2218,6 @@ function ChatPanel({
   const pastPairCount = pastMessages.filter((message) => message.role === "me").length;
   const questionCount = dialogueMessages.filter((message) => message.role === "ai").length;
 
-  const sendPreset = (reply: string) => {
-    setAnswer(reply);
-    onSend(reply);
-  };
-
   return (
     <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-[18px] bg-white shadow-[0_12px_36px_rgba(25,31,40,0.06)] sm:rounded-[20px]">
       {done ? (
@@ -2312,65 +2309,13 @@ function ChatPanel({
             </button>
           </div>
         ) : (
-          <div className="grid gap-2.5">
-            <div className="relative">
-              <textarea
-                value={answer}
-                disabled={!inputEnabled}
-                maxLength={300}
-                rows={3}
-                placeholder="답을 편하게 적어 주세요"
-                onChange={(event) => setAnswer(event.target.value)}
-                onKeyDown={(event) => {
-                  if (
-                    event.key === "Enter"
-                    && (event.metaKey || event.ctrlKey)
-                    && !event.nativeEvent.isComposing
-                    && answer.trim()
-                    && inputEnabled
-                  ) {
-                    event.preventDefault();
-                    onSend();
-                  }
-                }}
-                className="h-[104px] w-full resize-none rounded-[16px] border border-[#e5e8eb] bg-[#f8fbff] px-4 pb-3 pt-8 text-base font-semibold outline-none transition placeholder:text-[#b0b8c1] focus:border-[#3182f6] focus:bg-white disabled:bg-[#f2f4f6]"
-              />
-              <span className="pointer-events-none absolute right-4 top-3 text-[11.5px] font-semibold tabular-nums text-[#8b95a1]">
-                {answer.length} / 300
-              </span>
-            </div>
-            {/* 낮은 화면(안드로이드 키보드)에서는 접는다 — 답을 쓰기 시작한 뒤에 누르는 것이
-                아니라 막혔을 때 누르는 버튼이라, 질문 자리를 내주는 편이 낫다. */}
-            <div className="grid grid-cols-2 gap-2.5 [@media(max-height:560px)]:hidden">
-              <button
-                type="button"
-                onClick={() => sendPreset("잘 모르겠어요")}
-                disabled={sending || !inputEnabled}
-                className="h-10 rounded-[10px] bg-[#f2f4f6] px-3 text-xs font-black text-[#4e5968] transition hover:bg-[#eef2f6] disabled:text-[#b0b8c1]"
-              >
-                잘 모르겠어요
-              </button>
-              <button
-                type="button"
-                onClick={() => sendPreset("제가 되물을게요")}
-                disabled={sending || !inputEnabled}
-                className="h-10 rounded-[10px] bg-[#f2f4f6] px-3 text-xs font-black text-[#4e5968] transition hover:bg-[#eef2f6] disabled:text-[#b0b8c1]"
-              >
-                제가 되물을게요
-              </button>
-            </div>
-            <button
-              type="button"
-              onClick={() => onSend()}
-              disabled={sending || !inputEnabled || !answer.trim()}
-              className="min-h-12 w-full rounded-[16px] bg-[#3182f6] px-6 py-3 text-sm font-black text-white transition hover:bg-[#1b64da] disabled:bg-[#c9d3df]"
-            >
-              이 답으로 다음 질문 →
-            </button>
-            <p className="text-xs font-semibold text-[#8b95a1] [@media(max-height:560px)]:hidden">
-              &apos;그만&apos;이라고 쓰면 언제든 마칠 수 있어요
-            </p>
-          </div>
+          <CoachComposer
+            answer={answer}
+            setAnswer={setAnswer}
+            sending={sending}
+            inputEnabled={inputEnabled}
+            onSend={() => onSend()}
+          />
         )}
       </div>
     </section>

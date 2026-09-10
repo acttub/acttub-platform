@@ -74,6 +74,10 @@ public class ReportEngine {
         if (!confirmed || confirmedHandoff == null || !confirmedHandoff.isObject()) {
             return null;
         }
+        // 코치 생성이 두 번 실패해 서버가 마친 대화는 노트 생성·재생성으로 결론을 만들지 않는다.
+        if ("unavailable".equals(confirmedHandoff.path("completion_level").asText())) {
+            return null;
+        }
         ObjectNode confirmation = mapper.createObjectNode();
         confirmation.put("confirmed", true);
         confirmation.put("coaching_handoff_id", coachingHandoffId);
@@ -92,6 +96,7 @@ public class ReportEngine {
             return null;
         }
         input.set("analysis_handoff", analysisHandoff == null
+                || "unavailable".equals(analysisHandoff.path("completion_level").asText())
                 ? mapper.nullNode()
                 : analysisHandoff.deepCopy());
         input.set("expression_handoff", confirmedHandoff.deepCopy());
