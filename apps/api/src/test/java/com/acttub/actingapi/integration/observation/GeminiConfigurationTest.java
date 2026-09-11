@@ -9,6 +9,8 @@ import com.acttub.actingapi.support.RecordingFailureReporter;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.genai.Client;
 import org.junit.jupiter.api.Test;
+import com.acttub.actingapi.platform.observability.LlmTelemetry;
+import com.acttub.actingapi.support.RecordingLlmTelemetry;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -16,7 +18,9 @@ import org.springframework.context.annotation.Configuration;
 class GeminiConfigurationTest {
 
     private final ApplicationContextRunner runner = new ApplicationContextRunner()
-            .withUserConfiguration(GeminiConfiguration.class, MapperConfiguration.class);
+            .withUserConfiguration(GeminiConfiguration.class, MapperConfiguration.class)
+            // 관측기는 이 설정의 관심사가 아니지만 관찰·받아쓰기 빈이 요구한다(SOMA-517).
+            .withBean(LlmTelemetry.class, RecordingLlmTelemetry::new);
 
     @Test
     void missingOrBlankGeminiApiKeyFailsStartup() {

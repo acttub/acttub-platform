@@ -11,6 +11,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import com.acttub.actingapi.integration.media.AudioExtractor;
+import com.acttub.actingapi.support.RecordingLlmTelemetry;
 import com.acttub.actingapi.platform.observability.FailureClassifier;
 import com.acttub.actingapi.platform.observability.FailureKind;
 import com.acttub.actingapi.support.RecordingFailureReporter;
@@ -35,7 +36,7 @@ class GeminiTranscriberTest {
     void requestContainsOnlyTranscriptionConfigAndReadsAudioTranscription() throws Exception {
         var gateway = new StubGateway();
         var reporter = new RecordingFailureReporter();
-        var transcriber = new GeminiTranscriber(new AudioExtractor(), gateway, reporter);
+        var transcriber = new GeminiTranscriber(new AudioExtractor(), gateway, reporter, new RecordingLlmTelemetry());
         Path audio = Files.writeString(temporary.resolve("take.wav"), "wav");
 
         var result = transcriber.transcribe(audio);
@@ -66,7 +67,7 @@ class GeminiTranscriberTest {
                 RESPONSE.replace("\"words\":[", "\"unused\":["))) {
             var gateway = new StubGateway();
             gateway.response = GenerateContentResponse.fromJson(response);
-            var transcriber = new GeminiTranscriber(new AudioExtractor(), gateway, new RecordingFailureReporter());
+            var transcriber = new GeminiTranscriber(new AudioExtractor(), gateway, new RecordingFailureReporter(), new RecordingLlmTelemetry());
             assertThatThrownBy(() -> transcriber.transcribe(Path.of("take.wav"))).satisfies(exception -> {
                 assertThat(FailureClassifier.classify(exception)).isEqualTo(FailureKind.EXTERNAL);
                 assertThat(exception.getCause()).isNotNull();
@@ -88,9 +89,9 @@ class GeminiTranscriberTest {
         var gateway = new StubGateway();
         var failure = new IllegalStateException("model unavailable");
         gateway.failure = failure;
-        var transcriber = new GeminiTranscriber(extractor, gateway, new RecordingFailureReporter());
+        var transcriber = new GeminiTranscriber(extractor, gateway, new RecordingFailureReporter(), new RecordingLlmTelemetry());
 
-        assertThatThrownBy(() -> transcriber.analyze(video)).hasCause(failure);
+        assertThatThrownBy(() -> transcriber.analyze(video, null)).hasCause(failure);
 
         assertThat(audio).doesNotExist();
         assertThat(gateway.deleted).containsExactly("files/audio");
@@ -106,9 +107,9 @@ class GeminiTranscriberTest {
         var failure = new IllegalStateException("delete unavailable");
         gateway.cleanupFailure = failure;
         var reporter = new RecordingFailureReporter();
-        var transcriber = new GeminiTranscriber(extractor, gateway, reporter);
+        var transcriber = new GeminiTranscriber(extractor, gateway, reporter, new RecordingLlmTelemetry());
 
-        assertThat(transcriber.analyze(video).transcript()).isEqualTo("가지 마");
+        assertThat(transcriber.analyze(video, null).transcript()).isEqualTo("가지 마");
 
         assertThat(audio).doesNotExist();
         assertThat(reporter.reports()).singleElement().satisfies(report -> {

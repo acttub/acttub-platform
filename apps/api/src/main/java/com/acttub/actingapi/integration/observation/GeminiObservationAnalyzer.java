@@ -5,12 +5,18 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
+import java.util.UUID;
 import java.util.function.LongSupplier;
 
 import com.acttub.actingapi.platform.observability.FailureContext;
 import com.acttub.actingapi.platform.observability.FailureKind;
 import com.acttub.actingapi.platform.observability.FailureReporter;
+import com.acttub.actingapi.platform.observability.LlmCall;
+import com.acttub.actingapi.platform.observability.LlmStep;
+import com.acttub.actingapi.platform.observability.LlmTelemetry;
+import com.acttub.actingapi.platform.observability.LlmTokens;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -38,12 +44,14 @@ final class GeminiObservationAnalyzer implements ObservationAnalyzer {
     private final LongSupplier nanoTime;
     private final FileActivationPoller.Sleeper sleeper;
     private final FailureReporter failureReporter;
+    private final LlmTelemetry telemetry;
 
     GeminiObservationAnalyzer(
             GeminiGateway gateway,
             ObjectMapper mapper,
             String model,
-            FailureReporter failureReporter) {
+            FailureReporter failureReporter,
+            LlmTelemetry telemetry) {
         this(
                 gateway,
                 mapper,
@@ -52,7 +60,8 @@ final class GeminiObservationAnalyzer implements ObservationAnalyzer {
                 POLL_INTERVAL,
                 System::nanoTime,
                 FileActivationPoller.Sleeper.real(),
-                failureReporter);
+                failureReporter,
+                telemetry);
     }
 
     GeminiObservationAnalyzer(
@@ -63,7 +72,8 @@ final class GeminiObservationAnalyzer implements ObservationAnalyzer {
             Duration pollInterval,
             LongSupplier nanoTime,
             FileActivationPoller.Sleeper sleeper,
-            FailureReporter failureReporter) {
+            FailureReporter failureReporter,
+            LlmTelemetry telemetry) {
         this.gateway = gateway;
         this.mapper = mapper.copy()
                 .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
@@ -73,10 +83,12 @@ final class GeminiObservationAnalyzer implements ObservationAnalyzer {
         this.nanoTime = nanoTime;
         this.sleeper = sleeper;
         this.failureReporter = failureReporter;
+        this.telemetry = telemetry;
     }
 
     @Override
-    public ObservationPack analyze(Path videoPath, String mimeType, ActorMaterial actor) {
+    public ObservationPack analyze(
+            Path videoPath, String mimeType, ActorMaterial actor, UUID practiceSessionId) {
         String prompt = ObservationPrompt.build(actor);
         GeminiFile uploaded = gateway.upload(videoPath, mimeType);
         try {
@@ -110,7 +122,9 @@ final class GeminiObservationAnalyzer implements ObservationAnalyzer {
 
             SummaryParseError lastError = null;
             for (int attempt = 0; attempt < PARSE_ATTEMPTS; attempt++) {
-                String responseText = gateway.generate(model, contents, config);
+                // 되풀이한 호출도 각각 남긴다 — 몇 번 만에 읽을 수 있는 JSON 이 나왔는지가
+                // 그 자체로 신호다.
+                String responseText = recorded(practiceSessionId, prompt, attempt, contents, config);
                 try {
                     return filter(parse(responseText), actor.durationMs());
                 } catch (SummaryParseError exc) {
@@ -130,6 +144,50 @@ final class GeminiObservationAnalyzer implements ObservationAnalyzer {
                         new FailureContext("GeminiObservationAnalyzer.fileCleanup"));
             }
         }
+    }
+
+    /** 모델을 부르고 그 한 번을 남긴다. 기록이 실패해도 관찰은 그대로 간다. */
+    private String recorded(
+            UUID practiceSessionId,
+            String prompt,
+            int attempt,
+            Content contents,
+            GenerateContentConfig config) {
+        Instant startedAt = Instant.now();
+        try {
+            String responseText = gateway.generate(model, contents, config);
+            record(practiceSessionId, prompt, responseText, attempt, startedAt, null);
+            return responseText;
+        } catch (RuntimeException failure) {
+            record(practiceSessionId, prompt, "", attempt, startedAt,
+                    failure.getMessage() == null ? failure.toString() : failure.getMessage());
+            throw failure;
+        }
+    }
+
+    private void record(
+            UUID practiceSessionId,
+            String prompt,
+            String responseText,
+            int attempt,
+            Instant startedAt,
+            String errorMessage) {
+        if (practiceSessionId == null) {
+            return;
+        }
+        telemetry.record(new LlmCall(
+                LlmStep.OBSERVATION,
+                practiceSessionId,
+                null,
+                model,
+                ObservationPrompt.SYSTEM + "\n\n" + prompt,
+                responseText,
+                // Gemini 관문이 지금은 본문만 돌려준다 — 사용량은 뒤 단계에서 잇는다.
+                LlmTokens.unknown(),
+                startedAt,
+                java.time.Duration.between(startedAt, Instant.now()),
+                errorMessage,
+                LlmCall.metadata("attempt", String.valueOf(attempt + 1))));
     }
 
     private ObservationPack parse(String text) {
