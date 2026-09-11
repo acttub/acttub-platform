@@ -349,6 +349,9 @@ function RootNavigator() {
       <Stack.Screen name="admissions/[id]" options={{ headerShown: false }} />
       <Stack.Screen name="community-post" options={{ headerShown: false }} />
       <Stack.Screen name="community-new" options={{ headerShown: false, presentation: 'modal' }} />
+      <Stack.Screen name="reading/index" options={{ title: '리딩' }} />
+      <Stack.Screen name="reading/roles" options={{ title: '배역 선택' }} />
+      <Stack.Screen name="reading/play" options={{ title: '리딩' }} />
     </Stack>
   );
 }

@@ -308,11 +308,11 @@ export default function SettingsScreen() {
             <Text style={styles.memoryChevron}>›</Text>
           </Pressable>
 
-          {/* SPIKE(SOMA-500): 대본 리딩 ONNX 실험 화면 진입. 버리는 실험이라 정식 메뉴 아님. */}
+          {/* 대본 리딩 (SOMA-527). 정식 진입점(탭/홈)은 다음 단계, 지금은 설정에서 진입. */}
           <Pressable
             style={styles.memoryRow}
-            onPress={() => router.push('/spike-tts')}>
-            <Text style={styles.memoryText}>대본 리딩 (실험)</Text>
+            onPress={() => router.push('/reading')}>
+            <Text style={styles.memoryText}>대본 리딩</Text>
             <Text style={styles.memoryChevron}>›</Text>
           </Pressable>
 
