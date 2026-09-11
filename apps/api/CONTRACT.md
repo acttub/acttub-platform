@@ -424,6 +424,7 @@ POST /v2/consents        POST /v2/uploads/intents
 
 - 요청·응답 DTO와 저장 스키마는 유지한다. 웹·모바일의 도움 버튼은 명확한 텍스트 요청을 준비하며 전송은 별도 동작이다.
 - `CoachPrompt:buildChat`은 1층 관찰 팩 전체(장면 요약·전체 흐름·소리 측정값·대사 인용·불확실성)·이전 분석 입력과 현재 세션의 대화 원문 전체를 전달한다. `CoachPrompt:select`의 공통 정책이 갈래별 질문 순서보다 우선한다.
+- 막힘을 건너뛴 `그 외`는 `coach-video-first-prompt.txt`를 사용한다. 장면 맥락이 모두 비어도 첫 1~2회 장면 질문이나 고정된 질문 구간을 붙이지 않는다. 시작·후속 응답·재생성 모두 같은 기본 코치를 쓰며, 명시적인 분석·표현 선택의 프롬프트와 기존 analysis handoff·report 계약은 유지한다.
 - `CoachResponsePolicy:failures`는 빈 응답, 화면에 그대로 노출될 Markdown 강조·제목·코드 기호와 `JSON need` 형태의 내부 형식 메모, 도움 요청 뒤 직전 응답의 완전 반복, 영어 대화에서 완전히 한국어로 돌아온 설명, 종료 요청·8번째 이후의 continue를 재생성 사유로 삼는다. 두 번 실패하면 확인하지 못한 결론을 만들지 않는 대체 응답을 사용한다.
 - 종료 시 생성 실패로 만든 handoff는 `completion_level=unavailable`이다. `ReportEngine:buildReportInput`은 이 상태를 두 갈래 모두에서 차단한다. 저장한 handoff로 다시 요청해도 모델을 호출하지 않는다.
 - `HandoffReadiness:hasEnoughAnswers`는 초기 폼 발화·종료어·명확한 도움 요청만인 발화를 내용이 확보된 답변에서 제외한다. 구체적인 문제 설명에 "모르겠어요"가 들어 있다는 이유만으로 제외하지 않는다.
