@@ -68,7 +68,7 @@ class GeminiObservationAnalyzerTest {
                 .contains(new ThinkingLevel(ThinkingLevel.Known.LOW));
         assertThat(config.responseMimeType()).contains("application/json");
         assertThat(sha256(config.systemInstruction().orElseThrow().text()))
-                .isEqualTo("3afca67f5a4b7868497771703974f32a514f1d7f789a65683ed30a5f8bbffe2e");
+                .isEqualTo("057da1b5b239b473bd317cdbe16f3163dcc025cb81e17c436215d410590012fd");
         assertThat(mapper.readTree(config.responseSchema().orElseThrow().toJson()))
                 .isEqualTo(observationSchema());
 
