@@ -19,6 +19,7 @@ public final class CoachPrompt {
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
     private static final String COACH_V2_PROMPT = load("/coach/coach-v2-prompt.txt");
     private static final String COACH_V3_PROMPT = load("/coach/coach-v3-prompt.txt");
+    private static final String VIDEO_FIRST_PROMPT = load("/coach/coach-video-first-prompt.txt");
     private static final String RESPONSE_POLICY = load("/coach/coach-response-policy.txt");
     /**
      * 코치 응답의 턴 예산. 분석·표현 갈래가 같은 값을 쓴다.
@@ -90,6 +91,10 @@ public final class CoachPrompt {
      * 채운다. 첫 연습에서는 지금까지와 똑같은 프롬프트가 나가야 한다.
      */
     static String priorContextBlock(PriorContext prior) {
+        return priorContextBlock(prior, false);
+    }
+
+    private static String priorContextBlock(PriorContext prior, boolean videoFirst) {
         if (prior == null || prior.isEmpty()) {
             return "";
         }
@@ -97,9 +102,14 @@ public final class CoachPrompt {
         lines.add("## 배우에 대해 지금까지 알고 있는 것");
         lines.add("지난 연습에서 정리된 참고 사항이다. **영상 근거가 아니다** — 이걸로 이번"
                 + " 영상의 장면을 말하지 않는다. 배우가 지난번에 한 말이므로 그대로 읊지 않는다.");
-        lines.add("다만 모른 척도 하지 않는다 — **대화 중 자연스러운 자리에서 한 번은"
-                + " 이어받아라.** 지난 목표가 이번에도 유효한지 묻거나, 반복해서 막히는 지점이"
-                + " 이번 장면에서도 보이는지 연결하거나, 해보기로 한 것을 해봤는지 묻는 식이다.");
+        if (videoFirst) {
+            lines.add("이번 영상의 주제에 직접 도움이 될 때만 참고한다. 지난 목표 확인이나 과제 실행"
+                    + " 확인을 의무 질문으로 만들지 않는다. 지난 기록을 이번 장면의 목표·의도로 확정하지 않는다.");
+        } else {
+            lines.add("다만 모른 척도 하지 않는다 — **대화 중 자연스러운 자리에서 한 번은"
+                    + " 이어받아라.** 지난 목표가 이번에도 유효한지 묻거나, 반복해서 막히는 지점이"
+                    + " 이번 장면에서도 보이는지 연결하거나, 해보기로 한 것을 해봤는지 묻는 식이다.");
+        }
 
         if (!prior.memory().isEmpty()) {
             lines.add("");
@@ -146,12 +156,13 @@ public final class CoachPrompt {
     }
 
     /**
-     * 갈래로 시스템 프롬프트를 고른다. {@code 표현} 만 v3 이고 {@code 분석}·{@code 그 외} 는
-     * v2 다 — 그래서 v2 의 입력 정보는 {@code blockage_kind} 를 "분석 또는 그 외" 로 선언하고,
-     * {@code 그 외} 세션의 할 일은 {@link #blockageUnspecifiedBlock} 이 대화 프롬프트에서 말한다.
+     * 명시적인 분석·표현 선택은 기존 프롬프트를 쓴다. 선택을 건너뛴 {@code 그 외} 는
+     * 영상부터 점검 지점을 제안하는 기본 코치를 쓴다. 저장·연습 노트의 분석 계약은 유지한다.
      */
     public static String select(String blockageKind) {
-        String branch = CoachBranch.isExpressionBlockage(blockageKind) ? COACH_V3_PROMPT : COACH_V2_PROMPT;
+        String branch = CoachBranch.isBlockageUnspecified(blockageKind)
+                ? VIDEO_FIRST_PROMPT
+                : CoachBranch.isExpressionBlockage(blockageKind) ? COACH_V3_PROMPT : COACH_V2_PROMPT;
         return branch + "\n\n" + RESPONSE_POLICY;
     }
 
@@ -170,7 +181,9 @@ public final class CoachPrompt {
         addField(lines, "상황", session.situation());
         addField(lines, "캐릭터", session.characterContext());
         addField(lines, "이번 테이크의 목적", session.goal());
-        lines.add("- 배우가 고른 막히는 지점: " + session.blockageKind());
+        lines.add(CoachBranch.isBlockageUnspecified(session.blockageKind())
+                ? "- 막힘 선택: 건너뜀 (그 외는 시스템의 건너뛰기 값)"
+                : "- 배우가 고른 막히는 지점: " + session.blockageKind());
         lines.add("- 하위 갈래: " + subBranchLabel(session.subBranch()));
         addField(lines, "배우가 쓴 상세", session.blockageDetail());
         lines.add("- 영상 길이: " + session.durationMs() + "ms");
@@ -185,6 +198,10 @@ public final class CoachPrompt {
     private static String sceneContextMissingBlock(CoachSessionSnapshot session) {
         if (!sceneContextMissing(session)) {
             return "";
+        }
+        if (CoachBranch.isBlockageUnspecified(session.blockageKind())) {
+            return section("장면 맥락 미입력", "상황·인물·목표를 입력하지 않았다. 빈 입력은 결함이 아니다. "
+                    + "영상 근거로 점검 지점과 이유부터 설명한다. 대화에서 이미 알려준 맥락은 다시 묻지 않는다.");
         }
         return section("장면 맥락 미입력", SCENE_CONTEXT_MISSING_TEXT);
     }
@@ -252,7 +269,7 @@ public final class CoachPrompt {
         String conversationSummary = empty(session.conversationSummary())
                 ? "아직 없음"
                 : session.conversationSummary();
-        return priorContextBlock(session.prior())
+        return priorContextBlock(session.prior(), CoachBranch.isBlockageUnspecified(session.blockageKind()))
                 + actorMaterialBlock(session)
                 + sceneContextMissingBlock(session)
                 + blockageUnspecifiedBlock(session)
@@ -410,8 +427,12 @@ public final class CoachPrompt {
                 "## 남은 응답",
                 "전체 응답 예산: " + TURN_BUDGET + "번",
                 "현재 응답: " + turnNumber + "번째",
-                "이번 응답 뒤에 남는 횟수: " + left + "번",
-                "현재 구간: " + phaseLabel(turnNumber, session.blockageKind())));
+                "이번 응답 뒤에 남는 횟수: " + left + "번"));
+        if (CoachBranch.isBlockageUnspecified(session.blockageKind())) {
+            lines.add("횟수는 상한이다. 정해진 질문 순서 없이 현재 주제와 배우의 최신 요청에 맞춰 돕는다.");
+        } else {
+            lines.add("현재 구간: " + phaseLabel(turnNumber, session.blockageKind()));
+        }
         if (turnNumber >= TURN_BUDGET) {
             lines.add("이번이 마지막 응답이다.");
         }

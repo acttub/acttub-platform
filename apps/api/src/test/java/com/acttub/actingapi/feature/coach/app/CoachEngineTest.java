@@ -320,6 +320,40 @@ class CoachEngineTest {
         });
     }
 
+    @Test
+    @DisplayName("영상만 올린 시작과 후속 재생성까지 기본 코치가 실제 모델 입력에 연결된다")
+    void videoOnlyStartAndReplyUseVideoFirstCoachWithoutMandatoryInterview() throws Exception {
+        for (String blank : List.of("", " \t\n")) {
+            CoachSessionSnapshot source = session();
+            var pack = OBJECT_MAPPER.readTree("""
+                    {"observations":[{"what":"멈춘 뒤 말한다","quote":"가지 마"}],
+                     "uncertainties":["표정은 확인할 수 없다"]}
+                    """);
+            var videoOnly = new CoachSessionSnapshot(
+                    source.sessionId(), source.practiceSessionId(), source.summaryId(), source.userId(),
+                    pack, blank, blank, blank, source.durationMs(), "그 외", "그 외", blank,
+                    List.of(), "", null, "open", "", List.of());
+            RecordingGenerator generator = new RecordingGenerator(
+                    "대사 앞의 멈춤부터 살펴볼게요.",
+                    "**틀린 형식**", "말을 시작하기 전 멈춤만 줄여 비교해보세요.");
+            CoachEngine coach = engine(generator);
+
+            CoachResult started = coach.start(videoOnly, OPERATION);
+            CoachResult replied = coach.reply(started.session(), "어떻게 해?", OPERATION);
+
+            assertThat(generator.instructions).hasSize(3).allSatisfy(prompt -> assertThat(prompt)
+                    .startsWith("# ACTTUB 2층 — 영상만 올리고 시작하는 기본 코치")
+                    .contains("\"handoff_type\": \"analysis\"", "# 현재 요청에 맞춰 돕기"));
+            assertThat(generator.inputs).allSatisfy(input -> assertThat(input)
+                    .contains("가지 마", "표정은 확인할 수 없다", "막힘 선택: 건너뜀")
+                    .doesNotContain("1~2번째 응답 안에서", "현재 구간:", "배우가 고른 막히는 지점: 그 외"));
+            assertThat(generator.inputs.getFirst()).contains("현재 응답: 1번째");
+            assertThat(generator.inputs.getLast()).contains(
+                    "현재 응답: 2번째", "코치: 대사 앞의 멈춤부터 살펴볼게요.", "## 서버 검증 실패");
+            assertThat(replied.reply().message()).isEqualTo("말을 시작하기 전 멈춤만 줄여 비교해보세요.");
+        }
+    }
+
     private CoachEngine engine(TextGenerator generator) {
         return new CoachEngine(generator, failureReporter, new RecordingLlmTelemetry());
     }
@@ -385,6 +419,7 @@ class CoachEngineTest {
     private static final class RecordingGenerator implements TextGenerator {
         private final List<String> replies;
         private final List<String> inputs = new ArrayList<>();
+        private final List<String> instructions = new ArrayList<>();
 
         RecordingGenerator(String... replies) {
             this.replies = List.of(replies);
@@ -392,6 +427,7 @@ class CoachEngineTest {
 
         @Override
         public GeneratedText generate(String instructions, String input) {
+            this.instructions.add(instructions);
             inputs.add(input);
             return new GeneratedText(
                     replies.get(inputs.size() - 1), new TokenUsage(0, 0, 0));
