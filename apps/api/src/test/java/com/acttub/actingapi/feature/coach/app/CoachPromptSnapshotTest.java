@@ -97,7 +97,7 @@ class CoachPromptSnapshotTest {
     }
 
     /**
-     * 그 외 갈래는 v2 본문을 쓰되 표현 전용 칸 없이 간다. 갈래가 {@code 그 외} 이므로 막힘
+     * 그 외 갈래는 영상부터 시작하는 기본 코치를 쓰되 표현 전용 칸 없이 간다. 갈래가 {@code 그 외} 이므로 막힘
      * 미특정 블록이 붙는다 — 코치가 막힘을 지어내지 않고 영상에서 확인된 것으로 대화를 연다.
      */
     @Test
@@ -109,13 +109,29 @@ class CoachPromptSnapshotTest {
 
     /**
      * 장면도 막힘도 건너뛴 세션 — 웹·앱 어느 쪽이든 둘 다 건너뛰면 이렇게 온다. 두 블록이
-     * 장면·막힘 순으로 나란히 붙는다.
+     * 장면·막힘 순으로 나란히 붙되 장면 질문이나 고정 진행 순서를 강제하지 않는다.
      */
     @Test
     @DisplayName("장면도 막힘도 건너뛴 그 외 갈래에는 두 블록이 장면·막힘 순으로 붙는다")
     void otherSessionWithBlankSceneMatchesFrozenValue() throws Exception {
         assertThat(CoachPrompt.buildChat(withScene(otherSession(), "", "", ""), "잘 모르겠어요"))
                 .isEqualTo(FrozenValue.of("coach-chat-prompt-other-blank-scene.txt"));
+    }
+
+    @Test
+    void videoOnlyFollowUpPreservesCorrectionWithoutReopeningContextInterview() throws Exception {
+        var session = withScene(otherSession(), "", "", "").withTurns(List.of(
+                new CoachTurnSnapshot("actor", "그 외"),
+                new CoachTurnSnapshot("ai", "마지막 대사를 살펴볼게요."),
+                new CoachTurnSnapshot("actor", "학생들에게 제 경험담이라고 오해받지 않으려는 거예요."),
+                new CoachTurnSnapshot("ai", "경험담으로 오해받지 않으려는 뜻으로 볼게요.")))
+                .withPrior(new PriorContext(Map.of("goal", "발음을 또렷하게 말하기"),
+                        null, false, List.of(), List.of()));
+        String input = CoachPrompt.buildChat(session, "그래서 어떻게 해요?");
+        assertThat(input).contains("학생들에게 제 경험담이라고 오해받지 않으려는 거예요.",
+                        "대화에서 이미 알려준 맥락은 다시 묻지 않는다.", "현재 응답: 3번째")
+                .doesNotContain("1~2번째 응답 안에서", "현재 구간:", "자연스러운 자리에서 한 번은")
+                .contains("지난 기록을 이번 장면의 목표·의도로 확정하지 않는다.");
     }
 
     /**
