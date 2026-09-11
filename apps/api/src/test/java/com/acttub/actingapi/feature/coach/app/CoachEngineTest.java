@@ -266,6 +266,38 @@ class CoachEngineTest {
         assertThat(telemetry.calls().get(1).input()).contains("금지어가 노출됐습니다: 점수");
     }
 
+    /**
+     * 품질 판정이 점수로 쌓인다 — 이 숫자가 "들쭉날쭉" 을 눈이 아니라 비율로 보게 한다.
+     */
+    @Test
+    @DisplayName("검증에 걸린 응답은 재생성·실패 갈래가 점수로 남는다")
+    void validationOutcomeIsScored() {
+        RecordingLlmTelemetry telemetry = new RecordingLlmTelemetry();
+        new CoachEngine(
+                new RecordingGenerator(
+                        "{\"message\":\"점수로 볼게요\"}",
+                        "{\"message\":\"상대가 어떻게 되길 바라나요?\"}"),
+                failureReporter,
+                telemetry)
+                .reply(session(), "잘 모르겠어요", OPERATION);
+
+        assertThat(telemetry.scoreNames())
+                .contains("coach.regenerated", "coach.fallback_used", "coach.validation_failure");
+        assertThat(telemetry.scores())
+                .filteredOn(score -> score.name().equals("coach.regenerated"))
+                .singleElement()
+                .satisfies(score -> assertThat(score.value()).isEqualTo(1.0));
+        // 두 번째 응답이 통과했으므로 안전 문구로 물러나지 않았다.
+        assertThat(telemetry.scores())
+                .filteredOn(score -> score.name().equals("coach.fallback_used"))
+                .singleElement()
+                .satisfies(score -> assertThat(score.value()).isEqualTo(0.0));
+        // 갈래 이름은 실패 문구의 첫 마디다.
+        assertThat(telemetry.scores())
+                .filteredOn(score -> score.name().equals("coach.validation_failure"))
+                .allSatisfy(score -> assertThat((String) score.value()).doesNotContain(":"));
+    }
+
     /** 실패도 같은 모양으로 남는다 — 실패만 빠지면 비율이 거짓이 된다. */
     @Test
     @DisplayName("모델 호출이 터져도 그 한 건이 남고 예외는 그대로 올라간다")

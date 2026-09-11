@@ -15,6 +15,7 @@ import com.acttub.actingapi.feature.report.domain.ExpressionReadiness;
 import com.acttub.actingapi.feature.report.domain.ReportBranch;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.acttub.actingapi.platform.observability.LlmCall;
+import com.acttub.actingapi.platform.observability.LlmScore;
 import com.acttub.actingapi.platform.observability.LlmStep;
 import com.acttub.actingapi.platform.observability.LlmTelemetry;
 import com.acttub.actingapi.platform.observability.LlmTokens;
@@ -85,11 +86,19 @@ public class ReportEngine {
                 coachingHandoffId,
                 analysisHandoff);
         if (modelInput == null) {
+            // 코치 대화가 안전 문구로 끝나면 핸드오프가 unavailable 로 남아 노트를 못 만든다.
+            // 배우 눈에 보이는 손해라 그 자체로 셀 값어치가 있다(SOMA-517).
+            if (practiceSessionId != null) {
+                telemetry.score(LlmScore.flag(practiceSessionId, "report.blocked", true));
+            }
             return blockedReport(reportType);
         }
         String systemPrompt = ReportPrompt.select(reportType);
         String userPrompt = serializeInput(modelInput);
         String raw = recorded(systemPrompt, userPrompt, reportType, practiceSessionId, userId);
+        if (practiceSessionId != null) {
+            telemetry.score(LlmScore.flag(practiceSessionId, "report.blocked", false));
+        }
         return parseReport(raw, reportType, coachingHandoffId, analysisHandoffId);
     }
 

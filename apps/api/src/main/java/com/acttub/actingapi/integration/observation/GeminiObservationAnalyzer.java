@@ -14,6 +14,7 @@ import com.acttub.actingapi.platform.observability.FailureContext;
 import com.acttub.actingapi.platform.observability.FailureKind;
 import com.acttub.actingapi.platform.observability.FailureReporter;
 import com.acttub.actingapi.platform.observability.LlmCall;
+import com.acttub.actingapi.platform.observability.LlmScore;
 import com.acttub.actingapi.platform.observability.LlmStep;
 import com.acttub.actingapi.platform.observability.LlmTelemetry;
 import com.acttub.actingapi.platform.observability.LlmTokens;
@@ -126,7 +127,9 @@ final class GeminiObservationAnalyzer implements ObservationAnalyzer {
                 // 그 자체로 신호다.
                 String responseText = recorded(practiceSessionId, prompt, attempt, contents, config);
                 try {
-                    return filter(parse(responseText), actor.durationMs());
+                    ObservationPack pack = filter(parse(responseText), actor.durationMs());
+                    scoreObservations(practiceSessionId, pack);
+                    return pack;
                 } catch (SummaryParseError exc) {
                     lastError = exc;
                 }
@@ -144,6 +147,25 @@ final class GeminiObservationAnalyzer implements ObservationAnalyzer {
                         new FailureContext("GeminiObservationAnalyzer.fileCleanup"));
             }
         }
+    }
+
+    /**
+     * 관찰이 몇 개, 몇 자 나왔는지를 점수로 남긴다.
+     *
+     * <p>SOMA-490 이 개수 상한을 없애고 글자 상한을 1000자로 올렸는데 그것이 실제로
+     * 먹었는지를 지금까지 확인할 방법이 없었다. 이 둘이 그 답이다 — 여전히 두세 개만
+     * 나온다면 모델이 프롬프트를 안 듣는 것이고, 그건 완전히 다른 문제다.
+     */
+    private void scoreObservations(UUID practiceSessionId, ObservationPack pack) {
+        if (practiceSessionId == null) {
+            return;
+        }
+        telemetry.score(LlmScore.number(
+                practiceSessionId, "observation.count", pack.observations().size()));
+        int characters = pack.observations().stream()
+                .mapToInt(item -> item.what() == null ? 0 : item.what().length())
+                .sum();
+        telemetry.score(LlmScore.number(practiceSessionId, "observation.chars", characters));
     }
 
     /** 모델을 부르고 그 한 번을 남긴다. 기록이 실패해도 관찰은 그대로 간다. */

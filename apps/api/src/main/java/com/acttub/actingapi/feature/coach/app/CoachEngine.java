@@ -17,6 +17,7 @@ import com.acttub.actingapi.platform.observability.FailureContext;
 import com.acttub.actingapi.platform.observability.FailureKind;
 import com.acttub.actingapi.platform.observability.FailureReporter;
 import com.acttub.actingapi.platform.observability.LlmCall;
+import com.acttub.actingapi.platform.observability.LlmScore;
 import com.acttub.actingapi.platform.observability.LlmStep;
 import com.acttub.actingapi.platform.observability.LlmTelemetry;
 import com.acttub.actingapi.platform.observability.LlmTokens;
@@ -184,6 +185,7 @@ public class CoachEngine {
         String rawText = generated.text();
         CoachReply reply = parseGeneratedResponse(rawText, operationId);
         List<String> failures = CoachResponsePolicy.failures(session, actorText, reply);
+        List<String> firstFailures = failures;
         if (!failures.isEmpty()) {
             String retryPrompt =
                     CoachPrompt.buildRegeneration(session, userMessage, rawText, failures);
@@ -192,13 +194,56 @@ public class CoachEngine {
             reply = parseGeneratedResponse(generated.text(), operationId);
             failures = CoachResponsePolicy.failures(session, actorText, reply);
         }
-        if (!failures.isEmpty()) {
+        boolean fellBack = !failures.isEmpty();
+        scoreValidation(session, firstFailures, fellBack, failures);
+        if (fellBack) {
             LOG.warn(
                     "코치 답이 두 번 검증에 걸려 안전 문구로 대체한다: session={} response={} failures={}",
                     session.sessionId(), turnNumber, failures);
             return CoachResponsePolicy.fallback(session, actorText);
         }
         return sanitizeActorWords(reply);
+    }
+
+    /**
+     * 이번 응답이 규칙을 어겼는지를 점수로 남긴다.
+     *
+     * <p>모델을 한 번도 더 부르지 않는다 — 서버가 이미 판정한 것을 옮겨 적을 뿐이다.
+     * 여기서 나오는 비율("이번 주 안전 문구 대체 11%, 그중 8할이 금지어")이 품질을
+     * 눈이 아니라 숫자로 보게 하는 자리다(SOMA-517).
+     */
+    private void scoreValidation(
+            CoachSessionSnapshot session,
+            List<String> firstFailures,
+            boolean fellBack,
+            List<String> remainingFailures) {
+        UUID practiceSessionId = session.practiceSessionId();
+        if (practiceSessionId == null) {
+            return;
+        }
+        telemetry.score(LlmScore.flag(
+                practiceSessionId, "coach.regenerated", !firstFailures.isEmpty()));
+        telemetry.score(LlmScore.flag(practiceSessionId, "coach.fallback_used", fellBack)
+                .withComment(fellBack ? String.join(" / ", remainingFailures) : null));
+        for (String failure : firstFailures) {
+            telemetry.score(LlmScore.category(
+                    practiceSessionId, "coach.validation_failure", failureLabel(failure)));
+        }
+    }
+
+    /**
+     * 실패 문구의 <b>첫 마디</b>를 갈래 이름으로 쓴다. 문구가 코드의 상수라 안정적이지만,
+     * 문구를 고치면 갈래가 갈린다 — 고칠 때 지난 기록과 이어지지 않는다는 것만 알고 고친다.
+     */
+    private static String failureLabel(String failure) {
+        int cut = failure.length();
+        for (String delimiter : List.of(":", ". ", "·")) {
+            int at = failure.indexOf(delimiter);
+            if (at > 0) {
+                cut = Math.min(cut, at);
+            }
+        }
+        return failure.substring(0, Math.min(cut, 40)).trim();
     }
 
     /**
