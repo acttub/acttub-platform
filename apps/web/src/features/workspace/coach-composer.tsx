@@ -33,7 +33,7 @@ export function CoachComposer({
           placeholder={asking ? "코치에게 궁금한 점을 적어 주세요" : "답이나 질문을 편하게 적어 주세요"}
           onChange={(event) => setAnswer(event.target.value)}
           onKeyDown={(event) => {
-            if (event.key === "Enter" && (event.metaKey || event.ctrlKey)
+            if (event.key === "Enter" && !event.shiftKey
               && !event.nativeEvent.isComposing && answer.trim() && !disabled) {
               event.preventDefault();
               onSend();

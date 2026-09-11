@@ -60,6 +60,20 @@ test("help and practice-later shortcuts prepare explicit requests for review bef
   } finally { view.unmount(); }
 });
 
+test("plain Enter sends the draft; Shift+Enter and IME composition keep typing", () => {
+  const view = mount({ initial: "질문" });
+  try {
+    const press = (init) => react.act(() => view.input.dispatchEvent(new window.KeyboardEvent("keydown", {
+      key: "Enter", bubbles: true, cancelable: true, ...init,
+    })));
+    press({ shiftKey: true });
+    press({ isComposing: true });
+    assert.deepEqual(view.sent, []);
+    press({});
+    assert.deepEqual(view.sent, ["질문"]);
+  } finally { view.unmount(); }
+});
+
 test("waiting or disabled sessions block shortcuts and keyboard submission", () => {
   for (const state of [{ sending: true }, { inputEnabled: false }]) {
     const view = mount({ ...state, initial: "질문" });
