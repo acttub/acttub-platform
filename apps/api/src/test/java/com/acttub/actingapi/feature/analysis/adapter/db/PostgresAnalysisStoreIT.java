@@ -119,12 +119,12 @@ class PostgresAnalysisStoreIT {
                     return declared == null ? 12345 : new VideoDurationProbe().durationMs(path, declared);
                 },
                 path -> path,
-                (path, mime, actor) -> {
+                (path, mime, actor, practiceId) -> {
                     assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isFalse();
                     assertThat(actor.durationMs()).isEqualTo(expectedDurationMs);
                     return result().observationPack();
                 },
-                path -> {
+                (path, practiceId) -> {
                     assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isFalse();
                     return result().observationPack().speech();
                 }, reporter);

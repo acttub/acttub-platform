@@ -18,6 +18,7 @@ import com.acttub.actingapi.platform.ledger.LeaseOwnershipException;
 import com.acttub.actingapi.platform.observability.FailureKind;
 import com.acttub.actingapi.platform.schema.ActorMemoryField;
 import com.acttub.actingapi.support.RecordingFailureReporter;
+import com.acttub.actingapi.support.RecordingLlmTelemetry;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.DisplayName;
@@ -129,7 +130,8 @@ class MemoryUpdateWorkerPayloadTest {
                 (system, user) -> new GeneratedText(extracted, new TokenUsage(0, 0, 0)),
                 Clock.fixed(Instant.EPOCH, ZoneOffset.UTC),
                 new MemoryExtractor(reporter),
-                reporter);
+                reporter,
+                new RecordingLlmTelemetry());
     }
 
     /** 잡 하나를 내주고, 성공으로 닫을 때 넘어온 본문을 잡아 둔다. */

@@ -408,7 +408,9 @@ public class CoachService {
                 true,
                 handoffId.toString(),
                 session.analysisHandoff(),
-                null);
+                null,
+                session.practiceSessionId(),
+                session.userId());
         return new CompletedTurn(branch, handoffId, report);
     }
 

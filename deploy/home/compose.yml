@@ -53,6 +53,16 @@ services:
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:?.env 의 AWS_SECRET_ACCESS_KEY 가 없다}
       # healthcheck·web rewrites 가 이 포트를 전제한다. .env 가 덮지 못하게 고정한다(systemd 와 같다).
       SERVER_PORT: "8080"
+      # 관측(SOMA-517). 비면 기록이 통째로 꺼지므로 :? 를 붙이지 않는다 — 관측이 없다고
+      # 연습이 멈추면 앞뒤가 바뀐다. 값은 .env 가 준다.
+      LANGFUSE_HOST: ${LANGFUSE_HOST:-}
+      LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY:-}
+      LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY:-}
+    # 관측 서버는 같은 호스트의 다른 Compose 프로젝트다. 공용 네트워크로 묶지 않는 이유는
+    # 기동 순서다 — external 네트워크로 엮으면 관측 스택이 없을 때 api 가 아예 뜨지 않는다.
+    # 호스트 게이트웨이로 가면 두 스택이 서로를 모른 채 각자 뜬다.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     healthcheck:
       # /health 는 DB 를 건드리지 않지만, 리슨 자체가 Flyway·스키마 검증 뒤에 시작한다.
       test: ["CMD", "curl", "-fsS", "--max-time", "3", "http://localhost:8080/health"]

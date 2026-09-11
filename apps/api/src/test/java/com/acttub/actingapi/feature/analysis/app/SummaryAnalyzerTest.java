@@ -29,11 +29,11 @@ class SummaryAnalyzerTest {
             var speech = new SpeechAnalysis("가지 마", 2.0, List.of(), List.of());
             var reporter = new RecordingFailureReporter();
             var analyzer = new SummaryAnalyzer((path, declared) -> 1000, path -> compressed,
-                    (path, mime, actor) -> {
+                    (path, mime, actor, practiceId) -> {
                         awaitBoth(started);
                         assertThat(path).isEqualTo(compressed);
                         return new ObservationPack("장면", "0:01에 멈춘다", null, List.of(), List.of());
-                    }, path -> {
+                    }, (path, practiceId) -> {
                         awaitBoth(started);
                         assertThat(path).isEqualTo(video).exists();
                         return speech;
@@ -61,9 +61,9 @@ class SummaryAnalyzerTest {
         Path compressed = Files.writeString(temporary.resolve("small.mp4"), "small");
         var reporter = new RecordingFailureReporter();
         var analyzer = new SummaryAnalyzer((path, declared) -> 1000, path -> compressed,
-                (path, mime, actor) -> new ObservationPack(
+                (path, mime, actor, practiceId) -> new ObservationPack(
                         "장면", "0:01에 멈춘다", null, List.of(), List.of()),
-                path -> {
+                (path, practiceId) -> {
                     throw new IllegalStateException("transcribe unavailable");
                 }, reporter);
 
@@ -94,12 +94,12 @@ class SummaryAnalyzerTest {
         SummaryAnalyzer analyzer = new SummaryAnalyzer(
                 (path, declared) -> { order.add("duration"); return 3210; },
                 path -> { order.add("compress"); return compressed; },
-                (path, mime, actor) -> {
+                (path, mime, actor, practiceId) -> {
                     order.add("observe");
                     assertThat(path).isEqualTo(compressed);
                     assertThat(actor.durationMs()).isEqualTo(3210);
                     return new ObservationPack("장면 요약", List.of(), List.of());
-                }, path -> null, new RecordingFailureReporter());
+                }, (path, practiceId) -> null, new RecordingFailureReporter());
 
         AnalysisResult result = analyzer.analyze(video, context("분석", null));
 
@@ -117,8 +117,8 @@ class SummaryAnalyzerTest {
         SummaryAnalyzer analyzer = new SummaryAnalyzer(
                 (path, declared) -> 1000,
                 path -> path,
-                (path, mime, actor) -> new ObservationPack("", List.of(), List.of("불확실")),
-                path -> null, new RecordingFailureReporter());
+                (path, mime, actor, practiceId) -> new ObservationPack("", List.of(), List.of("불확실")),
+                (path, practiceId) -> null, new RecordingFailureReporter());
 
         AnalysisResult result = analyzer.analyze(video, context("표현", 1000));
 

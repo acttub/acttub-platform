@@ -14,6 +14,7 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 
 import com.acttub.actingapi.platform.observability.FailureKind;
+import com.acttub.actingapi.support.RecordingLlmTelemetry;
 import com.acttub.actingapi.support.RecordingFailureReporter;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -27,6 +28,8 @@ import org.junit.jupiter.api.Test;
 class GeminiObservationAnalyzerTest {
 
     private static final String MODEL = "gemini-2.5-flash";
+    private static final java.util.UUID PRACTICE =
+            java.util.UUID.fromString("11112222-3333-4444-5555-666677778888");
     private static final ActorMaterial ACTOR = new ActorMaterial(
             "연습실",
             "햄릿",
@@ -41,11 +44,11 @@ class GeminiObservationAnalyzerTest {
     void generationRequestMatchesActingSummaryGolden() throws Exception {
         StubGateway gateway = new StubGateway();
         gateway.responses.add("{\"observations\":[],\"uncertainties\":[]}");
-        ObservationAnalyzer analyzer = new GeminiObservationAnalyzer(
-                gateway, mapper, MODEL, new RecordingFailureReporter());
+        ObservationAnalyzer analyzer = new GeminiObservationAnalyzer(gateway, mapper, MODEL, new RecordingFailureReporter(),
+                new RecordingLlmTelemetry());
 
         ObservationPack result = analyzer.analyze(
-                Path.of("/tmp/take.video"), "video/quicktime", ACTOR);
+                Path.of("/tmp/take.video"), "video/quicktime", ACTOR, PRACTICE);
 
         assertThat(result.observations()).isEmpty();
         assertThat(result.uncertainties()).isEmpty();
@@ -102,7 +105,7 @@ class GeminiObservationAnalyzerTest {
                 """);
 
         ObservationPack result = analyzer(gateway).analyze(
-                Path.of("/tmp/take.mp4"), "video/mp4", ACTOR);
+                Path.of("/tmp/take.mp4"), "video/mp4", ACTOR, PRACTICE);
 
         assertThat(result.observations())
                 .extracting(ObservationItem::what)
@@ -122,7 +125,7 @@ class GeminiObservationAnalyzerTest {
                 """);
 
         ObservationPack result = analyzer(gateway).analyze(
-                Path.of("/tmp/take.mp4"), "video/mp4", ACTOR);
+                Path.of("/tmp/take.mp4"), "video/mp4", ACTOR, PRACTICE);
 
         assertThat(result.observations()).extracting(ObservationItem::what)
                 .containsExactly("두 번째");
@@ -137,7 +140,7 @@ class GeminiObservationAnalyzerTest {
         gateway.responses.add("{\"observations\":[],\"uncertainties\":[]}");
 
         assertThatThrownBy(() -> analyzer(gateway).analyze(
-                Path.of("/tmp/take.mp4"), "video/mp4", ACTOR))
+                Path.of("/tmp/take.mp4"), "video/mp4", ACTOR, PRACTICE))
                 .isInstanceOf(SummaryParseError.class)
                 .hasMessageStartingWith("failed to parse after retry: ");
 
@@ -153,8 +156,8 @@ class GeminiObservationAnalyzerTest {
         RecordingFailureReporter reporter = new RecordingFailureReporter();
 
         ObservationPack result = new GeminiObservationAnalyzer(
-                gateway, mapper, MODEL, reporter).analyze(
-                Path.of("/tmp/take.mp4"), "video/mp4", ACTOR);
+                gateway, mapper, MODEL, reporter, new RecordingLlmTelemetry()).analyze(
+                Path.of("/tmp/take.mp4"), "video/mp4", ACTOR, PRACTICE);
 
         assertThat(result).isEqualTo(new ObservationPack("", List.of(), List.of()));
         assertThat(gateway.deletedNames).containsExactly("files/take");
@@ -199,9 +202,10 @@ class GeminiObservationAnalyzerTest {
                 Duration.ofSeconds(2),
                 () -> 0L,
                 duration -> { },
-                new RecordingFailureReporter());
+                new RecordingFailureReporter(), new RecordingLlmTelemetry());
 
-        analyzer.analyze(Path.of("/tmp/take.mp4"), "video/mp4", ACTOR);
+        analyzer.analyze(
+                Path.of("/tmp/take.mp4"), "video/mp4", ACTOR, PRACTICE);
 
         assertThat(gateway.getCalls).isEqualTo(1);
         assertThat(gateway.contents.parts().orElseThrow().getFirst()
@@ -210,8 +214,8 @@ class GeminiObservationAnalyzerTest {
     }
 
     private ObservationAnalyzer analyzer(StubGateway gateway) {
-        return new GeminiObservationAnalyzer(
-                gateway, mapper, MODEL, new RecordingFailureReporter());
+        return new GeminiObservationAnalyzer(gateway, mapper, MODEL, new RecordingFailureReporter(),
+                new RecordingLlmTelemetry());
     }
 
     private JsonNode observationSchema() throws Exception {

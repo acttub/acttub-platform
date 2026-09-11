@@ -3,7 +3,10 @@ package com.acttub.actingapi.feature.report.app;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.Set;
+import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -11,6 +14,11 @@ import com.acttub.actingapi.integration.llm.TextGenerator;
 import com.acttub.actingapi.feature.report.domain.ExpressionReadiness;
 import com.acttub.actingapi.feature.report.domain.ReportBranch;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.acttub.actingapi.platform.observability.LlmCall;
+import com.acttub.actingapi.platform.observability.LlmScore;
+import com.acttub.actingapi.platform.observability.LlmStep;
+import com.acttub.actingapi.platform.observability.LlmTelemetry;
+import com.acttub.actingapi.platform.observability.LlmTokens;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -35,10 +43,29 @@ public class ReportEngine {
 
     private final TextGenerator generate;
     private final ObjectMapper mapper;
+    private final LlmTelemetry telemetry;
 
-    public ReportEngine(TextGenerator generate, ObjectMapper mapper) {
+    public ReportEngine(TextGenerator generate, ObjectMapper mapper, LlmTelemetry telemetry) {
         this.generate = generate;
         this.mapper = mapper;
+        this.telemetry = telemetry;
+    }
+
+    /**
+     * 어느 연습의 노트인지 모르는 자리에서 부를 때. 그때는 기록을 남기지 않는다 — 묶을
+     * 열쇠가 없는 기록은 화면에서 떠돌기만 한다.
+     */
+    public JsonNode generateReport(
+            String reportType,
+            JsonNode videoSummary,
+            JsonNode confirmedHandoff,
+            boolean confirmed,
+            String coachingHandoffId,
+            JsonNode analysisHandoff,
+            String analysisHandoffId) {
+        return generateReport(
+                reportType, videoSummary, confirmedHandoff, confirmed,
+                coachingHandoffId, analysisHandoff, analysisHandoffId, null, null);
     }
 
     public JsonNode generateReport(
@@ -48,7 +75,9 @@ public class ReportEngine {
             boolean confirmed,
             String coachingHandoffId,
             JsonNode analysisHandoff,
-            String analysisHandoffId) {
+            String analysisHandoffId,
+            UUID practiceSessionId,
+            UUID userId) {
         JsonNode modelInput = buildReportInput(
                 reportType,
                 videoSummary,
@@ -57,11 +86,55 @@ public class ReportEngine {
                 coachingHandoffId,
                 analysisHandoff);
         if (modelInput == null) {
+            // 코치 대화가 안전 문구로 끝나면 핸드오프가 unavailable 로 남아 노트를 못 만든다.
+            // 배우 눈에 보이는 손해라 그 자체로 셀 값어치가 있다(SOMA-517).
+            if (practiceSessionId != null) {
+                telemetry.score(LlmScore.flag(practiceSessionId, "report.blocked", true));
+            }
             return blockedReport(reportType);
         }
-        String raw = generate.generate(
-                ReportPrompt.select(reportType), serializeInput(modelInput)).text();
+        String systemPrompt = ReportPrompt.select(reportType);
+        String userPrompt = serializeInput(modelInput);
+        String raw = recorded(systemPrompt, userPrompt, reportType, practiceSessionId, userId);
+        if (practiceSessionId != null) {
+            telemetry.score(LlmScore.flag(practiceSessionId, "report.blocked", false));
+        }
         return parseReport(raw, reportType, coachingHandoffId, analysisHandoffId);
+    }
+
+    /** 모델을 부르고 그 한 번을 남긴다. 연습을 모르면 부르기만 한다. */
+    private String recorded(
+            String systemPrompt,
+            String userPrompt,
+            String reportType,
+            UUID practiceSessionId,
+            UUID userId) {
+        Instant startedAt = Instant.now();
+        try {
+            var generated = generate.generate(systemPrompt, userPrompt);
+            if (practiceSessionId != null) {
+                telemetry.record(new LlmCall(
+                        LlmStep.REPORT, practiceSessionId, userId, generated.model(),
+                        systemPrompt + "\n\n" + userPrompt, generated.text(),
+                        generated.usage() == null ? LlmTokens.unknown() : LlmTokens.of(
+                                generated.usage().prompt(),
+                                generated.usage().completion(),
+                                generated.usage().total()),
+                        startedAt, Duration.between(startedAt, Instant.now()), null,
+                        LlmCall.metadata("report_type", reportType)));
+            }
+            return generated.text();
+        } catch (RuntimeException failure) {
+            if (practiceSessionId != null) {
+                telemetry.record(new LlmCall(
+                        LlmStep.REPORT, practiceSessionId, userId, "",
+                        systemPrompt + "\n\n" + userPrompt, "", LlmTokens.unknown(),
+                        startedAt, Duration.between(startedAt, Instant.now()),
+                        failure.getMessage() == null ? failure.toString() : failure.getMessage(),
+                        LlmCall.metadata("report_type", reportType)));
+            }
+            throw failure;
+        }
     }
 
     public JsonNode buildReportInput(

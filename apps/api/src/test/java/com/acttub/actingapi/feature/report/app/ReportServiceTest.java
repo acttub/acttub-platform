@@ -70,7 +70,7 @@ class ReportServiceTest {
         service.create(USER_ID, SESSION_ID, null);
 
         verify(reportEngine, never()).generateReport(any(), any(), any(),
-                org.mockito.ArgumentMatchers.anyBoolean(), any(), any(), any());
+                org.mockito.ArgumentMatchers.anyBoolean(), any(), any(), any(), any(), any());
         verify(syncOperations).complete(
                 org.mockito.ArgumentMatchers.eq(CLAIM),
                 org.mockito.ArgumentMatchers.eq(existing));
@@ -82,7 +82,7 @@ class ReportServiceTest {
     void parseFailureIs502AndMarksReportOperationWithSharedErrorCode() {
         when(reportSource.getPracticeReportForHandoff(HANDOFF_ID)).thenReturn(null);
         when(reportEngine.generateReport(any(), any(), any(),
-                org.mockito.ArgumentMatchers.anyBoolean(), any(), any(), any()))
+                org.mockito.ArgumentMatchers.anyBoolean(), any(), any(), any(), any(), any()))
                 .thenThrow(new ReportParseError("bad report"));
 
         assertThatThrownBy(() -> service.create(USER_ID, SESSION_ID, null))

@@ -7,6 +7,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import com.acttub.actingapi.integration.llm.GeneratedText;
+import com.acttub.actingapi.support.RecordingLlmTelemetry;
 import com.acttub.actingapi.integration.llm.TokenUsage;
 import com.acttub.actingapi.integration.llm.TextGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -24,7 +25,7 @@ class ReportEngineTest {
             assertThat(old.has("timeline")).isFalse();
             assertThat(old.has("speech")).isFalse();
             var generator = new RecordingGenerator(branch.equals("analysis") ? analysisReport() : expressionReport());
-            var engine = new ReportEngine(generator, MAPPER);
+            var engine = new ReportEngine(generator, MAPPER, new RecordingLlmTelemetry());
             JsonNode report = engine.generateReport(branch, old,
                     branch.equals("analysis") ? handoff() : expressionHandoff(true, "실험", "변화"),
                     true, "handoff", null, null);
@@ -43,7 +44,7 @@ class ReportEngineTest {
         pack.put("timeline", "0:01에 멈춘다");
         JsonNode speech = MAPPER.readTree("{\"transcript\":\"가지 마\",\"avg_syllables_per_sec\":7.0}");
         pack.set("speech", speech);
-        var engine = new ReportEngine(new RecordingGenerator(), MAPPER);
+        var engine = new ReportEngine(new RecordingGenerator(), MAPPER, new RecordingLlmTelemetry());
         var input = engine.buildReportInput("analysis", pack, handoff(), true, "id", null);
         assertThat(input.at("/video_summary/timeline").asText()).isEqualTo("0:01에 멈춘다");
         assertThat(input.at("/video_summary/speech")).isEqualTo(speech);
@@ -52,7 +53,7 @@ class ReportEngineTest {
     @Test
     void unconfirmedOrMissingAnalysisHandoffIsBlockedWithoutLlmCall() throws Exception {
         RecordingGenerator generator = new RecordingGenerator();
-        ReportEngine engine = new ReportEngine(generator, MAPPER);
+        ReportEngine engine = new ReportEngine(generator, MAPPER, new RecordingLlmTelemetry());
 
         JsonNode unconfirmed = engine.generateReport(
                 "analysis", pack(), handoff(), false, "handoff", null, null);
@@ -73,7 +74,7 @@ class ReportEngineTest {
                 expressionHandoff(true, "   ", "변화"),
                 expressionHandoff(true, "실험", "   "))) {
             RecordingGenerator generator = new RecordingGenerator();
-            JsonNode report = new ReportEngine(generator, MAPPER).generateReport(
+            JsonNode report = new ReportEngine(generator, MAPPER, new RecordingLlmTelemetry()).generateReport(
                     "expression", pack(), invalid, true, "expression-id", null, null);
 
             assertThat(report).isEqualTo(MAPPER.readTree("""
@@ -85,7 +86,7 @@ class ReportEngineTest {
 
     @Test
     void expressionDoesNotReuseAFailedAnalysisAsConfirmedInput() throws Exception {
-        JsonNode input = new ReportEngine(new RecordingGenerator(), MAPPER).buildReportInput(
+        JsonNode input = new ReportEngine(new RecordingGenerator(), MAPPER, new RecordingLlmTelemetry()).buildReportInput(
                 "expression", pack(), expressionHandoff(true, "실험", "변화"), true, "expression-id",
                 MAPPER.readTree("{\"completion_level\":\"unavailable\"}"));
 
@@ -96,7 +97,7 @@ class ReportEngineTest {
     @Test
     void expressionCallsLlmOnlyWhenAllThreeReadinessConditionsPasses() throws Exception {
         RecordingGenerator generator = new RecordingGenerator(expressionReport());
-        JsonNode report = new ReportEngine(generator, MAPPER).generateReport(
+        JsonNode report = new ReportEngine(generator, MAPPER, new RecordingLlmTelemetry()).generateReport(
                 "expression",
                 pack(),
                 expressionHandoff(true, "실험", "변화"),
@@ -112,7 +113,7 @@ class ReportEngineTest {
 
     @Test
     void parsingStripsFenceAndInjectsAnalysisSourceId() throws Exception {
-        ReportEngine engine = new ReportEngine(new RecordingGenerator(), MAPPER);
+        ReportEngine engine = new ReportEngine(new RecordingGenerator(), MAPPER, new RecordingLlmTelemetry());
 
         JsonNode report = engine.parseReport(
                 "```JSON\n" + analysisReport() + "\n```",
@@ -125,7 +126,7 @@ class ReportEngineTest {
 
     @Test
     void parsingRejectsNonObjectAndSchemaViolations() {
-        ReportEngine engine = new ReportEngine(new RecordingGenerator(), MAPPER);
+        ReportEngine engine = new ReportEngine(new RecordingGenerator(), MAPPER, new RecordingLlmTelemetry());
 
         assertThatThrownBy(() -> engine.parseReport("<not-json>", "analysis", "id", null))
                 .isInstanceOf(ReportParseError.class)
@@ -151,7 +152,7 @@ class ReportEngineTest {
 
     @Test
     void blockedResponseIsValidatedWithoutInjectingSourceIds() throws Exception {
-        ReportEngine engine = new ReportEngine(new RecordingGenerator(), MAPPER);
+        ReportEngine engine = new ReportEngine(new RecordingGenerator(), MAPPER, new RecordingLlmTelemetry());
 
         JsonNode report = engine.parseReport(
                 "{\"report_type\":\"blocked\",\"reason\":\"confirmed_analysis_handoff_required\"}",

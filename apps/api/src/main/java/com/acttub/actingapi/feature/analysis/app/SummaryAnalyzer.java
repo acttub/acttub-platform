@@ -57,7 +57,8 @@ public final class SummaryAnalyzer implements AnalysisProcessor {
                             context.goal(),
                             context.blockageKind(),
                             context.blockageDetail() == null ? "" : context.blockageDetail(),
-                            durationMs));
+                            durationMs),
+                    context.sessionId());
             ObservationPack pack = new ObservationPack(
                     observations.sceneSummary(), observations.timeline(), speech.join(),
                     observations.observations(), observations.uncertainties());
@@ -75,7 +76,7 @@ public final class SummaryAnalyzer implements AnalysisProcessor {
 
     private SpeechAnalysis speech(Path videoPath, AnalysisContext context) {
         try {
-            return speechAnalyzer.analyze(videoPath);
+            return speechAnalyzer.analyze(videoPath, context.sessionId());
         } catch (Exception exception) {
             LOGGER.log(Level.WARNING, "speech analysis failed: " + context.operationId(), exception);
             failureReporter.report(exception,

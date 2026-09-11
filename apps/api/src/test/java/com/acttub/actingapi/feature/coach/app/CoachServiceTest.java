@@ -113,7 +113,7 @@ class CoachServiceTest {
 
         verify(coach, never()).start(any(), any());
         verify(reports, never()).generateReport(any(), any(), any(),
-                org.mockito.ArgumentMatchers.anyBoolean(), any(), any(), any());
+                org.mockito.ArgumentMatchers.anyBoolean(), any(), any(), any(), any(), any());
         verify(operations, never()).begin(any(), any(), any(), anyString(), anyString());
     }
 
@@ -135,7 +135,7 @@ class CoachServiceTest {
 
         verify(coach, never()).start(any(), any());
         verify(reports, never()).generateReport(any(), any(), any(),
-                org.mockito.ArgumentMatchers.anyBoolean(), any(), any(), any());
+                org.mockito.ArgumentMatchers.anyBoolean(), any(), any(), any(), any(), any());
         verify(operations, never()).begin(any(), any(), any(), anyString(), anyString());
     }
 
@@ -153,7 +153,7 @@ class CoachServiceTest {
         service.confirm(USER_ID, new HandoffDecision(SESSION_ID, true, null), null);
 
         verify(reports, never()).generateReport(any(), any(), any(),
-                org.mockito.ArgumentMatchers.anyBoolean(), any(), any(), any());
+                org.mockito.ArgumentMatchers.anyBoolean(), any(), any(), any(), any(), any());
         verify(operations).complete(org.mockito.ArgumentMatchers.eq(CLAIM), any(JsonNode.class));
     }
 
@@ -165,7 +165,7 @@ class CoachServiceTest {
                 .thenReturn(source);
         when(sessions.getPracticeReportForHandoff(HANDOFF_ID)).thenReturn(null);
         when(reports.generateReport(any(), any(), any(),
-                org.mockito.ArgumentMatchers.anyBoolean(), any(), any(), any()))
+                org.mockito.ArgumentMatchers.anyBoolean(), any(), any(), any(), any(), any()))
                 .thenThrow(new ReportParseError("invalid report"));
 
         assertThatThrownBy(() -> service.confirm(
@@ -187,7 +187,7 @@ class CoachServiceTest {
                 org.mockito.ArgumentMatchers.isNull(),
                 any(Instant.class));
         order.verify(reports).generateReport(any(), any(), any(),
-                org.mockito.ArgumentMatchers.anyBoolean(), any(), any(), any());
+                org.mockito.ArgumentMatchers.anyBoolean(), any(), any(), any(), any(), any());
         order.verify(operations).fail(CLAIM, "report_parse_error");
     }
 
@@ -218,7 +218,7 @@ class CoachServiceTest {
         CoachReply complete = new CoachReply("완료", "complete", handoff);
         CoachSessionSnapshot session = snapshot("open", List.of());
         when(reports.generateReport(any(), any(), any(),
-                org.mockito.ArgumentMatchers.anyBoolean(), any(), any(), any()))
+                org.mockito.ArgumentMatchers.anyBoolean(), any(), any(), any(), any(), any()))
                 .thenThrow(new ReportParseError("bad report"));
 
         stubStartContext();
@@ -331,7 +331,7 @@ class CoachServiceTest {
         stubOwnedSession();
         when(coach.reply(any(), anyString(), any())).thenReturn(new CoachResult(answered, complete));
         when(reports.generateReport(any(), any(), any(),
-                org.mockito.ArgumentMatchers.anyBoolean(), any(), any(), any()))
+                org.mockito.ArgumentMatchers.anyBoolean(), any(), any(), any(), any(), any()))
                 .thenReturn(mapper.createObjectNode().put("report_type", "analysis"));
         when(ledger.completeCoachReplyOperation(
                 any(), any(), any(), any(), any(), any(), any(),
@@ -358,7 +358,7 @@ class CoachServiceTest {
         stubOwnedSession();
         when(coach.reply(any(), anyString(), any())).thenReturn(new CoachResult(answered, complete));
         when(reports.generateReport(any(), any(), any(),
-                org.mockito.ArgumentMatchers.anyBoolean(), any(), any(), any()))
+                org.mockito.ArgumentMatchers.anyBoolean(), any(), any(), any(), any(), any()))
                 .thenReturn(mapper.createObjectNode().put("report_type", "analysis"));
         when(ledger.completeCoachReplyOperation(
                 any(), any(), any(), any(), any(), any(), any(),

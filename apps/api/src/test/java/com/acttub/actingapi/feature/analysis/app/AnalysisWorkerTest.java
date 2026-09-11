@@ -36,8 +36,8 @@ class AnalysisWorkerTest {
         var observations = new ObservationPack("장면", "0:01에 말한다", null, List.of(), List.of());
         var analyzer = new SummaryAnalyzer(
                 (path, declared) -> 1000, path -> path,
-                (path, mime, actor) -> observations,
-                path -> { throw failure; }, reporter);
+                (path, mime, actor, practiceId) -> observations,
+                (path, practiceId) -> { throw failure; }, reporter);
 
         assertThat(worker(store, analyzer, reporter).runOnce(NOW)).isTrue();
 
@@ -59,8 +59,8 @@ class AnalysisWorkerTest {
         RecordingFailureReporter reporter = new RecordingFailureReporter();
         var analyzer = new SummaryAnalyzer(
                 (path, declared) -> 1000, path -> path,
-                (path, mime, actor) -> new ObservationPack("", List.of(), List.of()),
-                path -> { throw failure; }, reporter);
+                (path, mime, actor, practiceId) -> new ObservationPack("", List.of(), List.of()),
+                (path, practiceId) -> { throw failure; }, reporter);
 
         worker(store, analyzer, reporter).runOnce(NOW);
 
