@@ -163,6 +163,8 @@ public class ReportService {
                 source.analysisHandoffJson(),
                 source.analysisHandoffId() == null
                         ? null
-                        : source.analysisHandoffId().toString());
+                        : source.analysisHandoffId().toString(),
+                source.practiceSessionId(),
+                null);
     }
 }

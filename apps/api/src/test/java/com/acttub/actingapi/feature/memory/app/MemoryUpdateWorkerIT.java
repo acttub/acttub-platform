@@ -20,6 +20,7 @@ import com.acttub.actingapi.platform.ledger.LeaseOwnershipException;
 import com.acttub.actingapi.platform.schema.ActorMemoryField;
 import com.acttub.actingapi.support.PostgresContainerSupport;
 import com.acttub.actingapi.support.RecordingFailureReporter;
+import com.acttub.actingapi.support.RecordingLlmTelemetry;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -394,7 +395,8 @@ class MemoryUpdateWorkerIT {
 
     private MemoryUpdateWorker worker(TextGenerator generator) {
         return new MemoryUpdateWorker(memory, queue, mapper, generator,
-                Clock.fixed(NOW, ZoneOffset.UTC), new MemoryExtractor(reporter), reporter);
+                Clock.fixed(NOW, ZoneOffset.UTC), new MemoryExtractor(reporter), reporter,
+                new RecordingLlmTelemetry());
     }
 
     private GeneratedText generated(String goal) {

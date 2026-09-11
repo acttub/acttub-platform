@@ -90,7 +90,7 @@ class CoachQualityEvalTest {
             }
             if (scenario.path("report").asBoolean()) {
                 phase[0] = "report";
-                output.set("report", new ReportEngine(recording, MAPPER).generateReport(
+                output.set("report", new ReportEngine(recording, MAPPER, new RecordingLlmTelemetry()).generateReport(
                         "표현".equals(session.blockageKind()) ? "expression" : "analysis",
                         session.observationPack(), reply.handoff(), true, "synthetic-handoff", null, null));
             }

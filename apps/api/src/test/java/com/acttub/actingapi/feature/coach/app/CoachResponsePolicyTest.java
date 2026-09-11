@@ -191,7 +191,7 @@ class CoachResponsePolicyTest {
             assertThat(TextValidator.validateCoachTurn(fallback.message()).failures()).isEmpty();
             ReportEngine reportEngine = new ReportEngine((system, input) -> {
                 throw new AssertionError("Failed coaching must not become an invented report");
-            }, MAPPER);
+            }, MAPPER, new RecordingLlmTelemetry());
             assertThat(reportEngine.generateReport(branch.equals("표현") ? "expression" : "analysis",
                     session.observationPack(), fallback.handoff(), true, "handoff-id", null, null)
                     .path("report_type").asText()).isEqualTo("blocked");
