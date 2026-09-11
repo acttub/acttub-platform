@@ -76,7 +76,7 @@ class VideoCoachQualityEvalTest {
             assertThat(pack.sceneSummary()).isNotBlank();
             for (var observation : pack.observations()) {
                 assertThat(observation.startMs()).isGreaterThanOrEqualTo(0);
-                assertThat(observation.endMs()).isBetween(observation.startMs(), result.durationMs());
+                assertThat(observation.endMs()).isBetween(observation.startMs(), (long) result.durationMs());
             }
             // 영상만 넣었으므로 배우 입력과 별도 대본은 모두 비어 있다. 받아쓰기는 pack.speech에 있다.
             var session = new CoachSessionSnapshot(UUID.randomUUID(), practiceId, UUID.randomUUID(), UUID.randomUUID(),
