@@ -1,5 +1,7 @@
 package com.acttub.actingapi.feature.coach.app;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -14,6 +16,10 @@ import com.acttub.actingapi.integration.llm.TextGenerator;
 import com.acttub.actingapi.platform.observability.FailureContext;
 import com.acttub.actingapi.platform.observability.FailureKind;
 import com.acttub.actingapi.platform.observability.FailureReporter;
+import com.acttub.actingapi.platform.observability.LlmCall;
+import com.acttub.actingapi.platform.observability.LlmStep;
+import com.acttub.actingapi.platform.observability.LlmTelemetry;
+import com.acttub.actingapi.platform.observability.LlmTokens;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -40,10 +46,13 @@ public class CoachEngine {
 
     private final TextGenerator generate;
     private final FailureReporter failureReporter;
+    private final LlmTelemetry telemetry;
 
-    public CoachEngine(TextGenerator generate, FailureReporter failureReporter) {
+    public CoachEngine(
+            TextGenerator generate, FailureReporter failureReporter, LlmTelemetry telemetry) {
         this.generate = generate;
         this.failureReporter = failureReporter;
+        this.telemetry = telemetry;
     }
 
     public static CoachReply parseCoachingResponse(String rawText) {
@@ -168,30 +177,95 @@ public class CoachEngine {
         String userMessage = messageForGeneration(actorText)
                 + CoachResponsePolicy.recoveryInstruction(session, actorText);
         String systemPrompt = CoachPrompt.select(session.blockageKind());
-        GeneratedText generated = generate.generate(
-                systemPrompt, CoachPrompt.buildChat(session, userMessage));
+        int turnNumber = CoachPrompt.turnNumber(session);
+        String chatPrompt = CoachPrompt.buildChat(session, userMessage);
+        GeneratedText generated = recorded(
+                LlmStep.COACH_TURN, session, turnNumber, systemPrompt, chatPrompt);
         String rawText = generated.text();
         CoachReply reply = parseGeneratedResponse(rawText, operationId);
         List<String> failures = CoachResponsePolicy.failures(session, actorText, reply);
         if (!failures.isEmpty()) {
-            generated = generate.generate(
-                    systemPrompt,
-                    CoachPrompt.buildRegeneration(
-                            session,
-                            userMessage,
-                            rawText,
-                            failures));
+            String retryPrompt =
+                    CoachPrompt.buildRegeneration(session, userMessage, rawText, failures);
+            generated = recorded(
+                    LlmStep.COACH_REGENERATION, session, turnNumber, systemPrompt, retryPrompt);
             reply = parseGeneratedResponse(generated.text(), operationId);
             failures = CoachResponsePolicy.failures(session, actorText, reply);
         }
         if (!failures.isEmpty()) {
-            int turnNumber = CoachPrompt.turnNumber(session);
             LOG.warn(
                     "코치 답이 두 번 검증에 걸려 안전 문구로 대체한다: session={} response={} failures={}",
                     session.sessionId(), turnNumber, failures);
             return CoachResponsePolicy.fallback(session, actorText);
         }
         return sanitizeActorWords(reply);
+    }
+
+    /**
+     * 모델을 부르고 그 한 번을 기록한다.
+     *
+     * <p><b>1차와 재생성을 따로 남기는 것이 요점이다.</b> 둘은 같은 메서드를 부르지만 뜻이
+     * 다르다 — 재생성이 있었다는 것은 1차가 서버 검증에 걸렸다는 뜻이고, 그 비율이 곧
+     * 품질 지표다. 지금까지는 둘이 원장 한 행에 묻혀 사후에 셀 방법이 없었다.
+     *
+     * <p>실패해도 기록하고 예외는 그대로 올린다 — 실패만 기록에서 빠지면 비율이 거짓이 된다.
+     */
+    private GeneratedText recorded(
+            LlmStep step,
+            CoachSessionSnapshot session,
+            int turnNumber,
+            String systemPrompt,
+            String userPrompt) {
+        Instant startedAt = Instant.now();
+        try {
+            GeneratedText generated = generate.generate(systemPrompt, userPrompt);
+            telemetry.record(new LlmCall(
+                    step,
+                    session.practiceSessionId(),
+                    session.userId(),
+                    generated.model(),
+                    systemPrompt + "\n\n" + userPrompt,
+                    generated.text(),
+                    tokens(generated),
+                    startedAt,
+                    Duration.between(startedAt, Instant.now()),
+                    null,
+                    metadata(session, turnNumber)));
+            return generated;
+        } catch (RuntimeException failure) {
+            telemetry.record(new LlmCall(
+                    step,
+                    session.practiceSessionId(),
+                    session.userId(),
+                    "",
+                    systemPrompt + "\n\n" + userPrompt,
+                    "",
+                    LlmTokens.unknown(),
+                    startedAt,
+                    Duration.between(startedAt, Instant.now()),
+                    failure.getMessage() == null ? failure.toString() : failure.getMessage(),
+                    metadata(session, turnNumber)));
+            throw failure;
+        }
+    }
+
+    private static java.util.Map<String, String> metadata(
+            CoachSessionSnapshot session, int turnNumber) {
+        return LlmCall.metadata(
+                "coach_session", String.valueOf(session.sessionId()),
+                "turn", String.valueOf(turnNumber),
+                "blockage_kind", session.blockageKind(),
+                "sub_branch", session.subBranch());
+    }
+
+    private static LlmTokens tokens(GeneratedText generated) {
+        if (generated.usage() == null) {
+            return LlmTokens.unknown();
+        }
+        return LlmTokens.of(
+                generated.usage().prompt(),
+                generated.usage().completion(),
+                generated.usage().total());
     }
 
     private CoachReply parseGeneratedResponse(String rawText, UUID operationId) {

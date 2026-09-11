@@ -17,6 +17,7 @@ import com.acttub.actingapi.feature.report.app.ReportEngine;
 import com.acttub.actingapi.integration.llm.OpenAiResponsesClient;
 import com.acttub.actingapi.integration.llm.TextGenerator;
 import com.acttub.actingapi.support.RecordingFailureReporter;
+import com.acttub.actingapi.support.RecordingLlmTelemetry;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -71,7 +72,7 @@ class CoachQualityEvalTest {
         };
         try {
             CoachSessionSnapshot session = session(scenario);
-            CoachReply reply = new CoachEngine(recording, new RecordingFailureReporter())
+            CoachReply reply = new CoachEngine(recording, new RecordingFailureReporter(), new RecordingLlmTelemetry())
                     .reply(session, scenario.path("latest").asText(), UUID.randomUUID()).reply();
             output.set("reply", MAPPER.valueToTree(reply));
             assertThat(reply.message()).isNotBlank();

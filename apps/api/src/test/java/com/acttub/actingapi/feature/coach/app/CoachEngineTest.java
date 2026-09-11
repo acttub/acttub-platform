@@ -1,6 +1,7 @@
 package com.acttub.actingapi.feature.coach.app;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -11,7 +12,10 @@ import com.acttub.actingapi.integration.llm.GeneratedText;
 import com.acttub.actingapi.integration.llm.TextGenerator;
 import com.acttub.actingapi.integration.llm.TokenUsage;
 import com.acttub.actingapi.platform.observability.FailureKind;
+import com.acttub.actingapi.platform.observability.LlmCall;
+import com.acttub.actingapi.platform.observability.LlmStep;
 import com.acttub.actingapi.support.RecordingFailureReporter;
+import com.acttub.actingapi.support.RecordingLlmTelemetry;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.DisplayName;
@@ -228,8 +232,64 @@ class CoachEngineTest {
                 .isEqualTo(new CoachTurnSnapshot("actor", "분석"));
     }
 
+    /**
+     * 1차와 재생성이 <b>따로</b> 남는다.
+     *
+     * <p>둘을 한 건으로 합치면 재생성 비율을 셀 수 없다 — 그 비율이 곧 "모델이 몇 번에
+     * 한 번 규칙을 어기나" 이고, 이 작업이 보려는 숫자다(SOMA-517).
+     */
+    @Test
+    @DisplayName("코치 1차와 재생성이 각각 한 건씩 관측에 남는다")
+    void firstAndRegeneratedCallsAreRecordedSeparately() {
+        RecordingLlmTelemetry telemetry = new RecordingLlmTelemetry();
+        CoachEngine engine = new CoachEngine(
+                new RecordingGenerator(
+                        "{\"message\":\"점수로 볼게요\"}",
+                        "{\"message\":\"상대가 어떻게 되길 바라나요?\"}"),
+                failureReporter,
+                telemetry);
+
+        engine.reply(session(), "잘 모르겠어요", OPERATION);
+
+        assertThat(telemetry.steps())
+                .containsExactly(LlmStep.COACH_TURN, LlmStep.COACH_REGENERATION);
+        LlmCall first = telemetry.calls().getFirst();
+        // 기록을 묶는 열쇠는 연습 세션이다 — 코치 세션이 아니다.
+        assertThat(first.practiceSessionId())
+                .isEqualTo(UUID.fromString("00000000-0000-0000-0000-000000000002"));
+        assertThat(first.userId())
+                .isEqualTo(UUID.fromString("00000000-0000-0000-0000-000000000003"));
+        assertThat(first.output()).contains("점수로 볼게요");
+        assertThat(first.failed()).isFalse();
+        assertThat(first.metadata()).containsEntry("turn", "2");
+        // 재생성 입력에는 무엇에 걸렸는지가 들어 있어야 재현이 된다.
+        assertThat(telemetry.calls().get(1).input()).contains("금지어가 노출됐습니다: 점수");
+    }
+
+    /** 실패도 같은 모양으로 남는다 — 실패만 빠지면 비율이 거짓이 된다. */
+    @Test
+    @DisplayName("모델 호출이 터져도 그 한 건이 남고 예외는 그대로 올라간다")
+    void failedCallIsRecordedAndRethrown() {
+        RecordingLlmTelemetry telemetry = new RecordingLlmTelemetry();
+        CoachEngine engine = new CoachEngine(
+                (instructions, input) -> {
+                    throw new IllegalStateException("OpenAI 생성 실패");
+                },
+                failureReporter,
+                telemetry);
+
+        assertThatThrownBy(() -> engine.reply(session(), "잘 모르겠어요", OPERATION))
+                .isInstanceOf(IllegalStateException.class);
+
+        assertThat(telemetry.calls()).singleElement().satisfies(call -> {
+            assertThat(call.step()).isEqualTo(LlmStep.COACH_TURN);
+            assertThat(call.failed()).isTrue();
+            assertThat(call.errorMessage()).isEqualTo("OpenAI 생성 실패");
+        });
+    }
+
     private CoachEngine engine(TextGenerator generator) {
-        return new CoachEngine(generator, failureReporter);
+        return new CoachEngine(generator, failureReporter, new RecordingLlmTelemetry());
     }
 
     private static CoachSessionSnapshot session() {
