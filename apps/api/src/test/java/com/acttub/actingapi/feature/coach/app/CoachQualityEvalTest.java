@@ -2,9 +2,6 @@ package com.acttub.actingapi.feature.coach.app;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -14,33 +11,30 @@ import java.util.stream.Stream;
 
 import com.acttub.actingapi.feature.coach.domain.CoachTurnSnapshot;
 import com.acttub.actingapi.feature.report.app.ReportEngine;
-import com.acttub.actingapi.integration.llm.OpenAiResponsesClient;
-import com.acttub.actingapi.integration.llm.TextGenerator;
-import com.acttub.actingapi.support.RecordingFailureReporter;
-import com.acttub.actingapi.support.RecordingLlmTelemetry;
+import com.acttub.actingapi.support.CoachQualityRun;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.TestFactory;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 
-/** 명시적으로 켤 때만 유료 실호출. 합성 사례와 응답만 build/coach-quality-eval에 남긴다. */
+/** 명시적으로 켤 때만 유료 실호출. 합성 사례와 응답은 build/coach-quality-eval에 남긴다. */
 @EnabledIfEnvironmentVariable(named = "ACTTUB_COACH_EVAL", matches = "1")
-@EnabledIfEnvironmentVariable(named = "OPENAI_API_KEY", matches = ".+")
 class CoachQualityEvalTest {
-    private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final ObjectMapper MAPPER = CoachQualityRun.MAPPER;
 
     @TestFactory
     Stream<DynamicTest> syntheticScenarios() throws Exception {
+        // 명시적으로 실행한 평가에서 키 누락은 skipped 성공이 아니라 실패다.
+        assertThat(System.getenv("OPENAI_API_KEY")).as("실호출 평가에는 OPENAI_API_KEY가 필요하다").isNotBlank();
         JsonNode scenarios;
         try (var input = getClass().getResourceAsStream("/coach/quality-scenarios.json")) {
             scenarios = MAPPER.readTree(input);
         }
         String selection = System.getenv("ACTTUB_COACH_EVAL_CASES");
         Set<String> selected = selection == null || selection.isBlank()
-                ? Set.of() : Set.copyOf(Arrays.asList(selection.split(",")));
+                ? Set.of() : Set.copyOf(Arrays.stream(selection.split(",", -1)).map(String::strip).toList());
         List<JsonNode> cases = new ArrayList<>();
         scenarios.forEach(cases::add);
         if (!selected.isEmpty()) {
@@ -51,31 +45,19 @@ class CoachQualityEvalTest {
     }
 
     private static void evaluate(JsonNode scenario) throws Exception {
-        String id = scenario.path("id").asText();
-        ObjectNode output = MAPPER.createObjectNode();
-        output.put("id", id);
-        output.put("started_at", Instant.now().toString());
-        output.set("scenario", scenario);
-        ArrayNode calls = output.putArray("calls");
-        String[] phase = {"coach"};
-        TextGenerator client = new OpenAiResponsesClient(MAPPER);
-        TextGenerator recording = (system, input) -> {
-            long started = System.nanoTime();
-            var generated = client.generate(system, input);
-            ObjectNode call = calls.addObject();
-            call.put("phase", phase[0]);
-            call.put("elapsed_ms", (System.nanoTime() - started) / 1_000_000);
-            call.put("input", input);
-            call.put("response", generated.text());
-            call.set("usage", MAPPER.valueToTree(generated.usage()));
-            return generated;
-        };
-        try {
+        try (var run = new CoachQualityRun(scenario.path("id").asText())) {
+            run.output.set("scenario", scenario);
             CoachSessionSnapshot session = session(scenario);
-            CoachReply reply = new CoachEngine(recording, new RecordingFailureReporter(), new RecordingLlmTelemetry())
-                    .reply(session, scenario.path("latest").asText(), UUID.randomUUID()).reply();
-            output.set("reply", MAPPER.valueToTree(reply));
-            assertThat(reply.message()).isNotBlank();
+            CoachEngine engine = new CoachEngine(run.generator("coach"), run.reporter, run.telemetry);
+            int maxChars = scenario.path("max_chars").asInt(0);
+            CoachResult result = run.step(engine, session,
+                    scenario.path("start").asBoolean() ? null : scenario.path("latest").asText(), maxChars);
+            for (JsonNode followup : scenario.path("followups")) {
+                // 미리 쓴 AI 답변 대신 직전에 실제로 생성한 대화 이력을 이어 쓴다.
+                result = run.step(engine, result.session(), followup.asText(), maxChars);
+            }
+            CoachReply reply = result.reply();
+            run.output.set("reply", MAPPER.valueToTree(reply));
             if (scenario.path("close").asBoolean()) {
                 assertThat(reply.status()).isEqualTo("complete");
                 assertThat(reply.handoff().path("completion_level").asText()).isNotEqualTo("unavailable");
@@ -89,23 +71,11 @@ class CoachQualityEvalTest {
                 }
             }
             if (scenario.path("report").asBoolean()) {
-                phase[0] = "report";
-                output.set("report", new ReportEngine(recording, MAPPER, new RecordingLlmTelemetry()).generateReport(
+                run.output.set("report", new ReportEngine(run.generator("report"), MAPPER, run.telemetry).generateReport(
                         "표현".equals(session.blockageKind()) ? "expression" : "analysis",
                         session.observationPack(), reply.handoff(), true, "synthetic-handoff", null, null));
             }
-            output.put("contract_checks", "passed");
-            // 해석 정확성·직접 답변·근거성은 저장된 출력과 review 기준을 별도로 대조해야 한다.
-            output.put("semantic_review", "pending");
-        } catch (Exception | AssertionError failure) {
-            output.put("failure_type", failure.getClass().getSimpleName());
-            output.put("failure", failure.getMessage());
-            throw failure;
-        } finally {
-            output.put("finished_at", Instant.now().toString());
-            Path directory = Path.of("build", "coach-quality-eval");
-            Files.createDirectories(directory);
-            MAPPER.writerWithDefaultPrettyPrinter().writeValue(directory.resolve(id + ".json").toFile(), output);
+            run.passed();
         }
     }
 
@@ -123,9 +93,10 @@ class CoachQualityEvalTest {
         pack.set("observations", scenario.path("observations"));
         pack.set("uncertainties", scenario.path("uncertainties"));
         return new CoachSessionSnapshot(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
-                pack, scenario.path("situation").asText(), scenario.path("character").asText("동료"),
-                scenario.path("goal").asText(), 12000, scenario.path("branch").asText(),
-                scenario.path("sub_branch").asText("그 외"), scenario.path("detail").asText(), transcripts,
-                scenario.path("summary").asText(), null, "open", "", turns);
+                pack, scenario.path("situation").asText(), scenario.path("character").asText(),
+                scenario.path("goal").asText(), scenario.path("duration_ms").asInt(12000),
+                scenario.path("branch").asText(), scenario.path("sub_branch").asText("그 외"),
+                scenario.path("detail").asText(), transcripts, scenario.path("summary").asText(),
+                null, "open", "", turns);
     }
 }
