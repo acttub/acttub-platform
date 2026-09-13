@@ -79,3 +79,5 @@ LLM과 미디어 처리는 DB 트랜잭션 밖이다. 코치 메시지·state/re
 3. springdoc의 `OpenApiSnapshotIT` 갱신 모드로 스냅샷을 생성하고 diff를 검토한다. `pnpm --filter web generate:v2-schema`로 웹 타입을 재생성한다. 갱신 변수 없이 계약 검사를 다시 통과해야 한다.
 4. 웹 lint/build/typecheck/test, 모바일 test, API 전체 테스트와 배포 smoke를 PR CI에서 통과시킨다. 합성 JSON 테스트를 실제 연기 영상의 품질 확인이라고 부르지 않는다.
 5. dev에서 정상 음성·작은 음성·무음·가려진 신체·짧은 답변·목표 변경을 실제 영상으로 확인한 뒤 `ACTTUB_THREE_LAYERS_ENABLED=true`를 설정한다. 초기 비용·지연·lookup/재생성/부분 실패 비율을 관측한다.
+
+모델이 노트 제목에 새로운 효과·성과를 붙일 수 없도록 기존 초점 문구의 발췌만 허용한다. 초점이 없으면 서버의 기본 제목을 사용한다.

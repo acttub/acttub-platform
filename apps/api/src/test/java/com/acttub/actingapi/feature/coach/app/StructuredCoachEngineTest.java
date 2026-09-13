@@ -133,6 +133,13 @@ class StructuredCoachEngineTest {
         assertThatThrownBy(() -> lookup.lookup(record, request)).hasMessageContaining("invalid lookup continuation");
     }
 
+    @Test void askingToSummarizeALineDoesNotForceTheConversationToEnd() {
+        engine((system, text) -> {
+            JsonNode input = StructuredJson.parse(text);
+            assertThat(input.path("controls").path("finish_required").asBoolean()).isFalse();
+            return generated(respond(input, "붙잡으려는 말로 읽힐 수 있어요.", "continue"));
+        }).reply(session(), "이 대사 의도를 정리해줘", UUID.randomUUID());
+    }
     @Test void lookupRejectsForeignRecordsAndReportsUnavailableData() {
         CoachRecordLookup lookup = new CoachRecordLookup();
         ObjectNode request = StructuredJson.MAPPER.createObjectNode();

@@ -41,6 +41,12 @@ class PracticeNoteTest {
                 "{\"title\":\"말끝\",\"summary\":{\"text\":\"연습으로 표현이 완벽해졌다.\",\"source_refs\":[\"m2\"]}}");
         assertThat(note.path("copy").path("summary").isNull()).isTrue();
     }
+    @Test void titleCannotInventACompletedImprovement() {
+        ObjectNode note = PracticeNote.assemble(handoff(), input ->
+                "{\"title\":\"연습으로 연기력 향상 완료\",\"summary\":null}");
+        assertThat(note.path("copy").path("title").asText()).doesNotContain("향상 완료");
+        assertThat(note.path("copy").path("title").asText()).isEqualTo(note.path("focus").path("label").asText());
+    }
     @Test void legacyReportRemainsIdentical() {
         JsonNode legacy = StructuredJson.parse("{\"report_type\":\"analysis\",\"title\":\"예전 노트\"}");
         assertThat(PracticeNote.publicView(legacy)).isSameAs(legacy);

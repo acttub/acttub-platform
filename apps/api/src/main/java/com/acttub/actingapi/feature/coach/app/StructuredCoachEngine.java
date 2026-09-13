@@ -47,7 +47,7 @@ final class StructuredCoachEngine {
         CoachingStateReducer.require(state.path("revision").asLong() == session.stateRevision(), "stored revision mismatch");
         long replyCount = session.turns().stream().filter(t -> "ai".equals(t.role())).count();
         boolean actorFinished = actorText != null && (ClosingIntent.isClosing(actorText)
-                || actorText.strip().matches("(?s).*(?:여기까지 |지금까지 |오늘은 )?정리(?:해줘|해 줘|해주세요|해 주세요)[.!?\\s]*"));
+                || actorText.strip().matches("(?:(?:여기까지|지금까지|오늘은|오늘 대화|이번 대화)\\s*)?정리(?:해줘|해 줘|해주세요|해 주세요)[.!?\\s]*"));
         boolean finish = actorFinished || replyCount >= 9;
         String actorId = actorText == null ? null : turnId(session, session.turns().size());
         String coachId = turnId(session, session.turns().size() + (actorText == null ? 0 : 1));

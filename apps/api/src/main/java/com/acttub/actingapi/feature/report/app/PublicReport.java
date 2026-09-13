@@ -120,8 +120,8 @@ public final class PublicReport {
     @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
     public record PracticeNoteRecordRef(
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String recordId,
-            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, minimum = "1") int version,
-            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, minimum = "1") long durationMs) { }
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, minimum = "1", exclusiveMinimum = false) int version,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, minimum = "1", exclusiveMinimum = false) long durationMs) { }
 
     @Schema(name = "PracticeNoteDirection", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
     @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
@@ -177,7 +177,7 @@ public final class PublicReport {
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED, _const = "acttub.public_practice_note.v1") String schemaVersion,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED, _const = "practice_note") String reportType,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String noteId,
-            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, minimum = "1") int revision,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, minimum = "1", exclusiveMinimum = false) int revision,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String title,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true) String summary,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED, allowableValues = {"action", "observation", "record_only"}) String mode,

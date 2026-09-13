@@ -14,7 +14,7 @@ import com.fasterxml.jackson.databind.annotation.JsonNaming;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotNull;
 
-final class PracticeSessionDtos {
+public final class PracticeSessionDtos {
     private PracticeSessionDtos() {
     }
 
@@ -125,7 +125,7 @@ final class PracticeSessionDtos {
             name = "ObservationPackResponse",
             additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
     @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
-    record ObservationPackResponse(
+    public record ObservationPackResponse(
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) UUID summaryId,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) List<ObservationItem> observations,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) List<String> uncertainties) {
@@ -135,7 +135,7 @@ final class PracticeSessionDtos {
             name = "PracticeSessionDetail",
             additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
     @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
-    record PracticeSessionDetail(
+    public record PracticeSessionDetail(
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) UUID sessionId,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED,
                     allowableValues = {"analyzing", "analyzed", "failed"})

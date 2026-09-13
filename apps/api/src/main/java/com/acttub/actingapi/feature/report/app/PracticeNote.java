@@ -16,7 +16,7 @@ public final class PracticeNote {
     public static final String VERSION = "acttub.practice_note.v1";
     private static final String PROMPT = StructuredJson.instructions(
             StructuredJson.textResource("/coaching/note-prompt.txt")
-                    + "\nsummary는 note_data에 이미 있는 문장을 원문 그대로 선택한다. 적합한 문장이 없으면 null이다.",
+                    + "\nsummary는 note_data에 이미 있는 문장을 원문 그대로 선택한다. 적합한 문장이 없으면 null이다. title은 focus.label의 원문 또는 연속된 발췌이며, focus가 없으면 이번 대화 기록이다.",
             "layer3_copy");
 
     private PracticeNote() { }
@@ -67,7 +67,10 @@ public final class PracticeNote {
         try {
             JsonNode generated = StructuredJson.parse(generateCopy.apply(note.toString()));
             StructuredJson.validate("layer3_copy", generated);
-            copy.put("title", generated.path("title").asText());
+            String title = generated.path("title").asText();
+            require(title.equals(defaultTitle(note)) || note.path("focus").path("label").asText().contains(title),
+                    "title must reuse the recorded focus");
+            copy.put("title", title);
             JsonNode summary = generated.path("summary");
             if (!summary.isNull()) {
                 require(containsGroundedText(note, summary), "summary must reuse a recorded sentence and its sources");
