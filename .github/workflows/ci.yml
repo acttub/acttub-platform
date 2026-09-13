@@ -84,38 +84,6 @@ jobs:
       - name: Test
         run: ./gradlew test --no-daemon
 
-      # Contract migration work: preserve the failed gate while exporting generated candidates.
-      # Removed once the reviewed snapshots are committed to this PR.
-      - name: Generate contract update candidates
-        if: failure()
-        run: |
-          scripts/regen-fingerprint.sh
-          set +e
-          UPDATE_OPENAPI_SNAPSHOT=1 ./gradlew test --tests '*OpenApiSnapshotIT' --no-daemon
-          snapshot_status=$?
-          set -e
-          test "$snapshot_status" -eq 1
-          python3 -c 'import json; assert "PublicPracticeNote" in json.load(open("spec/openapi.json"))["components"]["schemas"]'
-          python3 - <<'PY'
-          import base64
-          from pathlib import Path
-          for name in ["spec/openapi.json", "src/test/resources/baseline-schema-fingerprint.txt"]:
-              value = base64.b64encode(Path(name).read_bytes()).decode()
-              print("CONTRACT_BEGIN " + name)
-              for start in range(0, len(value), 4000):
-                  print("CONTRACT_DATA " + value[start:start + 4000])
-              print("CONTRACT_END " + name)
-          PY
-
-      - name: Upload contract update candidates
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: three-layer-contract-candidates
-          path: |
-            apps/api/spec/openapi.json
-            apps/api/src/test/resources/baseline-schema-fingerprint.txt
-
       - name: Deploy guard tests
         working-directory: ${{ github.workspace }}
         run: |
