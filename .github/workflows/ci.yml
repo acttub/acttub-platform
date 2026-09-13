@@ -96,6 +96,16 @@ jobs:
           set -e
           test "$snapshot_status" -eq 1
           python3 -c 'import json; assert "PublicPracticeNote" in json.load(open("spec/openapi.json"))["components"]["schemas"]'
+          python3 - <<'PY'
+          import base64
+          from pathlib import Path
+          for name in ["spec/openapi.json", "src/test/resources/baseline-schema-fingerprint.txt"]:
+              value = base64.b64encode(Path(name).read_bytes()).decode()
+              print("CONTRACT_BEGIN " + name)
+              for start in range(0, len(value), 4000):
+                  print("CONTRACT_DATA " + value[start:start + 4000])
+              print("CONTRACT_END " + name)
+          PY
 
       - name: Upload contract update candidates
         if: failure()

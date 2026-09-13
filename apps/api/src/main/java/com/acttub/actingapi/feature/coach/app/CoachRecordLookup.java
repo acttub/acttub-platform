@@ -91,34 +91,33 @@ public final class CoachRecordLookup {
             }
         }
         positions.forEach(i -> matches.add(segments.get(i)));
-        int offset = offset(request, matches.size());
+        List<Fact> facts = facts(record, matches, request.path("dimensions"));
+        int offset = offset(request, facts.size());
         ObjectNode result = empty(VideoRecord.reference(record), matches.isEmpty() ? "not_found" : "ok");
-        ArrayNode chosen = (ArrayNode) result.path("segments");
-        int next = offset;
-        Set<String> ids = new LinkedHashSet<>();
-        for (; next < matches.size(); next++) {
-            JsonNode segment = matches.get(next);
-            Set<String> candidate = new LinkedHashSet<>(ids);
-            addRefs(segment, candidate);
-            ObjectNode proposed = result.deepCopy();
-            ((ArrayNode) proposed.path("segments")).add(segment);
-            fill(record, proposed, candidate, sourceIndex);
-            if (proposed.toString().length() > MAX_RESULT_CHARS) break;
-            chosen.add(segment);
-            ids = candidate;
-        }
-        fill(record, result, ids, sourceIndex);
         ArrayNode ranges = (ArrayNode) result.path("searched_ranges");
         if ("query".equals(kind)) {
             ranges.add(VideoRecord.range(0, record.path("media").path("duration_ms").asLong()));
         } else {
-            matches.forEach(segment -> ranges.add(VideoRecord.range(segment.path("start_ms").asLong(), segment.path("end_ms").asLong())));
+            for (JsonNode segment : matches) {
+                long start = segment.path("start_ms").asLong(), end = segment.path("end_ms").asLong();
+                ObjectNode last = ranges.isEmpty() ? null : (ObjectNode) ranges.get(ranges.size() - 1);
+                if (last != null && last.path("end_ms").asLong() >= start) last.put("end_ms", end);
+                else ranges.add(VideoRecord.range(start, end));
+            }
         }
-        boolean more = next < matches.size();
-        result.put("has_more", more);
-        if (more) {
-            result.put("status", chosen.isEmpty() ? "unavailable" : "partial");
-            if (!chosen.isEmpty()) result.put("continuation_token", token(request, next));
+        int next = offset;
+        for (; next < facts.size(); next++) {
+            ObjectNode proposed = result.deepCopy();
+            addFact(proposed, facts.get(next), sourceIndex, record);
+            // 조회 상태와 커서도 예산에 포함한다. 한 구간의 관찰/단어가 많아도 사실 단위로 진전한다.
+            pagination(proposed, request, next + 1, facts.size());
+            if (proposed.toString().length() > MAX_RESULT_CHARS - 100) break;
+            result = proposed;
+        }
+        pagination(result, request, next, facts.size());
+        if (next == offset && next < facts.size()) {
+            result.put("status", "unavailable").putNull("continuation_token");
+            result.put("reason", "single_fact_exceeds_budget");
         }
         // 처리 누락도 조회 결과에 나타난다. 빈/누락 구간을 정상 관찰로 취급하지 않는다.
         if (!record.path("processing").path("missing_ranges").isEmpty()) result.put("record_status", "partial");
@@ -133,6 +132,8 @@ public final class CoachRecordLookup {
         next.set("source_catalog", StructuredJson.MAPPER.valueToTree(catalog.values()));
         next.set("segments", result.path("segments"));
         next.set("speech", result.path("speech"));
+        next.set("events", result.path("events"));
+        next.set("limitations", result.path("limitations"));
         next.put("retrieval_status", result.path("status").asText());
         next.set("last_lookup", result);
         return next;
@@ -144,6 +145,8 @@ public final class CoachRecordLookup {
         result.putArray("searched_ranges");
         result.putArray("source_catalog");
         result.putArray("segments");
+        result.putArray("events");
+        result.putArray("limitations");
         ObjectNode speech = result.putObject("speech");
         speech.putArray("utterances");
         speech.putObject("word_timings").put("status", "unavailable").putArray("items");
@@ -152,22 +155,91 @@ public final class CoachRecordLookup {
         return result;
     }
 
-    private static void fill(JsonNode record, ObjectNode result, Set<String> ids, Map<String, JsonNode> sources) {
-        ArrayNode catalog = result.putArray("source_catalog");
-        ids.forEach(id -> { if (sources.containsKey(id)) catalog.add(sources.get(id)); });
-        ObjectNode speech = (ObjectNode) result.path("speech");
-        speech.set("status", record.path("speech").path("status"));
-        ArrayNode utterances = speech.putArray("utterances");
-        record.path("speech").path("utterances").forEach(u -> { if (ids.contains(u.path("id").asText())) utterances.add(u); });
-        for (String kind : List.of("word_timings", "word_gaps")) {
-            ObjectNode detail = speech.putObject(kind);
-            detail.set("status", record.path("speech").path(kind).path("status"));
-            ArrayNode items = detail.putArray("items");
-            for (JsonNode item : record.path("speech").path(kind).path("items")) {
-                for (JsonNode segment : result.path("segments")) {
-                    if (VideoRecord.overlaps(item, segment)) { items.add(item); break; }
+    private record Fact(JsonNode segment, String field, JsonNode value) { }
+
+    private static List<Fact> facts(JsonNode record, List<JsonNode> segments, JsonNode dimensions) {
+        Set<String> wanted = new LinkedHashSet<>();
+        dimensions.forEach(d -> wanted.add(d.asText()));
+        Map<String, JsonNode> detail = new LinkedHashMap<>();
+        for (String field : List.of("events", "limitations")) {
+            record.path(field).forEach(item -> detail.put(item.path("id").asText(), item));
+        }
+        record.path("speech").path("utterances").forEach(item -> detail.put(item.path("id").asText(), item));
+        List<Fact> facts = new ArrayList<>();
+        Set<String> delivered = new LinkedHashSet<>();
+        for (JsonNode segment : segments) {
+            facts.add(new Fact(segment, "segment", segment));
+            for (String field : List.of("utterance_ids", "event_ids", "limitation_ids")) {
+                for (JsonNode id : segment.path(field)) {
+                    JsonNode item = detail.get(id.asText());
+                    if (item == null) continue;
+                    if (field.equals("event_ids") && !wanted.isEmpty()
+                            && !wanted.contains(item.path("dimension").asText())) continue;
+                    facts.add(new Fact(segment, field, item));
                 }
             }
+            if (wanted.isEmpty() || wanted.stream().anyMatch(Set.of("speech", "rhythm", "voice", "breath")::contains)) {
+                for (String field : List.of("word_timings", "word_gaps")) {
+                    int index = 0;
+                    for (JsonNode item : record.path("speech").path(field).path("items")) {
+                        if (VideoRecord.overlaps(item, segment) && delivered.add(field + ":" + index)) {
+                            facts.add(new Fact(segment, field, item));
+                        }
+                        index++;
+                    }
+                }
+            }
+        }
+        return facts;
+    }
+
+    private static void addFact(ObjectNode result, Fact fact, Map<String, JsonNode> sources, JsonNode record) {
+        ArrayNode segments = (ArrayNode) result.path("segments");
+        ObjectNode segment = null;
+        for (JsonNode item : segments) {
+            if (item.path("id").equals(fact.segment().path("id"))) segment = (ObjectNode) item;
+        }
+        if (segment == null) {
+            segment = fact.segment().deepCopy();
+            for (String field : List.of("utterance_ids", "event_ids", "limitation_ids")) segment.putArray(field);
+            // 원본 구간의 전체 참조 목록으로 오해하지 않게 페이지별 참조임을 표시한다.
+            segment.put("refs_scope", "this_page");
+            segments.add(segment);
+        }
+        ObjectNode speech = (ObjectNode) result.path("speech");
+        speech.set("status", record.path("speech").path("status"));
+        for (String field : List.of("word_timings", "word_gaps")) {
+            ((ObjectNode) speech.path(field)).set("status", record.path("speech").path(field).path("status"));
+        }
+        if (fact.field().equals("segment")) return;
+        if (fact.field().endsWith("_ids")) {
+            String id = fact.value().path("id").asText();
+            ((ArrayNode) segment.path(fact.field())).add(id);
+            ArrayNode catalog = (ArrayNode) result.path("source_catalog");
+            boolean exists = false;
+            for (JsonNode source : catalog) if (source.path("id").asText().equals(id)) exists = true;
+            if (!exists && sources.containsKey(id)) {
+                catalog.add(sources.get(id));
+                switch (fact.field()) {
+                    case "utterance_ids" -> ((ArrayNode) speech.path("utterances")).add(fact.value());
+                    case "event_ids" -> ((ArrayNode) result.path("events")).add(fact.value());
+                    case "limitation_ids" -> ((ArrayNode) result.path("limitations")).add(fact.value());
+                    default -> throw new IllegalArgumentException("unknown fact kind");
+                }
+            }
+        } else {
+            ((ArrayNode) speech.path(fact.field()).path("items")).add(fact.value());
+        }
+    }
+
+    private static void pagination(ObjectNode result, JsonNode request, int next, int size) {
+        boolean more = next < size;
+        result.put("has_more", more);
+        if (more) {
+            result.put("status", "partial").put("continuation_token", token(request, next));
+        } else {
+            result.putNull("continuation_token");
+            if (!result.path("segments").isEmpty()) result.put("status", "ok");
         }
     }
 
@@ -193,6 +265,7 @@ public final class CoachRecordLookup {
         value.set("record_ref", request.path("record_ref"));
         value.set("selector", request.path("selector"));
         value.set("include_neighbors", request.path("include_neighbors"));
+        value.set("dimensions", request.path("dimensions"));
         return Base64.getUrlEncoder().withoutPadding().encodeToString(value.toString().getBytes(StandardCharsets.UTF_8));
     }
 
@@ -204,7 +277,8 @@ public final class CoachRecordLookup {
             int offset = value.path("offset").asInt(-1);
             if (offset < 0 || offset >= size || !value.path("record_ref").equals(request.path("record_ref"))
                     || !value.path("selector").equals(request.path("selector"))
-                    || !value.path("include_neighbors").equals(request.path("include_neighbors"))) {
+                    || !value.path("include_neighbors").equals(request.path("include_neighbors"))
+                    || !value.path("dimensions").equals(request.path("dimensions"))) {
                 throw new IllegalArgumentException("invalid lookup continuation");
             }
             return offset;

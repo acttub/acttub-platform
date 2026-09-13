@@ -27,9 +27,11 @@ import com.google.genai.types.Part;
 import com.google.genai.types.Schema;
 import com.google.genai.types.ThinkingConfig;
 import com.google.genai.types.ThinkingLevel;
+import com.google.genai.types.VideoMetadata;
 
 /** 전체 기록의 청크 처리·검증·실패 구간 보존. 구형 관찰 팩으로 폴백하지 않는다. */
 final class GeminiVideoRecordAnalyzer implements VideoRecordAnalyzer {
+    static final double SAMPLE_FPS = 6.0;
     static final long CHUNK_MS = 30_000;
     static final long MIN_CHUNK_MS = 7_500;
     private static final String PROMPT = StructuredJson.textResource("/coaching/video-record-prompt.txt");
@@ -59,6 +61,11 @@ final class GeminiVideoRecordAnalyzer implements VideoRecordAnalyzer {
             analyzeRange(video, actor, practiceSessionId, speech, record,
                     start, Math.min(actor.durationMs(), start + CHUNK_MS), new int[]{6});
         }
+        ObjectNode sampling = ((ArrayNode) record.path("limitations")).addObject()
+                .put("id", "capture:sampling").put("start_ms", 0).put("end_ms", actor.durationMs())
+                .putNull("subject_id").put("kind", "timing")
+                .put("description", "영상 입력은 초당 6프레임 샘플링을 요청했다. 프레임 사이의 미세한 변화와 정확한 시작 시각은 확정할 수 없다.");
+        sampling.putArray("dimensions").add("gaze").add("face").add("movement");
         VideoRecord.finish(record, speech);
         return record;
     }
@@ -112,7 +119,9 @@ final class GeminiVideoRecordAnalyzer implements VideoRecordAnalyzer {
                     String instruction = input + (attempt == 0 ? "" :
                             "\n직전 결과가 구조/참조/시간/전체 구간 검증을 통과하지 못했다. 빠진 구간 없이 다시 기록하라.");
                     raw = gateway.generate(model, Content.fromParts(
-                            Part.fromUri(active.uri(), active.mimeType()), Part.fromText(instruction)), config);
+                            Part.fromUri(active.uri(), active.mimeType()).toBuilder()
+                                    .videoMetadata(VideoMetadata.builder().fps(SAMPLE_FPS).build()).build(),
+                            Part.fromText(instruction)), config);
                     JsonNode result = StructuredJson.parse(raw);
                     VideoRecord.validateChunk(result, chunkId, end - start);
                     if (!record.path("media").path("audio_track_present").asBoolean()) {

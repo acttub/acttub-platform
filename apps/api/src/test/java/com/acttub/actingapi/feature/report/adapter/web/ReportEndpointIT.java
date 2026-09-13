@@ -107,6 +107,32 @@ class ReportEndpointIT {
     }
 
     @Test
+    void practiceNoteDetailProjectsPublicFieldsAndKeepsOwnershipAndPlayback() throws Exception {
+        UUID practice = insertPractice(USER, "note.mp4", null);
+        UUID noteId = UUID.randomUUID();
+        JsonNode note = mapper.readTree("""
+                {"schema_version":"acttub.practice_note.v1","report_type":"practice_note","note_id":"%s",
+                 "revision":1,"session_id":"%s","source_handoff_revision":2,"lifecycle":"saved",
+                 "end_reason":"actor_finished","record_ref":null,"mode":"record_only",
+                 "direction":null,"focus":null,"reading":null,"practice":null,"attempts":[],
+                 "open_points":[],"source_catalog":[],"copy":{"title":"오늘 나눈 이야기","summary":null}}
+                """.formatted(noteId, UUID.randomUUID()));
+        insertReport(practice, "practice_note", note, CREATED_AT);
+        var old = mvc.perform(get("/v2/reports/{id}", practice).header("Authorization", bearer(USER)))
+                .andReturn().getResponse();
+        assertThat(old.getStatus()).isEqualTo(409);
+        assertThat(mapper.readTree(old.getContentAsString()).path("detail").asText()).isEqualTo("client_contract_required");
+        JsonNode detail = body(get("/v2/reports/{id}", practice).header("Authorization", bearer(USER))
+                .header("X-Acttub-Contract", "three_layers_v1"));
+        assertThat(detail.path("playback_url").asText()).isEqualTo("playback:note.mp4:900");
+        assertThat(detail.path("report").path("note_id").asText()).isEqualTo(noteId.toString());
+        assertThat(detail.path("report").path("schema_version").asText()).isEqualTo("acttub.public_practice_note.v1");
+        assertThat(detail.path("report").has("source_catalog")).isFalse();
+        assertThat(detail.path("report").path("practice").isNull()).isTrue();
+        assertMissing(practice, OTHER);
+    }
+
+    @Test
     void postRouteIsRegisteredAndValidatesItsBody() throws Exception {
         var response = mvc.perform(post("/v2/reports")
                         .header("Authorization", bearer(USER)))

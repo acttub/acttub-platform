@@ -135,9 +135,11 @@ class CoachReportEndpointIT {
         assertThat(jdbc.queryForObject("SELECT count(*) FROM handoff_confirmations", Long.class)).isZero();
         assertError(get("/v2/reports/{id}", practice.id()).header("Authorization", bearer(user)),
                 409, "client_contract_required");
-        JsonNode saved = successful(get("/v2/reports/{id}", practice.id())
+        // 이 fixture는 스토리지를 구성하지 않는다. 노트 생성 자체는 재생 URL 없이 완료되어야 한다.
+        // 상세 재생 URL 계약은 StorageFixture를 가진 ReportEndpointIT에서 검증한다.
+        JsonNode saved = successful(reports(user, session, UUID.randomUUID())
                 .header("Authorization", bearer(user)).header("X-Acttub-Contract", "three_layers_v1"));
-        assertThat(saved.path("report")).isEqualTo(completed.path("report"));
+        assertThat(saved).isEqualTo(completed.path("report"));
         JsonNode history = successful(get("/v2/reports").header("Authorization", bearer(user)));
         assertThat(history.path("reports")).isEmpty();
     }

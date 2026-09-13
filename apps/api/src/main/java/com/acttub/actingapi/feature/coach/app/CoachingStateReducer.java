@@ -46,7 +46,7 @@ final class CoachingStateReducer {
                 "too many sentences");
         require(!message.contains("```") && !message.contains("source_refs"), "internal output in message");
         require(!finishRequired || "finish".equals(response.path("flow").asText()), "must finish now");
-        require(!finishRequired || !message.contains("?"), "closing response must not ask a question");
+        require(!finishRequired || (!message.contains("?") && !message.contains("？")), "closing response must not ask a question");
         Map<String, JsonNode> catalog = catalog(sources);
         catalog.put(coachId, source(coachId, "coach_message", message));
         validateReferences(response, catalog);
@@ -161,6 +161,7 @@ final class CoachingStateReducer {
         }
         state.put("revision", previous.path("revision").asLong() + 1);
         // Keep only cited sources. A later request cannot cite material it was never given.
+        validateReferences(state, catalog);
         Set<String> cited = references(state);
         ArrayNode savedSources = state.putArray("source_catalog");
         cited.forEach(id -> savedSources.add(catalog.get(id)));

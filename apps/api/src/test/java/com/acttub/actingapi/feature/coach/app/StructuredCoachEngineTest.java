@@ -86,6 +86,53 @@ class StructuredCoachEngineTest {
             return generated(respond(input, "한 번에 하나만 바꿔봐요.", "continue"));
         }).reply(result.session(), "응", UUID.randomUUID());
     }
+    @Test void denseSingleSegmentCanBeReadAcrossBoundedPagesWithoutLosingFacts() {
+        ObjectNode record = session().observationPack().deepCopy();
+        ObjectNode template = (ObjectNode) record.path("events").get(0).deepCopy();
+        var events = record.putArray("events");
+        ObjectNode segment = (ObjectNode) record.path("segments").get(0).deepCopy();
+        segment.put("end_ms", 8000);
+        segment.putArray("utterance_ids").add("u1");
+        var eventIds = segment.putArray("event_ids");
+        record.putArray("segments").add(segment);
+        for (int i = 0; i < 160; i++) {
+            String id = "dense:" + i;
+            events.add(template.deepCopy().put("id", id).put("description", "확인된 움직임을 기록한다. ".repeat(20)));
+            eventIds.add(id);
+        }
+        var words = ((ObjectNode) record.path("speech").path("word_timings")).put("status", "recorded").putArray("items");
+        for (int i = 0; i < 600; i++) words.addObject().put("id", "word:" + i).put("text", "대사")
+                .put("start_ms", i * 10).put("end_ms", i * 10 + 5).put("timing_basis", "aligned");
+        ObjectNode request = StructuredJson.MAPPER.createObjectNode();
+        request.set("record_ref", com.acttub.actingapi.integration.observation.VideoRecord.reference(record));
+        request.putObject("selector").put("kind", "range").put("start_ms", 0).put("end_ms", 8000);
+        request.put("include_neighbors", false).putNull("continuation_token").putArray("dimensions");
+        var ids = new java.util.HashSet<String>();
+        var wordIds = new java.util.HashSet<String>();
+        var cursors = new java.util.HashSet<String>();
+        CoachRecordLookup lookup = new CoachRecordLookup();
+        int pages = 0;
+        while (true) {
+            JsonNode result = lookup.lookup(record, request);
+            assertThat(result.toString().length()).isLessThanOrEqualTo(CoachRecordLookup.MAX_RESULT_CHARS);
+            assertThat(result.path("status").asText()).isIn("ok", "partial");
+            result.path("events").forEach(e -> ids.add(e.path("id").asText()));
+            result.path("speech").path("word_timings").path("items").forEach(w -> wordIds.add(w.path("id").asText()));
+            assertThat(++pages).isLessThan(100);
+            if (!result.path("has_more").asBoolean()) break;
+            assertThat(cursors.add(result.path("continuation_token").asText())).isTrue();
+            request.set("continuation_token", result.path("continuation_token"));
+        }
+        assertThat(pages).isGreaterThan(1);
+        assertThat(ids).hasSize(160);
+        assertThat(wordIds).hasSize(600);
+        request.putNull("continuation_token");
+        request.putArray("dimensions").add("voice");
+        assertThat(lookup.lookup(record, request).path("events")).isEmpty();
+        request.set("continuation_token", StructuredJson.MAPPER.getNodeFactory().textNode(cursors.iterator().next()));
+        assertThatThrownBy(() -> lookup.lookup(record, request)).hasMessageContaining("invalid lookup continuation");
+    }
+
     @Test void lookupRejectsForeignRecordsAndReportsUnavailableData() {
         CoachRecordLookup lookup = new CoachRecordLookup();
         ObjectNode request = StructuredJson.MAPPER.createObjectNode();
