@@ -4,6 +4,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.Consumer;
 import java.util.function.Function;
 
 import com.acttub.actingapi.integration.llm.StructuredJson;
@@ -26,6 +27,15 @@ public final class PracticeNote {
     }
 
     static ObjectNode assemble(JsonNode handoff, Function<String, String> generateCopy) {
+        return assemble(handoff, generateCopy, failure -> { });
+    }
+
+    /**
+     * 카피(제목·정리 문장) 생성이 실패해도 노트는 기본 제목으로 저장된다. 그 실패를 삼키지는
+     * 않는다 — {@code onCopyFailure} 가 관측을 맡는다. 폴백 비율을 모르면 3층 품질을 볼 수 없다.
+     */
+    static ObjectNode assemble(JsonNode handoff, Function<String, String> generateCopy,
+            Consumer<RuntimeException> onCopyFailure) {
         require(handoff != null && "acttub.coach_handoff.v1".equals(handoff.path("schema_version").asText()),
                 "versioned handoff required");
         JsonNode state = handoff.path("coaching_state");
@@ -38,7 +48,8 @@ public final class PracticeNote {
                 .put("source_handoff_revision", handoff.path("state_revision").asLong())
                 .put("lifecycle", "saved").put("end_reason", handoff.path("end_reason").asText());
         note.set("record_ref", handoff.path("record_ref").deepCopy());
-        for (String field : List.of("direction", "focus", "reading", "open_points")) {
+        // scene_context 는 노트 정본과 3층 모델 입력에 보존한다. 공개 응답(publicView)에는 내지 않는다.
+        for (String field : List.of("direction", "scene_context", "focus", "reading", "open_points")) {
             note.set(field, context.path(field).deepCopy());
         }
         note.putNull("practice");
@@ -76,7 +87,8 @@ public final class PracticeNote {
                 require(containsGroundedText(note, summary), "summary must reuse a recorded sentence and its sources");
                 copy.set("summary", summary.deepCopy());
             }
-        } catch (RuntimeException ignored) {
+        } catch (RuntimeException failure) {
+            onCopyFailure.accept(failure);
             copy.put("title", defaultTitle(note)).putNull("summary");
         }
         StructuredJson.validate("practice_note", note);

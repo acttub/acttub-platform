@@ -124,19 +124,64 @@ public final class CoachRecordLookup {
         return result;
     }
 
+    /**
+     * 조회 결과를 record_view 에 누적한다. 한 응답에서 조회를 두 번 하면 두 번째 결과가 첫 번째 근거를
+     * 덮어쓰지 않아야 모델이 앞서 본 구간을 계속 인용할 수 있다(설계 §6 "결과를 다음 생성 입력에 실제로 넣는다").
+     * 구간은 id 로 합치고 참조 목록은 합집합이다. 마지막 조회의 상태·커서는 last_lookup 에 그대로 둔다.
+     */
     public ObjectNode merge(ObjectNode current, JsonNode result) {
         ObjectNode next = current.deepCopy();
-        Map<String, JsonNode> catalog = new LinkedHashMap<>();
-        current.path("source_catalog").forEach(s -> catalog.put(s.path("id").asText(), s));
-        result.path("source_catalog").forEach(s -> catalog.put(s.path("id").asText(), s));
-        next.set("source_catalog", StructuredJson.MAPPER.valueToTree(catalog.values()));
-        next.set("segments", result.path("segments"));
-        next.set("speech", result.path("speech"));
-        next.set("events", result.path("events"));
-        next.set("limitations", result.path("limitations"));
+        unionById(arrayAt(next, "source_catalog"), result.path("source_catalog"));
+        for (JsonNode segment : result.path("segments")) {
+            ObjectNode existing = byId(arrayAt(next, "segments"), segment.path("id"));
+            if (existing == null) {
+                arrayAt(next, "segments").add(segment.deepCopy());
+                continue;
+            }
+            for (String field : List.of("utterance_ids", "event_ids", "limitation_ids")) {
+                unionByValue(arrayAt(existing, field), segment.path(field));
+            }
+        }
+        unionById(arrayAt(next, "events"), result.path("events"));
+        unionById(arrayAt(next, "limitations"), result.path("limitations"));
+        ObjectNode speech = objectAt(next, "speech");
+        if (result.path("speech").has("status")) speech.set("status", result.path("speech").path("status"));
+        unionById(arrayAt(speech, "utterances"), result.path("speech").path("utterances"));
+        for (String field : List.of("word_timings", "word_gaps")) {
+            ObjectNode target = objectAt(speech, field);
+            if (result.path("speech").path(field).has("status")) {
+                target.set("status", result.path("speech").path(field).path("status"));
+            }
+            unionByValue(arrayAt(target, "items"), result.path("speech").path(field).path("items"));
+        }
         next.put("retrieval_status", result.path("status").asText());
         next.set("last_lookup", result);
         return next;
+    }
+
+    private static ArrayNode arrayAt(ObjectNode parent, String field) {
+        return parent.path(field).isArray() ? (ArrayNode) parent.path(field) : parent.putArray(field);
+    }
+
+    private static ObjectNode objectAt(ObjectNode parent, String field) {
+        return parent.path(field).isObject() ? (ObjectNode) parent.path(field) : parent.putObject(field);
+    }
+
+    private static ObjectNode byId(ArrayNode items, JsonNode id) {
+        for (JsonNode item : items) if (item.path("id").equals(id)) return (ObjectNode) item;
+        return null;
+    }
+
+    private static void unionById(ArrayNode into, JsonNode added) {
+        for (JsonNode item : added) if (byId(into, item.path("id")) == null) into.add(item.deepCopy());
+    }
+
+    private static void unionByValue(ArrayNode into, JsonNode added) {
+        for (JsonNode item : added) {
+            boolean present = false;
+            for (JsonNode existing : into) if (existing.equals(item)) present = true;
+            if (!present) into.add(item.deepCopy());
+        }
     }
 
     private static ObjectNode empty(JsonNode ref, String status) {

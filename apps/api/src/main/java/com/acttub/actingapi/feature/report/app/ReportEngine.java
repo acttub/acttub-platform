@@ -79,8 +79,15 @@ public class ReportEngine {
             UUID practiceSessionId,
             UUID userId) {
         if ("coaching".equals(reportType)) {
-            return PracticeNote.assemble(confirmedHandoff, input -> recorded(
-                    PracticeNote.prompt(), "{\"note_data\":" + input + "}", "practice_note", practiceSessionId, userId));
+            boolean[] copyFailed = {false};
+            JsonNode note = PracticeNote.assemble(confirmedHandoff, input -> recorded(
+                    PracticeNote.prompt(), "{\"note_data\":" + input + "}", "practice_note", practiceSessionId, userId),
+                    failure -> copyFailed[0] = true);
+            if (practiceSessionId != null) {
+                // 제목·정리 생성이 실패해도 노트는 저장된다(기본 제목). 실패가 지표에 안 남으면 폴백 비율을 모른다.
+                telemetry.score(LlmScore.flag(practiceSessionId, "practice_note.copy_fallback", copyFailed[0]));
+            }
+            return note;
         }
         JsonNode modelInput = buildReportInput(
                 reportType,

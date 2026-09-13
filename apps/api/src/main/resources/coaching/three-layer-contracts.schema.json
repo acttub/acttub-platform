@@ -1454,6 +1454,16 @@
             "record_only"
           ]
         },
+        "scene_context": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/scene_context"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "direction": {
           "anyOf": [
             {
@@ -1530,6 +1540,7 @@
         "lifecycle",
         "end_reason",
         "mode",
+        "scene_context",
         "direction",
         "focus",
         "reading",

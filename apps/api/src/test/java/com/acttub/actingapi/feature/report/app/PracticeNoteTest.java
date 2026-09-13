@@ -51,4 +51,28 @@ class PracticeNoteTest {
         JsonNode legacy = StructuredJson.parse("{\"report_type\":\"analysis\",\"title\":\"예전 노트\"}");
         assertThat(PracticeNote.publicView(legacy)).isSameAs(legacy);
     }
+    @Test void sceneContextIsKeptInTheStoredNoteAndModelInputButNotInThePublicView() {
+        ObjectNode handoff = handoff();
+        ObjectNode scene = (ObjectNode) handoff.path("coaching_state").path("context").path("scene_context");
+        scene.set("situation", StructuredJson.parse(
+                "{\"text\":\"떠나려는 상대를 붙잡는 장면\",\"origin\":\"actor_stated\",\"source_refs\":[\"m1\"]}"));
+        ObjectNode note = PracticeNote.assemble(handoff, input -> {
+            assertThat(input).contains("떠나려는 상대를 붙잡는 장면");
+            return "{\"title\":\"이번 대화 기록\",\"summary\":null}";
+        });
+        StructuredJson.validate("practice_note", note);
+        assertThat(note.path("scene_context").path("situation").path("text").asText()).isEqualTo("떠나려는 상대를 붙잡는 장면");
+        assertThat(PracticeNote.publicView(note).has("scene_context")).isFalse();
+    }
+    @Test void copyFailureIsReportedInsteadOfSwallowed() {
+        java.util.List<RuntimeException> seen = new java.util.ArrayList<>();
+        ObjectNode note = PracticeNote.assemble(handoff(), input -> { throw new IllegalStateException("unavailable"); }, seen::add);
+        assertThat(seen).hasSize(1);
+        assertThat(seen.get(0)).hasMessage("unavailable");
+        assertThat(note.path("copy").path("title").asText()).isEqualTo(note.path("focus").path("label").asText());
+        seen.clear();
+        PracticeNote.assemble(handoff(), input -> "{\"title\":\"연습으로 연기력 향상 완료\",\"summary\":null}", seen::add);
+        assertThat(seen).hasSize(1);
+        assertThat(seen.get(0)).hasMessageContaining("title");
+    }
 }
