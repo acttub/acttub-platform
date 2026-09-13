@@ -2,6 +2,7 @@ import Feather from '@expo/vector-icons/Feather';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { palette } from '@/constants/palette';
 import { useAppDialog } from '@/components/app-dialog';
@@ -11,6 +12,7 @@ import { createFromParsed } from '@/lib/reading/store';
 
 export default function ReadingNew() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [raw, setRaw] = useState('');
   const { alert, dialog } = useAppDialog();
 
@@ -59,7 +61,7 @@ export default function ReadingNew() {
         />
       </ScrollView>
 
-      <View style={styles.footer}>
+      <View style={[styles.footer, { paddingBottom: insets.bottom + 12 }]}>
         <Pressable style={[styles.primary, !raw.trim() && styles.primaryOff]} onPress={onNext} disabled={!raw.trim()}>
           <Text style={styles.primaryText}>다음</Text>
         </Pressable>

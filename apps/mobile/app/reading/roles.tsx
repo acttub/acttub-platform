@@ -2,6 +2,7 @@ import Feather from '@expo/vector-icons/Feather';
 import { useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { palette } from '@/constants/palette';
 import { countLinesByRole } from '@/lib/reading/parse';
@@ -9,6 +10,7 @@ import { getCurrent, updateCurrent } from '@/lib/reading/store';
 
 export default function ReadingRoles() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const script = getCurrent();
   const [selected, setSelected] = useState<string[]>(script?.myRoles ?? []);
 
@@ -36,8 +38,8 @@ export default function ReadingRoles() {
 
   const onStart = async () => {
     if (selected.length < 1) return;
-    await updateCurrent({ myRoles: selected, status: 'reading' });
-    router.replace('/reading/play');
+    await updateCurrent({ myRoles: selected });
+    router.replace('/reading/range');
   };
 
   return (
@@ -75,10 +77,10 @@ export default function ReadingRoles() {
         </View>
       </ScrollView>
 
-      <View style={styles.footer}>
+      <View style={[styles.footer, { paddingBottom: insets.bottom + 12 }]}>
         <Pressable style={[styles.primary, selected.length < 1 && styles.primaryOff]} onPress={onStart} disabled={selected.length < 1}>
           <Text style={styles.primaryText}>
-            {selected.length < 1 ? '배역을 선택하세요' : `선택한 ${selected.length}개 배역으로 연습하기`}
+            {selected.length < 1 ? '배역을 선택하세요' : '다음'}
           </Text>
         </Pressable>
       </View>

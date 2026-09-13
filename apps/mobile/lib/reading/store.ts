@@ -8,6 +8,7 @@
 import type { ParsedScript, ScriptLine } from './parse';
 
 export type ScriptStatus = 'draft' | 'reading' | 'done';
+export type MaskMode = 'none' | 'mine' | 'all';
 
 export interface SavedScript {
   id: string;
@@ -18,6 +19,13 @@ export interface SavedScript {
   index: number; // 진행 위치(현재 줄)
   status: ScriptStatus;
   dialogueCount: number;
+  /** 연습 범위(줄 인덱스). 미설정이면 전체. */
+  startIndex: number;
+  endIndex: number;
+  /** 대사 가리기: none=다 보임, mine=내 대사 가림, all=전부 가림 */
+  maskMode: MaskMode;
+  /** 외운 대사(줄 인덱스) 집합 — R04 암기용 */
+  memorized: number[];
   createdAt: number;
   updatedAt: number;
 }
@@ -29,12 +37,23 @@ function storage() {
   return require('@react-native-async-storage/async-storage').default;
 }
 
+function normalize(s: any): SavedScript {
+  const lines = Array.isArray(s.lines) ? s.lines : [];
+  return {
+    ...s,
+    startIndex: typeof s.startIndex === 'number' ? s.startIndex : 0,
+    endIndex: typeof s.endIndex === 'number' ? s.endIndex : Math.max(0, lines.length - 1),
+    maskMode: s.maskMode ?? 'none',
+    memorized: Array.isArray(s.memorized) ? s.memorized : [],
+  };
+}
+
 async function readAll(): Promise<SavedScript[]> {
   try {
     const raw = await storage().getItem(KEY);
     if (!raw) return [];
     const arr = JSON.parse(raw);
-    return Array.isArray(arr) ? arr : [];
+    return Array.isArray(arr) ? arr.map(normalize) : [];
   } catch {
     return [];
   }
@@ -86,6 +105,10 @@ export async function createFromParsed(p: ParsedScript): Promise<SavedScript> {
     index: 0,
     status: 'draft',
     dialogueCount: p.lines.filter((l) => l.type === 'dialogue').length,
+    startIndex: 0,
+    endIndex: Math.max(0, p.lines.length - 1),
+    maskMode: 'none',
+    memorized: [],
     createdAt: now,
     updatedAt: now,
   };

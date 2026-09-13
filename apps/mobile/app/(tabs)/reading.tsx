@@ -41,6 +41,10 @@ export default function ReadingList() {
     await loadIntoCurrent(s.id);
     router.push(s.myRoles.length === 0 ? '/reading/roles' : '/reading/play');
   };
+  const memorize = async (s: SavedScript) => {
+    await loadIntoCurrent(s.id);
+    router.push('/reading/memorize');
+  };
 
   const inProgress = scripts.filter((s) => s.status !== 'done').length;
 
@@ -108,6 +112,17 @@ export default function ReadingList() {
                   <View style={[styles.pill, { backgroundColor: st.bg }]}>
                     <Text style={[styles.pillText, { color: st.color }]}>{st.label}</Text>
                   </View>
+                  {s.myRoles.length > 0 && (
+                    <Pressable
+                      style={styles.memoChip}
+                      onPress={(e) => {
+                        e.stopPropagation();
+                        void memorize(s);
+                      }}>
+                      <Feather name="edit-3" size={12} color={palette.blueDeep} />
+                      <Text style={styles.memoChipText}>암기</Text>
+                    </Pressable>
+                  )}
                 </View>
               </Pressable>
             );
@@ -143,8 +158,10 @@ const styles = StyleSheet.create({
   cardMeta: { color: palette.textMuted, fontFamily: 'Pretendard', fontSize: 12 },
   progressTrack: { height: 4, borderRadius: 2, backgroundColor: palette.bgSoft, overflow: 'hidden', marginTop: 2 },
   progressFill: { height: 4, borderRadius: 2 },
-  cardRight: { alignItems: 'flex-end' },
+  cardRight: { alignItems: 'flex-end', gap: 6 },
   pill: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 },
   pillText: { fontFamily: 'Pretendard-SemiBold', fontSize: 12 },
+  memoChip: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: palette.blueSoft, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3 },
+  memoChipText: { color: palette.blueDeep, fontFamily: 'Pretendard-SemiBold', fontSize: 11 },
   noMatch: { color: palette.textMuted, fontFamily: 'Pretendard', fontSize: 14, textAlign: 'center', paddingVertical: 24 },
 });
