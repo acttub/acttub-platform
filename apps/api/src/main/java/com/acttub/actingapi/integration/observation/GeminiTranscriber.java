@@ -43,10 +43,10 @@ public final class GeminiTranscriber implements SpeechAnalyzer {
     }
 
     @Override
-    public SpeechAnalysis analyze(Path videoPath, UUID practiceSessionId) {
+    public SpeechAnalysis analyze(Path videoPath, UUID practiceSessionId, UUID userId) {
         Path audio = extractor.extract(videoPath);
         try {
-            return transcribe(audio, practiceSessionId);
+            return transcribe(audio, practiceSessionId, userId);
         } finally {
             try {
                 Files.deleteIfExists(audio);
@@ -62,8 +62,11 @@ public final class GeminiTranscriber implements SpeechAnalyzer {
     }
 
     public SpeechAnalysis transcribe(Path audioPath, UUID practiceSessionId) {
+        return transcribe(audioPath, practiceSessionId, null);
+    }
+
+    public SpeechAnalysis transcribe(Path audioPath, UUID practiceSessionId, UUID userId) {
         GeminiFile uploaded = null;
-        Instant startedAt = Instant.now();
         try {
             uploaded = gateway.upload(audioPath, "audio/wav");
             GeminiFile active = FileActivationPoller.waitUntilActive(
@@ -77,14 +80,10 @@ public final class GeminiTranscriber implements SpeechAnalyzer {
                             .mode("VERBATIM")
                             .build())
                     .build();
-            GenerateContentResponse response = gateway.generateResponse(
-                    MODEL, Content.fromParts(Part.fromUri(active.uri(), "audio/wav")), config);
-            SpeechAnalysis analysis = parse(response);
-            record(practiceSessionId, startedAt, analysis.toString(), tokens(response), null);
-            return analysis;
+            GenerateContentResponse response = recorded(practiceSessionId, userId,
+                    Content.fromParts(Part.fromUri(active.uri(), "audio/wav")), config);
+            return parse(response);
         } catch (Exception exception) {
-            record(practiceSessionId, startedAt, "", LlmTokens.unknown(),
-                    exception.getMessage() == null ? exception.toString() : exception.getMessage());
             throw new TranscriptionFailure("audio transcription failed", exception);
         } finally {
             if (uploaded != null) {
@@ -98,12 +97,28 @@ public final class GeminiTranscriber implements SpeechAnalyzer {
         }
     }
 
+    private GenerateContentResponse recorded(
+            UUID practiceSessionId, UUID userId, Content contents, GenerateContentConfig config) {
+        Instant startedAt = Instant.now();
+        try {
+            GenerateContentResponse response = gateway.generateResponse(MODEL, contents, config);
+            // 파싱 전에 남겨야 읽을 수 없는 응답도 원문과 사용량을 잃지 않는다.
+            record(practiceSessionId, userId, startedAt, response.toJson(), GeminiUsage.tokens(response), null);
+            return response;
+        } catch (RuntimeException failure) {
+            record(practiceSessionId, userId, startedAt, "", LlmTokens.unknown(),
+                    failure.getClass().getSimpleName());
+            throw failure;
+        }
+    }
+
     /**
      * 받아쓰기 한 번을 남긴다. 입력이 소리라 프롬프트 자리에 담을 글이 없어 무엇을 보냈는지만
      * 적는다 — 이 자리에서 볼 것은 결과와 걸린 시간이다.
      */
     private void record(
             UUID practiceSessionId,
+            UUID userId,
             Instant startedAt,
             String output,
             LlmTokens tokens,
@@ -114,7 +129,7 @@ public final class GeminiTranscriber implements SpeechAnalyzer {
         telemetry.record(new LlmCall(
                 LlmStep.TRANSCRIPTION,
                 practiceSessionId,
-                null,
+                userId,
                 MODEL,
                 "(오디오) ko-KR VERBATIM",
                 output,
@@ -123,15 +138,6 @@ public final class GeminiTranscriber implements SpeechAnalyzer {
                 Duration.between(startedAt, Instant.now()),
                 errorMessage,
                 java.util.Map.of()));
-    }
-
-    private static LlmTokens tokens(GenerateContentResponse response) {
-        return response.usageMetadata()
-                .map(usage -> LlmTokens.of(
-                        usage.promptTokenCount().orElse(null),
-                        usage.candidatesTokenCount().orElse(null),
-                        usage.totalTokenCount().orElse(null)))
-                .orElseGet(LlmTokens::unknown);
     }
 
     static SpeechAnalysis parse(GenerateContentResponse response) {

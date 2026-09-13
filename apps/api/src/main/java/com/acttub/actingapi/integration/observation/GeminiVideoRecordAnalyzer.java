@@ -53,12 +53,12 @@ final class GeminiVideoRecordAnalyzer implements VideoRecordAnalyzer {
     }
 
     @Override
-    public ObjectNode analyze(Path video, ActorMaterial actor, UUID practiceSessionId, SpeechAnalysis speech) {
+    public ObjectNode analyze(Path video, ActorMaterial actor, UUID practiceSessionId, UUID userId, SpeechAnalysis speech) {
         boolean audio = chunks.hasAudio(video);
         ObjectNode record = VideoRecord.empty(UUID.randomUUID(), actor.durationMs(), audio, actor);
         // 정상 호출은 청크당 한 번, 파싱 재시도/재분할도 최초 분석의 명시적인 예산 안에서만 한다.
         for (long start = 0; start < actor.durationMs(); start += CHUNK_MS) {
-            analyzeRange(video, actor, practiceSessionId, speech, record,
+            analyzeRange(video, actor, practiceSessionId, userId, speech, record,
                     start, Math.min(actor.durationMs(), start + CHUNK_MS), new int[]{6});
         }
         ObjectNode sampling = ((ArrayNode) record.path("limitations")).addObject()
@@ -70,7 +70,7 @@ final class GeminiVideoRecordAnalyzer implements VideoRecordAnalyzer {
         return record;
     }
 
-    private void analyzeRange(Path video, ActorMaterial actor, UUID practiceId, SpeechAnalysis speech,
+    private void analyzeRange(Path video, ActorMaterial actor, UUID practiceId, UUID userId, SpeechAnalysis speech,
             ObjectNode record, long start, long end, int[] remaining) {
         if (Thread.currentThread().isInterrupted()) {
             throw new IllegalStateException("video record analysis interrupted");
@@ -115,13 +115,16 @@ final class GeminiVideoRecordAnalyzer implements VideoRecordAnalyzer {
                 remaining[0]--;
                 Instant began = Instant.now();
                 String raw = "";
+                LlmTokens tokens = LlmTokens.unknown();
                 try {
                     String instruction = input + (attempt == 0 ? "" :
                             "\n직전 결과가 구조/참조/시간/전체 구간 검증을 통과하지 못했다. 빠진 구간 없이 다시 기록하라.");
-                    raw = gateway.generate(model, Content.fromParts(
+                    var generated = gateway.generateResponse(model, Content.fromParts(
                             Part.fromUri(active.uri(), active.mimeType()).toBuilder()
                                     .videoMetadata(VideoMetadata.builder().fps(SAMPLE_FPS).build()).build(),
                             Part.fromText(instruction)), config);
+                    raw = generated.text();
+                    tokens = GeminiUsage.tokens(generated);
                     JsonNode result = StructuredJson.parse(raw);
                     VideoRecord.validateChunk(result, chunkId, end - start);
                     if (!record.path("media").path("audio_track_present").asBoolean()) {
@@ -130,11 +133,11 @@ final class GeminiVideoRecordAnalyzer implements VideoRecordAnalyzer {
                         }
                     }
                     VideoRecord.append(record, result, start);
-                    recordCall(practiceId, chunkId, input, raw, began, null);
+                    recordCall(practiceId, userId, chunkId, input, raw, tokens, began, null);
                     return;
                 } catch (RuntimeException failure) {
                     last = failure;
-                    recordCall(practiceId, chunkId, input, raw, began, failure.getClass().getSimpleName());
+                    recordCall(practiceId, userId, chunkId, input, raw, tokens, began, failure.getClass().getSimpleName());
                 }
             }
         } catch (RuntimeException failure) {
@@ -158,16 +161,16 @@ final class GeminiVideoRecordAnalyzer implements VideoRecordAnalyzer {
         if (last != null) failures.report(last, new FailureContext("GeminiVideoRecordAnalyzer.chunk", practiceId));
         if (end - start > MIN_CHUNK_MS && remaining[0] >= 2) {
             long middle = start + (end - start) / 2;
-            analyzeRange(video, actor, practiceId, speech, record, start, middle, remaining);
-            analyzeRange(video, actor, practiceId, speech, record, middle, end, remaining);
+            analyzeRange(video, actor, practiceId, userId, speech, record, start, middle, remaining);
+            analyzeRange(video, actor, practiceId, userId, speech, record, middle, end, remaining);
         } else {
             VideoRecord.missing(record, start, end);
         }
     }
 
-    private void recordCall(UUID practiceId, String chunk, JsonNode input, String output, Instant began, String error) {
-        telemetry.record(new LlmCall(LlmStep.OBSERVATION, practiceId, null, model,
-                PROMPT + "\n" + input, output, LlmTokens.unknown(), began, Duration.between(began, Instant.now()),
+    private void recordCall(UUID practiceId, UUID userId, String chunk, JsonNode input, String output, LlmTokens tokens, Instant began, String error) {
+        telemetry.record(new LlmCall(LlmStep.OBSERVATION, practiceId, userId, model,
+                PROMPT + "\n" + input, output, tokens, began, Duration.between(began, Instant.now()),
                 error, Map.of("contract", VideoRecord.VERSION, "chunk", chunk)));
     }
 

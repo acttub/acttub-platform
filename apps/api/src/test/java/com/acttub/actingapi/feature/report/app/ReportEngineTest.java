@@ -163,6 +163,61 @@ class ReportEngineTest {
         assertThat(report.fieldNames()).toIterable().containsExactly("report_type", "reason");
     }
 
+    @Test
+    void reportGenerationRecordsRawTextTokensAndThePractice() throws Exception {
+        var practice = java.util.UUID.randomUUID();
+        var userId = java.util.UUID.randomUUID();
+        var telemetry = new RecordingLlmTelemetry();
+        var engine = new ReportEngine((system, input) -> new GeneratedText(
+                analysisReport(), new TokenUsage(10, 20, 30), "model"), MAPPER, telemetry);
+
+        var report = engine.generateReport("analysis", pack(), handoff(), true, "handoff",
+                null, null, practice, userId);
+
+        assertThat(report.path("report_type").asText()).isEqualTo("analysis");
+        assertThat(telemetry.calls()).singleElement().satisfies(call -> {
+            assertThat(call.practiceSessionId()).isEqualTo(practice);
+            assertThat(call.userId()).isEqualTo(userId);
+            assertThat(call.model()).isEqualTo("model");
+            assertThat(call.output()).isEqualTo(analysisReport());
+            assertThat(call.tokens()).isEqualTo(
+                    com.acttub.actingapi.platform.observability.LlmTokens.of(10, 20, 30));
+        });
+        assertThat(telemetry.scores()).singleElement().satisfies(score -> {
+            assertThat(score.name()).isEqualTo("coach.report_blocked");
+            assertThat(score.value()).isEqualTo(0.0);
+        });
+    }
+
+    @Test
+    void reportBlockedScoreDistinguishesUnavailableCoachingFromOtherReadinessFailures() throws Exception {
+        for (String branch : List.of("analysis", "expression")) {
+            var generator = new RecordingGenerator();
+            var telemetry = new RecordingLlmTelemetry();
+            var engine = new ReportEngine(generator, MAPPER, telemetry);
+            var practice = java.util.UUID.randomUUID();
+            engine.generateReport(branch, pack(),
+                    MAPPER.readTree("{\"completion_level\":\"unavailable\"}"), true, "handoff",
+                    null, null, practice, null);
+            engine.generateReport(branch, pack(), handoff(), false, "handoff",
+                    null, null, practice, null);
+            assertThat(generator.inputs).isEmpty();
+            assertThat(telemetry.calls()).isEmpty();
+            assertThat(telemetry.scoreNames()).containsExactly("coach.report_blocked", "coach.report_blocked");
+            assertThat(telemetry.scores()).extracting(score -> score.value()).containsExactly(1.0, 0.0);
+        }
+    }
+
+    @Test
+    void reportWithoutPracticeDoesNotRecordOrScore() throws Exception {
+        var telemetry = new RecordingLlmTelemetry();
+        var engine = new ReportEngine(new RecordingGenerator(analysisReport()), MAPPER, telemetry);
+        engine.generateReport("analysis", pack(), handoff(), true, "handoff", null, null);
+        engine.generateReport("analysis", pack(), null, true, "handoff", null, null);
+        assertThat(telemetry.calls()).isEmpty();
+        assertThat(telemetry.scores()).isEmpty();
+    }
+
     private static JsonNode pack() throws Exception {
         return MAPPER.readTree("""
                 {"observations":[{"start_ms":0,"end_ms":100,"label":"멈춘다","confidence":0.9}],

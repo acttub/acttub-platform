@@ -58,7 +58,7 @@ public final class SummaryAnalyzer implements AnalysisProcessor {
             }
             var actor = new ActorMaterial(context.situation(), context.characterContext(), context.goal(),
                     context.blockageKind(), context.blockageDetail() == null ? "" : context.blockageDetail(), durationMs);
-            var record = videoRecords.analyze(videoPath, actor, context.sessionId(), speech(videoPath, context));
+            var record = videoRecords.analyze(videoPath, actor, context.sessionId(), context.userId(), speech(videoPath, context));
             return new AnalysisResult(null, true, durationMs, record);
         }
         Path sendPath = videoPath;
@@ -76,7 +76,7 @@ public final class SummaryAnalyzer implements AnalysisProcessor {
                             context.blockageKind(),
                             context.blockageDetail() == null ? "" : context.blockageDetail(),
                             durationMs),
-                    context.sessionId());
+                    context.sessionId(), context.userId());
             ObservationPack pack = new ObservationPack(
                     observations.sceneSummary(), observations.timeline(), speech.join(),
                     observations.observations(), observations.uncertainties());
@@ -94,7 +94,7 @@ public final class SummaryAnalyzer implements AnalysisProcessor {
 
     private SpeechAnalysis speech(Path videoPath, AnalysisContext context) {
         try {
-            return speechAnalyzer.analyze(videoPath, context.sessionId());
+            return speechAnalyzer.analyze(videoPath, context.sessionId(), context.userId());
         } catch (Exception exception) {
             LOGGER.log(Level.WARNING, "speech analysis failed: " + context.operationId(), exception);
             failureReporter.report(exception,

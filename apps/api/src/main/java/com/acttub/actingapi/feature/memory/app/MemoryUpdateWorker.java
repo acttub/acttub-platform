@@ -136,7 +136,7 @@ public class MemoryUpdateWorker {
         return extractor.extract(
                 material,
                 existing,
-                (system, user) -> recorded(material, system, user),
+                (system, user) -> recorded(material, system, user, operationId),
                 operationId);
     }
 
@@ -146,7 +146,10 @@ public class MemoryUpdateWorker {
      * <p>여기는 람다가 이미 이음매로 서 있어 시그니처를 건드리지 않아도 된다 —
      * {@code MemoryExtractor} 는 "문자열을 주면 문자열을 돌려주는 것" 만 알면 된다.
      */
-    private String recorded(MemoryUpdateMaterial material, String system, String user) {
+    private String recorded(MemoryUpdateMaterial material, String system, String user, UUID operationId) {
+        if (material.practiceSessionId() == null) {
+            return generator.generate(system, user).text();
+        }
         Instant startedAt = Instant.now();
         try {
             var generated = generator.generate(system, user);
@@ -164,7 +167,8 @@ public class MemoryUpdateWorker {
                     startedAt,
                     Duration.between(startedAt, Instant.now()),
                     null,
-                    LlmCall.metadata("blockage_kind", material.blockageKind())));
+                    LlmCall.metadata("blockage_kind", material.blockageKind(),
+                            "operation_id", operationId == null ? null : operationId.toString())));
             return generated.text();
         } catch (RuntimeException failure) {
             telemetry.record(new LlmCall(
@@ -177,8 +181,9 @@ public class MemoryUpdateWorker {
                     LlmTokens.unknown(),
                     startedAt,
                     Duration.between(startedAt, Instant.now()),
-                    failure.getMessage() == null ? failure.toString() : failure.getMessage(),
-                    LlmCall.metadata("blockage_kind", material.blockageKind())));
+                    failure.getClass().getSimpleName(),
+                    LlmCall.metadata("blockage_kind", material.blockageKind(),
+                            "operation_id", operationId == null ? null : operationId.toString())));
             throw failure;
         }
     }

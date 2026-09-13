@@ -65,7 +65,8 @@ public class PostgresAnalysisStore implements AnalysisStore {
                     ps.goal,
                     ps.blockage_kind,
                     ps.blockage_detail,
-                    ps.experience_version
+                    ps.experience_version,
+                    ps.user_id
                 FROM external_operations eo
                 JOIN practice_sessions ps ON ps.id = eo.session_id
                 JOIN upload_intents ui ON ui.id = ps.upload_intent_id
@@ -89,7 +90,8 @@ public class PostgresAnalysisStore implements AnalysisStore {
                 row.get("goal", String.class),
                 row.get("blockage_kind", String.class),
                 row.get("blockage_detail", String.class),
-                row.get("experience_version", String.class));
+                row.get("experience_version", String.class),
+                row.get("user_id", UUID.class));
     }
 
     @Override

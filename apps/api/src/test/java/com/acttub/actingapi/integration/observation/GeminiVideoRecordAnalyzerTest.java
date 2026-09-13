@@ -28,7 +28,13 @@ class GeminiVideoRecordAnalyzerTest {
             public GeminiFile get(String name) { throw new AssertionError("already active"); }
             public void delete(String name) { assertThat(name).isEqualTo("files/chunk"); deleted[0] = true; }
             public GenerateContentResponse generateResponse(String model, Content content, GenerateContentConfig config) {
-                throw new AssertionError("unexpected gateway method");
+                return GenerateContentResponse.builder()
+                        .candidates(java.util.List.of(com.google.genai.types.Candidate.builder()
+                                .content(Content.fromParts(com.google.genai.types.Part.fromText(generate(model, content, config))))
+                                .build()))
+                        .usageMetadata(com.google.genai.types.GenerateContentResponseUsageMetadata.builder()
+                                .promptTokenCount(100).candidatesTokenCount(50).thoughtsTokenCount(10).totalTokenCount(160).build())
+                        .build();
             }
             public String generate(String model, Content content, GenerateContentConfig config) {
                 assertThat(content.parts().orElseThrow().getFirst().videoMetadata().orElseThrow().fps()).contains(6.0);
@@ -44,15 +50,22 @@ class GeminiVideoRecordAnalyzerTest {
                 assertThat(start).isZero(); assertThat(end).isEqualTo(8000); return chunk;
             }
         };
+        UUID userId = UUID.randomUUID();
+        var telemetry = new RecordingLlmTelemetry();
         var analyzer = new GeminiVideoRecordAnalyzer(gateway, chunks, "test-model",
-                new RecordingFailureReporter(), new RecordingLlmTelemetry());
+                new RecordingFailureReporter(), telemetry);
         ObjectNode record = analyzer.analyze(directory.resolve("original.mp4"),
-                new ActorMaterial("", "", "", "그 외", "", 8000), UUID.randomUUID(), null);
+                new ActorMaterial("", "", "", "그 외", "", 8000), UUID.randomUUID(), userId, null);
         assertThat(record.path("segments")).hasSize(3);
         assertThat(record.path("limitations").toString()).contains("capture:sampling", "초당 6프레임");
         record.path("limitations").forEach(l -> StructuredJson.validate("layer1_limitation", l));
         record.path("segments").forEach(s -> assertThat(s.path("limitation_ids").toString()).contains("capture:sampling"));
         assertThat(Files.exists(chunk)).isFalse();
         assertThat(deleted[0]).isTrue();
+        assertThat(telemetry.calls()).singleElement().satisfies(call -> {
+            assertThat(call.userId()).isEqualTo(userId);
+            assertThat(call.tokens().input()).isEqualTo(100);
+            assertThat(call.tokens().output()).isEqualTo(60);
+        });
     }
 }
