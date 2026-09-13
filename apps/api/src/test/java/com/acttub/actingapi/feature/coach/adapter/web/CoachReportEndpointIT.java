@@ -69,6 +69,9 @@ class CoachReportEndpointIT {
     MockMvc mvc;
 
     @Autowired
+    io.micrometer.core.instrument.MeterRegistry meters;
+
+    @Autowired
     JdbcTemplate jdbc;
 
     @Autowired
@@ -142,6 +145,33 @@ class CoachReportEndpointIT {
     }
 
     @Test
+    void modelRegenerationCountsTwoCallsInOneAttemptAndReplayDoesNotExecuteAgain() throws Exception {
+        var attempts = meters.get("acttub.external.operations.attempts").tag("kind", "coach_reply").counter();
+        var calls = meters.find("acttub.external.operations.external.calls").tags(
+                "kind", "coach_reply", "dependency", "model").counter();
+        assertThat(calls).isNotNull();
+        var accepted = meters.get("acttub.external.operations.accepted").tag("kind", "coach_reply").counter();
+        var succeeded = meters.get("acttub.external.operations.terminal").tags(
+                "kind", "coach_reply", "outcome", "succeeded", "classification", "none").counter();
+        double attemptsBefore = attempts.count();
+        double callsBefore = calls.count();
+        double acceptedBefore = accepted.count();
+        double succeededBefore = succeeded.count();
+        UUID user = fixtures.insertUser();
+        UUID session = openCoachSession(user);
+        UUID request = UUID.randomUUID();
+        generator.enqueue("{\"message\":\"점수로 볼게요\"}");
+        generator.enqueue(COACH_REPLY);
+        JsonNode first = successful(coachReply(user, session, request));
+        assertThat(successful(coachReply(user, session, request))).isEqualTo(first);
+        assertThat(generator.callCount()).isEqualTo(2);
+        assertThat(accepted.count()).isEqualTo(acceptedBefore + 1);
+        assertThat(attempts.count()).isEqualTo(attemptsBefore + 1);
+        assertThat(calls.count()).isEqualTo(callsBefore + 2);
+        assertThat(succeeded.count()).isEqualTo(succeededBefore + 1);
+    }
+
+    @Test
     void resumeReturnsTheOpenSessionWithoutCreatingAnOperationOrCallingLlm() throws Exception {
         UUID userId = fixtures.insertUser();
         CoachStorageFixtures.Practice practice = fixtures.insertPractice(userId);
@@ -170,6 +200,8 @@ class CoachReportEndpointIT {
 
     @Test
     void existingReportBlocksResumeAndBypassesBothCreateAndConfirmGeneration() throws Exception {
+        double attemptsBefore = meters.find("acttub.external.operations.attempts").counters().stream()
+                .mapToDouble(io.micrometer.core.instrument.Counter::count).sum();
         UUID userId = fixtures.insertUser();
         CoachStorageFixtures.Practice practice = fixtures.insertPractice(userId);
         UUID summaryId = fixtures.insertSummary(practice.id());
@@ -209,6 +241,8 @@ class CoachReportEndpointIT {
                         """.formatted(sessionId)));
         assertThat(confirmed.path("report")).isEqualTo(report);
         assertThat(generator.callCount()).isZero();
+        assertThat(meters.find("acttub.external.operations.attempts").counters().stream()
+                .mapToDouble(io.micrometer.core.instrument.Counter::count).sum()).isEqualTo(attemptsBefore);
     }
 
     @Test
@@ -357,6 +391,8 @@ class CoachReportEndpointIT {
      */
     @Test
     void losingTheLeaseMidFlightIsStillProcessingOnEveryGeneratingRoute() throws Exception {
+        double terminalBefore = meters.find("acttub.external.operations.terminal").counters().stream()
+                .mapToDouble(io.micrometer.core.instrument.Counter::count).sum();
         UUID starting = fixtures.insertUser();
         CoachStorageFixtures.Practice startPractice = fixtures.insertPractice(starting);
         fixtures.insertSummary(startPractice.id());
@@ -401,6 +437,8 @@ class CoachReportEndpointIT {
         assertError(reports(reporting, reportSession, reportRequest),
                 409, "request is still processing");
         assertLostTheLease(reportRequest, beforeReport);
+        assertThat(meters.find("acttub.external.operations.terminal").counters().stream()
+                .mapToDouble(io.micrometer.core.instrument.Counter::count).sum()).isEqualTo(terminalBefore);
     }
 
     /**
@@ -471,6 +509,9 @@ class CoachReportEndpointIT {
      */
     @Test
     void aReportThatAppearsMidGenerationTurnsBothWritingRoutesIntoAConflict() throws Exception {
+        var rejected = meters.get("acttub.external.operations.terminal").tags(
+                "kind", "report", "outcome", "failed", "classification", "expected").counter();
+        double before = rejected.count();
         UUID reporting = fixtures.insertUser();
         UUID reportSession = openCoachSession(reporting);
         UUID reportHandoff = fixtures.insertHandoff(
@@ -491,6 +532,7 @@ class CoachReportEndpointIT {
         generator.enqueue(REPORT_BODY);
         assertError(coachConfirm(confirming, confirmSession, UUID.randomUUID()),
                 409, "report already exists");
+        assertThat(rejected.count()).isEqualTo(before + 2);
     }
 
     /** 남의 것이거나 없는 코치 세션으로 성적표를 만들면 404 다 — 연습 쪽 표기와 다르다. */
@@ -510,7 +552,27 @@ class CoachReportEndpointIT {
      * 서비스 층에서 본다.
      */
     @Test
+    void unexpectedModelFailureIsRecordedWithoutChangingThePublic500() throws Exception {
+        UUID user = fixtures.insertUser();
+        UUID session = openCoachSession(user);
+        confirmHandoff(fixtures.insertHandoff(session, practiceOf(session), CREATED_AT));
+        UUID request = UUID.randomUUID();
+        generator.enqueue(REPORT_BODY);
+        generator.duringGeneration(() -> { throw new IllegalStateException("broken invariant"); });
+        var failures = meters.get("acttub.external.operations.terminal").tags(
+                "kind", "report", "outcome", "failed", "classification", "unexpected").counter();
+        double before = failures.count();
+        assertError(reports(user, session, request), 500, "internal_server_error");
+        assertThat(failures.count()).isEqualTo(before + 1);
+        assertThat(jdbc.queryForObject("SELECT last_failure_classification FROM external_operations WHERE request_id=?",
+                String.class, request)).isEqualTo("unexpected");
+    }
+
+    @Test
     void reportParseFailureOnCreateIsBadGatewayAndMarksTheLedger() throws Exception {
+        var failures = meters.get("acttub.external.operations.terminal").tags(
+                "kind", "report", "outcome", "failed", "classification", "external").counter();
+        double before = failures.count();
         UUID reporting = fixtures.insertUser();
         UUID reportSession = openCoachSession(reporting);
         confirmHandoff(fixtures.insertHandoff(
@@ -526,6 +588,18 @@ class CoachReportEndpointIT {
         assertThat(jdbc.queryForObject("""
                 SELECT error_code FROM external_operations WHERE request_id = ?
                 """, String.class, requestId)).isEqualTo("report_parse_error");
+        assertThat(jdbc.queryForObject(
+                "SELECT last_failure_classification FROM external_operations WHERE request_id=?",
+                String.class, requestId)).isEqualTo("external");
+        assertThat(failures.count()).isEqualTo(before + 1);
+        var accepted = meters.get("acttub.external.operations.accepted").tag("kind", "report").counter();
+        double acceptedBeforeResume = accepted.count();
+        generator.enqueue(REPORT_BODY);
+        successful(reports(reporting, reportSession, requestId));
+        assertThat(accepted.count()).isEqualTo(acceptedBeforeResume);
+        assertThat(failures.count()).isEqualTo(before + 1);
+        assertThat(jdbc.queryForObject("SELECT status FROM external_operations WHERE request_id=?",
+                String.class, requestId)).isEqualTo("succeeded");
     }
 
     private JsonNode successful(

@@ -7,6 +7,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Set;
 import java.util.UUID;
+import com.acttub.actingapi.platform.ledger.ExternalOperationExecution;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -111,6 +112,7 @@ public class ReportEngine {
             UUID userId) {
         Instant startedAt = Instant.now();
         try {
+            ExternalOperationExecution.externalCall("model");
             var generated = generate.generate(systemPrompt, userPrompt);
             if (practiceSessionId != null) {
                 telemetry.record(new LlmCall(

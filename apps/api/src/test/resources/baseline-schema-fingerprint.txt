@@ -99,10 +99,14 @@ COLUMN consent_documents.version ord=3 type=text len=- null=NO default=-
 COLUMN external_operations.attempt_count ord=7 type=int4 len=- null=NO default=0
 COLUMN external_operations.created_at ord=13 type=timestamptz len=- null=NO default=now()
 COLUMN external_operations.error_code ord=11 type=text len=- null=YES default=-
+COLUMN external_operations.execution_started_at ord=17 type=timestamptz len=- null=YES default=-
 COLUMN external_operations.id ord=1 type=uuid len=- null=NO default=gen_random_uuid()
 COLUMN external_operations.kind ord=5 type=text len=- null=NO default=-
+COLUMN external_operations.last_failure_classification ord=15 type=text len=- null=YES default=-
 COLUMN external_operations.lease_expires_at ord=10 type=timestamptz len=- null=YES default=-
 COLUMN external_operations.lease_token ord=9 type=uuid len=- null=YES default=-
+COLUMN external_operations.monitoring_lease_token ord=19 type=uuid len=- null=YES default=-
+COLUMN external_operations.monitoring_updated_at ord=18 type=timestamptz len=- null=YES default=-
 COLUMN external_operations.request_fingerprint ord=8 type=bpchar len=64 null=NO default=-
 COLUMN external_operations.request_id ord=4 type=uuid len=- null=NO default=-
 COLUMN external_operations.response_payload ord=12 type=jsonb len=- null=YES default=-
@@ -110,6 +114,7 @@ COLUMN external_operations.session_id ord=2 type=uuid len=- null=NO default=-
 COLUMN external_operations.status ord=6 type=text len=- null=NO default='pending'::text
 COLUMN external_operations.updated_at ord=14 type=timestamptz len=- null=NO default=now()
 COLUMN external_operations.user_id ord=3 type=uuid len=- null=NO default=-
+COLUMN external_operations.waiting_since ord=16 type=timestamptz len=- null=YES default=-
 COLUMN handoff_confirmations.coaching_handoff_id ord=1 type=uuid len=- null=NO default=-
 COLUMN handoff_confirmations.confirmed ord=2 type=bool len=- null=NO default=false
 COLUMN handoff_confirmations.created_at ord=4 type=timestamptz len=- null=NO default=now()
@@ -360,6 +365,7 @@ CONSTRAINT consent_documents consent_documents_type_not_null NOT NULL type
 CONSTRAINT consent_documents consent_documents_version_not_null NOT NULL version
 CONSTRAINT consent_documents uq_consent_documents_type_version UNIQUE (type, version)
 CONSTRAINT external_operations ck_external_operations_kind CHECK ((kind = ANY (ARRAY['analyze'::text, 'coach_start'::text, 'coach_reply'::text, 'report'::text, 'memory_update'::text])))
+CONSTRAINT external_operations ck_external_operations_last_failure_classification CHECK ((last_failure_classification = ANY (ARRAY['expected'::text, 'external'::text, 'unexpected'::text])))
 CONSTRAINT external_operations ck_external_operations_status CHECK ((status = ANY (ARRAY['pending'::text, 'running'::text, 'succeeded'::text, 'failed'::text])))
 CONSTRAINT external_operations external_operations_attempt_count_not_null NOT NULL attempt_count
 CONSTRAINT external_operations external_operations_created_at_not_null NOT NULL created_at

@@ -46,6 +46,21 @@ public class ExternalOperationEntity extends AppGeneratedUuidEntity {
     @Column(name = "error_code")
     String errorCode;
 
+    @Column(name = "last_failure_classification", columnDefinition = "text")
+    String lastFailureClassification;
+
+    @Column(name = "waiting_since")
+    Instant waitingSince;
+
+    @Column(name = "execution_started_at")
+    Instant executionStartedAt;
+
+    @Column(name = "monitoring_updated_at")
+    Instant monitoringUpdatedAt;
+
+    @Column(name = "monitoring_lease_token")
+    UUID monitoringLeaseToken;
+
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "response_payload", columnDefinition = "jsonb")
     JsonNode responsePayload;

@@ -62,7 +62,7 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
  * <p>{@code sweepExpiredUploads} 는 변경된 행의 object key를 실제로 반환하는지 함께 본다.
  * S3 삭제 자체는 저장소 바깥 책임이라 여기서 호출하지 않는다.
  */
-@SpringBootTest(properties = "JWT_SECRET=test-secret")
+@SpringBootTest(properties = {"JWT_SECRET=test-secret", "EXTERNAL_OPERATION_SNAPSHOT_MS=25"})
 class PostgresAnalysisStoreIT {
 
     private static final Instant NOW = Instant.parse("2026-08-17T04:05:06.789012Z");
@@ -84,6 +84,9 @@ class PostgresAnalysisStoreIT {
     AnalysisStore store;
 
     @Autowired
+    io.micrometer.core.instrument.MeterRegistry meters;
+
+    @Autowired
     ObjectMapper mapper;
 
     @Autowired
@@ -98,6 +101,11 @@ class PostgresAnalysisStoreIT {
     @NullSource
     @ValueSource(ints = 7654)
     void probedDurationSurvivesCompletionToNewAndWaitingCoaches(Integer declaredDurationMs) {
+        var observationCalls = meters.get("acttub.external.operations.external.calls").tags(
+                "kind", "analyze", "dependency", "observation").counter();
+        var speechCalls = meters.get("acttub.external.operations.external.calls").tags(
+                "kind", "analyze", "dependency", "speech").counter();
+        double observationBefore = observationCalls.count(), speechBefore = speechCalls.count();
         UUID userId = insertUser();
         UUID uploadId = insertFinalizedUpload(userId);
         jdbc.update("UPDATE upload_intents SET duration_ms = ? WHERE id = ?", declaredDurationMs, uploadId);
@@ -134,11 +142,133 @@ class PostgresAnalysisStoreIT {
         assertThat(worker.runOnce()).isTrue();
 
         assertThat(reporter.reports()).isEmpty();
+        assertThat(observationCalls.count()).isEqualTo(observationBefore + 1);
+        assertThat(speechCalls.count()).isEqualTo(speechBefore + 1);
         assertThat(operation(operationId).get("status")).isEqualTo("succeeded");
         assertThat(coaches.getOwnedPracticeSessionContext(userId, sessionId).durationMs())
                 .isEqualTo(expectedDurationMs);
         assertThat(coaches.getOwnedCoachSession(userId, waitingCoach).session().durationMs())
                 .isEqualTo(expectedDurationMs);
+    }
+
+    @Test
+    void measuredExecutionIsSeparateFromInitialWaitingAndVideoDuration() throws Exception {
+        var attempts = meters.find("acttub.external.operations.attempts").tag("kind", "analyze").counter();
+        assertThat(attempts).isNotNull();
+        double before = attempts.count();
+        UUID user = insertUser();
+        UUID operation = insertAnalyzeOperation(user, insertSession(user, insertFinalizedUpload(user)));
+        jdbc.update("UPDATE external_operations SET created_at=? WHERE id=?",
+                Instant.now().minusSeconds(90).atOffset(ZoneOffset.UTC), operation);
+        org.awaitility.Awaitility.await().atMost(Duration.ofSeconds(3)).untilAsserted(() -> {
+            assertThat(meters.get("acttub.external.operations.current").tags(
+                    "kind", "analyze", "state", "pending", "waiting", "initial").gauge().value()).isEqualTo(1);
+            assertThat(meters.get("acttub.external.operations.oldest.wait.seconds").tags(
+                    "kind", "analyze", "waiting", "initial").gauge().value()).isBetween(89d, 94d);
+        });
+        ObjectStorage storage = mock(ObjectStorage.class);
+        when(storage.downloadToPath(anyString(), any())).thenReturn(new StoredObjectMetadata(1L, "video/mp4", null));
+        var entered = new java.util.concurrent.CountDownLatch(1);
+        var finish = new java.util.concurrent.CountDownLatch(1);
+        AnalysisWorker worker = new AnalysisWorker(store, storage, (path, context) -> {
+            entered.countDown();
+            try {
+                if (!finish.await(5, java.util.concurrent.TimeUnit.SECONDS)) {
+                    throw new IllegalStateException("test execution was not released");
+                }
+            } catch (InterruptedException interrupted) {
+                throw new IllegalStateException(interrupted);
+            }
+            return result(); // The video is 12.345 seconds; this execution is much shorter.
+        }, Clock.systemUTC(), Duration.ofMinutes(5), MODEL, new RecordingFailureReporter());
+        var timer = meters.get("acttub.external.operations.execution").tags(
+                "kind", "analyze", "outcome", "succeeded").timer();
+        double elapsedBefore = timer.totalTime(java.util.concurrent.TimeUnit.SECONDS);
+        long countBefore = timer.count();
+        try (var executor = java.util.concurrent.Executors.newSingleThreadExecutor()) {
+            var work = executor.submit(() -> worker.runOnce());
+            try {
+                assertThat(entered.await(3, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+                org.awaitility.Awaitility.await().atMost(Duration.ofSeconds(3)).untilAsserted(() -> {
+                    assertThat(meters.get("acttub.external.operations.current").tags(
+                            "kind", "analyze", "state", "running", "waiting", "none").gauge().value()).isEqualTo(1);
+                    assertThat(meters.get("acttub.external.operations.oldest.unfinished.age.seconds")
+                            .tag("kind", "analyze").gauge().value()).isGreaterThan(89);
+                });
+            } finally {
+                finish.countDown();
+            }
+            assertThat(work.get(3, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+        }
+        assertThat(attempts.count()).isEqualTo(before + 1);
+        assertThat(timer.count()).isEqualTo(countBefore + 1);
+        assertThat(timer.totalTime(java.util.concurrent.TimeUnit.SECONDS) - elapsedBefore).isBetween(0.001d, 5d);
+        assertThat(meters.get("acttub.external.operations.elapsed").tags(
+                "kind", "analyze", "outcome", "succeeded").timer().max(java.util.concurrent.TimeUnit.SECONDS))
+                .isGreaterThan(89);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"expected", "unexpected"})
+    void expectedMediaRejectionAndUnexpectedExecutionFailureKeepTheirOwnClassification(String classification) {
+        UUID user = insertUser();
+        UUID upload = insertFinalizedUpload(user);
+        UUID operation = insertAnalyzeOperation(user, insertSession(user, upload));
+        var failures = meters.get("acttub.external.operations.terminal").tags(
+                "kind", "analyze", "outcome", "failed", "classification", classification).counter();
+        var calls = meters.get("acttub.external.operations.external.calls").tags(
+                "kind", "analyze", "dependency", "storage").counter();
+        double before = failures.count(), callsBefore = calls.count();
+        ObjectStorage storage = mock(ObjectStorage.class);
+        when(storage.downloadToPath(anyString(), any())).thenReturn(new StoredObjectMetadata(1L, "video/mp4", null));
+        if ("expected".equals(classification)) {
+            jdbc.update("UPDATE upload_intents SET mime_type='image/png' WHERE id=?", upload);
+        }
+        AnalysisWorker worker = new AnalysisWorker(store, storage, (path, context) -> {
+            throw new IllegalStateException("broken invariant");
+        }, Clock.systemUTC(), Duration.ofMinutes(5), MODEL, new RecordingFailureReporter());
+        int attempts = "expected".equals(classification) ? 1 : 3;
+        for (int attempt = 0; attempt < attempts; attempt++) {
+            assertThat(worker.runOnce()).isTrue();
+        }
+        worker.sweep();
+        assertThat(jdbc.queryForObject("SELECT last_failure_classification FROM external_operations WHERE id=?",
+                String.class, operation)).isEqualTo(classification);
+        assertThat(failures.count()).isEqualTo(before + 1);
+        assertThat(calls.count()).isEqualTo(callsBefore + ("expected".equals(classification) ? 0 : 3));
+    }
+
+    @Test
+    void externalFailureClassificationSurvivesRequeueAndRetryExhaustion() {
+        var attempts = meters.get("acttub.external.operations.attempts").tag("kind", "analyze").counter();
+        var requeues = meters.get("acttub.external.operations.requeues").tag("kind", "analyze").counter();
+        var failures = meters.get("acttub.external.operations.terminal").tags(
+                "kind", "analyze", "outcome", "failed", "classification", "external").counter();
+        double attemptsBefore = attempts.count(), requeuesBefore = requeues.count(), failuresBefore = failures.count();
+        UUID user = insertUser();
+        UUID operation = insertAnalyzeOperation(user, insertSession(user, insertFinalizedUpload(user)));
+        ObjectStorage storage = mock(ObjectStorage.class);
+        when(storage.downloadToPath(anyString(), any())).thenThrow(
+                new IllegalStateException("network unavailable", new java.net.ConnectException()));
+        AnalysisWorker worker = new AnalysisWorker(store, storage, (path, context) -> result(),
+                Clock.fixed(NOW, ZoneOffset.UTC), Duration.ofMinutes(5), MODEL, new RecordingFailureReporter());
+
+        for (int attempt = 0; attempt < 3; attempt++) {
+            assertThat(worker.runOnce()).isTrue();
+            assertThat(operation(operation).get("status")).isEqualTo("pending");
+            assertThat(jdbc.queryForObject(
+                    "SELECT last_failure_classification FROM external_operations WHERE id=?", String.class, operation))
+                    .isEqualTo("external");
+        }
+        assertThat(worker.sweep().exhaustedOperations()).isEqualTo(1);
+        assertThat(operation(operation).get("status")).isEqualTo("failed");
+        assertThat(jdbc.queryForObject(
+                "SELECT last_failure_classification FROM external_operations WHERE id=?", String.class, operation))
+                .isEqualTo("external");
+        assertThat(worker.sweep().exhaustedOperations()).isZero();
+        assertThat(attempts.count()).isEqualTo(attemptsBefore + 3);
+        assertThat(requeues.count()).isEqualTo(requeuesBefore + 3);
+        assertThat(failures.count()).isEqualTo(failuresBefore + 1);
     }
 
     @Test
@@ -168,6 +298,9 @@ class PostgresAnalysisStoreIT {
 
     @Test
     void reclaimedLeaseRollsBackDurationSummaryPracticeAndWaitingCoachTogether() {
+        var successes = meters.get("acttub.external.operations.terminal").tags(
+                "kind", "analyze", "outcome", "succeeded", "classification", "none").counter();
+        double before = successes.count();
         UUID userId = insertUser();
         UUID uploadId = insertFinalizedUpload(userId);
         UUID sessionId = insertSession(userId, uploadId);
@@ -195,12 +328,17 @@ class PostgresAnalysisStoreIT {
         assertThat(store.getContext(operationId).durationMs()).isNull();
         assertThat(coaches.getOwnedCoachSession(userId, waitingCoach).session().durationMs()).isZero();
 
+        assertThat(successes.count()).isEqualTo(before);
         // 만료됐어도 재선점되지 않은 현재 Lease는 완료 가능하다.
         store.complete(operationId, currentLease,
                 new AnalysisResult(result().observationPack(), false, 23456), MODEL, NOW.plusSeconds(602));
         assertThat(coaches.getOwnedPracticeSessionContext(userId, sessionId).durationMs()).isEqualTo(23456);
         assertThat(coaches.getOwnedCoachSession(userId, waitingCoach).session().durationMs()).isEqualTo(23456);
         assertThat(operation(operationId).get("status")).isEqualTo("succeeded");
+        assertThat(successes.count()).isEqualTo(before + 1);
+        assertThatThrownBy(() -> store.complete(operationId, currentLease, result(), MODEL, NOW.plusSeconds(603)))
+                .isInstanceOf(RuntimeException.class);
+        assertThat(successes.count()).isEqualTo(before + 1);
     }
 
     @Test

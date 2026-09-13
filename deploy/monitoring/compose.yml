@@ -1,0 +1,123 @@
+# Separate project: app deploy.sh never reads this file. Use manage.py, not app .env.
+name: ${MONITOR_PROJECT:?}
+
+x-security: &security
+  restart: unless-stopped
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  logging:
+    driver: json-file
+    options: {max-size: 10m, max-file: "3"}
+
+services:
+  prometheus:
+    <<: *security
+    image: prom/prometheus:v3.14.0@sha256:5ce7540c3c00ef4ab0c9d2c995c6a5b9c421f44b4a115d97a2c7af3b1c21cbb0
+    command:
+      - --config.file=/etc/acttub/prometheus.json
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=30d
+      - --storage.tsdb.retention.size=${RETENTION_SIZE:?Explicit measured capacity is required}
+      - --web.listen-address=0.0.0.0:9090
+    volumes:
+      - metrics:/prometheus
+      - ${RELEASE_DIR:?}/prometheus:/etc/acttub:ro
+    networks: [query, collectors, dev_scrape, prod_scrape]
+    mem_limit: 1g
+    cpus: 1.0
+    healthcheck:
+      test: [CMD, wget, -q, -O, /dev/null, http://127.0.0.1:9090/-/ready]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+
+  pdc:
+    <<: *security
+    image: grafana/pdc-agent:0.0.64@sha256:da44991f7fc07aecf081dd09e655d62dfb1a716c91ae5679352fbc0a0257317e
+    entrypoint: [/bin/sh, /etc/acttub/pdc-entrypoint.sh]
+    command:
+      - -cluster=${PDC_CLUSTER:?}
+      - -gcloud-hosted-grafana-id=${GRAFANA_ID:?}
+      - -use-gossh=false
+      - -ssh-flag=-o PermitRemoteOpen=prometheus:9090
+      - -ssh-key-file=/home/pdc/.ssh/grafana_pdc
+      - -metrics-addr=127.0.0.1:8090
+      - -log.level=warn
+    volumes:
+      - ${RELEASE_DIR:?}/pdc:/etc/acttub:ro
+    tmpfs: [/home/pdc/.ssh:uid=30000,gid=30000,mode=0700]
+    networks: [query]
+    mem_limit: 128m
+    cpus: 0.25
+
+  node:
+    <<: *security
+    image: prom/node-exporter:v1.12.1@sha256:1b4e4438faca4dd7e001dd445d161a4a2091b0fededa84093b3a8dfeae1f1be0
+    command:
+      - --path.procfs=/host/proc
+      - --path.sysfs=/host/sys
+      - --path.rootfs=/host/root
+      - --collector.disable-defaults
+      - --collector.cpu
+      - --collector.meminfo
+      - --collector.filesystem
+      - --collector.filesystem.mount-points-include=${DATA_MOUNTPOINT_REGEX:?}
+      - --web.listen-address=:9100
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      # The configured data filesystem must already be mounted at startup.
+      # No propagation of later host mounts is needed for this fixed target.
+      - /:/host/root:ro
+    networks: [collectors]
+    mem_limit: 128m
+    cpus: 0.25
+
+  db-health:
+    <<: *security
+    image: python:3.13.12-alpine3.23@sha256:bb1f2fdb1065c85468775c9d680dcd344f6442a2d1181ef7916b60a623f11d40
+    user: "65534:65534"
+    command: [python3, -B, /opt/exporter.py, db, --config, /etc/acttub/config.json]
+    volumes:
+      - ${RELEASE_DIR:?}/exporter.py:/opt/exporter.py:ro
+      - ${RELEASE_DIR:?}/db:/etc/acttub:ro
+    networks: [collectors, dev_scrape, prod_scrape]
+    mem_limit: 64m
+    cpus: 0.25
+
+  backup-exporter:
+    <<: *security
+    image: python:3.13.12-alpine3.23@sha256:bb1f2fdb1065c85468775c9d680dcd344f6442a2d1181ef7916b60a623f11d40
+    # backup.py writes root-owned 0600 files inside 0700 directories. Reading as
+    # the same owner needs no capabilities; original files/permissions stay intact.
+    user: "0:0"
+    command: [python3, -B, /opt/exporter.py, backup, --config, /etc/acttub/config.json]
+    volumes:
+      - ${RELEASE_DIR:?}/exporter.py:/opt/exporter.py:ro
+      - ${RELEASE_DIR:?}/backup:/etc/acttub:ro
+      - dev_backup_state:/state/dev:ro
+      - prod_backup_state:/state/prod:ro
+    networks: [collectors]
+    mem_limit: 64m
+    cpus: 0.25
+
+networks:
+  query: {} # PDC needs outbound HTTPS/SSH to Grafana Cloud, with no app/default network.
+  collectors:
+    internal: true
+  dev_scrape:
+    external: true
+    name: ${DEV_PROJECT:?}_scrape
+  prod_scrape:
+    external: true
+    name: ${PROD_PROJECT:?}_scrape
+
+volumes:
+  metrics: {} # Never down -v: apply/rollback reuse the same project and metrics volume.
+  dev_backup_state:
+    external: true
+    name: ${DEV_PROJECT:?}_backup_state
+  prod_backup_state:
+    external: true
+    name: ${PROD_PROJECT:?}_backup_state

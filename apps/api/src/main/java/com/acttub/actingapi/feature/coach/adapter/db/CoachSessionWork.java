@@ -2,10 +2,12 @@ package com.acttub.actingapi.feature.coach.adapter.db;
 
 import static com.acttub.actingapi.platform.persistence.NativeTuples.list;
 
+import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
+import com.acttub.actingapi.platform.ledger.ExternalOperationMonitoring;
 
 import com.acttub.actingapi.feature.coach.app.CoachSessionSnapshot;
 import com.acttub.actingapi.feature.coach.app.LookupError;
@@ -40,14 +42,16 @@ import org.springframework.stereotype.Component;
 public class CoachSessionWork {
 
     private final EntityManager entityManager;
+    private final ExternalOperationMonitoring monitoring;
     private final CoachSessionJpaRepository coachSessions;
     private final ObjectMapper objectMapper;
 
     public CoachSessionWork(
             EntityManager entityManager,
             CoachSessionJpaRepository coachSessions,
-            ObjectMapper objectMapper) {
+            ObjectMapper objectMapper, ExternalOperationMonitoring monitoring) {
         this.entityManager = entityManager;
+        this.monitoring = monitoring;
         this.coachSessions = coachSessions;
         this.objectMapper = objectMapper;
     }
@@ -496,26 +500,32 @@ public class CoachSessionWork {
             UUID leaseToken,
             JsonNode responsePayload,
             OffsetDateTime now) {
-        int finished = entityManager.createNativeQuery("""
-                UPDATE external_operations
-                SET status = 'succeeded',
-                    response_payload = CAST(:responsePayload AS jsonb),
-                    error_code = NULL,
-                    lease_token = NULL,
-                    lease_expires_at = NULL,
-                    updated_at = :now
-                WHERE id = :operationId
-                  AND status = 'running'
-                  AND lease_token = :leaseToken
-                """)
+        List<Tuple> finished = list(entityManager.createNativeQuery("""
+                WITH finished AS (
+                    UPDATE external_operations
+                    SET status = 'succeeded',
+                        response_payload = CAST(:responsePayload AS jsonb),
+                        error_code = NULL,
+                        lease_token = NULL,
+                        lease_expires_at = NULL,
+                        updated_at = :now
+                    WHERE id = :operationId
+                      AND status = 'running'
+                      AND lease_token = :leaseToken
+                    RETURNING kind, created_at
+                )
+                SELECT kind, created_at FROM finished
+                """, Tuple.class)
                 .setParameter("responsePayload", responsePayload.toString())
                 .setParameter("now", now)
                 .setParameter("operationId", operationId)
-                .setParameter("leaseToken", leaseToken)
-                .executeUpdate();
-        if (finished == 0) {
+                .setParameter("leaseToken", leaseToken));
+        if (finished.isEmpty()) {
             throw new LeaseOwnershipException("external operation lease is not owned");
         }
+        monitoring.terminal(new ExternalOperationMonitoring.Terminal(operationId,
+                finished.getFirst().get("kind", String.class), "succeeded", null,
+                finished.getFirst().get("created_at", Instant.class)));
     }
 
     private SessionRow mapSessionRow(Tuple row) {

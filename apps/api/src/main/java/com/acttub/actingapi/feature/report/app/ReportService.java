@@ -5,6 +5,7 @@ import java.util.Map;
 import java.util.UUID;
 
 import com.acttub.actingapi.platform.ledger.LeaseOwnershipException;
+import com.acttub.actingapi.platform.ledger.ExternalOperationFailureClassification;
 import com.acttub.actingapi.platform.ledger.SyncOperationBegin;
 import com.acttub.actingapi.platform.ledger.SyncOperationClaim;
 import com.acttub.actingapi.platform.web.ApiException;
@@ -72,43 +73,44 @@ public class ReportService {
             return new ReportPayload(begun.replayPayload(), requestId);
         }
         SyncOperationClaim claim = begun.claim();
-
-        try {
-            JsonNode existing = source.handoffId() == null
-                    ? null
-                    : sources.getPracticeReportForHandoff(source.handoffId());
-            JsonNode report = existing == null ? reportFor(source) : existing;
-            // ⚠ 아래 갈래는 CoachService.confirm 과 모양이 같다. 다른 것은 원장에 남기는 값
-            // 하나뿐이다 — 여기는 성적표 본문이 곧 응답이지만 저쪽은 확정 응답 전체를 남긴다.
-            if (isBlocked(report) || existing != null) {
-                operations.complete(claim, report);
-            } else {
-                boolean saved = practiceReports.completePracticeReportOperation(
-                        claim.operationId(),
-                        claim.leaseToken(),
-                        source.practiceSessionId(),
-                        typeOf(report),
-                        report,
-                        source.handoffId(),
-                        report,
-                        operations.now());
-                if (!saved) {
-                    operations.fail(claim, "report_already_exists");
-                    throw new ApiException(409, "report already exists");
+        try (var observation = operations.execution(claim)) {
+            try {
+                JsonNode existing = source.handoffId() == null
+                        ? null
+                        : sources.getPracticeReportForHandoff(source.handoffId());
+                JsonNode report = existing == null ? reportFor(source) : existing;
+                // ⚠ 아래 갈래는 CoachService.confirm 과 모양이 같다. 다른 것은 원장에 남기는 값
+                // 하나뿐이다 — 여기는 성적표 본문이 곧 응답이지만 저쪽은 확정 응답 전체를 남긴다.
+                if (isBlocked(report) || existing != null) {
+                    operations.complete(claim, report);
+                } else {
+                    boolean saved = practiceReports.completePracticeReportOperation(
+                            claim.operationId(),
+                            claim.leaseToken(),
+                            source.practiceSessionId(),
+                            typeOf(report),
+                            report,
+                            source.handoffId(),
+                            report,
+                            operations.now());
+                    if (!saved) {
+                        operations.fail(claim, "report_already_exists", ExternalOperationFailureClassification.EXPECTED);
+                        throw new ApiException(409, "report already exists");
+                    }
                 }
+                return new ReportPayload(report, claim.requestId());
+            } catch (ReportParseError exception) {
+                operations.fail(claim, "report_parse_error", ExternalOperationFailureClassification.from(exception));
+                throw ApiException.external(502, exception.getMessage(), exception);
+            } catch (LeaseOwnershipException exception) {
+                operations.fail(claim, "lease_ownership_lost", ExternalOperationFailureClassification.EXPECTED);
+                throw new ApiException(409, "request is still processing", exception);
+            } catch (ApiException exception) {
+                throw exception;
+            } catch (RuntimeException exception) {
+                operations.fail(claim, "report_failed", ExternalOperationFailureClassification.from(exception));
+                throw exception;
             }
-            return new ReportPayload(report, claim.requestId());
-        } catch (ReportParseError exception) {
-            operations.fail(claim, "report_parse_error");
-            throw ApiException.external(502, exception.getMessage(), exception);
-        } catch (LeaseOwnershipException exception) {
-            operations.fail(claim, "lease_ownership_lost");
-            throw new ApiException(409, "request is still processing", exception);
-        } catch (ApiException exception) {
-            throw exception;
-        } catch (RuntimeException exception) {
-            operations.fail(claim, "report_failed");
-            throw exception;
         }
     }
 

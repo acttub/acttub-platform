@@ -188,7 +188,7 @@ class CoachServiceTest {
                 any(Instant.class));
         order.verify(reports).generateReport(any(), any(), any(),
                 org.mockito.ArgumentMatchers.anyBoolean(), any(), any(), any(), any(), any());
-        order.verify(operations).fail(CLAIM, "report_parse_error");
+        order.verify(operations).fail(CLAIM, "report_parse_error", "external");
     }
 
     /** 세션이 없으면 확정 저장이 예외를 던지고, 그것이 404 와 원장의 실패 표시로 옮겨진다. */
@@ -209,7 +209,7 @@ class CoachServiceTest {
                             .hasMessage("coach session not found");
                 });
 
-        verify(operations).fail(CLAIM, "session_not_found");
+        verify(operations).fail(CLAIM, "session_not_found", "expected");
     }
 
     @Test
@@ -241,7 +241,7 @@ class CoachServiceTest {
         assertReportParseError(() -> service.reply(
                 USER_ID, new ActorMessage(SESSION_ID, "그만"), null));
 
-        verify(operations, org.mockito.Mockito.times(2)).fail(CLAIM, "report_parse_error");
+        verify(operations, org.mockito.Mockito.times(2)).fail(CLAIM, "report_parse_error", "external");
     }
 
     @Test
@@ -265,7 +265,7 @@ class CoachServiceTest {
                             .hasMessage("session turns changed concurrently");
                 });
 
-        verify(operations).fail(CLAIM, "session_write_conflict");
+        verify(operations).fail(CLAIM, "session_write_conflict", "expected");
     }
 
     @Test

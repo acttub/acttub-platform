@@ -412,7 +412,7 @@ class CoachSessionRepositoryIT {
         assertThat(statements.get(5)).startsWith("insert into coaching_handoffs");
         assertThat(statements.get(6)).startsWith("insert into handoff_confirmations");
         assertThat(statements.get(7)).startsWith("insert into practice_reports");
-        assertThat(statements.get(8)).startsWith("update external_operations");
+        assertThat(statements.get(8)).contains("update external_operations set status = 'succeeded'");
         assertThat(fixtures.coachStatus(previousSessionId)).isEqualTo("open");
         assertThat(jdbc.queryForObject(
                 "SELECT count(*) FROM coach_sessions WHERE id = ?",
@@ -528,7 +528,7 @@ class CoachSessionRepositoryIT {
         assertThat(statements.get(6)).startsWith("insert into coaching_handoffs");
         assertThat(statements.get(7)).startsWith("insert into handoff_confirmations");
         assertThat(statements.get(8)).startsWith("insert into practice_reports");
-        assertThat(statements.get(9)).startsWith("update external_operations");
+        assertThat(statements.get(9)).contains("update external_operations set status = 'succeeded'");
         CoachSessionSnapshot stored = store.getOwnedCoachSession(userId, sessionId).session();
         assertThat(stored.status()).isEqualTo("open");
         assertThat(stored.turns()).containsExactlyElementsOf(original);

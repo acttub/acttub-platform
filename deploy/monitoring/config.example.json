@@ -1,0 +1,11 @@
+{
+  "project": "acttub-monitoring",
+  "retention_size": null,
+  "data_mountpoint": "/",
+  "pdc_cluster": "SET_FROM_GRAFANA_PDC",
+  "grafana_id": "SET_FROM_GRAFANA_STACK",
+  "environments": {
+    "dev": {"project": "acttub-dev", "backup_bucket": "acttub-db-backups", "database": "acttub"},
+    "prod": {"project": "acttub-prod", "backup_bucket": "acttub-db-backups", "database": "acttub"}
+  }
+}

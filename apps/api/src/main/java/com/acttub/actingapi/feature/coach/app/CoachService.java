@@ -11,6 +11,7 @@ import com.acttub.actingapi.feature.coach.domain.CoachBranch;
 import com.acttub.actingapi.feature.coach.domain.HandoffReadiness;
 import com.acttub.actingapi.feature.coach.domain.MemoryUpdateCadence;
 import com.acttub.actingapi.platform.ledger.LeaseOwnershipException;
+import com.acttub.actingapi.platform.ledger.ExternalOperationFailureClassification;
 import com.acttub.actingapi.platform.ledger.SyncOperationBegin;
 import com.acttub.actingapi.platform.ledger.SyncOperationClaim;
 import com.acttub.actingapi.platform.observability.FailureContext;
@@ -129,48 +130,50 @@ public class CoachService {
             return new CoachPayload(begun.replayPayload(), requestId);
         }
         SyncOperationClaim claim = begun.claim();
-        if (sessions.hasReportForPracticeSession(owned.practiceSessionId())) {
-            operations.fail(claim, "report_already_exists");
-            throw new ApiException(409, "report already exists for practice session");
-        }
+        try (var observation = operations.execution(claim)) {
+            if (sessions.hasReportForPracticeSession(owned.practiceSessionId())) {
+                operations.fail(claim, "report_already_exists", ExternalOperationFailureClassification.EXPECTED);
+                throw new ApiException(409, "report already exists for practice session");
+            }
 
-        try {
-            CoachResult result = coach.start(
-                    owned.newCoachSession(UUID.randomUUID())
-                            .withPrior(priorContext(
-                                    userId, owned.practiceSessionId(), claim.operationId())),
-                    claim.operationId());
-            CompletedTurn completed = completeTurn(result.session(), result.reply());
-            ObjectNode payload = renderer.turn(
-                    result.session(), result.reply(), completed.handoffId(),
-                    completed.branch(), completed.report());
-            ledger.completeCoachStartOperation(
-                    claim.operationId(),
-                    claim.leaseToken(),
-                    result.session(),
-                    payload,
-                    completed.handoffId(),
-                    completed.handoffId() == null ? null : completed.branch(),
-                    result.reply().handoff(),
-                    completed.report() != null,
-                    completed.report(),
-                    command.restart(),
-                    operations.now());
-            scheduleMemoryUpdate(
-                    userId,
-                    owned.practiceSessionId(),
-                    completed.report() != null,
-                    claim.operationId());
-            return new CoachPayload(payload, claim.requestId());
-        } catch (LeaseOwnershipException exception) {
-            operations.fail(claim, "lease_ownership_lost");
-            throw new ApiException(409, "request is still processing", exception);
-        } catch (ReportParseError exception) {
-            operations.fail(claim, "report_parse_error");
-            throw ApiException.external(502, exception.getMessage(), exception);
-        } catch (RuntimeException exception) {
-            operations.fail(claim, "coach_start_failed");
-            throw exception;
+            try {
+                CoachResult result = coach.start(
+                        owned.newCoachSession(UUID.randomUUID())
+                                .withPrior(priorContext(
+                                        userId, owned.practiceSessionId(), claim.operationId())),
+                        claim.operationId());
+                CompletedTurn completed = completeTurn(result.session(), result.reply());
+                ObjectNode payload = renderer.turn(
+                        result.session(), result.reply(), completed.handoffId(),
+                        completed.branch(), completed.report());
+                ledger.completeCoachStartOperation(
+                        claim.operationId(),
+                        claim.leaseToken(),
+                        result.session(),
+                        payload,
+                        completed.handoffId(),
+                        completed.handoffId() == null ? null : completed.branch(),
+                        result.reply().handoff(),
+                        completed.report() != null,
+                        completed.report(),
+                        command.restart(),
+                        operations.now());
+                scheduleMemoryUpdate(
+                        userId,
+                        owned.practiceSessionId(),
+                        completed.report() != null,
+                        claim.operationId());
+                return new CoachPayload(payload, claim.requestId());
+            } catch (LeaseOwnershipException exception) {
+                operations.fail(claim, "lease_ownership_lost", ExternalOperationFailureClassification.EXPECTED);
+                throw new ApiException(409, "request is still processing", exception);
+            } catch (ReportParseError exception) {
+                operations.fail(claim, "report_parse_error", ExternalOperationFailureClassification.from(exception));
+                throw ApiException.external(502, exception.getMessage(), exception);
+            } catch (RuntimeException exception) {
+                operations.fail(claim, "coach_start_failed", ExternalOperationFailureClassification.from(exception));
+                throw exception;
+            }
         }
     }
 
@@ -195,51 +198,52 @@ public class CoachService {
             return new CoachPayload(begun.replayPayload(), requestId);
         }
         SyncOperationClaim claim = begun.claim();
-
-        try {
-            // 세션을 저장소에서 다시 조립하면 기억이 빈 채로 온다. 여기서 다시 싣지
-            // 않으면 배우가 대화 중에 "내 목표 기억해?" 라고 물어도 코치가 모른다 —
-            // 첫 질문에만 실리고 그 뒤로는 잃어버리는 구멍이 실제로 있었다. 턴마다
-            // 새로 읽으므로, 대화 중에 기억을 고치면 다음 답변부터 반영된다.
-            CoachSessionSnapshot session = owned.session()
-                    .withPrior(priorContext(
-                            userId, owned.practiceSessionId(), claim.operationId()));
-            CoachResult result = coach.reply(session, command.text(), claim.operationId());
-            CompletedTurn completed = completeReplyTurn(result.session(), result.reply());
-            ObjectNode payload = renderer.turn(
-                    result.session(), result.reply(), completed.handoffId(),
-                    completed.branch(), completed.report());
-            ledger.completeCoachReplyOperation(
-                    claim.operationId(),
-                    claim.leaseToken(),
-                    result.session(),
-                    payload,
-                    completed.handoffId(),
-                    completed.handoffId() == null ? null : completed.branch(),
-                    result.reply().handoff(),
-                    completed.report() != null,
-                    completed.report(),
-                    operations.now());
-            // 확인이 대화 안에서 끝나는 흐름에서는 /confirm 이 불리지 않는다. 예약이 그
-            // 문에만 달려 있어 기억이 한 번도 안 쌓였다 — 턴이 카드와 함께 닫힐 때도 건다.
-            scheduleMemoryUpdate(
-                    userId,
-                    owned.practiceSessionId(),
-                    completed.report() != null,
-                    claim.operationId());
-            return new CoachPayload(payload, claim.requestId());
-        } catch (SessionWriteConflict exception) {
-            operations.fail(claim, "session_write_conflict");
-            throw new ApiException(409, "session changed concurrently", exception);
-        } catch (LeaseOwnershipException exception) {
-            operations.fail(claim, "lease_ownership_lost");
-            throw new ApiException(409, "request is still processing", exception);
-        } catch (ReportParseError exception) {
-            operations.fail(claim, "report_parse_error");
-            throw ApiException.external(502, exception.getMessage(), exception);
-        } catch (RuntimeException exception) {
-            operations.fail(claim, "coach_reply_failed");
-            throw exception;
+        try (var observation = operations.execution(claim)) {
+            try {
+                // 세션을 저장소에서 다시 조립하면 기억이 빈 채로 온다. 여기서 다시 싣지
+                // 않으면 배우가 대화 중에 "내 목표 기억해?" 라고 물어도 코치가 모른다 —
+                // 첫 질문에만 실리고 그 뒤로는 잃어버리는 구멍이 실제로 있었다. 턴마다
+                // 새로 읽으므로, 대화 중에 기억을 고치면 다음 답변부터 반영된다.
+                CoachSessionSnapshot session = owned.session()
+                        .withPrior(priorContext(
+                                userId, owned.practiceSessionId(), claim.operationId()));
+                CoachResult result = coach.reply(session, command.text(), claim.operationId());
+                CompletedTurn completed = completeReplyTurn(result.session(), result.reply());
+                ObjectNode payload = renderer.turn(
+                        result.session(), result.reply(), completed.handoffId(),
+                        completed.branch(), completed.report());
+                ledger.completeCoachReplyOperation(
+                        claim.operationId(),
+                        claim.leaseToken(),
+                        result.session(),
+                        payload,
+                        completed.handoffId(),
+                        completed.handoffId() == null ? null : completed.branch(),
+                        result.reply().handoff(),
+                        completed.report() != null,
+                        completed.report(),
+                        operations.now());
+                // 확인이 대화 안에서 끝나는 흐름에서는 /confirm 이 불리지 않는다. 예약이 그
+                // 문에만 달려 있어 기억이 한 번도 안 쌓였다 — 턴이 카드와 함께 닫힐 때도 건다.
+                scheduleMemoryUpdate(
+                        userId,
+                        owned.practiceSessionId(),
+                        completed.report() != null,
+                        claim.operationId());
+                return new CoachPayload(payload, claim.requestId());
+            } catch (SessionWriteConflict exception) {
+                operations.fail(claim, "session_write_conflict", ExternalOperationFailureClassification.EXPECTED);
+                throw new ApiException(409, "session changed concurrently", exception);
+            } catch (LeaseOwnershipException exception) {
+                operations.fail(claim, "lease_ownership_lost", ExternalOperationFailureClassification.EXPECTED);
+                throw new ApiException(409, "request is still processing", exception);
+            } catch (ReportParseError exception) {
+                operations.fail(claim, "report_parse_error", ExternalOperationFailureClassification.from(exception));
+                throw ApiException.external(502, exception.getMessage(), exception);
+            } catch (RuntimeException exception) {
+                operations.fail(claim, "coach_reply_failed", ExternalOperationFailureClassification.from(exception));
+                throw exception;
+            }
         }
     }
 
@@ -266,66 +270,67 @@ public class CoachService {
             return new CoachPayload(begun.replayPayload(), requestId);
         }
         SyncOperationClaim claim = begun.claim();
-
-        try {
-            // 이 저장은 자체 트랜잭션으로 먼저 커밋된다. 이후 LLM/리포트 실패와 묶지 않는다.
-            OwnedReportSource source = ledger.confirmLatestHandoff(
-                    userId,
-                    command.coachSessionId(),
-                    command.confirmed(),
-                    command.rebuttalText(),
-                    operations.now());
-            JsonNode existing = command.confirmed() && source.handoffId() != null
-                    ? sessions.getPracticeReportForHandoff(source.handoffId())
-                    : null;
-            JsonNode report = existing == null ? reportService.reportFor(source) : existing;
-            ObjectNode payload = renderer.confirmation(
-                    command.coachSessionId(),
-                    command.confirmed(),
-                    source.handoffId(),
-                    source.branchKind(),
-                    report);
-
-            // ⚠ 아래 갈래는 ReportService.create 와 모양이 같다. 합치지 않은 것은 남기는 값이
-            // 달라서다 — 여기는 확정 응답 전체(payload)를 원장에 남기고 저쪽은 성적표 본문만
-            // 남긴다. 한 함수로 모으면 그 차이가 플래그 하나가 되어 실수의 자리가 된다.
-            if (reportService.isBlocked(report) || existing != null) {
-                operations.complete(claim, payload);
-            } else {
-                boolean saved = practiceReports.completePracticeReportOperation(
-                        claim.operationId(),
-                        claim.leaseToken(),
-                        source.practiceSessionId(),
-                        reportService.typeOf(report),
-                        report,
-                        source.handoffId(),
-                        payload,
+        try (var observation = operations.execution(claim)) {
+            try {
+                // 이 저장은 자체 트랜잭션으로 먼저 커밋된다. 이후 LLM/리포트 실패와 묶지 않는다.
+                OwnedReportSource source = ledger.confirmLatestHandoff(
+                        userId,
+                        command.coachSessionId(),
+                        command.confirmed(),
+                        command.rebuttalText(),
                         operations.now());
-                if (!saved) {
-                    operations.fail(claim, "report_already_exists");
-                    throw new ApiException(409, "report already exists");
+                JsonNode existing = command.confirmed() && source.handoffId() != null
+                        ? sessions.getPracticeReportForHandoff(source.handoffId())
+                        : null;
+                JsonNode report = existing == null ? reportService.reportFor(source) : existing;
+                ObjectNode payload = renderer.confirmation(
+                        command.coachSessionId(),
+                        command.confirmed(),
+                        source.handoffId(),
+                        source.branchKind(),
+                        report);
+
+                // ⚠ 아래 갈래는 ReportService.create 와 모양이 같다. 합치지 않은 것은 남기는 값이
+                // 달라서다 — 여기는 확정 응답 전체(payload)를 원장에 남기고 저쪽은 성적표 본문만
+                // 남긴다. 한 함수로 모으면 그 차이가 플래그 하나가 되어 실수의 자리가 된다.
+                if (reportService.isBlocked(report) || existing != null) {
+                    operations.complete(claim, payload);
+                } else {
+                    boolean saved = practiceReports.completePracticeReportOperation(
+                            claim.operationId(),
+                            claim.leaseToken(),
+                            source.practiceSessionId(),
+                            reportService.typeOf(report),
+                            report,
+                            source.handoffId(),
+                            payload,
+                            operations.now());
+                    if (!saved) {
+                        operations.fail(claim, "report_already_exists", ExternalOperationFailureClassification.EXPECTED);
+                        throw new ApiException(409, "report already exists");
+                    }
                 }
+                scheduleMemoryUpdate(
+                        userId,
+                        source.practiceSessionId(),
+                        command.confirmed(),
+                        claim.operationId());
+                return new CoachPayload(payload, claim.requestId());
+            } catch (CoachSessionNotFound exception) {
+                operations.fail(claim, "session_not_found", ExternalOperationFailureClassification.EXPECTED);
+                throw new ApiException(404, "session not found", exception);
+            } catch (ReportParseError exception) {
+                operations.fail(claim, "report_parse_error", ExternalOperationFailureClassification.from(exception));
+                throw ApiException.external(502, exception.getMessage(), exception);
+            } catch (LeaseOwnershipException exception) {
+                operations.fail(claim, "lease_ownership_lost", ExternalOperationFailureClassification.EXPECTED);
+                throw new ApiException(409, "request is still processing", exception);
+            } catch (ApiException exception) {
+                throw exception;
+            } catch (RuntimeException exception) {
+                operations.fail(claim, "coach_confirm_failed", ExternalOperationFailureClassification.from(exception));
+                throw exception;
             }
-            scheduleMemoryUpdate(
-                    userId,
-                    source.practiceSessionId(),
-                    command.confirmed(),
-                    claim.operationId());
-            return new CoachPayload(payload, claim.requestId());
-        } catch (CoachSessionNotFound exception) {
-            operations.fail(claim, "session_not_found");
-            throw new ApiException(404, "session not found", exception);
-        } catch (ReportParseError exception) {
-            operations.fail(claim, "report_parse_error");
-            throw ApiException.external(502, exception.getMessage(), exception);
-        } catch (LeaseOwnershipException exception) {
-            operations.fail(claim, "lease_ownership_lost");
-            throw new ApiException(409, "request is still processing", exception);
-        } catch (ApiException exception) {
-            throw exception;
-        } catch (RuntimeException exception) {
-            operations.fail(claim, "coach_confirm_failed");
-            throw exception;
         }
     }
 

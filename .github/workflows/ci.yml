@@ -90,6 +90,14 @@ jobs:
           deploy/guard-test.sh
           deploy/home/deploy-test.sh
 
+      - name: Monitoring collectors and configuration
+        working-directory: ${{ github.workspace }}
+        run: python3 -m unittest discover -s deploy/monitoring/tests -v
+
+      - name: Grafana configuration and alert rules
+        working-directory: ${{ github.workspace }}
+        run: deploy/monitoring/cloud/check.sh
+
       # 배포 산출물 검증(SOMA-489)입니다. api·web 컨테이너 이미지를 굽고(push 없음) deploy/home/compose.yml 을
       # 실제 배포 스크립트(deploy/home/deploy.sh)로 임시 프로젝트에 띄워 web 경유 /·/health 와 commit 대조,
       # 같은 sha 재실행의 멱등성(두 번 돌려도 결과가 같음), 배포 스크립트의 빨강 둘(대기 시간 초과·commit 불일치)까지
@@ -99,7 +107,17 @@ jobs:
       # 잡 이름은 그대로 둡니다 — required check context 라 바꾸면 ruleset 둘도 같이 가야 합니다.
       - name: Smoke (docker build ×2 · deploy.sh · compose)
         working-directory: ${{ github.workspace }}
+        env:
+          SMOKE_EXPORT_API_IMAGE: acttub-api:monitoring-ci
+          SMOKE_EXPORT_WEB_IMAGE: acttub-web:monitoring-ci
         run: deploy/home/smoke.sh
+
+      - name: Monitoring (scrape · isolation · persistence · independent deploy)
+        working-directory: ${{ github.workspace }}
+        env:
+          MONITORING_SMOKE_API_IMAGE: acttub-api:monitoring-ci
+          MONITORING_SMOKE_WEB_IMAGE: acttub-web:monitoring-ci
+        run: deploy/monitoring/smoke.sh
 
       - name: Restore (data · sequences · schema)
         working-directory: ${{ github.workspace }}

@@ -95,7 +95,7 @@ class ReportServiceTest {
                     assertThat(exception.failureKind()).contains(FailureKind.EXTERNAL);
                 });
 
-        verify(syncOperations).fail(CLAIM, "report_parse_error");
+        verify(syncOperations).fail(CLAIM, "report_parse_error", "external");
     }
 
     private OwnedReportSource source() {

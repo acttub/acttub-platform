@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.UUID;
 
 import com.acttub.actingapi.platform.ledger.LeaseOwnershipException;
+import com.acttub.actingapi.platform.ledger.ExternalOperationMonitoring;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.Tuple;
 import org.springframework.stereotype.Repository;
@@ -30,12 +31,14 @@ public class ExternalOperationClaimer {
     private static final String MAX_ATTEMPTS_ERROR = "max_attempts_exceeded";
 
     private final EntityManager entityManager;
+    private final ExternalOperationMonitoring monitoring;
     private final TransactionTemplate transactionTemplate;
 
     public ExternalOperationClaimer(
             EntityManager entityManager,
-            PlatformTransactionManager transactionManager) {
+            PlatformTransactionManager transactionManager, ExternalOperationMonitoring monitoring) {
         this.entityManager = entityManager;
+        this.monitoring = monitoring;
         this.transactionTemplate = new TransactionTemplate(transactionManager);
         this.transactionTemplate.setPropagationBehavior(
                 TransactionDefinition.PROPAGATION_REQUIRES_NEW);
@@ -65,34 +68,52 @@ public class ExternalOperationClaimer {
             String errorCode,
             boolean failSession,
             Instant now) {
+        return fail(operationId, leaseToken, errorCode, failSession, null, now);
+    }
+
+    public boolean fail(UUID operationId, UUID leaseToken, String errorCode,
+            boolean failSession, String classification, Instant now) {
         OffsetDateTime failedAt = now.atOffset(ZoneOffset.UTC);
         return Boolean.TRUE.equals(transactionTemplate.execute(status ->
                 failInTransaction(
-                        operationId, leaseToken, errorCode, failSession, failedAt)));
+                        operationId, leaseToken, errorCode, failSession, classification, failedAt)));
     }
 
     public boolean release(UUID operationId, UUID leaseToken, Instant now) {
+        return release(operationId, leaseToken, null, now);
+    }
+
+    public boolean release(UUID operationId, UUID leaseToken, String classification, Instant now) {
         OffsetDateTime releasedAt = now.atOffset(ZoneOffset.UTC);
         return Boolean.TRUE.equals(transactionTemplate.execute(status -> {
-            int released = entityManager.createNativeQuery("""
-                    UPDATE external_operations
-                    SET status = 'pending',
-                        response_payload = 'null'::jsonb,
-                        error_code = NULL,
-                        lease_token = NULL,
-                        lease_expires_at = NULL,
-                        updated_at = :releasedAt
-                    WHERE id = :operationId
-                      AND status = 'running'
-                      AND lease_token = :leaseToken
-                    """)
+            List<Tuple> released = list(entityManager.createNativeQuery("""
+                    WITH released AS (
+                        UPDATE external_operations
+                        SET status = 'pending',
+                            waiting_since = CURRENT_TIMESTAMP,
+                            execution_started_at = NULL,
+                            monitoring_updated_at = :releasedAt,
+                            monitoring_lease_token = NULL,
+                            last_failure_classification = :classification,
+                            response_payload = 'null'::jsonb,
+                            error_code = NULL,
+                            lease_token = NULL,
+                            lease_expires_at = NULL,
+                            updated_at = :releasedAt
+                        WHERE id = :operationId
+                          AND status = 'running'
+                          AND lease_token = :leaseToken
+                        RETURNING kind
+                    ) SELECT kind FROM released
+                    """, Tuple.class)
+                    .setParameter("classification", classification)
                     .setParameter("releasedAt", releasedAt)
                     .setParameter("operationId", operationId)
-                    .setParameter("leaseToken", leaseToken)
-                    .executeUpdate();
-            if (released == 0) {
+                    .setParameter("leaseToken", leaseToken));
+            if (released.isEmpty()) {
                 throw leaseOwnershipError();
             }
+            monitoring.requeued(operationId, released.getFirst().get("kind", String.class));
             return true;
         }));
     }
@@ -113,6 +134,12 @@ public class ExternalOperationClaimer {
                 WITH claimed AS (
                     UPDATE external_operations
                     SET status = 'running',
+                        waiting_since = CASE WHEN status = 'pending' THEN
+                            CASE WHEN attempt_count = 0 THEN created_at
+                                 WHEN monitoring_updated_at = updated_at THEN waiting_since END END,
+                        execution_started_at = NULL,
+                        monitoring_updated_at = :claimedAt,
+                        monitoring_lease_token = :leaseToken,
                         attempt_count = attempt_count + 1,
                         lease_token = :leaseToken,
                         lease_expires_at = :expiresAt,
@@ -126,16 +153,23 @@ public class ExternalOperationClaimer {
                           OR (status = 'running' AND lease_expires_at < :claimedAt)
                           OR (status = 'failed' AND lease_token IS NULL)
                       )
-                    RETURNING id
+                    RETURNING id, kind, waiting_since, attempt_count
                 )
-                SELECT id FROM claimed
+                SELECT id, kind, waiting_since, attempt_count FROM claimed
                 """, Tuple.class)
                 .setParameter("leaseToken", leaseToken)
                 .setParameter("expiresAt", expiresAt)
                 .setParameter("claimedAt", claimedAt)
                 .setParameter("operationId", operationId)
                 .setParameter("maxAttempts", MAX_EXTERNAL_OPERATION_ATTEMPTS));
-        return claimed.isEmpty() ? null : claimed.getFirst().get("id", UUID.class);
+        if (claimed.isEmpty()) {
+            return null;
+        }
+        UUID id = claimed.getFirst().get("id", UUID.class);
+        Tuple row = claimed.getFirst();
+        monitoring.claimed(new ExternalOperationMonitoring.Claimed(row.get("kind", String.class),
+                row.get("waiting_since", Instant.class), ((Number) row.get("attempt_count")).intValue(), claimedAt.toInstant()));
+        return id;
     }
 
     private UUID claimNextInTransaction(
@@ -147,6 +181,12 @@ public class ExternalOperationClaimer {
                 WITH claimed AS (
                     UPDATE external_operations
                     SET status = 'running',
+                        waiting_since = CASE WHEN status = 'pending' THEN
+                            CASE WHEN attempt_count = 0 THEN created_at
+                                 WHEN monitoring_updated_at = updated_at THEN waiting_since END END,
+                        execution_started_at = NULL,
+                        monitoring_updated_at = :claimedAt,
+                        monitoring_lease_token = :leaseToken,
                         attempt_count = attempt_count + 1,
                         lease_token = :leaseToken,
                         lease_expires_at = :expiresAt,
@@ -171,9 +211,9 @@ public class ExternalOperationClaimer {
                           (status = 'pending' AND lease_token IS NULL)
                           OR (status = 'running' AND lease_expires_at < :claimedAt)
                       )
-                    RETURNING id, session_id
+                    RETURNING id, session_id, waiting_since, attempt_count
                 )
-                SELECT id, session_id FROM claimed
+                SELECT id, session_id, waiting_since, attempt_count FROM claimed
                 """, Tuple.class)
                 .setParameter("leaseToken", leaseToken)
                 .setParameter("expiresAt", expiresAt)
@@ -197,6 +237,9 @@ public class ExternalOperationClaimer {
                     .setParameter("sessionId", operation.get("session_id", UUID.class))
                     .executeUpdate();
         }
+        monitoring.claimed(new ExternalOperationMonitoring.Claimed(kind,
+                operation.get("waiting_since", Instant.class), ((Number) operation.get("attempt_count")).intValue(),
+                claimedAt.toInstant()));
         return operation.get("id", UUID.class);
     }
 
@@ -205,9 +248,10 @@ public class ExternalOperationClaimer {
             UUID leaseToken,
             String errorCode,
             boolean failSession,
+            String classification,
             OffsetDateTime failedAt) {
         List<Tuple> operations = list(entityManager.createNativeQuery("""
-                SELECT session_id AS session_id
+                SELECT session_id, kind, created_at
                 FROM external_operations
                 WHERE id = :operationId
                 """, Tuple.class)
@@ -232,6 +276,7 @@ public class ExternalOperationClaimer {
         int finished = entityManager.createNativeQuery("""
                 UPDATE external_operations
                 SET status = 'failed',
+                    last_failure_classification = :classification,
                     response_payload = 'null'::jsonb,
                     error_code = :errorCode,
                     lease_token = NULL,
@@ -241,6 +286,7 @@ public class ExternalOperationClaimer {
                   AND status = 'running'
                   AND lease_token = :leaseToken
                 """)
+                .setParameter("classification", classification)
                 .setParameter("errorCode", errorCode)
                 .setParameter("failedAt", failedAt)
                 .setParameter("operationId", operationId)
@@ -249,32 +295,45 @@ public class ExternalOperationClaimer {
         if (finished == 0) {
             throw leaseOwnershipError();
         }
+        Tuple operation = operations.getFirst();
+        monitoring.terminal(new ExternalOperationMonitoring.Terminal(operationId,
+                operation.get("kind", String.class), "failed", classification, operation.get("created_at", Instant.class)));
         return true;
     }
 
     private int sweepMaxAttemptsInTransaction(OffsetDateTime sweptAt) {
         List<Tuple> swept = list(entityManager.createNativeQuery("""
-                WITH swept AS (
-                    UPDATE external_operations
+                WITH candidates AS MATERIALIZED (
+                    SELECT id, status AS previous_status FROM external_operations
+                    WHERE status IN ('pending', 'running', 'failed')
+                      AND attempt_count >= :maxAttempts
+                      AND (error_code IS NULL OR error_code <> :errorCode)
+                      AND (lease_token IS NULL OR lease_expires_at < :sweptAt)
+                    FOR UPDATE
+                ), swept AS (
+                    UPDATE external_operations eo
                     SET status = 'failed',
                         error_code = :errorCode,
                         response_payload = 'null'::jsonb,
                         lease_token = NULL,
                         lease_expires_at = NULL,
                         updated_at = :sweptAt
-                    WHERE status IN ('pending', 'running', 'failed')
-                      AND attempt_count >= :maxAttempts
-                      AND (error_code IS NULL OR error_code <> :errorCode)
-                      AND (lease_token IS NULL OR lease_expires_at < :sweptAt)
-                    RETURNING session_id, kind
+                    FROM candidates c
+                    WHERE eo.id = c.id
+                    RETURNING eo.id, eo.session_id, eo.kind, eo.created_at, eo.last_failure_classification, c.previous_status
                 )
-                SELECT session_id, kind FROM swept
+                SELECT id, session_id, kind, created_at, last_failure_classification, previous_status FROM swept
                 """, Tuple.class)
                 .setParameter("errorCode", MAX_ATTEMPTS_ERROR)
                 .setParameter("sweptAt", sweptAt)
                 .setParameter("maxAttempts", MAX_EXTERNAL_OPERATION_ATTEMPTS));
 
         for (Tuple operation : swept) {
+            if (!"failed".equals(operation.get("previous_status", String.class))) {
+                monitoring.terminal(new ExternalOperationMonitoring.Terminal(operation.get("id", UUID.class),
+                        operation.get("kind", String.class), "failed", operation.get("last_failure_classification", String.class),
+                        operation.get("created_at", Instant.class)));
+            }
             if (ANALYZE.equals(operation.get("kind", String.class))) {
                 entityManager.createNativeQuery("""
                         UPDATE practice_sessions
