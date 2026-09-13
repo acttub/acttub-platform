@@ -46,6 +46,7 @@ const en: DeepStringShape<typeof ko> = {
   tabs: {
     home: 'Home',
     history: 'History',
+    reading: 'Reading',
     shoot: 'Record',
     shootA11y: 'Start recording',
     community: 'Board',

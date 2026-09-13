@@ -37,6 +37,7 @@ const ko = {
   tabs: {
     home: '홈',
     history: '기록',
+    reading: '대본',
     shoot: '촬영',
     shootA11y: '촬영 시작',
     community: '게시판',

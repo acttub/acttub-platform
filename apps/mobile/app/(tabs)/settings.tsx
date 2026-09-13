@@ -308,14 +308,6 @@ export default function SettingsScreen() {
             <Text style={styles.memoryChevron}>›</Text>
           </Pressable>
 
-          {/* 대본 리딩 (SOMA-527). 정식 진입점(탭/홈)은 다음 단계, 지금은 설정에서 진입. */}
-          <Pressable
-            style={styles.memoryRow}
-            onPress={() => router.push('/reading')}>
-            <Text style={styles.memoryText}>대본 리딩</Text>
-            <Text style={styles.memoryChevron}>›</Text>
-          </Pressable>
-
           {/* 개발 빌드에서만 보인다. 영상 업로드·분석을 지나지 않고 화면만 확인하는 통로. */}
           {__DEV__ && (
             <Pressable

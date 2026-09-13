@@ -59,16 +59,18 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="history"
+        name="reading"
         options={{
-          title: t('tabs.history'),
+          title: t('tabs.reading'),
           tabBarIcon: ({ color, focused }) => (
             <View style={[styles.iconPill, focused && styles.iconPillActive]}>
-              <Feather size={21} name="file-text" color={color} />
+              <Feather size={21} name="book-open" color={color} />
             </View>
           ),
         }}
       />
+      {/* 기록은 탭바에서 빠졌지만(대본으로 교체) 라우트는 남겨 다른 화면에서 접근 가능하게 둔다. */}
+      <Tabs.Screen name="history" options={{ href: null }} />
       <Tabs.Screen
         name="record"
         options={{
