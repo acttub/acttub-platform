@@ -163,6 +163,17 @@ class LangfuseTelemetryTest {
         assertThat(telemetry.droppedCount()).isEqualTo(2);
     }
 
+    /**
+     * 관측 서버는 같은 호스트 안의 평문 주소다. HTTP/2 업그레이드를 시도하면 서버가 응답 없이
+     * 끊어 기록이 전부 버려졌다(dev 실측, 2026-09-13) — 전송 코드는 멀쩡히 돌면서.
+     */
+    @Test
+    @DisplayName("관측 전송은 HTTP/1.1 로 고정한다")
+    void sendsOverHttp11() {
+        assertThat(LangfuseTelemetry.httpClient().version())
+                .isEqualTo(java.net.http.HttpClient.Version.HTTP_1_1);
+    }
+
     private static LangfuseTelemetry telemetry(Map<String, String> environment) {
         return new LangfuseTelemetry(MAPPER, environment::get, Runnable::run);
     }

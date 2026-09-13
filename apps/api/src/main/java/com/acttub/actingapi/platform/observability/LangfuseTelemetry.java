@@ -254,10 +254,22 @@ public class LangfuseTelemetry implements LlmTelemetry {
     }
 
     private static org.springframework.http.client.ClientHttpRequestFactory timeoutFactory() {
-        var factory = new org.springframework.http.client.JdkClientHttpRequestFactory(
-                java.net.http.HttpClient.newBuilder().connectTimeout(TIMEOUT).build());
+        var factory = new org.springframework.http.client.JdkClientHttpRequestFactory(httpClient());
         factory.setReadTimeout(TIMEOUT);
         return factory;
+    }
+
+    /**
+     * HTTP/1.1 로 고정한다. JDK 의 기본값은 HTTP/2 라서 {@code http://} 주소에는 업그레이드
+     * 헤더(h2c)를 붙이는데, Langfuse 웹(Next.js)은 그것을 받으면 응답 없이 연결을 닫는다 —
+     * 로그에는 "header parser received no bytes" 로만 남는다. 같은 호스트 안에서 평문으로
+     * 부르는 자리라 HTTP/2 로 얻을 것도 없다.
+     */
+    static java.net.http.HttpClient httpClient() {
+        return java.net.http.HttpClient.newBuilder()
+                .version(java.net.http.HttpClient.Version.HTTP_1_1)
+                .connectTimeout(TIMEOUT)
+                .build();
     }
 
     /**
