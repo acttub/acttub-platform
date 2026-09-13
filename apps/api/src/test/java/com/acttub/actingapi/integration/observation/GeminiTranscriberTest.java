@@ -119,6 +119,46 @@ class GeminiTranscriberTest {
         });
     }
 
+    @Test
+    void transcriptionKeepsRawResponseAndUsageEvenWhenParsingFails() {
+        var practice = java.util.UUID.randomUUID();
+        var userId = java.util.UUID.randomUUID();
+        for (String body : List.of(RESPONSE, "{}")) {
+            var gateway = new StubGateway();
+            gateway.response = GenerateContentResponse.fromJson(body).toBuilder()
+                    .usageMetadata(com.google.genai.types.GenerateContentResponseUsageMetadata.builder()
+                            .promptTokenCount(10).candidatesTokenCount(20).totalTokenCount(30).build())
+                    .build();
+            var telemetry = new RecordingLlmTelemetry();
+            var transcriber = new GeminiTranscriber(
+                    new AudioExtractor(), gateway, new RecordingFailureReporter(), telemetry);
+            if (body.equals(RESPONSE)) {
+                assertThat(transcriber.transcribe(Path.of("take.wav"), practice, userId).transcript()).isEqualTo("가지 마");
+            } else {
+                assertThatThrownBy(() -> transcriber.transcribe(Path.of("take.wav"), practice, userId))
+                        .isInstanceOf(RuntimeException.class);
+            }
+            assertThat(telemetry.calls()).singleElement().satisfies(call -> {
+                assertThat(call.practiceSessionId()).isEqualTo(practice);
+                assertThat(call.userId()).isEqualTo(userId);
+                assertThat(call.output()).isEqualTo(gateway.response.toJson());
+                assertThat(call.tokens()).isEqualTo(
+                        com.acttub.actingapi.platform.observability.LlmTokens.of(10, 20, 30));
+                assertThat(call.took().isNegative()).isFalse();
+            });
+        }
+    }
+
+    @Test
+    void missingPracticeDoesNotRecordTranscription() {
+        var telemetry = new RecordingLlmTelemetry();
+        var transcriber = new GeminiTranscriber(
+                new AudioExtractor(), new StubGateway(), new RecordingFailureReporter(), telemetry);
+
+        assertThat(transcriber.transcribe(Path.of("take.wav")).transcript()).isEqualTo("가지 마");
+        assertThat(telemetry.calls()).isEmpty();
+    }
+
     private static final class StubGateway implements GeminiGateway {
         GenerateContentResponse response = GenerateContentResponse.fromJson(RESPONSE);
         GenerateContentConfig config;

@@ -12,5 +12,10 @@ import java.util.UUID;
  */
 public interface ObservationAnalyzer {
     ObservationPack analyze(
-            Path videoPath, String mimeType, ActorMaterial actor, UUID practiceSessionId);
+            Path videoPath, String mimeType, ActorMaterial actor, UUID practiceSessionId, UUID userId);
+
+    default ObservationPack analyze(
+            Path videoPath, String mimeType, ActorMaterial actor, UUID practiceSessionId) {
+        return analyze(videoPath, mimeType, actor, practiceSessionId, null);
+    }
 }

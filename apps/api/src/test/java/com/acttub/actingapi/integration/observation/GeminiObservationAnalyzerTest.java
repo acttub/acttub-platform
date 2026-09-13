@@ -19,6 +19,10 @@ import com.acttub.actingapi.support.RecordingFailureReporter;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.genai.types.Content;
+import com.google.genai.types.Candidate;
+import com.google.genai.types.GenerateContentResponse;
+import com.google.genai.types.GenerateContentResponseUsageMetadata;
+import com.acttub.actingapi.platform.observability.LlmTokens;
 import com.google.genai.types.GenerateContentConfig;
 import com.google.genai.types.MediaResolution;
 import com.google.genai.types.ThinkingLevel;
@@ -213,6 +217,82 @@ class GeminiObservationAnalyzerTest {
                 .contains("https://files.test/active");
     }
 
+    @Test
+    void retriesKeepEveryRawResponseAndItsTokens() {
+        var userId = java.util.UUID.randomUUID();
+        StubGateway gateway = new StubGateway();
+        gateway.responses.add("not-json");
+        gateway.responses.add("""
+                {"observations":[{"start_ms":0,"end_ms":1,"what":"멈춘다","confidence":1.0}],
+                 "uncertainties":[]}
+                """);
+        gateway.usage = GenerateContentResponseUsageMetadata.builder()
+                .promptTokenCount(100).candidatesTokenCount(20).thoughtsTokenCount(30)
+                .totalTokenCount(150).build();
+        var telemetry = new RecordingLlmTelemetry();
+
+        new GeminiObservationAnalyzer(gateway, mapper, MODEL, new RecordingFailureReporter(), telemetry)
+                .analyze(Path.of("take.mp4"), "video/mp4", ACTOR, PRACTICE, userId);
+
+        assertThat(telemetry.calls()).hasSize(2).allSatisfy(call -> {
+            assertThat(call.practiceSessionId()).isEqualTo(PRACTICE);
+            assertThat(call.userId()).isEqualTo(userId);
+            assertThat(call.model()).isEqualTo(MODEL);
+            assertThat(call.tokens()).isEqualTo(LlmTokens.of(100, 50, 150));
+            assertThat(call.took().isNegative()).isFalse();
+        });
+        assertThat(telemetry.calls().getFirst().output()).isEqualTo("not-json");
+        assertThat(telemetry.calls().getLast().output()).contains("멈춘다");
+        assertThat(telemetry.calls().getFirst().metadata()).containsEntry("attempt", "1");
+        assertThat(telemetry.calls().getLast().metadata()).containsEntry("attempt", "2");
+        assertThat(telemetry.scores()).extracting(score -> score.value()).containsExactly(1.0, 3.0);
+    }
+
+    @Test
+    void missingPracticeSkipsObservationAndScoresWithoutChangingTheResult() {
+        StubGateway gateway = new StubGateway();
+        gateway.responses.add("{\"observations\":[],\"uncertainties\":[]}");
+        var telemetry = new RecordingLlmTelemetry();
+
+        var result = new GeminiObservationAnalyzer(
+                gateway, mapper, MODEL, new RecordingFailureReporter(), telemetry)
+                .analyze(Path.of("take.mp4"), "video/mp4", ACTOR, null);
+
+        assertThat(result.observations()).isEmpty();
+        assertThat(gateway.generateCalls).isEqualTo(1);
+        assertThat(telemetry.calls()).isEmpty();
+        assertThat(telemetry.scores()).isEmpty();
+    }
+
+    @Test
+    void generationFailurePreservesTheCauseWithoutCopyingItsMessageToTelemetry() {
+        StubGateway gateway = new StubGateway();
+        gateway.generateFailure = new IllegalStateException("외부 오류에 섞인 민감값 표식");
+        var telemetry = new RecordingLlmTelemetry();
+
+        assertThatThrownBy(() -> new GeminiObservationAnalyzer(
+                gateway, mapper, MODEL, new RecordingFailureReporter(), telemetry)
+                .analyze(Path.of("take.mp4"), "video/mp4", ACTOR, PRACTICE))
+                .isSameAs(gateway.generateFailure);
+
+        assertThat(telemetry.calls()).singleElement().satisfies(call -> {
+            assertThat(call.errorMessage()).isEqualTo("IllegalStateException");
+            assertThat(call.tokens().isUnknown()).isTrue();
+        });
+        assertThat(gateway.deletedNames).containsExactly("files/take");
+    }
+
+    @Test
+    void absentUsageIsUnknownAndPartialUsageDoesNotInventTokenCounts() {
+        assertThat(GeminiUsage.tokens(GenerateContentResponse.fromJson("{}"))).isEqualTo(LlmTokens.unknown());
+        assertThat(GeminiUsage.tokens(GenerateContentResponse.fromJson(
+                "{\"usageMetadata\":{\"promptTokenCount\":0}}")))
+                .isEqualTo(LlmTokens.of(0, null, null));
+        assertThat(GeminiUsage.tokens(GenerateContentResponse.fromJson(
+                "{\"usageMetadata\":{\"candidatesTokenCount\":20}}")))
+                .isEqualTo(LlmTokens.of(null, 20, null));
+    }
+
     private ObservationAnalyzer analyzer(StubGateway gateway) {
         return new GeminiObservationAnalyzer(gateway, mapper, MODEL, new RecordingFailureReporter(),
                 new RecordingLlmTelemetry());
@@ -245,6 +325,8 @@ class GeminiObservationAnalyzerTest {
         private int generateCalls;
         private RuntimeException deleteFailure;
         private int getCalls;
+        private RuntimeException generateFailure;
+        private GenerateContentResponseUsageMetadata usage;
 
         @Override
         public GeminiFile upload(Path path, String mimeType) {
@@ -269,13 +351,23 @@ class GeminiObservationAnalyzerTest {
             contents = requestedContents;
             config = requestedConfig;
             generateCalls++;
+            if (generateFailure != null) {
+                throw generateFailure;
+            }
             return responses.removeFirst();
         }
 
         @Override
         public com.google.genai.types.GenerateContentResponse generateResponse(
                 String model, Content contents, GenerateContentConfig config) {
-            throw new AssertionError("observation must use text generation");
+            var response = GenerateContentResponse.builder()
+                    .candidates(List.of(Candidate.builder()
+                            .content(Content.fromParts(Part.fromText(generate(model, contents, config))))
+                            .build()));
+            if (usage != null) {
+                response.usageMetadata(usage);
+            }
+            return response.build();
         }
 
         @Override

@@ -316,7 +316,7 @@ class CoachEngineTest {
         assertThat(telemetry.calls()).singleElement().satisfies(call -> {
             assertThat(call.step()).isEqualTo(LlmStep.COACH_TURN);
             assertThat(call.failed()).isTrue();
-            assertThat(call.errorMessage()).isEqualTo("OpenAI 생성 실패");
+            assertThat(call.errorMessage()).isEqualTo("IllegalStateException");
         });
     }
 
@@ -352,6 +352,29 @@ class CoachEngineTest {
                     "현재 응답: 2번째", "코치: 대사 앞의 멈춤부터 살펴볼게요.", "## 서버 검증 실패");
             assertThat(replied.reply().message()).isEqualTo("말을 시작하기 전 멈춤만 줄여 비교해보세요.");
         }
+    }
+
+    @Test
+    void missingPracticePreservesGenerationAndOriginalFailureWithoutTelemetry() {
+        var source = session();
+        var unlinked = new CoachSessionSnapshot(
+                source.sessionId(), null, source.summaryId(), source.userId(),
+                source.observationPack(), source.situation(), source.characterContext(), source.goal(),
+                source.durationMs(), source.blockageKind(), source.subBranch(), source.blockageDetail(),
+                source.transcripts(), source.conversationSummary(), source.analysisHandoff(),
+                source.status(), source.closeReason(), source.turns());
+        var telemetry = new RecordingLlmTelemetry();
+        var generator = new RecordingGenerator("상대가 어떻게 되길 바라나요?");
+
+        assertThat(new CoachEngine(generator, failureReporter, telemetry)
+                .reply(unlinked, "잘 모르겠어요", OPERATION).reply().message())
+                .isEqualTo("상대가 어떻게 되길 바라나요?");
+        var failure = new IllegalStateException("모델 오류");
+        assertThatThrownBy(() -> new CoachEngine((system, user) -> { throw failure; },
+                failureReporter, telemetry).reply(unlinked, "잘 모르겠어요", OPERATION))
+                .isSameAs(failure);
+        assertThat(telemetry.calls()).isEmpty();
+        assertThat(telemetry.scores()).isEmpty();
     }
 
     private CoachEngine engine(TextGenerator generator) {

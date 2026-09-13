@@ -28,14 +28,13 @@ public record LlmCall(
         LlmTokens tokens,
         Instant startedAt,
         Duration took,
-        /** 실패했으면 그 메시지. 성공이면 null. */
+        /** 실패 종류만 담는다. 예외 메시지는 인증값을 포함할 수 있다. 성공이면 null. */
         String errorMessage,
         /** 코치 세션·응답 번호·막힘 갈래처럼 걸러 볼 때 쓰는 것들. */
         Map<String, String> metadata) {
 
     public LlmCall {
         Objects.requireNonNull(step, "step");
-        Objects.requireNonNull(practiceSessionId, "practiceSessionId");
         Objects.requireNonNull(startedAt, "startedAt");
         Objects.requireNonNull(took, "took");
         tokens = tokens == null ? LlmTokens.unknown() : tokens;

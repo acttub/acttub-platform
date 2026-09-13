@@ -181,7 +181,7 @@ public class CoachEngine {
         int turnNumber = CoachPrompt.turnNumber(session);
         String chatPrompt = CoachPrompt.buildChat(session, userMessage);
         GeneratedText generated = recorded(
-                LlmStep.COACH_TURN, session, turnNumber, systemPrompt, chatPrompt);
+                LlmStep.COACH_TURN, session, turnNumber, systemPrompt, chatPrompt, operationId);
         String rawText = generated.text();
         CoachReply reply = parseGeneratedResponse(rawText, operationId);
         List<String> failures = CoachResponsePolicy.failures(session, actorText, reply);
@@ -190,7 +190,7 @@ public class CoachEngine {
             String retryPrompt =
                     CoachPrompt.buildRegeneration(session, userMessage, rawText, failures);
             generated = recorded(
-                    LlmStep.COACH_REGENERATION, session, turnNumber, systemPrompt, retryPrompt);
+                    LlmStep.COACH_REGENERATION, session, turnNumber, systemPrompt, retryPrompt, operationId);
             reply = parseGeneratedResponse(generated.text(), operationId);
             failures = CoachResponsePolicy.failures(session, actorText, reply);
         }
@@ -260,7 +260,11 @@ public class CoachEngine {
             CoachSessionSnapshot session,
             int turnNumber,
             String systemPrompt,
-            String userPrompt) {
+            String userPrompt,
+            UUID operationId) {
+        if (session.practiceSessionId() == null) {
+            return generate.generate(systemPrompt, userPrompt);
+        }
         Instant startedAt = Instant.now();
         try {
             GeneratedText generated = generate.generate(systemPrompt, userPrompt);
@@ -275,7 +279,7 @@ public class CoachEngine {
                     startedAt,
                     Duration.between(startedAt, Instant.now()),
                     null,
-                    metadata(session, turnNumber)));
+                    metadata(session, turnNumber, operationId)));
             return generated;
         } catch (RuntimeException failure) {
             telemetry.record(new LlmCall(
@@ -288,16 +292,17 @@ public class CoachEngine {
                     LlmTokens.unknown(),
                     startedAt,
                     Duration.between(startedAt, Instant.now()),
-                    failure.getMessage() == null ? failure.toString() : failure.getMessage(),
-                    metadata(session, turnNumber)));
+                    failure.getClass().getSimpleName(),
+                    metadata(session, turnNumber, operationId)));
             throw failure;
         }
     }
 
     private static java.util.Map<String, String> metadata(
-            CoachSessionSnapshot session, int turnNumber) {
+            CoachSessionSnapshot session, int turnNumber, UUID operationId) {
         return LlmCall.metadata(
                 "coach_session", String.valueOf(session.sessionId()),
+                "operation_id", operationId == null ? null : operationId.toString(),
                 "turn", String.valueOf(turnNumber),
                 "blockage_kind", session.blockageKind(),
                 "sub_branch", session.subBranch());
