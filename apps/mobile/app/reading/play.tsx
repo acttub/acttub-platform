@@ -3,12 +3,17 @@ import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import {
+  RecordingPresets,
+  requestRecordingPermissionsAsync,
+  useAudioRecorder,
+  useAudioRecorderState,
+} from 'expo-audio';
 
 import { palette } from '@/constants/palette';
 import { speakableText } from '@/lib/reading/parse';
-import { getCurrent, isMyRole, updateCurrent } from '@/lib/reading/store';
+import { addRecording, getCurrent, isMyRole, updateCurrent } from '@/lib/reading/store';
 import * as engine from '@/lib/reading/tts/engine';
-import { useMicAutoAdvance } from '@/lib/reading/use-stt';
 
 type Phase = 'loading' | 'reading' | 'done';
 
@@ -36,21 +41,57 @@ export default function ReadingPlay() {
   const [paused, setPaused] = useState(false);
   const [revealAll, setRevealAll] = useState(false);
   const [elapsed, setElapsed] = useState(0);
-  const [heard, setHeard] = useState('');
+
+  const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+  const recState = useAudioRecorderState(recorder);
 
   const mounted = useRef(true);
   const indexRef = useRef(index);
   indexRef.current = index;
+  const savedRef = useRef(false);
+
+  const saveRecording = async () => {
+    if (savedRef.current) return;
+    savedRef.current = true;
+    try {
+      await recorder.stop();
+      const uri = recorder.uri;
+      const durationSec = Math.round((recState.durationMillis || 0) / 1000);
+      if (uri && durationSec >= 1) {
+        await addRecording({
+          uri,
+          durationSec,
+          coveredCount: Math.max(0, indexRef.current - start),
+          totalCount: end - start + 1,
+        });
+      }
+    } catch {}
+  };
 
   useEffect(() => {
     mounted.current = true;
-    engine
-      .ensureReady((line) => mounted.current && setProgress(line))
-      .then(() => mounted.current && setPhase('reading'))
-      .catch((e) => mounted.current && setProgress(`준비 실패: ${e?.message ?? e}`));
+    (async () => {
+      try {
+        await engine.ensureReady((line) => mounted.current && setProgress(line));
+      } catch (e: any) {
+        if (mounted.current) setProgress(`준비 실패: ${e?.message ?? e}`);
+        return;
+      }
+      if (!mounted.current) return;
+      // 마이크로 이번 연습을 녹음한다.
+      try {
+        const perm = await requestRecordingPermissionsAsync();
+        if (perm.granted) {
+          await recorder.prepareToRecordAsync();
+          recorder.record();
+        }
+      } catch {}
+      if (mounted.current) setPhase('reading');
+    })();
     return () => {
       mounted.current = false;
       engine.stop();
+      void saveRecording();
       void updateCurrent({ index: indexRef.current });
     };
   }, []);
@@ -65,30 +106,12 @@ export default function ReadingPlay() {
   const line = lines[index];
   const myTurn = !!line && line.type === 'dialogue' && isMyRole((line as any).role);
 
-  const advance = () => {
-    if (mounted.current) setIndex((i) => i + 1);
-  };
-
-  // 내 차례 + 재생중 + 안멈춤이면 마이크로 듣고, 말 끝나면 자동 다음. 들은 말은 화면에 표시.
-  useMicAutoAdvance(
-    phase === 'reading' && !paused && myTurn,
-    () => {
-      engine.stop();
-      advance();
-    },
-    setHeard,
-  );
-
-  // 줄이 바뀌면 이전에 들은 말은 지운다.
-  useEffect(() => {
-    setHeard('');
-  }, [index]);
-
-  // 대사 진행: 상대 배역이면 TTS, 지문은 잠깐, 내 배역이면 마이크 대기
+  // 대사 진행: 상대 배역이면 TTS, 지문은 잠깐, 내 배역이면 '다음' 대기(녹음은 계속 돎)
   useEffect(() => {
     if (phase !== 'reading' || paused) return;
     if (index > end || !lines[index]) {
       setPhase('done');
+      void saveRecording();
       void updateCurrent({ status: 'done', index: end + 1 });
       return;
     }
@@ -163,8 +186,8 @@ export default function ReadingPlay() {
         <Text style={styles.doneTitle}>리딩 완료</Text>
         <Text style={styles.dim}>{script.title} · {mmss(elapsed)} 동안 연습했어요.</Text>
         <View style={styles.doneRow}>
-          <Pressable style={[styles.pill, styles.pillGhost]} onPress={() => router.replace('/reading')}>
-            <Text style={styles.pillGhostText}>내 대본으로</Text>
+          <Pressable style={[styles.pill, styles.pillGhost]} onPress={() => router.replace('/reading/detail')}>
+            <Text style={styles.pillGhostText}>녹음 보기</Text>
           </Pressable>
           <Pressable style={styles.pill} onPress={onRestart}>
             <Text style={styles.pillText}>다시 하기</Text>
@@ -198,6 +221,12 @@ export default function ReadingPlay() {
           <Feather name="x" size={20} color={palette.textDim} />
           <Text style={styles.exitText}>나가기</Text>
         </Pressable>
+        {recState.isRecording && (
+          <View style={styles.recBadge}>
+            <View style={styles.recDot} />
+            <Text style={styles.recText}>녹음 중</Text>
+          </View>
+        )}
         {maskMode !== 'none' && (
           <Pressable style={[styles.revealBtn, revealAll && styles.revealOn]} onPress={() => setRevealAll((v) => !v)}>
             <Feather name={revealAll ? 'eye' : 'eye-off'} size={13} color={revealAll ? palette.blue : palette.textMuted} />
@@ -232,7 +261,7 @@ export default function ReadingPlay() {
               {myTurn ? (
                 <View style={styles.listening}>
                   <View style={styles.dot} />
-                  <Text style={styles.listeningText}>듣고 있어요</Text>
+                  <Text style={styles.listeningText}>내 차례</Text>
                 </View>
               ) : (
                 <Feather name="volume-2" size={18} color="rgba(255,255,255,0.7)" />
@@ -250,15 +279,8 @@ export default function ReadingPlay() {
           <Text style={styles.next}>다음 · 마지막 대사예요</Text>
         )}
 
-        {myTurn && heard ? (
-          <View style={styles.heardBox}>
-            <Feather name="mic" size={14} color={palette.blue} />
-            <Text style={styles.heardText} numberOfLines={2}>{heard}</Text>
-          </View>
-        ) : null}
-
         <Text style={styles.hint}>
-          {myTurn ? '대사를 읽으면 자동으로 넘어가요 (안 되면 다음)' : '상대가 읽는 중 · 끝나면 내 차례'}
+          {myTurn ? '대사를 읽고 다음을 눌러요' : '상대가 읽는 중 · 끝나면 내 차례'}
         </Text>
       </View>
 
@@ -314,8 +336,9 @@ const styles = StyleSheet.create({
   listeningText: { color: '#BAE6FD', fontFamily: 'Pretendard-SemiBold', fontSize: 12 },
   lineText: { color: '#fff', fontFamily: 'Pretendard-Bold', fontSize: 26, lineHeight: 37 },
   next: { color: palette.textFaint, fontFamily: 'Pretendard', fontSize: 14, textAlign: 'center' },
-  heardBox: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'center', maxWidth: '92%', backgroundColor: palette.blueSoft, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8 },
-  heardText: { flex: 1, color: palette.blueDeep, fontFamily: 'Pretendard-SemiBold', fontSize: 14 },
+  recBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: palette.dangerSoft, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 },
+  recDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: palette.danger },
+  recText: { color: palette.danger, fontFamily: 'Pretendard-SemiBold', fontSize: 12 },
   hint: { color: palette.textMuted, fontFamily: 'Pretendard', fontSize: 13, textAlign: 'center', marginTop: 2 },
 
   controls: { flexDirection: 'row', gap: 10, paddingHorizontal: 16, paddingTop: 12, borderTopColor: palette.borderSoft, borderTopWidth: 1 },

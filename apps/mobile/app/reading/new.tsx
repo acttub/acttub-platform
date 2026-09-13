@@ -4,8 +4,11 @@ import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import * as DocumentPicker from 'expo-document-picker';
+
 import { palette } from '@/constants/palette';
 import { useAppDialog } from '@/components/app-dialog';
+import { extractScriptText } from '@/lib/reading/extract-file';
 import { parseScript } from '@/lib/reading/parse';
 import { SAMPLE_SCRIPT } from '@/lib/reading/sample';
 import { createFromParsed } from '@/lib/reading/store';
@@ -14,7 +17,26 @@ export default function ReadingNew() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [raw, setRaw] = useState('');
+  const [busy, setBusy] = useState(false);
   const { alert, dialog } = useAppDialog();
+
+  const onPickFile = async () => {
+    try {
+      const res = await DocumentPicker.getDocumentAsync({
+        type: ['text/plain', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/pdf'],
+        copyToCacheDirectory: true,
+      });
+      if (res.canceled || !res.assets?.[0]) return;
+      const a = res.assets[0];
+      setBusy(true);
+      const text = await extractScriptText({ uri: a.uri, name: a.name, mimeType: a.mimeType });
+      setRaw(text);
+    } catch (e: any) {
+      void alert({ title: '파일을 읽지 못했어요', message: e?.message ?? '다른 파일을 고르거나 붙여넣어 주세요.' });
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const onNext = async () => {
     const text = raw.trim();
@@ -38,12 +60,11 @@ export default function ReadingNew() {
         <Text style={styles.title}>연습할 대본을 넣어주세요</Text>
         <Text style={styles.sub}>대본을 붙여넣으면 화자와 대사를 자동으로 나눠드려요.</Text>
 
-        {/* 파일 업로드 자리(다음 단계). 지금은 붙여넣기 + 예시. */}
-        <View style={styles.dropzone}>
-          <Feather name="file-plus" size={26} color={palette.blue} />
-          <Text style={styles.dropTitle}>대본 붙여넣기</Text>
-          <Text style={styles.dropSub}>아래 칸에 대본을 붙여넣어요 · 파일 업로드는 곧 지원돼요</Text>
-        </View>
+        <Pressable style={styles.dropzone} onPress={onPickFile} disabled={busy}>
+          <Feather name={busy ? 'loader' : 'upload'} size={26} color={palette.blue} />
+          <Text style={styles.dropTitle}>{busy ? '읽는 중…' : '대본 파일 첨부'}</Text>
+          <Text style={styles.dropSub}>TXT·DOCX 파일 선택 · 아래에 붙여넣어도 돼요</Text>
+        </Pressable>
 
         <Pressable style={styles.sampleBtn} onPress={() => setRaw(SAMPLE_SCRIPT)}>
           <Feather name="book" size={14} color={palette.blueDeep} />

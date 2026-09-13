@@ -10,6 +10,16 @@ import type { ParsedScript, ScriptLine } from './parse';
 export type ScriptStatus = 'draft' | 'reading' | 'done';
 export type MaskMode = 'none' | 'mine' | 'all';
 
+/** 연습 1회 녹음. */
+export interface Recording {
+  id: string;
+  uri: string;
+  durationSec: number;
+  coveredCount: number; // 이 회차에 지나간 대사 수
+  totalCount: number; // 구간 전체 대사 수
+  createdAt: number;
+}
+
 export interface SavedScript {
   id: string;
   title: string;
@@ -26,6 +36,8 @@ export interface SavedScript {
   maskMode: MaskMode;
   /** 외운 대사(줄 인덱스) 집합 — R04 암기용 */
   memorized: number[];
+  /** 연습 녹음 회차 목록(최신이 앞) */
+  recordings: Recording[];
   createdAt: number;
   updatedAt: number;
 }
@@ -45,6 +57,7 @@ function normalize(s: any): SavedScript {
     endIndex: typeof s.endIndex === 'number' ? s.endIndex : Math.max(0, lines.length - 1),
     maskMode: s.maskMode ?? 'none',
     memorized: Array.isArray(s.memorized) ? s.memorized : [],
+    recordings: Array.isArray(s.recordings) ? s.recordings : [],
   };
 }
 
@@ -109,6 +122,7 @@ export async function createFromParsed(p: ParsedScript): Promise<SavedScript> {
     endIndex: Math.max(0, p.lines.length - 1),
     maskMode: 'none',
     memorized: [],
+    recordings: [],
     createdAt: now,
     updatedAt: now,
   };
@@ -129,6 +143,14 @@ export async function loadIntoCurrent(id: string): Promise<SavedScript | null> {
 export async function updateCurrent(patch: Partial<SavedScript>): Promise<void> {
   if (!current) return;
   current = { ...current, ...patch, updatedAt: Date.now() };
+  await upsert(current);
+}
+
+/** 연습 녹음 1회를 현재 대본에 추가(최신이 앞). */
+export async function addRecording(rec: Omit<Recording, 'id' | 'createdAt'>): Promise<void> {
+  if (!current) return;
+  const full: Recording = { ...rec, id: `r_${Date.now()}`, createdAt: Date.now() };
+  current = { ...current, recordings: [full, ...current.recordings], updatedAt: Date.now() };
   await upsert(current);
 }
 

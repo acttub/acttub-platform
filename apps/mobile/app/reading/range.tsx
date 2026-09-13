@@ -43,7 +43,7 @@ export default function ReadingRange() {
     return out;
   }, [lines]);
 
-  const [tab, setTab] = useState<'line' | 'scene'>('line');
+  const [tab, setTab] = useState<'line' | 'scene'>('scene');
   const [mask, setMask] = useState<MaskMode>(script?.maskMode ?? 'none');
   const [start, setStart] = useState(script?.startIndex ?? 0);
   const [end, setEnd] = useState(script?.endIndex ?? Math.max(0, lines.length - 1));

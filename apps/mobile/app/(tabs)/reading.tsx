@@ -33,13 +33,13 @@ export default function ReadingList() {
     const kw = q.trim();
     if (!kw) return scripts;
     return scripts.filter(
-      (s) => s.title.includes(kw) || s.lines.some((l) => l.type === 'dialogue' && l.text.includes(kw)),
+      (s) => s.title.includes(kw) || s.roles.some((r) => r.includes(kw)) || s.lines.some((l) => l.type === 'dialogue' && l.text.includes(kw)),
     );
   }, [scripts, q]);
 
   const open = async (s: SavedScript) => {
     await loadIntoCurrent(s.id);
-    router.push(s.myRoles.length === 0 ? '/reading/roles' : '/reading/play');
+    router.push(s.myRoles.length === 0 ? '/reading/roles' : '/reading/detail');
   };
   const memorize = async (s: SavedScript) => {
     await loadIntoCurrent(s.id);
@@ -61,7 +61,7 @@ export default function ReadingList() {
             style={styles.searchInput}
             value={q}
             onChangeText={setQ}
-            placeholder="작품명 또는 대사로 검색"
+            placeholder="작품명 또는 배역 검색"
             placeholderTextColor={palette.textFaint}
           />
         </View>
@@ -101,8 +101,8 @@ export default function ReadingList() {
                 <View style={styles.cardBody}>
                   <Text style={styles.cardTitle} numberOfLines={1}>{s.title}</Text>
                   <Text style={styles.cardMeta}>
-                    배역 {s.roles.length}명 · 대사 {s.dialogueCount}개
-                    {s.myRoles.length ? ` · 내 배역 ${s.myRoles.join(', ')}` : ''}
+                    {s.myRoles.length ? `${s.myRoles.join(', ')} · ` : ''}대사 {s.dialogueCount}개
+                    {s.recordings.length ? ` · 녹음 ${s.recordings.length}개` : ''}
                   </Text>
                   <View style={styles.progressTrack}>
                     <View style={[styles.progressFill, { width: `${Math.round(ratio * 100)}%`, backgroundColor: st.color }]} />
