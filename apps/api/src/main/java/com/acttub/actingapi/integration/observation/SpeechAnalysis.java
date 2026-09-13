@@ -9,11 +9,17 @@ public record SpeechAnalysis(
         String transcript,
         @JsonProperty("avg_syllables_per_sec") double avgSyllablesPerSec,
         List<Pause> pauses,
-        List<Chunk> chunks) {
+        List<Chunk> chunks,
+        @com.fasterxml.jackson.annotation.JsonIgnore List<SpeechFacts.Word> words) {
 
     public SpeechAnalysis {
         pauses = List.copyOf(pauses);
         chunks = List.copyOf(chunks);
+        words = List.copyOf(words);
+    }
+
+    public SpeechAnalysis(String transcript, double avgSyllablesPerSec, List<Pause> pauses, List<Chunk> chunks) {
+        this(transcript, avgSyllablesPerSec, pauses, chunks, List.of());
     }
 
     public record Pause(

@@ -53,6 +53,7 @@ services:
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:?.env 의 AWS_SECRET_ACCESS_KEY 가 없다}
       # healthcheck·web rewrites 가 이 포트를 전제한다. .env 가 덮지 못하게 고정한다(systemd 와 같다).
       SERVER_PORT: "8080"
+      ACTTUB_THREE_LAYERS_ENABLED: ${ACTTUB_THREE_LAYERS_ENABLED:-false}
       # 관측(SOMA-517). 비면 기록이 통째로 꺼지므로 :? 를 붙이지 않는다 — 관측이 없다고
       # 연습이 멈추면 앞뒤가 바뀐다. 값은 .env 가 준다.
       LANGFUSE_HOST: ${LANGFUSE_HOST:-}

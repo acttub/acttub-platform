@@ -98,6 +98,9 @@ public class CoachEngine {
 
     /** 새 세션의 첫 응답을 만들고 actor→ai 순서로 두 turn을 추가한다. */
     public CoachResult start(CoachSessionSnapshot session, UUID operationId) {
+        if (session.threeLayers()) {
+            return new StructuredCoachEngine(generate, failureReporter, telemetry).turn(session, null, operationId);
+        }
         String latest = firstActorMessage(session);
         CoachReply response = generateValidated(session, latest, operationId);
         return appendTurns(session, latest, response);
@@ -131,6 +134,9 @@ public class CoachEngine {
     /** 기존 세션의 다음 응답을 만들고 actor→ai 순서로 두 turn을 추가한다. */
     public CoachResult reply(
             CoachSessionSnapshot session, String actorText, UUID operationId) {
+        if (session.threeLayers()) {
+            return new StructuredCoachEngine(generate, failureReporter, telemetry).turn(session, actorText, operationId);
+        }
         CoachReply response = generateValidated(session, actorText, operationId);
         return appendTurns(session, actorText, response);
     }

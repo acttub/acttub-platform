@@ -6,6 +6,7 @@ import java.util.UUID;
 import com.acttub.actingapi.feature.report.app.PublicReport.AnalysisReport;
 import com.acttub.actingapi.feature.report.app.PublicReport.BlockedReport;
 import com.acttub.actingapi.feature.report.app.PublicReport.ExpressionReport;
+import com.acttub.actingapi.feature.report.app.PublicReport.PublicPracticeNote;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import com.fasterxml.jackson.databind.annotation.JsonNaming;
@@ -48,7 +49,7 @@ public final class CoachDtos {
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) UUID id,
             @Schema(
                     requiredMode = Schema.RequiredMode.REQUIRED,
-                    allowableValues = {"analysis", "expression"})
+                    allowableValues = {"analysis", "expression", "coaching"})
             String branchKind) {
     }
 
@@ -75,7 +76,7 @@ public final class CoachDtos {
             @Schema(
                     requiredMode = Schema.RequiredMode.REQUIRED,
                     nullable = true,
-                    anyOf = {AnalysisReport.class, ExpressionReport.class, BlockedReport.class})
+                    anyOf = {AnalysisReport.class, ExpressionReport.class, PublicPracticeNote.class, BlockedReport.class})
             JsonNode report,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED)
             List<PublicCoachTurn> turns) {
@@ -92,7 +93,7 @@ public final class CoachDtos {
             PublicHandoff handoff,
             @Schema(
                     requiredMode = Schema.RequiredMode.REQUIRED,
-                    anyOf = {AnalysisReport.class, ExpressionReport.class, BlockedReport.class})
+                    anyOf = {AnalysisReport.class, ExpressionReport.class, PublicPracticeNote.class, BlockedReport.class})
             JsonNode report) {
     }
 }

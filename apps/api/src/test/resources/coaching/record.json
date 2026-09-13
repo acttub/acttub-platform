@@ -1,0 +1,364 @@
+{
+  "schema_version": "acttub.video_record.v1",
+  "record_id": "record_demo_01",
+  "record_version": 1,
+  "media": {
+    "duration_ms": 8000,
+    "audio_track_present": true,
+    "time_mapping": "identity"
+  },
+  "processing": {
+    "status": "ready",
+    "processed_ranges": [
+      {
+        "start_ms": 0,
+        "end_ms": 8000
+      }
+    ],
+    "missing_ranges": []
+  },
+  "actor_context": {},
+  "overview": {
+    "observed_scene": [
+      {
+        "text": "고개를 들고, 발화 뒤 고개를 화면 오른쪽으로 돌린다.",
+        "source_refs": [
+          "e2",
+          "e5"
+        ]
+      }
+    ],
+    "spoken_content": [
+      {
+        "text": "인물이 “가지 마”라고 말한다.",
+        "source_refs": [
+          "u1"
+        ]
+      }
+    ]
+  },
+  "subjects": [
+    {
+      "id": "p1",
+      "description": "화면 중앙에 상반신이 보이는 인물"
+    }
+  ],
+  "speech": {
+    "status": "recorded",
+    "utterances": [
+      {
+        "id": "u1",
+        "speaker_id": "p1",
+        "start_ms": 4000,
+        "end_ms": 5800,
+        "text": "가지 마",
+        "transcription_status": "clear",
+        "timing_basis": "estimated"
+      }
+    ],
+    "word_timings": {
+      "status": "unavailable",
+      "items": []
+    },
+    "word_gaps": {
+      "status": "unavailable",
+      "items": []
+    }
+  },
+  "segments": [
+    {
+      "id": "s1",
+      "start_ms": 0,
+      "end_ms": 4000,
+      "utterance_ids": [],
+      "event_ids": [
+        "e1",
+        "e2",
+        "e3",
+        "e6",
+        "e8",
+        "e9"
+      ],
+      "channel_status": {
+        "visual": "recorded",
+        "audio": "recorded"
+      },
+      "limitation_ids": [
+        "l1",
+        "l2"
+      ]
+    },
+    {
+      "id": "s2",
+      "start_ms": 4000,
+      "end_ms": 5800,
+      "utterance_ids": [
+        "u1"
+      ],
+      "event_ids": [
+        "e3",
+        "e4",
+        "e8",
+        "e10",
+        "e12",
+        "e13",
+        "e14"
+      ],
+      "channel_status": {
+        "visual": "recorded",
+        "audio": "recorded"
+      },
+      "limitation_ids": [
+        "l1",
+        "l2"
+      ]
+    },
+    {
+      "id": "s3",
+      "start_ms": 5800,
+      "end_ms": 8000,
+      "utterance_ids": [],
+      "event_ids": [
+        "e3",
+        "e5",
+        "e7",
+        "e8",
+        "e11"
+      ],
+      "channel_status": {
+        "visual": "recorded",
+        "audio": "recorded"
+      },
+      "limitation_ids": [
+        "l1",
+        "l2",
+        "l3"
+      ]
+    }
+  ],
+  "events": [
+    {
+      "id": "e1",
+      "subject_id": "p1",
+      "start_ms": 0,
+      "end_ms": 3200,
+      "channel": "visual",
+      "dimension": "gaze",
+      "description": "고개를 아래로 기울이고 시선도 화면 아래쪽으로 향한다.",
+      "timing_basis": "estimated",
+      "clarity": "clear",
+      "utterance_ids": []
+    },
+    {
+      "id": "e2",
+      "subject_id": "p1",
+      "start_ms": 3200,
+      "end_ms": 3800,
+      "channel": "visual",
+      "dimension": "movement",
+      "description": "고개를 들어 얼굴이 정면을 향하게 한다.",
+      "timing_basis": "estimated",
+      "clarity": "clear",
+      "utterance_ids": [
+        "u1"
+      ]
+    },
+    {
+      "id": "e3",
+      "subject_id": "p1",
+      "start_ms": 3800,
+      "end_ms": 6200,
+      "channel": "visual",
+      "dimension": "gaze",
+      "description": "시선이 화면 정면을 향한 상태를 유지한다.",
+      "timing_basis": "estimated",
+      "clarity": "clear",
+      "utterance_ids": [
+        "u1"
+      ]
+    },
+    {
+      "id": "e4",
+      "subject_id": "p1",
+      "start_ms": 5100,
+      "end_ms": 5800,
+      "channel": "audio",
+      "dimension": "voice",
+      "description": "마지막 음절 ‘마’의 소리가 앞선 음절들보다 길게 이어진다.",
+      "timing_basis": "estimated",
+      "clarity": "clear",
+      "utterance_ids": [
+        "u1"
+      ]
+    },
+    {
+      "id": "e5",
+      "subject_id": "p1",
+      "start_ms": 6200,
+      "end_ms": 8000,
+      "channel": "visual",
+      "dimension": "movement",
+      "description": "고개를 화면 오른쪽으로 돌린 뒤 그 방향을 유지한다.",
+      "timing_basis": "estimated",
+      "clarity": "clear",
+      "utterance_ids": [
+        "u1"
+      ]
+    },
+    {
+      "id": "e6",
+      "subject_id": "p1",
+      "start_ms": 0,
+      "end_ms": 4000,
+      "channel": "audio",
+      "dimension": "speech",
+      "description": "발화가 들리지 않는다.",
+      "timing_basis": "estimated",
+      "clarity": "clear",
+      "utterance_ids": []
+    },
+    {
+      "id": "e7",
+      "subject_id": "p1",
+      "start_ms": 5800,
+      "end_ms": 8000,
+      "channel": "audio",
+      "dimension": "speech",
+      "description": "발화가 들리지 않는다.",
+      "timing_basis": "estimated",
+      "clarity": "clear",
+      "utterance_ids": []
+    },
+    {
+      "id": "e8",
+      "subject_id": "p1",
+      "start_ms": 0,
+      "end_ms": 8000,
+      "channel": "visual",
+      "dimension": "movement",
+      "description": "보이는 어깨와 몸통의 위치에 뚜렷한 변화가 관찰되지 않는다.",
+      "timing_basis": "estimated",
+      "clarity": "clear",
+      "utterance_ids": [
+        "u1"
+      ]
+    },
+    {
+      "id": "e9",
+      "subject_id": "p1",
+      "start_ms": 0,
+      "end_ms": 4000,
+      "channel": "visual",
+      "dimension": "face",
+      "description": "입을 닫은 상태를 유지한다.",
+      "timing_basis": "estimated",
+      "clarity": "clear",
+      "utterance_ids": []
+    },
+    {
+      "id": "e10",
+      "subject_id": "p1",
+      "start_ms": 4000,
+      "end_ms": 5800,
+      "channel": "audio",
+      "dimension": "voice",
+      "description": "발화 중 목소리 높낮이의 뚜렷한 변화는 들리지 않는다.",
+      "timing_basis": "estimated",
+      "clarity": "clear",
+      "utterance_ids": [
+        "u1"
+      ]
+    },
+    {
+      "id": "e11",
+      "subject_id": "p1",
+      "start_ms": 5800,
+      "end_ms": 8000,
+      "channel": "visual",
+      "dimension": "face",
+      "description": "발화 뒤 입을 다물고 유지한다.",
+      "timing_basis": "estimated",
+      "clarity": "clear",
+      "utterance_ids": [
+        "u1"
+      ]
+    },
+    {
+      "id": "e12",
+      "subject_id": "p1",
+      "start_ms": 4000,
+      "end_ms": 5800,
+      "channel": "visual",
+      "dimension": "face",
+      "description": "발화하는 동안 두 눈썹의 안쪽이 위로 올라간다.",
+      "timing_basis": "estimated",
+      "clarity": "clear",
+      "utterance_ids": [
+        "u1"
+      ]
+    },
+    {
+      "id": "e13",
+      "subject_id": "p1",
+      "start_ms": 4000,
+      "end_ms": 5800,
+      "channel": "audio",
+      "dimension": "voice",
+      "description": "발화 중 목소리 크기의 뚜렷한 변화는 들리지 않는다.",
+      "timing_basis": "estimated",
+      "clarity": "clear",
+      "utterance_ids": [
+        "u1"
+      ]
+    },
+    {
+      "id": "e14",
+      "subject_id": "p1",
+      "start_ms": 4000,
+      "end_ms": 5800,
+      "channel": "audio",
+      "dimension": "rhythm",
+      "description": "‘가지’에서 ‘마’까지 말이 뚜렷하게 끊기지 않고 이어진다.",
+      "timing_basis": "estimated",
+      "clarity": "clear",
+      "utterance_ids": [
+        "u1"
+      ]
+    }
+  ],
+  "limitations": [
+    {
+      "id": "l1",
+      "start_ms": 0,
+      "end_ms": 8000,
+      "subject_id": "p1",
+      "dimensions": [
+        "movement"
+      ],
+      "kind": "visibility",
+      "description": "손과 하체가 화면 밖이므로 손동작과 발의 움직임은 확인할 수 없다."
+    },
+    {
+      "id": "l2",
+      "start_ms": 0,
+      "end_ms": 8000,
+      "subject_id": "p1",
+      "dimensions": [
+        "breath"
+      ],
+      "kind": "audibility",
+      "description": "배경음과 호흡음을 분리하기 어려워 호흡의 시점과 크기를 특정할 수 없다."
+    },
+    {
+      "id": "l3",
+      "start_ms": 6200,
+      "end_ms": 8000,
+      "subject_id": "p1",
+      "dimensions": [
+        "gaze"
+      ],
+      "kind": "visibility",
+      "description": "고개를 돌린 뒤 눈의 방향을 분간하기 어려워 고개 방향과 별도로 시선을 특정할 수 없다."
+    }
+  ]
+}

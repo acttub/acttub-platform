@@ -78,6 +78,10 @@ public class ReportEngine {
             String analysisHandoffId,
             UUID practiceSessionId,
             UUID userId) {
+        if ("coaching".equals(reportType)) {
+            return PracticeNote.assemble(confirmedHandoff, input -> recorded(
+                    PracticeNote.prompt(), "{\"note_data\":" + input + "}", "practice_note", practiceSessionId, userId));
+        }
         JsonNode modelInput = buildReportInput(
                 reportType,
                 videoSummary,

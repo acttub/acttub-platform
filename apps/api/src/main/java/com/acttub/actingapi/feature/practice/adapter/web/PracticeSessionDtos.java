@@ -151,7 +151,8 @@ final class PracticeSessionDtos {
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) OffsetDateTime createdAt,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) OffsetDateTime updatedAt,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String playbackUrl,
-            @Schema(nullable = true) ObservationPackResponse summary,
+            @Schema(nullable = true, anyOf = {ObservationPackResponse.class, VideoRecordSummaryResponse.class})
+            com.fasterxml.jackson.databind.JsonNode summary,
             @Schema(nullable = true, allowableValues = {
                 "gemini_timeout", "gemini_parse_error", "unsupported_media", "max_attempts_exceeded"
             }) String errorCode) {
@@ -169,4 +170,40 @@ final class PracticeSessionDtos {
                         .toList(),
                 List.copyOf(pack.uncertainties()));
     }
+    @Schema(name = "VideoRecordRange", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
+    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
+    public record VideoRecordRange(
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) long startMs,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) long endMs) { }
+
+    @Schema(name = "VideoRecordLimit", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
+    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
+    public record VideoRecordLimit(
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) long startMs,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) long endMs,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String description) { }
+
+    @Schema(name = "VideoRecordSummaryResponse", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
+    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
+    public record VideoRecordSummaryResponse(
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, _const = "acttub.video_record_summary.v1") String schemaVersion,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) UUID recordId,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) int recordVersion,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) long durationMs,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, allowableValues = {"ready", "partial"}) String status,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) List<VideoRecordRange> processedRanges,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) List<VideoRecordRange> missingRanges,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) List<String> observedScene,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) List<String> spokenContent,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) List<VideoRecordLimit> limitations) { }
+
+    static VideoRecordSummaryResponse videoRecord(com.acttub.actingapi.feature.practice.domain.VideoRecordSummary record) {
+        return new VideoRecordSummaryResponse("acttub.video_record_summary.v1", record.recordId(), record.recordVersion(),
+                record.durationMs(), record.status(),
+                record.processedRanges().stream().map(r -> new VideoRecordRange(r.startMs(), r.endMs())).toList(),
+                record.missingRanges().stream().map(r -> new VideoRecordRange(r.startMs(), r.endMs())).toList(),
+                record.observedScene(), record.spokenContent(),
+                record.limitations().stream().map(l -> new VideoRecordLimit(l.startMs(), l.endMs(), l.description())).toList());
+    }
+
 }

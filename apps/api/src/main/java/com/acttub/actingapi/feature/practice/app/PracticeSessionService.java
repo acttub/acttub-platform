@@ -90,7 +90,8 @@ public class PracticeSessionService {
                 continuedFrom = parent;
             }
         }
-        PracticeSessionOperation result = operations.createWithAnalysis(
+        PracticeSessionOperation result = PracticeExperience.LEGACY.equals(command.experienceVersion())
+                ? operations.createWithAnalysis(
                 userId,
                 command.uploadIntentId(),
                 blankIfPlaceholder(command.situation()),
@@ -101,7 +102,19 @@ public class PracticeSessionService {
                 command.blockageDetail(),
                 continuedFrom,
                 requestId,
-                createFingerprint(command));
+                createFingerprint(command))
+                : operations.createWithAnalysis(
+                userId,
+                command.uploadIntentId(),
+                blankIfPlaceholder(command.situation()),
+                blankIfPlaceholder(command.characterContext()),
+                blankIfPlaceholder(command.goal()),
+                command.blockageKind(),
+                command.subBranch(),
+                command.blockageDetail(),
+                continuedFrom,
+                requestId,
+                createFingerprint(command), command.experienceVersion());
         if (result == null) {
             throw new ApiException(409, "upload_intent_not_finalized");
         }
@@ -140,7 +153,7 @@ public class PracticeSessionService {
                 session,
                 playback.url(detail.objectKey(), PLAYBACK_URL_TTL_SECONDS),
                 session.analyzed() ? detail.summary() : null,
-                detail.errorCode());
+                detail.errorCode(), session.analyzed() ? detail.videoRecord() : null);
     }
 
     /**
@@ -225,6 +238,9 @@ public class PracticeSessionService {
         // 같은 요청이 새 작업으로 갈린다.
         if (command.continuedFrom() != null) {
             payload.put("continued_from", command.continuedFrom().toString());
+        }
+        if (!PracticeExperience.LEGACY.equals(command.experienceVersion())) {
+            payload.put("experience_version", command.experienceVersion());
         }
         return fingerprint(payload);
     }

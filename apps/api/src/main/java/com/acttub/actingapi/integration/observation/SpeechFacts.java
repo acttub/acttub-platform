@@ -86,7 +86,7 @@ public final class SpeechFacts {
                 .map(p -> new SpeechAnalysis.Pause(
                         p.atMs(), rounded(p.seconds(), 1), p.after(), p.before()))
                 .toList();
-        return new SpeechAnalysis(transcript, rounded(avg, 1), pauses, rates);
+        return new SpeechAnalysis(transcript, rounded(avg, 1), pauses, rates, words);
     }
 
     /** 잘라내기 전의 사이. 패키지 테스트가 전체 개수도 Python 원본과 대조한다. */

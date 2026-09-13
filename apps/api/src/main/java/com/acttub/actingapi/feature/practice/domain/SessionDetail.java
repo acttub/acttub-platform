@@ -14,5 +14,8 @@ public record SessionDetail(
         PracticeSession session,
         String objectKey,
         ObservationPack summary,
-        String errorCode) {
+        String errorCode, VideoRecordSummary videoRecord) {
+    public SessionDetail(PracticeSession session, String objectKey, ObservationPack summary, String errorCode) {
+        this(session, objectKey, summary, errorCode, null);
+    }
 }

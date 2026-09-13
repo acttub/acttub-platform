@@ -14,5 +14,12 @@ public record AnalysisContext(
         String characterContext,
         String goal,
         String blockageKind,
-        String blockageDetail) {
+        String blockageDetail,
+        String experienceVersion) {
+    public AnalysisContext(UUID operationId, UUID sessionId, String objectKey, String mimeType,
+            String etag, Integer durationMs, String situation, String characterContext,
+            String goal, String blockageKind, String blockageDetail) {
+        this(operationId, sessionId, objectKey, mimeType, etag, durationMs, situation,
+                characterContext, goal, blockageKind, blockageDetail, "legacy");
+    }
 }

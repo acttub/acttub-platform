@@ -2013,7 +2013,8 @@ function ScenePanel({
     .filter(Boolean)
     .join(" › ") || "적지 않았어요";
   const mobileRows: [string, string][] = [...rows, ["막힌 곳", blockage]];
-  const observations = detail?.summary?.observations ?? [];
+  const summary = detail?.summary;
+  const observations = summary && "observations" in summary ? summary.observations : [];
   const blockageDetail = detail?.blockage_detail?.trim();
 
   useEffect(() => {

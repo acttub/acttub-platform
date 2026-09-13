@@ -40,7 +40,8 @@ class AnalysisConfiguration {
             VideoCompressor compressor,
             ObservationAnalyzer observations,
             SpeechAnalyzer speech,
-            FailureReporter failureReporter) {
-        return new SummaryAnalyzer(durationProbe, compressor, observations, speech, failureReporter);
+            FailureReporter failureReporter,
+            com.acttub.actingapi.integration.observation.VideoRecordAnalyzer videoRecords) {
+        return new SummaryAnalyzer(durationProbe, compressor, observations, speech, failureReporter, videoRecords);
     }
 }
