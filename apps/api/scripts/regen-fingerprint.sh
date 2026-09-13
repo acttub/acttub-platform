@@ -34,11 +34,12 @@ docker run -d --name "$CONTAINER" \
   -e POSTGRES_PASSWORD=regen -e POSTGRES_USER=regen -e POSTGRES_DB=regen \
   "$IMAGE" >/dev/null
 
+# 초기 DB 생성 중 임시 서버는 Unix socket만 연다. TCP가 열려야 초기화가 끝난 것이다.
 for _ in $(seq 1 30); do
-  if docker exec "$CONTAINER" pg_isready -U regen >/dev/null 2>&1; then break; fi
+  if docker exec "$CONTAINER" pg_isready -h 127.0.0.1 -U regen -d regen >/dev/null 2>&1; then break; fi
   sleep 1
 done
-docker exec "$CONTAINER" pg_isready -U regen >/dev/null
+docker exec "$CONTAINER" pg_isready -h 127.0.0.1 -U regen -d regen >/dev/null
 
 # 버전 순으로 적용한다. `sort -V` 가 아니면 V10 이 V2 보다 앞에 온다.
 # (mapfile 은 bash 4+ 라 macOS 기본 bash 3.2 에서 조용히 없다. 파일명 규약상 공백이 없어

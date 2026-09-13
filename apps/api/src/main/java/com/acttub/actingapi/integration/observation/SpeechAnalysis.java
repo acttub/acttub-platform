@@ -15,7 +15,8 @@ public record SpeechAnalysis(
     public SpeechAnalysis {
         pauses = List.copyOf(pauses);
         chunks = List.copyOf(chunks);
-        words = List.copyOf(words);
+        // 기존 저장 JSON에는 내부 계산용 words가 없고 @JsonIgnore이므로 null로 복원된다.
+        words = words == null ? List.of() : List.copyOf(words);
     }
 
     public SpeechAnalysis(String transcript, double avgSyllablesPerSec, List<Pause> pauses, List<Chunk> chunks) {

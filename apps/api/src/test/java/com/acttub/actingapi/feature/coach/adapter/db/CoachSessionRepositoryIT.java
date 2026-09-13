@@ -578,7 +578,7 @@ class CoachSessionRepositoryIT {
         assertThat(statements).hasSize(10);
         assertThat(statements.get(0)).startsWith(
                 "select session_id as session_id, kind as kind from external_operations");
-        assertThat(statements.get(1)).startsWith("select status as status from coach_sessions");
+        assertThat(statements.get(1)).startsWith("select status as status, state_revision from coach_sessions");
         assertThat(statements.get(1)).endsWith("for update");
         assertThat(statements.get(2)).contains("from coach_turns");
         assertThat(statements.get(3)).startsWith("insert into coach_turns");

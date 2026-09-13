@@ -89,6 +89,66 @@ class CoachReportEndpointIT {
         generator.reset();
     }
 
+    @Test
+    void structuredConversationNegotiatesContractAndSavesAnUnconfirmedNoteExactlyOnce() throws Exception {
+        UUID user = fixtures.insertUser();
+        var practice = fixtures.insertPractice(user);
+        UUID summaryId = fixtures.insertSummary(practice.id());
+        jdbc.update("UPDATE practice_sessions SET experience_version='three_layers_v1' WHERE id=?", practice.id());
+        var record = (com.fasterxml.jackson.databind.node.ObjectNode)
+                com.acttub.actingapi.integration.llm.StructuredJson.resource("/coaching/record.json");
+        record.put("record_id", summaryId.toString());
+        jdbc.update("UPDATE summaries SET raw=?::jsonb WHERE session_id=?", record.toString(), practice.id());
+        var start = post("/v2/coach/start").contentType(MediaType.APPLICATION_JSON)
+                .header("Authorization", bearer(user)).header("X-Request-Id", UUID.randomUUID())
+                .content("{\"practice_session_id\":\"" + practice.id() + "\"}");
+        assertError(start, 409, "client_contract_required");
+        generator.enqueue(structuredReply(0, "말끝부터 함께 살펴볼게요.", "continue"));
+        JsonNode started = successful(start.header("X-Acttub-Contract", "three_layers_v1"));
+        UUID session = UUID.fromString(started.path("session_id").asText());
+        assertThat(mapper.readTree(generator.lastInput).path("user_message").isNull()).isTrue();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM coach_turns WHERE session_id=? AND role='actor'",
+                Long.class, session)).isZero();
+        assertError(coachReply(user, session, UUID.randomUUID()), 409, "client_contract_required");
+        assertError(coachConfirm(user, session, UUID.randomUUID()).header("X-Acttub-Contract", "three_layers_v1"),
+                409, "practice_note_does_not_require_confirmation");
+        assertError(reports(user, session, UUID.randomUUID()), 409, "client_contract_required");
+        assertError(reports(user, session, UUID.randomUUID()).header("X-Acttub-Contract", "three_layers_v1"),
+                409, "coaching_session_is_open");
+        generator.enqueue(structuredReply(1, "오늘 나눈 내용까지만 남겨둘게요.", "finish"));
+        generator.enqueue("{\"title\":\"오늘 나눈 이야기\",\"summary\":null}");
+        UUID requestId = UUID.randomUUID();
+        var finish = post("/v2/coach/reply").contentType(MediaType.APPLICATION_JSON)
+                .header("Authorization", bearer(user)).header("X-Request-Id", requestId)
+                .header("X-Acttub-Contract", "three_layers_v1")
+                .content("{\"session_id\":\"" + session + "\",\"text\":\"정리해줘\"}");
+        JsonNode completed = successful(finish);
+        assertThat(completed.path("status").asText()).isEqualTo("complete");
+        assertThat(completed.path("report").path("report_type").asText()).isEqualTo("practice_note");
+        assertThat(completed.path("report").path("mode").asText()).isEqualTo("record_only");
+        assertThat(completed.path("report").has("source_catalog")).isFalse();
+        assertThat(successful(finish)).isEqualTo(completed);
+        assertThat(generator.callCount()).isEqualTo(3);
+        assertError(coachReply(user, session, UUID.randomUUID()).header("X-Acttub-Contract", "three_layers_v1"),
+                409, "session is closed");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM practice_reports WHERE practice_session_id=?", Long.class, practice.id())).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM handoff_confirmations", Long.class)).isZero();
+        assertError(get("/v2/reports/{id}", practice.id()).header("Authorization", bearer(user)),
+                409, "client_contract_required");
+        JsonNode saved = successful(get("/v2/reports/{id}", practice.id())
+                .header("Authorization", bearer(user)).header("X-Acttub-Contract", "three_layers_v1"));
+        assertThat(saved.path("report")).isEqualTo(completed.path("report"));
+        JsonNode history = successful(get("/v2/reports").header("Authorization", bearer(user)));
+        assertThat(history.path("reports")).isEmpty();
+    }
+
+    private static String structuredReply(long revision, String text, String flow) {
+        return """
+                {"action":"respond","base_state_revision":%d,"message":"%s","context_update":null,
+                 "style_update":null,"flow":"%s","proposal_changes":[],"attempt_changes":[]}
+                """.formatted(revision, text, flow);
+    }
+
     @ParameterizedTest
     @ValueSource(strings = {"{}", "null", "[]", "{\"observations\":null}", "{\"legacy\":true}"})
     void legacySplitObservationsReachCoachStartAndReply(String raw) throws Exception {

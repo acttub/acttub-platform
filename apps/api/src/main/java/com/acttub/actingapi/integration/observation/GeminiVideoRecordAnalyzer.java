@@ -25,6 +25,8 @@ import com.google.genai.types.Content;
 import com.google.genai.types.GenerateContentConfig;
 import com.google.genai.types.Part;
 import com.google.genai.types.Schema;
+import com.google.genai.types.ThinkingConfig;
+import com.google.genai.types.ThinkingLevel;
 
 /** 전체 기록의 청크 처리·검증·실패 구간 보존. 구형 관찰 팩으로 폴백하지 않는다. */
 final class GeminiVideoRecordAnalyzer implements VideoRecordAnalyzer {
@@ -98,7 +100,10 @@ final class GeminiVideoRecordAnalyzer implements VideoRecordAnalyzer {
             GenerateContentConfig config = GenerateContentConfig.builder()
                     .systemInstruction(Content.fromParts(Part.fromText(PROMPT)))
                     .responseMimeType("application/json").responseSchema(SCHEMA)
-                    .temperature(0.0f).maxOutputTokens(16_384).build();
+                    .temperature(0.0f).maxOutputTokens(16_384)
+                    .thinkingConfig(ThinkingConfig.builder()
+                            .thinkingLevel(new ThinkingLevel(ThinkingLevel.Known.LOW)).build())
+                    .build();
             for (int attempt = 0; attempt < 2 && remaining[0] > 0; attempt++) {
                 remaining[0]--;
                 Instant began = Instant.now();
