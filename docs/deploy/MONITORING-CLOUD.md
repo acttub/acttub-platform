@@ -21,6 +21,8 @@
 실제 provider의 `terraform providers schema -json`, `validate`, `test`도 사용한다.
 Terraform 배포본은 [HashiCorp 공식 배포](https://releases.hashicorp.com/terraform/1.16.2/), promtool은 수집 구성과 같은 [Prometheus 3.14.0 공식 배포](https://github.com/prometheus/prometheus/releases/tag/v3.14.0)를 사용한다.
 
+provider 잠금 파일에는 개발 Mac(`darwin_arm64`)과 CI(`linux_amd64`)의 체크섬을 함께 기록한다. provider를 갱신할 때 Cloud 디렉터리에서 `terraform providers lock -platform=darwin_arm64 -platform=linux_amd64`로 공식 서명과 두 플랫폼의 해시를 확인한 뒤 커밋한다. CI의 `-lockfile=readonly`는 유지한다. [공식 잠금 명령](https://developer.hashicorp.com/terraform/cli/commands/providers/lock)
+
 ## 소유권과 복구
 
 별도 Terraform state 하나가 `acttub-monitoring` 폴더·동명 규칙 그룹, `acttub-local-prometheus` 데이터 소스, `acttub-service`/`acttub-operations`/`acttub-infrastructure` 대시보드, `acttub-monitoring-slack` 수신점, `acttub-health-dev`/`acttub-health-prod` 점검을 소유한다.
