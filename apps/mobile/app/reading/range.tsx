@@ -47,6 +47,7 @@ export default function ReadingRange() {
   const [mask, setMask] = useState<MaskMode>(script?.maskMode ?? 'none');
   const [start, setStart] = useState(script?.startIndex ?? 0);
   const [end, setEnd] = useState(script?.endIndex ?? Math.max(0, lines.length - 1));
+  const [picking, setPicking] = useState<'start' | 'end'>('start');
 
   if (!script) {
     return (
@@ -59,13 +60,26 @@ export default function ReadingRange() {
     );
   }
 
+  // 두 단계: 시작 지점 탭 → 끝 지점 탭. 끝이 시작보다 앞이면 자동으로 뒤바꾼다.
   const pickLine = (i: number) => {
-    if (i <= start) setStart(i);
-    else setEnd(i);
+    if (picking === 'start') {
+      setStart(i);
+      if (i > end) setEnd(i);
+      setPicking('end');
+    } else {
+      if (i < start) {
+        setEnd(start);
+        setStart(i);
+      } else {
+        setEnd(i);
+      }
+      setPicking('start');
+    }
   };
   const pickScene = (from: number, to: number) => {
     setStart(from);
     setEnd(to);
+    setPicking('start');
   };
 
   const dlgIn = dialogues.filter((x) => x.i >= start && x.i <= end).length;
@@ -99,6 +113,17 @@ export default function ReadingRange() {
             </Pressable>
           ))}
         </View>
+
+        {tab === 'line' && (
+          <View style={styles.pickBar}>
+            <Text style={styles.pickText}>
+              {picking === 'start' ? '① 시작할 대사를 탭하세요' : '② 끝낼 대사를 탭하세요'}
+            </Text>
+            <Pressable onPress={() => { setStart(0); setEnd(Math.max(0, lines.length - 1)); setPicking('start'); }}>
+              <Text style={styles.pickReset}>전체 선택</Text>
+            </Pressable>
+          </View>
+        )}
 
         {tab === 'line' ? (
           <View style={styles.list}>
@@ -174,6 +199,9 @@ const styles = StyleSheet.create({
   maskChipOn: { backgroundColor: palette.blueSoft, borderColor: palette.blue },
   maskText: { color: palette.textMuted, fontFamily: 'Pretendard-SemiBold', fontSize: 11 },
   maskTextOn: { color: palette.blueDeep },
+  pickBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: palette.blueSoft, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 9, marginTop: 4 },
+  pickText: { color: palette.blueDeep, fontFamily: 'Pretendard-SemiBold', fontSize: 13 },
+  pickReset: { color: palette.textMuted, fontFamily: 'Pretendard-SemiBold', fontSize: 12 },
   list: { gap: 8, marginTop: 6 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: palette.bgSubtle, borderColor: palette.border, borderWidth: 1, borderRadius: 12, padding: 14 },
   rowIn: { backgroundColor: palette.blueMist, borderColor: palette.blueLine },

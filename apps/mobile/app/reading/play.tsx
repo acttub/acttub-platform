@@ -36,6 +36,7 @@ export default function ReadingPlay() {
   const [paused, setPaused] = useState(false);
   const [revealAll, setRevealAll] = useState(false);
   const [elapsed, setElapsed] = useState(0);
+  const [heard, setHeard] = useState('');
 
   const mounted = useRef(true);
   const indexRef = useRef(index);
@@ -68,11 +69,20 @@ export default function ReadingPlay() {
     if (mounted.current) setIndex((i) => i + 1);
   };
 
-  // 내 차례 + 재생중 + 안멈춤이면 마이크로 듣고, 말 끝나면 자동 다음
-  useMicAutoAdvance(phase === 'reading' && !paused && myTurn, () => {
-    engine.stop();
-    advance();
-  });
+  // 내 차례 + 재생중 + 안멈춤이면 마이크로 듣고, 말 끝나면 자동 다음. 들은 말은 화면에 표시.
+  useMicAutoAdvance(
+    phase === 'reading' && !paused && myTurn,
+    () => {
+      engine.stop();
+      advance();
+    },
+    setHeard,
+  );
+
+  // 줄이 바뀌면 이전에 들은 말은 지운다.
+  useEffect(() => {
+    setHeard('');
+  }, [index]);
 
   // 대사 진행: 상대 배역이면 TTS, 지문은 잠깐, 내 배역이면 마이크 대기
   useEffect(() => {
@@ -240,6 +250,13 @@ export default function ReadingPlay() {
           <Text style={styles.next}>다음 · 마지막 대사예요</Text>
         )}
 
+        {myTurn && heard ? (
+          <View style={styles.heardBox}>
+            <Feather name="mic" size={14} color={palette.blue} />
+            <Text style={styles.heardText} numberOfLines={2}>{heard}</Text>
+          </View>
+        ) : null}
+
         <Text style={styles.hint}>
           {myTurn ? '대사를 읽으면 자동으로 넘어가요 (안 되면 다음)' : '상대가 읽는 중 · 끝나면 내 차례'}
         </Text>
@@ -297,6 +314,8 @@ const styles = StyleSheet.create({
   listeningText: { color: '#BAE6FD', fontFamily: 'Pretendard-SemiBold', fontSize: 12 },
   lineText: { color: '#fff', fontFamily: 'Pretendard-Bold', fontSize: 26, lineHeight: 37 },
   next: { color: palette.textFaint, fontFamily: 'Pretendard', fontSize: 14, textAlign: 'center' },
+  heardBox: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'center', maxWidth: '92%', backgroundColor: palette.blueSoft, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8 },
+  heardText: { flex: 1, color: palette.blueDeep, fontFamily: 'Pretendard-SemiBold', fontSize: 14 },
   hint: { color: palette.textMuted, fontFamily: 'Pretendard', fontSize: 13, textAlign: 'center', marginTop: 2 },
 
   controls: { flexDirection: 'row', gap: 10, paddingHorizontal: 16, paddingTop: 12, borderTopColor: palette.borderSoft, borderTopWidth: 1 },
