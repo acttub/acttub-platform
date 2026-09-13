@@ -1,7 +1,18 @@
 package com.acttub.actingapi.platform.observability;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.content;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.headerDoesNotExist;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.jsonPath;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withException;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withServerError;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
+import java.io.IOException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -14,6 +25,13 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.MediaType;
+import org.springframework.test.web.client.MockRestServiceServer;
+import org.springframework.web.client.RestClient;
 
 /**
  * 보내는 모양을 못박는다.
@@ -22,6 +40,7 @@ import org.junit.jupiter.api.Test;
  * 안 뜬다. 그래서 여기서 잡지 못하면 운영에 올린 뒤에야 안 들어온다는 것을 알게 되고,
  * 그때는 무엇이 틀렸는지 볼 단서가 없다.
  */
+@ExtendWith(OutputCaptureExtension.class)
 class LangfuseTelemetryTest {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
@@ -172,6 +191,104 @@ class LangfuseTelemetryTest {
     void sendsOverHttp11() {
         assertThat(LangfuseTelemetry.httpClient().version())
                 .isEqualTo(java.net.http.HttpClient.Version.HTTP_1_1);
+    }
+
+    @Test
+    @DisplayName("HTTP 요청은 v4 헤더와 Basic 인증을 싣고 전송은 일꾼이 맡는다")
+    void sendsV4TraceAndScoresOnlyWhenTheWorkerRuns() {
+        var builder = RestClient.builder();
+        var server = MockRestServiceServer.bindTo(builder).build();
+        List<Runnable> submitted = new ArrayList<>();
+        var telemetry = new LangfuseTelemetry(MAPPER, enabledEnvironment()::get,
+                submitted::add, builder::build);
+        server.expect(requestTo("http://langfuse-web:3000/api/public/otel/v1/traces"))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(header("Authorization", "Basic cGs6c2s="))
+                .andExpect(header("x-langfuse-ingestion-version", "4"))
+                .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.resourceSpans[0].scopeSpans[0].spans[0].traceId")
+                        .value("11112222333344445555666677778888"))
+                .andExpect(jsonPath("$.resourceSpans[0].scopeSpans[0].spans[0].name").value("coach.turn"))
+                .andRespond(withSuccess("{}", MediaType.APPLICATION_JSON));
+        server.expect(requestTo("http://langfuse-web:3000/api/public/scores"))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(header("Authorization", "Basic cGs6c2s="))
+                .andExpect(headerDoesNotExist("x-langfuse-ingestion-version"))
+                .andExpect(content().json("""
+                        {"traceId":"11112222333344445555666677778888",
+                         "name":"coach.regenerated","dataType":"BOOLEAN","value":1.0}
+                        """))
+                .andRespond(withSuccess());
+
+        telemetry.record(call(LlmStep.COACH_TURN, null));
+        telemetry.score(LlmScore.flag(PRACTICE, "coach.regenerated", true));
+
+        assertThat(submitted).hasSize(2);
+        submitted.forEach(Runnable::run);
+        server.verify();
+    }
+
+    @Test
+    @DisplayName("HTTP 오류와 연결 실패는 삼키고 응답 본문과 예외 메시지를 로그에 싣지 않는다")
+    void transportFailuresNeverExposeResponseOrExceptionText(CapturedOutput output) {
+        var builder = RestClient.builder();
+        var server = MockRestServiceServer.bindTo(builder).build();
+        var telemetry = new LangfuseTelemetry(MAPPER, enabledEnvironment()::get,
+                Runnable::run, builder::build);
+        server.expect(requestTo("http://langfuse-web:3000/api/public/otel/v1/traces"))
+                .andRespond(withServerError().body("응답에 섞인 민감값 표식"));
+        server.expect(requestTo("http://langfuse-web:3000/api/public/scores"))
+                .andRespond(withException(new IOException("예외에 섞인 민감값 표식")));
+
+        assertThatCode(() -> telemetry.record(call(LlmStep.COACH_TURN, null))).doesNotThrowAnyException();
+        assertThatCode(() -> telemetry.score(LlmScore.number(PRACTICE, "observation.count", 1)))
+                .doesNotThrowAnyException();
+
+        server.verify();
+        assertThat(output.getAll()).contains("LLM 관측 전송 실패")
+                .doesNotContain("응답에 섞인 민감값 표식", "예외에 섞인 민감값 표식", "Basic cGs6c2s=");
+    }
+
+    @Test
+    @DisplayName("비동기 조립 실패를 삼킨 뒤에도 다음 관측을 처리한다")
+    void serializationFailureCannotEscapeTheWorker() {
+        List<Runnable> submitted = new ArrayList<>();
+        var builder = RestClient.builder();
+        var server = MockRestServiceServer.bindTo(builder).build();
+        var telemetry = new LangfuseTelemetry(MAPPER, enabledEnvironment()::get, submitted::add, builder::build);
+        server.expect(requestTo("http://langfuse-web:3000/api/public/scores")).andRespond(withSuccess());
+        telemetry.record(new LlmCall(LlmStep.REPORT, PRACTICE, USER, "model", "입력", "출력",
+                null, STARTED, Duration.ofSeconds(Long.MAX_VALUE), null, Map.of()));
+        telemetry.score(LlmScore.number(PRACTICE, "observation.count", 1));
+
+        assertThat(submitted).hasSize(2);
+        assertThatCode(() -> submitted.forEach(Runnable::run)).doesNotThrowAnyException();
+        server.verify();
+    }
+
+    @Test
+    @DisplayName("설정 중 하나라도 비면 HTTP 클라이언트도 만들지 않는다")
+    void partialConfigurationDoesNotCreateAClientOrSubmitWork() {
+        for (String key : enabledEnvironment().keySet()) {
+            var environment = new java.util.HashMap<>(enabledEnvironment());
+            environment.put(key, " \t ");
+            var telemetry = new LangfuseTelemetry(MAPPER, environment::get,
+                    task -> { throw new AssertionError("꺼진 관측은 일을 맡기지 않는다"); },
+                    () -> { throw new AssertionError("꺼진 관측은 클라이언트를 만들지 않는다"); });
+            telemetry.record(call(LlmStep.REPORT, null));
+            telemetry.score(LlmScore.flag(PRACTICE, "coach.regenerated", false));
+            assertThat(telemetry.isEnabled()).isFalse();
+        }
+    }
+
+    @Test
+    @DisplayName("연습 세션이 없으면 호출과 점수를 조립하거나 전송하지 않는다")
+    void nullPracticeDoesNotSubmitCallsOrScores() {
+        var telemetry = new LangfuseTelemetry(MAPPER, enabledEnvironment()::get,
+                task -> { throw new AssertionError("연습을 모르면 일을 맡기지 않는다"); });
+        telemetry.record(new LlmCall(LlmStep.REPORT, null, USER, "model", "입력", "출력",
+                null, STARTED, Duration.ZERO, null, Map.of()));
+        telemetry.score(LlmScore.flag(null, "coach.regenerated", false));
     }
 
     private static LangfuseTelemetry telemetry(Map<String, String> environment) {

@@ -89,7 +89,7 @@ final class GeminiObservationAnalyzer implements ObservationAnalyzer {
 
     @Override
     public ObservationPack analyze(
-            Path videoPath, String mimeType, ActorMaterial actor, UUID practiceSessionId) {
+            Path videoPath, String mimeType, ActorMaterial actor, UUID practiceSessionId, UUID userId) {
         String prompt = ObservationPrompt.build(actor);
         GeminiFile uploaded = gateway.upload(videoPath, mimeType);
         try {
@@ -125,7 +125,7 @@ final class GeminiObservationAnalyzer implements ObservationAnalyzer {
             for (int attempt = 0; attempt < PARSE_ATTEMPTS; attempt++) {
                 // 되풀이한 호출도 각각 남긴다 — 몇 번 만에 읽을 수 있는 JSON 이 나왔는지가
                 // 그 자체로 신호다.
-                String responseText = recorded(practiceSessionId, prompt, attempt, contents, config);
+                String responseText = recorded(practiceSessionId, userId, prompt, attempt, contents, config);
                 try {
                     ObservationPack pack = filter(parse(responseText), actor.durationMs());
                     scoreObservations(practiceSessionId, pack);
@@ -171,26 +171,31 @@ final class GeminiObservationAnalyzer implements ObservationAnalyzer {
     /** 모델을 부르고 그 한 번을 남긴다. 기록이 실패해도 관찰은 그대로 간다. */
     private String recorded(
             UUID practiceSessionId,
+            UUID userId,
             String prompt,
             int attempt,
             Content contents,
             GenerateContentConfig config) {
         Instant startedAt = Instant.now();
         try {
-            String responseText = gateway.generate(model, contents, config);
-            record(practiceSessionId, prompt, responseText, attempt, startedAt, null);
+            var response = gateway.generateResponse(model, contents, config);
+            String responseText = response.text();
+            record(practiceSessionId, userId, prompt, responseText, GeminiUsage.tokens(response),
+                    attempt, startedAt, null);
             return responseText;
         } catch (RuntimeException failure) {
-            record(practiceSessionId, prompt, "", attempt, startedAt,
-                    failure.getMessage() == null ? failure.toString() : failure.getMessage());
+            record(practiceSessionId, userId, prompt, "", LlmTokens.unknown(), attempt, startedAt,
+                    failure.getClass().getSimpleName());
             throw failure;
         }
     }
 
     private void record(
             UUID practiceSessionId,
+            UUID userId,
             String prompt,
             String responseText,
+            LlmTokens tokens,
             int attempt,
             Instant startedAt,
             String errorMessage) {
@@ -200,12 +205,11 @@ final class GeminiObservationAnalyzer implements ObservationAnalyzer {
         telemetry.record(new LlmCall(
                 LlmStep.OBSERVATION,
                 practiceSessionId,
-                null,
+                userId,
                 model,
                 ObservationPrompt.SYSTEM + "\n\n" + prompt,
                 responseText,
-                // Gemini 관문이 지금은 본문만 돌려준다 — 사용량은 뒤 단계에서 잇는다.
-                LlmTokens.unknown(),
+                tokens,
                 startedAt,
                 java.time.Duration.between(startedAt, Instant.now()),
                 errorMessage,

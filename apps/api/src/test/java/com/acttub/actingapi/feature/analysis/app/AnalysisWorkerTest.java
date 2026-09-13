@@ -36,8 +36,8 @@ class AnalysisWorkerTest {
         var observations = new ObservationPack("장면", "0:01에 말한다", null, List.of(), List.of());
         var analyzer = new SummaryAnalyzer(
                 (path, declared) -> 1000, path -> path,
-                (path, mime, actor, practiceId) -> observations,
-                (path, practiceId) -> { throw failure; }, reporter);
+                (path, mime, actor, practiceId, actorId) -> observations,
+                (path, practiceId, actorId) -> { throw failure; }, reporter);
 
         assertThat(worker(store, analyzer, reporter).runOnce(NOW)).isTrue();
 
@@ -59,8 +59,8 @@ class AnalysisWorkerTest {
         RecordingFailureReporter reporter = new RecordingFailureReporter();
         var analyzer = new SummaryAnalyzer(
                 (path, declared) -> 1000, path -> path,
-                (path, mime, actor, practiceId) -> new ObservationPack("", List.of(), List.of()),
-                (path, practiceId) -> { throw failure; }, reporter);
+                (path, mime, actor, practiceId, actorId) -> new ObservationPack("", List.of(), List.of()),
+                (path, practiceId, actorId) -> { throw failure; }, reporter);
 
         worker(store, analyzer, reporter).runOnce(NOW);
 
@@ -213,7 +213,7 @@ class AnalysisWorkerTest {
 
         AnalysisContext nonVideo = new AnalysisContext(
                 UUID.randomUUID(), UUID.randomUUID(), "object.bin", "application/octet-stream",
-                "etag", 1, "s", "c", "g", "그 외", null);
+                "etag", 1, "s", "c", "g", "그 외", null, UUID.randomUUID());
         FakeStore invalid = new FakeStore(nonVideo);
         RecordingFailureReporter invalidReporter = new RecordingFailureReporter();
         assertThat(worker(invalid, (path, context) -> null, invalidReporter).runOnce(NOW)).isTrue();
@@ -284,7 +284,7 @@ class AnalysisWorkerTest {
         UUID operation = UUID.randomUUID();
         return new AnalysisContext(
                 operation, UUID.randomUUID(), "users/u/uploads/take.mp4", "video/mp4",
-                "etag", 1, "s", "c", "g", "분석", null);
+                "etag", 1, "s", "c", "g", "분석", null, UUID.randomUUID());
     }
 
     private static final class FakeStore implements AnalysisStore {

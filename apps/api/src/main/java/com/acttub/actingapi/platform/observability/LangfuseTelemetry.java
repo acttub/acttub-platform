@@ -11,6 +11,7 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -66,6 +67,12 @@ public class LangfuseTelemetry implements LlmTelemetry {
     }
 
     LangfuseTelemetry(ObjectMapper mapper, Function<String, String> environment, Executor sender) {
+        this(mapper, environment, sender, () -> RestClient.builder().requestFactory(timeoutFactory()).build());
+    }
+
+    LangfuseTelemetry(
+            ObjectMapper mapper, Function<String, String> environment, Executor sender,
+            Supplier<RestClient> clientFactory) {
         this.mapper = mapper;
         this.sender = sender;
         String configuredHost = value(environment, "LANGFUSE_HOST");
@@ -74,9 +81,7 @@ public class LangfuseTelemetry implements LlmTelemetry {
         this.host = trimTrailingSlash(configuredHost);
         this.enabled = !host.isEmpty() && !publicKey.isEmpty() && !secretKey.isEmpty();
         this.authorization = enabled ? basic(publicKey, secretKey) : "";
-        this.client = RestClient.builder()
-                .requestFactory(timeoutFactory())
-                .build();
+        this.client = enabled ? clientFactory.get() : null;
         if (!enabled) {
             // 설정이 비면 통째로 꺼진다. dev 나 로컬에서 관측 없이 돌리는 정상 상태이므로
             // 경고가 아니라 알림으로 남긴다.
@@ -86,7 +91,7 @@ public class LangfuseTelemetry implements LlmTelemetry {
 
     @Override
     public void record(LlmCall call) {
-        if (!enabled || call == null) {
+        if (!enabled || call == null || call.practiceSessionId() == null) {
             return;
         }
         submit(() -> post("/api/public/otel/v1/traces", tracePayload(call)), "record");
@@ -94,7 +99,7 @@ public class LangfuseTelemetry implements LlmTelemetry {
 
     @Override
     public void score(LlmScore score) {
-        if (!enabled || score == null) {
+        if (!enabled || score == null || score.practiceSessionId() == null) {
             return;
         }
         submit(() -> post("/api/public/scores", scorePayload(score)), "score");
@@ -104,7 +109,14 @@ public class LangfuseTelemetry implements LlmTelemetry {
 
     private void submit(Runnable task, String what) {
         try {
-            sender.execute(task);
+            sender.execute(() -> {
+                try {
+                    task.run();
+                } catch (Exception failure) {
+                    // 조립도 일꾼 안에서 한다. 직렬화 실패가 일꾼 밖으로 새지 않게 묶는다.
+                    LOG.warn("LLM 관측 조립 실패 ({}): {}", what, failure.getClass().getSimpleName());
+                }
+            });
         } catch (RuntimeException rejected) {
             long count = dropped.incrementAndGet();
             if (count % DROP_LOG_INTERVAL == 1) {
@@ -119,12 +131,19 @@ public class LangfuseTelemetry implements LlmTelemetry {
                     .uri(host + path)
                     .header("Authorization", authorization)
                     .header("Content-Type", "application/json")
+                    // v4 수집 경로를 고른다. 속성 매핑은 공식 OTel 문서가 정본이다.
+                    // https://langfuse.com/integrations/native/opentelemetry/migration-to-v4
+                    .headers(headers -> {
+                        if (path.equals("/api/public/otel/v1/traces")) {
+                            headers.set("x-langfuse-ingestion-version", "4");
+                        }
+                    })
                     .body(mapper.writeValueAsString(body))
                     .retrieve()
                     .toBodilessEntity();
         } catch (Exception failure) {
-            // 관측이 죽어서 연습이 멈추면 앞뒤가 바뀐다. 삼키고 남긴다.
-            LOG.warn("LLM 관측 전송 실패 ({}): {}", path, failure.getMessage());
+            // 예외 메시지에는 인증값·응답 본문·주소가 섞일 수 있어 종류만 남긴다.
+            LOG.warn("LLM 관측 전송 실패 ({}): {}", path, failure.getClass().getSimpleName());
         }
     }
 

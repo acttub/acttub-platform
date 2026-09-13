@@ -119,12 +119,16 @@ class PostgresAnalysisStoreIT {
                     return declared == null ? 12345 : new VideoDurationProbe().durationMs(path, declared);
                 },
                 path -> path,
-                (path, mime, actor, practiceId) -> {
+                (path, mime, actor, practiceId, actorId) -> {
+                    assertThat(actorId).isEqualTo(userId);
+                    assertThat(practiceId).isEqualTo(sessionId);
                     assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isFalse();
                     assertThat(actor.durationMs()).isEqualTo(expectedDurationMs);
                     return result().observationPack();
                 },
-                (path, practiceId) -> {
+                (path, practiceId, actorId) -> {
+                    assertThat(actorId).isEqualTo(userId);
+                    assertThat(practiceId).isEqualTo(sessionId);
                     assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isFalse();
                     return result().observationPack().speech();
                 }, reporter);

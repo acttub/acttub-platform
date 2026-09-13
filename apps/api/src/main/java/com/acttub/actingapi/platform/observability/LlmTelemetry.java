@@ -12,9 +12,9 @@ package com.acttub.actingapi.platform.observability;
  */
 public interface LlmTelemetry {
 
-    /** 끝난 호출 하나를 남긴다. */
+    /** 끝난 호출 하나를 남긴다. 연습 세션이 null 이면 기록하지 않는다. */
     void record(LlmCall call);
 
-    /** 기록에 판정을 붙인다. */
+    /** 기록에 판정을 붙인다. 연습 세션이 null 이면 기록하지 않는다. */
     void score(LlmScore score);
 }

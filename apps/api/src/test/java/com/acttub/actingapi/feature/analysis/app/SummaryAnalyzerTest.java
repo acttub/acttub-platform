@@ -17,6 +17,9 @@ import org.junit.jupiter.api.io.TempDir;
 
 class SummaryAnalyzerTest {
 
+    private static final java.util.UUID PRACTICE = java.util.UUID.randomUUID();
+    private static final java.util.UUID USER = java.util.UUID.randomUUID();
+
     @TempDir
     Path temporary;
 
@@ -29,12 +32,16 @@ class SummaryAnalyzerTest {
             var speech = new SpeechAnalysis("가지 마", 2.0, List.of(), List.of());
             var reporter = new RecordingFailureReporter();
             var analyzer = new SummaryAnalyzer((path, declared) -> 1000, path -> compressed,
-                    (path, mime, actor, practiceId) -> {
+                    (path, mime, actor, practiceId, actorId) -> {
                         awaitBoth(started);
+                        assertThat(practiceId).isEqualTo(PRACTICE);
+                        assertThat(actorId).isEqualTo(USER);
                         assertThat(path).isEqualTo(compressed);
                         return new ObservationPack("장면", "0:01에 멈춘다", null, List.of(), List.of());
-                    }, (path, practiceId) -> {
+                    }, (path, practiceId, actorId) -> {
                         awaitBoth(started);
+                        assertThat(practiceId).isEqualTo(PRACTICE);
+                        assertThat(actorId).isEqualTo(USER);
                         assertThat(path).isEqualTo(video).exists();
                         return speech;
                     }, reporter);
@@ -61,9 +68,9 @@ class SummaryAnalyzerTest {
         Path compressed = Files.writeString(temporary.resolve("small.mp4"), "small");
         var reporter = new RecordingFailureReporter();
         var analyzer = new SummaryAnalyzer((path, declared) -> 1000, path -> compressed,
-                (path, mime, actor, practiceId) -> new ObservationPack(
+                (path, mime, actor, practiceId, actorId) -> new ObservationPack(
                         "장면", "0:01에 멈춘다", null, List.of(), List.of()),
-                (path, practiceId) -> {
+                (path, practiceId, actorId) -> {
                     throw new IllegalStateException("transcribe unavailable");
                 }, reporter);
 
@@ -94,12 +101,12 @@ class SummaryAnalyzerTest {
         SummaryAnalyzer analyzer = new SummaryAnalyzer(
                 (path, declared) -> { order.add("duration"); return 3210; },
                 path -> { order.add("compress"); return compressed; },
-                (path, mime, actor, practiceId) -> {
+                (path, mime, actor, practiceId, actorId) -> {
                     order.add("observe");
                     assertThat(path).isEqualTo(compressed);
                     assertThat(actor.durationMs()).isEqualTo(3210);
                     return new ObservationPack("장면 요약", List.of(), List.of());
-                }, (path, practiceId) -> null, new RecordingFailureReporter());
+                }, (path, practiceId, actorId) -> null, new RecordingFailureReporter());
 
         AnalysisResult result = analyzer.analyze(video, context("분석", null));
 
@@ -117,8 +124,8 @@ class SummaryAnalyzerTest {
         SummaryAnalyzer analyzer = new SummaryAnalyzer(
                 (path, declared) -> 1000,
                 path -> path,
-                (path, mime, actor, practiceId) -> new ObservationPack("", List.of(), List.of("불확실")),
-                (path, practiceId) -> null, new RecordingFailureReporter());
+                (path, mime, actor, practiceId, actorId) -> new ObservationPack("", List.of(), List.of("불확실")),
+                (path, practiceId, actorId) -> null, new RecordingFailureReporter());
 
         AnalysisResult result = analyzer.analyze(video, context("표현", 1000));
 
@@ -129,7 +136,7 @@ class SummaryAnalyzerTest {
 
     private static AnalysisContext context(String blockageKind, Integer durationMs) {
         return new AnalysisContext(
-                null, null, "users/u/uploads/take.mp4", "video/mp4", "etag",
-                durationMs, "상황", "인물", "목표", blockageKind, "세부");
+                null, PRACTICE, "users/u/uploads/take.mp4", "video/mp4", "etag",
+                durationMs, "상황", "인물", "목표", blockageKind, "세부", USER);
     }
 }

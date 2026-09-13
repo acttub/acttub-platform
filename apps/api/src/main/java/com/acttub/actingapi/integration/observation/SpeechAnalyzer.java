@@ -6,5 +6,9 @@ import java.util.UUID;
 /** {@code practiceSessionId} 를 받는 이유는 {@link ObservationAnalyzer} 와 같다. */
 @FunctionalInterface
 public interface SpeechAnalyzer {
-    SpeechAnalysis analyze(Path videoPath, UUID practiceSessionId);
+    SpeechAnalysis analyze(Path videoPath, UUID practiceSessionId, UUID userId);
+
+    default SpeechAnalysis analyze(Path videoPath, UUID practiceSessionId) {
+        return analyze(videoPath, practiceSessionId, null);
+    }
 }

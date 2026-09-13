@@ -14,5 +14,6 @@ public record AnalysisContext(
         String characterContext,
         String goal,
         String blockageKind,
-        String blockageDetail) {
+        String blockageDetail,
+        UUID userId) {
 }
