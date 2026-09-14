@@ -14,6 +14,7 @@ import {
   subBranchChoices,
   updateBlockageDetail,
   skippedBlockageSelection,
+  blockageFromHelp,
 } from '../lib/blockage.ts';
 
 test('대분류는 웹과 같은 세 가지다', () => {
@@ -123,6 +124,27 @@ test('모든 세부에 상세 예시와 제목이 있다', () => {
 
 test('SOMA-432: 막힘 선택 건너뛰기는 서버 기본 분기(그 외)와 같은 값을 보낸다', () => {
   assert.deepEqual(skippedBlockageSelection(), {
+    blockage_kind: '그 외',
+    sub_branch: '그 외',
+    blockage_detail: null,
+  });
+});
+
+test('합쳐진 준비 화면: 도움 종류만 고르면 sub_branch는 늘 그 외다(웹 정합)', () => {
+  assert.deepEqual(blockageFromHelp('분석', ''), {
+    blockage_kind: '분석',
+    sub_branch: '그 외',
+    blockage_detail: null,
+  });
+  assert.deepEqual(blockageFromHelp('표현', '두 번째 대사에서 막혀요'), {
+    blockage_kind: '표현',
+    sub_branch: '그 외',
+    blockage_detail: '두 번째 대사에서 막혀요',
+  });
+});
+
+test('합쳐진 준비 화면: 안 고르면(null) 전체가 그 외다', () => {
+  assert.deepEqual(blockageFromHelp(null, '  '), {
     blockage_kind: '그 외',
     sub_branch: '그 외',
     blockage_detail: null,

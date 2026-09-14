@@ -125,6 +125,23 @@ export function skippedBlockageSelection(): BlockageSelection {
   return { blockage_kind: '그 외', sub_branch: '그 외', blockage_detail: null };
 }
 
+/**
+ * 합쳐진 준비 화면(app/upload.tsx)용 — 대분류(또는 무응답)와 상세만으로 선택을 만든다.
+ *
+ * 웹이 2026-09-01에 하위 갈래(sub_branch) 선택 UI를 없애 항상 '그 외'로 보낸다.
+ * 모바일도 같은 계약을 따른다 — 고르지 않으면(null) 전체가 '그 외'(잘 모르겠어요)다.
+ */
+export function blockageFromHelp(
+  kind: BlockageKind | null,
+  detail: string,
+): BlockageSelection {
+  return {
+    blockage_kind: kind ?? '그 외',
+    sub_branch: '그 외',
+    blockage_detail: detail.trim() || null,
+  };
+}
+
 export function blockageDetailTitle(subBranch: BlockageSubBranch): string {
   return subBranch === '그 외'
     ? translate('blockage.detailPromptOther')

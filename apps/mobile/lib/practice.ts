@@ -5,6 +5,7 @@ import type {
   SceneContext,
   VideoFile,
 } from '@/lib/api';
+import type { TheoryChoiceId } from '@/lib/theory';
 
 /**
  * 진행 중인 연습의 화면 간 공유 상태 (모듈 스토어).
@@ -32,14 +33,16 @@ export type Practice = {
 /**
  * 업로드 화면에서 받아 분석 대기 화면이 소비하는 업로드 대기물.
  *
- * `blockage` 는 중간 화면(app/blockage.tsx)이 채운다. 업로드 화면은 아직 모르므로
- * 처음에는 비어 있고, 막히는 지점을 고른 뒤에야 분석으로 넘어간다.
+ * 준비 화면(app/upload.tsx)이 한 화면에서 장면·도움종류·이론을 다 받아 채운다.
+ * `theory`는 아직 서버로 보내지 않고 수집·계측만 한다(웹과 같은 상태).
  */
 export type PendingUpload = {
   scene: SceneContext;
   video: VideoFile;
   durationMs: number | null;
   blockage: BlockageSelection | null;
+  /** 어떤 이론으로 볼지 — 무응답은 null. 서버 계약이 없어 전송하지 않는다. */
+  theory: TheoryChoiceId | null;
   /** 이어서 연습 — 코치가 이 연습의 대화를 이어받는다(practice_sessions.continued_from). */
   continuedFrom: string | null;
 };

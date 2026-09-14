@@ -175,6 +175,16 @@ const en: DeepStringShape<typeof ko> = {
     change: 'Change',
     detailPromptOther: 'Describe where you get stuck',
     detailPrompt: 'Describe how far {{label}} gets stuck',
+    helpTitle: 'What would you like help with this time?',
+    helpHint: 'You don’t have to pick — we’ll start from what shows in the video.',
+    detailTitle: 'Add a little detail',
+    detailHint: 'Optional. A note makes the questions land better.',
+    freePh: 'Write freely',
+    helpLabel: {
+      분석: 'Line analysis',
+      표현: 'Acting expression',
+      '그 외': 'Not sure',
+    },
     kindLabel: {
       분석: 'Analysis',
       표현: 'Expression',
@@ -243,6 +253,18 @@ const en: DeepStringShape<typeof ko> = {
       '캐릭터 분석': 'e.g. “I don’t know what this character wants”',
       '대사 분석': 'e.g. “I don’t know why they say this line”',
       '그 외': 'e.g. “I’m not even sure what’s stuck”',
+    },
+  },
+  theory: {
+    q: 'Which approach should we lean on?',
+    hint: 'You don’t have to pick — the coach will choose one.',
+    label: {
+      stanislavski: 'Stanislavski',
+      hagen: 'Uta Hagen',
+      meisner: 'Meisner',
+      chubbuck: 'Chubbuck',
+      chekhov: 'Chekhov',
+      none: 'No preference',
     },
   },
   analyzing: {
