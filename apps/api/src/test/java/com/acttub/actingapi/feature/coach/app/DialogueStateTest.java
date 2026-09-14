@@ -18,7 +18,8 @@ class DialogueStateTest {
     private CoachSessionSnapshot session() {
         return new CoachSessionSnapshot(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
                 StructuredJson.resource("/coaching/record.json"), "", "", "", 8000, "그 외", "그 외", null,
-                List.of(new CoachTurnSnapshot("ai", "상대가 어떻게 하길 바랐어요?")), "", null, "open", "", List.of())
+                List.of(), "", null, "open", "",
+                List.of(new CoachTurnSnapshot("ai", "상대가 어떻게 하길 바랐어요?")))
                 .withCoachingState("three_layers_v1", 0, null, "open", "");
     }
 
