@@ -16,6 +16,7 @@ export type AppStore = "app_store" | "google_play";
 
 /** 배지를 어느 화면에서 눌렀는지. */
 export type StoreLinkSurface =
+  | "landing_header"
   | "landing_hero"
   | "landing_app_section"
   | "landing_sticky"
