@@ -27,6 +27,7 @@ public final class SummaryAnalyzer implements AnalysisProcessor {
     private final ObservationAnalyzer observationAnalyzer;
     private final SpeechAnalyzer speechAnalyzer;
     private final FailureReporter failureReporter;
+    private final com.acttub.actingapi.integration.observation.VideoRecordAnalyzer videoRecords;
 
     public SummaryAnalyzer(
             DurationResolver durationProbe,
@@ -34,16 +35,36 @@ public final class SummaryAnalyzer implements AnalysisProcessor {
             ObservationAnalyzer observationAnalyzer,
             SpeechAnalyzer speechAnalyzer,
             FailureReporter failureReporter) {
+        this(durationProbe, compressor, observationAnalyzer, speechAnalyzer, failureReporter, null);
+    }
+
+    public SummaryAnalyzer(DurationResolver durationProbe, VideoCompressor compressor,
+            ObservationAnalyzer observationAnalyzer, SpeechAnalyzer speechAnalyzer,
+            FailureReporter failureReporter,
+            com.acttub.actingapi.integration.observation.VideoRecordAnalyzer videoRecords) {
         this.durationProbe = durationProbe;
         this.compressor = compressor;
         this.observationAnalyzer = observationAnalyzer;
         this.speechAnalyzer = speechAnalyzer;
         this.failureReporter = failureReporter;
+        this.videoRecords = videoRecords;
     }
 
     @Override
     public AnalysisResult analyze(Path videoPath, AnalysisContext context) {
         int durationMs = durationProbe.durationMs(videoPath, context.durationMs());
+        if ("three_layers_v1".equals(context.experienceVersion())) {
+            if (videoRecords == null) {
+                throw new IllegalStateException("full video record analyzer is not configured");
+            }
+            var actor = new ActorMaterial(context.situation(), context.characterContext(), context.goal(),
+                    context.blockageKind(), context.blockageDetail() == null ? "" : context.blockageDetail(), durationMs);
+            ExternalOperationExecution.externalCall("speech");
+            SpeechAnalysis speech = speech(videoPath, context);
+            ExternalOperationExecution.externalCall("observation");
+            var record = videoRecords.analyze(videoPath, actor, context.sessionId(), context.userId(), speech);
+            return new AnalysisResult(null, true, durationMs, record);
+        }
         Path sendPath = videoPath;
         // close가 음성 작업의 종료까지 기다려 워커가 원본을 먼저 지우지 않게 한다.
         try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
@@ -64,7 +85,7 @@ public final class SummaryAnalyzer implements AnalysisProcessor {
                             context.blockageKind(),
                             context.blockageDetail() == null ? "" : context.blockageDetail(),
                             durationMs),
-                    context.sessionId());
+                    context.sessionId(), context.userId());
             ObservationPack pack = new ObservationPack(
                     observations.sceneSummary(), observations.timeline(), speech.join(),
                     observations.observations(), observations.uncertainties());
@@ -82,7 +103,7 @@ public final class SummaryAnalyzer implements AnalysisProcessor {
 
     private SpeechAnalysis speech(Path videoPath, AnalysisContext context) {
         try {
-            return speechAnalyzer.analyze(videoPath, context.sessionId());
+            return speechAnalyzer.analyze(videoPath, context.sessionId(), context.userId());
         } catch (Exception exception) {
             LOGGER.log(Level.WARNING, "speech analysis failed: " + context.operationId(), exception);
             failureReporter.report(exception,

@@ -77,7 +77,8 @@ class ValueCheckCatalogIT {
             "ck_external_operations_last_failure_classification",
             "ck_practice_reports_report_type",
             "ck_coaching_handoffs_branch_kind",
-            "ck_practice_sessions_blockage_branch");
+            "ck_practice_sessions_blockage_branch",
+            "ck_practice_sessions_experience_version");
 
     /** {@code CHECK ((col = ANY (ARRAY['a'::text, 'b'::text])))} 에서 값만 뽑는다. */
     private static final Pattern LITERAL = Pattern.compile("'((?:[^']|'')*)'::text");

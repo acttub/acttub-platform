@@ -57,30 +57,22 @@ public class PostgresPracticeSessionLedger implements PracticeSessionLedger {
 
     @Override
     public PracticeSessionOperation createWithAnalysis(
-            UUID userId,
-            UUID uploadIntentId,
-            String situation,
-            String characterContext,
-            String goal,
-            String blockageKind,
-            String subBranch,
-            String blockageDetail,
-            UUID continuedFrom,
-            UUID requestId,
-            String requestFingerprint) {
+            UUID userId, UUID uploadIntentId, String situation, String characterContext, String goal,
+            String blockageKind, String subBranch, String blockageDetail, UUID continuedFrom,
+            UUID requestId, String requestFingerprint) {
+        return createWithAnalysis(userId, uploadIntentId, situation, characterContext, goal, blockageKind, subBranch,
+                blockageDetail, continuedFrom, requestId, requestFingerprint, "legacy");
+    }
+
+    @Override
+    public PracticeSessionOperation createWithAnalysis(
+            UUID userId, UUID uploadIntentId, String situation, String characterContext, String goal,
+            String blockageKind, String subBranch, String blockageDetail, UUID continuedFrom,
+            UUID requestId, String requestFingerprint, String experienceVersion) {
         validateSha256(requestFingerprint);
         return transactionTemplate.execute(status -> createPracticeSessionInTransaction(
-                userId,
-                uploadIntentId,
-                situation,
-                characterContext,
-                goal,
-                blockageKind,
-                subBranch,
-                blockageDetail,
-                continuedFrom,
-                requestId,
-                requestFingerprint));
+                userId, uploadIntentId, situation, characterContext, goal, blockageKind, subBranch,
+                blockageDetail, continuedFrom, requestId, requestFingerprint, experienceVersion));
     }
 
     @Override
@@ -108,7 +100,8 @@ public class PostgresPracticeSessionLedger implements PracticeSessionLedger {
             String blockageDetail,
             UUID continuedFrom,
             UUID requestId,
-            String requestFingerprint) {
+            String requestFingerprint,
+            String experienceVersion) {
         if (!lockFinalizedUpload(userId, uploadIntentId)) {
             return null;
         }
@@ -131,6 +124,7 @@ public class PostgresPracticeSessionLedger implements PracticeSessionLedger {
                 blockageDetail,
                 goal,
                 continuedFrom);
+        session.setExperienceVersion(experienceVersion);
         entityManager.persist(session);
         entityManager.flush();
 

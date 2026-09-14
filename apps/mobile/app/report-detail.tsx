@@ -11,6 +11,7 @@ import { setPrefill } from '@/lib/practice';
 import { formatKoreanDate } from '@/lib/format';
 import { Markdown } from '@/components/markdown';
 import { palette } from '@/constants/palette';
+import { PracticeNoteBody } from '@/components/practice-note';
 import { reportDisplay } from '@/lib/report-display';
 import { translate as t } from '@/lib/i18n';
 
@@ -129,6 +130,7 @@ export default function ReportDetailScreen() {
           />
         )}
 
+        {report.report_type === 'practice_note' ? <PracticeNoteBody note={report} /> : <>
         <NoteSection label={t('reportDetail.secEye')}>
           <Markdown source={display.blocked} />
           {!!display.evidence && (
@@ -159,6 +161,8 @@ export default function ReportDetailScreen() {
         <NoteSection label={t('reportDetail.secNext')}>
           <Text style={styles.nextTake}>{display.next}</Text>
         </NoteSection>
+
+        </>}
 
         {/* 이어서 연습 — 코치가 이 연습의 대화를 이어받는다. 지난 기록에는 장면
             원문이 없어(리포트 응답에 미포함) 폼은 비운 채 이어받기만 건다 (SOMA-428). */}

@@ -13,6 +13,8 @@ import com.acttub.actingapi.feature.practice.domain.Observation;
 import com.acttub.actingapi.feature.practice.domain.ObservationPack;
 import com.acttub.actingapi.feature.practice.domain.PracticeSession;
 import com.acttub.actingapi.feature.practice.domain.SessionDetail;
+import com.acttub.actingapi.feature.practice.domain.VideoRecordSummary;
+import com.acttub.actingapi.integration.observation.VideoRecord;
 import com.acttub.actingapi.feature.practice.schema.PracticeSessionEntity;
 import com.acttub.actingapi.platform.persistence.NativeTuples;
 import com.acttub.actingapi.integration.observation.StoredObservationPack;
@@ -113,7 +115,7 @@ class PostgresPracticeSessionRepository implements PracticeSessionRepository {
                 SELECT
                     ps.id, ps.user_id, ps.upload_intent_id, ps.status,
                     ps.situation, ps.character_context, ps.goal, ps.blockage_kind,
-                    ps.sub_branch, ps.blockage_detail, ps.continued_from,
+                    ps.sub_branch, ps.blockage_detail, ps.continued_from, ps.experience_version,
                     ps.created_at, ps.updated_at,
                     ui.object_key,
                     summary.id AS summary_id,
@@ -230,7 +232,7 @@ class PostgresPracticeSessionRepository implements PracticeSessionRepository {
                 entity.getBlockageDetail(),
                 entity.getContinuedFrom(),
                 entity.getCreatedAt().atOffset(ZoneOffset.UTC),
-                entity.getUpdatedAt().atOffset(ZoneOffset.UTC));
+                entity.getUpdatedAt().atOffset(ZoneOffset.UTC), entity.getExperienceVersion());
     }
 
     private static PracticeSession session(Tuple row) {
@@ -247,7 +249,7 @@ class PostgresPracticeSessionRepository implements PracticeSessionRepository {
                 row.get("blockage_detail", String.class),
                 row.get("continued_from", UUID.class),
                 row.get("created_at", Instant.class).atOffset(ZoneOffset.UTC),
-                row.get("updated_at", Instant.class).atOffset(ZoneOffset.UTC));
+                row.get("updated_at", Instant.class).atOffset(ZoneOffset.UTC), row.get("experience_version", String.class));
     }
 
     /** 분석이 끝난 세션에 한해 Observation을 도메인 타입으로 옮긴다. */
@@ -258,6 +260,10 @@ class PostgresPracticeSessionRepository implements PracticeSessionRepository {
                 json(row.get("raw_json", String.class)),
                 json(row.get("observations_json", String.class)),
                 json(row.get("uncertainties_json", String.class)));
+        if (summaryId != null && session.analyzed() && VideoRecord.isRecord(pack)) {
+            return new SessionDetail(session, row.get("object_key", String.class), null,
+                    row.get("error_code", String.class), recordSummary(pack));
+        }
         ObservationPack summary = summaryId == null || !session.analyzed() ? null
                 : new ObservationPack(
                         summaryId,
@@ -268,6 +274,25 @@ class PostgresPracticeSessionRepository implements PracticeSessionRepository {
                 row.get("object_key", String.class),
                 summary,
                 row.get("error_code", String.class));
+    }
+
+    private static VideoRecordSummary recordSummary(JsonNode record) {
+        return new VideoRecordSummary(UUID.fromString(record.path("record_id").asText()),
+                record.path("record_version").asInt(), record.path("media").path("duration_ms").asLong(),
+                record.path("processing").path("status").asText(),
+                ranges(record.path("processing").path("processed_ranges")),
+                ranges(record.path("processing").path("missing_ranges")),
+                record.path("overview").path("observed_scene").findValuesAsText("text"),
+                record.path("overview").path("spoken_content").findValuesAsText("text"),
+                java.util.stream.StreamSupport.stream(record.path("limitations").spliterator(), false)
+                        .map(item -> new VideoRecordSummary.Limit(item.path("start_ms").asLong(),
+                                item.path("end_ms").asLong(), item.path("description").asText())).toList());
+    }
+
+    private static List<VideoRecordSummary.Range> ranges(JsonNode ranges) {
+        return java.util.stream.StreamSupport.stream(ranges.spliterator(), false)
+                .map(range -> new VideoRecordSummary.Range(range.path("start_ms").asLong(),
+                        range.path("end_ms").asLong())).toList();
     }
 
     private static List<Observation> observations(JsonNode node) {

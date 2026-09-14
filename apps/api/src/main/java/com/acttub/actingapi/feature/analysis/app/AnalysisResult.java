@@ -2,5 +2,9 @@ package com.acttub.actingapi.feature.analysis.app;
 
 import com.acttub.actingapi.integration.observation.ObservationPack;
 
-public record AnalysisResult(ObservationPack observationPack, boolean wasCompressed, int durationMs) {
+public record AnalysisResult(ObservationPack observationPack, boolean wasCompressed, int durationMs,
+        com.fasterxml.jackson.databind.JsonNode videoRecord) {
+    public AnalysisResult(ObservationPack observationPack, boolean wasCompressed, int durationMs) {
+        this(observationPack, wasCompressed, durationMs, null);
+    }
 }

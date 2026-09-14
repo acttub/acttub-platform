@@ -24,7 +24,15 @@ public record PracticeSession(
         // 이어한 묶음의 부모 연습. 깊이는 2로 고정된다 — 자식에서 이어가도 부모를 가리킨다.
         UUID continuedFrom,
         OffsetDateTime createdAt,
-        OffsetDateTime updatedAt) {
+        OffsetDateTime updatedAt,
+        String experienceVersion) {
+    public PracticeSession(UUID id, UUID userId, UUID uploadIntentId, String status, String situation,
+            String characterContext, String goal, String blockageKind, String subBranch,
+            String blockageDetail, UUID continuedFrom, OffsetDateTime createdAt, OffsetDateTime updatedAt) {
+        this(id, userId, uploadIntentId, status, situation, characterContext, goal, blockageKind, subBranch,
+                blockageDetail, continuedFrom, createdAt, updatedAt, "legacy");
+    }
+
 
     /** 분석이 끝나 관찰 묶음을 함께 보여줄 상태인지. */
     public boolean analyzed() {

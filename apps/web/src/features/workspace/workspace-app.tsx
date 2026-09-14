@@ -122,6 +122,7 @@ import {
   describeWorkspaceView,
   type WorkspaceStatusChip,
 } from "./workspace-view";
+import { videoRecordRows } from "@/features/practice/video-record-rows";
 
 const NEW_PRACTICE_SUBTITLE = "영상을 올리면 질문이 시작돼요";
 
@@ -2013,7 +2014,9 @@ function ScenePanel({
     .filter(Boolean)
     .join(" › ") || "적지 않았어요";
   const mobileRows: [string, string][] = [...rows, ["막힌 곳", blockage]];
-  const observations = detail?.summary?.observations ?? [];
+  const summary = detail?.summary;
+  const observations = summary && "observations" in summary ? summary.observations : [];
+  const recordRows = videoRecordRows(summary);
   const blockageDetail = detail?.blockage_detail?.trim();
 
   useEffect(() => {
@@ -2101,6 +2104,12 @@ function ScenePanel({
               </div>
             ) : null}
             <SceneRows rows={mobileRows} />
+            {recordRows.length > 0 ? (
+              <div className="mt-4">
+                <p className="text-[13.5px] font-black">영상 기록</p>
+                <SceneRows rows={recordRows} />
+              </div>
+            ) : null}
             {blockageDetail ? (
               <div className="mt-4">
                 <p className="text-[11.5px] font-black text-[#8b95a1]">내가 막힌다고 쓴 글</p>
@@ -2141,6 +2150,12 @@ function ScenePanel({
             <p className="text-[13.5px] font-black">이 장면에서 연기한 것</p>
             <SceneRows rows={rows} />
           </div>
+          {recordRows.length > 0 ? (
+            <div className="rounded-[18px] bg-white p-4 shadow-[0_12px_36px_rgba(25,31,40,0.05)]">
+              <p className="text-[13.5px] font-black">영상 기록</p>
+              <SceneRows rows={recordRows} />
+            </div>
+          ) : null}
           <button
             type="button"
             onClick={onToggle}

@@ -67,11 +67,14 @@ public class CoachSessionWork {
                     cs.status AS coach_status,
                     cs.close_reason,
                     cs.conversation_summary,
+                    cs.coaching_state_json::text AS coaching_state_json,
+                    cs.state_revision,
                     s.raw::text AS raw_json,
                     s.observations_json::text AS observations_json,
                     s.uncertainties_json::text AS uncertainties_json,
                     ps.id AS practice_session_id,
                     ps.user_id,
+                    ps.experience_version,
                     ps.situation,
                     ps.character_context,
                     ps.goal,
@@ -129,12 +132,15 @@ public class CoachSessionWork {
                 analysisHandoff,
                 row.status(),
                 row.closeReason() == null ? "" : row.closeReason(),
-                turns);
+                turns).withCoachingState(rows.getFirst().get("experience_version", String.class),
+                        ((Number) rows.getFirst().get("state_revision")).longValue(),
+                        parseJson(rows.getFirst().get("coaching_state_json", String.class)),
+                        row.status(), row.closeReason() == null ? "" : row.closeReason());
     }
 
     public void saveCoachSession(CoachSessionSnapshot session, OffsetDateTime now) {
         List<Tuple> statuses = list(entityManager.createNativeQuery("""
-                SELECT status AS status
+                SELECT status AS status, state_revision
                 FROM coach_sessions
                 WHERE id = :sessionId
                 FOR UPDATE
@@ -142,6 +148,11 @@ public class CoachSessionWork {
                 .setParameter("sessionId", session.sessionId()));
         if (statuses.isEmpty()) {
             throw new LookupError("session not found");
+        }
+
+        if (session.threeLayers() && session.stateRevision()
+                != ((Number) statuses.getFirst().get("state_revision")).longValue() + 1) {
+            throw new SessionWriteConflict("coaching state changed concurrently");
         }
 
         List<CoachTurnSnapshot> storedTurns = coachTurns(session.sessionId());
@@ -169,11 +180,27 @@ public class CoachSessionWork {
         }
         // turn INSERT가 session 상태 갱신보다 늦춰지지 않도록 현재 SQL 순서를 고정한다.
         entityManager.flush();
+        if (session.threeLayers()) {
+            int updated = entityManager.createNativeQuery("""
+                    UPDATE coach_sessions SET status = :status,
+                        close_reason = :reason, coaching_state_json = CAST(:state AS jsonb),
+                        state_revision = :revision, updated_at = :now
+                    WHERE id = :id AND state_revision = :baseRevision AND status = 'open'
+                    """)
+                    .setParameter("status", session.status())
+                    .setParameter("reason", session.closeReason().isBlank() ? null : session.closeReason())
+                    .setParameter("state", session.coachingState().toString())
+                    .setParameter("revision", session.stateRevision())
+                    .setParameter("baseRevision", session.stateRevision() - 1)
+                    .setParameter("now", now).setParameter("id", session.sessionId()).executeUpdate();
+            if (updated != 1) { throw new SessionWriteConflict("coaching state changed concurrently"); }
+        } else {
         coachSessions.updateState(
                 session.sessionId(),
                 sessionStatus(session.status()),
                 session.conversationSummary(),
                 now.toInstant());
+        }
     }
 
     public UUID findOldestOpenCoachSessionId(UUID userId, UUID practiceSessionId) {
@@ -212,6 +239,7 @@ public class CoachSessionWork {
                 SELECT
                     ps.id AS practice_session_id,
                     ps.user_id,
+                    ps.experience_version,
                     ps.situation,
                     ps.character_context,
                     ps.goal,
@@ -257,7 +285,7 @@ public class CoachSessionWork {
                 row.subBranch(),
                 row.blockageDetail(),
                 transcripts,
-                analysisHandoff);
+                analysisHandoff, rows.getFirst().get("experience_version", String.class));
     }
 
     public boolean hasReportForPracticeSession(UUID practiceSessionId) {
@@ -285,12 +313,16 @@ public class CoachSessionWork {
     }
 
     public void addCoachSession(CoachSessionSnapshot session) {
-        entityManager.persist(new CoachSessionEntity(
+        CoachSessionEntity entity = new CoachSessionEntity(
                 session.sessionId(),
                 session.practiceSessionId(),
                 session.summaryId(),
                 sessionStatus(session.status()),
-                session.conversationSummary()));
+                session.conversationSummary());
+        if (session.threeLayers()) {
+            entity.structuredState(session.coachingState(), session.stateRevision(), session.closeReason());
+        }
+        entityManager.persist(entity);
         for (int index = 0; index < session.turns().size(); index++) {
             CoachTurnSnapshot turn = session.turns().get(index);
             entityManager.persist(new CoachTurnEntity(
@@ -332,7 +364,7 @@ public class CoachSessionWork {
                 .setParameter("coachSessionId", coachSessionId));
         HandoffRow handoff = latest.isEmpty() ? null : mapHandoff(latest.getFirst());
         String branchKind = handoff == null
-                ? CoachBranch.of(session.blockageKind())
+                ? (session.threeLayers() ? "coaching" : CoachBranch.of(session.blockageKind()))
                 : handoff.branchKind();
 
         HandoffRow analysis = null;
@@ -486,7 +518,8 @@ public class CoachSessionWork {
                     :now
                 )
                 """)
-                .setParameter("id", UUID.randomUUID())
+                .setParameter("id", "practice_note".equals(reportJson.path("report_type").asText())
+                        ? UUID.fromString(reportJson.path("note_id").asText()) : UUID.randomUUID())
                 .setParameter("practiceSessionId", practiceSessionId)
                 .setParameter("reportType", reportJson.path("report_type").asText())
                 .setParameter("reportJson", reportJson.toString())

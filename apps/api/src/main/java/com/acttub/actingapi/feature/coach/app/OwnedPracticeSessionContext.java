@@ -20,10 +20,20 @@ public record OwnedPracticeSessionContext(
         String subBranch,
         String blockageDetail,
         List<String> transcripts,
-        JsonNode analysisHandoff) {
+        JsonNode analysisHandoff,
+        String experienceVersion) {
 
     public OwnedPracticeSessionContext {
         transcripts = List.copyOf(transcripts);
+    }
+
+    public OwnedPracticeSessionContext(UUID practiceSessionId, UUID summaryId, UUID userId,
+            JsonNode observationPack, String situation, String characterContext, String goal,
+            int durationMs, String blockageKind, String subBranch, String blockageDetail,
+            List<String> transcripts, JsonNode analysisHandoff) {
+        this(practiceSessionId, summaryId, userId, observationPack, situation, characterContext,
+                goal, durationMs, blockageKind, subBranch, blockageDetail, transcripts,
+                analysisHandoff, "legacy");
     }
 
     public CoachSessionSnapshot newCoachSession(UUID sessionId) {
@@ -45,6 +55,6 @@ public record OwnedPracticeSessionContext(
                 analysisHandoff,
                 "open",
                 "",
-                List.of());
+                List.of(), PriorContext.EMPTY, experienceVersion, 0, null);
     }
 }

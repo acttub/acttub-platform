@@ -37,7 +37,7 @@ import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
-@SpringBootTest(properties = "JWT_SECRET=test-secret")
+@SpringBootTest(properties = {"JWT_SECRET=test-secret", "ACTTUB_THREE_LAYERS_ENABLED=true"})
 @AutoConfigureMockMvc
 @Import(PracticeSessionEndpointIT.StorageFixture.class)
 class PracticeSessionEndpointIT {
@@ -74,6 +74,45 @@ class PracticeSessionEndpointIT {
         jdbc.execute("TRUNCATE TABLE users,consent_documents RESTART IDENTITY CASCADE");
         insertUser(USER_ID);
         insertUser(OTHER_USER_ID);
+    }
+
+    @Test
+    void videoOnlyContractIsPinnedAndReplayAndSummaryKeepTheirVersion() throws Exception {
+        UUID upload = insertUpload(USER_ID, "finalized", "video.mp4");
+        UUID requestId = UUID.randomUUID();
+        String body = """
+                {"upload_intent_id":"%s","situation":"","character_context":"",
+                 "goal":"","blockage_kind":"그 외","sub_branch":"그 외","blockage_detail":null}
+                """.formatted(upload);
+        var request = post("/v2/practice-sessions").header("Authorization", bearer(USER_ID))
+                .header("X-Request-Id", requestId).header("X-Acttub-Contract", "three_layers_v1")
+                .contentType(MediaType.APPLICATION_JSON).content(body);
+        MvcResult created = mvc.perform(request).andReturn();
+        assertThat(created.getResponse().getStatus()).isEqualTo(202);
+        UUID sessionId = UUID.fromString(json(created).path("session_id").asText());
+        assertThat(jdbc.queryForObject("SELECT experience_version FROM practice_sessions WHERE id=?",
+                String.class, sessionId)).isEqualTo("three_layers_v1");
+        MvcResult replay = mvc.perform(request).andReturn();
+        assertThat(replay.getResponse().getContentAsByteArray()).isEqualTo(created.getResponse().getContentAsByteArray());
+        assertError(mvc.perform(get("/v2/practice-sessions/{id}", sessionId)
+                .header("Authorization", bearer(USER_ID))).andReturn(), 409, "client_contract_required");
+        assertThat(json(mvc.perform(get("/v2/practice-sessions")
+                .header("Authorization", bearer(USER_ID))).andReturn()).path("sessions")).isEmpty();
+        assertThat(json(mvc.perform(get("/v2/practice-sessions")
+                .header("Authorization", bearer(USER_ID)).header("X-Acttub-Contract", "three_layers_v1"))
+                .andReturn()).path("sessions")).hasSize(1);
+        UUID summaryId = insertSummary(sessionId);
+        var record = (com.fasterxml.jackson.databind.node.ObjectNode)
+                com.acttub.actingapi.integration.llm.StructuredJson.resource("/coaching/record.json");
+        record.put("record_id", summaryId.toString());
+        jdbc.update("UPDATE summaries SET raw=?::jsonb WHERE session_id=?", record.toString(), sessionId);
+        jdbc.update("UPDATE practice_sessions SET status='analyzed' WHERE id=?", sessionId);
+        JsonNode summary = json(mvc.perform(get("/v2/practice-sessions/{id}", sessionId)
+                .header("Authorization", bearer(USER_ID)).header("X-Acttub-Contract", "three_layers_v1"))
+                .andReturn()).path("summary");
+        assertThat(summary.path("record_id").asText()).isEqualTo(summaryId.toString());
+        assertThat(summary.path("schema_version").asText()).isEqualTo("acttub.video_record_summary.v1");
+        assertThat(summary.has("segments")).isFalse();
     }
 
     @Test

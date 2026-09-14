@@ -26,6 +26,9 @@ public class CoachingHandoffEntity extends AppGeneratedUuidEntity {
     @Column(name = "handoff_json", nullable = false, columnDefinition = "jsonb")
     JsonNode handoffJson;
 
+    @Column(name = "state_revision")
+    Long stateRevision;
+
     @Column(name = "created_at", nullable = false, insertable = false, updatable = false)
     Instant createdAt;
 
@@ -39,5 +42,6 @@ public class CoachingHandoffEntity extends AppGeneratedUuidEntity {
         this.practiceSessionId = practiceSessionId;
         this.branchKind = branchKind;
         this.handoffJson = handoffJson;
+        this.stateRevision = "coaching".equals(branchKind) ? handoffJson.path("state_revision").asLong() : null;
     }
 }

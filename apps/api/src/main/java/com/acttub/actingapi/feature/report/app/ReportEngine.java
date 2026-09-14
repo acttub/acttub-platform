@@ -79,6 +79,17 @@ public class ReportEngine {
             String analysisHandoffId,
             UUID practiceSessionId,
             UUID userId) {
+        if ("coaching".equals(reportType)) {
+            boolean[] copyFailed = {false};
+            JsonNode note = PracticeNote.assemble(confirmedHandoff, input -> recorded(
+                    PracticeNote.prompt(), "{\"note_data\":" + input + "}", "practice_note", practiceSessionId, userId),
+                    failure -> copyFailed[0] = true);
+            if (practiceSessionId != null) {
+                // 제목·정리 생성이 실패해도 노트는 저장된다(기본 제목). 실패가 지표에 안 남으면 폴백 비율을 모른다.
+                telemetry.score(LlmScore.flag(practiceSessionId, "practice_note.copy_fallback", copyFailed[0]));
+            }
+            return note;
+        }
         JsonNode modelInput = buildReportInput(
                 reportType,
                 videoSummary,
@@ -90,7 +101,9 @@ public class ReportEngine {
             // 코치 대화가 안전 문구로 끝나면 핸드오프가 unavailable 로 남아 노트를 못 만든다.
             // 배우 눈에 보이는 손해라 그 자체로 셀 값어치가 있다(SOMA-517).
             if (practiceSessionId != null) {
-                telemetry.score(LlmScore.flag(practiceSessionId, "report.blocked", true));
+                telemetry.score(LlmScore.flag(practiceSessionId, "coach.report_blocked",
+                        confirmedHandoff != null
+                                && "unavailable".equals(confirmedHandoff.path("completion_level").asText())));
             }
             return blockedReport(reportType);
         }
@@ -98,7 +111,7 @@ public class ReportEngine {
         String userPrompt = serializeInput(modelInput);
         String raw = recorded(systemPrompt, userPrompt, reportType, practiceSessionId, userId);
         if (practiceSessionId != null) {
-            telemetry.score(LlmScore.flag(practiceSessionId, "report.blocked", false));
+            telemetry.score(LlmScore.flag(practiceSessionId, "coach.report_blocked", false));
         }
         return parseReport(raw, reportType, coachingHandoffId, analysisHandoffId);
     }
@@ -132,7 +145,7 @@ public class ReportEngine {
                         LlmStep.REPORT, practiceSessionId, userId, "",
                         systemPrompt + "\n\n" + userPrompt, "", LlmTokens.unknown(),
                         startedAt, Duration.between(startedAt, Instant.now()),
-                        failure.getMessage() == null ? failure.toString() : failure.getMessage(),
+                        failure.getClass().getSimpleName(),
                         LlmCall.metadata("report_type", reportType)));
             }
             throw failure;

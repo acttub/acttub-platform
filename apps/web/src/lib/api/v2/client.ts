@@ -36,6 +36,7 @@ function requestHeaders(
   auth: boolean,
 ): Headers {
   const headers = new Headers(source);
+  headers.set("X-Acttub-Contract", "three_layers_v1");
   if (body !== undefined && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
   }

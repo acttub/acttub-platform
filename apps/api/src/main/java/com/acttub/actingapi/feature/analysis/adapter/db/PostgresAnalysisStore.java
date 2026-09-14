@@ -73,7 +73,9 @@ public class PostgresAnalysisStore implements AnalysisStore {
                     ps.character_context,
                     ps.goal,
                     ps.blockage_kind,
-                    ps.blockage_detail
+                    ps.blockage_detail,
+                    ps.experience_version,
+                    ps.user_id
                 FROM external_operations eo
                 JOIN practice_sessions ps ON ps.id = eo.session_id
                 JOIN upload_intents ui ON ui.id = ps.upload_intent_id
@@ -96,7 +98,9 @@ public class PostgresAnalysisStore implements AnalysisStore {
                 row.get("character_context", String.class),
                 row.get("goal", String.class),
                 row.get("blockage_kind", String.class),
-                row.get("blockage_detail", String.class));
+                row.get("blockage_detail", String.class),
+                row.get("experience_version", String.class),
+                row.get("user_id", UUID.class));
     }
 
     @Override
@@ -187,10 +191,11 @@ public class PostgresAnalysisStore implements AnalysisStore {
                 .setParameter("durationMs", result.durationMs())
                 .setParameter("sessionId", sessionId)
                 .executeUpdate();
-        UUID summaryId = UUID.randomUUID();
-        JsonNode observations = mapper.valueToTree(result.observationPack().observations());
-        JsonNode uncertainties = mapper.valueToTree(result.observationPack().uncertainties());
-        JsonNode raw = mapper.valueToTree(result.observationPack());
+        boolean fullRecord = result.videoRecord() != null;
+        UUID summaryId = fullRecord ? UUID.fromString(result.videoRecord().path("record_id").asText()) : UUID.randomUUID();
+        JsonNode observations = fullRecord ? mapper.createArrayNode() : mapper.valueToTree(result.observationPack().observations());
+        JsonNode uncertainties = fullRecord ? mapper.createArrayNode() : mapper.valueToTree(result.observationPack().uncertainties());
+        JsonNode raw = fullRecord ? result.videoRecord() : mapper.valueToTree(result.observationPack());
         entityManager.persist(new SummaryEntity(
                 summaryId,
                 sessionId,

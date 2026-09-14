@@ -47,7 +47,7 @@ type AnalysisErrorCode =
   | "gemini_parse_error"
   | "unsupported_media"
   | "max_attempts_exceeded";
-type ReportType = "analysis" | "expression" | "blocked";
+type ReportType = "analysis" | "expression" | "blocked" | "practice_note";
 type PracticeStatus = "analyzing" | "analyzed" | "failed";
 export type LoginProvider = "development" | "google" | "apple";
 // 연습을 시작하다 어디서 엎어졌는지. 가운데 셋(UploadStage)은 UploadError 가 스스로

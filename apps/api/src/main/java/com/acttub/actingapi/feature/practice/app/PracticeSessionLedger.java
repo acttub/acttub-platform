@@ -33,6 +33,17 @@ public interface PracticeSessionLedger {
             UUID requestId,
             String requestFingerprint);
 
+    default PracticeSessionOperation createWithAnalysis(
+            UUID userId, UUID uploadIntentId, String situation, String characterContext, String goal,
+            String blockageKind, String subBranch, String blockageDetail, UUID continuedFrom,
+            UUID requestId, String requestFingerprint, String experienceVersion) {
+        if (!PracticeExperience.LEGACY.equals(experienceVersion)) {
+            throw new IllegalStateException("versioned practice writer is not configured");
+        }
+        return createWithAnalysis(userId, uploadIntentId, situation, characterContext, goal, blockageKind, subBranch,
+                blockageDetail, continuedFrom, requestId, requestFingerprint);
+    }
+
     /**
      * 실패한 세션에 분석 작업을 다시 건다.
      *

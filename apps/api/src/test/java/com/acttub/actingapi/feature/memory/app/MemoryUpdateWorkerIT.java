@@ -35,7 +35,9 @@ import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 /** 공개 워커와 실제 저장 계약에서 늦은 모델 응답의 Lease 경합을 검증한다. */
-@SpringBootTest(properties = "JWT_SECRET=test-secret")
+// 각 테스트가 runOnce와 경쟁 워커를 직접 구동한다. 자동 poll이 fixture를 먼저 선점하면
+// 검사 대상 워커가 일을 시작하지 못한다. 스케줄러 자체는 MemoryWorkerSchedulerTest가 검증한다.
+@SpringBootTest(properties = {"JWT_SECRET=test-secret", "ANALYSIS_WORKER_ENABLED=false"})
 class MemoryUpdateWorkerIT {
     private static final Instant NOW = Instant.parse("2026-09-08T01:02:03Z");
 

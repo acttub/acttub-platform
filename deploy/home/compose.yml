@@ -57,6 +57,7 @@ services:
       MANAGEMENT_SERVER_PORT: "9091"
       MONITORING_TOKEN: ${MONITORING_TOKEN:-}
       MONITORING_ENVIRONMENT: ${MONITORING_ENVIRONMENT:-local}
+      ACTTUB_THREE_LAYERS_ENABLED: ${ACTTUB_THREE_LAYERS_ENABLED:-false}
       # 관측(SOMA-517). 비면 기록이 통째로 꺼지므로 :? 를 붙이지 않는다 — 관측이 없다고
       # 연습이 멈추면 앞뒤가 바뀐다. 값은 .env 가 준다.
       LANGFUSE_HOST: ${LANGFUSE_HOST:-}

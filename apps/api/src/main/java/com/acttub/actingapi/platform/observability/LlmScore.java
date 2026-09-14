@@ -21,7 +21,6 @@ public record LlmScore(
         String comment) {
 
     public LlmScore {
-        Objects.requireNonNull(practiceSessionId, "practiceSessionId");
         Objects.requireNonNull(name, "name");
         Objects.requireNonNull(value, "value");
     }

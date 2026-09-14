@@ -1,0 +1,1561 @@
+[
+  {
+    "input": {
+      "request_id": "req_01",
+      "session_id": "session_demo_01",
+      "user_message": null,
+      "actor_context": {},
+      "coaching_state": {
+        "revision": 0,
+        "context": {
+          "direction": null,
+          "scene_context": {
+            "situation": null,
+            "character_goal": null,
+            "partner_action": null
+          },
+          "focus": null,
+          "reading": null,
+          "open_points": []
+        },
+        "active_proposal_id": null,
+        "proposals": [],
+        "attempts": [],
+        "response_style": "normal"
+      },
+      "state_sources": [],
+      "recent_messages": [],
+      "record_view": {
+        "record_ref": {
+          "record_id": "record_demo_01",
+          "version": 1,
+          "duration_ms": 8000
+        },
+        "overview": {
+          "observed_scene": [
+            {
+              "text": "고개를 들고, 발화 뒤 고개를 화면 오른쪽으로 돌린다.",
+              "source_refs": [
+                "e2",
+                "e5"
+              ]
+            }
+          ],
+          "spoken_content": [
+            {
+              "text": "인물이 “가지 마”라고 말한다.",
+              "source_refs": [
+                "u1"
+              ]
+            }
+          ]
+        },
+        "utterance_index": [
+          {
+            "id": "u1",
+            "speaker_id": "p1",
+            "start_ms": 4000,
+            "end_ms": 5800,
+            "text": "가지 마",
+            "transcription_status": "clear",
+            "timing_basis": "estimated"
+          }
+        ],
+        "coverage": {
+          "status": "ready",
+          "processed_ranges": [
+            {
+              "start_ms": 0,
+              "end_ms": 8000
+            }
+          ],
+          "missing_ranges": []
+        },
+        "source_catalog": [
+          {
+            "id": "u1",
+            "kind": "video_utterance",
+            "text": "가지 마",
+            "record_id": "record_demo_01",
+            "record_version": 1,
+            "start_ms": 4000,
+            "end_ms": 5800
+          },
+          {
+            "id": "e1",
+            "kind": "video_observation",
+            "text": "고개를 아래로 기울이고 시선도 화면 아래쪽으로 향한다.",
+            "record_id": "record_demo_01",
+            "record_version": 1,
+            "start_ms": 0,
+            "end_ms": 3200
+          },
+          {
+            "id": "e2",
+            "kind": "video_observation",
+            "text": "고개를 들어 얼굴이 정면을 향하게 한다.",
+            "record_id": "record_demo_01",
+            "record_version": 1,
+            "start_ms": 3200,
+            "end_ms": 3800
+          },
+          {
+            "id": "e3",
+            "kind": "video_observation",
+            "text": "시선이 화면 정면을 향한 상태를 유지한다.",
+            "record_id": "record_demo_01",
+            "record_version": 1,
+            "start_ms": 3800,
+            "end_ms": 6200
+          },
+          {
+            "id": "e4",
+            "kind": "video_observation",
+            "text": "마지막 음절 ‘마’의 소리가 앞선 음절들보다 길게 이어진다.",
+            "record_id": "record_demo_01",
+            "record_version": 1,
+            "start_ms": 5100,
+            "end_ms": 5800
+          },
+          {
+            "id": "e5",
+            "kind": "video_observation",
+            "text": "고개를 화면 오른쪽으로 돌린 뒤 그 방향을 유지한다.",
+            "record_id": "record_demo_01",
+            "record_version": 1,
+            "start_ms": 6200,
+            "end_ms": 8000
+          },
+          {
+            "id": "e6",
+            "kind": "video_observation",
+            "text": "발화가 들리지 않는다.",
+            "record_id": "record_demo_01",
+            "record_version": 1,
+            "start_ms": 0,
+            "end_ms": 4000
+          },
+          {
+            "id": "e7",
+            "kind": "video_observation",
+            "text": "발화가 들리지 않는다.",
+            "record_id": "record_demo_01",
+            "record_version": 1,
+            "start_ms": 5800,
+            "end_ms": 8000
+          },
+          {
+            "id": "e8",
+            "kind": "video_observation",
+            "text": "보이는 어깨와 몸통의 위치에 뚜렷한 변화가 관찰되지 않는다.",
+            "record_id": "record_demo_01",
+            "record_version": 1,
+            "start_ms": 0,
+            "end_ms": 8000
+          },
+          {
+            "id": "e9",
+            "kind": "video_observation",
+            "text": "입을 닫은 상태를 유지한다.",
+            "record_id": "record_demo_01",
+            "record_version": 1,
+            "start_ms": 0,
+            "end_ms": 4000
+          },
+          {
+            "id": "e10",
+            "kind": "video_observation",
+            "text": "발화 중 목소리 높낮이의 뚜렷한 변화는 들리지 않는다.",
+            "record_id": "record_demo_01",
+            "record_version": 1,
+            "start_ms": 4000,
+            "end_ms": 5800
+          },
+          {
+            "id": "e11",
+            "kind": "video_observation",
+            "text": "발화 뒤 입을 다물고 유지한다.",
+            "record_id": "record_demo_01",
+            "record_version": 1,
+            "start_ms": 5800,
+            "end_ms": 8000
+          },
+          {
+            "id": "e12",
+            "kind": "video_observation",
+            "text": "발화하는 동안 두 눈썹의 안쪽이 위로 올라간다.",
+            "record_id": "record_demo_01",
+            "record_version": 1,
+            "start_ms": 4000,
+            "end_ms": 5800
+          },
+          {
+            "id": "e13",
+            "kind": "video_observation",
+            "text": "발화 중 목소리 크기의 뚜렷한 변화는 들리지 않는다.",
+            "record_id": "record_demo_01",
+            "record_version": 1,
+            "start_ms": 4000,
+            "end_ms": 5800
+          },
+          {
+            "id": "e14",
+            "kind": "video_observation",
+            "text": "‘가지’에서 ‘마’까지 말이 뚜렷하게 끊기지 않고 이어진다.",
+            "record_id": "record_demo_01",
+            "record_version": 1,
+            "start_ms": 4000,
+            "end_ms": 5800
+          },
+          {
+            "id": "l1",
+            "kind": "record_limitation",
+            "text": "손과 하체가 화면 밖이므로 손동작과 발의 움직임은 확인할 수 없다.",
+            "record_id": "record_demo_01",
+            "record_version": 1,
+            "start_ms": 0,
+            "end_ms": 8000
+          },
+          {
+            "id": "l2",
+            "kind": "record_limitation",
+            "text": "배경음과 호흡음을 분리하기 어려워 호흡의 시점과 크기를 특정할 수 없다.",
+            "record_id": "record_demo_01",
+            "record_version": 1,
+            "start_ms": 0,
+            "end_ms": 8000
+          },
+          {
+            "id": "l3",
+            "kind": "record_limitation",
+            "text": "고개를 돌린 뒤 눈의 방향을 분간하기 어려워 고개 방향과 별도로 시선을 특정할 수 없다.",
+            "record_id": "record_demo_01",
+            "record_version": 1,
+            "start_ms": 6200,
+            "end_ms": 8000
+          }
+        ],
+        "segments": [
+          {
+            "id": "s1",
+            "start_ms": 0,
+            "end_ms": 4000,
+            "utterance_ids": [],
+            "event_ids": [
+              "e1",
+              "e2",
+              "e3",
+              "e6",
+              "e8",
+              "e9"
+            ],
+            "channel_status": {
+              "visual": "recorded",
+              "audio": "recorded"
+            },
+            "limitation_ids": [
+              "l1",
+              "l2"
+            ]
+          },
+          {
+            "id": "s2",
+            "start_ms": 4000,
+            "end_ms": 5800,
+            "utterance_ids": [
+              "u1"
+            ],
+            "event_ids": [
+              "e3",
+              "e4",
+              "e8",
+              "e10",
+              "e12",
+              "e13",
+              "e14"
+            ],
+            "channel_status": {
+              "visual": "recorded",
+              "audio": "recorded"
+            },
+            "limitation_ids": [
+              "l1",
+              "l2"
+            ]
+          },
+          {
+            "id": "s3",
+            "start_ms": 5800,
+            "end_ms": 8000,
+            "utterance_ids": [],
+            "event_ids": [
+              "e3",
+              "e5",
+              "e7",
+              "e8",
+              "e11"
+            ],
+            "channel_status": {
+              "visual": "recorded",
+              "audio": "recorded"
+            },
+            "limitation_ids": [
+              "l1",
+              "l2",
+              "l3"
+            ]
+          }
+        ],
+        "speech": {
+          "status": "recorded",
+          "utterances": [
+            {
+              "id": "u1",
+              "speaker_id": "p1",
+              "start_ms": 4000,
+              "end_ms": 5800,
+              "text": "가지 마",
+              "transcription_status": "clear",
+              "timing_basis": "estimated"
+            }
+          ],
+          "word_timings": {
+            "status": "unavailable",
+            "items": []
+          },
+          "word_gaps": {
+            "status": "unavailable",
+            "items": []
+          }
+        },
+        "retrieval_status": {
+          "status": "ok",
+          "searched_ranges": [
+            {
+              "start_ms": 0,
+              "end_ms": 8000
+            }
+          ],
+          "has_more": false,
+          "continuation_token": null
+        }
+      },
+      "controls": {
+        "max_message_chars": 120,
+        "max_sentences": 2,
+        "max_questions": 1,
+        "coach_replies_remaining": 10,
+        "lookup_calls_remaining": 1,
+        "finish_required": false
+      },
+      "reserved_ids": {
+        "coach_message_id": "c1",
+        "new_proposal_id": "p1",
+        "new_attempt_id": "a1"
+      },
+      "output_contract": "acttub.coach_turn.v1"
+    },
+    "model_output": {
+      "action": "respond",
+      "base_state_revision": 0,
+      "message": "“가지 마”의 말끝이 길게 남아 부탁하는 쪽으로 읽힐 수 있어요. 원한 느낌에 가까워요?",
+      "context_update": {
+        "direction": null,
+        "scene_context": {
+          "situation": null,
+          "character_goal": null,
+          "partner_action": null
+        },
+        "focus": {
+          "label": "“가지 마”의 말끝",
+          "utterance_ref": "u1",
+          "evidence_refs": [
+            "e4"
+          ]
+        },
+        "reading": {
+          "text": "말끝이 길게 남아 부탁하는 쪽으로 읽힐 수 있어요.",
+          "source_refs": [
+            "c1",
+            "e4"
+          ]
+        },
+        "open_points": []
+      },
+      "proposal_changes": [],
+      "attempt_changes": [],
+      "style_update": null,
+      "flow": "continue"
+    },
+    "stored_state": {
+      "revision": 1,
+      "context": {
+        "direction": null,
+        "scene_context": {
+          "situation": null,
+          "character_goal": null,
+          "partner_action": null
+        },
+        "focus": {
+          "label": "“가지 마”의 말끝",
+          "utterance_ref": "u1",
+          "evidence_refs": [
+            "e4"
+          ]
+        },
+        "reading": {
+          "text": "말끝이 길게 남아 부탁하는 쪽으로 읽힐 수 있어요.",
+          "source_refs": [
+            "c1",
+            "e4"
+          ]
+        },
+        "open_points": []
+      },
+      "active_proposal_id": null,
+      "proposals": [],
+      "attempts": [],
+      "response_style": "normal"
+    }
+  },
+  {
+    "input": {
+      "request_id": "req_02",
+      "session_id": "session_demo_01",
+      "user_message": {
+        "id": "m1",
+        "role": "actor",
+        "text": "붙잡고는 싶은데 애원하는 것처럼 보이긴 싫어."
+      },
+      "actor_context": {},
+      "coaching_state": {
+        "revision": 1,
+        "context": {
+          "direction": null,
+          "scene_context": {
+            "situation": null,
+            "character_goal": null,
+            "partner_action": null
+          },
+          "focus": {
+            "label": "“가지 마”의 말끝",
+            "utterance_ref": "u1",
+            "evidence_refs": [
+              "e4"
+            ]
+          },
+          "reading": {
+            "text": "말끝이 길게 남아 부탁하는 쪽으로 읽힐 수 있어요.",
+            "source_refs": [
+              "c1",
+              "e4"
+            ]
+          },
+          "open_points": []
+        },
+        "active_proposal_id": null,
+        "proposals": [],
+        "attempts": [],
+        "response_style": "normal"
+      },
+      "state_sources": [
+        {
+          "id": "c1",
+          "kind": "coach_message",
+          "text": "“가지 마”의 말끝이 길게 남아 부탁하는 쪽으로 읽힐 수 있어요. 원한 느낌에 가까워요?",
+          "record_id": null,
+          "record_version": null,
+          "start_ms": null,
+          "end_ms": null
+        },
+        {
+          "id": "m1",
+          "kind": "actor_message",
+          "text": "붙잡고는 싶은데 애원하는 것처럼 보이긴 싫어.",
+          "record_id": null,
+          "record_version": null,
+          "start_ms": null,
+          "end_ms": null
+        }
+      ],
+      "recent_messages": [
+        {
+          "id": "c1",
+          "role": "coach",
+          "text": "“가지 마”의 말끝이 길게 남아 부탁하는 쪽으로 읽힐 수 있어요. 원한 느낌에 가까워요?"
+        },
+        {
+          "id": "m1",
+          "role": "actor",
+          "text": "붙잡고는 싶은데 애원하는 것처럼 보이긴 싫어."
+        }
+      ],
+      "record_view": {
+        "record_ref": {
+          "record_id": "record_demo_01",
+          "version": 1,
+          "duration_ms": 8000
+        },
+        "overview": {
+          "observed_scene": [
+            {
+              "text": "고개를 들고, 발화 뒤 고개를 화면 오른쪽으로 돌린다.",
+              "source_refs": [
+                "e2",
+                "e5"
+              ]
+            }
+          ],
+          "spoken_content": [
+            {
+              "text": "인물이 “가지 마”라고 말한다.",
+              "source_refs": [
+                "u1"
+              ]
+            }
+          ]
+        },
+        "utterance_index": [
+          {
+            "id": "u1",
+            "speaker_id": "p1",
+            "start_ms": 4000,
+            "end_ms": 5800,
+            "text": "가지 마",
+            "transcription_status": "clear",
+            "timing_basis": "estimated"
+          }
+        ],
+        "coverage": {
+          "status": "ready",
+          "processed_ranges": [
+            {
+              "start_ms": 0,
+              "end_ms": 8000
+            }
+          ],
+          "missing_ranges": []
+        },
+        "source_catalog": [
+          {
+            "id": "u1",
+            "kind": "video_utterance",
+            "text": "가지 마",
+            "record_id": "record_demo_01",
+            "record_version": 1,
+            "start_ms": 4000,
+            "end_ms": 5800
+          },
+          {
+            "id": "e1",
+            "kind": "video_observation",
+            "text": "고개를 아래로 기울이고 시선도 화면 아래쪽으로 향한다.",
+            "record_id": "record_demo_01",
+            "record_version": 1,
+            "start_ms": 0,
+            "end_ms": 3200
+          },
+          {
+            "id": "e2",
+            "kind": "video_observation",
+            "text": "고개를 들어 얼굴이 정면을 향하게 한다.",
+            "record_id": "record_demo_01",
+            "record_version": 1,
+            "start_ms": 3200,
+            "end_ms": 3800
+          },
+          {
+            "id": "e3",
+            "kind": "video_observation",
+            "text": "시선이 화면 정면을 향한 상태를 유지한다.",
+            "record_id": "record_demo_01",
+            "record_version": 1,
+            "start_ms": 3800,
+            "end_ms": 6200
+          },
+          {
+            "id": "e4",
+            "kind": "video_observation",
+            "text": "마지막 음절 ‘마’의 소리가 앞선 음절들보다 길게 이어진다.",
+            "record_id": "record_demo_01",
+            "record_version": 1,
+            "start_ms": 5100,
+            "end_ms": 5800
+          },
+          {
+            "id": "e5",
+            "kind": "video_observation",
+            "text": "고개를 화면 오른쪽으로 돌린 뒤 그 방향을 유지한다.",
+            "record_id": "record_demo_01",
+            "record_version": 1,
+            "start_ms": 6200,
+            "end_ms": 8000
+          },
+          {
+            "id": "e6",
+            "kind": "video_observation",
+            "text": "발화가 들리지 않는다.",
+            "record_id": "record_demo_01",
+            "record_version": 1,
+            "start_ms": 0,
+            "end_ms": 4000
+          },
+          {
+            "id": "e7",
+            "kind": "video_observation",
+            "text": "발화가 들리지 않는다.",
+            "record_id": "record_demo_01",
+            "record_version": 1,
+            "start_ms": 5800,
+            "end_ms": 8000
+          },
+          {
+            "id": "e8",
+            "kind": "video_observation",
+            "text": "보이는 어깨와 몸통의 위치에 뚜렷한 변화가 관찰되지 않는다.",
+            "record_id": "record_demo_01",
+            "record_version": 1,
+            "start_ms": 0,
+            "end_ms": 8000
+          },
+          {
+            "id": "e9",
+            "kind": "video_observation",
+            "text": "입을 닫은 상태를 유지한다.",
+            "record_id": "record_demo_01",
+            "record_version": 1,
+            "start_ms": 0,
+            "end_ms": 4000
+          },
+          {
+            "id": "e10",
+            "kind": "video_observation",
+            "text": "발화 중 목소리 높낮이의 뚜렷한 변화는 들리지 않는다.",
+            "record_id": "record_demo_01",
+            "record_version": 1,
+            "start_ms": 4000,
+            "end_ms": 5800
+          },
+          {
+            "id": "e11",
+            "kind": "video_observation",
+            "text": "발화 뒤 입을 다물고 유지한다.",
+            "record_id": "record_demo_01",
+            "record_version": 1,
+            "start_ms": 5800,
+            "end_ms": 8000
+          },
+          {
+            "id": "e12",
+            "kind": "video_observation",
+            "text": "발화하는 동안 두 눈썹의 안쪽이 위로 올라간다.",
+            "record_id": "record_demo_01",
+            "record_version": 1,
+            "start_ms": 4000,
+            "end_ms": 5800
+          },
+          {
+            "id": "e13",
+            "kind": "video_observation",
+            "text": "발화 중 목소리 크기의 뚜렷한 변화는 들리지 않는다.",
+            "record_id": "record_demo_01",
+            "record_version": 1,
+            "start_ms": 4000,
+            "end_ms": 5800
+          },
+          {
+            "id": "e14",
+            "kind": "video_observation",
+            "text": "‘가지’에서 ‘마’까지 말이 뚜렷하게 끊기지 않고 이어진다.",
+            "record_id": "record_demo_01",
+            "record_version": 1,
+            "start_ms": 4000,
+            "end_ms": 5800
+          },
+          {
+            "id": "l1",
+            "kind": "record_limitation",
+            "text": "손과 하체가 화면 밖이므로 손동작과 발의 움직임은 확인할 수 없다.",
+            "record_id": "record_demo_01",
+            "record_version": 1,
+            "start_ms": 0,
+            "end_ms": 8000
+          },
+          {
+            "id": "l2",
+            "kind": "record_limitation",
+            "text": "배경음과 호흡음을 분리하기 어려워 호흡의 시점과 크기를 특정할 수 없다.",
+            "record_id": "record_demo_01",
+            "record_version": 1,
+            "start_ms": 0,
+            "end_ms": 8000
+          },
+          {
+            "id": "l3",
+            "kind": "record_limitation",
+            "text": "고개를 돌린 뒤 눈의 방향을 분간하기 어려워 고개 방향과 별도로 시선을 특정할 수 없다.",
+            "record_id": "record_demo_01",
+            "record_version": 1,
+            "start_ms": 6200,
+            "end_ms": 8000
+          }
+        ],
+        "segments": [
+          {
+            "id": "s1",
+            "start_ms": 0,
+            "end_ms": 4000,
+            "utterance_ids": [],
+            "event_ids": [
+              "e1",
+              "e2",
+              "e3",
+              "e6",
+              "e8",
+              "e9"
+            ],
+            "channel_status": {
+              "visual": "recorded",
+              "audio": "recorded"
+            },
+            "limitation_ids": [
+              "l1",
+              "l2"
+            ]
+          },
+          {
+            "id": "s2",
+            "start_ms": 4000,
+            "end_ms": 5800,
+            "utterance_ids": [
+              "u1"
+            ],
+            "event_ids": [
+              "e3",
+              "e4",
+              "e8",
+              "e10",
+              "e12",
+              "e13",
+              "e14"
+            ],
+            "channel_status": {
+              "visual": "recorded",
+              "audio": "recorded"
+            },
+            "limitation_ids": [
+              "l1",
+              "l2"
+            ]
+          },
+          {
+            "id": "s3",
+            "start_ms": 5800,
+            "end_ms": 8000,
+            "utterance_ids": [],
+            "event_ids": [
+              "e3",
+              "e5",
+              "e7",
+              "e8",
+              "e11"
+            ],
+            "channel_status": {
+              "visual": "recorded",
+              "audio": "recorded"
+            },
+            "limitation_ids": [
+              "l1",
+              "l2",
+              "l3"
+            ]
+          }
+        ],
+        "speech": {
+          "status": "recorded",
+          "utterances": [
+            {
+              "id": "u1",
+              "speaker_id": "p1",
+              "start_ms": 4000,
+              "end_ms": 5800,
+              "text": "가지 마",
+              "transcription_status": "clear",
+              "timing_basis": "estimated"
+            }
+          ],
+          "word_timings": {
+            "status": "unavailable",
+            "items": []
+          },
+          "word_gaps": {
+            "status": "unavailable",
+            "items": []
+          }
+        },
+        "retrieval_status": {
+          "status": "ok",
+          "searched_ranges": [
+            {
+              "start_ms": 0,
+              "end_ms": 8000
+            }
+          ],
+          "has_more": false,
+          "continuation_token": null
+        }
+      },
+      "controls": {
+        "max_message_chars": 120,
+        "max_sentences": 2,
+        "max_questions": 1,
+        "coach_replies_remaining": 9,
+        "lookup_calls_remaining": 2,
+        "finish_required": false
+      },
+      "reserved_ids": {
+        "coach_message_id": "c2",
+        "new_proposal_id": "p1",
+        "new_attempt_id": "a1"
+      },
+      "output_contract": "acttub.coach_turn.v1"
+    },
+    "model_output": {
+      "action": "respond",
+      "base_state_revision": 1,
+      "message": "같은 대사를 말끝만 짧게 끝내서 한 번 해보세요. 붙잡는 뜻은 남으면서 부탁하는 느낌이 줄어드는지 비교해봐요.",
+      "context_update": {
+        "direction": {
+          "text": "붙잡고는 싶은데 애원하는 것처럼 보이긴 싫어.",
+          "origin": "actor_stated",
+          "source_refs": [
+            "m1"
+          ]
+        },
+        "scene_context": {
+          "situation": null,
+          "character_goal": null,
+          "partner_action": null
+        },
+        "focus": {
+          "label": "“가지 마”의 말끝",
+          "utterance_ref": "u1",
+          "evidence_refs": [
+            "e4"
+          ]
+        },
+        "reading": {
+          "text": "말끝이 길게 남아 부탁하는 쪽으로 읽힐 수 있어요.",
+          "source_refs": [
+            "c1",
+            "e4"
+          ]
+        },
+        "open_points": []
+      },
+      "proposal_changes": [
+        {
+          "kind": "create",
+          "proposal": {
+            "proposal_id": "p1",
+            "lifecycle": "active",
+            "selection": "proposed",
+            "selection_refs": [],
+            "instruction": {
+              "text": "같은 대사를 말끝만 짧게 끝내서 한 번 해보세요.",
+              "source_refs": [
+                "c2"
+              ]
+            },
+            "comparison": {
+              "text": "붙잡는 뜻은 남으면서 부탁하는 느낌이 줄어드는지 비교해봐요.",
+              "source_refs": [
+                "c2"
+              ]
+            },
+            "keep": null,
+            "basis_refs": [
+              "m1",
+              "e4",
+              "c1"
+            ],
+            "retirement_refs": []
+          }
+        }
+      ],
+      "attempt_changes": [],
+      "style_update": null,
+      "flow": "continue"
+    },
+    "stored_state": {
+      "revision": 2,
+      "context": {
+        "direction": {
+          "text": "붙잡고는 싶은데 애원하는 것처럼 보이긴 싫어.",
+          "origin": "actor_stated",
+          "source_refs": [
+            "m1"
+          ]
+        },
+        "scene_context": {
+          "situation": null,
+          "character_goal": null,
+          "partner_action": null
+        },
+        "focus": {
+          "label": "“가지 마”의 말끝",
+          "utterance_ref": "u1",
+          "evidence_refs": [
+            "e4"
+          ]
+        },
+        "reading": {
+          "text": "말끝이 길게 남아 부탁하는 쪽으로 읽힐 수 있어요.",
+          "source_refs": [
+            "c1",
+            "e4"
+          ]
+        },
+        "open_points": []
+      },
+      "active_proposal_id": "p1",
+      "proposals": [
+        {
+          "proposal_id": "p1",
+          "lifecycle": "active",
+          "selection": "proposed",
+          "selection_refs": [],
+          "instruction": {
+            "text": "같은 대사를 말끝만 짧게 끝내서 한 번 해보세요.",
+            "source_refs": [
+              "c2"
+            ]
+          },
+          "comparison": {
+            "text": "붙잡는 뜻은 남으면서 부탁하는 느낌이 줄어드는지 비교해봐요.",
+            "source_refs": [
+              "c2"
+            ]
+          },
+          "keep": null,
+          "basis_refs": [
+            "m1",
+            "e4",
+            "c1"
+          ],
+          "retirement_refs": []
+        }
+      ],
+      "attempts": [
+        {
+          "attempt_id": "a1",
+          "proposal_id": "p1",
+          "instruction": {
+            "text": "같은 대사를 말끝만 짧게 끝내서 한 번 해보세요.",
+            "source_refs": [
+              "c2"
+            ]
+          },
+          "execution": "unknown",
+          "execution_refs": [],
+          "result": null
+        }
+      ],
+      "response_style": "normal"
+    }
+  },
+  {
+    "input": {
+      "request_id": "req_03",
+      "session_id": "session_demo_01",
+      "user_message": {
+        "id": "m2",
+        "role": "actor",
+        "text": "말끝을 짧게 끝내는 걸 해볼게. 아직 해보진 않았어. 여기까지 정리해줘."
+      },
+      "actor_context": {},
+      "coaching_state": {
+        "revision": 2,
+        "context": {
+          "direction": {
+            "text": "붙잡고는 싶은데 애원하는 것처럼 보이긴 싫어.",
+            "origin": "actor_stated",
+            "source_refs": [
+              "m1"
+            ]
+          },
+          "scene_context": {
+            "situation": null,
+            "character_goal": null,
+            "partner_action": null
+          },
+          "focus": {
+            "label": "“가지 마”의 말끝",
+            "utterance_ref": "u1",
+            "evidence_refs": [
+              "e4"
+            ]
+          },
+          "reading": {
+            "text": "말끝이 길게 남아 부탁하는 쪽으로 읽힐 수 있어요.",
+            "source_refs": [
+              "c1",
+              "e4"
+            ]
+          },
+          "open_points": []
+        },
+        "active_proposal_id": "p1",
+        "proposals": [
+          {
+            "proposal_id": "p1",
+            "lifecycle": "active",
+            "selection": "proposed",
+            "selection_refs": [],
+            "instruction": {
+              "text": "같은 대사를 말끝만 짧게 끝내서 한 번 해보세요.",
+              "source_refs": [
+                "c2"
+              ]
+            },
+            "comparison": {
+              "text": "붙잡는 뜻은 남으면서 부탁하는 느낌이 줄어드는지 비교해봐요.",
+              "source_refs": [
+                "c2"
+              ]
+            },
+            "keep": null,
+            "basis_refs": [
+              "m1",
+              "e4",
+              "c1"
+            ],
+            "retirement_refs": []
+          }
+        ],
+        "attempts": [
+          {
+            "attempt_id": "a1",
+            "proposal_id": "p1",
+            "instruction": {
+              "text": "같은 대사를 말끝만 짧게 끝내서 한 번 해보세요.",
+              "source_refs": [
+                "c2"
+              ]
+            },
+            "execution": "unknown",
+            "execution_refs": [],
+            "result": null
+          }
+        ],
+        "response_style": "normal"
+      },
+      "state_sources": [
+        {
+          "id": "c1",
+          "kind": "coach_message",
+          "text": "“가지 마”의 말끝이 길게 남아 부탁하는 쪽으로 읽힐 수 있어요. 원한 느낌에 가까워요?",
+          "record_id": null,
+          "record_version": null,
+          "start_ms": null,
+          "end_ms": null
+        },
+        {
+          "id": "m1",
+          "kind": "actor_message",
+          "text": "붙잡고는 싶은데 애원하는 것처럼 보이긴 싫어.",
+          "record_id": null,
+          "record_version": null,
+          "start_ms": null,
+          "end_ms": null
+        },
+        {
+          "id": "c2",
+          "kind": "coach_message",
+          "text": "같은 대사를 말끝만 짧게 끝내서 한 번 해보세요. 붙잡는 뜻은 남으면서 부탁하는 느낌이 줄어드는지 비교해봐요.",
+          "record_id": null,
+          "record_version": null,
+          "start_ms": null,
+          "end_ms": null
+        },
+        {
+          "id": "m2",
+          "kind": "actor_message",
+          "text": "말끝을 짧게 끝내는 걸 해볼게. 아직 해보진 않았어. 여기까지 정리해줘.",
+          "record_id": null,
+          "record_version": null,
+          "start_ms": null,
+          "end_ms": null
+        }
+      ],
+      "recent_messages": [
+        {
+          "id": "c1",
+          "role": "coach",
+          "text": "“가지 마”의 말끝이 길게 남아 부탁하는 쪽으로 읽힐 수 있어요. 원한 느낌에 가까워요?"
+        },
+        {
+          "id": "m1",
+          "role": "actor",
+          "text": "붙잡고는 싶은데 애원하는 것처럼 보이긴 싫어."
+        },
+        {
+          "id": "c2",
+          "role": "coach",
+          "text": "같은 대사를 말끝만 짧게 끝내서 한 번 해보세요. 붙잡는 뜻은 남으면서 부탁하는 느낌이 줄어드는지 비교해봐요."
+        },
+        {
+          "id": "m2",
+          "role": "actor",
+          "text": "말끝을 짧게 끝내는 걸 해볼게. 아직 해보진 않았어. 여기까지 정리해줘."
+        }
+      ],
+      "record_view": {
+        "record_ref": {
+          "record_id": "record_demo_01",
+          "version": 1,
+          "duration_ms": 8000
+        },
+        "overview": {
+          "observed_scene": [
+            {
+              "text": "고개를 들고, 발화 뒤 고개를 화면 오른쪽으로 돌린다.",
+              "source_refs": [
+                "e2",
+                "e5"
+              ]
+            }
+          ],
+          "spoken_content": [
+            {
+              "text": "인물이 “가지 마”라고 말한다.",
+              "source_refs": [
+                "u1"
+              ]
+            }
+          ]
+        },
+        "utterance_index": [
+          {
+            "id": "u1",
+            "speaker_id": "p1",
+            "start_ms": 4000,
+            "end_ms": 5800,
+            "text": "가지 마",
+            "transcription_status": "clear",
+            "timing_basis": "estimated"
+          }
+        ],
+        "coverage": {
+          "status": "ready",
+          "processed_ranges": [
+            {
+              "start_ms": 0,
+              "end_ms": 8000
+            }
+          ],
+          "missing_ranges": []
+        },
+        "source_catalog": [
+          {
+            "id": "u1",
+            "kind": "video_utterance",
+            "text": "가지 마",
+            "record_id": "record_demo_01",
+            "record_version": 1,
+            "start_ms": 4000,
+            "end_ms": 5800
+          },
+          {
+            "id": "e1",
+            "kind": "video_observation",
+            "text": "고개를 아래로 기울이고 시선도 화면 아래쪽으로 향한다.",
+            "record_id": "record_demo_01",
+            "record_version": 1,
+            "start_ms": 0,
+            "end_ms": 3200
+          },
+          {
+            "id": "e2",
+            "kind": "video_observation",
+            "text": "고개를 들어 얼굴이 정면을 향하게 한다.",
+            "record_id": "record_demo_01",
+            "record_version": 1,
+            "start_ms": 3200,
+            "end_ms": 3800
+          },
+          {
+            "id": "e3",
+            "kind": "video_observation",
+            "text": "시선이 화면 정면을 향한 상태를 유지한다.",
+            "record_id": "record_demo_01",
+            "record_version": 1,
+            "start_ms": 3800,
+            "end_ms": 6200
+          },
+          {
+            "id": "e4",
+            "kind": "video_observation",
+            "text": "마지막 음절 ‘마’의 소리가 앞선 음절들보다 길게 이어진다.",
+            "record_id": "record_demo_01",
+            "record_version": 1,
+            "start_ms": 5100,
+            "end_ms": 5800
+          },
+          {
+            "id": "e5",
+            "kind": "video_observation",
+            "text": "고개를 화면 오른쪽으로 돌린 뒤 그 방향을 유지한다.",
+            "record_id": "record_demo_01",
+            "record_version": 1,
+            "start_ms": 6200,
+            "end_ms": 8000
+          },
+          {
+            "id": "e6",
+            "kind": "video_observation",
+            "text": "발화가 들리지 않는다.",
+            "record_id": "record_demo_01",
+            "record_version": 1,
+            "start_ms": 0,
+            "end_ms": 4000
+          },
+          {
+            "id": "e7",
+            "kind": "video_observation",
+            "text": "발화가 들리지 않는다.",
+            "record_id": "record_demo_01",
+            "record_version": 1,
+            "start_ms": 5800,
+            "end_ms": 8000
+          },
+          {
+            "id": "e8",
+            "kind": "video_observation",
+            "text": "보이는 어깨와 몸통의 위치에 뚜렷한 변화가 관찰되지 않는다.",
+            "record_id": "record_demo_01",
+            "record_version": 1,
+            "start_ms": 0,
+            "end_ms": 8000
+          },
+          {
+            "id": "e9",
+            "kind": "video_observation",
+            "text": "입을 닫은 상태를 유지한다.",
+            "record_id": "record_demo_01",
+            "record_version": 1,
+            "start_ms": 0,
+            "end_ms": 4000
+          },
+          {
+            "id": "e10",
+            "kind": "video_observation",
+            "text": "발화 중 목소리 높낮이의 뚜렷한 변화는 들리지 않는다.",
+            "record_id": "record_demo_01",
+            "record_version": 1,
+            "start_ms": 4000,
+            "end_ms": 5800
+          },
+          {
+            "id": "e11",
+            "kind": "video_observation",
+            "text": "발화 뒤 입을 다물고 유지한다.",
+            "record_id": "record_demo_01",
+            "record_version": 1,
+            "start_ms": 5800,
+            "end_ms": 8000
+          },
+          {
+            "id": "e12",
+            "kind": "video_observation",
+            "text": "발화하는 동안 두 눈썹의 안쪽이 위로 올라간다.",
+            "record_id": "record_demo_01",
+            "record_version": 1,
+            "start_ms": 4000,
+            "end_ms": 5800
+          },
+          {
+            "id": "e13",
+            "kind": "video_observation",
+            "text": "발화 중 목소리 크기의 뚜렷한 변화는 들리지 않는다.",
+            "record_id": "record_demo_01",
+            "record_version": 1,
+            "start_ms": 4000,
+            "end_ms": 5800
+          },
+          {
+            "id": "e14",
+            "kind": "video_observation",
+            "text": "‘가지’에서 ‘마’까지 말이 뚜렷하게 끊기지 않고 이어진다.",
+            "record_id": "record_demo_01",
+            "record_version": 1,
+            "start_ms": 4000,
+            "end_ms": 5800
+          },
+          {
+            "id": "l1",
+            "kind": "record_limitation",
+            "text": "손과 하체가 화면 밖이므로 손동작과 발의 움직임은 확인할 수 없다.",
+            "record_id": "record_demo_01",
+            "record_version": 1,
+            "start_ms": 0,
+            "end_ms": 8000
+          },
+          {
+            "id": "l2",
+            "kind": "record_limitation",
+            "text": "배경음과 호흡음을 분리하기 어려워 호흡의 시점과 크기를 특정할 수 없다.",
+            "record_id": "record_demo_01",
+            "record_version": 1,
+            "start_ms": 0,
+            "end_ms": 8000
+          },
+          {
+            "id": "l3",
+            "kind": "record_limitation",
+            "text": "고개를 돌린 뒤 눈의 방향을 분간하기 어려워 고개 방향과 별도로 시선을 특정할 수 없다.",
+            "record_id": "record_demo_01",
+            "record_version": 1,
+            "start_ms": 6200,
+            "end_ms": 8000
+          }
+        ],
+        "segments": [
+          {
+            "id": "s1",
+            "start_ms": 0,
+            "end_ms": 4000,
+            "utterance_ids": [],
+            "event_ids": [
+              "e1",
+              "e2",
+              "e3",
+              "e6",
+              "e8",
+              "e9"
+            ],
+            "channel_status": {
+              "visual": "recorded",
+              "audio": "recorded"
+            },
+            "limitation_ids": [
+              "l1",
+              "l2"
+            ]
+          },
+          {
+            "id": "s2",
+            "start_ms": 4000,
+            "end_ms": 5800,
+            "utterance_ids": [
+              "u1"
+            ],
+            "event_ids": [
+              "e3",
+              "e4",
+              "e8",
+              "e10",
+              "e12",
+              "e13",
+              "e14"
+            ],
+            "channel_status": {
+              "visual": "recorded",
+              "audio": "recorded"
+            },
+            "limitation_ids": [
+              "l1",
+              "l2"
+            ]
+          },
+          {
+            "id": "s3",
+            "start_ms": 5800,
+            "end_ms": 8000,
+            "utterance_ids": [],
+            "event_ids": [
+              "e3",
+              "e5",
+              "e7",
+              "e8",
+              "e11"
+            ],
+            "channel_status": {
+              "visual": "recorded",
+              "audio": "recorded"
+            },
+            "limitation_ids": [
+              "l1",
+              "l2",
+              "l3"
+            ]
+          }
+        ],
+        "speech": {
+          "status": "recorded",
+          "utterances": [
+            {
+              "id": "u1",
+              "speaker_id": "p1",
+              "start_ms": 4000,
+              "end_ms": 5800,
+              "text": "가지 마",
+              "transcription_status": "clear",
+              "timing_basis": "estimated"
+            }
+          ],
+          "word_timings": {
+            "status": "unavailable",
+            "items": []
+          },
+          "word_gaps": {
+            "status": "unavailable",
+            "items": []
+          }
+        },
+        "retrieval_status": {
+          "status": "ok",
+          "searched_ranges": [
+            {
+              "start_ms": 0,
+              "end_ms": 8000
+            }
+          ],
+          "has_more": false,
+          "continuation_token": null
+        }
+      },
+      "controls": {
+        "max_message_chars": 120,
+        "max_sentences": 2,
+        "max_questions": 1,
+        "coach_replies_remaining": 8,
+        "lookup_calls_remaining": 2,
+        "finish_required": true
+      },
+      "reserved_ids": {
+        "coach_message_id": "c3",
+        "new_proposal_id": "p2",
+        "new_attempt_id": "a2"
+      },
+      "output_contract": "acttub.coach_turn.v1"
+    },
+    "model_output": {
+      "action": "respond",
+      "base_state_revision": 2,
+      "message": "말끝을 짧게 끝내는 연습과 비교 기준을 남길게요. 아직 해보지 않은 제안으로 정리할게요.",
+      "context_update": null,
+      "proposal_changes": [
+        {
+          "kind": "select",
+          "proposal_id": "p1",
+          "source_refs": [
+            "m2"
+          ]
+        }
+      ],
+      "attempt_changes": [
+        {
+          "kind": "upsert",
+          "attempt": {
+            "attempt_id": "a1",
+            "proposal_id": "p1",
+            "instruction": {
+              "text": "같은 대사를 말끝만 짧게 끝내서 한 번 해보세요.",
+              "source_refs": [
+                "c2"
+              ]
+            },
+            "execution": "not_tried",
+            "execution_refs": [
+              "m2"
+            ],
+            "result": null
+          }
+        }
+      ],
+      "style_update": null,
+      "flow": "finish"
+    },
+    "stored_state": {
+      "revision": 3,
+      "context": {
+        "direction": {
+          "text": "붙잡고는 싶은데 애원하는 것처럼 보이긴 싫어.",
+          "origin": "actor_stated",
+          "source_refs": [
+            "m1"
+          ]
+        },
+        "scene_context": {
+          "situation": null,
+          "character_goal": null,
+          "partner_action": null
+        },
+        "focus": {
+          "label": "“가지 마”의 말끝",
+          "utterance_ref": "u1",
+          "evidence_refs": [
+            "e4"
+          ]
+        },
+        "reading": {
+          "text": "말끝이 길게 남아 부탁하는 쪽으로 읽힐 수 있어요.",
+          "source_refs": [
+            "c1",
+            "e4"
+          ]
+        },
+        "open_points": []
+      },
+      "active_proposal_id": "p1",
+      "proposals": [
+        {
+          "proposal_id": "p1",
+          "lifecycle": "active",
+          "selection": "selected",
+          "selection_refs": [
+            "m2"
+          ],
+          "instruction": {
+            "text": "같은 대사를 말끝만 짧게 끝내서 한 번 해보세요.",
+            "source_refs": [
+              "c2"
+            ]
+          },
+          "comparison": {
+            "text": "붙잡는 뜻은 남으면서 부탁하는 느낌이 줄어드는지 비교해봐요.",
+            "source_refs": [
+              "c2"
+            ]
+          },
+          "keep": null,
+          "basis_refs": [
+            "m1",
+            "e4",
+            "c1"
+          ],
+          "retirement_refs": []
+        }
+      ],
+      "attempts": [
+        {
+          "attempt_id": "a1",
+          "proposal_id": "p1",
+          "instruction": {
+            "text": "같은 대사를 말끝만 짧게 끝내서 한 번 해보세요.",
+            "source_refs": [
+              "c2"
+            ]
+          },
+          "execution": "not_tried",
+          "execution_refs": [
+            "m2"
+          ],
+          "result": null
+        }
+      ],
+      "response_style": "normal"
+    }
+  }
+]

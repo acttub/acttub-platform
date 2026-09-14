@@ -1,0 +1,1620 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:acttub:three-layer-output-contracts:v1",
+  "title": "Proposed ACTTUB output contracts",
+  "description": "Portable validation schema. Resolve the layer-specific definition before sending as provider-specific structured output. Input envelopes and server state transitions are specified in the integrated design document.",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/layer1_chunk"
+    },
+    {
+      "$ref": "#/$defs/layer2_turn"
+    },
+    {
+      "$ref": "#/$defs/layer3_copy"
+    },
+    {
+      "$ref": "#/$defs/practice_note"
+    }
+  ],
+  "$defs": {
+    "grounded_text": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "text": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "source_refs": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "text",
+        "source_refs"
+      ]
+    },
+    "direction": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "text": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "origin": {
+          "enum": [
+            "actor_stated",
+            "actor_selected",
+            "coach_proposed"
+          ]
+        },
+        "source_refs": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "text",
+        "origin",
+        "source_refs"
+      ]
+    },
+    "focus": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "utterance_ref": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "evidence_refs": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "label",
+        "utterance_ref",
+        "evidence_refs"
+      ]
+    },
+    "practice": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "proposal_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "selection": {
+          "enum": [
+            "proposed",
+            "selected"
+          ]
+        },
+        "selection_refs": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "minItems": 0
+        },
+        "instruction": {
+          "$ref": "#/$defs/grounded_text"
+        },
+        "comparison": {
+          "$ref": "#/$defs/grounded_text"
+        },
+        "keep": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/grounded_text"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "proposal_id",
+        "selection",
+        "selection_refs",
+        "instruction",
+        "comparison",
+        "keep"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "selection": {
+                "const": "proposed"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "selection_refs": {
+                "maxItems": 0
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "selection": {
+                "const": "selected"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "selection_refs": {
+                "minItems": 1
+              }
+            }
+          }
+        }
+      ]
+    },
+    "result": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "direction": {
+          "enum": [
+            "closer",
+            "further",
+            "mixed",
+            "same",
+            "unclear"
+          ]
+        },
+        "statement": {
+          "$ref": "#/$defs/grounded_text"
+        },
+        "basis": {
+          "const": "actor_report"
+        }
+      },
+      "required": [
+        "direction",
+        "statement",
+        "basis"
+      ]
+    },
+    "attempt": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "attempt_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "proposal_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "instruction": {
+          "$ref": "#/$defs/grounded_text"
+        },
+        "execution": {
+          "enum": [
+            "unknown",
+            "not_tried",
+            "reported_tried"
+          ]
+        },
+        "execution_refs": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "minItems": 0
+        },
+        "result": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/result"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "attempt_id",
+        "proposal_id",
+        "instruction",
+        "execution",
+        "execution_refs",
+        "result"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "execution": {
+                "const": "unknown"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "execution_refs": {
+                "maxItems": 0
+              },
+              "result": {
+                "type": "null"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "execution": {
+                "const": "not_tried"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "execution_refs": {
+                "minItems": 1
+              },
+              "result": {
+                "type": "null"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "execution": {
+                "const": "reported_tried"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "execution_refs": {
+                "minItems": 1
+              }
+            }
+          }
+        }
+      ]
+    },
+    "copy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 32
+        },
+        "summary": {
+          "anyOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "text": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 120
+                },
+                "source_refs": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 160
+                  },
+                  "minItems": 1,
+                  "uniqueItems": true
+                }
+              },
+              "required": [
+                "text",
+                "source_refs"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "title",
+        "summary"
+      ]
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "kind": {
+          "enum": [
+            "actor_message",
+            "actor_input",
+            "coach_message",
+            "video_observation",
+            "video_utterance",
+            "record_limitation"
+          ]
+        },
+        "text": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 10000
+        },
+        "record_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "record_version": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "start_ms": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "end_ms": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "text",
+        "record_id",
+        "record_version",
+        "start_ms",
+        "end_ms"
+      ]
+    },
+    "record_ref": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "record_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "duration_ms": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "required": [
+        "record_id",
+        "version",
+        "duration_ms"
+      ]
+    },
+    "scene_context": {
+      "type": "object",
+      "properties": {
+        "situation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/direction"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "character_goal": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/direction"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "partner_action": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/direction"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "situation",
+        "character_goal",
+        "partner_action"
+      ],
+      "additionalProperties": false
+    },
+    "coach_context": {
+      "type": "object",
+      "properties": {
+        "direction": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/direction"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "scene_context": {
+          "$ref": "#/$defs/scene_context"
+        },
+        "focus": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/focus"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reading": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/grounded_text"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "open_points": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/grounded_text"
+          },
+          "minItems": 0
+        }
+      },
+      "required": [
+        "direction",
+        "scene_context",
+        "focus",
+        "reading",
+        "open_points"
+      ],
+      "additionalProperties": false
+    },
+    "proposal": {
+      "type": "object",
+      "properties": {
+        "proposal_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "selection": {
+          "enum": [
+            "proposed",
+            "selected"
+          ]
+        },
+        "selection_refs": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "minItems": 0
+        },
+        "instruction": {
+          "$ref": "#/$defs/grounded_text"
+        },
+        "comparison": {
+          "$ref": "#/$defs/grounded_text"
+        },
+        "keep": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/grounded_text"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "lifecycle": {
+          "enum": [
+            "active",
+            "declined",
+            "superseded",
+            "needs_review"
+          ]
+        },
+        "basis_refs": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "minItems": 1
+        },
+        "retirement_refs": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "minItems": 0,
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "proposal_id",
+        "selection",
+        "selection_refs",
+        "instruction",
+        "comparison",
+        "keep",
+        "lifecycle",
+        "basis_refs",
+        "retirement_refs"
+      ],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "selection": {
+                "const": "proposed"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "selection_refs": {
+                "maxItems": 0
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "selection": {
+                "const": "selected"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "selection_refs": {
+                "minItems": 1
+              }
+            }
+          }
+        }
+      ]
+    },
+    "proposal_change": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "create"
+            },
+            "proposal": {
+              "$ref": "#/$defs/proposal"
+            }
+          },
+          "required": [
+            "kind",
+            "proposal"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "select"
+            },
+            "proposal_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            },
+            "source_refs": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160
+              },
+              "minItems": 1
+            }
+          },
+          "required": [
+            "kind",
+            "proposal_id",
+            "source_refs"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "retire"
+            },
+            "proposal_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            },
+            "reason": {
+              "enum": [
+                "declined",
+                "superseded",
+                "needs_review"
+              ]
+            },
+            "source_refs": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160
+              },
+              "minItems": 1
+            }
+          },
+          "required": [
+            "kind",
+            "proposal_id",
+            "reason",
+            "source_refs"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "layer2_lookup": {
+      "type": "object",
+      "properties": {
+        "action": {
+          "const": "lookup"
+        },
+        "base_state_revision": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "request": {
+          "type": "object",
+          "properties": {
+            "record_ref": {
+              "$ref": "#/$defs/record_ref"
+            },
+            "selector": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "const": "utterance"
+                    },
+                    "utterance_id": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 160
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "utterance_id"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "const": "range"
+                    },
+                    "start_ms": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "end_ms": {
+                      "type": "integer",
+                      "minimum": 1
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "start_ms",
+                    "end_ms"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "const": "query"
+                    },
+                    "text": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 200
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "text"
+                  ],
+                  "additionalProperties": false
+                }
+              ]
+            },
+            "include_neighbors": {
+              "type": "boolean"
+            },
+            "dimensions": {
+              "type": "array",
+              "items": {
+                "enum": [
+                  "speech",
+                  "voice",
+                  "breath",
+                  "rhythm",
+                  "gaze",
+                  "face",
+                  "movement",
+                  "environment"
+                ]
+              },
+              "minItems": 0
+            },
+            "continuation_token": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 1000
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "record_ref",
+            "selector",
+            "include_neighbors",
+            "dimensions",
+            "continuation_token"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "action",
+        "base_state_revision",
+        "request"
+      ],
+      "additionalProperties": false
+    },
+    "layer2_respond": {
+      "type": "object",
+      "properties": {
+        "action": {
+          "const": "respond"
+        },
+        "base_state_revision": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "message": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 400
+        },
+        "context_update": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/coach_context"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "proposal_changes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/proposal_change"
+          },
+          "minItems": 0
+        },
+        "attempt_changes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "const": "upsert"
+              },
+              "attempt": {
+                "$ref": "#/$defs/attempt"
+              }
+            },
+            "required": [
+              "kind",
+              "attempt"
+            ],
+            "additionalProperties": false
+          },
+          "minItems": 0
+        },
+        "style_update": {
+          "anyOf": [
+            {
+              "enum": [
+                "brief",
+                "normal",
+                "expanded"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "flow": {
+          "enum": [
+            "continue",
+            "finish"
+          ]
+        }
+      },
+      "required": [
+        "action",
+        "base_state_revision",
+        "message",
+        "context_update",
+        "proposal_changes",
+        "attempt_changes",
+        "style_update",
+        "flow"
+      ],
+      "additionalProperties": false
+    },
+    "layer2_turn": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/layer2_lookup"
+        },
+        {
+          "$ref": "#/$defs/layer2_respond"
+        }
+      ]
+    },
+    "layer1_subject": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
+        }
+      },
+      "required": [
+        "id",
+        "description"
+      ],
+      "additionalProperties": false
+    },
+    "layer1_utterance": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "speaker_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "start_ms": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "end_ms": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "text": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 10000
+        },
+        "transcription_status": {
+          "enum": [
+            "clear",
+            "partial",
+            "unclear"
+          ]
+        },
+        "timing_basis": {
+          "enum": [
+            "estimated",
+            "aligned"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "speaker_id",
+        "start_ms",
+        "end_ms",
+        "text",
+        "transcription_status",
+        "timing_basis"
+      ],
+      "additionalProperties": false
+    },
+    "layer1_segment": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "start_ms": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "end_ms": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "utterance_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "minItems": 0,
+          "uniqueItems": true
+        },
+        "event_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "minItems": 0,
+          "uniqueItems": true
+        },
+        "channel_status": {
+          "type": "object",
+          "properties": {
+            "visual": {
+              "enum": [
+                "recorded",
+                "partial",
+                "unavailable"
+              ]
+            },
+            "audio": {
+              "enum": [
+                "recorded",
+                "partial",
+                "unavailable"
+              ]
+            }
+          },
+          "required": [
+            "visual",
+            "audio"
+          ],
+          "additionalProperties": false
+        },
+        "limitation_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "minItems": 0,
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "id",
+        "start_ms",
+        "end_ms",
+        "utterance_ids",
+        "event_ids",
+        "channel_status",
+        "limitation_ids"
+      ],
+      "additionalProperties": false
+    },
+    "layer1_event": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "subject_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "start_ms": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "end_ms": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "channel": {
+          "enum": [
+            "visual",
+            "audio"
+          ]
+        },
+        "dimension": {
+          "enum": [
+            "speech",
+            "voice",
+            "breath",
+            "rhythm",
+            "gaze",
+            "face",
+            "movement",
+            "environment"
+          ]
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1000
+        },
+        "timing_basis": {
+          "enum": [
+            "estimated",
+            "aligned"
+          ]
+        },
+        "clarity": {
+          "enum": [
+            "clear",
+            "limited"
+          ]
+        },
+        "utterance_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "minItems": 0,
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "id",
+        "subject_id",
+        "start_ms",
+        "end_ms",
+        "channel",
+        "dimension",
+        "description",
+        "timing_basis",
+        "clarity",
+        "utterance_ids"
+      ],
+      "additionalProperties": false
+    },
+    "layer1_limitation": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "start_ms": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "end_ms": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "subject_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "dimensions": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "speech",
+              "voice",
+              "breath",
+              "rhythm",
+              "gaze",
+              "face",
+              "movement",
+              "environment"
+            ]
+          },
+          "minItems": 1
+        },
+        "kind": {
+          "enum": [
+            "visibility",
+            "audibility",
+            "attribution",
+            "timing",
+            "conflict",
+            "extraction"
+          ]
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1000
+        }
+      },
+      "required": [
+        "id",
+        "start_ms",
+        "end_ms",
+        "subject_id",
+        "dimensions",
+        "kind",
+        "description"
+      ],
+      "additionalProperties": false
+    },
+    "layer1_chunk": {
+      "type": "object",
+      "properties": {
+        "chunk_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "subjects": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/layer1_subject"
+          },
+          "minItems": 0
+        },
+        "utterances": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/layer1_utterance"
+          },
+          "minItems": 0
+        },
+        "segments": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/layer1_segment"
+          },
+          "minItems": 1
+        },
+        "events": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/layer1_event"
+          },
+          "minItems": 0
+        },
+        "limitations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/layer1_limitation"
+          },
+          "minItems": 0
+        }
+      },
+      "required": [
+        "chunk_id",
+        "subjects",
+        "utterances",
+        "segments",
+        "events",
+        "limitations"
+      ],
+      "additionalProperties": false
+    },
+    "layer3_copy": {
+      "$ref": "#/$defs/copy"
+    },
+    "practice_note": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "acttub.practice_note.v1"
+        },
+        "report_type": {
+          "const": "practice_note"
+        },
+        "note_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "session_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "source_handoff_revision": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "record_ref": {
+          "anyOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "record_id": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 100
+                },
+                "version": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "duration_ms": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              },
+              "required": [
+                "record_id",
+                "version",
+                "duration_ms"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "lifecycle": {
+          "enum": [
+            "draft",
+            "saved"
+          ]
+        },
+        "end_reason": {
+          "enum": [
+            "actor_finished",
+            "turn_budget",
+            "interrupted",
+            "system_failure"
+          ]
+        },
+        "mode": {
+          "enum": [
+            "action",
+            "observation",
+            "record_only"
+          ]
+        },
+        "scene_context": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/scene_context"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "direction": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/direction"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "focus": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/focus"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reading": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/grounded_text"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "practice": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/practice"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "attempts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/attempt"
+          },
+          "minItems": 0
+        },
+        "open_points": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/grounded_text"
+          },
+          "minItems": 0
+        },
+        "copy": {
+          "$ref": "#/$defs/copy"
+        },
+        "source_catalog": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/source"
+          },
+          "minItems": 0
+        }
+      },
+      "required": [
+        "schema_version",
+        "report_type",
+        "note_id",
+        "revision",
+        "session_id",
+        "source_handoff_revision",
+        "record_ref",
+        "lifecycle",
+        "end_reason",
+        "mode",
+        "scene_context",
+        "direction",
+        "focus",
+        "reading",
+        "practice",
+        "attempts",
+        "open_points",
+        "copy",
+        "source_catalog"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "mode": {
+                "const": "action"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "direction": {
+                "$ref": "#/$defs/direction"
+              },
+              "focus": {
+                "$ref": "#/$defs/focus"
+              },
+              "practice": {
+                "$ref": "#/$defs/practice"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "mode": {
+                "const": "observation"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "focus": {
+                "$ref": "#/$defs/focus"
+              },
+              "practice": {
+                "type": "null"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "mode": {
+                "const": "record_only"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "focus": {
+                "type": "null"
+              },
+              "reading": {
+                "type": "null"
+              },
+              "practice": {
+                "type": "null"
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

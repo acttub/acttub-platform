@@ -63,6 +63,15 @@ class GeminiConfiguration {
     }
 
     @Bean
+    VideoRecordAnalyzer videoRecordAnalyzer(
+            GeminiGateway gateway, GeminiSettings settings,
+            FailureReporter failureReporter, LlmTelemetry telemetry) {
+        return new GeminiVideoRecordAnalyzer(gateway,
+                new com.acttub.actingapi.integration.media.VideoRecordChunks(),
+                settings.model(), failureReporter, telemetry);
+    }
+
+    @Bean
     GeminiVideoCompressor geminiVideoCompressor(FailureReporter failureReporter) {
         return new GeminiVideoCompressor(failureReporter);
     }

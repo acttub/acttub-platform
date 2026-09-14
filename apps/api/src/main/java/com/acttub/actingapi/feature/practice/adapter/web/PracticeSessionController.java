@@ -60,6 +60,8 @@ class PracticeSessionController {
     private final PracticeSessionService sessions;
     private final AccessGate auth;
     private final CanonicalJson canonical;
+    @org.springframework.beans.factory.annotation.Value("${ACTTUB_THREE_LAYERS_ENABLED:false}")
+    private boolean threeLayersEnabled;
 
     PracticeSessionController(
             PracticeSessionService sessions,
@@ -111,6 +113,10 @@ class PracticeSessionController {
                 body.subBranch(),
                 body.blockageDetail(),
                 body.continuedFrom());
+        command = command.withExperienceVersion(
+                com.acttub.actingapi.feature.practice.app.PracticeExperience.select(
+                        request.getHeader(com.acttub.actingapi.feature.practice.app.PracticeExperience.HEADER),
+                        threeLayersEnabled, command));
         return json(sessions.create(user.id(), command, requestId), requestId);
     }
 
@@ -127,6 +133,7 @@ class PracticeSessionController {
     PracticeSessionListResponse list(HttpServletRequest request) {
         var user = auth.consentedUser(request);
         return new PracticeSessionListResponse(sessions.list(user.id()).stream()
+                .filter(session -> supports(request, session))
                 .map(PracticeSessionController::listItem)
                 .toList());
     }
@@ -185,6 +192,7 @@ class PracticeSessionController {
         var user = auth.consentedUser(request);
         PlayableSession playable = sessions.detail(user.id(), sessionId);
         PracticeSession session = playable.session();
+        requireContract(request, session);
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("session_id", session.id());
         payload.put("status", session.status());
@@ -201,6 +209,9 @@ class PracticeSessionController {
             ObservationPackResponse summary =
                     PracticeSessionDtos.observationPack(playable.summary());
             payload.put("summary", summary);
+        }
+        if (playable.videoRecord() != null) {
+            payload.put("summary", PracticeSessionDtos.videoRecord(playable.videoRecord()));
         }
         if (session.failed()) {
             payload.put("error_code", playable.errorCode());
@@ -299,6 +310,18 @@ class PracticeSessionController {
             return UUID.fromString(header);
         } catch (IllegalArgumentException exception) {
             throw new ApiException(422, "invalid X-Request-Id", exception);
+        }
+    }
+
+    private static boolean supports(HttpServletRequest request, PracticeSession session) {
+        return "legacy".equals(session.experienceVersion())
+                || com.acttub.actingapi.feature.practice.app.PracticeExperience.supported(
+                        request.getHeader(com.acttub.actingapi.feature.practice.app.PracticeExperience.HEADER));
+    }
+
+    private static void requireContract(HttpServletRequest request, PracticeSession session) {
+        if (!supports(request, session)) {
+            throw new ApiException(409, "client_contract_required");
         }
     }
 

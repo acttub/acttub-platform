@@ -2,6 +2,7 @@ import type {
   AnalysisReport,
   ExpressionReport,
   PracticeReport,
+  PublicPracticeNote,
 } from "@/lib/api/v2/types";
 import { renderablePracticeReport } from "./coach-contract";
 
@@ -18,10 +19,43 @@ export function PracticeReportCards({ report }: { report: PracticeReport }) {
     );
   }
 
-  return visibleReport.report_type === "analysis" ? (
-    <AnalysisCards report={visibleReport} />
-  ) : (
-    <ExpressionCards report={visibleReport} />
+  switch (visibleReport.report_type) {
+    case "analysis": return <AnalysisCards report={visibleReport} />;
+    case "expression": return <ExpressionCards report={visibleReport} />;
+    case "practice_note": return <PracticeNoteCards report={visibleReport} />;
+    default: return <p className="p-6 text-sm">새로고침하면 이 연습 노트를 다시 불러올 수 있어요.</p>;
+  }
+}
+
+function PracticeNoteCards({ report }: { report: PublicPracticeNote }) {
+  return (
+    <div className="mx-auto grid w-full min-w-0 max-w-[68ch]">
+      <ReportHeading title={report.title} />
+      {report.summary && <TextCard title="이번 대화" body={report.summary} />}
+      {report.direction && <TextCard
+        title={report.direction.origin === "coach_proposed" ? "함께 살펴볼 방향" : "내가 바라는 전달"}
+        body={report.direction.text} />}
+      {report.focus && <TextCard title="살펴본 순간" body={[
+        report.focus.start_ms == null ? "" : `${(report.focus.start_ms / 1000).toFixed(1)}초`,
+        report.focus.quote ? `“${report.focus.quote}”` : "", report.focus.label,
+      ].filter(Boolean).join(" · ")} />}
+      {report.reading && <TextCard title="대화에서 짚은 읽힘" body={report.reading} />}
+      {report.practice && <>
+        <TextCard title={report.practice.selection === "selected" ? "선택한 다음 연습" : "다음 연습 제안"}
+          body={report.practice.instruction} />
+        <TextCard title="해본 뒤 비교할 것" body={report.practice.comparison} />
+        {report.practice.keep && <TextCard title="함께 유지할 것" body={report.practice.keep} />}
+      </>}
+      {report.attempts.map((attempt) => <div key={attempt.attempt_id}>
+        <TextCard title={attempt.execution === "reported_tried" ? "직접 해봤다고 남긴 연습"
+          : attempt.execution === "not_tried" ? "아직 해보지 않았다고 남긴 연습" : "실행 여부를 확인하지 않은 연습"}
+          body={attempt.instruction} />
+        {attempt.result && <TextCard title="배우가 전한 변화" body={attempt.result.statement} quoted />}
+      </div>)}
+      <ListCard title="확인한 기록" items={report.evidence.map(item => item.text)} />
+      <ListCard title="아직 열어 둔 부분" items={report.open_points} />
+      {report.mode === "record_only" && <TextCard title="이번 대화 기록" body="오늘 나눈 대화를 남겼어요. 다음에 원하는 장면부터 이어갈 수 있어요." />}
+    </div>
   );
 }
 

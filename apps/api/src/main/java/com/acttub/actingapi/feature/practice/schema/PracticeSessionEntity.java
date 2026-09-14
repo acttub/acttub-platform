@@ -57,6 +57,20 @@ public class PracticeSessionEntity extends AppGeneratedUuidEntity {
     @Column(name = "continued_from")
     private UUID continuedFrom;
 
+    @Column(name = "experience_version", nullable = false)
+    private String experienceVersion = "legacy";
+
+    public String getExperienceVersion() {
+        return experienceVersion;
+    }
+
+    public void setExperienceVersion(String version) {
+        if (!java.util.Set.of("legacy", "three_layers_v1").contains(version)) {
+            throw new IllegalArgumentException("unsupported practice experience");
+        }
+        experienceVersion = version;
+    }
+
     @Column(name = "hidden_at")
     private Instant hiddenAt;
 

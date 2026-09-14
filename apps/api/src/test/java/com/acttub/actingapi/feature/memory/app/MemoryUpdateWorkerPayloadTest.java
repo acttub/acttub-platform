@@ -113,6 +113,39 @@ class MemoryUpdateWorkerPayloadTest {
                         "MemoryUpdateWorker.fail operation_id=" + OPERATION);
     }
 
+    @Test
+    void memoryExtractionRecordsUsageAndOperationWhileMissingPracticeSkipsTelemetry() {
+        for (boolean linked : List.of(true, false)) {
+            var queue = new RecordingQueue();
+            var reporter = new RecordingFailureReporter();
+            var telemetry = new RecordingLlmTelemetry();
+            var memory = new EmptyMemory() {
+                @Override
+                public MemoryUpdateMaterial material(UUID practiceSessionId) {
+                    return super.material(linked ? practiceSessionId : null);
+                }
+            };
+            var worker = new MemoryUpdateWorker(memory, queue, new ObjectMapper(),
+                    (system, user) -> new GeneratedText("{}", new TokenUsage(10, 20, 30), "model"),
+                    Clock.fixed(Instant.EPOCH, ZoneOffset.UTC), new MemoryExtractor(reporter), reporter, telemetry);
+
+            assertThat(worker.runOnce()).isTrue();
+            assertThat(queue.payload.path("updated_fields")).isEmpty();
+            assertThat(reporter.reports()).isEmpty();
+            if (linked) {
+                assertThat(telemetry.calls()).singleElement().satisfies(call -> {
+                    assertThat(call.practiceSessionId()).isEqualTo(SESSION);
+                    assertThat(call.model()).isEqualTo("model");
+                    assertThat(call.tokens()).isEqualTo(
+                            com.acttub.actingapi.platform.observability.LlmTokens.of(10, 20, 30));
+                    assertThat(call.metadata()).containsEntry("operation_id", OPERATION.toString());
+                });
+            } else {
+                assertThat(telemetry.calls()).isEmpty();
+            }
+        }
+    }
+
     private static MemoryUpdateWorker worker(RecordingQueue queue, String extracted) {
         return worker(
                 queue, new EmptyMemory(), extracted, new RecordingFailureReporter());

@@ -59,7 +59,8 @@ public class ReportOperationWork {
                 )
                 SELECT id FROM inserted
                 """, Tuple.class)
-                .setParameter("id", UUID.randomUUID())
+                .setParameter("id", "practice_note".equals(reportType)
+                        ? UUID.fromString(reportJson.path("note_id").asText()) : UUID.randomUUID())
                 .setParameter("practiceSessionId", practiceSessionId)
                 .setParameter("reportType", reportType)
                 .setParameter("reportJson", reportJson.toString())

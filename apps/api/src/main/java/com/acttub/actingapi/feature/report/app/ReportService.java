@@ -10,6 +10,7 @@ import com.acttub.actingapi.platform.ledger.SyncOperationBegin;
 import com.acttub.actingapi.platform.ledger.SyncOperationClaim;
 import com.acttub.actingapi.platform.web.ApiException;
 import com.acttub.actingapi.feature.report.domain.ReportBranch;
+import com.acttub.actingapi.feature.practice.app.PracticeExperience;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.springframework.stereotype.Service;
 
@@ -57,9 +58,17 @@ public class ReportService {
      * 만들지 않기로 했다는 표시일 뿐이라 다음 요청이 다시 판정해야 한다.
      */
     public ReportPayload create(UUID userId, UUID coachSessionId, String requestIdHeader) {
+        return create(userId, coachSessionId, requestIdHeader, null);
+    }
+
+    public ReportPayload create(UUID userId, UUID coachSessionId, String requestIdHeader, String contract) {
         OwnedReportSource source = sources.getOwnedReportSource(userId, coachSessionId);
         if (source == null) {
             throw new ApiException(404, "session not found");
+        }
+        requireContract("coaching".equals(source.branchKind()), contract);
+        if ("coaching".equals(source.branchKind()) && source.handoffId() == null) {
+            throw new ApiException(409, "coaching_session_is_open");
         }
         UUID requestId = operations.requestId(requestIdHeader);
         SyncOperationBegin begun = operations.begin(
@@ -79,10 +88,11 @@ public class ReportService {
                         ? null
                         : sources.getPracticeReportForHandoff(source.handoffId());
                 JsonNode report = existing == null ? reportFor(source) : existing;
+                JsonNode publicReport = PracticeNote.publicView(report);
                 // ⚠ 아래 갈래는 CoachService.confirm 과 모양이 같다. 다른 것은 원장에 남기는 값
                 // 하나뿐이다 — 여기는 성적표 본문이 곧 응답이지만 저쪽은 확정 응답 전체를 남긴다.
                 if (isBlocked(report) || existing != null) {
-                    operations.complete(claim, report);
+                    operations.complete(claim, publicReport);
                 } else {
                     boolean saved = practiceReports.completePracticeReportOperation(
                             claim.operationId(),
@@ -91,14 +101,14 @@ public class ReportService {
                             typeOf(report),
                             report,
                             source.handoffId(),
-                            report,
+                            publicReport,
                             operations.now());
                     if (!saved) {
                         operations.fail(claim, "report_already_exists", ExternalOperationFailureClassification.EXPECTED);
                         throw new ApiException(409, "report already exists");
                     }
                 }
-                return new ReportPayload(report, claim.requestId());
+                return new ReportPayload(publicReport, claim.requestId());
             } catch (ReportParseError exception) {
                 operations.fail(claim, "report_parse_error", ExternalOperationFailureClassification.from(exception));
                 throw ApiException.external(502, exception.getMessage(), exception);
@@ -115,7 +125,13 @@ public class ReportService {
     }
 
     public List<ReportSummary> history(UUID userId) {
-        return reports.listSummaries(userId);
+        return history(userId, null);
+    }
+
+    public List<ReportSummary> history(UUID userId, String contract) {
+        return reports.listSummaries(userId).stream()
+                .filter(summary -> !"practice_note".equals(summary.reportType()) || PracticeExperience.supported(contract))
+                .toList();
     }
 
     /**
@@ -140,12 +156,19 @@ public class ReportService {
      * <p>성적표를 먼저 찾는다 — 남의 것을 물었을 때 스토리지가 설정돼 있는지가 응답에 새면 안 된다.
      */
     public PlayableReport detail(UUID userId, UUID practiceSessionId) {
+        return detail(userId, practiceSessionId, null);
+    }
+
+    public PlayableReport detail(UUID userId, UUID practiceSessionId, String contract) {
         ReportDetail detail = reports.findDetail(userId, practiceSessionId);
         if (detail == null) {
             throw new ApiException(404, "report_not_found");
         }
+        requireContract(PracticeNote.isNote(detail.report()), contract);
+        ReportDetail visible = new ReportDetail(detail.practiceSessionId(), detail.createdAt(),
+                PracticeNote.publicView(detail.report()), detail.objectKey());
         return new PlayableReport(
-                detail, playback.url(detail.objectKey(), PLAYBACK_URL_TTL_SECONDS));
+                visible, playback.url(detail.objectKey(), PLAYBACK_URL_TTL_SECONDS));
     }
 
     /**
@@ -169,4 +192,10 @@ public class ReportService {
                 source.practiceSessionId(),
                 null);
     }
+    private static void requireContract(boolean newContract, String contract) {
+        if (newContract && !PracticeExperience.supported(contract)) {
+            throw new ApiException(409, "client_contract_required");
+        }
+    }
+
 }
