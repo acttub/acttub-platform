@@ -11,7 +11,7 @@
 |---|---|
 | `versions.tf`, `.terraform.lock.hcl` | Terraform 1.16.2, 공식 `grafana/grafana` provider 4.46.0 고정 |
 | `main.tf`, `rules.json` | 전용 폴더·PDC 데이터 소스·Slack 수신점·1분 평가 규칙 |
-| `external.tf` | dev·prod 공개 `/health`, 외부 위치 1곳, 60초 간격·10초 제한 |
+| `external.tf` | 선택한 dev/prod 공개 `/health`, 외부 위치 1곳, 60초 간격·10초 제한 |
 | `dashboards/*.json`, `dashboards.tf` | 서비스 전체·분석/코치·서버/DB/백업, KST·최근 1시간 |
 | `slack.tmpl` | 환경·대상·조건·관측값·시각·확인 링크·해제 의미·일시 중지 링크 |
 | `manage.py` | 실제 설정 차이 미리보기, 소유권 충돌/적용 전 변경 확인, 저장된 Terraform 계획 적용 |
@@ -26,13 +26,14 @@ provider 잠금 파일에는 개발 Mac(`darwin_arm64`)과 CI(`linux_amd64`)의 
 ## 소유권과 복구
 
 별도 Terraform state 하나가 `acttub-monitoring` 폴더·동명 규칙 그룹, `acttub-local-prometheus` 데이터 소스, `acttub-service`/`acttub-operations`/`acttub-infrastructure` 대시보드, `acttub-monitoring-slack` 수신점, `acttub-health-dev`/`acttub-health-prod` 점검을 소유한다.
+외부 점검과 환경별 규칙은 `health_origins`에 선택한 환경에만 만든다. 소유권 충돌 검사는 두 환경의 예약된 이름/UID 모두에 유지하므로, 선택하지 않은 prod 이름에 기존 타인 자원이 있으면 가져오거나 덮지 않고 중단한다.
 기존 Cloud Metrics 데이터 소스는 UID만 참조하며 기본 데이터 소스를 바꾸지 않는다.
 
 전체 `grafana_notification_policy`는 만들지 않는다. [공식 문서](https://grafana.com/docs/grafana/latest/alerting/set-up/provision-alerting-resources/file-provisioning/)상 전체 정책 트리는 하나의 리소스여서 적용하면 다른 정책을 덮을 수 있기 때문이다.
 각 규칙의 `notification_settings`로 전용 Slack 수신점에 직접 연결한다. 이 기능은 stack에서 사용할 수 있어야 하며, 실제 적용 전 `alertingSimplifiedRouting` 지원 및 규칙별 통지 설정 저장을 확인한다.
 
 공식 provider는 직접 통지의 `group_by`에 `alertname`·`grafana_folder`를 요구한다. 여기에 `environment`·`site`·`datasource`를 더한다. **서로 다른 규칙을 하나의 알림으로 합치는 구성은 아니다.** 공유 exporter·호스트·데이터 소스 문제는 원인별 공유 규칙으로 만들고, 수집 장애가 개별 서비스 규칙을 정상으로 바꾸지 않게 한다.
-`group_wait=10s`, `group_interval=1m`, `repeat_interval=1h`이며 복구 메시지를 보낸다. 개발·운영 모두 24시간 적용한다.
+`group_wait=10s`, `group_interval=1m`, `repeat_interval=1h`이며 복구 메시지를 보낸다. 선택한 환경에 24시간 적용한다.
 
 `manage.py plan`은 기존 리소스를 GET으로 확인하고 Terraform의 실제 차이를 출력한다. state에 없는 같은 UID/이름, 다른 폴더에서 충돌하는 규칙 UID, 소유 그룹/수신점에 추가된 타인의 항목은 쓰기 전에 거절한다.
 선택한 probe가 공개 위치이고 폐기되지 않았는지, Cloud Metrics 데이터 소스가 로컬 PDC 데이터 소스와 구분되는지 조회한다. stack이 규칙별 라우팅을 명시적으로 비활성화했으면 중단한다. 설정 조회에 기능 플래그가 없는 stack은 공식 UI에서 지원 여부를 확인한다.
@@ -90,16 +91,30 @@ python3 manage.py plan --vars stack.tfvars.json --plan reapply.tfplan
 두 번째 plan은 변경 없음이어야 한다. API 적용 후 일부 상태만 반영된 실패는 위 소유권·복구 절차로 조사한다.
 운영 적용과 Slack 전송은 별도 실제 작업이며 `check.sh`가 실행하지 않는다.
 
+### dev만 먼저 설치하기
+
+`health_origins`의 키가 외부 점검·환경별 규칙·대시보드 환경 선택의 공통 기준이다. `dev` 또는 `prod` 하나, 둘 다를 허용하며 빈 객체와 다른 환경 이름은 거절한다. 예제 파일은 기존처럼 두 환경을 포함한다. dev만 설치할 때는 `stack.tfvars.json`의 해당 값을 다음처럼 설정하고, 수집 설정의 `config.environments`도 같은 환경 집합으로 맞춘다.
+
+```json
+"health_origins": { "dev": "https://dev.acttub.com" }
+```
+
+이 구성은 대시보드 3개, dev 규칙 22개와 공유 규칙 15개(총 37개), 공개 점검 1개를 만든다. prod 점검·알림 규칙·필수 지표 검사를 만들지 않고 세 화면의 선택값과 공유 알림 링크도 dev로 향한다. 호스트·수집기·데이터 소스의 공유 규칙과 기존 평가 간격·KeepLast·Error/NoData 처리는 유지한다.
+
+나중에 prod를 추가하려면 수집기의 prod 설정을 준비한 뒤 **기존 state를 유지한 채** `health_origins`에 prod origin을 추가하고 새 plan을 검토·적용한다. 두 환경에서는 기존 UID와 대시보드 3개·규칙 59개·점검 2개 구성을 유지하며 화면 기본값은 prod다. dev 점검과 기존 규칙의 UID는 바뀌지 않는다. 저장된 plan의 소스/Cloud 변경 확인과 소유권 검사는 그대로 적용한다.
+
+이미 적용한 환경을 키에서 빼는 축소는 해당 점검 삭제가 되어 `prevent_destroy`가 차단한다. state를 지우거나 새 state로 다시 적용해 이 제한을 우회하지 않는다. 환경 철거는 소유 자원과 복구 방법을 별도로 검토한다.
+
 ## 외부 점검과 예산
 
 HTTP Basic 점검은 공개 `https://<환경 origin>/health`에 GET을 보낸다. 위치 1개, 60,000ms 간격, 10,000ms 제한, redirect 금지, HTTPS 및 HTTP **200**만 성공이다.
 Basic 점검은 JSONPath 대신 RE2 정규식을 지원하므로, `HealthResponse`의 기존 고정 JSON 순서와 타입 전체를 확인한다. 최상위 `status="ok"`와 services/model/keep_alive/commit의 유효한 형상을 요구하며 HTML·중첩 status·중복 키·깨진 JSON을 통과시키지 않는다. health 계약의 필드나 직렬화 순서를 바꾸면 이 선언과 검증도 함께 갱신한다.
 
-계획량은 `2 주소 × 1 위치 × 60회/시간 × 24시간 × 31일 = 89,280회`, 월 100,000회 기준 여유는 **10,720회**다. [현재 공개 가격표](https://grafana.com/pricing/)와 실제 stack 사용량을 함께 확인한다.
-추가 위치 1곳은 31일에 89,280회를 더하므로 같은 설정을 두 위치로 늘리면 178,560회가 된다. 새 주소·수동 시험·기존 다른 SM 점검도 실제 사용량에 더한다. 한도 초과 시 중단/재개 동작은 이 로컬 검증으로 확인하지 않았다.
+계획량은 `선택한 주소 수 × 1 위치 × 60회/시간 × 24시간 × 31일`이다. dev만 선택하면 **44,640회**, 두 환경이면 **89,280회**이며 월 100,000회 기준 여유는 각각 **55,360회**, **10,720회**다. Terraform 출력 `external_checks_31_day_budget`도 선택한 수로 계산한다. [현재 공개 가격표](https://grafana.com/pricing/)와 실제 stack 사용량을 함께 확인한다.
+추가 위치 1곳은 같은 양을 더하므로 두 환경을 두 위치로 늘리면 178,560회가 된다. 새 주소·수동 시험·기존 다른 SM 점검도 실제 사용량에 더한다. 한도 초과 시 중단/재개 동작은 이 로컬 검증으로 확인하지 않았다.
 
 외부 장애 시간 예산은 다음 1분 점검까지 최대 60초 + 세 번째 실패까지 120초 + 10초 요청 제한 + 다음 규칙 평가 최대 60초 + 통지 묶음 10초로 **설계상 최대 약 4분 10초**다. 전송/Cloud 지연은 실제 Slack 수신으로 확인하며, 5분 이내 수신하지 못하면 완료로 판정하지 않는다.
-SM의 사용자 label에 `label_` 접두어를 붙이는 기본 tenant도 있으므로 외부 규칙은 고유한 `job=~"acttub-health-(dev|prod)"`로 대상을 찾고 규칙에 환경 label을 명시한다. tenant의 label 모드를 바꾸지 않는다.
+SM의 사용자 label에 `label_` 접두어를 붙이는 기본 tenant도 있으므로 외부 규칙은 선택한 환경의 고유한 `job="acttub-health-<환경>"`로 대상을 찾고 규칙에 환경 label을 명시한다. tenant의 label 모드를 바꾸지 않는다.
 Cloud 외부 점검의 14일 보관과 로컬 Prometheus의 30일 보관은 서로 다르다. 로컬 지표를 `remote_write`로 Cloud Metrics에 복제하지 않는다.
 
 ## service
@@ -155,9 +170,9 @@ Slack 메시지의 일시 중지 링크는 Grafana의 공식 `.SilenceURL`을 �
 | 확인 | 실제 성공 조건과 기록 |
 |---|---|
 | 계정/권한 | 세 개인 로그인, Admin 1/Viewer 2. Viewer 두 명이 세 화면·알림을 조회하고 데이터 소스/규칙/통지 설정을 바꾸지 못함. Portal 상속까지 확인 |
-| 비용/보관 | 실제 Free 플랜·활성 사용자 3명·해당 월 SM 누적 사용량, 89,280회 계획과 남은 여유, 14일/30일 구분. 추가 위치/주소 없음 |
+| 비용/보관 | 실제 Free 플랜·활성 사용자 3명·해당 월 SM 누적 사용량, 선택한 환경의 계획량과 남은 여유, 14일/30일 구분. 추가 위치/주소 없음 |
 | PDC | network ID 일치, 연결 agent 확인, Cloud에서 local `up` 조회 성공. PDC가 prometheus:9090 외 DB/다른 호스트에 연결할 수 없음 |
-| 외부 health | 공개 dev/prod 정상 200+본문, 제어된 dev/격리 대상의 500·200+비정상본문·timeout·복구. 실제 외부 위치 한 개 |
+| 외부 health | 선택한 환경의 공개 health 정상 200+본문, 제어된 dev/격리 대상의 500·200+비정상본문·timeout·복구. 실제 외부 위치 한 개 |
 | 통지 배선 | #서비스-장애에 최초 알림이 도착하고 환경/대상/조건/관측값/시각/대시보드/절차 링크가 올바름. webhook 채널을 실제 수신으로 확인 |
 | 시간 | 공개 연속 실패 시작~Slack 최초 수신 ≤5분. 다른 규칙은 조건/지속 시간 충족 후 ≤2분. 실제 수신 시각을 기록 |
 | 반복/해제 | 동일 장애 첫 통지 후 약 1시간 재알림, 정상 관측 뒤 해제, 해제 뒤 재발은 새 최초 통지. 실패 사건 해제를 실행 성공으로 표시하지 않음 |
@@ -181,3 +196,12 @@ macOS arm64에서 `deploy/monitoring/cloud/check.sh`가 종료 코드 0으로 �
 - 필수 지표의 유휴 0과 특정 종류/경로/분류 누락을 실제 promtool로 확인하는 **4개 검사·22개 판정 통과**. Python 검사는 provider 검사와 합쳐 8개다.
 - 여섯 검토 보완은 기존 쿼리에서 실패를 먼저 확인한 뒤 수정했다: 외부 점검 공백 후 거짓 복구, 새 라우트의 첫 오류 세 건, histogram 누락과 실제 저사용량의 구분, 필수 지표 조합 누락, DB 집계 장애 중 종료 실패 통지, 빠른 코치 요청과 분석 대기 p95의 분리. 실제 provider 출력의 서비스 `KeepLast` 및 데이터 소스의 2분 Error/NoData 통지 설정도 확인했다.
 - 실제 Cloud·Slack에는 요청을 보내지 않았다. Linux CI 전체 범위와 실제 stack 인수 검증은 별도로 수행한다.
+
+## 환경 선택 로컬 검증 기록 (2026-09-14)
+
+macOS arm64에서 `deploy/monitoring/cloud/check.sh`가 종료 코드 0으로 완료됐다.
+
+- Terraform `fmt -check`, `validate`, native mock-provider 테스트 **9개 통과**: dev 단독·prod 단독·기본 두 환경, 빈/알 수 없는 환경 집합과 잘못된 origin 거절을 확인했다. dev 생성물에 prod 점검·규칙·필수 지표 쿼리·화면 선택값·공유 알림 링크가 없고, 두 환경의 기존 UID·대시보드 3개·규칙 59개·선택값·예산이 유지됐다.
+- 실제 provider의 로컬 HTTP 경계 검사 **7개 통과**: dev 최초 적용과 변경 없는 재적용, 기존 UID와 규칙 설정을 유지하는 prod 확장, 확장 뒤 변경 없는 plan, 환경 축소의 `prevent_destroy` 차단을 확인했다. 선택하지 않은 prod의 예약된 점검/규칙 UID 충돌도 계속 거절했다.
+- 기존 promtool 규칙·대시보드 쿼리 검사와 필수 지표 검사 **4개**가 통과했다. Python 검사는 provider 검사와 합쳐 **11개**다.
+- 소유권·저장 계획 적용 도구와 규칙 원문의 조건/시간/KeepLast 계약은 변경하지 않았다. 실제 서버·Cloud·Slack 호출, 자격증명 조회, 운영 적용은 이 검증에 포함하지 않았다.

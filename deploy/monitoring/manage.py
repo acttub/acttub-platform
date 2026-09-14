@@ -32,14 +32,15 @@ def read_config(path: Path) -> dict:
         require(re.fullmatch(r"[a-z0-9][a-z0-9-]{0,60}", config.get(key, "")), "invalid " + key)
     require(re.fullmatch(r"[0-9]+", config.get("grafana_id", "")), "grafana_id must be numeric")
     require(re.fullmatch(r"/[a-zA-Z0-9/_.-]*", config.get("data_mountpoint", "")), "invalid data_mountpoint")
-    envs = config["environments"]
-    require(set(envs) == {"dev", "prod"}, "environments must be exactly dev and prod")
+    envs = config.get("environments")
+    require(isinstance(envs, dict) and bool(envs) and set(envs) <= {"dev", "prod"},
+            "environments must be a nonempty object containing only dev and/or prod")
     for env in envs.values():
         require(re.fullmatch(r"[a-z0-9][a-z0-9-]{0,60}", env["project"]), "invalid app project")
         require(re.fullmatch(r"[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]", env["backup_bucket"]), "invalid backup bucket")
         require(re.fullmatch(r"[a-zA-Z0-9_]+", env["database"]), "invalid database name")
-    require(len({config["project"], *(v["project"] for v in envs.values())}) == 3,
-            "monitoring/dev/prod project names must differ")
+    require(len({config["project"], *(v["project"] for v in envs.values())}) == len(envs) + 1,
+            "monitoring and selected app project names must differ")
     return config
 
 
@@ -54,11 +55,27 @@ def write_json(path: Path, content: dict) -> None:
     write_file(path, json.dumps(content, indent=2) + "\n")
 
 
+def render_compose(config: dict) -> str:
+    # Only environment wiring varies; service/security/image declarations stay
+    # in the Compose template. JSON flow values are also valid YAML.
+    envs = config["environments"]
+    networks = {"query": {}, "collectors": {"internal": True}}
+    volumes = {"metrics": {}}
+    for environment, app in envs.items():
+        networks[environment + "_scrape"] = {"external": True, "name": app["project"] + "_scrape"}
+        volumes[environment + "_backup_state"] = {"external": True, "name": app["project"] + "_backup_state"}
+    source = (ROOT / "compose.yml").read_text()
+    return (source.replace("@SCRAPE_NETWORKS@", ", ".join(env + "_scrape" for env in envs))
+            .replace("@BACKUP_MOUNTS@", "\n".join("      - " + env + "_backup_state:/state/" + env + ":ro" for env in envs))
+            .replace("@NETWORKS@", json.dumps(networks))
+            .replace("@VOLUMES@", json.dumps(volumes)))
+
+
 def render(args, release: Path) -> None:
     config = read_config(args.config)
     require(not release.exists(), "release already exists; use a new version to change configuration")
     tokens = {}
-    for name in ("dev-token", "prod-token", "pdc-token"):
+    for name in [*(env + "-token" for env in config["environments"]), "pdc-token"]:
         source = args.secrets_dir / name
         require(source.is_file() and source.stat().st_mode & 0o077 == 0,
                 "token source must exist and be owner-only: " + name)
@@ -70,16 +87,15 @@ def render(args, release: Path) -> None:
     release.mkdir(parents=True)
     for name in ("prometheus", "db", "backup", "pdc"):
         (release / name).mkdir(mode=0o755)
-    for name in ("compose.yml", "exporter.py"):
-        write_file(release / name, (ROOT / name).read_text())
+    write_file(release / "compose.yml", render_compose(config))
+    write_file(release / "exporter.py", (ROOT / "exporter.py").read_text())
     write_file(release / "pdc/pdc-entrypoint.sh", (ROOT / "pdc-entrypoint.sh").read_text())
     write_file(release / "pdc/pdc-token", tokens["pdc-token"])
     write_json(release / "config.json", config)
     envs = config["environments"]
     env_values = {"MONITOR_PROJECT": config["project"], "RELEASE_DIR": str(release),
                   "RETENTION_SIZE": config["retention_size"], "PDC_CLUSTER": config["pdc_cluster"],
-                  "GRAFANA_ID": config["grafana_id"], "DATA_MOUNTPOINT_REGEX": "^" + re.escape(config["data_mountpoint"]) + "$",
-                  "DEV_PROJECT": envs["dev"]["project"], "PROD_PROJECT": envs["prod"]["project"]}
+                  "GRAFANA_ID": config["grafana_id"], "DATA_MOUNTPOINT_REGEX": "^" + re.escape(config["data_mountpoint"]) + "$"}
     write_file(release / "compose.env", "\n".join(key + "='" + value + "'" for key, value in env_values.items()) + "\n")
     jobs = []
     db_config = {}
@@ -124,9 +140,11 @@ def validate(release: Path) -> dict:
     cfg = read_config(release / "config.json")
     model = json.loads(run(compose(release, "config", "--format", "json"), "Compose validation"))
     require(model["name"] == cfg["project"], "project name does not match release")
-    topology = {"prometheus": {"query", "collectors", "dev_scrape", "prod_scrape"},
+    scrape_networks = {env + "_scrape" for env in cfg["environments"]}
+    backup_volumes = {env + "_backup_state" for env in cfg["environments"]}
+    topology = {"prometheus": {"query", "collectors"} | scrape_networks,
                 "pdc": {"query"}, "node": {"collectors"}, "backup-exporter": {"collectors"},
-                "db-health": {"collectors", "dev_scrape", "prod_scrape"}}
+                "db-health": {"collectors"} | scrape_networks}
     require(set(model["services"]) == set(topology), "unexpected monitoring services")
     for name, networks in topology.items():
         service = model["services"][name]
@@ -146,7 +164,12 @@ def validate(release: Path) -> dict:
                 "-ssh-key-file=/home/pdc/.ssh/grafana_pdc", "-metrics-addr=127.0.0.1:8090", "-log.level=warn"]
     require(pdc["command"] == expected, "PDC flags must restrict OpenSSH forwarding to prometheus:9090")
     require(pdc["entrypoint"] == ["/bin/sh", "/etc/acttub/pdc-entrypoint.sh"], "unexpected PDC entrypoint")
-    require(set(model["networks"]) == {"query", "collectors", "dev_scrape", "prod_scrape"}, "unexpected network")
+    require(set(model["networks"]) == {"query", "collectors"} | scrape_networks, "unexpected network")
+    require(set(model["volumes"]) == {"metrics"} | backup_volumes, "unexpected volume")
+    backup_mounts = {(v["source"], v["target"]) for v in model["services"]["backup-exporter"]["volumes"]
+                     if v["type"] == "volume"}
+    require(backup_mounts == {(env + "_backup_state", "/state/" + env) for env in cfg["environments"]},
+            "backup state mounts must match selected environments")
     for environment, app in cfg["environments"].items():
         network = model["networks"][environment + "_scrape"]
         require(network.get("external") and network["name"] == app["project"] + "_scrape", "scrape network mismatch")
@@ -199,7 +222,7 @@ def apply(args, release: Path) -> None:
         old = current.read_text().strip()
         old_cfg = read_config(args.state_dir / "releases" / old / "config.json")
         require(old_cfg["project"] == model["name"], "cannot change project/metrics volume during apply or rollback")
-    for environment in ("dev", "prod"):
+    for environment in read_config(release / "config.json")["environments"]:
         run(["docker", "network", "inspect", model["networks"][environment + "_scrape"]["name"]], "app-owned scrape network preflight")
         run(["docker", "volume", "inspect", model["volumes"][environment + "_backup_state"]["name"]], "read-only backup state volume preflight")
     services = ["prometheus", "node", "db-health", "backup-exporter"] if args.without_pdc else []
@@ -220,20 +243,25 @@ def query(release: Path, expression: str) -> dict:
 
 def verify(release: Path) -> None:
     validate(release)
+    config = read_config(release / "config.json")
+    environments = set(config["environments"])
     targets = query(release, "up")["result"]
     observed = {(item["metric"]["job"], item["metric"].get("environment", "")): float(item["value"][1]) for item in targets}
-    expected = {( "api", "dev"), ("api", "prod"), ("db-health", ""), ("backup", ""), ("node", "shared"), ("prometheus", "shared")}
+    expected = {("api", env) for env in environments} | {
+        ("db-health", ""), ("backup", ""), ("node", "shared"), ("prometheus", "shared")}
     require(all(observed.get(target) == 1 for target in expected), "required scrape target missing or down")
     for expression in ("acttub_db_probe_success", "acttub_backup_state_read_success", "acttub_backup_target_match"):
         values = query(release, expression)["result"]
-        require({v["metric"].get("environment") for v in values if v["value"][1] == "1"} == {"dev", "prod"},
-                expression + " must be 1 in both environments")
-    mount = read_config(release / "config.json")["data_mountpoint"]
+        # A prior wider release may still have recent samples in the retained
+        # TSDB. Only the selected environments determine this release's health.
+        require(environments <= {v["metric"].get("environment") for v in values if v["value"][1] == "1"},
+                expression + " must be 1 in all selected environments")
+    mount = config["data_mountpoint"]
     for expression in ('node_cpu_seconds_total{environment="shared",mode="idle"}',
                        'node_memory_MemAvailable_bytes{environment="shared"}',
                        'node_filesystem_avail_bytes{environment="shared",mountpoint=' + json.dumps(mount) + '}'):
         require(bool(query(release, expression)["result"]), "required host CPU/memory/data-filesystem metric missing")
-    print("Both APIs, authenticated DB probes, readable matching backup states and shared host scrape verified")
+    print("Selected APIs, authenticated DB probes, readable matching backup states and shared host scrape verified")
 
 
 def preflight(data_dir: Path) -> None:

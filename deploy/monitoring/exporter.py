@@ -57,8 +57,8 @@ def backup_state(config: dict) -> tuple:
 
 def backup_metrics(config: dict) -> str:
     lines = []
-    for environment in ("dev", "prod"):
-        status, readable, matches, timestamp, failure = backup_state(config[environment])
+    for environment, target in config.items():
+        status, readable, matches, timestamp, failure = backup_state(target)
         for state in STATES:
             lines.append(f'acttub_backup_state{{environment="{environment}",state="{state}"}} {int(status == state)}')
         for name, value in [("state_read_success", readable), ("target_match", matches),
@@ -91,7 +91,7 @@ def probe_success(target: dict) -> bool:
 
 def db_metrics(config: dict) -> str:
     lines = []
-    for environment in ("dev", "prod"):
+    for environment, target in config.items():
         start = time.monotonic()
         success = 0
         try:
@@ -99,7 +99,7 @@ def db_metrics(config: dict) -> str:
             # A short-lived process gives each probe a hard deadline and can be
             # killed/reaped without accumulating blocked DNS/HTTP threads.
             result = subprocess.run([sys.executable, "-B", str(Path(__file__).resolve()), "probe"],
-                                    input=json.dumps(config[environment]), text=True, timeout=3,
+                                    input=json.dumps(target), text=True, timeout=3,
                                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             success = int(result.returncode == 0)
         except (OSError, subprocess.TimeoutExpired):
@@ -117,6 +117,8 @@ def main() -> None:
     parser.add_argument("--port", default=9101, type=int)
     args = parser.parse_args()
     config = json.loads(args.config.read_text())
+    if not isinstance(config, dict) or not config or not set(config) <= {"dev", "prod"}:
+        parser.error("config must be a nonempty object containing only dev and/or prod")
     probe_lock = Lock()
 
     class Handler(BaseHTTPRequestHandler):

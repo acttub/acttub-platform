@@ -35,8 +35,8 @@ resource "grafana_synthetic_monitoring_check" "health" {
 
 output "external_checks_31_day_budget" {
   value = {
-    planned   = 89280
+    planned   = length(local.environments) * 60 * 24 * 31
     allowance = 100000
-    headroom  = 10720
+    headroom  = 100000 - length(local.environments) * 60 * 24 * 31
   }
 }

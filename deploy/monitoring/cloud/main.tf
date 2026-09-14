@@ -41,9 +41,12 @@ resource "grafana_contact_point" "slack" {
 }
 
 locals {
-  definitions = jsondecode(file("${path.module}/rules.json"))
+  environments = keys(var.health_origins)
+  # Keep the existing prod landing page when both environments are selected.
+  default_environment = contains(local.environments, "prod") ? "prod" : "dev"
+  definitions         = jsondecode(file("${path.module}/rules.json"))
   rules = flatten([for definition in local.definitions : [
-    for environment in(definition.scope == "environment" ? ["dev", "prod"] : ["shared"]) : merge(definition, {
+    for environment in(definition.scope == "environment" ? local.environments : ["shared"]) : merge(definition, {
       uid         = "acttub-${definition.key}-${environment}"
       environment = environment
       expr        = replace(replace(definition.expr, "$env", environment), "$disk", var.disk_mountpoint)
@@ -79,7 +82,7 @@ resource "grafana_rule_group" "monitoring" {
         observed_value   = "{{ $values.A.Value }}"
         description      = "${rule.value.condition}; 관측값={{ $values.A.Value }}. ${rule.value.recovery}"
         recovery_meaning = rule.value.recovery
-        dashboard_url    = "${var.grafana_url}/d/acttub-${rule.value.dashboard}?var-environment=${rule.value.environment == "shared" ? "prod" : rule.value.environment}&from=now-1h&to=now&timezone=Asia%2FSeoul"
+        dashboard_url    = "${var.grafana_url}/d/acttub-${rule.value.dashboard}?var-environment=${rule.value.environment == "shared" ? local.default_environment : rule.value.environment}&from=now-1h&to=now&timezone=Asia%2FSeoul"
         runbook_url      = "${var.runbook_url}#${rule.value.dashboard}"
       }
       data {

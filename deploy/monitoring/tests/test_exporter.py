@@ -27,7 +27,7 @@ class ExporterHTTPTest(unittest.TestCase):
 
     def start(self, mode="backup", config=None):
         cfg = self.path / "config.json"
-        cfg.write_text(json.dumps(config or {
+        cfg.write_text(json.dumps(config if config is not None else {
             "dev": {"state_dir": str(self.path), "target": "s3://test-backups/dev/:acttub"},
             "prod": {"state_dir": str(self.path / "prod"), "target": "s3://test-backups/prod/:acttub"},
         }))
@@ -60,6 +60,49 @@ class ExporterHTTPTest(unittest.TestCase):
         self.assertIn('acttub_backup_state{environment="dev",state="missing"} 1\n', body)
         self.assertIn('acttub_backup_state_read_success{environment="dev"} 0\n', body)
         self.assertIn('acttub_backup_last_success_timestamp_seconds{environment="dev"} 0\n', body)
+
+    def test_dev_only_backup_does_not_report_an_unconfigured_prod_failure(self):
+        body = self.start(config={"dev": {"state_dir": str(self.path), "target": "s3://test-backups/dev/:acttub"}})
+        self.assertIn('acttub_backup_state{environment="dev",state="missing"} 1\n', body)
+        self.assertNotIn('environment="prod"', body)
+
+    def test_invalid_environment_selection_exits_before_serving(self):
+        for mode in ("backup", "db"):
+            for config in ({}, {"unknown-NEVER-PRINT": {}}, {"dev": {}, "unknown-NEVER-PRINT": {}}, [], None):
+                with self.subTest(mode=mode, config=config):
+                    path = self.path / "invalid.json"
+                    path.write_text(json.dumps(config))
+                    result = subprocess.run([sys.executable, str(ROOT / "exporter.py"), mode, "--config", str(path),
+                                             "--listen", "127.0.0.1", "--port", str(self.port)],
+                                            capture_output=True, text=True, timeout=5)
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertIn("nonempty object", result.stderr)
+                    self.assertNotIn("NEVER-PRINT", result.stderr)
+
+    def test_dev_only_db_probes_only_the_configured_authenticated_endpoint(self):
+        requests = []
+
+        class Health(BaseHTTPRequestHandler):
+            def do_GET(self):
+                requests.append((self.path, self.headers.get("Authorization")))
+                self.send_response(200)
+                self.end_headers()
+                self.wfile.write(b'{"status":"UP"}')
+
+            def log_message(self, *_args):
+                pass
+
+        server = ThreadingHTTPServer(("127.0.0.1", 0), Health)
+        self.addCleanup(server.server_close)
+        self.addCleanup(server.shutdown)
+        Thread(target=server.serve_forever, daemon=True).start()
+        token = self.path / "dev-token"
+        token.write_text("probe-test-dev-token")
+        config = {"dev": {"url": f"http://127.0.0.1:{server.server_port}/dev", "token_file": str(token)}}
+        body = self.start("db", config)
+        self.assertIn('acttub_db_probe_success{environment="dev"} 1\n', body)
+        self.assertNotIn('environment="prod"', body)
+        self.assertEqual(requests, [("/dev", "Bearer probe-test-dev-token")])
 
     def test_state_changes_are_observed_without_restart_or_sensitive_labels(self):
         self.start()

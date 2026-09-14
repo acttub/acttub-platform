@@ -48,3 +48,77 @@ run "public_health_has_one_location_and_checks_status_and_body" {
     error_message = "Only the real health JSON contract with top-level status=ok may pass."
   }
 }
+
+run "two_environment_default_is_compatible" {
+  command = plan
+
+  assert {
+    condition     = length(grafana_rule_group.monitoring.rule) == 59 && toset([for r in grafana_rule_group.monitoring.rule : r.uid]) == toset(flatten([for d in local.definitions : [for env in(d.scope == "environment" ? ["dev", "prod"] : ["shared"]) : "acttub-${d.key}-${env}"]]))
+    error_message = "The two-environment default must preserve all 59 existing rule identities."
+  }
+  assert {
+    condition     = alltrue([for name, d in grafana_dashboard.monitoring : jsondecode(d.config_json).templating == local.dashboards[name].templating && jsondecode(d.config_json).uid == "acttub-${name}"]) && output.external_checks_31_day_budget == { planned = 89280, allowance = 100000, headroom = 10720 }
+    error_message = "Default dashboard identities, selectors, prod landing page and monthly budget must stay unchanged."
+  }
+}
+
+run "dev_only_has_no_prod_probes_rules_metrics_or_selectors" {
+  command = plan
+  variables {
+    health_origins = { dev = "https://dev.example.test" }
+  }
+
+  assert {
+    condition     = keys(grafana_synthetic_monitoring_check.health) == ["dev"] && grafana_synthetic_monitoring_check.health["dev"].job == "acttub-health-dev" && grafana_synthetic_monitoring_check.health["dev"].frequency == 60000 && grafana_synthetic_monitoring_check.health["dev"].timeout == 10000 && output.external_checks_31_day_budget == { planned = 44640, allowance = 100000, headroom = 55360 }
+    error_message = "Dev alone must create one unchanged 60s/10s health check and use half the monthly checks."
+  }
+  assert {
+    condition     = length(grafana_rule_group.monitoring.rule) == 37 && grafana_rule_group.monitoring.interval_seconds == 60 && alltrue([for r in grafana_rule_group.monitoring.rule : contains(["dev", "shared"], r.labels.environment) && !strcontains(jsonencode(r), "prod")])
+    error_message = "Dev needs exactly its 22 rules and 15 shared rules, with no prod queries or shared links to prod."
+  }
+  assert {
+    condition = alltrue([for r in grafana_rule_group.monitoring.rule : (
+      startswith(r.uid, "acttub-datasource-") || startswith(r.uid, "acttub-cloud-datasource-")
+    ) ? (r.no_data_state == "Alerting" && r.exec_err_state == "Alerting" && r.for == "2m") : (r.no_data_state == "KeepLast" && r.exec_err_state == "KeepLast")])
+    error_message = "Selecting dev alone must preserve the datasource Error/NoData and service KeepLast contract."
+  }
+  assert {
+    condition     = length(grafana_dashboard.monitoring) == 3 && alltrue([for d in grafana_dashboard.monitoring : !strcontains(d.config_json, "prod") && jsondecode(d.config_json).templating.list[0].query == "dev" && jsondecode(d.config_json).templating.list[0].current == { text = "dev", value = "dev" } && jsondecode(d.config_json).templating.list[0].options == [{ text = "dev", value = "dev", selected = true }]])
+    error_message = "All three dashboards must offer and initially select only dev."
+  }
+}
+
+run "prod_only_is_a_valid_subset" {
+  command = plan
+  variables {
+    health_origins = { prod = "https://prod.example.test" }
+  }
+  assert {
+    condition     = keys(grafana_synthetic_monitoring_check.health) == ["prod"] && length(grafana_rule_group.monitoring.rule) == 37 && alltrue([for r in grafana_rule_group.monitoring.rule : contains(["prod", "shared"], r.labels.environment)]) && alltrue([for d in grafana_dashboard.monitoring : jsondecode(d.config_json).templating.list[0].query == "prod" && jsondecode(d.config_json).templating.list[0].current.value == "prod"])
+    error_message = "Either supported environment may be installed alone."
+  }
+}
+
+run "empty_environment_set_is_rejected" {
+  command = plan
+  variables {
+    health_origins = {}
+  }
+  expect_failures = [var.health_origins]
+}
+
+run "unknown_environment_is_rejected" {
+  command = plan
+  variables {
+    health_origins = { dev = "https://dev.example.test", staging = "https://staging.example.test" }
+  }
+  expect_failures = [var.health_origins]
+}
+
+run "invalid_selected_origin_is_rejected" {
+  command = plan
+  variables {
+    health_origins = { dev = "https://dev.example.test/health" }
+  }
+  expect_failures = [var.health_origins]
+}

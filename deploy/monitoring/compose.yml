@@ -1,3 +1,4 @@
+# Template rendered by manage.py; @...@ selects dev/prod wiring before Compose reads it.
 # Separate project: app deploy.sh never reads this file. Use manage.py, not app .env.
 name: ${MONITOR_PROJECT:?}
 
@@ -23,7 +24,7 @@ services:
     volumes:
       - metrics:/prometheus
       - ${RELEASE_DIR:?}/prometheus:/etc/acttub:ro
-    networks: [query, collectors, dev_scrape, prod_scrape]
+    networks: [query, collectors, @SCRAPE_NETWORKS@]
     mem_limit: 1g
     cpus: 1.0
     healthcheck:
@@ -82,7 +83,7 @@ services:
     volumes:
       - ${RELEASE_DIR:?}/exporter.py:/opt/exporter.py:ro
       - ${RELEASE_DIR:?}/db:/etc/acttub:ro
-    networks: [collectors, dev_scrape, prod_scrape]
+    networks: [collectors, @SCRAPE_NETWORKS@]
     mem_limit: 64m
     cpus: 0.25
 
@@ -96,28 +97,13 @@ services:
     volumes:
       - ${RELEASE_DIR:?}/exporter.py:/opt/exporter.py:ro
       - ${RELEASE_DIR:?}/backup:/etc/acttub:ro
-      - dev_backup_state:/state/dev:ro
-      - prod_backup_state:/state/prod:ro
+@BACKUP_MOUNTS@
     networks: [collectors]
     mem_limit: 64m
     cpus: 0.25
 
-networks:
-  query: {} # PDC needs outbound HTTPS/SSH to Grafana Cloud, with no app/default network.
-  collectors:
-    internal: true
-  dev_scrape:
-    external: true
-    name: ${DEV_PROJECT:?}_scrape
-  prod_scrape:
-    external: true
-    name: ${PROD_PROJECT:?}_scrape
+# Query permits PDC outbound HTTPS/SSH; collectors is internal, with no app/default network.
+networks: @NETWORKS@
 
-volumes:
-  metrics: {} # Never down -v: apply/rollback reuse the same project and metrics volume.
-  dev_backup_state:
-    external: true
-    name: ${DEV_PROJECT:?}_backup_state
-  prod_backup_state:
-    external: true
-    name: ${PROD_PROJECT:?}_backup_state
+# Never down -v: apply/rollback reuse the same project and metrics volume.
+volumes: @VOLUMES@

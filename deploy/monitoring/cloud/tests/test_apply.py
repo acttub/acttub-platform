@@ -140,6 +140,7 @@ class ApplyBoundaryTest(unittest.TestCase):
         self.assertEqual(applied.returncode, 0, applied.stdout + applied.stderr + str(self.server.writes))
         self.assertEqual(len(self.server.state["dashboards"]), 4)
         self.assertEqual(len(self.server.state["checks"]), 2)
+        self.assertEqual(len(self.server.state["groups"]["acttub-monitoring"]["rules"]), 59)
         for rule in self.server.state["groups"]["acttub-monitoring"]["rules"]:
             if rule["uid"].startswith(("acttub-datasource-", "acttub-cloud-datasource-")):
                 self.assertEqual((rule["noDataState"], rule["execErrState"]), ("Alerting", "Alerting"))
@@ -169,6 +170,94 @@ class ApplyBoundaryTest(unittest.TestCase):
         self.assertEqual(len(self.server.state["dashboards"]), 4)
         self.assertTrue(all(r["labels"]["site"] == "alternate" for r in self.server.state["groups"]["acttub-monitoring"]["rules"]))
         self.assertEqual(self.server.state["policies"], self.original["policies"])
+
+    def test_dev_only_reapply_then_expand_preserves_identities_and_rejects_shrink(self):
+        self.variables["health_origins"] = {"dev": "https://dev.example.test"}
+        (self.path / "fixture.tfvars.json").write_text(json.dumps(self.variables))
+        plan = self.command("plan", "--vars", "fixture.tfvars.json", "--plan", "dev.tfplan")
+        self.assertEqual(plan.returncode, 0, plan.stdout + plan.stderr)
+        self.assertEqual(self.server.writes, [])
+        applied = self.command("apply", "--plan", "dev.tfplan")
+        self.assertEqual(applied.returncode, 0, applied.stdout + applied.stderr)
+        checks = copy.deepcopy(self.server.state["checks"])
+        self.assertEqual([c["job"] for c in checks.values()], ["acttub-health-dev"])
+        rules = copy.deepcopy(self.server.state["groups"]["acttub-monitoring"]["rules"])
+        self.assertEqual(len(rules), 37)
+        self.assertNotIn("prod", json.dumps(rules))
+        for name in ("service", "operations", "infrastructure"):
+            dashboard = self.server.state["dashboards"]["acttub-" + name]["dashboard"]
+            self.assertNotIn("prod", json.dumps(dashboard))
+            selection = dashboard["templating"]["list"][0]
+            self.assertEqual(selection["query"], "dev")
+            self.assertEqual(selection["current"], {"text": "dev", "value": "dev"})
+            self.assertEqual(selection["options"], [{"text": "dev", "value": "dev", "selected": True}])
+
+        writes = list(self.server.writes)
+        second = self.command("plan", "--vars", "fixture.tfvars.json", "--plan", "second.tfplan")
+        self.assertEqual(second.returncode, 0, second.stdout + second.stderr)
+        self.assertIn("No changes", second.stdout)
+        reapplied = self.command("apply", "--plan", "second.tfplan")
+        self.assertEqual(reapplied.returncode, 0, reapplied.stdout + reapplied.stderr)
+        self.assertEqual(self.server.writes, writes)
+
+        self.variables["health_origins"]["prod"] = "https://prod.example.test"
+        (self.path / "fixture.tfvars.json").write_text(json.dumps(self.variables))
+        expanded = self.command("plan", "--vars", "fixture.tfvars.json", "--plan", "expand.tfplan")
+        self.assertEqual(expanded.returncode, 0, expanded.stdout + expanded.stderr)
+        self.assertEqual(self.server.writes, writes)
+        result = self.command("apply", "--plan", "expand.tfplan")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(len(self.server.state["checks"]), 2)
+        self.assertEqual(len(self.server.state["dashboards"]), 4)
+        for check_id, check in checks.items():
+            self.assertEqual(self.server.state["checks"][check_id], check)
+        expanded_rules = {r["uid"]: r for r in self.server.state["groups"]["acttub-monitoring"]["rules"]}
+        self.assertEqual(len(expanded_rules), 59)
+        for rule in rules:
+            if rule["labels"]["environment"] == "shared":
+                rule["annotations"]["dashboard_url"] = rule["annotations"]["dashboard_url"].replace("var-environment=dev", "var-environment=prod")
+            self.assertEqual(expanded_rules[rule["uid"]], rule)
+        self.assertEqual(self.server.state["policies"], self.original["policies"])
+        for resource, key in (("contacts", "unrelated"), ("dashboards", "foreign"), ("datasources", "foreign"), ("datasources", "cloud-existing")):
+            self.assertEqual(self.server.state[resource][key], self.original[resource][key])
+
+        stable = self.command("plan", "--vars", "fixture.tfvars.json", "--plan", "expanded-stable.tfplan")
+        self.assertEqual(stable.returncode, 0, stable.stdout + stable.stderr)
+        self.assertIn("No changes", stable.stdout)
+        writes = list(self.server.writes)
+        del self.variables["health_origins"]["prod"]
+        (self.path / "fixture.tfvars.json").write_text(json.dumps(self.variables))
+        shrink = self.command("plan", "--vars", "fixture.tfvars.json", "--plan", "shrink.tfplan")
+        self.assertNotEqual(shrink.returncode, 0)
+        self.assertIn("prevent_destroy", shrink.stdout + shrink.stderr)
+        self.assertEqual(self.server.writes, writes)
+
+    def test_invalid_environment_sets_are_rejected_before_provider_writes(self):
+        for origins in ({}, {"staging": "https://staging.example.test"},
+                        {"dev": "https://dev.example.test", "preview": "https://preview.example.test"}):
+            with self.subTest(origins=origins):
+                self.variables["health_origins"] = origins
+                (self.path / "fixture.tfvars.json").write_text(json.dumps(self.variables))
+                result = self.command("plan", "--vars", "fixture.tfvars.json", "--plan", "invalid.tfplan")
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("nonempty subset", result.stdout + result.stderr)
+                self.assertEqual(self.server.writes, [])
+                self.assertFalse((self.path / "invalid.tfplan.audit.json").exists())
+
+    def test_dev_selection_keeps_reserved_prod_ownership_guards(self):
+        self.variables["health_origins"] = {"dev": "https://dev.example.test"}
+        (self.path / "fixture.tfvars.json").write_text(json.dumps(self.variables))
+        self.server.state["checks"]["42"] = {"id": 42, "job": "acttub-health-prod"}
+        result = self.command("plan", "--vars", "fixture.tfvars.json", "--plan", "collision.tfplan")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("Ownership collision: existing external health check", result.stderr)
+        self.assertEqual(self.server.writes, [])
+        self.server.state["checks"].clear()
+        self.server.state["groups"]["foreign"] = {"rules": [{"uid": "acttub-api-errors-prod"}]}
+        result = self.command("plan", "--vars", "fixture.tfvars.json", "--plan", "collision.tfplan")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("Ownership collision: alert rule UID", result.stderr)
+        self.assertEqual(self.server.writes, [])
 
     def test_existing_dashboard_without_owned_state_blocks_before_any_write(self):
         self.server.state["dashboards"]["acttub-service"] = {"dashboard": {"uid": "acttub-service", "title": "Someone else's dashboard"}, "meta": {}}

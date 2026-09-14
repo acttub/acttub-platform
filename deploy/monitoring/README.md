@@ -9,7 +9,7 @@ Prometheus·PDC·호스트·DB health·백업 수집을 담당한다. Cloud 선�
 
 | 서비스 | 이미지 고정 버전 | 접근 범위 |
 |---|---|---|
-| Prometheus | 3.14.0 | 전용 조회망·수집기망·dev/prod 수집망 |
+| Prometheus | 3.14.0 | 전용 조회망·수집기망·선택한 환경의 수집망 |
 | PDC | 0.0.64, OpenSSH 모드 | 전용 조회망만, 전달 목적지 `prometheus:9090`만 허용 |
 | node exporter | 1.12.1 | 수집기망, `/proc`·`/sys`·호스트 루트 읽기 전용 |
 | DB health·백업 exporter | Python 3.13.12 / Alpine 3.23 | 각각 환경별 수집망·수집기망, 또는 수집기망만 |
@@ -19,8 +19,13 @@ Prometheus는 **30초**마다 수집하고 `metrics` 볼륨에 **30일** 보관�
 실측하지 않은 기본 용량을 운영값으로 넣지 않는다. 용량 상한이 먼저 적용되면 30일 이전 기록도
 정리될 수 있고, WAL·index·compaction 임시 공간까지 제한하는 디스크 할당량은 아니다.
 
-앱의 `api`만 자기 프로젝트의 `default`와 `scrape`에 참가한다. 앱이 만든
-`acttub-dev_scrape`·`acttub-prod_scrape`를 모니터링이 외부 네트워크로 참조한다.
+`config.environments`는 `dev`·`prod` 중 하나 이상을 포함하는 객체다. 빈 객체나 다른 환경 이름은
+거부한다. DEV만 시작하려면 `config.example.json`을 복사한 설정에서 `environments.prod` 항목을
+제거한다. 이 경우 운영 토큰·수집 대상·DB probe·수집망·백업 볼륨을 요구하거나 생성하지 않는다.
+공유 호스트 지표는 선택한 환경 수와 관계없이 한 번만 수집한다.
+
+앱의 `api`만 자기 프로젝트의 `default`와 `scrape`에 참가한다. 선택한 환경의 앱이 만든
+`acttub-<env>_scrape`를 모니터링이 외부 네트워크로 참조한다.
 API 별칭은 각각 `acttub-dev-api`·`acttub-prod-api`이고 DB·웹·터널·백업은 기존 기본망을 유지한다.
 일반 앱 기동에 모니터링 네트워크나 토큰을 요구하지 않는다. 환경 전체를 철거할 때는 먼저
 모니터링을 내려 수집망에서 분리한다. 모니터링을 내릴 때 `down -v`를 사용하지 않는다.
@@ -33,7 +38,7 @@ Prometheus 관리 변경 API·reload HTTP는 켜지 않으며 어떤 서비스�
 
 ## 최초 준비
 
-1. 환경별 앱 `.env`에 서로 다른 난수 `MONITORING_TOKEN`과 `MONITORING_ENVIRONMENT=dev` 또는
+1. 선택한 환경의 앱 `.env`에 서로 다른 난수 `MONITORING_TOKEN`과 `MONITORING_ENVIRONMENT=dev` 또는
    `prod`를 공급하고 기존 앱 배포를 실행한다. 관리 포트는 `9091`이며 Bearer 토큰으로
    `/actuator/prometheus`·`/actuator/health/db`에 접근한다. 토큰이 없으면 관리 접근만 거부한다.
 2. 기존 환경별 백업 프로필이 만든 `acttub-<env>_backup_state` 볼륨과 성공 기록을 확인한다.
@@ -66,15 +71,19 @@ docker system df -v
 `capacity`는 실제 5분 수집 속도로 30일의 sample 크기를 추정한다(2 bytes/sample 가정).
 파일·index·WAL·압축 여유를 포함하지 않으므로 이것만으로 30일 보관을 보증하지 않는다.
 
-시크릿은 로컬 `secrets/`에 `dev-token`, `prod-token`, `pdc-token` 파일로 별도 공급한다.
+시크릿은 로컬 `secrets/`에 선택한 환경의 `<env>-token`과 `pdc-token` 파일로 별도 공급한다.
+DEV 전용 구성은 `dev-token`·`pdc-token`만 필요하다. `--without-pdc`는 PDC 기동만 생략하므로
+PDC 설정과 토큰 파일 검증은 그대로 수행한다.
 환경별 token은 앱과 동일해야 하고, PDC token은 Cloud의 PDC signing 자격증명이다.
 파일 내용은 16자 이상 공백 없는 토큰, 파일 권한은 `600`, 디렉터리는 `700`으로 둔다.
 실제 토큰을 명령 인자·셸 히스토리·저장소·로그에 쓰지 않는다.
 
 ```bash
 chmod 700 secrets
-chmod 600 secrets/dev-token secrets/prod-token secrets/pdc-token
+chmod 600 secrets/dev-token secrets/pdc-token
 ```
+
+운영도 선택했다면 `chmod 600 secrets/prod-token`을 추가로 실행한다.
 
 도구가 생성하는 `/svc/acttub/monitoring`은 `700`이다. 그 안의 버전별 설정·시크릿 사본은
 컨테이너의 서로 다른 UID가 자기 bind mount를 읽을 수 있도록 파일 `444`·하위 디렉터리 `755`를
@@ -87,6 +96,8 @@ chmod 600 secrets/dev-token secrets/prod-token secrets/pdc-token
 Python 3.9 이상과 Docker Compose가 필요하다. source 디렉터리는 버전별 보관하고, 새 소스나
 시크릿을 적용할 때 새 버전명을 사용한다. 아래 예시는 배포 명령이며 실제 서버 적용은 별도
 운영 작업으로 수행한다. 일반 앱 배포와 결합하지 않는다.
+소스의 `compose.yml`은 환경별 연결을 채우기 전의 템플릿이므로 `render`가 생성한 릴리스로
+Compose 검사·적용을 실행한다.
 
 ```bash
 # 수정 내용을 고정된 버전 디렉터리로 렌더링한다. 이미 존재하는 버전은 덮어쓰지 않는다.
@@ -120,7 +131,13 @@ python3 deploy/monitoring/manage.py rollback monitoring-v1
 사용하고 DB 복원·DB/지표 볼륨 삭제를 수행하지 않는다. 디스크 자체 손실 때 과거 지표 손실을
 수용하며, 소스·별도 보호한 시크릿을 준비해 새 볼륨에서 수집을 재개한다.
 
-`verify`는 현재 scrape·DB probe·백업 상태 읽기와 목적지 일치를 검사한다. 최신 백업 성공/26시간
+DEV 수집을 유지하며 운영을 추가할 때는 운영 앱의 토큰·수집망·기존 백업 상태 볼륨을 먼저 준비하고,
+설정에 `environments.prod`를 추가한 새 릴리스를 렌더링·검사·적용한다. 같은 `project`와
+`--state-dir`을 유지해야 기존 `metrics` 볼륨과 DEV 기록이 이어진다. 도구는 프로젝트명 변경을
+거부하며, 환경을 추가하거나 이전 DEV 전용 릴리스로 복구해도 지표 볼륨을 삭제하지 않는다.
+DEV 전용으로 복구하면 새 운영 수집은 중단되지만 기존 운영 지표는 보관 정책에 따라 남는다.
+
+`verify`는 선택한 환경의 scrape·DB probe·백업 상태 읽기와 목적지 일치를 검사한다. 최신 백업 성공/26시간
 초과·미해결 실패는 아래 지표로 따로 판정한다. PDC 실제 연결, Cloud 조회/권한, Slack 알림은
 Cloud 쪽 실제 검증으로 확인해야 한다. 컨테이너가 실행 중이라는 사실만으로 이를 통과시키지 않는다.
 
@@ -130,7 +147,7 @@ Cloud 쪽 실제 검증으로 확인해야 한다. 컨테이너가 실행 중이
 |---|---|---|
 | `api` | dev/prod | 환경별 인증된 API metrics. scrape 설정이 환경 label을 소유 |
 | `db-health` | `up`에는 없음, payload에는 dev/prod | 공유 HTTP exporter가 환경별 관리 DB health를 검사 |
-| `backup` | `up`에는 없음, payload에는 dev/prod | 공유 exporter가 두 읽기 전용 상태 볼륨을 검사 |
+| `backup` | `up`에는 없음, payload에는 선택한 dev/prod | 공유 exporter가 선택한 환경의 읽기 전용 상태 볼륨을 검사 |
 | `node` | shared | 호스트 CPU·MemAvailable·지정한 데이터 마운트의 filesystem |
 | `prometheus` | shared | 수집기 자체 상태와 수집량 |
 
@@ -177,6 +194,8 @@ MONITORING_SMOKE_WEB_IMAGE=acttub-web:monitoring-ci deploy/monitoring/smoke.sh
 
 통합 스모크는 실제 앱 배포·Prometheus scrape·관리 인증·공개 경로 차단·DB 장애/복구·root `600`
 상태 읽기·네트워크 차단·과거 지표 영속·모니터링 중단 중 앱 배포·재적용/복구를 확인한다.
+운영 토큰·수집망·백업 볼륨이 없는 DEV 전용 적용부터 시작해, 두 환경으로 확장하고 DEV 전용으로
+복구한 뒤에도 이전 지표가 남고 운영 앱 컨테이너가 유지되는지 검사한다.
 PDC의 실제 OpenSSH remote SOCKS 전달도 임시 SSH 서버에서 검사한다. Prometheus HTTP는 통과하고
 다른 호스트와 포트는 거부되어야 한다. 외부 터널 상대만 대체하며 Cloud API나 Slack을 부르지 않는다.
 테스트가 만든 고유 `soma520-*` 컨테이너·볼륨만 정리하며 재사용 앱 이미지 태그는 남긴다.

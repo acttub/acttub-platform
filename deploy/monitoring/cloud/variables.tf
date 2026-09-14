@@ -1,9 +1,9 @@
 variable "health_origins" {
-  description = "Public HTTPS origins, without paths, credentials, or query strings."
+  description = "Public HTTPS origins for the selected nonempty subset of dev/prod, without paths, credentials, or query strings. Keys also select alerts and dashboard environments."
   type        = map(string)
   validation {
-    condition     = toset(keys(var.health_origins)) == toset(["dev", "prod"]) && alltrue([for origin in values(var.health_origins) : can(regex("^https://[A-Za-z0-9.-]+$", origin))])
-    error_message = "Supply exactly dev and prod public HTTPS origins without a trailing slash."
+    condition     = length(var.health_origins) > 0 && alltrue([for environment, origin in var.health_origins : contains(["dev", "prod"], environment) && can(regex("^https://[A-Za-z0-9.-]+$", origin))])
+    error_message = "Supply a nonempty subset of dev/prod public HTTPS origins without a trailing slash."
   }
 }
 

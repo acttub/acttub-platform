@@ -63,6 +63,27 @@ def main():
     def deploy(env, sha="0123456789abcdef"):
         return run(["env", "DEPLOY_PULL_POLICY=missing", str(REPO / "deploy/home/deploy.sh"), sha, api, web], cwd=app_dirs[env])
 
+    def prepare_app(env):
+        directory = app_dirs[env]
+        directory.mkdir()
+        shutil.copyfile(REPO / "deploy/home/compose.yml", directory / "compose.yml")
+        required = ["POSTGRES_PASSWORD", "JWT_SECRET", "ADMIN_OPS_TOKEN", "GEMINI_API_KEY", "OPENAI_API_KEY",
+                    "S3_BUCKET", "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "TUNNEL_TOKEN"]
+        values = {key: "smoke-only-unused" for key in required}
+        values.update(COMPOSE_PROJECT_NAME=projects[env], AWS_REGION="ap-northeast-2", ANALYSIS_WORKER_ENABLED="false",
+                      MONITORING_TOKEN="monitoring-smoke-only-" + env + "-token", MONITORING_ENVIRONMENT=env)
+        (directory / ".env").write_text("\n".join(key + "=" + val for key, val in values.items()) + "\n")
+        deploy(env)
+
+    def prepare_backup(env):
+        # Only isolated volumes created here. Real app volumes must already exist.
+        run(["docker", "volume", "create", projects[env] + "_backup_state"])
+        fixture = {"backup_target": "s3://test-backups/" + env + "/:acttub", "last_result": "success",
+                   "last_success_epoch": int(time.time()) - 3600, "last_success_uri": "s3://DO-NOT-EXPORT/object",
+                   "last_success_sha256": "DO-NOT-EXPORT-HASH"}
+        run(["docker", "run", "--rm", "--network", "none", "-v", projects[env] + "_backup_state:/state", python_image,
+             "python3", "-c", "import os,pathlib,sys; os.chmod('/state',0o700); p=pathlib.Path('/state/status.json'); p.write_text(sys.argv[1]); p.chmod(0o600)", json.dumps(fixture)])
+
     def query(expression):
         raw = run(mon("exec", "-T", "prometheus", "wget", "-qO-",
                       "http://localhost:9090/api/v1/query?" + urlencode({"query": expression})))
@@ -83,48 +104,37 @@ def main():
         mounts = [line.split()[4] for line in mountinfo.splitlines()]
         data_mount = max((path for path in mounts if docker_root == path or docker_root.startswith(path.rstrip("/") + "/")), key=len)
         cfg = {"project": monitor, "retention_size": "1GB", "data_mountpoint": data_mount, "pdc_cluster": "test", "grafana_id": "1",
-               "environments": {env: {"project": project, "backup_bucket": "test-backups", "database": "acttub"}
-                                for env, project in projects.items()}}
+               "environments": {"dev": {"project": projects["dev"], "backup_bucket": "test-backups", "database": "acttub"}}}
         (work / "config.json").write_text(json.dumps(cfg))
         secrets = work / "secrets"
         secrets.mkdir(mode=0o700)
-        for name in ("dev-token", "prod-token", "pdc-token"):
+        for name in ("dev-token", "pdc-token"):
             token = secrets / name
             token.write_text("monitoring-smoke-only-" + name)
             token.chmod(0o600)
-        for env, directory in app_dirs.items():
-            directory.mkdir()
-            shutil.copyfile(REPO / "deploy/home/compose.yml", directory / "compose.yml")
-            required = ["POSTGRES_PASSWORD", "JWT_SECRET", "ADMIN_OPS_TOKEN", "GEMINI_API_KEY", "OPENAI_API_KEY",
-                        "S3_BUCKET", "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "TUNNEL_TOKEN"]
-            values = {key: "smoke-only-unused" for key in required}
-            values.update(COMPOSE_PROJECT_NAME=projects[env], AWS_REGION="ap-northeast-2", ANALYSIS_WORKER_ENABLED="false",
-                          MONITORING_TOKEN="monitoring-smoke-only-" + env + "-token", MONITORING_ENVIRONMENT=env)
-            (directory / ".env").write_text("\n".join(key + "=" + val for key, val in values.items()) + "\n")
-            deploy(env)
-        print("PASS app deployments before monitoring exists", flush=True)
+        prepare_app("dev")
+        print("PASS dev app deployment before monitoring exists", flush=True)
         run(manager + ["--config", str(work / "config.json"), "--secrets-dir", str(secrets), "render", "v1"])
         print(run([sys.executable, str(ROOT / "tests/pdc_policy.py"), str(release)]).strip(), flush=True)
         model = json.loads(run(mon("config", "--format", "json")))
         python_image = model["services"]["backup-exporter"]["image"]
-        for env, project in projects.items():
-            # Only isolated volumes created here. Production volumes must already exist.
-            run(["docker", "volume", "create", project + "_backup_state"])
-            fixture = {"backup_target": "s3://test-backups/" + env + "/:acttub", "last_result": "success",
-                       "last_success_epoch": int(time.time()) - 3600, "last_success_uri": "s3://DO-NOT-EXPORT/object",
-                       "last_success_sha256": "DO-NOT-EXPORT-HASH"}
-            run(["docker", "run", "--rm", "--network", "none", "-v", project + "_backup_state:/state", python_image,
-                 "python3", "-c", "import os,pathlib,sys; os.chmod('/state',0o700); p=pathlib.Path('/state/status.json'); p.write_text(sys.argv[1]); p.chmod(0o600)", json.dumps(fixture)])
+        prepare_backup("dev")
+        assert "prod_scrape" not in model["networks"] and "prod_backup_state" not in model["volumes"]
+        assert not (secrets / "prod-token").exists()
+        for kind, resource in [("network", "_scrape"), ("volume", "_backup_state")]:
+            missing = subprocess.run(["docker", kind, "inspect", projects["prod"] + resource], env=ENV, capture_output=True, timeout=30)
+            assert missing.returncode != 0, "prod fixture resource existed before dev-only apply"
         run(manager + ["--without-pdc", "apply", "v1"])
-        wait_for(lambda: value('count(up{job="api"} == 1)', 2), "both APIs were not scraped")
-        wait_for(lambda: value('count(acttub_db_probe_success == 1)', 2), "authenticated DB probes failed")
-        wait_for(lambda: value('count(acttub_backup_state{state="ok"} == 1)', 2), "root-owned read-only backup state unreadable")
+        wait_for(lambda: value('count(up{job="api"} == 1)', 1), "dev API was not scraped")
+        wait_for(lambda: value('count(acttub_db_probe_success == 1)', 1), "authenticated dev DB probe failed")
+        wait_for(lambda: value('count(acttub_backup_state{state="ok"} == 1)', 1), "root-owned read-only dev backup state unreadable")
+        assert not query('{environment="prod"}'), "dev-only configuration emitted prod metrics"
         wait_for(lambda: value('count(node_memory_MemAvailable_bytes{environment="shared"} > 0)', 1), "host available-memory metric missing")
         assert query('node_cpu_seconds_total{environment="shared",mode="idle"}'), "host CPU metrics missing"
         assert value('count(node_filesystem_avail_bytes{environment="shared",mountpoint=' + json.dumps(data_mount) + '} > 0)', 1), "data filesystem metric missing"
         run(manager + ["verify", "v1"])
-        print("PASS real authenticated scrape, DB probes, root-owned mode600 backup files", flush=True)
-        for env in projects:
+        print("PASS dev-only apply/verify with no prod secret, network, volume, targets or probes", flush=True)
+        for env in cfg["environments"]:
             expected = "monitoring-smoke-only-" + env + "-token"
             other = "monitoring-smoke-only-" + ("prod" if env == "dev" else "dev") + "-token"
             for port, token, code in [(9091, expected, "200"), (9091, other, "401"), (9091, "", "401")]:
@@ -172,6 +182,24 @@ socket.create_connection(('prometheus',9090),timeout=2).close()
         assert value(historical, 1), "historical metrics lost after Prometheus recreation"
         print("PASS app deploy independence and Prometheus historical persistence", flush=True)
 
+        # Add prod only after dev-only collection succeeded. A new immutable
+        # release must keep the same metrics volume and earlier dev samples.
+        (secrets / "prod-token").write_text("monitoring-smoke-only-prod-token")
+        (secrets / "prod-token").chmod(0o600)
+        prepare_app("prod")
+        prepare_backup("prod")
+        cfg["environments"]["prod"] = {"project": projects["prod"], "backup_bucket": "test-backups", "database": "acttub"}
+        (work / "config.json").write_text(json.dumps(cfg))
+        run(manager + ["--config", str(work / "config.json"), "--secrets-dir", str(secrets), "render", "v2"])
+        run(manager + ["--without-pdc", "apply", "v2"])
+        release = state / "releases/v2"
+        wait_for(lambda: value('count(up{job="api"} == 1)', 2), "both APIs were not scraped after expansion")
+        wait_for(lambda: value('count(acttub_db_probe_success == 1)', 2), "both DB probes failed after expansion")
+        wait_for(lambda: value('count(acttub_backup_state{state="ok"} == 1)', 2), "both backup states unreadable after expansion")
+        run(manager + ["verify", "v2"])
+        assert value(historical, 1), "expansion lost historical dev metrics"
+        print("PASS expansion to both environments with retained dev history", flush=True)
+
         run(app("dev", "stop", "db"))
         wait_for(lambda: value('acttub_db_probe_success{environment="dev"}', 0), "DB outage was not observed")
         assert value('acttub_db_probe_success{environment="prod"}', 1), "dev outage affected prod probe"
@@ -187,14 +215,23 @@ socket.create_connection(('prometheus',9090),timeout=2).close()
         deploy("dev", "fedcba9876543210")
         assert run(mon("ps", "-aq")).split() == stopped, "app deploy recreated stopped monitoring"
         assert not run(mon("ps", "-q")).strip(), "app deploy started monitoring"
-        run(manager + ["--without-pdc", "apply", "v1"])
+        run(manager + ["--without-pdc", "apply", "v2"])
         assert value(historical, 1), "metrics lost while monitoring was stopped"
-        # Apply another immutable release and rollback using the normal commands.
-        run(manager + ["--config", str(work / "config.json"), "--secrets-dir", str(secrets), "render", "v2"])
+        # Reapply, then roll back to dev-only without touching the prod app or
+        # deleting the monitoring store. Recent unselected samples may remain.
+        prod_containers = run(app("prod", "ps", "-q")).split()
         run(manager + ["--without-pdc", "apply", "v2"])
         run(manager + ["--without-pdc", "rollback", "v1"])
+        release = state / "releases/v1"
+        wait_for(lambda: value('acttub_db_probe_success{environment="dev"}', 1), "dev probe did not recover after rollback")
+        run(manager + ["verify", "v1"])
+        assert run(app("prod", "ps", "-q")).split() == prod_containers, "collector rollback changed prod app containers"
+        for service in ("db-health", "backup-exporter"):
+            metrics = run(mon("exec", "-T", service, "python3", "-c",
+                              "from urllib.request import urlopen; print(urlopen('http://localhost:9101/metrics').read().decode())"))
+            assert 'environment="prod"' not in metrics, "dev-only rollback still probes prod"
         assert value(historical, 1), "rollback lost metrics"
-        print("PASS stopped-monitor app deploy, immutable reapply and rollback with retained metrics", flush=True)
+        print("PASS stopped-monitor app deploy, immutable reapply and dev-only rollback with retained metrics", flush=True)
         print("PASS monitoring integration; actual home-server/Cloud/Slack not tested", flush=True)
     finally:
         # The unique prefix and temp directory were created by this process. Only

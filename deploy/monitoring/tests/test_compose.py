@@ -5,11 +5,70 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import manage
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
 class ComposeContractTest(unittest.TestCase):
+    def test_selected_environments_have_only_their_resources_and_secrets(self):
+        for selected in [("dev",), ("prod",), ("dev", "prod")]:
+            with self.subTest(selected=selected), tempfile.TemporaryDirectory() as tmp:
+                work = Path(tmp)
+                config = json.loads((ROOT / "config.example.json").read_text())
+                config.update(project="monitor-contract", retention_size="1GB", pdc_cluster="test", grafana_id="1")
+                config["environments"] = {env: config["environments"][env] for env in selected}
+                (work / "config.json").write_text(json.dumps(config))
+                secrets = work / "secrets"
+                secrets.mkdir(mode=0o700)
+                for name in [*(env + "-token" for env in selected), "pdc-token"]:
+                    (secrets / name).write_text("secret-NEVER-PRINT-" + name)
+                    (secrets / name).chmod(0o600)
+                command = [sys.executable, str(ROOT / "manage.py"), "--config", str(work / "config.json"),
+                           "--secrets-dir", str(secrets), "--state-dir", str(work / "state"), "render", "v1"]
+                result = subprocess.run(command, capture_output=True, text=True)
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertNotIn("secret-NEVER-PRINT", result.stdout + result.stderr)
+                release = work / "state/releases/v1"
+                # Real Compose resolves the template and validate checks security,
+                # external resources and stable metrics storage for every subset.
+                model = manage.validate(release)
+                self.assertEqual(set(model["networks"]), {"query", "collectors"} | {env + "_scrape" for env in selected})
+                self.assertEqual(set(model["volumes"]), {"metrics"} | {env + "_backup_state" for env in selected})
+                self.assertEqual(model["volumes"]["metrics"]["name"], "monitor-contract_metrics")
+                for name in ("db", "backup"):
+                    self.assertEqual(set(json.loads((release / name / "config.json").read_text())), set(selected))
+                for name in ("db", "prometheus"):
+                    self.assertEqual({p.name for p in (release / name).glob("*-token")}, {env + "-token" for env in selected})
+                jobs = json.loads((release / "prometheus/prometheus.json").read_text())["scrape_configs"]
+                api_jobs = [job for job in jobs if job["job_name"].startswith("api-")]
+                self.assertEqual({job["job_name"] for job in api_jobs}, {"api-" + env for env in selected})
+                for job in api_jobs:
+                    env = job["static_configs"][0]["labels"]["environment"]
+                    self.assertEqual(job["static_configs"][0]["targets"], [config["environments"][env]["project"] + "-api:9091"])
+                before = {p.relative_to(release): p.read_bytes() for p in release.rglob("*") if p.is_file()}
+                duplicate = subprocess.run(command, capture_output=True, text=True)
+                self.assertNotEqual(duplicate.returncode, 0)
+                self.assertEqual(before, {p.relative_to(release): p.read_bytes() for p in release.rglob("*") if p.is_file()})
+                self.assertEqual((work / "state").stat().st_mode & 0o777, 0o700)
+                self.assertTrue(all(p.stat().st_mode & 0o777 == 0o444 for p in release.rglob("*") if p.is_file()))
+                if selected == ("dev",):
+                    # Accidental prod attachment or a mount of prod state must be
+                    # rejected even if it remains read-only and unpublished.
+                    for extra in ("network", "volume", "mount"):
+                        altered = json.loads(json.dumps(model))
+                        if extra == "network":
+                            altered["networks"]["prod_scrape"] = {"external": True, "name": "acttub-prod_scrape"}
+                        elif extra == "volume":
+                            altered["volumes"]["prod_backup_state"] = {"external": True, "name": "acttub-prod_backup_state"}
+                        else:
+                            altered["services"]["backup-exporter"]["volumes"].append({"type": "volume", "source": "prod_backup_state", "target": "/state/prod", "read_only": True})
+                        with patch.object(manage, "run", return_value=json.dumps(altered)), self.assertRaises(manage.ConfigError):
+                            manage.validate(release)
+
     def test_app_owns_scrape_network_and_missing_monitoring_token_does_not_block_deploy(self):
         with tempfile.TemporaryDirectory() as tmp:
             work = Path(tmp)
