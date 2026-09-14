@@ -47,7 +47,7 @@ services:
       - -log.level=warn
     volumes:
       - ${RELEASE_DIR:?}/pdc:/etc/acttub:ro
-    tmpfs: [/home/pdc/.ssh:uid=30000,gid=30000,mode=0700]
+    tmpfs: ["/home/pdc/.ssh:uid=30000,gid=30000,mode=0700"]
     networks: [query]
     mem_limit: 128m
     cpus: 0.25

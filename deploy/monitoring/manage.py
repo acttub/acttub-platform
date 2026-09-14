@@ -164,6 +164,8 @@ def validate(release: Path) -> dict:
                 "-ssh-key-file=/home/pdc/.ssh/grafana_pdc", "-metrics-addr=127.0.0.1:8090", "-log.level=warn"]
     require(pdc["command"] == expected, "PDC flags must restrict OpenSSH forwarding to prometheus:9090")
     require(pdc["entrypoint"] == ["/bin/sh", "/etc/acttub/pdc-entrypoint.sh"], "unexpected PDC entrypoint")
+    require(pdc.get("tmpfs") == ["/home/pdc/.ssh:uid=30000,gid=30000,mode=0700"],
+            "PDC SSH tmpfs must be /home/pdc/.ssh with uid=30000,gid=30000,mode=0700 as one mount")
     require(set(model["networks"]) == {"query", "collectors"} | scrape_networks, "unexpected network")
     require(set(model["volumes"]) == {"metrics"} | backup_volumes, "unexpected volume")
     backup_mounts = {(v["source"], v["target"]) for v in model["services"]["backup-exporter"]["volumes"]
