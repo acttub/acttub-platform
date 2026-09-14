@@ -65,6 +65,8 @@ const en: DeepStringShape<typeof ko> = {
     statLine: '{{plays}} plays · {{likes}} likes',
     registerCta: 'Can’t find a line? Add one',
     previewNote: 'Preview screen — real challenges are coming soon.',
+    soonTitle: 'Coming soon',
+    soonMessage: 'Challenges are in the works. For now this is just a preview.',
   },
   home: {
     helloName: 'Hi {{name}} 👋',

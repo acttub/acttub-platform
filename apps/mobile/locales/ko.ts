@@ -56,6 +56,8 @@ const ko = {
     statLine: '참여 {{plays}} · 좋아요 {{likes}}',
     registerCta: '찾는 대사가 없나요? 직접 등록하기',
     previewNote: '예시 화면이에요 — 곧 진짜 챌린지가 열려요.',
+    soonTitle: '곧 열려요',
+    soonMessage: '챌린지는 준비 중이에요. 지금은 화면만 미리 보여드려요.',
   },
   home: {
     helloName: '{{name}}님, 안녕하세요 👋',

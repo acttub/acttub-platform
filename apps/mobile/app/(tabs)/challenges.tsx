@@ -1,9 +1,12 @@
 import Feather from '@expo/vector-icons/Feather';
+import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { useAppDialog } from '@/components/app-dialog';
 import { palette } from '@/constants/palette';
+import { logEvent } from '@/lib/analytics';
 import { translate as t } from '@/lib/i18n';
 
 /**
@@ -32,31 +35,54 @@ const RANKING: { line: string; work: string; likes: string }[] = [
 const TABS = ['tabRanking', 'tabLatest', 'tabMine'] as const;
 
 export default function ChallengesScreen() {
+  const router = useRouter();
+  const { alert, dialog } = useAppDialog();
   const [tab, setTab] = useState(0);
+
+  // "이 대사 연기하기" — 챌린지의 실제 행동. 지금은 연습 시작 흐름으로 보낸다(대사 프리필은 서버 붙으면).
+  const performLine = (line: string) => {
+    logEvent('challenge_perform_tap', { line: line.slice(0, 40) });
+    router.push('/upload');
+  };
+  // 아직 백엔드가 없는 버튼들 — 준비 중임을 알린다.
+  const soon = (where: string) => {
+    logEvent('challenge_soon_tap', { where });
+    void alert({
+      title: t('challenges.soonTitle'),
+      message: t('challenges.soonMessage'),
+      confirmLabel: t('common.confirm'),
+    });
+  };
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <View style={styles.header}>
         <Text style={styles.title}>{t('challenges.title')}</Text>
         <View style={styles.headerRight}>
-          <View style={styles.myChip}>
+          <Pressable style={styles.myChip} onPress={() => soon('my')} accessibilityRole="button">
             <Feather name="award" size={13} color={palette.blueDeep} />
             <Text style={styles.myChipText}>{t('challenges.myChallenge')}</Text>
-          </View>
-          <Pressable style={styles.addBtn} accessibilityRole="button">
+          </Pressable>
+          <Pressable style={styles.addBtn} onPress={() => soon('add')} accessibilityRole="button">
             <Feather name="plus" size={20} color={palette.text} />
           </Pressable>
         </View>
       </View>
 
-      <View style={styles.search}>
+      <Pressable style={styles.search} onPress={() => soon('search')} accessibilityRole="button">
         <Feather name="search" size={15} color={palette.textFaint} />
         <Text style={styles.searchPh}>{t('challenges.searchPh')}</Text>
-      </View>
+      </Pressable>
 
       <View style={styles.tabRow}>
         {TABS.map((key, i) => (
-          <Pressable key={key} style={styles.tab} onPress={() => setTab(i)}>
+          <Pressable
+            key={key}
+            style={styles.tab}
+            onPress={() => {
+              setTab(i);
+              logEvent('challenge_tab', { tab: key });
+            }}>
             <Text style={[styles.tabText, tab === i && styles.tabTextOn]}>{t(`challenges.${key}`)}</Text>
             {tab === i && <View style={styles.tabUnderline} />}
           </Pressable>
@@ -85,7 +111,10 @@ export default function ChallengesScreen() {
           <Text style={styles.todayStat}>
             {t('challenges.statLine', { plays: TODAY.plays, likes: TODAY.likes })}
           </Text>
-          <Pressable style={styles.performBtn} accessibilityRole="button">
+          <Pressable
+            style={({ pressed }) => [styles.performBtn, pressed && styles.pressed]}
+            onPress={() => performLine(TODAY.line)}
+            accessibilityRole="button">
             <Feather name="play" size={15} color="#FFFFFF" />
             <Text style={styles.performText}>{t('challenges.performCta')}</Text>
           </Pressable>
@@ -94,7 +123,11 @@ export default function ChallengesScreen() {
         {/* 랭킹 목록 */}
         <View style={styles.list}>
           {RANKING.map((item, i) => (
-            <View key={item.line} style={styles.row}>
+            <Pressable
+              key={item.line}
+              style={({ pressed }) => [styles.row, pressed && styles.pressed]}
+              onPress={() => performLine(item.line)}
+              accessibilityRole="button">
               <Text style={styles.rank}>{i + 1}</Text>
               <View style={styles.rowBody}>
                 <Text style={styles.rowLine} numberOfLines={1}>“{item.line}”</Text>
@@ -104,21 +137,26 @@ export default function ChallengesScreen() {
                 <Feather name="heart" size={13} color={palette.textFaint} />
                 <Text style={styles.likeText}>{item.likes}</Text>
               </View>
-            </View>
+            </Pressable>
           ))}
         </View>
 
-        <Pressable style={styles.registerBtn} accessibilityRole="button">
+        <Pressable
+          style={({ pressed }) => [styles.registerBtn, pressed && styles.pressed]}
+          onPress={() => soon('register')}
+          accessibilityRole="button">
           <Feather name="plus" size={15} color={palette.blue} />
           <Text style={styles.registerText}>{t('challenges.registerCta')}</Text>
         </Pressable>
       </ScrollView>
+      {dialog}
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
+  pressed: { opacity: 0.7 },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
