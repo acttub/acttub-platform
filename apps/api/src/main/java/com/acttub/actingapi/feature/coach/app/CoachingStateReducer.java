@@ -40,13 +40,13 @@ final class CoachingStateReducer {
         String message = response.path("message").asText().strip();
         require(!message.isBlank() && message.codePointCount(0, message.length()) <= maxChars,
                 "message exceeds current length limit");
-        require(message.chars().filter(c -> c == '?' || c == '？').count() <= 1,
+        require(OpeningQuestion.questionCount(message) <= 1,
                 "at most one question");
         require(message.split("[.!?。！？]+(?:\\s|$)").length <= maxSentences,
                 "too many sentences");
         require(!message.contains("```") && !message.contains("source_refs"), "internal output in message");
         require(!finishRequired || "finish".equals(response.path("flow").asText()), "must finish now");
-        require(!finishRequired || (!message.contains("?") && !message.contains("？")), "closing response must not ask a question");
+        require(!finishRequired || OpeningQuestion.questionCount(message) == 0, "closing response must not ask a question");
         Map<String, JsonNode> catalog = catalog(sources);
         catalog.put(coachId, source(coachId, "coach_message", message));
         validateReferences(response, catalog);

@@ -32,7 +32,23 @@ class StructuredCoachEngineTest {
         link.set("user_message_id", input.path("user_message").isNull() ? StructuredJson.MAPPER.nullNode() : input.path("user_message").path("id"));
         if (input.path("user_message").isNull()) link.putNull("actor_quote");
         else link.put("actor_quote", input.path("user_message").path("text").asText());
-        link.putArray("evidence_refs");
+        var refs = link.putArray("evidence_refs");
+        if (input.path("user_message").isNull() && "continue".equals(flow)) {
+            JsonNode selected = null;
+            for (JsonNode source : input.path("record_view").path("source_catalog")) {
+                if (OpeningQuestion.videoSource(source)) {
+                    selected = source;
+                    if ("video_observation".equals(source.path("kind").asText())) break;
+                }
+            }
+            if (selected != null) {
+                refs.add(selected.path("id").asText());
+                ObjectNode context = input.path("coaching_state").path("context").deepCopy();
+                ObjectNode focus = context.putObject("focus").put("label", "가지 마 대사").putNull("utterance_ref");
+                focus.putArray("evidence_refs").add(selected.path("id").asText());
+                output.set("context_update", context);
+            }
+        }
         return output;
     }
     static GeneratedText generated(JsonNode output) { return new GeneratedText(output.toString(), null, "test"); }
@@ -42,7 +58,7 @@ class StructuredCoachEngineTest {
             assertThat(input.path("user_message").isNull()).isTrue();
             assertThat(input.path("recent_messages")).isEmpty();
             assertThat(system).contains("출력 계약의 실제 JSON Schema");
-            return generated(respond(input, "“가지 마”의 말끝부터 함께 살펴볼게요.", "continue"));
+            return generated(respond(input, "“가지 마”를 듣고 상대가 어떻게 하길 바랐어요?", "continue"));
         }).start(session(), UUID.randomUUID());
         assertThat(result.session().turns()).containsExactly(new CoachTurnSnapshot("ai", result.reply().message()));
         assertThat(result.session().stateRevision()).isEqualTo(1);
@@ -61,7 +77,7 @@ class StructuredCoachEngineTest {
             }
             assertThat(input.path("record_view").path("source_catalog").toString()).contains("e4", "길게 이어진다");
             assertThat(input.path("record_view").path("segments")).hasSize(3);
-            return generated(respond(input, "마지막 음절의 소리가 앞선 음절보다 길게 이어져요.", "continue"));
+            return generated(respond(input, "마지막 음절의 소리가 길게 이어져요. 상대가 어떻게 반응하길 바랐어요?", "continue"));
         }).start(session(), UUID.randomUUID());
         assertThat(calls).hasValue(2);
         assertThat(result.session().turns()).hasSize(1);

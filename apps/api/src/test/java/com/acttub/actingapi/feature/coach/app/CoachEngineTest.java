@@ -334,7 +334,7 @@ class CoachEngineTest {
                     pack, blank, blank, blank, source.durationMs(), "그 외", "그 외", blank,
                     List.of(), "", null, "open", "", List.of());
             RecordingGenerator generator = new RecordingGenerator(
-                    "대사 앞의 멈춤부터 살펴볼게요.",
+                    "'가지 마'를 듣고 상대가 어떻게 하길 바랐어요?",
                     "**틀린 형식**", "말을 시작하기 전 멈춤만 줄여 비교해보세요.");
             CoachEngine coach = engine(generator);
 
@@ -349,7 +349,7 @@ class CoachEngineTest {
                     .doesNotContain("1~2번째 응답 안에서", "현재 구간:", "배우가 고른 막히는 지점: 그 외"));
             assertThat(generator.inputs.getFirst()).contains("현재 응답: 1번째");
             assertThat(generator.inputs.getLast()).contains(
-                    "현재 응답: 2번째", "코치: 대사 앞의 멈춤부터 살펴볼게요.", "## 서버 검증 실패");
+                    "현재 응답: 2번째", "코치: '가지 마'를 듣고 상대가 어떻게 하길 바랐어요?", "## 서버 검증 실패");
             assertThat(replied.reply().message()).isEqualTo("말을 시작하기 전 멈춤만 줄여 비교해보세요.");
         }
     }

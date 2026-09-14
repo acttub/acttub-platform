@@ -163,7 +163,8 @@ public final class CoachPrompt {
         String branch = CoachBranch.isBlockageUnspecified(blockageKind)
                 ? VIDEO_FIRST_PROMPT
                 : CoachBranch.isExpressionBlockage(blockageKind) ? COACH_V3_PROMPT : COACH_V2_PROMPT;
-        return branch + "\n\n" + RESPONSE_POLICY;
+        return branch + "\n\n" + RESPONSE_POLICY
+                + (CoachBranch.isBlockageUnspecified(blockageKind) ? "\n\n" + OpeningQuestion.PROMPT : "");
     }
 
     /**
@@ -201,7 +202,10 @@ public final class CoachPrompt {
         }
         if (CoachBranch.isBlockageUnspecified(session.blockageKind())) {
             return section("장면 맥락 미입력", "상황·인물·목표를 입력하지 않았다. 빈 입력은 결함이 아니다. "
-                    + "영상 근거로 점검 지점과 이유부터 설명한다. 대화에서 이미 알려준 맥락은 다시 묻지 않는다.");
+                    + (turnNumber(session) == 1
+                            ? "전체 흐름에서 첫 주제를 고르고, 답에 따라 살펴볼 기준이 달라지는 질문 하나로 시작한다. "
+                            : "배우의 최신 답변과 정정을 반영해 현재 주제를 이어간다. ")
+                    + "대화에서 이미 알려준 맥락은 다시 묻지 않는다.");
         }
         return section("장면 맥락 미입력", SCENE_CONTEXT_MISSING_TEXT);
     }

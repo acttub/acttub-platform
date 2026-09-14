@@ -103,6 +103,32 @@ class DialogueNoteTest {
         assertThat(note.path("practice").isNull()).isTrue();
     }
 
+    @Test void endingBeforeAnsweringTheFirstQuestionKeepsTheFocusButCannotInventANextTake() {
+        ObjectNode early = handoff();
+        early.put("end_reason", "actor_finished");
+        ((ObjectNode) early.path("context")).putNull("direction");
+        early.putArray("conversation").addObject().put("id", "m-close").put("role", "actor").put("text", "정리해줘");
+        JsonNode existingSources = early.path("source_catalog").deepCopy();
+        var earlySources = early.putArray("source_catalog");
+        existingSources.forEach(source -> {
+            if (source.path("kind").asText().startsWith("video_")) earlySources.add(source);
+        });
+        earlySources.addObject().put("id", "m-close").put("kind", "actor_message").put("text", "정리해줘")
+                .putNull("record_id").putNull("record_version").putNull("start_ms").putNull("end_ms");
+        ObjectNode invalid = output();
+        invalid.putArray("summary");
+        var failures = new ArrayList<RuntimeException>();
+        ObjectNode note = PracticeNote.assemble(early, text -> {
+            assertThat(StructuredJson.parse(text).path("controls").path("can_propose").asBoolean()).isFalse();
+            return invalid.toString(); // Even a model that supplies a plausible exercise is rejected.
+        }, failures::add);
+        assertThat(failures).hasSize(2).allSatisfy(failure -> assertThat(failure)
+                .hasMessageContaining("next take requires actor direction"));
+        assertThat(note.path("mode").asText()).isEqualTo("observation");
+        assertThat(note.path("practice").isNull()).isTrue();
+        assertThat(note.path("attempts")).isEmpty();
+    }
+
     @Test void reportEngineRoutesV2HandoffToTheNewPromptAndInput() {
         var engine = new ReportEngine((system, text) -> {
             assertThat(system).contains("여기서 처음 제안해도 된다");
