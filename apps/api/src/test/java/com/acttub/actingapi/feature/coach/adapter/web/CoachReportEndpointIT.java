@@ -112,7 +112,7 @@ class CoachReportEndpointIT {
                 .header("Authorization", bearer(user)).header("X-Request-Id", UUID.randomUUID())
                 .content("{\"practice_session_id\":\"" + practice.id() + "\"}");
         assertError(start, 409, "client_contract_required");
-        generator.enqueue(structuredReply(0, "말끝부터 함께 살펴볼게요.", "continue", null));
+        generator.enqueue(structuredReply(0, "“가지 마”를 듣고 상대가 어떻게 하길 바랐어요?", "continue", null));
         JsonNode started = successful(start.header("X-Acttub-Contract", "three_layers_v1"));
         assertThat(operationCount("attempts", "kind", "coach_start")).isEqualTo(startAttempts + 1);
         assertThat(operationCount("external.calls", "kind", "coach_start", "dependency", "model")).isEqualTo(startCalls + 1);
@@ -136,7 +136,10 @@ class CoachReportEndpointIT {
         JsonNode completed = successful(finish);
         assertThat(completed.path("status").asText()).isEqualTo("complete");
         assertThat(completed.path("report").path("report_type").asText()).isEqualTo("practice_note");
-        assertThat(completed.path("report").path("mode").asText()).isEqualTo("record_only");
+        assertThat(completed.path("report").path("mode").asText()).isEqualTo("observation");
+        assertThat(completed.path("report").path("practice").isNull()).isTrue();
+        assertThat(completed.path("report").path("direction").isNull()).isTrue();
+        assertThat(completed.path("report").path("attempts")).isEmpty();
         assertThat(completed.path("report").has("source_catalog")).isFalse();
         assertThat(successful(finish)).isEqualTo(completed);
         assertThat(generator.callCount()).isEqualTo(3);
@@ -172,9 +175,17 @@ class CoachReportEndpointIT {
                 .put("action", "respond").put("base_state_revision", revision).put("message", text)
                 .putNull("context_update").putNull("style_update").put("flow", flow);
         var link = response.putObject("reply_link").put("move", actorId == null ? "open" : "close");
-        if (actorId == null) link.putNull("user_message_id").putNull("actor_quote");
+        if (actorId == null) {
+            link.putNull("user_message_id").putNull("actor_quote");
+            var context = response.putObject("context_update").putNull("direction").putNull("reading");
+            context.putObject("scene_context").putNull("situation").putNull("character_goal").putNull("partner_action");
+            context.putArray("open_points");
+            var focus = context.putObject("focus").put("label", "가지 마 대사").put("utterance_ref", "u1");
+            focus.putArray("evidence_refs").add("u1");
+        }
         else link.put("user_message_id", actorId).put("actor_quote", "정리해줘");
-        link.putArray("evidence_refs");
+        var refs = link.putArray("evidence_refs");
+        if (actorId == null) refs.add("u1");
         return response.toString();
     }
 

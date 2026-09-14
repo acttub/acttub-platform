@@ -28,7 +28,8 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 /** One visible reply may perform bounded lookups against the immutable text record. */
 final class StructuredCoachEngine {
     private static final String PROMPT = StructuredJson.instructions(
-            StructuredJson.textResource("/coaching/coach-prompt.txt"), "layer2_dialogue_turn");
+            StructuredJson.textResource("/coaching/coach-prompt.txt") + "\n" + OpeningQuestion.PROMPT,
+            "layer2_dialogue_turn");
     private static final int MAX_CALLS = 4;
     private static final int MAX_LOOKUPS = 2;
     private final TextGenerator generate;
@@ -68,6 +69,9 @@ final class StructuredCoachEngine {
         Instant deadline = Instant.now().plusSeconds(100);
         for (int call = 0; call < MAX_CALLS && Instant.now().isBefore(deadline); call++) {
             controls.put("lookup_calls_remaining", call == MAX_CALLS - 1 ? 0 : MAX_LOOKUPS - lookups);
+            controls.put("min_questions", actorText == null && !finish
+                    && java.util.stream.StreamSupport.stream(deliveredSources(input).spliterator(), false)
+                            .anyMatch(OpeningQuestion::videoSource) ? 1 : 0);
             try {
                 JsonNode response = StructuredJson.parse(recorded(session, input, call));
                 StructuredJson.validate("layer2_dialogue_turn", response);
@@ -103,7 +107,8 @@ final class StructuredCoachEngine {
         retained.put("revision", session.stateRevision() + 1).put("response_style", style);
         String message = finish
                 ? "지금까지 이야기한 내용으로 정리할게요."
-                : "지금은 이 구간을 더 확인하기 어려워요.";
+                : actorText == null && controls.path("min_questions").asInt() == 1
+                        ? OpeningQuestion.fallback(false) : "지금은 이 구간을 더 확인하기 어려워요.";
         return result(session, actorText, message, retained, finish ? "system_failure" : null);
     }
 

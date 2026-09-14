@@ -131,6 +131,7 @@ class CoachPromptSnapshotTest {
         assertThat(input).contains("학생들에게 제 경험담이라고 오해받지 않으려는 거예요.",
                         "대화에서 이미 알려준 맥락은 다시 묻지 않는다.", "현재 응답: 3번째")
                 .doesNotContain("1~2번째 응답 안에서", "현재 구간:", "자연스러운 자리에서 한 번은")
+                .doesNotContain("질문 하나로 시작한다")
                 .contains("지난 기록을 이번 장면의 목표·의도로 확정하지 않는다.");
     }
 

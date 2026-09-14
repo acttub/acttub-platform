@@ -50,6 +50,25 @@ final class DialogueState {
                     .contains(source.path("kind").asText()), "reply evidence must be delivered video material");
         }
         String message = response.path("message").asText().strip();
+        if (userMessage.isNull() && !finishRequired) {
+            boolean material = catalog.values().stream().anyMatch(OpeningQuestion::videoSource);
+            require(!material || "continue".equals(response.path("flow").asText()),
+                    "video evidence is available; open with a meaningful question instead of closing");
+            if ("continue".equals(response.path("flow").asText())) {
+                List<String> failures = OpeningQuestion.failures(message);
+                require(failures.isEmpty(), String.join(" ", failures));
+                boolean anchored = false;
+                for (JsonNode id : link.path("evidence_refs")) anchored |= OpeningQuestion.videoSource(catalog.get(id.asText()));
+                require(anchored, "opening question must cite a delivered video observation or utterance");
+                JsonNode focus = response.path("context_update").path("focus");
+                require(focus.isObject(), "save the opening focus so the next answer continues the same subject");
+                boolean shared = false;
+                for (JsonNode id : focus.path("evidence_refs")) {
+                    for (JsonNode replyRef : link.path("evidence_refs")) shared |= id.equals(replyRef);
+                }
+                require(shared, "opening focus must include the evidence used by its question");
+            }
+        }
         require(!message.equals(previousMessage), "do not repeat the previous coach response");
         require(!message.matches("(?s).*(?:해\\s*보(?:세요|고)|해본\\s*뒤|말해\\s*보|찍어\\s*보|촬영해\\s*보|연습해\\s*보|바꿔\\s*보|유지해\\s*보).*"),
                 "practice assignments belong in the final note");
@@ -67,6 +86,7 @@ final class DialogueState {
         for (String word : List.of("망설", "읽힘", "전달의 결", "정서의 흐름", "에너지", "밀도")) {
             require(!unquoted.contains(word), "replace vague interpretation with an observed action");
         }
+        require(!OpeningQuestion.vagueReading(unquoted), "replace vague reading or weight metaphors with a concrete description");
         JsonNode update = response.path("context_update");
         if (!update.isNull()) {
             validateActorQuote(update.path("direction"), catalog);
