@@ -112,7 +112,7 @@ class CoachReportEndpointIT {
                 .header("Authorization", bearer(user)).header("X-Request-Id", UUID.randomUUID())
                 .content("{\"practice_session_id\":\"" + practice.id() + "\"}");
         assertError(start, 409, "client_contract_required");
-        generator.enqueue(structuredReply(0, "말끝부터 함께 살펴볼게요.", "continue"));
+        generator.enqueue(structuredReply(0, "말끝부터 함께 살펴볼게요.", "continue", null));
         JsonNode started = successful(start.header("X-Acttub-Contract", "three_layers_v1"));
         assertThat(operationCount("attempts", "kind", "coach_start")).isEqualTo(startAttempts + 1);
         assertThat(operationCount("external.calls", "kind", "coach_start", "dependency", "model")).isEqualTo(startCalls + 1);
@@ -126,8 +126,8 @@ class CoachReportEndpointIT {
         assertError(reports(user, session, UUID.randomUUID()), 409, "client_contract_required");
         assertError(reports(user, session, UUID.randomUUID()).header("X-Acttub-Contract", "three_layers_v1"),
                 409, "coaching_session_is_open");
-        generator.enqueue(structuredReply(1, "오늘 나눈 내용까지만 남겨둘게요.", "finish"));
-        generator.enqueue("{\"title\":\"오늘 나눈 이야기\",\"summary\":null}");
+        generator.enqueue(structuredReply(1, "오늘 나눈 내용까지만 남겨둘게요.", "finish", "turn:" + session + ":1"));
+        generator.enqueue("{\"summary\":[],\"next_take\":null}");
         UUID requestId = UUID.randomUUID();
         var finish = post("/v2/coach/reply").contentType(MediaType.APPLICATION_JSON)
                 .header("Authorization", bearer(user)).header("X-Request-Id", requestId)
@@ -167,11 +167,15 @@ class CoachReportEndpointIT {
         return meters.get("acttub.external.operations." + event).tags(tags).counter().count();
     }
 
-    private static String structuredReply(long revision, String text, String flow) {
-        return """
-                {"action":"respond","base_state_revision":%d,"message":"%s","context_update":null,
-                 "style_update":null,"flow":"%s","proposal_changes":[],"attempt_changes":[]}
-                """.formatted(revision, text, flow);
+    private static String structuredReply(long revision, String text, String flow, String actorId) {
+        var response = com.acttub.actingapi.integration.llm.StructuredJson.MAPPER.createObjectNode()
+                .put("action", "respond").put("base_state_revision", revision).put("message", text)
+                .putNull("context_update").putNull("style_update").put("flow", flow);
+        var link = response.putObject("reply_link").put("move", actorId == null ? "open" : "close");
+        if (actorId == null) link.putNull("user_message_id").putNull("actor_quote");
+        else link.put("user_message_id", actorId).put("actor_quote", "정리해줘");
+        link.putArray("evidence_refs");
+        return response.toString();
     }
 
     @ParameterizedTest

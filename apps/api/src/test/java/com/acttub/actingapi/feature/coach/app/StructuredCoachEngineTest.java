@@ -28,7 +28,11 @@ class StructuredCoachEngineTest {
         ObjectNode output = StructuredJson.MAPPER.createObjectNode().put("action", "respond")
                 .put("base_state_revision", input.path("coaching_state").path("revision").asLong())
                 .put("message", text).putNull("context_update").putNull("style_update").put("flow", flow);
-        output.putArray("proposal_changes"); output.putArray("attempt_changes");
+        ObjectNode link = output.putObject("reply_link").put("move", input.path("user_message").isNull() ? "open" : "explain");
+        link.set("user_message_id", input.path("user_message").isNull() ? StructuredJson.MAPPER.nullNode() : input.path("user_message").path("id"));
+        if (input.path("user_message").isNull()) link.putNull("actor_quote");
+        else link.put("actor_quote", input.path("user_message").path("text").asText());
+        link.putArray("evidence_refs");
         return output;
     }
     static GeneratedText generated(JsonNode output) { return new GeneratedText(output.toString(), null, "test"); }
@@ -57,7 +61,7 @@ class StructuredCoachEngineTest {
             }
             assertThat(input.path("record_view").path("source_catalog").toString()).contains("e4", "길게 이어진다");
             assertThat(input.path("record_view").path("segments")).hasSize(3);
-            return generated(respond(input, "말끝이 길게 남아 부탁하는 쪽으로 읽힐 수 있어요.", "continue"));
+            return generated(respond(input, "마지막 음절의 소리가 앞선 음절보다 길게 이어져요.", "continue"));
         }).start(session(), UUID.randomUUID());
         assertThat(calls).hasValue(2);
         assertThat(result.session().turns()).hasSize(1);
@@ -74,7 +78,7 @@ class StructuredCoachEngineTest {
         assertThat(result.reply().status()).isEqualTo("complete");
         assertThat(result.session().status()).isEqualTo("closed");
         assertThat(result.reply().message()).doesNotContain("위조");
-        assertThat(result.reply().handoff().path("coaching_state").path("attempts")).isEmpty();
+        assertThat(result.session().coachingState().path("attempts")).isEmpty();
     }
     @Test void brevityPreferenceSurvivesAnUninformativeNextReply() {
         CoachResult result = engine((system, text) -> generated(respond(StructuredJson.parse(text), "말끝 한 곳만 살펴봐요.", "continue")))
@@ -83,7 +87,7 @@ class StructuredCoachEngineTest {
         engine((system, text) -> {
             JsonNode input = StructuredJson.parse(text);
             assertThat(input.path("controls").path("max_message_chars").asInt()).isEqualTo(80);
-            return generated(respond(input, "한 번에 하나만 바꿔봐요.", "continue"));
+            return generated(respond(input, "말끝이 이어지는 구간부터 볼게요.", "continue"));
         }).reply(result.session(), "응", UUID.randomUUID());
     }
     @Test void denseSingleSegmentCanBeReadAcrossBoundedPagesWithoutLosingFacts() {
@@ -137,7 +141,7 @@ class StructuredCoachEngineTest {
         engine((system, text) -> {
             JsonNode input = StructuredJson.parse(text);
             assertThat(input.path("controls").path("finish_required").asBoolean()).isFalse();
-            return generated(respond(input, "붙잡으려는 말로 읽힐 수 있어요.", "continue"));
+            return generated(respond(input, "상대가 떠나지 않기를 바란다는 뜻의 말이에요.", "continue"));
         }).reply(session(), "이 대사 의도를 정리해줘", UUID.randomUUID());
     }
     @Test void lookupRejectsForeignRecordsAndReportsUnavailableData() {
