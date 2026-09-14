@@ -803,6 +803,146 @@ export interface components {
             /** Expression */
             expression: string;
         };
+        /** PracticeNoteAttempt */
+        PracticeNoteAttempt: {
+            /** Attempt Id */
+            attempt_id: string;
+            /** Proposal Id */
+            proposal_id: string;
+            /** Instruction */
+            instruction: string;
+            /**
+             * Execution
+             * @enum {string}
+             */
+            execution: "unknown" | "not_tried" | "reported_tried";
+            result: components["schemas"]["PracticeNoteResult"] | null;
+        };
+        /** PracticeNoteDirection */
+        PracticeNoteDirection: {
+            /** Text */
+            text: string;
+            /**
+             * Origin
+             * @enum {string}
+             */
+            origin: "actor_stated" | "actor_selected" | "coach_proposed";
+        };
+        /** PracticeNoteEvidence */
+        PracticeNoteEvidence: {
+            /** Id */
+            id: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "video_utterance" | "video_observation" | "record_limitation";
+            /** Text */
+            text: string;
+            /** Start Ms */
+            start_ms: number | null;
+            /** End Ms */
+            end_ms: number | null;
+        };
+        /** PracticeNoteFocus */
+        PracticeNoteFocus: {
+            /** Label */
+            label: string;
+            /** Start Ms */
+            start_ms: number | null;
+            /** End Ms */
+            end_ms: number | null;
+            /** Quote */
+            quote: string | null;
+        };
+        /** PracticeNotePractice */
+        PracticeNotePractice: {
+            /** Proposal Id */
+            proposal_id: string;
+            /**
+             * Selection
+             * @enum {string}
+             */
+            selection: "proposed" | "selected";
+            /** Instruction */
+            instruction: string;
+            /** Comparison */
+            comparison: string;
+            /** Keep */
+            keep: string | null;
+        };
+        /** PracticeNoteRecordRef */
+        PracticeNoteRecordRef: {
+            /** Record Id */
+            record_id: string;
+            /** Version */
+            version: number;
+            /** Duration Ms */
+            duration_ms: number;
+        };
+        /** PracticeNoteResult */
+        PracticeNoteResult: {
+            /**
+             * Direction
+             * @enum {string}
+             */
+            direction: "closer" | "further" | "mixed" | "same" | "unclear";
+            /** Statement */
+            statement: string;
+            /**
+             * Basis
+             * @constant
+             */
+            basis: "actor_report";
+        };
+        /** PublicPracticeNote */
+        PublicPracticeNote: {
+            /**
+             * Schema Version
+             * @constant
+             */
+            schema_version: "acttub.public_practice_note.v1";
+            /**
+             * Report Type
+             * @constant
+             */
+            report_type: "practice_note";
+            /** Note Id */
+            note_id: string;
+            /** Revision */
+            revision: number;
+            /** Title */
+            title: string;
+            /** Summary */
+            summary: string | null;
+            /**
+             * Mode
+             * @enum {string}
+             */
+            mode: "action" | "observation" | "record_only";
+            /**
+             * End Reason
+             * @enum {string}
+             */
+            end_reason: "actor_finished" | "turn_budget" | "interrupted" | "system_failure";
+            record_ref: components["schemas"]["PracticeNoteRecordRef"] | null;
+            /**
+             * Lifecycle
+             * @enum {string}
+             */
+            lifecycle: "draft" | "saved";
+            direction: components["schemas"]["PracticeNoteDirection"] | null;
+            focus: components["schemas"]["PracticeNoteFocus"] | null;
+            /** Reading */
+            reading: string | null;
+            practice: components["schemas"]["PracticeNotePractice"] | null;
+            /** Attempts */
+            attempts: components["schemas"]["PracticeNoteAttempt"][];
+            /** Open Points */
+            open_points: string[];
+            /** Evidence */
+            evidence: components["schemas"]["PracticeNoteEvidence"][];
+        };
         /** BlockedReport */
         BlockedReport: {
             /**
@@ -1092,7 +1232,7 @@ export interface components {
             status: "continue" | "complete";
             handoff: components["schemas"]["PublicHandoff"] | null;
             /** Report */
-            report: components["schemas"]["AnalysisReport"] | components["schemas"]["ExpressionReport"] | components["schemas"]["BlockedReport"] | null;
+            report: components["schemas"]["AnalysisReport"] | components["schemas"]["ExpressionReport"] | components["schemas"]["BlockedReport"] | components["schemas"]["PublicPracticeNote"] | null;
             /** Turns */
             turns: components["schemas"]["PublicCoachTurn"][];
         };
@@ -1107,7 +1247,7 @@ export interface components {
              * Branch Kind
              * @enum {string}
              */
-            branch_kind: "analysis" | "expression";
+            branch_kind: "analysis" | "expression" | "coaching";
         };
         /** PublicCoachTurn */
         PublicCoachTurn: {
@@ -1152,7 +1292,7 @@ export interface components {
             confirmed: boolean;
             handoff: components["schemas"]["PublicHandoff"] | null;
             /** Report */
-            report: components["schemas"]["AnalysisReport"] | components["schemas"]["ExpressionReport"] | components["schemas"]["BlockedReport"];
+            report: components["schemas"]["AnalysisReport"] | components["schemas"]["ExpressionReport"] | components["schemas"]["BlockedReport"] | components["schemas"]["PublicPracticeNote"];
         };
         /** RefreshRequest */
         RefreshRequest: {
@@ -1303,7 +1443,7 @@ export interface components {
              * Report Type
              * @enum {string}
              */
-            report_type: "analysis" | "expression";
+            report_type: "analysis" | "expression" | "practice_note";
             /** Title */
             title: string;
             /**
@@ -1325,7 +1465,7 @@ export interface components {
              */
             created_at: string;
             /** Report */
-            report: components["schemas"]["AnalysisReport"] | components["schemas"]["ExpressionReport"];
+            report: components["schemas"]["AnalysisReport"] | components["schemas"]["ExpressionReport"] | components["schemas"]["PublicPracticeNote"];
             /** Playback Url */
             playback_url: string;
         };
@@ -1374,29 +1514,6 @@ export interface components {
             /** Sessions */
             sessions: components["schemas"]["PracticeSessionListItem"][];
         };
-        /** ObservationItem */
-        ObservationItem: {
-            /** Start Ms */
-            start_ms: number;
-            /** End Ms */
-            end_ms: number;
-            /** Label */
-            label: string;
-            /** Confidence */
-            confidence: number;
-        };
-        /** ObservationPackResponse */
-        ObservationPackResponse: {
-            /**
-             * Summary Id
-             * Format: uuid
-             */
-            summary_id: string;
-            /** Observations */
-            observations: components["schemas"]["ObservationItem"][];
-            /** Uncertainties */
-            uncertainties: string[];
-        };
         /** PracticeSessionDetail */
         PracticeSessionDetail: {
             /**
@@ -1436,7 +1553,7 @@ export interface components {
             updated_at: string;
             /** Playback Url */
             playback_url: string;
-            summary?: components["schemas"]["ObservationPackResponse"] | null;
+            summary?: components["schemas"]["ObservationPackResponse"] | components["schemas"]["VideoRecordSummaryResponse"] | null;
             /** Error Code */
             error_code?: ("gemini_timeout" | "gemini_parse_error" | "unsupported_media" | "max_attempts_exceeded") | null;
         };
@@ -1840,6 +1957,77 @@ export interface components {
             /** Token */
             token: string;
         };
+        /** ObservationItem */
+        ObservationItem: {
+            /** Start Ms */
+            start_ms: number;
+            /** End Ms */
+            end_ms: number;
+            /** Label */
+            label: string;
+            /** Confidence */
+            confidence: number;
+        };
+        /** ObservationPackResponse */
+        ObservationPackResponse: {
+            /**
+             * Summary Id
+             * Format: uuid
+             */
+            summary_id: string;
+            /** Observations */
+            observations: components["schemas"]["ObservationItem"][];
+            /** Uncertainties */
+            uncertainties: string[];
+        };
+        /** VideoRecordLimit */
+        VideoRecordLimit: {
+            /** Start Ms */
+            start_ms: number;
+            /** End Ms */
+            end_ms: number;
+            /** Description */
+            description: string;
+        };
+        /** VideoRecordRange */
+        VideoRecordRange: {
+            /** Start Ms */
+            start_ms: number;
+            /** End Ms */
+            end_ms: number;
+        };
+        /** VideoRecordSummaryResponse */
+        VideoRecordSummaryResponse: {
+            /**
+             * Schema Version
+             * @constant
+             */
+            schema_version: "acttub.video_record_summary.v1";
+            /**
+             * Record Id
+             * Format: uuid
+             */
+            record_id: string;
+            /** Record Version */
+            record_version: number;
+            /** Duration Ms */
+            duration_ms: number;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "ready" | "partial";
+            /** Processed Ranges */
+            processed_ranges: components["schemas"]["VideoRecordRange"][];
+            /** Missing Ranges */
+            missing_ranges: components["schemas"]["VideoRecordRange"][];
+            /** Observed Scene */
+            observed_scene: string[];
+            /** Spoken Content */
+            spoken_content: string[];
+            /** Limitations */
+            limitations: components["schemas"]["VideoRecordLimit"][];
+        };
     };
     responses: never;
     parameters: never;
@@ -2018,7 +2206,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["AnalysisReport"] | components["schemas"]["ExpressionReport"] | components["schemas"]["BlockedReport"];
+                    "application/json": components["schemas"]["AnalysisReport"] | components["schemas"]["ExpressionReport"] | components["schemas"]["PublicPracticeNote"] | components["schemas"]["BlockedReport"];
                 };
             };
             /** @description Validation Error */

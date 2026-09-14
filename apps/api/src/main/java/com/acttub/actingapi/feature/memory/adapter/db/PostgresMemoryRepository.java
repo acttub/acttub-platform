@@ -362,7 +362,8 @@ public class PostgresMemoryRepository implements MemoryRepository, CoachMemory {
         if (card == null) {
             return null;
         }
-        String title = card.path("title").asText("");
+        boolean practiceNote = "acttub.practice_note.v1".equals(card.path("schema_version").asText());
+        String title = practiceNote ? card.path("copy").path("title").asText("") : card.path("title").asText("");
         if (title.isBlank()) {
             return null;
         }
@@ -374,6 +375,11 @@ public class PostgresMemoryRepository implements MemoryRepository, CoachMemory {
                     .append(seoul.getDayOfMonth()).append(')');
         }
         line.append(": ").append(title);
+        if (practiceNote && card.path("practice").isObject()) {
+            line.append(" — ").append("selected".equals(card.path("practice").path("selection").asText()) ? "선택한 연습: " : "제안: ")
+                    .append(card.path("practice").path("instruction").path("text").asText());
+            return line.toString();
+        }
         JsonNode nextTake = card.path("next_take");
         if (nextTake.isObject() && nextTake.path("tested").isBoolean()
                 && !nextTake.path("tested").asBoolean()
@@ -426,6 +432,16 @@ public class PostgresMemoryRepository implements MemoryRepository, CoachMemory {
                 reportJson, "PostgresMemoryRepository.pendingTakesParse", operationId);
         if (root == null) {
             return List.of();
+        }
+        if ("acttub.practice_note.v1".equals(root.path("schema_version").asText())) {
+            JsonNode practice = root.path("practice");
+            if (!"selected".equals(practice.path("selection").asText())) return List.of();
+            JsonNode latest = null;
+            for (JsonNode attempt : root.path("attempts")) {
+                if (attempt.path("proposal_id").equals(practice.path("proposal_id"))) latest = attempt;
+            }
+            return latest != null && "not_tried".equals(latest.path("execution").asText())
+                    ? List.of(practice.path("instruction").path("text").asText()) : List.of();
         }
         List<String> takes = new ArrayList<>();
         JsonNode nextTake = root.get("next_take");

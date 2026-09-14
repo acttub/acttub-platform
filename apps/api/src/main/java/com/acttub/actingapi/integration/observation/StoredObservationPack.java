@@ -10,6 +10,12 @@ public final class StoredObservationPack {
     }
 
     public static JsonNode read(JsonNode raw, JsonNode observations, JsonNode uncertainties) {
+        if (raw != null && raw.has("schema_version")) {
+            if (VideoRecord.isRecord(raw)) {
+                return raw;
+            }
+            throw new IllegalStateException("unsupported stored observation version");
+        }
         // 빈 관찰 배열도 새 팩이 내린 결과다. 오래된 분리 값을 합치지 않는다.
         if (raw != null && raw.isObject() && raw.path("observations").isArray()) {
             return raw;

@@ -7,6 +7,7 @@ import com.acttub.actingapi.platform.web.CanonicalJsonResponse;
 import com.acttub.actingapi.feature.report.app.PublicReport.AnalysisReport;
 import com.acttub.actingapi.feature.report.app.PublicReport.BlockedReport;
 import com.acttub.actingapi.feature.report.app.PublicReport.ExpressionReport;
+import com.acttub.actingapi.feature.report.app.PublicReport.PublicPracticeNote;
 import com.acttub.actingapi.feature.report.adapter.web.ReportDtos.ReportDetailResponse;
 import com.acttub.actingapi.feature.report.adapter.web.ReportDtos.ReportHistoryResponse;
 import com.acttub.actingapi.feature.report.adapter.web.ReportDtos.ReportRecord;
@@ -62,7 +63,7 @@ class ReportController {
                         title = "Response 200 Create Report V2 Reports Post",
                         anyOf = {
                             AnalysisReport.class,
-                            ExpressionReport.class,
+                            ExpressionReport.class, PublicPracticeNote.class,
                             BlockedReport.class
                         }))),
         @ApiResponse(
@@ -80,7 +81,7 @@ class ReportController {
             @RequestHeader(name = "X-Request-Id", required = false) String requestIdHeader,
             HttpServletRequest request) {
         var user = auth.consentedUser(request);
-        ReportPayload payload = reports.create(user.id(), req.sessionId(), requestIdHeader);
+        ReportPayload payload = reports.create(user.id(), req.sessionId(), requestIdHeader, request.getHeader("X-Acttub-Contract"));
         return responses.ok(payload.body(), payload.requestId());
     }
 
@@ -96,7 +97,7 @@ class ReportController {
     @GetMapping
     ReportHistoryResponse history(HttpServletRequest request) {
         var user = auth.consentedUser(request);
-        var reportRecords = reports.history(user.id()).stream()
+        var reportRecords = reports.history(user.id(), request.getHeader("X-Acttub-Contract")).stream()
                 .map(summary -> new ReportRecord(
                         summary.practiceSessionId(),
                         summary.reportType(),
@@ -126,7 +127,7 @@ class ReportController {
             @PathVariable("practice_session_id") UUID practiceSessionId,
             HttpServletRequest request) {
         var user = auth.consentedUser(request);
-        PlayableReport playable = reports.detail(user.id(), practiceSessionId);
+        PlayableReport playable = reports.detail(user.id(), practiceSessionId, request.getHeader("X-Acttub-Contract"));
         return new ReportDetailResponse(
                 playable.report().practiceSessionId(),
                 playable.report().createdAt(),

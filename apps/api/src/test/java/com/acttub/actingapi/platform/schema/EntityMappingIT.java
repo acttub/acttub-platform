@@ -109,7 +109,7 @@ class EntityMappingIT {
         long jsonNodes = entities.stream().flatMap(type -> java.util.Arrays.stream(type.getDeclaredFields()))
                 .filter(field -> field.getType().equals(com.fasterxml.jackson.databind.JsonNode.class))
                 .count();
-        assertThat(jsonNodes).isEqualTo(6);
+        assertThat(jsonNodes).isEqualTo(7);
     }
 
     @Test

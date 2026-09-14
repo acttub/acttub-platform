@@ -21,6 +21,8 @@ import com.acttub.actingapi.feature.report.app.PracticeReportLedger;
 import com.acttub.actingapi.feature.report.app.ReportEngine;
 import com.acttub.actingapi.feature.report.app.ReportParseError;
 import com.acttub.actingapi.feature.report.app.ReportService;
+import com.acttub.actingapi.feature.report.app.PracticeNote;
+import com.acttub.actingapi.feature.practice.app.PracticeExperience;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -94,6 +96,10 @@ public class CoachService {
      * 라도 대화를 여는 편이 낫다고 이미 정해져 있다.
      */
     public CoachPayload start(UUID userId, CoachStart command, String requestIdHeader) {
+        return start(userId, command, requestIdHeader, null);
+    }
+
+    public CoachPayload start(UUID userId, CoachStart command, String requestIdHeader, String contract) {
         String status = sessions.getPracticeSessionStatus(userId, command.practiceSessionId());
         if (status == null) {
             throw new ApiException(404, "practice session not found");
@@ -107,6 +113,7 @@ public class CoachService {
             throw new ApiException(404, "practice session not found");
         }
 
+        requireContract(owned.experienceVersion(), contract);
         UUID requestId = operations.requestId(requestIdHeader);
         if (!command.restart()) {
             OwnedCoachSessionContext resumed = sessions.getOldestOpenCoachSession(
@@ -124,7 +131,7 @@ public class CoachService {
                 owned.practiceSessionId(),
                 requestId,
                 "coach_start",
-                operations.fingerprint("coach_start", startPayload(command)));
+                operations.fingerprint("coach_start", versioned(startPayload(command), owned.experienceVersion())));
         if (begun.isReplay()) {
             return new CoachPayload(begun.replayPayload(), requestId);
         }
@@ -143,7 +150,7 @@ public class CoachService {
             CompletedTurn completed = completeTurn(result.session(), result.reply());
             ObjectNode payload = renderer.turn(
                     result.session(), result.reply(), completed.handoffId(),
-                    completed.branch(), completed.report());
+                    completed.branch(), PracticeNote.publicView(completed.report()));
             ledger.completeCoachStartOperation(
                     claim.operationId(),
                     claim.leaseToken(),
@@ -152,14 +159,14 @@ public class CoachService {
                     completed.handoffId(),
                     completed.handoffId() == null ? null : completed.branch(),
                     result.reply().handoff(),
-                    completed.report() != null,
+                    completed.report() != null && !result.session().threeLayers(),
                     completed.report(),
                     command.restart(),
                     operations.now());
             scheduleMemoryUpdate(
                     userId,
                     owned.practiceSessionId(),
-                    completed.report() != null,
+                    completed.report() != null && !result.session().threeLayers(),
                     claim.operationId());
             return new CoachPayload(payload, claim.requestId());
         } catch (LeaseOwnershipException exception) {
@@ -176,12 +183,17 @@ public class CoachService {
 
     /** 대화를 한 턴 잇는다. */
     public CoachPayload reply(UUID userId, ActorMessage command, String requestIdHeader) {
+        return reply(userId, command, requestIdHeader, null);
+    }
+
+    public CoachPayload reply(UUID userId, ActorMessage command, String requestIdHeader, String contract) {
         OwnedCoachSessionContext owned = sessions.getOwnedCoachSession(
                 userId, command.coachSessionId());
         if (owned == null) {
             throw new ApiException(404, "session not found");
         }
-        if (CLOSED.equals(owned.session().status())) {
+        requireContract(owned.session().experienceVersion(), contract);
+        if (!owned.session().threeLayers() && CLOSED.equals(owned.session().status())) {
             throw new ApiException(409, "session is closed");
         }
         UUID requestId = operations.requestId(requestIdHeader);
@@ -190,11 +202,15 @@ public class CoachService {
                 owned.practiceSessionId(),
                 requestId,
                 "coach_reply",
-                operations.fingerprint("coach_reply", replyPayload(command)));
+                operations.fingerprint("coach_reply", versioned(replyPayload(command), owned.session().experienceVersion())));
         if (begun.isReplay()) {
             return new CoachPayload(begun.replayPayload(), requestId);
         }
         SyncOperationClaim claim = begun.claim();
+        if (CLOSED.equals(owned.session().status())) {
+            operations.fail(claim, "session_closed");
+            throw new ApiException(409, "session is closed");
+        }
 
         try {
             // 세션을 저장소에서 다시 조립하면 기억이 빈 채로 온다. 여기서 다시 싣지
@@ -208,7 +224,7 @@ public class CoachService {
             CompletedTurn completed = completeReplyTurn(result.session(), result.reply());
             ObjectNode payload = renderer.turn(
                     result.session(), result.reply(), completed.handoffId(),
-                    completed.branch(), completed.report());
+                    completed.branch(), PracticeNote.publicView(completed.report()));
             ledger.completeCoachReplyOperation(
                     claim.operationId(),
                     claim.leaseToken(),
@@ -217,7 +233,7 @@ public class CoachService {
                     completed.handoffId(),
                     completed.handoffId() == null ? null : completed.branch(),
                     result.reply().handoff(),
-                    completed.report() != null,
+                    completed.report() != null && !result.session().threeLayers(),
                     completed.report(),
                     operations.now());
             // 확인이 대화 안에서 끝나는 흐름에서는 /confirm 이 불리지 않는다. 예약이 그
@@ -225,7 +241,7 @@ public class CoachService {
             scheduleMemoryUpdate(
                     userId,
                     owned.practiceSessionId(),
-                    completed.report() != null,
+                    completed.report() != null && !result.session().threeLayers(),
                     claim.operationId());
             return new CoachPayload(payload, claim.requestId());
         } catch (SessionWriteConflict exception) {
@@ -250,10 +266,18 @@ public class CoachService {
      * 저장하지 않는다 — 그것은 성적표를 만들지 않기로 했다는 표시일 뿐이다.
      */
     public CoachPayload confirm(UUID userId, HandoffDecision command, String requestIdHeader) {
+        return confirm(userId, command, requestIdHeader, null);
+    }
+
+    public CoachPayload confirm(UUID userId, HandoffDecision command, String requestIdHeader, String contract) {
         OwnedCoachSessionContext owned = sessions.getOwnedCoachSession(
                 userId, command.coachSessionId());
         if (owned == null) {
             throw new ApiException(404, "session not found");
+        }
+        requireContract(owned.session().experienceVersion(), contract);
+        if (owned.session().threeLayers()) {
+            throw new ApiException(409, "practice_note_does_not_require_confirmation");
         }
         UUID requestId = operations.requestId(requestIdHeader);
         SyncOperationBegin begun = operations.begin(
@@ -385,18 +409,18 @@ public class CoachService {
      * 않는 이유가 {@link HandoffReadiness} 에 적혀 있다.
      */
     private CompletedTurn completeReplyTurn(CoachSessionSnapshot session, CoachReply reply) {
-        String branch = CoachBranch.of(session.blockageKind());
+        String branch = session.threeLayers() ? "coaching" : CoachBranch.of(session.blockageKind());
         if (!COMPLETE.equals(reply.status()) || reply.handoff() == null) {
             return new CompletedTurn(branch, null, null);
         }
-        if (!HandoffReadiness.hasEnoughAnswers(session.turns())) {
+        if (!session.threeLayers() && !HandoffReadiness.hasEnoughAnswers(session.turns())) {
             return new CompletedTurn(branch, UUID.randomUUID(), reports.blockedReport(branch));
         }
         return completeTurn(session, reply);
     }
 
     private CompletedTurn completeTurn(CoachSessionSnapshot session, CoachReply reply) {
-        String branch = CoachBranch.of(session.blockageKind());
+        String branch = session.threeLayers() ? "coaching" : CoachBranch.of(session.blockageKind());
         if (!COMPLETE.equals(reply.status()) || reply.handoff() == null) {
             return new CompletedTurn(branch, null, null);
         }
@@ -405,7 +429,7 @@ public class CoachService {
                 branch,
                 observationPack(session.observationPack()),
                 reply.handoff(),
-                true,
+                !session.threeLayers(),
                 handoffId.toString(),
                 session.analysisHandoff(),
                 null,
@@ -450,6 +474,17 @@ public class CoachService {
         payload.put("coach_session_id", command.coachSessionId().toString());
         payload.put("confirmed", command.confirmed());
         payload.put("rebuttal_text", command.rebuttalText());
+        return payload;
+    }
+
+    private static void requireContract(String version, String contract) {
+        if (PracticeExperience.THREE_LAYERS.equals(version) && !PracticeExperience.supported(contract)) {
+            throw new ApiException(409, "client_contract_required");
+        }
+    }
+
+    private static Map<String, Object> versioned(Map<String, Object> payload, String version) {
+        if (PracticeExperience.THREE_LAYERS.equals(version)) { payload.put("experience_version", version); }
         return payload;
     }
 

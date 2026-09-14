@@ -74,7 +74,7 @@ class CoachController {
         CoachPayload payload = coach.start(
                 user.id(),
                 new CoachStart(req.practiceSessionId(), req.restart()),
-                requestIdHeader);
+                requestIdHeader, request.getHeader("X-Acttub-Contract"));
         return responses.ok(payload.body(), payload.requestId());
     }
 
@@ -106,7 +106,7 @@ class CoachController {
         CoachPayload payload = coach.reply(
                 user.id(),
                 new ActorMessage(req.sessionId(), req.text()),
-                requestIdHeader);
+                requestIdHeader, request.getHeader("X-Acttub-Contract"));
         return responses.ok(payload.body(), payload.requestId());
     }
 
@@ -138,7 +138,7 @@ class CoachController {
         CoachPayload payload = coach.confirm(
                 user.id(),
                 new HandoffDecision(req.coachSessionId(), req.confirmed(), req.rebuttalText()),
-                requestIdHeader);
+                requestIdHeader, request.getHeader("X-Acttub-Contract"));
         return responses.ok(payload.body(), payload.requestId());
     }
 }

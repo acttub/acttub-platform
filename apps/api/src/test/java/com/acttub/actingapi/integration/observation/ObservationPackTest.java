@@ -29,6 +29,11 @@ class ObservationPackTest {
         assertThat(json.at("/speech/chunks/0/start_ms").asLong()).isEqualTo(1000);
         assertThat(json.at("/speech/chunks/0/end_ms").asLong()).isEqualTo(4000);
         assertThat(json.at("/speech/chunks/0/delta_pct").asInt()).isZero();
-        assertThat(mapper.treeToValue(json, ObservationPack.class)).isEqualTo(pack);
+        // 전체 단어 시각은 새 video_record 전용 내부 재료이며 기존 JSON 계약에는 추가하지 않는다.
+        assertThat(json.path("speech").has("words")).isFalse();
+        var restored = mapper.treeToValue(json, ObservationPack.class);
+        assertThat(restored).usingRecursiveComparison().ignoringFields("speech.words").isEqualTo(pack);
+        assertThat(restored.speech().words()).isEmpty();
+        assertThat(mapper.<com.fasterxml.jackson.databind.JsonNode>valueToTree(restored)).isEqualTo(json);
     }
 }
