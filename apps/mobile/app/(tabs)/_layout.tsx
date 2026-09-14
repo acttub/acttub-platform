@@ -90,16 +90,18 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="community"
+        name="challenges"
         options={{
-          title: t('tabs.community'),
+          title: t('tabs.challenge'),
           tabBarIcon: ({ color, focused }) => (
             <View style={[styles.iconPill, focused && styles.iconPillActive]}>
-              <Feather size={21} name="message-square" color={color} />
+              <Feather size={21} name="award" color={color} />
             </View>
           ),
         }}
       />
+      {/* 게시판은 챌린지 탭에 자리를 내주고 탭바에서 빠졌지만(pen 정합) 라우트는 남긴다. */}
+      <Tabs.Screen name="community" options={{ href: null }} />
       <Tabs.Screen
         name="settings"
         options={{
