@@ -44,26 +44,26 @@ export function reportDisplay(report: SavedPracticeReport): ReportDisplay {
   };
 }
 
-export function practiceNoteSections(note: PublicPracticeNote): { label: string; text: string }[] {
-  const sections: { label: string; text: string }[] = [];
-  const add = (label: string, text: string | null | undefined) => {
-    if (text?.trim()) sections.push({ label, text });
-  };
-  add('이번 대화', note.summary);
-  if (note.direction) add(note.direction.origin === 'coach_proposed' ? '함께 살펴볼 방향' : '내가 바라는 전달', note.direction.text);
-  if (note.focus) add('살펴본 순간', [note.focus.start_ms == null ? '' : `${(note.focus.start_ms / 1000).toFixed(1)}초`, note.focus.quote, note.focus.label].filter(Boolean).join(' · '));
-  add('대화에서 짚은 읽힘', note.reading);
-  if (note.practice) {
-    add(note.practice.selection === 'selected' ? '선택한 다음 연습' : '다음 연습 제안', note.practice.instruction);
-    add('해본 뒤 비교할 것', note.practice.comparison);
-    add('함께 유지할 것', note.practice.keep);
-  }
-  for (const attempt of note.attempts) {
-    add(attempt.execution === 'reported_tried' ? '직접 해봤다고 남긴 연습' : attempt.execution === 'not_tried' ? '아직 해보지 않았다고 남긴 연습' : '실행 여부를 확인하지 않은 연습', attempt.instruction);
-    add('배우가 전한 변화', attempt.result?.statement);
-  }
-  add('확인한 기록', note.evidence.map(item => item.text).join('\n'));
-  add('아직 열어 둔 부분', note.open_points.join('\n'));
-  if (note.mode === 'record_only') add('이번 대화 기록', '오늘 나눈 대화를 남겼어요. 다음에 원하는 장면부터 이어갈 수 있어요.');
-  return sections;
+export type PracticeNoteSection = {
+  kind: 'summary' | 'next' | 'encouragement';
+  label: string;
+  text: string;
+};
+
+export function practiceNoteSections(note: PublicPracticeNote): PracticeNoteSection[] {
+  return [
+    {
+      kind: 'summary', label: '이번 대화 요약',
+      text: note.summary?.trim()
+        || (note.focus ? `${note.focus.label} 부분을 함께 살펴봤어요.` : '이번에는 구체적인 촬영 방향을 정하지 않았어요.'),
+    },
+    {
+      kind: 'next', label: '다음 촬영에서 해볼 것',
+      text: note.practice?.instruction || '이번에는 촬영 아이템을 정하지 않았어요.',
+    },
+    {
+      kind: 'encouragement', label: '',
+      text: '오늘 촬영도 수고했어요.\n다음 촬영도 응원할게요.',
+    },
+  ];
 }

@@ -106,6 +106,8 @@ const nextConfig: NextConfig = {
  *   토큰 없이도 통과해야 한다.
  */
 export default withSentryConfig(nextConfig, {
+  // 빌드 플러그인 자체의 사용 정보 전송은 끈다. 앱의 오류 수집은 런타임 DSN 설정을 따른다.
+  telemetry: false,
   org: process.env.SENTRY_ORG,
   project: process.env.SENTRY_PROJECT,
   authToken: process.env.SENTRY_AUTH_TOKEN,

@@ -12,11 +12,11 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
-/** The server owns the note's substance; generation can only edit its small copy field. */
+/** Preserves stored v1 notes while new dialogue handoffs can generate a grounded next take. */
 public final class PracticeNote {
     public static final String VERSION = "acttub.practice_note.v1";
     private static final String PROMPT = StructuredJson.instructions(
-            StructuredJson.textResource("/coaching/note-prompt.txt")
+            StructuredJson.textResource("/coaching/note-legacy-prompt.txt")
                     + "\nsummary는 note_data에 이미 있는 문장을 원문 그대로 선택한다. 적합한 문장이 없으면 null이다. title은 focus.label의 원문 또는 연속된 발췌이며, focus가 없으면 이번 대화 기록이다.",
             "layer3_copy");
 
@@ -36,6 +36,9 @@ public final class PracticeNote {
      */
     static ObjectNode assemble(JsonNode handoff, Function<String, String> generateCopy,
             Consumer<RuntimeException> onCopyFailure) {
+        if (handoff != null && "acttub.coach_handoff.v2".equals(handoff.path("schema_version").asText())) {
+            return DialogueNote.assemble(handoff, generateCopy, onCopyFailure);
+        }
         require(handoff != null && "acttub.coach_handoff.v1".equals(handoff.path("schema_version").asText()),
                 "versioned handoff required");
         JsonNode state = handoff.path("coaching_state");
@@ -97,6 +100,11 @@ public final class PracticeNote {
     }
 
     static String prompt() { return PROMPT; }
+
+    static String prompt(JsonNode handoff) {
+        return handoff != null && "acttub.coach_handoff.v2".equals(handoff.path("schema_version").asText())
+                ? DialogueNote.PROMPT : PROMPT;
+    }
 
     /** Explicit projection: internal actor messages, state and source catalog never leak into public JSON. */
     public static JsonNode publicView(JsonNode stored) {
