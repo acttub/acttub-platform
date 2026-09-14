@@ -17,9 +17,22 @@ ENV = {key: value for key, value in os.environ.items()
 
 
 def run(argv: list, cwd=None, timeout=180, input=None) -> str:
-    result = subprocess.run(argv, cwd=cwd, env=ENV, text=True, input=input,
-                            stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=timeout)
+    manager = len(argv) >= 4 and argv[:2] == [sys.executable, str(ROOT / "manage.py")]
+    action = argv[-2] if manager and argv[-2] in ("render", "apply", "verify", "capacity", "rollback") else "command"
+    try:
+        result = subprocess.run(argv, cwd=cwd, env=ENV, text=True, input=input,
+                                stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=timeout)
+    except subprocess.TimeoutExpired:
+        if manager:
+            raise RuntimeError("manage.py " + action + " timed out (output withheld)") from None
+        raise
     if result.returncode:
+        if manager:
+            # Only this repository's manager owns this safe-error prefix. Never
+            # forward raw command output, resolved config, paths or auth args.
+            safe = [line for line in result.stderr.splitlines() if line.startswith("monitoring: ")]
+            detail = ": " + "; ".join(safe) if safe else " (output withheld)"
+            raise RuntimeError("manage.py " + action + " failed" + detail)
         # Only fixture credentials exist here, but still avoid dumping resolved config/logs.
         raise RuntimeError("command failed: " + " ".join(str(arg) for arg in argv[:4]) + " (output withheld)")
     return result.stdout
@@ -132,6 +145,9 @@ def main():
         wait_for(lambda: value('count(node_memory_MemAvailable_bytes{environment="shared"} > 0)', 1), "host available-memory metric missing")
         assert query('node_cpu_seconds_total{environment="shared",mode="idle"}'), "host CPU metrics missing"
         assert value('count(node_filesystem_avail_bytes{environment="shared",mountpoint=' + json.dumps(data_mount) + '} > 0)', 1), "data filesystem metric missing"
+        # Each job has its own first scrape. API/exporter readiness does not
+        # imply that Prometheus has scraped itself yet; verify requires it too.
+        wait_for(lambda: value('up{job="prometheus",environment="shared"}', 1), "Prometheus self-scrape was not ready")
         run(manager + ["verify", "v1"])
         print("PASS dev-only apply/verify with no prod secret, network, volume, targets or probes", flush=True)
         for env in cfg["environments"]:
