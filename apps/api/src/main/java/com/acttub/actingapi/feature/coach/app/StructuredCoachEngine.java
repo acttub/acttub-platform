@@ -13,6 +13,7 @@ import com.acttub.actingapi.feature.coach.domain.CoachTurnSnapshot;
 import com.acttub.actingapi.integration.llm.StructuredJson;
 import com.acttub.actingapi.integration.llm.TextGenerator;
 import com.acttub.actingapi.integration.observation.VideoRecord;
+import com.acttub.actingapi.platform.ledger.ExternalOperationExecution;
 import com.acttub.actingapi.platform.observability.FailureContext;
 import com.acttub.actingapi.platform.observability.FailureKind;
 import com.acttub.actingapi.platform.observability.FailureReporter;
@@ -184,6 +185,7 @@ final class StructuredCoachEngine {
         Instant started = Instant.now();
         String text = input.toString();
         try {
+            ExternalOperationExecution.externalCall("model");
             var generated = generate.generate(PROMPT, text);
             telemetry.record(new LlmCall(call == 0 ? LlmStep.COACH_TURN : LlmStep.COACH_REGENERATION,
                     session.practiceSessionId(), session.userId(), generated.model(), PROMPT + "\n" + text,

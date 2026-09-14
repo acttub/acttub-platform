@@ -202,6 +202,10 @@ class PostgresPracticeSessionRepository implements PracticeSessionRepository {
             entityManager.createNativeQuery("""
                     UPDATE external_operations
                     SET status = 'pending',
+                        waiting_since = CURRENT_TIMESTAMP,
+                        execution_started_at = NULL,
+                        monitoring_updated_at = :now,
+                        monitoring_lease_token = NULL,
                         error_code = NULL,
                         response_payload = 'null'::jsonb,
                         updated_at = :now

@@ -15,6 +15,8 @@ import com.acttub.actingapi.feature.analysis.app.AnalysisResult;
 import com.acttub.actingapi.feature.analysis.app.AnalysisStore;
 import com.acttub.actingapi.feature.analysis.schema.SummaryEntity;
 import com.acttub.actingapi.platform.ledger.LeaseOwnershipException;
+import com.acttub.actingapi.platform.ledger.ExternalOperationMonitoring;
+import com.acttub.actingapi.platform.ledger.ExternalOperationExecution;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -29,6 +31,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 @Repository
 public class PostgresAnalysisStore implements AnalysisStore {
     private final EntityManager entityManager;
+    private final ExternalOperationMonitoring monitoring;
     private final ObjectMapper mapper;
     private final AnalysisOperationQueue queue;
     private final TransactionTemplate transaction;
@@ -37,12 +40,18 @@ public class PostgresAnalysisStore implements AnalysisStore {
             EntityManager entityManager,
             ObjectMapper mapper,
             AnalysisOperationQueue queue,
-            PlatformTransactionManager transactionManager) {
+            PlatformTransactionManager transactionManager, ExternalOperationMonitoring monitoring) {
         this.entityManager = entityManager;
+        this.monitoring = monitoring;
         this.mapper = mapper;
         this.queue = queue;
         this.transaction = new TransactionTemplate(transactionManager);
         this.transaction.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+    }
+
+    @Override
+    public ExternalOperationExecution execution(UUID operationId, UUID leaseToken) {
+        return queue.execution(operationId, leaseToken);
     }
 
     @Override
@@ -117,6 +126,16 @@ public class PostgresAnalysisStore implements AnalysisStore {
     @Override
     public void release(UUID operationId, UUID leaseToken, Instant now) {
         queue.release(operationId, leaseToken, now);
+    }
+
+    @Override
+    public boolean fail(UUID operationId, UUID leaseToken, String errorCode, String classification, Instant now) {
+        return queue.fail(operationId, leaseToken, errorCode, classification, now);
+    }
+
+    @Override
+    public void release(UUID operationId, UUID leaseToken, String classification, Instant now) {
+        queue.release(operationId, leaseToken, classification, now);
     }
 
     @Override
@@ -212,26 +231,32 @@ public class PostgresAnalysisStore implements AnalysisStore {
         response.put("session_id", sessionId.toString());
         response.put("status", "analyzed");
         response.put("summary_id", summaryId.toString());
-        int finished = entityManager.createNativeQuery("""
-                UPDATE external_operations
-                SET status = 'succeeded',
-                    response_payload = CAST(:responsePayload AS jsonb),
-                    error_code = NULL,
-                    lease_token = NULL,
-                    lease_expires_at = NULL,
-                    updated_at = :now
-                WHERE id = :operationId
-                  AND status = 'running'
-                  AND lease_token = :leaseToken
-                """)
+        List<Tuple> finished = list(entityManager.createNativeQuery("""
+                WITH finished AS (
+                    UPDATE external_operations
+                    SET status = 'succeeded',
+                        response_payload = CAST(:responsePayload AS jsonb),
+                        error_code = NULL,
+                        lease_token = NULL,
+                        lease_expires_at = NULL,
+                        updated_at = :now
+                    WHERE id = :operationId
+                      AND status = 'running'
+                      AND lease_token = :leaseToken
+                    RETURNING kind, created_at
+                )
+                SELECT kind, created_at FROM finished
+                """, Tuple.class)
                 .setParameter("responsePayload", response.toString())
                 .setParameter("now", now)
                 .setParameter("operationId", operationId)
-                .setParameter("leaseToken", leaseToken)
-                .executeUpdate();
-        if (finished == 0) {
+                .setParameter("leaseToken", leaseToken));
+        if (finished.isEmpty()) {
             throw new LeaseOwnershipException("external operation lease is not owned");
         }
+        monitoring.terminal(new ExternalOperationMonitoring.Terminal(operationId,
+                finished.getFirst().get("kind", String.class), "succeeded", null,
+                finished.getFirst().get("created_at", Instant.class)));
         return summaryId;
     }
 }

@@ -288,6 +288,11 @@ class AnalysisWorkerTest {
     }
 
     private static final class FakeStore implements AnalysisStore {
+        @Override
+        public com.acttub.actingapi.platform.ledger.ExternalOperationExecution execution(UUID operation, UUID token) {
+            return com.acttub.actingapi.platform.ledger.ExternalOperationExecution.unobserved();
+        }
+
         private UUID operationId;
         private final AnalysisContext context;
         private final List<String> transitions = new ArrayList<>();
@@ -319,14 +324,14 @@ class AnalysisWorkerTest {
         }
 
         @Override
-        public boolean fail(UUID operation, UUID token, String code, Instant now) {
+        public boolean fail(UUID operation, UUID token, String code, String classification, Instant now) {
             transitions.add("fail:" + code);
             if (failFailure != null) throw failFailure;
             return true;
         }
 
         @Override
-        public void release(UUID operation, UUID token, Instant now) {
+        public void release(UUID operation, UUID token, String classification, Instant now) {
             transitions.add("release");
             if (releaseFailure != null) throw releaseFailure;
         }

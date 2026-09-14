@@ -244,6 +244,17 @@ JDBC URL·username·password 로 변환한다 — `platform/config/DatabaseUrl` 
 최대 시도 횟수는 3 이다. 구현은 `platform/operation/ExternalOperationClaimer` 와
 `feature/analysis/app/AnalysisWorker`, 실 DB 검증은 `ExternalOperationIT` 다.
 
+모니터링 메타데이터는 이 상태 전이 계약을 바꾸지 않는 nullable 확장이다. 마지막 실패 분류는
+`expected`·`external`·`unexpected`만 저장하며, 기존 행처럼 분류를 알 수 없으면 NULL을 유지한다.
+실패·재큐와 같은 트랜잭션에서 기록하고 재시도 소진까지 보존한다. 미분류를 새로운 도메인 실패
+종류나 Expected Rejection으로 바꾸지 않는다. 이전 앱으로 복구할 때 추가 컬럼을 삭제하지 않는다.
+
+실행 횟수와 종료 사건의 관측은 성공한 상태 전이의 커밋을 기준으로 한다. Lease 상실·중복 완료·
+롤백은 종료 횟수를 늘리지 않고, 도입 전에 끝난 실패를 재시작이나 집계 조회로 소급 통지하지 않는다.
+실패한 External Operation이 나중에 재개되면 새로운 종료 사건이 생길 수 있으므로 고유 접수 건수와
+종료 사건 수를 같은 값으로 취급하지 않는다. 실행·대기 시각을 확인할 수 없는 행에서는 영상 길이나
+기존 `updated_at` 차이로 처리 시간을 만들어내지 않는다.
+
 ### 5-8. 네이티브 SQL 작성 규칙 (실측)
 
 **네이티브 SQL 을 쓰는 모든 곳에 적용된다.**
@@ -406,6 +417,27 @@ POST /v2/consents        POST /v2/uploads/intents
 **개수를 박지 말고 `openapi.json` 에서 확인한다** — 이관 중에 이 집합이 7→5 로 바뀐 적이 있다.
 
 응답 쪽은 반대다 — 응답 컴포넌트는 **전부 닫혀 있다.**
+
+### 6-4. 관리용 모니터링 경로
+
+`MANAGEMENT_SERVER_PORT`의 기본값은 -1(리스너 비활성)이며, 별도 관리 포트를 켰을 때도
+`MONITORING_TOKEN`이 없거나 맞지 않으면 수집을 허용하지 않는다. 관리 토큰은 사용자 인증을
+대체하지 않으며, 일반 API 포트와 웹 프록시를 통해 관리 지표나 DB health를 읽을 수 없다.
+포트 판정에는 요청의 Host·Forwarded 헤더를 신뢰하지 않는다.
+
+관리 리스너는 인증된 `GET /actuator/prometheus`와 `GET /actuator/health/db`만 제공한다.
+기존 `/health`의 응답과 인증 규칙은 유지하고 DB 연결은 별도 관리 health에서 판정한다.
+관리 포트에서 비즈니스 API·OpenAPI·환경변수 조회를 제공하지 않는다.
+
+HTTP 지표의 경로는 라우트 템플릿 등 범위가 정해진 값만 사용한다. 사용자·세션·External Operation
+식별자, 원문 URL, 요청 본문, 토큰은 label로 넣지 않는다. 코치·리포트의 진행 중 HTTP 시간은
+서버가 요청을 처리하기 시작한 때부터 응답 처리가 끝날 때까지이며, DB의 `running` 나이나 모델
+호출 시간과 구분한다. 관리 경로와 장시간 처리 경로는 일반 API 지연 집계에서 제외한다.
+
+오류 건수와 비율은 처음 관측된 라우트·상태 코드의 첫 요청 묶음도 집계해야 한다.
+상태 코드 갈래와 일반/장시간 처리 갈래로 나눈 HTTP 집계 계수를 요청 전에 0으로 준비하고,
+라우트별 응답시간 histogram과 구분한다. 상세 라우트의 첫 표본에만 `increase()`를 적용해
+새 오류가 사라지는 상태를 허용하지 않는다.
 
 ## 7. 보존 규칙 — 되돌리면 안 되는 결정
 

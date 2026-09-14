@@ -14,6 +14,7 @@ import com.acttub.actingapi.integration.observation.ObservationPack;
 import com.acttub.actingapi.integration.observation.SpeechAnalysis;
 import com.acttub.actingapi.integration.observation.SpeechAnalyzer;
 import com.acttub.actingapi.platform.observability.FailureContext;
+import com.acttub.actingapi.platform.ledger.ExternalOperationExecution;
 import com.acttub.actingapi.platform.observability.FailureReporter;
 
 /**
@@ -58,14 +59,22 @@ public final class SummaryAnalyzer implements AnalysisProcessor {
             }
             var actor = new ActorMaterial(context.situation(), context.characterContext(), context.goal(),
                     context.blockageKind(), context.blockageDetail() == null ? "" : context.blockageDetail(), durationMs);
-            var record = videoRecords.analyze(videoPath, actor, context.sessionId(), context.userId(), speech(videoPath, context));
+            ExternalOperationExecution.externalCall("speech");
+            SpeechAnalysis speech = speech(videoPath, context);
+            ExternalOperationExecution.externalCall("observation");
+            var record = videoRecords.analyze(videoPath, actor, context.sessionId(), context.userId(), speech);
             return new AnalysisResult(null, true, durationMs, record);
         }
         Path sendPath = videoPath;
         // close가 음성 작업의 종료까지 기다려 워커가 원본을 먼저 지우지 않게 한다.
         try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
-            var speech = CompletableFuture.supplyAsync(() -> speech(videoPath, context), executor);
+            Runnable observeSpeech = ExternalOperationExecution.observeCall("speech");
+            var speech = CompletableFuture.supplyAsync(() -> {
+                observeSpeech.run();
+                return speech(videoPath, context);
+            }, executor);
             sendPath = compressor.compress(videoPath);
+            ExternalOperationExecution.externalCall("observation");
             ObservationPack observations = observationAnalyzer.analyze(
                     sendPath,
                     context.mimeType(),
