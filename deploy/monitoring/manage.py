@@ -164,6 +164,8 @@ def validate(release: Path) -> dict:
                 "-ssh-key-file=/home/pdc/.ssh/grafana_pdc", "-metrics-addr=127.0.0.1:8090", "-log.level=warn"]
     require(pdc["command"] == expected, "PDC flags must restrict OpenSSH forwarding to prometheus:9090")
     require(pdc["entrypoint"] == ["/bin/sh", "/etc/acttub/pdc-entrypoint.sh"], "unexpected PDC entrypoint")
+    require(pdc.get("tmpfs") == ["/home/pdc/.ssh:uid=30000,gid=30000,mode=0700"],
+            "PDC SSH tmpfs must be /home/pdc/.ssh with uid=30000,gid=30000,mode=0700 as one mount")
     require(set(model["networks"]) == {"query", "collectors"} | scrape_networks, "unexpected network")
     require(set(model["volumes"]) == {"metrics"} | backup_volumes, "unexpected volume")
     backup_mounts = {(v["source"], v["target"]) for v in model["services"]["backup-exporter"]["volumes"]
@@ -312,7 +314,7 @@ def main() -> int:
             print(json.dumps({"version": args.version, "project": model["name"],
                               "images": {k: v["image"] for k, v in model["services"].items()}}, indent=2))
         elif args.command == "capacity":
-            values = query(release, "rate(prometheus_tsdb_head_samples_appended_total[5m])")["result"]
+            values = query(release, "sum(rate(prometheus_tsdb_head_samples_appended_total[5m]))")["result"]
             require(len(values) == 1, "at least five minutes of Prometheus ingestion are needed")
             samples = float(values[0]["value"][1])
             print(json.dumps({"samples_per_second": samples, "estimated_30d_sample_bytes_at_2_bytes_per_sample": samples * 86400 * 30 * 2,

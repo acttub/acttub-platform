@@ -47,7 +47,7 @@ services:
       - -log.level=warn
     volumes:
       - ${RELEASE_DIR:?}/pdc:/etc/acttub:ro
-    tmpfs: [/home/pdc/.ssh:uid=30000,gid=30000,mode=0700]
+    tmpfs: ["/home/pdc/.ssh:uid=30000,gid=30000,mode=0700"]
     networks: [query]
     mem_limit: 128m
     cpus: 0.25
@@ -85,7 +85,9 @@ services:
       - ${RELEASE_DIR:?}/db:/etc/acttub:ro
     networks: [collectors, @SCRAPE_NETWORKS@]
     mem_limit: 64m
-    cpus: 0.25
+    # A fresh Python probe must start and finish within the three-second deadline.
+    # Allow one core for the short startup burst; quarter-core throttling timed it out on the host.
+    cpus: 1.0
 
   backup-exporter:
     <<: *security
