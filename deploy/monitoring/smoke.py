@@ -182,6 +182,13 @@ socket.create_connection(('prometheus',9090),timeout=2).close()
         assert value(historical, 1), "historical metrics lost after Prometheus recreation"
         print("PASS app deploy independence and Prometheus historical persistence", flush=True)
 
+        # The pinned Prometheus exposes separate float/histogram counters.
+        wait_for(lambda: value('count(rate(prometheus_tsdb_head_samples_appended_total[5m]))', 2),
+                 "typed ingestion counters were not ready for capacity estimation")
+        capacity, _ = json.JSONDecoder().raw_decode(run(manager + ["capacity", "v1"]))
+        assert capacity["samples_per_second"] > 0, "capacity estimation lost active ingestion"
+        print("PASS capacity estimation across float and histogram counters", flush=True)
+
         # Add prod only after dev-only collection succeeded. A new immutable
         # release must keep the same metrics volume and earlier dev samples.
         (secrets / "prod-token").write_text("monitoring-smoke-only-prod-token")
