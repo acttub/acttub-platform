@@ -72,6 +72,12 @@ const ko = {
     admissionsTitle: '연기 입시',
     weekdays: ['월', '화', '수', '목', '금', '토', '일'],
     admissionsA11y: '연기 입시 정보 보기',
+    heroTitle: '오늘도,\n조금 더 깊어지는\n나의 연기',
+    heroSub: '연습실에서 찍은 그 자리에서 바로,\n질문으로 다시 보는 진짜 연기!',
+    mascotBubble: '오늘도,\n연습해볼까? 🙂',
+    ctaTitle: '지금 바로 연습하기',
+    ctaSub: '오늘 찍은 영상으로 시작해요!',
+    streakCount: '연속 연습 {{days}}일',
   },
   history: {
     title: '연습 기록',

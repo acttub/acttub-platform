@@ -81,6 +81,12 @@ const en: DeepStringShape<typeof ko> = {
     admissionsTitle: 'Acting school admissions',
     weekdays: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
     admissionsA11y: 'View acting admissions info',
+    heroTitle: 'Today,\ngoing a little deeper\ninto my acting',
+    heroSub: 'Right where you filmed it —\nreal acting, seen again through questions!',
+    mascotBubble: 'Shall we\npractice today? 🙂',
+    ctaTitle: 'Practice now',
+    ctaSub: "Start with today's clip!",
+    streakCount: '{{days}}-day streak',
   },
   history: {
     title: 'Practice history',
