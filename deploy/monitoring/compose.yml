@@ -85,7 +85,9 @@ services:
       - ${RELEASE_DIR:?}/db:/etc/acttub:ro
     networks: [collectors, @SCRAPE_NETWORKS@]
     mem_limit: 64m
-    cpus: 0.25
+    # A fresh Python probe must start and finish within the three-second deadline.
+    # Allow one core for the short startup burst; quarter-core throttling timed it out on the host.
+    cpus: 1.0
 
   backup-exporter:
     <<: *security

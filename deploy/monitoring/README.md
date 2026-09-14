@@ -156,6 +156,8 @@ DB와 백업 exporter의 `up=0`은 수집기 자체 단절이다. DB probe 실�
 `acttub_db_probe_success{environment="dev|prod"}=0`이다. probe는 DNS·본문 읽기까지 포함해 환경당
 3초의 실행 상한을 쓰고(두 환경 합계 약 6초, scrape timeout은 10초),
 리다이렉트·환경변수 HTTP proxy를 사용하지 않으며, 200 응답의 JSON `status=UP`만 성공이다.
+DB 점검 컨테이너는 짧은 프로세스 초기화 동안 CPU 한 개까지 사용할 수 있다. 홈서버에서 CPU를
+0.25개로 제한하면 초기화가 3초 제한을 소모해 정상 DB도 실패로 표시됐으므로 시간 제한과 별도로 여유를 둔다.
 동시에 한 scrape만 처리하고 겹친 요청은 503으로 거부하므로 probe 프로세스가 무제한 늘지 않는다.
 `acttub_db_probe_duration_seconds`는 실제 점검 소요 시간이다.
 
