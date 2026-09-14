@@ -116,6 +116,7 @@ const ko = {
     profile: '프로필',
     nameLabel: '이름',
     namePlaceholder: '실명 또는 활동명',
+    profileEdit: '프로필 편집 (성별·나이·방향 등)',
     changeFailTitle: '변경 실패',
     requiredConsent: '필수 동의',
     agreedTag: '동의됨',
@@ -483,6 +484,8 @@ const ko = {
     goalOptions: ['취미', '공연·오디션', '전문 배우'],
     fail: '이름을 저장하지 못했어요.',
     cta: '시작하기',
+    editTitle: '프로필 편집',
+    editCta: '저장',
   },
   deleteAccount: {
     confirmTitle: '정말 탈퇴할까요?',

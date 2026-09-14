@@ -187,6 +187,14 @@ export default function SettingsScreen() {
             </Pressable>
           </View>
 
+          <Pressable
+            style={styles.memoryRow}
+            onPress={() => router.push({ pathname: '/profile-name', params: { edit: '1' } })}
+            accessibilityRole="button">
+            <Text style={styles.memoryText}>{t('settings.profileEdit')}</Text>
+            <Text style={styles.memoryChevron}>›</Text>
+          </Pressable>
+
           {/* 필수 동의 — 수락된 문서는 열람만, 거절·철회된 문서는 다시 수락할 수 있다. */}
           {required.length > 0 && (
             <>

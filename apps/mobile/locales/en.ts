@@ -125,6 +125,7 @@ const en: DeepStringShape<typeof ko> = {
     profile: 'Profile',
     nameLabel: 'Name',
     namePlaceholder: 'Real or stage name',
+    profileEdit: 'Edit profile (gender, age, focus…)',
     changeFailTitle: 'Update failed',
     requiredConsent: 'Required consents',
     agreedTag: 'Agreed',
@@ -502,6 +503,8 @@ const en: DeepStringShape<typeof ko> = {
     goalOptions: ['Hobby', 'Shows·Auditions', 'Professional actor'],
     fail: 'Couldn’t save your name.',
     cta: 'Start',
+    editTitle: 'Edit profile',
+    editCta: 'Save',
   },
   deleteAccount: {
     confirmTitle: 'Really delete your account?',

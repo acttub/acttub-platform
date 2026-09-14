@@ -1,5 +1,5 @@
-import { Stack } from 'expo-router';
-import { useState, type ReactNode } from 'react';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { useEffect, useState, type ReactNode } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -16,6 +16,7 @@ import { useKeyboardHeight } from '@/hooks/use-keyboard-height';
 import { api } from '@/lib/api';
 import { logEvent } from '@/lib/analytics';
 import { useAuth } from '@/lib/auth';
+import { getUserName, saveUserName } from '@/lib/profile';
 import { translate as t, translateList } from '@/lib/i18n';
 
 type Gender = 'female' | 'male' | 'none';
@@ -29,6 +30,9 @@ type Gender = 'female' | 'male' | 'none';
  */
 export default function ProfileNameScreen() {
   const { completeProfileSetup } = useAuth();
+  const router = useRouter();
+  // 설정에서 열면 편집 모드 — 온보딩 게이트를 진행하지 않고 저장 후 되돌아간다.
+  const isEdit = useLocalSearchParams<{ edit?: string }>().edit === '1';
   const [name, setName] = useState('');
   const [gender, setGender] = useState<Gender | null>(null);
   const [birthYear, setBirthYear] = useState('');
@@ -42,6 +46,26 @@ export default function ProfileNameScreen() {
   const careers = translateList('profileName.careerOptions');
   const goals = translateList('profileName.goalOptions');
 
+  // 편집 모드에서는 저장된 값(이름·성별·나이)을 미리 채운다.
+  useEffect(() => {
+    if (!isEdit) return;
+    let alive = true;
+    void getUserName().then((n) => alive && n && setName(n));
+    void api
+      .actorMemory()
+      .then(({ items }) => {
+        if (!alive) return;
+        for (const it of items) {
+          if (it.field === 'gender') setGender(it.value === '남성' ? 'male' : it.value === '여성' ? 'female' : null);
+          if (it.field === 'age') setBirthYear(it.value.replace(/[^0-9]/g, '').slice(0, 4));
+        }
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [isEdit]);
+
   const toggleMedium = (v: string) =>
     setMediums((prev) => (prev.includes(v) ? prev.filter((m) => m !== v) : [...prev, v]));
 
@@ -49,8 +73,7 @@ export default function ProfileNameScreen() {
     setBusy(true);
     setError(null);
     try {
-      // 저장되는 칸(성별·나이)은 프로필 셋업 전에 먼저 넣는다 — 셋업이 끝나면 화면이 떠난다.
-      // 실패해도 온보딩을 막지 않는다(이름이 정본 게이트).
+      // 저장되는 칸(성별·나이). 실패해도 흐름을 막지 않는다.
       if (gender === 'female' || gender === 'male') {
         await api.saveActorMemory('gender', gender === 'female' ? '여성' : '남성').catch(() => {});
       }
@@ -58,12 +81,18 @@ export default function ProfileNameScreen() {
         await api.saveActorMemory('age', birthYear.trim()).catch(() => {});
       }
       // 아직 저장 못 하는 칸은 계측만 한다(웹의 theory와 같은 상태).
-      logEvent('profile_setup', {
+      logEvent(isEdit ? 'profile_edit' : 'profile_setup', {
         mediums: mediums.join(',') || 'none',
         career: career !== null ? String(career) : 'none',
         goal: goal !== null ? String(goal) : 'none',
       });
-      await completeProfileSetup(name.trim());
+      if (isEdit) {
+        await saveUserName(name.trim());
+        router.back();
+      } else {
+        // 온보딩: completeProfileSetup이 게이트를 진행시키며 화면을 떠난다(마지막에 호출).
+        await completeProfileSetup(name.trim());
+      }
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : t('profileName.fail'));
     } finally {
@@ -72,8 +101,8 @@ export default function ProfileNameScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safe} edges={keyboardHeight > 0 ? ['top'] : ['top', 'bottom']}>
-      <Stack.Screen options={{ headerShown: false }} />
+    <SafeAreaView style={styles.safe} edges={isEdit ? (keyboardHeight > 0 ? [] : ['bottom']) : keyboardHeight > 0 ? ['top'] : ['top', 'bottom']}>
+      <Stack.Screen options={{ headerShown: isEdit, title: t('profileName.editTitle') }} />
       <View style={[styles.flex, { paddingBottom: keyboardHeight }]}>
         <KeyboardAwareScroll
           contentContainerStyle={styles.content}
@@ -89,7 +118,7 @@ export default function ProfileNameScreen() {
             placeholderTextColor={palette.textDim}
             value={name}
             onChangeText={setName}
-            autoFocus
+            autoFocus={!isEdit}
             returnKeyType="next"
           />
 
@@ -170,7 +199,7 @@ export default function ProfileNameScreen() {
           {busy ? (
             <ActivityIndicator color="#FFFFFF" />
           ) : (
-            <Text style={styles.ctaText}>{t('profileName.cta')}</Text>
+            <Text style={styles.ctaText}>{t(isEdit ? 'profileName.editCta' : 'profileName.cta')}</Text>
           )}
         </Pressable>
       </View>
