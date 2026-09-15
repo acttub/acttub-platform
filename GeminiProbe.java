@@ -16,23 +16,7 @@ public class GeminiProbe {
     System.out.println("PROBE_MODEL="+model);
     try(Client c=Client.builder().apiKey(System.getenv("GEMINI_API_KEY")).build()) {
       var delegate=new GoogleGenAiGateway(c);
-      GeminiGateway gateway=new GeminiGateway() {
-        public GeminiFile upload(Path path,String mime) {
-          try(var input=java.nio.file.Files.newInputStream(path)) {
-            var f=c.files.upload(input,java.nio.file.Files.size(path),com.google.genai.types.UploadFileConfig.builder().mimeType(mime).build());
-            return new GeminiFile(f.name().orElseThrow(),f.uri().orElse(null),f.mimeType().orElse(mime),f.state().map(Object::toString).orElse("PROCESSING"));
-          } catch(java.io.IOException e) {throw new java.io.UncheckedIOException(e);}
-        }
-        public GeminiFile get(String n){return delegate.get(n);}
-        public void delete(String n){delegate.delete(n);}
-        public String generate(String m,com.google.genai.types.Content v,com.google.genai.types.GenerateContentConfig q){return delegate.generate(m,v,q);}
-        public com.google.genai.types.GenerateContentResponse generateResponse(String m,com.google.genai.types.Content v,com.google.genai.types.GenerateContentConfig q){if(q.responseSchema().isPresent()) {
-            var schema=com.acttub.actingapi.integration.llm.StructuredJson.parse(q.responseSchema().orElseThrow().toJson());
-            for(var timing:schema.findValues("timing_basis")) ((com.fasterxml.jackson.databind.node.ObjectNode)timing).putArray("enum").add("estimated");
-            q=q.toBuilder().responseSchema(com.google.genai.types.Schema.fromJson(schema.toString())).build();
-          }
-          return delegate.generateResponse(m,v,q);}
-      };
+      GeminiGateway gateway=delegate;
       try {
         new GeminiTranscriber(new com.acttub.actingapi.integration.media.AudioExtractor(),gateway,
           (e,k,x)->error(e),new LlmTelemetry(){public void record(LlmCall c){} public void score(LlmScore s){}}).analyze(Path.of(args[0]),null,null);
