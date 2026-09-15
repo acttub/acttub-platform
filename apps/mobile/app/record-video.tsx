@@ -8,7 +8,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { palette } from '@/constants/palette';
 import { translate as t } from '@/lib/i18n';
-import { MAX_VIDEO_DURATION_MS } from '@/lib/upload-input';
+import { MAX_VIDEO_DURATION_MS, normalizeVideoDurationMs } from '@/lib/upload-input';
 import { setRecordedVideo } from '@/lib/recorded-video';
 
 const MAX_SEC = Math.floor(MAX_VIDEO_DURATION_MS / 1000);
@@ -116,7 +116,8 @@ export default function RecordVideoScreen() {
     finishedRef.current = true;
     setRecordedVideo({
       uri: asset.uri,
-      durationMs: asset.duration != null ? Math.round(asset.duration * 1000) : null,
+      // 픽커의 duration 은 플랫폼마다 초/밀리초가 섞여 온다 — 업로드 화면과 같은 정규화를 쓴다.
+      durationMs: normalizeVideoDurationMs(asset.duration ?? null),
       name: asset.fileName ?? `video-${Date.now()}.mp4`,
     });
     goNext();
