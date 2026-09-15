@@ -44,7 +44,13 @@ jobs:
                   rows=lines[i:i+16] if "analysis failed:" in line else [line]
                   for row in rows:
                       match=re.search(r"(?:[a-zA-Z_$][\w$]*\.)+([A-Za-z_$][\w$]*(?:Exception|Error))(?::|$)",row)
-                      if match: print("EXCEPTION_CLASS="+match.group(1))
+                      if match:
+                          print("EXCEPTION_CLASS="+match.group(1))
+                          message=row[match.end():].strip()
+                          message=re.sub(r"https?://[^\s\"]+", "[URL]", message)
+                          message=re.sub(r"AIza[\w-]+|sk-[\w-]+|Bearer [\w.-]+", "[SECRET]", message)
+                          message=re.sub(r"(?:/tmp/|/svc/|files/)[^\s\"]+", "[FILE]", message)
+                          print("ERROR_DESCRIPTION="+message[:1500])
                       for known in ["no usable video record chunks", "timed out", "timeout", "ffmpeg", "ffprobe", "Cannot run program", "No such file", "analysis failed", "schema", "400", "401", "403", "404", "429", "500", "503", "INVALID_ARGUMENT", "RESOURCE_EXHAUSTED", "PERMISSION_DENIED", "NOT_FOUND", "additionalProperties", "response_schema", "response_json_schema", "Unknown name", "API key", "quota", "mime", "token", "oneOf", "anyOf", "Unsupported", "Invalid"]:
                           if known in row: print("ERROR_MARKER="+known)
           ' "$ids"
