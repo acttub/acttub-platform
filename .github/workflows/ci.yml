@@ -36,13 +36,16 @@ jobs:
           import sys,re
           ids=sys.argv[1].split()
           lines=sys.stdin.readlines()
+          print("LOG_LINES="+str(len(lines)))
+          print("OPERATION_COUNT="+str(len(ids)))
           for i,line in enumerate(lines):
-              if "analysis failed:" in line and any(x in line for x in ids):
-                  print("MATCHED_ANALYSIS_FAILURE")
-                  for row in lines[i+1:i+16]:
+              if any(x in line for x in ids):
+                  print("MATCHED_SESSION_OPERATION")
+                  rows=lines[i:i+16] if "analysis failed:" in line else [line]
+                  for row in rows:
                       match=re.search(r"(?:[a-zA-Z_$][\w$]*\.)+([A-Za-z_$][\w$]*(?:Exception|Error))(?::|$)",row)
                       if match: print("EXCEPTION_CLASS="+match.group(1))
-                      for known in ["no usable video record chunks", "timed out", "timeout", "429", "403", "401", "404", "400", "503", "ffmpeg", "ffprobe", "Cannot run program", "No such file"]:
+                      for known in ["no usable video record chunks", "timed out", "timeout", "ffmpeg", "ffprobe", "Cannot run program", "No such file", "analysis failed", "schema"]:
                           if known in row: print("ERROR_MARKER="+known)
           ' "$ids"
           REMOTE
