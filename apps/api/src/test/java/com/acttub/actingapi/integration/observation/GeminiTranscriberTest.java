@@ -61,6 +61,43 @@ class GeminiTranscriberTest {
     }
 
     @Test
+    void usesMimeTypeReturnedByFileService() throws Exception {
+        var gateway = new StubGateway();
+        gateway.storedMime = "audio/x-wav";
+        var transcriber = new GeminiTranscriber(new AudioExtractor(), gateway,
+                new RecordingFailureReporter(), new RecordingLlmTelemetry());
+        transcriber.transcribe(Files.writeString(temporary.resolve("normalized.wav"), "wav"));
+        assertThat(gateway.contents.parts().orElseThrow().getFirst()
+                .fileData().orElseThrow().mimeType()).contains("audio/x-wav");
+    }
+
+    @Test
+    void readsTextAndWordAnnotationsAcrossSeparateParts() {
+        var response = GenerateContentResponse.fromJson("""
+                {"candidates":[{"content":{"parts":[
+                  {"text":"가지 마"},
+                  {"audioTranscription":{"words":[{"word":"가지","startOffset":"1s","endOffset":"2s"}]}},
+                  {"audioTranscription":{"words":[{"word":"마","startOffset":"2.5s","endOffset":"3s"}]}}
+                ]}}]}
+                """);
+        var result = GeminiTranscriber.parse(response);
+        assertThat(result.transcript()).isEqualTo("가지 마");
+        assertThat(result.words()).hasSize(2);
+        assertThat(result.pauses()).containsExactly(new SpeechAnalysis.Pause(2000, .5, "가지", "마"));
+    }
+
+    @Test
+    void wordOnlyAnnotationsPreserveTranscriptWithoutInventingSpeech() {
+        var response = GenerateContentResponse.fromJson("""
+                {"candidates":[{"content":{"parts":[{"audioTranscription":{"words":[
+                  {"word":"가지","startOffset":"1s","endOffset":"2s"},
+                  {"word":"마","startOffset":"2.5s","endOffset":"3s"}
+                ]}}]}}]}
+                """);
+        assertThat(GeminiTranscriber.parse(response).transcript()).isEqualTo("가지 마");
+    }
+
+    @Test
     void emptySpeechIsValidButTextOnlyOrMissingTranscriptionIsAnExternalFailure() {
         for (String response : List.of("{}", "{\"candidates\":[]}",
                 "{\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"ignored\"}]}}]}",
@@ -166,6 +203,7 @@ class GeminiTranscriberTest {
         String model;
         Path path;
         String mime;
+        String storedMime;
         RuntimeException failure;
         RuntimeException cleanupFailure;
         final List<String> deleted = new ArrayList<>();
@@ -173,7 +211,7 @@ class GeminiTranscriberTest {
         @Override public GeminiFile upload(Path path, String mime) {
             this.path = path;
             this.mime = mime;
-            return new GeminiFile("files/audio", "https://files.test/audio", mime, "ACTIVE");
+            return new GeminiFile("files/audio", "https://files.test/audio", storedMime == null ? mime : storedMime, "ACTIVE");
         }
         @Override public GeminiFile get(String name) { throw new AssertionError("already active"); }
         @Override public String generate(String model, Content contents, GenerateContentConfig config) {

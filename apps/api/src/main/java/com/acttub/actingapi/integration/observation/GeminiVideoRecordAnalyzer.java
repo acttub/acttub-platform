@@ -6,6 +6,8 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Locale;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -56,22 +58,30 @@ final class GeminiVideoRecordAnalyzer implements VideoRecordAnalyzer {
     public ObjectNode analyze(Path video, ActorMaterial actor, UUID practiceSessionId, UUID userId, SpeechAnalysis speech) {
         boolean audio = chunks.hasAudio(video);
         ObjectNode record = VideoRecord.empty(UUID.randomUUID(), actor.durationMs(), audio, actor);
+        List<RuntimeException> rangeFailures = new ArrayList<>();
         // 정상 호출은 청크당 한 번, 파싱 재시도/재분할도 최초 분석의 명시적인 예산 안에서만 한다.
         for (long start = 0; start < actor.durationMs(); start += CHUNK_MS) {
             analyzeRange(video, actor, practiceSessionId, userId, speech, record,
-                    start, Math.min(actor.durationMs(), start + CHUNK_MS), new int[]{6});
+                    start, Math.min(actor.durationMs(), start + CHUNK_MS), new int[]{6}, rangeFailures);
         }
         ObjectNode sampling = ((ArrayNode) record.path("limitations")).addObject()
                 .put("id", "capture:sampling").put("start_ms", 0).put("end_ms", actor.durationMs())
                 .putNull("subject_id").put("kind", "timing")
                 .put("description", "영상 입력은 초당 6프레임 샘플링을 요청했다. 프레임 사이의 미세한 변화와 정확한 시작 시각은 확정할 수 없다.");
         sampling.putArray("dimensions").add("gaze").add("face").add("movement");
-        VideoRecord.finish(record, speech);
+        try {
+            VideoRecord.finish(record, speech);
+        } catch (SummaryParseError failure) {
+            if (!rangeFailures.isEmpty()) {
+                throw new SummaryParseError(failure.getMessage(), rangeFailures.getLast());
+            }
+            throw failure;
+        }
         return record;
     }
 
     private void analyzeRange(Path video, ActorMaterial actor, UUID practiceId, UUID userId, SpeechAnalysis speech,
-            ObjectNode record, long start, long end, int[] remaining) {
+            ObjectNode record, long start, long end, int[] remaining, List<RuntimeException> rangeFailures) {
         if (Thread.currentThread().isInterrupted()) {
             throw new IllegalStateException("video record analysis interrupted");
         }
@@ -158,11 +168,14 @@ final class GeminiVideoRecordAnalyzer implements VideoRecordAnalyzer {
                 }
             }
         }
-        if (last != null) failures.report(last, new FailureContext("GeminiVideoRecordAnalyzer.chunk", practiceId));
+        if (last != null) {
+            rangeFailures.add(last);
+            failures.report(last, new FailureContext("GeminiVideoRecordAnalyzer.chunk", practiceId));
+        }
         if (end - start > MIN_CHUNK_MS && remaining[0] >= 2) {
             long middle = start + (end - start) / 2;
-            analyzeRange(video, actor, practiceId, userId, speech, record, start, middle, remaining);
-            analyzeRange(video, actor, practiceId, userId, speech, record, middle, end, remaining);
+            analyzeRange(video, actor, practiceId, userId, speech, record, start, middle, remaining, rangeFailures);
+            analyzeRange(video, actor, practiceId, userId, speech, record, middle, end, remaining, rangeFailures);
         } else {
             VideoRecord.missing(record, start, end);
         }
@@ -195,8 +208,14 @@ final class GeminiVideoRecordAnalyzer implements VideoRecordAnalyzer {
         if (node.has("items")) result.set("items", geminiSchema(node.path("items"), definitions));
         if (node.has("properties")) {
             ObjectNode properties = result.putObject("properties");
-            node.path("properties").fields().forEachRemaining(entry ->
-                    properties.set(entry.getKey(), geminiSchema(entry.getValue(), definitions)));
+            node.path("properties").fields().forEachRemaining(entry -> {
+                JsonNode property = geminiSchema(entry.getValue(), definitions);
+                // Alignment is assigned by the server from verified word timings, never by the model.
+                if ("timing_basis".equals(entry.getKey())) {
+                    ((ObjectNode) property).putArray("enum").add("estimated");
+                }
+                properties.set(entry.getKey(), property);
+            });
         }
         return result;
     }

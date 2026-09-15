@@ -100,6 +100,17 @@ class CoachServiceTest {
     }
 
     @Test
+    void failedAnalysisCannotStartOrResumeCoaching() {
+        when(sessions.getPracticeSessionStatus(USER_ID, PRACTICE_ID)).thenReturn("failed");
+        assertThatThrownBy(() -> service.start(USER_ID, new CoachStart(PRACTICE_ID, false), null))
+                .isInstanceOf(ApiException.class)
+                .hasMessageContaining("analysis is not settled");
+        verify(coach, never()).start(any(), any());
+        verify(sessions, never()).getOldestOpenCoachSession(any(), any());
+        verify(operations, never()).begin(any(), any(), any(), anyString(), anyString());
+    }
+
+    @Test
     void startResumeReturnsStoredConversationWithoutCallingEitherLlmOrCreatingOperation() {
         CoachSessionSnapshot session = snapshot("open", List.of(
                 new CoachTurnSnapshot("actor", "배우 말"),

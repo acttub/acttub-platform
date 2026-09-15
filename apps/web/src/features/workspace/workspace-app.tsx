@@ -26,6 +26,7 @@ import { logout } from "@/lib/api/v2/auth";
 import { startCoach, replyCoach } from "@/lib/api/v2/coach";
 import { listReports } from "@/lib/api/v2/reports";
 import {
+  reanalyzeSession,
   getPracticeSession,
   listPracticeSessions,
   pollSessionUntilSettled,
@@ -551,6 +552,8 @@ function WorkspaceInner() {
     if (completed) void refreshList();
   }, [refreshList]);
 
+  const restartCoachAfterAnalysisRef = useRef(new Set<string>());
+
   const coordinatorFor = useCallback((practiceSessionId: string) => {
     if (coachCoordinatorRef.current?.sessionId === practiceSessionId) {
       return coachCoordinatorRef.current.coordinator;
@@ -564,8 +567,10 @@ function WorkspaceInner() {
       try {
         const { data: start } = await startCoach({
           practice_session_id: practiceSessionId,
+          restart: restartCoachAfterAnalysisRef.current.has(practiceSessionId),
         });
         if (!isCurrentSession(practiceSessionId)) return;
+        restartCoachAfterAnalysisRef.current.delete(practiceSessionId);
         restoreCoach(start);
         if (countStepOnce(practiceSessionId, "dialogue")) {
           const context = practiceAnalyticsContextRef.current;
@@ -593,13 +598,6 @@ function WorkspaceInner() {
 
   const startConversationAfterAnalysis = useCallback((practiceSessionId: string) => {
     void coordinatorFor(practiceSessionId).update("analyzed").catch(() => {});
-  }, [coordinatorFor]);
-
-  const startConversationWithoutEvidence = useCallback((practiceSessionId: string) => {
-    if (practiceAnalyticsContextRef.current) {
-      practiceAnalyticsContextRef.current.withEvidence = false;
-    }
-    void coordinatorFor(practiceSessionId).startWithoutEvidence().catch(() => {});
   }, [coordinatorFor]);
 
   const trackAnalysis = useCallback((practiceSessionId: string) => {
@@ -649,6 +647,34 @@ function WorkspaceInner() {
       if (analysisControllerRef.current === controller) analysisControllerRef.current = null;
     });
   }, [coordinatorFor, isCurrentSession, refreshList, reportProgress]);
+
+  const [analysisRetrying, setAnalysisRetrying] = useState(false);
+  const analysisRetryRef = useRef(false);
+  const retryAnalysis = async () => {
+    if (!activeId || analysisRetryRef.current) return;
+    const sessionId = activeId;
+    analysisRetryRef.current = true;
+    setAnalysisRetrying(true);
+    setError(null);
+    try {
+      await reanalyzeSession(sessionId);
+      restartCoachAfterAnalysisRef.current.add(sessionId);
+      if (!isCurrentSession(sessionId)) return;
+      coachCoordinatorRef.current = null;
+      reportProgress({ type: "reset" });
+      reportProgress({ type: "duration", videoDurationMs });
+      reportProgress({ type: "analyze", compressed: false });
+      dispatch({ type: "analysisStatusReported", status: "analyzing" });
+      trackAnalysis(sessionId);
+    } catch {
+      if (isCurrentSession(sessionId)) {
+        setError("영상 분석을 다시 요청하지 못했어요. 잠시 후 다시 시도해 주세요.");
+      }
+    } finally {
+      analysisRetryRef.current = false;
+      setAnalysisRetrying(false);
+    }
+  };
 
   const onPickFile = (file: File | null) => {
     // 영상을 고르는 길은 준비 화면에만 열려 있다. 그 밖에서 들어오면 만들어 둔
@@ -1395,10 +1421,8 @@ function WorkspaceInner() {
                   phase="scan"
                   pastDeadline={pastDeadline}
                   failed={body.footer.failed}
-                  starting={coachOpening}
-                  onStartWithoutEvidence={() => {
-                    if (activeId) startConversationWithoutEvidence(activeId);
-                  }}
+                  retrying={analysisRetrying}
+                  onRetry={() => void retryAnalysis()}
                 />
               )}
               <IntroLine />
@@ -1908,8 +1932,8 @@ function ProgressPanel({
   phase,
   pastDeadline,
   failed = false,
-  starting = false,
-  onStartWithoutEvidence,
+  retrying = false,
+  onRetry,
 }: {
   pct: number;
   durationMs: number | null;
@@ -1920,25 +1944,25 @@ function ProgressPanel({
    */
   pastDeadline: boolean;
   failed?: boolean;
-  starting?: boolean;
-  onStartWithoutEvidence?: () => void;
+  retrying?: boolean;
+  onRetry?: () => void;
 }) {
   if (failed) {
     return (
       <div aria-live="polite" className="rounded-[28px] bg-white p-5 shadow-[0_16px_48px_rgba(25,31,40,0.08)] sm:p-6">
         <h2 className="text-lg font-black leading-7 text-[#191f28]">
-          영상을 바탕으로 질문을 준비하지 못했어요
+          영상 분석을 완료하지 못했어요
         </h2>
         <p className="mt-2 text-sm font-semibold leading-6 text-[#4e5968]">
-          원하면 영상 근거 없이 대화를 시작할 수 있어요.
+          영상을 분석해야 대화를 시작할 수 있어요. 다시 분석해 주세요.
         </p>
         <button
           type="button"
-          disabled={starting}
-          onClick={onStartWithoutEvidence}
+          disabled={retrying}
+          onClick={onRetry}
           className="mt-5 min-h-12 rounded-2xl bg-[#2f6bff] px-5 py-3 text-sm font-black text-white transition hover:bg-[#3182f6] disabled:bg-[#b0d2ff]"
         >
-          {starting ? "질문 준비 중…" : "그냥 시작"}
+          {retrying ? "분석 요청 중…" : "영상 다시 분석"}
         </button>
       </div>
     );
