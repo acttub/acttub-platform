@@ -24,6 +24,40 @@ class VideoRecordTest {
         broken.put("interpretation", "배우는 불안하다");
         assertThatThrownBy(() -> VideoRecord.validateChunk(broken, broken.path("chunk_id").asText(), 8000)).hasMessageContaining("layer1_chunk");
     }
+    @Test void rebuildsOnlySegmentIndexesFromOverlappingEvidence() {
+        ObjectNode original = chunk();
+        ObjectNode broken = original.deepCopy();
+        broken.path("segments").forEach(segment -> {
+            for (String key : List.of("utterance_ids", "event_ids", "limitation_ids")) {
+                ((ObjectNode) segment).putArray(key).add("unknown");
+            }
+        });
+        ObjectNode before = broken.deepCopy();
+        ObjectNode repaired = VideoRecord.prepareChunk(broken, broken.path("chunk_id").asText(), 8000);
+        // Includes cross-boundary events and excludes utterances ending/starting at the boundary.
+        assertThat(repaired).isEqualTo(original);
+        assertThat(broken).isEqualTo(before);
+        assertThat(VideoRecord.prepareChunk(repaired, repaired.path("chunk_id").asText(), 8000)).isEqualTo(repaired);
+    }
+    @Test void rebuildingIndexesDoesNotAcceptInvalidEvidenceOrInventMissingCoverage() {
+        for (String failure : List.of("subject", "utterance", "range", "duplicate", "coverage", "limitation")) {
+            ObjectNode broken = chunk();
+            ObjectNode event = (ObjectNode) broken.path("events").get(0);
+            switch (failure) {
+                case "subject" -> event.put("subject_id", "unknown");
+                case "utterance" -> event.putArray("utterance_ids").add("unknown");
+                case "range" -> event.put("end_ms", 9000);
+                case "duplicate" -> event.put("id", "u1");
+                case "coverage" -> ((ObjectNode) broken.path("segments").get(2)).put("end_ms", 7900);
+                case "limitation" -> {
+                    broken.putArray("limitations");
+                    ((ObjectNode) broken.path("segments").get(0).path("channel_status")).put("visual", "unavailable");
+                }
+            }
+            assertThatThrownBy(() -> VideoRecord.prepareChunk(broken, broken.path("chunk_id").asText(), 8000))
+                    .as(failure).isInstanceOf(IllegalArgumentException.class);
+        }
+    }
     @Test void offsetsEverySourceAndPreservesAllObservationsAndWordGaps() {
         ObjectNode record = empty(16000);
         VideoRecord.append(record, chunk().put("chunk_id", "c0"), 0);

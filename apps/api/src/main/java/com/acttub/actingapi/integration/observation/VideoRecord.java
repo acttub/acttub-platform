@@ -36,6 +36,27 @@ public final class VideoRecord {
         return result;
     }
 
+    /** 구간 참조는 관찰의 시간 범위에서 계산하는 색인이다. 관찰 자체는 수정하지 않는다. */
+    public static ObjectNode prepareChunk(JsonNode value, String chunkId, long duration) {
+        StructuredJson.validate("layer1_chunk", value);
+        ObjectNode prepared = value.deepCopy();
+        for (JsonNode segment : prepared.path("segments")) {
+            for (String group : List.of("utterances", "events", "limitations")) {
+                String key = switch (group) {
+                    case "utterances" -> "utterance_ids";
+                    case "events" -> "event_ids";
+                    default -> "limitation_ids";
+                };
+                ArrayNode refs = ((ObjectNode) segment).putArray(key);
+                for (JsonNode item : prepared.path(group)) {
+                    if (overlaps(segment, item)) refs.add(item.path("id").asText());
+                }
+            }
+        }
+        validateChunk(prepared, chunkId, duration);
+        return prepared;
+    }
+
     public static void validateChunk(JsonNode value, String chunkId, long duration) {
         StructuredJson.validate("layer1_chunk", value);
         require(chunkId.equals(value.path("chunk_id").asText()), "wrong chunk ID");
