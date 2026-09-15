@@ -81,7 +81,7 @@ public final class GeminiTranscriber implements SpeechAnalyzer {
                             .build())
                     .build();
             GenerateContentResponse response = recorded(practiceSessionId, userId,
-                    Content.fromParts(Part.fromUri(active.uri(), "audio/wav")), config);
+                    Content.fromParts(Part.fromUri(active.uri(), active.mimeType())), config);
             return parse(response);
         } catch (Exception exception) {
             throw new TranscriptionFailure("audio transcription failed", exception);

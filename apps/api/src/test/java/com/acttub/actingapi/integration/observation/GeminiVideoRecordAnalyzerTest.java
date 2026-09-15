@@ -17,6 +17,18 @@ import org.junit.jupiter.api.io.TempDir;
 
 class GeminiVideoRecordAnalyzerTest {
     @TempDir Path directory;
+    @Test void allFailedChunksPreserveOriginalFailure() {
+        var chunks = org.mockito.Mockito.mock(VideoRecordChunks.class);
+        var original = new IllegalStateException("chunk extraction failed");
+        org.mockito.Mockito.when(chunks.extract(org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.anyLong())).thenThrow(original);
+        var analyzer = new GeminiVideoRecordAnalyzer(org.mockito.Mockito.mock(GeminiGateway.class), chunks,
+                "test-model", new RecordingFailureReporter(), new RecordingLlmTelemetry());
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> analyzer.analyze(directory.resolve("take.mp4"),
+                new ActorMaterial("", "", "", "그 외", "", 4000), UUID.randomUUID(), null, null))
+                .isInstanceOf(SummaryParseError.class).hasCause(original);
+    }
+
     @Test void explicitSamplingAndTimingLimitsSurviveAssemblyAndTemporaryMediaIsRemoved() throws Exception {
         Path chunk = Files.createFile(directory.resolve("chunk.mp4"));
         boolean[] deleted = {false};

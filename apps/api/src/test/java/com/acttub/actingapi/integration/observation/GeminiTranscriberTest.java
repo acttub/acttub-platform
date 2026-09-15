@@ -61,6 +61,17 @@ class GeminiTranscriberTest {
     }
 
     @Test
+    void usesMimeTypeReturnedByFileService() throws Exception {
+        var gateway = new StubGateway();
+        gateway.storedMime = "audio/x-wav";
+        var transcriber = new GeminiTranscriber(new AudioExtractor(), gateway,
+                new RecordingFailureReporter(), new RecordingLlmTelemetry());
+        transcriber.transcribe(Files.writeString(temporary.resolve("normalized.wav"), "wav"));
+        assertThat(gateway.contents.parts().orElseThrow().getFirst()
+                .fileData().orElseThrow().mimeType()).contains("audio/x-wav");
+    }
+
+    @Test
     void emptySpeechIsValidButTextOnlyOrMissingTranscriptionIsAnExternalFailure() {
         for (String response : List.of("{}", "{\"candidates\":[]}",
                 "{\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"ignored\"}]}}]}",
@@ -166,6 +177,7 @@ class GeminiTranscriberTest {
         String model;
         Path path;
         String mime;
+        String storedMime;
         RuntimeException failure;
         RuntimeException cleanupFailure;
         final List<String> deleted = new ArrayList<>();
@@ -173,7 +185,7 @@ class GeminiTranscriberTest {
         @Override public GeminiFile upload(Path path, String mime) {
             this.path = path;
             this.mime = mime;
-            return new GeminiFile("files/audio", "https://files.test/audio", mime, "ACTIVE");
+            return new GeminiFile("files/audio", "https://files.test/audio", storedMime == null ? mime : storedMime, "ACTIVE");
         }
         @Override public GeminiFile get(String name) { throw new AssertionError("already active"); }
         @Override public String generate(String model, Content contents, GenerateContentConfig config) {
