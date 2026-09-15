@@ -1,5 +1,5 @@
 import { CameraView, useCameraPermissions, useMicrophonePermissions } from 'expo-camera';
-import { Stack, useRouter } from 'expo-router';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -22,6 +22,9 @@ const MAX_SEC = Math.floor(MAX_VIDEO_DURATION_MS / 1000);
  */
 export default function RecordVideoScreen() {
   const router = useRouter();
+  // 하단 탭 촬영 버튼에서 오면(next=choose) 찍은 뒤 "챌린지에 올릴지 / AI 분석할지" 고르는 화면으로 간다.
+  // 업로드 화면에서 오면(기본) 종전대로 되돌아가 업로드가 결과를 받는다.
+  const { next } = useLocalSearchParams<{ next?: string }>();
   const cameraRef = useRef<CameraView>(null);
   const [camPerm, requestCam] = useCameraPermissions();
   const [micPerm, requestMic] = useMicrophonePermissions();
@@ -50,9 +53,13 @@ export default function RecordVideoScreen() {
           name: `recording-${Date.now()}.mov`,
         });
       }
+      if (uri && next === 'choose') {
+        router.replace('/record-choice');
+        return;
+      }
       router.back();
     },
-    [elapsed, router],
+    [elapsed, next, router],
   );
 
   const startRecording = useCallback(async () => {

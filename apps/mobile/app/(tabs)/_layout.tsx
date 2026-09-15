@@ -81,7 +81,8 @@ export default function TabLayout() {
                 style={styles.fab}
                 accessibilityRole="button"
                 accessibilityLabel={t('tabs.shootA11y')}
-                onPress={() => router.push('/upload')}>
+                // 촬영 버튼은 바로 카메라로. 찍고 나면 챌린지에 올릴지 / AI 분석할지 고른다.
+                onPress={() => router.push({ pathname: '/record-video', params: { next: 'choose' } })}>
                 <Feather name="video" size={24} color="#FFFFFF" />
               </Pressable>
               <Text style={styles.fabLabel}>{t('tabs.shoot')}</Text>

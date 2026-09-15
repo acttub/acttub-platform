@@ -18,6 +18,15 @@ export const STORY_IMAGE = require('@/assets/images/challenge/story.jpg');
 /** 예시 재생용 짧은 샘플 영상(포스터에서 만든 목업). 서버가 서면 실제 연기 영상으로 교체. */
 export const SAMPLE_VIDEO = require('@/assets/images/challenge/sample.mp4');
 
+/** 연기자별 예시 클립 — PERFORMERS[i].img 와 같은 인덱스. 스와이프 피드에서 한 장씩 튼다. */
+export const CLIPS = [
+  require('@/assets/images/challenge/clip1.mp4'),
+  require('@/assets/images/challenge/clip2.mp4'),
+  require('@/assets/images/challenge/clip3.mp4'),
+  require('@/assets/images/challenge/clip4.mp4'),
+  require('@/assets/images/challenge/clip5.mp4'),
+];
+
 export type Performer = { name: string; likes: string; img: number };
 
 /** 오늘의 대사에 올라온 연기 영상들(좋아요순). img는 PERF_IMAGES 인덱스. */
