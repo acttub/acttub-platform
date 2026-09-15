@@ -26,7 +26,12 @@ public class GeminiProbe {
         public GeminiFile get(String n){return delegate.get(n);}
         public void delete(String n){delegate.delete(n);}
         public String generate(String m,com.google.genai.types.Content v,com.google.genai.types.GenerateContentConfig q){return delegate.generate(m,v,q);}
-        public com.google.genai.types.GenerateContentResponse generateResponse(String m,com.google.genai.types.Content v,com.google.genai.types.GenerateContentConfig q){return delegate.generateResponse(m,v,q);}
+        public com.google.genai.types.GenerateContentResponse generateResponse(String m,com.google.genai.types.Content v,com.google.genai.types.GenerateContentConfig q){if(q.responseSchema().isPresent()) {
+            var schema=com.acttub.actingapi.integration.llm.StructuredJson.parse(q.responseSchema().orElseThrow().toJson());
+            for(var timing:schema.findValues("timing_basis")) ((com.fasterxml.jackson.databind.node.ObjectNode)timing).putArray("enum").add("estimated");
+            q=q.toBuilder().responseSchema(com.google.genai.types.Schema.fromJson(schema.toString())).build();
+          }
+          return delegate.generateResponse(m,v,q);}
       };
       try {
         new GeminiTranscriber(new com.acttub.actingapi.integration.media.AudioExtractor(),gateway,
