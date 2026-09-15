@@ -26,18 +26,18 @@ class OpeningQuestionTest {
         return structured ? session.withCoachingState("three_layers_v1", 0, null, "open", "") : session;
     }
 
-    @Test void firstQuestionRegeneratesMissingQuestionEvidenceFocusAndPrematureFinish() {
-        for (String error : List.of("reported", "no_question", "no_evidence", "no_focus", "finish")) {
+    @Test void openingRegeneratesMissingEvidenceFocusAndPrematureFinish() {
+        for (String error : List.of("reported", "no_evidence", "no_focus", "finish")) {
             AtomicInteger calls = new AtomicInteger();
             var engine = new CoachEngine((system, text) -> {
                 assertThat(system).contains("이 답을 알면 영상의 무엇을 더 정확하게 볼 수 있는가?");
                 var input = StructuredJson.parse(text);
-                assertThat(input.path("controls").path("min_questions").asInt()).isEqualTo(1);
+                assertThat(input.path("controls").path("min_questions").asInt()).isZero();
                 ObjectNode reply = StructuredCoachEngineTest.respond(input, QUESTION, "continue");
                 if (calls.getAndIncrement() == 0) {
                     switch (error) {
                         case "reported" -> reply.put("message", REPORTED);
-                        case "no_question" -> reply.put("message", "'가지 마' 대사부터 살펴볼게요.");
+                        
                         case "no_evidence" -> ((ObjectNode) reply.path("reply_link")).putArray("evidence_refs");
                         case "no_focus" -> reply.putNull("context_update");
                         case "finish" -> reply.put("flow", "finish");
@@ -53,11 +53,28 @@ class OpeningQuestionTest {
         }
     }
 
+    @Test void groundedOpeningWithoutQuestionIsAcceptedWithoutRegeneration() {
+        String explanation = "'가지 마' 전에 멈춘 뒤 말을 시작해요.";
+        for (boolean structured : List.of(true, false)) {
+            AtomicInteger calls = new AtomicInteger();
+            var engine = new CoachEngine((system, text) -> {
+                calls.incrementAndGet();
+                return structured
+                        ? StructuredCoachEngineTest.generated(StructuredCoachEngineTest.respond(StructuredJson.parse(text), explanation, "continue"))
+                        : new GeneratedText(StructuredJson.MAPPER.createObjectNode().put("message", explanation)
+                                .put("status", "continue").putNull("handoff").toString(), null, "test");
+            }, new RecordingFailureReporter(), new RecordingLlmTelemetry());
+            var result = engine.start(session(structured), UUID.randomUUID());
+            assertThat(result.reply().message()).isEqualTo(explanation);
+            assertThat(calls).hasValue(1);
+        }
+    }
+
     @Test void legacyVideoFirstUsesTheSameSelectionPolicyAndRejectsTheReportedOpening() {
         AtomicInteger calls = new AtomicInteger();
         var engine = new CoachEngine((system, text) -> {
             assertThat(system).contains("이 답을 알면 영상의 무엇을 더 정확하게 볼 수 있는가?")
-                    .doesNotContain("첫 응답의 기본값은 질문 없이 도움을 제공하는 것이다");
+                    .contains("첫 응답의 기본값은 질문 없이 도움을 제공하는 것이다");
             var reply = StructuredJson.MAPPER.createObjectNode().put("message", calls.getAndIncrement() == 0 ? REPORTED : QUESTION)
                     .put("status", "continue").putNull("handoff");
             return new GeneratedText(reply.toString(), null, "test");
@@ -67,7 +84,7 @@ class OpeningQuestionTest {
     }
 
     @Test void questionsInsideQuotedDialogueAreNotQuestionsToTheActor() {
-        assertThat(OpeningQuestion.failures("'왜?' 뒤에 잠깐 멈춰요.")).isNotEmpty();
+        assertThat(OpeningQuestion.failures("'왜?' 뒤에 잠깐 멈춰요.")).isEmpty();
         assertThat(OpeningQuestion.failures("'왜?'를 듣고 상대가 어떻게 반응하길 바랐어요?")).isEmpty();
         assertThat(OpeningQuestion.failures("상대는 누구예요? 어떻게 반응하길 바랐어요?")).isNotEmpty();
         assertThat(OpeningQuestion.failures("말의 무게를 받아들이는 것처럼 읽혀요. 그런 의도였어요?")).isNotEmpty();
@@ -92,8 +109,8 @@ class OpeningQuestionTest {
                     : new GeneratedText(REPORTED, null, "test"),
                     new RecordingFailureReporter(), new RecordingLlmTelemetry());
             var result = engine.start(session(structured), UUID.randomUUID());
-            assertThat(result.reply().message()).contains("첫 질문을 준비하지 못했어요").doesNotContain("말의 무게", "읽혀요");
-            assertThat(OpeningQuestion.questionCount(result.reply().message())).isEqualTo(1);
+            assertThat(result.reply().message()).contains("영상에 근거한 설명을 준비하지 못했어요").doesNotContain("말의 무게", "읽혀요");
+            assertThat(OpeningQuestion.questionCount(result.reply().message())).isZero();
         }
     }
 }
