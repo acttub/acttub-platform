@@ -393,29 +393,20 @@ test("analyzed가 되면 대화로 전환하고 coach start를 한 번만 보낸
   assert.match(workspace, /restartAfterBlocked[\s\S]*restart: true/);
 });
 
-test("failed면 같은 진행 자리에 그냥 시작 버튼을 보이고 근거 없이 시작한다", async () => {
+test("분석 실패는 대화를 막고 분석 재시도만 제공한다", async () => {
   let starts = 0;
-  const coordinator = createCoachStartCoordinator(async () => {
-    starts += 1;
-  });
-
+  const coordinator = createCoachStartCoordinator(async () => { starts += 1; });
   assert.equal(await coordinator.update("failed"), "failed");
+  assert.equal(await coordinator.update("analyzing"), "waiting");
   assert.equal(starts, 0);
-  assert.equal(await coordinator.startWithoutEvidence(), "started");
+  assert.equal(coordinator.startWithoutEvidence, undefined);
+  assert.equal(await coordinator.update("analyzed"), "started");
   assert.equal(starts, 1);
-
   const workspace = readWeb("src/features/workspace/workspace-app.tsx");
-  const panelStart = workspace.indexOf("function ProgressPanel");
-  const panelEnd = workspace.indexOf("function IntroLine", panelStart);
-  const panel = workspace.slice(panelStart, panelEnd);
-  assert.match(panel, /영상을 바탕으로 질문을 준비하지 못했어요/);
-  assert.match(panel, /영상 근거 없이 대화를 시작할 수 있어요/);
-  assert.match(panel, /onClick=\{onStartWithoutEvidence\}/);
-  assert.match(panel, /starting \? "질문 준비 중…" : "그냥 시작"/);
-  assert.match(
-    workspace,
-    /failed=\{body\.footer\.failed\}[\s\S]*startConversationWithoutEvidence\(activeId\)/,
-  );
+  assert.doesNotMatch(workspace, /startConversationWithoutEvidence|그냥 시작/);
+  assert.match(workspace, /onClick=\{onRetry\}/);
+  assert.match(workspace, /await reanalyzeSession\(sessionId\)/);
+  assert.match(workspace, /영상 다시 분석/);
 });
 
 test("시작 버튼이 먼저 서고, 선택 입력은 그 아래 안내 문장과 함께 선다", () => {

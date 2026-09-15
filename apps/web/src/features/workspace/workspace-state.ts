@@ -263,7 +263,7 @@ export function workspaceScreenReducer(
       return prepScreen(screen, pickedVideo(screen), carriedContinueFrom(screen));
     case "sessionCreated":
       // 막 만든 세션도 곧바로 실패로 올 수 있다. 그때도 대화로 가지 않는다 —
-      // 근거 없이 시작할지는 배우가 그 자리에서 고른다.
+      // 실패하면 같은 자리에서 분석을 다시 요청한다.
       // 이어받을 연습은 이 요청에 이미 실려 갔으므로 여기서 할 일을 마친다.
       return analysisScreen(
         screen,
@@ -272,7 +272,7 @@ export function workspaceScreenReducer(
       );
     case "analysisStatusReported":
       // 훑어보기 자리를 떠난 뒤에 도착한 상태는 화면을 되돌리지 않는다 —
-      // 근거 없이 대화를 시작한 사람을 폴링이 진행 자리로 끌어오면 안 된다.
+      // 이미 대화로 넘어간 사람을 늦은 폴링이 진행 자리로 끌어오면 안 된다.
       if (screen.kind !== "analyzing" && screen.kind !== "analysisFailed") return screen;
       return analysisScreen(
         screen,

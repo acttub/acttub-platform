@@ -48,7 +48,6 @@ public class CoachService {
     private static final Logger LOG = LoggerFactory.getLogger(CoachService.class);
 
     private static final String ANALYZED = "analyzed";
-    private static final String FAILED = "failed";
     private static final String CLOSED = "closed";
     private static final String COMPLETE = "complete";
 
@@ -93,8 +92,7 @@ public class CoachService {
      * 대화를 연다.
      *
      * <p>분석이 아직 끝나지 않은 연습에는 열지 않는다 — 코치가 볼 관찰이 없는 상태에서 시작하면
-     * 배우가 이미 아는 것을 처음부터 다시 말하게 된다. 실패한 분석은 예외인데, 그때는 관찰 없이
-     * 라도 대화를 여는 편이 낫다고 이미 정해져 있다.
+     * 배우가 이미 아는 것을 처음부터 다시 말하게 된다. 실패한 분석은 재시도한 뒤 시작한다.
      */
     public CoachPayload start(UUID userId, CoachStart command, String requestIdHeader) {
         return start(userId, command, requestIdHeader, null);
@@ -105,7 +103,7 @@ public class CoachService {
         if (status == null) {
             throw new ApiException(404, "practice session not found");
         }
-        if (!ANALYZED.equals(status) && !FAILED.equals(status)) {
+        if (!ANALYZED.equals(status)) {
             throw new ApiException(409, "practice session analysis is not settled");
         }
         OwnedPracticeSessionContext owned = sessions.getOwnedPracticeSessionContext(
