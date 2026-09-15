@@ -1,15 +1,15 @@
-name: Read dev analysis failure
+name: Encrypted dev record read
 on:
   workflow_dispatch:
     inputs:
       session:
-        description: Practice session UUID
-        required: true
+        description: Session UUID; empty runs synthetic connectivity check
+        required: false
         type: string
 permissions:
   contents: read
 jobs:
-  diagnose:
+  read:
     runs-on: ubuntu-latest
     environment: dev
     timeout-minutes: 5
@@ -20,33 +20,69 @@ jobs:
           oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
           tags: tag:ci
           ping: insung-server
-      - name: Read failure metadata only
+      - name: Encrypt database result on server before transfer
         env:
           SESSION: ${{ inputs.session }}
         run: |
           set -euo pipefail
-          [[ "$SESSION" =~ ^[0-9a-f-]{36}$ ]]
-          ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new deploy@insung-server "bash -s -- '$SESSION'" <<'REMOTE'
+          umask 077
+          [[ -z "$SESSION" || "$SESSION" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]]
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new deploy@insung-server "bash -s -- '$SESSION'" > record.cms <<'REMOTE'
           set -euo pipefail
+          umask 077
+          tmp=$(mktemp -d)
+          trap 'rm -rf "$tmp"' EXIT
+          cat > "$tmp/recipient.pem" <<'CERT'
+          -----BEGIN CERTIFICATE-----
+          MIIEHTCCAoWgAwIBAgIUCUIwIWzhhGG/SgV84ofmTZ/kq0cwDQYJKoZIhvcNAQEL
+          BQAwHjEcMBoGA1UEAwwTYWN0dHViLWxvY2FsLXJlYWRlcjAeFw0yNjA5MTUwODU0
+          MzNaFw0yNzA5MTUwODU0MzNaMB4xHDAaBgNVBAMME2FjdHR1Yi1sb2NhbC1yZWFk
+          ZXIwggGiMA0GCSqGSIb3DQEBAQUAA4IBjwAwggGKAoIBgQDyK0S5JqifyIFQ+Y5i
+          PE4eDohMBWUnUVCCvwwkW0SnfBP+uNs1i/a03NOL3lMSqUURcJh74sZkeK96ygFg
+          SYsw5EcymFx1aBdctK7Q4KPpKXcUNjFp6yXlvdXZHY9gs833dJ7IUt0nPKjtcIQ3
+          tSNSZYb8yy1Gs92C9D4OHZq21/gr4KZwa8O9c/vjg8fRtNJQK+fqMkuxnxBDMPG4
+          igrbKg6ZkW5sDFuP9MXNlXZYaW7uxRQVLGhxQBgomEwDOrjIgY7ySuTRvJIEIF6L
+          v1jDYDN2g9MW7LLCYvGrAFMfjkvPpJHgp5xvxcr4VDjn23tkUT61J1518idTC+i9
+          FqsZDB7w+ME4r2WNZvzBBJumLzdrhIEM8dh16N4fM8MQvRUhf++0Bm5VLhCJnjH2
+          R/+6HRgEkQV5CTgkIvgSCq9fPHT1SGPpK1WuNrRDslOSpbz0MoBQuHVefBRfd8Jq
+          4YsVVWhEIdQRPXwGmAb57fhrzMoNanPpeaYNnA8ylfoogWMCAwEAAaNTMFEwHQYD
+          VR0OBBYEFHNk/eWC46BTq6s36u25qX7UryIfMB8GA1UdIwQYMBaAFHNk/eWC46BT
+          q6s36u25qX7UryIfMA8GA1UdEwEB/wQFMAMBAf8wDQYJKoZIhvcNAQELBQADggGB
+          AJoM6+7zlg3QEOq6YIGutabtybDRoNGN4tT62jrMPS/kJYt1YGCP8Z2t54HTnHBY
+          Xl1NlzvRFgqKqxTboneOeC/oODZHtbOSPyvF+uzw9ZdnrArWCWeAowldbw8QL5k5
+          v3lK8XJSRFTEHRUwl43FeJToRBJhStBFtczTSmuDYDc7Zd3BJQyjNRcs88buq9Hr
+          SzwOFzmhXD6PI7Lf/wIgjcZMVaV10WkH8UJYqueYME6FI536euRmJBf5xRZl1JLj
+          38n0ju61FcxvGXEk+C7gzMQRyY3/7KDsgrrtSB1GOqmpCOT1+jeA7pwI1Dcb0hmi
+          aymKble7OrFTsECC2i2nC1vg59Snw1c8QwjnoMdpEgfOeY3aXcqpeN30pW5yYCPc
+          Lm36abpnTWRfcTxOgcc6IyUYfa3b3fU5+hUrD7DmljHHtujp7vLIYfvr8NO1Xsmx
+          RlC4ehbypZ9tcPSCF/U4D9b9XT6H7h3BOBFUQiIHwohOwfiJ4vfJZ+g+wEIYyHyJ
+          rQ==
+          -----END CERTIFICATE-----
+          CERT
           cd /svc/acttub/dev
           compose() { docker compose --env-file .env --env-file release.env "$@"; }
-          compose exec -T db psql -U acttub -d acttub -Atc "SELECT kind,status,attempt_count,error_code,last_failure_classification,created_at,updated_at FROM external_operations WHERE session_id='$1' ORDER BY created_at;" </dev/null
-          ids=$(compose exec -T db psql -U acttub -d acttub -Atc "SELECT id FROM external_operations WHERE session_id='$1' AND kind='analyze';" </dev/null)
-          compose logs --no-color --since 2h api 2>&1 | python3 -c '
-          import sys,re
-          ids=sys.argv[1].split()
-          lines=sys.stdin.readlines()
-          print("LOG_LINES="+str(len(lines)))
-          print("OPERATION_COUNT="+str(len(ids)))
-          for i,line in enumerate(lines):
-              if any(x in line for x in ids):
-                  print("MATCHED_SESSION_OPERATION")
-                  rows=lines[i:i+90] if "analysis failed:" in line else [line]
-                  for row in rows:
-                      match=re.search(r"(?:[a-zA-Z_$][\w$]*\.)+([A-Za-z_$][\w$]*(?:Exception|Error))(?::|$)",row)
-                      if match:
-                          print("EXCEPTION_CLASS="+match.group(1))
-                      for known in ["wrong chunk ID", "duplicate chunk ID", "incomplete chunk coverage", "incorrect segment references", "missing channel limitation", "missing final interval", "unknown subject", "unknown utterance", "unverified aligned timing", "wrong visual channel", "wrong audio channel", "incomplete assembled record", "missing assembled tail", "invalid interval", "no usable video record chunks", "timed out", "timeout", "ffmpeg", "ffprobe", "Cannot run program", "No such file", "analysis failed", "schema", "400", "401", "403", "404", "429", "500", "503", "INVALID_ARGUMENT", "RESOURCE_EXHAUSTED", "PERMISSION_DENIED", "NOT_FOUND", "additionalProperties", "response_schema", "response_json_schema", "Unknown name", "API key", "quota", "mime", "token", "oneOf", "anyOf", "Unsupported", "Invalid"]:
-                          if known in row: print("ERROR_MARKER="+known)
-          ' "$ids"
+          if [[ -z "$1" ]]; then
+            query="SELECT jsonb_build_object('probe','acttub-encrypted-read-ok','source','dev-postgresql');"
+          else
+            query="SELECT jsonb_build_object(
+              'practice_sessions',(SELECT coalesce(jsonb_agg(to_jsonb(t)), '[]'::jsonb) FROM practice_sessions t WHERE id='$1'),
+              'summaries',(SELECT coalesce(jsonb_agg(to_jsonb(t)), '[]'::jsonb) FROM summaries t WHERE session_id='$1'),
+              'coach_sessions',(SELECT coalesce(jsonb_agg(to_jsonb(t)), '[]'::jsonb) FROM coach_sessions t WHERE to_jsonb(t)->>'practice_session_id'='$1' OR summary_id IN (SELECT id FROM summaries WHERE session_id='$1')),
+              'coach_turns',(SELECT coalesce(jsonb_agg(to_jsonb(t) ORDER BY t.turn_index), '[]'::jsonb) FROM coach_turns t WHERE session_id IN (SELECT c.id FROM coach_sessions c WHERE to_jsonb(c)->>'practice_session_id'='$1' OR c.summary_id IN (SELECT id FROM summaries WHERE session_id='$1'))),
+              'practice_reports',(SELECT coalesce(jsonb_agg(to_jsonb(t)), '[]'::jsonb) FROM practice_reports t WHERE practice_session_id='$1'),
+              'operations',(SELECT coalesce(jsonb_agg(jsonb_build_object('kind',kind,'status',status,'error_code',error_code)), '[]'::jsonb) FROM external_operations WHERE session_id='$1')
+            );"
+          fi
+          if ! compose exec -T -e PGOPTIONS='-c default_transaction_read_only=on -c statement_timeout=15000' db psql -X -v ON_ERROR_STOP=1 -U acttub -d acttub -Atc "$query" </dev/null 2>"$tmp/error" | openssl cms -encrypt -binary -aes-256-cbc -outform DER -out "$tmp/record.cms" "$tmp/recipient.pem" 2>>"$tmp/error"; then
+            echo 'Encrypted read failed; diagnostic details withheld.' >&2
+            exit 1
+          fi
+          cat "$tmp/record.cms"
           REMOTE
+          test -s record.cms
+      - uses: actions/upload-artifact@v4
+        with:
+          name: encrypted-dev-record
+          path: record.cms
+          retention-days: 1
+          if-no-files-found: error
