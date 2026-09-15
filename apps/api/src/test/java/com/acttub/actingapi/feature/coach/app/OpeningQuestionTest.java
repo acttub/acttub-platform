@@ -74,7 +74,7 @@ class OpeningQuestionTest {
         AtomicInteger calls = new AtomicInteger();
         var engine = new CoachEngine((system, text) -> {
             assertThat(system).contains("이 답을 알면 영상의 무엇을 더 정확하게 볼 수 있는가?")
-                    .contains("첫 응답의 기본값은 질문 없이 도움을 제공하는 것이다");
+                    .contains("사용자가 할 법한 답이 있다고 가정하고 첫 말을 만든다");
             var reply = StructuredJson.MAPPER.createObjectNode().put("message", calls.getAndIncrement() == 0 ? REPORTED : QUESTION)
                     .put("status", "continue").putNull("handoff");
             return new GeneratedText(reply.toString(), null, "test");
