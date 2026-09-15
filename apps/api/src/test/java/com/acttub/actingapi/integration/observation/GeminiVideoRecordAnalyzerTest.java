@@ -51,6 +51,10 @@ class GeminiVideoRecordAnalyzerTest {
             public String generate(String model, Content content, GenerateContentConfig config) {
                 assertThat(content.parts().orElseThrow().getFirst().videoMetadata().orElseThrow().fps()).contains(6.0);
                 assertThat(config.thinkingConfig().orElseThrow().toJson()).contains("LOW");
+                var timingSchemas = StructuredJson.parse(config.responseSchema().orElseThrow().toJson())
+                        .findValues("timing_basis");
+                assertThat(timingSchemas).isNotEmpty().allSatisfy(basis ->
+                        assertThat(basis.path("enum").toString()).isEqualTo("[\"estimated\"]"));
                 ObjectNode response = (ObjectNode) StructuredJson.resource("/coaching/chunk.json");
                 response.put("chunk_id", "chunk_0_8000");
                 return response.toString();
