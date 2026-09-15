@@ -17,14 +17,15 @@ public class GeminiProbe {
     try(Client c=Client.builder().apiKey(System.getenv("GEMINI_API_KEY")).build()) {
       var delegate=new GoogleGenAiGateway(c);
       GeminiGateway gateway=delegate;
+      SpeechAnalysis speech=null;
       try {
-        new GeminiTranscriber(new com.acttub.actingapi.integration.media.AudioExtractor(),gateway,
+        speech=new GeminiTranscriber(new com.acttub.actingapi.integration.media.AudioExtractor(),gateway,
           (e,k,x)->error(e),new LlmTelemetry(){public void record(LlmCall c){} public void score(LlmScore s){}}).analyze(Path.of(args[0]),null,null);
         System.out.println("PROBE_TRANSCRIPTION_SUCCESS");
       } catch(Throwable e) {error(e);}
       var a=new GeminiVideoRecordAnalyzer(gateway,new VideoRecordChunks(),model,
         (e,k,x)->error(e),new LlmTelemetry(){public void record(LlmCall c){} public void score(LlmScore s){}});
-      var r=a.analyze(Path.of(args[0]),new ActorMaterial("","","","그 외","",4000),UUID.randomUUID(),null,null);
+      var r=a.analyze(Path.of(args[0]),new ActorMaterial("","","","그 외","",4000),UUID.randomUUID(),null,speech);
       System.out.println("PROBE_SUCCESS_SEGMENTS="+r.path("segments").size());
     } catch(Throwable e) {error(e);System.exit(1);}
   }
