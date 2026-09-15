@@ -189,7 +189,7 @@ export default function SettingsScreen() {
 
           <Pressable
             style={styles.memoryRow}
-            onPress={() => router.push({ pathname: '/profile-name', params: { edit: '1' } })}
+            onPress={() => router.push('/profile-edit')}
             accessibilityRole="button">
             <Text style={styles.memoryText}>{t('settings.profileEdit')}</Text>
             <Text style={styles.memoryChevron}>›</Text>

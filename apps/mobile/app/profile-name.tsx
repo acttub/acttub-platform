@@ -1,4 +1,4 @@
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import { useEffect, useState, type ReactNode } from 'react';
 import {
   ActivityIndicator,
@@ -28,11 +28,15 @@ type Gender = 'female' | 'male' | 'none';
  * 경력·최종 목표는 아직 저장할 서버 필드가 없어 계측만 한다(theory 칩과 같은 상태).
  * 이름만 필수 — 나머지는 비워도 시작할 수 있다.
  */
-export default function ProfileNameScreen() {
+/**
+ * 프로필 폼 — 온보딩(edit=false)과 설정의 프로필 편집(edit=true)이 공유한다.
+ *
+ * 편집은 별도 라우트(/profile-edit)에서 렌더한다. `profile-name` 라우트는 _layout의
+ * 부트스트랩 게이트가 온보딩 전용으로 취급해 다 끝난 유저를 홈으로 되돌리기 때문이다.
+ */
+export function ProfileForm({ edit: isEdit }: { edit: boolean }) {
   const { completeProfileSetup } = useAuth();
   const router = useRouter();
-  // 설정에서 열면 편집 모드 — 온보딩 게이트를 진행하지 않고 저장 후 되돌아간다.
-  const isEdit = useLocalSearchParams<{ edit?: string }>().edit === '1';
   const [name, setName] = useState('');
   const [gender, setGender] = useState<Gender | null>(null);
   const [birthYear, setBirthYear] = useState('');
@@ -205,6 +209,11 @@ export default function ProfileNameScreen() {
       </View>
     </SafeAreaView>
   );
+}
+
+/** 온보딩 라우트(/profile-name) — 게이트가 신규 유저에게만 띄운다. */
+export default function ProfileNameScreen() {
+  return <ProfileForm edit={false} />;
 }
 
 function Field({ label, children }: { label: string; children: ReactNode }) {

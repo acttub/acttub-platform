@@ -333,6 +333,7 @@ function RootNavigator() {
       <Stack.Screen name="login" options={{ headerShown: false }} />
       <Stack.Screen name="consent" options={{ headerShown: false }} />
       <Stack.Screen name="profile-name" options={{ headerShown: false }} />
+      <Stack.Screen name="profile-edit" options={{ title: t('profileName.editTitle') }} />
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen
         name="delete-account"
