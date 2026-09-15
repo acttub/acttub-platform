@@ -1,11 +1,6 @@
-name: Read dev analysis failure
+name: Synthetic post-deploy analysis check
 on:
   workflow_dispatch:
-    inputs:
-      session:
-        description: Practice session UUID
-        required: true
-        type: string
 permissions:
   contents: read
 jobs:
@@ -20,40 +15,13 @@ jobs:
           oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
           tags: tag:ci
           ping: insung-server
-      - name: Read failure metadata only
-        env:
-          SESSION: ${{ inputs.session }}
+      - name: Analyze generated media only
         run: |
           set -euo pipefail
-          [[ "$SESSION" =~ ^[0-9a-f-]{36}$ ]]
-          ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new deploy@insung-server "bash -s -- '$SESSION'" <<'REMOTE'
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new deploy@insung-server "bash -s" <<'REMOTE'
           set -euo pipefail
           cd /svc/acttub/dev
           compose() { docker compose --env-file .env --env-file release.env "$@"; }
-          compose exec -T db psql -U acttub -d acttub -Atc "SELECT kind,status,attempt_count,error_code,last_failure_classification,created_at,updated_at FROM external_operations WHERE session_id='$1' ORDER BY created_at;" </dev/null
-          ids=$(compose exec -T db psql -U acttub -d acttub -Atc "SELECT id FROM external_operations WHERE session_id='$1' AND kind='analyze';" </dev/null)
-          compose logs --no-color --since 48h api 2>&1 | python3 -c '
-          import sys,re
-          ids=sys.argv[1].split()
-          lines=sys.stdin.readlines()
-          print("LOG_LINES="+str(len(lines)))
-          print("OPERATION_COUNT="+str(len(ids)))
-          for i,line in enumerate(lines):
-              if any(x in line for x in ids):
-                  print("MATCHED_SESSION_OPERATION")
-                  rows=lines[i:i+16] if "analysis failed:" in line else [line]
-                  for row in rows:
-                      match=re.search(r"(?:[a-zA-Z_$][\w$]*\.)+([A-Za-z_$][\w$]*(?:Exception|Error))(?::|$)",row)
-                      if match:
-                          print("EXCEPTION_CLASS="+match.group(1))
-                          message=row[match.end():].strip()
-                          message=re.sub(r"https?://[^\s\"]+", "[URL]", message)
-                          message=re.sub(r"AIza[\w-]+|sk-[\w-]+|Bearer [\w.-]+", "[SECRET]", message)
-                          message=re.sub(r"(?:/tmp/|/svc/|files/)[^\s\"]+", "[FILE]", message)
-                          print("ERROR_DESCRIPTION="+message[:1500])
-                      for known in ["no usable video record chunks", "timed out", "timeout", "ffmpeg", "ffprobe", "Cannot run program", "No such file", "analysis failed", "schema", "400", "401", "403", "404", "429", "500", "503", "INVALID_ARGUMENT", "RESOURCE_EXHAUSTED", "PERMISSION_DENIED", "NOT_FOUND", "additionalProperties", "response_schema", "response_json_schema", "Unknown name", "API key", "quota", "mime", "token", "oneOf", "anyOf", "Unsupported", "Invalid"]:
-                          if known in row: print("ERROR_MARKER="+known)
-          ' "$ids"
           compose exec -T api sh -c 'base64 -d > /tmp/acttub-probe.jar' <<'PROBE'
           UEsDBBQAAAAIAIeDL10fh2S7bwEAALoCAABAAAAAY29tL2FjdHR1Yi9hY3RpbmdhcGkvaW50ZWdyYXRpb24vb2JzZXJ2YXRpb24vR2VtaW5pUHJvYmUkMS5jbGFzc5WSS0sDMRDH/7G1W2vV+n4hePBQPbh484UgxRfUB1S8eMpuxxrJJpJNC34sT4IHP4AfSpxdFT0oaiCZyex/fszO5Pnl8QnALuYr6EMhQLGKfpQEajeyJ0MtTSc8jW4o9gKlbWWU3xEo1JcvApQFNmObhDL2vhtlRpmOvFWhMp46TnplTWijlFzvzT+ghAFnzka0tBagIrD+bf6tlv7KuuQjOVJa+buwqZNz0pSQd3cCxYZtk8BIUxk66SYRuXMZaY6UHMXWtRleb/4T35Baby1fCPSnjGDWxr8RrSwxZ1Ratuti2ldZUbUv/76adZYr3zOxtikTj8lf23aAyZ8a8oeGVjGNGe5KIpURmKpfNj/n1/KOQXlR5RNK/aFNeZrVI2PINbRMU0qxiIDnLzDAj6HAm98A3wbZW2ArssjKA8Q9O5zKZykPTvM5hOF36SzvvkzxnWwEtd9lRYzmH8cwzraICUy9yycwx7bCugD5egVQSwMEFAAAAAgAh4MvXRJEfXNvAQAAugIAAEAAAABjb20vYWN0dHViL2FjdGluZ2FwaS9pbnRlZ3JhdGlvbi9vYnNlcnZhdGlvbi9HZW1pbmlQcm9iZSQyLmNsYXNzlZJLSwMxEMf/sbVba9X6fiF48FA9uODJF4IUX1AfUPHiKbsdaySbSDYt+LE8CR78AH4ocXZV9KCogWQms//5MTuT55fHJwC7mK+gD4UAxSr6URKo3cieDLU0nfA0uqHYC5S2lVF+R6BQX74IUBbYjG0Sytj7bpQZZTryVoXKeOo46ZU1oY1Scr03/4ASBpw5G9HSWoCKwPq3+bda+ivrko/kSGnl78KmTs5JU0Le3QkUG7ZNAiNNZeikm0TkzmWkOVJyFFvXZni9+U98Q2q9tXwh0J8yglkb/0a0ssScUWnZrotpX2VF1b78+2rWWa58z8Tapkw8Jn9t2wEmf2rIHxpaxTRmuCuJVEZgqn7Z/JxfyzsG5UWVTyj1hzblaVaPjCHX0DJNKcUiAp6/wAA/hgJvfgN8G2Rvga3IIisPEPfscCqfpTw4z+cQht+ls7z7MsV3shHUfpcVMZp/HMM42yImMPUun8Ac2wrrAuTrFVBLAwQUAAAACACHgy9d+BJzIEkJAABNFgAAPgAAAGNvbS9hY3R0dWIvYWN0aW5nYXBpL2ludGVncmF0aW9uL29ic2VydmF0aW9uL0dlbWluaVByb2JlLmNsYXNzxVgJeBtHFf7Hkr2KvHEc5XSTJm7qtkpsR21oaLHrBNuRXSXyUctJMY5j1tJY3ni1K3ZXiR0C5b7LWUparlCOcEMKyKpNDygEKOWmEI62QIFCSSk3pISmb1ZK4kM+4nx8WJ8115v33vzvmDd64JnRewDUM7cXBXBJcMsoRBFD6V5lnxLQFD0eaOvby6M2Q9F1qq7aWxhc/vW7vPBggQSvjGLIDEvOkXcOmMZ+pU/jDN44t1u4ZSlxGiz1rw+fo4rYpqrHa70owSIJpTIWwzdBapaAQdqnaCne1s9wuT88WanaPCw9WEqMBmw7aW2tCQS69+y21vVUerCcobB7Z0e4R8hcKaMMF5GGJk9qSpTXaxrDtf6p3KbO5BW5ms5XHzqgdO/eX91TedAarM72PFjD4OmOBBs7gp09C1COSySsk3EpKiaedtiyeYKgNVKE9LKsCNUItBN/m6RwJVErLHS5jCvgJ5aEbKOmWBZBPwFXZ5JIN6BSQpWMamGdRZPWGRbS/oiaSGq8VUlwgUhAxpW4iqyscT1uDzhWDnnxHFwtYbOM5+IahpJzfFoUhyah6gSrPxQStCV4nowa1DIssFJ9Vs6Ay8XqVMx85HZ1MrYIK6xIKIO80dCjin2jag9Qz7IV3ba8eD7qJTTIaMS2M042ERVykKQYaaTHsjz2y3pqk4xmXJ+DTUlZ5I4rJsB21mkJunJsl7EDYcKCyLm+j2HxGeKUrWp09iSZvJVBbg62hFpDvS1t24JhD9rJpHFOkKjVmzZuru4nqAeK0YGIhE4ZO7GLcJ/AhTiQhDZzG+9XUpo9yQNzLj6z0+emfGB4gUCza1KcTO+0XnRjt4QeGXvQS3hEjUQgbhhxjQfiXFdUchWV66SU1JdStRg3GS4lGKYhq2jIEhEwCjlKDpj69lDvjmCXwDQqMKUeR7+EuIwBqAxrZ+FGJlCS6g4+zLA576lm00bIG5ShgRyl0DkHw6rpT1ErwWDYKlaVqG2n+kRDkkiJADkZj5uKrRp6wOizuLkv22922DRzvV5tVmy+Xxn2QseLRR4l/Vf7p5W1fpcEgnfL+Ulz/KvTVHQraqp93JRA/rl5Vh4JHlOVQH0qphrBIdskIsP0IgWXj7LKsIwDeAmBTdnQMEmnrTmIprCkZGn3G2bijE59qqbaw4EmRdVSJu9wthPsEl7KUDOPg7WbRh+vuMqLg3B5YeHlAsZXMDzpz6/PbEesnX3bVCVyZpxm7xwhOK/NYS3RyTWe4LY5TH5RjFfh1RJeI+O1eB2Dz3F8nRJfv0pO1O6k3gKDrsTaPEHRPW30T+BQK+B9g4w34k0U4oquaMMHKC1a/ny045Lfzp2hbVPG03jLdDBHkpxHB+qFTEu1KGXcTFHZ3tHWEOzt7KhvjTR2hNo7Q22tvZGdjY3BSMSLt+JtEt4u4x14J2XJ+ToW5QBumgaF5Up/3uQvQvJdDE3zELBLjXGjg0cNM1afBZNC891zUTbrt+P2Nw6k9EG6/G4V0enCsIT3XEg0bfLidhFNt+D9Ipo+wFjBHKLpfMNiDifKU0z930JMwgfPF9N6kVCo7uGmqmgefIiBKouPUPA8MZIpP3FbphDO36LDXhzGxwXUn2DYM6eacn4z20Vx8yl8WsJnZHwWnztToJ2NS1HfKnrMSGQHvglVjBO4wivuFEng8wyP5g/9+WM0a9q4oKyRzTn9ChXO5lBCC+xVooMWkcUUm2yuxwK6EeO5+qiVupRmvkgVoMXjCe7UliPISLhLxijGGDaeHzMGd9JJw3XTliUzMNtOI0clL+7GPRLulXGfqL2vmOM+km6pB7gPbnxFFH33i9o3X5EtaryvyTgmXnSFUc2wuKiGvyHjmyKPLlRisUgqmTTpicZjokj7lowH8W1iz4dUKgPcxJSKVnejI3NRWNV5aypBRUdn9n23MGKTilTI5sbuhCLeA8v9+e4gCrkfUQ2fZ0nCj+eX33IZScJxugovwJcoToJDUZ4US5aEn094z55dofNqSqIvplSIY1aQvW7Of4vMJ6ntIPvOayM9lmw+JKrJSfpdSaeKGCkzyptUYZzScXfCRqE2Q3Ert+iBLixKGJQ2GIZNrzYl2cLtASNmefAbms3ey8GOjraOOlZTzjz4HUnKzjoPnzpWiocXFeEP4pp+QsYjzuiEGD0p4xd42IOn6MbN7sjd6L2RYHNLsLUzUseI9i9e/BV/k/B34cz/YKg4h6qq7zMGec5Tsk/EJqeyoyfBofHw5wizql9PWU/jVkXYMAZTyZmT6YSNncNJnoe8e+ZHWI5Fo6JpEdXmtXSkf3nxb5yU8LSM/+AUw7op1GHHViRW6T9zoOLE+NGD//vjzX0xK3LmvTNBQk/dkK5z0/n9gZO3SbknmsTo6XrZnA4qsQKGNTOT0iMmS4xLyP8KnBu5kCQUooi+v0OjiyEk0uyGEbCj1GH4Ln0XOZMSpUeqMXOkN9Gsi9qmDeHKY2ioTEPKYKFviW9ZGit8q3wXU9NyJ9bSwmVprK9yVaWxcbHkyWBTGteO4jogja20GgwfOX2fkFXgyFoOUSssIO5erEYx6qgfxEJ8j2aLUXAKBaTH02ig6e/jB7SJlGEP0ZKH2qIMQr4WX9tduMFF10ZJWCgwihsdWRm80PeiDPrSiKWxt2UMelfVCJKt1TVuVlM4BqtrDKmuEewvc49iCBjDQRq9bAQ3bXBtct2NkgxeyVgar68pJLa+NxPLI/DWFJWR1LeM4ZauMvcYbqUth0jkbWL/7TR47wjeJ2jO8RjD4S7fHc7nw747luKjI/hYBp9kZYVpHK2RiHeZ5PtCGuk0vjSKLzu6Vx1DOQH41SMoa6W+L9svrnFXl7nT+Hr1vUcgt1SRHu4MHjhKd18NDJiESSWO4zFqf48TeIra1TiJU9RmwW7CYlGVoZQ+q6lfCR+uxhJcg6XEYTl6sAJxrCReZRjGRThEVPeTlxzHGuK6mHitYYVY6xjnBnhOk8giCT+UUCKhW4Iu4SEJPwEjkxWdhip+RM0tOnOnyWzucfQeZ1Y6CdZArQc/JbZu8reflXpFrhznpC7HSem8k510FZE+MjfSFcT7UcfvfolfObMF9Bg4iF9T309e+Geiesz5/i3+SWweJxAfz/X+SP9i5U/4L1GvI06czvQMOeXBbKVLnLJ/pxljLpQ9C1BLAQIUAxQAAAAIAIeDL10fh2S7bwEAALoCAABAAAAAAAAAAAAAAACkgQAAAABjb20vYWN0dHViL2FjdGluZ2FwaS9pbnRlZ3JhdGlvbi9vYnNlcnZhdGlvbi9HZW1pbmlQcm9iZSQxLmNsYXNzUEsBAhQDFAAAAAgAh4MvXRJEfXNvAQAAugIAAEAAAAAAAAAAAAAAAKSBzQEAAGNvbS9hY3R0dWIvYWN0aW5nYXBpL2ludGVncmF0aW9uL29ic2VydmF0aW9uL0dlbWluaVByb2JlJDIuY2xhc3NQSwECFAMUAAAACACHgy9d+BJzIEkJAABNFgAAPgAAAAAAAAAAAAAApIGaAwAAY29tL2FjdHR1Yi9hY3RpbmdhcGkvaW50ZWdyYXRpb24vb2JzZXJ2YXRpb24vR2VtaW5pUHJvYmUuY2xhc3NQSwUGAAAAAAMAAwBIAQAAPw0AAAAA
           PROBE
