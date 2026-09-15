@@ -37,7 +37,7 @@ class OpeningQuestionTest {
                 if (calls.getAndIncrement() == 0) {
                     switch (error) {
                         case "reported" -> reply.put("message", REPORTED);
-                        
+
                         case "no_evidence" -> ((ObjectNode) reply.path("reply_link")).putArray("evidence_refs");
                         case "no_focus" -> reply.putNull("context_update");
                         case "finish" -> reply.put("flow", "finish");
