@@ -88,7 +88,9 @@ export default function ChallengeDetailScreen() {
             <Pressable
               key={p.name}
               style={({ pressed }) => [styles.row, pressed && styles.pressed]}
-              onPress={() => soon('play')}
+              onPress={() =>
+                router.push({ pathname: '/challenge-play', params: { name: p.name, line } })
+              }
               accessibilityRole="button">
               {tab === 0 && <Text style={[styles.rank, i < 3 && styles.rankTop]}>{i + 1}</Text>}
               <View style={styles.thumbWrap}>

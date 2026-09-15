@@ -15,6 +15,9 @@ export const PERF_IMAGES = [
 
 export const STORY_IMAGE = require('@/assets/images/challenge/story.jpg');
 
+/** 예시 재생용 짧은 샘플 영상(포스터에서 만든 목업). 서버가 서면 실제 연기 영상으로 교체. */
+export const SAMPLE_VIDEO = require('@/assets/images/challenge/sample.mp4');
+
 export type Performer = { name: string; likes: string; img: number };
 
 /** 오늘의 대사에 올라온 연기 영상들(좋아요순). img는 PERF_IMAGES 인덱스. */
