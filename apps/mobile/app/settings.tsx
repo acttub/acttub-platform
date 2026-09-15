@@ -1,4 +1,4 @@
-import { useRouter } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -151,8 +151,8 @@ export default function SettingsScreen() {
     ) : null;
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
-      <Text style={styles.screenTitle}>{t('settings.title')}</Text>
+    <SafeAreaView style={styles.safe} edges={['bottom']}>
+      <Stack.Screen options={{ headerShown: true, title: t('settings.title') }} />
       {loading ? (
         <View style={styles.center}>
           <ActivityIndicator color={palette.blue} />

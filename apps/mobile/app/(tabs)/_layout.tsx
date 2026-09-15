@@ -103,7 +103,7 @@ export default function TabLayout() {
       {/* 게시판은 챌린지 탭에 자리를 내주고 탭바에서 빠졌지만(pen 정합) 라우트는 남긴다. */}
       <Tabs.Screen name="community" options={{ href: null }} />
       <Tabs.Screen
-        name="settings"
+        name="profile"
         options={{
           title: t('tabs.profile'),
           tabBarIcon: ({ color, focused }) => (
