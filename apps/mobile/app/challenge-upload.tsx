@@ -59,10 +59,10 @@ export default function ChallengeUploadScreen() {
           </View>
           <Text style={styles.doneTitle}>{t(mode === 'public' ? 'challengeUpload.doneTitle' : 'challengeUpload.doneTitlePrivate')}</Text>
           <Text style={styles.doneSub}>{t(mode === 'public' ? 'challengeUpload.doneSub' : 'challengeUpload.doneSubPrivate')}</Text>
-          <Pressable style={({ pressed }) => [styles.primary, pressed && styles.pressed]} onPress={goHome} accessibilityRole="button">
+          <Pressable style={({ pressed }) => [styles.primary, styles.doneBtn, pressed && styles.pressed]} onPress={goHome} accessibilityRole="button">
             <Text style={styles.primaryText}>{t('challengeUpload.goHome')}</Text>
           </Pressable>
-          <Pressable style={({ pressed }) => [styles.ghost, pressed && styles.pressed]} onPress={getReport} accessibilityRole="button">
+          <Pressable style={({ pressed }) => [styles.ghost, styles.doneBtn, pressed && styles.pressed]} onPress={getReport} accessibilityRole="button">
             <Text style={styles.ghostText}>{t('challengeUpload.getReport')}</Text>
           </Pressable>
         </View>
@@ -215,6 +215,8 @@ const styles = StyleSheet.create({
   ghost: { height: 50, borderRadius: 14, borderWidth: 1, borderColor: palette.border, alignItems: 'center', justifyContent: 'center' },
   ghostText: { fontSize: 14, fontWeight: '800', color: palette.textDim },
   doneWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 28, gap: 12 },
+  // 완료 화면은 가운데 정렬이라 버튼이 글자 폭으로 줄어든다 — 가로로 꽉 채운다.
+  doneBtn: { alignSelf: 'stretch' },
   doneIcon: { width: 64, height: 64, borderRadius: 32, backgroundColor: palette.blueSoft, alignItems: 'center', justifyContent: 'center', marginBottom: 6 },
   doneTitle: { fontSize: 22, fontWeight: '900', color: palette.text },
   doneSub: { fontSize: 13.5, fontWeight: '600', color: palette.textDim, textAlign: 'center', marginBottom: 12 },
