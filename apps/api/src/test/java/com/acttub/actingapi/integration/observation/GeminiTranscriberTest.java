@@ -72,6 +72,32 @@ class GeminiTranscriberTest {
     }
 
     @Test
+    void readsTextAndWordAnnotationsAcrossSeparateParts() {
+        var response = GenerateContentResponse.fromJson("""
+                {"candidates":[{"content":{"parts":[
+                  {"text":"가지 마"},
+                  {"audioTranscription":{"words":[{"word":"가지","startOffset":"1s","endOffset":"2s"}]}},
+                  {"audioTranscription":{"words":[{"word":"마","startOffset":"2.5s","endOffset":"3s"}]}}
+                ]}}]}
+                """);
+        var result = GeminiTranscriber.parse(response);
+        assertThat(result.transcript()).isEqualTo("가지 마");
+        assertThat(result.words()).hasSize(2);
+        assertThat(result.pauses()).containsExactly(new SpeechAnalysis.Pause(2000, .5, "가지", "마"));
+    }
+
+    @Test
+    void wordOnlyAnnotationsPreserveTranscriptWithoutInventingSpeech() {
+        var response = GenerateContentResponse.fromJson("""
+                {"candidates":[{"content":{"parts":[{"audioTranscription":{"words":[
+                  {"word":"가지","startOffset":"1s","endOffset":"2s"},
+                  {"word":"마","startOffset":"2.5s","endOffset":"3s"}
+                ]}}]}}]}
+                """);
+        assertThat(GeminiTranscriber.parse(response).transcript()).isEqualTo("가지 마");
+    }
+
+    @Test
     void emptySpeechIsValidButTextOnlyOrMissingTranscriptionIsAnExternalFailure() {
         for (String response : List.of("{}", "{\"candidates\":[]}",
                 "{\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"ignored\"}]}}]}",

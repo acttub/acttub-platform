@@ -143,9 +143,21 @@ public final class GeminiTranscriber implements SpeechAnalyzer {
     static SpeechAnalysis parse(GenerateContentResponse response) {
         var candidates = response.candidates().orElseThrow();
         var parts = candidates.getFirst().content().orElseThrow().parts().orElseThrow();
-        var transcription = parts.getFirst().audioTranscription().orElseThrow();
-        String text = transcription.text().orElse("");
-        var words = transcription.words().orElse(List.of());
+        var transcriptions = parts.stream().flatMap(part -> part.audioTranscription().stream()).toList();
+        if (transcriptions.isEmpty()) {
+            throw new IllegalArgumentException("transcription response has no word annotations");
+        }
+        var words = transcriptions.stream().flatMap(t -> t.words().orElse(List.of()).stream()).toList();
+        String text = parts.stream().filter(part -> !part.thought().orElse(false))
+                .flatMap(part -> part.text().stream()).collect(java.util.stream.Collectors.joining());
+        if (text.isBlank()) {
+            text = transcriptions.stream().flatMap(t -> t.text().stream())
+                    .collect(java.util.stream.Collectors.joining(" "));
+        }
+        if (text.isBlank() && !words.isEmpty()) {
+            text = words.stream().map(w -> w.word().orElseThrow())
+                    .collect(java.util.stream.Collectors.joining(" "));
+        }
         if (!text.isBlank() && words.isEmpty()) {
             throw new IllegalArgumentException("transcription has text without word timestamps");
         }
