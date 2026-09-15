@@ -46,7 +46,7 @@ jobs:
                       match=re.search(r"(?:[a-zA-Z_$][\w$]*\.)+([A-Za-z_$][\w$]*(?:Exception|Error))(?::|$)",row)
                       if match:
                           print("EXCEPTION_CLASS="+match.group(1))
-                      for known in ["no usable video record chunks", "timed out", "timeout", "ffmpeg", "ffprobe", "Cannot run program", "No such file", "analysis failed", "schema", "400", "401", "403", "404", "429", "500", "503", "INVALID_ARGUMENT", "RESOURCE_EXHAUSTED", "PERMISSION_DENIED", "NOT_FOUND", "additionalProperties", "response_schema", "response_json_schema", "Unknown name", "API key", "quota", "mime", "token", "oneOf", "anyOf", "Unsupported", "Invalid"]:
+                      for known in ["wrong chunk ID", "duplicate chunk ID", "incomplete chunk coverage", "incorrect segment references", "missing channel limitation", "missing final interval", "unknown subject", "unknown utterance", "unverified aligned timing", "wrong visual channel", "wrong audio channel", "incomplete assembled record", "missing assembled tail", "invalid interval", "no usable video record chunks", "timed out", "timeout", "ffmpeg", "ffprobe", "Cannot run program", "No such file", "analysis failed", "schema", "400", "401", "403", "404", "429", "500", "503", "INVALID_ARGUMENT", "RESOURCE_EXHAUSTED", "PERMISSION_DENIED", "NOT_FOUND", "additionalProperties", "response_schema", "response_json_schema", "Unknown name", "API key", "quota", "mime", "token", "oneOf", "anyOf", "Unsupported", "Invalid"]:
                           if known in row: print("ERROR_MARKER="+known)
           ' "$ids"
           REMOTE
