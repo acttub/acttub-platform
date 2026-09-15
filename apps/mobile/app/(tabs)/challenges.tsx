@@ -1,12 +1,13 @@
 import Feather from '@expo/vector-icons/Feather';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppDialog } from '@/components/app-dialog';
 import { palette } from '@/constants/palette';
 import { logEvent } from '@/lib/analytics';
+import { PERF_IMAGES } from '@/lib/challenge-mock';
 import { translate as t } from '@/lib/i18n';
 
 /**
@@ -43,6 +44,11 @@ export default function ChallengesScreen() {
   const performLine = (line: string) => {
     logEvent('challenge_perform_tap', { line: line.slice(0, 40) });
     router.push('/upload');
+  };
+  // 대사를 탭하면 그 대사의 연기 영상 랭킹(A17)으로.
+  const openDetail = (line: string, work: string) => {
+    logEvent('challenge_open_detail', { line: line.slice(0, 40) });
+    router.push({ pathname: '/challenge-detail', params: { line, work } });
   };
   // 아직 백엔드가 없는 버튼들 — 준비 중임을 알린다.
   const soon = (where: string) => {
@@ -98,14 +104,23 @@ export default function ChallengesScreen() {
         {/* 오늘의 대사 */}
         <Text style={styles.sectionLabel}>{t('challenges.todayLabel')}</Text>
         <View style={styles.todayCard}>
-          <Text style={styles.todayLine}>“{TODAY.line}”</Text>
-          <Text style={styles.todayWork}>{TODAY.work}</Text>
+          <Pressable onPress={() => openDetail(TODAY.line, TODAY.work)} accessibilityRole="button">
+            <Text style={styles.todayLine}>“{TODAY.line}”</Text>
+            <Text style={styles.todayWork}>{TODAY.work}</Text>
+          </Pressable>
           <View style={styles.thumbRow}>
-            {TODAY.roles.map((r) => (
-              <View key={r} style={styles.thumb}>
-                <Feather name="video" size={16} color={palette.textFaint} />
-                <Text style={styles.thumbLabel}>{r}</Text>
-              </View>
+            {[0, 1, 2, 3].map((i, idx) => (
+              <Pressable
+                key={i}
+                style={styles.thumb}
+                onPress={() => openDetail(TODAY.line, TODAY.work)}
+                accessibilityRole="button">
+                <Image source={PERF_IMAGES[i]} style={styles.thumbImg} resizeMode="cover" />
+                <View style={styles.thumbPlay}>
+                  <Feather name="play" size={13} color="#FFFFFF" />
+                </View>
+                <Text style={styles.thumbLabel}>{TODAY.roles[idx]}</Text>
+              </Pressable>
             ))}
           </View>
           <Text style={styles.todayStat}>
@@ -126,7 +141,7 @@ export default function ChallengesScreen() {
             <Pressable
               key={item.line}
               style={({ pressed }) => [styles.row, pressed && styles.pressed]}
-              onPress={() => performLine(item.line)}
+              onPress={() => openDetail(item.line, item.work)}
               accessibilityRole="button">
               <Text style={styles.rank}>{i + 1}</Text>
               <View style={styles.rowBody}>
@@ -219,14 +234,34 @@ const styles = StyleSheet.create({
   thumbRow: { flexDirection: 'row', gap: 8 },
   thumb: {
     flex: 1,
-    aspectRatio: 1,
+    aspectRatio: 0.82,
     borderRadius: 10,
+    overflow: 'hidden',
     backgroundColor: 'rgba(255,255,255,0.08)',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 4,
   },
-  thumbLabel: { fontSize: 11, fontWeight: '700', color: '#C9D3DF' },
+  thumbImg: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, width: '100%', height: '100%' },
+  thumbPlay: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  thumbLabel: {
+    position: 'absolute',
+    bottom: 4,
+    left: 0,
+    right: 0,
+    textAlign: 'center',
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    textShadowColor: 'rgba(0,0,0,0.6)',
+    textShadowRadius: 3,
+  },
   todayStat: { fontSize: 12, fontWeight: '600', color: '#8FA5FF' },
   performBtn: {
     flexDirection: 'row',
