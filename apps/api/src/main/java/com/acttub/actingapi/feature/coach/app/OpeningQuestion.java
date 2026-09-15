@@ -28,8 +28,8 @@ final class OpeningQuestion {
 
     static List<String> failures(String message) {
         List<String> failures = new ArrayList<>();
-        if (questionCount(message) != 1) failures.add("첫 응답은 배우가 답할 수 있는 질문 하나를 포함해야 한다. 인용한 대사의 물음표는 질문이 아니다.");
-        if (vagueReading(message)) failures.add("첫 응답에서 말의 무게·처럼 읽힌다는 해석을 붙이지 않는다. 답에 따라 영상의 무엇을 다르게 볼지 판단한 뒤 쉬운 질문 하나를 한다.");
+        if (questionCount(message) > 1) failures.add("첫 응답의 질문은 최대 하나다. 설명만으로 도움을 줄 수 있으면 질문하지 않는다. 인용한 대사의 물음표는 질문이 아니다.");
+        if (vagueReading(message)) failures.add("첫 응답에서 말의 무게·처럼 읽힌다는 해석을 붙이지 않는다. 구체적인 영상 근거로 설명하고 질문은 꼭 필요할 때만 한다.");
         return failures;
     }
 
@@ -53,7 +53,7 @@ final class OpeningQuestion {
     }
 
     static String fallback(boolean english) {
-        return english ? "I couldn’t prepare a question about the video. What did you want to convey in this scene?"
-                : "영상에 맞는 첫 질문을 준비하지 못했어요. 이 장면에서 어떤 모습을 보여주고 싶었어요?";
+        return english ? "I couldn’t prepare a grounded explanation of this video."
+                : "영상에 근거한 설명을 준비하지 못했어요.";
     }
 }
