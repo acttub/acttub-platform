@@ -552,6 +552,8 @@ function WorkspaceInner() {
     if (completed) void refreshList();
   }, [refreshList]);
 
+  const restartCoachAfterAnalysisRef = useRef(new Set<string>());
+
   const coordinatorFor = useCallback((practiceSessionId: string) => {
     if (coachCoordinatorRef.current?.sessionId === practiceSessionId) {
       return coachCoordinatorRef.current.coordinator;
@@ -565,8 +567,10 @@ function WorkspaceInner() {
       try {
         const { data: start } = await startCoach({
           practice_session_id: practiceSessionId,
+          restart: restartCoachAfterAnalysisRef.current.has(practiceSessionId),
         });
         if (!isCurrentSession(practiceSessionId)) return;
+        restartCoachAfterAnalysisRef.current.delete(practiceSessionId);
         restoreCoach(start);
         if (countStepOnce(practiceSessionId, "dialogue")) {
           const context = practiceAnalyticsContextRef.current;
@@ -654,7 +658,9 @@ function WorkspaceInner() {
     setError(null);
     try {
       await reanalyzeSession(sessionId);
+      restartCoachAfterAnalysisRef.current.add(sessionId);
       if (!isCurrentSession(sessionId)) return;
+      coachCoordinatorRef.current = null;
       reportProgress({ type: "reset" });
       reportProgress({ type: "duration", videoDurationMs });
       reportProgress({ type: "analyze", compressed: false });

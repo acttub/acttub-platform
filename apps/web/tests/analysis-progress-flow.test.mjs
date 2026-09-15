@@ -407,6 +407,8 @@ test("분석 실패는 대화를 막고 분석 재시도만 제공한다", async
   assert.match(workspace, /onClick=\{onRetry\}/);
   assert.match(workspace, /await reanalyzeSession\(sessionId\)/);
   assert.match(workspace, /영상 다시 분석/);
+  assert.match(workspace, /restart: restartCoachAfterAnalysisRef\.current\.has\(practiceSessionId\)/);
+  assert.match(workspace, /await reanalyzeSession\(sessionId\);\s+restartCoachAfterAnalysisRef\.current\.add\(sessionId\)/);
 });
 
 test("시작 버튼이 먼저 서고, 선택 입력은 그 아래 안내 문장과 함께 선다", () => {
