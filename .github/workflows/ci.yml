@@ -30,8 +30,8 @@ jobs:
           set -euo pipefail
           cd /svc/acttub/dev
           compose() { docker compose --env-file .env --env-file release.env "$@"; }
-          compose exec -T db psql -U acttub -d acttub -Atc "SELECT kind,status,attempt_count,error_code,last_failure_classification,created_at,updated_at FROM external_operations WHERE session_id='$1' ORDER BY created_at;"
-          ids=$(compose exec -T db psql -U acttub -d acttub -Atc "SELECT id FROM external_operations WHERE session_id='$1' AND kind='analyze';")
+          compose exec -T db psql -U acttub -d acttub -Atc "SELECT kind,status,attempt_count,error_code,last_failure_classification,created_at,updated_at FROM external_operations WHERE session_id='$1' ORDER BY created_at;" </dev/null
+          ids=$(compose exec -T db psql -U acttub -d acttub -Atc "SELECT id FROM external_operations WHERE session_id='$1' AND kind='analyze';" </dev/null)
           compose logs --no-color --since 48h api 2>&1 | python3 -c '
           import sys,re
           ids=sys.argv[1].split()
