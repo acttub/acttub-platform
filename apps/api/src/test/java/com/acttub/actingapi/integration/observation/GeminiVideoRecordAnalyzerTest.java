@@ -57,6 +57,11 @@ class GeminiVideoRecordAnalyzerTest {
                         assertThat(basis.path("enum").toString()).isEqualTo("[\"estimated\"]"));
                 ObjectNode response = (ObjectNode) StructuredJson.resource("/coaching/chunk.json");
                 response.put("chunk_id", "chunk_0_8000");
+                response.path("segments").forEach(segment -> {
+                    ((ObjectNode) segment).putArray("event_ids").add("unknown");
+                    ((ObjectNode) segment).putArray("utterance_ids");
+                    ((ObjectNode) segment).putArray("limitation_ids");
+                });
                 return response.toString();
             }
         };

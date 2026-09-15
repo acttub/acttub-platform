@@ -135,8 +135,7 @@ final class GeminiVideoRecordAnalyzer implements VideoRecordAnalyzer {
                             Part.fromText(instruction)), config);
                     raw = generated.text();
                     tokens = GeminiUsage.tokens(generated);
-                    JsonNode result = StructuredJson.parse(raw);
-                    VideoRecord.validateChunk(result, chunkId, end - start);
+                    JsonNode result = VideoRecord.prepareChunk(StructuredJson.parse(raw), chunkId, end - start);
                     if (!record.path("media").path("audio_track_present").asBoolean()) {
                         if (!result.path("utterances").isEmpty()) {
                             throw new IllegalArgumentException("speech in a video without audio");
