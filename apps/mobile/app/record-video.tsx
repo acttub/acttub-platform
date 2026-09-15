@@ -1,4 +1,6 @@
+import Feather from '@expo/vector-icons/Feather';
 import { CameraView, useCameraPermissions, useMicrophonePermissions } from 'expo-camera';
+import * as ImagePicker from 'expo-image-picker';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -10,6 +12,8 @@ import { MAX_VIDEO_DURATION_MS } from '@/lib/upload-input';
 import { setRecordedVideo } from '@/lib/recorded-video';
 
 const MAX_SEC = Math.floor(MAX_VIDEO_DURATION_MS / 1000);
+/** 챌린지(오늘의 대사) 촬영은 60초 — pen A18 촬영 대기 화면과 같은 상한. */
+const CHALLENGE_MAX_SEC = 60;
 
 /**
  * 앱 내 영상 촬영 (SOMA-477).
@@ -18,19 +22,29 @@ const MAX_SEC = Math.floor(MAX_VIDEO_DURATION_MS / 1000);
  * 멈추고(서버·업로드 상한과 같은 값), 결과를 recorded-video 핸드오프에 얹어
  * 업로드 화면으로 돌아간다.
  *
+ * mode=challenge 면 pen A18 "촬영 대기" 화면이 된다 — 대사 카드를 위에 띄우고, 60초 상한,
+ * 카메라 전환은 오른쪽 위, 아래엔 업로드(갤러리)·셔터·대사 숨김. 찍고 나면 챌린지 올리기로.
+ *
  * 시뮬레이터엔 카메라가 없어 실기기에서만 실제로 돈다.
  */
 export default function RecordVideoScreen() {
   const router = useRouter();
-  // 하단 탭 촬영 버튼에서 오면(next=choose) 찍은 뒤 "챌린지에 올릴지 / AI 분석할지" 고르는 화면으로 간다.
-  // 업로드 화면에서 오면(기본) 종전대로 되돌아가 업로드가 결과를 받는다.
-  const { next } = useLocalSearchParams<{ next?: string }>();
+  // next=choose: 하단 탭 촬영 버튼에서 → 찍은 뒤 챌린지/AI 갈림길로. 기본: 업로드로 되돌아감.
+  const { next, mode, line, work } = useLocalSearchParams<{
+    next?: string;
+    mode?: string;
+    line?: string;
+    work?: string;
+  }>();
+  const isChallenge = mode === 'challenge';
+  const maxSec = isChallenge ? CHALLENGE_MAX_SEC : MAX_SEC;
   const cameraRef = useRef<CameraView>(null);
   const [camPerm, requestCam] = useCameraPermissions();
   const [micPerm, requestMic] = useMicrophonePermissions();
   const [facing, setFacing] = useState<'front' | 'back'>('back');
   const [recording, setRecording] = useState(false);
   const [elapsed, setElapsed] = useState(0);
+  const [lineHidden, setLineHidden] = useState(false);
   // 종료 처리가 겹쳐 두 번 도는 것을 막는다(자동 정지 + 사용자 정지).
   const finishedRef = useRef(false);
 
@@ -42,6 +56,18 @@ export default function RecordVideoScreen() {
 
   const ready = camPerm?.granted && micPerm?.granted;
 
+  const goNext = useCallback(() => {
+    if (isChallenge) {
+      router.replace({ pathname: '/challenge-upload', params: { line: line ?? '', work: work ?? '' } });
+      return;
+    }
+    if (next === 'choose') {
+      router.replace('/record-choice');
+      return;
+    }
+    router.back();
+  }, [isChallenge, line, next, router, work]);
+
   const finishWith = useCallback(
     (uri: string | null) => {
       if (finishedRef.current) return;
@@ -52,14 +78,12 @@ export default function RecordVideoScreen() {
           durationMs: elapsed > 0 ? elapsed * 1000 : null,
           name: `recording-${Date.now()}.mov`,
         });
-      }
-      if (uri && next === 'choose') {
-        router.replace('/record-choice');
+        goNext();
         return;
       }
       router.back();
     },
-    [elapsed, next, router],
+    [elapsed, goNext, router],
   );
 
   const startRecording = useCallback(async () => {
@@ -67,8 +91,8 @@ export default function RecordVideoScreen() {
     setRecording(true);
     setElapsed(0);
     try {
-      // maxDuration 으로 5분에서 네이티브가 스스로 멈춘다 — resolve 되면 결과를 넘긴다.
-      const result = await cameraRef.current.recordAsync({ maxDuration: MAX_SEC });
+      // maxDuration 으로 상한에서 네이티브가 스스로 멈춘다 — resolve 되면 결과를 넘긴다.
+      const result = await cameraRef.current.recordAsync({ maxDuration: maxSec });
       finishWith(result?.uri ?? null);
     } catch {
       // 촬영이 실패하면 화면만 되돌린다(업로드에서 다시 시도).
@@ -76,12 +100,27 @@ export default function RecordVideoScreen() {
     } finally {
       setRecording(false);
     }
-  }, [recording, finishWith]);
+  }, [recording, finishWith, maxSec]);
 
   const stopRecording = useCallback(() => {
     if (!cameraRef.current || !recording) return;
     cameraRef.current.stopRecording(); // recordAsync 의 promise 를 resolve 시킨다
   }, [recording]);
+
+  // 챌린지 모드 "업로드" — 찍는 대신 갤러리에서 골라 그대로 올리기로 간다.
+  const pickFromGallery = useCallback(async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['videos'], quality: 1 });
+    if (result.canceled || !result.assets[0]) return;
+    const asset = result.assets[0];
+    if (finishedRef.current) return;
+    finishedRef.current = true;
+    setRecordedVideo({
+      uri: asset.uri,
+      durationMs: asset.duration != null ? Math.round(asset.duration * 1000) : null,
+      name: asset.fileName ?? `video-${Date.now()}.mp4`,
+    });
+    goNext();
+  }, [goNext]);
 
   // --- 권한이 아직 없으면 요청 화면 ---
   if (!ready) {
@@ -108,7 +147,81 @@ export default function RecordVideoScreen() {
     );
   }
 
-  const remaining = Math.max(0, MAX_SEC - elapsed);
+  const mmss = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+  const remaining = Math.max(0, maxSec - elapsed);
+
+  // ---------- 챌린지 모드: pen A18 촬영 대기 ----------
+  if (isChallenge) {
+    return (
+      <View style={styles.safe}>
+        <Stack.Screen options={{ title: t('record.screenTitle'), headerShown: false }} />
+        <CameraView ref={cameraRef} style={styles.camera} facing={facing} mode="video" />
+
+        <SafeAreaView style={styles.overlay} pointerEvents="box-none">
+          <View>
+            <View style={styles.chTopRow}>
+              <Pressable style={styles.closeBtn} onPress={() => router.back()} disabled={recording} accessibilityRole="button">
+                <Feather name="x" size={22} color="#FFFFFF" />
+              </Pressable>
+              <View style={[styles.timerPill, recording && styles.timerPillRec]}>
+                <View style={[styles.recDot, !recording && styles.recDotIdle]} />
+                <Text style={styles.timerText}>
+                  {mmss(elapsed)} / {mmss(maxSec)}
+                </Text>
+              </View>
+              {recording ? (
+                <View style={styles.closeBtn} />
+              ) : (
+                <Pressable
+                  style={styles.closeBtn}
+                  accessibilityLabel={t('record.flip')}
+                  onPress={() => setFacing((f) => (f === 'back' ? 'front' : 'back'))}>
+                  <Feather name="refresh-cw" size={20} color="#FFFFFF" />
+                </Pressable>
+              )}
+            </View>
+
+            {!lineHidden && !!line && (
+              <View style={styles.lineCard}>
+                <View style={styles.lineLabelRow}>
+                  <Feather name="message-square" size={12} color="#8FA5FF" />
+                  <Text style={styles.lineLabel}>
+                    {t('record.lineLabel')}
+                    {work ? ` · 《${work}》` : ''}
+                  </Text>
+                </View>
+                <Text style={styles.lineText}>{line}</Text>
+              </View>
+            )}
+          </View>
+
+          <View style={styles.bottomGroup}>
+            <View style={styles.chBottomRow}>
+              <Pressable style={styles.sideBtn} onPress={() => void pickFromGallery()} disabled={recording} accessibilityRole="button">
+                <Feather name="image" size={24} color="#FFFFFF" />
+                <Text style={styles.sideLabel}>{t('record.upload')}</Text>
+              </Pressable>
+              <Pressable
+                accessibilityLabel={recording ? t('record.stop') : t('record.start')}
+                onPress={() => (recording ? stopRecording() : void startRecording())}
+                style={[styles.shutter, recording && styles.shutterRecording]}>
+                <View style={recording ? styles.shutterInnerStop : styles.shutterInnerRed} />
+              </Pressable>
+              <Pressable style={styles.sideBtn} onPress={() => setLineHidden((v) => !v)} accessibilityRole="button">
+                <Feather name={lineHidden ? 'eye-off' : 'eye'} size={24} color="#FFFFFF" />
+                <Text style={styles.sideLabel}>{t(lineHidden ? 'record.showLine' : 'record.hideLine')}</Text>
+              </Pressable>
+            </View>
+            <Text style={styles.hint}>
+              {recording ? t('record.remaining', { sec: remaining }) : t('record.challengeHint')}
+            </Text>
+          </View>
+        </SafeAreaView>
+      </View>
+    );
+  }
+
+  // ---------- 기본 모드(업로드/탭 촬영): 종전 화면 ----------
   const remainMin = Math.floor(remaining / 60);
   const remainSec = remaining % 60;
 
@@ -166,6 +279,7 @@ const styles = StyleSheet.create({
   camera: { ...StyleSheet.absoluteFillObject },
   overlay: { flex: 1, justifyContent: 'space-between' },
   topRow: { flexDirection: 'row', justifyContent: 'flex-start', padding: 16 },
+  chTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16 },
   closeBtn: {
     width: 40,
     height: 40,
@@ -184,8 +298,21 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 999,
   },
+  timerPillRec: { backgroundColor: 'rgba(0,0,0,0.7)' },
   recDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: palette.danger },
+  recDotIdle: { opacity: 0.7 },
   timerText: { color: '#FFFFFF', fontSize: 15, fontWeight: '700', fontVariant: ['tabular-nums'] },
+  lineCard: {
+    marginHorizontal: 16,
+    backgroundColor: 'rgba(10,14,24,0.78)',
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    gap: 6,
+  },
+  lineLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  lineLabel: { color: '#8FA5FF', fontSize: 12, fontWeight: '800' },
+  lineText: { color: '#FFFFFF', fontSize: 17, fontWeight: '700', lineHeight: 25 },
   bottomGroup: { gap: 12 },
   bottomRow: {
     flexDirection: 'row',
@@ -194,6 +321,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 40,
     paddingBottom: 8,
   },
+  chBottomRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 36,
+  },
+  sideBtn: { width: 72, alignItems: 'center', gap: 6 },
+  sideLabel: { color: '#FFFFFF', fontSize: 12, fontWeight: '700', opacity: 0.9 },
   flipBtn: { width: 52, height: 52, alignItems: 'center', justifyContent: 'center' },
   flipIcon: { color: '#FFFFFF', fontSize: 26 },
   shutter: {
@@ -207,8 +342,9 @@ const styles = StyleSheet.create({
   },
   shutterRecording: { borderColor: palette.danger },
   shutterInner: { width: 60, height: 60, borderRadius: 30, backgroundColor: '#FFFFFF' },
+  shutterInnerRed: { width: 60, height: 60, borderRadius: 30, backgroundColor: '#E5645C' },
   shutterInnerStop: { width: 30, height: 30, borderRadius: 6, backgroundColor: palette.danger },
-  hint: { color: '#FFFFFF', textAlign: 'center', fontSize: 13, opacity: 0.85 },
+  hint: { color: '#FFFFFF', textAlign: 'center', fontSize: 13, opacity: 0.85, paddingBottom: 8 },
   permSafe: { flex: 1, backgroundColor: palette.bg },
   permBody: { flex: 1, justifyContent: 'center', padding: 28, gap: 12 },
   permTitle: { fontSize: 20, fontWeight: '800', color: palette.text },

@@ -32,9 +32,10 @@ export default function ChallengeDetailScreen() {
       confirmLabel: t('common.confirm'),
     });
   };
+  // 대사를 띄운 챌린지 촬영(pen A18)으로. 찍으면 챌린지 올리기로 이어진다.
   const perform = () => {
     logEvent('challenge_perform_tap', { line: line.slice(0, 40) });
-    router.push('/upload');
+    router.push({ pathname: '/record-video', params: { mode: 'challenge', line, work } });
   };
   // 최신순 탭은 예시라 순서만 뒤집어 다르게 보이게 한다.
   const list = tab === 0 ? PERFORMERS : [...PERFORMERS].reverse();

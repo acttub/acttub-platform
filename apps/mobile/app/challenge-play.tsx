@@ -69,9 +69,11 @@ export default function ChallengePlayScreen() {
     else player.play();
     setPlaying((v) => !v);
   };
+  // 대사를 띄운 챌린지 촬영(pen A18)으로. 찍으면 챌린지 올리기로 이어진다.
   const perform = () => {
-    logEvent('challenge_perform_tap', { line: (line || TODAY_LINE.line).slice(0, 40) });
-    router.push('/upload');
+    const theLine = line || TODAY_LINE.line;
+    logEvent('challenge_perform_tap', { line: theLine.slice(0, 40) });
+    router.push({ pathname: '/record-video', params: { mode: 'challenge', line: theLine, work: TODAY_LINE.work } });
   };
   const soon = (where: string) => {
     logEvent('challenge_soon_tap', { where });

@@ -654,6 +654,12 @@ const en: DeepStringShape<typeof ko> = {
     stop: 'Stop',
     hint: 'Up to 5 min · stops automatically at 5:00',
     remaining: '{{sec}}s left',
+    challengeHint: 'Up to 60s · after recording, choose to share or just save',
+    lineLabel: 'Today’s line',
+    hideLine: 'Hide line',
+    showLine: 'Show line',
+    upload: 'Upload',
+    cameraOff: 'Camera preview appears here',
   },
   stack: {
     record: 'Record video',

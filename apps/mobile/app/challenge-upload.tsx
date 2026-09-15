@@ -1,5 +1,5 @@
 import Feather from '@expo/vector-icons/Feather';
-import { Stack, useRouter } from 'expo-router';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -22,6 +22,9 @@ type Mode = 'public' | 'private';
  */
 export default function ChallengeUploadScreen() {
   const router = useRouter();
+  // 챌린지 촬영에서 오면 어떤 대사/작품인지 같이 온다. 없으면 오늘의 대사.
+  const params = useLocalSearchParams<{ line?: string; work?: string }>();
+  const work = params.work || TODAY_LINE.work;
   const [video] = useState<RecordedVideo | null>(() => peekRecordedVideo());
   const [caption, setCaption] = useState('');
   const [mode, setMode] = useState<Mode>('public');
@@ -86,7 +89,7 @@ export default function ChallengeUploadScreen() {
           </View>
           <View style={styles.flex}>
             <Text style={styles.meta}>
-              {TODAY_LINE.work}{mmss ? ` · ${mmss}` : ''}
+              {work}{mmss ? ` · ${mmss}` : ''}
             </Text>
             <TextInput
               style={styles.caption}

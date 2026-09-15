@@ -40,10 +40,10 @@ export default function ChallengesScreen() {
   const { alert, dialog } = useAppDialog();
   const [tab, setTab] = useState(0);
 
-  // "이 대사 연기하기" — 챌린지의 실제 행동. 지금은 연습 시작 흐름으로 보낸다(대사 프리필은 서버 붙으면).
-  const performLine = (line: string) => {
+  // "이 대사 연기하기" — 대사를 띄운 챌린지 촬영(pen A18)으로. 찍으면 챌린지 올리기로 이어진다.
+  const performLine = (line: string, work: string) => {
     logEvent('challenge_perform_tap', { line: line.slice(0, 40) });
-    router.push('/upload');
+    router.push({ pathname: '/record-video', params: { mode: 'challenge', line, work } });
   };
   // 대사를 탭하면 그 대사의 연기 영상 랭킹(A17)으로.
   const openDetail = (line: string, work: string) => {
@@ -128,7 +128,7 @@ export default function ChallengesScreen() {
           </Text>
           <Pressable
             style={({ pressed }) => [styles.performBtn, pressed && styles.pressed]}
-            onPress={() => performLine(TODAY.line)}
+            onPress={() => performLine(TODAY.line, TODAY.work)}
             accessibilityRole="button">
             <Feather name="play" size={15} color="#FFFFFF" />
             <Text style={styles.performText}>{t('challenges.performCta')}</Text>

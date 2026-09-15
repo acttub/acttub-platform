@@ -634,6 +634,12 @@ const ko = {
     stop: '촬영 종료',
     hint: '최대 5분 · 5분이 되면 자동으로 멈춰요',
     remaining: '{{sec}}초 남음',
+    challengeHint: '최대 60초 · 촬영 후 공유할지, 저장만 할지 고를 수 있어요',
+    lineLabel: '오늘의 대사',
+    hideLine: '대사 숨김',
+    showLine: '대사 보기',
+    upload: '업로드',
+    cameraOff: '카메라를 켜면 여기에 보여요',
   },
   stack: {
     record: '영상 촬영',
