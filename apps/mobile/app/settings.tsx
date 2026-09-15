@@ -1,46 +1,53 @@
+import Feather from '@expo/vector-icons/Feather';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { Stack, useRouter } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import {
   ActivityIndicator,
+  Linking,
   Pressable,
+  ScrollView,
   StyleSheet,
   Switch,
   Text,
-  TextInput,
   View,
-  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppDialog } from '@/components/app-dialog';
-import { KeyboardAwareScroll } from '@/components/keyboard-aware-scroll';
 import { Markdown } from '@/components/markdown';
+import { palette } from '@/constants/palette';
 import { api, type ConsentEntryDocument } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { consentPreferencesForEntry } from '@/lib/consent-entry';
 import { getConsentPrefs, setConsentPref } from '@/lib/consent-prefs';
-import { disablePush, enablePush, isPushEnabled } from '@/lib/notifications';
-import { getUserName, saveUserName } from '@/lib/profile';
-import { palette } from '@/constants/palette';
 import { translate as t } from '@/lib/i18n';
+import { disablePush, enablePush, isPushEnabled } from '@/lib/notifications';
+
+/** 동의 문서 카드의 아이콘 — 제목으로 고른다(서버 문서엔 아이콘 필드가 없다). */
+function docIcon(title: string): ReactNode {
+  if (/개인정보|privacy/i.test(title)) return <Feather name="shield" size={18} color={palette.blue} />;
+  if (/ai|분석|analysis/i.test(title)) return <Ionicons name="sparkles-outline" size={18} color={palette.blue} />;
+  return <Feather name="file-text" size={18} color={palette.blue} />;
+}
 
 /**
- * 설정 — 이미 가입된 유저도 이름 수정·선택 동의 관리·로그아웃을 할 수 있다.
- * 문서와 현재 결정은 서버의 동의 진입 판정을 정본으로 쓴다. 로컬 consent-prefs는
- * 새 인터페이스가 없는 구형 서버에서만 화면 복구용으로 사용한다.
+ * A4 설정 — pen대로 "‹ 설정" 헤더 아래 필수 동의 카드(아이콘·제목·자세히 보기·동의됨),
+ * 알림 카드(토글), 맨 아래 로그아웃·회원 탈퇴.
+ *
+ * 이름·프로필 편집은 프로필 탭(A4 프로필 → 편집)으로 옮겨져 여기선 뺐다. 코치의 기억과
+ * 문의·신고는 pen엔 없지만 각각 기억 수정 창구·앱스토어 신고 창구(SOMA-499)라 같은
+ * 카드 모양으로 남긴다. 문서와 현재 결정은 서버의 동의 진입 판정을 정본으로 쓴다.
  */
 export default function SettingsScreen() {
   const router = useRouter();
-  const { user, consentEntry, signOut, refreshConsentEntry } = useAuth();
+  const { consentEntry, signOut, refreshConsentEntry } = useAuth();
   const [initialConsentEntry] = useState(() => consentEntry.entry);
-  const [name, setName] = useState('');
-  const [savedName, setSavedName] = useState('');
   const [docs, setDocs] = useState<ConsentEntryDocument[]>([]);
   const [prefs, setPrefs] = useState<Record<string, boolean>>({});
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [nameSaved, setNameSaved] = useState(false);
   const [pushOn, setPushOn] = useState(true);
   const [updatingConsentId, setUpdatingConsentId] = useState<string | null>(null);
   const { confirm, alert, dialog } = useAppDialog();
@@ -49,25 +56,20 @@ export default function SettingsScreen() {
     setLoading(true);
     setLoadError(null);
     try {
-      const [n, cachedPrefs, push] = await Promise.all([
-        getUserName(),
-        getConsentPrefs(),
-        isPushEnabled(),
-      ]);
+      const [cachedPrefs, push] = await Promise.all([getConsentPrefs(), isPushEnabled()]);
       let consentDocuments: ConsentEntryDocument[];
       let currentPrefs = cachedPrefs;
       if (initialConsentEntry && initialConsentEntry.documents.length > 0) {
         consentDocuments = initialConsentEntry.documents;
         currentPrefs = consentPreferencesForEntry(initialConsentEntry);
       } else {
+        // 새 인터페이스가 없는 구형 서버 — 로컬 consent-prefs로 화면만 복구한다.
         const legacy = await api.consentDocuments();
         consentDocuments = legacy.documents.map((document) => ({
           ...document,
           current_decision: cachedPrefs[document.id] ? 'granted' : null,
         }));
       }
-      setName(n ?? '');
-      setSavedName(n ?? '');
       setDocs(consentDocuments);
       setPrefs(currentPrefs);
       setPushOn(push);
@@ -89,13 +91,6 @@ export default function SettingsScreen() {
     else await disablePush();
   }, []);
 
-  const saveName = useCallback(async () => {
-    await saveUserName(name);
-    setSavedName(name.trim());
-    setNameSaved(true);
-    setTimeout(() => setNameSaved(false), 1500);
-  }, [name]);
-
   const toggle = useCallback(
     async (doc: ConsentEntryDocument, next: boolean) => {
       if (updatingConsentId === doc.id) return;
@@ -108,10 +103,7 @@ export default function SettingsScreen() {
         setDocs((current) =>
           current.map((document) =>
             document.id === doc.id
-              ? {
-                  ...document,
-                  current_decision: next ? 'granted' : 'revoked',
-                }
+              ? { ...document, current_decision: next ? 'granted' : 'revoked' }
               : document,
           ),
         );
@@ -143,16 +135,47 @@ export default function SettingsScreen() {
     if (ok) void signOut();
   };
 
-  const DocBody = ({ doc }: { doc: ConsentEntryDocument }) =>
-    expanded[doc.id] ? (
-      <View style={styles.docBody}>
-        <Markdown source={doc.body} variant="compact" />
-      </View>
-    ) : null;
+  const openContactMail = async () => {
+    const url = 'mailto:acttub0527@gmail.com?subject=' + encodeURIComponent('[Acttub] 문의·신고');
+    try {
+      const okToOpen = await Linking.canOpenURL(url);
+      if (okToOpen) await Linking.openURL(url);
+      else throw new Error('cannot open');
+    } catch {
+      void alert({ title: t('settings.contactMailFail'), message: 'acttub0527@gmail.com' });
+    }
+  };
+
+  const toggleExpanded = (id: string) => setExpanded((e) => ({ ...e, [id]: !e[id] }));
+
+  const renderDocCard = (doc: ConsentEntryDocument, right: ReactNode) => (
+    <View key={doc.id} style={styles.card}>
+      <Pressable style={styles.cardRow} onPress={() => toggleExpanded(doc.id)} accessibilityRole="button">
+        <View style={styles.iconCircle}>{docIcon(doc.title)}</View>
+        <View style={styles.cardBody}>
+          <Text style={styles.cardTitle}>{doc.title}</Text>
+          <Text style={styles.cardSub}>{expanded[doc.id] ? t('common.fold') : t('common.detail')}</Text>
+        </View>
+        {right}
+      </Pressable>
+      {expanded[doc.id] && (
+        <View style={styles.docBody}>
+          <Markdown source={doc.body} variant="compact" />
+        </View>
+      )}
+    </View>
+  );
 
   return (
-    <SafeAreaView style={styles.safe} edges={['bottom']}>
-      <Stack.Screen options={{ headerShown: true, title: t('settings.title') }} />
+    <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+      <Stack.Screen options={{ headerShown: false }} />
+      <View style={styles.header}>
+        <Pressable onPress={() => router.back()} hitSlop={12} accessibilityRole="button" accessibilityLabel={t('common.back')}>
+          <Feather name="chevron-left" size={26} color={palette.text} />
+        </Pressable>
+        <Text style={styles.title}>{t('settings.title')}</Text>
+      </View>
+
       {loading ? (
         <View style={styles.center}>
           <ActivityIndicator color={palette.blue} />
@@ -165,69 +188,30 @@ export default function SettingsScreen() {
           </Pressable>
         </View>
       ) : (
-        <KeyboardAwareScroll contentContainerStyle={styles.list}>
-          {/* 프로필 */}
-          <Text style={styles.sectionTitle}>{t('settings.profile')}</Text>
-          {!!user?.email && <Text style={styles.email}>{user.email}</Text>}
-          <Text style={styles.label}>{t('settings.nameLabel')}</Text>
-          <View style={styles.nameRow}>
-            <TextInput
-              style={styles.input}
-              placeholder={t('settings.namePlaceholder')}
-              placeholderTextColor={palette.textDim}
-              value={name}
-              onChangeText={setName}
-              returnKeyType="done"
-            />
-            <Pressable
-              style={[styles.saveBtn, name.trim() === savedName && styles.saveBtnOff]}
-              onPress={saveName}
-              disabled={name.trim() === savedName}>
-              <Text style={styles.saveBtnText}>{nameSaved ? t('common.saved') : t('common.save')}</Text>
-            </Pressable>
-          </View>
-
-          <Pressable
-            style={styles.memoryRow}
-            onPress={() => router.push('/profile-edit')}
-            accessibilityRole="button">
-            <Text style={styles.memoryText}>{t('settings.profileEdit')}</Text>
-            <Text style={styles.memoryChevron}>›</Text>
-          </Pressable>
-
+        <ScrollView contentContainerStyle={styles.list}>
           {/* 필수 동의 — 수락된 문서는 열람만, 거절·철회된 문서는 다시 수락할 수 있다. */}
           {required.length > 0 && (
             <>
               <Text style={styles.sectionTitle}>{t('settings.requiredConsent')}</Text>
-              {required.map((doc) => (
-                <View key={doc.id} style={styles.docCard}>
-                  <View style={styles.docRow}>
+              {required.map((doc) =>
+                renderDocCard(
+                  doc,
+                  doc.current_decision === 'granted' ? (
+                    <Text style={styles.agreedTag}>{t('settings.agreedTag')}</Text>
+                  ) : (
                     <Pressable
-                      style={styles.docTitleWrap}
-                      onPress={() => setExpanded((e) => ({ ...e, [doc.id]: !e[doc.id] }))}>
-                      <Text style={styles.docTitle}>{doc.title}</Text>
-                      <Text style={styles.viewLink}>
-                        {expanded[doc.id] ? t('common.fold') : t('common.detail')}
-                      </Text>
+                      style={styles.reacceptBtn}
+                      onPress={() => void toggle(doc, true)}
+                      disabled={updatingConsentId === doc.id}>
+                      {updatingConsentId === doc.id ? (
+                        <ActivityIndicator size="small" color={palette.blue} />
+                      ) : (
+                        <Text style={styles.reacceptText}>{t('settings.reaccept')}</Text>
+                      )}
                     </Pressable>
-                    {doc.current_decision === 'granted' ? (
-                      <Text style={styles.agreedTag}>{t('settings.agreedTag')}</Text>
-                    ) : (
-                      <Pressable
-                        style={styles.reacceptBtn}
-                        onPress={() => void toggle(doc, true)}
-                        disabled={updatingConsentId === doc.id}>
-                        {updatingConsentId === doc.id ? (
-                          <ActivityIndicator size="small" color={palette.blue} />
-                        ) : (
-                          <Text style={styles.reacceptText}>{t('settings.reaccept')}</Text>
-                        )}
-                      </Pressable>
-                    )}
-                  </View>
-                  <DocBody doc={doc} />
-                </View>
-              ))}
+                  ),
+                ),
+              )}
             </>
           )}
 
@@ -235,37 +219,32 @@ export default function SettingsScreen() {
           {optional.length > 0 && (
             <>
               <Text style={styles.sectionTitle}>{t('settings.optionalConsent')}</Text>
-              <Text style={styles.sectionHint}>{t('settings.optionalHint')}</Text>
-              {optional.map((doc) => (
-                <View key={doc.id} style={styles.docCard}>
-                  <View style={styles.docRow}>
-                    <Pressable
-                      style={styles.docTitleWrap}
-                      onPress={() => setExpanded((e) => ({ ...e, [doc.id]: !e[doc.id] }))}>
-                      <Text style={styles.docTitle}>{doc.title}</Text>
-                      <Text style={styles.viewLink}>{expanded[doc.id] ? t('common.fold') : t('common.detail')}</Text>
-                    </Pressable>
-                    <Switch
-                      value={!!prefs[doc.id]}
-                      onValueChange={(v) => toggle(doc, v)}
-                      disabled={updatingConsentId === doc.id}
-                      trackColor={{ true: palette.blue, false: palette.border }}
-                      thumbColor="#FFFFFF"
-                      ios_backgroundColor={palette.border}
-                    />
-                  </View>
-                  <DocBody doc={doc} />
-                </View>
-              ))}
+              {optional.map((doc) =>
+                renderDocCard(
+                  doc,
+                  <Switch
+                    value={!!prefs[doc.id]}
+                    onValueChange={(v) => toggle(doc, v)}
+                    disabled={updatingConsentId === doc.id}
+                    trackColor={{ true: palette.blue, false: palette.border }}
+                    thumbColor="#FFFFFF"
+                    ios_backgroundColor={palette.border}
+                  />,
+                ),
+              )}
             </>
           )}
 
           {/* 알림 — 분석 완료 푸시와 연습 리마인드를 한 토글로 켠다/끈다. */}
           <Text style={styles.sectionTitle}>{t('settings.notifications')}</Text>
-          <View style={styles.docCard}>
-            <View style={styles.docRow}>
-              <View style={styles.docTitleWrap}>
-                <Text style={styles.docTitle}>{t('settings.notifTitle')}</Text>
+          <View style={styles.card}>
+            <View style={styles.cardRow}>
+              <View style={styles.iconCircle}>
+                <Feather name="bell" size={18} color={palette.blue} />
+              </View>
+              <View style={styles.cardBody}>
+                <Text style={styles.cardTitle}>{t('settings.notifTitle')}</Text>
+                <Text style={styles.cardSub}>{t('settings.notifBody')}</Text>
               </View>
               <Switch
                 value={pushOn}
@@ -275,55 +254,46 @@ export default function SettingsScreen() {
                 ios_backgroundColor={palette.border}
               />
             </View>
-            <Text style={styles.sectionHint}>
-              {t('settings.notifBody')}
-            </Text>
           </View>
 
-          {/* 코치가 나에 대해 적어 둔 것. 틀린 내용을 되돌릴 수 있는 유일한 자리라
-              동의·탈퇴처럼 눈에 띄는 위치에 둔다. */}
+          {/* 코치의 기억 — 틀린 내용을 되돌릴 수 있는 유일한 자리. */}
           <Text style={styles.sectionTitle}>{t('settings.memorySection')}</Text>
-          <Text style={styles.sectionHint}>
-            {t('settings.memoryHint')}
-          </Text>
-          <Pressable
-            style={styles.memoryRow}
-            onPress={() => router.push('/memory')}
-            accessibilityRole="button">
-            <Text style={styles.memoryText}>{t('settings.memoryLink')}</Text>
-            <Text style={styles.memoryChevron}>›</Text>
+          <Pressable style={styles.card} onPress={() => router.push('/memory')} accessibilityRole="button">
+            <View style={styles.cardRow}>
+              <View style={styles.iconCircle}>
+                <Feather name="book" size={18} color={palette.blue} />
+              </View>
+              <View style={styles.cardBody}>
+                <Text style={styles.cardTitle}>{t('settings.memoryLink')}</Text>
+                <Text style={styles.cardSub}>{t('settings.memoryHint')}</Text>
+              </View>
+              <Feather name="chevron-right" size={18} color={palette.checkOff} />
+            </View>
           </Pressable>
 
           {/* 문의·신고 (SOMA-499, App Store 1.2 — 앱 안에서 부적절 활동을 신고할 창구) */}
           <Text style={styles.sectionTitle}>{t('settings.contactSection')}</Text>
-          <Text style={styles.sectionHint}>{t('settings.contactHint')}</Text>
-          <Pressable
-            style={styles.memoryRow}
-            accessibilityRole="button"
-            onPress={async () => {
-              const url =
-                'mailto:acttub0527@gmail.com?subject=' +
-                encodeURIComponent('[Acttub] 문의·신고');
-              try {
-                const okToOpen = await Linking.canOpenURL(url);
-                if (okToOpen) await Linking.openURL(url);
-                else throw new Error('cannot open');
-              } catch {
-                void alert({ title: t('settings.contactMailFail'), message: 'acttub0527@gmail.com' });
-              }
-            }}>
-            <Text style={styles.memoryText}>{t('settings.contactAction')}</Text>
-            <Text style={styles.memoryChevron}>›</Text>
+          <Pressable style={styles.card} onPress={() => void openContactMail()} accessibilityRole="button">
+            <View style={styles.cardRow}>
+              <View style={styles.iconCircle}>
+                <Feather name="mail" size={18} color={palette.blue} />
+              </View>
+              <View style={styles.cardBody}>
+                <Text style={styles.cardTitle}>{t('settings.contactAction')}</Text>
+                <Text style={styles.cardSub}>{t('settings.contactHint')}</Text>
+              </View>
+              <Feather name="chevron-right" size={18} color={palette.checkOff} />
+            </View>
           </Pressable>
 
           {/* 개발 빌드에서만 보인다. 영상 업로드·분석을 지나지 않고 화면만 확인하는 통로. */}
           {__DEV__ && (
-            <Pressable
-              style={styles.previewRow}
-              onPress={() => router.push('/ui-preview')}>
+            <Pressable style={styles.previewRow} onPress={() => router.push('/ui-preview')}>
               <Text style={styles.previewText}>{t('settings.uiPreview')}</Text>
             </Pressable>
           )}
+
+          <View style={styles.spacer} />
 
           <Pressable style={styles.logout} onPress={() => void confirmLogout()}>
             <Text style={styles.logoutText}>{t('settings.logout')}</Text>
@@ -336,7 +306,7 @@ export default function SettingsScreen() {
             accessibilityRole="button">
             <Text style={styles.deleteText}>{t('settings.withdraw')}</Text>
           </Pressable>
-        </KeyboardAwareScroll>
+        </ScrollView>
       )}
       {dialog}
     </SafeAreaView>
@@ -344,72 +314,46 @@ export default function SettingsScreen() {
 }
 
 const styles = StyleSheet.create({
-  memoryRow: {
-    marginTop: 8,
-    borderWidth: 1,
-    borderColor: palette.borderSoft,
-    borderRadius: 14,
-    paddingVertical: 16,
-    paddingHorizontal: 16,
+  safe: { flex: 1, backgroundColor: palette.bgSubtle },
+  header: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 6,
   },
-  memoryText: { fontSize: 15, color: palette.text },
-  memoryChevron: { fontSize: 20, color: palette.checkOff },
-  previewRow: {
-    marginTop: 24,
-    borderWidth: 1,
-    borderColor: palette.borderSoft,
-    borderRadius: 14,
-    paddingVertical: 14,
-    alignItems: 'center',
-  },
-  previewText: { fontSize: 13.5, fontWeight: '800', color: palette.textFaint },
-
-  safe: { flex: 1, backgroundColor: palette.bg },
+  title: { fontSize: 22, fontWeight: '800', color: palette.text },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   loadError: { color: palette.danger, fontSize: 14, textAlign: 'center', paddingHorizontal: 24 },
   reloadBtn: { marginTop: 12, paddingHorizontal: 16, paddingVertical: 10 },
   reloadText: { color: palette.blue, fontSize: 14, fontWeight: '700' },
-  screenTitle: { fontSize: 22, fontWeight: '800', color: palette.text, paddingHorizontal: 20, paddingTop: 12 },
-  list: { padding: 20, paddingBottom: 130, gap: 8 },
-  sectionTitle: { fontSize: 13, fontWeight: '800', color: palette.textDim, marginTop: 18 },
-  sectionHint: { fontSize: 12, color: palette.textFaint, marginTop: -2 },
-  email: { fontSize: 14, color: palette.textDim, marginTop: 2 },
-  label: { fontSize: 13, fontWeight: '700', color: palette.text, marginTop: 8 },
-  nameRow: { flexDirection: 'row', gap: 8, alignItems: 'center' },
-  input: {
-    flex: 1,
-    backgroundColor: palette.bgSoft,
-    borderRadius: 12,
-    padding: 14,
-    color: palette.text,
-    fontSize: 15,
-  },
-  saveBtn: {
-    backgroundColor: palette.blue,
-    borderRadius: 12,
-    paddingHorizontal: 18,
-    paddingVertical: 13,
-  },
-  saveBtnOff: { opacity: 0.4 },
-  saveBtnText: { color: '#fff', fontWeight: '700', fontSize: 14 },
-  docCard: {
+  list: { flexGrow: 1, paddingHorizontal: 20, paddingTop: 8, paddingBottom: 24, gap: 10 },
+  sectionTitle: { fontSize: 13.5, fontWeight: '800', color: palette.text, marginTop: 12 },
+  card: {
     backgroundColor: palette.card,
     borderWidth: 1,
-    borderColor: palette.border,
-    borderRadius: 14,
-    padding: 14,
+    borderColor: palette.borderSoft,
+    borderRadius: 18,
+    paddingVertical: 16,
+    paddingHorizontal: 16,
   },
-  docRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  docTitleWrap: { flex: 1 },
-  docTitle: { fontSize: 14, color: palette.text, fontWeight: '600', flexShrink: 1 },
-  viewLink: { fontSize: 12, color: palette.textDim, textDecorationLine: 'underline', marginTop: 3 },
-  agreedTag: { fontSize: 12, fontWeight: '700', color: palette.green },
+  cardRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  iconCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: palette.blueSoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cardBody: { flex: 1, gap: 4 },
+  cardTitle: { fontSize: 15.5, fontWeight: '800', color: palette.text },
+  cardSub: { fontSize: 12.5, color: palette.textFaint, lineHeight: 17 },
+  agreedTag: { fontSize: 13.5, fontWeight: '800', color: palette.green },
   reacceptBtn: {
     minWidth: 72,
-    minHeight: 38,
+    minHeight: 36,
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 10,
@@ -417,21 +361,26 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
   },
   reacceptText: { fontSize: 13, fontWeight: '700', color: palette.blue },
-  docBody: {
+  docBody: { marginTop: 14, paddingTop: 12, borderTopWidth: 1, borderTopColor: palette.borderSoft },
+  previewRow: {
     marginTop: 12,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: palette.border,
-  },
-  logout: {
-    marginTop: 28,
-    paddingVertical: 15,
-    borderRadius: 14,
     borderWidth: 1,
-    borderColor: palette.border,
+    borderColor: palette.borderSoft,
+    borderRadius: 14,
+    paddingVertical: 14,
     alignItems: 'center',
   },
-  logoutText: { color: palette.danger, fontSize: 15, fontWeight: '700' },
-  deleteRow: { marginTop: 10, paddingVertical: 14, alignItems: 'center' },
-  deleteText: { color: palette.textFaint, fontSize: 13.5, fontWeight: '700' },
+  previewText: { fontSize: 13.5, fontWeight: '800', color: palette.textFaint },
+  spacer: { flex: 1, minHeight: 24 },
+  logout: {
+    paddingVertical: 17,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: palette.border,
+    backgroundColor: palette.card,
+    alignItems: 'center',
+  },
+  logoutText: { color: palette.danger, fontSize: 16, fontWeight: '800' },
+  deleteRow: { marginTop: 6, paddingVertical: 14, alignItems: 'center' },
+  deleteText: { color: palette.textFaint, fontSize: 14, fontWeight: '600' },
 });

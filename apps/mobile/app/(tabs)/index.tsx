@@ -1,12 +1,13 @@
 import Feather from '@expo/vector-icons/Feather';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { weekColors, palette } from '@/constants/palette';
+import { palette } from '@/constants/palette';
 import { api, type ReportRecord } from '@/lib/api';
-import { buildWeekActivity, weekColorStep } from '@/lib/practice-activity';
+import { buildWeekActivity } from '@/lib/practice-activity';
 import { sortReportsNewestFirst } from '@/lib/report-order';
 import {
   localDate,
@@ -23,6 +24,8 @@ import {
 
 const PREVIEW_COUNT = 3;
 const MASCOT = require('@/assets/images/mascot-home.png');
+/** 연속 연습 스트립의 주황(pen). 팔레트의 amber는 글자용이라 따로 둔다. */
+const STREAK_ORANGE = '#E9A23B';
 
 function recentDate(iso: string): string {
   const d = new Date(iso);
@@ -129,20 +132,11 @@ export default function HomeScreen() {
           <Feather name="chevron-right" size={22} color="rgba(255,255,255,0.9)" />
         </Pressable>
 
-        {/* 연속 연습 — 이번 주(월~일) */}
+        {/* 연속 연습 — 이번 주(월~일). pen: 불꽃 + 라벨, 연습한 날은 주황 원, 나머지는 테두리 원. */}
         <View style={styles.streakCard}>
           <View style={styles.streakTop}>
-            <View style={styles.streakLeft}>
-              <Text style={styles.flame}>🔥</Text>
-              <Text style={styles.streakLabel}>{t('home.streakCount', { days: streak })}</Text>
-            </View>
-            <View style={styles.legend}>
-              <Text style={styles.legendLabel}>{t('home.legendLow')}</Text>
-              {weekColors.map((color) => (
-                <View key={color} style={[styles.legendDot, { backgroundColor: color }]} />
-              ))}
-              <Text style={styles.legendLabel}>{t('home.legendHigh')}</Text>
-            </View>
+            <Ionicons name="flame-outline" size={22} color={STREAK_ORANGE} />
+            <Text style={styles.streakLabel}>{t('home.streakCount', { days: streak })}</Text>
           </View>
           <View style={styles.week}>
             {days.map((day) => {
@@ -150,20 +144,9 @@ export default function HomeScreen() {
               return (
                 <View
                   key={day.key}
-                  style={[
-                    styles.dayCell,
-                    day.isFuture
-                      ? styles.dayFuture
-                      : { backgroundColor: active ? weekColors[weekColorStep(day.count)] : palette.bgSoft },
-                    day.isToday && styles.dayToday,
-                  ]}
+                  style={[styles.dayCell, active ? styles.dayOn : styles.dayOff]}
                   accessibilityLabel={t('home.dayA11y', { day: day.label, count: day.count })}>
-                  <Text
-                    style={[
-                      styles.dayLabel,
-                      { color: active ? '#FFFFFF' : palette.textFaint },
-                      day.isToday && !active && styles.dayLabelToday,
-                    ]}>
+                  <Text style={[styles.dayLabel, active ? styles.dayLabelOn : styles.dayLabelOff]}>
                     {day.label}
                   </Text>
                 </View>
@@ -254,10 +237,10 @@ export default function HomeScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
-  container: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 140 },
+  container: { paddingHorizontal: 20, paddingTop: 28, paddingBottom: 140 },
   flex: { flex: 1 },
 
-  hero: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingTop: 8 },
+  hero: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingTop: 12 },
   heroTitle: { fontSize: 26, fontWeight: '800', color: palette.text, lineHeight: 34 },
   heroSub: { fontSize: 13, fontWeight: '600', color: palette.textDim, lineHeight: 20, marginTop: 12 },
   mascotCol: { width: 118, alignItems: 'center', gap: 4 },
@@ -304,30 +287,21 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 8 },
     elevation: 1,
   },
-  streakTop: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 14,
-  },
-  streakLeft: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  flame: { fontSize: 18 },
-  streakLabel: { fontSize: 14, fontWeight: '800', color: palette.text },
-  legend: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  legendLabel: { fontSize: 10, color: palette.textFaint, marginHorizontal: 2 },
-  legendDot: { width: 10, height: 10, borderRadius: 5 },
-  week: { flexDirection: 'row', gap: 6 },
+  streakTop: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 14 },
+  streakLabel: { fontSize: 16, fontWeight: '800', color: palette.text },
+  week: { flexDirection: 'row', justifyContent: 'space-between' },
   dayCell: {
-    flex: 1,
-    aspectRatio: 1,
-    borderRadius: 11,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  dayFuture: { borderWidth: 1, borderColor: palette.border, borderStyle: 'dashed' },
-  dayToday: { borderWidth: 2, borderColor: palette.blue },
-  dayLabel: { fontSize: 12, fontWeight: '700' },
-  dayLabelToday: { color: palette.blue },
+  dayOn: { backgroundColor: STREAK_ORANGE },
+  dayOff: { borderWidth: 1.5, borderColor: palette.border },
+  dayLabel: { fontSize: 13, fontWeight: '700' },
+  dayLabelOn: { color: '#FFFFFF' },
+  dayLabelOff: { color: palette.textFaint },
 
   sectionHeader: {
     flexDirection: 'row',
