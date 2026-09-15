@@ -1,7 +1,7 @@
 import Feather from '@expo/vector-icons/Feather';
 import { Tabs, useRouter } from 'expo-router';
 import React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { HapticTab } from '@/components/haptic-tab';
@@ -31,11 +31,11 @@ export default function TabLayout() {
           left: 16,
           right: 16,
           bottom: insets.bottom + 12,
-          height: 66,
-          borderRadius: 33,
+          height: 62,
+          borderRadius: 31,
           backgroundColor: palette.card,
           borderTopWidth: 0,
-          paddingTop: 8,
+          paddingTop: 10,
           paddingBottom: 10,
           shadowColor: palette.navy,
           shadowOpacity: 0.12,
@@ -43,7 +43,8 @@ export default function TabLayout() {
           shadowOffset: { width: 0, height: 8 },
           elevation: 8,
         },
-        tabBarLabelStyle: { fontSize: 10, fontWeight: '600' },
+        // 글자 없이 아이콘만(pen 탭바). 접근성 라벨은 title 로 남는다.
+        tabBarShowLabel: false,
         headerShown: false,
         tabBarButton: HapticTab,
       }}>
@@ -85,7 +86,6 @@ export default function TabLayout() {
                 onPress={() => router.push({ pathname: '/record-video', params: { next: 'choose' } })}>
                 <Feather name="video" size={24} color="#FFFFFF" />
               </Pressable>
-              <Text style={styles.fabLabel}>{t('tabs.shoot')}</Text>
             </View>
           ),
         }}

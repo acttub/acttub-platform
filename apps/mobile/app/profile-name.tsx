@@ -16,7 +16,7 @@ import { useKeyboardHeight } from '@/hooks/use-keyboard-height';
 import { api } from '@/lib/api';
 import { logEvent } from '@/lib/analytics';
 import { useAuth } from '@/lib/auth';
-import { getUserName, saveUserName } from '@/lib/profile';
+import { getUserName, saveUserName, takeProviderNameHint } from '@/lib/profile';
 import { translate as t, translateList } from '@/lib/i18n';
 
 type Gender = 'female' | 'male' | 'none';
@@ -37,7 +37,8 @@ type Gender = 'female' | 'male' | 'none';
 export function ProfileForm({ edit: isEdit }: { edit: boolean }) {
   const { completeProfileSetup } = useAuth();
   const router = useRouter();
-  const [name, setName] = useState('');
+  // 온보딩이면 로그인 제공자가 준 이름을 첫 값으로(저장은 시작하기를 눌러야). 편집은 저장값을 불러온다.
+  const [name, setName] = useState(() => (isEdit ? '' : (takeProviderNameHint() ?? '')));
   const [gender, setGender] = useState<Gender | null>(null);
   const [birthYear, setBirthYear] = useState('');
   const [mediums, setMediums] = useState<string[]>([]);

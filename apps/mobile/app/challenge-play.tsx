@@ -191,6 +191,7 @@ const styles = StyleSheet.create({
   overlay: { flex: 1, justifyContent: 'space-between' },
   top: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 8 },
   author: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  authorName: { color: '#FFFFFF', fontSize: 14, fontWeight: '700' },
   avatar: { width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.25)', alignItems: 'center', justifyContent: 'center' },
   avatarText: { fontSize: 14, fontWeight: '800', color: '#FFFFFF' },
   bottom: { paddingHorizontal: 20, paddingBottom: 16, gap: 10 },
