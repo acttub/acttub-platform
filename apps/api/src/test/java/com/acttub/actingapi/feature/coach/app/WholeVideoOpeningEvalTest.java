@@ -33,6 +33,13 @@ class WholeVideoOpeningEvalTest {
                         "다음에도 이 장면으로 할게. 말은 또렷하게 하되 세 문장을 똑같이 말하고 싶지는 않아.", "여기까지 정리해줘"));
     }
 
+    @Test void experienceAloneDoesNotBecomeAGoalBeforeTheActorChooses() throws Exception {
+        evaluate("experience", "문장 처음부터 마지막 음절까지 말소리가 또렷하게 들린다. 소리를 지르거나 끝말을 늘이지 않는다.",
+                List.of("상대에게 말을 끝까지 건네는 느낌이 편했어.",
+                        "그 느낌은 유지하고 싶어. 이 장면에서 세 문장을 똑같이 말하지 않으면서 끝까지 전달하고 싶어.",
+                        "여기까지 정리해줘"));
+    }
+
     private void evaluate(String name, String observation, List<String> answers) throws Exception {
         ObjectNode chunk = (ObjectNode) StructuredJson.resource("/coaching/chunk.json").deepCopy();
         var utterances = chunk.putArray("utterances");
@@ -88,6 +95,9 @@ class WholeVideoOpeningEvalTest {
                 messages.addObject().put("role", "actor").put("text", answer);
                 result = engine.reply(result.session(), answer, UUID.randomUUID());
                 messages.addObject().put("role", "ai").put("text", result.reply().message());
+                if (name.equals("experience") && answer.equals(answers.get(0))) {
+                    assertThat(result.session().coachingState().path("context").path("direction").isNull()).isTrue();
+                }
                 assertThat(DialogueState.asksToSelectPassage(result.reply().message())).isFalse();
                 assertThat(result.reply().message()).doesNotContain("지금은 이 구간을 더 확인하기 어려워요",
                         "영상에 근거한 설명을 준비하지 못했어요", "기대답변");
