@@ -65,13 +65,22 @@ class WholeVideoOpeningEvalTest {
                 messages.addObject().put("role", "actor").put("text", answer);
                 result = engine.reply(result.session(), answer, UUID.randomUUID());
                 messages.addObject().put("role", "ai").put("text", result.reply().message());
+                assertThat(DialogueState.asksToSelectPassage(result.reply().message())).isFalse();
                 assertThat(result.reply().message()).doesNotContain("지금은 이 구간을 더 확인하기 어려워요",
                         "영상에 근거한 설명을 준비하지 못했어요", "기대답변");
             }
             assertThat(result.session().status()).isEqualTo("closed");
             assertThat(result.reply().handoff()).isNotNull();
             output.set("handoff", result.reply().handoff());
-            var reports = new ReportEngine(new OpenAiResponsesClient(StructuredJson.MAPPER),
+            var reportCalls = output.putArray("report_calls");
+            var reportClient = new OpenAiResponsesClient(StructuredJson.MAPPER);
+            var reports = new ReportEngine((system, input) -> {
+                var call = reportCalls.addObject();
+                call.set("input", StructuredJson.parse(input));
+                var generated = reportClient.generate(system, input);
+                call.put("output", generated.text());
+                return generated;
+            },
                     StructuredJson.MAPPER, new RecordingLlmTelemetry());
             var note = reports.generateReport("coaching", null, result.reply().handoff(), false, "synthetic", null, null);
             output.set("note", note);

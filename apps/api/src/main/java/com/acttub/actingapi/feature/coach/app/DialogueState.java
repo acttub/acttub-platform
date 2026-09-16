@@ -13,7 +13,23 @@ import static com.acttub.actingapi.feature.coach.app.CoachingStateReducer.requir
 
 /** Dialogue transitions have no operation capable of assigning practice or claiming execution. */
 final class DialogueState {
+    private static final Pattern QUOTED_TEXT = Pattern.compile("“[^”]*”|‘[^’]*’|\"[^\"]*\"|'[^']*'");
+    private static final Pattern SELECT_PASSAGE = Pattern.compile(
+            "(?:어느|어떤|몇\\s*번째)[^.!?？。\\n]{0,35}(?:대사|문장|끝말|대목|구간)"
+            + "|(?:대사|문장|끝말|대목|구간)[^.!?？。\\n]{0,35}(?:어느|어떤|몇\\s*번째|하나|고르|골라|선택)");
+
     private DialogueState() { }
+
+    /** Narrow guard for a reproduced scope-reset question, not a semantic quality classifier. */
+    static boolean asksToSelectPassage(String message) {
+        String unquoted = QUOTED_TEXT.matcher(message).replaceAll("");
+        for (String sentence : unquoted.split("(?<=[.!?？。])|\\n")) {
+            if ((sentence.contains("?") || sentence.contains("？")
+                    || sentence.matches("(?s).*(?:골라|고르|선택).*(?:주세요|세요).*"))
+                    && SELECT_PASSAGE.matcher(sentence).find()) return true;
+        }
+        return false;
+    }
 
     static ObjectNode context(JsonNode state) {
         ObjectNode context = state.path("context").deepCopy();
@@ -50,6 +66,11 @@ final class DialogueState {
                     .contains(source.path("kind").asText()), "reply evidence must be delivered video material");
         }
         String message = response.path("message").asText().strip();
+        if (!userMessage.isNull() && "whole_video".equals(previous.path("context").path("focus").path("scope").asText())) {
+            require(!asksToSelectPassage(message),
+                    "전체 초점에서 대사·문장·끝말 하나를 고르게 하지 않는다. 배우의 답을 반영해 전체 개선 방향을 설명한다. "
+                    + "필요하면 배우가 말한 어려움이나 원하는 전달 방식만 확인하고, 이미 확인됐다면 질문을 생략한다.");
+        }
         if (userMessage.isNull() && !finishRequired) {
             boolean material = catalog.values().stream().anyMatch(OpeningQuestion::videoSource);
             require(!material || "continue".equals(response.path("flow").asText()),

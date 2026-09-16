@@ -15,6 +15,57 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.Test;
 
 class DialogueStateTest {
+    @Test void detectsScopeResetParaphrasesWithoutRejectingQuotedLinesOrUsefulQuestions() {
+        for (String message : List.of("세 문장 중 어느 끝말을 가장 분명히 남기고 싶나요?",
+                "어떤 문장부터 볼까요?", "어느 대사가 가장 중요해요？", "대사 하나를 골라주세요.",
+                "가장 바꾸고 싶은 구간은 어떤 부분인가요?")) {
+            assertThat(DialogueState.asksToSelectPassage(message)).as(message).isTrue();
+        }
+        for (String message : List.of("마지막 문장 하나에서만 소리가 작아져요.",
+                "“어느 대사가 중요해?”라는 말 뒤에 소리가 작아져요. 이 설명이 어려웠나요?",
+                "끝말을 들리게 하는 것과 크게 말하는 게 같다고 느껴지나요?",
+                "마지막 문장은 작게 전달하려던 건가요?")) {
+            assertThat(DialogueState.asksToSelectPassage(message)).as(message).isFalse();
+        }
+    }
+
+    @Test void wholeVideoSelectionQuestionRegeneratesBeforeItIsSavedOrShown() {
+        AtomicInteger replies = new AtomicInteger();
+        var engine = new CoachEngine((system, text) -> {
+            JsonNode input = StructuredJson.parse(text);
+            if (input.path("user_message").isNull()) {
+                ObjectNode response = StructuredCoachEngineTest.respond(input, "몸통의 위치가 영상 전체에서 유지돼요. 이 부분이 궁금했나요?", "continue");
+                ObjectNode focus = (ObjectNode) response.path("context_update").path("focus");
+                focus.put("scope", "whole_video").put("pattern", "recurring");
+                focus.putArray("evidence_refs").add("e8");
+                ((ObjectNode) response.path("reply_link")).putArray("evidence_refs").add("e8");
+                return StructuredCoachEngineTest.generated(response);
+            }
+            boolean first = replies.getAndIncrement() == 0;
+            if (!first) assertThat(input.path("validation_error").asText()).contains("전체 초점");
+            return StructuredCoachEngineTest.generated(StructuredCoachEngineTest.respond(input,
+                    first ? "어떤 문장부터 볼까요?" : "영상 전체에서 몸통 위치가 유지된다는 뜻이에요.", "continue"));
+        }, new RecordingFailureReporter(), new RecordingLlmTelemetry());
+        var opening = engine.start(session(), UUID.randomUUID());
+        var result = engine.reply(opening.session(), "전체 흐름이 궁금해", UUID.randomUUID());
+        assertThat(replies).hasValue(2);
+        assertThat(result.reply().message()).isEqualTo("영상 전체에서 몸통 위치가 유지된다는 뜻이에요.");
+        assertThat(result.session().turns().toString()).doesNotContain("어떤 문장부터");
+        assertThat(result.session().status()).isEqualTo("open");
+    }
+
+    @Test void localDialogueCanClarifyWhichPassageTheActorMeans() {
+        AtomicInteger calls = new AtomicInteger();
+        var engine = new CoachEngine((system, text) -> {
+            calls.incrementAndGet();
+            return StructuredCoachEngineTest.generated(StructuredCoachEngineTest.respond(
+                    StructuredJson.parse(text), "어떤 문장을 말한 건가요?", "continue"));
+        }, new RecordingFailureReporter(), new RecordingLlmTelemetry());
+        var result = engine.reply(session(), "그 대사만 보고 싶어", UUID.randomUUID());
+        assertThat(calls).hasValue(1);
+        assertThat(result.reply().message()).isEqualTo("어떤 문장을 말한 건가요?");
+    }
+
     private CoachSessionSnapshot session() {
         return new CoachSessionSnapshot(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
                 StructuredJson.resource("/coaching/record.json"), "", "", "", 8000, "그 외", "그 외", null,
