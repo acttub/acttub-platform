@@ -352,8 +352,13 @@ function RootNavigator() {
       <Stack.Screen name="community-new" options={{ headerShown: false, presentation: 'modal' }} />
       <Stack.Screen name="challenge-detail" options={{ title: t('challenges.detailTitle') }} />
       <Stack.Screen name="challenge-play" options={{ headerShown: false, presentation: 'fullScreenModal' }} />
-      <Stack.Screen name="record-choice" options={{ title: t('recordChoice.title') }} />
+      <Stack.Screen name="record-choice" options={{ headerShown: false }} />
       <Stack.Screen name="challenge-upload" options={{ title: t('challengeUpload.title') }} />
+      <Stack.Screen name="saved-videos" options={{ headerShown: false }} />
+      <Stack.Screen name="line-search" options={{ headerShown: false }} />
+      <Stack.Screen name="line-new" options={{ headerShown: false, presentation: 'modal' }} />
+      <Stack.Screen name="archive" options={{ headerShown: false }} />
+      <Stack.Screen name="archive-detail" options={{ headerShown: false }} />
       <Stack.Screen name="reading/new" options={{ title: '새 대본' }} />
       <Stack.Screen name="reading/detail" options={{ title: '대본' }} />
       <Stack.Screen name="reading/full" options={{ title: '대본 전체' }} />

@@ -6,6 +6,7 @@ import {
   FlatList,
   Image,
   Pressable,
+  Share,
   StyleSheet,
   Text,
   useWindowDimensions,
@@ -16,6 +17,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppDialog } from '@/components/app-dialog';
+import { ChallengeCommentsSheet } from '@/components/challenge-comments-sheet';
+import { ChallengeReportSheet } from '@/components/challenge-report-sheet';
 import { palette } from '@/constants/palette';
 import { logEvent } from '@/lib/analytics';
 import { CLIPS, PERFORMERS, PERF_IMAGES, TODAY_LINE, type Performer } from '@/lib/challenge-mock';
@@ -25,8 +28,9 @@ import { translate as t } from '@/lib/i18n';
  * A15 챌린지 스토리 — 연기 영상을 풀스크린으로 보고, 옆으로 넘기면 다음 연기자로 간다.
  *
  * 플레이어는 하나만 두고 활성 페이지에서만 VideoView를 그린다(다른 페이지는 포스터).
- * 넘길 때 player.replace로 그 연기자의 클립을 튼다. 영상은 예시 샘플이고 좋아요는 로컬
- * 토글, 댓글·공유는 "곧 열려요". "나도 이 대사 연기하기"는 실제 연습 시작으로 이어진다.
+ * 넘길 때 player.replace로 그 연기자의 클립을 튼다. 영상은 예시 샘플이고 좋아요·댓글은
+ * 로컬(시트, A15.3), 신고는 사유 시트(A15.4), 공유는 OS 공유 시트. "나도 이 대사 연기하기"는
+ * 실제 연습 시작으로 이어진다.
  */
 export default function ChallengePlayScreen() {
   const router = useRouter();
@@ -40,6 +44,8 @@ export default function ChallengePlayScreen() {
   const [active, setActive] = useState(startIndex);
   const [playing, setPlaying] = useState(true);
   const [liked, setLiked] = useState<Record<number, boolean>>({});
+  const [commentsOpen, setCommentsOpen] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
   const listRef = useRef<FlatList<Performer>>(null);
 
   const player = useVideoPlayer(CLIPS[startIndex], (p) => {
@@ -75,13 +81,16 @@ export default function ChallengePlayScreen() {
     logEvent('challenge_perform_tap', { line: theLine.slice(0, 40) });
     router.push({ pathname: '/record-video', params: { mode: 'challenge', line: theLine, work: TODAY_LINE.work } });
   };
-  const soon = (where: string) => {
-    logEvent('challenge_soon_tap', { where });
-    void alert({
-      title: t('challenges.soonTitle'),
-      message: t('challenges.soonMessage'),
-      confirmLabel: t('common.confirm'),
-    });
+  const share = (performer: Performer) => {
+    logEvent('challenge_share', { name: performer.name });
+    void Share.share({
+      message: t('profileTab.shareText', { name: performer.name, line: line || TODAY_LINE.line }),
+    }).catch(() => {});
+  };
+  const report = (reason: string) => {
+    setReportOpen(false);
+    logEvent('challenge_report', { reason });
+    void alert({ title: t('videoReport.doneTitle'), message: t('videoReport.doneMessage'), confirmLabel: t('common.confirm') });
   };
 
   const renderItem = ({ item, index }: { item: Performer; index: number }) => {
@@ -114,8 +123,8 @@ export default function ChallengePlayScreen() {
               </View>
               <Text style={styles.authorName}>{item.name}</Text>
             </View>
-            <Pressable onPress={() => soon('share')} hitSlop={10} accessibilityRole="button">
-              <Feather name="share-2" size={22} color="#FFFFFF" />
+            <Pressable onPress={() => setReportOpen(true)} hitSlop={10} accessibilityRole="button">
+              <Feather name="more-horizontal" size={24} color="#FFFFFF" />
             </Pressable>
           </View>
 
@@ -139,11 +148,11 @@ export default function ChallengePlayScreen() {
                 <Feather name="heart" size={22} color={isLiked ? palette.danger : '#FFFFFF'} />
                 <Text style={styles.actionText}>{item.likes}{isLiked ? '+1' : ''}</Text>
               </Pressable>
-              <Pressable style={styles.action} onPress={() => soon('comment')} accessibilityRole="button">
+              <Pressable style={styles.action} onPress={() => setCommentsOpen(true)} accessibilityRole="button">
                 <Feather name="message-circle" size={22} color="#FFFFFF" />
                 <Text style={styles.actionText}>{12 + index * 7}</Text>
               </Pressable>
-              <Pressable style={styles.action} onPress={() => soon('share')} accessibilityRole="button">
+              <Pressable style={styles.action} onPress={() => share(item)} accessibilityRole="button">
                 <Feather name="share-2" size={22} color="#FFFFFF" />
               </Pressable>
             </View>
@@ -177,6 +186,8 @@ export default function ChallengePlayScreen() {
         onMomentumScrollEnd={onMomentumEnd}
         extraData={{ active, playing, liked }}
       />
+      <ChallengeCommentsSheet visible={commentsOpen} onClose={() => setCommentsOpen(false)} />
+      <ChallengeReportSheet visible={reportOpen} onClose={() => setReportOpen(false)} onPick={report} />
       {dialog}
     </View>
   );

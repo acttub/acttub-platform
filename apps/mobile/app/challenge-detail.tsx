@@ -1,7 +1,7 @@
 import Feather from '@expo/vector-icons/Feather';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppDialog } from '@/components/app-dialog';
@@ -18,19 +18,16 @@ import { translate as t } from '@/lib/i18n';
  */
 export default function ChallengeDetailScreen() {
   const router = useRouter();
-  const { alert, dialog } = useAppDialog();
+  const { dialog } = useAppDialog();
   const params = useLocalSearchParams<{ line?: string; work?: string }>();
   const [tab, setTab] = useState(0);
   const line = params.line || TODAY_LINE.line;
   const work = params.work || TODAY_LINE.work;
 
-  const soon = (where: string) => {
-    logEvent('challenge_soon_tap', { where });
-    void alert({
-      title: t('challenges.soonTitle'),
-      message: t('challenges.soonMessage'),
-      confirmLabel: t('common.confirm'),
-    });
+  // 공유는 OS 공유 시트로 — 서버 없이도 동작한다.
+  const share = () => {
+    logEvent('challenge_share', { line: line.slice(0, 40) });
+    void Share.share({ message: t('profileTab.shareText', { name: work, line }) }).catch(() => {});
   };
   // 대사를 띄운 챌린지 촬영(pen A18)으로. 찍으면 챌린지 올리기로 이어진다.
   const perform = () => {
@@ -47,7 +44,7 @@ export default function ChallengeDetailScreen() {
           headerShown: true,
           title: t('challenges.detailTitle'),
           headerRight: () => (
-            <Pressable onPress={() => soon('share')} accessibilityRole="button" hitSlop={8}>
+            <Pressable onPress={share} accessibilityRole="button" hitSlop={8}>
               <Feather name="share-2" size={20} color={palette.textDim} />
             </Pressable>
           ),

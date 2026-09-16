@@ -7,18 +7,22 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { palette } from '@/constants/palette';
 import { logEvent } from '@/lib/analytics';
+import { formatClipDuration } from '@/lib/archive-format';
 import { translate as t } from '@/lib/i18n';
 import { peekRecordedVideo, takeRecordedVideo, type RecordedVideo } from '@/lib/recorded-video';
 
 /**
- * 촬영 직후 갈림길 — 방금 찍은 영상을 챌린지에 올릴지, AI 코치 분석을 받을지 고른다.
+ * A2.1 촬영 완료 — 방금 찍은 영상을 어둡게 풀스크린으로 틀고, 아래 시트에서 질문 코칭 /
+ * 챌린지 올리기 / 다시 촬영을 고른다. "보관함에 저장했어요" 배너는 pen 그대로지만 실제
+ * 기기 저장은 아직 없다(보관함은 예시 데이터).
  *
  * 촬영 결과는 recorded-video 핸드오프에 얹혀 있다. 여기선 peek 만 하고 꺼내지 않는다 —
- * 다음 화면(업로드 / 챌린지 올리기)이 꺼내 간다. "다시 찍기"만 버린다.
+ * 다음 화면(업로드 / 챌린지 올리기)이 꺼내 간다. "다시 촬영"만 버린다.
  */
 export default function RecordChoiceScreen() {
   const router = useRouter();
   const [video] = useState<RecordedVideo | null>(() => peekRecordedVideo());
+  const [playing, setPlaying] = useState(true);
   const player = useVideoPlayer(video?.uri ?? null, (p) => {
     p.loop = true;
     p.muted = true;
@@ -32,9 +36,13 @@ export default function RecordChoiceScreen() {
 
   const sec = video?.durationMs ? Math.round(video.durationMs / 1000) : null;
 
+  const togglePlay = () => {
+    if (playing) player.pause();
+    else player.play();
+    setPlaying((v) => !v);
+  };
   const goAi = () => {
     logEvent('record_choice', { choice: 'ai' });
-    // 업로드 화면이 포커스되며 takeRecordedVideo 로 결과를 받아 붙인다.
     router.replace('/upload');
   };
   const goChallenge = () => {
@@ -46,96 +54,144 @@ export default function RecordChoiceScreen() {
     takeRecordedVideo();
     router.replace({ pathname: '/record-video', params: { next: 'choose' } });
   };
+  const close = () => {
+    takeRecordedVideo();
+    router.replace('/');
+  };
 
   if (!video) return null;
 
   return (
-    <SafeAreaView style={styles.safe} edges={['bottom']}>
-      <Stack.Screen options={{ headerShown: true, title: t('recordChoice.title'), headerBackVisible: false }} />
-      <View style={styles.content}>
-        <View style={styles.previewWrap}>
-          <VideoView style={styles.preview} player={player} contentFit="cover" nativeControls={false} />
-          {sec !== null && (
-            <View style={styles.durationChip}>
-              <Feather name="video" size={12} color="#FFFFFF" />
-              <Text style={styles.durationText}>{t('recordChoice.duration', { sec })}</Text>
+    <View style={styles.root}>
+      <Stack.Screen options={{ headerShown: false }} />
+      <View style={styles.videoArea}>
+        <VideoView style={StyleSheet.absoluteFill} player={player} contentFit="cover" nativeControls={false} />
+        <Pressable style={StyleSheet.absoluteFill} onPress={togglePlay} accessibilityRole="button">
+          {!playing && (
+            <View style={styles.pauseCenter}>
+              <View style={styles.playBtn}>
+                <Feather name="play" size={26} color="#FFFFFF" />
+              </View>
             </View>
           )}
+        </Pressable>
+        <SafeAreaView edges={['top']} style={styles.topBar} pointerEvents="box-none">
+          <Pressable onPress={close} hitSlop={12} accessibilityRole="button" accessibilityLabel={t('common.close')}>
+            <Feather name="x" size={26} color="#FFFFFF" />
+          </Pressable>
+          {sec !== null && <Text style={styles.duration}>{formatClipDuration(sec)}</Text>}
+        </SafeAreaView>
+        <View style={styles.banner}>
+          <Feather name="check-circle" size={16} color={palette.green} />
+          <Text style={styles.bannerText}>{t('recordChoice.savedBanner')}</Text>
+          <Pressable onPress={() => router.push('/archive')} hitSlop={8} accessibilityRole="button">
+            <Text style={styles.bannerLink}>{t('recordChoice.viewArchive')}</Text>
+          </Pressable>
         </View>
-
-        <Text style={styles.subtitle}>{t('recordChoice.subtitle')}</Text>
-
-        <Pressable style={({ pressed }) => [styles.option, styles.optionPrimary, pressed && styles.pressed]} onPress={goAi} accessibilityRole="button">
-          <View style={[styles.optionIcon, styles.optionIconPrimary]}>
-            <Feather name="message-circle" size={20} color="#FFFFFF" />
-          </View>
-          <View style={styles.flex}>
-            <Text style={[styles.optionTitle, styles.optionTitlePrimary]}>{t('recordChoice.ai')}</Text>
-            <Text style={[styles.optionSub, styles.optionSubPrimary]}>{t('recordChoice.aiSub')}</Text>
-          </View>
-          <Feather name="chevron-right" size={20} color="rgba(255,255,255,0.9)" />
-        </Pressable>
-
-        <Pressable style={({ pressed }) => [styles.option, pressed && styles.pressed]} onPress={goChallenge} accessibilityRole="button">
-          <View style={styles.optionIcon}>
-            <Feather name="award" size={20} color={palette.blue} />
-          </View>
-          <View style={styles.flex}>
-            <Text style={styles.optionTitle}>{t('recordChoice.challenge')}</Text>
-            <Text style={styles.optionSub}>{t('recordChoice.challengeSub')}</Text>
-          </View>
-          <Feather name="chevron-right" size={20} color={palette.checkOff} />
-        </Pressable>
-
-        <View style={styles.flex} />
-
-        <Pressable style={styles.retake} onPress={retake} accessibilityRole="button" hitSlop={8}>
-          <Feather name="refresh-ccw" size={14} color={palette.textFaint} />
-          <Text style={styles.retakeText}>{t('recordChoice.retake')}</Text>
-        </Pressable>
       </View>
-    </SafeAreaView>
+
+      <SafeAreaView edges={['bottom']} style={styles.sheet}>
+        <Text style={styles.sheetTitle}>{t('recordChoice.sheetTitle')}</Text>
+        <Text style={styles.sheetSub}>{t('recordChoice.sheetSub')}</Text>
+
+        <Option icon="message-circle" tint={palette.blue} bg={palette.blueSoft} title={t('recordChoice.coach')} sub={t('recordChoice.coachSub')} onPress={goAi} />
+        <Option icon="award" tint="#E9A23B" bg="#FFF4DE" title={t('recordChoice.challenge')} sub={t('recordChoice.challengeSub2')} onPress={goChallenge} />
+        <Option icon="video" tint={palette.textDim} bg={palette.bgSoft} title={t('recordChoice.retake2')} sub={t('recordChoice.retakeSub')} onPress={retake} />
+      </SafeAreaView>
+    </View>
+  );
+}
+
+function Option({
+  icon,
+  tint,
+  bg,
+  title,
+  sub,
+  onPress,
+}: {
+  icon: 'message-circle' | 'award' | 'video';
+  tint: string;
+  bg: string;
+  title: string;
+  sub: string;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable style={({ pressed }) => [styles.option, pressed && styles.pressed]} onPress={onPress} accessibilityRole="button">
+      <View style={[styles.optionIcon, { backgroundColor: bg }]}>
+        <Feather name={icon} size={18} color={tint} />
+      </View>
+      <View style={styles.flex}>
+        <Text style={styles.optionTitle}>{title}</Text>
+        <Text style={styles.optionSub}>{sub}</Text>
+      </View>
+      <Feather name="chevron-right" size={18} color={palette.checkOff} />
+    </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: palette.bg },
+  root: { flex: 1, backgroundColor: '#000000' },
   flex: { flex: 1 },
-  pressed: { opacity: 0.85 },
-  content: { flex: 1, padding: 20, gap: 14 },
-  previewWrap: { alignSelf: 'center', width: 150, aspectRatio: 9 / 16, borderRadius: 16, overflow: 'hidden', backgroundColor: palette.text },
-  preview: { width: '100%', height: '100%' },
-  durationChip: {
+  pressed: { opacity: 0.8 },
+  videoArea: { flex: 1 },
+  pauseCenter: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  playBtn: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  topBar: {
     position: 'absolute',
-    bottom: 8,
-    left: 8,
+    top: 0,
+    left: 0,
+    right: 0,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    backgroundColor: 'rgba(0,0,0,0.55)',
-    borderRadius: 999,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingTop: 8,
   },
-  durationText: { fontSize: 11, fontWeight: '700', color: '#FFFFFF' },
-  subtitle: { fontSize: 13.5, fontWeight: '600', color: palette.textDim, lineHeight: 20, textAlign: 'center', marginTop: 4 },
+  duration: { fontSize: 14, fontWeight: '800', color: '#FFFFFF' },
+  banner: {
+    position: 'absolute',
+    left: 20,
+    right: 20,
+    bottom: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: 'rgba(20,24,32,0.9)',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  bannerText: { flex: 1, fontSize: 13.5, fontWeight: '700', color: '#FFFFFF' },
+  bannerLink: { fontSize: 13, fontWeight: '800', color: '#7FB3FF' },
+  sheet: {
+    backgroundColor: palette.card,
+    borderTopLeftRadius: 22,
+    borderTopRightRadius: 22,
+    padding: 20,
+    paddingTop: 22,
+    gap: 10,
+  },
+  sheetTitle: { fontSize: 18, fontWeight: '800', color: palette.text },
+  sheetSub: { fontSize: 12.5, color: palette.textFaint, marginBottom: 6 },
   option: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    backgroundColor: palette.card,
-    borderColor: palette.border,
     borderWidth: 1,
+    borderColor: palette.border,
     borderRadius: 16,
-    padding: 16,
+    padding: 14,
   },
-  optionPrimary: { backgroundColor: palette.blue, borderColor: palette.blue },
-  optionIcon: { width: 42, height: 42, borderRadius: 12, backgroundColor: palette.blueSoft, alignItems: 'center', justifyContent: 'center' },
-  optionIconPrimary: { backgroundColor: 'rgba(255,255,255,0.2)' },
-  optionTitle: { fontSize: 16, fontWeight: '800', color: palette.text },
-  optionTitlePrimary: { color: '#FFFFFF' },
-  optionSub: { fontSize: 12.5, fontWeight: '500', color: palette.textFaint, marginTop: 3 },
-  optionSubPrimary: { color: 'rgba(255,255,255,0.85)' },
-  retake: { flexDirection: 'row', alignSelf: 'center', alignItems: 'center', gap: 6, padding: 10 },
-  retakeText: { fontSize: 13, fontWeight: '700', color: palette.textFaint },
+  optionIcon: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
+  optionTitle: { fontSize: 15, fontWeight: '800', color: palette.text },
+  optionSub: { fontSize: 12, color: palette.textFaint, marginTop: 2 },
 });

@@ -4,7 +4,6 @@ import { useState } from 'react';
 import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { useAppDialog } from '@/components/app-dialog';
 import { palette } from '@/constants/palette';
 import { logEvent } from '@/lib/analytics';
 import { PERF_IMAGES } from '@/lib/challenge-mock';
@@ -14,7 +13,8 @@ import { translate as t } from '@/lib/i18n';
  * A15/A16 챌린지(대사) 탭 — 유명 대사를 연기해 좋아요 랭킹을 겨루는 소셜 피드.
  *
  * 백엔드가 아직 없어 예시(목업) 데이터로 화면만 보여준다(previewNote로 명시). 서버 계약이
- * 서면 목록·오늘의 대사·랭킹을 실제 API로 바꾼다.
+ * 서면 목록·오늘의 대사·랭킹을 실제 API로 바꾼다. 내 챌린지(A15.5)·검색(A16.1)·등록(A16.2)도
+ * 같은 예시 데이터 위의 UI다.
  */
 
 const TODAY = {
@@ -37,7 +37,6 @@ const TABS = ['tabRanking', 'tabLatest', 'tabMine'] as const;
 
 export default function ChallengesScreen() {
   const router = useRouter();
-  const { alert, dialog } = useAppDialog();
   const [tab, setTab] = useState(0);
 
   // "이 대사 연기하기" — 대사를 띄운 챌린지 촬영(pen A18)으로. 찍으면 챌린지 올리기로 이어진다.
@@ -50,32 +49,23 @@ export default function ChallengesScreen() {
     logEvent('challenge_open_detail', { line: line.slice(0, 40) });
     router.push({ pathname: '/challenge-detail', params: { line, work } });
   };
-  // 아직 백엔드가 없는 버튼들 — 준비 중임을 알린다.
-  const soon = (where: string) => {
-    logEvent('challenge_soon_tap', { where });
-    void alert({
-      title: t('challenges.soonTitle'),
-      message: t('challenges.soonMessage'),
-      confirmLabel: t('common.confirm'),
-    });
-  };
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <View style={styles.header}>
         <Text style={styles.title}>{t('challenges.title')}</Text>
         <View style={styles.headerRight}>
-          <Pressable style={styles.myChip} onPress={() => soon('my')} accessibilityRole="button">
+          <Pressable style={styles.myChip} onPress={() => router.push({ pathname: '/saved-videos', params: { tab: 'mine' } })} accessibilityRole="button">
             <Feather name="award" size={13} color={palette.blueDeep} />
             <Text style={styles.myChipText}>{t('challenges.myChallenge')}</Text>
           </Pressable>
-          <Pressable style={styles.addBtn} onPress={() => soon('add')} accessibilityRole="button">
+          <Pressable style={styles.addBtn} onPress={() => router.push('/line-new')} accessibilityRole="button">
             <Feather name="plus" size={20} color={palette.text} />
           </Pressable>
         </View>
       </View>
 
-      <Pressable style={styles.search} onPress={() => soon('search')} accessibilityRole="button">
+      <Pressable style={styles.search} onPress={() => router.push('/line-search')} accessibilityRole="button">
         <Feather name="search" size={15} color={palette.textFaint} />
         <Text style={styles.searchPh}>{t('challenges.searchPh')}</Text>
       </Pressable>
@@ -158,13 +148,12 @@ export default function ChallengesScreen() {
 
         <Pressable
           style={({ pressed }) => [styles.registerBtn, pressed && styles.pressed]}
-          onPress={() => soon('register')}
+          onPress={() => router.push('/line-new')}
           accessibilityRole="button">
           <Feather name="plus" size={15} color={palette.blue} />
           <Text style={styles.registerText}>{t('challenges.registerCta')}</Text>
         </Pressable>
       </ScrollView>
-      {dialog}
     </SafeAreaView>
   );
 }
