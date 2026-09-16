@@ -43,7 +43,7 @@ final class DialogueNote {
                 ObjectNode note = base(handoff);
                 JsonNode generated = StructuredJson.parse(generate.apply(input.toString()));
                 StructuredJson.validate("layer3_note", generated);
-                ObjectNode summary = summary(generated.path("summary"), context, sources);
+                ObjectNode summary = summary(withExperience(generated.path("summary"), handoff, sources), handoff, context, sources);
                 JsonNode next = generated.path("next_take");
                 if (!next.isNull()) validateNext(next, context, sources, canPropose);
                 ((ObjectNode) note.path("copy")).set("summary", summary == null
@@ -59,6 +59,12 @@ final class DialogueNote {
         }
         // A deterministic, cited fallback records the discussed observation only.
         ObjectNode note = base(handoff);
+        ArrayNode experience = withExperience(StructuredJson.MAPPER.createArrayNode(), handoff, sources);
+        if (!experience.isEmpty()) {
+            ((ObjectNode) note.path("copy")).set("summary", summary(experience, handoff, context, sources));
+            StructuredJson.validate("practice_note", note);
+            return note;
+        }
         for (JsonNode id : context.path("focus").path("evidence_refs")) {
             JsonNode source = sources.get(id.asText());
             String text = source.path("text").asText();
@@ -90,7 +96,7 @@ final class DialogueNote {
         return note;
     }
 
-    private static ObjectNode summary(JsonNode excerpts, JsonNode context, Map<String, JsonNode> sources) {
+    private static ObjectNode summary(JsonNode excerpts, JsonNode handoff, JsonNode context, Map<String, JsonNode> sources) {
         if (excerpts.isEmpty()) return null;
         List<String> lines = new ArrayList<>();
         Set<String> kinds = new LinkedHashSet<>();
@@ -107,7 +113,7 @@ final class DialogueNote {
                 lines.add(quote);
             } else {
                 require(Set.of("actor_message", "actor_input").contains(kind), "summary cannot turn coach interpretation into fact");
-                require(isCurrentActorQuote(context, id, quote), "summary must use the current actor context");
+                require(isCurrentActorQuote(handoff, context, id, quote), "summary must use the current actor context or latest actor experience");
                 kind = "actor";
                 lines.add("“" + quote + "”라고 했어요.");
             }
@@ -119,12 +125,57 @@ final class DialogueNote {
         return summary;
     }
 
-    private static boolean isCurrentActorQuote(JsonNode context, String id, String quote) {
+    private static boolean isCurrentActorQuote(JsonNode handoff, JsonNode context, String id, String quote) {
+        // An experience does not need to be promoted to an acting goal to survive in the note.
+        // Use the latest substantive actor turn, so later corrections supersede older experiences.
+        JsonNode conversation = handoff.path("conversation");
+        for (int i = conversation.size() - 1; i >= 0; i--) {
+            JsonNode message = conversation.get(i);
+            if (!"actor".equals(message.path("role").asText())) continue;
+            String text = message.path("text").asText().strip();
+            if (text.matches("(?:그만|여기까지|끝|종료|마칠게|마칠게요|그만할래|그만할게|그만할게요)[.!?\\s]*")
+                    || text.matches("(?:(?:여기까지|지금까지|오늘은|오늘 대화|이번 대화)\\s*)?정리(?:해줘|해 줘|해주세요|해 주세요)[.!?\\s]*")
+                    || text.matches("[\\s.!?]*(네+|응|ㅇㅇ|ㅇㅋ|알겠어|알겠어요)[\\s.!?]*")) continue;
+            if (message.path("id").asText().equals(id)) {
+                return text.contains(quote)
+                        && !quote.matches("[\\s.!?？]*")
+                        && !quote.matches("[\\s.!?？]*(모르겠(?:어|어요|다)|몰라(?:요)?|ㅁㄹ|아니(?:지|야|요)?|뭐라는\\s*거야)[\\s.!?？]*");
+            }
+            // A later question must not erase an already-grounded current direction.
+            // Explicit corrections must not revive an older quote, even if context is stale.
+            if (text.matches("(?s)^(?:아니|정정|취소|잘못 말).*")) return false;
+            break;
+        }
         List<JsonNode> values = new ArrayList<>();
         values.add(context.path("direction"));
         context.path("scene_context").forEach(values::add);
         return values.stream().anyMatch(value -> contains(value.path("source_refs"), id)
                 && value.path("text").asText().contains(quote));
+    }
+
+    private static ArrayNode withExperience(JsonNode excerpts, JsonNode handoff, Map<String, JsonNode> sources) {
+        ArrayNode result = excerpts.deepCopy();
+        for (JsonNode message : handoff.path("conversation")) {
+            String id = message.path("id").asText();
+            String text = message.path("text").asText();
+            JsonNode source = sources.get(id);
+            if (!"actor".equals(message.path("role").asText()) || !ActorExperience.onlyExperience(text)
+                    || text.codePointCount(0, text.length()) > 50 || source == null
+                    || !"actor_message".equals(source.path("kind").asText())
+                    || !source.path("text").asText().equals(text)
+                    || !isCurrentActorQuote(handoff, handoff.path("context"), id, text)) continue;
+            // Preserve the exact latest short experience even when the model omits an actor excerpt.
+            ArrayNode kept = StructuredJson.MAPPER.createArrayNode();
+            kept.addObject().put("source_ref", id).put("quote", text);
+            for (JsonNode excerpt : result) {
+                JsonNode cited = sources.get(excerpt.path("source_ref").asText());
+                if (cited != null && "video_observation".equals(cited.path("kind").asText())) kept.add(excerpt);
+            }
+            // Do not silently fix invalid model summaries; validate them before substituting the actor quote.
+            summary(result, handoff, handoff.path("context"), sources);
+            return kept;
+        }
+        return result;
     }
 
     private static void validateNext(JsonNode next, JsonNode context, Map<String, JsonNode> sources, boolean canPropose) {
@@ -169,7 +220,8 @@ final class DialogueNote {
         for (JsonNode id : direction.path("source_refs")) {
             JsonNode source = sources.get(id.asText());
             if (source != null && Set.of("actor_input", "actor_message").contains(source.path("kind").asText())
-                    && source.path("text").asText().contains(direction.path("text").asText())) return true;
+                    && source.path("text").asText().contains(direction.path("text").asText())
+                    && !ActorExperience.onlyExperience(source.path("text").asText())) return true;
         }
         return false;
     }

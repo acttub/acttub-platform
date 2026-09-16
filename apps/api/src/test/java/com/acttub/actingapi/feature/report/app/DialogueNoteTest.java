@@ -11,6 +11,49 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.Test;
 
 class DialogueNoteTest {
+    @Test void aFollowupQuestionDoesNotEraseTheCurrentDirectionFromTheSummary() {
+        ObjectNode source = handoff();
+        ((com.fasterxml.jackson.databind.node.ArrayNode) source.path("conversation")).addObject()
+                .put("id", "question").put("role", "actor").put("text", "그래서 어떻게 하면 돼?");
+        ObjectNode note = PracticeNote.assemble(source, text -> output().toString());
+        assertThat(PracticeNote.publicView(note).path("summary").asText()).contains("애원하는 것처럼 보이긴 싫어");
+        assertThat(note.path("practice").isObject()).isTrue();
+    }
+
+    @Test void experienceSurvivesInSummaryWithoutInventingAGoalOrExercise() {
+        ObjectNode source = handoff();
+        ((ObjectNode) source.path("context")).putNull("direction");
+        var conversation = source.putArray("conversation");
+        conversation.addObject().put("id", "experience").put("role", "actor").put("text", "상대에게 말을 건네는 느낌이 편했어.");
+        conversation.addObject().put("id", "close").put("role", "actor").put("text", "여기까지 정리해줘");
+        ((com.fasterxml.jackson.databind.node.ArrayNode) source.path("source_catalog")).addObject()
+                .put("id", "experience").put("kind", "actor_message").put("text", "상대에게 말을 건네는 느낌이 편했어.")
+                .putNull("record_id").putNull("record_version").putNull("start_ms").putNull("end_ms");
+        ObjectNode generated = output();
+        generated.putNull("next_take");
+        generated.putArray("summary").addObject().put("source_ref", "experience").put("quote", "상대에게 말을 건네는 느낌이 편했어.");
+        ObjectNode note = PracticeNote.assemble(source, text -> {
+            assertThat(StructuredJson.parse(text).path("controls").path("can_propose").asBoolean()).isFalse();
+            return generated.toString();
+        });
+        assertThat(PracticeNote.publicView(note).path("summary").asText()).contains("편했어", "라고 했어요");
+        assertThat(note.path("direction").isNull()).isTrue();
+        assertThat(note.path("practice").isNull()).isTrue();
+
+        ObjectNode omitted = generated.deepCopy();
+        omitted.putArray("summary");
+        assertThat(PracticeNote.publicView(PracticeNote.assemble(source, text -> omitted.toString()))
+                .path("summary").asText()).contains("편했어");
+        assertThat(PracticeNote.publicView(PracticeNote.assemble(source, text -> { throw new IllegalStateException("offline"); }))
+                .path("summary").asText()).contains("편했어");
+
+        conversation.insertObject(1).put("id", "correction").put("role", "actor").put("text", "아니, 편했던 건 아니야.");
+        var errors = new ArrayList<RuntimeException>();
+        ObjectNode corrected = PracticeNote.assemble(source, text -> generated.toString(), errors::add);
+        assertThat(errors).hasSize(2);
+        assertThat(PracticeNote.publicView(corrected).path("summary").asText()).doesNotContain("편했어");
+    }
+
     private ObjectNode handoff() {
         ObjectNode old = (ObjectNode) StructuredJson.resource("/coaching/handoff.json").deepCopy();
         ObjectNode next = old.deepCopy();
