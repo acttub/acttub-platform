@@ -45,10 +45,59 @@ public final class CoachRecordLookup {
         Set<String> ids = new LinkedHashSet<>();
         index.forEach(item -> ids.add(item.path("id").asText()));
         record.path("overview").findValues("source_refs").forEach(refs -> refs.forEach(id -> ids.add(id.asText())));
+        // Short records include every observation and limitation; long records sample across time.
+        ArrayNode timeline = view.putArray("timeline");
+        List<JsonNode> observations = new ArrayList<>();
+        record.path("events").forEach(observations::add);
+        observations.sort(java.util.Comparator.comparingLong(item -> item.path("start_ms").asLong()));
+        int budget = 16_000;
+        Set<Integer> order = new LinkedHashSet<>();
+        if (!observations.isEmpty()) { order.add(0); order.add(observations.size() - 1); }
+        for (int offset = 0; offset < observations.size(); offset++) {
+            for (int bucket = 0; bucket < 12; bucket++) {
+                int begin = bucket * observations.size() / 12;
+                int end = (bucket + 1) * observations.size() / 12;
+                if (begin + offset < end) order.add(begin + offset);
+            }
+        }
+        Set<String> selected = new LinkedHashSet<>();
+        for (int position : order) {
+            JsonNode observation = observations.get(position);
+            JsonNode source = sources.get(observation.path("id").asText());
+            int cost = observation.toString().length() + source.toString().length();
+            if (cost > budget) continue;
+            budget -= cost;
+            selected.add(observation.path("id").asText());
+        }
+        for (JsonNode observation : observations) {
+            if (selected.contains(observation.path("id").asText())) timeline.add(observation);
+        }
+        ids.addAll(selected);
+        view.put("timeline_complete", selected.size() == observations.size());
+        int limitationBudget = 4_000;
+        int includedLimitations = 0;
+        for (JsonNode limitation : record.path("limitations")) {
+            JsonNode source = sources.get(limitation.path("id").asText());
+            int cost = source.toString().length();
+            if (cost > limitationBudget) continue;
+            limitationBudget -= cost;
+            ids.add(limitation.path("id").asText());
+            includedLimitations++;
+        }
+        view.put("limitations_complete", includedLimitations == record.path("limitations").size());
         ArrayNode catalog = view.putArray("source_catalog");
         ids.forEach(id -> { if (sources.containsKey(id)) catalog.add(sources.get(id)); });
         view.put("retrieval_status", "index_only");
         return view;
+    }
+
+    void refreshCoverage(JsonNode record, ObjectNode view) {
+        Set<String> delivered = new LinkedHashSet<>();
+        view.path("source_catalog").forEach(source -> delivered.add(source.path("id").asText()));
+        boolean observations = true, limitations = true;
+        for (JsonNode item : record.path("events")) observations &= delivered.contains(item.path("id").asText());
+        for (JsonNode item : record.path("limitations")) limitations &= delivered.contains(item.path("id").asText());
+        view.put("timeline_complete", observations).put("limitations_complete", limitations);
     }
 
     public ObjectNode lookup(JsonNode record, JsonNode request) {

@@ -56,6 +56,10 @@ final class StructuredCoachEngine {
         String style = responseStyle(state.path("response_style").asText(), actorText);
         int maxChars = switch (style) { case "brief" -> 80; case "expanded" -> 300; default -> 120; };
         int maxSentences = style.equals("expanded") ? 4 : style.equals("brief") ? 1 : 2;
+        if (actorText == null && style.equals("normal")) {
+            maxChars = 260;
+            maxSentences = 3;
+        }
         ObjectNode input = input(session, state, actorText, actorId, operationId);
         ObjectNode view = records.initial(session.observationPack());
         input.set("record_view", view);
@@ -81,10 +85,12 @@ final class StructuredCoachEngine {
                     lookups++;
                     JsonNode result = records.lookup(session.observationPack(), response.path("request"));
                     view = records.merge(view, result);
+                    records.refreshCoverage(session.observationPack(), view);
                     input.set("record_view", view);
                     input.remove("validation_error");
                     continue;
                 }
+                FocusCoverage.validate(response.path("context_update").path("focus"), session.observationPack(), view);
                 ObjectNode next = DialogueState.apply(state, response, deliveredSources(input), input.path("user_message"),
                         coachId, maxChars, maxSentences, finish,
                         input.path("last_exchange").path("coach_message").path("text").asText());
