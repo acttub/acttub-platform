@@ -8,6 +8,7 @@ import * as DocumentPicker from 'expo-document-picker';
 
 import { palette } from '@/constants/palette';
 import { useAppDialog } from '@/components/app-dialog';
+import { PdfTextExtractor } from '@/components/pdf-text-extractor';
 import { extractScriptText } from '@/lib/reading/extract-file';
 import { parseScript } from '@/lib/reading/parse';
 import { SAMPLE_SCRIPT } from '@/lib/reading/sample';
@@ -63,7 +64,7 @@ export default function ReadingNew() {
         <Pressable style={styles.dropzone} onPress={onPickFile} disabled={busy}>
           <Feather name={busy ? 'loader' : 'upload'} size={26} color={palette.blue} />
           <Text style={styles.dropTitle}>{busy ? '읽는 중…' : '대본 파일 첨부'}</Text>
-          <Text style={styles.dropSub}>TXT·DOCX 파일 선택 · 아래에 붙여넣어도 돼요</Text>
+          <Text style={styles.dropSub}>TXT·DOCX·PDF 파일 선택 · 아래에 붙여넣어도 돼요</Text>
         </Pressable>
 
         <Pressable style={styles.sampleBtn} onPress={() => setRaw(SAMPLE_SCRIPT)}>
@@ -87,6 +88,7 @@ export default function ReadingNew() {
           <Text style={styles.primaryText}>다음</Text>
         </Pressable>
       </View>
+      <PdfTextExtractor />
       {dialog}
     </View>
   );

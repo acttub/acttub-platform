@@ -26,7 +26,7 @@ type Gender = 'female' | 'male' | 'none';
  *
  * 이름은 프로필 셋업, 성별·나이는 배우 전용 기억(gender·age)에 저장한다. 추구 방향·연기
  * 경력·최종 목표는 아직 저장할 서버 필드가 없어 계측만 한다(theory 칩과 같은 상태).
- * 이름만 필수 — 나머지는 비워도 시작할 수 있다.
+ * 온보딩에선 전부 필수(빈 칸이 있으면 시작하기가 잠긴다). 편집 모드는 이름만 필수.
  */
 /**
  * 프로필 폼 — 온보딩(edit=false)과 설정의 프로필 편집(edit=true)이 공유한다.
@@ -50,6 +50,10 @@ export function ProfileForm({ edit: isEdit }: { edit: boolean }) {
 
   const careers = translateList('profileName.careerOptions');
   const goals = translateList('profileName.goalOptions');
+  // 온보딩은 인적사항 전부 필수. 편집은 이름만.
+  const complete = isEdit
+    ? name.trim().length > 0
+    : name.trim().length > 0 && gender !== null && birthYear.trim().length === 4 && mediums.length > 0 && career !== null && goal !== null;
 
   // 편집 모드에서는 저장된 값(이름·성별·나이)을 미리 채운다.
   useEffect(() => {
@@ -127,7 +131,7 @@ export function ProfileForm({ edit: isEdit }: { edit: boolean }) {
             returnKeyType="next"
           />
 
-          <Field label={t('profileName.genderLabel')}>
+          <Field label={t('profileName.genderLabel')} required={!isEdit}>
             <View style={styles.chips}>
               {(['female', 'male', 'none'] as Gender[]).map((g) => (
                 <Chip
@@ -146,7 +150,7 @@ export function ProfileForm({ edit: isEdit }: { edit: boolean }) {
             </View>
           </Field>
 
-          <Field label={t('profileName.ageLabel')}>
+          <Field label={t('profileName.ageLabel')} required={!isEdit}>
             <TextInput
               style={styles.input}
               placeholder={t('profileName.agePlaceholder')}
@@ -158,7 +162,7 @@ export function ProfileForm({ edit: isEdit }: { edit: boolean }) {
             />
           </Field>
 
-          <Field label={t('profileName.mediumLabel')}>
+          <Field label={t('profileName.mediumLabel')} required={!isEdit}>
             <View style={styles.chips}>
               {[
                 { v: 'media', k: 'profileName.mediumMedia' },
@@ -169,7 +173,7 @@ export function ProfileForm({ edit: isEdit }: { edit: boolean }) {
             </View>
           </Field>
 
-          <Field label={t('profileName.careerLabel')}>
+          <Field label={t('profileName.careerLabel')} required={!isEdit}>
             <View style={styles.chips}>
               {careers.map((label, i) => (
                 <Chip
@@ -182,7 +186,7 @@ export function ProfileForm({ edit: isEdit }: { edit: boolean }) {
             </View>
           </Field>
 
-          <Field label={t('profileName.goalLabel')}>
+          <Field label={t('profileName.goalLabel')} required={!isEdit}>
             <View style={styles.chips}>
               {goals.map((label, i) => (
                 <Chip
@@ -196,11 +200,12 @@ export function ProfileForm({ edit: isEdit }: { edit: boolean }) {
           </Field>
 
           {error && <Text style={styles.error}>{error}</Text>}
+          {!isEdit && !complete && <Text style={styles.requiredHint}>{t('profileName.requiredHint')}</Text>}
         </KeyboardAwareScroll>
         <Pressable
-          style={[styles.cta, (!name.trim() || busy) && styles.ctaDisabled]}
+          style={[styles.cta, (!complete || busy) && styles.ctaDisabled]}
           onPress={() => void submit()}
-          disabled={!name.trim() || busy}>
+          disabled={!complete || busy}>
           {busy ? (
             <ActivityIndicator color="#FFFFFF" />
           ) : (
@@ -217,10 +222,13 @@ export default function ProfileNameScreen() {
   return <ProfileForm edit={false} />;
 }
 
-function Field({ label, children }: { label: string; children: ReactNode }) {
+function Field({ label, required, children }: { label: string; required?: boolean; children: ReactNode }) {
   return (
     <View style={styles.field}>
-      <Text style={styles.fieldLabel}>{label}</Text>
+      <Text style={styles.fieldLabel}>
+        {label}
+        {required && <Text style={styles.requiredStar}> *</Text>}
+      </Text>
       {children}
     </View>
   );
@@ -278,6 +286,8 @@ const styles = StyleSheet.create({
   chipText: { fontSize: 14, fontWeight: '700', color: palette.textDim },
   chipTextOn: { color: palette.blueDeep },
   error: { color: palette.danger, fontSize: 13 },
+  requiredHint: { color: palette.textFaint, fontSize: 12.5, textAlign: 'center' },
+  requiredStar: { color: palette.blue },
   cta: {
     backgroundColor: palette.blue,
     borderRadius: 16,

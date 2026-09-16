@@ -8,6 +8,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { palette } from '@/constants/palette';
 import { api, type ReportRecord } from '@/lib/api';
 import { buildWeekActivity } from '@/lib/practice-activity';
+import { rememberPracticeDays } from '@/lib/practice-days';
 import { sortReportsNewestFirst } from '@/lib/report-order';
 import {
   localDate,
@@ -37,6 +38,8 @@ function recentDate(iso: string): string {
 export default function HomeScreen() {
   const router = useRouter();
   const [records, setRecords] = useState<ReportRecord[]>([]);
+  // 연속일·주간 원용 날짜 — 서버 기록 ∪ 기기에 누적된 연습일(지워도 남는다).
+  const [activityDays, setActivityDays] = useState<{ created_at: string }[]>([]);
   const [admissions, setAdmissions] = useState<AdmissionsResponse | null>(null);
   const [celebrateStreak, setCelebrateStreak] = useState<number | null>(null);
 
@@ -48,9 +51,13 @@ export default function HomeScreen() {
         .then((r) => {
           if (cancelled) return;
           setRecords(sortReportsNewestFirst(r.reports));
+          void rememberPracticeDays(r.reports).then((days) => !cancelled && setActivityDays(days));
         })
         .catch(() => {
-          if (!cancelled) setRecords([]);
+          if (!cancelled) {
+            setRecords([]);
+            void rememberPracticeDays([]).then((days) => !cancelled && setActivityDays(days));
+          }
         });
       return () => {
         cancelled = true;
@@ -79,7 +86,7 @@ export default function HomeScreen() {
     [admissions],
   );
 
-  const { days, streak } = useMemo(() => buildWeekActivity(records), [records]);
+  const { days, streak } = useMemo(() => buildWeekActivity(activityDays), [activityDays]);
 
   // 연속일이 오늘 늘었으면(마지막으로 본 값보다 크면) 딱 한 번 축하한다 (SOMA-479).
   useEffect(() => {

@@ -1,10 +1,22 @@
 /**
  * 첨부한 대본 파일에서 텍스트를 뽑는다 (SOMA-527).
- * TXT는 바로, DOCX는 mammoth로. PDF는 온디바이스 추출이 어려워 붙여넣기 안내.
+ * TXT는 바로, DOCX는 mammoth로. PDF는 Hermes에서 pdf.js가 안 돌아 숨김 WebView
+ * (components/pdf-text-extractor)가 등록한 추출기로 넘긴다 — 등록된 화면에서만 된다.
  */
 import { File } from 'expo-file-system';
 
 export class UnsupportedScriptFile extends Error {}
+
+type PdfExtractor = (uri: string) => Promise<string>;
+let pdfExtractor: PdfExtractor | null = null;
+
+/** WebView 추출기가 마운트되며 등록한다. 돌려주는 함수로 해제. */
+export function registerPdfExtractor(fn: PdfExtractor): () => void {
+  pdfExtractor = fn;
+  return () => {
+    if (pdfExtractor === fn) pdfExtractor = null;
+  };
+}
 
 export interface PickedFile {
   uri: string;
@@ -42,7 +54,16 @@ export async function extractScriptText(f: PickedFile): Promise<string> {
     }
   }
   if (kind === 'pdf') {
-    throw new UnsupportedScriptFile('PDF는 아직 자동 인식이 안 돼요. 대본 내용을 복사해서 붙여넣어 주세요.');
+    if (!pdfExtractor) {
+      throw new UnsupportedScriptFile('PDF 인식기를 아직 준비 중이에요. 잠시 후 다시 시도하거나 붙여넣어 주세요.');
+    }
+    try {
+      const text = (await pdfExtractor(f.uri)).trim();
+      if (!text) throw new Error('빈 문서');
+      return text;
+    } catch {
+      throw new UnsupportedScriptFile('PDF에서 글자를 못 읽었어요(스캔본일 수 있어요). 대본 내용을 복사해서 붙여넣어 주세요.');
+    }
   }
   throw new UnsupportedScriptFile('이 형식은 지원하지 않아요. TXT·DOCX를 올리거나 붙여넣어 주세요.');
 }

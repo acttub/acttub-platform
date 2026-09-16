@@ -184,7 +184,7 @@ const ko = {
     previewNote: '예시 화면이에요 — 실제 업로드는 곧 열려요.',
   },
   challenges: {
-    title: '대사',
+    title: '챌린지',
     myChallenge: '내 챌린지',
     searchPh: '대사·작품·배우 검색',
     tabRanking: '랭킹',
@@ -640,7 +640,8 @@ const ko = {
     mediumStage: '무대 (연극·뮤지컬)',
     careerLabel: '연기 경력',
     careerOptions: ['입문 전', '입시생', '1년 미만', '1–3년', '3–5년', '5년 이상'],
-    goalLabel: '최종 목표',
+    goalLabel: '지망 분야',
+    requiredHint: '모든 항목을 채워야 시작할 수 있어요.',
     goalOptions: ['취미', '공연·오디션', '전문 배우'],
     fail: '이름을 저장하지 못했어요.',
     cta: '시작하기',
