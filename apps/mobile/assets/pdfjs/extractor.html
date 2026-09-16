@@ -66,7 +66,9 @@ function isOverdrawn(kept,it){return kept.some(k=>{if(k.s!==it.s)return false;co
 function piecesToLines(items){if(!items.length)return[];const tol=Math.max(2,(items.reduce((a,b)=>a+b.h,0)/items.length)*0.5);const rows=[];for(const it of[...items].sort((a,b)=>b.y-a.y||a.x-b.x)){const row=rows.find(r=>Math.abs(r.y-it.y)<=tol);if(row)row.items.push(it);else rows.push({y:it.y,items:[it]});}const lines=[];for(const row of rows){row.items.sort((a,b)=>a.x-b.x);const kept=[];let text="";let prev=null;for(const it of row.items){if(isOverdrawn(kept,it))continue;if(prev&&it.x-(prev.x+prev.w)>prev.h*0.25)text+=" ";text+=it.s;kept.push(it);prev=it;}const cleaned=collapseRepeat(text.replace(/\s+/g," ").trim());if(cleaned)lines.push(cleaned);}return lines;}
 const post=(m)=>window.ReactNativeWebView&&window.ReactNativeWebView.postMessage(JSON.stringify(m));
 function b64ToBytes(b64){const bin=atob(b64);const out=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)out[i]=bin.charCodeAt(i);return out;}
-class InlineCMapReaderFactory{constructor(){}async fetch({name}){const b=CMAPS[name];if(!b)throw new Error('cmap '+name);return{cMapData:b64ToBytes(b),isCompressed:true};}}
+const CMAP_BASE='https://pdf.acttub.local/inline-cmaps/';
+const realFetch=window.fetch.bind(window);
+window.fetch=async function(input,init){const url=typeof input==='string'?input:(input&&input.url)||'';if(url.startsWith(CMAP_BASE)){const name=url.slice(CMAP_BASE.length).replace(/\.bcmap$/,'');const b=CMAPS[name];if(!b)return new Response(null,{status:404});return new Response(b64ToBytes(b),{status:200,headers:{'Content-Type':'application/octet-stream'}});}return realFetch(input,init);};
 window.__extractPdf=async function(b64){
   try{
     const pdfjs=globalThis.pdfjsLib;
@@ -74,7 +76,7 @@ window.__extractPdf=async function(b64){
       const src=document.getElementById('pdfjs-worker').textContent;
       pdfjs.GlobalWorkerOptions.workerSrc=URL.createObjectURL(new Blob([src],{type:'text/javascript'}));
     }
-    const doc=await pdfjs.getDocument({data:b64ToBytes(b64),CMapReaderFactory:InlineCMapReaderFactory}).promise;
+    const doc=await pdfjs.getDocument({data:b64ToBytes(b64),cMapUrl:CMAP_BASE,cMapPacked:true,useWorkerFetch:false}).promise;
     const pages=[];
     for(let p=1;p<=doc.numPages;p++){
       const page=await doc.getPage(p);const content=await page.getTextContent();const items=[];
