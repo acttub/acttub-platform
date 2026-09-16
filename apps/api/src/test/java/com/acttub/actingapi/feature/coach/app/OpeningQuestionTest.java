@@ -27,12 +27,14 @@ class OpeningQuestionTest {
     }
 
     @Test void openingRegeneratesMissingEvidenceFocusAndPrematureFinish() {
-        for (String error : List.of("reported", "no_evidence", "no_focus", "finish")) {
+        for (String error : List.of("reported", "no_evidence", "no_focus", "finish", "too_long")) {
             AtomicInteger calls = new AtomicInteger();
             var engine = new CoachEngine((system, text) -> {
                 assertThat(system).contains("이 답을 알면 영상의 무엇을 더 정확하게 볼 수 있는가?");
                 var input = StructuredJson.parse(text);
                 assertThat(input.path("controls").path("min_questions").asInt()).isZero();
+                assertThat(input.path("controls").path("max_message_chars").asInt()).isEqualTo(100);
+                assertThat(input.path("controls").path("max_sentences").asInt()).isEqualTo(2);
                 ObjectNode reply = StructuredCoachEngineTest.respond(input, QUESTION, "continue");
                 if (calls.getAndIncrement() == 0) {
                     switch (error) {
@@ -41,6 +43,7 @@ class OpeningQuestionTest {
                         case "no_evidence" -> ((ObjectNode) reply.path("reply_link")).putArray("evidence_refs");
                         case "no_focus" -> reply.putNull("context_update");
                         case "finish" -> reply.put("flow", "finish");
+                        case "too_long" -> reply.put("message", "영상에서 확인한 내용입니다 ".repeat(10));
                     }
                 } else assertThat(input.has("validation_error")).isTrue();
                 return StructuredCoachEngineTest.generated(reply);

@@ -57,8 +57,8 @@ final class StructuredCoachEngine {
         int maxChars = switch (style) { case "brief" -> 80; case "expanded" -> 300; default -> 120; };
         int maxSentences = style.equals("expanded") ? 4 : style.equals("brief") ? 1 : 2;
         if (actorText == null && style.equals("normal")) {
-            maxChars = 260;
-            maxSentences = 3;
+            maxChars = 100;
+            maxSentences = 2;
         }
         ObjectNode input = input(session, state, actorText, actorId, operationId);
         ObjectNode view = records.initial(session.observationPack());

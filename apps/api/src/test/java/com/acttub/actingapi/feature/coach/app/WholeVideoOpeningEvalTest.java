@@ -72,6 +72,9 @@ class WholeVideoOpeningEvalTest {
         var result = engine.start(session, UUID.randomUUID());
         var output = StructuredJson.MAPPER.createObjectNode().put("message", result.reply().message()).put("semantic_review", "pending");
         output.set("focus", result.session().coachingState().path("context").path("focus"));
+        output.set("coach_calls", calls);
+        var openingErrors = output.putArray("opening_errors");
+        failures.reports().forEach(report -> openingErrors.add(report.failure().getMessage()));
         Path dir = Path.of("build", "whole-video-eval", name); Files.createDirectories(dir);
         StructuredJson.MAPPER.writerWithDefaultPrettyPrinter().writeValue(dir.resolve("opening.json").toFile(), output);
         assertThat(output.path("focus").path("scope").asText()).isEqualTo("whole_video");
