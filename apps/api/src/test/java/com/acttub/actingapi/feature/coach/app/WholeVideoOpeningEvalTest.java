@@ -11,6 +11,8 @@ import com.acttub.actingapi.integration.observation.ActorMaterial;
 import com.acttub.actingapi.integration.observation.VideoRecord;
 import com.acttub.actingapi.support.RecordingFailureReporter;
 import com.acttub.actingapi.support.RecordingLlmTelemetry;
+import com.acttub.actingapi.feature.report.app.ReportEngine;
+import com.acttub.actingapi.feature.report.app.PracticeNote;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
@@ -54,5 +56,31 @@ class WholeVideoOpeningEvalTest {
         assertThat(output.path("focus").path("scope").asText()).isEqualTo("whole_video");
         assertThat(output.path("focus").path("pattern").asText()).isEqualTo("recurring");
         assertThat(OpeningQuestion.questionCount(result.reply().message())).isEqualTo(1);
+        var messages = output.putArray("conversation");
+        messages.addObject().put("role", "ai").put("text", result.reply().message());
+        try {
+            for (String answer : List.of("끝말이 작아진 건 몰랐어. 장면 전체에서 내 말을 끝까지 전하고 싶어.",
+                    "소리를 지르고 싶은 건 아니고, 마지막 말까지 들리게 하고 싶어.", "여기까지 정리해줘")) {
+                if ("closed".equals(result.session().status())) break;
+                messages.addObject().put("role", "actor").put("text", answer);
+                result = engine.reply(result.session(), answer, UUID.randomUUID());
+                messages.addObject().put("role", "ai").put("text", result.reply().message());
+                assertThat(result.reply().message()).doesNotContain("지금은 이 구간을 더 확인하기 어려워요",
+                        "영상에 근거한 설명을 준비하지 못했어요", "기대답변");
+            }
+            assertThat(result.session().status()).isEqualTo("closed");
+            assertThat(result.reply().handoff()).isNotNull();
+            output.set("handoff", result.reply().handoff());
+            var reports = new ReportEngine(new OpenAiResponsesClient(StructuredJson.MAPPER),
+                    StructuredJson.MAPPER, new RecordingLlmTelemetry());
+            var note = reports.generateReport("coaching", null, result.reply().handoff(), false, "synthetic", null, null);
+            output.set("note", note);
+            output.set("visible_note", PracticeNote.publicView(note));
+            assertThat(note.path("focus").path("scope").asText()).isEqualTo("whole_video");
+            assertThat(note.path("practice").isObject()).isTrue();
+            assertThat(note.path("attempts")).isEmpty();
+        } finally {
+            StructuredJson.MAPPER.writerWithDefaultPrettyPrinter().writeValue(dir.resolve("conversation-note.json").toFile(), output);
+        }
     }
 }
