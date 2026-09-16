@@ -148,7 +148,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   thumbSelected: { borderWidth: 3, borderColor: palette.blue },
-  thumbImg: { opacity: 0.35 },
+  thumbImg: { width: '100%', height: '100%', opacity: 0.35 },
   star: { position: 'absolute', top: 10, left: 10 },
   durationChip: {
     position: 'absolute',

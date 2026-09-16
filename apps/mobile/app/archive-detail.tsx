@@ -119,7 +119,7 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   pressed: { opacity: 0.8 },
   videoArea: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  poster: { opacity: 0.3 },
+  poster: { width: '100%', height: '100%', opacity: 0.3 },
   topBar: {
     position: 'absolute',
     top: 0,

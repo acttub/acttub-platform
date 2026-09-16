@@ -65,7 +65,7 @@ export default function SavedVideosScreen() {
             {items.map((v) => (
               <Pressable key={v.id} style={styles.cell} onPress={() => open(v)} accessibilityRole="button">
                 <View style={styles.thumb}>
-                  <Image source={PERF_IMAGES[v.img]} style={StyleSheet.absoluteFill} resizeMode="cover" />
+                  <Image source={PERF_IMAGES[v.img]} style={[StyleSheet.absoluteFill, styles.thumbImg]} resizeMode="cover" />
                   <View style={styles.thumbScrim} />
                   {tab === 'saved' && (
                     <Pressable
@@ -115,6 +115,7 @@ const styles = StyleSheet.create({
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   cell: { width: '48%', gap: 6 },
   thumb: { aspectRatio: 0.78, borderRadius: 14, overflow: 'hidden', backgroundColor: palette.navy },
+  thumbImg: { width: '100%', height: '100%' },
   thumbScrim: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 60, backgroundColor: 'rgba(0,0,0,0.45)' },
   bookmark: {
     position: 'absolute',
