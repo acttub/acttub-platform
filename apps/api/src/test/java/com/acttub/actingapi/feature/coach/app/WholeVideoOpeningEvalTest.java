@@ -33,6 +33,23 @@ class WholeVideoOpeningEvalTest {
                         "다음에도 이 장면으로 할게. 말은 또렷하게 하되 세 문장을 똑같이 말하고 싶지는 않아.", "여기까지 정리해줘"));
     }
 
+    @Test void experienceAloneDoesNotBecomeAGoalBeforeTheActorChooses() throws Exception {
+        evaluate("experience", "문장 처음부터 마지막 음절까지 말소리가 또렷하게 들린다. 소리를 지르거나 끝말을 늘이지 않는다.",
+                List.of("상대에게 말을 끝까지 건네는 느낌이 편했어.",
+                        "그 느낌은 유지하고 싶어. 이 장면에서 세 문장을 똑같이 말하지 않으면서 끝까지 전달하고 싶어.",
+                        "여기까지 정리해줘"));
+    }
+
+    @Test void experienceCanEndWithoutAGoalAndStillAppearInTheNote() throws Exception {
+        evaluate("experience-only", "문장 처음부터 마지막 음절까지 말소리가 또렷하게 들린다.",
+                List.of("상대에게 말을 끝까지 건네는 느낌이 편했어.", "여기까지 정리해줘"));
+    }
+
+    @Test void denialConfusionAndUncertaintyDoNotForceAGoal() throws Exception {
+        evaluate("confusion", "문장 앞부분은 뚜렷하지만 끝 두 음절에서 소리가 작아져 알아듣기 어렵다.",
+                List.of("아니지", "뭐라는 거야?", "모르겠어", "여기까지 정리해줘"));
+    }
+
     private void evaluate(String name, String observation, List<String> answers) throws Exception {
         ObjectNode chunk = (ObjectNode) StructuredJson.resource("/coaching/chunk.json").deepCopy();
         var utterances = chunk.putArray("utterances");
@@ -72,6 +89,9 @@ class WholeVideoOpeningEvalTest {
         var result = engine.start(session, UUID.randomUUID());
         var output = StructuredJson.MAPPER.createObjectNode().put("message", result.reply().message()).put("semantic_review", "pending");
         output.set("focus", result.session().coachingState().path("context").path("focus"));
+        output.set("coach_calls", calls);
+        var openingErrors = output.putArray("opening_errors");
+        failures.reports().forEach(report -> openingErrors.add(report.failure().getMessage()));
         Path dir = Path.of("build", "whole-video-eval", name); Files.createDirectories(dir);
         StructuredJson.MAPPER.writerWithDefaultPrettyPrinter().writeValue(dir.resolve("opening.json").toFile(), output);
         assertThat(output.path("focus").path("scope").asText()).isEqualTo("whole_video");
@@ -85,7 +105,11 @@ class WholeVideoOpeningEvalTest {
                 messages.addObject().put("role", "actor").put("text", answer);
                 result = engine.reply(result.session(), answer, UUID.randomUUID());
                 messages.addObject().put("role", "ai").put("text", result.reply().message());
+                if (name.equals("experience") && answer.equals(answers.get(0))) {
+                    assertThat(result.session().coachingState().path("context").path("direction").isNull()).isTrue();
+                }
                 assertThat(DialogueState.asksToSelectPassage(result.reply().message())).isFalse();
+                assertThat(DialogueState.presentsExperienceAsObservation(result.reply().message())).isFalse();
                 assertThat(result.reply().message()).doesNotContain("지금은 이 구간을 더 확인하기 어려워요",
                         "영상에 근거한 설명을 준비하지 못했어요", "기대답변");
             }
@@ -105,8 +129,14 @@ class WholeVideoOpeningEvalTest {
             var note = reports.generateReport("coaching", null, result.reply().handoff(), false, "synthetic", null, null);
             output.set("note", note);
             output.set("visible_note", PracticeNote.publicView(note));
-            assertThat(note.path("focus").path("scope").asText()).isEqualTo("whole_video");
-            assertThat(note.path("practice").isObject()).isTrue();
+            if (!name.equals("confusion")) assertThat(note.path("focus").path("scope").asText()).isEqualTo("whole_video");
+            if (name.equals("confusion") || name.equals("experience-only")) {
+                assertThat(note.path("direction").isNull()).isTrue();
+                assertThat(note.path("practice").isNull()).isTrue();
+                if (name.equals("experience-only")) {
+                    assertThat(PracticeNote.publicView(note).path("summary").asText()).contains("편했어");
+                }
+            } else assertThat(note.path("practice").isObject()).isTrue();
             assertThat(note.path("attempts")).isEmpty();
         } finally {
             output.set("coach_calls", calls);

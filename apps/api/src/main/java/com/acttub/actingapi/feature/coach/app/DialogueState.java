@@ -6,6 +6,7 @@ import java.util.Set;
 import java.util.regex.Pattern;
 
 import com.acttub.actingapi.integration.llm.StructuredJson;
+import com.acttub.actingapi.feature.report.app.ActorExperience;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
@@ -19,6 +20,17 @@ final class DialogueState {
             + "|(?:대사|문장|끝말|대목|구간)[^.!?？。\\n]{0,35}(?:어느|어떤|몇\\s*번째|하나|고르|골라|선택)");
 
     private DialogueState() { }
+
+    /** Reject the observed experience-as-video paraphrases; attribution is not visual evidence. */
+    static boolean presentsExperienceAsObservation(String message) {
+        for (String sentence : QUOTED_TEXT.matcher(message).replaceAll("").split("(?<=[.!?？。])|\\n")) {
+            if (sentence.contains("?") || sentence.contains("？")) continue;
+            boolean subjective = sentence.matches("(?s).*(?:편안함|감각).*");
+            boolean observed = sentence.matches("(?s).*(?:보여요|보였어요|드러나요|드러났어요|세\\s*문장.*이어졌어요|전달됐어요|전달됐습니다).*");
+            if (subjective && observed) return true;
+        }
+        return false;
+    }
 
     /** Narrow guard for a reproduced scope-reset question, not a semantic quality classifier. */
     static boolean asksToSelectPassage(String message) {
@@ -66,6 +78,9 @@ final class DialogueState {
                     .contains(source.path("kind").asText()), "reply evidence must be delivered video material");
         }
         String message = response.path("message").asText().strip();
+        require(!presentsExperienceAsObservation(message),
+                "배우가 말한 편안함·감각을 영상에서 보인 사실로 단정하지 않는다. 경험은 배우가 느낀 것으로 받아주고, "
+                + "영상의 말소리·움직임은 별도 문장으로 설명한다. 둘의 관계를 만들어내지 않는다.");
         if (!userMessage.isNull() && "whole_video".equals(previous.path("context").path("focus").path("scope").asText())) {
             require(!asksToSelectPassage(message),
                     "전체 초점에서 대사·문장·끝말 하나를 고르게 하지 않는다. 배우의 답을 반영해 전체 개선 방향을 설명한다. "
@@ -111,6 +126,11 @@ final class DialogueState {
         JsonNode update = response.path("context_update");
         if (!update.isNull()) {
             validateActorQuote(update.path("direction"), catalog);
+            for (JsonNode ref : update.path("direction").path("source_refs")) {
+                require(!ActorExperience.onlyExperience(catalog.get(ref.asText()).path("text").asText()),
+                        "경험만 말한 발화를 목표로 저장하지 않는다. 편했어·급했어는 direction의 근거가 아니다. "
+                        + "배우가 원하는 방향을 말하지 않았다면 direction은 null로 둔다.");
+            }
             for (String key : List.of("situation", "character_goal", "partner_action")) {
                 validateActorQuote(update.path("scene_context").path(key), catalog);
             }

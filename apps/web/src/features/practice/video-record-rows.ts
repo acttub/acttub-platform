@@ -7,7 +7,16 @@ export type VideoRecordSummary = components["schemas"]["VideoRecordSummaryRespon
  * 요약을 준다. 장면 패널이 그릴 [라벨, 값] 줄로 바꾼다. legacy 요약이나 요약이 없으면 빈 배열이라
  * 호출하는 쪽은 분기 없이 같은 자리에 둘 수 있다.
  */
-export function videoRecordRows(summary: unknown): [string, string][] {
+export function videoRecordRows(
+  summary: unknown,
+  siteUrl: string | undefined = process.env.NEXT_PUBLIC_SITE_URL,
+): [string, string][] {
+  // Both deployed environments use production builds; allow only the dev site.
+  try {
+    if (!siteUrl || new URL(siteUrl).origin !== "https://dev.acttub.com") return [];
+  } catch {
+    return [];
+  }
   if (!isVideoRecordSummary(summary)) return [];
   const rows: [string, string][] = [];
   if (summary.observed_scene.length > 0) rows.push(["영상에서 본 것", summary.observed_scene.join(" ")]);

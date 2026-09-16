@@ -15,6 +15,35 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.Test;
 
 class DialogueStateTest {
+    @Test void anExactExperienceQuoteIsStillNotAGoal() {
+        ObjectNode state = CoachingStateReducer.empty();
+        String text = "상대에게 말을 건네는 느낌이 편했어.";
+        ObjectNode actor = StructuredJson.MAPPER.createObjectNode().put("id", "m1").put("text", text);
+        ObjectNode input = StructuredJson.MAPPER.createObjectNode();
+        input.set("user_message", actor); input.set("coaching_state", state);
+        ObjectNode response = StructuredCoachEngineTest.respond(input, "편하게 느끼셨군요.", "continue");
+        ObjectNode context = state.path("context").deepCopy();
+        context.putObject("direction").put("text", text).put("origin", "actor_stated").putArray("source_refs").add("m1");
+        response.set("context_update", context);
+        var sources = StructuredJson.MAPPER.createArrayNode().add(CoachingStateReducer.source("m1", "actor_message", text));
+        assertThatThrownBy(() -> DialogueState.apply(state, response, sources, actor, "c1", 120, 2, false, ""))
+                .hasMessageContaining("경험만 말한 발화");
+        context.putNull("direction");
+        assertThat(DialogueState.apply(state, response, sources, actor, "c1", 120, 2, false, "")
+                .path("context").path("direction").isNull()).isTrue();
+    }
+
+    @Test void separatesReportedExperienceFromObservedSpeech() {
+        for (String invalid : List.of("그 편안함이 영상에서 보여요.",
+                "편하게 상대에게 말을 건네는 감각이 세 문장 모두에서 마지막 음절까지 또렷하게 이어졌어요.",
+                "그 감각이 화면에 드러나요.", "상대에게 말을 건네는 감각이 세 문장 모두 또렷하게 전달됐어요.")) {
+            assertThat(DialogueState.presentsExperienceAsObservation(invalid)).as(invalid).isTrue();
+        }
+        for (String valid : List.of("편하게 느끼셨군요. 영상에서는 끝말까지 들렸어요.",
+                "그 감각을 유지하고 싶나요?", "영상만으로 편안함을 확인할 수는 없어요.")) {
+            assertThat(DialogueState.presentsExperienceAsObservation(valid)).as(valid).isFalse();
+        }
+    }
     @Test void detectsScopeResetParaphrasesWithoutRejectingQuotedLinesOrUsefulQuestions() {
         for (String message : List.of("세 문장 중 어느 끝말을 가장 분명히 남기고 싶나요?",
                 "어떤 문장부터 볼까요?", "어느 대사가 가장 중요해요？", "대사 하나를 골라주세요.",
@@ -93,7 +122,7 @@ class DialogueStateTest {
 
     @Test void assignmentsAndVagueInterpretationsAreRejectedBeforeTheyReachTheActor() {
         for (String invalid : List.of("이 망설임을 남기고 싶었나요?", "시선을 유지해 보세요.",
-                "한 번 찍어보고 알려주세요.", "**시선**을 바꿔보세요.")) {
+                "한 번 찍어보고 알려주세요.", "**시선**을 바꿔보세요.", "그 편안함이 영상에서 보여요.")) {
             CoachResult result = new CoachEngine((system, input) -> StructuredCoachEngineTest.generated(
                     StructuredCoachEngineTest.respond(StructuredJson.parse(input), invalid, "continue")),
                     new RecordingFailureReporter(), new RecordingLlmTelemetry())
