@@ -28,6 +28,39 @@ class CoachRecordLookupTest {
         return out;
     }
 
+    @Test void openingIncludesObservationsAcrossWholeShortVideoAndItsLimitations() {
+        var view = lookup.initial(record);
+        assertThat(ids(view.path("timeline"))).contains("e1", "e5", "e8");
+        assertThat(view.path("timeline_complete").asBoolean()).isTrue();
+        assertThat(view.path("limitations_complete").asBoolean()).isTrue();
+        record.path("events").forEach(e -> assertThat(ids(view.path("source_catalog"))).contains(e.path("id").asText()));
+        record.path("limitations").forEach(e -> assertThat(ids(view.path("source_catalog"))).contains(e.path("id").asText()));
+    }
+    @Test void longRecordSamplesBeginningAndEndAndDisclosesOmissions() {
+        ObjectNode longRecord = record.deepCopy();
+        var events = longRecord.putArray("events");
+        ObjectNode template = (ObjectNode) record.path("events").get(0);
+        for (int i = 0; i < 200; i++) {
+            events.add(template.deepCopy().put("id", "sample:" + i).put("start_ms", i * 100)
+                    .put("end_ms", i * 100 + 80).put("description", "관찰".repeat(100)));
+        }
+        var view = lookup.initial(longRecord);
+        assertThat(view.path("timeline_complete").asBoolean()).isFalse();
+        assertThat(ids(view.path("timeline"))).contains("sample:0", "sample:199");
+        assertThat(view.path("timeline").size()).isLessThan(200);
+    }
+
+    @Test void fullLookupClearsIncompleteFlags() {
+        ObjectNode view = lookup.initial(record);
+        view.putArray("source_catalog");
+        lookup.refreshCoverage(record, view);
+        assertThat(view.path("timeline_complete").asBoolean()).isFalse();
+        view = lookup.merge(view, lookup.lookup(record, request("{\"kind\":\"range\",\"start_ms\":0,\"end_ms\":8000}")));
+        lookup.refreshCoverage(record, view);
+        assertThat(view.path("timeline_complete").asBoolean()).isTrue();
+        assertThat(view.path("limitations_complete").asBoolean()).isTrue();
+    }
+
     @Test void aSecondLookupKeepsTheEvidenceOfTheFirst() {
         ObjectNode view = lookup.initial(record);
         view = lookup.merge(view, lookup.lookup(record, request("{\"kind\":\"range\",\"start_ms\":0,\"end_ms\":4000}")));

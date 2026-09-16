@@ -118,6 +118,23 @@
           },
           "minItems": 1,
           "uniqueItems": true
+        },
+        "scope": {
+          "type": "string",
+          "enum": [
+            "whole_video",
+            "local"
+          ],
+          "description": "Scope of the coaching topic. Missing on legacy records means local."
+        },
+        "pattern": {
+          "type": "string",
+          "enum": [
+            "recurring",
+            "changing",
+            "isolated"
+          ],
+          "description": "Repeated characteristic, change across the video, or a local observation."
         }
       },
       "required": [
