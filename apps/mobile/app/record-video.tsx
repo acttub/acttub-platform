@@ -6,6 +6,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { useAppDialog } from '@/components/app-dialog';
 import { palette } from '@/constants/palette';
 import { translate as t } from '@/lib/i18n';
 import { MAX_VIDEO_DURATION_MS, normalizeVideoDurationMs } from '@/lib/upload-input';
@@ -47,6 +48,9 @@ export default function RecordVideoScreen() {
   const [lineHidden, setLineHidden] = useState(false);
   // 종료 처리가 겹쳐 두 번 도는 것을 막는다(자동 정지 + 사용자 정지).
   const finishedRef = useRef(false);
+  const { confirm, dialog } = useAppDialog();
+  // 권한 요청은 화면에 들어오자마자 한 번만 — OS 팝업이 곧바로 뜬다.
+  const askedRef = useRef(false);
 
   useEffect(() => {
     if (!recording) return;
@@ -54,7 +58,27 @@ export default function RecordVideoScreen() {
     return () => clearInterval(id);
   }, [recording]);
 
-  const ready = camPerm?.granted && micPerm?.granted;
+  const ready = !!(camPerm?.granted && micPerm?.granted);
+
+  // 들어오자마자 OS 권한 팝업(카메라 → 마이크)을 띄운다. 거절하면 작은 안내 팝업에서
+  // 설정으로 보내거나 되돌아간다 — 별도 안내 화면은 두지 않는다.
+  useEffect(() => {
+    if (ready || askedRef.current || !camPerm || !micPerm) return;
+    askedRef.current = true;
+    void (async () => {
+      const cam = camPerm.granted ? camPerm : await requestCam();
+      const mic = micPerm.granted ? micPerm : await requestMic();
+      if (cam.granted && mic.granted) return;
+      const toSettings = await confirm({
+        title: t('record.permissionTitle'),
+        message: t('record.permissionBody'),
+        confirmLabel: t('record.openSettings'),
+        cancelLabel: t('common.cancel'),
+      });
+      if (toSettings) void Linking.openSettings();
+      router.back();
+    })();
+  }, [ready, camPerm, micPerm, requestCam, requestMic, confirm, router]);
 
   const goNext = useCallback(() => {
     if (isChallenge) {
@@ -123,28 +147,13 @@ export default function RecordVideoScreen() {
     goNext();
   }, [goNext]);
 
-  // --- 권한이 아직 없으면 요청 화면 ---
+  // 권한이 아직 없으면 카메라 자리만 검게 두고 팝업(OS·안내)이 뜨길 기다린다.
   if (!ready) {
-    const denied = camPerm?.status === 'denied' || micPerm?.status === 'denied';
-    const ask = async () => {
-      await requestCam();
-      await requestMic();
-    };
     return (
-      <SafeAreaView style={styles.permSafe}>
+      <View style={styles.safe}>
         <Stack.Screen options={{ title: t('record.screenTitle') }} />
-        <View style={styles.permBody}>
-          <Text style={styles.permTitle}>{t('record.permissionTitle')}</Text>
-          <Text style={styles.permText}>{t('record.permissionBody')}</Text>
-          <Pressable
-            style={styles.permBtn}
-            onPress={() => (denied ? void Linking.openSettings() : void ask())}>
-            <Text style={styles.permBtnText}>
-              {denied ? t('record.openSettings') : t('record.grant')}
-            </Text>
-          </Pressable>
-        </View>
-      </SafeAreaView>
+        {dialog}
+      </View>
     );
   }
 
@@ -346,16 +355,4 @@ const styles = StyleSheet.create({
   shutterInnerRed: { width: 60, height: 60, borderRadius: 30, backgroundColor: '#E5645C' },
   shutterInnerStop: { width: 30, height: 30, borderRadius: 6, backgroundColor: palette.danger },
   hint: { color: '#FFFFFF', textAlign: 'center', fontSize: 13, opacity: 0.85, paddingBottom: 8 },
-  permSafe: { flex: 1, backgroundColor: palette.bg },
-  permBody: { flex: 1, justifyContent: 'center', padding: 28, gap: 12 },
-  permTitle: { fontSize: 20, fontWeight: '800', color: palette.text },
-  permText: { fontSize: 15, lineHeight: 22, color: palette.textDim },
-  permBtn: {
-    marginTop: 8,
-    backgroundColor: palette.blue,
-    paddingVertical: 14,
-    borderRadius: 14,
-    alignItems: 'center',
-  },
-  permBtnText: { color: '#FFFFFF', fontSize: 16, fontWeight: '700' },
 });
